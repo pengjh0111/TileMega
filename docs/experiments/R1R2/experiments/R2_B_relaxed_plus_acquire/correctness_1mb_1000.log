@@ -1,0 +1,1 @@
+[spin_wait_relaxed_acquire] over 1000 iterations: PASS=1000 FAIL=0 observed_range=[34359672832.000000,34359672832.000000] ref=34359607296.000000

@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# tilemega-compile —— MLIR → cubin 一键流程（骨架 P0.2）
+#
+# 封装三步：
+#   cuda-tile-opt        验证 IR
+#   cuda-tile-translate  MLIR → .tilebc（Tile IR bytecode）
+#   tileiras             .tilebc → .cubin（闭源后端）
+#
+# 为什么值得单独封装而不是各处手写命令：
+#   1. R1/R2 的每个实验目录都有一份自己的 run.sh，命令略有出入（bytecode 版本、
+#      tileiras 路径都不一致），后来复现时无法确定当时到底用的哪个组合。
+#   2. tileiras 是闭源黑盒且**版本行为有实质差异**（V0 已实测：13.1 与 13.3
+#      产出的 REQNTID 分别是 256 与 128，直接改变 occupancy 与 cooperative
+#      launch 上限）。所以 tileiras 版本必须是一个显式、被记录的参数，
+#      不能靠 PATH 里碰到哪个算哪个。
+#   3. 每次编译都吐一份 .env.json 记录完整环境，让任何 cubin 都能追溯到
+#      产生它的工具链。
+# ==============================================================================
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BUILD="${TILEMEGA_BUILD_DIR:-$ROOT/build}"
+
+GPU_ARCH="${TILEMEGA_GPU_ARCH:-sm_120}"
+BC_VERSION="${TILEMEGA_BYTECODE_VERSION:-13.3}"
+TILEIRAS="${TILEMEGA_TILEIRAS:-/data/cuda-13.3.1/bin/tileiras}"
+KEEP_INTERMEDIATE=0
+OUT=""
+
+usage() {
+  cat <<EOF
+用法: tilemega-compile [选项] <input.mlir>
+
+选项:
+  -o <file>        输出 cubin 路径（默认 <input>.cubin）
+  --arch <arch>    GPU 架构（默认 $GPU_ARCH）
+  --tileiras <p>   tileiras 路径（默认 $TILEIRAS）
+  --bc-version <v> Tile IR bytecode 版本（默认 $BC_VERSION）
+  --keep           保留中间的 .tilebc
+  -h, --help       本帮助
+
+环境变量: TILEMEGA_GPU_ARCH / TILEMEGA_TILEIRAS / TILEMEGA_BYTECODE_VERSION
+         TILEMEGA_BUILD_DIR
+
+注意: tileiras 版本会实质影响产物（见 V0：13.1 vs 13.3 的 REQNTID 为 256 vs 128）。
+      每次编译写出的 <out>.env.json 记录了完整工具链，复现时以它为准。
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o) OUT="$2"; shift 2;;
+    --arch) GPU_ARCH="$2"; shift 2;;
+    --tileiras) TILEIRAS="$2"; shift 2;;
+    --bc-version) BC_VERSION="$2"; shift 2;;
+    --keep) KEEP_INTERMEDIATE=1; shift;;
+    -h|--help) usage; exit 0;;
+    -*) echo "未知选项: $1" >&2; usage >&2; exit 2;;
+    *) INPUT="$1"; shift;;
+  esac
+done
+
+[[ -n "${INPUT:-}" ]] || { echo "错误: 缺少输入 .mlir" >&2; usage >&2; exit 2; }
+[[ -f "$INPUT" ]] || { echo "错误: 找不到 $INPUT" >&2; exit 1; }
+
+CT_OPT="$(find "$BUILD" -name cuda-tile-opt -type f 2>/dev/null | head -1)"
+CT_TRANSLATE="$(find "$BUILD" -name cuda-tile-translate -type f 2>/dev/null | head -1)"
+for t in "$CT_OPT:cuda-tile-opt" "$CT_TRANSLATE:cuda-tile-translate"; do
+  p="${t%%:*}"; n="${t##*:}"
+  [[ -x "$p" ]] || { echo "错误: 在 $BUILD 下找不到 $n，先 ninja -C build $n" >&2; exit 1; }
+done
+[[ -x "$TILEIRAS" ]] || { echo "错误: tileiras 不可执行: $TILEIRAS" >&2; exit 1; }
+
+BASE="${INPUT%.mlir}"
+OUT="${OUT:-$BASE.cubin}"
+TILEBC="${OUT%.cubin}.tilebc"
+
+echo "[1/3] 验证 IR      : $CT_OPT"
+"$CT_OPT" "$INPUT" -o /dev/null
+
+echo "[2/3] MLIR -> tilebc (bytecode $BC_VERSION)"
+"$CT_TRANSLATE" "$INPUT" \
+  --mlir-to-cudatilebc --no-implicit-module \
+  --bytecode-version="$BC_VERSION" -o "$TILEBC"
+
+echo "[3/3] tilebc -> cubin ($GPU_ARCH, $("$TILEIRAS" --version 2>&1 | tail -1))"
+"$TILEIRAS" --gpu-name "$GPU_ARCH" "$TILEBC" -o "$OUT"
+
+# 环境快照 —— R1 的教训：结论与工具链版本强绑定，事后无法追溯就等于结论作废。
+cat > "${OUT}.env.json" <<EOF
+{
+  "input"          : "$(realpath "$INPUT")",
+  "output"         : "$(realpath "$OUT")",
+  "gpu_arch"       : "$GPU_ARCH",
+  "bytecode_version": "$BC_VERSION",
+  "tileiras"       : "$TILEIRAS",
+  "tileiras_version": "$("$TILEIRAS" --version 2>&1 | tail -1 | tr -d '\n')",
+  "cuda_tile_commit": "$(git -C "$ROOT/third_party/cuda-tile" rev-parse HEAD 2>/dev/null || echo unknown)",
+  "tensor_ir_commit": "$(git -C "$ROOT/third_party/tensor-ir" rev-parse HEAD 2>/dev/null || echo unknown)",
+  "tilemega_commit" : "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)",
+  "driver"         : "$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)",
+  "gpu"            : "$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)",
+  "timestamp"      : "$(date -Is)"
+}
+EOF
+
+[[ $KEEP_INTERMEDIATE -eq 1 ]] || rm -f "$TILEBC"
+
+echo "完成: $OUT"
+echo "     环境快照: ${OUT}.env.json"
+cuobjdump --dump-resource-usage "$OUT" 2>/dev/null | grep -E "Function|REG:" | sed 's/^/     /'

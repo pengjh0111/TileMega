@@ -1,0 +1,7 @@
+[cuFuncGetAttribute] branch_a_only (isolated): REGS=255 SHARED_BYTES=100400 LOCAL_BYTES=8984 MAX_THREADS_PER_BLOCK=256 CONST_BYTES=0
+[cuFuncGetAttribute] branch_b_only (isolated): REGS=12 SHARED_BYTES=16 LOCAL_BYTES=0 MAX_THREADS_PER_BLOCK=1024 CONST_BYTES=0
+[cuFuncGetAttribute] heterogeneous_dispatch (combined, task_type=0/1): REGS=255 SHARED_BYTES=98368 LOCAL_BYTES=8984 MAX_THREADS_PER_BLOCK=256 CONST_BYTES=0
+[task_type=0, branch A / mmaf 128x128] max_abs_err=0  sample out[0]=15.159997 ref[0]=15.159997  out[16383]=15.139998 ref[16383]=15.139998
+[task_type=0] RESULT: PASS
+[task_type=1, branch B / reduce sum256] out[0]=76.200005 ref_sum=76.199974 abs_err=3.05176e-05
+[task_type=1] RESULT: PASS

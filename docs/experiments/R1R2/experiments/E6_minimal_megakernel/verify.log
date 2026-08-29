@@ -1,0 +1,85 @@
+module {
+  cuda_tile.module @cuda_tile_module {
+    entry @minimal_megakernel(%arg0: tile<ptr<f32>>, %arg1: tile<ptr<f32>>, %arg2: tile<ptr<f32>>, %arg3: tile<ptr<f32>>, %arg4: tile<ptr<f32>>, %arg5: tile<ptr<f32>>, %arg6: tile<ptr<i32>>, %arg7: tile<ptr<i32>>, %arg8: tile<ptr<i32>>) {
+      %blockId_x, %blockId_y, %blockId_z = get_tile_block_id : tile<i32>
+      %cst_0_i32 = constant <i32: 0> : tile<i32>
+      %cst_1_i32 = constant <i32: 1> : tile<i32>
+      %0 = cmpi equal %blockId_x, %cst_0_i32, signed : tile<i32> -> tile<i1>
+      if %0 {
+        %tview = make_tensor_view %arg0, shape = [262144], strides = [1] : tensor_view<262144xf32, strides=[1]>
+        %pview = make_partition_view %tview : partition_view<tile=(1024), tensor_view<262144xf32, strides=[1]>>
+        %tview_0 = make_tensor_view %arg1, shape = [262144], strides = [1] : tensor_view<262144xf32, strides=[1]>
+        %pview_1 = make_partition_view %tview_0 : partition_view<tile=(1024), tensor_view<262144xf32, strides=[1]>>
+        %tview_2 = make_tensor_view %arg2, shape = [262144], strides = [1] : tensor_view<262144xf32, strides=[1]>
+        %pview_3 = make_partition_view %tview_2 : partition_view<tile=(1024), tensor_view<262144xf32, strides=[1]>>
+        %reshape = reshape %arg7 : tile<ptr<i32>> -> tile<1xptr<i32>>
+        %cst_1_i32_4 = constant <i32: 1> : tile<1xi32>
+        %cst_256_i32 = constant <i32: 256> : tile<i32>
+        %1 = make_token : token
+        %2 = loop iter_values(%arg9 = %1, %arg10 = %cst_0_i32) : token, tile<i32> -> token {
+          %tile, %result_token_6 = load_view_tko weak %pview[%arg10] token = %arg9 : partition_view<tile=(1024), tensor_view<262144xf32, strides=[1]>>, tile<i32> -> tile<1024xf32>, token
+          %tile_7, %result_token_8 = load_view_tko weak %pview_1[%arg10] token = %result_token_6 : partition_view<tile=(1024), tensor_view<262144xf32, strides=[1]>>, tile<i32> -> tile<1024xf32>, token
+          %3 = addf %tile, %tile_7  : tile<1024xf32>
+          %4 = store_view_tko weak %3, %pview_3[%arg10] token = %result_token_8 : tile<1024xf32>, partition_view<tile=(1024), tensor_view<262144xf32, strides=[1]>>, tile<i32> -> token
+          %result_9, %result_token_10 = atomic_rmw_tko release device %reshape, add, %cst_1_i32_4 token=%4 : tile<1xptr<i32>>, tile<1xi32> -> tile<1xi32>, token
+          %5 = addi %arg10, %cst_1_i32 : tile<i32>
+          %6 = cmpi equal %5, %cst_256_i32, signed : tile<i32> -> tile<i1>
+          if %6 {
+            break %result_token_10 : token
+          }
+          continue %result_token_10, %5 : token, tile<i32>
+        }
+        %reshape_5 = reshape %arg6 : tile<ptr<i32>> -> tile<1xptr<i32>>
+        %result, %result_token = atomic_rmw_tko release device %reshape_5, xchg, %cst_1_i32_4 token=%2 : tile<1xptr<i32>>, tile<1xi32> -> tile<1xi32>, token
+      } else {
+        %1 = cmpi equal %blockId_x, %cst_1_i32, signed : tile<i32> -> tile<i1>
+        if %1 {
+          %reshape = reshape %arg6 : tile<ptr<i32>> -> tile<1xptr<i32>>
+          %2 = make_token : token
+          %3 = loop iter_values(%arg9 = %2) : token -> token {
+            %result, %result_token = load_ptr_tko acquire device %reshape token=%arg9 : tile<1xptr<i32>> -> tile<1xi32>, token
+            %reshape_2 = reshape %result : tile<1xi32> -> tile<i32>
+            %cst_1_i32_3 = constant <i32: 1> : tile<i32>
+            %5 = cmpi equal %reshape_2, %cst_1_i32_3, signed : tile<i32> -> tile<i1>
+            if %5 {
+              break %result_token : token
+            }
+            continue %result_token : token
+          }
+          %tview = make_tensor_view %arg2, shape = [262144], strides = [1] : tensor_view<262144xf32, strides=[1]>
+          %pview = make_partition_view %tview : partition_view<tile=(1024), tensor_view<262144xf32, strides=[1]>>
+          %tview_0 = make_tensor_view %arg3, shape = [262144], strides = [1] : tensor_view<262144xf32, strides=[1]>
+          %pview_1 = make_partition_view %tview_0 : partition_view<tile=(1024), tensor_view<262144xf32, strides=[1]>>
+          %cst_256_i32 = constant <i32: 256> : tile<i32>
+          %cst_2_f32 = constant <f32: 2.000000e+00> : tile<1024xf32>
+          %4 = loop iter_values(%arg9 = %3, %arg10 = %cst_0_i32) : token, tile<i32> -> token {
+            %tile, %result_token = load_view_tko acquire device %pview[%arg10] token = %arg9 : partition_view<tile=(1024), tensor_view<262144xf32, strides=[1]>>, tile<i32> -> tile<1024xf32>, token
+            %5 = mulf %tile, %cst_2_f32  : tile<1024xf32>
+            %6 = store_view_tko weak %5, %pview_1[%arg10] token = %result_token : tile<1024xf32>, partition_view<tile=(1024), tensor_view<262144xf32, strides=[1]>>, tile<i32> -> token
+            %7 = addi %arg10, %cst_1_i32 : tile<i32>
+            %8 = cmpi equal %7, %cst_256_i32, signed : tile<i32> -> tile<i1>
+            if %8 {
+              break %6 : token
+            }
+            continue %6, %7 : token, tile<i32>
+          }
+        } else {
+          %reshape = reshape %arg7 : tile<ptr<i32>> -> tile<1xptr<i32>>
+          %result, %result_token = load_ptr_tko weak %reshape : tile<1xptr<i32>> -> tile<1xi32>, token
+          %reshape_0 = reshape %arg8 : tile<ptr<i32>> -> tile<1xptr<i32>>
+          %2 = store_ptr_tko weak %reshape_0, %result token=%result_token : tile<1xptr<i32>>, tile<1xi32> -> token
+          %tview = make_tensor_view %arg4, shape = [1024], strides = [1] : tensor_view<1024xf32, strides=[1]>
+          %pview = make_partition_view %tview : partition_view<tile=(1024), tensor_view<1024xf32, strides=[1]>>
+          %tview_1 = make_tensor_view %arg5, shape = [1024], strides = [1] : tensor_view<1024xf32, strides=[1]>
+          %pview_2 = make_partition_view %tview_1 : partition_view<tile=(1024), tensor_view<1024xf32, strides=[1]>>
+          %tile, %result_token_3 = load_view_tko weak %pview[%cst_0_i32] : partition_view<tile=(1024), tensor_view<1024xf32, strides=[1]>>, tile<i32> -> tile<1024xf32>, token
+          %cst_3_f32 = constant <f32: 3.000000e+00> : tile<1024xf32>
+          %3 = mulf %tile, %cst_3_f32  : tile<1024xf32>
+          %4 = store_view_tko weak %3, %pview_2[%cst_0_i32] : tile<1024xf32>, partition_view<tile=(1024), tensor_view<1024xf32, strides=[1]>>, tile<i32> -> token
+        }
+      }
+      return
+    }
+  }
+}
+

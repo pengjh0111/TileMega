@@ -1,0 +1,16 @@
+module {
+  cuda_tile.module @cuda_tile_module {
+    entry @non_persistent(%arg0: tile<ptr<f32>>) {
+      %blockId_x, %blockId_y, %blockId_z = get_tile_block_id : tile<i32>
+      %tview = make_tensor_view %arg0, shape = [1000000], strides = [1] : tensor_view<1000000xf32, strides=[1]>
+      %pview = make_partition_view %tview : partition_view<tile=(1), tensor_view<1000000xf32, strides=[1]>>
+      %reshape = reshape %blockId_x : tile<i32> -> tile<1xi32>
+      %0 = itof %reshape signed  : tile<1xi32> -> tile<1xf32>
+      %cst_2_f32 = constant <f32: 2.000000e+00> : tile<1xf32>
+      %1 = mulf %0, %cst_2_f32  : tile<1xf32>
+      %2 = store_view_tko weak %1, %pview[%blockId_x] : tile<1xf32>, partition_view<tile=(1), tensor_view<1000000xf32, strides=[1]>>, tile<i32> -> token
+      return
+    }
+  }
+}
+

@@ -1,0 +1,7 @@
+[trial 0] ok=1 block2_sample(progress counter at time block2 started)=0 final_progress=256
+[trial 1] ok=1 block2_sample(progress counter at time block2 started)=0 final_progress=256
+[trial 2] ok=1 block2_sample(progress counter at time block2 started)=0 final_progress=256
+[trial 3] ok=1 block2_sample(progress counter at time block2 started)=0 final_progress=256
+[trial 4] ok=1 block2_sample(progress counter at time block2 started)=0 final_progress=256
+=== SUMMARY over 200 trials ===
+PASS=200 FAIL=0 block2_sample range=[0,0] (producer's final per-chunk counter = 256; a sample < 256 means block 2 observed the producer mid-flight, i.e. concurrent execution within the single launch)

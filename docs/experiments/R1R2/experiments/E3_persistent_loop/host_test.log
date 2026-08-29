@@ -1,0 +1,6 @@
+SM count = 170
+[persistent, grid=170, total_tiles=1000000] mismatches=0 / 1000000
+[non-persistent, grid=1000000] mismatches=0 / 1000000
+[timing] persistent (grid=170, total_tiles=1000000): 0.1104 ms / launch
+[timing] non-persistent (grid=1000000): 0.4735 ms / launch
+[timing] persistent (grid=10000, total_tiles=1000000, ~100 tiles/block): 0.0131 ms / launch

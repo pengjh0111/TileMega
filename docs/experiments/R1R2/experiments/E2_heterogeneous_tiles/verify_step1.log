@@ -1,0 +1,36 @@
+module {
+  cuda_tile.module @cuda_tile_module {
+    entry @heterogeneous_dispatch(%arg0: tile<i32>, %arg1: tile<ptr<f32>>, %arg2: tile<ptr<f32>>, %arg3: tile<ptr<f32>>) {
+      %cst_0_i32 = constant <i32: 0> : tile<i32>
+      %0 = cmpi equal %arg0, %cst_0_i32, signed : tile<i32> -> tile<i1>
+      if %0 {
+        %tview = make_tensor_view %arg1, shape = [128, 128], strides = [128, 1] : tensor_view<128x128xf32, strides=[128,1]>
+        %pview = make_partition_view %tview : partition_view<tile=(128x128), tensor_view<128x128xf32, strides=[128,1]>>
+        %tile, %result_token = load_view_tko weak %pview[%cst_0_i32, %cst_0_i32] : partition_view<tile=(128x128), tensor_view<128x128xf32, strides=[128,1]>>, tile<i32> -> tile<128x128xf32>, token
+        %tview_0 = make_tensor_view %arg2, shape = [128, 128], strides = [128, 1] : tensor_view<128x128xf32, strides=[128,1]>
+        %pview_1 = make_partition_view %tview_0 : partition_view<tile=(128x128), tensor_view<128x128xf32, strides=[128,1]>>
+        %tile_2, %result_token_3 = load_view_tko weak %pview_1[%cst_0_i32, %cst_0_i32] : partition_view<tile=(128x128), tensor_view<128x128xf32, strides=[128,1]>>, tile<i32> -> tile<128x128xf32>, token
+        %cst_0_f32 = constant <f32: 0.000000e+00> : tile<128x128xf32>
+        %1 = mmaf %tile, %tile_2, %cst_0_f32 : tile<128x128xf32>, tile<128x128xf32>, tile<128x128xf32>
+        %tview_4 = make_tensor_view %arg3, shape = [128, 128], strides = [128, 1] : tensor_view<128x128xf32, strides=[128,1]>
+        %pview_5 = make_partition_view %tview_4 : partition_view<tile=(128x128), tensor_view<128x128xf32, strides=[128,1]>>
+        %2 = store_view_tko weak %1, %pview_5[%cst_0_i32, %cst_0_i32] : tile<128x128xf32>, partition_view<tile=(128x128), tensor_view<128x128xf32, strides=[128,1]>>, tile<i32> -> token
+      } else {
+        %tview = make_tensor_view %arg1, shape = [256], strides = [1] : tensor_view<256xf32, strides=[1]>
+        %pview = make_partition_view %tview : partition_view<tile=(256), tensor_view<256xf32, strides=[1]>>
+        %tile, %result_token = load_view_tko weak %pview[%cst_0_i32] : partition_view<tile=(256), tensor_view<256xf32, strides=[1]>>, tile<i32> -> tile<256xf32>, token
+        %reduce = reduce %tile dim=0 identities=[0.000000e+00 : f32] : tile<256xf32> -> tile<f32> 
+        (%reduce_lhs: tile<f32>, %reduce_rhs: tile<f32>) {
+          %2 = addf %reduce_lhs, %reduce_rhs  : tile<f32>
+          yield %2 : tile<f32>
+        }
+        %reshape = reshape %reduce : tile<f32> -> tile<1xf32>
+        %tview_0 = make_tensor_view %arg3, shape = [1], strides = [1] : tensor_view<1xf32, strides=[1]>
+        %pview_1 = make_partition_view %tview_0 : partition_view<tile=(1), tensor_view<1xf32, strides=[1]>>
+        %1 = store_view_tko weak %reshape, %pview_1[%cst_0_i32] : tile<1xf32>, partition_view<tile=(1), tensor_view<1xf32, strides=[1]>>, tile<i32> -> token
+      }
+      return
+    }
+  }
+}
+

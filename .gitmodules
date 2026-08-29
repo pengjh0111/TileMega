@@ -1,0 +1,9 @@
+[submodule "third_party/tensor-ir"]
+	path = third_party/tensor-ir
+	url = https://github.com/NVIDIA/tensor-ir.git
+[submodule "third_party/cuda-tile"]
+	path = third_party/cuda-tile
+	url = https://github.com/NVIDIA/cuda-tile.git
+[submodule "third_party/barvinok"]
+	path = third_party/barvinok
+	url = https://repo.or.cz/barvinok.git

@@ -1,0 +1,15 @@
+build/
+build-*/
+third_party/.install/
+*.cubin
+*.tilebc
+*.sass
+*.cubin.env.json
+__pycache__/
+*.pyc
+*.log
+
+# tensor-ir 被 add_subdirectory 嵌入时，它的某条 CMake 规则用了相对
+# CMAKE_SOURCE_DIR 的路径，会在我们的顶层生成这两个空目录。无害。
+/media/
+/spec/
