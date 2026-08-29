@@ -1,17 +1,22 @@
 # ==============================================================================
-# barvinok / isl 定位
+# Locating barvinok / isl
 #
-# barvinok 是 autotools 工程，把它塞进 ninja 构建图（ExternalProject）会带来
-# 难看的顺序依赖，而它是个几乎不变的叶子依赖。所以：用 scripts/build_barvinok.sh
-# 一次性构建安装到 third_party/.install/barvinok，这里只负责找到它。
+# barvinok is an autotools project. Wiring it into the ninja build graph via
+# ExternalProject would create ugly ordering dependencies, and it is an almost
+# unchanging leaf dependency. So: scripts/build_barvinok.sh builds and installs
+# it once into third_party/.install/barvinok, and this module only finds it.
 #
-# 依赖解析走 pkg-config：barvinok 装出来的 barvinok.pc 里已经有权威的链接行
+# Dependency resolution goes through pkg-config: the installed barvinok.pc
+# already carries the authoritative link line
 #   -lbarvinok -lpolylibgmp -lisl -lntl -lgmp
-# 手工维护这串（polylib / NTL / GMP / pthread）既容易漏，又会在上游改依赖时
-# 静默失效——首次尝试就漏了 polylib，报的是一堆 Vector_Free 未定义。
+# Maintaining that list by hand (polylib / NTL / GMP / pthread) is both easy to
+# get wrong and silently stale when upstream changes its dependencies -- the
+# first attempt here omitted polylib and produced a wall of undefined
+# Vector_Free references.
 #
-# 接口选择（骨架 Phase 0 决策）：analysis 层直接用 isl 的 C API + 自建 RAII
-# 封装，不用 isl-noexceptions.h。见 include/tilemega/Analysis/ISLContext.h。
+# Interface choice (Phase 0 decision): the analysis layer uses isl's C API with
+# a hand-written RAII wrapper, not isl-noexceptions.h. See
+# include/tilemega/Analysis/ISLContext.h.
 # ==============================================================================
 include_guard(GLOBAL)
 
@@ -30,8 +35,9 @@ function(tilemega_find_barvinok)
       "  或用 -DTILEMEGA_ENABLE_ISL=OFF 暂时关掉分析层。")
   endif()
 
-  # 只看我们自己装的那份，不要意外命中系统里的 isl
-  #（系统有 libisl.so.23，版本未必匹配 barvinok）。
+  # Look only at the copy we installed ourselves, so we do not accidentally
+  # pick up a system isl (the host has libisl.so.23, whose version need not
+  # match barvinok).
   set(ENV{PKG_CONFIG_PATH} "${_pcdir}")
   pkg_check_modules(TILEMEGA_BARVINOK REQUIRED IMPORTED_TARGET barvinok)
   pkg_check_modules(TILEMEGA_ISL      REQUIRED IMPORTED_TARGET isl)

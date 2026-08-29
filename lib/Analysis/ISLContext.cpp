@@ -7,23 +7,25 @@
 namespace tilemega {
 
 ISLContext::ISLContext() : ctx_(isl_ctx_alloc()) {
-  // ISL_ON_ERROR_CONTINUE：出错时不 abort、不打印，只把错误记在 ctx 上，
-  // 由调用方通过 hasError()/lastError() 查询。
+  // ISL_ON_ERROR_CONTINUE: on error, neither abort nor print. Record the error
+  // on the context and let callers query it via hasError() / lastError().
   //
-  // 为什么不用默认的 ISL_ON_ERROR_WARN：TileMega 会大量构造并测试
-  // 「可能不合法」的候选关系（P4.2 的合法性剪枝就是靠试出来的），
-  // 失败是正常控制流，不该往 stderr 刷警告。
+  // Not ISL_ON_ERROR_WARN: TileMega constructs and tests large numbers of
+  // possibly-illegal candidate relations (the legality pruning in P4.2 works
+  // precisely by trying them). Failure is normal control flow and should not
+  // spew warnings to stderr.
   //
-  // 为什么不用 ISL_ON_ERROR_ABORT：一个畸形的 layout 字符串不应该
-  // 让整个编译器进程死掉。
+  // Not ISL_ON_ERROR_ABORT: a malformed layout string must not kill the
+  // compiler process.
   isl_options_set_on_error(ctx_, ISL_ON_ERROR_CONTINUE);
 }
 
 ISLContext::~ISLContext() {
   if (ctx_) {
-    // isl_ctx_free 在仍有对象存活时会 abort（isl 自带的泄漏检查）。
-    // 这实际上是件好事：它把「ISLRef 忘了析构」这类所有权 bug
-    // 变成一个明确的崩溃，而不是静默泄漏。
+    // isl_ctx_free aborts if objects are still alive (isl's built-in leak
+    // check). That is desirable here: it turns "an ISLRef was never destroyed"
+    // and similar ownership bugs into an explicit crash rather than a silent
+    // leak.
     isl_ctx_free(ctx_);
     ctx_ = nullptr;
   }

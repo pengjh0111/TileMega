@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# tilemega-compile —— MLIR → cubin 一键流程（骨架 P0.2）
+# tilemega-compile -- one-step MLIR to cubin pipeline (skeleton P0.2)
 #
-# 封装三步：
-#   cuda-tile-opt        验证 IR
-#   cuda-tile-translate  MLIR → .tilebc（Tile IR bytecode）
-#   tileiras             .tilebc → .cubin（闭源后端）
+# Wraps three steps:
+#   cuda-tile-opt        verify the IR
+#   cuda-tile-translate  MLIR -> .tilebc (Tile IR bytecode)
+#   tileiras             .tilebc -> .cubin (closed-source backend)
 #
-# 为什么值得单独封装而不是各处手写命令：
-#   1. R1/R2 的每个实验目录都有一份自己的 run.sh，命令略有出入（bytecode 版本、
-#      tileiras 路径都不一致），后来复现时无法确定当时到底用的哪个组合。
-#   2. tileiras 是闭源黑盒且**版本行为有实质差异**（V0 已实测：13.1 与 13.3
-#      产出的 REQNTID 分别是 256 与 128，直接改变 occupancy 与 cooperative
-#      launch 上限）。所以 tileiras 版本必须是一个显式、被记录的参数，
-#      不能靠 PATH 里碰到哪个算哪个。
-#   3. 每次编译都吐一份 .env.json 记录完整环境，让任何 cubin 都能追溯到
-#      产生它的工具链。
+# Why wrap this instead of writing the commands out by hand everywhere:
+#   1. Every R1/R2 experiment directory carried its own run.sh with slightly
+#      different commands (bytecode version and tileiras path both varied), so
+#      later reproduction could not determine which combination was used.
+#   2. tileiras is a closed-source black box whose BEHAVIOUR DIFFERS MATERIALLY
+#      BETWEEN VERSIONS (measured in V0: 13.1 and 13.3 emit REQNTID 256 and 128
+#      respectively, which directly changes occupancy and the cooperative launch
+#      limit). The tileiras version must therefore be an explicit, recorded
+#      parameter rather than whatever happens to be first on PATH.
+#   3. Every compilation emits a .env.json capturing the full environment, so
+#      any cubin can be traced back to the toolchain that produced it.
 # ==============================================================================
 set -euo pipefail
 
@@ -87,7 +89,8 @@ echo "[2/3] MLIR -> tilebc (bytecode $BC_VERSION)"
 echo "[3/3] tilebc -> cubin ($GPU_ARCH, $("$TILEIRAS" --version 2>&1 | tail -1))"
 "$TILEIRAS" --gpu-name "$GPU_ARCH" "$TILEBC" -o "$OUT"
 
-# 环境快照 —— R1 的教训：结论与工具链版本强绑定，事后无法追溯就等于结论作废。
+# Environment snapshot. The lesson from R1: conclusions are tightly bound to
+# toolchain versions, and a conclusion that cannot be traced back is void.
 cat > "${OUT}.env.json" <<EOF
 {
   "input"          : "$(realpath "$INPUT")",

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# 构建 isl + barvinok 到 third_party/.install/barvinok。
+# Build isl + barvinok into third_party/.install/barvinok.
 #
-# 为什么单独一个脚本而不进 CMake 构建图（见 cmake/TileMegaBarvinok.cmake）：
-# barvinok 是 autotools 工程，用 ExternalProject 塞进 ninja 会带来难看的顺序
-# 依赖，而它是个几乎不变的叶子依赖，一次构建长期复用。
+# Why a standalone script instead of the CMake build graph (see
+# cmake/TileMegaBarvinok.cmake): barvinok is an autotools project, and wiring it
+# into ninja through ExternalProject creates ugly ordering dependencies, while
+# it is an almost unchanging leaf dependency that is built once and reused.
 #
-# 依赖（Ubuntu）：libgmp-dev libntl-dev automake libtool autoconf
+# Dependencies (Ubuntu): libgmp-dev libntl-dev automake libtool autoconf
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -25,18 +26,20 @@ echo "==> barvinok 源码 : $SRC"
 echo "==> 安装前缀      : $PREFIX"
 echo "==> 并行度        : $JOBS"
 
-# autogen 必须在源码树里跑（它生成 configure）。
+# autogen must run inside the source tree (it generates configure).
 cd "$SRC"
 [ -f configure ] || ./autogen.sh
 
-# 但**构建放在源码树之外**：barvinok 是 submodule，就地构建会在里面留下
-# .libs/.deps/生成的可执行文件，让 `git status` 常年脏，也容易误提交。
+# But BUILD OUT OF TREE: barvinok is a submodule, and an in-source build leaves
+# .libs / .deps / generated executables behind, keeping `git status` permanently
+# dirty and inviting accidental commits.
 BUILD_DIR="${TILEMEGA_BARVINOK_BUILD_DIR:-$ROOT/build-barvinok}"
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
-# --with-pet=no  : pet 是 C 源码解析器，TileMega 从 MLIR 拿 IR，用不到。
-# --enable-shared: Python 侧后续可能需要。
+# --with-pet=no  : pet is a C source parser; TileMega gets its IR from MLIR and
+#                  does not need it.
+# --enable-shared: likely needed later for the Python side.
 "$SRC/configure" \
   --prefix="$PREFIX" \
   --with-isl=bundled \

@@ -1,23 +1,26 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 统计化 GPU 测试执行器（骨架 P0.3）
+# Statistical GPU test runner (skeleton P0.3)
 #
-# 三条从 R1/R2 教训里提炼的纪律，全部内建在这里：
+# Three disciplines distilled from the R1/R2 lessons, all built in here:
 #
-#  1. 单次成功不构成证据。R2 的 grid-scan 证明挂起率是个概率量
-#     （grid=30 时 39/50 vs 48/50），跑一次什么也说明不了。默认 N=50。
+#  1. A single success is not evidence. R2's grid scan showed the hang rate is a
+#     probabilistic quantity (39/50 vs 48/50 at grid=30), so one run proves
+#     nothing. N defaults to 50.
 #
-#  2. 挂起必须超时并记为失败，且保留现场。没有 timeout 的 GPU 测试会把
-#     整条 CI 挂死。
+#  2. Hangs must time out, count as failures, and leave their artifacts behind.
+#     A GPU test without a timeout wedges the whole CI pipeline.
 #
-#  3. **GPU 独占**。挂起是对时序敏感的竞态（R1-E5 的核心发现：预热能
-#     "救活" grid=80）。若另一个进程同时压 GPU 或 CPU，测出来的挂起率
-#     没有意义。这里用 flock 串行化，并在开跑前检查机器是否空闲。
+#  3. EXCLUSIVE GPU ACCESS. The hang is a timing-sensitive race (R1-E5's central
+#     finding: warm-up could "rescue" grid=80). If another process is loading the
+#     GPU or the CPU at the same time, the measured hang rate is meaningless.
+#     This serialises through flock and checks that the machine is idle before
+#     starting.
 #
-# 输出 CSV，便于跨版本/跨变体对比。
+# Emits CSV so results can be compared across versions and variants.
 #
-# 用法:
-#   gpu_stat_run.sh --label <名字> --runs 50 --timeout 6 -- <命令> [参数...]
+# Usage:
+#   gpu_stat_run.sh --label <name> --runs 50 --timeout 6 -- <command> [args...]
 # ==============================================================================
 set -uo pipefail
 
@@ -46,7 +49,7 @@ while [[ $# -gt 0 ]]; do
 done
 [[ $# -gt 0 ]] || { echo "错误: 缺少要执行的命令" >&2; usage 2; }
 
-# --- 机器空闲检查 ----------------------------------------------------------
+# --- machine idle check ----------------------------------------------------
 if [[ $ALLOW_BUSY -eq 0 ]]; then
   gpu_util=$(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits 2>/dev/null | head -1)
   load1=$(cut -d' ' -f1 /proc/loadavg)
@@ -86,7 +89,7 @@ for ((i=1; i<=RUNS; i++)); do
     err=$((err+1)); status="ERR(输出不含 '$SUCCESS_PATTERN')"
   else
     ok=$((ok+1)); status=OK
-    rm -f "$out"   # 成功的输出不留，只保留失败现场
+    rm -f "$out"   # discard successful output; keep only failure artifacts
   fi
   printf "\r  %3d/%d  ok=%d hang=%d err=%d  最近=%s        " \
          "$i" "$RUNS" "$ok" "$hang" "$err" "$status"
@@ -102,5 +105,5 @@ if [[ -n "$CSV" ]]; then
   echo "$LABEL,$RUNS,$ok,$hang,$err,$hang_rate,$TIMEOUT_S,$(date -Is),${TILEMEGA_TILEIRAS:-default},$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null|head -1)" >> "$CSV"
 fi
 
-# 有挂起就是失败：挂起绝不能被当成"偶发"放过。
+# Any hang is a failure: a hang must never be waved away as "flaky".
 [[ $hang -eq 0 && $err -eq 0 ]]

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// tilemega-opt —— TileMega 的 mlir-opt 驱动。
+// tilemega-opt -- TileMega's mlir-opt driver.
 //
-// 存在理由（TILEMEGA_SKELETON.md §4「依赖处理要点」）：
-//   上游的 tensor_ir-opt 虽然把 cuda-tile 作为库链接了进去，但它的
-//   registerDialects() **没有注册 cuda_tile dialect**，因此无法解析
-//   任何含 cuda_tile op 的 IR。而 TileMega 的 Codegen 层输出的正是
-//   nv_tensor_ir 与 cuda_tile 混合的 IR，必须两个都注册。
+// Why this exists (TILEMEGA_SKELETON.md section 4, "dependency notes"):
+//   Upstream tensor_ir-opt links cuda-tile as a library, but its
+//   registerDialects() does *not* register the cuda_tile dialect, so it cannot
+//   parse any IR containing cuda_tile ops. TileMega's codegen emits exactly
+//   that: IR mixing nv_tensor_ir and cuda_tile, so both must be registered.
 
 #include "tensor_ir/Registration/Registration.h"
 
@@ -17,18 +17,19 @@
 #include "mlir/Transforms/Passes.h"
 
 int main(int argc, char **argv) {
-  // 只注册通用变换 pass（canonicalize / cse / 等）。
-  // 刻意不调 registerAllPasses()/registerAllDialects()：那会把整个上游 MLIR
-  // 的 dialect 与 pass 拖进链接，而 TileMega 只处理 nv_tensor_ir + cuda_tile
-  // 两个 dialect。上游 tensor_ir-opt 也是这么做的。
+  // Register only the generic transform passes (canonicalize / cse / ...).
+  // registerAllPasses() and registerAllDialects() are deliberately not called:
+  // that would pull all of upstream MLIR's dialects and passes into the link,
+  // while TileMega only handles nv_tensor_ir and cuda_tile. Upstream
+  // tensor_ir-opt takes the same approach.
   mlir::registerTransformsPasses();
 
   mlir::DialectRegistry registry;
 
-  // TensorIR 侧：nv_tensor_ir 及其依赖的扩展。
+  // TensorIR side: nv_tensor_ir and the extensions it depends on.
   mlir::nv_tensor_ir::registerDialects(registry);
 
-  // CUDA Tile 侧：上游 tensor_ir-opt 缺的就是这一行。
+  // CUDA Tile side: this line is what upstream tensor_ir-opt is missing.
   registry.insert<mlir::cuda_tile::CudaTileDialect>();
 
   return mlir::asMainReturnCode(mlir::MlirOptMain(

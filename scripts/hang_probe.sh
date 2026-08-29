@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 挂起现场分析（骨架 P0.3）
+# Hang forensics (skeleton P0.3)
 #
-# 区分死锁与活锁的判据（R2-A 建立）：对同一个进程多次采样 PC，
-#   PC 逐字节不变 且 间隔 > 20s  →  死锁
-#   PC 在变                      →  活锁
-# R2-A 正是靠这个判定 170 个 block 里 57 个卡在完全相同的 PC。
+# Criterion for telling deadlock from livelock (established by R2-A): sample the
+# PCs of one process several times.
+#   PCs byte-for-byte identical across a gap > 20s  ->  deadlock
+#   PCs changing                                    ->  livelock
+# This is exactly how R2-A determined that 57 of 170 blocks were stuck at the
+# very same PC.
 #
-# 用法: hang_probe.sh <pid> [采样次数=3] [采样间隔秒=25]
+# Usage: hang_probe.sh <pid> [samples=3] [gap seconds=25]
 # ==============================================================================
 set -uo pipefail
 PID="${1:?用法: hang_probe.sh <pid> [次数] [间隔秒]}"

@@ -1,24 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// isl_ctx 的生命周期、错误处理，以及 isl 对象的 RAII 封装。
+// isl_ctx lifetime, error handling, and RAII wrappers for isl objects.
 //
-// 接口选择（骨架 Phase 0 决策）：直接用 isl 的 C API，自建薄 RAII 封装，
-// **不用** isl-noexceptions.h 的官方 C++ 绑定。理由：
-//   1. barvinok 的基数计数接口（P3.3 的 wait/fan-out 要用）只有 C API。
-//      混用两套所有权模型会在边界上出错，而所有权错误在 isl 里表现为
-//      静默的 use-after-free 或泄漏，极难定位。
-//   2. isl 的 C++ 绑定 API 覆盖面随版本变动，升级 isl 时会破损。
+// Interface choice (Phase 0 decision): use isl's C API directly with a thin
+// RAII wrapper, *not* the official C++ bindings in isl-noexceptions.h. Reasons:
+//   1. barvinok's cardinality-counting interface (needed by P3.3 for wait /
+//      fan-out) is C-only. Mixing two ownership models invites errors at the
+//      boundary, and ownership errors in isl surface as silent use-after-free
+//      or leaks, which are very hard to track down.
+//   2. The API surface of isl's C++ bindings shifts between releases, so it
+//      breaks on isl upgrades.
 //
-// isl 的 C API 所有权约定（必须背熟，封装就是为了不再手工遵守它）：
-//   __isl_take  参数所有权转移给被调方，调用后指针失效
-//   __isl_keep  被调方只借用，调用方仍持有
-//   __isl_give  返回值所有权转移给调用方，调用方负责释放
+// isl's C ownership conventions (memorise these; the wrapper exists so you no
+// longer have to honour them by hand):
+//   __isl_take  ownership transfers to the callee; the pointer is dead after
+//   __isl_keep  the callee only borrows; the caller still owns it
+//   __isl_give  ownership transfers to the caller, who must free it
 //
-// 用法：
+// Usage:
 //   ISLContext ctx;
 //   auto m = ctx.parseMap("{ [i,j] -> [i] }");
-//   isl_map *raw = m.get();          // 借用，不转移
-//   isl_map *owned = m.release();    // 转移出去，之后由你负责
+//   isl_map *raw = m.get();          // borrow, no transfer
+//   isl_map *owned = m.release();    // transfer out; you own it now
 
 #ifndef TILEMEGA_ANALYSIS_ISLCONTEXT_H
 #define TILEMEGA_ANALYSIS_ISLCONTEXT_H
@@ -35,18 +38,21 @@
 
 namespace tilemega {
 
-/// isl 对象的 RAII 持有者。语义等同 unique_ptr：只移动，不复制。
+/// RAII holder for an isl object. Move-only, like unique_ptr.
 ///
-/// 之所以不用 unique_ptr 加自定义 deleter，是因为 isl 的释放函数每个类型
-/// 各不相同（isl_map_free / isl_set_free / ...），用模板参数传函数指针的
-/// 写法在这里更直白，也让 get()/release() 的语义与 isl 的 take/keep 约定
-/// 一一对应。
-/// 注意 Free 的签名是 T *(*)(T *) 而非 void(*)(T *)：isl 的 *_free 函数
-/// 统一返回 __isl_null T*（永远是 nullptr），方便写 p = isl_map_free(p)。
+/// This is not unique_ptr with a custom deleter because isl uses a distinct
+/// free function per type (isl_map_free / isl_set_free / ...). Passing the
+/// function as a template parameter is more direct here, and it keeps
+/// get()/release() in one-to-one correspondence with isl's keep/take
+/// conventions.
+///
+/// Note that Free is typed T *(*)(T *) rather than void(*)(T *): isl's *_free
+/// functions all return __isl_null T* (always nullptr) so that `p =
+/// isl_map_free(p)` reads well.
 template <typename T, T *(*Free)(T *)> class ISLRef {
 public:
   ISLRef() = default;
-  /// 接管 obj 的所有权（对应 __isl_take）。
+  /// Takes ownership of obj (corresponds to __isl_take).
   explicit ISLRef(T *obj) : obj_(obj) {}
 
   ISLRef(const ISLRef &) = delete;
@@ -64,10 +70,12 @@ public:
 
   ~ISLRef() { reset(); }
 
-  /// 借用底层指针（对应 __isl_keep）。不转移所有权，不要对它调 *_free。
+  /// Borrows the underlying pointer (corresponds to __isl_keep). Ownership is
+  /// not transferred; do not call *_free on the result.
   T *get() const { return obj_; }
 
-  /// 交出所有权（对应把本对象作为 __isl_take 参数传出去）。
+  /// Gives up ownership (corresponds to passing this object as an __isl_take
+  /// argument).
   [[nodiscard]] T *release() {
     T *tmp = obj_;
     obj_ = nullptr;
@@ -91,11 +99,12 @@ using ISLSet = ISLRef<isl_set, isl_set_free>;
 using ISLUnionMap = ISLRef<isl_union_map, isl_union_map_free>;
 using ISLSpace = ISLRef<isl_space, isl_space_free>;
 
-/// 持有一个 isl_ctx，负责它的生命周期与错误策略。
+/// Owns an isl_ctx and defines its lifetime and error policy.
 ///
-/// 重要：一个进程里所有相互运算的 isl 对象必须来自**同一个** isl_ctx。
-/// 跨 ctx 的对象做运算是未定义行为，isl 不会报错。所以 TileMega 里
-/// ISLContext 应当按分析会话持有一个，不要随手新建。
+/// Important: within a process, all isl objects that interact must come from
+/// the *same* isl_ctx. Operating across contexts is undefined behaviour and
+/// isl will not diagnose it. So TileMega should hold one ISLContext per
+/// analysis session rather than creating them ad hoc.
 class ISLContext {
 public:
   ISLContext();
@@ -106,18 +115,18 @@ public:
 
   isl_ctx *get() const { return ctx_; }
 
-  /// 解析 isl 语法的 map，例如 "[S] -> { [i,j] -> [i] : 0 <= i < S }"。
-  /// 解析失败返回空 ISLMap，错误信息可用 lastError() 取。
+  /// Parses a map in isl syntax, e.g. "[S] -> { [i,j] -> [i] : 0 <= i < S }".
+  /// Returns an empty ISLMap on failure; see lastError() for the reason.
   ISLMap parseMap(const std::string &str);
   ISLSet parseSet(const std::string &str);
 
-  /// 取最近一次 isl 错误的描述；无错误时为空串。
+  /// Description of the most recent isl error, or an empty string if none.
   std::string lastError() const;
 
-  /// 是否有未清理的 isl 错误。
+  /// Whether an isl error is pending.
   bool hasError() const;
 
-  /// 清除错误状态。
+  /// Clears the pending error state.
   void clearError();
 
 private:

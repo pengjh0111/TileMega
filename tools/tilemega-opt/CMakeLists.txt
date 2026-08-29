@@ -1,18 +1,19 @@
-# tilemega-opt：注册 nv_tensor_ir + cuda_tile 两个 dialect。
+# tilemega-opt: registers both the nv_tensor_ir and cuda_tile dialects.
 #
-# 注意（骨架 §4）：上游 tensor_ir-opt 虽然链接了 cuda-tile 作为库，但它的
-# registerDialects() 没有注册 cuda_tile dialect，读不了含 cuda_tile op 的 IR。
-# TileMega 的 Codegen 输出正是两者混合的 IR，所以必须自建这个驱动。
+# Note (skeleton section 4): upstream tensor_ir-opt links cuda-tile as a
+# library, but its registerDialects() does not register the cuda_tile dialect,
+# so it cannot read IR containing cuda_tile ops. TileMega's codegen emits
+# exactly that mixture, hence this separate driver.
 set(LLVM_LINK_COMPONENTS Core Support AsmParser)
 
 set(TILEMEGA_OPT_LIBS
-  # TensorIR 侧
+  # TensorIR side
   NVTensorIR::Registration
   NVTensorIR::Dialect
   NVTensorIR::Transform
   NVTensorIR::CudaTilePipelines
   NVTensorIR::ToCudaTileConversion
-  # CUDA Tile 侧 —— 上游 tensor_ir-opt 缺的就是这两个
+  # CUDA Tile side -- these two are what upstream tensor_ir-opt is missing
   CudaTileDialect
   CudaTileTransforms
   # MLIR core

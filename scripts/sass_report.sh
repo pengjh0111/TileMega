@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# SASS 结构报告（骨架 P0.3）
+# SASS structure report (skeleton P0.3)
 #
-# 自动提取 R1/R2 调查中反复要人工去数的几个量：
-#   BAR.SYNC.DEFER_BLOCKING  自旋循环内的硬件屏障 —— 假设 H2 的核心对象
-#   CCTL.IVALL               缓存失效 —— R2-B 修复的衡量指标
-#   循环回边                  自旋循环的位置与体积
-#   CGA 相关指令              R1 意外发现 3：无条件生成，疑似与死锁相关
+# Automatically extracts the quantities that had to be counted by hand over and
+# over during the R1/R2 investigation:
+#   BAR.SYNC.DEFER_BLOCKING  hardware barrier inside the spin loop -- the
+#                            central object of hypothesis H2
+#   CCTL.IVALL               cache invalidation -- the metric R2-B's fix targeted
+#   loop back edges          location and size of the spin loop
+#   CGA instructions         R1 incidental finding 3: emitted unconditionally,
+#                            suspected to be related to the deadlock
 #
-# 用法: sass_report.sh <cubin> [更多 cubin...]
+# Usage: sass_report.sh <cubin> [more cubins...]
 # ==============================================================================
 set -uo pipefail
 [[ $# -gt 0 ]] || { echo "用法: $0 <cubin> [cubin...]" >&2; exit 2; }

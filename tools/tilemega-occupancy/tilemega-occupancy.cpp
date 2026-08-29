@@ -1,20 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// tilemega-occupancy —— 正确地查询一个 cubin 的 occupancy 与 cooperative launch 上限。
+// tilemega-occupancy -- query a cubin's occupancy and cooperative launch limit
+// correctly.
 //
-// 存在理由（TILEMEGA_SKELETON.md §6.7 / P0.3）：
-//   R1 调研的全部 occupancy 诊断都调用
+// Why this exists (TILEMEGA_SKELETON.md section 6.7 / P0.3):
+//   Every occupancy diagnostic in the R1 study called
 //       cuOccupancyMaxActiveBlocksPerMultiprocessor(&n, fn, 1, 0)
-//   ——blockSize 传了字面量 1。而 tileiras 产出的 cubin 通过 EIATTR_REQNTID 硬性
-//   要求一个特定的 blockDim。用 1 去查一个真实需要 N 线程的 kernel，会把资源占用
-//   低估 N 倍，从而算出完全错误的 grid 上限（R1 因此误判 "8 blocks/SM, max grid
-//   1360"，实际是 1 block/SM, max grid 170）。
+//   passing a literal 1 as blockSize. But cubins produced by tileiras require a
+//   specific blockDim through EIATTR_REQNTID. Querying a kernel that really
+//   needs N threads with blockSize=1 underestimates resource usage by a factor
+//   of N and yields a completely wrong grid limit (R1 concluded "8 blocks/SM,
+//   max grid 1360" when the truth was 1 block/SM, max grid 170).
 //
-//   本工具把 blockSize 从 kernel 自身读出来，杜绝这类误诊。读法用
-//   CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK：对带 REQNTID 的 cubin，driver 报告的
-//   上限就等于它被要求的 blockDim，比解析 ELF 更稳。
+//   This tool reads blockSize from the kernel itself so that misdiagnosis
+//   cannot recur.
 //
-// 用法： tilemega-occupancy <cubin> <entry-name>
+// CAVEAT (found while writing this, see V0): the value read here is
+// CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK, which is the register-limited
+// *upper bound*, not the blockDim that REQNTID demands. The two coincide for
+// the kernels measured so far, but they are not the same quantity -- under
+// tileiras 13.3 REQNTID is 128 while this attribute still reports 256. Reading
+// EIATTR_REQNTID out of the ELF, as section 6.7 requires literally, is still
+// outstanding.
+//
+// Usage: tilemega-occupancy <cubin> <entry-name>
 
 #include <cuda.h>
 
@@ -39,8 +48,10 @@ int main(int argc, char **argv) {
   check(cuInit(0), "cuInit");
   CUdevice dev;
   check(cuDeviceGet(&dev, 0), "cuDeviceGet");
-  // 用 primary context 而不是 cuCtxCreate：后者在 CUDA 13.3 里已是 _v4 四参数
-  // 签名，直接调会随 toolkit 版本编不过。primary context 的签名是稳定的。
+  // Use the primary context rather than cuCtxCreate: the latter is the _v4
+  // four-argument signature as of CUDA 13.3, so calling it directly fails to
+  // compile depending on the toolkit version. The primary context API is
+  // stable.
   CUcontext ctx;
   check(cuDevicePrimaryCtxRetain(&ctx, dev), "cuDevicePrimaryCtxRetain");
   check(cuCtxSetCurrent(ctx), "cuCtxSetCurrent");
@@ -66,7 +77,8 @@ int main(int argc, char **argv) {
   CUfunction fn;
   check(cuModuleGetFunction(&fn, mod, argv[2]), "cuModuleGetFunction");
 
-  // 关键一步：blockSize 从 kernel 自身读，不猜、不传 1。
+  // The key step: read blockSize from the kernel itself. Do not guess, and do
+  // not pass 1.
   int reqBlockSize = 0, numRegs = 0, sharedBytes = 0, localBytes = 0;
   check(cuFuncGetAttribute(&reqBlockSize,
                            CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK, fn),
@@ -80,7 +92,7 @@ int main(int argc, char **argv) {
                                                     reqBlockSize, 0),
         "cuOccupancyMaxActiveBlocksPerMultiprocessor");
 
-  // 对照组：R1 犯的错误，保留下来让差距一眼可见。
+  // Control: reproduce the mistake R1 made, so the gap is visible at a glance.
   int blocksPerSMWrong = 0;
   cuOccupancyMaxActiveBlocksPerMultiprocessor(&blocksPerSMWrong, fn, 1, 0);
 

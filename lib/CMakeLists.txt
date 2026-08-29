@@ -1,6 +1,7 @@
-# TileMega 库层。各子层的依赖方向严格单向：
-#   Frontend → Analysis → Partition → Codegen → Runtime
-# Partition 只能通过 BackendCostQuery 反向触碰 Codegen/Backend（骨架原则二）。
+# TileMega library layers. Dependencies between them are strictly one way:
+#   Frontend -> Analysis -> Partition -> Codegen -> Runtime
+# Partition may only reach back into Codegen/Backend through BackendCostQuery
+# (skeleton principle two).
 add_subdirectory(Analysis)
 add_subdirectory(Partition)
 add_subdirectory(Codegen)

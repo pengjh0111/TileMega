@@ -1,4 +1,4 @@
-# L3 分析层：ISL 只做 task 间（骨架原则一）。
+# L3 analysis layer: ISL is used between tasks only (skeleton principle one).
 if(NOT TILEMEGA_ENABLE_ISL)
   add_library(TileMegaAnalysis INTERFACE)
   return()
@@ -13,5 +13,5 @@ target_link_libraries(TileMegaAnalysis
 target_include_directories(TileMegaAnalysis
   PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
-# ISLContext 用 isl_ctx_last_error_msg，该接口要求 isl >= 0.23。
-# barvinok 自带的 isl 是 0.28，满足。
+# ISLContext uses isl_ctx_last_error_msg, which requires isl >= 0.23.
+# The isl bundled with barvinok is 0.28, so this is satisfied.

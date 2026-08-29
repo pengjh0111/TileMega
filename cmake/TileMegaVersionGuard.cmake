@@ -1,22 +1,27 @@
 # ==============================================================================
-# 依赖版本一致性守卫
+# Dependency version guard
 #
-# 背景（TILEMEGA_SKELETON.md 风险 R10）：R1 调研环境里，手写 MLIR 实验用的是
-# /data/cuda-tile @ 8a775693（2026-01），而 tensor-ir 通过 FetchContent 拉取的是
-# af241704（2026-07）——两份 op/属性集合不同，是贯穿整份调研报告的隐性坑。
+# Background (TILEMEGA_SKELETON.md, risk R10): in the R1 study environment the
+# hand-written MLIR experiments used /data/cuda-tile @ 8a775693 (2026-01) while
+# tensor-ir pulled af241704 (2026-07) through FetchContent. The two had
+# different op and attribute sets, a latent trap running through the whole
+# study report.
 #
-# TileMega 的构建模型让 tensor-ir 独占 cuda-tile 的拉取权，所以构建树里天然只有
-# 一份。这个模块负责校验：third_party/cuda-tile 这个"钉子 submodule"确实和
-# tensor-ir 实际会拉的 commit 一致，以及 cuda-tile 与 tensor-ir 对 LLVM 的
-# 钉法一致（tensor-ir 的 pin 文件明确要求两者必须成对更新）。
+# TileMega's build model gives tensor-ir exclusive ownership of fetching
+# cuda-tile, so the build tree naturally holds only one copy. This module
+# verifies that the third_party/cuda-tile "pin submodule" really does match the
+# commit tensor-ir will fetch, and that cuda-tile and tensor-ir agree on the
+# LLVM revision (tensor-ir's pin file states explicitly that the two must be
+# updated together).
 #
-# 任何一项不符 —— 配置期直接 FATAL_ERROR，而不是等到运行时踩坑。
+# Any mismatch is a configure-time FATAL_ERROR rather than a runtime surprise.
 # ==============================================================================
 include_guard(GLOBAL)
 
-# 从 CMake 文件中抽取一个 pin 变量的 40 位 SHA。
-# 注意：pin 文件把值写在变量名的**下一行**，所以必须整文件读，
-# 不能用 file(STRINGS ... REGEX)（那是逐行匹配的）。
+# Extract the 40-character SHA of a pin variable from a CMake file.
+# Note: the pin file puts the value on the line AFTER the variable name, so the
+# whole file must be read; file(STRINGS ... REGEX) matches line by line and
+# would never see it.
 function(_tilemega_read_pin file var_name out_var)
   if(NOT EXISTS "${file}")
     message(FATAL_ERROR
@@ -24,8 +29,9 @@ function(_tilemega_read_pin file var_name out_var)
       "  submodule 可能没有初始化，执行：git submodule update --init --recursive")
   endif()
   file(READ "${file}" _content)
-  # CMake 的正则不支持 {n} 重复，只能匹配 + 再单独校验长度。
-  # 两种写法都要吃：tensor-ir 的 pin 带引号且换行，cuda-tile 的不带引号。
+  # CMake regular expressions do not support {n} repetition, so match with +
+  # and check the length separately. Both spellings must be handled:
+  # tensor-ir's pin is quoted and on the next line, cuda-tile's is unquoted.
   if(NOT _content MATCHES "${var_name}[ \t\r\n]*\"?([0-9a-f]+)")
     message(FATAL_ERROR
       "TileMega: 在 ${file} 中未能抽出 ${var_name} 的 SHA。\n"
@@ -45,13 +51,13 @@ function(tilemega_assert_dependency_pins)
   set(_ti   "${_root}/third_party/tensor-ir")
   set(_ct   "${_root}/third_party/cuda-tile")
 
-  # --- tensor-ir 声明的 pin --------------------------------------------------
+  # --- pins declared by tensor-ir -------------------------------------------
   _tilemega_read_pin("${_ti}/cmake/TensorIRDependencyPins.cmake"
                      "TENSOR_IR_PINNED_CUDA_TILE_COMMIT" _ti_cuda_tile)
   _tilemega_read_pin("${_ti}/cmake/TensorIRDependencyPins.cmake"
                      "TENSOR_IR_PINNED_LLVM_COMMIT" _ti_llvm)
 
-  # --- cuda-tile submodule 实际 checkout 的 commit ---------------------------
+  # --- commit the cuda-tile submodule is actually checked out at ------------
   find_package(Git QUIET)
   if(NOT Git_FOUND)
     message(WARNING "TileMega: 找不到 git，跳过 cuda-tile submodule 版本校验")
@@ -67,11 +73,11 @@ function(tilemega_assert_dependency_pins)
     endif()
   endif()
 
-  # --- cuda-tile 自己钉的 LLVM ----------------------------------------------
+  # --- the LLVM revision cuda-tile pins for itself --------------------------
   _tilemega_read_pin("${_ct}/cmake/IncludeLLVM.cmake"
                      "LLVM_BUILD_COMMIT_HASH" _ct_llvm)
 
-  # --- 断言 1：两份 cuda-tile 必须同 commit ---------------------------------
+  # --- assertion 1: the two cuda-tile copies must be the same commit --------
   if(NOT _ct_head STREQUAL _ti_cuda_tile)
     message(FATAL_ERROR
       "TileMega: cuda-tile 版本不一致（风险 R10）。\n"
@@ -82,8 +88,8 @@ function(tilemega_assert_dependency_pins)
       "  若确实要升级 cuda-tile，必须同时升级 tensor-ir 的 pin 文件并重测。")
   endif()
 
-  # --- 断言 2：cuda-tile 与 tensor-ir 对 LLVM 的钉法必须一致 ------------------
-  # tensor-ir 的 pin 文件原话：
+  # --- assertion 2: cuda-tile and tensor-ir must agree on LLVM --------------
+  # From tensor-ir's own pin file:
   #   "Update the CUDA Tile and LLVM revisions together.
   #    The LLVM revision must match the compatibility pin for the selected
   #    CUDA Tile revision."
