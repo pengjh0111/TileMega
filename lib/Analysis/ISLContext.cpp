@@ -49,7 +49,7 @@ std::string ISLContext::lastError() const {
   if (!hasError())
     return {};
   const char *msg = isl_ctx_last_error_msg(ctx_);
-  return msg ? std::string(msg) : std::string("未知 isl 错误");
+  return msg ? std::string(msg) : std::string("unknown isl error");
 }
 
 void ISLContext::clearError() { isl_ctx_reset_error(ctx_); }

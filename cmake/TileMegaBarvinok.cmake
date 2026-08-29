@@ -22,7 +22,7 @@ include_guard(GLOBAL)
 
 set(TILEMEGA_BARVINOK_PREFIX
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/.install/barvinok"
-    CACHE PATH "barvinok/isl 的安装前缀")
+    CACHE PATH "Install prefix for barvinok/isl")
 
 function(tilemega_find_barvinok)
   find_package(PkgConfig REQUIRED)
@@ -30,9 +30,9 @@ function(tilemega_find_barvinok)
   set(_pcdir "${TILEMEGA_BARVINOK_PREFIX}/lib/pkgconfig")
   if(NOT EXISTS "${_pcdir}/barvinok.pc")
     message(FATAL_ERROR
-      "TileMega: 在 ${TILEMEGA_BARVINOK_PREFIX} 下找不到 barvinok。\n"
-      "  先执行：  ./scripts/build_barvinok.sh\n"
-      "  或用 -DTILEMEGA_ENABLE_ISL=OFF 暂时关掉分析层。")
+      "TileMega: barvinok not found under ${TILEMEGA_BARVINOK_PREFIX}.\n"
+      "  Run this first:  ./scripts/build_barvinok.sh\n"
+      "  Or pass -DTILEMEGA_ENABLE_ISL=OFF to disable the analysis layer.")
   endif()
 
   # Look only at the copy we installed ourselves, so we do not accidentally

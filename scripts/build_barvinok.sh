@@ -16,15 +16,15 @@ JOBS="${JOBS:-$(nproc)}"
 
 for sub in isl polylib; do
   if [ ! -f "$SRC/$sub/configure.ac" ] && [ ! -f "$SRC/$sub/configure.in" ]; then
-    echo "错误：$SRC/$sub 未初始化。执行：" >&2
+    echo "error: $SRC/$sub is not initialised. Run:" >&2
     echo "  git submodule update --init --recursive third_party/barvinok" >&2
     exit 1
   fi
 done
 
-echo "==> barvinok 源码 : $SRC"
-echo "==> 安装前缀      : $PREFIX"
-echo "==> 并行度        : $JOBS"
+echo "==> barvinok source : $SRC"
+echo "==> install prefix  : $PREFIX"
+echo "==> parallelism     : $JOBS"
 
 # autogen must run inside the source tree (it generates configure).
 cd "$SRC"
@@ -52,7 +52,7 @@ make -j"$JOBS"
 make install
 
 echo
-echo "==> 完成。校验："
+echo "==> done. Verifying:"
 ls "$PREFIX/lib/"libisl.* "$PREFIX/lib/"libbarvinok.* 2>/dev/null || {
-  echo "警告：预期的库文件没找到" >&2; exit 1; }
-echo "现在可以带 -DTILEMEGA_ENABLE_ISL=ON 重新 configure。"
+  echo "warning: expected library files not found" >&2; exit 1; }
+echo "You can now re-run cmake with -DTILEMEGA_ENABLE_ISL=ON."

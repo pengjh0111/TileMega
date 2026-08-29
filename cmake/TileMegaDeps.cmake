@@ -25,8 +25,8 @@ function(tilemega_collect_dependency_includes out_var)
   FetchContent_GetProperties(tensor_ir_cuda_tile)
   if(NOT tensor_ir_cuda_tile_SOURCE_DIR)
     message(FATAL_ERROR
-      "TileMega: 拿不到 cuda-tile 的 FetchContent 路径。"
-      "上游可能改了 content 名字（原为 tensor_ir_cuda_tile）。")
+      "TileMega: cannot obtain cuda-tile's FetchContent paths. "
+      "Upstream may have renamed the content (it was tensor_ir_cuda_tile).")
   endif()
   list(APPEND _dirs
     "${tensor_ir_cuda_tile_SOURCE_DIR}/include"
@@ -34,7 +34,7 @@ function(tilemega_collect_dependency_includes out_var)
 
   foreach(d IN LISTS _dirs)
     if(NOT EXISTS "${d}")
-      message(FATAL_ERROR "TileMega: 依赖头文件目录不存在: ${d}")
+      message(FATAL_ERROR "TileMega: dependency include directory missing: ${d}")
     endif()
   endforeach()
 

@@ -9,7 +9,8 @@ __pycache__/
 *.pyc
 *.log
 
-# tensor-ir 被 add_subdirectory 嵌入时，它的某条 CMake 规则用了相对
-# CMAKE_SOURCE_DIR 的路径，会在我们的顶层生成这两个空目录。无害。
+# When tensor-ir is embedded via add_subdirectory, one of its CMake rules uses
+# a path relative to CMAKE_SOURCE_DIR and creates these two empty directories
+# at our top level. Harmless.
 /media/
 /spec/

@@ -35,13 +35,13 @@ static void check(CUresult rc, const char *what) {
     return;
   const char *msg = nullptr;
   cuGetErrorString(rc, &msg);
-  std::fprintf(stderr, "错误: %s 失败: %s\n", what, msg ? msg : "?");
+  std::fprintf(stderr, "error: %s failed: %s\n", what, msg ? msg : "?");
   std::exit(1);
 }
 
 int main(int argc, char **argv) {
   if (argc != 3) {
-    std::fprintf(stderr, "用法: %s <cubin> <entry-name>\n", argv[0]);
+    std::fprintf(stderr, "usage: %s <cubin> <entry-name>\n", argv[0]);
     return 2;
   }
 
@@ -98,26 +98,26 @@ int main(int argc, char **argv) {
 
   int coopMaxGrid = blocksPerSM * numSM;
 
-  std::printf("设备            : %s (sm_%d%d, %d SM)\n", name, major, minor,
+  std::printf("device           : %s (sm_%d%d, %d SMs)\n", name, major, minor,
               numSM);
-  std::printf("cubin           : %s\n", argv[1]);
-  std::printf("entry           : %s\n", argv[2]);
+  std::printf("cubin            : %s\n", argv[1]);
+  std::printf("entry            : %s\n", argv[2]);
   std::printf("--\n");
-  std::printf("要求 blockDim   : %d   <-- 从 kernel 读出，不是猜的\n",
+  std::printf("required blockDim: %d   <-- read from the kernel, not guessed\n",
               reqBlockSize);
-  std::printf("REG / thread    : %d\n", numRegs);
-  std::printf("static SHM      : %d B\n", sharedBytes);
-  std::printf("local / thread  : %d B\n", localBytes);
+  std::printf("REG / thread     : %d\n", numRegs);
+  std::printf("static SHM       : %d B\n", sharedBytes);
+  std::printf("local / thread   : %d B\n", localBytes);
   std::printf("--\n");
-  std::printf("blocks/SM       : %d\n", blocksPerSM);
-  std::printf("cooperative 上限: %d  (= blocks/SM x SM 数)\n", coopMaxGrid);
+  std::printf("blocks/SM        : %d\n", blocksPerSM);
+  std::printf("cooperative limit: %d  (= blocks/SM x SM count)\n", coopMaxGrid);
   std::printf("--\n");
-  std::printf("[对照] 若像 R1 那样错传 blockSize=1: blocks/SM = %d "
-              "(高估 %.0fx)\n",
+  std::printf("[control] passing blockSize=1 as R1 did: blocks/SM = %d "
+              "(%.0fx overestimate)\n",
               blocksPerSMWrong,
               blocksPerSM ? (double)blocksPerSMWrong / blocksPerSM : 0.0);
   if (numRegs > 0 && reqBlockSize > 0) {
-    std::printf("[手算] %d / (%d x %d) = %.2f\n", regsPerSM, numRegs,
+    std::printf("[by hand] %d / (%d x %d) = %.2f\n", regsPerSM, numRegs,
                 reqBlockSize, (double)regsPerSM / (numRegs * reqBlockSize));
   }
 

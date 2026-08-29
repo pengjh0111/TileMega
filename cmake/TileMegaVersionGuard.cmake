@@ -25,8 +25,9 @@ include_guard(GLOBAL)
 function(_tilemega_read_pin file var_name out_var)
   if(NOT EXISTS "${file}")
     message(FATAL_ERROR
-      "TileMega: 找不到 ${file}。\n"
-      "  submodule 可能没有初始化，执行：git submodule update --init --recursive")
+      "TileMega: ${file} not found.\n"
+      "  The submodule may not be initialised. Run:\n"
+      "    git submodule update --init --recursive")
   endif()
   file(READ "${file}" _content)
   # CMake regular expressions do not support {n} repetition, so match with +
@@ -34,14 +35,14 @@ function(_tilemega_read_pin file var_name out_var)
   # tensor-ir's pin is quoted and on the next line, cuda-tile's is unquoted.
   if(NOT _content MATCHES "${var_name}[ \t\r\n]*\"?([0-9a-f]+)")
     message(FATAL_ERROR
-      "TileMega: 在 ${file} 中未能抽出 ${var_name} 的 SHA。\n"
-      "  上游可能改了 pin 文件的格式，需要同步更新本守卫。")
+      "TileMega: could not extract the SHA for ${var_name} from ${file}.\n"
+      "  Upstream may have changed the pin file format; update this guard.")
   endif()
   set(_sha "${CMAKE_MATCH_1}")
   string(LENGTH "${_sha}" _len)
   if(NOT _len EQUAL 40)
     message(FATAL_ERROR
-      "TileMega: ${file} 里 ${var_name} 抽到的不是 40 位 SHA：'${_sha}'")
+      "TileMega: ${var_name} in ${file} is not a 40-character SHA: '${_sha}'")
   endif()
   set(${out_var} "${_sha}" PARENT_SCOPE)
 endfunction()
@@ -60,7 +61,8 @@ function(tilemega_assert_dependency_pins)
   # --- commit the cuda-tile submodule is actually checked out at ------------
   find_package(Git QUIET)
   if(NOT Git_FOUND)
-    message(WARNING "TileMega: 找不到 git，跳过 cuda-tile submodule 版本校验")
+    message(WARNING
+      "TileMega: git not found; skipping the cuda-tile submodule version check")
     set(_ct_head "${_ti_cuda_tile}")
   else()
     execute_process(
@@ -69,7 +71,8 @@ function(tilemega_assert_dependency_pins)
       ERROR_QUIET RESULT_VARIABLE _rc)
     if(NOT _rc EQUAL 0)
       message(FATAL_ERROR
-        "TileMega: 无法读取 ${_ct} 的 HEAD。执行 git submodule update --init --recursive")
+        "TileMega: cannot read HEAD of ${_ct}.\n"
+        "  Run: git submodule update --init --recursive")
     endif()
   endif()
 
@@ -80,12 +83,14 @@ function(tilemega_assert_dependency_pins)
   # --- assertion 1: the two cuda-tile copies must be the same commit --------
   if(NOT _ct_head STREQUAL _ti_cuda_tile)
     message(FATAL_ERROR
-      "TileMega: cuda-tile 版本不一致（风险 R10）。\n"
-      "  third_party/cuda-tile HEAD          = ${_ct_head}\n"
-      "  tensor-ir 将要拉取的 cuda-tile      = ${_ti_cuda_tile}\n"
-      "  这两份的 op/属性集合可能不同，R1 调研已在此踩过坑。\n"
-      "  修复：git -C third_party/cuda-tile checkout ${_ti_cuda_tile}\n"
-      "  若确实要升级 cuda-tile，必须同时升级 tensor-ir 的 pin 文件并重测。")
+      "TileMega: cuda-tile version mismatch (risk R10).\n"
+      "  third_party/cuda-tile HEAD     = ${_ct_head}\n"
+      "  cuda-tile tensor-ir will fetch = ${_ti_cuda_tile}\n"
+      "  These two may have different op and attribute sets; the R1 study was\n"
+      "  bitten by exactly this.\n"
+      "  Fix: git -C third_party/cuda-tile checkout ${_ti_cuda_tile}\n"
+      "  To genuinely upgrade cuda-tile, upgrade tensor-ir's pin file at the\n"
+      "  same time and re-run the measurements.")
   endif()
 
   # --- assertion 2: cuda-tile and tensor-ir must agree on LLVM --------------
@@ -95,14 +100,15 @@ function(tilemega_assert_dependency_pins)
   #    CUDA Tile revision."
   if(NOT _ct_llvm STREQUAL _ti_llvm)
     message(FATAL_ERROR
-      "TileMega: LLVM pin 不一致。\n"
-      "  cuda-tile @ ${_ct_head} 要求 LLVM = ${_ct_llvm}\n"
-      "  tensor-ir 声明的 LLVM          = ${_ti_llvm}\n"
-      "  这两个必须成对更新，否则 cuda-tile 大概率编不过。")
+      "TileMega: LLVM pin mismatch.\n"
+      "  cuda-tile @ ${_ct_head} requires LLVM = ${_ct_llvm}\n"
+      "  tensor-ir declares LLVM             = ${_ti_llvm}\n"
+      "  These must be updated as a pair, or cuda-tile will most likely fail\n"
+      "  to build.")
   endif()
 
   set(TILEMEGA_CUDA_TILE_PIN "${_ct_head}" PARENT_SCOPE)
   set(TILEMEGA_LLVM_PIN      "${_ti_llvm}" PARENT_SCOPE)
-  message(STATUS "TileMega: 依赖 pin 校验通过 "
+  message(STATUS "TileMega: dependency pin check passed "
                  "(cuda-tile ${_ct_head}, LLVM ${_ti_llvm})")
 endfunction()

@@ -32,21 +32,23 @@ OUT=""
 
 usage() {
   cat <<EOF
-用法: tilemega-compile [选项] <input.mlir>
+Usage: tilemega-compile [options] <input.mlir>
 
-选项:
-  -o <file>        输出 cubin 路径（默认 <input>.cubin）
-  --arch <arch>    GPU 架构（默认 $GPU_ARCH）
-  --tileiras <p>   tileiras 路径（默认 $TILEIRAS）
-  --bc-version <v> Tile IR bytecode 版本（默认 $BC_VERSION）
-  --keep           保留中间的 .tilebc
-  -h, --help       本帮助
+Options:
+  -o <file>        output cubin path (default: <input>.cubin)
+  --arch <arch>    GPU architecture (default: $GPU_ARCH)
+  --tileiras <p>   path to tileiras (default: $TILEIRAS)
+  --bc-version <v> Tile IR bytecode version (default: $BC_VERSION)
+  --keep           keep the intermediate .tilebc
+  -h, --help       this help
 
-环境变量: TILEMEGA_GPU_ARCH / TILEMEGA_TILEIRAS / TILEMEGA_BYTECODE_VERSION
-         TILEMEGA_BUILD_DIR
+Environment: TILEMEGA_GPU_ARCH / TILEMEGA_TILEIRAS / TILEMEGA_BYTECODE_VERSION
+             TILEMEGA_BUILD_DIR
 
-注意: tileiras 版本会实质影响产物（见 V0：13.1 vs 13.3 的 REQNTID 为 256 vs 128）。
-      每次编译写出的 <out>.env.json 记录了完整工具链，复现时以它为准。
+Note: the tileiras version materially affects the output (see V0: REQNTID is
+      256 under 13.1 and 128 under 13.3). The <out>.env.json written by every
+      compilation records the full toolchain; treat it as authoritative when
+      reproducing a result.
 EOF
 }
 
@@ -58,35 +60,35 @@ while [[ $# -gt 0 ]]; do
     --bc-version) BC_VERSION="$2"; shift 2;;
     --keep) KEEP_INTERMEDIATE=1; shift;;
     -h|--help) usage; exit 0;;
-    -*) echo "未知选项: $1" >&2; usage >&2; exit 2;;
+    -*) echo "unknown option: $1" >&2; usage >&2; exit 2;;
     *) INPUT="$1"; shift;;
   esac
 done
 
-[[ -n "${INPUT:-}" ]] || { echo "错误: 缺少输入 .mlir" >&2; usage >&2; exit 2; }
-[[ -f "$INPUT" ]] || { echo "错误: 找不到 $INPUT" >&2; exit 1; }
+[[ -n "${INPUT:-}" ]] || { echo "error: no input .mlir given" >&2; usage >&2; exit 2; }
+[[ -f "$INPUT" ]] || { echo "error: no such file: $INPUT" >&2; exit 1; }
 
 CT_OPT="$(find "$BUILD" -name cuda-tile-opt -type f 2>/dev/null | head -1)"
 CT_TRANSLATE="$(find "$BUILD" -name cuda-tile-translate -type f 2>/dev/null | head -1)"
 for t in "$CT_OPT:cuda-tile-opt" "$CT_TRANSLATE:cuda-tile-translate"; do
   p="${t%%:*}"; n="${t##*:}"
-  [[ -x "$p" ]] || { echo "错误: 在 $BUILD 下找不到 $n，先 ninja -C build $n" >&2; exit 1; }
+  [[ -x "$p" ]] || { echo "error: $n not found under $BUILD; run: ninja -C build $n" >&2; exit 1; }
 done
-[[ -x "$TILEIRAS" ]] || { echo "错误: tileiras 不可执行: $TILEIRAS" >&2; exit 1; }
+[[ -x "$TILEIRAS" ]] || { echo "error: tileiras is not executable: $TILEIRAS" >&2; exit 1; }
 
 BASE="${INPUT%.mlir}"
 OUT="${OUT:-$BASE.cubin}"
 TILEBC="${OUT%.cubin}.tilebc"
 
-echo "[1/3] 验证 IR      : $CT_OPT"
+echo "[1/3] verify IR      : $CT_OPT"
 "$CT_OPT" "$INPUT" -o /dev/null
 
-echo "[2/3] MLIR -> tilebc (bytecode $BC_VERSION)"
+echo "[2/3] MLIR -> tilebc : bytecode $BC_VERSION"
 "$CT_TRANSLATE" "$INPUT" \
   --mlir-to-cudatilebc --no-implicit-module \
   --bytecode-version="$BC_VERSION" -o "$TILEBC"
 
-echo "[3/3] tilebc -> cubin ($GPU_ARCH, $("$TILEIRAS" --version 2>&1 | tail -1))"
+echo "[3/3] tilebc -> cubin : $GPU_ARCH, $("$TILEIRAS" --version 2>&1 | tail -1)"
 "$TILEIRAS" --gpu-name "$GPU_ARCH" "$TILEBC" -o "$OUT"
 
 # Environment snapshot. The lesson from R1: conclusions are tightly bound to
@@ -110,6 +112,6 @@ EOF
 
 [[ $KEEP_INTERMEDIATE -eq 1 ]] || rm -f "$TILEBC"
 
-echo "完成: $OUT"
-echo "     环境快照: ${OUT}.env.json"
+echo "done: $OUT"
+echo "     toolchain snapshot: ${OUT}.env.json"
 cuobjdump --dump-resource-usage "$OUT" 2>/dev/null | grep -E "Function|REG:" | sed 's/^/     /'
