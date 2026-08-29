@@ -43,11 +43,16 @@ found = False
 for off, txt in insns:
     if 'BRA' not in txt:
         continue
-    t = re.search(r'BRA\s+(?:[^;]*?)0x([0-9a-f]+)', txt)
+    # Predicated / uniform forms carry a suffix and an extra operand, e.g.
+    # "@!P0 BRA 0x1e0", "BRA.U UPn, 0x340". Match the mnemonic with its
+    # optional suffix, then take the last hex literal as the target.
+    t = re.search(r'\bBRA(?:\.[A-Z]+)*\s+[^;]*?0x([0-9a-f]+)\s*$', txt)
     if not t:
         continue
     tgt = int(t.group(1), 16)
-    if tgt < off and off - tgt < 2048:
+    # 8 KiB, not 2 KiB: V1-a's producer store loop spans 2368 B and was
+    # silently dropped by the old cap, which read as "fully unrolled".
+    if tgt < off and off - tgt < 8192:
         body = [by_off.get(o, '') for o in range(tgt, off + 16, 16)]
         nbar = sum('BAR.SYNC' in b for b in body)
         found = True

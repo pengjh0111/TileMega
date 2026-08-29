@@ -141,7 +141,7 @@ V1-d（修全部 bug + 每个 block 等自己的 `flag[bx]`，128B padding，4 �
 | 工具 | bug | 影响 |
 |---|---|---|
 | `tilemega-occupancy` | 用 `CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK` 冒充 REQNTID。那是**寄存器允许的上限**，REG=24 时报 1024 而 REQNTID 是 128 | 现已真正解析 ELF 的 `EIATTR_REQNTID`（§6.7 的字面要求）。**由此直接实测确认 V0 推算的 cooperative 上限 340** |
-| `sass_report.sh` | 回边检测漏了 `BRA.U UPn, 0x...` 形式 | 生产者的 store 循环正是这种形式，一度被误判为「完全展开」。已修 |
+| `sass_report.sh` | 回边检测有两处漏洞：正则 `BRA\s+` 不匹配带后缀的 `BRA.U UPn, 0x...`；回边跨度上限写死 2048 B | 生产者的 store 循环两处都踩中（跨度 2368 B），一度被误判为「完全展开」。已修（正则改为匹配可选后缀 + 取末位十六进制；上限提到 8192 B），并在 V1-a/V1-ctrl 的 SASS 上复验：V1-a 现正确报出 0x0a50→0x0110（2368 B，循环体内 16 个 `BAR.SYNC`）与 0x0c40→0x0c10 两条回边 |
 
 ---
 

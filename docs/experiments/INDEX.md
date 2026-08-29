@@ -1,10 +1,13 @@
 # 实验索引
 
-> **为什么需要这张表**：结论会被后续实验推翻。V0 推翻了 §2.2 的一条硬约束，
-> V1 推翻了 §2.4 整节。直接去读各个 `result.md` 很容易读到已过期的结论。
-> **本表是唯一的权威索引：先查这里的「是否被推翻」列，再去读原文。**
+> **为什么需要这张表**：结论会被后续实验推翻。直接去读各个 `result.md`
+> 很容易读到已过期的结论。**先查这里的「是否被推翻」列，再去读原文。**
+>
+> 本表只记录**实验之间**的相互推翻关系。骨架 `Tilemega_skeleton.md`
+> 由维护者更新；本表中「与骨架 §x.y 冲突」只是实验侧的观察记录，
+> 不代表骨架已经改动。
 
-工具链版本对结论至关重要（见风险 R14）：
+工具链版本对结论至关重要（同一份 MLIR 在 13.1 与 13.3 上结论相反）：
 - **R1 / R2**：cuda-tile `8a775693`（2026-01）+ tileiras **13.1** (V13.1.80)
 - **V0 / V1**：cuda-tile `af241704`（Tile IR 13.3.3）+ tileiras **13.3** (V13.3.36)
 
@@ -28,7 +31,7 @@
 | 编号 | 主题 | 一句话结论 | 是否被推翻 | 结果文件 |
 |---|---|---|---|---|
 | R2-A | 活锁 vs 死锁判别 | 是局部死锁（PC 20s 不前进）；卡死点在 post-spin reduce 收尾码 | **被 V1 推翻**：那段代码本身是 Bug C 的 UB 现场，且挂起在 13.3 不复现 | `R1R2/experiments/R2_A_livelock_vs_deadlock/result.md` |
-| R2-B | test-and-test-and-set 修复 | `CCTL.IVALL` 成功移出循环，但挂起率无改善 | **前半有效**（写法本身正确，见 §6.9）；**后半被 V1 推翻** | `R1R2/experiments/R2_B_relaxed_plus_acquire/result.md` |
+| R2-B | test-and-test-and-set 修复 | `CCTL.IVALL` 成功移出循环，但挂起率无改善 | **前半有效**（test-and-test-and-set 写法本身正确）；**后半被 V1 推翻** | `R1R2/experiments/R2_B_relaxed_plus_acquire/result.md` |
 | R2-C | 自旋退避 | 小 grid 有量级缓解，grid=170 完全无效 | **被 V1 推翻**（无挂起可退避） | `R1R2/experiments/R2_C_backoff/result.md` |
 | R2-D | REG=228 vs occupancy 矛盾溯源 | 是 harness 传错 blockSize=1，不是 driver bug | 否。**V1 加固**：必须读 `EIATTR_REQNTID`，连 `MAX_THREADS_PER_BLOCK` 都不能替代 | `R1R2/experiments/R2_D_occupancy_audit/result.md` |
 | R2-E | harness 卫生检查 | 未开始 | pending | — |
@@ -40,14 +43,14 @@
 
 | 编号 | 主题 | 一句话结论 | 是否被推翻 | 结果文件 |
 |---|---|---|---|---|
-| V0 | tileiras 13.1 vs 13.3 静态对比 | REQNTID 256→128（驻留容量 170→340）；`CCTL.IVALL` 225→28；**但自旋循环内的 `BAR.SYNC.DEFER_BLOCKING` 仍在** | 否。**推翻了骨架 §2.2**「每 block 256 线程」的常量表述 | `V0_toolchain_rebaseline/result.md` |
+| V0 | tileiras 13.1 vs 13.3 静态对比 | REQNTID 256→128（驻留容量 170→340）；`CCTL.IVALL` 225→28；**但自旋循环内的 `BAR.SYNC.DEFER_BLOCKING` 仍在** | 否。与骨架 §2.2「每 block 256 线程」的常量表述冲突（待维护者裁决） | `V0_toolchain_rebaseline/result.md` |
 | V0-GPU | 13.1 侧挂起率扫描 | grid=30 挂 22/50、grid=80 挂 37/50 后因 GPU 污染中断 | 不完整；13.3 侧结论由 V1 取得 | 同上 |
 
 ## V1：修正后的跨 block 同步测试（2026-08-29）
 
 | 编号 | 主题 | 一句话结论 | 是否被推翻 | 结果文件 |
 |---|---|---|---|---|
-| V1-ctrl | 原样未改的测试在 13.3 上 | **300 次零挂起**（grid 3→340） | 否。**推翻了骨架 §2.4 与 E4/E5/R2-A/B/C 的挂起结论** | `V1_sync_corrected/SUMMARY.md` |
+| V1-ctrl | 原样未改的测试在 13.3 上 | **300 次零挂起**（grid 3→340） | 否。推翻 E4/E5/R2-A/B/C 的挂起结论；与骨架 §2.4 冲突（待维护者裁决） | `V1_sync_corrected/SUMMARY.md` |
 | V1-a | 修 Bug A+C，逐元素消费者 | 全 grid 零挂起 + 全槽位校验通过；修掉 Bug B 让 cooperative 上限 340→2040 | 否 | 同上 |
 | V1-b | 修 A+B+C，保留 reduce | 不挂但**静默算错**，失败率随 grid 上升 | 否 | 同上 |
 | V1-min | 最小复现（写 1 tile / 读 1 tile） | **阈值尖锐**：grid≤80 全过，grid≥120 全错；丢失整数条 `STG.E` 份额 | 否 | 同上 |
@@ -57,10 +60,12 @@
 
 ---
 
-## 当前有效的阻塞项
+## 实验侧当前的结论（供维护者裁决，尚未回写骨架）
 
-**只有一条**：§6.11 / 风险 R1' —— 大 grid（≥120）下跨 block 数据静默损坏，
-已隔离到 Tile IR 工具链，无 workaround。在修复前 L2 不可信，
-**L0.5（host 端 stage 边界）是唯一可信的执行路径**。
-
-～～原 R1「大 grid 挂起」已由 V1 关闭。～～
+1. 原 R1 / §2.4「大 grid 挂起」在 tileiras 13.3 上**不复现**（V1-ctrl，300 次零挂起）。
+2. 取而代之的是一个**新现象**：修掉三处测试 bug 后不再挂起，但 grid ≥ 120 时
+   跨 block 数据**静默损坏**，丢失整数条 `STG.E` 份额。已由 CUDA C++ 结构等价
+   对照隔离到 **Tile IR 工具链**（非硬件、非内存模型），目前无 workaround。
+   V1-d 表明 per-block 事件标志也不能规避。
+3. 因此「§2.4 是否可以关闭」与「是否新增一条阻塞项 / 风险条目」都需要维护者决定，
+   本表不代行。

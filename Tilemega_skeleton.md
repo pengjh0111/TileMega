@@ -124,50 +124,32 @@ L4    符号 shape 参数化 + 运行时变体选择
 | **无独立 fence/barrier op** | 顺序保证只能靠 ordering 属性 + token 数据流 |
 | **无设备端时钟原语** | kernel 内无法量化重叠，只能靠原子计数器快照等代理 |
 | **token 是纯编译期 SSA 排序约束** | 见 §2.3 |
-| **一个 tile block = 一个逻辑线程 = 一组物理线程。~~实测 256~~ → 线程数不是常量** | 由 `optimization_hints` 的 `num_worker_warps_per_cta`（**仅支持 4 或 8**）与后端版本共同决定。**自旋循环内部会生成 `BAR.SYNC.DEFER_BLOCKING`**，每次轮询要求该 block 全部线程会合。Tile IR **做不到「一个线程轮询、其余等待」**。详见下方修正 |
+| **一个 tile block = 一个逻辑线程 = 一组物理线程（数量由后端决定，~~实测 256~~ 见下方修正）** | **自旋循环内部会生成 `BAR.SYNC.DEFER_BLOCKING`**，每次轮询迭代要求该 block 全部线程会合。Tile IR **做不到「一个线程轮询、其余等待」**。见 §2.4 |
 | entry 参数只能是 rank-0 标量 tile 或 `tile<ptr<E>>` | 所有张量以裸指针传入 |
 | `LoopOp` 的 loop-carried 变量不能是 view 类型 | 影响 persistent 循环携带 partition view 的写法 |
 | 循环内不能提前 return | 需先终止循环再返回 |
 | Grid 每轴上限 `2^24-1` | 实践中无影响 |
 
-### ⚠️ 修正（V0 提出，V1 实测确认）：每 block 的线程数不是常量
+### ⚠️ 修正（V0，2026-08-28）：每 block 的线程数不是常量
 
-原文把「256」写成了实测常量。**它是后端版本 + `optimization_hints` 共同决定的**：
-
-- `num_worker_warps_per_cta` **仅支持 4 或 8**（`AttrDefs.td:102`）
-- cuda-tile 文档给 sm_120 的示例值是
-  `sm_120 = {num_cta_in_cga = 16, num_worker_warps_per_cta = 4}`
-  —— 4 warp × 32 = **128 线程**，与 13.3 实测的 REQNTID 完全吻合
+原文把「256」写成了实测常量。**V0 证明它是后端版本相关的选择**：
 
 | | tileiras 13.1 (V13.1.80) | tileiras 13.3 (V13.3.36) |
 |---|---|---|
 | `EIATTR_REQNTID` | **256** | **128** |
 | REG | 228 | 229 |
-| blocks/SM | 1 | **2** |
-| cooperative launch 上限（170 SM） | **170** | **340** ✅ V1 已用 driver 实测确认 |
+| blocks/SM（按各自 REQNTID 查） | 1 | **2** |
+| cooperative launch 上限（170 SM） | **170** | **340** |
 
-**这个量直接决定 occupancy 与 cooperative launch 上限，因此应作为
-`BackendCostQuery` 的一个查询维度。** V1 给出了它有多敏感的量级证据：
-
-| | V1-ctrl（含 Bug B） | V1-a（修掉 Bug B） |
-|---|---|---|
-| REG/thread | 229 | **24** |
-| blocks/SM（同为 REQNTID=128） | 2 | **12** |
-| cooperative 上限 | 340 | **2040** |
-
-**同一台机器、同一后端，仅仅改掉一处内存序写法，驻留容量差 6 倍。**
+同一份 `.tilebc`，只换 tileiras 版本，硬件驻留容量翻倍。
 
 **实现含义**：
-- 任何依赖「一个 block 多少线程」的推理都必须**从 cubin 读 `EIATTR_REQNTID`**。
-  §6.7 现在有了第二个理由，而且是字面意义上的必须：
-  V1 期间发现 `tilemega-occupancy` 曾用 `CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK`
-  冒充 REQNTID，那是**寄存器允许的上限**（REG=24 时报 1024，而 REQNTID 是 128），
-  差了 8 倍。已修正为真正解析 ELF
+- 任何依赖「一个 block 多少线程」的推理都必须**从 cubin 读 REQNTID**，
+  不能写死常量（§6.7 的要求现在有了第二个理由）
 - §2.4 的「max grid=170」只对 13.1 成立
-- grid 扫描范围要按当前后端的实际容量确定，不能沿用任何历史数字
+- Phase 1 的 grid 扫描范围要按当前后端的实际容量确定，不能沿用 170
 
-详见 `docs/experiments/V0_toolchain_rebaseline/result.md` 与
-`docs/experiments/V1_sync_corrected/SUMMARY.md`。
+详见 `docs/experiments/V0_toolchain_rebaseline/result.md`。
 
 ## 2.3 必须遵守：token 链
 
@@ -177,101 +159,7 @@ L4    符号 shape 参数化 + 运行时变体选择
 
 正确写法见 §6.1。**这是 codegen 层必须保证的不变量，任何生成同步代码的路径都要走统一封装。**
 
-## 2.4 ~~未解阻塞项：大 grid 挂起~~ → 测试代码 bug 导致的误判；真正的问题是静默数据损坏
-
-> **状态更新（V1，2026-08-29）**：经对照官方内存模型规范复查，R1/R2 系列测试源码存在
-> **三处 bug**，其中两处直接违反内存模型。**原结论不可信，已由 V1 重测。**
->
-> - **Bug A**：生产者的 `release` 未 token-order 在数据 store 之后。
->   规范 §7.5 原文：*"Program dependencies (i.e. dependencies apparent from control flow,
->   data dependency, or address dependency) **do not** provide ordering between two memory
->   operations"*，且 *"Tokens must be used, **even where the token ordering appears
->   redundant** with program dependencies"*。§7.12.3：*"you need to token-order all memory
->   events that must stay before the release to the release itself"*。
->   **整个 E4/R2-B/R2-C 系列建立在坏掉的同步之上，1000/1000 通过是运气。**
-> - **Bug B**：`acquire device` 打在 `tile<1024xf32>` 的每个元素上。规范 §7.1：
->   *"tile loads, stores, and atomic updates generate **one memory operation per element**
->   in the tile"* —— 单条指令 = 1024 个 acquire，循环 256 次 = 每 block 26 万个
->   device-scope acquire。这是 SASS 里那些 `CCTL.IVALL` 的来源。
->   **语义上完全多余**——happens-before 已由自旋循环的单次 acquire 建立（§7.12.3）。
-> - **Bug C**：169 个 tile block 用 `weak` 并发写同一地址 `checksum_out[0]`。
->   §7.2：*"The compiler **may assume** that tiles accessed with `weak` are **not
->   concurrently accessed** by any other thread"*；§7.10：*"Programs with data races have
->   **undefined behaviour**"*。R2-A 定位的卡死 PC 正是该 store 的前一条指令。
-> - **附带**：测试让 169 个 block 自旋在同一 flag 地址上，是最坏争用模式，
->   不代表 per-tile 事件张量的真实 megakernel。
-
-### ✅ V1 的实测结论：挂起现象不复现，但出现了更隐蔽的问题
-
-**1. 大 grid 挂起在 tileiras 13.3 上完全不复现。**
-
-原封不动的 `spin_wait_tokenchain.mlir`（含全部三处 bug）：
-
-| grid | 3 | 30 | 80 | 120 | 170 | 340 |
-|---|---|---|---|---|---|---|
-| 挂起 | 0/50 | 0/50 | 0/50 | 0/50 | 0/50 | 0/50 |
-
-**300 次零挂起**，含 R2 报 39/50 挂起的 grid=30 与超出 R2 认知上限的 grid=340。
-R1/R2「无已知安全实现路径」这一核心悲观结论，**在当前后端上不成立**。
-
-**2. 但修好三处 bug 后，出现了静默数据损坏。**
-
-最小复现（30 行 MLIR，一个生产者写**一个** 1024 元素 tile，token-order 后 release；
-一个消费者 relaxed 自旋 + 单次 acquire，读同一 tile 求和，期望 1024.0）：
-
-| grid | 3 | 30 | **80** | **120** | 170 | 340 |
-|---|---|---|---|---|---|---|
-| 校验失败 | 0/50 | 0/50 | **0/50** | **50/50** | 50/50 | 50/50 |
-
-**阈值尖锐地落在 80 与 120 之间。** 读到的值恒为 768 或 512（而非 1024），
-缺失量恒为 128 或 256 个元素 = **整数条 `STG.E` 指令的份额**（128 线程 × 1 元素）。
-不是随机撕裂，是整粒度丢失。
-
-**3. 已隔离到 Tile IR 工具链，不是硬件、不是内存模型。**
-
-结构逐行等价的 CUDA C++ 版本（`__syncthreads()` + `__threadfence()` + `atomicExch`
-作 release；消费者自旋 + `__threadfence()` 作 acquire），同一张卡、同一 driver：
-
-| grid | 8 | 30 | 128 | 170 | 340 |
-|---|---|---|---|---|---|
-| 失败 | 0/10 | 0/10 | 0/10 | 0/10 | 0/10 |
-
-**CUDA C++ 全过，Tile IR 在 grid≥120 全错。**
-
-**4. per-tile 事件张量的争用模式并不能规避。**
-
-V1-d（每个 block 等自己的 `flag[bx]`，128B padding，4 个生产者分别置位）
-在 grid≥128 同样 10/10 失败。**原先寄望「真实 megakernel 争用分散、问题可能不存在」，
-该寄望被证伪。**
-
-### 已排除的解释（V1，全部实测）
-
-| 假设 | 判定 |
-|---|---|
-| 自旋循环没有真的等待 | ❌ 排除。删掉生产者的 release atomic 后 kernel 按预期挂死 |
-| `reduce` 算错 | ❌ 排除。host 预置数据与 flag、不经过握手时 3/3 精确正确 |
-| 生产者没写完 | ❌ 排除。kernel 结束时 data 缓冲区 0/262144 个 poison 残留 |
-| Bug B 是主因 | ❌ 排除。数据 load 改回 `acquire device` 仍 20/20 失败 |
-| `weak` 违反 §7.2 的跨线程通信禁令 | ❌ 排除。改 `relaxed device` 后 SASS 确认变为 `STG.E.STRONG.GPU`，仍失败 |
-| SASS 生成有误 | ❌ 排除。生产者 `BAR.SYNC` → `MEMBAR.ALL.GPU` → `ATOMG.E.EXCH.STRONG.GPU` 顺序正确；消费者自旋回边 → `CCTL.IVALL` → 数据 `LDG` 顺序正确 |
-| 硬件或 driver | ❌ 排除。CUDA C++ 对照组全过 |
-
-### ✅ 已确认的正面事实：跨 tile block 通信是 Tile IR 的一等能力
-
-规范 §7.2 明确把 `device` scope 定义为「同一 GPU 内的通信」；§7.3 的 release/acquire
-配对建立 happens-before；§7.11 说明整个模型是 **PTX 内存模型的严格弱化**
-（*"a strict weakening of the PTX memory model"*）并可与 PTX 线程互操作。
-
-**没有** CGA/cluster 级 scope（只有 `tile_block` / `device` / `sys` 三档），
-**没有** 独立的 fence/barrier op —— 跨 block 同步的**唯一**手段就是
-`device` scope 的 release/acquire + token 链。
-
----
-
-## 2.4-历史 R1/R2 的原始观测（保留，不删除）
-
-> 以下为 R1/R2 的原文记录。观测数据本身是真实的，但**产生这些数据的测试代码有三处 bug，
-> 且当时用的是 tileiras 13.1**。V1 已证明挂起现象在 13.3 上不复现。
+## 2.4 未解阻塞项：大 grid 挂起
 
 ### 现象
 
@@ -459,11 +347,6 @@ broadcast / slice / transpose），**无 attention、无 gather/scatter、无控
 
 **注意**：MPK 的这部分实现深度绑定它的 `TaskDesc`/`EventDesc` 结构和 84K 行 CUDA runtime，
 不要直接移植代码，**移植的是机制设计**。
-
-**⚠️ 不要照抄 MPK 的同步写法**：MPK 是 CUDA C++/PTX，内存模型与 Tile IR 不同 ——
-Tile IR 是 PTX 模型的**严格弱化**（规范 §7.11），且**程序依赖不提供任何排序**，
-必须用 token（§7.5）。`mpk_atoms.cuh` 只能作为「哪个操作该用哪个 scope/ordering」的
-**语义参照**，落到 Tile IR 时必须按 §6.8–6.10 重新组织 token 链。
 
 ## 3.4 朴素 megakernel 的形态（L1）
 
@@ -695,22 +578,6 @@ tilemega/
 submodule 不参与构建，它是「钉子 + 可读副本」；实际构建用的那份由 tensor-ir
 通过 FetchContent 拉取。
 
-#### 复查（V1，2026-08-29）：是否跟进上游 cuda-tile main？—— **不跟进**
-
-有说法称上游 main 新增了 `ScanOp` / `AssertOp` / `GetTensorShapeOp` /
-`MmaFScaledOp` / `PermuteOp`。**实际核对后不成立**：
-
-- 上游 main 仍是 `be0889c`（2026-08-27），相对 `af241704` **只多一个
-  `[LLVM-FIX]` commit**，Tile IR 零功能差异（与 P0.1 首次核对时结论一致）
-- 用 `def CudaTile_*Op` 逐个对比两份 `Ops.td`：
-  **main 相对 af241704 新增的 op 数为 0**
-- 上述五个 op **在 `af241704` 中已经全部存在**
-
-因此不跟进 main（跟进只会把 LLVM 拖到 tensor-ir 未验证的 `9ebb067a`）。
-
-**`assert` op 已可用**：它就在我们钉的版本里。对调试 megakernel 可能有价值，
-但**语义与设备端行为尚未验证**，列入 §7.2 的待做小实验。
-
 #### 风险 R10（两份 cuda-tile 版本不一致）已永久关闭 `[x]`
 
 不是靠约定，是靠 `cmake/TileMegaVersionGuard.cmake` 在**配置期**强制断言：
@@ -879,10 +746,9 @@ submodule 不参与构建，它是「钉子 + 可读副本」；实际构建用�
   - [x] `CCTL.IVALL` 225 → 28，屏障总数 113 → 85
   - [x] **假设 H2 的对象仍在**：自旋循环体内依然有 `BAR.SYNC.DEFER_BLOCKING`
   - [x] 新工具链端到端编译 R1 时代的 MLIR 成功
-- [~] **GPU 统计扫描**：13.1 侧取到 grid=30 挂起 22/50、grid=80 挂起 37/50 后
-      因 GPU 被挂死 kernel 污染而中断（见 §2.4 的事故记录）。
-      **13.3 侧的数据由 V1 以更严格的方式取得（V1-ctrl，300 次零挂起），
-      结论已明确，本项不再单独补跑。**
+- [ ] `[!]` **GPU 统计扫描**：`(13.1, 13.3) × grid(30,80,120,170,340) × 50 次`
+      - **阻塞于 GPU 污染状态**，需 `sudo nvidia-smi --gpu-reset -i 0`
+      - 脚本与两个 cubin 已就绪：`docs/experiments/V0_toolchain_rebaseline/run_v0.sh`
 
 **分支决策（V0 GPU 扫描出结果后立刻执行）**：
 
@@ -892,38 +758,19 @@ submodule 不参与构建，它是「钉子 + 可读副本」；实际构建用�
 | 挂起仍在，但边界随容量平移到 ~340 | 现象与容量强相关的假设被加强，H2 方向继续；V1~V4 按原计划做，grid 范围扩到 340 |
 | 挂起仍在且边界未变（仍在 ~170 附近） | 说明与驻留容量无关，指向别的机制；V1（H1）优先级进一步提高 |
 
-### V1. 修正三处 bug 后重测 `[x]` ⭐ 已完成
+### V1. 逐元素消费者 ⭐（H1 验证）
 
-> **H1 说明**：假设 H1（挂起只发生在自旋后紧跟 reduce）提出时**尚未发现三处测试 bug**。
-> V1-a 与 V1-b 的对比会同时检验 H1 和 Bug B，两者可能是同一现象的两种描述。
-> 实际结果：**挂起本身在 13.3 上不复现，H1 与 Bug B 都失去了原本要解释的对象**。
+**假设 H1**：挂起只发生在「自旋之后紧跟 reduce」，而非同步机制本身。
 
-矩阵与结果（每格 50 次，`scripts/gpu_stat_run.sh`）：
+- [ ] 把 R1-E4 的消费者从 256 路展开归约改成**纯逐元素**（`out[i] = data[i] * 2`）
+- [ ] grid ∈ {3, 30, 80, 120, 170, 260, 340}，各跑 50 次，报告挂起率
+- [ ] 若不挂：**阻塞项性质完全改变**，问题窄化为 `reduce` 在高并发下的 lowering。
+      记录并继续 V2
+- [ ] 若仍挂：H1 被证伪，回到 `BAR.SYNC.DEFER_BLOCKING`（H2）方向
 
-| 变体 | 内容 | 挂起 | 全槽位校验 |
-|---|---|---|---|
-| **V1-ctrl** | 原样未改的 `spin_wait_tokenchain.mlir` | **0/50 全 grid（3→340）** | 不适用（输出是竞写标量） |
-| **V1-a** | 修 A+C，逐元素消费者，各 block 读不同 chunk | **0/50 全 grid** | **全 grid 通过** |
-| **V1-b** | 修 A+B+C，保留 reduce，所有 block 读相同数据 | 0/50 | grid3 0/50 · 30 34/50 · 80 8/50 · 120 3/50 · 170 0/50 · 340 0/50 |
-| **V1-min** | 最小复现：写 1 个 tile / 读 1 个 tile | 0/50 | grid≤80 **50/50 通过**；grid≥120 **50/50 失败** |
-| **V1-c** | `num_worker_warps_per_cta` 4 vs 8 | `[ ]` 未做 | — |
-| **V1-d** | 分散事件：每 block 等自己的 `flag[bx]`，4 生产者 | 0/10 | grid≥128 **10/10 失败** |
-
-**六个必答问题的答案见 `docs/experiments/V1_sync_corrected/SUMMARY.md`。** 要点：
-
-- [x] **挂起不复现**：V1-ctrl 在 13.3 上 300 次零挂起。R1/R2 的核心悲观结论不成立
-- [x] **但出现静默数据损坏**：阈值尖锐落在 grid 80–120 之间，缺失整数条 `STG.E` 的份额
-- [x] **已隔离到 Tile IR 工具链**：结构等价的 CUDA C++ 版本在所有 grid 全过
-- [x] **分散事件不能规避**（V1-d）—— 对项目最不利的一条
-- [x] **Bug B 的代价已量化**：修掉它让 cooperative 上限从 340 升到 2040
-- [ ] `[!]` **V1-c 未做**；两个触发因素（并发读同址 / 握手数据量）未做正交分离
-
-### V1-后续. 待办
-
-- [ ] **V1-c**：`num_worker_warps_per_cta` = 4 与 8 两档对挂起/损坏的影响
-- [ ] **正交实验**：分离「多 block 并发读同一地址」与「握手承载的数据量」两个因素
-- [ ] **向 NVIDIA 报 issue**：最小复现（30 行 MLIR）+ 阈值曲线 + CUDA C++ 对照已齐备
-- [ ] 静默损坏没有「现场」可采样，`hang_probe.sh` 不适用，需要新的定位方法
+> **实现提示**：消费者的两个版本应当由**同一份 MLIR 模板**参数化生成，
+> 而不是两份手写文件。R1/R2 的实验目录里同一个 kernel 有多份手抄变体，
+> 事后无法确定差异是否只在预期的那一处。
 
 ### V2. 消费者算子类型扫描
 
@@ -1203,11 +1050,6 @@ Phase 3 的 ISL 事件推导仍然成立（事件在 stage 内仍有意义），
 
 > 这些是从实测中提炼的硬性规则，**所有生成同步代码的路径必须走统一封装**，
 > 不允许在多处手写。
->
-> **本节规则的存在本身就是一个发现**：我们在 R1/R2 中同时踩了 §6.8 / §6.9 / §6.10
-> 三条，全程编译期零警告，测试还长期「通过」（E4 的 1000/1000）。
-> 这是「在 Tile IR 上手写 megakernel 同步逻辑不安全、需要 correct-by-construction
-> 代码生成层」的实证依据。
 
 ## 6.1 自旋等待必须串 token 链
 
@@ -1276,72 +1118,6 @@ Codegen 必须在生成「wait → 计算」序列时检查算子类型，
 
 参考：REG=228、blockDim=256 时，`65536/(228×256) = 1.12 → 1 block/SM`。
 
-## 6.8 release 必须 token-order 在它发布的所有写之后
-
-规范 §7.5：程序顺序、控制流依赖、数据依赖、地址依赖**都不提供排序**，必须用 token，
-且原文强调 *"even where the token ordering appears redundant with program dependencies"*。
-循环内的写必须用 `iter_values` 把 token 携带出循环，再传给 release 的 `token=` 参数：
-
-```mlir
-%init = make_token : token
-%chain = for %c in (%c0 to %n, step %c1) : tile<i32>
-             iter_values(%tok = %init) -> (token) {
-    %t = store_view_tko weak %val, %pv[%c] token=%tok : ... -> token
-    continue %t : token                        // ← 必须携带出去
-}
-%old, %at = atomic_rmw_tko release device %flag, xchg, %one token=%chain : ...
-//                                                       ^^^^^^^^^^^^^ 关键
-```
-
-违反后果：release 被重排到数据写之前，消费者读到脏数据。**编译期零警告，
-且可能长期侥幸通过测试**（E4 的 1000/1000 就是这样）。
-
-✅ V1 已验证本规则生效：修正后的 SASS 中 `MEMBAR.ALL.GPU` 正确出现在
-`ATOMG.E.EXCH.STRONG.GPU` 之前；而删掉 `token=` 则不会。
-
-## 6.9 acquire / release 只用在标量同步变量上
-
-数据的批量 load/store **不要在数据 tile 上加 acquire**，靠 `token=` 排在那一次
-acquire 之后即可。
-
-规范 §7.1：tile 操作按元素展开成内存模型操作，一个 `tile<1024>` 的 acquire =
-1024 个 acquire 操作，每个在 SASS 里对应一条 `CCTL.IVALL`。
-规范 §7.12.3：acquire 之后的内存事件靠 **token 排序**放在其后，不是各自再 acquire 一遍。
-
-✅ V1 量化了违反的代价（同一个 kernel，只改这一处）：
-
-| | 违反（Bug B） | 遵守 |
-|---|---|---|
-| SASS 指令数 | 1440 | **256** |
-| `CCTL.IVALL` | 29 | **1** |
-| REG/thread | 229 | **24** |
-| **cooperative 上限** | 340 | **2040** |
-
-⚠️ **但数据的批量访问不能用 `weak`**：§7.2 原文 *"weak ops **cannot be used to
-communicate through memory between threads**"*。跨 block 传递的数据要用
-`relaxed device`（允许并发访问、但不自建 happens-before，HB 由那一次 release/acquire
-提供），它同样**不**产生 `CCTL.IVALL`。
-
-## 6.10 禁止多个 tile block 用 weak 写同一位置
-
-并发写必须用 `atomic_*`，或按 tile block id 分槽（`out[bx]`）。
-
-规范 §7.2：`weak` 允许编译器假设该位置无并发访问。§7.10：data race 的程序是 UB。
-
-> 测试侧的推论：**校验必须覆盖每一个 block 的输出槽位。** R1/R2 只校验一个被竞写的
-> 标量，导致算错的 block 完全不被发现。V1 的 harness 逐槽校验 + 输入预填 poison，
-> 才暴露出静默数据损坏。
-
-## 6.11 `[!]` 大 grid 下跨 block 数据可见性存在后端缺陷
-
-⚠️ **V1 发现，尚未有 workaround。** 在 tileiras 13.3 / sm_120 上，遵守 §6.8–6.10 的
-正确 release/acquire 握手，在 **grid ≥ 120** 时会静默丢失整粒度的数据
-（每次 128 或 256 个元素 = 整数条 `STG.E`）。结构等价的 CUDA C++ 版本无此问题。
-
-**Codegen 层当前无法绕过。** 在缺陷修复前，L2（细粒度事件）不可信，
-L0.5（host 端 stage 边界）是唯一可信的执行路径。详见 §2.4 与
-`docs/experiments/V1_sync_corrected/SUMMARY.md`。
-
 ---
 
 # 7. 风险与未决问题
@@ -1350,8 +1126,7 @@ L0.5（host 端 stage 边界）是唯一可信的执行路径。详见 §2.4 与
 
 | # | 风险 | 严重度 | 状态 | 应对 |
 |---|---|---|---|---|
-| ~~R1~~ | ~~**大 grid 挂起未解**（§2.4）~~ | ~~高~~ | **✅ 已关闭（V1）**：三处测试 bug 已定位并证实；tileiras 13.3 上 300 次零挂起，现象不复现 | 无需应对 |
-| **R1'** | **大 grid 下跨 block 数据静默损坏**（§2.4、§6.11） | **高** | **V1 已实证**：正确的 release/acquire 握手在 grid≥120 时丢失整数条 `STG.E` 份额；CUDA C++ 对照组全过，缺陷已隔离到 Tile IR 工具链；per-tile 事件模式（V1-d）不能规避 | 向 NVIDIA 报 issue（最小复现已备）；在修复前 L2 不可信，L0.5 是唯一可信路径 |
+| R1 | **大 grid 挂起未解**（§2.4） | 高 | 两个候选修复已证伪；定位到 post-spin reduce + `BAR.SYNC.DEFER_BLOCKING`。**V0：13.3 下屏障仍在循环内，H2 未被解决；挂起率本身待测** | **V0 的 GPU 扫描（阻塞于 GPU 恢复）**→ V1~V4；L0.5 作为去风险路径 |
 | R2 | tileiras 是否做跨迭代软件流水未定；无 workaround | 高 | 观察到批量预取，未定点验证 | V5（R2-F 剩余） |
 | R3 | 划分优化的收益可能很小 | 高 | 待 P6.2 oracle | 尽早在 MPK 上做 oracle 实验 |
 | R4 | 并发干扰使代价模型不可靠 | 中高 | 待 P4.4 标定 | 偏差 >30% 则退化为「粗排 + 实测 top-3」 |
@@ -1364,8 +1139,6 @@ L0.5（host 端 stage 边界）是唯一可信的执行路径。详见 §2.4 与
 | R11 | sm_120 平台特有问题 | 低 | 后期确认 | 上层逻辑与硬件无关，后期在数据中心卡交叉验证 |
 | **R12** | **后端行为随 tileiras 版本实质变化** | **中高** | **V0 已实证**：同一 `.tilebc` 在 13.1/13.3 下 REQNTID 为 256/128，驻留容量 170/340，`CCTL.IVALL` 差 8 倍 | tileiras 版本作为显式参数；每个 cubin 附 `.env.json` 环境快照；任何跨版本的结论都要重测，不得沿用 |
 | **R13** | **挂死的 kernel 污染 GPU，杀进程不回收** | **中** | **V0 遇到并被空闲检查挡住**（SM 100% / 无进程 / 显存 0） | `gpu_stat_run.sh` 的空闲检查 + 独占锁；短超时由测试脚本自管；V6 建立恢复流程 |
-| **R14** | **`num_worker_warps_per_cta` 与后端版本会改变 tile block 线程数**，进而改变 occupancy 与 grid 上限 | **中** | 该 hint 仅支持 [4, 8]；13.1/13.3 的 REQNTID 为 256/128；V1 另测得同一后端下仅改内存序写法即让 blocks/SM 从 2 变 12 | `tilemega-occupancy` 已从 cubin 读 `EIATTR_REQNTID`（V1 期间修正）；**所有涉及 grid 规模的结论必须绑定具体工具链版本**，每次重基线复查 |
-| **R15** | **手写 Tile IR 同步逻辑不安全** | **中高** | R1/R2 同时踩了 §6.8/6.9/6.10 三条，编译期零警告且测试长期「通过」 | §6 的规则必须由统一的 codegen 封装强制，不允许手写；这是 correct-by-construction 代码生成层的实证依据 |
 
 ## 7.2 需要小实验确认
 
@@ -1377,10 +1150,6 @@ L0.5（host 端 stage 边界）是唯一可信的执行路径。详见 §2.4 与
 - [ ] **`reduce_ud` 能否表达 online softmax**（running-max 更新）
 - [ ] **paged KV 布局抵消在 prefix caching 下是否严格成立**
 - [ ] **多 entry 的 module 能否共享 `cuda_tile.global`**：若能，可规避部分「一切内联」的痛苦
-- [ ] **`cuda_tile.assert` 的设备端语义**：触发时的行为（终止？写错误码？）、
-      是否可在 release 构建保留、对寄存器/性能的影响。
-      已确认该 op 存在于我们钉的 `af241704`，但未验证行为。
-      megakernel 无设备端 printf 保证，assert 若可用则是主要的调试手段
 - [x] ~~**cuda-tile 与 tensor-ir 的版本兼容矩阵**~~ —— P0.1 已查清：
       tensor-ir main 钉 cuda-tile `af241704` + LLVM `57109bef`，
       cuda-tile main 仅多一个 LLVM 兼容 commit，Tile IR 零功能差异
@@ -1490,7 +1259,6 @@ L0.5（host 端 stage 边界）是唯一可信的执行路径。详见 §2.4 与
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
-| 2026-08-29 | v0.4 | **V1 重测**：定位并修正 R1/R2 测试源码的三处内存模型违反；证实 tileiras 13.3 上大 grid 挂起**不复现**（300 次零挂起），R1 关闭；但发现**新的静默数据损坏**（grid≥120，阈值尖锐），并用 CUDA C++ 对照组把缺陷**隔离到 Tile IR 工具链**；V1-d 证伪「分散事件可规避」的寄望。§2.4 整节降级重写并保留原文；§6 新增 6.8–6.11 四条规则与总纲；Phase 1 的 V1 替换为五变体矩阵；风险册 R1 关闭、新增 R1'/R14/R15；核对上游 cuda-tile main **无新增 op**，决定不跟进；新增 `docs/experiments/INDEX.md` |
 | 2026-08-28 | v0.3 | **Phase 0 完成**（仓库/构建/工具链/测试基础设施/ISL 地基全部落地并实测）。**新增 V0 工具链重基线**并把结论回写进 §2.2（每 block 线程数不是常量）、§2.4（H2 在 13.3 下仍未解决）。细化 Phase 1（插入 V0/V6 与分支决策表）与 Phase 2（新增 P2.0 差分框架、明确 L0.5 的产出定义与算子推进顺序）。§4 依赖处理要点按实际落地形态重写。风险册：R10 关闭，新增 R12/R13 |
 | 2026-08 | v0.2 | 重写为实现导向；整合 R2 验证结果；新增 §6 Codegen 规则、Phase 1 同步边界验证 |
 | 2026-08 | v0.1 | 初版 |
