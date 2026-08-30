@@ -14,3 +14,8 @@ __pycache__/
 # at our top level. Harmless.
 /media/
 /spec/
+
+# V2 one-off probe binaries (sources are tracked; rebuild with g++ -O2 -lcuda)
+docs/experiments/V2_visibility/bd2
+docs/experiments/V2_visibility/blockdim_probe
+docs/experiments/V2_visibility/occ_probe
