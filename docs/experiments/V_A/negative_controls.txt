@@ -1,0 +1,8 @@
+NEG sync=none fill=const runs=50 pass=4 mismatch=46 hang=0 error=0
+NEG sync=none fill=alt runs=50 pass=3 mismatch=47 hang=0 error=0
+NEG sync=no_barrier fill=const runs=50 pass=0 mismatch=50 hang=0 error=0
+NEG sync=no_barrier fill=alt runs=50 pass=0 mismatch=50 hang=0 error=0
+NEG sync=no_fence fill=const runs=50 pass=50 mismatch=0 hang=0 error=0
+NEG sync=no_fence fill=alt runs=50 pass=50 mismatch=0 hang=0 error=0
+NEG sync=allthread fill=const runs=50 pass=50 mismatch=0 hang=0 error=0
+NEG sync=allthread fill=alt runs=50 pass=50 mismatch=0 hang=0 error=0
