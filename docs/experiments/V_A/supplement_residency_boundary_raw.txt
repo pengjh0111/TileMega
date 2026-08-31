@@ -1,0 +1,12 @@
+START grid=640 limit=768 2026-08-31T14:45:53+00:00
+STAT label=boundary_g640 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/tmp/tilemega_boundary_g640
+START grid=767 limit=768 2026-08-31T14:46:09+00:00
+STAT label=boundary_g767 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/tmp/tilemega_boundary_g767
+START grid=768 limit=768 2026-08-31T14:46:25+00:00
+STAT label=boundary_g768 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/tmp/tilemega_boundary_g768
+START grid=769 limit=768 2026-08-31T14:46:42+00:00
+STAT label=boundary_g769 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/tmp/tilemega_boundary_g769
+START grid=896 limit=768 2026-08-31T14:46:58+00:00
+STAT label=boundary_g896 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/tmp/tilemega_boundary_g896
+START grid=1536 limit=768 2026-08-31T14:47:15+00:00
+STAT label=boundary_g1536 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/tmp/tilemega_boundary_g1536

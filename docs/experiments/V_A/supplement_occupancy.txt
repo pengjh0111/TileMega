@@ -1,0 +1,1 @@
+OCCUPANCY_TOOL block_size=256 registers_per_thread=40 static_smem_bytes=0 dynamic_smem_bytes=32 ctas_per_sm=6 num_sms=128 resident_limit=768

@@ -1,0 +1,5 @@
+HANG_PROBE variant=barrier_in_spin grid=64 classification=pc-progress-observed
+SAMPLE_1 active_kernel_line=234 divergent_spin_lines=210,211,212 sm_utilization=19%
+SAMPLE_2 active_kernel_line=234 divergent_spin_lines=210,211,212 sm_utilization=27%
+SAMPLE_3 active_kernel_line=234 divergent_spin_lines=210,211,212 sm_utilization=6%
+INTERPRETATION=collective-stall/livelock: CUDA PCs changed between samples but the kernel never completed

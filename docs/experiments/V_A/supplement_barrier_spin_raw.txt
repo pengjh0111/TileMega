@@ -1,0 +1,6 @@
+START sync=barrier_in_spin grid=64 2026-08-31T14:41:20+00:00
+STAT label=barrier_in_spin_g64 runs=50 pass=0 fail=0 hang=50 error=0 rate=0.0000 outdir=/tmp/tilemega_barrier_in_spin_g64
+START sync=barrier_in_spin grid=128 2026-08-31T14:42:14+00:00
+STAT label=barrier_in_spin_g128 runs=50 pass=0 fail=0 hang=50 error=0 rate=0.0000 outdir=/tmp/tilemega_barrier_in_spin_g128
+START sync=barrier_in_spin grid=256 2026-08-31T14:43:07+00:00
+STAT label=barrier_in_spin_g256 runs=50 pass=0 fail=0 hang=50 error=0 rate=0.0000 outdir=/tmp/tilemega_barrier_in_spin_g256

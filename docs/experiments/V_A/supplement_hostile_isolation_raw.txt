@@ -1,0 +1,18 @@
+START case=reuse_only grid=64 2026-08-31T14:38:35+00:00
+STAT label=reuse_only_g64 runs=50 pass=0 fail=50 hang=0 error=0 rate=0.0000 outdir=/tmp/tilemega_reuse_only_g64
+START case=reuse_only grid=128 2026-08-31T14:38:48+00:00
+STAT label=reuse_only_g128 runs=50 pass=0 fail=50 hang=0 error=0 rate=0.0000 outdir=/tmp/tilemega_reuse_only_g128
+START case=reuse_only grid=256 2026-08-31T14:39:01+00:00
+STAT label=reuse_only_g256 runs=50 pass=0 fail=50 hang=0 error=0 rate=0.0000 outdir=/tmp/tilemega_reuse_only_g256
+START case=no_backoff_only grid=64 2026-08-31T14:39:13+00:00
+STAT label=no_backoff_only_g64 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/tmp/tilemega_no_backoff_only_g64
+START case=no_backoff_only grid=128 2026-08-31T14:39:27+00:00
+STAT label=no_backoff_only_g128 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/tmp/tilemega_no_backoff_only_g128
+START case=no_backoff_only grid=256 2026-08-31T14:39:40+00:00
+STAT label=no_backoff_only_g256 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/tmp/tilemega_no_backoff_only_g256
+START case=large_tile_only grid=64 2026-08-31T14:39:54+00:00
+STAT label=large_tile_only_g64 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/tmp/tilemega_large_tile_only_g64
+START case=large_tile_only grid=128 2026-08-31T14:40:09+00:00
+STAT label=large_tile_only_g128 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/tmp/tilemega_large_tile_only_g128
+START case=large_tile_only grid=256 2026-08-31T14:40:27+00:00
+STAT label=large_tile_only_g256 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/tmp/tilemega_large_tile_only_g256

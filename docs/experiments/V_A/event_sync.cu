@@ -20,7 +20,8 @@
 //
 //   --variant  elementwise | reduce      what the consumer computes
 //   --deps     circular | shared | exclusive
-//   --sync     correct | no_barrier | no_fence | none | allthread
+//   --sync     correct | no_barrier | no_fence | none | allthread |
+//              correct_hostile | no_fence_hostile | barrier_in_spin
 //   --fill     alt | const               alternating-fill verifier on/off
 //
 // A-1 = --variant elementwise --deps circular --fill alt
@@ -74,7 +75,10 @@ enum SyncMode : int {
   kNoBarrier = 1,   // tid0 polls, no __syncthreads() -> other threads race ahead
   kNoFence = 2,     // barriers kept, both __threadfence() removed
   kNone = 3,        // no wait at all -- pure race, checker sanity
-  kAllThread = 4    // every thread polls (contention/control experiment)
+  kAllThread = 4,   // every thread polls (contention/control experiment)
+  kCorrectHostile = 5,  // reused data, no spin backoff, fences retained
+  kNoFenceHostile = 6,  // same hostile layout, both fences removed
+  kBarrierInSpin = 7    // deliberately illegal collective inside divergent spin
 };
 
 struct Config {
@@ -89,6 +93,9 @@ struct Config {
   int iters = 4;     // rounds -> exercises the monotonic counter §8.2
   uint32_t nonce = 0;
   bool verbose = false;
+  bool reuse_data = false;
+  bool no_backoff = false;
+  bool tile_was_set = false;
 };
 
 // Producer index that consumer `b`, slot `k`, reads from.
@@ -113,11 +120,13 @@ __host__ __device__ __forceinline__ int fanin_of(int deps, int fanin) {
 // a consumer, for `iters` rounds.
 // ---------------------------------------------------------------------------
 template <int VARIANT, int SYNC>
-__global__ void event_kernel(float* __restrict__ data,
+__global__ __launch_bounds__(256) void event_kernel(float* __restrict__ data,
                              float* __restrict__ out,
                              EventCounter* __restrict__ ev,
+                             EventCounter* __restrict__ consumed,
                              int G, int tile, int fanin, int deps, int iters,
-                             int fill_mode, uint32_t nonce) {
+                             int fill_mode, uint32_t nonce, int reuse_data,
+                             int no_backoff) {
   extern __shared__ float smem[];
   const int b = blockIdx.x;
   const int tid = threadIdx.x;
@@ -127,12 +136,20 @@ __global__ void event_kernel(float* __restrict__ data,
 
   for (int iter = 0; iter < iters; ++iter) {
     // -------------------------------------------------- producer
-    float* mine = data + (size_t)iter * G * tile + (size_t)b * tile;
+    if (reuse_data && iter > 0) {
+      if (tid == 0) {
+        const u64 need_consumed = (u64)iter * fin;
+        while (atomicAdd(&consumed[b].v, 0ull) < need_consumed) {}
+      }
+      __syncthreads();
+    }
+    const size_t data_round = reuse_data ? 0 : (size_t)iter * G * tile;
+    float* mine = data + data_round + (size_t)b * tile;
     for (int i = tid; i < tile; i += nthreads) {
       mine[i] = FillValue(fm, nonce, iter, b, i);
     }
 
-    if (SYNC != kNoFence) {
+    if (SYNC != kNoFence && SYNC != kNoFenceHostile) {
       // Every thread releases its own writes, THEN we join.  The snippet in
       // skeleton §8.5 shows only `write; fence; atomicExch` which is correct
       // for a single producing thread; with a whole CTA producing, the fence
@@ -149,20 +166,21 @@ __global__ void event_kernel(float* __restrict__ data,
     // -------------------------------------------------- consumer
     const u64 need = (u64)(iter + 1);
 
-    if (SYNC == kCorrect || SYNC == kNoBarrier || SYNC == kNoFence) {
+    if (SYNC == kCorrect || SYNC == kNoBarrier || SYNC == kNoFence ||
+        SYNC == kCorrectHostile || SYNC == kNoFenceHostile) {
       // §8.1: single-thread poll, §8.3: backed-off spin.
       if (tid == 0) {
         for (int k = 0; k < fin; ++k) {
           int p = producer_of(deps, b, k, G);
           while (atomicAdd(&ev[p].v, 0ull) < need) {
-            __nanosleep(64);
+            if (!no_backoff) __nanosleep(64);
           }
         }
       }
       if (SYNC != kNoBarrier) {
         __syncthreads();  // §8.1 collective sync at a non-divergent point
       }
-      if (SYNC != kNoFence) {
+      if (SYNC != kNoFence && SYNC != kNoFenceHostile) {
         __threadfence();  // acquire
       }
     }
@@ -175,25 +193,26 @@ __global__ void event_kernel(float* __restrict__ data,
         float acc = 0.f;
         for (int k = 0; k < fin; ++k) {
           int p = producer_of(deps, b, k, G);
-          acc += data[(size_t)iter * G * tile + (size_t)p * tile + i];
+          acc += data[data_round + (size_t)p * tile + i];
         }
         dst[i] = acc;
       }
     } else {
       // ---- A-2..A-5: cross-warp reduction.  This is the case the task calls
-      // out as mandatory: it puts a collective barrier *after* the spin, which
-      // is exactly where a divergent wait corrupts results silently.
+      // out as mandatory: it exercises collective barriers after event waits.
       float acc = 0.f;
       for (int k = 0; k < fin; ++k) {
         int p = producer_of(deps, b, k, G);
-        if (SYNC == kAllThread) {
-          // §8.1 anti-pattern: every thread polls.  This increases atomic
-          // traffic; it is a control experiment, not an expected-failure case.
+        if (SYNC == kAllThread || SYNC == kBarrierInSpin) {
+          // allthread is a contention control. barrier_in_spin is the true
+          // negative control: threads execute a collective a different number
+          // of times because they observe the event at different moments.
           while (atomicAdd(&ev[p].v, 0ull) < need) {
-            __nanosleep(64);
+            if (SYNC == kBarrierInSpin) __syncthreads();
+            if (!no_backoff) __nanosleep(64);
           }
         }
-        const float* src = data + (size_t)iter * G * tile + (size_t)p * tile;
+        const float* src = data + data_round + (size_t)p * tile;
         for (int i = tid; i < tile; i += nthreads) {
           acc += src[i];
         }
@@ -218,6 +237,18 @@ __global__ void event_kernel(float* __restrict__ data,
           w += __shfl_down_sync(0xffffffffu, w, off);
         }
         if (lane == 0) out[(size_t)iter * G + b] = w;
+      }
+      __syncthreads();
+    }
+
+    if (reuse_data) {
+      // Prevent iteration i+1 from overwriting a producer tile until every
+      // circular consumer has completed all reads from iteration i.
+      if (tid == 0) {
+        for (int k = 0; k < fin; ++k) {
+          int p = producer_of(deps, b, k, G);
+          atomicAdd(&consumed[p].v, 1ull);
+        }
       }
       __syncthreads();
     }
@@ -292,16 +323,31 @@ int main(int argc, char** argv) {
     std::string a = argv[i];
     if (a == "--variant") c.variant = parse_enum(next(), {"elementwise", "reduce"});
     else if (a == "--deps") c.deps = parse_enum(next(), {"circular", "shared", "exclusive"});
-    else if (a == "--sync") c.sync = parse_enum(next(), {"correct", "no_barrier", "no_fence", "none", "allthread"});
+    else if (a == "--sync") c.sync = parse_enum(next(), {"correct", "no_barrier", "no_fence", "none", "allthread", "correct_hostile", "no_fence_hostile", "barrier_in_spin"});
     else if (a == "--fill") c.fill = (std::strcmp(next(), "const") == 0) ? FillMode::kConstant : FillMode::kAlternating;
     else if (a == "--grid") c.grid = std::atoi(next());
     else if (a == "--block") c.block = std::atoi(next());
-    else if (a == "--tile") c.tile = std::atoi(next());
+    else if (a == "--tile") { c.tile = std::atoi(next()); c.tile_was_set = true; }
     else if (a == "--fanin") c.fanin = std::atoi(next());
     else if (a == "--iters") c.iters = std::atoi(next());
     else if (a == "--nonce") c.nonce = (uint32_t)std::strtoul(next(), nullptr, 0);
+    else if (a == "--reuse-data") c.reuse_data = true;
+    else if (a == "--no-backoff") c.no_backoff = true;
     else if (a == "-v" || a == "--verbose") c.verbose = true;
     else { std::fprintf(stderr, "unknown arg %s\n", argv[i]); return 3; }
+  }
+  if (c.sync == kCorrectHostile || c.sync == kNoFenceHostile) {
+    c.reuse_data = true;
+    c.no_backoff = true;
+    if (!c.tile_was_set) c.tile = 8192;
+  }
+  if (c.sync == kBarrierInSpin && c.variant != kReduce) {
+    std::fprintf(stderr, "barrier_in_spin requires --variant reduce\n");
+    return 3;
+  }
+  if (c.block != 256) {
+    std::fprintf(stderr, "this experiment is compiled with __launch_bounds__(256) and requires --block 256\n");
+    return 3;
   }
   if (!c.nonce) c.nonce = PickNonce();
 
@@ -320,33 +366,40 @@ int main(int argc, char** argv) {
   if (c.variant == (V) && c.sync == (S)) kfn = (void*)event_kernel<V, S>;
   PICK(kElementwise, kCorrect) PICK(kElementwise, kNoBarrier) PICK(kElementwise, kNoFence)
   PICK(kElementwise, kNone) PICK(kElementwise, kAllThread)
+  PICK(kElementwise, kCorrectHostile) PICK(kElementwise, kNoFenceHostile)
+  PICK(kElementwise, kBarrierInSpin)
   PICK(kReduce, kCorrect) PICK(kReduce, kNoBarrier) PICK(kReduce, kNoFence)
   PICK(kReduce, kNone) PICK(kReduce, kAllThread)
+  PICK(kReduce, kCorrectHostile) PICK(kReduce, kNoFenceHostile)
+  PICK(kReduce, kBarrierInSpin)
 #undef PICK
 
   int occ = 0;
   CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&occ, kfn, c.block, smem_bytes));
   const int resident_cap = occ * prop.multiProcessorCount;
 
-  const size_t data_elems = (size_t)c.iters * G * c.tile;
+  const size_t data_elems = (c.reuse_data ? 1u : (size_t)c.iters) * G * c.tile;
   const size_t out_elems =
       (c.variant == kElementwise) ? data_elems : (size_t)c.iters * G;
 
   float *d_data = nullptr, *d_out = nullptr;
   EventCounter* d_ev = nullptr;
+  EventCounter* d_consumed = nullptr;
   CUDA_CHECK(cudaMalloc(&d_data, data_elems * sizeof(float)));
   CUDA_CHECK(cudaMalloc(&d_out, out_elems * sizeof(float)));
   CUDA_CHECK(cudaMalloc(&d_ev, (size_t)G * sizeof(EventCounter)));
+  CUDA_CHECK(cudaMalloc(&d_consumed, (size_t)G * sizeof(EventCounter)));
   CUDA_CHECK(cudaMemset(d_ev, 0, (size_t)G * sizeof(EventCounter)));
+  CUDA_CHECK(cudaMemset(d_consumed, 0, (size_t)G * sizeof(EventCounter)));
   // NOTE: d_data and d_out are deliberately NOT zeroed.  Leaving whatever the
   // previous process wrote there is the whole point of the alternating fill.
 
   if (c.verbose) {
     std::printf("[cfg] gpu=%s sm=%d.%d nsm=%d grid=%d block=%d occ=%d cap=%d "
-                "tile=%d fanin=%d iters=%d nonce=0x%08x\n",
+                "tile=%d fanin=%d iters=%d reuse=%d no_backoff=%d nonce=0x%08x\n",
                 prop.name, prop.major, prop.minor, prop.multiProcessorCount, G,
                 c.block, occ, resident_cap, c.tile, fanin_of(c.deps, c.fanin),
-                c.iters, c.nonce);
+                c.iters, (int)c.reuse_data, (int)c.no_backoff, c.nonce);
   }
   // Machine-readable line the harness greps for.
   std::printf("OCCUPANCY blocks_per_sm=%d num_sms=%d resident_cap=%d grid=%d "
@@ -355,16 +408,27 @@ int main(int argc, char** argv) {
               (G <= resident_cap) ? "yes" : "NO");
   std::fflush(stdout);
 
+  cudaEvent_t start, stop;
+  CUDA_CHECK(cudaEventCreate(&start));
+  CUDA_CHECK(cudaEventCreate(&stop));
+  CUDA_CHECK(cudaEventRecord(start));
+
 #define LAUNCH(V, S)                                                           \
   if (c.variant == (V) && c.sync == (S))                                       \
     event_kernel<V, S><<<G, c.block, smem_bytes>>>(                            \
-        d_data, d_out, d_ev, G, c.tile, c.fanin, c.deps, c.iters,              \
-        (int)c.fill, c.nonce);
+        d_data, d_out, d_ev, d_consumed, G, c.tile, c.fanin, c.deps, c.iters,  \
+        (int)c.fill, c.nonce, (int)c.reuse_data, (int)c.no_backoff);
   LAUNCH(kElementwise, kCorrect) LAUNCH(kElementwise, kNoBarrier) LAUNCH(kElementwise, kNoFence)
   LAUNCH(kElementwise, kNone) LAUNCH(kElementwise, kAllThread)
+  LAUNCH(kElementwise, kCorrectHostile) LAUNCH(kElementwise, kNoFenceHostile)
+  LAUNCH(kElementwise, kBarrierInSpin)
   LAUNCH(kReduce, kCorrect) LAUNCH(kReduce, kNoBarrier) LAUNCH(kReduce, kNoFence)
   LAUNCH(kReduce, kNone) LAUNCH(kReduce, kAllThread)
+  LAUNCH(kReduce, kCorrectHostile) LAUNCH(kReduce, kNoFenceHostile)
+  LAUNCH(kReduce, kBarrierInSpin)
 #undef LAUNCH
+
+  CUDA_CHECK(cudaEventRecord(stop));
 
   cudaError_t le = cudaGetLastError();
   if (le != cudaSuccess) {
@@ -372,12 +436,15 @@ int main(int argc, char** argv) {
                 cudaGetErrorString(le), c.nonce);
     return 2;
   }
-  cudaError_t se = cudaDeviceSynchronize();
+  cudaError_t se = cudaEventSynchronize(stop);
   if (se != cudaSuccess) {
     std::printf("RESULT status=exec_error detail=%s nonce=0x%08x\n",
                 cudaGetErrorString(se), c.nonce);
     return 2;
   }
+  float kernel_ms = 0.0f;
+  CUDA_CHECK(cudaEventElapsedTime(&kernel_ms, start, stop));
+  std::printf("KERNEL_MS %.6f\n", kernel_ms);
 
   std::vector<float> h_out(out_elems);
   CUDA_CHECK(cudaMemcpy(h_out.data(), d_out, out_elems * sizeof(float),
@@ -388,5 +455,6 @@ int main(int argc, char** argv) {
   std::printf("RESULT status=%s nonce=0x%08x%s%s\n", ok ? "pass" : "MISMATCH",
               c.nonce, ok ? "" : " detail=", ok ? "" : why.c_str());
   cudaFree(d_data); cudaFree(d_out); cudaFree(d_ev);
+  cudaFree(d_consumed); cudaEventDestroy(start); cudaEventDestroy(stop);
   return ok ? 0 : 1;
 }

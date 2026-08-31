@@ -1,0 +1,3 @@
+REUSE_ONLY grid=64 nonce=0x9934ec97 iter=1 block=0 previous=518988 current=522377 got=518988
+REUSE_ONLY grid=128 nonce=0x98c76018 iter=1 block=0 previous=523695 current=525674 got=523695
+REUSE_ONLY grid=256 nonce=0xc6de396a iter=1 block=0 previous=520695 current=524607 got=520695

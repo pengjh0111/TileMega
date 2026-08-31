@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: BSD-3-Clause
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+build_dir=${TILEMEGA_TOOL_BUILD_DIR:-"$root/build/tools"}
+mkdir -p "$build_dir"
+source_file="$root/tools/tilemega-occupancy.cpp"
+binary="$build_dir/tilemega-occupancy"
+compiler=${CXX:-g++}
+
+if [[ ! -x "$binary" || "$source_file" -nt "$binary" ]]; then
+  "$compiler" -std=c++17 -O2 -I/usr/local/cuda-12.8/include \
+    "$source_file" -L/usr/local/cuda-12.8/lib64 -lcuda -o "$binary"
+fi
+exec "$binary" "$@"

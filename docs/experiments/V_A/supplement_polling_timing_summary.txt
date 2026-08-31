@@ -1,0 +1,9 @@
+MEDIAN grid=64 sync=correct kernel_ms=0.035328
+MEDIAN grid=64 sync=allthread kernel_ms=0.035200
+RATIO grid=64 allthread_over_correct=0.996
+MEDIAN grid=128 sync=correct kernel_ms=0.035840
+MEDIAN grid=128 sync=allthread kernel_ms=0.034816
+RATIO grid=128 allthread_over_correct=0.971
+MEDIAN grid=256 sync=correct kernel_ms=0.037888
+MEDIAN grid=256 sync=allthread kernel_ms=0.035840
+RATIO grid=256 allthread_over_correct=0.946

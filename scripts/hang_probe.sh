@@ -41,8 +41,9 @@ done
 
 # Equal normalized backtraces/PC listings indicate no observed forward
 # progress. Different samples indicate a live lock or merely a slow kernel.
-sed -E 's/0x[0-9a-f]+/0xADDR/g' "$out"/gdb_*.txt | sha256sum \
-  >"$out/sample_hashes.txt"
+for sample_file in "$out"/gdb_*.txt; do
+  sed -E 's/0x[0-9a-f]+/0xADDR/g' "$sample_file" | sha256sum
+done >"$out/sample_hashes.txt"
 if [[ $(cut -d' ' -f1 "$out/sample_hashes.txt" | sort -u | wc -l) -eq 1 ]]; then
   echo "HANG_PROBE classification=no-observed-progress"
 else
