@@ -1,0 +1,7 @@
+kernel=dispatch_2 OCCUPANCY_TOOL block_size=256 registers_per_thread=10 static_smem_bytes=2048 dynamic_smem_bytes=0 ctas_per_sm=6 num_sms=128 resident_limit=768
+kernel=dispatch_3 OCCUPANCY_TOOL block_size=256 registers_per_thread=12 static_smem_bytes=3072 dynamic_smem_bytes=0 ctas_per_sm=6 num_sms=128 resident_limit=768
+kernel=dispatch_5 OCCUPANCY_TOOL block_size=256 registers_per_thread=10 static_smem_bytes=5120 dynamic_smem_bytes=0 ctas_per_sm=6 num_sms=128 resident_limit=768
+kernel=dispatch_8 OCCUPANCY_TOOL block_size=256 registers_per_thread=10 static_smem_bytes=8192 dynamic_smem_bytes=0 ctas_per_sm=6 num_sms=128 resident_limit=768
+kernel=nested_dispatch OCCUPANCY_TOOL block_size=256 registers_per_thread=10 static_smem_bytes=8192 dynamic_smem_bytes=0 ctas_per_sm=6 num_sms=128 resident_limit=768
+kernel=loop_carried_union OCCUPANCY_TOOL block_size=256 registers_per_thread=23 static_smem_bytes=8192 dynamic_smem_bytes=0 ctas_per_sm=6 num_sms=128 resident_limit=768
+kernel=loop_carried_separate OCCUPANCY_TOOL block_size=256 registers_per_thread=11 static_smem_bytes=36864 dynamic_smem_bytes=0 ctas_per_sm=2 num_sms=128 resident_limit=256

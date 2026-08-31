@@ -1,0 +1,5 @@
+arch	stages	task_smem_bytes	collective	main_status	advanced_status
+sm_80	8	131072	cp.async_multistage	PASS	not_applicable
+sm_89	5	81920	cp.async_multistage	PASS	not_applicable
+sm_90	8	131072	TMA_warp-specialized	PASS	PASS
+sm_120	5	81920	TMA_warp-specialized_SM120_MMA_no_tcgen05	PASS	PASS

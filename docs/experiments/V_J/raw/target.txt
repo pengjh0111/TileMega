@@ -1,0 +1,1 @@
+resident_limit=768 num_sms=128

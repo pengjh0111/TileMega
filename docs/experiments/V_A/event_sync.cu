@@ -69,7 +69,7 @@ struct alignas(128) EventCounter {
 };
 
 enum Variant : int { kElementwise = 0, kReduce = 1 };
-enum Deps : int { kCircular = 0, kShared = 1, kExclusive = 2 };
+enum Deps : int { kCircular = 0, kShared = 1, kExclusive = 2, kBackward = 3 };
 enum SyncMode : int {
   kCorrect = 0,     // §8.1 compliant
   kNoBarrier = 1,   // tid0 polls, no __syncthreads() -> other threads race ahead
@@ -103,16 +103,19 @@ struct Config {
 //              co-residency of the whole grid, which is the megakernel case.
 // - shared   : k.  Every consumer reads the SAME producers (many readers).
 // - exclusive: b+1 (mod G), fanin forced to 1.  One reader per producer.
+// - backward : b+G/2 (mod G), fanin forced to 1.  This non-streaming
+//              wait-for graph is the V-J co-residency negative control.
 __host__ __device__ __forceinline__ int producer_of(int deps, int b, int k, int G) {
   switch (deps) {
     case kShared:    return k % G;
     case kExclusive: return (b + 1) % G;
+    case kBackward:  return (b + G / 2) % G;
     default:         return (b + 1 + k) % G;
   }
 }
 
 __host__ __device__ __forceinline__ int fanin_of(int deps, int fanin) {
-  return (deps == kExclusive) ? 1 : fanin;
+  return (deps == kExclusive || deps == kBackward) ? 1 : fanin;
 }
 
 // ---------------------------------------------------------------------------
@@ -322,7 +325,7 @@ int main(int argc, char** argv) {
     };
     std::string a = argv[i];
     if (a == "--variant") c.variant = parse_enum(next(), {"elementwise", "reduce"});
-    else if (a == "--deps") c.deps = parse_enum(next(), {"circular", "shared", "exclusive"});
+    else if (a == "--deps") c.deps = parse_enum(next(), {"circular", "shared", "exclusive", "backward"});
     else if (a == "--sync") c.sync = parse_enum(next(), {"correct", "no_barrier", "no_fence", "none", "allthread", "correct_hostile", "no_fence_hostile", "barrier_in_spin"});
     else if (a == "--fill") c.fill = (std::strcmp(next(), "const") == 0) ? FillMode::kConstant : FillMode::kAlternating;
     else if (a == "--grid") c.grid = std::atoi(next());

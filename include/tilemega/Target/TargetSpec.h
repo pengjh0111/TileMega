@@ -8,13 +8,11 @@
 //   Business code NEVER compares architecture version numbers and NEVER
 //   hard-codes a hardware constant.  It asks TargetSpec.
 //
-//     BAD :  if (sm_major >= 9)            // sm_120 breaks this
-//     BAD :  constexpr int kNumSMs = 128;
-//     GOOD:  if (target.caps.cluster)
-//     GOOD:  int grid = target.res.num_sms * occupancy;
+// Architecture versions and resource literals are never policy inputs.
+// Business code queries `target.caps` and `target.res` instead.
 //
-// The *device-side* compile-time counterpart lives in Target/ArchDispatch.h,
-// which is the only file in the project allowed to test __CUDA_ARCH__.
+// The device-side compile-time counterpart and its compiler-macro dispatch
+// live exclusively in Target/ArchDispatch.h.
 //
 // Skeleton refs: §3.4 (hardware capabilities), §8.7 (co-residency),
 //                §4.4 (cost model calibration constants).
@@ -47,6 +45,7 @@ struct TargetSpec {
     bool warp_specialized = false;  ///< CUTLASS warp-specialized GEMM collectives
     bool tcgen05          = false;  ///< 5th-gen tensor core / TMEM (sm_100 only)
     bool cp_async         = false;  ///< cp.async (sm_80+)
+    bool mbarrier         = false;  ///< PTX mbarrier primitives
   } caps;
 
   /// Resource budgets.  All of these differ between consumer and datacenter
@@ -81,6 +80,9 @@ struct TargetSpec {
 
   /// Serialize back to the same JSON schema (used by tilemega-calibrate).
   std::string ToJson() const;
+
+  /// Serialize directly to `path`, replacing an existing calibration file.
+  void ToJson(std::string const& path) const;
 
   /// "sm_89" -> the value nvcc wants for -arch=
   std::string NvccArch() const { return arch_tag; }

@@ -1,0 +1,81 @@
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z12event_kernelILi1ELi7EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi1ELi7EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 56.548 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi1ELi6EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi1ELi6EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 59.476 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi1ELi5EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi1ELi5EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 59.042 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi1ELi4EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi1ELi4EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 47.196 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi1ELi3EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi1ELi3EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 54.371 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi1ELi2EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi1ELi2EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 59.613 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi1ELi1EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi1ELi1EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 58.102 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi1ELi0EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi1ELi0EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 59.022 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi0ELi7EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi0ELi7EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 54.690 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi0ELi6EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi0ELi6EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 57.928 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi0ELi5EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi0ELi5EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 58.268 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi0ELi4EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi0ELi4EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 55.060 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi0ELi3EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi0ELi3EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 56.493 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi0ELi2EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi0ELi2EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 57.981 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi0ELi1EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi0ELi1EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 53.435 ms
+ptxas info    : Compiling entry function '_Z12event_kernelILi0ELi0EEvPfS0_P12EventCounterS2_iiiiiijii' for 'sm_89'
+ptxas info    : Function properties for _Z12event_kernelILi0ELi0EEvPfS0_P12EventCounterS2_iiiiiijii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 420 bytes cmem[0]
+ptxas info    : Compile time = 57.963 ms

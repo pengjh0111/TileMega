@@ -1,0 +1,6 @@
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function 'tilemega_megakernel' for 'sm_89'
+ptxas info    : Function properties for tilemega_megakernel
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 10 registers, used 1 barriers, 372 bytes cmem[0]
+ptxas info    : Compile time = 18.710 ms

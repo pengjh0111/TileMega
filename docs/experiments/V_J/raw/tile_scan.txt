@@ -1,0 +1,6 @@
+STAT label=tile_512 runs=50 pass=0 fail=50 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/V_J/raw/tile_512
+STAT label=tile_1024 runs=50 pass=0 fail=50 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/V_J/raw/tile_1024
+STAT label=tile_2048 runs=50 pass=0 fail=50 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/V_J/raw/tile_2048
+STAT label=tile_4096 runs=50 pass=0 fail=50 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/V_J/raw/tile_4096
+STAT label=tile_8192 runs=50 pass=49 fail=1 hang=0 error=0 rate=0.9800 outdir=/root/TileMega/docs/experiments/V_J/raw/tile_8192
+STAT label=tile_16384 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/V_J/raw/tile_16384

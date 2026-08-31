@@ -1,0 +1,6 @@
+ptxas info    : 3 bytes gmem
+ptxas info    : Compiling entry function 'cluster_dsmem_exchange' for 'sm_120'
+ptxas info    : Function properties for cluster_dsmem_exchange
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 14 registers, used 0 barriers, 1024 bytes smem
+ptxas info    : Compile time = 9.541 ms

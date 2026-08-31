@@ -1,0 +1,35 @@
+=== TileMega hang scene ===
+label   : backward_1536
+run     : 1 / 20
+timeout : 2s (rc=124)
+date    : 2026-08-31T16:45:39+00:00
+replay  : /root/TileMega/docs/experiments/V_J/event_sync --variant reduce --deps backward --sync correct --fill alt --grid 1536
+
+--- process stdout/stderr up to the kill ---
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=1536 co_resident=NO
+
+--- nvidia-smi at kill time ---
+Mon Aug 31 16:45:39 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 610.43.02              KMD Version: 610.43.02     CUDA UMD Version: 13.3     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 4090        On  |   00000000:80:00.0 Off |                  Off |
+|100%   73C    P0            309W /  450W |   35518MiB /  49140MiB |    100%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+--- utilisation / power sample ---
+utilization.gpu [%], utilization.memory [%], power.draw [W], clocks.current.sm [MHz]
+100 %, 46 %, 341.88 W, 2730 MHz

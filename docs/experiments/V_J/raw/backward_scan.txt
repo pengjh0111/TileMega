@@ -1,0 +1,4 @@
+STAT label=backward_767 runs=20 pass=20 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/V_J/raw/backward_767
+STAT label=backward_768 runs=20 pass=20 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/V_J/raw/backward_768
+STAT label=backward_769 runs=20 pass=20 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/V_J/raw/backward_769
+STAT label=backward_1536 runs=20 pass=0 fail=0 hang=20 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/V_J/raw/backward_1536

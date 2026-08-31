@@ -1,0 +1,2 @@
+sm_90 PASS
+sm_120 PASS

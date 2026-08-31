@@ -1,0 +1,29 @@
+{
+  "arch_tag": "sm_90",
+  "sm_major": 9,
+  "sm_minor": 0,
+  "caps": {
+    "cluster": true,
+    "tma": true,
+    "warp_specialized": true,
+    "tcgen05": false,
+    "cp_async": true,
+    "mbarrier": true
+  },
+  "resources": {
+    "num_sms": 132,
+    "max_smem_per_sm": 233472,
+    "max_dynamic_smem_per_cta": 232448,
+    "regs_per_sm": 65536,
+    "max_cluster_size": 8,
+    "max_threads_per_sm": 2048,
+    "warp_size": 32
+  },
+  "calibration": {
+    "atomic_latency_ns": 0.0,
+    "cluster_sync_latency_ns": 0.0,
+    "named_barrier_ns": 0.0,
+    "hbm_bandwidth_gbps": 0.0,
+    "calibrated": false
+  }
+}

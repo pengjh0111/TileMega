@@ -7,6 +7,9 @@ build-*/
 *.ptx
 *.sass
 docs/experiments/**/event_sync
+docs/experiments/V_B/collective_persistent
+docs/experiments/V_J/event_sync
+docs/experiments/V_D/traits_probe
 *.ncu-rep
 *.nsys-rep
 __pycache__/

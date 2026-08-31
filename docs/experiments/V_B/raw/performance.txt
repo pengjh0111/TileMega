@@ -1,0 +1,1 @@
+V_B M=2048 N=2048 K=2048 repeats=20 grid=256 ctas_per_sm=2 smem=49152 custom_ms=0.111616 baseline_ms=0.124928 ratio=0.893443 mismatch=0 max_abs=0

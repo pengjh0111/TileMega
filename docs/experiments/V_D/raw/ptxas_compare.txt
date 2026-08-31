@@ -1,0 +1,16 @@
+ptxas info    : 10 bytes gmem, 80 bytes cmem[4]
+ptxas info    : Compiling entry function 'probe_96x96' for 'sm_89'
+ptxas info    : Function properties for probe_96x96
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 8 registers, used 0 barriers, 36864 bytes smem, 360 bytes cmem[0]
+ptxas info    : Compile time = 5.482 ms
+ptxas info    : Compiling entry function 'probe_64x96' for 'sm_89'
+ptxas info    : Function properties for probe_64x96
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 8 registers, used 0 barriers, 30720 bytes smem, 360 bytes cmem[0]
+ptxas info    : Compile time = 3.687 ms
+ptxas info    : Compiling entry function 'probe_64x64' for 'sm_89'
+ptxas info    : Function properties for probe_64x64
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 8 registers, used 0 barriers, 24576 bytes smem, 360 bytes cmem[0]
+ptxas info    : Compile time = 3.480 ms

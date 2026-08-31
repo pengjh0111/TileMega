@@ -1,0 +1,6 @@
+median_full_seconds=4.657898
+frontend_ptx_seconds=4.683487
+ptxas_seconds=0.034806
+sequential4_seconds=20.084450
+parallel4_seconds=5.559738
+estimated_170_serial_seconds=791.843

@@ -1,0 +1,15 @@
+{"function": "loop_carried_separate", "registers": 11, "smem_bytes": 36864, "spill_load_bytes": 0, "spill_store_bytes": 0}
+{"function": "loop_carried_union", "registers": 23, "smem_bytes": 8192, "spill_load_bytes": 0, "spill_store_bytes": 0}
+{"function": "nested_dispatch", "registers": 10, "smem_bytes": 8192, "spill_load_bytes": 0, "spill_store_bytes": 0}
+{"function": "single_8", "registers": 6, "smem_bytes": 8192, "spill_load_bytes": 0, "spill_store_bytes": 0}
+{"function": "single_7", "registers": 10, "smem_bytes": 7168, "spill_load_bytes": 0, "spill_store_bytes": 0}
+{"function": "single_6", "registers": 8, "smem_bytes": 6144, "spill_load_bytes": 0, "spill_store_bytes": 0}
+{"function": "single_5", "registers": 8, "smem_bytes": 5120, "spill_load_bytes": 0, "spill_store_bytes": 0}
+{"function": "single_4", "registers": 6, "smem_bytes": 4096, "spill_load_bytes": 0, "spill_store_bytes": 0}
+{"function": "single_3", "registers": 8, "smem_bytes": 3072, "spill_load_bytes": 0, "spill_store_bytes": 0}
+{"function": "single_2", "registers": 6, "smem_bytes": 2048, "spill_load_bytes": 0, "spill_store_bytes": 0}
+{"function": "single_1", "registers": 6, "smem_bytes": 1024, "spill_load_bytes": 0, "spill_store_bytes": 0}
+{"function": "dispatch_8", "registers": 10, "smem_bytes": 8192, "spill_load_bytes": 0, "spill_store_bytes": 0}
+{"function": "dispatch_5", "registers": 10, "smem_bytes": 5120, "spill_load_bytes": 0, "spill_store_bytes": 0}
+{"function": "dispatch_3", "registers": 12, "smem_bytes": 3072, "spill_load_bytes": 0, "spill_store_bytes": 0}
+{"function": "dispatch_2", "registers": 10, "smem_bytes": 2048, "spill_load_bytes": 0, "spill_store_bytes": 0}

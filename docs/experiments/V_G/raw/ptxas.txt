@@ -1,0 +1,76 @@
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function 'loop_carried_separate' for 'sm_89'
+ptxas info    : Function properties for loop_carried_separate
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 11 registers, used 1 barriers, 36864 bytes smem, 368 bytes cmem[0]
+ptxas info    : Compile time = 12.804 ms
+ptxas info    : Compiling entry function 'loop_carried_union' for 'sm_89'
+ptxas info    : Function properties for loop_carried_union
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 23 registers, used 1 barriers, 8192 bytes smem, 368 bytes cmem[0]
+ptxas info    : Compile time = 11.759 ms
+ptxas info    : Compiling entry function 'nested_dispatch' for 'sm_89'
+ptxas info    : Function properties for nested_dispatch
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 10 registers, used 0 barriers, 8192 bytes smem, 368 bytes cmem[0]
+ptxas info    : Compile time = 4.576 ms
+ptxas info    : Compiling entry function 'single_8' for 'sm_89'
+ptxas info    : Function properties for single_8
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 6 registers, used 0 barriers, 8192 bytes smem, 360 bytes cmem[0]
+ptxas info    : Compile time = 2.401 ms
+ptxas info    : Compiling entry function 'single_7' for 'sm_89'
+ptxas info    : Function properties for single_7
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 10 registers, used 0 barriers, 7168 bytes smem, 360 bytes cmem[0]
+ptxas info    : Compile time = 2.287 ms
+ptxas info    : Compiling entry function 'single_6' for 'sm_89'
+ptxas info    : Function properties for single_6
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 8 registers, used 0 barriers, 6144 bytes smem, 360 bytes cmem[0]
+ptxas info    : Compile time = 2.199 ms
+ptxas info    : Compiling entry function 'single_5' for 'sm_89'
+ptxas info    : Function properties for single_5
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 8 registers, used 0 barriers, 5120 bytes smem, 360 bytes cmem[0]
+ptxas info    : Compile time = 2.460 ms
+ptxas info    : Compiling entry function 'single_4' for 'sm_89'
+ptxas info    : Function properties for single_4
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 6 registers, used 0 barriers, 4096 bytes smem, 360 bytes cmem[0]
+ptxas info    : Compile time = 2.088 ms
+ptxas info    : Compiling entry function 'single_3' for 'sm_89'
+ptxas info    : Function properties for single_3
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 8 registers, used 0 barriers, 3072 bytes smem, 360 bytes cmem[0]
+ptxas info    : Compile time = 2.125 ms
+ptxas info    : Compiling entry function 'single_2' for 'sm_89'
+ptxas info    : Function properties for single_2
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 6 registers, used 0 barriers, 2048 bytes smem, 360 bytes cmem[0]
+ptxas info    : Compile time = 1.944 ms
+ptxas info    : Compiling entry function 'single_1' for 'sm_89'
+ptxas info    : Function properties for single_1
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 6 registers, used 0 barriers, 1024 bytes smem, 360 bytes cmem[0]
+ptxas info    : Compile time = 1.881 ms
+ptxas info    : Compiling entry function 'dispatch_8' for 'sm_89'
+ptxas info    : Function properties for dispatch_8
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 10 registers, used 0 barriers, 8192 bytes smem, 368 bytes cmem[0], 28 bytes cmem[2]
+ptxas info    : Compile time = 4.759 ms
+ptxas info    : Compiling entry function 'dispatch_5' for 'sm_89'
+ptxas info    : Function properties for dispatch_5
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 10 registers, used 0 barriers, 5120 bytes smem, 368 bytes cmem[0], 28 bytes cmem[2]
+ptxas info    : Compile time = 4.744 ms
+ptxas info    : Compiling entry function 'dispatch_3' for 'sm_89'
+ptxas info    : Function properties for dispatch_3
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 12 registers, used 0 barriers, 3072 bytes smem, 368 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 3.820 ms
+ptxas info    : Compiling entry function 'dispatch_2' for 'sm_89'
+ptxas info    : Function properties for dispatch_2
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 10 registers, used 0 barriers, 2048 bytes smem, 368 bytes cmem[0]
+ptxas info    : Compile time = 3.108 ms
