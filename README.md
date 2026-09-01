@@ -67,9 +67,14 @@ dialect is the mandatory L4-to-L1 contract, so MLIR is enabled by default;
 ISL remains disabled until Phase 3.
 Barvinok is recorded as a submodule for later polyhedral work and is not built.
 
+`scripts/build_mlir.sh <prefix>` builds and installs the pinned LLVM/MLIR.
+Point `MLIR_DIR` at an *install* tree: a build tree's CMake package bakes
+absolute paths and breaks once it moves. See `docs/BUILD_MLIR.md`.
+
 ```bash
 git submodule update --init --recursive
-cmake -S . -B build -G Ninja -DMLIR_DIR=/path/to/lib/cmake/mlir
+scripts/build_mlir.sh /path/to/prefix
+cmake -S . -B build -G Ninja -DMLIR_DIR=/path/to/prefix/lib/cmake/mlir
 ninja -C build
 ctest --test-dir build --output-on-failure
 ```

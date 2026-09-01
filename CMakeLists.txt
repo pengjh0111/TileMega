@@ -136,9 +136,22 @@ add_custom_target(check-policy
 if(TILEMEGA_BUILD_TESTS)
   enable_testing()
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
-  find_file(TILEMEGA_LIT_DRIVER lit.py HINTS
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/cutlass_compiler/external/llvm-project/llvm/utils/lit"
-    REQUIRED)
+  # The lit driver must never be located through a path inside a third_party
+  # submodule: such a path is not part of the submodule's tracked content, so it
+  # only resolves on a machine where someone created it by hand. LLVMConfig
+  # exports LLVM_BUILD_MAIN_SRC_DIR, which points at the LLVM source tree that
+  # produced the MLIR package found above; derive the driver from that instead.
+  find_file(TILEMEGA_LIT_DRIVER lit.py
+    HINTS
+      "${LLVM_BUILD_MAIN_SRC_DIR}/utils/lit"
+      "${LLVM_TOOLS_BINARY_DIR}/../utils/lit")
+  if(NOT TILEMEGA_LIT_DRIVER)
+    message(FATAL_ERROR
+      "Could not locate lit.py from the MLIR package at ${MLIR_DIR}. Pass "
+      "-DTILEMEGA_LIT_DRIVER=/path/to/llvm/utils/lit/lit.py, or configure "
+      "against an MLIR package whose LLVMConfig exports LLVM_BUILD_MAIN_SRC_DIR "
+      "(see docs/BUILD_MLIR.md).")
+  endif()
   configure_file(test/lit.site.cfg.py.in test/lit.site.cfg.py @ONLY)
   add_custom_target(check-cg-lit
     COMMAND ${Python3_EXECUTABLE} ${TILEMEGA_LIT_DRIVER}
