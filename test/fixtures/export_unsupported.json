@@ -1,0 +1,12 @@
+{
+  "schema": "tilemega.exported_program.v1",
+  "torch_version": "2.13.0+cpu",
+  "nodes": [
+    {"index": 0, "name": "bad", "op": "call_function",
+     "target": "aten.imaginary.default", "inputs": [], "shape": ["1"],
+     "dtype": "torch.float32", "nn_module_stack": [], "source_fn_stack": []}
+  ],
+  "range_constraints": {},
+  "guards": [],
+  "graph_signature": "test"
+}

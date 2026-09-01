@@ -1,0 +1,9 @@
+✅ Command: build-phase12/tools/tilemega-compile raw/cg.mlir /tmp/tilemega-e2e-final.so
+Exit: 0
+CODEGEN_SUMMARY tasks=179 couplings=222 stages=24 output=/tmp/tilemega-e2e-final.so
+Artifact: ELF 64-bit shared object (647 KiB in the 2026-09-01 final run)
+
+Development correction: the first shared-object attempt exposed that the
+generated schedule was a host constexpr object.  The final generator emits
+matching host constexpr and device constant-memory tables from one initializer;
+L0.5 consumes the former and L1 consumes the latter.

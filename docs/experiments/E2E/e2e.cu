@@ -1,3 +1,5 @@
+// HANDWRITTEN REFERENCE BASELINE. The product path is generated from CG by
+// CouplingGraphToCUDA and validated in docs/experiments/E2E_GEN/.
 // L0.5/L1 correctness ladder for the V-H two-layer Llama ExportedProgram.
 #include <cuda_runtime.h>
 
@@ -510,6 +512,18 @@ Difference Compare(std::vector<std::vector<float>> const& actual,
   return result;
 }
 
+unsigned long long BitHash(std::vector<std::vector<float>> const& values) {
+  unsigned long long hash = 1469598103934665603ull;
+  for (auto const& tensor : values) {
+    auto const* bytes = reinterpret_cast<unsigned char const*>(tensor.data());
+    for (std::size_t i = 0; i < tensor.size() * sizeof(float); ++i) {
+      hash ^= bytes[i];
+      hash *= 1099511628211ull;
+    }
+  }
+  return hash;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -541,6 +555,8 @@ int main(int argc, char** argv) {
   std::printf("E2E_DIFF l05_vs_l0_mismatch=%zu max_abs=%.8g max_rel=%.8g l1_vs_l05_mismatch=%zu max_abs=%.8g max_rel=%.8g\n",
               l05_l0.mismatch, l05_l0.max_abs, l05_l0.max_rel,
               l1_l05.mismatch, l1_l05.max_abs, l1_l05.max_rel);
+  std::printf("E2E_HASH l05=%016llx l1=%016llx\n",
+              BitHash(l05), BitHash(l1));
   bool pass = l05_l0.mismatch == 0 && l1_l05.mismatch == 0;
   std::printf("RESULT status=%s\n", pass ? "PASS" : "MISMATCH");
   return pass ? 0 : 1;

@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// Skeleton refs: §2 Definitions 1–3 (Phase 1 stub).
+// Skeleton refs: §2 Definitions 1-5 and §4.3.
 #pragma once
-#include <string>
-namespace tilemega::dialect {
-struct TaskOp { std::string name; std::string iteration_domain; };
-struct CouplingOp { std::string producer; std::string consumer; std::string relation; };
-}  // namespace tilemega::dialect
+
+#include <tilemega/Dialect/CouplingGraph/CGAttrs.h>
+
+#include <mlir/IR/BuiltinOps.h>
+#include <mlir/IR/SymbolTable.h>
+
+#define GET_OP_CLASSES
+#include "tilemega/Dialect/CouplingGraph/CGOps.h.inc"

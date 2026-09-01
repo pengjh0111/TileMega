@@ -1,0 +1,3 @@
+ninja: Entering directory `/root/TileMega/build-phase12'
+[1/2] Linking CXX executable tools/tilemega-opt
+[2/2] Linking CXX executable tools/tilemega-import

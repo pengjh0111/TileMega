@@ -18,6 +18,15 @@ struct TaskContext {
   std::int32_t extent = 0;
 };
 
+/// Generated schedule descriptor.  Large model parameter tables are never
+/// embedded here; generated kernels receive a device pointer to Params (F-17b).
+struct TaskDesc {
+  std::uint32_t kind = 0;
+  std::uint32_t stage = 0;
+  std::uint32_t logical_tile = 0;
+  std::uint32_t extent = 0;
+};
+
 /// Compile-time resource information consumed by candidate pruning (§5.3).
 template <int Threads, std::size_t SharedBytes>
 struct TaskTraits {
@@ -25,6 +34,9 @@ struct TaskTraits {
   static constexpr std::size_t kSharedStorageBytes = SharedBytes;
   static_assert(Threads > 0, "a TaskBody needs at least one thread");
 };
+
+template <class Body>
+inline constexpr bool kTaskLegal = Body::kLegal;
 
 /// Aligned byte storage whose lifetime belongs to the enclosing megakernel.
 template <std::size_t Bytes>

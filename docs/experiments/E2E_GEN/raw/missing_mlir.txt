@@ -1,0 +1,6 @@
+Command: cmake -S . -B <tmp> -G Ninja -DCMAKE_DISABLE_FIND_PACKAGE_MLIR=TRUE
+Exit: nonzero (expected)
+Diagnostic:
+  MLIR is required for the TileMega Coupling Graph dialect. Configure with
+  -DMLIR_DIR=/path/to/lib/cmake/mlir. The pinned source/build recipe and
+  commit are recorded in docs/experiments/V_F/result.md.

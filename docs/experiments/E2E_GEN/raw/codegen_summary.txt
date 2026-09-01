@@ -1,0 +1,1 @@
+CODEGEN_SUMMARY tasks=179 couplings=222 stages=24 output=/root/TileMega/docs/experiments/E2E_GEN/raw/generated_e2e.cu

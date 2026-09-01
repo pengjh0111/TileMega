@@ -17,6 +17,7 @@ source-inspected, cross-compiled without running, or explicitly unconfirmed;
 | 6 | V-C cluster DSMEM | ✅ sm_90/120 compile; ⚠️ not run | [V-C result](experiments/V_C/result.md) |
 | 4 | V-J tile-size and backward-wait controls | ✅ complete on RTX 4090 | [V-J result](experiments/V_J/result.md) |
 | 2 | E2E L0 → L0.5 → L1 | ✅ 50/50 on RTX 4090 | [E2E result](experiments/E2E/result.md) |
+| 1 | P1/P2 generated CG → L0.5/L1 | ✅ importer + codegen, 50/50 on RTX 4090 | [E2E_GEN result](experiments/E2E_GEN/result.md) |
 
 ## Reproduction policy
 
@@ -48,3 +49,7 @@ never converted into a pass.
   right inverse; the CuTe-to-Presburger bridge owns that fallback.
 - The fixed E2E lowering directly calls the SM80 cp.async collective family
   and validates the full-stage global-barrier path at the resident grid.
+- The product frontend is now a thin, torch-versioned Python serialization
+  bridge followed by a C++ JSON-to-CG `ModuleOp` importer. Codegen accepts only
+  that verified dialect module; generated L0.5 matches the handwritten
+  reference bitwise and generated L1 passes 50/50 fresh processes.

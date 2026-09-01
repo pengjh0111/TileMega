@@ -1,0 +1,6 @@
+config.tilemega_source_dir = "@CMAKE_CURRENT_SOURCE_DIR@"
+config.tilemega_binary_dir = "@CMAKE_CURRENT_BINARY_DIR@"
+config.llvm_tools_dir = "@LLVM_TOOLS_BINARY_DIR@"
+import lit.llvm
+lit.llvm.initialize(lit_config, config)
+lit_config.load_config(config, "@CMAKE_CURRENT_SOURCE_DIR@/test/lit.cfg.py")

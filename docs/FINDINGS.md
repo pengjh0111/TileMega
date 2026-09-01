@@ -262,3 +262,73 @@
   operand coordinates/strides and require large parameter tables by pointer.
   A C++ layout tag name alone is not a frontend layout proof.
 - Confidence: high for the tested SM80 cp.async SIMT adapter.
+
+## F-18 — The CG dialect can enforce the L4-to-L1 semantic contract
+
+- Finding: `ClosedFormAttr` now stores the L3a `ClosedForm` value itself and
+  round-trips through MLIR without exposing a builtin string attribute to
+  consumers. `CouplingMapAttr` stores structured consumer, producer,
+  coordinate, range, parameter, fiber, and image fields. Verifiers reject an
+  event extent different from `image(C_kappa)`, a wait value different from
+  the relation fiber cardinality after theta/g binding, and Tier 3 + cluster.
+- Evidence: `test/Dialect/CouplingGraph/{valid,event_shape_mismatch,
+  tier3_cluster}.mlir` pass 3/3 under lit; `cg_attr_roundtrip` preserves and
+  evaluates a symbolic ceil-div expression.
+- Skeleton impact: §2.6's “one structure” rule is now an actual API boundary:
+  importer, future Analysis/Solver, and Codegen exchange only a verified CG
+  `ModuleOp`; the old string input to Codegen was removed.
+- Confidence: high for the implemented Phase-1 schema and fixed cardinality
+  verifier; barvinok-backed general counting remains Phase 3.
+
+## F-19 — Guard identity must be normalized in the C++ importer
+
+- Finding: the thin Python bridge serializes nodes, tensor dependencies,
+  symbolic metadata, ranges, and raw guards without classification. The C++
+  importer preserves all 179 call-function tasks and 222 tensor couplings,
+  retains view/transpose access-map tasks, assigns 24 stages with an explicit
+  rule, and imports all four equality guards. Cancellation/union normalizes
+  both `s61` and `s65` to `s14`.
+- Evidence: `python/tilemega/export_bridge.py`,
+  `frontend_import_test`, `experiments/E2E_GEN/raw/bridge_summary.txt`,
+  `experiments/E2E_GEN/raw/import_summary.txt`, and
+  `experiments/E2E_GEN/raw/cg.mlir`.
+  An unsupported fixture reports `aten.imaginary.default` by name.
+- Skeleton impact: §4.2/P1.2 must keep a versioned guard adapter and a separate
+  constraint domain; P1.4 stage policy must be explicit and testable. Layout
+  operations are semantic graph structure, not importer noise.
+- Confidence: high on torch 2.13 and the V-H two-layer Llama; stage-rule
+  generalization remains a proposal.
+
+## F-20 — Generated Phase-2 CUDA reproduces the handwritten ladder
+
+- Finding: `CouplingGraphToCUDA::Lower(ModuleOp)` traverses task-space,
+  coupling, placement, symbolic metrics, and stage data, then emits the
+  TaskBody specialization, schedule counts, §8 synchronization, and a
+  TargetSpec-driven host launcher. Generated and handwritten L0.5 outputs have
+  the same bit hash `5245714bc5d3ab4d`; generated L1 is bitwise equal to its
+  L0.5 and passed 50/50 fresh processes with no timeout.
+- Evidence: `experiments/E2E_GEN/raw/hash_compare.txt`,
+  `fresh_process_summary.txt`, `generated_ptxas.txt`, and retained per-process
+  logs. Both variants use 168 registers, 49,536B dynamic shared memory,
+  1 CTA/SM, and grid 128 on the probed sm_89 GPU.
+- Skeleton impact: P2.3/P2.4 are implemented for the fixed two-layer Llama
+  Phase-2 scope. The handwritten `experiments/E2E/e2e.cu` is now only a
+  reference; product lowering starts at the real ExportedProgram and passes
+  through the verified CG dialect. Fine-grained event generation remains P3.5.
+- Confidence: high on RTX 4090 for this fixed model/configuration; performance
+  optimization and broader model-stage policies are not claimed.
+
+## F-21 — A generated static schedule has two CUDA address-space consumers
+
+- Finding: the first direct shared-object build failed because L1 referenced a
+  host `constexpr` schedule from device code. L0.5 needs that table on the
+  host, while L1 needs the same entries in device-visible storage. The final
+  emitter derives a host constexpr table and a device constant-memory table
+  from one initializer, preventing semantic drift between the two ladders.
+- Evidence: `experiments/E2E_GEN/raw/compile_shared.txt`; after the correction,
+  `tilemega-compile` produced a 647 KiB ELF `.so`, and the generated executable
+  retained bit hash `5245714bc5d3ab4d` for both L0.5 and L1.
+- Skeleton impact: §5.4 schedule-table lowering must state the address-space
+  duplication explicitly; it is a backend representation detail, not two
+  schedules. Schedule entries remain one CG-derived source of truth.
+- Confidence: high for nvcc 12.8 and the generated sm_89 Phase-2 path.

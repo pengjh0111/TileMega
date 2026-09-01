@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// Skeleton ref: §2 Coupling Graph dialect surface (Phase 1 stub).
+// Skeleton refs: §2.6 and §4.3 Coupling Graph dialect contract.
 #pragma once
-#include <string_view>
-namespace tilemega::dialect { inline constexpr std::string_view kCouplingGraphDialect = "cg"; }
+
+#include <mlir/IR/Dialect.h>
+
+#include "tilemega/Dialect/CouplingGraph/CGDialect.h.inc"

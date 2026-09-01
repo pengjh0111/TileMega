@@ -62,12 +62,14 @@ edge, and resource feasibility under the selected `TargetSpec`.
 ## Build
 
 The default build requires a C++17 compiler, CMake 3.22 or newer, Ninja, the
-CUDA Toolkit, and the CUTLASS submodule. MLIR and ISL are disabled by default.
+CUDA Toolkit, the CUTLASS submodule, and an MLIR development build. The CG
+dialect is the mandatory L4-to-L1 contract, so MLIR is enabled by default;
+ISL remains disabled until Phase 3.
 Barvinok is recorded as a submodule for later polyhedral work and is not built.
 
 ```bash
 git submodule update --init --recursive
-cmake -S . -B build -G Ninja
+cmake -S . -B build -G Ninja -DMLIR_DIR=/path/to/lib/cmake/mlir
 ninja -C build
 ctest --test-dir build --output-on-failure
 ```
@@ -76,7 +78,7 @@ Relevant CMake options are:
 
 - `TILEMEGA_BUILD_TESTS=ON`
 - `TILEMEGA_BUILD_VERIFY=ON`
-- `TILEMEGA_ENABLE_MLIR=OFF`
+- `TILEMEGA_ENABLE_MLIR=ON` (required; `OFF` is rejected)
 - `TILEMEGA_ENABLE_ISL=OFF`
 - `TILEMEGA_TARGET_ARCH=auto|sm_80|sm_89|sm_90|sm_120`
 - `TILEMEGA_TARGET_CONFIG=/path/to/target.json`
@@ -124,11 +126,12 @@ third_party/barvinok/   future polyhedral dependency; not built
 
 ## Status
 
-This repository is at the pre-construction verification stage. `TargetSpec`,
-architecture dispatch, TaskBody contracts, CUDA synchronization paths, and the
-verification targets are implemented. Frontend importing, Coupling Graph
-lowering, the production solver, most TaskBody operators, and the final runtime
-launcher remain explicit phase stubs.
+Phase 2 is implemented for the fixed two-layer Llama validation configuration.
+A versioned Python bridge serializes `ExportedProgram`; the C++ importer emits
+the verified CG dialect; and `CouplingGraphToCUDA` generates L0.5/L1 CUDA using
+the TaskBody library. E2E_GEN matches the handwritten reference bitwise and
+passes 50/50 fresh processes. Coupling derivation (Phase 3), the production
+solver (Phase 4), fine-grained events, and serving remain explicit future work.
 
 ## Verification
 

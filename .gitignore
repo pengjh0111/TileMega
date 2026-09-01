@@ -11,6 +11,8 @@ docs/experiments/V_B/collective_persistent
 docs/experiments/V_J/event_sync
 docs/experiments/V_D/traits_probe
 docs/experiments/E2E/e2e
+docs/experiments/E2E_GEN/generated_e2e
+docs/experiments/E2E_GEN/handwritten_e2e
 *.ncu-rep
 *.nsys-rep
 __pycache__/

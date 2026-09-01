@@ -1,5 +1,9 @@
 # E2E — L0 to L0.5 to L1
 
+> **Handwritten reference baseline.** This file and `e2e.cu` are retained for
+> differential comparison. The product path is the CG-driven generator in
+> [`../E2E_GEN/`](../E2E_GEN/result.md).
+
 Evidence labels: ✅ executed/observed; ⚠️ limited scope; ❌ conjecture.
 
 ## Result
@@ -76,8 +80,9 @@ not triggered.
   therefore not validated by this experiment.
 
 All 30 observed targets were present in the V-H whitelist; the frontend
-reported no outside-whitelist operator. The current fixed category rules are
-an experiment adapter, not the complete Phase 1 importer.
+reported no outside-whitelist operator. These observations drove the C++
+importer now validated in E2E_GEN; the old `prepare_e2e.py` semantic adapter is
+no longer the product path and is used only to reproduce binary fixtures.
 
 ## Performance baseline
 

@@ -14,6 +14,7 @@
 ## 目录
 
 - [1. 设计理念](#1-设计理念)
+- [1.5 当前状态](#15-当前状态)
 - [2. 核心抽象：Coupling Graph](#2-核心抽象coupling-graph)
 - [3. 构建基础](#3-构建基础)
 - [4. 架构](#4-架构)
@@ -64,6 +65,11 @@ smem swizzle、软件流水全部由 CUTLASS collective 承担。
 
 剪枝优先走 traits，只对候选集的 top-k 做真编译。
 
+实测策略是**批量 constexpr traits 查询 + 幸存者并行真编译**：100 个 traits
+候选耗时 17.6s 且 shared storage 误差为 0；单变体真编译中位数 4.658s，
+170 候选串行约 13.2min，4 进程并行获得 3.61× 加速。缓存键必须包含源码、
+目标架构、CUDA 与 CUTLASS 版本。（F-7、F-11）
+
 ### 原则三：CuTe 是表示，ISL 是求解器
 
 | | 职责 |
@@ -86,6 +92,20 @@ L4    符号形状参数化 + 运行时变体选择
 ```
 
 每一级保留编译开关，可随时回退比对。
+
+## 1.5 当前状态
+
+| 层 | 路径已验证 | 代码已实现 | 证据 |
+|---|---|---|---|
+| L5 Serving | — | ❌ | — |
+| L4 Frontend | ✅ | ✅ | V-H；生成式 importer（179 task / 222 coupling / 24 stage / 4 guard） |
+| L3a 符号类型 | ✅ | ✅ | F-14；`coupling_types_test` / `cg_attr_roundtrip` |
+| L3b 耦合推导 | — | ❌ | 下一轮 Phase 3 |
+| L2 Solver | — | ❌ | Phase 4 |
+| L1 Codegen | ✅ | ✅ | E2E_GEN：生成 L1 50/50，且与生成 L0.5 逐位一致 |
+| L0 Backend | ✅ | ✅ | V-I 四架构交叉编译 |
+
+此表是项目实现状态的唯一权威来源；每轮结束随代码和实验证据同步更新。
 
 
 ---
@@ -136,7 +156,8 @@ C(x) = { y ∈ T_p : W_p(y) ∩ R_c(x) ≠ ∅ }
 
 **定义 4（派生量）**
 
-全部是 `(θ, g)` 的闭式表达式，由 barvinok 对参数化多面体计数给出：
+全部具有 `ClosedForm(θ,g)` 类型，而不是代入后的标量；Phase 3 由 barvinok
+对参数化多面体计数填充，Phase 1/2 使用保持同一接口的最小 AST：
 
 ```
 wait(x)      = | C(x) |                    消费者 x 需要等待的生产者数
@@ -145,6 +166,10 @@ volume(y,x)  = | W_p(y) ∩ R_c(x) |         该边的通信量
 count(T_op)  = | T_op(θ, g) |              task 数
 tier         ∈ {0, 1, 2, 3}                可解析程度，见 §2.4
 ```
+
+字段名在 C++ 与 CG dialect 中统一为 `wait / fanout / volume / count`。
+`C` 使用结构化 `AffineRelation` / `CouplingMapAttr`；字符串只用于打印诊断，
+不能作为 Solver 或 Codegen 的语义输入。（F-14）
 
 **定义 5（耦合图 CG）**
 
@@ -171,6 +196,16 @@ CG(θ, g) = ( V, E )
 推论：保守化的代价是**逐边局部**的，不会传播到全图。
 最坏情况（整条边退化为算子级 barrier）等价于 kernel-per-operator，永远不会更差。
 这是 Tier 2/3 处理策略的正确性基础。
+
+**I3（可流式执行）**
+
+> `resident_limit = num_sms × active_blocks_per_sm(kernel, block, smem)` 只是资源容量。
+> `grid` 能否超过它取决于实现后的全局 wait-for 图：若对所有可能的常驻 CTA 子集都存在
+> 有界的推进前沿，则可滚动让出 slot；只有无法证明该性质时才要求全 grid 共存。
+
+启动序上的依赖跨度有界且小于 `resident_limit` 是一个常用的充分特例，不是完整定义。
+V-A 的局部环在 2×容量仍推进，而 V-J 的反向依赖在 `resident_limit+1` 通过、
+2×容量 20/20 挂起，说明合法性不能只由局部 `(θ,g)` 派生量或 `grid` 大小决定。（F-4、F-9）
 
 ## 2.3 CG 上的五种操作
 
@@ -310,6 +345,12 @@ wait      = Tm × n_h / Kc
 pass：`cute-fold-static`、`cute-expand-ops`、`cute-to-base`。
 该 dialect 仅含 layout 代数，不含内存 / GPU / kernel op。
 
+**能力边界（V-F）**：cute MLIR dialect 仅作为 Phase 3 的分析表示，不进入
+codegen。动态 `Composition`、divide、flatten/coalesce 可保留为 IR，
+但 `RightInverse` 的动态 shape 被 verifier 拒绝。处理顺序为：先用已选 `g`
+特化 intra-tile `W`；仍动态则在 Presburger/ISL 关系上求逆；含不可消除动态
+stride/swizzle 时提升 Tier。（F-12）
+
 ## 3.4 CUDA C++ 直接可用的硬件能力
 
 - 显式 shared memory 布局控制 → 分页 smem 与 cross-task 软件流水
@@ -318,6 +359,13 @@ pass：`cute-fold-static`、`cute-expand-ops`、`cute-to-base`。
 - `__nanosleep()` → 自旋退避
 - 内联 PTX → 任何缺口的逃生舱
 - warp / lane 级控制（`__shfl_*`、`__activemask`、具名 barrier）
+
+硬件能力必须来自 `ArchDispatch::Caps`，资源必须来自 `TargetSpec`/target JSON，
+架构号不构成能力偏序：**sm_120 没有 tcgen05**，不能用 `arch >= N` 推断能力。（F-5）
+
+`TargetSpec` 的可迁移契约还包括：SKU 标识与字段来源、每 SM 最大常驻 block、
+cluster occupancy/GPC 限制、opt-in smem 状态、collective 数据类型族、
+以及 CUDA/CUTLASS 版本。SM 数和 smem 上限不得作为业务代码常量。（F-13）
 
 ## 3.5 CuTe → ISL 转换规则
 
@@ -367,7 +415,9 @@ pass：`cute-fold-static`、`cute-expand-ops`、`cute-to-base`。
 
 `ExportedProgram` 提供 ATen 级 FX graph、`ShapeEnv` 中的符号维（sympy）、
 FakeTensor meta。动态维通过 `torch.export.Dim` 声明，内部已有符号推理与 guard 求解——
-这是 `θ` 的来源。`ShapeEnv` 的 guards（如 `s0 % 128 == 0`）直接转为 ISL 集合约束。
+这是 `θ` 的来源。符号值表达式进入 `ClosedForm`，范围与等式/不等式/取模 guard
+进入独立的 Presburger 参数域；不能因为复用了一个 `Dim` 就假设导出符号同名。
+torch 私有 guard API 必须集中在一个版本锁定的 Python 适配器中。（F-15）
 
 KV cache 管理、paged block table、continuous batching 调度不在 exported graph 中，
 属于 L5（§4.6）。
@@ -385,7 +435,9 @@ tilemega.task_space @gemm_tasks attributes {
 }
 
 // 事件张量：形状可含符号维
-tilemega.event_tensor @e0 : tensor<?xi32>
+tilemega.event_tensor @e0 : tensor<?xi32> attributes {
+    extent = #tilemega.closed_form<"image_size(C_kappa)">
+}
 
 // 耦合：一条边
 tilemega.coupling @c1 from @norm_tasks to @gemm_tasks attributes {
@@ -394,6 +446,7 @@ tilemega.coupling @c1 from @norm_tasks to @gemm_tasks attributes {
     wait      = #tilemega.closed_form<"1">,
     fanout    = #tilemega.closed_form<"ceil(Dq/Tn)">,
     volume    = #tilemega.closed_form<"Tm*H">,
+    count     = #tilemega.closed_form<"ceil(S/Tm)*ceil(Dq/Tn)">,
     tier      = 0,
     sync_kind = #tilemega.sync<global>,                             // Label
     event     = @e0
@@ -405,6 +458,10 @@ tilemega.placement @gemm_tasks map = [...] cluster = 2
 
 **属性**：`AccessMapAttr`、`CouplingMapAttr`、`ClosedFormAttr`（派生量的符号表达式）、
 `TierAttr`、`SyncKindAttr`、`PlacementAttr`。
+
+这些属性与 L3a C++ 类型一一对应：`ClosedFormAttr` 的 storage key 是
+`analysis::ClosedForm` 本体，`CouplingMapAttr` 是包含 consumer/producers/ranges/
+parameters/fiber/image 的结构化字典；Tier（可解析性）与 SyncKind（通信归属）分离。
 
 **verifier**：事件张量形状 = `image(C_κ)`；`wait` 的闭式在 `θ` 全部代入后与
 barvinok 计数一致。
@@ -552,6 +609,16 @@ struct GemmTaskBody {
 `AttentionCombineTaskBody`、`RMSNormTaskBody`、`RoPETaskBody`、`ElementwiseTaskBody`、
 `KVAppendTaskBody`、`MoERouterTaskBody`、`SchedulerTaskBody`。
 
+TaskBody 的 `TaskDesc / context / SharedStorage / result` ABI 保持架构无关，
+但允许 SM80 cp.async、SM90 TMA/GMMA、SM120 TMA/MMA 等每个 CUTLASS family
+各有一个 mainloop adapter；不同 family 的 pipeline/residue/epilogue 编排并不相同。（F-6）
+
+每个 adapter 必须显式声明逻辑操作数坐标、stride、residue 约定与 epilogue 归属。
+例如 CUTLASS B 是逻辑 `(N,K)`，PyTorch 连续 `[N,K]` 权重在已验证的 SM80 adapter
+中对应逻辑 stride `(K,1)`，由 `ColumnMajor` tag 表达；tag 名本身不构成布局证明。
+大参数表一律以**设备端指针**传入，禁止按值复制进 kernel 参数：实测 14 个 GEMM
+的参数包按值传递产生 2592B 栈帧和 5× 劣化，指针形式降到 32B。（F-17）
+
 ## 5.4 Megakernel 骨架
 
 ```cpp
@@ -601,6 +668,11 @@ void tilemega_kernel(Params p) {
 ```
 
 代码体积 = `O(stage 数 × 粒度变体数)`，不随 task 数增长。
+
+静态调度表在语义上只有一份，但 L0.5 的 host launch loop 与 L1 的 device loop
+处于不同 CUDA 地址空间。Codegen 必须从同一个 initializer 同时生成 host
+`constexpr` 表与 device `__constant__` 表，禁止手写两份；否则前者不能被 device
+读取，或两级正确性阶梯可能发生调度漂移。（F-21）
 
 ## 5.5 同步的三条 lowering 路径
 
@@ -736,27 +808,31 @@ tilemega/
 
 ### P0.1 仓库与依赖
 
-- [ ] 建骨架，按 §6 结构
-- [ ] submodule：`cutlass`（跟 main）、`barvinok`
-- [ ] 确认 mirage / MPK 许可证，记入 `docs/design/licenses.md`
-- [ ] CI：`ninja && ninja check-tilemega`
+- [x] 建骨架，按 §6 结构。默认 MLIR=ON 的 CMake + Ninja 构建通过。
+- [x] submodule：`cutlass`（跟 main）、`barvinok`。
+- [-] mirage / MPK 代码未引入；V-B 仅依据 BSD-3 CUTLASS 公共接口实现 adapter，
+      因而本阶段无第三方代码许可证依赖。
+- [x] CI：`ninja && ninja check-tilemega`，含 policy、unit 与 CG lit verifier 测试。
 
 ### P0.2 工具链
 
-- [ ] `tools/tilemega-opt`：注册 CG dialect
-- [ ] `tools/tilemega-compile`：CG MLIR → `.cu` → `.so` 一键流程
-- [ ] `BackendCostQuery`：traits 路径 + nvcc 路径
+- [x] `tools/tilemega-opt`：注册 CG dialect；合法 round-trip 与两个负 verifier 用例通过。
+- [x] `tools/tilemega-compile`：stable export JSON / CG MLIR → CG `ModuleOp` →
+      `.cu`，并可一条命令调用 nvcc 生成 `.so`；E2E_GEN 同时保留可执行验收路径，
+      用于逐元素与资源对照。
+- [x] `BackendCostQuery`：traits 路径 + nvcc/ptxas 路径。V-D shared storage 误差 0，
+      V-E 给出真编译与并行基线。
 
 ### P0.3 测试基础设施（优先级高于任何功能代码）
 
-- [ ] **差分测试框架**：L0/L0.5/L1/L2/L3 逐元素比对
+- [x] **差分测试框架**：L0/L0.5/L1 逐元素比对
       （容差：浮点求和顺序差异，相对误差 3e-5 量级属正常）
-- [ ] **挂起检测**：所有 GPU 测试带 `timeout`，挂起保留现场
-- [ ] **统计化执行**：涉及同步的测试 ≥50 次全新进程并报通过率
-- [ ] **交替填充校验器**：每次运行更换期望值，防止残留掩盖错误
-- [ ] `ptxas -v` 解析器（REG / SHM / 溢出）
-- [ ] SASS dump 脚本（回边、屏障、`__nanosleep`）
-- [ ] 挂起现场分析：`cuda-gdb` 多次采样比对 PC 是否前进
+- [x] **挂起检测**：所有 GPU 测试带 `timeout`，挂起保留现场。
+- [x] **统计化执行**：涉及同步的测试 ≥50 次全新进程并报通过率。
+- [x] **交替填充校验器**：每次运行更换期望值，防止残留掩盖错误。
+- [x] `ptxas -v` 解析器（REG / SHM / 溢出）。
+- [x] SASS dump 脚本（回边、屏障、`__nanosleep`）。
+- [x] 挂起现场分析：hang probe 多次 PC 采样区分推进与停滞；见 V-A/V-J。
 
 ---
 
@@ -764,29 +840,31 @@ tilemega/
 
 ### P1.1 torch.export 接入
 
-- [ ] 跑通最小 Transformer block 的 `export`
-- [ ] 提取 FX graph、`ShapeEnv` 符号维、FakeTensor meta
-- [ ] 确定支持的算子白名单，白名单外明确报错
+- [x] 跑通严格模式两层 Llama decoder 的 `export`，三次图稳定（V-H）。
+- [x] 提取 FX graph、`ShapeEnv` 符号维、FakeTensor meta；Python bridge 只做稳定序列化。
+- [x] 30 个 target 白名单；C++ importer 对白名单外算子报告完整算子名。
 
 ### P1.2 符号形状桥（θ）
 
-- [ ] sympy 仿射表达式 → ISL parameter（`s0`、`s0*2`、`s0+s1`、`s0//128`、`ceildiv`）
-- [ ] 从 `ShapeEnv` guards 提取 shape constraint → ISL 集合约束
-- [ ] 单元测试
+- [x] 符号维算术 → `ClosedForm`（symbol/add/mul/ceildiv/floordiv）；ISL 转换按计划留给 Phase 3。
+- [x] `ShapeEnv` range/equality guards → 最小约束域并规范化符号同一性；
+      torch 2.13 私有 accessor 集中在版本锁定 adapter。
+- [x] 单元测试：4 guard 保留，`s61/s65 → s14`，view/transpose access map 保留。
 
 ### P1.3 CG dialect
 
-- [ ] `task_space` / `coupling` / `event_tensor` / `placement` op（§4.3）
-- [ ] `AccessMapAttr` / `CouplingMapAttr` / `ClosedFormAttr` / `TierAttr` /
-      `SyncKindAttr` / `PlacementAttr`
-- [ ] verifier：事件张量形状 = `image(C_κ)`；`wait` 闭式与 barvinok 计数一致
+- [x] `task_space` / `coupling` / `event_tensor` / `placement` op（§4.3）。
+- [x] `AccessMapAttr` / `CouplingMapAttr` / `ClosedFormAttr` / `TierAttr` /
+      `SyncKindAttr`，以及结构化 `placement` op
+- [x] verifier：事件张量形状 = `image(C_κ)`；`wait` 与结构化 relation fiber
+      在 θ/g 绑定后的值一致；Tier 3 + cluster 被拒绝。barvinok authority 留给 Phase 3。
 
 ### P1.4 FX graph → CG 骨架
 
-- [ ] 每个 ATen 算子 → 一个 `task_space`（`g` 先留符号）
-- [ ] 每个张量依赖 → 一条 `coupling`（`C` 先留空，由 L3 填充）
-- [ ] 层结构识别：重复的 decoder layer 折叠为外层循环
-- [ ] lit 测试
+- [x] 每个白名单 ATen `call_function` → 一个 `task_space`（固定 `g`）。
+- [x] 每个张量依赖 → 一条带结构化固定规则 `C` 的 `coupling`；不冒充 Phase 3 推导。
+- [x] 显式两层 Llama stage 规则：179 task / 222 coupling → 24 stage，L1 为层循环。
+- [x] lit + unit：合法/事件形状/Tier-sync、白名单错误、layout task 保留。
 
 ---
 
@@ -794,29 +872,32 @@ tilemega/
 
 ### P2.1 TaskBody 模板库
 
-- [ ] `TaskBase.h`：`TaskDesc` / `Params` / smem union 机制
-- [ ] `ElementwiseTaskBody`、`RMSNormTaskBody`（先跑通框架）
-- [ ] `GemmTaskBody`
-- [ ] `RoPETaskBody`、`KVAppendTaskBody`
-- [ ] `AttentionChunkTaskBody` / `AttentionCombineTaskBody`
+- [x] `TaskBase.h`：`TaskDesc` / 指针参数契约 / smem union 机制。
+- [x] `ElementwiseTaskBody`、`RMSNormTaskBody`，编译期 traits 可查询。
+- [x] `GemmTaskBody`：SM80 cp.async direct collective specialization；逻辑 stride 契约显式化。
+- [x] `RoPETaskBody`、`KVAppendTaskBody`。
+- [x] `AttentionChunkTaskBody` / `AttentionCombineTaskBody`。
+      六类 body 的 union 静态断言为 `max_i(kSmemBytes_i)`；V-I 四架构仍全过。
 
 ### P2.2 L0 参考实现
 
-- [ ] PyTorch eager 逐算子，固定种子，导出参考输出
+- [x] PyTorch eager 逐算子，固定 seed 20260901，导出参考输出（V-H/E2E）。
 
 ### P2.3 L0.5 host 端 stage 循环
 
-- [ ] 每 stage 一个独立 kernel，内含 grid-stride 任务循环
-- [ ] Host launcher 按 stage 顺序 launch
-- [ ] 最小 Transformer block → 完整 Llama 单层 → 小模型（TinyLlama / Llama-3.2-1B）
+- [x] 生成版每 stage 一个独立 kernel，内含 grid-stride 任务循环。
+- [x] 生成 Host launcher 按 24 个 stage 顺序 launch。
+- [x] 权重无关的小配置两层 Llama（GQA/RoPE/KV/SwiGLU）端到端；
+      生成 L0.5 与手写参照位哈希一致，并以 3e-5 容差匹配 PyTorch L0。
 
 ### P2.4 L1 单 kernel megakernel
 
-- [ ] 全局 barrier lowering（按 §8 规则）
-- [ ] stage 展开 + 层循环（§5.4）
-- [ ] task dispatch switch + smem union
-- [ ] 与 L0.5 逐元素比对，≥50 次统计
-- [ ] 记录 grid、REG、SHM、occupancy
+- [x] 全局 barrier lowering（按 §8 规则，单线程轮询/退避/fence/CTA release）。
+- [x] stage 编译期展开 + 层循环（§5.4）。
+- [x] task dispatch switch + 单个显式 smem union；参数表按设备指针传入。
+- [x] 生成 L1 与生成 L0.5 逐位一致，50/50 全新进程、0 timeout。
+- [x] sm_89：REG 168 / SHM 49536B / occupancy 1 CTA·SM⁻¹ / grid 128；
+      grid 由 `TargetSpec::Probe()` 与 occupancy API 得到。见 `docs/experiments/E2E_GEN/`。
 
 ---
 
@@ -989,9 +1070,10 @@ __syncthreads();     // 集体同步放在非发散点
 __threadfence();     // acquire
 ```
 
-若让全部线程各自轮询，各线程读到 flag 的时刻不同，控制流发散；
-此时位于循环体内的任何集体屏障都会与后续归约屏障错配，
-产生静默的错误结果（读到上一轮遗留的部分和），且编译期无告警。
+所有线程各自轮询本身是良性的，但会增加原子流量；本实验的短等待 workload
+未测出稳定性能代价。真正的正确性禁令是：**集体屏障不能出现在发散的自旋循环体内**。
+`barrier_in_spin` 在 grid 64/128/256 共 150/150 挂起。屏障只能位于上述轮询结束后的
+非发散点。（F-2）
 
 ## 8.2 单调事件计数器
 
@@ -1003,7 +1085,8 @@ needed = num_triggers × iteration_num
 
 ## 8.3 自旋必须带退避
 
-`__nanosleep(N)`，档位可配。无退避的紧凑轮询会饱和内存子系统，拖慢生产者。
+`__nanosleep(N)`，档位可配。它是**性能规则，不是正确性规则**：单独去掉退避
+0/150 失配；紧凑轮询仍可能饱和内存子系统并拖慢生产者。（F-3）
 
 ## 8.4 事件缓冲布局
 
@@ -1012,23 +1095,48 @@ needed = num_triggers × iteration_num
 
 ## 8.5 release 侧的顺序
 
+单线程生产：
+
 ```cpp
 // 数据写
-__threadfence();                        // release fence
-atomicExch(&ev[e].v, new_value);        // 置位
+__threadfence();                         // release fence
+atomicExch(&ev[e].v, new_value);         // 置位
 ```
 
-数据写与置位之间必须有 fence，不依赖程序顺序。
+CTA 协作生产时，release 必须覆盖**每个 writer**：
+
+```cpp
+// 每个线程完成自己负责的数据写
+__threadfence();
+__syncthreads();
+if (threadIdx.x == 0) atomicExch(&ev[e].v, new_value);
+```
+
+数据写与置位之间必须有 fence，不依赖程序顺序。地址复用的缺 fence 对照
+150/150 读到上一轮精确值；错误率又会随 tile 增大而下降（4096→8192 出现断崖，
+16384 为 0/50），因此大 GEMM tile 测不出错误不构成正确性证据，验证集必须包含
+norm/RoPE 一类小 tile。（F-1、F-3、F-10）
 
 ## 8.6 smem union 取 max
 
-各 task 类型的 `SharedStorage` 做 union，容量取 max（编译期 `sizeof` 即知）。
-不同 task 类型的 smem 需求不相加。
+各 task 类型的 `SharedStorage` 必须组成**单个显式 union**，且该 union 的生命周期
+覆盖整个 dispatch，容量取 `max_i(sizeof(SharedStorage_i))`。不同 task 类型的 smem
+只有在此条件下不相加；分离对象的地址逃逸会使生命周期重叠，实测退化为 36864B，
+occupancy 从 6 降到 2 CTA/SM。（F-8）
 
 ## 8.7 共存性
 
-`__launch_bounds__(kNumThreads, 1)` + `grid = SM 数 × occupancy`。
-grid 上限用 `cudaOccupancyMaxActiveBlocksPerMultiprocessor` 实测。
+资源容量公式为：
+
+```
+resident_limit = TargetSpec.num_sms
+               × ActiveBlocksPerSM(kernel, block_size, dynamic_smem)
+```
+
+`resident_limit` 是上界项，不是所有图的必要 grid 上界。只有 wait-for 进度分析
+无法证明流式推进（例如本轮 L1 的每-stage 全 grid barrier）时，才取
+`grid = resident_limit`。可流式图允许更大 grid；cluster kernel 还须使用 cluster
+occupancy 与整簇取整，而不能套普通 CTA 公式。（F-4、F-9）
 
 ## 8.8 簇内同步优先
 

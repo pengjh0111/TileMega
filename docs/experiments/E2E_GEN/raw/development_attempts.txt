@@ -1,0 +1,19 @@
+E2E_GEN implementation corrections (not acceptance passes)
+
+1. Reusing /tmp/tilemega-vf-build through its moved path failed at CMake
+   configure: generated MLIR/LLVM config files referenced the original
+   /root/TileMega/build-cutlass-compiler and CUTLASS external source paths.
+   Correction: restore temporary symlink mappings to the exact pinned build
+   and source trees. No LLVM rebuild was performed.
+
+2. First check-cg-lit target expanded LLVM_EXTERNAL_LIT to an empty command.
+   Correction: locate the pinned lit.py driver explicitly.
+
+3. llvm-lit then could not import its Python package, and
+   use_default_substitutions required unbuilt `count`/`not` tools.
+   Correction: invoke pinned source lit.py and substitute only tilemega-opt and
+   FileCheck; use the shell failure operator in negative tests.
+
+4. No GPU correctness failure occurred in the generated path. The first
+   generated compile used the product runtime and reproduced the handwritten
+   ptxas resources and numerical hashes.
