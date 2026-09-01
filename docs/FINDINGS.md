@@ -157,18 +157,22 @@
   survivor compilation. Compilation caching is still unverified locally.
 - Confidence: high for this translation unit and machine.
 
-## F-12 — CuTe IR can retain dynamic algebra, but execution is unverified
+## F-12 — CuTe IR retains most dynamic algebra, but inverse requires static shape
 
-- Finding: checked-in tests explicitly preserve dynamic composition and
-  zipped-divide operations when static folding cannot prove them. Dynamic
-  right-inverse behavior was not found. The pinned LLVM checkout and system
-  MLIR tools were absent, so no test suite was executed.
-- Evidence: `experiments/V_F/raw/source_audit.txt` and `environment.txt`.
-- Skeleton impact: use pinned CuTe MLIR dialect only as a Phase 3 analysis
-  representation, with Presburger/ISL as symbolic-legality authority; do not
-  make it a codegen dependency until the dynamic suite runs.
-- Confidence: medium for source-level representability, low for runtime/test
-  compatibility in the current environment.
+- Finding: the pinned LLVM/MLIR toolchain built successfully; 236/236 LIT and
+  106/106 C++ unit tests passed. Dynamic composition, logical/zipped divide,
+  flatten/coalesce, ceil-div, and shape-div are legal and remain explicit when
+  not foldable. `right_inverse` rejects a dynamic-shape layout; `left_inverse`
+  also rejects dynamic stride. Static results agree with pycute.
+- Evidence: `experiments/V_F/raw/test_summary.txt`,
+  `dynamic_after_fold.mlir`, `flatten_after_expand.mlir`, inverse diagnostic
+  tests, and `pycute.json`.
+- Skeleton impact: use CuTe MLIR as the imported analysis representation and
+  Presburger/ISL as semantic authority. Specialize the intra-tile `W(g)` before
+  dialect inversion; if `W` remains dynamic, invert its relation in the bridge
+  or raise Tier. Do not depend on CuTe IR for codegen.
+- Confidence: high for the pinned revision and tested algebra; general
+  dynamic-stride/swizzle conversion remains outside the affine bridge.
 
 ## F-13 — TargetSpec needs launch-topology and provenance fields
 
@@ -184,3 +188,77 @@
   Keep these as queried/configured fields, not hardware literals in business
   code.
 - Confidence: high.
+
+## F-14 — Coupling semantics must remain symbolic in the C++ type system
+
+- Finding: the initial Analysis stub represented `C` as a diagnostic string
+  and Definition 4 as concrete `size_t`/`double` fields named
+  `fan_in/fan_out/locality/reuse`. This erased invariant I1 before Solver or
+  Codegen could observe it and did not match `wait/fanout/volume/count`.
+  `ClosedForm` now retains theta/g symbols in an immutable AST, while
+  `AffineRelation` represents affine coordinates, quantified producer ranges,
+  and multi-producer images. An explicit range-partition operation preserves a
+  structural key across split-K reparameterization.
+- Evidence: `test/unit/coupling_types_test.cpp` evaluates §2.7 edges 1, 7, and
+  11 as wait 1, 4096, and 2. Edge 7 retains the same `StructureKey`, adds only
+  parameter `Kc`, and changes wait to 1024 for `Kc=4`; the Release-mode CTest
+  passes.
+- Skeleton impact: §2 Definition 4 should make all four metrics closed forms,
+  and the CG C++/MLIR contracts should distinguish structured semantic
+  relations from printable text. Tier (analyzability) and SyncKind (placement)
+  must remain separate types.
+- Confidence: high for the minimum algebra and I1 machine check; Phase 3 must
+  replace the AST evaluator with barvinok-backed piecewise quasi-polynomials
+  without changing this public contract.
+
+## F-15 — Export symbols and executable guards are separate frontend inputs
+
+- Finding: a strict two-layer Llama export was stable across three runs and
+  propagated symbolic sequence/cache extents through all 160 tensor-producing
+  compute nodes. Reusing one `Dim` for cache inputs still produced multiple
+  symbols; four executable equality guards carry their required identity.
+  Dense KV cache appears as explicit graph inputs/outputs without mutation.
+- Evidence: `experiments/V_H/raw/report.json`, `node_shapes.tsv`, and the saved
+  `exported_program.pt2`; three boundary-shape executions passed and an unequal
+  K/V cache was rejected by a guard.
+- Skeleton impact: the Phase 1 frontend must import both range constraints and
+  guards, canonicalize equivalent symbols, and treat view/type/metadata nodes
+  separately from mathematical TaskBodies. `ClosedForm` represents dimension
+  arithmetic, while equality/inequality/modulo guards require a Presburger
+  constraint domain. Dense append is Tier 1 only after its interval mapping is
+  retained.
+- Confidence: high for torch 2.13.0 and this graph; the guard accessor observed
+  here is private and needs a versioned adapter.
+
+## F-16 — The L0-to-L1 lowering contract is executable with CUTLASS collectives
+
+- Finding: the V-H `ExportedProgram` yielded 179 task spaces and 222 tensor
+  couplings. A 24-stage L0.5 lowering matched PyTorch with maximum absolute
+  error `1.5497208e-6`; the single-kernel L1 result was bitwise identical to
+  L0.5 and passed 50/50 fresh processes. All 14 projections directly invoke
+  the FP32 `MainloopSm80CpAsync<3>` collective family.
+- Evidence: `experiments/E2E/e2e.cu`, `raw/first_run.txt`,
+  `fresh_process_summary.txt`, and `fresh_process_raw.txt`.
+- Skeleton impact: §5's architecture-independent TaskBody/pipeline/event
+  contracts are sufficient for this fixed lowering. The frontend still needs
+  explicit rules for guard/meta/layout operations; the experiment adapter is
+  not a general importer. Full-stage barriers require
+  `grid = resident_limit`, unlike streaming wait graphs.
+- Confidence: high on sm_89 for the fixed two-layer graph and global-barrier
+  event scheme; performance and finer-grained events are not generalized.
+
+## F-17 — Mainloop adapters must encode operand-coordinate conventions
+
+- Finding: the first E2E collective substitution used CUTLASS B's wrong layout
+  tag and produced 6,143 mismatches. The collective presents B in logical
+  `(N,K)` coordinates; `ColumnMajor` maps PyTorch's contiguous `[N,K]` weight
+  storage to logical `(K,1)` strides in this adapter. Passing the 14-invocation
+  parameter bundle by value also created a 2,592-byte thread stack frame;
+  passing one device pointer reduced it to 32 bytes.
+- Evidence: the recorded correction in `experiments/E2E/result.md`, final
+  source comments, and `raw/ptxas.txt` (168 registers, zero spills, 32-byte
+  stack).
+- Skeleton impact: §5.3's per-family adapter contract should include logical
+  operand coordinates/strides and require large parameter tables by pointer.
+  A C++ layout tag name alone is not a frontend layout proof.
+- Confidence: high for the tested SM80 cp.async SIMT adapter.

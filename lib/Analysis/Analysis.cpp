@@ -9,13 +9,14 @@ LayoutProjection CuteLayoutBridge::Project(std::string const& relation) const {
   return {relation, false};
 }
 std::vector<CouplingEdge> CouplingDerivation::Derive(std::vector<AccessRelation> const& accesses) const {
-  std::vector<CouplingEdge> result;
-  for (auto const& a : accesses) result.push_back({a.producer, a.consumer, a.presburger_map});
-  return result;
+  // TODO(P3.3): derive AffineRelation from structured W/R maps. AccessRelation
+  // is still a Phase-3 diagnostic stub; silently wrapping its text as C would
+  // violate invariant I1, so no semantic edge is manufactured here.
+  (void)accesses;
+  return {};
 }
-CommunicationTier TierClassifier::Classify(DerivedMetrics const& metrics) const {
-  // TODO(P3.3): use target budgets and schedule legality, not this placeholder.
-  return metrics.reuse > 0 ? CommunicationTier::kShared : CommunicationTier::kGlobal;
+Tier TierClassifier::Classify(AffineRelation const& relation) const {
+  return relation.empty() ? Tier::kDataDependent : Tier::kAffine;
 }
 std::vector<EventRequirement> EventSynthesis::Synthesize(std::vector<std::string> const& edges) const {
   std::vector<EventRequirement> result;

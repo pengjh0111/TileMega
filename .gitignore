@@ -10,6 +10,7 @@ docs/experiments/**/event_sync
 docs/experiments/V_B/collective_persistent
 docs/experiments/V_J/event_sync
 docs/experiments/V_D/traits_probe
+docs/experiments/E2E/e2e
 *.ncu-rep
 *.nsys-rep
 __pycache__/
@@ -19,6 +20,7 @@ venv/
 .cache/
 compile_commands.json
 docs/experiments/**/out/
+docs/experiments/E2E/fixture/
 docs/experiments/**/*.log
 *.egg-info/
 .ninja_deps

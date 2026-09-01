@@ -1,0 +1,3 @@
+cute_lit_discovered=236
+cute_lit_passed=236
+cute_unittests_passed=106

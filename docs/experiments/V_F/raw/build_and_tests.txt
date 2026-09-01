@@ -1,0 +1,303 @@
+ninja: Entering directory `/root/TileMega/build-cutlass-compiler'
+[0/2] Re-checking globbed directories...
+[0/2] Running the cute dialect LIT tests
+-- Testing: 236 tests, 112 workers --
+Testing:  0.. 10.. 20.. 30.. 40.. 50.. 60.. 70.. 80.. 90..
+
+Testing Time: 1.13s
+
+Total Discovered Tests: 236
+  Passed: 236 (100.00%)
+[1/2] Running Cute dialect unit tests
+[==========] Running 12 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 12 tests from CuteTest
+[ RUN      ] CuteTest.ComposedLayoutAttr_Uniquing
+[       OK ] CuteTest.ComposedLayoutAttr_Uniquing (3 ms)
+[ RUN      ] CuteTest.ComposedLayoutType_StaticLayoutA
+[       OK ] CuteTest.ComposedLayoutType_StaticLayoutA (2 ms)
+[ RUN      ] CuteTest.ComposedLayoutType_StaticSwizzleA
+[       OK ] CuteTest.ComposedLayoutType_StaticSwizzleA (2 ms)
+[ RUN      ] CuteTest.ComposedLayoutType_ZeroOffset
+[       OK ] CuteTest.ComposedLayoutType_ZeroOffset (2 ms)
+[ RUN      ] CuteTest.ComposedLayoutType_TupleOffset
+[       OK ] CuteTest.ComposedLayoutType_TupleOffset (2 ms)
+[ RUN      ] CuteTest.ComposedLayoutType_DynamicB
+[       OK ] CuteTest.ComposedLayoutType_DynamicB (2 ms)
+[ RUN      ] CuteTest.ComposedLayoutType_DynamicOffset
+[       OK ] CuteTest.ComposedLayoutType_DynamicOffset (2 ms)
+[ RUN      ] CuteTest.ComposedLayoutType_DynamicAffineA
+[       OK ] CuteTest.ComposedLayoutType_DynamicAffineA (2 ms)
+[ RUN      ] CuteTest.ComposedLayoutType_DynamicAffineB
+[       OK ] CuteTest.ComposedLayoutType_DynamicAffineB (2 ms)
+[ RUN      ] CuteTest.ComposedLayoutType_Uniquing_Same
+[       OK ] CuteTest.ComposedLayoutType_Uniquing_Same (1 ms)
+[ RUN      ] CuteTest.ComposedLayoutType_Uniquing_Different
+[       OK ] CuteTest.ComposedLayoutType_Uniquing_Different (1 ms)
+[ RUN      ] CuteTest.ComposedLayoutType_AttrMatchesRef
+[       OK ] CuteTest.ComposedLayoutType_AttrMatchesRef (2 ms)
+[----------] 12 tests from CuteTest (27 ms total)
+
+[----------] Global test environment tear-down
+[==========] 12 tests from 1 test suite ran. (28 ms total)
+[  PASSED  ] 12 tests.
+[==========] Running 14 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 14 tests from CuteMakeOpTest
+[ RUN      ] CuteMakeOpTest.MakeIntTupleOp_StaticScalar
+[       OK ] CuteMakeOpTest.MakeIntTupleOp_StaticScalar (4 ms)
+[ RUN      ] CuteMakeOpTest.MakeIntTupleOp_StaticTuple
+[       OK ] CuteMakeOpTest.MakeIntTupleOp_StaticTuple (3 ms)
+[ RUN      ] CuteMakeOpTest.MakeIntTupleOp_DynamicScalar
+[       OK ] CuteMakeOpTest.MakeIntTupleOp_DynamicScalar (2 ms)
+[ RUN      ] CuteMakeOpTest.MakeShapeOp_StaticFlat
+[       OK ] CuteMakeOpTest.MakeShapeOp_StaticFlat (2 ms)
+[ RUN      ] CuteMakeOpTest.MakeShapeOp_DynamicLeaf
+[       OK ] CuteMakeOpTest.MakeShapeOp_DynamicLeaf (2 ms)
+[ RUN      ] CuteMakeOpTest.MakeStrideOp_StaticFlat
+[       OK ] CuteMakeOpTest.MakeStrideOp_StaticFlat (2 ms)
+[ RUN      ] CuteMakeOpTest.MakeCoordOp_StaticFlat
+[       OK ] CuteMakeOpTest.MakeCoordOp_StaticFlat (3 ms)
+[ RUN      ] CuteMakeOpTest.MakeTileOp_StaticSingleLayout
+[       OK ] CuteMakeOpTest.MakeTileOp_StaticSingleLayout (2 ms)
+[ RUN      ] CuteMakeOpTest.MakeTileOp_StaticUnderscore
+[       OK ] CuteMakeOpTest.MakeTileOp_StaticUnderscore (2 ms)
+[ RUN      ] CuteMakeOpTest.MakeLayoutOp_Explicit
+[       OK ] CuteMakeOpTest.MakeLayoutOp_Explicit (2 ms)
+[ RUN      ] CuteMakeOpTest.MakeComposedLayoutOp_LayoutA_ExplicitOffset
+[       OK ] CuteMakeOpTest.MakeComposedLayoutOp_LayoutA_ExplicitOffset (2 ms)
+[ RUN      ] CuteMakeOpTest.MakeComposedLayoutOp_SwizzleA_ExplicitOffset
+[       OK ] CuteMakeOpTest.MakeComposedLayoutOp_SwizzleA_ExplicitOffset (2 ms)
+[ RUN      ] CuteMakeOpTest.MakeComposedLayoutOp_LayoutA_ZeroOffset
+[       OK ] CuteMakeOpTest.MakeComposedLayoutOp_LayoutA_ZeroOffset (2 ms)
+[ RUN      ] CuteMakeOpTest.MakeComposedLayoutOp_SwizzleA_ZeroOffset
+[       OK ] CuteMakeOpTest.MakeComposedLayoutOp_SwizzleA_ZeroOffset (2 ms)
+[----------] 14 tests from CuteMakeOpTest (43 ms total)
+
+[----------] Global test environment tear-down
+[==========] 14 tests from 1 test suite ran. (43 ms total)
+[  PASSED  ] 14 tests.
+[==========] Running 11 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 11 tests from CuteTest
+[ RUN      ] CuteTest.CoordAttr_Uniquing
+[       OK ] CuteTest.CoordAttr_Uniquing (4 ms)
+[ RUN      ] CuteTest.CoordType_ScalarStatic
+[       OK ] CuteTest.CoordType_ScalarStatic (3 ms)
+[ RUN      ] CuteTest.CoordType_ScalarDynamic
+[       OK ] CuteTest.CoordType_ScalarDynamic (2 ms)
+[ RUN      ] CuteTest.CoordType_Underscore
+[       OK ] CuteTest.CoordType_Underscore (2 ms)
+[ RUN      ] CuteTest.CoordType_Depth1_Static
+[       OK ] CuteTest.CoordType_Depth1_Static (2 ms)
+[ RUN      ] CuteTest.CoordType_Depth1_WithUnderscore
+[       OK ] CuteTest.CoordType_Depth1_WithUnderscore (2 ms)
+[ RUN      ] CuteTest.CoordType_Depth1_AllUnderscore
+[       OK ] CuteTest.CoordType_Depth1_AllUnderscore (2 ms)
+[ RUN      ] CuteTest.CoordType_Depth2_Static
+[       OK ] CuteTest.CoordType_Depth2_Static (2 ms)
+[ RUN      ] CuteTest.CoordType_Uniquing_Same
+[       OK ] CuteTest.CoordType_Uniquing_Same (3 ms)
+[ RUN      ] CuteTest.CoordType_Uniquing_Different
+[       OK ] CuteTest.CoordType_Uniquing_Different (3 ms)
+[ RUN      ] CuteTest.CoordType_AttrMatchesRef
+[       OK ] CuteTest.CoordType_AttrMatchesRef (3 ms)
+[----------] 11 tests from CuteTest (39 ms total)
+
+[----------] Global test environment tear-down
+[==========] 11 tests from 1 test suite ran. (39 ms total)
+[  PASSED  ] 11 tests.
+[==========] Running 9 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 9 tests from CuteTest
+[ RUN      ] CuteTest.DataLayout_IntTupleStatic_ZeroSizedStruct
+[       OK ] CuteTest.DataLayout_IntTupleStatic_ZeroSizedStruct (4 ms)
+[ RUN      ] CuteTest.DataLayout_IntTupleScalarDynamic_BareInteger
+[       OK ] CuteTest.DataLayout_IntTupleScalarDynamic_BareInteger (2 ms)
+[ RUN      ] CuteTest.DataLayout_Layout_MatchesLoweredStruct
+[       OK ] CuteTest.DataLayout_Layout_MatchesLoweredStruct (2 ms)
+[ RUN      ] CuteTest.DataLayout_Coord_MatchesLoweredStruct
+[       OK ] CuteTest.DataLayout_Coord_MatchesLoweredStruct (2 ms)
+[ RUN      ] CuteTest.DataLayout_Shape_MatchesLoweredStruct
+[       OK ] CuteTest.DataLayout_Shape_MatchesLoweredStruct (2 ms)
+[ RUN      ] CuteTest.DataLayout_Stride_MatchesLoweredStruct
+[       OK ] CuteTest.DataLayout_Stride_MatchesLoweredStruct (2 ms)
+[ RUN      ] CuteTest.DataLayout_Tile_MatchesLoweredStruct
+[       OK ] CuteTest.DataLayout_Tile_MatchesLoweredStruct (2 ms)
+[ RUN      ] CuteTest.DataLayout_ComposedLayout_MatchesLoweredStruct
+[       OK ] CuteTest.DataLayout_ComposedLayout_MatchesLoweredStruct (2 ms)
+[ RUN      ] CuteTest.DataLayout_Swizzle_ZeroSizedStruct
+[       OK ] CuteTest.DataLayout_Swizzle_ZeroSizedStruct (2 ms)
+[----------] 9 tests from CuteTest (28 ms total)
+
+[----------] Global test environment tear-down
+[==========] 9 tests from 1 test suite ran. (28 ms total)
+[  PASSED  ] 9 tests.
+[==========] Running 11 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 11 tests from CuteTest
+[ RUN      ] CuteTest.IntTupleAttr_Uniquing_SameValue
+[       OK ] CuteTest.IntTupleAttr_Uniquing_SameValue (4 ms)
+[ RUN      ] CuteTest.IntTupleAttr_Uniquing_DifferentValue
+[       OK ] CuteTest.IntTupleAttr_Uniquing_DifferentValue (2 ms)
+[ RUN      ] CuteTest.IntTupleType_ScalarStatic_IsStatic
+[       OK ] CuteTest.IntTupleType_ScalarStatic_IsStatic (2 ms)
+[ RUN      ] CuteTest.IntTupleType_ScalarDynamic_NotStatic
+[       OK ] CuteTest.IntTupleType_ScalarDynamic_NotStatic (2 ms)
+[ RUN      ] CuteTest.IntTupleType_Depth1_AllStatic
+[       OK ] CuteTest.IntTupleType_Depth1_AllStatic (2 ms)
+[ RUN      ] CuteTest.IntTupleType_Depth1_Mixed_NotStatic
+[       OK ] CuteTest.IntTupleType_Depth1_Mixed_NotStatic (2 ms)
+[ RUN      ] CuteTest.IntTupleType_Depth2_Static
+[       OK ] CuteTest.IntTupleType_Depth2_Static (2 ms)
+[ RUN      ] CuteTest.IntTupleType_Depth2_DynamicLeaf_NotStatic
+[       OK ] CuteTest.IntTupleType_Depth2_DynamicLeaf_NotStatic (2 ms)
+[ RUN      ] CuteTest.IntTupleType_GetRef
+[       OK ] CuteTest.IntTupleType_GetRef (2 ms)
+[ RUN      ] CuteTest.IntTupleType_Uniquing_SameValue
+[       OK ] CuteTest.IntTupleType_Uniquing_SameValue (2 ms)
+[ RUN      ] CuteTest.IntTupleType_Uniquing_DifferentValue
+[       OK ] CuteTest.IntTupleType_Uniquing_DifferentValue (2 ms)
+[----------] 11 tests from CuteTest (34 ms total)
+
+[----------] Global test environment tear-down
+[==========] 11 tests from 1 test suite ran. (34 ms total)
+[  PASSED  ] 11 tests.
+[==========] Running 11 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 11 tests from CuteTest
+[ RUN      ] CuteTest.LayoutAttr_Uniquing
+[       OK ] CuteTest.LayoutAttr_Uniquing (4 ms)
+[ RUN      ] CuteTest.LayoutType_StaticRank2
+[       OK ] CuteTest.LayoutType_StaticRank2 (3 ms)
+[ RUN      ] CuteTest.LayoutType_DynamicShape
+[       OK ] CuteTest.LayoutType_DynamicShape (2 ms)
+[ RUN      ] CuteTest.LayoutType_DynamicStride
+[       OK ] CuteTest.LayoutType_DynamicStride (2 ms)
+[ RUN      ] CuteTest.LayoutType_NestedStatic
+[       OK ] CuteTest.LayoutType_NestedStatic (2 ms)
+[ RUN      ] CuteTest.LayoutType_Rank1Static
+[       OK ] CuteTest.LayoutType_Rank1Static (2 ms)
+[ RUN      ] CuteTest.LayoutType_ScaledBasisStatic
+[       OK ] CuteTest.LayoutType_ScaledBasisStatic (2 ms)
+[ RUN      ] CuteTest.LayoutType_ScaledBasisDynamic
+[       OK ] CuteTest.LayoutType_ScaledBasisDynamic (2 ms)
+[ RUN      ] CuteTest.LayoutType_Uniquing_Same
+[       OK ] CuteTest.LayoutType_Uniquing_Same (2 ms)
+[ RUN      ] CuteTest.LayoutType_Uniquing_Different
+[       OK ] CuteTest.LayoutType_Uniquing_Different (2 ms)
+[ RUN      ] CuteTest.LayoutType_AttrMatchesRef
+[       OK ] CuteTest.LayoutType_AttrMatchesRef (2 ms)
+[----------] 11 tests from CuteTest (35 ms total)
+
+[----------] Global test environment tear-down
+[==========] 11 tests from 1 test suite ran. (35 ms total)
+[  PASSED  ] 11 tests.
+[==========] Running 10 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 10 tests from CuteTest
+[ RUN      ] CuteTest.ShapeAttr_Uniquing
+[       OK ] CuteTest.ShapeAttr_Uniquing (4 ms)
+[ RUN      ] CuteTest.ShapeType_ScalarStatic
+[       OK ] CuteTest.ShapeType_ScalarStatic (3 ms)
+[ RUN      ] CuteTest.ShapeType_ScalarDynamic
+[       OK ] CuteTest.ShapeType_ScalarDynamic (2 ms)
+[ RUN      ] CuteTest.ShapeType_Depth1_Static
+[       OK ] CuteTest.ShapeType_Depth1_Static (2 ms)
+[ RUN      ] CuteTest.ShapeType_Depth1_Mixed
+[       OK ] CuteTest.ShapeType_Depth1_Mixed (2 ms)
+[ RUN      ] CuteTest.ShapeType_Depth2_Static
+[       OK ] CuteTest.ShapeType_Depth2_Static (3 ms)
+[ RUN      ] CuteTest.ShapeType_Depth2_Dynamic
+[       OK ] CuteTest.ShapeType_Depth2_Dynamic (2 ms)
+[ RUN      ] CuteTest.ShapeType_Uniquing_Same
+[       OK ] CuteTest.ShapeType_Uniquing_Same (2 ms)
+[ RUN      ] CuteTest.ShapeType_Uniquing_Different
+[       OK ] CuteTest.ShapeType_Uniquing_Different (2 ms)
+[ RUN      ] CuteTest.ShapeType_AttrMatchesRef
+[       OK ] CuteTest.ShapeType_AttrMatchesRef (2 ms)
+[----------] 10 tests from CuteTest (31 ms total)
+
+[----------] Global test environment tear-down
+[==========] 10 tests from 1 test suite ran. (31 ms total)
+[  PASSED  ] 10 tests.
+[==========] Running 12 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 12 tests from CuteTest
+[ RUN      ] CuteTest.StrideAttr_Uniquing
+[       OK ] CuteTest.StrideAttr_Uniquing (4 ms)
+[ RUN      ] CuteTest.StrideType_ScalarStatic
+[       OK ] CuteTest.StrideType_ScalarStatic (2 ms)
+[ RUN      ] CuteTest.StrideType_ScalarDynamic
+[       OK ] CuteTest.StrideType_ScalarDynamic (2 ms)
+[ RUN      ] CuteTest.StrideType_ScaledBasis_Static
+[       OK ] CuteTest.StrideType_ScaledBasis_Static (2 ms)
+[ RUN      ] CuteTest.StrideType_ScaledBasis_Dynamic
+[       OK ] CuteTest.StrideType_ScaledBasis_Dynamic (2 ms)
+[ RUN      ] CuteTest.StrideType_Depth1_Static
+[       OK ] CuteTest.StrideType_Depth1_Static (2 ms)
+[ RUN      ] CuteTest.StrideType_Depth1_Mixed
+[       OK ] CuteTest.StrideType_Depth1_Mixed (2 ms)
+[ RUN      ] CuteTest.StrideType_Depth1_WithScaledBasis
+[       OK ] CuteTest.StrideType_Depth1_WithScaledBasis (2 ms)
+[ RUN      ] CuteTest.StrideType_Depth2_Static
+[       OK ] CuteTest.StrideType_Depth2_Static (2 ms)
+[ RUN      ] CuteTest.StrideType_Uniquing_Same
+[       OK ] CuteTest.StrideType_Uniquing_Same (2 ms)
+[ RUN      ] CuteTest.StrideType_Uniquing_Different
+[       OK ] CuteTest.StrideType_Uniquing_Different (2 ms)
+[ RUN      ] CuteTest.StrideType_AttrMatchesRef
+[       OK ] CuteTest.StrideType_AttrMatchesRef (2 ms)
+[----------] 12 tests from CuteTest (37 ms total)
+
+[----------] Global test environment tear-down
+[==========] 12 tests from 1 test suite ran. (37 ms total)
+[  PASSED  ] 12 tests.
+[==========] Running 7 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 7 tests from CuteTest
+[ RUN      ] CuteTest.SwizzleAttr_Uniquing
+[       OK ] CuteTest.SwizzleAttr_Uniquing (4 ms)
+[ RUN      ] CuteTest.SwizzleType_Identity
+[       OK ] CuteTest.SwizzleType_Identity (2 ms)
+[ RUN      ] CuteTest.SwizzleType_NonIdentity
+[       OK ] CuteTest.SwizzleType_NonIdentity (2 ms)
+[ RUN      ] CuteTest.SwizzleType_NegativeShift
+[       OK ] CuteTest.SwizzleType_NegativeShift (2 ms)
+[ RUN      ] CuteTest.SwizzleType_Uniquing_Same
+[       OK ] CuteTest.SwizzleType_Uniquing_Same (2 ms)
+[ RUN      ] CuteTest.SwizzleType_Uniquing_Different
+[       OK ] CuteTest.SwizzleType_Uniquing_Different (2 ms)
+[ RUN      ] CuteTest.SwizzleType_AttrMatchesRef
+[       OK ] CuteTest.SwizzleType_AttrMatchesRef (2 ms)
+[----------] 7 tests from CuteTest (23 ms total)
+
+[----------] Global test environment tear-down
+[==========] 7 tests from 1 test suite ran. (23 ms total)
+[  PASSED  ] 7 tests.
+[==========] Running 9 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 9 tests from CuteTest
+[ RUN      ] CuteTest.TileAttr_Uniquing
+[       OK ] CuteTest.TileAttr_Uniquing (4 ms)
+[ RUN      ] CuteTest.TileType_StaticSingle
+[       OK ] CuteTest.TileType_StaticSingle (3 ms)
+[ RUN      ] CuteTest.TileType_StaticTwo
+[       OK ] CuteTest.TileType_StaticTwo (2 ms)
+[ RUN      ] CuteTest.TileType_Underscore
+[       OK ] CuteTest.TileType_Underscore (2 ms)
+[ RUN      ] CuteTest.TileType_Mixed
+[       OK ] CuteTest.TileType_Mixed (2 ms)
+[ RUN      ] CuteTest.TileType_DynamicLayout
+[       OK ] CuteTest.TileType_DynamicLayout (2 ms)
+[ RUN      ] CuteTest.TileType_Uniquing_Same
+[       OK ] CuteTest.TileType_Uniquing_Same (2 ms)
+[ RUN      ] CuteTest.TileType_Uniquing_Different
+[       OK ] CuteTest.TileType_Uniquing_Different (2 ms)
+[ RUN      ] CuteTest.TileType_AttrMatchesRef
+[       OK ] CuteTest.TileType_AttrMatchesRef (3 ms)
+[----------] 9 tests from CuteTest (29 ms total)
+
+[----------] Global test environment tear-down
+[==========] 9 tests from 1 test suite ran. (29 ms total)
+[  PASSED  ] 9 tests.

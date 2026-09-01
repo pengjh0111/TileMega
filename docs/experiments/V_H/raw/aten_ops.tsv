@@ -1,0 +1,31 @@
+operator	category
+<built-in function add>	pointwise
+<built-in function getitem>	slice
+aten._assert_tensor_metadata.default	other
+aten.add.Tensor	pointwise
+aten.arange.default	other
+aten.arange.start	other
+aten.cat.default	concat
+aten.chunk.default	slice
+aten.contiguous.default	other
+aten.cos.default	pointwise
+aten.div.Tensor	pointwise
+aten.gt.Tensor	pointwise
+aten.linear.default	matmul
+aten.masked_fill.Scalar	pointwise
+aten.matmul.default	matmul
+aten.mean.dim	reduction
+aten.mul.Tensor	pointwise
+aten.neg.default	pointwise
+aten.outer.default	matmul
+aten.pow.Tensor_Scalar	pointwise
+aten.repeat_interleave.self_int	broadcast
+aten.rsqrt.default	pointwise
+aten.silu.default	pointwise
+aten.sin.default	pointwise
+aten.softmax.int	reduction
+aten.sym_size.int	other
+aten.to.dtype	other
+aten.transpose.int	transpose
+aten.unsqueeze.default	broadcast
+aten.view.default	other

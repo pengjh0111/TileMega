@@ -35,6 +35,8 @@ find_package(CUDAToolkit REQUIRED)
 add_library(tilemega STATIC
   lib/Target/TargetSpec.cpp
   lib/Frontend/Frontend.cpp
+  lib/Analysis/ClosedForm.cpp
+  lib/Analysis/AffineRelation.cpp
   lib/Analysis/Analysis.cpp
   lib/Solver/Solver.cpp
   lib/Codegen/Codegen.cpp
@@ -64,6 +66,10 @@ if(TILEMEGA_BUILD_TESTS)
   target_compile_definitions(target_spec_test PRIVATE
     TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   add_test(NAME target_spec COMMAND target_spec_test)
+
+  add_executable(coupling_types_test test/unit/coupling_types_test.cpp)
+  target_link_libraries(coupling_types_test PRIVATE TileMega::tilemega)
+  add_test(NAME coupling_types COMMAND coupling_types_test)
 endif()
 
 if(TILEMEGA_BUILD_VERIFY)
@@ -73,4 +79,7 @@ endif()
 add_custom_target(check-tilemega DEPENDS check-policy)
 if(TARGET target_spec_test)
   add_dependencies(check-tilemega target_spec_test)
+endif()
+if(TARGET coupling_types_test)
+  add_dependencies(check-tilemega coupling_types_test)
 endif()

@@ -1,0 +1,18 @@
+2026-09-01, official CPU index:
+  python3 -m pip install --target .venv/site \
+    --index-url https://download.pytorch.org/whl/cpu torch
+  The first single-stream transfer timed out after 106.1/191.8 MB.
+
+2026-09-01, official CPU wheel direct URL:
+  A second single stream failed with an SSL EOF after approximately 6 MB.
+  An eight-range download then lost the local proxy at 127.0.0.1:18080;
+  two complete ranges were retained. The six missing ranges were resumed with
+  direct (NO_PROXY) range requests, assembled to the exact 191,774,032-byte
+  Content-Range size, and installed successfully.
+
+Installed isolated environment:
+  torch 2.13.0+cpu
+  sympy 1.14.0
+  numpy 2.2.6
+
+No model weights or CUDA PyTorch wheel were downloaded.

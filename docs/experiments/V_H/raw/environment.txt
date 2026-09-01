@@ -1,4 +1,3 @@
 python=3.10.12
-torch=missing
-transformers=missing
-sympy=missing
+torch=present
+sympy=present

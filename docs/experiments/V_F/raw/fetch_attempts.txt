@@ -1,0 +1,12 @@
+Pinned commit: 23a60f15f2fcafcf67b95b0a035053579958b732
+
+Attempt 1 (local HTTP proxy): shallow exact-commit fetch failed after roughly
+16 minutes with HTTP/2 framing/RPC error and early EOF.
+
+Attempt 2 (local HTTP proxy forced to HTTP/1.1): index-pack reached the final
+approximately 1,855 bytes, then failed the 600-second low-speed timeout and
+reported an invalid index-pack result.
+
+Attempt 3 (NO_PROXY direct connection): the same shallow exact-commit fetch
+succeeded. Checkout, configure, 3,357 build steps, LIT, and unittests then
+completed normally. No source revision was changed to make the build pass.

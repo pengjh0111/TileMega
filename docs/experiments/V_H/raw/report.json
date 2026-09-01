@@ -1,0 +1,1042 @@
+{
+  "torch_version": "2.13.0+cpu",
+  "strict_export": true,
+  "stable_three_exports": true,
+  "model": {
+    "layers": 2,
+    "hidden": 512,
+    "intermediate": 1024,
+    "heads": 4,
+    "kv_heads": 2,
+    "rope": true
+  },
+  "kv_cache": {
+    "representation": "explicit graph inputs and outputs",
+    "mutation": false,
+    "input_names": [
+      "past_k0",
+      "past_v0",
+      "past_k1",
+      "past_v1"
+    ]
+  },
+  "range_constraints": {
+    "s11": "VR[1, 8]",
+    "s14": "VR[1, 8]",
+    "s61": "VR[1, 8]",
+    "s65": "VR[1, 8]"
+  },
+  "guards": [
+    "(L['flat_args'][0].size()[1] + L['flat_args'][2].size()[2]) == (L['flat_args'][0].size()[1] + L['flat_args'][1].size()[2])",
+    "(L['flat_args'][0].size()[1] + L['flat_args'][4].size()[2]) == (L['flat_args'][0].size()[1] + L['flat_args'][3].size()[2])",
+    "L['flat_args'][3].size()[2] == L['flat_args'][1].size()[2]",
+    "(L['flat_args'][0].size()[1] + L['flat_args'][2].size()[2]) == (L['flat_args'][0].size()[1] + L['flat_args'][3].size()[2])"
+  ],
+  "guards_api": "ExportedProgram._guards_code (private in this torch release)",
+  "runtime_validation": [
+    {
+      "seq_len": 1,
+      "past_len": 8,
+      "output_shapes": [
+        [
+          1,
+          1,
+          512
+        ],
+        [
+          1,
+          2,
+          9,
+          128
+        ],
+        [
+          1,
+          2,
+          9,
+          128
+        ],
+        [
+          1,
+          2,
+          9,
+          128
+        ],
+        [
+          1,
+          2,
+          9,
+          128
+        ]
+      ],
+      "status": "pass"
+    },
+    {
+      "seq_len": 8,
+      "past_len": 1,
+      "output_shapes": [
+        [
+          1,
+          8,
+          512
+        ],
+        [
+          1,
+          2,
+          9,
+          128
+        ],
+        [
+          1,
+          2,
+          9,
+          128
+        ],
+        [
+          1,
+          2,
+          9,
+          128
+        ],
+        [
+          1,
+          2,
+          9,
+          128
+        ]
+      ],
+      "status": "pass"
+    },
+    {
+      "seq_len": 2,
+      "past_len": 5,
+      "output_shapes": [
+        [
+          1,
+          2,
+          512
+        ],
+        [
+          1,
+          2,
+          7,
+          128
+        ],
+        [
+          1,
+          2,
+          7,
+          128
+        ],
+        [
+          1,
+          2,
+          7,
+          128
+        ],
+        [
+          1,
+          2,
+          7,
+          128
+        ]
+      ],
+      "status": "pass"
+    }
+  ],
+  "unequal_cache_guard": {
+    "status": "rejected",
+    "error": "AssertionError: Guard failed: hidden.size()[1] + past_v0.size()[2] == hidden.size()[1] + past_k0.size()[2]"
+  },
+  "shape_propagation": {
+    "symbolic_tensor_nodes": 165,
+    "static_tensor_nodes": 20,
+    "symbolic_call_function_nodes": 160,
+    "static_call_function_nodes": 0,
+    "symbolic": [
+      [
+        "to",
+        "('1', 's11', '512')"
+      ],
+      [
+        "pow_1",
+        "('1', 's11', '512')"
+      ],
+      [
+        "mean",
+        "('1', 's11', '1')"
+      ],
+      [
+        "to_1",
+        "('1', 's11', '512')"
+      ],
+      [
+        "add",
+        "('1', 's11', '1')"
+      ],
+      [
+        "rsqrt",
+        "('1', 's11', '1')"
+      ],
+      [
+        "mul",
+        "('1', 's11', '512')"
+      ],
+      [
+        "to_2",
+        "('1', 's11', '512')"
+      ],
+      [
+        "mul_1",
+        "('1', 's11', '512')"
+      ],
+      [
+        "linear",
+        "('1', 's11', '512')"
+      ],
+      [
+        "view",
+        "('1', 's11', '4', '128')"
+      ],
+      [
+        "transpose",
+        "('1', '4', 's11', '128')"
+      ],
+      [
+        "linear_1",
+        "('1', 's11', '256')"
+      ],
+      [
+        "view_1",
+        "('1', 's11', '2', '128')"
+      ],
+      [
+        "transpose_1",
+        "('1', '2', 's11', '128')"
+      ],
+      [
+        "linear_2",
+        "('1', 's11', '256')"
+      ],
+      [
+        "view_2",
+        "('1', 's11', '2', '128')"
+      ],
+      [
+        "transpose_2",
+        "('1', '2', 's11', '128')"
+      ],
+      [
+        "arange",
+        "('s11',)"
+      ],
+      [
+        "outer",
+        "('s11', '64')"
+      ],
+      [
+        "cat",
+        "('s11', '128')"
+      ],
+      [
+        "unsqueeze",
+        "('1', 's11', '128')"
+      ],
+      [
+        "unsqueeze_1",
+        "('1', '1', 's11', '128')"
+      ],
+      [
+        "cos",
+        "('1', '1', 's11', '128')"
+      ],
+      [
+        "mul_2",
+        "('1', '4', 's11', '128')"
+      ],
+      [
+        "chunk",
+        "[('1', '4', 's11', '64'), ('1', '4', 's11', '64')]"
+      ],
+      [
+        "getitem",
+        "('1', '4', 's11', '64')"
+      ],
+      [
+        "getitem_1",
+        "('1', '4', 's11', '64')"
+      ],
+      [
+        "neg",
+        "('1', '4', 's11', '64')"
+      ],
+      [
+        "cat_1",
+        "('1', '4', 's11', '128')"
+      ],
+      [
+        "sin",
+        "('1', '1', 's11', '128')"
+      ],
+      [
+        "mul_3",
+        "('1', '4', 's11', '128')"
+      ],
+      [
+        "add_2",
+        "('1', '4', 's11', '128')"
+      ],
+      [
+        "cos_1",
+        "('1', '1', 's11', '128')"
+      ],
+      [
+        "mul_4",
+        "('1', '2', 's11', '128')"
+      ],
+      [
+        "chunk_1",
+        "[('1', '2', 's11', '64'), ('1', '2', 's11', '64')]"
+      ],
+      [
+        "getitem_2",
+        "('1', '2', 's11', '64')"
+      ],
+      [
+        "getitem_3",
+        "('1', '2', 's11', '64')"
+      ],
+      [
+        "neg_1",
+        "('1', '2', 's11', '64')"
+      ],
+      [
+        "cat_2",
+        "('1', '2', 's11', '128')"
+      ],
+      [
+        "sin_1",
+        "('1', '1', 's11', '128')"
+      ],
+      [
+        "mul_5",
+        "('1', '2', 's11', '128')"
+      ],
+      [
+        "add_3",
+        "('1', '2', 's11', '128')"
+      ],
+      [
+        "cat_3",
+        "('1', '2', 's11 + s14', '128')"
+      ],
+      [
+        "cat_4",
+        "('1', '2', 's11 + s61', '128')"
+      ],
+      [
+        "repeat_interleave",
+        "('1', '4', 's11 + s14', '128')"
+      ],
+      [
+        "repeat_interleave_1",
+        "('1', '4', 's11 + s61', '128')"
+      ],
+      [
+        "transpose_3",
+        "('1', '4', '128', 's11 + s14')"
+      ],
+      [
+        "matmul",
+        "('1', '4', 's11', 's11 + s14')"
+      ],
+      [
+        "div",
+        "('1', '4', 's11', 's11 + s14')"
+      ],
+      [
+        "arange_1",
+        "('s11',)"
+      ],
+      [
+        "unsqueeze_2",
+        "('s11', '1')"
+      ],
+      [
+        "arange_2",
+        "('s11 + s14',)"
+      ],
+      [
+        "unsqueeze_3",
+        "('1', 's11 + s14')"
+      ],
+      [
+        "gt",
+        "('s11', 's11 + s14')"
+      ],
+      [
+        "masked_fill",
+        "('1', '4', 's11', 's11 + s14')"
+      ],
+      [
+        "to_3",
+        "('1', '4', 's11', 's11 + s14')"
+      ],
+      [
+        "softmax",
+        "('1', '4', 's11', 's11 + s14')"
+      ],
+      [
+        "to_4",
+        "('1', '4', 's11', 's11 + s14')"
+      ],
+      [
+        "matmul_1",
+        "('1', '4', 's11', '128')"
+      ],
+      [
+        "transpose_4",
+        "('1', 's11', '4', '128')"
+      ],
+      [
+        "contiguous",
+        "('1', 's11', '4', '128')"
+      ],
+      [
+        "view_3",
+        "('1', 's11', '512')"
+      ],
+      [
+        "linear_3",
+        "('1', 's11', '512')"
+      ],
+      [
+        "add_6",
+        "('1', 's11', '512')"
+      ],
+      [
+        "to_5",
+        "('1', 's11', '512')"
+      ],
+      [
+        "pow_2",
+        "('1', 's11', '512')"
+      ],
+      [
+        "mean_1",
+        "('1', 's11', '1')"
+      ],
+      [
+        "to_6",
+        "('1', 's11', '512')"
+      ],
+      [
+        "add_7",
+        "('1', 's11', '1')"
+      ],
+      [
+        "rsqrt_1",
+        "('1', 's11', '1')"
+      ],
+      [
+        "mul_6",
+        "('1', 's11', '512')"
+      ],
+      [
+        "to_7",
+        "('1', 's11', '512')"
+      ],
+      [
+        "mul_7",
+        "('1', 's11', '512')"
+      ],
+      [
+        "linear_4",
+        "('1', 's11', '1024')"
+      ],
+      [
+        "silu",
+        "('1', 's11', '1024')"
+      ],
+      [
+        "linear_5",
+        "('1', 's11', '1024')"
+      ],
+      [
+        "mul_8",
+        "('1', 's11', '1024')"
+      ],
+      [
+        "linear_6",
+        "('1', 's11', '512')"
+      ],
+      [
+        "add_8",
+        "('1', 's11', '512')"
+      ],
+      [
+        "to_8",
+        "('1', 's11', '512')"
+      ],
+      [
+        "pow_3",
+        "('1', 's11', '512')"
+      ],
+      [
+        "mean_2",
+        "('1', 's11', '1')"
+      ],
+      [
+        "to_9",
+        "('1', 's11', '512')"
+      ],
+      [
+        "add_9",
+        "('1', 's11', '1')"
+      ],
+      [
+        "rsqrt_2",
+        "('1', 's11', '1')"
+      ],
+      [
+        "mul_9",
+        "('1', 's11', '512')"
+      ],
+      [
+        "to_10",
+        "('1', 's11', '512')"
+      ],
+      [
+        "mul_10",
+        "('1', 's11', '512')"
+      ],
+      [
+        "linear_7",
+        "('1', 's11', '512')"
+      ],
+      [
+        "view_4",
+        "('1', 's11', '4', '128')"
+      ],
+      [
+        "transpose_5",
+        "('1', '4', 's11', '128')"
+      ],
+      [
+        "linear_8",
+        "('1', 's11', '256')"
+      ],
+      [
+        "view_5",
+        "('1', 's11', '2', '128')"
+      ],
+      [
+        "transpose_6",
+        "('1', '2', 's11', '128')"
+      ],
+      [
+        "linear_9",
+        "('1', 's11', '256')"
+      ],
+      [
+        "view_6",
+        "('1', 's11', '2', '128')"
+      ],
+      [
+        "transpose_7",
+        "('1', '2', 's11', '128')"
+      ],
+      [
+        "arange_3",
+        "('s11',)"
+      ],
+      [
+        "outer_1",
+        "('s11', '64')"
+      ],
+      [
+        "cat_5",
+        "('s11', '128')"
+      ],
+      [
+        "unsqueeze_4",
+        "('1', 's11', '128')"
+      ],
+      [
+        "unsqueeze_5",
+        "('1', '1', 's11', '128')"
+      ],
+      [
+        "cos_2",
+        "('1', '1', 's11', '128')"
+      ],
+      [
+        "mul_11",
+        "('1', '4', 's11', '128')"
+      ],
+      [
+        "chunk_2",
+        "[('1', '4', 's11', '64'), ('1', '4', 's11', '64')]"
+      ],
+      [
+        "getitem_4",
+        "('1', '4', 's11', '64')"
+      ],
+      [
+        "getitem_5",
+        "('1', '4', 's11', '64')"
+      ],
+      [
+        "neg_2",
+        "('1', '4', 's11', '64')"
+      ],
+      [
+        "cat_6",
+        "('1', '4', 's11', '128')"
+      ],
+      [
+        "sin_2",
+        "('1', '1', 's11', '128')"
+      ],
+      [
+        "mul_12",
+        "('1', '4', 's11', '128')"
+      ],
+      [
+        "add_11",
+        "('1', '4', 's11', '128')"
+      ],
+      [
+        "cos_3",
+        "('1', '1', 's11', '128')"
+      ],
+      [
+        "mul_13",
+        "('1', '2', 's11', '128')"
+      ],
+      [
+        "chunk_3",
+        "[('1', '2', 's11', '64'), ('1', '2', 's11', '64')]"
+      ],
+      [
+        "getitem_6",
+        "('1', '2', 's11', '64')"
+      ],
+      [
+        "getitem_7",
+        "('1', '2', 's11', '64')"
+      ],
+      [
+        "neg_3",
+        "('1', '2', 's11', '64')"
+      ],
+      [
+        "cat_7",
+        "('1', '2', 's11', '128')"
+      ],
+      [
+        "sin_3",
+        "('1', '1', 's11', '128')"
+      ],
+      [
+        "mul_14",
+        "('1', '2', 's11', '128')"
+      ],
+      [
+        "add_12",
+        "('1', '2', 's11', '128')"
+      ],
+      [
+        "cat_8",
+        "('1', '2', 's11 + s14', '128')"
+      ],
+      [
+        "cat_9",
+        "('1', '2', 's11 + s65', '128')"
+      ],
+      [
+        "repeat_interleave_2",
+        "('1', '4', 's11 + s14', '128')"
+      ],
+      [
+        "repeat_interleave_3",
+        "('1', '4', 's11 + s65', '128')"
+      ],
+      [
+        "transpose_8",
+        "('1', '4', '128', 's11 + s14')"
+      ],
+      [
+        "matmul_2",
+        "('1', '4', 's11', 's11 + s14')"
+      ],
+      [
+        "div_1",
+        "('1', '4', 's11', 's11 + s14')"
+      ],
+      [
+        "arange_4",
+        "('s11',)"
+      ],
+      [
+        "unsqueeze_6",
+        "('s11', '1')"
+      ],
+      [
+        "arange_5",
+        "('s11 + s14',)"
+      ],
+      [
+        "unsqueeze_7",
+        "('1', 's11 + s14')"
+      ],
+      [
+        "gt_1",
+        "('s11', 's11 + s14')"
+      ],
+      [
+        "masked_fill_1",
+        "('1', '4', 's11', 's11 + s14')"
+      ],
+      [
+        "to_11",
+        "('1', '4', 's11', 's11 + s14')"
+      ],
+      [
+        "softmax_1",
+        "('1', '4', 's11', 's11 + s14')"
+      ],
+      [
+        "to_12",
+        "('1', '4', 's11', 's11 + s14')"
+      ],
+      [
+        "matmul_3",
+        "('1', '4', 's11', '128')"
+      ],
+      [
+        "transpose_9",
+        "('1', 's11', '4', '128')"
+      ],
+      [
+        "contiguous_1",
+        "('1', 's11', '4', '128')"
+      ],
+      [
+        "view_7",
+        "('1', 's11', '512')"
+      ],
+      [
+        "linear_10",
+        "('1', 's11', '512')"
+      ],
+      [
+        "add_15",
+        "('1', 's11', '512')"
+      ],
+      [
+        "to_13",
+        "('1', 's11', '512')"
+      ],
+      [
+        "pow_4",
+        "('1', 's11', '512')"
+      ],
+      [
+        "mean_3",
+        "('1', 's11', '1')"
+      ],
+      [
+        "to_14",
+        "('1', 's11', '512')"
+      ],
+      [
+        "add_16",
+        "('1', 's11', '1')"
+      ],
+      [
+        "rsqrt_3",
+        "('1', 's11', '1')"
+      ],
+      [
+        "mul_15",
+        "('1', 's11', '512')"
+      ],
+      [
+        "to_15",
+        "('1', 's11', '512')"
+      ],
+      [
+        "mul_16",
+        "('1', 's11', '512')"
+      ],
+      [
+        "linear_11",
+        "('1', 's11', '1024')"
+      ],
+      [
+        "silu_1",
+        "('1', 's11', '1024')"
+      ],
+      [
+        "linear_12",
+        "('1', 's11', '1024')"
+      ],
+      [
+        "mul_17",
+        "('1', 's11', '1024')"
+      ],
+      [
+        "linear_13",
+        "('1', 's11', '512')"
+      ],
+      [
+        "add_17",
+        "('1', 's11', '512')"
+      ]
+    ],
+    "static": [],
+    "static_tensor_examples": [
+      [
+        "p_layers_0_input_norm_weight",
+        "placeholder",
+        "('512',)"
+      ],
+      [
+        "p_layers_0_q_proj_weight",
+        "placeholder",
+        "('512', '512')"
+      ],
+      [
+        "p_layers_0_k_proj_weight",
+        "placeholder",
+        "('256', '512')"
+      ],
+      [
+        "p_layers_0_v_proj_weight",
+        "placeholder",
+        "('256', '512')"
+      ],
+      [
+        "p_layers_0_o_proj_weight",
+        "placeholder",
+        "('512', '512')"
+      ],
+      [
+        "p_layers_0_post_norm_weight",
+        "placeholder",
+        "('512',)"
+      ],
+      [
+        "p_layers_0_gate_proj_weight",
+        "placeholder",
+        "('1024', '512')"
+      ],
+      [
+        "p_layers_0_up_proj_weight",
+        "placeholder",
+        "('1024', '512')"
+      ],
+      [
+        "p_layers_0_down_proj_weight",
+        "placeholder",
+        "('512', '1024')"
+      ],
+      [
+        "p_layers_1_input_norm_weight",
+        "placeholder",
+        "('512',)"
+      ],
+      [
+        "p_layers_1_q_proj_weight",
+        "placeholder",
+        "('512', '512')"
+      ],
+      [
+        "p_layers_1_k_proj_weight",
+        "placeholder",
+        "('256', '512')"
+      ],
+      [
+        "p_layers_1_v_proj_weight",
+        "placeholder",
+        "('256', '512')"
+      ],
+      [
+        "p_layers_1_o_proj_weight",
+        "placeholder",
+        "('512', '512')"
+      ],
+      [
+        "p_layers_1_post_norm_weight",
+        "placeholder",
+        "('512',)"
+      ],
+      [
+        "p_layers_1_gate_proj_weight",
+        "placeholder",
+        "('1024', '512')"
+      ],
+      [
+        "p_layers_1_up_proj_weight",
+        "placeholder",
+        "('1024', '512')"
+      ],
+      [
+        "p_layers_1_down_proj_weight",
+        "placeholder",
+        "('512', '1024')"
+      ],
+      [
+        "b_layers_0_inv_freq",
+        "placeholder",
+        "('64',)"
+      ],
+      [
+        "b_layers_1_inv_freq",
+        "placeholder",
+        "('64',)"
+      ]
+    ],
+    "specialized_dimensions": {
+      "batch": 1,
+      "hidden": 512,
+      "intermediate": 1024,
+      "query_heads": 4,
+      "kv_heads": 2,
+      "head_dim": 128
+    }
+  },
+  "operators": [
+    [
+      "<built-in function add>",
+      "pointwise"
+    ],
+    [
+      "<built-in function getitem>",
+      "slice"
+    ],
+    [
+      "aten._assert_tensor_metadata.default",
+      "other"
+    ],
+    [
+      "aten.add.Tensor",
+      "pointwise"
+    ],
+    [
+      "aten.arange.default",
+      "other"
+    ],
+    [
+      "aten.arange.start",
+      "other"
+    ],
+    [
+      "aten.cat.default",
+      "concat"
+    ],
+    [
+      "aten.chunk.default",
+      "slice"
+    ],
+    [
+      "aten.contiguous.default",
+      "other"
+    ],
+    [
+      "aten.cos.default",
+      "pointwise"
+    ],
+    [
+      "aten.div.Tensor",
+      "pointwise"
+    ],
+    [
+      "aten.gt.Tensor",
+      "pointwise"
+    ],
+    [
+      "aten.linear.default",
+      "matmul"
+    ],
+    [
+      "aten.masked_fill.Scalar",
+      "pointwise"
+    ],
+    [
+      "aten.matmul.default",
+      "matmul"
+    ],
+    [
+      "aten.mean.dim",
+      "reduction"
+    ],
+    [
+      "aten.mul.Tensor",
+      "pointwise"
+    ],
+    [
+      "aten.neg.default",
+      "pointwise"
+    ],
+    [
+      "aten.outer.default",
+      "matmul"
+    ],
+    [
+      "aten.pow.Tensor_Scalar",
+      "pointwise"
+    ],
+    [
+      "aten.repeat_interleave.self_int",
+      "broadcast"
+    ],
+    [
+      "aten.rsqrt.default",
+      "pointwise"
+    ],
+    [
+      "aten.silu.default",
+      "pointwise"
+    ],
+    [
+      "aten.sin.default",
+      "pointwise"
+    ],
+    [
+      "aten.softmax.int",
+      "reduction"
+    ],
+    [
+      "aten.sym_size.int",
+      "other"
+    ],
+    [
+      "aten.to.dtype",
+      "other"
+    ],
+    [
+      "aten.transpose.int",
+      "transpose"
+    ],
+    [
+      "aten.unsqueeze.default",
+      "broadcast"
+    ],
+    [
+      "aten.view.default",
+      "other"
+    ]
+  ],
+  "unclassified": [
+    "aten._assert_tensor_metadata.default",
+    "aten.arange.default",
+    "aten.arange.start",
+    "aten.contiguous.default",
+    "aten.sym_size.int",
+    "aten.to.dtype",
+    "aten.view.default"
+  ],
+  "task_space_count": 179,
+  "coupling_count": 222
+}

@@ -1,0 +1,3004 @@
+{
+  "theta": [
+    "s11",
+    "s14",
+    "s61",
+    "s65"
+  ],
+  "range_constraints": {
+    "s11": "VR[1, 8]",
+    "s14": "VR[1, 8]",
+    "s61": "VR[1, 8]",
+    "s65": "VR[1, 8]"
+  },
+  "task_spaces": [
+    {
+      "id": "t25",
+      "fx_name": "sym_size_int_9",
+      "operator": "aten.sym_size.int",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t26",
+      "fx_name": "sym_size_int_12",
+      "operator": "aten.sym_size.int",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t27",
+      "fx_name": "_assert_tensor_metadata_default",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t28",
+      "fx_name": "to",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t29",
+      "fx_name": "pow_1",
+      "operator": "aten.pow.Tensor_Scalar",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t30",
+      "fx_name": "mean",
+      "operator": "aten.mean.dim",
+      "category": "reduction",
+      "shape": "('1', 's11', '1')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t31",
+      "fx_name": "_assert_tensor_metadata_default_1",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t32",
+      "fx_name": "to_1",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t33",
+      "fx_name": "add",
+      "operator": "aten.add.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '1')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t34",
+      "fx_name": "rsqrt",
+      "operator": "aten.rsqrt.default",
+      "category": "pointwise",
+      "shape": "('1', 's11', '1')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t35",
+      "fx_name": "mul",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t36",
+      "fx_name": "_assert_tensor_metadata_default_2",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t37",
+      "fx_name": "to_2",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t38",
+      "fx_name": "mul_1",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t39",
+      "fx_name": "linear",
+      "operator": "aten.linear.default",
+      "category": "matmul",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t40",
+      "fx_name": "view",
+      "operator": "aten.view.default",
+      "category": "other",
+      "shape": "('1', 's11', '4', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t41",
+      "fx_name": "transpose",
+      "operator": "aten.transpose.int",
+      "category": "transpose",
+      "shape": "('1', '4', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t42",
+      "fx_name": "linear_1",
+      "operator": "aten.linear.default",
+      "category": "matmul",
+      "shape": "('1', 's11', '256')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t43",
+      "fx_name": "view_1",
+      "operator": "aten.view.default",
+      "category": "other",
+      "shape": "('1', 's11', '2', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t44",
+      "fx_name": "transpose_1",
+      "operator": "aten.transpose.int",
+      "category": "transpose",
+      "shape": "('1', '2', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t45",
+      "fx_name": "linear_2",
+      "operator": "aten.linear.default",
+      "category": "matmul",
+      "shape": "('1', 's11', '256')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t46",
+      "fx_name": "view_2",
+      "operator": "aten.view.default",
+      "category": "other",
+      "shape": "('1', 's11', '2', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t47",
+      "fx_name": "transpose_2",
+      "operator": "aten.transpose.int",
+      "category": "transpose",
+      "shape": "('1', '2', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t48",
+      "fx_name": "add_1",
+      "operator": "<built-in function add>",
+      "category": "pointwise",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t49",
+      "fx_name": "arange",
+      "operator": "aten.arange.start",
+      "category": "other",
+      "shape": "('s11',)",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t50",
+      "fx_name": "outer",
+      "operator": "aten.outer.default",
+      "category": "matmul",
+      "shape": "('s11', '64')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t51",
+      "fx_name": "cat",
+      "operator": "aten.cat.default",
+      "category": "concat",
+      "shape": "('s11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t52",
+      "fx_name": "unsqueeze",
+      "operator": "aten.unsqueeze.default",
+      "category": "broadcast",
+      "shape": "('1', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t53",
+      "fx_name": "unsqueeze_1",
+      "operator": "aten.unsqueeze.default",
+      "category": "broadcast",
+      "shape": "('1', '1', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t54",
+      "fx_name": "cos",
+      "operator": "aten.cos.default",
+      "category": "pointwise",
+      "shape": "('1', '1', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t55",
+      "fx_name": "mul_2",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', '4', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t56",
+      "fx_name": "chunk",
+      "operator": "aten.chunk.default",
+      "category": "slice",
+      "shape": "[('1', '4', 's11', '64'), ('1', '4', 's11', '64')]",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t57",
+      "fx_name": "getitem",
+      "operator": "<built-in function getitem>",
+      "category": "slice",
+      "shape": "('1', '4', 's11', '64')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t58",
+      "fx_name": "getitem_1",
+      "operator": "<built-in function getitem>",
+      "category": "slice",
+      "shape": "('1', '4', 's11', '64')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t59",
+      "fx_name": "neg",
+      "operator": "aten.neg.default",
+      "category": "pointwise",
+      "shape": "('1', '4', 's11', '64')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t60",
+      "fx_name": "cat_1",
+      "operator": "aten.cat.default",
+      "category": "concat",
+      "shape": "('1', '4', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t61",
+      "fx_name": "sin",
+      "operator": "aten.sin.default",
+      "category": "pointwise",
+      "shape": "('1', '1', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t62",
+      "fx_name": "mul_3",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', '4', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t63",
+      "fx_name": "add_2",
+      "operator": "aten.add.Tensor",
+      "category": "pointwise",
+      "shape": "('1', '4', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t64",
+      "fx_name": "cos_1",
+      "operator": "aten.cos.default",
+      "category": "pointwise",
+      "shape": "('1', '1', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t65",
+      "fx_name": "mul_4",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', '2', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t66",
+      "fx_name": "chunk_1",
+      "operator": "aten.chunk.default",
+      "category": "slice",
+      "shape": "[('1', '2', 's11', '64'), ('1', '2', 's11', '64')]",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t67",
+      "fx_name": "getitem_2",
+      "operator": "<built-in function getitem>",
+      "category": "slice",
+      "shape": "('1', '2', 's11', '64')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t68",
+      "fx_name": "getitem_3",
+      "operator": "<built-in function getitem>",
+      "category": "slice",
+      "shape": "('1', '2', 's11', '64')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t69",
+      "fx_name": "neg_1",
+      "operator": "aten.neg.default",
+      "category": "pointwise",
+      "shape": "('1', '2', 's11', '64')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t70",
+      "fx_name": "cat_2",
+      "operator": "aten.cat.default",
+      "category": "concat",
+      "shape": "('1', '2', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t71",
+      "fx_name": "sin_1",
+      "operator": "aten.sin.default",
+      "category": "pointwise",
+      "shape": "('1', '1', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t72",
+      "fx_name": "mul_5",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', '2', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t73",
+      "fx_name": "add_3",
+      "operator": "aten.add.Tensor",
+      "category": "pointwise",
+      "shape": "('1', '2', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t74",
+      "fx_name": "cat_3",
+      "operator": "aten.cat.default",
+      "category": "concat",
+      "shape": "('1', '2', 's11 + s14', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t75",
+      "fx_name": "cat_4",
+      "operator": "aten.cat.default",
+      "category": "concat",
+      "shape": "('1', '2', 's11 + s61', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t76",
+      "fx_name": "repeat_interleave",
+      "operator": "aten.repeat_interleave.self_int",
+      "category": "broadcast",
+      "shape": "('1', '4', 's11 + s14', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t77",
+      "fx_name": "repeat_interleave_1",
+      "operator": "aten.repeat_interleave.self_int",
+      "category": "broadcast",
+      "shape": "('1', '4', 's11 + s61', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t78",
+      "fx_name": "transpose_3",
+      "operator": "aten.transpose.int",
+      "category": "transpose",
+      "shape": "('1', '4', '128', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t79",
+      "fx_name": "matmul",
+      "operator": "aten.matmul.default",
+      "category": "matmul",
+      "shape": "('1', '4', 's11', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t80",
+      "fx_name": "div",
+      "operator": "aten.div.Tensor",
+      "category": "pointwise",
+      "shape": "('1', '4', 's11', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t81",
+      "fx_name": "arange_1",
+      "operator": "aten.arange.start",
+      "category": "other",
+      "shape": "('s11',)",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t82",
+      "fx_name": "unsqueeze_2",
+      "operator": "aten.unsqueeze.default",
+      "category": "broadcast",
+      "shape": "('s11', '1')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t83",
+      "fx_name": "arange_2",
+      "operator": "aten.arange.default",
+      "category": "other",
+      "shape": "('s11 + s14',)",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t84",
+      "fx_name": "unsqueeze_3",
+      "operator": "aten.unsqueeze.default",
+      "category": "broadcast",
+      "shape": "('1', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t85",
+      "fx_name": "gt",
+      "operator": "aten.gt.Tensor",
+      "category": "pointwise",
+      "shape": "('s11', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t86",
+      "fx_name": "masked_fill",
+      "operator": "aten.masked_fill.Scalar",
+      "category": "pointwise",
+      "shape": "('1', '4', 's11', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t87",
+      "fx_name": "_assert_tensor_metadata_default_3",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t88",
+      "fx_name": "to_3",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', '4', 's11', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t89",
+      "fx_name": "softmax",
+      "operator": "aten.softmax.int",
+      "category": "reduction",
+      "shape": "('1', '4', 's11', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t90",
+      "fx_name": "_assert_tensor_metadata_default_4",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t91",
+      "fx_name": "to_4",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', '4', 's11', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t92",
+      "fx_name": "matmul_1",
+      "operator": "aten.matmul.default",
+      "category": "matmul",
+      "shape": "('1', '4', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t93",
+      "fx_name": "transpose_4",
+      "operator": "aten.transpose.int",
+      "category": "transpose",
+      "shape": "('1', 's11', '4', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t94",
+      "fx_name": "contiguous",
+      "operator": "aten.contiguous.default",
+      "category": "other",
+      "shape": "('1', 's11', '4', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t95",
+      "fx_name": "view_3",
+      "operator": "aten.view.default",
+      "category": "other",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t96",
+      "fx_name": "linear_3",
+      "operator": "aten.linear.default",
+      "category": "matmul",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t97",
+      "fx_name": "add_6",
+      "operator": "aten.add.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t98",
+      "fx_name": "_assert_tensor_metadata_default_5",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t99",
+      "fx_name": "to_5",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t100",
+      "fx_name": "pow_2",
+      "operator": "aten.pow.Tensor_Scalar",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t101",
+      "fx_name": "mean_1",
+      "operator": "aten.mean.dim",
+      "category": "reduction",
+      "shape": "('1', 's11', '1')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t102",
+      "fx_name": "_assert_tensor_metadata_default_6",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t103",
+      "fx_name": "to_6",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t104",
+      "fx_name": "add_7",
+      "operator": "aten.add.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '1')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t105",
+      "fx_name": "rsqrt_1",
+      "operator": "aten.rsqrt.default",
+      "category": "pointwise",
+      "shape": "('1', 's11', '1')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t106",
+      "fx_name": "mul_6",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t107",
+      "fx_name": "_assert_tensor_metadata_default_7",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t108",
+      "fx_name": "to_7",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t109",
+      "fx_name": "mul_7",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t110",
+      "fx_name": "linear_4",
+      "operator": "aten.linear.default",
+      "category": "matmul",
+      "shape": "('1', 's11', '1024')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t111",
+      "fx_name": "silu",
+      "operator": "aten.silu.default",
+      "category": "pointwise",
+      "shape": "('1', 's11', '1024')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t112",
+      "fx_name": "linear_5",
+      "operator": "aten.linear.default",
+      "category": "matmul",
+      "shape": "('1', 's11', '1024')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t113",
+      "fx_name": "mul_8",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '1024')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t114",
+      "fx_name": "linear_6",
+      "operator": "aten.linear.default",
+      "category": "matmul",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t115",
+      "fx_name": "add_8",
+      "operator": "aten.add.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t116",
+      "fx_name": "_assert_tensor_metadata_default_8",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t117",
+      "fx_name": "to_8",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t118",
+      "fx_name": "pow_3",
+      "operator": "aten.pow.Tensor_Scalar",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t119",
+      "fx_name": "mean_2",
+      "operator": "aten.mean.dim",
+      "category": "reduction",
+      "shape": "('1', 's11', '1')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t120",
+      "fx_name": "_assert_tensor_metadata_default_9",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t121",
+      "fx_name": "to_9",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t122",
+      "fx_name": "add_9",
+      "operator": "aten.add.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '1')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t123",
+      "fx_name": "rsqrt_2",
+      "operator": "aten.rsqrt.default",
+      "category": "pointwise",
+      "shape": "('1', 's11', '1')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t124",
+      "fx_name": "mul_9",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t125",
+      "fx_name": "_assert_tensor_metadata_default_10",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t126",
+      "fx_name": "to_10",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t127",
+      "fx_name": "mul_10",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t128",
+      "fx_name": "linear_7",
+      "operator": "aten.linear.default",
+      "category": "matmul",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t129",
+      "fx_name": "view_4",
+      "operator": "aten.view.default",
+      "category": "other",
+      "shape": "('1', 's11', '4', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t130",
+      "fx_name": "transpose_5",
+      "operator": "aten.transpose.int",
+      "category": "transpose",
+      "shape": "('1', '4', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t131",
+      "fx_name": "linear_8",
+      "operator": "aten.linear.default",
+      "category": "matmul",
+      "shape": "('1', 's11', '256')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t132",
+      "fx_name": "view_5",
+      "operator": "aten.view.default",
+      "category": "other",
+      "shape": "('1', 's11', '2', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t133",
+      "fx_name": "transpose_6",
+      "operator": "aten.transpose.int",
+      "category": "transpose",
+      "shape": "('1', '2', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t134",
+      "fx_name": "linear_9",
+      "operator": "aten.linear.default",
+      "category": "matmul",
+      "shape": "('1', 's11', '256')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t135",
+      "fx_name": "view_6",
+      "operator": "aten.view.default",
+      "category": "other",
+      "shape": "('1', 's11', '2', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t136",
+      "fx_name": "transpose_7",
+      "operator": "aten.transpose.int",
+      "category": "transpose",
+      "shape": "('1', '2', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t137",
+      "fx_name": "arange_3",
+      "operator": "aten.arange.start",
+      "category": "other",
+      "shape": "('s11',)",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t138",
+      "fx_name": "outer_1",
+      "operator": "aten.outer.default",
+      "category": "matmul",
+      "shape": "('s11', '64')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t139",
+      "fx_name": "cat_5",
+      "operator": "aten.cat.default",
+      "category": "concat",
+      "shape": "('s11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t140",
+      "fx_name": "unsqueeze_4",
+      "operator": "aten.unsqueeze.default",
+      "category": "broadcast",
+      "shape": "('1', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t141",
+      "fx_name": "unsqueeze_5",
+      "operator": "aten.unsqueeze.default",
+      "category": "broadcast",
+      "shape": "('1', '1', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t142",
+      "fx_name": "cos_2",
+      "operator": "aten.cos.default",
+      "category": "pointwise",
+      "shape": "('1', '1', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t143",
+      "fx_name": "mul_11",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', '4', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t144",
+      "fx_name": "chunk_2",
+      "operator": "aten.chunk.default",
+      "category": "slice",
+      "shape": "[('1', '4', 's11', '64'), ('1', '4', 's11', '64')]",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t145",
+      "fx_name": "getitem_4",
+      "operator": "<built-in function getitem>",
+      "category": "slice",
+      "shape": "('1', '4', 's11', '64')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t146",
+      "fx_name": "getitem_5",
+      "operator": "<built-in function getitem>",
+      "category": "slice",
+      "shape": "('1', '4', 's11', '64')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t147",
+      "fx_name": "neg_2",
+      "operator": "aten.neg.default",
+      "category": "pointwise",
+      "shape": "('1', '4', 's11', '64')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t148",
+      "fx_name": "cat_6",
+      "operator": "aten.cat.default",
+      "category": "concat",
+      "shape": "('1', '4', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t149",
+      "fx_name": "sin_2",
+      "operator": "aten.sin.default",
+      "category": "pointwise",
+      "shape": "('1', '1', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t150",
+      "fx_name": "mul_12",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', '4', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t151",
+      "fx_name": "add_11",
+      "operator": "aten.add.Tensor",
+      "category": "pointwise",
+      "shape": "('1', '4', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t152",
+      "fx_name": "cos_3",
+      "operator": "aten.cos.default",
+      "category": "pointwise",
+      "shape": "('1', '1', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t153",
+      "fx_name": "mul_13",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', '2', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t154",
+      "fx_name": "chunk_3",
+      "operator": "aten.chunk.default",
+      "category": "slice",
+      "shape": "[('1', '2', 's11', '64'), ('1', '2', 's11', '64')]",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t155",
+      "fx_name": "getitem_6",
+      "operator": "<built-in function getitem>",
+      "category": "slice",
+      "shape": "('1', '2', 's11', '64')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t156",
+      "fx_name": "getitem_7",
+      "operator": "<built-in function getitem>",
+      "category": "slice",
+      "shape": "('1', '2', 's11', '64')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t157",
+      "fx_name": "neg_3",
+      "operator": "aten.neg.default",
+      "category": "pointwise",
+      "shape": "('1', '2', 's11', '64')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t158",
+      "fx_name": "cat_7",
+      "operator": "aten.cat.default",
+      "category": "concat",
+      "shape": "('1', '2', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t159",
+      "fx_name": "sin_3",
+      "operator": "aten.sin.default",
+      "category": "pointwise",
+      "shape": "('1', '1', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t160",
+      "fx_name": "mul_14",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', '2', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t161",
+      "fx_name": "add_12",
+      "operator": "aten.add.Tensor",
+      "category": "pointwise",
+      "shape": "('1', '2', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t162",
+      "fx_name": "cat_8",
+      "operator": "aten.cat.default",
+      "category": "concat",
+      "shape": "('1', '2', 's11 + s14', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t163",
+      "fx_name": "cat_9",
+      "operator": "aten.cat.default",
+      "category": "concat",
+      "shape": "('1', '2', 's11 + s65', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t164",
+      "fx_name": "repeat_interleave_2",
+      "operator": "aten.repeat_interleave.self_int",
+      "category": "broadcast",
+      "shape": "('1', '4', 's11 + s14', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t165",
+      "fx_name": "repeat_interleave_3",
+      "operator": "aten.repeat_interleave.self_int",
+      "category": "broadcast",
+      "shape": "('1', '4', 's11 + s65', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t166",
+      "fx_name": "transpose_8",
+      "operator": "aten.transpose.int",
+      "category": "transpose",
+      "shape": "('1', '4', '128', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t167",
+      "fx_name": "matmul_2",
+      "operator": "aten.matmul.default",
+      "category": "matmul",
+      "shape": "('1', '4', 's11', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t168",
+      "fx_name": "div_1",
+      "operator": "aten.div.Tensor",
+      "category": "pointwise",
+      "shape": "('1', '4', 's11', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t169",
+      "fx_name": "arange_4",
+      "operator": "aten.arange.start",
+      "category": "other",
+      "shape": "('s11',)",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t170",
+      "fx_name": "unsqueeze_6",
+      "operator": "aten.unsqueeze.default",
+      "category": "broadcast",
+      "shape": "('s11', '1')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t171",
+      "fx_name": "arange_5",
+      "operator": "aten.arange.default",
+      "category": "other",
+      "shape": "('s11 + s14',)",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t172",
+      "fx_name": "unsqueeze_7",
+      "operator": "aten.unsqueeze.default",
+      "category": "broadcast",
+      "shape": "('1', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t173",
+      "fx_name": "gt_1",
+      "operator": "aten.gt.Tensor",
+      "category": "pointwise",
+      "shape": "('s11', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t174",
+      "fx_name": "masked_fill_1",
+      "operator": "aten.masked_fill.Scalar",
+      "category": "pointwise",
+      "shape": "('1', '4', 's11', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t175",
+      "fx_name": "_assert_tensor_metadata_default_11",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t176",
+      "fx_name": "to_11",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', '4', 's11', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t177",
+      "fx_name": "softmax_1",
+      "operator": "aten.softmax.int",
+      "category": "reduction",
+      "shape": "('1', '4', 's11', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t178",
+      "fx_name": "_assert_tensor_metadata_default_12",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t179",
+      "fx_name": "to_12",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', '4', 's11', 's11 + s14')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t180",
+      "fx_name": "matmul_3",
+      "operator": "aten.matmul.default",
+      "category": "matmul",
+      "shape": "('1', '4', 's11', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t181",
+      "fx_name": "transpose_9",
+      "operator": "aten.transpose.int",
+      "category": "transpose",
+      "shape": "('1', 's11', '4', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t182",
+      "fx_name": "contiguous_1",
+      "operator": "aten.contiguous.default",
+      "category": "other",
+      "shape": "('1', 's11', '4', '128')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t183",
+      "fx_name": "view_7",
+      "operator": "aten.view.default",
+      "category": "other",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t184",
+      "fx_name": "linear_10",
+      "operator": "aten.linear.default",
+      "category": "matmul",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t185",
+      "fx_name": "add_15",
+      "operator": "aten.add.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t186",
+      "fx_name": "_assert_tensor_metadata_default_13",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t187",
+      "fx_name": "to_13",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t188",
+      "fx_name": "pow_4",
+      "operator": "aten.pow.Tensor_Scalar",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t189",
+      "fx_name": "mean_3",
+      "operator": "aten.mean.dim",
+      "category": "reduction",
+      "shape": "('1', 's11', '1')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t190",
+      "fx_name": "_assert_tensor_metadata_default_14",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t191",
+      "fx_name": "to_14",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t192",
+      "fx_name": "add_16",
+      "operator": "aten.add.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '1')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t193",
+      "fx_name": "rsqrt_3",
+      "operator": "aten.rsqrt.default",
+      "category": "pointwise",
+      "shape": "('1', 's11', '1')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t194",
+      "fx_name": "mul_15",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t195",
+      "fx_name": "_assert_tensor_metadata_default_15",
+      "operator": "aten._assert_tensor_metadata.default",
+      "category": "other",
+      "shape": "-",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t196",
+      "fx_name": "to_15",
+      "operator": "aten.to.dtype",
+      "category": "other",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t197",
+      "fx_name": "mul_16",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t198",
+      "fx_name": "linear_11",
+      "operator": "aten.linear.default",
+      "category": "matmul",
+      "shape": "('1', 's11', '1024')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t199",
+      "fx_name": "silu_1",
+      "operator": "aten.silu.default",
+      "category": "pointwise",
+      "shape": "('1', 's11', '1024')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t200",
+      "fx_name": "linear_12",
+      "operator": "aten.linear.default",
+      "category": "matmul",
+      "shape": "('1', 's11', '1024')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t201",
+      "fx_name": "mul_17",
+      "operator": "aten.mul.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '1024')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t202",
+      "fx_name": "linear_13",
+      "operator": "aten.linear.default",
+      "category": "matmul",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    },
+    {
+      "id": "t203",
+      "fx_name": "add_17",
+      "operator": "aten.add.Tensor",
+      "category": "pointwise",
+      "shape": "('1', 's11', '512')",
+      "granularity": "symbolic_g"
+    }
+  ],
+  "couplings": [
+    {
+      "src": "t28",
+      "dst": "t29",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t29",
+      "dst": "t30",
+      "C": "fixed_rule:reduction",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t28",
+      "dst": "t31",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t28",
+      "dst": "t32",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t30",
+      "dst": "t33",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t33",
+      "dst": "t34",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t32",
+      "dst": "t35",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t34",
+      "dst": "t35",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t35",
+      "dst": "t36",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t35",
+      "dst": "t37",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t37",
+      "dst": "t38",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t38",
+      "dst": "t39",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t39",
+      "dst": "t40",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t25",
+      "dst": "t40",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t40",
+      "dst": "t41",
+      "C": "fixed_rule:transpose",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t38",
+      "dst": "t42",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t42",
+      "dst": "t43",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t25",
+      "dst": "t43",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t43",
+      "dst": "t44",
+      "C": "fixed_rule:transpose",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t38",
+      "dst": "t45",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t45",
+      "dst": "t46",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t25",
+      "dst": "t46",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t46",
+      "dst": "t47",
+      "C": "fixed_rule:transpose",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t26",
+      "dst": "t48",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t25",
+      "dst": "t48",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t26",
+      "dst": "t49",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t48",
+      "dst": "t49",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t49",
+      "dst": "t50",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t50",
+      "dst": "t51",
+      "C": "fixed_rule:concat",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t51",
+      "dst": "t52",
+      "C": "fixed_rule:broadcast",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t52",
+      "dst": "t53",
+      "C": "fixed_rule:broadcast",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t53",
+      "dst": "t54",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t41",
+      "dst": "t55",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t54",
+      "dst": "t55",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t41",
+      "dst": "t56",
+      "C": "fixed_rule:slice",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t56",
+      "dst": "t57",
+      "C": "fixed_rule:slice",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t56",
+      "dst": "t58",
+      "C": "fixed_rule:slice",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t58",
+      "dst": "t59",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t59",
+      "dst": "t60",
+      "C": "fixed_rule:concat",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t57",
+      "dst": "t60",
+      "C": "fixed_rule:concat",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t53",
+      "dst": "t61",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t60",
+      "dst": "t62",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t61",
+      "dst": "t62",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t55",
+      "dst": "t63",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t62",
+      "dst": "t63",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t53",
+      "dst": "t64",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t44",
+      "dst": "t65",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t64",
+      "dst": "t65",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t44",
+      "dst": "t66",
+      "C": "fixed_rule:slice",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t66",
+      "dst": "t67",
+      "C": "fixed_rule:slice",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t66",
+      "dst": "t68",
+      "C": "fixed_rule:slice",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t68",
+      "dst": "t69",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t69",
+      "dst": "t70",
+      "C": "fixed_rule:concat",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t67",
+      "dst": "t70",
+      "C": "fixed_rule:concat",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t53",
+      "dst": "t71",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t70",
+      "dst": "t72",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t71",
+      "dst": "t72",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t65",
+      "dst": "t73",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t72",
+      "dst": "t73",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t73",
+      "dst": "t74",
+      "C": "fixed_rule:concat",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t47",
+      "dst": "t75",
+      "C": "fixed_rule:concat",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t74",
+      "dst": "t76",
+      "C": "fixed_rule:broadcast",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t75",
+      "dst": "t77",
+      "C": "fixed_rule:broadcast",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t76",
+      "dst": "t78",
+      "C": "fixed_rule:transpose",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t63",
+      "dst": "t79",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t78",
+      "dst": "t79",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t79",
+      "dst": "t80",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t26",
+      "dst": "t81",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t48",
+      "dst": "t81",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t81",
+      "dst": "t82",
+      "C": "fixed_rule:broadcast",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t48",
+      "dst": "t83",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t83",
+      "dst": "t84",
+      "C": "fixed_rule:broadcast",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t84",
+      "dst": "t85",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t82",
+      "dst": "t85",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t80",
+      "dst": "t86",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t85",
+      "dst": "t86",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t86",
+      "dst": "t87",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t86",
+      "dst": "t88",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t88",
+      "dst": "t89",
+      "C": "fixed_rule:reduction",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t89",
+      "dst": "t90",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t89",
+      "dst": "t91",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t91",
+      "dst": "t92",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t77",
+      "dst": "t92",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t92",
+      "dst": "t93",
+      "C": "fixed_rule:transpose",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t93",
+      "dst": "t94",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t94",
+      "dst": "t95",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t25",
+      "dst": "t95",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t95",
+      "dst": "t96",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t32",
+      "dst": "t97",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t96",
+      "dst": "t97",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t97",
+      "dst": "t98",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t97",
+      "dst": "t99",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t99",
+      "dst": "t100",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t100",
+      "dst": "t101",
+      "C": "fixed_rule:reduction",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t99",
+      "dst": "t102",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t99",
+      "dst": "t103",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t101",
+      "dst": "t104",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t104",
+      "dst": "t105",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t103",
+      "dst": "t106",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t105",
+      "dst": "t106",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t106",
+      "dst": "t107",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t106",
+      "dst": "t108",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t108",
+      "dst": "t109",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t109",
+      "dst": "t110",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t110",
+      "dst": "t111",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t109",
+      "dst": "t112",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t111",
+      "dst": "t113",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t112",
+      "dst": "t113",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t113",
+      "dst": "t114",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t103",
+      "dst": "t115",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t114",
+      "dst": "t115",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t115",
+      "dst": "t116",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t115",
+      "dst": "t117",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t117",
+      "dst": "t118",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t118",
+      "dst": "t119",
+      "C": "fixed_rule:reduction",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t117",
+      "dst": "t120",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t117",
+      "dst": "t121",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t119",
+      "dst": "t122",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t122",
+      "dst": "t123",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t121",
+      "dst": "t124",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t123",
+      "dst": "t124",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t124",
+      "dst": "t125",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t124",
+      "dst": "t126",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t126",
+      "dst": "t127",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t127",
+      "dst": "t128",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t128",
+      "dst": "t129",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t25",
+      "dst": "t129",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t129",
+      "dst": "t130",
+      "C": "fixed_rule:transpose",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t127",
+      "dst": "t131",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t131",
+      "dst": "t132",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t25",
+      "dst": "t132",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t132",
+      "dst": "t133",
+      "C": "fixed_rule:transpose",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t127",
+      "dst": "t134",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t134",
+      "dst": "t135",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t25",
+      "dst": "t135",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t135",
+      "dst": "t136",
+      "C": "fixed_rule:transpose",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t26",
+      "dst": "t137",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t48",
+      "dst": "t137",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t137",
+      "dst": "t138",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t138",
+      "dst": "t139",
+      "C": "fixed_rule:concat",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t139",
+      "dst": "t140",
+      "C": "fixed_rule:broadcast",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t140",
+      "dst": "t141",
+      "C": "fixed_rule:broadcast",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t141",
+      "dst": "t142",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t130",
+      "dst": "t143",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t142",
+      "dst": "t143",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t130",
+      "dst": "t144",
+      "C": "fixed_rule:slice",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t144",
+      "dst": "t145",
+      "C": "fixed_rule:slice",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t144",
+      "dst": "t146",
+      "C": "fixed_rule:slice",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t146",
+      "dst": "t147",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t147",
+      "dst": "t148",
+      "C": "fixed_rule:concat",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t145",
+      "dst": "t148",
+      "C": "fixed_rule:concat",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t141",
+      "dst": "t149",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t148",
+      "dst": "t150",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t149",
+      "dst": "t150",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t143",
+      "dst": "t151",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t150",
+      "dst": "t151",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t141",
+      "dst": "t152",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t133",
+      "dst": "t153",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t152",
+      "dst": "t153",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t133",
+      "dst": "t154",
+      "C": "fixed_rule:slice",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t154",
+      "dst": "t155",
+      "C": "fixed_rule:slice",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t154",
+      "dst": "t156",
+      "C": "fixed_rule:slice",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t156",
+      "dst": "t157",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t157",
+      "dst": "t158",
+      "C": "fixed_rule:concat",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t155",
+      "dst": "t158",
+      "C": "fixed_rule:concat",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t141",
+      "dst": "t159",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t158",
+      "dst": "t160",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t159",
+      "dst": "t160",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t153",
+      "dst": "t161",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t160",
+      "dst": "t161",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t161",
+      "dst": "t162",
+      "C": "fixed_rule:concat",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t136",
+      "dst": "t163",
+      "C": "fixed_rule:concat",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t162",
+      "dst": "t164",
+      "C": "fixed_rule:broadcast",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t163",
+      "dst": "t165",
+      "C": "fixed_rule:broadcast",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t164",
+      "dst": "t166",
+      "C": "fixed_rule:transpose",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t151",
+      "dst": "t167",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t166",
+      "dst": "t167",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t167",
+      "dst": "t168",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t26",
+      "dst": "t169",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t48",
+      "dst": "t169",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t169",
+      "dst": "t170",
+      "C": "fixed_rule:broadcast",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t48",
+      "dst": "t171",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t171",
+      "dst": "t172",
+      "C": "fixed_rule:broadcast",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t172",
+      "dst": "t173",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t170",
+      "dst": "t173",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t168",
+      "dst": "t174",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t173",
+      "dst": "t174",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t174",
+      "dst": "t175",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t174",
+      "dst": "t176",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t176",
+      "dst": "t177",
+      "C": "fixed_rule:reduction",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t177",
+      "dst": "t178",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t177",
+      "dst": "t179",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t179",
+      "dst": "t180",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t165",
+      "dst": "t180",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t180",
+      "dst": "t181",
+      "C": "fixed_rule:transpose",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t181",
+      "dst": "t182",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t182",
+      "dst": "t183",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t25",
+      "dst": "t183",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t183",
+      "dst": "t184",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t121",
+      "dst": "t185",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t184",
+      "dst": "t185",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t185",
+      "dst": "t186",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t185",
+      "dst": "t187",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t187",
+      "dst": "t188",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t188",
+      "dst": "t189",
+      "C": "fixed_rule:reduction",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t187",
+      "dst": "t190",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t187",
+      "dst": "t191",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t189",
+      "dst": "t192",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t192",
+      "dst": "t193",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t191",
+      "dst": "t194",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t193",
+      "dst": "t194",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t194",
+      "dst": "t195",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t194",
+      "dst": "t196",
+      "C": "fixed_rule:other",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t196",
+      "dst": "t197",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t197",
+      "dst": "t198",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t198",
+      "dst": "t199",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t197",
+      "dst": "t200",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t199",
+      "dst": "t201",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t200",
+      "dst": "t201",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t201",
+      "dst": "t202",
+      "C": "fixed_rule:matmul",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t191",
+      "dst": "t203",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    },
+    {
+      "src": "t202",
+      "dst": "t203",
+      "C": "fixed_rule:pointwise",
+      "tier": 0,
+      "sync": "global"
+    }
+  ]
+}

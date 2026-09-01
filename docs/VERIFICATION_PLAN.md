@@ -11,11 +11,12 @@ source-inspected, cross-compiled without running, or explicitly unconfirmed;
 | 3 | V-B CUTLASS collective in persistent loop | ✅ sm_89 run; ⚠️ sm_90/120 compile | [V-B result](experiments/V_B/result.md) |
 | 3 | V-D compile-time traits query | ✅ complete | [V-D result](experiments/V_D/result.md) |
 | 4 | V-G shared-storage union | ✅ complete on sm_89; ⚠️ target projections | [V-G result](experiments/V_G/result.md) |
-| 4 | V-H `torch.export` coverage | ⚠️ blocked: CPU dependencies absent | [V-H result](experiments/V_H/result.md) |
+| 4 | V-H `torch.export` coverage | ✅ strict two-layer Llama export | [V-H result](experiments/V_H/result.md) |
 | 5 | V-E nvcc compilation baseline | ✅ complete | [V-E result](experiments/V_E/result.md) |
-| 5 | V-F symbolic CuTe IR behavior | ⚠️ source-audited; pinned LLVM absent | [V-F result](experiments/V_F/result.md) |
+| 5 | V-F symbolic CuTe IR behavior | ✅ pinned LLVM build and tests | [V-F result](experiments/V_F/result.md) |
 | 6 | V-C cluster DSMEM | ✅ sm_90/120 compile; ⚠️ not run | [V-C result](experiments/V_C/result.md) |
 | 4 | V-J tile-size and backward-wait controls | ✅ complete on RTX 4090 | [V-J result](experiments/V_J/result.md) |
+| 2 | E2E L0 → L0.5 → L1 | ✅ 50/50 on RTX 4090 | [E2E result](experiments/E2E/result.md) |
 
 ## Reproduction policy
 
@@ -40,3 +41,10 @@ never converted into a pass.
   has no `tcgen05` path even though it is numerically newer than sm_100.
 - CUTLASS traits are suitable for early shared-memory pruning; final survivors
   still require true compilation for register and occupancy evidence.
+- `torch.export` symbol expressions and executable guards must both enter the
+  frontend parameter domain; dense KV cache is explicit input/output state in
+  the tested decoder.
+- CuTe MLIR represents dynamic layout algebra but rejects a dynamic-shape
+  right inverse; the CuTe-to-Presburger bridge owns that fallback.
+- The fixed E2E lowering directly calls the SM80 cp.async collective family
+  and validates the full-stage global-barrier path at the resident grid.

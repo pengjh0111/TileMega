@@ -1,0 +1,3 @@
+l05_median_ms	1.091584
+l1_median_ms	1.078272
+l1_over_l05_median	0.987283

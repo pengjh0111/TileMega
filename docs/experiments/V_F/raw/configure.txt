@@ -1,0 +1,38 @@
+-- bolt project is disabled
+-- clang project is disabled
+-- clang-tools-extra project is disabled
+-- cross-project-tests project is disabled
+-- lld project is disabled
+-- lldb project is disabled
+-- mlir project is enabled
+-- polly project is disabled
+-- flang project is disabled
+-- libc project is disabled
+-- compiler-rt project is disabled
+-- Doxygen disabled.
+-- Found Python3: /usr/bin/python3.10 (found suitable version "3.10.12", minimum required is "3.0") found components: Interpreter
+-- Could NOT find LibXml2 (missing: LIBXML2_LIBRARY LIBXML2_INCLUDE_DIR)
+-- Could NOT find LibEdit (missing: LibEdit_INCLUDE_DIRS LibEdit_LIBRARIES)
+-- LLVM host triple: x86_64-unknown-linux-gnu
+-- Native target architecture is X86
+-- Threads enabled.
+-- Ninja version: 1.10.1
+-- Could NOT find OCaml (missing: OCAMLFIND OCAML_VERSION OCAML_STDLIB_PATH)
+-- Could NOT find OCaml (missing: OCAMLFIND OCAML_VERSION OCAML_STDLIB_PATH)
+-- OCaml bindings disabled.
+-- LLVM default target triple: x86_64-unknown-linux-gnu
+-- Building with -fPIC
+Precompiled headers are disabled by default with GCC. Pass -DCMAKE_DISABLE_PRECOMPILE_HEADERS=OFF to override.
+-- Precompiled headers disabled.
+-- Targeting NVPTX
+-- Targeting X86
+-- Searching for ocloc
+-- ocloc not found
+-- ocloc not found, MLIRXeVMTarget will not be able to use ocloc for native binary compilation.
+-- Not building llvm-mt because libxml2 is not available
+-- Could NOT find LibXml2 (missing: LIBXML2_LIBRARY LIBXML2_INCLUDE_DIR)
+-- Could NOT find LibXml2 (missing: LIBXML2_LIBRARY LIBXML2_INCLUDE_DIR)
+-- Found Python3: /usr/bin/python3.10 (found version "3.10.12") found components: Interpreter
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /root/TileMega/build-cutlass-compiler

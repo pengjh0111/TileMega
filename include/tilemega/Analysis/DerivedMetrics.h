@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// Skeleton ref: §2 Definition 4 fan-in/locality/reuse metrics.
+// Skeleton ref: §2 Definition 4 closed-form metrics.
 #pragma once
-#include <cstddef>
+#include <tilemega/Analysis/ClosedForm.h>
 namespace tilemega::analysis {
-struct DerivedMetrics { std::size_t fan_in = 0; std::size_t fan_out = 0; double locality = 0; double reuse = 0; };
+struct DerivedMetrics {
+  ClosedForm wait = ClosedForm::Constant(0);
+  ClosedForm fanout = ClosedForm::Constant(0);
+  ClosedForm volume = ClosedForm::Constant(0);
+  ClosedForm count = ClosedForm::Constant(0);
+};
 }  // namespace tilemega::analysis

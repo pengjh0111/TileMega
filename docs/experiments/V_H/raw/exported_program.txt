@@ -1,0 +1,345 @@
+ExportedProgram:
+    class GraphModule(torch.nn.Module):
+        def forward(self, p_layers_0_input_norm_weight: "f32[512]", p_layers_0_q_proj_weight: "f32[512, 512]", p_layers_0_k_proj_weight: "f32[256, 512]", p_layers_0_v_proj_weight: "f32[256, 512]", p_layers_0_o_proj_weight: "f32[512, 512]", p_layers_0_post_norm_weight: "f32[512]", p_layers_0_gate_proj_weight: "f32[1024, 512]", p_layers_0_up_proj_weight: "f32[1024, 512]", p_layers_0_down_proj_weight: "f32[512, 1024]", p_layers_1_input_norm_weight: "f32[512]", p_layers_1_q_proj_weight: "f32[512, 512]", p_layers_1_k_proj_weight: "f32[256, 512]", p_layers_1_v_proj_weight: "f32[256, 512]", p_layers_1_o_proj_weight: "f32[512, 512]", p_layers_1_post_norm_weight: "f32[512]", p_layers_1_gate_proj_weight: "f32[1024, 512]", p_layers_1_up_proj_weight: "f32[1024, 512]", p_layers_1_down_proj_weight: "f32[512, 1024]", b_layers_0_inv_freq: "f32[64]", b_layers_1_inv_freq: "f32[64]", hidden: "f32[1, s11, 512]", past_k0: "f32[1, 2, s14, 128]", past_v0: "f32[1, 2, s61, 128]", past_k1: "f32[1, 2, s14, 128]", past_v1: "f32[1, 2, s65, 128]"):
+            # No stacktrace found for following nodes
+            sym_size_int_9: "Sym(s11)" = torch.ops.aten.sym_size.int(hidden, 1)
+            sym_size_int_12: "Sym(s14)" = torch.ops.aten.sym_size.int(past_k1, 2)
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:27 in forward, code: variance = x.float().pow(2).mean(dim=-1, keepdim=True)
+            _assert_tensor_metadata_default = torch.ops.aten._assert_tensor_metadata.default(hidden, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default = None
+            to: "f32[1, s11, 512]" = torch.ops.aten.to.dtype(hidden, torch.float32);  hidden = None
+            pow_1: "f32[1, s11, 512]" = torch.ops.aten.pow.Tensor_Scalar(to, 2)
+            mean: "f32[1, s11, 1]" = torch.ops.aten.mean.dim(pow_1, [-1], True);  pow_1 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:28 in forward, code: return (x.float() * torch.rsqrt(variance + self.eps)).to(x.dtype) * self.weight
+            _assert_tensor_metadata_default_1 = torch.ops.aten._assert_tensor_metadata.default(to, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_1 = None
+            to_1: "f32[1, s11, 512]" = torch.ops.aten.to.dtype(to, torch.float32);  to = None
+            add: "f32[1, s11, 1]" = torch.ops.aten.add.Tensor(mean, 1e-06);  mean = None
+            rsqrt: "f32[1, s11, 1]" = torch.ops.aten.rsqrt.default(add);  add = None
+            mul: "f32[1, s11, 512]" = torch.ops.aten.mul.Tensor(to_1, rsqrt);  rsqrt = None
+            _assert_tensor_metadata_default_2 = torch.ops.aten._assert_tensor_metadata.default(mul, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_2 = None
+            to_2: "f32[1, s11, 512]" = torch.ops.aten.to.dtype(mul, torch.float32);  mul = None
+            mul_1: "f32[1, s11, 512]" = torch.ops.aten.mul.Tensor(to_2, p_layers_0_input_norm_weight);  to_2 = p_layers_0_input_norm_weight = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:64 in forward, code: q = self.q_proj(h).view(batch, seq, self.heads, self.head_dim).transpose(1, 2)
+            linear: "f32[1, s11, 512]" = torch.ops.aten.linear.default(mul_1, p_layers_0_q_proj_weight);  p_layers_0_q_proj_weight = None
+            view: "f32[1, s11, 4, 128]" = torch.ops.aten.view.default(linear, [1, sym_size_int_9, 4, 128]);  linear = None
+            transpose: "f32[1, 4, s11, 128]" = torch.ops.aten.transpose.int(view, 1, 2);  view = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:65 in forward, code: k = self.k_proj(h).view(batch, seq, self.kv_heads, self.head_dim).transpose(1, 2)
+            linear_1: "f32[1, s11, 256]" = torch.ops.aten.linear.default(mul_1, p_layers_0_k_proj_weight);  p_layers_0_k_proj_weight = None
+            view_1: "f32[1, s11, 2, 128]" = torch.ops.aten.view.default(linear_1, [1, sym_size_int_9, 2, 128]);  linear_1 = None
+            transpose_1: "f32[1, 2, s11, 128]" = torch.ops.aten.transpose.int(view_1, 1, 2);  view_1 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:66 in forward, code: v = self.v_proj(h).view(batch, seq, self.kv_heads, self.head_dim).transpose(1, 2)
+            linear_2: "f32[1, s11, 256]" = torch.ops.aten.linear.default(mul_1, p_layers_0_v_proj_weight);  mul_1 = p_layers_0_v_proj_weight = None
+            view_2: "f32[1, s11, 2, 128]" = torch.ops.aten.view.default(linear_2, [1, sym_size_int_9, 2, 128]);  linear_2 = None
+            transpose_2: "f32[1, 2, s11, 128]" = torch.ops.aten.transpose.int(view_2, 1, 2);  view_2 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:69 in forward, code: positions = torch.arange(past, past + seq, device=x.device, dtype=self.inv_freq.dtype)
+            add_1: "Sym(s11 + s14)" = sym_size_int_12 + sym_size_int_9
+            arange: "f32[s11]" = torch.ops.aten.arange.start(sym_size_int_12, add_1, dtype = torch.float32, device = device(type='cpu'), pin_memory = False)
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:70 in forward, code: phase = torch.outer(positions, self.inv_freq)
+            outer: "f32[s11, 64]" = torch.ops.aten.outer.default(arange, b_layers_0_inv_freq);  arange = b_layers_0_inv_freq = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:71 in forward, code: phase = torch.cat((phase, phase), dim=-1)[None, None, :, :]
+            cat: "f32[s11, 128]" = torch.ops.aten.cat.default([outer, outer], -1);  outer = None
+            unsqueeze: "f32[1, s11, 128]" = torch.ops.aten.unsqueeze.default(cat, 0);  cat = None
+            unsqueeze_1: "f32[1, 1, s11, 128]" = torch.ops.aten.unsqueeze.default(unsqueeze, 1);  unsqueeze = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:72 in forward, code: q = q * phase.cos() + rotate_half(q) * phase.sin()
+            cos: "f32[1, 1, s11, 128]" = torch.ops.aten.cos.default(unsqueeze_1)
+            mul_2: "f32[1, 4, s11, 128]" = torch.ops.aten.mul.Tensor(transpose, cos);  cos = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:32 in rotate_half, code: a, b = x.chunk(2, dim=-1)
+            chunk = torch.ops.aten.chunk.default(transpose, 2, -1);  transpose = None
+            getitem: "f32[1, 4, s11, 64]" = chunk[0]
+            getitem_1: "f32[1, 4, s11, 64]" = chunk[1];  chunk = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:33 in rotate_half, code: return torch.cat((-b, a), dim=-1)
+            neg: "f32[1, 4, s11, 64]" = torch.ops.aten.neg.default(getitem_1);  getitem_1 = None
+            cat_1: "f32[1, 4, s11, 128]" = torch.ops.aten.cat.default([neg, getitem], -1);  neg = getitem = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:72 in forward, code: q = q * phase.cos() + rotate_half(q) * phase.sin()
+            sin: "f32[1, 1, s11, 128]" = torch.ops.aten.sin.default(unsqueeze_1)
+            mul_3: "f32[1, 4, s11, 128]" = torch.ops.aten.mul.Tensor(cat_1, sin);  cat_1 = sin = None
+            add_2: "f32[1, 4, s11, 128]" = torch.ops.aten.add.Tensor(mul_2, mul_3);  mul_2 = mul_3 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:73 in forward, code: k = k * phase.cos() + rotate_half(k) * phase.sin()
+            cos_1: "f32[1, 1, s11, 128]" = torch.ops.aten.cos.default(unsqueeze_1)
+            mul_4: "f32[1, 2, s11, 128]" = torch.ops.aten.mul.Tensor(transpose_1, cos_1);  cos_1 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:32 in rotate_half, code: a, b = x.chunk(2, dim=-1)
+            chunk_1 = torch.ops.aten.chunk.default(transpose_1, 2, -1);  transpose_1 = None
+            getitem_2: "f32[1, 2, s11, 64]" = chunk_1[0]
+            getitem_3: "f32[1, 2, s11, 64]" = chunk_1[1];  chunk_1 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:33 in rotate_half, code: return torch.cat((-b, a), dim=-1)
+            neg_1: "f32[1, 2, s11, 64]" = torch.ops.aten.neg.default(getitem_3);  getitem_3 = None
+            cat_2: "f32[1, 2, s11, 128]" = torch.ops.aten.cat.default([neg_1, getitem_2], -1);  neg_1 = getitem_2 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:73 in forward, code: k = k * phase.cos() + rotate_half(k) * phase.sin()
+            sin_1: "f32[1, 1, s11, 128]" = torch.ops.aten.sin.default(unsqueeze_1);  unsqueeze_1 = None
+            mul_5: "f32[1, 2, s11, 128]" = torch.ops.aten.mul.Tensor(cat_2, sin_1);  cat_2 = sin_1 = None
+            add_3: "f32[1, 2, s11, 128]" = torch.ops.aten.add.Tensor(mul_4, mul_5);  mul_4 = mul_5 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:75 in forward, code: full_k = torch.cat((past_k, k), dim=2)
+            cat_3: "f32[1, 2, s11 + s14, 128]" = torch.ops.aten.cat.default([past_k0, add_3], 2);  past_k0 = add_3 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:76 in forward, code: full_v = torch.cat((past_v, v), dim=2)
+            cat_4: "f32[1, 2, s11 + s61, 128]" = torch.ops.aten.cat.default([past_v0, transpose_2], 2);  past_v0 = transpose_2 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:78 in forward, code: attn_k = torch.repeat_interleave(full_k, repeat, dim=1)
+            repeat_interleave: "f32[1, 4, s11 + s14, 128]" = torch.ops.aten.repeat_interleave.self_int(cat_3, 2, 1)
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:79 in forward, code: attn_v = torch.repeat_interleave(full_v, repeat, dim=1)
+            repeat_interleave_1: "f32[1, 4, s11 + s61, 128]" = torch.ops.aten.repeat_interleave.self_int(cat_4, 2, 1)
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:80 in forward, code: score = torch.matmul(q, attn_k.transpose(-1, -2)) / math.sqrt(self.head_dim)
+            transpose_3: "f32[1, 4, 128, s11 + s14]" = torch.ops.aten.transpose.int(repeat_interleave, -1, -2);  repeat_interleave = None
+            matmul: "f32[1, 4, s11, s11 + s14]" = torch.ops.aten.matmul.default(add_2, transpose_3);  add_2 = transpose_3 = None
+            div: "f32[1, 4, s11, s11 + s14]" = torch.ops.aten.div.Tensor(matmul, 11.313708498984761);  matmul = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:81 in forward, code: query_pos = torch.arange(past, past + seq, device=x.device)[:, None]
+            arange_1: "i64[s11]" = torch.ops.aten.arange.start(sym_size_int_12, add_1, device = device(type='cpu'), pin_memory = False)
+            unsqueeze_2: "i64[s11, 1]" = torch.ops.aten.unsqueeze.default(arange_1, 1);  arange_1 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:82 in forward, code: key_pos = torch.arange(past + seq, device=x.device)[None, :]
+            arange_2: "i64[s11 + s14]" = torch.ops.aten.arange.default(add_1, device = device(type='cpu'), pin_memory = False)
+            unsqueeze_3: "i64[1, s11 + s14]" = torch.ops.aten.unsqueeze.default(arange_2, 0);  arange_2 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:83 in forward, code: score = score.masked_fill(key_pos > query_pos, float("-inf"))
+            gt: "b8[s11, s11 + s14]" = torch.ops.aten.gt.Tensor(unsqueeze_3, unsqueeze_2);  unsqueeze_3 = unsqueeze_2 = None
+            masked_fill: "f32[1, 4, s11, s11 + s14]" = torch.ops.aten.masked_fill.Scalar(div, gt, -inf);  div = gt = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:84 in forward, code: probability = torch.softmax(score.float(), dim=-1).to(q.dtype)
+            _assert_tensor_metadata_default_3 = torch.ops.aten._assert_tensor_metadata.default(masked_fill, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_3 = None
+            to_3: "f32[1, 4, s11, s11 + s14]" = torch.ops.aten.to.dtype(masked_fill, torch.float32);  masked_fill = None
+            softmax: "f32[1, 4, s11, s11 + s14]" = torch.ops.aten.softmax.int(to_3, -1);  to_3 = None
+            _assert_tensor_metadata_default_4 = torch.ops.aten._assert_tensor_metadata.default(softmax, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_4 = None
+            to_4: "f32[1, 4, s11, s11 + s14]" = torch.ops.aten.to.dtype(softmax, torch.float32);  softmax = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:85 in forward, code: context = torch.matmul(probability, attn_v)
+            matmul_1: "f32[1, 4, s11, 128]" = torch.ops.aten.matmul.default(to_4, repeat_interleave_1);  to_4 = repeat_interleave_1 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:86 in forward, code: context = context.transpose(1, 2).contiguous().view(batch, seq, self.hidden)
+            transpose_4: "f32[1, s11, 4, 128]" = torch.ops.aten.transpose.int(matmul_1, 1, 2);  matmul_1 = None
+            contiguous: "f32[1, s11, 4, 128]" = torch.ops.aten.contiguous.default(transpose_4);  transpose_4 = None
+            view_3: "f32[1, s11, 512]" = torch.ops.aten.view.default(contiguous, [1, sym_size_int_9, 512]);  contiguous = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:87 in forward, code: x = residual + self.o_proj(context)
+            linear_3: "f32[1, s11, 512]" = torch.ops.aten.linear.default(view_3, p_layers_0_o_proj_weight);  view_3 = p_layers_0_o_proj_weight = None
+            add_6: "f32[1, s11, 512]" = torch.ops.aten.add.Tensor(to_1, linear_3);  to_1 = linear_3 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:27 in forward, code: variance = x.float().pow(2).mean(dim=-1, keepdim=True)
+            _assert_tensor_metadata_default_5 = torch.ops.aten._assert_tensor_metadata.default(add_6, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_5 = None
+            to_5: "f32[1, s11, 512]" = torch.ops.aten.to.dtype(add_6, torch.float32);  add_6 = None
+            pow_2: "f32[1, s11, 512]" = torch.ops.aten.pow.Tensor_Scalar(to_5, 2)
+            mean_1: "f32[1, s11, 1]" = torch.ops.aten.mean.dim(pow_2, [-1], True);  pow_2 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:28 in forward, code: return (x.float() * torch.rsqrt(variance + self.eps)).to(x.dtype) * self.weight
+            _assert_tensor_metadata_default_6 = torch.ops.aten._assert_tensor_metadata.default(to_5, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_6 = None
+            to_6: "f32[1, s11, 512]" = torch.ops.aten.to.dtype(to_5, torch.float32);  to_5 = None
+            add_7: "f32[1, s11, 1]" = torch.ops.aten.add.Tensor(mean_1, 1e-06);  mean_1 = None
+            rsqrt_1: "f32[1, s11, 1]" = torch.ops.aten.rsqrt.default(add_7);  add_7 = None
+            mul_6: "f32[1, s11, 512]" = torch.ops.aten.mul.Tensor(to_6, rsqrt_1);  rsqrt_1 = None
+            _assert_tensor_metadata_default_7 = torch.ops.aten._assert_tensor_metadata.default(mul_6, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_7 = None
+            to_7: "f32[1, s11, 512]" = torch.ops.aten.to.dtype(mul_6, torch.float32);  mul_6 = None
+            mul_7: "f32[1, s11, 512]" = torch.ops.aten.mul.Tensor(to_7, p_layers_0_post_norm_weight);  to_7 = p_layers_0_post_norm_weight = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:91 in forward, code: x = residual + self.down_proj(F.silu(self.gate_proj(h)) * self.up_proj(h))
+            linear_4: "f32[1, s11, 1024]" = torch.ops.aten.linear.default(mul_7, p_layers_0_gate_proj_weight);  p_layers_0_gate_proj_weight = None
+            silu: "f32[1, s11, 1024]" = torch.ops.aten.silu.default(linear_4);  linear_4 = None
+            linear_5: "f32[1, s11, 1024]" = torch.ops.aten.linear.default(mul_7, p_layers_0_up_proj_weight);  mul_7 = p_layers_0_up_proj_weight = None
+            mul_8: "f32[1, s11, 1024]" = torch.ops.aten.mul.Tensor(silu, linear_5);  silu = linear_5 = None
+            linear_6: "f32[1, s11, 512]" = torch.ops.aten.linear.default(mul_8, p_layers_0_down_proj_weight);  mul_8 = p_layers_0_down_proj_weight = None
+            add_8: "f32[1, s11, 512]" = torch.ops.aten.add.Tensor(to_6, linear_6);  to_6 = linear_6 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:27 in forward, code: variance = x.float().pow(2).mean(dim=-1, keepdim=True)
+            _assert_tensor_metadata_default_8 = torch.ops.aten._assert_tensor_metadata.default(add_8, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_8 = None
+            to_8: "f32[1, s11, 512]" = torch.ops.aten.to.dtype(add_8, torch.float32);  add_8 = None
+            pow_3: "f32[1, s11, 512]" = torch.ops.aten.pow.Tensor_Scalar(to_8, 2)
+            mean_2: "f32[1, s11, 1]" = torch.ops.aten.mean.dim(pow_3, [-1], True);  pow_3 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:28 in forward, code: return (x.float() * torch.rsqrt(variance + self.eps)).to(x.dtype) * self.weight
+            _assert_tensor_metadata_default_9 = torch.ops.aten._assert_tensor_metadata.default(to_8, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_9 = None
+            to_9: "f32[1, s11, 512]" = torch.ops.aten.to.dtype(to_8, torch.float32);  to_8 = None
+            add_9: "f32[1, s11, 1]" = torch.ops.aten.add.Tensor(mean_2, 1e-06);  mean_2 = None
+            rsqrt_2: "f32[1, s11, 1]" = torch.ops.aten.rsqrt.default(add_9);  add_9 = None
+            mul_9: "f32[1, s11, 512]" = torch.ops.aten.mul.Tensor(to_9, rsqrt_2);  rsqrt_2 = None
+            _assert_tensor_metadata_default_10 = torch.ops.aten._assert_tensor_metadata.default(mul_9, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_10 = None
+            to_10: "f32[1, s11, 512]" = torch.ops.aten.to.dtype(mul_9, torch.float32);  mul_9 = None
+            mul_10: "f32[1, s11, 512]" = torch.ops.aten.mul.Tensor(to_10, p_layers_1_input_norm_weight);  to_10 = p_layers_1_input_norm_weight = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:64 in forward, code: q = self.q_proj(h).view(batch, seq, self.heads, self.head_dim).transpose(1, 2)
+            linear_7: "f32[1, s11, 512]" = torch.ops.aten.linear.default(mul_10, p_layers_1_q_proj_weight);  p_layers_1_q_proj_weight = None
+            view_4: "f32[1, s11, 4, 128]" = torch.ops.aten.view.default(linear_7, [1, sym_size_int_9, 4, 128]);  linear_7 = None
+            transpose_5: "f32[1, 4, s11, 128]" = torch.ops.aten.transpose.int(view_4, 1, 2);  view_4 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:65 in forward, code: k = self.k_proj(h).view(batch, seq, self.kv_heads, self.head_dim).transpose(1, 2)
+            linear_8: "f32[1, s11, 256]" = torch.ops.aten.linear.default(mul_10, p_layers_1_k_proj_weight);  p_layers_1_k_proj_weight = None
+            view_5: "f32[1, s11, 2, 128]" = torch.ops.aten.view.default(linear_8, [1, sym_size_int_9, 2, 128]);  linear_8 = None
+            transpose_6: "f32[1, 2, s11, 128]" = torch.ops.aten.transpose.int(view_5, 1, 2);  view_5 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:66 in forward, code: v = self.v_proj(h).view(batch, seq, self.kv_heads, self.head_dim).transpose(1, 2)
+            linear_9: "f32[1, s11, 256]" = torch.ops.aten.linear.default(mul_10, p_layers_1_v_proj_weight);  mul_10 = p_layers_1_v_proj_weight = None
+            view_6: "f32[1, s11, 2, 128]" = torch.ops.aten.view.default(linear_9, [1, sym_size_int_9, 2, 128]);  linear_9 = None
+            transpose_7: "f32[1, 2, s11, 128]" = torch.ops.aten.transpose.int(view_6, 1, 2);  view_6 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:69 in forward, code: positions = torch.arange(past, past + seq, device=x.device, dtype=self.inv_freq.dtype)
+            arange_3: "f32[s11]" = torch.ops.aten.arange.start(sym_size_int_12, add_1, dtype = torch.float32, device = device(type='cpu'), pin_memory = False)
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:70 in forward, code: phase = torch.outer(positions, self.inv_freq)
+            outer_1: "f32[s11, 64]" = torch.ops.aten.outer.default(arange_3, b_layers_1_inv_freq);  arange_3 = b_layers_1_inv_freq = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:71 in forward, code: phase = torch.cat((phase, phase), dim=-1)[None, None, :, :]
+            cat_5: "f32[s11, 128]" = torch.ops.aten.cat.default([outer_1, outer_1], -1);  outer_1 = None
+            unsqueeze_4: "f32[1, s11, 128]" = torch.ops.aten.unsqueeze.default(cat_5, 0);  cat_5 = None
+            unsqueeze_5: "f32[1, 1, s11, 128]" = torch.ops.aten.unsqueeze.default(unsqueeze_4, 1);  unsqueeze_4 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:72 in forward, code: q = q * phase.cos() + rotate_half(q) * phase.sin()
+            cos_2: "f32[1, 1, s11, 128]" = torch.ops.aten.cos.default(unsqueeze_5)
+            mul_11: "f32[1, 4, s11, 128]" = torch.ops.aten.mul.Tensor(transpose_5, cos_2);  cos_2 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:32 in rotate_half, code: a, b = x.chunk(2, dim=-1)
+            chunk_2 = torch.ops.aten.chunk.default(transpose_5, 2, -1);  transpose_5 = None
+            getitem_4: "f32[1, 4, s11, 64]" = chunk_2[0]
+            getitem_5: "f32[1, 4, s11, 64]" = chunk_2[1];  chunk_2 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:33 in rotate_half, code: return torch.cat((-b, a), dim=-1)
+            neg_2: "f32[1, 4, s11, 64]" = torch.ops.aten.neg.default(getitem_5);  getitem_5 = None
+            cat_6: "f32[1, 4, s11, 128]" = torch.ops.aten.cat.default([neg_2, getitem_4], -1);  neg_2 = getitem_4 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:72 in forward, code: q = q * phase.cos() + rotate_half(q) * phase.sin()
+            sin_2: "f32[1, 1, s11, 128]" = torch.ops.aten.sin.default(unsqueeze_5)
+            mul_12: "f32[1, 4, s11, 128]" = torch.ops.aten.mul.Tensor(cat_6, sin_2);  cat_6 = sin_2 = None
+            add_11: "f32[1, 4, s11, 128]" = torch.ops.aten.add.Tensor(mul_11, mul_12);  mul_11 = mul_12 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:73 in forward, code: k = k * phase.cos() + rotate_half(k) * phase.sin()
+            cos_3: "f32[1, 1, s11, 128]" = torch.ops.aten.cos.default(unsqueeze_5)
+            mul_13: "f32[1, 2, s11, 128]" = torch.ops.aten.mul.Tensor(transpose_6, cos_3);  cos_3 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:32 in rotate_half, code: a, b = x.chunk(2, dim=-1)
+            chunk_3 = torch.ops.aten.chunk.default(transpose_6, 2, -1);  transpose_6 = None
+            getitem_6: "f32[1, 2, s11, 64]" = chunk_3[0]
+            getitem_7: "f32[1, 2, s11, 64]" = chunk_3[1];  chunk_3 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:33 in rotate_half, code: return torch.cat((-b, a), dim=-1)
+            neg_3: "f32[1, 2, s11, 64]" = torch.ops.aten.neg.default(getitem_7);  getitem_7 = None
+            cat_7: "f32[1, 2, s11, 128]" = torch.ops.aten.cat.default([neg_3, getitem_6], -1);  neg_3 = getitem_6 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:73 in forward, code: k = k * phase.cos() + rotate_half(k) * phase.sin()
+            sin_3: "f32[1, 1, s11, 128]" = torch.ops.aten.sin.default(unsqueeze_5);  unsqueeze_5 = None
+            mul_14: "f32[1, 2, s11, 128]" = torch.ops.aten.mul.Tensor(cat_7, sin_3);  cat_7 = sin_3 = None
+            add_12: "f32[1, 2, s11, 128]" = torch.ops.aten.add.Tensor(mul_13, mul_14);  mul_13 = mul_14 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:75 in forward, code: full_k = torch.cat((past_k, k), dim=2)
+            cat_8: "f32[1, 2, s11 + s14, 128]" = torch.ops.aten.cat.default([past_k1, add_12], 2);  past_k1 = add_12 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:76 in forward, code: full_v = torch.cat((past_v, v), dim=2)
+            cat_9: "f32[1, 2, s11 + s65, 128]" = torch.ops.aten.cat.default([past_v1, transpose_7], 2);  past_v1 = transpose_7 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:78 in forward, code: attn_k = torch.repeat_interleave(full_k, repeat, dim=1)
+            repeat_interleave_2: "f32[1, 4, s11 + s14, 128]" = torch.ops.aten.repeat_interleave.self_int(cat_8, 2, 1)
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:79 in forward, code: attn_v = torch.repeat_interleave(full_v, repeat, dim=1)
+            repeat_interleave_3: "f32[1, 4, s11 + s65, 128]" = torch.ops.aten.repeat_interleave.self_int(cat_9, 2, 1)
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:80 in forward, code: score = torch.matmul(q, attn_k.transpose(-1, -2)) / math.sqrt(self.head_dim)
+            transpose_8: "f32[1, 4, 128, s11 + s14]" = torch.ops.aten.transpose.int(repeat_interleave_2, -1, -2);  repeat_interleave_2 = None
+            matmul_2: "f32[1, 4, s11, s11 + s14]" = torch.ops.aten.matmul.default(add_11, transpose_8);  add_11 = transpose_8 = None
+            div_1: "f32[1, 4, s11, s11 + s14]" = torch.ops.aten.div.Tensor(matmul_2, 11.313708498984761);  matmul_2 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:81 in forward, code: query_pos = torch.arange(past, past + seq, device=x.device)[:, None]
+            arange_4: "i64[s11]" = torch.ops.aten.arange.start(sym_size_int_12, add_1, device = device(type='cpu'), pin_memory = False);  sym_size_int_12 = None
+            unsqueeze_6: "i64[s11, 1]" = torch.ops.aten.unsqueeze.default(arange_4, 1);  arange_4 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:82 in forward, code: key_pos = torch.arange(past + seq, device=x.device)[None, :]
+            arange_5: "i64[s11 + s14]" = torch.ops.aten.arange.default(add_1, device = device(type='cpu'), pin_memory = False);  add_1 = None
+            unsqueeze_7: "i64[1, s11 + s14]" = torch.ops.aten.unsqueeze.default(arange_5, 0);  arange_5 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:83 in forward, code: score = score.masked_fill(key_pos > query_pos, float("-inf"))
+            gt_1: "b8[s11, s11 + s14]" = torch.ops.aten.gt.Tensor(unsqueeze_7, unsqueeze_6);  unsqueeze_7 = unsqueeze_6 = None
+            masked_fill_1: "f32[1, 4, s11, s11 + s14]" = torch.ops.aten.masked_fill.Scalar(div_1, gt_1, -inf);  div_1 = gt_1 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:84 in forward, code: probability = torch.softmax(score.float(), dim=-1).to(q.dtype)
+            _assert_tensor_metadata_default_11 = torch.ops.aten._assert_tensor_metadata.default(masked_fill_1, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_11 = None
+            to_11: "f32[1, 4, s11, s11 + s14]" = torch.ops.aten.to.dtype(masked_fill_1, torch.float32);  masked_fill_1 = None
+            softmax_1: "f32[1, 4, s11, s11 + s14]" = torch.ops.aten.softmax.int(to_11, -1);  to_11 = None
+            _assert_tensor_metadata_default_12 = torch.ops.aten._assert_tensor_metadata.default(softmax_1, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_12 = None
+            to_12: "f32[1, 4, s11, s11 + s14]" = torch.ops.aten.to.dtype(softmax_1, torch.float32);  softmax_1 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:85 in forward, code: context = torch.matmul(probability, attn_v)
+            matmul_3: "f32[1, 4, s11, 128]" = torch.ops.aten.matmul.default(to_12, repeat_interleave_3);  to_12 = repeat_interleave_3 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:86 in forward, code: context = context.transpose(1, 2).contiguous().view(batch, seq, self.hidden)
+            transpose_9: "f32[1, s11, 4, 128]" = torch.ops.aten.transpose.int(matmul_3, 1, 2);  matmul_3 = None
+            contiguous_1: "f32[1, s11, 4, 128]" = torch.ops.aten.contiguous.default(transpose_9);  transpose_9 = None
+            view_7: "f32[1, s11, 512]" = torch.ops.aten.view.default(contiguous_1, [1, sym_size_int_9, 512]);  contiguous_1 = sym_size_int_9 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:87 in forward, code: x = residual + self.o_proj(context)
+            linear_10: "f32[1, s11, 512]" = torch.ops.aten.linear.default(view_7, p_layers_1_o_proj_weight);  view_7 = p_layers_1_o_proj_weight = None
+            add_15: "f32[1, s11, 512]" = torch.ops.aten.add.Tensor(to_9, linear_10);  to_9 = linear_10 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:27 in forward, code: variance = x.float().pow(2).mean(dim=-1, keepdim=True)
+            _assert_tensor_metadata_default_13 = torch.ops.aten._assert_tensor_metadata.default(add_15, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_13 = None
+            to_13: "f32[1, s11, 512]" = torch.ops.aten.to.dtype(add_15, torch.float32);  add_15 = None
+            pow_4: "f32[1, s11, 512]" = torch.ops.aten.pow.Tensor_Scalar(to_13, 2)
+            mean_3: "f32[1, s11, 1]" = torch.ops.aten.mean.dim(pow_4, [-1], True);  pow_4 = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:28 in forward, code: return (x.float() * torch.rsqrt(variance + self.eps)).to(x.dtype) * self.weight
+            _assert_tensor_metadata_default_14 = torch.ops.aten._assert_tensor_metadata.default(to_13, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_14 = None
+            to_14: "f32[1, s11, 512]" = torch.ops.aten.to.dtype(to_13, torch.float32);  to_13 = None
+            add_16: "f32[1, s11, 1]" = torch.ops.aten.add.Tensor(mean_3, 1e-06);  mean_3 = None
+            rsqrt_3: "f32[1, s11, 1]" = torch.ops.aten.rsqrt.default(add_16);  add_16 = None
+            mul_15: "f32[1, s11, 512]" = torch.ops.aten.mul.Tensor(to_14, rsqrt_3);  rsqrt_3 = None
+            _assert_tensor_metadata_default_15 = torch.ops.aten._assert_tensor_metadata.default(mul_15, dtype = torch.float32, device = device(type='cpu'), layout = torch.strided);  _assert_tensor_metadata_default_15 = None
+            to_15: "f32[1, s11, 512]" = torch.ops.aten.to.dtype(mul_15, torch.float32);  mul_15 = None
+            mul_16: "f32[1, s11, 512]" = torch.ops.aten.mul.Tensor(to_15, p_layers_1_post_norm_weight);  to_15 = p_layers_1_post_norm_weight = None
+
+            # File: /root/TileMega/docs/experiments/V_H/export_probe.py:91 in forward, code: x = residual + self.down_proj(F.silu(self.gate_proj(h)) * self.up_proj(h))
+            linear_11: "f32[1, s11, 1024]" = torch.ops.aten.linear.default(mul_16, p_layers_1_gate_proj_weight);  p_layers_1_gate_proj_weight = None
+            silu_1: "f32[1, s11, 1024]" = torch.ops.aten.silu.default(linear_11);  linear_11 = None
+            linear_12: "f32[1, s11, 1024]" = torch.ops.aten.linear.default(mul_16, p_layers_1_up_proj_weight);  mul_16 = p_layers_1_up_proj_weight = None
+            mul_17: "f32[1, s11, 1024]" = torch.ops.aten.mul.Tensor(silu_1, linear_12);  silu_1 = linear_12 = None
+            linear_13: "f32[1, s11, 512]" = torch.ops.aten.linear.default(mul_17, p_layers_1_down_proj_weight);  mul_17 = p_layers_1_down_proj_weight = None
+            add_17: "f32[1, s11, 512]" = torch.ops.aten.add.Tensor(to_14, linear_13);  to_14 = linear_13 = None
+            return (add_17, cat_3, cat_4, cat_8, cat_9)
+
+Graph signature:
+    # inputs
+    p_layers_0_input_norm_weight: PARAMETER target='layers.0.input_norm.weight'
+    p_layers_0_q_proj_weight: PARAMETER target='layers.0.q_proj.weight'
+    p_layers_0_k_proj_weight: PARAMETER target='layers.0.k_proj.weight'
+    p_layers_0_v_proj_weight: PARAMETER target='layers.0.v_proj.weight'
+    p_layers_0_o_proj_weight: PARAMETER target='layers.0.o_proj.weight'
+    p_layers_0_post_norm_weight: PARAMETER target='layers.0.post_norm.weight'
+    p_layers_0_gate_proj_weight: PARAMETER target='layers.0.gate_proj.weight'
+    p_layers_0_up_proj_weight: PARAMETER target='layers.0.up_proj.weight'
+    p_layers_0_down_proj_weight: PARAMETER target='layers.0.down_proj.weight'
+    p_layers_1_input_norm_weight: PARAMETER target='layers.1.input_norm.weight'
+    p_layers_1_q_proj_weight: PARAMETER target='layers.1.q_proj.weight'
+    p_layers_1_k_proj_weight: PARAMETER target='layers.1.k_proj.weight'
+    p_layers_1_v_proj_weight: PARAMETER target='layers.1.v_proj.weight'
+    p_layers_1_o_proj_weight: PARAMETER target='layers.1.o_proj.weight'
+    p_layers_1_post_norm_weight: PARAMETER target='layers.1.post_norm.weight'
+    p_layers_1_gate_proj_weight: PARAMETER target='layers.1.gate_proj.weight'
+    p_layers_1_up_proj_weight: PARAMETER target='layers.1.up_proj.weight'
+    p_layers_1_down_proj_weight: PARAMETER target='layers.1.down_proj.weight'
+    b_layers_0_inv_freq: BUFFER target='layers.0.inv_freq' persistent=True
+    b_layers_1_inv_freq: BUFFER target='layers.1.inv_freq' persistent=True
+    hidden: USER_INPUT
+    past_k0: USER_INPUT
+    past_v0: USER_INPUT
+    past_k1: USER_INPUT
+    past_v1: USER_INPUT
+
+    # outputs
+    add_17: USER_OUTPUT
+    cat_3: USER_OUTPUT
+    cat_4: USER_OUTPUT
+    cat_8: USER_OUTPUT
+    cat_9: USER_OUTPUT
+
+Range constraints: {s11: VR[1, 8], s14: VR[1, 8], s61: VR[1, 8], s65: VR[1, 8]}

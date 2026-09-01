@@ -1,1 +1,5 @@
-BLOCKED: the pinned LLVM/MLIR checkout is absent and no compatible MLIR installation is available
+PASS
+cute_opt=/root/TileMega/build-cutlass-compiler/cute_ir/tools/cute-opt/cute-opt
+cute_lit_discovered=236
+cute_lit_passed=236
+cute_unittests_passed=106
