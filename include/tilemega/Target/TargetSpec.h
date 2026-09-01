@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <string>
 #include <cstdint>
 
@@ -94,6 +95,19 @@ struct TargetSpec {
                            int bytes_per_stage,
                            int fixed_overhead_bytes = 0,
                            int max_stages = 16);
+
+  /// Query the CUDA occupancy calculator for a concrete kernel.  Occupancy is
+  /// kernel-specific and therefore cannot be populated by Probe() alone; this
+  /// companion keeps the calculation attached to the probed target (§8.7).
+  int ActiveBlocksPerSM(void const* kernel,
+                        int block_size,
+                        std::size_t dynamic_smem_bytes = 0) const;
+
+  /// Maximum simultaneously resident grid for a non-cluster kernel. Cluster
+  /// launches must instead use cudaOccupancyMaxActiveClusters (see V-C).
+  int ResidentGridLimit(void const* kernel,
+                        int block_size,
+                        std::size_t dynamic_smem_bytes = 0) const;
 
   /// Human-readable one-liner for logs / result.md tables.
   std::string Summary() const;

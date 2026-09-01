@@ -7,7 +7,7 @@ nvcc=${CUDACXX:-/usr/local/cuda/bin/nvcc}
 mkdir -p "$here/raw"
 
 "$nvcc" -O2 -std=c++17 -arch=sm_89 -lineinfo -Xptxas=-v \
-  -I"$root/test/harness" "$va/event_sync.cu" -o "$here/event_sync" \
+  -I"$root/test/harness" "$here/event_sync.cu" -o "$here/event_sync" \
   2>"$here/raw/build.ptxas.txt" || exit 2
 
 : >"$here/raw/tile_scan.txt"

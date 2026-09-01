@@ -181,6 +181,24 @@ int TargetSpec::ComputeStages(int smem_budget_bytes, int bytes_per_stage,
   return std::min(max_stages, available / bytes_per_stage);
 }
 
+int TargetSpec::ActiveBlocksPerSM(void const* kernel, int block_size,
+                                  std::size_t dynamic_smem_bytes) const {
+  if (kernel == nullptr || block_size <= 0) {
+    throw std::invalid_argument("invalid occupancy query");
+  }
+  int blocks = 0;
+  CheckCuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+                &blocks, kernel, block_size, dynamic_smem_bytes),
+            "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
+  return blocks;
+}
+
+int TargetSpec::ResidentGridLimit(void const* kernel, int block_size,
+                                  std::size_t dynamic_smem_bytes) const {
+  return res.num_sms *
+         ActiveBlocksPerSM(kernel, block_size, dynamic_smem_bytes);
+}
+
 std::string TargetSpec::Summary() const {
   std::ostringstream out;
   out << arch_tag << ": SMs=" << res.num_sms

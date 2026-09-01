@@ -1,0 +1,20 @@
+third_party/cutlass/cutlass_compiler/cute_ir/test/Conversion/CuteExpandOps/pipeline_with_fold_static.mlir:265:// FOLD-FIRST-NOT:     cute.composition
+third_party/cutlass/cutlass_compiler/cute_ir/test/Conversion/CuteExpandOps/pipeline_with_fold_static.mlir:268:// EXPAND-FIRST-NOT:     cute.composition
+third_party/cutlass/cutlass_compiler/cute_ir/test/Conversion/CuteExpandOps/pipeline_with_fold_static.mlir:273:  %r = cute.composition(%a, %b)
+third_party/cutlass/cutlass_compiler/cute_ir/test/Conversion/CuteExpandOps/pipeline_with_fold_static.mlir:379:// FOLD-FIRST-NOT:     cute.right_inverse
+third_party/cutlass/cutlass_compiler/cute_ir/test/Conversion/CuteExpandOps/pipeline_with_fold_static.mlir:382:// EXPAND-FIRST-NOT:     cute.right_inverse
+third_party/cutlass/cutlass_compiler/cute_ir/test/Conversion/CuteExpandOps/pipeline_with_fold_static.mlir:386:  %r = cute.right_inverse(%a)
+third_party/cutlass/cutlass_compiler/cute_ir/test/Conversion/CuteExpandOps/pipeline_with_fold_static.mlir:847:// FOLD-FIRST-NOT:     cute.zipped_divide
+third_party/cutlass/cutlass_compiler/cute_ir/test/Conversion/CuteExpandOps/pipeline_with_fold_static.mlir:850:// EXPAND-FIRST-NOT:     cute.zipped_divide
+third_party/cutlass/cutlass_compiler/cute_ir/test/Conversion/CuteExpandOps/pipeline_with_fold_static.mlir:855:  %r = cute.zipped_divide(%a, %b)
+third_party/cutlass/cutlass_compiler/cute_ir/test/Transforms/CuteFoldStatic/no_fold_dynamic.mlir:297:// CHECK-LABEL: func.func @no_fold_composition
+third_party/cutlass/cutlass_compiler/cute_ir/test/Transforms/CuteFoldStatic/no_fold_dynamic.mlir:298:// CHECK:         %[[R:.+]] = cute.composition
+third_party/cutlass/cutlass_compiler/cute_ir/test/Transforms/CuteFoldStatic/no_fold_dynamic.mlir:300:func.func @no_fold_composition(%outer: !cute.layout<"?:?">,
+third_party/cutlass/cutlass_compiler/cute_ir/test/Transforms/CuteFoldStatic/no_fold_dynamic.mlir:303:  %r = cute.composition(%outer, %inner)
+third_party/cutlass/cutlass_compiler/cute_ir/test/Transforms/CuteFoldStatic/no_fold_dynamic.mlir:608:// CHECK-LABEL: func.func @no_fold_zipped_divide
+third_party/cutlass/cutlass_compiler/cute_ir/test/Transforms/CuteFoldStatic/no_fold_dynamic.mlir:609:// CHECK:         %[[R:.+]] = cute.zipped_divide
+third_party/cutlass/cutlass_compiler/cute_ir/test/Transforms/CuteFoldStatic/no_fold_dynamic.mlir:611:func.func @no_fold_zipped_divide(%a: !cute.layout<"(?,8):(?,1)">,
+third_party/cutlass/cutlass_compiler/cute_ir/test/Transforms/CuteFoldStatic/no_fold_dynamic.mlir:614:  %r = cute.zipped_divide(%a, %b)
+third_party/cutlass/cutlass_compiler/cute_ir/test/Transforms/CuteFoldStatic/fold_layout_algebra.mlir:45:  %r = cute.composition(%outer, %inner)
+third_party/cutlass/cutlass_compiler/cute_ir/test/Transforms/CuteFoldStatic/fold_layout_algebra.mlir:60:  %r = cute.composition(%outer, %inner)
+third_party/cutlass/cutlass_compiler/cute_ir/test/Transforms/CuteFoldStatic/fold_layout_algebra.mlir:314:  %r = cute.right_inverse(%src)

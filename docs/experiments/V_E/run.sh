@@ -24,6 +24,14 @@ b=$(nsec); echo "$(elapsed "$a" "$b")" >"$here/raw/frontend_ptx_seconds.txt"
 a=$(nsec); "$ptxas" -arch=sm_89 "$here/out/unit.ptx" -o "$here/out/unit.cubin" 2>/dev/null
 b=$(nsec); echo "$(elapsed "$a" "$b")" >"$here/raw/ptxas_seconds.txt"
 
+# Device-link phase.  A direct .cubin build has no host-link step; this
+# relocatable-code path isolates the CUDA device linker requested by V-E.
+"$nvcc" -std=c++17 -O2 -arch=sm_89 -dc "${inc[@]}" \
+  "$here/compile_unit.cu" -o "$here/out/unit.o" 2>/dev/null
+a=$(nsec)
+"$nvcc" -arch=sm_89 -dlink "$here/out/unit.o" -o "$here/out/dlink.o" 2>/dev/null
+b=$(nsec); echo "$(elapsed "$a" "$b")" >"$here/raw/device_link_seconds.txt"
+
 a=$(nsec)
 for i in 1 2 3 4; do
   "$nvcc" -std=c++17 -O2 -arch=sm_89 -cubin "${inc[@]}" \
@@ -46,6 +54,7 @@ median=$(sed -n 's/median_full_seconds=//p' "$here/raw/summary.txt")
 {
   echo "frontend_ptx_seconds=$(cat "$here/raw/frontend_ptx_seconds.txt")"
   echo "ptxas_seconds=$(cat "$here/raw/ptxas_seconds.txt")"
+  echo "device_link_seconds=$(cat "$here/raw/device_link_seconds.txt")"
   echo "sequential4_seconds=$(cat "$here/raw/sequential4_seconds.txt")"
   echo "parallel4_seconds=$(cat "$here/raw/parallel4_seconds.txt")"
   awk -v m="$median" 'BEGIN{printf "estimated_170_serial_seconds=%.3f\n",170*m}'
