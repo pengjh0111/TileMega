@@ -129,6 +129,14 @@ L4    符号形状参数化 + 运行时变体选择
   真正的 isl 参数，不变量 I1 因此仍然成立。这不是缺陷，是一条必须被遵守
   的边界；`ClosedForm::ToIslText` 在除数没有被替换成常量时会显式抛错，
   而不是生成非法 isl 文本。
+  三层拆分之后这条边界的**作用位置**可以说得更准：它只约束 L-task 及以下。
+  L-sem（`include/tilemega/Analysis/Semantics.h`）里不出现除以 `g` 的表达式
+  ——indexing map 是元素级的，唯一的 floordiv 是语义本身的（GQA 的头分组
+  `h/G`），除数是取值固定的 theta 符号而不是 tile size。这不再是一句设计
+  意图：`test/unit/semantics_test.cpp` 用两个不同的 `g` 构造同一个 L-sem 并
+  断言 `Serialize()` 逐字节相同，同时断言序列化文本里不出现 `Tm`/`Tn`/
+  `Tkv`，而两个 L-task 实例化的 tile 确实不同（否则该断言是空的）。这是
+  不变量 I1 的可执行形式，替代了此前的 `StructureKey()` 代理。
 
 - **wait 与 fanout 需要不同的定界处理，这是 barvinok 的一条实测边界**：
   把生产者（range）侧的界折进 `C` 本身，会让带有真正 isl 参数、且生产者
@@ -167,18 +175,25 @@ L4    符号形状参数化 + 运行时变体选择
   （F-34 表明在现有两个模型上收益为零，所以并不急），这张表必须来自
   `ModelPlan` 里已经确定的 stage kind，而不是名字。
 
-- **前端 `ModelPlan` 构造器泛化的范围是"decoder-layer 家族"，不是任意
-  ATen 图**：`lib/Frontend/ModelPlan.cpp` 按结构匹配
-  `layers.N.{input_norm,post_norm,q_proj,k_proj,v_proj,o_proj,gate_proj,
-  up_proj,down_proj,inv_freq}` 参数命名和 RMSNorm→QKV→RoPE→KVAppend→
-  Attention→O→残差→RMSNorm→SwiGLU→残差 的数据流形状，层数、hidden/
-  intermediate 宽度、head/kv_head 比例（GQA vs. MHA）全部从权重形状和
-  `inv_freq` 长度推导，不出现在生成代码里（`% 12`、`179`、`222`、
-  `GeneratedLlamaRuntime` 等字面量已被移除并有 grep 回归防止复发）。
-  但这条规则本身认得的仍是这一个算子家族：一个结构完全不同的模型（例如
-  纯 MLP 堆叠、不同的归一化算子）需要在 `ModelPlan.cpp` 里新增一条匹配
-  规则，不会自动通过。本轮验收覆盖了该家族内的两个结构差异实例（2 层
-  GQA、4 层 MHA），满足任务给出的验收 B 例子，但不等于任意模型都能过。
+- **前端的语义恢复现在是声明式匹配，剩下的边界是"模式的覆盖面"而不是
+  "名字的约定"**：`lib/Frontend/ModelPlan.cpp` 里已经没有任何 ATen target
+  字面量，也没有任何参数名字面量——`layers.N.*` 正则、10 处
+  `q_proj/k_proj/.../inv_freq` 参数名查表、`past_kN`/`past_vN` 命名约定、
+  4 个按 target 字符串写死的查找函数、以及"head_dim = numel(inv_freq)*2"
+  这条布局假设，共 21 处名字/target 相关的判断已被删除，换成
+  `include/tilemega/Frontend/GraphPattern.h` 上的一条 17 槽声明式模式：
+  槽之间用操作数取值（`Value`）、依赖（`Dep`）、最近同角色节点（`Near`）
+  和两条轴约束互相钉住。target 字符串只在一个地方比较——`CoreRoles()`
+  的角色表（13 个角色 / 30 个 target），这也是同一条模式既能匹配
+  composite 导出又能匹配 `run_decompositions()` 之后的 Core ATen 图的原因
+  （两个参考模型上生成的 `.cu` **逐字节相同**，见
+  `docs/experiments/SEMANTIC/`）。
+  剩下的边界是：仓库目前只写了一条 decoder-layer 模式，一个结构不同的
+  模型家族（纯 MLP 堆叠、不同归一化）仍然需要**新增一条模式**才能被分组
+  成融合的 task space。区别在于新增的是数据不是分支，且不匹配不再是错误：
+  没有模式覆盖的算子降级为"一个算子一个 task space"并在
+  `ImportSummary::degraded` 里报告（`frontend_degradation` 单测），
+  codegen 侧则明确拒绝一个没有 model plan 的模块。
   Analysis 层的 `MlpStack`/`GatherModel`（`lib/Analysis/ReferenceModels.cpp`）
   证明了耦合推导算法本身不依赖 Llama 结构，但它们没有经过这条 Frontend
   路径进入生成器。
@@ -1183,9 +1198,11 @@ tilemega/
       对自己的 PyTorch L0 验证，生成的 `.cu` 里没有模型结构常量（见上）。
 - [!] 一般化的范围是 decoder-layer 家族（RMSNorm→QKV→RoPE→KVAppend→
       Attention→O→残差→RMSNorm→SwiGLU→残差），不是任意 ATen 图；层数/
-      宽度/GQA-MHA 比例从权重形状结构化推导，但换一个不匹配这个数据流
-      形状的模型（例如纯 MLP 堆叠）需要在 `ModelPlan.cpp` 里新增匹配规则。
-      详见 §1.5.1。
+      宽度/GQA-MHA 比例从权重形状结构化推导。换一个不匹配这个数据流形状
+      的模型（例如纯 MLP 堆叠）需要新增一条**模式**（`GraphPattern.h` 上的
+      声明式数据），而不是新增一条分支：匹配规则里已经没有参数名与 target
+      字面量，不匹配的算子降级为一个算子一个 task space 而不是报错。
+      详见 §1.5.1 与 `docs/experiments/SEMANTIC/result.md`。
 
 ### P3.7 求解权威迁移到 isl/barvinok（原则三的落地）
 

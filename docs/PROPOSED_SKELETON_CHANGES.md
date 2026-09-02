@@ -9,10 +9,11 @@ TODO list).
 ## Resolved and removed from this file
 
 "Generalize semantic stage formation" (the P1.4 explicit two-layer Llama rule)
-is resolved: `lib/Frontend/ModelPlan.cpp` replaced it with a structural match
-over the decoder-layer dataflow shape and `layers.N.*` parameter naming, and
-two structurally different models (2-layer GQA, 4-layer MHA) now pass through
-it. See F-25 and `TileMega_skeleton.md` §1.5.1 for what this does and does not
+is resolved: `lib/Frontend/ModelPlan.cpp` replaced it with a declarative
+pattern over the decoder-layer dataflow shape — no parameter names and no ATen
+target literals — and two structurally different models (2-layer GQA, 4-layer
+MHA) pass through it in both their composite and Core ATen forms, generating
+byte-identical code (`docs/experiments/SEMANTIC/`). See F-25 and `TileMega_skeleton.md` §1.5.1 for what this does and does not
 generalize over — it is not moved here because the remaining gap (a
 structurally distinct model family needing a new `ModelPlan.cpp` rule) is
 recorded as residual debt, not as an open skeleton-design question.
