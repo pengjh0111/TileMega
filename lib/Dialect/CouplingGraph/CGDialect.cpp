@@ -2,6 +2,7 @@
 #include <tilemega/Dialect/CouplingGraph/CGAttrs.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
+#include <tilemega/Analysis/CouplingDerivation.h>
 
 #include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/BuiltinTypes.h>
@@ -129,6 +130,26 @@ LogicalResult CouplingOp::verify() {
     return emitOpError("Tier 3 coupling cannot use cluster synchronization");
   if (getTier().getValue() < 0 || getTier().getValue() > 3)
     return emitOpError("tier must be in [0,3]");
+  // The tier is a summary of the five attributes (§2.4, CouplingDerivation.h).
+  // When an edge carries them, it is not allowed to also carry a tier that
+  // does not follow from them.
+  if (auto optional = getCouplingAttrs()) {
+    dialect::CouplingAttributesAttr attributes = *optional;
+    analysis::CouplingAttributes parsed;
+    if (!analysis::ParseCouplingAttributes(
+            attributes.getRelationKind().getValue().str(),
+            attributes.getExtentKind().getValue().str(),
+            attributes.getExactness().getValue().str(),
+            attributes.getRuntimeRequirement().getValue().str(),
+            attributes.getCountability().getValue().str(), &parsed))
+      return emitOpError("unknown coupling attribute name");
+    if (std::stol(analysis::ToString(analysis::DeriveTier(parsed))) !=
+        getTier().getValue())
+      return emitOpError()
+             << "tier " << getTier().getValue() << " does not follow from "
+             << parsed.ToString() << " (expected "
+             << analysis::ToString(analysis::DeriveTier(parsed)) << ")";
+  }
 
   try {
     analysis::ParamBinding known = combinedBinding(module);

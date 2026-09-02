@@ -71,6 +71,21 @@ def CG_TierAttr : CG_Attr<"Tier"> {
   let assemblyFormat = "`<` $value `>`";
 }
 
+// §2.4's tier is a summary of five independent observations (see
+// CouplingDerivation.h). Carrying the five in the IR is what lets the
+// verifier recompute the tier instead of trusting it: an edge whose tier
+// does not follow from its own attributes is rejected.
+def CG_CouplingAttributesAttr : CG_Attr<"CouplingAttributes"> {
+  let mnemonic = "coupling_attrs";
+  let parameters = (ins "::mlir::StringAttr":$relation_kind,
+                        "::mlir::StringAttr":$extent_kind,
+                        "::mlir::StringAttr":$exactness,
+                        "::mlir::StringAttr":$runtime_requirement,
+                        "::mlir::StringAttr":$countability);
+  let assemblyFormat = "`<` $relation_kind `,` $extent_kind `,` $exactness `,` "
+                       "$runtime_requirement `,` $countability `>`";
+}
+
 def CG_SyncKindAttr : CG_Attr<"SyncKind"> {
   let mnemonic = "sync";
   let parameters = (ins "::mlir::StringAttr":$value);

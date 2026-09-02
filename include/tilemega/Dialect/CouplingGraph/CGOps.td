@@ -35,6 +35,11 @@ def CG_CouplingOp : CG_Op<"coupling", [Symbol]> {
                        CG_MetricAttr:$volume,
                        CG_MetricAttr:$count,
                        CG_TierAttr:$tier,
+                       // Optional so that IR written before the five
+                       // attributes existed still verifies; when present the
+                       // verifier requires `tier` to be exactly what they
+                       // imply.
+                       OptionalAttr<CG_CouplingAttributesAttr>:$coupling_attrs,
                        CG_SyncKindAttr:$sync_kind,
                        FlatSymbolRefAttr:$event);
   let assemblyFormat = "$sym_name `from` $src `to` $dst attr-dict";

@@ -452,6 +452,14 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
         state.addAttribute(metric, dialect::MetricAttr::get(
             &context, analysis::QuasiPolynomial::Constant(1)));
       state.addAttribute("tier", dialect::TierAttr::get(&context, 0));
+      // The importer's placeholder edge is the identity on one point, so all
+      // five attributes are their trivial values; the verifier checks that
+      // this is consistent with the tier above.
+      state.addAttribute("coupling_attrs", dialect::CouplingAttributesAttr::get(
+          &context, builder.getStringAttr("affine"),
+          builder.getStringAttr("static_literal"),
+          builder.getStringAttr("exact"), builder.getStringAttr("none"),
+          builder.getStringAttr("constant")));
       state.addAttribute("sync_kind", dialect::SyncKindAttr::get(
           &context, builder.getStringAttr("global")));
       state.addAttribute("event", mlir::FlatSymbolRefAttr::get(&context, eventName));
