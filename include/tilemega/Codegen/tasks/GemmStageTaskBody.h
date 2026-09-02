@@ -90,40 +90,47 @@ struct GemmStageTaskBody {
                              SmemUnion& smem) const {
     using namespace cute;
     auto const* table = static_cast<GemmInvocation const*>(p.gemms);
-    int task = static_cast<int>(blockIdx.x);
-    int tiles = table[stage.gemm].tiles_m * table[stage.gemm].tiles_n;
-    if (task >= tiles * table[stage.gemm].chunks) return;
-    int chunk = task / tiles;
-    auto const& invocation = table[stage.gemm + chunk];
-    task -= chunk * tiles;
-    int tile_n = task % invocation.tiles_n;
-    int tile_m = task / invocation.tiles_n;
-    constexpr auto tile_shape = typename GemmMainloop::TileShape{};
-    auto [M, N, K, L] = invocation.problem;
-    Tensor matrix_a = make_tensor(make_gmem_ptr(invocation.mainloop.ptr_A),
-                                  make_shape(M, K, L), invocation.mainloop.dA);
-    Tensor matrix_b = make_tensor(make_gmem_ptr(invocation.mainloop.ptr_B),
-                                  make_shape(N, K, L), invocation.mainloop.dB);
-    auto block_coord = make_coord(tile_m, tile_n, _, 0);
-    Tensor gA = local_tile(matrix_a(_, _, 0), tile_shape,
-                           take<0, 3>(block_coord), Step<_1, X, _1>{});
-    Tensor gB = local_tile(matrix_b(_, _, 0), tile_shape,
-                           take<0, 3>(block_coord), Step<X, _1, _1>{});
-    auto residue = make_tuple(M - size<0>(gA) * tile_m,
-                              N - size<0>(gB) * tile_n,
-                              K - size<1>(gA) * size<2>(gA));
-    typename GemmMainloop::TiledMma tiled_mma;
-    Tensor accum = partition_fragment_C(tiled_mma, take<0, 2>(tile_shape));
-    clear(accum);
-    auto k_iter = make_coord_iterator(shape<2>(gA));
-    char* shared = reinterpret_cast<char*>(&smem.gemm);
-    GemmMainloop mainloop;
-    mainloop(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
-             static_cast<int>(threadIdx.x), shared);
-    GemmEpilogue epilogue(invocation.epilogue);
-    epilogue(invocation.problem, tile_shape, make_coord(tile_m, tile_n, 0, 0),
-             accum, tiled_mma, residue, static_cast<int>(threadIdx.x), shared);
-    __syncthreads();
+    int const tiles = table[stage.gemm].tiles_m * table[stage.gemm].tiles_n;
+    int const count = tiles * table[stage.gemm].chunks;
+    // Grid-stride over the whole task space. `Ownership` exceeds the resident
+    // grid whenever a narrow N tile meets a large split-K factor, and without
+    // the stride those tasks are simply never run -- a silently wrong result,
+    // not a launch error.
+    for (int task = blockIdx.x; task < count; task += gridDim.x) {
+      int chunk = task / tiles;
+      auto const& invocation = table[stage.gemm + chunk];
+      int local = task - chunk * tiles;
+      int tile_n = local % invocation.tiles_n;
+      int tile_m = local / invocation.tiles_n;
+      constexpr auto tile_shape = typename GemmMainloop::TileShape{};
+      auto [M, N, K, L] = invocation.problem;
+      Tensor matrix_a = make_tensor(make_gmem_ptr(invocation.mainloop.ptr_A),
+                                    make_shape(M, K, L), invocation.mainloop.dA);
+      Tensor matrix_b = make_tensor(make_gmem_ptr(invocation.mainloop.ptr_B),
+                                    make_shape(N, K, L), invocation.mainloop.dB);
+      auto block_coord = make_coord(tile_m, tile_n, _, 0);
+      Tensor gA = local_tile(matrix_a(_, _, 0), tile_shape,
+                             take<0, 3>(block_coord), Step<_1, X, _1>{});
+      Tensor gB = local_tile(matrix_b(_, _, 0), tile_shape,
+                             take<0, 3>(block_coord), Step<X, _1, _1>{});
+      auto residue = make_tuple(M - size<0>(gA) * tile_m,
+                                N - size<0>(gB) * tile_n,
+                                K - size<1>(gA) * size<2>(gA));
+      typename GemmMainloop::TiledMma tiled_mma;
+      Tensor accum = partition_fragment_C(tiled_mma, take<0, 2>(tile_shape));
+      clear(accum);
+      auto k_iter = make_coord_iterator(shape<2>(gA));
+      char* shared = reinterpret_cast<char*>(&smem.gemm);
+      GemmMainloop mainloop;
+      mainloop(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
+               static_cast<int>(threadIdx.x), shared);
+      GemmEpilogue epilogue(invocation.epilogue);
+      epilogue(invocation.problem, tile_shape, make_coord(tile_m, tile_n, 0, 0),
+               accum, tiled_mma, residue, static_cast<int>(threadIdx.x), shared);
+      // The next iteration reuses `shared`, so the barrier is the loop's, not
+      // the body's.
+      __syncthreads();
+    }
   }
 };
 
