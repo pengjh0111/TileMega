@@ -1,0 +1,6 @@
+# one tier-3 compile, run alone (no -P parallelism), 2026-09-02
+# nvcc 12.8, gqa2 TU, 128x128x16 s3 k1, -O2 -arch=native -lineinfo -Xptxas=-v
+real 21.275  user 19.342  sys 1.906
+real 21.501  user 19.460  sys 2.033
+real 20.054  user 18.761  sys 1.287
+# median wall 21.275 s; median user+sys 21.248 s
