@@ -43,19 +43,68 @@ ClosedForm ClampCount(ClosedForm const& count, ClosedForm const& available) {
   return count;
 }
 
-std::string FreshName(std::string const& wanted,
-                      std::vector<std::string> const& taken) {
-  std::string name = wanted;
-  int suffix = 0;
-  while (std::find(taken.begin(), taken.end(), name) != taken.end())
-    name = wanted + "_p" + std::to_string(++suffix);
-  return name;
+/// Collects every free (not in `known`) symbol seen while assembling one
+/// isl map's constraints, for the `[params] -> { ... }` prefix isl's parser
+/// requires (it does not infer parameters from unbound identifiers).
+class ParamCollector {
+ public:
+  explicit ParamCollector(ParamBinding const& known) : known_(known) {}
+  void Add(std::vector<std::string> const& symbols) {
+    for (auto const& name : symbols) {
+      if (known_.Contains(name)) continue;
+      if (std::find(names_.begin(), names_.end(), name) != names_.end())
+        continue;
+      names_.push_back(name);
+    }
+  }
+  std::vector<std::string> const& names() const { return names_; }
+
+ private:
+  ParamBinding const& known_;
+  std::vector<std::string> names_;
+};
+
+std::string JoinTuple(std::vector<std::string> const& names) {
+  std::ostringstream out;
+  for (std::size_t i = 0; i < names.size(); ++i) {
+    if (i) out << ",";
+    out << names[i];
+  }
+  return out.str();
 }
 
-void CollectCoordinates(AffineExpr const& expr, std::vector<std::string>* out) {
-  for (auto const& term : expr.terms)
-    if (std::find(out->begin(), out->end(), term.coordinate) == out->end())
-      out->push_back(term.coordinate);
+std::string FreshName(std::size_t index) { return "p" + std::to_string(index); }
+
+/// `{ [coords] : 0 <= coord_i < extent_i for every tiled axis }`, the box
+/// every consumer coordinate is bound to before DeriveCoupling returns C.
+/// Without this, a coordinate this edge's own constraints never reference
+/// (e.g. a GEMM's "n" when only "m" ties back to its producer) is isl-
+/// unbounded -- ranging over every integer -- which makes fanout diverge.
+std::string DomainBoxText(OperatorNode const& consumer, ParamBinding const& known) {
+  std::vector<std::string> domain = consumer.Coordinates();
+  ParamCollector params(known);
+  std::vector<std::string> bounds;
+  std::size_t domain_index = 0;
+  for (std::size_t axis = 0; axis < consumer.output.axes.size(); ++axis) {
+    if (!consumer.IsTiled(axis)) continue;
+    std::string const& name = domain[domain_index++];
+    ClosedForm extent = consumer.CoordinateExtent(axis);
+    params.Add(extent.FreeSymbols());
+    bounds.push_back("0 <= " + name);
+    bounds.push_back(name + " < " + extent.Substitute(known).ToIslText());
+  }
+  std::ostringstream text;
+  if (!params.names().empty()) text << "[" << JoinTuple(params.names()) << "] -> ";
+  text << "{ [" << JoinTuple(domain) << "]";
+  if (!bounds.empty()) {
+    text << " : ";
+    for (std::size_t i = 0; i < bounds.size(); ++i) {
+      if (i) text << " and ";
+      text << bounds[i];
+    }
+  }
+  text << " }";
+  return text.str();
 }
 
 }  // namespace
@@ -81,10 +130,11 @@ std::string CouplingEdge::EventShapeString() const {
   return out.str();
 }
 
-AffineRelation DeriveCoupling(AccessRelation const& W, AccessRelation const& R,
-                              OperatorNode const& producer,
-                              OperatorNode const& consumer,
-                              CouplingDetail* detail) {
+CouplingRelation DeriveCoupling(AccessRelation const& W, AccessRelation const& R,
+                                OperatorNode const& producer,
+                                OperatorNode const& consumer,
+                                ParamBinding const& known,
+                                CouplingDetail* detail) {
   CouplingDetail local;
   CouplingDetail& info = detail ? *detail : local;
   info = CouplingDetail{};
@@ -92,22 +142,21 @@ AffineRelation DeriveCoupling(AccessRelation const& W, AccessRelation const& R,
   if (W.index.size() != R.index.size())
     throw std::invalid_argument("W and R must address the same tensor rank");
 
-  ProducerMap map;
-  map.source = TaskSpaceId{producer.name};
-
-  std::vector<std::string> taken = consumer.Coordinates();
+  std::vector<std::string> domain = consumer.Coordinates();
+  std::vector<std::string> outputs;
+  std::vector<std::string> constraints;
+  ParamCollector params(known);
 
   // The relaxation fallback: every producer task on this axis.  Used only when
   // no exact projection rule applies; it widens C, which I2 permits, and the
   // caller raises the tier so nothing downstream reads it as a closed form.
   auto relaxAxis = [&](std::size_t axis, std::string const& why) {
-    AffineRange range;
-    range.name = FreshName(producer.output.axes[axis].name, taken);
-    taken.push_back(range.name);
-    range.begin = AffineExpr::Constant(ClosedForm::Constant(0));
-    range.extent = producer.CoordinateExtent(axis);
-    map.quantified.push_back(range);
-    map.coordinates.push_back(AffineExpr::Variable(range.name));
+    std::string name = FreshName(outputs.size());
+    outputs.push_back(name);
+    ClosedForm extent = producer.CoordinateExtent(axis);
+    params.Add(extent.FreeSymbols());
+    constraints.push_back("0 <= " + name + " and " + name + " < " +
+                          extent.Substitute(known).ToIslText());
     info.exact = false;
     // One reason per distinct cause: relaxing three axes for the same reason
     // is still one reason in the P3 report.
@@ -116,13 +165,48 @@ AffineRelation DeriveCoupling(AccessRelation const& W, AccessRelation const& R,
     info.relaxation += why;
   };
 
+  // Every consumer coordinate is bound to its own task-space extent
+  // (DomainBoxText), not just the ones the producer-axis constraints above
+  // happen to mention -- otherwise a coordinate this edge does not use
+  // (e.g. a GEMM's "n" when only "m" ties back to its producer) is isl-
+  // unbounded, and fanout (which counts *all* domain points mapping to one
+  // producer coordinate) diverges. Which coordinates the constraints *do*
+  // reference is tracked separately in info.occurring as they are added
+  // above, for ComputeEventShape -- isl has no reliable "does this
+  // dimension actually affect the output" query once the domain is bounded
+  // (isl_map_involves_dims is syntactic: it also flags a dimension that
+  // merely bounds the domain, confirmed empirically), so that answer is
+  // recorded here, where it is unambiguous, rather than re-derived later.
+  auto assemble = [&]() -> CouplingRelation {
+    std::ostringstream text;
+    if (!params.names().empty()) text << "[" << JoinTuple(params.names()) << "] -> ";
+    text << "{ [" << JoinTuple(domain) << "] -> [" << JoinTuple(outputs) << "]";
+    if (!constraints.empty()) {
+      text << " : ";
+      for (std::size_t i = 0; i < constraints.size(); ++i) {
+        if (i) text << " and ";
+        text << constraints[i];
+      }
+    }
+    text << " }";
+    return CouplingRelation::FromIslText(text.str())
+        .IntersectDomain(DomainBoxText(consumer, known));
+  };
+
   if (R.data_dependent) {
     // Tier 3: no affine inverse exists.  Relax the whole producer task space.
     for (std::size_t a = 0; a < producer.output.axes.size(); ++a)
       if (producer.IsTiled(a)) relaxAxis(a, "data-dependent index");
-    AffineRelation relation(consumer.Coordinates(), {map});
-    return relation;
+    return assemble();
   }
+
+  auto mergeOccurring = [&](std::vector<std::string> const& coordinates) {
+    for (auto const& name : coordinates) {
+      if (std::find(info.occurring.begin(), info.occurring.end(), name) ==
+          info.occurring.end())
+        info.occurring.push_back(name);
+    }
+  };
 
   // A producer that writes only a sub-window of a tensor axis (an append)
   // couples to a consumer only where the consumer's read meets that window.
@@ -149,14 +233,15 @@ AffineRelation DeriveCoupling(AccessRelation const& W, AccessRelation const& R,
     TensorAxis const& axis = producer.output.axes[a];
     ClosedForm const& tile = producer.tile[a];
     ElementInterval const& read = R.index[a];
+    std::string name = FreshName(outputs.size());
 
     // A producer axis with a single task contributes the constant coordinate 0.
     // This is where an appended window lands: the whole write is one task, and
     // the consumer coordinates that miss the window are excluded by the guard.
     ClosedForm coordinate_extent = producer.CoordinateExtent(a);
     if (coordinate_extent.IsLiteral(1)) {
-      map.coordinates.push_back(
-          AffineExpr::Constant(ClosedForm::Constant(0)));
+      outputs.push_back(name);
+      constraints.push_back(name + " = 0");
       if (!axis.origin.IsLiteral(0)) recordGuard(axis, read);
       continue;
     }
@@ -172,16 +257,17 @@ AffineRelation DeriveCoupling(AccessRelation const& W, AccessRelation const& R,
     AffineExpr base;
     if (shifted.TryExactDivide(tile, &base)) {
       ClosedForm count = ClampCount(Divide(read.span, tile), coordinate_extent);
+      outputs.push_back(name);
+      params.Add(base.FreeSymbols());
+      mergeOccurring(base.Coordinates());
       if (count.IsLiteral(1)) {
-        map.coordinates.push_back(base);
+        constraints.push_back(name + " = " + base.ToIslText(known));
       } else {
-        AffineRange range;
-        range.name = FreshName(axis.name, taken);
-        taken.push_back(range.name);
-        range.begin = base;
-        range.extent = count;
-        map.quantified.push_back(range);
-        map.coordinates.push_back(AffineExpr::Variable(range.name));
+        params.Add(count.FreeSymbols());
+        std::string base_text = base.ToIslText(known);
+        constraints.push_back(base_text + " <= " + name);
+        constraints.push_back(name + " < " + base_text + " + " +
+                              count.Substitute(known).ToIslText());
       }
       continue;
     }
@@ -191,52 +277,102 @@ AffineRelation DeriveCoupling(AccessRelation const& W, AccessRelation const& R,
       // divide the tile.  §2.7 edge 5 is exactly this case.
       AffineExpr projected = shifted;
       projected.divisor = tile;
-      map.coordinates.push_back(projected);
+      outputs.push_back(name);
+      params.Add(projected.FreeSymbols());
+      mergeOccurring(projected.Coordinates());
+      constraints.push_back(name + " = " + projected.ToIslText(known));
       continue;
     }
 
     relaxAxis(a, "read interval is not tile aligned");
   }
 
-  return AffineRelation(consumer.Coordinates(), {map});
+  return assemble();
 }
 
-DerivedMetrics ComputeMetrics(AffineRelation const& C, AccessRelation const& W,
+namespace {
+/// `{ [p0,...] : 0 <= p_i < producer_extent_i }`, the producer-side twin of
+/// DomainBoxText, named after C's actual range dimensions.
+///
+/// This is applied *only* when counting fanout, never folded into C itself.
+/// Both halves of that split are load-bearing, and each was established by a
+/// failure:
+///   * Without any range bound, isl_map_card's own piecewise decomposition of
+///     the reversed map keeps a "reachable only for some other parameter
+///     value" tail whose formula evaluates to 0 (attn_combine->wo retains a
+///     p0-in-[S, 126+S] piece), so fanout looks position-dependent (max 32,
+///     min 0) when it is really a uniform 32.
+///   * With the bound folded into C, the *wait* direction regresses instead:
+///     counting a relation that carries both a genuine isl parameter (S) and
+///     an inequality-range-derived producer coordinate bounded on both sides
+///     drives barvinok into "unexpected missing (bounded) solution"
+///     (basis_reduction_tab.c) and an incomplete result.
+/// Restricting only the reversed map keeps each direction in the regime its
+/// own counting problem is tractable in. See TileMega_skeleton.md §1.5.1.
+std::string ProducerRangeBoxText(CouplingRelation const& C,
+                                 OperatorNode const& producer,
+                                 ParamBinding const& known) {
+  std::vector<std::string> range = C.RangeDimNames();
+  ParamCollector params(known);
+  std::vector<std::string> bounds;
+  std::size_t range_index = 0;
+  for (std::size_t axis = 0;
+       axis < producer.output.axes.size() && range_index < range.size(); ++axis) {
+    if (!producer.IsTiled(axis)) continue;
+    std::string const& name = range[range_index++];
+    ClosedForm extent = producer.CoordinateExtent(axis);
+    params.Add(extent.FreeSymbols());
+    bounds.push_back("0 <= " + name);
+    bounds.push_back(name + " < " + extent.Substitute(known).ToIslText());
+  }
+  std::ostringstream text;
+  if (!params.names().empty()) text << "[" << JoinTuple(params.names()) << "] -> ";
+  text << "{ [" << JoinTuple(range) << "]";
+  if (!bounds.empty()) {
+    text << " : ";
+    for (std::size_t i = 0; i < bounds.size(); ++i) {
+      if (i) text << " and ";
+      text << bounds[i];
+    }
+  }
+  text << " }";
+  return text.str();
+}
+
+/// Wrap a parameter-only ClosedForm result (volume, count -- neither varies
+/// across the task space for any access pattern this codebase derives) as a
+/// 0-dimensional QuasiPolynomial: `[params] -> { <value> }`.
+QuasiPolynomial WrapScalar(ClosedForm const& value, ParamBinding const& known) {
+  ParamCollector params(known);
+  params.Add(value.FreeSymbols());
+  std::ostringstream text;
+  if (!params.names().empty()) text << "[" << JoinTuple(params.names()) << "] -> ";
+  text << "{ " << value.Substitute(known).ToIslText() << " }";
+  return QuasiPolynomial::FromIslText(text.str());
+}
+}  // namespace
+
+DerivedMetrics ComputeMetrics(CouplingRelation const& C, AccessRelation const& W,
                               AccessRelation const& R,
                               OperatorNode const& producer,
-                              OperatorNode const& consumer) {
+                              OperatorNode const& consumer,
+                              ParamBinding const& known) {
   DerivedMetrics metrics;
 
-  // wait(x) = |C(x)|: the product of the quantified extents, summed over the
-  // producer maps in the image.
-  ClosedForm wait = ClosedForm::Constant(0);
-  for (auto const& map : C.Producers()) {
-    ClosedForm fiber = ClosedForm::Constant(1);
-    for (auto const& range : map.quantified) fiber = fiber * range.extent;
-    wait = wait.IsLiteral(0) ? fiber : wait + fiber;
-  }
-  metrics.wait = wait;
+  // wait(x) = |C(x)|, fanout(y) = |C^-1(y)|: both barvinok counts over the
+  // derived relation, per §2 Definition 4. C is already bound to the
+  // consumer's own task-space box (DeriveCoupling's `assemble`), so wait is
+  // finite without further restriction. fanout additionally needs the
+  // producer side bounded -- but only on the reversed map, never folded back
+  // into C; see ProducerRangeBoxText for why each direction needs a
+  // different regime.
+  metrics.wait = C.Card();
+  metrics.fanout =
+      C.IntersectRange(ProducerRangeBoxText(C, producer, known)).FanoutCard();
 
-  // fanout(y) = |C^-1(y)|: a consumer coordinate that occurs in C is pinned by
-  // y, one that does not is free and contributes its whole range.
-  std::vector<std::string> occurring;
-  for (auto const& map : C.Producers()) {
-    for (auto const& coordinate : map.coordinates)
-      CollectCoordinates(coordinate, &occurring);
-    for (auto const& range : map.quantified)
-      CollectCoordinates(range.begin, &occurring);
-  }
-  ClosedForm fanout = ClosedForm::Constant(1);
-  for (std::size_t i = 0; i < consumer.output.axes.size(); ++i) {
-    if (!consumer.IsTiled(i)) continue;
-    std::string const& name = consumer.output.axes[i].name;
-    if (std::find(occurring.begin(), occurring.end(), name) != occurring.end())
-      continue;
-    fanout = fanout * consumer.CoordinateExtent(i);
-  }
-  metrics.fanout = fanout;
-
-  // volume(y,x) = |W_p(y) ^ R_c(x)|, per tensor axis.
+  // volume(y,x) = |W_p(y) ^ R_c(x)|, per tensor axis.  Data-independent of the
+  // task space for every access pattern this codebase derives, so it stays a
+  // parameter-only value rather than a function read off C.
   ClosedForm volume = ClosedForm::Constant(1);
   for (std::size_t a = 0; a < producer.output.axes.size(); ++a) {
     ClosedForm const& tile = producer.IsTiled(a)
@@ -244,100 +380,34 @@ DerivedMetrics ComputeMetrics(AffineRelation const& C, AccessRelation const& W,
                                  : producer.output.axes[a].extent;
     volume = volume * MinExtent(tile, R.index[a].span);
   }
-  metrics.volume = volume;
+  metrics.volume = WrapScalar(volume, known);
 
   // count(T_op): the consumer task count, the domain this edge is defined on.
-  metrics.count = consumer.Count();
+  metrics.count = WrapScalar(consumer.Count(), known);
   (void)W;
   return metrics;
 }
 
-std::vector<ClosedForm> ComputeEventShape(AffineRelation const& C,
-                                          OperatorNode const& consumer) {
-  std::vector<std::string> occurring;
-  for (auto const& map : C.Producers()) {
-    for (auto const& coordinate : map.coordinates)
-      CollectCoordinates(coordinate, &occurring);
-    for (auto const& range : map.quantified)
-      CollectCoordinates(range.begin, &occurring);
-  }
+std::vector<ClosedForm> ComputeEventShape(OperatorNode const& consumer,
+                                          std::vector<std::string> const& occurring) {
+  std::vector<std::string> domain = consumer.Coordinates();
   std::vector<ClosedForm> shape;
-  for (std::size_t i = 0; i < consumer.output.axes.size(); ++i) {
-    if (!consumer.IsTiled(i)) continue;
-    std::string const& name = consumer.output.axes[i].name;
-    if (std::find(occurring.begin(), occurring.end(), name) == occurring.end())
-      continue;
-    shape.push_back(consumer.CoordinateExtent(i));
+  std::size_t domain_index = 0;
+  for (std::size_t axis = 0; axis < consumer.output.axes.size(); ++axis) {
+    if (!consumer.IsTiled(axis)) continue;
+    std::string const& name = domain[domain_index++];
+    if (std::find(occurring.begin(), occurring.end(), name) != occurring.end())
+      shape.push_back(consumer.CoordinateExtent(axis));
   }
   return shape;
 }
 
-namespace {
-
-/// True when `expr` is the bare variable `name`.
-bool IsBareVariable(AffineExpr const& expr, std::string const& name) {
-  return expr.terms.size() == 1 && expr.offset.IsLiteral(0) &&
-         expr.divisor.IsLiteral(1) && expr.terms.front().coordinate == name &&
-         expr.terms.front().coefficient.IsLiteral(1) &&
-         expr.terms.front().group.IsLiteral(1);
-}
-
-AffineRange const* FindRange(ProducerMap const& map, std::string const& name) {
-  for (auto const& range : map.quantified)
-    if (range.name == name) return &range;
-  return nullptr;
-}
-
-/// Position `i` of `map` covers the whole producer axis `i`.
-bool CoversAxis(ProducerMap const& map, std::size_t i,
-                OperatorNode const& producer) {
-  if (i >= map.coordinates.size()) return false;
-  AffineExpr const& coordinate = map.coordinates[i];
-  if (coordinate.terms.size() != 1) return false;
-  AffineRange const* range = FindRange(map, coordinate.terms.front().coordinate);
-  if (!range) return false;
-  if (!IsBareVariable(coordinate, range->name)) return false;
-  if (!range->begin.IsZero()) return false;
-  return range->extent.ToString() == producer.CoordinateExtent(i).ToString();
-}
-
-bool CoversMap(ProducerMap const& wide, ProducerMap const& narrow,
-               OperatorNode const& producer) {
-  if (!(wide.source == narrow.source)) return false;
-  if (wide.coordinates.size() != narrow.coordinates.size()) return false;
-  for (std::size_t i = 0; i < wide.coordinates.size(); ++i) {
-    if (CoversAxis(wide, i, producer)) continue;
-    if (wide.coordinates[i].ToString() != narrow.coordinates[i].ToString())
-      return false;
-    // Same expression: the quantified ranges behind it must agree too.
-    for (auto const& name : wide.coordinates[i].Coordinates()) {
-      AffineRange const* a = FindRange(wide, name);
-      AffineRange const* b = FindRange(narrow, name);
-      if (!a && !b) continue;
-      if (!a || !b) return false;
-      if (a->begin.ToString() != b->begin.ToString()) return false;
-      if (a->extent.ToString() != b->extent.ToString()) return false;
-    }
-  }
-  return true;
-}
-
-}  // namespace
-
-bool Contains(AffineRelation const& wide, AffineRelation const& narrow,
-              OperatorNode const& producer) {
-  if (narrow.Producers().empty()) return true;
-  for (auto const& want : narrow.Producers()) {
-    bool covered = false;
-    for (auto const& have : wide.Producers())
-      if (CoversMap(have, want, producer)) covered = true;
-    if (!covered) return false;
-  }
-  return true;
+bool Contains(CouplingRelation const& wide, CouplingRelation const& narrow) {
+  return narrow.IsSubset(wide);
 }
 
 std::vector<CouplingEdge> CouplingDerivation::Derive(
-    OperatorGraph const& graph) const {
+    OperatorGraph const& graph, ParamBinding const& known) const {
   std::vector<CouplingEdge> edges;
   for (auto const& consumer : graph.nodes) {
     for (std::size_t k = 0; k < consumer.operands.size(); ++k) {
@@ -353,12 +423,12 @@ std::vector<CouplingEdge> CouplingDerivation::Derive(
       edge.src = TaskSpaceId{producer->name};
       edge.dst = TaskSpaceId{consumer.name};
       CouplingDetail detail;
-      edge.C = DeriveCoupling(W, R, *producer, consumer, &detail);
+      edge.C = DeriveCoupling(W, R, *producer, consumer, known, &detail);
       edge.exact = detail.exact;
       edge.guard = detail.guard;
       edge.relaxation = detail.relaxation;
-      edge.metrics = ComputeMetrics(edge.C, W, R, *producer, consumer);
-      edge.event_shape = ComputeEventShape(edge.C, consumer);
+      edge.metrics = ComputeMetrics(edge.C, W, R, *producer, consumer, known);
+      edge.event_shape = ComputeEventShape(consumer, detail.occurring);
 
       Tier tier = Tier::kAffine;
       auto raise = [&](Tier candidate) { tier = std::max(tier, candidate); };

@@ -1,4 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Exercises the isl-backed CouplingEdge/DerivedMetrics types produced by a
+// real derivation (not hand-built ProducerMap trees -- that AffineRelation
+// machinery is gone; CouplingRelation is a genuine isl_map, see
+// CouplingRelation.h), and Coarsen, the operation the migration exists to
+// make possible (§2.3's C_kappa; AffineRelation had no image/preimage/
+// composition operator at all, so Coarsen was unimplementable before this).
 #include <tilemega/Analysis/CouplingDerivation.h>
+#include <tilemega/Analysis/ReferenceModels.h>
 
 #include <cstdlib>
 #include <iostream>
@@ -17,75 +25,74 @@ void Require(bool condition, char const* expression, int line) {
 
 #define REQUIRE(expression) Require((expression), #expression, __LINE__)
 
-AffineExpr V(char const* coordinate) {
-  return AffineExpr::Variable(coordinate);
+ParamBinding KnownBinding() {
+  ParamBinding known = DecoderShape::Table27Theta();
+  for (auto const& [name, value] : DecoderShape::Table27G().values)
+    known.Bind(name, value);
+  return known;
 }
 
-CouplingEdge Edge1() {
-  ProducerMap norm{{"rmsnorm1"}, {V("m")}, {}};
-  return {{"rmsnorm1"}, {"wq_wk_wv"},
-          AffineRelation({"m", "n"}, {norm}),
-          {ClosedForm::Constant(1), ClosedForm::Constant(48),
-           ClosedForm::Symbol("Tm") * ClosedForm::Symbol("H"),
-           ClosedForm::Symbol("S").CeilDiv(ClosedForm::Symbol("Tm"))},
-          Tier::kAffine, SyncKind::kGlobal};
-}
-
-CouplingEdge Edge7() {
-  ProducerMap combine{
-      {"attn_combine"}, {},
-      {{"s", AffineExpr::Variable("m", ClosedForm::Symbol("Tm")),
-        ClosedForm::Symbol("Tm")},
-       {"hh", AffineExpr::Constant(ClosedForm::Constant(0)),
-        ClosedForm::Symbol("n_h")}}};
-  return {{"attn_combine"}, {"wo"},
-          AffineRelation({"m", "n"}, {combine}, {"Tm", "n_h"}),
-          {ClosedForm::Symbol("Tm") * ClosedForm::Symbol("n_h"),
-           ClosedForm::Constant(32), ClosedForm::Symbol("Tm"),
-           ClosedForm::Symbol("S").CeilDiv(ClosedForm::Symbol("Tm"))},
-          Tier::kAffine, SyncKind::kGlobal};
-}
-
-CouplingEdge Edge11() {
-  ProducerMap gate{{"gate"}, {V("m"), V("n")}, {}};
-  ProducerMap up{{"up"}, {V("m"), V("n")}, {}};
-  return {{"wgate_wup"}, {"silu_mul"},
-          AffineRelation({"m", "n"}, {gate, up}),
-          {ClosedForm::Constant(2), ClosedForm::Constant(1),
-           ClosedForm::Symbol("Tm") * ClosedForm::Symbol("Tn"),
-           ClosedForm::Symbol("S").CeilDiv(ClosedForm::Symbol("Tm"))},
-          Tier::kAffine, SyncKind::kCluster};
+CouplingEdge Find(std::vector<CouplingEdge> const& edges, std::string const& src,
+                  std::string const& dst) {
+  for (auto const& edge : edges)
+    if (edge.src.name == src && edge.dst.name == dst) return edge;
+  std::cerr << "no edge " << src << " -> " << dst << '\n';
+  std::exit(1);
 }
 
 }  // namespace
 
 int main() {
-  ParamBinding theta;
-  theta.Bind("S", 512).Bind("H", 4096).Bind("n_h", 32);
-  ParamBinding g;
-  g.Bind("Tm", 128).Bind("Tn", 128);
+  DecoderShape shape;
+  ParamBinding known = KnownBinding();
+  auto edges = CouplingDerivation().Derive(LlamaDecoderLayer(shape), known);
 
-  auto edge1 = Edge1();
-  auto edge7 = Edge7();
-  auto edge11 = Edge11();
-  REQUIRE(edge1.metrics.wait.Eval(theta, g) == 1);
-  REQUIRE(edge7.metrics.wait.Eval(theta, g) == 4096);
-  REQUIRE(edge11.metrics.wait.Eval(theta, g) == 2);
-  REQUIRE(edge1.C.ToString().find("rmsnorm1(m)") != std::string::npos);
-  REQUIRE(edge11.C.Producers().size() == 2);
+  // §2.7 row 1: rmsnorm1 -> wq, wait = 1 (one producer tile per consumer tile).
+  auto rmsnormToWq = Find(edges, "rmsnorm1", "wq");
+  REQUIRE(rmsnormToWq.metrics.wait.Eval(known) == 1);
+  REQUIRE(rmsnormToWq.C.ToString().find("p0") != std::string::npos);
 
-  // §2.5: split-K is a reparameterization of the already-derived relation.
-  // StructureKey is preserved and only Kc is added to the parameter list.
-  auto split = edge7;
-  split.C = edge7.C.PartitionRange("hh", "kc", "Kc");
-  split.metrics.wait = edge7.metrics.wait.CeilDiv(ClosedForm::Symbol("Kc"));
-  g.Bind("Kc", 4);
-  REQUIRE(edge7.C.SameStructure(split.C));
-  REQUIRE(split.C.StructureKey() == edge7.C.StructureKey());
-  REQUIRE(split.C.Parameters().size() == edge7.C.Parameters().size() + 1);
-  REQUIRE(split.C.Parameters().back() == "Kc");
-  REQUIRE(split.metrics.wait.Eval(theta, g) == 1024);
-  REQUIRE(split.metrics.wait.ToString() == "ceildiv((Tm * n_h), Kc)");
-  REQUIRE(split.C.ToString().find("Kc") != std::string::npos);
+  // §2.7 row 7: attn_combine -> wo, wait = Tm * n_h = 4096.
+  auto combineToWo = Find(edges, "attn_combine", "wo");
+  REQUIRE(combineToWo.metrics.wait.Eval(known) == 4096);
+
+  // §2.7 row 11: wgate -> silu and wup -> silu, wait = 1 each (the table's
+  // combined "1 + 1 = 2" is the per-operand split, §2.7's difference (a)).
+  auto gateToSilu = Find(edges, "wgate", "silu");
+  auto upToSilu = Find(edges, "wup", "silu");
+  REQUIRE(gateToSilu.metrics.wait.Eval(known) == 1);
+  REQUIRE(upToSilu.metrics.wait.Eval(known) == 1);
+
+  // §2.3 Coarsen: C_kappa = floor(./kappa) o C on the producer (range) side.
+  // combine->wo's producer coordinate has two dims (see the derived C's
+  // "[p0, p1]" range); coarsening only p1 (the n_h-sized head axis) by 4
+  // groups 4 heads into one coarse event coordinate, so wait divides by 4.
+  // Coarsen is a *reindexing* of the range (floor(producer/kappa)), not an
+  // I2 relaxation in the original coordinate system, so it is not compared
+  // to combineToWo.C via Contains -- I2 containment is exercised separately
+  // in containment_test.cpp, on relations that share one coordinate system.
+  //
+  // This is derived with S already bound to a literal (unlike every check
+  // above), not merely for a simpler assertion: composing Coarsen's floor
+  // map with a relation whose producer coordinate is itself an *inequality*
+  // range tied to the consumer (attn_combine->wo's `128m <= p0 <= 127+128m`,
+  // not a plain equality) while S stays a genuine isl parameter hits an isl/
+  // barvinok basis-reduction limitation -- confirmed empirically, isl prints
+  // "unexpected missing (bounded) solution" (basis_reduction_tab.c) and the
+  // resulting quasi-polynomial's pieces no longer cover the relation's own
+  // (already-bound) domain, so Eval() correctly refuses to collapse it to a
+  // scalar rather than silently returning a wrong number. With S bound
+  // before Coarsen runs, the same computation is immediate and exact. This
+  // is recorded as residual debt (TileMega_skeleton.md §1.5.1, P4.6): a
+  // future Solver that wants to Coarsen with S still symbolic will need
+  // either a different isl formulation of the inequality-range case or to
+  // bind workload parameters first, as this test now does.
+  ParamBinding boundKnown = known;
+  boundKnown.Bind("S", 512);
+  auto boundEdges = CouplingDerivation().Derive(LlamaDecoderLayer(shape), boundKnown);
+  auto boundCombineToWo = Find(boundEdges, "attn_combine", "wo");
+  QuasiPolynomial coarseWait = boundCombineToWo.C.Coarsen({1, 4}).Card();
+  REQUIRE(coarseWait.Eval(boundKnown) == 1024);  // 4096 / 4
+
   return 0;
 }

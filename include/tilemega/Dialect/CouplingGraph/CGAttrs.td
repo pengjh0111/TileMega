@@ -9,42 +9,60 @@ def CG_TaskKindAttr : CG_Attr<"TaskKind"> {
   let assemblyFormat = "`<` $value `>`";
 }
 
-def CG_ClosedFormParameter
-    : AttrParameter<"::tilemega::analysis::ClosedForm",
-                    "a symbolic (theta,g) closed form",
-                    "::tilemega::analysis::ClosedForm const &"> {
-  let parser = "::tilemega::dialect::parseClosedForm($_parser)";
-  let printer = "::tilemega::dialect::printClosedForm($_printer, $_self)";
+// wait/fanout/volume/count and an event tensor's extent are all barvinok
+// counts over a CouplingRelation (isl_pw_qpolynomial), not ClosedForm AST
+// values: they are *solved* quantities, and isl/barvinok is the sole
+// solving authority after the Part 3 migration (see docs/DEPENDENCIES.md,
+// docs/experiments/P3_ISL/). The mnemonic stays close to the pre-migration
+// name to keep the IR text readable; the payload type is what changed.
+def CG_MetricParameter
+    : AttrParameter<"::tilemega::analysis::QuasiPolynomial",
+                    "a piecewise quasi-polynomial (theta) solved from a "
+                    "CouplingRelation",
+                    "::tilemega::analysis::QuasiPolynomial const &"> {
+  let parser = "::tilemega::dialect::parseMetric($_parser)";
+  let printer = "::tilemega::dialect::printMetric($_printer, $_self)";
 }
 
-def CG_ClosedFormAttr : CG_Attr<"ClosedForm"> {
-  let mnemonic = "closed_form";
-  let parameters = (ins CG_ClosedFormParameter:$expression);
+def CG_MetricAttr : CG_Attr<"Metric"> {
+  let mnemonic = "metric";
+  let parameters = (ins CG_MetricParameter:$expression);
   let assemblyFormat = "`<` $expression `>`";
   let extraClassDeclaration = [{
-    analysis::ClosedForm getValue() const { return getExpression(); }
+    analysis::QuasiPolynomial getValue() const { return getExpression(); }
   }];
 }
 
-// Access maps and coupling maps use DictionaryAttr as their storage key.  The
-// dictionary is schema-checked in C++ and is therefore a structured MLIR value,
-// not an opaque textual relation.
-def CG_AccessMapAttr : CG_Attr<"AccessMap"> {
-  let mnemonic = "access_map";
-  let parameters = (ins "::mlir::DictionaryAttr":$fields);
-  let assemblyFormat = "`<` $fields `>`";
+// The coupling relation C = W^-1 o R is a genuine isl_map (CouplingRelation,
+// see include/tilemega/Analysis/CouplingRelation.h), stored as isl map
+// syntax text. It is no longer a schema-checked DictionaryAttr: isl_map
+// syntax is itself the schema, parsed and validated by isl at attribute
+// parse time (an invalid map fails to parse, which is a stronger guarantee
+// than the old hand-rolled DictionaryAttr field check ever gave).
+def CG_CouplingRelationParameter
+    : AttrParameter<"::tilemega::analysis::CouplingRelation",
+                    "C = W^-1 o R as an isl_map",
+                    "::tilemega::analysis::CouplingRelation const &"> {
+  let parser = "::tilemega::dialect::parseCouplingRelation($_parser)";
+  let printer = "::tilemega::dialect::printCouplingRelation($_printer, $_self)";
 }
 
 def CG_CouplingMapAttr : CG_Attr<"CouplingMap"> {
   let mnemonic = "coupling_map";
+  // Named `map`, not `relation`: CouplingOp's own operand of this attribute
+  // type is itself named `relation` (CG_CouplingMapAttr:$relation below), so
+  // a caller writes `op.getRelation().getMap()` -- the coupling op's
+  // relation *attribute*, then that attribute's isl_map *value* -- instead
+  // of the confusing `getRelation().getRelation()` a same-named parameter
+  // would produce.
+  let parameters = (ins CG_CouplingRelationParameter:$map);
+  let assemblyFormat = "`<` $map `>`";
+}
+
+def CG_AccessMapAttr : CG_Attr<"AccessMap"> {
+  let mnemonic = "access_map";
   let parameters = (ins "::mlir::DictionaryAttr":$fields);
   let assemblyFormat = "`<` $fields `>`";
-  let extraClassDeclaration = [{
-    ::mlir::LogicalResult verifyStructure(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError) const;
-    analysis::AffineRelation getRelation() const;
-    ClosedFormAttr getFiberCardinality() const;
-    ClosedFormAttr getImageCardinality() const;
-  }];
 }
 
 def CG_TierAttr : CG_Attr<"Tier"> {

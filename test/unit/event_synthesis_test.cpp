@@ -7,7 +7,10 @@
 int main() {
   using namespace tilemega::analysis;
   DecoderShape shape;
-  auto edges = CouplingDerivation{}.Derive(LlamaDecoderLayer(shape));
+  ParamBinding known = DecoderShape::Table27Theta();
+  for (auto const& [name, value] : DecoderShape::Table27G().values)
+    known.Bind(name, value);
+  auto edges = CouplingDerivation{}.Derive(LlamaDecoderLayer(shape), known);
   auto events = EventSynthesis{}.Synthesize(edges);
   assert(events.size() == edges.size());
   for (std::size_t i = 0; i < edges.size(); ++i) {
@@ -18,7 +21,7 @@ int main() {
     assert(events[i].tier == edges[i].tier);
   }
 
-  auto gather = CouplingDerivation{}.Derive(GatherModel(shape, true));
+  auto gather = CouplingDerivation{}.Derive(GatherModel(shape, true), known);
   auto relaxed = EventSynthesis{}.Synthesize(gather);
   assert(relaxed.size() == 1);
   assert(relaxed[0].tier == Tier::kDataDependent);

@@ -17,7 +17,8 @@ project(TileMega VERSION 0.1.0 LANGUAGES C CXX CUDA)
 option(TILEMEGA_BUILD_TESTS "Build unit and integration tests" ON)
 option(TILEMEGA_BUILD_VERIFY "Build verification experiments" ON)
 option(TILEMEGA_ENABLE_MLIR "Build the required MLIR Coupling Graph contract" ON)
-option(TILEMEGA_ENABLE_ISL "Enable ISL analysis (Phase 3)" OFF)
+option(TILEMEGA_ENABLE_ISL
+  "Build the required isl/barvinok coupling-derivation solver (Phase 3)" ON)
 set(TILEMEGA_TARGET_ARCH "auto" CACHE STRING "sm_80|sm_89|sm_90|sm_120|auto")
 set_property(CACHE TILEMEGA_TARGET_ARCH PROPERTY STRINGS auto sm_80 sm_89 sm_90 sm_120)
 set(TILEMEGA_TARGET_CONFIG "" CACHE PATH "target json override")
@@ -54,10 +55,15 @@ add_definitions(${LLVM_DEFINITIONS})
 include_directories(SYSTEM ${LLVM_INCLUDE_DIRS} ${MLIR_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
-if(TILEMEGA_ENABLE_ISL)
-  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-  include(ISL)
+if(NOT TILEMEGA_ENABLE_ISL)
+  message(FATAL_ERROR
+    "TILEMEGA_ENABLE_ISL=OFF is no longer supported: isl/barvinok is the "
+    "Analysis layer's sole coupling-derivation solver (skeleton principle "
+    "3, docs/DEPENDENCIES.md). Build isl/polylib/barvinok (see "
+    "docs/DEPENDENCIES.md) and reconfigure.")
 endif()
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(ISL)
 
 set(LLVM_TARGET_DEFINITIONS include/tilemega/Dialect/CouplingGraph/CGDialect.td)
 mlir_tablegen(include/tilemega/Dialect/CouplingGraph/CGDialect.h.inc
@@ -83,6 +89,9 @@ add_library(tilemega STATIC
   lib/Dialect/CouplingGraph/CGDialect.cpp
   lib/Analysis/ClosedForm.cpp
   lib/Analysis/AffineRelation.cpp
+  lib/Analysis/ISLContext.cpp
+  lib/Analysis/QuasiPolynomial.cpp
+  lib/Analysis/CouplingRelation.cpp
   lib/Analysis/Analysis.cpp
   lib/Analysis/AccessRelation.cpp
   lib/Analysis/CouplingDerivation.cpp
@@ -100,7 +109,8 @@ target_include_directories(tilemega PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/tools/util/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/test>)
 add_dependencies(tilemega TileMegaCGIncGen)
-target_link_libraries(tilemega PUBLIC CUDA::cudart MLIRIR MLIRSupport)
+target_link_libraries(tilemega PUBLIC CUDA::cudart MLIRIR MLIRSupport
+  tilemega::isl_stack)
 if(NOT LLVM_ENABLE_RTTI)
   target_compile_options(tilemega PRIVATE -fno-rtti)
 endif()
@@ -196,13 +206,17 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(event_synthesis_test PRIVATE TileMega::tilemega)
   add_test(NAME event_synthesis COMMAND event_synthesis_test)
 
+  add_executable(isl_relation_test test/unit/isl_relation_test.cpp)
+  target_link_libraries(isl_relation_test PRIVATE TileMega::tilemega)
+  add_test(NAME isl_relation COMMAND isl_relation_test)
+
   add_executable(layout_bridge_test test/unit/layout_bridge_test.cpp)
   target_link_libraries(layout_bridge_test PRIVATE TileMega::tilemega)
   add_test(NAME layout_bridge COMMAND layout_bridge_test)
 
   add_executable(cg_attr_test test/unit/cg_attr_test.cpp)
   add_dependencies(cg_attr_test TileMegaCGIncGen)
-  target_link_libraries(cg_attr_test PRIVATE TileMega::tilemega MLIRIR)
+  target_link_libraries(cg_attr_test PRIVATE TileMega::tilemega MLIRIR MLIRParser)
   if(NOT LLVM_ENABLE_RTTI)
     target_compile_options(cg_attr_test PRIVATE -fno-rtti)
   endif()
@@ -222,19 +236,17 @@ if(TILEMEGA_BUILD_TESTS)
   endif()
   add_test(NAME frontend_import COMMAND frontend_import_test)
 
-  if(TILEMEGA_ENABLE_ISL)
-    # Part 1 dependency probe (docs/DEPENDENCIES.md): MLIR's own Presburger
-    # implementation and isl/barvinok in one binary, so a regression that
-    # breaks this link/runtime combination is caught by `ctest`, not
-    # rediscovered by hand next time this dependency set changes.
-    add_executable(isl_crosslink_test docs/experiments/P3_ISL/crosslink_probe.cpp)
-    target_link_libraries(isl_crosslink_test PRIVATE MLIRIR MLIRSupport
-      MLIRPresburger tilemega::isl_stack)
-    if(NOT LLVM_ENABLE_RTTI)
-      target_compile_options(isl_crosslink_test PRIVATE -fno-rtti)
-    endif()
-    add_test(NAME isl_crosslink COMMAND isl_crosslink_test)
+  # Part 1 dependency probe (docs/DEPENDENCIES.md): MLIR's own Presburger
+  # implementation and isl/barvinok in one binary, so a regression that
+  # breaks this link/runtime combination is caught by `ctest`, not
+  # rediscovered by hand next time this dependency set changes.
+  add_executable(isl_crosslink_test docs/experiments/P3_ISL/crosslink_probe.cpp)
+  target_link_libraries(isl_crosslink_test PRIVATE MLIRIR MLIRSupport
+    MLIRPresburger tilemega::isl_stack)
+  if(NOT LLVM_ENABLE_RTTI)
+    target_compile_options(isl_crosslink_test PRIVATE -fno-rtti)
   endif()
+  add_test(NAME isl_crosslink COMMAND isl_crosslink_test)
 endif()
 
 if(TILEMEGA_BUILD_VERIFY)

@@ -387,6 +387,88 @@ bool ClosedForm::TryExactDivide(ClosedForm const& divisor,
   return true;
 }
 
+std::vector<std::string> ClosedForm::FreeSymbols() const {
+  std::vector<std::string> result;
+  std::function<void(std::shared_ptr<Node const> const&)> walk =
+      [&](std::shared_ptr<Node const> const& node) {
+        switch (node->kind) {
+          case Node::Kind::kConstant:
+            return;
+          case Node::Kind::kSymbol:
+            if (std::find(result.begin(), result.end(), node->symbol) ==
+                result.end())
+              result.push_back(node->symbol);
+            return;
+          case Node::Kind::kAdd:
+          case Node::Kind::kMultiply:
+          case Node::Kind::kCeilDiv:
+          case Node::Kind::kFloorDiv:
+            walk(node->lhs);
+            walk(node->rhs);
+            return;
+        }
+      };
+  walk(node_);
+  return result;
+}
+
+ClosedForm ClosedForm::Substitute(ParamBinding const& known) const {
+  std::function<ClosedForm(std::shared_ptr<Node const> const&)> walk =
+      [&](std::shared_ptr<Node const> const& node) -> ClosedForm {
+    switch (node->kind) {
+      case Node::Kind::kConstant:
+        return Constant(node->value);
+      case Node::Kind::kSymbol:
+        if (known.Contains(node->symbol)) return Constant(known.At(node->symbol));
+        return Symbol(node->symbol);
+      case Node::Kind::kAdd:
+        return walk(node->lhs) + walk(node->rhs);
+      case Node::Kind::kMultiply:
+        return walk(node->lhs) * walk(node->rhs);
+      case Node::Kind::kCeilDiv:
+        return walk(node->lhs).CeilDiv(walk(node->rhs));
+      case Node::Kind::kFloorDiv:
+        return walk(node->lhs).FloorDiv(walk(node->rhs));
+    }
+    throw std::logic_error("unknown closed-form node");
+  };
+  return walk(node_);
+}
+
+std::string ClosedForm::ToIslText() const {
+  std::function<std::string(std::shared_ptr<Node const> const&)> emit =
+      [&](std::shared_ptr<Node const> const& node) -> std::string {
+    switch (node->kind) {
+      case Node::Kind::kConstant:
+        return std::to_string(node->value);
+      case Node::Kind::kSymbol:
+        return node->symbol;
+      case Node::Kind::kAdd:
+        return "(" + emit(node->lhs) + " + " + emit(node->rhs) + ")";
+      case Node::Kind::kMultiply:
+        return "(" + emit(node->lhs) + " * " + emit(node->rhs) + ")";
+      case Node::Kind::kCeilDiv: {
+        if (!ClosedForm(node->rhs).IsConstant())
+          throw std::domain_error(
+              "ToIslText: ceildiv divisor is not a literal after "
+              "Substitute (isl requires a constant divisor): " +
+              ClosedForm(node->rhs).ToString());
+        return "ceild(" + emit(node->lhs) + ", " + emit(node->rhs) + ")";
+      }
+      case Node::Kind::kFloorDiv: {
+        if (!ClosedForm(node->rhs).IsConstant())
+          throw std::domain_error(
+              "ToIslText: floordiv divisor is not a literal after "
+              "Substitute (isl requires a constant divisor): " +
+              ClosedForm(node->rhs).ToString());
+        return "floord(" + emit(node->lhs) + ", " + emit(node->rhs) + ")";
+      }
+    }
+    throw std::logic_error("unknown closed-form node");
+  };
+  return emit(node_);
+}
+
 bool ClosedForm::IsConstant() const {
   std::function<bool(std::shared_ptr<Node const> const&)> constant =
       [&](std::shared_ptr<Node const> const& node) -> bool {

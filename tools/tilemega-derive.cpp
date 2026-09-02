@@ -11,13 +11,25 @@ using namespace tilemega::analysis;
 
 namespace {
 
+/// isl can only take a literal floor/ceildiv divisor (docs/experiments/
+/// P3_ISL/result.md), so every symbol a derivation might use as a tile size
+/// or a GQA group divisor -- everything Table27Theta/Table27G fix -- must be
+/// bound before DeriveCoupling builds an isl_map. Only S/L_s/past stay free,
+/// exactly as §2.7 presents them.
+ParamBinding KnownBinding() {
+  ParamBinding known = DecoderShape::Table27Theta();
+  for (auto const& [name, value] : DecoderShape::Table27G().values)
+    known.Bind(name, value);
+  return known;
+}
+
 void Dump(std::string const& title, OperatorGraph const& graph) {
   std::cout << "## " << title << "\n\n";
   std::cout << "| # | edge | C | event shape | wait | fanout | volume | count "
                "| tier | guard | relaxation |\n";
   std::cout << "|---|---|---|---|---|---|---|---|---|---|---|\n";
   CouplingDerivation derivation;
-  std::vector<CouplingEdge> edges = derivation.Derive(graph);
+  std::vector<CouplingEdge> edges = derivation.Derive(graph, KnownBinding());
   int index = 0;
   for (auto const& edge : edges) {
     std::cout << "| " << ++index << " | " << edge.src.name << " -> "

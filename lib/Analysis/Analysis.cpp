@@ -27,8 +27,9 @@ LayoutProjection CuteLayoutBridge::Project(
   return {InverseStrategy::kPresburgerRelation, Tier::kAffine, true,
           "symbolic domain extent with constant strides is Presburger affine"};
 }
-Tier TierClassifier::Classify(AffineRelation const& relation) const {
-  return relation.empty() ? Tier::kDataDependent : Tier::kAffine;
+Tier TierClassifier::Classify(CouplingRelation const& relation) const {
+  if (relation.empty()) return Tier::kDataDependent;
+  return relation.IsSingleValued() ? Tier::kAffine : Tier::kStructuredRagged;
 }
 std::vector<EventRequirement> EventSynthesis::Synthesize(
     std::vector<CouplingEdge> const& edges) const {

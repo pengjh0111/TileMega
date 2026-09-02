@@ -22,8 +22,15 @@ void Require(bool condition, char const* what, int line) {
 
 #define REQUIRE(expression) Require((expression), #expression, __LINE__)
 
-CouplingEdge Only(OperatorGraph const& graph) {
-  std::vector<CouplingEdge> edges = CouplingDerivation().Derive(graph);
+ParamBinding KnownBinding() {
+  ParamBinding known = DecoderShape::Table27Theta();
+  for (auto const& [name, value] : DecoderShape::Table27G().values)
+    known.Bind(name, value);
+  return known;
+}
+
+CouplingEdge Only(OperatorGraph const& graph, ParamBinding const& known) {
+  std::vector<CouplingEdge> edges = CouplingDerivation().Derive(graph, known);
   if (edges.size() != 1) {
     std::cerr << "expected exactly one edge, got " << edges.size() << '\n';
     std::exit(1);
@@ -35,13 +42,13 @@ CouplingEdge Only(OperatorGraph const& graph) {
 
 int main() {
   DecoderShape shape;
+  ParamBinding known = KnownBinding();
 
   OperatorGraph relaxed_graph = GatherModel(shape, /*data_dependent=*/true);
   OperatorGraph exact_graph = GatherModel(shape, /*data_dependent=*/false);
-  OperatorNode const& producer = *relaxed_graph.Find("produce");
 
-  CouplingEdge relaxed = Only(relaxed_graph);
-  CouplingEdge exact = Only(exact_graph);
+  CouplingEdge relaxed = Only(relaxed_graph, known);
+  CouplingEdge exact = Only(exact_graph, known);
 
   REQUIRE(!relaxed.exact);
   REQUIRE(exact.exact);
@@ -49,23 +56,24 @@ int main() {
   REQUIRE(exact.tier == Tier::kAffine);
 
   // I2 holds in the direction the Relax operation uses ...
-  REQUIRE(Contains(relaxed.C, exact.C, producer));
+  REQUIRE(Contains(relaxed.C, exact.C));
   // ... and the predicate is not vacuous: the exact relation does not contain
   // the relaxed one, so substituting the other way round would be rejected.
-  REQUIRE(!Contains(exact.C, relaxed.C, producer));
+  REQUIRE(!Contains(exact.C, relaxed.C));
 
   // Reflexive on every edge of a real model, and a relaxation of an edge is
   // never claimed to be contained in an unrelated edge's relation.
   OperatorGraph llama = LlamaDecoderLayer(shape);
-  for (auto const& edge : CouplingDerivation().Derive(llama)) {
+  std::vector<CouplingEdge> llamaEdges = CouplingDerivation().Derive(llama, known);
+  for (auto const& edge : llamaEdges) {
     OperatorNode const* p = llama.Find(edge.src.name);
     REQUIRE(p != nullptr);
-    REQUIRE(Contains(edge.C, edge.C, *p));
+    REQUIRE(Contains(edge.C, edge.C));
   }
 
   // A relaxed relation over a *different* producer is not accepted.
-  CouplingEdge foreign = CouplingDerivation().Derive(llama).front();
-  REQUIRE(!Contains(relaxed.C, foreign.C, producer));
+  CouplingEdge foreign = llamaEdges.front();
+  REQUIRE(!Contains(relaxed.C, foreign.C));
 
   if (failures) {
     std::cerr << failures << " assertion(s) failed\n";

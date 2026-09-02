@@ -8,9 +8,9 @@ struct EventRequirement {
   TaskSpaceId producer;
   TaskSpaceId consumer;
   std::vector<ClosedForm> shape;  ///< image(C_kappa)
-  ClosedForm wait;
-  ClosedForm fanout;
-  ClosedForm count;
+  QuasiPolynomial wait;
+  QuasiPolynomial fanout;
+  QuasiPolynomial count;
   Tier tier = Tier::kAffine;
   SyncKind sync = SyncKind::kGlobal;
   bool exact = true;

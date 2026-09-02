@@ -237,6 +237,8 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   std::size_t tasks = 0, couplings = 0, placements = 0;
   auto theta = readBinding(module, "tilemega.theta");
   auto granularity = readBinding(module, "tilemega.g");
+  analysis::ParamBinding known = theta;
+  for (auto const& [name, value] : granularity.values) known.Bind(name, value);
   int maxStage = -1;
   std::unordered_map<std::string, std::uint32_t> taskStages;
   for (auto task : module.getOps<dialect::TaskSpaceOp>()) {
@@ -257,12 +259,12 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
     if (coupling.getSyncKind().getValue().getValue() != "global")
       throw std::invalid_argument("Phase-2 generator accepts only global synchronization");
     // Force semantic conversion through L3a; codegen never reads the printed
-    // ClosedForm payload as an ad-hoc integer.
-    (void)coupling.getWait().getValue().Eval(theta, granularity);
-    (void)coupling.getFanout().getValue().Eval(theta, granularity);
-    (void)coupling.getVolume().getValue().Eval(theta, granularity);
-    (void)coupling.getCount().getValue().Eval(theta, granularity);
-    (void)coupling.getRelation().getRelation();
+    // quasi-polynomial payload as an ad-hoc integer.
+    (void)coupling.getWait().getValue().Eval(known);
+    (void)coupling.getFanout().getValue().Eval(known);
+    (void)coupling.getVolume().getValue().Eval(known);
+    (void)coupling.getCount().getValue().Eval(known);
+    (void)coupling.getRelation().getMap();
     auto source = taskStages.find(coupling.getSrc().str());
     auto target = taskStages.find(coupling.getDst().str());
     if (source == taskStages.end() || target == taskStages.end())

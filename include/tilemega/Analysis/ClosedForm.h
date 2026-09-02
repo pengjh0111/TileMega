@@ -52,6 +52,26 @@ class ClosedForm {
   /// Multiplicative factors in canonical order, used by TryExactDivide and by
   /// diagnostics.  A non-product expression yields a single factor.
   std::vector<std::string> FactorStrings() const;
+
+  /// Replace every symbol named in `known` with its literal value; symbols
+  /// not in `known` are left symbolic. Used before building an isl object:
+  /// isl's floor/ceildiv require a literal divisor (confirmed empirically,
+  /// see docs/experiments/P3_ISL/result.md), so a tile size ("g") must be
+  /// substituted before ToIslText, while a workload dimension ("theta") is
+  /// deliberately left out of `known` so it survives as a genuine isl
+  /// parameter (invariant I1).
+  ClosedForm Substitute(ParamBinding const& known) const;
+  /// Every distinct symbol name appearing in this expression, in no
+  /// particular order. Used to collect the isl parameter list (every symbol
+  /// not resolved by Substitute's `known` binding must be declared as an
+  /// isl parameter before ToIslText's output can be parsed).
+  std::vector<std::string> FreeSymbols() const;
+  /// Render in isl syntax (ceild/floord instead of ceildiv/floordiv).
+  /// Throws std::domain_error if a ceildiv/floordiv divisor is not constant
+  /// after Substitute -- isl cannot represent a parametric divisor, so this
+  /// is the point where an incomplete `known` binding is caught explicitly
+  /// rather than producing invalid isl text.
+  std::string ToIslText() const;
   friend bool operator==(ClosedForm const& lhs, ClosedForm const& rhs) {
     return lhs.ToString() == rhs.ToString();
   }

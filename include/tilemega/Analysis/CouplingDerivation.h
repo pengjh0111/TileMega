@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// Skeleton refs: §2 Definitions 3-5 and §2.4 tiers.
+// Skeleton refs: §2 Definitions 1-5 and §2.4 tiers.
 #pragma once
 
 #include <string>
 #include <vector>
 
 #include <tilemega/Analysis/AccessRelation.h>
-#include <tilemega/Analysis/AffineRelation.h>
+#include <tilemega/Analysis/ClosedForm.h>
+#include <tilemega/Analysis/CouplingRelation.h>
+#include <tilemega/Analysis/QuasiPolynomial.h>
 #include <tilemega/Analysis/DerivedMetrics.h>
 #include <tilemega/Analysis/TensorSpace.h>
 
@@ -30,7 +32,7 @@ std::string ToString(Tier tier);
 struct CouplingEdge {
   TaskSpaceId src;
   TaskSpaceId dst;
-  AffineRelation C;
+  CouplingRelation C;
   DerivedMetrics metrics;
   Tier tier = Tier::kAffine;
   SyncKind sync = SyncKind::kGlobal;
@@ -50,56 +52,71 @@ struct CouplingEdge {
   std::string EventShapeString() const;
 };
 
-/// C_{p->c} = W_p^-1 o R_c (§2 Definition 3).
+/// C_{p->c} = W_p^-1 o R_c (§2 Definition 3), built directly as an isl_map:
+/// every producer's W is a tiling, so W^-1 is exactly floor(./g_p) per tiled
+/// axis, and the projection of a read interval through it has three outcomes
+/// (exact quotient, exact floordiv for a single element, or an explicit
+/// relaxation) -- the same case analysis as before this migration, now
+/// emitting isl map constraint text per producer axis instead of building an
+/// AffineExpr/ProducerMap tree.  `known` supplies every symbol ("theta" or
+/// "g") whose value is already fixed at derivation time; isl can only take a
+/// literal floor/ceildiv divisor (confirmed empirically, see
+/// docs/experiments/P3_ISL/result.md), so any coefficient/group/tile/origin
+/// that ends up as a divisor must be in `known` or ToIslText throws. A
+/// symbol left out of `known` survives as a genuine isl parameter of the
+/// resulting relation (invariant I1: workload dimensions stay symbolic).
 ///
-/// Every producer's W is a tiling, so W^-1 is exactly floor(./g_p) per tiled
-/// axis; the derivation therefore stays inside closed-form algebra and does not
-/// need a Presburger solver for the exact cases.  Three outcomes per axis:
-///   (a) the read base divides the tile exactly    -> exact plain coordinate or
-///                                                    a quantified range;
-///   (b) the read span is a single element         -> exact floordiv(base,tile);
-///   (c) otherwise                                 -> relax to the whole axis,
-///                                                    mark the edge inexact.
-/// Case (c) never invents an inverse; it widens C, which I2 permits.
+/// Case (c) (relax) never invents an inverse; it widens C to the axis' full
+/// range, which I2 permits.
 struct CouplingDetail {
   bool exact = true;
   std::string guard;
   std::string relaxation;
+  /// Consumer task-coordinate names a producer-axis constraint actually
+  /// referenced while building C (exact-divide and single-element cases
+  /// only; a relaxed axis references none). This, not a query on the
+  /// assembled isl_map, is what ComputeEventShape needs: every consumer
+  /// coordinate ends up *bounded* in C (so wait/fanout stay finite, see
+  /// CouplingRelation::IntersectDomain), and isl's only "does this
+  /// dimension matter" query is syntactic -- it cannot tell a coordinate
+  /// that merely bounds the domain from one whose value actually changes
+  /// the result. Tracking this at construction time, where the answer is
+  /// unambiguous, sidesteps that isl limitation entirely.
+  std::vector<std::string> occurring;
 };
 
-AffineRelation DeriveCoupling(AccessRelation const& W, AccessRelation const& R,
-                              OperatorNode const& producer,
-                              OperatorNode const& consumer,
-                              CouplingDetail* detail = nullptr);
+CouplingRelation DeriveCoupling(AccessRelation const& W, AccessRelation const& R,
+                                OperatorNode const& producer,
+                                OperatorNode const& consumer,
+                                ParamBinding const& known,
+                                CouplingDetail* detail = nullptr);
 
-/// wait / fanout / volume / count, all ClosedForm(theta, g) (§2 Definition 4).
-DerivedMetrics ComputeMetrics(AffineRelation const& C, AccessRelation const& W,
+/// wait / fanout / volume / count, all QuasiPolynomial(theta) (§2 Definition 4).
+DerivedMetrics ComputeMetrics(CouplingRelation const& C, AccessRelation const& W,
                               AccessRelation const& R,
                               OperatorNode const& producer,
-                              OperatorNode const& consumer);
+                              OperatorNode const& consumer,
+                              ParamBinding const& known);
 
-/// image(C_kappa) for kappa = 1.
-std::vector<ClosedForm> ComputeEventShape(AffineRelation const& C,
-                                          OperatorNode const& consumer);
+/// image(C_kappa) for kappa = 1: the extents of the consumer coordinates in
+/// `occurring` (see CouplingDetail::occurring -- tracked during
+/// DeriveCoupling, not re-derived from C, for reasons documented there).
+std::vector<ClosedForm> ComputeEventShape(OperatorNode const& consumer,
+                                          std::vector<std::string> const& occurring);
 
-/// I2, machine-checked: does `wide` contain `narrow` as a set of producer
-/// tasks?  This is the substitutability test a Relax must pass before it may
-/// replace an exact edge.
-///
-/// The check is conservative in the safe direction: `true` means containment
-/// was *established*, `false` means "not established" and never "disproved".
-/// A position of `wide` counts as containing the matching position of `narrow`
-/// when it is either literally the same expression, or a quantified variable
-/// ranging over [0, full extent of that producer axis) -- which is exactly the
-/// shape `DeriveCoupling` emits when it relaxes.
-bool Contains(AffineRelation const& wide, AffineRelation const& narrow,
-              OperatorNode const& producer);
+/// I2, machine-checked via isl_map_is_subset: does `wide` contain `narrow` as
+/// a set of (consumer, producer) coordinate pairs?  `true` means containment
+/// was *established*; `false` means "not established", never "disproved".
+bool Contains(CouplingRelation const& wide, CouplingRelation const& narrow);
 
 class CouplingDerivation {
  public:
   /// Derive every edge of `graph`: one edge per (operator, operand) pair whose
-  /// operand names a producer inside the graph.
-  std::vector<CouplingEdge> Derive(OperatorGraph const& graph) const;
+  /// operand names a producer inside the graph. `known` is the combined
+  /// theta/g binding available at derivation time (see DeriveCoupling); any
+  /// symbol not in it stays a genuine isl parameter on every derived edge.
+  std::vector<CouplingEdge> Derive(OperatorGraph const& graph,
+                                   ParamBinding const& known) const;
 };
 
 }  // namespace tilemega::analysis

@@ -124,47 +124,23 @@ mlir::DictionaryAttr dict(mlir::Builder& builder,
   return builder.getDictionaryAttr(fields);
 }
 
-mlir::DictionaryAttr fixedRelation(mlir::Builder& builder,
-                                   mlir::MLIRContext& context,
-                                   std::string const& source,
-                                   llvm::StringRef kind) {
-  mlir::ArrayAttr consumers;
-  mlir::ArrayAttr coordinates;
-  mlir::ArrayAttr ranges = builder.getArrayAttr({});
-  if (kind == "gemm" || kind == "reduction") {
-    consumers = builder.getArrayAttr({builder.getStringAttr("m"),
-                                      builder.getStringAttr("n")});
-    coordinates = builder.getArrayAttr({builder.getStringAttr("m")});
-    ranges = builder.getArrayAttr({dict(builder, {
-        builder.getNamedAttr("name", builder.getStringAttr("k")),
-        builder.getNamedAttr("begin", builder.getStringAttr("0")),
-        // Phase 1 retains the quantified structure but conservatively uses a
-        // unit extent. Phase 3 replaces it from W^-1 o R.
-        builder.getNamedAttr("extent", builder.getStringAttr("1"))})});
-  } else if (kind == "broadcast") {
-    consumers = builder.getArrayAttr({builder.getStringAttr("m"),
-                                      builder.getStringAttr("n")});
-    coordinates = builder.getArrayAttr({builder.getStringAttr("m")});
-  } else if (kind == "transpose") {
-    consumers = builder.getArrayAttr({builder.getStringAttr("m"),
-                                      builder.getStringAttr("n")});
-    coordinates = builder.getArrayAttr({builder.getStringAttr("n"),
-                                        builder.getStringAttr("m")});
-  } else {
-    consumers = builder.getArrayAttr({builder.getStringAttr("i")});
-    coordinates = builder.getArrayAttr({builder.getStringAttr("i")});
-  }
-  return dict(builder, {
-      builder.getNamedAttr("consumer", consumers),
-      builder.getNamedAttr("producers", builder.getArrayAttr({dict(builder, {
-          builder.getNamedAttr("source", builder.getStringAttr(source)),
-          builder.getNamedAttr("coordinates", coordinates),
-          builder.getNamedAttr("ranges", ranges)})})),
-      builder.getNamedAttr("parameters", builder.getArrayAttr({})),
-      builder.getNamedAttr("fiber", dialect::ClosedFormAttr::get(
-          &context, analysis::ClosedForm::Constant(1))),
-      builder.getNamedAttr("image", dialect::ClosedFormAttr::get(
-          &context, analysis::ClosedForm::Constant(1)))});
+// Phase 1's explicit, fixed per-ATen-op coupling: not derived from W^-1 o R
+// (real derivation is lib/Analysis/CouplingDerivation.cpp, exercised through
+// the OperatorGraph abstraction ReferenceModels.cpp builds -- this importer
+// still runs at per-call_function granularity and does not construct that
+// abstraction from FX; wiring the two together is out of this round's scope,
+// recorded as residual debt in TileMega_skeleton.md §1.5.1). This is a single
+// fixed producer-to-consumer coupling, `{ [0] -> [0] }`: one placeholder task
+// on each side, matching the fixed wait=fanout=volume=count=1 and event
+// extent=1 this importer has always used. Before the isl/barvinok migration
+// this shape varied by operator kind (gemm/reduction got a quantified k
+// range, transpose swapped coordinates, ...); none of that per-kind shape
+// was ever read by anything downstream (Codegen only force-evaluates it, see
+// lib/Codegen/Codegen.cpp), so the migration collapses it to one honest,
+// uniform placeholder rather than reproducing dead structure that cannot be
+// expressed in CouplingMapAttr's new isl-map payload anyway.
+analysis::CouplingRelation fixedRelation(llvm::StringRef /*kind*/) {
+  return analysis::CouplingRelation::FromIslText("{ [0] -> [0] }");
 }
 
 llvm::StringRef taskKindName(PlanTaskKind kind) {
@@ -430,11 +406,11 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
       eventState.addAttribute(mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(eventName));
       eventState.addAttribute("event_type", mlir::TypeAttr::get(
           mlir::RankedTensorType::get({1}, builder.getI32Type())));
-      eventState.addAttribute("extent", dialect::ClosedFormAttr::get(
-          &context, analysis::ClosedForm::Constant(1)));
+      eventState.addAttribute("extent", dialect::MetricAttr::get(
+          &context, analysis::QuasiPolynomial::Constant(1)));
       builder.create(eventState);
       std::string taskKind = classify(task.target);
-      auto relation = fixedRelation(builder, context, source->second, taskKind);
+      auto relation = fixedRelation(taskKind);
       mlir::OperationState state(builder.getUnknownLoc(), "tilemega.coupling");
       state.addAttribute(mlir::SymbolTable::getSymbolAttrName(),
                          builder.getStringAttr("c" + std::to_string(edge)));
@@ -444,8 +420,8 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
           dict(builder, {builder.getNamedAttr("kind", builder.getStringAttr(classify(task.target)))})));
       state.addAttribute("relation", dialect::CouplingMapAttr::get(&context, relation));
       for (llvm::StringRef metric : {"wait", "fanout", "volume", "count"})
-        state.addAttribute(metric, dialect::ClosedFormAttr::get(
-            &context, analysis::ClosedForm::Constant(1)));
+        state.addAttribute(metric, dialect::MetricAttr::get(
+            &context, analysis::QuasiPolynomial::Constant(1)));
       state.addAttribute("tier", dialect::TierAttr::get(&context, 0));
       state.addAttribute("sync_kind", dialect::SyncKindAttr::get(
           &context, builder.getStringAttr("global")));

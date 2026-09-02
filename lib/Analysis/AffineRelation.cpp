@@ -57,6 +57,22 @@ std::vector<std::string> AffineExpr::Coordinates() const {
   return result;
 }
 
+std::vector<std::string> AffineExpr::FreeSymbols() const {
+  std::vector<std::string> result;
+  auto merge = [&](std::vector<std::string> const& more) {
+    for (auto const& name : more)
+      if (std::find(result.begin(), result.end(), name) == result.end())
+        result.push_back(name);
+  };
+  for (auto const& term : terms) {
+    merge(term.coefficient.FreeSymbols());
+    merge(term.group.FreeSymbols());
+  }
+  merge(offset.FreeSymbols());
+  merge(divisor.FreeSymbols());
+  return result;
+}
+
 bool AffineExpr::IsZero() const {
   return terms.empty() && offset.IsConstant() && offset.Eval({}, {}) == 0 &&
          divisor.IsLiteral(1);
@@ -84,99 +100,32 @@ std::string AffineExpr::ToString() const {
   return out.str();
 }
 
-AffineRelation::AffineRelation(
-    std::vector<std::string> consumer_coordinates,
-    std::vector<ProducerMap> producers,
-    std::vector<std::string> parameters)
-    : consumer_coordinates_(std::move(consumer_coordinates)),
-      producers_(std::move(producers)),
-      parameters_(std::move(parameters)) {
-  if (producers_.empty()) return;
-  std::ostringstream key;
-  key << "image=" << producers_.size();
-  for (auto const& producer : producers_) {
-    key << "|" << producer.source.name << ":coords="
-        << producer.coordinates.size() << ":ranges=";
-    for (auto const& range : producer.quantified) key << range.name << ",";
-  }
-  structure_key_ = key.str();
-}
-
-AffineRelation AffineRelation::PartitionRange(
-    std::string const& range_name, std::string const& split_coordinate,
-    std::string const& pieces_parameter) const {
-  if (split_coordinate.empty() || pieces_parameter.empty()) {
-    throw std::invalid_argument("empty range partition name");
-  }
-  AffineRelation result = *this;
-  bool found = false;
-  ClosedForm pieces = ClosedForm::Symbol(pieces_parameter);
-  for (auto& producer : result.producers_) {
-    for (auto& range : producer.quantified) {
-      if (range.name != range_name) continue;
-      ClosedForm segment = range.extent.CeilDiv(pieces);
-      range.begin = range.begin + AffineExpr::Variable(split_coordinate, segment);
-      range.extent = segment;
-      found = true;
-    }
-  }
-  if (!found) throw std::invalid_argument("unknown quantified range: " + range_name);
-  if (std::find(result.consumer_coordinates_.begin(),
-                result.consumer_coordinates_.end(), split_coordinate) ==
-      result.consumer_coordinates_.end()) {
-    result.consumer_coordinates_.push_back(split_coordinate);
-  }
-  if (std::find(result.parameters_.begin(), result.parameters_.end(),
-                pieces_parameter) == result.parameters_.end()) {
-    result.parameters_.push_back(pieces_parameter);
-  }
-  // Deliberately preserve structure_key_: this operation is Reparam, not
-  // coupling derivation.
-  return result;
-}
-
-bool AffineRelation::SameStructure(AffineRelation const& other) const {
-  return !structure_key_.empty() && structure_key_ == other.structure_key_;
-}
-
-std::string AffineRelation::ToString() const {
+std::string AffineExpr::ToIslText(ParamBinding const& known) const {
   std::ostringstream out;
-  out << "(";
-  for (std::size_t i = 0; i < consumer_coordinates_.size(); ++i) {
-    if (i) out << ",";
-    out << consumer_coordinates_[i];
+  bool emitted = false;
+  for (auto const& term : terms) {
+    if (emitted) out << " + ";
+    ClosedForm coefficient = term.coefficient.Substitute(known);
+    ClosedForm group = term.group.Substitute(known);
+    std::string factor;
+    if (!group.IsLiteral(1))
+      factor = "floord(" + term.coordinate + ", " + group.ToIslText() + ")";
+    else
+      factor = term.coordinate;
+    if (!coefficient.IsLiteral(1))
+      out << "(" << coefficient.ToIslText() << " * " << factor << ")";
+    else
+      out << factor;
+    emitted = true;
   }
-  out << ") -> {";
-  for (std::size_t p = 0; p < producers_.size(); ++p) {
-    if (p) out << ", ";
-    auto const& producer = producers_[p];
-    out << producer.source.name << "(";
-    for (std::size_t i = 0; i < producer.coordinates.size(); ++i) {
-      if (i) out << ",";
-      out << producer.coordinates[i].ToString();
-    }
-    bool any = !producer.coordinates.empty();
-    for (auto const& range : producer.quantified) {
-      bool already = false;
-      for (auto const& coordinate : producer.coordinates)
-        if (coordinate.ToString() == range.name) already = true;
-      if (already) continue;
-      if (any) out << ",";
-      out << range.name;
-      any = true;
-    }
-    out << ")";
-    if (!producer.quantified.empty()) {
-      out << " : ";
-      for (std::size_t i = 0; i < producer.quantified.size(); ++i) {
-        if (i) out << " and ";
-        auto const& range = producer.quantified[i];
-        out << range.begin.ToString() << " <= " << range.name << " < "
-            << range.begin.ToString() << " + " << range.extent.ToString();
-      }
-    }
+  ClosedForm subst_offset = offset.Substitute(known);
+  if (!subst_offset.IsConstant() || subst_offset.Eval({}, {}) != 0 || !emitted) {
+    if (emitted) out << " + ";
+    out << subst_offset.ToIslText();
   }
-  out << "}";
+  ClosedForm subst_divisor = divisor.Substitute(known);
+  if (!subst_divisor.IsLiteral(1))
+    return "floord(" + out.str() + ", " + subst_divisor.ToIslText() + ")";
   return out.str();
 }
 

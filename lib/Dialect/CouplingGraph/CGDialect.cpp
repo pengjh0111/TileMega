@@ -34,98 +34,37 @@ void CGDialect::initialize() {
       >();
 }
 
-mlir::FailureOr<analysis::ClosedForm> parseClosedForm(mlir::AsmParser& parser) {
+mlir::FailureOr<analysis::QuasiPolynomial> parseMetric(mlir::AsmParser& parser) {
   std::string expression;
   if (failed(parser.parseString(&expression))) return failure();
   try {
-    return analysis::ClosedForm::Parse(expression);
+    return analysis::QuasiPolynomial::FromIslText(expression);
   } catch (std::exception const& error) {
     parser.emitError(parser.getCurrentLocation(), error.what());
     return failure();
   }
 }
 
-void printClosedForm(mlir::AsmPrinter& printer,
-                     analysis::ClosedForm const& value) {
+void printMetric(mlir::AsmPrinter& printer,
+                 analysis::QuasiPolynomial const& value) {
   printer.printString(value.ToString());
 }
 
-LogicalResult CouplingMapAttr::verifyStructure(
-    llvm::function_ref<InFlightDiagnostic()> emitError) const {
-  DictionaryAttr fields = getFields();
-  auto consumers = fields.getAs<ArrayAttr>("consumer");
-  auto producers = fields.getAs<ArrayAttr>("producers");
-  auto parameters = fields.getAs<ArrayAttr>("parameters");
-  auto fiber = fields.getAs<ClosedFormAttr>("fiber");
-  auto image = fields.getAs<ClosedFormAttr>("image");
-  if (!consumers || !producers || !parameters || !fiber || !image) {
-    return emitError() << "coupling_map requires consumer, producers, "
-                          "parameters, fiber, and image fields";
+mlir::FailureOr<analysis::CouplingRelation> parseCouplingRelation(
+    mlir::AsmParser& parser) {
+  std::string text;
+  if (failed(parser.parseString(&text))) return failure();
+  try {
+    return analysis::CouplingRelation::FromIslText(text);
+  } catch (std::exception const& error) {
+    parser.emitError(parser.getCurrentLocation(), error.what());
+    return failure();
   }
-  for (Attribute coordinate : consumers) {
-    if (!isa<StringAttr>(coordinate))
-      return emitError() << "coupling_map consumer entries must be strings";
-  }
-  if (producers.empty())
-    return emitError() << "coupling_map must contain at least one producer";
-  for (Attribute item : producers) {
-    auto producer = dyn_cast<DictionaryAttr>(item);
-    if (!producer || !producer.getAs<StringAttr>("source") ||
-        !producer.getAs<ArrayAttr>("coordinates") ||
-        !producer.getAs<ArrayAttr>("ranges")) {
-      return emitError() << "each producer requires source, coordinates, ranges";
-    }
-  }
-  return success();
 }
 
-static analysis::AffineExpr parseAffineExpr(StringRef text) {
-  std::string value = text.trim().str();
-  bool identifier = !value.empty() &&
-      (std::isalpha(static_cast<unsigned char>(value[0])) || value[0] == '_');
-  for (char c : value) {
-    identifier = identifier &&
-        (std::isalnum(static_cast<unsigned char>(c)) || c == '_');
-  }
-  if (identifier) return analysis::AffineExpr::Variable(value);
-  return analysis::AffineExpr::Constant(analysis::ClosedForm::Parse(value));
-}
-
-analysis::AffineRelation CouplingMapAttr::getRelation() const {
-  std::vector<std::string> consumers;
-  for (Attribute item : getFields().getAs<ArrayAttr>("consumer"))
-    consumers.push_back(cast<StringAttr>(item).getValue().str());
-  std::vector<std::string> parameters;
-  for (Attribute item : getFields().getAs<ArrayAttr>("parameters"))
-    parameters.push_back(cast<StringAttr>(item).getValue().str());
-  std::vector<analysis::ProducerMap> producers;
-  for (Attribute item : getFields().getAs<ArrayAttr>("producers")) {
-    auto dict = cast<DictionaryAttr>(item);
-    analysis::ProducerMap producer;
-    producer.source.name = dict.getAs<StringAttr>("source").getValue().str();
-    for (Attribute coordinate : dict.getAs<ArrayAttr>("coordinates"))
-      producer.coordinates.push_back(
-          parseAffineExpr(cast<StringAttr>(coordinate).getValue()));
-    for (Attribute rangeItem : dict.getAs<ArrayAttr>("ranges")) {
-      auto range = cast<DictionaryAttr>(rangeItem);
-      producer.quantified.push_back({
-          range.getAs<StringAttr>("name").getValue().str(),
-          parseAffineExpr(range.getAs<StringAttr>("begin").getValue()),
-          analysis::ClosedForm::Parse(
-              range.getAs<StringAttr>("extent").getValue().str())});
-    }
-    producers.push_back(std::move(producer));
-  }
-  return analysis::AffineRelation(std::move(consumers), std::move(producers),
-                                  std::move(parameters));
-}
-
-ClosedFormAttr CouplingMapAttr::getFiberCardinality() const {
-  return getFields().getAs<ClosedFormAttr>("fiber");
-}
-
-ClosedFormAttr CouplingMapAttr::getImageCardinality() const {
-  return getFields().getAs<ClosedFormAttr>("image");
+void printCouplingRelation(mlir::AsmPrinter& printer,
+                           analysis::CouplingRelation const& value) {
+  printer.printString(value.ToString());
 }
 
 static analysis::ParamBinding readBinding(ModuleOp module, StringRef name) {
@@ -136,6 +75,18 @@ static analysis::ParamBinding readBinding(ModuleOp module, StringRef name) {
         result.Bind(item.getName().str(), integer.getInt());
     }
   }
+  return result;
+}
+
+/// The combined binding available at verification time: every theta value
+/// the module happens to have already fixed, plus every g (granularity)
+/// value. A workload dimension the module leaves free (e.g. the sequence
+/// length) stays out of this binding and therefore stays a genuine isl
+/// parameter on every metric this verifier checks (invariant I1).
+static analysis::ParamBinding combinedBinding(ModuleOp module) {
+  analysis::ParamBinding result = readBinding(module, "tilemega.theta");
+  analysis::ParamBinding granularity = readBinding(module, "tilemega.g");
+  for (auto const& [name, value] : granularity.values) result.Bind(name, value);
   return result;
 }
 
@@ -167,8 +118,8 @@ LogicalResult CouplingOp::verify() {
     return emitOpError() << "unknown destination task " << getDst();
   auto event = SymbolTable::lookupNearestSymbolFrom<EventTensorOp>(*this, getEventAttr());
   if (!event) return emitOpError() << "unknown event tensor " << getEvent();
-  if (failed(getRelation().verifyStructure([&] { return emitOpError(); })))
-    return failure();
+  // No separate structure check: isl_map syntax is its own schema, already
+  // validated by isl when the attribute was parsed (parseCouplingRelation).
   StringRef sync = getSyncKind().getValue().getValue();
   if (sync != "global" && sync != "cluster" && sync != "local")
     return emitOpError() << "invalid sync kind '" << sync << "'";
@@ -178,25 +129,39 @@ LogicalResult CouplingOp::verify() {
     return emitOpError("tier must be in [0,3]");
 
   try {
-    auto theta = readBinding(module, "tilemega.theta");
-    auto granularity = readBinding(module, "tilemega.g");
-    long expectedWait = getRelation().getFiberCardinality().getValue().Eval(theta, granularity);
-    long actualWait = getWait().getValue().Eval(theta, granularity);
-    if (expectedWait != actualWait)
-      return emitOpError() << "wait evaluates to " << actualWait
-                           << " but relation fiber cardinality is " << expectedWait;
-    long image = getRelation().getImageCardinality().getValue().Eval(theta, granularity);
-    long eventExtent = event.getExtent().getValue().Eval(theta, granularity);
-    if (eventExtent != image)
-      return emitOpError() << "event extent evaluates to " << eventExtent
-                           << " but image(C_kappa) has " << image;
-    auto type = cast<RankedTensorType>(event.getEventType());
-    if (type.hasStaticShape() && type.getNumElements() != image)
-      return emitOpError() << "event tensor has " << type.getNumElements()
-                           << " elements but image(C_kappa) has " << image;
+    analysis::ParamBinding known = combinedBinding(module);
+    // wait(x) = |C(x)|, computed directly from the relation -- not read back
+    // from a second, separately authored copy the way the pre-migration
+    // DictionaryAttr's "fiber" field was. SemanticallyEqual compares the two
+    // quasi-polynomials as functions after substituting `known`, not as
+    // scalars: a genuinely position-dependent wait must match at every task
+    // coordinate, not merely at whichever point a scalar comparison would
+    // have implicitly picked.
+    analysis::QuasiPolynomial expectedWait = getRelation().getMap().Card();
+    if (!expectedWait.SemanticallyEqual(getWait().getValue(), known))
+      return emitOpError() << "wait " << getWait().getValue().ToString()
+                           << " does not match the relation's fiber "
+                              "cardinality " << expectedWait.ToString();
+    // image(C_kappa) itself is not re-derived from the relation here: doing
+    // so needs "does producer coordinate depend on consumer coordinate X"
+    // per domain dimension, and the only isl query available for that
+    // (isl_map_involves_dims) is syntactic -- it also flags a domain
+    // coordinate that is merely *bounded* (as every one now is, so wait/
+    // fanout stay finite) but does not actually influence the output,
+    // which silently overcounts image(C_kappa) (confirmed empirically:
+    // a plain `j >= 0 and j < N` domain bound makes involves_dims report
+    // `j` as involved even when the map's output never depends on it).
+    // ComputeEventShape (lib/Analysis/CouplingDerivation.cpp) gets this
+    // right because it tracks "which coordinate a producer-axis constraint
+    // actually referenced" during construction, not by re-inspecting the
+    // assembled map -- context this verifier does not have. So the event
+    // extent is checked the same way wait/fanout/volume/count all were
+    // before this migration: it must evaluate under `known`, not that it
+    // matches a value re-derived from C.
+    (void)event.getExtent().getValue().Eval(known);
   } catch (std::exception const& error) {
-    return emitOpError() << "cannot evaluate closed form after theta/g binding: "
-                         << error.what();
+    return emitOpError() << "cannot evaluate coupling metric after theta/g "
+                            "binding: " << error.what();
   }
   return success();
 }

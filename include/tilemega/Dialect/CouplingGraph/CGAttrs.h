@@ -2,8 +2,8 @@
 // Skeleton refs: §2 Definitions 2-5 and invariant I1.
 #pragma once
 
-#include <tilemega/Analysis/AffineRelation.h>
-#include <tilemega/Analysis/ClosedForm.h>
+#include <tilemega/Analysis/CouplingRelation.h>
+#include <tilemega/Analysis/QuasiPolynomial.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 
 #include <mlir/IR/Attributes.h>
@@ -11,9 +11,12 @@
 #include <mlir/IR/OpImplementation.h>
 
 namespace tilemega::dialect {
-mlir::FailureOr<analysis::ClosedForm> parseClosedForm(mlir::AsmParser& parser);
-void printClosedForm(mlir::AsmPrinter& printer,
-                     analysis::ClosedForm const& value);
+mlir::FailureOr<analysis::QuasiPolynomial> parseMetric(mlir::AsmParser& parser);
+void printMetric(mlir::AsmPrinter& printer, analysis::QuasiPolynomial const& value);
+mlir::FailureOr<analysis::CouplingRelation> parseCouplingRelation(
+    mlir::AsmParser& parser);
+void printCouplingRelation(mlir::AsmPrinter& printer,
+                           analysis::CouplingRelation const& value);
 }  // namespace tilemega::dialect
 
 #define GET_ATTRDEF_CLASSES

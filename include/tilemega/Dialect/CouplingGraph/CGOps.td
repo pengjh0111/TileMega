@@ -18,7 +18,7 @@ def CG_TaskSpaceOp : CG_Op<"task_space", [Symbol]> {
 def CG_EventTensorOp : CG_Op<"event_tensor", [Symbol]> {
   let summary = "event tensor whose extent is image(C_kappa)";
   let arguments = (ins SymbolNameAttr:$sym_name, TypeAttr:$event_type,
-                       CG_ClosedFormAttr:$extent);
+                       CG_MetricAttr:$extent);
   let assemblyFormat = "$sym_name `:` $event_type attr-dict";
   let hasVerifier = 1;
 }
@@ -30,10 +30,10 @@ def CG_CouplingOp : CG_Op<"coupling", [Symbol]> {
                        FlatSymbolRefAttr:$dst,
                        CG_AccessMapAttr:$read_map,
                        CG_CouplingMapAttr:$relation,
-                       CG_ClosedFormAttr:$wait,
-                       CG_ClosedFormAttr:$fanout,
-                       CG_ClosedFormAttr:$volume,
-                       CG_ClosedFormAttr:$count,
+                       CG_MetricAttr:$wait,
+                       CG_MetricAttr:$fanout,
+                       CG_MetricAttr:$volume,
+                       CG_MetricAttr:$count,
                        CG_TierAttr:$tier,
                        CG_SyncKindAttr:$sync_kind,
                        FlatSymbolRefAttr:$event);
