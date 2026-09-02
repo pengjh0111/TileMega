@@ -109,16 +109,16 @@ L4    符号形状参数化 + 运行时变体选择
 
 ### 1.5.1 残留技术债（本轮结束时的诚实记录）
 
-- **P3.1 的 CuTe ↔ `isl_map` 往返仍未实现**（求解权威迁移本身已完成）：
-  `CuteLayoutBridge::Project` 仍只根据 `LayoutDescriptor` 的静态/动态/
-  swizzle 标志选择 `InverseStrategy`（含 Tier 上界），`layout_bridge_test`
-  覆盖五个分支；真正的 CuTe layout → `flatten`/`coalesce` → 读 shape/stride
-  → `isl_map`（以及求解结果反向回写）没有实现。**注意这一条现在只剩布局桥**：
-  §3.1 的求解权威迁移已经做完——`C` 是真正的 `isl_map`，`wait`/`fanout` 是
-  barvinok 计数，`Contains` 是 `isl_map_is_subset`，Coarsen 是 isl 复合
-  （见 §1.5 状态表与 `docs/experiments/P3_ISL/result.md`）。之所以推导层
-  不需要这条布局桥就能工作，是因为 `W` 的逆按每根轴是 `⌊·/g⌋`，
-  `DeriveCoupling` 直接把它写成 isl 约束，不经过 CuTe layout 对象。
+- **CuTe 桥接的是 `LayoutDescriptor`，不是 `cute::Layout` 对象本身**
+  （P3.1 的往返本身已完成）：`CuteLayoutBridge::ToIslMap` / `FromIslMap`
+  实现了 §3.5 的转换规则并有往返单测，三级逆策略也有分支覆盖。剩下的边界
+  是接口位置：桥的输入是本仓自己的 `LayoutDescriptor`（extent/stride 向量 +
+  三个标志位），**不是** CuTe 的 `cute::Layout` C++ 对象，因此
+  "先 `flatten`/`coalesce` 再读 shape/stride" 这一步目前假定调用方已经在
+  CuTe 侧做完——桥不会自己去展平一个嵌套 layout。等到真的要把 CuTe 的
+  layout 代数结果喂进求解器时，需要补一个 `cute::Layout → LayoutDescriptor`
+  的适配层（V-F 已确认 `Flatten`/`Coalesce` 对动态维可用，所以这一步是有
+  依据的，只是没写）。另外 `FromIslMap` 只接受字面 extent（见 P3.1）。
 
 - **isl 的除数必须是字面常量，这约束了参数何时可以保持符号化**：
   `isl_aff_div` 在 C API 层就拒绝参数化除数（`docs/experiments/P3_ISL/`），
@@ -1025,12 +1025,24 @@ tilemega/
       `isl-noexceptions.h`）。`include/tilemega/Analysis/ISLContext.h` 拥有
       `isl_ctx`，`lib/Analysis/IslUtil.h` 是 isl_map/isl_set/
       isl_pw_qpolynomial/isl_val 的手写 RAII 模板（`_copy`/`_free` 对）。
-- [ ] CuTe layout → `isl_map`：先 `flatten` / `coalesce`，再读 shape/stride
-- [ ] `isl_map` → CuTe layout（求解结果回写）
-- [ ] 单元测试：一组 layout 的往返等价性
+- [x] CuTe layout → `isl_map`：`CuteLayoutBridge::ToIslMap` 按 §3.5 的规则把
+      平坦 layout `(s₀..s_k):(d₀..d_k)` 写成
+      `[i₀..i_k] → [offset + Σ i_j·d_j] : 0 ≤ i_j < s_j`。extent 可以保持符号
+      （只是界，`S` 之类留作 isl 参数，不变量 I1 因此保住）；stride 必须是
+      字面量，否则 `参数 × 坐标` 不是 Presburger 仿射——这与 V-F 从 CuTe 一侧
+      得到的边界是同一条，只是从另一边撞上。swizzle 与动态 stride 都显式抛错
+      并由 `Project` 给出 Tier 后果，不做静默近似。
+- [x] `isl_map` → CuTe layout（求解结果回写）：`FromIslMap` 从单值仿射映射读回
+      shape/stride（extent 取自域盒，stride 取自 `isl_aff` 系数）。**要求 extent
+      是字面量**——回写的是求解器"选定"的 layout，选择就是具体的；符号 extent
+      属于模型而不属于求解结果，故拒绝而不猜测。
+- [x] 单元测试：`layout_bridge_test` 覆盖行主序/列主序/1-D/3-D/带填充 stride
+      的往返等价，以及广播模式（stride 0）由 isl 自行判出非单射、符号 extent
+      的回写被拒绝、swizzle 与动态 stride 被显式拒绝、且把 stride 绑定成字面量
+      后同一 layout 重新可表示。
 - [x] 三级逆策略机器化：静态 `g` 走 CuTe `RightInverse`；动态 extent +
       常量 stride 走 Presburger relation；动态 stride/swizzle 明确提升 Tier。
-      `layout_bridge_test` 覆盖五种分支；完整 `isl_map` 往返仍未实现。
+      `layout_bridge_test` 覆盖五种分支。
 
 ### P3.2 访问关系构造（W / R）
 

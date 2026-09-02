@@ -108,6 +108,10 @@ class CouplingRelation {
                          CouplingRelation const& rhs) {
     return lhs.text_ == rhs.text_;
   }
+  friend bool operator!=(CouplingRelation const& lhs,
+                         CouplingRelation const& rhs) {
+    return !(lhs == rhs);
+  }
   friend llvm::hash_code hash_value(CouplingRelation const& value);
 
  private:
