@@ -278,6 +278,7 @@ fanout(y)    = | C⁻¹(y) |                  生产者 y 解锁的消费者数
 volume(y,x)  = | W_p(y) ∩ R_c(x) |         该边的通信量
 count(T_op)  = | T_op(θ, g) |              task 数
 tier         ∈ {0, 1, 2, 3}                可解析程度，见 §2.4
+                                           （五个正交属性的摘要，见 §2.4.1）
 ```
 
 字段名在 C++ 与 CG dialect 中统一为 `wait / fanout / volume / count`。
@@ -348,6 +349,36 @@ trigger(e)     = C_κ(x) 的坐标映射        谁通知谁
 | **1** | 共享单射布局的间接寻址 | paged KV cache 的 block table | 布局函数 `L` 在 `W⁻¹∘L⁻¹∘L∘R` 中抵消，逻辑空间闭式 | 0 |
 | **2** | 结构化 ragged（模式已知，extent 运行时） | split-KV chunk 数、chunked prefill 的 per-request token 数、MoE 每 expert token 数 | 索引映射闭式，`wait` 与 image 的 extent 运行时填（indptr 前缀和） | 一次前缀和 |
 | **3** | 数据相关排列 | MoE topk 路由、投机解码接受长度、动态稀疏 mask | 不可闭式，按 I2 松弛为分组 barrier（per-sequence / per-expert）或算子级 barrier | 局部同步过度 |
+
+### 2.4.1 Tier 是五个正交属性的摘要
+
+上表这一个数字同时回答了几个互不相干的问题，而这些答案各自独立地变化。
+推导实际观察到的是五项，Tier 由它们导出（`CouplingDerivation.h`，
+IR 中为 `#tilemega.coupling_attrs<...>`）：
+
+| 属性 | 取值 | 含义 |
+|---|---|---|
+| `relation_kind` | `affine` / `layout_mediated` / `data_dependent` | 下标映射如何表达 |
+| `extent_kind` | `static_literal` / `symbolic_static` / `runtime_dynamic` | 循环界由什么确定 |
+| `exactness` | `exact` / `relaxed` | 投影是精确的还是按 I2 放宽的 |
+| `runtime_requirement` | `none` / `prefix_sum` / `tensor_values` | 启动前运行时必须提供什么 |
+| `countability` | `constant` / `quasipoly` / `piecewise_quasipoly` / `uncountable` | 派生量是什么形态 |
+
+```
+data_dependent 或 uncountable   → 3
+runtime_dynamic 或 relaxed      → 2
+layout_mediated                 → 1
+其余                            → 0
+```
+
+`extent_kind` 与推导时的 `known` 绑定无关：I1 说的是 L-sem 写了什么，不是
+推导时恰好绑定了哪些符号。`CouplingOp::verify` 从属性重算 Tier 并拒绝对不上
+的边。§2.7 的 4 条 Tier 2 边在属性下分成三类且**全部 `exact`**——Tier 2 同时
+表示"运行时 extent"（要一次前缀和）与"投影被放宽"（运行时什么都不要），
+这个区别只有属性能表达。非对齐分块边（`coupling_types_test`，96 → 160）是
+`affine + symbolic_static + exact + none + piecewise_quasipoly`：Tier 0，但
+`wait` 以周期 3 分段，"Tier 0 ⇒ wait 是常数"这一读法因此写不出来了。
+证据见 `docs/experiments/P3/attributes.md`。
 
 ## 2.5 示例：耦合的重参数化
 
@@ -1151,6 +1182,18 @@ tilemega/
       `wait > 1`，这对精确仿射边完全正常，与可解析性无关。该分类器已删除，
       而不是留着一个会误判的实现；Tier 仍由 `CouplingDerivation` 从访问映射
       的上下文（layout id / runtime extent / data-dependent 标志）赋值。
+- [x] **Tier 正交化**：这一条的另一半——Tier 推不出来，是因为它本来就是五个
+      属性的摘要。`relation_kind` / `extent_kind` / `exactness` /
+      `runtime_requirement` / `countability` 现在各自由推导赋值，Tier 只由
+      `DeriveTier` 从它们算出，`CouplingOp::verify` 重算并拒绝对不上的边
+      （`cg_attr_test` 两个反例）。六个参考模型 221 条边重新生成后
+      `tier` 列与迁移前**逐条相同**；§2.7 的 4 条 Tier 2 边分成三类且全部
+      `exact`。见 `docs/experiments/P3/attributes.md`。
+- [!] `docs/experiments/P3/derived-*.md` 自 `b1dbc38` 起未再生成过，`C` /
+      `wait` / `fanout` 三列仍是 isl 迁移前的语法；本次一并重新生成。
+      `test/Dialect/CouplingGraph/*.mlir` 三个文件引用已删除的
+      `#tilemega.closed_form`，全部解析失败，且未接入 ctest（本构建无
+      lit/FileCheck），**尚未修复**。
 
 ### P3.5 L2 落地
 

@@ -1,26 +1,26 @@
 ## Llama decoder layer (decode instantiation, S = 1)
 
-| # | edge | C | event shape | wait | fanout | volume | count | tier | guard | relaxation |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | rmsnorm1 -> wq | `(m,n) -> {rmsnorm1(0)}` | `[]` | `1` | `n_h` | `(Tm * H)` | `n_h` | 0 | - | - |
-| 2 | rmsnorm1 -> wk | `(m,n) -> {rmsnorm1(0)}` | `[]` | `1` | `n_kv` | `(Tm * H)` | `n_kv` | 0 | - | - |
-| 3 | rmsnorm1 -> wv | `(m,n) -> {rmsnorm1(0)}` | `[]` | `1` | `n_kv` | `(Tm * H)` | `n_kv` | 0 | - | - |
-| 4 | wq -> rope_q | `(m,hh) -> {wq(0,hh)}` | `[n_h]` | `1` | `1` | `(Tm * d)` | `n_h` | 0 | - | - |
-| 5 | wk -> rope_k | `(m,hh) -> {wk(0,hh)}` | `[n_kv]` | `1` | `1` | `(Tm * d)` | `n_kv` | 0 | - | - |
-| 6 | rope_k -> kvappend_k | `(hh) -> {rope_k(0,hh)}` | `[n_kv]` | `1` | `1` | `(Tm * d)` | `n_kv` | 1 | - | - |
-| 7 | wv -> kvappend_v | `(hh) -> {wv(0,hh)}` | `[n_kv]` | `1` | `1` | `(Tm * d)` | `n_kv` | 1 | - | - |
-| 8 | rope_q -> attn_chunk | `(h,j) -> {rope_q(0,h)}` | `[n_h]` | `1` | `ceildiv(L_s, Tkv)` | `(Tm * d)` | `(n_h * ceildiv(L_s, Tkv))` | 2 | - | - |
-| 9 | kvappend_k -> attn_chunk | `(h,j) -> {kvappend_k(floordiv(h, G))}` | `[n_h]` | `1` | `ceildiv(L_s, Tkv)` | `d` | `(n_h * ceildiv(L_s, Tkv))` | 2 | `j == floordiv(past, Tkv)` | - |
-| 10 | kvappend_v -> attn_chunk | `(h,j) -> {kvappend_v(floordiv(h, G))}` | `[n_h]` | `1` | `ceildiv(L_s, Tkv)` | `d` | `(n_h * ceildiv(L_s, Tkv))` | 2 | `j == floordiv(past, Tkv)` | - |
-| 11 | attn_chunk -> attn_combine | `(h) -> {attn_chunk(h,j) : 0 <= j < 0 + ceildiv(L_s, Tkv)}` | `[n_h]` | `ceildiv(L_s, Tkv)` | `1` | `d` | `n_h` | 2 | - | - |
-| 12 | attn_combine -> wo | `(m,n) -> {attn_combine(h) : 0 <= h < 0 + n_h}` | `[]` | `n_h` | `ceildiv(H, Tn)` | `d` | `ceildiv(H, Tn)` | 0 | - | - |
-| 13 | wo -> add1 | `(m,n) -> {wo(0,n)}` | `[ceildiv(H, Tn)]` | `1` | `1` | `(Tm * Tn)` | `ceildiv(H, Tn)` | 0 | - | - |
-| 14 | add1 -> rmsnorm2 | `(i) -> {add1(0,n) : 0 <= n < 0 + ceildiv(H, Tn)}` | `[]` | `ceildiv(H, Tn)` | `1` | `(Tm * Tn)` | `1` | 0 | - | - |
-| 15 | rmsnorm2 -> wgate | `(m,n) -> {rmsnorm2(0)}` | `[]` | `1` | `ceildiv(I, Tn)` | `(Tm * H)` | `ceildiv(I, Tn)` | 0 | - | - |
-| 16 | rmsnorm2 -> wup | `(m,n) -> {rmsnorm2(0)}` | `[]` | `1` | `ceildiv(I, Tn)` | `(Tm * H)` | `ceildiv(I, Tn)` | 0 | - | - |
-| 17 | wgate -> silu | `(m,n) -> {wgate(0,n)}` | `[ceildiv(I, Tn)]` | `1` | `1` | `(Tm * Tn)` | `ceildiv(I, Tn)` | 0 | - | - |
-| 18 | wup -> silu | `(m,n) -> {wup(0,n)}` | `[ceildiv(I, Tn)]` | `1` | `1` | `(Tm * Tn)` | `ceildiv(I, Tn)` | 0 | - | - |
-| 19 | silu -> wdown | `(m,n) -> {silu(0,n_p1) : 0 <= n_p1 < 0 + ceildiv(I, Tn)}` | `[]` | `ceildiv(I, Tn)` | `ceildiv(H, Tn)` | `(Tm * Tn)` | `ceildiv(H, Tn)` | 0 | - | - |
-| 20 | wdown -> add2 | `(m,n) -> {wdown(0,n)}` | `[ceildiv(H, Tn)]` | `1` | `1` | `(Tm * Tn)` | `ceildiv(H, Tn)` | 0 | - | - |
-| 21 | add1 -> add2 | `(m,n) -> {add1(0,n)}` | `[ceildiv(H, Tn)]` | `1` | `1` | `(Tm * Tn)` | `ceildiv(H, Tn)` | 0 | - | - |
+| # | edge | C | event shape | wait | fanout | volume | count | tier | attributes | guard | relaxation |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | rmsnorm1 -> wq | `{ [m = 0, n] -> [p0 = 0] : 0 <= n <= 31 }` | `[]` | `{ [m, n] -> 1 : m = 0 and 0 <= n <= 31 }` | `{ [p0] -> 32 : p0 = 0 }` | `{ 524288 }` | `{ 32 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
+| 2 | rmsnorm1 -> wk | `{ [m = 0, n] -> [p0 = 0] : 0 <= n <= 7 }` | `[]` | `{ [m, n] -> 1 : m = 0 and 0 <= n <= 7 }` | `{ [p0] -> 8 : p0 = 0 }` | `{ 524288 }` | `{ 8 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
+| 3 | rmsnorm1 -> wv | `{ [m = 0, n] -> [p0 = 0] : 0 <= n <= 7 }` | `[]` | `{ [m, n] -> 1 : m = 0 and 0 <= n <= 7 }` | `{ [p0] -> 8 : p0 = 0 }` | `{ 524288 }` | `{ 8 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
+| 4 | wq -> rope_q | `{ [m = 0, hh] -> [p0 = 0, p1 = hh] : 0 <= hh <= 31 }` | `[n_h]` | `{ [m, hh] -> 1 : m = 0 and 0 <= hh <= 31 }` | `{ [p0, p1] -> 1 : p0 = 0 and 0 <= p1 <= 31 }` | `{ 16384 }` | `{ 32 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
+| 5 | wk -> rope_k | `{ [m = 0, hh] -> [p0 = 0, p1 = hh] : 0 <= hh <= 7 }` | `[n_kv]` | `{ [m, hh] -> 1 : m = 0 and 0 <= hh <= 7 }` | `{ [p0, p1] -> 1 : p0 = 0 and 0 <= p1 <= 7 }` | `{ 16384 }` | `{ 8 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
+| 6 | rope_k -> kvappend_k | `{ [hh] -> [p0 = 0, p1 = hh] : 0 <= hh <= 7 }` | `[n_kv]` | `{ [hh] -> 1 : 0 <= hh <= 7 }` | `{ [p0, p1] -> 1 : p0 = 0 and 0 <= p1 <= 7 }` | `{ 16384 }` | `{ 8 }` | 1 | layout_mediated + symbolic_static + exact + none + constant | - | - |
+| 7 | wv -> kvappend_v | `{ [hh] -> [p0 = 0, p1 = hh] : 0 <= hh <= 7 }` | `[n_kv]` | `{ [hh] -> 1 : 0 <= hh <= 7 }` | `{ [p0, p1] -> 1 : p0 = 0 and 0 <= p1 <= 7 }` | `{ 16384 }` | `{ 8 }` | 1 | layout_mediated + symbolic_static + exact + none + constant | - | - |
+| 8 | rope_q -> attn_chunk | `[L_s] -> { [h, j] -> [p0 = 0, p1 = h] : 0 <= h <= 31 and j >= 0 and 128j < L_s }` | `[n_h]` | `[L_s] -> { [h, j] -> 1 : 0 <= h <= 31 and j >= 0 and 128j < L_s }` | `[L_s] -> { [p0, p1] -> floor((127 + L_s)/128) : p0 = 0 and L_s > 0 and 0 <= p1 <= 31 }` | `{ 16384 }` | `[L_s] -> { 32 * floor((127 + L_s)/128) }` | 2 | affine + runtime_dynamic + exact + prefix_sum + constant | - | - |
+| 9 | kvappend_k -> attn_chunk | `[L_s] -> { [h, j] -> [p0] : 0 <= h <= 31 and j >= 0 and 128j < L_s and -3 + h <= 4p0 <= h }` | `[n_h]` | `[L_s] -> { [h, j] -> 1 : 0 <= h <= 31 and j >= 0 and 128j < L_s }` | `[L_s] -> { [p0] -> 4 * floor((127 + L_s)/128) : L_s > 0 and 0 <= p0 <= 7 }` | `{ 128 }` | `[L_s] -> { 32 * floor((127 + L_s)/128) }` | 2 | layout_mediated + runtime_dynamic + exact + prefix_sum + constant | `j == floordiv(past, Tkv)` | - |
+| 10 | kvappend_v -> attn_chunk | `[L_s] -> { [h, j] -> [p0] : 0 <= h <= 31 and j >= 0 and 128j < L_s and -3 + h <= 4p0 <= h }` | `[n_h]` | `[L_s] -> { [h, j] -> 1 : 0 <= h <= 31 and j >= 0 and 128j < L_s }` | `[L_s] -> { [p0] -> 4 * floor((127 + L_s)/128) : L_s > 0 and 0 <= p0 <= 7 }` | `{ 128 }` | `[L_s] -> { 32 * floor((127 + L_s)/128) }` | 2 | layout_mediated + runtime_dynamic + exact + prefix_sum + constant | `j == floordiv(past, Tkv)` | - |
+| 11 | attn_chunk -> attn_combine | `[L_s] -> { [h] -> [p0 = h, p1] : 0 <= h <= 31 and p1 >= 0 and 128p1 < L_s }` | `[n_h]` | `[L_s] -> { [h] -> floor((127 + L_s)/128) : L_s > 0 and 0 <= h <= 31 }` | `[L_s] -> { [p0, p1] -> 1 : 0 <= p0 <= 31 and p1 >= 0 and 128p1 < L_s }` | `{ 128 }` | `{ 32 }` | 2 | affine + runtime_dynamic + exact + prefix_sum + piecewise_quasipoly | - | - |
+| 12 | attn_combine -> wo | `{ [m = 0, n] -> [p0] : 0 <= n <= 31 and 0 <= p0 <= 31 }` | `[]` | `{ [m, n] -> 32 : m = 0 and 0 <= n <= 31 }` | `{ [p0] -> 32 : 0 <= p0 <= 31 }` | `{ 128 }` | `{ 32 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
+| 13 | wo -> add1 | `{ [m = 0, n] -> [p0 = 0, p1 = n] : 0 <= n <= 31 }` | `[ceildiv(H, Tn)]` | `{ [m, n] -> 1 : m = 0 and 0 <= n <= 31 }` | `{ [p0, p1] -> 1 : p0 = 0 and 0 <= p1 <= 31 }` | `{ 16384 }` | `{ 32 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
+| 14 | add1 -> rmsnorm2 | `{ [i = 0] -> [p0 = 0, p1] : 0 <= p1 <= 31 }` | `[]` | `{ [i] -> 32 : i = 0 }` | `{ [p0, p1] -> 1 : p0 = 0 and 0 <= p1 <= 31 }` | `{ 16384 }` | `{ 1 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
+| 15 | rmsnorm2 -> wgate | `{ [m = 0, n] -> [p0 = 0] : 0 <= n <= 111 }` | `[]` | `{ [m, n] -> 1 : m = 0 and 0 <= n <= 111 }` | `{ [p0] -> 112 : p0 = 0 }` | `{ 524288 }` | `{ 112 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
+| 16 | rmsnorm2 -> wup | `{ [m = 0, n] -> [p0 = 0] : 0 <= n <= 111 }` | `[]` | `{ [m, n] -> 1 : m = 0 and 0 <= n <= 111 }` | `{ [p0] -> 112 : p0 = 0 }` | `{ 524288 }` | `{ 112 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
+| 17 | wgate -> silu | `{ [m = 0, n] -> [p0 = 0, p1 = n] : 0 <= n <= 111 }` | `[ceildiv(I, Tn)]` | `{ [m, n] -> 1 : m = 0 and 0 <= n <= 111 }` | `{ [p0, p1] -> 1 : p0 = 0 and 0 <= p1 <= 111 }` | `{ 16384 }` | `{ 112 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
+| 18 | wup -> silu | `{ [m = 0, n] -> [p0 = 0, p1 = n] : 0 <= n <= 111 }` | `[ceildiv(I, Tn)]` | `{ [m, n] -> 1 : m = 0 and 0 <= n <= 111 }` | `{ [p0, p1] -> 1 : p0 = 0 and 0 <= p1 <= 111 }` | `{ 16384 }` | `{ 112 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
+| 19 | silu -> wdown | `{ [m = 0, n] -> [p0 = 0, p1] : 0 <= n <= 31 and 0 <= p1 <= 111 }` | `[]` | `{ [m, n] -> 112 : m = 0 and 0 <= n <= 31 }` | `{ [p0, p1] -> 32 : p0 = 0 and 0 <= p1 <= 111 }` | `{ 16384 }` | `{ 32 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
+| 20 | wdown -> add2 | `{ [m = 0, n] -> [p0 = 0, p1 = n] : 0 <= n <= 31 }` | `[ceildiv(H, Tn)]` | `{ [m, n] -> 1 : m = 0 and 0 <= n <= 31 }` | `{ [p0, p1] -> 1 : p0 = 0 and 0 <= p1 <= 31 }` | `{ 16384 }` | `{ 32 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
+| 21 | add1 -> add2 | `{ [m = 0, n] -> [p0 = 0, p1 = n] : 0 <= n <= 31 }` | `[ceildiv(H, Tn)]` | `{ [m, n] -> 1 : m = 0 and 0 <= n <= 31 }` | `{ [p0, p1] -> 1 : p0 = 0 and 0 <= p1 <= 31 }` | `{ 16384 }` | `{ 32 }` | 0 | affine + symbolic_static + exact + none + constant | - | - |
 
