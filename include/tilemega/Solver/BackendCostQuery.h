@@ -76,6 +76,7 @@ class BackendCandidate {
 /// `Backend/CutlassGemmCandidate.h` static_asserts each of them against the
 /// instantiated CUTLASS collective, which is what lets the host-side
 /// enumerator prune without compiling anything.
+constexpr char kSimtF32Backend[] = "cutlass.sm80_cpasync.simt_f32";
 constexpr int kSimtF32Threads = 256;
 constexpr int kSimtF32ArchSm = 80;
 

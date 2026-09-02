@@ -10,7 +10,13 @@ def CG_TaskSpaceOp : CG_Op<"task_space", [Symbol]> {
                        DictionaryAttr:$granularity,
                        CG_AccessMapAttr:$write_map,
                        I64Attr:$stage,
-                       StrAttr:$operator_name);
+                       StrAttr:$operator_name,
+                       // The derived indexing map, one entry per operand, in
+                       // operand order, spans already evaluated under
+                       // (theta, g). Optional so IR written before §5 still
+                       // verifies; when present it is the truth an
+                       // implementation contract is checked against.
+                       OptionalAttr<ArrayAttr>:$index_map);
   let assemblyFormat = "$sym_name attr-dict";
   let hasVerifier = 1;
 }
@@ -52,5 +58,26 @@ def CG_PlacementOp : CG_Op<"placement", []> {
                        DenseI64ArrayAttr:$map,
                        I64Attr:$cluster);
   let assemblyFormat = "$task `map` `=` $map `cluster` `=` $cluster attr-dict";
+  let hasVerifier = 1;
+}
+
+def CG_ImplementationOp : CG_Op<"implementation", [Symbol]> {
+  let summary = "one backend instantiation bound to a task space";
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                       FlatSymbolRefAttr:$task,
+                       StrAttr:$backend,
+                       DenseI64ArrayAttr:$tile,
+                       DenseI64ArrayAttr:$cluster,
+                       I64Attr:$stages,
+                       I64Attr:$threads,
+                       I64Attr:$smem_bytes,
+                       // Absent until a tier-3 ptxas log fills it: CUTLASS's
+                       // constexpr traits carry no register count, so an
+                       // always-present field could only hold a guess.
+                       OptionalAttr<I64Attr>:$regs_est,
+                       DenseI64ArrayAttr:$alignment,
+                       I64Attr:$arch_required,
+                       ArrayAttr:$access);
+  let assemblyFormat = "$sym_name `for` $task attr-dict";
   let hasVerifier = 1;
 }

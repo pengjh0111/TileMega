@@ -3,6 +3,7 @@
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Analysis/CouplingDerivation.h>
+#include <tilemega/Dialect/CouplingGraph/CGContract.h>
 
 #include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/BuiltinTypes.h>
@@ -185,6 +186,29 @@ LogicalResult CouplingOp::verify() {
   } catch (std::exception const& error) {
     return emitOpError() << "cannot evaluate coupling metric after theta/g "
                             "binding: " << error.what();
+  }
+  return success();
+}
+
+LogicalResult ImplementationOp::verify() {
+  auto task = SymbolTable::lookupNearestSymbolFrom<TaskSpaceOp>(*this, getTaskAttr());
+  if (!task) return emitOpError() << "unknown task space " << getTask();
+  solver::ImplementationContract declared;
+  std::string reason;
+  if (!readImplementation(*this, &declared, &reason))
+    return emitOpError() << reason;
+  // The backend answers for its own cost: an implementation may pick a shape,
+  // it may not restate what that shape costs.
+  if (!solver::VerifyTraits(declared, &reason)) return emitOpError() << reason;
+  // The ⭐ check. Only possible when the task space carries the indexing map
+  // it was derived with; without it the declared access pattern is
+  // unfalsifiable, which is exactly the state F-17 was found in.
+  if (auto index = task.getIndexMap()) {
+    std::vector<solver::OperandContract> derived;
+    if (!readOperandContracts(*index, &derived, &reason))
+      return emitOpError() << "task space " << getTask() << ": " << reason;
+    if (!solver::VerifyAccessAgainst(declared, derived, &reason))
+      return emitOpError() << reason;
   }
   return success();
 }

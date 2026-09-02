@@ -88,6 +88,7 @@ add_library(tilemega STATIC
   lib/Frontend/GraphPattern.cpp
   lib/Frontend/ModelPlan.cpp
   lib/Dialect/CouplingGraph/CGDialect.cpp
+  lib/Dialect/CouplingGraph/CGContract.cpp
   lib/Analysis/ClosedForm.cpp
   lib/Analysis/AffineRelation.cpp
   lib/Analysis/ISLContext.cpp
@@ -102,6 +103,7 @@ add_library(tilemega STATIC
   lib/Solver/Solver.cpp
   lib/Solver/BackendCostQuery.cpp
   lib/Solver/CandidateGenerator.cpp
+  lib/Solver/ImplementationContract.cpp
   lib/Codegen/Codegen.cpp
   lib/Runtime/EventBuffer.cpp
   lib/Runtime/MegakernelRuntime.cpp)
@@ -236,6 +238,10 @@ if(TILEMEGA_BUILD_TESTS)
   target_compile_definitions(backend_query_test PRIVATE
     TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   add_test(NAME backend_query COMMAND backend_query_test)
+
+  add_executable(impl_contract_test test/unit/impl_contract_test.cpp)
+  target_link_libraries(impl_contract_test PRIVATE TileMega::tilemega)
+  add_test(NAME impl_contract COMMAND impl_contract_test)
 
   add_executable(task_body_contract_test test/unit/task_body_contract_test.cu)
   target_link_libraries(task_body_contract_test PRIVATE TileMega::tilemega)
