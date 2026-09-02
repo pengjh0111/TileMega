@@ -120,6 +120,12 @@ int main() {
   // The piecewise form itself carries the period-3 structure, so a consumer
   // that wants the real per-position count can still read it.
   REQUIRE(straddle.metrics.wait.ToString().find("floor") != std::string::npos);
+  // Third: the five attributes say all of that, where the tier says only
+  // "0". Nothing about this edge is ragged, relaxed or data dependent, yet
+  // its counts are genuinely piecewise -- the two facts are independent.
+  REQUIRE(straddle.attributes.ToString() ==
+          "affine + symbolic_static + exact + none + piecewise_quasipoly");
+  REQUIRE(DeriveTier(straddle.attributes) == Tier::kAffine);
 
   // An aligned control with the same machinery: 96 into 192 divides exactly,
   // so wait is the constant 2 and does collapse.

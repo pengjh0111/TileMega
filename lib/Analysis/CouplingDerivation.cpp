@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/CouplingDerivation.h>
 
+#include <cctype>
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
@@ -107,6 +108,50 @@ std::string DomainBoxText(OperatorNode const& consumer, ParamBinding const& know
   return text.str();
 }
 
+/// True when any extent or tile this edge's two task spaces are built from
+/// still names a symbol. Deliberately independent of the derivation-time
+/// `known` binding: I1 is about what L-sem says, not about what happened to
+/// be bound when the edge was derived.
+bool AnySymbolicExtent(OperatorNode const& node) {
+  for (auto const& axis : node.output.axes)
+    if (!axis.extent.FreeSymbols().empty() || !axis.origin.FreeSymbols().empty())
+      return true;
+  for (auto const& tile : node.tile)
+    if (!tile.FreeSymbols().empty()) return true;
+  return false;
+}
+
+/// Classify a derived count by the shape of the isl form barvinok printed.
+/// isl separates cells with ';' and prints a periodic coefficient with
+/// `floor`, so either marks a quantity with no single value; a single cell
+/// whose value expression is a literal is the constant case, and anything
+/// else is a genuine (single-cell) function of the position.
+Countability ClassifyCount(QuasiPolynomial const& count) {
+  std::string const& text = count.ToString();
+  if (text.find(';') != std::string::npos ||
+      text.find("floor") != std::string::npos)
+    return Countability::kPiecewiseQuasiPolynomial;
+  std::size_t open = text.rfind('{');
+  if (open == std::string::npos) return Countability::kQuasiPolynomial;
+  std::string body = text.substr(open + 1);
+  std::size_t stop = body.find_first_of(":}");
+  if (stop != std::string::npos) body = body.substr(0, stop);
+  // isl always prints wait/fanout as a function of the task coordinate, so a
+  // `[m, n] ->` prefix is not itself evidence of position dependence; what
+  // decides is whether the value on the other side of it is a literal.
+  std::size_t arrow = body.rfind("->");
+  if (arrow != std::string::npos) body = body.substr(arrow + 2);
+  std::string value;
+  for (char c : body)
+    if (!std::isspace(static_cast<unsigned char>(c))) value.push_back(c);
+  if (value.empty()) return Countability::kQuasiPolynomial;
+  std::size_t digits = value[0] == '-' ? 1 : 0;
+  for (std::size_t i = digits; i < value.size(); ++i)
+    if (!std::isdigit(static_cast<unsigned char>(value[i])))
+      return Countability::kQuasiPolynomial;
+  return Countability::kConstant;
+}
+
 }  // namespace
 
 std::string ToString(Tier tier) {
@@ -117,6 +162,121 @@ std::string ToString(Tier tier) {
     case Tier::kDataDependent: return "3";
   }
   return "?";
+}
+
+std::string ToString(RelationKind kind) {
+  switch (kind) {
+    case RelationKind::kAffine: return "affine";
+    case RelationKind::kLayoutMediated: return "layout_mediated";
+    case RelationKind::kDataDependent: return "data_dependent";
+  }
+  return "?";
+}
+
+std::string ToString(ExtentKind kind) {
+  switch (kind) {
+    case ExtentKind::kStaticLiteral: return "static_literal";
+    case ExtentKind::kSymbolicStatic: return "symbolic_static";
+    case ExtentKind::kRuntimeDynamic: return "runtime_dynamic";
+  }
+  return "?";
+}
+
+std::string ToString(Exactness exactness) {
+  return exactness == Exactness::kExact ? "exact" : "relaxed";
+}
+
+std::string ToString(RuntimeRequirement requirement) {
+  switch (requirement) {
+    case RuntimeRequirement::kNone: return "none";
+    case RuntimeRequirement::kPrefixSum: return "prefix_sum";
+    case RuntimeRequirement::kTensorValues: return "tensor_values";
+  }
+  return "?";
+}
+
+std::string ToString(Countability countability) {
+  switch (countability) {
+    case Countability::kConstant: return "constant";
+    case Countability::kQuasiPolynomial: return "quasipoly";
+    case Countability::kPiecewiseQuasiPolynomial: return "piecewise_quasipoly";
+    case Countability::kUncountable: return "uncountable";
+  }
+  return "?";
+}
+
+std::string CouplingAttributes::ToString() const {
+  return tilemega::analysis::ToString(relation_kind) + " + " +
+         tilemega::analysis::ToString(extent_kind) + " + " +
+         tilemega::analysis::ToString(exactness) + " + " +
+         tilemega::analysis::ToString(runtime_requirement) + " + " +
+         tilemega::analysis::ToString(countability);
+}
+
+bool ParseCouplingAttributes(std::string const& relation_kind,
+                             std::string const& extent_kind,
+                             std::string const& exactness,
+                             std::string const& runtime_requirement,
+                             std::string const& countability,
+                             CouplingAttributes* out) {
+  CouplingAttributes parsed;
+  if (relation_kind == "affine")
+    parsed.relation_kind = RelationKind::kAffine;
+  else if (relation_kind == "layout_mediated")
+    parsed.relation_kind = RelationKind::kLayoutMediated;
+  else if (relation_kind == "data_dependent")
+    parsed.relation_kind = RelationKind::kDataDependent;
+  else
+    return false;
+  if (extent_kind == "static_literal")
+    parsed.extent_kind = ExtentKind::kStaticLiteral;
+  else if (extent_kind == "symbolic_static")
+    parsed.extent_kind = ExtentKind::kSymbolicStatic;
+  else if (extent_kind == "runtime_dynamic")
+    parsed.extent_kind = ExtentKind::kRuntimeDynamic;
+  else
+    return false;
+  if (exactness == "exact")
+    parsed.exactness = Exactness::kExact;
+  else if (exactness == "relaxed")
+    parsed.exactness = Exactness::kRelaxed;
+  else
+    return false;
+  if (runtime_requirement == "none")
+    parsed.runtime_requirement = RuntimeRequirement::kNone;
+  else if (runtime_requirement == "prefix_sum")
+    parsed.runtime_requirement = RuntimeRequirement::kPrefixSum;
+  else if (runtime_requirement == "tensor_values")
+    parsed.runtime_requirement = RuntimeRequirement::kTensorValues;
+  else
+    return false;
+  if (countability == "constant")
+    parsed.countability = Countability::kConstant;
+  else if (countability == "quasipoly")
+    parsed.countability = Countability::kQuasiPolynomial;
+  else if (countability == "piecewise_quasipoly")
+    parsed.countability = Countability::kPiecewiseQuasiPolynomial;
+  else if (countability == "uncountable")
+    parsed.countability = Countability::kUncountable;
+  else
+    return false;
+  *out = parsed;
+  return true;
+}
+
+Tier DeriveTier(CouplingAttributes const& attributes) {
+  // The order is §2.4's, read as "what is the strongest obstacle to solving
+  // this edge": an index out of a tensor, then an extent or a projection that
+  // is not available in closed form, then an indirection that cancels.
+  if (attributes.relation_kind == RelationKind::kDataDependent ||
+      attributes.countability == Countability::kUncountable)
+    return Tier::kDataDependent;
+  if (attributes.extent_kind == ExtentKind::kRuntimeDynamic ||
+      attributes.exactness == Exactness::kRelaxed)
+    return Tier::kStructuredRagged;
+  if (attributes.relation_kind == RelationKind::kLayoutMediated)
+    return Tier::kSharedInjectiveLayout;
+  return Tier::kAffine;
 }
 
 std::string CouplingEdge::EventShapeString() const {
@@ -470,20 +630,37 @@ std::vector<CouplingEdge> CouplingDerivation::Derive(
       edge.metrics = ComputeMetrics(edge.C, W, R, *producer, consumer, known);
       edge.event_shape = ComputeEventShape(consumer, detail.occurring);
 
-      Tier tier = Tier::kAffine;
-      auto raise = [&](Tier candidate) { tier = std::max(tier, candidate); };
-      // Tier 1: the edge is expressed through a declared non-identity layout.
-      // Either endpoint is enough -- an append writes *into* the laid-out
+      CouplingAttributes attributes;
+      // The edge is expressed through a declared non-identity layout when
+      // either endpoint declares one -- an append writes *into* the laid-out
       // tensor, so the layout is on the consumer's output, not the producer's.
       if (!producer->output.layout_id.empty() ||
           !consumer.output.layout_id.empty() ||
           !operand.tensor.layout_id.empty())
-        raise(Tier::kSharedInjectiveLayout);
-      if (producer->HasRuntimeTaskSpace() || consumer.HasRuntimeTaskSpace())
-        raise(Tier::kStructuredRagged);
-      if (!detail.exact) raise(Tier::kStructuredRagged);
-      if (R.data_dependent) tier = Tier::kDataDependent;
-      edge.tier = tier;
+        attributes.relation_kind = RelationKind::kLayoutMediated;
+      if (R.data_dependent)
+        attributes.relation_kind = RelationKind::kDataDependent;
+      bool runtime_extent =
+          producer->HasRuntimeTaskSpace() || consumer.HasRuntimeTaskSpace();
+      attributes.extent_kind =
+          runtime_extent ? ExtentKind::kRuntimeDynamic
+          : (AnySymbolicExtent(*producer) || AnySymbolicExtent(consumer))
+              ? ExtentKind::kSymbolicStatic
+              : ExtentKind::kStaticLiteral;
+      attributes.exactness =
+          detail.exact ? Exactness::kExact : Exactness::kRelaxed;
+      // What the runtime has to hand the kernel, read off the source of the
+      // uncertainty rather than off another attribute: an indptr prefix sum
+      // for a ragged extent, the index tensor itself for a gather.
+      attributes.runtime_requirement =
+          R.data_dependent  ? RuntimeRequirement::kTensorValues
+          : runtime_extent  ? RuntimeRequirement::kPrefixSum
+                            : RuntimeRequirement::kNone;
+      attributes.countability =
+          R.data_dependent ? Countability::kUncountable
+                           : ClassifyCount(edge.metrics.wait);
+      edge.attributes = attributes;
+      edge.tier = DeriveTier(attributes);
       edge.sync = SyncKind::kGlobal;
       edges.push_back(std::move(edge));
     }

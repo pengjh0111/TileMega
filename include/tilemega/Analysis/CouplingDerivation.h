@@ -25,6 +25,71 @@ enum class SyncKind { kGlobal, kCluster, kLocal };
 
 std::string ToString(Tier tier);
 
+/// §2.4's Tier is a summary of five facts that vary independently, and only
+/// the summary was ever recorded. That loses distinctions the scheduler
+/// needs: a runtime extent and an over-approximated projection both print as
+/// Tier 2, yet the first needs one prefix sum at launch and the second needs
+/// nothing at all. Each attribute below names one observation the derivation
+/// already makes; `DeriveTier` collapses them, so §2.7 keeps its tiers.
+
+/// How the index mapping is expressed. Layout-mediated is §2.4's Tier 1
+/// (the shared injective layout cancels, leaving a closed form in logical
+/// space); data-dependent is Tier 3 (an index read out of a tensor).
+enum class RelationKind { kAffine, kLayoutMediated, kDataDependent };
+
+/// What fixes the loop bounds. `kSymbolicStatic` is invariant I1's normal
+/// case -- an extent that is a theta symbol, whether or not the derivation's
+/// `known` binding happens to give it a value. `kRuntimeDynamic` is a task
+/// space whose own extent is only known once theta is instantiated.
+enum class ExtentKind { kStaticLiteral, kSymbolicStatic, kRuntimeDynamic };
+
+/// Whether the projection was carried exactly or widened under I2.
+enum class Exactness { kExact, kRelaxed };
+
+/// What the runtime must supply before the edge can be armed.
+enum class RuntimeRequirement { kNone, kPrefixSum, kTensorValues };
+
+/// The form the derived counts take. Orthogonal to the rest: a plainly
+/// affine, exact, statically shaped edge still has a piecewise wait when the
+/// two tilings are misaligned.
+enum class Countability {
+  kConstant,
+  kQuasiPolynomial,
+  kPiecewiseQuasiPolynomial,
+  kUncountable,
+};
+
+std::string ToString(RelationKind kind);
+std::string ToString(ExtentKind kind);
+std::string ToString(Exactness exactness);
+std::string ToString(RuntimeRequirement requirement);
+std::string ToString(Countability countability);
+
+struct CouplingAttributes {
+  RelationKind relation_kind = RelationKind::kAffine;
+  ExtentKind extent_kind = ExtentKind::kStaticLiteral;
+  Exactness exactness = Exactness::kExact;
+  RuntimeRequirement runtime_requirement = RuntimeRequirement::kNone;
+  Countability countability = Countability::kConstant;
+
+  /// `affine + symbolic_static + exact + none + piecewise_quasipoly`.
+  std::string ToString() const;
+};
+
+/// The §2.4 tier as a function of the five attributes, and nothing else.
+Tier DeriveTier(CouplingAttributes const& attributes);
+
+/// Inverse of the ToString overloads, for the CG verifier: every field must
+/// name a value this header defines, so IR cannot carry a classification the
+/// derivation is unable to produce. Returns false and leaves `out` untouched
+/// on the first unrecognized name.
+bool ParseCouplingAttributes(std::string const& relation_kind,
+                             std::string const& extent_kind,
+                             std::string const& exactness,
+                             std::string const& runtime_requirement,
+                             std::string const& countability,
+                             CouplingAttributes* out);
+
 /// One derived coupling edge.  `event_shape` is the shape §2.3 asks for:
 /// EventTensor(e) = image(C_kappa), which for kappa = 1 is the quotient of the
 /// consumer task space by the fibers of C -- the product of the ranges of the
@@ -34,6 +99,9 @@ struct CouplingEdge {
   TaskSpaceId dst;
   CouplingRelation C;
   DerivedMetrics metrics;
+  CouplingAttributes attributes;
+  /// Always `DeriveTier(attributes)`; kept as a field because §2.7, the CG
+  /// attributes and the solver all still speak in tiers.
   Tier tier = Tier::kAffine;
   SyncKind sync = SyncKind::kGlobal;
   std::vector<ClosedForm> event_shape;

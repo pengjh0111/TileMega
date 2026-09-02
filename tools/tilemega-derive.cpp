@@ -26,8 +26,8 @@ ParamBinding KnownBinding() {
 void Dump(std::string const& title, OperatorGraph const& graph) {
   std::cout << "## " << title << "\n\n";
   std::cout << "| # | edge | C | event shape | wait | fanout | volume | count "
-               "| tier | guard | relaxation |\n";
-  std::cout << "|---|---|---|---|---|---|---|---|---|---|---|\n";
+               "| tier | attributes | guard | relaxation |\n";
+  std::cout << "|---|---|---|---|---|---|---|---|---|---|---|---|\n";
   CouplingDerivation derivation;
   std::vector<CouplingEdge> edges = derivation.Derive(graph, KnownBinding());
   int index = 0;
@@ -39,6 +39,7 @@ void Dump(std::string const& title, OperatorGraph const& graph) {
               << edge.metrics.fanout.ToString() << "` | `"
               << edge.metrics.volume.ToString() << "` | `"
               << edge.metrics.count.ToString() << "` | " << ToString(edge.tier)
+              << " | " << edge.attributes.ToString()
               << " | " << (edge.guard.empty() ? "-" : "`" + edge.guard + "`")
               << " | " << (edge.relaxation.empty() ? "-" : edge.relaxation)
               << " |\n";

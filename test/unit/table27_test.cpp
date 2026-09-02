@@ -25,6 +25,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -229,6 +230,27 @@ int main() {
   }
   EQ((long)affine, 15L);
 
+  // Part 3: the tier is a derived summary, and it is lossy in exactly the
+  // place §2.4 conflates two unrelated obligations. All four Tier-2 edges
+  // here are ragged, but they split three ways once the attributes are kept
+  // apart, and every one of them is *exactly* derived -- the tier alone
+  // cannot say that.
+  std::set<std::string> tier2;
+  for (auto const& edge : t.All()) {
+    REQUIRE(DeriveTier(edge.attributes) == edge.tier);
+    if (edge.tier == Tier::kStructuredRagged)
+      tier2.insert(edge.attributes.ToString());
+  }
+  EQ((long)tier2.size(), 3L);
+  for (auto const& attributes : tier2)
+    REQUIRE(attributes.find("+ exact +") != std::string::npos);
+  REQUIRE(t.Row("rmsnorm1", "wq").attributes.ToString() ==
+          "affine + symbolic_static + exact + none + constant");
+  REQUIRE(t.Row("rope_k", "kvappend_k").attributes.ToString() ==
+          "layout_mediated + symbolic_static + exact + none + constant");
+  REQUIRE(t.Row("kvappend_k", "attn_chunk").attributes.ToString() ==
+          "layout_mediated + runtime_dynamic + exact + prefix_sum + constant");
+
   // The derivation finds one edge the table does not list: the residual
   // add1 -> add2.  Asserted so that it cannot silently disappear.
   EQ(t.Row("add1", "add2").C.ToString(),
@@ -264,6 +286,8 @@ int main() {
   Table gather(GatherModel(shape), KnownBinding(), KnownBinding());
   CouplingEdge const& routed = gather.Row("produce", "gather");
   REQUIRE(routed.tier == Tier::kDataDependent);
+  REQUIRE(routed.attributes.ToString() ==
+          "data_dependent + symbolic_static + relaxed + tensor_values + uncountable");
   REQUIRE(!routed.exact);
   EQ(routed.relaxation.substr(0, 20), std::string("data-dependent index"));
 
