@@ -80,4 +80,22 @@ gcc "${raw}/parametric_div_probe.o" \
 "${raw}/parametric_div_probe" > "${raw}/parametric_div_run.txt" 2>&1 || true
 cat "${raw}/parametric_div_run.txt"
 
+echo "== coarsen_probe.cpp: C_kappa for kappa in {1,2,4}, with expression sizes ==" \
+  | tee "${raw}/coarsen_build.txt"
+tilemega_link=(-L"${repo}/build-portable" -ltilemega
+  "${barvinok_build}/.libs/libbarvinok.a" "${isl_build}/.libs/libisl.a"
+  "${polylib_build}/.libs/libpolylibgmp.a"
+  -L"${mlir_build}/lib" -lLLVMSupport -lLLVMDemangle
+  -L/usr/local/cuda/lib64 -lcudart -lntl -lgmp -lpthread)
+tilemega_inc=(-I"${repo}/include" -I"${repo}/build-portable/include"
+  -I"${mlir_src}/llvm/include" -I"${mlir_build}/include")
+for probe in coarsen quasipoly; do
+  g++ -std=c++17 "${tilemega_inc[@]}" \
+    -I"${repo}/third_party/barvinok/isl/include" -I"${isl_build}/include" \
+    "${here}/${probe}_probe.cpp" "${tilemega_link[@]}" \
+    -o "${raw}/${probe}_probe" 2>&1 | tee -a "${raw}/coarsen_build.txt"
+  "${raw}/${probe}_probe" > "${raw}/${probe}.txt" 2>&1
+  cat "${raw}/${probe}.txt"
+done
+
 echo PASS > "${raw}/run_status.txt"

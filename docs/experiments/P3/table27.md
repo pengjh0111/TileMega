@@ -25,7 +25,7 @@ I=14336, Tm=Tn=Tkv=128`, and for evaluation `S=512, L_s=1024, past=512`.
 |---|---|---|---|---|---|---|---|
 | 1 | `rmsnorm1 -> wq/wk/wv` | `(m,n) -> {rmsnorm1(m)}` | `[ceildiv(S,Tm)]` | 1 | 32+8+8 = **48** | 0 | match |
 | 2 | `wq -> rope_q` | `(m,hh) -> {wq(m,hh)}` | `[ceildiv(S,Tm) x n_h]` | 1 | 1 | 0 | match |
-| 3 | `rope_k -> kvappend_k` | `(row,hh) -> {rope_k(floordiv(row,Tm),hh)}` | `[S x n_kv]` | 1 | 1 | **1** | wait/fanout/Tier match; `C` differs — see (b) |
+| 3 | `rope_k -> kvappend_k` | `(row,hh) -> {rope_k(floordiv(row,Tm),hh)}` | `[S x n_kv]` | 1 | **Tm = 128** | **1** | wait/Tier match; `C` differs — see (b); **fanout: the table is wrong** — see (f) |
 | 4 | `kvappend_k/v -> attn_chunk` | guarded to `j == floordiv(past,Tkv)` | ragged | `Tkv`, **1 at S=1** | `S` | **2** | match under the decode instantiation — see (c) |
 | 5 | `rope_q -> attn_chunk` | `(s,h,j) -> {rope_q(floordiv(s,Tm),h)}` | `[S x n_h]` | 1 | `ceildiv(L_s,Tkv)` | **2** | match |
 | 6 | `attn_chunk -> attn_combine` | `(s,h) -> {attn_chunk(s,h,j) : j < ceildiv(L_s,Tkv)}` | `[S x n_h]` | `ceildiv(L_s,Tkv)` | 1 | **2** | match |
@@ -77,6 +77,28 @@ unrelated to `d`, RoPE's per-head read is not tile aligned and the derivation
 really does couple a RoPE task to more than one projection task.  §2.7's rows 2
 and 3 hold because it sets `Tn = d = 128`.  This is recorded because it is a
 constraint the solver (L2) will have to respect, not a free choice.
+
+**(f) Row 3's fanout — the table is wrong, and so was this file's first pass.**
+The original §2.7 table gives fanout 1, and the pre-isl derivation reported 1
+as well, so the first version of this document recorded a match. Re-deriving
+through isl (`docs/experiments/P3_ISL/`) gives **Tm = 128**, and that is the
+correct value: `kvappend_k` tiles the cache row axis by 1 — one task per
+row — while `rope_k` produces Tm-row blocks, so a single producer block is
+needed by 128 consumer row-tasks. `wait` is unaffected (a row still needs
+exactly one block), which is why only one of the two numbers moved.
+
+The two "1"s agreed for different reasons, which is exactly why this survived.
+The table's 1 was written against the coarser model where both sides are
+Tm-blocks and `m ↦ m` is a bijection — consistent with its own `C` column,
+but not with the granularity the derivation actually uses (difference (b)).
+The implementation's 1 came from a heuristic, not a count: *a consumer
+coordinate occurring in `C` is pinned by y and contributes a factor of 1*.
+That holds for the identity occurrence (`hh`) and fails for the floordiv
+occurrence (`row ↦ ⌊row/Tm⌋`, many-to-one). barvinok computes the real
+inverse-image cardinality, so there is nowhere for the assumption to hide.
+The skeleton's §2.7 table is corrected accordingly (including its cluster
+candidacy, since fanout 128 exceeds cluster capacity for the same reason
+rows 1 and 10 are marked ✗).
 
 ## I1: split-K is a reparameterization
 

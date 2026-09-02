@@ -71,28 +71,63 @@ int main() {
   // I2 relaxation in the original coordinate system, so it is not compared
   // to combineToWo.C via Contains -- I2 containment is exercised separately
   // in containment_test.cpp, on relations that share one coordinate system.
+  // This is the operation AffineRelation could not express at all (it had no
+  // composition operator), so it is the migration's own reason to exist.
+  QuasiPolynomial coarseWait = combineToWo.C.Coarsen({1, 4}).Card();
+  REQUIRE(coarseWait.Eval(known) == 1024);  // 4096 / 4
+
+  // Coarsening is a group homomorphism on the granularity, and the identity
+  // at kappa = 1. Both were false at first: the fresh output names Coarsen
+  // generated collided with the range names of an already-coarsened relation,
+  // and isl reads the resulting `q1 = floord(q1, 2)` as a constraint on one
+  // variable whose only solution is 0 -- silently collapsing that coordinate
+  // to a point rather than halving it. Keeping these two laws asserted is
+  // what makes a repeat of that failure impossible to miss.
+  REQUIRE(combineToWo.C.Coarsen({1, 1}) == combineToWo.C);
+  REQUIRE(combineToWo.C.Coarsen({1, 2}).Coarsen({1, 2}) ==
+          combineToWo.C.Coarsen({1, 4}));
+
+  // A coupling whose wait is genuinely a piecewise quasi-polynomial, which
+  // is what makes barvinok load-bearing rather than merely equivalent to the
+  // old closed form. Producer tiles rows by 96, consumer by 160: a consumer
+  // block straddles 2 or 3 producer blocks depending on its position, with
+  // period lcm(96,160)/160 = 3.
   //
-  // This is derived with S already bound to a literal (unlike every check
-  // above), not merely for a simpler assertion: composing Coarsen's floor
-  // map with a relation whose producer coordinate is itself an *inequality*
-  // range tied to the consumer (attn_combine->wo's `128m <= p0 <= 127+128m`,
-  // not a plain equality) while S stays a genuine isl parameter hits an isl/
-  // barvinok basis-reduction limitation -- confirmed empirically, isl prints
-  // "unexpected missing (bounded) solution" (basis_reduction_tab.c) and the
-  // resulting quasi-polynomial's pieces no longer cover the relation's own
-  // (already-bound) domain, so Eval() correctly refuses to collapse it to a
-  // scalar rather than silently returning a wrong number. With S bound
-  // before Coarsen runs, the same computation is immediate and exact. This
-  // is recorded as residual debt (TileMega_skeleton.md §1.5.1, P4.6): a
-  // future Solver that wants to Coarsen with S still symbolic will need
-  // either a different isl formulation of the inequality-range case or to
-  // bind workload parameters first, as this test now does.
-  ParamBinding boundKnown = known;
-  boundKnown.Bind("S", 512);
-  auto boundEdges = CouplingDerivation().Derive(LlamaDecoderLayer(shape), boundKnown);
-  auto boundCombineToWo = Find(boundEdges, "attn_combine", "wo");
-  QuasiPolynomial coarseWait = boundCombineToWo.C.Coarsen({1, 4}).Card();
-  REQUIRE(coarseWait.Eval(boundKnown) == 1024);  // 4096 / 4
+  // Two things are being asserted at once. First, the edge is derived
+  // *exactly* -- the two-sided overlap condition is affine, so isl carries
+  // it and no relaxation is needed; the pre-migration path had no way to
+  // express that condition or to count over it, so it relaxed this whole
+  // class of edge to the full producer axis and raised the tier. Second,
+  // the resulting wait genuinely has no single scalar value, and Eval says
+  // so instead of silently returning one of the two.
+  ParamBinding misaligned = KnownBinding();
+  misaligned.Bind("S", 1536);
+  auto misalignedEdges = CouplingDerivation().Derive(
+      MisalignedTileModel(shape, /*producer_tile=*/96, /*consumer_tile=*/160),
+      misaligned);
+  REQUIRE(misalignedEdges.size() == 1);
+  CouplingEdge const& straddle = misalignedEdges.front();
+  REQUIRE(straddle.exact);
+  REQUIRE(straddle.relaxation.empty());
+  REQUIRE(straddle.tier == Tier::kAffine);
+  bool refused = false;
+  try {
+    (void)straddle.metrics.wait.Eval(misaligned);
+  } catch (std::out_of_range const&) {
+    refused = true;  // correctly not collapsible to one number
+  }
+  REQUIRE(refused);
+  // The piecewise form itself carries the period-3 structure, so a consumer
+  // that wants the real per-position count can still read it.
+  REQUIRE(straddle.metrics.wait.ToString().find("floor") != std::string::npos);
+
+  // An aligned control with the same machinery: 96 into 192 divides exactly,
+  // so wait is the constant 2 and does collapse.
+  auto alignedEdges = CouplingDerivation().Derive(
+      MisalignedTileModel(shape, /*producer_tile=*/96, /*consumer_tile=*/192),
+      misaligned);
+  REQUIRE(alignedEdges.front().exact);
+  REQUIRE(alignedEdges.front().metrics.wait.Eval(misaligned) == 2);
 
   return 0;
 }

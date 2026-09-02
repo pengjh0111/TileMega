@@ -1,4 +1,5 @@
 -- Using MLIR  from /root/toolchains/mlir-23a60f15/lib/cmake/mlir
+-- ISL stack: isl=/root/TileMega/build-isl/.libs/libisl.a polylib=/root/TileMega/build-polylib/.libs/libpolylibgmp.a barvinok=/root/TileMega/build-barvinok/.libs/libbarvinok.a
 -- Configuring done
 -- Generating done
 -- Build files have been written to: /root/TileMega/build-phase12

@@ -289,6 +289,32 @@ OperatorGraph MhaModel(DecoderShape const& shape, int layers) {
   return graph;
 }
 
+OperatorGraph MisalignedTileModel(DecoderShape const& s, long producer_tile,
+                                  long consumer_tile) {
+  OperatorGraph graph;
+  ClosedForm rows = s.S;
+  ClosedForm width = s.H;
+  TensorSpace tensor = Space("staged", {Ax("r", rows), Ax("c", width)});
+
+  // The producer tiles the row axis by producer_tile; the whole width is one
+  // task, so the task space is one-dimensional.
+  graph.nodes.push_back(Node(
+      "produce", OperatorKind::kPointwise, tensor,
+      {ClosedForm::Constant(producer_tile), width},
+      {In("", Space("src", {Ax("r", rows), Ax("c", width)}),
+          {Map::Indexed(0), Map::FullRange()})}));
+
+  // The consumer tiles the same axis by consumer_tile and reads the rows its
+  // own tile covers. With consumer_tile not a multiple of producer_tile, the
+  // read straddles a varying number of producer tiles.
+  graph.nodes.push_back(Node(
+      "consume", OperatorKind::kPointwise,
+      Space("consumed", {Ax("r", rows), Ax("c", width)}),
+      {ClosedForm::Constant(consumer_tile), width},
+      {In("produce", tensor, {Map::Indexed(0), Map::FullRange()})}));
+  return graph;
+}
+
 OperatorGraph GatherModel(DecoderShape const& s, bool data_dependent) {
   OperatorGraph graph;
   TensorSpace table = Space("table", {Ax("m", s.S), Ax("n", s.H)});

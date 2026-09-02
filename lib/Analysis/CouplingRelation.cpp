@@ -62,20 +62,38 @@ CouplingRelation CouplingRelation::Coarsen(
   if (kappa.size() != range.size())
     throw std::invalid_argument(
         "Coarsen needs one kappa per range (producer-coordinate) dimension");
+  // The floor map's output names must not collide with its input names --
+  // the input names are this relation's *current* range names, which after
+  // one Coarsen are already the names a naive fresh-name scheme would pick
+  // again. A collision is silently destructive rather than an error: isl
+  // reads `q1 = floord(q1, 2)` as a constraint on one variable, whose only
+  // solution is 0, so a second Coarsen would collapse that coordinate to a
+  // point instead of halving it (caught by the "floor(floor(./2)/2) ==
+  // floor(./4)" check in docs/experiments/P3_ISL/coarsen_probe.cpp). Pick a
+  // prefix no input name shares, then rename the result's range dims back to
+  // the original names so repeated coarsening is textually stable and
+  // kappa = 1 is literally the identity.
+  std::string prefix = "c";
+  for (bool collides = true; collides;) {
+    collides = false;
+    for (auto const& name : range)
+      if (name.rfind(prefix, 0) == 0) collides = true;
+    if (collides) prefix += "_";
+  }
   std::ostringstream domain, out, constraints;
   for (std::size_t i = 0; i < range.size(); ++i) {
     if (i) { domain << ","; out << ","; }
     domain << range[i];
-    out << "q" << i;
+    out << prefix << i;
   }
   bool first = true;
   for (std::size_t i = 0; i < range.size(); ++i) {
     if (!first) constraints << " and ";
     first = false;
     if (kappa[i] == 1)
-      constraints << "q" << i << " = " << range[i];
+      constraints << prefix << i << " = " << range[i];
     else
-      constraints << "q" << i << " = floord(" << range[i] << ", " << kappa[i]
+      constraints << prefix << i << " = floord(" << range[i] << ", " << kappa[i]
                   << ")";
   }
   std::ostringstream floor_map;
@@ -97,6 +115,11 @@ CouplingRelation CouplingRelation::Coarsen(
   isl_util::Map coarse_map = isl_util::ReadMap(Ctx(), coarsened.text_);
   isl_util::Map restricted(isl_map_intersect_domain(
       coarse_map.release(), original_domain.release()));
+  // Restore the original range names (see the prefix comment above).
+  for (std::size_t i = 0; i < range.size(); ++i)
+    restricted = isl_util::Map(isl_map_set_dim_name(
+        restricted.release(), isl_dim_out, static_cast<unsigned>(i),
+        range[i].c_str()));
   return CouplingRelation(isl_util::ToString(restricted.get()));
 }
 

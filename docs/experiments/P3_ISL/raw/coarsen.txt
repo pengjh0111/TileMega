@@ -1,0 +1,30 @@
+## Coarsen: C_kappa = floor(./kappa) o C
+
+Workload parameters bound (S=512, L_s=1024, past=512); see the
+symbolic-parameter note below for why.
+
+| edge | kappa | |C_kappa| text | C_kappa pieces | wait text | wait pieces | wait |
+|---|---|---:|---:|---:|---:|---:|
+| attn_combine->wo | {1,1} | 100 | 1 | 49 | 1 | 4096 |
+| attn_combine->wo | {1,2} | 100 | 1 | 49 | 1 | 2048 |
+| attn_combine->wo | {1,4} | 99 | 1 | 49 | 1 | 1024 |
+| attn_combine->wo | {2,1} | 97 | 1 | 49 | 1 | 2048 |
+| attn_combine->wo | {4,1} | 97 | 1 | 49 | 1 | 1024 |
+| attn_combine->wo | {4,4} | 96 | 1 | 48 | 1 | 256 |
+| rmsnorm1->wq | {1} | 53 | 1 | 46 | 1 | 1 |
+| rmsnorm1->wq | {2} | 72 | 1 | 46 | 1 | 1 |
+| rmsnorm1->wq | {4} | 53 | 1 | 46 | 1 | 1 |
+| silu->wdown | {1,1} | 76 | 1 | 48 | 1 | 112 |
+| silu->wdown | {1,2} | 75 | 1 | 47 | 1 | 56 |
+| silu->wdown | {1,4} | 75 | 1 | 47 | 1 | 28 |
+
+floor(floor(./2)/2) == floor(./4): yes
+kappa=1 is the identity: yes
+
+## Same sweep with S left symbolic
+
+| edge | kappa | |C_kappa| text | C_kappa pieces | wait text | wait pieces | wait |
+|---|---|---:|---:|---:|---:|---:|
+| attn_combine->wo (S symbolic) | {1,1} | 115 | 1 | 64 | 1 | 4096 |
+| attn_combine->wo (S symbolic) | {1,2} | 115 | 1 | 64 | 1 | 2048 |
+| attn_combine->wo (S symbolic) | {1,4} | 114 | 1 | 64 | 1 | 1024 |

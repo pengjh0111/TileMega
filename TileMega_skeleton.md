@@ -100,7 +100,7 @@ L4    符号形状参数化 + 运行时变体选择
 | L5 Serving | — | ❌ | — |
 | L4 Frontend | ✅ | ✅ | V-H；结构化 importer：2 层 GQA 为 30 stage，4 层 MHA 为 60 stage |
 | L3a 符号类型 | ✅ | ✅ | F-14；`coupling_types_test` / `cg_attr_roundtrip` |
-| L3b 耦合推导 | ✅ | ✅ | P3：`W⁻¹∘R` 自动推出 §2.7 全 13 行；I2 containment / event synthesis 单测 |
+| L3b 耦合推导 | ✅ | ✅ | P3/P3_ISL：`W⁻¹∘R` 为 isl_map，wait/fanout 为 barvinok 计数；§2.7 全 13 行交叉验证（并纠正表中边 3 的 fanout）；Coarsen/I2/事件综合单测 |
 | L2 Solver | — | ❌ | Phase 4 |
 | L1 Codegen | ✅ | ✅ | E2E_GEN：表驱动 L0.5/L1/L2；2 层 GQA 50/50，4 层 MHA 通过 |
 | L0 Backend | ✅ | ✅ | V-I 四架构交叉编译 |
@@ -109,28 +109,37 @@ L4    符号形状参数化 + 运行时变体选择
 
 ### 1.5.1 残留技术债（本轮结束时的诚实记录）
 
-- **P3.1 ISL 桥仍是分类器，不是完整往返实现；isl/barvinok 现已可构建并
-  验证与 MLIR 共存，但求解权威尚未迁移**：`CuteLayoutBridge::Project`
-  只根据 `LayoutDescriptor` 的静态/动态/swizzle 标志选择
-  `InverseStrategy`（含 Tier 上界），`layout_bridge_test` 覆盖五个分支；
-  真正的 `isl_map` 构造（CuTe layout → flatten/coalesce → 读 shape/stride，
-  以及反向回写）没有实现。**这一条与前几轮不同的是**：isl 0.28 / polylib
-  5.22.9 / barvinok 0.41.9 现已从 `third_party/barvinok` 的匹配子模块构建
-  （`docs/DEPENDENCIES.md`），`ctest -R isl_crosslink` 证实 isl/barvinok
-  与 MLIR 自带的 Presburger 实现在同一进程内无冲突共存，
-  `cmake/ISL.cmake` + `-DTILEMEGA_ENABLE_ISL=ON` 把它们接入了构建系统。
-  同时确认了一条此前未知、对整个迁移路线图有约束力的事实
-  （`docs/experiments/P3_ISL/result.md`）：**`isl_aff_div` 的除数必须是
-  字面常量**——符号化的 tile size（`Tm` 等）不能作为 isl 参数出现在除法里，
-  必须在构造 `isl_map` 之前就用 `g` 的具体值替换掉，只有 `theta`（`S`、
-  `H`、`n_h` 等，运行时才绑定）可以保留为 isl 参数。这与 V-F 对 CuTe
-  `RightInverse` 的结论完全一致（"`g` 固定了 tile 内的 W 才能求逆"），
-  也与 `tilemega.g` 在导入期就是字面量字典这一事实吻合——真正要做的是让
-  `DeriveCoupling`/`ComputeMetrics` 在构造 isl 对象前替换 `g`、只保留
-  `theta` 符号。**P3.2/P3.3 的 `W⁻¹∘R` 推导仍然走 `ClosedForm` 闭式代数**
-  （精确覆盖矩形/分组/ragged 访问模式），没有切到 isl；§2.7 的验收因此仍
-  成立，但 P3.1 本身（isl_map 往返单测）与 P3.2/P3.3 的求解权威迁移都还
-  没有完成——依赖已就绪，代码迁移是下一轮的工作。
+- **P3.1 的 CuTe ↔ `isl_map` 往返仍未实现**（求解权威迁移本身已完成）：
+  `CuteLayoutBridge::Project` 仍只根据 `LayoutDescriptor` 的静态/动态/
+  swizzle 标志选择 `InverseStrategy`（含 Tier 上界），`layout_bridge_test`
+  覆盖五个分支；真正的 CuTe layout → `flatten`/`coalesce` → 读 shape/stride
+  → `isl_map`（以及求解结果反向回写）没有实现。**注意这一条现在只剩布局桥**：
+  §3.1 的求解权威迁移已经做完——`C` 是真正的 `isl_map`，`wait`/`fanout` 是
+  barvinok 计数，`Contains` 是 `isl_map_is_subset`，Coarsen 是 isl 复合
+  （见 §1.5 状态表与 `docs/experiments/P3_ISL/result.md`）。之所以推导层
+  不需要这条布局桥就能工作，是因为 `W` 的逆按每根轴是 `⌊·/g⌋`，
+  `DeriveCoupling` 直接把它写成 isl 约束，不经过 CuTe layout 对象。
+
+- **isl 的除数必须是字面常量，这约束了参数何时可以保持符号化**：
+  `isl_aff_div` 在 C API 层就拒绝参数化除数（`docs/experiments/P3_ISL/`），
+  所以 tile size（`Tm`/`Tn`/`Tkv`）以及任何出现在除数位置的量（GQA 的
+  `G`）必须在构造 `isl_map` 之前替换成字面量。实现上这体现为
+  `DeriveCoupling(..., ParamBinding const& known, ...)`：`known` 里的符号
+  被替换掉，不在 `known` 里的（`S`/`L_s`/`past` 这类工作负载维度）保留为
+  真正的 isl 参数，不变量 I1 因此仍然成立。这不是缺陷，是一条必须被遵守
+  的边界；`ClosedForm::ToIslText` 在除数没有被替换成常量时会显式抛错，
+  而不是生成非法 isl 文本。
+
+- **wait 与 fanout 需要不同的定界处理，这是 barvinok 的一条实测边界**：
+  把生产者（range）侧的界折进 `C` 本身，会让带有真正 isl 参数、且生产者
+  坐标由不等式区间导出的关系在 *wait* 方向把 barvinok 推进
+  `unexpected missing (bounded) solution`（`basis_reduction_tab.c:210`）；
+  完全不定界，则 *fanout* 会因为 `isl_map_card` 的分片分解保留一段"只在
+  别的参数取值下可达、在当前取值下恒为 0"的尾巴而误报 `min = 0`。现在的
+  做法是只把生产者盒子作用在**反向映射**上（`ProducerRangeBoxText` +
+  `FanoutCard`），让两个方向各自留在自己可解的区域。这是绕过而不是修复：
+  上游若换 isl/barvinok 版本，这条需要重测。
+
 - **L2 的 `notify`/`wait` 目前只有保守的 `kAll` 松弛路径**：
   `CouplingGraphToCUDA::Lower` 为每条跨阶段耦合发出一个 `StageDependency`，
   但恒定标记为 `Map::kAll`（等一整个生产者阶段的到达计数），从不使用
@@ -158,11 +167,27 @@ L4    符号形状参数化 + 运行时变体选择
   路径进入生成器。
 - **L2 Solver、簇内/局部同步、事件粗化 κ 未实现**：按本轮任务范围显式排除
   （`g` 固定、同步全部 `global`、不做性能优化），Phase 4 待启动。
-- **通用 barvinok 拟多项式计数未接入**：`ComputeMetrics` 用
-  `ClosedForm` 闭式代数（精确 ceildiv/min，覆盖矩形/分组/ragged 参考域）
-  给出 `wait`/`fanout`/`volume`/`count`，不是一般 Presburger 集合上的
-  Ehrhart/barvinok 计数；当前测试集内两者重合，尚未构造出需要真正
-  拟多项式的反例。
+- **分析层的耦合推导尚未接入真实前端路径**（本轮新发现，且与迁移无关——
+  迁移前就是如此）：`lib/Frontend/Frontend.cpp` 从 `export_bridge.json`
+  构造 CG 时**并不调用** `CouplingDerivation`。它按每个 ATen `call_function`
+  建 `task_space`（V-H 模型 179 个），每条张量依赖建一条 `coupling`，其
+  `relation` 来自占位的 `fixedRelation()`，`wait`/`fanout`/`volume`/`count`
+  一律写 `1`，`tier` 一律写 `0`。也就是说：经过验证的 `W⁻¹∘R` 推导（§2.7
+  全表、Tier 分类、事件综合）目前只在 `ReferenceModels.cpp` 的算子级
+  `OperatorGraph` 上运行（`tilemega-derive`、`table27_test` 等），**没有**
+  参与真实模型的代码生成；生成的 `.cu` 里 L2 的 `StageDependency` 只用到
+  "哪两个 stage 之间有耦合"这一结构信息，用不到 wait/fanout 的数值。
+  两条路径的粒度也不同（算子级 vs. 每个 ATen 节点级），所以接上去不是改
+  一行调用，而是要让前端按算子粒度建 `OperatorNode`——`ModelPlan` 已经
+  结构化地识别出了这些算子，是天然的接入点。本轮任务显式把
+  `Frontend.cpp` 列为"不动"，故未做；这是 L3b 距离"真正驱动生成的代码"
+  之间剩下的一步。
+
+- **Coarsen 的实测边界（P4.6 的 `[!]` 已给出结论，但覆盖有限）**：κ ∈ {1,2,4}
+  下关系与拟多项式都保持**单分片**、isl 文本长度基本不随 κ 变化（保留 `S`
+  为符号只多约 15 个字符），所以**没有出现表达式爆炸**，κ 不必限制为 2 的幂
+  （数据见 `docs/experiments/P3_ISL/result.md`）。⚠️ 这只覆盖了一个 decoder
+  层的边、κ ≤ 4、且每次只粗化一根轴；更深的嵌套没有测。
 
 ---
 
@@ -334,7 +359,7 @@ wait      = Tm × n_h / Kc
 |---|---|---|---|---|---|---|---|
 | 1 | RMSNorm1 → Wq/Wk/Wv | `(m,n) ↦ m` | `[⌈S/Tm⌉]` | 1 | 48 | 0 | ✗ fanout 超簇容量 |
 | 2 | Wq → RoPE_q | `(m,hh) ↦ (m,hh)` | `[⌈S/Tm⌉×32]` | 1 | 1 | 0 | ✓ 1:1 |
-| 3 | RoPE_k → KVappend | `(m,hh) ↦ (m,hh)` | 同上（k 侧 8 组） | 1 | 1 | **1** | ✓ |
+| 3 | RoPE_k → KVappend | `(row,hh) ↦ (⌊row/Tm⌋,hh)` | 同上（k 侧 8 组） | 1 | **Tm = 128** | **1** | ✗ fanout 超簇容量 |
 | 4 | KVappend → Attn chunk | 仅 `j = ⌊(L_s−1)/Tkv⌋` | ragged | 1 | 运行时 | **2** | — |
 | 5 | RoPE_q → Attn chunk | `(s,hh,j) ↦ (⌊s/Tm⌋, hh)` | ragged 域，映射仿射 | 1 | 运行时 | **2** | — |
 | 6 | Attn chunk → Attn combine | `(s,hh) ↦ {(s,hh,j) : j<⌈L_s/Tkv⌉}` | `[B×32]` | 运行时 `⌈L_s/Tkv⌉` | 1 | **2** | ✓ 典型场景 |
@@ -347,6 +372,29 @@ wait      = Tm × n_h / Kc
 | 13 | Wdown → residual add2 | `(m,n) ↦ (m,n)` | `[⌈S/Tm⌉×32]` | 1 | 1 | 0 | ✓ |
 
 11/13 条边 Tier 0；稠密模型中 Tier 3 为零；ragged 仅出现在边 4–6。
+
+**本表的三处修正**（P3 自动推导 + P3_ISL 的 isl 重推得出，见
+`docs/experiments/P3/table27.md` 与 `docs/experiments/P3_ISL/result.md`；
+是推导纠正表，不是把期望改成迁就实现）：
+
+1. **边 3 的 `C` 与 fanout。** KVappend 的任务粒度是**一行一个任务**
+   （tile = 1），不是 Tm 行一块，所以消费者坐标是 row，投影到生产者行块空间
+   是 `⌊row/Tm⌋`——一个多对一映射。`wait` 不受影响（一行仍只需要一个生产者
+   块），但 `fanout(p0) = |C⁻¹(p0)| = Tm = 128`：每个 128 行的 rope_k 块被
+   128 个行任务需要。原表的 1 是按"两侧都是 Tm 块、m ↦ m 一一对应"的粗粒度
+   模型写的；迁移前的实现也报 1，因为它用的是启发式（"在 C 中出现的坐标就算
+   被 y 钉住，贡献因子 1"），该假设对恒等出现成立、对 floordiv 出现不成立。
+   barvinok 的真实逆像计数没有这个盲区。fanout=128 超出簇容量，故 cluster
+   候选一并改为 ✗。
+2. **边 4 的 wait。** 表中的 1 是 decode（S=1）实例；一般（prefill）情形是
+   `min(Tkv, S)`，符号下为 `Tkv`。
+3. **表未列出的第 14 条边。** `add1 → add2`（第二个残差读第一个残差的输出）
+   是真实耦合，已在 `table27_test` 中断言，避免它悄悄消失。
+
+**边 2/3 成立所依赖的 tile 约束。** QKV 投影的列 tile 必须取 `d`（一个头）
+而不是通用的 `Tn`。列 tile 与 `d` 无关时，RoPE 的按头读取不再 tile 对齐，
+推导会（正确地）松弛——因为跨越两个头的投影 tile 确实会让一个 RoPE 任务耦合
+到多个投影任务。这是求解层（L2）必须遵守的约束，不是自由选择。
 
 ---
 
@@ -973,8 +1021,10 @@ tilemega/
       同时确认 `isl_aff_div` 除数必须是字面常量——`g` 必须在构造 isl 对象
       前替换为具体值，只有 `theta` 留作 isl 参数，与 CuTe `RightInverse`
       的既有结论一致。**这一条只是依赖就绪，不是 `ISLContext` 封装本身。**
-- [ ] `ISLContext`：生命周期、错误处理（C API + 自建 RAII，不用
-      `isl-noexceptions.h`）——依赖已就绪，封装本身未写
+- [x] `ISLContext`：生命周期、错误处理（C API + 自建 RAII，不用
+      `isl-noexceptions.h`）。`include/tilemega/Analysis/ISLContext.h` 拥有
+      `isl_ctx`，`lib/Analysis/IslUtil.h` 是 isl_map/isl_set/
+      isl_pw_qpolynomial/isl_val 的手写 RAII 模板（`_copy`/`_free` 对）。
 - [ ] CuTe layout → `isl_map`：先 `flatten` / `coalesce`，再读 shape/stride
 - [ ] `isl_map` → CuTe layout（求解结果回写）
 - [ ] 单元测试：一组 layout 的往返等价性
@@ -993,10 +1043,18 @@ tilemega/
 
 - [x] `C = W⁻¹ ∘ R`
       （CuTe：`composition(right_inverse(W), R)`；ISL：`apply_range ∘ reverse`）
-- [x] `wait` / `fanout` / `volume` / `count` 输出 `ClosedForm(θ,g)`；当前覆盖
-      矩形/分组/ragged 参考域，通用 barvinok 拟多项式 authority 仍待接入
-- [x] **验收：§2.7 的 13 条边全部自动推出**。表中三处记法差异已逐项解释，
-      不是用手写期望覆盖推导结果；见 `docs/experiments/P3/table27.md`
+- [x] `wait` / `fanout` / `volume` / `count` 改为 barvinok 计数，类型是
+      `QuasiPolynomial`（`isl_pw_qpolynomial`）：`wait = isl_map_card(C)`，
+      `fanout = card(C⁻¹)`。已构造出真正需要分段拟多项式的用例（错位 tile：
+      `wait(r)` 在 2 与 3 之间按周期变化，`ClosedForm` 的文法无法表达），
+      见 `docs/experiments/P3_ISL/result.md` 与 `MisalignedTileModel`。
+- [x] **验收：§2.7 的 13 条边全部自动推出**，并已用 isl 路径整表重推交叉
+      验证：除边 3 的 fanout 外逐项一致，而边 3 是**原表算错了**（见 §2.7
+      表下的修正说明），不是迁就实现改期望；见 `docs/experiments/P3/table27.md`
+      与 `docs/experiments/P3_ISL/result.md`
+- [x] 错位 tile 的两侧重叠条件改为精确推导（此前只能松弛）：生产者块 p 与
+      读区间重叠当且仅当 `p·tile < base+span` 且 `base < p·tile+tile`，是仿射
+      条件，isl 可直接承载。这类边因此从 Tier 2 松弛回到 Tier 0 精确。
 
 ### P3.4 Tier 分类与松弛
 
@@ -1005,7 +1063,8 @@ tilemega/
       - `[!]` 待确认：prefix caching + CoW 下 block 共享是否破坏单射性
 - [x] Tier 2：结构化 ragged/runtime task space 显式分类并保留 guard
 - [x] Tier 3：数据依赖索引退化为算子级事件，不伪造 affine inverse
-- [x] 松弛正确性检查：`Contains(C', C)` 机器验证；未知返回“未证实”而非猜测
+- [x] 松弛正确性检查：`Contains(C', C)` 现在就是 `isl_map_is_subset`，
+      不再是手写的结构覆盖判断；未知返回“未证实”而非猜测
 
 ### P3.5 L2 落地
 
@@ -1046,6 +1105,43 @@ tilemega/
       宽度/GQA-MHA 比例从权重形状结构化推导，但换一个不匹配这个数据流
       形状的模型（例如纯 MLP 堆叠）需要在 `ModelPlan.cpp` 里新增匹配规则。
       详见 §1.5.1。
+
+### P3.7 求解权威迁移到 isl/barvinok（原则三的落地）
+
+骨架**原则三**是"CuTe 是表示，ISL 是求解器"。此前关系代数、基数计数、包含
+判定全部由自建的 `ClosedForm`/`AffineRelation` 承担——那是把求解权威放错了
+地方，也是 Coarsen 无法实现的直接原因。
+
+- [x] `C` 的表示换成 `isl_map`（`CouplingRelation`），`C = W⁻¹∘R` 由
+      `isl_map_apply_range` / `isl_map_reverse` 给出。
+- [x] `wait`/`fanout`/`volume`/`count` 换成 `isl_pw_qpolynomial`
+      （`QuasiPolynomial`），由 barvinok 计数。
+- [x] `Contains` 换成 `isl_map_is_subset`。
+- [x] **Coarsen（`C_κ = ⌊·/κ⌋ ∘ C`）现在可以实现**——`AffineRelation` 连
+      image/preimage/复合算子都没有，这是本次迁移最直接的收益。κ ∈ {1,2,4}
+      验证 `wait` 精确按 κ 缩小，并断言两条代数律（κ=1 是恒等、
+      `⌊⌊·/2⌋/2⌋ = ⌊·/4⌋`）。
+- [x] `ClosedForm`/`AffineRelation` 作为**求解**表示已删除：`AffineRelation`
+      类连同 `ProducerMap`/`AffineRange`/`StructureKey`/`SameStructure`/
+      `PartitionRange` 一并移除，避免留下第二套语义权威。仍保留的
+      `AffineExpr` 与 `ClosedForm` 只是符号算术的构造件（张量 extent、tile
+      形状、访问基址系数），它们从不计算关系、基数或包含关系。
+- [x] IR 载体改为 ISL 规范文本：`ClosedFormAttr` → `MetricAttr`
+      （`isl_pw_qpolynomial` 文本），`CouplingMapAttr` 的 `DictionaryAttr`
+      → `isl_map` 文本（isl 语法本身就是 schema，解析期即校验）。
+- [x] CG dialect 链接 isl：`CouplingOp::verify` 现在**从关系本身推出**
+      `wait` 再与存储值比较，且是按函数比较而非塌成标量比较——位置相关的
+      `wait` 必须逐点相等。
+- [x] isl 不再可选：`TILEMEGA_ENABLE_ISL=OFF` 直接配置失败，与既有的
+      `TILEMEGA_ENABLE_MLIR` 处理一致。
+- [x] 端到端不回归：2 层 GQA 与 4 层 MHA 的 L0.5/L1/L2 位哈希与迁移前完全
+      相同（`5245714bc5d3ab4d` / `fd15fa2e89cdb915`），50/50 全新进程通过。
+- [!] 事件张量 extent 的 verifier 交叉检查退回为"能否求值"：从 `C` 反推
+      `image(C_κ)` 需要逐维回答"生产者坐标是否真的依赖这个消费者坐标"，而
+      isl 唯一可用的查询（`isl_map_involves_dims`）是语法性的，会把"只是给
+      域定界"的坐标也算作相关，从而高估 image。推导侧改为在构造时记录
+      哪条约束引用了哪个坐标（`CouplingDetail::occurring`），verifier 拿不到
+      这个上下文，故不做该项交叉推导——这是有意不上线一个不可靠的强检查。
 
 ---
 

@@ -549,3 +549,116 @@
   (Part 4), and the three Part 5 items (monotonic counter, TaskBody ABI CTA
   ownership + `kIdentity`, L2 performance number) — none of these were
   attempted this round; see `TileMega_skeleton.md` §1.5.1.
+
+## F-28 — The pre-isl fanout was a heuristic, and it was wrong for many-to-one couplings
+
+- Finding: before the migration, `fanout(y) = |C^-1(y)|` was not computed as
+  an inverse-image cardinality at all. It was a structural rule: *a consumer
+  coordinate occurring in C is pinned by y and contributes a factor of 1; one
+  that does not is free and contributes its whole range.* That is correct for
+  an identity occurrence (`hh` maps 1:1 to a producer coordinate) and wrong
+  for a floordiv occurrence, where many consumer coordinates map to one
+  producer coordinate. §2.7 row 3 (`RoPE_k -> KVappend`) is exactly this
+  case: KVappend tiles the cache row axis by 1 (one task per row) while
+  `rope_k` produces Tm = 128-row blocks, so one producer block feeds 128
+  consumer row-tasks. The true fanout is 128; the heuristic reported 1, and
+  the skeleton's own table also said 1 (it was written against a coarser
+  model where both sides are Tm-blocks and `m ↦ m` is a bijection). Two
+  independent "1"s agreeing is why this survived several rounds of review.
+  `wait` was unaffected throughout (a row still needs exactly one block).
+- Evidence: `table27_test` now asserts 128 for both KV edges and still
+  asserts every other row's tabulated `wait`/`fanout` unchanged (rows 1, 2,
+  6, 7, 8, 9, 10, 11, 12, 13 all match exactly);
+  `docs/experiments/P3_ISL/result.md` has the row-by-row table.
+- Skeleton impact: §2.7 row 3's fanout corrected to Tm, and its cluster
+  candidacy flipped to ✗ (128 exceeds cluster capacity, the same reason rows
+  1 and 10 are ✗). The general lesson is stronger than the one row: a
+  derived-quantity formula that is *structural* rather than *counted* will
+  agree with a hand-written table exactly where both share the same
+  simplifying assumption, which is precisely where neither is checking the
+  other.
+- Confidence: high. The corrected value is a direct barvinok count over the
+  relation the same code derives, and the aligned/misaligned controls in
+  `coupling_types_test` pin the boundary behaviour on both sides.
+
+## F-29 — Coarsen was inexpressible before isl, and its algebra is what catches implementation bugs
+
+- Finding: §2.3's `C_kappa = floor(./kappa) o C` could not be written against
+  `AffineRelation` at all — that type had no image, preimage, or composition
+  operator, only a printable structure. As an isl_map it is one
+  `isl_map_apply_range` against a floor map. Measured behaviour: `wait`
+  divides by kappa exactly on both producer axes of a 2-D producer
+  coordinate (4096 -> 2048 -> 1024 -> 256 for kappa = 1, 2, 4, {4,4}), and
+  saturates rather than going below 1 where wait is already minimal.
+  Crucially, the *algebraic laws* are what found the bug in the first
+  implementation: fresh output names (`q0, q1, ...`) collided with the range
+  names of an already-coarsened relation, so a second Coarsen produced
+  `q1 = floord(q1, 2)` — a constraint on a single variable whose only
+  solution is 0, silently collapsing that coordinate to a point instead of
+  halving it. Neither a single-Coarsen value check nor a type-level test
+  would have caught it; `floor(floor(./2)/2) == floor(./4)` did.
+- Evidence: `docs/experiments/P3_ISL/raw/coarsen.txt`; both laws asserted in
+  `coupling_types_test`.
+- Skeleton impact: P4.6's `[!] 待验证：ISL 对含参数化整除的映射是否表达式爆炸`
+  is answered with measurements rather than left open — across the sweep the
+  relation and the quasi-polynomial each stay at **one piece**, and isl text
+  length is flat in kappa (leaving S symbolic costs a constant ~15
+  characters). kappa therefore need not be restricted to powers of two on
+  expression-size grounds. ⚠️ Measured for one decoder layer's edges at
+  kappa <= 4, coarsening one axis at a time; deeper nesting untested.
+- Confidence: high for the measured range; the "no explosion" claim is
+  explicitly scoped to it.
+
+## F-30 — wait and fanout need opposite bounding treatments, and isl says so only by failing
+
+- Finding: the two Definition-4 counts want contradictory things from the
+  same relation. `fanout` needs the producer (range) tuple bounded, or
+  `isl_map_card`'s piecewise decomposition of the reversed map keeps a tail
+  that is reachable only for other parameter values and evaluates to 0
+  there — making a uniform fanout of 32 look position-dependent (max 32,
+  min 0). But bounding the range *inside C* regresses `wait` instead: a
+  relation carrying both a genuine isl parameter and an inequality-range-
+  derived producer coordinate bounded on both sides drives barvinok into
+  `unexpected missing (bounded) solution` (`basis_reduction_tab.c:210`) and
+  an incomplete result. Applying the producer box **only to the reversed
+  map**, inside the fanout computation, keeps each direction in the regime
+  its own counting problem is tractable in.
+- Evidence: both failure modes were observed directly while migrating and
+  are reproduced by the reference models; the resolution is at
+  `ProducerRangeBoxText` in `lib/Analysis/CouplingDerivation.cpp` with the
+  reasoning recorded there.
+- Skeleton impact: recorded in §1.5.1 as a worked-around limitation rather
+  than a fix. It is a property of this isl/barvinok build; an upstream
+  version change should re-test it.
+- Confidence: high that the workaround is correct for the covered models
+  (every §2.7 row's wait and fanout evaluates, and the aligned/misaligned
+  controls behave); low confidence that the underlying barvinok behaviour is
+  fully characterised — this is a boundary found empirically, not a root
+  cause understood in barvinok's algorithm.
+
+## F-31 — The verified coupling derivation does not yet drive the generated code
+
+- Finding: `lib/Frontend/Frontend.cpp` — the path that turns a real
+  `export_bridge.json` into a CG module — does not call `CouplingDerivation`
+  at all, and did not before this migration either. It builds one
+  `task_space` per ATen `call_function` (179 for the V-H model), one
+  `coupling` per tensor use, and fills every coupling's `relation` from a
+  placeholder, with `wait`/`fanout`/`volume`/`count` hardcoded to 1 and
+  `tier` hardcoded to 0. The derivation that §2.7, the Tier classifier and
+  event synthesis all validate runs only over the operator-level
+  `OperatorGraph` in `ReferenceModels.cpp`, reached by `tilemega-derive` and
+  the unit tests. The generated `.cu` is unaffected because Codegen uses only
+  the *structural* fact of which stage pair a coupling connects, never the
+  metric values — which is also why the placeholder went unnoticed.
+- Evidence: `fixedRelation()` and the coupling-construction loop in
+  `lib/Frontend/Frontend.cpp`; `(void)coupling.getWait()...Eval(known)` in
+  `lib/Codegen/Codegen.cpp` discards the value it forces.
+- Skeleton impact: this is the remaining gap between "L3b is implemented and
+  verified" and "L3b drives the product". The two paths also differ in
+  granularity — operator-level vs. one node per ATen call — so connecting
+  them means having the frontend build `OperatorNode`s at operator
+  granularity. `ModelPlan` already recognises exactly those operators
+  structurally, so it is the natural attachment point. Out of scope this
+  round (the task listed `Frontend.cpp` as untouched), recorded in §1.5.1.
+- Confidence: high — established by reading both paths and by the fact that
+  the E2E bit hashes are unchanged by a migration that rewrote every metric.

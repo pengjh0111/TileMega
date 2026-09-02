@@ -284,7 +284,43 @@ CouplingRelation DeriveCoupling(AccessRelation const& W, AccessRelation const& R
       continue;
     }
 
-    relaxAxis(a, "read interval is not tile aligned");
+    // Not tile aligned, and more than one element: the read interval
+    // [base, base + span) straddles producer tiles. This is exact anyway --
+    // producer task p covers [p*tile, p*tile + tile) in the shifted index
+    // space, so p is coupled exactly when the two intervals overlap:
+    //
+    //     p*tile < base + span   and   base < p*tile + tile
+    //
+    // Both are affine in the consumer coordinates once `tile` is a literal
+    // (which `known` guarantees, or ToIslText throws), so isl can hold the
+    // condition directly. The pre-migration path had to relax here instead:
+    // ClosedForm could express neither the two-sided overlap condition nor
+    // the count over it, and that count is genuinely a *piecewise
+    // quasi-polynomial* whenever span and tile are misaligned -- wait then
+    // varies periodically with the consumer coordinate (see
+    // docs/experiments/P3_ISL/ and MisalignedTileModel in ReferenceModels.h).
+    // Keeping the edge exact here is a precision gain the migration unlocks,
+    // not a behaviour change for any previously covered access pattern:
+    // the exact-quotient and single-element branches above still fire first,
+    // and no reference model reached this branch before.
+    {
+      ClosedForm literal_tile = tile.Substitute(known);
+      if (!literal_tile.IsConstant()) {
+        relaxAxis(a, "read interval is not tile aligned");
+        continue;
+      }
+      outputs.push_back(name);
+      params.Add(shifted.FreeSymbols());
+      params.Add(read.span.FreeSymbols());
+      mergeOccurring(shifted.Coordinates());
+      std::string base_text = shifted.ToIslText(known);
+      std::string tile_text = literal_tile.ToIslText();
+      std::string span_text = read.span.Substitute(known).ToIslText();
+      constraints.push_back("(" + name + " * " + tile_text + ") < (" +
+                            base_text + ") + (" + span_text + ")");
+      constraints.push_back("(" + base_text + ") < (" + name + " * " +
+                            tile_text + ") + " + tile_text);
+    }
   }
 
   return assemble();

@@ -1,0 +1,36 @@
+## Piecewise quasi-polynomial wait
+
+A producer tiling rows by `producer_tile` feeding a consumer
+tiling the same axis by `consumer_tile`. When the tiles do not
+divide one another, the number of producer blocks a consumer
+block straddles varies periodically with the consumer
+coordinate, so wait is a genuine piecewise quasi-polynomial.
+
+### producer_tile=96 consumer_tile=160 (S=1536)
+
+- exact: yes, relaxation: (none), tier: 0
+- C    = `{ [r] -> [p0] : 0 <= r <= 9 and -2 + 5r <= 3p0 <= 4 + 5r }`
+- wait = `{ [r] -> ((2 - floor((1 + r)/3)) + floor((2 + r)/3)) : 0 <= r <= 9 }`
+- wait as one scalar: **refused** -- quasi-polynomial is genuinely position-dependent (max 3 != min 2); it is not a single scalar
+
+### producer_tile=100 consumer_tile=128 (S=1600)
+
+- exact: yes, relaxation: (none), tier: 0
+- C    = `{ [r] -> [p0] : 0 <= r <= 12 and -24 + 32r <= 25p0 <= 31 + 32r }`
+- wait = `{ [r] -> ((2 - floor((7r)/25)) + floor((6 + 7r)/25)) : 0 <= r <= 12 }`
+- wait as one scalar: **refused** -- quasi-polynomial is genuinely position-dependent (max 3 != min 2); it is not a single scalar
+
+### producer_tile=96 consumer_tile=192 (S=1536)
+
+- exact: yes, relaxation: (none), tier: 0
+- C    = `{ [r] -> [p0] : 0 <= r <= 7 and 2r <= p0 <= 1 + 2r }`
+- wait = `{ [r] -> 2 : 0 <= r <= 7 }`
+- wait as one scalar: 2
+
+### producer_tile=128 consumer_tile=128 (S=1536)
+
+- exact: yes, relaxation: (none), tier: 0
+- C    = `{ [r] -> [p0 = r] : 0 <= r <= 11 }`
+- wait = `{ [r] -> 1 : 0 <= r <= 11 }`
+- wait as one scalar: 1
+

@@ -18,12 +18,12 @@ source-inspected, cross-compiled without running, or explicitly unconfirmed;
 | 4 | V-J tile-size and backward-wait controls | ✅ complete on RTX 4090 | [V-J result](experiments/V_J/result.md) |
 | 2 | E2E L0 → L0.5 → L1 | ✅ 50/50 on RTX 4090 | [E2E result](experiments/E2E/result.md) |
 | 1 | P1/P2 generated CG → L0.5/L1/L2 | ✅ importer + table-driven codegen, 50/50 on RTX 4090 | [E2E_GEN result](experiments/E2E_GEN/result.md) |
-| 1 | P3.2/P3.3 coupling derivation (`W⁻¹∘R`) | ✅ all 13 §2.7 rows auto-derived and asserted | [table27](experiments/P3/table27.md) |
+| 1 | P3.2/P3.3 coupling derivation (`W⁻¹∘R`) | ✅ all 13 §2.7 rows auto-derived and asserted (now isl-backed) | [table27](experiments/P3/table27.md) |
 | 1 | P3.4 Tier classification and I2 containment | ✅ `containment_test` both directions; Tier 0-3 all exercised | `test/unit/containment_test.cpp`, `test/unit/table27_test.cpp` |
 | 2 | P3.5 L2 fine-grained events vs. L1 barrier | ✅ bitwise identical, 50/50 fresh processes; ⚠️ slower than L1 (conservative relaxation) | [E2E_L2 result](experiments/E2E_L2/result.md) |
 | 1 | P3.6 generator generalization (second structurally different model) | ✅ 4-layer MHA passes end to end, no model-structure constants in generated `.cu` | [P3_GENERALIZATION result](experiments/P3_GENERALIZATION/result.md) |
 | 5 | P3.1 CuTe↔ISL three-level inverse policy | ✅ classifier and Tier consequence tested; ⚠️ isl_map round trip not implemented | `test/unit/layout_bridge_test.cpp` |
-| 1 | isl/barvinok dependency feasibility + MLIR coexistence | ✅ built, linked, and running alongside MLIR; ⚠️ not yet the semantic authority (Part 3 code migration not started) | [DEPENDENCIES](DEPENDENCIES.md), [P3_ISL result](experiments/P3_ISL/result.md) |
+| 1 | P3 isl/barvinok dependency + solving-authority migration | ✅ builds and coexists with MLIR; §2.7 re-derived through isl (one table correction); Coarsen, I2 and a quasi-polynomial case covered; E2E bit-identical | [DEPENDENCIES](DEPENDENCIES.md), [P3_ISL result](experiments/P3_ISL/result.md) |
 
 ## Reproduction policy
 
@@ -59,11 +59,23 @@ never converted into a pass.
   bridge followed by a C++ JSON-to-CG `ModuleOp` importer. Codegen accepts only
   that verified dialect module; generated L0.5 matches the handwritten
   reference bitwise and generated L1 passes 50/50 fresh processes.
-- `C = W⁻¹ ∘ R` is exact closed-form `floor(./tile)` algebra for every access
-  pattern this codebase generates; the general Presburger/barvinok path stays
-  unimplemented because nothing here forces it to run (F-22, F-26). A relaxed
-  coupling's I2 substitutability (`C' ⊇ C`) is a machine-checked predicate
-  (`Contains`), not asserted in prose (F-23).
+- `C = W⁻¹ ∘ R` is a genuine `isl_map`, and `wait`/`fanout` are barvinok
+  counts over it rather than a structural formula; `Contains` is
+  `isl_map_is_subset`. Re-deriving §2.7 this way reproduces every tabulated
+  quantity except row 3's fanout, where the table and the pre-migration
+  heuristic were both wrong for the same reason (F-28). Coarsen — §2.3's
+  `C_κ`, previously inexpressible — is now available, and its algebraic laws
+  are what catch implementation errors in it (F-29). wait and fanout need
+  opposite bounding treatments, a barvinok boundary found by failing (F-30).
+- isl's divisor must be a literal, so tile sizes are substituted before any
+  isl object is built while workload dimensions stay isl parameters
+  (invariant I1 preserved) — F-27. A misaligned-tile coupling makes the
+  quasi-polynomial genuinely load-bearing: its `wait` has no single scalar
+  value, which the pre-migration scalar-typed metric could not represent.
+- The verified derivation still does not drive the generated code: the real
+  frontend fills couplings from a placeholder and Codegen reads only their
+  structure, so the E2E bit hashes are unchanged by the entire migration
+  (F-31). That connection is the remaining step for L3b.
 - Model structure (layer count, hidden/intermediate width, GQA-vs-MHA head
   ratio) is derived structurally from FX parameter shapes by
   `lib/Frontend/ModelPlan.cpp` and reaches the generator only as CG module

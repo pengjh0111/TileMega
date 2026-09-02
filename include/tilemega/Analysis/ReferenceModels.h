@@ -49,6 +49,20 @@ OperatorGraph MlpStack(DecoderShape const& shape, int blocks);
 /// Multi-head attention without GQA (n_kv == n_h) and a two-matrix MLP.
 OperatorGraph MhaModel(DecoderShape const& shape, int layers);
 
+/// A producer/consumer pair whose tiles do not divide one another: the
+/// producer writes `producer_tile`-row blocks, the consumer reads
+/// `consumer_tile`-row blocks of the same tensor. Neither the exact-quotient
+/// nor the single-element rule applies, so the coupling is carried by the
+/// two-sided overlap condition, and `wait` is then a genuine *piecewise
+/// quasi-polynomial*: the number of producer blocks a consumer block
+/// straddles varies periodically with the consumer coordinate (period
+/// lcm(tiles)/consumer_tile), which ClosedForm's grammar -- constant, symbol,
+/// +, *, ceildiv, floordiv, with no case split -- cannot represent at all.
+/// This is the case that makes barvinok's quasi-polynomial counting
+/// load-bearing rather than merely equivalent to the old closed form.
+OperatorGraph MisalignedTileModel(DecoderShape const& shape, long producer_tile,
+                                  long consumer_tile);
+
 /// An artificial Tier 3 case: a gather whose index tensor is only known at run
 /// time.  It must degrade to an operator-level barrier, not to a fake affine
 /// relation.

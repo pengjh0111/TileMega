@@ -31,14 +31,14 @@ ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l2_kern
 ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterE
     32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
 ptxas info    : Used 153 registers, used 1 barriers, 32 bytes cumulative stack size, 368 bytes cmem[0], 88 bytes cmem[2]
-ptxas info    : Compile time = 320.727 ms
+ptxas info    : Compile time = 281.435 ms
 ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterE' for 'sm_89'
 ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterE
     32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
 ptxas info    : Used 168 registers, used 1 barriers, 32 bytes cumulative stack size, 368 bytes cmem[0], 40 bytes cmem[2]
-ptxas info    : Compile time = 298.623 ms
+ptxas info    : Compile time = 250.384 ms
 ptxas info    : Compiling entry function '_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj' for 'sm_89'
 ptxas info    : Function properties for _ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj
     32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
 ptxas info    : Used 142 registers, used 1 barriers, 32 bytes cumulative stack size, 364 bytes cmem[0], 40 bytes cmem[2]
-ptxas info    : Compile time = 285.417 ms
+ptxas info    : Compile time = 239.592 ms
