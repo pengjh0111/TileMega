@@ -902,3 +902,42 @@
 - Confidence: high for sm_89 at 256 threads/CTA. The per-warp allocation
   granularity of 256 registers is read from `TargetSpec::Probe()`, so the form
   should carry to other architectures, but that is inferred, not measured.
+
+## F-41 — The lit suite was pinned to a pre-isl IR syntax, and one of its three cases asserted a check the migration deliberately removed
+
+- Finding: `test/Dialect/CouplingGraph/*.mlir` had not been touched since the
+  Part 3 isl/barvinok migration and all three cases failed at *parse* time on
+  `unknown attribute 'closed_form' in dialect 'tilemega'` — the metric payload
+  is now `#tilemega.metric<"…">` holding isl_pw_qpolynomial text and the
+  relation is `#tilemega.coupling_map<"…">` holding an isl_map, not the old
+  schema-checked DictionaryAttr. Because the failure was at parse time, all
+  three CHECK sets were vacuous: the suite had been asserting nothing since the
+  migration, and nothing noticed because `check-cg-lit` was an
+  `add_custom_target` and never an `add_test` (ctest reported 15 tests, none of
+  them lit).
+- The removed check: `event_shape_mismatch.mlir` asserted the diagnostic
+  `event tensor has 2 elements but image(C_kappa) has 1`. That check no longer
+  exists — `CouplingOp::verify` deliberately stopped re-deriving
+  `image(C_kappa)` from the assembled relation, because the only isl query
+  available for it (`isl_map_involves_dims`) is syntactic and overcounts
+  (lib/Dialect/CouplingGraph/CGDialect.cpp, the comment above the
+  `event.getExtent().getValue().Eval(known)` line). Re-checked here: a module
+  declaring `tensor<2xi32>` against an image of cardinality 1 verifies
+  cleanly today, exit 0. The expectation was **not** relaxed to match; the
+  case was retired, and `wait_mismatch.mlir` put in its place to cover the
+  check that took over the same job — `wait` recomputed as `card(C)` from the
+  relation itself.
+- A second, smaller gap found while writing that replacement: the specific
+  diagnostic `wait … does not match the relation's fiber cardinality` is only
+  reachable when the declared wait and `card(C)` inhabit the *same* isl space.
+  A declared `{ 1 }` (0-dimensional) against a 1-dimensional `card(C)` makes
+  `SemanticallyEqual` throw, so the error surfaces through the generic
+  `cannot evaluate coupling metric after theta/g binding` catch, with isl's
+  raw `spaces don't match` on stderr. Still a rejection, so no unsound IR
+  gets through, but the message names the wrong cause. `wait_mismatch.mlir`
+  therefore uses a same-space wrong value (`{ [i] -> 2 }` against
+  `{ [i] -> (1 + i) }`) to pin the intended diagnostic.
+- Evidence: `ninja -C build-portable check-cg-lit` — 3/3 fail before, 3/3 pass
+  after; `ctest` 15 → 16 tests, all passing, `cg_lit` now among them.
+- Skeleton impact: none on the design. It is a measurement-hygiene finding:
+  a check target that is not an `add_test` is a check that does not run.

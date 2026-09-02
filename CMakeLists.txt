@@ -191,6 +191,14 @@ if(TILEMEGA_BUILD_TESTS)
       -sv ${CMAKE_CURRENT_BINARY_DIR}/test
     DEPENDS tilemega-opt
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+  # Also a ctest case, so a plain `ctest` run covers the dialect's textual
+  # form. lit is given the same directory the custom target uses; ctest does
+  # not build tilemega-opt, so the suite fails loudly rather than silently
+  # skipping when the tool is stale.
+  add_test(NAME cg_lit
+    COMMAND ${Python3_EXECUTABLE} ${TILEMEGA_LIT_DRIVER}
+      -sv ${CMAKE_CURRENT_BINARY_DIR}/test
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
   add_executable(target_spec_test test/unit/target_spec_test.cpp)
   target_link_libraries(target_spec_test PRIVATE TileMega::tilemega)
   target_compile_definitions(target_spec_test PRIVATE
