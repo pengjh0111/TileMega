@@ -101,7 +101,7 @@ L4    符号形状参数化 + 运行时变体选择
 | L4 Frontend | ✅ | ✅ | V-H；结构化 importer：2 层 GQA 为 30 stage，4 层 MHA 为 60 stage |
 | L3a 符号类型 | ✅ | ✅ | F-14；`coupling_types_test` / `cg_attr_roundtrip` |
 | L3b 耦合推导 | ✅ | ✅ | P3/P3_ISL：`W⁻¹∘R` 为 isl_map，wait/fanout 为 barvinok 计数；§2.7 全 13 行交叉验证（并纠正表中边 3 的 fanout）；Coarsen/I2/事件综合单测 |
-| L2 Solver | — | ❌ | Phase 4 |
+| L2 Solver | 部分 | 部分 | 代价查询与候选枚举：`docs/experiments/BACKEND/`（一个 GEMM 算子 224 个合法候选，216 可编译）；实现契约与一致性校验：`docs/experiments/CONTRACT/`。DP / Label / Place 仍为 ❌ |
 | L1 Codegen | ✅ | ✅ | E2E_GEN：表驱动 L0.5/L1/L2；2 层 GQA 50/50、4 层 MHA 25/25 全新进程；L2 逐位等同 L1 且中位数 1.014×/1.016×（`docs/experiments/E2E_L2/`） |
 | L0 Backend | ✅ | ✅ | V-I 四架构交叉编译 |
 
@@ -647,6 +647,18 @@ tilemega.coupling @c1 from @norm_tasks to @gemm_tasks attributes {
 
 // 放置
 tilemega.placement @gemm_tasks map = [...] cluster = 2
+
+// 实现契约：求解器选定的 (g, impl) 中的 impl 一侧（P4.9）
+tilemega.implementation @impl_qkv_17 for @gemm_tasks attributes {
+    backend    = "cutlass.sm80_cpasync.simt_f32",
+    tile = array<i64: 128, 128, 16>, cluster = array<i64: 1, 1, 1>,
+    stages = 3, threads = 256, smem_bytes = 49536,
+    alignment = array<i64: 1, 1>, arch_required = 80,
+    // regs_est 可选：只有 tier 3 的 ptxas 日志能填
+    access = [#tilemega.access_map<{operand = "q_rope",
+                coordinates = ["h", "q", ""], spans = array<i64: 1,128,128>}>,
+              ...]
+}
 ```
 
 **属性**：`AccessMapAttr`、`CouplingMapAttr`、`ClosedFormAttr`（派生量的符号表达式）、
@@ -657,7 +669,9 @@ tilemega.placement @gemm_tasks map = [...] cluster = 2
 parameters/fiber/image 的结构化字典；Tier（可解析性）与 SyncKind（通信归属）分离。
 
 **verifier**：事件张量形状 = `image(C_κ)`；`wait` 的闭式在 `θ` 全部代入后与
-barvinok 计数一致。
+barvinok 计数一致；`tilemega.implementation` 的 threads/smem/alignment/arch
+必须与后端对该 tile 的闭式相等（实现可以选形状，不能改写形状的代价），
+其 `access` 必须与 task space 的 `index_map` 逐轴一致（P4.9）。
 
 ## 4.4 求解流程
 
@@ -1290,15 +1304,34 @@ tilemega/
 
 ### P4.1 代价查询接口
 
-- [ ] traits 路径：`constexpr` 探针批量求值
-- [ ] nvcc 路径：`--ptxas-options=-v` 解析
-- [ ] 缓存与批量
+- [x] traits 路径：`constexpr` 探针批量求值。300 个候选一个 translation unit，
+      19.61s（65.4ms/候选）。同一族的 host 闭式（`SimtF32Traits`）2.8~3.1µs/候选，
+      与 CUTLASS traits 在 300/300 上逐字段相等，二者由三条 `static_assert`
+      锁死（`CutlassGemmCandidate.h`），所以剪枝走闭式而不是编译。
+- [x] nvcc 路径：`--ptxas-options=-v` 解析（`ParsePtxasRegisters`）。
+      2240 次真编译 32 路并行 1937.49s（0.865s/候选 wall）。
+- [x] 批量：整个候选空间「枚举 + 排序」< 1.4ms，对照真编译约 32 CPU·小时。
+- [ ] `[!]` 缓存尚未进库：目前只有实验脚本按文件缓存
+      （`docs/experiments/ORACLE/run.sh`），查询接口本身每次重算。闭式 3µs
+      的量级下这不是瓶颈，但 tier 3 的结果值得落盘。
+      缓存键必须含源码、目标架构、CUDA 与 CUTLASS 版本（§1.2 原则二）。
+- 证据：`docs/experiments/BACKEND/result.md`
 
 ### P4.2 层1 合法性剪枝
 
-- [ ] 从 CUTLASS `TiledMma` 原生形状沿各维扩张，撞资源墙停
-- [ ] 目标：每算子 8~20 候选
-- [ ] 自检：候选集应覆盖 CUTLASS 官方 GEMM 配置常用的 tile
+- [x] 从 CUTLASS `TiledMma` 原生形状 `(16,16,8,2)` 沿各维扩张，撞 smem 墙停。
+      按非降序的规范序展开，每个形状恰好到达一次，不需要 visited 集；
+      墙是单调的，所以剪的是整棵子树：`touched=279 wall_pruned=19
+      rejected=36 legal=224`，对照 Cartesian 积 300。
+- [!] 目标「每算子 8~20 候选」**未达到**：一个 GEMM 算子在 RTX 4090 上的
+      合法候选是 **224** 个（300 → 264 形状合法 → 224 装得下 smem → 216 真
+      能编译）。不改口径去凑这个数字；8~20 是层2 对齐传播（P4.3）之后才
+      可能出现的量级，层1 单独做不到。
+- [!] tier 2 排序的诚实结果：实测最优 `32x32x32s3` 在解析排序里排 **42/224**，
+      而排序前 8 名全部**编译失败**（`cute/int_tuple.hpp(890)`，80 例同一处）。
+      collective 级 traits 合法 ≠ megakernel 可编译。缺的是访存项，
+      因为 `TargetSpec::Calib` 未标定（见 P4.1 上游）。
+- 证据：`docs/experiments/BACKEND/result.md`
 
 ### P4.3 层2 对齐传播
 
@@ -1351,6 +1384,28 @@ tilemega/
 - [ ] 掩盖同步延迟：队列顺序让等待被独立 task 填充
 - [ ] 时间局部性：`|R(c₁) ∩ R(c₂)|` 用 barvinok
 - [ ] oracle 判断投入价值：round-robin vs 强启发式 vs oracle，差距 <2% 则简化
+
+### P4.9 实现契约与一致性校验
+
+- [x] `tilemega.implementation @impl for @task`：backend / tile / cluster /
+      stages / threads / smem / alignment / arch_required + 逐操作数的
+      access（坐标 + span）。`regs_est` 是**可选**属性而不是 0——CUTLASS 的
+      `constexpr` traits 不给寄存器数，只有 tier 3 的 ptxas 日志给。
+- [x] `(g, impl)` 是一个决策：`SelectImplementation` 选中的 tile 就是给
+      task space 的 access map 绑定 `g` 符号的那个 tile，契约里的 span 由它
+      导出而不是另写一份。
+- [x] verifier 两半：`VerifyTraits` 从后端闭式重算 threads/smem/alignment/arch，
+      实现可以选形状但不能改写这个形状的代价；`VerifyAccessAgainst` 把声明的
+      访问模式与 task space 的 `index_map` 逐轴比对，能抓 **tile 形状不匹配**
+      与 **操作数坐标转置**（F-17 的形状：CUTLASS 的 B 操作数逻辑上是
+      `(N,K)`，弄反一次产生 6143 个不匹配元素）。转置这条 negative 特意跑在
+      `Tm = d = 128` 的粒度上，交换的两轴等宽，因此 span 比较**不可能**是
+      拒绝它的原因。
+- [!] IR 侧的访问校验只在 task space 带 `index_map` 时生效，而前端 importer
+      目前不发这个属性（它直接从 FX 节点建 task space，没有 `OperatorNode`）。
+      没有 `index_map` 时访问模式是不可证伪的——正是 F-17 被发现时的状态。
+      不用一个静默通过的检查掩盖它。
+- 证据：`docs/experiments/CONTRACT/result.md`；`impl_contract_test`
 
 ---
 
