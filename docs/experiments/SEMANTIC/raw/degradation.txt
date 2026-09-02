@@ -1,0 +1,3 @@
+IMPORT_DEGRADED aten.imaginary.default
+IMPORT_DEGRADED no decoder layer; one task space per operator
+DEGRADED ops=1 task_spaces=2 generic=1

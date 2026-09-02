@@ -1,0 +1,1 @@
+CODEGEN_SUMMARY tasks=179 couplings=222 stages=30 output=/root/TileMega/docs/experiments/SEMANTIC/raw/e2e_plain.cu

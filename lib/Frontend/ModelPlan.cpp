@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Frontend/ModelPlan.h>
 
+#include <tilemega/Frontend/GraphPattern.h>
+
 #include <algorithm>
 #include <cctype>
 #include <limits>
 #include <map>
-#include <regex>
 #include <set>
 #include <stdexcept>
 #include <unordered_set>
@@ -78,46 +79,6 @@ struct PlanBuilder {
     return false;
   }
 
-  FxNodeRecord const& Linear(std::string const& weight) const {
-    for (auto const& node : nodes)
-      if (node.target == "aten.linear.default" && node.inputs.size() >= 2 &&
-          node.inputs[1] == weight)
-        return node;
-    throw std::runtime_error("no aten.linear uses parameter " + weight);
-  }
-
-  FxNodeRecord const& Consumer(std::string const& target,
-                               std::string const& input) const {
-    for (auto const& node : nodes)
-      if (node.target == target &&
-          std::find(node.inputs.begin(), node.inputs.end(), input) !=
-              node.inputs.end())
-        return node;
-    throw std::runtime_error("no " + target + " consumes " + input);
-  }
-
-  FxNodeRecord const& CacheConcat(std::string const& past) const {
-    return Consumer("aten.cat.default", past);
-  }
-
-  FxNodeRecord const& FirstAttention(std::string const& q,
-                                     std::string const& full_k) const {
-    for (auto const& node : nodes)
-      if (node.target == "aten.matmul.default" && node.inputs.size() == 2 &&
-          DependsOn(node.inputs[0], q) && DependsOn(node.inputs[1], full_k))
-        return node;
-    throw std::runtime_error("cannot identify attention score matmul");
-  }
-
-  FxNodeRecord const& SecondAttention(std::string const& score,
-                                      std::string const& full_v) const {
-    for (auto const& node : nodes)
-      if (node.target == "aten.matmul.default" && node.inputs.size() == 2 &&
-          DependsOn(node.inputs[0], score) && DependsOn(node.inputs[1], full_v))
-        return node;
-    throw std::runtime_error("cannot identify attention value matmul");
-  }
-
   std::uint32_t Buffer(PlanBuffer buffer) {
     auto found = buffer_id.find(buffer.name);
     if (found != buffer_id.end()) return found->second;
@@ -173,18 +134,54 @@ struct PlanBuilder {
   ModelPlan plan;
 };
 
-struct LayerSignature {
-  int number = 0;
-  std::map<std::string, SignatureInput const*> parameter;
-};
-
-SignatureInput const& Require(LayerSignature const& layer,
-                              std::string const& suffix) {
-  auto found = layer.parameter.find(suffix);
-  if (found == layer.parameter.end())
-    throw std::runtime_error("layer " + std::to_string(layer.number) +
-                             " lacks " + suffix);
-  return *found->second;
+/// The decoder layer, stated as use-def structure. Nothing here names a
+/// module, a parameter or a layer index: the anchor is the KV concat, and
+/// every other slot is pinned relative to it. `Value` is exact modulo
+/// layout-only operators, `Dep`/`ancestor_of` are transitive, which is what
+/// makes one pattern cover both the composite export and its Core ATen form.
+GraphPattern const& DecoderLayerPattern() {
+  static GraphPattern const pattern = {
+      "decoder_layer",
+      {
+          // The layer starts at its input norm: the three projections that
+          // read one scaled tensor are Q, K and V by definition, and pinning
+          // them to a shared operand is what keeps a match inside one layer.
+          {"norm1", "multiply", {Any(), Param()}},
+          {"q", "contraction", {Value("norm1"), Param()}},
+          {"k", "contraction", {Value("norm1"), Param()}},
+          {"v", "contraction", {Value("norm1"), Param()}},
+          // Each cache appends its own projection to a model input; that is
+          // what tells K from V without naming either.
+          {"cat_k", "concat", {Input(), Near("contraction", "k")}},
+          {"cat_v", "concat", {Input(), Near("contraction", "v")}},
+          // Scores read the key cache and not the value cache; the context
+          // matmul is the other way round.
+          {"score", "contraction",
+           {Near("contraction", "q"), Near("concat", "cat_k")}},
+          {"prob", "softmax", {Near("contraction", "score")}},
+          {"ctx", "contraction", {Value("prob"), Dep("cat_v")}},
+          {"o", "contraction", {Value("ctx"), Param()}},
+          // The residual takes the projection's own result, not merely
+          // something downstream of it, so `Value` and not `Dep`.
+          {"resid1", "add", {Value("o")}, /*unordered=*/true},
+          // SwiGLU: the gate is the projection under the activation, the up
+          // projection is the other operand of the product. `resid2` pins the
+          // whole group back to this layer's first residual.
+          {"gate", "contraction", {Dep("resid1"), Param()}},
+          {"act", "activation", {Value("gate")}},
+          {"up", "contraction", {Dep("resid1"), Param()}},
+          // `Dep` and not `Value` on the activation: SiLU is one node before
+          // `run_decompositions()` and `sigmoid` followed by a product after,
+          // so the gate arrives at the product through one more multiply.
+          {"swiglu", "multiply", {Dep("act"), Value("up")}, true},
+          {"down", "contraction", {Value("swiglu"), Param()}},
+          {"resid2", "add", {Value("down"), Value("resid1")}, true},
+      },
+      // Both residuals carry the hidden width; the eps add inside an RMSNorm
+      // does not, which is the only other `add` reachable from `o`.
+      {{"resid1", -1, "o", -1}, {"resid2", -1, "down", -1}},
+  };
+  return pattern;
 }
 
 }  // namespace
@@ -192,27 +189,42 @@ SignatureInput const& Require(LayerSignature const& layer,
 ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                          std::vector<SignatureInput> const& inputs,
                          std::vector<std::string> const& outputs) {
+  PatternMatcher matcher(nodes, inputs);
   PlanBuilder builder(nodes);
-  std::map<int, LayerSignature> layers;
-  static std::regex const layer_pattern(R"(^layers\.([0-9]+)\.(.+)$)");
-  SignatureInput const* hidden_input = nullptr;
   std::unordered_map<std::string, SignatureInput const*> signature_by_name;
-  for (auto const& input : inputs) {
-    signature_by_name.emplace(input.name, &input);
-    std::smatch match;
-    if ((input.kind == "PARAMETER" || input.kind == "BUFFER") &&
-        std::regex_match(input.target, match, layer_pattern)) {
-      int number = std::stoi(match[1].str());
-      layers[number].number = number;
-      layers[number].parameter[match[2].str()] = &input;
-    } else if (input.kind == "USER_INPUT" &&
-               input.name.find("past_") != 0 && !hidden_input) {
+  for (auto const& input : inputs) signature_by_name.emplace(input.name, &input);
+  std::vector<PatternBinding> layers = matcher.FindAll(DecoderLayerPattern());
+  std::sort(layers.begin(), layers.end(),
+            [](PatternBinding const& a, PatternBinding const& b) {
+              return a.at("resid2")->index < b.at("resid2")->index;
+            });
+  for (std::size_t i = 1; i < layers.size(); ++i)
+    if (layers[i].at("resid2") == layers[i - 1].at("resid2"))
+      throw std::runtime_error("the decoder-layer pattern is ambiguous at " +
+                               layers[i].at("resid2")->name);
+  // Degradation, not refusal (skeleton §0.1): a graph the decoder pattern does
+  // not cover still imports, as one task space per operator, with no plan.
+  if (layers.empty()) return {};
+
+  // The hidden state is the model input the first layer's query projection
+  // reads; the KV inputs never reach it, so no name convention is needed.
+  SignatureInput const* hidden_input = nullptr;
+  for (auto const& input : inputs)
+    if (input.kind == "USER_INPUT" &&
+        matcher.DependsOn(layers.front().at("q")->name, input.name)) {
       hidden_input = &input;
+      break;
     }
-  }
-  if (!hidden_input || layers.empty())
-    throw std::runtime_error(
-        "Phase-3 model-plan builder needs a tensor input and layers.* parameters");
+  if (!hidden_input)
+    throw std::runtime_error("no model input reaches the first query projection");
+
+  auto weight = [&](std::string const& operand) -> std::uint32_t {
+    std::string name = matcher.Value(operand);
+    auto found = signature_by_name.find(name);
+    if (found == signature_by_name.end())
+      throw std::runtime_error("expected a parameter operand; got " + name);
+    return builder.Weight(*found->second);
+  };
 
   FxNodeRecord const& hidden_node = builder.Node(hidden_input->name);
   std::uint32_t hidden = StaticExtent(hidden_node, hidden_node.shape.size() - 1);
@@ -221,35 +233,42 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
        "input_" + hidden_input->name + ".bin"});
 
   std::unordered_map<std::string, std::uint32_t> semantic_output;
-  for (auto const& [number, layer] : layers) {
-    auto const& input_norm = Require(layer, "input_norm.weight");
-    auto const& post_norm = Require(layer, "post_norm.weight");
-    auto const& q_weight = Require(layer, "q_proj.weight");
-    auto const& k_weight = Require(layer, "k_proj.weight");
-    auto const& v_weight = Require(layer, "v_proj.weight");
-    auto const& o_weight = Require(layer, "o_proj.weight");
-    auto const& gate_weight = Require(layer, "gate_proj.weight");
-    auto const& up_weight = Require(layer, "up_proj.weight");
-    auto const& down_weight = Require(layer, "down_proj.weight");
-    auto const& inv_freq = Require(layer, "inv_freq");
-
-    FxNodeRecord const& q_node = builder.Linear(q_weight.name);
-    FxNodeRecord const& k_node = builder.Linear(k_weight.name);
-    FxNodeRecord const& v_node = builder.Linear(v_weight.name);
-    FxNodeRecord const& o_node = builder.Linear(o_weight.name);
-    FxNodeRecord const& gate_node = builder.Linear(gate_weight.name);
-    FxNodeRecord const& up_node = builder.Linear(up_weight.name);
-    FxNodeRecord const& down_node = builder.Linear(down_weight.name);
-    if (q_node.inputs[0] != k_node.inputs[0] ||
-        q_node.inputs[0] != v_node.inputs[0])
-      throw std::runtime_error("Q/K/V projections do not share one norm output");
-    if (gate_node.inputs[0] != up_node.inputs[0])
+  for (std::size_t number = 0; number < layers.size(); ++number) {
+    PatternBinding const& match = layers[number];
+    FxNodeRecord const& q_node = *match.at("q");
+    FxNodeRecord const& k_node = *match.at("k");
+    FxNodeRecord const& v_node = *match.at("v");
+    FxNodeRecord const& o_node = *match.at("o");
+    FxNodeRecord const& gate_node = *match.at("gate");
+    FxNodeRecord const& up_node = *match.at("up");
+    FxNodeRecord const& down_node = *match.at("down");
+    FxNodeRecord const& cat_k = *match.at("cat_k");
+    FxNodeRecord const& cat_v = *match.at("cat_v");
+    FxNodeRecord const& score = *match.at("score");
+    FxNodeRecord const& residual1 = *match.at("resid1");
+    FxNodeRecord const& residual2 = *match.at("resid2");
+    if (matcher.Value(q_node.inputs[0]) != matcher.Value(k_node.inputs[0]) ||
+        matcher.Value(q_node.inputs[0]) != matcher.Value(v_node.inputs[0]))
+      throw std::runtime_error("Q/K/V projections do not share one norm output: " +
+                               q_node.name + "/" + k_node.name + "/" + v_node.name);
+    if (matcher.Value(gate_node.inputs[0]) != matcher.Value(up_node.inputs[0]))
       throw std::runtime_error("gate/up projections do not share one norm output");
 
-    std::uint32_t q_width = StaticExtent(builder.Node(q_weight.name), 0);
-    std::uint32_t kv_width = StaticExtent(builder.Node(k_weight.name), 0);
-    std::uint32_t intermediate = StaticExtent(builder.Node(up_weight.name), 0);
-    std::uint32_t head_dim = NumericElements(builder.Node(inv_freq.name)) * 2;
+    std::uint32_t q_width = StaticExtent(
+        builder.Node(matcher.Value(q_node.inputs[1])), 0);
+    std::uint32_t kv_width = StaticExtent(
+        builder.Node(matcher.Value(k_node.inputs[1])), 0);
+    std::uint32_t intermediate = StaticExtent(
+        builder.Node(matcher.Value(up_node.inputs[1])), 0);
+    // The head dimension is the contracted axis of the score matmul, so it is
+    // read off the attention rather than off a RoPE frequency table.
+    // The rotated query, not the reshape that feeds the score matmul: after
+    // normalization that reshape sits behind the KV concats in FX order, and
+    // stage representatives must stay topologically ordered.
+    FxNodeRecord const& q_rot = builder.Node(matcher.Value(score.inputs[0]));
+    if (q_rot.shape.empty())
+      throw std::runtime_error("attention operand has no shape: " + q_rot.name);
+    std::uint32_t head_dim = StaticExtent(q_rot, q_rot.shape.size() - 1);
     if (!head_dim || q_width % head_dim || kv_width % head_dim)
       throw std::runtime_error("Q/K/V widths are incompatible with RoPE head dim");
     std::uint32_t heads = q_width / head_dim;
@@ -257,24 +276,28 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     if (!kv_heads || heads % kv_heads)
       throw std::runtime_error("query heads are not divisible by KV heads");
 
-    std::string past_k_name = "past_k" + std::to_string(number);
-    std::string past_v_name = "past_v" + std::to_string(number);
-    auto past_k_sig = signature_by_name.find(past_k_name);
-    auto past_v_sig = signature_by_name.find(past_v_name);
-    if (past_k_sig == signature_by_name.end() ||
-        past_v_sig == signature_by_name.end())
-      throw std::runtime_error("missing explicit KV inputs for layer " +
-                               std::to_string(number));
-    FxNodeRecord const& cat_k = builder.CacheConcat(past_k_name);
-    FxNodeRecord const& cat_v = builder.CacheConcat(past_v_name);
-    FxNodeRecord const& score = builder.FirstAttention(q_node.name, cat_k.name);
-    FxNodeRecord const& value = builder.SecondAttention(score.name, cat_v.name);
-    if (o_node.inputs.empty() || !builder.DependsOn(o_node.inputs[0], value.name))
-      throw std::runtime_error("o_proj does not consume the matched attention");
-    FxNodeRecord const& residual1 = builder.Consumer("aten.add.Tensor", o_node.name);
-    FxNodeRecord const& residual2 = builder.Consumer("aten.add.Tensor", down_node.name);
-    if (down_node.inputs.empty())
-      throw std::runtime_error("down projection has no activation input");
+    // The RoPE table is the parameter behind the rotation's own cosine: the
+    // nearest parameter to the rotated query is the projection weight, and a
+    // plain dependence walk would find the previous layer's table as well.
+    // The past-KV tensors are the concat operands that are model inputs.
+    std::string inv_freq_name = matcher.NearestParameter(
+        matcher.FirstOfRole(q_rot.name, "trig", "contraction"));
+    auto inv_freq_sig = signature_by_name.find(inv_freq_name);
+    std::string past_k_name, past_v_name;
+    for (auto const& operand : cat_k.inputs) {
+      auto found = signature_by_name.find(matcher.Value(operand));
+      if (found != signature_by_name.end() && found->second->kind == "USER_INPUT")
+        past_k_name = found->first;
+    }
+    for (auto const& operand : cat_v.inputs) {
+      auto found = signature_by_name.find(matcher.Value(operand));
+      if (found != signature_by_name.end() && found->second->kind == "USER_INPUT")
+        past_v_name = found->first;
+    }
+    if (past_k_name.empty() || past_v_name.empty() ||
+        inv_freq_sig == signature_by_name.end())
+      throw std::runtime_error("layer " + std::to_string(number) +
+                               " has no explicit KV inputs or RoPE table");
 
     std::string prefix = "l" + std::to_string(number) + ".";
     std::uint32_t next_hidden = builder.Scratch(prefix + "hidden", hidden);
@@ -282,21 +305,23 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     std::uint32_t q = builder.Scratch(prefix + "q", q_width);
     std::uint32_t k = builder.Scratch(prefix + "k", kv_width);
     std::uint32_t v = builder.Scratch(prefix + "v", kv_width);
-    std::uint32_t q_rot = builder.Scratch(prefix + "q_rot", q_width);
+    std::uint32_t q_rot_buffer = builder.Scratch(prefix + "q_rot", q_width);
     std::uint32_t k_rot = builder.Scratch(prefix + "k_rot", kv_width);
     std::uint32_t context = builder.Scratch(prefix + "context", q_width);
     std::uint32_t gate = builder.Scratch(prefix + "gate", intermediate);
     std::uint32_t up = builder.Scratch(prefix + "up", intermediate);
-    std::uint32_t wn1 = builder.Weight(input_norm);
-    std::uint32_t wn2 = builder.Weight(post_norm);
-    std::uint32_t wq = builder.Weight(q_weight);
-    std::uint32_t wk = builder.Weight(k_weight);
-    std::uint32_t wv = builder.Weight(v_weight);
-    std::uint32_t wo = builder.Weight(o_weight);
-    std::uint32_t wg = builder.Weight(gate_weight);
-    std::uint32_t wu = builder.Weight(up_weight);
-    std::uint32_t wd = builder.Weight(down_weight);
-    std::uint32_t inv = builder.Weight(inv_freq);
+    std::uint32_t wn1 = weight(matcher.NearestParameter(
+        matcher.Value(q_node.inputs[0])));
+    std::uint32_t wn2 = weight(matcher.NearestParameter(
+        matcher.Value(gate_node.inputs[0])));
+    std::uint32_t wq = weight(q_node.inputs[1]);
+    std::uint32_t wk = weight(k_node.inputs[1]);
+    std::uint32_t wv = weight(v_node.inputs[1]);
+    std::uint32_t wo = weight(o_node.inputs[1]);
+    std::uint32_t wg = weight(gate_node.inputs[1]);
+    std::uint32_t wu = weight(up_node.inputs[1]);
+    std::uint32_t wd = weight(down_node.inputs[1]);
+    std::uint32_t inv = builder.Weight(*inv_freq_sig->second);
     std::uint32_t past_k = builder.Buffer(
         {past_k_name, 0, 0, kv_width, 0, PlanBuffer::Source::kFixture,
          "input_" + past_k_name + ".bin"});
@@ -321,17 +346,17 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     builder.Stage(PlanTaskKind::kGemm, v_node.name,
                   builder.Gemm(norm, wv, v, v, kv_width, hidden, 0.0f),
                   0, 0, 1);
-    builder.Stage(PlanTaskKind::kRoPE, score.inputs[0], 0, heads, head_dim, 1,
-                  {q, q_rot, inv});
-    builder.Stage(PlanTaskKind::kRoPE, cat_k.inputs[1], 0, kv_heads, head_dim, 1,
-                  {k, k_rot, inv});
+    builder.Stage(PlanTaskKind::kRoPE, q_rot.name, 0, heads, head_dim, 1,
+                  {q, q_rot_buffer, inv});
+    builder.Stage(PlanTaskKind::kRoPE, cat_k.inputs[1], 0, kv_heads,
+                  head_dim, 1, {k, k_rot, inv});
     builder.Stage(PlanTaskKind::kKVAppend, cat_k.name, 0, kv_heads, head_dim, 1,
                   {k_rot, past_k, full_k});
     builder.Stage(PlanTaskKind::kKVAppend, cat_v.name, 0, kv_heads, head_dim, 1,
                   {v, past_v, full_v});
     builder.Stage(PlanTaskKind::kAttention, o_node.inputs[0], 0, heads,
                   head_dim, heads / kv_heads,
-                  {q_rot, full_k, full_v, context});
+                  {q_rot_buffer, full_k, full_v, context});
     builder.Stage(PlanTaskKind::kGemm, residual1.name,
                   builder.Gemm(context, wo, current_hidden, next_hidden,
                                hidden, q_width, 1.0f),
@@ -372,8 +397,9 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
 
 std::vector<int> FormSemanticStages(std::vector<FxNodeRecord> const& tasks,
                                     ModelPlan const& plan) {
-  if (plan.stages.empty()) throw std::runtime_error("model plan has no stages");
   std::vector<int> result;
+  if (plan.stages.empty()) return std::vector<int>(tasks.size(), 0);
+
   result.reserve(tasks.size());
   std::size_t stage = 0;
   for (auto const& task : tasks) {

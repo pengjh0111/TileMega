@@ -94,7 +94,9 @@ LogicalResult TaskSpaceOp::verify() {
   static constexpr StringLiteral known[] = {
       "gemm", "rmsnorm", "rope", "kvappend", "elementwise", "attention",
       "view", "transpose", "broadcast", "reduction", "slice", "concat",
-      "frontend"};
+      // `generic` is the degraded classification: one conservative task space
+      // for an operator no rule covers.
+      "frontend", "generic"};
   StringRef kind = getKind().getValue().getValue();
   if (llvm::none_of(known, [&](StringRef value) { return value == kind; }))
     return emitOpError() << "unknown task kind '" << kind << "'";

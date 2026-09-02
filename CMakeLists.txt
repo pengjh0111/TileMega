@@ -85,6 +85,7 @@ add_public_tablegen_target(TileMegaCGIncGen)
 add_library(tilemega STATIC
   lib/Target/TargetSpec.cpp
   lib/Frontend/Frontend.cpp
+  lib/Frontend/GraphPattern.cpp
   lib/Frontend/ModelPlan.cpp
   lib/Dialect/CouplingGraph/CGDialect.cpp
   lib/Analysis/ClosedForm.cpp
@@ -241,6 +242,16 @@ if(TILEMEGA_BUILD_TESTS)
     target_compile_options(frontend_import_test PRIVATE -fno-rtti)
   endif()
   add_test(NAME frontend_import COMMAND frontend_import_test)
+
+  add_executable(degradation_test test/unit/degradation_test.cpp)
+  add_dependencies(degradation_test TileMegaCGIncGen)
+  target_link_libraries(degradation_test PRIVATE TileMega::tilemega MLIRIR)
+  target_compile_definitions(degradation_test PRIVATE
+    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  if(NOT LLVM_ENABLE_RTTI)
+    target_compile_options(degradation_test PRIVATE -fno-rtti)
+  endif()
+  add_test(NAME frontend_degradation COMMAND degradation_test)
 
   # Part 1 dependency probe (docs/DEPENDENCIES.md): MLIR's own Presburger
   # implementation and isl/barvinok in one binary, so a regression that

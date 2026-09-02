@@ -117,12 +117,39 @@ def serialize(program: torch.export.ExportedProgram) -> dict[str, Any]:
     }
 
 
+def _op_kinds(program: torch.export.ExportedProgram) -> dict[str, int]:
+    kinds: dict[str, int] = {}
+    for node in program.graph.nodes:
+        if node.op == "call_function":
+            kinds[str(node.target)] = kinds.get(str(node.target), 0) + 1
+    return kinds
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("input", type=Path, help="torch.export .pt2 archive")
     parser.add_argument("--out", type=Path, required=True)
+    # Normalization is torch's own decomposition table, not a TileMega lowering
+    # rule set: the bridge asks for Core ATen and serializes whatever it gets.
+    parser.add_argument("--decompose", action="store_true",
+                        help="run_decompositions() to Core ATen before serializing")
+    parser.add_argument("--normalization-report", type=Path)
     args = parser.parse_args()
     program = torch.export.load(args.input)
+    before = _op_kinds(program)
+    if args.decompose:
+        program = program.run_decompositions()
+    after = _op_kinds(program)
+    if args.normalization_report:
+        args.normalization_report.parent.mkdir(parents=True, exist_ok=True)
+        args.normalization_report.write_text(
+            json.dumps({"decomposed": args.decompose,
+                        "call_functions_before": sum(before.values()),
+                        "call_functions_after": sum(after.values()),
+                        "targets_before": len(before),
+                        "targets_after": len(after),
+                        "before": before, "after": after}, indent=2),
+            encoding="utf-8")
     document = serialize(program)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(document, indent=2), encoding="utf-8")

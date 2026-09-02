@@ -2,10 +2,25 @@
   "schema": "tilemega.exported_program.v1",
   "torch_version": "2.13.0+cpu",
   "nodes": [
-    {"index": 0, "name": "bad", "op": "call_function",
-     "target": "aten.imaginary.default", "inputs": [], "shape": ["1"],
-     "dtype": "torch.float32", "nn_module_stack": [], "source_fn_stack": []}
+    {"index": 0, "name": "hidden", "op": "placeholder", "target": "hidden",
+     "inputs": [], "shape": ["1", "4", "8"], "dtype": "torch.float32"},
+    {"index": 1, "name": "p_scale", "op": "placeholder", "target": "scale",
+     "inputs": [], "shape": ["8"], "dtype": "torch.float32"},
+    {"index": 2, "name": "mul", "op": "call_function", "target": "aten.mul.Tensor",
+     "inputs": ["hidden", "p_scale"], "shape": ["1", "4", "8"], "dtype": "torch.float32"},
+    {"index": 3, "name": "odd", "op": "call_function",
+     "target": "aten.imaginary.default", "inputs": ["mul"], "shape": ["1", "4", "8"],
+     "dtype": "torch.float32"},
+    {"index": 4, "name": "output", "op": "output", "target": "output",
+     "inputs": ["odd"], "shape": []}
   ],
+  "signature": {
+    "inputs": [
+      {"name": "hidden", "kind": "USER_INPUT"},
+      {"name": "p_scale", "kind": "PARAMETER", "target": "scale", "persistent": true}
+    ],
+    "outputs": [{"name": "odd"}]
+  },
   "range_constraints": {},
   "guards": [],
   "graph_signature": "test"

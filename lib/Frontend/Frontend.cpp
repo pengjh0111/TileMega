@@ -79,18 +79,33 @@ std::vector<std::string> readStrings(llvm::json::Array const* array) {
   return result;
 }
 
+llvm::StringSet<> const& known();
+
+/// The composite spelling and its Core ATen decomposition classify the same
+/// way, so normalization does not move an operator between kinds.
 std::string classify(llvm::StringRef target) {
+  // An operator no rule covers is not guessed at: it becomes its own task
+  // space with conservative semantics (§0.1 prefers degradation to refusal).
+  if (!known().contains(target)) return "generic";
   if (target == "aten.linear.default" || target == "aten.matmul.default" ||
-      target == "aten.outer.default") return "gemm";
-  if (target.starts_with("aten.mean.") || target.starts_with("aten.softmax."))
+      target == "aten.outer.default" || target == "aten.mm.default" ||
+      target == "aten.bmm.default") return "gemm";
+  if (target.starts_with("aten.mean.") || target.starts_with("aten.softmax.") ||
+      target.starts_with("aten._softmax.") || target.starts_with("aten.sum."))
     return "reduction";
-  if (target.starts_with("aten.transpose.") || target == "aten.contiguous.default")
-    return "transpose";
-  if (target == "aten.view.default") return "view";
-  if (target == "<built-in function getitem>" || target.starts_with("aten.chunk."))
+  if (target.starts_with("aten.transpose.") || target == "aten.contiguous.default" ||
+      target.starts_with("aten.permute.")) return "transpose";
+  if (target == "aten.view.default" || target == "aten.clone.default" ||
+      target == "aten.alias.default" || target == "aten._to_copy.default")
+    return "view";
+  if (target == "<built-in function getitem>" || target.starts_with("aten.chunk.") ||
+      target.starts_with("aten.split_with_sizes.") ||
+      target.starts_with("aten.split.") || target.starts_with("aten.slice."))
     return "slice";
   if (target.starts_with("aten.cat.")) return "concat";
-  if (target.starts_with("aten.unsqueeze.") || target.starts_with("aten.repeat_interleave."))
+  if (target.starts_with("aten.unsqueeze.") ||
+      target.starts_with("aten.repeat_interleave.") ||
+      target.starts_with("aten.expand.") || target.starts_with("aten.squeeze."))
     return "broadcast";
   if (target.starts_with("aten._assert_tensor_metadata.") ||
       target.starts_with("aten.sym_size.") || target.starts_with("aten.to."))
@@ -98,7 +113,9 @@ std::string classify(llvm::StringRef target) {
   return "elementwise";
 }
 
-llvm::StringSet<> const& whitelist() {
+/// The operators a classification rule covers. It is not an admission gate:
+/// anything outside it still imports, as one generic task space.
+llvm::StringSet<> const& known() {
   static llvm::StringSet<> values = [] {
     llvm::StringSet<> set;
     for (char const* value : {
@@ -112,7 +129,15 @@ llvm::StringSet<> const& whitelist() {
       "aten.pow.Tensor_Scalar", "aten.repeat_interleave.self_int",
       "aten.rsqrt.default", "aten.silu.default", "aten.sin.default",
       "aten.softmax.int", "aten.sym_size.int", "aten.to.dtype",
-      "aten.transpose.int", "aten.unsqueeze.default", "aten.view.default"})
+      "aten.transpose.int", "aten.unsqueeze.default", "aten.view.default",
+      // Core ATen spellings, so a graph normalized by
+      // ExportedProgram.run_decompositions() classifies identically.
+      "aten._softmax.default", "aten._to_copy.default", "aten.alias.default",
+      "aten.arange.start_step", "aten.bmm.default", "aten.clone.default",
+      "aten.expand.default", "aten.mm.default", "aten.permute.default",
+      "aten.scalar_tensor.default", "aten.sigmoid.default",
+      "aten.slice.Tensor", "aten.split_with_sizes.default",
+      "aten.squeeze.dim", "aten.sum.dim_IntList", "aten.where.self"})
       set.insert(value);
     return set;
   }();
@@ -295,14 +320,15 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
     node.inputs = readStrings(object->getArray("inputs"));
     node.shape = readStrings(object->getArray("shape"));
     if (node.op == "call_function") {
-      if (!whitelist().contains(node.target)) unsupported.insert(node.target);
+      if (!known().contains(node.target)) unsupported.insert(node.target);
       tasks.push_back(node);
     }
     allNodes.push_back(std::move(node));
   }
+  // Degradation, not refusal: the operators no rule covers are reported and
+  // each becomes one conservative task space.
   if (!unsupported.empty())
-    throw std::runtime_error("operators outside Phase-1 whitelist: " +
-                             llvm::join(unsupported, ", "));
+    llvm::errs() << "IMPORT_DEGRADED " << llvm::join(unsupported, ", ") << "\n";
   std::vector<SignatureInput> signatureInputs;
   std::vector<std::string> signatureOutputs;
   auto* signature = root->getObject("signature");
@@ -370,7 +396,10 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
       builder.getNamedAttr("head_tile", builder.getI64IntegerAttr(1)),
       builder.getNamedAttr("head_dim_tile", builder.getI64IntegerAttr(128))}));
   module->setAttr("tilemega.guard_count", builder.getI64IntegerAttr(guards.size()));
-  module->setAttr("tilemega.model_plan", modelPlanAttr(builder, plan));
+  if (plan.stages.empty())
+    llvm::errs() << "IMPORT_DEGRADED no decoder layer; one task space per operator\n";
+  else
+    module->setAttr("tilemega.model_plan", modelPlanAttr(builder, plan));
   builder.setInsertionPointToStart(module.getBody());
 
   std::unordered_map<std::string, std::string> symbols;
@@ -439,7 +468,9 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
   }
   if (mlir::failed(mlir::verify(module)))
     throw std::runtime_error("C++ importer produced an invalid CG module");
-  if (summary) *summary = {tasks.size(), edge, plan.stages.size(), guards.size()};
+  if (summary)
+    *summary = {tasks.size(), edge, plan.stages.size(), guards.size(),
+                {unsupported.begin(), unsupported.end()}};
   return mlir::OwningOpRef<mlir::ModuleOp>(module);
 }
 

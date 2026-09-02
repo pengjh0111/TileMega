@@ -43,16 +43,14 @@ int main() {
   assert(cuda.find("GeneratedLlamaRuntime.cuh") == std::string::npos);
   assert(cuda.find("% 12") == std::string::npos);
 
-  bool rejected = false;
-  try {
-    (void)tilemega::frontend::TorchExportImporter{}.Import(
-        std::string(TILEMEGA_SOURCE_DIR) +
-            "/test/fixtures/export_unsupported.json", context);
-  } catch (std::runtime_error const& error) {
-    rejected = std::string(error.what()).find("aten.imaginary.default") !=
-               std::string::npos;
-  }
-  assert(rejected);
+  // An uncovered operator degrades instead of being rejected; `degradation_test`
+  // holds the rest of that contract.
+  tilemega::frontend::ImportSummary degraded;
+  (void)tilemega::frontend::TorchExportImporter{}.Import(
+      std::string(TILEMEGA_SOURCE_DIR) +
+          "/test/fixtures/export_unsupported.json", context, &degraded);
+  assert(degraded.degraded.size() == 1 &&
+         degraded.degraded.front() == "aten.imaginary.default");
 
   auto domain = tilemega::frontend::SymbolicShapeBridge{}.Parse(
       {{"s0", "VR[1, 1024]"}},
