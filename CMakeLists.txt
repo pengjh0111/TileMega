@@ -94,6 +94,8 @@ add_library(tilemega STATIC
   lib/Analysis/CouplingRelation.cpp
   lib/Analysis/Analysis.cpp
   lib/Analysis/AccessRelation.cpp
+  lib/Analysis/Semantics.cpp
+  lib/Analysis/TaskInstantiation.cpp
   lib/Analysis/CouplingDerivation.cpp
   lib/Analysis/ReferenceModels.cpp
   lib/Solver/Solver.cpp
@@ -197,6 +199,10 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(table27_test test/unit/table27_test.cpp)
   target_link_libraries(table27_test PRIVATE TileMega::tilemega)
   add_test(NAME table27 COMMAND table27_test)
+
+  add_executable(semantics_test test/unit/semantics_test.cpp)
+  target_link_libraries(semantics_test PRIVATE TileMega::tilemega)
+  add_test(NAME semantics COMMAND semantics_test)
 
   add_executable(containment_test test/unit/containment_test.cpp)
   target_link_libraries(containment_test PRIVATE TileMega::tilemega)

@@ -5,6 +5,8 @@
 #include <string>
 
 #include <tilemega/Analysis/ClosedForm.h>
+#include <tilemega/Analysis/Semantics.h>
+#include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/TensorSpace.h>
 
 namespace tilemega::analysis {
@@ -31,6 +33,30 @@ struct DecoderShape {
   static ParamBinding Table27Theta();
   static ParamBinding Table27G();
 };
+
+/// A reference model in its two-layer form: the g-independent semantics and
+/// the granularity it is instantiated at. Every builder below returns this;
+/// the OperatorGraph functions that follow are `Instantiate()` on it, kept so
+/// existing callers and the §2.7 table are unaffected.
+struct ReferenceModel {
+  SemanticGraph sem;
+  Granularity g;
+  OperatorGraph Task() const { return analysis::Instantiate(sem, g); }
+};
+
+ReferenceModel LlamaDecoderLayerSem(DecoderShape const& shape,
+                                    std::string const& prefix = "");
+ReferenceModel LlamaStackSem(DecoderShape const& shape, int layers);
+ReferenceModel MlpStackSem(DecoderShape const& shape, int blocks);
+ReferenceModel MhaModelSem(DecoderShape const& shape, int layers);
+ReferenceModel MisalignedTileModelSem(DecoderShape const& shape,
+                                      long producer_tile, long consumer_tile);
+ReferenceModel GatherModelSem(DecoderShape const& shape,
+                              bool data_dependent = true);
+/// A two-op graph containing an operator no pattern recognizes, used to check
+/// that an unknown op degrades to one task space instead of failing.
+ReferenceModel UnknownOperatorModelSem(DecoderShape const& shape);
+OperatorGraph UnknownOperatorModel(DecoderShape const& shape);
 
 /// One Llama decoder layer at the granularity §2.7 talks about: one node per
 /// tensor operation, not one node per FX call_function.  `prefix` namespaces
