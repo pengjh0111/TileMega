@@ -100,6 +100,8 @@ add_library(tilemega STATIC
   lib/Analysis/CouplingDerivation.cpp
   lib/Analysis/ReferenceModels.cpp
   lib/Solver/Solver.cpp
+  lib/Solver/BackendCostQuery.cpp
+  lib/Solver/CandidateGenerator.cpp
   lib/Codegen/Codegen.cpp
   lib/Runtime/EventBuffer.cpp
   lib/Runtime/MegakernelRuntime.cpp)
@@ -228,6 +230,12 @@ if(TILEMEGA_BUILD_TESTS)
     target_compile_options(cg_attr_test PRIVATE -fno-rtti)
   endif()
   add_test(NAME cg_attr_roundtrip COMMAND cg_attr_test)
+
+  add_executable(backend_query_test test/unit/backend_query_test.cpp)
+  target_link_libraries(backend_query_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(backend_query_test PRIVATE
+    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  add_test(NAME backend_query COMMAND backend_query_test)
 
   add_executable(task_body_contract_test test/unit/task_body_contract_test.cu)
   target_link_libraries(task_body_contract_test PRIVATE TileMega::tilemega)

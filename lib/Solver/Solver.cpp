@@ -6,7 +6,6 @@
 #include <tilemega/Solver/ListScheduler.h>
 #include <algorithm>
 namespace tilemega::solver {
-std::vector<TileCandidate> CandidateGenerator::Generate() const { return {}; }
 bool AlignmentPropagation::Compatible(TileCandidate const& a, TileCandidate const& b) const {
   return a.n == 0 || b.m == 0 || a.n == b.m;
 }
