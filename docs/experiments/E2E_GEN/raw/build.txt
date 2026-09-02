@@ -1,3 +1,7 @@
 ninja: Entering directory `/root/TileMega/build-phase12'
-[1/2] Linking CXX executable tools/tilemega-opt
-[2/2] Linking CXX executable tools/tilemega-import
+[1/6] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/Analysis.cpp.o
+[2/6] Building CXX object CMakeFiles/tilemega.dir/lib/Codegen/Codegen.cpp.o
+[3/6] Linking CXX static library libtilemega.a
+[4/6] Linking CXX executable tools/tilemega-opt
+[5/6] Linking CXX executable tools/tilemega-import
+[6/6] Linking CXX executable tools/tilemega-compile

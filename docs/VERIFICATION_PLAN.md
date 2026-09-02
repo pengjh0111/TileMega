@@ -17,7 +17,12 @@ source-inspected, cross-compiled without running, or explicitly unconfirmed;
 | 6 | V-C cluster DSMEM | ✅ sm_90/120 compile; ⚠️ not run | [V-C result](experiments/V_C/result.md) |
 | 4 | V-J tile-size and backward-wait controls | ✅ complete on RTX 4090 | [V-J result](experiments/V_J/result.md) |
 | 2 | E2E L0 → L0.5 → L1 | ✅ 50/50 on RTX 4090 | [E2E result](experiments/E2E/result.md) |
-| 1 | P1/P2 generated CG → L0.5/L1 | ✅ importer + codegen, 50/50 on RTX 4090 | [E2E_GEN result](experiments/E2E_GEN/result.md) |
+| 1 | P1/P2 generated CG → L0.5/L1/L2 | ✅ importer + table-driven codegen, 50/50 on RTX 4090 | [E2E_GEN result](experiments/E2E_GEN/result.md) |
+| 1 | P3.2/P3.3 coupling derivation (`W⁻¹∘R`) | ✅ all 13 §2.7 rows auto-derived and asserted | [table27](experiments/P3/table27.md) |
+| 1 | P3.4 Tier classification and I2 containment | ✅ `containment_test` both directions; Tier 0-3 all exercised | `test/unit/containment_test.cpp`, `test/unit/table27_test.cpp` |
+| 2 | P3.5 L2 fine-grained events vs. L1 barrier | ✅ bitwise identical, 50/50 fresh processes; ⚠️ slower than L1 (conservative relaxation) | [E2E_L2 result](experiments/E2E_L2/result.md) |
+| 1 | P3.6 generator generalization (second structurally different model) | ✅ 4-layer MHA passes end to end, no model-structure constants in generated `.cu` | [P3_GENERALIZATION result](experiments/P3_GENERALIZATION/result.md) |
+| 5 | P3.1 CuTe↔ISL three-level inverse policy | ✅ classifier and Tier consequence tested; ⚠️ isl_map round trip not implemented | `test/unit/layout_bridge_test.cpp` |
 
 ## Reproduction policy
 
@@ -53,3 +58,24 @@ never converted into a pass.
   bridge followed by a C++ JSON-to-CG `ModuleOp` importer. Codegen accepts only
   that verified dialect module; generated L0.5 matches the handwritten
   reference bitwise and generated L1 passes 50/50 fresh processes.
+- `C = W⁻¹ ∘ R` is exact closed-form `floor(./tile)` algebra for every access
+  pattern this codebase generates; the general Presburger/barvinok path stays
+  unimplemented because nothing here forces it to run (F-22, F-26). A relaxed
+  coupling's I2 substitutability (`C' ⊇ C`) is a machine-checked predicate
+  (`Contains`), not asserted in prose (F-23).
+- Model structure (layer count, hidden/intermediate width, GQA-vs-MHA head
+  ratio) is derived structurally from FX parameter shapes by
+  `lib/Frontend/ModelPlan.cpp` and reaches the generator only as CG module
+  attributes; the generated `.cu` carries model *data* tables, never a
+  model-*structure* control-flow constant. This is verified by a second,
+  structurally different model passing end to end with no `#include` of a
+  handwritten runtime (F-25). The pattern matcher still only recognizes the
+  Llama decoder-layer dataflow family — a structurally distinct model needs a
+  new rule in `ModelPlan.cpp`, not automatic support.
+- L2 per-edge events are synthesized from the real derived `C` and are
+  bitwise identical to L1's global-barrier output, but every emitted
+  dependency uses the conservative `Map::kAll` relaxation (a whole producer
+  stage, not the exact producer CTAs `C` identifies) because the TaskBody ABI
+  does not yet carry a CTA→task ownership fact. L2 is therefore currently
+  slower than L1, not faster; closing that gap is an ABI change, not an
+  algorithm change (F-24).

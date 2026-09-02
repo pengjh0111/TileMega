@@ -23,6 +23,9 @@ venv/
 compile_commands.json
 docs/experiments/**/out/
 docs/experiments/E2E/fixture/
+docs/experiments/P3_GENERALIZATION/raw/fixture/
+docs/experiments/P3_GENERALIZATION/raw/exported_program.pt2
+docs/experiments/P3_GENERALIZATION/generated
 docs/experiments/**/*.log
 *.egg-info/
 .ninja_deps

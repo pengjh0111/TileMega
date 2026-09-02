@@ -18,7 +18,8 @@ int main() {
           "/docs/experiments/E2E_GEN/raw/export_bridge.json",
       context, &summary);
   assert(summary.task_spaces == 179 && summary.couplings == 222);
-  assert(summary.stages == 24 && summary.guards == 4);
+  assert(summary.stages == 30 && summary.guards == 4);
+  assert(module->getOperation()->getAttr("tilemega.model_plan"));
   auto aliases = module->getOperation()->getAttrOfType<mlir::DictionaryAttr>(
       "tilemega.symbol_aliases");
   assert(aliases.getAs<mlir::StringAttr>("s61").getValue() == "s14");
@@ -33,12 +34,14 @@ int main() {
 
   std::string cuda =
       tilemega::codegen::CouplingGraphToCUDA{}.Lower(*module);
-  assert(cuda.find("TILEMEGA_GENERATED_TASK_COUNT 179") != std::string::npos);
-  assert(cuda.find("TILEMEGA_GENERATED_SCHEDULE") != std::string::npos);
+  assert(cuda.find("constexpr ModelSpec kModel") != std::string::npos);
+  assert(cuda.find("kStages, 30u") != std::string::npos);
   assert(cuda.find("TILEMEGA_GENERATED_WAIT_global") != std::string::npos);
   assert(cuda.find("TILEMEGA_GENERATED_NOTIFY_global") != std::string::npos);
   assert(cuda.find("TILEMEGA_GENERATED_RESIDENT_GRID") != std::string::npos);
-  assert(cuda.find("GeneratedLlamaRuntime.cuh") != std::string::npos);
+  assert(cuda.find("ModelHarness.cuh") != std::string::npos);
+  assert(cuda.find("GeneratedLlamaRuntime.cuh") == std::string::npos);
+  assert(cuda.find("% 12") == std::string::npos);
 
   bool rejected = false;
   try {

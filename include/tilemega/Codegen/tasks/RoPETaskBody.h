@@ -1,21 +1,40 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// Skeleton ref: §5.3 rotary-position elementwise body.
+// Skeleton ref: §5.3.  Handwritten TaskBody; every shape arrives at run time.
 #pragma once
-#include <tilemega/Codegen/tasks/TaskBase.h>
+#include <tilemega/Codegen/tasks/ModelRuntime.h>
+
 namespace tilemega::codegen {
-template <class Arch, class TileShape = void>
+
+/// operand = {input, output, inv_freq}; `extent` is the head count of this
+/// tensor (a per-token count, so the token axis stays symbolic).
+template <class Arch, class SmemUnion, int Threads>
 struct RoPETaskBody {
-  using Traits = TaskTraits<256, 0>;
-  using SharedStorage = codegen::SharedStorage<Traits::kSharedStorageBytes>;
+  using SharedStorage = float[1];
   static constexpr int kSmemBytes = sizeof(SharedStorage);
-  static constexpr int kNumThreads = Traits::kThreads;
+  static constexpr int kNumThreads = Threads;
   static constexpr bool kLegal = true;
-  __device__ static void Run(TaskContext const& c, SharedStorage&) {
-    if (threadIdx.x == 0 && c.output) static_cast<int*>(c.output)[c.logical_tile] = c.iteration;
-  }
-  template <class Params>
-  __device__ void operator()(TaskDesc const& task, char* smem, Params const& p) const {
-    Run(p.context(task), *reinterpret_cast<SharedStorage*>(smem));
+
+  __device__ void operator()(Params const& p, StageDesc const& stage,
+                             SmemUnion&) const {
+    float const* input = p.buffers[stage.operand[0]];
+    float* output = p.buffers[stage.operand[1]];
+    float const* inv_freq = p.buffers[stage.operand[2]];
+    int const dim = static_cast<int>(stage.width), half_dim = dim / 2;
+    int const heads = static_cast<int>(stage.extent);
+    int pairs = p.dims.seq * heads * half_dim;
+    for (int index = blockIdx.x * blockDim.x + threadIdx.x; index < pairs;
+         index += gridDim.x * blockDim.x) {
+      int half = index % half_dim;
+      int head_token = index / half_dim;
+      int token = head_token / heads;
+      int base = head_token * dim;
+      float angle = (p.dims.past + token) * inv_freq[half];
+      float c = cosf(angle), s = sinf(angle);
+      float a = input[base + half], b = input[base + half + half_dim];
+      output[base + half] = a * c - b * s;
+      output[base + half + half_dim] = b * c + a * s;
+    }
   }
 };
+
 }  // namespace tilemega::codegen

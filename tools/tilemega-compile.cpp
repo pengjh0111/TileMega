@@ -68,7 +68,8 @@ int main(int argc, char** argv) {
           " -I" + quote(root + "/third_party/cutlass/include") +
           " -I" + quote(root + "/third_party/cutlass/tools/util/include") +
           " -I" + quote(root + "/third_party/cutlass/test") + " " +
-          quote(cuda.string()) + " " + quote(root + "/lib/Target/TargetSpec.cpp") +
+          quote(cuda.string()) + " -x cu " +
+          quote(root + "/lib/Target/TargetSpec.cpp") +
           " -L/usr/local/cuda/lib64 -lcudart -o " + quote(requested.string());
       int status = std::system(command.c_str());
       if (status != 0) throw std::runtime_error("nvcc failed while building shared object");

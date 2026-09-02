@@ -3,4 +3,4 @@ ptxas info    : Compiling entry function 'tilemega_cluster_path' for 'sm_120'
 ptxas info    : Function properties for tilemega_cluster_path
     0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
 ptxas info    : Used 10 registers, used 0 barriers, 4 bytes smem
-ptxas info    : Compile time = 6.990 ms
+ptxas info    : Compile time = 9.848 ms

@@ -71,4 +71,11 @@ grep '^E2E_TIME' "${raw}"/fresh_processes/run_*.log \
   cut -f2 "${raw}/timings_sorted.tsv" | sort -n | awk 'NR==25{a=$1} NR==26{printf "l1_median_ms\t%.6f\n",(a+$1)/2}'
   cut -f3 "${raw}/timings_sorted.tsv" | sort -n | awk 'NR==25{a=$1} NR==26{printf "l1_over_l05_median\t%.6f\n",(a+$1)/2}'
 } > "${raw}/timing_median.txt"
+grep '^E2E_TIME' "${raw}"/fresh_processes/run_*.log \
+  | sed -E 's/.*l2_ms=([0-9.]+) l2_over_l1=([0-9.]+).*/\1\t\2/' \
+  | sort -n -k2,2 > "${raw}/l2_timings_sorted.tsv"
+{
+  cut -f1 "${raw}/l2_timings_sorted.tsv" | sort -n | awk 'NR==25{a=$1} NR==26{printf "l2_median_ms\t%.6f\n",(a+$1)/2}'
+  cut -f2 "${raw}/l2_timings_sorted.tsv" | sort -n | awk 'NR==25{a=$1} NR==26{printf "l2_over_l1_median\t%.6f\n",(a+$1)/2}'
+} > "${raw}/l2_timing_median.txt"
 echo PASS > "${raw}/run_status.txt"

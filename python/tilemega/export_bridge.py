@@ -71,6 +71,32 @@ def serialize(program: torch.export.ExportedProgram) -> dict[str, Any]:
                 "source_fn_stack": [str(item) for item in node.meta.get("source_fn_stack", [])],
             }
         )
+    def argument_name(spec: Any) -> str:
+        name = getattr(spec.arg, "name", None)
+        if not isinstance(name, str):
+            raise RuntimeError(
+                "TileMega stable bridge currently requires named graph-signature "
+                f"arguments; got {spec.arg!r}"
+            )
+        return name
+
+    signature_inputs = [
+        {
+            "name": argument_name(spec),
+            "kind": spec.kind.name,
+            "target": spec.target,
+            "persistent": spec.persistent,
+        }
+        for spec in program.graph_signature.input_specs
+    ]
+    signature_outputs = [
+        {
+            "name": argument_name(spec),
+            "kind": spec.kind.name,
+            "target": spec.target,
+        }
+        for spec in program.graph_signature.output_specs
+    ]
     return {
         "schema": SCHEMA,
         "torch_version": torch.__version__,
@@ -80,6 +106,13 @@ def serialize(program: torch.export.ExportedProgram) -> dict[str, Any]:
             for symbol, constraint in program.range_constraints.items()
         },
         "guards": _guards(program),
+        # Signature roles are serialization facts, not TileMega semantic
+        # decisions. Keeping them structured avoids parsing torch's diagnostic
+        # __str__ representation in the C++ importer.
+        "signature": {
+            "inputs": signature_inputs,
+            "outputs": signature_outputs,
+        },
         "graph_signature": str(program.graph_signature),
     }
 

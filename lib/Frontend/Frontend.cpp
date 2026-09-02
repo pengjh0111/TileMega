@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Frontend/SymbolicShapeBridge.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
+#include <tilemega/Frontend/ModelPlan.h>
 #include <tilemega/Dialect/CouplingGraph/CGAttrs.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
@@ -70,12 +71,6 @@ void unite(std::unordered_map<std::string, std::string>& parent,
   if (a != b) parent[std::max(a, b)] = std::min(a, b);
 }
 
-struct NodeRecord {
-  int index = 0;
-  std::string name, op, target;
-  std::vector<std::string> inputs, shape;
-};
-
 std::vector<std::string> readStrings(llvm::json::Array const* array) {
   std::vector<std::string> result;
   if (!array) return result;
@@ -124,56 +119,6 @@ llvm::StringSet<> const& whitelist() {
   return values;
 }
 
-// Explicit, tested two-layer Llama rule.  It is deliberately centralized: no
-// stage decision is made by the Python bridge or hidden in code generation.
-std::vector<int> formStages(std::vector<NodeRecord> const& tasks) {
-  std::vector<std::size_t> linear;
-  for (std::size_t i = 0; i < tasks.size(); ++i)
-    if (tasks[i].target == "aten.linear.default") linear.push_back(i);
-  if (linear.size() != 14)
-    throw std::runtime_error("stage rule expects 14 Llama linear ops; found " +
-                             std::to_string(linear.size()));
-  std::vector<int> stage(tasks.size(), -1);
-  for (int layer = 0; layer < 2; ++layer) {
-    std::size_t q = linear[layer * 7], k = linear[layer * 7 + 1];
-    std::size_t v = linear[layer * 7 + 2], o = linear[layer * 7 + 3];
-    std::size_t gate = linear[layer * 7 + 4], up = linear[layer * 7 + 5];
-    std::size_t down = linear[layer * 7 + 6];
-    std::size_t begin = layer == 0 ? 0 : linear[6];
-    if (layer == 1) {
-      while (begin < q && tasks[begin].target != "aten.add.Tensor") ++begin;
-      if (begin < q) ++begin;
-    }
-    std::size_t end = layer == 1 ? tasks.size() : begin;
-    if (layer == 0) {
-      end = down;
-      while (end < linear[7] && tasks[end].target != "aten.add.Tensor") ++end;
-      if (end < linear[7]) ++end;
-    }
-    std::size_t rope = v + 1;
-    while (rope < o && (tasks[rope].target == "aten.view.default" ||
-                        tasks[rope].target == "aten.transpose.int")) ++rope;
-    std::size_t attention = rope;
-    while (attention < o && tasks[attention].target != "aten.matmul.default") ++attention;
-    std::size_t postNorm = o + 1;
-    while (postNorm < gate && tasks[postNorm].target != "aten.add.Tensor") ++postNorm;
-    if (postNorm < gate) ++postNorm;
-    auto fill = [&](std::size_t first, std::size_t last, int local) {
-      for (std::size_t i = first; i < last; ++i) stage[i] = layer * 12 + local;
-    };
-    fill(begin, q, 0); fill(q, k, 1); fill(k, v, 2); fill(v, rope, 3);
-    fill(rope, attention, 4); fill(attention, o, 5); fill(o, postNorm, 6);
-    fill(postNorm, gate, 7); fill(gate, up, 8); fill(up, down, 9);
-    for (std::size_t i = gate + 1; i < down; ++i)
-      if (tasks[i].target == "aten.silu.default" || tasks[i].target == "aten.mul.Tensor")
-        stage[i] = layer * 12 + 10;
-    fill(down, end, 11);
-  }
-  if (llvm::any_of(stage, [](int value) { return value < 0; }))
-    throw std::runtime_error("explicit stage rule left an ATen task unassigned");
-  return stage;
-}
-
 mlir::DictionaryAttr dict(mlir::Builder& builder,
                           std::initializer_list<mlir::NamedAttribute> fields) {
   return builder.getDictionaryAttr(fields);
@@ -220,6 +165,68 @@ mlir::DictionaryAttr fixedRelation(mlir::Builder& builder,
           &context, analysis::ClosedForm::Constant(1))),
       builder.getNamedAttr("image", dialect::ClosedFormAttr::get(
           &context, analysis::ClosedForm::Constant(1)))});
+}
+
+llvm::StringRef taskKindName(PlanTaskKind kind) {
+  switch (kind) {
+    case PlanTaskKind::kGemm: return "kGemm";
+    case PlanTaskKind::kRMSNorm: return "kRMSNorm";
+    case PlanTaskKind::kRoPE: return "kRoPE";
+    case PlanTaskKind::kKVAppend: return "kKVAppend";
+    case PlanTaskKind::kElementwise: return "kElementwise";
+    case PlanTaskKind::kAttention: return "kAttention";
+  }
+  llvm_unreachable("unknown plan task kind");
+}
+
+mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
+                                   ModelPlan const& plan) {
+  llvm::SmallVector<mlir::Attribute> buffers, gemms, stages, outputs;
+  for (auto const& buffer : plan.buffers) {
+    llvm::StringRef source = "zero";
+    if (buffer.source == PlanBuffer::Source::kFixture) source = "fixture";
+    if (buffer.source == PlanBuffer::Source::kWeight) source = "weight";
+    buffers.push_back(dict(builder, {
+        builder.getNamedAttr("name", builder.getStringAttr(buffer.name)),
+        builder.getNamedAttr("constant", builder.getI64IntegerAttr(buffer.constant)),
+        builder.getNamedAttr("per_seq", builder.getI64IntegerAttr(buffer.per_seq)),
+        builder.getNamedAttr("per_past", builder.getI64IntegerAttr(buffer.per_past)),
+        builder.getNamedAttr("per_total", builder.getI64IntegerAttr(buffer.per_total)),
+        builder.getNamedAttr("source", builder.getStringAttr(source)),
+        builder.getNamedAttr("file", builder.getStringAttr(buffer.file))}));
+  }
+  for (auto const& gemm : plan.gemms)
+    gemms.push_back(dict(builder, {
+        builder.getNamedAttr("n", builder.getI64IntegerAttr(gemm.n)),
+        builder.getNamedAttr("k", builder.getI64IntegerAttr(gemm.k)),
+        builder.getNamedAttr("a", builder.getI64IntegerAttr(gemm.a)),
+        builder.getNamedAttr("b", builder.getI64IntegerAttr(gemm.b)),
+        builder.getNamedAttr("c", builder.getI64IntegerAttr(gemm.c)),
+        builder.getNamedAttr("d", builder.getI64IntegerAttr(gemm.d)),
+        builder.getNamedAttr("beta", builder.getF32FloatAttr(gemm.beta))}));
+  for (auto const& stage : plan.stages) {
+    llvm::SmallVector<std::int64_t> operands;
+    for (auto operand : stage.operands) operands.push_back(operand);
+    stages.push_back(dict(builder, {
+        builder.getNamedAttr("kind", builder.getStringAttr(taskKindName(stage.kind))),
+        builder.getNamedAttr("gemm", builder.getI64IntegerAttr(stage.gemm)),
+        builder.getNamedAttr("extent", builder.getI64IntegerAttr(stage.extent)),
+        builder.getNamedAttr("width", builder.getI64IntegerAttr(stage.width)),
+        builder.getNamedAttr("group", builder.getI64IntegerAttr(stage.group)),
+        builder.getNamedAttr("operands", builder.getDenseI64ArrayAttr(operands)),
+        builder.getNamedAttr("representative", builder.getStringAttr(stage.representative)),
+        builder.getNamedAttr("representative_index",
+                             builder.getI64IntegerAttr(stage.representative_index))}));
+  }
+  for (auto const& output : plan.outputs)
+    outputs.push_back(dict(builder, {
+        builder.getNamedAttr("buffer", builder.getI64IntegerAttr(output.buffer)),
+        builder.getNamedAttr("file", builder.getStringAttr(output.file))}));
+  return dict(builder, {
+      builder.getNamedAttr("buffers", builder.getArrayAttr(buffers)),
+      builder.getNamedAttr("gemms", builder.getArrayAttr(gemms)),
+      builder.getNamedAttr("stages", builder.getArrayAttr(stages)),
+      builder.getNamedAttr("outputs", builder.getArrayAttr(outputs))});
 }
 
 }  // namespace
@@ -297,37 +304,76 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
   if (!root || root->getString("schema") != "tilemega.exported_program.v1")
     throw std::runtime_error("unsupported export bridge schema");
 
-  std::vector<NodeRecord> tasks;
-  std::vector<std::vector<std::string>> userShapes;
+  std::vector<FxNodeRecord> allNodes, tasks;
   std::set<std::string> unsupported;
   auto* nodes = root->getArray("nodes");
   if (!nodes) throw std::runtime_error("export JSON has no nodes array");
   for (auto const& item : *nodes) {
     auto* object = item.getAsObject();
     if (!object) throw std::runtime_error("node is not an object");
-    NodeRecord node;
+    FxNodeRecord node;
     node.index = static_cast<int>(*object->getInteger("index"));
     node.name = object->getString("name")->str();
     node.op = object->getString("op")->str();
     node.target = object->getString("target")->str();
     node.inputs = readStrings(object->getArray("inputs"));
     node.shape = readStrings(object->getArray("shape"));
-    if (node.op == "placeholder" && node.index >= 20) userShapes.push_back(node.shape);
     if (node.op == "call_function") {
       if (!whitelist().contains(node.target)) unsupported.insert(node.target);
-      tasks.push_back(std::move(node));
+      tasks.push_back(node);
     }
+    allNodes.push_back(std::move(node));
   }
   if (!unsupported.empty())
     throw std::runtime_error("operators outside Phase-1 whitelist: " +
                              llvm::join(unsupported, ", "));
+  std::vector<SignatureInput> signatureInputs;
+  std::vector<std::string> signatureOutputs;
+  auto* signature = root->getObject("signature");
+  if (!signature)
+    throw std::runtime_error(
+        "export bridge has no structured signature; rerun export_bridge.py");
+  if (auto* inputs = signature->getArray("inputs")) {
+    for (auto const& item : *inputs) {
+      auto* object = item.getAsObject();
+      if (!object) throw std::runtime_error("signature input is not an object");
+      SignatureInput input;
+      input.name = object->getString("name")->str();
+      input.kind = object->getString("kind")->str();
+      if (auto target = object->getString("target")) input.target = target->str();
+      if (auto persistent = object->getBoolean("persistent"))
+        input.persistent = *persistent;
+      signatureInputs.push_back(std::move(input));
+    }
+  }
+  if (auto* outputs = signature->getArray("outputs"))
+    for (auto const& item : *outputs) {
+      auto* object = item.getAsObject();
+      if (!object) throw std::runtime_error("signature output is not an object");
+      signatureOutputs.push_back(object->getString("name")->str());
+    }
+  if (signatureInputs.empty() || signatureOutputs.empty())
+    throw std::runtime_error("structured signature has no inputs or outputs");
+
+  std::unordered_map<std::string, FxNodeRecord const*> nodeByName;
+  for (auto const& node : allNodes) nodeByName.emplace(node.name, &node);
+  std::vector<std::vector<std::string>> userShapes;
+  for (auto const& input : signatureInputs)
+    if (input.kind == "USER_INPUT") {
+      auto found = nodeByName.find(input.name);
+      if (found == nodeByName.end())
+        throw std::runtime_error("signature names unknown input " + input.name);
+      userShapes.push_back(found->second->shape);
+    }
+
   std::unordered_map<std::string, std::string> rangeTexts;
   if (auto* ranges = root->getObject("range_constraints"))
     for (auto const& item : *ranges)
       rangeTexts[item.first.str()] = item.second.getAsString()->str();
   auto guards = readStrings(root->getArray("guards"));
   SymbolicShape symbolic = SymbolicShapeBridge{}.Parse(rangeTexts, guards, userShapes);
-  std::vector<int> stages = formStages(tasks);
+  ModelPlan plan = BuildModelPlan(allNodes, signatureInputs, signatureOutputs);
+  std::vector<int> stages = FormSemanticStages(tasks, plan);
 
   mlir::OpBuilder builder(&context);
   auto module = mlir::ModuleOp::create(builder.getUnknownLoc());
@@ -348,6 +394,7 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
       builder.getNamedAttr("head_tile", builder.getI64IntegerAttr(1)),
       builder.getNamedAttr("head_dim_tile", builder.getI64IntegerAttr(128))}));
   module->setAttr("tilemega.guard_count", builder.getI64IntegerAttr(guards.size()));
+  module->setAttr("tilemega.model_plan", modelPlanAttr(builder, plan));
   builder.setInsertionPointToStart(module.getBody());
 
   std::unordered_map<std::string, std::string> symbols;
@@ -416,7 +463,7 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
   }
   if (mlir::failed(mlir::verify(module)))
     throw std::runtime_error("C++ importer produced an invalid CG module");
-  if (summary) *summary = {tasks.size(), edge, 24, guards.size()};
+  if (summary) *summary = {tasks.size(), edge, plan.stages.size(), guards.size()};
   return mlir::OwningOpRef<mlir::ModuleOp>(module);
 }
 

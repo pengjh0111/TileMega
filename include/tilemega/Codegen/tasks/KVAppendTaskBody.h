@@ -1,22 +1,48 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// Skeleton ref: §5.3 paged-KV append body.
+// Skeleton ref: §5.3.  Handwritten TaskBody; every shape arrives at run time.
 #pragma once
-#include <tilemega/Codegen/tasks/TaskBase.h>
+#include <tilemega/Codegen/tasks/ModelRuntime.h>
+
 namespace tilemega::codegen {
-template <class Arch, class TileShape = void>
+
+/// operand = {appended, past, full}; `extent` is the KV head count.  The body
+/// writes rows [past, past + seq) and copies the retained prefix: exactly the
+/// sub-window the derived coupling guards on.
+template <class Arch, class SmemUnion, int Threads>
 struct KVAppendTaskBody {
-  using Traits = TaskTraits<256, 2 * 1024>;
-  using SharedStorage = codegen::SharedStorage<Traits::kSharedStorageBytes>;
+  using SharedStorage = float[1];
   static constexpr int kSmemBytes = sizeof(SharedStorage);
-  static constexpr int kNumThreads = Traits::kThreads;
+  static constexpr int kNumThreads = Threads;
   static constexpr bool kLegal = true;
-  __device__ static void Run(TaskContext const& c, SharedStorage&) {
-    auto i = c.logical_tile * blockDim.x + threadIdx.x;
-    if (c.output && i < c.extent) static_cast<int*>(c.output)[i] = c.iteration;
-  }
-  template <class Params>
-  __device__ void operator()(TaskDesc const& task, char* smem, Params const& p) const {
-    Run(p.context(task), *reinterpret_cast<SharedStorage*>(smem));
+
+  __device__ void operator()(Params const& p, StageDesc const& stage,
+                             SmemUnion&) const {
+    float const* source = p.buffers[stage.operand[0]];
+    float const* prefix = p.buffers[stage.operand[1]];
+    float* full = p.buffers[stage.operand[2]];
+    int const dim = static_cast<int>(stage.width);
+    int const seq = p.dims.seq, past = p.dims.past, total = p.dims.total;
+    int const kv_heads = static_cast<int>(stage.extent);
+
+    int appended = seq * kv_heads * dim;
+    for (int index = blockIdx.x * blockDim.x + threadIdx.x; index < appended;
+         index += gridDim.x * blockDim.x) {
+      int d = index % dim;
+      int temp = index / dim;
+      int kv = temp % kv_heads;
+      int token = temp / kv_heads;
+      full[(kv * total + past + token) * dim + d] = source[index];
+    }
+    int retained = kv_heads * past * dim;
+    for (int index = blockIdx.x * blockDim.x + threadIdx.x; index < retained;
+         index += gridDim.x * blockDim.x) {
+      int d = index % dim;
+      int temp = index / dim;
+      int pos = temp % past;
+      int kv = temp / past;
+      full[(kv * total + pos) * dim + d] = prefix[index];
+    }
   }
 };
+
 }  // namespace tilemega::codegen

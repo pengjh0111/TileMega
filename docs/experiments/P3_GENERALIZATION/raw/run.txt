@@ -1,0 +1,5 @@
+E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+E2E_TIME l05_ms=2.181728 l1_ms=2.160576 ratio=0.990305 l2_ms=2.928160 l2_over_l1=1.355268
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+RESULT status=PASS

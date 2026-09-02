@@ -74,6 +74,7 @@ add_public_tablegen_target(TileMegaCGIncGen)
 add_library(tilemega STATIC
   lib/Target/TargetSpec.cpp
   lib/Frontend/Frontend.cpp
+  lib/Frontend/ModelPlan.cpp
   lib/Dialect/CouplingGraph/CGDialect.cpp
   lib/Analysis/ClosedForm.cpp
   lib/Analysis/AffineRelation.cpp
@@ -90,7 +91,9 @@ target_compile_features(tilemega PUBLIC cxx_std_17)
 target_include_directories(tilemega PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/include>)
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/tools/util/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/test>)
 add_dependencies(tilemega TileMegaCGIncGen)
 target_link_libraries(tilemega PUBLIC CUDA::cudart MLIRIR MLIRSupport)
 if(NOT LLVM_ENABLE_RTTI)
@@ -184,6 +187,14 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(containment_test PRIVATE TileMega::tilemega)
   add_test(NAME containment COMMAND containment_test)
 
+  add_executable(event_synthesis_test test/unit/event_synthesis_test.cpp)
+  target_link_libraries(event_synthesis_test PRIVATE TileMega::tilemega)
+  add_test(NAME event_synthesis COMMAND event_synthesis_test)
+
+  add_executable(layout_bridge_test test/unit/layout_bridge_test.cpp)
+  target_link_libraries(layout_bridge_test PRIVATE TileMega::tilemega)
+  add_test(NAME layout_bridge COMMAND layout_bridge_test)
+
   add_executable(cg_attr_test test/unit/cg_attr_test.cpp)
   add_dependencies(cg_attr_test TileMegaCGIncGen)
   target_link_libraries(cg_attr_test PRIVATE TileMega::tilemega MLIRIR)
@@ -220,6 +231,12 @@ if(TARGET target_spec_test)
 endif()
 if(TARGET containment_test)
   add_dependencies(check-tilemega containment_test)
+endif()
+if(TARGET event_synthesis_test)
+  add_dependencies(check-tilemega event_synthesis_test)
+endif()
+if(TARGET layout_bridge_test)
+  add_dependencies(check-tilemega layout_bridge_test)
 endif()
 if(TARGET table27_test)
   add_dependencies(check-tilemega table27_test)

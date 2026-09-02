@@ -1,4 +1,4 @@
--- Using MLIR  from /root/TileMega/build-cutlass-compiler/lib/cmake/mlir
+-- Using MLIR  from /root/toolchains/mlir-23a60f15/lib/cmake/mlir
 -- Configuring done
 -- Generating done
 -- Build files have been written to: /root/TileMega/build-phase12

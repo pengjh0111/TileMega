@@ -42,14 +42,28 @@ def main() -> None:
     model = program.module()
     hidden = torch.randn(1, 4, 512)
     caches = [torch.randn(1, 2, 3, 128) for _ in range(4)]
+    inputs = [hidden, *caches]
     with torch.no_grad():
-        outputs = model(hidden, *caches)
+        outputs = model(*inputs)
 
     files: dict[str, dict] = {}
     files["input_hidden"] = write_f32(args.out / "input_hidden.bin", hidden)
     for index, cache in enumerate(caches):
         files[f"input_cache_{index}"] = write_f32(
             args.out / f"input_cache_{index}.bin", cache
+        )
+    # Stable bridge names: the C++ importer can derive fixture paths from the
+    # structured ExportGraphSignature without knowing that this model calls
+    # its first input "hidden" or numbers KV tensors in pairs. Keep the legacy
+    # aliases above for the handwritten E2E reference.
+    for spec, value in zip(
+        (item for item in program.graph_signature.input_specs
+         if item.kind.name == "USER_INPUT"),
+        inputs,
+    ):
+        name = spec.arg.name
+        files[f"input_{name}"] = write_f32(
+            args.out / f"input_{name}.bin", value
         )
     for name, value in program.state_dict.items():
         key = "state_" + name.replace(".", "_")
@@ -58,6 +72,10 @@ def main() -> None:
     for name, value in zip(output_names, outputs):
         files[f"reference_{name}"] = write_f32(
             args.out / f"reference_{name}.bin", value
+        )
+    for index, value in enumerate(outputs):
+        files[f"reference_{index}"] = write_f32(
+            args.out / f"reference_{index}.bin", value
         )
 
     e2e_graph = {

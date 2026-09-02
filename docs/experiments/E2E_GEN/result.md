@@ -44,6 +44,7 @@ launcher.
 | Generated L1 vs generated L0.5 | 0 mismatches; max abs `0` | ✅ bitwise |
 | Generated L0.5 vs handwritten L0.5 | both hash `5245714bc5d3ab4d` | ✅ bitwise |
 | Generated L1, fresh processes | 50 pass / 0 fail / 0 hang / 0 error | ✅ 50/50 |
+| Generated L2 (per-edge events) vs generated L1 | 0 mismatches; max abs `0`; hash `5245714bc5d3ab4d` for l05/l1/l2 | ✅ bitwise, 50/50 fresh processes |
 
 The retained `docs/experiments/E2E/e2e.cu` is now explicitly a handwritten
 reference baseline. It is not read by the importer or Codegen.
@@ -53,7 +54,9 @@ reference baseline. It is not read by the importer or Codegen.
 | Quantity | Generated | Handwritten reference |
 |---|---:|---:|
 | Threads/CTA | 256 | 256 |
-| Registers/thread (L1) | 168 | 168 |
+| Registers/thread (L1) | 168 | 167 |
+| Registers/thread (L0.5 stage kernel) | 153 | n/a |
+| Registers/thread (L2 stage kernel) | 142 | n/a |
 | Dynamic shared-memory union | 49,536 B | 49,536 B |
 | Spills | 0 | 0 |
 | Active CTA/SM | 1 | 1 |
@@ -79,19 +82,37 @@ Across the 50 generated-process logs:
 
 | Path | Median kernel time |
 |---|---:|
-| Generated L0.5 | 1.094608 ms |
-| Generated L1 | 1.079296 ms |
-| L1 / L0.5 | 0.986897× |
+| Generated L0.5 | 1.107968 ms |
+| Generated L1 | 1.095856 ms |
+| Generated L2 | 1.295360 ms |
+| L1 / L0.5 | 0.989824× |
+| L2 / L1 | 1.182071× |
 
 This is a correctness baseline, not an optimization claim. The non-GEMM
-TaskBodies remain intentionally naive.
+TaskBodies remain intentionally naive. L2 (per-edge events from the real
+derived coupling `C`, replacing L1's one barrier per stage) is bitwise
+identical to L1 on all 50 fresh processes but is slower, not faster — every
+emitted dependency is the conservative `Map::kAll` relaxation, which still
+waits for a whole producer stage's grid rather than the exact producer CTAs
+`C` identifies. See `docs/experiments/E2E_L2/result.md` for the full L2
+discussion, including why that gap is expected and what closing it needs.
 
 ## Scope and corrections
 
-⚠️ The explicit stage-forming rule is validated for the two-layer Llama
-structure (seven linears per layer). It fails loudly for a different structure
-instead of silently guessing; general stage formation remains in
-`PROPOSED_SKELETON_CHANGES.md`.
+✅ **Resolved this round**: the paragraph below described the P1.4/P2
+milestone's explicit two-layer stage rule (`lib/Frontend/Frontend.cpp`'s old
+`formStages`), which threw on anything but the exact V-H graph. It has been
+replaced by `lib/Frontend/ModelPlan.cpp`, which derives layer count, widths,
+and GQA/MHA head ratio structurally from FX parameter shapes. A second,
+structurally different model (4 layers, no GQA) now passes end to end through
+the same generator with no model-structure constant in the generated source —
+see `docs/experiments/P3_GENERALIZATION/result.md`. The original text is kept
+below as the historical record of what P1.4/P2 shipped:
+
+> ⚠️ The explicit stage-forming rule is validated for the two-layer Llama
+> structure (seven linears per layer). It fails loudly for a different
+> structure instead of silently guessing; general stage formation remains in
+> `PROPOSED_SKELETON_CHANGES.md`.
 
 The first MLIR reuse configure failed because V-F's exported CMake files retain
 absolute source/build paths after the tree was moved to `/tmp`. Restoring

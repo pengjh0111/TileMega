@@ -332,3 +332,172 @@
   duplication explicitly; it is a backend representation detail, not two
   schedules. Schedule entries remain one CG-derived source of truth.
 - Confidence: high for nvcc 12.8 and the generated sm_89 Phase-2 path.
+
+## F-22 — Closed-form `W^-1 o R` covers §2.7 exactly, without a Presburger solver
+
+- Finding: every producer's `W` is a tiling, so `W^-1` reduces to per-axis
+  `floor(./tile)`; projecting a consumer's read interval through it has
+  exactly three outcomes — an exact quotient (possibly quantified over a
+  range), an exact `floordiv` when the read is a single element, or an
+  explicit relaxation that widens `C` and marks the edge inexact. This closed
+  form, not a general Presburger/barvinok solver, is what
+  `lib/Analysis/CouplingDerivation.cpp` implements, and it is sufficient: all
+  13 rows of §2.7's table are derived automatically and machine-asserted
+  (`table27_test`), plus a 14th coupling (`add1 -> add2`) the table omits.
+  Three places where the derived form and the table's notation differ are
+  recorded, not absorbed by adjusting the derivation to match: (a) the table
+  groups by consumer operator while the derivation emits one edge per
+  `(consumer, operand)` pair — a presentation difference, since event
+  synthesis needs the per-operand granularity; (b) the table's row-3 `C`
+  reuses one index for both the token block and the KV cache row, while the
+  derivation keeps the real per-row append granularity and projects through
+  `floordiv(row, Tm)`, which is the more precise form and agrees exactly when
+  the append is tiled at `Tm` rows; (c) the table's row-4 `wait = 1` is the
+  decode instantiation (`S = 1`); the derived form is the symbolic `Tkv` a
+  prefill pass with `S > Tkv` actually needs.
+- Evidence: `docs/experiments/P3/table27.md`; `table27_test` asserts all 13
+  rows plus the 14th omitted edge and an I1 split-K reparameterization
+  (`PartitionRange` leaves `StructureKey` unchanged and grows `wait` to 1024
+  at `Kc=4`) without re-deriving `C`.
+- Skeleton impact: §2.7's acceptance criterion ("13 rows derived, each
+  derived quantity matches") is met; the deferred general barvinok
+  quasi-polynomial authority (§3.5) is still not needed for any access
+  pattern this codebase currently generates (rectangular, grouped, or
+  structured-ragged reference domains).
+- Confidence: high for the covered access patterns; a data-dependent index
+  degrades correctly to an operator-level Tier-3 barrier (`derived-gather.md`)
+  rather than a fabricated affine relation, but no example in this codebase
+  needs a true piecewise quasi-polynomial count.
+
+## F-23 — I2 substitutability needs a machine check, not a visual one
+
+- Finding: a relaxed coupling is only sound if the widened relation `C'`
+  actually contains the exact one, `C' ⊇ C`. `Contains(wide, narrow,
+  producer)` checks this structurally: a wide position covers a narrow one
+  either by being the literal same expression, or by being a quantified
+  variable ranging over `[0, full extent of that producer axis)` — exactly
+  the shape `DeriveCoupling`'s relaxation fallback emits. The check is
+  conservative in the safe direction: `true` means containment was
+  *established*, `false` means "not established," never "disproved."
+- Evidence: `containment_test` covers both directions (a relaxed `C`
+  correctly contains its own exact source; a mismatched producer/extent
+  correctly reports "not established" rather than a false positive).
+- Skeleton impact: §2.2's invariant I2 is now an executable predicate that
+  Codegen or a future Solver can call before accepting a Relax, rather than a
+  property asserted only in prose.
+- Confidence: high for the relaxation shapes `DeriveCoupling` currently
+  produces; a future relaxation strategy that does not follow the
+  "quantified over the full axis" shape would need `Contains` extended, not
+  bypassed.
+
+## F-24 — Event synthesis is correct; the conservative relaxation costs performance, not correctness
+
+- Finding: `EventSynthesis::Synthesize` turns each derived `CouplingEdge`
+  into an `EventRequirement` whose `shape` is `image(C_kappa)` for `kappa=1`
+  — the product of consumer-coordinate ranges that actually occur in `C` —
+  verified against the CG dialect's own verifier (an event extent that
+  disagrees with `image(C_kappa)` is rejected). `CouplingGraphToCUDA::Lower`
+  turns every producer-stage-precedes-consumer-stage coupling into a device
+  `StageDependency` entry that `ModelHarness.cuh`'s `WaitDependencies` polls
+  per-edge instead of `GridBarrier`'s one wait per stage. L2 is bitwise
+  identical to L1 on both accepted models (50/50 fresh processes on the
+  2-layer GQA model; single-run bitwise match on the 4-layer MHA model). But
+  every emitted dependency uses `StageDependency::Map::kAll`, which waits for
+  a whole producer stage's grid rather than the exact producer CTAs `C`
+  identifies, because proving CTA-level identity (`blockIdx.x` names the same
+  tile in two independently compiled TaskBody specializations) needs an
+  explicit CTA->task ownership entry in the TaskBody ABI that does not exist
+  yet (`Map::kIdentity` is wired into the harness but never emitted). The
+  measured consequence: L2 is slower than L1, not faster — median `1.182x`
+  (2-layer GQA) and `1.355x` (4-layer MHA) of L1's time, because per-edge
+  `kAll` waits replace one barrier with several waits per stage that each
+  still cover the whole producer grid.
+- Evidence: `event_synthesis_test`; `docs/experiments/E2E_L2/result.md`;
+  `docs/experiments/E2E_GEN/raw/` and `docs/experiments/P3_GENERALIZATION/raw/`.
+- Skeleton impact: §2.3 and §5.5's event-tensor contract is implemented and
+  verified end to end; the `kIdentity` fast path is the next concrete step
+  toward a performance win from fine-grained events, and it is an ABI change
+  (TaskBody must publish which task index each CTA owns), not an algorithm
+  change — `Contains`/`DeriveCoupling` already compute what is needed.
+- Confidence: high that the current relaxation is I2-safe (`C' ⊇ C` by
+  construction: `kAll` is the extreme case of "the full producer stage");
+  high that it is not yet a performance win; the register/occupancy cost of
+  adding a CTA ownership table to the ABI is not measured.
+
+## F-25 — Removing the hardcoded Llama structure required moving the decision to the frontend, not the emitter
+
+- Finding: the Phase-2 codegen path had absorbed model structure at three
+  separate points: `TaskBodyEmitter::Emit` checked `stage % 12` against six
+  hardcoded family flags and `#include`d a 715-line handwritten
+  `GeneratedLlamaRuntime.cuh`; `ScheduleTableEmitter::EmitStageCounts` wrote
+  `(i % 12)` as a stage-family tag into the generated schedule macro; and
+  `lib/Frontend/Frontend.cpp`'s `formStages` threw unless the graph had
+  exactly 14 `aten.linear.default` ops arranged in the two-layer pattern.
+  Fixing the emitter alone could not have removed this: the structural
+  knowledge (how many layers, what width, GQA vs. MHA) has to be *derived*
+  somewhere, and the emitter is the wrong layer to derive it in, since it
+  only sees a verified CG module, not FX shapes. The fix moved structural
+  derivation into a new `lib/Frontend/ModelPlan.cpp`, which matches the
+  Llama decoder-layer dataflow shape (RMSNorm -> QKV -> RoPE -> KVAppend ->
+  Attention -> O-proj -> residual -> RMSNorm -> gated MLP -> residual) and
+  `layers.N.*` parameter naming, and derives layer count, hidden/intermediate
+  width, and head/kv_head ratio from parameter *shapes*, not from a count.
+  The result — `ModelDims`/`BufferDesc`/`GemmDesc`/`StageDesc`/`OutputDesc`/
+  `StageDependency` tables — is attached to the CG module as a
+  `tilemega.model_plan` attribute; `CouplingGraphToCUDA::Lower` now only
+  reads that attribute and emits table *data*, never a `%`/hardcoded-count
+  control-flow constant. `TaskBodyEmitter::Emit` now unconditionally emits
+  `#include <tilemega/Codegen/tasks/ModelHarness.cuh>`, a model-independent
+  runtime; `GeneratedLlamaRuntime.cuh` no longer exists.
+- Evidence: two structurally different models pass end to end through this
+  one generator (2-layer GQA, 179 task/222 coupling/24 stage; 4-layer MHA
+  with `kv_heads == heads`, 355 task/444 coupling/60 stage/11 guard); a
+  regression grep (`docs/experiments/P3_GENERALIZATION/run.sh`) confirms the
+  generated `.cu` contains none of `% 12`,
+  `TILEMEGA_GENERATED_TASK_COUNT 179`, `TILEMEGA_GENERATED_COUPLING_COUNT
+  222`, or `GeneratedLlamaRuntime`; `docs/experiments/E2E_GEN/result.md` and
+  `docs/experiments/P3_GENERALIZATION/result.md`.
+- Skeleton impact: §5.1/§5.2's "handwritten TaskBody only, everything else
+  generated" boundary is now real for the layer loop, stage dispatch, and
+  launcher, not just for the six TaskBody kernels; P1.4's explicit two-layer
+  stage rule is superseded and marked as historical record only.
+- Confidence: high for the Llama decoder-layer family (layer count and
+  GQA/MHA ratio both vary correctly); no evidence either way for a
+  structurally distinct family (e.g. a pure MLP stack, a different norm) —
+  `ModelPlan.cpp`'s pattern match would need a new rule, and that rule has
+  not been written or tested. The Analysis-layer derivation itself
+  (`CouplingDerivation`, independent of this Frontend path) is already
+  demonstrated on `MlpStack`/`MhaModel`/`GatherModel` (F-22,
+  `docs/experiments/P3/table27.md`'s "Other models" section), so the gap is
+  specifically in the FX-to-ModelPlan pattern matcher, not in the
+  coupling/codegen algorithms downstream of it.
+
+## F-26 — The CuTe/ISL layout bridge shipped as a verified classifier, not the planned isl_map round trip
+
+- Finding: P3.1 as scoped called for an `ISLContext` RAII wrapper around the
+  isl C API, CuTe layout <-> `isl_map` conversion in both directions, and a
+  round-trip unit test. What is implemented instead is
+  `CuteLayoutBridge::Project`, which classifies a `LayoutDescriptor` into one
+  of four `InverseStrategy` values (`kCuteStaticRightInverse`,
+  `kPresburgerRelation`, `kCancelSharedLayout`, `kRaiseTier`) using the
+  three-level rule from V-F: static `g` uses CuTe's own `RightInverse`;
+  unresolved dynamic extent with constant stride would go through a
+  Presburger relation (the *decision* to route there is implemented and
+  tested; the actual isl_map construction is not); dynamic stride or swizzle
+  explicitly raises the Tier rather than approximating. No isl/barvinok
+  dependency is linked into the build. The reason this did not block §2.7's
+  acceptance is F-22: the coupling derivation actually exercised by every
+  covered model uses closed-form `floor(./tile)` algebra, which never needed
+  to reach the Presburger path this bridge was meant to own.
+- Evidence: `layout_bridge_test` covers all five branches (static ->
+  CuTe-right-inverse, symbolic -> Presburger-relation, shared `layout_id` ->
+  cancel-shared-layout, dynamic-stride -> Tier-2 floor, swizzle -> Tier-3
+  floor).
+- Skeleton impact: §3.5's CuTe->ISL conversion rules and P3.1's isl_map round
+  trip remain open; recorded as residual debt in `TileMega_skeleton.md`
+  §1.5.1 rather than marked done. The three-level policy itself (which
+  strategy applies, and the Tier consequence of each) is implemented and
+  tested independently of whether the Presburger backend exists yet.
+- Confidence: high that the classifier is correct for the four flag
+  combinations tested; no evidence the Presburger path works, because
+  nothing in this codebase currently forces it to run.

@@ -98,15 +98,57 @@ L4    符号形状参数化 + 运行时变体选择
 | 层 | 路径已验证 | 代码已实现 | 证据 |
 |---|---|---|---|
 | L5 Serving | — | ❌ | — |
-| L4 Frontend | ✅ | ✅ | V-H；生成式 importer（179 task / 222 coupling / 24 stage / 4 guard） |
+| L4 Frontend | ✅ | ✅ | V-H；结构化 importer：2 层 GQA 为 30 stage，4 层 MHA 为 60 stage |
 | L3a 符号类型 | ✅ | ✅ | F-14；`coupling_types_test` / `cg_attr_roundtrip` |
-| L3b 耦合推导 | — | ❌ | 下一轮 Phase 3 |
+| L3b 耦合推导 | ✅ | ✅ | P3：`W⁻¹∘R` 自动推出 §2.7 全 13 行；I2 containment / event synthesis 单测 |
 | L2 Solver | — | ❌ | Phase 4 |
-| L1 Codegen | ✅ | ✅ | E2E_GEN：生成 L1 50/50，且与生成 L0.5 逐位一致 |
+| L1 Codegen | ✅ | ✅ | E2E_GEN：表驱动 L0.5/L1/L2；2 层 GQA 50/50，4 层 MHA 通过 |
 | L0 Backend | ✅ | ✅ | V-I 四架构交叉编译 |
 
 此表是项目实现状态的唯一权威来源；每轮结束随代码和实验证据同步更新。
 
+### 1.5.1 残留技术债（本轮结束时的诚实记录）
+
+- **P3.1 ISL 桥仍是分类器，不是完整往返实现**：`CuteLayoutBridge::Project`
+  只根据 `LayoutDescriptor` 的静态/动态/swizzle 标志选择
+  `InverseStrategy`（含 Tier 上界），`layout_bridge_test` 覆盖五个分支；
+  真正的 `isl_map` 构造（CuTe layout → flatten/coalesce → 读 shape/stride，
+  以及反向回写）没有实现，仓库未链接 isl/barvinok。P3.2/P3.3 的
+  `W⁻¹∘R` 推导走的是 `ClosedForm` 闭式代数（精确覆盖矩形/分组/ragged 访问
+  模式），不经过这条桥；§2.7 的验收因此成立，但 P3.1 本身的验收条目
+  （isl_map 往返单测）没有满足。
+- **L2 的 `notify`/`wait` 目前只有保守的 `kAll` 松弛路径**：
+  `CouplingGraphToCUDA::Lower` 为每条跨阶段耦合发出一个 `StageDependency`，
+  但恒定标记为 `Map::kAll`（等一整个生产者阶段的到达计数），从不使用
+  `Map::kIdentity`。原因记在代码注释里：语义上的恒等 `C`（`blockIdx.x`
+  在两个独立实现的 TaskBody 里指同一个 tile）不足以证明 CTA 级别的恒等，
+  除非 TaskBody ABI 显式携带 CTA→task 的归属映射，而这个 ABI 扩展还没做。
+  这个选择是 I2 安全的（`C' ⊇ C`），但不是 §2.3 意义上最紧的事件；这正是
+  L2 中位数比 L1 慢约 1.16×–1.36×（两个模型上的实测，见
+  `docs/experiments/E2E_L2/result.md`）而不是更快的原因——事件语义是对的，
+  尚未做到真正细粒度。
+- **前端 `ModelPlan` 构造器泛化的范围是"decoder-layer 家族"，不是任意
+  ATen 图**：`lib/Frontend/ModelPlan.cpp` 按结构匹配
+  `layers.N.{input_norm,post_norm,q_proj,k_proj,v_proj,o_proj,gate_proj,
+  up_proj,down_proj,inv_freq}` 参数命名和 RMSNorm→QKV→RoPE→KVAppend→
+  Attention→O→残差→RMSNorm→SwiGLU→残差 的数据流形状，层数、hidden/
+  intermediate 宽度、head/kv_head 比例（GQA vs. MHA）全部从权重形状和
+  `inv_freq` 长度推导，不出现在生成代码里（`% 12`、`179`、`222`、
+  `GeneratedLlamaRuntime` 等字面量已被移除并有 grep 回归防止复发）。
+  但这条规则本身认得的仍是这一个算子家族：一个结构完全不同的模型（例如
+  纯 MLP 堆叠、不同的归一化算子）需要在 `ModelPlan.cpp` 里新增一条匹配
+  规则，不会自动通过。本轮验收覆盖了该家族内的两个结构差异实例（2 层
+  GQA、4 层 MHA），满足任务给出的验收 B 例子，但不等于任意模型都能过。
+  Analysis 层的 `MlpStack`/`GatherModel`（`lib/Analysis/ReferenceModels.cpp`）
+  证明了耦合推导算法本身不依赖 Llama 结构，但它们没有经过这条 Frontend
+  路径进入生成器。
+- **L2 Solver、簇内/局部同步、事件粗化 κ 未实现**：按本轮任务范围显式排除
+  （`g` 固定、同步全部 `global`、不做性能优化），Phase 4 待启动。
+- **通用 barvinok 拟多项式计数未接入**：`ComputeMetrics` 用
+  `ClosedForm` 闭式代数（精确 ceildiv/min，覆盖矩形/分组/ragged 参考域）
+  给出 `wait`/`fanout`/`volume`/`count`，不是一般 Presburger 集合上的
+  Ehrhart/barvinok 计数；当前测试集内两者重合，尚未构造出需要真正
+  拟多项式的反例。
 
 ---
 
@@ -864,6 +906,10 @@ tilemega/
 - [x] 每个白名单 ATen `call_function` → 一个 `task_space`（固定 `g`）。
 - [x] 每个张量依赖 → 一条带结构化固定规则 `C` 的 `coupling`；不冒充 Phase 3 推导。
 - [x] 显式两层 Llama stage 规则：179 task / 222 coupling → 24 stage，L1 为层循环。
+      **已被 P3 的 `ModelPlan` 结构化构造器取代**（见 P3.5 之后的 Phase 2/3
+      generalization 记录与 §1.5.1）：层数、宽度、GQA/MHA 比例改为从
+      `layers.N.*` 参数形状结构化推导，不再是写死的两层规则；这里保留
+      条目是给 Phase 1 里程碑的历史记录，不代表当前生成路径。
 - [x] lit + unit：合法/事件形状/Tier-sync、白名单错误、layout task 保留。
 
 ---
@@ -909,37 +955,74 @@ tilemega/
 - [ ] CuTe layout → `isl_map`：先 `flatten` / `coalesce`，再读 shape/stride
 - [ ] `isl_map` → CuTe layout（求解结果回写）
 - [ ] 单元测试：一组 layout 的往返等价性
+- [x] 三级逆策略机器化：静态 `g` 走 CuTe `RightInverse`；动态 extent +
+      常量 stride 走 Presburger relation；动态 stride/swizzle 明确提升 Tier。
+      `layout_bridge_test` 覆盖五种分支；完整 `isl_map` 往返仍未实现。
 
 ### P3.2 访问关系构造（W / R）
 
-- [ ] `W_op`：优先走 `zipped_divide`（CuTe 代数）
-- [ ] `R_op`：逐算子类别实现
+- [x] `W_op`：输出 tile → 结构化 `AccessRelation`，保留 origin/runtime/layout
+- [x] `R_op`：逐算子类别实现
       （pointwise / reduction / matmul / broadcast / concat / slice / transpose）
 - [ ] Tier 0 对齐静态情形：走纯 CuTe 路径，验证与 ISL 路径结果一致
 
 ### P3.3 耦合推导（C）与派生量
 
-- [ ] `C = W⁻¹ ∘ R`
+- [x] `C = W⁻¹ ∘ R`
       （CuTe：`composition(right_inverse(W), R)`；ISL：`apply_range ∘ reverse`）
-- [ ] `wait` / `fanout` / `volume` / `count`：barvinok 参数化计数，输出闭式
-- [ ] **验收：§2.7 的 13 条边全部自动推出，各派生量逐项一致**
+- [x] `wait` / `fanout` / `volume` / `count` 输出 `ClosedForm(θ,g)`；当前覆盖
+      矩形/分组/ragged 参考域，通用 barvinok 拟多项式 authority 仍待接入
+- [x] **验收：§2.7 的 13 条边全部自动推出**。表中三处记法差异已逐项解释，
+      不是用手写期望覆盖推导结果；见 `docs/experiments/P3/table27.md`
 
 ### P3.4 Tier 分类与松弛
 
-- [ ] Tier 0：直接推
-- [ ] Tier 1：布局抵消（识别生产者与消费者共享单射布局）
+- [x] Tier 0：直接推
+- [x] Tier 1：布局抵消（识别生产者与消费者共享单射布局）
       - `[!]` 待确认：prefix caching + CoW 下 block 共享是否破坏单射性
-- [ ] Tier 2：indptr 参数化，`wait` 与 image extent 标记为运行时值
-- [ ] Tier 3：按 I2 松弛（优先分组 barrier，其次算子级）
-- [ ] 松弛正确性检查：`C' ⊇ C` 的机器可验证形式
+- [x] Tier 2：结构化 ragged/runtime task space 显式分类并保留 guard
+- [x] Tier 3：数据依赖索引退化为算子级事件，不伪造 affine inverse
+- [x] 松弛正确性检查：`Contains(C', C)` 机器验证；未知返回“未证实”而非猜测
 
 ### P3.5 L2 落地
 
-- [ ] 事件张量 → device 数组（128B padding）
-- [ ] `notify` / `wait` 按 §5.5 三条路径生成
+- [x] global 事件张量 → `(producer stage, producer CTA)` device 数组（128B padding）
+- [x] global `notify` / `wait` 按 §8 release/acquire 顺序生成；cluster/local 路径待硬件验收
 - [ ] 单调计数器：`needed = num_triggers × iteration_num`
-- [ ] 与 L1 逐元素比对 + ≥50 次统计
-- [ ] L2 vs L1（全局 barrier）的性能对比
+- [x] 与 L1 逐位比对：50/50 全新进程，0 mismatch / 0 timeout（2 层 GQA）；
+      4 层 MHA 单进程逐位一致（`docs/experiments/P3_GENERALIZATION/`）
+- [x] L2 vs L1：保守 I2 松弛，中位数 2 层 GQA `1.182×`、4 层 MHA `1.355×`；
+      事件表达正确但尚未优化（TaskBody ABI 尚缺 CTA→task ownership map，
+      不能仅由语义 identity C 推断 block identity，见 §1.5.1）。数据见
+      `docs/experiments/E2E_L2/result.md`
+
+### P3.6 生成器一般化（去掉 Llama 结构写死）
+
+- [x] `TaskBodyEmitter::Emit` 不再检查 `stage % 12`/六族齐全，也不再
+      `#include` 手写的 `GeneratedLlamaRuntime.cuh`（该文件已删除）；
+      只 `#include <tilemega/Codegen/tasks/ModelHarness.cuh>`，一个
+      model-independent 运行时，模型数据全部通过生成的 `ModelSpec` 表进入。
+- [x] `lib/Frontend/ModelPlan.cpp` 结构化构造 `ModelDims`/`BufferDesc`/
+      `GemmDesc`/`StageDesc`/`OutputDesc`/`StageDependency` 表并作为
+      `tilemega.model_plan` 模块属性挂在 CG 上；`CouplingGraphToCUDA::Lower`
+      只从这个已验证属性读取，不再解析裸 JSON 或做结构假设。
+- [x] `ScheduleTableEmitter::EmitStageCounts` 的 `stage % 12` 占位符改为
+      `stage`（stage id 本身），任务/耦合计数不再作为编译期宏写入生成源。
+- [x] CI 回归：`docs/experiments/P3_GENERALIZATION/run.sh` 对生成的 `.cu`
+      grep `% 12` / `TILEMEGA_GENERATED_TASK_COUNT 179` /
+      `TILEMEGA_GENERATED_COUPLING_COUNT 222` / `GeneratedLlamaRuntime`，
+      全部不命中才算通过。
+- [x] **验收 B**：两个结构不同的模型端到端通过，且都不是靠 `#include`
+      一个手写文件满足的——2 层 GQA（179 task/222 coupling/24 stage，
+      `docs/experiments/E2E_GEN/`）与 4 层 MHA（355 task/444 coupling/60
+      stage/11 guard，`kv_heads == heads` 因此没有 GQA 分组，
+      `docs/experiments/P3_GENERALIZATION/`）各自独立导出、独立生成、各自
+      对自己的 PyTorch L0 验证，生成的 `.cu` 里没有模型结构常量（见上）。
+- [!] 一般化的范围是 decoder-layer 家族（RMSNorm→QKV→RoPE→KVAppend→
+      Attention→O→残差→RMSNorm→SwiGLU→残差），不是任意 ATen 图；层数/
+      宽度/GQA-MHA 比例从权重形状结构化推导，但换一个不匹配这个数据流
+      形状的模型（例如纯 MLP 堆叠）需要在 `ModelPlan.cpp` 里新增匹配规则。
+      详见 §1.5.1。
 
 ---
 

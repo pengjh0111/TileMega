@@ -36,6 +36,8 @@ PY
   if "$nvcc" -std=c++17 -arch="sm_${arch}" -cubin -lineinfo \
       -Xptxas=-v -DTILEMEGA_STAGES="$stages" \
       -I"$root/include" -I"$root/third_party/cutlass/include" \
+      -I"$root/third_party/cutlass/tools/util/include" \
+      -I"$root/third_party/cutlass/test" \
       "$here/crosscompile.cu" -o "$out/sm_${arch}.cubin" 2>"$log"; then
     main_status=PASS
   else
