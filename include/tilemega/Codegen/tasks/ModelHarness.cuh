@@ -688,11 +688,18 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(
       tilemega_l2_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
       sizeof(TaskSmem)));
-  int blocks_per_sm = target.ActiveBlocksPerSM(
-      reinterpret_cast<void const*>(tilemega_l1_kernel), kHarnessThreads,
-      sizeof(TaskSmem));
+  // One grid serves every launch, and both persistent kernels spin, so the
+  // resident bound is the *minimum* over them. L2 carries the event epochs in
+  // registers and can cost a whole CTA per SM more than L1 (128 vs 144
+  // registers at 128x16x32, stages=2): sizing the grid from L1 alone launches
+  // CTAs that are not resident, and a resident CTA then waits forever for an
+  // arrival only a non-resident one can make.
   int grid = TILEMEGA_GENERATED_RESIDENT_GRID(target, tilemega_l1_kernel,
                                               kHarnessThreads, sizeof(TaskSmem));
+  int l2_grid = TILEMEGA_GENERATED_RESIDENT_GRID(target, tilemega_l2_kernel,
+                                                 kHarnessThreads, sizeof(TaskSmem));
+  if (l2_grid < grid) grid = l2_grid;
+  int blocks_per_sm = grid / target.res.num_sms;
   PrepareEvents(model, grid);
 
   Reset(model);
