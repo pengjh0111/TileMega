@@ -33,3 +33,13 @@ docs/experiments/**/*.log
 *.egg-info/
 .ninja_deps
 .ninja_log
+docs/experiments/ORACLE/raw/bin/
+docs/experiments/ORACLE/raw/log/
+docs/experiments/ORACLE/raw/candidate_probe
+docs/experiments/ORACLE/raw_gridbound/bin/
+docs/experiments/ORACLE/raw_gridbound/log/
+docs/experiments/SEMANTIC/raw/hw/e2e_plain
+docs/experiments/SEMANTIC/raw/hw/e2e_core
+docs/experiments/SEMANTIC/raw/hw/mha_plain
+docs/experiments/SEMANTIC/raw/hw/mha_core
+docs/experiments/ORACLE/raw_gridbound/candidate_probe

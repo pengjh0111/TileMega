@@ -1,0 +1,3 @@
+tier3_compiled_ok	2160
+tier3_compile_failed	80
+tier3_compile_wall_s	1937.49

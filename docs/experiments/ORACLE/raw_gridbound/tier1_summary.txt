@@ -1,0 +1,4 @@
+tier1_total	300
+tier1_shape_legal	264
+tier1_fits	224
+tier1_build_s	19.61

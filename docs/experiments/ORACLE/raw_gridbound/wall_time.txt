@@ -1,0 +1,4 @@
+tier1_build_s	19.61
+tier3_compile_wall_s	1937.49
+screen_wall_s	2381.91
+final_wall_s	122.64

@@ -1,0 +1,9 @@
+candidates	1077
+match	1077
+miss	0
+register_bound	605
+smem_bound	150
+both_bind	322
+thread_capped	0
+smem_term_alone_wrong	605
+register_term_alone_wrong	150
