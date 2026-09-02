@@ -29,13 +29,13 @@ ptxas info    : Compiling entry function '_ZN34_GLOBAL__N__bcd9c2e9_6_e2e_cu_mai
 ptxas info    : Function properties for _ZN34_GLOBAL__N__bcd9c2e9_6_e2e_cu_main9l1_kernelEPKNS_6ParamsEPNS_12EventCounterE
     32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
 ptxas info    : Used 168 registers, used 1 barriers, 32 bytes cumulative stack size, 368 bytes cmem[0], 8 bytes cmem[2]
-ptxas info    : Compile time = 1036.403 ms
+ptxas info    : Compile time = 1012.932 ms
 ptxas info    : Function properties for _ZN32_INTERNAL_bcd9c2e9_6_e2e_cu_main34_GLOBAL__N__bcd9c2e9_6_e2e_cu_main6LinearERKNS0_14GemmInvocationERNS0_8TaskSmemE
     0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
 ptxas info    : Compiling entry function '_ZN34_GLOBAL__N__bcd9c2e9_6_e2e_cu_main12stage_kernelEiPKNS_6ParamsE' for 'sm_89'
 ptxas info    : Function properties for _ZN34_GLOBAL__N__bcd9c2e9_6_e2e_cu_main12stage_kernelEiPKNS_6ParamsE
     32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
 ptxas info    : Used 167 registers, used 1 barriers, 32 bytes cumulative stack size, 368 bytes cmem[0], 72 bytes cmem[2]
-ptxas info    : Compile time = 950.527 ms
+ptxas info    : Compile time = 1001.565 ms
 ptxas info    : Function properties for _ZN32_INTERNAL_bcd9c2e9_6_e2e_cu_main34_GLOBAL__N__bcd9c2e9_6_e2e_cu_main6LinearERKNS0_14GemmInvocationERNS0_8TaskSmemE
     0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads

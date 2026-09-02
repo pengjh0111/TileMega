@@ -50,6 +50,13 @@ struct GemmStageTaskBody {
   static constexpr char const* kLogicalA = "(M,K), strides (K,1)";
   static constexpr char const* kLogicalB = "(N,K), strides (K,1)";
 
+  /// One N-tile per CTA: `blockIdx.x` is the task index.
+  __device__ static TaskOwnership Ownership(Params const& p,
+                                            StageDesc const& stage) {
+    return {TaskOwnershipKind::kTilePerBlock,
+            static_cast<GemmInvocation const*>(p.gemms)[stage.gemm].tiles_n};
+  }
+
   __device__ void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion& smem) const {
     using namespace cute;

@@ -89,10 +89,15 @@ struct StageDesc {
   std::uint32_t operand[8];
 };
 
-/// A tile-level synchronization requirement synthesized from CG couplings.
-/// Consumer stage `consumer` waits for each active CTA of `producer`; the
-/// event tensor is indexed as (producer stage, producer CTA), rather than one
-/// scalar barrier per stage.
+/// A synchronization requirement synthesized from CG couplings: consumer
+/// stage `consumer` waits for stage `producer` to complete.
+///
+/// The generated table is sorted by `consumer`, and ModelSpec carries a
+/// per-stage offset array into it, so a consumer reads only its own
+/// incoming edges. Scanning the whole table per stage instead is what made
+/// the first L2 measurably slower than the L1 grid barrier: thread 0 of
+/// every CTA re-read all of it once per stage (55 x 30 x 128 global reads
+/// on the 2-layer model) purely to find its own handful of edges.
 struct StageDependency {
   std::uint32_t producer;
   std::uint32_t consumer;
@@ -125,6 +130,10 @@ struct Params {
   std::uint32_t stage_count;
   StageDependency const* dependencies;
   std::uint32_t dependency_count;
+  /// `dependency_offsets[stage] .. dependency_offsets[stage + 1]` is the
+  /// slice of `dependencies` whose consumer is `stage`. Length is
+  /// `stage_count + 1`.
+  std::uint32_t const* dependency_offsets;
 };
 
 /// Everything the generator emits about one model.  The harness reads only
@@ -141,6 +150,7 @@ struct ModelSpec {
   std::uint32_t output_count;
   StageDependency const* dependencies;
   std::uint32_t dependency_count;
+  std::uint32_t const* dependency_offsets;  ///< stage_count + 1 entries
 };
 
 }  // namespace tilemega::codegen

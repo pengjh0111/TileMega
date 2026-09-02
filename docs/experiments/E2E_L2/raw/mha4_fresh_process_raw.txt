@@ -1,0 +1,150 @@
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_1.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_1.log:E2E_TIME l05_ms=2.190336 l1_ms=2.182912 ratio=0.996611 l2_ms=2.214912 l2_over_l1=1.014659
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_1.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_1.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_1.log:E2E_ITER l2_iter1_ms=2.215776 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_1.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_10.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_10.log:E2E_TIME l05_ms=2.067456 l1_ms=2.063456 ratio=0.998065 l2_ms=2.104320 l2_over_l1=1.019804
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_10.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_10.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_10.log:E2E_ITER l2_iter1_ms=2.099104 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_10.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_11.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_11.log:E2E_TIME l05_ms=2.063360 l1_ms=2.064384 ratio=1.000496 l2_ms=2.105632 l2_over_l1=1.019981
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_11.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_11.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_11.log:E2E_ITER l2_iter1_ms=2.102272 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_11.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_12.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_12.log:E2E_TIME l05_ms=2.176064 l1_ms=2.181984 ratio=1.002720 l2_ms=2.216768 l2_over_l1=1.015942
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_12.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_12.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_12.log:E2E_ITER l2_iter1_ms=2.213888 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_12.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_13.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_13.log:E2E_TIME l05_ms=2.176736 l1_ms=2.183328 ratio=1.003028 l2_ms=2.217984 l2_over_l1=1.015873
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_13.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_13.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_13.log:E2E_ITER l2_iter1_ms=2.217984 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_13.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_14.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_14.log:E2E_TIME l05_ms=2.172608 l1_ms=2.182144 ratio=1.004389 l2_ms=2.215008 l2_over_l1=1.015060
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_14.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_14.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_14.log:E2E_ITER l2_iter1_ms=2.215776 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_14.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_15.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_15.log:E2E_TIME l05_ms=2.178048 l1_ms=2.183296 ratio=1.002410 l2_ms=2.217984 l2_over_l1=1.015888
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_15.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_15.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_15.log:E2E_ITER l2_iter1_ms=2.214912 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_15.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_16.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_16.log:E2E_TIME l05_ms=2.180096 l1_ms=2.184192 ratio=1.001879 l2_ms=2.216960 l2_over_l1=1.015002
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_16.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_16.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_16.log:E2E_ITER l2_iter1_ms=2.212736 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_16.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_17.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_17.log:E2E_TIME l05_ms=2.172928 l1_ms=2.195616 ratio=1.010441 l2_ms=2.214912 l2_over_l1=1.008788
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_17.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_17.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_17.log:E2E_ITER l2_iter1_ms=2.211648 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_17.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_18.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_18.log:E2E_TIME l05_ms=2.174784 l1_ms=2.182144 ratio=1.003384 l2_ms=2.215936 l2_over_l1=1.015486
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_18.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_18.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_18.log:E2E_ITER l2_iter1_ms=2.212864 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_18.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_19.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_19.log:E2E_TIME l05_ms=2.173824 l1_ms=2.183296 ratio=1.004357 l2_ms=2.216928 l2_over_l1=1.015404
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_19.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_19.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_19.log:E2E_ITER l2_iter1_ms=2.216928 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_19.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_2.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_2.log:E2E_TIME l05_ms=2.186240 l1_ms=2.185408 ratio=0.999619 l2_ms=2.215936 l2_over_l1=1.013969
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_2.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_2.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_2.log:E2E_ITER l2_iter1_ms=2.214048 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_2.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_20.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_20.log:E2E_TIME l05_ms=2.184192 l1_ms=2.183680 ratio=0.999766 l2_ms=2.217952 l2_over_l1=1.015695
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_20.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_20.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_20.log:E2E_ITER l2_iter1_ms=2.215648 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_20.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_21.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_21.log:E2E_TIME l05_ms=2.193408 l1_ms=2.185248 ratio=0.996280 l2_ms=2.216896 l2_over_l1=1.014483
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_21.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_21.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_21.log:E2E_ITER l2_iter1_ms=2.219040 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_21.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_22.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_22.log:E2E_TIME l05_ms=2.181120 l1_ms=2.183360 ratio=1.001027 l2_ms=2.214688 l2_over_l1=1.014349
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_22.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_22.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_22.log:E2E_ITER l2_iter1_ms=2.212864 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_22.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_23.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_23.log:E2E_TIME l05_ms=2.194368 l1_ms=2.185216 ratio=0.995829 l2_ms=2.214912 l2_over_l1=1.013590
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_23.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_23.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_23.log:E2E_ITER l2_iter1_ms=2.211840 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_23.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_24.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_24.log:E2E_TIME l05_ms=2.184192 l1_ms=2.183968 ratio=0.999897 l2_ms=2.217984 l2_over_l1=1.015575
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_24.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_24.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_24.log:E2E_ITER l2_iter1_ms=2.214912 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_24.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_25.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_25.log:E2E_TIME l05_ms=2.192128 l1_ms=2.187264 ratio=0.997781 l2_ms=2.219968 l2_over_l1=1.014952
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_25.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_25.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_25.log:E2E_ITER l2_iter1_ms=2.213888 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_25.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_3.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_3.log:E2E_TIME l05_ms=2.185216 l1_ms=2.182336 ratio=0.998682 l2_ms=2.216960 l2_over_l1=1.015865
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_3.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_3.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_3.log:E2E_ITER l2_iter1_ms=2.214912 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_3.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_4.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_4.log:E2E_TIME l05_ms=2.180096 l1_ms=2.186976 ratio=1.003156 l2_ms=2.216960 l2_over_l1=1.013710
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_4.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_4.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_4.log:E2E_ITER l2_iter1_ms=2.221024 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_4.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_5.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_5.log:E2E_TIME l05_ms=2.191264 l1_ms=2.403328 ratio=1.096777 l2_ms=2.222080 l2_over_l1=0.924585
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_5.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_5.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_5.log:E2E_ITER l2_iter1_ms=2.381824 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_5.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_6.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_6.log:E2E_TIME l05_ms=2.085888 l1_ms=2.068320 ratio=0.991578 l2_ms=2.113536 l2_over_l1=1.021861
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_6.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_6.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_6.log:E2E_ITER l2_iter1_ms=2.266112 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_6.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_7.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_7.log:E2E_TIME l05_ms=2.078720 l1_ms=2.066400 ratio=0.994073 l2_ms=2.106592 l2_over_l1=1.019450
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_7.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_7.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_7.log:E2E_ITER l2_iter1_ms=2.100224 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_7.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_8.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_8.log:E2E_TIME l05_ms=2.067456 l1_ms=2.064384 ratio=0.998514 l2_ms=2.104320 l2_over_l1=1.019345
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_8.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_8.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_8.log:E2E_ITER l2_iter1_ms=2.102272 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_8.log:RESULT status=PASS
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_9.log:E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_9.log:E2E_TIME l05_ms=2.067456 l1_ms=2.064512 ratio=0.998576 l2_ms=2.103296 l2_over_l1=1.018786
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_9.log:E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_9.log:E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_9.log:E2E_ITER l2_iter1_ms=2.100224 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes/run_9.log:RESULT status=PASS

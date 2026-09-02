@@ -161,16 +161,37 @@ std::string emitModelPlan(
     out << "  {" << integerField(item, "buffer") << "u, "
         << quoteCString(stringField(item, "file")) << "},\n";
   }
+  // Sorted by consumer, with a per-stage offset table, so a consumer reads
+  // only its own incoming edges. Scanning the whole table once per stage is
+  // what made the first L2 slower than the L1 grid barrier (see
+  // StageDependency in ModelRuntime.h).
+  std::vector<std::tuple<std::uint32_t, std::uint32_t, bool>> byConsumer =
+      dependencies;
+  std::stable_sort(byConsumer.begin(), byConsumer.end(),
+                   [](auto const& a, auto const& b) {
+                     return std::get<1>(a) < std::get<1>(b);
+                   });
   out << "};\n\nconstexpr StageDependency kDependencies[] = {\n";
-  for (auto [producer, consumer, identity] : dependencies)
+  for (auto [producer, consumer, identity] : byConsumer)
     out << "  {" << producer << "u, " << consumer
         << "u, StageDependency::Map::"
         << (identity ? "kIdentity" : "kAll") << "},\n";
-  out << "};\n\nconstexpr ModelSpec kModel = {kDims, kBuffers, "
+  if (byConsumer.empty()) out << "  {0u, 0u, StageDependency::Map::kAll},\n";
+  out << "};\n\nconstexpr std::uint32_t kDependencyOffsets[] = {\n  ";
+  {
+    std::size_t cursor = 0;
+    for (std::size_t stage = 0; stage <= stages.size(); ++stage) {
+      while (cursor < byConsumer.size() &&
+             std::get<1>(byConsumer[cursor]) < stage)
+        ++cursor;
+      out << cursor << "u, ";
+    }
+  }
+  out << "\n};\n\nconstexpr ModelSpec kModel = {kDims, kBuffers, "
       << buffers.size() << "u, kGemms, " << gemms.size()
       << "u, kStages, " << stages.size() << "u, kOutputs, "
-      << outputs.size() << "u, kDependencies, " << dependencies.size()
-      << "u};\n\n}  // namespace\n\n"
+      << outputs.size() << "u, kDependencies, " << byConsumer.size()
+      << "u, kDependencyOffsets};\n\n}  // namespace\n\n"
       << "int main(int argc, char** argv) {\n"
       << "  if (argc != 2) { std::fprintf(stderr, \"usage: e2e FIXTURE_DIR\\n\"); return 2; }\n"
       << "  return tilemega::codegen::RunModel(kModel, argv[1]);\n}\n";
@@ -229,6 +250,49 @@ std::string HostLauncherEmitter::Emit(std::string const& kernel) const {
       "Params const* by ModelHarness (F-17b).\n"
       "// Launcher specialization: " + kernel + "\n";
 }
+
+namespace {
+
+/// Drop every stage dependency that is already implied by a longer path.
+///
+/// The device-side wait is `epoch[producer] >= iteration + 1`, and a stage's
+/// epoch is published only once *every* active CTA of that stage has arrived
+/// -- which each of them does only after clearing its own waits. So if
+/// `p -> q -> c` is in the graph, then `epoch[q]` published implies
+/// `epoch[p]` was already published, and `c`'s direct wait on `p` can never
+/// be the one that blocks. Removing it is not a relaxation of the ordering:
+/// the happens-before edge survives through `q`, so I2 is untouched and the
+/// generated schedule is the same partial order with fewer redundant polls.
+///
+/// The graph is a DAG topologically ordered by stage index (an edge is only
+/// recorded when `producer < consumer`), so reachability is one forward
+/// sweep.
+std::vector<std::pair<std::uint32_t, std::uint32_t>> TransitiveReduction(
+    std::set<std::pair<std::uint32_t, std::uint32_t>> const& edges,
+    std::size_t stage_count) {
+  std::vector<std::vector<bool>> reaches(stage_count,
+                                         std::vector<bool>(stage_count, false));
+  std::vector<std::vector<std::uint32_t>> incoming(stage_count);
+  for (auto const& [producer, consumer] : edges)
+    incoming[consumer].push_back(producer);
+  for (std::size_t consumer = 0; consumer < stage_count; ++consumer)
+    for (std::uint32_t producer : incoming[consumer]) {
+      reaches[consumer][producer] = true;
+      for (std::size_t s = 0; s < stage_count; ++s)
+        if (reaches[producer][s]) reaches[consumer][s] = true;
+    }
+
+  std::vector<std::pair<std::uint32_t, std::uint32_t>> kept;
+  for (auto const& [producer, consumer] : edges) {
+    bool implied = false;
+    for (std::uint32_t other : incoming[consumer])
+      if (other != producer && reaches[other][producer]) implied = true;
+    if (!implied) kept.emplace_back(producer, consumer);
+  }
+  return kept;
+}
+
+}  // namespace
 
 std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   if (!module || mlir::failed(mlir::verify(module)))
@@ -292,7 +356,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   // TaskBody ABI carries an explicit CTA->task ownership map, I2 requires the
   // all-active-producer relaxation (`kAll`) for every stage dependency.
   std::vector<std::tuple<std::uint32_t, std::uint32_t, bool>> dependencies;
-  for (auto const& edge : dependencyPairs)
+  for (auto const& edge : TransitiveReduction(dependencyPairs, maxStage + 1))
     dependencies.emplace_back(edge.first, edge.second, false);
   out << emitModelPlan(module, dependencies);
   return out.str();

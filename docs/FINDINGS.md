@@ -662,3 +662,115 @@
   round (the task listed `Frontend.cpp` as untouched), recorded in §1.5.1.
 - Confidence: high — established by reading both paths and by the fact that
   the E2E bit hashes are unchanged by a migration that rewrote every metric.
+
+## F-32 — L2's slowness was the dependency-table scan, not the event design
+
+- Finding: the first L2 was 1.182× (2-layer GQA) / 1.355× (4-layer MHA) the
+  median of L1's global barrier. Three plausible causes were measured and
+  ruled out before the real one was found: per-CTA event fan-out (no
+  change), consumers polling `arrivals` instead of a published `epoch` (no
+  change — read-write sharing of one line across the grid), and the spin
+  backoff (64/256/1024 iterations all gave ~1.187). The decisive measurement
+  was disabling the waits entirely: L2 fell to 0.99× L1 and produced 5376
+  mismatches, which establishes that the compute paths are identical and the
+  entire gap is synchronization. The cause was that `WaitDependencies`
+  scanned all 55 `StageDependency` entries out of global memory, per stage,
+  per CTA, in thread 0. Emitting the table sorted by consumer with a
+  `kDependencyOffsets[stage_count+1]` index, so a consumer reads only its own
+  slice, took the ratio from 1.19× to 1.021×.
+- Evidence: `docs/experiments/E2E_L2/result.md` "How the 18–36% was
+  attributed"; `lib/Codegen/Codegen.cpp` (`byConsumer` + `kDependencyOffsets`);
+  `WaitDependencies` in `include/tilemega/Codegen/tasks/ModelHarness.cuh`,
+  whose comment records the two rejected designs so they are not retried.
+- Skeleton impact: §1.5.1's L2 entry previously attributed the slowdown to
+  the `kAll` relaxation. That attribution was wrong: `kAll` costs one epoch
+  poll per incoming edge, which is cheap; what was expensive was finding the
+  edges. The correction matters because it moves the fix from "extend the
+  TaskBody ABI" (a large change) to "index the table" (a small one).
+- Confidence: high — each step is a separate measurement with the ratio
+  reported, and the fix is bitwise-output-preserving (hashes unchanged,
+  50/50 fresh processes).
+
+## F-33 — Transitive reduction of the stage DAG is sound under monotonic epochs
+
+- Finding: the generator emitted one `StageDependency` per distinct
+  producer/consumer stage pair — 55 for the 2-layer GQA model — including
+  pairs already implied by a longer path. Those are removable without
+  weakening the ordering: a stage's `epoch` is published only after every
+  *active* CTA of that stage has arrived, and each of those CTAs arrived only
+  after clearing its own waits. So `p → q → c` implies that `epoch[q]`
+  published ⟹ `epoch[p]` published, and `c`'s direct wait on `p` can never be
+  the blocking one. The happens-before edge survives through `q`, so I2 is
+  untouched. Measured: 55 → 31 edges (GQA), 63 (MHA), bitwise-identical
+  output, worth roughly 0.5% of runtime.
+- Evidence: `TransitiveReduction` in `lib/Codegen/Codegen.cpp`;
+  `kDependencies` count in `docs/experiments/E2E_GEN/raw/generated_e2e.cu`
+  (55 → 31); hashes unchanged in `E2E_GEN/raw/fresh_process_raw.txt`.
+- Skeleton impact: this is the first §2.3 event-graph simplification the
+  generator performs that is justified by the synchronization semantics
+  rather than by the relation algebra. It is also what makes F-34's
+  conclusion sharp: the one `kIdentity`-admissible edge is one that
+  transitive reduction had already removed.
+- Confidence: high for the two measured models; the soundness argument
+  depends on "epoch is published only after all active CTAs arrive", which
+  is `NotifyStage`'s invariant and would need rechecking if a stage could
+  publish early.
+
+## F-34 — `kIdentity` is worth zero waits on both accepted models
+
+- Finding: `kAll` was assumed to be the thing standing between L2 and a
+  performance win, with the TaskBody ABI's missing CTA→task ownership map as
+  the blocker. With that ABI entry added (`TaskOwnership`, `TaskBase.h`) the
+  assumption is now measurable, and it is false. An edge admits `kIdentity`
+  only if `C ⊆ identity` *and* the two stages share a CTA→task map. Of the
+  decoder layer's 21 derived edges: 10 have mismatched task-space ranks, 7
+  satisfy `C ⊆ identity`, and of those 7 exactly **1** has both ends in the
+  same ownership kind (`add1→add2`, `kElementChunk` both sides). The other
+  six cross from a GEMM (`kTilePerBlock`: CTA `b` owns N-tile `b`) to RoPE or
+  elementwise (`kElementChunk`: CTA `b` owns a grid-stride slice of a flat
+  element range, a function of `gridDim` rather than of the task space) — an
+  identity *task* coupling that is not an identity *CTA* coupling. And that
+  single admissible edge is transitively implied by
+  `add1→rmsnorm2→wgate/wup→silu→wdown→add2`, so F-33 already removed it.
+  4-layer MHA: 20 identity candidates, 4 admissible, all four the same
+  `add1→add2` shape, all four already implied.
+- Evidence: `docs/experiments/E2E_L2/identity_probe.cpp` and
+  `raw/identity.txt` (`SUMMARY … identity_candidates=7 …
+  kidentity_admissible=1` / `… 20 … 4`). The containment test is
+  `isl_map_is_subset`, an operator that did not exist before the ISL
+  migration — this could not have been measured last round.
+- Skeleton impact: §1.5.1's `kIdentity` debt item changes character. The ABI
+  half is done; the remaining blocker is that the generator never sees a
+  derived `C` (F-31), and even when it does, the payoff on these models is
+  zero. Anyone reading "add the ABI and L2 gets faster" should read this
+  instead.
+- Confidence: high for these two models. The ownership classification in the
+  probe mirrors `RunStage`'s TaskKind dispatch by operator name, which is
+  exact for the reference models but is a proxy, not a link against the
+  device code.
+
+## F-35 — A per-edge event graph cannot beat a barrier under a sequential stage loop
+
+- Finding: after F-32, F-33 and skipping waits for CTAs that own nothing in a
+  stage, L2 sits at 1.0136× (2-layer GQA, 50 fresh processes) and 1.0155×
+  (4-layer MHA, 25 fresh processes) of L1 — a large improvement from 1.182×
+  and 1.355×, but still slower, and structurally so. The megakernel's stage
+  loop is sequential per CTA: every CTA walks stages `0 … stage_count-1` in
+  order. L2 can therefore only *remove waits*; it can never let a CTA execute
+  a later stage first. On a stage DAG that is essentially a chain — what a
+  transformer decoder layer lowers to — transitive reduction leaves almost
+  nothing to remove, and what remains is one epoch poll per incoming edge
+  against L1's one arrival counter per stage. L2 pays a slightly larger
+  constant for the same ordering.
+- Evidence: `docs/experiments/E2E_L2/result.md` performance table and "Why
+  the residual 1.4% is structural"; the stage loops in `tilemega_l1_kernel`
+  and `tilemega_l2_kernel` (`ModelHarness.cuh`).
+- Skeleton impact: the honest reading of §3's L2 goal. Fine-grained events
+  pay off when consumers can start out of order; realizing that needs a task
+  queue rather than a stage loop, which is a Phase 4 scheduling question, not
+  a synchronization-primitive question. Recording this prevents another round
+  of tuning the primitive.
+- Confidence: high for the claim as measured (two models, fresh-process
+  medians, bitwise-identical output). Medium for the generalization: a model
+  with genuinely wide, independent branches might show a different sign, and
+  none of the accepted models has one.

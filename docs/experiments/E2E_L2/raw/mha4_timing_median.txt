@@ -1,0 +1,6 @@
+l05_median_ms	2.178048
+l1_median_ms	2.183296
+l1_over_l05_median	0.999897
+l2_median_ms	2.215936
+l2_over_l1_median	1.015486
+samples	25

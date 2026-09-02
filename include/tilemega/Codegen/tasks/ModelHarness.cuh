@@ -73,6 +73,15 @@ using T_Attention = AttentionTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 static_assert(T_Gemm::kLegal && T_Norm::kLegal && T_RoPE::kLegal &&
               T_KV::kLegal && T_Elementwise::kLegal && T_Attention::kLegal,
               "every dispatched TaskBody must be legal at this granularity");
+static_assert(DeclaresOwnership<T_Gemm>::value &&
+              DeclaresOwnership<T_Norm>::value &&
+              DeclaresOwnership<T_RoPE>::value &&
+              DeclaresOwnership<T_KV>::value &&
+              DeclaresOwnership<T_Elementwise>::value &&
+              DeclaresOwnership<T_Attention>::value,
+              "every dispatched TaskBody must declare its CTA->task "
+              "ownership (§5.3); L2 skips a stage's waits for CTAs at or "
+              "above the declared count");
 
 /// The dispatch is over the TaskBody families, which are a property of the
 /// library, not of any model.  A model that needs no attention simply never
@@ -96,80 +105,131 @@ __host__ __device__ inline int CeilDiv(int numerator, int denominator) {
 
 /// Cardinality of image(C_kappa) along the launch axis.  CTAs beyond this
 /// bound participate only in control flow and own no producer event.
+///
+/// L2 relies on a stronger reading than "owns no event": a CTA with
+/// `blockIdx.x >= ActiveBlocks(stage)` neither reads nor writes anything in
+/// that stage, so it may skip the stage's waits and fences entirely. That
+/// holds because every dispatched TaskBody guards on exactly this bound --
+/// `tile_n >= invocation.tiles_n` (GemmStage), `token < p.dims.seq`
+/// (RMSNorm), `query < seq*heads` (AttentionChunk), and a grid-stride loop
+/// whose trip count is the same numerator for RoPE/KVAppend/Elementwise.
+/// That is no longer a duplicated guard the harness has to keep in step:
+/// each TaskBody declares it through the ABI's `Ownership` entry (§5.3,
+/// TaskBase.h) and this switch only dispatches. A TaskBody that does not
+/// declare it fails the static_assert below rather than silently breaking
+/// the skip.
 __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
   switch (stage.kind) {
-    case TaskKind::kGemm:
-      return static_cast<GemmInvocation const*>(p.gemms)[stage.gemm].tiles_n;
-    case TaskKind::kRMSNorm: return p.dims.seq;
-    case TaskKind::kRoPE:
-      return CeilDiv(p.dims.seq * static_cast<int>(stage.extent) *
-                         static_cast<int>(stage.width / 2),
-                     kHarnessThreads);
-    case TaskKind::kKVAppend: {
-      int appended = p.dims.seq * static_cast<int>(stage.extent) * stage.width;
-      int retained = p.dims.past * static_cast<int>(stage.extent) * stage.width;
-      return CeilDiv(appended > retained ? appended : retained, kHarnessThreads);
-    }
-    case TaskKind::kElementwise:
-      return CeilDiv(p.dims.seq * static_cast<int>(stage.extent),
-                     kHarnessThreads);
-    case TaskKind::kAttention:
-      return p.dims.seq * static_cast<int>(stage.extent);
+    case TaskKind::kGemm: return T_Gemm::Ownership(p, stage).count;
+    case TaskKind::kRMSNorm: return T_Norm::Ownership(p, stage).count;
+    case TaskKind::kRoPE: return T_RoPE::Ownership(p, stage).count;
+    case TaskKind::kKVAppend: return T_KV::Ownership(p, stage).count;
+    case TaskKind::kElementwise: return T_Elementwise::Ownership(p, stage).count;
+    case TaskKind::kAttention: return T_Attention::Ownership(p, stage).count;
   }
   return 0;
 }
 
-/// §8 wait sequence over tile-addressed events synthesized from CG couplings.
+/// How many CTAs must arrive before stage `producer` counts as complete at
+/// iteration `iteration` -- §8.2's `needed = num_triggers x iteration_num`.
+/// `num_triggers` is the stage's own active CTA count, not the whole grid:
+/// a stage whose task space is smaller than the grid is finished when its
+/// own CTAs are, and the idle CTAs never trigger.
+__device__ inline unsigned long long StageArrivalTarget(
+    Params const& p, std::uint32_t producer, unsigned long long iteration) {
+  int triggers = ActiveBlocks(p, p.stages[producer]);
+  if (triggers > static_cast<int>(gridDim.x)) triggers = gridDim.x;
+  if (triggers < 1) triggers = 1;
+  return static_cast<unsigned long long>(triggers) * (iteration + 1ull);
+}
+
+/// §8 wait sequence over the events synthesized from CG couplings.
+///
+/// One event per producer *stage*, waited on once per incoming edge. Two
+/// earlier shapes were measured and rejected, and both are worth recording
+/// because each looked correct:
+///
+///  1. One event per producer *tile*, with the consumer spinning over every
+///     one of them. That computes the same predicate ("all of this
+///     producer's CTAs have published") at O(grid) spin-waits per edge, all
+///     serialized in thread 0.
+///  2. A single monotonic arrival counter per stage, polled directly by the
+///     consumers. O(1) waits, but consumers then poll the very line the
+///     producers are incrementing -- read-write sharing of one cache line
+///     across the whole grid. Measured: no better than (1).
+///
+/// What works is the split this shares with GridBarrier: producers
+/// accumulate into `arrivals`, and the CTA whose arrival completes the stage
+/// publishes `epoch` once. Consumers poll `epoch`, a line that is written
+/// exactly once per stage and read by everyone -- read-mostly sharing, which
+/// is the regime the hardware is good at. §8.2's monotonicity is what lets
+/// both be compared with `>=` and never reset between iterations.
 __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
-                                        std::uint32_t consumer, bool active) {
-  if (threadIdx.x == 0 && active) {
-    for (std::uint32_t edge = 0; edge < p.dependency_count; ++edge) {
-      StageDependency dependency = p.dependencies[edge];
-      if (dependency.consumer != consumer) continue;
-      int producers = ActiveBlocks(p, p.stages[dependency.producer]);
-      int begin = dependency.map == StageDependency::Map::kIdentity
-                      ? static_cast<int>(blockIdx.x) : 0;
-      int end = dependency.map == StageDependency::Map::kIdentity
-                    ? begin + 1 : producers;
-      if (begin >= producers) continue;
-      for (int block = begin; block < end; ++block) {
-        auto* epoch = &events[static_cast<std::size_t>(dependency.producer) *
-                              gridDim.x + block].epoch;
-        TILEMEGA_GENERATED_WAIT_global(epoch, 1ull);
-      }
-    }
+                                        std::uint32_t consumer, bool active,
+                                        unsigned long long iteration) {
+  // `active` depends only on blockIdx, so it is block-uniform and the early
+  // return cannot split a __syncthreads. A CTA that owns no tile in this
+  // stage reads nothing the producers wrote, so it needs neither the wait
+  // nor the acquire fence -- and skipping them is what lets it run ahead to
+  // the stage where it does own work.
+  if (!active) return;
+  if (threadIdx.x == 0) {
+    std::uint32_t first = p.dependency_offsets[consumer];
+    std::uint32_t last = p.dependency_offsets[consumer + 1];
+    for (std::uint32_t edge = first; edge < last; ++edge)
+      TILEMEGA_GENERATED_WAIT_global(&events[p.dependencies[edge].producer].epoch,
+                                     iteration + 1ull);
   }
   __syncthreads();
   __threadfence();
 }
 
-/// §8.5 CTA-cooperative release and monotonic publication of one tile.
-__device__ inline void NotifyTile(EventCounter* events, std::uint32_t producer,
-                                  bool active) {
+/// §8.5 CTA-cooperative release, then one monotonic arrival (§8.2), with the
+/// completing CTA publishing the stage's epoch.  The fence is per writer and
+/// precedes the CTA barrier, so every thread's writes are visible before
+/// thread 0 publishes (F-1); the second fence orders the arrival before the
+/// epoch that releases the consumers.
+__device__ inline void NotifyStage(Params const& p, EventCounter* events,
+                                   std::uint32_t producer, bool active,
+                                   unsigned long long iteration) {
+  // Same block-uniformity argument as WaitDependencies: an inactive CTA
+  // published no tile of this stage, so it has nothing to release and is not
+  // counted in StageArrivalTarget either.
+  if (!active) return;
   __threadfence();
   __syncthreads();
-  if (threadIdx.x == 0 && active)
-    TILEMEGA_GENERATED_NOTIFY_global(
-        &events[static_cast<std::size_t>(producer) * gridDim.x + blockIdx.x].epoch,
-        1ull);
+  if (threadIdx.x == 0) {
+    unsigned long long ticket = atomicAdd(&events[producer].arrivals, 1ull);
+    if (ticket + 1ull == StageArrivalTarget(p, producer, iteration)) {
+      __threadfence();
+      TILEMEGA_GENERATED_NOTIFY_global(&events[producer].epoch, iteration + 1ull);
+    }
+  }
   __syncthreads();
 }
 
 /// §8.1/§8.2/§8.3: single-thread polling with backoff on a monotonic counter,
 /// release fence before CTA convergence (F-1), acquire fence after.
-__device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage) {
-  constexpr unsigned long long iteration_num = 1ull;
+///
+/// §8.2: `needed = num_triggers x iteration_num`. Here every CTA in the grid
+/// triggers, so num_triggers is gridDim.x, and `iteration` is the caller's
+/// iteration index. Because the target scales with the iteration rather than
+/// the counter being cleared, the counters are never reset between
+/// iterations and a late CTA from iteration i can never be mistaken for an
+/// early one from iteration i+1 (the ABA the rule exists to prevent).
+__device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
+                                   unsigned long long iteration) {
   unsigned long long needed =
-      static_cast<unsigned long long>(gridDim.x) * iteration_num;
+      static_cast<unsigned long long>(gridDim.x) * (iteration + 1ull);
   __threadfence();
   __syncthreads();
   if (threadIdx.x == 0) {
     unsigned long long ticket = atomicAdd(&events[stage].arrivals, 1ull);
     if (ticket + 1 == needed) {
       __threadfence();
-      TILEMEGA_GENERATED_NOTIFY_global(&events[stage].epoch, iteration_num);
+      TILEMEGA_GENERATED_NOTIFY_global(&events[stage].epoch, iteration + 1ull);
     } else {
-      TILEMEGA_GENERATED_WAIT_global(&events[stage].epoch, iteration_num);
+      TILEMEGA_GENERATED_WAIT_global(&events[stage].epoch, iteration + 1ull);
     }
   }
   __syncthreads();
@@ -185,12 +245,13 @@ void tilemega_stage_kernel(Params const* params, std::uint32_t stage) {
 /// The L1 megakernel.  The stage loop is a run-time loop over the generated
 /// table: its trip count is data, so one compiled kernel serves every model.
 __global__ __launch_bounds__(kHarnessThreads, 1)
-void tilemega_l1_kernel(Params const* params, EventCounter* events) {
+void tilemega_l1_kernel(Params const* params, EventCounter* events,
+                        unsigned long long iteration) {
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
     RunStage(*params, stage, smem);
-    GridBarrier(events, stage);
+    GridBarrier(events, stage, iteration);
   }
 }
 
@@ -198,15 +259,16 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events) {
 /// no per-stage grid arrival counter; conservative relaxed C edges may wait on
 /// all active producer tiles, but unrelated stages do not acquire each other.
 __global__ __launch_bounds__(kHarnessThreads, 1)
-void tilemega_l2_kernel(Params const* params, EventCounter* events) {
+void tilemega_l2_kernel(Params const* params, EventCounter* events,
+                        unsigned long long iteration) {
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
     bool active = static_cast<int>(blockIdx.x) <
                   ActiveBlocks(*params, params->stages[stage]);
-    WaitDependencies(*params, events, stage, active);
+    WaitDependencies(*params, events, stage, active, iteration);
     RunStage(*params, stage, smem);
-    NotifyTile(events, stage, active);
+    NotifyStage(*params, events, stage, active, iteration);
   }
 }
 
@@ -235,6 +297,7 @@ struct DeviceModel {
   GemmInvocation* device_gemms = nullptr;
   StageDesc* device_stages = nullptr;
   StageDependency* device_dependencies = nullptr;
+  std::uint32_t* device_dependency_offsets = nullptr;
   Params params{};
   Params* device_params = nullptr;
   EventCounter* events = nullptr;
@@ -329,6 +392,9 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
   if (spec.dependency_count)
     model.device_dependencies = static_cast<StageDependency*>(upload(
         spec.dependencies, spec.dependency_count * sizeof(StageDependency)));
+  model.device_dependency_offsets = static_cast<std::uint32_t*>(
+      upload(spec.dependency_offsets,
+             (spec.stage_count + 1) * sizeof(std::uint32_t)));
 
   model.params.dims = dims;
   model.params.buffers = model.device_buffers;
@@ -337,6 +403,7 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
   model.params.stage_count = spec.stage_count;
   model.params.dependencies = model.device_dependencies;
   model.params.dependency_count = spec.dependency_count;
+  model.params.dependency_offsets = model.device_dependency_offsets;
   TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_params, sizeof(Params)));
   TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params, &model.params,
                                  sizeof(Params), cudaMemcpyHostToDevice));
@@ -352,7 +419,10 @@ inline void PrepareEvents(DeviceModel& model, int grid) {
 
 /// Restore every buffer to its pre-run contents so two launches see the same
 /// input.  File-backed buffers are re-uploaded, scratch is zeroed.
-inline void Reset(DeviceModel& model) {
+/// Restore every buffer to its launch state, leaving the event counters
+/// alone. §8.2's monotonic counters are meant to survive across iterations,
+/// so the repeat-iteration check must not clear them.
+inline void ResetBuffersOnly(DeviceModel& model) {
   ModelSpec const& spec = *model.spec;
   for (std::uint32_t i = 0; i < spec.buffer_count; ++i) {
     std::size_t bytes = spec.buffers[i].Elements(model.params.dims) * sizeof(float);
@@ -363,6 +433,10 @@ inline void Reset(DeviceModel& model) {
     else
       TILEMEGA_CUDA_CHECK(cudaMemset(model.buffers[i], 0, bytes));
   }
+}
+
+inline void Reset(DeviceModel& model) {
+  ResetBuffersOnly(model);
   if (model.events)
     TILEMEGA_CUDA_CHECK(cudaMemset(model.events, 0,
                                    sizeof(EventCounter) * model.event_count));
@@ -434,13 +508,14 @@ inline float LaunchL05(DeviceModel& model, int grid) {
   return ms;
 }
 
-inline float LaunchL1(DeviceModel& model, int grid) {
+inline float LaunchL1(DeviceModel& model, int grid,
+                      unsigned long long iteration = 0) {
   cudaEvent_t start, stop;
   TILEMEGA_CUDA_CHECK(cudaEventCreate(&start));
   TILEMEGA_CUDA_CHECK(cudaEventCreate(&stop));
   TILEMEGA_CUDA_CHECK(cudaEventRecord(start));
   tilemega_l1_kernel<<<grid, kHarnessThreads, sizeof(TaskSmem)>>>(
-      model.device_params, model.events);
+      model.device_params, model.events, iteration);
   TILEMEGA_CUDA_CHECK(cudaEventRecord(stop));
   TILEMEGA_CUDA_CHECK(cudaEventSynchronize(stop));
   TILEMEGA_CUDA_CHECK(cudaGetLastError());
@@ -451,13 +526,14 @@ inline float LaunchL1(DeviceModel& model, int grid) {
   return ms;
 }
 
-inline float LaunchL2(DeviceModel& model, int grid) {
+inline float LaunchL2(DeviceModel& model, int grid,
+                      unsigned long long iteration = 0) {
   cudaEvent_t start, stop;
   TILEMEGA_CUDA_CHECK(cudaEventCreate(&start));
   TILEMEGA_CUDA_CHECK(cudaEventCreate(&stop));
   TILEMEGA_CUDA_CHECK(cudaEventRecord(start));
   tilemega_l2_kernel<<<grid, kHarnessThreads, sizeof(TaskSmem)>>>(
-      model.device_params, model.events);
+      model.device_params, model.events, iteration);
   TILEMEGA_CUDA_CHECK(cudaEventRecord(stop));
   TILEMEGA_CUDA_CHECK(cudaEventSynchronize(stop));
   TILEMEGA_CUDA_CHECK(cudaGetLastError());
@@ -507,6 +583,18 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   Reset(model);
   float l2_ms = LaunchL2(model, grid);
   auto l2 = Download(model);
+
+  // §8.2: the counters are monotonic, so a second iteration must be correct
+  // *without* clearing them -- `needed` scales with the iteration instead.
+  // This is the property the rule exists for: if the target were fixed and
+  // the counters reset, a CTA still finishing iteration i could be counted
+  // as an early arrival for iteration i+1. Only the buffers are reset here;
+  // the event memory is deliberately carried over.
+  ResetBuffersOnly(model);
+  float l2_again_ms = LaunchL2(model, grid, /*iteration=*/1);
+  auto l2_again = Download(model);
+  Difference l2_iter = Compare(l2_again, l2);
+
   Difference l05_l0 = Compare(l05, reference);
   Difference l1_l05 = Compare(l1, l05);
   Difference l2_l1 = Compare(l2, l1);
@@ -525,8 +613,11 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
               l2_l1.mismatch, l2_l1.max_abs, l2_l1.max_rel);
   std::printf("E2E_HASH l05=%016llx l1=%016llx l2=%016llx\n", BitHash(l05),
               BitHash(l1), BitHash(l2));
+  std::printf("E2E_ITER l2_iter1_ms=%.6f l2_iter1_vs_iter0_mismatch=%zu "
+              "max_abs=%.8g\n", l2_again_ms, l2_iter.mismatch,
+              l2_iter.max_abs);
   bool pass = l05_l0.mismatch == 0 && l1_l05.mismatch == 0 &&
-              l2_l1.mismatch == 0;
+              l2_l1.mismatch == 0 && l2_iter.mismatch == 0;
   std::printf("RESULT status=%s\n", pass ? "PASS" : "MISMATCH");
   return pass ? 0 : 1;
 }

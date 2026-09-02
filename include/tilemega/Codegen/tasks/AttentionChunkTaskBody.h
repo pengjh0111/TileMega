@@ -14,6 +14,13 @@ struct AttentionTaskBody {
   static constexpr int kNumThreads = Threads;
   static constexpr bool kLegal = true;
 
+  /// One (token, head) query per CTA: `blockIdx.x` is the task index.
+  __device__ static TaskOwnership Ownership(Params const& p,
+                                            StageDesc const& stage) {
+    return {TaskOwnershipKind::kTilePerBlock,
+            p.dims.seq * static_cast<int>(stage.extent)};
+  }
+
   __device__ void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion& smem) const {
     float const* q_rot = p.buffers[stage.operand[0]];

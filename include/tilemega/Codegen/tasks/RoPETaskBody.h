@@ -14,6 +14,16 @@ struct RoPETaskBody {
   static constexpr int kNumThreads = Threads;
   static constexpr bool kLegal = true;
 
+  /// Grid-stride over (token, head, half-dim) pairs -- an element chunk, not
+  /// a task tile.
+  __device__ static TaskOwnership Ownership(Params const& p,
+                                            StageDesc const& stage) {
+    int pairs = p.dims.seq * static_cast<int>(stage.extent) *
+                (static_cast<int>(stage.width) / 2);
+    return {TaskOwnershipKind::kElementChunk,
+            (pairs + Threads - 1) / Threads};
+  }
+
   __device__ void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion&) const {
     float const* input = p.buffers[stage.operand[0]];

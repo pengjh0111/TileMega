@@ -1,0 +1,95 @@
+EDGE model=llama_decoder_layer src=rmsnorm1 dst=wq identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=llama_decoder_layer src=rmsnorm1 dst=wk identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 7 }
+EDGE model=llama_decoder_layer src=rmsnorm1 dst=wv identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 7 }
+EDGE model=llama_decoder_layer src=wq dst=rope_q identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, hh] -> [p0 = m, p1 = hh] : m >= 0 and 128m < S and 0 <= hh <= 31 }
+EDGE model=llama_decoder_layer src=wk dst=rope_k identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, hh] -> [p0 = m, p1 = hh] : m >= 0 and 128m < S and 0 <= hh <= 7 }
+EDGE model=llama_decoder_layer src=rope_k dst=kvappend_k identity=no owns=kElementChunk->kElementChunk kidentity_admissible=no C=[S] -> { [row, hh] -> [p0, p1 = hh] : 0 <= row < S and 0 <= hh <= 7 and -127 + row <= 128p0 <= row }
+EDGE model=llama_decoder_layer src=wv dst=kvappend_v identity=no owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [row, hh] -> [p0, p1 = hh] : 0 <= row < S and 0 <= hh <= 7 and -127 + row <= 128p0 <= row }
+EDGE model=llama_decoder_layer src=rope_q dst=attn_chunk identity=no-arity C=[S, L_s] -> { [s, h, j] -> [p0, p1 = h] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -127 + s <= 128p0 <= s }
+EDGE model=llama_decoder_layer src=kvappend_k dst=attn_chunk identity=no-arity C=[S, L_s, past] -> { [s, h, j] -> [p0, p1] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -past + 128j <= p0 <= 127 - past + 128j and -3 + h <= 4p1 <= h }
+EDGE model=llama_decoder_layer src=kvappend_v dst=attn_chunk identity=no-arity C=[S, L_s, past] -> { [s, h, j] -> [p0, p1] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -past + 128j <= p0 <= 127 - past + 128j and -3 + h <= 4p1 <= h }
+EDGE model=llama_decoder_layer src=attn_chunk dst=attn_combine identity=no-arity C=[S, L_s] -> { [s, h] -> [p0 = s, p1 = h, p2] : 0 <= s < S and 0 <= h <= 31 and p2 >= 0 and 128p2 < L_s }
+EDGE model=llama_decoder_layer src=attn_combine dst=wo identity=no owns=kTilePerBlock->kTilePerBlock kidentity_admissible=no C=[S] -> { [m, n] -> [p0, p1] : m >= 0 and 128m < S and 0 <= n <= 31 and 128m <= p0 <= 127 + 128m and 0 <= p1 <= 31 }
+EDGE model=llama_decoder_layer src=wo dst=add1 identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=llama_decoder_layer src=add1 dst=rmsnorm2 identity=no-arity C=[S] -> { [i] -> [p0 = i, p1] : i >= 0 and 128i < S and 0 <= p1 <= 31 }
+EDGE model=llama_decoder_layer src=rmsnorm2 dst=wgate identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 111 }
+EDGE model=llama_decoder_layer src=rmsnorm2 dst=wup identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 111 }
+EDGE model=llama_decoder_layer src=wgate dst=silu identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 111 }
+EDGE model=llama_decoder_layer src=wup dst=silu identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 111 }
+EDGE model=llama_decoder_layer src=silu dst=wdown identity=no owns=kElementChunk->kTilePerBlock kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1] : m >= 0 and 128m < S and 0 <= n <= 31 and 0 <= p1 <= 111 }
+EDGE model=llama_decoder_layer src=wdown dst=add2 identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=llama_decoder_layer src=add1 dst=add2 identity=yes owns=kElementChunk->kElementChunk kidentity_admissible=yes C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+SUMMARY model=llama_decoder_layer edges=21 identity_candidates=7 arity_mismatch=10 kidentity_admissible=1
+EDGE model=mha4 src=mha0.rmsnorm1 dst=mha0.wq identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha0.rmsnorm1 dst=mha0.wk identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha0.rmsnorm1 dst=mha0.wv identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha0.wq dst=mha0.rope_q identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, hh] -> [p0 = m, p1 = hh] : m >= 0 and 128m < S and 0 <= hh <= 31 }
+EDGE model=mha4 src=mha0.wk dst=mha0.rope_k identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, hh] -> [p0 = m, p1 = hh] : m >= 0 and 128m < S and 0 <= hh <= 31 }
+EDGE model=mha4 src=mha0.rope_k dst=mha0.kvappend_k identity=no owns=kElementChunk->kElementChunk kidentity_admissible=no C=[S] -> { [row, hh] -> [p0, p1 = hh] : 0 <= row < S and 0 <= hh <= 31 and -127 + row <= 128p0 <= row }
+EDGE model=mha4 src=mha0.wv dst=mha0.kvappend_v identity=no owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [row, hh] -> [p0, p1 = hh] : 0 <= row < S and 0 <= hh <= 31 and -127 + row <= 128p0 <= row }
+EDGE model=mha4 src=mha0.rope_q dst=mha0.attn_chunk identity=no-arity C=[S, L_s] -> { [s, h, j] -> [p0, p1 = h] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -127 + s <= 128p0 <= s }
+EDGE model=mha4 src=mha0.kvappend_k dst=mha0.attn_chunk identity=no-arity C=[S, L_s, past] -> { [s, h, j] -> [p0, p1 = h] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -past + 128j <= p0 <= 127 - past + 128j }
+EDGE model=mha4 src=mha0.kvappend_v dst=mha0.attn_chunk identity=no-arity C=[S, L_s, past] -> { [s, h, j] -> [p0, p1 = h] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -past + 128j <= p0 <= 127 - past + 128j }
+EDGE model=mha4 src=mha0.attn_chunk dst=mha0.attn_combine identity=no-arity C=[S, L_s] -> { [s, h] -> [p0 = s, p1 = h, p2] : 0 <= s < S and 0 <= h <= 31 and p2 >= 0 and 128p2 < L_s }
+EDGE model=mha4 src=mha0.attn_combine dst=mha0.wo identity=no owns=kTilePerBlock->kTilePerBlock kidentity_admissible=no C=[S] -> { [m, n] -> [p0, p1] : m >= 0 and 128m < S and 0 <= n <= 31 and 128m <= p0 <= 127 + 128m and 0 <= p1 <= 31 }
+EDGE model=mha4 src=mha0.wo dst=mha0.add1 identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha0.add1 dst=mha0.rmsnorm2 identity=no-arity C=[S] -> { [i] -> [p0 = i, p1] : i >= 0 and 128i < S and 0 <= p1 <= 31 }
+EDGE model=mha4 src=mha0.rmsnorm2 dst=mha0.wup identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 111 }
+EDGE model=mha4 src=mha0.wup dst=mha0.wdown identity=no owns=kTilePerBlock->kTilePerBlock kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1] : m >= 0 and 128m < S and 0 <= n <= 31 and 0 <= p1 <= 111 }
+EDGE model=mha4 src=mha0.wdown dst=mha0.add2 identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha0.add1 dst=mha0.add2 identity=yes owns=kElementChunk->kElementChunk kidentity_admissible=yes C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha1.rmsnorm1 dst=mha1.wq identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha1.rmsnorm1 dst=mha1.wk identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha1.rmsnorm1 dst=mha1.wv identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha1.wq dst=mha1.rope_q identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, hh] -> [p0 = m, p1 = hh] : m >= 0 and 128m < S and 0 <= hh <= 31 }
+EDGE model=mha4 src=mha1.wk dst=mha1.rope_k identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, hh] -> [p0 = m, p1 = hh] : m >= 0 and 128m < S and 0 <= hh <= 31 }
+EDGE model=mha4 src=mha1.rope_k dst=mha1.kvappend_k identity=no owns=kElementChunk->kElementChunk kidentity_admissible=no C=[S] -> { [row, hh] -> [p0, p1 = hh] : 0 <= row < S and 0 <= hh <= 31 and -127 + row <= 128p0 <= row }
+EDGE model=mha4 src=mha1.wv dst=mha1.kvappend_v identity=no owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [row, hh] -> [p0, p1 = hh] : 0 <= row < S and 0 <= hh <= 31 and -127 + row <= 128p0 <= row }
+EDGE model=mha4 src=mha1.rope_q dst=mha1.attn_chunk identity=no-arity C=[S, L_s] -> { [s, h, j] -> [p0, p1 = h] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -127 + s <= 128p0 <= s }
+EDGE model=mha4 src=mha1.kvappend_k dst=mha1.attn_chunk identity=no-arity C=[S, L_s, past] -> { [s, h, j] -> [p0, p1 = h] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -past + 128j <= p0 <= 127 - past + 128j }
+EDGE model=mha4 src=mha1.kvappend_v dst=mha1.attn_chunk identity=no-arity C=[S, L_s, past] -> { [s, h, j] -> [p0, p1 = h] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -past + 128j <= p0 <= 127 - past + 128j }
+EDGE model=mha4 src=mha1.attn_chunk dst=mha1.attn_combine identity=no-arity C=[S, L_s] -> { [s, h] -> [p0 = s, p1 = h, p2] : 0 <= s < S and 0 <= h <= 31 and p2 >= 0 and 128p2 < L_s }
+EDGE model=mha4 src=mha1.attn_combine dst=mha1.wo identity=no owns=kTilePerBlock->kTilePerBlock kidentity_admissible=no C=[S] -> { [m, n] -> [p0, p1] : m >= 0 and 128m < S and 0 <= n <= 31 and 128m <= p0 <= 127 + 128m and 0 <= p1 <= 31 }
+EDGE model=mha4 src=mha1.wo dst=mha1.add1 identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha1.add1 dst=mha1.rmsnorm2 identity=no-arity C=[S] -> { [i] -> [p0 = i, p1] : i >= 0 and 128i < S and 0 <= p1 <= 31 }
+EDGE model=mha4 src=mha1.rmsnorm2 dst=mha1.wup identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 111 }
+EDGE model=mha4 src=mha1.wup dst=mha1.wdown identity=no owns=kTilePerBlock->kTilePerBlock kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1] : m >= 0 and 128m < S and 0 <= n <= 31 and 0 <= p1 <= 111 }
+EDGE model=mha4 src=mha1.wdown dst=mha1.add2 identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha1.add1 dst=mha1.add2 identity=yes owns=kElementChunk->kElementChunk kidentity_admissible=yes C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha2.rmsnorm1 dst=mha2.wq identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha2.rmsnorm1 dst=mha2.wk identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha2.rmsnorm1 dst=mha2.wv identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha2.wq dst=mha2.rope_q identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, hh] -> [p0 = m, p1 = hh] : m >= 0 and 128m < S and 0 <= hh <= 31 }
+EDGE model=mha4 src=mha2.wk dst=mha2.rope_k identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, hh] -> [p0 = m, p1 = hh] : m >= 0 and 128m < S and 0 <= hh <= 31 }
+EDGE model=mha4 src=mha2.rope_k dst=mha2.kvappend_k identity=no owns=kElementChunk->kElementChunk kidentity_admissible=no C=[S] -> { [row, hh] -> [p0, p1 = hh] : 0 <= row < S and 0 <= hh <= 31 and -127 + row <= 128p0 <= row }
+EDGE model=mha4 src=mha2.wv dst=mha2.kvappend_v identity=no owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [row, hh] -> [p0, p1 = hh] : 0 <= row < S and 0 <= hh <= 31 and -127 + row <= 128p0 <= row }
+EDGE model=mha4 src=mha2.rope_q dst=mha2.attn_chunk identity=no-arity C=[S, L_s] -> { [s, h, j] -> [p0, p1 = h] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -127 + s <= 128p0 <= s }
+EDGE model=mha4 src=mha2.kvappend_k dst=mha2.attn_chunk identity=no-arity C=[S, L_s, past] -> { [s, h, j] -> [p0, p1 = h] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -past + 128j <= p0 <= 127 - past + 128j }
+EDGE model=mha4 src=mha2.kvappend_v dst=mha2.attn_chunk identity=no-arity C=[S, L_s, past] -> { [s, h, j] -> [p0, p1 = h] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -past + 128j <= p0 <= 127 - past + 128j }
+EDGE model=mha4 src=mha2.attn_chunk dst=mha2.attn_combine identity=no-arity C=[S, L_s] -> { [s, h] -> [p0 = s, p1 = h, p2] : 0 <= s < S and 0 <= h <= 31 and p2 >= 0 and 128p2 < L_s }
+EDGE model=mha4 src=mha2.attn_combine dst=mha2.wo identity=no owns=kTilePerBlock->kTilePerBlock kidentity_admissible=no C=[S] -> { [m, n] -> [p0, p1] : m >= 0 and 128m < S and 0 <= n <= 31 and 128m <= p0 <= 127 + 128m and 0 <= p1 <= 31 }
+EDGE model=mha4 src=mha2.wo dst=mha2.add1 identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha2.add1 dst=mha2.rmsnorm2 identity=no-arity C=[S] -> { [i] -> [p0 = i, p1] : i >= 0 and 128i < S and 0 <= p1 <= 31 }
+EDGE model=mha4 src=mha2.rmsnorm2 dst=mha2.wup identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 111 }
+EDGE model=mha4 src=mha2.wup dst=mha2.wdown identity=no owns=kTilePerBlock->kTilePerBlock kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1] : m >= 0 and 128m < S and 0 <= n <= 31 and 0 <= p1 <= 111 }
+EDGE model=mha4 src=mha2.wdown dst=mha2.add2 identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha2.add1 dst=mha2.add2 identity=yes owns=kElementChunk->kElementChunk kidentity_admissible=yes C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha3.rmsnorm1 dst=mha3.wq identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha3.rmsnorm1 dst=mha3.wk identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha3.rmsnorm1 dst=mha3.wv identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha3.wq dst=mha3.rope_q identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, hh] -> [p0 = m, p1 = hh] : m >= 0 and 128m < S and 0 <= hh <= 31 }
+EDGE model=mha4 src=mha3.wk dst=mha3.rope_k identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, hh] -> [p0 = m, p1 = hh] : m >= 0 and 128m < S and 0 <= hh <= 31 }
+EDGE model=mha4 src=mha3.rope_k dst=mha3.kvappend_k identity=no owns=kElementChunk->kElementChunk kidentity_admissible=no C=[S] -> { [row, hh] -> [p0, p1 = hh] : 0 <= row < S and 0 <= hh <= 31 and -127 + row <= 128p0 <= row }
+EDGE model=mha4 src=mha3.wv dst=mha3.kvappend_v identity=no owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [row, hh] -> [p0, p1 = hh] : 0 <= row < S and 0 <= hh <= 31 and -127 + row <= 128p0 <= row }
+EDGE model=mha4 src=mha3.rope_q dst=mha3.attn_chunk identity=no-arity C=[S, L_s] -> { [s, h, j] -> [p0, p1 = h] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -127 + s <= 128p0 <= s }
+EDGE model=mha4 src=mha3.kvappend_k dst=mha3.attn_chunk identity=no-arity C=[S, L_s, past] -> { [s, h, j] -> [p0, p1 = h] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -past + 128j <= p0 <= 127 - past + 128j }
+EDGE model=mha4 src=mha3.kvappend_v dst=mha3.attn_chunk identity=no-arity C=[S, L_s, past] -> { [s, h, j] -> [p0, p1 = h] : 0 <= s < S and 0 <= h <= 31 and j >= 0 and 128j < L_s and -past + 128j <= p0 <= 127 - past + 128j }
+EDGE model=mha4 src=mha3.attn_chunk dst=mha3.attn_combine identity=no-arity C=[S, L_s] -> { [s, h] -> [p0 = s, p1 = h, p2] : 0 <= s < S and 0 <= h <= 31 and p2 >= 0 and 128p2 < L_s }
+EDGE model=mha4 src=mha3.attn_combine dst=mha3.wo identity=no owns=kTilePerBlock->kTilePerBlock kidentity_admissible=no C=[S] -> { [m, n] -> [p0, p1] : m >= 0 and 128m < S and 0 <= n <= 31 and 128m <= p0 <= 127 + 128m and 0 <= p1 <= 31 }
+EDGE model=mha4 src=mha3.wo dst=mha3.add1 identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha3.add1 dst=mha3.rmsnorm2 identity=no-arity C=[S] -> { [i] -> [p0 = i, p1] : i >= 0 and 128i < S and 0 <= p1 <= 31 }
+EDGE model=mha4 src=mha3.rmsnorm2 dst=mha3.wup identity=no-arity C=[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 111 }
+EDGE model=mha4 src=mha3.wup dst=mha3.wdown identity=no owns=kTilePerBlock->kTilePerBlock kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1] : m >= 0 and 128m < S and 0 <= n <= 31 and 0 <= p1 <= 111 }
+EDGE model=mha4 src=mha3.wdown dst=mha3.add2 identity=yes owns=kTilePerBlock->kElementChunk kidentity_admissible=no C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+EDGE model=mha4 src=mha3.add1 dst=mha3.add2 identity=yes owns=kElementChunk->kElementChunk kidentity_admissible=yes C=[S] -> { [m, n] -> [p0 = m, p1 = n] : m >= 0 and 128m < S and 0 <= n <= 31 }
+SUMMARY model=mha4 edges=72 identity_candidates=20 arity_mismatch=36 kidentity_admissible=4

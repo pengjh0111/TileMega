@@ -1,0 +1,1 @@
+STAT label=e2e_l2_mha4 runs=25 pass=25 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/E2E_L2/raw/mha4_fresh_processes

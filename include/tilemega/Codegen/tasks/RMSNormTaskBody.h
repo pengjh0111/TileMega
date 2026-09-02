@@ -13,6 +13,12 @@ struct RMSNormTaskBody {
   static constexpr int kNumThreads = Threads;
   static constexpr bool kLegal = true;
 
+  /// One token per CTA: `blockIdx.x` is the task index (§2.7's `m`).
+  __device__ static TaskOwnership Ownership(Params const& p,
+                                            StageDesc const&) {
+    return {TaskOwnershipKind::kTilePerBlock, p.dims.seq};
+  }
+
   __device__ void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion& smem) const {
     float const* input = p.buffers[stage.operand[0]];

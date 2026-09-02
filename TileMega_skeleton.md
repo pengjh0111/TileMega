@@ -102,7 +102,7 @@ L4    符号形状参数化 + 运行时变体选择
 | L3a 符号类型 | ✅ | ✅ | F-14；`coupling_types_test` / `cg_attr_roundtrip` |
 | L3b 耦合推导 | ✅ | ✅ | P3/P3_ISL：`W⁻¹∘R` 为 isl_map，wait/fanout 为 barvinok 计数；§2.7 全 13 行交叉验证（并纠正表中边 3 的 fanout）；Coarsen/I2/事件综合单测 |
 | L2 Solver | — | ❌ | Phase 4 |
-| L1 Codegen | ✅ | ✅ | E2E_GEN：表驱动 L0.5/L1/L2；2 层 GQA 50/50，4 层 MHA 通过 |
+| L1 Codegen | ✅ | ✅ | E2E_GEN：表驱动 L0.5/L1/L2；2 层 GQA 50/50、4 层 MHA 25/25 全新进程；L2 逐位等同 L1 且中位数 1.014×/1.016×（`docs/experiments/E2E_L2/`） |
 | L0 Backend | ✅ | ✅ | V-I 四架构交叉编译 |
 
 此表是项目实现状态的唯一权威来源；每轮结束随代码和实验证据同步更新。
@@ -140,16 +140,33 @@ L4    符号形状参数化 + 运行时变体选择
   `FanoutCard`），让两个方向各自留在自己可解的区域。这是绕过而不是修复：
   上游若换 isl/barvinok 版本，这条需要重测。
 
-- **L2 的 `notify`/`wait` 目前只有保守的 `kAll` 松弛路径**：
-  `CouplingGraphToCUDA::Lower` 为每条跨阶段耦合发出一个 `StageDependency`，
-  但恒定标记为 `Map::kAll`（等一整个生产者阶段的到达计数），从不使用
-  `Map::kIdentity`。原因记在代码注释里：语义上的恒等 `C`（`blockIdx.x`
-  在两个独立实现的 TaskBody 里指同一个 tile）不足以证明 CTA 级别的恒等，
-  除非 TaskBody ABI 显式携带 CTA→task 的归属映射，而这个 ABI 扩展还没做。
-  这个选择是 I2 安全的（`C' ⊇ C`），但不是 §2.3 意义上最紧的事件；这正是
-  L2 中位数比 L1 慢约 1.16×–1.36×（两个模型上的实测，见
-  `docs/experiments/E2E_L2/result.md`）而不是更快的原因——事件语义是对的，
-  尚未做到真正细粒度。
+- **L2 的 `notify`/`wait` 仍然只走 `kAll`，但阻塞点已经从"ABI 缺失"变成
+  一条具体的、可指名的缺口**：TaskBody ABI 的 CTA→task ownership 条目
+  已经补上（`TaskOwnership`，§5.3 / `TaskBase.h`），`ActiveBlocks` 现在读
+  TaskBody 的声明而不是重述它的守卫。剩下的阻塞是**生成器看不到 `C`**：
+  `lib/Frontend/Frontend.cpp` 从不调用 `CouplingDerivation`，IR 里的
+  `CouplingMapAttr` 是 `{ [0] -> [0] }` 占位（见下一条），所以 codegen 没有
+  可以判定的关系。
+  同时实测出了 `kIdentity` 的天花板，它比预期低得多：对 decoder layer 的
+  21 条边，`C ⊆ identity` 的只有 7 条，其中生产者/消费者 ownership kind
+  也一致（都是 `kElementChunk`）的**只有 1 条**（`add1→add2`）——其余 6 条
+  都是 Gemm(`kTilePerBlock`) → RoPE/Elementwise(`kElementChunk`)，同一个
+  `blockIdx.x` 在两侧指的不是同一份数据。而这唯一 1 条又恰好被传递归约
+  消掉（`add1→rmsnorm2→wgate/wup→silu→wdown→add2` 这条路径已经蕴含它）。
+  也就是说：即使把 `C` 送进生成器，`kIdentity` 在这两个模型上能省下的是
+  **零条 wait**。这是 `docs/experiments/E2E_L2/identity_probe.cpp` 的实测
+  结论，不是估计；它把"补 ABI 就能变快"这个假设证伪了。
+  L2 现在的中位数是 L1 的 `1.014×`/`1.016×`（两个模型），仍然是慢；剩余差距的归因
+  见 `docs/experiments/E2E_L2/result.md`。
+- **`kIdentity` 的可行性判定目前是一个按算子名的代理**：
+  `docs/experiments/E2E_L2/identity_probe.cpp` 判断一条边能否用 `kIdentity`
+  时，需要知道两端各由哪个 TaskBody 执行、从而声明了哪种
+  `TaskOwnershipKind`。参考模型的算子名与 TaskBody 一一对应，所以这个映射
+  对现有模型是准确的，但它是探针里的一张手写表，**不是**与设备侧
+  `RunStage` 的 TaskKind 分发链接起来的同一份真值。真要把 `kIdentity` 上线
+  （F-34 表明在现有两个模型上收益为零，所以并不急），这张表必须来自
+  `ModelPlan` 里已经确定的 stage kind，而不是名字。
+
 - **前端 `ModelPlan` 构造器泛化的范围是"decoder-layer 家族"，不是任意
   ATen 图**：`lib/Frontend/ModelPlan.cpp` 按结构匹配
   `layers.N.{input_norm,post_norm,q_proj,k_proj,v_proj,o_proj,gate_proj,
@@ -490,6 +507,32 @@ cluster occupancy/GPC 限制、opt-in smem 状态、collective 数据类型族�
 | `⌈S/T⌉`（`ceil_div` / `shape_div`） | 符号形状的代数运算 |
 | 坐标↔索引、补集、展平 | 基数计数（`wait` / `fanout` / `volume`） |
 | Tier 0 对齐静态情形的完整求解 | 非对齐分段、ragged 域、代价闭式 |
+
+**这张表现在是落地状态，不是计划**（P3.7 之后）。右列全部由 isl/barvinok
+承担：关系代数是 `isl_map_apply_range`/`isl_map_reverse`（`CouplingRelation`），
+基数计数是 `isl_pw_qpolynomial`/barvinok（`QuasiPolynomial::Card`），包含判定
+是 `isl_map_is_subset`，`Coarsen` 是与 floor 映射的复合。自建的
+`AffineRelation`/`ClosedForm` 关系算子已删除，不作为并行表示保留；`ClosedForm`
+只剩下"符号算术构造器"这一个角色，它的输出通过 `ToIslText()` 进入 isl。
+
+三条实测边界，写在这里是因为它们决定了转换规则的适用范围：
+
+- **除数必须先落成字面量**。`isl_aff_div` 在 C API 层就拒绝参数化除数，所以
+  tile 尺寸（`Tm`/`Tn`/`Tkv`）和任何出现在除数位置的符号（GQA 的 `G`）必须
+  在建 isl 对象之前用 `known` 绑定替换掉；workload 维（`S`/`L_s`/`past`）保持
+  为 isl 参数，这正是不变量 I1 的形状。`ClosedForm::ToIslText` 在除数没被替换
+  时抛错，而不是生成非法文本。
+- **swizzle 与 dynamic stride 必须显式抬 Tier，不能近似**。`ToIslMap` 对二者
+  各抛一个 `std::domain_error`（"has no isl_map … raise the Tier instead of
+  approximating it"），因为带 swizzle 的复合 layout 展平之后不是仿射 stride
+  映射，`参数×坐标` 也不是 Presburger 仿射。悄悄近似会让一条 Tier 3 的边看
+  起来像 Tier 0。
+- **回写方向只接受具体结果**。`FromIslMap` 要求 layout 映射单值、单片、
+  extent 有字面上下界；求解器给出的 layout 本来就是具体的，拒绝比猜测好。
+
+`W⁻¹` 的三级规则（共享单射 layout 直接消去 → g-特化静态 tile 走
+`cute.right_inverse` → 其余走 Presburger 关系）落在 `CuteLayoutBridge::Project`
+里，Tier 由它一并给出，这是"CuTe 是表示"那一半。
 
 ---
 
@@ -1098,12 +1141,22 @@ tilemega/
 
 - [x] global 事件张量 → `(producer stage, producer CTA)` device 数组（128B padding）
 - [x] global `notify` / `wait` 按 §8 release/acquire 顺序生成；cluster/local 路径待硬件验收
-- [ ] 单调计数器：`needed = num_triggers × iteration_num`
+- [x] 单调计数器：`needed = num_triggers × iteration_num`
+      （`StageArrivalTarget`）。计数器从不在迭代之间清零，`iteration` 参数
+      贯穿 `GridBarrier`/`WaitDependencies`/`NotifyStage` 与两个 kernel。
+      验收不是"代码写了"而是**跑了 ABA 场景**：harness 在 L2 跑完之后
+      **不重置事件内存**（`ResetBuffersOnly`）再以 `iteration=1` 跑一次，
+      输出与第一次逐位一致；2 层 GQA 50/50、4 层 MHA 25/25 全新进程
+      （`E2E_ITER` 行，`l2_iter1_vs_iter0_mismatch=0`）
 - [x] 与 L1 逐位比对：50/50 全新进程，0 mismatch / 0 timeout（2 层 GQA）；
-      4 层 MHA 单进程逐位一致（`docs/experiments/P3_GENERALIZATION/`）
-- [x] L2 vs L1：保守 I2 松弛，中位数 2 层 GQA `1.182×`、4 层 MHA `1.355×`；
-      事件表达正确但尚未优化（TaskBody ABI 尚缺 CTA→task ownership map，
-      不能仅由语义 identity C 推断 block identity，见 §1.5.1）。数据见
+      4 层 MHA 25/25 全新进程逐位一致（`docs/experiments/E2E_L2/`）
+- [x] TaskBody ABI 的 CTA→task ownership 条目（`TaskOwnership`，
+      `TaskBase.h`）：每个 TaskBody 自己声明 `blockIdx.x` 归属的
+      `{kind, count}`，`ActiveBlocks` 只做分发，不再重述各 TaskBody 的守卫；
+      未声明的 TaskBody 触发 `static_assert` 而不是静默破坏 L2 的跳过
+- [x] L2 vs L1：中位数 2 层 GQA `1.0136×`、4 层 MHA `1.0155×`
+      （此前 `1.182×` / `1.355×`）。**仍然是慢，不是快**；三步各自可归因，
+      且第三步给出了 `kIdentity` 的实测天花板。数据与归因见
       `docs/experiments/E2E_L2/result.md`
 
 ### P3.6 生成器一般化（去掉 Llama 结构写死）
@@ -1212,9 +1265,15 @@ tilemega/
 
 ### P4.6 Coarsen（事件粒度 κ）
 
-- [ ] 实现 `C_κ = ⌊·/κ⌋ ∘ C`
-- [ ] `[!]` 待验证：ISL 对含参数化整除的映射是否表达式爆炸。
-      兜底：限制 κ 为 2 的幂，或用受限矩形代数
+- [x] 实现 `C_κ = ⌊·/κ⌋ ∘ C`（`CouplingRelation::Coarsen`，与 floor 映射
+      复合）。P3.7 的迁移把它从"做不到"变成"一行 `isl_map_apply_range`"。
+- [x] `[!]` **已实测，结论是不爆炸**：κ ∈ {1,2,4}，关系与拟多项式都保持
+      单片，文本长度近乎不变（100 → 96 字符），带符号参数 `S` 只多约 15 个
+      字符。**兜底不需要：κ 不必限制为 2 的幂**，受限矩形代数也不需要。
+      数据见 `docs/experiments/P3_ISL/`（`coarsen_probe.cpp`）。
+      两条代数律作为回归断言：κ=1 是恒等、`⌊⌊·/2⌋/2⌋ = ⌊·/4⌋`——后者是
+      发现"新鲜坐标名与已粗化的 range 名撞车、isl 读成 `q1 = floord(q1,2)`
+      从而静默塌成单点"这个 bug 的那条断言。
 - [ ] κ 消融曲线；曲线平坦则该维度无收益
 - [ ] 纳入 DP 状态
 

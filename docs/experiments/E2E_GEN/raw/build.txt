@@ -1,2 +1,2 @@
 ninja: Entering directory `/root/TileMega/build-phase12'
-[1/1] Linking CXX executable tools/tilemega-opt
+ninja: no work to do.
