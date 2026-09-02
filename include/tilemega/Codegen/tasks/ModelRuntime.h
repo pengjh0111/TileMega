@@ -72,6 +72,10 @@ enum class TaskKind : std::uint32_t {
   kKVAppend = 3,
   kElementwise = 4,
   kAttention = 5,
+  /// The combiner half of a split reduction (§2.4). It exists only in an
+  /// instantiated stage list: the generator emits one kGemm stage, and the
+  /// split transform rewrites it into a partial stage plus this one.
+  kGemmCombine = 6,
 };
 
 inline constexpr std::uint32_t kNoOperand = 0xffffffffu;

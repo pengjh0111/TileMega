@@ -11,6 +11,7 @@
 
 #include <tilemega/Codegen/tasks/AttentionChunkTaskBody.h>
 #include <tilemega/Codegen/tasks/ElementwiseTaskBody.h>
+#include <tilemega/Codegen/tasks/GemmCombineTaskBody.h>
 #include <tilemega/Codegen/tasks/GemmStageTaskBody.h>
 #include <tilemega/Codegen/tasks/KVAppendTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
@@ -70,15 +71,18 @@ using T_RoPE = RoPETaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_KV = KVAppendTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_Elementwise = ElementwiseTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_Attention = AttentionTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
+using T_GemmCombine = GemmCombineTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 static_assert(T_Gemm::kLegal && T_Norm::kLegal && T_RoPE::kLegal &&
-              T_KV::kLegal && T_Elementwise::kLegal && T_Attention::kLegal,
+              T_KV::kLegal && T_Elementwise::kLegal && T_Attention::kLegal &&
+              T_GemmCombine::kLegal,
               "every dispatched TaskBody must be legal at this granularity");
 static_assert(DeclaresOwnership<T_Gemm>::value &&
               DeclaresOwnership<T_Norm>::value &&
               DeclaresOwnership<T_RoPE>::value &&
               DeclaresOwnership<T_KV>::value &&
               DeclaresOwnership<T_Elementwise>::value &&
-              DeclaresOwnership<T_Attention>::value,
+              DeclaresOwnership<T_Attention>::value &&
+              DeclaresOwnership<T_GemmCombine>::value,
               "every dispatched TaskBody must declare its CTA->task "
               "ownership (§5.3); L2 skips a stage's waits for CTAs at or "
               "above the declared count");
@@ -96,6 +100,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
     case TaskKind::kKVAppend: T_KV{}(p, stage, smem); break;
     case TaskKind::kElementwise: T_Elementwise{}(p, stage, smem); break;
     case TaskKind::kAttention: T_Attention{}(p, stage, smem); break;
+    case TaskKind::kGemmCombine: T_GemmCombine{}(p, stage, smem); break;
   }
 }
 
@@ -126,6 +131,7 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
     case TaskKind::kKVAppend: return T_KV::Ownership(p, stage).count;
     case TaskKind::kElementwise: return T_Elementwise::Ownership(p, stage).count;
     case TaskKind::kAttention: return T_Attention::Ownership(p, stage).count;
+    case TaskKind::kGemmCombine: return T_GemmCombine::Ownership(p, stage).count;
   }
   return 0;
 }
@@ -291,6 +297,10 @@ inline std::vector<float> Load(std::string const& path, std::size_t count) {
 
 struct DeviceModel {
   ModelSpec const* spec = nullptr;
+  /// The instantiated stage list. It equals `spec->stages` unless §2.4's
+  /// Split was applied, which rewrites one GEMM stage into a partial stage
+  /// plus its combiner.
+  std::vector<StageDesc> stages;
   std::vector<float*> buffers;
   std::vector<std::vector<float>> host_sources;  ///< per buffer, empty if scratch
   float** device_buffers = nullptr;
@@ -351,31 +361,108 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
     model.buffers.push_back(pointer);
   }
 
-  std::vector<GemmInvocation> gemms(spec.gemm_count);
+  // §2.4 Split applied to the instantiated task graph: each GEMM's `k` is cut
+  // into `chunks` contributions writing their own partial, and one combiner
+  // stage reduces them. Splitting on the host keeps every chunk an ordinary
+  // CUTLASS invocation, so no TaskBody knows it is part of a split.
+  std::vector<GemmInvocation> gemms;
+  std::vector<std::uint32_t> gemm_base(spec.gemm_count);
+  std::vector<std::uint32_t> gemm_partial(spec.gemm_count, kNoOperand);
+  std::vector<int> gemm_chunks(spec.gemm_count, 1);
   for (std::uint32_t i = 0; i < spec.gemm_count; ++i) {
     GemmDesc const& desc = spec.gemms[i];
     int m = dims.seq;
-    GemmProblem problem{m, desc.n, desc.k, 1};
-    auto stride_a = cutlass::make_cute_packed_stride(
-        typename GemmMainloop::StrideA{}, cute::make_shape(m, desc.k, 1));
-    auto stride_b = cutlass::make_cute_packed_stride(
-        typename GemmMainloop::StrideB{}, cute::make_shape(desc.n, desc.k, 1));
-    auto stride_c = cutlass::make_cute_packed_stride(
-        typename GemmEpilogue::StrideC{}, cute::make_shape(m, desc.n, 1));
-    auto stride_d = cutlass::make_cute_packed_stride(
-        typename GemmEpilogue::StrideD{}, cute::make_shape(m, desc.n, 1));
-    typename GemmMainloop::Arguments main_args{
-        model.buffers[desc.a], stride_a, model.buffers[desc.b], stride_b};
-    typename GemmEpilogue::Arguments epilogue_args{
-        {1.0f, desc.beta}, model.buffers[desc.c], stride_c,
-        model.buffers[desc.d], stride_d};
-    gemms[i].problem = problem;
-    gemms[i].mainloop =
-        GemmMainloop::to_underlying_arguments(problem, main_args, nullptr);
-    gemms[i].epilogue =
-        GemmEpilogue::to_underlying_arguments(problem, epilogue_args, nullptr);
-    gemms[i].tiles_n = (desc.n + kGemmTileN - 1) / kGemmTileN;
+    int k_tiles = CeilDiv(desc.k, TILEMEGA_GEMM_TILE_K);
+    int chunks = TILEMEGA_GEMM_SPLIT_K < k_tiles ? TILEMEGA_GEMM_SPLIT_K : k_tiles;
+    if (chunks < 1) chunks = 1;
+    gemm_chunks[i] = chunks;
+    gemm_base[i] = static_cast<std::uint32_t>(gemms.size());
+    if (chunks > 1) {
+      float* partial = nullptr;
+      TILEMEGA_CUDA_CHECK(cudaMalloc(
+          &partial, static_cast<std::size_t>(chunks) * m * desc.n * sizeof(float)));
+      gemm_partial[i] = static_cast<std::uint32_t>(model.buffers.size());
+      model.buffers.push_back(partial);
+      model.host_sources.emplace_back();
+    }
+    for (int chunk = 0; chunk < chunks; ++chunk) {
+      // Tiles are distributed as evenly as the count allows, so no chunk is
+      // empty whenever chunks <= k_tiles -- an empty CUTLASS problem is not a
+      // legal invocation.
+      int k_begin = chunk * k_tiles / chunks * TILEMEGA_GEMM_TILE_K;
+      int k_end = (chunk + 1) * k_tiles / chunks * TILEMEGA_GEMM_TILE_K;
+      if (k_end > desc.k) k_end = desc.k;
+      GemmProblem problem{m, desc.n, k_end - k_begin, 1};
+      // The chunk's A/B are the same matrices seen from a K offset: the row
+      // stride is still the full k, so only the base pointer moves.
+      auto stride_a = cutlass::make_cute_packed_stride(
+          typename GemmMainloop::StrideA{}, cute::make_shape(m, desc.k, 1));
+      auto stride_b = cutlass::make_cute_packed_stride(
+          typename GemmMainloop::StrideB{}, cute::make_shape(desc.n, desc.k, 1));
+      auto stride_c = cutlass::make_cute_packed_stride(
+          typename GemmEpilogue::StrideC{}, cute::make_shape(m, desc.n, 1));
+      auto stride_d = cutlass::make_cute_packed_stride(
+          typename GemmEpilogue::StrideD{}, cute::make_shape(m, desc.n, 1));
+      typename GemmMainloop::Arguments main_args{
+          model.buffers[desc.a] + k_begin, stride_a,
+          model.buffers[desc.b] + k_begin, stride_b};
+      // Only the first chunk applies beta*C; the combiner adds no residual, so
+      // the split result differs from the unsplit one only by association.
+      float* destination = chunks > 1
+          ? model.buffers[gemm_partial[i]] +
+                static_cast<std::size_t>(chunk) * m * desc.n
+          : model.buffers[desc.d];
+      typename GemmEpilogue::Arguments epilogue_args{
+          {1.0f, chunk == 0 ? desc.beta : 0.0f}, model.buffers[desc.c], stride_c,
+          destination, stride_d};
+      GemmInvocation invocation;
+      invocation.problem = problem;
+      invocation.mainloop =
+          GemmMainloop::to_underlying_arguments(problem, main_args, nullptr);
+      invocation.epilogue =
+          GemmEpilogue::to_underlying_arguments(problem, epilogue_args, nullptr);
+      invocation.tiles_m = (m + kGemmTileM - 1) / kGemmTileM;
+      invocation.tiles_n = (desc.n + kGemmTileN - 1) / kGemmTileN;
+      invocation.chunks = chunks;
+      gemms.push_back(invocation);
+    }
   }
+
+  // Rewrite the stage list and the dependency graph around the combiners.
+  std::vector<std::uint32_t> entry(spec.stage_count), done(spec.stage_count);
+  for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
+    StageDesc stage = spec.stages[i];
+    entry[i] = static_cast<std::uint32_t>(model.stages.size());
+    int chunks = stage.kind == TaskKind::kGemm ? gemm_chunks[stage.gemm] : 1;
+    if (stage.kind == TaskKind::kGemm) stage.gemm = gemm_base[stage.gemm];
+    model.stages.push_back(stage);
+    done[i] = entry[i];
+    if (chunks <= 1) continue;
+    StageDesc combine = spec.stages[i];
+    combine.kind = TaskKind::kGemmCombine;
+    combine.group = static_cast<std::uint32_t>(chunks);
+    combine.width = spec.gemms[spec.stages[i].gemm].n;
+    combine.operand[0] = gemm_partial[spec.stages[i].gemm];
+    combine.operand[1] = spec.gemms[spec.stages[i].gemm].d;
+    done[i] = static_cast<std::uint32_t>(model.stages.size());
+    model.stages.push_back(combine);
+  }
+  std::vector<StageDependency> dependencies;
+  for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
+    if (done[i] != entry[i])
+      dependencies.push_back({entry[i], done[i], StageDependency::Map::kAll});
+    for (std::uint32_t e = spec.dependency_offsets[i];
+         e < spec.dependency_offsets[i + 1]; ++e)
+      dependencies.push_back({done[spec.dependencies[e].producer], entry[i],
+                              spec.dependencies[e].map});
+  }
+  std::sort(dependencies.begin(), dependencies.end(),
+            [](StageDependency const& a, StageDependency const& b) {
+              return a.consumer < b.consumer;
+            });
+  std::vector<std::uint32_t> offsets(model.stages.size() + 1, 0);
+  for (auto const& edge : dependencies) ++offsets[edge.consumer + 1];
+  for (std::size_t i = 1; i < offsets.size(); ++i) offsets[i] += offsets[i - 1];
 
   auto upload = [](void const* host, std::size_t bytes) {
     void* device = nullptr;
@@ -388,21 +475,21 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
   model.device_gemms = static_cast<GemmInvocation*>(
       upload(gemms.data(), gemms.size() * sizeof(GemmInvocation)));
   model.device_stages = static_cast<StageDesc*>(upload(
-      spec.stages, spec.stage_count * sizeof(StageDesc)));
-  if (spec.dependency_count)
+      model.stages.data(), model.stages.size() * sizeof(StageDesc)));
+  if (!dependencies.empty())
     model.device_dependencies = static_cast<StageDependency*>(upload(
-        spec.dependencies, spec.dependency_count * sizeof(StageDependency)));
+        dependencies.data(), dependencies.size() * sizeof(StageDependency)));
   model.device_dependency_offsets = static_cast<std::uint32_t*>(
-      upload(spec.dependency_offsets,
-             (spec.stage_count + 1) * sizeof(std::uint32_t)));
+      upload(offsets.data(), offsets.size() * sizeof(std::uint32_t)));
 
   model.params.dims = dims;
   model.params.buffers = model.device_buffers;
   model.params.gemms = model.device_gemms;
   model.params.stages = model.device_stages;
-  model.params.stage_count = spec.stage_count;
+  model.params.stage_count = static_cast<std::uint32_t>(model.stages.size());
   model.params.dependencies = model.device_dependencies;
-  model.params.dependency_count = spec.dependency_count;
+  model.params.dependency_count =
+      static_cast<std::uint32_t>(dependencies.size());
   model.params.dependency_offsets = model.device_dependency_offsets;
   TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_params, sizeof(Params)));
   TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params, &model.params,
@@ -412,7 +499,7 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
 
 inline void PrepareEvents(DeviceModel& model, int grid) {
   if (model.events) TILEMEGA_CUDA_CHECK(cudaFree(model.events));
-  model.event_count = static_cast<std::size_t>(model.spec->stage_count) * grid;
+  model.event_count = static_cast<std::size_t>(model.params.stage_count) * grid;
   TILEMEGA_CUDA_CHECK(
       cudaMalloc(&model.events, sizeof(EventCounter) * model.event_count));
 }
@@ -506,6 +593,40 @@ inline float LaunchL05(DeviceModel& model, int grid) {
   cudaEventDestroy(start);
   cudaEventDestroy(stop);
   return ms;
+}
+
+/// Per-stage L0.5 timing, used by the partition oracle to attribute an
+/// end-to-end delta to individual operators. Off unless TILEMEGA_STAGE_PROFILE
+/// is set, and always run after the timed launches so it cannot perturb them.
+inline void ProfileStages(DeviceModel& model, ModelSpec const& spec, int grid) {
+  if (!std::getenv("TILEMEGA_STAGE_PROFILE")) return;
+  std::uint32_t count = model.params.stage_count;
+  std::vector<float> best(count, 3.4e38f);
+  cudaEvent_t start, stop;
+  TILEMEGA_CUDA_CHECK(cudaEventCreate(&start));
+  TILEMEGA_CUDA_CHECK(cudaEventCreate(&stop));
+  for (int repeat = 0; repeat < 5; ++repeat) {
+    ResetBuffersOnly(model);
+    for (std::uint32_t stage = 0; stage < count; ++stage) {
+      TILEMEGA_CUDA_CHECK(cudaEventRecord(start));
+      tilemega_stage_kernel<<<grid, kHarnessThreads, sizeof(TaskSmem)>>>(
+          model.device_params, stage);
+      TILEMEGA_CUDA_CHECK(cudaEventRecord(stop));
+      TILEMEGA_CUDA_CHECK(cudaEventSynchronize(stop));
+      TILEMEGA_CUDA_CHECK(cudaGetLastError());
+      float ms = 0;
+      TILEMEGA_CUDA_CHECK(cudaEventElapsedTime(&ms, start, stop));
+      best[stage] = std::min(best[stage], ms);
+    }
+  }
+  cudaEventDestroy(start);
+  cudaEventDestroy(stop);
+  for (std::uint32_t stage = 0; stage < count; ++stage)
+    std::printf("E2E_STAGE idx=%u kind=%u gemm=%u extent=%u width=%u "
+                "min_ms=%.6f\n", stage,
+                static_cast<unsigned>(model.stages[stage].kind),
+                model.stages[stage].gemm, model.stages[stage].extent,
+                model.stages[stage].width, best[stage]);
 }
 
 inline float LaunchL1(DeviceModel& model, int grid,
@@ -616,6 +737,7 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   std::printf("E2E_ITER l2_iter1_ms=%.6f l2_iter1_vs_iter0_mismatch=%zu "
               "max_abs=%.8g\n", l2_again_ms, l2_iter.mismatch,
               l2_iter.max_abs);
+  ProfileStages(model, spec, grid);
   bool pass = l05_l0.mismatch == 0 && l1_l05.mismatch == 0 &&
               l2_l1.mismatch == 0 && l2_iter.mismatch == 0;
   std::printf("RESULT status=%s\n", pass ? "PASS" : "MISMATCH");
