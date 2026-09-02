@@ -104,4 +104,26 @@ graph imports and can be analysed, but there is no megakernel plan for it.
 | hand-written branches removed / remaining | ✅ counted above |
 | degradation path | ✅ verified (`frontend_degradation`) |
 | §2.7 coupling table re-derived through the new path | see `docs/experiments/P3/table27.md`; `table27` (ctest) passes |
-| end-to-end L0.5/L1/L2 bitwise identical on hardware | ⏳ pending — the GPU is occupied by the Part 6 sweep; the binaries are byte-identical inputs, so this re-runs the committed configuration |
+| end-to-end L0.5/L1/L2 bitwise identical on hardware | ✅ verified — see below |
+
+### End-to-end on hardware
+
+Both models, both normalization forms, compiled from the matcher's own output
+in `raw/` and run on the RTX 4090 (`raw/hw/hardware.txt`, reproduce with the
+commands in `run.sh`'s trailing comment):
+
+| binary | `l05_ms` | `l1_ms` | `l2_ms` | L1 vs L0.5 | L2 vs L1 | L2 iter1 vs iter0 | output hash | result |
+|---|---|---|---|---|---|---|---|---|
+| `e2e_plain` | 1.113088 | 1.083392 | 1.119232 | 0 mismatches | 0 mismatches | 0 mismatches | `5245714bc5d3ab4d` | PASS |
+| `e2e_core` | 1.105920 | 1.082528 | 1.117184 | 0 mismatches | 0 mismatches | 0 mismatches | `5245714bc5d3ab4d` | PASS |
+| `mha_plain` | 2.197664 | 2.159616 | 2.229312 | 0 mismatches | 0 mismatches | 0 mismatches | `fd15fa2e89cdb915` | PASS |
+| `mha_core` | 2.189312 | 2.158784 | 2.228384 | 0 mismatches | 0 mismatches | 0 mismatches | `fd15fa2e89cdb915` | PASS |
+
+All three levels agree bitwise (`max_abs=0` on both comparisons), and so do the
+two normalization forms — as they must, since the generated `.cu` is
+byte-identical between them. The only nonzero difference anywhere is
+`l05_vs_l0`, the megakernel against the host reference: `max_abs=1.55e-06`
+(gqa2) and `1.91e-06` (mha4), which is f32 accumulation-order noise, not a
+level difference. The hashes are the same values the committed E2E artifacts
+record, so the declarative matcher reproduces the hand-written path exactly on
+the device and not merely in the generated text.

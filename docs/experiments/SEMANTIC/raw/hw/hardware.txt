@@ -1,0 +1,28 @@
+### e2e_plain
+E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+E2E_TIME l05_ms=1.113088 l1_ms=1.083392 ratio=0.973321 l2_ms=1.119232 l2_over_l1=1.033081
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.5497208e-06 max_rel=0.0010710589 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_HASH l05=5245714bc5d3ab4d l1=5245714bc5d3ab4d l2=5245714bc5d3ab4d
+E2E_ITER l2_iter1_ms=1.116384 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+RESULT status=PASS
+### e2e_core
+E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+E2E_TIME l05_ms=1.105920 l1_ms=1.082528 ratio=0.978848 l2_ms=1.117184 l2_over_l1=1.032014
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.5497208e-06 max_rel=0.0010710589 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_HASH l05=5245714bc5d3ab4d l1=5245714bc5d3ab4d l2=5245714bc5d3ab4d
+E2E_ITER l2_iter1_ms=1.117152 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+RESULT status=PASS
+### mha_plain
+E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+E2E_TIME l05_ms=2.197664 l1_ms=2.159616 ratio=0.982687 l2_ms=2.229312 l2_over_l1=1.032272
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+E2E_ITER l2_iter1_ms=2.229248 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+RESULT status=PASS
+### mha_core
+E2E_RESOURCE block=256 reg=ptxas smem=49536 ctas_per_sm=1 num_sms=128 grid=128 resident_formula=ctas_per_sm*num_sms
+E2E_TIME l05_ms=2.189312 l1_ms=2.158784 ratio=0.986056 l2_ms=2.228384 l2_over_l1=1.032240
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=1.9073486e-06 max_rel=0.0097467825 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_HASH l05=fd15fa2e89cdb915 l1=fd15fa2e89cdb915 l2=fd15fa2e89cdb915
+E2E_ITER l2_iter1_ms=2.225152 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+RESULT status=PASS

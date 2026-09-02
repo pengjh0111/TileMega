@@ -58,3 +58,16 @@ done | tee "${raw}/normalization.txt"
 "${build}/degradation_test" > "${raw}/degradation.txt" 2>&1 \
   && echo "DEGRADATION pass" || echo "DEGRADATION fail"
 echo PASS > "${raw}/run_status.txt"
+
+# The hardware half of acceptance 1.4 needs a GPU, so it is not part of the
+# portable run above. To reproduce raw/hw/hardware.txt:
+#
+#   for m in e2e mha; do for f in plain core; do
+#     nvcc raw/${m}_${f}.cu -std=c++17 -O2 -arch=native -lineinfo -Xptxas=-v \
+#       -I../../../include -I../../../third_party/cutlass/include \
+#       -I../../../third_party/cutlass/tools/util/include \
+#       -I../../../third_party/cutlass/test \
+#       ../../../build-phase12/libtilemega.a -lcudart -o raw/hw/${m}_${f}
+#   done; done
+#   raw/hw/e2e_plain ../E2E/fixture
+#   raw/hw/mha_plain ../P3_GENERALIZATION/raw/fixture
