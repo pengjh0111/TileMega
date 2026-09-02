@@ -330,7 +330,8 @@ namespace {
 /// `{ [p0,...] : 0 <= p_i < producer_extent_i }`, the producer-side twin of
 /// DomainBoxText, named after C's actual range dimensions.
 ///
-/// This is applied *only* when counting fanout, never folded into C itself.
+/// This is applied *only* when counting fanout (and by the relaxation
+/// check), never folded into C itself.
 /// Both halves of that split are load-bearing, and each was established by a
 /// failure:
 ///   * Without any range bound, isl_map_card's own piecewise decomposition of
@@ -345,9 +346,11 @@ namespace {
 ///     (basis_reduction_tab.c) and an incomplete result.
 /// Restricting only the reversed map keeps each direction in the regime its
 /// own counting problem is tractable in. See TileMega_skeleton.md §1.5.1.
-std::string ProducerRangeBoxText(CouplingRelation const& C,
-                                 OperatorNode const& producer,
-                                 ParamBinding const& known) {
+}  // namespace
+
+std::string ProducerTaskSpaceText(CouplingRelation const& C,
+                                  OperatorNode const& producer,
+                                  ParamBinding const& known) {
   std::vector<std::string> range = C.RangeDimNames();
   ParamCollector params(known);
   std::vector<std::string> bounds;
@@ -375,6 +378,7 @@ std::string ProducerRangeBoxText(CouplingRelation const& C,
   return text.str();
 }
 
+namespace {
 /// Wrap a parameter-only ClosedForm result (volume, count -- neither varies
 /// across the task space for any access pattern this codebase derives) as a
 /// 0-dimensional QuasiPolynomial: `[params] -> { <value> }`.
@@ -404,7 +408,7 @@ DerivedMetrics ComputeMetrics(CouplingRelation const& C, AccessRelation const& W
   // different regime.
   metrics.wait = C.Card();
   metrics.fanout =
-      C.IntersectRange(ProducerRangeBoxText(C, producer, known)).FanoutCard();
+      C.IntersectRange(ProducerTaskSpaceText(C, producer, known)).FanoutCard();
 
   // volume(y,x) = |W_p(y) ^ R_c(x)|, per tensor axis.  Data-independent of the
   // task space for every access pattern this codebase derives, so it stays a

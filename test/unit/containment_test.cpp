@@ -4,6 +4,7 @@
 // itself, in both directions, on relations the derivation actually produced.
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Analysis/ReferenceModels.h>
+#include <tilemega/Analysis/TierClassifier.h>
 
 #include <cstdlib>
 #include <iostream>
@@ -70,6 +71,20 @@ int main() {
     REQUIRE(p != nullptr);
     REQUIRE(Contains(edge.C, edge.C));
   }
+
+  // Part 4: what isl can check about a Tier is a claimed relaxation's
+  // *consequence*, not the Tier itself (see TierClassifier.h -- Tier is
+  // provenance, and classifying by single-valuedness misclassifies §2.7's
+  // own Tier 0 rows). A relaxed edge claims to have widened C to the whole
+  // producer task space; that claim is machine-checkable, and if it were
+  // false the widening would not be I2-safe.
+  TierClassifier tiers;
+  OperatorNode const& gatherProducer = *relaxed_graph.Find("produce");
+  REQUIRE(tiers.RelaxationCoversProducer(relaxed.C, gatherProducer, known));
+  // The exact edge does *not* cover the whole producer space -- which is
+  // exactly why it is the narrow relation and the relaxed one is the wide
+  // one, and confirms the check is not vacuously true.
+  REQUIRE(!tiers.RelaxationCoversProducer(exact.C, gatherProducer, known));
 
   // A relaxed relation over a *different* producer is not accepted.
   CouplingEdge foreign = llamaEdges.front();

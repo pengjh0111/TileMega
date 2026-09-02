@@ -186,6 +186,20 @@ std::vector<std::string> CouplingRelation::RangeDimNames() const {
   return DimNames(map.get(), isl_dim_out);
 }
 
+bool CouplingRelation::CouplesEveryDomainPointTo(
+    std::string const& set_text) const {
+  if (empty()) return false;
+  isl_util::Map map = isl_util::ReadMap(Ctx(), text_);
+  isl_util::Set target = isl_util::ReadSet(Ctx(), set_text);
+  isl_util::Set domain(isl_map_domain(isl_map_copy(map.get())));
+  isl_util::Map product(
+      isl_map_from_domain_and_range(domain.release(), target.release()));
+  isl_bool result = isl_map_is_subset(product.get(), map.get());
+  if (result == isl_bool_error)
+    throw std::runtime_error("isl: relaxation coverage query failed");
+  return result == isl_bool_true;
+}
+
 llvm::hash_code hash_value(CouplingRelation const& value) {
   return llvm::hash_value(value.text_);
 }

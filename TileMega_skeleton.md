@@ -1077,6 +1077,22 @@ tilemega/
 - [x] Tier 3：数据依赖索引退化为算子级事件，不伪造 affine inverse
 - [x] 松弛正确性检查：`Contains(C', C)` 现在就是 `isl_map_is_subset`，
       不再是手写的结构覆盖判断；未知返回“未证实”而非猜测
+- [x] 松弛**后果**的机器验证：`TierClassifier::RelaxationCoversProducer`
+      用 isl 检查"被松弛的边确实把 C 放宽到了生产者的整个任务空间"——
+      即 `domain(C) × 生产者盒 ⊆ C`。注意这里是**逐消费者点**的覆盖，不是
+      `range(C) == 生产者盒`：精确的恒等边同样以整个生产者任务空间为值域
+      （它是到该空间的双射），只有"单个消费者点就够到全部生产者任务"才是
+      松弛的特征。`containment_test` 两个方向都断言。
+- [!] **Tier 本身无法由 `C` 推出，这一条按"做不到就说做不到"记录**：Tier 是
+      来源属性而不是几何属性——Tier 1 取决于 layout id、Tier 2 取决于任务空间
+      是否有运行时 extent、Tier 3 取决于下标是否来自张量，这三样都**不在** `C`
+      里。曾经实现过一版按 `isl_map_is_single_valued` 分类的
+      `TierClassifier::Classify`（一对多即判 Tier ≥ 2），实测对 §2.7 的 21 条
+      派生边**误判 4 条**，其中 `attn_combine→wo`、`add1→rmsnorm2`、
+      `silu→wdown` 三条是表里明确标为 Tier 0 的：它们一对多只是因为
+      `wait > 1`，这对精确仿射边完全正常，与可解析性无关。该分类器已删除，
+      而不是留着一个会误判的实现；Tier 仍由 `CouplingDerivation` 从访问映射
+      的上下文（layout id / runtime extent / data-dependent 标志）赋值。
 
 ### P3.5 L2 落地
 

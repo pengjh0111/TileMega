@@ -104,6 +104,14 @@ DerivedMetrics ComputeMetrics(CouplingRelation const& C, AccessRelation const& W
 std::vector<ClosedForm> ComputeEventShape(OperatorNode const& consumer,
                                           std::vector<std::string> const& occurring);
 
+/// The producer's own task-space box as an isl set, named after `C`'s range
+/// dimensions: `{ [p0,...] : 0 <= p_i < producer_extent_i }`. Exposed
+/// because both the fanout count and the relaxation check need to talk
+/// about "every producer task there is".
+std::string ProducerTaskSpaceText(CouplingRelation const& C,
+                                  OperatorNode const& producer,
+                                  ParamBinding const& known);
+
 /// I2, machine-checked via isl_map_is_subset: does `wide` contain `narrow` as
 /// a set of (consumer, producer) coordinate pairs?  `true` means containment
 /// was *established*; `false` means "not established", never "disproved".

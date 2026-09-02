@@ -171,9 +171,12 @@ LayoutDescriptor CuteLayoutBridge::FromIslMap(CouplingRelation const& map) const
   return layout;
 }
 
-Tier TierClassifier::Classify(CouplingRelation const& relation) const {
-  if (relation.empty()) return Tier::kDataDependent;
-  return relation.IsSingleValued() ? Tier::kAffine : Tier::kStructuredRagged;
+bool TierClassifier::RelaxationCoversProducer(CouplingRelation const& C,
+                                              OperatorNode const& producer,
+                                              ParamBinding const& known) const {
+  if (C.empty()) return false;
+  return C.CouplesEveryDomainPointTo(
+      ProducerTaskSpaceText(C, producer, known));
 }
 std::vector<EventRequirement> EventSynthesis::Synthesize(
     std::vector<CouplingEdge> const& edges) const {

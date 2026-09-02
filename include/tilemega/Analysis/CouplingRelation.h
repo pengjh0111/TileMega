@@ -75,9 +75,10 @@ class CouplingRelation {
   /// ones a future caller builds from unvalidated text).
   bool IsSubset(CouplingRelation const& wide) const;
   /// True when every consumer coordinate maps to exactly one producer
-  /// coordinate (isl_map_is_single_valued) -- the structural signature of an
-  /// exact, tile-aligned edge as opposed to a quantified-range or relaxed
-  /// one, which are one-to-many. Used by Part 4's Tier classification.
+  /// coordinate (isl_map_is_single_valued). Note what this is *not*: it is
+  /// not a Tier signal. A one-to-many C simply means `wait > 1`, which is
+  /// ordinary for an exact affine edge -- §2.7's rows 7, 9 and 12 are all
+  /// Tier 0 and all one-to-many. See TierClassifier.h.
   bool IsSingleValued() const;
 
   /// wait(x) = |this(x)|, a function of `this`'s domain (consumer)
@@ -98,6 +99,15 @@ class CouplingRelation {
   /// range(this) first removes those points from consideration entirely,
   /// rather than merely zeroing them.
   QuasiPolynomial FanoutCard() const;
+
+  /// True when *every* domain point of `this` is coupled to *every* point
+  /// of `set_text` -- i.e. `domain(this) x set_text` is contained in `this`.
+  ///
+  /// This, not `range(this) == set_text`, is what a relaxation claims. An
+  /// exact identity edge also has the producer's whole task space as its
+  /// range (it is a bijection onto it); what makes a relaxed edge different
+  /// is that a *single* consumer point reaches all of it.
+  bool CouplesEveryDomainPointTo(std::string const& set_text) const;
 
   /// Task-coordinate names on the domain (consumer) side, in order.
   std::vector<std::string> DomainDimNames() const;
