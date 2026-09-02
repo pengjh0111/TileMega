@@ -1212,7 +1212,20 @@ tilemega/
 ### P3.5 L2 落地
 
 - [x] global 事件张量 → `(producer stage, producer CTA)` device 数组（128B padding）
-- [x] global `notify` / `wait` 按 §8 release/acquire 顺序生成；cluster/local 路径待硬件验收
+- [x] global `notify` / `wait` 按 §8 release/acquire 顺序生成
+- [~] cluster 路径：`ClusterSync<Arch>` 原语层已实现（DSMEM `map_shared_rank`
+      + 单调 epoch + 两级 barrier），能力开关是 `Caps<Arch>::kCluster`，
+      sm_89/sm_90/sm_120 三个目标交叉编译通过，PTX 层面确认 `mapa` /
+      `barrier.cluster` 只出现在 kCluster 目标上。**生成器尚未接线**：
+      `Codegen.cpp` 仍只接受 `sync_kind = "global"`，megakernel 也仍以
+      `<<<grid, threads>>>` 启动。需 sm_90+ 硬件，本机未运行。
+      见 `docs/experiments/CLUSTER/`（`run_on_h100.sh` 在非 cluster 机器上
+      硬失败，退出码 3，拒绝把单 CTA 回退路径当成簇结果测量）
+      发现：`if constexpr (Caps<Arch>::kCluster)` **不足以**关掉 cluster 代码——
+      `cooperative_groups::this_cluster` 是非依赖名，sm_89 上根本没有声明，
+      被丢弃的分支照样做名字查找而编译失败；`.cluster` 作用域的 fence 同样
+      要求 `.target sm_90+`。可用性只能由 `#if defined(_CG_HAS_CLUSTER_GROUP)`
+      判定，策略仍由 `Caps<Arch>::kCluster` 决定，两者由 `static_assert` 绑定
 - [x] 单调计数器：`needed = num_triggers × iteration_num`
       （`StageArrivalTarget`）。计数器从不在迭代之间清零，`iteration` 参数
       贯穿 `GridBarrier`/`WaitDependencies`/`NotifyStage` 与两个 kernel。
