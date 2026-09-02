@@ -501,3 +501,51 @@
 - Confidence: high that the classifier is correct for the four flag
   combinations tested; no evidence the Presburger path works, because
   nothing in this codebase currently forces it to run.
+
+## F-27 — isl/barvinok coexist with MLIR with zero isolation; the real constraint is a literal-divisor rule, not a link conflict
+
+- Finding: the task's premise ("barvinok/isl 不依赖 LLVM... 大概率正交") is
+  confirmed rather than assumed. `docs/experiments/P3_ISL/
+  crosslink_probe.cpp` builds an `mlir::ModuleOp`, exercises MLIR's own
+  bundled `mlir::presburger::IntegerRelation`, and calls barvinok's
+  `isl_set_card`/`isl_set_is_subset` in one process; it links and runs
+  cleanly as a CMake target (`isl_crosslink_test`, ctest `isl_crosslink`).
+  `nm` on every static library in the pinned MLIR build shows zero `__gmp*`
+  symbol references — MLIR does not link GMP at all, so there is no GMP
+  version to reconcile. The actually load-bearing discovery came from
+  building the *first* real expression the migration needs, not from the
+  link test: `isl_aff_div(m, tm)` with `tm` a genuine isl parameter fails at
+  the isl C API level (`isl_aff.c:3502: second argument should be a
+  constant`), and the `iscc` text parser rejects the same thing through
+  every syntax tried (`[m/Tm]`, `m = Tm*q`). isl's affine-expression div/floor
+  node stores a *literal* rational denominator; a parametric divisor is not
+  representable as a single `isl_aff` regardless of spelling. Rebuilding the
+  same expression with the tile size as a literal (128) and only the
+  workload dimension (`S`) as an isl parameter works immediately and gives
+  the expected closed forms (`card` = `S`; `ceildiv(S,128)` prints as
+  `floor((127+S)/128)`).
+- Evidence: `docs/experiments/P3_ISL/crosslink_probe.cpp`,
+  `docs/experiments/P3_ISL/parametric_div_probe.c`, both with raw output
+  quoted in `docs/experiments/P3_ISL/result.md`; `ctest -R isl_crosslink`
+  1/1 passed.
+- Skeleton impact: this is not a new constraint the migration invents — it is
+  the same boundary V-F already established for CuTe's `RightInverse` ("`g`
+  固定了 tile 内的 W → 特化后用 CuTe 静态 `RightInverse`"), now shown to hold
+  identically for isl, and it matches what `lib/Frontend/Frontend.cpp`
+  already does (`tilemega.g` is stored as a literal dictionary at import
+  time; only `ClosedForm`'s printed form keeps `g` syntactically unevaluated
+  until `Codegen.cpp` calls `.Eval(theta, granularity)`). Part 3's
+  `DeriveCoupling`/`ComputeMetrics` rewrite must substitute `g`'s concrete
+  values when building `isl_map`/`isl_pw_qpolynomial` objects and keep only
+  `theta` as genuine isl parameters (preserving I1 through to the generated
+  binary, where `theta` is bound at launch). This design point is settled;
+  it is recorded here so the eventual rewrite does not have to re-derive it
+  under time pressure.
+- Confidence: high — both the coexistence claim and the literal-divisor rule
+  are demonstrated by running code, not by reading documentation. What is
+  NOT done: the actual `ClosedForm`/`AffineRelation` deletion and isl-backed
+  rewrite of `CouplingDerivation`/`AccessRelation`/`DerivedMetrics`
+  (Part 3.2–3.5), the CuTe↔isl layout bridge (Part 2), Tier judgment via isl
+  (Part 4), and the three Part 5 items (monotonic counter, TaskBody ABI CTA
+  ownership + `kIdentity`, L2 performance number) — none of these were
+  attempted this round; see `TileMega_skeleton.md` §1.5.1.

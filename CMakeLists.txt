@@ -54,6 +54,11 @@ add_definitions(${LLVM_DEFINITIONS})
 include_directories(SYSTEM ${LLVM_INCLUDE_DIRS} ${MLIR_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
+if(TILEMEGA_ENABLE_ISL)
+  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+  include(ISL)
+endif()
+
 set(LLVM_TARGET_DEFINITIONS include/tilemega/Dialect/CouplingGraph/CGDialect.td)
 mlir_tablegen(include/tilemega/Dialect/CouplingGraph/CGDialect.h.inc
   -gen-dialect-decls -dialect=tilemega -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -216,6 +221,20 @@ if(TILEMEGA_BUILD_TESTS)
     target_compile_options(frontend_import_test PRIVATE -fno-rtti)
   endif()
   add_test(NAME frontend_import COMMAND frontend_import_test)
+
+  if(TILEMEGA_ENABLE_ISL)
+    # Part 1 dependency probe (docs/DEPENDENCIES.md): MLIR's own Presburger
+    # implementation and isl/barvinok in one binary, so a regression that
+    # breaks this link/runtime combination is caught by `ctest`, not
+    # rediscovered by hand next time this dependency set changes.
+    add_executable(isl_crosslink_test docs/experiments/P3_ISL/crosslink_probe.cpp)
+    target_link_libraries(isl_crosslink_test PRIVATE MLIRIR MLIRSupport
+      MLIRPresburger tilemega::isl_stack)
+    if(NOT LLVM_ENABLE_RTTI)
+      target_compile_options(isl_crosslink_test PRIVATE -fno-rtti)
+    endif()
+    add_test(NAME isl_crosslink COMMAND isl_crosslink_test)
+  endif()
 endif()
 
 if(TILEMEGA_BUILD_VERIFY)

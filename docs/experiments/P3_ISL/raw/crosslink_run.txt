@@ -1,0 +1,4 @@
+[mlir-presburger] { [i] : 0<=i<10 } isIntegerEmpty=0
+[isl+barvinok] card([n]->{[i]:0<=i<n}) = [n] -> { n : n > 0 }
+[isl] {[i]:0<=i<5} subset of {[i]:0<=i<10} = 1
+RESULT mlir_ok=1 isl_barvinok_ok=1

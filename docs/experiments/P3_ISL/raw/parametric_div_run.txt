@@ -1,0 +1,6 @@
+/root/TileMega/third_party/barvinok/isl/isl_aff.c:3502: second argument should be a constant
+quotient (pre-floor) built: (nil)
+floor(m/Tm) as isl_aff = (null)
+floor(m/Tm) as isl_map: (null)
+card(restricted map) = (null)
+restricted map: (null)

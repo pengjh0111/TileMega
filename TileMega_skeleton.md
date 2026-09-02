@@ -109,14 +109,28 @@ L4    符号形状参数化 + 运行时变体选择
 
 ### 1.5.1 残留技术债（本轮结束时的诚实记录）
 
-- **P3.1 ISL 桥仍是分类器，不是完整往返实现**：`CuteLayoutBridge::Project`
+- **P3.1 ISL 桥仍是分类器，不是完整往返实现；isl/barvinok 现已可构建并
+  验证与 MLIR 共存，但求解权威尚未迁移**：`CuteLayoutBridge::Project`
   只根据 `LayoutDescriptor` 的静态/动态/swizzle 标志选择
   `InverseStrategy`（含 Tier 上界），`layout_bridge_test` 覆盖五个分支；
   真正的 `isl_map` 构造（CuTe layout → flatten/coalesce → 读 shape/stride，
-  以及反向回写）没有实现，仓库未链接 isl/barvinok。P3.2/P3.3 的
-  `W⁻¹∘R` 推导走的是 `ClosedForm` 闭式代数（精确覆盖矩形/分组/ragged 访问
-  模式），不经过这条桥；§2.7 的验收因此成立，但 P3.1 本身的验收条目
-  （isl_map 往返单测）没有满足。
+  以及反向回写）没有实现。**这一条与前几轮不同的是**：isl 0.28 / polylib
+  5.22.9 / barvinok 0.41.9 现已从 `third_party/barvinok` 的匹配子模块构建
+  （`docs/DEPENDENCIES.md`），`ctest -R isl_crosslink` 证实 isl/barvinok
+  与 MLIR 自带的 Presburger 实现在同一进程内无冲突共存，
+  `cmake/ISL.cmake` + `-DTILEMEGA_ENABLE_ISL=ON` 把它们接入了构建系统。
+  同时确认了一条此前未知、对整个迁移路线图有约束力的事实
+  （`docs/experiments/P3_ISL/result.md`）：**`isl_aff_div` 的除数必须是
+  字面常量**——符号化的 tile size（`Tm` 等）不能作为 isl 参数出现在除法里，
+  必须在构造 `isl_map` 之前就用 `g` 的具体值替换掉，只有 `theta`（`S`、
+  `H`、`n_h` 等，运行时才绑定）可以保留为 isl 参数。这与 V-F 对 CuTe
+  `RightInverse` 的结论完全一致（"`g` 固定了 tile 内的 W 才能求逆"），
+  也与 `tilemega.g` 在导入期就是字面量字典这一事实吻合——真正要做的是让
+  `DeriveCoupling`/`ComputeMetrics` 在构造 isl 对象前替换 `g`、只保留
+  `theta` 符号。**P3.2/P3.3 的 `W⁻¹∘R` 推导仍然走 `ClosedForm` 闭式代数**
+  （精确覆盖矩形/分组/ragged 访问模式），没有切到 isl；§2.7 的验收因此仍
+  成立，但 P3.1 本身（isl_map 往返单测）与 P3.2/P3.3 的求解权威迁移都还
+  没有完成——依赖已就绪，代码迁移是下一轮的工作。
 - **L2 的 `notify`/`wait` 目前只有保守的 `kAll` 松弛路径**：
   `CouplingGraphToCUDA::Lower` 为每条跨阶段耦合发出一个 `StageDependency`，
   但恒定标记为 `Map::kAll`（等一整个生产者阶段的到达计数），从不使用
@@ -951,7 +965,16 @@ tilemega/
 
 ### P3.1 CuTe ↔ ISL 桥
 
-- [ ] `ISLContext`：生命周期、错误处理
+- [x] isl/barvinok 依赖可行性：`docs/DEPENDENCIES.md` + `docs/experiments/P3_ISL/`。
+      isl 0.28/polylib 5.22.9/barvinok 0.41.9 从匹配子模块构建（GMP 后端，
+      因为 polylib 硬依赖 GMP，且已证实 MLIR 不链接 GMP、无需 imath 规避
+      冲突）；`cmake/ISL.cmake` + `-DTILEMEGA_ENABLE_ISL=ON` 接入构建；
+      `ctest -R isl_crosslink` 证实与 MLIR 自带 Presburger 同进程无冲突。
+      同时确认 `isl_aff_div` 除数必须是字面常量——`g` 必须在构造 isl 对象
+      前替换为具体值，只有 `theta` 留作 isl 参数，与 CuTe `RightInverse`
+      的既有结论一致。**这一条只是依赖就绪，不是 `ISLContext` 封装本身。**
+- [ ] `ISLContext`：生命周期、错误处理（C API + 自建 RAII，不用
+      `isl-noexceptions.h`）——依赖已就绪，封装本身未写
 - [ ] CuTe layout → `isl_map`：先 `flatten` / `coalesce`，再读 shape/stride
 - [ ] `isl_map` → CuTe layout（求解结果回写）
 - [ ] 单元测试：一组 layout 的往返等价性

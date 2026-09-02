@@ -23,6 +23,7 @@ source-inspected, cross-compiled without running, or explicitly unconfirmed;
 | 2 | P3.5 L2 fine-grained events vs. L1 barrier | ✅ bitwise identical, 50/50 fresh processes; ⚠️ slower than L1 (conservative relaxation) | [E2E_L2 result](experiments/E2E_L2/result.md) |
 | 1 | P3.6 generator generalization (second structurally different model) | ✅ 4-layer MHA passes end to end, no model-structure constants in generated `.cu` | [P3_GENERALIZATION result](experiments/P3_GENERALIZATION/result.md) |
 | 5 | P3.1 CuTe↔ISL three-level inverse policy | ✅ classifier and Tier consequence tested; ⚠️ isl_map round trip not implemented | `test/unit/layout_bridge_test.cpp` |
+| 1 | isl/barvinok dependency feasibility + MLIR coexistence | ✅ built, linked, and running alongside MLIR; ⚠️ not yet the semantic authority (Part 3 code migration not started) | [DEPENDENCIES](DEPENDENCIES.md), [P3_ISL result](experiments/P3_ISL/result.md) |
 
 ## Reproduction policy
 

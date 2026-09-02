@@ -13,6 +13,8 @@ docs/experiments/V_D/traits_probe
 docs/experiments/E2E/e2e
 docs/experiments/E2E_GEN/generated_e2e
 docs/experiments/E2E_GEN/handwritten_e2e
+docs/experiments/P3_ISL/raw/crosslink_probe
+docs/experiments/P3_ISL/raw/parametric_div_probe
 *.ncu-rep
 *.nsys-rep
 __pycache__/

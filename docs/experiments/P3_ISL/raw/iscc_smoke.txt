@@ -1,0 +1,5 @@
+== iscc smoke tests (barvinok's isl-syntax counting tool) ==
+[n] -> { n : n > 0 }
+True
+-- parametric divisor: g (Tm) literal, theta (S) symbolic --
+[S] -> { floor((127 + S)/128) : S > 0 }
