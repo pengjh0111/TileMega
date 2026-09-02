@@ -2,6 +2,12 @@
 
 **TileMega** is a compiler framework for automatically constructing and optimizing persistent megakernels at tile granularity. Its key novelty is a **parameterized Coupling Graph** that represents inter-operator task dependencies as closed-form symbolic relations over model shapes and execution granularity, allowing task partitioning, synchronization, communication, and CTA placement to be optimized jointly rather than fixed ahead of time. Built on CuTe for layout representation and ISL/Barvinok for symbolic dependence and cost analysis, TileMega turns megakernel orchestration into a reusable symbolic optimization problem and lowers the optimized result to CUDA/CUTLASS-based persistent kernels.
 
+## Architecture
+
+<p align="center">
+  <img src="docs/TileMega_architecture1.png" width="100%">
+</p>
+
 ## Dependencies
 
 | Dependency | Version | Notes |
