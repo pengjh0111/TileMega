@@ -18,18 +18,36 @@ struct TaskSpaceId {
 
 /// sum_i(coeff_i(theta,g) * coordinate_i) plus a parameter-only offset.
 struct AffineExpr {
+  /// coefficient * floordiv(coordinate, group).  `group` defaults to 1, which
+  /// is the plain affine term.  A group greater than one is what a GQA head
+  /// map needs (kv_head = floor(query_head / (n_h / n_kv))); it is kept as a
+  /// first-class term because folding it into a coefficient would be wrong.
   struct Term {
     std::string coordinate;
     ClosedForm coefficient = ClosedForm::Constant(1);
+    ClosedForm group = ClosedForm::Constant(1);
   };
 
   std::vector<Term> terms;
   ClosedForm offset = ClosedForm::Constant(0);
+  /// Floor divisor applied to the whole sum.  A value of 1 (the default) is a
+  /// plain affine expression and is not printed.  Anything else denotes
+  /// floordiv(sum, divisor), which §2.7 edge 5 (`(s,hh,j) -> (floor(s/Tm), hh)`)
+  /// requires; it is exact only because the projected extent is one element.
+  ClosedForm divisor = ClosedForm::Constant(1);
 
   static AffineExpr Constant(ClosedForm value);
   static AffineExpr Variable(std::string coordinate,
-                             ClosedForm coefficient = ClosedForm::Constant(1));
+                             ClosedForm coefficient = ClosedForm::Constant(1),
+                             ClosedForm group = ClosedForm::Constant(1));
   AffineExpr operator+(AffineExpr const& rhs) const;
+  AffineExpr operator*(ClosedForm const& scale) const;
+  /// Divide every coefficient and the offset exactly.  Returns false when any
+  /// part does not cancel; the caller must then relax rather than guess.
+  bool TryExactDivide(ClosedForm const& d, AffineExpr* quotient) const;
+  /// Coordinates that occur in this expression.
+  std::vector<std::string> Coordinates() const;
+  bool IsZero() const;
   std::string ToString() const;
 };
 

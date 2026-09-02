@@ -15,10 +15,11 @@ AffineExpr AffineExpr::Constant(ClosedForm value) {
 }
 
 AffineExpr AffineExpr::Variable(std::string coordinate,
-                                ClosedForm coefficient) {
+                                ClosedForm coefficient, ClosedForm group) {
   if (coordinate.empty()) throw std::invalid_argument("empty coordinate");
   AffineExpr result;
-  result.terms.push_back({std::move(coordinate), std::move(coefficient)});
+  result.terms.push_back(
+      {std::move(coordinate), std::move(coefficient), std::move(group)});
   return result;
 }
 
@@ -29,18 +30,57 @@ AffineExpr AffineExpr::operator+(AffineExpr const& rhs) const {
   return result;
 }
 
+AffineExpr AffineExpr::operator*(ClosedForm const& scale) const {
+  AffineExpr result = *this;
+  for (auto& term : result.terms) term.coefficient = term.coefficient * scale;
+  result.offset = result.offset * scale;
+  return result;
+}
+
+bool AffineExpr::TryExactDivide(ClosedForm const& d, AffineExpr* quotient) const {
+  if (!quotient) return false;
+  if (!divisor.IsLiteral(1)) return false;  // nested floordiv: not established
+  AffineExpr result;
+  for (auto const& term : terms) {
+    ClosedForm scaled = ClosedForm::Constant(0);
+    if (!term.coefficient.TryExactDivide(d, &scaled)) return false;
+    result.terms.push_back({term.coordinate, scaled, term.group});
+  }
+  if (!offset.TryExactDivide(d, &result.offset)) return false;
+  *quotient = result;
+  return true;
+}
+
+std::vector<std::string> AffineExpr::Coordinates() const {
+  std::vector<std::string> result;
+  for (auto const& term : terms) result.push_back(term.coordinate);
+  return result;
+}
+
+bool AffineExpr::IsZero() const {
+  return terms.empty() && offset.IsConstant() && offset.Eval({}, {}) == 0 &&
+         divisor.IsLiteral(1);
+}
+
 std::string AffineExpr::ToString() const {
   std::ostringstream out;
   bool emitted = false;
   for (auto const& term : terms) {
     if (emitted) out << " + ";
-    out << term.coefficient.ToString() << "*" << term.coordinate;
+    if (!term.coefficient.IsLiteral(1)) out << term.coefficient.ToString() << "*";
+    if (term.group.IsLiteral(1))
+      out << term.coordinate;
+    else
+      out << "floordiv(" << term.coordinate << ", " << term.group.ToString()
+          << ")";
     emitted = true;
   }
   if (!offset.IsConstant() || offset.Eval({}, {}) != 0 || !emitted) {
     if (emitted) out << " + ";
     out << offset.ToString();
   }
+  if (!divisor.IsLiteral(1))
+    return "floordiv(" + out.str() + ", " + divisor.ToString() + ")";
   return out.str();
 }
 
@@ -115,10 +155,15 @@ std::string AffineRelation::ToString() const {
       if (i) out << ",";
       out << producer.coordinates[i].ToString();
     }
+    bool any = !producer.coordinates.empty();
     for (auto const& range : producer.quantified) {
-      if (!producer.coordinates.empty() || &range != &producer.quantified.front())
-        out << ",";
+      bool already = false;
+      for (auto const& coordinate : producer.coordinates)
+        if (coordinate.ToString() == range.name) already = true;
+      if (already) continue;
+      if (any) out << ",";
       out << range.name;
+      any = true;
     }
     out << ")";
     if (!producer.quantified.empty()) {

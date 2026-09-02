@@ -78,6 +78,9 @@ add_library(tilemega STATIC
   lib/Analysis/ClosedForm.cpp
   lib/Analysis/AffineRelation.cpp
   lib/Analysis/Analysis.cpp
+  lib/Analysis/AccessRelation.cpp
+  lib/Analysis/CouplingDerivation.cpp
+  lib/Analysis/ReferenceModels.cpp
   lib/Solver/Solver.cpp
   lib/Codegen/Codegen.cpp
   lib/Runtime/EventBuffer.cpp
@@ -128,6 +131,11 @@ target_link_libraries(tilemega-calibrate PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-calibrate PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
+add_executable(tilemega-derive tools/tilemega-derive.cpp)
+target_link_libraries(tilemega-derive PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-derive PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
 add_custom_target(check-policy
   COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckPolicy.cmake
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -168,6 +176,10 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(coupling_types_test PRIVATE TileMega::tilemega)
   add_test(NAME coupling_types COMMAND coupling_types_test)
 
+  add_executable(table27_test test/unit/table27_test.cpp)
+  target_link_libraries(table27_test PRIVATE TileMega::tilemega)
+  add_test(NAME table27 COMMAND table27_test)
+
   add_executable(cg_attr_test test/unit/cg_attr_test.cpp)
   add_dependencies(cg_attr_test TileMegaCGIncGen)
   target_link_libraries(cg_attr_test PRIVATE TileMega::tilemega MLIRIR)
@@ -201,6 +213,9 @@ if(TARGET check-cg-lit)
 endif()
 if(TARGET target_spec_test)
   add_dependencies(check-tilemega target_spec_test)
+endif()
+if(TARGET table27_test)
+  add_dependencies(check-tilemega table27_test)
 endif()
 if(TARGET coupling_types_test)
   add_dependencies(check-tilemega coupling_types_test)

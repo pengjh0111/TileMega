@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include <llvm/ADT/Hashing.h>
 
 namespace tilemega::analysis {
@@ -39,6 +40,18 @@ class ClosedForm {
   long Eval(ParamBinding const& theta, ParamBinding const& g) const;
   std::string ToString() const;
   bool IsConstant() const;
+  /// True when the expression is the literal constant `value`.  Used by the
+  /// derivation to recognise the exact cases; it never guesses.
+  bool IsLiteral(long value) const;
+  /// Structural exact division.  Returns true and writes the quotient only
+  /// when `divisor` cancels symbolically (matching multiplicative factors, or
+  /// an integer constant that divides evenly, distributed over sums).  A false
+  /// result means "not established", never "not divisible": callers must fall
+  /// back to a conservative relaxation rather than inventing a quotient.
+  bool TryExactDivide(ClosedForm const& divisor, ClosedForm* quotient) const;
+  /// Multiplicative factors in canonical order, used by TryExactDivide and by
+  /// diagnostics.  A non-product expression yields a single factor.
+  std::vector<std::string> FactorStrings() const;
   friend bool operator==(ClosedForm const& lhs, ClosedForm const& rhs) {
     return lhs.ToString() == rhs.ToString();
   }

@@ -71,7 +71,7 @@ int main() {
   REQUIRE(edge1.metrics.wait.Eval(theta, g) == 1);
   REQUIRE(edge7.metrics.wait.Eval(theta, g) == 4096);
   REQUIRE(edge11.metrics.wait.Eval(theta, g) == 2);
-  REQUIRE(edge1.C.ToString().find("rmsnorm1(1*m)") != std::string::npos);
+  REQUIRE(edge1.C.ToString().find("rmsnorm1(m)") != std::string::npos);
   REQUIRE(edge11.C.Producers().size() == 2);
 
   // §2.5: split-K is a reparameterization of the already-derived relation.

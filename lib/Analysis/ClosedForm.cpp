@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ClosedForm.h>
 
+#include <algorithm>
 #include <functional>
 #include <cctype>
 #include <cstdlib>
@@ -178,6 +179,10 @@ ClosedForm ClosedForm::operator+(ClosedForm const& rhs) const {
   if (IsConstant() && rhs.IsConstant()) {
     return Constant(Eval({}, {}) + rhs.Eval({}, {}));
   }
+  // Identity folding.  Not an optimization: an unfolded `0 + x` makes every
+  // derived quantity print as a tree, and the §2.7 comparison is textual.
+  if (IsLiteral(0)) return rhs;
+  if (rhs.IsLiteral(0)) return *this;
   auto node = std::make_shared<Node>();
   node->kind = Node::Kind::kAdd;
   node->lhs = node_;
@@ -189,6 +194,9 @@ ClosedForm ClosedForm::operator*(ClosedForm const& rhs) const {
   if (IsConstant() && rhs.IsConstant()) {
     return Constant(Eval({}, {}) * rhs.Eval({}, {}));
   }
+  if (IsLiteral(0) || rhs.IsLiteral(0)) return Constant(0);
+  if (IsLiteral(1)) return rhs;
+  if (rhs.IsLiteral(1)) return *this;
   auto node = std::make_shared<Node>();
   node->kind = Node::Kind::kMultiply;
   node->lhs = node_;
@@ -207,6 +215,13 @@ ClosedForm ClosedForm::CeilDiv(ClosedForm const& divisor) const {
     long remainder = numerator % denominator;
     return Constant(quotient + (remainder > 0 ? 1 : 0));
   }
+  if (divisor.IsLiteral(1)) return *this;
+  // ceildiv(1, k) == 1 for every k >= 1, and every tile/extent is >= 1.
+  if (IsLiteral(1)) return Constant(1);
+  // An established exact division has no remainder, so ceil is the quotient.
+  // This is what turns ceildiv(n_h * d, d) into n_h.
+  ClosedForm quotient = Constant(0);
+  if (TryExactDivide(divisor, &quotient)) return quotient;
   auto node = std::make_shared<Node>();
   node->kind = Node::Kind::kCeilDiv;
   node->lhs = node_;
@@ -225,6 +240,7 @@ ClosedForm ClosedForm::FloorDiv(ClosedForm const& divisor) const {
     if (remainder < 0) --quotient;
     return Constant(quotient);
   }
+  if (divisor.IsLiteral(1)) return *this;
   auto node = std::make_shared<Node>();
   node->kind = Node::Kind::kFloorDiv;
   node->lhs = node_;
@@ -291,6 +307,84 @@ std::string ClosedForm::ToString() const {
     throw std::logic_error("unknown closed-form node");
   };
   return print(node_);
+}
+
+bool ClosedForm::IsLiteral(long value) const {
+  return node_->kind == Node::Kind::kConstant && node_->value == value;
+}
+
+std::vector<std::string> ClosedForm::FactorStrings() const {
+  std::vector<std::string> result;
+  std::function<void(std::shared_ptr<Node const> const&)> walk =
+      [&](std::shared_ptr<Node const> const& node) {
+        if (node->kind == Node::Kind::kMultiply) {
+          walk(node->lhs);
+          walk(node->rhs);
+          return;
+        }
+        result.push_back(ClosedForm(node).ToString());
+      };
+  walk(node_);
+  std::sort(result.begin(), result.end());
+  return result;
+}
+
+bool ClosedForm::TryExactDivide(ClosedForm const& divisor,
+                                ClosedForm* quotient) const {
+  if (!quotient) return false;
+  if (divisor.IsLiteral(1)) { *quotient = *this; return true; }
+  if (IsLiteral(0)) { *quotient = Constant(0); return true; }
+  if (ToString() == divisor.ToString()) { *quotient = Constant(1); return true; }
+  // Distribute over a sum: (a + b) / d is exact iff both halves are.
+  if (node_->kind == Node::Kind::kAdd) {
+    ClosedForm left, right;
+    if (ClosedForm(node_->lhs).TryExactDivide(divisor, &left) &&
+        ClosedForm(node_->rhs).TryExactDivide(divisor, &right)) {
+      *quotient = left + right;
+      return true;
+    }
+    return false;
+  }
+  if (IsConstant() && divisor.IsConstant()) {
+    long numerator = Eval({}, {});
+    long denominator = divisor.Eval({}, {});
+    if (denominator == 0 || numerator % denominator != 0) return false;
+    *quotient = Constant(numerator / denominator);
+    return true;
+  }
+  // Cancel matching multiplicative factors.  Every factor of the divisor must
+  // be matched exactly; a partial match is reported as "not established".
+  std::function<void(std::shared_ptr<Node const> const&,
+                     std::vector<std::shared_ptr<Node const>>&)> factors =
+      [&](std::shared_ptr<Node const> const& node,
+          std::vector<std::shared_ptr<Node const>>& out) {
+        if (node->kind == Node::Kind::kMultiply) {
+          factors(node->lhs, out);
+          factors(node->rhs, out);
+          return;
+        }
+        out.push_back(node);
+      };
+  std::vector<std::shared_ptr<Node const>> mine, theirs;
+  factors(node_, mine);
+  factors(divisor.node_, theirs);
+  std::vector<bool> used(mine.size(), false);
+  for (auto const& want : theirs) {
+    std::string key = ClosedForm(want).ToString();
+    bool matched = false;
+    for (std::size_t i = 0; i < mine.size(); ++i) {
+      if (used[i] || ClosedForm(mine[i]).ToString() != key) continue;
+      used[i] = true;
+      matched = true;
+      break;
+    }
+    if (!matched) return false;
+  }
+  ClosedForm result = Constant(1);
+  for (std::size_t i = 0; i < mine.size(); ++i)
+    if (!used[i]) result = result * ClosedForm(mine[i]);
+  *quotient = result;
+  return true;
 }
 
 bool ClosedForm::IsConstant() const {
