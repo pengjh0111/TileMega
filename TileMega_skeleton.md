@@ -101,7 +101,7 @@ L4    符号形状参数化 + 运行时变体选择
 | L4 Frontend | ✅ | ✅ | V-H；结构化 importer：2 层 GQA 为 30 stage，4 层 MHA 为 60 stage |
 | L3a 符号类型 | ✅ | ✅ | F-14；`coupling_types_test` / `cg_attr_roundtrip` |
 | L3b 耦合推导 | ✅ | ✅ | P3/P3_ISL：`W⁻¹∘R` 为 isl_map，wait/fanout 为 barvinok 计数；§2.7 全 13 行交叉验证（并纠正表中边 3 的 fanout）；Coarsen/I2/事件综合单测 |
-| L2 Solver | 部分 | 部分 | 代价查询与候选枚举：`docs/experiments/BACKEND/`（一个 GEMM 算子 224 个合法候选，216 可编译）；实现契约与一致性校验：`docs/experiments/CONTRACT/`。DP / Label / Place 仍为 ❌ |
+| L2 Solver | 部分 | 部分 | 代价查询与候选枚举：`docs/experiments/BACKEND/`（一个 GEMM 算子 224 个合法候选，216 可编译）；实现契约与一致性校验：`docs/experiments/CONTRACT/`；投入判据：`docs/experiments/ORACLE/`（穷举 `g`，固定值比最优慢 6.11×/6.75×，代价模型 + DP 值得做）。DP / Label / Place 仍为 ❌ |
 | L1 Codegen | ✅ | ✅ | E2E_GEN：表驱动 L0.5/L1/L2；2 层 GQA 50/50、4 层 MHA 25/25 全新进程；L2 逐位等同 L1 且中位数 1.014×/1.016×（`docs/experiments/E2E_L2/`） |
 | L0 Backend | ✅ | ✅ | V-I 四架构交叉编译 |
 
@@ -198,7 +198,12 @@ L4    符号形状参数化 + 运行时变体选择
   证明了耦合推导算法本身不依赖 Llama 结构，但它们没有经过这条 Frontend
   路径进入生成器。
 - **L2 Solver、簇内/局部同步、事件粗化 κ 未实现**：按本轮任务范围显式排除
-  （`g` 固定、同步全部 `global`、不做性能优化），Phase 4 待启动。
+  （`g` 固定、同步全部 `global`、不做性能优化），Phase 4 待启动。现在这条债
+  有了价签：那个固定的 `g` 在两个参考模型上分别慢 **6.11×** 和 **6.75×**，
+  排在 1077 个合法候选的第 951 / 960 位（`docs/experiments/ORACLE/`）。
+  也就是说，本轮所有 L0.5/L1/L2 的绝对延迟数字都是在一个接近最差四分位的
+  粒度上测的；层级之间的**相对**比较不受影响（同一 `g` 下比较），但任何
+  与外部实现的绝对对比都必须先换掉这个默认值。
 - **分析层的耦合推导尚未接入真实前端路径**（本轮新发现，且与迁移无关——
   迁移前就是如此）：`lib/Frontend/Frontend.cpp` 从 `export_bridge.json`
   构造 CG 时**并不调用** `CouplingDerivation`。它按每个 ATen `call_function`
@@ -826,6 +831,12 @@ TaskBody 的 `TaskDesc / context / SharedStorage / result` ABI 保持架构无�
 大参数表一律以**设备端指针**传入，禁止按值复制进 kernel 参数：实测 14 个 GEMM
 的参数包按值传递产生 2592B 栈帧和 5× 劣化，指针形式降到 32B。（F-17）
 
+TaskBody 必须用 grid-stride 循环遍历自己的 task
+（`for (task = blockIdx.x; task < count; task += gridDim.x)`），
+不得假设 `task 数 ≤ grid`。这不是性能问题而是正确性问题：`g` 固定时该假设
+恰好成立，一旦 tile 变小或 split-K 打开就不成立，多出来的 task 被静默丢弃，
+表现为结果错而不是崩溃（实测 512 task / 384 grid，4090 个元素不匹配）。（F-36）
+
 ## 5.4 Megakernel 骨架
 
 ```cpp
@@ -1243,6 +1254,11 @@ tilemega/
       （此前 `1.182×` / `1.355×`）。**仍然是慢，不是快**；三步各自可归因，
       且第三步给出了 `kIdentity` 的实测天花板。数据与归因见
       `docs/experiments/E2E_L2/result.md`
+- [x] L2 还有一项此前没有计入的成本：事件 epoch 占寄存器，在某些 `g` 下比 L1
+      多一整档（实测 144 vs 128 → 1 vs 2 CTA/SM），于是**整个 harness**（含
+      L0.5 和 L1）的 grid 被 L2 拉到一半。这不是调度开销而是资源占用，
+      `E2E_L2` 的 1.4% 差值没有覆盖它——那里 L1 与 L2 的 occupancy 恰好相同。
+      按 L1 定 grid 再启动 L2 会直接死锁，修法与谓词见 §8.7（F-38）
 
 ### P3.6 生成器一般化（去掉 Llama 结构写死）
 
@@ -1322,8 +1338,9 @@ tilemega/
       与 CUTLASS traits 在 300/300 上逐字段相等，二者由三条 `static_assert`
       锁死（`CutlassGemmCandidate.h`），所以剪枝走闭式而不是编译。
 - [x] nvcc 路径：`--ptxas-options=-v` 解析（`ParsePtxasRegisters`）。
-      2240 次真编译 32 路并行 1937.49s（0.865s/候选 wall）。
-- [x] 批量：整个候选空间「枚举 + 排序」< 1.4ms，对照真编译约 32 CPU·小时。
+      2240 次真编译 32 路并行 1893.85s（0.845s/候选 wall；单编译串行实测
+      21.2s，所以 32 路实际拿到 25.1 倍）。
+- [x] 批量：整个候选空间「枚举 + 排序」< 1.4ms，对照真编译 13.2 CPU·小时。
 - [ ] `[!]` 缓存尚未进库：目前只有实验脚本按文件缓存
       （`docs/experiments/ORACLE/run.sh`），查询接口本身每次重算。闭式 3µs
       的量级下这不是瓶颈，但 tier 3 的结果值得落盘。
@@ -1340,6 +1357,11 @@ tilemega/
       合法候选是 **224** 个（300 → 264 形状合法 → 224 装得下 smem → 216 真
       能编译）。不改口径去凑这个数字；8~20 是层2 对齐传播（P4.3）之后才
       可能出现的量级，层1 单独做不到。
+- [!] **split-K 这根轴层1 剪不掉**：它是 host 侧的粒度选择而不是 collective
+      的 trait，合法性是运行时的 `split_k ≤ k_tiles`。所以 224 个形状要乘满
+      5 个 split 因子 = 1120 个配置进 tier 3，而层1 只把 1500 削到 1120
+      （25.3%）。P6.2 的 oracle 显示 split-K 单独值 2.0~2.1×、且出现在
+      **每一个** top-10% 配置里，把它留给固定默认值就是剪错了轴。
 - [!] tier 2 排序的诚实结果：实测最优 `32x32x32s3` 在解析排序里排 **42/224**，
       而排序前 8 名全部**编译失败**（`cute/int_tuple.hpp(890)`，80 例同一处）。
       collective 级 traits 合法 ≠ megakernel 可编译。缺的是访存项，
@@ -1353,6 +1375,15 @@ tilemega/
 - [ ] 度量剪枝效果（联合空间塌缩比例）
 
 ### P4.4 代价模型
+
+P6.2 的 oracle 已给出投入判据：固定 `g` 与最优 `g` 相差 **6.11×**（2 层 GQA）
+和 **6.75×**（4 层 MHA），远过 §6.4 的 10% 门槛，所以代价模型 + DP 值得做。
+两条限定条件改变了要做成什么样：
+
+- **目标是落进平台期，不是找到 argmin。** top-34 个配置挤在 ±10% 带内，
+  25 进程中位数都分不开它们（两次独立复现选出不同的冠军，冠军本身漂 9.04%）。
+  精确到能挑出唯一最优的模型，是在买硬件不提供的分辨率。
+- **split-K 必须是模型的一个自变量**（见 P4.2）。
 
 - [ ] roofline：`max(T_compute, T_memory)`
 - [ ] `T_quant`：`count` 用 barvinok
@@ -1368,6 +1399,11 @@ tilemega/
 - [ ] `DP[i][g] = min_{g'} { DP[i−1][g'] + Cost_i(g) + Interface(g',g) }`
 - [ ] 分叉处（gate/up 并行）：series-parallel 分解或强制同 tile
 - [ ] 复杂度目标 `O(层数 × |C|²)`
+- [ ] `g` 的状态里必须含 split 因子；`Interface(g',g)` 要计 split-K 的
+      reduction stage，实测它占最优配置总时间的 24~26%（不是可忽略项）
+- [ ] 逐算子 `g` vs 全局统一 `g`：oracle 只扫了统一 `g`，而在统一最优下
+      单个 GEMM 的改善幅度从 4.9× 到 12.1× 不等，说明逐算子还有空间——这是
+      DP 真正要回答的问题，oracle 没有回答
 
 ### P4.6 Coarsen（事件粒度 κ）
 
@@ -1458,7 +1494,13 @@ chunked prefill（Tier 2，regime C 的载体）、MoE 路由（Tier 3 的 indpt
 
 - [ ] **bucketing 损失曲线**：扫 batch = 1..128，「逐形状最优」vs
       「power-of-two 向上取整复用」。不依赖代价模型精度，纯结构性损失
-- [ ] **划分 oracle**：固定 Place 与事件结构，穷举 `g`，看最优 vs 启发式常数
+- [x] **划分 oracle**：固定 Place 与事件结构，穷举 `g`（tile 形状 × stages ×
+      split 因子），两个模型各 1077 个可运行且逐位正确的配置。固定值
+      `128x128x16s3k1` 排 951/1077 与 960/1077，最优比它快 **6.11× / 6.75×**；
+      差距全部落在 GEMM stage（占比 93% → 67%，两模型的 14 个 / 28 个 GEMM 无一劣化）；
+      分布是「少数配置显著好」——5% 内只有 10 个，中位数是最优的 2×，
+      最差 1489× / 1572×。总耗时 4846.56s。
+      结论与两条限定见 P4.4；数据见 `docs/experiments/ORACLE/result.md`。
 - [ ] Coarsen（κ）消融
 - [ ] Label（簇）消融
 - [ ] 混合 batch regime 对比
@@ -1541,6 +1583,13 @@ norm/RoPE 一类小 tile。（F-1、F-3、F-10）
 只有在此条件下不相加；分离对象的地址逃逸会使生命周期重叠，实测退化为 36864B，
 occupancy 从 6 降到 2 CTA/SM。（F-8）
 
+union 之后的 smem 项**仍然是绑定项**，不是记账细节：在 1077 个真实候选上
+smem 项单独决定 occupancy 的有 150 个、与寄存器项并列的有 322 个，只留寄存器
+项会在 150 个候选上算错。闭式
+`min(⌊regs_per_sm/(8·⌈regs·32/gran⌉·threads)⌋, ⌊smem_per_cta/smem⌋,
+⌊threads_per_sm/threads⌋)` 在两个模型各 1077/1077 上与实测相等。（F-40，
+回答了 §9.2 的对应条目）
+
 ## 8.7 共存性
 
 资源容量公式为：
@@ -1554,6 +1603,13 @@ resident_limit = TargetSpec.num_sms
 无法证明流式推进（例如本轮 L1 的每-stage 全 grid barrier）时，才取
 `grid = resident_limit`。可流式图允许更大 grid；cluster kernel 还须使用 cluster
 occupancy 与整簇取整，而不能套普通 CTA 公式。（F-4、F-9）
+
+`resident_limit` 是**每个 kernel** 的量，而共用一个 grid 的多个自旋 kernel
+必须取其**最小值**。L2 的事件 epoch 占寄存器，同一 `g` 下比 L1 多用一档
+（实测 144 vs 128 寄存器 → 1 vs 2 CTA/SM），按 L1 定的 grid 启动 L2 会让一半
+CTA 不驻留，驻留的那一半永远等不到它们的 arrival。谓词
+`occ(l2) < occ(l1) ∧ 最大 stage 的 task 数 > resident(l2)` 在两个模型各 1080
+个候选上与实际死锁**逐个吻合**。（F-38）
 
 ## 8.8 簇内同步优先
 
@@ -1577,11 +1633,12 @@ split-K 用 `k_begin` / `k_count`。
 | R2 | nvcc + 重模板 CUTLASS 编译慢 | 中 | traits 优先，只对 top-k 真编译；缓存 + 并行 |
 | R3 | 簇内通信在实际负载下收益不明 | 中 | 若延迟收益 <2×，Label 降级为可选 |
 | R4 | 并发干扰使代价模型不可靠 | 中高 | 偏差 >30% 则退化为「粗排 + 实测 top-3」 |
-| R5 | Reparam 的收益（划分优化）可能很小 | 高 | 尽早做 P6.2 的划分 oracle |
+| R5 | ~~Reparam 的收益（划分优化）可能很小~~ **已排除** | 高 → 无 | P6.2 的 oracle 已做：6.11× / 6.75×。新的风险不是收益小，而是平台期宽（top-34 在 ±10% 内），见 R10 |
 | R6 | ISL 对参数化 κ 粗投影表达式爆炸 | 中 | 限制 κ 为 2 的幂或受限矩形代数 |
 | R7 | attention TaskBody 的实现工作量 | 中 | 优先复用 CUTLASS FMHA 或 FlashAttention 的 CuTe 实现 |
 | R8 | `cutlass_compiler` 的现代架构路径覆盖不足 | 中 | 仅用于分析层的 layout 表示，不用于 codegen |
 | R9 | mirage / MPK 许可证限制借鉴范围 | 低 | 只借鉴机制设计，不复制代码 |
+| R10 | 代价模型分不出 top-10% 内部的名次（实测两次 25 进程复现选出不同冠军，冠军漂 9.04%） | 中 | 验收口径改为「落进 top 3%」而不是「命中 argmin」；别为不存在的分辨率投入 |
 
 ## 9.2 需要小实验确认
 
@@ -1590,7 +1647,11 @@ split-K 用 `k_begin` / `k_count`。
 - [ ] paged KV 的布局抵消在 prefix caching 下是否严格成立（Tier 1）
 - [ ] CUTLASS FMHA 能否作为 attention TaskBody，还是需要自研
 - [ ] `__cluster_dims__` 与 persistent grid 的交互：簇是否限制 grid 上限
-- [ ] smem union 对 occupancy 的实际影响：task 类型数 3 / 5 / 10 时的 REG / SHM
+- [x] smem union 对 occupancy 的实际影响：**smem 项是真正的绑定项之一**——
+      1077 个真实候选里 150 个由它单独决定 occupancy、322 个与寄存器项并列，
+      只留寄存器项会在 150 个上算错。闭式在 1077/1077 上与实测相等（F-40，
+      §8.6）。⚠️ 只覆盖了本轮的 6 种 task 类型与 256 线程/CTA；
+      「task 类型数 3 / 5 / 10」这条消融没有做。
 
 ## 9.3 设计决策待定
 
