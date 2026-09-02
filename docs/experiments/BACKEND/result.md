@@ -16,7 +16,7 @@ dynamic smem per CTA, 102400 B/SM, 1536 threads/SM), read from
 | 1 — host closed form | legality, threads, smem, cluster, alignment, arch | **2.8–3.1 µs** | 636–700 µs for 224 candidates, `backend_query_test` |
 | 1' — CUTLASS `constexpr` traits | the same, from the collective itself | **65.4 ms** | 19.61 s for 300 candidates, one nvcc TU (`ORACLE/raw/tier1_summary.txt`) |
 | 2 — analytical rank | an ordering, never a verdict | **2.9 µs** | 650 µs for 224 candidates × 14 GEMM shapes |
-| 3 — real nvcc + ptxas | registers, and *actual* compilability | **0.865 s wall at 32-way**, **21.3 s serial** | 1937.49 s for 2240 compiles at 32-way (`ORACLE/raw/tier3_summary.txt`); ✅ one compile of the same TU run alone: 21.28 / 21.50 / 20.05 s wall, 21.2 s user+sys (median) |
+| 3 — real nvcc + ptxas | registers, and *actual* compilability | **0.845 s wall at 32-way**, **21.3 s serial** | 1893.85 s for 2240 compiles at 32-way (`ORACLE/raw/tier3_summary.txt`); ✅ one compile of the same TU run alone: 21.28 / 21.50 / 20.05 s wall, 21.2 s user+sys (median) |
 
 ✅ verified. The tier-1/tier-3 ratio is six to seven orders of magnitude,
 which is the concrete form of last round's 0.176 s vs 4.658 s observation:
@@ -24,8 +24,8 @@ enumerating and ranking the whole space costs less than **1.4 ms**, while
 compiling it costs **13.2 CPU-hours** (2240 × 21.2 s). A middle tier is what
 makes the tier-3 budget spendable on a top-k rather than on the space.
 
-The serial figure is the honest per-candidate cost; the 0.865 s wall is what
-32-way parallelism buys, and 21.2 / 0.865 = 24.5 of a possible 32 is the
+The serial figure is the honest per-candidate cost; the 0.845 s wall is what
+32-way parallelism buys, and 21.2 / 0.845 = 25.1 of a possible 32 is the
 scaling actually achieved. It was measured while the oracle's screening pass
 held the GPU, which costs CPU time but not GPU time — the compile never
 touches the device.

@@ -774,3 +774,131 @@
   medians, bitwise-identical output). Medium for the generalization: a model
   with genuinely wide, independent branches might show a different sign, and
   none of the accepted models has one.
+
+## F-36 — `tasks ≤ grid` was an unstated precondition of every task body
+
+- Finding: `GemmStageTaskBody` mapped one task to one CTA (`int task =
+  blockIdx.x;`). At the hard-coded granularity no stage ever has more tasks
+  than the resident grid, so the assumption held silently for the whole
+  project so far. The oracle sweep is the first thing that varies the tile
+  shape and the split factor, and it breaks it immediately: gqa2 at
+  `16x32x16 stages=2 split_k=16` has a gate/up GEMM with 512 tasks against a
+  resident grid of 384, and the last 128 tasks were never executed. The
+  failure mode is a wrong answer, not a crash.
+- Evidence: pre-fix `gqa2_16x32x16s2k16` reports `grid=384 ctas_per_sm=3
+  smem=6400` and `RESULT status=MISMATCH l05_vs_l0_mismatch=4090`; the
+  post-fix build of the identical config reports the identical resources and
+  `PASS`, so the grid-stride loop costs nothing here. 141 of the 143 pre-fix
+  RUNFAILs recovered (`docs/experiments/ORACLE/raw_gridbound/screen_gqa2.tsv`
+  and `fail_grid.txt` against `raw/screen_gqa2.tsv`); the other 2 are F-37 and
+  1 new one is F-38.
+- Skeleton impact: §2.4's Split is not a free axis for the task bodies. Any
+  body written against the ABI must loop `for (task = blockIdx.x; task <
+  count; task += gridDim.x)`, and that requirement belongs in the ABI text
+  rather than in the one body that happens to have been exercised.
+- Confidence: high. The before/after is the same source at the same flags, and
+  the mismatch count is deterministic.
+
+## F-37 — Trait legality is not compilability, and the gap is in the mainloop
+
+- Finding: 8 of the 224 tile shapes that pass CUTLASS's own `constexpr`
+  legality *and* fit the 101376 B opt-in smem budget fail nvcc outright. All
+  eight are 16×16 tiles (`16x16x{16,32} stages={2,3,4,5}`), 80 compiles across
+  both models and all five split factors. The error is in the SM80 cp.async
+  mainloop, not the epilogue: `cute/int_tuple.hpp(890): error: no operator "<"
+  matches these operands / operand types are: const cute::C<0> < const
+  cute::ArithmeticTuple<int, int>`, instantiated through `cute::copy_if` →
+  `CollectiveMma<MainloopSm80CpAsync<…>>` → `GemmStageTaskBody::operator()`.
+- Evidence: `docs/experiments/ORACLE/raw/tier3_summary.txt`
+  (`tier3_compiled_ok 2160 / tier3_compile_failed 80`) and the failing
+  `raw/log/*.ptxas`.
+- Skeleton impact: this is the empirical case for Part 4's tier 3 existing at
+  all. 3.6% of the trait-legal, smem-legal space does not compile, no
+  host-side query predicts which 3.6%, and the only way to know is to run the
+  compiler. A pruning design that treats tier 1 as a verdict rather than a
+  filter is wrong by that margin.
+- Confidence: high for this CUTLASS revision and nvcc 12.8. The specific 8
+  shapes are a property of the pinned third-party source, not a law.
+
+## F-38 — A persistent spin-wait kernel must be launched at its own resident grid
+
+- Finding: three configurations per model (`128x16x32 stages=2 split_k={4,8,
+  16}`) hung rather than failing. `tilemega_l2_kernel` costs 144 registers
+  against `tilemega_l1_kernel`'s 128 at that granularity — 1 CTA/SM instead of
+  2, a resident grid of 128 instead of 256. The harness derived one grid from
+  L1 and launched both kernels at it, so L2's non-resident CTAs never ran, and
+  the resident ones spun forever on arrivals only those CTAs could make. The
+  general statement: when two persistent kernels share a launch grid, the grid
+  must be the *minimum* over their resident bounds, because a spin-wait
+  kernel's correctness — not merely its performance — depends on every
+  launched CTA being resident.
+- Evidence: gdb pinned the hang to `cudaEventSynchronize` inside `LaunchL2`;
+  an instrumented build printed `DBG l05_done grid=256 / DBG l1_done / DBG
+  l2_launch grid=256` and then nothing. The predicate `occ(l2) < occ(l1) ∧
+  max_stage_tasks > resident_l2` is exact over all 1080 configurations on both
+  models: `occ(l2) < occ(l1)` holds for exactly the five `128x16x32s2k*`
+  configurations (`ORACLE/raw/occupancy_l1_l2_*.tsv`) and exactly the three
+  whose largest stage exceeds 128 tasks hang (k=4 → 256, k=8 → 512, k=16 →
+  1024; k=1 → 64 and k=2 → 128 pass). After taking the minimum over both
+  kernels in `ModelHarness.cuh`, all ten affected configurations PASS at
+  `grid=128` with the recorded per-split output hashes
+  (`ORACLE/raw/f38_verify.tsv`).
+- Skeleton impact: §3's L2 section. The resident-grid rule in §8.2 is stated
+  per kernel; the harness contract needs it stated per *launch*. It also puts
+  a real cost on L2 that F-35 did not measure: L2's extra registers can cost a
+  whole CTA per SM, which halves the grid for L0.5 and L1 as well.
+- Confidence: high. The predicate is exact on 2160 candidate/model pairs, and
+  the fix is verified on all ten affected configurations against known hashes.
+
+## F-39 — The hard-coded GEMM granularity was 6× off, and the optimum is a plateau
+
+- Finding: sweeping `(tile_m, tile_n, tile_k, stages, split_k)` exhaustively
+  over 1077 runnable, bitwise-correct configurations per model shows the
+  hard-coded `128x128x16 stages=3 split_k=1` at rank 951/1077 (gqa2) and
+  960/1077 (mha4). The best configuration is **6.11×** faster on gqa2
+  (1.106944 → 0.181248 ms) and **6.75×** on mha4 (2.192384 → 0.324608 ms),
+  median of 25 fresh processes. The entire difference is in the GEMM stages
+  (93% of control time → 67% of optimum time; every one of the 14/28 GEMMs
+  improves, 4.9×–12.1×); the non-GEMM stages are flat and on mha4 slightly
+  worse (−7%). Tile shape alone is 2.94×/3.16×, split-K contributes a further
+  2.00×/2.14×. The distribution is sharply peaked: only 10 of 1077 within 5%
+  of best, median 2× best, worst 1489×/1572× best.
+- Evidence: `docs/experiments/ORACLE/result.md` and `raw/`. 4846.56 s total
+  wall for both models (19.61 s tier 1, 1893.85 s for 2240 compiles at 32-way,
+  2739.73 s screening, 193.37 s finals).
+- Skeleton impact: §6.4's threshold is >10% for "a full cost model + DP is
+  worth building", and 611%/675% clears it. Two qualifications the data
+  forces: (a) the top ~34 configurations sit inside a ±10% band that a
+  25-process median cannot rank — two independent replicates disagree on the
+  winner and the run-A winner moves 9.04% — so the model needs to land *in*
+  the plateau, not on its argmin; (b) the split factor is 2× on its own and
+  present in every top-10% configuration, yet it is invisible to Part 4's
+  tier-1 traits query, which prunes tile shape only.
+- Confidence: high for the 6× headline (stable control across replicates,
+  25-process medians, verified output hashes). Low for any specific tuple
+  being *the* optimum — see the plateau above. Untested: whether a per-operator
+  `g` beats the best uniform `g`, which is the natural next question and is not
+  what this sweep measured.
+
+## F-40 — The occupancy closed form is exact on 1077 real configurations, and both terms bind
+
+- Finding: `ctas_per_sm = min(⌊65536 / (8·⌈regs·32/256⌉·256)⌋, ⌊101376 /
+  smem⌋, ⌊1536/256⌋)` reproduces the harness's measured occupancy on
+  **1077/1077** configurations for both models, 0 misses. 605 are
+  register-bound, 150 smem-bound, 322 tie; the thread term never binds at 256
+  threads/CTA. Dropping the smem term alone is wrong for 605 candidates;
+  dropping the register term alone is wrong for 150. The register and smem
+  footprints are byte-identical between the 2-layer and 4-layer models for
+  every shared configuration — the generated code is per-granularity, not
+  per-model.
+- Evidence: `docs/experiments/ORACLE/occupancy.sh` (pure re-analysis of
+  `raw/`, no GPU and no compile) and `raw/occupancy_*_summary.txt`.
+- Skeleton impact: Part 4's tier-1 query can answer occupancy from a `g` and a
+  `TargetSpec` alone, with no model argument and no compile — which is what
+  makes the 2.8 µs tier-1 cost achievable. It also settles §9.2's open
+  question about the smem union's effect on occupancy: on this space the smem
+  term is what binds for 150 candidates and ties for 322 more, so the union is
+  not a bookkeeping detail.
+- Confidence: high for sm_89 at 256 threads/CTA. The per-warp allocation
+  granularity of 256 registers is read from `TargetSpec::Probe()`, so the form
+  should carry to other architectures, but that is inferred, not measured.
