@@ -82,6 +82,19 @@ DerivedMetrics ComputeMetrics(AffineRelation const& C, AccessRelation const& W,
 std::vector<ClosedForm> ComputeEventShape(AffineRelation const& C,
                                           OperatorNode const& consumer);
 
+/// I2, machine-checked: does `wide` contain `narrow` as a set of producer
+/// tasks?  This is the substitutability test a Relax must pass before it may
+/// replace an exact edge.
+///
+/// The check is conservative in the safe direction: `true` means containment
+/// was *established*, `false` means "not established" and never "disproved".
+/// A position of `wide` counts as containing the matching position of `narrow`
+/// when it is either literally the same expression, or a quantified variable
+/// ranging over [0, full extent of that producer axis) -- which is exactly the
+/// shape `DeriveCoupling` emits when it relaxes.
+bool Contains(AffineRelation const& wide, AffineRelation const& narrow,
+              OperatorNode const& producer);
+
 class CouplingDerivation {
  public:
   /// Derive every edge of `graph`: one edge per (operator, operand) pair whose

@@ -289,7 +289,7 @@ OperatorGraph MhaModel(DecoderShape const& shape, int layers) {
   return graph;
 }
 
-OperatorGraph GatherModel(DecoderShape const& s) {
+OperatorGraph GatherModel(DecoderShape const& s, bool data_dependent) {
   OperatorGraph graph;
   TensorSpace table = Space("table", {Ax("m", s.S), Ax("n", s.H)});
   graph.nodes.push_back(Node(
@@ -299,7 +299,9 @@ OperatorGraph GatherModel(DecoderShape const& s) {
   graph.nodes.push_back(Node(
       "gather", OperatorKind::kGather,
       Space("routed", {Ax("m", s.S), Ax("n", s.H)}), {s.Tm, s.Tn},
-      {In("produce", table, {Map::DataDependent(), Map::Indexed(1)})}));
+      {In("produce", table,
+          {data_dependent ? Map::DataDependent() : Map::Indexed(0),
+           Map::Indexed(1)})}));
   return graph;
 }
 

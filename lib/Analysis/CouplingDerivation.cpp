@@ -272,6 +272,70 @@ std::vector<ClosedForm> ComputeEventShape(AffineRelation const& C,
   return shape;
 }
 
+namespace {
+
+/// True when `expr` is the bare variable `name`.
+bool IsBareVariable(AffineExpr const& expr, std::string const& name) {
+  return expr.terms.size() == 1 && expr.offset.IsLiteral(0) &&
+         expr.divisor.IsLiteral(1) && expr.terms.front().coordinate == name &&
+         expr.terms.front().coefficient.IsLiteral(1) &&
+         expr.terms.front().group.IsLiteral(1);
+}
+
+AffineRange const* FindRange(ProducerMap const& map, std::string const& name) {
+  for (auto const& range : map.quantified)
+    if (range.name == name) return &range;
+  return nullptr;
+}
+
+/// Position `i` of `map` covers the whole producer axis `i`.
+bool CoversAxis(ProducerMap const& map, std::size_t i,
+                OperatorNode const& producer) {
+  if (i >= map.coordinates.size()) return false;
+  AffineExpr const& coordinate = map.coordinates[i];
+  if (coordinate.terms.size() != 1) return false;
+  AffineRange const* range = FindRange(map, coordinate.terms.front().coordinate);
+  if (!range) return false;
+  if (!IsBareVariable(coordinate, range->name)) return false;
+  if (!range->begin.IsZero()) return false;
+  return range->extent.ToString() == producer.CoordinateExtent(i).ToString();
+}
+
+bool CoversMap(ProducerMap const& wide, ProducerMap const& narrow,
+               OperatorNode const& producer) {
+  if (!(wide.source == narrow.source)) return false;
+  if (wide.coordinates.size() != narrow.coordinates.size()) return false;
+  for (std::size_t i = 0; i < wide.coordinates.size(); ++i) {
+    if (CoversAxis(wide, i, producer)) continue;
+    if (wide.coordinates[i].ToString() != narrow.coordinates[i].ToString())
+      return false;
+    // Same expression: the quantified ranges behind it must agree too.
+    for (auto const& name : wide.coordinates[i].Coordinates()) {
+      AffineRange const* a = FindRange(wide, name);
+      AffineRange const* b = FindRange(narrow, name);
+      if (!a && !b) continue;
+      if (!a || !b) return false;
+      if (a->begin.ToString() != b->begin.ToString()) return false;
+      if (a->extent.ToString() != b->extent.ToString()) return false;
+    }
+  }
+  return true;
+}
+
+}  // namespace
+
+bool Contains(AffineRelation const& wide, AffineRelation const& narrow,
+              OperatorNode const& producer) {
+  if (narrow.Producers().empty()) return true;
+  for (auto const& want : narrow.Producers()) {
+    bool covered = false;
+    for (auto const& have : wide.Producers())
+      if (CoversMap(have, want, producer)) covered = true;
+    if (!covered) return false;
+  }
+  return true;
+}
+
 std::vector<CouplingEdge> CouplingDerivation::Derive(
     OperatorGraph const& graph) const {
   std::vector<CouplingEdge> edges;

@@ -52,6 +52,9 @@ OperatorGraph MhaModel(DecoderShape const& shape, int layers);
 /// An artificial Tier 3 case: a gather whose index tensor is only known at run
 /// time.  It must degrade to an operator-level barrier, not to a fake affine
 /// relation.
-OperatorGraph GatherModel(DecoderShape const& shape);
+/// `data_dependent = false` builds the same graph with an affine index, so a
+/// test can compare the relaxed relation against the exact one it must contain.
+OperatorGraph GatherModel(DecoderShape const& shape,
+                          bool data_dependent = true);
 
 }  // namespace tilemega::analysis
