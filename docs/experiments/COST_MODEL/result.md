@@ -98,10 +98,13 @@ under the model.
 | full + envelope depth | 23.90 | 0.9361 | 1 | 3 | 7 | 17 |
 | full − lanes (smem only) | 25.17 | 0.9429 | 1 | 3 | 6 | 12 |
 
-The model's top-1 on **both** models is `16x64x16s3k16`. It measures
-0.165088 ms on gqa2 (measured optimum 0.148352 ms, top-3 % cutoff 0.171808 ms)
-and 0.321792 ms on mha4 (measured optimum 0.313568 ms, cutoff 0.334816 ms —
-measured rank **5 of 1077**).
+The model's top-1 on **both** models is `16x64x16s2k16`. It measures
+0.165856 ms on gqa2 (measured optimum 0.148352 ms, top-3 % cutoff 0.171808 ms,
+measured rank **14 of 1077**) and 0.322624 ms on mha4 (measured optimum
+0.313568 ms, cutoff 0.334816 ms, measured rank **8 of 1077**).  The next two
+model ranks are the same tile at `stages` 3 and 4, which measure within 0.5 %
+of it on both models — the model is choosing between points the measurement
+cannot separate, which is §0.3's premise restated.
 
 ### §2.5 acceptance
 

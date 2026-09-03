@@ -303,7 +303,7 @@ int main(int argc, char** argv) try {
       PrintScore(summary, source.name, layer.name, score);
       PrintScore(std::cout, source.name, layer.name, score);
 
-      if (std::string(layer.name) == "+nongemm") {
+      if (std::string(layer.name) == "+nongemm(full)") {
         std::ofstream detail(out_dir + "/predictions_" + source.name + ".tsv");
         detail << "tile_m\ttile_n\ttile_k\tstages\tsplit_k\tctas_per_sm"
                   "\tmeasured_ms\tmodel_ms\tgemm_ms\tcombine_ms\tother_ms"
