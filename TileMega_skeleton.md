@@ -101,7 +101,7 @@ L4    符号形状参数化 + 运行时变体选择
 | L4 Frontend | ✅ | ✅ | V-H；结构化 importer：2 层 GQA 为 30 stage，4 层 MHA 为 60 stage |
 | L3a 符号类型 | ✅ | ✅ | F-14；`coupling_types_test` / `cg_attr_roundtrip` |
 | L3b 耦合推导 | ✅ | ✅ | P3/P3_ISL：`W⁻¹∘R` 为 isl_map，wait/fanout 为 barvinok 计数；§2.7 全 13 行交叉验证（并纠正表中边 3 的 fanout）；Coarsen/I2/事件综合单测 |
-| L2 Solver | 部分 | 部分 | 代价查询与候选枚举：`docs/experiments/BACKEND/`（一个 GEMM 算子 224 个合法候选，216 可编译）；实现契约与一致性校验：`docs/experiments/CONTRACT/`；投入判据：`docs/experiments/ORACLE/`（穷举 `g`，固定值比最优慢 6.11×/6.75×，代价模型 + DP 值得做）。DP / Label / Place 仍为 ❌ |
+| L2 Solver | ✅ | ✅ | 代价查询与候选枚举：`docs/experiments/BACKEND/`（一个 GEMM 算子 224 个合法候选，216 可编译）；实现契约与一致性校验：`docs/experiments/CONTRACT/`；投入判据：`docs/experiments/ORACLE/`（穷举 `g`，固定值比最优慢 6.11×/6.75×）。标定：`docs/experiments/CALIB/`。代价模型在 2154 个实测点上 ρ = 0.9450 / 0.9435、top-3 落在实测 top-3%，单配置 < 33 µs（`docs/experiments/COST_MODEL/`）。链上 DP：`docs/experiments/SOLVER/`，选中的 `16x64x16s2k16` 在 25 进程终测里排 2/15 与 1/13，比 tier-1-only 对照快 1.214% / 0.769%。Label 实现完毕但簇消融要 sm_90+（`docs/experiments/CLUSTER/`）；Coarsen 已消融、κ 不进 DP（`docs/experiments/COARSEN/`）；Place 已给出投入判据、时间局部性目标 < 2% 故不建 list scheduling（`docs/experiments/PLACE/`） |
 | L1 Codegen | ✅ | ✅ | E2E_GEN：表驱动 L0.5/L1/L2；2 层 GQA 50/50、4 层 MHA 25/25 全新进程；L2 逐位等同 L1 且中位数 1.014×/1.016×（`docs/experiments/E2E_L2/`） |
 | L0 Backend | ✅ | ✅ | V-I 四架构交叉编译 |
 
@@ -1611,10 +1611,46 @@ P6.2 的 oracle 已给出投入判据：固定 `g` 与最优 `g` 相差 **6.11×
 
 ### P4.8 层5 Place
 
-- [ ] 分层 DAG 上的 list scheduling（关键路径优先）
-- [ ] 掩盖同步延迟：队列顺序让等待被独立 task 填充
-- [ ] 时间局部性：`|R(c₁) ∩ R(c₂)|` 用 barvinok
-- [ ] oracle 判断投入价值：round-robin vs 强启发式 vs oracle，差距 <2% 则简化
+- [x] 时间局部性：`|R(c₁) ∩ R(c₂)|` 用 barvinok（`place_probe.cpp`，
+      `isl_map_card` 精确计数，不抽样）。两模型 126 个操作数、0 个数不出来：
+      gqa2 26 退化 / 20 有结构，mha4 44 / 36。有结构的只有一种事实的三种写法
+      ——GEMM 的 A 操作数沿 `n` 全共享（`n=524288`、宽的那条 `1835008`）、
+      沿 `m` 零共享；注意力的 K/V 沿 chunk 轴全共享、跨 head 零共享。
+- [x] oracle 判断投入价值。**先做这一条，结论与预期相反，两条都记下来**：
+      60 轮交错配对、5 个臂、两模型 600 个全新进程，全部 60/60 PASS
+      （置换会同时改 task 下标、`active` 与事件组，任何一个不同步就是竞态，
+      所以每个臂都必须每次都对）。噪声底由 `ident2`——与 `ident` 逐字节相同
+      的第二个二进制——现场测出：`l2_ms` 上 0.148% / 0.144%。
+      - **§4.3 那个目标函数值 <2%，按骨架自己的判据应当简化**：`scatter`
+        （`31·b mod g`，把下标邻接彻底打散）在 L1 上只有 **+1.204% / −0.751%**
+        ——一个模型略慢、另一个略快。若下标邻接真承载复用，它应该是最贵的臂。
+        所以基于时间局部性的 list scheduling 不值得建。
+      - **但 `pair`——唯一被该目标函数推荐的置换——是最差的臂，L1 上
+        +17.017% / +18.172%（p = 1.7e−11）**，而且原因可从映射本身推出：
+        `grid=256, ctas_per_sm=2, num_sms=128`，pair 把逻辑下标 `L` 放在
+        SM `⌊L/2⌋` 上，于是有 `A` 个活跃 task 的 stage 只用 `⌈A/2⌉` 个 SM，
+        恒等映射用 `min(A,128)` 个——**凡是填不满 grid 的 stage 都只剩半台机器**。
+        这不是启发式的副作用，这就是启发式本身：让同 SM 的 CTA 拿连续下标，
+        等价于把低位下标挤到少数 SM 上。§4.3 的目标函数看不见占用率。
+      - **`reverse` 在 L1 上快 7.053% / 6.939%（p = 1.7e−11），机制未查明**。
+        已排除：不是局部性（reverse 逐位保持邻接，而毁掉邻接的 scatter 只值
+        ~1%）；不是占用率（`g−1−b` 下活跃集落在硬件 CTA `{g−A…g−1}`，每 SM
+        的 CTA 数与恒等映射同一个多重集，只换了驻留槽）；不是 barrier 结构
+        （`GridBarrier` 没有主 CTA，最后到的那个负责 notify）。L1 上的效应比
+        L05 大 5~6 倍，指向反复驻留而不是单次启动的调度。这条**不上车**：
+        7% 是真的、可复现的、两模型一致的，但机制不明的置换换个 fixture 或
+        换个架构就可能反号。记为已测出的余量，不记为已解决。
+- [ ] 分层 DAG 上的 list scheduling（关键路径优先）——**未做，且测量说不要在
+      这个目标函数上做**。留空而不是打勾：真正该建的是什么还没确定。
+- [ ] 掩盖同步延迟：队列顺序让等待被独立 task 填充——未做。
+- [!] 解析半边与硬件半边测的不是同一个尺寸：`place_probe` 绑 `S = 512`，
+      E2E fixture 是 `seq = 4`。后者在 `tile_m = 16` 下**只有一个 M 分片**，
+      于是 `w(c₁,c₂)` 是常数、目标函数在整个置换群上恒等——五个臂的目标值
+      完全相同，而硬件上它们相差 25 个百分点。这条先于测量写下：预测对了
+      "目标函数是平的"，错在由此推出"置换不值钱"。目标函数是平的只说明它是
+      瞎的。两个陈述都不外推到对方的尺寸上。
+- 证据：`docs/experiments/PLACE/result.md`；`raw/affinity.txt`、
+  `raw/place_summary.txt`
 
 ### P4.9 实现契约与一致性校验
 

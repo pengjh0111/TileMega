@@ -1240,3 +1240,33 @@
   already costs +9.8% / +9.5% against the barrier it replaces, and κ only adds.
 - Evidence: docs/experiments/COARSEN/result.md, raw/kappa_arms.tsv,
   raw/kappa_summary.txt.
+
+## F-56 — The placement objective is blind, and the permutation it recommends is the worst arm
+
+- Finding: §4.3's temporal-locality objective `|R(c₁) ∩ R(c₂)|` cannot rank CTA
+  placements on the accepted fixture — with `seq = 4` and `tile_m = 16` every
+  GEMM has one M tile, so `w` is constant and all five arms score identically.
+  The hardware spans 25 percentage points anyway. ✅ verified: 60 interleaved
+  rounds × 5 arms × 2 models, all 60/60 PASS, paired within round.
+- `pair`, the only permutation the objective argues for, is the **worst** arm:
+  L1 **+17.017% / +18.172%**, p = 1.7e−11. The cause is derivable from the map,
+  not from the timing: with `grid=256, ctas_per_sm=2, num_sms=128` it puts
+  logical index `L` on SM `⌊L/2⌋`, so a stage with `A` active tasks occupies
+  `⌈A/2⌉` SMs instead of `min(A,128)` — half the machine on every stage that
+  does not fill the grid. Making co-resident CTAs take consecutive task indices
+  *is* packing the low indices onto few SMs; occupancy is not a term in the
+  objective, so the objective cannot see the cost of its own recommendation.
+- The locality component is worth ≤ ~1%: `scatter` destroys index adjacency
+  entirely and costs +1.204% / −0.751% on L1 — one model slightly worse, one
+  slightly better. Below §P4.8's own 2% simplify threshold, so list scheduling
+  on this objective was not built.
+- ⚠️ `reverse` (`g−1−b`) is **7.053% / 6.939% faster** on L1, p = 1.7e−11, and
+  the mechanism is ❌ not established. Ruled out: locality (it preserves
+  adjacency exactly, and scatter shows adjacency is worth ~1%), occupancy (its
+  active set gives the same per-SM CTA multiset as the identity, on the other
+  resident slot), and barrier structure (`GridBarrier` has no master CTA). The
+  effect is 5–6× larger on L1 than on L05, pointing at repeated residency
+  rather than launch scheduling. Not shipped: a permutation whose mechanism is
+  unknown can invert on the next fixture or architecture.
+- Evidence: docs/experiments/PLACE/result.md, raw/place_summary.txt,
+  raw/affinity.txt; include/tilemega/Codegen/tasks/Placement.cuh.
