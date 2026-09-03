@@ -1029,3 +1029,108 @@
   and neither layer works without the other.
 - Skeleton impact: §2.3 stays, but the justification in §0.3 should cite the
   stage-count/barrier trade, not the reduction's share of the profile.
+
+## F-46 — A block-per-arm A/B protocol makes two identical binaries differ by 0.64% at p = 1.8e-4
+
+- Finding: the first per-operator experiment measured each arm as a block of 25
+  fresh processes. On mha4 the DP's split-only and per-operator plans are the
+  **same plan** — `diff plan_mha4_split_only.h plan_mha4_per_op.h` differs only
+  in a generated comment line — and the two blocks separated by **0.639%** with
+  a Mann-Whitney p of **1.76e-4**. The same run had `uniform` and
+  `best_uniform`, also the same configuration, land on identical medians.
+- Cause: within-session drift, not sampling noise, is the dominant term at this
+  effect size, and a block layout aliases drift onto arm identity. §0.2 already
+  records the winner drifting 9.04% between replicate sessions.
+- Fix: arms are compiled first and then measured **interleaved** — one fresh
+  process per arm per round, the starting arm rotated each round — and reported
+  **paired** on the within-round ratio, so drift shared by a round cancels.
+  Under the paired protocol the same two identical-plan pairs give p = 0.42 and
+  p = 0.80 with confidence intervals straddling zero. ✅ verified.
+- `summarize_per_operator.py` now canonicalises each arm's compiled plan and
+  flags identical-plan pairs automatically, so the null control is reported
+  every run rather than noticed once.
+- Evidence: docs/experiments/SOLVER/result.md §(b).
+
+## F-47 — Shared memory in a multi-variant megakernel is a union, so a narrower tile on one operator buys that operator no occupancy
+
+- Finding: `GemmStageTaskBody` now compiles up to four tile-shape variants into
+  one megakernel, and their `Mainloop::SharedStorage` is spelled as a `union`.
+  The gqa2 per-operator plan mixes `16x64x16s2` (10496 B) with `16x32x16s2`,
+  and the kernel reports `smem=10496 ctas_per_sm=2` — variant 0's footprint,
+  unchanged. ✅ verified (`E2E_RESOURCE` on the `per_op` arm).
+- This is §4.3's globality made concrete and it is why per-operator tiling
+  cannot buy occupancy: `resident_tiles_per_SM` is decided by the global
+  maximum over the shared-memory union and the register maximum, so the only
+  thing a narrower operator can win is its own tile-quantisation waste.
+- Implementation note: `Mainloop::Params` is a member type of the
+  tile-parameterised `CollectiveMma`, so it is a **distinct nominal type per
+  variant** even though its four fields are identical, and
+  `to_underlying_arguments` has no cross-variant overload.
+  `GemmInvocation` therefore carries a variant-independent
+  `GemmMainloopOperands` POD built on the host. The epilogue collective, by
+  contrast, does not depend on the tile at all and is shared across variants.
+  ✅ verified by `static_assert`.
+
+## F-48 — Per-operator `g` is worth 1.2% / 0.8%, and on mha4 all of it is the split factor
+
+- Finding: at 400 interleaved rounds per arm (3200 fresh processes), paired
+  within round, the DP's per-operator plan beats its own best uniform plan by
+  **−1.214%** [−1.371, −1.100] on gqa2 and **−0.769%** [−0.962, −0.645] on
+  mha4, and beats the oracle's measured-best uniform by **−2.820%** on gqa2.
+  ✅ verified.
+- Decomposition: on gqa2 the per-GEMM split factor is worth −0.512% and the
+  per-GEMM *tile shape* a further −1.128% on top of it. On mha4 the DP's
+  per-operator plan **is** its split-only plan, so that contrast is a null
+  control (+0.000%, p = 0.75) rather than a measured zero.
+- The protocol's own floor is two identical-plan pairs at a median of exactly
+  0.000% with CI half-widths of ~0.15%, so every number above is outside the
+  floor.
+- Against §0.3: the per-GEMM improvement range under a uniform optimum is
+  4.9×–12.1×, but almost all of it is already collected by the uniform choice,
+  because the operators with the most to gain are the ones that dominate the
+  total and therefore drive that choice. What per-operator `g` collects is the
+  small operators' residue. Recorded as measured; the expectation was not moved.
+- Skeleton impact: §4.4's per-operator claim should be stated as ~1% on
+  decode-shaped models, not as the per-GEMM spread.
+- Evidence: docs/experiments/SOLVER/result.md §(b),
+  docs/experiments/SOLVER/raw/per_operator_n400.tsv.
+
+## F-49 — The interface term is separable on both reference models, so the chain DP degenerates
+
+- Finding: `ChainDpStats::interface_spread_ns` is **0 ns** on gqa2 and mha4.
+  `Interface(s', s)` does not depend on `s'`, so the O(L·|C|²) transition loop
+  and the per-layer-minimum shortcut reach the same objective to 0 ns, at
+  939 ms vs 16 ms (gqa2) and 2105 ms vs 53 ms (mha4). ✅ verified.
+- Cause: the pair-dependent part is the L2 carry, and both models' live
+  footprints sit below the calibrated L2 knee, so the miss probability — and
+  the whole term — is zero. This is a property of these two models, not of the
+  formulation.
+- The general loop stays the default and the shortcut is checked against it,
+  because a larger working set would make the term non-zero and the shortcut
+  wrong. `interface_spread_ns` is the switch that would catch it.
+- Also verified: `decomposition_error_ns` is 1.46e-11 ns / 5.82e-11 ns, so
+  prefix + Σ Cost_i + Σ Interface + suffix reproduces the whole-model
+  evaluation — no barrier double-charged, no stage charged to nobody.
+- Evidence: docs/experiments/SOLVER/result.md §4.3, raw/summary.txt.
+
+## F-50 — Tier-2 alignment propagation is derived correctly and prunes nothing, because tier-1 tiles are powers of two
+
+- Finding: alignment propagation derives each GEMM's reader granularity from
+  the generated stage table — RoPE and KVAppend expose `head_dim` in `width`,
+  the elementwise tail its row length in `extent` — so §3.2's "QKV columns
+  align to `d`" appears as a derived `Tr = 128` rather than as a hard-coded
+  rule. ✅ verified (`raw/alignment_gqa2.txt`).
+- It then prunes **0 of 1077** candidates per operator on both models, with 0
+  operators unconstrained. Every tier-1 `tile_n ∈ {16,32,64,128,256}` and
+  `tile_k ∈ {8,16,32}` is a power of two, every granularity in these models is
+  a power of two, and a power-of-two tile never straddles a power-of-two reader
+  boundary.
+- Counterfactual, same derivation on a `tile_n` axis stepped by 16: 48 → 21
+  candidates on the QKV operators, joint space 10^23.54 → 10^21.38 on gqa2
+  (≈143×) and 10^47.07 → 10^42.77 on mha4 (≈2.0e4×). ✅ verified. The mechanism
+  binds; the axis it is given does not need it.
+- 1077 = 216 tile shapes × 5 split factors, and the split factor is not an
+  alignment-constrained axis, so even a maximal tier 2 could only touch the 216.
+- The DP solves the uniform problem with and without the mask and prints
+  whether the answer moved; it does not. ✅ verified.
+- Evidence: docs/experiments/SOLVER/alignment.md.
