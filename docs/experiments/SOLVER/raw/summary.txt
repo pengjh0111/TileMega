@@ -1,0 +1,24 @@
+
+== gqa2: 14 GEMMs, 1077 candidates, 1077 measured configurations
+tier 2     = 1077 -> [1077, 1077] candidates per operator (mean 1077), joint space 10^42.451 -> 10^42.451, 0 operators unconstrained
+           counterfactual on a tile_n axis stepped by 16: 48 -> [21, 48] per operator, joint space 10^23.5374 -> 10^21.3832
+uniform g  = 16x64x16s2k16  ctas/sm 2  predicted 0.0939503 ms  measured rank 14/1077 (top-3% band = 32) ACCEPT
+           measured 0.165856 ms vs best 0.148352 ms (11.799% off)
+           tier-1-only control picks 16x64x16s2k16 (same answer)
+split-only = 16x64x16s2 with 2 distinct split factors  predicted 0.0938453 ms (0.111728% below uniform)
+per-op g   = 3 distinct configurations  ctas/sm 2  predicted 0.0914751 ms (2.6346% below uniform)
+           general 19980727 transitions in 1038.94 ms; separable 16.3537 ms; objectives differ by 0 ns
+           interface spread 0 ns, decomposition error 1.45519e-11 ns, 3 residency levels admitted
+
+== mha4: 28 GEMMs, 1077 candidates, 1077 measured configurations
+tier 2     = 1077 -> [1077, 1077] candidates per operator (mean 1077), joint space 10^84.902 -> 10^84.902, 0 operators unconstrained
+           counterfactual on a tile_n axis stepped by 16: 48 -> [21, 48] per operator, joint space 10^47.0748 -> 10^42.7665
+uniform g  = 16x64x16s2k16  ctas/sm 2  predicted 0.188018 ms  measured rank 8/1077 (top-3% band = 32) ACCEPT
+           measured 0.322624 ms vs best 0.313568 ms (2.88805% off)
+           tier-1-only control picks 16x64x16s2k16 (same answer)
+split-only = 16x64x16s2 with 2 distinct split factors  predicted 0.187808 ms (0.111658% below uniform)
+per-op g   = 2 distinct configurations  ctas/sm 2  predicted 0.187808 ms (0.111658% below uniform)
+           general 41498433 transitions in 1917.88 ms; separable 53.1908 ms; objectives differ by 0 ns
+           interface spread 0 ns, decomposition error 5.82077e-11 ns, 3 residency levels admitted
+
+acceptance (a) uniform g inside the measured top 3% on both models: PASS

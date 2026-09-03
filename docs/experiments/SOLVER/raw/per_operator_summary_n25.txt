@@ -1,0 +1,26 @@
+== gqa2   l05, interleaved rounds, one fresh process per arm per round, 25 rounds
+   arm           median    min..max   vs DP uniform (95% CI)     signed-rank p
+   uniform       0.172032  0.168960..0.196608  --                         --
+   split_only    0.172032  0.167936..0.182304   -0.055% [-0.629,+0.655]    8.86e-01
+   per_op        0.171776  0.164864..0.267264   -1.198% [-1.786,+0.409]    9.52e-02
+   best_uniform  0.175104  0.172032..0.178176   +1.775% [+0.699,+2.395]    1.04e-03
+
+   arm           median    min..max   vs oracle best uniform (95% CI) signed-rank p
+   uniform       0.172032  0.168960..0.196608   -1.744% [-2.339,-0.694]    1.04e-03
+   split_only    0.172032  0.167936..0.182304   -1.773% [-2.446,-0.055]    1.99e-02
+   per_op        0.171776  0.164864..0.267264   -2.227% [-3.548,-1.104]    2.81e-04
+   best_uniform  0.175104  0.172032..0.178176  --                         --
+
+== mha4   l05, interleaved rounds, one fresh process per arm per round, 25 rounds
+   arm           median    min..max   vs DP uniform (95% CI)     signed-rank p
+   uniform       0.320480  0.317376..0.488256  --                         --
+   split_only    0.319488  0.311296..0.366688   -0.371% [-1.035,+0.178]    1.75e-01
+   per_op        0.319488  0.312320..0.339968   -0.681% [-1.268,+0.665]    3.33e-01
+   best_uniform  0.320512  0.317440..0.366592   -0.538% [-0.681,+0.651]    7.97e-01
+
+   arm           median    min..max   vs oracle best uniform (95% CI) signed-rank p
+   uniform       0.320480  0.317376..0.488256   +0.541% [-0.647,+0.685]    7.21e-01
+   split_only    0.319488  0.311296..0.366688   -0.661% [-1.278,+0.241]    1.57e-01
+   per_op        0.319488  0.312320..0.339968   -0.369% [-0.673,-0.030]    1.49e-01
+   best_uniform  0.320512  0.317440..0.366592  --                         --
+

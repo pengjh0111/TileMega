@@ -1,0 +1,29 @@
+gemm  n     k     consumer            Tr    producer            Tk    kept
+0     512   512   RoPE       @4       128   RMSNorm    @0       512   1077/1077
+1     512   512   RoPE       @5       128   RMSNorm    @0       512   1077/1077
+2     512   512   KVAppend   @7       128   RMSNorm    @0       512   1077/1077
+3     512   512   RMSNorm    @10      512   Attention  @8       128   1077/1077
+4     1024  512   Elementwise@13      1024  RMSNorm    @10      512   1077/1077
+5     1024  512   Elementwise@13      1024  RMSNorm    @10      512   1077/1077
+6     512   1024  RMSNorm    @15      512   Elementwise@13      1024  1077/1077
+7     512   512   RoPE       @19      128   RMSNorm    @15      512   1077/1077
+8     512   512   RoPE       @20      128   RMSNorm    @15      512   1077/1077
+9     512   512   KVAppend   @22      128   RMSNorm    @15      512   1077/1077
+10    512   512   RMSNorm    @25      512   Attention  @23      128   1077/1077
+11    1024  512   Elementwise@28      1024  RMSNorm    @25      512   1077/1077
+12    1024  512   Elementwise@28      1024  RMSNorm    @25      512   1077/1077
+13    512   1024  RMSNorm    @30      512   Elementwise@28      1024  1077/1077
+14    512   512   RoPE       @34      128   RMSNorm    @30      512   1077/1077
+15    512   512   RoPE       @35      128   RMSNorm    @30      512   1077/1077
+16    512   512   KVAppend   @37      128   RMSNorm    @30      512   1077/1077
+17    512   512   RMSNorm    @40      512   Attention  @38      128   1077/1077
+18    1024  512   Elementwise@43      1024  RMSNorm    @40      512   1077/1077
+19    1024  512   Elementwise@43      1024  RMSNorm    @40      512   1077/1077
+20    512   1024  RMSNorm    @45      512   Elementwise@43      1024  1077/1077
+21    512   512   RoPE       @49      128   RMSNorm    @45      512   1077/1077
+22    512   512   RoPE       @50      128   RMSNorm    @45      512   1077/1077
+23    512   512   KVAppend   @52      128   RMSNorm    @45      512   1077/1077
+24    512   512   RMSNorm    @55      512   Attention  @53      128   1077/1077
+25    1024  512   Elementwise@58      1024  RMSNorm    @55      512   1077/1077
+26    1024  512   Elementwise@58      1024  RMSNorm    @55      512   1077/1077
+27    512   1024  -          @-1      0     Elementwise@58      1024  1077/1077

@@ -1,0 +1,31 @@
+== gqa2   l05, interleaved rounds, one fresh process per arm per round, 400 rounds
+   arm           median    min..max   vs DP uniform (95% CI)     signed-rank p
+   uniform       0.169856  0.160768..0.314336  --                         --
+   split_only    0.168960  0.161120..0.372064   -0.512% [-0.610,-0.019]    6.83e-03
+   per_op        0.167936  0.161472..0.288448   -1.214% [-1.371,-1.100]    1.41e-14
+   best_uniform  0.172080  0.165888..0.265216   +1.632% [+1.227,+1.813]    1.54e-19
+
+   arm           median    min..max   vs oracle best uniform (95% CI) signed-rank p
+   uniform       0.169856  0.160768..0.314336   -1.606% [-1.780,-1.212]    7.39e-19
+   split_only    0.168960  0.161120..0.372064   -1.882% [-2.255,-1.765]    1.94e-22
+   per_op        0.167936  0.161472..0.288448   -2.820% [-2.976,-2.410]    4.51e-35
+   best_uniform  0.172080  0.165888..0.265216  --                         --
+
+== mha4   l05, interleaved rounds, one fresh process per arm per round, 400 rounds
+   arm           median    min..max   vs DP uniform (95% CI)     signed-rank p
+   uniform       0.318464  0.310272..0.446464  --                         --
+   split_only    0.316352  0.309248..0.519872   -0.725% [-0.928,-0.641]    1.38e-24
+   per_op        0.316144  0.310080..0.428032   -0.769% [-0.962,-0.645]    1.39e-22
+   best_uniform  0.318464  0.312320..0.493600   +0.000% [-0.060,+0.222]    6.27e-01   <- NULL CONTROL: identical compiled plan
+
+   arm           median    min..max   vs oracle best uniform (95% CI) signed-rank p
+   uniform       0.318464  0.310272..0.446464   +0.000% [-0.221,+0.060]    4.89e-01   <- NULL CONTROL: identical compiled plan
+   split_only    0.316352  0.309248..0.519872   -0.729% [-0.958,-0.641]    4.66e-24
+   per_op        0.316144  0.310080..0.428032   -0.747% [-0.952,-0.646]    2.18e-24
+   best_uniform  0.318464  0.312320..0.493600  --                         --
+
+   null controls -- arms below compile the same kernel, so their separation is the
+   protocol's own floor and no smaller claim is a claim:
+   uniform       vs best_uniform   +0.000% [-0.060,+0.222]  p = 6.27e-01
+   split_only    vs per_op         +0.000% [-0.091,+0.045]  p = 7.52e-01
+

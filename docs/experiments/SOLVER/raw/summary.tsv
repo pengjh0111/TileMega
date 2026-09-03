@@ -1,0 +1,9 @@
+model	mode	configs	predicted_ms	ctas_per_sm	measured_rank	band	measured_ms	best_ms	solve_ms	transitions
+gqa2	uniform	1	0.0939503	2	14	32	0.165856	0.148352	32.719	0
+gqa2	per_gemm_split	2	0.0938453	2	0	32	0	0.148352	29.8898	0
+gqa2	per_operator	3	0.0914751	2	0	32	0	0.148352	1038.94	19980727
+gqa2	per_operator_separable	3	0.0914751	2	0	32	0	0.148352	16.3537	0
+mha4	uniform	1	0.188018	2	8	32	0.322624	0.313568	54.4358	0
+mha4	per_gemm_split	2	0.187808	2	0	32	0	0.313568	56.5026	0
+mha4	per_operator	2	0.187808	2	0	32	0	0.313568	1917.88	41498433
+mha4	per_operator_separable	2	0.187808	2	0	32	0	0.313568	53.1908	0
