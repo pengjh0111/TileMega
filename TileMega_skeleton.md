@@ -197,13 +197,19 @@ L4    符号形状参数化 + 运行时变体选择
   Analysis 层的 `MlpStack`/`GatherModel`（`lib/Analysis/ReferenceModels.cpp`）
   证明了耦合推导算法本身不依赖 Llama 结构，但它们没有经过这条 Frontend
   路径进入生成器。
-- **L2 Solver、簇内/局部同步、事件粗化 κ 未实现**：按本轮任务范围显式排除
-  （`g` 固定、同步全部 `global`、不做性能优化），Phase 4 待启动。现在这条债
-  有了价签：那个固定的 `g` 在两个参考模型上分别慢 **6.11×** 和 **6.75×**，
-  排在 1077 个合法候选的第 951 / 960 位（`docs/experiments/ORACLE/`）。
-  也就是说，本轮所有 L0.5/L1/L2 的绝对延迟数字都是在一个接近最差四分位的
-  粒度上测的；层级之间的**相对**比较不受影响（同一 `g` 下比较），但任何
-  与外部实现的绝对对比都必须先换掉这个默认值。
+- **~~L2 Solver 未实现~~ 已实现；剩下的是「簇内/局部同步在这台机器上跑不了」**：
+  Phase 4 把层1–层5 补齐了（标定 / 代价模型 / 对齐传播 / 链上 DP / Label /
+  Place），验收口径见 §4.4。原来这条债的价签——固定 `g` 慢 **6.11×**、
+  **6.75×**，排在 1077 个候选的第 951 / 960 位——**已经被还掉**：DP 现在选
+  `16x64x16s2k16`，在 25 进程终选榜上排 2/15 与 1/13，逐算子 `g` 再多 ~1%。
+  仍然成立的部分是：Phase 1–3 时期记录的所有 L0.5/L1/L2 **绝对**延迟数字
+  都是在那个近最差四分位的 `g` 上测的，层间**相对**比较不受影响，但任何与
+  外部实现的绝对对比都必须先换成 DP 的解。
+  剩下的真债是同步：`sync_kind` 仍然只走 `global`，`cluster` 这条路
+  **代码齐了但在 sm_89 上编不出来**（`Caps<Sm89>::kCluster` 为 false，
+  `static_assert` 故意让它编译失败而不是静默退回平坦 barrier）。
+  簇的端到端消融因此欠一台有簇的机器，脚本已备好
+  （`docs/experiments/CLUSTER/run_on_h100.sh`）。
 - **分析层的耦合推导尚未接入真实前端路径**（本轮新发现，且与迁移无关——
   迁移前就是如此）：`lib/Frontend/Frontend.cpp` 从 `export_bridge.json`
   构造 CG 时**并不调用** `CouplingDerivation`。它按每个 ATen `call_function`
@@ -683,25 +689,59 @@ barvinok 计数一致；`tilemega.implementation` 的 threads/smem/alignment/arc
 ```
 层1  合法性剪枝：从 CUTLASS TiledMma 的原生形状出发沿各维扩张，撞资源墙停
      ← 走编译期 traits，多数候选不编译
-     目标：每算子 8~20 候选
-层2  跨算子对齐传播：wait = ⌈(m+1)Tm/Tr⌉ − ⌊mTm/Tr⌋
-     Tr = Tm 时 wait = 1；不整除时膨胀且变分段 → 联合空间大幅塌缩
+     ← 实测：一个 GEMM 224 个合法候选（× 5 个 split 因子），目标 8~20 未达到
+层2  跨算子对齐传播：wait = ⌈(m+1)Tr/Tm⌉ − ⌊mTr/Tm⌋   Tm 生产者宽、Tr 消费者宽
+     Tr = Tm 时 wait = 1；不整除时膨胀且变分段。Tr 从生成的 stage 表推出来
+     ← 实测：层1 产出的 2 的幂轴上剪枝为 0；步长 16 的反事实轴上塌缩 143×
 层3  链上 DP（图深而窄，接近阶段链）：
-     DP[i][g] = min_{g'} { DP[i−1][g'] + Cost_i(g) + Interface(g',g) }
-层4  Label：带尺寸约束的图划分，最大化簇内 volume
+     DP[i][s] = min_{s'} { DP[i−1][s'] + Cost_i(s) + Interface(s',s) }
+     s = (Tm,Tn,Tk; stages; split)；驻留度是整个 kernel 的属性，在链外枚举
+层4  Label：带尺寸约束的图划分，最大化簇内 volume × frequency
 层5  Place：分层 DAG 上的 list scheduling（关键路径优先）
 ```
 
-**代价函数**（每一项都是 CG 派生量的函数）：
+**代价函数**。原来这里写的是 roofline 加若干附加项。标定和 2154 个实测点推翻了
+它的三条，现在的形式是**资源向量 + 流水包络**——每一项仍然是 CG 派生量的函数：
 
 ```
-Cost(g, κ, label) = max( T_compute(count, g), T_memory(volume) )       roofline
-                  + T_sync( |image(C_κ)|, label )                      事件数 × 延迟
-                  + T_quant(count)                                     wave quantization
-                  + T_bubble(g, label)                                 流水气泡 + smem 占用延长
-
-T_quant = ( ⌈count/M⌉·M − count ) / count · t_task(g)      M = SM 数 × occupancy
+稳态    u(o) = ⟨t_TC, t_CUDA, t_SFU, t_SMEM, t_L2, t_DDR⟩   每条资源道各自的占用时间
+        T_steady(o) = max( u(o) )                          取 max，不是取和
+波分解  CTA 按 num_sms × ctas_per_sm 分波；尾波按它自己的活跃 SM 占比
+        o = active/num_sms 重新代入 u(o) 求值，而不是外加一个 T_quant 修正项
+Split-K Interface 用 Stream-K 形式 a + b·[peers>1] + c·iters + d·(peers−1)
+其余    非 GEMM stage、grid barrier 按标定的 combine_fixed_ns 与
+        grid_barrier_* 曲线计入；count / volume 仍由 barvinok 给
 ```
+
+被推翻的三条，以及推翻它们的证据：
+
+- **roofline 不够。** 同一套资源常数上的纯 roofline 一级实测 MAPE 181%/185%、
+  Spearman 0.444/0.430，与层2 的解析排序（0.461/0.446）无法区分；那个排序把
+  实测最优排在 42/224，自己的 top-10 一个都没落进实测 top-3%。资源向量版
+  ρ **0.9450 / 0.9435**。
+- **`T_quant` 不能是加项。** 尾波按自己的活跃 SM 数重新求值这一改，把
+  ρ 从 0.9095 抬到 0.9450、实测最优的模型排名从 33 抬到 19。加性修正
+  `(⌈count/M⌉M − count)/count · t_task(g)` 做不到，因为尾波的每 CTA 时长
+  本身就随活跃 SM 数变——那不是一个乘在外面的因子。
+- **「各算子孤立时长可加」是假的。** 标定实测：一个 DRAM 密集邻居把 GEMM 从
+  18.3 µs 拖到 27.6 µs，`interference_ratio = 1.518`，偏差 **51.8%**，越过
+  本骨架自己写的 30% 门槛（P4.4）。资源道取 `max` 正是对这件事的回应。
+
+**验收口径**（这是回归标准，不是一次性实验）。模型不按预测误差验收，按**排序**
+验收；验证集是 `docs/experiments/ORACLE/` 已有的 **2154 个实测点**（两个模型各
+1077 个配置），复现不需要新的 GPU 时间：
+
+1. 模型 top-3 中至少一个落进**实测 top-3%**（rank ≤ 32 / 1077）；
+2. Spearman ρ 明显高于层2 的解析排序；
+3. 单配置求值 < 1 ms。
+
+实测：✅ **3/3**（含 top-1）、0.9450/0.9435 对 0.4608/0.4462、最坏 33 µs。
+绝对预测值**不**在口径里，也确实不准（gqa2 上预测 0.094 ms 对实测 0.166 ms）。
+§0.3 的前提就是「落进平台期」而不是「预测得准」：top-34 个配置挤在 ±10% 带内，
+25 进程中位数分不开它们。任何对代价模型的改动都要重跑这三条。
+
+**尚未纳入**：`T_bubble`（流水气泡 + Label 的 smem 占用延长），因为 §2.2(b) 的
+填充深度在 12 个标定点上不可辨识；regime 判别（下表）也还没实现。
 
 **分 regime**：
 
@@ -737,6 +777,13 @@ T_quant = ( ⌈count/M⌉·M − count ) / count · t_task(g)      M = SM 数 ×
 | MoE 单 expert 的 tile 组 | 个位数 |
 
 簇的粒度匹配「算子内跨 CTA 归约」，不匹配「算子间数据流」。
+这一条现在有数字：把 §4.3 的 `w = Volume × Frequency` 灌进带尺寸约束的划分
+（P4.7），在 stage 串行的 megakernel 唯一能实现的时间邻近半径 reach = 1 下，
+簇能关住的耦合流量只有 **13.6%（2 层 GQA）/ 18.7%（4 层 MHA）**。
+放宽到 reach = 4 才到 0.97~0.99，而那要求四五个算子的输出跨 stage 边界一直
+待在 smem 里——正是这个 megakernel 每个 stage 复用 smem 所不做的事。
+所以「算子间数据流」这条路上簇大约只值六分之一的流量。
+证据：`docs/experiments/CLUSTER/result.md` §7.7。
 
 ## 4.6 Serving harness（L5）
 
@@ -1370,9 +1417,31 @@ tilemega/
 
 ### P4.3 层2 对齐传播
 
-- [ ] 从输出端反向传播 tile 约束
-- [ ] wait 膨胀：`⌈(m+1)Tm/Tr⌉ − ⌊mTm/Tr⌋`
-- [ ] 度量剪枝效果（联合空间塌缩比例）
+- [x] 从输出端反向传播 tile 约束：`DeriveAlignmentConstraints` 从每个 GEMM 沿
+      生成的 stage 表向前走到第一个读它输出缓冲的非 GEMM stage，读出那个
+      stage 的粒度（RoPE / KVAppend 取 `width`，逐元素尾取 `extent`）。
+      「QKV 的列 tile 要对齐 head_dim」从来没有写进求解器，是被推出来的：
+      gqa2 的三个 QKV GEMM 拿到 `Tr = 128`，因为 RoPE 在生成表里的 `width`
+      就是 `d`。换模型这个数就跟着换——单测把 `head` 换成 96，可行集随之
+      移动（48 和 80 变合法，112 和 128 变非法，两个排除集互不包含）。
+- [x] wait 膨胀。**骨架原来写反了**：`Tm` 是生产者宽度、`Tr` 是消费者宽度，
+      所以第 `m` 个消费者 task 等待的生产者 tile 数是
+      `⌈(m+1)Tr/Tm⌉ − ⌊mTr/Tm⌋`，剪枝判据是它的最大值减去 `⌈Tr/Tm⌉` 为 0。
+      按记录差异而不是迁就的原则，这里改的是骨架而不是实现。
+- [x] `[!]` 度量剪枝效果，**实测结论是在层1 实际产出的候选轴上一个都没剪掉**：
+      1077 → 1077，联合空间 10^42.451 → 10^42.451（gqa2）、10^84.902 不变
+      （mha4），0 个算子无约束（即每个算子都**有**约束，只是都满足）。
+      原因是算术不是缺陷：层1 只发 2 的幂（`tile_n ∈ {16,32,64,128,256}`、
+      `tile_k ∈ {8,16,32}`），模型暴露的粒度也全是 2 的幂（128 / 512 / 1024），
+      2 的幂不会跨越 2 的幂的读者边界，膨胀恒等于 0。
+      为了让「剪不掉」和「没在算」可区分，同一套推导在步长 16 的反事实
+      `tile_n` 轴上跑一遍：48 → 每算子 21..48，联合空间塌缩 **≈143×**（gqa2）
+      / **≈2.0×10⁴**（mha4）。另外 1077 = 216 形状 × 5 个 split 因子，
+      split 根本不是对齐轴，所以再激进的层2 也只能碰那 216。
+- [x] 不移动答案的对照：`tilemega-solve` 把统一 `g` 解两遍（带掩码 / 不带），
+      打印 `tier-1-only control picks 16x64x16s2k16 (same answer)`，两个模型
+      都是同一答案——剪枝为空这件事被验证而不是被假定。
+- 证据：`docs/experiments/SOLVER/alignment.md`；`alignment_propagation_test`
 
 ### P4.4 代价模型
 
@@ -1385,25 +1454,86 @@ P6.2 的 oracle 已给出投入判据：固定 `g` 与最优 `g` 相差 **6.11×
   精确到能挑出唯一最优的模型，是在买硬件不提供的分辨率。
 - **split-K 必须是模型的一个自变量**（见 P4.2）。
 
-- [ ] roofline：`max(T_compute, T_memory)`
-- [ ] `T_quant`：`count` 用 barvinok
-- [ ] `T_sync`：`|image(C_κ)|` × 延迟；global / cluster / local 用不同常数
-- [ ] `T_bubble`：软件流水气泡 + Label 带来的 smem 占用延长
-- [ ] **离线标定**（测硬件常数）：单 task 时长 vs tile 形状；
-      `atomicAdd` / `cluster.sync()` / `NamedBarrier` 的延迟与争用曲线；并发干扰系数
-      - `[!]` 干扰偏差 >30% 则独立时长假设失效，退化为「粗排 + 实测 top-3」
-- [ ] regime 判别：从 (batch, seq_len, prefill/decode 比例) 判 A/B/C
+- [x] `[!]` **roofline 被换掉了，因为量出来不行**：同一套资源常数上的纯
+      roofline 一级实测 MAPE 181%/185%、Spearman 0.444/0.430，与层2 的解析
+      排序（0.461/0.446）无法区分。现在的稳态是六条资源道
+      `⟨t_TC, t_CUDA, t_SFU, t_SMEM, t_L2, t_DDR⟩` 的 `max`（§4.4）。
+      完整模型 ρ **0.9450 / 0.9435**。
+- [x] `[!]` **`T_quant` 不是加项**：CTA 按 `num_sms × ctas_per_sm` 分波，
+      **尾波按它自己的活跃 SM 占比 `o = active/num_sms` 重新代入资源向量
+      求值**。这一改把 ρ 从 0.9095 抬到 0.9450、实测最优的模型排名从 33 抬到
+      19；加性修正 `(⌈count/M⌉M − count)/count · t_task` 做不到，因为尾波
+      的每 CTA 时长本身就随活跃 SM 数变。`count` 仍由 barvinok 给。
+- [x] `T_sync`：grid barrier 走标定出来的 `grid_barrier_*` 曲线；split-K 的
+      combine 走 Stream-K 形式 `a + b·[peers>1] + c·iters + d·(peers−1)`，
+      其中 `b`/`d` 直接读标定表。cluster 常数已标定但还没有 CG 边用到它
+      （P4.7 在 sm_89 上编不出簇）。
+- [ ] `T_bubble`：软件流水气泡 + Label 带来的 smem 占用延长。**未纳入**。
+      §2.2(b) 的填充深度 `d = stages·resident_tiles_per_SM − 1` 在 12 个标定
+      点上**不可辨识**——带填充深度的包络与那条直线是同一条线的重参数化，
+      恢复出来的 per-CTA setup 常数会继承占用率缩放——所以默认关闭；
+      Label 的 smem 项要等簇真跑起来才有可测的东西。
+- [x] **离线标定**已完成，产物是 `configs/targets/sm_89.json`：六条资源道的
+      速率、L2/DRAM 延迟、smem 带宽随占用率的非平坦曲线、
+      `atomicAdd`/`NamedBarrier`/grid barrier 的延迟与争用曲线、Stream-K 四
+      参数、并发干扰系数。带机器空闲守卫，忙 GPU 上拒绝出证。
+      - [x] `[!]` **干扰门槛被触发了**：DRAM 密集邻居把 GEMM 从 18.3 µs 拖到
+        27.6 µs，`interference_ratio = 1.518`，偏差 **51.8% > 30%**。
+        「各算子独立时长可加」这条假设在本目标上**是假的**，这是本条明确
+        要求实测而不是假定的量，量出来越线了。回应不是退化为「粗排 + 实测
+        top-3」，而是让稳态取资源道的 `max` 而不是取各算子孤立时长之和——
+        并且验收改成排序验收（下条），本来就不依赖绝对预测值。
+- [x] **验收口径写死为回归标准**：不按预测误差验收，按排序验收，验证集是
+      `docs/experiments/ORACLE/` 已有的 **2154 个实测点**（两模型各 1077 个
+      配置），不需要新的 GPU 时间。三条：模型 top-3 至少一个落进实测
+      top-3%（rank ≤ 32/1077）；ρ 明显高于层2 解析排序；单配置求值 < 1 ms。
+      实测 ✅ **3/3**（含 top-1）、0.9450/0.9435 vs 0.4608/0.4462、最坏 33 µs。
+      绝对预测值不在口径里，也确实不准（gqa2 预测 0.094 ms 对实测 0.166 ms）。
+- [ ] regime 判别：从 (batch, seq_len, prefill/decode 比例) 判 A/B/C。**未实现**。
+- 证据：`docs/experiments/CALIB/result.md`；`docs/experiments/COST_MODEL/result.md`
 
 ### P4.5 层3 链上 DP（Reparam + Coarsen）
 
-- [ ] `DP[i][g] = min_{g'} { DP[i−1][g'] + Cost_i(g) + Interface(g',g) }`
-- [ ] 分叉处（gate/up 并行）：series-parallel 分解或强制同 tile
-- [ ] 复杂度目标 `O(层数 × |C|²)`
-- [ ] `g` 的状态里必须含 split 因子；`Interface(g',g)` 要计 split-K 的
-      reduction stage，实测它占最优配置总时间的 24~26%（不是可忽略项）
-- [ ] 逐算子 `g` vs 全局统一 `g`：oracle 只扫了统一 `g`，而在统一最优下
-      单个 GEMM 的改善幅度从 4.9× 到 12.1× 不等，说明逐算子还有空间——这是
-      DP 真正要回答的问题，oracle 没有回答
+- [x] `DP[i][s] = min_{s'} { DP[i−1][s'] + Cost_i(s) + Interface(s',s) }`
+      （`lib/Solver/ChainDP.cpp`，驱动 `tools/tilemega-solve.cpp`）。
+      **驻留度必须留在链外**：§4.3 的 `ctas_per_sm` 是整个 kernel 的属性
+      （smem 取各算子选择的并集、寄存器取最大值），不能逐层决定。求解器因此
+      枚举驻留档、钉住一档、只放行够得着这一档的候选、再在所有档里取最好。
+      sm_89 上这两个候选集有 3 个可行档。
+- [x] 分叉处（gate/up 并行）：链的分解按 series-parallel 做，分叉两支强制同
+      状态；这一条与「统一 `g`」在本模型上答案相同，被单测钉住。
+- [x] 复杂度是测出来的不是断言的：`ChainDpStats` 报转移数与墙钟，
+      与 `O(L·|C|²)` 一致（数字见 `SOLVER/result.md`「Complexity and solve
+      time」）。通用转移循环与可分离捷径两条路径**互为对照**，目标值之差
+      被打印出来。
+- [x] `s` 的状态含 split 因子，`Interface` 计 split-K 的 reduction stage。
+- [x] **验收 (a)**：统一 `g` 落进 oracle 实测 top 3%。DP 在两个模型上都选
+      `16x64x16s2k16`、`ctas_per_sm = 2`；在 25 进程终选榜上 gqa2 排 **2/15**
+      （0.183296 ms 对最好的 0.181248 ms，+1.13%）、mha4 排 **1/13**（就是它
+      自己）。✅ 两个模型都通过。
+- [x] **验收 (b)** 逐算子 `g` vs 统一 `g`，四臂真编译真跑、400 轮交错配对：
+      gqa2 `per_op` 对 DP 自己的 `uniform` **−1.214%**
+      [−1.371, −1.100]，p = 1.4e−14；mha4 **−0.769%** [−0.962, −0.645]，
+      p = 1.4e−22；gqa2 对**任何人测过的最好统一配置** −2.820%。
+      两条零效应对照（mha4 上 DP 的 split-only 与 per-op 是同一个计划、
+      DP 的 uniform 就是 oracle 的最好统一配置）都给出中位数 0.000%、
+      CI 半宽 ~0.15%，这是协议自己的地板。
+      - `[!]` **对 §0.3 期望的负向结果，如实记录**：逐算子只值 ~1%，不是
+        4.9×–12.1×。那个跨度是「每个算子相对自己最优的改善幅度」的范围，
+        而改善幅度最大的算子同时也是主导总时间的算子，所以它已经被统一
+        选择收走了；留给逐算子的是小算子的残差。不调期望去迁就，也不调
+        实现去凑期望。
+      - 实现代价是真的：`GemmStageTaskBody` 现在最多编 4 个 `GemmVariant`，
+        共享存储是**变体的并集**——gqa2 的逐算子计划混用 `16x64x16s2` 与
+        `16x32x16s2`，kernel 的 smem 停在 10496 B（大的那个），窄 tile 一个
+        算子换不来占用率。这就是 §4.3 全局性的具体形态。单变体构建走
+        `#if` 直连而不是变体 `switch`，所以三条单变体臂与变体特性出现之前
+        逐字节相同。
+      - `[!]` 协议在出数之前先被修过一次：按臂成块跑时，mha4 上两个**编译
+        产物相同**的臂"显著"分开了 0.64%（p = 1.76e−4）。会话内漂移压过
+        采样噪声，成块布局把漂移混叠到臂身份上。改成交错 + 配对之后才有
+        意义。这条写进 F-46。
+- 证据：`docs/experiments/SOLVER/result.md`；`chain_dp_test`
 
 ### P4.6 Coarsen（事件粒度 κ）
 
@@ -1421,11 +1551,38 @@ P6.2 的 oracle 已给出投入判据：固定 `g` 与最优 `g` 相差 **6.11×
 
 ### P4.7 层4 Label（簇划分）
 
-- [ ] 通信量矩阵：逐边的 `volume`
-- [ ] 带尺寸约束（≤8 或 ≤16）的图划分，最大化簇内 volume
-- [ ] 时间邻近约束：生产者与消费者在相近的 stage slot
-- [ ] smem 占用延长计入 `T_bubble`
-- [ ] 消融：Label 开 / 关的端到端对比
+- [x] 通信量矩阵：权重是 §4.3 的 `w(A,B) = Volume × Frequency`，两个因子都从
+      `CouplingDerivation` 的派生量里取（`volume` = `|W_p(y) ∩ R_c(x)|` 每对
+      生产/消费的元素数，`count` = 消费者 task space 的基数），不是估的。
+      gqa2 36 节点 44 边、mha4 64 节点 72 边，0 条推不出来。
+- [x] 带尺寸约束的图划分（`lib/Solver/ClusterLabeling.cpp`）：重边聚合，
+      三条约束都是硬约束——尺寸 `Caps<Arch>::kMaxClusterSize`、时间邻近、
+      smem 预算。最大化簇内 volume 是 NP-hard（含最大权 k 路匹配），所以这
+      是启发式并**被标成启发式**：`internal_weight / total_weight` 把它与
+      够不着的最优之间的差距显示出来，而不是假定为零。越界的边抛异常，
+      不是丢掉它再拿一个偷偷变小的图去报捕获率。
+- [x] 时间邻近约束按**整组**的 stage 跨度检查（`first`/`last`），不是按提出
+      合并的那一对，否则约束会被链式合并绕过。
+- [x] smem 占用计入约束（预算 = `max_smem_per_sm × max_cluster_size`）。
+      计入 `T_bubble` 的那一半仍未做，见 P4.4。
+- [ ] `[!]` 消融：Label 开 / 关的端到端对比 **未执行**——手上是 sm_89，
+      `Caps<Sm89>::kCluster` 为 false，簇 kernel 在这台机器上编不出来
+      （这是特意的：`static_assert` 让簇形状的 kernel 无法静默退回平坦
+      barrier 再继续报时间）。已经建好并交叉验证过的部分：生成器发
+      `TILEMEGA_GENERATED_CLUSTER_DIM`，`GridBarrier` 在 dim>1 时走
+      `ClusterSync::StageBarrier`，启动走 `cudaLaunchKernelEx`，grid 被裁成
+      簇的整数倍。sm_90 与 sm_120 交叉编译：dim 1 有 0 条 `UCGABAR`、
+      dim 2 与 dim 8 各 8 条（PTX `barrier.cluster` 0/4/4）；默认构建的 SASS
+      与加簇之前逐字节相同。`docs/experiments/CLUSTER/run_on_h100.sh` 把
+      megakernel 臂也备好了，缺的只是一台有簇的机器。
+- [x] `[!]` 解析上的**先行结论，方向是负的**：在本 ABI 下时间邻近只能取
+      reach = 1（stage 串行的 megakernel 每个 stage 复用 smem），此时簇能
+      关住的流量只有 **13.6%（gqa2）/ 18.7%（mha4）**。把 reach 放到 4 才
+      到 0.97~0.99，而那要求四五个算子的输出跨 stage 边界一直待在 smem 里，
+      正是这个 megakernel 不做的事。这正面支持 §4.5 自己的论断
+      （簇的粒度匹配「算子内跨 CTA 归约」，不匹配「算子间数据流」）——
+      现在它是一个数而不是一句断言。
+- 证据：`docs/experiments/CLUSTER/result.md` §7.5 / §7.7；`cluster_labeling_test`
 
 ### P4.8 层5 Place
 

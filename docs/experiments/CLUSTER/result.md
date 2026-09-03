@@ -263,8 +263,21 @@ Three things the table says that are worth more than the headline:
   reads the *capability table's* sizes rather than the probe's; the budget row
   is therefore ⚠️ stated, not a measurement of a Hopper.
 
-**What this does not say.** Capture is an upper bound on the traffic a cluster
-*could* keep on-GPC, not a speedup. The P4.6 speed-of-light arm bounds the other
-side of that trade: see `docs/experiments/COARSEN/result.md` for what deleting
-the grid barrier outright is worth on this hardware, which is the ceiling on
-what any synchronization change — clusters included — can ever return.
+**The conclusion, and it agrees with §4.5.** Reach is not a free parameter. A
+cluster keeps traffic on-GPC only if the producer's tile is still in shared
+memory when the consumer runs, and in the stage-serial megakernel shared memory
+is reused by the next stage: a value produced in stage *i* has been written to
+global before stage *i+1* starts. **Reach 1 is therefore the only reach the
+current TaskBody ABI can implement**, and at reach 1 the capture is **0.136
+(gqa2) / 0.187 (mha4)** — the 0.97–0.99 rows require holding four to five
+operators' outputs resident across stage boundaries, which no code in this
+repository does. This is the skeleton's own §4.5 claim ("簇的粒度匹配「算子内
+跨 CTA 归约」，不匹配「算子间数据流」") arriving as a number rather than as an
+assertion: inter-operator clustering is worth a sixth of the traffic, and the
+rest of it is behind an smem-residency ABI that does not exist.
+
+Capture is in any case an upper bound on *traffic*, not a speedup. The P4.6
+speed-of-light arm bounds the other side of the trade: see
+`docs/experiments/COARSEN/result.md` for what deleting the grid barrier outright
+is worth on this hardware, which is the ceiling on what any synchronization
+change — clusters included — can ever return.
