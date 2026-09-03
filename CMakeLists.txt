@@ -106,6 +106,7 @@ add_library(tilemega STATIC
   lib/Solver/CandidateGenerator.cpp
   lib/Solver/ImplementationContract.cpp
   lib/Solver/AlignmentPropagation.cpp
+  lib/Solver/ChainDP.cpp
   lib/Solver/CostModel.cpp
   lib/Solver/ModelDescription.cpp
   lib/Codegen/Codegen.cpp
@@ -186,6 +187,11 @@ set_target_properties(tilemega-derive PROPERTIES
 add_executable(tilemega-costmodel tools/tilemega-costmodel.cpp)
 target_link_libraries(tilemega-costmodel PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-costmodel PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
+add_executable(tilemega-solve tools/tilemega-solve.cpp)
+target_link_libraries(tilemega-solve PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-solve PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
 add_custom_target(check-policy
@@ -273,6 +279,12 @@ if(TILEMEGA_BUILD_TESTS)
   target_compile_definitions(backend_query_test PRIVATE
     TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   add_test(NAME backend_query COMMAND backend_query_test)
+
+  add_executable(chain_dp_test test/unit/chain_dp_test.cpp)
+  target_link_libraries(chain_dp_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(chain_dp_test PRIVATE
+    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  add_test(NAME chain_dp COMMAND chain_dp_test)
 
   add_executable(alignment_propagation_test
     test/unit/alignment_propagation_test.cpp)
