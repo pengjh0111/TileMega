@@ -1246,8 +1246,9 @@
 - Finding: §4.3's temporal-locality objective `|R(c₁) ∩ R(c₂)|` cannot rank CTA
   placements on the accepted fixture — with `seq = 4` and `tile_m = 16` every
   GEMM has one M tile, so `w` is constant and all five arms score identically.
-  The hardware spans 25 percentage points anyway. ✅ verified: 60 interleaved
-  rounds × 5 arms × 2 models, all 60/60 PASS, paired within round.
+  The hardware spans 24 percentage points on L1 anyway (`pair` +17.0 to
+  `reverse` −7.1). ✅ verified: 60 interleaved rounds × 5 arms × 2 models,
+  all 60/60 PASS, paired within round.
 - `pair`, the only permutation the objective argues for, is the **worst** arm:
   L1 **+17.017% / +18.172%**, p = 1.7e−11. The cause is derivable from the map,
   not from the timing: with `grid=256, ctas_per_sm=2, num_sms=128` it puts
