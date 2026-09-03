@@ -1208,3 +1208,35 @@
   the two halves of a pair landed at different points on the ramp (a second 1 s
   warm-up immediately before the stage). Before those, the ratio swung 0.90–2.50.
 - Evidence: docs/experiments/CALIB/result.md §(d), §"Detours".
+
+## F-55 — Event coarsening κ is monotonically harmful, so it is not a DP state variable
+
+- Finding: §P4.6 predicted the ablation would show a flat curve. It shows a
+  steep one, pointing the wrong way. Against the per-stage event scheme,
+  `l2_ms` at κ = 1 is **+237.693%** (gqa2) / **+276.413%** (mha4) and falls
+  monotonically to +7.865% / +8.480% at κ = 256 — no κ reaches parity.
+  ✅ verified: 60 interleaved rounds, one fresh process per arm per round,
+  paired within round, all p = 1.7e−11; every κ arm PASS 60/60.
+- The experiment carries its own noise floor: κ does not touch L1, so nine
+  `l1_ms` arms are null controls. On gqa2 they span −0.115%..+0.192%, widest CI
+  [−0.460,+0.572]. On mha4 all nine are *positive*, +0.069%..+0.305%, five with
+  p < 0.05 — reported as measured; the likely cause is that every κ > 0 build
+  allocates a grid-deep event array where `stage` allocates a stage-deep one,
+  an offset shared by all nine and independent of κ.
+- Both models put the knee at κ ≈ 32, exactly where the analytic probe puts it
+  (`waits` flattens at 812 / 1596 while `overwait` keeps doubling). The two
+  halves agree on the shape and disagree on nothing.
+- κ therefore stays out of `ChainDpOptions` — and the reason is stronger than
+  "the curve is flat": the argmin over κ is the same κ for every configuration,
+  namely the curve's limit, which is what the generator already emits. A
+  quantity whose optimum never depends on another decision is not a state
+  variable.
+- ⚠️ This measures κ's cost and not its benefit, by construction: the generated
+  dependency table carries no coupling relation, so a consumer waits on every
+  group of each producer. The benefit is bounded from the other side by the
+  `nosync` arm — deleting L1's grid barrier (wrong output, 60/60 MISMATCH)
+  saves **35.631% / 36.665%**. Synchronization is ~36% of L1 and ~42% of L2, so
+  the headroom is real; but L2's event scheme at its cheapest granularity
+  already costs +9.8% / +9.5% against the barrier it replaces, and κ only adds.
+- Evidence: docs/experiments/COARSEN/result.md, raw/kappa_arms.tsv,
+  raw/kappa_summary.txt.
