@@ -2,6 +2,7 @@
 // Skeleton ref: §5.3.  Handwritten TaskBody; every shape arrives at run time.
 #pragma once
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#include <tilemega/Codegen/tasks/Placement.cuh>
 
 namespace tilemega::codegen {
 
@@ -25,7 +26,7 @@ struct RMSNormTaskBody {
     float const* weight = p.buffers[stage.operand[1]];
     float* output = p.buffers[stage.operand[2]];
     int hidden = static_cast<int>(stage.width);
-    int token = static_cast<int>(blockIdx.x);
+    int token = PlacedBlock();
     bool active = token < p.dims.seq;
     float local = 0.0f;
     if (active)

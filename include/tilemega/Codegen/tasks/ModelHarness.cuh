@@ -15,6 +15,7 @@
 #include <tilemega/Codegen/tasks/GemmStageTaskBody.h>
 #include <tilemega/Codegen/tasks/KVAppendTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#include <tilemega/Codegen/tasks/Placement.cuh>
 #include <tilemega/Codegen/tasks/RMSNormTaskBody.h>
 #include <tilemega/Codegen/tasks/RoPETaskBody.h>
 #include <tilemega/Target/TargetSpec.h>
@@ -108,6 +109,38 @@ __host__ __device__ inline int CeilDiv(int numerator, int denominator) {
   return (numerator + denominator - 1) / denominator;
 }
 
+/// §2.3's event granularity kappa, as a compile-time knob on the L2 path.
+///
+/// 0 -- the default and what every existing build compiles -- is one event per
+/// producer *stage*: kappa = the whole launch axis.  A positive value groups
+/// kappa consecutive CTAs of a stage into one event, so a stage publishes
+/// ceil(active/kappa) of them.  L1 has no such knob: its grid barrier is one
+/// event per stage by construction.
+///
+/// A consumer waits on every group of each producer it depends on, because the
+/// generated dependency table carries no coupling relation to narrow the range
+/// with (E2E_L2's blocker 1).  So this measures kappa's *cost* exactly and its
+/// benefit not at all -- which is the point: the benefit is bounded above by
+/// the no-sync probe in docs/experiments/COARSEN, and the two bounds meet.
+#ifndef TILEMEGA_EVENT_KAPPA
+#define TILEMEGA_EVENT_KAPPA 0
+#endif
+
+/// Events are allocated stage_count * grid deep, so a stage owns a whole row
+/// of the array and the per-stage scheme is row 0 of each.  Kept behind an
+/// `#if` so the default build indexes exactly as it did before the knob.
+__device__ inline std::uint32_t EventIndex(std::uint32_t stage, int group) {
+#if TILEMEGA_EVENT_KAPPA > 0
+  return stage * gridDim.x + static_cast<std::uint32_t>(group);
+#else
+  (void)group;
+  return stage;
+#endif
+}
+
+/// Active CTAs of a stage, clamped to the grid -- the launch axis kappa groups.
+__device__ inline int ActiveBlocksClamped(Params const& p, std::uint32_t stage);
+
 /// Cardinality of image(C_kappa) along the launch axis.  CTAs beyond this
 /// bound participate only in control flow and own no producer event.
 ///
@@ -134,6 +167,13 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
     case TaskKind::kGemmCombine: return T_GemmCombine::Ownership(p, stage).count;
   }
   return 0;
+}
+
+__device__ inline int ActiveBlocksClamped(Params const& p,
+                                          std::uint32_t stage) {
+  int active = ActiveBlocks(p, p.stages[stage]);
+  if (active > static_cast<int>(gridDim.x)) active = gridDim.x;
+  return active < 1 ? 1 : active;
 }
 
 /// How many CTAs must arrive before stage `producer` counts as complete at
@@ -182,9 +222,19 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
   if (threadIdx.x == 0) {
     std::uint32_t first = p.dependency_offsets[consumer];
     std::uint32_t last = p.dependency_offsets[consumer + 1];
-    for (std::uint32_t edge = first; edge < last; ++edge)
-      TILEMEGA_GENERATED_WAIT_global(&events[p.dependencies[edge].producer].epoch,
+    for (std::uint32_t edge = first; edge < last; ++edge) {
+      std::uint32_t const producer = p.dependencies[edge].producer;
+#if TILEMEGA_EVENT_KAPPA > 0
+      int const groups =
+          CeilDiv(ActiveBlocksClamped(p, producer), TILEMEGA_EVENT_KAPPA);
+      for (int group = 0; group < groups; ++group)
+        TILEMEGA_GENERATED_WAIT_global(&events[EventIndex(producer, group)].epoch,
+                                       iteration + 1ull);
+#else
+      TILEMEGA_GENERATED_WAIT_global(&events[EventIndex(producer, 0)].epoch,
                                      iteration + 1ull);
+#endif
+    }
   }
   __syncthreads();
   __threadfence();
@@ -205,11 +255,33 @@ __device__ inline void NotifyStage(Params const& p, EventCounter* events,
   __threadfence();
   __syncthreads();
   if (threadIdx.x == 0) {
-    unsigned long long ticket = atomicAdd(&events[producer].arrivals, 1ull);
+#if TILEMEGA_EVENT_KAPPA > 0
+    // Each group is completed by its own members, so the target is the group's
+    // occupancy, not the stage's -- the last group is short whenever the active
+    // count is not a multiple of kappa.
+    int const active = ActiveBlocksClamped(p, producer);
+    int const group = PlacedBlock() / TILEMEGA_EVENT_KAPPA;
+    int const members = active - group * TILEMEGA_EVENT_KAPPA
+                            < TILEMEGA_EVENT_KAPPA
+                        ? active - group * TILEMEGA_EVENT_KAPPA
+                        : TILEMEGA_EVENT_KAPPA;
+    unsigned long long ticket =
+        atomicAdd(&events[EventIndex(producer, group)].arrivals, 1ull);
+    if (ticket + 1ull ==
+        static_cast<unsigned long long>(members) * (iteration + 1ull)) {
+      __threadfence();
+      TILEMEGA_GENERATED_NOTIFY_global(&events[EventIndex(producer, group)].epoch,
+                                       iteration + 1ull);
+    }
+#else
+    unsigned long long ticket =
+        atomicAdd(&events[EventIndex(producer, 0)].arrivals, 1ull);
     if (ticket + 1ull == StageArrivalTarget(p, producer, iteration)) {
       __threadfence();
-      TILEMEGA_GENERATED_NOTIFY_global(&events[producer].epoch, iteration + 1ull);
+      TILEMEGA_GENERATED_NOTIFY_global(&events[EventIndex(producer, 0)].epoch,
+                                       iteration + 1ull);
     }
+#endif
   }
   __syncthreads();
 }
@@ -223,8 +295,24 @@ __device__ inline void NotifyStage(Params const& p, EventCounter* events,
 /// the counter being cleared, the counters are never reset between
 /// iterations and a late CTA from iteration i can never be mistaken for an
 /// early one from iteration i+1 (the ABA the rule exists to prevent).
+/// Speed-of-light probe: drop the *grid* half of the barrier and keep the CTA
+/// half.  The result is numerically wrong by construction -- stages read
+/// buffers the previous stage has not finished writing -- and exists only to
+/// bound what any synchronization change (kappa, clusters, placement) could
+/// ever be worth.  Off by default; the harness refuses to report PASS with it
+/// on, so it can never be mistaken for a measurement of the real kernel.
+#ifndef TILEMEGA_UNSAFE_NO_GRID_SYNC
+#define TILEMEGA_UNSAFE_NO_GRID_SYNC 0
+#endif
+
 __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
                                    unsigned long long iteration) {
+#if TILEMEGA_UNSAFE_NO_GRID_SYNC
+  (void)events; (void)stage; (void)iteration;
+  __threadfence();
+  __syncthreads();
+  return;
+#else
   unsigned long long needed =
       static_cast<unsigned long long>(gridDim.x) * (iteration + 1ull);
   __threadfence();
@@ -240,6 +328,7 @@ __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
   }
   __syncthreads();
   __threadfence();
+#endif
 }
 
 __global__ __launch_bounds__(kHarnessThreads, 1)
@@ -270,7 +359,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
-    bool active = static_cast<int>(blockIdx.x) <
+    bool active = PlacedBlock() <
                   ActiveBlocks(*params, params->stages[stage]);
     WaitDependencies(*params, events, stage, active, iteration);
     RunStage(*params, stage, smem);
@@ -704,6 +793,11 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
                                                  kHarnessThreads, sizeof(TaskSmem));
   if (l2_grid < grid) grid = l2_grid;
   int blocks_per_sm = grid / target.res.num_sms;
+#if TILEMEGA_PLACEMENT == 1
+  // The `pair` placement needs the residency the grid was sized from.
+  TILEMEGA_CUDA_CHECK(cudaMemcpyToSymbol(tilemega_blocks_per_sm, &blocks_per_sm,
+                                         sizeof(int)));
+#endif
   PrepareEvents(model, grid);
 
   Reset(model);
@@ -751,6 +845,18 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   ProfileStages(model, spec, grid);
   bool pass = l05_l0.mismatch == 0 && l1_l05.mismatch == 0 &&
               l2_l1.mismatch == 0 && l2_iter.mismatch == 0;
+#if TILEMEGA_UNSAFE_NO_GRID_SYNC
+  // A build without the grid half of the barrier is a timing probe, not a
+  // kernel; it must never be able to print PASS, whatever the comparison says.
+  std::printf("E2E_UNSAFE no_grid_sync=1\n");
+  pass = false;
+#endif
+#if TILEMEGA_EVENT_KAPPA > 0
+  std::printf("E2E_KAPPA event_kappa=%d\n", TILEMEGA_EVENT_KAPPA);
+#endif
+#if TILEMEGA_PLACEMENT != 0
+  std::printf("E2E_PLACEMENT placement=%d\n", TILEMEGA_PLACEMENT);
+#endif
   std::printf("RESULT status=%s\n", pass ? "PASS" : "MISMATCH");
   return pass ? 0 : 1;
 }

@@ -2,6 +2,7 @@
 // Skeleton ref: §5.3.  Handwritten TaskBody; every shape arrives at run time.
 #pragma once
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#include <tilemega/Codegen/tasks/Placement.cuh>
 
 namespace tilemega::codegen {
 
@@ -33,7 +34,7 @@ struct AttentionTaskBody {
     int const group = static_cast<int>(stage.group);
     int const kv_heads = heads / group;
 
-    int query = static_cast<int>(blockIdx.x);
+    int query = PlacedBlock();
     bool active = query < p.dims.seq * heads;
     int token = query / heads;
     int head = query % heads;

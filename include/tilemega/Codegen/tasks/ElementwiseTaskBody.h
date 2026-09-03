@@ -2,6 +2,7 @@
 // Skeleton ref: §5.3.  Handwritten TaskBody; every shape arrives at run time.
 #pragma once
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#include <tilemega/Codegen/tasks/Placement.cuh>
 
 namespace tilemega::codegen {
 
@@ -29,7 +30,7 @@ struct ElementwiseTaskBody {
     float const* up = p.buffers[stage.operand[1]];
     float* out = p.buffers[stage.operand[2]];
     int count = p.dims.seq * static_cast<int>(stage.extent);
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < count;
+    for (int i = PlacedBlock() * blockDim.x + threadIdx.x; i < count;
          i += gridDim.x * blockDim.x) {
       float x = gate[i];
       out[i] = (x / (1.0f + expf(-x))) * up[i];

@@ -2,6 +2,7 @@
 // Skeleton ref: §2.4 split reduction -- the combiner of a split-K GEMM.
 #pragma once
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#include <tilemega/Codegen/tasks/Placement.cuh>
 
 namespace tilemega::codegen {
 
@@ -30,7 +31,7 @@ struct GemmCombineTaskBody {
     float* out = p.buffers[stage.operand[1]];
     int count = p.dims.seq * static_cast<int>(stage.width);
     int chunks = static_cast<int>(stage.group);
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < count;
+    for (int i = PlacedBlock() * blockDim.x + threadIdx.x; i < count;
          i += gridDim.x * blockDim.x) {
       float sum = 0.0f;
       for (int c = 0; c < chunks; ++c) sum += partials[c * count + i];

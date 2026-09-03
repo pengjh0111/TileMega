@@ -2,6 +2,7 @@
 // Skeleton ref: §5.3.  Handwritten TaskBody; every shape arrives at run time.
 #pragma once
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#include <tilemega/Codegen/tasks/Placement.cuh>
 
 namespace tilemega::codegen {
 
@@ -32,7 +33,7 @@ struct RoPETaskBody {
     int const dim = static_cast<int>(stage.width), half_dim = dim / 2;
     int const heads = static_cast<int>(stage.extent);
     int pairs = p.dims.seq * heads * half_dim;
-    for (int index = blockIdx.x * blockDim.x + threadIdx.x; index < pairs;
+    for (int index = PlacedBlock() * blockDim.x + threadIdx.x; index < pairs;
          index += gridDim.x * blockDim.x) {
       int half = index % half_dim;
       int head_token = index / half_dim;

@@ -5,6 +5,7 @@
 
 #include <tilemega/Backend/CutlassGemmCandidate.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#include <tilemega/Codegen/tasks/Placement.cuh>
 
 #include <cute/tensor.hpp>
 #include <cutlass/util/packed_stride.hpp>
@@ -291,7 +292,7 @@ struct GemmStageTaskBody {
     // grid whenever a narrow N tile meets a large split-K factor, and without
     // the stride those tasks are simply never run -- a silently wrong result,
     // not a launch error.
-    for (int task = blockIdx.x; task < count; task += gridDim.x) {
+    for (int task = PlacedBlock(); task < count; task += gridDim.x) {
       int chunk = task / tiles;
       auto const& invocation = table[stage.gemm + chunk];
       int local = task - chunk * tiles;
