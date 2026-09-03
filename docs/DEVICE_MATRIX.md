@@ -29,6 +29,26 @@ The two portability consequences are direct:
   `min(max_stages, floor((budget - overhead) / bytes_per_stage))` from
   `TargetSpec`, never from an architecture or device-name literal.
 
+## Calibrated constants
+
+The table above is capability and resource data, which `TargetSpec::Probe()`
+reads from the driver. The cost model additionally needs *measured* rates and
+latencies, which no query returns. Those live in the same
+`configs/targets/sm_XX.json` files under `"calibration"` and come only from
+running `docs/experiments/CALIB/run.sh` on the device itself.
+
+| Target | Calibration | Evidence |
+|---|---|---|
+| A100 / sm_80 | ❌ not run | no device here; every field 0, `"calibrated": false` |
+| RTX 4090 / sm_89 | ✅ measured | [CALIB/result.md](experiments/CALIB/result.md), 55 records, 6.95 s |
+| H100 SXM / sm_90 | ❌ not run | no device here; every field 0, `"calibrated": false` |
+| RTX 5090 / sm_120 | ❌ not run | no device here; every field 0, `"calibrated": false` |
+| `cluster_sync_ns`, all targets | ❌ not run | needs a `cudaLaunchKernelEx` cluster launch (Part 7) |
+
+An uncalibrated profile carries zeros, never a value interpolated from sm_89 or
+taken from a datasheet, and `run.sh` refuses to write a profile for an
+architecture the machine does not have.
+
 ## Sources
 
 - [S1] [CUDA C++ Programming Guide, Compute Capabilities](https://docs.nvidia.com/cuda/archive/13.1.1/cuda-programming-guide/05-appendices/compute-capabilities.html)

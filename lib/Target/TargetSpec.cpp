@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Target/TargetSpec.h>
 
+#include <tilemega/Support/Json.h>
 #include <tilemega/Target/ArchDispatch.h>
 
 #include <cuda_runtime_api.h>
 
 #include <algorithm>
 #include <fstream>
-#include <iomanip>
-#include <regex>
 #include <sstream>
 #include <stdexcept>
 
@@ -22,38 +21,10 @@ void CheckCuda(cudaError_t status, char const* operation) {
   }
 }
 
-std::string ReadFile(std::string const& path) {
-  std::ifstream input(path);
-  if (!input) throw std::runtime_error("cannot open target config: " + path);
-  return {std::istreambuf_iterator<char>(input),
-          std::istreambuf_iterator<char>()};
-}
-
-std::string JsonString(std::string const& text, char const* key) {
-  std::smatch match;
-  std::regex pattern(std::string("\\\"") + key +
-                     "\\\"\\s*:\\s*\\\"([^\\\"]*)\\\"");
-  if (!std::regex_search(text, match, pattern))
-    throw std::runtime_error(std::string("missing JSON string: ") + key);
-  return match[1].str();
-}
-
-double JsonNumber(std::string const& text, char const* key) {
-  std::smatch match;
-  std::regex pattern(std::string("\\\"") + key +
-                     "\\\"\\s*:\\s*(-?[0-9]+(?:\\.[0-9]+)?)");
-  if (!std::regex_search(text, match, pattern))
-    throw std::runtime_error(std::string("missing JSON number: ") + key);
-  return std::stod(match[1].str());
-}
-
-bool JsonBool(std::string const& text, char const* key) {
-  std::smatch match;
-  std::regex pattern(std::string("\\\"") + key +
-                     "\\\"\\s*:\\s*(true|false)");
-  if (!std::regex_search(text, match, pattern))
-    throw std::runtime_error(std::string("missing JSON boolean: ") + key);
-  return match[1].str() == "true";
+std::vector<double> NumberArray(json::Value const& value, char const* what) {
+  std::vector<double> out;
+  for (auto const& item : value.AsArray(what)) out.push_back(item.AsNumber(what));
+  return out;
 }
 
 void ApplyKnownCaps(TargetSpec& spec) {
@@ -95,72 +66,200 @@ TargetSpec TargetSpec::Probe(int device_ordinal) {
 }
 
 TargetSpec TargetSpec::FromJson(std::string const& path) {
-  std::string text = ReadFile(path);
+  json::Value root = json::ParseFile(path);
   TargetSpec spec;
-  spec.arch_tag = JsonString(text, "arch_tag");
-  spec.sm_major = static_cast<int>(JsonNumber(text, "sm_major"));
-  spec.sm_minor = static_cast<int>(JsonNumber(text, "sm_minor"));
-  spec.caps.cluster = JsonBool(text, "cluster");
-  spec.caps.tma = JsonBool(text, "tma");
-  spec.caps.warp_specialized = JsonBool(text, "warp_specialized");
-  spec.caps.tcgen05 = JsonBool(text, "tcgen05");
-  spec.caps.cp_async = JsonBool(text, "cp_async");
-  spec.caps.mbarrier = JsonBool(text, "mbarrier");
-  spec.res.num_sms = static_cast<int>(JsonNumber(text, "num_sms"));
-  spec.res.max_smem_per_sm =
-      static_cast<int>(JsonNumber(text, "max_smem_per_sm"));
-  spec.res.max_dynamic_smem_per_cta =
-      static_cast<int>(JsonNumber(text, "max_dynamic_smem_per_cta"));
-  spec.res.regs_per_sm = static_cast<int>(JsonNumber(text, "regs_per_sm"));
-  spec.res.max_cluster_size =
-      static_cast<int>(JsonNumber(text, "max_cluster_size"));
-  spec.res.max_threads_per_sm =
-      static_cast<int>(JsonNumber(text, "max_threads_per_sm"));
-  spec.res.warp_size = static_cast<int>(JsonNumber(text, "warp_size"));
-  spec.calib.atomic_latency_ns = JsonNumber(text, "atomic_latency_ns");
-  spec.calib.cluster_sync_latency_ns =
-      JsonNumber(text, "cluster_sync_latency_ns");
-  spec.calib.named_barrier_ns = JsonNumber(text, "named_barrier_ns");
-  spec.calib.hbm_bandwidth_gbps = JsonNumber(text, "hbm_bandwidth_gbps");
-  spec.calib.calibrated = JsonBool(text, "calibrated");
+  spec.arch_tag = root.At("arch_tag").AsString("arch_tag");
+  spec.sm_major = static_cast<int>(root.At("sm_major").AsNumber("sm_major"));
+  spec.sm_minor = static_cast<int>(root.At("sm_minor").AsNumber("sm_minor"));
+
+  json::Value const& caps = root.At("caps");
+  spec.caps.cluster = caps.At("cluster").AsBool("caps.cluster");
+  spec.caps.tma = caps.At("tma").AsBool("caps.tma");
+  spec.caps.warp_specialized =
+      caps.At("warp_specialized").AsBool("caps.warp_specialized");
+  spec.caps.tcgen05 = caps.At("tcgen05").AsBool("caps.tcgen05");
+  spec.caps.cp_async = caps.At("cp_async").AsBool("caps.cp_async");
+  spec.caps.mbarrier = caps.At("mbarrier").AsBool("caps.mbarrier");
+
+  json::Value const& res_json = root.At("resources");
+  auto res_int = [&](char const* key) {
+    return static_cast<int>(res_json.At(key).AsNumber(key));
+  };
+  spec.res.num_sms = res_int("num_sms");
+  spec.res.max_smem_per_sm = res_int("max_smem_per_sm");
+  spec.res.max_dynamic_smem_per_cta = res_int("max_dynamic_smem_per_cta");
+  spec.res.regs_per_sm = res_int("regs_per_sm");
+  spec.res.max_cluster_size = res_int("max_cluster_size");
+  spec.res.max_threads_per_sm = res_int("max_threads_per_sm");
+  spec.res.warp_size = res_int("warp_size");
+
+  json::Value const& cal = root.At("calibration");
+  auto number = [&](char const* key) { return cal.At(key).AsNumber(key); };
+  spec.calib.calibrated = cal.At("calibrated").AsBool("calibrated");
+  json::Value const& pipes = cal.At("pipelines");
+  auto pipe = [&](char const* key) { return pipes.At(key).AsNumber(key); };
+  spec.calib.tc_fp16_gflops = pipe("tc_fp16_gflops");
+  spec.calib.cuda_fp32_gflops = pipe("cuda_fp32_gflops");
+  spec.calib.cuda_int32_gops = pipe("cuda_int32_gops");
+  spec.calib.sfu_exp2_gops = pipe("sfu_exp2_gops");
+  spec.calib.sfu_rsqrt_gops = pipe("sfu_rsqrt_gops");
+  spec.calib.smem_gbps = pipe("smem_gbps");
+  spec.calib.smem_conflict_slope = pipe("smem_conflict_slope");
+  spec.calib.l2_gbps = pipe("l2_gbps");
+  spec.calib.l2_knee_bytes = pipe("l2_knee_bytes");
+  spec.calib.dram_gbps = pipe("dram_gbps");
+  spec.calib.l2_curve_bytes =
+      NumberArray(pipes.At("l2_curve_bytes"), "l2_curve_bytes");
+  spec.calib.l2_curve_gbps =
+      NumberArray(pipes.At("l2_curve_gbps"), "l2_curve_gbps");
+
+  json::Value const& sync = cal.At("sync");
+  auto sync_number = [&](char const* key) { return sync.At(key).AsNumber(key); };
+  spec.calib.atomic_uncontended_ns = sync_number("atomic_uncontended_ns");
+  spec.calib.atomic_contention_ctas =
+      NumberArray(sync.At("atomic_contention_ctas"), "atomic_contention_ctas");
+  spec.calib.atomic_contention_ns =
+      NumberArray(sync.At("atomic_contention_ns"), "atomic_contention_ns");
+  spec.calib.threadfence_ns = sync_number("threadfence_ns");
+  spec.calib.syncthreads_ns = sync_number("syncthreads_ns");
+  spec.calib.named_barrier_ns = sync_number("named_barrier_ns");
+  spec.calib.cluster_sync_ns = sync_number("cluster_sync_ns");
+  spec.calib.cluster_sync_calibrated =
+      sync.At("cluster_sync_calibrated").AsBool("cluster_sync_calibrated");
+
+  for (auto const& item : cal.At("streamk").AsArray("streamk")) {
+    StreamKPoint point;
+    point.tile_m = static_cast<int>(item.At("tile_m").AsNumber("tile_m"));
+    point.tile_n = static_cast<int>(item.At("tile_n").AsNumber("tile_n"));
+    point.tile_k = static_cast<int>(item.At("tile_k").AsNumber("tile_k"));
+    point.stages = static_cast<int>(item.At("stages").AsNumber("stages"));
+    point.a_ns = item.At("a_ns").AsNumber("a_ns");
+    point.b_ns = item.At("b_ns").AsNumber("b_ns");
+    point.c_ns = item.At("c_ns").AsNumber("c_ns");
+    point.d_ns = item.At("d_ns").AsNumber("d_ns");
+    point.fit_r2 = item.At("fit_r2").AsNumber("fit_r2");
+    point.ac_r2 = item.At("ac_r2").AsNumber("ac_r2");
+    spec.calib.streamk.push_back(point);
+  }
+  spec.calib.combine_fixed_ns = cal.At("combine_fixed_ns")
+                                    .AsNumber("combine_fixed_ns");
+  spec.calib.combine_d_dram_ns = cal.At("combine_d_dram_ns")
+                                     .AsNumber("combine_d_dram_ns");
+
+  spec.calib.interference_ratio = number("interference_ratio");
+  if (json::Value const* device = cal.Find("device"))
+    spec.calib.device = device->AsString("device");
+  if (json::Value const* when = cal.Find("measured_at"))
+    spec.calib.measured_at = when->AsString("measured_at");
+  if (json::Value const* wall = cal.Find("wall_seconds"))
+    spec.calib.wall_seconds = wall->AsNumber("wall_seconds");
+  if (json::Value const* records = cal.Find("measurements")) {
+    for (auto const& item : records->AsArray("measurements")) {
+      Measurement record;
+      record.name = item.At("name").AsString("name");
+      record.value = item.At("value").AsNumber("value");
+      record.unit = item.At("unit").AsString("unit");
+      record.samples = static_cast<int>(item.At("samples").AsNumber("samples"));
+      record.rel_stddev = item.At("rel_stddev").AsNumber("rel_stddev");
+      record.method = item.At("method").AsString("method");
+      spec.calib.measurements.push_back(std::move(record));
+    }
+  }
   return spec;
 }
 
+TargetSpec::StreamKPoint const* TargetSpec::Calib::FindStreamK(
+    int m, int n, int k, int stages) const {
+  for (auto const& point : streamk) {
+    if (point.tile_m == m && point.tile_n == n && point.tile_k == k &&
+        point.stages == stages) {
+      return &point;
+    }
+  }
+  return nullptr;
+}
+
 std::string TargetSpec::ToJson() const {
-  std::ostringstream out;
-  out << std::boolalpha << std::fixed << std::setprecision(3);
-  out << "{\n"
-      << "  \"arch_tag\": \"" << arch_tag << "\",\n"
-      << "  \"sm_major\": " << sm_major << ",\n"
-      << "  \"sm_minor\": " << sm_minor << ",\n"
-      << "  \"caps\": {\n"
-      << "    \"cluster\": " << caps.cluster << ",\n"
-      << "    \"tma\": " << caps.tma << ",\n"
-      << "    \"warp_specialized\": " << caps.warp_specialized << ",\n"
-      << "    \"tcgen05\": " << caps.tcgen05 << ",\n"
-      << "    \"cp_async\": " << caps.cp_async << ",\n"
-      << "    \"mbarrier\": " << caps.mbarrier << "\n"
-      << "  },\n"
-      << "  \"resources\": {\n"
-      << "    \"num_sms\": " << res.num_sms << ",\n"
-      << "    \"max_smem_per_sm\": " << res.max_smem_per_sm << ",\n"
-      << "    \"max_dynamic_smem_per_cta\": "
-      << res.max_dynamic_smem_per_cta << ",\n"
-      << "    \"regs_per_sm\": " << res.regs_per_sm << ",\n"
-      << "    \"max_cluster_size\": " << res.max_cluster_size << ",\n"
-      << "    \"max_threads_per_sm\": " << res.max_threads_per_sm << ",\n"
-      << "    \"warp_size\": " << res.warp_size << "\n"
-      << "  },\n"
-      << "  \"calibration\": {\n"
-      << "    \"atomic_latency_ns\": " << calib.atomic_latency_ns << ",\n"
-      << "    \"cluster_sync_latency_ns\": "
-      << calib.cluster_sync_latency_ns << ",\n"
-      << "    \"named_barrier_ns\": " << calib.named_barrier_ns << ",\n"
-      << "    \"hbm_bandwidth_gbps\": " << calib.hbm_bandwidth_gbps << ",\n"
-      << "    \"calibrated\": " << calib.calibrated << "\n"
-      << "  }\n"
-      << "}\n";
-  return out.str();
+  json::Value root(json::Object{});
+  root.Set("arch_tag", arch_tag);
+  root.Set("sm_major", sm_major);
+  root.Set("sm_minor", sm_minor);
+  root.Set("caps", json::Object{{"cluster", caps.cluster},
+                                {"tma", caps.tma},
+                                {"warp_specialized", caps.warp_specialized},
+                                {"tcgen05", caps.tcgen05},
+                                {"cp_async", caps.cp_async},
+                                {"mbarrier", caps.mbarrier}});
+  root.Set("resources",
+           json::Object{{"num_sms", res.num_sms},
+                        {"max_smem_per_sm", res.max_smem_per_sm},
+                        {"max_dynamic_smem_per_cta", res.max_dynamic_smem_per_cta},
+                        {"regs_per_sm", res.regs_per_sm},
+                        {"max_cluster_size", res.max_cluster_size},
+                        {"max_threads_per_sm", res.max_threads_per_sm},
+                        {"warp_size", res.warp_size}});
+
+  json::Value pipelines(json::Object{
+      {"tc_fp16_gflops", calib.tc_fp16_gflops},
+      {"cuda_fp32_gflops", calib.cuda_fp32_gflops},
+      {"cuda_int32_gops", calib.cuda_int32_gops},
+      {"sfu_exp2_gops", calib.sfu_exp2_gops},
+      {"sfu_rsqrt_gops", calib.sfu_rsqrt_gops},
+      {"smem_gbps", calib.smem_gbps},
+      {"smem_conflict_slope", calib.smem_conflict_slope},
+      {"l2_gbps", calib.l2_gbps},
+      {"l2_knee_bytes", calib.l2_knee_bytes},
+      {"dram_gbps", calib.dram_gbps},
+      {"l2_curve_bytes", json::Numbers(calib.l2_curve_bytes)},
+      {"l2_curve_gbps", json::Numbers(calib.l2_curve_gbps)}});
+
+  json::Value sync(json::Object{
+      {"atomic_uncontended_ns", calib.atomic_uncontended_ns},
+      {"atomic_contention_ctas", json::Numbers(calib.atomic_contention_ctas)},
+      {"atomic_contention_ns", json::Numbers(calib.atomic_contention_ns)},
+      {"threadfence_ns", calib.threadfence_ns},
+      {"syncthreads_ns", calib.syncthreads_ns},
+      {"named_barrier_ns", calib.named_barrier_ns},
+      {"cluster_sync_ns", calib.cluster_sync_ns},
+      {"cluster_sync_calibrated", calib.cluster_sync_calibrated}});
+
+  json::Array streamk;
+  for (auto const& point : calib.streamk) {
+    streamk.emplace_back(json::Object{{"tile_m", point.tile_m},
+                                      {"tile_n", point.tile_n},
+                                      {"tile_k", point.tile_k},
+                                      {"stages", point.stages},
+                                      {"a_ns", point.a_ns},
+                                      {"b_ns", point.b_ns},
+                                      {"c_ns", point.c_ns},
+                                      {"d_ns", point.d_ns},
+                                      {"fit_r2", point.fit_r2},
+                                      {"ac_r2", point.ac_r2}});
+  }
+
+  json::Array measurements;
+  for (auto const& record : calib.measurements) {
+    measurements.emplace_back(json::Object{{"name", record.name},
+                                           {"value", record.value},
+                                           {"unit", record.unit},
+                                           {"samples", record.samples},
+                                           {"rel_stddev", record.rel_stddev},
+                                           {"method", record.method}});
+  }
+
+  root.Set("calibration",
+           json::Object{{"calibrated", calib.calibrated},
+                        {"device", calib.device},
+                        {"measured_at", calib.measured_at},
+                        {"wall_seconds", calib.wall_seconds},
+                        {"pipelines", pipelines},
+                        {"sync", sync},
+                        {"streamk", json::Value(streamk)},
+                        {"combine_fixed_ns", calib.combine_fixed_ns},
+                        {"combine_d_dram_ns", calib.combine_d_dram_ns},
+                        {"interference_ratio", calib.interference_ratio},
+                        {"measurements", json::Value(measurements)}});
+  return root.Dump();
 }
 
 void TargetSpec::ToJson(std::string const& path) const {

@@ -83,6 +83,7 @@ mlir_tablegen(include/tilemega/Dialect/CouplingGraph/CGOps.cpp.inc
 add_public_tablegen_target(TileMegaCGIncGen)
 
 add_library(tilemega STATIC
+  lib/Support/Json.cpp
   lib/Target/TargetSpec.cpp
   lib/Frontend/Frontend.cpp
   lib/Frontend/GraphPattern.cpp
@@ -151,8 +152,26 @@ endif()
 set_target_properties(tilemega-compile PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
+# The microbenchmarks live in their own library: GemmCalibration.cu
+# instantiates six CUTLASS collectives, and putting that in `tilemega` would
+# make every build of the core library pay for it.
+add_library(tilemega_calibration STATIC
+  lib/Target/Calibration.cu
+  lib/Target/GemmCalibration.cu)
+target_link_libraries(tilemega_calibration PUBLIC TileMega::tilemega)
+set_target_properties(tilemega_calibration PROPERTIES CUDA_SEPARABLE_COMPILATION OFF)
+target_compile_options(tilemega_calibration PRIVATE
+  $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+# Calibration measures the machine it runs on, so it is always built for the
+# device present rather than the project-wide default architecture.
+if(TILEMEGA_TARGET_ARCH STREQUAL "auto")
+  set_property(TARGET tilemega_calibration PROPERTY CUDA_ARCHITECTURES OFF)
+  target_compile_options(tilemega_calibration PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-arch=native>)
+endif()
+
 add_executable(tilemega-calibrate tools/tilemega-calibrate.cpp)
-target_link_libraries(tilemega-calibrate PRIVATE TileMega::tilemega)
+target_link_libraries(tilemega-calibrate PRIVATE tilemega_calibration)
 set_target_properties(tilemega-calibrate PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 

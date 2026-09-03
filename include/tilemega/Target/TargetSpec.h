@@ -20,8 +20,9 @@
 #pragma once
 
 #include <cstddef>
-#include <string>
 #include <cstdint>
+#include <string>
+#include <vector>
 
 namespace tilemega {
 
@@ -62,14 +63,96 @@ struct TargetSpec {
     int warp_size                = 32;
   } res;
 
-  /// Cost-model calibration.  Filled by tools/tilemega-calibrate (Phase 4,
-  /// skeleton §4.4).  Placeholder for now; `calibrated` gates its use.
+  /// One calibrated quantity together with the evidence behind it.  The cost
+  /// model reads `value`; the rest travels with it so a constant can never be
+  /// cited without its method, sample count and dispersion (§0 work
+  /// discipline).
+  struct Measurement {
+    std::string name;
+    double value = 0.0;
+    std::string unit;
+    int samples = 0;
+    double rel_stddev = 0.0;  ///< stddev / mean over `samples` repeats
+    std::string method;
+  };
+
+  /// Stream-K's per-CTA four-parameter model (arXiv 2301.03598 A.1),
+  ///   time_CTA = a + b*[peers>1] + c*iters + d*(peers-1).
+  ///
+  /// `a` and `c` are per CTA and fitted per tile shape.  `b` and `d` are the
+  /// reduction, which in TileMega is the separate GemmCombine stage and does
+  /// not depend on the tile shape at all, so they are held per output element
+  /// and the per-CTA form is
+  ///   time_CTA = a + c*iters + (b + d*(peers-1)) * live_outputs(tile)
+  ///            + calib.combine_fixed_ns / ctas_in_the_stage.
+  /// Keeping them per element is what makes them measurable: fitted at one
+  /// shape's single output width the reduction moves 32 KB, below the timer's
+  /// noise floor, and the fit returned negative d at r^2 = 0.05.
+  struct StreamKPoint {
+    int tile_m = 0, tile_n = 0, tile_k = 0, stages = 0;
+    double a_ns = 0.0, b_ns = 0.0, c_ns = 0.0, d_ns = 0.0;
+    double fit_r2 = 0.0;  ///< the worse of the two fits behind this point
+    double ac_r2 = 0.0;   ///< of the per-CTA a/c fit alone
+  };
+
+  /// Cost-model calibration, filled by tools/tilemega-calibrate (skeleton
+  /// §4.4).  `calibrated` gates its use: every field is zero until a real
+  /// measurement wrote it, and a fabricated constant is worse than none.
+  ///
+  /// Rates are per nanosecond throughout, so a resource-vector component is
+  /// work / rate with no unit conversion (1 GB/s == 1 byte/ns).
   struct Calib {
-    double atomic_latency_ns       = 0.0;
-    double cluster_sync_latency_ns = 0.0;
-    double named_barrier_ns        = 0.0;
-    double hbm_bandwidth_gbps      = 0.0;
-    bool   calibrated              = false;
+    // (a) pipeline rates -- the denominators of u(o)'s components.
+    double tc_fp16_gflops   = 0.0;  ///< mma.m16n8k16 f16 in, f32 accumulate
+    double cuda_fp32_gflops = 0.0;  ///< FFMA
+    double cuda_int32_gops  = 0.0;  ///< IMAD
+    double sfu_exp2_gops    = 0.0;
+    double sfu_rsqrt_gops   = 0.0;
+    double smem_gbps        = 0.0;  ///< conflict-free ld.shared
+    /// Bank-conflict cost multiplier: max(1, smem_conflict_slope * ways).
+    /// Not an increment per way -- on a scalar ld.shared pipeline the first
+    /// conflicting way can be free, so a line anchored at 1.0 misfits.
+    double smem_conflict_slope = 0.0;
+    double l2_gbps          = 0.0;  ///< plateau below the capacity knee
+    double l2_knee_bytes    = 0.0;  ///< measured working-set knee
+    double dram_gbps        = 0.0;  ///< achieved above the knee, not peak
+    std::vector<double> l2_curve_bytes;  ///< working-set sweep, x axis
+    std::vector<double> l2_curve_gbps;   ///< working-set sweep, y axis
+
+    // (b) synchronization latencies, nanoseconds.
+    double atomic_uncontended_ns = 0.0;
+    std::vector<double> atomic_contention_ctas;  ///< contending CTA count
+    std::vector<double> atomic_contention_ns;    ///< ns per completed atomic
+    double threadfence_ns   = 0.0;
+    double syncthreads_ns   = 0.0;
+    double named_barrier_ns = 0.0;
+    double cluster_sync_ns  = 0.0;
+    bool   cluster_sync_calibrated = false;  ///< false on targets without clusters
+
+    // (c) Stream-K coefficients, one entry per calibrated tile shape.
+    std::vector<StreamKPoint> streamk;
+    /// Width-independent part of the reduction stage, launch excluded.
+    double combine_fixed_ns = 0.0;
+    /// The per-peer coefficient past the L2 knee.  `StreamKPoint::d_ns` is
+    /// the L2-resident value, which is the regime the reference models
+    /// reduce in; these differ by 5.6x on sm_89 and must not be averaged.
+    double combine_d_dram_ns = 0.0;
+
+    // (d) concurrency interference: a GEMM's duration next to a memory-bound
+    // task, relative to the same GEMM alone.  1.0 means the independent
+    // duration assumption holds; skeleton §4.4 calls >1.3 its failure point.
+    double interference_ratio = 0.0;
+
+    bool calibrated = false;
+    std::string device;      ///< the GPU name the numbers came from
+    std::string measured_at; ///< ISO-8601 UTC
+    double wall_seconds = 0.0;
+    std::vector<Measurement> measurements;
+
+    /// The Stream-K entry for a tile shape, or nullptr when that shape was
+    /// not calibrated.  Callers must not interpolate silently -- ask, and
+    /// handle the absence.
+    StreamKPoint const* FindStreamK(int m, int n, int k, int stages) const;
   } calib;
 
   /// Probe the GPU at `device_ordinal`.  Throws std::runtime_error when no
