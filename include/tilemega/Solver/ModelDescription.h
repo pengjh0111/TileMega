@@ -65,6 +65,11 @@ struct ModelDescription {
   ModelDims dims;
   std::vector<GemmOp> gemms;
   std::vector<ModelStage> stages;
+  /// `stage_successors[i]` = the stages that depend on stage `i`, read out of
+  /// the generated `kDependencies` table.  That table is already transitively
+  /// reduced by the generator, so it is the DAG the megakernel actually
+  /// enforces rather than a re-derivation of it (§P4.8).
+  std::vector<std::vector<int>> stage_successors;
 
   /// Parse the `kGemms` and `kStages` tables out of a generated .cu.  Throws
   /// std::runtime_error when either table is missing or malformed -- a silent

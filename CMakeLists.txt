@@ -107,6 +107,7 @@ add_library(tilemega STATIC
   lib/Solver/ImplementationContract.cpp
   lib/Solver/AlignmentPropagation.cpp
   lib/Solver/ChainDP.cpp
+  lib/Solver/ListScheduler.cpp
   lib/Solver/CostModel.cpp
   lib/Solver/ModelDescription.cpp
   lib/Codegen/Codegen.cpp
@@ -285,6 +286,10 @@ if(TILEMEGA_BUILD_TESTS)
   target_compile_definitions(chain_dp_test PRIVATE
     TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   add_test(NAME chain_dp COMMAND chain_dp_test)
+
+  add_executable(list_scheduler_test test/unit/list_scheduler_test.cpp)
+  target_link_libraries(list_scheduler_test PRIVATE TileMega::tilemega)
+  add_test(NAME list_scheduler COMMAND list_scheduler_test)
 
   add_executable(alignment_propagation_test
     test/unit/alignment_propagation_test.cpp)

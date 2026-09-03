@@ -18,6 +18,7 @@
 #include <tilemega/Solver/AlignmentPropagation.h>
 #include <tilemega/Solver/ChainDP.h>
 #include <tilemega/Solver/CostModel.h>
+#include <tilemega/Solver/ListScheduler.h>
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Target/TargetSpec.h>
 
@@ -208,6 +209,28 @@ int main(int argc, char** argv) try {
       std::ofstream trace(out_dir + "/alignment_" + source.name + ".txt");
       if (!trace) throw std::runtime_error("cannot write the alignment trace");
       trace << ExplainAlignment(model, axes, kept);
+    }
+
+    // P4.8: the schedule the megakernel could execute, against the one it does.
+    // `levels` is the DAG's critical path in stages, so it is the floor on the
+    // barrier count; `nodes - levels` is everything list scheduling can win.
+    {
+      ScheduleStats sched;
+      auto const order = ListScheduler().Schedule(model.stage_successors, &sched);
+      auto const levels = ListScheduler().Levels(model.stage_successors);
+      std::ofstream report(out_dir + "/schedule_" + source.name + ".txt");
+      if (!report) throw std::runtime_error("cannot write the schedule report");
+      report << "stages " << sched.nodes << "\nlevels " << sched.levels
+             << "\nwidest_level " << sched.widest_level << "\nbarriers_saved "
+             << sched.barriers_saved << "\n\nposition\tstage\tlevel\n";
+      for (std::size_t i = 0; i < order.size(); ++i)
+        report << i << '\t' << order[i] << '\t' << levels[order[i]] << '\n';
+      std::cout << "schedule   = " << sched.nodes << " stages -> "
+                << sched.levels << " barrier intervals (widest "
+                << sched.widest_level << "), " << sched.barriers_saved
+                << " barriers saved = "
+                << (sched.nodes ? 100.0 * sched.barriers_saved / sched.nodes : 0.0)
+                << "% of the barrier count\n";
     }
     // Tier 2 turns out to be non-binding on the tier-1 candidate set (below),
     // so the counterfactual is reported next to it: the same derivation, run

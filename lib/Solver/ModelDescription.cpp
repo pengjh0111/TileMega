@@ -161,6 +161,23 @@ ModelDescription ModelDescription::FromGeneratedCuda(std::string const& path,
   if (model.gemms.empty() || model.stages.empty()) {
     throw std::runtime_error("empty model tables in " + path);
   }
+  model.stage_successors.assign(model.stages.size(), {});
+  for (auto const& record :
+       Records(TableBody(source, "constexpr StageDependency kDependencies[]",
+                         path))) {
+    auto fields = Fields(record);
+    if (fields.size() < 2)
+      throw std::runtime_error("short StageDependency in " + path);
+    int const producer = AsInt(fields[0], "dependency.producer");
+    int const consumer = AsInt(fields[1], "dependency.consumer");
+    if (producer == consumer) continue;  // the generator's empty-table filler
+    if (producer < 0 || consumer < 0 ||
+        producer >= static_cast<int>(model.stages.size()) ||
+        consumer >= static_cast<int>(model.stages.size()))
+      throw std::runtime_error("dependency names a stage outside kStages in " +
+                               path);
+    model.stage_successors[producer].push_back(consumer);
+  }
   return model;
 }
 
