@@ -105,6 +105,7 @@ add_library(tilemega STATIC
   lib/Solver/BackendCostQuery.cpp
   lib/Solver/CandidateGenerator.cpp
   lib/Solver/ImplementationContract.cpp
+  lib/Solver/AlignmentPropagation.cpp
   lib/Solver/CostModel.cpp
   lib/Solver/ModelDescription.cpp
   lib/Codegen/Codegen.cpp
@@ -272,6 +273,11 @@ if(TILEMEGA_BUILD_TESTS)
   target_compile_definitions(backend_query_test PRIVATE
     TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   add_test(NAME backend_query COMMAND backend_query_test)
+
+  add_executable(alignment_propagation_test
+    test/unit/alignment_propagation_test.cpp)
+  target_link_libraries(alignment_propagation_test PRIVATE TileMega::tilemega)
+  add_test(NAME alignment_propagation COMMAND alignment_propagation_test)
 
   add_executable(impl_contract_test test/unit/impl_contract_test.cpp)
   target_link_libraries(impl_contract_test PRIVATE TileMega::tilemega)

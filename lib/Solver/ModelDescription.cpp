@@ -91,7 +91,38 @@ StageKind ParseKind(std::string const& text) {
   throw std::runtime_error("unmodelled stage kind: " + text);
 }
 
+/// The generated operand list is a brace-enclosed run of buffer ids padded
+/// with `kNoOperand`; the padding is dropped so an empty list means "reads
+/// nothing this model names".
+std::vector<int> ParseOperands(std::string const& text) {
+  std::vector<int> out;
+  std::string token;
+  for (char c : text) {
+    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
+      token.push_back(c);
+      continue;
+    }
+    if (!token.empty()) {
+      if (token != "kNoOperand" && std::isdigit(static_cast<unsigned char>(token[0]))) {
+        out.push_back(std::stoi(token));
+      }
+      token.clear();
+    }
+  }
+  if (!token.empty() && token != "kNoOperand" &&
+      std::isdigit(static_cast<unsigned char>(token[0]))) {
+    out.push_back(std::stoi(token));
+  }
+  return out;
+}
+
 }  // namespace
+
+int ModelStage::ReadGranularity() const {
+  if (width > 0) return width;
+  if (extent > 0) return extent;
+  return 0;
+}
 
 ModelDescription ModelDescription::FromGeneratedCuda(std::string const& path,
                                                      ModelDims dims,
@@ -106,7 +137,9 @@ ModelDescription ModelDescription::FromGeneratedCuda(std::string const& path,
        Records(TableBody(source, "constexpr GemmDesc kGemms[]", path))) {
     auto fields = Fields(record);
     if (fields.size() < 2) throw std::runtime_error("short GemmDesc in " + path);
-    model.gemms.push_back({AsInt(fields[0], "gemm.n"), AsInt(fields[1], "gemm.k")});
+    if (fields.size() < 6) throw std::runtime_error("short GemmDesc in " + path);
+    model.gemms.push_back({AsInt(fields[0], "gemm.n"), AsInt(fields[1], "gemm.k"),
+                           AsInt(fields[2], "gemm.a"), AsInt(fields[5], "gemm.d")});
   }
   for (auto const& record :
        Records(TableBody(source, "constexpr StageDesc kStages[]", path))) {
@@ -119,6 +152,7 @@ ModelDescription ModelDescription::FromGeneratedCuda(std::string const& path,
     stage.extent = AsInt(fields[2], "stage.extent");
     stage.width = AsInt(fields[3], "stage.width");
     stage.group = AsInt(fields[4], "stage.group");
+    if (fields.size() > 5) stage.operands = ParseOperands(fields[5]);
     if (stage.gemm >= static_cast<int>(model.gemms.size())) {
       throw std::runtime_error("stage names a GEMM outside kGemms in " + path);
     }

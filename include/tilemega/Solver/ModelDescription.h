@@ -23,10 +23,14 @@ struct ModelDims {
   int total = 0;
 };
 
-/// M stays symbolic, so a GEMM contributes only N and K.
+/// M stays symbolic, so a GEMM contributes only N and K.  The destination
+/// buffer is carried too: tier-2 alignment propagation (§P4.3) has to find who
+/// reads this GEMM's output, and the generated tables name it by buffer id.
 struct GemmOp {
   int n = 0;
   int k = 0;
+  int in_buffer = -1;
+  int out_buffer = -1;
 };
 
 /// Mirrors `TaskKind`; kGemmCombine is absent because it exists only after the
@@ -46,6 +50,14 @@ struct ModelStage {
   int extent = 0;
   int width = 0;
   int group = 0;
+  /// Buffer ids the stage touches, in the generated order (inputs first).
+  std::vector<int> operands;
+
+  /// How many contiguous elements of a read buffer one task of this stage
+  /// covers.  This is the `Tr` of §P4.3's wait inflation, and it is read off
+  /// the generated table rather than assumed: RoPE and KVAppend carry it in
+  /// `width` (the head dimension), the elementwise tail in `extent`.
+  int ReadGranularity() const;
 };
 
 struct ModelDescription {
