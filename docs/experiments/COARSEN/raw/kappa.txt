@@ -1,0 +1,138 @@
+EDGE model=gqa2 src=l0.rmsnorm1 dst=l0.wq k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.rmsnorm1 dst=l0.wk k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.rmsnorm1 dst=l0.wv k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.wq dst=l0.rope_q k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.wk dst=l0.rope_k k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.rope_k dst=l0.kvappend_k k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.wv dst=l0.kvappend_v k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.rope_q dst=l0.attn_chunk k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.kvappend_k dst=l0.attn_chunk k1=128/0 k2=128/128 k4=128/384 k8=128/896 k16=128/1920 k32=128/3968 k64=128/8064 k128=128/16256 k256=128/32640 k1024=128/130944
+EDGE model=gqa2 src=l0.kvappend_v dst=l0.attn_chunk k1=128/0 k2=128/128 k4=128/384 k8=128/896 k16=128/1920 k32=128/3968 k64=128/8064 k128=128/16256 k256=128/32640 k1024=128/130944
+EDGE model=gqa2 src=l0.attn_chunk dst=l0.attn_combine k1=8/0 k2=4/0 k4=2/0 k8=1/0 k16=1/8 k32=1/24 k64=1/56 k128=1/120 k256=1/248 k1024=1/1016
+EDGE model=gqa2 src=l0.attn_combine dst=l0.wo k1=4096/0 k2=2048/0 k4=1024/0 k8=512/0 k16=256/0 k32=128/0 k64=128/4096 k128=128/12288 k256=128/28672 k1024=128/126976
+EDGE model=gqa2 src=l0.wo dst=l0.add1 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.add1 dst=l0.rmsnorm2 k1=32/0 k2=16/0 k4=8/0 k8=4/0 k16=2/0 k32=1/0 k64=1/32 k128=1/96 k256=1/224 k1024=1/992
+EDGE model=gqa2 src=l0.rmsnorm2 dst=l0.wgate k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.rmsnorm2 dst=l0.wup k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.wgate dst=l0.silu k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.wup dst=l0.silu k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.silu dst=l0.wdown k1=112/0 k2=56/0 k4=28/0 k8=14/0 k16=7/0 k32=4/16 k64=2/16 k128=1/16 k256=1/144 k1024=1/912
+EDGE model=gqa2 src=l0.wdown dst=l0.add2 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.add1 dst=l0.add2 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.add2 dst=l1.rmsnorm1 k1=32/0 k2=16/0 k4=8/0 k8=4/0 k16=2/0 k32=1/0 k64=1/32 k128=1/96 k256=1/224 k1024=1/992
+EDGE model=gqa2 src=l1.rmsnorm1 dst=l1.wq k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l1.rmsnorm1 dst=l1.wk k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l1.rmsnorm1 dst=l1.wv k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l1.wq dst=l1.rope_q k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l1.wk dst=l1.rope_k k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l1.rope_k dst=l1.kvappend_k k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l1.wv dst=l1.kvappend_v k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l1.rope_q dst=l1.attn_chunk k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l1.kvappend_k dst=l1.attn_chunk k1=128/0 k2=128/128 k4=128/384 k8=128/896 k16=128/1920 k32=128/3968 k64=128/8064 k128=128/16256 k256=128/32640 k1024=128/130944
+EDGE model=gqa2 src=l1.kvappend_v dst=l1.attn_chunk k1=128/0 k2=128/128 k4=128/384 k8=128/896 k16=128/1920 k32=128/3968 k64=128/8064 k128=128/16256 k256=128/32640 k1024=128/130944
+EDGE model=gqa2 src=l1.attn_chunk dst=l1.attn_combine k1=8/0 k2=4/0 k4=2/0 k8=1/0 k16=1/8 k32=1/24 k64=1/56 k128=1/120 k256=1/248 k1024=1/1016
+EDGE model=gqa2 src=l1.attn_combine dst=l1.wo k1=4096/0 k2=2048/0 k4=1024/0 k8=512/0 k16=256/0 k32=128/0 k64=128/4096 k128=128/12288 k256=128/28672 k1024=128/126976
+EDGE model=gqa2 src=l1.wo dst=l1.add1 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l0.add2 dst=l1.add1 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l1.add1 dst=l1.rmsnorm2 k1=32/0 k2=16/0 k4=8/0 k8=4/0 k16=2/0 k32=1/0 k64=1/32 k128=1/96 k256=1/224 k1024=1/992
+EDGE model=gqa2 src=l1.rmsnorm2 dst=l1.wgate k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l1.rmsnorm2 dst=l1.wup k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l1.wgate dst=l1.silu k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l1.wup dst=l1.silu k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l1.silu dst=l1.wdown k1=112/0 k2=56/0 k4=28/0 k8=14/0 k16=7/0 k32=4/16 k64=2/16 k128=1/16 k256=1/144 k1024=1/912
+EDGE model=gqa2 src=l1.wdown dst=l1.add2 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=gqa2 src=l1.add1 dst=l1.add2 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+CURVE model=gqa2 edges=44 skipped=0
+POINT model=gqa2 kappa=1 waits=9071 overwait=0
+POINT model=gqa2 kappa=2 waits=4807 overwait=543
+POINT model=gqa2 kappa=4 waits=2675 overwait=1629
+POINT model=gqa2 kappa=8 waits=1609 overwait=3801
+POINT model=gqa2 kappa=16 waits=1077 overwait=8161
+POINT model=gqa2 kappa=32 waits=812 overwait=16913
+POINT model=gqa2 kappa=64 waits=808 overwait=42641
+POINT model=gqa2 kappa=128 waits=806 overwait=94097
+POINT model=gqa2 kappa=256 waits=806 overwait=197265
+POINT model=gqa2 kappa=1024 waits=806 overwait=816273
+EDGE model=mha4 src=mha0.rmsnorm1 dst=mha0.wq k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha0.rmsnorm1 dst=mha0.wk k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha0.rmsnorm1 dst=mha0.wv k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha0.wq dst=mha0.rope_q k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha0.wk dst=mha0.rope_k k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha0.rope_k dst=mha0.kvappend_k k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha0.wv dst=mha0.kvappend_v k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha0.rope_q dst=mha0.attn_chunk k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha0.kvappend_k dst=mha0.attn_chunk k1=128/0 k2=128/128 k4=128/384 k8=128/896 k16=128/1920 k32=128/3968 k64=128/8064 k128=128/16256 k256=128/32640 k1024=128/130944
+EDGE model=mha4 src=mha0.kvappend_v dst=mha0.attn_chunk k1=128/0 k2=128/128 k4=128/384 k8=128/896 k16=128/1920 k32=128/3968 k64=128/8064 k128=128/16256 k256=128/32640 k1024=128/130944
+EDGE model=mha4 src=mha0.attn_chunk dst=mha0.attn_combine k1=8/0 k2=4/0 k4=2/0 k8=1/0 k16=1/8 k32=1/24 k64=1/56 k128=1/120 k256=1/248 k1024=1/1016
+EDGE model=mha4 src=mha0.attn_combine dst=mha0.wo k1=4096/0 k2=2048/0 k4=1024/0 k8=512/0 k16=256/0 k32=128/0 k64=128/4096 k128=128/12288 k256=128/28672 k1024=128/126976
+EDGE model=mha4 src=mha0.wo dst=mha0.add1 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha0.add1 dst=mha0.rmsnorm2 k1=32/0 k2=16/0 k4=8/0 k8=4/0 k16=2/0 k32=1/0 k64=1/32 k128=1/96 k256=1/224 k1024=1/992
+EDGE model=mha4 src=mha0.rmsnorm2 dst=mha0.wup k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha0.wup dst=mha0.wdown k1=112/0 k2=56/0 k4=28/0 k8=14/0 k16=7/0 k32=4/16 k64=2/16 k128=1/16 k256=1/144 k1024=1/912
+EDGE model=mha4 src=mha0.wdown dst=mha0.add2 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha0.add1 dst=mha0.add2 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha1.rmsnorm1 dst=mha1.wq k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha1.rmsnorm1 dst=mha1.wk k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha1.rmsnorm1 dst=mha1.wv k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha1.wq dst=mha1.rope_q k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha1.wk dst=mha1.rope_k k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha1.rope_k dst=mha1.kvappend_k k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha1.wv dst=mha1.kvappend_v k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha1.rope_q dst=mha1.attn_chunk k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha1.kvappend_k dst=mha1.attn_chunk k1=128/0 k2=128/128 k4=128/384 k8=128/896 k16=128/1920 k32=128/3968 k64=128/8064 k128=128/16256 k256=128/32640 k1024=128/130944
+EDGE model=mha4 src=mha1.kvappend_v dst=mha1.attn_chunk k1=128/0 k2=128/128 k4=128/384 k8=128/896 k16=128/1920 k32=128/3968 k64=128/8064 k128=128/16256 k256=128/32640 k1024=128/130944
+EDGE model=mha4 src=mha1.attn_chunk dst=mha1.attn_combine k1=8/0 k2=4/0 k4=2/0 k8=1/0 k16=1/8 k32=1/24 k64=1/56 k128=1/120 k256=1/248 k1024=1/1016
+EDGE model=mha4 src=mha1.attn_combine dst=mha1.wo k1=4096/0 k2=2048/0 k4=1024/0 k8=512/0 k16=256/0 k32=128/0 k64=128/4096 k128=128/12288 k256=128/28672 k1024=128/126976
+EDGE model=mha4 src=mha1.wo dst=mha1.add1 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha1.add1 dst=mha1.rmsnorm2 k1=32/0 k2=16/0 k4=8/0 k8=4/0 k16=2/0 k32=1/0 k64=1/32 k128=1/96 k256=1/224 k1024=1/992
+EDGE model=mha4 src=mha1.rmsnorm2 dst=mha1.wup k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha1.wup dst=mha1.wdown k1=112/0 k2=56/0 k4=28/0 k8=14/0 k16=7/0 k32=4/16 k64=2/16 k128=1/16 k256=1/144 k1024=1/912
+EDGE model=mha4 src=mha1.wdown dst=mha1.add2 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha1.add1 dst=mha1.add2 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha2.rmsnorm1 dst=mha2.wq k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha2.rmsnorm1 dst=mha2.wk k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha2.rmsnorm1 dst=mha2.wv k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha2.wq dst=mha2.rope_q k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha2.wk dst=mha2.rope_k k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha2.rope_k dst=mha2.kvappend_k k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha2.wv dst=mha2.kvappend_v k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha2.rope_q dst=mha2.attn_chunk k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha2.kvappend_k dst=mha2.attn_chunk k1=128/0 k2=128/128 k4=128/384 k8=128/896 k16=128/1920 k32=128/3968 k64=128/8064 k128=128/16256 k256=128/32640 k1024=128/130944
+EDGE model=mha4 src=mha2.kvappend_v dst=mha2.attn_chunk k1=128/0 k2=128/128 k4=128/384 k8=128/896 k16=128/1920 k32=128/3968 k64=128/8064 k128=128/16256 k256=128/32640 k1024=128/130944
+EDGE model=mha4 src=mha2.attn_chunk dst=mha2.attn_combine k1=8/0 k2=4/0 k4=2/0 k8=1/0 k16=1/8 k32=1/24 k64=1/56 k128=1/120 k256=1/248 k1024=1/1016
+EDGE model=mha4 src=mha2.attn_combine dst=mha2.wo k1=4096/0 k2=2048/0 k4=1024/0 k8=512/0 k16=256/0 k32=128/0 k64=128/4096 k128=128/12288 k256=128/28672 k1024=128/126976
+EDGE model=mha4 src=mha2.wo dst=mha2.add1 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha2.add1 dst=mha2.rmsnorm2 k1=32/0 k2=16/0 k4=8/0 k8=4/0 k16=2/0 k32=1/0 k64=1/32 k128=1/96 k256=1/224 k1024=1/992
+EDGE model=mha4 src=mha2.rmsnorm2 dst=mha2.wup k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha2.wup dst=mha2.wdown k1=112/0 k2=56/0 k4=28/0 k8=14/0 k16=7/0 k32=4/16 k64=2/16 k128=1/16 k256=1/144 k1024=1/912
+EDGE model=mha4 src=mha2.wdown dst=mha2.add2 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha2.add1 dst=mha2.add2 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha3.rmsnorm1 dst=mha3.wq k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha3.rmsnorm1 dst=mha3.wk k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha3.rmsnorm1 dst=mha3.wv k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha3.wq dst=mha3.rope_q k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha3.wk dst=mha3.rope_k k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha3.rope_k dst=mha3.kvappend_k k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha3.wv dst=mha3.kvappend_v k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha3.rope_q dst=mha3.attn_chunk k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha3.kvappend_k dst=mha3.attn_chunk k1=128/0 k2=128/128 k4=128/384 k8=128/896 k16=128/1920 k32=128/3968 k64=128/8064 k128=128/16256 k256=128/32640 k1024=128/130944
+EDGE model=mha4 src=mha3.kvappend_v dst=mha3.attn_chunk k1=128/0 k2=128/128 k4=128/384 k8=128/896 k16=128/1920 k32=128/3968 k64=128/8064 k128=128/16256 k256=128/32640 k1024=128/130944
+EDGE model=mha4 src=mha3.attn_chunk dst=mha3.attn_combine k1=8/0 k2=4/0 k4=2/0 k8=1/0 k16=1/8 k32=1/24 k64=1/56 k128=1/120 k256=1/248 k1024=1/1016
+EDGE model=mha4 src=mha3.attn_combine dst=mha3.wo k1=4096/0 k2=2048/0 k4=1024/0 k8=512/0 k16=256/0 k32=128/0 k64=128/4096 k128=128/12288 k256=128/28672 k1024=128/126976
+EDGE model=mha4 src=mha3.wo dst=mha3.add1 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha3.add1 dst=mha3.rmsnorm2 k1=32/0 k2=16/0 k4=8/0 k8=4/0 k16=2/0 k32=1/0 k64=1/32 k128=1/96 k256=1/224 k1024=1/992
+EDGE model=mha4 src=mha3.rmsnorm2 dst=mha3.wup k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha3.wup dst=mha3.wdown k1=112/0 k2=56/0 k4=28/0 k8=14/0 k16=7/0 k32=4/16 k64=2/16 k128=1/16 k256=1/144 k1024=1/912
+EDGE model=mha4 src=mha3.wdown dst=mha3.add2 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+EDGE model=mha4 src=mha3.add1 dst=mha3.add2 k1=1/0 k2=1/1 k4=1/3 k8=1/7 k16=1/15 k32=1/31 k64=1/63 k128=1/127 k256=1/255 k1024=1/1023
+CURVE model=mha4 edges=72 skipped=0
+POINT model=mha4 kappa=1 waits=18064 overwait=0
+POINT model=mha4 kappa=2 waits=9568 overwait=1072
+POINT model=mha4 kappa=4 waits=5320 overwait=3216
+POINT model=mha4 kappa=8 waits=3196 overwait=7504
+POINT model=mha4 kappa=16 waits=2136 overwait=16112
+POINT model=mha4 kappa=32 waits=1608 overwait=33392
+POINT model=mha4 kappa=64 waits=1600 overwait=84336
+POINT model=mha4 kappa=128 waits=1596 overwait=186224
+POINT model=mha4 kappa=256 waits=1596 overwait=390512
+POINT model=mha4 kappa=1024 waits=1596 overwait=1616240

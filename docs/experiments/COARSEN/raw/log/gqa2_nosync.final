@@ -1,0 +1,180 @@
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r0/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r0
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r1/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r1
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r2/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r2
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r3/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r3
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r4/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r4
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r5/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r5
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r6/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r6
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r7/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r7
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r8/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r8
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r9/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r9
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r10/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r10
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r11/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r11
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r12/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r12
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r13/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r13
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r14/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r14
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r15/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r15
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r16/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r16
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r17/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r17
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r18/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r18
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r19/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r19
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r20/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r20
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r21/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r21
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r22/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r22
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r23/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r23
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r24/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r24
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r25/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r25
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r26/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r26
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r27/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r27
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r28/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r28
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r29/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r29
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r30/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r30
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r31/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r31
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r32/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r32
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r33/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r33
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r34/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r34
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r35/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r35
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r36/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r36
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r37/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r37
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r38/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r38
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r39/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r39
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r40/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r40
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r41/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r41
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r42/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r42
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r43/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r43
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r44/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r44
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r45/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r45
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r46/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r46
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r47/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r47
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r48/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r48
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r49/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r49
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r50/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r50
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r51/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r51
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r52/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r52
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r53/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r53
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r54/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r54
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r55/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r55
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r56/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r56
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r57/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r57
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r58/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r58
+  [fail] first mismatch: /root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r59/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=kappa_gqa2_nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/COARSEN/raw/final/gqa2_nosync/r59
