@@ -55,11 +55,11 @@ union TaskSmem {
   float rms[kHarnessThreads];
   float attention[kHarnessThreads];
   float pointwise[1];
-  GemmMainloop::SharedStorage gemm;
+  GemmVariantSmem gemm;
 };
 inline constexpr std::size_t kExpectedTaskSmem =
-    sizeof(GemmMainloop::SharedStorage) > sizeof(float) * kHarnessThreads
-        ? sizeof(GemmMainloop::SharedStorage)
+    sizeof(GemmVariantSmem) > sizeof(float) * kHarnessThreads
+        ? sizeof(GemmVariantSmem)
         : sizeof(float) * kHarnessThreads;
 static_assert(sizeof(TaskSmem) == kExpectedTaskSmem,
               "one explicit union must equal max_i(TaskBody::SharedStorage)");
@@ -372,8 +372,12 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
   for (std::uint32_t i = 0; i < spec.gemm_count; ++i) {
     GemmDesc const& desc = spec.gemms[i];
     int m = dims.seq;
-    int k_tiles = CeilDiv(desc.k, TILEMEGA_GEMM_TILE_K);
-    int chunks = TILEMEGA_GEMM_SPLIT_K < k_tiles ? TILEMEGA_GEMM_SPLIT_K : k_tiles;
+    int variant = TILEMEGA_GEMM_VARIANT_OF(i);
+    if (variant < 0 || variant >= kGemmVariantCount) variant = 0;
+    GemmVariantInfo const& tiling = kGemmVariantInfo[variant];
+    int split = TILEMEGA_GEMM_SPLIT_OF(i);
+    int k_tiles = CeilDiv(desc.k, tiling.tile_k);
+    int chunks = split < k_tiles ? split : k_tiles;
     if (chunks < 1) chunks = 1;
     gemm_chunks[i] = chunks;
     gemm_base[i] = static_cast<std::uint32_t>(gemms.size());
@@ -389,8 +393,8 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
       // Tiles are distributed as evenly as the count allows, so no chunk is
       // empty whenever chunks <= k_tiles -- an empty CUTLASS problem is not a
       // legal invocation.
-      int k_begin = chunk * k_tiles / chunks * TILEMEGA_GEMM_TILE_K;
-      int k_end = (chunk + 1) * k_tiles / chunks * TILEMEGA_GEMM_TILE_K;
+      int k_begin = chunk * k_tiles / chunks * tiling.tile_k;
+      int k_end = (chunk + 1) * k_tiles / chunks * tiling.tile_k;
       if (k_end > desc.k) k_end = desc.k;
       GemmProblem problem{m, desc.n, k_end - k_begin, 1};
       // The chunk's A/B are the same matrices seen from a K offset: the row
@@ -403,7 +407,7 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
           typename GemmEpilogue::StrideC{}, cute::make_shape(m, desc.n, 1));
       auto stride_d = cutlass::make_cute_packed_stride(
           typename GemmEpilogue::StrideD{}, cute::make_shape(m, desc.n, 1));
-      typename GemmMainloop::Arguments main_args{
+      GemmMainloopOperands main_args{
           model.buffers[desc.a] + k_begin, stride_a,
           model.buffers[desc.b] + k_begin, stride_b};
       // Only the first chunk applies beta*C; the combiner adds no residual, so
@@ -417,13 +421,13 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
           destination, stride_d};
       GemmInvocation invocation;
       invocation.problem = problem;
-      invocation.mainloop =
-          GemmMainloop::to_underlying_arguments(problem, main_args, nullptr);
+      invocation.mainloop = main_args;
       invocation.epilogue =
           GemmEpilogue::to_underlying_arguments(problem, epilogue_args, nullptr);
-      invocation.tiles_m = (m + kGemmTileM - 1) / kGemmTileM;
-      invocation.tiles_n = (desc.n + kGemmTileN - 1) / kGemmTileN;
+      invocation.tiles_m = CeilDiv(m, tiling.tile_m);
+      invocation.tiles_n = CeilDiv(desc.n, tiling.tile_n);
       invocation.chunks = chunks;
+      invocation.variant = variant;
       gemms.push_back(invocation);
     }
   }
