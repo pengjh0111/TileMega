@@ -121,13 +121,16 @@ Two details worth stating rather than smoothing:
 
 - **The tail is flat, not still falling.** `k128` and `k256` have overlapping
   CIs and their medians differ by 0.06 %; the paired ratio even reverses sign
-  between them. The curve has reached its asymptote by κ ≈ 128 and the
-  asymptote is +8.3 %, not 0 %. mha4 runs 40 stages against gqa2's 26, so the
-  fixed per-event cost is amortised slightly better and the floor is a little
-  lower — 8.3 % vs 7.9 % — but it is a floor in both.
+  between them. The curve has reached its asymptote by κ ≈ 128, and the
+  asymptote is **+8.5 %, not 0 %** — the same size as gqa2's +7.9 %, on a model
+  with twice the stages (60 vs 30). ❌ inferred, not measured apart: a residual
+  that does not scale with stage count is what a fixed per-stage difference
+  between the two builds would look like — every κ > 0 build indexes a
+  grid-deep event array where `stage` indexes a stage-deep one. It is a floor
+  either way, and no κ crosses it.
 - **The knee is at the same place as gqa2's**, κ ≈ 32, and at the same place as
-  the analytic knee. The two models agree on the shape; they differ only in the
-  scale of the penalty at κ = 1 (276 % vs 238 %), which tracks their stage count.
+  the analytic knee. The two models agree on the shape and disagree only on the
+  scale of the κ = 1 penalty, 276 % vs 238 %.
 
 ### mha4 — `l1_ms`, nine null controls and one ceiling
 
