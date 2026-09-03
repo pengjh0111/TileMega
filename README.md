@@ -5,7 +5,7 @@
 ## Architecture
 
 <p align="center">
-  <img src="docs/TileMega_architecture1.png" width="100%">
+  <img src="docs/TileMega_arch.png" width="100%">
 </p>
 
 ## Dependencies
