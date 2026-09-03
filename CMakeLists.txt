@@ -101,7 +101,7 @@ add_library(tilemega STATIC
   lib/Analysis/TaskInstantiation.cpp
   lib/Analysis/CouplingDerivation.cpp
   lib/Analysis/ReferenceModels.cpp
-  lib/Solver/Solver.cpp
+  lib/Solver/ClusterLabeling.cpp
   lib/Solver/BackendCostQuery.cpp
   lib/Solver/CandidateGenerator.cpp
   lib/Solver/ImplementationContract.cpp
@@ -290,6 +290,10 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(list_scheduler_test test/unit/list_scheduler_test.cpp)
   target_link_libraries(list_scheduler_test PRIVATE TileMega::tilemega)
   add_test(NAME list_scheduler COMMAND list_scheduler_test)
+
+  add_executable(cluster_labeling_test test/unit/cluster_labeling_test.cpp)
+  target_link_libraries(cluster_labeling_test PRIVATE TileMega::tilemega)
+  add_test(NAME cluster_labeling COMMAND cluster_labeling_test)
 
   add_executable(alignment_propagation_test
     test/unit/alignment_propagation_test.cpp)
