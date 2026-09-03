@@ -941,3 +941,91 @@
   after; `ctest` 15 → 16 tests, all passing, `cg_lit` now among them.
 - Skeleton impact: none on the design. It is a measurement-hygiene finding:
   a check target that is not an `add_test` is a check that does not run.
+
+## F-42 — The SIMT f32 mainloop is LSU-issue-bound at every legal tile shape on sm_89, and the SMEM and L2 lanes are collinear across the whole calibration
+
+- Finding: the SIMT f32 TN collective issues `(Tm+Tn)·Tk/2` scalar `ld.shared`
+  warp-instructions per CTA per mainloop iteration. Fitting the calibrated
+  per-iteration cost on `CTAs_per_SM × that count` alone reproduces all 12
+  calibrated (shape, CTAs/SM) points to **3.93% rel rms** with a single
+  constant, 0.8577 ns per instruction (≈2.16 SM cycles at 2.52 GHz), while the
+  FFMA count varies 32× across those shapes and never enters the fit.
+- Consequence, measured: deleting the tensor-core, CUDA-core, SFU, L2 and DRAM
+  lanes from the cost model — the `full-lanes(smem only)` ablation rung — moves
+  MAPE by 0.02 points and Spearman by 0.0006 on both 1077-point sets. On sm_89
+  none of the other five lanes ever binds for this collective. The lane
+  machinery is kept because it is what transfers to a tensor-core backend, not
+  because it earns anything on this target.
+- ⚠️ Unresolvable from these six shapes: the same collective moves
+  `4·Tk·(Tm+Tn)` cp.async bytes per CTA per iteration, i.e. exactly
+  `8 × LdsInstructions`. The SMEM lane and the L2 lane are **exactly
+  collinear** over every shape in the calibration, so the fit cannot attribute
+  the mainloop to one rather than the other. It is called the SMEM lane on the
+  microarchitectural argument (LSU issue, 256 threads, 16×16 `UniversalFMA`),
+  not on the fit. Separating them needs a shape family that breaks the ratio.
+- Evidence: `bash docs/experiments/COST_MODEL/run.sh`;
+  docs/experiments/COST_MODEL/result.md §3 and the ladder in §4.
+
+## F-43 — §2.2(b)'s pipeline fill depth is not identifiable from a calibration that measures a line in `iters`
+
+- Finding: the Stream-K calibration measures `T = a(o) + c(o)·iters` per
+  (shape, CTAs/SM). An envelope `T_pro + max(N−d,0)·T_steady + T_epi` with fill
+  depth `d` is the *same line reparameterised*: its intercept is
+  `pro + epi − d·c`. Recovering a per-CTA setup constant therefore means adding
+  `d·c` back — but `c` scales with occupancy while a per-CTA constant cannot,
+  so the recovered "constant" inherits `c`'s occupancy scaling. Measured over
+  the 12 calibrated points: `d = 0` gives setup 706 ns at **483 ns** absolute
+  rms; `d = stages−1` gives 3562 ns at **1449 ns**; charging the fill at `c(1)`
+  instead gives 1596 ns and a wider span still. `32×32×32 s3` alone yields
+  setup 2590 / 3955 / 6361 ns at 1 / 2 / 3 CTAs/SM.
+- Not a missing regressor: regressing the `d = 0` residual on `stages`, `o`,
+  `Tm·Tn` or the LDS count improves 483 ns rms by at most 70 ns and does so
+  with nonphysical signs (setup *decreasing* in `stages`). A scalar is the
+  right form; the dispersion is genuine.
+- End to end the term is a wash on error and a loss on ranking: MAPE
+  26.24 → 24.94 (gqa2) and 25.15 → 23.90 (mha4), but Spearman 0.9450 → 0.9382
+  and 0.9435 → 0.9361, and the measured optimum falls from rank 19 → 53 and
+  12 → 17. The acceptance criterion is ranking, so `pipeline_envelope` defaults
+  **off**; the prologue and epilogue terms are always charged, the switch stays,
+  and the ablation ladder measures the depth term on every run.
+- Skeleton impact: §4.4's cost-model form keeps the envelope's structure but
+  must not claim the fill depth is calibrated on sm_89. Recorded as a negative
+  result, not removed.
+
+## F-44 — The cost model's error is a near-uniform per-stage shortfall, which is why it ranks far better than it predicts
+
+- Finding: the model **underpredicts 99.4% / 99.1%** of the 2154 measured
+  points. Normalised by post-split stage count the shortfall is a median
+  **1.58 µs/stage** (gqa2) and **1.47 µs/stage** (mha4), p10 0.85 / 0.74, p90
+  5.75 / 5.55. That residual is essentially all of the 25–26% MAPE, and being
+  close to configuration-independent it barely perturbs the ordering: Spearman
+  0.945 / 0.944 against the tier-2 baseline's 0.461 / 0.446, with the model's
+  top-1 and all of its top-3 inside the measured top 3% on both models.
+- ❌ The cold-barrier-line hypothesis is falsified. The grid-barrier
+  calibration was rewritten to use a fresh 128-byte-aligned `BarrierEvent` per
+  iteration — the layout the megakernel actually has — on the theory that the
+  original single-hot-line kernel understated the cost. It measures 1045.9 ns
+  at 128 CTAs against 1.03 µs for the reused hot line: no difference beyond
+  run-to-run spread. The new layout is kept because it is faithful, not because
+  it explained anything.
+- The residual is recorded as unexplained and no free parameter is allowed to
+  absorb it. Both of the model's fitted scalars come from the microbenchmark
+  table only; fitting anything against the 2154 measured latencies would make
+  the validation set and the model share a number.
+- Evidence: docs/experiments/COST_MODEL/result.md §6;
+  docs/experiments/CALIB/result.md §(b).
+
+## F-45 — §0.3's "SplitKReduce is 24–26% of the best configuration" is a launch-overhead artifact; split-K matters for a different reason
+
+- Finding: the profiled `GemmCombine` stages average 3.630 µs against a
+  3.456 µs per-launch floor — a body of roughly **0.17 µs**. The reduction's
+  arithmetic is not a quarter of the runtime.
+- Split-K still has to be a first-class model variable, and the ablation shows
+  the size of the effect: adding it moves MAPE 181 → 36 and Spearman 0.44 →
+  0.91 on gqa2 (185 → 35, 0.43 → 0.90 on mha4). But the mechanism is that
+  splitting **doubles the stage count** — gqa2 30 → 44 stages, mha4 60 → 88 —
+  and therefore the number of grid barriers, while cutting `iters` per CTA and
+  filling the machine. `+splitk` and `+sync` are the two halves of one trade
+  and neither layer works without the other.
+- Skeleton impact: §2.3 stays, but the justification in §0.3 should cite the
+  stage-count/barrier trade, not the reduction's share of the profile.

@@ -2,17 +2,11 @@
 #include <tilemega/Solver/AlignmentPropagation.h>
 #include <tilemega/Solver/ChainDP.h>
 #include <tilemega/Solver/ClusterLabeling.h>
-#include <tilemega/Solver/CostModel.h>
 #include <tilemega/Solver/ListScheduler.h>
 #include <algorithm>
 namespace tilemega::solver {
 bool AlignmentPropagation::Compatible(TileCandidate const& a, TileCandidate const& b) const {
   return a.n == 0 || b.m == 0 || a.n == b.m;
-}
-double CostModel::Evaluate(TileCandidate const& c, TargetSpec const& target) const {
-  // TODO(P4.2): calibrated latency plus coupling-aware communication cost.
-  return static_cast<double>(c.m) * c.n * c.k /
-         std::max(1, target.res.num_sms);
 }
 std::vector<TileCandidate> ChainDP::Solve(std::vector<std::vector<TileCandidate>> const& candidates) const {
   std::vector<TileCandidate> result;

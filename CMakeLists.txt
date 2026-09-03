@@ -105,6 +105,8 @@ add_library(tilemega STATIC
   lib/Solver/BackendCostQuery.cpp
   lib/Solver/CandidateGenerator.cpp
   lib/Solver/ImplementationContract.cpp
+  lib/Solver/CostModel.cpp
+  lib/Solver/ModelDescription.cpp
   lib/Codegen/Codegen.cpp
   lib/Runtime/EventBuffer.cpp
   lib/Runtime/MegakernelRuntime.cpp)
@@ -178,6 +180,11 @@ set_target_properties(tilemega-calibrate PROPERTIES
 add_executable(tilemega-derive tools/tilemega-derive.cpp)
 target_link_libraries(tilemega-derive PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-derive PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
+add_executable(tilemega-costmodel tools/tilemega-costmodel.cpp)
+target_link_libraries(tilemega-costmodel PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-costmodel PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
 add_custom_target(check-policy
