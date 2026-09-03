@@ -1,0 +1,58 @@
+== gqa2   60 interleaved rounds, one fresh process per arm per round
+   l05_ms -- one kernel per stage
+   arm      median     vs ident (95% CI)           signed-rank p note
+   ident    0.173888  --                          --            baseline
+   ident2   0.174016   -0.037% [-0.636,+0.462]        3.76e-01    NOISE FLOOR: identical binary
+   pair     0.201728  +15.958% [+15.467,+16.667]        5.31e-10    the affinity heuristic
+   reverse  0.172032   -1.095% [-1.360,-0.567]        6.45e-04    
+   scatter  0.175872   +0.708% [+0.444,+1.698]        3.20e-03    adjacency destroyed
+
+   l1_ms -- persistent grid, barrier per stage
+   arm      median     vs ident (95% CI)           signed-rank p note
+   ident    0.167936  --                          --            baseline
+   ident2   0.167936   +0.124% [-0.382,+0.495]        6.99e-01    NOISE FLOOR: identical binary
+   pair     0.196480  +17.017% [+16.594,+17.178]        1.67e-11    the affinity heuristic
+   reverse  0.155888   -7.053% [-7.279,-6.748]        1.76e-11    
+   scatter  0.169984   +1.204% [+1.047,+1.555]        5.83e-10    adjacency destroyed
+
+   l2_ms -- persistent grid, event DAG
+   arm      median     vs ident (95% CI)           signed-rank p note
+   ident    0.184144  --                          --            baseline
+   ident2   0.184320   -0.148% [-0.556,+0.052]        1.81e-01    NOISE FLOOR: identical binary
+   pair     0.210832  +14.190% [+13.491,+14.795]        1.67e-11    the affinity heuristic
+   reverse  0.181248   -1.589% [-1.964,-1.114]        3.16e-09    
+   scatter  0.186080   +0.649% [-0.113,+1.140]        4.92e-02    adjacency destroyed
+
+   ORACLE model=gqa2 metric=l05_ms arm=reverse gain=+1.095% floor=+0.148%
+   ORACLE model=gqa2 metric=l1_ms arm=reverse gain=+7.053% floor=+0.148%
+   ORACLE model=gqa2 metric=l2_ms arm=reverse gain=+1.589% floor=+0.148%
+
+== mha4   60 interleaved rounds, one fresh process per arm per round
+   l05_ms -- one kernel per stage
+   arm      median     vs ident (95% CI)           signed-rank p note
+   ident    0.322656  --                          --            baseline
+   ident2   0.322720   -0.457% [-1.124,+0.313]        1.59e-01    NOISE FLOOR: identical binary
+   pair     0.377856  +16.663% [+16.049,+17.217]        5.41e-09    the affinity heuristic
+   reverse  0.319952   -1.265% [-1.615,-0.658]        1.02e-04    
+   scatter  0.325456   +0.656% [+0.089,+1.208]        5.35e-02    adjacency destroyed
+
+   l1_ms -- persistent grid, barrier per stage
+   arm      median     vs ident (95% CI)           signed-rank p note
+   ident    0.325712  --                          --            baseline
+   ident2   0.325632   -0.005% [-0.497,+0.148]        1.44e-01    NOISE FLOOR: identical binary
+   pair     0.385024  +18.172% [+17.868,+18.530]        1.85e-11    the affinity heuristic
+   reverse  0.303136   -6.939% [-7.187,-6.769]        1.67e-11    
+   scatter  0.323584   -0.751% [-1.237,-0.511]        4.17e-07    adjacency destroyed
+
+   l2_ms -- persistent grid, event DAG
+   arm      median     vs ident (95% CI)           signed-rank p note
+   ident    0.356560  --                          --            baseline
+   ident2   0.356768   -0.144% [-0.343,+0.296]        9.91e-01    NOISE FLOOR: identical binary
+   pair     0.405968  +13.619% [+13.429,+13.973]        1.76e-11    the affinity heuristic
+   reverse  0.350208   -1.986% [-2.163,-1.724]        2.26e-11    
+   scatter  0.359424   +0.545% [+0.272,+0.857]        1.95e-02    adjacency destroyed
+
+   ORACLE model=mha4 metric=l05_ms arm=reverse gain=+1.265% floor=+0.144%
+   ORACLE model=mha4 metric=l1_ms arm=reverse gain=+6.939% floor=+0.144%
+   ORACLE model=mha4 metric=l2_ms arm=reverse gain=+1.986% floor=+0.144%
+

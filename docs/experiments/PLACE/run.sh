@@ -120,7 +120,10 @@ for model in gqa2 mha4; do
     mapfile -t logs < <(find "${raw}/final/${model}_${arm}" -name 'run_*.log' | sort)
     l1=$(grep -h '^E2E_TIME' "${logs[@]}" | sed -E 's/.*l1_ms=([0-9.]+).*/\1/' | median)
     l2=$(grep -h '^E2E_TIME' "${logs[@]}" | sed -E 's/.* l2_ms=([0-9.]+).*/\1/' | median)
-    pass=$(grep -h -c '^RESULT status=PASS' "${logs[@]}" | awk '{t+=$1} END{print t+0}')
+    # `grep -c` exits 1 when nothing matches, and under `pipefail` that would
+    # kill the sweep on exactly the arm whose count is supposed to be zero.
+    pass=$( { grep -h -c '^RESULT status=PASS' "${logs[@]}" || true; } \
+            | awk '{t+=$1} END{print t+0}')
     printf '%s\t%s\t%s\t%s\t%s/%s\n' "${model}" "${arm}" "${l1}" "${l2}" \
       "${pass}" "${#logs[@]}" | tee -a "${raw}/place_arms.tsv"
   done
