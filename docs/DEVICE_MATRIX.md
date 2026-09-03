@@ -40,7 +40,7 @@ running `docs/experiments/CALIB/run.sh` on the device itself.
 | Target | Calibration | Evidence |
 |---|---|---|
 | A100 / sm_80 | ❌ not run | no device here; every field 0, `"calibrated": false` |
-| RTX 4090 / sm_89 | ✅ measured | [CALIB/result.md](experiments/CALIB/result.md), 55 records, 6.95 s |
+| RTX 4090 / sm_89 | ✅ measured | [CALIB/result.md](experiments/CALIB/result.md), 72 records, 10.54 s |
 | H100 SXM / sm_90 | ❌ not run | no device here; every field 0, `"calibrated": false` |
 | RTX 5090 / sm_120 | ❌ not run | no device here; every field 0, `"calibrated": false` |
 | `cluster_sync_ns`, all targets | ❌ not run | needs a `cudaLaunchKernelEx` cluster launch (Part 7) |

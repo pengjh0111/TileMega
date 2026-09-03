@@ -562,6 +562,57 @@ bool FitShape(TargetSpec& spec, Options const& options, Buffers const& buffers,
     point.fit_r2 = std::min(linear.r2, std::min(combine.peer_r2,
                                                 combine.width_r2));
     point.ac_r2 = linear.r2;
+
+    // The sweep above runs six CTAs on 128 SMs.  The megakernel runs 128-512,
+    // and a shape that is latency-bound alone can be throughput-bound beside
+    // its neighbours, so `c` is re-fitted at each resident CTA count from a
+    // two-point (4, 16) line at full device width.
+    int resident = 0;
+    CheckCuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+                  &resident,
+                  reinterpret_cast<void const*>(CalibGemmKernel<Candidate>),
+                  Candidate::kThreads, Candidate::kSmemBytes),
+              "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
+    int const tiles_n_cap = (kMaxN * kCalibTilesN) / N;
+    double worst_occ_rsd = 0.0;
+    for (int per_sm = 1; per_sm <= std::min(4, resident); ++per_sm) {
+      int const want = spec.res.num_sms * per_sm;
+      // Width is capped by the B allocation, so the grid is widened with
+      // split-K chunks instead -- the same mainloop, a shorter K each.
+      int chunks = 1;
+      while (chunks <= kMaxChunks &&
+             (want % chunks != 0 || want / chunks > tiles_n_cap)) {
+        chunks *= 2;
+      }
+      if (chunks > kMaxChunks) continue;
+      int const occ_tiles_n = want / chunks;
+      int const occ_n = N * occ_tiles_n;
+      constexpr int kOccIters[2] = {4, 16};
+      double point_ns[2] = {0.0, 0.0};
+      bool measured = true;
+      for (int index = 0; index < 2 && measured; ++index) {
+        int const k = kOccIters[index] * K * chunks;
+        if (k > kMaxK) { measured = false; break; }
+        BuildTable<Candidate>(buffers, occ_n, k, chunks, host);
+        Timed timed = TimeMs(options.repeats, [&] {
+          CalibGemmKernel<Candidate>
+              <<<want, Candidate::kThreads, Candidate::kSmemBytes>>>(
+                  table, tiles_m, occ_tiles_n);
+        });
+        double launch_ns =
+            TimeMs(options.repeats, [&] {
+              NullKernel<<<want, Candidate::kThreads>>>();
+            }).median_ms * 1e6;
+        point_ns[index] = timed.median_ms * 1e6 - launch_ns;
+        worst_occ_rsd = std::max(worst_occ_rsd, timed.rel_stddev);
+      }
+      if (!measured) continue;
+      double const slope =
+          (point_ns[1] - point_ns[0]) / (kOccIters[1] - kOccIters[0]);
+      point.occ_per_sm.push_back(per_sm);
+      point.occ_c_ns.push_back(slope);
+      point.occ_a_ns.push_back(point_ns[0] - kOccIters[0] * slope);
+    }
     spec.calib.streamk.push_back(point);
 
     std::string tag = std::to_string(M) + "x" + std::to_string(N) + "x" +
@@ -582,9 +633,27 @@ bool FitShape(TargetSpec& spec, Options const& options, Buffers const& buffers,
            "ns per peer per element", options.repeats * 25, combine.worst_rsd,
            "shape-independent: see streamk_combine_d_ns");
 
+    for (std::size_t i = 0; i < point.occ_per_sm.size(); ++i) {
+      Record(spec,
+             "streamk_c_ns[" + tag + "@" +
+                 std::to_string(static_cast<int>(point.occ_per_sm[i])) +
+                 "cta/sm]",
+             point.occ_c_ns[i], "ns per iteration", options.repeats * 2,
+             worst_occ_rsd,
+             "two-point (4,16) re-fit at " +
+                 std::to_string(spec.res.num_sms *
+                                static_cast<int>(point.occ_per_sm[i])) +
+                 " resident CTAs, launch time subtracted");
+    }
+
     log << "  tile " << tag << ": a=" << point.a_ns << "ns c=" << point.c_ns
         << "ns/iter b=" << point.b_ns << "ns/elem d=" << point.d_ns
-        << "ns/peer/elem r2=" << point.fit_r2 << '\n';
+        << "ns/peer/elem r2=" << point.fit_r2;
+    for (std::size_t i = 0; i < point.occ_per_sm.size(); ++i) {
+      log << " c@" << static_cast<int>(point.occ_per_sm[i])
+          << "=" << point.occ_c_ns[i];
+    }
+    log << '\n';
     return true;
   }
 }
@@ -592,12 +661,13 @@ bool FitShape(TargetSpec& spec, Options const& options, Buffers const& buffers,
 }  // namespace
 
 std::vector<TargetSpec::StreamKPoint> StreamKShapes() {
-  return {{128, 128, 16, 3, 0, 0, 0, 0, 0},
-          {64, 64, 16, 3, 0, 0, 0, 0, 0},
-          {32, 32, 32, 3, 0, 0, 0, 0, 0},
-          {16, 64, 32, 3, 0, 0, 0, 0, 0},
-          {16, 64, 16, 2, 0, 0, 0, 0, 0},
-          {256, 128, 16, 3, 0, 0, 0, 0, 0}};
+  auto shape = [](int m, int n, int k, int stages) {
+    TargetSpec::StreamKPoint point;
+    point.tile_m = m; point.tile_n = n; point.tile_k = k; point.stages = stages;
+    return point;
+  };
+  return {shape(128, 128, 16, 3), shape(64, 64, 16, 3), shape(32, 32, 32, 3),
+          shape(16, 64, 32, 3),   shape(16, 64, 16, 2), shape(256, 128, 16, 3)};
 }
 
 void MeasureStreamK(TargetSpec& spec, Options const& options,
@@ -616,7 +686,8 @@ void MeasureStreamK(TargetSpec& spec, Options const& options,
   CheckCuda(cudaMalloc(&buffers.partials,
                        cd_elements * kMaxChunks * sizeof(float)),
             "cudaMalloc(partials)");
-  CheckCuda(cudaMalloc(&buffers.table, 4096), "cudaMalloc(table)");
+  CheckCuda(cudaMalloc(&buffers.table, kMaxChunks * 512),
+            "cudaMalloc(table)");
   CheckCuda(cudaMemset(buffers.a, 0,
                        static_cast<std::size_t>(kCalibM) * kMaxK * sizeof(float)),
             "cudaMemset(A)");

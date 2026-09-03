@@ -105,6 +105,9 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
   spec.calib.sfu_rsqrt_gops = pipe("sfu_rsqrt_gops");
   spec.calib.smem_gbps = pipe("smem_gbps");
   spec.calib.smem_conflict_slope = pipe("smem_conflict_slope");
+  spec.calib.l1_latency_ns = pipe("l1_latency_ns");
+  spec.calib.l2_latency_ns = pipe("l2_latency_ns");
+  spec.calib.dram_latency_ns = pipe("dram_latency_ns");
   spec.calib.l2_gbps = pipe("l2_gbps");
   spec.calib.l2_knee_bytes = pipe("l2_knee_bytes");
   spec.calib.dram_gbps = pipe("dram_gbps");
@@ -112,6 +115,10 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
       NumberArray(pipes.At("l2_curve_bytes"), "l2_curve_bytes");
   spec.calib.l2_curve_gbps =
       NumberArray(pipes.At("l2_curve_gbps"), "l2_curve_gbps");
+  spec.calib.smem_occupancy_ctas =
+      NumberArray(pipes.At("smem_occupancy_ctas"), "smem_occupancy_ctas");
+  spec.calib.smem_occupancy_gbps =
+      NumberArray(pipes.At("smem_occupancy_gbps"), "smem_occupancy_gbps");
 
   json::Value const& sync = cal.At("sync");
   auto sync_number = [&](char const* key) { return sync.At(key).AsNumber(key); };
@@ -126,6 +133,10 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
   spec.calib.cluster_sync_ns = sync_number("cluster_sync_ns");
   spec.calib.cluster_sync_calibrated =
       sync.At("cluster_sync_calibrated").AsBool("cluster_sync_calibrated");
+  spec.calib.grid_barrier_ctas =
+      NumberArray(sync.At("grid_barrier_ctas"), "grid_barrier_ctas");
+  spec.calib.grid_barrier_ns =
+      NumberArray(sync.At("grid_barrier_ns"), "grid_barrier_ns");
 
   for (auto const& item : cal.At("streamk").AsArray("streamk")) {
     StreamKPoint point;
@@ -139,6 +150,9 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
     point.d_ns = item.At("d_ns").AsNumber("d_ns");
     point.fit_r2 = item.At("fit_r2").AsNumber("fit_r2");
     point.ac_r2 = item.At("ac_r2").AsNumber("ac_r2");
+    point.occ_per_sm = NumberArray(item.At("occ_per_sm"), "occ_per_sm");
+    point.occ_a_ns = NumberArray(item.At("occ_a_ns"), "occ_a_ns");
+    point.occ_c_ns = NumberArray(item.At("occ_c_ns"), "occ_c_ns");
     spec.calib.streamk.push_back(point);
   }
   spec.calib.combine_fixed_ns = cal.At("combine_fixed_ns")
@@ -207,11 +221,16 @@ std::string TargetSpec::ToJson() const {
       {"sfu_rsqrt_gops", calib.sfu_rsqrt_gops},
       {"smem_gbps", calib.smem_gbps},
       {"smem_conflict_slope", calib.smem_conflict_slope},
+      {"l1_latency_ns", calib.l1_latency_ns},
+      {"l2_latency_ns", calib.l2_latency_ns},
+      {"dram_latency_ns", calib.dram_latency_ns},
       {"l2_gbps", calib.l2_gbps},
       {"l2_knee_bytes", calib.l2_knee_bytes},
       {"dram_gbps", calib.dram_gbps},
       {"l2_curve_bytes", json::Numbers(calib.l2_curve_bytes)},
-      {"l2_curve_gbps", json::Numbers(calib.l2_curve_gbps)}});
+      {"l2_curve_gbps", json::Numbers(calib.l2_curve_gbps)},
+      {"smem_occupancy_ctas", json::Numbers(calib.smem_occupancy_ctas)},
+      {"smem_occupancy_gbps", json::Numbers(calib.smem_occupancy_gbps)}});
 
   json::Value sync(json::Object{
       {"atomic_uncontended_ns", calib.atomic_uncontended_ns},
@@ -221,7 +240,9 @@ std::string TargetSpec::ToJson() const {
       {"syncthreads_ns", calib.syncthreads_ns},
       {"named_barrier_ns", calib.named_barrier_ns},
       {"cluster_sync_ns", calib.cluster_sync_ns},
-      {"cluster_sync_calibrated", calib.cluster_sync_calibrated}});
+      {"cluster_sync_calibrated", calib.cluster_sync_calibrated},
+      {"grid_barrier_ctas", json::Numbers(calib.grid_barrier_ctas)},
+      {"grid_barrier_ns", json::Numbers(calib.grid_barrier_ns)}});
 
   json::Array streamk;
   for (auto const& point : calib.streamk) {
@@ -234,7 +255,10 @@ std::string TargetSpec::ToJson() const {
                                       {"c_ns", point.c_ns},
                                       {"d_ns", point.d_ns},
                                       {"fit_r2", point.fit_r2},
-                                      {"ac_r2", point.ac_r2}});
+                                      {"ac_r2", point.ac_r2},
+                                      {"occ_per_sm", json::Numbers(point.occ_per_sm)},
+                                      {"occ_a_ns", json::Numbers(point.occ_a_ns)},
+                                      {"occ_c_ns", json::Numbers(point.occ_c_ns)}});
   }
 
   json::Array measurements;

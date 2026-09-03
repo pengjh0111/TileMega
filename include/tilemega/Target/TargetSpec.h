@@ -93,6 +93,15 @@ struct TargetSpec {
     double a_ns = 0.0, b_ns = 0.0, c_ns = 0.0, d_ns = 0.0;
     double fit_r2 = 0.0;  ///< the worse of the two fits behind this point
     double ac_r2 = 0.0;   ///< of the per-CTA a/c fit alone
+    /// `a` and `c` re-fitted at a full-width grid of `occ_per_sm` CTAs per SM.
+    /// The sweep above runs six CTAs on 128 SMs, which is one CTA alone on an
+    /// idle SM and an idle memory system -- the regime the megakernel is never
+    /// in.  A tile whose mainloop is latency-bound gets a second CTA per SM
+    /// almost free; one that saturates a pipeline pays for it in full, and
+    /// only a measurement separates the two.
+    std::vector<double> occ_per_sm;
+    std::vector<double> occ_a_ns;
+    std::vector<double> occ_c_ns;
   };
 
   /// Cost-model calibration, filled by tools/tilemega-calibrate (skeleton
@@ -113,6 +122,20 @@ struct TargetSpec {
     /// Not an increment per way -- on a scalar ld.shared pipeline the first
     /// conflicting way can be free, so a line anchored at 1.0 misfits.
     double smem_conflict_slope = 0.0;
+    /// Scalar ld.shared throughput against resident CTAs per SM.
+    /// `smem_gbps` above is the full-occupancy plateau, which the SIMT GEMM
+    /// mainloop never sees: it runs at one or two CTAs per SM, where the same
+    /// loop reaches a third of that rate.  The cost model interpolates this
+    /// curve at the configuration's own occupancy instead.
+    std::vector<double> smem_occupancy_ctas;
+    std::vector<double> smem_occupancy_gbps;
+    /// Dependent-load round trip, from a pointer chase whose stride defeats
+    /// the prefetcher.  Every non-GEMM stage in the reference models owns a
+    /// few hundred elements per CTA: its cost is a handful of these latencies,
+    /// not a bandwidth, and a model built only on rates predicts zero for it.
+    double l1_latency_ns    = 0.0;  ///< working set inside one SM's L1
+    double l2_latency_ns    = 0.0;  ///< inside the L2, past L1
+    double dram_latency_ns  = 0.0;  ///< past the L2 knee
     double l2_gbps          = 0.0;  ///< plateau below the capacity knee
     double l2_knee_bytes    = 0.0;  ///< measured working-set knee
     double dram_gbps        = 0.0;  ///< achieved above the knee, not peak
@@ -128,6 +151,13 @@ struct TargetSpec {
     double named_barrier_ns = 0.0;
     double cluster_sync_ns  = 0.0;
     bool   cluster_sync_calibrated = false;  ///< false on targets without clusters
+    /// The megakernel's own stage barrier (§8.2: release fence, CTA barrier,
+    /// one monotonic arrival, epoch publish, backoff poll) against the
+    /// resident CTA count.  It is a composite of the primitives above, but
+    /// not their sum: the poll is a contended global atomic whose cost is set
+    /// by the grid, so the cost model reads it as one measured quantity.
+    std::vector<double> grid_barrier_ctas;
+    std::vector<double> grid_barrier_ns;
 
     // (c) Stream-K coefficients, one entry per calibrated tile shape.
     std::vector<StreamKPoint> streamk;

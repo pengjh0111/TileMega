@@ -11,6 +11,7 @@
 #include <cuda_runtime_api.h>
 
 #include <algorithm>
+#include <random>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -244,6 +245,16 @@ __global__ __launch_bounds__(kThreads) void FillKernel(float4* data,
   }
 }
 
+/// Dependent-load latency: a single thread walks a permutation whose stride is
+/// larger than a page-worth of lines, so neither the prefetcher nor the L1's
+/// sectoring can overlap two hops.  One warp, one CTA: the number that comes
+/// out is a round trip, not a throughput.
+__global__ void ChaseKernel(unsigned const* next, int hops, unsigned* sink) {
+  unsigned index = 0;
+  for (int i = 0; i < hops; ++i) index = next[index];
+  if (threadIdx.x == 0) *sink = index;
+}
+
 /// Streaming read with `ld.global.cg`, which caches in L2 and bypasses L1.
 /// That is what makes the working-set sweep a measurement of L2 rather than of
 /// L1 plus L2: without it, a buffer smaller than the aggregate L1 hides the
@@ -306,6 +317,52 @@ __global__ __launch_bounds__(kThreads) void BarrierKernel(unsigned* scratch,
     if (Mode == 1) __threadfence();
     if (Mode == 2) __syncthreads();
     if (Mode == 3) asm volatile("bar.sync 1, %0;" ::"r"(kThreads));
+  }
+}
+
+/// The megakernel's own stage barrier, transcribed from ModelHarness.cuh's
+/// `GridBarrier` with the generated WAIT/NOTIFY macro bodies inlined: release
+/// fence, CTA convergence, one monotonic arrival, and either the epoch publish
+/// or a backoff poll on it.  It is measured rather than composed from
+/// `threadfence_ns + syncthreads_ns + atomic_*` because the poll is a
+/// contended global atomic whose cost is set by how many CTAs are spinning,
+/// which none of those three carries.
+///
+/// The grid must be resident or the poll never ends; every caller sizes it
+/// from `cudaOccupancyMaxActiveBlocksPerMultiprocessor`.
+/// One barrier's counters, laid out as ModelRuntime.h lays out EventCounter:
+/// 128-byte aligned so no two stages share a line.
+struct alignas(128) BarrierEvent {
+  unsigned long long arrivals;
+  unsigned long long epoch;
+  unsigned long long pad[14];
+};
+
+__global__ __launch_bounds__(kThreads) void GridBarrierKernel(
+    BarrierEvent* events, int iters) {
+  // One event per iteration, as the megakernel has one per stage: the line is
+  // written once and then never touched again.  This was written to test the
+  // hypothesis that a cold barrier line explains the megakernel's residual
+  // per-stage cost; the hypothesis is FALSIFIED -- the per-barrier cold line
+  // measures 1045.9 ns at 128 CTAs against 1.03 us for a single reused hot
+  // line, i.e. no difference beyond run-to-run spread.
+  // The layout is kept because it is the one the megakernel actually has; the
+  // residual is recorded as unexplained in COST_MODEL/result.md.
+  for (int i = 0; i < iters; ++i) {
+    unsigned long long needed = static_cast<unsigned long long>(gridDim.x);
+    __threadfence();
+    __syncthreads();
+    if (threadIdx.x == 0) {
+      unsigned long long ticket = atomicAdd(&events[i].arrivals, 1ull);
+      if (ticket + 1ull == needed) {
+        __threadfence();
+        atomicExch(&events[i].epoch, 1ull);
+      } else {
+        while (atomicAdd(&events[i].epoch, 0ull) < 1ull) __nanosleep(64);
+      }
+    }
+    __syncthreads();
+    __threadfence();
   }
 }
 
@@ -474,6 +531,99 @@ void MeasurePipelines(TargetSpec& spec, Options const& options,
            "ways whose ratio exceeds 1.05; the cost model applies "
            "max(1, slope * ways)");
     log << "  smem_conflict_slope = " << spec.calib.smem_conflict_slope << '\n';
+
+    // The same conflict-free loop at a fixed occupancy instead of the
+    // resident maximum.  The SIMT f32 mainloop is bound by this pipeline and
+    // runs at one or two CTAs per SM, where eight warps cannot cover the
+    // ld.shared latency: the measured rate there is a third of the plateau,
+    // and using the plateau makes every small tile look three times cheaper
+    // than it is.
+    double occupancy_rsd = 0.0;
+    for (int per_sm : {1, 2, 3, 4, 6}) {
+      if (per_sm * kThreads > spec.res.max_threads_per_sm) break;
+      int grid = spec.res.num_sms * per_sm;
+      double loop_threads = static_cast<double>(grid) * kThreads;
+      Stat stat = TimeMs(options.repeats, [&] {
+        SmemKernel<1><<<grid, kThreads>>>(sink_f, iters);
+      });
+      double gbps = 4.0 * kChains * iters * loop_threads / (stat.median * 1e6);
+      spec.calib.smem_occupancy_ctas.push_back(per_sm);
+      spec.calib.smem_occupancy_gbps.push_back(gbps);
+      occupancy_rsd = std::max(occupancy_rsd, stat.rel_stddev);
+      log << "  smem " << per_sm << " CTA/SM -> " << gbps << " GB/s\n";
+    }
+    Stat occupancy_stat;
+    occupancy_stat.samples =
+        options.repeats *
+        static_cast<int>(spec.calib.smem_occupancy_ctas.size());
+    occupancy_stat.rel_stddev = occupancy_rsd;
+    Record(spec, "smem_occupancy_gbps",
+           spec.calib.smem_occupancy_gbps.empty()
+               ? 0.0
+               : spec.calib.smem_occupancy_gbps.front(),
+           "GB/s at 1 CTA/SM", occupancy_stat,
+           "the conflict-free ld.shared loop at a fixed CTAs-per-SM instead "
+           "of the resident maximum; the recorded value is the 1 CTA/SM point "
+           "and the curve carries the rest");
+  }
+
+  // Dependent-load latency at three levels of the hierarchy.
+  {
+    struct Level {
+      char const* name;
+      std::size_t bytes;   ///< working set
+      int hops;            ///< dependent loads per launch
+      int repeats;
+      double* field;
+    };
+    // The DRAM point needs a touched-line footprint past the L2 capacity, so
+    // it walks 2M lines (256 MiB) of a 512 MiB buffer: fewer hops and the
+    // whole path stays L2-resident across repeats and reports the L2 number.
+    Level levels[] = {
+        {"l1", 16u << 10, 4096, options.repeats, &spec.calib.l1_latency_ns},
+        {"l2", 8u << 20, 65536, options.repeats, &spec.calib.l2_latency_ns},
+        {"dram", 512u << 20, 2000000, 3, &spec.calib.dram_latency_ns}};
+    std::size_t const stride = 32;  ///< 128 B: one cache line per hop
+    unsigned* chase = nullptr;
+    CheckCuda(cudaMalloc(&chase, levels[2].bytes), "cudaMalloc(chase)");
+    std::vector<unsigned> host(levels[2].bytes / sizeof(unsigned), 0u);
+    std::vector<unsigned> order;
+    std::mt19937 rng(20260903u);
+    for (Level const& level : levels) {
+      std::size_t const steps = level.bytes / sizeof(unsigned) / stride;
+      order.resize(steps);
+      for (std::size_t i = 0; i < steps; ++i)
+        order[i] = static_cast<unsigned>(i);
+      std::shuffle(order.begin(), order.end(), rng);
+      // A single cycle through a random permutation: no stride for the
+      // prefetcher to lock onto, and every line is visited exactly once.
+      for (std::size_t i = 0; i < steps; ++i) {
+        host[static_cast<std::size_t>(order[i]) * stride] =
+            static_cast<unsigned>(order[(i + 1) % steps] * stride);
+      }
+      CheckCuda(cudaMemcpy(chase, host.data(), level.bytes,
+                           cudaMemcpyHostToDevice),
+                "cudaMemcpy(chase)");
+      Stat stat = TimeMs(level.repeats, [&] {
+        ChaseKernel<<<1, 32>>>(chase, level.hops,
+                               reinterpret_cast<unsigned*>(sink_i));
+      });
+      Stat empty = TimeMs(level.repeats, [&] {
+        ChaseKernel<<<1, 32>>>(chase, 0,
+                               reinterpret_cast<unsigned*>(sink_i));
+      });
+      *level.field = (stat.median - empty.median) * 1e6 / level.hops;
+      std::string const name = std::string(level.name) + "_latency_ns";
+      std::string const method =
+          "single-thread pointer chase, random single cycle over the " +
+          std::to_string(level.bytes >> 20) + " MiB working set at one " +
+          "cache line per hop, " + std::to_string(level.hops) +
+          " hops, empty launch subtracted";
+      Record(spec, name.c_str(), *level.field, "ns", stat, method.c_str());
+      log << "  " << name << std::string(20 - name.size(), ' ') << "= "
+          << *level.field << '\n';
+    }
+    CheckCuda(cudaFree(chase), "cudaFree");
   }
 
   // L2 / DRAM: bandwidth against working-set size.  The knee is the capacity.
@@ -628,6 +778,45 @@ void MeasureSync(TargetSpec& spec, Options const& options, std::ostream& log) {
            "store + bar.sync 1 loop at full occupancy, minus the same loop "
            "without the barrier; 256 threads per CTA");
     log << "  named_barrier_ns    = " << spec.calib.named_barrier_ns << '\n';
+  }
+
+  // The composite the megakernel actually pays once per stage.
+  {
+    int const barrier_iters = 512;
+    BarrierEvent* events = nullptr;
+    std::size_t const events_bytes = barrier_iters * sizeof(BarrierEvent);
+    CheckCuda(cudaMalloc(&events, events_bytes), "cudaMalloc");
+    int const resident = ResidentBlocks(
+        spec, reinterpret_cast<void const*>(GridBarrierKernel), kThreads);
+    int const per_sm = resident / spec.res.num_sms;
+    double worst_rsd = 0.0;
+    for (int step = 1; step <= per_sm; ++step) {
+      int grid = spec.res.num_sms * step;
+      Stat stat = TimeMs(options.repeats, [&] {
+        // Zeroed per launch: each event is consumed once, so a second launch
+        // needs a fresh set.
+        cudaMemsetAsync(events, 0, events_bytes);
+        GridBarrierKernel<<<grid, kThreads>>>(events, barrier_iters);
+      });
+      double per_barrier = stat.median * 1e6 / barrier_iters;
+      spec.calib.grid_barrier_ctas.push_back(grid);
+      spec.calib.grid_barrier_ns.push_back(per_barrier);
+      worst_rsd = std::max(worst_rsd, stat.rel_stddev);
+      log << "  grid barrier " << grid << " CTAs -> " << per_barrier << " ns\n";
+    }
+    Stat curve_stat;
+    curve_stat.samples =
+        options.repeats * static_cast<int>(spec.calib.grid_barrier_ctas.size());
+    curve_stat.rel_stddev = worst_rsd;
+    Record(spec, "grid_barrier_ns",
+           spec.calib.grid_barrier_ns.empty() ? 0.0
+                                              : spec.calib.grid_barrier_ns.back(),
+           "ns per barrier", curve_stat,
+           "512 back-to-back ModelHarness GridBarriers over a resident grid, "
+           "one 128-byte-aligned event per barrier, swept over CTAs per SM; "
+           "the recorded value is the widest grid and the curve carries the "
+           "rest");
+    CheckCuda(cudaFree(events), "cudaFree");
   }
 
   // cluster.sync() needs a cluster launch, which this target may not have.

@@ -29,11 +29,16 @@
       "sfu_rsqrt_gops": 0.0,
       "smem_gbps": 0.0,
       "smem_conflict_slope": 0.0,
+      "l1_latency_ns": 0.0,
+      "l2_latency_ns": 0.0,
+      "dram_latency_ns": 0.0,
       "l2_gbps": 0.0,
       "l2_knee_bytes": 0,
       "dram_gbps": 0.0,
       "l2_curve_bytes": [],
-      "l2_curve_gbps": []
+      "l2_curve_gbps": [],
+      "smem_occupancy_ctas": [],
+      "smem_occupancy_gbps": []
     },
     "sync": {
       "atomic_uncontended_ns": 0.0,
@@ -43,7 +48,9 @@
       "syncthreads_ns": 0.0,
       "named_barrier_ns": 0.0,
       "cluster_sync_ns": 0.0,
-      "cluster_sync_calibrated": false
+      "cluster_sync_calibrated": false,
+      "grid_barrier_ctas": [],
+      "grid_barrier_ns": []
     },
     "streamk": [],
     "combine_fixed_ns": 0.0,

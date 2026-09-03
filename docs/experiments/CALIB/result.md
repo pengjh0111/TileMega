@@ -12,11 +12,13 @@ EXPECT=sm_90 bash docs/experiments/CALIB/run.sh     # refuses on anything else
 
 - Hardware: NVIDIA GeForce RTX 4090 (sm_89), 128 SMs, driver-reported pin
   bandwidth 1008.1 GB/s.
-- Wall time: **6.95 s** for a full run (`--repeats 41`), of which 2.0 s is
-  clock warm-up. The brief asked for minutes; this is seconds.
-- 55 measurement records, each carrying its sample count, relative standard
+- Wall time: **10.54 s** for a full run (`--repeats 41`), of which 2.0 s is
+  clock warm-up. The brief asked for minutes; this is seconds. (6.95 s before
+  the latency, occupancy-swept smem, grid-barrier and occupancy-resolved
+  Stream-K blocks were added.)
+- 72 measurement records, each carrying its sample count, relative standard
   deviation and a one-line description of the method.
-- Tracked evidence: the 55 records live in
+- Tracked evidence: the 72 records live in
   [`configs/targets/sm_89.json`](../../../configs/targets/sm_89.json) under
   `calibration.measurements`, each with its method string. `run.sh` also writes
   `raw/sm_89.log`, which `.gitignore` excludes along with every other
@@ -31,14 +33,14 @@ are measured. Nothing was calibrated "for completeness".
 
 | quantity | value | method | n | rsd | run-to-run |
 |---|---|---|---|---|---|
-| `tc_fp16_gflops` | 180082 GFLOP/s | `mma.sync.m16n8k16` chains at full occupancy | 41 | 0.04% | 0.50% |
+| `tc_fp16_gflops` | 180171 GFLOP/s | `mma.sync.m16n8k16` chains at full occupancy | 41 | 0.04% | 0.50% |
 | `cuda_fp32_gflops` | 72316 GFLOP/s | independent FFMA chains, 8 per thread | 41 | 0.32% | 0.41% |
-| `cuda_int32_gops` | 22231 GIMAD/s | IMAD chains, unroll-resistant operands | 41 | 0.18% | 0.35% |
+| `cuda_int32_gops` | 22253 GIMAD/s | IMAD chains, unroll-resistant operands | 41 | 0.18% | 0.35% |
 | `sfu_exp2_gops` | 5500 Gop/s | `ex2.approx.f32` chains | 41 | 0.11% | 0.55% |
 | `sfu_rsqrt_gops` | 5500 Gop/s | `rsqrt.approx.f32` chains | 41 | 0.12% | 0.38% |
-| `smem_gbps` | 64183 GB/s | conflict-free 32-bit LDS at full occupancy | 41 | 0.13% | 0.52% |
-| `smem_conflict_slope` | 0.4894 ×/way | least squares through the origin of t(w)/t(1) | 164 | 0.78% | 0.50% |
-| `l2_gbps` | 5127 GB/s | plateau of the working-set sweep | 738 | 0.98% | 0.50% |
+| `smem_gbps` | 64311 GB/s | conflict-free 32-bit LDS at full occupancy | 41 | 0.13% | 0.52% |
+| `smem_conflict_slope` | 0.4905 ×/way | least squares through the origin of t(w)/t(1) | 164 | 0.78% | 0.50% |
+| `l2_gbps` | 5125 GB/s | plateau of the working-set sweep | 738 | 0.98% | 0.50% |
 | `dram_gbps` | 982 GB/s | same sweep, 512–2048 MiB (**achieved**, not peak) | 738 | 0.98% | 0.02% |
 | `l2_knee_bytes` | 75497472 B | largest working set still within 95% of the plateau | 738 | 0.98% | 0.00% |
 
@@ -55,28 +57,77 @@ Two independent cross-checks on the memory hierarchy:
   the pin rate is at the achievable ceiling, so the number is a rate and not a
   latency artefact.
 
+### (a2) Memory-hierarchy latency
+
+Pointer chase over a shuffled stride-`128 B` ring, one warp, working set sized
+into each level; the reported number is the per-hop dependent load latency.
+
+| quantity | value | working set | cycles at 2.52 GHz |
+|---|---|---|---|
+| `l1_latency_ns` | 17.50 ns | 16 KiB | 44 |
+| `l2_latency_ns` | 107.42 ns | 8 MiB | 271 |
+| `dram_latency_ns` | 228.56 ns | 1 GiB | 576 |
+
+These are what §2.2(b)'s prologue charges: a tile's first load cannot be hidden
+by the pipeline, so the envelope's `T_pro` carries one `l2_latency_ns` on top of
+the fill traffic. ✅ The L1 figure is within 2 cycles of the published AD102
+number, and the L2/DRAM ratio (2.13×) matches the bandwidth sweep's knee.
+
+### (a3) Shared-memory bandwidth is not flat in occupancy
+
+`smem_gbps` alone is a full-occupancy number, but the megakernel runs at 1–6
+CTAs/SM depending on the tile. The same conflict-free LDS loop, swept over
+resident CTAs:
+
+| CTAs/SM | 1 | 2 | 3 | 4 | 6 |
+|---|---|---|---|---|---|
+| GB/s | 56608 | 62602 | 63231 | 63792 | 59494 |
+
+⚠️ The curve is non-monotone: it rises 12.7% from 1 to 4 CTAs/SM and then falls
+6.7% at 6. A single scalar would misprice the low-occupancy end by 12%, which is
+exactly where the large tiles live, so the model interpolates this curve rather
+than using `smem_gbps`.
+
 ### (b) Synchronisation latency
 
 | quantity | value | method | n | rsd | run-to-run |
 |---|---|---|---|---|---|
-| `atomic_uncontended_ns` | 117.5 ns | one CTA, dependent `atomicAdd` chain | 41 | 0.16% | 0.43% |
+| `atomic_uncontended_ns` | 125.0 ns | one CTA, dependent `atomicAdd` chain | 41 | 0.16% | 0.43% |
 | `atomic_contention_ns` | curve, below | N CTAs on one address, per completed atomic | 410 | 0.21% | — |
-| `threadfence_ns` | 358.1 ns | `__threadfence()` loop minus the same loop without it | 41 | 0.08% | 0.56% |
-| `syncthreads_ns` | 145.1 ns | `__syncthreads()`, same differential, 256 threads | 41 | 1.01% | 1.03% |
-| `named_barrier_ns` | 144.5 ns | `bar.sync 1`, same differential | 41 | 1.09% | 1.46% |
+| `threadfence_ns` | 358.5 ns | `__threadfence()` loop minus the same loop without it | 41 | 0.08% | 0.56% |
+| `syncthreads_ns` | 143.6 ns | `__syncthreads()`, same differential, 256 threads | 41 | 1.01% | 1.03% |
+| `named_barrier_ns` | 143.1 ns | `bar.sync 1`, same differential | 41 | 1.09% | 1.46% |
 | `cluster_sync_ns` | **uncalibrated** | needs a cluster launch — see below | — | — | — |
 
 Contention curve, nanoseconds per **completed** atomic:
 
 | CTAs | 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| ns/op | 117.5 | 61.0 | 30.5 | 15.45 | 7.72 | 3.84 | 1.92 | 0.95 | 0.48 | 0.43 |
+| ns/op | 125.0 | 61.7 | 31.0 | 15.50 | 7.75 | 3.86 | 1.93 | 0.96 | 0.48 | 0.43 |
 
 Contention on a single address is not additive on this part: throughput rises
 almost perfectly linearly to 256 CTAs and only then saturates at 0.43 ns/op.
 The L2 atomic unit pipelines same-address updates, so `T_sync` for a split-K
 reduction is dominated by the fixed latency, not by the peer count — which is
 what makes split-K by 16 affordable at all.
+
+The grid barrier is the megakernel's per-stage cost, so it is measured in the
+shape the megakernel has: a persistent grid of `G` CTAs, arrive-and-wait on a
+fresh 128-byte-aligned `BarrierEvent` per iteration.
+
+| grid CTAs | 128 | 256 | 384 | 512 | 640 | 768 |
+|---|---|---|---|---|---|---|
+| ns/barrier | 1045.9 | 1047.4 | 1562.0 | 2056.1 | 2058.1 | 2070.5 |
+
+The curve is a staircase in units of 128 CTAs = 1 CTA/SM, flat within a step:
+one grid barrier costs ~1.05 µs at 1–2 CTAs/SM, ~1.56 µs at 3, ~2.06 µs at 4–6.
+
+❌ The cold-line hypothesis is **falsified**. The per-iteration `BarrierEvent`
+layout was written to test whether a cold barrier line explains the megakernel's
+residual per-stage cost; it measures 1045.9 ns at 128 CTAs against 1.03 µs for a
+single reused hot line — no difference beyond run-to-run spread. The residual
+(median ~1.5 µs/stage, COST_MODEL/result.md §6) remains unexplained and is
+recorded as such rather than folded into this number.
 
 `named_barrier_ns` and `syncthreads_ns` agree to 0.4%: a named barrier over all
 warps of a CTA costs the same as `__syncthreads()`, so warp specialisation buys
@@ -102,6 +153,25 @@ time_CTA = a + c·iters + (b + d·(peers−1))·live_outputs(tile) + fixed/ctas
 | 16×64×32 s3 | 1034.5 | 1088.2 | 0.999940 | 13.6% |
 | 16×64×16 s2 | 923.6 | 577.8 | 0.999876 | 12.4% |
 | 256×128×16 s3 | 4531.3 | 2881.0 | 0.999993 | 2.3% |
+
+`a` and `c` are also refitted **per resident-CTA count**, because both scale
+with occupancy and the solver evaluates shapes at 1–6 CTAs/SM:
+
+| shape | CTAs/SM | `a` (ns) | `c` (ns/iter) |
+|---|---|---|---|
+| 16×64×16 s2 | 1 / 2 / 3 | 1728.0 / 874.7 / 1536.0 | 544.0 / 1149.3 / 1640.0 |
+| 32×32×32 s3 | 1 / 2 / 3 | 1706.7 / 1365.3 / 2080.0 | 853.3 / 1706.7 / 2552.0 |
+| 16×64×32 s3 | 1 / 2 | 1717.3 / 1685.3 | 1106.7 / 2138.7 |
+| 64×64×16 s3 | 1 / 2 | 1706.7 / 1248.0 | 853.3 / 1720.0 |
+| 128×128×16 s3 | 1 | 4266.7 | 1653.3 |
+| 256×128×16 s3 | 1 | 4832.0 | 2888.0 |
+
+`c` is very close to linear in CTAs/SM at fixed shape — the mainloop is
+issue-bound and resident CTAs contend for the same LSU — which is what lets the
+cost model carry a single per-instruction constant across shapes
+(0.8577 ns per scalar `ld.shared` warp-instruction, 3.93% rel rms over all 12
+points; COST_MODEL/result.md §3). `a` is not: it is per-CTA setup plus a
+pipeline-fill term that this experiment cannot separate from it.
 
 | shape-independent | value | run-to-run |
 |---|---|---|
