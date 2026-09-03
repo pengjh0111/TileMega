@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 using namespace tilemega::solver;
@@ -53,6 +54,7 @@ int main() {
     REQUIRE(plan.labels[2] != plan.labels[0]);
     REQUIRE(plan.internal_weight == 10.0);
     REQUIRE(plan.total_weight == 19.0);
+    REQUIRE(plan.limited_by == "cluster size cap");
   }
 
   // Contraction: after {0,1} merge, their separate edges to 2 must add up, so
@@ -75,7 +77,7 @@ int main() {
         Chain(3, 0), {{0, 1, 10.0}, {1, 2, 9.0}},
         {/*max_cluster_size=*/3, /*max_stage_distance=*/1, 0});
     REQUIRE(plan.largest == 2);
-    REQUIRE(plan.limited_by == "temporal reach");
+    REQUIRE(plan.limited_by.find("temporal reach") != std::string::npos);
   }
 
   // Shared memory is a hard budget, and the reason has to be reported: a
@@ -85,7 +87,7 @@ int main() {
         Chain(3, 40000.0), {{0, 1, 10.0}, {1, 2, 9.0}},
         {3, 8, /*smem_budget_bytes=*/100000.0});
     REQUIRE(plan.largest == 2);
-    REQUIRE(plan.limited_by == "shared memory budget");
+    REQUIRE(plan.limited_by.find("shared memory budget") != std::string::npos);
   }
 
   // Capture is measured against every edge, including ones no cluster could

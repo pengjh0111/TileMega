@@ -110,6 +110,21 @@ using CurrentArch = Sm89;
 #  elif __CUDA_ARCH__ == 800
 using CurrentArch = Sm80;
 #  endif
+#else
+// The host pass has no architecture of its own, yet nvcc still parses every
+// __device__ body in it.  `void` keeps those bodies well-formed while claiming
+// nothing: Caps<void> is the primary template, with every capability off.
+using CurrentArch = void;
+#endif
+
+/// True only inside the device pass.  A capability assertion about
+/// `CurrentArch` is meaningful only there, and this is the one file allowed to
+/// know how to tell the two passes apart.
+inline constexpr bool kDevicePass =
+#if defined(__CUDA_ARCH__)
+    true;
+#else
+    false;
 #endif
 
 }  // namespace tilemega::arch

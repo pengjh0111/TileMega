@@ -44,7 +44,8 @@ CPP
 # expand to __forceinline__ as soon as nvcc defines __NVCC__, so the host
 # compiler cannot be handed the file directly.
 "$nvcc" -std=c++17 -O2 -Wno-deprecated-gpu-targets "${inc[@]}" \
-    -x cu "$work/probe.cu" "$root/lib/Target/TargetSpec.cpp" -o "$work/probe" \
+    -x cu "$work/probe.cu" "$root/lib/Target/TargetSpec.cpp" \
+    "$root/lib/Support/Json.cpp" -o "$work/probe" \
     2> "$out/probe_build.txt" || { cat "$out/probe_build.txt" >&2; exit 2; }
 read -r arch cluster max_cluster sms < <("$work/probe" || true)
 if [[ "${cluster:-0}" != "1" ]]; then
@@ -233,4 +234,72 @@ for size in 2 4 8; do
 done
 
 cat "$out/summary.tsv"
+
+# ------------------------------------------------------------ the megakernel
+# The primitives above are validated in isolation.  This arm is the thing the
+# rest of the repository actually runs: the generated L1/L2 megakernel, built
+# with TILEMEGA_GENERATED_CLUSTER_DIM so its stage barrier is
+# `ClusterSync::StageBarrier` and its launch is `cudaLaunchKernelEx`.
+#
+# It needs the build tree, which the sections above deliberately do not, so it
+# announces a skip rather than failing when the artifacts are absent.  What it
+# will not do is run without checking: a "cluster" arm whose cubin contains no
+# `barrier.cluster` is a flat kernel wearing a label, and that is a hard fail.
+mega_src="$root/docs/experiments/E2E_GEN/raw/generated_e2e.cu"
+mega_fixture="$root/docs/experiments/E2E/fixture"
+mega_lib="$root/build-phase12/libtilemega.a"
+: > "$out/megakernel.tsv"
+printf 'cluster_dim	barrier_cluster_asm	pass	total	l1_ms	l2_ms
+'     >> "$out/megakernel.tsv"
+if [[ ! -e "$mega_lib" || ! -e "$mega_src" || ! -d "$mega_fixture" ]]; then
+  echo "SKIPPED megakernel arm: build-phase12/libtilemega.a, the generated"        "source or the fixture is missing" | tee -a "$out/megakernel.tsv"
+else
+  mega_inc=("${inc[@]}" -I"$root/third_party/cutlass/tools/util/include"
+            -I"$root/third_party/cutlass/test")
+  mega_runs=${MEGA_RUNS:-50}
+  for dim in 1 2 4 8; do
+    if (( dim > max_cluster )); then
+      printf '%d	skipped_max_cluster_size_%s	-	-	-	-
+' "$dim"           "$max_cluster" >> "$out/megakernel.tsv"
+      continue
+    fi
+    "$nvcc" "$mega_src" -std=c++17 -O2 -arch="$arch" \
+        -DTILEMEGA_GENERATED_CLUSTER_DIM="$dim" "${mega_inc[@]}" \
+        "$mega_lib" -L"${CUDA_HOME:-/usr/local/cuda}/lib64" -lcudart \
+        -o "$work/mega_$dim" 2>> "$out/build.txt"
+    # `UCGABAR_ARV`/`UCGABAR_WAIT` is how ptxas spells `barrier.cluster` in
+    # SASS (CGA = cooperative grid array).  Verified by cross-compiling this
+    # very source on an sm_89 box: 0 at dim 1, 8 at dim 2 and dim 8, on both
+    # sm_90 and sm_120.  Grepping for a plausible-looking `BAR.CLUSTER` instead
+    # would have failed every arm on a machine where everything was correct.
+    asm=$(cuobjdump -sass "$work/mega_$dim" | grep -c 'UCGABAR' || true)
+    # dim 1 is the control and must contain no cluster barrier at all; every
+    # other arm must contain one, or it is not measuring what it claims to.
+    if (( dim == 1 && asm != 0 )); then
+      echo "FAIL: the flat control emitted a cluster barrier" >&2; exit 4
+    fi
+    if (( dim > 1 && asm == 0 )); then
+      echo "FAIL: cluster dim $dim emitted no cluster barrier; the arm would" \
+           "measure the flat kernel under a cluster label" >&2; exit 4
+    fi
+    pass=0; l1s=; l2s=
+    for ((run = 1; run <= mega_runs; ++run)); do
+      if line=$("$work/mega_$dim" "$mega_fixture" 2>&1); then
+        grep -q '^RESULT status=PASS' <<<"$line" && pass=$((pass + 1))
+        t=$(grep -o 'l1_ms=[0-9.]*' <<<"$line" | head -1 | cut -d= -f2)
+        u=$(grep -o 'l2_ms=[0-9.]*' <<<"$line" | head -1 | cut -d= -f2)
+        l1s+="$t"$'\n'; l2s+="$u"$'\n'
+      fi
+    done
+    med() { sort -n | awk '{v[NR]=$1} END {if(!NR){print "nan";exit} \
+        printf "%.6f\n",(NR%2)?v[(NR+1)/2]:(v[NR/2]+v[NR/2+1])/2}'; }
+    printf '%d	%d	%d	%d	%s	%s
+' "$dim" "$asm" "$pass" "$mega_runs" \
+        "$(printf '%s' "$l1s" | med)" "$(printf '%s' "$l2s" | med)" \
+        >> "$out/megakernel.tsv"
+    (( pass == mega_runs )) || overall=1
+  done
+  cat "$out/megakernel.tsv"
+fi
+
 exit $overall

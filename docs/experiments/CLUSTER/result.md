@@ -133,20 +133,74 @@ Both `cluster_test.cu` and the header cross-compile for sm_90 and sm_120 ✅ —
 so the script's failure mode on a real H100 will be a *result*, not a build
 error.
 
-## 7.5 Boundary: the megakernel is not launched as a cluster ❌ not done
+## 7.5 The megakernel now launches as a cluster ✅ built, ❌ never executed
 
-`lib/Codegen/Codegen.cpp:324` still rejects every `sync_kind` other than
-`"global"`, and `ModelHarness.cuh` still launches with `<<<grid, threads>>>`.
-Wiring `sync_kind = "cluster"` through the generator would require the whole
-harness to be *instantiated* on a cluster-capable `Arch` at build time; on this
-box that instantiation trips the `static_assert` in §7.2 by construction, and
-the resulting kernel could never be executed or measured here. Emitting a code
-path that has never run once, into the generator that produces every measured
-number in this repository, is worse than a documented gap — so the gap is
-documented. `ClusterSync` is the primitive layer that path will call; what is
-missing is the emitter change plus a `cudaLaunchKernelEx` variant of
-`LaunchL1`/`LaunchL2`, and neither can be honestly validated before an sm_90+
-machine is available.
+The gap §7.5 used to document is closed in code. Three changes, each gated so a
+non-cluster target emits exactly the bytes it emitted before:
+
+* **Generator.** `lib/Codegen/Codegen.cpp` accepts `sync_kind = "cluster"` and
+  a `PlacementOp` whose `cluster` exceeds 1, and emits
+  `#define TILEMEGA_GENERATED_CLUSTER_DIM <n>`. A cluster is a property of the
+  *launch*, so the contract is all-or-nothing: every placement must name the
+  same width, and the sync kind must agree with it in both directions. A CG
+  with cluster couplings and `cluster = 1` placements, or the reverse, is
+  rejected rather than resolved to whichever side the generator happened to
+  read first. ✅ `frontend_import_test` flips the imported 179-task CG one side
+  at a time and asserts the rejection, then both sides and asserts the macro.
+* **Barrier.** With `TILEMEGA_GENERATED_CLUSTER_DIM > 1`, `GridBarrier` becomes
+  `ClusterSync<CurrentArch>::StageBarrier`, so the cluster closes over itself in
+  hardware and only rank 0 of each cluster pays the global round trip: the
+  arrival count drops from `gridDim.x` to `gridDim.x / dim`.
+* **Launch.** `LaunchPersistent` replaces both `<<<>>>` sites with
+  `cudaLaunchKernelEx` + `cudaLaunchAttributeClusterDimension` when the macro is
+  set. `RunModel` trims the resident grid down to a whole multiple of the
+  cluster width (a partial cluster is a driver error, not a remainder) and
+  refuses to run at all when the device's own `res.max_cluster_size` is smaller
+  than the compiled width.
+
+**The gate is checked, not asserted.** ✅ On sm_89, `-DTILEMEGA_GENERATED_CLUSTER_DIM=2`
+does not build:
+
+```
+ModelHarness.cuh(54): error: static assertion failed with "a cluster stage
+barrier needs a cluster-capable target; a cluster-shaped kernel must never fall
+back to the flat grid barrier and keep reporting itself as a cluster result"
+```
+
+`Caps<CurrentArch>` is only meaningful in the device pass, and this repository
+allows exactly one `__CUDA_ARCH__` site, so `ArchDispatch.h` now exports
+`arch::kDevicePass` and defines `CurrentArch = void` for the host pass — the
+primary `Caps` template, every capability off — which keeps every `__device__`
+body parseable in both passes without a second architecture switch.
+
+✅ Cross-compiled here, `barrier.cluster` / `UCGABAR` counted in the emitted
+code of the *whole megakernel*, not of a probe:
+
+| target | dim 1 | dim 2 | dim 8 |
+| --- | --- | --- | --- |
+| sm_90 | 0 UCGABAR, 0 `barrier.cluster` | 8 / 4 | 8 / 4 |
+| sm_120 | 0 / 0 | 8 / 4 | 8 / 4 |
+| sm_89 | 0 / 0 | refused at compile time | refused at compile time |
+
+✅ The default (`dim 1`) build is SASS byte-identical to the pre-cluster
+binary — `cuobjdump -sass` diffed on `generated_e2e.cu`, no instruction and no
+constant-bank offset moved. Every measured number elsewhere in this repository
+therefore still describes the same kernel.
+
+**What is still not known.** No cluster barrier in this repository has ever
+retired an instruction. `run_on_h100.sh` gained a megakernel arm that builds
+`generated_e2e.cu` at dim ∈ {1, 2, 4, 8}, checks each binary's SASS for
+`UCGABAR` (0 required at dim 1, non-zero required above it — a "cluster" arm
+that quietly contains no cluster barrier exits 4), and runs `MEGA_RUNS`
+(default 50) fresh processes per dim reporting pass rate and median l1/l2.
+Until that runs, the honest claim is *built and gated*, not *works*.
+
+⚠️ One regression was found and fixed while re-running the self-check here: the
+script's `TargetSpec::Probe()` probe stopped linking when P4.1 gave `TargetSpec`
+a JSON calibration file to read. The probe now compiles `lib/Support/Json.cpp`
+alongside it. A self-check that no longer builds is a self-check that no longer
+checks, and this one is the single thing standing between a fallback run and a
+"cluster result".
 
 ## 7.6 What a reviewer should distrust
 
@@ -159,3 +213,58 @@ machine is available.
 * The fallback paths (`Peer` returning `nullptr` for a non-zero rank, `Size()`
   returning 1) are exercised only by compilation here; on sm_89 there is no
   cluster to make them wrong.
+* §7.5's megakernel arm is **built and gated, never executed**. The SASS counts
+  prove the barrier is in the binary; nothing here proves it is correct at
+  runtime, and `StageBarrier`'s two-level arrival protocol is exactly the kind
+  of code that passes a compiler and races on hardware.
+* §7.7's capture ratios are an upper bound on *traffic*, computed from the
+  analytic model at S=512 — not from the fixture the harness measures, whose
+  single M tile collapses several of these task spaces to one task.
+
+## 7.7 Labelling: how much traffic could a cluster actually hold? ✅ analytic
+
+`ClusterLabeling` (`lib/Solver/ClusterLabeling.cpp`) answers §4.3's Label
+question — which task spaces share a cluster — under the three hard constraints
+(size, temporal reach, shared memory) with §4.3's own objective
+`w(A, B) = Volume × Frequency`. The weights are not estimated: they are
+`metrics.volume × metrics.count` off the derived `CouplingEdge`s, so the graph
+being partitioned is the one `CouplingDerivation` produces. `cluster_probe.cpp`
+links barvinok and runs it; `tools/tilemega-solve` does not, because it works
+from the generated stage tables and those carry no volume or count.
+
+The heuristic is heavy-edge agglomeration and is labelled as one — maximum
+weight k-way partitioning is NP-hard — so the report's headline is
+`internal_weight / total_weight`, the fraction of coupling traffic the plan
+keeps inside a GPC, which makes the gap to the unattainable optimum visible
+instead of assumed. Raw output: `raw/labeling.txt`.
+
+| model | nodes | edges | total weight (elements) | size 8, reach 4 | size 8, reach ∞ |
+| --- | --- | --- | --- | --- | --- |
+| gqa2 | 36 | 44 | 5.83e9 | **capture 0.985**, 11 clusters, largest 5 | 0.994, 6 clusters, largest 8 |
+| mha4 | 64 | 72 | 1.27e10 | **capture 0.971**, 20 clusters, largest 4 | 0.994, 12 clusters, largest 8 |
+
+Three things the table says that are worth more than the headline:
+
+* **Reach, not size, is what binds.** At reach 1 (only consecutive stages may
+  share a cluster) capture is 0.14 / 0.19 whatever the size cap; at reach 4 it
+  jumps to 0.985 / 0.971 and the size cap takes over. The heavy edges of these
+  models span three to four operators (RMSNorm → QKV → RoPE → attention), so a
+  cluster that can only hold neighbours captures almost nothing. Every plan
+  reports which constraints refused a merge, and more than one usually did.
+* **The greedy is visibly a greedy.** mha4 at size 4 produces *fewer* clusters
+  at reach 4 (20) than at reach ∞ (24) for identical capture: an unbounded
+  reach lets it spend its size budget on heavy distant pairs early, which then
+  blocks merges it would otherwise have made. This non-monotonicity is a
+  property of agglomeration, and it is reported rather than smoothed.
+* ⚠️ The shared-memory budget is `max_smem_per_sm × max_cluster_size` — the
+  distributed window at one CTA per SM — against the harness's measured 10496 B
+  `TaskSmem`. It only binds at size 16, which is above any real target's
+  `kMaxClusterSize`. On this sm_89 box `max_cluster_size` is 1, so the sweep
+  reads the *capability table's* sizes rather than the probe's; the budget row
+  is therefore ⚠️ stated, not a measurement of a Hopper.
+
+**What this does not say.** Capture is an upper bound on the traffic a cluster
+*could* keep on-GPC, not a speedup. The P4.6 speed-of-light arm bounds the other
+side of that trade: see `docs/experiments/COARSEN/result.md` for what deleting
+the grid barrier outright is worth on this hardware, which is the ceiling on
+what any synchronization change — clusters included — can ever return.

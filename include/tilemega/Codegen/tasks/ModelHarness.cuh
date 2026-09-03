@@ -17,6 +17,7 @@
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
 #include <tilemega/Codegen/tasks/RMSNormTaskBody.h>
+#include <tilemega/Codegen/tasks/ClusterSync.cuh>
 #include <tilemega/Codegen/tasks/RoPETaskBody.h>
 #include <tilemega/Target/TargetSpec.h>
 
@@ -43,6 +44,19 @@ namespace tilemega::codegen {
 #ifndef TILEMEGA_GENERATED_NOTIFY_global
 #define TILEMEGA_GENERATED_NOTIFY_global(ev, value) atomicExch((ev), (value))
 #endif
+/// P4.7: the cluster dimension the generator emitted for this model, 1 when
+/// no coupling asked for cluster-scoped synchronization.  It is a compile-time
+/// macro rather than a launch argument because the *barrier* changes with it,
+/// and the barrier is inside the kernel.
+#ifndef TILEMEGA_GENERATED_CLUSTER_DIM
+#define TILEMEGA_GENERATED_CLUSTER_DIM 1
+#endif
+static_assert(!arch::kDevicePass || TILEMEGA_GENERATED_CLUSTER_DIM == 1 ||
+                  arch::Caps<arch::CurrentArch>::kCluster,
+              "a cluster stage barrier needs a cluster-capable target; a "
+              "cluster-shaped kernel must never fall back to the flat grid "
+              "barrier and keep reporting itself as a cluster result");
+
 #ifndef TILEMEGA_GENERATED_RESIDENT_GRID
 #define TILEMEGA_GENERATED_RESIDENT_GRID(target, function, block_size, dynamic_smem) \
   ((target).res.num_sms * (target).ActiveBlocksPerSM( \
@@ -312,6 +326,14 @@ __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
   __threadfence();
   __syncthreads();
   return;
+#elif TILEMEGA_GENERATED_CLUSTER_DIM > 1
+  // The cluster closes over itself in hardware and only its rank 0 pays the
+  // global round trip, so the arrival count is clusters, not CTAs.  The grid
+  // is an exact multiple of the cluster dimension by construction (RunModel
+  // trims it), which is what makes that division the true cluster count.
+  ClusterSync<arch::CurrentArch>::StageBarrier(
+      &events[stage].arrivals, &events[stage].epoch, iteration,
+      gridDim.x / TILEMEGA_GENERATED_CLUSTER_DIM);
 #else
   unsigned long long needed =
       static_cast<unsigned long long>(gridDim.x) * (iteration + 1ull);
@@ -722,14 +744,39 @@ inline void ProfileStages(DeviceModel& model, ModelSpec const& spec, int grid) {
                 model.stages[stage].width, best[stage]);
 }
 
+/// One launch site for both persistent kernels.  A cluster launch is the same
+/// kernel plus one attribute, but it cannot be a runtime branch on the ordinary
+/// `<<<>>>` form: `cudaLaunchKernelEx` takes its arguments by value through a
+/// different entry point, and the driver rejects a grid that does not divide
+/// into whole clusters rather than truncating it.
+template <typename Kernel, typename... Args>
+inline void LaunchPersistent(Kernel kernel, int grid, Args... args) {
+#if TILEMEGA_GENERATED_CLUSTER_DIM > 1
+  cudaLaunchConfig_t config = {};
+  config.gridDim = dim3(grid);
+  config.blockDim = dim3(kHarnessThreads);
+  config.dynamicSmemBytes = sizeof(TaskSmem);
+  cudaLaunchAttribute attribute[1] = {};
+  attribute[0].id = cudaLaunchAttributeClusterDimension;
+  attribute[0].val.clusterDim.x = TILEMEGA_GENERATED_CLUSTER_DIM;
+  attribute[0].val.clusterDim.y = 1;
+  attribute[0].val.clusterDim.z = 1;
+  config.attrs = attribute;
+  config.numAttrs = 1;
+  TILEMEGA_CUDA_CHECK(cudaLaunchKernelEx(&config, kernel, args...));
+#else
+  kernel<<<grid, kHarnessThreads, sizeof(TaskSmem)>>>(args...);
+#endif
+}
+
 inline float LaunchL1(DeviceModel& model, int grid,
                       unsigned long long iteration = 0) {
   cudaEvent_t start, stop;
   TILEMEGA_CUDA_CHECK(cudaEventCreate(&start));
   TILEMEGA_CUDA_CHECK(cudaEventCreate(&stop));
   TILEMEGA_CUDA_CHECK(cudaEventRecord(start));
-  tilemega_l1_kernel<<<grid, kHarnessThreads, sizeof(TaskSmem)>>>(
-      model.device_params, model.events, iteration);
+  LaunchPersistent(tilemega_l1_kernel, grid, model.device_params,
+                   model.events, iteration);
   TILEMEGA_CUDA_CHECK(cudaEventRecord(stop));
   TILEMEGA_CUDA_CHECK(cudaEventSynchronize(stop));
   TILEMEGA_CUDA_CHECK(cudaGetLastError());
@@ -746,8 +793,8 @@ inline float LaunchL2(DeviceModel& model, int grid,
   TILEMEGA_CUDA_CHECK(cudaEventCreate(&start));
   TILEMEGA_CUDA_CHECK(cudaEventCreate(&stop));
   TILEMEGA_CUDA_CHECK(cudaEventRecord(start));
-  tilemega_l2_kernel<<<grid, kHarnessThreads, sizeof(TaskSmem)>>>(
-      model.device_params, model.events, iteration);
+  LaunchPersistent(tilemega_l2_kernel, grid, model.device_params,
+                   model.events, iteration);
   TILEMEGA_CUDA_CHECK(cudaEventRecord(stop));
   TILEMEGA_CUDA_CHECK(cudaEventSynchronize(stop));
   TILEMEGA_CUDA_CHECK(cudaGetLastError());
@@ -792,6 +839,22 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   int l2_grid = TILEMEGA_GENERATED_RESIDENT_GRID(target, tilemega_l2_kernel,
                                                  kHarnessThreads, sizeof(TaskSmem));
   if (l2_grid < grid) grid = l2_grid;
+#if TILEMEGA_GENERATED_CLUSTER_DIM > 1
+  // The capability table is a compile-time policy; this is the device in front
+  // of us.  Refusing here is the point: a cluster kernel that quietly ran with
+  // a smaller cluster would still print timings.
+  if (target.res.max_cluster_size < TILEMEGA_GENERATED_CLUSTER_DIM) {
+    std::fprintf(stderr,
+                 "cluster dim %d exceeds the device's max_cluster_size %d\n",
+                 TILEMEGA_GENERATED_CLUSTER_DIM, target.res.max_cluster_size);
+    return 2;
+  }
+  grid -= grid % TILEMEGA_GENERATED_CLUSTER_DIM;
+  if (grid == 0) {
+    std::fprintf(stderr, "resident grid is smaller than one cluster\n");
+    return 2;
+  }
+#endif
   int blocks_per_sm = grid / target.res.num_sms;
 #if TILEMEGA_PLACEMENT == 1
   // The `pair` placement needs the residency the grid was sized from.

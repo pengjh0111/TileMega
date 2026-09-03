@@ -59,7 +59,7 @@ ClusterPlan ClusterLabeling::Assign(std::vector<ClusterNode> const& nodes,
 
   std::vector<int> live(n);
   std::iota(live.begin(), live.end(), 0);
-  bool smem_blocked = false, stage_blocked = false;
+  bool smem_blocked = false, stage_blocked = false, size_blocked = false;
   while (true) {
     double best = 0;
     int best_a = -1, best_b = -1;
@@ -68,8 +68,10 @@ ClusterPlan ClusterLabeling::Assign(std::vector<ClusterNode> const& nodes,
         int const a = live[i], b = live[j];
         if (weight[a][b] <= 0) continue;
         if (static_cast<int>(groups[a].members.size() +
-                             groups[b].members.size()) > cap)
+                             groups[b].members.size()) > cap) {
+          size_blocked = true;
           continue;
+        }
         int const span = std::max(groups[a].last, groups[b].last) -
                          std::min(groups[a].first, groups[b].first);
         if (span > limits.max_stage_distance) { stage_blocked = true; continue; }
@@ -107,11 +109,18 @@ ClusterPlan ClusterLabeling::Assign(std::vector<ClusterNode> const& nodes,
     plan.largest = std::max(plan.largest, static_cast<int>(group.members.size()));
     for (int member : group.members) plan.labels[member] = static_cast<int>(id);
   }
-  if (plan.largest < cap) {
-    if (smem_blocked) plan.limited_by = "shared memory budget";
-    else if (stage_blocked) plan.limited_by = "temporal reach";
-    else plan.limited_by = "coupling graph has no heavier admissible pair";
-  }
+  // Every constraint that refused a merge is named, not just the first: on a
+  // real model two of them bind at once, and a single reason would send the
+  // reader off to widen a bound that was never the one holding the plan back.
+  auto add = [&plan](char const* reason) {
+    if (!plan.limited_by.empty()) plan.limited_by += ", ";
+    plan.limited_by += reason;
+  };
+  if (smem_blocked) add("shared memory budget");
+  if (stage_blocked) add("temporal reach");
+  if (size_blocked) add("cluster size cap");
+  if (plan.limited_by.empty())
+    plan.limited_by = "coupling graph has no heavier admissible pair";
   return plan;
 }
 

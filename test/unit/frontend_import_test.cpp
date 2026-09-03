@@ -43,6 +43,34 @@ int main() {
   assert(cuda.find("GeneratedLlamaRuntime.cuh") == std::string::npos);
   assert(cuda.find("% 12") == std::string::npos);
 
+  // P4.7: the cluster shape is a property of the whole launch, so the
+  // generator's contract is all-or-nothing.  Flipping every coupling and every
+  // placement together must produce a clustered kernel; flipping only one side
+  // must be rejected rather than silently resolved to the other.
+  {
+    auto clustered = module->clone();
+    auto sync = tilemega::dialect::SyncKindAttr::get(
+        &context, mlir::StringAttr::get(&context, "cluster"));
+    for (auto coupling : clustered.getOps<tilemega::dialect::CouplingOp>())
+      coupling.setSyncKindAttr(sync);
+    std::string half;
+    try {
+      half = tilemega::codegen::CouplingGraphToCUDA{}.Lower(clustered);
+    } catch (std::invalid_argument const&) {
+      half = "rejected";
+    }
+    assert(half == "rejected");
+    for (auto placement : clustered.getOps<tilemega::dialect::PlacementOp>())
+      placement.setCluster(2);
+    std::string whole = tilemega::codegen::CouplingGraphToCUDA{}.Lower(clustered);
+    assert(whole.find("#define TILEMEGA_GENERATED_CLUSTER_DIM 2") !=
+           std::string::npos);
+    // The flat kernel must keep saying nothing about clusters, so a default
+    // build cannot pick the macro up by accident.
+    assert(cuda.find("TILEMEGA_GENERATED_CLUSTER_DIM") == std::string::npos);
+    clustered->erase();
+  }
+
   // An uncovered operator degrades instead of being rejected; `degradation_test`
   // holds the rest of that contract.
   tilemega::frontend::ImportSummary degraded;
