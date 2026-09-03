@@ -44,3 +44,7 @@ docs/experiments/SEMANTIC/raw/hw/mha_plain
 docs/experiments/SEMANTIC/raw/hw/mha_core
 docs/experiments/ORACLE/raw_gridbound/candidate_probe
 docs/experiments/SOLVER/raw/bin/
+docs/experiments/COARSEN/raw/bin/
+docs/experiments/COARSEN/raw/kappa_probe
+docs/experiments/PLACE/raw/bin/
+docs/experiments/PLACE/raw/place_probe

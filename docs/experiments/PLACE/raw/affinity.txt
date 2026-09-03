@@ -1,0 +1,128 @@
+OPERAND model=gqa2 op=l0.rmsnorm1 operand=0 tensor=l0.hidden self=524288 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0
+OPERAND model=gqa2 op=l0.wq operand=0 tensor=l0.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=gqa2 op=l0.wk operand=0 tensor=l0.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=gqa2 op=l0.wv operand=0 tensor=l0.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=gqa2 op=l0.rope_q operand=0 tensor=l0.wq self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 hh=0
+OPERAND model=gqa2 op=l0.rope_k operand=0 tensor=l0.wk self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 hh=0
+OPERAND model=gqa2 op=l0.kvappend_k operand=0 tensor=l0.rope_k self=128 off=[0,0] share=0.0000 affinity=degenerate per_axis: row=0 hh=0
+OPERAND model=gqa2 op=l0.kvappend_v operand=0 tensor=l0.wv self=128 off=[0,0] share=0.0000 affinity=degenerate per_axis: row=0 hh=0
+OPERAND model=gqa2 op=l0.attn_chunk operand=0 tensor=l0.rope_q self=128 off=[0,128] share=1.0000 affinity=structured per_axis: s=0 h=0 j=128
+OPERAND model=gqa2 op=l0.attn_chunk operand=1 tensor=l0.full_k self=16384 off=[0,16384] share=1.0000 affinity=structured per_axis: s=16384 h=0..16384 j=0
+OPERAND model=gqa2 op=l0.attn_chunk operand=2 tensor=l0.full_v self=16384 off=[0,16384] share=1.0000 affinity=structured per_axis: s=16384 h=0..16384 j=0
+OPERAND model=gqa2 op=l0.attn_combine operand=0 tensor=l0.partial self=1024 off=[0,0] share=0.0000 affinity=degenerate per_axis: s=0 h=0
+OPERAND model=gqa2 op=l0.wo operand=0 tensor=l0.context self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=gqa2 op=l0.add1 operand=0 tensor=l0.wo self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=gqa2 op=l0.add1 operand=1 tensor=l0.hidden self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=gqa2 op=l0.rmsnorm2 operand=0 tensor=l0.resid1 self=524288 off=[0,0] share=0.0000 affinity=degenerate per_axis: i=0
+OPERAND model=gqa2 op=l0.wgate operand=0 tensor=l0.norm2 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=gqa2 op=l0.wup operand=0 tensor=l0.norm2 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=gqa2 op=l0.silu operand=0 tensor=l0.wgate self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=gqa2 op=l0.silu operand=1 tensor=l0.wup self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=gqa2 op=l0.wdown operand=0 tensor=l0.act self=1835008 off=[0,1835008] share=1.0000 affinity=structured per_axis: m=0 n=1835008
+OPERAND model=gqa2 op=l0.add2 operand=0 tensor=l0.wdown self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=gqa2 op=l0.add2 operand=1 tensor=l0.resid1 self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=gqa2 op=l1.rmsnorm1 operand=0 tensor=l1.hidden self=524288 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0
+OPERAND model=gqa2 op=l1.wq operand=0 tensor=l1.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=gqa2 op=l1.wk operand=0 tensor=l1.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=gqa2 op=l1.wv operand=0 tensor=l1.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=gqa2 op=l1.rope_q operand=0 tensor=l1.wq self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 hh=0
+OPERAND model=gqa2 op=l1.rope_k operand=0 tensor=l1.wk self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 hh=0
+OPERAND model=gqa2 op=l1.kvappend_k operand=0 tensor=l1.rope_k self=128 off=[0,0] share=0.0000 affinity=degenerate per_axis: row=0 hh=0
+OPERAND model=gqa2 op=l1.kvappend_v operand=0 tensor=l1.wv self=128 off=[0,0] share=0.0000 affinity=degenerate per_axis: row=0 hh=0
+OPERAND model=gqa2 op=l1.attn_chunk operand=0 tensor=l1.rope_q self=128 off=[0,128] share=1.0000 affinity=structured per_axis: s=0 h=0 j=128
+OPERAND model=gqa2 op=l1.attn_chunk operand=1 tensor=l1.full_k self=16384 off=[0,16384] share=1.0000 affinity=structured per_axis: s=16384 h=0..16384 j=0
+OPERAND model=gqa2 op=l1.attn_chunk operand=2 tensor=l1.full_v self=16384 off=[0,16384] share=1.0000 affinity=structured per_axis: s=16384 h=0..16384 j=0
+OPERAND model=gqa2 op=l1.attn_combine operand=0 tensor=l1.partial self=1024 off=[0,0] share=0.0000 affinity=degenerate per_axis: s=0 h=0
+OPERAND model=gqa2 op=l1.wo operand=0 tensor=l1.context self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=gqa2 op=l1.add1 operand=0 tensor=l1.wo self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=gqa2 op=l1.add1 operand=1 tensor=l1.hidden self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=gqa2 op=l1.rmsnorm2 operand=0 tensor=l1.resid1 self=524288 off=[0,0] share=0.0000 affinity=degenerate per_axis: i=0
+OPERAND model=gqa2 op=l1.wgate operand=0 tensor=l1.norm2 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=gqa2 op=l1.wup operand=0 tensor=l1.norm2 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=gqa2 op=l1.silu operand=0 tensor=l1.wgate self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=gqa2 op=l1.silu operand=1 tensor=l1.wup self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=gqa2 op=l1.wdown operand=0 tensor=l1.act self=1835008 off=[0,1835008] share=1.0000 affinity=structured per_axis: m=0 n=1835008
+OPERAND model=gqa2 op=l1.add2 operand=0 tensor=l1.wdown self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=gqa2 op=l1.add2 operand=1 tensor=l1.resid1 self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+SUMMARY model=gqa2 degenerate=26 structured=20 single_task=0 uncounted=0
+OPERAND model=mha4 op=mha0.rmsnorm1 operand=0 tensor=mha0.hidden self=524288 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0
+OPERAND model=mha4 op=mha0.wq operand=0 tensor=mha0.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha0.wk operand=0 tensor=mha0.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha0.wv operand=0 tensor=mha0.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha0.rope_q operand=0 tensor=mha0.wq self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 hh=0
+OPERAND model=mha4 op=mha0.rope_k operand=0 tensor=mha0.wk self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 hh=0
+OPERAND model=mha4 op=mha0.kvappend_k operand=0 tensor=mha0.rope_k self=128 off=[0,0] share=0.0000 affinity=degenerate per_axis: row=0 hh=0
+OPERAND model=mha4 op=mha0.kvappend_v operand=0 tensor=mha0.wv self=128 off=[0,0] share=0.0000 affinity=degenerate per_axis: row=0 hh=0
+OPERAND model=mha4 op=mha0.attn_chunk operand=0 tensor=mha0.rope_q self=128 off=[0,128] share=1.0000 affinity=structured per_axis: s=0 h=0 j=128
+OPERAND model=mha4 op=mha0.attn_chunk operand=1 tensor=mha0.full_k self=16384 off=[0,16384] share=1.0000 affinity=structured per_axis: s=16384 h=0 j=0
+OPERAND model=mha4 op=mha0.attn_chunk operand=2 tensor=mha0.full_v self=16384 off=[0,16384] share=1.0000 affinity=structured per_axis: s=16384 h=0 j=0
+OPERAND model=mha4 op=mha0.attn_combine operand=0 tensor=mha0.partial self=1024 off=[0,0] share=0.0000 affinity=degenerate per_axis: s=0 h=0
+OPERAND model=mha4 op=mha0.wo operand=0 tensor=mha0.context self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha0.add1 operand=0 tensor=mha0.wo self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha0.add1 operand=1 tensor=mha0.hidden self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha0.rmsnorm2 operand=0 tensor=mha0.resid1 self=524288 off=[0,0] share=0.0000 affinity=degenerate per_axis: i=0
+OPERAND model=mha4 op=mha0.wup operand=0 tensor=mha0.norm2 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha0.wdown operand=0 tensor=mha0.wup self=1835008 off=[0,1835008] share=1.0000 affinity=structured per_axis: m=0 n=1835008
+OPERAND model=mha4 op=mha0.add2 operand=0 tensor=mha0.wdown self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha0.add2 operand=1 tensor=mha0.resid1 self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha1.rmsnorm1 operand=0 tensor=mha1.hidden self=524288 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0
+OPERAND model=mha4 op=mha1.wq operand=0 tensor=mha1.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha1.wk operand=0 tensor=mha1.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha1.wv operand=0 tensor=mha1.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha1.rope_q operand=0 tensor=mha1.wq self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 hh=0
+OPERAND model=mha4 op=mha1.rope_k operand=0 tensor=mha1.wk self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 hh=0
+OPERAND model=mha4 op=mha1.kvappend_k operand=0 tensor=mha1.rope_k self=128 off=[0,0] share=0.0000 affinity=degenerate per_axis: row=0 hh=0
+OPERAND model=mha4 op=mha1.kvappend_v operand=0 tensor=mha1.wv self=128 off=[0,0] share=0.0000 affinity=degenerate per_axis: row=0 hh=0
+OPERAND model=mha4 op=mha1.attn_chunk operand=0 tensor=mha1.rope_q self=128 off=[0,128] share=1.0000 affinity=structured per_axis: s=0 h=0 j=128
+OPERAND model=mha4 op=mha1.attn_chunk operand=1 tensor=mha1.full_k self=16384 off=[0,16384] share=1.0000 affinity=structured per_axis: s=16384 h=0 j=0
+OPERAND model=mha4 op=mha1.attn_chunk operand=2 tensor=mha1.full_v self=16384 off=[0,16384] share=1.0000 affinity=structured per_axis: s=16384 h=0 j=0
+OPERAND model=mha4 op=mha1.attn_combine operand=0 tensor=mha1.partial self=1024 off=[0,0] share=0.0000 affinity=degenerate per_axis: s=0 h=0
+OPERAND model=mha4 op=mha1.wo operand=0 tensor=mha1.context self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha1.add1 operand=0 tensor=mha1.wo self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha1.add1 operand=1 tensor=mha1.hidden self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha1.rmsnorm2 operand=0 tensor=mha1.resid1 self=524288 off=[0,0] share=0.0000 affinity=degenerate per_axis: i=0
+OPERAND model=mha4 op=mha1.wup operand=0 tensor=mha1.norm2 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha1.wdown operand=0 tensor=mha1.wup self=1835008 off=[0,1835008] share=1.0000 affinity=structured per_axis: m=0 n=1835008
+OPERAND model=mha4 op=mha1.add2 operand=0 tensor=mha1.wdown self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha1.add2 operand=1 tensor=mha1.resid1 self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha2.rmsnorm1 operand=0 tensor=mha2.hidden self=524288 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0
+OPERAND model=mha4 op=mha2.wq operand=0 tensor=mha2.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha2.wk operand=0 tensor=mha2.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha2.wv operand=0 tensor=mha2.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha2.rope_q operand=0 tensor=mha2.wq self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 hh=0
+OPERAND model=mha4 op=mha2.rope_k operand=0 tensor=mha2.wk self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 hh=0
+OPERAND model=mha4 op=mha2.kvappend_k operand=0 tensor=mha2.rope_k self=128 off=[0,0] share=0.0000 affinity=degenerate per_axis: row=0 hh=0
+OPERAND model=mha4 op=mha2.kvappend_v operand=0 tensor=mha2.wv self=128 off=[0,0] share=0.0000 affinity=degenerate per_axis: row=0 hh=0
+OPERAND model=mha4 op=mha2.attn_chunk operand=0 tensor=mha2.rope_q self=128 off=[0,128] share=1.0000 affinity=structured per_axis: s=0 h=0 j=128
+OPERAND model=mha4 op=mha2.attn_chunk operand=1 tensor=mha2.full_k self=16384 off=[0,16384] share=1.0000 affinity=structured per_axis: s=16384 h=0 j=0
+OPERAND model=mha4 op=mha2.attn_chunk operand=2 tensor=mha2.full_v self=16384 off=[0,16384] share=1.0000 affinity=structured per_axis: s=16384 h=0 j=0
+OPERAND model=mha4 op=mha2.attn_combine operand=0 tensor=mha2.partial self=1024 off=[0,0] share=0.0000 affinity=degenerate per_axis: s=0 h=0
+OPERAND model=mha4 op=mha2.wo operand=0 tensor=mha2.context self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha2.add1 operand=0 tensor=mha2.wo self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha2.add1 operand=1 tensor=mha2.hidden self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha2.rmsnorm2 operand=0 tensor=mha2.resid1 self=524288 off=[0,0] share=0.0000 affinity=degenerate per_axis: i=0
+OPERAND model=mha4 op=mha2.wup operand=0 tensor=mha2.norm2 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha2.wdown operand=0 tensor=mha2.wup self=1835008 off=[0,1835008] share=1.0000 affinity=structured per_axis: m=0 n=1835008
+OPERAND model=mha4 op=mha2.add2 operand=0 tensor=mha2.wdown self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha2.add2 operand=1 tensor=mha2.resid1 self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha3.rmsnorm1 operand=0 tensor=mha3.hidden self=524288 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0
+OPERAND model=mha4 op=mha3.wq operand=0 tensor=mha3.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha3.wk operand=0 tensor=mha3.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha3.wv operand=0 tensor=mha3.norm1 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha3.rope_q operand=0 tensor=mha3.wq self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 hh=0
+OPERAND model=mha4 op=mha3.rope_k operand=0 tensor=mha3.wk self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 hh=0
+OPERAND model=mha4 op=mha3.kvappend_k operand=0 tensor=mha3.rope_k self=128 off=[0,0] share=0.0000 affinity=degenerate per_axis: row=0 hh=0
+OPERAND model=mha4 op=mha3.kvappend_v operand=0 tensor=mha3.wv self=128 off=[0,0] share=0.0000 affinity=degenerate per_axis: row=0 hh=0
+OPERAND model=mha4 op=mha3.attn_chunk operand=0 tensor=mha3.rope_q self=128 off=[0,128] share=1.0000 affinity=structured per_axis: s=0 h=0 j=128
+OPERAND model=mha4 op=mha3.attn_chunk operand=1 tensor=mha3.full_k self=16384 off=[0,16384] share=1.0000 affinity=structured per_axis: s=16384 h=0 j=0
+OPERAND model=mha4 op=mha3.attn_chunk operand=2 tensor=mha3.full_v self=16384 off=[0,16384] share=1.0000 affinity=structured per_axis: s=16384 h=0 j=0
+OPERAND model=mha4 op=mha3.attn_combine operand=0 tensor=mha3.partial self=1024 off=[0,0] share=0.0000 affinity=degenerate per_axis: s=0 h=0
+OPERAND model=mha4 op=mha3.wo operand=0 tensor=mha3.context self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha3.add1 operand=0 tensor=mha3.wo self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha3.add1 operand=1 tensor=mha3.hidden self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha3.rmsnorm2 operand=0 tensor=mha3.resid1 self=524288 off=[0,0] share=0.0000 affinity=degenerate per_axis: i=0
+OPERAND model=mha4 op=mha3.wup operand=0 tensor=mha3.norm2 self=524288 off=[0,524288] share=1.0000 affinity=structured per_axis: m=0 n=524288
+OPERAND model=mha4 op=mha3.wdown operand=0 tensor=mha3.wup self=1835008 off=[0,1835008] share=1.0000 affinity=structured per_axis: m=0 n=1835008
+OPERAND model=mha4 op=mha3.add2 operand=0 tensor=mha3.wdown self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+OPERAND model=mha4 op=mha3.add2 operand=1 tensor=mha3.resid1 self=16384 off=[0,0] share=0.0000 affinity=degenerate per_axis: m=0 n=0
+SUMMARY model=mha4 degenerate=44 structured=36 single_task=0 uncounted=0
