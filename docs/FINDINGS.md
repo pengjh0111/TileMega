@@ -1134,3 +1134,77 @@
 - The DP solves the uniform problem with and without the mask and prints
   whether the answer moved; it does not. ✅ verified.
 - Evidence: docs/experiments/SOLVER/alignment.md.
+
+## F-51 — `CurrentArch` exists only in the device pass, so a capability assertion in a shared header breaks the host compile
+
+- Finding: `arch::CurrentArch` is defined behind `#if defined(__CUDA_ARCH__)`.
+  nvcc still parses every `__device__` body in the **host** pass, so any
+  namespace-scope `static_assert` naming `Caps<CurrentArch>` in a header
+  included by a full (host+device) TU fails with `namespace "tilemega::arch"
+  has no member "CurrentArch"`. ✅ verified with a minimal `-arch=sm_89 -c`
+  reproducer.
+- Why it had never been hit: the `docs/experiments/V_*` probes that name
+  `CurrentArch` are all compiled `-ptx`, which runs the device pass only.
+- Fix, inside `ArchDispatch.h` — the one file the policy check lets name
+  `__CUDA_ARCH__`: the host pass gets `using CurrentArch = void;` (the primary
+  `Caps` template, every capability off) plus `inline constexpr bool
+  kDevicePass`. A capability assertion is then written `!arch::kDevicePass ||
+  <assertion>`, which is vacuous in the host pass and real in the device pass.
+- Evidence: include/tilemega/Target/ArchDispatch.h;
+  include/tilemega/Codegen/tasks/ModelHarness.cuh;
+  docs/experiments/CLUSTER/result.md §7.5.
+
+## F-52 — ptxas spells the cluster barrier `UCGABAR_ARV` / `UCGABAR_WAIT`, not `BAR.CLUSTER`
+
+- Finding: a SASS self-check that greps for `BAR.CLUSTER` or `CLUSTERBAR`
+  matches **nothing** even in a correct sm_90 cluster kernel. The real
+  mnemonics are `UCGABAR_ARV` and `UCGABAR_WAIT` (CGA = cooperative grid
+  array). Found by diffing sorted opcode histograms of a dim-1 against a dim-2
+  object, not by reading documentation.
+- Cross-compiled evidence, same source, both sm_90 and sm_120: `UCGABAR` count
+  0 / 8 / 8 at cluster dim 1 / 2 / 8; PTX `barrier.cluster` count 0 / 4 / 4.
+  ✅ verified.
+- Why it matters beyond spelling: `run_on_h100.sh` hard-fails when a dim>1 arm
+  shows no cluster barrier. With the plausible-looking pattern that check would
+  have exited non-zero on a machine where everything was correct — a self-check
+  that fails closed on its own typo is worse than no self-check.
+- Evidence: docs/experiments/CLUSTER/run_on_h100.sh;
+  docs/experiments/CLUSTER/result.md §7.5.
+
+## F-53 — Cluster capture on inter-operator dataflow is 0.14–0.19, because the stage-serial megakernel cannot hold a tile across a stage boundary
+
+- Finding: with §4.3's `w(A,B) = Volume × Frequency` evaluated from the
+  derivation (gqa2 36 nodes / 44 edges, mha4 64 / 72, 0 unevaluable) and
+  size-constrained heavy-edge agglomeration, the fraction of coupling traffic
+  a cluster can keep on-GPC is **0.136 (gqa2) / 0.187 (mha4)** at temporal
+  reach 1, rising to 0.985 / 0.971 at reach 4. ✅ verified (analytic).
+- Reach 1 is the only reach the current TaskBody ABI can implement: shared
+  memory is reused by the next stage, so a value produced in stage *i* is in
+  global memory before stage *i+1* runs. The 0.97–0.99 rows require four to
+  five operators' outputs resident across stage boundaries, which no code here
+  does.
+- This is the skeleton's §4.5 claim ("簇的粒度匹配「算子内跨 CTA 归约」，
+  不匹配「算子间数据流」") as a number rather than an assertion — and it is a
+  *confirmation*, arrived at from the opposite direction.
+- What binds is reach, not size: at reach 1 the size cap is never the reported
+  limiter on either model. Capture is an upper bound on traffic, not a speedup.
+- Evidence: docs/experiments/CLUSTER/result.md §7.7,
+  raw/labeling.txt; lib/Solver/ClusterLabeling.cpp.
+
+## F-54 — Calibration falsified the skeleton's own independent-duration assumption
+
+- Finding: §P4.4 wrote its own gate — *"干扰偏差 > 30% 则独立时长假设失效"*.
+  Measured: a DRAM-bound neighbour at one CTA per SM slows the victim GEMM from
+  18.3 µs to 27.6 µs, `interference_ratio = 1.518`, a **51.8%** deviation.
+  ✅ verified (n = 41, rsd 0.82%, run-to-run 0.35%).
+- So `T_steady` cannot be a sum of per-operator durations measured in
+  isolation. The response was not the prescribed degradation to "coarse rank +
+  measure the top 3"; it was to make the steady state a `max` over resource
+  lanes and to make acceptance a *ranking* criterion, which does not depend on
+  absolute predicted durations at all.
+- The measurement itself needed two fixes before it meant anything: the victim
+  GEMM at N=512,K=512 was 100% launch overhead (enlarged to N=1536,K=2048), and
+  the SM clock falls back toward 210 MHz between short host-bound kernels, so
+  the two halves of a pair landed at different points on the ramp (a second 1 s
+  warm-up immediately before the stage). Before those, the ratio swung 0.90–2.50.
+- Evidence: docs/experiments/CALIB/result.md §(d), §"Detours".
