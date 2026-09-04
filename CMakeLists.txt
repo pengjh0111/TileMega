@@ -88,6 +88,7 @@ add_library(tilemega STATIC
   lib/Frontend/Frontend.cpp
   lib/Frontend/GraphPattern.cpp
   lib/Frontend/ModelPlan.cpp
+  lib/Frontend/SemanticLifting.cpp
   lib/Dialect/CouplingGraph/CGDialect.cpp
   lib/Dialect/CouplingGraph/CGContract.cpp
   lib/Analysis/ClosedForm.cpp
@@ -317,6 +318,16 @@ if(TILEMEGA_BUILD_TESTS)
     target_compile_options(frontend_import_test PRIVATE -fno-rtti)
   endif()
   add_test(NAME frontend_import COMMAND frontend_import_test)
+
+  add_executable(semantic_lifting_test test/unit/semantic_lifting_test.cpp)
+  add_dependencies(semantic_lifting_test TileMegaCGIncGen)
+  target_link_libraries(semantic_lifting_test PRIVATE TileMega::tilemega MLIRIR)
+  target_compile_definitions(semantic_lifting_test PRIVATE
+    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  if(NOT LLVM_ENABLE_RTTI)
+    target_compile_options(semantic_lifting_test PRIVATE -fno-rtti)
+  endif()
+  add_test(NAME semantic_lifting COMMAND semantic_lifting_test)
 
   add_executable(degradation_test test/unit/degradation_test.cpp)
   add_dependencies(degradation_test TileMegaCGIncGen)

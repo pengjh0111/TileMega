@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Frontend/SymbolicShapeBridge.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
+#include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Frontend/ModelPlan.h>
 #include <tilemega/Dialect/CouplingGraph/CGAttrs.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
@@ -293,10 +294,7 @@ SymbolicShape SymbolicShapeBridge::Parse(
   return result;
 }
 
-mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
-    std::string const& path, mlir::MLIRContext& context,
-    ImportSummary* summary) const {
-  context.getOrLoadDialect<dialect::CGDialect>();
+ExportBridge ReadExportBridge(std::string const& path) {
   auto file = llvm::MemoryBuffer::getFile(path);
   if (!file) throw std::runtime_error("cannot read export bridge JSON: " + path);
   auto parsed = llvm::json::parse(file.get()->getBuffer());
@@ -305,7 +303,7 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
   if (!root || root->getString("schema") != "tilemega.exported_program.v1")
     throw std::runtime_error("unsupported export bridge schema");
 
-  std::vector<FxNodeRecord> allNodes, tasks;
+  ExportBridge bridge;
   std::set<std::string> unsupported;
   auto* nodes = root->getArray("nodes");
   if (!nodes) throw std::runtime_error("export JSON has no nodes array");
@@ -321,16 +319,11 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
     node.shape = readStrings(object->getArray("shape"));
     if (node.op == "call_function") {
       if (!known().contains(node.target)) unsupported.insert(node.target);
-      tasks.push_back(node);
+      bridge.tasks.push_back(node);
     }
-    allNodes.push_back(std::move(node));
+    bridge.nodes.push_back(std::move(node));
   }
-  // Degradation, not refusal: the operators no rule covers are reported and
-  // each becomes one conservative task space.
-  if (!unsupported.empty())
-    llvm::errs() << "IMPORT_DEGRADED " << llvm::join(unsupported, ", ") << "\n";
-  std::vector<SignatureInput> signatureInputs;
-  std::vector<std::string> signatureOutputs;
+  bridge.unsupported.assign(unsupported.begin(), unsupported.end());
   auto* signature = root->getObject("signature");
   if (!signature)
     throw std::runtime_error(
@@ -345,17 +338,38 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
       if (auto target = object->getString("target")) input.target = target->str();
       if (auto persistent = object->getBoolean("persistent"))
         input.persistent = *persistent;
-      signatureInputs.push_back(std::move(input));
+      bridge.inputs.push_back(std::move(input));
     }
   }
   if (auto* outputs = signature->getArray("outputs"))
     for (auto const& item : *outputs) {
       auto* object = item.getAsObject();
       if (!object) throw std::runtime_error("signature output is not an object");
-      signatureOutputs.push_back(object->getString("name")->str());
+      bridge.outputs.push_back(object->getString("name")->str());
     }
-  if (signatureInputs.empty() || signatureOutputs.empty())
+  if (bridge.inputs.empty() || bridge.outputs.empty())
     throw std::runtime_error("structured signature has no inputs or outputs");
+  if (auto* ranges = root->getObject("range_constraints"))
+    for (auto const& item : *ranges)
+      bridge.range_texts[item.first.str()] = item.second.getAsString()->str();
+  bridge.guards = readStrings(root->getArray("guards"));
+  return bridge;
+}
+
+mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
+    std::string const& path, mlir::MLIRContext& context,
+    ImportSummary* summary) const {
+  context.getOrLoadDialect<dialect::CGDialect>();
+  ExportBridge bridge = ReadExportBridge(path);
+  std::vector<FxNodeRecord>& allNodes = bridge.nodes;
+  std::vector<FxNodeRecord>& tasks = bridge.tasks;
+  std::vector<SignatureInput>& signatureInputs = bridge.inputs;
+  std::vector<std::string>& signatureOutputs = bridge.outputs;
+  // Degradation, not refusal: the operators no rule covers are reported and
+  // each becomes one conservative task space.
+  if (!bridge.unsupported.empty())
+    llvm::errs() << "IMPORT_DEGRADED " << llvm::join(bridge.unsupported, ", ")
+                 << "\n";
 
   std::unordered_map<std::string, FxNodeRecord const*> nodeByName;
   for (auto const& node : allNodes) nodeByName.emplace(node.name, &node);
@@ -368,11 +382,9 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
       userShapes.push_back(found->second->shape);
     }
 
-  std::unordered_map<std::string, std::string> rangeTexts;
-  if (auto* ranges = root->getObject("range_constraints"))
-    for (auto const& item : *ranges)
-      rangeTexts[item.first.str()] = item.second.getAsString()->str();
-  auto guards = readStrings(root->getArray("guards"));
+  std::unordered_map<std::string, std::string> const& rangeTexts =
+      bridge.range_texts;
+  std::vector<std::string> const& guards = bridge.guards;
   SymbolicShape symbolic = SymbolicShapeBridge{}.Parse(rangeTexts, guards, userShapes);
   ModelPlan plan = BuildModelPlan(allNodes, signatureInputs, signatureOutputs);
   std::vector<int> stages = FormSemanticStages(tasks, plan);
@@ -478,7 +490,7 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
     throw std::runtime_error("C++ importer produced an invalid CG module");
   if (summary)
     *summary = {tasks.size(), edge, plan.stages.size(), guards.size(),
-                {unsupported.begin(), unsupported.end()}};
+                bridge.unsupported};
   return mlir::OwningOpRef<mlir::ModuleOp>(module);
 }
 
