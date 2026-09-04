@@ -6,6 +6,14 @@
 #include <cstdint>
 #include <type_traits>
 
+/// Host tools read the same ownership table the device does, and TaskBase.h
+/// is the one task header that compiles without CUDA.
+#if defined(__CUDACC__)
+#define TILEMEGA_TASK_HD __host__ __device__
+#else
+#define TILEMEGA_TASK_HD
+#endif
+
 namespace tilemega::codegen {
 
 /// Architecture-independent arguments passed to every generated TaskBody.
@@ -57,6 +65,41 @@ struct TaskOwnership {
   TaskOwnershipKind kind;
   int count;  ///< |image(C_kappa)| along the launch axis
 };
+
+/// Which TaskBody runs a stage. Declared here rather than beside the runtime
+/// tables so a host-only analysis tool can ask the same questions the device
+/// asks without pulling in CUDA.
+enum class TaskKind : std::uint32_t {
+  kGemm = 0,
+  kRMSNorm = 1,
+  kRoPE = 2,
+  kKVAppend = 3,
+  kElementwise = 4,
+  kAttention = 5,
+  /// The combiner half of a split reduction (§2.4). It exists only in an
+  /// instantiated stage list: the generator emits one kGemm stage, and the
+  /// split transform rewrites it into a partial stage plus this one.
+  kGemmCombine = 6,
+};
+
+/// The ownership each TaskKind's TaskBody declares. Every TaskBody's
+/// `Ownership` returns this rather than repeating a literal, so a host tool
+/// reading it is reading the TaskBody's own declaration and the two cannot
+/// drift.
+TILEMEGA_TASK_HD constexpr TaskOwnershipKind OwnershipOf(TaskKind kind) {
+  switch (kind) {
+    case TaskKind::kGemm:
+    case TaskKind::kRMSNorm:
+    case TaskKind::kAttention:
+      return TaskOwnershipKind::kTilePerBlock;
+    case TaskKind::kRoPE:
+    case TaskKind::kKVAppend:
+    case TaskKind::kElementwise:
+    case TaskKind::kGemmCombine:
+      return TaskOwnershipKind::kElementChunk;
+  }
+  return TaskOwnershipKind::kElementChunk;
+}
 
 /// Compile-time resource information consumed by candidate pruning (§5.3).
 template <int Threads, std::size_t SharedBytes>

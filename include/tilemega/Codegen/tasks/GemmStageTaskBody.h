@@ -244,7 +244,7 @@ struct GemmStageTaskBody {
                                             StageDesc const& stage) {
     auto const& invocation =
         static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
-    return {TaskOwnershipKind::kTilePerBlock,
+    return {OwnershipOf(TaskKind::kGemm),
             invocation.tiles_m * invocation.tiles_n * invocation.chunks};
   }
 

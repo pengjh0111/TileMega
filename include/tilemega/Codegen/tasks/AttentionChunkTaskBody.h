@@ -18,7 +18,7 @@ struct AttentionTaskBody {
   /// One (token, head) query per CTA: `blockIdx.x` is the task index.
   __device__ static TaskOwnership Ownership(Params const& p,
                                             StageDesc const& stage) {
-    return {TaskOwnershipKind::kTilePerBlock,
+    return {OwnershipOf(TaskKind::kAttention),
             p.dims.seq * static_cast<int>(stage.extent)};
   }
 

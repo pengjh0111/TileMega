@@ -1,0 +1,54 @@
+EDGE model=fixture n=1 src=l0.s00.norm dst=l0.s01.proj form=window(4,1,0,1) P=4 C=16 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/1 max=15/3 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=2 src=l0.s00.norm dst=l0.s02.proj form=window(2,1,0,1) P=4 C=8 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/1 max=7/3 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=3 src=l0.s00.norm dst=l0.s03.proj form=window(2,1,0,1) P=4 C=8 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/1 max=7/3 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=4 src=l0.s01.proj dst=l0.s04.rope form=identity P=16 C=16 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=15/15 identity=yes owns=tile_per_block->element_chunk kidentity=no ragged=no tier=0
+EDGE model=fixture n=5 src=l0.s02.proj dst=l0.s05.rope form=identity P=8 C=8 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=7/7 identity=yes owns=tile_per_block->element_chunk kidentity=no ragged=no tier=0
+EDGE model=fixture n=6 src=l0.s05.rope dst=l0.s06.append form=all P=8 C=32 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=31/7 identity=no owns=element_chunk->element_chunk kidentity=no ragged=no tier=1
+EDGE model=fixture n=7 src=l0.s03.proj dst=l0.s07.append form=all P=8 C=32 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=31/7 identity=no owns=tile_per_block->element_chunk kidentity=no ragged=no tier=1
+EDGE model=fixture n=8 src=l0.s04.rope dst=l0.s08.attn form=all P=16 C=384 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=3/2 max=383/15 identity=no owns=element_chunk->tile_per_block kidentity=no ragged=no tier=2
+EDGE model=fixture n=9 src=l0.s06.append dst=l0.s08.attn form=all P=32 C=384 contiguous=no stride=2 wait=4..4 overwait_max=3 dims=3/2 max=383/31 identity=no owns=element_chunk->tile_per_block kidentity=no ragged=no tier=2
+EDGE model=fixture n=10 src=l0.s07.append dst=l0.s08.attn form=all P=32 C=384 contiguous=no stride=2 wait=4..4 overwait_max=3 dims=3/2 max=383/31 identity=no owns=element_chunk->tile_per_block kidentity=no ragged=no tier=2
+EDGE model=fixture n=11 src=l0.s08.attn dst=l0.s08.attn.combine form=window(1,6,0,6) P=384 C=64 contiguous=yes stride=1 wait=6..6 overwait_max=0 dims=2/3 max=63/383 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=yes tier=2
+EDGE model=fixture n=12 src=l0.s08.attn.combine dst=l0.s09.proj form=window(128,16,0,16) P=64 C=512 contiguous=yes stride=1 wait=16..16 overwait_max=0 dims=2/2 max=511/63 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=13 src=l0.s09.proj dst=l0.s09.add form=identity P=512 C=512 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=511/511 identity=yes owns=tile_per_block->tile_per_block kidentity=yes ragged=no tier=0
+EDGE model=fixture n=14 src=l0.s09.add dst=l0.s10.norm form=window(1,128,0,128) P=512 C=4 contiguous=yes stride=1 wait=128..128 overwait_max=0 dims=1/2 max=3/511 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=15 src=l0.s10.norm dst=l0.s11.proj form=window(256,1,0,1) P=4 C=1024 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/1 max=1023/3 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=16 src=l0.s10.norm dst=l0.s12.proj form=window(256,1,0,1) P=4 C=1024 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/1 max=1023/3 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=17 src=l0.s11.proj dst=l0.s13.act form=identity P=1024 C=1024 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=1023/1023 identity=yes owns=tile_per_block->element_chunk kidentity=no ragged=no tier=0
+EDGE model=fixture n=18 src=l0.s12.proj dst=l0.s13.act form=identity P=1024 C=1024 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=1023/1023 identity=yes owns=tile_per_block->element_chunk kidentity=no ragged=no tier=0
+EDGE model=fixture n=19 src=l0.s13.act dst=l0.s14.proj form=window(128,256,0,256) P=1024 C=512 contiguous=yes stride=1 wait=256..256 overwait_max=0 dims=2/2 max=511/1023 identity=no owns=element_chunk->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=20 src=l0.s14.proj dst=l0.s14.add form=identity P=512 C=512 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=511/511 identity=yes owns=tile_per_block->tile_per_block kidentity=yes ragged=no tier=0
+EDGE model=fixture n=21 src=l0.s09.add dst=l0.s14.add form=identity P=512 C=512 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=511/511 identity=yes owns=tile_per_block->tile_per_block kidentity=yes ragged=no tier=0
+EDGE model=fixture n=22 src=l0.s14.add dst=l1.s15.norm form=window(1,128,0,128) P=512 C=4 contiguous=yes stride=1 wait=128..128 overwait_max=0 dims=1/2 max=3/511 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=23 src=l1.s15.norm dst=l1.s16.proj form=window(4,1,0,1) P=4 C=16 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/1 max=15/3 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=24 src=l1.s15.norm dst=l1.s17.proj form=window(2,1,0,1) P=4 C=8 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/1 max=7/3 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=25 src=l1.s15.norm dst=l1.s18.proj form=window(2,1,0,1) P=4 C=8 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/1 max=7/3 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=26 src=l1.s16.proj dst=l1.s19.rope form=identity P=16 C=16 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=15/15 identity=yes owns=tile_per_block->element_chunk kidentity=no ragged=no tier=0
+EDGE model=fixture n=27 src=l1.s17.proj dst=l1.s20.rope form=identity P=8 C=8 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=7/7 identity=yes owns=tile_per_block->element_chunk kidentity=no ragged=no tier=0
+EDGE model=fixture n=28 src=l1.s20.rope dst=l1.s21.append form=all P=8 C=32 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=31/7 identity=no owns=element_chunk->element_chunk kidentity=no ragged=no tier=1
+EDGE model=fixture n=29 src=l1.s18.proj dst=l1.s22.append form=all P=8 C=32 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=31/7 identity=no owns=tile_per_block->element_chunk kidentity=no ragged=no tier=1
+EDGE model=fixture n=30 src=l1.s19.rope dst=l1.s23.attn form=all P=16 C=384 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=3/2 max=383/15 identity=no owns=element_chunk->tile_per_block kidentity=no ragged=no tier=2
+EDGE model=fixture n=31 src=l1.s21.append dst=l1.s23.attn form=all P=32 C=384 contiguous=no stride=2 wait=4..4 overwait_max=3 dims=3/2 max=383/31 identity=no owns=element_chunk->tile_per_block kidentity=no ragged=no tier=2
+EDGE model=fixture n=32 src=l1.s22.append dst=l1.s23.attn form=all P=32 C=384 contiguous=no stride=2 wait=4..4 overwait_max=3 dims=3/2 max=383/31 identity=no owns=element_chunk->tile_per_block kidentity=no ragged=no tier=2
+EDGE model=fixture n=33 src=l1.s23.attn dst=l1.s23.attn.combine form=window(1,6,0,6) P=384 C=64 contiguous=yes stride=1 wait=6..6 overwait_max=0 dims=2/3 max=63/383 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=yes tier=2
+EDGE model=fixture n=34 src=l1.s23.attn.combine dst=l1.s24.proj form=window(128,16,0,16) P=64 C=512 contiguous=yes stride=1 wait=16..16 overwait_max=0 dims=2/2 max=511/63 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=35 src=l1.s24.proj dst=l1.s24.add form=identity P=512 C=512 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=511/511 identity=yes owns=tile_per_block->tile_per_block kidentity=yes ragged=no tier=0
+EDGE model=fixture n=36 src=l0.s14.add dst=l1.s24.add form=identity P=512 C=512 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=511/511 identity=yes owns=tile_per_block->tile_per_block kidentity=yes ragged=no tier=0
+EDGE model=fixture n=37 src=l1.s24.add dst=l1.s25.norm form=window(1,128,0,128) P=512 C=4 contiguous=yes stride=1 wait=128..128 overwait_max=0 dims=1/2 max=3/511 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=38 src=l1.s25.norm dst=l1.s26.proj form=window(256,1,0,1) P=4 C=1024 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/1 max=1023/3 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=39 src=l1.s25.norm dst=l1.s27.proj form=window(256,1,0,1) P=4 C=1024 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/1 max=1023/3 identity=no owns=tile_per_block->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=40 src=l1.s26.proj dst=l1.s28.act form=identity P=1024 C=1024 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=1023/1023 identity=yes owns=tile_per_block->element_chunk kidentity=no ragged=no tier=0
+EDGE model=fixture n=41 src=l1.s27.proj dst=l1.s28.act form=identity P=1024 C=1024 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=1023/1023 identity=yes owns=tile_per_block->element_chunk kidentity=no ragged=no tier=0
+EDGE model=fixture n=42 src=l1.s28.act dst=l1.s29.proj form=window(128,256,0,256) P=1024 C=512 contiguous=yes stride=1 wait=256..256 overwait_max=0 dims=2/2 max=511/1023 identity=no owns=element_chunk->tile_per_block kidentity=no ragged=no tier=0
+EDGE model=fixture n=43 src=l1.s29.proj dst=l1.s29.add form=identity P=512 C=512 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=511/511 identity=yes owns=tile_per_block->tile_per_block kidentity=yes ragged=no tier=0
+EDGE model=fixture n=44 src=l1.s24.add dst=l1.s29.add form=identity P=512 C=512 contiguous=yes stride=0 wait=1..1 overwait_max=0 dims=2/2 max=511/511 identity=yes owns=tile_per_block->tile_per_block kidentity=yes ragged=no tier=0
+SUMMARY model=fixture edges=44 contiguous=40 identity=15 kidentity=7 wait_points_exact=297712 wait_points_hull=300784 overwait_ratio=1.0103
+FORMS model=fixture all=10
+FORMS model=fixture identity=15
+FORMS model=fixture window(1,128,0,128)=3
+FORMS model=fixture window(1,6,0,6)=2
+FORMS model=fixture window(128,16,0,16)=2
+FORMS model=fixture window(128,256,0,256)=2
+FORMS model=fixture window(2,1,0,1)=4
+FORMS model=fixture window(256,1,0,1)=4
+FORMS model=fixture window(4,1,0,1)=2

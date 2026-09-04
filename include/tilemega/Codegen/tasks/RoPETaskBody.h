@@ -21,7 +21,7 @@ struct RoPETaskBody {
                                             StageDesc const& stage) {
     int pairs = p.dims.seq * static_cast<int>(stage.extent) *
                 (static_cast<int>(stage.width) / 2);
-    return {TaskOwnershipKind::kElementChunk,
+    return {OwnershipOf(TaskKind::kRoPE),
             (pairs + Threads - 1) / Threads};
   }
 

@@ -61,28 +61,12 @@ grep -h '^E2E_TIME' "${raw}"/mha4_fresh_processes/run_*.log \
 } > "${raw}/mha4_timing_median.txt"
 cat "${raw}/mha4_timing_median.txt"
 
-# Part 5.2: is any derived edge a `kIdentity` candidate at all?  Built the
-# same way P3_ISL builds its probes (see docs/DEPENDENCIES.md for the isl /
-# barvinok trees).
-isl_build="${TILEMEGA_ISL_BUILD_DIR:-${repo}/build-isl}"
-polylib_build="${TILEMEGA_POLYLIB_BUILD_DIR:-${repo}/build-polylib}"
-barvinok_build="${TILEMEGA_BARVINOK_BUILD_DIR:-${repo}/build-barvinok}"
-mlir_src="${TILEMEGA_MLIR_SRC:-/tmp/tilemega-vf-llvm-project}"
-mlir_build="${TILEMEGA_MLIR_BUILD:-/tmp/tilemega-vf-build/llvm-project}"
-if [[ -d "${barvinok_build}" && -d "${mlir_build}/lib" ]]; then
-  g++ -std=c++17 -I"${repo}/include" -I"${repo}/build-portable/include" \
-    -I"${mlir_src}/llvm/include" -I"${mlir_build}/include" \
-    -I"${repo}/third_party/barvinok/isl/include" -I"${isl_build}/include" \
-    "${here}/identity_probe.cpp" \
-    -L"${repo}/build-portable" -ltilemega \
-    "${barvinok_build}/.libs/libbarvinok.a" "${isl_build}/.libs/libisl.a" \
-    "${polylib_build}/.libs/libpolylibgmp.a" \
-    -L"${mlir_build}/lib" -lLLVMSupport -lLLVMDemangle \
-    -L/usr/local/cuda/lib64 -lcudart -lntl -lgmp -lpthread \
-    -o "${raw}/identity_probe" 2>&1 | tee "${raw}/identity_build.txt"
-  "${raw}/identity_probe" > "${raw}/identity.txt" 2>&1
+# Part 3.3: what `kIdentity` is worth, asked of the production path -- the
+# derived C and the TaskBodies' own ownership declaration, not a name table.
+probe="${repo}/build-portable/tools/tilemega-identity-probe"
+if [[ -x "${probe}" ]]; then
+  "${probe}" "${repo}" > "${raw}/identity.txt" 2>&1
   grep '^SUMMARY' "${raw}/identity.txt"
 else
-  echo "SKIPPED: isl/barvinok or MLIR build tree missing; identity probe not run" \
-    | tee "${raw}/identity.txt"
+  echo "SKIPPED: build tilemega-identity-probe first" | tee "${raw}/identity.txt"
 fi

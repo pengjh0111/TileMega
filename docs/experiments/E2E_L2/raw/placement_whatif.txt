@@ -1,0 +1,14 @@
+seq=4
+  kappa=1   strided polls=1476     relaxed=1512     narrow=1.024x | blocked polls=1476     relaxed=1512     narrow=1.024x
+  kappa=2   strided polls=744      relaxed=756      narrow=1.016x | blocked polls=744      relaxed=756      narrow=1.016x
+  kappa=4   strided polls=388      relaxed=388      narrow=1.000x | blocked polls=388      relaxed=388      narrow=1.000x
+  kappa=8   strided polls=292      relaxed=292      narrow=1.000x | blocked polls=292      relaxed=292      narrow=1.000x
+  kappa=16  strided polls=276      relaxed=276      narrow=1.000x | blocked polls=276      relaxed=276      narrow=1.000x
+  kappa=32  strided polls=276      relaxed=276      narrow=1.000x | blocked polls=276      relaxed=276      narrow=1.000x
+seq=512
+  kappa=1   strided polls=146956   relaxed=146992   narrow=1.000x | blocked polls=140428   relaxed=146992   narrow=1.047x
+  kappa=2   strided polls=73484    relaxed=73496    narrow=1.000x | blocked polls=70220    relaxed=73496    narrow=1.047x
+  kappa=4   strided polls=37004    relaxed=37004    narrow=1.000x | blocked polls=35372    relaxed=37004    narrow=1.046x
+  kappa=8   strided polls=19084    relaxed=19084    narrow=1.000x | blocked polls=18124    relaxed=19084    narrow=1.053x
+  kappa=16  strided polls=10380    relaxed=10380    narrow=1.000x | blocked polls=9756     relaxed=10380    narrow=1.064x
+  kappa=32  strided polls=6028     relaxed=6028     narrow=1.000x | blocked polls=5572     relaxed=6028     narrow=1.082x

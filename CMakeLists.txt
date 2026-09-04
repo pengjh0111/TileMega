@@ -201,6 +201,13 @@ target_compile_definitions(tilemega-wiring PRIVATE
 set_target_properties(tilemega-wiring PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
+add_executable(tilemega-identity-probe tools/tilemega-identity-probe.cpp)
+target_link_libraries(tilemega-identity-probe PRIVATE TileMega::tilemega)
+target_compile_definitions(tilemega-identity-probe PRIVATE
+  TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(tilemega-identity-probe PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
 add_executable(tilemega-costmodel tools/tilemega-costmodel.cpp)
 target_link_libraries(tilemega-costmodel PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-costmodel PROPERTIES

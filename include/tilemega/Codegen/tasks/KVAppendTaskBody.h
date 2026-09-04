@@ -25,7 +25,7 @@ struct KVAppendTaskBody {
     int retained = p.dims.past * static_cast<int>(stage.extent) *
                    static_cast<int>(stage.width);
     int widest = appended > retained ? appended : retained;
-    return {TaskOwnershipKind::kElementChunk,
+    return {OwnershipOf(TaskKind::kKVAppend),
             (widest + Threads - 1) / Threads};
   }
 

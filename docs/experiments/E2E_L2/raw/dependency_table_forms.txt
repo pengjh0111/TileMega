@@ -1,0 +1,3 @@
+     20 Map::kAll
+      3 Map::kIdentity
+     15 Map::kWindow

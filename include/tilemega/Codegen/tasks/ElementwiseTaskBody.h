@@ -20,7 +20,7 @@ struct ElementwiseTaskBody {
   __device__ static TaskOwnership Ownership(Params const& p,
                                             StageDesc const& stage) {
     int count = p.dims.seq * static_cast<int>(stage.extent);
-    return {TaskOwnershipKind::kElementChunk,
+    return {OwnershipOf(TaskKind::kElementwise),
             (count + Threads - 1) / Threads};
   }
 
