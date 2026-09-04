@@ -1,0 +1,3 @@
+model	arm	n	mape_pct	spearman	top1	top3	top10	optimum_rank
+gqa2	sm_89 measured / sm_89 model	100	27.48	0.9144	0	0	0	13
+mha4	sm_89 measured / sm_89 model	100	25.75	0.9095	0	0	2	8

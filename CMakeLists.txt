@@ -213,6 +213,11 @@ target_link_libraries(tilemega-costmodel PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-costmodel PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
+add_executable(tilemega-migrate tools/tilemega-migrate.cpp)
+target_link_libraries(tilemega-migrate PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-migrate PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
 add_executable(tilemega-target-audit tools/tilemega-target-audit.cpp)
 target_link_libraries(tilemega-target-audit PRIVATE TileMega::tilemega)
 target_compile_definitions(tilemega-target-audit PRIVATE
