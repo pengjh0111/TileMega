@@ -142,8 +142,8 @@ the `C` the table itself states.
 Per the standing rule, the expectation is not moved to fit the implementation:
 the correction is made because the table is inconsistent with its own `C`
 column under an independent count, and both values are kept visible.
-`table27.md` gains note (g); §2.7 of the skeleton needs the same correction
-(tracked in Part 6).
+`table27.md` gains note (g); §2.7 of the skeleton now carries the same
+correction as its note 4, with both values kept visible.
 
 ## End-to-end non-regression
 
@@ -183,9 +183,34 @@ does not reach the wait path at all.  The re-measurement with attribution is
 Part 3.1 and belongs after Part 2, not here.  What this round establishes is
 only that wiring the analysis layer in cost nothing in correctness.
 
-## What is still degraded
+## What Part 2 then did with it, and what the ratio became
 
-- Codegen still emits `kIdentity`/`kAll` only (`lib/Codegen/Codegen.cpp:176`),
-  so the exact relation now present in the IR is not yet used to size a wait
-  set.  That is Part 2 and it is the reason the L2 measurement has not been
-  re-run yet.
+The paragraph above was written before the generator consumed the relation.
+It has since been resolved, and the honest outcome is worth stating here
+rather than only downstream:
+
+- Codegen no longer emits `kIdentity`/`kAll` only.  Each coupling carries a
+  `wait_map` attribute derived from `C`; the generator joins them per stage
+  pair, and one relaxed or disagreeing member forces the pair back to `kAll`.
+  On this fixture that is 38 stage pairs = 20 `kAll` / 3 `kIdentity` /
+  15 `kWindow` (`../E2E_L2/raw/dependency_table_forms.txt`).
+- The `1.031795×` above is superseded, and not by the wiring: the same
+  byte-identical pre-wiring binary re-measured on 2026-09-04 gives
+  `1.036713×`, so the cross-session comparison in the table above is not
+  admissible either.  Within one session, 25 fresh processes with round-level
+  pairing put the wired build at **1.036×** (gqa2) and **1.038×** (mha4).
+- ✅ Four builds differing *only* in the contents of `kDependencies` —
+  derived windows, everything forced to `kAll`, `kAll` plus full transitive
+  reduction, and the old binary — have overlapping bootstrap CIs on both
+  models.  The exact table costs nothing and buys nothing at the default
+  build, because `TILEMEGA_EVENT_KAPPA` defaults to 0 and a wait set that is
+  already one event wide cannot be narrowed.
+- With κ > 0 the narrowing is real but bounded at 1.00x–1.10x, because 89.9%
+  of the poll mass sits on edges with a `kElementChunk` end where a per-CTA
+  window is inadmissible.  That is a §2.3 **Place** property, not a weakness
+  of `C`.  The attribution is `../E2E_L2/waitset.md`; the κ re-measurement is
+  `../COARSEN/result.md` §7.
+
+So this round's claim stands unchanged and unextended: wiring the analysis
+layer into the production path cost nothing in correctness, and the
+measurement of what it is worth belongs to Part 3, not here.

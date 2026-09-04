@@ -473,8 +473,8 @@ wait      = Tm × n_h / Kc
 | 1 | RMSNorm1 → Wq/Wk/Wv | `(m,n) ↦ m` | `[⌈S/Tm⌉]` | 1 | 48 | 0 | ✗ fanout 超簇容量 |
 | 2 | Wq → RoPE_q | `(m,hh) ↦ (m,hh)` | `[⌈S/Tm⌉×32]` | 1 | 1 | 0 | ✓ 1:1 |
 | 3 | RoPE_k → KVappend | `(row,hh) ↦ (⌊row/Tm⌋,hh)` | 同上（k 侧 8 组） | 1 | **Tm = 128** | **1** | ✗ fanout 超簇容量 |
-| 4 | KVappend → Attn chunk | 仅 `j = ⌊(L_s−1)/Tkv⌋` | ragged | 1 | 运行时 | **2** | — |
-| 5 | RoPE_q → Attn chunk | `(s,hh,j) ↦ (⌊s/Tm⌋, hh)` | ragged 域，映射仿射 | 1 | 运行时 | **2** | — |
+| 4 | KVappend → Attn chunk | 仅 `j = ⌊(L_s−1)/Tkv⌋` | ragged | `Tkv`（注 2） | **`G·S`**（注 4） | **2** | — |
+| 5 | RoPE_q → Attn chunk | `(s,hh,j) ↦ (⌊s/Tm⌋, hh)` | ragged 域，映射仿射 | 1 | **`Tm·⌈L_s/Tkv⌉`**（注 4） | **2** | — |
 | 6 | Attn chunk → Attn combine | `(s,hh) ↦ {(s,hh,j) : j<⌈L_s/Tkv⌉}` | `[B×32]` | 运行时 `⌈L_s/Tkv⌉` | 1 | **2** | ✓ 典型场景 |
 | 7 | Attn combine → Wo | `(m,n) ↦ {(s,hh) : s∈行块m, ∀hh}` | `[⌈S/Tm⌉]` | `Tm×32` | 32 | 0 | split-K 后 ✓ |
 | 8 | Wo → residual add | `(m,n) ↦ (m,n)` | `[⌈S/Tm⌉×32]` | 1 | 1 | 0 | ✓ |
@@ -503,6 +503,17 @@ wait      = Tm × n_h / Kc
    `min(Tkv, S)`，符号下为 `Tkv`。
 3. **表未列出的第 14 条边。** `add1 → add2`（第二个残差读第一个残差的输出）
    是真实耦合，已在 `table27_test` 中断言，避免它悄悄消失。
+4. **边 4 与边 5 的 fanout（本轮，`docs/experiments/WIRING/result.md` (g)）。**
+   表写 `S` 与 `⌈L_s/Tkv⌉`，推导给 `G·S` 与 `Tm·⌈L_s/Tkv⌉`。这不是前端与
+   分析层不一致——`tilemega-derive llama` 在表自己的维度上给同样两个形状。
+   ✅ 与 isl 无关地独立核对过：在 `S=7, n_h=8, n_kv=2, G=4, Tm=3, Tkv=2,
+   past=5, L_s=12` 上直接按表**自己的 `C` 列**枚举 `|{c : p ∈ C(c)}|`，边 5
+   内部生产者块得 18（表写 6，那是 ragged 尾块、即每消费者坐标的因子而不是
+   逆像基数），边 4 得 28（表写 7）。机制与注 (f) 相同：边 5 的生产者发
+   `Tm` 行块而消费者按单 token 消费，表写了 chunk 因子丢了 token 因子；
+   边 4 的消费者跨 `G` 个共享同一 kv 头的 query 头，表写了 token 因子丢了
+   GQA 组因子。两处都是按"两侧同粒度"的粗模型写的，与表自身的 `C` 列不符。
+   按标准不迁就实现：改的是表，两个值都留在案上。
 
 **边 2/3 成立所依赖的 tile 约束。** QKV 投影的列 tile 必须取 `d`（一个头）
 而不是通用的 `Tn`。列 tile 与 `d` 无关时，RoPE 的按头读取不再 tile 对齐，
