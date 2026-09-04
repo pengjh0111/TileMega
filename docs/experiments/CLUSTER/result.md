@@ -206,14 +206,23 @@ allows exactly one `__CUDA_ARCH__` site, so `ArchDispatch.h` now exports
 primary `Caps` template, every capability off — which keeps every `__device__`
 body parseable in both passes without a second architecture switch.
 
-✅ Cross-compiled here, `barrier.cluster` / `UCGABAR` counted in the emitted
-code of the *whole megakernel*, not of a probe:
+✅ Cross-compiled here, `UCGABAR` counted in the SASS of the *whole
+megakernel*, not of a probe, and on **both** reference models so the result is
+a property of the mechanism rather than of one graph
+(`raw/cross_compile_megakernel.txt`, 12 arms, every one `build=ok`):
 
-| target | dim 1 | dim 2 | dim 8 |
-| --- | --- | --- | --- |
-| sm_90 | 0 UCGABAR, 0 `barrier.cluster` | 8 / 4 | 8 / 4 |
-| sm_120 | 0 / 0 | 8 / 4 | 8 / 4 |
-| sm_89 | 0 / 0 | refused at compile time | refused at compile time |
+| target | model | dim 1 | dim 2 | dim 8 |
+| --- | --- | --- | --- | --- |
+| sm_90 | gqa2 | 0 | 8 | 8 |
+| sm_90 | mha4 | 0 | 8 | 8 |
+| sm_120 | gqa2 | 0 | 8 | 8 |
+| sm_120 | mha4 | 0 | 8 | 8 |
+| sm_89 | both | 0 | refused at compile time | refused at compile time |
+
+dim 1 must be 0 and dim > 1 must be non-zero; a "cluster" build whose SASS
+carries no cluster barrier would be the flat kernel wearing a label, which is
+why `run_on_cluster_gpu.sh` exits 4 on either violation rather than measuring
+it.
 
 ✅ The default (`dim 1`) build is SASS byte-identical to the pre-cluster
 binary — `cuobjdump -sass` diffed on `generated_e2e.cu`, no instruction and no
