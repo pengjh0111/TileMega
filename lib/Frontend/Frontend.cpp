@@ -5,6 +5,7 @@
 #include <tilemega/Frontend/ModelPlan.h>
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <tilemega/Analysis/CouplingDerivation.h>
+#include <tilemega/Analysis/DependencyForm.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Dialect/CouplingGraph/CGAttrs.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
@@ -509,6 +510,49 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
   // a placeholder.
   std::vector<analysis::CouplingEdge> derived =
       analysis::CouplingDerivation{}.Derive(graph, known);
+
+  // Part 2: the wait window the generated kernel evaluates per CTA.  It is a
+  // property of C at *every* sequence length, so it is fitted at three prefill
+  // instantiations and kept only where all three agree -- at the symbolic
+  // minimum (S = 1) every row axis collapses to one tile and windows fit that
+  // do not hold in general.  A window is additionally admissible only when
+  // both TaskBodies declare `kTilePerBlock`: `kElementChunk` makes the
+  // CTA->task map a function of gridDim, so the same id names different tasks
+  // on the two sides and no per-CTA narrowing is sound.
+  std::vector<std::string> waitMaps(derived.size(), "all");
+  {
+    std::vector<bool> owned(derived.size(), false);
+    for (std::size_t i = 0; i < derived.size(); ++i)
+      owned[i] =
+          liftedOf(derived[i].src.name).ownership == OwnershipKind::kTilePerBlock &&
+          liftedOf(derived[i].dst.name).ownership == OwnershipKind::kTilePerBlock;
+    std::vector<analysis::WaitWindow> fitted(derived.size());
+    bool comparable = true, first_round = true;
+    for (long sequence : {256L, 384L, 512L}) {
+      analysis::ParamBinding probe = known;
+      if (!liftOptions.seq_symbol.empty()) probe.Bind(liftOptions.seq_symbol, sequence);
+      if (!liftOptions.past_symbol.empty())
+        probe.Bind(liftOptions.past_symbol, sequence - 256L);
+      std::vector<analysis::CouplingEdge> at =
+          analysis::CouplingDerivation{}.Derive(graph, probe);
+      if (at.size() != derived.size()) { comparable = false; break; }
+      for (std::size_t i = 0; i < at.size(); ++i) {
+        if (at[i].src.name != derived[i].src.name ||
+            at[i].dst.name != derived[i].dst.name) { comparable = false; break; }
+        analysis::OperatorNode const* source = graph.Find(at[i].src.name);
+        analysis::OperatorNode const* sink = graph.Find(at[i].dst.name);
+        analysis::WaitWindow here;
+        if (owned[i] && source && sink)
+          here = analysis::FitWaitWindow(at[i], *source, *sink, probe);
+        if (first_round) fitted[i] = here;
+        else if (here != fitted[i]) fitted[i] = analysis::WaitWindow{};
+      }
+      if (!comparable) break;
+      first_round = false;
+    }
+    for (std::size_t i = 0; comparable && i < derived.size(); ++i)
+      waitMaps[i] = fitted[i].ToString();
+  }
   std::size_t edge = 0;
   for (auto const& item : derived) {
     auto source = symbols.find(item.src.name);
@@ -545,6 +589,7 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
         dict(builder, {builder.getNamedAttr("kind",
             builder.getStringAttr(taskKindOf(consumer.role)))})));
     state.addAttribute("relation", dialect::CouplingMapAttr::get(&context, item.C));
+    state.addAttribute("wait_map", builder.getStringAttr(waitMaps[edge]));
     state.addAttribute("wait", dialect::MetricAttr::get(&context, item.metrics.wait));
     state.addAttribute("fanout", dialect::MetricAttr::get(&context, item.metrics.fanout));
     state.addAttribute("volume", dialect::MetricAttr::get(&context, item.metrics.volume));

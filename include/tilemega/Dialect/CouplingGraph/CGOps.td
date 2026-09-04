@@ -49,6 +49,11 @@ def CG_CouplingOp : CG_Op<"coupling", [Symbol]> {
                        // verifier requires `tier` to be exactly what they
                        // imply.
                        OptionalAttr<CG_CouplingAttributesAttr>:$coupling_attrs,
+                       // "all", "identity" or "window(div,scale,offset,count)"
+                       // (Analysis/DependencyForm.h): the per-CTA wait set the
+                       // generator narrows to. Optional, and absent means the
+                       // I2 relaxation to the producer's whole launch axis.
+                       OptionalAttr<StrAttr>:$wait_map,
                        CG_SyncKindAttr:$sync_kind,
                        FlatSymbolRefAttr:$event);
   let assemblyFormat = "$sym_name `from` $src `to` $dst attr-dict";

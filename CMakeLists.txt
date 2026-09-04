@@ -101,6 +101,7 @@ add_library(tilemega STATIC
   lib/Analysis/Semantics.cpp
   lib/Analysis/TaskInstantiation.cpp
   lib/Analysis/CouplingDerivation.cpp
+  lib/Analysis/DependencyForm.cpp
   lib/Analysis/ReferenceModels.cpp
   lib/Solver/ClusterLabeling.cpp
   lib/Solver/BackendCostQuery.cpp

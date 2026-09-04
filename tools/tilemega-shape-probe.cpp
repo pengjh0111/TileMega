@@ -10,6 +10,7 @@
 // and whether both endpoints declare the same TaskOwnership. Ownership now
 // comes from the lifted plan (LiftedOp::ownership), not from an operator name.
 #include <tilemega/Analysis/CouplingDerivation.h>
+#include <tilemega/Analysis/DependencyForm.h>
 #include <tilemega/Analysis/ReferenceModels.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Frontend/ExportBridge.h>
@@ -74,55 +75,6 @@ analysis::CouplingRelation IdentityLike(analysis::CouplingRelation const& C) {
                                                  tuple + "] }");
 }
 
-/// The forms a stage-dependency descriptor can carry exactly, stated only in
-/// terms of quantities the runtime already computes: the producer's and the
-/// consumer's own active task counts `P` and `C`, and the consumer task id.
-/// Anything else stays `kAll` and is annotated as relaxed rather than fitted.
-enum class Form { kIdentity, kBroadcast, kGather, kAll };
-
-char const* ToString(Form form) {
-  switch (form) {
-    case Form::kIdentity: return "identity";
-    case Form::kBroadcast: return "broadcast";
-    case Form::kGather: return "gather";
-    case Form::kAll: return "all";
-  }
-  return "all";
-}
-
-/// The strongest form that reproduces *every* consumer's wait set exactly.
-Form FitForm(std::map<long, std::vector<long>> const& wait, long producers,
-             long consumers) {
-  auto holds = [&](auto predicate) {
-    for (auto const& [consumer, set] : wait)
-      if (!predicate(consumer, set)) return false;
-    return true;
-  };
-  if (producers == consumers &&
-      holds([](long c, std::vector<long> const& set) {
-        return set.size() == 1 && set[0] == c;
-      }))
-    return Form::kIdentity;
-  if (producers > 0 && consumers % producers == 0) {
-    long const q = consumers / producers;
-    if (holds([q](long c, std::vector<long> const& set) {
-          return set.size() == 1 && set[0] == c / q;
-        }))
-      return Form::kBroadcast;
-  }
-  if (consumers > 0 && producers % consumers == 0) {
-    long const q = producers / consumers;
-    if (holds([q](long c, std::vector<long> const& set) {
-          if (static_cast<long>(set.size()) != q) return false;
-          for (long k = 0; k < q; ++k)
-            if (set[k] != c * q + k) return false;
-          return true;
-        }))
-      return Form::kGather;
-  }
-  return Form::kAll;
-}
-
 void Report(char const* label, analysis::OperatorGraph const& graph,
             ParamBinding const& known,
             std::map<std::string, std::string> const& ownership,
@@ -141,8 +93,28 @@ void Report(char const* label, analysis::OperatorGraph const& graph,
     Linearizer plin = LinearizerOf(*src, known);
     Linearizer clin = LinearizerOf(*dst, known);
 
+    // C's range is not clamped to the producer's task space (see
+    // CouplingDerivation.cpp): unclamped it offers whole-tile producer
+    // coordinates that no launch creates, so the wait columns below would
+    // count tasks that do not exist.
+    analysis::CouplingRelation C = edge.C;
+    try {
+      C = edge.C.IntersectRange(
+          analysis::ProducerTaskSpaceText(edge.C, *src, known));
+    } catch (std::exception const&) {
+    }
+    if (C.empty()) continue;
+
+    long const points = C.Card().Eval(known);
+    if (points > (1L << 22)) {
+      std::printf("EDGE model=%s n=%d src=%s dst=%s form=all points=%ld "
+                  "skipped=too_large\n", label, index, edge.src.name.c_str(),
+                  edge.dst.name.c_str(), points);
+      ++form_count["all"];
+      continue;
+    }
     std::map<long, std::vector<long>> wait;  // consumer id -> producer ids
-    for (auto const& [consumer, producer] : edge.C.Points())
+    for (auto const& [consumer, producer] : C.Points())
       wait[clin.Of(consumer)].push_back(plin.Of(producer));
 
     bool contiguous = true;
@@ -169,13 +141,20 @@ void Report(char const* label, analysis::OperatorGraph const& graph,
       total_hull += hull;
     }
 
+    long maxp = -1, maxc = -1;
+    for (auto const& [consumer, producers] : wait) {
+      maxc = std::max(maxc, consumer);
+      for (long p : producers) maxp = std::max(maxp, p);
+    }
     long const producer_tasks = src->Count().Eval(known, {});
     long const consumer_tasks = dst->Count().Eval(known, {});
-    Form const form = FitForm(wait, producer_tasks, consumer_tasks);
+    analysis::WaitWindow const window =
+        analysis::FitWaitWindow(edge, *src, *dst, known);
+    std::string const form = window.ToString();
 
     bool const identity =
-        edge.C.DomainDimNames().size() == edge.C.RangeDimNames().size() &&
-        edge.C.IsSubset(IdentityLike(edge.C));
+        C.DomainDimNames().size() == C.RangeDimNames().size() &&
+        C.IsSubset(IdentityLike(C));
     // Same rule Frontend.cpp uses to attribute an Instantiate-added combiner
     // to the operator it combines, so the probe reads the ownership the CG
     // actually carries rather than a second guess at it.
@@ -193,7 +172,7 @@ void Report(char const* label, analysis::OperatorGraph const& graph,
     // `kIdentity` needs more than a semantic identity C: both TaskBodies must
     // index their task space the same way, which only `kTilePerBlock` on both
     // ends guarantees, and both spaces must have the same size.
-    bool const admissible = form == Form::kIdentity && src_own == dst_own &&
+    bool const admissible = window.IsIdentity() && src_own == dst_own &&
                             src_own == "tile_per_block";
     bool const ragged = runtime_space.count(edge.src.name)
                             ? runtime_space.at(edge.src.name)
@@ -204,15 +183,17 @@ void Report(char const* label, analysis::OperatorGraph const& graph,
     if (admissible) ++kidentity_ok;
     std::printf(
         "EDGE model=%s n=%d src=%s dst=%s form=%s P=%ld C=%ld contiguous=%s "
-        "stride=%ld wait=%ld..%ld overwait_max=%ld identity=%s owns=%s->%s "
+        "stride=%ld wait=%ld..%ld overwait_max=%ld dims=%zu/%zu max=%ld/%ld identity=%s owns=%s->%s "
         "kidentity=%s ragged=%s tier=%s\n",
         label, index, edge.src.name.c_str(), edge.dst.name.c_str(),
-        ToString(form), producer_tasks, consumer_tasks,
+        form.c_str(), producer_tasks, consumer_tasks,
         contiguous ? "yes" : "no", uniform_stride ? stride : -1, wait_min,
-        wait_max, worst_overwait, identity ? "yes" : "no", src_own.c_str(),
+        wait_max, worst_overwait, C.DomainDimNames().size(),
+        C.RangeDimNames().size(), maxc, maxp,
+        identity ? "yes" : "no", src_own.c_str(),
         dst_own.c_str(), admissible ? "yes" : "no", ragged ? "yes" : "no",
         analysis::ToString(edge.tier).c_str());
-    ++form_count[ToString(form)];
+    ++form_count[form];
   }
   std::printf(
       "SUMMARY model=%s edges=%zu contiguous=%d identity=%d kidentity=%d "
@@ -238,7 +219,7 @@ int main(int argc, char** argv) {
   std::map<std::string, bool> runtime_space;
   analysis::OperatorGraph graph;
 
-  if (which == "fixture") {
+  if (which == "fixture" || which == "launch") {
     frontend::ExportBridge bridge = frontend::ReadExportBridge(
         std::string(TILEMEGA_SOURCE_DIR) +
         "/docs/experiments/E2E_GEN/raw/export_bridge.json");
@@ -248,8 +229,9 @@ int main(int argc, char** argv) {
         frontend::LiftSemantics(plan, frontend::LiftOptions{});
     for (std::size_t i = 0; i < model.ops.size(); ++i)
       ownership[model.sem.ops[i].name] = ToString(model.ops[i].ownership);
-    graph = analysis::Instantiate(model.sem,
-                                  frontend::ReferenceGranularity(model));
+    graph = analysis::Instantiate(
+        model.sem, which == "launch" ? frontend::LaunchGranularity(model)
+                                     : frontend::ReferenceGranularity(model));
   } else {
     analysis::DecoderShape shape;
     shape.S = ClosedForm::Symbol("S");
