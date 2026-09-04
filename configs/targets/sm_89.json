@@ -7,6 +7,8 @@
     "tma": false,
     "warp_specialized": false,
     "tcgen05": false,
+    "l1_5": false,
+    "net": false,
     "cp_async": true,
     "mbarrier": true
   },

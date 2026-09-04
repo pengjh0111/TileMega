@@ -213,6 +213,13 @@ target_link_libraries(tilemega-costmodel PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-costmodel PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
+add_executable(tilemega-target-audit tools/tilemega-target-audit.cpp)
+target_link_libraries(tilemega-target-audit PRIVATE TileMega::tilemega)
+target_compile_definitions(tilemega-target-audit PRIVATE
+  TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(tilemega-target-audit PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
 add_executable(tilemega-solve tools/tilemega-solve.cpp)
 target_link_libraries(tilemega-solve PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-solve PROPERTIES
@@ -261,6 +268,7 @@ if(TILEMEGA_BUILD_TESTS)
   target_compile_definitions(target_spec_test PRIVATE
     TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   add_test(NAME target_spec COMMAND target_spec_test)
+  add_test(NAME target_audit COMMAND tilemega-target-audit)
 
   add_executable(coupling_types_test test/unit/coupling_types_test.cpp)
   target_link_libraries(coupling_types_test PRIVATE TileMega::tilemega)
