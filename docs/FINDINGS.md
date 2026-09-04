@@ -1223,6 +1223,9 @@
   p < 0.05 — reported as measured; the likely cause is that every κ > 0 build
   allocates a grid-deep event array where `stage` allocates a stage-deep one,
   an offset shared by all nine and independent of κ.
+  ❌ **That explanation is withdrawn** (F-61): on the 2026-09-04 re-run the
+  same nine mha4 L1 controls are no longer all positive. The noise-floor bound
+  survives; the mechanism does not.
 - Both models put the knee at κ ≈ 32, exactly where the analytic probe puts it
   (`waits` flattens at 812 / 1596 while `overwait` keeps doubling). The two
   halves agree on the shape and disagree on nothing.
@@ -1233,7 +1236,9 @@
   variable.
 - ⚠️ This measures κ's cost and not its benefit, by construction: the generated
   dependency table carries no coupling relation, so a consumer waits on every
-  group of each producer. The benefit is bounded from the other side by the
+  group of each producer. **Both sides have since been measured** — see F-59,
+  which supersedes this finding's *reason* while leaving its conclusion (κ is
+  not a DP state variable) standing. The benefit is bounded from the other side by the
   `nosync` arm — deleting L1's grid barrier (wrong output, 60/60 MISMATCH)
   saves **35.631% / 36.665%**. Synchronization is ~36% of L1 and ~42% of L2, so
   the headroom is real; but L2's event scheme at its cheapest granularity
@@ -1271,3 +1276,202 @@
   unknown can invert on the next fixture or architecture.
 - Evidence: docs/experiments/PLACE/result.md, raw/place_summary.txt,
   raw/affinity.txt; include/tilemega/Codegen/tasks/Placement.cuh.
+
+## F-57 — The derived coupling relation now reaches the generator, and it is not the identity
+
+- Finding: `lib/Frontend/Frontend.cpp` used to write a constant
+  `{ [0] -> [0] }` into every `CouplingMapAttr` (`fixedRelation()`), because
+  `CouplingDerivation`'s input is an `OperatorGraph` and the frontend emitted a
+  per-`call_function` stage list instead. It now lifts `ModelPlan` to L-sem,
+  instantiates at the launch granularity, and calls
+  `CouplingDerivation{}.Derive(graph, known)`; `relation`, `wait`, `fanout`,
+  `volume`, `count` and `tier` all come from the derivation.
+- ✅ verified, 2-layer GQA at launch granularity: 34 task spaces, 42 couplings,
+  **0** placeholder relations; codegen joins them into 38 stage pairs =
+  **20 `kAll` / 3 `kIdentity` / 15 `kWindow`**, where before every pair was
+  `kAll`. Five of §2.7's six map shapes are carried exactly by the affine
+  interval encoding `[(task/div)*scale + offset, ... + count)`.
+- The check is non-circular: `wiring_coupling_test` derives the same graph
+  twice — once through the FX import, once from `analysis::LlamaStackSem` at
+  the fixture's own dimensions — and compares 440 cells. ✅ **4 differences,
+  all one naming fact** (`i` vs `m` for the second RMSNorm's parallel dim); the
+  test asserts the difference list *equals* that set, so a real divergence
+  cannot hide inside it.
+- The wiring corrected §2.7 rather than being corrected by it: rows 4 and 5's
+  fanout cells (`S`, `⌈L_s/Tkv⌉`) disagree with the table's **own `C` column**
+  under a hand count at `S=7, Tm=3, Tkv=2, G=4` — 28 and 18, i.e. `G·S` and
+  `Tm·⌈L_s/Tkv⌉`. Both values are kept visible; the expectation was not moved
+  to fit the implementation.
+- Evidence: docs/experiments/WIRING/result.md, raw/wiring-gqa2-launch.md,
+  test/unit/wiring_coupling_test.cpp.
+
+## F-58 — An exact wait set narrows almost nothing, because 89.9% of the poll mass is on element-chunk edges
+
+- Finding: with the derived table in place, L2 is still slower than L1 —
+  **1.036× / 1.038×** (2-layer GQA / 4-layer MHA), ✅ 25 fresh processes per
+  model, round-level pairing, bootstrap CI [1.035951,1.036719] and
+  [1.036984,1.037936], Wilcoxon p = 1.30e−05, **0/25 rounds L2 faster**.
+- ✅ It is not the dependency table. Four builds differing *only* in the
+  contents of `kDependencies` — derived windows (38 edges), everything forced
+  to `kAll` (38), `kAll` + full transitive reduction (35), and the pre-wiring
+  binary (35) — have overlapping CIs on both models. At the default build
+  `TILEMEGA_EVENT_KAPPA` is 0, one event per producer *stage*, and
+  `WaitDependencies` then polls exactly one event per edge regardless of `map`:
+  a window cannot narrow a wait set that is already one event wide.
+- With κ > 0 the narrowing is real and small: total polls over all 38 edges are
+  **1.00x–1.10x** fewer than the same edges as `kAll`, across seq ∈ {1,4,128,512}
+  and κ ∈ {1,8,32}. The reason is where the mass sits, not how loose the
+  windows are. At seq = 512, κ = 1: edges with a `kElementChunk` end carry
+  **89.9%** of the polls (chunk→tile 67.6%, chunk→chunk 22.3%, tile→chunk
+  4.2%), the 15 `kWindow` edges carry **5.9%**, the 3 `kIdentity` edges 0.03%.
+  **5.9% is the ceiling on what an exact window can remove here even if it
+  removed all of it.**
+- Within that 5.9% the windows currently remove nothing: every fitted window on
+  a tile-row edge has `count = scale = Tm = 128`, which on this GPU equals
+  `gridDim.x`, so under grid-stride placement a contiguous task interval one
+  stride wide covers every CTA and maps back to the whole launch axis. ❌ A
+  blocked placement would preserve it — the same counting model gives 1.047× at
+  κ = 1 and 1.082× at κ = 32 — and is still bounded by the 5.9%.
+- The actionable statement is therefore not "the derivation is too weak" but:
+  this model's wait set is dominated by element-chunk placement, a §2.3
+  **Place** decision, and no amount of exactness in `C` moves it.
+- This refines F-34 (`kIdentity` saves zero waits). With the true `C` and the
+  true `TaskOwnership`, `kIdentity` is admissible on **7/42** gqa2 edges and
+  **15/86** mha4 edges (both ends `kTilePerBlock`), 3 of which survive into the
+  emitted table — and they carry 0.03% of the polls. Not zero; not useful.
+  ✅ 0 disagreements between `LiftedOp::ownership` and the TaskBodies' own
+  `OwnershipOf`, which replaces the old name-prefix proxy table.
+- Evidence: docs/experiments/E2E_L2/result.md, waitset.md,
+  raw/waitset_profile.txt, raw/part3/paired_default_kappa.txt.
+
+## F-59 — κ is still not a DP state variable, and the old reason is no longer the reason
+
+- Finding: F-55 rejected κ while measuring only its cost. Both sides are now
+  measured against the wired-in table, and the conclusion survives with a
+  different argument.
+- **Benefit** (device-side poll counting, the fixture's own seq): κ = 1 saves
+  **1.0244×** (gqa2) / **1.0222×** (mha4) of polls, κ = 2 saves 1.0161× /
+  1.0147×, and κ ≥ 4 saves **exactly 1.0000×**. The benefit is bounded at 2.4%
+  and identically zero from κ = 4, because every fitted window on a tile-row
+  edge has `count = scale = Tm = 128 = gridDim.x` — a §2.3 **Place** property,
+  not a weakness of `C` (F-58).
+- **Cost**: ✅ 24 arms, 60 interleaved rounds, paired within round. The window
+  arithmetic is **0.48–0.57 points slower** than its own `kAll` control at every
+  κ on both models, with disjoint CIs at every κ. The κ sweep itself is
+  unchanged in direction: k1 +242.478% / +280.789% against the per-stage scheme,
+  falling monotonically to +9.4% / (mha4 comparable) at κ = 256, parity never
+  reached.
+- So κ stays out of `ChainDpOptions`, and the recorded reason is now: the thing
+  a finer event granularity could win is capped at 2.4% and vanishes at κ = 4,
+  while the arithmetic that exploits it costs more than the cap. The old reason
+  ("the argmin is the same κ for every configuration") is not reused.
+- Evidence: docs/experiments/COARSEN/result.md §7, raw/waittable/.
+
+## F-60 — A shape-dependent dependency table has a compile-time granularity precondition, and violating it under-waits silently
+
+- Finding: `div`, `scale`, `offset` and `count` are integers over a *task
+  decomposition*, and the GEMM's decomposition is a compile-time knob
+  (`TILEMEGA_GEMM_TILE_M`, …, `TILEMEGA_GEMM_SPLIT_K`) that the generator does
+  not control. Rebuilding the same generated `.cu` with
+  `-include plan_gqa2_uniform.h` (`tile_m 16`, `split_k 16`) makes every fitted
+  constant name the wrong producer tasks.
+- ✅ verified, and the failure mode is wrong output rather than slowness:
+  **0 / 50** fresh processes pass on that build, `l2_vs_l1_mismatch=4096` in
+  every one (and `l2_iter1_vs_iter0_mismatch=2319`). Under-waiting is silent —
+  no timeout, no assertion.
+- Fix, not a workaround: the generator emits the granularity it fitted against
+  (`TILEMEGA_GENERATED_WINDOW_TILE_M/_TILE_N/_SPLIT_K`) and the harness admits
+  the narrow path only when the compiled granularity agrees, degrading to
+  `kAll` — always a superset — otherwise. Every run reports which it got, in
+  `E2E_KAPPA … wait_table=exact|degraded`. ✅ **50 / 50** on both branches after
+  the fix, hash `8a737188b958a2ae` (degraded) and `5245714bc5d3ab4d` (exact).
+- It also invalidates a measurement discipline: every COARSEN arm compiles with
+  `-include plan_<model>_uniform.h`, so every arm reports `degraded`. The κ
+  cost sweep therefore still measures κ's cost against a `kAll` table — the
+  old caveat survived in a new form and had to be re-stated rather than dropped.
+- Generalization: any future optimization that bakes a shape constant into
+  generated code needs the same self-check. Its failure mode is a wrong answer.
+- Evidence: docs/experiments/COARSEN/result.md §8, raw/waittable/fresh_processes.txt.
+
+## F-61 — Absolute latencies do not survive a session boundary; only within-session pairing does
+
+- Finding: the byte-identical pre-wiring binary `E2E_GEN/generated_e2e` was
+  recorded at `l2/l1 = 1.0136×` on 2026-09-03 and measures **1.036713×** on
+  2026-09-04, 25 fresh processes, CI [1.035648,1.036862]. The absolute L1
+  median moved within a single day too, 0.998400 ms → 1.082560 ms, and
+  `nvidia-smi` reports the SM clock idling at 210 MHz against a 3105 MHz
+  maximum. Nothing in the code changed.
+- Second instance: the COARSEN κ sweep re-run reproduces every paired ordering
+  conclusion while its medians drift by up to **1.8%** against the previous
+  session's.
+- Consequence, applied retroactively: the `1.014×`/`1.016×` L2-vs-L1 headline
+  in earlier rounds is **superseded, not reproduced**, and every cross-round
+  absolute number in this repository is a historical record rather than a
+  comparison. Any comparison must be re-measured in one session with a control
+  in that same session — which is why the attribution in F-58 is four builds
+  measured together rather than one build measured against a memory.
+- Evidence: docs/experiments/E2E_L2/result.md, raw/part3/paired_prev_binary.txt;
+  docs/experiments/COARSEN/result.md §3.5.
+
+## F-62 — The resource vector is nine lanes; on sm_89 one lane decides the ranking, and it is not identifiable
+
+- Finding: `ResourceVector` had been trimmed to the six lanes sm_89 exercises.
+  It is restored to §2.2(a)'s nine — ⟨tc, cuda, sfu, tmem, smem, l1_5, l2, ddr,
+  net⟩ — with `TargetSpec::Caps` deciding which participate. A zeroed lane is
+  never bare: each carries a `LaneStatus` ∈ {kLive, kCapabilityAbsent,
+  kNotCalibrated}, so a max that skips a lane can still say why.
+- On sm_89 the audit reports live = [tc cuda sfu smem l2 ddr],
+  capability_absent = [tmem l1_5 net], not_calibrated = []. ✅ Keeping only the
+  SMEM lane changes MAPE by **0.02 points** and ρ by **0.0006**: one lane
+  decides the ranking on this target.
+- ⚠️ But which lane it is, is not a fit result. The SMEM and L2 lanes are
+  **collinear over every calibrated shape** — the mainloop's shared-memory
+  traffic and its L2 traffic are the same tile loads counted twice — so
+  attributing the ranking to SMEM is a micro-architectural argument, not
+  something the data separates. It must be re-measured on sm_90+, where TMA
+  moves the L2 side without moving the SMEM side.
+- Related, and recorded so it is not quietly counted as gain: in the layered
+  ablation the SDCM cache model (`+cache`) changes MAPE and ρ by **exactly 0**.
+  The whole gain over the analytic ranking is split-K (ρ 0.4435/0.4303 →
+  0.9071/0.9043) and the wave tail (0.9095/0.9070 → 0.9450/0.9435).
+- Evidence: docs/experiments/COST_MODEL/result.md, raw/summary.tsv;
+  include/tilemega/Solver/CostModel.h; TileMega_skeleton.md §4.4.
+
+## F-63 — A target audit finds what per-target tests do not: the missing field with no reason
+
+- Finding: `tools/tilemega-target-audit` checks, for each of sm_80/89/90/100/120,
+  the JSON field set against `TargetSpec`'s full field set, the status of each
+  of the nine resource lanes, whether each cost-model term is evaluable or
+  explicitly zero, and that the target cross-compiles. Anything missing **with
+  no reason attached** fails.
+- ✅ It found 12 real failures on first run — `calibration/device`,
+  `measured_at` and `wall_seconds` absent from four config files. Fixed by
+  adding the fields, not by exempting the check.
+- It also had to be taught the difference between "absent" and "absent for a
+  reason": constructing a `CostModel` on an uncalibrated target throws, and the
+  audit now reports `UNAVAILABLE reason=not_calibrated` rather than crashing —
+  without weakening `CostModel`'s own guard, which is what stops a fabricated
+  constant from being quoted.
+- Current state: `SUMMARY targets=5 failures=0`, wired into ctest as
+  `target_audit` (ctest is this repository's CI). ✅ 23/23 tests pass.
+- Evidence: tools/tilemega-target-audit.cpp, configs/targets/*.json.
+
+## F-64 — The migration check is built and baselined, and refuses to run on the calibration GPU
+
+- Finding: a 4090 and a 5090 have comparable shared memory per SM (~100 KB) but
+  128 → 170 SMs, which hits wave quantization directly — the one term the cost
+  model gets its largest single gain from (F-62). `tools/tilemega-migrate` plus
+  `docs/experiments/MIGRATION/run_on_sm120.sh` re-run an ORACLE subset (top-50
+  by measured latency + 50 random, fixed seed) on a different GPU using the
+  4090-calibrated model, and report rank correlation and top-hit-rate loss.
+- ✅ Baseline on the calibration target itself, so the transfer arm has
+  something to lose against: gqa2 n=100 MAPE 27.48, ρ **0.9144**, optimum_rank
+  13; mha4 MAPE 25.75, ρ **0.9095**, optimum_rank 8. The subset is harder than
+  the full sweep **by construction** — it is 50 near-optimal configurations plus
+  50 random ones — so top-3% hit rate is 0 by construction and Spearman,
+  optimum_rank and top-10 are the metrics that carry meaning here.
+- ❌ The transfer arm has **not run**: no sm_120 is present. `--probe`
+  hard-fails with exit code 3 on the calibration GPU rather than degrading to a
+  same-GPU comparison that would look like a pass.
+- Evidence: docs/experiments/MIGRATION/result.md, raw/summary_sm89_baseline.txt.
+
