@@ -350,6 +350,17 @@ if(TILEMEGA_BUILD_TESTS)
     target_compile_options(isl_crosslink_test PRIVATE -fno-rtti)
   endif()
   add_test(NAME isl_crosslink COMMAND isl_crosslink_test)
+
+  # A Release configuration defines NDEBUG, which compiles every `assert` in
+  # these binaries away: the suite then exits 0 without checking anything.
+  # Verified here -- semantic_lifting reported four unexpected differences and
+  # still passed in build-portable (Release) before this loop existed.
+  get_property(_tilemega_dir_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+  foreach(_tilemega_target IN LISTS _tilemega_dir_targets)
+    if(_tilemega_target MATCHES "_test$")
+      target_compile_options(${_tilemega_target} PRIVATE -UNDEBUG)
+    endif()
+  endforeach()
 endif()
 
 if(TILEMEGA_BUILD_VERIFY)
