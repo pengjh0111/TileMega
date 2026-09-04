@@ -145,6 +145,44 @@ column under an independent count, and both values are kept visible.
 `table27.md` gains note (g); §2.7 of the skeleton needs the same correction
 (tracked in Part 6).
 
+## End-to-end non-regression
+
+✅ verified.  `docs/experiments/E2E_GEN/run.sh` re-run on the wired frontend,
+RTX 4090 sm_89, 128 SMs, nvcc 12.8.  `raw/baseline-e2e_gen/` holds the
+pre-wiring artefacts for comparison.
+
+| | before wiring | after wiring |
+|---|---|---|
+| generated vs handwritten L0.5 | `5245714bc5d3ab4d`, bitwise PASS | `5245714bc5d3ab4d`, bitwise PASS |
+| L0.5 vs PyTorch L0 | mismatch 0, max_abs `1.5497208e-06`, max_rel `0.0010710589` | **identical** |
+| L1 vs L0.5 | mismatch 0, max_abs 0 | mismatch 0, max_abs 0 |
+| L2 vs L1 | mismatch 0, max_abs 0 | mismatch 0, max_abs 0 |
+| fresh processes | 50/50 pass | **50/50 pass** |
+| import summary | tasks=179 couplings=222 | tasks=34 couplings=42 |
+
+The numerical ladder is untouched: the L0.5-vs-L0 error is the same to every
+digit, and every generated output still hashes to the pre-wiring value.  Only
+the IR the generator reads changed.
+
+Kernel times moved, and the honest reading is that they do **not** measure this
+change:
+
+| median over 50 processes | before | after |
+|---|---:|---:|
+| L0.5 | 1.103872 ms | 1.010976 ms |
+| L1 | 1.095808 ms | 0.998400 ms |
+| L2 | 1.110992 ms | 1.030144 ms |
+| L2 / L1 | 1.013560× | **1.031795×** |
+
+All three absolute times fell by about 9% — a machine-level shift, not
+something the frontend can cause — so only the ratio is comparable, and the
+ratio got *worse*.  ⚠️ That is not yet attributable: Codegen still emits
+`Map::kAll` for every edge, so L2's synchronization structure is bit-for-bit
+the same program it was before the wiring, and the derived `C` now in the IR
+does not reach the wait path at all.  The re-measurement with attribution is
+Part 3.1 and belongs after Part 2, not here.  What this round establishes is
+only that wiring the analysis layer in cost nothing in correctness.
+
 ## What is still degraded
 
 - Codegen still emits `kIdentity`/`kAll` only (`lib/Codegen/Codegen.cpp:176`),

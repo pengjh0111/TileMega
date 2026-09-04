@@ -12,18 +12,27 @@ the sole compiler contract: a verified CG dialect `ModuleOp`.
 
 | Imported property | Result |
 |---|---:|
-| `call_function` task spaces | 179 |
-| Tensor-use couplings | 222 |
-| Semantic stages | 24 |
+| L-task task spaces | 34 |
+| Derived couplings | 42 |
+| Semantic stages | 30 |
 | Range symbols | 4 |
 | Equality guards | 4 |
 | Unsupported operators | 0 |
+| FX `call_function` nodes behind them | 179 |
+
+Task spaces are now **operator**-granularity nodes of the instantiated
+`OperatorGraph`, not FX `call_function` nodes; the earlier 179/222 counted FX
+nodes and the placeholder edges between them, when `C` was the constant
+`{ [0] -> [0] }`. `docs/experiments/WIRING/result.md` is the evidence that the
+42 edges are the analysis layer's own derivation. A task space's kind is now
+the role the semantic lifting recognised, so `view`/`transpose` no longer
+appear as kinds -- what replaces that coverage is the assertion that no kind
+is `generic` on this model.
 
 All four guards remain constraints. After cancellation and union-find,
-`s61 → s14` and `s65 → s14`; the original guard count remains four. `view` and
-`transpose` nodes survive as task spaces whose structured access-map kinds are
-`view` and `transpose`. The unsupported-operator unit fixture is rejected with
-the exact name `aten.imaginary.default`.
+`s61 → s14` and `s65 → s14`; the original guard count remains four. The
+unsupported-operator unit fixture is rejected with the exact name
+`aten.imaginary.default`.
 
 ✅ `tilemega-opt` parsed, verified, printed, and reparsed the imported module.
 Its negative lit tests rejected an event extent different from
@@ -82,11 +91,11 @@ Across the 50 generated-process logs:
 
 | Path | Median kernel time |
 |---|---:|
-| Generated L0.5 | 1.107968 ms |
-| Generated L1 | 1.095856 ms |
-| Generated L2 | 1.295360 ms |
-| L1 / L0.5 | 0.989824× |
-| L2 / L1 | 1.182071× |
+| Generated L0.5 | 1.010976 ms |
+| Generated L1 | 0.998400 ms |
+| Generated L2 | 1.030144 ms |
+| L1 / L0.5 | 0.987842× |
+| L2 / L1 | 1.031795× |
 
 This is a correctness baseline, not an optimization claim. The non-GEMM
 TaskBodies remain intentionally naive. L2 (per-edge events from the real
