@@ -1,0 +1,4 @@
+# 50 fresh processes per configuration, RTX 4090 sm_89, 2026-09-04T13:40:18+00:00
+C_fix_plan_k1 pass=50 fail=0 /50 l2_hashes=l2=8a737188b958a2ae  wait_table=degraded
+D_fix_noplan_k1 pass=50 fail=0 /50 l2_hashes=l2=5245714bc5d3ab4d  wait_table=exact
+pre_fix_gqa2_k1_plan_uniform pass=0 fail=50 /50 mismatch= l2_vs_l1_mismatch=4096 
