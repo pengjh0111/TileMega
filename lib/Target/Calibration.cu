@@ -828,7 +828,7 @@ void MeasureSync(TargetSpec& spec, Options const& options, std::ostream& log) {
     log << "  cluster_sync_ns     = uncalibrated (target has no clusters)\n";
   } else {
     log << "  cluster_sync_ns     = uncalibrated (needs "
-           "docs/experiments/CLUSTER/run_on_h100.sh on the cluster target)\n";
+           "docs/experiments/CLUSTER/run_on_cluster_gpu.sh on the cluster target)\n";
   }
 
   CheckCuda(cudaFree(scratch), "cudaFree");
