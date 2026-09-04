@@ -58,6 +58,23 @@ static_assert(!arch::kDevicePass || TILEMEGA_GENERATED_CLUSTER_DIM == 1 ||
               "cluster-shaped kernel must never fall back to the flat grid "
               "barrier and keep reporting itself as a cluster result");
 
+/// The wait windows in `kDependencies` are fitted against the GEMM task
+/// decomposition the generator saw.  Reparameterizing the GEMM at compile
+/// time (COARSEN's kappa sweep does, with `-include plan_*_uniform.h`) makes
+/// every fitted constant name the wrong producer tasks, and that under-waits
+/// rather than over-waits.  So the narrow path is admitted only when the two
+/// granularities agree; otherwise the table degrades to kAll, which is always
+/// a superset.  `wait_table=` in E2E_KAPPA reports which one a build got.
+#if defined(TILEMEGA_GENERATED_WINDOW_TILE_M) && \
+    TILEMEGA_GENERATED_WINDOW_TILE_M == TILEMEGA_GEMM_TILE_M && \
+    TILEMEGA_GENERATED_WINDOW_TILE_N == TILEMEGA_GEMM_TILE_N && \
+    TILEMEGA_GENERATED_WINDOW_SPLIT_K == TILEMEGA_GEMM_SPLIT_K && \
+    TILEMEGA_GEMM_VARIANT_COUNT == 1
+#define TILEMEGA_WAIT_TABLE_EXACT 1
+#else
+#define TILEMEGA_WAIT_TABLE_EXACT 0
+#endif
+
 #ifndef TILEMEGA_GENERATED_RESIDENT_GRID
 #define TILEMEGA_GENERATED_RESIDENT_GRID(target, function, block_size, dynamic_smem) \
   ((target).res.num_sms * (target).ActiveBlocksPerSM( \
@@ -251,7 +268,8 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
       int const grid = static_cast<int>(gridDim.x);
       int const produced = ActiveBlocks(p, p.stages[producer]);
       int const live = ActiveBlocksClamped(p, producer);
-      if (dep.map == StageDependency::Map::kAll) {
+      if (!TILEMEGA_WAIT_TABLE_EXACT ||
+          dep.map == StageDependency::Map::kAll) {
         for (int group = 0; group <= (live - 1) / TILEMEGA_EVENT_KAPPA; ++group)
           TILEMEGA_GENERATED_WAIT_global(
               &events[EventIndex(producer, group)].epoch, iteration + 1ull);
@@ -466,7 +484,8 @@ void tilemega_wait_profile_kernel(Params const* params, int seq) {
       int const owned = ActiveBlocks(p, p.stages[consumer]);
       for (int c = 0; c < consumers; ++c) {
         if (kappa == 0) { polls += 1; continue; }
-        if (dep.map == StageDependency::Map::kAll) { polls += groups; continue; }
+        if (!TILEMEGA_WAIT_TABLE_EXACT ||
+            dep.map == StageDependency::Map::kAll) { polls += groups; continue; }
         for (int task = c; task < owned; task += grid) {
           int const at = (task / static_cast<int>(dep.div)) * dep.scale + dep.offset;
           int const begin = at < 0 ? 0 : at;
@@ -1052,7 +1071,9 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   pass = false;
 #endif
 #if TILEMEGA_EVENT_KAPPA > 0
-  std::printf("E2E_KAPPA event_kappa=%d\n", TILEMEGA_EVENT_KAPPA);
+  std::printf("E2E_KAPPA event_kappa=%d wait_table=%s\n",
+              TILEMEGA_EVENT_KAPPA,
+              TILEMEGA_WAIT_TABLE_EXACT ? "exact" : "degraded");
 #endif
 #if TILEMEGA_PLACEMENT != 0
   std::printf("E2E_PLACEMENT placement=%d\n", TILEMEGA_PLACEMENT);

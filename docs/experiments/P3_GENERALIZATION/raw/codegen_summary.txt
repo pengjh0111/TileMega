@@ -1,1 +1,1 @@
-CODEGEN_SUMMARY tasks=355 couplings=444 stages=60 output=/root/TileMega/docs/experiments/P3_GENERALIZATION/raw/generated.cu
+CODEGEN_SUMMARY tasks=68 couplings=86 stages=60 output=docs/experiments/P3_GENERALIZATION/raw/generated.cu
