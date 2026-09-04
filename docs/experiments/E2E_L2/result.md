@@ -58,26 +58,103 @@ Reported as `E2E_ITER l2_iter1_vs_iter0_mismatch=…`: 0 on every one of the
 
 ## Performance
 
-Medians over fresh processes — 50 runs (2-layer GQA, from `E2E_GEN`), 25 runs
-(4-layer MHA, from this directory's `run.sh`):
+Re-measured on 2026-09-04 after Part 1 and Part 2 wired the derived `C` into
+the generator (`raw/part3/`, `paired_default_kappa.txt`). 25 fresh processes
+per model; each process times L1 and L2 itself, so the pairing is
+within-round and the ratio is taken per round before it is aggregated
+(`raw/part3/paired.py`: median of ratios, 20000-replicate bootstrap CI on
+that median, two-sided Wilcoxon signed-rank on the paired differences).
 
-| Model | l1 median | l2 median | l2/l1 | previously |
-|---|---:|---:|---:|---:|
-| 2-layer GQA | 1.095808 ms | 1.110992 ms | **1.0136×** | 1.182× |
-| 4-layer MHA | 2.183296 ms | 2.215936 ms | **1.0155×** | 1.355× |
+| Model | l1 median | l2 median | l2/l1 (median of ratios) | bootstrap 95% CI | Wilcoxon | rounds L2 faster |
+|---|---:|---:|---:|---|---|---:|
+| 2-layer GQA | 1.083232 ms | 1.122304 ms | **1.036186×** | [1.035951, 1.036719] | W+=325 W−=0, p=1.30e−05 | 0/25 |
+| 4-layer MHA | 2.158592 ms | 2.239488 ms | **1.037540×** | [1.036984, 1.037936] | W+=325 W−=0, p=1.30e−05 | 0/25 |
 
-(`raw/gqa2_l2_timing_median.txt`, `raw/mha4_timing_median.txt`. Repeat sweeps
-of the MHA model land between 1.013× and 1.016×, so the ratio is stable to
-about ±0.2 points, well inside "still slower".)
+**L2 is still slower than L1, and by more than the 1.014×/1.016× this file
+used to report.** ✅ That comparison is not admissible, and the reason is the
+first thing this round found.
 
-**L2 is still slower than L1.** The gap closed from 18–36% to 1.4%, but it
-did not change sign, and the honest reading is that it is not going to under
-this execution model. The attribution below is what the measurements
-actually support.
+### The 1.014×/1.016× baseline does not reproduce, and nothing about the code changed it
+
+Re-running the *previous* binary — `docs/experiments/E2E_GEN/generated_e2e`,
+the 35-edge `kAll` build from before Part 2, byte-identical, 25 fresh
+processes today (`raw/part3/paired_prev_binary.txt`):
+
+| | l1 median | l2 median | l2/l1 | bootstrap 95% CI |
+|---|---:|---:|---:|---|
+| recorded 2026-09-03 | 1.095808 ms | 1.110992 ms | 1.0136× | not computed |
+| same binary, 2026-09-04 | 1.082560 ms | 1.122272 ms | **1.036713×** | [1.035648, 1.036862] |
+
+The same executable moved by 2.3 points. The absolute L1 median moved too
+(0.998400 ms in the 07:41 sweep of the same day, 1.082560 ms here), and
+`nvidia-smi` reports the SM clock idling at 210 MHz against a 3105 MHz
+maximum, so the machine's clock/thermal state is not held fixed between
+sessions. **Only within-session paired ratios are comparable here**, and the
+old table is superseded rather than reproduced. Every number in this section
+was collected in one session against one control.
+
+### Attribution: it is not the dependency table
+
+Four builds of the same model, differing only in the contents of
+`kDependencies`/`kDependencyOffsets`, measured in the same session. The
+control tables are produced by `raw/part3/retable.py`, which rewrites only
+those two arrays; it is validated by the fact that its `reduced` mode
+reproduces the generator's own previous 35-edge table exactly.
+
+| gqa2 variant | edges | l2/l1 | bootstrap 95% CI |
+|---|---:|---:|---|
+| derived windows (20 `kAll` / 3 `kIdentity` / 15 `kWindow`) | 38 | 1.036186× | [1.035951, 1.036719] |
+| every edge forced to `kAll` | 38 | 1.035734× | [1.035019, 1.036644] |
+| `kAll` + full transitive reduction | 35 | 1.036036× | [1.034876, 1.036862] |
+| previous binary (old harness) | 35 | 1.036713× | [1.035648, 1.036862] |
+
+| mha4 variant | edges | l2/l1 | bootstrap 95% CI |
+|---|---:|---:|---|
+| derived windows (40 / 7 / 31) | 78 | 1.037540× | [1.036984, 1.037936] |
+| every edge forced to `kAll` | 78 | 1.037583× | [1.036984, 1.037910] |
+| `kAll` + full transitive reduction | 71 | 1.036451× | [1.036007, 1.036791] |
+
+All four CIs overlap on each model. The exact table is worth nothing at the
+default build, and the three extra edges that Part 2's narrowing costs the
+transitive reduction (35 → 38, because a narrowed edge may be dropped when
+implied but may not serve as an intermediate) cost nothing measurable either.
+
+The reason is mechanical and was not visible before the profile existed:
+`TILEMEGA_EVENT_KAPPA` defaults to **0**, one event per producer *stage*, and
+at κ = 0 `WaitDependencies` takes a branch that polls exactly one event per
+edge **regardless of `map`**. A window cannot narrow a wait set that is
+already one event wide. The narrowing factor of the default build is
+**1.000×** — which is why Part 3.2 had to re-measure κ rather than assume it.
+
+### What the wait set is worth once κ > 0
+
+Full numbers in `waitset.md` (device-side poll counts) and in
+`docs/experiments/COARSEN/result.md` (the paired hardware sweep). The short
+form, from `raw/part3/kappa_polls_summary.txt`:
+
+| model | κ=1 | κ=2 | κ=4 | κ=8 | κ=16 | κ=32 |
+|---|---:|---:|---:|---:|---:|---:|
+| gqa2 polls vs. `kAll`, seq=4 | 1.0244× | 1.0161× | 1.0000× | 1.0000× | 1.0000× | 1.0000× |
+| mha4 polls vs. `kAll`, seq=4 | 1.0222× | 1.0147× | 1.0000× | 1.0000× | 1.0000× | 1.0000× |
+
+✅ measured. The wait set narrows by at most 2.4%, and by nothing at all for
+κ ≥ 4. 89.9% of the poll mass sits on edges with a `kElementChunk` end, where
+no per-CTA window is admissible at all (`waitset.md`); of the 5.9% that the
+windows do reach, every fitted tile-row window has `count = scale = Tm = 128`,
+which equals `gridDim.x` on this GPU, so one grid stride already covers every
+CTA. That is a §2.3 **Place** property, not a weakness in `C`.
+
+And the cost is larger than the benefit. At each κ, the windowed table is
+slower than the `kAll` control with **disjoint** bootstrap CIs
+(`raw/part3/paired_kappa.txt`); at κ = 32 the two tables poll *identical*
+counts (276/276 at seq=4, 6028/6028 at seq=512), so the whole 0.48-point gap
+there is window-*evaluation* arithmetic — the per-edge grid-stride union with
+its div/mod — and nothing else.
 
 ### How the 18–36% was attributed
 
-Each step was measured, not reasoned about:
+Each step was measured, not reasoned about. This history is unchanged; only
+the endpoint it lands on is restated above.
 
 1. **Per-CTA event fan-out** (one event per producer CTA rather than per
    stage) — no improvement. Rejected.
@@ -104,7 +181,7 @@ Each step was measured, not reasoned about:
    `ActiveBlocks` reports — which is now the TaskBody's own declaration
    (`TaskOwnership`) rather than a switch restating each guard.
 
-### Why the residual 1.4% is structural
+### Why the residual gap is structural
 
 The megakernel's stage loop is **sequential per CTA**: every CTA walks stages
 `0 … stage_count-1` in order. L2 can therefore only ever *remove waits*; it
@@ -114,60 +191,62 @@ there are almost no waits left to remove after transitive reduction, and what
 remains is one epoch poll per incoming edge versus L1's one arrival counter
 per stage. L2 pays a slightly larger constant for the same ordering.
 
-A per-edge event graph beats a barrier when consumers can start out of order.
-Getting there needs either out-of-order stage execution (a task queue rather
-than a stage loop) or `kIdentity` — and `kIdentity`'s ceiling is measured
-below and is zero on these models.
+This is now measured from both ends rather than argued. The exact dependency
+table changes the ratio by less than its own confidence interval (above), and
+the wait set it narrows carries 5.9% of the polls at best. A per-edge event
+graph beats a barrier when consumers can start out of order; the ordering
+information is now exact and it still does not, because nothing consumes it
+out of order.
 
-## The `kIdentity` ceiling
+Against ETC's reported 6–9% upper bound for orchestration on comparable
+models, TileMega's orchestration layer measures **−3.6% / −3.8%** here (it is
+a loss, not a gain). The previously recorded −1.4% is from a session whose
+absolute timings do not reproduce and is withdrawn as a comparison point, not
+as a measurement.
 
-`docs/experiments/E2E_L2/identity_probe.cpp` asks the migrated derivation the
-question directly, using `isl_map_is_subset` — an operator that did not exist
-before the ISL migration, so this could not have been measured last round.
-An edge admits `kIdentity` only if consumer CTA `b` depends on producer CTA
-`b` alone, which needs two things: `C ⊆ identity`, and the two stages sharing
-a CTA→task map.
+## What `kIdentity` is worth
 
-| | decoder layer | 4-layer MHA |
+Re-measured against the production path — the derived isl `C`, and
+`LiftedOp::ownership` cross-checked against `OwnershipOf`, the table the
+TaskBodies themselves return from `Ownership` (`TaskBase.h`). The previous
+probe answered the ownership half from a hand-written table keyed on operator
+*name prefixes*; a name is not a declaration, and nothing kept the two in
+step.
+
+| | gqa2 | mha4 |
 |---|---:|---:|
-| derived edges | 21 | 72 |
-| ranks differ (no identity possible) | 10 | 36 |
-| `C ⊆ identity` | **7** | **20** |
-| …and both ends share an ownership kind (`kidentity_admissible`) | **1** | **4** |
-| …and not already implied by a longer path | **0** | **0** |
+| derived edges | 42 | 86 |
+| ranks differ (no identity possible) | 13 | 27 |
+| `C ⊆ identity` | 9 | 19 |
+| …and both ends `kTilePerBlock` (`kidentity_admissible`) | **7** | **15** |
+| …both ends `kElementChunk` (not claimed) | 2 | 4 |
+| lifted-vs-TaskBody ownership disagreements | **0** | **0** |
 
-Every row but the last is printed by the probe itself
-(`SUMMARY … identity_candidates=… kidentity_admissible=…`); the last row is
-read off the edge list, since transitive reduction happens in the generator
-on stage pairs rather than on operator edges.
+✅ `raw/identity.txt`, `tools/tilemega-identity-probe`. These supersede the
+table this file used to carry (21 and 72 edges, 1 and 4 admissible): that
+probe ran on the analytic `ReferenceModels` graphs and keyed ownership on
+names, this one runs on the frontend's own graph and on the ABI. They are not
+comparable and the old numbers are withdrawn rather than reproduced.
 
-The seven identity couplings in the decoder layer are `wq→rope_q`,
-`wk→rope_k`, `wo→add1`, `wgate→silu`, `wup→silu`, `wdown→add2` and
-`add1→add2`. Six of them cross an ownership kind: the producer is a GEMM
-(`kTilePerBlock` — CTA `b` owns N-tile `b`) and the consumer is RoPE or
-elementwise (`kElementChunk` — CTA `b` owns a grid-stride slice of a flat
-element range, a function of `gridDim`, not of the task space). The same
-`blockIdx.x` does not name the same data on the two sides, so an identity
-*task* coupling is not an identity *CTA* coupling. Only `add1→add2` has both
-ends in `kElementChunk` — and that edge is transitively implied by
-`add1→rmsnorm2→wgate/wup→silu→wdown→add2`, so the reduction already dropped
-it.
-
-So: even with the ABI entry in place and even if the generator could see the
-derived relations, `kIdentity` would eliminate **zero** waits on either
-accepted model. The hypothesis that the TaskBody ABI was what stood between
-L2 and a win is now falsified, which is more useful than the ABI work would
-have been on its own.
+Three `kIdentity` edges reach the generated gqa2 table and seven reach mha4.
+They do narrow — 4× each on the poll count — and they carry 0.03% of the poll
+mass (`waitset.md`), so the earlier conclusion survives its own correction:
+`kIdentity` is real now, and it is still not what stood between L2 and a win.
 
 ## What still blocks a tighter L2
 
-Two things, both named rather than implied:
+Two things, both named rather than implied. The first of the two this file
+used to list — "the generator cannot see `C`" — is closed by Part 1 and
+Part 2 and is what this round measured.
 
-1. **The generator cannot see `C`.** `lib/Frontend/Frontend.cpp` never calls
-   `CouplingDerivation`; it emits `fixedRelation()` placeholders
-   (`{ [0] -> [0] }`, `wait/fanout/volume/count = 1`, `tier = 0`). The
-   verified derivation drives the analysis experiments, not code generation.
-   Recorded in skeleton §1.5.1.
+1. **Element-chunk placement.** 89.9% of the poll mass is on edges with a
+   `kElementChunk` end, and on tile-row edges the fitted window is exactly one
+   grid stride wide. Both are §2.3 **Place** decisions. No amount of
+   exactness in `C` moves either. A blocked placement
+   (`task → task / ceil(count/grid)`) would preserve the tile-row windows; the
+   same counting model gives 1.047× at κ=1 and 1.082× at κ=32
+   (`raw/placement_whatif.txt`, ❌ inferred — a counting model, not a run),
+   and even that is bounded by the 5.9% ceiling.
 2. **The stage loop is sequential.** See above; this is the one that decides
    whether a per-edge event graph can win at all.
 
@@ -177,21 +256,22 @@ Generated build links three device kernels (`tilemega_l1_kernel`,
 `tilemega_l2_kernel`, `tilemega_stage_kernel`) against the same `TaskSmem`
 union and the same `ModelSpec` tables; ptxas reports zero spills and 49,536 B
 dynamic shared memory for the 2-layer GQA build — unchanged from the L1-only
-baseline in `docs/experiments/E2E_GEN/result.md`. Adding the ownership entry
-and the offsets table did not change L1's or L0.5's resource footprint.
+baseline in `docs/experiments/E2E_GEN/result.md`, and unchanged again by the
+window encoding (`raw/part3/gqa2_ptxas.txt` vs `gqa2_kall_ptxas.txt`).
 
 ## Conclusion
 
-L2 event synthesis is correct (bitwise-identical output, 50/50 and 25/25
-fresh processes on two structurally different models), §8.2's monotonic
-counters are now exercised in the cross-iteration case they exist for, and
-the TaskBody ABI carries the CTA→task ownership entry it was missing.
+L2 event synthesis is correct (bitwise-identical output; 150/150 fresh
+processes across κ ∈ {0,1,8} for the GQA model, 25/25 for MHA, and 600/600
+across the 24 κ-sweep arms), §8.2's monotonic counters are exercised in the
+cross-iteration case they exist for, and the dependency table now carries the
+derived relation rather than a placeholder.
 
-L2 is **not** faster than L1: 1.014× / 1.016×, down from 1.182× and
-1.355×. Every step of that improvement is attributed to a specific measured
-cause, and the residual gap has a structural explanation rather than a
-to-do. The one remaining mechanism that was expected to close it —
-`kIdentity` — is measured here to be worth zero waits on these models. This
-is the first meaningful performance number this project has produced, and it
-says the per-edge event graph does not pay for itself under a sequential
-stage loop.
+L2 is **not** faster than L1: 1.0362× / 1.0375×, measured against a
+same-session control. Wiring the analysis layer in did not change that, and
+the measurement says why in a way that is falsifiable rather than
+speculative: forcing every derived edge back to `kAll` costs nothing outside
+the confidence interval, the exact wait set is at most 2.4% narrower and only
+for κ ≤ 2, and the arithmetic that exploits it costs more than it saves. The
+remaining levers are both placement and scheduling decisions, not derivation
+ones.

@@ -1,0 +1,12 @@
+MODEL gqa2 n=25
+  l1_median_ms=1.083232 l2_median_ms=1.122304
+  median_of_ratios=1.036186 ratio_of_medians=1.036070
+  bootstrap95_median_ratio=[1.035951, 1.036719] reps=20000
+  median_paired_diff_ms=+0.039200 min_ratio=1.034735 max_ratio=1.037813
+  wilcoxon W+=325.0 W-=0.0 z=4.360 p=1.302e-05 faster_rounds=0/25
+MODEL mha4 n=25
+  l1_median_ms=2.158592 l2_median_ms=2.239488
+  median_of_ratios=1.037540 ratio_of_medians=1.037476
+  bootstrap95_median_ratio=[1.036984, 1.037936] reps=20000
+  median_paired_diff_ms=+0.080992 min_ratio=1.035470 max_ratio=1.038488
+  wilcoxon W+=325.0 W-=0.0 z=4.360 p=1.299e-05 faster_rounds=0/25

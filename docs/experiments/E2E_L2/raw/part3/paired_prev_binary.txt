@@ -1,0 +1,6 @@
+MODEL gqa2_prev_35edge_oldbinary n=25
+  l1_median_ms=1.082560 l2_median_ms=1.122272
+  median_of_ratios=1.036713 ratio_of_medians=1.036683
+  bootstrap95_median_ratio=[1.035648, 1.036862] reps=20000
+  median_paired_diff_ms=+0.039744 min_ratio=1.034059 max_ratio=1.038553
+  wilcoxon W+=325.0 W-=0.0 z=4.360 p=1.304e-05 faster_rounds=0/25

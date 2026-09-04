@@ -73,7 +73,7 @@ the L0 (PyTorch) error unchanged at `max_abs=1.5497208e-06`,
 `max_rel=0.0010710589` — the same values as before the window existed. All 22
 ctest cases pass.
 
-Two things had to be fixed for that to be true, both recorded rather than
+Three things had to be fixed for that to be true, all recorded rather than
 quietly absorbed:
 
 * **Grid-stride placement (found by review, not by a failing test).** A stage
@@ -89,6 +89,21 @@ quietly absorbed:
   stage, whose ownership is `kElementChunk`; such edges are forced back to
   `kAll` because `blockIdx.x` no longer names the tile the window was fitted
   against.
+* **The window is only valid at the granularity it was fitted at** (found by
+  the COARSEN sweep, three weeks of table after the table shipped). `div`,
+  `scale`, `offset` and `count` are integers over a task decomposition, and the
+  GEMM's decomposition is a *compile-time* knob (`TILEMEGA_GEMM_TILE_M`, …,
+  `TILEMEGA_GEMM_SPLIT_K`) that the generator does not control: COARSEN
+  rebuilds the same generated `.cu` with `-include plan_gqa2_uniform.h`
+  (`tile_m 16`, `split_k 16`) and every fitted constant then names the wrong
+  producer tasks. That under-waits, and under-waiting is silent: ✅ verified
+  **0 / 50** fresh processes pass on that build, `l2_vs_l1_mismatch=4096` in
+  every one. The generator now emits the granularity it fitted against
+  (`TILEMEGA_GENERATED_WINDOW_TILE_M/_TILE_N/_SPLIT_K`) and the harness admits
+  the narrow path only when the compiled granularity agrees, degrading to
+  `kAll` — always a superset — otherwise. Every run says which it got, in
+  `E2E_KAPPA … wait_table=exact|degraded`. ✅ **50 / 50** on both branches
+  after the fix (`docs/experiments/COARSEN/raw/waittable/fresh_processes.txt`).
 
 ## What the wait sets are actually worth (attribution for Part 3.1)
 
