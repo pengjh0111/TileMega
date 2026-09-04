@@ -15,13 +15,16 @@
 | C++ compiler | C++17 | |
 | CMake | 3.22 or newer | |
 | Ninja | any | generator used throughout |
-| CUDA Toolkit | provides `nvcc` | required; `sm_80/89/90/120` targets |
+| CUDA Toolkit | provides `nvcc` and `cuobjdump` | required; the recorded `sm_120` build and cluster validation use CUDA 12.8 |
 | LLVM/MLIR | pinned commit `23a60f15f2fcafcf67b95b0a035053579958b732` (`23.0.0git`) | **required** — the CG dialect is the mandatory L4-to-L1 contract, so `TILEMEGA_ENABLE_MLIR=OFF` is rejected |
 | CUTLASS | `third_party/cutlass` submodule | task interiors and collectives |
-| Python | 3.8 or newer | `lit` driver, export bridge |
-| PyTorch | 2.x | only for the `torch.export` bridge, not for building the compiler |
-| barvinok | `third_party/barvinok` submodule | recorded for Phase 3 polyhedral work; **not built** |
-| ISL | — | disabled until Phase 3 (`TILEMEGA_ENABLE_ISL=OFF`) |
+| isl | 0.28, pinned by barvinok | **required** — canonical coupling-relation representation and composition |
+| polylib | 5.22.9, pinned by barvinok | **required** by barvinok; built with the GMP backend |
+| barvinok | 0.41.9 (`third_party/barvinok`) | **required** — parametric cardinalities for wait, fanout, volume, and count |
+| GMP / NTL | system development packages | required to link the static polyhedral stack |
+| Autotools | autoconf, automake, libtool, pkg-config, m4 | required to bootstrap isl, polylib, and barvinok |
+| Python | 3.8 or newer | `lit` driver and the export bridge |
+| PyTorch | 2.13.x | needed only by the version-locked `torch.export` bridge and fixture generators, not by the C++ compiler build |
 
 MLIR must come from an **install tree**. A build tree's CMake package bakes
 absolute paths to both the build and source directories and breaks as soon as
@@ -32,16 +35,78 @@ build tree that has already been moved.
 
 ## Build
 
-```bash
-git submodule update --init --recursive
+On Ubuntu or Debian, install the host-side prerequisites first:
 
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential git cmake ninja-build \
+  python3 autoconf automake libtool libtool-bin pkg-config m4 \
+  libgmp-dev libntl-dev
+```
+
+Initialize only the submodules used by the build. The nested barvinok URLs use
+the `git://` protocol upstream; overriding them with HTTPS avoids failures on
+networks that block port 9418. `pet` is intentionally not initialized.
+
+```bash
+git submodule update --init third_party/cutlass third_party/barvinok
+git -C third_party/barvinok config \
+  submodule.isl.url https://repo.or.cz/isl.git
+git -C third_party/barvinok config \
+  submodule.polylib.url https://repo.or.cz/polylib.git
+git -C third_party/barvinok submodule update --init isl polylib
+```
+
+Build the pinned polyhedral stack out of tree. The `autogen.sh` steps must run
+in their source directories; they may create untracked autotools helper files
+inside the polylib submodule, but those generated files must not be committed.
+
+```bash
+(cd third_party/barvinok/isl && ./autogen.sh)
+mkdir -p build-isl
+(cd build-isl && ../third_party/barvinok/isl/configure \
+  --with-int=gmp --enable-shared=no --enable-static=yes --with-pic \
+  CFLAGS="-O2 -fPIC" CXXFLAGS="-O2 -fPIC" && make -j"$(nproc)")
+
+(cd third_party/barvinok/polylib && ./autogen.sh)
+mkdir -p build-polylib
+(cd build-polylib && ../third_party/barvinok/polylib/configure \
+  --with-libgmp=/usr --enable-shared=no --enable-static=yes --with-pic \
+  CFLAGS="-O2 -fPIC" && make -j"$(nproc)")
+
+(cd third_party/barvinok && ./autogen.sh)
+mkdir -p build-barvinok
+(cd build-barvinok && ../third_party/barvinok/configure \
+  --with-isl=build --with-isl-builddir=../build-isl \
+  --with-polylib=build --with-polylib-builddir=../build-polylib \
+  --with-pet=no --with-gmp=system \
+  --enable-shared=no --enable-static=yes --with-pic \
+  CFLAGS="-O2 -fPIC" CXXFLAGS="-O2 -fPIC" && make -j"$(nproc)")
+```
+
+Build and install the pinned LLVM/MLIR once, then configure TileMega against
+that relocatable install tree. Replace `/path/to/prefix` with a persistent
+absolute path. Select the deployment architecture explicitly for a portable or
+cross-compiled build; leave it as `auto` only for a native build.
+
+```bash
 # Build and install the pinned LLVM/MLIR (once).
 scripts/build_mlir.sh /path/to/prefix
 
-cmake -S . -B build -G Ninja -DMLIR_DIR=/path/to/prefix/lib/cmake/mlir
-ninja -C build
+cmake -S . -B build -G Ninja \
+  -DMLIR_DIR=/path/to/prefix/lib/cmake/mlir \
+  -DTILEMEGA_TARGET_ARCH=auto \
+  -DTILEMEGA_ENABLE_MLIR=ON \
+  -DTILEMEGA_ENABLE_ISL=ON
+cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
+
+The three polyhedral build directories default to `build-isl`,
+`build-polylib`, and `build-barvinok`. Relocated builds can be supplied with
+`-DTILEMEGA_ISL_BUILD_DIR=...`, `-DTILEMEGA_POLYLIB_BUILD_DIR=...`, and
+`-DTILEMEGA_BARVINOK_BUILD_DIR=...`. See `docs/DEPENDENCIES.md` for the
+validated versions, static-link order, and provenance.
 
 CMake options:
 
@@ -50,7 +115,7 @@ CMake options:
 | `TILEMEGA_BUILD_TESTS` | `ON` | unit tests and the CG dialect `lit` suite |
 | `TILEMEGA_BUILD_VERIFY` | `ON` | verification experiments, including `crosscompile-matrix` |
 | `TILEMEGA_ENABLE_MLIR` | `ON` | required; `OFF` is rejected with an error |
-| `TILEMEGA_ENABLE_ISL` | `OFF` | Phase 3 |
+| `TILEMEGA_ENABLE_ISL` | `ON` | required; `OFF` is rejected with an error |
 | `TILEMEGA_TARGET_ARCH` | `auto` | `auto`, `sm_80`, `sm_89`, `sm_90`, `sm_120` |
 | `TILEMEGA_TARGET_CONFIG` | — | path to a target JSON, overriding `TILEMEGA_TARGET_ARCH` |
 | `TILEMEGA_LIT_DRIVER` | derived | path to `lit.py`; needed only when `LLVMConfig` does not export `LLVM_BUILD_MAIN_SRC_DIR` |
