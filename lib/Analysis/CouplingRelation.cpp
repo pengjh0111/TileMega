@@ -143,6 +143,56 @@ bool CouplingRelation::IsSingleValued() const {
   return result == isl_bool_true;
 }
 
+namespace {
+
+struct PointSink {
+  int arity = 0;
+  std::vector<std::pair<std::vector<long>, std::vector<long>>>* out = nullptr;
+  bool overflow = false;
+};
+
+isl_stat CollectPoint(isl_point* point, void* user) {
+  auto* sink = static_cast<PointSink*>(user);
+  std::vector<long> flat;
+  isl_size dims = isl_point_get_space(point)
+                      ? isl_space_dim(isl_point_get_space(point), isl_dim_set)
+                      : 0;
+  for (isl_size i = 0; i < dims; ++i) {
+    isl_util::Val value(isl_point_get_coordinate_val(point, isl_dim_set, i));
+    if (!isl_val_is_int(value.get())) {
+      sink->overflow = true;
+      break;
+    }
+    flat.push_back(isl_val_get_num_si(value.get()));
+  }
+  isl_point_free(point);
+  if (sink->overflow) return isl_stat_error;
+  sink->out->push_back({{flat.begin(), flat.begin() + sink->arity},
+                        {flat.begin() + sink->arity, flat.end()}});
+  return isl_stat_ok;
+}
+
+}  // namespace
+
+std::vector<std::pair<std::vector<long>, std::vector<long>>>
+CouplingRelation::Points() const {
+  std::vector<std::pair<std::vector<long>, std::vector<long>>> points;
+  if (empty()) return points;
+  isl_util::Map map = isl_util::ReadMap(Ctx(), text_);
+  if (isl_map_dim(map.get(), isl_dim_param) != 0)
+    throw std::invalid_argument(
+        "isl: Points() needs every parameter bound: " + text_);
+  int const arity = isl_map_dim(map.get(), isl_dim_in);
+  isl_util::Set wrapped(isl_map_wrap(map.release()));
+  if (isl_set_is_bounded(wrapped.get()) != isl_bool_true)
+    throw std::invalid_argument("isl: Points() needs a bounded relation: " +
+                                text_);
+  PointSink sink{arity, &points, false};
+  if (isl_set_foreach_point(wrapped.get(), CollectPoint, &sink) != isl_stat_ok)
+    throw std::runtime_error("isl: point enumeration failed");
+  return points;
+}
+
 QuasiPolynomial CouplingRelation::Card() const {
   if (empty()) return QuasiPolynomial::Constant(0);
   isl_util::Map map = isl_util::ReadMap(Ctx(), text_);

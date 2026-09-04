@@ -15,6 +15,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <llvm/ADT/Hashing.h>
@@ -108,6 +109,13 @@ class CouplingRelation {
   /// range (it is a bijection onto it); what makes a relaxed edge different
   /// is that a *single* consumer point reaches all of it.
   bool CouplesEveryDomainPointTo(std::string const& set_text) const;
+
+  /// Every integer point pair of `this`, as (consumer, producer) coordinate
+  /// vectors. Requires a relation with no free parameters and a bounded
+  /// domain and range -- i.e. a fully instantiated model. Used to answer
+  /// questions isl has no closed-form operator for, such as whether the wait
+  /// set is contiguous under a given linearization of the two task spaces.
+  std::vector<std::pair<std::vector<long>, std::vector<long>>> Points() const;
 
   /// Task-coordinate names on the domain (consumer) side, in order.
   std::vector<std::string> DomainDimNames() const;
