@@ -4,6 +4,7 @@
 #include <tilemega/Codegen/ScheduleTableEmitter.h>
 #include <tilemega/Codegen/SyncEmitter.h>
 #include <tilemega/Codegen/TaskBodyEmitter.h>
+#include <tilemega/Analysis/DependencyForm.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 
 #include <mlir/IR/Verifier.h>
@@ -87,9 +88,16 @@ mlir::DictionaryAttr dictionaryEntry(mlir::Attribute value,
   return result;
 }
 
-std::string emitModelPlan(
-    mlir::ModuleOp module,
-    std::vector<std::tuple<std::uint32_t, std::uint32_t, bool>> const& dependencies) {
+/// One row of the emitted `kDependencies[]`. `window.narrowed == false` is the
+/// I2 relaxation to the producer's whole launch axis.
+struct DependencyRecord {
+  std::uint32_t producer;
+  std::uint32_t consumer;
+  analysis::WaitWindow window;
+};
+
+std::string emitModelPlan(mlir::ModuleOp module,
+                          std::vector<DependencyRecord> const& dependencies) {
   auto plan = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   if (!plan)
     throw std::invalid_argument(
@@ -165,24 +173,28 @@ std::string emitModelPlan(
   // only its own incoming edges. Scanning the whole table once per stage is
   // what made the first L2 slower than the L1 grid barrier (see
   // StageDependency in ModelRuntime.h).
-  std::vector<std::tuple<std::uint32_t, std::uint32_t, bool>> byConsumer =
-      dependencies;
+  std::vector<DependencyRecord> byConsumer = dependencies;
   std::stable_sort(byConsumer.begin(), byConsumer.end(),
                    [](auto const& a, auto const& b) {
-                     return std::get<1>(a) < std::get<1>(b);
+                     return a.consumer < b.consumer;
                    });
   out << "};\n\nconstexpr StageDependency kDependencies[] = {\n";
-  for (auto [producer, consumer, identity] : byConsumer)
-    out << "  {" << producer << "u, " << consumer
-        << "u, StageDependency::Map::"
-        << (identity ? "kIdentity" : "kAll") << "},\n";
-  if (byConsumer.empty()) out << "  {0u, 0u, StageDependency::Map::kAll},\n";
+  for (auto const& edge : byConsumer) {
+    analysis::WaitWindow const& w = edge.window;
+    char const* kind = !w.narrowed  ? "kAll"
+                       : w.IsIdentity() ? "kIdentity"
+                                        : "kWindow";
+    out << "  {" << edge.producer << "u, " << edge.consumer
+        << "u, StageDependency::Map::" << kind << ", " << w.div << "u, "
+        << w.scale << ", " << w.offset << ", " << w.count << "u},\n";
+  }
+  if (byConsumer.empty())
+    out << "  {0u, 0u, StageDependency::Map::kAll, 1u, 0, 0, 1u},\n";
   out << "};\n\nconstexpr std::uint32_t kDependencyOffsets[] = {\n  ";
   {
     std::size_t cursor = 0;
     for (std::size_t stage = 0; stage <= stages.size(); ++stage) {
-      while (cursor < byConsumer.size() &&
-             std::get<1>(byConsumer[cursor]) < stage)
+      while (cursor < byConsumer.size() && byConsumer[cursor].consumer < stage)
         ++cursor;
       out << cursor << "u, ";
     }
@@ -264,17 +276,25 @@ namespace {
 /// the happens-before edge survives through `q`, so I2 is untouched and the
 /// generated schedule is the same partial order with fewer redundant polls.
 ///
+/// That argument is stage-wide, and a narrowed edge does not support it: a
+/// consumer that waits on a *window* of `q` has not established that all of
+/// `q` published, so nothing follows about `p`. The reduction therefore runs
+/// on the `kAll` sub-graph only -- both hops of the implying path and the
+/// path's last edge into `c` must be `kAll` -- while narrowed edges are only
+/// ever candidates for removal, never links in the argument.
+///
 /// The graph is a DAG topologically ordered by stage index (an edge is only
 /// recorded when `producer < consumer`), so reachability is one forward
 /// sweep.
 std::vector<std::pair<std::uint32_t, std::uint32_t>> TransitiveReduction(
-    std::set<std::pair<std::uint32_t, std::uint32_t>> const& edges,
+    std::map<std::pair<std::uint32_t, std::uint32_t>, analysis::WaitWindow> const&
+        edges,
     std::size_t stage_count) {
   std::vector<std::vector<bool>> reaches(stage_count,
                                          std::vector<bool>(stage_count, false));
   std::vector<std::vector<std::uint32_t>> incoming(stage_count);
-  for (auto const& [producer, consumer] : edges)
-    incoming[consumer].push_back(producer);
+  for (auto const& [pair, window] : edges)
+    if (!window.narrowed) incoming[pair.second].push_back(pair.first);
   for (std::size_t consumer = 0; consumer < stage_count; ++consumer)
     for (std::uint32_t producer : incoming[consumer]) {
       reaches[consumer][producer] = true;
@@ -283,11 +303,11 @@ std::vector<std::pair<std::uint32_t, std::uint32_t>> TransitiveReduction(
     }
 
   std::vector<std::pair<std::uint32_t, std::uint32_t>> kept;
-  for (auto const& [producer, consumer] : edges) {
+  for (auto const& [pair, window] : edges) {
     bool implied = false;
-    for (std::uint32_t other : incoming[consumer])
-      if (other != producer && reaches[other][producer]) implied = true;
-    if (!implied) kept.emplace_back(producer, consumer);
+    for (std::uint32_t other : incoming[pair.second])
+      if (other != pair.first && reaches[other][pair.first]) implied = true;
+    if (!implied) kept.push_back(pair);
   }
   return kept;
 }
@@ -316,8 +336,12 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   for (auto task : module.getOps<dialect::TaskSpaceOp>())
     ++stageCounts[task.getStage()];
   // Every producer-earlier/consumer-later stage pair needs a device-side
-  // event dependency; record the set of pairs only.
-  std::set<std::pair<std::uint32_t, std::uint32_t>> dependencyPairs;
+  // event dependency, carrying the narrowest wait set every coupling that
+  // maps onto the pair agrees on.  A stage holds several task spaces, so one
+  // pair can collect several couplings; they are joined, and one relaxed or
+  // disagreeing member forces the whole pair back to kAll.
+  std::map<std::pair<std::uint32_t, std::uint32_t>, analysis::WaitWindow>
+      dependencyPairs;
   // P4.7: a cluster is a property of the launch, not of one edge -- one grid,
   // one cluster dimension, one kind of stage barrier.  So the sync kind and
   // the placement's cluster width have to agree exactly, and a mixture is
@@ -343,8 +367,14 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
     auto target = taskStages.find(coupling.getDst().str());
     if (source == taskStages.end() || target == taskStages.end())
       throw std::invalid_argument("coupling names an unknown task space");
-    if (source->second < target->second)
-      dependencyPairs.emplace(source->second, target->second);
+    if (source->second < target->second) {
+      analysis::WaitWindow window;
+      if (auto text = coupling.getWaitMap())
+        window = analysis::ParseWaitWindow(text->str());
+      auto pair = std::make_pair(source->second, target->second);
+      auto [at, fresh] = dependencyPairs.emplace(pair, window);
+      if (!fresh && at->second != window) at->second = analysis::WaitWindow{};
+    }
   }
   int clusterDim = 1;
   for (auto placement : module.getOps<dialect::PlacementOp>()) {
@@ -375,13 +405,9 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
       << SyncEmitter{}.EmitSignal("global")
       << HostLauncherEmitter{}.Emit("l1_kernel")
       << TaskBodyEmitter{}.Emit(module) << "\n";
-  // A semantic identity C is insufficient to prove that blockIdx.x names the
-  // same tile in two independently implemented TaskBodies.  Until the
-  // TaskBody ABI carries an explicit CTA->task ownership map, I2 requires the
-  // all-active-producer relaxation (`kAll`) for every stage dependency.
-  std::vector<std::tuple<std::uint32_t, std::uint32_t, bool>> dependencies;
+  std::vector<DependencyRecord> dependencies;
   for (auto const& edge : TransitiveReduction(dependencyPairs, maxStage + 1))
-    dependencies.emplace_back(edge.first, edge.second, false);
+    dependencies.push_back({edge.first, edge.second, dependencyPairs.at(edge)});
   out << emitModelPlan(module, dependencies);
   return out.str();
 }

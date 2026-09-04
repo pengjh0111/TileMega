@@ -65,19 +65,6 @@ struct BufferDesc {
 
 /// The task families the generator can dispatch to.  A model that needs none
 /// of the attention families simply never emits those stage kinds.
-enum class TaskKind : std::uint32_t {
-  kGemm = 0,
-  kRMSNorm = 1,
-  kRoPE = 2,
-  kKVAppend = 3,
-  kElementwise = 4,
-  kAttention = 5,
-  /// The combiner half of a split reduction (§2.4). It exists only in an
-  /// instantiated stage list: the generator emits one kGemm stage, and the
-  /// split transform rewrites it into a partial stage plus this one.
-  kGemmCombine = 6,
-};
-
 inline constexpr std::uint32_t kNoOperand = 0xffffffffu;
 
 /// One generated stage. Geometry belongs to the stage rather than a model
@@ -102,10 +89,29 @@ struct StageDesc {
 /// the first L2 measurably slower than the L1 grid barrier: thread 0 of
 /// every CTA re-read all of it once per stage (55 x 30 x 128 global reads
 /// on the 2-layer model) purely to find its own handful of edges.
+///
+/// `map` says which producer tasks the consumer CTA actually waits for.
+/// `kAll` is the I2 relaxation (the whole launch axis); the other two carry
+/// the window fitted in the frontend (Analysis/DependencyForm.h): consumer
+/// task `c` reads only producer tasks
+/// `[(c / div) * scale + offset, ... + count)`, intersected with the
+/// producer's live range. `kIdentity` is the `div=scale=count=1, offset=0`
+/// case, kept as its own value so the emitted table stays readable.
+/// A window is only ever emitted for an edge whose two TaskBodies both
+/// declare `kTilePerBlock`, which is what makes `blockIdx.x` name the same
+/// task on both ends.
 struct StageDependency {
   std::uint32_t producer;
   std::uint32_t consumer;
-  enum class Map : std::uint32_t { kIdentity = 0, kAll = 1 } map;
+  enum class Map : std::uint32_t {
+    kIdentity = 0,
+    kAll = 1,
+    kWindow = 2
+  } map;
+  std::uint32_t div;
+  std::int32_t scale;
+  std::int32_t offset;
+  std::uint32_t count;
 };
 
 /// A tensor the harness downloads and compares against the L0 reference.

@@ -25,6 +25,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <iterator>
 #include <string>
@@ -131,11 +132,11 @@ __host__ __device__ inline int CeilDiv(int numerator, int denominator) {
 /// ceil(active/kappa) of them.  L1 has no such knob: its grid barrier is one
 /// event per stage by construction.
 ///
-/// A consumer waits on every group of each producer it depends on, because the
-/// generated dependency table carries no coupling relation to narrow the range
-/// with (E2E_L2's blocker 1).  So this measures kappa's *cost* exactly and its
-/// benefit not at all -- which is the point: the benefit is bounded above by
-/// the no-sync probe in docs/experiments/COARSEN, and the two bounds meet.
+/// A consumer waits on only the groups its `StageDependency` window spans, so
+/// with a narrowed edge kappa now has a benefit side as well as a cost side:
+/// smaller kappa means more events published but a tighter wait set.  On a
+/// kAll edge the wait is still every group, which is the shape the original
+/// E2E_L2 measurement (cost only, benefit identically zero) was taken in.
 #ifndef TILEMEGA_EVENT_KAPPA
 #define TILEMEGA_EVENT_KAPPA 0
 #endif
@@ -237,13 +238,53 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
     std::uint32_t first = p.dependency_offsets[consumer];
     std::uint32_t last = p.dependency_offsets[consumer + 1];
     for (std::uint32_t edge = first; edge < last; ++edge) {
-      std::uint32_t const producer = p.dependencies[edge].producer;
+      StageDependency const& dep = p.dependencies[edge];
+      std::uint32_t const producer = dep.producer;
 #if TILEMEGA_EVENT_KAPPA > 0
-      int const groups =
-          CeilDiv(ActiveBlocksClamped(p, producer), TILEMEGA_EVENT_KAPPA);
-      for (int group = 0; group < groups; ++group)
-        TILEMEGA_GENERATED_WAIT_global(&events[EventIndex(producer, group)].epoch,
-                                       iteration + 1ull);
+      // The producer tasks this CTA actually reads.  `kAll` is the whole
+      // launch axis; a window is `[(c / div) * scale + offset, ... + count)`
+      // for c = this CTA's task, which is `PlacedBlock()` because a window is
+      // only ever emitted when both TaskBodies declare `kTilePerBlock`.  The
+      // clamp to the producer's live range is part of the fit, not a
+      // widening: a window fitted at prefill points past the last live task
+      // at decode, and those tasks produce nothing to wait for.
+      int const grid = static_cast<int>(gridDim.x);
+      int const produced = ActiveBlocks(p, p.stages[producer]);
+      int const live = ActiveBlocksClamped(p, producer);
+      if (dep.map == StageDependency::Map::kAll) {
+        for (int group = 0; group <= (live - 1) / TILEMEGA_EVENT_KAPPA; ++group)
+          TILEMEGA_GENERATED_WAIT_global(
+              &events[EventIndex(producer, group)].epoch, iteration + 1ull);
+      } else {
+        // A stage whose task space is wider than the grid is run grid-strided
+        // (GemmStageTaskBody), so one CTA owns tasks b, b+grid, ... and task t
+        // is published by CTA t % grid. Both have to be undone here: the wait
+        // is the union over the tasks this CTA owns, and each window is mapped
+        // back onto CTA indices, wrapping when it is wider than one stride.
+        // Only kTilePerBlock stages get a window at all, so `task` is the
+        // fitted consumer index.
+        int const owned = ActiveBlocks(p, p.stages[consumer]);
+        for (int task = PlacedBlock(); task < owned; task += grid) {
+          int const at =
+              (task / static_cast<int>(dep.div)) * dep.scale + dep.offset;
+          int const begin = at < 0 ? 0 : at;
+          int const past = at + static_cast<int>(dep.count);
+          int const end = past < produced ? past : produced;
+          if (begin >= end) continue;
+          int first = begin % grid, last = (end - 1) % grid;
+          if (end - begin >= grid) { first = 0; last = live - 1; }
+          int const wrapped = first > last;
+          for (int group = first / TILEMEGA_EVENT_KAPPA;
+               group <= (wrapped ? live - 1 : last) / TILEMEGA_EVENT_KAPPA;
+               ++group)
+            TILEMEGA_GENERATED_WAIT_global(
+                &events[EventIndex(producer, group)].epoch, iteration + 1ull);
+          for (int group = 0; wrapped && group <= last / TILEMEGA_EVENT_KAPPA;
+               ++group)
+            TILEMEGA_GENERATED_WAIT_global(
+                &events[EventIndex(producer, group)].epoch, iteration + 1ull);
+        }
+      }
 #else
       TILEMEGA_GENERATED_WAIT_global(&events[EventIndex(producer, 0)].epoch,
                                      iteration + 1ull);
@@ -386,6 +427,72 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     WaitDependencies(*params, events, stage, active, iteration);
     RunStage(*params, stage, smem);
     NotifyStage(*params, events, stage, active, iteration);
+  }
+}
+
+/// How wide each edge's wait set actually is, in the same units the device
+/// pays for: one line per dependency, `polls` summed over the consumer's own
+/// CTAs.  `relaxed` is what the same edge would cost as kAll, so the pair is
+/// the narrowing factor Part 3.1 attributes the L2/L1 ratio with.  Printing
+/// happens on the device because the active-CTA count is a TaskBody property
+/// (`Ownership`) and gridDim has to be the real launch grid.
+__global__ __launch_bounds__(kHarnessThreads, 1)
+void tilemega_wait_profile_kernel(Params const* params, int seq) {
+  if (blockIdx.x != 0 || threadIdx.x != 0) return;
+  // `seq` is a counting what-if, not an execution: every active-CTA count is
+  // a function of dims.seq through the TaskBodies' own Ownership, so
+  // substituting it answers "how wide would this wait set be at that sequence
+  // length" without a fixture at that length.  Nothing is dispatched.
+  Params scaled = *params;
+  if (seq > 0) scaled.dims.seq = seq;
+  Params const& p = scaled;
+  int const kappa = TILEMEGA_EVENT_KAPPA;
+  // Only reached when kappa > 0; kept off zero so the kappa = 0 build does not
+  // constant-fold a division by it.
+  int const per_group = kappa > 0 ? kappa : 1;
+  for (std::uint32_t consumer = 0; consumer < p.stage_count; ++consumer) {
+    int const consumers = ActiveBlocksClamped(p, consumer);
+    for (std::uint32_t edge = p.dependency_offsets[consumer];
+         edge < p.dependency_offsets[consumer + 1]; ++edge) {
+      StageDependency const& dep = p.dependencies[edge];
+      int const grid = static_cast<int>(gridDim.x);
+      int const produced = ActiveBlocks(p, p.stages[dep.producer]);
+      int const producers = ActiveBlocksClamped(p, dep.producer);
+      int const groups = kappa > 0 ? CeilDiv(producers, per_group) : 1;
+      // Counted exactly as WaitDependencies polls it, duplicates included:
+      // the grid-stride union can name one group twice and the device pays
+      // for both.
+      long long polls = 0;
+      int const owned = ActiveBlocks(p, p.stages[consumer]);
+      for (int c = 0; c < consumers; ++c) {
+        if (kappa == 0) { polls += 1; continue; }
+        if (dep.map == StageDependency::Map::kAll) { polls += groups; continue; }
+        for (int task = c; task < owned; task += grid) {
+          int const at = (task / static_cast<int>(dep.div)) * dep.scale + dep.offset;
+          int const begin = at < 0 ? 0 : at;
+          int const past = at + static_cast<int>(dep.count);
+          int const end = past < produced ? past : produced;
+          if (begin >= end) continue;
+          int first = begin % grid, last = (end - 1) % grid;
+          if (end - begin >= grid) { first = 0; last = producers - 1; }
+          if (first > last) {
+            polls += (producers - 1) / per_group - first / per_group + 1;
+            polls += last / per_group + 1;
+          } else {
+            polls += last / per_group - first / per_group + 1;
+          }
+        }
+      }
+      std::printf("E2E_WAITSET producer=%u consumer=%u map=%u div=%u scale=%d "
+                  "offset=%d count=%u p_active=%d c_active=%d groups=%d "
+                  "polls=%lld relaxed=%lld p_tasks=%d c_tasks=%d grid=%d "
+                  "seq=%d\n",
+                  dep.producer, consumer, static_cast<unsigned>(dep.map),
+                  dep.div, dep.scale, dep.offset, dep.count, producers,
+                  consumers, groups, polls,
+                  static_cast<long long>(consumers) * groups, produced, owned,
+                  grid, p.dims.seq);
+    }
   }
 }
 
@@ -565,11 +672,26 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
   std::vector<StageDependency> dependencies;
   for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
     if (done[i] != entry[i])
-      dependencies.push_back({entry[i], done[i], StageDependency::Map::kAll});
+      dependencies.push_back(
+          {entry[i], done[i], StageDependency::Map::kAll, 1u, 0, 0, 1u});
     for (std::uint32_t e = spec.dependency_offsets[i];
-         e < spec.dependency_offsets[i + 1]; ++e)
-      dependencies.push_back({done[spec.dependencies[e].producer], entry[i],
-                              spec.dependencies[e].map});
+         e < spec.dependency_offsets[i + 1]; ++e) {
+      StageDependency edge = spec.dependencies[e];
+      std::uint32_t const producer = edge.producer;
+      edge.producer = done[producer];
+      edge.consumer = entry[i];
+      // Split-K moves the producer event onto the combiner, which owns its
+      // tasks by element chunk -- blockIdx no longer names the tile the
+      // window was fitted against, so the edge falls back to kAll.
+      if (done[producer] != entry[producer]) {
+        edge.map = StageDependency::Map::kAll;
+        edge.div = 1u;
+        edge.scale = 0;
+        edge.offset = 0;
+        edge.count = 1u;
+      }
+      dependencies.push_back(edge);
+    }
   }
   std::sort(dependencies.begin(), dependencies.end(),
             [](StageDependency const& a, StageDependency const& b) {
@@ -906,6 +1028,21 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
               "max_abs=%.8g\n", l2_again_ms, l2_iter.mismatch,
               l2_iter.max_abs);
   ProfileStages(model, spec, grid);
+  if (char const* profile = std::getenv("TILEMEGA_WAIT_PROFILE")) {
+    // A comma-separated list of sequence lengths to count at; "1" or any
+    // non-numeric value means the fixture's own.
+    for (char const* at = profile; at && *at;) {
+      int seq = std::atoi(at);
+      // No dynamic shared memory: TaskSmem is over the 48 KB opt-in threshold
+      // and this kernel touches none of it.
+      tilemega_wait_profile_kernel<<<grid, kHarnessThreads>>>(
+          model.device_params, seq);
+      TILEMEGA_CUDA_CHECK(cudaDeviceSynchronize());
+      TILEMEGA_CUDA_CHECK(cudaGetLastError());
+      char const* comma = std::strchr(at, ',');
+      at = comma ? comma + 1 : nullptr;
+    }
+  }
   bool pass = l05_l0.mismatch == 0 && l1_l05.mismatch == 0 &&
               l2_l1.mismatch == 0 && l2_iter.mismatch == 0;
 #if TILEMEGA_UNSAFE_NO_GRID_SYNC
