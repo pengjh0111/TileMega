@@ -747,13 +747,20 @@
 - Confidence: high for these two models. The ownership classification in the
   probe mirrors `RunStage`'s TaskKind dispatch by operator name, which is
   exact for the reference models but is a proxy, not a link against the
-  device code.
+  device code. ⚠️ **Superseded by F-58**: the probe now reads the derived `C`
+  and `LiftedOp::ownership` cross-checked against the TaskBodies' own
+  `OwnershipOf`, the criterion changed from "same ownership string" to "both
+  `kTilePerBlock`", and the admissible counts became 7/42 and 15/86. The old
+  numbers are not reproduced.
 
 ## F-35 — A per-edge event graph cannot beat a barrier under a sequential stage loop
 
 - Finding: after F-32, F-33 and skipping waits for CTAs that own nothing in a
   stage, L2 sits at 1.0136× (2-layer GQA, 50 fresh processes) and 1.0155×
-  (4-layer MHA, 25 fresh processes) of L1 — a large improvement from 1.182×
+  (4-layer MHA, 25 fresh processes) of L1 — ⚠️ **those two ratios are
+  superseded by F-61**: they are cross-session and the same binary re-measures
+  at 1.0367×; the finding's conclusion (L2 is slower, structurally) is
+  unchanged and is re-established with a same-session control in F-58 — — a large improvement from 1.182×
   and 1.355×, but still slower, and structurally so. The megakernel's stage
   loop is sequential per CTA: every CTA walks stages `0 … stage_count-1` in
   order. L2 can therefore only *remove waits*; it can never let a CTA execute
