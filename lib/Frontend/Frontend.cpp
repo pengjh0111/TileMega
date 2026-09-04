@@ -3,6 +3,9 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Frontend/ModelPlan.h>
+#include <tilemega/Frontend/SemanticLifting.h>
+#include <tilemega/Analysis/CouplingDerivation.h>
+#include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Dialect/CouplingGraph/CGAttrs.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
@@ -150,23 +153,37 @@ mlir::DictionaryAttr dict(mlir::Builder& builder,
   return builder.getDictionaryAttr(fields);
 }
 
-// Phase 1's explicit, fixed per-ATen-op coupling: not derived from W^-1 o R
-// (real derivation is lib/Analysis/CouplingDerivation.cpp, exercised through
-// the OperatorGraph abstraction ReferenceModels.cpp builds -- this importer
-// still runs at per-call_function granularity and does not construct that
-// abstraction from FX; wiring the two together is out of this round's scope,
-// recorded as residual debt in TileMega_skeleton.md §1.5.1). This is a single
-// fixed producer-to-consumer coupling, `{ [0] -> [0] }`: one placeholder task
-// on each side, matching the fixed wait=fanout=volume=count=1 and event
-// extent=1 this importer has always used. Before the isl/barvinok migration
-// this shape varied by operator kind (gemm/reduction got a quantified k
-// range, transpose swapped coordinates, ...); none of that per-kind shape
-// was ever read by anything downstream (Codegen only force-evaluates it, see
-// lib/Codegen/Codegen.cpp), so the migration collapses it to one honest,
-// uniform placeholder rather than reproducing dead structure that cannot be
-// expressed in CouplingMapAttr's new isl-map payload anyway.
-analysis::CouplingRelation fixedRelation(llvm::StringRef /*kind*/) {
-  return analysis::CouplingRelation::FromIslText("{ [0] -> [0] }");
+/// The CG task kind for a lifted operator.  It follows the role the semantic
+/// lifting recognised, never the FX target string: an operator-granularity
+/// task space is a fusion of several call_functions and has no single target.
+llvm::StringRef taskKindOf(OpRole role) {
+  switch (role) {
+    case OpRole::kNorm: return "rmsnorm";
+    case OpRole::kQkvProjection:
+    case OpRole::kProjection: return "gemm";
+    case OpRole::kRoPE: return "rope";
+    case OpRole::kKVAppend: return "kvappend";
+    case OpRole::kAttention: return "attention";
+    case OpRole::kActivation:
+    case OpRole::kResidualAdd: return "elementwise";
+    case OpRole::kGeneric: return "generic";
+  }
+  return "generic";
+}
+
+/// A derived extent as a metric.  The granularity is substituted first
+/// because isl needs a literal floor/ceildiv divisor; theta is deliberately
+/// left free so a workload dimension survives as an isl parameter (I1).
+analysis::QuasiPolynomial metricOf(analysis::ClosedForm const& value,
+                                   analysis::ParamBinding const& granularity) {
+  analysis::ClosedForm reduced = value.Substitute(granularity);
+  std::vector<std::string> free = reduced.FreeSymbols();
+  std::sort(free.begin(), free.end());
+  free.erase(std::unique(free.begin(), free.end()), free.end());
+  std::string prefix;
+  if (!free.empty()) prefix = "[" + llvm::join(free, ", ") + "] -> ";
+  return analysis::QuasiPolynomial::FromIslText(
+      prefix + "{ (" + reduced.ToIslText() + ") }");
 }
 
 llvm::StringRef taskKindName(PlanTaskKind kind) {
@@ -402,11 +419,13 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
   module->setAttr("tilemega.theta", builder.getDictionaryAttr(theta));
   module->setAttr("tilemega.param_domain", builder.getDictionaryAttr(domains));
   module->setAttr("tilemega.symbol_aliases", builder.getDictionaryAttr(aliases));
+  // §2.3's g, as the megakernel actually launches: the GEMM TaskBody owns one
+  // 128x128 output tile per CTA, and the split-K chunking is a per-operator
+  // decision the solver makes later, not a model-wide tile.
   module->setAttr("tilemega.g", dict(builder, {
-      builder.getNamedAttr("token_tile", builder.getI64IntegerAttr(1)),
-      builder.getNamedAttr("hidden_tile", builder.getI64IntegerAttr(128)),
-      builder.getNamedAttr("head_tile", builder.getI64IntegerAttr(1)),
-      builder.getNamedAttr("head_dim_tile", builder.getI64IntegerAttr(128))}));
+      builder.getNamedAttr("Tm", builder.getI64IntegerAttr(128)),
+      builder.getNamedAttr("Tn", builder.getI64IntegerAttr(128)),
+      builder.getNamedAttr("Tkv", builder.getI64IntegerAttr(128))}));
   module->setAttr("tilemega.guard_count", builder.getI64IntegerAttr(guards.size()));
   if (plan.stages.empty())
     llvm::errs() << "IMPORT_DEGRADED no decoder layer; one task space per operator\n";
@@ -414,74 +433,139 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
     module->setAttr("tilemega.model_plan", modelPlanAttr(builder, plan));
   builder.setInsertionPointToStart(module.getBody());
 
+  LiftOptions liftOptions;
+  if (symbolic.dimensions.size() > 0) liftOptions.seq_symbol = symbolic.dimensions.front();
+  for (auto const& symbol : symbolic.dimensions)
+    if (symbol != liftOptions.seq_symbol) { liftOptions.past_symbol = symbol; break; }
+  LiftedModel lifted = plan.stages.empty()
+                           ? LiftGenericSemantics(tasks, stages, liftOptions)
+                           : LiftSemantics(plan, liftOptions);
+  analysis::Granularity g = LaunchGranularity(lifted);
+  analysis::OperatorGraph graph = analysis::Instantiate(lifted.sem, g);
+
+  analysis::ParamBinding granularityBinding;
+  for (auto const& item :
+       module->getAttrOfType<mlir::DictionaryAttr>("tilemega.g"))
+    granularityBinding.Bind(
+        item.getName().str(),
+        llvm::cast<mlir::IntegerAttr>(item.getValue()).getInt());
+  analysis::ParamBinding known;
+  for (auto const& symbol : symbolic.dimensions)
+    known.Bind(symbol, symbolic.ranges.at(symbol).minimum);
+  for (auto const& [name, value] : granularityBinding.values) known.Bind(name, value);
+
+  // A node Instantiate added (a split reduction's combiner) is named after the
+  // operator it combines, so the stage and role follow that operator.
+  std::unordered_map<std::string, std::size_t> liftedIndex;
+  for (std::size_t i = 0; i < lifted.ops.size(); ++i)
+    liftedIndex[lifted.ops[i].name] = i;
+  auto liftedOf = [&](std::string const& node) -> LiftedOp const& {
+    auto found = liftedIndex.find(node);
+    if (found != liftedIndex.end()) return lifted.ops[found->second];
+    std::size_t dot = node.rfind('.');
+    if (dot != std::string::npos) {
+      found = liftedIndex.find(node.substr(0, dot));
+      if (found != liftedIndex.end()) return lifted.ops[found->second];
+    }
+    throw std::runtime_error("instantiated node names no lifted operator: " + node);
+  };
+
   std::unordered_map<std::string, std::string> symbols;
-  for (std::size_t i = 0; i < tasks.size(); ++i) {
-    auto const& task = tasks[i];
-    std::string symbol = "t" + std::to_string(task.index);
-    symbols[task.name] = symbol;
+  for (std::size_t i = 0; i < graph.nodes.size(); ++i) {
+    auto const& node = graph.nodes[i];
+    LiftedOp const& origin = liftedOf(node.name);
+    std::string symbol = "t" + std::to_string(i);
+    symbols[node.name] = symbol;
+    llvm::SmallVector<mlir::NamedAttribute> tiles;
+    for (std::size_t axis = 0; axis < node.output.axes.size(); ++axis)
+      tiles.push_back(builder.getNamedAttr(
+          node.output.axes[axis].name,
+          builder.getStringAttr(node.tile[axis].ToString())));
+    // A TaskBody that grid-strides over a linearized element range owns a set
+    // `Granularity` (axis tiles only) cannot name.  The tiles above then model
+    // it at element granularity -- exact, and finer than what one CTA runs --
+    // and this field is what tells Codegen the composition is still owed.
+    tiles.push_back(builder.getNamedAttr(
+        "ownership", builder.getStringAttr(ToString(origin.ownership))));
     mlir::OperationState state(builder.getUnknownLoc(), "tilemega.task_space");
     state.addAttribute(mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(symbol));
     state.addAttribute("kind", dialect::TaskKindAttr::get(
-        &context, builder.getStringAttr(classify(task.target))));
-    state.addAttribute("granularity", dict(builder, {
-        builder.getNamedAttr("token_tile", builder.getI64IntegerAttr(1)),
-        builder.getNamedAttr("hidden_tile", builder.getI64IntegerAttr(128))}));
+        &context, builder.getStringAttr(taskKindOf(origin.role))));
+    state.addAttribute("granularity", builder.getDictionaryAttr(tiles));
+    llvm::SmallVector<std::string> extents;
+    for (auto const& axis : node.output.axes) extents.push_back(axis.extent.ToString());
     state.addAttribute("write_map", dialect::AccessMapAttr::get(&context, dict(builder, {
-        builder.getNamedAttr("kind", builder.getStringAttr(classify(task.target))),
+        builder.getNamedAttr("kind", builder.getStringAttr(taskKindOf(origin.role))),
         builder.getNamedAttr("shape", builder.getStringAttr(
-            task.shape.empty() ? "scalar" : llvm::join(task.shape, "x")))})));
-    state.addAttribute("stage", builder.getI64IntegerAttr(stages[i]));
-    state.addAttribute("operator_name", builder.getStringAttr(task.target));
-    state.addAttribute("fx_name", builder.getStringAttr(task.name));
+            extents.empty() ? "scalar" : llvm::join(extents, "x")))})));
+    state.addAttribute("stage", builder.getI64IntegerAttr(origin.stage));
+    state.addAttribute("operator_name", builder.getStringAttr(node.name));
+    state.addAttribute("fx_name", builder.getStringAttr(origin.fx_name));
     builder.create(state);
   }
 
+  // The real C, from the analysis layer, on the production path.  There is no
+  // fallback: an edge the derivation cannot produce is an import failure, not
+  // a placeholder.
+  std::vector<analysis::CouplingEdge> derived =
+      analysis::CouplingDerivation{}.Derive(graph, known);
   std::size_t edge = 0;
-  for (auto const& task : tasks) {
-    std::unordered_set<std::string> seen;
-    for (auto const& input : task.inputs) {
-      auto source = symbols.find(input);
-      if (source == symbols.end() || !seen.insert(source->second).second) continue;
-      std::string eventName = "e" + std::to_string(edge);
-      mlir::OperationState eventState(builder.getUnknownLoc(), "tilemega.event_tensor");
-      eventState.addAttribute(mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(eventName));
-      eventState.addAttribute("event_type", mlir::TypeAttr::get(
-          mlir::RankedTensorType::get({1}, builder.getI32Type())));
-      eventState.addAttribute("extent", dialect::MetricAttr::get(
-          &context, analysis::QuasiPolynomial::Constant(1)));
-      builder.create(eventState);
-      std::string taskKind = classify(task.target);
-      auto relation = fixedRelation(taskKind);
-      mlir::OperationState state(builder.getUnknownLoc(), "tilemega.coupling");
-      state.addAttribute(mlir::SymbolTable::getSymbolAttrName(),
-                         builder.getStringAttr("c" + std::to_string(edge)));
-      state.addAttribute("src", mlir::FlatSymbolRefAttr::get(&context, source->second));
-      state.addAttribute("dst", mlir::FlatSymbolRefAttr::get(&context, symbols.at(task.name)));
-      state.addAttribute("read_map", dialect::AccessMapAttr::get(&context,
-          dict(builder, {builder.getNamedAttr("kind", builder.getStringAttr(classify(task.target)))})));
-      state.addAttribute("relation", dialect::CouplingMapAttr::get(&context, relation));
-      for (llvm::StringRef metric : {"wait", "fanout", "volume", "count"})
-        state.addAttribute(metric, dialect::MetricAttr::get(
-            &context, analysis::QuasiPolynomial::Constant(1)));
-      state.addAttribute("tier", dialect::TierAttr::get(&context, 0));
-      // The importer's placeholder edge is the identity on one point, so all
-      // five attributes are their trivial values; the verifier checks that
-      // this is consistent with the tier above.
-      state.addAttribute("coupling_attrs", dialect::CouplingAttributesAttr::get(
-          &context, builder.getStringAttr("affine"),
-          builder.getStringAttr("static_literal"),
-          builder.getStringAttr("exact"), builder.getStringAttr("none"),
-          builder.getStringAttr("constant")));
-      state.addAttribute("sync_kind", dialect::SyncKindAttr::get(
-          &context, builder.getStringAttr("global")));
-      state.addAttribute("event", mlir::FlatSymbolRefAttr::get(&context, eventName));
-      builder.create(state);
-      ++edge;
+  for (auto const& item : derived) {
+    auto source = symbols.find(item.src.name);
+    auto target = symbols.find(item.dst.name);
+    if (source == symbols.end() || target == symbols.end())
+      throw std::runtime_error("derived coupling names an unknown task space");
+    std::string eventName = "e" + std::to_string(edge);
+    llvm::SmallVector<std::int64_t> shape;
+    llvm::SmallVector<mlir::Attribute> dims;
+    analysis::ClosedForm product = analysis::ClosedForm::Constant(1);
+    for (auto const& axis : item.event_shape) {
+      analysis::ClosedForm reduced = axis.Substitute(granularityBinding);
+      shape.push_back(reduced.IsConstant() ? reduced.Eval(known, known)
+                                           : mlir::ShapedType::kDynamic);
+      dims.push_back(dialect::MetricAttr::get(&context, metricOf(axis, granularityBinding)));
+      product = product * axis;
     }
+    mlir::OperationState eventState(builder.getUnknownLoc(), "tilemega.event_tensor");
+    eventState.addAttribute(mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(eventName));
+    eventState.addAttribute("event_type", mlir::TypeAttr::get(
+        mlir::RankedTensorType::get(shape, builder.getI32Type())));
+    eventState.addAttribute("extent", dialect::MetricAttr::get(
+        &context, metricOf(product, granularityBinding)));
+    eventState.addAttribute("dims", builder.getArrayAttr(dims));
+    builder.create(eventState);
+
+    LiftedOp const& consumer = liftedOf(item.dst.name);
+    mlir::OperationState state(builder.getUnknownLoc(), "tilemega.coupling");
+    state.addAttribute(mlir::SymbolTable::getSymbolAttrName(),
+                       builder.getStringAttr("c" + std::to_string(edge)));
+    state.addAttribute("src", mlir::FlatSymbolRefAttr::get(&context, source->second));
+    state.addAttribute("dst", mlir::FlatSymbolRefAttr::get(&context, target->second));
+    state.addAttribute("read_map", dialect::AccessMapAttr::get(&context,
+        dict(builder, {builder.getNamedAttr("kind",
+            builder.getStringAttr(taskKindOf(consumer.role)))})));
+    state.addAttribute("relation", dialect::CouplingMapAttr::get(&context, item.C));
+    state.addAttribute("wait", dialect::MetricAttr::get(&context, item.metrics.wait));
+    state.addAttribute("fanout", dialect::MetricAttr::get(&context, item.metrics.fanout));
+    state.addAttribute("volume", dialect::MetricAttr::get(&context, item.metrics.volume));
+    state.addAttribute("count", dialect::MetricAttr::get(&context, item.metrics.count));
+    state.addAttribute("tier", dialect::TierAttr::get(
+        &context, std::stol(analysis::ToString(item.tier))));
+    state.addAttribute("coupling_attrs", dialect::CouplingAttributesAttr::get(
+        &context, builder.getStringAttr(analysis::ToString(item.attributes.relation_kind)),
+        builder.getStringAttr(analysis::ToString(item.attributes.extent_kind)),
+        builder.getStringAttr(analysis::ToString(item.attributes.exactness)),
+        builder.getStringAttr(analysis::ToString(item.attributes.runtime_requirement)),
+        builder.getStringAttr(analysis::ToString(item.attributes.countability))));
+    state.addAttribute("sync_kind", dialect::SyncKindAttr::get(
+        &context, builder.getStringAttr("global")));
+    state.addAttribute("event", mlir::FlatSymbolRefAttr::get(&context, eventName));
+    builder.create(state);
+    ++edge;
   }
-  for (auto const& task : tasks) {
+  for (auto const& node : graph.nodes) {
     mlir::OperationState state(builder.getUnknownLoc(), "tilemega.placement");
-    state.addAttribute("task", mlir::FlatSymbolRefAttr::get(&context, symbols.at(task.name)));
+    state.addAttribute("task", mlir::FlatSymbolRefAttr::get(&context, symbols.at(node.name)));
     state.addAttribute("map", builder.getDenseI64ArrayAttr({0}));
     state.addAttribute("cluster", builder.getI64IntegerAttr(1));
     builder.create(state);
@@ -489,7 +573,7 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
   if (mlir::failed(mlir::verify(module)))
     throw std::runtime_error("C++ importer produced an invalid CG module");
   if (summary)
-    *summary = {tasks.size(), edge, plan.stages.size(), guards.size(),
+    *summary = {graph.nodes.size(), edge, plan.stages.size(), guards.size(),
                 bridge.unsupported};
   return mlir::OwningOpRef<mlir::ModuleOp>(module);
 }

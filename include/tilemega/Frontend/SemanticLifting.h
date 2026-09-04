@@ -51,6 +51,9 @@ struct LiftedOp {
   int stage = 0;  ///< index into ModelPlan::stages, or the FX stage when
                   ///< there is no plan
   int layer = 0;
+  /// The FX node the plan stage was named after, so an operator-granularity
+  /// task space can still be traced back to the exported graph.
+  std::string fx_name;
 };
 
 struct LiftedModel {

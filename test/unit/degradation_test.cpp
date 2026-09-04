@@ -29,7 +29,24 @@ int main() {
     generic += task.getWriteMap().getFields().getAs<mlir::StringAttr>("kind")
                    .getValue() == "generic";
   }
-  assert(spaces == 2 && generic == 1);
+  // Both, not one.  The kind used to come from the FX target string, so
+  // `aten.mul.Tensor` printed as `elementwise` while only the unknown operator
+  // printed as `generic`.  A task space now names the role the semantic
+  // lifting recognised, and without a decoder layer there is no plan to
+  // recognise anything from: both operators are modelled by
+  // GenericSemantics, so both must say so.  Naming one of them `elementwise`
+  // while carrying no indexing map for it is the placeholder this change
+  // exists to remove.
+  assert(spaces == 2 && generic == 2);
+
+  // A degraded operator's coupling relaxes to Tier 3: no rule established an
+  // index, so the edge may not claim the affine tier.
+  int couplings = 0;
+  for (auto coupling : module->getOps<tilemega::dialect::CouplingOp>()) {
+    ++couplings;
+    assert(coupling.getTier().getValue() == 3);
+  }
+  assert(couplings == 1);
   std::printf("DEGRADED ops=%zu task_spaces=%d generic=%d\n",
               summary.degraded.size(), spaces, generic);
   return 0;

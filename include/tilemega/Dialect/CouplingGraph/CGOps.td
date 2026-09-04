@@ -24,7 +24,10 @@ def CG_TaskSpaceOp : CG_Op<"task_space", [Symbol]> {
 def CG_EventTensorOp : CG_Op<"event_tensor", [Symbol]> {
   let summary = "event tensor whose extent is image(C_kappa)";
   let arguments = (ins SymbolNameAttr:$sym_name, TypeAttr:$event_type,
-                       CG_MetricAttr:$extent);
+                       CG_MetricAttr:$extent,
+                       // image(C_kappa) axis by axis. Without it `extent` is
+                       // one number no one can check against the shape.
+                       OptionalAttr<ArrayAttr>:$dims);
   let assemblyFormat = "$sym_name `:` $event_type attr-dict";
   let hasVerifier = 1;
 }

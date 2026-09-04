@@ -108,8 +108,42 @@ LogicalResult TaskSpaceOp::verify() {
 
 LogicalResult EventTensorOp::verify() {
   auto tensor = dyn_cast<RankedTensorType>(getEventType());
-  if (!tensor || tensor.getRank() != 1 || !tensor.getElementType().isInteger(32))
-    return emitOpError("event type must be rank-1 tensor<i32>");
+  if (!tensor || !tensor.getElementType().isInteger(32))
+    return emitOpError("event type must be a ranked tensor<i32>");
+  // image(C_kappa) has one axis per consumer coordinate that occurs in C, so
+  // the rank is whatever the derivation found; the rank-1 restriction only
+  // ever held because the importer emitted a one-point placeholder.
+  auto dims = getDims();
+  if (!dims) return success();
+  if (static_cast<std::size_t>(tensor.getRank()) != dims->size())
+    return emitOpError() << "event tensor rank " << tensor.getRank()
+                         << " does not match the " << dims->size()
+                         << " derived image axes";
+  auto module = (*this)->getParentOfType<ModuleOp>();
+  analysis::ParamBinding known =
+      module ? combinedBinding(module) : analysis::ParamBinding{};
+  long product = 1;
+  try {
+    for (auto [axis, attribute] : llvm::enumerate(*dims)) {
+      auto metric = dyn_cast<MetricAttr>(attribute);
+      if (!metric) return emitOpError("event dims must all be metrics");
+      long value = metric.getValue().Eval(known);
+      if (value < 0) return emitOpError("event extent must be non-negative");
+      if (!tensor.isDynamicDim(axis) && tensor.getDimSize(axis) != value)
+        return emitOpError()
+               << "event axis " << axis << " is " << tensor.getDimSize(axis)
+               << " but image(C_kappa) gives " << value;
+      product *= value;
+    }
+    // Only at the theta/g the module happens to fix: `extent` and `dims` are
+    // both symbolic in general, and isl offers no product of two
+    // pw_qpolynomials here, so the cross-check is numeric at that point.
+    if (getExtent().getValue().Eval(known) != product)
+      return emitOpError() << "extent " << getExtent().getValue().ToString()
+                           << " is not the product of the image axes";
+  } catch (std::exception const& error) {
+    return emitOpError() << "cannot evaluate event extent: " << error.what();
+  }
   return success();
 }
 

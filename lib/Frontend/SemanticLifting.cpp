@@ -164,8 +164,8 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
                     std::size_t stage, int layer, std::uint32_t result) {
     last_writer[result] = op.name;
     written_space[result] = op.result;
-    model.ops.push_back(
-        {op.name, role, ownership, static_cast<int>(stage), layer});
+    model.ops.push_back({op.name, role, ownership, static_cast<int>(stage),
+                         layer, plan.stages[stage].representative});
     model.sem.ops.push_back(std::move(op));
   };
 
@@ -220,9 +220,9 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
         }
         // The matmul's own result is a value no buffer holds, so it is
         // recorded under the op name rather than a plan buffer.
-        model.ops.push_back(
-            {op.name, role, OwnershipKind::kTilePerBlock, static_cast<int>(i),
-             layer});
+        model.ops.push_back({op.name, role, OwnershipKind::kTilePerBlock,
+                             static_cast<int>(i), layer,
+                             plan.stages[i].representative});
         model.sem.ops.push_back(std::move(op));
         std::string add = StageName(layer, i, "add");
         SemanticOp resid = Op(
@@ -370,11 +370,21 @@ LiftedModel LiftGenericSemantics(std::vector<FxNodeRecord> const& tasks,
       operands.push_back(Read(input, Space(input, axes(tasks[found->second])),
                               {}));
     }
-    model.sem.ops.push_back(analysis::GenericSemantics(
-        task.name, Space(task.name, axes(task)), std::move(operands)));
+    analysis::SemanticOp op = analysis::GenericSemantics(
+        task.name, Space(task.name, axes(task)), std::move(operands));
+    // GenericSemantics reads full range, which is the sound cover but prints
+    // as an exact affine edge. No rule recognised this operator, so no index
+    // was established at all; the read is declared data-dependent so the
+    // derivation reaches Tier 3 and the I2 relaxation, instead of reporting an
+    // exactness the frontend never checked.
+    for (auto& operand : op.operands)
+      for (auto& result : operand.map.results)
+        result = IndexResult::DataDependent();
+    model.sem.ops.push_back(std::move(op));
     model.ops.push_back({task.name, OpRole::kGeneric,
                          OwnershipKind::kElementChunk,
-                         i < stage_of_task.size() ? stage_of_task[i] : 0, 0});
+                         i < stage_of_task.size() ? stage_of_task[i] : 0, 0,
+                         task.name});
     model.degraded.push_back(task.name);
   }
   return model;

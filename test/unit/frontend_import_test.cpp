@@ -7,6 +7,7 @@
 #include <mlir/IR/MLIRContext.h>
 
 #include <cassert>
+#include <set>
 #include <stdexcept>
 #include <string>
 
@@ -17,20 +18,36 @@ int main() {
       std::string(TILEMEGA_SOURCE_DIR) +
           "/docs/experiments/E2E_GEN/raw/export_bridge.json",
       context, &summary);
-  assert(summary.task_spaces == 179 && summary.couplings == 222);
+  // Operator granularity: one task space per L-task node of the instantiated
+  // OperatorGraph (34 for the two-layer fixture), one coupling per
+  // (consumer, in-graph operand) pair.  The previous 179/222 counted FX nodes
+  // and the placeholder edges between them.
+  assert(summary.task_spaces == 34 && summary.couplings == 42);
   assert(summary.stages == 30 && summary.guards == 4);
   assert(module->getOperation()->getAttr("tilemega.model_plan"));
   auto aliases = module->getOperation()->getAttrOfType<mlir::DictionaryAttr>(
       "tilemega.symbol_aliases");
   assert(aliases.getAs<mlir::StringAttr>("s61").getValue() == "s14");
   assert(aliases.getAs<mlir::StringAttr>("s65").getValue() == "s14");
-  bool sawView = false, sawTranspose = false;
+  // A task space now names the role the semantic lifting recognised, not the
+  // FX target it came from, so `view`/`transpose` no longer appear as kinds.
+  // What replaces that coverage: every recognised role must be present and
+  // none may have degraded to `generic` on a model the frontend claims to
+  // cover.
+  std::set<std::string> kinds;
   for (auto task : module->getOps<tilemega::dialect::TaskSpaceOp>()) {
     auto kind = task.getWriteMap().getFields().getAs<mlir::StringAttr>("kind").getValue();
-    sawView |= kind == "view";
-    sawTranspose |= kind == "transpose";
+    assert(kind != "generic");
+    kinds.insert(kind.str());
   }
-  assert(sawView && sawTranspose);
+  assert((kinds == std::set<std::string>{"attention", "elementwise", "gemm",
+                                         "kvappend", "rmsnorm", "rope"}));
+  // The gap this whole change closes: C used to be the constant
+  // `{ [0] -> [0] }` for every edge.  No edge may carry a one-point relation.
+  for (auto coupling : module->getOps<tilemega::dialect::CouplingOp>()) {
+    std::string relation = coupling.getRelation().getMap().ToString();
+    assert(relation.find("[0] -> [0]") == std::string::npos);
+  }
 
   std::string cuda =
       tilemega::codegen::CouplingGraphToCUDA{}.Lower(*module);
