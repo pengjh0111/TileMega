@@ -186,6 +186,13 @@ target_link_libraries(tilemega-derive PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-derive PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
+add_executable(tilemega-wiring tools/tilemega-wiring.cpp)
+target_link_libraries(tilemega-wiring PRIVATE TileMega::tilemega)
+target_compile_definitions(tilemega-wiring PRIVATE
+  TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(tilemega-wiring PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
 add_executable(tilemega-costmodel tools/tilemega-costmodel.cpp)
 target_link_libraries(tilemega-costmodel PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-costmodel PROPERTIES
@@ -328,6 +335,12 @@ if(TILEMEGA_BUILD_TESTS)
     target_compile_options(semantic_lifting_test PRIVATE -fno-rtti)
   endif()
   add_test(NAME semantic_lifting COMMAND semantic_lifting_test)
+
+  add_executable(wiring_coupling_test test/unit/wiring_coupling_test.cpp)
+  target_link_libraries(wiring_coupling_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(wiring_coupling_test PRIVATE
+    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  add_test(NAME wiring_coupling COMMAND wiring_coupling_test)
 
   add_executable(degradation_test test/unit/degradation_test.cpp)
   add_dependencies(degradation_test TileMegaCGIncGen)

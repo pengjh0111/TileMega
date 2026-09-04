@@ -17,9 +17,14 @@
 // |C^-1(y)| count (barvinok, not a heuristic) catches it. See
 // docs/experiments/P3/table27.md and TileMega_skeleton.md §2.7 for the
 // corrected table entry. wait is unaffected (still 1: one row still needs
-// exactly one producer block) and every other row's wait/fanout still
-// matches the table exactly -- this is not a wholesale re-derivation
-// disagreement, it is one specific, now-understood bug fix.
+// exactly one producer block).
+//
+// Rows 4 and 5 carry the same defect and were found later, when the frontend
+// wiring re-derived §2.7 from the exported model: their fanout cells had
+// never been asserted here, so nothing caught them. Both are now pinned. All
+// remaining rows' wait/fanout match the table exactly; the three corrections
+// share one cause (a producer coarser than its consumer) and are not a
+// wholesale re-derivation disagreement.
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Analysis/ReferenceModels.h>
 
@@ -152,16 +157,22 @@ int main() {
   // Row 4: KVappend -> Attn chunk.  Only the chunk the append lands in is
   // coupled; that is the recorded guard, not a widened C. The table's wait=1
   // is the decode (S=1) instantiation; table27.md documents the general
-  // (prefill) wait as Tkv -- not re-asserted here as a specific number,
-  // matching the original test, which also left wait/fanout unchecked for
-  // this row (the skeleton marks fanout "runtime").
+  // (prefill) wait as Tkv -- not re-asserted here as a specific number.
+  // fanout was left unchecked until the frontend wiring re-derived it, which
+  // is why the table's `S` survived: the consumer ranges over the G query
+  // heads sharing one kv head, so it is G*S = 2048, right only for MHA.
+  // table27.md note (g) counts both cells by hand from the table's own C.
   EQ(t.Row("kvappend_k", "attn_chunk").guard,
      std::string("j == floordiv(past, Tkv)"));
+  EQ(t.Fanout("kvappend_k", "attn_chunk"), 2048L);
   REQUIRE(t.Row("kvappend_k", "attn_chunk").tier == Tier::kStructuredRagged);
   REQUIRE(t.Row("kvappend_k", "attn_chunk").exact);
 
-  // Row 5: RoPE_q -> Attn chunk.
+  // Row 5: RoPE_q -> Attn chunk.  Same defect as row 3: rope_q emits Tm-row
+  // blocks and attn_chunk consumes single tokens, so one block feeds
+  // Tm * ceildiv(L_s,Tkv) = 128 * 8 chunks, not the table's 8.
   EQ(t.Wait("rope_q", "attn_chunk"), 1L);
+  EQ(t.Fanout("rope_q", "attn_chunk"), 1024L);
   REQUIRE(t.Row("rope_q", "attn_chunk").tier == Tier::kStructuredRagged);
 
   // Row 6: Attn chunk -> Attn combine.  wait is the runtime chunk count,

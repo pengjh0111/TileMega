@@ -13,8 +13,8 @@ The derivation is `C = W_p^-1 o R_c` computed in closed form: every producer's
 `W` is a tiling, so `W^-1` is exactly `floor(./g_p)` per tiled axis and the
 projection of a read interval through it has three outcomes (exact quotient,
 exact `floordiv` for a single element, or an explicit relaxation).  No
-expectation below was moved to match what came out; the three places where the
-derivation and the table differ are stated as differences.
+expectation below was moved to match what came out; every place where the
+derivation and the table differ is stated as a difference.
 
 Instantiation for the numeric cells: `H=4096, n_h=32, n_kv=8, G=4, d=128,
 I=14336, Tm=Tn=Tkv=128`, and for evaluation `S=512, L_s=1024, past=512`.
@@ -26,8 +26,8 @@ I=14336, Tm=Tn=Tkv=128`, and for evaluation `S=512, L_s=1024, past=512`.
 | 1 | `rmsnorm1 -> wq/wk/wv` | `(m,n) -> {rmsnorm1(m)}` | `[ceildiv(S,Tm)]` | 1 | 32+8+8 = **48** | 0 | match |
 | 2 | `wq -> rope_q` | `(m,hh) -> {wq(m,hh)}` | `[ceildiv(S,Tm) x n_h]` | 1 | 1 | 0 | match |
 | 3 | `rope_k -> kvappend_k` | `(row,hh) -> {rope_k(floordiv(row,Tm),hh)}` | `[S x n_kv]` | 1 | **Tm = 128** | **1** | wait/Tier match; `C` differs — see (b); **fanout: the table is wrong** — see (f) |
-| 4 | `kvappend_k/v -> attn_chunk` | guarded to `j == floordiv(past,Tkv)` | ragged | `Tkv`, **1 at S=1** | `S` | **2** | match under the decode instantiation — see (c) |
-| 5 | `rope_q -> attn_chunk` | `(s,h,j) -> {rope_q(floordiv(s,Tm),h)}` | `[S x n_h]` | 1 | `ceildiv(L_s,Tkv)` | **2** | match |
+| 4 | `kvappend_k/v -> attn_chunk` | guarded to `j == floordiv(past,Tkv)` | ragged | `Tkv`, **1 at S=1** | **`G * S`** | **2** | wait matches under the decode instantiation — see (c); **fanout: the table is wrong** — see (g) |
+| 5 | `rope_q -> attn_chunk` | `(s,h,j) -> {rope_q(floordiv(s,Tm),h)}` | `[S x n_h]` | 1 | **`Tm * ceildiv(L_s,Tkv)`** | **2** | `C`/wait/Tier match; **fanout: the table is wrong** — see (g) |
 | 6 | `attn_chunk -> attn_combine` | `(s,h) -> {attn_chunk(s,h,j) : j < ceildiv(L_s,Tkv)}` | `[S x n_h]` | `ceildiv(L_s,Tkv)` | 1 | **2** | match |
 | 7 | `attn_combine -> wo` | `(m,n) -> {(s,h) : Tm*m <= s < Tm*m+Tm, 0 <= h < n_h}` | `[ceildiv(S,Tm)]` | `Tm * n_h` = 4096 | 32 | 0 | match |
 | 8 | `wo -> add1` | `(m,n) -> {wo(m,n)}` | `[ceildiv(S,Tm) x ceildiv(H,Tn)]` | 1 | 1 | 0 | match |
@@ -99,6 +99,36 @@ inverse-image cardinality, so there is nowhere for the assumption to hide.
 The skeleton's §2.7 table is corrected accordingly (including its cluster
 candidacy, since fanout 128 exceeds cluster capacity for the same reason
 rows 1 and 10 are marked ✗).
+
+**(g) Rows 4 and 5's fanout — the same defect as (f), found by wiring the
+frontend in.**  `docs/experiments/WIRING/result.md` re-derives §2.7 from the
+*exported* model and gets `G * S` for row 4 and `Tm * ceildiv(L_s,Tkv)` for
+row 5, where the table gives `S` and `ceildiv(L_s,Tkv)`.  The analysis layer's
+own derivation agrees with the frontend (`derived-llama.md` edges 9 and 8:
+`4 * S` at `G = 4`, and `128 * floor((127 + L_s)/128)`), so the disagreement is
+with the document.
+
+Both corrected cells follow by counting from the table's **own `C` column**,
+with no isl involved.  At `S=7, n_h=8, n_kv=2, G=4, Tm=3, Tkv=2, past=5,
+L_s=12`, enumerating `|{c : p in C(c)}|` by hand gives 18 for an interior row-5
+producer block (against `Tm * ceildiv(L_s,Tkv) = 18` and the table's 6) and 28
+uniformly for row 4 (against `G * S = 28` and the table's 7).
+
+The mechanism is (f)'s exactly.  Row 5's producer emits `Tm`-row blocks while
+`attn_chunk` consumes single tokens, so one block feeds `Tm` tokens times
+`ceildiv(L_s,Tkv)` chunks; the cell kept the chunk factor and dropped the token
+factor — and the dropped factor is 1 precisely for the ragged tail block, which
+is why the number looked plausible.  Row 4's producer emits one (row, kv head)
+task while the consumer ranges over the `G` query heads sharing that head; the
+cell kept the token factor and dropped the group factor, so it is right only
+for MHA.  In both cases the cell was written against the coarser model where
+producer and consumer share a granularity — consistent with the table's prose,
+not with the `C` the table itself states.
+
+No expectation was moved to match an implementation: the correction is made
+because the cell contradicts its own `C` under an independent count, and the
+original values stay visible above.  §2.7 of the skeleton needs the same two
+corrections.
 
 ## I1: split-K is a reparameterization
 
