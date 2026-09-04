@@ -186,6 +186,13 @@ target_link_libraries(tilemega-derive PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-derive PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
+add_executable(tilemega-shape-probe tools/tilemega-shape-probe.cpp)
+target_link_libraries(tilemega-shape-probe PRIVATE TileMega::tilemega)
+target_compile_definitions(tilemega-shape-probe PRIVATE
+  TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(tilemega-shape-probe PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
 add_executable(tilemega-wiring tools/tilemega-wiring.cpp)
 target_link_libraries(tilemega-wiring PRIVATE TileMega::tilemega)
 target_compile_definitions(tilemega-wiring PRIVATE
