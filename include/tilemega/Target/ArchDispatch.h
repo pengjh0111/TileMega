@@ -12,6 +12,7 @@ namespace tilemega::arch {
 using Sm80 = cutlass::arch::Sm80;
 using Sm89 = cutlass::arch::Sm89;
 using Sm90 = cutlass::arch::Sm90;
+using Sm100 = cutlass::arch::Sm100;
 using Sm120 = cutlass::arch::Sm120;
 
 /// Compile-time capability switches. Code generation queries these switches;
@@ -22,6 +23,8 @@ struct Caps {
   static constexpr bool kTma = false;
   static constexpr bool kWarpSpecialized = false;
   static constexpr bool kTcgen05 = false;
+  static constexpr bool kL15 = false;
+  static constexpr bool kNet = false;
   static constexpr bool kCpAsync = false;
   static constexpr bool kMbarrier = false;
   static constexpr int kMaxClusterSize = 1;
@@ -34,6 +37,8 @@ struct Caps<Sm80> {
   static constexpr bool kTma = false;
   static constexpr bool kWarpSpecialized = false;
   static constexpr bool kTcgen05 = false;
+  static constexpr bool kL15 = false;
+  static constexpr bool kNet = false;
   static constexpr bool kCpAsync = true;
   static constexpr bool kMbarrier = true;
   static constexpr int kMaxClusterSize = 1;
@@ -49,10 +54,30 @@ struct Caps<Sm90> {
   static constexpr bool kTma = true;
   static constexpr bool kWarpSpecialized = true;
   static constexpr bool kTcgen05 = false;
+  static constexpr bool kL15 = false;
+  static constexpr bool kNet = false;
   static constexpr bool kCpAsync = true;
   static constexpr bool kMbarrier = true;
   static constexpr int kMaxClusterSize = 8;
   static constexpr char const* kCollective = "TMA warp-specialized";
+};
+
+// Blackwell datacenter (sm_100) is the only target with tcgen05, and so the
+// only one where the tmem and L1.5 lanes of the cost model exist at all.
+// Nothing here has been measured: TileMega has never run on one, which is
+// exactly why the lanes carry a status instead of a number.
+template <>
+struct Caps<Sm100> {
+  static constexpr bool kCluster = true;
+  static constexpr bool kTma = true;
+  static constexpr bool kWarpSpecialized = true;
+  static constexpr bool kTcgen05 = true;
+  static constexpr bool kL15 = true;
+  static constexpr bool kNet = false;
+  static constexpr bool kCpAsync = true;
+  static constexpr bool kMbarrier = true;
+  static constexpr int kMaxClusterSize = 8;
+  static constexpr char const* kCollective = "TMA warp-specialized (tcgen05)";
 };
 
 // Blackwell GeForce (sm_120) is deliberately not derived from a numerically
@@ -63,6 +88,8 @@ struct Caps<Sm120> {
   static constexpr bool kTma = true;
   static constexpr bool kWarpSpecialized = true;
   static constexpr bool kTcgen05 = false;
+  static constexpr bool kL15 = false;
+  static constexpr bool kNet = false;
   static constexpr bool kCpAsync = true;
   static constexpr bool kMbarrier = true;
   static constexpr int kMaxClusterSize = 8;
@@ -76,6 +103,8 @@ struct RuntimeCaps {
   bool tma;
   bool warp_specialized;
   bool tcgen05;
+  bool l1_5;
+  bool net;
   bool cp_async;
   bool mbarrier;
   int max_cluster_size;
@@ -86,6 +115,7 @@ template <class Arch>
 constexpr RuntimeCaps RuntimeCapsFor() {
   return {Caps<Arch>::kCluster, Caps<Arch>::kTma,
           Caps<Arch>::kWarpSpecialized, Caps<Arch>::kTcgen05,
+          Caps<Arch>::kL15, Caps<Arch>::kNet,
           Caps<Arch>::kCpAsync, Caps<Arch>::kMbarrier,
           Caps<Arch>::kMaxClusterSize, Caps<Arch>::kCollective};
 }
@@ -94,6 +124,7 @@ inline constexpr RuntimeCaps RuntimeCapsForTag(std::string_view tag) {
   return tag == "sm_80"  ? RuntimeCapsFor<Sm80>()
        : tag == "sm_89"  ? RuntimeCapsFor<Sm89>()
        : tag == "sm_90"  ? RuntimeCapsFor<Sm90>()
+       : tag == "sm_100" ? RuntimeCapsFor<Sm100>()
        : tag == "sm_120" ? RuntimeCapsFor<Sm120>()
                            : RuntimeCapsFor<void>();
 }
@@ -103,6 +134,8 @@ inline constexpr RuntimeCaps RuntimeCapsForTag(std::string_view tag) {
 #if defined(__CUDA_ARCH__)
 #  if __CUDA_ARCH__ == 1200
 using CurrentArch = Sm120;
+#  elif __CUDA_ARCH__ == 1000
+using CurrentArch = Sm100;
 #  elif __CUDA_ARCH__ == 900
 using CurrentArch = Sm90;
 #  elif __CUDA_ARCH__ == 890

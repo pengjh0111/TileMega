@@ -36,6 +36,8 @@ void ApplyKnownCaps(TargetSpec& spec) {
   spec.caps.tma = caps.tma;
   spec.caps.warp_specialized = caps.warp_specialized;
   spec.caps.tcgen05 = caps.tcgen05;
+  spec.caps.l1_5 = caps.l1_5;
+  spec.caps.net = caps.net;
   spec.caps.cp_async = caps.cp_async;
   spec.caps.mbarrier = caps.mbarrier;
   spec.res.max_cluster_size = caps.max_cluster_size;
@@ -78,6 +80,8 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
   spec.caps.warp_specialized =
       caps.At("warp_specialized").AsBool("caps.warp_specialized");
   spec.caps.tcgen05 = caps.At("tcgen05").AsBool("caps.tcgen05");
+  spec.caps.l1_5 = caps.At("l1_5").AsBool("caps.l1_5");
+  spec.caps.net = caps.At("net").AsBool("caps.net");
   spec.caps.cp_async = caps.At("cp_async").AsBool("caps.cp_async");
   spec.caps.mbarrier = caps.At("mbarrier").AsBool("caps.mbarrier");
 
@@ -202,6 +206,8 @@ std::string TargetSpec::ToJson() const {
                                 {"tma", caps.tma},
                                 {"warp_specialized", caps.warp_specialized},
                                 {"tcgen05", caps.tcgen05},
+                                {"l1_5", caps.l1_5},
+                                {"net", caps.net},
                                 {"cp_async", caps.cp_async},
                                 {"mbarrier", caps.mbarrier}});
   root.Set("resources",

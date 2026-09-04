@@ -61,18 +61,62 @@ double EpilogueBytes(GemmConfig const& c) {
 
 }  // namespace
 
-double ResourceVector::Bottleneck() const {
-  return std::max({tensor_core, cuda_core, sfu, smem, l2, dram});
+char const* LaneStatusName(LaneStatus status) {
+  switch (status) {
+    case LaneStatus::kLive: return "live";
+    case LaneStatus::kCapabilityAbsent: return "capability_absent";
+    case LaneStatus::kNotCalibrated: return "not_calibrated";
+  }
+  return "unknown";
 }
 
+double ResourceVector::operator[](Lane lane) const {
+  return const_cast<ResourceVector*>(this)->operator[](lane);
+}
+
+double& ResourceVector::operator[](Lane lane) {
+  switch (lane) {
+    case kTensorCore: return tensor_core;
+    case kCudaCore: return cuda_core;
+    case kSfu: return sfu;
+    case kTmem: return tmem;
+    case kSmem: return smem;
+    case kL15: return l1_5;
+    case kL2: return l2;
+    case kDram: return dram;
+    default: return net;
+  }
+}
+
+char const* ResourceVector::LaneName(Lane lane) {
+  switch (lane) {
+    case kTensorCore: return "tc";
+    case kCudaCore: return "cuda";
+    case kSfu: return "sfu";
+    case kTmem: return "tmem";
+    case kSmem: return "smem";
+    case kL15: return "l1_5";
+    case kL2: return "l2";
+    case kDram: return "ddr";
+    default: return "net";
+  }
+}
+
+double ResourceVector::Bottleneck() const {
+  double top = 0.0;
+  for (int lane = 0; lane < kLaneCount; ++lane)
+    top = std::max(top, (*this)[static_cast<Lane>(lane)]);
+  return top;
+}
+
+/// Ties go to the earliest lane in skeleton order, so the name is a function
+/// of the vector and not of the loop -- an all-zero vector reports `tc`.
 char const* ResourceVector::BottleneckName() const {
   double const top = Bottleneck();
-  if (top == smem) return "smem";
-  if (top == cuda_core) return "cuda";
-  if (top == l2) return "l2";
-  if (top == dram) return "dram";
-  if (top == tensor_core) return "tc";
-  return "sfu";
+  for (int lane = 0; lane < kLaneCount; ++lane)
+    if ((*this)[static_cast<Lane>(lane)] == top)
+      return LaneName(static_cast<Lane>(lane));
+  return LaneName(kTensorCore);
 }
 
 CostModel::CostModel(TargetSpec const& target, CostModelOptions options)
@@ -82,6 +126,26 @@ CostModel::CostModel(TargetSpec const& target, CostModelOptions options)
     throw std::runtime_error(
         "cost model needs a calibrated target: run tilemega-calibrate");
   }
+  // A lane is live only if the target has the pipe *and* something measured
+  // its rate.  Anything else is one of the two reasons, never a bare zero:
+  // the tmem/l1_5/net lanes are absent on every target measured so far, and
+  // an uncalibrated rate would otherwise divide by zero and look infinitely
+  // fast rather than unknown.
+  auto lane = [&](bool capable, double rate) {
+    if (!capable) return LaneStatus::kCapabilityAbsent;
+    return rate > 0.0 ? LaneStatus::kLive : LaneStatus::kNotCalibrated;
+  };
+  using RV = ResourceVector;
+  lanes_[RV::kTensorCore] = lane(true, calib.tc_fp16_gflops);
+  lanes_[RV::kCudaCore] = lane(true, calib.cuda_fp32_gflops);
+  lanes_[RV::kSfu] = lane(true, calib.sfu_exp2_gops);
+  lanes_[RV::kTmem] = lane(target.caps.tcgen05, 0.0);
+  lanes_[RV::kSmem] = lane(true, calib.smem_gbps);
+  lanes_[RV::kL15] = lane(target.caps.l1_5, 0.0);
+  lanes_[RV::kL2] = lane(true, calib.l2_gbps);
+  lanes_[RV::kDram] = lane(true, calib.dram_gbps);
+  lanes_[RV::kNet] = lane(target.caps.net, 0.0);
+
   double const sms = static_cast<double>(target.res.num_sms);
   l2_bytes_per_ns_per_sm_ = calib.l2_gbps / sms;
   dram_bytes_per_ns_per_sm_ = calib.dram_gbps / sms;
@@ -173,6 +237,13 @@ ResourceVector CostModel::Steady(GemmConfig const& config, double ctas_per_sm,
     double const bytes = o * MainloopBytes(config);
     u.l2 = bytes / l2_bytes_per_ns_per_sm_;
     u.dram = bytes * dram_fraction / dram_bytes_per_ns_per_sm_;
+  }
+  // The GEMM mainloop this models issues no tcgen05 MMA, touches no L1.5 and
+  // crosses no fabric, so those three lanes stay zero on a target that has
+  // them too; `lane_status` is what separates "no pipe" from "no work".
+  for (int i = 0; i < ResourceVector::kLaneCount; ++i) {
+    auto const l = static_cast<ResourceVector::Lane>(i);
+    if (lanes_[l] != LaneStatus::kLive) u[l] = 0.0;
   }
   return u;
 }

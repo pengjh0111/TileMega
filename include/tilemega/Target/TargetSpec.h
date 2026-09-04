@@ -46,6 +46,8 @@ struct TargetSpec {
     bool tma              = false;  ///< Tensor Memory Accelerator (cp.async.bulk)
     bool warp_specialized = false;  ///< CUTLASS warp-specialized GEMM collectives
     bool tcgen05          = false;  ///< 5th-gen tensor core / TMEM (sm_100 only)
+    bool l1_5             = false;  ///< Blackwell L1.5 / LRC layer (sm_100 only)
+    bool net              = false;  ///< inter-GPU fabric in the execution domain
     bool cp_async         = false;  ///< cp.async (sm_80+)
     bool mbarrier         = false;  ///< PTX mbarrier primitives
   } caps;

@@ -1,0 +1,67 @@
+{
+  "arch_tag": "sm_100",
+  "sm_major": 10,
+  "sm_minor": 0,
+  "caps": {
+    "cluster": true,
+    "tma": true,
+    "warp_specialized": true,
+    "tcgen05": true,
+    "l1_5": true,
+    "net": false,
+    "cp_async": true,
+    "mbarrier": true
+  },
+  "resources_provenance": "stated-unverified: CUDA C Programming Guide compute-capability table for 10.0 and the Blackwell architecture whitepaper.  No sm_100 device has ever been probed by TileMega; nothing in `calibration` is measured and `calibrated` is false, which is what stops the cost model from using any of it.",
+  "resources": {
+    "num_sms": 148,
+    "max_smem_per_sm": 233472,
+    "max_dynamic_smem_per_cta": 232448,
+    "regs_per_sm": 65536,
+    "max_cluster_size": 8,
+    "max_threads_per_sm": 2048,
+    "warp_size": 32
+  },
+  "calibration": {
+    "calibrated": false,
+    "device": "",
+    "measured_at": "",
+    "wall_seconds": 0,
+    "pipelines": {
+      "tc_fp16_gflops": 0.0,
+      "cuda_fp32_gflops": 0.0,
+      "cuda_int32_gops": 0.0,
+      "sfu_exp2_gops": 0.0,
+      "sfu_rsqrt_gops": 0.0,
+      "smem_gbps": 0.0,
+      "smem_conflict_slope": 0.0,
+      "l1_latency_ns": 0.0,
+      "l2_latency_ns": 0.0,
+      "dram_latency_ns": 0.0,
+      "l2_gbps": 0.0,
+      "l2_knee_bytes": 0,
+      "dram_gbps": 0.0,
+      "l2_curve_bytes": [],
+      "l2_curve_gbps": [],
+      "smem_occupancy_ctas": [],
+      "smem_occupancy_gbps": []
+    },
+    "sync": {
+      "atomic_uncontended_ns": 0.0,
+      "atomic_contention_ctas": [],
+      "atomic_contention_ns": [],
+      "threadfence_ns": 0.0,
+      "syncthreads_ns": 0.0,
+      "named_barrier_ns": 0.0,
+      "cluster_sync_ns": 0.0,
+      "cluster_sync_calibrated": false,
+      "grid_barrier_ctas": [],
+      "grid_barrier_ns": []
+    },
+    "streamk": [],
+    "combine_fixed_ns": 0.0,
+    "combine_d_dram_ns": 0.0,
+    "interference_ratio": 0.0,
+    "measurements": []
+  }
+}

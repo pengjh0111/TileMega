@@ -24,19 +24,47 @@
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Target/TargetSpec.h>
 
+#include <array>
 #include <vector>
 
 namespace tilemega::solver {
 
+/// Why a lane of `ResourceVector` carries zero.  A zero lane is never bare:
+/// it is either live, or the target has no such pipe, or the pipe exists and
+/// nobody measured it.  `Bottleneck()` is a max, so a zeroed lane drops out
+/// with no special case -- but a caller reading the vector can still tell the
+/// three apart, which is the point.
+enum class LaneStatus { kLive, kCapabilityAbsent, kNotCalibrated };
+
+char const* LaneStatusName(LaneStatus status);
+
 /// §2.2(a) u(o): nanoseconds of occupancy each pipe owes for one unit of work.
 /// The steady state is the largest component, not the sum.
+///
+/// Nine lanes, in the skeleton's order: <tc, cuda, sfu, tmem, smem, l1_5, l2,
+/// ddr, net>.  Four of them are zero on every target TileMega has measured --
+/// tmem needs tcgen05, l1_5 needs Blackwell's LRC layer, net needs a
+/// multi-GPU domain -- and they are carried anyway so that a port to a target
+/// that has them adds a measurement rather than a field.
 struct ResourceVector {
+  enum Lane {
+    kTensorCore = 0, kCudaCore, kSfu, kTmem, kSmem, kL15, kL2, kDram, kNet,
+    kLaneCount
+  };
+
   double tensor_core = 0.0;
   double cuda_core = 0.0;
   double sfu = 0.0;
+  double tmem = 0.0;   ///< tcgen05 tensor memory; caps.tcgen05
   double smem = 0.0;
+  double l1_5 = 0.0;   ///< Blackwell L1.5 / LRC; caps.l1_5
   double l2 = 0.0;
   double dram = 0.0;
+  double net = 0.0;    ///< inter-GPU fabric; caps.net
+
+  double operator[](Lane lane) const;
+  double& operator[](Lane lane);
+  static char const* LaneName(Lane lane);
 
   double Bottleneck() const;
   char const* BottleneckName() const;
@@ -136,6 +164,12 @@ class CostModel {
   CostModelOptions const& options() const { return options_; }
   TargetSpec const& target() const { return *target_; }
 
+  /// Why each of the nine lanes is or is not charged on this target, decided
+  /// once at construction from `caps` and `calib` rather than at each use.
+  LaneStatus lane_status(ResourceVector::Lane lane) const {
+    return lanes_[lane];
+  }
+
  private:
   double WavesNs(double per_sm_work_count, Residency residency,
                  GemmConfig const& config, double iters,
@@ -144,6 +178,7 @@ class CostModel {
   TargetSpec const* target_ = nullptr;
   CostModelOptions options_;
   Fit fit_;
+  std::array<LaneStatus, ResourceVector::kLaneCount> lanes_{};
   double l2_bytes_per_ns_per_sm_ = 0.0;
   double dram_bytes_per_ns_per_sm_ = 0.0;
   double cuda_flops_per_ns_per_sm_ = 0.0;
