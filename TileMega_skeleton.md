@@ -209,7 +209,7 @@ L4    符号形状参数化 + 运行时变体选择
   **代码齐了但在 sm_89 上编不出来**（`Caps<Sm89>::kCluster` 为 false，
   `static_assert` 故意让它编译失败而不是静默退回平坦 barrier）。
   簇的端到端消融因此欠一台有簇的机器，脚本已备好
-  （`docs/experiments/CLUSTER/run_on_h100.sh`）。
+  （`docs/experiments/CLUSTER/run_on_cluster_gpu.sh`）。
 - **分析层的耦合推导尚未接入真实前端路径**（本轮新发现，且与迁移无关——
   迁移前就是如此）：`lib/Frontend/Frontend.cpp` 从 `export_bridge.json`
   构造 CG 时**并不调用** `CouplingDerivation`。它按每个 ATen `call_function`
@@ -1280,7 +1280,7 @@ tilemega/
       `barrier.cluster` 只出现在 kCluster 目标上。**生成器尚未接线**：
       `Codegen.cpp` 仍只接受 `sync_kind = "global"`，megakernel 也仍以
       `<<<grid, threads>>>` 启动。需 sm_90+ 硬件，本机未运行。
-      见 `docs/experiments/CLUSTER/`（`run_on_h100.sh` 在非 cluster 机器上
+      见 `docs/experiments/CLUSTER/`（`run_on_cluster_gpu.sh` 在非 cluster 机器上
       硬失败，退出码 3，拒绝把单 CTA 回退路径当成簇结果测量）
       发现：`if constexpr (Caps<Arch>::kCluster)` **不足以**关掉 cluster 代码——
       `cooperative_groups::this_cluster` 是非依赖名，sm_89 上根本没有声明，
@@ -1598,7 +1598,7 @@ P6.2 的 oracle 已给出投入判据：固定 `g` 与最优 `g` 相差 **6.11×
       `ClusterSync::StageBarrier`，启动走 `cudaLaunchKernelEx`，grid 被裁成
       簇的整数倍。sm_90 与 sm_120 交叉编译：dim 1 有 0 条 `UCGABAR`、
       dim 2 与 dim 8 各 8 条（PTX `barrier.cluster` 0/4/4）；默认构建的 SASS
-      与加簇之前逐字节相同。`docs/experiments/CLUSTER/run_on_h100.sh` 把
+      与加簇之前逐字节相同。`docs/experiments/CLUSTER/run_on_cluster_gpu.sh` 把
       megakernel 臂也备好了，缺的只是一台有簇的机器。
 - [x] `[!]` 解析上的**先行结论，方向是负的**：在本 ABI 下时间邻近只能取
       reach = 1（stage 串行的 megakernel 每个 stage 复用 smem），此时簇能

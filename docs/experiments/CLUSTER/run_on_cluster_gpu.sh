@@ -6,8 +6,8 @@
 # TargetSpec probe reports caps.cluster == true. It hard-fails on any other
 # machine rather than silently measuring the single-CTA fallback.
 #
-#   bash docs/experiments/CLUSTER/run_on_h100.sh            # 200 fresh runs
-#   RUNS=500 bash docs/experiments/CLUSTER/run_on_h100.sh
+#   bash docs/experiments/CLUSTER/run_on_cluster_gpu.sh            # 200 fresh runs
+#   RUNS=500 bash docs/experiments/CLUSTER/run_on_cluster_gpu.sh
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -245,59 +245,83 @@ cat "$out/summary.tsv"
 # announces a skip rather than failing when the artifacts are absent.  What it
 # will not do is run without checking: a "cluster" arm whose cubin contains no
 # `barrier.cluster` is a flat kernel wearing a label, and that is a hard fail.
-mega_src="$root/docs/experiments/E2E_GEN/raw/generated_e2e.cu"
-mega_fixture="$root/docs/experiments/E2E/fixture"
+# Both accepted models, so a cluster result is a property of the mechanism and
+# not of one graph.
+mega_models=(
+  "gqa2|$root/docs/experiments/E2E_GEN/raw/generated_e2e.cu|$root/docs/experiments/E2E/fixture"
+  "mha4|$root/docs/experiments/P3_GENERALIZATION/raw/generated.cu|$root/docs/experiments/P3_GENERALIZATION/raw/fixture"
+)
 mega_lib="$root/build-phase12/libtilemega.a"
 : > "$out/megakernel.tsv"
-printf 'cluster_dim	barrier_cluster_asm	pass	total	l1_ms	l2_ms
-'     >> "$out/megakernel.tsv"
-if [[ ! -e "$mega_lib" || ! -e "$mega_src" || ! -d "$mega_fixture" ]]; then
-  echo "SKIPPED megakernel arm: build-phase12/libtilemega.a, the generated"        "source or the fixture is missing" | tee -a "$out/megakernel.tsv"
+printf 'model\tcluster_dim\tbarrier_cluster_asm\tpass\ttotal\thash\tl1_ms\tl2_ms\n' \
+    >> "$out/megakernel.tsv"
+have_all=1
+for entry in "${mega_models[@]}"; do
+  IFS='|' read -r _ src fixture <<<"$entry"
+  [[ -e "$src" && -d "$fixture" ]] || have_all=0
+done
+if [[ ! -e "$mega_lib" || "$have_all" != 1 ]]; then
+  echo "SKIPPED megakernel arm: build-phase12/libtilemega.a, a generated" \
+       "source or a fixture is missing" | tee -a "$out/megakernel.tsv"
 else
   mega_inc=("${inc[@]}" -I"$root/third_party/cutlass/tools/util/include"
             -I"$root/third_party/cutlass/test")
   mega_runs=${MEGA_RUNS:-50}
-  for dim in 1 2 4 8; do
-    if (( dim > max_cluster )); then
-      printf '%d	skipped_max_cluster_size_%s	-	-	-	-
-' "$dim"           "$max_cluster" >> "$out/megakernel.tsv"
-      continue
-    fi
-    "$nvcc" "$mega_src" -std=c++17 -O2 -arch="$arch" \
-        -DTILEMEGA_GENERATED_CLUSTER_DIM="$dim" "${mega_inc[@]}" \
-        "$mega_lib" -L"${CUDA_HOME:-/usr/local/cuda}/lib64" -lcudart \
-        -o "$work/mega_$dim" 2>> "$out/build.txt"
-    # `UCGABAR_ARV`/`UCGABAR_WAIT` is how ptxas spells `barrier.cluster` in
-    # SASS (CGA = cooperative grid array).  Verified by cross-compiling this
-    # very source on an sm_89 box: 0 at dim 1, 8 at dim 2 and dim 8, on both
-    # sm_90 and sm_120.  Grepping for a plausible-looking `BAR.CLUSTER` instead
-    # would have failed every arm on a machine where everything was correct.
-    asm=$(cuobjdump -sass "$work/mega_$dim" | grep -c 'UCGABAR' || true)
-    # dim 1 is the control and must contain no cluster barrier at all; every
-    # other arm must contain one, or it is not measuring what it claims to.
-    if (( dim == 1 && asm != 0 )); then
-      echo "FAIL: the flat control emitted a cluster barrier" >&2; exit 4
-    fi
-    if (( dim > 1 && asm == 0 )); then
-      echo "FAIL: cluster dim $dim emitted no cluster barrier; the arm would" \
-           "measure the flat kernel under a cluster label" >&2; exit 4
-    fi
-    pass=0; l1s=; l2s=
-    for ((run = 1; run <= mega_runs; ++run)); do
-      if line=$("$work/mega_$dim" "$mega_fixture" 2>&1); then
-        grep -q '^RESULT status=PASS' <<<"$line" && pass=$((pass + 1))
-        t=$(grep -o 'l1_ms=[0-9.]*' <<<"$line" | head -1 | cut -d= -f2)
-        u=$(grep -o 'l2_ms=[0-9.]*' <<<"$line" | head -1 | cut -d= -f2)
-        l1s+="$t"$'\n'; l2s+="$u"$'\n'
+  med() { sort -n | awk '{v[NR]=$1} END {if(!NR){print "nan";exit}
+      printf "%.6f\n",(NR%2)?v[(NR+1)/2]:(v[NR/2]+v[NR/2+1])/2}'; }
+  for entry in "${mega_models[@]}"; do
+    IFS='|' read -r model mega_src mega_fixture <<<"$entry"
+    # The flat control's output hash is the reference every clustered arm has
+    # to reproduce; §7 P5.2 asks for bitwise identity, not for a tolerance.
+    ref_hash=
+    for dim in 1 2 4 8; do
+      if (( dim > max_cluster )); then
+        printf '%s\t%d\tskipped_max_cluster_size_%s\t-\t-\t-\t-\t-\n' \
+            "$model" "$dim" "$max_cluster" >> "$out/megakernel.tsv"
+        continue
       fi
+      "$nvcc" "$mega_src" -std=c++17 -O2 -arch="$arch" \
+          -DTILEMEGA_GENERATED_CLUSTER_DIM="$dim" "${mega_inc[@]}" \
+          "$mega_lib" -L"${CUDA_HOME:-/usr/local/cuda}/lib64" -lcudart \
+          -o "$work/mega_${model}_$dim" 2>> "$out/build.txt"
+      # `UCGABAR_ARV`/`UCGABAR_WAIT` is how ptxas spells `barrier.cluster` in
+      # SASS (CGA = cooperative grid array).  Verified by cross-compiling this
+      # very source on an sm_89 box: 0 at dim 1, 8 at dim 2 and dim 8, on both
+      # sm_90 and sm_120.  Grepping for a plausible-looking `BAR.CLUSTER`
+      # instead would have failed every arm on a machine where everything was
+      # correct.
+      asm=$(cuobjdump -sass "$work/mega_${model}_$dim" | grep -c 'UCGABAR' || true)
+      # dim 1 is the control and must contain no cluster barrier at all; every
+      # other arm must contain one, or it is not measuring what it claims to.
+      if (( dim == 1 && asm != 0 )); then
+        echo "FAIL: $model flat control emitted a cluster barrier" >&2; exit 4
+      fi
+      if (( dim > 1 && asm == 0 )); then
+        echo "FAIL: $model cluster dim $dim emitted no cluster barrier; the" \
+             "arm would measure the flat kernel under a cluster label" >&2
+        exit 4
+      fi
+      pass=0; l1s=; l2s=; hashes=
+      for ((run = 1; run <= mega_runs; ++run)); do
+        if line=$("$work/mega_${model}_$dim" "$mega_fixture" 2>&1); then
+          grep -q '^RESULT status=PASS' <<<"$line" && pass=$((pass + 1))
+          t=$(grep -o 'l1_ms=[0-9.]*' <<<"$line" | head -1 | cut -d= -f2)
+          u=$(grep -o 'l2_ms=[0-9.]*' <<<"$line" | head -1 | cut -d= -f2)
+          h=$(grep -o 'l1=[0-9a-f]*' <<<"$line" | head -1 | cut -d= -f2)
+          l1s+="$t"$'\n'; l2s+="$u"$'\n'; hashes+="$h"$'\n'
+        fi
+      done
+      hash=$(printf '%s' "$hashes" | sort -u | grep -v '^$' | paste -sd, -)
+      [[ -z "$ref_hash" ]] && ref_hash="$hash"
+      if [[ "$hash" != "$ref_hash" ]]; then
+        echo "FAIL: $model dim $dim output hash $hash != flat control $ref_hash" >&2
+        overall=1
+      fi
+      printf '%s\t%d\t%d\t%d\t%d\t%s\t%s\t%s\n' "$model" "$dim" "$asm" "$pass" \
+          "$mega_runs" "${hash:-none}" "$(printf '%s' "$l1s" | med)" \
+          "$(printf '%s' "$l2s" | med)" >> "$out/megakernel.tsv"
+      (( pass == mega_runs )) || overall=1
     done
-    med() { sort -n | awk '{v[NR]=$1} END {if(!NR){print "nan";exit} \
-        printf "%.6f\n",(NR%2)?v[(NR+1)/2]:(v[NR/2]+v[NR/2+1])/2}'; }
-    printf '%d	%d	%d	%d	%s	%s
-' "$dim" "$asm" "$pass" "$mega_runs" \
-        "$(printf '%s' "$l1s" | med)" "$(printf '%s' "$l2s" | med)" \
-        >> "$out/megakernel.tsv"
-    (( pass == mega_runs )) || overall=1
   done
   cat "$out/megakernel.tsv"
 fi

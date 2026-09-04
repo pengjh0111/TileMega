@@ -5,9 +5,9 @@
 //
 // The weight is §4.3's own `w(A, B) = Volume x Frequency`, taken from the
 // derived edges rather than from a shape table -- `metrics.volume` is
-// |W_p(y) ^ R_c(x)| in elements and `metrics.count` is how many consumer tasks
-// perform that read, so their product is the traffic one iteration of the edge
-// moves.  Nothing here is a GPU measurement: the question is whether the
+// |W_p(y) ^ R_c(x)| in elements for one consumer task and `metrics.count` is
+// the Frequency, the number of times the edge is traversed in one forward.
+// Their product is the traffic the edge moves in one forward.  Nothing here is a GPU measurement: the question is whether the
 // partition is worth wiring at all, and that is answered by the fraction of
 // total weight a size- and locality-bounded partition can capture.
 #include <tilemega/Analysis/CouplingDerivation.h>

@@ -17,9 +17,20 @@
 //             labelling to §4.4's bubble: a cluster that costs occupancy buys
 //             DSMEM latency and pays in tail.
 //
-// The objective is §4.3's `w(A, B) = Volume x Frequency`, the bytes a coupling
-// edge moves per iteration times how often it fires -- exactly the traffic a
-// cluster-scoped release keeps inside the GPC.  Maximizing the weight kept
+// The objective is §4.3's `w(A, B) = Volume x Frequency`.  Both factors are
+// defined here rather than left to the reader, because "how often it fires"
+// has two plausible readings and only one of them is what the code computes:
+//
+//   Volume     |W_p(y) ^ R_c(x)| in elements -- what ONE consumer task reads
+//              of what one producer task wrote (`CouplingEdge::metrics.volume`).
+//   Frequency  how many times the edge is traversed in one forward, i.e. the
+//              number of consumer tasks that perform that read
+//              (`CouplingEdge::metrics.count`).  Not the number of forwards,
+//              and not a per-layer multiplier: a model that runs the same
+//              subgraph twice carries two edges, one per layer instance.
+//
+// Their product is therefore the elements the edge moves in one forward --
+// exactly the traffic a cluster-scoped release keeps inside the GPC.  Maximizing the weight kept
 // inside clusters under a size bound is NP-hard (it contains maximum-weight
 // k-way matching), so this is the standard heavy-edge agglomeration used by
 // graph coarseners: repeatedly merge the heaviest admissible pair.  It is a

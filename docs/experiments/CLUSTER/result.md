@@ -85,20 +85,20 @@ why the sm_89 row above must read 0.
 
 ## 7.4 The measurement script
 
-`docs/experiments/CLUSTER/run_on_h100.sh` — single file, self-contained: it
+`docs/experiments/CLUSTER/run_on_cluster_gpu.sh` — single file, self-contained: it
 carries its own CUDA sources and needs only the repository headers, nvcc and a
 GPU. Run it on an H100 with
 
 ```
-bash docs/experiments/CLUSTER/run_on_h100.sh          # 200 fresh processes per size
-RUNS=500 bash docs/experiments/CLUSTER/run_on_h100.sh
+bash docs/experiments/CLUSTER/run_on_cluster_gpu.sh          # 200 fresh processes per size
+RUNS=500 bash docs/experiments/CLUSTER/run_on_cluster_gpu.sh
 ```
 
 **Self-check.** It compiles `TargetSpec::Probe()` (the real one, from
 `lib/Target/TargetSpec.cpp`) and hard-fails unless `caps.cluster == true`:
 
 ```
-$ bash docs/experiments/CLUSTER/run_on_h100.sh          # on this sm_89 box
+$ bash docs/experiments/CLUSTER/run_on_cluster_gpu.sh          # on this sm_89 box
 FAIL: TargetSpec::Probe() reports caps.cluster == false on sm_89.
       This experiment needs sm_90+; refusing to measure the
       single-CTA fallback and call it a cluster result.
@@ -132,6 +132,39 @@ mismatched.
 Both `cluster_test.cu` and the header cross-compile for sm_90 and sm_120 ✅ —
 so the script's failure mode on a real H100 will be a *result*, not a build
 error.
+
+## 7.4a The capability boundary — what a 5090 can and cannot validate
+
+The script's entry condition is `caps.cluster`, which is true on sm_90, sm_100
+and sm_120 alike. That makes a consumer Blackwell (RTX 5090, sm_120) a legal
+host for this experiment, and it is worth stating exactly how far such a pass
+reaches, because "it ran on Blackwell" is the wrong summary.
+
+`tilemega-target-audit` reports the boundary from `ArchDispatch` rather than
+from prose (✅ verified, `SUMMARY targets=5 failures=0`):
+
+| | sm_89 | sm_90 | sm_100 | sm_120 |
+|---|---|---|---|---|
+| `cluster` / DSMEM | no | yes | yes | **yes** |
+| `tma` | no | yes | yes | **yes** |
+| `warp_specialized` | no | yes | yes | **yes** |
+| `tcgen05` (TMEM) | no | no | yes | **no** |
+| `l1_5` (LRC layer) | no | no | yes | **no** |
+| `net` (inter-GPU fabric) | no | no | no | **no** |
+| live cost-model lanes | 6 / 9 | 6 / 9 | 8 / 9 | **6 / 9** |
+
+So a green run on a 5090 validates **cluster synchronization, DSMEM and TMA**,
+and the same **six of nine** resource lanes an sm_89 already validates —
+`⟨tc, cuda, sfu, smem, l2, ddr⟩`. It does **not** touch `tmem` or `l1_5`: sm_120
+is Blackwell by generation and not by tensor-core generation, having neither
+tcgen05 nor the B200 L1.5 / LRC layer. `net` needs a multi-GPU execution domain
+and no single-device target can reach it.
+
+⚠️ Stated explicitly so it cannot be misread later: **a 5090 pass must not be
+recorded as "all nine dimensions validated".** The three remaining lanes are
+reachable only on sm_100 (`tmem`, `l1_5`) and on a multi-GPU domain (`net`),
+and `configs/targets/sm_100.json` is `calibrated: false` with a
+`resources_provenance` string saying no such device has ever been probed here.
 
 ## 7.5 The megakernel now launches as a cluster ✅ built, ❌ never executed
 
@@ -188,7 +221,7 @@ constant-bank offset moved. Every measured number elsewhere in this repository
 therefore still describes the same kernel.
 
 **What is still not known.** No cluster barrier in this repository has ever
-retired an instruction. `run_on_h100.sh` gained a megakernel arm that builds
+retired an instruction. `run_on_cluster_gpu.sh` gained a megakernel arm that builds
 `generated_e2e.cu` at dim ∈ {1, 2, 4, 8}, checks each binary's SASS for
 `UCGABAR` (0 required at dim 1, non-zero required above it — a "cluster" arm
 that quietly contains no cluster barrier exits 4), and runs `MEGA_RUNS`

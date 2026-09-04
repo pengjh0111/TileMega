@@ -1164,11 +1164,11 @@
 - Cross-compiled evidence, same source, both sm_90 and sm_120: `UCGABAR` count
   0 / 8 / 8 at cluster dim 1 / 2 / 8; PTX `barrier.cluster` count 0 / 4 / 4.
   ✅ verified.
-- Why it matters beyond spelling: `run_on_h100.sh` hard-fails when a dim>1 arm
+- Why it matters beyond spelling: `run_on_cluster_gpu.sh` hard-fails when a dim>1 arm
   shows no cluster barrier. With the plausible-looking pattern that check would
   have exited non-zero on a machine where everything was correct — a self-check
   that fails closed on its own typo is worse than no self-check.
-- Evidence: docs/experiments/CLUSTER/run_on_h100.sh;
+- Evidence: docs/experiments/CLUSTER/run_on_cluster_gpu.sh;
   docs/experiments/CLUSTER/result.md §7.5.
 
 ## F-53 — Cluster capture on inter-operator dataflow is 0.14–0.19, because the stage-serial megakernel cannot hold a tile across a stage boundary
