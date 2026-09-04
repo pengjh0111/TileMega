@@ -100,9 +100,9 @@ L4    符号形状参数化 + 运行时变体选择
 | L5 Serving | — | ❌ | — |
 | L4 Frontend | ✅ | ✅ | V-H；结构化 importer：2 层 GQA 为 30 stage，4 层 MHA 为 60 stage |
 | L3a 符号类型 | ✅ | ✅ | F-14；`coupling_types_test` / `cg_attr_roundtrip` |
-| L3b 耦合推导 | ✅ | ✅ | P3/P3_ISL：`W⁻¹∘R` 为 isl_map，wait/fanout 为 barvinok 计数；§2.7 全 13 行交叉验证（并纠正表中边 3 的 fanout）；Coarsen/I2/事件综合单测 |
+| L3b 耦合推导 | ✅ | ✅ | P3/P3_ISL：`W⁻¹∘R` 为 isl_map，wait/fanout 为 barvinok 计数；§2.7 全 13 行交叉验证（并纠正表中边 3 的 fanout）；Coarsen/I2/事件综合单测。**已驱动生产路径**：`Frontend.cpp` 按算子粒度建 `OperatorGraph` 并调 `CouplingDerivation`，`wait_map` 落到 IR、经 codegen 成为 `StageDependency`（gqa2 38 对：20 `kAll` / 3 `kIdentity` / 15 `kWindow`，`docs/experiments/WIRING/`） |
 | L2 Solver | ✅ | ✅ | 代价查询与候选枚举：`docs/experiments/BACKEND/`（一个 GEMM 算子 224 个合法候选，216 可编译）；实现契约与一致性校验：`docs/experiments/CONTRACT/`；投入判据：`docs/experiments/ORACLE/`（穷举 `g`，固定值比最优慢 6.11×/6.75×）。标定：`docs/experiments/CALIB/`。代价模型在 2154 个实测点上 ρ = 0.9450 / 0.9435、top-3 落在实测 top-3%，单配置 < 33 µs（`docs/experiments/COST_MODEL/`）。链上 DP：`docs/experiments/SOLVER/`，选中的 `16x64x16s2k16` 在 25 进程终测里排 2/15 与 1/13，比 tier-1-only 对照快 1.214% / 0.769%。Label 实现完毕但簇消融要 sm_90+（`docs/experiments/CLUSTER/`）；Coarsen 已消融、κ 不进 DP（`docs/experiments/COARSEN/`）；Place 已给出投入判据、时间局部性目标 < 2% 故不建 list scheduling（`docs/experiments/PLACE/`） |
-| L1 Codegen | ✅ | ✅ | E2E_GEN：表驱动 L0.5/L1/L2；2 层 GQA 50/50、4 层 MHA 25/25 全新进程；L2 逐位等同 L1 且中位数 1.014×/1.016×（`docs/experiments/E2E_L2/`） |
+| L1 Codegen | ✅ | ✅ | E2E_GEN：表驱动 L0.5/L1/L2；2 层 GQA 50/50、4 层 MHA 25/25 全新进程；L2 逐位等同 L1，接入推导表后中位数 1.036×/1.038×（25 进程组内配对，旧的 1.014×/1.016× 跨会话不可比，见 `docs/experiments/E2E_L2/`） |
 | L0 Backend | ✅ | ✅ | V-I 四架构交叉编译 |
 
 此表是项目实现状态的唯一权威来源；每轮结束随代码和实验证据同步更新。
@@ -148,32 +148,35 @@ L4    符号形状参数化 + 运行时变体选择
   `FanoutCard`），让两个方向各自留在自己可解的区域。这是绕过而不是修复：
   上游若换 isl/barvinok 版本，这条需要重测。
 
-- **L2 的 `notify`/`wait` 仍然只走 `kAll`，但阻塞点已经从"ABI 缺失"变成
-  一条具体的、可指名的缺口**：TaskBody ABI 的 CTA→task ownership 条目
-  已经补上（`TaskOwnership`，§5.3 / `TaskBase.h`），`ActiveBlocks` 现在读
-  TaskBody 的声明而不是重述它的守卫。剩下的阻塞是**生成器看不到 `C`**：
-  `lib/Frontend/Frontend.cpp` 从不调用 `CouplingDerivation`，IR 里的
-  `CouplingMapAttr` 是 `{ [0] -> [0] }` 占位（见下一条），所以 codegen 没有
-  可以判定的关系。
-  同时实测出了 `kIdentity` 的天花板，它比预期低得多：对 decoder layer 的
-  21 条边，`C ⊆ identity` 的只有 7 条，其中生产者/消费者 ownership kind
-  也一致（都是 `kElementChunk`）的**只有 1 条**（`add1→add2`）——其余 6 条
-  都是 Gemm(`kTilePerBlock`) → RoPE/Elementwise(`kElementChunk`)，同一个
-  `blockIdx.x` 在两侧指的不是同一份数据。而这唯一 1 条又恰好被传递归约
-  消掉（`add1→rmsnorm2→wgate/wup→silu→wdown→add2` 这条路径已经蕴含它）。
-  也就是说：即使把 `C` 送进生成器，`kIdentity` 在这两个模型上能省下的是
-  **零条 wait**。这是 `docs/experiments/E2E_L2/identity_probe.cpp` 的实测
-  结论，不是估计；它把"补 ABI 就能变快"这个假设证伪了。
-  L2 现在的中位数是 L1 的 `1.014×`/`1.016×`（两个模型），仍然是慢；剩余差距的归因
-  见 `docs/experiments/E2E_L2/result.md`。
-- **`kIdentity` 的可行性判定目前是一个按算子名的代理**：
-  `docs/experiments/E2E_L2/identity_probe.cpp` 判断一条边能否用 `kIdentity`
-  时，需要知道两端各由哪个 TaskBody 执行、从而声明了哪种
-  `TaskOwnershipKind`。参考模型的算子名与 TaskBody 一一对应，所以这个映射
-  对现有模型是准确的，但它是探针里的一张手写表，**不是**与设备侧
-  `RunStage` 的 TaskKind 分发链接起来的同一份真值。真要把 `kIdentity` 上线
-  （F-34 表明在现有两个模型上收益为零，所以并不急），这张表必须来自
-  `ModelPlan` 里已经确定的 stage kind，而不是名字。
+- **~~L2 的 `notify`/`wait` 仍然只走 `kAll`~~ 已还清；换来的是一条更靠外的
+  债**：`lib/Frontend/Frontend.cpp` 现在按算子粒度建 `OperatorGraph` 并调用
+  `CouplingDerivation`，推出的 `C` 以 `wait_map` 属性落到每条 coupling 上，
+  生成器按 stage 对合并后写进 `StageDependency`。2 层 GQA 的 38 个 stage 对
+  上得到 20 条 `kAll` / 3 条 `kIdentity` / 15 条 `kWindow`（✅
+  `docs/experiments/E2E_L2/raw/dependency_table_forms.txt`），§2.7 六种形状
+  里有五种被仿射区间编码逐条承载。
+  **但窄化目前一条 poll 也没省下来，原因是 Place 而不是 `C`**：在
+  `seq = 512`、κ = 1 的计数模型下，89.9% 的 poll 落在至少有一端声明
+  `kElementChunk` 的边上——那里 `blockIdx.x` 两侧指的不是同一份数据，逐 CTA
+  窗口不可容许；15 条 window 边只占 5.9%，而它们每条的
+  `count = scale = Tm = 128` 恰好等于这台机器的 `gridDim.x`，在 grid-stride
+  放置下一段步长宽的连续任务区间覆盖了全部 CTA，映射回去就是整条发射轴。
+  所以"窗口精确"与"窗口有用"是两件事，后者是 §2.3 **Place** 的决定
+  （`docs/experiments/E2E_L2/waitset.md`）。L2 的中位数现在是 L1 的
+  `1.036×`/`1.038×`（25 进程组内配对，✅ Wilcoxon p = 1.3e−05）；旧的
+  `1.014×`/`1.016×` 已被判定不可比——同一个字节相同的二进制今天重测就是
+  `1.0367×`，见下面的跨会话漂移一条。
+
+- **~~`kIdentity` 的可行性判定是一个按算子名的代理~~ 已还清**：
+  `tools/tilemega-identity-probe` 现在问的是生产路径本身——推导出的 isl `C`，
+  以及 `LiftedOp::ownership` 与 TaskBody 自己从 `Ownership` 返回的
+  `OwnershipOf`（`TaskBase.h`）逐条交叉核对。两个参考模型上
+  **0 条不一致**；可容许边为 gqa2 7 / 42、mha4 15 / 86，判据从"ownership
+  字符串相同"改成"两端都是 `kTilePerBlock`"，因此与旧表（1 与 4）不可比，
+  旧数字作废而不是复现。
+  剩下的边界是两端都是 `kElementChunk` 的边（gqa2 2 条 / mha4 4 条）：它们
+  只有在"把同样多的元素按同一个 grid 线性化"时才共享 CTA→task 映射，而 CG
+  的 task space 不记录这件事，所以按未判定计而不是按可容许计。
 
 - **前端的语义恢复现在是声明式匹配，剩下的边界是"模式的覆盖面"而不是
   "名字的约定"**：`lib/Frontend/ModelPlan.cpp` 里已经没有任何 ATen target
@@ -210,21 +213,43 @@ L4    符号形状参数化 + 运行时变体选择
   `static_assert` 故意让它编译失败而不是静默退回平坦 barrier）。
   簇的端到端消融因此欠一台有簇的机器，脚本已备好
   （`docs/experiments/CLUSTER/run_on_cluster_gpu.sh`）。
-- **分析层的耦合推导尚未接入真实前端路径**（本轮新发现，且与迁移无关——
-  迁移前就是如此）：`lib/Frontend/Frontend.cpp` 从 `export_bridge.json`
-  构造 CG 时**并不调用** `CouplingDerivation`。它按每个 ATen `call_function`
-  建 `task_space`（V-H 模型 179 个），每条张量依赖建一条 `coupling`，其
-  `relation` 来自占位的 `fixedRelation()`，`wait`/`fanout`/`volume`/`count`
-  一律写 `1`，`tier` 一律写 `0`。也就是说：经过验证的 `W⁻¹∘R` 推导（§2.7
-  全表、Tier 分类、事件综合）目前只在 `ReferenceModels.cpp` 的算子级
-  `OperatorGraph` 上运行（`tilemega-derive`、`table27_test` 等），**没有**
-  参与真实模型的代码生成；生成的 `.cu` 里 L2 的 `StageDependency` 只用到
-  "哪两个 stage 之间有耦合"这一结构信息，用不到 wait/fanout 的数值。
-  两条路径的粒度也不同（算子级 vs. 每个 ATen 节点级），所以接上去不是改
-  一行调用，而是要让前端按算子粒度建 `OperatorNode`——`ModelPlan` 已经
-  结构化地识别出了这些算子，是天然的接入点。本轮任务显式把
-  `Frontend.cpp` 列为"不动"，故未做；这是 L3b 距离"真正驱动生成的代码"
-  之间剩下的一步。
+- **~~分析层的耦合推导尚未接入真实前端路径~~ 已还清；剩下的是它在哪一个
+  参数点上被推出来**：`lib/Frontend/Frontend.cpp` 不再用占位的
+  `fixedRelation()`。它现在把 `ModelPlan` 抬升成 L-sem，
+  `Instantiate(sem, g)` 得到算子级 `OperatorGraph`（gqa2 179 task / 222
+  coupling / 30 stage，mha4 355 / 444 / 60），再调
+  `CouplingDerivation{}.Derive(graph, known)`，`relation` / `wait` /
+  `fanout` / `volume` / `count` / `tier` 全部来自推导，`wait_map` 属性把
+  §2.7 的形状带到 codegen。
+  新债是**推导的取值点**：`known` 把每个符号维度绑到它区间的**最小值**，
+  所以落进 IR 的是参数空间里的一个点，不是 §2.7 保留 `S` 为符号的那条
+  关系。窗口这一侧已经有对策——`div/scale/offset/count` 在
+  `S ∈ {256, 384, 512}` 三个探测点上重新拟合并要求逐条一致，不一致就退回
+  `kAll`（超集，永远安全）——但 `wait`/`fanout` 的**数值**没有这层保护，
+  它们是在最小值上算出来的一份计数。要让求解器用这些数值做跨长度的决策，
+  必须先把它们改成随参数变化的拟多项式而不是一个整数。
+
+- **一张形状相关的依赖表带有一条编译期粒度前提，`-include` 可以静默地
+  破坏它**（本轮实测，代价是 0/50）：`div/scale/offset/count` 是任务分解
+  上的整数，而 GEMM 的分解是编译期开关（`TILEMEGA_GEMM_TILE_M` 等），
+  生成器并不控制它。用 `-include plan_gqa2_uniform.h`（`tile_m 16`,
+  `split_k 16`）重编同一份 `.cu`，每个拟合常量都指向错误的生产者任务，
+  于是**欠等待**——而欠等待是静默的：✅ 50 个全新进程 **0 个通过**，
+  `l2_vs_l1_mismatch=4096`。现在生成器发出它拟合时的粒度
+  （`TILEMEGA_GENERATED_WINDOW_TILE_M/_TILE_N/_SPLIT_K`），harness 只在编译
+  粒度一致时才走窄路径，否则退回 `kAll`，每次运行都在
+  `E2E_KAPPA … wait_table=exact|degraded` 里说明走了哪条（修复后两条分支
+  各 ✅ 50/50）。**这条前提是新增的耦合面**：任何未来把形状常量烘进生成
+  代码的优化都要带上同样的自证，否则它的失效模式是错误结果而不是慢。
+
+- **跨会话的绝对延迟不可比，只有会话内配对可比**（本轮实测）：同一个
+  字节相同的二进制（`docs/experiments/E2E_GEN/generated_e2e`）在 09-03 记录
+  `l2/l1 = 1.0136×`，09-04 重测 `1.0367×`，绝对 L1 中位数在同一天的两次
+  扫描间也从 0.998400 ms 走到 1.082560 ms，`nvidia-smi` 显示 SM 时钟在
+  210 MHz 与 3105 MHz 之间空转。因此本仓所有跨轮次的**绝对**数字都只作为
+  历史记录，任何比较都必须在同一会话内配对重测；COARSEN 的两次 κ 扫描
+  中位数相差最多 1.8% 而每一条配对结论不变，是这条的第二个证据
+  （`docs/experiments/COARSEN/result.md` §3.5）。
 
 - **Coarsen 的实测边界（P4.6 的 `[!]` 已给出结论，但覆盖有限）**：κ ∈ {1,2,4}
   下关系与拟多项式都保持**单分片**、isl 文本长度基本不随 κ 变化（保留 `S`
@@ -346,6 +371,17 @@ V-A 的局部环在 2×容量仍推进，而 V-J 的反向依赖在 `resident_li
 | **Label** 标注 | 每条边打 `sync_kind ∈ {global, cluster, local}` | 通信归属 |
 | **Place** 放置 | `T_op` 的点 → `(worker, slot)` | 分配与顺序 |
 | **Relax** 松弛 | `C → C' ⊇ C` | Tier 2/3 的保守化 |
+
+**这五种操作里，只有 Reparam 真正驱动求解器**（本轮逐条核对后记录，避免把
+"实现了"当成"在决策"）：
+
+| 操作 | 是否驱动求解器 | 为什么 |
+|---|---|---|
+| **Reparam** | ✅ 是 | 链上 DP 的状态就是 `g`（tile 形状、stages、split-K）。它也是唯一**不需要** `C` 的一个：代价模型读的是形状与标定表，不读耦合关系。 |
+| **Coarsen** | ❌ 否 | κ 不是 DP 状态变量。收益侧接通 `C` 之后仍然 ≤ 2.4% 且从 κ = 4 起恒为零，代价侧 24 个臂每一个 CI 都与 per-stage 方案不相交（`docs/experiments/COARSEN/`）。理由是实测的，不是继承的。 |
+| **Label** | ⚠️ 部分 | `sync_kind` 的判定与 `ClusterSync` 原语都在，簇常数也已标定，但没有一条 CG 边在 sm_89 上能取 `cluster`，所以它现在恒取 `global`；端到端消融欠一台 sm_90+ 机器。 |
+| **Place** | ❌ 否（但它是当前的瓶颈） | 放置目前是固定的 grid-stride，不是求解出来的。而 §3.1 的归因表明 wait set 的 89.9% poll 质量落在 `kElementChunk` 放置的边上、window 边的 `count = gridDim.x` 也是放置造成的——**`C` 再精确也搬不动它**，能搬动的是 Place。这是下一轮唯一有杠杆的位置。 |
+| **Relax** | ✅ 是（安全方向） | `Contains(C', C)` 是 `isl_map_is_subset`，Tier 2/3 与"粒度不匹配"两种情况都退回 `kAll`（超集）。它决定的不是快慢而是正确性，且退化路径每次运行都自报（`wait_table=exact\|degraded`）。 |
 
 **事件张量**由粗化后的耦合直接给出：
 
@@ -707,8 +743,12 @@ barvinok 计数一致；`tilemega.implementation` 的 threads/smem/alignment/arc
 它的三条，现在的形式是**资源向量 + 流水包络**——每一项仍然是 CG 派生量的函数：
 
 ```
-稳态    u(o) = ⟨t_TC, t_CUDA, t_SFU, t_SMEM, t_L2, t_DDR⟩   每条资源道各自的占用时间
+稳态    u(o) = ⟨t_TC, t_CUDA, t_SFU, t_TMEM, t_SMEM, t_L1.5, t_L2, t_DDR, t_NET⟩
         T_steady(o) = max( u(o) )                          取 max，不是取和
+        九道齐备（§2.2(a) 的顺序）。哪几道参与由 `TargetSpec::Caps` 决定，
+        不参与的置零、被 max 跳过；每条零道都带一个理由
+        （`LaneStatus` ∈ {kLive, kCapabilityAbsent, kNotCalibrated}），
+        由 `tilemega-target-audit` 逐目标检查
 波分解  CTA 按 num_sms × ctas_per_sm 分波；尾波按它自己的活跃 SM 占比
         o = active/num_sms 重新代入 u(o) 求值，而不是外加一个 T_quant 修正项
 Split-K Interface 用 Stream-K 形式 a + b·[peers>1] + c·iters + d·(peers−1)
@@ -756,6 +796,33 @@ Split-K Interface 用 Stream-K 形式 a + b·[peers>1] + c·iters + d·(peers−
 
 **输出形态**：参数化的最优解区间划分（「`S ∈ [0,512)` 用 `g₁`；`S ∈ [512,∞)` 用 `g₂`」），
 区间边界来自分段拟多项式的交点。运行时 `O(1)` 查表选变体。
+
+**TileSight 适配点**（记录在此，避免下次照搬）：
+
+- **`Topo(D)` 的枚举范围。** TileSight 的 `D` 是**一个融合 kernel** 的 tile-action
+  DAG：11 个 action，`11!` 上界经合法性剪枝后落到 **132 个合法序**，穷举是可行的。
+  本项目的 `D` 是**整个 megakernel 的 CG**：2 层 GQA **179 task / 222 coupling /
+  30 stage**，4 层 MHA **355 task / 444 coupling / 60 stage**。同样的穷举在这里
+  不是慢，是不可能。
+  ✅ 已确认当前实现的范围：`Solver/ListScheduler` **不枚举**——它给出**唯一一个**
+  拓扑序（层打包 + 关键路径高度优先 + 下标破平，`Schedule()` 是确定性的），
+  枚举范围恒为 1。所以不存在「无界枚举需要收窄」的问题；需要收窄的是反方向：
+  若将来要在序上做搜索，只能**限制在 stage 内**，跨 stage 的次序由 `C_κ` 定死
+  （§2.3），因为跨 stage 的次序已经被 grid barrier 语义固定，重排它等于改语义。
+- **代价模型的分层消融给出的是「哪两层值钱」**（`docs/experiments/COST_MODEL/`，
+  2154 个实测点）：roofline ρ 0.4435/0.4303 → `+splitk` 0.9071/0.9043 →
+  `+sync` 0.9095/0.9070 → `+waves` **0.9450/0.9435**。split-K 与尾波两层拿走了
+  全部增益。`+cache`（SDCM 命中率喂 DRAM 道）在两个模型上把 MAPE 与 ρ 都改动
+  **恰好 0**——两个参考模型的活跃工作集都远在 L2 拐点的同一侧，命中率是常数，
+  于是它只是一个乘在所有配置上的相同因子，不改排序也不改误差。保留是因为它对
+  更大的模型不再是常数；但**不许把它算进本轮的收益**。
+- **九道里在 sm_89 上真正起作用的只有 SMEM 道。** `full − lanes(smem only)` 与
+  完整模型的差是 **0.02 个 MAPE 点、0.0006 ρ**（gqa2 26.24/0.9450 对
+  26.25/0.9444，mha4 25.15/0.9435 对 25.17/0.9429）。
+  ⚠️ 并且必须连带记下：**SMEM 道与 L2 道在全部已标定形状上共线**——每个形状的
+  smem 流量与 L2 流量成固定比例，拟合分不开它们。把瓶颈叫作 SMEM 是一个
+  微架构论证（标量 `ld.shared` 流水在这些形状上先饱和），**不是拟合结论**。
+  sm_90+ 上 TMA 把两者解耦，届时必须重测，不得沿用这个命名。
 
 ## 4.5 Label：通信归属
 
@@ -1069,6 +1136,19 @@ tilemega/
 > `[ ]` 待办 `[~]` 进行中 `[x]` 完成 `[!]` 阻塞 `[-]` 已放弃（保留并注明原因）
 >
 > **前置**：`docs/VERIFICATION_PLAN.md` 的项目先完成。
+>
+> **对所有"分析层"验收项的一条常设附加条件（本轮补入，代价见下）**：
+> 一项分析工作只有当它的输出**进入生产路径**时才算通过——不是"算法有单测"、
+> 也不是"探针能复现表格"，而是生成的 `.cu` / 求解器的决策里能指出哪一处用了
+> 它，并且把它拿掉会看得见地变化。
+> 这条不是事后总结的漂亮话，它有价签：P3.3 的验收（§2.7 的 13 条边全部自动
+> 推出、isl 整表交叉验证）与 P3.5 的验收（global 事件张量、release/acquire
+> 顺序、ABA 场景、与 L1 逐位一致 50/50）**各自都通过了**，两条合起来仍然漏掉
+> 了"推导出的 `C` 必须进生成器"：`Frontend.cpp` 从不调用
+> `CouplingDerivation`，IR 里的 `CouplingMapAttr` 是 `{ [0] -> [0] }` 占位，
+> codegen 只能发 `kAll`，于是一条依赖退化成一次 barrier。这一个缺口同时解释
+> 了三个负结果——L2 比 L1 慢、κ 的收益侧恒为零、编排层量到 −1.4%——而每一个
+> 都曾被当作独立的结论记在案。验收项之间的**接缝**没有主人，就是这样漏的。
 
 ---
 
@@ -1228,6 +1308,13 @@ tilemega/
       验证：除边 3 的 fanout 外逐项一致，而边 3 是**原表算错了**（见 §2.7
       表下的修正说明），不是迁就实现改期望；见 `docs/experiments/P3/table27.md`
       与 `docs/experiments/P3_ISL/result.md`
+      ⚠️ 这条验收当时通过得太轻：它只检查了推导**能**推出 13 条边，没有检查
+      推出来的东西**进了**生成器。缺口与代价见 §7 开头的常设附加条件。
+- [x] 推导进入生产路径：`Frontend.cpp` 按算子粒度建 `OperatorGraph` 并调用
+      `CouplingDerivation`，每条 coupling 带 `wait_map`，codegen 按 stage 对
+      合并成 `StageDependency`（gqa2 38 对 = 20 `kAll` / 3 `kIdentity` /
+      15 `kWindow`；有一个成员松弛或不一致就整对退回 `kAll`）。
+      见 `docs/experiments/WIRING/`
 - [x] 错位 tile 的两侧重叠条件改为精确推导（此前只能松弛）：生产者块 p 与
       读区间重叠当且仅当 `p·tile < base+span` 且 `base < p·tile+tile`，是仿射
       条件，isl 可直接承载。这类边因此从 Tier 2 松弛回到 Tier 0 精确。
@@ -1287,6 +1374,15 @@ tilemega/
       被丢弃的分支照样做名字查找而编译失败；`.cluster` 作用域的 fence 同样
       要求 `.target sm_90+`。可用性只能由 `#if defined(_CG_HAS_CLUSTER_GROUP)`
       判定，策略仍由 `Caps<Arch>::kCluster` 决定，两者由 `static_assert` 绑定
+      **本轮已接线**：`Codegen.cpp` 现在接受 `sync_kind = "cluster"`，并要求
+      它与 placement 的簇宽**完全一致**——混用被拒绝而不是被调和（一个 grid
+      只有一种 stage barrier），发出 `TILEMEGA_GENERATED_CLUSTER_DIM`；
+      `ModelHarness.cuh` 的 `LaunchL1`/`LaunchL2` 相应有 `cudaLaunchKernelEx`
+      变体。仍然欠一台 sm_90+ 机器来跑端到端，`run_on_cluster_gpu.sh` 的
+      自检改成读 `TargetSpec::Probe().caps.cluster` 而不是比较架构号。
+      ⚠️ **能力边界**：sm_120 有 Thread Block Cluster / DSMEM / TMA，但**没有**
+      tcgen05，也没有 B200 的 L1.5/LRC 层——一台 5090 上跑通不等于九条资源道
+      都被验证过
 - [x] 单调计数器：`needed = num_triggers × iteration_num`
       （`StageArrivalTarget`）。计数器从不在迭代之间清零，`iteration` 参数
       贯穿 `GridBarrier`/`WaitDependencies`/`NotifyStage` 与两个 kernel。
@@ -1300,10 +1396,14 @@ tilemega/
       `TaskBase.h`）：每个 TaskBody 自己声明 `blockIdx.x` 归属的
       `{kind, count}`，`ActiveBlocks` 只做分发，不再重述各 TaskBody 的守卫；
       未声明的 TaskBody 触发 `static_assert` 而不是静默破坏 L2 的跳过
-- [x] L2 vs L1：中位数 2 层 GQA `1.0136×`、4 层 MHA `1.0155×`
-      （此前 `1.182×` / `1.355×`）。**仍然是慢，不是快**；三步各自可归因，
-      且第三步给出了 `kIdentity` 的实测天花板。数据与归因见
-      `docs/experiments/E2E_L2/result.md`
+- [x] L2 vs L1：中位数 2 层 GQA `1.036×`、4 层 MHA `1.038×`（25 进程、
+      组内配对、bootstrap CI、Wilcoxon p = 1.3e−05，0/25 轮 L2 更快）。
+      **仍然是慢，不是快**。此前记录的 `1.0136×` / `1.0155×` 已判定不可比：
+      同一个字节相同的二进制今天重测就是 `1.0367×`，机器时钟在 210 MHz 与
+      3105 MHz 之间空转，所以只有会话内配对可比。接上推导表之后**表本身不
+      是那 3.6% 的原因**：同一会话内四个只改依赖表内容的构建（推导窗口 /
+      全 `kAll` / `kAll`+传递归约 / 旧二进制）CI 互相重叠。数据与归因见
+      `docs/experiments/E2E_L2/result.md` 与 `waitset.md`
 - [x] L2 还有一项此前没有计入的成本：事件 epoch 占寄存器，在某些 `g` 下比 L1
       多一整档（实测 144 vs 128 → 1 vs 2 CTA/SM），于是**整个 harness**（含
       L0.5 和 L1）的 grid 被 L2 拉到一半。这不是调度开销而是资源占用，
@@ -1459,9 +1559,14 @@ P6.2 的 oracle 已给出投入判据：固定 `g` 与最优 `g` 相差 **6.11×
 
 - [x] `[!]` **roofline 被换掉了，因为量出来不行**：同一套资源常数上的纯
       roofline 一级实测 MAPE 181%/185%、Spearman 0.444/0.430，与层2 的解析
-      排序（0.461/0.446）无法区分。现在的稳态是六条资源道
-      `⟨t_TC, t_CUDA, t_SFU, t_SMEM, t_L2, t_DDR⟩` 的 `max`（§4.4）。
-      完整模型 ρ **0.9450 / 0.9435**。
+      排序（0.461/0.446）无法区分。现在的稳态是 §2.2(a) 九条资源道
+      `⟨t_TC, t_CUDA, t_SFU, t_TMEM, t_SMEM, t_L1.5, t_L2, t_DDR, t_NET⟩`
+      的 `max`（§4.4）——道数是九，不是六；在 sm_89 上 tmem/l1_5/net 三道
+      因 `Caps` 缺失置零、被 `max` 跳过，每条零道带一个
+      `LaneStatus` 理由并由 `tilemega-target-audit` 逐目标检查。
+      完整模型 ρ **0.9450 / 0.9435**。⚠️ 实测里只有 SMEM 一道决定排序
+      （只留它 MAPE 差 0.02 点、ρ 差 0.0006），但 SMEM 与 L2 两道在所有已
+      标定形状上共线，"是 SMEM"是微架构论证而不是拟合结论，须在 sm_90+ 重测。
 - [x] `[!]` **`T_quant` 不是加项**：CTA 按 `num_sms × ctas_per_sm` 分波，
       **尾波按它自己的活跃 SM 占比 `o = active/num_sms` 重新代入资源向量
       求值**。这一改把 ρ 从 0.9095 抬到 0.9450、实测最优的模型排名从 33 抬到
