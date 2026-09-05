@@ -90,6 +90,23 @@ TargetSpec FullyPopulated() {
   return spec;
 }
 
+void PopulateCalibrationVectors(TargetSpec::Calib& calib) {
+  calib.l2_curve_bytes = {1.0};
+  calib.l2_curve_gbps = {1.0};
+  calib.smem_occupancy_ctas = {1.0};
+  calib.smem_occupancy_gbps = {1.0};
+  calib.atomic_contention_ctas = {1.0};
+  calib.atomic_contention_ns = {1.0};
+  calib.grid_barrier_ctas = {1.0};
+  calib.grid_barrier_ns = {1.0};
+  TargetSpec::StreamKPoint point;
+  point.occ_per_sm = {1.0};
+  point.occ_a_ns = {1.0};
+  point.occ_c_ns = {1.0};
+  calib.streamk = {point};
+  calib.measurements = {TargetSpec::Measurement{}};
+}
+
 /// True when `path` names a field inside an array that the file left empty --
 /// there is nothing to compare, and an empty curve is a calibration question
 /// (LANES answers it), not a schema one.
@@ -102,8 +119,17 @@ bool InsideEmptyArray(std::string const& path,
 
 void CheckSchema(std::string const& tag, std::string const& file) {
   std::set<std::string> expected, actual;
-  CollectKeys(tilemega::json::Parse(FullyPopulated().ToJson()), "", expected);
-  CollectKeys(tilemega::json::ParseFile(file), "", actual);
+  tilemega::json::Value const parsed = tilemega::json::ParseFile(file);
+  CollectKeys(parsed, "", actual);
+  TargetSpec schema = FullyPopulated();
+  // Per-dtype calibration profiles are optional.  If a target carries one,
+  // audit it against the complete Calib schema; do not require an unmeasured
+  // BF16 profile in every target file.
+  if (parsed.Find("calibration_by_dtype")) {
+    PopulateCalibrationVectors(schema.calib_bf16);
+    schema.calib_bf16.calibrated = true;
+  }
+  CollectKeys(tilemega::json::Parse(schema.ToJson()), "", expected);
 
   int missing = 0, extra = 0, documented = 0;
   for (auto const& key : expected) {

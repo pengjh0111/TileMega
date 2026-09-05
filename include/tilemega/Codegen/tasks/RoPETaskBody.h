@@ -6,6 +6,13 @@
 
 namespace tilemega::codegen {
 
+/// The source graph materializes an integer arange then converts it to model
+/// storage. Keeping that conversion boundary here makes non-zero-past RoPE
+/// independent of backend-specific low-precision arange midpoint behavior.
+__device__ inline float RoPEPosition(int past, int token) {
+  return static_cast<float>(ModelElement(static_cast<float>(past + token)));
+}
+
 /// operand = {input, output, inv_freq}; `extent` is the head count of this
 /// tensor (a per-token count, so the token axis stays symbolic).
 template <class Arch, class SmemUnion, int Threads>
@@ -19,6 +26,9 @@ struct RoPETaskBody {
   /// a task tile.
   __device__ static TaskOwnership Ownership(Params const& p,
                                             StageDesc const& stage) {
+    if (p.ownership_flags & kRoPETileOwnership)
+      return {TaskOwnershipKind::kTilePerBlock,
+              p.dims.seq * static_cast<int>(stage.extent)};
     int pairs = p.dims.seq * static_cast<int>(stage.extent) *
                 (static_cast<int>(stage.width) / 2);
     return {OwnershipOf(TaskKind::kRoPE),
@@ -27,11 +37,35 @@ struct RoPETaskBody {
 
   __device__ void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion&) const {
-    float const* input = p.buffers[stage.operand[0]];
-    float* output = p.buffers[stage.operand[1]];
-    float const* inv_freq = p.buffers[stage.operand[2]];
+    ModelElement const* input = p.buffers[stage.operand[0]];
+    ModelElement* output = p.buffers[stage.operand[1]];
+    ModelElement const* inv_freq = p.buffers[stage.operand[2]];
     int const dim = static_cast<int>(stage.width), half_dim = dim / 2;
     int const heads = static_cast<int>(stage.extent);
+    if (p.ownership_flags & kRoPETileOwnership) {
+      for (int task = PlacedBlock(); task < p.dims.seq * heads;
+           task += gridDim.x) {
+        int const token = task / heads;
+        int const base = task * dim;
+        for (int half = threadIdx.x; half < half_dim;
+             half += blockDim.x) {
+          float position = RoPEPosition(p.dims.past, token);
+          float angle = static_cast<float>(ModelElement(
+              position * static_cast<float>(inv_freq[half])));
+          float c = static_cast<float>(ModelElement(cosf(angle)));
+          float s = static_cast<float>(ModelElement(sinf(angle)));
+          float a = static_cast<float>(input[base + half]);
+          float b = static_cast<float>(input[base + half + half_dim]);
+          float ac = static_cast<float>(ModelElement(a * c));
+          float bs = static_cast<float>(ModelElement(b * s));
+          float bc = static_cast<float>(ModelElement(b * c));
+          float as = static_cast<float>(ModelElement(a * s));
+          output[base + half] = ModelElement(ac - bs);
+          output[base + half + half_dim] = ModelElement(bc + as);
+        }
+      }
+      return;
+    }
     int pairs = p.dims.seq * heads * half_dim;
     for (int index = PlacedBlock() * blockDim.x + threadIdx.x; index < pairs;
          index += gridDim.x * blockDim.x) {
@@ -39,11 +73,19 @@ struct RoPETaskBody {
       int head_token = index / half_dim;
       int token = head_token / heads;
       int base = head_token * dim;
-      float angle = (p.dims.past + token) * inv_freq[half];
-      float c = cosf(angle), s = sinf(angle);
-      float a = input[base + half], b = input[base + half + half_dim];
-      output[base + half] = a * c - b * s;
-      output[base + half + half_dim] = b * c + a * s;
+      float position = RoPEPosition(p.dims.past, token);
+      float angle = static_cast<float>(ModelElement(
+          position * static_cast<float>(inv_freq[half])));
+      float c = static_cast<float>(ModelElement(cosf(angle)));
+      float s = static_cast<float>(ModelElement(sinf(angle)));
+      float a = static_cast<float>(input[base + half]);
+      float b = static_cast<float>(input[base + half + half_dim]);
+      float ac = static_cast<float>(ModelElement(a * c));
+      float bs = static_cast<float>(ModelElement(b * s));
+      float bc = static_cast<float>(ModelElement(b * c));
+      float as = static_cast<float>(ModelElement(a * s));
+      output[base + half] = ModelElement(ac - bs);
+      output[base + half + half_dim] = ModelElement(bc + as);
     }
   }
 };

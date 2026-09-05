@@ -13,6 +13,8 @@
 
 namespace tilemega::solver {
 
+enum class ScalarType { kF32, kBF16 };
+
 struct ClusterShape {
   int m = 1, n = 1, k = 1;
   constexpr int size() const { return m * n * k; }
@@ -93,6 +95,28 @@ constexpr bool SimtF32ShapeLegal(int m, int n, int k, int stages) {
 }
 
 BackendTraits SimtF32Traits(int m, int n, int k, int stages);
+
+/// Closed forms for the SM80+ BF16 tensor-core TN family instantiated by
+/// Backend/CutlassGemmCandidate.h. Storage is BF16, accumulation is FP32.
+constexpr char kTensorBF16Backend[] =
+    "cutlass.sm80_cpasync.tensorop_bf16_f32acc";
+constexpr int kTensorBF16Threads = 128;
+constexpr int kTensorBF16ArchSm = 80;
+
+constexpr int TensorBF16SmemBytes(int m, int n, int k, int stages) {
+  return 2 * stages * k * (m + n);
+}
+
+constexpr bool TensorBF16ShapeLegal(int m, int n, int k, int stages) {
+  int const copy_k = k < 8 ? k : 8;
+  int const copy_m = copy_k > 0 ? kTensorBF16Threads / copy_k : 0;
+  return m > 0 && n > 0 && k > 0 && stages > 1 && m % 32 == 0 &&
+         n % 16 == 0 && k % 16 == 0 && copy_k > 0 &&
+         kTensorBF16Threads % copy_k == 0 && copy_m > 0 &&
+         m % copy_m == 0 && n % copy_m == 0;
+}
+
+BackendTraits TensorBF16Traits(int m, int n, int k, int stages);
 
 /// `entry -> registers` for every entry point in a `-Xptxas=-v` log.
 std::vector<std::pair<std::string, int>> ParsePtxasRegisters(std::string_view log);

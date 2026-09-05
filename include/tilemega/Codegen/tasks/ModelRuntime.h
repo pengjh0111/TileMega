@@ -11,10 +11,21 @@
 #include <cuda_runtime.h>
 
 #include <tilemega/Codegen/tasks/TaskBase.h>
+#include <cutlass/bfloat16.h>
 
 #include <cstdint>
 
 namespace tilemega::codegen {
+
+enum class ScalarType : std::uint32_t { kF32 = 0, kBF16 = 1 };
+
+#if defined(TILEMEGA_MODEL_BF16) && TILEMEGA_MODEL_BF16
+using ModelElement = cutlass::bfloat16_t;
+inline constexpr ScalarType kCompiledScalarType = ScalarType::kBF16;
+#else
+using ModelElement = float;
+inline constexpr ScalarType kCompiledScalarType = ScalarType::kF32;
+#endif
 
 /// The symbolic dimensions, and only those. Everything static about a model
 /// (widths, head counts and the stage sequence) is generated data carried by
@@ -32,6 +43,20 @@ struct GemmDesc {
   int n, k;
   std::uint32_t a, b, c, d;
   float beta;
+};
+
+/// One GEMM implementation selected by a runtime model variant.  The tile
+/// shape is repeated here deliberately: C++ templates still require the
+/// generator to instantiate a finite set of collectives, but ModelSpec is the
+/// sole runtime source of truth for both the selected instantiation and the
+/// granularity against which dependency windows were derived.
+struct GemmRuntimeDesc {
+  std::uint16_t compiled_variant;
+  std::uint16_t split_k;
+  std::uint16_t tile_m;
+  std::uint16_t tile_n;
+  std::uint16_t tile_k;
+  std::uint16_t stages;
 };
 
 /// One buffer the model needs.  `elements` is filled in by the generator;
@@ -120,6 +145,25 @@ struct OutputDesc {
   char const* file;  ///< reference fixture
 };
 
+/// All granularity-dependent data for one runtime interval.  In particular,
+/// a dependency table never floats free of the GEMM plan that produced it.
+struct RuntimeVariantDesc {
+  GemmRuntimeDesc const* gemms;  ///< gemm_count entries
+  StageDependency const* dependencies;
+  std::uint32_t dependency_count;
+  std::uint32_t const* dependency_offsets;  ///< stage_count + 1 entries
+  std::uint32_t seq_begin;  ///< inclusive, for diagnostics
+  std::uint32_t seq_end;    ///< inclusive, for diagnostics
+  std::uint32_t ownership_flags;
+};
+
+enum RuntimeOwnershipFlag : std::uint32_t {
+  kRoPETileOwnership = 1u << 0,
+  kKVTileOwnership = 1u << 1,
+  kActivationTileOwnership = 1u << 2,
+  kCombinerTileOwnership = 1u << 3,
+};
+
 /// §8.4: one 128 B line per event so two counters never share a line.
 struct alignas(128) EventCounter {
   unsigned long long arrivals;
@@ -134,7 +178,7 @@ static_assert(sizeof(EventCounter) == 128, "event cache-line padding");
 /// pointer (F-17b); nothing large is passed by value into the kernel.
 struct Params {
   ModelDims dims;
-  float** buffers;            ///< buffer id -> device pointer
+  ModelElement** buffers;     ///< buffer id -> device pointer
   void const* gemms;          ///< GemmInvocation const*, opaque to this header
   StageDesc const* stages;
   std::uint32_t stage_count;
@@ -144,12 +188,14 @@ struct Params {
   /// slice of `dependencies` whose consumer is `stage`. Length is
   /// `stage_count + 1`.
   std::uint32_t const* dependency_offsets;
+  std::uint32_t ownership_flags;
 };
 
 /// Everything the generator emits about one model.  The harness reads only
 /// this; it never names a tensor, a stage or a dimension itself.
 struct ModelSpec {
   ModelDims dims;
+  ScalarType dtype;
   BufferDesc const* buffers;
   std::uint32_t buffer_count;
   GemmDesc const* gemms;
@@ -158,9 +204,13 @@ struct ModelSpec {
   std::uint32_t stage_count;
   OutputDesc const* outputs;
   std::uint32_t output_count;
-  StageDependency const* dependencies;
-  std::uint32_t dependency_count;
-  std::uint32_t const* dependency_offsets;  ///< stage_count + 1 entries
+  RuntimeVariantDesc const* runtime_variants;
+  std::uint32_t runtime_variant_count;
+  /// Direct seq -> runtime-variant table. Entry zero is unused because seq is
+  /// positive; seq >= seq_variant_count is rejected instead of silently
+  /// selecting a conservative plan. Selection is therefore strict O(1).
+  std::uint16_t const* seq_variant;
+  std::uint32_t seq_variant_count;
 };
 
 }  // namespace tilemega::codegen

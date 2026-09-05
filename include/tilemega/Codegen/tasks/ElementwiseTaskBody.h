@@ -19,6 +19,8 @@ struct ElementwiseTaskBody {
   /// not on the task space.
   __device__ static TaskOwnership Ownership(Params const& p,
                                             StageDesc const& stage) {
+    if (p.ownership_flags & kActivationTileOwnership)
+      return {TaskOwnershipKind::kTilePerBlock, p.dims.seq};
     int count = p.dims.seq * static_cast<int>(stage.extent);
     return {OwnershipOf(TaskKind::kElementwise),
             (count + Threads - 1) / Threads};
@@ -26,14 +28,29 @@ struct ElementwiseTaskBody {
 
   __device__ void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion&) const {
-    float const* gate = p.buffers[stage.operand[0]];
-    float const* up = p.buffers[stage.operand[1]];
-    float* out = p.buffers[stage.operand[2]];
+    ModelElement const* gate = p.buffers[stage.operand[0]];
+    ModelElement const* up = p.buffers[stage.operand[1]];
+    ModelElement* out = p.buffers[stage.operand[2]];
     int count = p.dims.seq * static_cast<int>(stage.extent);
+    if (p.ownership_flags & kActivationTileOwnership) {
+      int const width = static_cast<int>(stage.extent);
+      for (int token = PlacedBlock(); token < p.dims.seq;
+           token += gridDim.x)
+        for (int d = threadIdx.x; d < width; d += blockDim.x) {
+          int i = token * width + d;
+          float x = static_cast<float>(gate[i]);
+          float silu = static_cast<float>(
+              ModelElement(x / (1.0f + expf(-x))));
+          out[i] = ModelElement(silu * static_cast<float>(up[i]));
+        }
+      return;
+    }
     for (int i = PlacedBlock() * blockDim.x + threadIdx.x; i < count;
          i += gridDim.x * blockDim.x) {
-      float x = gate[i];
-      out[i] = (x / (1.0f + expf(-x))) * up[i];
+      float x = static_cast<float>(gate[i]);
+      float silu = static_cast<float>(
+          ModelElement(x / (1.0f + expf(-x))));
+      out[i] = ModelElement(silu * static_cast<float>(up[i]));
     }
   }
 };

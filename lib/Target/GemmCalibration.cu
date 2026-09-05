@@ -148,14 +148,14 @@ __global__ __launch_bounds__(Candidate::kThreads, 1) void CalibGemmKernel(
 
 /// The reduction half of §2.4's Split, byte for byte the GemmCombineTaskBody
 /// loop the harness runs.
-__global__ __launch_bounds__(256) void CalibCombineKernel(float const* partials,
-                                                          float* out, int count,
-                                                          int chunks) {
+template <class Element>
+__global__ __launch_bounds__(256) void CalibCombineKernel(
+    Element const* partials, Element* out, int count, int chunks) {
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < count;
        i += gridDim.x * blockDim.x) {
     float sum = 0.0f;
     for (int c = 0; c < chunks; ++c) sum += partials[c * count + i];
-    out[i] = sum;
+    out[i] = Element(sum);
   }
 }
 
@@ -198,6 +198,16 @@ __global__ void FillKernel(float* v, std::size_t elements) {
     unsigned h = static_cast<unsigned>(i) * 2654435761u;
     h = h * 1664525u + 1013904223u;
     v[i] = __uint_as_float((h & 0x007fffffu) | 0x3f800000u);
+  }
+}
+
+template <class Element>
+__global__ void FillElementKernel(Element* v, std::size_t elements) {
+  for (std::size_t i = blockIdx.x * (std::size_t)blockDim.x + threadIdx.x;
+       i < elements; i += (std::size_t)gridDim.x * blockDim.x) {
+    unsigned h = static_cast<unsigned>(i) * 2654435761u;
+    h = h * 1664525u + 1013904223u;
+    v[i] = Element(__uint_as_float((h & 0x007fffffu) | 0x3f800000u));
   }
 }
 
@@ -269,11 +279,11 @@ struct CombineFit {
 
 /// Device state shared by every shape: A, B, C, D and the split partials.
 struct Buffers {
-  float* a = nullptr;
-  float* b = nullptr;
-  float* c = nullptr;
-  float* d = nullptr;
-  float* partials = nullptr;
+  void* a = nullptr;
+  void* b = nullptr;
+  void* c = nullptr;
+  void* d = nullptr;
+  void* partials = nullptr;
   void* table = nullptr;
 };
 
@@ -290,6 +300,12 @@ void BuildTable(Buffers const& buffers, int n, int k, int chunks,
                 std::vector<Invocation<Candidate>>& host) {
   using Mainloop = typename Candidate::Mainloop;
   using Epilogue = typename Candidate::Epilogue;
+  using Element = typename Candidate::Element;
+  auto* a = static_cast<Element*>(buffers.a);
+  auto* b = static_cast<Element*>(buffers.b);
+  auto* c = static_cast<Element*>(buffers.c);
+  auto* d = static_cast<Element*>(buffers.d);
+  auto* partials = static_cast<Element*>(buffers.partials);
   int const tile_k = Candidate::Traits().tile_k;
   int const k_tiles = (k + tile_k - 1) / tile_k;
   host.clear();
@@ -306,14 +322,14 @@ void BuildTable(Buffers const& buffers, int n, int k, int chunks,
         typename Epilogue::StrideC{}, cute::make_shape(kCalibM, n, 1));
     auto stride_d = cutlass::make_cute_packed_stride(
         typename Epilogue::StrideD{}, cute::make_shape(kCalibM, n, 1));
-    typename Mainloop::Arguments main_args{buffers.a + k_begin, stride_a,
-                                           buffers.b + k_begin, stride_b};
-    float* destination =
+    typename Mainloop::Arguments main_args{a + k_begin, stride_a,
+                                           b + k_begin, stride_b};
+    Element* destination =
         chunks > 1
-            ? buffers.partials + static_cast<std::size_t>(chunk) * kCalibM * n
-            : buffers.d;
+            ? partials + static_cast<std::size_t>(chunk) * kCalibM * n
+            : d;
     typename Epilogue::Arguments epilogue_args{
-        {1.0f, chunk == 0 ? 1.0f : 0.0f}, buffers.c, stride_c, destination,
+        {1.0f, chunk == 0 ? 1.0f : 0.0f}, c, stride_c, destination,
         stride_d};
     Invocation<Candidate> invocation;
     invocation.mainloop =
@@ -348,22 +364,23 @@ void BuildTable(Buffers const& buffers, int n, int k, int chunks,
 /// models reduce 4 x N outputs with N <= 4096 over at most 16 chunks, so at
 /// most 1 MB: the L2 regime.  d is fitted there, and the DRAM-regime value is
 /// recorded beside it so the two are never silently averaged.
+template <class Element>
 CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
                           std::ostream& log) {
   CombineFit fit;
   constexpr int kWidest = 1048576;   ///< 128 MB of partials: past the L2 knee
   constexpr int kL2Widest = 262144;  ///< 32 MB: still inside the 72 MB L2
   constexpr int kBaseWidest = 4194304;  ///< 32 MB at two elements per output
-  float *partials = nullptr, *out = nullptr;
+  Element *partials = nullptr, *out = nullptr;
   CheckCuda(cudaMalloc(&partials, static_cast<std::size_t>(kWidest) *
-                                      kMaxChunks * sizeof(float)),
+                                      kMaxChunks * sizeof(Element)),
             "cudaMalloc(combine partials)");
-  CheckCuda(cudaMalloc(&out, kBaseWidest * sizeof(float)),
+  CheckCuda(cudaMalloc(&out, kBaseWidest * sizeof(Element)),
             "cudaMalloc(combine D)");
   std::size_t const partial_elements =
       static_cast<std::size_t>(kWidest) * kMaxChunks;
-  FillKernel<<<1024, 256>>>(partials, partial_elements);
-  CheckCuda(cudaDeviceSynchronize(), "FillKernel");
+  FillElementKernel<<<1024, 256>>>(partials, partial_elements);
+  CheckCuda(cudaDeviceSynchronize(), "FillElementKernel");
 
   // The peer-independent cost is measured at chunks = 1 rather than read off
   // the fit's intercept.  Extrapolated, it is the difference of two numbers a
@@ -382,7 +399,7 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
 
   auto sweep_single = [&](int count) {
     Timed timed = TimeMs(options.repeats, [&] {
-      CalibCombineKernel<<<blocks, 256>>>(partials, out, count, 1);
+      CalibCombineKernel<Element><<<blocks, 256>>>(partials, out, count, 1);
     });
     fit.worst_rsd = std::max(fit.worst_rsd, timed.rel_stddev);
     double ns = timed.median_ms * 1e6 - launch_ns;
@@ -395,7 +412,8 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
     std::vector<double> peers, combine_ns;
     for (int chunks : {2, 4, 8, 16, 32}) {
       Timed timed = TimeMs(options.repeats, [&] {
-        CalibCombineKernel<<<blocks, 256>>>(partials, out, count, chunks);
+        CalibCombineKernel<Element><<<blocks, 256>>>(partials, out, count,
+                                                     chunks);
       });
       fit.worst_rsd = std::max(fit.worst_rsd, timed.rel_stddev);
       peers.push_back(static_cast<double>(chunks - 1));
@@ -494,10 +512,10 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
 
 ///         at all (partial store plus the combine's launch) and `d` is the
 ///         marginal price of one more peer (one more read per output element).
-template <int M, int N, int K, int S>
+template <bool BF16, int M, int N, int K, int S>
 bool FitShape(TargetSpec& spec, Options const& options, Buffers const& buffers,
               CombineFit const& combine, std::ostream& log) {
-  using Candidate = backend::GemmCandidate<M, N, K, S>;
+  using Candidate = backend::TypedGemmCandidate<BF16, M, N, K, S>;
   if constexpr (!Candidate::kShapeLegal) {
     log << "  tile " << M << "x" << N << "x" << K << "s" << S
         << ": illegal shape, skipped\n";
@@ -660,50 +678,66 @@ bool FitShape(TargetSpec& spec, Options const& options, Buffers const& buffers,
 
 }  // namespace
 
-std::vector<TargetSpec::StreamKPoint> StreamKShapes() {
+std::vector<TargetSpec::StreamKPoint> StreamKShapes(bool bf16) {
   auto shape = [](int m, int n, int k, int stages) {
     TargetSpec::StreamKPoint point;
     point.tile_m = m; point.tile_n = n; point.tile_k = k; point.stages = stages;
     return point;
   };
-  return {shape(128, 128, 16, 3), shape(64, 64, 16, 3), shape(32, 32, 32, 3),
-          shape(16, 64, 32, 3),   shape(16, 64, 16, 2), shape(256, 128, 16, 3)};
+  if (bf16)
+    return {shape(128, 128, 16, 3), shape(64, 64, 16, 3),
+            shape(32, 32, 32, 3), shape(32, 64, 32, 3),
+            shape(32, 64, 16, 2), shape(256, 128, 16, 3)};
+  return {shape(128, 128, 16, 3), shape(64, 64, 16, 3),
+          shape(32, 32, 32, 3), shape(16, 64, 32, 3),
+          shape(16, 64, 16, 2), shape(256, 128, 16, 3)};
 }
 
 void MeasureStreamK(TargetSpec& spec, Options const& options,
                     std::ostream& log) {
   Buffers buffers;
+  std::size_t const element_bytes =
+      options.bf16 ? sizeof(cutlass::bfloat16_t) : sizeof(float);
   std::size_t const ab_elements =
       static_cast<std::size_t>(kMaxN) * kCalibTilesN * kMaxK;
   std::size_t const cd_elements =
       static_cast<std::size_t>(kCalibM) * kMaxN * kCalibTilesN;
   CheckCuda(cudaMalloc(&buffers.a, static_cast<std::size_t>(kCalibM) * kMaxK *
-                                       sizeof(float)),
+                                       element_bytes),
             "cudaMalloc(A)");
-  CheckCuda(cudaMalloc(&buffers.b, ab_elements * sizeof(float)), "cudaMalloc(B)");
-  CheckCuda(cudaMalloc(&buffers.c, cd_elements * sizeof(float)), "cudaMalloc(C)");
-  CheckCuda(cudaMalloc(&buffers.d, cd_elements * sizeof(float)), "cudaMalloc(D)");
+  CheckCuda(cudaMalloc(&buffers.b, ab_elements * element_bytes), "cudaMalloc(B)");
+  CheckCuda(cudaMalloc(&buffers.c, cd_elements * element_bytes), "cudaMalloc(C)");
+  CheckCuda(cudaMalloc(&buffers.d, cd_elements * element_bytes), "cudaMalloc(D)");
   CheckCuda(cudaMalloc(&buffers.partials,
-                       cd_elements * kMaxChunks * sizeof(float)),
+                       cd_elements * kMaxChunks * element_bytes),
             "cudaMalloc(partials)");
   CheckCuda(cudaMalloc(&buffers.table, kMaxChunks * 512),
             "cudaMalloc(table)");
   CheckCuda(cudaMemset(buffers.a, 0,
-                       static_cast<std::size_t>(kCalibM) * kMaxK * sizeof(float)),
+                       static_cast<std::size_t>(kCalibM) * kMaxK * element_bytes),
             "cudaMemset(A)");
-  CheckCuda(cudaMemset(buffers.b, 0, ab_elements * sizeof(float)),
+  CheckCuda(cudaMemset(buffers.b, 0, ab_elements * element_bytes),
             "cudaMemset(B)");
-  CheckCuda(cudaMemset(buffers.c, 0, cd_elements * sizeof(float)),
+  CheckCuda(cudaMemset(buffers.c, 0, cd_elements * element_bytes),
             "cudaMemset(C)");
 
-  CombineFit combine = MeasureCombine(spec, options, log);
-
-  FitShape<128, 128, 16, 3>(spec, options, buffers, combine, log);
-  FitShape<64, 64, 16, 3>(spec, options, buffers, combine, log);
-  FitShape<32, 32, 32, 3>(spec, options, buffers, combine, log);
-  FitShape<16, 64, 32, 3>(spec, options, buffers, combine, log);
-  FitShape<16, 64, 16, 2>(spec, options, buffers, combine, log);
-  FitShape<256, 128, 16, 3>(spec, options, buffers, combine, log);
+  if (options.bf16) {
+    CombineFit combine = MeasureCombine<cutlass::bfloat16_t>(spec, options, log);
+    FitShape<true, 128, 128, 16, 3>(spec, options, buffers, combine, log);
+    FitShape<true, 64, 64, 16, 3>(spec, options, buffers, combine, log);
+    FitShape<true, 32, 32, 32, 3>(spec, options, buffers, combine, log);
+    FitShape<true, 32, 64, 32, 3>(spec, options, buffers, combine, log);
+    FitShape<true, 32, 64, 16, 2>(spec, options, buffers, combine, log);
+    FitShape<true, 256, 128, 16, 3>(spec, options, buffers, combine, log);
+  } else {
+    CombineFit combine = MeasureCombine<float>(spec, options, log);
+    FitShape<false, 128, 128, 16, 3>(spec, options, buffers, combine, log);
+    FitShape<false, 64, 64, 16, 3>(spec, options, buffers, combine, log);
+    FitShape<false, 32, 32, 32, 3>(spec, options, buffers, combine, log);
+    FitShape<false, 16, 64, 32, 3>(spec, options, buffers, combine, log);
+    FitShape<false, 16, 64, 16, 2>(spec, options, buffers, combine, log);
+    FitShape<false, 256, 128, 16, 3>(spec, options, buffers, combine, log);
+  }
 
   CheckCuda(cudaFree(buffers.a), "cudaFree");
   CheckCuda(cudaFree(buffers.b), "cudaFree");
@@ -713,12 +747,15 @@ void MeasureStreamK(TargetSpec& spec, Options const& options,
   CheckCuda(cudaFree(buffers.table), "cudaFree");
 }
 
-void MeasureInterference(TargetSpec& spec, Options const& options,
-                         std::ostream& log) {
+template <bool BF16>
+void MeasureInterferenceTyped(TargetSpec& spec, Options const& options,
+                              std::ostream& log) {
   // The operating point the oracle actually found: a 16x64 tile split 16 ways
   // so the GEMM fills the grid, which is exactly when it has to share the
   // machine with everything else in the megakernel.
-  using Candidate = backend::GemmCandidate<16, 64, 32, 3>;
+  using Candidate =
+      backend::TypedGemmCandidate<BF16, BF16 ? 32 : 16, 64, 32, 3>;
+  using Element = typename Candidate::Element;
   static_assert(Candidate::kShapeLegal);
 
   Buffers buffers;
@@ -732,26 +769,26 @@ void MeasureInterference(TargetSpec& spec, Options const& options,
   int const tiles_n = (n + 64 - 1) / 64;
   std::size_t const cd_elements = static_cast<std::size_t>(kCalibM) * n;
   CheckCuda(cudaMalloc(&buffers.a, static_cast<std::size_t>(kCalibM) * k *
-                                       sizeof(float)),
+                                       sizeof(Element)),
             "cudaMalloc(A)");
   CheckCuda(cudaMalloc(&buffers.b,
-                       static_cast<std::size_t>(n) * k * sizeof(float)),
+                       static_cast<std::size_t>(n) * k * sizeof(Element)),
             "cudaMalloc(B)");
-  CheckCuda(cudaMalloc(&buffers.c, cd_elements * sizeof(float)), "cudaMalloc(C)");
-  CheckCuda(cudaMalloc(&buffers.d, cd_elements * sizeof(float)), "cudaMalloc(D)");
+  CheckCuda(cudaMalloc(&buffers.c, cd_elements * sizeof(Element)), "cudaMalloc(C)");
+  CheckCuda(cudaMalloc(&buffers.d, cd_elements * sizeof(Element)), "cudaMalloc(D)");
   CheckCuda(cudaMalloc(&buffers.partials,
-                       cd_elements * chunks * sizeof(float)),
+                       cd_elements * chunks * sizeof(Element)),
             "cudaMalloc(partials)");
   CheckCuda(cudaMalloc(&buffers.table,
                        chunks * sizeof(Invocation<Candidate>)),
             "cudaMalloc(table)");
   CheckCuda(cudaMemset(buffers.a, 0,
-                       static_cast<std::size_t>(kCalibM) * k * sizeof(float)),
+                       static_cast<std::size_t>(kCalibM) * k * sizeof(Element)),
             "cudaMemset");
   CheckCuda(cudaMemset(buffers.b, 0,
-                       static_cast<std::size_t>(n) * k * sizeof(float)),
+                       static_cast<std::size_t>(n) * k * sizeof(Element)),
             "cudaMemset");
-  CheckCuda(cudaMemset(buffers.c, 0, cd_elements * sizeof(float)), "cudaMemset");
+  CheckCuda(cudaMemset(buffers.c, 0, cd_elements * sizeof(Element)), "cudaMemset");
 
   std::vector<Invocation<Candidate>> host;
   BuildTable<Candidate>(buffers, n, k, chunks, host);
@@ -872,10 +909,14 @@ void MeasureInterference(TargetSpec& spec, Options const& options,
   Record(spec, "interference_ratio", spec.calib.interference_ratio, "ratio",
          options.repeats,
          RelStddev(ratios),
-         "median of paired ratios; each pair is the duration of a 16x64x32s3 "
-         "GEMM (M=4, N=1536, K=2048, split 16) on its own stream while a "
-         "256 MiB streaming read-modify-write runs at one CTA per SM on "
-         "another stream, over the same GEMM measured immediately before");
+         BF16 ? "median of paired ratios; each pair is the duration of a "
+                "32x64x32s3 BF16 Tensor Core GEMM (M=4, N=1536, K=2048, "
+                "split 16) on its own stream while a 256 MiB streaming "
+                "read-modify-write runs at one CTA per SM on another stream"
+              : "median of paired ratios; each pair is the duration of a "
+                "16x64x32s3 FP32 SIMT GEMM (M=4, N=1536, K=2048, split 16) "
+                "on its own stream while a 256 MiB streaming read-modify-write "
+                "runs at one CTA per SM on another stream");
   log << "  gemm alone          = " << alone_ms * 1e3 << " us\n"
       << "  gemm with neighbour = " << shared_ms * 1e3 << " us\n"
       << "  interference_ratio  = " << spec.calib.interference_ratio << '\n';
@@ -893,6 +934,14 @@ void MeasureInterference(TargetSpec& spec, Options const& options,
   CheckCuda(cudaFree(buffers.d), "cudaFree");
   CheckCuda(cudaFree(buffers.partials), "cudaFree");
   CheckCuda(cudaFree(buffers.table), "cudaFree");
+}
+
+void MeasureInterference(TargetSpec& spec, Options const& options,
+                         std::ostream& log) {
+  if (options.bf16)
+    MeasureInterferenceTyped<true>(spec, options, log);
+  else
+    MeasureInterferenceTyped<false>(spec, options, log);
 }
 
 }  // namespace tilemega::calib

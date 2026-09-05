@@ -19,6 +19,7 @@ struct FxNodeRecord {
   std::string target;
   std::vector<std::string> inputs;
   std::vector<std::string> shape;
+  std::string dtype;
 };
 
 struct SignatureInput {
@@ -74,6 +75,7 @@ struct PlanOutput {
 /// `tilemega.model_plan` MLIR module attribute; Codegen consumes only that
 /// verified CG-side attribute, never this in-memory object.
 struct ModelPlan {
+  std::string dtype = "f32";
   std::vector<PlanBuffer> buffers;
   std::vector<PlanGemm> gemms;
   std::vector<PlanStage> stages;

@@ -2,6 +2,7 @@
 // Skeleton ref: §2.4 split reduction -- the combiner of a split-K GEMM.
 #pragma once
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#include <tilemega/Codegen/tasks/GemmStageTaskBody.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
 
 namespace tilemega::codegen {
@@ -20,6 +21,12 @@ struct GemmCombineTaskBody {
 
   __device__ static TaskOwnership Ownership(Params const& p,
                                             StageDesc const& stage) {
+    if (p.ownership_flags & kCombinerTileOwnership) {
+      auto const& invocation =
+          static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+      return {TaskOwnershipKind::kTilePerBlock,
+              invocation.tiles_m * invocation.tiles_n};
+    }
     int count = p.dims.seq * static_cast<int>(stage.width);
     return {OwnershipOf(TaskKind::kGemmCombine),
             (count + Threads - 1) / Threads};
@@ -27,15 +34,39 @@ struct GemmCombineTaskBody {
 
   __device__ void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion&) const {
-    float const* partials = p.buffers[stage.operand[0]];
-    float* out = p.buffers[stage.operand[1]];
+    ModelElement const* partials = p.buffers[stage.operand[0]];
+    ModelElement* out = p.buffers[stage.operand[1]];
     int count = p.dims.seq * static_cast<int>(stage.width);
     int chunks = static_cast<int>(stage.group);
+    if (p.ownership_flags & kCombinerTileOwnership) {
+      auto const& invocation =
+          static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+      int const tile_elements = invocation.tile_m * invocation.tile_n;
+      int const tiles = invocation.tiles_m * invocation.tiles_n;
+      for (int task = PlacedBlock(); task < tiles; task += gridDim.x) {
+        int tile_m = task / invocation.tiles_n;
+        int tile_n = task % invocation.tiles_n;
+        for (int local = threadIdx.x; local < tile_elements;
+             local += blockDim.x) {
+          int row = tile_m * invocation.tile_m + local / invocation.tile_n;
+          int col = tile_n * invocation.tile_n + local % invocation.tile_n;
+          if (row >= p.dims.seq || col >= static_cast<int>(stage.width))
+            continue;
+          int i = row * static_cast<int>(stage.width) + col;
+          float sum = 0.0f;
+          for (int c = 0; c < chunks; ++c)
+            sum += static_cast<float>(partials[c * count + i]);
+          out[i] = ModelElement(sum);
+        }
+      }
+      return;
+    }
     for (int i = PlacedBlock() * blockDim.x + threadIdx.x; i < count;
          i += gridDim.x * blockDim.x) {
       float sum = 0.0f;
-      for (int c = 0; c < chunks; ++c) sum += partials[c * count + i];
-      out[i] = sum;
+      for (int c = 0; c < chunks; ++c)
+        sum += static_cast<float>(partials[c * count + i]);
+      out[i] = ModelElement(sum);
     }
   }
 };

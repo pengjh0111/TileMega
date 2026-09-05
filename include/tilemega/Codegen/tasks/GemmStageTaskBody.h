@@ -43,8 +43,8 @@ namespace tilemega::codegen {
 #ifndef TILEMEGA_GEMM_VARIANT_COUNT
 #define TILEMEGA_GEMM_VARIANT_COUNT 1
 #endif
-#if TILEMEGA_GEMM_VARIANT_COUNT < 1 || TILEMEGA_GEMM_VARIANT_COUNT > 4
-#error "TILEMEGA_GEMM_VARIANT_COUNT must be between 1 and 4"
+#if TILEMEGA_GEMM_VARIANT_COUNT < 1 || TILEMEGA_GEMM_VARIANT_COUNT > 16
+#error "TILEMEGA_GEMM_VARIANT_COUNT must be between 1 and 16"
 #endif
 #ifndef TILEMEGA_GEMM_V1_TILE_M
 #define TILEMEGA_GEMM_V1_TILE_M TILEMEGA_GEMM_TILE_M
@@ -82,14 +82,79 @@ namespace tilemega::codegen {
 #ifndef TILEMEGA_GEMM_V3_STAGES
 #define TILEMEGA_GEMM_V3_STAGES TILEMEGA_GEMM_STAGES
 #endif
-// The per-operator plan itself: which variant runs GEMM `i`, and how many
-// chunks its `k` is cut into.  Both default to the model-wide knob, so an
-// unplanned build is the uniform build.
-#ifndef TILEMEGA_GEMM_VARIANT_OF
-#define TILEMEGA_GEMM_VARIANT_OF(i) 0
+// Fields 4..15 are provided by generated source; the defaults keep standalone
+// TaskBody contract tests usable.
+#ifndef TILEMEGA_GEMM_V4_TILE_M
+#define TILEMEGA_GEMM_V4_TILE_M TILEMEGA_GEMM_TILE_M
+#define TILEMEGA_GEMM_V4_TILE_N TILEMEGA_GEMM_TILE_N
+#define TILEMEGA_GEMM_V4_TILE_K TILEMEGA_GEMM_TILE_K
+#define TILEMEGA_GEMM_V4_STAGES TILEMEGA_GEMM_STAGES
 #endif
-#ifndef TILEMEGA_GEMM_SPLIT_OF
-#define TILEMEGA_GEMM_SPLIT_OF(i) TILEMEGA_GEMM_SPLIT_K
+#ifndef TILEMEGA_GEMM_V5_TILE_M
+#define TILEMEGA_GEMM_V5_TILE_M TILEMEGA_GEMM_TILE_M
+#define TILEMEGA_GEMM_V5_TILE_N TILEMEGA_GEMM_TILE_N
+#define TILEMEGA_GEMM_V5_TILE_K TILEMEGA_GEMM_TILE_K
+#define TILEMEGA_GEMM_V5_STAGES TILEMEGA_GEMM_STAGES
+#endif
+#ifndef TILEMEGA_GEMM_V6_TILE_M
+#define TILEMEGA_GEMM_V6_TILE_M TILEMEGA_GEMM_TILE_M
+#define TILEMEGA_GEMM_V6_TILE_N TILEMEGA_GEMM_TILE_N
+#define TILEMEGA_GEMM_V6_TILE_K TILEMEGA_GEMM_TILE_K
+#define TILEMEGA_GEMM_V6_STAGES TILEMEGA_GEMM_STAGES
+#endif
+#ifndef TILEMEGA_GEMM_V7_TILE_M
+#define TILEMEGA_GEMM_V7_TILE_M TILEMEGA_GEMM_TILE_M
+#define TILEMEGA_GEMM_V7_TILE_N TILEMEGA_GEMM_TILE_N
+#define TILEMEGA_GEMM_V7_TILE_K TILEMEGA_GEMM_TILE_K
+#define TILEMEGA_GEMM_V7_STAGES TILEMEGA_GEMM_STAGES
+#endif
+#ifndef TILEMEGA_GEMM_V8_TILE_M
+#define TILEMEGA_GEMM_V8_TILE_M TILEMEGA_GEMM_TILE_M
+#define TILEMEGA_GEMM_V8_TILE_N TILEMEGA_GEMM_TILE_N
+#define TILEMEGA_GEMM_V8_TILE_K TILEMEGA_GEMM_TILE_K
+#define TILEMEGA_GEMM_V8_STAGES TILEMEGA_GEMM_STAGES
+#endif
+#ifndef TILEMEGA_GEMM_V9_TILE_M
+#define TILEMEGA_GEMM_V9_TILE_M TILEMEGA_GEMM_TILE_M
+#define TILEMEGA_GEMM_V9_TILE_N TILEMEGA_GEMM_TILE_N
+#define TILEMEGA_GEMM_V9_TILE_K TILEMEGA_GEMM_TILE_K
+#define TILEMEGA_GEMM_V9_STAGES TILEMEGA_GEMM_STAGES
+#endif
+#ifndef TILEMEGA_GEMM_V10_TILE_M
+#define TILEMEGA_GEMM_V10_TILE_M TILEMEGA_GEMM_TILE_M
+#define TILEMEGA_GEMM_V10_TILE_N TILEMEGA_GEMM_TILE_N
+#define TILEMEGA_GEMM_V10_TILE_K TILEMEGA_GEMM_TILE_K
+#define TILEMEGA_GEMM_V10_STAGES TILEMEGA_GEMM_STAGES
+#endif
+#ifndef TILEMEGA_GEMM_V11_TILE_M
+#define TILEMEGA_GEMM_V11_TILE_M TILEMEGA_GEMM_TILE_M
+#define TILEMEGA_GEMM_V11_TILE_N TILEMEGA_GEMM_TILE_N
+#define TILEMEGA_GEMM_V11_TILE_K TILEMEGA_GEMM_TILE_K
+#define TILEMEGA_GEMM_V11_STAGES TILEMEGA_GEMM_STAGES
+#endif
+#ifndef TILEMEGA_GEMM_V12_TILE_M
+#define TILEMEGA_GEMM_V12_TILE_M TILEMEGA_GEMM_TILE_M
+#define TILEMEGA_GEMM_V12_TILE_N TILEMEGA_GEMM_TILE_N
+#define TILEMEGA_GEMM_V12_TILE_K TILEMEGA_GEMM_TILE_K
+#define TILEMEGA_GEMM_V12_STAGES TILEMEGA_GEMM_STAGES
+#endif
+#ifndef TILEMEGA_GEMM_V13_TILE_M
+#define TILEMEGA_GEMM_V13_TILE_M TILEMEGA_GEMM_TILE_M
+#define TILEMEGA_GEMM_V13_TILE_N TILEMEGA_GEMM_TILE_N
+#define TILEMEGA_GEMM_V13_TILE_K TILEMEGA_GEMM_TILE_K
+#define TILEMEGA_GEMM_V13_STAGES TILEMEGA_GEMM_STAGES
+#endif
+#ifndef TILEMEGA_GEMM_V14_TILE_M
+#define TILEMEGA_GEMM_V14_TILE_M TILEMEGA_GEMM_TILE_M
+#define TILEMEGA_GEMM_V14_TILE_N TILEMEGA_GEMM_TILE_N
+#define TILEMEGA_GEMM_V14_TILE_K TILEMEGA_GEMM_TILE_K
+#define TILEMEGA_GEMM_V14_STAGES TILEMEGA_GEMM_STAGES
+#endif
+#ifndef TILEMEGA_GEMM_V15_TILE_M
+#define TILEMEGA_GEMM_V15_TILE_M TILEMEGA_GEMM_TILE_M
+#define TILEMEGA_GEMM_V15_TILE_N TILEMEGA_GEMM_TILE_N
+#define TILEMEGA_GEMM_V15_TILE_K TILEMEGA_GEMM_TILE_K
+#define TILEMEGA_GEMM_V15_STAGES TILEMEGA_GEMM_STAGES
 #endif
 
 template <int Variant>
@@ -124,6 +189,42 @@ TILEMEGA_DEFINE_GEMM_VARIANT(2, TILEMEGA_GEMM_V2_TILE_M, TILEMEGA_GEMM_V2_TILE_N
 #if TILEMEGA_GEMM_VARIANT_COUNT > 3
 TILEMEGA_DEFINE_GEMM_VARIANT(3, TILEMEGA_GEMM_V3_TILE_M, TILEMEGA_GEMM_V3_TILE_N,
                              TILEMEGA_GEMM_V3_TILE_K, TILEMEGA_GEMM_V3_STAGES);
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 4
+TILEMEGA_DEFINE_GEMM_VARIANT(4, TILEMEGA_GEMM_V4_TILE_M, TILEMEGA_GEMM_V4_TILE_N, TILEMEGA_GEMM_V4_TILE_K, TILEMEGA_GEMM_V4_STAGES);
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 5
+TILEMEGA_DEFINE_GEMM_VARIANT(5, TILEMEGA_GEMM_V5_TILE_M, TILEMEGA_GEMM_V5_TILE_N, TILEMEGA_GEMM_V5_TILE_K, TILEMEGA_GEMM_V5_STAGES);
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 6
+TILEMEGA_DEFINE_GEMM_VARIANT(6, TILEMEGA_GEMM_V6_TILE_M, TILEMEGA_GEMM_V6_TILE_N, TILEMEGA_GEMM_V6_TILE_K, TILEMEGA_GEMM_V6_STAGES);
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 7
+TILEMEGA_DEFINE_GEMM_VARIANT(7, TILEMEGA_GEMM_V7_TILE_M, TILEMEGA_GEMM_V7_TILE_N, TILEMEGA_GEMM_V7_TILE_K, TILEMEGA_GEMM_V7_STAGES);
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 8
+TILEMEGA_DEFINE_GEMM_VARIANT(8, TILEMEGA_GEMM_V8_TILE_M, TILEMEGA_GEMM_V8_TILE_N, TILEMEGA_GEMM_V8_TILE_K, TILEMEGA_GEMM_V8_STAGES);
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 9
+TILEMEGA_DEFINE_GEMM_VARIANT(9, TILEMEGA_GEMM_V9_TILE_M, TILEMEGA_GEMM_V9_TILE_N, TILEMEGA_GEMM_V9_TILE_K, TILEMEGA_GEMM_V9_STAGES);
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 10
+TILEMEGA_DEFINE_GEMM_VARIANT(10, TILEMEGA_GEMM_V10_TILE_M, TILEMEGA_GEMM_V10_TILE_N, TILEMEGA_GEMM_V10_TILE_K, TILEMEGA_GEMM_V10_STAGES);
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 11
+TILEMEGA_DEFINE_GEMM_VARIANT(11, TILEMEGA_GEMM_V11_TILE_M, TILEMEGA_GEMM_V11_TILE_N, TILEMEGA_GEMM_V11_TILE_K, TILEMEGA_GEMM_V11_STAGES);
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 12
+TILEMEGA_DEFINE_GEMM_VARIANT(12, TILEMEGA_GEMM_V12_TILE_M, TILEMEGA_GEMM_V12_TILE_N, TILEMEGA_GEMM_V12_TILE_K, TILEMEGA_GEMM_V12_STAGES);
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 13
+TILEMEGA_DEFINE_GEMM_VARIANT(13, TILEMEGA_GEMM_V13_TILE_M, TILEMEGA_GEMM_V13_TILE_N, TILEMEGA_GEMM_V13_TILE_K, TILEMEGA_GEMM_V13_STAGES);
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 14
+TILEMEGA_DEFINE_GEMM_VARIANT(14, TILEMEGA_GEMM_V14_TILE_M, TILEMEGA_GEMM_V14_TILE_N, TILEMEGA_GEMM_V14_TILE_K, TILEMEGA_GEMM_V14_STAGES);
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 15
+TILEMEGA_DEFINE_GEMM_VARIANT(15, TILEMEGA_GEMM_V15_TILE_M, TILEMEGA_GEMM_V15_TILE_N, TILEMEGA_GEMM_V15_TILE_K, TILEMEGA_GEMM_V15_STAGES);
 #endif
 #undef TILEMEGA_DEFINE_GEMM_VARIANT
 
@@ -185,6 +286,42 @@ inline constexpr GemmVariantInfo kGemmVariantInfo[] = {
 #if TILEMEGA_GEMM_VARIANT_COUNT > 3
     MakeGemmVariantInfo<3>(),
 #endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 4
+    MakeGemmVariantInfo<4>(),
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 5
+    MakeGemmVariantInfo<5>(),
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 6
+    MakeGemmVariantInfo<6>(),
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 7
+    MakeGemmVariantInfo<7>(),
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 8
+    MakeGemmVariantInfo<8>(),
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 9
+    MakeGemmVariantInfo<9>(),
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 10
+    MakeGemmVariantInfo<10>(),
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 11
+    MakeGemmVariantInfo<11>(),
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 12
+    MakeGemmVariantInfo<12>(),
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 13
+    MakeGemmVariantInfo<13>(),
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 14
+    MakeGemmVariantInfo<14>(),
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 15
+    MakeGemmVariantInfo<15>(),
+#endif
 };
 
 /// §4.3: shared memory is a property of the whole kernel, so one variant's
@@ -200,6 +337,42 @@ union GemmVariantSmem {
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 3
   typename GemmVariant<3>::Mainloop::SharedStorage v3;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 4
+  typename GemmVariant<4>::Mainloop::SharedStorage v4;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 5
+  typename GemmVariant<5>::Mainloop::SharedStorage v5;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 6
+  typename GemmVariant<6>::Mainloop::SharedStorage v6;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 7
+  typename GemmVariant<7>::Mainloop::SharedStorage v7;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 8
+  typename GemmVariant<8>::Mainloop::SharedStorage v8;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 9
+  typename GemmVariant<9>::Mainloop::SharedStorage v9;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 10
+  typename GemmVariant<10>::Mainloop::SharedStorage v10;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 11
+  typename GemmVariant<11>::Mainloop::SharedStorage v11;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 12
+  typename GemmVariant<12>::Mainloop::SharedStorage v12;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 13
+  typename GemmVariant<13>::Mainloop::SharedStorage v13;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 14
+  typename GemmVariant<14>::Mainloop::SharedStorage v14;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 15
+  typename GemmVariant<15>::Mainloop::SharedStorage v15;
 #endif
 };
 
@@ -220,6 +393,8 @@ struct GemmInvocation {
   GemmEpilogue::Params epilogue;
   int tiles_m;
   int tiles_n;
+  int tile_m;
+  int tile_n;
   /// How many chunks §2.4's Split cut this GEMM's `k` into. The chunks are
   /// consecutive invocations built on the host, each a K-offset view of A/B
   /// writing its own partial, so the body needs no CUTLASS parameter surgery.
@@ -312,6 +487,42 @@ struct GemmStageTaskBody {
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 3
         case 3: RunTask<3>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 4
+        case 4: RunTask<4>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 5
+        case 5: RunTask<5>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 6
+        case 6: RunTask<6>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 7
+        case 7: RunTask<7>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 8
+        case 8: RunTask<8>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 9
+        case 9: RunTask<9>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 10
+        case 10: RunTask<10>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 11
+        case 11: RunTask<11>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 12
+        case 12: RunTask<12>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 13
+        case 13: RunTask<13>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 14
+        case 14: RunTask<14>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 15
+        case 15: RunTask<15>(invocation, local, shared); break;
 #endif
         default: break;
       }

@@ -84,6 +84,22 @@ int main() {
     REQUIRE(!candidate.estimatedRegisters());
   }
 
+  CandidateGenerator bf16_generator(sm89, ScalarType::kBF16);
+  CandidateGenerator::Stats bf16_stats;
+  std::vector<BackendCandidate> bf16_candidates =
+      bf16_generator.Enumerate(&bf16_stats);
+  REQUIRE(!bf16_candidates.empty());
+  REQUIRE(std::string(bf16_generator.backendName()) == kTensorBF16Backend);
+  for (BackendCandidate const& candidate : bf16_candidates) {
+    BackendTraits const& traits = candidate.traits();
+    REQUIRE(traits.threads == kTensorBF16Threads);
+    REQUIRE(traits.tile_k % 16 == 0);
+    REQUIRE(traits.smem_bytes == TensorBF16SmemBytes(
+                                     traits.tile_m, traits.tile_n,
+                                     traits.tile_k, traits.stages));
+    REQUIRE(candidate.isLegal(sm89));
+  }
+
   // The six queries on the candidate the fixed-`g` control uses. 49536 bytes
   // is what `sizeof(Mainloop::SharedStorage)` reports for this shape.
   BackendCandidate control(SimtF32Traits(128, 128, 16, 3));

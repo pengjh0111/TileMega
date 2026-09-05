@@ -20,6 +20,9 @@ struct KVAppendTaskBody {
   /// count is the wider of the two.
   __device__ static TaskOwnership Ownership(Params const& p,
                                             StageDesc const& stage) {
+    if (p.ownership_flags & kKVTileOwnership)
+      return {TaskOwnershipKind::kTilePerBlock,
+              p.dims.seq * static_cast<int>(stage.extent)};
     int appended = p.dims.seq * static_cast<int>(stage.extent) *
                    static_cast<int>(stage.width);
     int retained = p.dims.past * static_cast<int>(stage.extent) *
@@ -31,12 +34,24 @@ struct KVAppendTaskBody {
 
   __device__ void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion&) const {
-    float const* source = p.buffers[stage.operand[0]];
-    float const* prefix = p.buffers[stage.operand[1]];
-    float* full = p.buffers[stage.operand[2]];
+    ModelElement const* source = p.buffers[stage.operand[0]];
+    ModelElement const* prefix = p.buffers[stage.operand[1]];
+    ModelElement* full = p.buffers[stage.operand[2]];
     int const dim = static_cast<int>(stage.width);
     int const seq = p.dims.seq, past = p.dims.past, total = p.dims.total;
     int const kv_heads = static_cast<int>(stage.extent);
+
+    if (p.ownership_flags & kKVTileOwnership) {
+      for (int task = PlacedBlock(); task < seq * kv_heads;
+           task += gridDim.x) {
+        int token = task / kv_heads;
+        int kv = task % kv_heads;
+        for (int d = threadIdx.x; d < dim; d += blockDim.x)
+          full[(kv * total + past + token) * dim + d] =
+              source[(token * kv_heads + kv) * dim + d];
+      }
+      return;
+    }
 
     int appended = seq * kv_heads * dim;
     for (int index = PlacedBlock() * blockDim.x + threadIdx.x; index < appended;

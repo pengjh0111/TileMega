@@ -7,6 +7,7 @@
 // delete; and every latency is a *differential* against the same loop without
 // the primitive, so the loop's own bookkeeping never lands inside the number.
 #include <tilemega/Target/Calibration.h>
+#include <tilemega/Target/ArchDispatch.h>
 
 #include <cuda_runtime_api.h>
 
@@ -177,6 +178,36 @@ __global__ __launch_bounds__(kThreads) void MmaKernel(float* sink, int iters) {
     for (int chain = 0; chain < 4; ++chain) {
       asm volatile(
           "mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 "
+          "{%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};"
+          : "+f"(c[chain][0]), "+f"(c[chain][1]), "+f"(c[chain][2]),
+            "+f"(c[chain][3])
+          : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b[0]), "r"(b[1]));
+    }
+  }
+  float sum = 0.0f;
+#pragma unroll
+  for (int chain = 0; chain < 4; ++chain)
+#pragma unroll
+    for (int i = 0; i < 4; ++i) sum += c[chain][i];
+  if (sum == 1.0e30f) sink[blockIdx.x] = sum;
+}
+
+/// Same instruction geometry as MmaKernel, but with BF16 A/B operands.  BF16
+/// encodes 1.0 as 0x3f80, hence two packed operands are 0x3f803f80.
+__global__ __launch_bounds__(kThreads) void MmaBF16Kernel(float* sink,
+                                                          int iters) {
+  std::uint32_t a[4] = {0x3f803f80u, 0x3f803f80u, 0x3f803f80u, 0x3f803f80u};
+  std::uint32_t b[2] = {0x3f803f80u, 0x3f803f80u};
+  float c[4][4];
+#pragma unroll
+  for (int chain = 0; chain < 4; ++chain)
+#pragma unroll
+    for (int i = 0; i < 4; ++i) c[chain][i] = static_cast<float>(threadIdx.x + i);
+  for (int it = 0; it < iters; ++it) {
+#pragma unroll
+    for (int chain = 0; chain < 4; ++chain) {
+      asm volatile(
+          "mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 "
           "{%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};"
           : "+f"(c[chain][0]), "+f"(c[chain][1]), "+f"(c[chain][2]),
             "+f"(c[chain][3])
@@ -457,18 +488,32 @@ void MeasurePipelines(TargetSpec& spec, Options const& options,
     log << "  sfu_rsqrt_gops      = " << spec.calib.sfu_rsqrt_gops << '\n';
   }
   {
-    int const mma_blocks = ResidentBlocks(
-        spec, reinterpret_cast<void const*>(MmaKernel), kThreads);
+    void const* kernel = options.bf16
+                             ? reinterpret_cast<void const*>(MmaBF16Kernel)
+                             : reinterpret_cast<void const*>(MmaKernel);
+    int const mma_blocks = ResidentBlocks(spec, kernel, kThreads);
     Stat stat = TimeMs(options.repeats, [&] {
-      MmaKernel<<<mma_blocks, kThreads>>>(sink_f, iters);
+      if (options.bf16)
+        MmaBF16Kernel<<<mma_blocks, kThreads>>>(sink_f, iters);
+      else
+        MmaKernel<<<mma_blocks, kThreads>>>(sink_f, iters);
     });
     double warps = static_cast<double>(mma_blocks) * (kThreads / 32);
     double flops = 2.0 * 16 * 8 * 16 * 4 * iters * warps;
-    spec.calib.tc_fp16_gflops = flops / (stat.median * 1e6);
-    Record(spec, "tc_fp16_gflops", spec.calib.tc_fp16_gflops, "GFLOP/s", stat,
-           "4 independent mma.sync.m16n8k16.f32.f16.f16.f32 chains x 4096 "
-           "iterations; 4096 flops per instruction");
-    log << "  tc_fp16_gflops      = " << spec.calib.tc_fp16_gflops << '\n';
+    double const rate = flops / (stat.median * 1e6);
+    if (options.bf16) {
+      spec.calib.tc_bf16_gflops = rate;
+      Record(spec, "tc_bf16_gflops", rate, "GFLOP/s", stat,
+             "4 independent mma.sync.m16n8k16.f32.bf16.bf16.f32 chains x "
+             "4096 iterations; 4096 flops per instruction");
+      log << "  tc_bf16_gflops      = " << rate << '\n';
+    } else {
+      spec.calib.tc_fp16_gflops = rate;
+      Record(spec, "tc_fp16_gflops", rate, "GFLOP/s", stat,
+             "4 independent mma.sync.m16n8k16.f32.f16.f16.f32 chains x "
+             "4096 iterations; 4096 flops per instruction");
+      log << "  tc_fp16_gflops      = " << rate << '\n';
+    }
   }
 
   // Shared memory: the conflict-free rate, then the slowdown per conflict way.
@@ -929,6 +974,11 @@ void Run(TargetSpec& spec, Options const& options, std::ostream& log) {
   CheckCuda(cudaGetDeviceProperties(&properties, options.device),
             "cudaGetDeviceProperties");
   CheckCuda(cudaSetDevice(options.device), "cudaSetDevice");
+  if (options.bf16 &&
+      !arch::RuntimeCapsForTag(spec.arch_tag).bf16_tensor_core) {
+    throw std::runtime_error(
+        "BF16 calibration requested on a target without BF16 Tensor Cores");
+  }
   auto started = std::chrono::steady_clock::now();
 
   log << "pipelines\n";

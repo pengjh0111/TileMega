@@ -30,6 +30,11 @@ namespace tilemega::calib {
 
 struct Options {
   int device = 0;
+  /// Selects the collective and profile written by the calibration driver.
+  /// Hardware-common lanes are measured in both profiles because their
+  /// provenance must belong to the same run as the dtype-specific Stream-K
+  /// fit.
+  bool bf16 = false;
   /// Repeats per measurement.  The reported value is the median and the
   /// reported dispersion is stddev/mean over these repeats.
   ///
@@ -51,7 +56,7 @@ struct Options {
 /// default, the two shapes the oracle sweep found optimal, and three spread
 /// across the legal envelope so the cost model's extrapolation has something
 /// to be checked against.
-std::vector<TargetSpec::StreamKPoint> StreamKShapes();
+std::vector<TargetSpec::StreamKPoint> StreamKShapes(bool bf16 = false);
 
 void MeasurePipelines(TargetSpec& spec, Options const& options, std::ostream& log);
 void MeasureSync(TargetSpec& spec, Options const& options, std::ostream& log);

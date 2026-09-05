@@ -131,6 +131,9 @@ ModelDescription ModelDescription::FromGeneratedCuda(std::string const& path,
   ModelDescription model;
   model.name = std::move(name);
   model.dims = dims;
+  model.dtype = source.find("ScalarType::kBF16") != std::string::npos
+                    ? ScalarType::kBF16
+                    : ScalarType::kF32;
   if (model.dims.total == 0) model.dims.total = dims.seq + dims.past;
 
   for (auto const& record :
@@ -162,9 +165,18 @@ ModelDescription ModelDescription::FromGeneratedCuda(std::string const& path,
     throw std::runtime_error("empty model tables in " + path);
   }
   model.stage_successors.assign(model.stages.size(), {});
+  // Since runtime variants each carry their own exact table the generator emits
+  // `kDependencies0`, `kDependencies1`, ...  The stage *graph* is the same in
+  // every one of them -- variants differ in the affine window constants, not in
+  // which stage feeds which -- and this parser only reads producer/consumer, so
+  // variant 0 is read and the rest are equivalent for the cost model.
+  char const* const kDependencyTable =
+      source.find("constexpr StageDependency kDependencies[]") !=
+              std::string::npos
+          ? "constexpr StageDependency kDependencies[]"
+          : "constexpr StageDependency kDependencies0[]";
   for (auto const& record :
-       Records(TableBody(source, "constexpr StageDependency kDependencies[]",
-                         path))) {
+       Records(TableBody(source, kDependencyTable, path))) {
     auto fields = Fields(record);
     if (fields.size() < 2)
       throw std::runtime_error("short StageDependency in " + path);
@@ -183,14 +195,15 @@ ModelDescription ModelDescription::FromGeneratedCuda(std::string const& path,
 
 double ModelDescription::LiveFootprintBytes() const {
   double bytes = 0.0;
+  double const element_bytes = dtype == ScalarType::kBF16 ? 2.0 : 4.0;
   for (auto const& gemm : gemms) {
     // B is the parameter; A and D are the activations either side of it.
-    bytes += 4.0 * gemm.n * gemm.k;
-    bytes += 4.0 * dims.seq * (gemm.n + gemm.k);
+    bytes += element_bytes * gemm.n * gemm.k;
+    bytes += element_bytes * dims.seq * (gemm.n + gemm.k);
   }
   for (auto const& stage : stages) {
     if (stage.kind == StageKind::kGemm) continue;
-    bytes += 4.0 * dims.total * std::max(stage.extent, 1) *
+    bytes += element_bytes * dims.total * std::max(stage.extent, 1) *
              std::max(stage.width, 1);
   }
   return bytes;

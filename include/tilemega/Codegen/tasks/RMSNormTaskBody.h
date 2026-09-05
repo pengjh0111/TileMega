@@ -22,30 +22,32 @@ struct RMSNormTaskBody {
 
   __device__ void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion& smem) const {
-    float const* input = p.buffers[stage.operand[0]];
-    float const* weight = p.buffers[stage.operand[1]];
-    float* output = p.buffers[stage.operand[2]];
+    ModelElement const* input = p.buffers[stage.operand[0]];
+    ModelElement const* weight = p.buffers[stage.operand[1]];
+    ModelElement* output = p.buffers[stage.operand[2]];
     int hidden = static_cast<int>(stage.width);
-    int token = PlacedBlock();
-    bool active = token < p.dims.seq;
-    float local = 0.0f;
-    if (active)
+    for (int token = PlacedBlock(); token < p.dims.seq;
+         token += gridDim.x) {
+      float local = 0.0f;
       for (int d = threadIdx.x; d < hidden; d += blockDim.x) {
-        float value = input[token * hidden + d];
+        float value = static_cast<float>(input[token * hidden + d]);
         local += value * value;
       }
-    smem.rms[threadIdx.x] = local;
-    __syncthreads();
-    for (int offset = blockDim.x / 2; offset; offset /= 2) {
-      if (threadIdx.x < offset)
-        smem.rms[threadIdx.x] += smem.rms[threadIdx.x + offset];
+      smem.rms[threadIdx.x] = local;
+      __syncthreads();
+      for (int offset = blockDim.x / 2; offset; offset /= 2) {
+        if (threadIdx.x < offset)
+          smem.rms[threadIdx.x] += smem.rms[threadIdx.x + offset];
+        __syncthreads();
+      }
+      float scale = rsqrtf(smem.rms[0] / hidden + 1.0e-6f);
+      for (int d = threadIdx.x; d < hidden; d += blockDim.x)
+        output[token * hidden + d] = ModelElement(
+            static_cast<float>(ModelElement(
+                static_cast<float>(input[token * hidden + d]) * scale)) *
+            static_cast<float>(weight[d]));
       __syncthreads();
     }
-    float scale = rsqrtf(smem.rms[0] / hidden + 1.0e-6f);
-    if (active)
-      for (int d = threadIdx.x; d < hidden; d += blockDim.x)
-        output[token * hidden + d] = input[token * hidden + d] * scale * weight[d];
-    __syncthreads();
   }
 };
 

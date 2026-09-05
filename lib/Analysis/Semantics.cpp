@@ -10,6 +10,10 @@ std::string ToString(IteratorType type) {
   return type == IteratorType::kParallel ? "parallel" : "reduction";
 }
 
+std::string ToString(ScalarType type) {
+  return type == ScalarType::kBF16 ? "bf16" : "f32";
+}
+
 std::string ToString(EffectKind kind) {
   switch (kind) {
     case EffectKind::kRead: return "read";
@@ -144,6 +148,7 @@ IterationDim const* SemanticOp::Dim(std::string const& name) const {
 std::string SemanticOp::Serialize() const {
   std::ostringstream out;
   out << "op " << name << " kind=" << ToString(kind)
+      << " dtype=" << ToString(dtype)
       << (generic ? " generic" : "") << "\n  domain";
   for (auto const& dim : domain) {
     out << " " << dim.name << ":" << ToString(dim.type) << "["

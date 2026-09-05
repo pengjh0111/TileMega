@@ -48,13 +48,17 @@ std::vector<std::string> Split(std::string const& line, char sep) {
   return out;
 }
 
-int SmemBytes(GemmConfig const& c) {
-  return 4 * c.stages * c.tile_k * ((c.tile_m + 1) + (c.tile_n + 1));
+int SmemBytes(GemmConfig const& c, ScalarType dtype) {
+  return dtype == ScalarType::kBF16
+             ? TensorBF16SmemBytes(c.tile_m, c.tile_n, c.tile_k, c.stages)
+             : SimtF32SmemBytes(c.tile_m, c.tile_n, c.tile_k, c.stages);
 }
 
 /// F-40, exact on 1075 of the 1077 measured configurations of each model.
-int CtasPerSm(TargetSpec const& target, int registers, int smem) {
-  int const threads = 256;
+int CtasPerSm(TargetSpec const& target, int registers, int smem,
+              ScalarType dtype) {
+  int const threads = dtype == ScalarType::kBF16 ? kTensorBF16Threads
+                                                  : kSimtF32Threads;
   int const granularity = 8;
   int const per_cta_regs =
       granularity * ((registers * 32 + 255) / 256) * threads;
@@ -89,7 +93,8 @@ std::map<std::string, int> ReadRegisters(std::string const& path) {
 
 std::vector<Point> ReadScreen(std::string const& path,
                               std::map<std::string, int> const& registers,
-                              TargetSpec const& target, int* missing) {
+                              TargetSpec const& target, ScalarType dtype,
+                              int* missing) {
   std::vector<Point> out;
   std::ifstream input(path);
   if (!input) throw std::runtime_error("cannot open oracle sweep: " + path);
@@ -102,13 +107,13 @@ std::vector<Point> ReadScreen(std::string const& path,
     point.config = {std::stoi(f[0]), std::stoi(f[1]), std::stoi(f[2]),
                     std::stoi(f[3]), std::stoi(f[4])};
     point.measured_ms = std::stod(f[6]);
-    point.smem = SmemBytes(point.config);
+    point.smem = SmemBytes(point.config, dtype);
     auto it = registers.find(ShapeKey(point.config));
     if (it == registers.end()) {
       ++*missing;
       continue;
     }
-    point.ctas_per_sm = CtasPerSm(target, it->second, point.smem);
+    point.ctas_per_sm = CtasPerSm(target, it->second, point.smem, dtype);
     out.push_back(point);
   }
   return out;
@@ -188,16 +193,12 @@ void PrintScore(std::ostream& out, std::string const& model,
 
 /// The tier-2 ordering key (CandidateGenerator::RankKey), for the baseline row.
 double Tier2Key(CandidateGenerator const& generator, GemmConfig const& c,
-                std::vector<GemmProblem> const& problems) {
-  BackendTraits traits;
-  traits.tile_m = c.tile_m;
-  traits.tile_n = c.tile_n;
-  traits.tile_k = c.tile_k;
-  traits.stages = c.stages;
-  traits.threads = 256;
-  traits.smem_bytes = SmemBytes(c);
-  traits.arch_sm = 80;
-  traits.shape_legal = true;
+                std::vector<GemmProblem> const& problems, ScalarType dtype) {
+  BackendTraits traits = dtype == ScalarType::kBF16
+                             ? TensorBF16Traits(c.tile_m, c.tile_n, c.tile_k,
+                                                c.stages)
+                             : SimtF32Traits(c.tile_m, c.tile_n, c.tile_k,
+                                             c.stages);
   return generator.RankKey(BackendCandidate(traits), problems);
 }
 
@@ -206,21 +207,38 @@ double Tier2Key(CandidateGenerator const& generator, GemmConfig const& c,
 int main(int argc, char** argv) try {
   std::string repo = ".";
   std::string out_dir = "docs/experiments/COST_MODEL/raw";
+  std::string screen_dir;
+  std::string gqa_cu;
+  std::string mha_cu;
+  ScalarType dtype = ScalarType::kF32;
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
     if (arg == "--repo" && i + 1 < argc) repo = argv[++i];
     else if (arg == "--out" && i + 1 < argc) out_dir = argv[++i];
-    else { std::cerr << "usage: tilemega-costmodel [--repo DIR] [--out DIR]\n"; return 2; }
+    else if (arg == "--screen-dir" && i + 1 < argc) screen_dir = argv[++i];
+    else if (arg == "--gqa-cu" && i + 1 < argc) gqa_cu = argv[++i];
+    else if (arg == "--mha-cu" && i + 1 < argc) mha_cu = argv[++i];
+    else if (arg == "--dtype" && i + 1 < argc) {
+      std::string value = argv[++i];
+      if (value == "bf16") dtype = ScalarType::kBF16;
+      else if (value == "f32") dtype = ScalarType::kF32;
+      else { std::cerr << "--dtype must be f32 or bf16\n"; return 2; }
+    } else { std::cerr << "usage: tilemega-costmodel [--repo DIR] [--out DIR]"
+                         " [--dtype f32|bf16] [--screen-dir DIR]"
+                         " [--gqa-cu FILE] [--mha-cu FILE]\n"; return 2; }
   }
+  if (screen_dir.empty()) screen_dir = repo + "/docs/experiments/ORACLE/raw";
+  if (gqa_cu.empty()) gqa_cu = repo + "/docs/experiments/E2E_GEN/raw/generated_e2e.cu";
+  if (mha_cu.empty()) mha_cu = repo + "/docs/experiments/P3_GENERALIZATION/raw/generated.cu";
   TargetSpec const target = TargetSpec::FromJson(repo + "/configs/targets/sm_89.json");
 
   struct ModelSource { char const* name; char const* cu; };
   ModelSource const sources[] = {
-      {"gqa2", "/docs/experiments/E2E_GEN/raw/generated_e2e.cu"},
-      {"mha4", "/docs/experiments/P3_GENERALIZATION/raw/generated.cu"},
+      {"gqa2", gqa_cu.c_str()},
+      {"mha4", mha_cu.c_str()},
   };
 
-  CostModel const full(target);
+  CostModel const full(target, dtype);
   std::cout << "fit: lds=" << full.fit().lds_ns << " ns/instr (rel rms "
             << 100 * full.fit().lds_rel_rms << "%), setup=" << full.fit().setup_ns
             << " ns (rms " << full.fit().setup_rms_ns << " ns), over "
@@ -268,11 +286,12 @@ int main(int argc, char** argv) try {
     auto const registers =
         ReadRegisters(out_dir + "/registers_" + source.name + ".tsv");
     auto const points =
-        ReadScreen(repo + "/docs/experiments/ORACLE/raw/screen_" + source.name +
-                       ".tsv",
-                   registers, target, &missing);
+        ReadScreen(screen_dir + "/screen_" + source.name + ".tsv",
+                   registers, target, dtype, &missing);
     ModelDescription const model = ModelDescription::FromGeneratedCuda(
-        repo + source.cu, ModelDims{4, 3, 7}, source.name);
+        source.cu, ModelDims{4, 3, 7}, source.name);
+    if (model.dtype != dtype)
+      throw std::runtime_error("generated model dtype does not match --dtype");
     std::cout << source.name << ": " << points.size() << " measured points, "
               << model.gemms.size() << " GEMMs, " << model.stages.size()
               << " generated stages, footprint "
@@ -284,10 +303,10 @@ int main(int argc, char** argv) try {
     std::vector<GemmProblem> problems;
     for (auto const& gemm : model.gemms)
       problems.push_back({model.dims.seq, gemm.n, gemm.k});
-    CandidateGenerator const generator(target);
+    CandidateGenerator const generator(target, dtype);
 
     for (auto const& layer : ladder) {
-      CostModel const cost(target, layer.options);
+      CostModel const cost(target, dtype, layer.options);
       std::vector<double> predicted(points.size());
       auto const start = std::chrono::steady_clock::now();
       for (std::size_t i = 0; i < points.size(); ++i) {
@@ -322,9 +341,29 @@ int main(int argc, char** argv) try {
       }
     }
 
+    // One-variable lane ablations from the full model.  Capability-absent
+    // lanes are retained deliberately: their identical score is evidence for
+    // which dimensions remain structurally zero on this target.
+    for (int lane = 0; lane < ResourceVector::kLaneCount; ++lane) {
+      CostModelOptions ablated = plus_nongemm;
+      ablated.disabled_lanes[lane] = true;
+      CostModel const cost(target, dtype, ablated);
+      std::vector<double> predicted(points.size());
+      for (std::size_t i = 0; i < points.size(); ++i)
+        predicted[i] = cost.Evaluate(model, points[i].config,
+                                     Residency{points[i].ctas_per_sm})
+                           .total_ns / 1e6;
+      std::string const name =
+          std::string("full-minus-") + ResourceVector::LaneName(
+                                            static_cast<ResourceVector::Lane>(lane));
+      Score const score = Rank(points, predicted);
+      PrintScore(summary, source.name, name, score);
+      PrintScore(std::cout, source.name, name, score);
+    }
+
     std::vector<double> tier2(points.size());
     for (std::size_t i = 0; i < points.size(); ++i)
-      tier2[i] = Tier2Key(generator, points[i].config, problems);
+        tier2[i] = Tier2Key(generator, points[i].config, problems, dtype);
     Score const baseline = Rank(points, tier2);
     // Tier 2 is an ordering in FFMA-issue cycles, not a time, so its MAPE is
     // meaningless and is reported as zero rather than as a number to compare.

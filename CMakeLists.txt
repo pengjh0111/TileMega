@@ -344,6 +344,14 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(task_body_contract_test PRIVATE TileMega::tilemega)
   add_test(NAME task_body_contract COMMAND task_body_contract_test)
 
+  add_executable(bf16_task_body_compile_test
+    test/unit/bf16_task_body_compile_test.cu)
+  target_link_libraries(bf16_task_body_compile_test PRIVATE TileMega::tilemega)
+  target_compile_options(bf16_task_body_compile_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  set_property(TARGET bf16_task_body_compile_test PROPERTY CUDA_ARCHITECTURES 89)
+  add_test(NAME bf16_task_body_compile COMMAND bf16_task_body_compile_test)
+
   add_executable(frontend_import_test test/unit/frontend_import_test.cpp)
   add_dependencies(frontend_import_test TileMegaCGIncGen)
   target_link_libraries(frontend_import_test PRIVATE TileMega::tilemega MLIRIR)

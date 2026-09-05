@@ -96,8 +96,66 @@ struct DependencyRecord {
   analysis::WaitWindow window;
 };
 
+struct GemmRuntimeRecord {
+  std::uint16_t compiled_variant = 0;
+  std::uint16_t split_k = 1;
+  std::uint16_t tile_m = 128;
+  std::uint16_t tile_n = 128;
+  std::uint16_t tile_k = 16;
+  std::uint16_t stages = 3;
+};
+
+struct RuntimeVariantRecord {
+  std::uint32_t seq_begin = 1;
+  std::uint32_t seq_end = 65535;
+  std::vector<GemmRuntimeRecord> gemms;
+  std::vector<DependencyRecord> dependencies;
+  std::uint32_t ownership_flags = 0;
+};
+
+std::uint32_t readOwnershipFlags(mlir::ModuleOp module) {
+  std::uint32_t flags = 0;
+  auto add = [&](llvm::StringRef name, std::uint32_t bit) {
+    if (auto value = module->getAttrOfType<mlir::BoolAttr>(name))
+      if (value.getValue()) flags |= bit;
+  };
+  add("tilemega.rope_tile_per_block", 1u << 0);
+  add("tilemega.kv_tile_per_block", 1u << 1);
+  add("tilemega.activation_tile_per_block", 1u << 2);
+  add("tilemega.combiner_tile_per_block", 1u << 3);
+  return flags;
+}
+
+std::vector<GemmRuntimeRecord> readRuntimeGemms(mlir::ModuleOp module,
+                                                 std::size_t expected) {
+  auto plan = module->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
+  if (!plan)
+    throw std::invalid_argument(
+        "verified CG has no tilemega.gemm_runtime generator plan");
+  if (plan.size() != expected)
+    throw std::invalid_argument("tilemega.gemm_runtime has wrong length");
+  std::vector<GemmRuntimeRecord> result;
+  auto u16 = [](std::int64_t value, llvm::StringRef field) {
+    if (value <= 0 || value > std::numeric_limits<std::uint16_t>::max())
+      throw std::invalid_argument("invalid tilemega.gemm_runtime field " +
+                                  field.str());
+    return static_cast<std::uint16_t>(value);
+  };
+  for (auto value : plan) {
+    auto item = dictionaryEntry(value, "gemm_runtime");
+    GemmRuntimeRecord record;
+    record.tile_m = u16(integerField(item, "tile_m"), "tile_m");
+    record.tile_n = u16(integerField(item, "tile_n"), "tile_n");
+    record.tile_k = u16(integerField(item, "tile_k"), "tile_k");
+    record.stages = u16(integerField(item, "stages"), "stages");
+    record.split_k = u16(integerField(item, "split_k"), "split_k");
+    result.push_back(record);
+  }
+  return result;
+}
+
 std::string emitModelPlan(mlir::ModuleOp module,
-                          std::vector<DependencyRecord> const& dependencies) {
+                          std::vector<RuntimeVariantRecord> variants) {
   auto plan = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   if (!plan)
     throw std::invalid_argument(
@@ -106,6 +164,9 @@ std::string emitModelPlan(mlir::ModuleOp module,
   auto gemms = arrayField(plan, "gemms");
   auto stages = arrayField(plan, "stages");
   auto outputs = arrayField(plan, "outputs");
+  std::string dtype = stringField(plan, "dtype");
+  if (dtype != "f32" && dtype != "bf16")
+    throw std::invalid_argument("unsupported tilemega.model_plan dtype: " + dtype);
   if (buffers.empty() || stages.empty() || outputs.empty())
     throw std::invalid_argument("tilemega.model_plan has an empty required table");
 
@@ -169,41 +230,73 @@ std::string emitModelPlan(mlir::ModuleOp module,
     out << "  {" << integerField(item, "buffer") << "u, "
         << quoteCString(stringField(item, "file")) << "},\n";
   }
-  // Sorted by consumer, with a per-stage offset table, so a consumer reads
-  // only its own incoming edges. Scanning the whole table once per stage is
-  // what made the first L2 slower than the L1 grid barrier (see
-  // StageDependency in ModelRuntime.h).
-  std::vector<DependencyRecord> byConsumer = dependencies;
-  std::stable_sort(byConsumer.begin(), byConsumer.end(),
-                   [](auto const& a, auto const& b) {
-                     return a.consumer < b.consumer;
-                   });
-  out << "};\n\nconstexpr StageDependency kDependencies[] = {\n";
-  for (auto const& edge : byConsumer) {
-    analysis::WaitWindow const& w = edge.window;
-    char const* kind = !w.narrowed  ? "kAll"
-                       : w.IsIdentity() ? "kIdentity"
-                                        : "kWindow";
-    out << "  {" << edge.producer << "u, " << edge.consumer
-        << "u, StageDependency::Map::" << kind << ", " << w.div << "u, "
-        << w.scale << ", " << w.offset << ", " << w.count << "u},\n";
-  }
-  if (byConsumer.empty())
-    out << "  {0u, 0u, StageDependency::Map::kAll, 1u, 0, 0, 1u},\n";
-  out << "};\n\nconstexpr std::uint32_t kDependencyOffsets[] = {\n  ";
-  {
-    std::size_t cursor = 0;
-    for (std::size_t stage = 0; stage <= stages.size(); ++stage) {
-      while (cursor < byConsumer.size() && byConsumer[cursor].consumer < stage)
-        ++cursor;
-      out << cursor << "u, ";
+  out << "};\n\n";
+  if (variants.empty())
+    throw std::invalid_argument("generator needs at least one runtime variant");
+  std::sort(variants.begin(), variants.end(), [](auto const& a, auto const& b) {
+    return a.seq_begin < b.seq_begin;
+  });
+  std::uint32_t cursor_seq = 1;
+  for (std::size_t v = 0; v < variants.size(); ++v) {
+    auto& variant = variants[v];
+    if (variant.seq_begin != cursor_seq || variant.seq_end < variant.seq_begin)
+      throw std::invalid_argument(
+          "runtime variant intervals must be contiguous, disjoint, and start at seq=1");
+    cursor_seq = variant.seq_end + 1;
+    if (variant.gemms.size() != gemms.size())
+      throw std::invalid_argument("runtime variant GEMM table has wrong length");
+    std::stable_sort(variant.dependencies.begin(), variant.dependencies.end(),
+                     [](auto const& a, auto const& b) {
+                       return a.consumer < b.consumer;
+                     });
+    out << "constexpr GemmRuntimeDesc kRuntimeGemms" << v << "[] = {\n";
+    for (auto const& impl : variant.gemms)
+      out << "  {" << impl.compiled_variant << "u, " << impl.split_k << "u, "
+          << impl.tile_m << "u, " << impl.tile_n << "u, " << impl.tile_k
+          << "u, " << impl.stages << "u},\n";
+    out << "};\n\nconstexpr StageDependency kDependencies" << v << "[] = {\n";
+    for (auto const& edge : variant.dependencies) {
+      analysis::WaitWindow const& w = edge.window;
+      char const* kind = !w.narrowed ? "kAll"
+                         : w.IsIdentity() ? "kIdentity" : "kWindow";
+      out << "  {" << edge.producer << "u, " << edge.consumer
+          << "u, StageDependency::Map::" << kind << ", " << w.div << "u, "
+          << w.scale << ", " << w.offset << ", " << w.count << "u},\n";
     }
+    if (variant.dependencies.empty())
+      out << "  {0u, 0u, StageDependency::Map::kAll, 1u, 0, 0, 1u},\n";
+    out << "};\n\nconstexpr std::uint32_t kDependencyOffsets" << v
+        << "[] = {\n  ";
+    std::size_t edge = 0;
+    for (std::size_t stage = 0; stage <= stages.size(); ++stage) {
+      while (edge < variant.dependencies.size() &&
+             variant.dependencies[edge].consumer < stage)
+        ++edge;
+      out << edge << "u, ";
+    }
+    out << "\n};\n\n";
   }
-  out << "\n};\n\nconstexpr ModelSpec kModel = {kDims, kBuffers, "
+  out << "constexpr RuntimeVariantDesc kRuntimeVariants[] = {\n";
+  for (std::size_t v = 0; v < variants.size(); ++v)
+    out << "  {kRuntimeGemms" << v << ", kDependencies" << v << ", "
+        << variants[v].dependencies.size() << "u, kDependencyOffsets" << v
+        << ", " << variants[v].seq_begin << "u, " << variants[v].seq_end
+        << "u, " << variants[v].ownership_flags << "u},\n";
+  std::uint32_t const seq_count = variants.back().seq_end + 1;
+  out << "};\n\nconstexpr auto MakeSeqVariant() {\n"
+      << "  std::array<std::uint16_t, " << seq_count << "> table{};\n";
+  for (std::size_t v = 0; v < variants.size(); ++v)
+    out << "  for (std::uint32_t s = " << variants[v].seq_begin << "u; s <= "
+        << variants[v].seq_end << "u; ++s) table[s] = " << v << "u;\n";
+  out << "  return table;\n}\n"
+      << "constexpr auto kSeqVariant = MakeSeqVariant();\n\n"
+      << "constexpr ModelSpec kModel = {kDims, ScalarType::"
+      << (dtype == "bf16" ? "kBF16" : "kF32") << ", kBuffers, "
       << buffers.size() << "u, kGemms, " << gemms.size()
       << "u, kStages, " << stages.size() << "u, kOutputs, "
-      << outputs.size() << "u, kDependencies, " << byConsumer.size()
-      << "u, kDependencyOffsets};\n\n}  // namespace\n\n"
+      << outputs.size() << "u, kRuntimeVariants, " << variants.size()
+      << "u, kSeqVariant.data(), " << seq_count
+      << "u};\n\n}  // namespace\n\n"
       << "int main(int argc, char** argv) {\n"
       << "  if (argc != 2) { std::fprintf(stderr, \"usage: e2e FIXTURE_DIR\\n\"); return 2; }\n"
       << "  return tilemega::codegen::RunModel(kModel, argv[1]);\n}\n";
@@ -312,6 +405,100 @@ std::vector<std::pair<std::uint32_t, std::uint32_t>> TransitiveReduction(
   return kept;
 }
 
+struct VariantAnalysis {
+  std::vector<DependencyRecord> dependencies;
+  int cluster_dim = 1;
+};
+
+VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
+  if (!module || mlir::failed(mlir::verify(module)))
+    throw std::invalid_argument(
+        "CouplingGraphToCUDA requires a verified CG ModuleOp");
+  auto theta = readBinding(module, "tilemega.theta");
+  auto granularity = readBinding(module, "tilemega.g");
+  analysis::ParamBinding known = theta;
+  for (auto const& [name, value] : granularity.values) known.Bind(name, value);
+  int max_stage = -1;
+  std::unordered_map<std::string, std::uint32_t> task_stages;
+  std::size_t tasks = 0;
+  for (auto task : module.getOps<dialect::TaskSpaceOp>()) {
+    ++tasks;
+    max_stage = std::max(max_stage, static_cast<int>(task.getStage()));
+    task_stages.emplace(task.getSymName().str(), task.getStage());
+  }
+  if (max_stage < 0) throw std::invalid_argument("CG has no task spaces");
+
+  std::map<std::pair<std::uint32_t, std::uint32_t>, analysis::WaitWindow> pairs;
+  std::size_t couplings = 0, cluster_edges = 0;
+  for (auto coupling : module.getOps<dialect::CouplingOp>()) {
+    ++couplings;
+    llvm::StringRef sync = coupling.getSyncKind().getValue().getValue();
+    if (sync == "cluster") ++cluster_edges;
+    else if (sync != "global")
+      throw std::invalid_argument("generator accepts global or cluster synchronization");
+    (void)coupling.getWait().getValue().Eval(known);
+    (void)coupling.getFanout().getValue().Eval(known);
+    (void)coupling.getVolume().getValue().Eval(known);
+    (void)coupling.getCount().getValue().Eval(known);
+    (void)coupling.getRelation().getMap();
+    auto source = task_stages.find(coupling.getSrc().str());
+    auto target = task_stages.find(coupling.getDst().str());
+    if (source == task_stages.end() || target == task_stages.end())
+      throw std::invalid_argument("coupling names an unknown task space");
+    if (source->second >= target->second) continue;
+    analysis::WaitWindow window;
+    if (auto text = coupling.getWaitMap())
+      window = analysis::ParseWaitWindow(text->str());
+    auto pair = std::make_pair(source->second, target->second);
+    auto [at, fresh] = pairs.emplace(pair, window);
+    if (!fresh && at->second != window) at->second = analysis::WaitWindow{};
+  }
+
+  VariantAnalysis result;
+  std::size_t placements = 0;
+  for (auto placement : module.getOps<dialect::PlacementOp>()) {
+    ++placements;
+    int cluster = static_cast<int>(placement.getCluster());
+    if (placements == 1) result.cluster_dim = cluster;
+    else if (cluster != result.cluster_dim)
+      throw std::invalid_argument(
+          "every placement must name the same cluster dimension");
+  }
+  if (placements != tasks)
+    throw std::invalid_argument("every task space must have exactly one placement");
+  if (result.cluster_dim > 1 && cluster_edges != couplings)
+    throw std::invalid_argument(
+        "a clustered placement requires every coupling to synchronize at cluster scope");
+  if (result.cluster_dim == 1 && cluster_edges != 0)
+    throw std::invalid_argument(
+        "cluster synchronization requires a placement cluster larger than 1");
+  for (auto const& edge : TransitiveReduction(pairs, max_stage + 1))
+    result.dependencies.push_back(
+        {edge.first, edge.second, pairs.at(edge)});
+  return result;
+}
+
+std::string EmitGemmInstantiations(
+    std::vector<std::tuple<int, int, int, int>> const& shapes) {
+  if (shapes.empty() || shapes.size() > 16)
+    throw std::invalid_argument(
+        "one generated binary must contain between 1 and 16 GEMM shapes");
+  std::ostringstream out;
+  auto emit = [&](std::size_t index, std::tuple<int, int, int, int> shape) {
+    auto [m, n, k, stages] = shape;
+    std::string prefix = index == 0 ? "TILEMEGA_GEMM_"
+                                    : "TILEMEGA_GEMM_V" +
+                                          std::to_string(index) + "_";
+    out << "#define " << prefix << "TILE_M " << m << "\n"
+        << "#define " << prefix << "TILE_N " << n << "\n"
+        << "#define " << prefix << "TILE_K " << k << "\n"
+        << "#define " << prefix << "STAGES " << stages << "\n";
+  };
+  for (std::size_t i = 0; i < shapes.size(); ++i) emit(i, shapes[i]);
+  out << "#define TILEMEGA_GEMM_VARIANT_COUNT " << shapes.size() << "\n";
+  return out.str();
+}
+
 }  // namespace
 
 std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
@@ -395,10 +582,9 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
     throw std::invalid_argument(
         "cluster synchronization requires a placement cluster larger than 1");
 
-  // The granularity every wait window was fitted against.  A build that
-  // reparameterizes the GEMM task space invalidates the fitted constants, and
-  // the harness needs to see that at compile time rather than under-wait.
-  std::string windowGrain;
+  // The template list is emitted by the generator. ModelSpec below carries
+  // the same values and the harness verifies the two views before launch.
+  std::string generatedGemm;
   if (auto g = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.g")) {
     auto extent = [&](llvm::StringRef name) -> long {
       auto value = llvm::dyn_cast_or_null<mlir::IntegerAttr>(g.get(name));
@@ -406,20 +592,28 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
     };
     long const tm = extent("Tm"), tn = extent("Tn");
     if (tm > 0 && tn > 0)
-      windowGrain = "#define TILEMEGA_GENERATED_WINDOW_TILE_M " +
-                    std::to_string(tm) + "\n" +
-                    "#define TILEMEGA_GENERATED_WINDOW_TILE_N " +
-                    std::to_string(tn) + "\n" +
-                    "#define TILEMEGA_GENERATED_WINDOW_SPLIT_K 1\n";
+      generatedGemm = "#define TILEMEGA_GEMM_TILE_M " +
+                      std::to_string(tm) + "\n" +
+                      "#define TILEMEGA_GEMM_TILE_N " +
+                      std::to_string(tn) + "\n" +
+                      "#define TILEMEGA_GEMM_TILE_K 16\n"
+                      "#define TILEMEGA_GEMM_STAGES 3\n"
+                      "#define TILEMEGA_GEMM_VARIANT_COUNT 1\n";
   }
 
   std::ostringstream out;
+  auto emittedPlan = module->getAttrOfType<mlir::DictionaryAttr>(
+      "tilemega.model_plan");
+  if (!emittedPlan)
+    throw std::invalid_argument("verified CG has no tilemega.model_plan");
   out << "// SPDX-License-Identifier: BSD-3-Clause\n"
       << "// Generated by CouplingGraphToCUDA from verified tilemega.* ops.\n"
+      << (stringField(emittedPlan, "dtype") == "bf16"
+              ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
       << (clusterDim > 1 ? "#define TILEMEGA_GENERATED_CLUSTER_DIM " +
                                std::to_string(clusterDim) + "\n"
                           : std::string())
-      << windowGrain
+      << generatedGemm
       << SyncEmitter{}.EmitWait("global")
       << SyncEmitter{}.EmitSignal("global")
       << HostLauncherEmitter{}.Emit("l1_kernel")
@@ -427,7 +621,80 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   std::vector<DependencyRecord> dependencies;
   for (auto const& edge : TransitiveReduction(dependencyPairs, maxStage + 1))
     dependencies.push_back({edge.first, edge.second, dependencyPairs.at(edge)});
-  out << emitModelPlan(module, dependencies);
+  auto modelPlan = emittedPlan;
+  RuntimeVariantRecord runtime;
+  runtime.gemms = readRuntimeGemms(module,
+                                   arrayField(modelPlan, "gemms").size());
+  runtime.dependencies = std::move(dependencies);
+  runtime.ownership_flags = readOwnershipFlags(module);
+  out << emitModelPlan(module, {std::move(runtime)});
+  return out.str();
+}
+
+std::string CouplingGraphToCUDA::LowerVariants(
+    std::vector<RuntimeVariantModule> const& variants) const {
+  if (variants.empty())
+    throw std::invalid_argument("LowerVariants requires at least one variant");
+  mlir::ModuleOp first = variants.front().module;
+  auto first_plan = first->getAttrOfType<mlir::DictionaryAttr>(
+      "tilemega.model_plan");
+  if (!first_plan)
+    throw std::invalid_argument("variant has no tilemega.model_plan");
+  std::size_t const gemm_count = arrayField(first_plan, "gemms").size();
+
+  std::vector<RuntimeVariantRecord> records;
+  std::vector<std::tuple<int, int, int, int>> shapes;
+  int cluster_dim = -1;
+  for (auto const& input : variants) {
+    auto plan = input.module->getAttrOfType<mlir::DictionaryAttr>(
+        "tilemega.model_plan");
+    if (!plan || plan != first_plan)
+      throw std::invalid_argument(
+          "runtime variants must have byte-identical tilemega.model_plan data");
+    VariantAnalysis analysis = AnalyzeVariantModule(input.module);
+    if (cluster_dim < 0) cluster_dim = analysis.cluster_dim;
+    else if (cluster_dim != analysis.cluster_dim)
+      throw std::invalid_argument(
+          "runtime variants cannot change the kernel cluster dimension");
+    RuntimeVariantRecord record;
+    record.seq_begin = input.seq_begin;
+    record.seq_end = input.seq_end;
+    record.ownership_flags = readOwnershipFlags(input.module);
+    record.dependencies = std::move(analysis.dependencies);
+    record.gemms = readRuntimeGemms(input.module, gemm_count);
+    for (auto& impl : record.gemms) {
+      auto key = std::make_tuple(static_cast<int>(impl.tile_m),
+                                 static_cast<int>(impl.tile_n),
+                                 static_cast<int>(impl.tile_k),
+                                 static_cast<int>(impl.stages));
+      auto found = std::find(shapes.begin(), shapes.end(), key);
+      if (found == shapes.end()) {
+        if (shapes.size() == 16)
+          throw std::invalid_argument(
+              "runtime plans require more than 16 unique GEMM shapes");
+        shapes.push_back(key);
+        found = std::prev(shapes.end());
+      }
+      impl.compiled_variant = static_cast<std::uint16_t>(
+          std::distance(shapes.begin(), found));
+    }
+    records.push_back(std::move(record));
+  }
+
+  std::ostringstream out;
+  out << "// SPDX-License-Identifier: BSD-3-Clause\n"
+      << "// Generated by CouplingGraphToCUDA from verified tilemega.* ops.\n"
+      << (stringField(first_plan, "dtype") == "bf16"
+              ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
+      << EmitGemmInstantiations(shapes)
+      << (cluster_dim > 1 ? "#define TILEMEGA_GENERATED_CLUSTER_DIM " +
+                                std::to_string(cluster_dim) + "\n"
+                          : std::string())
+      << SyncEmitter{}.EmitWait("global")
+      << SyncEmitter{}.EmitSignal("global")
+      << HostLauncherEmitter{}.Emit("l1_kernel")
+      << TaskBodyEmitter{}.Emit(first) << "\n"
+      << emitModelPlan(first, std::move(records));
   return out.str();
 }
 

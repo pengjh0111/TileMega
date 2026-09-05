@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -209,6 +210,23 @@ std::vector<std::string> SelectSubset(std::string const& screen, int top,
   return out;
 }
 
+/// Any generated source of that model in the sweep describes the same stage
+/// list: the sweep varies `g`, not the graph.  Taking the lexicographically
+/// first keeps the choice reproducible across runs.
+std::string FirstGeneratedSource(std::string const& dir,
+                                 std::string const& model) {
+  std::vector<std::string> found;
+  for (auto const& entry : std::filesystem::directory_iterator(dir)) {
+    std::string const name = entry.path().filename().string();
+    if (name.rfind(model + "_", 0) == 0 && entry.path().extension() == ".cu")
+      found.push_back(entry.path().string());
+  }
+  if (found.empty())
+    throw std::runtime_error("no generated " + model + " source under " + dir);
+  std::sort(found.begin(), found.end());
+  return found.front();
+}
+
 }  // namespace
 
 int main(int argc, char** argv) try {
@@ -217,6 +235,7 @@ int main(int argc, char** argv) try {
   int top = 50, sample = 50;
   unsigned seed = 20260904u;
   bool probe_only = false;
+  ScalarType dtype = ScalarType::kBF16;
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
     auto next = [&]() -> std::string {
@@ -232,10 +251,17 @@ int main(int argc, char** argv) try {
     else if (arg == "--sample") sample = std::stoi(next());
     else if (arg == "--seed") seed = unsigned(std::stoul(next()));
     else if (arg == "--probe") probe_only = true;
+    else if (arg == "--dtype") {
+      std::string const value = next();
+      if (value == "bf16") dtype = ScalarType::kBF16;
+      else if (value == "f32") dtype = ScalarType::kF32;
+      else { std::cerr << "--dtype must be f32 or bf16\n"; return 2; }
+    }
     else {
       std::cerr << "usage: tilemega-migrate [--repo DIR] [--out DIR] "
                    "[--label TAG] [--calib JSON] [--host JSON] "
-                   "[--top N] [--sample N] [--seed N] [--probe]\n";
+                   "[--top N] [--sample N] [--seed N] [--dtype f32|bf16] "
+                   "[--probe]\n";
       return 2;
     }
   }
@@ -258,9 +284,17 @@ int main(int argc, char** argv) try {
                 << " SMs); a migration check needs a different GPU\n";
       return 3;
     }
-    if (here.arch_tag != host.arch_tag)
-      std::cerr << "tilemega-migrate: warning: probed " << here.arch_tag
-                << " but --host declares " << host.arch_tag << '\n';
+    if (here.arch_tag != host.arch_tag) {
+      std::cerr << "tilemega-migrate: probed " << here.arch_tag
+                << " but --host declares " << host.arch_tag
+                << "; refusing to label the result as that target\n";
+      return 3;
+    }
+    if (!here.caps.cluster || here.res.max_cluster_size <= 1) {
+      std::cerr << "tilemega-migrate: Probe() reports no usable cluster "
+                   "capability; refusing the migration arm\n";
+      return 3;
+    }
     return 0;
   }
   // The transfer target: everything the new GPU declares about itself, with
@@ -268,10 +302,24 @@ int main(int argc, char** argv) try {
   // compilation actually has available, and the point of the check is whether
   // it is enough to rank with.
   TargetSpec transfer = host;
+  // Both profiles travel, not just the FP32 one: a BF16 run reads
+  // `calib_bf16`, and leaving it at the host's empty default would make the
+  // transfer arm fail as "uncalibrated" instead of measuring the transfer.
   transfer.calib = calib.calib;
+  transfer.calib_bf16 = calib.calib_bf16;
 
-  CostModel const model_native(calib);
-  CostModel const model_transfer(transfer);
+  CostModel const model_native(calib, dtype);
+  CostModel const model_transfer(transfer, dtype);
+
+  // The validation set has to be the one the shipped form is measured on: a
+  // rank transfer scored against the FP32 sweep would answer a question about
+  // an implementation nobody runs any more.  Each dtype therefore names its own
+  // sweep directory, register table and generated source.
+  bool const bf16 = dtype == ScalarType::kBF16;
+  std::string const sweep = repo + "/docs/experiments/ORACLE/" +
+                            (bf16 ? "raw_bf16" : "raw");
+  std::string const regs_dir =
+      bf16 ? sweep + "/cost" : repo + "/docs/experiments/COST_MODEL/raw";
 
   struct Source { char const* name; char const* cu; };
   Source const sources[] = {
@@ -285,8 +333,7 @@ int main(int argc, char** argv) try {
   std::cout << "model\tarm\tn\tmape_pct\tspearman\ttop1\ttop3\ttop10\toptimum_rank\n";
 
   for (auto const& source : sources) {
-    std::string const base = repo + "/docs/experiments/ORACLE/raw/screen_" +
-                             source.name + ".tsv";
+    std::string const base = sweep + "/screen_" + source.name + ".tsv";
     auto subset = SelectSubset(base, top, sample, seed);
     {
       std::ofstream list(out_dir + "/subset_" + source.name + ".txt");
@@ -299,11 +346,12 @@ int main(int argc, char** argv) try {
 
     int missing = 0;
     auto const native_regs =
-        ReadRegisters(repo + "/docs/experiments/COST_MODEL/raw/registers_" +
-                      source.name + ".tsv");
+        ReadRegisters(regs_dir + "/registers_" + source.name + ".tsv");
     auto const native = ReadScreen(base, native_regs, calib, &missing);
     ModelDescription const desc = ModelDescription::FromGeneratedCuda(
-        repo + source.cu, ModelDims{4, 3, 7}, source.name);
+        bf16 ? FirstGeneratedSource(sweep + "/src", source.name)
+             : repo + source.cu,
+        ModelDims{4, 3, 7}, source.name);
 
     auto score_arm = [&](std::map<std::string, Point> const& measured,
                          CostModel const& cost, char const* arm) {

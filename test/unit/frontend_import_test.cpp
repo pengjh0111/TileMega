@@ -59,6 +59,26 @@ int main() {
   assert(cuda.find("ModelHarness.cuh") != std::string::npos);
   assert(cuda.find("GeneratedLlamaRuntime.cuh") == std::string::npos);
   assert(cuda.find("% 12") == std::string::npos);
+  assert(cuda.find("wait_table=") == std::string::npos);
+  assert(cuda.find("kRuntimeVariants") != std::string::npos);
+
+  // Phase-5 prerequisite: two independently instantiated granularities are
+  // fused into one binary, and ModelSpec -- not an external -D plan -- binds
+  // each interval to both its GEMM implementation and its dependency table.
+  tilemega::frontend::ImportOptions coarse;
+  coarse.gemms.assign(14, {16, 64, 16, 2, 16});
+  auto coarse_module = tilemega::frontend::TorchExportImporter{}.Import(
+      std::string(TILEMEGA_SOURCE_DIR) +
+          "/docs/experiments/E2E_GEN/raw/export_bridge.json",
+      context, nullptr, coarse);
+  std::string multi = tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
+      {{*module, 1, 3}, {*coarse_module, 4, 2048}});
+  assert(multi.find("#define TILEMEGA_GEMM_VARIANT_COUNT 2") !=
+         std::string::npos);
+  assert(multi.find("{kRuntimeGemms0, kDependencies0") != std::string::npos);
+  assert(multi.find("{kRuntimeGemms1, kDependencies1") != std::string::npos);
+  assert(multi.find("table[s] = 1u") != std::string::npos);
+  assert(multi.find("wait_table=") == std::string::npos);
 
   // P4.7: the cluster shape is a property of the whole launch, so the
   // generator's contract is all-or-nothing.  Flipping every coupling and every

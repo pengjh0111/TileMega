@@ -47,16 +47,20 @@ double LdsInstructions(GemmConfig const& c) {
 }
 
 /// cp.async bytes one CTA pulls per mainloop iteration.
-double MainloopBytes(GemmConfig const& c) {
-  return 4.0 * c.tile_k * (c.tile_m + c.tile_n);
+double ElementBytes(ScalarType dtype) {
+  return dtype == ScalarType::kBF16 ? 2.0 : 4.0;
+}
+
+double MainloopBytes(GemmConfig const& c, ScalarType dtype) {
+  return ElementBytes(dtype) * c.tile_k * (c.tile_m + c.tile_n);
 }
 
 double MainloopFlops(GemmConfig const& c) {
   return 2.0 * c.tile_m * c.tile_n * c.tile_k;
 }
 
-double EpilogueBytes(GemmConfig const& c) {
-  return 4.0 * c.tile_m * c.tile_n;
+double EpilogueBytes(GemmConfig const& c, ScalarType dtype) {
+  return ElementBytes(dtype) * c.tile_m * c.tile_n;
 }
 
 }  // namespace
@@ -120,8 +124,14 @@ char const* ResourceVector::BottleneckName() const {
 }
 
 CostModel::CostModel(TargetSpec const& target, CostModelOptions options)
-    : target_(&target), options_(options) {
-  auto const& calib = target.calib;
+    : CostModel(target, ScalarType::kF32, options) {}
+
+CostModel::CostModel(TargetSpec const& target, ScalarType dtype,
+                     CostModelOptions options)
+    : target_(&target), calib_(&target.CalibrationFor(
+                            dtype == ScalarType::kBF16 ? "bf16" : "f32")),
+      dtype_(dtype), options_(options) {
+  auto const& calib = *calib_;
   if (!calib.calibrated) {
     throw std::runtime_error(
         "cost model needs a calibrated target: run tilemega-calibrate");
@@ -136,7 +146,10 @@ CostModel::CostModel(TargetSpec const& target, CostModelOptions options)
     return rate > 0.0 ? LaneStatus::kLive : LaneStatus::kNotCalibrated;
   };
   using RV = ResourceVector;
-  lanes_[RV::kTensorCore] = lane(true, calib.tc_fp16_gflops);
+  double const tc_rate = dtype == ScalarType::kBF16
+                             ? calib.tc_bf16_gflops
+                             : calib.tc_fp16_gflops;
+  lanes_[RV::kTensorCore] = lane(true, tc_rate);
   lanes_[RV::kCudaCore] = lane(true, calib.cuda_fp32_gflops);
   lanes_[RV::kSfu] = lane(true, calib.sfu_exp2_gops);
   lanes_[RV::kTmem] = lane(target.caps.tcgen05, 0.0);
@@ -151,7 +164,7 @@ CostModel::CostModel(TargetSpec const& target, CostModelOptions options)
   dram_bytes_per_ns_per_sm_ = calib.dram_gbps / sms;
   cuda_flops_per_ns_per_sm_ = calib.cuda_fp32_gflops / sms;
   sfu_ops_per_ns_per_sm_ = calib.sfu_exp2_gops / sms;
-  tc_flops_per_ns_per_sm_ = calib.tc_fp16_gflops / sms;
+  tc_flops_per_ns_per_sm_ = tc_rate / sms;
 
   // The mainloop slope `c` and the intercept `a` are calibrated at six tile
   // shapes and up to four resident CTA counts each; the model needs them at
@@ -161,7 +174,10 @@ CostModel::CostModel(TargetSpec const& target, CostModelOptions options)
   for (auto const& shape : calib.streamk) {
     for (std::size_t i = 0; i < shape.occ_per_sm.size(); ++i) {
       GemmConfig cfg{shape.tile_m, shape.tile_n, shape.tile_k, shape.stages, 1};
-      double const x = shape.occ_per_sm[i] * LdsInstructions(cfg);
+      double const x = shape.occ_per_sm[i] *
+                       (dtype_ == ScalarType::kBF16
+                            ? MainloopBytes(cfg, dtype_)
+                            : LdsInstructions(cfg));
       lds_num += x * shape.occ_c_ns[i];
       lds_den += x * x;
       ++points;
@@ -180,12 +196,16 @@ CostModel::CostModel(TargetSpec const& target, CostModelOptions options)
     GemmConfig cfg{shape.tile_m, shape.tile_n, shape.tile_k, shape.stages, 1};
     for (std::size_t i = 0; i < shape.occ_per_sm.size(); ++i) {
       double const predicted =
-          shape.occ_per_sm[i] * LdsInstructions(cfg) * fit_.lds_ns;
+          shape.occ_per_sm[i] *
+          (dtype_ == ScalarType::kBF16 ? MainloopBytes(cfg, dtype_)
+                                       : LdsInstructions(cfg)) *
+          fit_.lds_ns;
       double const e = predicted / shape.occ_c_ns[i] - 1.0;
       lds_sq += e * e;
       double const traffic =
-          cfg.stages * (MainloopBytes(cfg) / l2_bytes_per_ns_per_sm_) +
-          calib.l2_latency_ns + EpilogueBytes(cfg) / l2_bytes_per_ns_per_sm_;
+          cfg.stages * (MainloopBytes(cfg, dtype_) / l2_bytes_per_ns_per_sm_) +
+          calib.l2_latency_ns +
+          EpilogueBytes(cfg, dtype_) / l2_bytes_per_ns_per_sm_;
       // `a` is the intercept of a line in `iters`, so under an envelope with
       // fill depth d it already carries -d*c.  Adding it back is what keeps
       // the envelope from being subtracted twice -- and is also what makes
@@ -213,7 +233,7 @@ CostModel::CostModel(TargetSpec const& target, CostModelOptions options)
 double CostModel::CacheHitProbability(double footprint_bytes) const {
   if (!options_.cache_model) return 1.0;
   double const capacity_lines =
-      target_->calib.l2_knee_bytes / static_cast<double>(kCacheLineBytes);
+      calib_->l2_knee_bytes / static_cast<double>(kCacheLineBytes);
   double const block_lines =
       std::max(1.0, footprint_bytes / static_cast<double>(kCacheLineBytes));
   // §2.2(e): between two touches of a line the stream walks the whole live
@@ -231,10 +251,16 @@ ResourceVector CostModel::Steady(GemmConfig const& config, double ctas_per_sm,
                                  double dram_fraction) const {
   ResourceVector u;
   double const o = ctas_per_sm;
-  u.smem = o * LdsInstructions(config) * fit_.lds_ns;
+  u.smem = o *
+           (dtype_ == ScalarType::kBF16 ? MainloopBytes(config, dtype_)
+                                        : LdsInstructions(config)) *
+           fit_.lds_ns;
   if (options_.resource_lanes) {
-    u.cuda_core = o * MainloopFlops(config) / cuda_flops_per_ns_per_sm_;
-    double const bytes = o * MainloopBytes(config);
+    if (dtype_ == ScalarType::kBF16)
+      u.tensor_core = o * MainloopFlops(config) / tc_flops_per_ns_per_sm_;
+    else
+      u.cuda_core = o * MainloopFlops(config) / cuda_flops_per_ns_per_sm_;
+    double const bytes = o * MainloopBytes(config, dtype_);
     u.l2 = bytes / l2_bytes_per_ns_per_sm_;
     u.dram = bytes * dram_fraction / dram_bytes_per_ns_per_sm_;
   }
@@ -243,7 +269,8 @@ ResourceVector CostModel::Steady(GemmConfig const& config, double ctas_per_sm,
   // them too; `lane_status` is what separates "no pipe" from "no work".
   for (int i = 0; i < ResourceVector::kLaneCount; ++i) {
     auto const l = static_cast<ResourceVector::Lane>(i);
-    if (lanes_[l] != LaneStatus::kLive) u[l] = 0.0;
+    if (lanes_[l] != LaneStatus::kLive || options_.disabled_lanes[l])
+      u[l] = 0.0;
   }
   return u;
 }
@@ -273,9 +300,9 @@ double CostModel::GemmStageNs(GemmOp const& gemm, GemmConfig const& config,
 
   double const per_cta_fixed =
       fit_.setup_ns +
-      config.stages * (MainloopBytes(config) / l2_bytes_per_ns_per_sm_) +
-      target_->calib.l2_latency_ns +
-      EpilogueBytes(config) / l2_bytes_per_ns_per_sm_;
+      config.stages * (MainloopBytes(config, dtype_) / l2_bytes_per_ns_per_sm_) +
+      calib_->l2_latency_ns +
+      EpilogueBytes(config, dtype_) / l2_bytes_per_ns_per_sm_;
   // §2.2(b): the first `stages - 1` iterations are covered by the fill.  The
   // second factor of `d = stages * resident_tiles_per_SM - 1` is 1 here: a CTA
   // of this collective owns exactly one output tile per wave, so resident CTAs
@@ -303,7 +330,7 @@ double CostModel::GemmStageNs(GemmOp const& gemm, GemmConfig const& config,
 double CostModel::CombineStageNs(GemmOp const& gemm, int chunks,
                                  ModelDims const& dims) const {
   if (chunks <= 1) return 0.0;
-  auto const& calib = target_->calib;
+  auto const& calib = *calib_;
   // §2.3: `b` and `d` are held per output element because at one shape's
   // single output width the reduction moves too little to fit (TargetSpec.h).
   double const b = calib.streamk.empty() ? 0.0 : calib.streamk.front().b_ns;
@@ -315,7 +342,7 @@ double CostModel::CombineStageNs(GemmOp const& gemm, int chunks,
 double CostModel::NonGemmStageNs(ModelStage const& stage, ModelDims const& dims,
                                  Residency residency) const {
   if (!options_.non_gemm) return 0.0;
-  auto const& calib = target_->calib;
+  auto const& calib = *calib_;
   double ctas = 0.0, bytes = 0.0, sfu_ops = 0.0;
   int depth = 0, barriers = 0;
   double const width = std::max(stage.width, 1);
@@ -378,8 +405,7 @@ double CostModel::BarrierNs(Residency residency) const {
   if (!options_.sync) return 0.0;
   double const grid = static_cast<double>(target_->res.num_sms) *
                       std::max(1, residency.ctas_per_sm);
-  return Interpolate(target_->calib.grid_barrier_ctas,
-                     target_->calib.grid_barrier_ns, grid);
+  return Interpolate(calib_->grid_barrier_ctas, calib_->grid_barrier_ns, grid);
 }
 
 CostBreakdown CostModel::Evaluate(ModelDescription const& model,

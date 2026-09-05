@@ -123,6 +123,19 @@ int main() {
   REQUIRE(solver::VerifyContract(impl, target, derived, theta, binding, &error));
   Report("selected contract", true, "");
 
+  solver::CandidateGenerator bf16_generator(target,
+                                             solver::ScalarType::kBF16);
+  solver::ImplementationContract bf16_impl;
+  solver::TileCandidate bf16_g;
+  analysis::ParamBinding bf16_binding;
+  REQUIRE(solver::SelectImplementation(
+      bf16_generator, {4, 512, 128}, "bf16_impl", "score", derived, theta,
+      {}, &bf16_g, &bf16_impl, &bf16_binding));
+  REQUIRE(bf16_impl.backend == solver::kTensorBF16Backend);
+  REQUIRE(bf16_impl.threads == solver::kTensorBF16Threads);
+  REQUIRE(solver::VerifyContract(bf16_impl, target, derived, theta,
+                                 bf16_binding, &error));
+
   // The transposition negative is run at the §2.7 granularity (Tm = d = 128),
   // where the two axes a swap exchanges are the same width. That is the hard
   // case: no extent changes, so only the coordinate check can catch it.

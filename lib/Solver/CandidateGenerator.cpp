@@ -8,11 +8,9 @@
 namespace tilemega::solver {
 namespace {
 
-// The native shape of the SIMT collective: a 16x16 thread MMA and the
-// shortest cp.async row the copy layout admits. Every candidate is this tile
-// doubled along some axes, which is why the walk needs no shape table.
-constexpr int kNativeTileMN = 16;
-constexpr int kNativeTileK = 8;
+constexpr int kNativeSimtTileMN = 16;
+constexpr int kNativeBF16TileM = 32;
+constexpr int kNativeBF16TileN = 16;
 constexpr int kNativeStages = 2;
 
 int CeilDiv(int a, int b) { return b > 0 ? (a + b - 1) / b : 0; }
@@ -22,13 +20,22 @@ int CeilDiv(int a, int b) { return b > 0 ? (a + b - 1) / b : 0; }
 CandidateGenerator::CandidateGenerator(TargetSpec target, Envelope envelope)
     : target_(std::move(target)), envelope_(envelope) {}
 
+CandidateGenerator::CandidateGenerator(TargetSpec target, ScalarType dtype,
+                                       Envelope envelope)
+    : target_(std::move(target)), envelope_(envelope), dtype_(dtype) {}
+
 std::vector<BackendCandidate> CandidateGenerator::Enumerate(Stats* stats) const {
   std::vector<BackendCandidate> result;
   Stats local;
+  int const native_k = dtype_ == ScalarType::kBF16 ? 16 : 8;
+  int const native_m = dtype_ == ScalarType::kBF16 ? kNativeBF16TileM
+                                                    : kNativeSimtTileMN;
+  int const native_n = dtype_ == ScalarType::kBF16 ? kNativeBF16TileN
+                                                    : kNativeSimtTileMN;
   int const budget = target_.res.max_dynamic_smem_per_cta;
-  for (int m = kNativeTileMN; m <= envelope_.max_tile_mn; m *= 2)
-    for (int n = kNativeTileMN; n <= envelope_.max_tile_mn; n *= 2)
-      for (int k = kNativeTileK; k <= envelope_.max_tile_k; k *= 2)
+  for (int m = native_m; m <= envelope_.max_tile_mn; m *= 2)
+    for (int n = native_n; n <= envelope_.max_tile_mn; n *= 2)
+      for (int k = native_k; k <= envelope_.max_tile_k; k *= 2)
         for (int s = kNativeStages; s <= envelope_.max_stages; ++s)
           ++local.cartesian;
 
@@ -39,14 +46,22 @@ std::vector<BackendCandidate> CandidateGenerator::Enumerate(Stats* stats) const 
   struct Node {
     int m, n, k, stages, axis;
   };
-  std::vector<Node> work{{kNativeTileMN, kNativeTileMN, kNativeTileK,
+  std::vector<Node> work{{native_m, native_n, native_k,
                           kNativeStages, 0}};
   while (!work.empty()) {
     Node node = work.back();
     work.pop_back();
     ++local.touched;
-    BackendTraits traits = SimtF32Traits(node.m, node.n, node.k, node.stages);
-    int const smem = SimtF32SmemBytes(node.m, node.n, node.k, node.stages);
+    BackendTraits traits = dtype_ == ScalarType::kBF16
+                               ? TensorBF16Traits(node.m, node.n, node.k,
+                                                  node.stages)
+                               : SimtF32Traits(node.m, node.n, node.k,
+                                               node.stages);
+    int const smem = dtype_ == ScalarType::kBF16
+                         ? TensorBF16SmemBytes(node.m, node.n, node.k,
+                                              node.stages)
+                         : SimtF32SmemBytes(node.m, node.n, node.k,
+                                            node.stages);
     if (smem > budget) {
       ++local.wall_pruned;
       continue;

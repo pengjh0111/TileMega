@@ -85,6 +85,22 @@ BackendTraits SimtF32Traits(int m, int n, int k, int stages) {
   return traits;
 }
 
+BackendTraits TensorBF16Traits(int m, int n, int k, int stages) {
+  BackendTraits traits;
+  traits.tile_m = m;
+  traits.tile_n = n;
+  traits.tile_k = k;
+  traits.stages = stages;
+  traits.threads = kTensorBF16Threads;
+  traits.shape_legal = TensorBF16ShapeLegal(m, n, k, stages);
+  traits.smem_bytes =
+      traits.shape_legal ? TensorBF16SmemBytes(m, n, k, stages) : 0;
+  traits.arch_sm = kTensorBF16ArchSm;
+  traits.alignment = {8, 8};
+  traits.cluster = {1, 1, 1};
+  return traits;
+}
+
 std::vector<std::pair<std::string, int>> ParsePtxasRegisters(
     std::string_view log) {
   // ptxas -v prints one "Compiling entry function '<name>' for '<arch>'"

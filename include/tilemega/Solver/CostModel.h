@@ -111,6 +111,10 @@ struct CostModelOptions {
   bool split_k = true;            ///< §2.3
   bool non_gemm = true;           ///< the non-GEMM stages' latency model
   bool sync = true;               ///< §2.2(f)
+  /// Controlled lane ablation.  A true entry removes only that lane while
+  /// preserving every other model layer, which makes BF16 Tensor Core
+  /// contribution measurable without changing the fitted constants.
+  std::array<bool, ResourceVector::kLaneCount> disabled_lanes{};
 };
 
 class CostModel {
@@ -126,6 +130,8 @@ class CostModel {
   };
 
   explicit CostModel(TargetSpec const& target, CostModelOptions options = {});
+  CostModel(TargetSpec const& target, ScalarType dtype,
+            CostModelOptions options = {});
 
   /// `configs` holds one entry per model GEMM, so a per-operator solution and
   /// a uniform one evaluate through the same path.
@@ -176,6 +182,8 @@ class CostModel {
                  double dram_fraction) const;
 
   TargetSpec const* target_ = nullptr;
+  TargetSpec::Calib const* calib_ = nullptr;
+  ScalarType dtype_ = ScalarType::kF32;
   CostModelOptions options_;
   Fit fit_;
   std::array<LaneStatus, ResourceVector::kLaneCount> lanes_{};

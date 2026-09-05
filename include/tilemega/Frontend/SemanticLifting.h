@@ -65,6 +65,17 @@ struct LiftedModel {
   bool has_plan = false;
 };
 
+/// Generator-selected implementation granularity for one ModelPlan GEMM.
+/// `split_k` is a contribution count; TaskInstantiation receives the matching
+/// reduction chunk extent derived from the GEMM's K.
+struct GemmGranularity {
+  int tile_m = 128;
+  int tile_n = 128;
+  int tile_k = 16;
+  int stages = 3;
+  int split_k = 1;
+};
+
 /// The workload symbols the plan itself does not carry. Both must be symbols
 /// the module's `tilemega.theta` binds, otherwise the derived metrics cannot
 /// be evaluated by the CG verifier.
@@ -89,6 +100,12 @@ LiftedModel LiftGenericSemantics(std::vector<FxNodeRecord> const& tasks,
 /// per CTA for attention, and one element per task where the TaskBody owns a
 /// grid-stride element chunk.
 analysis::Granularity LaunchGranularity(LiftedModel const& model);
+
+/// Variant-aware launch granularity. `gemms` is either empty (the defaults
+/// above) or parallel to `plan.gemms`.
+analysis::Granularity LaunchGranularity(
+    LiftedModel const& model, ModelPlan const& plan,
+    std::vector<GemmGranularity> const& gemms);
 
 /// §2.7's granularity: Tm/Tn/Tkv symbolic, the QKV column tile one head wide,
 /// attention split at Tkv. Used to reproduce the reference coupling table.

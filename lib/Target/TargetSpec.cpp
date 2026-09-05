@@ -43,6 +43,152 @@ void ApplyKnownCaps(TargetSpec& spec) {
   spec.res.max_cluster_size = caps.max_cluster_size;
 }
 
+void ParseCalibration(json::Value const& cal, TargetSpec::Calib& out) {
+  auto number = [&](char const* key) { return cal.At(key).AsNumber(key); };
+  out.calibrated = cal.At("calibrated").AsBool("calibrated");
+  json::Value const& pipes = cal.At("pipelines");
+  auto pipe = [&](char const* key) { return pipes.At(key).AsNumber(key); };
+  out.tc_fp16_gflops = pipe("tc_fp16_gflops");
+  if (json::Value const* value = pipes.Find("tc_bf16_gflops"))
+    out.tc_bf16_gflops = value->AsNumber("tc_bf16_gflops");
+  out.cuda_fp32_gflops = pipe("cuda_fp32_gflops");
+  out.cuda_int32_gops = pipe("cuda_int32_gops");
+  out.sfu_exp2_gops = pipe("sfu_exp2_gops");
+  out.sfu_rsqrt_gops = pipe("sfu_rsqrt_gops");
+  out.smem_gbps = pipe("smem_gbps");
+  out.smem_conflict_slope = pipe("smem_conflict_slope");
+  out.l1_latency_ns = pipe("l1_latency_ns");
+  out.l2_latency_ns = pipe("l2_latency_ns");
+  out.dram_latency_ns = pipe("dram_latency_ns");
+  out.l2_gbps = pipe("l2_gbps");
+  out.l2_knee_bytes = pipe("l2_knee_bytes");
+  out.dram_gbps = pipe("dram_gbps");
+  out.l2_curve_bytes = NumberArray(pipes.At("l2_curve_bytes"), "l2_curve_bytes");
+  out.l2_curve_gbps = NumberArray(pipes.At("l2_curve_gbps"), "l2_curve_gbps");
+  out.smem_occupancy_ctas =
+      NumberArray(pipes.At("smem_occupancy_ctas"), "smem_occupancy_ctas");
+  out.smem_occupancy_gbps =
+      NumberArray(pipes.At("smem_occupancy_gbps"), "smem_occupancy_gbps");
+
+  json::Value const& sync = cal.At("sync");
+  auto sync_number = [&](char const* key) { return sync.At(key).AsNumber(key); };
+  out.atomic_uncontended_ns = sync_number("atomic_uncontended_ns");
+  out.atomic_contention_ctas =
+      NumberArray(sync.At("atomic_contention_ctas"), "atomic_contention_ctas");
+  out.atomic_contention_ns =
+      NumberArray(sync.At("atomic_contention_ns"), "atomic_contention_ns");
+  out.threadfence_ns = sync_number("threadfence_ns");
+  out.syncthreads_ns = sync_number("syncthreads_ns");
+  out.named_barrier_ns = sync_number("named_barrier_ns");
+  out.cluster_sync_ns = sync_number("cluster_sync_ns");
+  out.cluster_sync_calibrated =
+      sync.At("cluster_sync_calibrated").AsBool("cluster_sync_calibrated");
+  out.grid_barrier_ctas =
+      NumberArray(sync.At("grid_barrier_ctas"), "grid_barrier_ctas");
+  out.grid_barrier_ns = NumberArray(sync.At("grid_barrier_ns"), "grid_barrier_ns");
+
+  for (auto const& item : cal.At("streamk").AsArray("streamk")) {
+    TargetSpec::StreamKPoint point;
+    point.tile_m = static_cast<int>(item.At("tile_m").AsNumber("tile_m"));
+    point.tile_n = static_cast<int>(item.At("tile_n").AsNumber("tile_n"));
+    point.tile_k = static_cast<int>(item.At("tile_k").AsNumber("tile_k"));
+    point.stages = static_cast<int>(item.At("stages").AsNumber("stages"));
+    point.a_ns = item.At("a_ns").AsNumber("a_ns");
+    point.b_ns = item.At("b_ns").AsNumber("b_ns");
+    point.c_ns = item.At("c_ns").AsNumber("c_ns");
+    point.d_ns = item.At("d_ns").AsNumber("d_ns");
+    point.fit_r2 = item.At("fit_r2").AsNumber("fit_r2");
+    point.ac_r2 = item.At("ac_r2").AsNumber("ac_r2");
+    point.occ_per_sm = NumberArray(item.At("occ_per_sm"), "occ_per_sm");
+    point.occ_a_ns = NumberArray(item.At("occ_a_ns"), "occ_a_ns");
+    point.occ_c_ns = NumberArray(item.At("occ_c_ns"), "occ_c_ns");
+    out.streamk.push_back(std::move(point));
+  }
+  out.combine_fixed_ns = cal.At("combine_fixed_ns").AsNumber("combine_fixed_ns");
+  out.combine_d_dram_ns =
+      cal.At("combine_d_dram_ns").AsNumber("combine_d_dram_ns");
+  out.interference_ratio = number("interference_ratio");
+  if (json::Value const* value = cal.Find("device"))
+    out.device = value->AsString("device");
+  if (json::Value const* value = cal.Find("measured_at"))
+    out.measured_at = value->AsString("measured_at");
+  if (json::Value const* value = cal.Find("wall_seconds"))
+    out.wall_seconds = value->AsNumber("wall_seconds");
+  if (json::Value const* records = cal.Find("measurements")) {
+    for (auto const& item : records->AsArray("measurements")) {
+      TargetSpec::Measurement record;
+      record.name = item.At("name").AsString("name");
+      record.value = item.At("value").AsNumber("value");
+      record.unit = item.At("unit").AsString("unit");
+      record.samples = static_cast<int>(item.At("samples").AsNumber("samples"));
+      record.rel_stddev = item.At("rel_stddev").AsNumber("rel_stddev");
+      record.method = item.At("method").AsString("method");
+      out.measurements.push_back(std::move(record));
+    }
+  }
+}
+
+json::Value CalibrationJson(TargetSpec::Calib const& calib) {
+  json::Value pipelines(json::Object{
+      {"tc_fp16_gflops", calib.tc_fp16_gflops},
+      {"tc_bf16_gflops", calib.tc_bf16_gflops},
+      {"cuda_fp32_gflops", calib.cuda_fp32_gflops},
+      {"cuda_int32_gops", calib.cuda_int32_gops},
+      {"sfu_exp2_gops", calib.sfu_exp2_gops},
+      {"sfu_rsqrt_gops", calib.sfu_rsqrt_gops},
+      {"smem_gbps", calib.smem_gbps},
+      {"smem_conflict_slope", calib.smem_conflict_slope},
+      {"l1_latency_ns", calib.l1_latency_ns},
+      {"l2_latency_ns", calib.l2_latency_ns},
+      {"dram_latency_ns", calib.dram_latency_ns},
+      {"l2_gbps", calib.l2_gbps},
+      {"l2_knee_bytes", calib.l2_knee_bytes},
+      {"dram_gbps", calib.dram_gbps},
+      {"l2_curve_bytes", json::Numbers(calib.l2_curve_bytes)},
+      {"l2_curve_gbps", json::Numbers(calib.l2_curve_gbps)},
+      {"smem_occupancy_ctas", json::Numbers(calib.smem_occupancy_ctas)},
+      {"smem_occupancy_gbps", json::Numbers(calib.smem_occupancy_gbps)}});
+  json::Value sync(json::Object{
+      {"atomic_uncontended_ns", calib.atomic_uncontended_ns},
+      {"atomic_contention_ctas", json::Numbers(calib.atomic_contention_ctas)},
+      {"atomic_contention_ns", json::Numbers(calib.atomic_contention_ns)},
+      {"threadfence_ns", calib.threadfence_ns},
+      {"syncthreads_ns", calib.syncthreads_ns},
+      {"named_barrier_ns", calib.named_barrier_ns},
+      {"cluster_sync_ns", calib.cluster_sync_ns},
+      {"cluster_sync_calibrated", calib.cluster_sync_calibrated},
+      {"grid_barrier_ctas", json::Numbers(calib.grid_barrier_ctas)},
+      {"grid_barrier_ns", json::Numbers(calib.grid_barrier_ns)}});
+  json::Array streamk;
+  for (auto const& point : calib.streamk) {
+    streamk.emplace_back(json::Object{
+        {"tile_m", point.tile_m}, {"tile_n", point.tile_n},
+        {"tile_k", point.tile_k}, {"stages", point.stages},
+        {"a_ns", point.a_ns}, {"b_ns", point.b_ns},
+        {"c_ns", point.c_ns}, {"d_ns", point.d_ns},
+        {"fit_r2", point.fit_r2}, {"ac_r2", point.ac_r2},
+        {"occ_per_sm", json::Numbers(point.occ_per_sm)},
+        {"occ_a_ns", json::Numbers(point.occ_a_ns)},
+        {"occ_c_ns", json::Numbers(point.occ_c_ns)}});
+  }
+  json::Array measurements;
+  for (auto const& record : calib.measurements) {
+    measurements.emplace_back(json::Object{
+        {"name", record.name}, {"value", record.value},
+        {"unit", record.unit}, {"samples", record.samples},
+        {"rel_stddev", record.rel_stddev}, {"method", record.method}});
+  }
+  return json::Value(json::Object{
+      {"calibrated", calib.calibrated}, {"device", calib.device},
+      {"measured_at", calib.measured_at}, {"wall_seconds", calib.wall_seconds},
+      {"pipelines", pipelines}, {"sync", sync},
+      {"streamk", json::Value(streamk)},
+      {"combine_fixed_ns", calib.combine_fixed_ns},
+      {"combine_d_dram_ns", calib.combine_d_dram_ns},
+      {"interference_ratio", calib.interference_ratio},
+      {"measurements", json::Value(measurements)}});
+}
+
 }  // namespace
 
 TargetSpec TargetSpec::Probe(int device_ordinal) {
@@ -97,91 +243,10 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
   spec.res.max_threads_per_sm = res_int("max_threads_per_sm");
   spec.res.warp_size = res_int("warp_size");
 
-  json::Value const& cal = root.At("calibration");
-  auto number = [&](char const* key) { return cal.At(key).AsNumber(key); };
-  spec.calib.calibrated = cal.At("calibrated").AsBool("calibrated");
-  json::Value const& pipes = cal.At("pipelines");
-  auto pipe = [&](char const* key) { return pipes.At(key).AsNumber(key); };
-  spec.calib.tc_fp16_gflops = pipe("tc_fp16_gflops");
-  spec.calib.cuda_fp32_gflops = pipe("cuda_fp32_gflops");
-  spec.calib.cuda_int32_gops = pipe("cuda_int32_gops");
-  spec.calib.sfu_exp2_gops = pipe("sfu_exp2_gops");
-  spec.calib.sfu_rsqrt_gops = pipe("sfu_rsqrt_gops");
-  spec.calib.smem_gbps = pipe("smem_gbps");
-  spec.calib.smem_conflict_slope = pipe("smem_conflict_slope");
-  spec.calib.l1_latency_ns = pipe("l1_latency_ns");
-  spec.calib.l2_latency_ns = pipe("l2_latency_ns");
-  spec.calib.dram_latency_ns = pipe("dram_latency_ns");
-  spec.calib.l2_gbps = pipe("l2_gbps");
-  spec.calib.l2_knee_bytes = pipe("l2_knee_bytes");
-  spec.calib.dram_gbps = pipe("dram_gbps");
-  spec.calib.l2_curve_bytes =
-      NumberArray(pipes.At("l2_curve_bytes"), "l2_curve_bytes");
-  spec.calib.l2_curve_gbps =
-      NumberArray(pipes.At("l2_curve_gbps"), "l2_curve_gbps");
-  spec.calib.smem_occupancy_ctas =
-      NumberArray(pipes.At("smem_occupancy_ctas"), "smem_occupancy_ctas");
-  spec.calib.smem_occupancy_gbps =
-      NumberArray(pipes.At("smem_occupancy_gbps"), "smem_occupancy_gbps");
-
-  json::Value const& sync = cal.At("sync");
-  auto sync_number = [&](char const* key) { return sync.At(key).AsNumber(key); };
-  spec.calib.atomic_uncontended_ns = sync_number("atomic_uncontended_ns");
-  spec.calib.atomic_contention_ctas =
-      NumberArray(sync.At("atomic_contention_ctas"), "atomic_contention_ctas");
-  spec.calib.atomic_contention_ns =
-      NumberArray(sync.At("atomic_contention_ns"), "atomic_contention_ns");
-  spec.calib.threadfence_ns = sync_number("threadfence_ns");
-  spec.calib.syncthreads_ns = sync_number("syncthreads_ns");
-  spec.calib.named_barrier_ns = sync_number("named_barrier_ns");
-  spec.calib.cluster_sync_ns = sync_number("cluster_sync_ns");
-  spec.calib.cluster_sync_calibrated =
-      sync.At("cluster_sync_calibrated").AsBool("cluster_sync_calibrated");
-  spec.calib.grid_barrier_ctas =
-      NumberArray(sync.At("grid_barrier_ctas"), "grid_barrier_ctas");
-  spec.calib.grid_barrier_ns =
-      NumberArray(sync.At("grid_barrier_ns"), "grid_barrier_ns");
-
-  for (auto const& item : cal.At("streamk").AsArray("streamk")) {
-    StreamKPoint point;
-    point.tile_m = static_cast<int>(item.At("tile_m").AsNumber("tile_m"));
-    point.tile_n = static_cast<int>(item.At("tile_n").AsNumber("tile_n"));
-    point.tile_k = static_cast<int>(item.At("tile_k").AsNumber("tile_k"));
-    point.stages = static_cast<int>(item.At("stages").AsNumber("stages"));
-    point.a_ns = item.At("a_ns").AsNumber("a_ns");
-    point.b_ns = item.At("b_ns").AsNumber("b_ns");
-    point.c_ns = item.At("c_ns").AsNumber("c_ns");
-    point.d_ns = item.At("d_ns").AsNumber("d_ns");
-    point.fit_r2 = item.At("fit_r2").AsNumber("fit_r2");
-    point.ac_r2 = item.At("ac_r2").AsNumber("ac_r2");
-    point.occ_per_sm = NumberArray(item.At("occ_per_sm"), "occ_per_sm");
-    point.occ_a_ns = NumberArray(item.At("occ_a_ns"), "occ_a_ns");
-    point.occ_c_ns = NumberArray(item.At("occ_c_ns"), "occ_c_ns");
-    spec.calib.streamk.push_back(point);
-  }
-  spec.calib.combine_fixed_ns = cal.At("combine_fixed_ns")
-                                    .AsNumber("combine_fixed_ns");
-  spec.calib.combine_d_dram_ns = cal.At("combine_d_dram_ns")
-                                     .AsNumber("combine_d_dram_ns");
-
-  spec.calib.interference_ratio = number("interference_ratio");
-  if (json::Value const* device = cal.Find("device"))
-    spec.calib.device = device->AsString("device");
-  if (json::Value const* when = cal.Find("measured_at"))
-    spec.calib.measured_at = when->AsString("measured_at");
-  if (json::Value const* wall = cal.Find("wall_seconds"))
-    spec.calib.wall_seconds = wall->AsNumber("wall_seconds");
-  if (json::Value const* records = cal.Find("measurements")) {
-    for (auto const& item : records->AsArray("measurements")) {
-      Measurement record;
-      record.name = item.At("name").AsString("name");
-      record.value = item.At("value").AsNumber("value");
-      record.unit = item.At("unit").AsString("unit");
-      record.samples = static_cast<int>(item.At("samples").AsNumber("samples"));
-      record.rel_stddev = item.At("rel_stddev").AsNumber("rel_stddev");
-      record.method = item.At("method").AsString("method");
-      spec.calib.measurements.push_back(std::move(record));
-    }
+  ParseCalibration(root.At("calibration"), spec.calib);
+  if (json::Value const* grouped = root.Find("calibration_by_dtype")) {
+    if (json::Value const* bf16 = grouped->Find("bf16"))
+      ParseCalibration(*bf16, spec.calib_bf16);
   }
   return spec;
 }
@@ -195,6 +260,19 @@ TargetSpec::StreamKPoint const* TargetSpec::Calib::FindStreamK(
     }
   }
   return nullptr;
+}
+
+TargetSpec::Calib const& TargetSpec::CalibrationFor(
+    std::string_view dtype) const {
+  if (dtype == "f32") return calib;
+  if (dtype == "bf16") return calib_bf16;
+  throw std::invalid_argument("unsupported calibration dtype: " +
+                              std::string(dtype));
+}
+
+TargetSpec::Calib& TargetSpec::CalibrationFor(std::string_view dtype) {
+  return const_cast<Calib&>(
+      static_cast<TargetSpec const&>(*this).CalibrationFor(dtype));
 }
 
 std::string TargetSpec::ToJson() const {
@@ -219,76 +297,11 @@ std::string TargetSpec::ToJson() const {
                         {"max_threads_per_sm", res.max_threads_per_sm},
                         {"warp_size", res.warp_size}});
 
-  json::Value pipelines(json::Object{
-      {"tc_fp16_gflops", calib.tc_fp16_gflops},
-      {"cuda_fp32_gflops", calib.cuda_fp32_gflops},
-      {"cuda_int32_gops", calib.cuda_int32_gops},
-      {"sfu_exp2_gops", calib.sfu_exp2_gops},
-      {"sfu_rsqrt_gops", calib.sfu_rsqrt_gops},
-      {"smem_gbps", calib.smem_gbps},
-      {"smem_conflict_slope", calib.smem_conflict_slope},
-      {"l1_latency_ns", calib.l1_latency_ns},
-      {"l2_latency_ns", calib.l2_latency_ns},
-      {"dram_latency_ns", calib.dram_latency_ns},
-      {"l2_gbps", calib.l2_gbps},
-      {"l2_knee_bytes", calib.l2_knee_bytes},
-      {"dram_gbps", calib.dram_gbps},
-      {"l2_curve_bytes", json::Numbers(calib.l2_curve_bytes)},
-      {"l2_curve_gbps", json::Numbers(calib.l2_curve_gbps)},
-      {"smem_occupancy_ctas", json::Numbers(calib.smem_occupancy_ctas)},
-      {"smem_occupancy_gbps", json::Numbers(calib.smem_occupancy_gbps)}});
-
-  json::Value sync(json::Object{
-      {"atomic_uncontended_ns", calib.atomic_uncontended_ns},
-      {"atomic_contention_ctas", json::Numbers(calib.atomic_contention_ctas)},
-      {"atomic_contention_ns", json::Numbers(calib.atomic_contention_ns)},
-      {"threadfence_ns", calib.threadfence_ns},
-      {"syncthreads_ns", calib.syncthreads_ns},
-      {"named_barrier_ns", calib.named_barrier_ns},
-      {"cluster_sync_ns", calib.cluster_sync_ns},
-      {"cluster_sync_calibrated", calib.cluster_sync_calibrated},
-      {"grid_barrier_ctas", json::Numbers(calib.grid_barrier_ctas)},
-      {"grid_barrier_ns", json::Numbers(calib.grid_barrier_ns)}});
-
-  json::Array streamk;
-  for (auto const& point : calib.streamk) {
-    streamk.emplace_back(json::Object{{"tile_m", point.tile_m},
-                                      {"tile_n", point.tile_n},
-                                      {"tile_k", point.tile_k},
-                                      {"stages", point.stages},
-                                      {"a_ns", point.a_ns},
-                                      {"b_ns", point.b_ns},
-                                      {"c_ns", point.c_ns},
-                                      {"d_ns", point.d_ns},
-                                      {"fit_r2", point.fit_r2},
-                                      {"ac_r2", point.ac_r2},
-                                      {"occ_per_sm", json::Numbers(point.occ_per_sm)},
-                                      {"occ_a_ns", json::Numbers(point.occ_a_ns)},
-                                      {"occ_c_ns", json::Numbers(point.occ_c_ns)}});
+  root.Set("calibration", CalibrationJson(calib));
+  if (calib_bf16.calibrated || !calib_bf16.measurements.empty()) {
+    root.Set("calibration_by_dtype",
+             json::Object{{"bf16", CalibrationJson(calib_bf16)}});
   }
-
-  json::Array measurements;
-  for (auto const& record : calib.measurements) {
-    measurements.emplace_back(json::Object{{"name", record.name},
-                                           {"value", record.value},
-                                           {"unit", record.unit},
-                                           {"samples", record.samples},
-                                           {"rel_stddev", record.rel_stddev},
-                                           {"method", record.method}});
-  }
-
-  root.Set("calibration",
-           json::Object{{"calibrated", calib.calibrated},
-                        {"device", calib.device},
-                        {"measured_at", calib.measured_at},
-                        {"wall_seconds", calib.wall_seconds},
-                        {"pipelines", pipelines},
-                        {"sync", sync},
-                        {"streamk", json::Value(streamk)},
-                        {"combine_fixed_ns", calib.combine_fixed_ns},
-                        {"combine_d_dram_ns", calib.combine_d_dram_ns},
-                        {"interference_ratio", calib.interference_ratio},
-                        {"measurements", json::Value(measurements)}});
   return root.Dump();
 }
 

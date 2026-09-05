@@ -127,6 +127,8 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
   LiftedModel model;
   if (plan.stages.empty()) return model;
   model.has_plan = true;
+  analysis::ScalarType const dtype = plan.dtype == "bf16"
+      ? analysis::ScalarType::kBF16 : analysis::ScalarType::kF32;
 
   ClosedForm const S = ClosedForm::Symbol(options.seq_symbol);
   ClosedForm const past = ClosedForm::Symbol(options.past_symbol);
@@ -162,6 +164,7 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
   };
   auto record = [&](SemanticOp op, OpRole role, OwnershipKind ownership,
                     std::size_t stage, int layer, std::uint32_t result) {
+    op.dtype = dtype;
     last_writer[result] = op.name;
     written_space[result] = op.result;
     model.ops.push_back({op.name, role, ownership, static_cast<int>(stage),
@@ -220,6 +223,7 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
         }
         // The matmul's own result is a value no buffer holds, so it is
         // recorded under the op name rather than a plan buffer.
+        op.dtype = dtype;
         model.ops.push_back({op.name, role, OwnershipKind::kTilePerBlock,
                              static_cast<int>(i), layer,
                              plan.stages[i].representative});
@@ -372,6 +376,8 @@ LiftedModel LiftGenericSemantics(std::vector<FxNodeRecord> const& tasks,
     }
     analysis::SemanticOp op = analysis::GenericSemantics(
         task.name, Space(task.name, axes(task)), std::move(operands));
+    op.dtype = task.dtype == "torch.bfloat16"
+        ? analysis::ScalarType::kBF16 : analysis::ScalarType::kF32;
     // GenericSemantics reads full range, which is the sound cover but prints
     // as an exact affine edge. No rule recognised this operator, so no index
     // was established at all; the read is declared data-dependent so the
@@ -409,17 +415,104 @@ analysis::Granularity LaunchGranularity(LiftedModel const& model) {
         g.Tile(op.name, "m", Tm).Tile(op.name, "n", Tn);
         break;
       case OpRole::kRoPE:
-        g.Tile(op.name, "m", one).Tile(op.name, "hh", one);
+        g.Tile(op.name, "m", one)
+            .Tile(op.name, "hh",
+                  op.ownership == OwnershipKind::kTilePerBlock
+                      ? model.head_dim
+                      : one);
         break;
       case OpRole::kKVAppend:
-        g.Tile(op.name, "row", one).Tile(op.name, "hh", one);
+        g.Tile(op.name, "row", one)
+            .Tile(op.name, "hh",
+                  op.ownership == OwnershipKind::kTilePerBlock
+                      ? model.head_dim
+                      : one);
         break;
       case OpRole::kAttention:
         // AttentionChunkTaskBody: one (token, head) per CTA, no KV split.
         g.Tile(op.name, "s", one).Tile(op.name, "h", model.head_dim);
         break;
       case OpRole::kActivation:
-        g.Tile(op.name, "m", one).Tile(op.name, "n", one);
+        g.Tile(op.name, "m", one)
+            .Tile(op.name, "n",
+                  op.ownership == OwnershipKind::kTilePerBlock
+                      ? model.sem.Find(op.name)->Dim("n")->extent
+                      : one);
+        break;
+      case OpRole::kGeneric:
+        break;
+    }
+  }
+  return g;
+}
+
+analysis::Granularity LaunchGranularity(
+    LiftedModel const& model, ModelPlan const& plan,
+    std::vector<GemmGranularity> const& gemms) {
+  if (!gemms.empty() && gemms.size() != plan.gemms.size())
+    throw std::invalid_argument(
+        "runtime variant must provide one granularity per ModelPlan GEMM");
+  analysis::Granularity g;
+  ClosedForm const one = ClosedForm::Constant(1);
+  auto selected = [&](LiftedOp const& op) -> GemmGranularity {
+    if (op.stage < 0 || static_cast<std::size_t>(op.stage) >= plan.stages.size())
+      throw std::invalid_argument("lifted GEMM has no ModelPlan stage");
+    PlanStage const& stage = plan.stages[op.stage];
+    if (stage.kind != PlanTaskKind::kGemm || stage.gemm >= plan.gemms.size())
+      throw std::invalid_argument("lifted projection does not name a ModelPlan GEMM");
+    return gemms.empty() ? GemmGranularity{} : gemms[stage.gemm];
+  };
+  for (auto const& op : model.ops) {
+    switch (op.role) {
+      case OpRole::kNorm:
+        g.Tile(op.name, "m", one);
+        break;
+      case OpRole::kQkvProjection:
+      case OpRole::kProjection: {
+        GemmGranularity const impl = selected(op);
+        if (impl.tile_m <= 0 || impl.tile_n <= 0 || impl.tile_k <= 0 ||
+            impl.stages <= 0 || impl.split_k <= 0)
+          throw std::invalid_argument("GEMM granularity fields must be positive");
+        g.Tile(op.name, "m", ClosedForm::Constant(impl.tile_m))
+            .Tile(op.name, "n", ClosedForm::Constant(impl.tile_n));
+        if (impl.split_k > 1) {
+          int const k = static_cast<int>(plan.gemms[plan.stages[op.stage].gemm].k);
+          int const chunks = std::min(impl.split_k,
+                                      (k + impl.tile_k - 1) / impl.tile_k);
+          int const chunk_extent = (k + chunks - 1) / chunks;
+          g.Split(op.name, ClosedForm::Constant(chunk_extent));
+        }
+        break;
+      }
+      case OpRole::kResidualAdd: {
+        GemmGranularity const impl = selected(op);
+        g.Tile(op.name, "m", ClosedForm::Constant(impl.tile_m))
+            .Tile(op.name, "n", ClosedForm::Constant(impl.tile_n));
+        break;
+      }
+      case OpRole::kRoPE:
+        g.Tile(op.name, "m", one)
+            .Tile(op.name, "hh",
+                  op.ownership == OwnershipKind::kTilePerBlock
+                      ? model.head_dim
+                      : one);
+        break;
+      case OpRole::kKVAppend:
+        g.Tile(op.name, "row", one)
+            .Tile(op.name, "hh",
+                  op.ownership == OwnershipKind::kTilePerBlock
+                      ? model.head_dim
+                      : one);
+        break;
+      case OpRole::kAttention:
+        g.Tile(op.name, "s", one).Tile(op.name, "h", model.head_dim);
+        break;
+      case OpRole::kActivation:
+        g.Tile(op.name, "m", one)
+            .Tile(op.name, "n",
+                  op.ownership == OwnershipKind::kTilePerBlock
+                      ? model.sem.Find(op.name)->Dim("n")->extent
+                      : one);
         break;
       case OpRole::kGeneric:
         break;

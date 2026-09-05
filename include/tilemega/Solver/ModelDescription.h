@@ -11,6 +11,8 @@
 // exactly it.
 #pragma once
 
+#include <tilemega/Solver/BackendCostQuery.h>
+
 #include <string>
 #include <vector>
 
@@ -62,6 +64,7 @@ struct ModelStage {
 
 struct ModelDescription {
   std::string name;
+  ScalarType dtype = ScalarType::kF32;
   ModelDims dims;
   std::vector<GemmOp> gemms;
   std::vector<ModelStage> stages;

@@ -22,6 +22,7 @@
 #include <tilemega/Target/TargetSpec.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -52,28 +53,14 @@ namespace tilemega::codegen {
 #ifndef TILEMEGA_GENERATED_CLUSTER_DIM
 #define TILEMEGA_GENERATED_CLUSTER_DIM 1
 #endif
+#ifndef TILEMEGA_NEGATIVE_OLD_CLAMP
+#define TILEMEGA_NEGATIVE_OLD_CLAMP 0
+#endif
 static_assert(!arch::kDevicePass || TILEMEGA_GENERATED_CLUSTER_DIM == 1 ||
                   arch::Caps<arch::CurrentArch>::kCluster,
               "a cluster stage barrier needs a cluster-capable target; a "
               "cluster-shaped kernel must never fall back to the flat grid "
               "barrier and keep reporting itself as a cluster result");
-
-/// The wait windows in `kDependencies` are fitted against the GEMM task
-/// decomposition the generator saw.  Reparameterizing the GEMM at compile
-/// time (COARSEN's kappa sweep does, with `-include plan_*_uniform.h`) makes
-/// every fitted constant name the wrong producer tasks, and that under-waits
-/// rather than over-waits.  So the narrow path is admitted only when the two
-/// granularities agree; otherwise the table degrades to kAll, which is always
-/// a superset.  `wait_table=` in E2E_KAPPA reports which one a build got.
-#if defined(TILEMEGA_GENERATED_WINDOW_TILE_M) && \
-    TILEMEGA_GENERATED_WINDOW_TILE_M == TILEMEGA_GEMM_TILE_M && \
-    TILEMEGA_GENERATED_WINDOW_TILE_N == TILEMEGA_GEMM_TILE_N && \
-    TILEMEGA_GENERATED_WINDOW_SPLIT_K == TILEMEGA_GEMM_SPLIT_K && \
-    TILEMEGA_GEMM_VARIANT_COUNT == 1
-#define TILEMEGA_WAIT_TABLE_EXACT 1
-#else
-#define TILEMEGA_WAIT_TABLE_EXACT 0
-#endif
 
 #ifndef TILEMEGA_GENERATED_RESIDENT_GRID
 #define TILEMEGA_GENERATED_RESIDENT_GRID(target, function, block_size, dynamic_smem) \
@@ -86,14 +73,15 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 /// §8.6: one explicit union covering every family the dispatch can reach.
 union TaskSmem {
   float rms[kHarnessThreads];
-  float attention[kHarnessThreads];
+  float attention[TILEMEGA_ATTENTION_MAX_TOTAL];
   float pointwise[1];
   GemmVariantSmem gemm;
 };
+inline constexpr std::size_t kNonGemmTaskSmem =
+    sizeof(float) * TILEMEGA_ATTENTION_MAX_TOTAL;
 inline constexpr std::size_t kExpectedTaskSmem =
-    sizeof(GemmVariantSmem) > sizeof(float) * kHarnessThreads
-        ? sizeof(GemmVariantSmem)
-        : sizeof(float) * kHarnessThreads;
+    sizeof(GemmVariantSmem) > kNonGemmTaskSmem ? sizeof(GemmVariantSmem)
+                                               : kNonGemmTaskSmem;
 static_assert(sizeof(TaskSmem) == kExpectedTaskSmem,
               "one explicit union must equal max_i(TaskBody::SharedStorage)");
 
@@ -268,12 +256,29 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
       int const grid = static_cast<int>(gridDim.x);
       int const produced = ActiveBlocks(p, p.stages[producer]);
       int const live = ActiveBlocksClamped(p, producer);
-      if (!TILEMEGA_WAIT_TABLE_EXACT ||
-          dep.map == StageDependency::Map::kAll) {
+      if (dep.map == StageDependency::Map::kAll) {
         for (int group = 0; group <= (live - 1) / TILEMEGA_EVENT_KAPPA; ++group)
           TILEMEGA_GENERATED_WAIT_global(
               &events[EventIndex(producer, group)].epoch, iteration + 1ull);
       } else {
+#if TILEMEGA_NEGATIVE_OLD_CLAMP
+        // Deliberately reproduce the obsolete implementation for SEQSCAN's
+        // negative control: it treats blockIdx as the only consumer task and
+        // truncates producer tasks to the resident grid.  This is incorrect
+        // whenever either stage is grid-strided.
+        int const task = PlacedBlock();
+        int const at =
+            (task / static_cast<int>(dep.div)) * dep.scale + dep.offset;
+        int const begin = at < 0 ? 0 : at;
+        int const truncated = produced < grid ? produced : grid;
+        int const past = at + static_cast<int>(dep.count);
+        int const end = past < truncated ? past : truncated;
+        for (int group = begin / TILEMEGA_EVENT_KAPPA;
+             begin < end && group <= (end - 1) / TILEMEGA_EVENT_KAPPA;
+             ++group)
+          TILEMEGA_GENERATED_WAIT_global(
+              &events[EventIndex(producer, group)].epoch, iteration + 1ull);
+#else
         // A stage whose task space is wider than the grid is run grid-strided
         // (GemmStageTaskBody), so one CTA owns tasks b, b+grid, ... and task t
         // is published by CTA t % grid. Both have to be undone here: the wait
@@ -302,6 +307,7 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
             TILEMEGA_GENERATED_WAIT_global(
                 &events[EventIndex(producer, group)].epoch, iteration + 1ull);
         }
+#endif
       }
 #else
       TILEMEGA_GENERATED_WAIT_global(&events[EventIndex(producer, 0)].epoch,
@@ -484,8 +490,10 @@ void tilemega_wait_profile_kernel(Params const* params, int seq) {
       int const owned = ActiveBlocks(p, p.stages[consumer]);
       for (int c = 0; c < consumers; ++c) {
         if (kappa == 0) { polls += 1; continue; }
-        if (!TILEMEGA_WAIT_TABLE_EXACT ||
-            dep.map == StageDependency::Map::kAll) { polls += groups; continue; }
+        if (dep.map == StageDependency::Map::kAll) {
+          polls += groups;
+          continue;
+        }
         for (int task = c; task < owned; task += grid) {
           int const at = (task / static_cast<int>(dep.div)) * dep.scale + dep.offset;
           int const begin = at < 0 ? 0 : at;
@@ -517,15 +525,17 @@ void tilemega_wait_profile_kernel(Params const* params, int seq) {
 
 namespace harness {
 
-inline std::vector<float> Load(std::string const& path, std::size_t count) {
+inline std::vector<ModelElement> Load(std::string const& path,
+                                      std::size_t count) {
   std::ifstream input(path, std::ios::binary);
   if (!input) {
     std::fprintf(stderr, "cannot open %s\n", path.c_str());
     std::exit(2);
   }
-  std::vector<float> value(count);
-  input.read(reinterpret_cast<char*>(value.data()), count * sizeof(float));
-  if (input.gcount() != static_cast<std::streamsize>(count * sizeof(float))) {
+  std::vector<ModelElement> value(count);
+  input.read(reinterpret_cast<char*>(value.data()), count * sizeof(ModelElement));
+  if (input.gcount() !=
+      static_cast<std::streamsize>(count * sizeof(ModelElement))) {
     std::fprintf(stderr, "wrong fixture size: %s\n", path.c_str());
     std::exit(2);
   }
@@ -534,13 +544,15 @@ inline std::vector<float> Load(std::string const& path, std::size_t count) {
 
 struct DeviceModel {
   ModelSpec const* spec = nullptr;
+  RuntimeVariantDesc const* runtime_variant = nullptr;
+  std::uint32_t runtime_variant_index = 0;
   /// The instantiated stage list. It equals `spec->stages` unless §2.4's
   /// Split was applied, which rewrites one GEMM stage into a partial stage
   /// plus its combiner.
   std::vector<StageDesc> stages;
-  std::vector<float*> buffers;
-  std::vector<std::vector<float>> host_sources;  ///< per buffer, empty if scratch
-  float** device_buffers = nullptr;
+  std::vector<ModelElement*> buffers;
+  std::vector<std::vector<ModelElement>> host_sources;
+  ModelElement** device_buffers = nullptr;
   GemmInvocation* device_gemms = nullptr;
   StageDesc* device_stages = nullptr;
   StageDependency* device_dependencies = nullptr;
@@ -577,23 +589,29 @@ inline ModelDims BindDims(ModelDims dims, std::string const& dir) {
   return dims;
 }
 
-inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
-                          std::string const& dir) {
+inline DeviceModel Create(ModelSpec const& spec,
+                          RuntimeVariantDesc const& runtime_variant,
+                          std::uint32_t runtime_variant_index,
+                          ModelDims const& dims, std::string const& dir) {
   DeviceModel model;
   model.spec = &spec;
+  model.runtime_variant = &runtime_variant;
+  model.runtime_variant_index = runtime_variant_index;
+  model.params.ownership_flags = runtime_variant.ownership_flags;
   model.host_sources.resize(spec.buffer_count);
   for (std::uint32_t i = 0; i < spec.buffer_count; ++i) {
     BufferDesc const& desc = spec.buffers[i];
     std::size_t elements = desc.Elements(dims);
-    float* pointer = nullptr;
-    TILEMEGA_CUDA_CHECK(cudaMalloc(&pointer, elements * sizeof(float)));
+    ModelElement* pointer = nullptr;
+    TILEMEGA_CUDA_CHECK(cudaMalloc(&pointer, elements * sizeof(ModelElement)));
     if (desc.file != nullptr) {
       model.host_sources[i] = Load(dir + "/" + desc.file, elements);
       TILEMEGA_CUDA_CHECK(cudaMemcpy(pointer, model.host_sources[i].data(),
-                                     elements * sizeof(float),
+                                     elements * sizeof(ModelElement),
                                      cudaMemcpyHostToDevice));
     } else {
-      TILEMEGA_CUDA_CHECK(cudaMemset(pointer, 0, elements * sizeof(float)));
+      TILEMEGA_CUDA_CHECK(cudaMemset(pointer, 0,
+                                     elements * sizeof(ModelElement)));
     }
     model.buffers.push_back(pointer);
   }
@@ -609,19 +627,33 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
   for (std::uint32_t i = 0; i < spec.gemm_count; ++i) {
     GemmDesc const& desc = spec.gemms[i];
     int m = dims.seq;
-    int variant = TILEMEGA_GEMM_VARIANT_OF(i);
-    if (variant < 0 || variant >= kGemmVariantCount) variant = 0;
+    GemmRuntimeDesc const& runtime = runtime_variant.gemms[i];
+    int variant = runtime.compiled_variant;
+    if (variant < 0 || variant >= kGemmVariantCount) {
+      std::fprintf(stderr,
+                   "runtime variant %u names invalid compiled GEMM variant %d\n",
+                   runtime_variant_index, variant);
+      std::exit(2);
+    }
     GemmVariantInfo const& tiling = kGemmVariantInfo[variant];
-    int split = TILEMEGA_GEMM_SPLIT_OF(i);
+    if (tiling.tile_m != runtime.tile_m || tiling.tile_n != runtime.tile_n ||
+        tiling.tile_k != runtime.tile_k || tiling.stages != runtime.stages) {
+      std::fprintf(stderr,
+                   "ModelSpec/template mismatch in runtime variant %u GEMM %u\n",
+                   runtime_variant_index, i);
+      std::exit(2);
+    }
+    int split = runtime.split_k;
     int k_tiles = CeilDiv(desc.k, tiling.tile_k);
     int chunks = split < k_tiles ? split : k_tiles;
     if (chunks < 1) chunks = 1;
     gemm_chunks[i] = chunks;
     gemm_base[i] = static_cast<std::uint32_t>(gemms.size());
     if (chunks > 1) {
-      float* partial = nullptr;
+      ModelElement* partial = nullptr;
       TILEMEGA_CUDA_CHECK(cudaMalloc(
-          &partial, static_cast<std::size_t>(chunks) * m * desc.n * sizeof(float)));
+          &partial, static_cast<std::size_t>(chunks) * m * desc.n *
+                        sizeof(ModelElement)));
       gemm_partial[i] = static_cast<std::uint32_t>(model.buffers.size());
       model.buffers.push_back(partial);
       model.host_sources.emplace_back();
@@ -649,7 +681,7 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
           model.buffers[desc.b] + k_begin, stride_b};
       // Only the first chunk applies beta*C; the combiner adds no residual, so
       // the split result differs from the unsplit one only by association.
-      float* destination = chunks > 1
+      ModelElement* destination = chunks > 1
           ? model.buffers[gemm_partial[i]] +
                 static_cast<std::size_t>(chunk) * m * desc.n
           : model.buffers[desc.d];
@@ -663,6 +695,8 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
           GemmEpilogue::to_underlying_arguments(problem, epilogue_args, nullptr);
       invocation.tiles_m = CeilDiv(m, tiling.tile_m);
       invocation.tiles_n = CeilDiv(desc.n, tiling.tile_n);
+      invocation.tile_m = tiling.tile_m;
+      invocation.tile_n = tiling.tile_n;
       invocation.chunks = chunks;
       invocation.variant = variant;
       gemms.push_back(invocation);
@@ -681,6 +715,7 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
     if (chunks <= 1) continue;
     StageDesc combine = spec.stages[i];
     combine.kind = TaskKind::kGemmCombine;
+    combine.gemm = gemm_base[spec.stages[i].gemm];
     combine.group = static_cast<std::uint32_t>(chunks);
     combine.width = spec.gemms[spec.stages[i].gemm].n;
     combine.operand[0] = gemm_partial[spec.stages[i].gemm];
@@ -690,19 +725,30 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
   }
   std::vector<StageDependency> dependencies;
   for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
-    if (done[i] != entry[i])
-      dependencies.push_back(
-          {entry[i], done[i], StageDependency::Map::kAll, 1u, 0, 0, 1u});
-    for (std::uint32_t e = spec.dependency_offsets[i];
-         e < spec.dependency_offsets[i + 1]; ++e) {
-      StageDependency edge = spec.dependencies[e];
+    if (done[i] != entry[i]) {
+      if (model.params.ownership_flags & kCombinerTileOwnership) {
+        GemmInvocation const& invocation = gemms[model.stages[entry[i]].gemm];
+        int const tiles = invocation.tiles_m * invocation.tiles_n;
+        for (int chunk = 0; chunk < gemm_chunks[spec.stages[i].gemm]; ++chunk)
+          dependencies.push_back(
+              {entry[i], done[i], StageDependency::Map::kWindow, 1u, 1,
+               chunk * tiles, 1u});
+      } else {
+        dependencies.push_back(
+            {entry[i], done[i], StageDependency::Map::kAll, 1u, 0, 0, 1u});
+      }
+    }
+    for (std::uint32_t e = runtime_variant.dependency_offsets[i];
+         e < runtime_variant.dependency_offsets[i + 1]; ++e) {
+      StageDependency edge = runtime_variant.dependencies[e];
       std::uint32_t const producer = edge.producer;
       edge.producer = done[producer];
       edge.consumer = entry[i];
       // Split-K moves the producer event onto the combiner, which owns its
       // tasks by element chunk -- blockIdx no longer names the tile the
       // window was fitted against, so the edge falls back to kAll.
-      if (done[producer] != entry[producer]) {
+      if (done[producer] != entry[producer] &&
+          !(model.params.ownership_flags & kCombinerTileOwnership)) {
         edge.map = StageDependency::Map::kAll;
         edge.div = 1u;
         edge.scale = 0;
@@ -726,8 +772,8 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
     TILEMEGA_CUDA_CHECK(cudaMemcpy(device, host, bytes, cudaMemcpyHostToDevice));
     return device;
   };
-  model.device_buffers = static_cast<float**>(
-      upload(model.buffers.data(), model.buffers.size() * sizeof(float*)));
+  model.device_buffers = static_cast<ModelElement**>(
+      upload(model.buffers.data(), model.buffers.size() * sizeof(ModelElement*)));
   model.device_gemms = static_cast<GemmInvocation*>(
       upload(gemms.data(), gemms.size() * sizeof(GemmInvocation)));
   model.device_stages = static_cast<StageDesc*>(upload(
@@ -747,6 +793,7 @@ inline DeviceModel Create(ModelSpec const& spec, ModelDims const& dims,
   model.params.dependency_count =
       static_cast<std::uint32_t>(dependencies.size());
   model.params.dependency_offsets = model.device_dependency_offsets;
+  model.params.ownership_flags = runtime_variant.ownership_flags;
   TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_params, sizeof(Params)));
   TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params, &model.params,
                                  sizeof(Params), cudaMemcpyHostToDevice));
@@ -768,13 +815,32 @@ inline void PrepareEvents(DeviceModel& model, int grid) {
 inline void ResetBuffersOnly(DeviceModel& model) {
   ModelSpec const& spec = *model.spec;
   for (std::uint32_t i = 0; i < spec.buffer_count; ++i) {
-    std::size_t bytes = spec.buffers[i].Elements(model.params.dims) * sizeof(float);
+    std::size_t bytes = spec.buffers[i].Elements(model.params.dims) *
+                        sizeof(ModelElement);
     if (spec.buffers[i].file != nullptr)
       TILEMEGA_CUDA_CHECK(cudaMemcpy(model.buffers[i],
                                      model.host_sources[i].data(), bytes,
                                      cudaMemcpyHostToDevice));
     else
       TILEMEGA_CUDA_CHECK(cudaMemset(model.buffers[i], 0, bytes));
+  }
+  if (model.params.ownership_flags & kKVTileOwnership) {
+    for (StageDesc const& stage : model.stages) {
+      if (stage.kind != TaskKind::kKVAppend || model.params.dims.past == 0)
+        continue;
+      int const heads = static_cast<int>(stage.extent);
+      int const dim = static_cast<int>(stage.width);
+      std::size_t const head_bytes =
+          static_cast<std::size_t>(model.params.dims.past) * dim *
+          sizeof(ModelElement);
+      for (int head = 0; head < heads; ++head)
+        TILEMEGA_CUDA_CHECK(cudaMemcpy(
+            model.buffers[stage.operand[2]] +
+                static_cast<std::size_t>(head) * model.params.dims.total * dim,
+            model.buffers[stage.operand[1]] +
+                static_cast<std::size_t>(head) * model.params.dims.past * dim,
+            head_bytes, cudaMemcpyDeviceToDevice));
+    }
   }
 }
 
@@ -785,18 +851,36 @@ inline void Reset(DeviceModel& model) {
                                    sizeof(EventCounter) * model.event_count));
 }
 
-inline std::vector<std::vector<float>> Download(DeviceModel const& model) {
+inline std::vector<std::vector<ModelElement>> Download(DeviceModel const& model) {
   ModelSpec const& spec = *model.spec;
-  std::vector<std::vector<float>> output(spec.output_count);
+  std::vector<std::vector<ModelElement>> output(spec.output_count);
   for (std::uint32_t i = 0; i < spec.output_count; ++i) {
     output[i].resize(
         spec.buffers[spec.outputs[i].buffer].Elements(model.params.dims));
     TILEMEGA_CUDA_CHECK(cudaMemcpy(output[i].data(),
                                    model.buffers[spec.outputs[i].buffer],
-                                   output[i].size() * sizeof(float),
+                                   output[i].size() * sizeof(ModelElement),
                                    cudaMemcpyDeviceToHost));
   }
   return output;
+}
+
+inline void DumpBuffers(DeviceModel const& model, char const* directory) {
+  if (!directory || !*directory) return;
+  ModelSpec const& spec = *model.spec;
+  for (std::uint32_t i = 0; i < spec.buffer_count; ++i) {
+    std::vector<ModelElement> host(
+        spec.buffers[i].Elements(model.params.dims));
+    TILEMEGA_CUDA_CHECK(cudaMemcpy(host.data(), model.buffers[i],
+                                   host.size() * sizeof(ModelElement),
+                                   cudaMemcpyDeviceToHost));
+    std::string path = std::string(directory) + "/buffer_" +
+                       std::to_string(i) + ".bin";
+    std::ofstream output(path, std::ios::binary);
+    output.write(reinterpret_cast<char const*>(host.data()),
+                 static_cast<std::streamsize>(host.size() *
+                                              sizeof(ModelElement)));
+  }
 }
 
 struct Difference {
@@ -805,15 +889,39 @@ struct Difference {
   float max_rel = 0;
 };
 
-inline Difference Compare(std::vector<std::vector<float>> const& actual,
-                          std::vector<std::vector<float>> const& expected) {
+/// `max_abs` and `max_rel` are independent maxima over the whole comparison, so
+/// neither identifies the element that actually exceeded the bound.  Set
+/// TILEMEGA_DIFF_DUMP=<n> to print the first `n` offending elements with both
+/// values; without it this is one integer compare per element.
+inline int DiffDumpLimit() {
+  char const* setting = std::getenv("TILEMEGA_DIFF_DUMP");
+  return setting == nullptr ? 0 : std::atoi(setting);
+}
+
+inline Difference Compare(std::vector<std::vector<ModelElement>> const& actual,
+                          std::vector<std::vector<ModelElement>> const& expected,
+                          char const* what = nullptr) {
   Difference result;
+  int const dump = what == nullptr ? 0 : DiffDumpLimit();
+  int dumped = 0;
   for (std::size_t tensor = 0; tensor < actual.size(); ++tensor)
     for (std::size_t i = 0; i < actual[tensor].size(); ++i) {
-      float delta = std::fabs(actual[tensor][i] - expected[tensor][i]);
-      float relative = delta / std::max(std::fabs(expected[tensor][i]), 1.0e-6f);
-      if (delta > 3.0e-5f + 3.0e-5f * std::fabs(expected[tensor][i]))
+      float a = static_cast<float>(actual[tensor][i]);
+      float e = static_cast<float>(expected[tensor][i]);
+      float delta = std::fabs(a - e);
+      float relative = delta / std::max(std::fabs(e), 1.0e-6f);
+      float const tolerance = kCompiledScalarType == ScalarType::kBF16
+          ? 1.6e-2f + 1.6e-2f * std::fabs(e)
+          : 3.0e-5f + 3.0e-5f * std::fabs(e);
+      if (delta > tolerance) {
         ++result.mismatch;
+        if (dumped < dump) {
+          ++dumped;
+          std::printf("E2E_DIFF_ELEM pair=%s tensor=%zu index=%zu actual=%.9g "
+                      "expected=%.9g delta=%.9g tolerance=%.9g\n",
+                      what, tensor, i, a, e, delta, tolerance);
+        }
+      }
       result.max_abs = std::max(result.max_abs, delta);
       result.max_rel = std::max(result.max_rel, relative);
     }
@@ -821,11 +929,11 @@ inline Difference Compare(std::vector<std::vector<float>> const& actual,
 }
 
 inline unsigned long long BitHash(
-    std::vector<std::vector<float>> const& values) {
+    std::vector<std::vector<ModelElement>> const& values) {
   unsigned long long hash = 1469598103934665603ull;
   for (auto const& tensor : values) {
     auto const* bytes = reinterpret_cast<unsigned char const*>(tensor.data());
-    for (std::size_t i = 0; i < tensor.size() * sizeof(float); ++i) {
+    for (std::size_t i = 0; i < tensor.size() * sizeof(ModelElement); ++i) {
       hash ^= bytes[i];
       hash *= 1099511628211ull;
     }
@@ -952,9 +1060,41 @@ inline float LaunchL2(DeviceModel& model, int grid,
 /// `spec`, which the code generator emitted from the CG.
 inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   using namespace harness;
+  if (spec.dtype != kCompiledScalarType) {
+    std::fprintf(stderr, "ModelSpec dtype does not match compiled TaskBodies\n");
+    return 2;
+  }
   ModelDims dims = BindDims(spec.dims, fixture_dir);
-  DeviceModel model = Create(spec, dims, fixture_dir);
-  std::vector<std::vector<float>> reference(spec.output_count);
+  if (dims.total > TILEMEGA_ATTENTION_MAX_TOTAL) {
+    std::fprintf(stderr,
+                 "seq+past=%d exceeds compiled attention capacity %d\n",
+                 dims.total, TILEMEGA_ATTENTION_MAX_TOTAL);
+    return 2;
+  }
+  if (dims.seq <= 0 || static_cast<std::uint32_t>(dims.seq) >=
+                           spec.seq_variant_count) {
+    std::fprintf(stderr,
+                 "seq=%d is outside the generated runtime-variant table [1,%u]\n",
+                 dims.seq, spec.seq_variant_count ? spec.seq_variant_count - 1 : 0);
+    return 2;
+  }
+  std::uint32_t const runtime_variant_index = spec.seq_variant[dims.seq];
+  if (runtime_variant_index >= spec.runtime_variant_count) {
+    std::fprintf(stderr, "seq=%d selects invalid runtime variant %u\n",
+                 dims.seq, runtime_variant_index);
+    return 2;
+  }
+  RuntimeVariantDesc const& runtime_variant =
+      spec.runtime_variants[runtime_variant_index];
+  if (static_cast<std::uint32_t>(dims.seq) < runtime_variant.seq_begin ||
+      static_cast<std::uint32_t>(dims.seq) > runtime_variant.seq_end) {
+    std::fprintf(stderr, "runtime variant table/interval mismatch for seq=%d\n",
+                 dims.seq);
+    return 2;
+  }
+  DeviceModel model = Create(spec, runtime_variant, runtime_variant_index,
+                             dims, fixture_dir);
+  std::vector<std::vector<ModelElement>> reference(spec.output_count);
   for (std::uint32_t i = 0; i < spec.output_count; ++i)
     reference[i] = Load(std::string(fixture_dir) + "/" + spec.outputs[i].file,
                         spec.buffers[spec.outputs[i].buffer].Elements(dims));
@@ -1007,6 +1147,7 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   Reset(model);
   float l05_ms = LaunchL05(model, grid);
   auto l05 = Download(model);
+  DumpBuffers(model, std::getenv("TILEMEGA_DUMP_BUFFERS"));
   Reset(model);
   float l1_ms = LaunchL1(model, grid);
   auto l1 = Download(model);
@@ -1025,12 +1166,14 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   auto l2_again = Download(model);
   Difference l2_iter = Compare(l2_again, l2);
 
-  Difference l05_l0 = Compare(l05, reference);
-  Difference l1_l05 = Compare(l1, l05);
-  Difference l2_l1 = Compare(l2, l1);
-  std::printf("E2E_RESOURCE block=%d reg=ptxas smem=%zu ctas_per_sm=%d "
-              "num_sms=%d grid=%d resident_formula=ctas_per_sm*num_sms\n",
-              kHarnessThreads, sizeof(TaskSmem), blocks_per_sm,
+  Difference l05_l0 = Compare(l05, reference, "l05_vs_l0");
+  Difference l1_l05 = Compare(l1, l05, "l1_vs_l05");
+  Difference l2_l1 = Compare(l2, l1, "l2_vs_l1");
+  std::printf("E2E_RESOURCE block=%d reg=ptxas smem=%zu gemm_union=%zu "
+              "variant_count=%d ctas_per_sm=%d num_sms=%d grid=%d "
+              "resident_formula=ctas_per_sm*num_sms\n",
+              kHarnessThreads, sizeof(TaskSmem), sizeof(GemmVariantSmem),
+              TILEMEGA_GEMM_VARIANT_COUNT, blocks_per_sm,
               target.res.num_sms, grid);
   std::printf("E2E_TIME l05_ms=%.6f l1_ms=%.6f ratio=%.6f l2_ms=%.6f "
               "l2_over_l1=%.6f\n", l05_ms, l1_ms, l1_ms / l05_ms, l2_ms,
@@ -1041,6 +1184,13 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
               l05_l0.mismatch, l05_l0.max_abs, l05_l0.max_rel,
               l1_l05.mismatch, l1_l05.max_abs, l1_l05.max_rel,
               l2_l1.mismatch, l2_l1.max_abs, l2_l1.max_rel);
+  for (std::uint32_t i = 0; i < spec.output_count; ++i) {
+    Difference per = Compare({l05[i]}, {reference[i]});
+    std::printf("E2E_OUTPUT_DIFF index=%u buffer=%u mismatch=%zu "
+                "max_abs=%.8g max_rel=%.8g\n",
+                i, spec.outputs[i].buffer, per.mismatch, per.max_abs,
+                per.max_rel);
+  }
   std::printf("E2E_HASH l05=%016llx l1=%016llx l2=%016llx\n", BitHash(l05),
               BitHash(l1), BitHash(l2));
   std::printf("E2E_ITER l2_iter1_ms=%.6f l2_iter1_vs_iter0_mismatch=%zu "
@@ -1071,10 +1221,12 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   pass = false;
 #endif
 #if TILEMEGA_EVENT_KAPPA > 0
-  std::printf("E2E_KAPPA event_kappa=%d wait_table=%s\n",
-              TILEMEGA_EVENT_KAPPA,
-              TILEMEGA_WAIT_TABLE_EXACT ? "exact" : "degraded");
+  std::printf("E2E_KAPPA event_kappa=%d dependency_table=variant_exact\n",
+              TILEMEGA_EVENT_KAPPA);
 #endif
+  std::printf("E2E_VARIANT index=%u seq_begin=%u seq_end=%u\n",
+              runtime_variant_index, runtime_variant.seq_begin,
+              runtime_variant.seq_end);
 #if TILEMEGA_PLACEMENT != 0
   std::printf("E2E_PLACEMENT placement=%d\n", TILEMEGA_PLACEMENT);
 #endif

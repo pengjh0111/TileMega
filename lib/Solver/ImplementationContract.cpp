@@ -38,15 +38,21 @@ BackendTraits ImplementationContract::DeclaredTraits() const {
   traits.cluster = cluster;
   traits.alignment = alignment;
   traits.arch_sm = arch_required;
-  traits.shape_legal = SimtF32ShapeLegal(tile_m, tile_n, tile_k, stages);
+  if (backend == kTensorBF16Backend)
+    traits.shape_legal = TensorBF16ShapeLegal(tile_m, tile_n, tile_k, stages);
+  else
+    traits.shape_legal = SimtF32ShapeLegal(tile_m, tile_n, tile_k, stages);
   return traits;
 }
 
 bool VerifyTraits(ImplementationContract const& impl, std::string* error) {
-  if (impl.backend != kSimtF32Backend)
+  if (impl.backend != kSimtF32Backend && impl.backend != kTensorBF16Backend)
     return Fail(error, "unknown backend '" + impl.backend + "'"), false;
-  BackendTraits expected =
-      SimtF32Traits(impl.tile_m, impl.tile_n, impl.tile_k, impl.stages);
+  BackendTraits expected = impl.backend == kTensorBF16Backend
+                               ? TensorBF16Traits(impl.tile_m, impl.tile_n,
+                                                  impl.tile_k, impl.stages)
+                               : SimtF32Traits(impl.tile_m, impl.tile_n,
+                                               impl.tile_k, impl.stages);
   if (!expected.shape_legal)
     return Fail(error, "illegal tile shape for " + impl.backend), false;
   std::ostringstream out;
@@ -201,7 +207,7 @@ bool SelectImplementation(CandidateGenerator const& generator,
   ImplementationContract impl;
   impl.name = std::move(name);
   impl.task = std::move(task);
-  impl.backend = kSimtF32Backend;
+  impl.backend = generator.backendName();
   impl.tile_m = traits.tile_m;
   impl.tile_n = traits.tile_n;
   impl.tile_k = traits.tile_k;

@@ -243,6 +243,7 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         builder.getNamedAttr("buffer", builder.getI64IntegerAttr(output.buffer)),
         builder.getNamedAttr("file", builder.getStringAttr(output.file))}));
   return dict(builder, {
+      builder.getNamedAttr("dtype", builder.getStringAttr(plan.dtype)),
       builder.getNamedAttr("buffers", builder.getArrayAttr(buffers)),
       builder.getNamedAttr("gemms", builder.getArrayAttr(gemms)),
       builder.getNamedAttr("stages", builder.getArrayAttr(stages)),
@@ -335,6 +336,7 @@ ExportBridge ReadExportBridge(std::string const& path) {
     node.target = object->getString("target")->str();
     node.inputs = readStrings(object->getArray("inputs"));
     node.shape = readStrings(object->getArray("shape"));
+    if (auto dtype = object->getString("dtype")) node.dtype = dtype->str();
     if (node.op == "call_function") {
       if (!known().contains(node.target)) unsupported.insert(node.target);
       bridge.tasks.push_back(node);
@@ -376,7 +378,7 @@ ExportBridge ReadExportBridge(std::string const& path) {
 
 mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
     std::string const& path, mlir::MLIRContext& context,
-    ImportSummary* summary) const {
+    ImportSummary* summary, ImportOptions const& options) const {
   context.getOrLoadDialect<dialect::CGDialect>();
   ExportBridge bridge = ReadExportBridge(path);
   std::vector<FxNodeRecord>& allNodes = bridge.nodes;
@@ -405,6 +407,11 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
   std::vector<std::string> const& guards = bridge.guards;
   SymbolicShape symbolic = SymbolicShapeBridge{}.Parse(rangeTexts, guards, userShapes);
   ModelPlan plan = BuildModelPlan(allNodes, signatureInputs, signatureOutputs);
+  if (!options.gemms.empty() && options.gemms.size() != plan.gemms.size())
+    throw std::invalid_argument(
+        "runtime variant must provide exactly one entry per model GEMM");
+  std::vector<GemmGranularity> runtimeGemms = options.gemms;
+  if (runtimeGemms.empty()) runtimeGemms.resize(plan.gemms.size());
   std::vector<int> stages = FormSemanticStages(tasks, plan);
 
   mlir::OpBuilder builder(&context);
@@ -423,10 +430,29 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
   // §2.3's g, as the megakernel actually launches: the GEMM TaskBody owns one
   // 128x128 output tile per CTA, and the split-K chunking is a per-operator
   // decision the solver makes later, not a model-wide tile.
+  GemmGranularity representative = runtimeGemms.empty()
+      ? GemmGranularity{} : runtimeGemms.front();
   module->setAttr("tilemega.g", dict(builder, {
-      builder.getNamedAttr("Tm", builder.getI64IntegerAttr(128)),
-      builder.getNamedAttr("Tn", builder.getI64IntegerAttr(128)),
+      builder.getNamedAttr("Tm", builder.getI64IntegerAttr(representative.tile_m)),
+      builder.getNamedAttr("Tn", builder.getI64IntegerAttr(representative.tile_n)),
       builder.getNamedAttr("Tkv", builder.getI64IntegerAttr(128))}));
+  llvm::SmallVector<mlir::Attribute> runtimePlan;
+  for (auto const& impl : runtimeGemms)
+    runtimePlan.push_back(dict(builder, {
+        builder.getNamedAttr("tile_m", builder.getI64IntegerAttr(impl.tile_m)),
+        builder.getNamedAttr("tile_n", builder.getI64IntegerAttr(impl.tile_n)),
+        builder.getNamedAttr("tile_k", builder.getI64IntegerAttr(impl.tile_k)),
+        builder.getNamedAttr("stages", builder.getI64IntegerAttr(impl.stages)),
+        builder.getNamedAttr("split_k", builder.getI64IntegerAttr(impl.split_k))}));
+  module->setAttr("tilemega.gemm_runtime", builder.getArrayAttr(runtimePlan));
+  module->setAttr("tilemega.rope_tile_per_block",
+                  builder.getBoolAttr(options.rope_tile_per_block));
+  module->setAttr("tilemega.kv_tile_per_block",
+                  builder.getBoolAttr(options.kv_tile_per_block));
+  module->setAttr("tilemega.activation_tile_per_block",
+                  builder.getBoolAttr(options.activation_tile_per_block));
+  module->setAttr("tilemega.combiner_tile_per_block",
+                  builder.getBoolAttr(options.combiner_tile_per_block));
   module->setAttr("tilemega.guard_count", builder.getI64IntegerAttr(guards.size()));
   if (plan.stages.empty())
     llvm::errs() << "IMPORT_DEGRADED no decoder layer; one task space per operator\n";
@@ -441,7 +467,21 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
   LiftedModel lifted = plan.stages.empty()
                            ? LiftGenericSemantics(tasks, stages, liftOptions)
                            : LiftSemantics(plan, liftOptions);
-  analysis::Granularity g = LaunchGranularity(lifted);
+  if (options.rope_tile_per_block)
+    for (auto& op : lifted.ops)
+      if (op.role == OpRole::kRoPE)
+        op.ownership = OwnershipKind::kTilePerBlock;
+  if (options.kv_tile_per_block)
+    for (auto& op : lifted.ops)
+      if (op.role == OpRole::kKVAppend)
+        op.ownership = OwnershipKind::kTilePerBlock;
+  if (options.activation_tile_per_block)
+    for (auto& op : lifted.ops)
+      if (op.role == OpRole::kActivation)
+        op.ownership = OwnershipKind::kTilePerBlock;
+  analysis::Granularity g = plan.stages.empty()
+      ? LaunchGranularity(lifted)
+      : LaunchGranularity(lifted, plan, runtimeGemms);
   analysis::OperatorGraph graph = analysis::Instantiate(lifted.sem, g);
 
   analysis::ParamBinding granularityBinding;
@@ -486,8 +526,12 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
     // `Granularity` (axis tiles only) cannot name.  The tiles above then model
     // it at element granularity -- exact, and finer than what one CTA runs --
     // and this field is what tells Codegen the composition is still owed.
+    OwnershipKind ownership = llvm::StringRef(node.name).ends_with(".combine")
+        ? (options.combiner_tile_per_block ? OwnershipKind::kTilePerBlock
+                                           : OwnershipKind::kElementChunk)
+        : origin.ownership;
     tiles.push_back(builder.getNamedAttr(
-        "ownership", builder.getStringAttr(ToString(origin.ownership))));
+        "ownership", builder.getStringAttr(ToString(ownership))));
     mlir::OperationState state(builder.getUnknownLoc(), "tilemega.task_space");
     state.addAttribute(mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(symbol));
     state.addAttribute("kind", dialect::TaskKindAttr::get(
@@ -522,10 +566,14 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
   std::vector<std::string> waitMaps(derived.size(), "all");
   {
     std::vector<bool> owned(derived.size(), false);
+    auto owns_tile = [&](std::string const& name) {
+      if (llvm::StringRef(name).ends_with(".combine"))
+        return options.combiner_tile_per_block;
+      return liftedOf(name).ownership == OwnershipKind::kTilePerBlock;
+    };
     for (std::size_t i = 0; i < derived.size(); ++i)
-      owned[i] =
-          liftedOf(derived[i].src.name).ownership == OwnershipKind::kTilePerBlock &&
-          liftedOf(derived[i].dst.name).ownership == OwnershipKind::kTilePerBlock;
+      owned[i] = owns_tile(derived[i].src.name) &&
+                 owns_tile(derived[i].dst.name);
     std::vector<analysis::WaitWindow> fitted(derived.size());
     bool comparable = true, first_round = true;
     for (long sequence : {256L, 384L, 512L}) {

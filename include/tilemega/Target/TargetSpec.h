@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace tilemega {
@@ -115,6 +116,7 @@ struct TargetSpec {
   struct Calib {
     // (a) pipeline rates -- the denominators of u(o)'s components.
     double tc_fp16_gflops   = 0.0;  ///< mma.m16n8k16 f16 in, f32 accumulate
+    double tc_bf16_gflops   = 0.0;  ///< mma.m16n8k16 bf16 in, f32 accumulate
     double cuda_fp32_gflops = 0.0;  ///< FFMA
     double cuda_int32_gops  = 0.0;  ///< IMAD
     double sfu_exp2_gops    = 0.0;
@@ -186,6 +188,15 @@ struct TargetSpec {
     /// handle the absence.
     StreamKPoint const* FindStreamK(int m, int n, int k, int stages) const;
   } calib;
+
+  /// BF16 has a distinct Stream-K fit and Tensor Core rate.  The original
+  /// `calibration` object remains the FP32 profile for schema compatibility;
+  /// this profile is serialized as `calibration_by_dtype.bf16` so a BF16 run
+  /// can never overwrite the validated FP32 constants.
+  Calib calib_bf16;
+
+  Calib const& CalibrationFor(std::string_view dtype) const;
+  Calib& CalibrationFor(std::string_view dtype);
 
   /// Probe the GPU at `device_ordinal`.  Throws std::runtime_error when no
   /// CUDA device is available.

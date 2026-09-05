@@ -48,6 +48,13 @@ std::uint32_t StaticExtent(FxNodeRecord const& node, std::size_t axis) {
   return static_cast<std::uint32_t>(std::stoul(value));
 }
 
+std::string StorageDtype(FxNodeRecord const& node) {
+  if (node.dtype == "torch.float32") return "f32";
+  if (node.dtype == "torch.bfloat16") return "bf16";
+  throw std::runtime_error("unsupported tensor dtype on " + node.name +
+                           ": " + node.dtype);
+}
+
 struct PlanBuilder {
   explicit PlanBuilder(std::vector<FxNodeRecord> const& records)
       : nodes(records) {
@@ -227,6 +234,17 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   };
 
   FxNodeRecord const& hidden_node = builder.Node(hidden_input->name);
+  builder.plan.dtype = StorageDtype(hidden_node);
+  // The current decoder ABI is one storage type per model. Mixed precision
+  // accumulation remains an operator property (norm/softmax/GEMM use f32),
+  // but persistent buffers and parameters must agree so a buffer id has one
+  // unambiguous element size.
+  for (auto const& input : inputs) {
+    FxNodeRecord const& node = builder.Node(input.name);
+    if (StorageDtype(node) != builder.plan.dtype)
+      throw std::runtime_error("mixed model storage dtypes are unsupported: " +
+                               hidden_node.name + " vs " + node.name);
+  }
   std::uint32_t hidden = StaticExtent(hidden_node, hidden_node.shape.size() - 1);
   std::uint32_t current_hidden = builder.Buffer(
       {hidden_input->name, 0, hidden, 0, 0, PlanBuffer::Source::kFixture,

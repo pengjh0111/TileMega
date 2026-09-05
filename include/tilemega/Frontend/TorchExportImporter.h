@@ -6,6 +6,7 @@
 
 #include <string>
 #include <vector>
+#include <tilemega/Frontend/SemanticLifting.h>
 namespace tilemega::frontend {
 struct ImportSummary {
   std::size_t task_spaces = 0;
@@ -16,10 +17,18 @@ struct ImportSummary {
   /// space each rather than being rejected.
   std::vector<std::string> degraded;
 };
+struct ImportOptions {
+  std::vector<GemmGranularity> gemms;
+  bool rope_tile_per_block = false;
+  bool kv_tile_per_block = false;
+  bool activation_tile_per_block = false;
+  bool combiner_tile_per_block = false;
+};
 class TorchExportImporter {
  public:
   mlir::OwningOpRef<mlir::ModuleOp> Import(
       std::string const& stable_json_path, mlir::MLIRContext& context,
-      ImportSummary* summary = nullptr) const;
+      ImportSummary* summary = nullptr,
+      ImportOptions const& options = {}) const;
 };
 }  // namespace tilemega::frontend

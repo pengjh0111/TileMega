@@ -19,6 +19,7 @@ using Sm120 = cutlass::arch::Sm120;
 /// it never infers a feature from an architecture version comparison.
 template <class Arch>
 struct Caps {
+  static constexpr bool kBf16TensorCore = false;
   static constexpr bool kCluster = false;
   static constexpr bool kTma = false;
   static constexpr bool kWarpSpecialized = false;
@@ -33,6 +34,7 @@ struct Caps {
 
 template <>
 struct Caps<Sm80> {
+  static constexpr bool kBf16TensorCore = true;
   static constexpr bool kCluster = false;
   static constexpr bool kTma = false;
   static constexpr bool kWarpSpecialized = false;
@@ -50,6 +52,7 @@ struct Caps<Sm89> : Caps<Sm80> {};
 
 template <>
 struct Caps<Sm90> {
+  static constexpr bool kBf16TensorCore = true;
   static constexpr bool kCluster = true;
   static constexpr bool kTma = true;
   static constexpr bool kWarpSpecialized = true;
@@ -68,6 +71,7 @@ struct Caps<Sm90> {
 // exactly why the lanes carry a status instead of a number.
 template <>
 struct Caps<Sm100> {
+  static constexpr bool kBf16TensorCore = true;
   static constexpr bool kCluster = true;
   static constexpr bool kTma = true;
   static constexpr bool kWarpSpecialized = true;
@@ -84,6 +88,7 @@ struct Caps<Sm100> {
 // earlier architecture: it has TMA/cluster support but no tcgen05/TMEM.
 template <>
 struct Caps<Sm120> {
+  static constexpr bool kBf16TensorCore = true;
   static constexpr bool kCluster = true;
   static constexpr bool kTma = true;
   static constexpr bool kWarpSpecialized = true;
@@ -99,6 +104,7 @@ struct Caps<Sm120> {
 /// Host-side projection of the same exact-tag capability table, used by
 /// TargetSpec::Probe without duplicating architecture policy.
 struct RuntimeCaps {
+  bool bf16_tensor_core;
   bool cluster;
   bool tma;
   bool warp_specialized;
@@ -113,7 +119,7 @@ struct RuntimeCaps {
 
 template <class Arch>
 constexpr RuntimeCaps RuntimeCapsFor() {
-  return {Caps<Arch>::kCluster, Caps<Arch>::kTma,
+  return {Caps<Arch>::kBf16TensorCore, Caps<Arch>::kCluster, Caps<Arch>::kTma,
           Caps<Arch>::kWarpSpecialized, Caps<Arch>::kTcgen05,
           Caps<Arch>::kL15, Caps<Arch>::kNet,
           Caps<Arch>::kCpAsync, Caps<Arch>::kMbarrier,

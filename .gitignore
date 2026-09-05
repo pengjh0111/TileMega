@@ -43,6 +43,13 @@ docs/experiments/SEMANTIC/raw/hw/e2e_core
 docs/experiments/SEMANTIC/raw/hw/mha_plain
 docs/experiments/SEMANTIC/raw/hw/mha_core
 docs/experiments/ORACLE/raw_gridbound/candidate_probe
+docs/experiments/ORACLE/raw_bf16/
+docs/experiments/VARIANT/raw/
+docs/experiments/BF16/raw/
+docs/experiments/OWNERSHIP/raw/
+docs/experiments/SEQSCAN/raw/
+docs/experiments/MIGRATION/raw/
+docs/experiments/CLUSTER/raw/
 docs/experiments/SOLVER/raw/bin/
 docs/experiments/COARSEN/raw/bin/
 docs/experiments/COARSEN/raw/kappa_probe

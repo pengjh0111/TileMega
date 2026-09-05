@@ -26,7 +26,12 @@ namespace tilemega::analysis {
 
 enum class IteratorType { kParallel, kReduction };
 
+/// Tensor storage type is an L-sem fact recovered from ExportedProgram
+/// FakeTensor metadata. It is independent of launch granularity g.
+enum class ScalarType { kF32, kBF16 };
+
 std::string ToString(IteratorType type);
+std::string ToString(ScalarType type);
 
 /// One dimension of the iteration domain. Reduction dimensions are part of the
 /// domain here even though they never become task coordinates: whether a
@@ -121,6 +126,7 @@ struct ReductionSemantics {
 struct SemanticOp {
   std::string name;
   OperatorKind kind = OperatorKind::kPointwise;
+  ScalarType dtype = ScalarType::kF32;
   std::vector<IterationDim> domain;
   TensorSpace result;
   IndexingMap result_map;

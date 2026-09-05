@@ -12,12 +12,13 @@
 using Arch = tilemega::arch::Sm89;
 using Gemm = tilemega::codegen::GemmTaskBody<Arch, 3>;
 union AllTaskStorage;
-using RuntimeGemm = tilemega::codegen::GemmStageTaskBody<Arch, AllTaskStorage, 256>;
-using Norm = tilemega::codegen::RMSNormTaskBody<Arch, AllTaskStorage, 256>;
-using Rope = tilemega::codegen::RoPETaskBody<Arch, AllTaskStorage, 256>;
-using KV = tilemega::codegen::KVAppendTaskBody<Arch, AllTaskStorage, 256>;
-using Elem = tilemega::codegen::ElementwiseTaskBody<Arch, AllTaskStorage, 256>;
-using Attn = tilemega::codegen::AttentionTaskBody<Arch, AllTaskStorage, 256>;
+constexpr int kThreads = tilemega::codegen::kGemmThreads;
+using RuntimeGemm = tilemega::codegen::GemmStageTaskBody<Arch, AllTaskStorage, kThreads>;
+using Norm = tilemega::codegen::RMSNormTaskBody<Arch, AllTaskStorage, kThreads>;
+using Rope = tilemega::codegen::RoPETaskBody<Arch, AllTaskStorage, kThreads>;
+using KV = tilemega::codegen::KVAppendTaskBody<Arch, AllTaskStorage, kThreads>;
+using Elem = tilemega::codegen::ElementwiseTaskBody<Arch, AllTaskStorage, kThreads>;
+using Attn = tilemega::codegen::AttentionTaskBody<Arch, AllTaskStorage, kThreads>;
 
 union AllTaskStorage {
   Gemm::SharedStorage gemm;

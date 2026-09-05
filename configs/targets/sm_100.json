@@ -29,6 +29,7 @@
     "wall_seconds": 0,
     "pipelines": {
       "tc_fp16_gflops": 0.0,
+      "tc_bf16_gflops": 0.0,
       "cuda_fp32_gflops": 0.0,
       "cuda_int32_gops": 0.0,
       "sfu_exp2_gops": 0.0,

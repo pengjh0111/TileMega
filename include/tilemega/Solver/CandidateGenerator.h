@@ -61,6 +61,8 @@ class CandidateGenerator {
   using Stats = EnumerationStats;
 
   explicit CandidateGenerator(TargetSpec target, Envelope envelope = Envelope());
+  CandidateGenerator(TargetSpec target, ScalarType dtype,
+                     Envelope envelope = Envelope());
 
   std::vector<BackendCandidate> Enumerate(Stats* stats = nullptr) const;
 
@@ -78,10 +80,15 @@ class CandidateGenerator {
   std::vector<TileCandidate> Generate() const;
 
   TargetSpec const& target() const { return target_; }
+  ScalarType dtype() const { return dtype_; }
+  char const* backendName() const {
+    return dtype_ == ScalarType::kBF16 ? kTensorBF16Backend : kSimtF32Backend;
+  }
 
  private:
   TargetSpec target_;
   Envelope envelope_;
+  ScalarType dtype_ = ScalarType::kF32;
 };
 
 }  // namespace tilemega::solver
