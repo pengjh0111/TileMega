@@ -1,0 +1,3 @@
+model	dtype	tile_m	tile_n	tile_k	stages	split_k	wait_table	passes	processes
+gqa2	f32	16	64	16	2	16	variant_exact	50	50
+mha4	f32	16	64	16	2	16	variant_exact	50	50

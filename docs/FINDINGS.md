@@ -1459,8 +1459,9 @@
   audit now reports `UNAVAILABLE reason=not_calibrated` rather than crashing —
   without weakening `CostModel`'s own guard, which is what stops a fabricated
   constant from being quoted.
-- Current state: `SUMMARY targets=5 failures=0`, wired into ctest as
-  `target_audit` (ctest is this repository's CI). ✅ 23/23 tests pass.
+- Current state: `SUMMARY targets=5 failures=0`, including the optional
+  `calibration_by_dtype.bf16` schema, wired into ctest as `target_audit`
+  (ctest is this repository's CI). ✅ 24/24 tests pass.
 - Evidence: tools/tilemega-target-audit.cpp, configs/targets/*.json.
 
 ## F-64 — The migration check is built and baselined, and refuses to run on the calibration GPU
@@ -1482,3 +1483,188 @@
   same-GPU comparison that would look like a pass.
 - Evidence: docs/experiments/MIGRATION/result.md, raw/summary_sm89_baseline.txt.
 
+## F-65 — Runtime variants must own both the implementation and its dependency table
+
+- Finding: a GEMM tile is not merely a backend tuning flag.  The tile changes
+  the producer task space, so every affine `StageDependency` constant derived
+  from that space is part of the same variant.  Keeping the dependency table
+  fixed while changing `TILEMEGA_GEMM_*` produced a silent under-wait and 0/50
+  correct processes in the earlier COARSEN regression.
+- The generator now independently instantiates and derives each runtime
+  variant and emits `{GemmRuntimeDesc, StageDependency[]}` together in
+  `ModelSpec`.  The host selects a `seq` interval by one indexed lookup.  The
+  old exact/degraded check is gone because no cross-granularity table exists.
+- ✅ Two intervals of one BF16 executable select different tiles and pass
+  50/50 at both `seq=4` and `seq=2048` on both models.  The old FP32
+  `16x64x16s2k16` failure is now 50/50 on both models with `variant_exact`.
+- Evidence: `docs/experiments/VARIANT/`.
+
+## F-66 — Variant capacity is register-bound before the shared-storage union grows
+
+- Finding: `sizeof(TaskBodyUnion)` is not a sufficient Phase-5 capacity
+  metric.  For 1/2/4 variants the union remains 16 KiB, but ptxas registers
+  rise 80/85/114 and occupancy falls from 5 CTA/SM to 4 at four variants.
+  At 8 and 16 variants the measurements are 218/255 registers, 18/96 KiB,
+  and 2/1 CTA/SM.
+- ✅ The no-occupancy-loss budget on this sm_89 implementation is therefore
+  **two variants per binary**.  Same-operator and multi-operator mixtures have
+  the same maxima for the measured ladder: C++ union storage takes a maximum,
+  while compiled dispatch paths still raise register pressure.
+- Consequence: Phase 5 must merge near-equivalent adjacent intervals or split
+  them across binaries; allowing 16 template parameters does not make 16 a
+  performance-safe interval count.
+- Evidence: `docs/experiments/VARIANT/curve.tsv`.
+
+## F-67 — BF16 is a semantic dtype and uses a distinct calibrated resource regime
+
+- Finding: dtype is now extracted from ExportedProgram FakeTensor metadata and
+  carried by L-sem, the implementation registry, generated `ModelSpec` and all
+  TaskBodies.  BF16 stores two-byte values while GEMM, norm and attention
+  reductions accumulate FP32.  This is not a storage-only path: cuobjdump finds
+  96 `HMMA.16816.F32.BF16` instructions in each accepted model executable.
+- ✅ Both models pass L0/L0.5/L1/L2 in 50/50 fresh processes.  The accepted
+  BF16 profile records 179.997 TFLOP/s Tensor Core throughput, 97.37% of the
+  DRAM pin and 0.00073% start/end drift.  It is stored beside—not over—the
+  existing FP32 calibration.
+- ✅ FP32's ρ cannot be transferred.  The dtype-aware model populates `tc`,
+  but its contribution requires the final BF16 oracle sweep.  The requested
+  identifiability retest already shows SMEM/L2 remain structurally collinear:
+  their common feature yields a constant 3.4715200776 ratio and Pearson 1 over
+  the 20 calibrated occupancy points, so the current fit still cannot assign
+  their effects independently.
+- Evidence: `docs/experiments/BF16/`, `configs/targets/sm_89.json`.
+
+## F-68 — Ownership Place, unlike cache-locality Place, unlocks the event graph
+
+- Finding: changing only RoPE to tile ownership made adjacent inverse images
+  narrowable and improved seq=128 L2 by 3.23%/6.40% without a material body
+  regression, satisfying the predeclared promotion rule.  Extending the same
+  contract to KVAppend, activation and the split-K combiner changes GQA's
+  all/identity/window mix from 20/3/15 to 10/7/21.
+- ✅ At seq=128, exact polls fall 482316 → 282636 (−41.40%) and the
+  exact/relaxed ratio falls 0.999925 → 0.520240.  In 25 fresh-process paired
+  rounds L2 improves 13.57%/16.32%; body-only L0.5 costs 1.00%/1.25%.
+- This is a Place decision about the mapping from logical tasks to CTAs.  It is
+  independent of the previously rejected objective that co-locates adjacent
+  tasks for cache reuse.  Calling both “Place” without this distinction hid
+  the largest available synchronization lever.
+- Evidence: `docs/experiments/OWNERSHIP/`.
+
+## F-69 — A seq matrix is useful only if an obsolete implementation fails it
+
+- Finding: expanding the runtime dimension uncovered two bugs unrelated to
+  numeric tolerance: Attention and RMSNorm declared grid-stride ownership but
+  executed only their first placed task; Attention's shared score row was also
+  sized by CTA width rather than runtime total length.  Both are fixed, with a
+  hard supported-total bound of 4096.
+- ✅ Two models × five seq values × three past values × 50 fresh processes pass
+  **1500/1500**, comparing L0, L0.5, L1 and L2 in every cell.
+- ✅ The deliberately obsolete `min(count, grid)` clamp fails 50/50 at
+  `seq=2048,past=0`.  This negative is the evidence that the expanded matrix
+  actually observes the silent under-wait class; a large green matrix alone
+  would not establish that.
+- Evidence: `docs/experiments/SEQSCAN/`.
+
+## F-70 — BF16 breaks the cost model, and the culprit is a constant that FP32 hid
+
+- Finding: re-measured on its own validation set — 1540 generated, compiled and
+  measured points under BF16 with the structured ownership — the calibrated
+  cost model reaches ρ **0.5605** (gqa2, n=770) and **0.6239** (mha4, n=462),
+  against 0.9450 / 0.9435 in FP32. `top1 = top3 = top10 = 0` on both models and
+  the true optimum ranks 104th / 51st. ✅ Part 2.4's acceptance ("no worse than
+  FP32") is **not met**, and no threshold was moved to meet it.
+- The uncalibrated analytic ranking (`tier2-baseline`) reaches **0.8778 /
+  0.8738** on the same points and ranks the optimum 25th / 19th. In BF16 the
+  calibrated model is *worse than the baseline it was built to replace*, having
+  beaten it 2:1 in FP32. That is what makes this a finding rather than drift.
+- ✅ Attribution, and it is not §2.2's structure. The ladder localizes it:
+  `+splitk` is the one layer that *lowers* ρ (gqa2 0.5211 → 0.4926) where in
+  FP32 it produced the entire gain (0.4435 → 0.9071). The model's eight best
+  configurations are all split-K 16, predicted at 0.099–0.107 ms and measuring
+  0.207–0.291 ms. Behind that: `combine_fixed_ns` is **0** in the BF16 profile
+  and **108.1 ns** in FP32. The calibrator fits the reduction stage's
+  width-independent term and stores `max(0, fit)` because the intercept is
+  honestly unresolved (`|value| < 300 ns`, 150% spread, either sign,
+  `GemmCalibration.cu:479`); in FP32 the fit landed positive and the clamp never
+  bound. The model therefore charges ~0.12 µs for every reduction in the whole
+  graph and split-K is nearly free.
+- Second-order: three of the six BF16 Stream-K points fit a **negative** per-CTA
+  setup (`a_ns` −119.2 / −438.6 / −400.7) against `256x128x16s3`'s +10342.1,
+  with `fit_r2` 0.922 versus FP32's 0.974. A setup time cannot be negative.
+- The transferable lesson: **an absolute uncertainty that is harmless under a
+  slow mainloop becomes decisive under a fast one.** Nothing about the constant
+  changed; the denominator did. Every clamped or unresolved constant in
+  `TargetSpec::Calib` should be re-examined whenever the pipeline it competes
+  with gets faster.
+- Evidence: docs/experiments/ORACLE/result.md §6.7, raw_bf16/cost/summary.tsv,
+  raw_bf16/cost/predictions_gqa2.tsv, configs/targets/sm_89.json.
+
+## F-71 — The `tc` lane, the reason nine lanes were restored, changes the ranking by 0.001
+
+- Finding: Part 2.1 predicted that BF16 would make the Tensor Core lane the
+  bottleneck for the first time and thereby justify the nine-lane resource
+  vector (F-62). ✅ Measured on the BF16 oracle, one-variable lane ablations:
+  removing `tc` moves ρ from 0.5605 to **0.5595** (gqa2) and 0.6239 to 0.6230
+  (mha4), and MAPE by 0.01 points. Removing `cuda`, `sfu`, `tmem`, `l1_5`, `l2`,
+  `ddr` or `net` changes **nothing at all**. Only `smem` moves MAPE (39.41 →
+  53.78) — and removing it slightly *improves* ρ.
+- So six of the nine lanes are exactly inert on sm_89 in BF16, and the premise
+  is not confirmed: a faster mainloop moves the bottleneck *away* from the
+  compute lanes rather than into them. The nine lanes are still the right
+  carrier for a port, but they are not what ranks configurations here, and the
+  earlier "this is why we keep nine dimensions" argument is withdrawn on this
+  target.
+- The SMEM/L2 identifiability retest Part 2.3 asked for is also negative and for
+  a structural reason: both lanes are built from the same
+  `occupancy · 2 · Tk · (Tm + Tn)` feature, so their ratio is constant at
+  3.4715200776 with Pearson 1 over all 20 calibrated occupancy points. ❌ dtype
+  alone cannot separate them; that needs a target where TMA moves one and not
+  the other.
+- Evidence: docs/experiments/BF16/result.md, identifiability.tsv;
+  docs/experiments/ORACLE/result.md §6.7.
+
+## F-72 — An elementwise BF16 bound fitted on one split factor censors the oracle along split-K
+
+- Finding: the BF16 comparison bound `1.6e-2 + 1.6e-2·|e|` was selected on the
+  SEQSCAN matrix, which holds the split factor fixed. On the oracle's split-K
+  axis it does not hold: ✅ **154/154** mha4 configurations fail at split-K 2
+  and **154/154** at split-K 16, while **154/154** pass at each of 1, 4 and 8 —
+  perfectly determined by the split factor and independent of tile shape.
+- It is the comparison, not the implementation. Every failing run has
+  `l1_vs_l05_mismatch = 0` and `l2_vs_l1_mismatch = 0`: TileMega's three levels
+  are bit-identical. At split-K 2 exactly **one** element of the whole model
+  exceeds the bound — `actual −0.96875, expected −0.9375, delta 0.03125` against
+  a tolerance of 0.031000, over by 0.8%. Configurations that *pass* carry larger
+  deviations: split-K 8 reaches `max_abs = 0.0625` and clears the bound only
+  because it lands on an element with a larger `|e|`.
+- **The threshold was not widened.** The consequence is recorded instead:
+  `screen_mha4.tsv` holds 462 of 770 points, censored along `split_k` — a
+  decision variable — so mha4's ranking statistics are not comparable with
+  gqa2's uncensored 770, and mha4's optimum is the optimum of {1,4,8} only.
+  gqa2 (2 layers) is unaffected at 770/770; the effect appears with depth.
+- `TILEMEGA_DIFF_DUMP=n` was added to print the first `n` offending elements
+  with both values and the bound, because `max_abs` and `max_rel` are
+  independent maxima and identify no element.
+- Evidence: docs/experiments/ORACLE/result.md §6.7, raw_bf16/screen_mha4.tsv;
+  include/tilemega/Codegen/tasks/ModelHarness.cuh.
+
+## F-73 — Two silent breakages that only a full pipeline run could expose
+
+- Finding: the runtime-variant work renamed the generated dependency table from
+  `kDependencies[]` to per-variant `kDependencies0[]`, `kDependencies1[]`, …
+  `ModelDescription::FromGeneratedCuda` still searched for the old name, so
+  `tilemega-costmodel` threw on every generated source. Unit tests and ctest
+  pass without touching that path; only running the oracle end to end reaches
+  it. The parser now accepts either name and reads variant 0, which is correct
+  because variants differ in the affine window constants, not in which stage
+  feeds which.
+- Second: the oracle's screening loop used `local tag=... bin="${raw}/bin/${tag}"`.
+  Bash expands every word of a builtin before performing any assignment, so
+  `bin` read an unset `tag` and `set -u` aborted the sweep on its first
+  configuration — after all 1540 compiles had completed. Split into two `local`
+  statements.
+- Both are the same class: a change validated by unit tests, and a stage that
+  only a full-pipeline run executes. The ORACLE sweep is that run, and it is the
+  only thing in the repository that exercises generator → parser → cost model in
+  one pass.
+- Evidence: lib/Solver/ModelDescription.cpp, docs/experiments/ORACLE/run_bf16.sh.

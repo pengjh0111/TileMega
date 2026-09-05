@@ -24,7 +24,7 @@
 | GMP / NTL | system development packages | required to link the static polyhedral stack |
 | Autotools | autoconf, automake, libtool, pkg-config, m4 | required to bootstrap isl, polylib, and barvinok |
 | Python | 3.8 or newer | `lit` driver and the export bridge |
-| PyTorch | 2.13.x | needed only by the version-locked `torch.export` bridge and fixture generators, not by the C++ compiler build |
+| PyTorch | 2.13.x or 2.14.x | needed only by the version-checked `torch.export` bridge and BF16 fixture generators, not by the C++ compiler build; CUDA wheels are needed only when the Python reference itself runs on CUDA |
 
 MLIR must come from an **install tree**. A build tree's CMake package bakes
 absolute paths to both the build and source directories and breaks as soon as
@@ -147,11 +147,40 @@ build/tools/tilemega-import export.json > cg.mlir
 # parse, verify and round-trip the dialect (a standard mlir-opt driver)
 build/tools/tilemega-opt cg.mlir
 
-# Coupling Graph -> generated CUDA -> shared object
-build/tools/tilemega-compile cg.mlir out.so
+# Coupling Graph -> generated CUDA (the already-materialized single variant)
+build/tools/tilemega-compile cg.mlir out.cu
+
+# Export JSON -> shared object with one or more generator-owned variants
+build/tools/tilemega-compile export.json out.so --variants plan.json
 ```
 
 `tilemega-compile` accepts either a `.mlir` Coupling Graph or the stable export
-JSON directly. Passing a `.cu` output writes only the generated CUDA; passing a
+JSON directly; `--variants` requires the export JSON because each variant must
+be independently lifted and analyzed. Passing a `.cu` output writes only the generated CUDA; passing a
 `.so` writes the CUDA alongside it as `out.so.cu` and then invokes `nvcc`
 (honouring `CUDACXX`, defaulting to `/usr/local/cuda/bin/nvcc`).
+
+`plan.json` uses schema `tilemega.runtime_variants.v1`.  Each entry carries a
+`seq_begin`/`seq_end` interval, the GEMM tile/stages/split-K choices and its
+ownership flags.  The generator derives a separate exact dependency table for
+each entry and emits all selected CUTLASS template instantiations into one
+binary; the host launcher performs an O(1) `seq`-interval lookup.  See
+`docs/experiments/VARIANT/plan_two.json` and
+`docs/experiments/OWNERSHIP/plan_structured.json` for concrete plans.
+
+The current BF16 and structured-ownership migration checks regenerate their
+models and fixtures, probe capabilities from `TargetSpec`, and hard-fail when
+the requested hardware feature is absent:
+
+```bash
+# Native Blackwell/5090 migration correctness (50 fresh processes per model).
+bash docs/experiments/MIGRATION/run_on_sm120.sh
+
+# Cluster primitives plus generated BF16 megakernel (requires caps.cluster).
+bash docs/experiments/CLUSTER/run_on_cluster_gpu.sh
+```
+
+Expected successful output includes a probed target with `caps.cluster=1`,
+`gqa2` and `mha4` correctness totals equal to the requested run count, and—for
+the cluster script—nonzero `UCGABAR` instructions for cluster dimensions above
+one.  Neither script substitutes a flat kernel when the capability is absent.

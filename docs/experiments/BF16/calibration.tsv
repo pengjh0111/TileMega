@@ -1,0 +1,2 @@
+profile	calibrated	device	measured_at	wall_seconds	tc_bf16_gflops	cuda_fp32_gflops	smem_gbps	l2_gbps	dram_gbps	l2_knee_bytes	interference_ratio
+bf16	true	NVIDIA GeForce RTX 4090	2026-09-05T15:32:27Z	8.859293	179996.9501	71902.3569	64035.1764	5111.8080	981.5901	75497472	1.222222

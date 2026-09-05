@@ -1,0 +1,5 @@
+model	dtype	seq	selected_variant	tile_m	tile_n	tile_k	passes	processes
+gqa2	bf16	4	0	32	16	16	50	50
+gqa2	bf16	2048	1	32	32	16	50	50
+mha4	bf16	4	0	32	16	16	50	50
+mha4	bf16	2048	1	32	32	16	50	50

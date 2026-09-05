@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # TileMega Part 7 -- cluster / DSMEM validation. Requires sm_90+ hardware.
 #
-# Self-contained: this script carries its own CUDA sources and needs nothing
-# from the build tree, only the repository headers, nvcc and a GPU whose
-# TargetSpec probe reports caps.cluster == true. It hard-fails on any other
-# machine rather than silently measuring the single-CTA fallback.
+# Self-contained: this script configures its own build, regenerates the BF16
+# reference models and carries the primitive-test source.  It needs the source
+# tree, nvcc, PyTorch and a GPU whose TargetSpec probe reports caps.cluster.
+# It hard-fails on any other machine rather than silently measuring a flat
+# fallback.
 #
 #   bash docs/experiments/CLUSTER/run_on_cluster_gpu.sh            # 200 fresh runs
 #   RUNS=500 bash docs/experiments/CLUSTER/run_on_cluster_gpu.sh
@@ -54,11 +55,6 @@ if [[ "${cluster:-0}" != "1" ]]; then
   echo "      single-CTA fallback and call it a cluster result." >&2
   exit 3
 fi
-case "$arch" in
-  sm_90) arch_type=Sm90 ;;
-  sm_120) arch_type=Sm120 ;;
-  *) echo "FAIL: $arch has no cluster capability entry" >&2; exit 3 ;;
-esac
 printf 'arch\t%s\ncaps.cluster\t%s\nmax_cluster_size\t%s\nnum_sms\t%s\nruns\t%s\n' \
     "$arch" "$cluster" "$max_cluster" "$sms" "$runs" > "$out/target.txt"
 echo "== $arch, cluster=$cluster, max_cluster_size=$max_cluster, ${sms} SMs, $runs runs"
@@ -79,7 +75,7 @@ cat > "$work/cluster_test.cu" <<'CPP'
 #include <vector>
 
 namespace tmc = tilemega::codegen;
-using Arch = tilemega::arch::TILEMEGA_TEST_ARCH_TYPE;
+using Arch = tilemega::arch::CurrentArch;
 using CS = tmc::ClusterSync<Arch>;
 
 constexpr int kThreads = 128;
@@ -203,10 +199,10 @@ int main(int argc, char** argv) {
 }
 CPP
 
-"$nvcc" -std=c++17 -O2 -arch="$arch" -DTILEMEGA_TEST_ARCH_TYPE="$arch_type" \
+"$nvcc" -std=c++17 -O2 -arch="$arch" \
     "${inc[@]}" "$work/cluster_test.cu" -o "$work/cluster_test" \
     2> "$out/build.txt"
-echo "built: $arch / $arch_type"
+echo "built: $arch / ArchDispatch::CurrentArch"
 
 # ------------------------------------------------------------- fresh-process
 : > "$out/runs.tsv"
@@ -241,17 +237,42 @@ cat "$out/summary.tsv"
 # with TILEMEGA_GENERATED_CLUSTER_DIM so its stage barrier is
 # `ClusterSync::StageBarrier` and its launch is `cudaLaunchKernelEx`.
 #
-# It needs the build tree, which the sections above deliberately do not, so it
-# announces a skip rather than failing when the artifacts are absent.  What it
-# will not do is run without checking: a "cluster" arm whose cubin contains no
+# This section configures a fresh build tree and regenerates both accepted BF16
+# models.  A "cluster" arm whose cubin contains no
 # `barrier.cluster` is a flat kernel wearing a label, and that is a hard fail.
 # Both accepted models, so a cluster result is a property of the mechanism and
 # not of one graph.
+build=${BUILD_DIR:-$root/build-cluster}
+command -v python3 >/dev/null || { echo "FAIL: python3 not found" >&2; exit 77; }
+python3 -c 'import torch' || {
+  echo "FAIL: PyTorch 2.13.x or 2.14.x is required for BF16 fixtures" >&2
+  exit 77
+}
+cmake -S "$root" -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DTILEMEGA_TARGET_ARCH=auto >/dev/null
+cmake --build "$build" --target tilemega-compile --parallel "$(nproc)" >/dev/null
+
+python3 "$root/docs/experiments/V_H/export_probe.py" --out "$work/gqa2" \
+  --dtype bf16 --seq-max 2048 --past-max 512 >/dev/null
+python3 "$root/python/tilemega/export_bridge.py" "$work/gqa2/exported_program.pt2" \
+  --out "$work/gqa2.json" >/dev/null
+python3 "$root/docs/experiments/E2E/prepare_e2e.py" --vh-raw "$work/gqa2" \
+  --out "$work/gqa2_fixture" --seq 4 --past 3 >/dev/null
+python3 "$root/docs/experiments/P3_GENERALIZATION/export_second.py" --repo "$root" \
+  --out "$work/mha4" --dtype bf16 --seq-max 2048 --past-max 512 \
+  --fixture-seq 4 --fixture-past 3 >/dev/null
+python3 "$root/python/tilemega/export_bridge.py" "$work/mha4/exported_program.pt2" \
+  --out "$work/mha4.json" >/dev/null
+for model in gqa2 mha4; do
+  "$build/tools/tilemega-compile" "$work/$model.json" "$work/$model.cu" \
+    --variants "$root/docs/experiments/OWNERSHIP/plan_structured.json"
+done
+
 mega_models=(
-  "gqa2|$root/docs/experiments/E2E_GEN/raw/generated_e2e.cu|$root/docs/experiments/E2E/fixture"
-  "mha4|$root/docs/experiments/P3_GENERALIZATION/raw/generated.cu|$root/docs/experiments/P3_GENERALIZATION/raw/fixture"
+  "gqa2|$work/gqa2.cu|$work/gqa2_fixture"
+  "mha4|$work/mha4.cu|$work/mha4/fixture"
 )
-mega_lib="$root/build-phase12/libtilemega.a"
+mega_lib="$build/libtilemega.a"
 : > "$out/megakernel.tsv"
 printf 'model\tcluster_dim\tbarrier_cluster_asm\tpass\ttotal\thash\tl1_ms\tl2_ms\n' \
     >> "$out/megakernel.tsv"
@@ -261,8 +282,8 @@ for entry in "${mega_models[@]}"; do
   [[ -e "$src" && -d "$fixture" ]] || have_all=0
 done
 if [[ ! -e "$mega_lib" || "$have_all" != 1 ]]; then
-  echo "SKIPPED megakernel arm: build-phase12/libtilemega.a, a generated" \
-       "source or a fixture is missing" | tee -a "$out/megakernel.tsv"
+  echo "FAIL: regenerated BF16 megakernel prerequisite missing" >&2
+  exit 77
 else
   mega_inc=("${inc[@]}" -I"$root/third_party/cutlass/tools/util/include"
             -I"$root/third_party/cutlass/test")

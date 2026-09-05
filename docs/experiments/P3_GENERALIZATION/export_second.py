@@ -48,16 +48,25 @@ class FourLayerMHA(nn.Module):
         return (hidden, *outputs)
 
 
-def write_f32(path: Path, tensor: torch.Tensor) -> None:
-    value = tensor.detach().cpu().contiguous().float()
+def write_tensor(path: Path, tensor: torch.Tensor, dtype: torch.dtype) -> None:
+    value = tensor.detach().cpu().contiguous().to(dtype)
     with path.open("wb") as stream:
-        array.array("f", value.reshape(-1).tolist()).tofile(stream)
+        if dtype == torch.bfloat16:
+            words = [item & 0xFFFF for item in value.view(torch.int16).reshape(-1).tolist()]
+            array.array("H", words).tofile(stream)
+        else:
+            array.array("f", value.float().reshape(-1).tolist()).tofile(stream)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--dtype", choices=("f32", "bf16"), default="f32")
+    parser.add_argument("--seq-max", type=int, default=8)
+    parser.add_argument("--past-max", type=int, default=8)
+    parser.add_argument("--fixture-seq", type=int, default=4)
+    parser.add_argument("--fixture-past", type=int, default=3)
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     fixture = args.out / "fixture"
@@ -65,11 +74,14 @@ def main() -> None:
 
     probe = _load_probe(args.repo / "docs/experiments/V_H/export_probe.py")
     torch.manual_seed(20260902)
-    model = FourLayerMHA(probe.LlamaLayer).eval()
-    hidden = torch.randn(1, 4, 512)
-    caches = [torch.randn(1, 4, 3, 128) for _ in range(8)]
+    dtype = torch.bfloat16 if args.dtype == "bf16" else torch.float32
+    model = FourLayerMHA(probe.LlamaLayer).eval().to(dtype=dtype)
+    hidden = torch.randn(1, args.fixture_seq, 512, dtype=dtype)
+    caches = [torch.randn(1, 4, args.fixture_past, 128, dtype=dtype)
+              for _ in range(8)]
     inputs = (hidden, *caches)
-    seq, past = Dim("seq_len", min=1, max=8), Dim("past_len", min=1, max=8)
+    seq = Dim("seq_len", min=1, max=args.seq_max)
+    past = Dim("past_len", min=0, max=args.past_max)
     dynamic = ({1: seq}, *({2: past} for _ in caches))
     program = export(model, inputs, dynamic_shapes=dynamic, strict=True)
     torch.export.save(program, args.out / "exported_program.pt2")
@@ -80,14 +92,16 @@ def main() -> None:
         (item for item in program.graph_signature.input_specs
          if item.kind.name == "USER_INPUT"), inputs
     ):
-        write_f32(fixture / f"input_{spec.arg.name}.bin", value)
+        write_tensor(fixture / f"input_{spec.arg.name}.bin", value, dtype)
     for name, value in program.state_dict.items():
-        write_f32(fixture / ("state_" + name.replace(".", "_") + ".bin"), value)
+        write_tensor(fixture / ("state_" + name.replace(".", "_") + ".bin"),
+                     value, dtype)
     for index, value in enumerate(outputs):
-        write_f32(fixture / f"reference_{index}.bin", value)
+        write_tensor(fixture / f"reference_{index}.bin", value, dtype)
     (fixture / "manifest.json").write_text(json.dumps({
-        "seq": 4, "past": 3, "layers": 4, "heads": 4,
-        "kv_heads": 4, "structure": "MHA without GQA",
+        "seq": args.fixture_seq, "past": args.fixture_past, "layers": 4,
+        "heads": 4, "kv_heads": 4, "dtype": str(dtype),
+        "structure": "MHA without GQA",
     }, indent=2), encoding="utf-8")
     print(json.dumps({"layers": 4, "attention": "MHA", "outputs": len(outputs)}))
 

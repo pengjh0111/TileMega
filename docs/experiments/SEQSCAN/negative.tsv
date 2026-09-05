@@ -1,0 +1,2 @@
+model	seq	past	logic	passes	mismatches	processes
+gqa2	2048	0	old_clamp	0	50	50

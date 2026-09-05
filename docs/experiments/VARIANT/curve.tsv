@@ -1,0 +1,11 @@
+composition	variants	task_union_bytes	gemm_union_bytes	ctas_per_sm	registers	status
+same_operator	1	16384	3072	5	80	PASS
+same_operator	2	16384	4096	5	85	PASS
+same_operator	4	16384	8192	4	114	PASS
+same_operator	8	18432	18432	2	218	PASS
+same_operator	16	98304	98304	1	255	PASS
+multi_operator	1	16384	3072	5	80	PASS
+multi_operator	2	16384	4096	5	85	PASS
+multi_operator	4	16384	8192	4	114	PASS
+multi_operator	8	18432	18432	2	218	PASS
+multi_operator	16	98304	98304	1	255	PASS

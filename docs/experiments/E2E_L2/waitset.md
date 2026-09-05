@@ -1,5 +1,11 @@
 # Part 2 — the generated dependency table, and what its wait sets are worth
 
+> Historical ownership baseline. The 89.9% ceiling and the
+> `wait_table=exact|degraded` mechanism below are the evidence that motivated
+> this round, not the current state. Runtime variants removed the degraded
+> path, and structured ownership changes the GQA table to 10 all / 7 identity /
+> 21 window with 41.40% fewer seq=128 polls; see `VARIANT/` and `OWNERSHIP/`.
+
 Reproduce with:
 
 ```

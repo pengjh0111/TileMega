@@ -3,6 +3,7 @@
 // legality from CUTLASS's constexpr traits alone.  This translation unit
 // declares no __global__ function, so nothing here is compiled to a kernel.
 #include <tilemega/Backend/CutlassGemmCandidate.h>
+#include <tilemega/Target/TargetSpec.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -15,7 +16,7 @@ constexpr int kTileN[] = {16, 32, 64, 128, 256};
 constexpr int kTileK[] = {8, 16, 32};
 constexpr int kStages[] = {2, 3, 4, 5};
 
-int smem_budget = 101376;  // sm_89 opt-in maximum; overridden by argv[1]
+int smem_budget = 0;
 
 template <int M, int N, int K, int S>
 void report() {
@@ -60,7 +61,9 @@ void walk_m(std::integer_sequence<int, Mi...>) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  if (argc > 1) smem_budget = std::atoi(argv[1]);
+  smem_budget = argc > 1
+                    ? std::atoi(argv[1])
+                    : tilemega::TargetSpec::Probe().res.max_dynamic_smem_per_cta;
   std::printf("BUDGET smem=%d\n", smem_budget);
   walk_m(std::make_integer_sequence<int, sizeof(kTileM) / sizeof(int)>{});
   return 0;

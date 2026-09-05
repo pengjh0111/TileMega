@@ -1,5 +1,44 @@
 # Part 4.4 — does an sm_89-calibrated cost model still rank on a 5090?
 
+> **2026-09-05 protocol update.** ⚠️ The numerical tables below are the
+> historical FP32 + element-chunk baseline and are retained for provenance;
+> they are not evidence for the current executable. `run_on_sm120.sh` now
+> rebuilds both accepted models from BF16 ExportedPrograms with structured
+> ownership, runs 50 fresh processes, and records the runtime variant plus
+> L0.5/L1/L2 medians. Before building, `tilemega-migrate --probe` compares
+> `TargetSpec::Probe()` with the configured host target and requires usable
+> cluster capability. A 4090, a mismatched target file, or a target without
+> clusters exits 3; no architecture number is accepted on trust. ❌ The
+> refreshed arm remains unverified here because this host is sm_89. Successful
+> 5090 output is `raw/summary.tsv`, with 50/50 required for both models.
+>
+> **The rank-transfer arm is restored, on the BF16 validation set.** The
+> regenerated script had dropped it, which would have left this experiment
+> answering only "does it still run there" and not the question it exists for.
+> `tilemega-migrate` now takes `--dtype f32|bf16` (default `bf16`) and the
+> sweep directory, the register table and the generated source travel together
+> with the dtype, so the transfer is scored against the implementation that is
+> actually shipped rather than the retired FP32 one. Granularity is no longer a
+> `-D` override, so each subset point is regenerated as its own single-interval
+> runtime plan. Registers are still read from the migration machine's own ptxas
+> logs, never carried over.
+>
+> ✅ **The BF16 sm_89 baseline (`raw/summary_sm89_baseline.txt`)**, subset of
+> top-50 + 50 random, seed 20260904:
+>
+> | model | n | MAPE % | Spearman | top10 | optimum_rank |
+> |---|---:|---:|---:|---:|---:|
+> | gqa2 | 100 | 41.99 | **0.6369** | 0 | 39 |
+> | mha4 | 100 | 37.93 | **0.6599** | 0 | 39 |
+>
+> ⚠️ These are much weaker than the FP32 baseline below (ρ 0.9144 / 0.9095) for
+> a reason that has nothing to do with migration: the BF16 cost model itself
+> ranks at ρ 0.5605 / 0.6239 on the full sweep and fails its acceptance
+> (F-70, `../ORACLE/result.md` §6.7). **A transfer arm measured against this
+> baseline can only bound how much *additional* rank is lost by moving
+> machines; it cannot be read as "the model transfers well".** Fixing the
+> baseline is the reduction-stage calibration, not anything in this experiment.
+
 ```
 bash docs/experiments/MIGRATION/run_on_sm120.sh        # on the migration target
 ./build-portable/tools/tilemega-migrate --repo .        # the sm_89 baseline, no GPU

@@ -1,5 +1,11 @@
 # P4.6 — the event-granularity ablation, and why κ is not a DP state variable
 
+> Historical FP32 protocol: references below to external `-include` plans and
+> `wait_table=exact|degraded` describe the failure that motivated the runtime
+> variant work. They are superseded by `docs/experiments/VARIANT/`: granularity
+> and its exact dependency table now travel together in generated `ModelSpec`,
+> and the old 0/50 configuration passes 50/50 without a degraded path.
+
 Reproduce: `bash docs/experiments/COARSEN/run.sh` (GPU; `RUNS=60`, 11 arms,
 two models = 1320 fresh processes). `MODELS=mha4` re-runs one half. The
 analytic probe needs no GPU.

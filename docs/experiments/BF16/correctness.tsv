@@ -1,0 +1,3 @@
+model	dtype	l0_l05_l1_l2	fresh_process_passes	fresh_processes	hmma_bf16_static_instructions
+gqa2	bf16	PASS	50	50	96
+mha4	bf16	PASS	50	50	96

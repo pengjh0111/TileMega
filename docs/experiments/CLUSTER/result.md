@@ -1,5 +1,15 @@
 # Part 7 — cluster-scoped synchronization (DSMEM)
 
+> **2026-09-05 protocol update.** `run_on_cluster_gpu.sh` now configures its
+> own build and regenerates both models as BF16 + structured ownership before
+> compiling cluster dimensions 1/2/4/8. It requires runtime
+> `TargetSpec::Probe().caps.cluster`, checks the actual maximum cluster size,
+> and requires zero `UCGABAR` instructions in the flat control and nonzero in
+> every clustered cubin. Each generated megakernel arm runs 50 fresh processes
+> by default. ❌ The new arm is not claimed as executed on this sm_89 host; the
+> cross-compile evidence below remains valid, while its older FP32/ownership
+> execution description is superseded by the script.
+
 **需要 sm_90+ 硬件，本机未运行。** This box is an RTX 4090 (sm_89); its
 `TargetSpec::Probe()` reports `caps.cluster == false`, so no number in this
 document is a measurement of cluster behaviour on hardware. What *is* verified

@@ -66,7 +66,12 @@ class LlamaLayer(nn.Module):
         v = self.v_proj(h).view(batch, seq, self.kv_heads, self.head_dim).transpose(1, 2)
 
         past = past_k.shape[2]
-        positions = torch.arange(past, past + seq, device=x.device, dtype=self.inv_freq.dtype)
+        # Make the integer-to-storage conversion explicit. Direct BF16 arange
+        # has backend-dependent midpoint behavior for dynamic non-zero starts;
+        # an integer range followed by a cast is stable on CPU and CUDA.
+        positions = torch.arange(
+            past, past + seq, device=x.device, dtype=torch.int64
+        ).to(self.inv_freq.dtype)
         phase = torch.outer(positions, self.inv_freq)
         phase = torch.cat((phase, phase), dim=-1)[None, None, :, :]
         q = q * phase.cos() + rotate_half(q) * phase.sin()
@@ -209,16 +214,22 @@ def build_cg(program: torch.export.ExportedProgram) -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--dtype", choices=("f32", "bf16"), default="f32")
+    parser.add_argument("--seq-max", type=int, default=8)
+    parser.add_argument("--past-max", type=int, default=8)
+    parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
 
     torch.manual_seed(20260901)
-    model = TwoLayerLlama().eval()
-    hidden = torch.randn(1, 4, 512)
-    caches = [torch.randn(1, 2, 3, 128) for _ in range(4)]
+    dtype = torch.bfloat16 if args.dtype == "bf16" else torch.float32
+    device = torch.device(args.device)
+    model = TwoLayerLlama().eval().to(device=device, dtype=dtype)
+    hidden = torch.randn(1, 4, 512, dtype=dtype, device=device)
+    caches = [torch.randn(1, 2, 3, 128, dtype=dtype, device=device) for _ in range(4)]
     inputs = (hidden, *caches)
-    seq = Dim("seq_len", min=1, max=8)
-    past = Dim("past_len", min=1, max=8)
+    seq = Dim("seq_len", min=1, max=args.seq_max)
+    past = Dim("past_len", min=0, max=args.past_max)
     dynamic_shapes = (
         {1: seq},
         {2: past},
@@ -259,8 +270,8 @@ def main() -> None:
     runtime_validation = []
     for runtime_seq, runtime_past in ((1, 8), (8, 1), (2, 5)):
         runtime_inputs = (
-            torch.randn(1, runtime_seq, 512),
-            *[torch.randn(1, 2, runtime_past, 128) for _ in range(4)],
+            torch.randn(1, runtime_seq, 512, dtype=dtype, device=device),
+            *[torch.randn(1, 2, runtime_past, 128, dtype=dtype, device=device) for _ in range(4)],
         )
         with torch.no_grad():
             runtime_outputs = exported_module(*runtime_inputs)
@@ -274,11 +285,11 @@ def main() -> None:
         )
     unequal_cache_guard = {"status": "not_checked", "error": ""}
     invalid_inputs = (
-        torch.randn(1, 2, 512),
-        torch.randn(1, 2, 3, 128),
-        torch.randn(1, 2, 4, 128),
-        torch.randn(1, 2, 3, 128),
-        torch.randn(1, 2, 3, 128),
+        torch.randn(1, 2, 512, dtype=dtype, device=device),
+        torch.randn(1, 2, 3, 128, dtype=dtype, device=device),
+        torch.randn(1, 2, 4, 128, dtype=dtype, device=device),
+        torch.randn(1, 2, 3, 128, dtype=dtype, device=device),
+        torch.randn(1, 2, 3, 128, dtype=dtype, device=device),
     )
     try:
         with torch.no_grad():
@@ -311,6 +322,7 @@ def main() -> None:
         "strict_export": True,
         "stable_three_exports": stable,
         "model": {
+            "dtype": args.dtype,
             "layers": 2,
             "hidden": 512,
             "intermediate": 1024,

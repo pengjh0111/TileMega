@@ -1,0 +1,2 @@
+dtype	streamk_occupancy_points	smem_over_l2_min	smem_over_l2_max	pearson	independently_identifiable
+bf16	20	3.4715200776	3.4715200776	1.0000000000	false

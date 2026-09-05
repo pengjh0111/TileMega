@@ -366,3 +366,222 @@ The register and smem footprints are **identical between gqa2 and mha4** for
 every one of the 1077 shared configurations. That is a property of the task
 body and the smem union — the code is per-`g`, not per-model — and it is why
 Part 4's query takes a `g` and a target, not a model.
+
+---
+
+# 6.7 The BF16 + structured-ownership re-sweep (2026-09-05)
+
+Everything above is the FP32, element-chunk-ownership sweep. Part 2 and Part 3
+changed both, so the validation set was re-measured end to end rather than
+carried over. Reproduce with `bash docs/experiments/ORACLE/run.sh` (it execs
+`run_bf16.sh`; the compile stage is cached per point and resumable).
+
+The protocol is unchanged: 3 fresh processes minimum for screening, 25 fresh
+processes median for the finals.
+
+## Tier-1 enumeration
+
+✅ verified, `raw_bf16/tier1.tsv` — the legality is the BF16 Tensor Core
+family's, not FP32 SIMT's (`tile_m % 32`, `tile_n % 16`, `tile_k % 16`,
+128 threads, 8-element alignment):
+
+| | count |
+|---|---:|
+| enumerated shapes | 300 |
+| shape-legal | 160 |
+| … and fitting the dynamic smem budget | 154 |
+| × split-K ∈ {1,2,4,8,16} = configurations per model | **770** |
+
+## What the sweep measured
+
+✅ 1540 points generated, compiled and measured. The generator owns the
+granularity now, so each point is a `--variants` plan rather than a `-D`
+override: there is no compile-time knob left that could disagree with the
+dependency table (F-65).
+
+| | gqa2 | mha4 |
+|---|---:|---:|
+| configurations | 770 | 770 |
+| screened PASS | **770** | **462** |
+| excluded by the L0 comparison | 0 | **308** |
+| finalists re-measured at 25 processes | 17 | 17 |
+| finalist pass rate | 17 × 25/25 | 17 × 25/25 |
+
+⚠️ **The mha4 exclusion is not random and must not be read as noise.** It is
+exactly split-K ∈ {2, 16}: 154/154 configurations fail at each of those two
+split factors and 154/154 pass at each of {1, 4, 8}, for every tile shape.
+The cause is in the *comparison*, not in TileMega:
+
+* every excluded run has `l1_vs_l05_mismatch = 0` and `l2_vs_l1_mismatch = 0` —
+  the three TileMega levels are bit-identical to each other;
+* the offending elements are a handful of BF16 ulp over the bound. At
+  split-K 2 exactly **one** element of the whole model exceeds it:
+  `actual = -0.96875, expected = -0.9375, delta = 0.03125` against a tolerance
+  of `1.6e-2 + 1.6e-2·|e| = 0.031000`. It fails by 0.8 %. At split-K 16 five
+  elements fail, all in the same way (`E2E_DIFF_ELEM`, `TILEMEGA_DIFF_DUMP=n`).
+* configurations that **pass** carry larger deviations: split-K 8 reaches
+  `max_abs = 0.0625`, which clears the bound only because it lands on an
+  element with a larger `|e|`.
+
+So the bound decides on where the largest few-ulp deviation happens to land,
+not on whether the configuration is correct. The bound was chosen on the
+SEQSCAN matrix, which fixes one split factor; it does not generalize across the
+split-K axis, and this sweep is where that shows.
+
+**The threshold was not moved.** The consequence is recorded instead:
+`screen_mha4.tsv` has 462 rows and is censored along `split_k`, a decision
+variable, so **mha4's ranking statistics below are not comparable with gqa2's
+770-point ones**, and the mha4 optimum is the optimum of {1,4,8}.
+
+## Q1 — how much faster is the optimal `g` than the fixed value?
+
+Against the same control as §6.3, `128x128x16s3k1`, at 25-process medians
+(`raw_bf16/final_*.tsv`):
+
+| | control `l1_ms` | best | best `l1_ms` | ratio |
+|---|---:|---|---:|---:|
+| gqa2 | 0.400384 | `32x16x16s2k8` | 0.176128 | **2.273×** |
+| mha4 | 0.794624 | `32x16x16s2k8` | 0.342784 | **2.318×** |
+
+✅ The investment criterion still holds — 2.3× is far past §6.4's 10 % bar —
+but it is **less than half of FP32's 6.11× / 6.75×**. The Tensor Core mainloop
+narrows the gap between a bad `g` and a good one, because more of the runtime
+is in parts that `g` does not control. The optimum also moved, exactly as
+Part 2.1 predicted: FP32's winner was `16x64x16s2k16`; BF16's is
+`32x16x16s2k8`, which is not even a legal FP32-family shape.
+
+### Paired, same-session confirmation of Q1
+
+`pair_final.sh` interleaves the control and the finalist (selected on the
+`l05` median of `final_*.tsv`) over 25 fresh-process rounds, alternating the
+order each round, and reports a 20 000-resample bootstrap CI on the within-round
+percentage delta plus a paired Wilcoxon (`raw_bf16/paired_stats.tsv`):
+
+| model | best | level | control | best | delta | 95% CI | Wilcoxon p |
+|---|---|---|---:|---:|---:|---|---|
+| gqa2 | `32x16x16s4k8` | l05 | 0.423936 | 0.188512 | **−55.56%** | [−56.26, −54.72] | 1.31e−05 |
+| gqa2 | | l1 | 0.401408 | 0.179200 | **−55.33%** | [−55.49, −55.22] | 1.30e−05 |
+| gqa2 | | l2 | 0.492544 | 0.414720 | −15.80% | [−15.94, −15.63] | 1.29e−05 |
+| mha4 | `32x16x32s2k8` | l05 | 0.813024 | 0.344064 | **−57.74%** | [−58.17, −56.87] | 1.31e−05 |
+| mha4 | | l1 | 0.793824 | 0.350208 | **−55.99%** | [−56.06, −55.81] | 1.30e−05 |
+| mha4 | | l2 | 0.991232 | 0.882880 | −10.93% | [−10.96, −10.75] | 1.30e−05 |
+
+✅ The 2.27×/2.32× above is confirmed within one session against a control
+measured in the same session (−55.3% and −56.0% on L1 are 2.24× and 2.27×).
+
+⚠️ The persistent L2 path keeps only a third of that gain (−15.8% / −10.9%).
+The winning configurations are small tiles at a 640-wide grid, and L2's event
+polling scales with the grid; §6.7's optimum is an L0.5/L1 optimum, and a
+solver that optimizes for the megakernel path would not necessarily pick it.
+
+## Q5 — the shape of the distribution
+
+| | gqa2 (770) | mha4 (462) |
+|---|---:|---:|
+| best `l1_ms` | 0.176096 | 0.340992 |
+| median | 0.286976 | 0.563200 |
+| worst | 6.139072 | 9.516032 |
+| worst / best | 34.9× | 27.9× |
+| within 10 % of best | 30 | 20 |
+| within 25 % of best | 141 | 84 |
+
+The plateau is narrower than FP32's top-34: **30 and 20 configurations** sit
+within 10 %. Picking `g` matters more in BF16, not less, even though the
+fixed-vs-optimal ratio fell.
+
+## The cost model does **not** reproduce its FP32 accuracy — Part 2.4 fails
+
+✅ verified, `raw_bf16/cost/summary.tsv`, produced by the same
+`tilemega-costmodel` ladder as §6.6 with `--dtype bf16`:
+
+| layer | gqa2 ρ | mha4 ρ | FP32 gqa2 ρ | FP32 mha4 ρ |
+|---|---:|---:|---:|---:|
+| roofline | 0.5211 | 0.5348 | 0.4435 | 0.4303 |
+| +splitk | **0.4926** | 0.5285 | 0.9071 | 0.9043 |
+| +sync | 0.3918 | 0.4292 | 0.9095 | 0.9070 |
+| +waves | 0.5605 | 0.6239 | 0.9450 | 0.9435 |
+| full | **0.5605** | **0.6239** | **0.9450** | **0.9435** |
+| `tier2-baseline` (analytic, uncalibrated) | **0.8778** | **0.8738** | 0.4608 | 0.4462 |
+
+Part 2.4 asked for "not worse than FP32" (ρ 0.9450 / 0.9435, top-1 and top-3
+inside the measured top 3 %). The measured result is ρ **0.5605 / 0.6239**,
+`top1 = top3 = top10 = 0`, and the true optimum ranked **104th / 51st**.
+**The acceptance is not met, and the threshold was not moved to meet it.**
+
+Worse, and the reason this is a finding rather than a tuning gap: the
+uncalibrated analytic ranking (`tier2-baseline`) reaches **0.8778 / 0.8738**
+and puts the optimum at rank 25 / 19. In BF16 the calibrated model ranks
+*worse than the baseline it was built to replace*, having beaten it 2:1 in
+FP32.
+
+### Attribution — it is the split-K term, and behind it one clamped constant
+
+The ladder localizes it: `+splitk` is the layer that *reduces* ρ on gqa2
+(0.5211 → 0.4926), where in FP32 it was the layer that produced the whole gain
+(0.4435 → 0.9071). The predictions say the same thing directly
+(`raw_bf16/cost/predictions_gqa2.tsv`) — the model's eight best configurations
+are all split-K 16:
+
+| model's pick | predicted `l1_ms` | measured `l1_ms` |
+|---|---:|---:|
+| `32x128x32s3k16` | 0.0995 | 0.239616 |
+| `64x128x32s2k16` | 0.1030 | 0.288960 |
+| `32x128x32s4k16` | 0.1030 | 0.215040 |
+| `64x64x32s5k16` | 0.1030 | 0.212992 |
+| … | | |
+| *the true optimum* `32x16x16s2k8` | 0.1372 | **0.176096** |
+
+It predicts a 2–3× speedup from splitting K that the hardware does not deliver.
+Two calibrated quantities explain it, and both are visible in
+`configs/targets/sm_89.json`:
+
+1. **`combine_fixed_ns` is 0 in the BF16 profile and 108.1 ns in FP32.** The
+   calibrator fits the reduction stage's width-independent term and stores
+   `max(0, fit)` because the intercept is unresolved — `|value| < 300 ns`, 150 %
+   spread, either sign (`GemmCalibration.cu:479`, and the honest note that ships
+   with it). In FP32 the fit landed at +108 ns and the clamp never bound; in
+   BF16 it landed negative and the model now charges **~0.12 µs for every
+   reduction in the whole model**. A split-K stage is therefore nearly free to
+   the model, so it always prefers the largest split. ⚠️ This is an unresolved
+   constant that was harmless at FP32 speeds and becomes decisive once the
+   mainloop is ~4× faster — the same absolute uncertainty, a much larger share
+   of the runtime.
+2. **Three of the six BF16 Stream-K points fit a negative per-CTA setup**
+   (`a_ns` = −119.2, −438.6, −400.7 at `64x64x16s3`, `32x32x32s3`,
+   `32x64x16s2`), against `256x128x16s3`'s +10342.1, with `fit_r2 = 0.922`
+   versus FP32's 0.974. A per-CTA setup time cannot be negative; the fit is
+   ill-conditioned in this regime and gives small tiles an artificial bonus.
+
+Neither is a defect of §2.2's model structure, and neither is fixed here: the
+fix is a better *measurement* of the reduction stage, which is new work and is
+recorded as such rather than attempted at the end of this round.
+
+### What the nine lanes contribute in BF16
+
+One-variable lane ablations, `full-minus-<lane>` (`summary.tsv`):
+
+| removed lane | gqa2 ρ | gqa2 MAPE | mha4 ρ | mha4 MAPE |
+|---|---:|---:|---:|---:|
+| — (full) | 0.5605 | 39.41 | 0.6239 | 37.59 |
+| `tc` | 0.5595 | 39.42 | 0.6230 | 37.61 |
+| `smem` | 0.5959 | 53.78 | 0.6370 | 51.92 |
+| `cuda`, `sfu`, `tmem`, `l1_5`, `l2`, `ddr`, `net` | 0.5605 | 39.41 | 0.6239 | 37.59 |
+
+⚠️ **The `tc` lane, which was the entire reason for keeping nine lanes, changes
+the ranking by 0.001.** Deleting it costs almost nothing. The only lane that
+moves MAPE is still `smem` — and removing it *improves* ρ slightly, so even
+that is not carrying the ranking. Six of the nine lanes are exactly inert:
+`tmem`, `l1_5` and `net` because sm_89 has no such pipe, and `cuda`, `sfu`,
+`l2`, `ddr` because the max never selects them.
+
+So Part 2.1's prediction — "the `tc` lane becomes the bottleneck; this is the
+reason for keeping nine dimensions" — is **not confirmed on sm_89**. The BF16
+mainloop is fast enough that the bottleneck moves further away from the compute
+lanes, not into them.
+
+The SMEM/L2 collinearity that Part 2.3 asked to re-test is likewise unbroken:
+both lanes are built from the same
+`occupancy · 2 · Tk · (Tm + Tn)` feature, ratio constant at 3.4715200776 and
+Pearson 1 over all 20 calibrated occupancy points
+(`../BF16/identifiability.tsv`). ❌ Changing dtype does not make them
+identifiable; that needs a target where TMA moves one without the other.
