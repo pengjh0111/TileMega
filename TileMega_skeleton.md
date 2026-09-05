@@ -98,12 +98,12 @@ L4    符号形状参数化 + 运行时变体选择
 | 层 | 路径已验证 | 代码已实现 | 证据 |
 |---|---|---|---|
 | L5 Serving | — | ❌ | — |
-| L4 Frontend | ✅ | ✅ | V-H；结构化 importer：2 层 GQA 为 30 stage，4 层 MHA 为 60 stage |
+| L4 Frontend | ✅ | ✅ | V-H；结构化 importer：2 层 GQA 为 30 stage，4 层 MHA 为 60 stage；FakeTensor dtype 进入 L-sem 与 `ModelSpec`，FP32/BF16 均有端到端证据（`docs/experiments/BF16/`） |
 | L3a 符号类型 | ✅ | ✅ | F-14；`coupling_types_test` / `cg_attr_roundtrip` |
 | L3b 耦合推导 | ✅ | ✅ | P3/P3_ISL：`W⁻¹∘R` 为 isl_map，wait/fanout 为 barvinok 计数；§2.7 全 13 行交叉验证（并纠正表中边 3 的 fanout）；Coarsen/I2/事件综合单测。**已驱动生产路径**：`Frontend.cpp` 按算子粒度建 `OperatorGraph` 并调 `CouplingDerivation`，`wait_map` 落到 IR、经 codegen 成为 `StageDependency`（gqa2 38 对：20 `kAll` / 3 `kIdentity` / 15 `kWindow`，`docs/experiments/WIRING/`） |
-| L2 Solver | ✅ | ✅ | 代价查询与候选枚举：`docs/experiments/BACKEND/`（一个 GEMM 算子 224 个合法候选，216 可编译）；实现契约与一致性校验：`docs/experiments/CONTRACT/`；投入判据：`docs/experiments/ORACLE/`（穷举 `g`，固定值比最优慢 6.11×/6.75×）。标定：`docs/experiments/CALIB/`。代价模型在 2154 个实测点上 ρ = 0.9450 / 0.9435、top-3 落在实测 top-3%，单配置 < 33 µs（`docs/experiments/COST_MODEL/`）。链上 DP：`docs/experiments/SOLVER/`，选中的 `16x64x16s2k16` 在 25 进程终测里排 2/15 与 1/13，比 tier-1-only 对照快 1.214% / 0.769%。Label 实现完毕但簇消融要 sm_90+（`docs/experiments/CLUSTER/`）；Coarsen 已消融、κ 不进 DP（`docs/experiments/COARSEN/`）；Place 已给出投入判据、时间局部性目标 < 2% 故不建 list scheduling（`docs/experiments/PLACE/`） |
-| L1 Codegen | ✅ | ✅ | E2E_GEN：表驱动 L0.5/L1/L2；2 层 GQA 50/50、4 层 MHA 25/25 全新进程；L2 逐位等同 L1，接入推导表后中位数 1.036×/1.038×（25 进程组内配对，旧的 1.014×/1.016× 跨会话不可比，见 `docs/experiments/E2E_L2/`） |
-| L0 Backend | ✅ | ✅ | V-I 四架构交叉编译 |
+| L2 Solver | ✅ | ⚠️ | FP32：2154 个实测点上 ρ = 0.9450 / 0.9435、top-3 落入实测 top-3%（`COST_MODEL`）。**BF16：1540 点重扫后 ρ 只有 0.5605 / 0.6239，top-1/3/10 全为 0，且输给未标定的解析基线 tier2（0.8778 / 0.8738）——P5.1 的区间划分不能建在当前 BF16 代价模型上**。归因是 `combine_fixed_ns` 在 BF16 被钳成 0（FP32 为 108.1 ns）使 split-K 近乎免费，不是 §2.2 的结构问题，见 `ORACLE/result.md` §6.7。链上 DP、Label、Coarsen 的既有结论见各实验目录；所有权 Place 已从 20/3/15 改善为 10/7/21 |
+| L1 Codegen | ✅ | ✅ | 单二进制最多 16 个生成器控制的粒度变体，运行时 O(1) 选取且每变体携带自己的精确依赖表；两个参考模型 BF16 L0.5/L1/L2 各 50/50，COARSEN 旧失败配置恢复 50/50；无 occupancy 损失的实测上限为 2 变体（`VARIANT` / `BF16`） |
+| L0 Backend | ✅ | ✅ | V-I 四架构交叉编译；FP32 SIMT 与 BF16 Tensor Core 均由 `ArchDispatch::Caps` 分发，BF16 二进制各确认 96 条 `HMMA.16816.F32.BF16` 静态指令 |
 
 此表是项目实现状态的唯一权威来源；每轮结束随代码和实验证据同步更新。
 
@@ -119,6 +119,10 @@ L4    符号形状参数化 + 运行时变体选择
   layout 代数结果喂进求解器时，需要补一个 `cute::Layout → LayoutDescriptor`
   的适配层（V-F 已确认 `Flatten`/`Coalesce` 对动态维可用，所以这一步是有
   依据的，只是没写）。另外 `FromIslMap` 只接受字面 extent（见 P3.1）。
+  **对 Phase 5 的阻塞影响**：区间求解本身不依赖这个适配层，现有 registry
+  的候选也可生成多变体；但若 Phase 5 要把任意 CUTLASS collective 实际产生的
+  嵌套 layout 纳入 `g` 候选并自动证明 access 契约，这层就是扩展候选覆盖面的
+  前置。它不阻塞当前两参考模型，阻塞的是“后端 layout 自动反哺求解器”。
 
 - **isl 的除数必须是字面常量，这约束了参数何时可以保持符号化**：
   `isl_aff_div` 在 C API 层就拒绝参数化除数（`docs/experiments/P3_ISL/`），
@@ -146,26 +150,23 @@ L4    符号形状参数化 + 运行时变体选择
   别的参数取值下可达、在当前取值下恒为 0"的尾巴而误报 `min = 0`。现在的
   做法是只把生产者盒子作用在**反向映射**上（`ProducerRangeBoxText` +
   `FanoutCard`），让两个方向各自留在自己可解的区域。这是绕过而不是修复：
-  上游若换 isl/barvinok 版本，这条需要重测。
+  上游若换 isl/barvinok 版本，这条需要重测。✅ BF16 重标定后仍然需要：dtype
+  只改变实现候选与每元素字节数，不改变这些参数化整数集合；BF16 的生产路径
+  继续经过同一个双向定界实现并通过 target-audit。该结论是代码路径核对，
+  不是一次新的 barvinok 数值现象。
 
-- **~~L2 的 `notify`/`wait` 仍然只走 `kAll`~~ 已还清；换来的是一条更靠外的
-  债**：`lib/Frontend/Frontend.cpp` 现在按算子粒度建 `OperatorGraph` 并调用
-  `CouplingDerivation`，推出的 `C` 以 `wait_map` 属性落到每条 coupling 上，
-  生成器按 stage 对合并后写进 `StageDependency`。2 层 GQA 的 38 个 stage 对
-  上得到 20 条 `kAll` / 3 条 `kIdentity` / 15 条 `kWindow`（✅
-  `docs/experiments/E2E_L2/raw/dependency_table_forms.txt`），§2.7 六种形状
-  里有五种被仿射区间编码逐条承载。
-  **但窄化目前一条 poll 也没省下来，原因是 Place 而不是 `C`**：在
-  `seq = 512`、κ = 1 的计数模型下，89.9% 的 poll 落在至少有一端声明
-  `kElementChunk` 的边上——那里 `blockIdx.x` 两侧指的不是同一份数据，逐 CTA
-  窗口不可容许；15 条 window 边只占 5.9%，而它们每条的
-  `count = scale = Tm = 128` 恰好等于这台机器的 `gridDim.x`，在 grid-stride
-  放置下一段步长宽的连续任务区间覆盖了全部 CTA，映射回去就是整条发射轴。
-  所以"窗口精确"与"窗口有用"是两件事，后者是 §2.3 **Place** 的决定
-  （`docs/experiments/E2E_L2/waitset.md`）。L2 的中位数现在是 L1 的
-  `1.036×`/`1.038×`（25 进程组内配对，✅ Wilcoxon p = 1.3e−05）；旧的
-  `1.014×`/`1.016×` 已被判定不可比——同一个字节相同的二进制今天重测就是
-  `1.0367×`，见下面的跨会话漂移一条。
+- **~~`kElementChunk` 把精确窗口收益封顶在 5.9%~~ 已还清；所有权 Place 与
+  缓存局部性 Place 必须分开讨论**：先只把 RoPE 从扁平 grid-stride chunk
+  改成 `(token, head)` tile，边可窄化且 seq=128 的 L2 改善 3.23%/6.40%，
+  body 本身没有显著倒退；据预先判据推广到 KVAppend、activation 与 split-K
+  combiner。最终 GQA 的 38 个 stage 对从 20 `kAll` / 3 `kIdentity` /
+  15 `kWindow` 变为 **10 / 7 / 21**。✅ seq=128 的精确 poll 从 482316 降到
+  282636（−41.40%），exact/relaxed 从 0.999925 降到 0.520240；25 进程配对下
+  L2 改善 **13.57% / 16.32%**，而 L0.5 body 代价为 1.00%/1.25%。这是
+  “task body 的 work 如何归属 CTA”的 Place 契约；此前被否决的是“相邻 task
+  是否发给同一 SM 以复用缓存”的 list-scheduling 目标，二者不是同一个决策。
+  剩余 10 条 `kAll` 是全归约或不兼容 domain 的语义结果，不是降级回退。
+  证据：`docs/experiments/OWNERSHIP/`。
 
 - **~~`kIdentity` 的可行性判定是一个按算子名的代理~~ 已还清**：
   `tools/tilemega-identity-probe` 现在问的是生产路径本身——推导出的 isl `C`，
@@ -229,18 +230,51 @@ L4    符号形状参数化 + 运行时变体选择
   它们是在最小值上算出来的一份计数。要让求解器用这些数值做跨长度的决策，
   必须先把它们改成随参数变化的拟多项式而不是一个整数。
 
-- **一张形状相关的依赖表带有一条编译期粒度前提，`-include` 可以静默地
-  破坏它**（本轮实测，代价是 0/50）：`div/scale/offset/count` 是任务分解
-  上的整数，而 GEMM 的分解是编译期开关（`TILEMEGA_GEMM_TILE_M` 等），
-  生成器并不控制它。用 `-include plan_gqa2_uniform.h`（`tile_m 16`,
-  `split_k 16`）重编同一份 `.cu`，每个拟合常量都指向错误的生产者任务，
-  于是**欠等待**——而欠等待是静默的：✅ 50 个全新进程 **0 个通过**，
-  `l2_vs_l1_mismatch=4096`。现在生成器发出它拟合时的粒度
-  （`TILEMEGA_GENERATED_WINDOW_TILE_M/_TILE_N/_SPLIT_K`），harness 只在编译
-  粒度一致时才走窄路径，否则退回 `kAll`，每次运行都在
-  `E2E_KAPPA … wait_table=exact|degraded` 里说明走了哪条（修复后两条分支
-  各 ✅ 50/50）。**这条前提是新增的耦合面**：任何未来把形状常量烘进生成
-  代码的优化都要带上同样的自证，否则它的失效模式是错误结果而不是慢。
+- **~~GEMM 粒度是 `-D` 宏，依赖表只能 exact/degraded 二选一~~ 已还清**：
+  `tilemega-compile --variants` 现在对每个 `RuntimeVariantDesc` 独立实例化 L-task、
+  推导 coupling，并把 GEMM 粒度和对应的 `StageDependency` 一起写入
+  `ModelSpec`；同一二进制可含 16 个 CUTLASS 模板，host 以 `seq` 做 O(1)
+  区间查表。旧的粒度比较、`TILEMEGA_GENERATED_WINDOW_*` 与
+  `wait_table=degraded` 已移除，每个变体都只报告 `variant_exact`。✅ 曾经
+  0/50 的 `16x64x16s2k16` COARSEN 配置在两个模型上都恢复 50/50。
+  新的、已量化的边界是资源：1/2 个变体保持 5 CTA/SM，4 个降到 4，8 个
+  降到 2，16 个降到 1；第一个拐点是寄存器而非 smem union。Phase 5 默认
+  每 binary 至多两个区间，更多区间要跨 binary 分区。证据：
+  `docs/experiments/VARIANT/`。
+
+- **~~只测 `seq=4`，抓不到 grid-stride 欠等待~~ 已还清**：两个参考模型的
+  `seq∈{1,4,128,512,2048} × past∈{0,3,512}`、L0/L0.5/L1/L2 共 30 格，
+  每格 50 个全新进程，✅ **1500/1500**。矩阵实际抓到并修复了 attention 与
+  RMSNorm “声明 grid-stride、只执行首个 task”的问题，以及 attention score
+  shared row 只按 CTA 宽度分配的问题。故意重编旧 `min(count,grid)` clamp 后，
+  `seq=2048,past=0` 在 50/50 进程里失败，证明矩阵对该静默欠等待敏感。
+  证据：`docs/experiments/SEQSCAN/`。
+
+- **~~BF16 未贯通~~ 已还清；换来的是一条更贵的债——BF16 的代价模型排不准**：
+  dtype 来自 FakeTensor，L-sem、registry、TaskBody 与 `ModelSpec` 全程携带；
+  所有 body 用 BF16 存储，GEMM/norm/softmax 用 FP32 累加。✅ 两模型各 50/50，
+  SASS 各有 96 条 BF16 HMMA。FP32 标定保留，BF16 独立 profile 的 Tensor Core
+  为 179.997 TFLOP/s，DRAM pin 97.37%，前后漂移 0.00073%。
+  ⚠️ **1540 点重扫后代价模型 ρ 只有 0.5605 / 0.6239**（FP32 0.9450 / 0.9435），
+  top-1/3/10 全为 0，并且输给未标定的解析基线 tier2（0.8778 / 0.8738）。
+  归因是 `combine_fixed_ns` 在 BF16 被 `max(0, fit)` 钳成 0（FP32 落在正侧、
+  108.1 ns），于是 split-K 近乎免费、模型前八名全是 split-K 16；另有三个
+  BF16 Stream-K 形状拟合出负的每 CTA setup。**同一个"未解析"的绝对不确定度
+  在 FP32 下无害，在 mainloop 快 4× 之后变成决定性的**——这是本轮最贵的一课。
+  修法是把归约阶段的固定代价真正测出来而不是钳零，属于新的实机工作，本轮
+  没有做。证据：`docs/experiments/BF16/`、`docs/experiments/ORACLE/` §6.7。
+
+- **BF16 的逐元素判据是在单一 split 上定的，跨 split-K 轴不成立**（本轮实测）：
+  `1.6e-2 + 1.6e-2·|e|` 这个界取自 SEQSCAN 矩阵，那里 split 因子是固定的。
+  在 ORACLE 的 split-K 轴上，mha4 的 split_k ∈ {2,16} **每档 154/154 全判
+  MISMATCH**，而 {1,4,8} 每档 154/154 全过。逐元素看是几个 BF16 ulp 刚好越界
+  （split 2 时全模型只有 1 个元素超标：−0.96875 对 −0.9375，delta 0.03125 对
+  容差 0.031000，超出 0.8%），而**通过的配置反而带着更大的偏差**（split 8 的
+  `max_abs = 0.0625`，只因落在 `|e|` 更大的元素上）。TileMega 自己的
+  L0.5/L1/L2 在这些点上逐位一致。**阈值没有被放宽**；代价是 mha4 的验证集从
+  770 被截到 462，且截断方向与 `split_k` 这个决策变量相关，因此 mha4 的排序
+  统计不能与 gqa2 的 770 点直接并列。诊断用 `TILEMEGA_DIFF_DUMP=n`
+  逐元素打印实际值与容差。
 
 - **跨会话的绝对延迟不可比，只有会话内配对可比**（本轮实测）：同一个
   字节相同的二进制（`docs/experiments/E2E_GEN/generated_e2e`）在 09-03 记录
@@ -380,8 +414,8 @@ V-A 的局部环在 2×容量仍推进，而 V-J 的反向依赖在 `resident_li
 | **Reparam** | ✅ 是 | 链上 DP 的状态就是 `g`（tile 形状、stages、split-K）。它也是唯一**不需要** `C` 的一个：代价模型读的是形状与标定表，不读耦合关系。 |
 | **Coarsen** | ❌ 否 | κ 不是 DP 状态变量。收益侧接通 `C` 之后仍然 ≤ 2.4% 且从 κ = 4 起恒为零，代价侧 24 个臂每一个 CI 都与 per-stage 方案不相交（`docs/experiments/COARSEN/`）。理由是实测的，不是继承的。 |
 | **Label** | ⚠️ 部分 | `sync_kind` 的判定与 `ClusterSync` 原语都在，簇常数也已标定，但没有一条 CG 边在 sm_89 上能取 `cluster`，所以它现在恒取 `global`；端到端消融欠一台 sm_90+ 机器。 |
-| **Place** | ❌ 否（但它是当前的瓶颈） | 放置目前是固定的 grid-stride，不是求解出来的。而 §3.1 的归因表明 wait set 的 89.9% poll 质量落在 `kElementChunk` 放置的边上、window 边的 `count = gridDim.x` 也是放置造成的——**`C` 再精确也搬不动它**，能搬动的是 Place。这是下一轮唯一有杠杆的位置。 |
-| **Relax** | ✅ 是（安全方向） | `Contains(C', C)` 是 `isl_map_is_subset`，Tier 2/3 与"粒度不匹配"两种情况都退回 `kAll`（超集）。它决定的不是快慢而是正确性，且退化路径每次运行都自报（`wait_table=exact\|degraded`）。 |
+| **Place** | ⚠️ 部分 | 缓存局部性的 list scheduling 仍未进入求解器，且实测目标 <2% 后被否决；但 TaskBody 的**所有权 Place** 已受控改成 tile-aligned：all/identity/window 从 20/3/15 变 10/7/21，seq=128 的 poll −41.40%、L2 +13.57%/+16.32%。前者回答“哪个 worker 接 task”，后者回答“一个 task 如何切给 CTA”，不得混写。 |
+| **Relax** | ✅ 是（安全方向） | `Contains(C', C)` 是 `isl_map_is_subset`，真正的 Tier 2/3 非精确边仍可取 `kAll` 超集；但“编译粒度与推导粒度不匹配”的回退已经不存在——每个运行时变体携带自己粒度下推导的精确表，不再有 `wait_table=degraded`。 |
 
 **事件张量**由粗化后的耦合直接给出：
 
@@ -834,6 +868,35 @@ Split-K Interface 用 Stream-K 形式 a + b·[peers>1] + c·iters + d·(peers−
   smem 流量与 L2 流量成固定比例，拟合分不开它们。把瓶颈叫作 SMEM 是一个
   微架构论证（标量 `ld.shared` 流水在这些形状上先饱和），**不是拟合结论**。
   sm_90+ 上 TMA 把两者解耦，届时必须重测，不得沿用这个命名。
+
+**BF16 profile（本轮新增，不覆盖上述 FP32 结论）**：✅ `tc` 的标定来自真实
+BF16 MMA 与 BF16 CUTLASS Stream-K，不是把 FP16 峰值改名；sm_89 实测
+179.997 TFLOP/s，DRAM 981.59 GB/s，SMEM 64035.18 GB/s，L2 5111.81 GB/s，
+并以 `calibration_by_dtype.bf16` 与 FP32 并存。代价查询在 BF16 时把 FMA 工作
+放入 `tc` lane、按 2-byte 元素计算 traffic，并支持逐 lane 禁用。
+
+✅ SMEM/L2 的重新检验给出负结论：当前 BF16 feature 中两者都正比于
+`occupancy·2·Tk·(Tm+Tn)`，20 个标定点上的比例恒为 3.4715200776、Pearson=1，
+因此**仍不可独立拟合**；这暴露的是 feature 构造限制，不是说硬件管线相同。
+**重扫已完成，结果是负的**（1540 点，`docs/experiments/ORACLE/result.md` §6.7）：
+BF16 完整模型 ρ 只有 **0.5605 / 0.6239**（FP32 为 0.9450 / 0.9435），top-1/3/10
+全为 0，真实最优被排到第 104 / 51 名，并且**输给未标定的解析基线**
+`tier2-baseline`（0.8778 / 0.8738）——在 FP32 上它以 2:1 胜出。P4.4 的验收在
+BF16 上**未通过**，阈值没有被改动。
+
+✅ 归因落在 split-K 项而不是 §2.2 的结构：阶梯里 `+splitk` 是唯一使 ρ **下降**
+的一层（gqa2 0.5211 → 0.4926），而 FP32 上正是这一层带来全部增益。根因是
+`combine_fixed_ns` 在 BF16 profile 里是 **0**（FP32 为 108.1 ns）：标定器对这个
+截距诚实地报告"未解析"（|值| < 300 ns、150% 离散、正负不定）并存
+`max(0, fit)`，FP32 恰好落在正侧所以钳位从未生效。于是整张图的归约只被计
+~0.12 µs，split-K 近乎免费，模型的前八名全是 split-K 16、预测比实测快 2–3×。
+另有三个 BF16 Stream-K 形状拟合出**负的**每 CTA setup（`a_ns` −119.2 / −438.6 /
+−400.7，`fit_r2` 0.922 对 FP32 的 0.974）。同一个绝对不确定度在 FP32 下无害、
+在 mainloop 快 4× 之后变成决定性的——这是本轮最值得记住的一条。
+
+⚠️ 九道的实测结论也与预期相反：**去掉 `tc` 道只改变 ρ 0.001**（0.5605 →
+0.5595），九道中六道完全惰性。"BF16 会让 `tc` 第一次成为瓶颈、这正是保留九维
+的理由"这个前提**在 sm_89 上没有被证实**；BF16 把瓶颈推离计算道而不是推进去。
 
 ## 4.5 Label：通信归属
 
@@ -1759,14 +1822,20 @@ P6.2 的 oracle 已给出投入判据：固定 `g` 与最优 `g` 相差 **6.11×
 - [ ] 分层 DAG 上的 list scheduling（关键路径优先）——**未做，且测量说不要在
       这个目标函数上做**。留空而不是打勾：真正该建的是什么还没确定。
 - [ ] 掩盖同步延迟：队列顺序让等待被独立 task 填充——未做。
+- [x] **TaskBody 所有权 Place（与上面的时间局部性目标正交）**：RoPE 的
+      小实验满足“边窄化、poll 显著转移、body 代价可接受”三项判据后，推广到
+      KVAppend / activation / split-K combiner。seq=128 时 exact poll −41.40%，
+      L2 会话内配对改善 13.57% / 16.32%，body-only 代价 1.00% / 1.25%。
+      这改变的是 CTA 对逻辑 task 的所有权映射，未引入或声称 cache-local list
+      scheduling；详见 `docs/experiments/OWNERSHIP/`。
 - [!] 解析半边与硬件半边测的不是同一个尺寸：`place_probe` 绑 `S = 512`，
       E2E fixture 是 `seq = 4`。后者在 `tile_m = 16` 下**只有一个 M 分片**，
       于是 `w(c₁,c₂)` 是常数、目标函数在整个置换群上恒等——五个臂的目标值
       完全相同，而硬件上它们相差 24 个百分点（L1 上 pair +17.0 到 reverse −7.1）。这条先于测量写下：预测对了
       "目标函数是平的"，错在由此推出"置换不值钱"。目标函数是平的只说明它是
       瞎的。两个陈述都不外推到对方的尺寸上。
-- 证据：`docs/experiments/PLACE/result.md`；`raw/affinity.txt`、
-  `raw/place_summary.txt`
+- 证据：`docs/experiments/PLACE/result.md`、`docs/experiments/OWNERSHIP/result.md`；
+  `raw/affinity.txt`、`raw/place_summary.txt`
 
 ### P4.9 实现契约与一致性校验
 
@@ -1793,6 +1862,26 @@ P6.2 的 oracle 已给出投入判据：固定 `g` 与最优 `g` 相差 **6.11×
 ---
 
 ## Phase 5：符号化与运行时
+
+**进入条件（Phase 5 不得绕过）**：
+
+1. ✅ 生成器可在一个 `ModelSpec` 中携带同一算子的多粒度实例，并为每个
+   `seq` 区间携带独立、精确的依赖表；host 已是 O(1) 区间查表。
+2. ✅ smem/register/occupancy 曲线已量化：1/2/4/8/16 变体对应
+   5/5/4/2/1 CTA/SM，因此第一版区间划分以 **2 个变体/binary** 为无损上限；
+   不能只根据 C++ `sizeof(union)` 判断，4 变体的首个拐点来自寄存器。
+3. ⚠️ **未满足。** BF16 Tensor Core 已贯通并有独立 sm_89 标定（✅ 两模型
+   50/50，SASS 各 96 条 BF16 HMMA），ORACLE 也已在 BF16 + 最终所有权下重扫
+   1540 点；但代价模型在这个验证集上 ρ 只有 0.5605 / 0.6239 且输给解析基线，
+   **P5.1 的分段区间不能建在它上面**。先决条件是把归约阶段的固定代价测出来
+   （现在被 `max(0, fit)` 钳成 0），而不是复用 FP32 的 0.9450 结论。
+   实测的固定 `g` 与最优 `g` 之差在 BF16 下是 **2.273× / 2.318×**
+   （FP32 是 6.11× / 6.75×），投入判据仍然成立。
+4. ✅ `seq×past` 矩阵 1500/1500，且旧 clamp 负测试 0/50，证明运行时区间会
+   覆盖的 grid-stride 形态已有敏感的正确性守门。
+
+这些是本轮完成的 Phase 5 前置，不表示下面的参数化 DP、交点求解或 serving
+本身已经实现。
 
 ### P5.1 参数化解
 
