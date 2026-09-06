@@ -11,6 +11,10 @@
 > clusters exits 3; no architecture number is accepted on trust. ❌ The
 > refreshed arm remains unverified here because this host is sm_89. Successful
 > 5090 output is `raw/summary.tsv`, with 50/50 required for both models.
+> `bash -n` passes, MLIR is found from an existing TileMega build cache, and a
+> fresh self-contained configure/build reaches `tilemega-migrate --probe` on
+> this host. The probe then exits 3 because it is the sm_89 calibration target;
+> this is the intended hard failure, not a skipped arm.
 >
 > **The rank-transfer arm is restored, on the BF16 validation set.** The
 > regenerated script had dropped it, which would have left this experiment
@@ -23,7 +27,7 @@
 > runtime plan. Registers are still read from the migration machine's own ptxas
 > logs, never carried over.
 >
-> ✅ **The BF16 sm_89 baseline (`raw/summary_sm89_baseline.txt`)**, subset of
+> ✅ **The pre-repair BF16 sm_89 baseline (`raw/summary_sm89_baseline.txt`)**, subset of
 > top-50 + 50 random, seed 20260904:
 >
 > | model | n | MAPE % | Spearman | top10 | optimum_rank |
@@ -31,13 +35,11 @@
 > | gqa2 | 100 | 41.99 | **0.6369** | 0 | 39 |
 > | mha4 | 100 | 37.93 | **0.6599** | 0 | 39 |
 >
-> ⚠️ These are much weaker than the FP32 baseline below (ρ 0.9144 / 0.9095) for
-> a reason that has nothing to do with migration: the BF16 cost model itself
-> ranks at ρ 0.5605 / 0.6239 on the full sweep and fails its acceptance
-> (F-70, `../ORACLE/result.md` §6.7). **A transfer arm measured against this
-> baseline can only bound how much *additional* rank is lost by moving
-> machines; it cannot be read as "the model transfers well".** Fixing the
-> baseline is the reduction-stage calibration, not anything in this experiment.
+> ⚠️ These rows predate F-74. The repaired full-sweep BF16 model is now
+> ρ 0.8942 / 0.8834, above its analytic baseline but below the FP32 target.
+> `run_on_sm120.sh` always scores with the current checked-in coefficients, so
+> a returned 5090 dataset must be compared with a freshly regenerated sm_89
+> subset, not with the historical numbers above.
 
 ```
 bash docs/experiments/MIGRATION/run_on_sm120.sh        # on the migration target

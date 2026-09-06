@@ -9,6 +9,13 @@
 > by default. ❌ The new arm is not claimed as executed on this sm_89 host; the
 > cross-compile evidence below remains valid, while its older FP32/ownership
 > execution description is superseded by the script.
+>
+> **2026-09-06 handoff check.** `bash -n` passes. On this sm_89 host the script
+> reaches its runtime capability probe and exits 3 before the measurement, as
+> required. The build-tree discovery originally referred to the migration
+> script's `TILEMEGA_ROOT` variable instead of this script's `root`; that
+> cross-script typo is fixed, so an sm_90+ host can reach the self-contained
+> CMake arm without supplying an internal variable.
 
 **需要 sm_90+ 硬件，本机未运行。** This box is an RTX 4090 (sm_89); its
 `TargetSpec::Probe()` reports `caps.cluster == false`, so no number in this
