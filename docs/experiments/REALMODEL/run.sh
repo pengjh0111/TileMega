@@ -21,8 +21,9 @@ kv_heads="${KV_HEADS:-8}"
 seq="${FIXTURE_SEQ:-4}"
 past="${FIXTURE_PAST:-3}"
 label="${LABEL:-l${layers}h${hidden}}"
+variant_plan="${VARIANT_PLAN:-${repo}/docs/experiments/OWNERSHIP/plan_structured.json}"
 mkdir -p "${raw}"
-work="${raw}/${label}"
+work="${raw}/work/${label}"
 mkdir -p "${work}"
 
 command -v python3 >/dev/null || { echo 'FAIL: python3 not found' >&2; exit 77; }
@@ -49,7 +50,7 @@ row bridge "$(( $(stamp) - t ))" "$(tail -1 "${work}/bridge.json")"
 
 t=$(stamp)
 "${build}/tools/tilemega-compile" "${work}/model.json" "${work}/model.cu" \
-  --variants "${repo}/docs/experiments/OWNERSHIP/plan_structured.json" \
+  --variants "${variant_plan}" \
   > "${work}/codegen.log" 2>&1
 row codegen "$(( $(stamp) - t ))" "$(grep -o 'CODEGEN_SUMMARY.*' "${work}/codegen.log" || true)"
 

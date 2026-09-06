@@ -1,0 +1,3 @@
+metric	rounds	control_median_ms	candidate_median_ms	candidate_vs_control_pct	ci_low	ci_high	wilcoxon_p
+l1	25	5.804224	4.173824	-28.0493	-28.1460	-28.0250	1.30706055e-05
+l2	25	6.133600	4.023296	-34.4072	-34.5238	-34.2959	1.30706055e-05

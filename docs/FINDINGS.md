@@ -1737,3 +1737,60 @@
   `constexpr` in the emitted table; the three-point re-fit that keeps them
   admissible is unchanged.
 - Evidence: docs/experiments/SYMBOLIC/, tools/tilemega-symbolic-probe.cpp.
+
+## F-76 — L2's excess time is the poll, not persistent dispatch
+
+- Finding: a four-arm, within-round decomposition isolates L2's stage loop,
+  event notify, event wait, and L1's grid barrier. At kappa=1 and seq=128 the
+  wait accounts for **104.1% / 103.9%** of the L2-minus-L1 gap on gqa2/mha4;
+  notify is 7.4%, L1's barrier offsets 8.5%, and L2's bare stage loop is
+  12--28 us faster than L1's. Task-table reads, dispatch, grid width, and
+  occupancy are therefore not hidden positive costs in this harness.
+- The 2.13x ratio that prompted the attribution is a kappa=1 build. At the
+  shipped kappa=0, seq=128 is **1.055x / 1.061x**, and the ratio falls rather
+  than rises with sequence length.
+- The implementation serialized every independent dependency poll on thread
+  zero. Distributing them over the CTA improves the kappa=1 L2 path by
+  **15.05% / 14.78%** in 25 paired rounds (bootstrap intervals exclude zero,
+  Wilcoxon p=1.29e-05), without changing either model's output.
+- Evidence: docs/experiments/L2_ATTRIB/, commit fdcbbe6.
+
+## F-77 — A host launch sweep cannot test the epoch ABA argument
+
+- Finding: 32 launches over event memory that is never cleared pass in 50/50
+  fresh processes for both models, but the intended negative control -- clear
+  the counters and always announce iteration zero -- also passes 50/50.
+- This is structural, not a weak stress test. `iteration` is a launch argument,
+  launches use one CUDA stream, and each launch is synchronized before the
+  next begins. No CTA from iteration i can overlap iteration i+1, so the ABA
+  interleaving is unreachable regardless of the process count.
+- The monotone target remains a valid defensive rule, but its necessity can
+  only be tested once the Phase-6 loop runs iterations inside a persistent
+  kernel (or otherwise overlaps them). The green host-launch matrix is not
+  recorded as coverage of that property.
+- Evidence: docs/experiments/AUTOREGRESSIVE/.
+
+## F-78 — Real width makes correctness a first-class solver constraint
+
+- ✅ A production-shaped 16x2048 decoder (973,144,576 parameters) generates,
+  compiles, and runs, but fails the unchanged BF16 PyTorch bound in 0/50 fresh
+  processes. The boundary is depth: 4x2048 passes, 8x2048 first fails by three
+  elements, and the 16-layer final hidden owns 190 of 198 mismatches. L0.5,
+  L1, and L2 are bit-identical, so this is numerical accumulation rather than
+  synchronization.
+- ✅ The permitted real-width control, 4x4096 / intermediate=14336, has
+  872,448,256 parameters and passes 50/50. Its existing declarative pattern
+  needs no new slot or target-name branch.
+- ❌ The BF16 cost model's two leading uniform configurations at real width
+  use split-K 16 and 8. Both are fast and both violate the fixed comparison
+  bound (24 and 26 mismatches). The best split=1 candidate passes 50/50 and is
+  28.05% faster than the control on L1 in 25 paired rounds, but it is not the
+  unconstrained model winner.
+- Therefore Phase 5 needs a correctness-feasibility contract before its cost
+  objective. This is not a request to loosen the BF16 bound: configurations
+  outside it are inadmissible regardless of predicted latency.
+- ⚠️ Codegen is the other production-scale limit: 16x2048 takes 1353 s
+  for the control and 1318 s for one alternative. One-layer isolation assigns
+  60 of 63 seconds to ownership-window fitting. Multiple runtime intervals
+  multiply that cost unless the windows become symbolic or are cached.
+- Evidence: docs/experiments/REALMODEL/.

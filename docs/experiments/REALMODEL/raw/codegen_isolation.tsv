@@ -1,0 +1,7 @@
+# One decoder layer at hidden=2048 (93 tasks / 110 couplings), same input JSON.
+# Isolates which part of codegen is expensive at production dimensions.
+path	seconds
+tilemega-import (no runtime variants)	3
+tilemega-compile without --variants	3
+tilemega-compile --variants plan_element_chunk (tile ownership off)	3
+tilemega-compile --variants plan_structured (tile ownership on)	63

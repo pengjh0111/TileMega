@@ -1,0 +1,4 @@
+layers	hidden	processes	passes	l05_l0_mismatch	max_abs	result
+4	2048	1	1	0	0.03125	PASS
+8	2048	1	0	3	0.0546875	MISMATCH
+16	2048	50	0	198	0.078125	MISMATCH

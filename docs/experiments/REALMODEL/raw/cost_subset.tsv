@@ -1,0 +1,7 @@
+model	config	selection	predicted_ms	l1_ms	l2_ms	correctness_processes	passes	mismatch	max_abs	perf_rounds
+llama32_1b_shape	128x128x16s3k1	control	11.987200	12.523696	13.266928	50	0	198	0.078125	0
+llama32_1b_shape	32x128x32s3k8	model_uniform_top	2.106570	4.311040	4.537344	1	0	1391	0.156250	0
+llama3_width4	128x128x16s3k1	control	5.466250	5.804224	6.133600	50	50	0	0.046875	25
+llama3_width4	32x128x32s3k8	model_uniform_second	1.378670	2.639040	2.670592	1	0	26	0.093750	0
+llama3_width4	32x256x16s3k16	model_uniform_top	1.338680	2.951424	2.921472	1	0	24	0.078125	0
+llama3_width4	32x32x16s2k1	model_best_split1	2.139170	4.173824	4.023296	50	50	0	0.046875	25

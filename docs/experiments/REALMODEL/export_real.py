@@ -82,7 +82,7 @@ def write_tensor(path: Path, tensor: torch.Tensor, dtype: torch.dtype) -> None:
     materializes one Python object per element.  numpy is not installed here,
     so the bytes are copied straight out of the tensor's storage.  The layout
     is identical -- contiguous, little-endian, same dtype -- so the files are
-    byte-for-byte what the old writer produced (asserted in `run.sh`)."""
+    byte-for-byte what the old writer produced."""
     value = tensor.detach().cpu().contiguous().to(dtype)
     raw = (ctypes.c_char * (value.numel() * value.element_size())).from_address(
         value.data_ptr())
