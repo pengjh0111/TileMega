@@ -18,6 +18,24 @@ out="$here/raw"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
+# The dialect needs an MLIR install tree and CMake does not find one on its
+# own.  Reuse whatever the repository's existing build tree was configured
+# with, so a machine that can already build TileMega can run this script with
+# no extra argument; otherwise say exactly which flag is missing.
+find_mlir_dir() {
+  if [[ -n "${MLIR_DIR:-}" ]]; then echo "${MLIR_DIR}"; return 0; fi
+  local cache
+  for cache in "${TILEMEGA_ROOT}"/build*/CMakeCache.txt; do
+    [[ -e "${cache}" ]] || continue
+    local found
+    found=$(sed -n 's/^MLIR_DIR:[^=]*=//p' "${cache}" | head -1)
+    # A failed configure leaves MLIR_DIR-NOTFOUND behind, which is not a path.
+    [[ -d "${found}" ]] && { echo "${found}"; return 0; }
+  done
+  return 1
+}
+
+
 nvcc=${CUDACXX:-$(command -v nvcc || true)}
 if [[ -z "$nvcc" ]]; then
   for candidate in /usr/local/cuda/bin/nvcc /usr/local/cuda-*/bin/nvcc; do
@@ -248,8 +266,12 @@ python3 -c 'import torch' || {
   echo "FAIL: PyTorch 2.13.x or 2.14.x is required for BF16 fixtures" >&2
   exit 77
 }
+mlir_dir=$(find_mlir_dir) || {
+  echo "FAIL: no MLIR install tree found; set MLIR_DIR=/path/to/lib/cmake/mlir" >&2
+  exit 77
+}
 cmake -S "$root" -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-  -DTILEMEGA_TARGET_ARCH=auto >/dev/null
+  -DTILEMEGA_TARGET_ARCH=auto -DMLIR_DIR="${mlir_dir}" >/dev/null
 cmake --build "$build" --target tilemega-compile --parallel "$(nproc)" >/dev/null
 
 python3 "$root/docs/experiments/V_H/export_probe.py" --out "$work/gqa2" \

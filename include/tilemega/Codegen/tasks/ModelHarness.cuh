@@ -1193,10 +1193,45 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   // the counters reset, a CTA still finishing iteration i could be counted
   // as an early arrival for iteration i+1. Only the buffers are reset here;
   // the event memory is deliberately carried over.
+  // One repeat is enough to catch a counter that was reset; it is not enough
+  // to catch one whose *target* does not advance, because at iteration 1 the
+  // epoch is still only one ahead.  `TILEMEGA_ITERATIONS` runs the persistent
+  // kernel N times over the same event memory, so an arrival from iteration i
+  // can only be mistaken for one from i+1 if the monotone target is wrong --
+  // which is exactly what the negative build below removes.
+  int iterations = 1;
+  if (char const* setting = std::getenv("TILEMEGA_ITERATIONS")) {
+    iterations = std::atoi(setting);
+    if (iterations < 1) iterations = 1;
+  }
   ResetBuffersOnly(model);
   float l2_again_ms = LaunchL2(model, grid, /*iteration=*/1);
   auto l2_again = Download(model);
   Difference l2_iter = Compare(l2_again, l2);
+  std::size_t iteration_mismatch = l2_iter.mismatch;
+  for (int step = 2; step <= iterations; ++step) {
+#if TILEMEGA_NEGATIVE_RESET_EVENTS
+    // §8.2's negative control, and the shape a naive implementation takes:
+    // clear the counters between iterations and always announce iteration 0.
+    // A CTA still finishing iteration i then satisfies iteration i+1's wait
+    // from the cleared counter -- the ABA the monotone target exists to
+    // prevent.  Never a build anyone ships; its output is wrong on purpose.
+    Reset(model);
+    l2_again_ms = LaunchL2(model, grid, 0ull);
+#else
+    ResetBuffersOnly(model);
+    l2_again_ms = LaunchL2(model, grid, static_cast<unsigned long long>(step));
+#endif
+    auto repeated = Download(model);
+    Difference const step_diff = Compare(repeated, l2);
+    iteration_mismatch += step_diff.mismatch;
+    if (step_diff.mismatch != 0)
+      std::printf("E2E_ITER_STEP step=%d mismatch=%zu max_abs=%.8g\n", step,
+                  step_diff.mismatch, step_diff.max_abs);
+  }
+  if (iterations > 1)
+    std::printf("E2E_ITER_SWEEP iterations=%d total_mismatch=%zu\n", iterations,
+                iteration_mismatch);
 
   Difference l05_l0 = Compare(l05, reference, "l05_vs_l0");
   Difference l1_l05 = Compare(l1, l05, "l1_vs_l05");

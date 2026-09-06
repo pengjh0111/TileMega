@@ -1,0 +1,5 @@
+model	arm	iterations	processes	passes	total_mismatch	timeouts
+gqa2	pos	32	50	50	0	0
+gqa2	neg	32	50	50	0	0
+mha4	pos	32	50	50	0	0
+mha4	neg	32	50	50	0	0
