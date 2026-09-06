@@ -1,0 +1,143 @@
+EDGES 21
+
+## symbolic-vs-pointwise
+seq	edge	src -> dst	wait	fanout	volume	count
+1	1	rmsnorm1 -> wq	ok	ok	ok	ok
+1	2	rmsnorm1 -> wk	ok	ok	ok	ok
+1	3	rmsnorm1 -> wv	ok	ok	ok	ok
+1	4	wq -> rope_q	ok	ok	ok	ok
+1	5	wk -> rope_k	ok	ok	ok	ok
+1	6	rope_k -> kvappend_k	ok	ok	ok	ok
+1	7	wv -> kvappend_v	ok	ok	ok	ok
+1	8	rope_q -> attn_chunk	ok	ok	ok	ok
+1	9	kvappend_k -> attn_chunk	ok	ok	ok	ok
+1	10	kvappend_v -> attn_chunk	ok	ok	ok	ok
+1	11	attn_chunk -> attn_combine	ok	ok	ok	ok
+1	12	attn_combine -> wo	ok	ok	ok	ok
+1	13	wo -> add1	ok	ok	ok	ok
+1	14	add1 -> rmsnorm2	ok	ok	ok	ok
+1	15	rmsnorm2 -> wgate	ok	ok	ok	ok
+1	16	rmsnorm2 -> wup	ok	ok	ok	ok
+1	17	wgate -> silu	ok	ok	ok	ok
+1	18	wup -> silu	ok	ok	ok	ok
+1	19	silu -> wdown	ok	ok	ok	ok
+1	20	wdown -> add2	ok	ok	ok	ok
+1	21	add1 -> add2	ok	ok	ok	ok
+4	1	rmsnorm1 -> wq	ok	ok	ok	ok
+4	2	rmsnorm1 -> wk	ok	ok	ok	ok
+4	3	rmsnorm1 -> wv	ok	ok	ok	ok
+4	4	wq -> rope_q	ok	ok	ok	ok
+4	5	wk -> rope_k	ok	ok	ok	ok
+4	6	rope_k -> kvappend_k	ok	ok	ok	ok
+4	7	wv -> kvappend_v	ok	ok	ok	ok
+4	8	rope_q -> attn_chunk	ok	ok	ok	ok
+4	9	kvappend_k -> attn_chunk	ok	ok	ok	ok
+4	10	kvappend_v -> attn_chunk	ok	ok	ok	ok
+4	11	attn_chunk -> attn_combine	ok	ok	ok	ok
+4	12	attn_combine -> wo	ok	ok	ok	ok
+4	13	wo -> add1	ok	ok	ok	ok
+4	14	add1 -> rmsnorm2	ok	ok	ok	ok
+4	15	rmsnorm2 -> wgate	ok	ok	ok	ok
+4	16	rmsnorm2 -> wup	ok	ok	ok	ok
+4	17	wgate -> silu	ok	ok	ok	ok
+4	18	wup -> silu	ok	ok	ok	ok
+4	19	silu -> wdown	ok	ok	ok	ok
+4	20	wdown -> add2	ok	ok	ok	ok
+4	21	add1 -> add2	ok	ok	ok	ok
+128	1	rmsnorm1 -> wq	ok	ok	ok	ok
+128	2	rmsnorm1 -> wk	ok	ok	ok	ok
+128	3	rmsnorm1 -> wv	ok	ok	ok	ok
+128	4	wq -> rope_q	ok	ok	ok	ok
+128	5	wk -> rope_k	ok	ok	ok	ok
+128	6	rope_k -> kvappend_k	ok	ok	ok	ok
+128	7	wv -> kvappend_v	ok	ok	ok	ok
+128	8	rope_q -> attn_chunk	ok	ok	ok	ok
+128	9	kvappend_k -> attn_chunk	ok	ok	ok	ok
+128	10	kvappend_v -> attn_chunk	ok	ok	ok	ok
+128	11	attn_chunk -> attn_combine	ok	ok	ok	ok
+128	12	attn_combine -> wo	ok	ok	ok	ok
+128	13	wo -> add1	ok	ok	ok	ok
+128	14	add1 -> rmsnorm2	ok	ok	ok	ok
+128	15	rmsnorm2 -> wgate	ok	ok	ok	ok
+128	16	rmsnorm2 -> wup	ok	ok	ok	ok
+128	17	wgate -> silu	ok	ok	ok	ok
+128	18	wup -> silu	ok	ok	ok	ok
+128	19	silu -> wdown	ok	ok	ok	ok
+128	20	wdown -> add2	ok	ok	ok	ok
+128	21	add1 -> add2	ok	ok	ok	ok
+512	1	rmsnorm1 -> wq	ok	ok	ok	ok
+512	2	rmsnorm1 -> wk	ok	ok	ok	ok
+512	3	rmsnorm1 -> wv	ok	ok	ok	ok
+512	4	wq -> rope_q	ok	ok	ok	ok
+512	5	wk -> rope_k	ok	ok	ok	ok
+512	6	rope_k -> kvappend_k	ok	ok	ok	ok
+512	7	wv -> kvappend_v	ok	ok	ok	ok
+512	8	rope_q -> attn_chunk	ok	ok	ok	ok
+512	9	kvappend_k -> attn_chunk	ok	ok	ok	ok
+512	10	kvappend_v -> attn_chunk	ok	ok	ok	ok
+512	11	attn_chunk -> attn_combine	ok	ok	ok	ok
+512	12	attn_combine -> wo	ok	ok	ok	ok
+512	13	wo -> add1	ok	ok	ok	ok
+512	14	add1 -> rmsnorm2	ok	ok	ok	ok
+512	15	rmsnorm2 -> wgate	ok	ok	ok	ok
+512	16	rmsnorm2 -> wup	ok	ok	ok	ok
+512	17	wgate -> silu	ok	ok	ok	ok
+512	18	wup -> silu	ok	ok	ok	ok
+512	19	silu -> wdown	ok	ok	ok	ok
+512	20	wdown -> add2	ok	ok	ok	ok
+512	21	add1 -> add2	ok	ok	ok	ok
+2048	1	rmsnorm1 -> wq	ok	ok	ok	ok
+2048	2	rmsnorm1 -> wk	ok	ok	ok	ok
+2048	3	rmsnorm1 -> wv	ok	ok	ok	ok
+2048	4	wq -> rope_q	ok	ok	ok	ok
+2048	5	wk -> rope_k	ok	ok	ok	ok
+2048	6	rope_k -> kvappend_k	ok	ok	ok	ok
+2048	7	wv -> kvappend_v	ok	ok	ok	ok
+2048	8	rope_q -> attn_chunk	ok	ok	ok	ok
+2048	9	kvappend_k -> attn_chunk	ok	ok	ok	ok
+2048	10	kvappend_v -> attn_chunk	ok	ok	ok	ok
+2048	11	attn_chunk -> attn_combine	ok	ok	ok	ok
+2048	12	attn_combine -> wo	ok	ok	ok	ok
+2048	13	wo -> add1	ok	ok	ok	ok
+2048	14	add1 -> rmsnorm2	ok	ok	ok	ok
+2048	15	rmsnorm2 -> wgate	ok	ok	ok	ok
+2048	16	rmsnorm2 -> wup	ok	ok	ok	ok
+2048	17	wgate -> silu	ok	ok	ok	ok
+2048	18	wup -> silu	ok	ok	ok	ok
+2048	19	silu -> wdown	ok	ok	ok	ok
+2048	20	wdown -> add2	ok	ok	ok	ok
+2048	21	add1 -> add2	ok	ok	ok	ok
+
+AGREE 420/420
+
+## floor-binding error: metric derived at S=1,past=0 vs the truth at S=4096
+edge	src -> dst	metric	floor	true	ratio
+1	rmsnorm1 -> wq	count	32	1024	32x
+2	rmsnorm1 -> wk	count	8	256	32x
+3	rmsnorm1 -> wv	count	8	256	32x
+4	wq -> rope_q	count	32	1024	32x
+5	wk -> rope_k	count	8	256	32x
+6	rope_k -> kvappend_k	fanout	1	128	128x
+6	rope_k -> kvappend_k	count	8	32768	4096x
+7	wv -> kvappend_v	fanout	1	128	128x
+7	wv -> kvappend_v	count	8	32768	4096x
+8	rope_q -> attn_chunk	fanout	1	4096	4096x
+8	rope_q -> attn_chunk	count	32	4194304	1.311e+05x
+9	kvappend_k -> attn_chunk	fanout	4	16384	4096x
+9	kvappend_k -> attn_chunk	count	32	4194304	1.311e+05x
+10	kvappend_v -> attn_chunk	fanout	4	16384	4096x
+10	kvappend_v -> attn_chunk	count	32	4194304	1.311e+05x
+11	attn_chunk -> attn_combine	wait	1	32	32x
+11	attn_chunk -> attn_combine	count	32	131072	4096x
+12	attn_combine -> wo	count	32	1024	32x
+13	wo -> add1	count	32	1024	32x
+14	add1 -> rmsnorm2	count	1	32	32x
+15	rmsnorm2 -> wgate	count	112	3584	32x
+16	rmsnorm2 -> wup	count	112	3584	32x
+17	wgate -> silu	count	112	3584	32x
+18	wup -> silu	count	112	3584	32x
+19	silu -> wdown	count	32	1024	32x
+20	wdown -> add2	count	32	1024	32x
+21	add1 -> add2	count	32	1024	32x
+
+FLOOR wrong=27 unchanged=36 position_dependent=0

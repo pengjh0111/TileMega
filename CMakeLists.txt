@@ -208,6 +208,11 @@ target_compile_definitions(tilemega-identity-probe PRIVATE
 set_target_properties(tilemega-identity-probe PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
+add_executable(tilemega-symbolic-probe tools/tilemega-symbolic-probe.cpp)
+target_link_libraries(tilemega-symbolic-probe PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-symbolic-probe PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
 add_executable(tilemega-costmodel tools/tilemega-costmodel.cpp)
 target_link_libraries(tilemega-costmodel PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-costmodel PROPERTIES

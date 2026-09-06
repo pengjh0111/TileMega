@@ -490,10 +490,21 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
     granularityBinding.Bind(
         item.getName().str(),
         llvm::cast<mlir::IntegerAttr>(item.getValue()).getInt());
+  // Only what isl *requires* to be literal is bound: `isl_aff_div` rejects a
+  // parametric divisor, so tile sizes and the GQA group factor must be numbers
+  // before a map is built.  The workload dimensions (S, past, L_s) stay real
+  // isl parameters, exactly as §2.7 presents them, so `wait`/`fanout`/
+  // `volume`/`count` come out as quasi-polynomials in those parameters rather
+  // than as one integer evaluated at the bottom of the parameter range.  P5.1
+  // needs functions of theta; an integer measured at S_min is not one.
   analysis::ParamBinding known;
-  for (auto const& symbol : symbolic.dimensions)
-    known.Bind(symbol, symbolic.ranges.at(symbol).minimum);
   for (auto const& [name, value] : granularityBinding.values) known.Bind(name, value);
+  // The one place a workload minimum is still needed: an event tensor is a
+  // real allocation, so its shape is resolved at the smallest instantiation
+  // and any axis that is not constant there is emitted dynamic.
+  analysis::ParamBinding floorBinding = known;
+  for (auto const& symbol : symbolic.dimensions)
+    floorBinding.Bind(symbol, symbolic.ranges.at(symbol).minimum);
 
   // A node Instantiate added (a split reduction's combiner) is named after the
   // operator it combines, so the stage and role follow that operator.
@@ -613,8 +624,9 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
     analysis::ClosedForm product = analysis::ClosedForm::Constant(1);
     for (auto const& axis : item.event_shape) {
       analysis::ClosedForm reduced = axis.Substitute(granularityBinding);
-      shape.push_back(reduced.IsConstant() ? reduced.Eval(known, known)
-                                           : mlir::ShapedType::kDynamic);
+      shape.push_back(reduced.IsConstant()
+                          ? reduced.Eval(floorBinding, floorBinding)
+                          : mlir::ShapedType::kDynamic);
       dims.push_back(dialect::MetricAttr::get(&context, metricOf(axis, granularityBinding)));
       product = product * axis;
     }
