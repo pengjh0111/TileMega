@@ -35,58 +35,69 @@ struct RoPETaskBody {
             (pairs + Threads - 1) / Threads};
   }
 
-  __device__ void operator()(Params const& p, StageDesc const& stage,
-                             SmemUnion&) const {
+  __device__ static void RunTask(Params const& p, StageDesc const& stage,
+                                 SmemUnion&, int task) {
     ModelElement const* input = p.buffers[stage.operand[0]];
     ModelElement* output = p.buffers[stage.operand[1]];
     ModelElement const* inv_freq = p.buffers[stage.operand[2]];
     int const dim = static_cast<int>(stage.width), half_dim = dim / 2;
     int const heads = static_cast<int>(stage.extent);
     if (p.ownership_flags & kRoPETileOwnership) {
-      for (int task = PlacedBlock(); task < p.dims.seq * heads;
-           task += gridDim.x) {
-        int const token = task / heads;
-        int const base = task * dim;
-        for (int half = threadIdx.x; half < half_dim;
-             half += blockDim.x) {
-          float position = RoPEPosition(p.dims.past, token);
-          float angle = static_cast<float>(ModelElement(
-              position * static_cast<float>(inv_freq[half])));
-          float c = static_cast<float>(ModelElement(cosf(angle)));
-          float s = static_cast<float>(ModelElement(sinf(angle)));
-          float a = static_cast<float>(input[base + half]);
-          float b = static_cast<float>(input[base + half + half_dim]);
-          float ac = static_cast<float>(ModelElement(a * c));
-          float bs = static_cast<float>(ModelElement(b * s));
-          float bc = static_cast<float>(ModelElement(b * c));
-          float as = static_cast<float>(ModelElement(a * s));
-          output[base + half] = ModelElement(ac - bs);
-          output[base + half + half_dim] = ModelElement(bc + as);
-        }
+      int const token = task / heads;
+      int const base = task * dim;
+      for (int half = threadIdx.x; half < half_dim; half += blockDim.x) {
+        float position = RoPEPosition(p.dims.past, token);
+        float angle = static_cast<float>(ModelElement(
+            position * static_cast<float>(inv_freq[half])));
+        float c = static_cast<float>(ModelElement(cosf(angle)));
+        float s = static_cast<float>(ModelElement(sinf(angle)));
+        float a = static_cast<float>(input[base + half]);
+        float b = static_cast<float>(input[base + half + half_dim]);
+        float ac = static_cast<float>(ModelElement(a * c));
+        float bs = static_cast<float>(ModelElement(b * s));
+        float bc = static_cast<float>(ModelElement(b * c));
+        float as = static_cast<float>(ModelElement(a * s));
+        output[base + half] = ModelElement(ac - bs);
+        output[base + half + half_dim] = ModelElement(bc + as);
       }
       return;
     }
-    int pairs = p.dims.seq * heads * half_dim;
-    for (int index = PlacedBlock() * blockDim.x + threadIdx.x; index < pairs;
-         index += gridDim.x * blockDim.x) {
-      int half = index % half_dim;
-      int head_token = index / half_dim;
-      int token = head_token / heads;
-      int base = head_token * dim;
-      float position = RoPEPosition(p.dims.past, token);
-      float angle = static_cast<float>(ModelElement(
-          position * static_cast<float>(inv_freq[half])));
-      float c = static_cast<float>(ModelElement(cosf(angle)));
-      float s = static_cast<float>(ModelElement(sinf(angle)));
-      float a = static_cast<float>(input[base + half]);
-      float b = static_cast<float>(input[base + half + half_dim]);
-      float ac = static_cast<float>(ModelElement(a * c));
-      float bs = static_cast<float>(ModelElement(b * s));
-      float bc = static_cast<float>(ModelElement(b * c));
-      float as = static_cast<float>(ModelElement(a * s));
-      output[base + half] = ModelElement(ac - bs);
-      output[base + half + half_dim] = ModelElement(bc + as);
+    int const index = task * Threads + threadIdx.x;
+    int const pairs = p.dims.seq * heads * half_dim;
+    if (index >= pairs) return;
+    int half = index % half_dim;
+    int head_token = index / half_dim;
+    int token = head_token / heads;
+    int base = head_token * dim;
+    float position = RoPEPosition(p.dims.past, token);
+    float angle = static_cast<float>(ModelElement(
+        position * static_cast<float>(inv_freq[half])));
+    float c = static_cast<float>(ModelElement(cosf(angle)));
+    float s = static_cast<float>(ModelElement(sinf(angle)));
+    float a = static_cast<float>(input[base + half]);
+    float b = static_cast<float>(input[base + half + half_dim]);
+    float ac = static_cast<float>(ModelElement(a * c));
+    float bs = static_cast<float>(ModelElement(b * s));
+    float bc = static_cast<float>(ModelElement(b * c));
+    float as = static_cast<float>(ModelElement(a * s));
+    output[base + half] = ModelElement(ac - bs);
+    output[base + half + half_dim] = ModelElement(bc + as);
+  }
+
+  __device__ void operator()(Params const& p, StageDesc const& stage,
+                             SmemUnion& smem) const {
+    int const half_dim = static_cast<int>(stage.width) / 2;
+    int const heads = static_cast<int>(stage.extent);
+    if (p.ownership_flags & kRoPETileOwnership) {
+      for (int task = PlacedBlock(); task < p.dims.seq * heads;
+           task += gridDim.x)
+        RunTask(p, stage, smem, task);
+      return;
     }
+    int pairs = p.dims.seq * heads * half_dim;
+    int chunks = (pairs + Threads - 1) / Threads;
+    for (int task = PlacedBlock(); task < chunks; task += gridDim.x)
+      RunTask(p, stage, smem, task);
   }
 };
 

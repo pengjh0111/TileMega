@@ -24,6 +24,10 @@ struct ScheduleStats {
   int barriers_saved = 0;  ///< nodes - levels, the whole prize P4.8 plays for
 };
 
+struct ScheduleSafety {
+  int max_dependency_span = 0;
+};
+
 class ListScheduler {
  public:
   /// `successors[i]` lists the nodes that depend on `i`.  Throws
@@ -38,6 +42,14 @@ class ListScheduler {
   /// remaining ties so the schedule is deterministic.
   std::vector<int> Schedule(std::vector<std::vector<int>> const& successors,
                             ScheduleStats* stats = nullptr) const;
+
+  /// Verify that `order` is a complete topological permutation and compute
+  /// each coupling's producer-to-consumer span in that launch order.  A cycle,
+  /// duplicate/missing stage, or backwards wait is rejected at generation
+  /// time rather than becoming a persistent-kernel hang.
+  ScheduleSafety Validate(
+      std::vector<std::vector<int>> const& successors,
+      std::vector<int> const& order) const;
 };
 
 }  // namespace tilemega::solver

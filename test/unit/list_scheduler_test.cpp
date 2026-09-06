@@ -39,11 +39,36 @@ int main() {
     std::vector<std::vector<int>> diamond = {{1, 3}, {2}, {4}, {4}, {}};
     ScheduleStats stats;
     std::vector<int> order = scheduler.Schedule(diamond, &stats);
+    ScheduleSafety safety = scheduler.Validate(diamond, order);
     REQUIRE(stats.levels == 4);        // 0 -> 1 -> 2 -> 4
     REQUIRE(stats.widest_level == 2);  // {1,3} share a level, {2} does not
     REQUIRE(stats.barriers_saved == 1);
     // Level 1 holds 1 and 3; height breaks the tie and 1 has the longer tail.
     REQUIRE(order[1] == 1 && order[2] == 3);
+    REQUIRE(safety.max_dependency_span == 2);
+  }
+
+  // A dependency reversed by a purported placement is a generation error,
+  // even when the dependency graph itself is acyclic.
+  {
+    bool threw = false;
+    try {
+      scheduler.Validate({{1}, {}}, {1, 0});
+    } catch (std::invalid_argument const&) {
+      threw = true;
+    }
+    REQUIRE(threw);
+  }
+
+  // Duplicate rows imply a missing worker slot and are rejected as one error.
+  {
+    bool threw = false;
+    try {
+      scheduler.Validate({{1}, {}}, {0, 0});
+    } catch (std::invalid_argument const&) {
+      threw = true;
+    }
+    REQUIRE(threw);
   }
 
   // Height is the longest path to a sink, so a node feeding both arms of the

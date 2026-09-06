@@ -6,6 +6,7 @@
 #include <tilemega/Codegen/TaskBodyEmitter.h>
 #include <tilemega/Analysis/DependencyForm.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
+#include <tilemega/Solver/ListScheduler.h>
 
 #include <mlir/IR/Verifier.h>
 
@@ -105,13 +106,53 @@ struct GemmRuntimeRecord {
   std::uint16_t stages = 3;
 };
 
+struct ScheduleStageRecord {
+  std::uint32_t stage = 0;
+  std::uint32_t dependency_begin = 0;
+  std::uint32_t dependency_count = 0;
+};
+
 struct RuntimeVariantRecord {
   std::uint32_t seq_begin = 1;
   std::uint32_t seq_end = 65535;
   std::vector<GemmRuntimeRecord> gemms;
   std::vector<DependencyRecord> dependencies;
+  std::vector<ScheduleStageRecord> schedule;
+  std::uint32_t max_dependency_span = 0;
   std::uint32_t ownership_flags = 0;
 };
+
+void BuildVariantSchedule(RuntimeVariantRecord& variant,
+                          std::size_t stage_count) {
+  std::vector<std::vector<int>> successors(stage_count);
+  for (auto const& edge : variant.dependencies) {
+    if (edge.producer >= stage_count || edge.consumer >= stage_count)
+      throw std::invalid_argument("dependency names a stage outside the model");
+    successors[edge.producer].push_back(static_cast<int>(edge.consumer));
+  }
+  solver::ListScheduler scheduler;
+  std::vector<int> const order = scheduler.Schedule(successors);
+  solver::ScheduleSafety const safety = scheduler.Validate(successors, order);
+  variant.max_dependency_span =
+      static_cast<std::uint32_t>(safety.max_dependency_span);
+  variant.schedule.reserve(order.size());
+  for (int stage : order) {
+    auto const first = std::lower_bound(
+        variant.dependencies.begin(), variant.dependencies.end(), stage,
+        [](DependencyRecord const& edge, int consumer) {
+          return edge.consumer < static_cast<std::uint32_t>(consumer);
+        });
+    auto const last = std::upper_bound(
+        first, variant.dependencies.end(), stage,
+        [](int consumer, DependencyRecord const& edge) {
+          return static_cast<std::uint32_t>(consumer) < edge.consumer;
+        });
+    variant.schedule.push_back(
+        {static_cast<std::uint32_t>(stage),
+         static_cast<std::uint32_t>(first - variant.dependencies.begin()),
+         static_cast<std::uint32_t>(last - first)});
+  }
+}
 
 std::uint32_t readOwnershipFlags(mlir::ModuleOp module) {
   std::uint32_t flags = 0;
@@ -249,6 +290,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
                      [](auto const& a, auto const& b) {
                        return a.consumer < b.consumer;
                      });
+    BuildVariantSchedule(variant, stages.size());
     out << "constexpr GemmRuntimeDesc kRuntimeGemms" << v << "[] = {\n";
     for (auto const& impl : variant.gemms)
       out << "  {" << impl.compiled_variant << "u, " << impl.split_k << "u, "
@@ -275,12 +317,21 @@ std::string emitModelPlan(mlir::ModuleOp module,
       out << edge << "u, ";
     }
     out << "\n};\n\n";
+    out << "constexpr ScheduleStageDesc kSchedule" << v << "[] = {\n";
+    for (auto const& scheduled : variant.schedule) {
+      out << "  {" << scheduled.stage << "u, "
+          << scheduled.dependency_begin << "u, "
+          << scheduled.dependency_count << "u},\n";
+    }
+    out << "};\n\n";
   }
   out << "constexpr RuntimeVariantDesc kRuntimeVariants[] = {\n";
   for (std::size_t v = 0; v < variants.size(); ++v)
     out << "  {kRuntimeGemms" << v << ", kDependencies" << v << ", "
         << variants[v].dependencies.size() << "u, kDependencyOffsets" << v
-        << ", " << variants[v].seq_begin << "u, " << variants[v].seq_end
+        << ", kSchedule" << v << ", " << variants[v].schedule.size()
+        << "u, " << variants[v].max_dependency_span << "u, "
+        << variants[v].seq_begin << "u, " << variants[v].seq_end
         << "u, " << variants[v].ownership_flags << "u},\n";
   std::uint32_t const seq_count = variants.back().seq_end + 1;
   out << "};\n\nconstexpr auto MakeSeqVariant() {\n"

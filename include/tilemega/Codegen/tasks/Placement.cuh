@@ -26,6 +26,28 @@
 
 namespace tilemega::codegen {
 
+inline int HostPlacedBlock(int b, int grid, int blocks_per_sm) {
+#if TILEMEGA_PLACEMENT == 0
+  (void)grid;
+  (void)blocks_per_sm;
+  return b;
+#elif TILEMEGA_PLACEMENT == 1
+  int const w = blocks_per_sm;
+  int const sms = w > 0 ? grid / w : 0;
+  if (w <= 1 || sms * w != grid) return b;
+  return (b % sms) * w + b / sms;
+#elif TILEMEGA_PLACEMENT == 2
+  (void)blocks_per_sm;
+  return grid - 1 - b;
+#elif TILEMEGA_PLACEMENT == 3
+  (void)blocks_per_sm;
+  return grid % 31 == 0 ? b
+                        : static_cast<int>((static_cast<long long>(b) * 31) % grid);
+#else
+#error "TILEMEGA_PLACEMENT must be 0 (identity), 1 (pair), 2 (reverse) or 3 (scatter)"
+#endif
+}
+
 #if TILEMEGA_PLACEMENT == 1
 /// Resident CTAs per SM, published by the harness before the first launch.
 /// Only the `pair` arm needs it, and it is defined only for that arm: a device

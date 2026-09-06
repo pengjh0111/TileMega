@@ -457,76 +457,79 @@ struct GemmStageTaskBody {
              accum, tiled_mma, residue, static_cast<int>(threadIdx.x), shared);
   }
 
+  __device__ static void RunLogicalTask(Params const& p,
+                                        StageDesc const& stage,
+                                        SmemUnion& smem, int task) {
+    auto const* table = static_cast<GemmInvocation const*>(p.gemms);
+    int const tiles = table[stage.gemm].tiles_m * table[stage.gemm].tiles_n;
+    int chunk = task / tiles;
+    auto const& invocation = table[stage.gemm + chunk];
+    int local = task - chunk * tiles;
+    char* shared = reinterpret_cast<char*>(&smem.gemm);
+#if TILEMEGA_GEMM_VARIANT_COUNT == 1
+    RunTask<0>(invocation, local, shared);
+#else
+    switch (invocation.variant) {
+      case 0: RunTask<0>(invocation, local, shared); break;
+      case 1: RunTask<1>(invocation, local, shared); break;
+#if TILEMEGA_GEMM_VARIANT_COUNT > 2
+      case 2: RunTask<2>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 3
+      case 3: RunTask<3>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 4
+      case 4: RunTask<4>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 5
+      case 5: RunTask<5>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 6
+      case 6: RunTask<6>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 7
+      case 7: RunTask<7>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 8
+      case 8: RunTask<8>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 9
+      case 9: RunTask<9>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 10
+      case 10: RunTask<10>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 11
+      case 11: RunTask<11>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 12
+      case 12: RunTask<12>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 13
+      case 13: RunTask<13>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 14
+      case 14: RunTask<14>(invocation, local, shared); break;
+#endif
+#if TILEMEGA_GEMM_VARIANT_COUNT > 15
+      case 15: RunTask<15>(invocation, local, shared); break;
+#endif
+      default: break;
+    }
+#endif
+  }
+
   __device__ void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion& smem) const {
     auto const* table = static_cast<GemmInvocation const*>(p.gemms);
     int const tiles = table[stage.gemm].tiles_m * table[stage.gemm].tiles_n;
     int const count = tiles * table[stage.gemm].chunks;
-    char* shared = reinterpret_cast<char*>(&smem.gemm);
     // Grid-stride over the whole task space. `Ownership` exceeds the resident
     // grid whenever a narrow N tile meets a large split-K factor, and without
     // the stride those tasks are simply never run -- a silently wrong result,
     // not a launch error.
     for (int task = PlacedBlock(); task < count; task += gridDim.x) {
-      int chunk = task / tiles;
-      auto const& invocation = table[stage.gemm + chunk];
-      int local = task - chunk * tiles;
-#if TILEMEGA_GEMM_VARIANT_COUNT == 1
-      // A single-variant build must emit exactly the code it emitted before
-      // variants existed, or every per-operator delta is measured against a
-      // baseline this feature made slower.
-      RunTask<0>(invocation, local, shared);
-#else
-      // Uniform across the stage: the variant is a property of the GEMM, not
-      // of the tile, so the branch never diverges inside a CTA.
-      switch (invocation.variant) {
-        case 0: RunTask<0>(invocation, local, shared); break;
-        case 1: RunTask<1>(invocation, local, shared); break;
-#if TILEMEGA_GEMM_VARIANT_COUNT > 2
-        case 2: RunTask<2>(invocation, local, shared); break;
-#endif
-#if TILEMEGA_GEMM_VARIANT_COUNT > 3
-        case 3: RunTask<3>(invocation, local, shared); break;
-#endif
-#if TILEMEGA_GEMM_VARIANT_COUNT > 4
-        case 4: RunTask<4>(invocation, local, shared); break;
-#endif
-#if TILEMEGA_GEMM_VARIANT_COUNT > 5
-        case 5: RunTask<5>(invocation, local, shared); break;
-#endif
-#if TILEMEGA_GEMM_VARIANT_COUNT > 6
-        case 6: RunTask<6>(invocation, local, shared); break;
-#endif
-#if TILEMEGA_GEMM_VARIANT_COUNT > 7
-        case 7: RunTask<7>(invocation, local, shared); break;
-#endif
-#if TILEMEGA_GEMM_VARIANT_COUNT > 8
-        case 8: RunTask<8>(invocation, local, shared); break;
-#endif
-#if TILEMEGA_GEMM_VARIANT_COUNT > 9
-        case 9: RunTask<9>(invocation, local, shared); break;
-#endif
-#if TILEMEGA_GEMM_VARIANT_COUNT > 10
-        case 10: RunTask<10>(invocation, local, shared); break;
-#endif
-#if TILEMEGA_GEMM_VARIANT_COUNT > 11
-        case 11: RunTask<11>(invocation, local, shared); break;
-#endif
-#if TILEMEGA_GEMM_VARIANT_COUNT > 12
-        case 12: RunTask<12>(invocation, local, shared); break;
-#endif
-#if TILEMEGA_GEMM_VARIANT_COUNT > 13
-        case 13: RunTask<13>(invocation, local, shared); break;
-#endif
-#if TILEMEGA_GEMM_VARIANT_COUNT > 14
-        case 14: RunTask<14>(invocation, local, shared); break;
-#endif
-#if TILEMEGA_GEMM_VARIANT_COUNT > 15
-        case 15: RunTask<15>(invocation, local, shared); break;
-#endif
-        default: break;
-      }
-#endif
+      RunLogicalTask(p, stage, smem, task);
       // The next iteration reuses `shared`, so the barrier is the loop's, not
       // the body's.
       __syncthreads();

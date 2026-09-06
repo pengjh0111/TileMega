@@ -26,32 +26,42 @@ struct ElementwiseTaskBody {
             (count + Threads - 1) / Threads};
   }
 
-  __device__ void operator()(Params const& p, StageDesc const& stage,
-                             SmemUnion&) const {
+  __device__ static void RunTask(Params const& p, StageDesc const& stage,
+                                 SmemUnion&, int task) {
     ModelElement const* gate = p.buffers[stage.operand[0]];
     ModelElement const* up = p.buffers[stage.operand[1]];
     ModelElement* out = p.buffers[stage.operand[2]];
     int count = p.dims.seq * static_cast<int>(stage.extent);
     if (p.ownership_flags & kActivationTileOwnership) {
       int const width = static_cast<int>(stage.extent);
-      for (int token = PlacedBlock(); token < p.dims.seq;
-           token += gridDim.x)
-        for (int d = threadIdx.x; d < width; d += blockDim.x) {
-          int i = token * width + d;
-          float x = static_cast<float>(gate[i]);
-          float silu = static_cast<float>(
-              ModelElement(x / (1.0f + expf(-x))));
-          out[i] = ModelElement(silu * static_cast<float>(up[i]));
-        }
+      for (int d = threadIdx.x; d < width; d += blockDim.x) {
+        int i = task * width + d;
+        float x = static_cast<float>(gate[i]);
+        float silu = static_cast<float>(
+            ModelElement(x / (1.0f + expf(-x))));
+        out[i] = ModelElement(silu * static_cast<float>(up[i]));
+      }
       return;
     }
-    for (int i = PlacedBlock() * blockDim.x + threadIdx.x; i < count;
-         i += gridDim.x * blockDim.x) {
-      float x = static_cast<float>(gate[i]);
-      float silu = static_cast<float>(
-          ModelElement(x / (1.0f + expf(-x))));
-      out[i] = ModelElement(silu * static_cast<float>(up[i]));
+    int const i = task * Threads + threadIdx.x;
+    if (i >= count) return;
+    float x = static_cast<float>(gate[i]);
+    float silu = static_cast<float>(ModelElement(x / (1.0f + expf(-x))));
+    out[i] = ModelElement(silu * static_cast<float>(up[i]));
+  }
+
+  __device__ void operator()(Params const& p, StageDesc const& stage,
+                             SmemUnion& smem) const {
+    int count = p.dims.seq * static_cast<int>(stage.extent);
+    if (p.ownership_flags & kActivationTileOwnership) {
+      for (int token = PlacedBlock(); token < p.dims.seq;
+           token += gridDim.x)
+        RunTask(p, stage, smem, token);
+      return;
     }
+    int chunks = (count + Threads - 1) / Threads;
+    for (int task = PlacedBlock(); task < chunks; task += gridDim.x)
+      RunTask(p, stage, smem, task);
   }
 };
 

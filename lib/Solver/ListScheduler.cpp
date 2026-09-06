@@ -85,4 +85,33 @@ std::vector<int> ListScheduler::Schedule(
   return order;
 }
 
+ScheduleSafety ListScheduler::Validate(
+    std::vector<std::vector<int>> const& successors,
+    std::vector<int> const& order) const {
+  // Validate the graph itself first, including out-of-range successors and
+  // cycles, even when an empty/malformed order would otherwise hide them.
+  (void)Levels(successors);
+  if (order.size() != successors.size())
+    throw std::invalid_argument("list scheduler: order is not a permutation");
+  std::vector<int> position(order.size(), -1);
+  for (std::size_t i = 0; i < order.size(); ++i) {
+    int const node = order[i];
+    if (node < 0 || node >= static_cast<int>(order.size()) ||
+        position[node] != -1)
+      throw std::invalid_argument("list scheduler: order is not a permutation");
+    position[node] = static_cast<int>(i);
+  }
+  ScheduleSafety result;
+  for (std::size_t producer = 0; producer < successors.size(); ++producer)
+    for (int consumer : successors[producer]) {
+      int const span = position[consumer] - position[producer];
+      if (span <= 0)
+        throw std::invalid_argument(
+            "list scheduler: schedule contains a backwards dependency");
+      result.max_dependency_span =
+          std::max(result.max_dependency_span, span);
+    }
+  return result;
+}
+
 }  // namespace tilemega::solver

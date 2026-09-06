@@ -26,8 +26,8 @@ struct AttentionTaskBody {
             p.dims.seq * static_cast<int>(stage.extent)};
   }
 
-  __device__ void operator()(Params const& p, StageDesc const& stage,
-                             SmemUnion& smem) const {
+  __device__ static void RunTask(Params const& p, StageDesc const& stage,
+                                 SmemUnion& smem, int query) {
     ModelElement const* q_rot = p.buffers[stage.operand[0]];
     ModelElement const* full_k = p.buffers[stage.operand[1]];
     ModelElement const* full_v = p.buffers[stage.operand[2]];
@@ -37,56 +37,56 @@ struct AttentionTaskBody {
     int const heads = static_cast<int>(stage.extent);
     int const group = static_cast<int>(stage.group);
     int const kv_heads = heads / group;
+    int token = query / heads;
+    int head = query % heads;
+    int kv = head / (heads / kv_heads);
+    for (int key_pos = threadIdx.x; key_pos < total;
+         key_pos += blockDim.x) {
+      float score = -INFINITY;
+      if (key_pos <= past + token) {
+        score = 0.0f;
+        int qbase = (token * heads + head) * dim;
+        int kbase = (kv * total + key_pos) * dim;
+        for (int d = 0; d < dim; ++d)
+          score = fmaf(static_cast<float>(q_rot[qbase + d]),
+                       static_cast<float>(full_k[kbase + d]), score);
+        score = static_cast<float>(
+            ModelElement(score / sqrtf(static_cast<float>(dim))));
+      }
+      smem.attention[key_pos] = score;
+    }
+    __syncthreads();
+    if (threadIdx.x == 0) {
+      float maximum = -INFINITY;
+      for (int j = 0; j < total; ++j)
+        maximum = fmaxf(maximum, smem.attention[j]);
+      float sum = 0.0f;
+      for (int j = 0; j < total; ++j) {
+        float value = expf(smem.attention[j] - maximum);
+        smem.attention[j] = value;
+        sum += value;
+      }
+      for (int j = 0; j < total; ++j)
+        smem.attention[j] = static_cast<float>(
+            ModelElement(smem.attention[j] / sum));
+    }
+    __syncthreads();
+    for (int d = threadIdx.x; d < dim; d += blockDim.x) {
+      float value = 0.0f;
+      for (int j = 0; j < total; ++j)
+        value = fmaf(smem.attention[j],
+                     static_cast<float>(full_v[(kv * total + j) * dim + d]),
+                     value);
+      context[(token * heads + head) * dim + d] = ModelElement(value);
+    }
+  }
 
-    // One resident CTA owns query b, b+grid, ... . The previous single-query
-    // body silently left context rows unwritten as soon as seq*heads exceeded
-    // the persistent grid; SEQSCAN is intentionally large enough to catch it.
+  __device__ void operator()(Params const& p, StageDesc const& stage,
+                             SmemUnion& smem) const {
+    int const heads = static_cast<int>(stage.extent);
     for (int query = PlacedBlock(); query < p.dims.seq * heads;
          query += gridDim.x) {
-      int token = query / heads;
-      int head = query % heads;
-      int kv = head / (heads / kv_heads);
-      for (int key_pos = threadIdx.x; key_pos < total;
-           key_pos += blockDim.x) {
-        float score = -INFINITY;
-        if (key_pos <= past + token) {
-          score = 0.0f;
-          int qbase = (token * heads + head) * dim;
-          int kbase = (kv * total + key_pos) * dim;
-          for (int d = 0; d < dim; ++d)
-            score = fmaf(static_cast<float>(q_rot[qbase + d]),
-                         static_cast<float>(full_k[kbase + d]), score);
-          // torch.matmul materializes a BF16 score before the explicit
-          // score.float() softmax in the source graph.
-          score = static_cast<float>(
-              ModelElement(score / sqrtf(static_cast<float>(dim))));
-        }
-        smem.attention[key_pos] = score;
-      }
-      __syncthreads();
-      if (threadIdx.x == 0) {
-        float maximum = -INFINITY;
-        for (int j = 0; j < total; ++j)
-          maximum = fmaxf(maximum, smem.attention[j]);
-        float sum = 0.0f;
-        for (int j = 0; j < total; ++j) {
-          float value = expf(smem.attention[j] - maximum);
-          smem.attention[j] = value;
-          sum += value;
-        }
-        for (int j = 0; j < total; ++j)
-          smem.attention[j] = static_cast<float>(
-              ModelElement(smem.attention[j] / sum));
-      }
-      __syncthreads();
-      for (int d = threadIdx.x; d < dim; d += blockDim.x) {
-        float value = 0.0f;
-        for (int j = 0; j < total; ++j)
-          value = fmaf(smem.attention[j],
-                       static_cast<float>(full_v[(kv * total + j) * dim + d]),
-                       value);
-        context[(token * heads + head) * dim + d] = ModelElement(value);
-      }
+      RunTask(p, stage, smem, query);
       __syncthreads();
     }
   }

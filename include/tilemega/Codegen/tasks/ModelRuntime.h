@@ -139,6 +139,50 @@ struct StageDependency {
   std::uint32_t count;
 };
 
+/// One stage in the solver-produced order for a runtime variant.  Task counts
+/// remain symbolic until launch, so codegen emits this compact schedule
+/// program and the host materializes one concrete TaskRef queue per worker
+/// after binding seq/past and the resident grid.
+struct ScheduleStageDesc {
+  std::uint32_t stage;
+  std::uint32_t dependency_begin;
+  std::uint32_t dependency_count;
+};
+
+/// One unique event a concrete task still has to observe.  The host removes
+/// duplicates both inside a task and against earlier waits in the same worker
+/// queue: epochs are monotone, so an event satisfied once stays satisfied.
+struct TaskWait {
+  std::uint32_t producer;
+  std::uint32_t group;
+};
+
+enum TaskRefFlag : std::uint32_t {
+  kLastTaskOfStage = 1u << 0,
+};
+
+/// A concrete queue item consumed by the L2 persistent kernel.
+struct TaskRef {
+  std::uint32_t stage;
+  std::uint32_t logical_task;
+  /// The original CG incoming-edge interval, retained for diagnostics and to
+  /// make the schedule/dependency relationship explicit.
+  std::uint32_t dependency_begin;
+  std::uint32_t dependency_count;
+  /// The deduplicated event interval actually polled by this task.
+  std::uint32_t wait_begin;
+  std::uint32_t wait_count;
+  std::uint32_t flags;
+};
+
+/// Optional instrumentation.  The sequence numbers come from one global
+/// atomic counter, so unlike per-SM clock64 values they define a comparable
+/// order across the whole device.
+struct TaskTrace {
+  unsigned long long start;
+  unsigned long long end;
+};
+
 /// A tensor the harness downloads and compares against the L0 reference.
 struct OutputDesc {
   std::uint32_t buffer;
@@ -152,6 +196,13 @@ struct RuntimeVariantDesc {
   StageDependency const* dependencies;
   std::uint32_t dependency_count;
   std::uint32_t const* dependency_offsets;  ///< stage_count + 1 entries
+  ScheduleStageDesc const* schedule;
+  std::uint32_t schedule_count;
+  /// Maximum producer-to-consumer distance in the emitted stage order.  A
+  /// non-positive dependency is rejected by codegen.  The runtime separately
+  /// checks concrete worker-order spans after dimensions and placement bind;
+  /// stage distance alone is not an over-residency proof.
+  std::uint32_t max_dependency_span;
   std::uint32_t seq_begin;  ///< inclusive, for diagnostics
   std::uint32_t seq_end;    ///< inclusive, for diagnostics
   std::uint32_t ownership_flags;
@@ -188,6 +239,15 @@ struct Params {
   /// slice of `dependencies` whose consumer is `stage`. Length is
   /// `stage_count + 1`.
   std::uint32_t const* dependency_offsets;
+  TaskRef const* schedule;
+  std::uint32_t schedule_count;
+  /// `schedule_offsets[worker] .. schedule_offsets[worker+1]` is that
+  /// physical worker's ordered queue. Length is grid + 1.
+  std::uint32_t const* schedule_offsets;
+  TaskWait const* task_waits;
+  std::uint32_t task_wait_count;
+  TaskTrace* task_trace;                 ///< nullptr unless profiling
+  unsigned long long* trace_sequence;    ///< nullptr unless profiling
   std::uint32_t ownership_flags;
 };
 

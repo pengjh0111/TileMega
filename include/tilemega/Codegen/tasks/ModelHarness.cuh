@@ -29,6 +29,7 @@
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -122,6 +123,32 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
     case TaskKind::kElementwise: T_Elementwise{}(p, stage, smem); break;
     case TaskKind::kAttention: T_Attention{}(p, stage, smem); break;
     case TaskKind::kGemmCombine: T_GemmCombine{}(p, stage, smem); break;
+  }
+}
+
+/// Dispatch exactly one logical task.  L0.5/L1 keep calling RunStage, whose
+/// grid-stride loops reuse these same single-task entries; L2 consumes them
+/// directly from the materialized worker queue.
+__device__ inline void RunTask(Params const& p, std::uint32_t index,
+                               std::uint32_t logical_task, TaskSmem& smem) {
+  StageDesc const& stage = p.stages[index];
+  int const task = static_cast<int>(logical_task);
+  switch (stage.kind) {
+    case TaskKind::kGemm:
+      T_Gemm::RunLogicalTask(p, stage, smem, task);
+      break;
+    case TaskKind::kRMSNorm: T_Norm::RunTask(p, stage, smem, task); break;
+    case TaskKind::kRoPE: T_RoPE::RunTask(p, stage, smem, task); break;
+    case TaskKind::kKVAppend: T_KV::RunTask(p, stage, smem, task); break;
+    case TaskKind::kElementwise:
+      T_Elementwise::RunTask(p, stage, smem, task);
+      break;
+    case TaskKind::kAttention:
+      T_Attention::RunTask(p, stage, smem, task);
+      break;
+    case TaskKind::kGemmCombine:
+      T_GemmCombine::RunTask(p, stage, smem, task);
+      break;
   }
 }
 
@@ -345,6 +372,34 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
   __threadfence();
 }
 
+/// Queue form of the wait: every row was already narrowed, converted to event
+/// groups, deduplicated, and lifted past earlier waits by the host materializer.
+/// Device work is therefore linear only in the unique, not-yet-known-satisfied
+/// events of this task.
+__device__ inline void WaitTaskDependencies(Params const& p,
+                                            EventCounter* events,
+                                            TaskRef const& task,
+                                            unsigned long long iteration) {
+#if TILEMEGA_UNSAFE_NO_EVENT_WAIT
+  (void)p;
+  (void)events;
+  (void)task;
+  (void)iteration;
+  return;
+#endif
+  for (std::uint32_t i = threadIdx.x; i < task.wait_count;
+       i += blockDim.x) {
+    TaskWait const& wait = p.task_waits[task.wait_begin + i];
+    TILEMEGA_GENERATED_WAIT_global(
+        &events[EventIndex(wait.producer, static_cast<int>(wait.group))].epoch,
+        iteration + 1ull);
+  }
+  if (task.wait_count != 0) {
+    __syncthreads();
+    __threadfence();
+  }
+}
+
 /// §8.5 CTA-cooperative release, then one monotonic arrival (§8.2), with the
 /// completing CTA publishing the stage's epoch.  The fence is per writer and
 /// precedes the CTA barrier, so every thread's writes are visible before
@@ -469,20 +524,30 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
   }
 }
 
-/// L2 uses the generated coupling DAG and one event per producer tile.  It has
-/// no per-stage grid arrival counter; conservative relaxed C edges may wait on
-/// all active producer tiles, but unrelated stages do not acquire each other.
+/// L2 is worker-queue driven. Adjacent rows may name different stages; only
+/// the concrete task's precomputed event slice constrains progress.
 __global__ __launch_bounds__(kHarnessThreads, 1)
 void tilemega_l2_kernel(Params const* params, EventCounter* events,
                         unsigned long long iteration) {
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
-  for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
-    bool active = PlacedBlock() <
-                  ActiveBlocks(*params, params->stages[stage]);
-    WaitDependencies(*params, events, stage, active, iteration);
-    RunStage(*params, stage, smem);
-    NotifyStage(*params, events, stage, active, iteration);
+  std::uint32_t const worker = static_cast<std::uint32_t>(blockIdx.x);
+  std::uint32_t const first = params->schedule_offsets[worker];
+  std::uint32_t const last = params->schedule_offsets[worker + 1];
+  for (std::uint32_t slot = first; slot < last; ++slot) {
+    TaskRef const task = params->schedule[slot];
+    WaitTaskDependencies(*params, events, task, iteration);
+    if (params->task_trace != nullptr && threadIdx.x == 0)
+      params->task_trace[slot].start =
+          atomicAdd(params->trace_sequence, 1ull);
+    __syncthreads();
+    RunTask(*params, task.stage, task.logical_task, smem);
+    __syncthreads();
+    if (params->task_trace != nullptr && threadIdx.x == 0)
+      params->task_trace[slot].end =
+          atomicAdd(params->trace_sequence, 1ull);
+    if (task.flags & kLastTaskOfStage)
+      NotifyStage(*params, events, task.stage, true, iteration);
   }
 }
 
@@ -589,6 +654,19 @@ struct DeviceModel {
   StageDesc* device_stages = nullptr;
   StageDependency* device_dependencies = nullptr;
   std::uint32_t* device_dependency_offsets = nullptr;
+  std::vector<TaskRef> schedule;
+  std::vector<std::uint32_t> schedule_offsets;
+  std::vector<TaskWait> task_waits;
+  TaskRef* device_schedule = nullptr;
+  std::uint32_t* device_schedule_offsets = nullptr;
+  TaskWait* device_task_waits = nullptr;
+  TaskTrace* device_task_trace = nullptr;
+  unsigned long long* device_trace_sequence = nullptr;
+  std::vector<std::uint32_t> stage_order;
+  std::uint32_t schedule_max_span = 0;
+  std::uint32_t schedule_max_worker_span = 0;
+  bool schedule_has_global_fanin = false;
+  std::size_t schedule_raw_polls = 0;
   Params params{};
   Params* device_params = nullptr;
   EventCounter* events = nullptr;
@@ -624,7 +702,8 @@ inline ModelDims BindDims(ModelDims dims, std::string const& dir) {
 inline DeviceModel Create(ModelSpec const& spec,
                           RuntimeVariantDesc const& runtime_variant,
                           std::uint32_t runtime_variant_index,
-                          ModelDims const& dims, std::string const& dir) {
+                          ModelDims const& dims, std::string const& dir,
+                          int grid, int blocks_per_sm) {
   DeviceModel model;
   model.spec = &spec;
   model.runtime_variant = &runtime_variant;
@@ -798,6 +877,162 @@ inline DeviceModel Create(ModelSpec const& spec,
   for (auto const& edge : dependencies) ++offsets[edge.consumer + 1];
   for (std::size_t i = 1; i < offsets.size(); ++i) offsets[i] += offsets[i - 1];
 
+  // Expand the solver's variant schedule around host-inserted split-K
+  // combiners, then prove the concrete stage order is acyclic before a kernel
+  // can be launched.  Runtime dimensions change queue lengths, not this order.
+  if (runtime_variant.schedule_count != spec.stage_count) {
+    std::fprintf(stderr, "runtime variant schedule has %u/%u stages\n",
+                 runtime_variant.schedule_count, spec.stage_count);
+    std::exit(2);
+  }
+  std::vector<bool> scheduled_once(spec.stage_count, false);
+  model.stage_order.reserve(model.stages.size());
+  for (std::uint32_t i = 0; i < runtime_variant.schedule_count; ++i) {
+    std::uint32_t const original = runtime_variant.schedule[i].stage;
+    if (original >= spec.stage_count || scheduled_once[original]) {
+      std::fprintf(stderr, "runtime variant schedule is not a permutation\n");
+      std::exit(2);
+    }
+    scheduled_once[original] = true;
+    model.stage_order.push_back(entry[original]);
+    if (done[original] != entry[original])
+      model.stage_order.push_back(done[original]);
+  }
+  std::vector<std::uint32_t> stage_position(model.stages.size());
+  for (std::uint32_t i = 0; i < model.stage_order.size(); ++i)
+    stage_position[model.stage_order[i]] = i;
+  for (auto const& edge : dependencies) {
+    if (stage_position[edge.producer] >= stage_position[edge.consumer]) {
+      std::fprintf(stderr,
+                   "task queue would wait backwards: stage %u -> %u\n",
+                   edge.producer, edge.consumer);
+      std::exit(2);
+    }
+    model.schedule_max_span = std::max(
+        model.schedule_max_span,
+        stage_position[edge.consumer] - stage_position[edge.producer]);
+  }
+
+  auto active_tasks = [&](std::uint32_t index) {
+    StageDesc const& stage = model.stages[index];
+    switch (stage.kind) {
+      case TaskKind::kGemm: {
+        GemmInvocation const& invocation = gemms[stage.gemm];
+        return invocation.tiles_m * invocation.tiles_n * invocation.chunks;
+      }
+      case TaskKind::kRMSNorm: return dims.seq;
+      case TaskKind::kRoPE:
+        if (model.params.ownership_flags & kRoPETileOwnership)
+          return dims.seq * static_cast<int>(stage.extent);
+        return CeilDiv(dims.seq * static_cast<int>(stage.extent) *
+                           (static_cast<int>(stage.width) / 2),
+                       kHarnessThreads);
+      case TaskKind::kKVAppend:
+        if (model.params.ownership_flags & kKVTileOwnership)
+          return dims.seq * static_cast<int>(stage.extent);
+        return CeilDiv(std::max(dims.seq, dims.past) *
+                           static_cast<int>(stage.extent) *
+                           static_cast<int>(stage.width),
+                       kHarnessThreads);
+      case TaskKind::kElementwise:
+        if (model.params.ownership_flags & kActivationTileOwnership)
+          return dims.seq;
+        return CeilDiv(dims.seq * static_cast<int>(stage.extent),
+                       kHarnessThreads);
+      case TaskKind::kAttention:
+        return dims.seq * static_cast<int>(stage.extent);
+      case TaskKind::kGemmCombine:
+        if (model.params.ownership_flags & kCombinerTileOwnership) {
+          GemmInvocation const& invocation = gemms[stage.gemm];
+          return invocation.tiles_m * invocation.tiles_n;
+        }
+        return CeilDiv(dims.seq * static_cast<int>(stage.width),
+                       kHarnessThreads);
+    }
+    return 0;
+  };
+
+  // Materialize one queue per physical CTA.  Event requirements are first
+  // deduplicated for the task and then lifted out of later tasks in the same
+  // worker queue.  The latter is valid only because epoch never decreases.
+  model.schedule_offsets.resize(static_cast<std::size_t>(grid) + 1, 0);
+  std::vector<std::set<std::pair<std::uint32_t, std::uint32_t>>> seen(grid);
+  std::vector<int> physical_worker(grid);
+  for (int worker = 0; worker < grid; ++worker)
+    physical_worker[HostPlacedBlock(worker, grid, blocks_per_sm)] = worker;
+#if TILEMEGA_EVENT_KAPPA > 0
+  int const per_group = TILEMEGA_EVENT_KAPPA;
+#endif
+  for (int worker = 0; worker < grid; ++worker) {
+    int const placed = HostPlacedBlock(worker, grid, blocks_per_sm);
+    for (std::uint32_t stage : model.stage_order) {
+      int const count = active_tasks(stage);
+      for (int logical = placed; logical < count; logical += grid) {
+        TaskRef task{};
+        task.stage = stage;
+        task.logical_task = static_cast<std::uint32_t>(logical);
+        task.dependency_begin = offsets[stage];
+        task.dependency_count = offsets[stage + 1] - offsets[stage];
+        task.wait_begin = static_cast<std::uint32_t>(model.task_waits.size());
+        std::set<std::pair<std::uint32_t, std::uint32_t>> desired;
+        for (std::uint32_t e = offsets[stage]; e < offsets[stage + 1]; ++e) {
+          StageDependency const& dep = dependencies[e];
+          int const produced = active_tasks(dep.producer);
+          int const live = std::min(produced, grid);
+          auto observe_owner = [&](int owner) {
+            int const producer_worker = physical_worker[owner];
+            if (producer_worker > worker)
+              model.schedule_max_worker_span = std::max(
+                  model.schedule_max_worker_span,
+                  static_cast<std::uint32_t>(producer_worker - worker));
+          };
+#if TILEMEGA_EVENT_KAPPA > 0
+          if (dep.map == StageDependency::Map::kAll) {
+            model.schedule_has_global_fanin = true;
+            for (int group = 0; group <= (live - 1) / per_group; ++group)
+              desired.emplace(dep.producer, static_cast<std::uint32_t>(group));
+            for (int owner = 0; owner < live; ++owner) observe_owner(owner);
+          } else {
+            int const at =
+                (logical / static_cast<int>(dep.div)) * dep.scale + dep.offset;
+            int const begin = std::max(at, 0);
+            int const end = std::min(
+                at + static_cast<int>(dep.count), produced);
+            for (int producer_task = begin; producer_task < end;
+                 ++producer_task) {
+              int const owner = producer_task % grid;
+              int const group = owner / per_group;
+              int const group_end = std::min((group + 1) * per_group, live);
+              for (int member = group * per_group; member < group_end; ++member)
+                observe_owner(member);
+              // With one worker per event, this worker's earlier queue entry
+              // is already a proof; no global-memory poll is needed.
+              if (per_group == 1 && owner == placed) continue;
+              desired.emplace(dep.producer,
+                              static_cast<std::uint32_t>(group));
+            }
+          }
+#else
+          (void)produced;
+          model.schedule_has_global_fanin = true;
+          for (int owner = 0; owner < live; ++owner) observe_owner(owner);
+          desired.emplace(dep.producer, 0u);
+#endif
+        }
+        model.schedule_raw_polls += desired.size();
+        for (auto const& wait : desired)
+          if (seen[worker].insert(wait).second)
+            model.task_waits.push_back({wait.first, wait.second});
+        task.wait_count = static_cast<std::uint32_t>(model.task_waits.size()) -
+                          task.wait_begin;
+        if (logical + grid >= count) task.flags |= kLastTaskOfStage;
+        model.schedule.push_back(task);
+      }
+    }
+    model.schedule_offsets[worker + 1] =
+        static_cast<std::uint32_t>(model.schedule.size());
+  }
+
   auto upload = [](void const* host, std::size_t bytes) {
     void* device = nullptr;
     TILEMEGA_CUDA_CHECK(cudaMalloc(&device, bytes));
@@ -815,6 +1050,25 @@ inline DeviceModel Create(ModelSpec const& spec,
         dependencies.data(), dependencies.size() * sizeof(StageDependency)));
   model.device_dependency_offsets = static_cast<std::uint32_t*>(
       upload(offsets.data(), offsets.size() * sizeof(std::uint32_t)));
+  if (!model.schedule.empty())
+    model.device_schedule = static_cast<TaskRef*>(upload(
+        model.schedule.data(), model.schedule.size() * sizeof(TaskRef)));
+  model.device_schedule_offsets = static_cast<std::uint32_t*>(upload(
+      model.schedule_offsets.data(),
+      model.schedule_offsets.size() * sizeof(std::uint32_t)));
+  if (!model.task_waits.empty())
+    model.device_task_waits = static_cast<TaskWait*>(upload(
+        model.task_waits.data(), model.task_waits.size() * sizeof(TaskWait)));
+  if (std::getenv("TILEMEGA_TASK_TRACE") != nullptr) {
+    TILEMEGA_CUDA_CHECK(cudaMalloc(
+        &model.device_task_trace, model.schedule.size() * sizeof(TaskTrace)));
+    TILEMEGA_CUDA_CHECK(cudaMemset(
+        model.device_task_trace, 0, model.schedule.size() * sizeof(TaskTrace)));
+    TILEMEGA_CUDA_CHECK(
+        cudaMalloc(&model.device_trace_sequence, sizeof(unsigned long long)));
+    TILEMEGA_CUDA_CHECK(
+        cudaMemset(model.device_trace_sequence, 0, sizeof(unsigned long long)));
+  }
 
   model.params.dims = dims;
   model.params.buffers = model.device_buffers;
@@ -825,6 +1079,14 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.params.dependency_count =
       static_cast<std::uint32_t>(dependencies.size());
   model.params.dependency_offsets = model.device_dependency_offsets;
+  model.params.schedule = model.device_schedule;
+  model.params.schedule_count = static_cast<std::uint32_t>(model.schedule.size());
+  model.params.schedule_offsets = model.device_schedule_offsets;
+  model.params.task_waits = model.device_task_waits;
+  model.params.task_wait_count =
+      static_cast<std::uint32_t>(model.task_waits.size());
+  model.params.task_trace = model.device_task_trace;
+  model.params.trace_sequence = model.device_trace_sequence;
   model.params.ownership_flags = runtime_variant.ownership_flags;
   TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_params, sizeof(Params)));
   TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params, &model.params,
@@ -895,6 +1157,47 @@ inline std::vector<std::vector<ModelElement>> Download(DeviceModel const& model)
                                    cudaMemcpyDeviceToHost));
   }
   return output;
+}
+
+inline void ReportTaskTrace(DeviceModel const& model) {
+  if (model.device_task_trace == nullptr) return;
+  std::vector<TaskTrace> trace(model.schedule.size());
+  TILEMEGA_CUDA_CHECK(cudaMemcpy(trace.data(), model.device_task_trace,
+                                 trace.size() * sizeof(TaskTrace),
+                                 cudaMemcpyDeviceToHost));
+  std::vector<unsigned long long> stage_end(model.stages.size(), 0);
+  std::vector<std::uint32_t> position(model.stages.size(), 0);
+  for (std::uint32_t i = 0; i < model.stage_order.size(); ++i)
+    position[model.stage_order[i]] = i;
+  for (std::size_t i = 0; i < trace.size(); ++i)
+    stage_end[model.schedule[i].stage] =
+        std::max(stage_end[model.schedule[i].stage], trace[i].end);
+  std::size_t early = 0;
+  std::size_t overlap_pairs = 0;
+  for (std::size_t i = 0; i < trace.size(); ++i) {
+    bool any = false;
+    std::uint32_t const rank = position[model.schedule[i].stage];
+    for (std::uint32_t prior = 0; prior < rank; ++prior) {
+      std::uint32_t const stage = model.stage_order[prior];
+      if (stage_end[stage] > trace[i].start) {
+        any = true;
+        ++overlap_pairs;
+      }
+    }
+    if (any) ++early;
+  }
+  std::size_t transitions = 0;
+  for (std::size_t worker = 0; worker + 1 < model.schedule_offsets.size();
+       ++worker)
+    for (std::uint32_t i = model.schedule_offsets[worker] + 1;
+         i < model.schedule_offsets[worker + 1]; ++i)
+      if (model.schedule[i - 1].stage != model.schedule[i].stage)
+        ++transitions;
+  double const pct = trace.empty() ? 0.0 : 100.0 * early / trace.size();
+  std::printf("E2E_OVERLAP task_starts=%zu cross_stage_early=%zu "
+              "cross_stage_early_pct=%.4f overlap_pairs=%zu "
+              "queue_stage_transitions=%zu stage_control_early=0\n",
+              trace.size(), early, pct, overlap_pairs, transitions);
 }
 
 inline void DumpBuffers(DeviceModel const& model, char const* directory) {
@@ -1124,8 +1427,6 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
                  dims.seq);
     return 2;
   }
-  DeviceModel model = Create(spec, runtime_variant, runtime_variant_index,
-                             dims, fixture_dir);
   std::vector<std::vector<ModelElement>> reference(spec.output_count);
   for (std::uint32_t i = 0; i < spec.output_count; ++i)
     reference[i] = Load(std::string(fixture_dir) + "/" + spec.outputs[i].file,
@@ -1174,6 +1475,8 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   TILEMEGA_CUDA_CHECK(cudaMemcpyToSymbol(tilemega_blocks_per_sm, &blocks_per_sm,
                                          sizeof(int)));
 #endif
+  DeviceModel model = Create(spec, runtime_variant, runtime_variant_index,
+                             dims, fixture_dir, grid, blocks_per_sm);
   PrepareEvents(model, grid);
 
   Reset(model);
@@ -1186,6 +1489,7 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   Reset(model);
   float l2_ms = LaunchL2(model, grid);
   auto l2 = Download(model);
+  ReportTaskTrace(model);
 
   // §8.2: the counters are monotonic, so a second iteration must be correct
   // *without* clearing them -- `needed` scales with the iteration instead.
@@ -1242,6 +1546,19 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
               kHarnessThreads, sizeof(TaskSmem), sizeof(GemmVariantSmem),
               TILEMEGA_GEMM_VARIANT_COUNT, blocks_per_sm,
               target.res.num_sms, grid);
+  std::printf("E2E_SCHEDULE workers=%d variant_stages=%u task_refs=%zu "
+              "task_ref_bytes=%zu waits=%zu wait_bytes=%zu raw_polls=%zu "
+              "lifted_polls=%zu max_span=%u generated_max_span=%u "
+              "max_worker_span=%u resident_limit=%d global_fanin=%d "
+              "i3_current=pass i3_overresident=reject\n",
+              grid, runtime_variant.schedule_count, model.schedule.size(),
+              model.schedule.size() * sizeof(TaskRef), model.task_waits.size(),
+              model.task_waits.size() * sizeof(TaskWait),
+              model.schedule_raw_polls,
+              model.schedule_raw_polls - model.task_waits.size(),
+              model.schedule_max_span, runtime_variant.max_dependency_span,
+              model.schedule_max_worker_span, grid,
+              model.schedule_has_global_fanin ? 1 : 0);
   std::printf("E2E_TIME l05_ms=%.6f l1_ms=%.6f ratio=%.6f l2_ms=%.6f "
               "l2_over_l1=%.6f\n", l05_ms, l1_ms, l1_ms / l05_ms, l2_ms,
               l2_ms / l1_ms);
@@ -1280,7 +1597,7 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
     }
   }
   bool pass = l05_l0.mismatch == 0 && l1_l05.mismatch == 0 &&
-              l2_l1.mismatch == 0 && l2_iter.mismatch == 0;
+              l2_l1.mismatch == 0 && iteration_mismatch == 0;
 #if TILEMEGA_UNSAFE_NO_GRID_SYNC
   // A build without the grid half of the barrier is a timing probe, not a
   // kernel; it must never be able to print PASS, whatever the comparison says.

@@ -61,6 +61,10 @@ int main() {
   assert(cuda.find("% 12") == std::string::npos);
   assert(cuda.find("wait_table=") == std::string::npos);
   assert(cuda.find("kRuntimeVariants") != std::string::npos);
+  assert(cuda.find("constexpr ScheduleStageDesc kSchedule0[]") !=
+         std::string::npos);
+  assert(cuda.find("kDependencyOffsets0, kSchedule0, 30u") !=
+         std::string::npos);
 
   // Phase-5 prerequisite: two independently instantiated granularities are
   // fused into one binary, and ModelSpec -- not an external -D plan -- binds
@@ -77,6 +81,10 @@ int main() {
          std::string::npos);
   assert(multi.find("{kRuntimeGemms0, kDependencies0") != std::string::npos);
   assert(multi.find("{kRuntimeGemms1, kDependencies1") != std::string::npos);
+  assert(multi.find("constexpr ScheduleStageDesc kSchedule0[]") !=
+         std::string::npos);
+  assert(multi.find("constexpr ScheduleStageDesc kSchedule1[]") !=
+         std::string::npos);
   assert(multi.find("table[s] = 1u") != std::string::npos);
   assert(multi.find("wait_table=") == std::string::npos);
 
