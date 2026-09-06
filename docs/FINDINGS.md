@@ -1668,3 +1668,72 @@
   only thing in the repository that exercises generator → parser → cost model in
   one pass.
 - Evidence: lib/Solver/ModelDescription.cpp, docs/experiments/ORACLE/run_bf16.sh.
+
+## F-74 — The BF16 ranking collapse was not the clamped constant; it was one scalar and one mis-priced lane
+
+- Finding: F-70 attributed the BF16 cost model's ρ 0.5605 / 0.6239 to
+  `combine_fixed_ns` being clamped to zero. ✅ That attribution is **falsified**.
+  Both defects it names were real and both were repaired — the launch baseline
+  is now the same kernel doing nothing rather than an empty one, `a` is measured
+  at zero mainloop iterations instead of extrapolated, and the clamp is replaced
+  by a `combine_fixed_resolved` flag — and the ranking moved only 0.5605 → 0.5560
+  and 0.6239 → 0.6235.
+- The evidence that the old baseline was wrong is arithmetic, not statistical:
+  the launch-subtracted duration of the reduction at **one** output measured
+  **−928 ns**. An empty `__global__ void f(){}` has neither the shared-memory
+  footprint nor the launch bounds of the kernel it stands in for. After the fix
+  no BF16 Stream-K shape fits a negative per-CTA setup and `ac_r2` rises from
+  0.922 to 0.984–0.9997; FP32's rises to 0.9992–1.0.
+- ✅ The first real cause: the cost model prices all 154 shapes through **one**
+  fitted scalar `setup_ns`. In FP32 the calibrated `a` spans 993–4501 ns and one
+  scalar is fair; in BF16 it spans 0–10112 ns and the fit reported
+  `setup = 1187.94 ns, rms 3247 ns` — a residual 2.7× its own value. Fitting
+  `setup = α + β·tile_m·tile_n` over the same points (two numbers, nothing newly
+  measured) moves ρ to **0.8246 / 0.8247**.
+- ✅ The second: the **SMEM lane prices a path BF16 does not use**. Its rate is a
+  scalar `ld.shared` throughput and its work term scales with mainloop
+  iterations, so splitting K divided a cost the Tensor Core kernel never pays.
+  The signature was a clean monotone bias — median predicted/measured 0.93 at
+  split-K 1 falling to 0.55 at split-K 16. Marking the lane `kNotCalibrated`
+  for BF16 flattens it to **0.46–0.48 at every split factor** and lifts ρ to
+  **0.8942 / 0.8834**.
+- Part 2.4's minimum ("no worse than the uncalibrated analytic baseline",
+  0.8778 / 0.8738) is now **met**; its target (FP32's 0.9450 / 0.9435 with top-3
+  inside the measured top 3%) is **not**, and no threshold was moved. What
+  remains is a near-constant 2.1× under-prediction — a scale error, not a shape
+  error — because nothing replaces the removed lane's contribution to absolute
+  time.
+- ⚠️ Recorded as it happened: the SMEM lane was found harmful by ablation and
+  explained afterwards. The explanation is a micro-architectural argument about
+  `cp.async` → `ldmatrix` → MMA, not a fit, and needs a target where the operand
+  feed can be measured apart from byte traffic.
+- FP32 is the control throughout and is unaffected: ρ 0.9450 → 0.9432 and
+  0.9435 → 0.9421 across all three changes, optimum rank 19 → 23 and 12 → 14.
+- Evidence: docs/experiments/BF16/result.md, docs/experiments/ORACLE/raw_bf16/cost/,
+  docs/experiments/COST_MODEL/raw/summary.tsv; lib/Target/GemmCalibration.cu,
+  lib/Solver/CostModel.cpp.
+
+## F-75 — Metrics derived at the bottom of the parameter range were wrong by up to five orders of magnitude
+
+- Finding: the frontend pinned every symbolic dimension to its range minimum
+  before deriving, so `wait`, `fanout`, `volume` and `count` reached the IR as
+  integers measured at `S_min`. Only tile sizes and the GQA group factor
+  actually have to be literal (`isl_aff_div` rejects a parametric divisor); the
+  workload dimensions do not.
+- ✅ With them free, the metrics come out as quasi-polynomials, and evaluating
+  them equals re-deriving the whole coupling at that point: **420 / 420**
+  agreements over 21 edges × 4 metrics × `S ∈ {1, 4, 128, 512, 2048}`, compared
+  as functions rather than collapsed to scalars.
+- ✅ What the old constant claimed: **27 of 63** metrics were wrong. The one
+  §2.7 names — `attn_chunk -> attn_combine`, `wait = ⌈L_s/Tkv⌉`, which is
+  exactly what `T_sync = |image(C_κ)| × latency` reads — was **32× too small**
+  at a 4096-token context, and the error grows linearly with KV length. Fanout
+  on `rope_q -> attn_chunk` was 4096× low and its `count` 131 000× low.
+- The generated kernel is unchanged: both reference models still pass 50/50
+  fresh processes with bit-identical output hashes and the same
+  10 `kAll` / 7 `kIdentity` / 21 `kWindow` dependency mix. What changed is what
+  the IR can be asked, which is the precondition for P5.1's piecewise solution.
+- The wait window's `div/scale/offset/count` stay integers, because they are
+  `constexpr` in the emitted table; the three-point re-fit that keeps them
+  admissible is unchanged.
+- Evidence: docs/experiments/SYMBOLIC/, tools/tilemega-symbolic-probe.cpp.

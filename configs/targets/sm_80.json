@@ -60,6 +60,7 @@
     },
     "streamk": [],
     "combine_fixed_ns": 0.0,
+    "combine_fixed_resolved": false,
     "combine_d_dram_ns": 0.0,
     "interference_ratio": 0.0,
     "measurements": []

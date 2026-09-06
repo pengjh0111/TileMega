@@ -105,6 +105,8 @@ void ParseCalibration(json::Value const& cal, TargetSpec::Calib& out) {
     out.streamk.push_back(std::move(point));
   }
   out.combine_fixed_ns = cal.At("combine_fixed_ns").AsNumber("combine_fixed_ns");
+  if (json::Value const* resolved = cal.Find("combine_fixed_resolved"))
+    out.combine_fixed_resolved = resolved->AsBool("combine_fixed_resolved");
   out.combine_d_dram_ns =
       cal.At("combine_d_dram_ns").AsNumber("combine_d_dram_ns");
   out.interference_ratio = number("interference_ratio");
@@ -184,6 +186,7 @@ json::Value CalibrationJson(TargetSpec::Calib const& calib) {
       {"pipelines", pipelines}, {"sync", sync},
       {"streamk", json::Value(streamk)},
       {"combine_fixed_ns", calib.combine_fixed_ns},
+      {"combine_fixed_resolved", calib.combine_fixed_resolved},
       {"combine_d_dram_ns", calib.combine_d_dram_ns},
       {"interference_ratio", calib.interference_ratio},
       {"measurements", json::Value(measurements)}});

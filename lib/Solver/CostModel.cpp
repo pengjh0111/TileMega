@@ -153,7 +153,19 @@ CostModel::CostModel(TargetSpec const& target, ScalarType dtype,
   lanes_[RV::kCudaCore] = lane(true, calib.cuda_fp32_gflops);
   lanes_[RV::kSfu] = lane(true, calib.sfu_exp2_gops);
   lanes_[RV::kTmem] = lane(target.caps.tcgen05, 0.0);
-  lanes_[RV::kSmem] = lane(true, calib.smem_gbps);
+  // `smem_gbps` is a scalar `ld.shared` throughput, and the SMEM lane's work
+  // term is the SIMT mainloop's shared-memory traffic.  A BF16 Tensor Core
+  // collective does not feed the MMA that way -- operands arrive by
+  // `cp.async` into shared memory and leave it by `ldmatrix` straight into the
+  // MMA's register operands -- so nothing in the BF16 profile measures the
+  // path this lane is meant to price.  ⚠️ The lane was found harmful by
+  // ablation first (removing it moved BF16's Spearman from 0.8246 to 0.8942)
+  // and only then explained; the explanation is a micro-architectural
+  // argument, not a fit, and must be re-checked on a target where the two can
+  // be measured apart.
+  lanes_[RV::kSmem] = dtype == ScalarType::kBF16
+                          ? LaneStatus::kNotCalibrated
+                          : lane(true, calib.smem_gbps);
   lanes_[RV::kL15] = lane(target.caps.l1_5, 0.0);
   lanes_[RV::kL2] = lane(true, calib.l2_gbps);
   lanes_[RV::kDram] = lane(true, calib.dram_gbps);
@@ -191,7 +203,7 @@ CostModel::CostModel(TargetSpec const& target, ScalarType dtype,
   fit_.lds_ns = lds_num / lds_den;
 
   double lds_sq = 0.0, setup_sum = 0.0;
-  std::vector<double> setups;
+  std::vector<double> setups, setup_areas;
   for (auto const& shape : calib.streamk) {
     GemmConfig cfg{shape.tile_m, shape.tile_n, shape.tile_k, shape.stages, 1};
     for (std::size_t i = 0; i < shape.occ_per_sm.size(); ++i) {
@@ -217,14 +229,39 @@ CostModel::CostModel(TargetSpec const& target, ScalarType dtype,
           options_.pipeline_envelope ? (cfg.stages - 1) * shape.occ_c_ns[i] : 0.0;
       double const setup = shape.occ_a_ns[i] + fill - traffic;
       setups.push_back(setup);
+      setup_areas.push_back(double(cfg.tile_m) * double(cfg.tile_n));
       setup_sum += setup;
     }
   }
   fit_.lds_rel_rms = std::sqrt(lds_sq / points);
-  fit_.setup_ns = setup_sum / points;
+  // A per-CTA setup is not one number.  It is dominated by what the CTA has to
+  // materialize before and after the mainloop, which scales with the output
+  // tile: on the BF16 profile the calibrated `a` runs from 0 ns at 32x32 to
+  // 10112 ns at 256x128, and a single scalar over that range fitted with a
+  // residual twice its own value (F-74).  `setup = alpha + beta * tile_m *
+  // tile_n` is still two numbers fitted over the same points, so nothing new
+  // is measured -- what changes is that the model is allowed to say the
+  // epilogue of a large tile costs more than that of a small one.
+  double sx = 0.0, sy = 0.0, sxx = 0.0, sxy = 0.0;
+  for (std::size_t i = 0; i < setups.size(); ++i) {
+    sx += setup_areas[i];
+    sy += setups[i];
+    sxx += setup_areas[i] * setup_areas[i];
+    sxy += setup_areas[i] * setups[i];
+  }
+  double const n = static_cast<double>(setups.size());
+  double const denominator = n * sxx - sx * sx;
+  if (denominator != 0.0) {
+    fit_.setup_per_output_ns = (n * sxy - sx * sy) / denominator;
+    fit_.setup_ns = (sy - fit_.setup_per_output_ns * sx) / n;
+  } else {
+    fit_.setup_per_output_ns = 0.0;
+    fit_.setup_ns = setup_sum / points;
+  }
   double setup_sq = 0.0;
-  for (double s : setups) {
-    double const e = fit_.setup_ns - s;
+  for (std::size_t i = 0; i < setups.size(); ++i) {
+    double const e = fit_.setup_ns + fit_.setup_per_output_ns * setup_areas[i] -
+                     setups[i];
     setup_sq += e * e;
   }
   fit_.setup_rms_ns = std::sqrt(setup_sq / points);
@@ -300,6 +337,7 @@ double CostModel::GemmStageNs(GemmOp const& gemm, GemmConfig const& config,
 
   double const per_cta_fixed =
       fit_.setup_ns +
+      fit_.setup_per_output_ns * double(config.tile_m) * double(config.tile_n) +
       config.stages * (MainloopBytes(config, dtype_) / l2_bytes_per_ns_per_sm_) +
       calib_->l2_latency_ns +
       EpilogueBytes(config, dtype_) / l2_bytes_per_ns_per_sm_;

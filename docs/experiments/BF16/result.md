@@ -77,6 +77,143 @@ Fixing this is a measurement problem (resolve the reduction stage's fixed cost
 instead of clamping it) and is deliberately left to the next round rather than
 attempted at the end of this one.
 
+## The repair, and a correction to the attribution above
+
+⚠️ **The attribution in the section above is wrong, and the correction is the
+useful part.** `combine_fixed_ns` was a real defect and it was fixed; it turned
+out not to be what broke the ranking. Three changes were made, each measured
+separately against the same 1540-point validation set.
+
+### (1) The launch baseline was a different kernel
+
+`NullKernel` — an empty `__global__ void f(){}` — was launched at the same grid
+and its duration subtracted from every calibration point. It has neither the
+shared-memory footprint nor the `__launch_bounds__` of the kernel it stands in
+for, so it is not the same launch. ✅ The evidence is arithmetic: the
+launch-subtracted duration of the reduction at **one** output came out at
+**−928 ns**, which is impossible.
+
+That bias is the size of `a` itself on the small tiles, and it is why three
+BF16 Stream-K shapes fitted a negative per-CTA setup. The baseline is now the
+*same kernel doing nothing* — `CalibCombineKernel(..., count = 0)` for the
+reduction, and `CalibGemmKernel(table, tiles_m = 0, ...)` for the GEMM, which
+returns before its first division. `a` is then measured directly at zero
+mainloop iterations rather than extrapolated, and `c` is fitted through it:
+
+| profile | `a_ns` before | `a_ns` after | `ac_r2` before | after |
+|---|---|---|---:|---:|
+| BF16 | −119.2 / −438.6 / −400.7 among six | none negative beyond the ±150 ns floor | 0.922 | **0.984 – 0.9997** |
+| FP32 | 993 – 4501 | 0 – 4096 (smaller: the empty kernel under-charged this kernel's dispatch) | 0.9999 | **0.9992 – 1.0** |
+
+### (2) The clamp is gone
+
+`combine_fixed_ns = max(0, fit)` is replaced by a direct measurement at the
+narrow end of the width sweep. On this target every small-width reading lands
+inside one ~100 ns timer tick, so the honest answer is that the quantity is
+**below the measurement floor**: the profile now carries `0.0` together with
+`combine_fixed_resolved = false`, and a zero can no longer be mistaken for a
+measured "free". `tilemega-target-audit` gained the field and caught its
+absence in the four uncalibrated target files on the first run.
+
+### (3) What actually broke the ranking: one scalar for the per-CTA setup
+
+✅ Neither (1) nor (2) moved the ranking: ρ went 0.5605 → 0.5560 (gqa2) and
+0.6239 → 0.6235 (mha4). The attribution to `combine_fixed_ns` is **falsified**.
+
+The cost model never reads the per-shape `a` directly. It fits one scalar
+`setup_ns` across the calibrated points and prices all 154 shapes through it.
+In FP32 the calibrated `a` spans 993 – 4501 ns (4.5×) and one scalar is a fair
+approximation; in BF16 it spans 0 – 10112 ns, and the fit reported
+`setup = 1187.94 ns, rms 3247 ns` — a residual **2.7× its own value**. A per-CTA
+setup is dominated by the tile the CTA must materialize, so it is now fitted as
+`setup = alpha + beta · tile_m · tile_n` over the same points — two numbers
+instead of one, nothing newly measured.
+
+| | gqa2 ρ | mha4 ρ |
+|---|---:|---:|
+| before | 0.5560 | 0.6235 |
+| **after** | **0.8246** | **0.8247** |
+| FP32 control (unchanged by this) | 0.9432 | 0.9421 |
+
+### (4) The SMEM lane prices a path BF16 does not use
+
+With the setup term fixed, the residual was a clean monotone bias in `split_k`:
+median predicted/measured **0.93 at split 1 falling to 0.55 at split 16**. The
+model believed splitting K helps ~1.7× more than it does.
+
+The SMEM lane is the cause. Its rate comes from a scalar `ld.shared`
+microbenchmark and its work term is the SIMT mainloop's shared-memory traffic,
+which scales with iterations — so splitting K divides a term that the BF16
+kernel does not pay. A Tensor Core collective moves operands `cp.async` →
+shared → `ldmatrix` → MMA registers, and nothing in the BF16 profile measures
+that path. The lane is therefore `kNotCalibrated` for BF16 and drops out of the
+`max`, which is the mechanism the nine-lane vector exists for.
+
+✅ The split-K bias disappears — predicted/measured becomes **flat at 0.46–0.48
+across every split factor** — confirming the diagnosis rather than merely
+improving the score:
+
+| split_k | 1 | 2 | 4 | 8 | 16 |
+|---|---:|---:|---:|---:|---:|
+| before | 0.93 | 0.67 | 0.62 | 0.57 | 0.55 |
+| after | 0.48 | 0.46 | 0.48 | 0.48 | 0.48 |
+
+⚠️ Recorded honestly: the lane was found harmful **by ablation first** and
+explained afterwards. The explanation is a micro-architectural argument, not a
+fit, and it must be re-checked on a target where the operand feed can be
+measured apart from the byte traffic.
+
+## Part 2.4, re-measured
+
+| | gqa2 | mha4 |
+|---|---:|---:|
+| BF16 full model ρ | **0.8942** | **0.8834** |
+| uncalibrated analytic `tier2-baseline` ρ | 0.8778 | 0.8738 |
+| rank the model gives the true optimum | 48 | 46 |
+| MAPE % | 51.96 | 49.94 |
+| FP32 control, same code | 0.9432 | 0.9421 |
+
+✅ **The minimum bar is met**: the calibrated model is no longer worse than the
+analytic baseline it replaces. ❌ **The target is not**: FP32's ρ 0.9450 /
+0.9435 with top-1 and top-3 inside the measured top 3% is not reached, and
+`top1 = top3 = top10 = 0` still. No threshold was moved.
+
+The remaining gap is now a *scale* error rather than a shape error: the model
+under-predicts by a near-constant 2.1× (which is what MAPE 52% is), because
+removing the SMEM lane removed most of the predicted mainloop time and the
+`tc` and `l2` lanes alone do not replace it. The named next step is a BF16
+operand-feed term — measured on the `cp.async` / `ldmatrix` path rather than on
+scalar `ld.shared` — not another scalar refit.
+
+## Which lane carries BF16 (Part 2.3(a))
+
+One-variable ablations on the repaired model:
+
+| removed lane | gqa2 ρ | mha4 ρ |
+|---|---:|---:|
+| — (full) | 0.8942 | 0.8834 |
+| `l2` | 0.8851 | **0.8658** |
+| `tc` | 0.8882 | 0.8780 |
+| `cuda`, `sfu`, `tmem`, `l1_5`, `ddr`, `net` | 0.8942 | 0.8834 |
+
+The answer to "which lane, if not `tc`" is **`l2` first and `tc` second**, and
+for the first time both are non-trivial (F-71 had `tc` worth 0.001 against the
+broken model). Six lanes remain exactly inert. The nine-lane structure is kept:
+what changed is that a lane whose rate does not describe the path in use is now
+marked `kNotCalibrated` instead of being charged anyway.
+
+## SMEM / L2 identifiability (Part 2.3(b))
+
+The collinearity is unchanged as a *fit* property — both lanes are built from
+`occupancy · 2 · Tk · (Tm + Tn)`, ratio 3.4715200776, Pearson 1 over the 20
+calibrated points. What the repair adds is that the question is no longer
+open in BF16: the SMEM lane is not carried by the profile at all, so there is
+one byte lane (`l2`) and no unidentifiable second one. ⚠️ This is a decision
+about what is *calibrated*, not a demonstration that the two pipes are the
+same; on a target where TMA moves the L2 side without the SMEM side they must
+be re-measured and the lane restored.
+
+
 The requested SMEM/L2 retest has one important negative result already:
 they are **still exactly collinear in the implemented BF16 model**.  Across all
 20 calibrated `(shape, occupancy)` points, both lanes use the same

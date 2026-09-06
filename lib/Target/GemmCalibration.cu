@@ -113,6 +113,13 @@ __global__ __launch_bounds__(Candidate::kThreads, 1) void CalibGemmKernel(
     Invocation<Candidate> const* table, int tiles_m, int tiles_n) {
   using namespace cute;
   extern __shared__ char shared[];
+  // The launch baseline: the *same* kernel, the same grid, the same register
+  // and shared-memory footprint, doing nothing.  An empty `__global__ void
+  // f(){}` is not that -- it has a different occupancy and a different
+  // dispatch cost -- and subtracting it produced launch-subtracted durations
+  // that were negative by ~1 us, which is the size of `a` itself on the small
+  // tiles (three BF16 shapes fitted a negative per-CTA setup, F-70).
+  if (tiles_m == 0) return;
   int const tiles = tiles_m * tiles_n;
   int const chunk = static_cast<int>(blockIdx.x) / tiles;
   int const local = static_cast<int>(blockIdx.x) - chunk * tiles;
@@ -268,6 +275,8 @@ LineFit FitLine(std::vector<double> const& x, std::vector<double> const& y) {
 /// count, which is what b means.
 struct CombineFit {
   double fixed_ns = 0.0;
+  bool fixed_resolved = false;
+  double fixed_rel_spread = 0.0;
   double base_ns_per_elem = 0.0;
   double d_ns_per_peer_elem = 0.0;
   double dram_d_ns_per_peer_elem = 0.0;  ///< the same slope past the L2 knee
@@ -393,8 +402,14 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
   // read at 38 TB/s.  A fixed grid also matches how the megakernel runs the
   // stage: a resident grid draining a task queue, not a launch per width.
   int const blocks = spec.res.num_sms * 2;
+  // The same kernel at zero outputs, not an empty one: identical code, grid and
+  // occupancy, so the subtraction removes launch and nothing else.  With
+  // `NullKernel` the launch-subtracted duration at one output came out at
+  // -928 ns, which is impossible and is the same ~1 us bias that put three
+  // BF16 Stream-K shapes at a negative `a` (F-70).
   double const launch_ns =
-      TimeMs(options.repeats, [&] { NullKernel<<<blocks, 256>>>(); })
+      TimeMs(options.repeats,
+             [&] { CalibCombineKernel<Element><<<blocks, 256>>>(partials, out, 0, 1); })
           .median_ms * 1e6;
 
   auto sweep_single = [&](int count) {
@@ -441,6 +456,34 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
     base_widths.push_back(count);
     singles.push_back(sweep_single(count));
   }
+  // The fixed part is *measured*, not extrapolated.  Fitting it as the
+  // intercept of the wide sweep asks for the difference of two numbers several
+  // microseconds apart, which is why it came back at |value| < 300 ns with a
+  // 150% spread and either sign -- and, on the BF16 profile, negative, so the
+  // clamp turned it into a zero that made every split-K reduction free to the
+  // cost model (F-70).  At a handful of outputs the same kernel launches the
+  // same grid, walks the same grid-stride loop and stores almost nothing, so
+  // its launch-subtracted duration *is* the width-independent cost.  The
+  // plateau is taken as the minimum over the small widths: any excess there is
+  // already the per-element term appearing.
+  double fixed_measured = 0.0;
+  bool fixed_seen = false;
+  double fixed_spread = 0.0;
+  {
+    std::vector<double> small;
+    for (int count : {1, 64, 256, 1024}) small.push_back(sweep_single(count));
+    fixed_measured = *std::min_element(small.begin(), small.end());
+    double const widest = *std::max_element(small.begin(), small.end());
+    fixed_spread = fixed_measured > 0.0
+                       ? (widest - fixed_measured) / fixed_measured
+                       : 0.0;
+    // One CUDA event tick.  Every small-width reading lands on a multiple of
+    // it, so a plateau inside one tick is not a small fixed cost -- it is no
+    // measurement at all, and saying so is the whole point of the flag.
+    constexpr double kTimerTickNs = 100.0;
+    fixed_seen = fixed_measured > kTimerTickNs;
+    if (!fixed_seen) fixed_measured = 0.0;
+  }
   LineFit dram = sweep_peers(kWidest);
   CheckCuda(cudaFree(partials), "cudaFree");
   CheckCuda(cudaFree(out), "cudaFree");
@@ -464,19 +507,38 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
   }
   fit.peer_r2 = ss_total > 0.0 ? 1.0 - ss_residual / ss_total : 1.0;
 
-  LineFit base = FitLine(base_widths, singles);
-  fit.fixed_ns = base.intercept;
-  fit.base_ns_per_elem = base.slope;
-  fit.width_r2 = base.r2;
+  // With the intercept measured, the wide sweep only has to supply the slope,
+  // and it supplies it through a known point instead of a free two-parameter
+  // fit: `base = mean((y - fixed) / x)`, whose residual is reported as r2.
+  fit.fixed_ns = fixed_measured;
+  fit.fixed_resolved = fixed_seen;
+  fit.fixed_rel_spread = fixed_spread;
+  {
+    double sxy = 0.0, sxx = 0.0;
+    for (std::size_t i = 0; i < base_widths.size(); ++i) {
+      sxy += base_widths[i] * (singles[i] - fit.fixed_ns);
+      sxx += base_widths[i] * base_widths[i];
+    }
+    fit.base_ns_per_elem = sxx > 0.0 ? sxy / sxx : 0.0;
+    double mean = 0.0;
+    for (double value : singles) mean += value;
+    mean /= static_cast<double>(singles.size());
+    double ss_total = 0.0, ss_residual = 0.0;
+    for (std::size_t i = 0; i < base_widths.size(); ++i) {
+      double predicted = fit.fixed_ns + fit.base_ns_per_elem * base_widths[i];
+      ss_total += (singles[i] - mean) * (singles[i] - mean);
+      ss_residual += (singles[i] - predicted) * (singles[i] - predicted);
+    }
+    fit.width_r2 = ss_total > 0.0 ? 1.0 - ss_residual / ss_total : 1.0;
+  }
   fit.dram_d_ns_per_peer_elem = dram.slope / kWidest;
   fit.valid = true;
-  // Clamped, not because the fit is inconvenient but because it is
-  // unresolved: the intercept is ~100 ns with a 150% spread over five runs and
-  // comes out either sign, which is what an intercept below the launch
-  // latency looks like.  The fitted value stays in `measurements` as evidence;
-  // what the cost model gets is the honest floor rather than a negative fixed
-  // cost it would subtract from every reduction.
-  spec.calib.combine_fixed_ns = std::max(0.0, fit.fixed_ns);
+  // No clamp any more.  `fixed_ns` is a launch-subtracted duration measured at
+  // the narrow end, so it cannot be negative for a reason that would have to be
+  // hidden; if the measurement ever fails to resolve it, `combine_fixed_resolved`
+  // says so and the cost model can refuse rather than silently charge zero.
+  spec.calib.combine_fixed_ns = fit.fixed_ns;
+  spec.calib.combine_fixed_resolved = fit.fixed_resolved;
   spec.calib.combine_d_dram_ns = fit.dram_d_ns_per_peer_elem;
 
   int const samples = options.repeats * 25;
@@ -495,10 +557,11 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
          "slope of the chunks=1 reduction against width: the output store and "
          "the single partial read, measured rather than extrapolated");
   Record(spec, "streamk_combine_fixed_ns", fit.fixed_ns, "ns",
-         options.repeats * 5, fit.worst_rsd,
-         "intercept of the same chunks=1 fit; unresolved -- |value| < 300 ns "
-         "with a 150% spread over five runs and either sign, so the profile "
-         "carries max(0, fit)");
+         options.repeats * 4, fit.fixed_rel_spread,
+         "launch-subtracted duration of the chunks=1 reduction at counts "
+         "{1,64,256,1024}, taken as the minimum: measured directly rather than "
+         "extrapolated as the wide sweep's intercept, which was unresolved "
+         "(|value| < 300 ns, 150% spread, either sign) and clamped to 0");
   Record(spec, "streamk_combine_peer_r2", fit.peer_r2, "", samples, 0.0,
          "fit quality of d across widths");
   Record(spec, "streamk_combine_width_r2", fit.width_r2, "", samples, 0.0,
@@ -540,9 +603,28 @@ bool FitShape(TargetSpec& spec, Options const& options, Buffers const& buffers,
 
     std::vector<double> iteration_counts, per_cta_ns;
     double worst_rsd = 0.0;
-    // Down to a single MAC iteration: `a` is the prologue and epilogue, and
-    // anchored only at 4 iterations it is a long extrapolation from y values
-    // of 7-111 us.  It swung between -355 ns and +2882 ns across runs.
+    // `a` is measured, not extrapolated: the same kernel at zero mainloop
+    // iterations runs the prologue and the epilogue and nothing else, which is
+    // exactly the definition of `a`.  Its baseline is the same kernel again at
+    // zero tiles, so launch, occupancy and dispatch cancel instead of being
+    // estimated by a differently-shaped empty kernel.
+    double self_launch_ns =
+        TimeMs(options.repeats, [&] {
+          CalibGemmKernel<Candidate>
+              <<<tiles_m * tiles_n, Candidate::kThreads, Candidate::kSmemBytes>>>(
+                  table, 0, tiles_n);
+        }).median_ms * 1e6;
+    double measured_a_ns = 0.0;
+    {
+      BuildTable<Candidate>(buffers, n, 0, 1, host);
+      Timed timed = TimeMs(options.repeats, [&] {
+        CalibGemmKernel<Candidate>
+            <<<tiles_m * tiles_n, Candidate::kThreads, Candidate::kSmemBytes>>>(
+                table, tiles_m, tiles_n);
+      });
+      measured_a_ns = timed.median_ms * 1e6 - self_launch_ns;
+      worst_rsd = std::max(worst_rsd, timed.rel_stddev);
+    }
     for (int iters : {1, 2, 4, 8, 16, 32, 64}) {
       int k = iters * K;
       if (k > kMaxK) continue;
@@ -558,10 +640,7 @@ bool FitShape(TargetSpec& spec, Options const& options, Buffers const& buffers,
       // what an intercept is -- and `a` swung +-350 ns run to run, with three
       // shapes going negative.  Pairing also cancels the clock drift across the
       // seconds the sweep takes.
-      double launch_ns =
-          TimeMs(options.repeats, [&] {
-            NullKernel<<<tiles_m * tiles_n, Candidate::kThreads>>>();
-          }).median_ms * 1e6;
+      double launch_ns = self_launch_ns;
       // One wave: every CTA is resident at once, so the kernel's duration is
       // one CTA's duration.
       iteration_counts.push_back(iters);
@@ -569,7 +648,29 @@ bool FitShape(TargetSpec& spec, Options const& options, Buffers const& buffers,
       worst_rsd = std::max(worst_rsd, timed.rel_stddev);
     }
     if (iteration_counts.size() < 2) return false;
-    LineFit linear = FitLine(iteration_counts, per_cta_ns);
+    // `c` through the measured `a`, not a free two-parameter fit: the slope is
+    // a difference of points that share a launch, so it was never the fragile
+    // half, and holding the intercept keeps the fit from paying for `a` with a
+    // tilt.  `ac_r2` is reported against this constrained line, so it is
+    // directly comparable with what the free fit used to report.
+    double sxy = 0.0, sxx = 0.0, mean = 0.0;
+    for (std::size_t i = 0; i < iteration_counts.size(); ++i) {
+      sxy += iteration_counts[i] * (per_cta_ns[i] - measured_a_ns);
+      sxx += iteration_counts[i] * iteration_counts[i];
+      mean += per_cta_ns[i];
+    }
+    mean /= static_cast<double>(per_cta_ns.size());
+    double const slope = sxx > 0.0 ? sxy / sxx : 0.0;
+    double ss_total = 0.0, ss_residual = 0.0;
+    for (std::size_t i = 0; i < iteration_counts.size(); ++i) {
+      double const predicted = measured_a_ns + slope * iteration_counts[i];
+      ss_total += (per_cta_ns[i] - mean) * (per_cta_ns[i] - mean);
+      ss_residual += (per_cta_ns[i] - predicted) * (per_cta_ns[i] - predicted);
+    }
+    LineFit linear;
+    linear.intercept = measured_a_ns;
+    linear.slope = slope;
+    linear.r2 = ss_total > 0.0 ? 1.0 - ss_residual / ss_total : 1.0;
 
     TargetSpec::StreamKPoint point;
     point.tile_m = M; point.tile_n = N; point.tile_k = K; point.stages = S;

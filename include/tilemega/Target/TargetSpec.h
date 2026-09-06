@@ -166,7 +166,14 @@ struct TargetSpec {
     // (c) Stream-K coefficients, one entry per calibrated tile shape.
     std::vector<StreamKPoint> streamk;
     /// Width-independent part of the reduction stage, launch excluded.
+    /// Measured at the narrow end of the width sweep, not extrapolated as its
+    /// intercept: the extrapolation was unresolved and its clamp to zero made
+    /// split-K free to the cost model on the BF16 profile (F-70).
     double combine_fixed_ns = 0.0;
+    /// False when nothing measured it. A zero with this false is the absence
+    /// of a measurement, not a free reduction, and callers must not read the
+    /// value as if it were one.
+    bool combine_fixed_resolved = false;
     /// The per-peer coefficient past the L2 knee.  `StreamKPoint::d_ns` is
     /// the L2-resident value, which is the regime the reference models
     /// reduce in; these differ by 5.6x on sm_89 and must not be averaged.

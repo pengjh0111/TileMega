@@ -556,9 +556,24 @@ Neither is a defect of §2.2's model structure, and neither is fixed here: the
 fix is a better *measurement* of the reduction stage, which is new work and is
 recorded as such rather than attempted at the end of this round.
 
+> ⚠️ **Correction (2026-09-06).** Both defects were real and both were fixed in
+> the following round. Neither was what broke the ranking: repairing them moved
+> ρ from 0.5605 to 0.5560 and 0.6239 to 0.6235. The attribution above is
+> superseded — the causes were (i) one scalar `setup_ns` priced all 154 shapes
+> although the calibrated `a` spans 0 – 10112 ns in BF16, and (ii) the SMEM
+> lane charging a scalar-`ld.shared` model to a Tensor Core operand feed, which
+> is what made split-K look free. With both repaired the model reaches
+> ρ 0.8942 / 0.8834, above the analytic baseline. See
+> `../BF16/result.md` and F-74.
+
 ### What the nine lanes contribute in BF16
 
 One-variable lane ablations, `full-minus-<lane>` (`summary.tsv`):
+
+> ⚠️ **Superseded by the repair described in `../BF16/result.md`.** On the
+> repaired model `l2` is worth 0.009 / 0.018 of Spearman and `tc` 0.006 / 0.005;
+> the table below describes the broken model and is kept because it is what the
+> sweep measured on the day.
 
 | removed lane | gqa2 ρ | gqa2 MAPE | mha4 ρ | mha4 MAPE |
 |---|---:|---:|---:|---:|

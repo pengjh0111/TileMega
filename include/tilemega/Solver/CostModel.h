@@ -125,6 +125,10 @@ class CostModel {
     double lds_ns = 0.0;        ///< per scalar ld.shared warp-instruction
     double lds_rel_rms = 0.0;
     double setup_ns = 0.0;      ///< per-CTA kernel setup, traffic excluded
+    /// Per output element of the CTA's tile.  A 256x128 tile's prologue and
+    /// epilogue cost two orders of magnitude more than a 32x32 tile's, which
+    /// one scalar cannot carry (F-74).
+    double setup_per_output_ns = 0.0;
     double setup_rms_ns = 0.0;  ///< absolute, because `setup` crosses zero
     int points = 0;             ///< (shape, CTAs/SM) pairs behind both fits
   };
