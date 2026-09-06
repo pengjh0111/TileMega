@@ -233,13 +233,44 @@ __device__ inline unsigned long long StageArrivalTarget(
 __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
                                         std::uint32_t consumer, bool active,
                                         unsigned long long iteration) {
+#if TILEMEGA_UNSAFE_NO_EVENT_WAIT
+  // A cost probe, exactly like TILEMEGA_UNSAFE_NO_GRID_SYNC above and never a
+  // build anyone ships: the notify side still runs, so this arm isolates what
+  // the *polling* costs.  Its output is wrong by construction.
+  // Nothing at all, not even a fence: the arm has to isolate the polling, and
+  // a fence left in would be charged to it.  `active` is still computed, which
+  // is L2's own structure rather than the event scheme's.
+  (void)p; (void)events; (void)consumer; (void)iteration; (void)active;
+  return;
+#endif
   // `active` depends only on blockIdx, so it is block-uniform and the early
   // return cannot split a __syncthreads. A CTA that owns no tile in this
   // stage reads nothing the producers wrote, so it needs neither the wait
   // nor the acquire fence -- and skipping them is what lets it run ahead to
   // the stage where it does own work.
   if (!active) return;
-  if (threadIdx.x == 0) {
+  // The polls are spread over the CTA's threads.  Measured on this machine the
+  // wait was the *entire* L2-vs-L1 gap at seq=128 (102.9% of it on the GQA
+  // model, 102.7% on the MHA one), and it was a serial walk on thread 0 while
+  // 255 threads idled.  Every epoch is monotone (§8.2), so a poll depends on
+  // nothing another poll does: the loop nest below is walked by every thread
+  // for its cheap arithmetic, and the expensive spin is taken only on the
+  // iterations that belong to this thread.  The `__syncthreads` that already
+  // ended this function is what makes the union complete.
+  unsigned poll_index = 0;
+  auto poll = [&](std::uint32_t producer, int group) {
+#if TILEMEGA_SERIAL_POLL
+    // The pre-optimization shape, kept compilable so the two can be measured
+    // against each other in one session rather than across two.
+    if (threadIdx.x != 0) return;
+    (void)poll_index;
+#else
+    if (poll_index++ % blockDim.x != threadIdx.x) return;
+#endif
+    TILEMEGA_GENERATED_WAIT_global(&events[EventIndex(producer, group)].epoch,
+                                   iteration + 1ull);
+  };
+  {
     std::uint32_t first = p.dependency_offsets[consumer];
     std::uint32_t last = p.dependency_offsets[consumer + 1];
     for (std::uint32_t edge = first; edge < last; ++edge) {
@@ -258,8 +289,7 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
       int const live = ActiveBlocksClamped(p, producer);
       if (dep.map == StageDependency::Map::kAll) {
         for (int group = 0; group <= (live - 1) / TILEMEGA_EVENT_KAPPA; ++group)
-          TILEMEGA_GENERATED_WAIT_global(
-              &events[EventIndex(producer, group)].epoch, iteration + 1ull);
+          poll(producer, group);
       } else {
 #if TILEMEGA_NEGATIVE_OLD_CLAMP
         // Deliberately reproduce the obsolete implementation for SEQSCAN's
@@ -276,8 +306,7 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
         for (int group = begin / TILEMEGA_EVENT_KAPPA;
              begin < end && group <= (end - 1) / TILEMEGA_EVENT_KAPPA;
              ++group)
-          TILEMEGA_GENERATED_WAIT_global(
-              &events[EventIndex(producer, group)].epoch, iteration + 1ull);
+          poll(producer, group);
 #else
         // A stage whose task space is wider than the grid is run grid-strided
         // (GemmStageTaskBody), so one CTA owns tasks b, b+grid, ... and task t
@@ -300,18 +329,15 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
           for (int group = first / TILEMEGA_EVENT_KAPPA;
                group <= (wrapped ? live - 1 : last) / TILEMEGA_EVENT_KAPPA;
                ++group)
-            TILEMEGA_GENERATED_WAIT_global(
-                &events[EventIndex(producer, group)].epoch, iteration + 1ull);
+            poll(producer, group);
           for (int group = 0; wrapped && group <= last / TILEMEGA_EVENT_KAPPA;
                ++group)
-            TILEMEGA_GENERATED_WAIT_global(
-                &events[EventIndex(producer, group)].epoch, iteration + 1ull);
+            poll(producer, group);
         }
 #endif
       }
 #else
-      TILEMEGA_GENERATED_WAIT_global(&events[EventIndex(producer, 0)].epoch,
-                                     iteration + 1ull);
+      poll(producer, 0);
 #endif
     }
   }
@@ -324,9 +350,15 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
 /// precedes the CTA barrier, so every thread's writes are visible before
 /// thread 0 publishes (F-1); the second fence orders the arrival before the
 /// epoch that releases the consumers.
+/// Cost probe: publish nothing.  Only meaningful together with
+/// TILEMEGA_UNSAFE_NO_EVENT_WAIT -- on its own it deadlocks every consumer.
 __device__ inline void NotifyStage(Params const& p, EventCounter* events,
                                    std::uint32_t producer, bool active,
                                    unsigned long long iteration) {
+#if TILEMEGA_UNSAFE_NO_EVENT_NOTIFY
+  (void)p; (void)events; (void)producer; (void)iteration; (void)active;
+  return;
+#endif
   // Same block-uniformity argument as WaitDependencies: an inactive CTA
   // published no tile of this stage, so it has nothing to release and is not
   // counted in StageArrivalTarget either.
