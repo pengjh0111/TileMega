@@ -172,6 +172,8 @@ int main(int argc, char** argv) {
     std::cerr << "CODEGEN_SUMMARY tasks=" << summary.task_spaces
               << " couplings=" << summary.couplings
               << " stages=" << summary.stages
+              << " symbolic_windows=" << summary.symbolic_windows
+              << " fallback_windows=" << summary.fallback_windows
               << " output=" << requested.string() << "\n";
     return 0;
   } catch (std::exception const& error) {

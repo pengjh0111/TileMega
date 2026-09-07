@@ -42,6 +42,13 @@ int main() {
   assert(C.IsSubset(relaxed));
   assert(!relaxed.IsSubset(C));  // not established the other way
 
+  // Bind/project parameters on an already-derived relation, then retain only
+  // one endpoint per domain point.  Window synthesis uses this path instead
+  // of re-deriving and enumerating the entire fan-in at three sequence sizes.
+  CouplingRelation fixed = C.BindParams(known);
+  assert(fixed.LexMin().Points().size() == 4);
+  assert(fixed.LexMax().Points().size() == 4);
+
   // Coarsen: C_kappa = floor(./kappa) o C. Coarsening the row-tiled identity
   // by kappa=Tm collapses back to the m coordinate itself (image shrinks).
   CouplingRelation coarse = C.Coarsen({128});

@@ -11,6 +11,7 @@
 #pragma once
 
 #include <string>
+#include <optional>
 
 #include <tilemega/Analysis/CouplingDerivation.h>
 
@@ -61,5 +62,15 @@ WaitWindow ParseWaitWindow(std::string const& text);
 WaitWindow FitWaitWindow(CouplingEdge const& edge, OperatorNode const& producer,
                          OperatorNode const& consumer,
                          ParamBinding const& known);
+
+/// Discover a constant window from cheap lexicographic endpoints, then prove
+/// it against the parameterized isl relation for the complete task-space
+/// domain.  A present non-narrowed value is a safely classified kAll edge;
+/// `nullopt` means the row-major linearization or relation is outside affine
+/// Presburger form, so only that edge needs the concrete fitting fallback.
+std::optional<WaitWindow> FitWaitWindowSymbolic(
+    CouplingEdge const& edge, OperatorNode const& producer,
+    OperatorNode const& consumer, ParamBinding const& known,
+    ParamBinding const& witness);
 
 }  // namespace tilemega::analysis

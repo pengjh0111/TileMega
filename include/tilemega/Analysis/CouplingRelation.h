@@ -20,6 +20,8 @@
 
 #include <llvm/ADT/Hashing.h>
 
+#include <tilemega/Analysis/ClosedForm.h>
+
 namespace tilemega::analysis {
 
 class QuasiPolynomial;  // fwd, for Card()
@@ -61,6 +63,15 @@ class CouplingRelation {
   /// fixed, rather than genuinely excluding them -- confirmed empirically,
   /// see FanoutCard's comment.
   CouplingRelation IntersectRange(std::string const& range_set_text) const;
+  /// Fix every named isl parameter present in `known`, leaving all other
+  /// parameters symbolic.  This instantiates an already-derived C without
+  /// re-running coupling derivation or any barvinok metric queries.
+  CouplingRelation BindParams(ParamBinding const& known) const;
+  /// Lexicographically first/last range point for each domain point.  These
+  /// keep one endpoint per task and avoid enumerating a full fan-in relation
+  /// when discovering an interval window.
+  CouplingRelation LexMin() const;
+  CouplingRelation LexMax() const;
   /// The image of `this` under the elementwise map `floor(./kappa)` applied
   /// to every range (producer-coordinate) dimension -- §2.3's C_kappa.
   /// `kappa` values are per range dimension, in order; a value of 1 leaves

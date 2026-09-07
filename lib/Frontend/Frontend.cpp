@@ -567,15 +567,23 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
       analysis::CouplingDerivation{}.Derive(graph, known);
 
   // Part 2: the wait window the generated kernel evaluates per CTA.  It is a
-  // property of C at *every* sequence length, so it is fitted at three prefill
-  // instantiations and kept only where all three agree -- at the symbolic
-  // minimum (S = 1) every row axis collapses to one tile and windows fit that
-  // do not hold in general.  A window is additionally admissible only when
+  // property of C at *every* sequence length.  Discover a candidate from one
+  // concrete witness, then prove its row-major interval relation equal to the
+  // symbolic isl C over the complete parameterized task domain.  Only an edge
+  // whose linearization leaves Presburger arithmetic uses the old three-point
+  // concrete check; coupling derivation itself is never repeated.  A window
+  // is additionally admissible only when
   // both TaskBodies declare `kTilePerBlock`: `kElementChunk` makes the
   // CTA->task map a function of gridDim, so the same id names different tasks
   // on the two sides and no per-CTA narrowing is sound.
   std::vector<std::string> waitMaps(derived.size(), "all");
+  std::size_t symbolicWindows = 0, fallbackWindows = 0;
   {
+    // Decoder layers repeat the same parameterized relation and task-space
+    // shapes.  Prove each distinct window once per variant; operator/stage
+    // names do not participate in C, so including both task counts and C's
+    // canonical isl text is a complete cache key for the linearized form.
+    std::unordered_map<std::string, std::string> windowCache;
     std::vector<bool> owned(derived.size(), false);
     auto owns_tile = [&](std::string const& name) {
       if (llvm::StringRef(name).ends_with(".combine"))
@@ -585,32 +593,73 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
     for (std::size_t i = 0; i < derived.size(); ++i)
       owned[i] = owns_tile(derived[i].src.name) &&
                  owns_tile(derived[i].dst.name);
-    std::vector<analysis::WaitWindow> fitted(derived.size());
-    bool comparable = true, first_round = true;
-    for (long sequence : {256L, 384L, 512L}) {
-      analysis::ParamBinding probe = known;
-      if (!liftOptions.seq_symbol.empty()) probe.Bind(liftOptions.seq_symbol, sequence);
-      if (!liftOptions.past_symbol.empty())
-        probe.Bind(liftOptions.past_symbol, sequence - 256L);
-      std::vector<analysis::CouplingEdge> at =
-          analysis::CouplingDerivation{}.Derive(graph, probe);
-      if (at.size() != derived.size()) { comparable = false; break; }
-      for (std::size_t i = 0; i < at.size(); ++i) {
-        if (at[i].src.name != derived[i].src.name ||
-            at[i].dst.name != derived[i].dst.name) { comparable = false; break; }
-        analysis::OperatorNode const* source = graph.Find(at[i].src.name);
-        analysis::OperatorNode const* sink = graph.Find(at[i].dst.name);
-        analysis::WaitWindow here;
-        if (owned[i] && source && sink)
-          here = analysis::FitWaitWindow(at[i], *source, *sink, probe);
-        if (first_round) fitted[i] = here;
-        else if (here != fitted[i]) fitted[i] = analysis::WaitWindow{};
+    for (std::size_t i = 0; i < derived.size(); ++i) {
+      if (!owned[i]) continue;
+      analysis::OperatorNode const* source = graph.Find(derived[i].src.name);
+      analysis::OperatorNode const* sink = graph.Find(derived[i].dst.name);
+      if (!source || !sink) continue;
+      auto taskShape = [](analysis::OperatorNode const& node) {
+        std::string key;
+        for (std::size_t axis = 0; axis < node.output.axes.size(); ++axis)
+          if (node.IsTiled(axis))
+            key += node.CoordinateExtent(axis).ToString() + ";";
+        return key;
+      };
+      std::string const cacheKey = taskShape(*source) + "\n" +
+          taskShape(*sink) + "\n" + derived[i].C.ToString();
+      if (auto found = windowCache.find(cacheKey);
+          found != windowCache.end()) {
+        waitMaps[i] = found->second;
+        ++symbolicWindows;
+        continue;
       }
-      if (!comparable) break;
-      first_round = false;
+
+      analysis::ParamBinding witness = known;
+      if (!liftOptions.seq_symbol.empty())
+        witness.Bind(liftOptions.seq_symbol, 1L);
+      if (!liftOptions.past_symbol.empty())
+        witness.Bind(liftOptions.past_symbol, 0L);
+      auto symbolic = analysis::FitWaitWindowSymbolic(
+          derived[i], *source, *sink, known, witness);
+      // A one-token witness can collapse the leading row axis and therefore
+      // suggest an all/constant map where the symbolic relation is actually
+      // a floordiv window.  Endpoint discovery is cheap, so retry at one
+      // non-degenerate tile span before invoking point enumeration.
+      if (!symbolic && !liftOptions.seq_symbol.empty()) {
+        witness.Bind(liftOptions.seq_symbol, 256L);
+        symbolic = analysis::FitWaitWindowSymbolic(
+            derived[i], *source, *sink, known, witness);
+      }
+      if (symbolic) {
+        waitMaps[i] = symbolic->ToString();
+        windowCache.emplace(cacheKey, waitMaps[i]);
+        ++symbolicWindows;
+        continue;
+      }
+
+      ++fallbackWindows;
+      if (std::getenv("TILEMEGA_WINDOW_TRACE"))
+        llvm::errs() << "WINDOW_FALLBACK src=" << derived[i].src.name
+                     << " dst=" << derived[i].dst.name << "\n";
+      analysis::WaitWindow fitted;
+      bool first_round = true;
+      for (long sequence : {256L, 384L, 512L}) {
+        analysis::ParamBinding probe = known;
+        if (!liftOptions.seq_symbol.empty())
+          probe.Bind(liftOptions.seq_symbol, sequence);
+        if (!liftOptions.past_symbol.empty())
+          probe.Bind(liftOptions.past_symbol, sequence - 256L);
+        analysis::CouplingEdge concrete = derived[i];
+        concrete.C = derived[i].C.BindParams(probe);
+        analysis::WaitWindow const here =
+            analysis::FitWaitWindow(concrete, *source, *sink, probe);
+        if (first_round) fitted = here;
+        else if (here != fitted) fitted = analysis::WaitWindow{};
+        first_round = false;
+      }
+      waitMaps[i] = fitted.ToString();
+      windowCache.emplace(cacheKey, waitMaps[i]);
     }
-    for (std::size_t i = 0; comparable && i < derived.size(); ++i)
-      waitMaps[i] = fitted[i].ToString();
   }
   std::size_t edge = 0;
   for (auto const& item : derived) {
@@ -679,7 +728,7 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
     throw std::runtime_error("C++ importer produced an invalid CG module");
   if (summary)
     *summary = {graph.nodes.size(), edge, plan.stages.size(), guards.size(),
-                bridge.unsupported};
+                symbolicWindows, fallbackWindows, bridge.unsupported};
   return mlir::OwningOpRef<mlir::ModuleOp>(module);
 }
 

@@ -55,6 +55,36 @@ CouplingRelation CouplingRelation::IntersectRange(
   return CouplingRelation(isl_util::ToString(restricted.get()));
 }
 
+CouplingRelation CouplingRelation::BindParams(ParamBinding const& known) const {
+  if (empty()) return {};
+  isl_util::Map map = isl_util::ReadMap(Ctx(), text_);
+  for (auto const& [name, value] : known.values) {
+    int const position =
+        isl_map_find_dim_by_name(map.get(), isl_dim_param, name.c_str());
+    if (position >= 0) {
+      map = isl_util::Map(
+          isl_map_fix_si(map.release(), isl_dim_param, position, value));
+      map = isl_util::Map(
+          isl_map_project_out(map.release(), isl_dim_param, position, 1));
+    }
+  }
+  return CouplingRelation(isl_util::ToString(map.get()));
+}
+
+CouplingRelation CouplingRelation::LexMin() const {
+  if (empty()) return {};
+  isl_util::Map map = isl_util::ReadMap(Ctx(), text_);
+  isl_util::Map result(isl_map_lexmin(map.release()));
+  return CouplingRelation(isl_util::ToString(result.get()));
+}
+
+CouplingRelation CouplingRelation::LexMax() const {
+  if (empty()) return {};
+  isl_util::Map map = isl_util::ReadMap(Ctx(), text_);
+  isl_util::Map result(isl_map_lexmax(map.release()));
+  return CouplingRelation(isl_util::ToString(result.get()));
+}
+
 CouplingRelation CouplingRelation::Coarsen(
     std::vector<long> const& kappa) const {
   if (empty()) return {};

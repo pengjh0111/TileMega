@@ -26,6 +26,7 @@
 // share one cause (a producer coarser than its consumer) and are not a
 // wholesale re-derivation disagreement.
 #include <tilemega/Analysis/CouplingDerivation.h>
+#include <tilemega/Analysis/DependencyForm.h>
 #include <tilemega/Analysis/ReferenceModels.h>
 
 #include <cstdlib>
@@ -111,7 +112,8 @@ class Table {
 
 int main() {
   DecoderShape shape;
-  Table t(LlamaDecoderLayer(shape), KnownBinding(), Theta());
+  OperatorGraph const graph = LlamaDecoderLayer(shape);
+  Table t(graph, KnownBinding(), Theta());
 
   // Row 1: RMSNorm1 -> Wq/Wk/Wv.  The table folds the three projections into
   // one row, so its fanout 48 is the sum over the three derived edges.
@@ -121,6 +123,14 @@ int main() {
     EQ(t.Wait("rmsnorm1", dst), 1L);
     REQUIRE(t.Row("rmsnorm1", dst).tier == Tier::kAffine);
   }
+  auto norm_window = FitWaitWindowSymbolic(
+      t.Row("rmsnorm1", "wq"), *graph.Find("rmsnorm1"), *graph.Find("wq"),
+      KnownBinding(), Theta());
+  REQUIRE(norm_window.has_value());
+  REQUIRE(norm_window->narrowed);
+  EQ(norm_window->div, 32L);
+  EQ(norm_window->scale, 1L);
+  EQ(norm_window->count, 1L);
   EQ(t.Row("rmsnorm1", "wq").C.ToString(),
      std::string("[S] -> { [m, n] -> [p0 = m] : m >= 0 and 128m < S and 0 <= n <= 31 }"));
   EQ(t.Fanout("rmsnorm1", "wq") + t.Fanout("rmsnorm1", "wk") +
@@ -136,6 +146,11 @@ int main() {
   EQ(t.Wait("wq", "rope_q"), 1L);
   EQ(t.Fanout("wq", "rope_q"), 1L);
   REQUIRE(t.Row("wq", "rope_q").tier == Tier::kAffine);
+  auto identity_window = FitWaitWindowSymbolic(
+      t.Row("wq", "rope_q"), *graph.Find("wq"), *graph.Find("rope_q"),
+      KnownBinding(), Theta());
+  REQUIRE(identity_window.has_value());
+  REQUIRE(identity_window->IsIdentity());
 
   // Row 3: RoPE_k -> KVappend.  wait as tabulated.  C and fanout both differ
   // from the table, for the same underlying reason: the append is tiled one

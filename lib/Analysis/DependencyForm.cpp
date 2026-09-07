@@ -4,7 +4,10 @@
 #include <tilemega/Analysis/CouplingDerivation.h>
 
 #include <algorithm>
+#include <limits>
 #include <map>
+#include <optional>
+#include <set>
 #include <sstream>
 #include <vector>
 
@@ -27,6 +30,60 @@ long LinearId(OperatorNode const& node, ParamBinding const& known,
 }
 
 WaitWindow Relaxed() { return WaitWindow{}; }
+
+std::string Join(std::vector<std::string> const& names) {
+  std::ostringstream out;
+  for (std::size_t i = 0; i < names.size(); ++i) {
+    if (i) out << ',';
+    out << names[i];
+  }
+  return out.str();
+}
+
+/// Map a task-space coordinate tuple to the exact row-major id used by its
+/// TaskBody.  A symbolic leading extent is harmless: only *trailing* extents
+/// become coefficients.  If one of those is symbolic, multiplication of a
+/// parameter by a coordinate would leave Presburger arithmetic and the caller
+/// must use the concrete fallback for this edge.
+std::optional<CouplingRelation> LinearIdMap(
+    OperatorNode const& node, std::vector<std::string> const& dimensions,
+    ParamBinding const& known, std::string const& output) {
+  std::vector<ClosedForm> extents;
+  for (std::size_t axis = 0; axis < node.output.axes.size(); ++axis)
+    if (node.IsTiled(axis)) extents.push_back(node.CoordinateExtent(axis));
+  if (extents.size() != dimensions.size()) return std::nullopt;
+
+  std::vector<long> stride(extents.size(), 1);
+  long suffix = 1;
+  for (std::size_t i = extents.size(); i-- > 0;) {
+    stride[i] = suffix;
+    if (i == 0) break;
+    ClosedForm extent = extents[i].Substitute(known);
+    if (!extent.IsConstant()) return std::nullopt;
+    long const value = extent.Eval({}, {});
+    if (value <= 0 || suffix > std::numeric_limits<long>::max() / value)
+      return std::nullopt;
+    suffix *= value;
+  }
+
+  std::ostringstream expression;
+  if (dimensions.empty()) {
+    expression << '0';
+  } else {
+    for (std::size_t i = 0; i < dimensions.size(); ++i) {
+      if (i) expression << " + ";
+      expression << stride[i] << '*' << dimensions[i];
+    }
+  }
+  std::ostringstream text;
+  text << "{ [" << Join(dimensions) << "] -> [" << output << "] : "
+       << output << " = " << expression.str() << " }";
+  try {
+    return CouplingRelation::FromIslText(text.str());
+  } catch (std::exception const&) {
+    return std::nullopt;
+  }
+}
 
 }  // namespace
 
@@ -191,6 +248,133 @@ WaitWindow FitWaitWindow(CouplingEdge const& edge, OperatorNode const& producer,
     return window;
   }
   return Relaxed();
+}
+
+std::optional<WaitWindow> FitWaitWindowSymbolic(
+    CouplingEdge const& edge, OperatorNode const& producer,
+    OperatorNode const& consumer, ParamBinding const& known,
+    ParamBinding const& witness) {
+  try {
+    CouplingRelation const clamped = edge.C.IntersectRange(
+        ProducerTaskSpaceText(edge.C, producer, known));
+    auto consumer_id =
+        LinearIdMap(consumer, clamped.DomainDimNames(), known, "tc");
+    auto producer_id =
+        LinearIdMap(producer, clamped.RangeDimNames(), known, "tp");
+    if (!consumer_id || !producer_id) return std::nullopt;
+    CouplingRelation const linear =
+        consumer_id->Reverse().ApplyRange(clamped).ApplyRange(*producer_id);
+
+    // Discover only the two interval endpoints at the witness.  Enumerating
+    // C itself is proportional to fan-in (hundreds of thousands of points on
+    // the real-width model); lexmin/lexmax keep at most two rows per consumer.
+    CouplingRelation const concrete = linear.BindParams(witness);
+    std::map<long, long> first, last;
+    for (auto const& [from, to] : concrete.LexMin().Points()) {
+      if (from.size() != 1 || to.size() != 1) return std::nullopt;
+      first[from[0]] = to[0];
+    }
+    for (auto const& [from, to] : concrete.LexMax().Points()) {
+      if (from.size() != 1 || to.size() != 1) return std::nullopt;
+      last[from[0]] = to[0];
+    }
+    long const consumer_count = consumer.Count().Eval(witness, {});
+    if (consumer_count <= 0 || first.empty() || first.size() != last.size())
+      return Relaxed();
+    long observed_count = 0;
+    for (auto const& [task, begin] : first) {
+      auto found = last.find(task);
+      if (found == last.end() || found->second < begin) return Relaxed();
+      observed_count = std::max(observed_count, found->second - begin + 1);
+    }
+    auto first_of = [&](long task) -> long {
+      auto found = first.find(task);
+      return found == first.end() ? -1 : found->second;
+    };
+    WaitWindow candidate;
+    for (long div = 1; div <= consumer_count && !candidate.narrowed; ++div) {
+      if (consumer_count % div != 0) continue;
+      long base_block = -1, base_first = 0, scale = 0;
+      bool consistent = true;
+      for (long task = 0; task < consumer_count && consistent; ++task) {
+        long const at = first_of(task);
+        if (at < 0) continue;
+        long const block = task / div;
+        if (base_block < 0) {
+          base_block = block;
+          base_first = at;
+        } else if (block == base_block) {
+          consistent = at == base_first;
+        } else {
+          long const delta = at - base_first, span = block - base_block;
+          if (delta % span != 0) {
+            consistent = false;
+          } else {
+            long const value = delta / span;
+            if (scale == 0) scale = value;
+            else if (value != scale) consistent = false;
+          }
+        }
+      }
+      if (!consistent || base_block < 0) continue;
+      candidate.narrowed = true;
+      candidate.div = div;
+      candidate.scale = scale;
+      candidate.offset = base_first - base_block * scale;
+      candidate.count = observed_count;
+    }
+    if (!candidate.narrowed || candidate.div <= 0 || candidate.count <= 0)
+      return Relaxed();
+
+    ClosedForm const consumers = consumer.Count().Substitute(known);
+    ClosedForm const producers = producer.Count().Substitute(known);
+    std::set<std::string> parameter_set;
+    for (auto const& name : consumers.FreeSymbols()) parameter_set.insert(name);
+    for (auto const& name : producers.FreeSymbols()) parameter_set.insert(name);
+    std::vector<std::string> parameters(parameter_set.begin(),
+                                        parameter_set.end());
+    std::ostringstream begin;
+    begin << candidate.scale << "*floord(tc," << candidate.div << ")";
+    if (candidate.offset > 0) begin << '+' << candidate.offset;
+    if (candidate.offset < 0) begin << candidate.offset;
+    std::ostringstream expected;
+    if (!parameters.empty()) expected << '[' << Join(parameters) << "] -> ";
+    expected << "{ [tc] -> [tp] : 0 <= tc and tc < "
+             << consumers.ToIslText() << " and 0 <= tp and tp < "
+             << producers.ToIslText() << " and " << begin.str()
+             << " <= tp and tp < " << begin.str() << '+' << candidate.count
+             << " }";
+    CouplingRelation const window =
+        CouplingRelation::FromIslText(expected.str());
+    if (linear.IsSubset(window) && window.IsSubset(linear)) {
+      long const producer_count = producer.Count().Eval(witness, {});
+      if (candidate.scale == 0 && candidate.offset <= 0 &&
+          candidate.offset + candidate.count >= producer_count)
+        return Relaxed();
+      return candidate;
+    }
+
+    CouplingRelation const concrete_window = window.BindParams(witness);
+    if (!concrete.IsSubset(concrete_window) ||
+        !concrete_window.IsSubset(concrete))
+      return Relaxed();
+
+    // A dynamic full-fan-in edge looks like a fixed-size interval at the
+    // witness, but that count grows with the producer task space and thus
+    // cannot equal the constant candidate above.  Prove the kAll form only
+    // for this case; running the product query for every narrow edge costs
+    // more than the window proof itself on production dimensions.
+    long const producer_count = producer.Count().Eval(witness, {});
+    if (candidate.scale == 0 && candidate.offset <= 0 &&
+        candidate.offset + candidate.count >= producer_count &&
+        clamped.CouplesEveryDomainPointTo(
+            ProducerTaskSpaceText(edge.C, producer, known)))
+      return Relaxed();
+  } catch (std::exception const&) {
+    // A rejected symbolic construction is not evidence that the window is
+    // inexact.  The caller runs the concrete fallback for this edge only.
+  }
+  return std::nullopt;
 }
 
 }  // namespace tilemega::analysis
