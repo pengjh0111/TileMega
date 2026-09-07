@@ -1,0 +1,35 @@
+TARGET arch=sm_89 cluster=0 max_cluster_size=1 max_smem_per_sm=102400 smem_per_cta=10496 budget=102400
+GRAPH model=gqa2 nodes=36 edges=44 unevaluable=0 adjacent=23 total_weight=5829263360 heaviest=2147483648
+PLAN model=gqa2 size=2 reach=1 clusters=22 largest=2 capture=0.1364 limited_by=temporal reach, cluster size cap
+PLAN model=gqa2 size=2 reach=2 clusters=22 largest=2 capture=0.1364 limited_by=temporal reach, cluster size cap
+PLAN model=gqa2 size=2 reach=4 clusters=20 largest=2 capture=0.8904 limited_by=temporal reach, cluster size cap
+PLAN model=gqa2 size=2 reach=1048576 clusters=20 largest=2 capture=0.8904 limited_by=cluster size cap
+PLAN model=gqa2 size=4 reach=1 clusters=22 largest=2 capture=0.1364 limited_by=temporal reach
+PLAN model=gqa2 size=4 reach=2 clusters=16 largest=3 capture=0.2216 limited_by=temporal reach, cluster size cap
+PLAN model=gqa2 size=4 reach=4 clusters=12 largest=4 capture=0.9850 limited_by=temporal reach, cluster size cap
+PLAN model=gqa2 size=4 reach=1048576 clusters=12 largest=4 capture=0.9858 limited_by=cluster size cap
+PLAN model=gqa2 size=8 reach=1 clusters=22 largest=2 capture=0.1364 limited_by=temporal reach
+PLAN model=gqa2 size=8 reach=2 clusters=16 largest=3 capture=0.2216 limited_by=temporal reach
+PLAN model=gqa2 size=8 reach=4 clusters=11 largest=5 capture=0.9850 limited_by=temporal reach, cluster size cap
+PLAN model=gqa2 size=8 reach=1048576 clusters=6 largest=8 capture=0.9937 limited_by=cluster size cap
+PLAN model=gqa2 size=16 reach=1 clusters=22 largest=2 capture=0.1364 limited_by=temporal reach
+PLAN model=gqa2 size=16 reach=2 clusters=16 largest=3 capture=0.2216 limited_by=temporal reach
+PLAN model=gqa2 size=16 reach=4 clusters=11 largest=5 capture=0.9850 limited_by=temporal reach
+PLAN model=gqa2 size=16 reach=1048576 clusters=6 largest=9 capture=0.9985 limited_by=shared memory budget, cluster size cap
+GRAPH model=mha4 nodes=64 edges=72 unevaluable=0 adjacent=40 total_weight=12675514368 heaviest=2147483648
+PLAN model=mha4 size=2 reach=1 clusters=40 largest=2 capture=0.1866 limited_by=temporal reach, cluster size cap
+PLAN model=mha4 size=2 reach=2 clusters=40 largest=2 capture=0.1866 limited_by=temporal reach, cluster size cap
+PLAN model=mha4 size=2 reach=4 clusters=36 largest=2 capture=0.9437 limited_by=cluster size cap
+PLAN model=mha4 size=2 reach=1048576 clusters=36 largest=2 capture=0.9437 limited_by=cluster size cap
+PLAN model=mha4 size=4 reach=1 clusters=40 largest=2 capture=0.1866 limited_by=temporal reach
+PLAN model=mha4 size=4 reach=2 clusters=32 largest=3 capture=0.2085 limited_by=temporal reach, cluster size cap
+PLAN model=mha4 size=4 reach=4 clusters=20 largest=4 capture=0.9709 limited_by=temporal reach, cluster size cap
+PLAN model=mha4 size=4 reach=1048576 clusters=24 largest=4 capture=0.9709 limited_by=cluster size cap
+PLAN model=mha4 size=8 reach=1 clusters=40 largest=2 capture=0.1866 limited_by=temporal reach
+PLAN model=mha4 size=8 reach=2 clusters=32 largest=3 capture=0.2085 limited_by=temporal reach
+PLAN model=mha4 size=8 reach=4 clusters=20 largest=4 capture=0.9709 limited_by=temporal reach
+PLAN model=mha4 size=8 reach=1048576 clusters=12 largest=8 capture=0.9940 limited_by=cluster size cap
+PLAN model=mha4 size=16 reach=1 clusters=40 largest=2 capture=0.1866 limited_by=temporal reach
+PLAN model=mha4 size=16 reach=2 clusters=32 largest=3 capture=0.2085 limited_by=temporal reach
+PLAN model=mha4 size=16 reach=4 clusters=20 largest=4 capture=0.9709 limited_by=temporal reach
+PLAN model=mha4 size=16 reach=1048576 clusters=8 largest=9 capture=0.9993 limited_by=shared memory budget

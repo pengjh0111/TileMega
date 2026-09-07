@@ -1,0 +1,5 @@
+arch	sm_120
+caps.cluster	1
+max_cluster_size	8
+num_sms	170
+runs	200

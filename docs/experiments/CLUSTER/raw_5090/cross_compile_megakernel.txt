@@ -1,0 +1,12 @@
+gqa2	sm_90	dim=1	ucgabar=0	build=ok
+mha4	sm_90	dim=1	ucgabar=0	build=ok
+gqa2	sm_90	dim=2	ucgabar=8	build=ok
+mha4	sm_90	dim=2	ucgabar=8	build=ok
+gqa2	sm_90	dim=8	ucgabar=8	build=ok
+mha4	sm_90	dim=8	ucgabar=8	build=ok
+gqa2	sm_120	dim=1	ucgabar=0	build=ok
+mha4	sm_120	dim=1	ucgabar=0	build=ok
+gqa2	sm_120	dim=2	ucgabar=8	build=ok
+mha4	sm_120	dim=2	ucgabar=8	build=ok
+gqa2	sm_120	dim=8	ucgabar=8	build=ok
+mha4	sm_120	dim=8	ucgabar=8	build=ok

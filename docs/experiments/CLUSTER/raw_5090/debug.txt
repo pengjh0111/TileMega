@@ -1,0 +1,104 @@
+目前整个 CLUSTER 测试遇到的问题汇总
+可以明确分成两类：
+一、测试脚本实现 / 测试环境问题
+1. stage 被错误地当成 iteration
+原测试：
+CS::StageBarrier(
+    &arrivals[stage],
+    &epochs[stage],
+    stage,
+    clusters);
+这里每个 stage 已经使用独立的：
+arrivals[stage]
+epochs[stage]
+但又把 stage 当成 monotonic iteration。
+导致：
+stage=0:
+needed = clusters × 1
+→ 正常
+
+stage=1:
+新的 arrivals[1] 从 0 开始
+但 needed = clusters × 2
+→ 永远达不到
+→ 死锁
+修复为：
+CS::StageBarrier(
+    &arrivals[stage],
+    &epochs[stage],
+    0u,
+    clusters);
+之后：
+cluster 2 → 200/200
+cluster 4 → 200/200
+cluster 8 → 200/200
+全部通过。
+归类：测试 case 的 API 语义使用错误。
+二、TileMega 本身的实现问题
+目前我们已经发现的核心问题只有一个，但它比前面的测试脚本问题更重要。
+Cluster persistent grid 仍按 flat CTA occupancy 计算
+当前 Codegen 生成：
+#define TILEMEGA_GENERATED_RESIDENT_GRID(...) \
+  target.res.num_sms *
+  target.ActiveBlocksPerSM(...)
+因此 runtime：
+int grid =
+    TILEMEGA_GENERATED_RESIDENT_GRID(...);
+实际上计算的是：
+resident CTA 数
+=
+num_sms × active_ctas_per_sm
+这对于：
+cluster_dim=1
+是合理的。
+但 Cluster 模式目前只是：
+grid -= grid % TILEMEGA_GENERATED_CLUSTER_DIM;
+也就是：
+flat resident CTA grid
+        ↓
+向下取整
+        ↓
+变成 cluster_dim 的整数倍
+它没有回答真正关键的问题：
+这些 Cluster 能不能同时 resident？
+
+为什么这会导致 dim8 hang？
+TileMega 的真实 megakernel里面存在 software global barrier。
+它要求：
+所有参与 barrier 的 Cluster
+必须最终都能够获得执行资源
+但如果 TileMega按照 flat CTA occupancy 算出：
+grid = 320 CTA
+然后：
+cluster_dim=8
+→ 认为可以启动 40 clusters
+而硬件真实同时只能 resident，例如：
+20 clusters
+就可能出现：
+前20个 cluster resident
+      ↓
+进入 StageBarrier
+      ↓
+等待另外20个 cluster
+
+另外20个 cluster
+      ↓
+还没 resident
+
+GPU资源已经被前20个占住
+      ↓
+无法执行
+
+→ deadlock
+这与你的结果高度一致：
+primitive:
+dim2/4/8 → 全 PASS
+因为 primitive 固定只启动：
+8 clusters
+规模很小。
+而真实 gqa2：
+dim1 → PASS
+dim2 → PASS
+dim4 → PASS
+dim8 → HANG
+dim 越大，Cluster residency 限制越严格，直到 dim8 触发问题。

@@ -1,0 +1,4 @@
+model	cluster_dim	barrier_cluster_asm	pass	total	hash	l1_ms	l2_ms
+gqa2	1	0	50	50	1	0.331056	0.388544
+gqa2	2	8	50	50	1	0.344576	0.388400
+gqa2	4	8	50	50	1	0.340928	0.388352
