@@ -3,8 +3,11 @@
 // depth, so every assertion here pins one way of getting that wrong.
 #include <tilemega/Solver/ListScheduler.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
+#include <numeric>
 #include <stdexcept>
 #include <vector>
 
@@ -46,6 +49,26 @@ int main() {
     // Level 1 holds 1 and 3; height breaks the tie and 1 has the longer tail.
     REQUIRE(order[1] == 1 && order[2] == 3);
     REQUIRE(safety.max_dependency_span == 2);
+
+    // Small-instance oracle: enumerate every permutation, retain only complete
+    // topological schedules, and prove the critical-path priority reaches the
+    // minimum possible maximum producer-to-consumer span.
+    std::vector<int> candidate(diamond.size());
+    std::iota(candidate.begin(), candidate.end(), 0);
+    int oracle_span = std::numeric_limits<int>::max();
+    int feasible = 0;
+    do {
+      try {
+        ScheduleSafety const trial = scheduler.Validate(diamond, candidate);
+        oracle_span = std::min(oracle_span, trial.max_dependency_span);
+        ++feasible;
+      } catch (std::invalid_argument const&) {
+      }
+    } while (std::next_permutation(candidate.begin(), candidate.end()));
+    REQUIRE(feasible == 3);
+    REQUIRE(safety.max_dependency_span == oracle_span);
+    std::printf("PLACE_ORACLE nodes=5 feasible=%d optimum_span=%d cp_span=%d\n",
+                feasible, oracle_span, safety.max_dependency_span);
   }
 
   // A dependency reversed by a purported placement is a generation error,

@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Skeleton refs: §4.3 / P4.8 Place -- list scheduling on the layered DAG.
 //
-// The megakernel executes one stage at a time with a grid barrier between
-// consecutive stages.  That order is a topological order of the stage DAG, but
-// it is not the only one, and it is not the shortest: two stages with no path
-// between them can share a barrier interval.  The number of intervals -- the
-// DAG's critical path in stages -- is therefore the floor on how many barriers
-// the model can possibly execute, and `levels` measures it.
+// The queue-driven L2 path uses this order as the compact, variant-exact input
+// from which the host materializes each physical worker's TaskRef queue.  L1
+// still executes one stage at a time with a grid barrier.  Both paths require a
+// topological stage order, but independent stages can be adjacent in either
+// order; `levels` measures the DAG's critical-path depth.
 //
 // Priority inside a level is critical-path height, the standard list-scheduling
 // rule: a node with a longer remaining path is scheduled first, so the nodes
@@ -19,9 +18,9 @@ namespace tilemega::solver {
 
 struct ScheduleStats {
   int nodes = 0;
-  int levels = 0;          ///< barrier intervals after packing; the DAG's depth
-  int widest_level = 0;    ///< most stages that could share one interval
-  int barriers_saved = 0;  ///< nodes - levels, the whole prize P4.8 plays for
+  int levels = 0;          ///< critical-path depth in stages
+  int widest_level = 0;    ///< most stages available at one topological level
+  int barriers_saved = 0;  ///< legacy L1 interpretation: nodes - levels
 };
 
 struct ScheduleSafety {

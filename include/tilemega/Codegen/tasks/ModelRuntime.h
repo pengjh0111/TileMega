@@ -157,6 +157,17 @@ struct TaskWait {
   std::uint32_t group;
 };
 
+/// Sentinel used by TaskWait for the producer-stage completion event.  A
+/// positive kappa also owns fine logical-task groups; kAll edges wait on this
+/// aggregate instead of expanding one poll per producer task.
+inline constexpr std::uint32_t kWholeStageEventGroup =
+    ~static_cast<std::uint32_t>(0);
+
+enum EventRowFlag : std::uint32_t {
+  kNeedsAggregateEvent = 1u << 0,
+  kNeedsFineEvents = 1u << 1,
+};
+
 enum TaskRefFlag : std::uint32_t {
   kLastTaskOfStage = 1u << 0,
 };
@@ -246,6 +257,12 @@ struct Params {
   std::uint32_t const* schedule_offsets;
   TaskWait const* task_waits;
   std::uint32_t task_wait_count;
+  /// Prefix sum of L2 event groups per stage. L1 owns the first
+  /// `stage_count` EventCounter rows; L2 rows begin after that region.
+  std::uint32_t const* event_offsets;
+  /// Per-stage EventRowFlag mask. Producers publish only rows referenced by
+  /// at least one consumer, avoiding an unconditional second atomic stream.
+  std::uint32_t const* event_flags;
   TaskTrace* task_trace;                 ///< nullptr unless profiling
   unsigned long long* trace_sequence;    ///< nullptr unless profiling
   std::uint32_t ownership_flags;

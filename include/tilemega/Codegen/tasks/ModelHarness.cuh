@@ -29,6 +29,7 @@
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include <numeric>
 #include <set>
 #include <string>
 #include <vector>
@@ -56,6 +57,9 @@ namespace tilemega::codegen {
 #endif
 #ifndef TILEMEGA_NEGATIVE_OLD_CLAMP
 #define TILEMEGA_NEGATIVE_OLD_CLAMP 0
+#endif
+#ifndef TILEMEGA_NEGATIVE_TASK_WAIT_CLAMP
+#define TILEMEGA_NEGATIVE_TASK_WAIT_CLAMP 0
 #endif
 static_assert(!arch::kDevicePass || TILEMEGA_GENERATED_CLUSTER_DIM == 1 ||
                   arch::Caps<arch::CurrentArch>::kCluster,
@@ -158,34 +162,43 @@ __host__ __device__ inline int CeilDiv(int numerator, int denominator) {
 
 /// §2.3's event granularity kappa, as a compile-time knob on the L2 path.
 ///
-/// 0 -- the default and what every existing build compiles -- is one event per
-/// producer *stage*: kappa = the whole launch axis.  A positive value groups
-/// kappa consecutive CTAs of a stage into one event, so a stage publishes
-/// ceil(active/kappa) of them.  L1 has no such knob: its grid barrier is one
+/// 0 is the aggregate-only control: one event per producer stage. A positive
+/// value groups kappa consecutive logical tasks
+/// of a stage into one event, so a stage publishes ceil(task_count/kappa) of
+/// them even when task_count exceeds the resident grid. L1 has no such knob:
+/// its grid barrier is one
 /// event per stage by construction.
 ///
 /// A consumer waits on only the groups its `StageDependency` window spans, so
 /// with a narrowed edge kappa now has a benefit side as well as a cost side:
-/// smaller kappa means more events published but a tighter wait set.  On a
-/// kAll edge the wait is still every group, which is the shape the original
-/// E2E_L2 measurement (cost only, benefit identically zero) was taken in.
+/// smaller kappa means more events published but a tighter wait set. A kAll
+/// edge uses the producer's aggregate completion event rather than expanding
+/// every fine group, keeping one task's descriptor count O(CG in-edges).
 #ifndef TILEMEGA_EVENT_KAPPA
-#define TILEMEGA_EVENT_KAPPA 0
+#define TILEMEGA_EVENT_KAPPA 1
 #endif
 
-/// Events are allocated stage_count * grid deep, so a stage owns a whole row
-/// of the array and the per-stage scheme is row 0 of each.  Kept behind an
-/// `#if` so the default build indexes exactly as it did before the knob.
-__device__ inline std::uint32_t EventIndex(std::uint32_t stage, int group) {
+/// L1 uses the first stage_count counters. L2 follows with a runtime-sized
+/// prefix table. A stage owns an aggregate completion row and/or (for positive
+/// kappa) one row per logical-task group, according to what its consumers
+/// reference. This is what makes κ group *tasks*, not worker ids, without
+/// making kAll fan-in linear in tasks or publishing unused rows.
+__device__ inline std::uint32_t EventIndex(Params const& p,
+                                           std::uint32_t stage,
+                                           std::uint32_t group) {
+  std::uint32_t const base = p.stage_count + p.event_offsets[stage];
 #if TILEMEGA_EVENT_KAPPA > 0
-  return stage * gridDim.x + static_cast<std::uint32_t>(group);
+  return group == kWholeStageEventGroup
+             ? base
+             : base + ((p.event_flags[stage] & kNeedsAggregateEvent) ? 1u : 0u) +
+                   group;
 #else
   (void)group;
-  return stage;
+  return base;
 #endif
 }
 
-/// Active CTAs of a stage, clamped to the grid -- the launch axis kappa groups.
+/// Active CTAs of a stage, clamped to the grid (legacy stage-wait helper).
 __device__ inline int ActiveBlocksClamped(Params const& p, std::uint32_t stage);
 
 /// Cardinality of image(C_kappa) along the launch axis.  CTAs beyond this
@@ -294,8 +307,10 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
 #else
     if (poll_index++ % blockDim.x != threadIdx.x) return;
 #endif
-    TILEMEGA_GENERATED_WAIT_global(&events[EventIndex(producer, group)].epoch,
-                                   iteration + 1ull);
+    TILEMEGA_GENERATED_WAIT_global(
+        &events[EventIndex(p, producer,
+                           static_cast<std::uint32_t>(group))].epoch,
+        iteration + 1ull);
   };
   {
     std::uint32_t first = p.dependency_offsets[consumer];
@@ -391,7 +406,7 @@ __device__ inline void WaitTaskDependencies(Params const& p,
        i += blockDim.x) {
     TaskWait const& wait = p.task_waits[task.wait_begin + i];
     TILEMEGA_GENERATED_WAIT_global(
-        &events[EventIndex(wait.producer, static_cast<int>(wait.group))].epoch,
+        &events[EventIndex(p, wait.producer, wait.group)].epoch,
         iteration + 1ull);
   }
   if (task.wait_count != 0) {
@@ -407,47 +422,59 @@ __device__ inline void WaitTaskDependencies(Params const& p,
 /// epoch that releases the consumers.
 /// Cost probe: publish nothing.  Only meaningful together with
 /// TILEMEGA_UNSAFE_NO_EVENT_WAIT -- on its own it deadlocks every consumer.
-__device__ inline void NotifyStage(Params const& p, EventCounter* events,
-                                   std::uint32_t producer, bool active,
-                                   unsigned long long iteration) {
+__device__ inline void NotifyTask(Params const& p, EventCounter* events,
+                                  std::uint32_t producer,
+                                  std::uint32_t logical_task,
+                                  unsigned long long iteration) {
 #if TILEMEGA_UNSAFE_NO_EVENT_NOTIFY
-  (void)p; (void)events; (void)producer; (void)iteration; (void)active;
+  (void)p; (void)events; (void)producer; (void)logical_task; (void)iteration;
   return;
 #endif
-  // Same block-uniformity argument as WaitDependencies: an inactive CTA
-  // published no tile of this stage, so it has nothing to release and is not
-  // counted in StageArrivalTarget either.
-  if (!active) return;
+  std::uint32_t const event_flags = p.event_flags[producer];
+  if (event_flags == 0) return;
   __threadfence();
   __syncthreads();
   if (threadIdx.x == 0) {
+    int const produced = ActiveBlocks(p, p.stages[producer]);
 #if TILEMEGA_EVENT_KAPPA > 0
-    // Each group is completed by its own members, so the target is the group's
-    // occupancy, not the stage's -- the last group is short whenever the active
-    // count is not a multiple of kappa.
-    int const active = ActiveBlocksClamped(p, producer);
-    int const group = PlacedBlock() / TILEMEGA_EVENT_KAPPA;
-    int const members = active - group * TILEMEGA_EVENT_KAPPA
-                            < TILEMEGA_EVENT_KAPPA
-                        ? active - group * TILEMEGA_EVENT_KAPPA
-                        : TILEMEGA_EVENT_KAPPA;
-    unsigned long long ticket =
-        atomicAdd(&events[EventIndex(producer, group)].arrivals, 1ull);
-    if (ticket + 1ull ==
-        static_cast<unsigned long long>(members) * (iteration + 1ull)) {
-      __threadfence();
-      TILEMEGA_GENERATED_NOTIFY_global(&events[EventIndex(producer, group)].epoch,
-                                       iteration + 1ull);
-    }
-#else
-    unsigned long long ticket =
-        atomicAdd(&events[EventIndex(producer, 0)].arrivals, 1ull);
-    if (ticket + 1ull == StageArrivalTarget(p, producer, iteration)) {
-      __threadfence();
-      TILEMEGA_GENERATED_NOTIFY_global(&events[EventIndex(producer, 0)].epoch,
-                                       iteration + 1ull);
+    if (event_flags & kNeedsFineEvents) {
+      int const group =
+          static_cast<int>(logical_task) / TILEMEGA_EVENT_KAPPA;
+      int const members = produced - group * TILEMEGA_EVENT_KAPPA
+                              < TILEMEGA_EVENT_KAPPA
+                          ? produced - group * TILEMEGA_EVENT_KAPPA
+                          : TILEMEGA_EVENT_KAPPA;
+      unsigned long long group_ticket = atomicAdd(
+          &events[EventIndex(
+              p, producer, static_cast<std::uint32_t>(group))].arrivals,
+          1ull);
+      if (group_ticket + 1ull ==
+          static_cast<unsigned long long>(members) * (iteration + 1ull)) {
+        __threadfence();
+        TILEMEGA_GENERATED_NOTIFY_global(
+            &events[EventIndex(
+                p, producer, static_cast<std::uint32_t>(group))].epoch,
+            iteration + 1ull);
+      }
     }
 #endif
+    // A task contributes to the aggregate completion row only when some kAll
+    // consumer references it. Such consumers pay one poll per incoming CG
+    // edge, while narrowed consumers observe the fine group above.
+    if (event_flags & kNeedsAggregateEvent) {
+      unsigned long long aggregate_ticket =
+          atomicAdd(&events[EventIndex(
+                        p, producer, kWholeStageEventGroup)].arrivals,
+                    1ull);
+      if (aggregate_ticket + 1ull ==
+          static_cast<unsigned long long>(produced) * (iteration + 1ull)) {
+        __threadfence();
+        TILEMEGA_GENERATED_NOTIFY_global(
+            &events[EventIndex(
+                p, producer, kWholeStageEventGroup)].epoch,
+            iteration + 1ull);
+      }
+    }
   }
   __syncthreads();
 }
@@ -546,8 +573,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     if (params->task_trace != nullptr && threadIdx.x == 0)
       params->task_trace[slot].end =
           atomicAdd(params->trace_sequence, 1ull);
-    if (task.flags & kLastTaskOfStage)
-      NotifyStage(*params, events, task.stage, true, iteration);
+    NotifyTask(*params, events, task.stage, task.logical_task, iteration);
   }
 }
 
@@ -660,6 +686,10 @@ struct DeviceModel {
   TaskRef* device_schedule = nullptr;
   std::uint32_t* device_schedule_offsets = nullptr;
   TaskWait* device_task_waits = nullptr;
+  std::vector<std::uint32_t> event_offsets;
+  std::uint32_t* device_event_offsets = nullptr;
+  std::vector<std::uint32_t> event_flags;
+  std::uint32_t* device_event_flags = nullptr;
   TaskTrace* device_task_trace = nullptr;
   unsigned long long* device_trace_sequence = nullptr;
   std::vector<std::uint32_t> stage_order;
@@ -667,6 +697,8 @@ struct DeviceModel {
   std::uint32_t schedule_max_worker_span = 0;
   bool schedule_has_global_fanin = false;
   std::size_t schedule_raw_polls = 0;
+  std::size_t schedule_waiting_tasks = 0;
+  std::size_t normalization_dummy_lower_bound = 0;
   Params params{};
   Params* device_params = nullptr;
   EventCounter* events = nullptr;
@@ -898,6 +930,22 @@ inline DeviceModel Create(ModelSpec const& spec,
     if (done[original] != entry[original])
       model.stage_order.push_back(done[original]);
   }
+  // Experimental control for Part 3.3.  Stage ids are emitted in the
+  // frontend's original topological order, including an immediately-following
+  // split-K combiner, so this is the deterministic round-robin baseline to
+  // compare with the solver's critical-path priority.  The switch is consumed
+  // only while materializing host queues; both arms execute identical device
+  // code and are validated below before any launch.
+  if (char const* policy = std::getenv("TILEMEGA_SCHEDULE_POLICY")) {
+    if (std::strcmp(policy, "critical_path") == 0) {
+      // The generated order already is the critical-path schedule.
+    } else if (std::strcmp(policy, "round_robin") == 0) {
+      std::iota(model.stage_order.begin(), model.stage_order.end(), 0u);
+    } else {
+      std::fprintf(stderr, "unknown TILEMEGA_SCHEDULE_POLICY=%s\n", policy);
+      std::exit(2);
+    }
+  }
   std::vector<std::uint32_t> stage_position(model.stages.size());
   for (std::uint32_t i = 0; i < model.stage_order.size(); ++i)
     stage_position[model.stage_order[i]] = i;
@@ -957,12 +1005,49 @@ inline DeviceModel Create(ModelSpec const& spec,
   // worker queue.  The latter is valid only because epoch never decreases.
   model.schedule_offsets.resize(static_cast<std::size_t>(grid) + 1, 0);
   std::vector<std::set<std::pair<std::uint32_t, std::uint32_t>>> seen(grid);
+#if TILEMEGA_EVENT_KAPPA > 0
+  bool const force_all_dependencies =
+      std::getenv("TILEMEGA_FORCE_ALL_DEPENDENCIES") != nullptr;
+#endif
   std::vector<int> physical_worker(grid);
   for (int worker = 0; worker < grid; ++worker)
     physical_worker[HostPlacedBlock(worker, grid, blocks_per_sm)] = worker;
+  std::vector<int> stage_max_producer_worker(model.stages.size(), -1);
+  for (std::uint32_t stage = 0; stage < model.stages.size(); ++stage) {
+    int const owners = std::min(active_tasks(stage), grid);
+    for (int owner = 0; owner < owners; ++owner)
+      stage_max_producer_worker[stage] = std::max(
+          stage_max_producer_worker[stage], physical_worker[owner]);
+  }
 #if TILEMEGA_EVENT_KAPPA > 0
   int const per_group = TILEMEGA_EVENT_KAPPA;
 #endif
+  model.event_offsets.resize(model.stages.size() + 1, 0);
+  model.event_flags.resize(model.stages.size(), 0);
+  for (StageDependency const& dep : dependencies) {
+#if TILEMEGA_EVENT_KAPPA > 0
+    if (force_all_dependencies || dep.map == StageDependency::Map::kAll)
+      model.event_flags[dep.producer] |= kNeedsAggregateEvent;
+    else
+      model.event_flags[dep.producer] |= kNeedsFineEvents;
+#else
+    model.event_flags[dep.producer] |= kNeedsAggregateEvent;
+#endif
+  }
+  for (std::uint32_t stage = 0; stage < model.stages.size(); ++stage) {
+    int const count = active_tasks(stage);
+#if TILEMEGA_EVENT_KAPPA > 0
+    std::uint32_t groups = 0;
+    if (model.event_flags[stage] & kNeedsAggregateEvent) ++groups;
+    if (model.event_flags[stage] & kNeedsFineEvents)
+      groups += static_cast<std::uint32_t>(
+          (count + TILEMEGA_EVENT_KAPPA - 1) / TILEMEGA_EVENT_KAPPA);
+#else
+    std::uint32_t const groups =
+        (model.event_flags[stage] & kNeedsAggregateEvent) ? 1u : 0u;
+#endif
+    model.event_offsets[stage + 1] = model.event_offsets[stage] + groups;
+  }
   for (int worker = 0; worker < grid; ++worker) {
     int const placed = HostPlacedBlock(worker, grid, blocks_per_sm);
     for (std::uint32_t stage : model.stage_order) {
@@ -976,9 +1061,13 @@ inline DeviceModel Create(ModelSpec const& spec,
         task.wait_begin = static_cast<std::uint32_t>(model.task_waits.size());
         std::set<std::pair<std::uint32_t, std::uint32_t>> desired;
         for (std::uint32_t e = offsets[stage]; e < offsets[stage + 1]; ++e) {
+          // Queue-era negative control at the point L2 actually consumes:
+          // truncate every TaskWait interval to zero. Never enabled in a
+          // shipped build; SEQSCAN requires this build to fail.
+          if (TILEMEGA_NEGATIVE_TASK_WAIT_CLAMP) break;
           StageDependency const& dep = dependencies[e];
           int const produced = active_tasks(dep.producer);
-          int const live = std::min(produced, grid);
+#if TILEMEGA_EVENT_KAPPA > 0
           auto observe_owner = [&](int owner) {
             int const producer_worker = physical_worker[owner];
             if (producer_worker > worker)
@@ -986,12 +1075,14 @@ inline DeviceModel Create(ModelSpec const& spec,
                   model.schedule_max_worker_span,
                   static_cast<std::uint32_t>(producer_worker - worker));
           };
-#if TILEMEGA_EVENT_KAPPA > 0
-          if (dep.map == StageDependency::Map::kAll) {
+          if (force_all_dependencies || dep.map == StageDependency::Map::kAll) {
             model.schedule_has_global_fanin = true;
-            for (int group = 0; group <= (live - 1) / per_group; ++group)
-              desired.emplace(dep.producer, static_cast<std::uint32_t>(group));
-            for (int owner = 0; owner < live; ++owner) observe_owner(owner);
+            desired.emplace(dep.producer, kWholeStageEventGroup);
+            int const latest = stage_max_producer_worker[dep.producer];
+            if (latest > worker)
+              model.schedule_max_worker_span = std::max(
+                  model.schedule_max_worker_span,
+                  static_cast<std::uint32_t>(latest - worker));
           } else {
             int const at =
                 (logical / static_cast<int>(dep.div)) * dep.scale + dep.offset;
@@ -1001,10 +1092,10 @@ inline DeviceModel Create(ModelSpec const& spec,
             for (int producer_task = begin; producer_task < end;
                  ++producer_task) {
               int const owner = producer_task % grid;
-              int const group = owner / per_group;
-              int const group_end = std::min((group + 1) * per_group, live);
+              int const group = producer_task / per_group;
+              int const group_end = std::min((group + 1) * per_group, produced);
               for (int member = group * per_group; member < group_end; ++member)
-                observe_owner(member);
+                observe_owner(member % grid);
               // With one worker per event, this worker's earlier queue entry
               // is already a proof; no global-memory poll is needed.
               if (per_group == 1 && owner == placed) continue;
@@ -1015,8 +1106,12 @@ inline DeviceModel Create(ModelSpec const& spec,
 #else
           (void)produced;
           model.schedule_has_global_fanin = true;
-          for (int owner = 0; owner < live; ++owner) observe_owner(owner);
-          desired.emplace(dep.producer, 0u);
+          int const latest = stage_max_producer_worker[dep.producer];
+          if (latest > worker)
+            model.schedule_max_worker_span = std::max(
+                model.schedule_max_worker_span,
+                static_cast<std::uint32_t>(latest - worker));
+          desired.emplace(dep.producer, kWholeStageEventGroup);
 #endif
         }
         model.schedule_raw_polls += desired.size();
@@ -1025,6 +1120,9 @@ inline DeviceModel Create(ModelSpec const& spec,
             model.task_waits.push_back({wait.first, wait.second});
         task.wait_count = static_cast<std::uint32_t>(model.task_waits.size()) -
                           task.wait_begin;
+        if (task.wait_count != 0) ++model.schedule_waiting_tasks;
+        if (task.wait_count > 1)
+          model.normalization_dummy_lower_bound += task.wait_count - 1;
         if (logical + grid >= count) task.flags |= kLastTaskOfStage;
         model.schedule.push_back(task);
       }
@@ -1059,6 +1157,12 @@ inline DeviceModel Create(ModelSpec const& spec,
   if (!model.task_waits.empty())
     model.device_task_waits = static_cast<TaskWait*>(upload(
         model.task_waits.data(), model.task_waits.size() * sizeof(TaskWait)));
+  model.device_event_offsets = static_cast<std::uint32_t*>(upload(
+      model.event_offsets.data(),
+      model.event_offsets.size() * sizeof(std::uint32_t)));
+  model.device_event_flags = static_cast<std::uint32_t*>(upload(
+      model.event_flags.data(),
+      model.event_flags.size() * sizeof(std::uint32_t)));
   if (std::getenv("TILEMEGA_TASK_TRACE") != nullptr) {
     TILEMEGA_CUDA_CHECK(cudaMalloc(
         &model.device_task_trace, model.schedule.size() * sizeof(TaskTrace)));
@@ -1085,6 +1189,8 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.params.task_waits = model.device_task_waits;
   model.params.task_wait_count =
       static_cast<std::uint32_t>(model.task_waits.size());
+  model.params.event_offsets = model.device_event_offsets;
+  model.params.event_flags = model.device_event_flags;
   model.params.task_trace = model.device_task_trace;
   model.params.trace_sequence = model.device_trace_sequence;
   model.params.ownership_flags = runtime_variant.ownership_flags;
@@ -1095,8 +1201,10 @@ inline DeviceModel Create(ModelSpec const& spec,
 }
 
 inline void PrepareEvents(DeviceModel& model, int grid) {
+  (void)grid;
   if (model.events) TILEMEGA_CUDA_CHECK(cudaFree(model.events));
-  model.event_count = static_cast<std::size_t>(model.params.stage_count) * grid;
+  model.event_count = static_cast<std::size_t>(model.params.stage_count) +
+                      model.event_offsets.back();
   TILEMEGA_CUDA_CHECK(
       cudaMalloc(&model.events, sizeof(EventCounter) * model.event_count));
 }
@@ -1548,7 +1656,8 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
               target.res.num_sms, grid);
   std::printf("E2E_SCHEDULE workers=%d variant_stages=%u task_refs=%zu "
               "task_ref_bytes=%zu waits=%zu wait_bytes=%zu raw_polls=%zu "
-              "lifted_polls=%zu max_span=%u generated_max_span=%u "
+              "lifted_polls=%zu waiting_tasks=%zu normalization_dummies_lb=%zu "
+              "max_span=%u generated_max_span=%u "
               "max_worker_span=%u resident_limit=%d global_fanin=%d "
               "i3_current=pass i3_overresident=reject\n",
               grid, runtime_variant.schedule_count, model.schedule.size(),
@@ -1556,6 +1665,8 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
               model.task_waits.size() * sizeof(TaskWait),
               model.schedule_raw_polls,
               model.schedule_raw_polls - model.task_waits.size(),
+              model.schedule_waiting_tasks,
+              model.normalization_dummy_lower_bound,
               model.schedule_max_span, runtime_variant.max_dependency_span,
               model.schedule_max_worker_span, grid,
               model.schedule_has_global_fanin ? 1 : 0);
