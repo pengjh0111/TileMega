@@ -173,6 +173,7 @@ class CostModel {
   Fit const& fit() const { return fit_; }
   CostModelOptions const& options() const { return options_; }
   TargetSpec const& target() const { return *target_; }
+  ScalarType dtype() const { return dtype_; }
 
   /// Why each of the nine lanes is or is not charged on this target, decided
   /// once at construction from `caps` and `calib` rather than at each use.

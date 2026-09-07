@@ -14,8 +14,6 @@ namespace tilemega::solver {
 namespace {
 
 constexpr double kInf = std::numeric_limits<double>::infinity();
-constexpr int kThreads = 256;
-
 /// (tile_m, tile_n, tile_k, stages) -- everything a compiled GemmImpl variant
 /// is parameterised by.  The split factor is deliberately not part of it.
 using ShapeKey = std::array<int, 4>;
@@ -28,11 +26,12 @@ ChainDP::ChainDP(CostModel const& model, std::vector<DpCandidate> candidates)
 int ChainDP::CtasPerSm(int smem_bytes, int registers) const {
   // F-40, verified on 1075 of the oracle's 1077 measured shapes.
   auto const& res = cost_->target().res;
-  int const per_cta_regs = 8 * ((registers * 32 + 255) / 256) * kThreads;
+  int const threads = cost_->dtype() == ScalarType::kBF16 ? 128 : 256;
+  int const per_cta_regs = 8 * ((registers * 32 + 255) / 256) * threads;
   int const by_regs = per_cta_regs > 0 ? res.regs_per_sm / per_cta_regs : 1;
   int const by_smem =
-      smem_bytes > 0 ? res.max_dynamic_smem_per_cta / smem_bytes : 1;
-  int const by_threads = res.max_threads_per_sm / kThreads;
+      smem_bytes > 0 ? res.max_smem_per_sm / smem_bytes : 1;
+  int const by_threads = res.max_threads_per_sm / threads;
   return std::max(1, std::min({by_regs, by_smem, by_threads}));
 }
 

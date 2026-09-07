@@ -77,6 +77,13 @@ int main() {
   ModelDescription const model = TinyModel();
   ChainDP const dp(cost, Candidates());
 
+  // BF16 collectives use 128 threads, not the FP32 path's 256.  Reusing the
+  // old literal halves the solver's inferred residency before any cost is
+  // evaluated (80 registers and 16 KiB are six CTAs by the resource formula).
+  CostModel const bf16_cost(target, ScalarType::kBF16);
+  ChainDP const bf16_dp(bf16_cost, {});
+  REQUIRE(bf16_dp.CtasPerSm(16384, 80) == 6);
+
   ChainDpOptions general_opts;
   ChainDpStats general_stats;
   ChainDpSolution const general = dp.Solve(model, general_opts, &general_stats);

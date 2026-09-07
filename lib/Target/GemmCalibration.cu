@@ -694,7 +694,7 @@ bool FitShape(TargetSpec& spec, Options const& options, Buffers const& buffers,
               "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
     int const tiles_n_cap = (kMaxN * kCalibTilesN) / N;
     double worst_occ_rsd = 0.0;
-    for (int per_sm = 1; per_sm <= std::min(4, resident); ++per_sm) {
+    for (int per_sm = 1; per_sm <= resident; ++per_sm) {
       int const want = spec.res.num_sms * per_sm;
       // Width is capped by the B allocation, so the grid is widened with
       // split-K chunks instead -- the same mainloop, a shorter K each.
@@ -788,7 +788,14 @@ std::vector<TargetSpec::StreamKPoint> StreamKShapes(bool bf16) {
   if (bf16)
     return {shape(128, 128, 16, 3), shape(64, 64, 16, 3),
             shape(32, 32, 32, 3), shape(32, 64, 32, 3),
-            shape(32, 64, 16, 2), shape(256, 128, 16, 3)};
+            shape(32, 64, 16, 2), shape(256, 128, 16, 3),
+            // The original six-point profile left both families dominating
+            // the model's predicted top ten outside calibration: narrow-N
+            // high-occupancy tiles and aggressive split-K tiles.  These
+            // disjoint-problem probes identify their operand-feed slope
+            // without fitting to either reference model's latency.
+            shape(32, 16, 16, 2), shape(32, 128, 32, 3),
+            shape(128, 32, 32, 2), shape(64, 64, 32, 5)};
   return {shape(128, 128, 16, 3), shape(64, 64, 16, 3),
           shape(32, 32, 32, 3), shape(16, 64, 32, 3),
           shape(16, 64, 16, 2), shape(256, 128, 16, 3)};
@@ -830,6 +837,10 @@ void MeasureStreamK(TargetSpec& spec, Options const& options,
     FitShape<true, 32, 64, 32, 3>(spec, options, buffers, combine, log);
     FitShape<true, 32, 64, 16, 2>(spec, options, buffers, combine, log);
     FitShape<true, 256, 128, 16, 3>(spec, options, buffers, combine, log);
+    FitShape<true, 32, 16, 16, 2>(spec, options, buffers, combine, log);
+    FitShape<true, 32, 128, 32, 3>(spec, options, buffers, combine, log);
+    FitShape<true, 128, 32, 32, 2>(spec, options, buffers, combine, log);
+    FitShape<true, 64, 64, 32, 5>(spec, options, buffers, combine, log);
   } else {
     CombineFit combine = MeasureCombine<float>(spec, options, log);
     FitShape<false, 128, 128, 16, 3>(spec, options, buffers, combine, log);

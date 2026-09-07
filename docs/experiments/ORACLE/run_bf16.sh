@@ -148,7 +148,14 @@ for model in gqa2 mha4; do
     for f in "${raw}/log/${model}"_*.ptxas; do
       [[ -e "$f" ]] || continue
       base="${f##*/}"; base="${base%.ptxas}"; base="${base#${model}_}"
-      regs="$(grep -o 'Used [0-9]* registers' "$f" | awk '{print $2}' | sort -rn | awk 'NR==1')"
+      # Residency is the minimum shared by the two persistent kernels.  The
+      # per-stage L0.5 entry is not part of that launch and can use many more
+      # registers; including it used to understate residency for wide tiles.
+      regs="$(awk '/Compiling entry function/ {
+                     keep=($0 ~ /tilemega_l1_kernel|tilemega_l2_kernel/); next
+                   }
+                   keep && /Used [0-9]+ registers/ {print $5; keep=0}' "$f" |
+              sort -rn | awk 'NR==1')"
       [[ -n "$regs" ]] && printf '%s\t%s\n' "${base%%k*}" "$regs"
     done | sort -u -k1,1 -k2,2rn | awk '!seen[$1]++';
   } > "${raw}/cost/registers_${model}.tsv"

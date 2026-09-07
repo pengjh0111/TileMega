@@ -54,7 +54,9 @@ int SmemBytes(GemmConfig const& c, ScalarType dtype) {
              : SimtF32SmemBytes(c.tile_m, c.tile_n, c.tile_k, c.stages);
 }
 
-/// F-40, exact on 1075 of the 1077 measured configurations of each model.
+/// Diagnostic only.  The validation sweep records CUDA's kernel-specific
+/// occupancy result, which is authoritative; this closed form identifies
+/// feature-construction mismatches without feeding them into the cost score.
 int CtasPerSm(TargetSpec const& target, int registers, int smem,
               ScalarType dtype) {
   int const threads = dtype == ScalarType::kBF16 ? kTensorBF16Threads
@@ -94,7 +96,7 @@ std::map<std::string, int> ReadRegisters(std::string const& path) {
 std::vector<Point> ReadScreen(std::string const& path,
                               std::map<std::string, int> const& registers,
                               TargetSpec const& target, ScalarType dtype,
-                              int* missing) {
+                              int* missing, int* occupancy_mismatches) {
   std::vector<Point> out;
   std::ifstream input(path);
   if (!input) throw std::runtime_error("cannot open oracle sweep: " + path);
@@ -113,7 +115,10 @@ std::vector<Point> ReadScreen(std::string const& path,
       ++*missing;
       continue;
     }
-    point.ctas_per_sm = CtasPerSm(target, it->second, point.smem, dtype);
+    point.ctas_per_sm = std::stoi(f[11]);
+    if (point.ctas_per_sm !=
+        CtasPerSm(target, it->second, point.smem, dtype))
+      ++*occupancy_mismatches;
     out.push_back(point);
   }
   return out;
@@ -283,11 +288,12 @@ int main(int argc, char** argv) try {
   double worst_eval_us = 0.0;
   for (auto const& source : sources) {
     int missing = 0;
+    int occupancy_mismatches = 0;
     auto const registers =
         ReadRegisters(out_dir + "/registers_" + source.name + ".tsv");
     auto const points =
         ReadScreen(screen_dir + "/screen_" + source.name + ".tsv",
-                   registers, target, dtype, &missing);
+                   registers, target, dtype, &missing, &occupancy_mismatches);
     ModelDescription const model = ModelDescription::FromGeneratedCuda(
         source.cu, ModelDims{4, 3, 7}, source.name);
     if (model.dtype != dtype)
@@ -298,6 +304,7 @@ int main(int argc, char** argv) try {
               << model.LiveFootprintBytes() / (1 << 20) << " MiB, L2 hit "
               << full.CacheHitProbability(model.LiveFootprintBytes())
               << (missing ? " [WARNING: shapes without ptxas registers]" : "")
+              << " occupancy_feature_mismatches=" << occupancy_mismatches
               << '\n';
 
     std::vector<GemmProblem> problems;
