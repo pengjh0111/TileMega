@@ -1,93 +1,65 @@
-# Part 5 — multi-iteration coverage of §8.2's monotone counters
+# Queue-era epoch control
 
-Reproduce:
+Reproduce with `RUNS=50 bash run.sh`. Each process launches the queue-driven L2
+kernel 32 times over persistent event storage. The `reset` build enables
+`TILEMEGA_NEGATIVE_RESET_EVENTS=1`, clears counters between repeats, and
+announces iteration zero after the first repeat.
 
-```
-TILEMEGA_ITERATIONS=32 ./model <fixture>          # the sweep
-nvcc ... -DTILEMEGA_NEGATIVE_RESET_EVENTS=1       # the negative control
-```
+Evidence status: ✅ RTX 4090 (`sm_89`), BF16, κ=1, 2026-09-07. The four arms
+comprise 200 fresh processes. Raw counts and timing reductions are in
+`raw_taskqueue/iterations.tsv` and `raw_taskqueue/timing.tsv`.
 
-Evidence status: ✅ measured on an RTX 4090 (sm_89), BF16, structured
-ownership, 2026-09-06.
+## Result
 
-## What was asked and what is delivered
-
-The brief asks for N-step autoregressive generation with `seq = 1`, a `past`
-that grows and a KV cache that accumulates, compared against PyTorch token by
-token. **That is not what this experiment delivers, and the difference is
-stated up front rather than buried.** What is delivered is the property the
-epoch mechanism exists for — N launches over event memory that is never
-cleared — plus the negative control the brief asks for, and the negative
-control produced a result that changes what the whole item means.
-
-`TILEMEGA_ITERATIONS=N` runs the persistent L2 kernel N times with
-`ResetBuffersOnly` between launches, so the buffers are restored and the event
-counters are carried over, each launch announcing its own `iteration`. Every
-launch's output is compared against launch 0's.
-
-✅ 32 iterations, 50 fresh processes per model (`raw/iterations.tsv`):
-
-| model | iterations | processes | passes | total mismatch across all repeats | timeouts |
-|---|---:|---:|---:|---:|---:|
-| gqa2 | 32 | 50 | **50** | **0** | 0 |
-| mha4 | 32 | 50 | **50** | **0** | 0 |
-
-Each process compares all 32 launches against launch 0 element by element, so
-that is 1600 launch-to-launch comparisons per model with no event memory ever
-cleared.
-
-## The negative control does not fail, and that is the finding
-
-The control is the shape a naive implementation takes: clear the event
-counters between iterations and always announce iteration 0
-(`TILEMEGA_NEGATIVE_RESET_EVENTS=1`). §8.2's argument is that a CTA still
-finishing iteration `i` would then satisfy iteration `i+1`'s wait from a
-cleared counter — the ABA the monotone target prevents.
-
-✅ Measured, same protocol, and it **passes**:
-
-| model | arm | processes | passes | total mismatch | timeouts |
+| model | arm | processes | pass | total mismatch | timeout |
 |---|---|---:|---:|---:|---:|
-| gqa2 | monotone target (shipped) | 50 | 50 | 0 | 0 |
-| gqa2 | **counters reset, iteration 0** | 50 | **50** | **0** | 0 |
-| mha4 | monotone target (shipped) | 50 | 50 | 0 | 0 |
-| mha4 | **counters reset, iteration 0** | 50 | **50** | **0** | 0 |
+| gqa2 | monotone epoch | 50 | 50 | 0 | 0 |
+| gqa2 | reset / iteration zero | 50 | **50** | 0 | 0 |
+| mha4 | monotone epoch | 50 | 50 | 0 | 0 |
+| mha4 | reset / iteration zero | 50 | **50** | 0 | 0 |
 
-❌ **The hazard is unreachable in this harness, so the sweep provides no
-coverage of it.** The reason is structural, not statistical: `iteration` is a
-*launch* parameter, and every launch is issued on the default stream and
-completes before the next one is issued. There is never a CTA still finishing
-iteration `i` while another begins `i+1`, so no amount of repetition can
-produce the interleaving the counters defend against.
+❌ The required negative control did not fail. This is recorded as a failed
+acceptance, not converted into evidence for the epoch mechanism.
 
-For the hazard to be reachable one of two things has to be true, and neither is
-today:
+The reason is structural. `iteration` is still a host launch parameter, every
+launch uses the default stream, and `LaunchL2` synchronizes before returning.
+No CTA from iteration `i` can coexist with one from `i+1`; clearing an event
+after the former has completed cannot create ABA. Fifty or fifty thousand
+processes cannot exercise an impossible interleaving.
 
-* the iteration loop is **inside** the kernel — a persistent kernel that
-  generates token after token without returning to the host, which is what
-  Phase 6's continuous batching is; or
-* two iterations are **concurrent** — separate streams sharing the event
-  memory, which nothing in the harness sets up.
+This does not contradict the queue overlap measurement. Across 50 traces,
+mean early starts are 68.72/200 gqa2 and 205.70/512 mha4 tasks. That proves the
+stage barrier was removed. It says nothing about overlap between separately
+synchronized launches.
 
-So `needed = triggers × (iteration + 1)` is correct-by-construction defensive
-code whose necessity begins at Phase 6. Calling it "tested" because a
-32-iteration sweep passes would be exactly the mistake §7's standing condition
-warns about: a green matrix that cannot observe the failure it is supposed to
-observe. ⚠️ It is recorded here as **untested**, with the specific reason.
+## Timing under repeated launches
 
-## Why growing-`past` autoregression is not here
+| model | arm | single L2/L1 | final repeated L2/L1 |
+|---|---|---:|---:|
+| gqa2 | monotone | 1.091393 | 1.083433 |
+| gqa2 | reset | 1.095543 | 1.083825 |
+| mha4 | monotone | 1.098425 | 1.094005 |
+| mha4 | reset | 1.095564 | 1.088992 |
 
-It is not a matter of a loop: buffers are allocated at the fixture's dims
-(`BufferDesc::Elements`), the KV cache's per-head stride *is* `dims.total`, and
-`ResetBuffersOnly` re-lays the past cache into the full cache at that stride.
-Growing `past` per step therefore needs allocation at the maximum length, a
-per-step re-upload of `Params`, a device-to-device rotate of every layer's
-`full_k`/`full_v` into the next step's `past_k`/`past_v`, and a fixture
-carrying a PyTorch reference per step. That is a harness feature, not a test,
-and it is the same feature Phase 6 needs — which is also where the device-side
-iteration loop above belongs.
+The repeated-launch ratios remain in the same 1.08–1.10 regime as a single
+forward; there is no persistent-kernel cross-iteration reuse to change it.
+These are medians from the correctness processes, not a separately interleaved
+performance claim.
 
-What the existing evidence already covers of that surface: SEQSCAN's matrix
-runs `seq = 1` against `past ∈ {0, 3, 512}` for both models at 50 fresh
-processes each, so the *shapes* an autoregressive step takes are exercised;
-what is not exercised is their *sequence* inside one process.
+## Missing acceptance surface
+
+⚠️ This harness is also not 32-step greedy autoregressive generation with a
+growing `past`. It has one fixed `seq=1,past=0` fixture and compares each repeat
+to its first output. The requested test needs all of the following together:
+
+- a device-side iteration loop so workers can wrap independently;
+- versioned/interleaved activation storage so iteration `i+1` cannot overwrite
+  data still consumed by `i`;
+- per-layer KV cache rotation into a growing maximum-size allocation;
+- logits/token selection and a PyTorch reference for every step.
+
+Adding only the device loop would manufacture buffer WAR/WAW races unrelated
+to epochs; adding an iteration barrier would make the negative unreachable
+again. Therefore no such pseudo-test is substituted. The monotone formula is
+implemented, but its ABA necessity remains ⚠️ unverified until this serving
+lifetime exists.

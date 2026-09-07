@@ -1,0 +1,31 @@
+== sm_80
+sm_80   SCHEMA fields=61 missing=0 extra=0 provenance=0
+sm_80   CAPS   checked=9 disagree=0 collective="cp.async multistage"
+sm_80   LANES  UNAVAILABLE reason=not_calibrated (cost model needs a calibrated target: run tilemega-calibrate)
+sm_80   TERMS  UNAVAILABLE reason=not_calibrated
+sm_80   CROSS  stages=5 nvcc=ok
+== sm_89
+sm_89   SCHEMA fields=141 missing=0 extra=0 provenance=0
+sm_89   CAPS   checked=9 disagree=0 collective="cp.async multistage"
+sm_89   LANES  live=[tc cuda sfu smem l2 ddr ] capability_absent=[tmem l1_5 net ] not_calibrated=[]
+sm_89   TERMS  gemm=live combine=zero other=live barrier=live total=live config=16x16x16s2 reason=calibrated bad=0
+sm_89   CROSS  stages=3 nvcc=ok
+== sm_90
+sm_90   SCHEMA fields=61 missing=0 extra=0 provenance=0
+sm_90   CAPS   checked=9 disagree=0 collective="TMA warp-specialized"
+sm_90   LANES  UNAVAILABLE reason=not_calibrated (cost model needs a calibrated target: run tilemega-calibrate)
+sm_90   TERMS  UNAVAILABLE reason=not_calibrated
+sm_90   CROSS  stages=7 nvcc=ok
+== sm_100
+sm_100  SCHEMA fields=62 missing=0 extra=0 provenance=1
+sm_100  CAPS   checked=9 disagree=0 collective="TMA warp-specialized (tcgen05)"
+sm_100  LANES  UNAVAILABLE reason=not_calibrated (cost model needs a calibrated target: run tilemega-calibrate)
+sm_100  TERMS  UNAVAILABLE reason=not_calibrated
+sm_100  CROSS  stages=7 nvcc=ok
+== sm_120
+sm_120  SCHEMA fields=61 missing=0 extra=0 provenance=0
+sm_120  CAPS   checked=9 disagree=0 collective="TMA warp-specialized (SM120 MMA)"
+sm_120  LANES  UNAVAILABLE reason=not_calibrated (cost model needs a calibrated target: run tilemega-calibrate)
+sm_120  TERMS  UNAVAILABLE reason=not_calibrated
+sm_120  CROSS  stages=3 nvcc=ok
+SUMMARY targets=5 failures=0

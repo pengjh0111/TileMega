@@ -51,6 +51,14 @@ docs/experiments/SEQSCAN/raw/
 docs/experiments/MIGRATION/raw/
 docs/experiments/CLUSTER/raw/
 docs/experiments/REALMODEL/raw/work/
+docs/experiments/**/raw_taskqueue*/bin/
+docs/experiments/**/raw_taskqueue*/final/
+docs/experiments/**/raw_taskqueue*/log/
+docs/experiments/**/raw_taskqueue*/src/
+docs/experiments/TASKQUEUE/raw/bin/
+docs/experiments/TASKQUEUE/raw/log/
+docs/experiments/TASKQUEUE/raw/src/
+docs/experiments/OVERLAP/raw/
 docs/experiments/SOLVER/raw/bin/
 docs/experiments/COARSEN/raw/bin/
 docs/experiments/COARSEN/raw/kappa_probe

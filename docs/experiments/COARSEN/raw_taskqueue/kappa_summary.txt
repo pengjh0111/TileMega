@@ -1,0 +1,41 @@
+== gqa2   25 interleaved rounds, one fresh process per arm per round
+   l2_ms -- the kappa curve
+   arm      median     vs k0 (95% CI)              signed-rank p note
+   k0       0.618336  --                          --
+   k1       0.616448   -0.285% [-0.481,-0.031]        3.36e-03
+   k2       0.619520   +0.191% [+0.000,+0.498]        1.63e-02
+   k4       0.620736   +0.497% [+0.321,+0.664]        1.84e-04
+   k8       0.619712   +0.331% [-0.015,+0.503]        1.43e-02
+   k16      0.620288   +0.300% [+0.000,+0.498]        1.46e-02
+   k32      0.620544   +0.489% [+0.166,+0.659]        7.09e-04
+
+   l1_ms -- untouched by kappa
+   arm      median     vs k0 (95% CI)              signed-rank p note
+   k0       0.570528  --                          --
+   k1       0.571392   +0.157% [-0.151,+0.494]        2.07e-01    NULL CONTROL
+   k2       0.571264   +0.000% [-0.179,+0.310]        6.97e-01    NULL CONTROL
+   k4       0.570368   -0.208% [-0.358,+0.360]        9.89e-01    NULL CONTROL
+   k8       0.569344   -0.011% [-0.359,+0.180]        2.67e-01    NULL CONTROL
+   k16      0.571392   +0.179% [-0.174,+0.372]        9.53e-02    NULL CONTROL
+   k32      0.571584   +0.325% [+0.000,+0.533]        2.88e-02    NULL CONTROL
+
+== mha4   25 interleaved rounds, one fresh process per arm per round
+   l2_ms -- the kappa curve
+   arm      median     vs k0 (95% CI)              signed-rank p note
+   k0       1.257568  --                          --
+   k1       1.255296   -0.165% [-0.401,+0.000]        4.47e-03
+   k2       1.262624   +0.407% [+0.094,+0.651]        9.62e-05
+   k4       1.262592   +0.326% [+0.246,+0.484]        3.42e-05
+   k8       1.268736   +0.809% [+0.729,+0.973]        1.31e-05
+   k16      1.259712   +0.155% [+0.000,+0.244]        1.15e-02
+   k32      1.264640   +0.570% [+0.407,+0.654]        1.47e-05
+
+   l1_ms -- untouched by kappa
+   arm      median     vs k0 (95% CI)              signed-rank p note
+   k0       1.144832  --                          --
+   k1       1.140736   -0.361% [-0.533,+0.079]        1.87e-01    NULL CONTROL
+   k2       1.142944   -0.003% [-0.343,+0.109]        1.87e-01    NULL CONTROL
+   k4       1.143808   -0.106% [-0.267,+0.000]        3.08e-01    NULL CONTROL
+   k8       1.146080   +0.185% [+0.003,+0.285]        7.14e-02    NULL CONTROL
+   k16      1.140512   -0.338% [-0.555,+0.011]        2.36e-03    NULL CONTROL
+   k32      1.145856   +0.003% [-0.089,+0.379]        2.94e-01    NULL CONTROL

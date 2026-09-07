@@ -1,0 +1,3 @@
+model	arch	region	begin_pc	end_pc	static_instructions
+gqa2	sm_89	wait_control_and_poll	0x420	0x740	50
+gqa2	sm_89	poll_retry_loop	0x4f0	0x660	23

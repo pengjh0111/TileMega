@@ -51,6 +51,32 @@ one-layer measurement in `raw/codegen_isolation.tsv` is 3 seconds without tile
 ownership and 63 seconds with it. Re-fitting integer wait windows at three
 sequence probes, not FX import or CUDA emission, is the dominant cost.
 
+### Symbolic window derivation
+
+✅ That three-point re-fit is no longer the default.  The importer now obtains
+the lexicographic minimum and maximum of the isl coupling, linearizes the task
+coordinates, and proves both subset directions between the resulting symbolic
+interval and the original relation.  Only an edge whose form cannot be proved
+falls back to the old three-point path; fallback is per edge, not per model.
+
+| depth | CG tasks | couplings | symbolic | fallback | codegen | generated CUDA |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 17 | 20 | 20 | **0** | **0.861 s** | — |
+| 16 | 272 | 350 | 350 | **0** | **362.035 s** | 102,192 B |
+| 32 | 544 | 702 | 702 | **0** | **10,872.781 s** | 203,632 B |
+
+The one-layer ownership case falls from 63 s to 0.861 s (**73.2x**).  The two
+reference models use 42/42 and 86/86 symbolic windows with zero fallback, and
+their generated CUDA is byte-for-byte identical to the pre-change source.
+The 16-layer source is also the source compiled for the task-queue real-model
+check.  Raw values are in `symbolic_codegen.tsv`.
+
+⚠️ The 32-layer total is not a success hidden by the one-layer result: although
+all 702 windows are symbolic, end-to-end codegen still takes 3 h 1 min.  The
+remaining superlinear cost is whole-graph coupling construction/proof and isl
+object lifetime, not window re-fitting.  The required 32-layer number is
+therefore reported as measured, not extrapolated, and is a new scaling debt.
+
 Both shapes compile to a 24,576-byte shared-memory union, 212 registers for the
 persistent kernels, two resident CTAs/SM, and a 256-CTA grid. Depth grows the
 host/device tables, but it does not grow the shared-memory union because stages

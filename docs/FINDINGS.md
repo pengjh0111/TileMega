@@ -1218,6 +1218,9 @@
 
 ## F-55 — Event coarsening κ is monotonically harmful, so it is not a DP state variable
 
+> ❌ Superseded by F-79/F-86. This curve belongs to the retired stage-loop
+> executor and must not be used for the task queue.
+
 - Finding: §P4.6 predicted the ablation would show a flat curve. It shows a
   steep one, pointing the wrong way. Against the per-stage event scheme,
   `l2_ms` at κ = 1 is **+237.693%** (gqa2) / **+276.413%** (mha4) and falls
@@ -1314,6 +1317,9 @@
 
 ## F-58 — An exact wait set narrows almost nothing, because 89.9% of the poll mass is on element-chunk edges
 
+> ❌ Superseded by F-79/F-86. The dependency analysis was real, but the
+> measured executor waited at stage granularity and could not redeem it.
+
 - Finding: with the derived table in place, L2 is still slower than L1 —
   **1.036× / 1.038×** (2-layer GQA / 4-layer MHA), ✅ 25 fresh processes per
   model, round-level pairing, bootstrap CI [1.035951,1.036719] and
@@ -1352,6 +1358,9 @@
   raw/waitset_profile.txt, raw/part3/paired_default_kappa.txt.
 
 ## F-59 — κ is still not a DP state variable, and the old reason is no longer the reason
+
+> ❌ Superseded by F-79/F-86. The implementation still used a stage outer
+> loop, so its benefit/cost balance does not describe the task queue.
 
 - Finding: F-55 rejected κ while measuring only its cost. Both sides are now
   measured against the wired-in table, and the conclusion survives with a
@@ -1536,6 +1545,10 @@
 
 ## F-68 — Ownership Place, unlike cache-locality Place, unlocks the event graph
 
+> ⚠️ The TaskBody ownership correction remains valid, but all latency and poll
+> values below were measured before the task queue and are superseded by
+> F-79/F-86.
+
 - Finding: changing only RoPE to tile ownership made adjacent inverse images
   narrowable and improved seq=128 L2 by 3.23%/6.40% without a material body
   regression, satisfying the predeclared promotion rule.  Extending the same
@@ -1551,6 +1564,10 @@
 - Evidence: `docs/experiments/OWNERSHIP/`.
 
 ## F-69 — A seq matrix is useful only if an obsolete implementation fails it
+
+> ⚠️ The TaskBody fixes remain valid. The old clamp negative is unreachable
+> after queue conversion and now passes 50/50; F-85 replaces it with a live
+> `TaskWait` deletion control that fails 50/50.
 
 - Finding: expanding the runtime dimension uncovered two bugs unrelated to
   numeric tolerance: Attention and RMSNorm declared grid-stride ownership but
@@ -1733,12 +1750,19 @@
   fresh processes with bit-identical output hashes and the same
   10 `kAll` / 7 `kIdentity` / 21 `kWindow` dependency mix. What changed is what
   the IR can be asked, which is the precondition for P5.1's piecewise solution.
-- The wait window's `div/scale/offset/count` stay integers, because they are
-  `constexpr` in the emitted table; the three-point re-fit that keeps them
-  admissible is unchanged.
+- ✅ The follow-up removed the three-point re-fit. `div/scale/offset/count`
+  remain per-variant integers, but they are now discovered with symbolic isl
+  lexicographic endpoints and admitted only after two-way set equality over
+  the full parameter domain. Both references and the 16/32-layer graphs use
+  zero per-edge fallbacks.
 - Evidence: docs/experiments/SYMBOLIC/, tools/tilemega-symbolic-probe.cpp.
 
 ## F-76 — L2's excess time is the poll, not persistent dispatch
+
+> ❌ Superseded by F-79. This measurement correctly decomposed the program that
+> existed, but that program was a stage-loop executor rather than the task
+> queue required by §5.4. Its κ and component conclusions do not describe the
+> replacement executor.
 
 - Finding: a four-arm, within-round decomposition isolates L2's stage loop,
   event notify, event wait, and L1's grid barrier. At kappa=1 and seq=128 the
@@ -1789,8 +1813,143 @@
 - Therefore Phase 5 needs a correctness-feasibility contract before its cost
   objective. This is not a request to loosen the BF16 bound: configurations
   outside it are inadmissible regardless of predicted latency.
-- ⚠️ Codegen is the other production-scale limit: 16x2048 takes 1353 s
-  for the control and 1318 s for one alternative. One-layer isolation assigns
-  60 of 63 seconds to ownership-window fitting. Multiple runtime intervals
-  multiply that cost unless the windows become symbolic or are cached.
+- ✅ Ownership windows are now symbolic: the one-layer case falls from 63 s to
+  0.861 s and the 16-layer graph to 362.035 s, with zero fallback. ⚠️ A measured
+  32-layer graph still takes 10,872.781 s despite all 702 windows being
+  symbolic, exposing a separate whole-graph coupling/proof scaling problem.
 - Evidence: docs/experiments/REALMODEL/.
+
+## F-79 — A green reference implementation can validate the wrong executor
+
+- The generated and handwritten L0.5/L1 implementations agreed because both
+  iterated stages. That acceptance checked equivalence to the reference, but
+  the reference itself omitted §5.4's worker schedule and per-task wait.
+- ✅ L2 now consumes a variant-exact worker queue. The generator rejects cycles
+  and backward schedule edges; the host rechecks the expanded queue before
+  launch. Two references pass 50/50 and the seq×past matrix passes 1500/1500.
+- ✅ Fifty fresh-process traces, which the old acceptance lacked, observe the
+  property being purchased: mean early starts are 68.72/200 and 205.70/512
+  (34.36% / 40.18%; ranges 68–70 and 197–217).
+- Consequence: all old κ, Place and L2 performance conclusions are invalidated,
+  even when their statistical method was sound. Acceptance must observe the
+  semantic distinction a feature is supposed to introduce.
+- Evidence: docs/experiments/TASKQUEUE/, docs/experiments/OVERLAP/.
+
+## F-80 — Normalize full fan-in, retain fine events for windows
+
+- Each queue task receives a deduplicated `(producer, event-group)` list;
+  monotonic epochs then lift waits already satisfied earlier in the same worker
+  queue, while the remaining polls stay CTA-parallel.
+- A full-fan-in CG edge is represented by one producer-stage aggregate event;
+  otherwise κ=1 would expand a single task edge into O(producer tasks) polls.
+  Narrow windows retain logical-task events, so aggregation does not erase the
+  overlap benefit that κ is meant to expose.
+- ✅ On the reference fixtures deduplication plus monotone lifting reduces
+  580 raw descriptors to 500 and 1,284 to 1,076. With the logical-task event
+  prefix table, the static wait
+  control path is 50 `sm_89` instructions, including a 23-instruction retry
+  loop.
+- ❌ General MPK fan-in-one dummy expansion is still not competitive. After
+  the aggregate handles kAll, even the lower bound of `wait_count-1` dummies
+  expands 200 tasks to at least 544 (2.72x) and 512 to at least 1,208 (2.36x),
+  before encoding dummy fan-out.
+- Evidence: docs/experiments/TASKQUEUE/.
+
+## F-81 — Symbolic windows remove the local constant and expose the global one
+
+- `FitWaitWindowSymbolic` takes lexicographic endpoints of the existing isl
+  coupling, constructs the row-major interval, and proves both subset
+  directions over all free workload parameters. Unsupported edges alone use
+  the concrete fallback.
+- ✅ The two reference sources are byte-identical to their pre-change outputs;
+  all 128 edges use the symbolic path. Real one-layer codegen falls from 63 s
+  to 0.861 s (73.2x), and 16 layers take 362.035 s with 350/350 symbolic.
+- ⚠️ The measured 32-layer run takes 10,872.781 s with 702/702 symbolic. Thus
+  the three-point window fit was the one-layer constant, but full-graph isl
+  construction/proof has a separate superlinear scaling debt.
+- Evidence: docs/experiments/REALMODEL/symbolic_codegen.tsv.
+
+## F-82 — Place became measurable, but critical-path order is not yet valuable
+
+- ✅ The solver's order now changes the actual worker queues. A five-node
+  exhaustive oracle has 3 feasible permutations out of 120; the scheduler
+  matches the optimum maximum dependency span of 2.
+- ✅ Both full models pass 25/25 under critical-path and numeric topological
+  orders. The paired ratios are 1.000000 and 0.998552. gqa2's interval crosses
+  one; mha4's interval barely favors round-robin but Wilcoxon p=0.063. Both
+  effects are far below the predeclared 2% threshold.
+- Place remains part of the execution contract because omitting it recreates
+  the architectural defect. It is not claimed as a latency win; span alone
+  does not price task duration or ready-queue slack.
+- Evidence: docs/experiments/PLACE/.
+
+## F-83 — BF16's top ten identify a feature interaction, not a missing scale
+
+- After correcting occupancy construction, BF16 reaches ρ 0.8984 / 0.8871 but
+  still places none of its top-1/top-3/top-10 inside measured top 3%; the true
+  optima are ranked 48/46. No threshold is moved.
+- Predicted leaders split into narrow-N split=1 and aggressive split=8/16
+  families, at only 0.36–0.47 predicted/measured. Yet both measured top tens
+  favor narrow N with split=8, showing an interaction rather than a global
+  scale correction.
+- SMEM and L2 cannot be identified by any GEMM tile in the present model: both
+  use exactly `occupancy·2·Tk·(Tm+Tn)`. BF16 therefore retains only the
+  calibrated L2 byte lane; an independent shared-reuse/global-working-set
+  microbenchmark is required to restore two coefficients.
+- Evidence: docs/experiments/BF16/topk_diagnosis.tsv.
+
+## F-84 — Task-queue overlap and iteration overlap are separate properties
+
+- ✅ Queue-era tracing observes cross-stage overlap inside one launch, yet the
+  reset-events negative still passes 50/50 for both models over 32 repeats.
+  Therefore failure of that negative cannot by itself diagnose whether the
+  stage barrier was removed.
+- The missing edge is between launches: `LaunchL2` synchronizes the default
+  stream and `iteration` is a launch argument. There can be no producer from
+  iteration `i` still running when a consumer from `i+1` reads its epoch.
+- ❌ The requested growing-past greedy decode is not implemented. Making ABA
+  reachable requires a device-side iteration loop plus versioned activation
+  buffers, KV-cache rotation and per-step reference tokens; a loop without
+  versioning tests unrelated WAR/WAW races, while an iteration barrier hides
+  ABA again.
+- Repeated-launch L2/L1 remains in the single-forward regime (1.08–1.10), as
+  expected when there is no cross-iteration persistence.
+- Evidence: docs/experiments/AUTOREGRESSIVE/raw_taskqueue/.
+
+## F-85 — A queue indexed by tasks still needs task-indexed events
+
+- The first queue executor removed the outer stage loop, but grouped producer
+  events by the CTA that owned a task and published only after that CTA's last
+  task in a stage. This is correct but conservative when a stage has more
+  logical tasks than resident workers: a consumer can still wait for unrelated
+  work owned by the same CTA.
+- ✅ Each stage now owns one aggregate row plus prefix-indexed
+  `(stage, logical_task / kappa)` fine rows, and every completed `TaskRef`
+  contributes its own arrivals. `TaskWait` ranges are constructed from
+  producer logical-task coordinates, not producer owners; kAll uses the
+  aggregate, and kappa=0 remains the explicit aggregate-only control.
+- The initial queue-era latency, kappa, window, attribution and Place numbers
+  are consequently treated as invalid and rerun. This is the same acceptance
+  lesson as F-79 one level deeper: naming a table `schedule` or iterating a
+  `TaskRef` does not establish task-granular readiness; the event key and
+  publication point must be inspected too.
+- ✅ A second negative control deletes the materialized `TaskWait` rows and
+  fails 50/50 at seq=2048, while corrupting the retired stage-wait path still
+  passes 50/50. The negative therefore distinguishes the live executor.
+- Evidence: docs/experiments/TASKQUEUE/, docs/experiments/SEQSCAN/.
+
+## F-86 — Fine readiness is measurable, but its value changes sign
+
+- ✅ After kAll aggregation and selective publication, kappa=1 becomes the
+  measured winner over aggregate-only by 0.285% / 0.165% in the two
+  25-round sweeps. The old claim that kappa=0 is structurally optimal is false.
+- ✅ Forcing every dependency to kAll separates from exact windows in all six
+  seq cells. Exact is 0.694% / 0.322% faster at seq=4, but 1.171% / 1.163%
+  slower at seq=512: growing fine-event publication outweighs earlier
+  readiness on these DAGs.
+- ❌ Observable overlap is therefore not sufficient for an end-to-end win.
+  Final kappa=1 L2/L1 is 1.081–1.113 across the six primary cells. Four-arm
+  accounting closes exactly; notify is the largest positive component, while
+  the bare queue loop is faster than barrier-free L1.
+- Evidence: docs/experiments/COARSEN/, docs/experiments/E2E_L2/,
+  docs/experiments/L2_ATTRIB/.

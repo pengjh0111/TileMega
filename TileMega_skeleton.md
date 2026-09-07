@@ -104,8 +104,9 @@ L4    符号形状参数化 + 运行时变体选择
 | L3a 符号类型 | ✅ | ✅ | F-14；`coupling_types_test` / `cg_attr_roundtrip` |
 | L3b 派生量参数化 | ✅ | ✅ | `wait`/`fanout`/`volume`/`count` 是 `S`/`past`/`L_s` 的拟多项式；符号求值与逐点重推 **420/420** 一致（`docs/experiments/SYMBOLIC/`） |
 | L3b 耦合推导 | ✅ | ✅ | P3/P3_ISL：`W⁻¹∘R` 为 isl_map，wait/fanout 为 barvinok 计数；§2.7 全 13 行交叉验证（并纠正表中边 3 的 fanout）；Coarsen/I2/事件综合单测。**已驱动生产路径**：`Frontend.cpp` 按算子粒度建 `OperatorGraph` 并调 `CouplingDerivation`，`wait_map` 落到 IR、经 codegen 成为 `StageDependency`（gqa2 38 对：20 `kAll` / 3 `kIdentity` / 15 `kWindow`，`docs/experiments/WIRING/`） |
-| L2 Solver | ✅ | ⚠️ | FP32：ρ = 0.9432 / 0.9421、top-3 落入实测 top-3%（`COST_MODEL`）。BF16：1540 点重扫，初测 ρ 0.5605 / 0.6239（输给解析基线），经两处修复后 **0.8942 / 0.8834**，高于未标定基线 0.8778 / 0.8738 但仍低于 FP32，top-1/3/10 为 0；**区间划分可以起步但不是定论**。修复与自我纠正见 `BF16/result.md`、`ORACLE/result.md` §6.7。链上 DP、Label、Coarsen 的既有结论见各实验目录；所有权 Place 已从 20/3/15 改善为 10/7/21 |
-| L1 Codegen | ✅ | ✅ | 单二进制最多 16 个生成器控制的粒度变体，运行时 O(1) 选取且每变体携带自己的精确依赖表；两个参考模型 BF16 L0.5/L1/L2 各 50/50，COARSEN 旧失败配置恢复 50/50；无 occupancy 损失的实测上限为 2 变体（`VARIANT` / `BF16`） |
+| L2 Solver | ✅ | ⚠️ | FP32：ρ = 0.9432 / 0.9421、top-3 落入实测 top-3%（`COST_MODEL`）。BF16 在修正 occupancy 特征后为 **0.8984 / 0.8871**，仍低于 FP32，top-1/3/10 仍为 0；误判集中在窄 N + split=1 与激进 split=8/16，阈值未放宽（`BF16`）。链上 DP、Label、Coarsen 见各实验；Place 的关键路径排序现已实际进入 L2 队列，不再只是求出未消费 |
+| L2 执行模型 | ✅ | ✅ | 每变体携带 solver schedule；host 物化每 worker 的 `TaskRef` 队列，逐 task 等待/执行/通知，task 内 `(producer,group)` 去重、单调 epoch 提升、CTA 并行 poll。`kAll` 用聚合完成事件，窗口用逻辑 task 组，只发布被引用的行。两模型 50/50，seq×past **1500/1500**；50 进程跨 stage 提前启动平均 34.36% / 40.18%。生成期与 launch 前双重环检查，当前 resident grid 通过、不可证明的 over-resident 被拒绝（`TASKQUEUE` / `OVERLAP`） |
+| L1 Codegen | ✅ | ✅ | 单二进制最多 16 个生成器控制的粒度变体，运行时 O(1) 选取；每变体携带自己的精确依赖表与调度顺序。窗口由 isl 端点发现并做符号集合等价证明，两个参考模型 128/128 条边零 fallback 且生成结果逐字节不变；无 occupancy 损失的实测上限为 2 变体（`VARIANT` / `REALMODEL`） |
 | L0 Backend | ✅ | ✅ | V-I 四架构交叉编译；FP32 SIMT 与 BF16 Tensor Core 均由 `ArchDispatch::Caps` 分发，BF16 二进制各确认 96 条 `HMMA.16816.F32.BF16` 静态指令 |
 
 此表是项目实现状态的唯一权威来源；每轮结束随代码和实验证据同步更新。
@@ -239,14 +240,16 @@ L4    符号形状参数化 + 运行时变体选择
   只从依赖表里解析生产者/消费者。接上去会改变代价模型的输出、因而必须
   重新对着 oracle 验证，属于代价模型那一摊。
 
-- **等待窗口的常量仍然是整数，而且它是 codegen 时间的主要来源**（本轮新测）：
-  `div/scale/offset/count` 是生成表里的 `constexpr`，符号化需要给表加运行时
-  字段。代价现在量化了：在 hidden=2048 的**一个** decoder 层上（93 task /
-  110 coupling），关掉 tile 所有权的 codegen 是 **3 秒**，打开是 **63 秒**
-  ——同一份输入、21×。差别就是被拟合的窗口边数（10/7/21 对 20/3/15）乘以
-  三个探测长度。层数上大致线性（1 层 71 s、2 层 135 s），所以一个 16 层的
-  真实模型是**十几分钟一个运行时变体**，而 P5 要的是多个变体。
-  证据：`docs/experiments/REALMODEL/raw/codegen_isolation.tsv`。
+- **~~等待窗口靠三个具体 S 点重拟合~~ 已还清；剩余常数是已证明的代码生成
+  形式**：`FitWaitWindowSymbolic` 先用 `lexmin/lexmax` 每个 consumer 只取两个
+  端点，构造 `div/scale/offset/count`，再以 isl 双向 subset 对完整参数化关系
+  做等价证明。只有行主序线性化离开 Presburger 形式的单条边才退回三点拟合，
+  不再让整个图回退，也不再重推 `C`。两个参考模型 42+86 条边与 16 层 350 条
+  边均为 **0 fallback**，参考模型生成 `.cu` 与改造前逐字节相同。real-width
+  单层从 63 s 降到 0.861 s；16 层为 362 s（余下时间在全图 coupling 派生，
+  不是窗口三点枚举）。`div/scale/offset/count` 仍是每变体的整数，因为 tile
+  形状已绑定；其对所有 `S/past` 的有效性来自集合证明，而不是运行时字段。
+  证据：`docs/experiments/REALMODEL/`、`table27_test`、`isl_relation_test`。
 
 - **~~GEMM 粒度是 `-D` 宏，依赖表只能 exact/degraded 二选一~~ 已还清**：
   `tilemega-compile --variants` 现在对每个 `RuntimeVariantDesc` 独立实例化 L-task、
@@ -278,7 +281,8 @@ L4    符号形状参数化 + 运行时变体选择
   per-CTA setup 消失、`ac_r2` 升到 0.984–0.9997；`combine_fixed_ns` 的 clamp
   也改成显式 `combine_fixed_resolved`。真正影响排序的是一个 `setup_ns` 标量
   覆盖 154 个形状，以及把 scalar `ld.shared` 的 SMEM lane 错用到 BF16 Tensor
-  Core operand feed。修复后 ρ = **0.8942 / 0.8834**，越过 tier2 的
+  Core operand feed。修正验证 occupancy 的线程数、SMEM 预算并采用实测
+  `ctas_per_sm` 后，当前 ρ = **0.8984 / 0.8871**，越过 tier2 的
   0.8778 / 0.8738；但仍低于 FP32 0.9450 / 0.9435，top-1/3/10 仍为 0，且绝对
   时间约低估 2.1×。阈值没有移动；区间解只能把它当初值。证据：
   `docs/experiments/BF16/`、`docs/experiments/ORACLE/` §6.7、F-74。
@@ -295,18 +299,28 @@ L4    符号形状参数化 + 运行时变体选择
   统计不能与 gqa2 的 770 点直接并列。诊断用 `TILEMEGA_DIFF_DUMP=n`
   逐元素打印实际值与容差。
 
-- **L2 的开销就是事件轮询，而 §8.2 的单调计数器目前不可证伪**（本轮实测，
+- **~~Place 求出但没有进入执行、L2 实际按 stage 齐步走~~ 已还清**：此前
+  `ModelSpec` 没有 schedule，kernel 外层是 stage，`WaitDependencies` 也在
+  stage 循环外侧；所以“生成的 L0.5/L1 与手写版逐位一致”可以在两边都偏离
+  §5.4 的情况下通过。现在每个运行时变体生成独立 schedule，host 物化每 CTA
+  的 `TaskRef` 队列，L2 在 slot 内逐 task wait/run/notify。生成期拒绝环、缺失/
+  重复 stage 与反向依赖；split-K 绑定后在 host 再验证一次。✅ 两模型 50/50、
+  seq×past 1500/1500，且 50 进程直接插桩观察到平均 34.36% / 40.18% 的
+  task 在更早 stage
+  尚未全部完成时启动。这个缺口使旧 κ / Place / L2 数字失去被测对象，现已在
+  各目录以 `raw_taskqueue` 重测，旧数字只作失败史，不作结论。
+
+- **L2 的剩余开销仍是事件机制，而 §8.2 的单调计数器目前不可证伪**（任务队列重测，
   `docs/experiments/L2_ATTRIB/`、`docs/experiments/AUTOREGRESSIVE/`）：
   四臂消融（无事件 / +notify / +wait / L1 去掉 barrier）在 25 轮组内配对下
-  给出完整分解——κ=1、seq=128 时 wait 占 L2−L1 差值的 **104.1% / 103.9%**，
-  notify 7.4%，L1 自己的 barrier 抵回 8.5%，而 **L2 的 stage 循环比 L1 快
-  12–28 µs**（分派与表读取是负成本，不是正成本）。grid 宽度与 occupancy
-  在这套 harness 里按构造相同（grid 取两个 kernel 驻留上限的**最小值**），
-  所以它们不可能是差值的来源。默认 κ=0 下 L2/L1 是 **1.055 / 1.061**
-  （seq=128）并随序列**下降**；κ=1 的 2.13× 是另一种构建。
-  轮询原本整个跑在 `threadIdx.x == 0` 上，摊到全 CTA 后 L2 快
-  **15.05% / 14.78%**（同会话配对，p = 1.3e−05）；去重同一 `(producer, group)`
-  的重复轮询是下一步。
+  重新给出完整分解。四格中 wait 为净差值的 **45–84%**，notify 为
+  **137–163%**，删除 L1 barrier 与更快的 bare queue loop 抵回一部分；每轮恒等式
+  `L2 = neither + notify + wait` 以 0 µs 误差闭合。旧的
+  `边×owned-task×event-group` 扫描已删除：`kAll` 一条边是一个聚合事件，窗口边按
+  logical task 组展开；task 内去重且把已满足 epoch 提升后，gqa2/mha4
+  从 580/1284 条 raw 描述符降到 500/1076，
+  剩余 poll 保持 CTA 并行。旧 F-76 的“poll 是整个 gap”是 stage-loop 的结论，
+  ❌ 不再适用。
   ⚠️ 另一半是负结果：把计数器在迭代之间清零、`iteration` 恒为 0 的反面构建
   在 32 次迭代 × 50 进程下**也全过**。ABA 在当前 harness 里结构上不可达
   ——`iteration` 是**启动**参数，同流上的启动依次完成，不存在"还在收尾的
@@ -326,9 +340,10 @@ L4    符号形状参数化 + 运行时变体选择
   下关系与拟多项式都保持**单分片**、isl 文本长度基本不随 κ 变化（保留 `S`
   为符号只多约 15 个字符），所以**没有出现表达式爆炸**，κ 不必限制为 2 的幂
   （数据见 `docs/experiments/P3_ISL/result.md`）。⚠️ 这只覆盖了一个 decoder
-  层的边、κ ≤ 4、且每次只粗化一根轴；更深的嵌套没有测。**硬件侧的消融现在
-  也有了，方向是负的**：κ ∈ {1..256} 每一个都比 per-stage 方案慢（k1 +238% /
-  +276%，k256 仍 +7.9% / +8.5%），所以 κ 没有进 DP 状态，见 P4.6 与
+  层的边、κ ≤ 4、且每次只粗化一根轴；更深的嵌套没有测。**硬件侧的收益现在
+  也可见了**：最终队列上 κ ∈ {0,1,2,4,8,16,32} 的 argmin 在两模型上
+  都是 1，相对 κ=0 快 0.285% / 0.165%。两参考模型仍共用同一选择，
+  所以 κ 暂不进 DP 状态，但“结构上永远为 0”的旧论证已作废。见 P4.6 与
   `docs/experiments/COARSEN/result.md`。
 
 ---
@@ -466,9 +481,9 @@ V-A 的局部环在 2×容量仍推进，而 V-J 的反向依赖在 `resident_li
 | 操作 | 是否驱动求解器 | 为什么 |
 |---|---|---|
 | **Reparam** | ✅ 是 | 链上 DP 的状态就是 `g`（tile 形状、stages、split-K）。它也是唯一**不需要** `C` 的一个：代价模型读的是形状与标定表，不读耦合关系。 |
-| **Coarsen** | ❌ 否 | κ 不是 DP 状态变量。收益侧接通 `C` 之后仍然 ≤ 2.4% 且从 κ = 4 起恒为零，代价侧 24 个臂每一个 CI 都与 per-stage 方案不相交（`docs/experiments/COARSEN/`）。理由是实测的，不是继承的。 |
+| **Coarsen** | ❌ 否 | 最终队列上重测 κ∈{0,1,2,4,8,16,32}，两模型 argmin 都为 κ=1，相对聚合-only 快 0.285%/0.165%。收益侧首次非零，但两参考模型仍共用同一最优值，本轮不进 DP；“κ=0 结构最优”的旧论证已作废。 |
 | **Label** | ⚠️ 部分 | `sync_kind` 的判定与 `ClusterSync` 原语都在，簇常数也已标定，但没有一条 CG 边在 sm_89 上能取 `cluster`，所以它现在恒取 `global`；端到端消融欠一台 sm_90+ 机器。 |
-| **Place** | ⚠️ 部分 | 缓存局部性的 list scheduling 仍未进入求解器，且实测目标 <2% 后被否决；但 TaskBody 的**所有权 Place** 已受控改成 tile-aligned：all/identity/window 从 20/3/15 变 10/7/21，seq=128 的 poll −41.40%、L2 +13.57%/+16.32%。前者回答“哪个 worker 接 task”，后者回答“一个 task 如何切给 CTA”，不得混写。 |
+| **Place** | ✅ 是 | `ListScheduler` 的关键路径优先序现在随每个 runtime variant 发进 `ModelSpec`，host 在绑定动态 task 数后物化每 worker 队列；round-robin 对照走同一二进制的 host 开关。另有 TaskBody 的 tile-aligned ownership，二者仍是正交决策。硬件价值以本轮 `PLACE` 重测为准，旧 CTA-bijection 数字全部作废。 |
 | **Relax** | ✅ 是（安全方向） | `Contains(C', C)` 是 `isl_map_is_subset`，真正的 Tier 2/3 非精确边仍可取 `kAll` 超集；但“编译粒度与推导粒度不匹配”的回退已经不存在——每个运行时变体携带自己粒度下推导的精确表，不再有 `wait_table=degraded`。 |
 
 **事件张量**由粗化后的耦合直接给出：
@@ -906,8 +921,8 @@ Split-K Interface 用 Stream-K 形式 a + b·[peers>1] + c·iters + d·(peers−
   ✅ 已确认当前实现的范围：`Solver/ListScheduler` **不枚举**——它给出**唯一一个**
   拓扑序（层打包 + 关键路径高度优先 + 下标破平，`Schedule()` 是确定性的），
   枚举范围恒为 1。所以不存在「无界枚举需要收窄」的问题；需要收窄的是反方向：
-  若将来要在序上做搜索，只能**限制在 stage 内**，跨 stage 的次序由 `C_κ` 定死
-  （§2.3），因为跨 stage 的次序已经被 grid barrier 语义固定，重排它等于改语义。
+  若将来要在序上做搜索，必须保持 `C_κ` 的偏序并通过 wait-for 环检查；跨 stage
+  重排正是 task queue 打开重叠的手段，不再受 grid barrier 固定。
 - **代价模型的分层消融给出的是「哪两层值钱」**（`docs/experiments/COST_MODEL/`，
   2154 个实测点）：roofline ρ 0.4435/0.4303 → `+splitk` 0.9071/0.9043 →
   `+sync` 0.9095/0.9070 → `+waves` **0.9450/0.9435**。split-K 与尾波两层拿走了
@@ -937,12 +952,13 @@ BF16 MMA 与 BF16 CUTLASS Stream-K，不是把 FP16 峰值改名；sm_89 实测
 
 | | 初测 | 修复后 | FP32 对照 |
 |---|---:|---:|---:|
-| gqa2 ρ | 0.5605 | **0.8942** | 0.9432 |
-| mha4 ρ | 0.6239 | **0.8834** | 0.9421 |
+| gqa2 ρ | 0.5605 | **0.8984** | 0.9432 |
+| mha4 ρ | 0.6239 | **0.8871** | 0.9421 |
 | 未标定解析基线 tier2 | 0.8778 / 0.8738 | 同左 | 0.4608 / 0.4462 |
 
-P4.4 的最低门槛（不劣于解析基线）**已达成**；目标（达到 FP32 的 0.9450 /
-0.9435、top-3 落进实测 top-3%）**未达成**，top-1/3/10 仍为 0，阈值没有被改动。
+P4.4 的最低门槛（不劣于解析基线）**已达成**；目标（ρ≥0.94、top-1/top-3
+落进实测 top-3%）**未达成**，top-1/3/10 仍为 0，阈值没有被改动。模型前十的
+实测名次为 gqa2 46–232、mha4 29–145；共同误判是窄 N 与 split-K 的交互。
 
 ⚠️ **一条必须记住的自我纠正**：最初把崩溃归因于 `combine_fixed_ns` 被
 `max(0, fit)` 钳成 0。那确实是缺陷、也确实修好了，但**不是**原因——修好它
@@ -1128,30 +1144,41 @@ __cluster_dims__(CLUSTER_X, 1, 1)
 void tilemega_kernel(Params p) {
   extern __shared__ char smem[];
   int worker = blockIdx.x;
+  int first = p.schedule_offsets[worker];
+  int last  = p.schedule_offsets[worker + 1];
 
-  for (int layer = 0; layer < p.num_layers; ++layer) {
-    Params lp = p.for_layer(layer);              // 权重指针按层偏移
-
-    #pragma unroll 1
-    for (int s = 0; s < kNumStages; ++s) {       // stage 编译期展开（约 17 个）
-      TaskSlot const& slot = p.schedule[worker][s];
-
-      for (int t = slot.begin; t < slot.end; ++t) {
-        TaskDesc const& d = p.tasks[t];
-        wait_deps(d, p.events, layer);
-        switch (d.type) {
-          case TASK_NORM: T_norm{}(d, smem, lp); break;
-          case TASK_QKV:  T_qkv {}(d, smem, lp); break;
-          case TASK_ATTN: T_attn{}(d, smem, lp); break;
-        }
-        notify_deps(d, p.events, layer);
-      }
+  for (int slot = first; slot < last; ++slot) {
+    TaskRef const& d = p.schedule[slot];          // Place 的物化输出
+    wait_task_deps(d, p.task_waits, p.events);    // 只遍历该 task 的去重入边
+    switch (p.stages[d.stage].type) {
+      case TASK_NORM: T_norm::RunTask(p, d.logical_task, smem); break;
+      case TASK_QKV:  T_qkv ::RunTask(p, d.logical_task, smem); break;
+      case TASK_ATTN: T_attn::RunTask(p, d.logical_task, smem); break;
     }
+    notify_task_group(d, p.events);
   }
 }
 ```
 
-代码体积 = `O(stage 数 × 粒度变体数)`，不随 task 数增长。
+生成的 `RuntimeVariantDesc::schedule` 是求解器给出的紧凑 stage 顺序；host 在
+`seq/past`、split-K、驻留 grid 与 Place 都绑定之后，将它展开成每个物理 CTA
+一条 `TaskRef` 队列。`TaskRef` 携带 stage、逻辑 task 坐标、原始入边区间与
+去重/提升后的 `TaskWait` 区间。表放在 device global memory，不占常量内存；
+代码体积仍为 `O(stage 数 × 粒度变体数)`，运行时表才随 task 数增长。
+
+事件表同样按运行时 task 数物化：`event_offsets[stage]` 是前缀和，每个 stage
+只分配它的出边实际引用的聚合完成事件和/或 `ceil(task_count / κ)` 个逻辑
+task 组事件。
+窗口边等精细组，`kAll` 边只等聚合事件，避免把一条 CG 入边展开成
+O(生产 task 数) poll；每个逻辑 task 完成同时向所属精细组和聚合组贡献
+arrival。`κ=0` 明确定义为只保留聚合事件。禁止用 owner worker 代替
+logical task 做精细键，也禁止延迟到 worker
+在该 stage 的最后一个 task 才发布，否则 queue 形式存在但 readiness 仍是 CTA 粒度。
+
+L0.5/L1 保留 `RunStage` 用作正确性阶梯；只有 L2 走上述队列。相邻 slot 可属于
+不同 stage，CTA 不再等同 stage 的其他 CTA 全部完成。`ListScheduler::Validate`
+在生成期拒绝环、非置换与反向依赖，host 在 split-K 改写后再次验证；I3 无法
+证明 over-resident 安全时拒绝启动，而不是运行时等待挂死。
 
 静态调度表在语义上只有一份，但 L0.5 的 host launch loop 与 L1 的 device loop
 处于不同 CUDA 地址空间。Codegen 必须从同一个 initializer 同时生成 host
@@ -1298,6 +1325,25 @@ tilemega/
 > codegen 只能发 `kAll`，于是一条依赖退化成一次 barrier。这一个缺口同时解释
 > 了三个负结果——L2 比 L1 慢、κ 的收益侧恒为零、编排层量到 −1.4%——而每一个
 > 都曾被当作独立的结论记在案。验收项之间的**接缝**没有主人，就是这样漏的。
+>
+> 本轮又发现同一模式的第二种形态：§5.4 明写“worker schedule + 逐 task wait”，
+> 实现却是“无 schedule + stage 外循环 + stage wait”。它仍通过了“生成的
+> L0.5/L1 与手写版逐位一致”，因为手写版与生成版共享同一个 stage-loop 偏差。
+> 因此新增常设条件：**参照实现若与被测实现共享控制流，逐位一致只能证明二者
+> 一致，不能证明执行模型符合设计。** 对调度/同步的验收必须同时包含结构检查
+> （生成表确实被 kernel 读取）和一个旧模型不可能产生的可观测量。本轮的可观测量
+> 是跨 stage 提前启动，旧实现按构造为 0，新队列 50 个全新进程
+> 的均值为 34.36% / 40.18%。
+>
+> 同一缺陷还出现了第三层：第一版队列虽然逐 `TaskRef` 调度，却把事件键写成
+> `(producer stage, owner CTA / κ)`，并只在一个 CTA 完成该 stage 的最后一个
+> task 时发布。这保证正确但没有实现逻辑 task 粒度；当 task 数大于 worker 数时，
+> 消费者仍被迫等待同一 CTA 拥有的无关工作。现改为按
+> 每 stage 一个聚合行加 `(stage, logical_task / κ)` 精细行的前缀表索引事件，
+> 并由每个 `TaskRef` 完成时同时贡献精细与聚合 arrival。
+> 第一版队列的 κ / Place / L2 数字再次全部作废并重测。由此再加一条结构验收：
+> **不仅要检查 kernel 是否读取 task schedule，还要检查 readiness 的事件键与发布点
+> 是否真由 logical task 定义。**
 
 ---
 
@@ -1534,25 +1580,22 @@ tilemega/
       都被验证过
 - [x] 单调计数器：`needed = num_triggers × iteration_num`
       （`StageArrivalTarget`）。计数器从不在迭代之间清零，`iteration` 参数
-      贯穿 `GridBarrier`/`WaitDependencies`/`NotifyStage` 与两个 kernel。
-      验收不是"代码写了"而是**跑了 ABA 场景**：harness 在 L2 跑完之后
-      **不重置事件内存**（`ResetBuffersOnly`）再以 `iteration=1` 跑一次，
-      输出与第一次逐位一致；2 层 GQA 50/50、4 层 MHA 25/25 全新进程
-      （`E2E_ITER` 行，`l2_iter1_vs_iter0_mismatch=0`）
+      贯穿 `GridBarrier`/`WaitTaskDependencies`/`NotifyTask` 与两个 kernel。
+      ⚠️ harness 在 L2 后**不重置事件内存**并递增 iteration，正向结果正确；
+      但 host launch 串行完成，清零计数器的反面构建也不会失败，所以这不是 ABA
+      场景的覆盖。真正验收需要 kernel 内迭代及版本化 KV/buffer 生命周期；见
+      `AUTOREGRESSIVE`，不能把绿的 host sweep 标为已验证。
 - [x] 与 L1 逐位比对：50/50 全新进程，0 mismatch / 0 timeout（2 层 GQA）；
       4 层 MHA 25/25 全新进程逐位一致（`docs/experiments/E2E_L2/`）
 - [x] TaskBody ABI 的 CTA→task ownership 条目（`TaskOwnership`，
       `TaskBase.h`）：每个 TaskBody 自己声明 `blockIdx.x` 归属的
       `{kind, count}`，`ActiveBlocks` 只做分发，不再重述各 TaskBody 的守卫；
       未声明的 TaskBody 触发 `static_assert` 而不是静默破坏 L2 的跳过
-- [x] L2 vs L1：中位数 2 层 GQA `1.036×`、4 层 MHA `1.038×`（25 进程、
-      组内配对、bootstrap CI、Wilcoxon p = 1.3e−05，0/25 轮 L2 更快）。
-      **仍然是慢，不是快**。此前记录的 `1.0136×` / `1.0155×` 已判定不可比：
-      同一个字节相同的二进制今天重测就是 `1.0367×`，机器时钟在 210 MHz 与
-      3105 MHz 之间空转，所以只有会话内配对可比。接上推导表之后**表本身不
-      是那 3.6% 的原因**：同一会话内四个只改依赖表内容的构建（推导窗口 /
-      全 `kAll` / `kAll`+传递归约 / 旧二进制）CI 互相重叠。数据与归因见
-      `docs/experiments/E2E_L2/result.md` 与 `waitset.md`
+- [x] L2 vs L1 在 task queue 上重测：seq={4,128,512} 的六格轮内配对比值为
+      **1.081–1.113**，每格 25 进程、bootstrap CI、Wilcoxon p≈1.3e−05，
+      0/25 轮 L2 更快。**仍然是慢，不是快**；所有 pre-queue 数字作废。
+      精确窗口与强制 `kAll` 在六格全部分离，但收益随序列反转：seq=4
+      快 0.694%/0.322%，seq=512 反而慢 1.171%/1.163%。见 `E2E_L2` / `L2_ATTRIB`。
 - [x] L2 还有一项此前没有计入的成本：事件 epoch 占寄存器，在某些 `g` 下比 L1
       多一整档（实测 144 vs 128 → 1 vs 2 CTA/SM），于是**整个 harness**（含
       L0.5 和 L1）的 grid 被 L2 拉到一半。这不是调度开销而是资源占用，
@@ -1803,29 +1846,18 @@ P6.2 的 oracle 已给出投入判据：固定 `g` 与最优 `g` 相差 **6.11×
       两条代数律作为回归断言：κ=1 是恒等、`⌊⌊·/2⌋/2⌋ = ⌊·/4⌋`——后者是
       发现"新鲜坐标名与已粗化的 range 名撞车、isl 读成 `q1 = floord(q1,2)`
       从而静默塌成单点"这个 bug 的那条断言。
-- [x] κ 消融曲线。**曲线不平坦，而且方向是反的**：60 轮交错、每轮每臂一个
-      全新进程、配对统计（F-46），κ ∈ {1,2,4,…,256} 的 `l2_ms` 相对 per-stage
-      方案单调递减但**没有一个 κ 追平**——gqa2 从 k1 的 **+237.693%**
-      [+236.981,+238.728] 降到 k256 的 +7.865%，mha4 从 k1 的 **+276.413%**
-      降到 k256 的 +8.480%，全部 p = 1.7e−11。两模型的拐点都在 κ ≈ 32，与
-      解析半边（`waits` 在 812/1608 处走平而 `overwait` 继续翻倍）给出的拐点
-      一致。κ 不碰 L1，所以每个臂的 `l1_ms` 都是一条零假设对照：gqa2 九条落在
-      −0.115%..+0.192%（最宽 CI [−0.460,+0.572]），这就是本实验自测的噪声底。
-      所有 κ 臂 60/60 全 PASS。
-- [x] 纳入 DP 状态——**结论是不纳入**，而且理由比骨架预期的"曲线平坦"更强：
-      **κ 的 argmin 在每一个配置下都是同一个 κ**，即曲线的极限（per-stage），
-      也就是生成器本来就无条件发的那个方案。一个最优值从不依赖其他决策的量
-      不是状态变量；`ChainDpOptions` 因此没有 κ 字段，也没有加。可证伪的反例
-      条件写在 `COARSEN/result.md` §5：若生成的依赖表带上耦合关系、消费者只等
-      它真读的那些 group，`overwait` 就不再被支付，届时这条成本曲线要与一条
-      *收益*曲线重新对比。那属于 §1.5.1 的前端欠账，不属于本条。
-- [!] 这次测的是 **κ 的成本，不含它的收益**，并且是有意如此：依赖表里只有
-      "两个 stage 有耦合"，没有耦合关系可用来收窄等待范围，所以消费者要等
-      生产者的**每一个** group。收益从另一侧被 `nosync` 臂夹住——删掉 L1 的
-      grid barrier（输出是错的，60/60 MISMATCH）省下 gqa2 **35.631%** /
-      mha4 **36.665%**。所以同步的余量是真的（占 L1 的 ~36%、占 L2 的 ~42%），
-      但 L2 的事件方案在它最便宜的粒度上就已经比它所替换的 grid barrier 贵
-      **+9.8% / +9.5%**，κ 只会让它更贵。⚠️ `nosync` 是时间下界不是可达目标。
+- [x] κ 消融曲线已在**最终任务队列实现上全部重测**：
+      κ∈{0,1,2,4,8,16,32}，两模型各 25 轮交错、每臂每轮一个全新进程，
+      350/350 PASS。κ=1 是两者的实测 argmin，相对 κ=0 快 **0.285%**
+      [0.031,0.481]（gqa2）与 **0.165%** [0.000,0.401]（mha4）。旧
+      stage-loop 及两个中间队列实现的数字均不得复用。
+- [x] 收益侧第一次真实存在：κ=1 下强制 `kAll` 对 exact window 的六格
+      配对 CI 全部分离，但方向随序列长度反转。seq=4 时 exact 快
+      0.694%/0.322%，seq=128 时 all 快 0.182%/0.326%，seq=512 时 all 快
+      1.171%/1.163%。它证明窗口被执行消费，也证明更细并不必然更快。
+- [x] 纳入 DP 状态——当前结论仍是**不纳入**，但依据已重写：两个模型的新
+      queue-era argmin 都是固定 κ=1，一个未观察到随模型变化的选择暂不增加 DP
+      维度。保留所有 κ 编译开关，以便图结构或负载改变时重新检验。
 - 证据：`docs/experiments/COARSEN/result.md`；`docs/experiments/P3_ISL/`
 
 ### P4.7 层4 Label（簇划分）
@@ -1864,6 +1896,23 @@ P6.2 的 oracle 已给出投入判据：固定 `g` 与最优 `g` 相差 **6.11×
 - 证据：`docs/experiments/CLUSTER/result.md` §7.5 / §7.7；`cluster_labeling_test`
 
 ### P4.8 层5 Place
+
+**当前状态（任务队列实现）**：
+
+- [x] `ListScheduler` 的关键路径优先序按 runtime variant 写入
+      `ScheduleStageDesc`；host 绑定 `seq/past`、split-K 和 resident grid 后，
+      展开成每个物理 worker 的有序 `TaskRef` 列表。L2 kernel 实际读取这张表，
+      不再以 `stage=0..N` 作为外层循环。
+- [x] 生成期 `Validate` 拒绝有环、非置换和反向边；host 对 split-K 展开后的
+      最终顺序再验证。5-node 小图穷举 120 个排列、3 个可行拓扑序，关键路径
+      序达到 oracle 最小依赖跨度 2。
+- [x] 硬件重测使用同一二进制的 `TILEMEGA_SCHEDULE_POLICY=critical_path` /
+      `round_robin` 开关，各 25 轮配对、50/50 正确。轮内比值为
+      **1.000000 / 0.998552**；gqa2 CI 跨 1，mha4 bootstrap CI 轻微偏向
+      round-robin 但 Wilcoxon p=0.063，两者都远低于 2% 判据；Place 已成为真实
+      执行变量，但关键路径序未带来可声明的性能收益。下方旧实验全部作废。
+
+#### 已作废的 pre-queue Place 实验（只保留失败史）
 
 - [x] 时间局部性：`|R(c₁) ∩ R(c₂)|` 用 barvinok（`place_probe.cpp`，
       `isl_map_card` 精确计数，不抽样）。两模型 126 个操作数、0 个数不出来：
@@ -1946,24 +1995,22 @@ P6.2 的 oracle 已给出投入判据：固定 `g` 与最优 `g` 相差 **6.11×
    5/5/4/2/1 CTA/SM，因此第一版区间划分以 **2 个变体/binary** 为无损上限；
    不能只根据 C++ `sizeof(union)` 判断，4 变体的首个拐点来自寄存器。
 3. ⚠️ **部分满足。** BF16 Tensor Core 已贯通并有独立 sm_89 标定（✅ 两模型
-   50/50，SASS 各 96 条 BF16 HMMA），ORACLE 已在 BF16 + 最终所有权下重扫
-   1540 点。代价模型经两处修复后 ρ = **0.8942 / 0.8834**，已高于未标定的解析
-   基线（0.8778 / 0.8738）——最低门槛达成；但仍低于 FP32 的 0.9450 / 0.9435
-   且 top-1/3/10 全为 0，**区间边界只能当作初值而不是定论**。剩余偏差是近乎
-   常数的 2.1× 低估（MAPE 52%），不是形状错误，来源是移除 SMEM 道之后没有
-   BF16 操作数供给项接上。实测固定 `g` 与最优 `g` 之差在 BF16 下是
-   **2.273× / 2.318×**（FP32 为 6.11× / 6.75×），投入判据仍然成立。
+   50/50，SASS 各 96 条 BF16 HMMA）。修正 128-thread occupancy 与 per-SM smem
+   预算后 ρ = **0.8984 / 0.8871**，仍低于 FP32 0.9432 / 0.9421，且
+   top-1/3/10 全为 0，**区间边界只能当作初值而不是定论**。模型同时高估
+   窄-N split=1 与激进 split=8/16；不是可用全局 scale 修掉的误差。
 4. ✅ 派生量已符号化：`wait`/`fanout`/`volume`/`count` 是 `S`/`past`/`L_s` 的
    拟多项式而不是 `S_min` 上的整数（420/420 逐点复核）。这是 P5.1「代价函数
    以 θ 为参数 → DP 输出分段拟多项式」的输入前提，此前不成立。
-   ⚠️ 仍未接：代价模型还没有*读*这些拟多项式，`T_sync` 依旧是每 stage 一次
-   标定出来的 grid barrier 曲线。
-5. ⚠️ L2 的开销已归因（`docs/experiments/L2_ATTRIB/`）：在默认 κ = 0 下
-   L2/L1 = **1.055 / 1.061**（seq=128）且随序列增长而**下降**；κ = 1 时
-   等待占 L2−L1 差值的 **104%**，其余项要么很小要么为负。这条影响 P5 的目标
-   函数：区间划分若以 L2 路径为目标，必须把事件方案本身的代价计入。
-6. ✅ `seq×past` 矩阵 1500/1500，且旧 clamp 负测试 0/50，证明运行时区间会
-   覆盖的 grid-stride 形态已有敏感的正确性守门。
+   `div/scale/offset/count` 的三点拟合也已换成 isl 端点发现 + 全参数域集合等价
+   证明，参考模型与 16 层均 0 fallback。⚠️ 仍未接：代价模型还没有*读*这些
+   拟多项式。
+5. ⚠️ L2 已改为 worker task queue 并在 50 进程观察到平均 34.36%/40.18%
+   跨 stage 提前启动；
+   κ=1 的六格 L2/L1 为 **1.081–1.113**，仍未胜过 L1。新的四臂归因见
+   `docs/experiments/L2_ATTRIB/`，旧 stage-loop 分解已作废。
+6. ✅ `seq×past` 矩阵 1500/1500，且直接删除 `TaskWait` 的新负测试 0/50；
+   修改已退役 stage wait 的旧 clamp 仍为 50/50，两者共同证明守门覆盖活跃路径。
 7. ⚠️ 真实规模只满足了宽度轴：4×4096 / intermediate=14336 为 50/50；完整
    16×2048 的 973M 参数 decoder 虽然可生成、编译和运行，但固定 BF16 判据为
    0/50，误差从 8 层开始跨层累积。论文端到端主张不能把这项写成完整
@@ -2024,7 +2071,8 @@ chunked prefill（Tier 2，regime C 的载体）、MoE 路由（Tier 3 的 indpt
       分布是「少数配置显著好」——5% 内只有 10 个，中位数是最优的 2×，
       最差 1489× / 1572×。总耗时 4846.56s。
       结论与两条限定见 P4.4；数据见 `docs/experiments/ORACLE/result.md`。
-- [ ] Coarsen（κ）消融
+- [x] Coarsen（κ）消融：最终 logical-task 事件队列上完成 7 臂、350/350；
+      κ=1 为两参考模型的实测 argmin，详见 P4.6 与 `COARSEN`
 - [ ] Label（簇）消融
 - [ ] 混合 batch regime 对比
 - [ ] Warmup 时间（目标：0 次 CUDA graph capture）
@@ -2032,7 +2080,8 @@ chunked prefill（Tier 2，regime C 的载体）、MoE 路由（Tier 3 的 indpt
 
 ### P6.3 消融
 
-- [ ] L1 → L2（细粒度事件的贡献）
+- [x] L1 → L2（细粒度事件的贡献）：六格各 25 轮配对，L2/L1 =
+      1.081–1.113；四臂分解逐轮精确闭合，详见 `E2E_L2` 与 `L2_ATTRIB`
 - [ ] L2 → L3（Reparam + Coarsen + Label 的贡献）
 - [ ] 符号化的贡献（vs bucketing）
 
@@ -2042,20 +2091,22 @@ chunked prefill（Tier 2，regime C 的载体）、MoE 路由（Tier 3 的 indpt
 
 > 硬性规则。所有生成同步代码的路径必须走统一封装。
 
-## 8.1 自旋等待必须单线程轮询
+## 8.1 自旋等待按独立事件分摊到 CTA，集体屏障保持非发散
 
 ```cpp
-if (threadIdx.x == 0) {
-    while (atomicAdd(&ev[e].v, 0ull) < need) __nanosleep(64);
+for (int i = threadIdx.x; i < task.wait_count; i += blockDim.x) {
+    while (atomicAdd(&ev[task.wait_begin+i].v, 0ull) < need)
+        __nanosleep(64);
 }
 __syncthreads();     // 集体同步放在非发散点
 __threadfence();     // acquire
 ```
 
-所有线程各自轮询本身是良性的，但会增加原子流量；本实验的短等待 workload
-未测出稳定性能代价。真正的正确性禁令是：**集体屏障不能出现在发散的自旋循环体内**。
-`barrier_in_spin` 在 grid 64/128/256 共 150/150 挂起。屏障只能位于上述轮询结束后的
-非发散点。（F-2）
+同一个 task 的 `TaskWait` 已经去重且互相独立，因此可以由线程按 `i += blockDim`
+分摊；旧 stage-loop 上的受控实验为 −15.05%/−14.78%，任务队列保留该实现。
+真正的正确性禁令仍是：**集体屏障不能出现在发散的自旋循环体内**。
+`barrier_in_spin` 在 grid 64/128/256 共 150/150 挂起。屏障只能位于所有线程
+完成各自 poll 后的非发散点。（F-2）
 
 ## 8.2 单调事件计数器
 

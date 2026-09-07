@@ -1,0 +1,3 @@
+model	processes	mean_early	mean_early_pct	min_early	max_early	mean_pairs	mean_transitions
+gqa2	50	68.720	34.3600	68	70	132.720	184.000
+mha4	50	205.700	40.1758	197	217	397.700	496.000

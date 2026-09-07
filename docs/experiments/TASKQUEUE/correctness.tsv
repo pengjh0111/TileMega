@@ -1,0 +1,4 @@
+model	kappa	passes	processes	task_refs	task_ref_bytes	waits	wait_bytes	raw_polls	lifted_polls	waiting_tasks	normalization_dummies_lb	max_worker_span	resident_limit	global_fanin	i3_current	i3_overresident
+gqa2	1	50	50	200	5600	500	4000	580	80	156	344	15	256	1	pass	reject
+mha4	1	50	50	512	14336	1076	8608	1284	208	380	696	15	256	1	pass	reject
+llama1b-16l	1	0	50	8768	245504	55556	444448	59972	4416	7100	48456	127	256	1	pass	reject

@@ -1,0 +1,4 @@
+layers	tasks	couplings	stages	symbolic_windows	fallback_windows	codegen_seconds	generated_bytes
+1	17	20	15	20	0	0.861	-
+16	272	350	240	350	0	362.035	102192
+32	544	702	480	702	0	10872.781	203632

@@ -6,13 +6,10 @@ Same protocol as SOLVER/summarize_per_operator.py and for the same reason
 (F-46): the effects here are of the same size as the session drift, so the
 statistic is the within-round ratio and never a difference of two medians.
 
-Two families of contrast, and each is the other's control:
+Two families of contrast:
 
-  l2_ms vs `stage`   what event granularity costs.  L1 is untouched by kappa.
-  l1_ms vs `stage`   nothing, for every kappa arm -- nine null controls that
-                     measure the protocol's own floor inside this experiment.
-  l1_ms of `nosync`  the ceiling: what deleting the grid barrier is worth.
-  l2_ms of `nosync`  nothing -- the tenth null control.
+  l2_ms vs k0   the task-queue event-granularity curve.
+  l1_ms vs k0   null controls: L1 is untouched by kappa.
 """
 import glob
 import math
@@ -21,8 +18,7 @@ import random
 import re
 import sys
 
-ARMS = ("stage", "k1", "k2", "k4", "k8", "k16", "k32", "k64", "k128", "k256",
-        "nosync")
+ARMS = ("k0", "k1", "k2", "k4", "k8", "k16", "k32")
 L1 = re.compile(r"^E2E_TIME .*?\bl1_ms=([0-9.]+)")
 L2 = re.compile(r"^E2E_TIME .*?\sl2_ms=([0-9.]+)")
 ROUND = re.compile(r"/r([0-9]+)/")
@@ -91,28 +87,27 @@ def paired(base, other, draws=20000, seed=20260903):
 
 
 def report(title, data, note_for):
-    base = data["stage"]
+    base = data["k0"]
     if not base:
         return
     print("   %s" % title)
     print("   %-8s %-10s %-27s %-13s %s"
-          % ("arm", "median", "vs stage (95% CI)", "signed-rank p", "note"))
+          % ("arm", "median", "vs k0 (95% CI)", "signed-rank p", "note"))
     for arm in ARMS:
         values = data.get(arm)
         if not values:
             continue
-        if arm == "stage":
-            print("   %-8s %.6f  %-27s %-13s %s"
-                  % (arm, median(list(values.values())), "--", "--", ""))
+        if arm == "k0":
+            print(("   %-8s %.6f  %-27s %-13s %s"
+                   % (arm, median(list(values.values())), "--", "--", "")).rstrip())
             continue
         stats = paired(base, values)
         if stats is None:
             continue
         point, low, high, p, n = stats
-        print("   %-8s %.6f  %+7.3f%% [%+6.3f,%+6.3f]      %10.2e    %s"
-              % (arm, median(list(values.values())), point, low, high, p,
-                 note_for(arm)))
-    print()
+        print(("   %-8s %.6f  %+7.3f%% [%+6.3f,%+6.3f]      %10.2e    %s"
+               % (arm, median(list(values.values())), point, low, high, p,
+                  note_for(arm))).rstrip())
 
 
 def main():
@@ -120,16 +115,17 @@ def main():
     for model in ("gqa2", "mha4"):
         l2 = {arm: samples(raw, model, arm, L2) for arm in ARMS}
         l1 = {arm: samples(raw, model, arm, L1) for arm in ARMS}
-        if not l2["stage"]:
+        if not l2["k0"]:
             continue
         print("== %s   %d interleaved rounds, one fresh process per arm per round"
-              % (model, len(l2["stage"])))
+              % (model, len(l2["k0"])))
         report("l2_ms -- the kappa curve", l2,
-               lambda a: "NULL CONTROL: kappa does not touch L2 here"
-               if a == "nosync" else "")
+               lambda a: "")
+        print()
         report("l1_ms -- untouched by kappa", l1,
-               lambda a: "CEILING: grid barrier deleted (output wrong)"
-               if a == "nosync" else "NULL CONTROL")
+               lambda a: "NULL CONTROL")
+        if model != "mha4":
+            print()
 
 
 if __name__ == "__main__":

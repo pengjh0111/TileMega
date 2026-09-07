@@ -1,0 +1,25 @@
+Internal ctest changing into directory: /root/TileMega/build-portable
+UpdateCTestConfiguration  from :/root/TileMega/build-portable/DartConfiguration.tcl
+UpdateCTestConfiguration  from :/root/TileMega/build-portable/DartConfiguration.tcl
+Test project /root/TileMega/build-portable
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 14
+    Start 14: list_scheduler
+
+14: Test command: /root/TileMega/build-portable/list_scheduler_test
+14: Test timeout computed to be: 10000000
+14: PLACE_ORACLE nodes=5 feasible=3 optimum_span=2 cp_span=2
+14: list_scheduler_test PASS
+1/1 Test #14: list_scheduler ...................   Passed    0.01 sec
+
+The following tests passed:
+	list_scheduler
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.01 sec

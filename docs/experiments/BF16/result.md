@@ -224,3 +224,53 @@ Tensor Core work is a different feature and can break the old one-lane
 ranking, but changing dtype alone does not make the two byte lanes
 identifiable.  This is a limitation of the present feature construction, not
 evidence that the hardware pipelines themselves are identical.
+
+## Current final diagnosis (task-queue round)
+
+The oracle was re-evaluated with CUDA's recorded `ctas_per_sm` as the
+authoritative validation feature. The previous analytical feature assumed the
+FP32 kernel's 256 threads for BF16 and used a per-CTA shared-memory ceiling as
+if it were the per-SM budget. Correcting those defects changes the full-model
+rank correlation only modestly:
+
+| | gqa2 | mha4 |
+|---|---:|---:|
+| BF16 full model ρ | **0.8984** | **0.8871** |
+| MAPE | 51.88% | 49.86% |
+| top-1 / top-3 / top-10 in measured top 3% | **0 / 0 / 0** | **0 / 0 / 0** |
+| rank assigned to measured optimum | 48 | 46 |
+| FP32 control ρ | 0.9432 | 0.9421 |
+
+The queue-round lane ablation is consistent with the earlier diagnosis but is
+recorded from the corrected validation path: removing `l2` gives
+**0.8886 / 0.8693**, removing `tc` gives **0.8923 / 0.8817**, and each of the
+other six calibrated/available lanes leaves the full score unchanged. Thus
+`l2` is still the strongest identifiable BF16 lane and `tc` is second.
+
+❌ The required `ρ ≥ 0.94` and top-1/top-3 acceptance is not met. No threshold
+is changed. The complete predicted top ten and their measured ranks are in
+[`topk_diagnosis.tsv`](topk_diagnosis.tsv): gqa2's ten land at ranks
+46–232 and mha4's at 29–145, while the top-3% cutoffs are ranks 23 and 14.
+
+The false leaders are bimodal. One family uses narrow output tiles
+(`tile_n=16/32`) with `split_k=1`; the other uses aggressive `split_k=8/16`.
+Their predicted/measured ratios are only 0.36–0.47. Conversely, both measured
+top tens overwhelmingly use `tile_n=16, split_k=8`, but the model ranks the
+true optima 48th/46th. Thus this is not merely a global scale error: the
+current setup/operand-feed construction prices the interaction between narrow
+tiles and split-K incorrectly.
+
+Four new calibration shapes cover exactly the missing axes (`32x16x16s2`,
+`32x128x32s3`, `128x32x32s2`, `64x64x32s5`) and calibration now measures every
+resident occupancy rather than stopping at four CTAs/SM. ⚠️ A trial expanded
+profile made validation worse, so it is not installed in `sm_89.json`; adding
+points does not repair a misspecified feature.
+
+No GEMM tile shape can decouple the current SMEM and L2 lanes: both are the
+same feature `occupancy·2·Tk·(Tm+Tn)` for every possible input, not merely for
+the original 20 samples. A valid decoupling experiment needs a different
+kernel that reuses a fixed shared-memory tile while sweeping a larger L2
+working set, or holds the global working set fixed while repeating shared
+loads. Until that measurement exists, BF16 marks the scalar-`ld.shared` SMEM
+lane `not_calibrated` and carries one identifiable byte lane (`l2`). Keeping
+two fitted coefficients would create an unidentifiable degree of freedom.

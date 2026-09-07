@@ -32,6 +32,9 @@ done
 "${nvcc}" "${common[@]}" -DTILEMEGA_NEGATIVE_OLD_CLAMP=1 \
   "${raw}/src/gqa2.cu" "${build}/libtilemega.a" \
   -L/usr/local/cuda/lib64 -lcudart -o "${raw}/bin/gqa2_old_clamp"
+"${nvcc}" "${common[@]}" -DTILEMEGA_NEGATIVE_TASK_WAIT_CLAMP=1 \
+  "${raw}/src/gqa2.cu" "${build}/libtilemega.a" \
+  -L/usr/local/cuda/lib64 -lcudart -o "${raw}/bin/gqa2_task_wait_clamp"
 
 printf 'model\tseq\tpast\tpasses\tprocesses\n' > "${raw}/matrix.tsv"
 for model in gqa2 mha4; do
@@ -49,7 +52,7 @@ for model in gqa2 mha4; do
       fi
       log="${raw}/log/${model}_s${seq}_p${past}.txt"; : > "${log}"
       for unused in $(seq 1 50); do
-        "${raw}/bin/${model}" "${fixture}" >> "${log}"
+        timeout 120s "${raw}/bin/${model}" "${fixture}" >> "${log}"
       done
       pass="$(grep -c '^RESULT status=PASS' "${log}" || true)"
       printf '%s\t%s\t%s\t%s\t50\n' \
@@ -60,8 +63,16 @@ done
 
 negative="${raw}/log/gqa2_old_clamp_s2048_p0.txt"; : > "${negative}"
 for unused in $(seq 1 50); do
-  "${raw}/bin/gqa2_old_clamp" "${raw}/fixture/gqa2_s2048_p0" \
+  timeout 120s "${raw}/bin/gqa2_old_clamp" "${raw}/fixture/gqa2_s2048_p0" \
     >> "${negative}" || true
 done
 pass="$(grep -c '^RESULT status=PASS' "${negative}" || true)"
-[[ "${pass}" == 0 ]] || { echo 'old clamp unexpectedly passed' >&2; exit 1; }
+[[ "${pass}" == 50 ]] || { echo 'retired stage clamp changed active queue path' >&2; exit 1; }
+
+negative="${raw}/log/gqa2_task_wait_clamp_s2048_p0.txt"; : > "${negative}"
+for unused in $(seq 1 50); do
+  timeout 120s "${raw}/bin/gqa2_task_wait_clamp" "${raw}/fixture/gqa2_s2048_p0" \
+    >> "${negative}" || true
+done
+pass="$(grep -c '^RESULT status=PASS' "${negative}" || true)"
+[[ "${pass}" == 0 ]] || { echo 'task wait clamp unexpectedly passed' >&2; exit 1; }

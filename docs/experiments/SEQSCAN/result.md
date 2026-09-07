@@ -1,6 +1,7 @@
 # BF16 `seq × past` correctness scan
 
-Evidence status: ✅ measured on an RTX 4090 (`sm_89`) on 2026-09-05.  Every
+Evidence status: ✅ remeasured on an RTX 4090 (`sm_89`) on 2026-09-07 after
+the logical-task event and kAll-aggregate conversion. Every
 entry in [`matrix.tsv`](matrix.tsv) is a distinct fixture and was launched in
 50 fresh processes.  Each process compares PyTorch L0 with the standalone
 L0.5 path, L0.5 with L1, and L1 with the dependency-driven persistent L2 path.
@@ -12,18 +13,18 @@ stage that needs many grid-stride rounds.  The BF16 comparison bound is
 bound left four quantization-boundary differences among millions of values at
 `seq=2048`, while `1.5e-2` left none.  It is not used for FP32.
 
-The scan found and fixed two real blind-spot bugs: attention and RMSNorm had
-declared grid-stride ownership but executed only `blockIdx.x`'s first task.
-Attention also sized its shared score row to the CTA width rather than the
-maximum runtime key length.  The repaired bodies loop over all placed tasks;
-attention's supported total length is checked against 4096 and fails hard
-outside it.
+The complete matrix remained **1500/1500** under task-local waits. No timeout
+or hang occurred. This is fresh evidence: none of the pre-conversion process
+results was reused.
 
-The deliberately obsolete `min(count, grid)` wait clamp was rebuilt with
-`TILEMEGA_NEGATIVE_OLD_CLAMP=1`.  At `seq=2048,past=0` it failed **50/50**
-fresh processes (`l2_vs_l1` mismatches), recorded in
-[`negative.tsv`](negative.tsv).  Thus the expanded matrix is demonstrably
-sensitive to the under-wait class that the old `seq=4` fixture could not see.
+⚠️ The former `TILEMEGA_NEGATIVE_OLD_CLAMP=1` control passes **50/50**, as
+expected: it mutates the retired stage-level `WaitDependencies` path and is
+unreachable from queue L2. ✅ The replacement
+`TILEMEGA_NEGATIVE_TASK_WAIT_CLAMP=1` removes the `TaskWait` intervals that L2
+actually consumes and fails **50/50** at `seq=2048,past=0`, with millions of
+L2-vs-L1 mismatches and varying output hashes. This establishes that the green
+matrix exercises the new task dependency path rather than merely matching a
+shared stage-order reference.
 
 Raw per-process logs are intentionally not checked in; `run.sh` recreates
 them and writes them beneath `raw/`.

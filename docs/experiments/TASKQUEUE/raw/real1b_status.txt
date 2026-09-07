@@ -1,0 +1,5 @@
+STAT label=taskqueue_real1b_selective runs=50 pass=0 fail=50 hang=0 error=0 rate=0.0000
+All 50 failures are the identical 198-element BF16-vs-PyTorch mismatch;
+L0.5/L1/L2 hash=621738651f623f5b in every process.
+TaskRefs=8768 (245504 B), waits=55556 (444448 B), raw_polls=59972,
+lifted_polls=4416, max_worker_span=127, resident_limit=256.

@@ -1,0 +1,5 @@
+model	arm	n	single_l2_over_l1	last_iter_over_l1
+gqa2	monotone	50	1.091393	1.083433
+gqa2	reset	50	1.095543	1.083825
+mha4	monotone	50	1.098425	1.094005
+mha4	reset	50	1.095564	1.088992

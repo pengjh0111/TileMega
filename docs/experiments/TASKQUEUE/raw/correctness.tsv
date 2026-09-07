@@ -1,0 +1,3 @@
+model	passes	processes	task_refs	task_ref_bytes	waits	wait_bytes	waiting_tasks	normalization_dummies_lb	max_worker_span	resident_limit	i3_overresident
+gqa2	50	50	200	5600	500	4000	156	344	15	256	reject
+mha4	50	50	512	14336	1076	8608	380	696	15	256	reject
