@@ -3,6 +3,7 @@
 // Device parameter tables are passed by pointer (F-17b).
 // L0.5/L1 correctness ladder for the V-H two-layer Llama ExportedProgram.
 #include <cuda_runtime.h>
+#include <tilemega/Codegen/tasks/EventSync.cuh>
 
 #include <tilemega/Codegen/tasks/TaskBase.h>
 #include <tilemega/Target/TargetSpec.h>
@@ -29,7 +30,7 @@ namespace {
 #endif
 #ifndef TILEMEGA_GENERATED_WAIT_global
 #define TILEMEGA_GENERATED_WAIT_global(ev, need) do { \
-  while (atomicAdd((ev), 0ull) < (need)) __nanosleep(64); \
+  while (::tilemega::codegen::EventPoll((ev)) < (need)) __nanosleep(64); \
 } while (0)
 #endif
 #ifndef TILEMEGA_GENERATED_NOTIFY_global
@@ -160,12 +161,21 @@ constexpr std::size_t kExpectedTaskSmem =
 static_assert(sizeof(TaskSmem) == kExpectedTaskSmem,
               "one explicit union must equal max_i(TaskBody::SharedStorage)");
 
+#ifndef TILEMEGA_EVENT_SPLIT_LINES
+#define TILEMEGA_EVENT_SPLIT_LINES 0
+#endif
 struct alignas(128) EventCounter {
   unsigned long long arrivals;
+#if TILEMEGA_EVENT_SPLIT_LINES
+  alignas(128) unsigned long long epoch;
+#else
   unsigned long long epoch;
   unsigned char padding[112];
+#endif
 };
-static_assert(sizeof(EventCounter) == 128, "event cache-line padding");
+static_assert(sizeof(EventCounter) == (TILEMEGA_EVENT_SPLIT_LINES ? 256 : 128),
+              "event cache-line padding");
+static_assert(alignof(EventCounter) == 128, "event cache-line alignment");
 
 __device__ void RmsNorm(float const* input, float const* weight, float* output,
                         TaskSmem& storage) {

@@ -1,5 +1,10 @@
 # Task-queue L2 attribution
 
+## T1 intervention status (2026-09-08)
+
+本轮实现与独立开关数据见 [T1 report](t1_result.md)。下文是本轮改动前的
+task-queue 四臂结果，保留作历史对照，不能冒充本轮重测值。
+
 Evidence status: ✅ measured on RTX 4090 (`sm_89`), BF16, 2026-09-07, after
 logical-task events, kAll aggregation, and selective publication. No earlier
 executor result is used.

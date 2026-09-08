@@ -1,5 +1,13 @@
 # Queue-driven κ ablation
 
+## T1 intervention (2026-09-08)
+
+❌ T1 冻结源码四臂的 notify 显著变慢，触发停止条件，因此没有继续新事件路径的
+完整 κ 性能扫描，也不复用下面的历史 argmin 作为新结论。
+当前 κ=4、S=16、load+split 的四个模型/seq 单元各 50 个全新进程，200/200
+正确，仅证明这些实例的 fine-group 通知可执行，不提供新的 κ argmin。
+见 [T1 report](../L2_ATTRIB/t1_result.md)。下文均为 T1 前的历史数据。
+
 Evidence status: ✅ measured on RTX 4090 (`sm_89`), BF16, 2026-09-07, after
 logical-task events, kAll aggregation, and selective event publication. No
 timing from the retired stage loop or either intermediate queue executor is

@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cuda_runtime.h>
+#include <tilemega/Codegen/tasks/EventSync.cuh>
 
 #include <tilemega/Codegen/tasks/AttentionChunkTaskBody.h>
 #include <tilemega/Codegen/tasks/ElementwiseTaskBody.h>
@@ -42,7 +43,7 @@ namespace tilemega::codegen {
 
 #ifndef TILEMEGA_GENERATED_WAIT_global
 #define TILEMEGA_GENERATED_WAIT_global(ev, need) do { \
-  while (atomicAdd((ev), 0ull) < (need)) __nanosleep(64); \
+  while (::tilemega::codegen::EventPoll((ev)) < (need)) __nanosleep(64); \
 } while (0)
 #endif
 #ifndef TILEMEGA_GENERATED_NOTIFY_global
@@ -66,6 +67,9 @@ static_assert(!arch::kDevicePass || TILEMEGA_GENERATED_CLUSTER_DIM == 1 ||
               "a cluster stage barrier needs a cluster-capable target; a "
               "cluster-shaped kernel must never fall back to the flat grid "
               "barrier and keep reporting itself as a cluster result");
+static_assert(!arch::kDevicePass || !TILEMEGA_EVENT_CLUSTER_FANIN ||
+                  arch::Caps<arch::CurrentArch>::kCluster,
+              "cluster event aggregation requires caps.cluster");
 
 #ifndef TILEMEGA_GENERATED_RESIDENT_GRID
 #define TILEMEGA_GENERATED_RESIDENT_GRID(target, function, block_size, dynamic_smem) \
@@ -415,6 +419,44 @@ __device__ inline void WaitTaskDependencies(Params const& p,
   }
 }
 
+// T1.3-A: called after every writer's release fence and CTA convergence.
+// Last arrivals at each level carry the previous writers into the next
+// release. No counter is reset while iterations are using this allocation.
+__device__ inline void ArriveEvent(Params const& p, EventCounter* events,
+                                    std::uint32_t index, int members,
+                                    unsigned long long iteration) {
+  unsigned long long triggers = static_cast<unsigned long long>(members);
+#if TILEMEGA_EVENT_SHARDED
+  // The one-member and S=1 cases are the exact one-level degeneracy. Avoid
+  // adding a second atomic when there is no fan-in to combine.
+  if (members > 1 && p.event_shard_count > 1) {
+    EventFanIn const plan = p.event_fanin[index];
+    std::uint32_t shard;
+    unsigned long long* counter;
+    using CS = ClusterSync<arch::CurrentArch>;
+    if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled) {
+      shard = plan.begin + blockIdx.x / CS::Size() - plan.first_cluster;
+      extern __shared__ unsigned char event_bytes[];
+      auto* local = reinterpret_cast<unsigned long long*>(event_bytes + sizeof(TaskSmem));
+      counter = CS::CounterPeer(local + p.shard_local_offsets[shard], 0);
+    } else {
+      shard = plan.begin + blockIdx.x % plan.modulus;
+      counter = &p.shard_arrivals[shard].arrivals;
+    }
+    unsigned long long ticket = atomicAdd(counter, 1ull);
+    if (ticket + 1ull != static_cast<unsigned long long>(p.shard_targets[shard]) *
+                              (iteration + 1ull)) return;
+    __threadfence();
+    triggers = plan.nonempty;
+  }
+#endif
+  unsigned long long ticket = atomicAdd(&events[index].arrivals, 1ull);
+  if (ticket + 1ull == triggers * (iteration + 1ull)) {
+    __threadfence();
+    TILEMEGA_GENERATED_NOTIFY_global(&events[index].epoch, iteration + 1ull);
+  }
+}
+
 /// §8.5 CTA-cooperative release, then one monotonic arrival (§8.2), with the
 /// completing CTA publishing the stage's epoch.  The fence is per writer and
 /// precedes the CTA barrier, so every thread's writes are visible before
@@ -444,36 +486,16 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
                               < TILEMEGA_EVENT_KAPPA
                           ? produced - group * TILEMEGA_EVENT_KAPPA
                           : TILEMEGA_EVENT_KAPPA;
-      unsigned long long group_ticket = atomicAdd(
-          &events[EventIndex(
-              p, producer, static_cast<std::uint32_t>(group))].arrivals,
-          1ull);
-      if (group_ticket + 1ull ==
-          static_cast<unsigned long long>(members) * (iteration + 1ull)) {
-        __threadfence();
-        TILEMEGA_GENERATED_NOTIFY_global(
-            &events[EventIndex(
-                p, producer, static_cast<std::uint32_t>(group))].epoch,
-            iteration + 1ull);
-      }
+      ArriveEvent(p, events, EventIndex(p, producer, static_cast<std::uint32_t>(group)),
+                  members, iteration);
     }
 #endif
     // A task contributes to the aggregate completion row only when some kAll
     // consumer references it. Such consumers pay one poll per incoming CG
     // edge, while narrowed consumers observe the fine group above.
     if (event_flags & kNeedsAggregateEvent) {
-      unsigned long long aggregate_ticket =
-          atomicAdd(&events[EventIndex(
-                        p, producer, kWholeStageEventGroup)].arrivals,
-                    1ull);
-      if (aggregate_ticket + 1ull ==
-          static_cast<unsigned long long>(produced) * (iteration + 1ull)) {
-        __threadfence();
-        TILEMEGA_GENERATED_NOTIFY_global(
-            &events[EventIndex(
-                p, producer, kWholeStageEventGroup)].epoch,
-            iteration + 1ull);
-      }
+      ArriveEvent(p, events, EventIndex(p, producer, kWholeStageEventGroup),
+                  produced, iteration);
     }
   }
   __syncthreads();
@@ -558,6 +580,17 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
                         unsigned long long iteration) {
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
+  using CS = ClusterSync<arch::CurrentArch>;
+  if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled) {
+    unsigned const cluster = blockIdx.x / CS::Size();
+    unsigned const begin = params->cluster_shard_offsets[cluster];
+    unsigned const end = params->cluster_shard_offsets[cluster + 1];
+    auto* local = reinterpret_cast<unsigned long long*>(bytes + sizeof(TaskSmem));
+    if (CS::Rank() == 0)
+      for (unsigned i = threadIdx.x; begin + i < end; i += blockDim.x)
+        local[i] = params->shard_arrivals[params->cluster_shard_indices[begin + i]].arrivals;
+    CS::Sync();
+  }
   std::uint32_t const worker = static_cast<std::uint32_t>(blockIdx.x);
   std::uint32_t const first = params->schedule_offsets[worker];
   std::uint32_t const last = params->schedule_offsets[worker + 1];
@@ -574,6 +607,17 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
       params->task_trace[slot].end =
           atomicAdd(params->trace_sequence, 1ull);
     NotifyTask(*params, events, task.stage, task.logical_task, iteration);
+  }
+  if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled) {
+    // No CTA may leave while another still accesses its DSMEM allocation.
+    CS::Sync();
+    unsigned const cluster = blockIdx.x / CS::Size();
+    unsigned const begin = params->cluster_shard_offsets[cluster];
+    unsigned const end = params->cluster_shard_offsets[cluster + 1];
+    auto* local = reinterpret_cast<unsigned long long*>(bytes + sizeof(TaskSmem));
+    if (CS::Rank() == 0)
+      for (unsigned i = threadIdx.x; begin + i < end; i += blockDim.x)
+        params->shard_arrivals[params->cluster_shard_indices[begin + i]].arrivals = local[i];
   }
 }
 
@@ -690,6 +734,16 @@ struct DeviceModel {
   std::uint32_t* device_event_offsets = nullptr;
   std::vector<std::uint32_t> event_flags;
   std::uint32_t* device_event_flags = nullptr;
+  std::vector<EventFanIn> event_fanin;
+  std::vector<std::uint32_t> shard_targets;
+  EventFanIn* device_event_fanin = nullptr;
+  ArrivalCounter* device_shard_arrivals = nullptr;
+  std::uint32_t* device_shard_targets = nullptr;
+  std::vector<std::uint32_t> shard_local_offsets, cluster_shard_offsets, cluster_shard_indices;
+  std::uint32_t* device_shard_local_offsets = nullptr;
+  std::uint32_t* device_cluster_shard_offsets = nullptr;
+  std::uint32_t* device_cluster_shard_indices = nullptr;
+  std::size_t l2_smem_bytes = sizeof(TaskSmem);
   TaskTrace* device_task_trace = nullptr;
   unsigned long long* device_trace_sequence = nullptr;
   std::vector<std::uint32_t> stage_order;
@@ -735,12 +789,23 @@ inline DeviceModel Create(ModelSpec const& spec,
                           RuntimeVariantDesc const& runtime_variant,
                           std::uint32_t runtime_variant_index,
                           ModelDims const& dims, std::string const& dir,
-                          int grid, int blocks_per_sm) {
+                          int grid, int blocks_per_sm, TargetSpec const& target,
+                          std::size_t l2_smem_bytes) {
   DeviceModel model;
   model.spec = &spec;
   model.runtime_variant = &runtime_variant;
   model.runtime_variant_index = runtime_variant_index;
   model.params.ownership_flags = runtime_variant.ownership_flags;
+#if TILEMEGA_EVENT_CLUSTER_RESERVE
+  if (!target.caps.cluster) {
+    std::fprintf(stderr, "cluster counter storage requires caps.cluster\n");
+    std::exit(2);
+  }
+  // Reserve the advertised per-CTA shared-memory budget before selecting
+  // residency. Both the cluster treatment and its storage-matched control
+  // use this reservation; occupancy is never computed using a smaller size.
+  model.l2_smem_bytes = l2_smem_bytes;
+#endif
   model.host_sources.resize(spec.buffer_count);
   for (std::uint32_t i = 0; i < spec.buffer_count; ++i) {
     BufferDesc const& desc = spec.buffers[i];
@@ -1048,6 +1113,95 @@ inline DeviceModel Create(ModelSpec const& spec,
 #endif
     model.event_offsets[stage + 1] = model.event_offsets[stage] + groups;
   }
+#if TILEMEGA_EVENT_SHARDED
+  static_assert(TILEMEGA_EVENT_SHARDS >= 0, "negative shard count");
+  // Automatic choice: the largest power of two no greater than num_sms.
+  // Explicit values are experimental controls and may not exceed hardware.
+  std::uint32_t shards = 1;
+  while (shards <= static_cast<std::uint32_t>(target.res.num_sms) / 2) shards *= 2;
+  if (TILEMEGA_EVENT_SHARDS > 0) shards = TILEMEGA_EVENT_SHARDS;
+  if (shards > static_cast<std::uint32_t>(target.res.num_sms)) {
+    std::fprintf(stderr, "requested shard count exceeds TargetSpec::Res::num_sms\n");
+    std::exit(2);
+  }
+#if TILEMEGA_EVENT_CLUSTER_FANIN
+  shards = grid / TILEMEGA_GENERATED_CLUSTER_DIM;
+  std::vector<std::vector<std::uint32_t>> cluster_shards(shards);
+#endif
+  model.params.event_shard_count = shards;
+  model.event_fanin.resize(model.stages.size() + model.event_offsets.back());
+  for (std::uint32_t stage = 0; stage < model.stages.size(); ++stage) {
+    int const produced = active_tasks(stage);
+    auto add = [&](std::uint32_t row, int begin, int end) {
+      EventFanIn plan{};
+      plan.begin = static_cast<std::uint32_t>(model.shard_targets.size());
+      plan.modulus = std::min(shards, static_cast<std::uint32_t>(end - begin));
+      if (plan.modulus == 0) { model.event_fanin[row] = plan; return; }
+#if TILEMEGA_EVENT_CLUSTER_FANIN
+      // Singleton events publish directly and need no DSMEM slot. For other
+      // events store only the interval of clusters containing producers.
+      if (end - begin == 1) { model.event_fanin[row] = {}; return; }
+      std::uint32_t first = shards, last = 0;
+      for (int logical = begin; logical < end; ++logical) {
+        unsigned const cluster = physical_worker[logical % grid] / TILEMEGA_GENERATED_CLUSTER_DIM;
+        first = std::min(first, cluster); last = std::max(last, cluster);
+      }
+      plan.first_cluster = first;
+      plan.modulus = last - first + 1;
+#endif
+      model.shard_targets.resize(plan.begin + plan.modulus, 0);
+      for (int logical = begin; logical < end; ++logical) {
+        int const worker = physical_worker[logical % grid];
+#if TILEMEGA_EVENT_CLUSTER_FANIN
+        ++model.shard_targets[plan.begin + worker / TILEMEGA_GENERATED_CLUSTER_DIM - plan.first_cluster];
+#else
+        ++model.shard_targets[plan.begin + worker % plan.modulus];
+#endif
+      }
+      for (std::uint32_t i = 0; i < plan.modulus; ++i)
+        if (model.shard_targets[plan.begin + i]) {
+          ++plan.nonempty;
+#if TILEMEGA_EVENT_CLUSTER_FANIN
+          cluster_shards[plan.first_cluster + i].push_back(plan.begin + i);
+#endif
+        }
+      model.event_fanin[row] = plan;
+    };
+    std::uint32_t row = static_cast<std::uint32_t>(model.stages.size()) + model.event_offsets[stage];
+    if (model.event_flags[stage] & kNeedsAggregateEvent) add(row++, 0, produced);
+#if TILEMEGA_EVENT_KAPPA > 0
+    if (model.event_flags[stage] & kNeedsFineEvents)
+      for (int begin = 0; begin < produced; begin += TILEMEGA_EVENT_KAPPA)
+        add(row++, begin, std::min(produced, begin + TILEMEGA_EVENT_KAPPA));
+#endif
+  }
+#if TILEMEGA_EVENT_CLUSTER_FANIN
+  model.shard_local_offsets.resize(model.shard_targets.size(), 0);
+  model.cluster_shard_offsets.push_back(0);
+  std::size_t max_local = 0;
+  for (auto const& local : cluster_shards) {
+    max_local = std::max(max_local, local.size());
+    for (std::size_t i = 0; i < local.size(); ++i) {
+      model.shard_local_offsets[local[i]] = static_cast<std::uint32_t>(i);
+      model.cluster_shard_indices.push_back(local[i]);
+    }
+    model.cluster_shard_offsets.push_back(model.cluster_shard_indices.size());
+  }
+  std::size_t const needed = sizeof(TaskSmem) + max_local * sizeof(unsigned long long);
+  if (needed > model.l2_smem_bytes) {
+    std::fprintf(stderr, "cluster counters need %zu shared bytes, TargetSpec budget is %zu\n",
+                 needed, model.l2_smem_bytes);
+    std::exit(2);
+  }
+  std::printf("E2E_CLUSTER_FANIN dim=%d local_counters=%zu needed_smem=%zu reserved_smem=%zu\n",
+              TILEMEGA_GENERATED_CLUSTER_DIM, max_local, needed, model.l2_smem_bytes);
+#endif
+  std::printf("E2E_FANIN shards=%u first_level_counters=%zu bytes=%zu\n", shards,
+              model.shard_targets.size(), model.shard_targets.size() * sizeof(ArrivalCounter));
+#else
+  (void)target;
+  model.params.event_shard_count = 1;
+#endif
   for (int worker = 0; worker < grid; ++worker) {
     int const placed = HostPlacedBlock(worker, grid, blocks_per_sm);
     for (std::uint32_t stage : model.stage_order) {
@@ -1163,6 +1317,22 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.device_event_flags = static_cast<std::uint32_t*>(upload(
       model.event_flags.data(),
       model.event_flags.size() * sizeof(std::uint32_t)));
+#if TILEMEGA_EVENT_SHARDED
+  model.device_event_fanin = static_cast<EventFanIn*>(upload(
+      model.event_fanin.data(), model.event_fanin.size() * sizeof(EventFanIn)));
+  model.device_shard_targets = static_cast<std::uint32_t*>(upload(
+      model.shard_targets.data(), model.shard_targets.size() * sizeof(std::uint32_t)));
+  TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_shard_arrivals,
+      model.shard_targets.size() * sizeof(ArrivalCounter)));
+#if TILEMEGA_EVENT_CLUSTER_FANIN
+  model.device_shard_local_offsets = static_cast<std::uint32_t*>(upload(
+      model.shard_local_offsets.data(), model.shard_local_offsets.size() * sizeof(std::uint32_t)));
+  model.device_cluster_shard_offsets = static_cast<std::uint32_t*>(upload(
+      model.cluster_shard_offsets.data(), model.cluster_shard_offsets.size() * sizeof(std::uint32_t)));
+  model.device_cluster_shard_indices = static_cast<std::uint32_t*>(upload(
+      model.cluster_shard_indices.data(), model.cluster_shard_indices.size() * sizeof(std::uint32_t)));
+#endif
+#endif
   if (std::getenv("TILEMEGA_TASK_TRACE") != nullptr) {
     TILEMEGA_CUDA_CHECK(cudaMalloc(
         &model.device_task_trace, model.schedule.size() * sizeof(TaskTrace)));
@@ -1191,6 +1361,12 @@ inline DeviceModel Create(ModelSpec const& spec,
       static_cast<std::uint32_t>(model.task_waits.size());
   model.params.event_offsets = model.device_event_offsets;
   model.params.event_flags = model.device_event_flags;
+  model.params.event_fanin = model.device_event_fanin;
+  model.params.shard_arrivals = model.device_shard_arrivals;
+  model.params.shard_targets = model.device_shard_targets;
+  model.params.shard_local_offsets = model.device_shard_local_offsets;
+  model.params.cluster_shard_offsets = model.device_cluster_shard_offsets;
+  model.params.cluster_shard_indices = model.device_cluster_shard_indices;
   model.params.task_trace = model.device_task_trace;
   model.params.trace_sequence = model.device_trace_sequence;
   model.params.ownership_flags = runtime_variant.ownership_flags;
@@ -1251,6 +1427,9 @@ inline void Reset(DeviceModel& model) {
   if (model.events)
     TILEMEGA_CUDA_CHECK(cudaMemset(model.events, 0,
                                    sizeof(EventCounter) * model.event_count));
+  if (model.device_shard_arrivals)
+    TILEMEGA_CUDA_CHECK(cudaMemset(model.device_shard_arrivals, 0,
+        sizeof(ArrivalCounter) * model.shard_targets.size()));
 }
 
 inline std::vector<std::vector<ModelElement>> Download(DeviceModel const& model) {
@@ -1442,12 +1621,12 @@ inline void ProfileStages(DeviceModel& model, ModelSpec const& spec, int grid) {
 /// different entry point, and the driver rejects a grid that does not divide
 /// into whole clusters rather than truncating it.
 template <typename Kernel, typename... Args>
-inline void LaunchPersistent(Kernel kernel, int grid, Args... args) {
+inline void LaunchPersistent(Kernel kernel, int grid, std::size_t smem_bytes, Args... args) {
 #if TILEMEGA_GENERATED_CLUSTER_DIM > 1
   cudaLaunchConfig_t config = {};
   config.gridDim = dim3(grid);
   config.blockDim = dim3(kHarnessThreads);
-  config.dynamicSmemBytes = sizeof(TaskSmem);
+  config.dynamicSmemBytes = smem_bytes;
   cudaLaunchAttribute attribute[1] = {};
   attribute[0].id = cudaLaunchAttributeClusterDimension;
   attribute[0].val.clusterDim.x = TILEMEGA_GENERATED_CLUSTER_DIM;
@@ -1457,7 +1636,7 @@ inline void LaunchPersistent(Kernel kernel, int grid, Args... args) {
   config.numAttrs = 1;
   TILEMEGA_CUDA_CHECK(cudaLaunchKernelEx(&config, kernel, args...));
 #else
-  kernel<<<grid, kHarnessThreads, sizeof(TaskSmem)>>>(args...);
+  kernel<<<grid, kHarnessThreads, smem_bytes>>>(args...);
 #endif
 }
 
@@ -1467,7 +1646,7 @@ inline float LaunchL1(DeviceModel& model, int grid,
   TILEMEGA_CUDA_CHECK(cudaEventCreate(&start));
   TILEMEGA_CUDA_CHECK(cudaEventCreate(&stop));
   TILEMEGA_CUDA_CHECK(cudaEventRecord(start));
-  LaunchPersistent(tilemega_l1_kernel, grid, model.device_params,
+  LaunchPersistent(tilemega_l1_kernel, grid, sizeof(TaskSmem), model.device_params,
                    model.events, iteration);
   TILEMEGA_CUDA_CHECK(cudaEventRecord(stop));
   TILEMEGA_CUDA_CHECK(cudaEventSynchronize(stop));
@@ -1485,7 +1664,7 @@ inline float LaunchL2(DeviceModel& model, int grid,
   TILEMEGA_CUDA_CHECK(cudaEventCreate(&start));
   TILEMEGA_CUDA_CHECK(cudaEventCreate(&stop));
   TILEMEGA_CUDA_CHECK(cudaEventRecord(start));
-  LaunchPersistent(tilemega_l2_kernel, grid, model.device_params,
+  LaunchPersistent(tilemega_l2_kernel, grid, model.l2_smem_bytes, model.device_params,
                    model.events, iteration);
   TILEMEGA_CUDA_CHECK(cudaEventRecord(stop));
   TILEMEGA_CUDA_CHECK(cudaEventSynchronize(stop));
@@ -1541,6 +1720,10 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
                         spec.buffers[spec.outputs[i].buffer].Elements(dims));
 
   auto target = tilemega::TargetSpec::Probe();
+  cudaFuncAttributes l2_attributes{};
+  TILEMEGA_CUDA_CHECK(cudaFuncGetAttributes(&l2_attributes, tilemega_l2_kernel));
+  std::size_t const l2_smem_bytes = TILEMEGA_EVENT_CLUSTER_RESERVE
+      ? target.res.max_dynamic_smem_per_cta - l2_attributes.sharedSizeBytes : sizeof(TaskSmem);
   TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(
       tilemega_stage_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
       sizeof(TaskSmem)));
@@ -1549,7 +1732,7 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
       sizeof(TaskSmem)));
   TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(
       tilemega_l2_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
-      sizeof(TaskSmem)));
+      l2_smem_bytes));
   // One grid serves every launch, and both persistent kernels spin, so the
   // resident bound is the *minimum* over them. L2 carries the event epochs in
   // registers and can cost a whole CTA per SM more than L1 (128 vs 144
@@ -1559,7 +1742,7 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   int grid = TILEMEGA_GENERATED_RESIDENT_GRID(target, tilemega_l1_kernel,
                                               kHarnessThreads, sizeof(TaskSmem));
   int l2_grid = TILEMEGA_GENERATED_RESIDENT_GRID(target, tilemega_l2_kernel,
-                                                 kHarnessThreads, sizeof(TaskSmem));
+                                                 kHarnessThreads, l2_smem_bytes);
   if (l2_grid < grid) grid = l2_grid;
 #if TILEMEGA_GENERATED_CLUSTER_DIM > 1
   // The capability table is a compile-time policy; this is the device in front
@@ -1572,19 +1755,34 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
     return 2;
   }
   grid -= grid % TILEMEGA_GENERATED_CLUSTER_DIM;
+  cudaLaunchConfig_t cluster_config{};
+  cluster_config.gridDim = dim3(grid);
+  cluster_config.blockDim = dim3(kHarnessThreads);
+  cudaLaunchAttribute cluster_attribute{};
+  cluster_attribute.id = cudaLaunchAttributeClusterDimension;
+  cluster_attribute.val.clusterDim = {TILEMEGA_GENERATED_CLUSTER_DIM, 1, 1};
+  cluster_config.attrs = &cluster_attribute;
+  cluster_config.numAttrs = 1;
+  for (bool l2 : {false, true}) {
+    cluster_config.dynamicSmemBytes = l2 ? l2_smem_bytes : sizeof(TaskSmem);
+    int clusters = 0;
+    TILEMEGA_CUDA_CHECK(cudaOccupancyMaxActiveClusters(
+        &clusters, l2 ? tilemega_l2_kernel : tilemega_l1_kernel, &cluster_config));
+    grid = std::min(grid, clusters * TILEMEGA_GENERATED_CLUSTER_DIM);
+  }
   if (grid == 0) {
     std::fprintf(stderr, "resident grid is smaller than one cluster\n");
     return 2;
   }
 #endif
-  int blocks_per_sm = grid / target.res.num_sms;
+  int blocks_per_sm = std::max(1, grid / target.res.num_sms);
 #if TILEMEGA_PLACEMENT == 1
   // The `pair` placement needs the residency the grid was sized from.
   TILEMEGA_CUDA_CHECK(cudaMemcpyToSymbol(tilemega_blocks_per_sm, &blocks_per_sm,
                                          sizeof(int)));
 #endif
   DeviceModel model = Create(spec, runtime_variant, runtime_variant_index,
-                             dims, fixture_dir, grid, blocks_per_sm);
+                             dims, fixture_dir, grid, blocks_per_sm, target, l2_smem_bytes);
   PrepareEvents(model, grid);
 
   Reset(model);

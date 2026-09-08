@@ -16,6 +16,7 @@
 #include <cooperative_groups.h>
 
 #include <tilemega/Target/ArchDispatch.h>
+#include <tilemega/Codegen/tasks/EventSync.cuh>
 
 #include <cstdint>
 
@@ -85,6 +86,20 @@ struct ClusterSync {
     return rank == 0u ? self : nullptr;
   }
 
+  /// Nonblocking counterpart to StageBarrier's local closure. Queue workers
+  /// need not visit the same event together; an event's last local arrival
+  /// represents its cluster at the global level. The owner remains alive
+  /// until the kernel's final cluster Sync.
+  __device__ static unsigned long long* CounterPeer(unsigned long long* self,
+                                                    unsigned rank) {
+    if constexpr (kEnabled) {
+#if defined(_CG_HAS_CLUSTER_GROUP)
+      return cooperative_groups::this_cluster().map_shared_rank(self, rank);
+#endif
+    }
+    return rank == 0u ? self : nullptr;
+  }
+
   /// Point-to-point release (§8.5): every write this CTA published must be
   /// visible before the epoch a peer polls. The fence is cluster-scoped and
   /// not device-scoped precisely because the consumer is another CTA of the
@@ -143,7 +158,7 @@ struct ClusterSync {
           __threadfence();
           atomicExch(epoch, iteration + 1ull);
         } else {
-          while (atomicAdd(epoch, 0ull) < iteration + 1ull) __nanosleep(64);
+          while (EventPoll(epoch) < iteration + 1ull) __nanosleep(64);
         }
       }
       __syncthreads();

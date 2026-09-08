@@ -226,13 +226,50 @@ enum RuntimeOwnershipFlag : std::uint32_t {
   kCombinerTileOwnership = 1u << 3,
 };
 
-/// §8.4: one 128 B line per event so two counters never share a line.
+#ifndef TILEMEGA_EVENT_SPLIT_LINES
+#define TILEMEGA_EVENT_SPLIT_LINES 0
+#endif
+/// T1.2: arrivals and epoch can each occupy their own 128 B line. Every user
+/// addresses the named fields and allocates by sizeof(EventCounter).
 struct alignas(128) EventCounter {
   unsigned long long arrivals;
+#if TILEMEGA_EVENT_SPLIT_LINES
+  alignas(128) unsigned long long epoch;
+#else
   unsigned long long epoch;
   unsigned char padding[112];
+#endif
 };
-static_assert(sizeof(EventCounter) == 128, "event cache-line padding");
+static_assert(sizeof(EventCounter) == (TILEMEGA_EVENT_SPLIT_LINES ? 256 : 128),
+              "event cache-line padding");
+static_assert(alignof(EventCounter) == 128, "event cache-line alignment");
+
+#ifndef TILEMEGA_EVENT_SHARDED
+#define TILEMEGA_EVENT_SHARDED 0
+#endif
+#ifndef TILEMEGA_EVENT_SHARDS
+#define TILEMEGA_EVENT_SHARDS 0
+#endif
+#ifndef TILEMEGA_EVENT_CLUSTER_FANIN
+#define TILEMEGA_EVENT_CLUSTER_FANIN 0
+#endif
+#ifndef TILEMEGA_EVENT_CLUSTER_RESERVE
+#define TILEMEGA_EVENT_CLUSTER_RESERVE TILEMEGA_EVENT_CLUSTER_FANIN
+#endif
+#ifndef TILEMEGA_EVENT_RELEASE_STORE
+#define TILEMEGA_EVENT_RELEASE_STORE 0
+#endif
+static_assert(!TILEMEGA_EVENT_RELEASE_STORE,
+              "T1.4 disabled pending a complete multi-level release proof");
+static_assert(!TILEMEGA_EVENT_CLUSTER_FANIN || TILEMEGA_EVENT_SHARDED,
+              "cluster fan-in requires the two-level event protocol");
+struct alignas(128) ArrivalCounter {
+  unsigned long long arrivals;
+};
+static_assert(sizeof(ArrivalCounter) == 128, "one first-level counter per line");
+struct EventFanIn {
+  std::uint32_t begin, modulus, nonempty, first_cluster;
+};
 
 /// The device-side view of a model.  Every large table is reached through a
 /// device pointer (F-17b); nothing is passed by value into the kernel.
@@ -266,6 +303,13 @@ struct Params {
   TaskTrace* task_trace;                 ///< nullptr unless profiling
   unsigned long long* trace_sequence;    ///< nullptr unless profiling
   std::uint32_t ownership_flags;
+  EventFanIn const* event_fanin;
+  ArrivalCounter* shard_arrivals;
+  std::uint32_t const* shard_targets;
+  std::uint32_t event_shard_count;
+  std::uint32_t const* shard_local_offsets;
+  std::uint32_t const* cluster_shard_offsets;
+  std::uint32_t const* cluster_shard_indices;
 };
 
 /// Everything the generator emits about one model.  The harness reads only

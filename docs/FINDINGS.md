@@ -1953,3 +1953,79 @@
   the bare queue loop is faster than barrier-free L1.
 - Evidence: docs/experiments/COARSEN/, docs/experiments/E2E_L2/,
   docs/experiments/L2_ATTRIB/.
+
+## F-87 — BF16 TC already wins 37.66% of the pre-change resource vectors
+
+- ✅ T2.1 on baseline c4f4123 calls `CostModel::Steady` and
+  `ResourceVector::BottleneckName` for every accepted dtype-specific ORACLE
+  configuration. BF16 TC wins 290/770 GQA configurations and 174/462 MHA
+  configurations; L2 wins the remainder. FP32 has 1047 SMEM and 30 CUDA
+  winners out of 1077 on each model.
+- ❌ The T1/T2/T3 task's proposed attribution “register-resident peak TC never
+  wins, so BF16 degenerates to one feature” is falsified. The TC and L2 work
+  terms already have different geometry (tile area versus perimeter). This
+  neither validates the peak calibration nor resolves the poor ranking.
+  Per the explicit stop rule, no achieved-rate substitution is attempted.
+  The user clarified that this gate pauses only T2; independent T1/T3 work
+  continues.
+- ✅ The first proposed correction, notify rather than wait dominates the
+  positive L2 overhead, agrees with F-86 and the existing four-arm evidence:
+  mha4/128 has notify 171.008 us versus wait 53.312 us. ⚠️ The second proposed
+  correction, single-word atomic fan-in amplified by RMW polls, remains an
+  untested causal hypothesis; no T1 intervention has yet isolated it.
+- ⚠️ The current BF16 MHA screen has 308 RUNFAIL rows and 462 PASS rows; the
+  FP32 1077 denominator cannot be reused for BF16. The diagnostic preserves
+  all per-configuration vectors and hashes its input files. It performs no
+  GPU work and cannot attribute those existing failures.
+- Code: `tools/tilemega-costmodel.cpp:219`, `lib/Solver/CostModel.cpp:118`,
+  `lib/Solver/CostModel.cpp:297`, `lib/Solver/CostModel.cpp:301`.
+- Evidence: `docs/experiments/COST_MODEL/result.md` T2.1 and `t2_before/`;
+  reproduce with `docs/experiments/COST_MODEL/run_bottlenecks.sh`.
+
+## F-88 — isl can schedule finite task C; proximity does not guarantee smaller worker-slot spans
+
+- ✅ The offline probe derives C from one reference decoder variant, sets
+  both isl validity and proximity to C, and checks every edge against the
+  returned lexicographic schedule. Six cases (seq 4/128/512, workers 16/256)
+  are legal; C plus the materialized worker queue edges is acyclic.
+- ✅ At seq=512, workers=16, slot p95/max increase from 677/772 in the
+  stage-major control to 797/896 after lexicographic flattening and cyclic
+  worker assignment. A legal isl schedule is not itself a locality win.
+- ⚠️ This enumerates a fixed finite 18-operator analysis graph, not the
+  production 30-stage graph or a symbolic worker mapping. All grids fit
+  resident_limit=256. No parametric bound or overresident I3 proof is claimed.
+- The initial mapping enumeration was unbounded outside the actual task
+  domain; intersecting the returned map with that domain fixes enumeration
+  without weakening validity. The tool checks task count and uniqueness.
+- Code: `tools/tilemega-affine-probe.cpp:107`, `:136`, `:150`, `:169`.
+  Evidence: `docs/experiments/AFFINE_PROBE/result.md` and `raw/`.
+
+## F-89 — T1 sharded notification fails its performance gate
+
+- ✅ Frozen-source base versus load+split+S128, four arms and 25 paired rounds
+  per model/seq: notify increases by 15.552 / 14.112 / 27.648 / 25.568 us for
+  gqa2/4, gqa2/128, mha4/4, mha4/128. All paired 95% intervals are positive;
+  all two-sided signed-rank p values are approximately 1.31e-5.
+- ✅ Notify remains the largest positive component; loop is negative and
+  the four-arm accounting identity closes with zero numerical error. Load
+  alone, split lines alone and their combination previously showed no
+  significant notify reduction. In the four-arm definition, poll/notify
+  contention interactions belong to full-minus-nowait, not nowait-minus-neither.
+- ❌ The second proposed attribution's intervention prediction is not met.
+  Extra first-level atomics, plan reads and compiler resource costs are
+  plausible explanations, not isolated findings. No claim that atomic
+  contention is absent follows from this negative intervention.
+- ✅ Final full arms plus extra checks give 50/50 fresh processes for each
+  model/seq/state (400/400 total). Earlier independent load/line checks are
+  800/800, shard exploration 1600/1600, and kappa=4 checks 200/200. None is
+  mislabeled as the requested complete 1500 seq/past matrix.
+- Per the user's stop condition, T1 is paused before the full matrix,
+  seq=512 E2E and full kappa retuning. All switches remain available and off.
+  T1.4 is intentionally unimplemented pending its release proof. Cluster B
+  only cross-compiles; the sm_120 manual script is not a hardware result.
+  T2 is independently paused by F-87; T3 is complete within F-88's scope.
+- Code: `EventSync.cuh:13`, `ModelRuntime.h:234`,
+  `ModelHarness.cuh:425`, `ModelHarness.cuh:580` (all in
+  `include/tilemega/Codegen/tasks/`); `lib/Codegen/Codegen.cpp:364`.
+  Evidence: `docs/experiments/L2_ATTRIB/t1_result.md`, `t1_final/`,
+  `raw_t1_final/`; updated E2E_L2 and COARSEN status sections.

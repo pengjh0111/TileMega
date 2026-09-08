@@ -364,7 +364,7 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
 std::string SyncEmitter::EmitWait(std::string const& event) const {
   return "#define TILEMEGA_GENERATED_WAIT_" + event +
       "(ev, need) do { \\\n"
-      "  while (atomicAdd((ev), 0ull) < (need)) __nanosleep(64); \\\n"
+      "  while (::tilemega::codegen::EventPoll((ev)) < (need)) __nanosleep(64); \\\n"
       "} while (0)\n";
 }
 

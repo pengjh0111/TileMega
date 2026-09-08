@@ -1,5 +1,22 @@
 # Queue-driven L2 end-to-end result
 
+## T1 intervention (2026-09-08)
+
+新的 seq=4/128 分片探索扫描见 [T1 report](../L2_ATTRIB/t1_result.md)，
+含每格 25 轮配对 L2/L1 与 bootstrap 区间。该扫描不代替冻结源码的最终四臂
+归因门槛，也尚未覆盖 seq=512。下文保留的是 T1 改动前结果，不是本轮新数据。
+
+❌ 冻结源码最终四臂发现 notify 显著增加，按停止规则不扩展到 seq=512。
+以下是该最终数据的进程内 L2/L1 中位数及 95% bootstrap CI（每格 25 轮），
+完整配对差/Wilcoxon 位于 `../L2_ATTRIB/t1_final/paired.tsv`：
+
+| model / seq | base L2/L1 [CI] | load+split+S128 L2/L1 [CI] |
+|---|---|---|
+| gqa2 / 4 | 1.071096 [1.067080, 1.072403] | 1.106965 [1.106436, 1.109168] |
+| gqa2 / 128 | 1.071429 [1.071041, 1.072114] | 1.096233 [1.094551, 1.098136] |
+| mha4 / 4 | 1.085350 [1.082968, 1.086995] | 1.115138 [1.111622, 1.117543] |
+| mha4 / 128 | 1.090238 [1.089263, 1.091842] | 1.118637 [1.117069, 1.119201] |
+
 Evidence status: ✅ measured on RTX 4090 (`sm_89`), BF16, 2026-09-07, after
 logical-task events, kAll aggregation, and selective event publication. Every
 number from the stage loop and the two intermediate queue implementations is

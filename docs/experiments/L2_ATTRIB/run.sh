@@ -5,6 +5,20 @@
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "${here}/../../.." && pwd)"
+# T1 controls regenerate sources: archived generated files contain their own
+# WAIT macro and therefore cannot be used to test the new polling switch.
+if [[ -n "${T1_VARIANTS:-}" ]]; then
+  t1_out="${OUT_DIR:-${here}/raw_t1_repro}"
+  python3 "${here}/run_t1.py" --out "${t1_out}" \
+    --variants "${T1_VARIANTS}" --runs "${RUNS:-25}" \
+    --correctness-runs "${CORRECTNESS_RUNS:-50}" \
+    --seqs "${SEQS:-4,128}" --kappa "${KAPPA:-1}" \
+    --phases "${PHASES:-build,correctness,attrib}"
+  python3 "${here}/summarize_t1.py" "${t1_out}/attrib.tsv" \
+    --baseline "${T1_BASELINE:-base}" --expected-rounds "${RUNS:-25}" \
+    --out "${t1_out}/report"
+  exit 0
+fi
 raw="${here}/raw_taskqueue"
 build="${BUILD_DIR:-${repo}/build-portable}"
 nvcc="${CUDACXX:-/usr/local/cuda/bin/nvcc}"

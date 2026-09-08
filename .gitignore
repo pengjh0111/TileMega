@@ -64,3 +64,6 @@ docs/experiments/COARSEN/raw/bin/
 docs/experiments/COARSEN/raw/kappa_probe
 docs/experiments/PLACE/raw/bin/
 docs/experiments/PLACE/raw/place_probe
+docs/experiments/L2_ATTRIB/raw_t1*/bin/
+docs/experiments/L2_ATTRIB/raw_t1*/src/
+docs/experiments/L2_ATTRIB/raw_t1*/log/
