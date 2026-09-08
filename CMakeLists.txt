@@ -213,6 +213,11 @@ target_link_libraries(tilemega-symbolic-probe PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-symbolic-probe PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
+add_executable(tilemega-affine-probe tools/tilemega-affine-probe.cpp)
+target_link_libraries(tilemega-affine-probe PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-affine-probe PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
 add_executable(tilemega-costmodel tools/tilemega-costmodel.cpp)
 target_link_libraries(tilemega-costmodel PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-costmodel PROPERTIES
