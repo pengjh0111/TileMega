@@ -28,6 +28,10 @@
 #include <string>
 #include <vector>
 
+#ifndef TILEMEGA_COSTMODEL_BOTTLENECK_DIAGNOSTICS
+#define TILEMEGA_COSTMODEL_BOTTLENECK_DIAGNOSTICS 1
+#endif
+
 namespace {
 
 using tilemega::TargetSpec;
@@ -207,12 +211,65 @@ double Tier2Key(CandidateGenerator const& generator, GemmConfig const& c,
   return generator.RankKey(BackendCandidate(traits), problems);
 }
 
+#if TILEMEGA_COSTMODEL_BOTTLENECK_DIAGNOSTICS
+// One vote per measured configuration, using precisely the steady-state
+// vector used by GemmStageNs: its residency and model working-set miss rate.
+// Every lane scales linearly with residency, so full and tail waves have the
+// same winning lane in the present model. Keep all lane values for audit.
+void ReportBottlenecks(std::string const& out_dir, std::string const& name,
+                       ModelDescription const& model, CostModel const& cost,
+                       std::vector<Point> const& points) {
+  if (points.empty()) throw std::runtime_error("empty histogram input: " + name);
+  std::ofstream detail(out_dir + "/bottlenecks_" + name + ".tsv");
+  std::ofstream histogram(out_dir + "/histogram_" + name + ".tsv");
+  if (!detail || !histogram)
+    throw std::runtime_error("cannot write bottleneck reports in " + out_dir);
+  detail << "tile_m\ttile_n\ttile_k\tstages\tsplit\toccupancy\tbottleneck";
+  std::map<std::string, std::size_t> counts;
+  for (int i = 0; i < ResourceVector::kLaneCount; ++i) {
+    auto const lane = static_cast<ResourceVector::Lane>(i);
+    counts[ResourceVector::LaneName(lane)] = 0;
+    detail << '\t' << ResourceVector::LaneName(lane) << "_ns";
+  }
+  detail << '\n' << std::setprecision(17);
+  double const miss = 1.0 - cost.CacheHitProbability(model.LiveFootprintBytes());
+  for (auto const& point : points) {
+    auto const& c = point.config;
+    auto const u = cost.Steady(c, point.ctas_per_sm, miss);
+    if (!(u.Bottleneck() > 0.0))
+      throw std::runtime_error("all-zero resource vector: " + ShapeKey(c));
+    ++counts[u.BottleneckName()];
+    detail << c.tile_m << '\t' << c.tile_n << '\t' << c.tile_k << '\t'
+           << c.stages << '\t' << c.split_k << '\t' << point.ctas_per_sm
+           << '\t' << u.BottleneckName();
+    for (int i = 0; i < ResourceVector::kLaneCount; ++i)
+      detail << '\t' << u[static_cast<ResourceVector::Lane>(i)];
+    detail << '\n';
+  }
+  char const* dtype = model.dtype == ScalarType::kBF16 ? "bf16" : "f32";
+  histogram << "dtype\tmodel\tlane\tstatus\tcount\ttotal\tpercent\n";
+  for (int i = 0; i < ResourceVector::kLaneCount; ++i) {
+    auto const lane = static_cast<ResourceVector::Lane>(i);
+    auto const count = counts.at(ResourceVector::LaneName(lane));
+    histogram << dtype << '\t' << name << '\t' << ResourceVector::LaneName(lane)
+              << '\t' << LaneStatusName(cost.lane_status(lane)) << '\t'
+              << count << '\t' << points.size() << '\t' << std::setprecision(9)
+              << 100.0 * count / points.size() << '\n';
+    std::cout << "BOTTLENECK dtype=" << dtype << " model=" << name
+              << " lane=" << ResourceVector::LaneName(lane)
+              << " count=" << count << " total=" << points.size() << '\n';
+  }
+}
+#endif
+
 }  // namespace
 
 int main(int argc, char** argv) try {
   std::string repo = ".";
   std::string out_dir = "docs/experiments/COST_MODEL/raw";
   std::string screen_dir;
+  std::string register_dir;
+  bool histogram_only = false;
   std::string gqa_cu;
   std::string mha_cu;
   ScalarType dtype = ScalarType::kF32;
@@ -221,6 +278,8 @@ int main(int argc, char** argv) try {
     if (arg == "--repo" && i + 1 < argc) repo = argv[++i];
     else if (arg == "--out" && i + 1 < argc) out_dir = argv[++i];
     else if (arg == "--screen-dir" && i + 1 < argc) screen_dir = argv[++i];
+    else if (arg == "--register-dir" && i + 1 < argc) register_dir = argv[++i];
+    else if (arg == "--histogram-only") histogram_only = true;
     else if (arg == "--gqa-cu" && i + 1 < argc) gqa_cu = argv[++i];
     else if (arg == "--mha-cu" && i + 1 < argc) mha_cu = argv[++i];
     else if (arg == "--dtype" && i + 1 < argc) {
@@ -230,9 +289,15 @@ int main(int argc, char** argv) try {
       else { std::cerr << "--dtype must be f32 or bf16\n"; return 2; }
     } else { std::cerr << "usage: tilemega-costmodel [--repo DIR] [--out DIR]"
                          " [--dtype f32|bf16] [--screen-dir DIR]"
+                         " [--register-dir DIR] [--histogram-only]"
                          " [--gqa-cu FILE] [--mha-cu FILE]\n"; return 2; }
   }
   if (screen_dir.empty()) screen_dir = repo + "/docs/experiments/ORACLE/raw";
+  if (register_dir.empty()) register_dir = out_dir;
+#if !TILEMEGA_COSTMODEL_BOTTLENECK_DIAGNOSTICS
+  if (histogram_only)
+    throw std::runtime_error("bottleneck diagnostics disabled at compile time");
+#endif
   if (gqa_cu.empty()) gqa_cu = repo + "/docs/experiments/E2E_GEN/raw/generated_e2e.cu";
   if (mha_cu.empty()) mha_cu = repo + "/docs/experiments/P3_GENERALIZATION/raw/generated.cu";
   TargetSpec const target = TargetSpec::FromJson(repo + "/configs/targets/sm_89.json");
@@ -281,16 +346,19 @@ int main(int argc, char** argv) try {
       {"full+envelope", with_envelope}, {"full-lanes(smem only)", smem_only},
   };
 
-  std::ofstream summary(out_dir + "/summary.tsv");
-  if (!summary) throw std::runtime_error("cannot write " + out_dir + "/summary.tsv");
-  summary << "model\tlayer\tn\tmape_pct\tspearman\ttop1\ttop3\ttop10\toptimum_rank\n";
+  std::ofstream summary;
+  if (!histogram_only) {
+    summary.open(out_dir + "/summary.tsv");
+    if (!summary) throw std::runtime_error("cannot write " + out_dir + "/summary.tsv");
+    summary << "model\tlayer\tn\tmape_pct\tspearman\ttop1\ttop3\ttop10\toptimum_rank\n";
+  }
 
   double worst_eval_us = 0.0;
   for (auto const& source : sources) {
     int missing = 0;
     int occupancy_mismatches = 0;
     auto const registers =
-        ReadRegisters(out_dir + "/registers_" + source.name + ".tsv");
+        ReadRegisters(register_dir + "/registers_" + source.name + ".tsv");
     auto const points =
         ReadScreen(screen_dir + "/screen_" + source.name + ".tsv",
                    registers, target, dtype, &missing, &occupancy_mismatches);
@@ -306,6 +374,11 @@ int main(int argc, char** argv) try {
               << (missing ? " [WARNING: shapes without ptxas registers]" : "")
               << " occupancy_feature_mismatches=" << occupancy_mismatches
               << '\n';
+#if TILEMEGA_COSTMODEL_BOTTLENECK_DIAGNOSTICS
+    if (missing) throw std::runtime_error("incomplete histogram: missing registers");
+    ReportBottlenecks(out_dir, source.name, model, full, points);
+#endif
+    if (histogram_only) continue;
 
     std::vector<GemmProblem> problems;
     for (auto const& gemm : model.gemms)
@@ -379,8 +452,9 @@ int main(int argc, char** argv) try {
     PrintScore(summary, source.name, "tier2-baseline", reported);
     PrintScore(std::cout, source.name, "tier2-baseline", reported);
   }
-  std::cout << "worst per-configuration evaluation: " << worst_eval_us
-            << " us\n";
+  if (!histogram_only)
+    std::cout << "worst per-configuration evaluation: " << worst_eval_us
+              << " us\n";
   return 0;
 } catch (std::exception const& error) {
   std::cerr << "tilemega-costmodel: " << error.what() << '\n';

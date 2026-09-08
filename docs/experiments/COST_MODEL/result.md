@@ -1,5 +1,64 @@
 # P4.4 — analytical cost model, validated on the 2154 measured points
 
+## T2.1 gate — 2026-09-08, source baseline c4f4123
+
+✅ **The requested pre-change diagnostic falsifies the hypothesis that BF16
+TC never wins the resource max.** No calibration or cost-model formula was
+changed. Per the task's §6 stop condition, T2.2–T2.4 are paused at this gate.
+The user clarified that the independent T1/T3 work continues; this diagnostic
+introduces no performance claim.
+
+Reproduce with `bash docs/experiments/COST_MODEL/run_bottlenecks.sh`. The tool
+calls the actual `CostModel::Steady` and `ResourceVector::BottleneckName`, with
+one vote per measured configuration and the recorded CUDA occupancy. Counts
+include all nine lanes; zero lanes remain visible with their status reason.
+`t2_before/{f32,bf16}/bottlenecks_*.tsv` retain each configuration and all nine
+lane values, `histogram_*.tsv` contain the reductions, and `inputs.sha256`
+identifies the input data.
+
+| dtype | model | accepted configurations | tc | cuda | smem | l2 | other lanes |
+|---|---|---:|---:|---:|---:|---:|---:|
+| FP32 | gqa2 | 1077 | 0 | 30 | 1047 | 0 | 0 |
+| FP32 | mha4 | 1077 | 0 | 30 | 1047 | 0 | 0 |
+| BF16 | gqa2 | 770 | **290 (37.6623%)** | 0 | 0 | 480 | 0 |
+| BF16 | mha4 | 462 | **174 (37.6623%)** | 0 | 0 | 288 | 0 |
+
+⚠️ The 1077 count belongs to each FP32 oracle. The current BF16 files contain
+770 rows each: GQA has 770 PASS, MHA has 462 PASS and 308 RUNFAIL. The existing
+`ReadScreen` excludes failed configurations. We retain those denominators;
+there are no invented BF16 measurements or substituted FP32 occupancies.
+The 308 failures predate this diagnostic, which launches no kernels. Their
+cause is not established by this run, and this report does not reuse the older
+770-point MHA ranking as though it described the current input file.
+
+The result is also directly explained by the unmodified formula. For BF16,
+`u.tc/u.l2 = (Tm*Tn/(Tm+Tn)) * (l2_gbps/tc_bf16_gflops)`; occupancy, Tk and
+the SM count cancel. The current rates are 5111.807956 GB/s and
+179986.8903 GFLOP/s. TC wins when `Tm*Tn/(Tm+Tn) > 35.2100259`.
+For `128x128x16s3k1` at occupancy 2, the actual vector has TC **745.708356 ns**
+and L2 **410.256414 ns**. Thus the existing model already distinguishes an
+area-based compute feature from a perimeter-based traffic feature. This does
+not prove the peak rate is appropriate; it disproves the proposed reason for
+changing it. BF16 ranking accuracy remains unresolved.
+
+Code locations:
+
+- `tools/tilemega-costmodel.cpp:219`: histogram and per-configuration output;
+  line 31: independent compile switch
+  `TILEMEGA_COSTMODEL_BOTTLENECK_DIAGNOSTICS=0|1` (default 1).
+- `tools/tilemega-costmodel.cpp:100`: input eligibility; line 122: recorded
+  occupancy; `--histogram-only` avoids overwriting score/prediction reports.
+- `lib/Solver/CostModel.cpp:118`: the actual argmax;
+  line 149: peak rate selection; lines 297/301: TC/L2 work terms.
+- `lib/Solver/CostModel.cpp:166`: BF16 SMEM remains `not_calibrated`.
+
+✅ The diagnostic target builds and `check-policy` passes. FP32 and BF16
+production cost formulas, calibration files, generator and kernels are
+unchanged; no synchronization correctness claim is made by this CPU analysis.
+
+The sections below are historical ranking evaluations, with their own input
+sets and dates, rather than new T2 measurements.
+
 Reproduce: `bash docs/experiments/COST_MODEL/run.sh` (no GPU needed; a few
 seconds). Inputs are all committed: `ORACLE/raw/screen_{gqa2,mha4}.tsv` for the
 measured latencies, `ORACLE/raw/log/*.ptxas` for the register counts,

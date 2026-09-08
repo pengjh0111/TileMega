@@ -1,0 +1,10 @@
+dtype	model	lane	status	count	total	percent
+f32	mha4	tc	live	0	1077	0
+f32	mha4	cuda	live	30	1077	2.78551532
+f32	mha4	sfu	live	0	1077	0
+f32	mha4	tmem	capability_absent	0	1077	0
+f32	mha4	smem	live	1047	1077	97.2144847
+f32	mha4	l1_5	capability_absent	0	1077	0
+f32	mha4	l2	live	0	1077	0
+f32	mha4	ddr	live	0	1077	0
+f32	mha4	net	capability_absent	0	1077	0

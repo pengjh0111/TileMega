@@ -1,0 +1,21 @@
+fit: lds=0.864813 ns/instr (rel rms 5.46011%), setup=-132.126 ns (rms 210.222 ns), over 12 calibrated (shape, CTAs/SM) points
+gqa2: 1077 measured points, 14 GEMMs, 30 generated stages, footprint 18.4551 MiB, L2 hit 1 occupancy_feature_mismatches=2
+BOTTLENECK dtype=f32 model=gqa2 lane=tc count=0 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=cuda count=30 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=sfu count=0 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=tmem count=0 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=smem count=1047 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=l1_5 count=0 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=l2 count=0 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=ddr count=0 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=net count=0 total=1077
+mha4: 1077 measured points, 28 GEMMs, 60 generated stages, footprint 41.0234 MiB, L2 hit 1 occupancy_feature_mismatches=2
+BOTTLENECK dtype=f32 model=mha4 lane=tc count=0 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=cuda count=30 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=sfu count=0 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=tmem count=0 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=smem count=1047 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=l1_5 count=0 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=l2 count=0 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=ddr count=0 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=net count=0 total=1077
