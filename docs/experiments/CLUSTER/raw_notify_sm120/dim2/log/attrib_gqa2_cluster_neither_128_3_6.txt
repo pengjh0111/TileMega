@@ -1,0 +1,16 @@
+E2E_CLUSTER_FANIN dim=2 local_counters=43 needed_smem=24920 reserved_smem=101376
+E2E_FANIN shards=85 first_level_counters=2864 bytes=366592
+E2E_RESOURCE block=128 reg=ptxas smem=24576 gemm_union=24576 variant_count=1 ctas_per_sm=1 num_sms=170 grid=170 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=170 variant_stages=30 task_refs=4416 task_ref_bytes=123648 waits=6692 wait_bytes=53536 raw_polls=9868 lifted_polls=3176 waiting_tasks=3236 normalization_dummies_lb=3456 max_span=10 generated_max_span=10 max_worker_span=169 resident_limit=170 global_fanin=1 i3_current=pass i3_overresident=reject
+E2E_TIME l05_ms=0.624992 l1_ms=0.609152 ratio=0.974656 l2_ms=0.562240 l2_over_l1=0.922988
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.03125 max_rel=3906.25 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=183334 max_abs=2.546875 max_rel=203125
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.03125 max_rel=2929.6875
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0.001953125 max_rel=0.02
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0.0078125 max_rel=0.0071942448
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.015625 max_rel=3906.25
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.015625 max_rel=11.792899
+E2E_HASH l05=73b563e921a57327 l1=73b563e921a57327 l2=6a706e8fb63d8520
+E2E_ITER l2_iter1_ms=0.561280 l2_iter1_vs_iter0_mismatch=599 max_abs=0.32421875
+E2E_KAPPA event_kappa=4 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=MISMATCH

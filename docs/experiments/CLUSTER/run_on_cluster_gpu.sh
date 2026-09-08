@@ -25,7 +25,7 @@ trap 'rm -rf "$work"' EXIT
 find_mlir_dir() {
   if [[ -n "${MLIR_DIR:-}" ]]; then echo "${MLIR_DIR}"; return 0; fi
   local cache
-  for cache in "${root}"/build*/CMakeCache.txt; do
+  for cache in "${TILEMEGA_ROOT}"/build*/CMakeCache.txt; do
     [[ -e "${cache}" ]] || continue
     local found
     found=$(sed -n 's/^MLIR_DIR:[^=]*=//p' "${cache}" | head -1)

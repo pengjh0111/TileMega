@@ -80,7 +80,7 @@ if 'build' in phases:
                         ('include', 'third_party/cutlass/include',
                          'third_party/cutlass/tools/util/include', 'third_party/cutlass/test')]
                 cmd += flags(variant) + extra + [str(src), str(build / 'libtilemega.a'),
-                       '-L/usr/local/cuda/lib64', '-lcudart', '-o',
+                       '-L/usr/local/cuda-12.8/lib64', '-lcudart', '-o',
                        str(out / 'bin' / f'{model}_{variant}_{arm}')]
                 with (out / 'log' / f'{model}_{variant}_{arm}.build').open('w') as log:
                     subprocess.run(cmd, stdout=log, stderr=log, check=True)
