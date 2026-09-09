@@ -1,0 +1,45 @@
+{
+  "arguments": {
+    "models": [
+      "gqa2"
+    ],
+    "splits": [
+      4
+    ],
+    "pasts": [
+      0
+    ],
+    "order": 1,
+    "partition_workers": 1,
+    "tool": "/root/TileMega/build-portable/tools/tilemega-runtime-projection",
+    "runs": 1,
+    "out": "docs/experiments/EVENT_COST/runtime_projection/balanced_partition_k4_p0",
+    "runtime_logs": "docs/experiments/EVENT_COST/split_order_matrix/logs"
+  },
+  "tool_sha256": "6f6c8e5d94aee206e74bac873811d18ed7ae3479b3c4f89f815d315f1868b3cb",
+  "commands": [
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-runtime-projection",
+        "/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+        "256",
+        "128",
+        "1",
+        "0",
+        "128",
+        "128",
+        "16",
+        "3",
+        "4",
+        "tile",
+        "1",
+        "1"
+      ],
+      "seconds": 600.0601002951153,
+      "result": "TIMEOUT",
+      "returncode": null
+    }
+  ],
+  "archive_comparisons": 0,
+  "unverified_cells": []
+}

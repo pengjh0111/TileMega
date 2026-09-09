@@ -1,0 +1,20 @@
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x000055952f67e1e1 in isl_tab_pivot ()
+
+Thread 1 (Thread 0x7ff371b0c000 (LWP 2554727) "tilemega-runtim"):
+#0  0x000055952f67e1e1 in isl_tab_pivot ()
+#1  0x000055952f683be7 in isl_tab_min ()
+#2  0x000055952f6b18a0 in solve_lp ()
+#3  0x000055952f6b22da in isl_tab_compute_reduced_basis ()
+#4  0x000055952f65d991 in isl_tab_sample ()
+#5  0x000055952f5dab19 in outside_point ()
+#6  0x000055952f5db5e7 in extend_affine_hull ()
+#7  0x000055952f5db74d in uset_affine_hull_bounded.part ()
+#8  0x000055952f5dbb32 in isl_basic_map_detect_equalities ()
+#9  0x000055952f610ab9 in isl_map_inline_foreach_basic_map ()
+#10 0x000055952f5dca00 in isl_map_affine_hull ()
+#11 0x000055952f64ae42 in isl_qpolynomial_gist ()
+#12 0x000055952f656a17 in isl_pw_qpolynomial_union_add_ ()
+#13 0x000055952f29f0ff in tilemega::analysis::QuasiPolynomial::Sum(std::vector<tilemega::analysis::QuasiPolynomial, std::allocator<tilemega::analysis::QuasiPolynomial> > const&) ()
+[Inferior 1 (process 2554727) detached]

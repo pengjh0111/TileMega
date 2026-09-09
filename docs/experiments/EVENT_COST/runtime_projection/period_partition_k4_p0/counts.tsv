@@ -1,0 +1,6 @@
+model	seq	past	split	kappa	stages	task_refs	waits	max_worker_tasks	archive_processes	comparison
+gqa2	1	0	4	1	44	354	465	44	1	EXACT_RUNTIME_MATCH
+gqa2	4	0	4	1	44	456	1038	44	1	EXACT_RUNTIME_MATCH
+gqa2	128	0	4	1	44	4672	24678	48	1	EXACT_RUNTIME_MATCH
+gqa2	512	0	4	1	44	18688	97546	96	1	EXACT_RUNTIME_MATCH
+gqa2	2048	0	4	1	44	74752	388638	304	1	EXACT_RUNTIME_MATCH

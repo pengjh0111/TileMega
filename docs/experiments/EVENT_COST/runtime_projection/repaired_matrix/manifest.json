@@ -1,0 +1,67 @@
+{
+  "arguments": {
+    "models": [
+      "gqa2",
+      "mha4"
+    ],
+    "splits": [
+      1,
+      2,
+      4,
+      8,
+      16
+    ],
+    "pasts": [
+      0,
+      3,
+      512
+    ],
+    "order": 1,
+    "runs": 1,
+    "out": "docs/experiments/EVENT_COST/runtime_projection/repaired_matrix",
+    "runtime_logs": "docs/experiments/EVENT_COST/split_order_matrix/logs"
+  },
+  "tool_sha256": "1656d2ae05b82027a63f8b10f26b185fdcab88f90339ac07a62417c38b3e0756",
+  "commands": [
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-runtime-projection",
+        "/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+        "256",
+        "128",
+        "1",
+        "symbolic",
+        "128",
+        "128",
+        "16",
+        "3",
+        "1",
+        "tile",
+        "1"
+      ],
+      "seconds": 129.29562848783098,
+      "returncode": 0
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-runtime-projection",
+        "/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+        "256",
+        "128",
+        "1",
+        "symbolic",
+        "128",
+        "128",
+        "16",
+        "3",
+        "2",
+        "tile",
+        "1"
+      ],
+      "seconds": 167.11198422894813,
+      "returncode": 0
+    }
+  ],
+  "archive_comparisons": 1560,
+  "unverified_cells": []
+}

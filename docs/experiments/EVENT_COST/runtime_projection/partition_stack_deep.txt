@@ -1,0 +1,22 @@
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x00007ff3725d5718 in __gmpz_mul () from /lib/x86_64-linux-gnu/libgmp.so.10
+#0  0x00007ff3725d5718 in __gmpz_mul () from /lib/x86_64-linux-gnu/libgmp.so.10
+#1  0x000055952f67e1ec in isl_tab_pivot ()
+#2  0x000055952f683be7 in isl_tab_min ()
+#3  0x000055952f6b18a0 in solve_lp ()
+#4  0x000055952f6b22da in isl_tab_compute_reduced_basis ()
+#5  0x000055952f65d991 in isl_tab_sample ()
+#6  0x000055952f5dab19 in outside_point ()
+#7  0x000055952f5db58d in extend_affine_hull ()
+#8  0x000055952f5db74d in uset_affine_hull_bounded.part ()
+#9  0x000055952f5dbb32 in isl_basic_map_detect_equalities ()
+#10 0x000055952f610ab9 in isl_map_inline_foreach_basic_map ()
+#11 0x000055952f5dca00 in isl_map_affine_hull ()
+#12 0x000055952f64ae42 in isl_qpolynomial_gist ()
+#13 0x000055952f656a17 in isl_pw_qpolynomial_union_add_ ()
+#14 0x000055952f29f0ff in tilemega::analysis::QuasiPolynomial::Sum(std::vector<tilemega::analysis::QuasiPolynomial, std::allocator<tilemega::analysis::QuasiPolynomial> > const&) ()
+#15 0x000055952f2ed062 in tilemega::solver::ProjectRuntimeQueues(tilemega::solver::ModelDescription const&, tilemega::codegen::RuntimePlan const&, tilemega::solver::RuntimeProjectionOptions)::{lambda(tilemega::analysis::CouplingRelation const&, char const*)#6}::operator()(tilemega::analysis::CouplingRelation const&, char const*) const ()
+#16 0x000055952f2f3890 in tilemega::solver::ProjectRuntimeQueues(tilemega::solver::ModelDescription const&, tilemega::codegen::RuntimePlan const&, tilemega::solver::RuntimeProjectionOptions) ()
+#17 0x000055952f1fa2b2 in main ()
+[Inferior 1 (process 2554727) detached]

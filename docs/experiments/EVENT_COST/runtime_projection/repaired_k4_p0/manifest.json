@@ -1,0 +1,42 @@
+{
+  "arguments": {
+    "models": [
+      "gqa2"
+    ],
+    "splits": [
+      4
+    ],
+    "pasts": [
+      0
+    ],
+    "order": 1,
+    "runs": 1,
+    "out": "docs/experiments/EVENT_COST/runtime_projection/repaired_k4_p0",
+    "runtime_logs": "docs/experiments/EVENT_COST/split_order_matrix/logs"
+  },
+  "tool_sha256": "1656d2ae05b82027a63f8b10f26b185fdcab88f90339ac07a62417c38b3e0756",
+  "commands": [
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-runtime-projection",
+        "/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+        "256",
+        "128",
+        "1",
+        "0",
+        "128",
+        "128",
+        "16",
+        "3",
+        "4",
+        "tile",
+        "1"
+      ],
+      "seconds": 600.1029313090257,
+      "result": "TIMEOUT",
+      "returncode": null
+    }
+  ],
+  "archive_comparisons": 0,
+  "unverified_cells": []
+}
