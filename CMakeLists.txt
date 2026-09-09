@@ -247,6 +247,10 @@ add_executable(tilemega-parametric tools/tilemega-parametric.cpp)
 add_executable(tilemega-event-cost tools/tilemega-event-cost.cpp)
 add_executable(tilemega-op-audit tools/tilemega-op-audit.cpp)
 add_executable(tilemega-task-work-probe tools/tilemega-task-work-probe.cpp)
+add_executable(tilemega-task-work-gate tools/tilemega-task-work-gate.cpp)
+target_link_libraries(tilemega-task-work-gate PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-task-work-gate PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 target_link_libraries(tilemega-task-work-probe PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-task-work-probe PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")

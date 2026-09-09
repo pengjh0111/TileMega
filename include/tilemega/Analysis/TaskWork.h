@@ -4,6 +4,7 @@
 #include <tilemega/Analysis/CouplingRelation.h>
 #include <tilemega/Analysis/QuasiPolynomial.h>
 #include <tilemega/Analysis/Semantics.h>
+#include <map>
 
 namespace tilemega::analysis {
 enum class AccessDomain { kPhysicalTensor, kNominalTile };
@@ -20,7 +21,13 @@ struct TaskWork {
   // Local reduction span after L-task splitting; the semantic reduction
   // above still describes the complete operator, not one partial.
   QuasiPolynomial task_reduce_extent;
+  QuasiPolynomial nominal_task_reduce_extent;
+};
+struct TaskWorkOptions {
+  // Inner collective tiles, supplied by implementation traits rather than
+  // operator-kind formulas. They pad issued work only, never physical R/W.
+  std::map<std::string, ClosedForm> reduction_tiles;
 };
 TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
-                       ParamBinding const& known);
+                       ParamBinding const& known, TaskWorkOptions const& options = {});
 }  // namespace tilemega::analysis

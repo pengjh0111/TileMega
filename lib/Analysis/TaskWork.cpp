@@ -63,11 +63,23 @@ CouplingRelation ElementAccess(OperatorNode const& task, AccessRelation const& a
 }
 
 TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
-                       ParamBinding const& known) {
+                       ParamBinding const& known, TaskWorkOptions const& options) {
   IslReferenceAudit audit(__func__);
 #if defined(TILEMEGA_TASK_WORK) && !TILEMEGA_TASK_WORK
   throw std::runtime_error("access-derived TaskWork is disabled");
 #endif
+  std::set<std::string> output_axes;
+  for (auto const& result:semantic.result_map.results) {
+    if (result.kind!=IndexResult::Kind::kAffine)
+      throw std::invalid_argument("non-affine output indexing cannot identify reduction axes");
+    for (auto const& term:result.terms) if (!term.coefficient.IsLiteral(0)) output_axes.insert(term.dim);
+  }
+  for (auto const& [axis,tile]:options.reduction_tiles) {
+    if (!semantic.Dim(axis) || output_axes.count(axis))
+      throw std::invalid_argument("inner tile does not name an output-absent iteration axis");
+    if (tile.Eval(known,known)<=0)
+      throw std::invalid_argument("inner reduction tile must be a positive concrete extent");
+  }
   TaskWork work;
   auto write = BuildWriteMap(task);
   auto physical = ElementAccess(task,write,known,AccessDomain::kPhysicalTensor);
@@ -78,6 +90,24 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
   std::map<std::string, std::string> layouts;
   for (std::size_t i=0;i<task.operands.size();++i) {
     auto read = BuildReadMap(task,i);
+    auto nominal_read=read;
+    if (!options.reduction_tiles.empty()) {
+      if (semantic.operands.size()!=task.operands.size() ||
+          semantic.operands[i].map.results.size()!=read.index.size())
+        throw std::invalid_argument("inner tile requires matching semantic indexing");
+      for (std::size_t axis=0;axis<read.index.size();++axis) {
+        auto const& index=semantic.operands[i].map.results[axis];
+        for (auto const& term:index.terms) {
+          auto tile=options.reduction_tiles.find(term.dim);
+          if (tile==options.reduction_tiles.end()) continue;
+          if (index.kind!=IndexResult::Kind::kAffine || index.terms.size()!=1 ||
+              !term.coefficient.IsLiteral(1) || !term.group.IsLiteral(1))
+            throw std::invalid_argument("inner tile requires an exact unit indexing axis");
+          auto extent=tile->second.Substitute(known);
+          nominal_read.index[axis].span=read.index[axis].span.CeilDiv(extent)*extent;
+        }
+      }
+    }
     if (read.tensor.name.empty()) throw std::invalid_argument("read tensor identity missing");
     auto [layout, inserted] = layouts.emplace(read.tensor.name, read.tensor.layout_id);
     if (!inserted && layout->second != read.tensor.layout_id)
@@ -86,7 +116,7 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
     relations.first = relations.first.Union(
         ElementAccess(task,read,known,AccessDomain::kPhysicalTensor));
     relations.second = relations.second.Union(
-        ElementAccess(task,read,known,AccessDomain::kNominalTile));
+        ElementAccess(task,nominal_read,known,AccessDomain::kNominalTile));
     if (std::getenv("TILEMEGA_TASK_WORK_TRACE"))
       std::cerr << "READ " << i << " physical=" << relations.first.ToString()
                 << " nominal=" << relations.second.ToString() << '\n';
@@ -100,14 +130,9 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
   }
   work.read_elements = QuasiPolynomial::Sum(reads);
   work.nominal_read_elements = QuasiPolynomial::Sum(nominal_reads);
-  std::set<std::string> output_axes;
-  for (auto const& result:semantic.result_map.results) {
-    if (result.kind!=IndexResult::Kind::kAffine)
-      throw std::invalid_argument("non-affine output indexing cannot identify reduction axes");
-    for (auto const& term:result.terms) if (!term.coefficient.IsLiteral(0)) output_axes.insert(term.dim);
-  }
   ClosedForm reduce=ClosedForm::Constant(1), parallel=ClosedForm::Constant(1);
   ClosedForm local_reduce=ClosedForm::Constant(1);
+  ClosedForm nominal_reduce=ClosedForm::Constant(1);
   for (auto const& dim:semantic.domain) {
     if (output_axes.count(dim.name)) parallel=parallel*dim.extent;
     else {
@@ -136,11 +161,18 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
       }
       if (!found) throw std::invalid_argument("reduction axis has no indexed read: "+dim.name);
       local_reduce=local_reduce*local;
+      auto tile=options.reduction_tiles.find(dim.name);
+      if (tile!=options.reduction_tiles.end()) {
+        auto extent=tile->second.Substitute(known);
+        local=local.CeilDiv(extent)*extent;
+      }
+      nominal_reduce=nominal_reduce*local;
     }
   }
   work.reduce_extent=Polynomial(reduce,known);
   work.parallel_extent=Polynomial(parallel,known);
   work.task_reduce_extent=Polynomial(local_reduce,known);
+  work.nominal_task_reduce_extent=Polynomial(nominal_reduce,known);
   return work;
 }
 }  // namespace tilemega::analysis

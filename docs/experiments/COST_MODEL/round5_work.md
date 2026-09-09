@@ -88,11 +88,22 @@ seq=1,4,128,512,2048), with K=512 kept as the complete operator extent and
 512/split as the local extent. The existing 210 production-export checks
 and two malformed-input checks still pass; `ISL_CONTEXT remaining=0`.
 This closes the original prototype's full-K-as-local-K error, not the
-remaining nominal **inner-loop padding** issue: a chunk not divisible by
-the collective tile_k issues a padded final iteration. Full A3/A6 gates
-must distinguish that issued work from the physical chunk, just as the
-M-tail counterexample distinguishes physical from nominal outer tiles.
-Combiner work and production CG serialization/consumption remain open.
+remaining A3/A6 integration. A chunk not divisible by the collective tile_k
+issues a padded final iteration, which needs its own explicit work domain.
+
+✅ `TaskWorkOptions::reduction_tiles` now accepts the inner tile supplied by
+implementation traits. Only the nominal read relation is padded; the
+physical relation and `task_reduce_extent` are unchanged. No operator-kind
+formula supplies the padding. `nominal_task_reduce_extent` records issued
+work, which can exceed a contribution's actual reduction interval.
+For K=1536/split16/tile_k64, the contribution spans 96 K elements, whereas
+two nominal iterations span 128. The test proves nominal BF16 mainloop
+bytes/iteration = 32768 and physical reads unchanged. `task_work_inner.*`
+preserve this counterexample and the five error-path checks (zero residual
+ISL references). The complete 1077-configuration work gate is running in
+`task_work_full_gate.*`; it tests both dtypes and both exported models,
+but is not a cost/price gate. Combiner work and production CG
+serialization/consumption remain open.
 
 ## A4 arithmetic declaration audit
 

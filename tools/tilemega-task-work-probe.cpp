@@ -81,6 +81,26 @@ int main(int argc, char** argv) try {
     }
   }
   std::cerr << "A3_LOCAL_REDUCTION split_seq_cells=" << split_cells << " status=PASS\n";
+  auto nonaligned=semantics;
+  nonaligned.ops[0].domain.back().extent=fixed(1536);
+  for (auto& operand:nonaligned.ops[0].operands) operand.tensor.axes.back().extent=fixed(1536);
+  Granularity split_g;
+  split_g.Tile("gemm","m",fixed(128)).Tile("gemm","n",fixed(128)).Split("gemm",fixed(96));
+  auto split_graph=Instantiate(nonaligned,split_g);
+  auto unpadded=DeriveTaskWork(nonaligned.ops[0],*split_graph.Find("gemm"),{});
+  TaskWorkOptions inner;
+  inner.reduction_tiles.emplace("k",fixed(64));
+  auto padded=DeriveTaskWork(nonaligned.ops[0],*split_graph.Find("gemm"),{},inner);
+  ParamBinding point; point.Bind("S",4).Bind("m",0).Bind("n",0).Bind("j",0);
+  if (unpadded.nominal_read_elements.Eval(point)!=256*96 ||
+      padded.nominal_read_elements.Eval(point)!=256*128 ||
+      padded.task_reduce_extent.Eval(point)!=96 ||
+      padded.nominal_task_reduce_extent.Eval(point)!=128 ||
+      padded.read_elements.Eval(point)!=unpadded.read_elements.Eval(point))
+    throw std::runtime_error("inner padding changed physical reads or lost issued work");
+  std::cerr << "A3_INNER_PADDING K=1536 split=16 tile_k=64 physical_chunk=96 nominal_chunk=128"
+            << " physical_reads_unchanged=1 nominal_bytes_per_iter="
+            << padded.nominal_read_elements.Eval(point)*2/2 << " status=PASS\n";
   int rejected=0;
   auto reject = [&](auto action) {
     auto before=context.ReferenceCount();
@@ -94,7 +114,16 @@ int main(int argc, char** argv) try {
   bad.operands.push_back(bad.operands.front());
   bad.operands.back().tensor.layout_id="incompatible";
   reject([&]{ (void)DeriveTaskWork(semantic,bad,{}); });
-  if (rejected!=2) throw std::runtime_error("TaskWork validation failed to reject invalid input");
+  TaskWorkOptions invalid_inner;
+  invalid_inner.reduction_tiles.emplace("m",fixed(64));
+  reject([&]{ (void)DeriveTaskWork(semantic,task,{},invalid_inner); });
+  invalid_inner.reduction_tiles.clear();
+  invalid_inner.reduction_tiles.emplace("k",fixed(0));
+  reject([&]{ (void)DeriveTaskWork(semantic,task,{},invalid_inner); });
+  auto bad_semantic=semantic;
+  bad_semantic.operands.front().map.results.back().terms.front().coefficient=fixed(2);
+  reject([&]{ (void)DeriveTaskWork(bad_semantic,task,{}); });
+  if (rejected!=5) throw std::runtime_error("TaskWork validation failed to reject invalid input");
   std::cerr<<"A3_READ_UNION repeated_operand=PASS error_branches="<<rejected<<"\n";
   for (int input=1; input<argc; ++input) {
     using namespace tilemega::frontend;
