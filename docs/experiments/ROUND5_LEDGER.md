@@ -14,6 +14,8 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 - A0 最先检查；A1+A2 优先，随后 A3–A6、A9、A7、A8、A11、A12。
 - B 全部登记但不提前开工，必须先通过 A6/A9；A2 投影仅实现一次供 B 复用。
 - 停止门只停止相应项及依赖项，独立项继续。不得用此规则绕过 B 的入口门。
+- 用户再次明确：不能因单项失败结束整份prompt；有明确修法时可在该项内尝试，
+  记录失败、修复及重新验收。A2恢复为坐标修复中的局部停止，A4/A5等独立项继续。
 - A10：标定残差不阻塞下游，但 A9.3 非零且符号正确的功能门必须通过。
 - A9.3 用户已批准按实际κ语义修订方向判断，并要求记录分析流程：κ=0是
   aggregate特例，不是正整数粗化序列起点。保留κ0/1非零预测差，方向与精确
@@ -31,16 +33,16 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 |---|---|---|---|---|
 | A0 | 原始失败 split8 同输入、同 golden 线程；CPU common-FP32 三比较及 k；≤1.003关闭，>1.2报告，其余不擅定 | 已验证 | 用户授权一次原二进制采集；hash/diff完全复现；56线程golden逐位复现；k=.9961308506568204，条件9归因关闭 | REALMODEL/condition9_noise/result.json、condition9_result.md；ab91cc8、b4a1e69 |
 | A1 | wait 求交 actual producer domain；所有fixture每边参数网格 Σwait=Σfanout；前后逐边表；无512下游修正 | 已验证 | 参考8图2505/2505、生产2模型1920/1920；OFF372格不等；ON26/26 CTest；物理C同步写回保持verifier | INCIDENCE/result.md及逐边表；148ed7e、a723d9a |
-| A2 | QP runtime_task_refs/runtime_wait_entries；split/ownership/attention映射；所有fixture/seq/split与runtime逐值对账；供B复用 | 触发停止门槛 | split1 3000/3000归档计数相等；split2首组100/100。补采95/150格后停止：94通过，gqa2 S512/p0/split16 的L2失配223287，原二进制未改。已证明split坐标顺序不一致，尚未修复；全矩阵未验收 | EVENT_COST/runtime_projection/result.md；f8fba8e、ab5b706、146800a、ab8ab21 |
-| A3 | CG逐task count/read/write；从输出索引识别reduce/parallel轴；QP work；GEMM count/MainloopBytes位一致 | 未开始 | 未验证 | COST_MODEL/result.md待更新 |
-| A4 | 单位置签名schema；GEMM/attention/RMS/RoPE/SiLU/mul/add/SwiGLU/KV/MoE/Softmax/LayerNorm/GeLU全部语义推导；缺项抛错；op-audit | 未开始 | 签名无法推导须停，不填实测常数 | COST_MODEL/op_audit.txt待生成 |
-| A5 | shared/threads/stages从TaskBody traits暴露，消除本地假设 | 未开始 | 未验证 | 待填 |
+| A2 | QP runtime_task_refs/runtime_wait_entries；split/ownership/attention映射；所有fixture/seq/split与runtime逐值对账；供B复用 | 修复验证中 | 聚焦OFF 0/50、ON 50/50；完整150格×50轮已7500/7500，独立日志/构建验证通过。最终device指令/资源10/10同冻结构建。完整CPU符号矩阵仍在运行；其余ownership/variants未关闭 | 修复77c942e；controls52d9f8e、5f0ce84；EVENT_COST/split_order_matrix/verification.json |
+| A3 | CG逐task count/read/write；从输出索引识别reduce/parallel轴；QP work；GEMM count/MainloopBytes位一致 | 进行中 | 用户批准双域；210生产GEMM检查通过；split局部跨度25格通过，另验证内层K padding不会改物理R。1077×2模型×2dtype work门运行中，不是A6价格门；生产CG消费未完成 | 1cb4b71、945e8e2；COST_MODEL/round5_work.md |
+| A4 | 单位置签名schema；GEMM/attention/RMS/RoPE/SiLU/mul/add/SwiGLU/KV/MoE/Softmax/LayerNorm/GeLU全部语义推导；缺项抛错；op-audit | 进行中 | 单表14签名schema零失败、4真实错误出口零残留；4个独立TaskBody缺失/占位明确拒绝执行定价。前端标识接入，A6消费未做 | 5c869fc；COST_MODEL/op_audit.txt、round5_work.md |
+| A5 | shared/threads/stages从TaskBody traits暴露，消除本地假设 | 进行中 | traits统一、union真实max、BF16线程取128；CUDA合约编译通过。10/10最终device SASS及资源与冻结矩阵相同；FP32两模型1077打印预测及排名字节相同（非A6位门）。完整统一消费仍待A6 | 7f18db8、598c440、c15b79c；TaskResources.h、round5_work.md |
 | A6 | 统一TaskCostNs；九lane/max/尾波原序不变；QP；旧路径开关；顶层task_sum/combine/barrier/event | 未开始 | 每GEMM stage×1077×2×两dtype位门；非GEMM逐条新旧比值解释；BF16/FP32排名且FP32不降 | COST_MODEL/result.md待更新 |
 | A7.1 | attention FLOP/非TC；chunk候选/plan/runtime/iters/combine价格及复用理由 | 未开始 | 依赖A4/A6 | 待填 |
 | A7.2 | chunk_extent shared；同步TaskSmem/static_assert/kNonGemmTaskSmem/CtasPerSm；四chunk资源与F40 | 未开始 | 未验证 | 待填 |
 | A7.3 | 2模型×2seq×4chunk×50=800新进程BF16；chunk1哈希同基线；预测/实测排序；长上下文attention新旧占比 | 未开始 | 未运行 | COST_MODEL/result.md待更新 |
 | A8 | CG wait与volume定价Interface，实际使用两个tile；旧Carry开关；spread非零及per-op收益；若零解释并反事实轴 | 未开始 | 依赖A1，未验证 | COST_MODEL/result.md待更新 |
-| A9.1 | notify/poll各拟合stages/max_worker/total结构；≥12格25轮四臂；4090运行/5090脚本；LOO残差 | 未开始 | 不复用过原点单斜率 | EVENT_COST/result.md及run_sm120.sh待更新 |
+| A9.1 | notify/poll各拟合stages/max_worker/total结构；≥12格25轮四臂；4090运行/5090脚本；LOO残差 | 正确性/采样运行中 | 12格BF16 fixture与8二进制已准备；最长队列/实测timing字段、结构NNLS/LOO脚本和sm120脚本已实现。7500矩阵结束后才启动GPU采样；结果未完成 | 169de41、e849759、133fab0；EVENT_COST/calibration_round5 |
 | A9.2 | coupling_metrics QP消费A2投影；L1保留；κ仅改wait；fence/fusion接口零且带缺失理由 | 未开始 | 未验证 | 待填 |
 | A9.3 | κ0/1 event差非零且符号正确；具体数值；B后补fusion/placement两门 | 未开始 | A阶段必过κ门；其余待B | 待填 |
 | A10 | 残差不作为B入口门，报告而继续 | 已验证 | 已登记执行规则；不代表A9实现 | 本表 |
@@ -110,7 +112,14 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 A0已按单独授权完成一次原二进制采集及CPU三比较。A1恒等式参考2505/2505、
 生产1920/1920；旧生产372/1920不等；A11归档完成。最新全套27/27通过，policy
 通过、target-audit 5目标0失败，FP32输入2154与BF16输入1540位门通过（非A6门）。
-A2符号实现已提交，但原runtime split坐标错误触发停止：capture第95格失败，
-没有继续GPU采集；首条入边192/256个task漏等实际所需行。修复须统一CG与runtime
-坐标顺序，不可切kAll规避，随后重做逐值对账与≥50新进程正确性。详见A2报告。
-A3–A9未实现，B未启动；没有后台实验进程。未完成项不得因交接被抹去。
+A2原runtime split坐标错误触发局部停止后，已实现CG顺序的独立开关修复；
+首条入边192/256个task漏等的反例仍保留。聚焦反例旧臂0/50、修复臂50/50，
+完整修复臂150格×50进程矩阵已7500/7500，独立日志/构建核验完成；符号对账仍待更新。
+A3已得到物理/名义双域QP原型：seq4的4224 vs 8192 B/iter反例已报告，
+用户批准分别用于实际访存与旧collective定价，A6历史GEMM位一致门不变。
+生产访问关系补全与价格消费尚未完成。split局部跨度和内层K padding已有独立检查；
+全1077配置work门正在运行。A4声明/audit及A5资源traits已有分项提交与CPU验证，
+不等于A6通过。A9的12格fixture、8二进制及拟合脚本已准备，矩阵结束后已启动采样。
+最新全套29/29及policy通过（详见period报告的版本范围）；A6–A9、B均未完成，
+B尚未启动。后台GPU矩阵运行期间不做并发计时。
+停止门槛只停止当前项及依赖项；继续独立项，有明确修法可修复后重验并记录。

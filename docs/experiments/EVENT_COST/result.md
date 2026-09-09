@@ -1,4 +1,18 @@
-# Round 5 current status: A2 stopped; A9 event pricing not implemented
+# Round 5 current status: A2 repair validation; A9 pricing still pending
+
+Current recovery: split coordinate repair `77c942e` has a focused old/new
+**0/50 vs 50/50** fresh-process control. The full repaired sweep subsequently
+passed **7500/7500** fresh processes and independent log/build verification.
+The repaired symbolic-count matrix is still running; A2's other ownership
+and variant gates remain open. See [the repair report](runtime_projection/result.md).
+A9 now has a twelve-cell steady-state runner, exact longest-worker counter,
+and structured-fit script. All fixtures and eight four-arm binaries are
+prepared. Its correctness/attribution run started **after** the 7500-process
+matrix ended; no concurrent GPU timing was used. Calibration results and
+functional event pricing remain pending. `run_sm120.sh` is manual-only and
+has not been executed.
+
+The next paragraphs retain the initial stop and older controls as history.
 
 ✅ Symbolic runtime counts and shared verified-CG projection seed are
 implemented. Split1 task_refs/waits match 3000/3000 archived values; final

@@ -2293,3 +2293,40 @@ kappa coarsening. Kappa1's same-worker elision also precludes assuming a
 monotonic positive-kappa curve without checking it. No runtime semantics or
 price coefficients were altered to force the original stated direction.
 This resolves a gate-definition conflict; A9 itself remains unimplemented.
+
+## F-106 — Physical tail reads and nominal collective work are different domains
+
+✅ Round5 A3's access-derived BF16 GEMM probe gives 4224 B/iteration at
+seq4, tile128×128×16, N=K=512, versus historical MainloopBytes=8192.
+Physical reads contain four actual activation rows; the collective work
+contains a nominal 128-row tile. At seq128/512 both are8192. The user approved
+separating these domains: physical R/W for actual access/fusion, nominal
+work for the unchanged A6 historical GEMM bit gate. No tolerance changed.
+The full analysis and explicit limitations are in COST_MODEL/round5_work.md.
+
+Production and reference semantics omitted GEMM weights from R. Adding the
+actual external (n,k) weight operand creates no CG producer edge, but makes
+access counting complete for these GEMMs. Production two-model checks pass
+210/210 count/nominal cells; repeated reads are unioned by tensor identity.
+During implementation scalar `{0}` seeded QP sums failed on `[m,n]` spaces;
+the first operand now seeds the sum, with permanent primitive regressions.
+Both this probe and executed error paths leave zero ISL references. These
+checks do not imply complete non-GEMM R/W, CG work consumption or A6 prices.
+
+## F-107 — Split task enumeration repair resolves the focused L2 counterexample
+
+✅ A2's concrete repair preserves storage layout but decodes logical task ids
+in CG's `(m,n,chunk)` order, and builds partial→combine windows in that order.
+Commit77c942e; independent `TILEMEGA_CG_SPLIT_TASK_ORDER` control.
+At gqa2/seq512/past0/split16, interleaved fresh processes give old0/50 versus
+new50/50; every L0.5/L1 hash stays8b8a3de9e7f35f9d and repaired L2 matches.
+No fence/barrier widening or numerical-tolerance change was used. This
+supports the coordinate-order attribution of F-104 in the measured case.
+The full150-cell×50-process matrix subsequently passed7500/7500, with every
+L0.5/L1/L2 hash matching and independent log/manifest verification. The
+symbolic counter re-audit is still running; other ownership/variant shapes
+remain untested by this matrix, so it is not full-domain synchronization proof.
+Raw provenance and all100 independently audited logs are in
+EVENT_COST/split_order_repair and split_order_matrix. Ten final-header builds
+match the frozen device instructions and resource records10/10; this is
+build-equivalence evidence, not another50-process claim.

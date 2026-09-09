@@ -13,10 +13,21 @@
 原二进制gqa2/seq512/past0/split16的L2-vs-L1失配223287，max_abs=1.1054688。
 CG的split展平顺序与runtime chunk-major顺序不一致，静态首边192/256个task漏等。
 补采94通过后第95格失败即停止；不是50进程同步验收，也不是BF16噪声判据问题。
-修复与完整A2矩阵仍欠；未用kAll回退掩盖。A3–A9未通过，B尚未开工。
+此后按用户“单项停止”规则实施坐标修复77c942e：聚焦反例旧臂0/50、修复50/50，
+完整150格×50矩阵已7500/7500且独立核验通过；符号计数对账仍在运行，没有用kAll掩盖。A3已建立物理/名义
+双域QP并补GEMM权重读取，生产210/210 count/nominal格通过；仍欠完整CG序列化、
+非GEMM读集及A6价格消费。A4声明/audit和A5traits已提交，29/29 CTest、policy、
+5目标audit通过；A6/A9功能门未过，B未开工。A9十二格fixture和八个四臂二进制已准备，
+在7500矩阵结束后启动正确性/四臂采样，无并发GPU计时。这些限制是显式未完成项，不以携带数据冒充消费。
 实现提交f8fba8e、ab5b706、146800a、ab8ab21；完整限制见EVENT_COST/runtime_projection/result.md。
 ✅ A12.3将8个未跟踪autotools文件移至可恢复临时目录，未动跟踪文件/gitlink。
 用户已批准A9.3按实际κ定义判定价格差方向，详见ROUND5_LEDGER与EVENT_COST。
+用户亦批准A3的物理R/W与名义collective work分开使用；4224/8192 B反例、
+处理分析与未完成项见COST_MODEL/round5_work.md，A6历史GEMM位门不改。
+新增局部进度：A2 worker/period 精确分解已跑通原600秒超时的split4符号seq/past格，
+完整CPU矩阵仍未完成；负的分区/求和对照保留。A3补split局部归约跨度、内层K padding、
+RMSNorm权重访问；两个模型的4份生成源码仍逐字节相同。1077配置work门正在运行，
+已通过BF16/gqa2，不能代替尚未实现的A6价格位门。
 
 本文件是进度记录，**不是整轮完成报告**。不覆盖历史负结果，不降低验收阈值。
 

@@ -1,9 +1,57 @@
-# Round 5 A2: symbolic counts implemented; runtime correctness gate stopped
+# Round 5 A2: symbolic counts and coordinate repair under validation
 
 This is a partial implementation report, not A2 or A9 acceptance. No event
 price has been connected to CostModel. No fusion/placement implementation
 has started. The historical event-price report remains below the current
 summary in `../result.md`.
+
+## Recovery after the scoped stop
+
+✅ The user clarified that stops apply only to the failing item and its
+dependents, and permitted a concrete repair followed by renewed validation.
+Commit `77c942e` aligns runtime task decoding with CG's `(m,n,chunk)` order
+(`RuntimeOwnership.h:12`, `GemmStageTaskBody.h:485`). The host's internal
+partial→combine windows use contiguous chunk ids in the same order
+(`ModelHarness.cuh:960`); `RuntimeProjection.cpp` applies the identical rule.
+Partial buffer storage order itself is unchanged. There is no kAll widening,
+new barrier or numeric-tolerance change. The independent compile control is
+`TILEMEGA_CG_SPLIT_TASK_ORDER`, default 1; 0 preserves the diagnosed failure.
+
+✅ Focused gqa2/seq512/past0/split16, 50 fresh processes **per state**, with
+states interleaved within rounds: old order **0/50**, corrected order
+**50/50**. Every L0.5/L1 hash remains `8b8a3de9e7f35f9d`; corrected L2
+matches it. Corrected waits are 314710 versus 314344 in the old order.
+Both numbers describe their respective queue materializations; equality to
+old buggy counts is not the corrected projection gate.
+Raw data: `../split_order_repair/{correctness.tsv,logs,ptxas,build_manifest.json}`.
+`verification.json` independently rereads all 100 process logs, checks binary
+hashes, rejects duplicate/missing process keys and confirms PASS/hash records.
+
+✅ CPU `runtime_projection_test` covers both coordinate orders, including
+tile-id/chunk decoding and the resulting lifted wait differences; the report
+is `../split_order_repair/cpu_projection.{txt,stderr}`, remaining references 0.
+Full CTest after A3/A4/A5 additions is 29/29, policy PASS, target-audit five
+targets/zero failures (`COST_MODEL/round5_*`). These are not GPU acceptance.
+
+✅ Full repaired matrix **7500/7500 fresh processes** passed: two BF16 models,
+seq={1,4,128,512,2048}, past={0,3,512}, split={1,2,4,8,16}, 50 processes per
+cell. `../split_order_matrix/verification.json` independently rereads all
+7500 logs, verifies the frozen binary hashes and exact Cartesian process
+coverage, and requires L0.5/L1/L2 hashes to agree in every repaired process.
+This does not complete A2's remaining ownership/variant coverage. Full
+symbolic counter comparison is still running in `period_symbolic_matrix/`;
+its zero-tolerance comparisons use repaired logs, not old split>1 archives.
+These GPU binaries were frozen before the resource-trait aliases and shared
+decode helper refactor; the build manifest identifies the precise tested
+headers. The ten final-header builds have identical device instructions and
+per-function resource records to those frozen binaries, **10/10**
+(`../split_order_final_headers/device_comparison.json`). This is device-build
+equivalence evidence, not another GPU process claim or host-byte identity.
+No performance claim uses correctness-sweep times. CPU counting detours,
+timeouts and exact decomposition controls are in `count_decomposition.md`.
+
+The sections below preserve the initial failure and the evidence that led to
+the repair; references to “not repaired” describe that historical run only.
 
 ## Implemented path
 
