@@ -1,0 +1,5 @@
+TASK_WORK_GATE dtype=bf16 model=gqa2 configs=1077 status=PASS price_gate=pending
+TASK_WORK_GATE dtype=bf16 model=mha4 configs=1077 status=PASS price_gate=pending
+TASK_WORK_GATE dtype=f32 model=gqa2 configs=1077 status=PASS price_gate=pending
+TASK_WORK_GATE dtype=f32 model=mha4 configs=1077 status=PASS price_gate=pending
+ISL_CONTEXT remaining=0

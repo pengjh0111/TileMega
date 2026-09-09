@@ -1,0 +1,18 @@
+{
+  "scope": "A3 GEMM work only; not A6 CostBreakdown, ranking or GPU acceptance",
+  "config_groups": 4308,
+  "work_bit_checks": 1357020,
+  "checked_quantities": [
+    "task_count",
+    "nominal_mainloop_bytes",
+    "nominal_mainloop_iterations"
+  ],
+  "configuration_source": "same complete archived FP32 1077-shape universe for both dtypes",
+  "hashes": {
+    "task_work_full_gate.tsv": "aefff36a58b5883421ac1a3cd522dc899a14884062890c7cc229d87b36a9bdd1",
+    "task_work_full_gate.stderr": "3af87e7dd9e57e834f79e982187cda706ffab3b3a21a769afd6dc8789ca1ab26",
+    "docs/experiments/ORACLE/raw/screen_gqa2.tsv": "24013815d6c0ea43e6f1af7b99da073a041e059714bef1c65c1032283ac2a6ab",
+    "docs/experiments/ORACLE/raw/screen_mha4.tsv": "2a971e4ce9e44cf2251f7e19413f96c94f2f06bfeeada49c7d868b255375e09b"
+  },
+  "binary_sha256_captured_after_completion": "63c9a165b0bf8bc65f41318819d318a043808668da886345f72ebeb0cdb33151"
+}

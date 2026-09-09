@@ -100,9 +100,16 @@ For K=1536/split16/tile_k64, the contribution spans 96 K elements, whereas
 two nominal iterations span 128. The test proves nominal BF16 mainloop
 bytes/iteration = 32768 and physical reads unchanged. `task_work_inner.*`
 preserve this counterexample and the five error-path checks (zero residual
-ISL references). The complete 1077-configuration work gate is running in
-`task_work_full_gate.*`; it tests both dtypes and both exported models,
-but is not a cost/price gate. Combiner work and production CG
+ISL references). The complete work gate passed **4308/4308 configuration
+groups** (1077 × two models × BF16/FP32), with **1,357,020 individual work
+bit checks** across all GEMM stages and seq=1,4,128,512,2048. It checks task
+counts, nominal mainloop bytes/iteration, and nominal iteration counts using
+`memcmp` of doubles in `tools/tilemega-task-work-gate.cpp`. Both dtypes use
+the complete archived FP32 1077-shape universe; no new BF16 runtime success
+or ranking is inferred from that configuration list. Raw data and independent
+coverage/hash verification are `task_work_full_gate.{tsv,stderr,json}` and
+`verify_task_work_gate.py`; all four group markers and zero ISL references
+are required. **This is not A6's CostBreakdown gate.** Combiner work and production CG
 serialization/consumption remain open.
 
 ### Normalization scale access
@@ -122,6 +129,10 @@ byte-identical** to the preserved pre-refactor compiler. Raw hashes and logs
 are in `EVENT_COST/runtime_projection/norm_codegen_control`. This verifies
 that adding the external read did not alter generated dependencies; it is
 not a GPU test or proof that incomplete RoPE reads are already fixed.
+
+✅ After the normalization-read change, the rebuilt CTest executables pass
+29/29 and policy passes (`round5_norm_ctest.txt`, `round5_norm_policy.txt`).
+This evidence predates the independent FP32-partial calibration preparation.
 
 ## A4 arithmetic declaration audit
 
