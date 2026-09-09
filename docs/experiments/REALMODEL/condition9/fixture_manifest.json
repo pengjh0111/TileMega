@@ -1,0 +1,17 @@
+{
+  "seq": 4,
+  "past": 3,
+  "layers": 4,
+  "hidden": 4096,
+  "intermediate": 14336,
+  "heads": 32,
+  "kv_heads": 8,
+  "head_dim": 128,
+  "dtype": "torch.bfloat16",
+  "parameters": 872448256,
+  "prefix_depth": 0,
+  "fp32_reference": false,
+  "torch_version": "2.14.0+cpu",
+  "golden_device": "cpu",
+  "input_hidden_sha256": "1eafad43d51115ce9977c56c2ebf5c1907fb47fcce18139dce4819052c3370d6"
+}
