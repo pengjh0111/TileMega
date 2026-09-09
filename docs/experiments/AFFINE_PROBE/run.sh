@@ -8,10 +8,11 @@ build="${BUILD_DIR:-${repo}/build-portable}"
 # hardware maximum CTA count that ignores registers and shared memory.
 resident="${RESIDENT_LIMIT:?set RESIDENT_LIMIT from measured kernel residency}"
 workers="${WORKERS:-16}"
-mkdir -p "${here}/raw"
+out="${OUT_DIR:-${here}/raw_mappings}"
+mkdir -p "${out}"
 cmake --build "${build}" --target tilemega-affine-probe -j "${JOBS:-4}"
 for seq in ${SEQS:-4 128 512}; do
   "${build}/tools/tilemega-affine-probe" "${seq}" "${workers}" "${resident}" \
-    > "${here}/raw/s${seq}_w${workers}.txt" 2>&1
-  rg '^(BAND|DIMENSIONS|SPAN|RESULT)' "${here}/raw/s${seq}_w${workers}.txt"
+    > "${out}/s${seq}_w${workers}.txt" 2>&1
+  rg '^(BAND|DIMENSIONS|SPAN|RESULT)' "${out}/s${seq}_w${workers}.txt"
 done
