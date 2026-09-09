@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // Part 5: an implementation contract is only worth having if a wrong one is
 // rejected, so every check here is paired with the mutation it must catch.
 #include <tilemega/Dialect/CouplingGraph/CGContract.h>
@@ -89,6 +90,7 @@ void Report(char const* label, bool ok, std::string const& error) {
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   analysis::OperatorNode node = ScoreMatmul();
   std::vector<analysis::AccessRelation> derived = ReadMaps(node);
 

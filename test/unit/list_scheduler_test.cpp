@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // P4.8: the schedule is only worth anything if `levels` is really the DAG's
 // depth, so every assertion here pins one way of getting that wrong.
 #include <tilemega/Solver/ListScheduler.h>
@@ -22,6 +23,7 @@ using namespace tilemega::solver;
   } while (0)
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   ListScheduler scheduler;
 
   // A chain: nothing to pack, one level per node.

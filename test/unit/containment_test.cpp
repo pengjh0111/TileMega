@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // Skeleton ref: invariant I2 -- a Relax may replace an edge only if the relaxed
 // relation contains the exact one.  This test checks the containment predicate
 // itself, in both directions, on relations the derivation actually produced.
@@ -42,6 +43,7 @@ CouplingEdge Only(OperatorGraph const& graph, ParamBinding const& known) {
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   DecoderShape shape;
   ParamBinding known = KnownBinding();
 

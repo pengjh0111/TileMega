@@ -81,6 +81,7 @@ QuasiPolynomial QuasiPolynomial::Constant(long value) {
 }
 
 QuasiPolynomial QuasiPolynomial::FromIslText(std::string const& text) {
+  IslReferenceAudit audit(__func__);
   isl_util::PwQPolynomial value = isl_util::ReadPwQPolynomial(Ctx(), text);
   return QuasiPolynomial(isl_util::ToString(value.get()));
 }
@@ -91,12 +92,14 @@ QuasiPolynomial QuasiPolynomial::Card(CouplingRelation const& relation) {
 
 QuasiPolynomial QuasiPolynomial::SubstituteParams(
     ParamBinding const& known) const {
+  IslReferenceAudit audit(__func__);
   isl_util::PwQPolynomial value = isl_util::ReadPwQPolynomial(Ctx(), text_);
   value = FixParams(std::move(value), known);
   return QuasiPolynomial(isl_util::ToString(value.get()));
 }
 
 long QuasiPolynomial::Eval(ParamBinding const& known) const {
+  IslReferenceAudit audit(__func__);
   isl_util::PwQPolynomial value = isl_util::ReadPwQPolynomial(Ctx(), text_);
   value = FixParams(std::move(value), known);
   // isl_pw_qpolynomial_max/_min range over the *whole* remaining domain --

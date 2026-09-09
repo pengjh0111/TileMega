@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // P3.1: the three-level inverse policy (V-F), and the CuTe <-> isl_map
 // conversion itself -- §3.5's rule that a flattened layout
 // `(s_0,...,s_k):(d_0,...,d_k)` is the map
@@ -36,6 +37,7 @@ void RoundTrips(CuteLayoutBridge const& bridge, LayoutDescriptor const& layout) 
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   CuteLayoutBridge bridge;
 
   // --- The three-level inverse policy (V-F) ---------------------------------

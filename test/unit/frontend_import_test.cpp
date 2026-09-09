@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
@@ -12,6 +13,7 @@
 #include <string>
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   mlir::MLIRContext context;
   tilemega::frontend::ImportSummary summary;
   auto module = tilemega::frontend::TorchExportImporter{}.Import(

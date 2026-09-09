@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // Part 3 acceptance (d): a coupling whose wait is genuinely a piecewise
 // quasi-polynomial -- the case that makes barvinok load-bearing rather than
 // merely a different spelling of the old closed form.
@@ -40,6 +41,7 @@ void Report(long producer_tile, long consumer_tile, long rows) {
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   std::printf("## Piecewise quasi-polynomial wait\n\n");
   std::printf("A producer tiling rows by `producer_tile` feeding a consumer\n"
               "tiling the same axis by `consumer_tile`. When the tiles do not\n"

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 //
 // Part 4.4 migration check: does a cost model calibrated on one GPU still rank
 // configurations on another?  The 4090 and the 5090 have comparable
@@ -230,6 +231,7 @@ std::string FirstGeneratedSource(std::string const& dir,
 }  // namespace
 
 int main(int argc, char** argv) try {
+  tilemega::analysis::IslContext isl_context;
   std::string repo = ".", out_dir, label = "sm120";
   std::string calib_json, host_json;
   int top = 50, sample = 50;

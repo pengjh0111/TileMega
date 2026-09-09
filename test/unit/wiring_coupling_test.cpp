@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 //
 // Skeleton §1.5.1: the derived C must reach the production path. This checks
 // the claim that makes §2.7's table apply to the *frontend*: put the lifted FX
@@ -100,6 +101,7 @@ std::string RenameI(std::string text) {
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   std::vector<analysis::CouplingEdge> lifted = Lifted();
   std::vector<analysis::CouplingEdge> reference = Reference();
   assert(lifted.size() == reference.size());

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // T3: offline experiment only; no production scheduling code is changed.
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Analysis/ISLContext.h>
@@ -114,6 +115,7 @@ isl_bool CollectBand(isl_schedule_node* node, void* data) {
 }  // namespace
 
 int main(int argc, char** argv) try {
+  tilemega::analysis::IslContext isl_context;
   if (argc != 4) throw std::runtime_error("usage: tilemega-affine-probe SEQ WORKERS RESIDENT_LIMIT");
   int const seq = std::stoi(argv[1]), workers = std::stoi(argv[2]);
   int const resident = std::stoi(argv[3]);

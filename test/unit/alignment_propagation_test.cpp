@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // P4.3: the tier-2 constraint has to come out of the model tables, so the test
 // builds a model whose reader granularity is the only thing that could produce
 // the answer, and checks the answer changes when that granularity does.
@@ -61,6 +62,7 @@ bool Kept(std::vector<int> const& kept, std::vector<TileAxes> const& axes,
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   // The closed form itself, on the two cases that decide everything else.
   REQUIRE(WaitInflation(128, 64, 512) == 0);
   REQUIRE(WaitInflation(128, 48, 512) == 1);

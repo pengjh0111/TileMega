@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // Skeleton refs: §2 three-layer IR, invariant I1, §2.3 Split, §2.4 split-K.
 //
 // The machine-executable form of I1 lives here: L-sem's serialization must be
@@ -50,6 +51,7 @@ OperatorNode const* Node(OperatorGraph const& graph, std::string const& name) {
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   // --- I1: L-sem is byte-identical under two different g -------------------
   DecoderShape symbolic;
   DecoderShape concrete;

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // Skeleton ref: §2.7.  Every assertion below is read off the table; nothing is
 // read off the implementation.  Where the derivation and the table disagree the
 // difference is asserted in the form the derivation produces and explained in
@@ -111,6 +112,7 @@ class Table {
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   DecoderShape shape;
   OperatorGraph const graph = LlamaDecoderLayer(shape);
   Table t(graph, KnownBinding(), Theta());

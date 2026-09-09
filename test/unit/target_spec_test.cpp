@@ -1,10 +1,12 @@
 #include <tilemega/Target/ArchDispatch.h>
+#include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Target/TargetSpec.h>
 
 #include <cassert>
 #include <string>
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   using tilemega::TargetSpec;
   auto sm80 = TargetSpec::FromJson(
       std::string(TILEMEGA_SOURCE_DIR) + "/configs/targets/sm_80.json");

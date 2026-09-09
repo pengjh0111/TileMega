@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/ModelDescription.h>
+#include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <mlir/IR/Verifier.h>
 
@@ -136,6 +137,7 @@ ModelDims ModelDims::Symbolic(std::string seq_name, int concrete_past) {
 
 ModelDescription ModelDescription::FromCouplingGraph(
     mlir::ModuleOp module, ModelDims dims, std::string name) {
+  analysis::IslReferenceAudit audit(__func__);
 #if !TILEMEGA_PARAMETRIC_INPUT
   throw std::runtime_error("parametric CG input disabled at compile time");
 #endif
@@ -219,6 +221,7 @@ ModelDescription ModelDescription::FromCouplingGraph(
 }
 
 ModelDescription ModelDescription::SubstituteParams(analysis::ParamBinding const& bindings) const {
+  analysis::IslReferenceAudit audit(__func__);
   ModelDescription out = *this;
   auto bind = [&](std::string& parameter, int& value) {
     if (parameter.empty()) return;

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // P4.5: the chain DP is only trustworthy if its decomposition is the cost
 // model it claims to minimize, so every check here is paired with the mutation
 // it must catch.
@@ -71,6 +72,7 @@ std::vector<DpCandidate> Candidates() {
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   TargetSpec const target =
       TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR) +
                            "/configs/targets/sm_89.json");

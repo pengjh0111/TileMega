@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 
@@ -10,6 +11,7 @@
 #include <iostream>
 
 int main(int argc, char** argv) {
+  tilemega::analysis::IslContext isl_context;
   if (argc != 2) {
     std::cerr << "usage: tilemega-import STABLE_EXPORT.json\n";
     return 2;

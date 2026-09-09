@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 //
 // P4.6 ablation, analytic half: what does event granularity kappa buy, and
 // what does it cost, on the coupling relations the derivation actually
@@ -84,6 +85,7 @@ void Report(char const* label, OperatorGraph const& graph,
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   DecoderShape shape;
   ParamBinding known = DecoderShape::Table27Theta();
   for (auto const& [name, value] : DecoderShape::Table27G().values)

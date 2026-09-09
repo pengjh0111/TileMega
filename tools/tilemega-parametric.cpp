@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // Independent CG-input versus archived generated-input equivalence gate.
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
@@ -22,6 +23,7 @@ std::vector<std::string> Fields(std::string const& line) {
 }
 bool Bits(double a, double b) { return std::memcmp(&a, &b, sizeof(double)) == 0; }
 int main(int argc, char** argv) try {
+  tilemega::analysis::IslContext isl_context;
   if (argc != 2) throw std::runtime_error("usage: tilemega-parametric REPO");
   std::string root = argv[1];
   auto target = tilemega::TargetSpec::FromJson(root + "/configs/targets/sm_89.json");

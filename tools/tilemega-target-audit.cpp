@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 //
 // Target audit (task Part 4.2).  For every target TileMega claims to support,
 // asks four questions that the rest of the build never asks in one place:
@@ -301,6 +302,7 @@ void CheckCross(std::string const& tag, TargetSpec const& spec,
 }  // namespace
 
 int main(int argc, char** argv) {
+  tilemega::analysis::IslContext isl_context;
   std::string const repo = argc > 1 ? argv[1] : TILEMEGA_SOURCE_DIR;
 
   ModelDescription probe_storage;

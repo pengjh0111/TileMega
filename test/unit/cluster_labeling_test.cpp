@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // P4.7: every assertion here pins one of the three hard constraints, because
 // a labelling that quietly violates one produces a cluster the hardware
 // cannot launch rather than a slow kernel.
@@ -31,6 +32,7 @@ std::vector<ClusterNode> Chain(int n, double smem) {
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   ClusterLabeling labeling;
 
   // A target without clusters must produce the identity, whatever the graph

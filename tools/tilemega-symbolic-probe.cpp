@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 //
 // Part 1 acceptance: the derived metrics must be functions of the workload
 // parameters, not integers measured at the bottom of the parameter range.
@@ -45,6 +46,7 @@ char const* Yes(bool value) { return value ? "ok" : "DIFFERS"; }
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   DecoderShape shape;
   OperatorGraph const graph = LlamaDecoderLayer(shape);
   CouplingDerivation derivation;

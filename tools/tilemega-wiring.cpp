@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // Prints the coupling table the *frontend* derives for an exported model:
 // FX -> ModelPlan -> L-sem -> Instantiate(g) -> CouplingDerivation. Nothing
 // here is adjusted to match §2.7; the comparison against it lives in
@@ -31,6 +32,7 @@ analysis::ParamBinding TileBinding() {
 }  // namespace
 
 int main(int argc, char** argv) {
+  tilemega::analysis::IslContext isl_context;
   std::string path = argc > 1 ? argv[1]
                               : std::string(TILEMEGA_SOURCE_DIR) +
                                     "/docs/experiments/E2E_GEN/raw/export_bridge.json";

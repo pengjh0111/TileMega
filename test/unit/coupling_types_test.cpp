@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // Exercises the isl-backed CouplingEdge/DerivedMetrics types produced by a
 // real derivation (not hand-built ProducerMap trees -- that AffineRelation
 // machinery is gone; CouplingRelation is a genuine isl_map, see
@@ -43,6 +44,7 @@ CouplingEdge Find(std::vector<CouplingEdge> const& edges, std::string const& src
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   DecoderShape shape;
   ParamBinding known = KnownBinding();
   auto edges = CouplingDerivation().Derive(LlamaDecoderLayer(shape), known);

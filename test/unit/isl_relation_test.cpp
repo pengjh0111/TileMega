@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // Unit tests for the isl-backed CouplingRelation/QuasiPolynomial primitives
 // that replaced AffineRelation/ClosedForm as the solving authority (Part 3).
 #include <tilemega/Analysis/CouplingRelation.h>
@@ -9,6 +10,7 @@
 using namespace tilemega::analysis;
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   // C = W^-1 o R, matching §2.7 edge 1's shape: a producer tiled by Tm rows
   // (W), a consumer that reads the whole matching row tile (R, an identity
   // on the row coordinate). Composing should recover the identity on m.

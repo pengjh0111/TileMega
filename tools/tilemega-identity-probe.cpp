@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 //
 // Part 3.3: what `kIdentity` is actually worth, asked of the production path.
 //
@@ -160,6 +161,7 @@ int Report(char const* label, std::string const& bridge_path) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  tilemega::analysis::IslContext isl_context;
   std::string root = argc > 1 ? argv[1] : std::string(TILEMEGA_SOURCE_DIR);
   int drift = Report("gqa2", root + "/docs/experiments/E2E_GEN/raw/export_bridge.json");
   drift += Report("mha4",

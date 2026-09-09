@@ -63,6 +63,8 @@ using PwQPolynomial =
     Obj<isl_pw_qpolynomial, isl_pw_qpolynomial_copy, isl_pw_qpolynomial_free>;
 using PwAff = Obj<isl_pw_aff, isl_pw_aff_copy, isl_pw_aff_free>;
 using Val = Obj<isl_val, isl_val_copy, isl_val_free>;
+using Space = Obj<isl_space, isl_space_copy, isl_space_free>;
+using Point = Obj<isl_point, isl_point_copy, isl_point_free>;
 
 [[noreturn]] inline void Fail(isl_ctx* ctx, std::string const& what) {
   throw std::invalid_argument("isl: " + what);

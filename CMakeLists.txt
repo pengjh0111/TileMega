@@ -64,6 +64,8 @@ if(NOT TILEMEGA_ENABLE_ISL)
 endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ISL)
+set_source_files_properties(lib/Analysis/ISLContext.cpp PROPERTIES
+  INCLUDE_DIRECTORIES "${_tilemega_isl_src};${TILEMEGA_ISL_BUILD_DIR}")
 
 set(LLVM_TARGET_DEFINITIONS include/tilemega/Dialect/CouplingGraph/CGDialect.td)
 mlir_tablegen(include/tilemega/Dialect/CouplingGraph/CGDialect.h.inc

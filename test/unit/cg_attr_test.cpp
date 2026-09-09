@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Dialect/CouplingGraph/CGAttrs.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 
@@ -32,6 +33,7 @@ AttrT RoundTripThroughMlirText(mlir::MLIRContext& context, AttrT attr) {
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
 

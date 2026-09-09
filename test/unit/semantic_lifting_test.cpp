@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // Part 1 acceptance: the FX stage list lifts to the same L-sem the reference
 // model states by hand, item by item -- operator count, iteration domain,
 // indexing maps, memory effects, reduction semantics and the granularity.
@@ -299,6 +300,7 @@ char const* const kExpectedDifferences[] = {
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   auto bridge = frontend::ReadExportBridge(
       std::string(TILEMEGA_SOURCE_DIR) +
       "/docs/experiments/E2E_GEN/raw/export_bridge.json");

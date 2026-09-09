@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 //
 // P4.5 driver: solve the chain DP over the same candidate set the oracle
 // measured, and check §4.4's acceptance.
@@ -149,6 +150,7 @@ MeasuredRank RankOf(std::vector<Point> const& points, GemmConfig const& config) 
 }  // namespace
 
 int main(int argc, char** argv) try {
+  tilemega::analysis::IslContext isl_context;
   std::string repo = ".";
   std::string cost_dir = "docs/experiments/COST_MODEL/raw";
   std::string out_dir = "docs/experiments/SOLVER/raw";

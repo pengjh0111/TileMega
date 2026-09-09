@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 //
 // P4.4 validation driver: score the cost model against every measured
 // configuration in docs/experiments/ORACLE/raw and report §2.4's metrics --
@@ -265,6 +266,7 @@ void ReportBottlenecks(std::string const& out_dir, std::string const& name,
 }  // namespace
 
 int main(int argc, char** argv) try {
+  tilemega::analysis::IslContext isl_context;
   std::string repo = ".";
   std::string out_dir = "docs/experiments/COST_MODEL/raw";
   std::string screen_dir;

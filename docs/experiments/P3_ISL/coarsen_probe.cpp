@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // Part 3 acceptance (b): Coarsen (§2.3's C_kappa = floor(./kappa) o C) is
 // implementable at all -- AffineRelation had no composition operator, so this
 // is the operation the isl migration exists to unlock -- and P4.6's flagged
@@ -64,6 +65,7 @@ void Report(char const* edge_name, CouplingEdge const& edge,
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   DecoderShape shape;
   ParamBinding known = Known(/*bind_workload=*/true);
   auto edges = CouplingDerivation().Derive(LlamaDecoderLayer(shape), known);

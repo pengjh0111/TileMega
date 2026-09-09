@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // The backend query channel of §1.2 principle 2: what a candidate answers
 // before anything is compiled, what only ptxas can answer, and that the
 // enumeration is the legal region rather than a filtered Cartesian product.
@@ -56,6 +57,7 @@ std::vector<GemmProblem> GqaProblems() {
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   TargetSpec sm89 = Load("sm_89");
   TargetSpec sm90 = Load("sm_90");
   CandidateGenerator generator(sm89);

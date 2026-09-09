@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // Prints the coupling table the analysis layer derives for a reference model.
 // The output is the raw derivation: nothing here is adjusted to match §2.7.
 #include <tilemega/Analysis/CouplingDerivation.h>
@@ -50,6 +51,7 @@ void Dump(std::string const& title, OperatorGraph const& graph) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  tilemega::analysis::IslContext isl_context;
   std::string which = argc > 1 ? argv[1] : "llama";
   DecoderShape shape;
   if (which == "llama") {

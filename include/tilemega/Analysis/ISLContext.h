@@ -27,17 +27,26 @@ class IslContext {
   IslContext& operator=(IslContext&&) = delete;
 
   isl_ctx* raw() const { return ctx_; }
+  int ReferenceCount() const;
 
  private:
   isl_ctx* ctx_;
+  IslContext* previous_ = nullptr;
 };
 
-/// A process-wide context for the value types in this directory
-/// (QuasiPolynomial, CouplingRelation) whose public API is deliberately
-/// context-free -- they store isl text, not a live isl object, so callers
-/// never have to think about isl_ctx lifetime to use them. Not reentrant:
-/// isl_ctx is not thread-safe, and nothing in this codebase constructs CG
-/// modules from more than one thread.
+/// Borrows the innermost caller-owned context on this thread. Tools must
+/// construct IslContext before their MLIR context and analysis values.
+/// Missing ownership is an error, never a static-lifetime allocation.
 IslContext& SharedIslContext();
+
+class IslReferenceAudit {
+ public:
+  explicit IslReferenceAudit(char const* operation);
+  ~IslReferenceAudit();
+ private:
+  IslContext& context_;
+  char const* operation_;
+  int before_;
+};
 
 }  // namespace tilemega::analysis

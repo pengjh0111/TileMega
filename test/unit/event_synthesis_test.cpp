@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/EventSynthesis.h>
 #include <tilemega/Analysis/ReferenceModels.h>
 
 #include <cassert>
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   using namespace tilemega::analysis;
   DecoderShape shape;
   ParamBinding known = DecoderShape::Table27Theta();

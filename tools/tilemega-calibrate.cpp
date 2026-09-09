@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // Phase-4 (P4.1) calibration entry point: probe the device, run the §4.4
 // microbenchmarks, and write configs/targets/<arch>.json.
 //
@@ -14,6 +15,7 @@
 #include <string>
 
 int main(int argc, char** argv) {
+  tilemega::analysis::IslContext isl_context;
   tilemega::calib::Options options;
   std::string output;
   std::string base;

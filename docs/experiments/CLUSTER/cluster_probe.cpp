@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 //
 // P4.7 Label, analytic half: how much of a model's coupling traffic can a
 // cluster actually hold?
@@ -97,6 +98,7 @@ void Report(char const* label, OperatorGraph const& graph,
 }  // namespace
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   DecoderShape shape;
   ParamBinding known = DecoderShape::Table27Theta();
   for (auto const& [name, value] : DecoderShape::Table27G().values)

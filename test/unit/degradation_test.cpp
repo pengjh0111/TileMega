@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 //
 // Skeleton §0.1: an operator no rule covers degrades to one conservative task
 // space and is reported; it does not stop the import.
@@ -12,6 +13,7 @@
 #include <string>
 
 int main() {
+  tilemega::analysis::IslContext isl_context;
   mlir::MLIRContext context;
   tilemega::frontend::ImportSummary summary;
   auto module = tilemega::frontend::TorchExportImporter{}.Import(

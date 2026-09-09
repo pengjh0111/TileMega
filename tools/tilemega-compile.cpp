@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
@@ -93,6 +94,7 @@ std::vector<VariantRequest> readVariants(std::string const& path,
 }  // namespace
 
 int main(int argc, char** argv) {
+  tilemega::analysis::IslContext isl_context;
   if (argc != 3 && argc != 5) {
     std::cerr << "usage: tilemega-compile {STABLE_EXPORT.json|CG.mlir} "
                  "{OUTPUT.cu|OUTPUT.so} [--variants PLAN.json]\n";

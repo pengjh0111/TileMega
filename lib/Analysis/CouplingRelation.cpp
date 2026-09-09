@@ -182,11 +182,12 @@ struct PointSink {
 };
 
 isl_stat CollectPoint(isl_point* point, void* user) {
+  isl_util::Point owned(point);
+  isl_util::Space space(isl_point_get_space(point));
+  if (!space) return isl_stat_error;
   auto* sink = static_cast<PointSink*>(user);
   std::vector<long> flat;
-  isl_size dims = isl_point_get_space(point)
-                      ? isl_space_dim(isl_point_get_space(point), isl_dim_set)
-                      : 0;
+  isl_size dims = isl_space_dim(space.get(), isl_dim_set);
   for (isl_size i = 0; i < dims; ++i) {
     isl_util::Val value(isl_point_get_coordinate_val(point, isl_dim_set, i));
     if (!isl_val_is_int(value.get())) {
@@ -195,7 +196,6 @@ isl_stat CollectPoint(isl_point* point, void* user) {
     }
     flat.push_back(isl_val_get_num_si(value.get()));
   }
-  isl_point_free(point);
   if (sink->overflow) return isl_stat_error;
   sink->out->push_back({{flat.begin(), flat.begin() + sink->arity},
                         {flat.begin() + sink->arity, flat.end()}});
@@ -206,6 +206,7 @@ isl_stat CollectPoint(isl_point* point, void* user) {
 
 std::vector<std::pair<std::vector<long>, std::vector<long>>>
 CouplingRelation::Points() const {
+  IslReferenceAudit audit(__func__);
   std::vector<std::pair<std::vector<long>, std::vector<long>>> points;
   if (empty()) return points;
   isl_util::Map map = isl_util::ReadMap(Ctx(), text_);

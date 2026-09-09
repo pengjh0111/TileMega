@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
 // Part 2's precondition: MPK-style `EventDesc{num_triggers, first, last}` is
 // only admissible if a consumer's wait set is a *contiguous* run of producer
 // task ids under the order Place launches them in. isl has no operator for
@@ -208,6 +209,7 @@ void Report(char const* label, analysis::OperatorGraph const& graph,
 }  // namespace
 
 int main(int argc, char** argv) {
+  tilemega::analysis::IslContext isl_context;
   std::string which = argc > 1 ? argv[1] : "fixture";
   Dims d;
   if (argc > 2) d.S = std::atol(argv[2]);
