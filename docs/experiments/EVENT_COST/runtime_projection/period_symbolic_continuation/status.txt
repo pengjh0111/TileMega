@@ -1,0 +1,1 @@
+CPU PASS in requested scope; full A2 acceptance OPEN: 0 requested cross-cells lack runtime archives; other variants/ownership modes are not certified by this run

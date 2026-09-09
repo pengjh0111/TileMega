@@ -1,0 +1,33 @@
+{
+  "cells": 150,
+  "tool_sha256": "bd6ea0cecd74ef72263e16359d9ee817084dcbbbc0043cca079969c6b00c3128",
+  "sources": {
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/counts.tsv": "a12a63f4fef9700474ef6583bc62d49189ab0537356b3003e75f4b2de2373bd7",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/gqa2_k4_psymbolic.tsv": "6672f9047becfaee1cdf9555b2affc07bd47f2ecc07974f06a37d2acd954c3c3",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/gqa2_k8_psymbolic.log": "91ddbac12e46dc4cffe766785b77497033875f05ce0b25c119abcbf3aaa7f98e",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/mha4_k2_psymbolic.log": "4a185bb860c9325bef468412a06dc7add8e019209e7cbd9ad4bdcb870477d3df",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/status.txt": "b92642eda352cba06cbffbb355eef05bfde683016eb2c7528cb1c2b9f87f44cb",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/gqa2_k16_psymbolic.tsv": "7e1ccfb61da9df18e3e7bf86c2d2b58ef132574c51538777e2a212604d203a93",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/mha4_k4_psymbolic.tsv": "d7241ef67ecf1932c95a7df46e6571e8b4c169a6f0071315b018b242d1772747",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/mha4_k1_psymbolic.tsv": "c9c395e9f7c675876e64c7916fdbf4697431d29483cfc40eb576db5484e14626",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/gqa2_k2_psymbolic.tsv": "9ab9ae4b3abf6855f0860101378d7ebcdee8819bc81e97d6e1e3daa16b2a2a3e",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/gqa2_k1_psymbolic.log": "c1ac98f34e0b207358149ab64aa902f3b6e13ff17910808740408ffbaadd37de",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/mha4_k2_psymbolic.tsv": "323ea5c9b55807ad95b9352e5c8e0db358c34f8f8969ef18b83a709f414fe0d7",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/manifest.json": "568a638ef308f214b10b50dca859afad16bac2e2777d488a79f160efd67a5f6a",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/gqa2_k2_psymbolic.log": "c91a01dc473bda589b3317ac4c0576a177796ecb44a551c5eda4a95c82001dce",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/mha4_k4_psymbolic.log": "29892d21452bd698770e9bb757fecf179137b47dc8f6718fbd554de39b88a5cb",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/gqa2_k1_psymbolic.tsv": "5471d0a2941d5c09b213e1264c70da6b12b8215a6b875c467998402efbebfa21",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/gqa2_k8_psymbolic.tsv": "6f15681033eda0b2f017170f1596dd27761869ce65c6a1c4748e84690b09572c",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/mha4_k1_psymbolic.log": "2af5a2ed066c7afbe68414da0e160f4802b616fcd19ba297642d264859784282",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/gqa2_k16_psymbolic.log": "a6e8886fdf06970e467a515dcd4d0fd45d3df630eae359bb5bed27ca9ee3d223",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_matrix/gqa2_k4_psymbolic.log": "19a5305f5827bf41606e12ca8c38a1ec435a32d67781e0903cb17826cd065603",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_continuation/counts.tsv": "ad9734c42b652ecaadaa574d27ac434a6af16399632be0fda9d0813e74c8e641",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_continuation/mha4_k8_psymbolic.log": "b7163fa3854671585c0455ec1a1c0c229ea9e66b72444be100f2dcf7db795cba",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_continuation/mha4_k16_psymbolic.log": "14f1c33c69b9a6a0249e1a7254c36efb88f656543bc326a9fb833f8f4bb45e74",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_continuation/status.txt": "aef61635d9d530d196153a9622203a5502863f1200668a29aa2b8dd2cac7a5d3",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_continuation/manifest.json": "16aacb8da2f184d8408f99b643eafe0e47a4c4f5a26d7eb9d719ce02150a42ea",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_continuation/mha4_k16_psymbolic.tsv": "a7c3d732a2b0bfbd39233515b5dbbc0d6339a32c5ba886af900bb2caf41ba5f1",
+    "docs/experiments/EVENT_COST/runtime_projection/period_symbolic_continuation/mha4_k8_psymbolic.tsv": "c2ac9f39dc7ce518d608554da08696c75579d50756ba7037621bede472c809ce"
+  },
+  "note": "Completed exact symbolic queries only; initial batch interrupted after query eight."
+}

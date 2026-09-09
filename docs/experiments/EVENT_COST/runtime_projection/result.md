@@ -1,7 +1,8 @@
 # Round 5 A2: symbolic counts and coordinate repair under validation
 
-This is a partial implementation report, not A2 or A9 acceptance. No event
-price has been connected to CostModel. No fusion/placement implementation
+This is a partial A2 implementation report. A9 concrete event pricing is now
+verified in `../round5_structured.md`; that does not complete A2's remaining
+ownership/variant coverage or A6. No fusion/placement implementation
 has started. The historical event-price report remains below the current
 summary in `../result.md`.
 
@@ -39,8 +40,12 @@ cell. `../split_order_matrix/verification.json` independently rereads all
 7500 logs, verifies the frozen binary hashes and exact Cartesian process
 coverage, and requires L0.5/L1/L2 hashes to agree in every repaired process.
 This does not complete A2's remaining ownership/variant coverage. Full
-symbolic counter comparison is still running in `period_symbolic_matrix/`;
-its zero-tolerance comparisons use repaired logs, not old split>1 archives.
+symbolic counter comparison has now completed: **15000/15000** task-ref/wait
+values match all 7500 repaired process logs, not old split>1 archives.
+`../split_order_matrix/symbolic_verification.json` is the independent audit.
+After interruption at eight completed CPU queries, two missing queries ran
+in `period_symbolic_continuation/`; `merge_projection.py` validates the exact
+150-cell union in `period_symbolic_complete/` without overwriting either batch.
 These GPU binaries were frozen before the resource-trait aliases and shared
 decode helper refactor; the build manifest identifies the precise tested
 headers. The ten final-header builds have identical device instructions and

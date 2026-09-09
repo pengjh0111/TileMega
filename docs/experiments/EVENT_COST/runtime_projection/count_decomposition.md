@@ -73,3 +73,25 @@ cover both worker-count strategies, both period settings, both split orders
 and kappa=0,1,2. Full CTest after these changes is **29/29**, and check-policy
 passes (`COST_MODEL/round5_period_ctest.txt`, `round5_period_policy.txt`).
 These logs predate the subsequent A3 local-reduction addition.
+
+## Complete repaired symbolic matrix
+
+✅ Partition + balanced sum + exact period splitting completed both models
+at split1/2/4/8/16 with **S and P left symbolic**. Evaluation at the fifteen
+requested seq/past cells per query yields 150 cells, then the independent
+7500-process checker matches **15000/15000** task-ref/wait counters.
+The first batch was interrupted after query eight; its stale status and raw
+files are preserved, with `period_symbolic_matrix/recovery.md` explaining the
+boundary. The two missing queries ran in `period_symbolic_continuation/`.
+All ten queries exit0 and explicitly report zero ISL references.
+
+| model | split1 | split2 | split4 | split8 | split16 |
+|---|---:|---:|---:|---:|---:|
+| gqa2 seconds | 201.808 | 225.274 | 228.430 | 234.100 | 267.866 |
+| mha4 seconds | 306.536 | 344.942 | 361.338 | 388.242 | 409.745 |
+
+These are CPU completion times, not paired speedup claims; independent CPU
+work overlapped the continuation. The frozen executable hash and exact
+commands are in each batch manifest. No unpartitioned/partition-only timeout
+was erased, no numeric sampling replaced a symbolic query, and the controls
+remain opt-in. Other ownership/variant GPU gates remain open.
