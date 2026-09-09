@@ -1,0 +1,21 @@
+ptxas info    : 208 bytes gmem
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi' for 'sm_120'
+ptxas info    : Function properties for _ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi
+    72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 59 registers, used 0 barriers, 72 bytes cumulative stack size
+ptxas info    : Compile time = 25.102 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_120'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 218 registers, used 1 barriers, 32 bytes cumulative stack size
+ptxas info    : Compile time = 708.001 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_120'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 214 registers, used 1 barriers, 32 bytes cumulative stack size
+ptxas info    : Compile time = 795.314 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj' for 'sm_120'
+ptxas info    : Function properties for _ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj
+    32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 208 registers, used 1 barriers, 32 bytes cumulative stack size
+ptxas info    : Compile time = 882.721 ms
