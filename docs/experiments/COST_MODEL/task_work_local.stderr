@@ -1,0 +1,6 @@
+A3_DUAL_DOMAIN differences=1 nominal_gate=PASS physical_counterexample=preserved production_gate=pending
+A3_LOCAL_REDUCTION split_seq_cells=25 status=PASS
+A3_READ_UNION repeated_operand=PASS error_branches=2
+A3_PRODUCTION_EXPORT file=docs/experiments/SEQSCAN/raw/export/gqa2.json count_nominal_cells=70 status=PASS cost_integration=pending
+A3_PRODUCTION_EXPORT file=docs/experiments/SEQSCAN/raw/export/mha4.json count_nominal_cells=140 status=PASS cost_integration=pending
+ISL_CONTEXT remaining=0

@@ -107,12 +107,40 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
     for (auto const& term:result.terms) if (!term.coefficient.IsLiteral(0)) output_axes.insert(term.dim);
   }
   ClosedForm reduce=ClosedForm::Constant(1), parallel=ClosedForm::Constant(1);
+  ClosedForm local_reduce=ClosedForm::Constant(1);
   for (auto const& dim:semantic.domain) {
     if (output_axes.count(dim.name)) parallel=parallel*dim.extent;
-    else reduce=reduce*dim.extent;
+    else {
+      reduce=reduce*dim.extent;
+      if (semantic.operands.size()!=task.operands.size())
+        throw std::invalid_argument("local reduction requires matching semantic operands");
+      bool found=false;
+      ClosedForm local;
+      for (std::size_t operand=0;operand<semantic.operands.size();++operand) {
+        auto access=BuildReadMap(task,operand);
+        auto const& indices=semantic.operands[operand].map.results;
+        if (indices.size()!=access.index.size())
+          throw std::invalid_argument("local reduction indexing rank mismatch");
+        for (std::size_t axis=0;axis<indices.size();++axis) {
+          auto const& index=indices[axis];
+          for (auto const& term:index.terms) if (term.dim==dim.name) {
+            if (index.kind!=IndexResult::Kind::kAffine || index.terms.size()!=1 ||
+                !term.coefficient.IsLiteral(1) || !term.group.IsLiteral(1))
+              throw std::invalid_argument("local reduction requires an exact unit indexing axis");
+            auto span=access.index[axis].span.Substitute(known);
+            if (found && span.ToString()!=local.ToString())
+              throw std::invalid_argument("reduction operands disagree on the local span");
+            local=span; found=true;
+          }
+        }
+      }
+      if (!found) throw std::invalid_argument("reduction axis has no indexed read: "+dim.name);
+      local_reduce=local_reduce*local;
+    }
   }
   work.reduce_extent=Polynomial(reduce,known);
   work.parallel_extent=Polynomial(parallel,known);
+  work.task_reduce_extent=Polynomial(local_reduce,known);
   return work;
 }
 }  // namespace tilemega::analysis

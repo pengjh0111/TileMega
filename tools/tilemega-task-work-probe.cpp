@@ -25,6 +25,12 @@ int main(int argc, char** argv) try {
        {OperandAxisMap::Indexed(0),OperandAxisMap::FullRange()}},
     {"",{"B",{{"n",fixed(512)},{"k",fixed(512)}}},
        {OperandAxisMap::Indexed(1),OperandAxisMap::FullRange()}}};
+  SemanticOperand a,b;
+  a.tensor=task.operands[0].tensor;
+  a.map.results={IndexResult::Dim("m"),IndexResult::Dim("k")};
+  b.tensor=task.operands[1].tensor;
+  b.map.results={IndexResult::Dim("n"),IndexResult::Dim("k")};
+  semantic.operands={a,b};
   auto work=DeriveTaskWork(semantic,task,{});
   std::cout << "seq\ttask_count\tphysical_bytes_per_iter\tnominal_bytes_per_iter\tlegacy_mainloop_bytes\tphysical_equal\n";
   int differences=0;
@@ -46,10 +52,35 @@ int main(int argc, char** argv) try {
   std::cerr<<"A3_DUAL_DOMAIN differences="<<differences
            <<" nominal_gate=PASS physical_counterexample=preserved production_gate=pending\n";
   task.operands.push_back(task.operands.front());
+  semantic.operands.push_back(semantic.operands.front());
   auto repeated = DeriveTaskWork(semantic,task,{});
   ParamBinding tail; tail.Bind("S",4).Bind("m",0).Bind("n",0);
   if (repeated.read_elements.Eval(tail)!=work.read_elements.Eval(tail))
     throw std::runtime_error("repeated operand was double-counted");
+  semantic.operands.pop_back();
+  task.operands.pop_back();
+  semantic.kind=OperatorKind::kMatmul;
+  semantic.result=task.output;
+  semantic.reduction={"k","add","gemm.partial","gemm.combine",true,{"m","n"}};
+  SemanticGraph semantics; semantics.ops={semantic};
+  int split_cells=0;
+  for (int chunks:{1,2,4,8,16}) {
+    Granularity g;
+    g.Tile("gemm","m",fixed(128)).Tile("gemm","n",fixed(128));
+    if (chunks>1) g.Split("gemm",fixed(512/chunks));
+    auto graph=Instantiate(semantics,g);
+    auto partial=DeriveTaskWork(semantic,*graph.Find("gemm"),{});
+    for (int seq:{1,4,128,512,2048}) {
+      ParamBinding theta; theta.Bind("S",seq).Bind("m",0).Bind("n",0).Bind("j",0);
+      if (partial.reduce_extent.Eval(theta)!=512 ||
+          partial.task_reduce_extent.Eval(theta)!=512/chunks ||
+          partial.nominal_read_elements.Eval(theta)!=(128+128)*(512/chunks) ||
+          partial.task_count.Eval(theta)!=((seq+127)/128)*4*chunks)
+        throw std::runtime_error("split partial local work differs from access span");
+      ++split_cells;
+    }
+  }
+  std::cerr << "A3_LOCAL_REDUCTION split_seq_cells=" << split_cells << " status=PASS\n";
   int rejected=0;
   auto reject = [&](auto action) {
     auto before=context.ReferenceCount();
@@ -60,6 +91,7 @@ int main(int argc, char** argv) try {
   bad.operands.front().tensor.name.clear();
   reject([&]{ (void)DeriveTaskWork(semantic,bad,{}); });
   bad=task;
+  bad.operands.push_back(bad.operands.front());
   bad.operands.back().tensor.layout_id="incompatible";
   reject([&]{ (void)DeriveTaskWork(semantic,bad,{}); });
   if (rejected!=2) throw std::runtime_error("TaskWork validation failed to reject invalid input");

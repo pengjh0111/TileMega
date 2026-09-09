@@ -17,6 +17,9 @@ struct TaskWork {
   QuasiPolynomial read_elements, write_elements;
   QuasiPolynomial nominal_read_elements, nominal_write_elements;
   QuasiPolynomial reduce_extent, parallel_extent;
+  // Local reduction span after L-task splitting; the semantic reduction
+  // above still describes the complete operator, not one partial.
+  QuasiPolynomial task_reduce_extent;
 };
 TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
                        ParamBinding const& known);

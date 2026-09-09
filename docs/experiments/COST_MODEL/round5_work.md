@@ -73,6 +73,27 @@ extent, complete CG work attributes and their solver consumption still need
 completion. `TILEMEGA_TASK_WORK=0` rejects derivation rather than fabricating
 fallback values. A3 remains open; dependent A6/B gates remain closed.
 
+### Split-local reduction work
+
+✅ `TaskWork::task_reduce_extent` is distinct from the complete semantic
+`reduce_extent`. `TaskWork.cpp` identifies a reduction axis by its absence
+from the result index map, matches that axis to the semantic operand index,
+and reads its span from the instantiated access relation. Thus a split
+contribution uses its actual chunk span; an unsplit reduction uses the full
+span. No GEMM-kind formula is inserted into work derivation. Non-unit or
+inconsistent indexing is rejected explicitly rather than approximated.
+
+`task_work_local.stderr` records 25/25 split×seq checks (split=1,2,4,8,16;
+seq=1,4,128,512,2048), with K=512 kept as the complete operator extent and
+512/split as the local extent. The existing 210 production-export checks
+and two malformed-input checks still pass; `ISL_CONTEXT remaining=0`.
+This closes the original prototype's full-K-as-local-K error, not the
+remaining nominal **inner-loop padding** issue: a chunk not divisible by
+the collective tile_k issues a padded final iteration. Full A3/A6 gates
+must distinguish that issued work from the physical chunk, just as the
+M-tail counterexample distinguishes physical from nominal outer tiles.
+Combiner work and production CG serialization/consumption remain open.
+
 ## A4 arithmetic declaration audit
 
 The single table is `lib/Analysis/OpArithmetic.cpp:9`. Work is represented
