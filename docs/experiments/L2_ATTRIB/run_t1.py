@@ -93,6 +93,8 @@ if 'build' in phases:
 resource_columns = ['reg', 'ctas_per_sm', 'grid', 'block', 'task_smem',
                     'occupancy_smem', 'static_smem', 'regs_per_sm', 'smem_per_sm',
                     'threads_per_sm', 'l1_reg', 'l05_reg', 'l1_ctas', 'l2_ctas', 'min_blocks', 'warp_size']
+schedule_columns = ['variant_stages', 'task_refs', 'waits', 'max_worker_task_refs']
+timing_columns = ['cold', 'warmup', 'repeat']
 
 def ptxas_resources(model, variant, arm):
     current = None
@@ -126,6 +128,12 @@ def run(model, variant, arm, seq, past, repeat, phase):
     fields = dict(word.split('=', 1) for word in timing.split()[1:] if '=' in word)
     resource = next(line for line in result.stdout.splitlines() if line.startswith('E2E_RESOURCE '))
     resource = dict(word.split('=', 1) for word in resource.split()[1:] if '=' in word)
+    schedule = next(line for line in result.stdout.splitlines() if line.startswith('E2E_SCHEDULE '))
+    schedule = dict(word.split('=', 1) for word in schedule.split()[1:] if '=' in word)
+    if not all(c in schedule for c in schedule_columns):
+        raise RuntimeError(f'missing runtime queue features; rebuild binary: {log}')
+    timing_policy = next(line for line in result.stdout.splitlines() if line.startswith('E2E_TIMING '))
+    timing_policy = dict(word.split('=',1) for word in timing_policy.split()[1:] if '=' in word)
     compiled = ptxas_resources(model, variant, arm)
     l2 = compiled['tilemega_l2_kernel']
     if l2['reg'] != int(resource['reg']):
@@ -147,7 +155,8 @@ def run(model, variant, arm, seq, past, repeat, phase):
             *[resource[c] for c in resource_columns],
             *[compiled[k][c] for k in ('tilemega_stage_kernel', 'tilemega_l1_kernel',
                                        'tilemega_l2_kernel') for c in ('stores', 'loads')],
-            predicted, binding]
+            predicted, binding, *[schedule[c] for c in schedule_columns],
+            *[timing_policy[c] for c in timing_columns]]
 
 for phase in ('correctness', 'attrib', 'e2e', 'matrix'):
     if phase not in phases:
@@ -159,7 +168,8 @@ for phase in ('correctness', 'attrib', 'e2e', 'matrix'):
                          'l1_ms', 'l2_ms', 'l05_ms', *resource_columns,
                          'l05_spill_stores', 'l05_spill_loads', 'l1_spill_stores',
                          'l1_spill_loads', 'l2_spill_stores', 'l2_spill_loads',
-                         'f40_ctas', 'f40_binding', 'execution_index'])
+                         'f40_ctas', 'f40_binding', *schedule_columns,
+                         *timing_columns, 'execution_index'])
         execution_index = 0
         for model in ('gqa2', 'mha4'):
             for seq in ([1, 4, 128, 512, 2048] if phase == 'matrix' else seqs):
