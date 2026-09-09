@@ -12,6 +12,7 @@
 
 #include <tilemega/Solver/BackendCostQuery.h>
 #include <tilemega/Analysis/QuasiPolynomial.h>
+#include <tilemega/Analysis/CouplingRelation.h>
 
 #include <string>
 #include <vector>
@@ -40,6 +41,7 @@ struct ModelDims {
 struct ModelCouplingMetrics {
   int producer = -1, consumer = -1;
   analysis::QuasiPolynomial wait, fanout, volume, count;
+  analysis::CouplingRelation relation;
 };
 
 /// M stays symbolic, so a GEMM contributes only N and K.  The destination

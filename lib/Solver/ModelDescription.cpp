@@ -203,7 +203,7 @@ ModelDescription ModelDescription::FromCouplingGraph(
     int const consumer = task_stage.at(edge.getDst().str());
     model.coupling_metrics.push_back({producer, consumer,
         edge.getWait().getValue(), edge.getFanout().getValue(),
-        edge.getVolume().getValue(), edge.getCount().getValue()});
+        edge.getVolume().getValue(), edge.getCount().getValue(), edge.getRelation().getMap()});
     if (producer != consumer) model.stage_successors.at(producer).push_back(consumer);
   }
   for (auto& successors : model.stage_successors) {
@@ -250,6 +250,7 @@ ModelDescription ModelDescription::SubstituteParams(analysis::ParamBinding const
     edge.fanout = edge.fanout.SubstituteParams(known);
     edge.volume = edge.volume.SubstituteParams(known);
     edge.count = edge.count.SubstituteParams(known);
+    edge.relation = edge.relation.BindParams(known);
   }
   out.metric_bindings = std::move(known);
   return out;

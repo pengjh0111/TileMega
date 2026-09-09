@@ -221,6 +221,10 @@ set_target_properties(tilemega-affine-probe PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
 add_executable(tilemega-parametric tools/tilemega-parametric.cpp)
+add_executable(tilemega-event-cost tools/tilemega-event-cost.cpp)
+target_link_libraries(tilemega-event-cost PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-event-cost PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 target_link_libraries(tilemega-parametric PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-parametric PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
