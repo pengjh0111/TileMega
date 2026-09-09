@@ -9,6 +9,7 @@
 
 #include <cuda_runtime.h>
 #include <tilemega/Codegen/tasks/EventSync.cuh>
+#include <tilemega/Codegen/tasks/Benchmark.cuh>
 
 #include <tilemega/Codegen/tasks/AttentionChunkTaskBody.h>
 #include <tilemega/Codegen/tasks/ElementwiseTaskBody.h>
@@ -554,7 +555,7 @@ __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
 #endif
 }
 
-__global__ __launch_bounds__(kHarnessThreads, 1)
+__global__ __launch_bounds__(kHarnessThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
 void tilemega_stage_kernel(Params const* params, std::uint32_t stage) {
   extern __shared__ unsigned char bytes[];
   RunStage(*params, stage, *reinterpret_cast<TaskSmem*>(bytes));
@@ -562,7 +563,7 @@ void tilemega_stage_kernel(Params const* params, std::uint32_t stage) {
 
 /// The L1 megakernel.  The stage loop is a run-time loop over the generated
 /// table: its trip count is data, so one compiled kernel serves every model.
-__global__ __launch_bounds__(kHarnessThreads, 1)
+__global__ __launch_bounds__(kHarnessThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
 void tilemega_l1_kernel(Params const* params, EventCounter* events,
                         unsigned long long iteration) {
   extern __shared__ unsigned char bytes[];
@@ -575,7 +576,7 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
 
 /// L2 is worker-queue driven. Adjacent rows may name different stages; only
 /// the concrete task's precomputed event slice constrains progress.
-__global__ __launch_bounds__(kHarnessThreads, 1)
+__global__ __launch_bounds__(kHarnessThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
 void tilemega_l2_kernel(Params const* params, EventCounter* events,
                         unsigned long long iteration) {
   extern __shared__ unsigned char bytes[];
@@ -627,7 +628,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
 /// the narrowing factor Part 3.1 attributes the L2/L1 ratio with.  Printing
 /// happens on the device because the active-CTA count is a TaskBody property
 /// (`Ownership`) and gridDim has to be the real launch grid.
-__global__ __launch_bounds__(kHarnessThreads, 1)
+__global__ __launch_bounds__(kHarnessThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
 void tilemega_wait_profile_kernel(Params const* params, int seq) {
   if (blockIdx.x != 0 || threadIdx.x != 0) return;
   // `seq` is a counting what-if, not an execution: every active-CTA count is
@@ -1563,22 +1564,12 @@ inline unsigned long long BitHash(
   return hash;
 }
 
-inline float LaunchL05(DeviceModel& model, int grid) {
-  cudaEvent_t start, stop;
-  TILEMEGA_CUDA_CHECK(cudaEventCreate(&start));
-  TILEMEGA_CUDA_CHECK(cudaEventCreate(&stop));
-  TILEMEGA_CUDA_CHECK(cudaEventRecord(start));
+inline float LaunchL05(DeviceModel& model, int grid, bool timed = true) {
+  return benchmark::Time([&] {
   for (std::uint32_t stage = 0; stage < model.params.stage_count; ++stage)
     tilemega_stage_kernel<<<grid, kHarnessThreads, sizeof(TaskSmem)>>>(
         model.device_params, stage);
-  TILEMEGA_CUDA_CHECK(cudaEventRecord(stop));
-  TILEMEGA_CUDA_CHECK(cudaEventSynchronize(stop));
-  TILEMEGA_CUDA_CHECK(cudaGetLastError());
-  float ms = 0;
-  TILEMEGA_CUDA_CHECK(cudaEventElapsedTime(&ms, start, stop));
-  cudaEventDestroy(start);
-  cudaEventDestroy(stop);
-  return ms;
+  }, timed);
 }
 
 /// Per-stage L0.5 timing, used by the partition oracle to attribute an
@@ -1641,39 +1632,19 @@ inline void LaunchPersistent(Kernel kernel, int grid, std::size_t smem_bytes, Ar
 }
 
 inline float LaunchL1(DeviceModel& model, int grid,
-                      unsigned long long iteration = 0) {
-  cudaEvent_t start, stop;
-  TILEMEGA_CUDA_CHECK(cudaEventCreate(&start));
-  TILEMEGA_CUDA_CHECK(cudaEventCreate(&stop));
-  TILEMEGA_CUDA_CHECK(cudaEventRecord(start));
+                      unsigned long long iteration = 0, bool timed = true) {
+  return benchmark::Time([&] {
   LaunchPersistent(tilemega_l1_kernel, grid, sizeof(TaskSmem), model.device_params,
                    model.events, iteration);
-  TILEMEGA_CUDA_CHECK(cudaEventRecord(stop));
-  TILEMEGA_CUDA_CHECK(cudaEventSynchronize(stop));
-  TILEMEGA_CUDA_CHECK(cudaGetLastError());
-  float ms = 0;
-  TILEMEGA_CUDA_CHECK(cudaEventElapsedTime(&ms, start, stop));
-  cudaEventDestroy(start);
-  cudaEventDestroy(stop);
-  return ms;
+  }, timed);
 }
 
 inline float LaunchL2(DeviceModel& model, int grid,
-                      unsigned long long iteration = 0) {
-  cudaEvent_t start, stop;
-  TILEMEGA_CUDA_CHECK(cudaEventCreate(&start));
-  TILEMEGA_CUDA_CHECK(cudaEventCreate(&stop));
-  TILEMEGA_CUDA_CHECK(cudaEventRecord(start));
+                      unsigned long long iteration = 0, bool timed = true) {
+  return benchmark::Time([&] {
   LaunchPersistent(tilemega_l2_kernel, grid, model.l2_smem_bytes, model.device_params,
                    model.events, iteration);
-  TILEMEGA_CUDA_CHECK(cudaEventRecord(stop));
-  TILEMEGA_CUDA_CHECK(cudaEventSynchronize(stop));
-  TILEMEGA_CUDA_CHECK(cudaGetLastError());
-  float ms = 0;
-  TILEMEGA_CUDA_CHECK(cudaEventElapsedTime(&ms, start, stop));
-  cudaEventDestroy(start);
-  cudaEventDestroy(stop);
-  return ms;
+  }, timed);
 }
 
 }  // namespace harness
@@ -1722,6 +1693,9 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   auto target = tilemega::TargetSpec::Probe();
   cudaFuncAttributes l2_attributes{};
   TILEMEGA_CUDA_CHECK(cudaFuncGetAttributes(&l2_attributes, tilemega_l2_kernel));
+  cudaFuncAttributes l1_attributes{}, l05_attributes{};
+  TILEMEGA_CUDA_CHECK(cudaFuncGetAttributes(&l1_attributes, tilemega_l1_kernel));
+  TILEMEGA_CUDA_CHECK(cudaFuncGetAttributes(&l05_attributes, tilemega_stage_kernel));
   std::size_t const l2_smem_bytes = TILEMEGA_EVENT_CLUSTER_RESERVE
       ? target.res.max_dynamic_smem_per_cta - l2_attributes.sharedSizeBytes : sizeof(TaskSmem);
   TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(
@@ -1744,6 +1718,10 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   int l2_grid = TILEMEGA_GENERATED_RESIDENT_GRID(target, tilemega_l2_kernel,
                                                  kHarnessThreads, l2_smem_bytes);
   if (l2_grid < grid) grid = l2_grid;
+  int const l1_ctas = target.ActiveBlocksPerSM(
+      reinterpret_cast<void const*>(tilemega_l1_kernel), kHarnessThreads, sizeof(TaskSmem));
+  int const l2_ctas = target.ActiveBlocksPerSM(
+      reinterpret_cast<void const*>(tilemega_l2_kernel), kHarnessThreads, l2_smem_bytes);
 #if TILEMEGA_GENERATED_CLUSTER_DIM > 1
   // The capability table is a compile-time policy; this is the device in front
   // of us.  Refusing here is the point: a cluster kernel that quietly ran with
@@ -1785,15 +1763,19 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
                              dims, fixture_dir, grid, blocks_per_sm, target, l2_smem_bytes);
   PrepareEvents(model, grid);
 
-  Reset(model);
-  float l05_ms = LaunchL05(model, grid);
+  benchmark::Settings const timing;
+  std::printf("E2E_TIMING cold=%d warmup=%d repeat=%d statistic=median reset=outside_timing\n",
+              TILEMEGA_COLD_START_TIMING, timing.warmup, timing.repeat);
+  auto reset_forward = [&] { Reset(model); };
+  float l05_ms = benchmark::Forward(timing, reset_forward,
+      [&](bool timed) { return LaunchL05(model, grid, timed); });
   auto l05 = Download(model);
   DumpBuffers(model, std::getenv("TILEMEGA_DUMP_BUFFERS"));
-  Reset(model);
-  float l1_ms = LaunchL1(model, grid);
+  float l1_ms = benchmark::Forward(timing, reset_forward,
+      [&](bool timed) { return LaunchL1(model, grid, 0, timed); });
   auto l1 = Download(model);
-  Reset(model);
-  float l2_ms = LaunchL2(model, grid);
+  float l2_ms = benchmark::Forward(timing, reset_forward,
+      [&](bool timed) { return LaunchL2(model, grid, 0, timed); });
   auto l2 = Download(model);
   ReportTaskTrace(model);
 
@@ -1846,12 +1828,17 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   Difference l05_l0 = Compare(l05, reference, "l05_vs_l0");
   Difference l1_l05 = Compare(l1, l05, "l1_vs_l05");
   Difference l2_l1 = Compare(l2, l1, "l2_vs_l1");
-  std::printf("E2E_RESOURCE block=%d reg=ptxas smem=%zu gemm_union=%zu "
+  std::printf("E2E_RESOURCE block=%d reg=%d smem=%zu task_smem=%zu occupancy_smem=%zu "
+              "static_smem=%zu regs_per_sm=%d smem_per_sm=%d threads_per_sm=%d gemm_union=%zu "
               "variant_count=%d ctas_per_sm=%d num_sms=%d grid=%d "
+              "l1_reg=%d l05_reg=%d l1_ctas=%d l2_ctas=%d min_blocks=%d warp_size=%d "
               "resident_formula=ctas_per_sm*num_sms\n",
-              kHarnessThreads, sizeof(TaskSmem), sizeof(GemmVariantSmem),
+              kHarnessThreads, l2_attributes.numRegs, l2_smem_bytes, sizeof(TaskSmem),
+              l2_smem_bytes, l2_attributes.sharedSizeBytes, target.res.regs_per_sm,
+              target.res.max_smem_per_sm, target.res.max_threads_per_sm, sizeof(GemmVariantSmem),
               TILEMEGA_GEMM_VARIANT_COUNT, blocks_per_sm,
-              target.res.num_sms, grid);
+              target.res.num_sms, grid, l1_attributes.numRegs, l05_attributes.numRegs,
+              l1_ctas, l2_ctas, TILEMEGA_MIN_BLOCKS_PER_SM, target.res.warp_size);
   std::printf("E2E_SCHEDULE workers=%d variant_stages=%u task_refs=%zu "
               "task_ref_bytes=%zu waits=%zu wait_bytes=%zu raw_polls=%zu "
               "lifted_polls=%zu waiting_tasks=%zu normalization_dummies_lb=%zu "

@@ -4,6 +4,7 @@
 // L0.5/L1 correctness ladder for the V-H two-layer Llama ExportedProgram.
 #include <cuda_runtime.h>
 #include <tilemega/Codegen/tasks/EventSync.cuh>
+#include <tilemega/Codegen/tasks/Benchmark.cuh>
 
 #include <tilemega/Codegen/tasks/TaskBase.h>
 #include <tilemega/Target/TargetSpec.h>
@@ -465,14 +466,14 @@ __device__ void GridBarrier(EventCounter* events, int stage) {
   __threadfence();
 }
 
-__global__ __launch_bounds__(kThreads, 1)
+__global__ __launch_bounds__(kThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
 void stage_kernel(int stage, Params const* params) {
   extern __shared__ unsigned char bytes[];
   auto& storage = *reinterpret_cast<TaskSmem*>(bytes);
   RunStage(stage, *params, storage);
 }
 
-__global__ __launch_bounds__(kThreads, 1)
+__global__ __launch_bounds__(kThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
 void l1_kernel(Params const* params, EventCounter* events) {
   extern __shared__ unsigned char bytes[];
   auto& storage = *reinterpret_cast<TaskSmem*>(bytes);
@@ -622,25 +623,19 @@ void Reset(DeviceModel& model, HostFixture const& fixture) {
   CUDA_CHECK(cudaMemset(model.events, 0, sizeof(EventCounter) * kStages));
 }
 
-float LaunchL05(DeviceModel& model, int grid) {
-  cudaEvent_t start, stop; CUDA_CHECK(cudaEventCreate(&start)); CUDA_CHECK(cudaEventCreate(&stop));
-  CUDA_CHECK(cudaEventRecord(start));
+float LaunchL05(DeviceModel& model, int grid, bool timed = true) {
+  return tilemega::codegen::benchmark::Time([&] {
   for (int stage = 0; stage < kStages; ++stage)
     stage_kernel<<<grid, kThreads, sizeof(TaskSmem)>>>(
         static_cast<int>(kTileMegaGeneratedHostSchedule[stage].stage),
         model.device_params);
-  CUDA_CHECK(cudaEventRecord(stop)); CUDA_CHECK(cudaEventSynchronize(stop));
-  CUDA_CHECK(cudaGetLastError()); float ms = 0; CUDA_CHECK(cudaEventElapsedTime(&ms, start, stop));
-  cudaEventDestroy(start); cudaEventDestroy(stop); return ms;
+  }, timed);
 }
 
-float LaunchL1(DeviceModel& model, int grid) {
-  cudaEvent_t start, stop; CUDA_CHECK(cudaEventCreate(&start)); CUDA_CHECK(cudaEventCreate(&stop));
-  CUDA_CHECK(cudaEventRecord(start));
+float LaunchL1(DeviceModel& model, int grid, bool timed = true) {
+  return tilemega::codegen::benchmark::Time([&] {
   l1_kernel<<<grid, kThreads, sizeof(TaskSmem)>>>(model.device_params, model.events);
-  CUDA_CHECK(cudaEventRecord(stop)); CUDA_CHECK(cudaEventSynchronize(stop));
-  CUDA_CHECK(cudaGetLastError()); float ms = 0; CUDA_CHECK(cudaEventElapsedTime(&ms, start, stop));
-  cudaEventDestroy(start); cudaEventDestroy(stop); return ms;
+  }, timed);
 }
 
 std::vector<std::vector<float>> Download(DeviceModel const& model) {
@@ -707,12 +702,24 @@ int main(int argc, char** argv) {
   int grid = TILEMEGA_GENERATED_RESIDENT_GRID(
       target, l1_kernel, kThreads, sizeof(TaskSmem));
 
-  Reset(model, fixture); float l05_ms = LaunchL05(model, grid); auto l05 = Download(model);
-  Reset(model, fixture); float l1_ms = LaunchL1(model, grid); auto l1 = Download(model);
+  tilemega::codegen::benchmark::Settings const timing;
+  std::printf("E2E_TIMING cold=%d warmup=%d repeat=%d statistic=median reset=outside_timing\n",
+              TILEMEGA_COLD_START_TIMING, timing.warmup, timing.repeat);
+  auto reset = [&] { Reset(model, fixture); };
+  float l05_ms = tilemega::codegen::benchmark::Forward(timing, reset,
+      [&](bool timed) { return LaunchL05(model, grid, timed); });
+  auto l05 = Download(model);
+  float l1_ms = tilemega::codegen::benchmark::Forward(timing, reset,
+      [&](bool timed) { return LaunchL1(model, grid, timed); });
+  auto l1 = Download(model);
   Difference l05_l0 = Compare(l05, std::vector<std::vector<float>>(std::begin(fixture.reference), std::end(fixture.reference)));
   Difference l1_l05 = Compare(l1, l05);
-  std::printf("E2E_RESOURCE block=%d reg=ptxas smem=%zu ctas_per_sm=%d num_sms=%d grid=%d resident_formula=ctas_per_sm*num_sms\n",
-              kThreads, sizeof(TaskSmem), blocks_per_sm, target.res.num_sms, grid);
+  cudaFuncAttributes attributes{};
+  CUDA_CHECK(cudaFuncGetAttributes(&attributes, l1_kernel));
+  std::printf("E2E_RESOURCE block=%d reg=%d smem=%zu task_smem=%zu occupancy_smem=%zu "
+              "ctas_per_sm=%d num_sms=%d grid=%d resident_formula=ctas_per_sm*num_sms\n",
+              kThreads, attributes.numRegs, sizeof(TaskSmem), sizeof(TaskSmem),
+              sizeof(TaskSmem), blocks_per_sm, target.res.num_sms, grid);
   std::printf("E2E_TIME l05_ms=%.6f l1_ms=%.6f ratio=%.6f\n", l05_ms, l1_ms, l1_ms / l05_ms);
   std::printf("E2E_DIFF l05_vs_l0_mismatch=%zu max_abs=%.8g max_rel=%.8g l1_vs_l05_mismatch=%zu max_abs=%.8g max_rel=%.8g\n",
               l05_l0.mismatch, l05_l0.max_abs, l05_l0.max_rel,
