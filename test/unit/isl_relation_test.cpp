@@ -97,6 +97,12 @@ int main() {
   assert(lexical.Eval(partial) == -59);
   assert(specialized.Eval(partial) == -59);
   assert(QuasiPolynomial::Sum({disjoint_sum,disjoint_sum.Scale(-1)}).Eval(eight) == 0);
+  auto coordinate_sum = QuasiPolynomial::Sum({triangular_wait, triangular_wait});
+  assert(coordinate_sum.SumDomain().Eval({}) == 56);
+  assert(QuasiPolynomial::Sum({}).Eval({}) == 0);
+  assert(triangular.Union(triangular).Card().SumDomain().Eval({}) == 28);
+  assert(CouplingRelation().Union(triangular) == triangular);
+  assert(triangular.Union(CouplingRelation()) == triangular);
   auto overlap = CouplingRelation::FromIslText(
       "{ [i] -> [j] : 0 <= i < 5 and j=i; [i] -> [j] : 2 <= i < 8 and j=i }");
   auto overlapping_points = overlap.Points();

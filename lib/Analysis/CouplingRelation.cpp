@@ -50,6 +50,17 @@ CouplingRelation CouplingRelation::IntersectDomain(
   return CouplingRelation(isl_util::ToString(restricted.get()));
 }
 
+CouplingRelation CouplingRelation::Union(CouplingRelation const& other) const {
+  IslReferenceAudit audit(__func__);
+  if (empty()) return other;
+  if (other.empty()) return *this;
+  auto lhs = isl_util::ReadMap(Ctx(), text_);
+  auto rhs = isl_util::ReadMap(Ctx(), other.text_);
+  isl_util::Map result(isl_map_union(lhs.release(), rhs.release()));
+  if (!result) throw std::invalid_argument("union requires matching task/tensor spaces");
+  return CouplingRelation(isl_util::ToString(result.get()));
+}
+
 CouplingRelation CouplingRelation::IntersectRange(
     std::string const& range_set_text) const {
   if (empty()) return {};

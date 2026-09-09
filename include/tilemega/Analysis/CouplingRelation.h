@@ -45,6 +45,8 @@ class CouplingRelation {
   /// maps `this`'s domain to `other`'s range through `this`'s range /
   /// `other`'s domain. `R.ApplyRange(W.Reverse())` is C = W^-1 o R.
   CouplingRelation ApplyRange(CouplingRelation const& other) const;
+  /// Exact union in the same task/tensor coordinate space (overlap counted once).
+  CouplingRelation Union(CouplingRelation const& other) const;
   /// Restrict the domain to `domain_set_text` (isl set syntax over the same
   /// domain tuple/parameters). DeriveCoupling uses this to bind every
   /// consumer coordinate to its own task-space extent before returning C

@@ -163,9 +163,12 @@ QuasiPolynomial QuasiPolynomial::Scale(long factor) const {
 
 QuasiPolynomial QuasiPolynomial::Sum(std::vector<QuasiPolynomial> const& terms) {
   IslReferenceAudit audit(__func__);
-  auto sum = isl_util::ReadPwQPolynomial(Ctx(), "{ 0 }");
-  for (auto const& term : terms) {
-    auto rhs = isl_util::ReadPwQPolynomial(Ctx(), term.text_);
+  if (terms.empty()) return Constant(0);
+  // The additive identity must live in the task-coordinate space. A scalar
+  // {0} seed cannot be added to a per-task polynomial [m,n] -> work.
+  auto sum = isl_util::ReadPwQPolynomial(Ctx(), terms.front().text_);
+  for (std::size_t i=1; i<terms.size(); ++i) {
+    auto rhs = isl_util::ReadPwQPolynomial(Ctx(), terms[i].text_);
     sum = isl_util::PwQPolynomial(isl_pw_qpolynomial_add(sum.release(),rhs.release()));
     if (!sum) throw std::invalid_argument("incompatible quasi-polynomial sum");
   }
