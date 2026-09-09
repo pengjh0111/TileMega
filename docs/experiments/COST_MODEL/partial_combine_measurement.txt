@@ -1,0 +1,17 @@
+sm_89: SMs=128 smem/SM=102400 smem/CTA=101376 regs/SM=65536 cluster=false TMA=false tcgen05=false
+  combine count=1024: per-peer=-0.559136ns (-0.000546031ns/elem) r2=0.227151
+  combine count=4096: per-peer=3.76345ns (0.00091881ns/elem) r2=0.686045
+  combine count=16384: per-peer=22.3226ns (0.00136246ns/elem) r2=0.736611
+  combine count=65536: per-peer=62.2366ns (0.000949655ns/elem) r2=0.987113
+  combine count=262144: per-peer=183.699ns (0.000700756ns/elem) r2=0.969707
+  combine single count=65536: -64ns (-0.000976563ns/elem)
+  combine single count=262144: 896ns (0.00341797ns/elem)
+  combine single count=1048576: 4992ns (0.00476074ns/elem)
+  combine single count=4194304: 20352ns (0.0048523ns/elem)
+  combine single count=1: -128ns (-128ns/elem)
+  combine single count=64: -128ns (-2ns/elem)
+  combine single count=256: -128ns (-0.5ns/elem)
+  combine single count=1024: -128ns (-0.125ns/elem)
+  combine count=1048576: per-peer=4502.54ns (0.00429395ns/elem) r2=0.83896
+  combine: d=0.000717795ns/peer/elem (r2=0.984407) base=0.00484034ns/elem fixed=0ns (r2=0.998906) dram-d=0.00429395ns/peer/elem
+tilemega-calibrate: FP32 partial combine: not_calibrated; unresolved measured fit (see log)
