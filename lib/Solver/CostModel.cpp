@@ -375,6 +375,15 @@ double CostModel::CombineStageNs(GemmOp const& gemm, int chunks,
   double const d = calib.streamk.empty() ? 0.0 : calib.streamk.front().d_ns;
   double const elements = static_cast<double>(dims.seq) * gemm.n;
   if (options_.fp32_partials && dtype_ == ScalarType::kBF16) {
+    if (options_.measured_partial_combine) {
+      auto const& fit=calib.fp32_partial_combine;
+      if (fit.reason!="measured" || !fit.fixed_ns || !fit.base_ns ||
+          !fit.d_l2_ns || !fit.d_dram_ns)
+        throw std::runtime_error("FP32 partial combine rate: "+fit.reason);
+      double miss=1.0-CacheHitProbability(4.0*chunks*elements);
+      double peer=(1.0-miss)*(*fit.d_l2_ns)+miss*(*fit.d_dram_ns);
+      return *fit.fixed_ns+(*fit.base_ns+peer*(chunks-1))*elements;
+    }
     // The existing coefficients measured BF16 partial reads. Add the extra
     // two bytes per partial, not a 2x scale of the entire compute/launch fit.
     // A doubled working set can cross the L2 knee; the measured DRAM peer

@@ -79,6 +79,31 @@ int main() {
   CostModel const cost(target);
   ModelDescription const model = TinyModel();
   ChainDP const dp(cost, Candidates());
+  CostModelOptions measured_options;
+  measured_options.measured_partial_combine=true;
+  CostModel const missing_partial(target,ScalarType::kBF16,measured_options);
+  bool missing_rejected=false;
+  try { (void)missing_partial.CombineStageNs(model.gemms.front(),2,model.dims); }
+  catch (std::runtime_error const& error) {
+    missing_rejected=std::string(error.what()).find("not_calibrated")!=std::string::npos;
+  }
+  REQUIRE(missing_rejected);
+  CostModel const fp32_measured(target,ScalarType::kF32,measured_options);
+  for (int chunks:{1,2,4,8,16}) {
+    double before=cost.CombineStageNs(model.gemms.front(),chunks,model.dims);
+    double after=fp32_measured.CombineStageNs(model.gemms.front(),chunks,model.dims);
+    REQUIRE(std::memcmp(&before,&after,sizeof(double))==0);
+  }
+  // Synthetic algebra test only: these numbers never enter a target file or
+  // a calibration/ranking report. They detect a disconnected new coefficient.
+  auto synthetic=target;
+  auto& partial=synthetic.calib_bf16.fp32_partial_combine;
+  partial.fixed_ns=12.0; partial.base_ns=0.5; partial.d_l2_ns=0.25; partial.d_dram_ns=1.0;
+  partial.reason="measured"; partial.method="synthetic unit-test fixture, not calibration";
+  measured_options.cache_model=false;
+  CostModel const synthetic_cost(synthetic,ScalarType::kBF16,measured_options);
+  REQUIRE(synthetic_cost.CombineStageNs(model.gemms.front(),2,model.dims)==
+          12.0+0.75*model.dims.seq*model.gemms.front().n);
 
   // Finite-domain design (b) must retain the concrete DP's exact choices and
   // IEEE cost values, not fit/interpolate across untested points.

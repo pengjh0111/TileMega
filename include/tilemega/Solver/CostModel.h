@@ -30,6 +30,9 @@
 #ifndef TILEMEGA_TASK_TRAIT_COSTS
 #define TILEMEGA_TASK_TRAIT_COSTS 1
 #endif
+#ifndef TILEMEGA_MEASURED_PARTIAL_COMBINE
+#define TILEMEGA_MEASURED_PARTIAL_COMBINE 0
+#endif
 
 namespace tilemega::solver {
 
@@ -123,6 +126,7 @@ struct CostModelOptions {
   /// It changes BF16 split traffic only; FP32 and unsplit GEMMs are unchanged.
   bool fp32_partials = true;
   bool task_body_traits = TILEMEGA_TASK_TRAIT_COSTS;
+  bool measured_partial_combine = TILEMEGA_MEASURED_PARTIAL_COMBINE;
 };
 
 class CostModel {
