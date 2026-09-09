@@ -26,6 +26,9 @@ int main() {
   assert(!events.fence.ns && events.fence.reason == "not_calibrated");
   assert(!sm120.EventCalibrationFor("f32").notify.ns);
   assert(sm120.ToJson().find("ns/runtime_task_ref") != std::string::npos);
+  auto const& partial=sm120.CalibrationFor("bf16").fp32_partial_combine;
+  assert(partial.reason=="not_calibrated" && !partial.fixed_ns && !partial.d_l2_ns);
+  assert(sm120.ToJson().find("fp32_partial_combine") != std::string::npos);
   static_assert(!tilemega::arch::Caps<tilemega::arch::Sm120>::kTcgen05);
   return 0;
 }

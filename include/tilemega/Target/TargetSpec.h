@@ -191,6 +191,11 @@ struct TargetSpec {
     /// the L2-resident value, which is the regime the reference models
     /// reduce in; these differ by 5.6x on sm_89 and must not be averaged.
     double combine_d_dram_ns = 0.0;
+    struct PartialCombine {
+      std::optional<double> fixed_ns, base_ns, d_l2_ns, d_dram_ns;
+      std::string reason = "not_calibrated";
+      std::string method;
+    } fp32_partial_combine;
 
     // (d) concurrency interference: a GEMM's duration next to a memory-bound
     // task, relative to the same GEMM alone.  1.0 means the independent

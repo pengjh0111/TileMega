@@ -110,6 +110,27 @@ void ParseCalibration(json::Value const& cal, TargetSpec::Calib& out) {
     out.combine_fixed_resolved = resolved->AsBool("combine_fixed_resolved");
   out.combine_d_dram_ns =
       cal.At("combine_d_dram_ns").AsNumber("combine_d_dram_ns");
+  if (auto const* value=cal.Find("fp32_partial_combine")) {
+    auto& fit=out.fp32_partial_combine;
+    fit.reason=value->At("reason").AsString("partial combine reason");
+    fit.method=value->At("method").AsString("partial combine method");
+    auto read=[&](char const* key,std::optional<double>& dst) {
+      auto const& number=value->At(key);
+      if (!number.IsNull()) {
+        double rate=number.AsNumber(key);
+        if (!std::isfinite(rate) || rate<0 || fit.reason!="measured")
+          throw std::invalid_argument("invalid measured FP32-partial combine rate");
+        dst=rate;
+      }
+    };
+    read("fixed_ns",fit.fixed_ns); read("base_ns",fit.base_ns);
+    read("d_l2_ns",fit.d_l2_ns); read("d_dram_ns",fit.d_dram_ns);
+    if (fit.reason=="measured") {
+      if (!fit.fixed_ns || !fit.base_ns || !fit.d_l2_ns || !fit.d_dram_ns || fit.method.empty())
+        throw std::invalid_argument("incomplete FP32-partial combine calibration");
+    } else if (fit.reason!="not_calibrated" && fit.reason!="capability_absent")
+      throw std::invalid_argument("missing FP32-partial combine rate needs an explicit reason");
+  }
   out.interference_ratio = number("interference_ratio");
   if (json::Value const* value = cal.Find("device"))
     out.device = value->AsString("device");
@@ -132,6 +153,12 @@ void ParseCalibration(json::Value const& cal, TargetSpec::Calib& out) {
 }
 
 json::Value CalibrationJson(TargetSpec::Calib const& calib) {
+  auto const& combine=calib.fp32_partial_combine;
+  auto optional=[](std::optional<double> const& v) { return v ? json::Value(*v) : json::Value(); };
+  json::Value partial_combine(json::Object{
+      {"reason",combine.reason},{"method",combine.method},
+      {"fixed_ns",optional(combine.fixed_ns)},{"base_ns",optional(combine.base_ns)},
+      {"d_l2_ns",optional(combine.d_l2_ns)},{"d_dram_ns",optional(combine.d_dram_ns)}});
   json::Value pipelines(json::Object{
       {"tc_fp16_gflops", calib.tc_fp16_gflops},
       {"tc_bf16_gflops", calib.tc_bf16_gflops},
@@ -189,6 +216,7 @@ json::Value CalibrationJson(TargetSpec::Calib const& calib) {
       {"combine_fixed_ns", calib.combine_fixed_ns},
       {"combine_fixed_resolved", calib.combine_fixed_resolved},
       {"combine_d_dram_ns", calib.combine_d_dram_ns},
+      {"fp32_partial_combine", partial_combine},
       {"interference_ratio", calib.interference_ratio},
       {"measurements", json::Value(measurements)}});
 }
