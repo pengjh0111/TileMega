@@ -1,0 +1,126 @@
+[
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-derive",
+      "llama"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-derive",
+      "decode"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-derive",
+      "llama4"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-derive",
+      "mlp"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-derive",
+      "mha"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-derive",
+      "gather"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-wiring",
+      "/root/TileMega/docs/experiments/E2E_GEN/raw/export_bridge.json",
+      "reference"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-wiring",
+      "/root/TileMega/docs/experiments/E2E_GEN/raw/export_bridge.json",
+      "launch"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-wiring",
+      "/root/TileMega/docs/experiments/P3_GENERALIZATION/raw/export_bridge.json",
+      "reference"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-wiring",
+      "/root/TileMega/docs/experiments/P3_GENERALIZATION/raw/export_bridge.json",
+      "launch"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/wiring_coupling_test"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/table27_test"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/semantic_lifting_test"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-compile",
+      "/root/TileMega/docs/experiments/SEMANTIC/raw/e2e_plain.json",
+      "/root/TileMega/docs/experiments/INCIDENCE/history_audit/e2e_plain.cu"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-compile",
+      "/root/TileMega/docs/experiments/SEMANTIC/raw/e2e_core.json",
+      "/root/TileMega/docs/experiments/INCIDENCE/history_audit/e2e_core.cu"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-compile",
+      "/root/TileMega/docs/experiments/SEMANTIC/raw/mha_plain.json",
+      "/root/TileMega/docs/experiments/INCIDENCE/history_audit/mha_plain.cu"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-compile",
+      "/root/TileMega/docs/experiments/SEMANTIC/raw/mha_core.json",
+      "/root/TileMega/docs/experiments/INCIDENCE/history_audit/mha_core.cu"
+    ],
+    "returncode": 0
+  }
+]

@@ -1,5 +1,10 @@
 # WIRING — the derived coupling relation reaches the generator
 
+✅ Round5 A11 rerun:44edges/440cells still have exactly4 naming differences.
+Physical-domain wait corrections affect both independent derivations;
+unchanged agreement is not evidence of unchanged numeric waits. Full new
+dumps and per-edge parameter comparisons: [INCIDENCE](../INCIDENCE/result.md).
+
 Skeleton §1.5.1 / §0.2.  Before this round `lib/Frontend/Frontend.cpp` wrote a
 constant into every `CouplingMapAttr`:
 

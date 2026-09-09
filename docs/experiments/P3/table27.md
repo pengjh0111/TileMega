@@ -1,5 +1,11 @@
 # P3.2 / P3.3 — §2.7 coupling table, derived vs tabulated
 
+Round5 A1/A11 update: physical producer bounds now constrain wait and C as
+well as fanout. The grouped coupling rows still derive automatically, but
+the old full-tile wait expressions below are not valid at every boundary.
+New per-edge/parameter old→new tables and six rerun derivations are in
+[`INCIDENCE`](../INCIDENCE/result.md); historical outputs below are retained.
+
 Reproduce with:
 
 ```
