@@ -51,6 +51,7 @@ docs/experiments/SEQSCAN/raw/
 docs/experiments/MIGRATION/raw/
 docs/experiments/CLUSTER/raw/
 docs/experiments/REALMODEL/raw/work/
+docs/experiments/REALMODEL/depth_work/
 docs/experiments/**/raw_taskqueue*/bin/
 docs/experiments/**/raw_taskqueue*/final/
 docs/experiments/**/raw_taskqueue*/log/
@@ -71,4 +72,6 @@ docs/experiments/OCCUPANCY/raw*/bin/
 docs/experiments/OCCUPANCY/raw*/src/
 docs/experiments/BF16/raw_splitk*/bin/
 docs/experiments/BF16/raw_splitk*/src/
+docs/experiments/BF16/raw_splitk_f32/export/
+docs/experiments/BF16/raw_splitk_f32/fixture/
 !docs/experiments/PARAMETRIC/input_gate.log
