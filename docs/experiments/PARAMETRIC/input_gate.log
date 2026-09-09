@@ -1,7 +1,7 @@
-CG_INPUT model=gqa2 metrics=42 configs=1077 excluded_historical_nonpass=3
+CG_INPUT model=gqa2 metrics=42 configs=1077 excluded_historical_nonpass=3 recovered_numerical_failures=0
 FINITE_DP model=gqa2 domain=S:1..16 past=3 mode=uniform points=16 pieces=1 all_concrete_choices_equal=1 input_modes_equal=3
-CG_INPUT model=mha4 metrics=86 configs=1077 excluded_historical_nonpass=3
+CG_INPUT model=mha4 metrics=86 configs=1077 excluded_historical_nonpass=3 recovered_numerical_failures=0
 FINITE_DP model=mha4 domain=S:1..16 past=3 mode=uniform points=16 pieces=1 all_concrete_choices_equal=1 input_modes_equal=3
-INPUT_GATE matched=2154 expected=2154
+INPUT_GATE dtype=f32 matched=2154 expected=2154
 FP32_PARTIAL_COST_GATE matched=2154 expected=2154
-/root/TileMega/third_party/barvinok/isl/isl_ctx.c:305: isl_ctx not freed as some objects still reference it
+ISL_CONTEXT remaining=0

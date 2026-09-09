@@ -78,3 +78,35 @@ tile=16×64×16，stages=2，split=16，residency=2；每个 GEMM 的配置见
 
 独立编译开关：TILEMEGA_PARAMETRIC_INPUT、TILEMEGA_FINITE_PARAMETER_DP（默认 1）；
 关闭时对应新 API 明确拒绝，不退回生成 .cu reader 或具体常量。旧 API 语义不变。
+# T1–T5 update (baseline c8be09e)
+
+✅ BF16 input-path regression now covers **1540/1540** archived configurations
+(770 per model), including all 308 mha4 numerical failures formerly excluded
+as RUNFAIL. `tools/tilemega-parametric.cpp:78` requires their replay logs to
+contain a numerical mismatch and recovers the measured shared/occupancy
+fields; it does not manufacture timings, pass labels, or ranking data.
+Both cost paths enable FP32 partials. Five CostBreakdown double bit patterns
+and stage_count agree. All three existing concrete DP modes also agree.
+Evidence: `input_gate_bf16.tsv`, `input_gate_bf16.log`.
+
+The BF16 finite enumeration on S=[1,16], past=3 has two pieces per model
+(see `finite_dp_bf16.tsv`), with all 32 independently evaluated concrete
+choices/cost bits equal. **This remains (b), not acceptance of (a).**
+The task's BF16 archive has 1540 configurations, not 2154; no configurations
+were duplicated to meet the FP32 count. No BF16 rho/top-k is inferred from
+these numerical-failure-inclusive *prediction* comparisons.
+
+The FP32 2154-input gate remains a separate zero-regression check. Production
+CostModel and ChainDP pricing are unchanged by this update. The old scope
+error (“input equality proves metric consumption”) is not repeated:
+[`EVENT_COST/result.md`](../EVENT_COST/result.md) records a real stored
+wait/fanout domain mismatch and rejects event pricing before any κ delta.
+T1.5 functional acceptance remains open.
+
+The implementation target is now **(a)** as required, not (b) as a terminal
+design. A measured piecewise cache model and exact lane intersections remain
+unimplemented. The historical rationale below is preserved as prior work,
+not the selected terminal design. The isl lifetime leak described below is
+fixed; current runs explicitly print remaining=0 (`../ISL_LIFETIME/result.md`).
+
+---

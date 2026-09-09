@@ -1,0 +1,6 @@
+CG_INPUT model=gqa2 metrics=42 configs=770 excluded_historical_nonpass=0 recovered_numerical_failures=0
+FINITE_DP model=gqa2 domain=S:1..16 past=3 mode=uniform points=16 pieces=2 all_concrete_choices_equal=1 input_modes_equal=3
+CG_INPUT model=mha4 metrics=86 configs=770 excluded_historical_nonpass=0 recovered_numerical_failures=308
+FINITE_DP model=mha4 domain=S:1..16 past=3 mode=uniform points=16 pieces=2 all_concrete_choices_equal=1 input_modes_equal=3
+INPUT_GATE dtype=bf16 matched=1540 expected=1540
+ISL_CONTEXT remaining=0
