@@ -72,6 +72,45 @@ void Print(char const* label, char* text) {
   std::cout << label << ' ' << text << '\n';
   std::free(text);
 }
+struct BandPlacement {
+  std::map<Key, std::pair<int, long>> coordinate;
+  std::map<int, std::pair<long, long>> bounds;
+  int next = 0;
+};
+isl_bool CollectBand(isl_schedule_node* node, void* data) {
+  if (isl_schedule_node_get_type(node) != isl_schedule_node_band ||
+      !isl_schedule_node_band_get_permutable(node)) return isl_bool_true;
+  int axis = -1;
+  for (int i = 0; i < isl_schedule_node_band_n_member(node); ++i)
+    if (isl_schedule_node_band_member_get_coincident(node, i) == isl_bool_true) {
+      axis = i; break;
+    }
+  if (axis < 0) return isl_bool_true;
+  auto& placement = *static_cast<BandPlacement*>(data);
+  int const band = placement.next++;
+  auto* partial = isl_union_map_intersect_domain(
+      isl_schedule_node_band_get_partial_schedule_union_map(node),
+      isl_schedule_node_get_domain(node));
+  std::vector<Task> points;
+  if (isl_union_map_foreach_map(partial, Map, &points) != isl_stat_ok) {
+    isl_union_map_free(partial);
+    return isl_bool_error;
+  }
+  isl_union_map_free(partial);
+  for (auto const& point : points) {
+    Key const key{point.op, point.coordinates};
+    // Top-down visitation keeps the outermost eligible band for each task.
+    if (placement.coordinate.count(key)) continue;
+    long value = point.time.at(axis);
+    placement.coordinate[key] = {band, value};
+    auto [it, inserted] = placement.bounds.emplace(band, std::make_pair(value, value));
+    if (!inserted) {
+      it->second.first = std::min(it->second.first, value);
+      it->second.second = std::max(it->second.second, value);
+    }
+  }
+  return isl_bool_true;
+}
 }  // namespace
 
 int main(int argc, char** argv) try {
@@ -144,6 +183,9 @@ int main(int argc, char** argv) try {
   Print("SCHEDULE", isl_schedule_to_str(schedule));
   int bands = 0;
   isl_schedule_foreach_schedule_node_top_down(schedule, Band, &bands);
+  BandPlacement band_placement;
+  if (isl_schedule_foreach_schedule_node_top_down(schedule, CollectBand, &band_placement) < 0)
+    throw std::runtime_error("cannot enumerate outermost parallel bands");
   isl_union_map* mapping = isl_union_map_intersect_domain(
       isl_schedule_get_map(schedule), domain);
   Print("SCHEDULE_MAP", isl_union_map_to_str(mapping));
@@ -169,7 +211,8 @@ int main(int argc, char** argv) try {
   auto stage_order = tilemega::solver::ListScheduler().Schedule(successors);
   std::vector<int> rank(stage_order.size());
   for (std::size_t i = 0; i < stage_order.size(); ++i) rank[stage_order[i]] = i;
-  for (bool affine : {false, true}) {
+  for (std::string const mode : {"stage_major", "affine", "band_tiling", "wavefront"}) {
+    bool const affine = mode != "stage_major";
     std::vector<int> order(tasks.size()); std::iota(order.begin(), order.end(), 0);
     std::sort(order.begin(), order.end(), [&](int a, int b) {
       auto const& x = tasks[a]; auto const& y = tasks[b];
@@ -187,17 +230,34 @@ int main(int argc, char** argv) try {
     for (std::size_t i = 0; i < order.size(); ++i) {
       int const id = order[i];
       if (tasks[id].op != previous) { previous = tasks[id].op; logical = 0; }
-      int const w = affine ? i % workers : logical++ % workers;
+      int w = affine ? i % workers : logical++ % workers;
+      if (mode == "band_tiling") {
+        auto const found = band_placement.coordinate.find({tasks[id].op, tasks[id].coordinates});
+        if (found == band_placement.coordinate.end())
+          throw std::runtime_error("band mapping has a task without a parallel band");
+        auto const [band, value] = found->second;
+        auto const [low, high] = band_placement.bounds.at(band);
+        long const tile_width = (high - low + 1 + workers - 1) / workers;
+        w = static_cast<int>((value - low) / tile_width);
+      } else if (mode == "wavefront") {
+        if (tasks[id].time.size() < 2)
+          throw std::runtime_error("wavefront needs two schedule dimensions");
+        // time[0] is the wave; lexicographic ordering preserves its order.
+        // Keep equal second coordinates on one worker within every wave.
+        w = static_cast<int>((tasks[id].time[1] % workers + workers) % workers);
+      }
       worker[id] = w; slot[id] = lengths[w]++;
       if (last[w] >= 0) add_dependency(last[w], id);
       last[w] = id;
     }
     std::vector<int> spans;
     int forward_worker_span = 0;
+    std::size_t same_worker = 0;
     for (auto const& [producer, consumer] : dependencies) {
       int a = task_ids.at(producer), b = task_ids.at(consumer);
       add_dependency(a, b);
       spans.push_back(slot[b] - slot[a]);
+      same_worker += worker[a] == worker[b];
       forward_worker_span = std::max(forward_worker_span, worker[a] - worker[b]);
     }
     std::vector<int> ready;
@@ -207,9 +267,14 @@ int main(int argc, char** argv) try {
     if (ready.size() != tasks.size()) throw std::runtime_error("worker queue introduces a cycle");
     std::sort(spans.begin(), spans.end());
     if (spans.empty()) throw std::runtime_error("no dependency spans");
-    std::cout << "SPAN mode=" << (affine ? "affine" : "stage_major")
+    std::cout << "SPAN mode=" << mode
               << " seq=" << seq << " workers=" << workers << " resident_limit=" << resident
               << " tasks=" << tasks.size() << " edges=" << spans.size()
+              << " same_worker_edges=" << same_worker
+              << " cross_worker_fraction=" << double(spans.size()-same_worker)/spans.size()
+              << " same_worker_fraction=" << double(same_worker)/spans.size()
+              << " used_workers=" << std::count_if(lengths.begin(), lengths.end(), [](int n) { return n > 0; })
+              << " max_queue=" << *std::max_element(lengths.begin(), lengths.end())
               << " min=" << spans.front() << " p50=" << spans[spans.size()/2]
               << " p95=" << spans[spans.size()*95/100] << " max=" << spans.back()
               << " forward_worker_span=" << forward_worker_span
