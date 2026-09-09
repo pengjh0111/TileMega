@@ -15,6 +15,8 @@ from __future__ import annotations
 import argparse
 import array
 import ctypes
+import copy
+import hashlib
 import importlib.util
 import json
 import sys
@@ -56,7 +58,8 @@ class LlamaStack(nn.Module):
         return (hidden, *outputs)
 
 
-def make_stack(layer_type, layers, hidden, intermediate, heads, kv_heads):
+def make_stack(layer_type, layers, hidden, intermediate, heads, kv_heads,
+               prefix_depth=0):
     """`torch.export` matches `dynamic_shapes` against the *declared* signature,
     so a `*caches` vararg is reported as one element and the export is refused.
     The signature is therefore generated with one named parameter per cache,
@@ -70,7 +73,13 @@ def make_stack(layer_type, layers, hidden, intermediate, heads, kv_heads):
     )
     namespace: dict = {}
     exec(source, namespace)  # noqa: S102 - a generated signature, no input
-    stack = LlamaStack(layer_type, layers, hidden, intermediate, heads, kv_heads)
+    if prefix_depth and prefix_depth < layers:
+        raise ValueError('prefix depth must cover every requested layer')
+    stack = LlamaStack(layer_type, prefix_depth or layers, hidden, intermediate, heads, kv_heads)
+    if prefix_depth:
+        # Consume the identical weight RNG stream at every depth. Input and
+        # KV draws then start at the same state, not after a different model.
+        stack.layers = nn.ModuleList(list(stack.layers)[:layers])
     bound = namespace["forward"].__get__(stack, type(stack))
     object.__setattr__(stack, "forward", bound)
     return stack
@@ -104,6 +113,8 @@ def main() -> None:
     parser.add_argument("--past-max", type=int, default=512)
     parser.add_argument("--fixture-seq", type=int, default=4)
     parser.add_argument("--fixture-past", type=int, default=3)
+    parser.add_argument("--prefix-depth", type=int, default=0)
+    parser.add_argument("--fp32-reference", action="store_true")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     fixture = args.out / "fixture"
@@ -116,7 +127,7 @@ def main() -> None:
     began = time.time()
     model = make_stack(probe.LlamaLayer, args.layers, args.hidden,
                        args.intermediate, args.heads,
-                       args.kv_heads).eval().to(dtype=dtype)
+                       args.kv_heads, args.prefix_depth).eval().to(dtype=dtype)
     built = time.time()
 
     hidden = torch.randn(1, args.fixture_seq, args.hidden, dtype=dtype)
@@ -143,6 +154,15 @@ def main() -> None:
                      value, dtype)
     for index, value in enumerate(outputs):
         write_tensor(fixture / f"reference_{index}.bin", value, dtype)
+    if args.fp32_reference:
+        # Widen the SAME BF16-rounded parameters, buffers and inputs. Building
+        # an independent FP32 model would confound weight/input quantization
+        # with arithmetic differences.
+        reference = copy.deepcopy(model).float()
+        with torch.no_grad():
+            wide_outputs = reference(*(value.float() for value in inputs))
+        for index, value in enumerate(wide_outputs):
+            write_tensor(fixture / f"reference_fp32_{index}.bin", value, torch.float32)
     parameters = sum(item.numel() for item in program.state_dict.values())
     call_functions = sum(1 for node in program.graph.nodes
                          if node.op == "call_function")
@@ -152,6 +172,10 @@ def main() -> None:
         "intermediate": args.intermediate, "heads": args.heads,
         "kv_heads": args.kv_heads, "head_dim": head_dim,
         "dtype": str(dtype), "parameters": parameters,
+        "prefix_depth": args.prefix_depth,
+        "fp32_reference": args.fp32_reference,
+        "torch_version": torch.__version__, "golden_device": "cpu",
+        "input_hidden_sha256": hashlib.sha256((fixture / 'input_hidden.bin').read_bytes()).hexdigest(),
     }, indent=2), encoding="utf-8")
     print(json.dumps({
         "layers": args.layers, "hidden": args.hidden,
