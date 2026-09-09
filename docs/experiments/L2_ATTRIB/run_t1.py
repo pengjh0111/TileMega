@@ -22,12 +22,15 @@ p.add_argument('--arms', default='full,nowait,neither,l1nosync')
 p.add_argument('--arch', default='native')
 p.add_argument('--cluster-dim', type=int, default=1)
 p.add_argument('--cluster-reserve', action='store_true')
+p.add_argument('--resume', action='store_true', help='verify and append an interrupted process prefix')
 a = p.parse_args()
 repo = Path(__file__).resolve().parents[3]
 out = Path(a.out).resolve()
 build = Path(os.environ.get('BUILD_DIR', repo / 'build-portable'))
 variants = a.variants.split(',')
 phases = a.phases.split(',')
+if a.resume and any(phase in phases for phase in ('build','snapshot')):
+    p.error('resume cannot rebuild or replace snapshots')
 seqs = [int(s) for s in a.seqs.split(',')]
 arms = {'full': [], 'nowait': ['-DTILEMEGA_UNSAFE_NO_EVENT_WAIT=1'],
         'neither': ['-DTILEMEGA_UNSAFE_NO_EVENT_WAIT=1',
@@ -111,13 +114,19 @@ def ptxas_resources(model, variant, arm):
             if m: entry.update(stores=int(m[1]), loads=int(m[2]))
     return values
 
-def run(model, variant, arm, seq, past, repeat, phase):
+def run(model, variant, arm, seq, past, repeat, phase, replay=False):
     fixture = repo / f'docs/experiments/SEQSCAN/raw/fixture/{model}_s{seq}_p{past}'
-    result = subprocess.run([str(out / 'bin' / f'{model}_{variant}_{arm}'), str(fixture)],
-                            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=120)
     log = out / 'log' / f'{phase}_{model}_{variant}_{arm}_{seq}_{past}_{repeat}.txt'
-    log.write_text(result.stdout)
+    if replay:
+        contents = log.read_text()
+        result = subprocess.CompletedProcess([], 0 if 'RESULT status=PASS' in contents else 1, contents)
+    else:
+        if log.exists():
+            raise RuntimeError(f'unindexed log must be inspected before resume: {log}')
+        result = subprocess.run([str(out / 'bin' / f'{model}_{variant}_{arm}'), str(fixture)],
+                                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                timeout=120)
+        log.write_text(result.stdout)
     passed = result.returncode == 0 and 'RESULT status=PASS' in result.stdout
     if arm == 'full' and not passed:
         raise RuntimeError(f'correctness failure; stop at {log}')
@@ -162,14 +171,26 @@ for phase in ('correctness', 'attrib', 'e2e', 'matrix'):
     if phase not in phases:
         continue
     rounds = a.correctness_runs if phase in ('correctness', 'matrix') else a.runs
-    with (out / f'{phase}.tsv').open('w') as handle:
+    path = out / f'{phase}.tsv'
+    prior = []
+    if path.exists():
+        if not a.resume:
+            raise RuntimeError(f'refusing to overwrite evidence: {path}')
+        with path.open() as stream:
+            prior = list(csv.reader(stream, delimiter='\t'))
+    with path.open('a' if prior else 'w') as handle:
         writer = csv.writer(handle, delimiter='\t', lineterminator='\n')
-        writer.writerow(['model', 'variant', 'arm', 'seq', 'past', 'round', 'pass',
+        header = ['model', 'variant', 'arm', 'seq', 'past', 'round', 'pass',
                          'l1_ms', 'l2_ms', 'l05_ms', *resource_columns,
                          'l05_spill_stores', 'l05_spill_loads', 'l1_spill_stores',
                          'l1_spill_loads', 'l2_spill_stores', 'l2_spill_loads',
                          'f40_ctas', 'f40_binding', *schedule_columns,
-                         *timing_columns, 'execution_index'])
+                         *timing_columns, 'execution_index']
+        if prior:
+            if prior.pop(0) != header:
+                raise RuntimeError('resume table schema differs')
+        else:
+            writer.writerow(header)
         execution_index = 0
         for model in ('gqa2', 'mha4'):
             for seq in ([1, 4, 128, 512, 2048] if phase == 'matrix' else seqs):
@@ -180,8 +201,16 @@ for phase in ('correctness', 'attrib', 'e2e', 'matrix'):
                     for r in range(rounds):
                         order = combinations[r % len(combinations):] + combinations[:r % len(combinations)]
                         for variant, arm in order:
-                            writer.writerow([*run(model, variant, arm, seq, past, r, phase),
-                                             execution_index])
+                            if execution_index < len(prior):
+                                expected = [str(value) for value in
+                                    [*run(model,variant,arm,seq,past,r,phase,replay=True),execution_index]]
+                                if prior[execution_index] != expected:
+                                    raise RuntimeError(f'resume prefix disagrees with raw log at {execution_index}')
+                            else:
+                                writer.writerow([*run(model, variant, arm, seq, past, r, phase),
+                                                 execution_index])
                             execution_index += 1
                             handle.flush()
                     print('DONE', phase, model, seq, past, rounds, flush=True)
+        if len(prior) > execution_index:
+            raise RuntimeError('resume prefix contains rows outside the requested experiment')

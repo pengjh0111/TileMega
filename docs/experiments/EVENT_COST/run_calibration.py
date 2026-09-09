@@ -31,6 +31,7 @@ def main():
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--arch', default='native')
     p.add_argument('--phases', default='prepare,build,correctness,attrib')
+    p.add_argument('--resume', action='store_true')
     a = p.parse_args()
     repo = Path(__file__).resolve().parents[3]
     phases = a.phases.split(',')
@@ -72,7 +73,7 @@ def main():
                     if (dims.get('seq'),dims.get('past'),dims.get('dtype')) != (seq,3,'torch.bfloat16'):
                         raise RuntimeError(f'fixture dimensions or dtype differ: {fixture}')
             for phase in ('correctness','attrib'):
-                if phase in requested and (a.out/f'{phase}.tsv').exists():
+                if phase in requested and (a.out/f'{phase}.tsv').exists() and not a.resume:
                     raise RuntimeError(f'refusing to overwrite {phase} evidence')
             if 'build' not in requested:
                 # A run-only continuation must use the frozen build, not bless
@@ -84,6 +85,16 @@ def main():
                        '--seqs','1,4,16,128,512,2048','--kappa','1',
                        '--correctness-runs','50','--runs','25',
                        '--phases',','.join(requested)]
+            if a.resume:
+                if set(requested) - {'correctness','attrib'}:
+                    raise RuntimeError('resume is restricted to frozen measurement phases')
+                snapshot = a.out/'resume_prefix.json'
+                if snapshot.exists():
+                    raise RuntimeError('inspect the previous resume before another continuation')
+                snapshot.write_text(json.dumps({str(path):hashlib.sha256(path.read_bytes()).hexdigest()
+                    for path in [a.out/'calibration_command.json',a.out/'attrib.tsv',a.out/'correctness.tsv']
+                    if path.exists()},indent=2)+'\n')
+                command += ['--resume']
             (a.out/'calibration_command.json').write_text(json.dumps(dict(
                 command=command,warmup=5,repeat=11,correctness_processes=600,
                 attribution_processes=1200,models=['gqa2','mha4'],dtype='bf16'),indent=2)+'\n')
