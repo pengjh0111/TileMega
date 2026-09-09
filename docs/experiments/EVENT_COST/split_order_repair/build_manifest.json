@@ -1,0 +1,98 @@
+{
+  "arguments": {
+    "out": "docs/experiments/EVENT_COST/split_order_repair",
+    "models": [
+      "gqa2"
+    ],
+    "splits": [
+      16
+    ],
+    "seqs": [
+      512
+    ],
+    "pasts": [
+      0
+    ],
+    "states": [
+      0,
+      1
+    ],
+    "runs": 50,
+    "phase": "all"
+  },
+  "sources": {
+    "include/tilemega/Codegen/tasks/Placement.cuh": "39dd4e7d659a962982d5517ea74b92b6621daca204158000b42be530503b1244",
+    "include/tilemega/Codegen/tasks/SchedulerTaskBody.h": "152887167bb4b325bfef24802b5d6ad0ab99fa3e4a8b7fefb3151640cbf16c81",
+    "include/tilemega/Codegen/tasks/RMSNormTaskBody.h": "51579a0f3ccdde66f5256c3d8a91621bceac379b004cc2396bf33237d8c2bcf7",
+    "include/tilemega/Codegen/tasks/ElementwiseTaskBody.h": "2febf6e90d43163b0c1af27b83b904d3dfe54d54d497b33fc4d6785fd14cfd46",
+    "include/tilemega/Codegen/tasks/GemmStageTaskBody.h": "c8a770743ff6efb84dabf9161fd3425b9a0baa9d6d460bfc67d4cfa83581879f",
+    "include/tilemega/Codegen/tasks/GeneratedLlamaRuntime.cuh": "fca05f9896812eba97411d84df8dcbbd11b1443d7b8dc2a24a451e71d2947587",
+    "include/tilemega/Codegen/tasks/KVAppendTaskBody.h": "4bb1e6e215ed04dacecfdbb62e00271cca1b67d3ce862a3adbe23e01a795552c",
+    "include/tilemega/Codegen/tasks/ModelRuntime.h": "a1eefbdc1e137d7d220817d8b03527a1caf41a9d09bde8e57a14f56543b81488",
+    "include/tilemega/Codegen/tasks/AttentionCombineTaskBody.h": "c5d8923415680eb3e35424abc7320025eb3482602a1625f2e471378eaf1118e9",
+    "include/tilemega/Codegen/tasks/ModelHarness.cuh": "fc3ccd570c98d7a93e597fc8844b82c5614b009aa085ab49581207368665f711",
+    "include/tilemega/Codegen/tasks/Benchmark.cuh": "eae0f18db6ec3eb281746c49aef533f6858f9204addbca88d79ca903ad2a8d23",
+    "include/tilemega/Codegen/tasks/GemmSplitKTaskBody.h": "396fe5256315558faefbae1f1e169d0b02e6db7f77298a089c0c2b0a51edc825",
+    "include/tilemega/Codegen/tasks/RoPETaskBody.h": "1ed0e48740654546f689605c7f12766e5437d3395667adc1d713ec30b69914b4",
+    "include/tilemega/Codegen/tasks/MoERouterTaskBody.h": "d0495303ff1251d586ea7642e8c38d950627c0e12b03caa6e7e2c6f8a4b0b6c0",
+    "include/tilemega/Codegen/tasks/GemmCombineTaskBody.h": "0acd4178509db9fa0cd86da5b7363713f4a327b0f311c7d3b2dcc7eaf87afd0b",
+    "include/tilemega/Codegen/tasks/TaskBase.h": "abe99ef1d844c448826276f139f9dc7056d4bae47d5822ae4fd29b95fe7ae7fe",
+    "include/tilemega/Codegen/tasks/AttentionChunkTaskBody.h": "fd5eadbf346a466a318e80d9cb57c0b0aec1a8a4cbe78fd88f20516811218415",
+    "include/tilemega/Codegen/tasks/ClusterSync.cuh": "1d5bfb887211d121b039413babc8ec9e118c9d2a7a984bdc450168032b31754a",
+    "include/tilemega/Codegen/tasks/EventSync.cuh": "4bb031b621a8a8068c0b50592ae071207063d9ac0a2c1743468a906598df60e3",
+    "include/tilemega/Codegen/tasks/GemmTaskBody.h": "8b5f1af8b28260c3152877967a21c8d46a40d87d9c17402ab1aa9f7968f3d365",
+    "include/tilemega/Codegen/RuntimeOwnership.h": "8b05999b5da1b1704f40da5b61d4e5607ce6b0fecd86c797bd1d2df3a1437213"
+  },
+  "builds": [
+    {
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "-arch=native",
+        "-lineinfo",
+        "-Xptxas=-v,--warn-on-spills",
+        "--expt-relaxed-constexpr",
+        "-DTILEMEGA_FP32_PARTIALS=1",
+        "-DTILEMEGA_CG_SPLIT_TASK_ORDER=0",
+        "-I/root/TileMega/include",
+        "-I/root/TileMega/third_party/cutlass/include",
+        "-I/root/TileMega/third_party/cutlass/tools/util/include",
+        "-I/root/TileMega/third_party/cutlass/test",
+        "/root/TileMega/docs/experiments/BF16/raw_splitk/src/gqa2_k16.cu",
+        "/root/TileMega/build-portable/libtilemega.a",
+        "-L/usr/local/cuda/lib64",
+        "-lcudart",
+        "-o",
+        "docs/experiments/EVENT_COST/split_order_repair/bin/gqa2_k16_order0"
+      ],
+      "source_sha256": "9b30d55c007abe66d4803f1e403df86e90d8ed6ae3bbd6361ffabadd546d894b",
+      "binary_sha256": "e4125ce50dbf8fe9b6730c0fa98475e98caff0828f8e2cbc053284dde6aa49de"
+    },
+    {
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "-arch=native",
+        "-lineinfo",
+        "-Xptxas=-v,--warn-on-spills",
+        "--expt-relaxed-constexpr",
+        "-DTILEMEGA_FP32_PARTIALS=1",
+        "-DTILEMEGA_CG_SPLIT_TASK_ORDER=1",
+        "-I/root/TileMega/include",
+        "-I/root/TileMega/third_party/cutlass/include",
+        "-I/root/TileMega/third_party/cutlass/tools/util/include",
+        "-I/root/TileMega/third_party/cutlass/test",
+        "/root/TileMega/docs/experiments/BF16/raw_splitk/src/gqa2_k16.cu",
+        "/root/TileMega/build-portable/libtilemega.a",
+        "-L/usr/local/cuda/lib64",
+        "-lcudart",
+        "-o",
+        "docs/experiments/EVENT_COST/split_order_repair/bin/gqa2_k16_order1"
+      ],
+      "source_sha256": "9b30d55c007abe66d4803f1e403df86e90d8ed6ae3bbd6361ffabadd546d894b",
+      "binary_sha256": "1efba926258a60505c9ca69e4f3bd161b2cdb6448c5194c6cc86e7a58c4bb76f"
+    }
+  ]
+}

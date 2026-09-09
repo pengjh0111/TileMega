@@ -1,0 +1,335 @@
+{
+  "scope": "exact disassembled device instruction words and function resource records; host not compared",
+  "builds": [
+    {
+      "binary": "gqa2_k16_order1",
+      "instructions_equal": true,
+      "resources_equal": true,
+      "instruction_hashes": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        }
+      ],
+      "resources": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        }
+      ]
+    },
+    {
+      "binary": "gqa2_k1_order1",
+      "instructions_equal": true,
+      "resources_equal": true,
+      "instruction_hashes": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        }
+      ],
+      "resources": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        }
+      ]
+    },
+    {
+      "binary": "gqa2_k2_order1",
+      "instructions_equal": true,
+      "resources_equal": true,
+      "instruction_hashes": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        }
+      ],
+      "resources": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        }
+      ]
+    },
+    {
+      "binary": "gqa2_k4_order1",
+      "instructions_equal": true,
+      "resources_equal": true,
+      "instruction_hashes": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        }
+      ],
+      "resources": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        }
+      ]
+    },
+    {
+      "binary": "gqa2_k8_order1",
+      "instructions_equal": true,
+      "resources_equal": true,
+      "instruction_hashes": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        }
+      ],
+      "resources": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        }
+      ]
+    },
+    {
+      "binary": "mha4_k16_order1",
+      "instructions_equal": true,
+      "resources_equal": true,
+      "instruction_hashes": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        }
+      ],
+      "resources": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        }
+      ]
+    },
+    {
+      "binary": "mha4_k1_order1",
+      "instructions_equal": true,
+      "resources_equal": true,
+      "instruction_hashes": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        }
+      ],
+      "resources": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        }
+      ]
+    },
+    {
+      "binary": "mha4_k2_order1",
+      "instructions_equal": true,
+      "resources_equal": true,
+      "instruction_hashes": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        }
+      ],
+      "resources": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        }
+      ]
+    },
+    {
+      "binary": "mha4_k4_order1",
+      "instructions_equal": true,
+      "resources_equal": true,
+      "instruction_hashes": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        }
+      ],
+      "resources": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        }
+      ]
+    },
+    {
+      "binary": "mha4_k8_order1",
+      "instructions_equal": true,
+      "resources_equal": true,
+      "instruction_hashes": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "01b21856ff86be82f7997d93964c6d14574c9fa1bd702ee3b2c6ab63df5fcc33",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "535566de520cde66b0d682b55e7b56a2da5d51bdcb686c5d0c02e6225547c4df",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "5a3c083b8367c072757205d75c936d8abb0dc3bd708f4687a9f6b57c7868422c",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "510e0f89fdc076691ca043a4306d17506ce6e33ef03f0968d13cfd5868e9b624"
+        }
+      ],
+      "resources": [
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        },
+        {
+          "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": "REG:55 STACK:72 SHARED:0 LOCAL:0 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:212 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:72 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": "REG:210 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0",
+          "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": "REG:208 STACK:32 SHARED:0 LOCAL:0 CONSTANT[2]:40 CONSTANT[0]:364 TEXTURE:0 SURFACE:0 SAMPLER:0"
+        }
+      ]
+    }
+  ]
+}
