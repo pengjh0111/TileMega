@@ -2101,3 +2101,72 @@ graphs are acyclic and wholly resident; this is not an overresident I3 proof.
 ⚠️ T4.2 production integration and GPU acceptance remain undone.
 Code: `tools/tilemega-affine-probe.cpp:1`; evidence:
 `docs/experiments/AFFINE_PROBE/raw_mappings/`, `result.md`.
+
+## F-94 — The isl exit warning was a point-space leak, not just static teardown
+
+✅ A scoped reference audit caught `Points before=0 after=4`. CollectPoint
+called the owning `isl_point_get_space` twice without freeing either result.
+It now owns one space and point with RAII. Tool entrypoints explicitly own
+IslContext; SharedIslContext only borrows the live owner. Teardown checks
+the pinned isl implementation's actual reference count and aborts on leaks.
+The parametric tool and all six affine cases explicitly print remaining=0;
+24/24 tests pass. This is lifetime evidence, not a GPU race claim.
+Code: `lib/Analysis/CouplingRelation.cpp:184`, `lib/Analysis/ISLContext.cpp:14`;
+before/after logs: `docs/experiments/ISL_LIFETIME/`.
+
+## F-95 — Task-count times a constant poorly predicts steady-state event arms
+
+✅ Reanalysis of 25 paired rounds per cell on sm_89 and supplied sm_120
+logs uses only warmup=5/repeat=11 data. Three-cell fits predict short-seq
+notify/wait 94–98% below observation. Effective rates are 14.0171/1.43874
+ns (sm_89 notify/poll) and 11.7653/1.54380 ns (sm_120), but the residuals
+prevent describing them as a validated price model. Fence cannot be
+separated from these four arms and remains not_calibrated. Rates retain
+explicit ns/runtime_task_ref and ns/runtime_wait_entry units in TargetSpec.
+Code/data: `docs/experiments/EVENT_COST/calibrate.py:28`, `calibration/`.
+❌ Parallelism/fixed per-worker work is a possible explanation, not isolated
+by these data. The rejected atomic fan-in attribution is not revived.
+
+## F-96 — Stored wait and fanout need not count the same physical task graph
+
+✅ The real BF16 CG input at seq=4/past=3 gives wait_sum=512 and fanout_sum=16
+on the first gqa2 edge. The producer side of wait spans nominal 128 rows;
+fanout counts only four physical rows. CouplingDerivation intentionally
+restricts only fanout because of an earlier barvinok symbolic counting
+failure (`lib/Analysis/CouplingDerivation.cpp:490`). Existing QP point checks
+do not prove physical-incidence equality. Runtime window clipping means
+this finding alone is not a runtime correctness defect.
+
+The event-price prototype was removed before commit: besides that domain
+mismatch, multiplying an ns/runtime-task fit by an event-image cardinality
+has the wrong meaning. No κ price delta or T1.5 success is claimed. The
+retained audit rejects instead of treating carrying metrics as consumption.
+Reproducer: `tools/tilemega-event-cost.cpp:1`;
+`docs/experiments/EVENT_COST/metric_audit.txt`, `result.md`.
+
+## F-97 — Queue caps recover a real offline locality/balance Pareto improvement
+
+✅ All six finite instances have a balanced map with more same-worker edges
+and a longest queue no longer than stage-major. At seq128/workers256 the
+same-worker fraction goes .004301→.014090 with longest queue fixed at22;
+at seq512/workers16 it goes .062981→.106826 with queue913 unchanged.
+All 78 maps pass C+queue acyclicity checks. Looser caps are not uniformly
+better. No GPU timing or overresident I3 proof is implied; exact production
+task/stage/split projection and valid event pricing remain open.
+Code: `tools/tilemega-affine-probe.cpp:233`;
+data/plot: `docs/experiments/AFFINE_PROBE/balanced/`.
+
+## F-98 — BF16 input equality includes all classified failures, but is still not a price gate
+
+✅ The actual BF16 archived universe is 770 configurations per model,
+1540 total, not the FP32 2154. All 308 mha4 numerical failures are included,
+recovering occupancy/shared fields from classified replay logs rather than
+discarding rows or inventing timings. Five cost-double bit patterns match
+the independent generated-input path at 1540/1540 points with FP32 partials.
+All three concrete DP modes and 32 finite-domain points match; finite BF16
+enumeration changes configuration at seq8 in each model. FP32 retains its
+2154/2154 bit gate and byte-identical prediction/finite-DP TSVs.
+This does not retire (b) as an implementation, prove (a), rerun GPU numerical
+acceptance, or correct BF16 rho/top-k. F-96 blocks the event functionality
+gate independently. Code: `tools/tilemega-parametric.cpp:1`;
+evidence: `docs/experiments/PARAMETRIC/input_gate_bf16.tsv` and logs.

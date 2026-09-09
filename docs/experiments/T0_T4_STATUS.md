@@ -28,3 +28,40 @@
 - 已写的 sm_120 脚本只限 OCCUPANCY、BF16，均未运行。缺少的两份不能用空脚本
   或写死结果占位。
 - `third_party/barvinok` 原有未跟踪内容保留，未作清理，不纳入本轮提交。
+# T1–T5 current status (baseline c8be09e)
+
+This section supersedes the status of the old round below; it does not erase
+its experiments or negative results. **The new round is incomplete.**
+
+| Task | Verified in this continuation | Open work / blocking limitation |
+|---|---|---|
+| T1.1 | No production cache change | Measured-curve switch, BF16/FP32 ranking comparison |
+| T1.2/1.3 | Two-architecture steady-state four-arm reanalysis; explicit rate units/missing reasons; actual CG metric audit | wait_sum=512 versus fanout_sum=16 on first partial-tile edge; physical-domain metrics and runtime count projection unresolved. CV underestimates short-seq costs by 94–98%. No valid event price / no functional gate |
+| T1.4/1.5 | BF16 input bits 1540/1540 including 308 classified failures; FP32 2154/2154 unchanged; concrete/finite DP regressions agree | (a) not implemented; (b) remains historical diagnostic only, not terminal design or functional acceptance |
+| T2 | No new fusion implementation | Exact L-task rewrite, interval DP, live resource/wave budgets, real two-edge GPU tests, sm_120 script; depends on valid T1 event pricing |
+| T3.1 | 6/6 finite instances have strictly dominating balanced mappings; 78/78 graphs acyclic, explicit zero isl refs; Pareto plot and raw data | Finite/offline only, not overresident I3 or GPU evidence |
+| T3.2–3.5 | Not implemented | Logical→runtime stage / split projection, L-sched writeback and lowering, BF16 50-process tests, price/timing comparison, sm_120 script |
+| T4.3 | Primary-paper evaluation lookup recorded in BF16/related_work.md | Explicit numerical reference/tolerance/depth protocol not found; no inferred community criterion |
+| T4.1/4.2/4.4/4.5 | No new GPU measurements | Depth sweep, BF16 noise floor, original 4×4096 best-config rerun, FP32 GPU 50-process regression, measured combine rate |
+| T5.1 | Points() leak localized by before/after ref guard; caller-owned contexts; zero-ref tool evidence | No claim about unexecuted error branches; audit deliberately rejects new leaks |
+| T5.2 | Four-arm comparison now interleaves build states; logs execution_index | New future fusion/placement runners must preserve both state and arm rotation |
+| T5.3 | Nested polylib generated autotools files locally ignored | Local git info/exclude, not an upstream submodule change or portable ignore policy |
+| T5.4/5 | BF16 input gate migrated, all old failures included; status/findings updated | Full L2 symbolic CostBreakdown gate awaits T1 implementation |
+
+The event-price prototype was removed before committing because it mixed
+ns/runtime-task units with event-image cardinalities. CostModel/ChainDP keep
+their original L1 prices, rather than exposing a plausible but invalid L2
+answer. Relation/QP audits and calibration metadata are preparatory work,
+**not consumption acceptance**. The unresolved interfaces are the physical
+incidence graph and its runtime projection, not an implicit fallback to .cu.
+
+No numerical tolerance, occupancy goal, atomic fan-in hypothesis or TC-lane
+attribution was revived. No new GPU correctness/performance result is
+claimed. sm_120 raw evidence was supplied at c8be09e, not executed locally.
+
+Verification: full build, check-policy, five-target audit zero failures,
+24/24 CTest. FP32 predictions/finite-DP TSVs remain byte-identical to HEAD
+before the new input-gate code. Commits are split by implementation category
+and experiment, with single-line repository-convention messages.
+
+---

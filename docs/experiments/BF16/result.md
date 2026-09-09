@@ -368,3 +368,20 @@ dtype 再乘权重；attention softmax 同样先转 FP32 再转回 BF16。残差
 
 选择：保留固定判据，优先独立同序逐层诊断，而不是更换验收指标。
 ⚠️ 这是路线评估，T2.b 的独立诊断与第三条路线实测尚未完成；973M 仍未通过。
+# T1–T5 continuation (c8be09e): scope and evidence
+
+✅ BF16 CG/concrete **input** cost-bit gate: 1540/1540, including all 308
+classified mha4 numerical failures, with FP32 partials enabled in both cost
+paths. This is not a new GPU pass count or a corrected rho/top-k measurement.
+See `../PARAMETRIC/result.md` and its per-configuration data.
+
+✅ T4.3 paper inspection is in [`related_work.md`](related_work.md). Explicit
+elementwise numerical tolerances/depth protocols were not found in the
+inspected evaluation sections; this is not evidence that no tests exist.
+
+⚠️ T4.1/T4.2/T4.4/T4.5 are not yet run: no fixed-weight depth curve, no
+three-way FP32-golden noise floor, no original 4×4096 best-split rerun, no
+new FP32 GPU 50-process regression or measured FP32-partial combine rate.
+No criterion or tolerance has changed. Historical results below are retained.
+
+---

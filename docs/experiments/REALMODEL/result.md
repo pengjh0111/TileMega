@@ -153,3 +153,13 @@ Regenerate the latter with `python3 docs/experiments/REALMODEL/summarize_cost.py
 only four uniform points were compiled, and the two predicted leaders are
 numerically invalid. It establishes transfer failure and one valid improvement,
 not the rank of the optimum over the production-size search space.
+# T1–T5 continuation (c8be09e)
+
+⚠️ No new depth/noise-floor/4×4096 GPU run has completed in this continuation.
+The historical 16×2048 mismatch below must not be relabeled a verified BF16
+noise-floor result. Fixed weights/input across depth, PyTorch BF16 and
+TileMega BF16 against the same FP32 golden, and the original best split=8/16
+4×4096 scene remain required. Phase 5 conditions 7 and 9 remain open;
+the numerical tolerance is unchanged. Historical measurements follow.
+
+---
