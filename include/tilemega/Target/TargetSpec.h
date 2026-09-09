@@ -21,6 +21,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -35,6 +36,18 @@ namespace tilemega {
 ///                                     works even without the hardware present
 ///                                     (cross compilation, cost modelling).
 struct TargetSpec {
+  struct EventRate {
+    std::optional<double> ns;
+    std::string reason = "not_calibrated";
+    std::string unit;
+  };
+  struct EventCalibration {
+    EventRate notify, poll, fence;
+    std::string source;
+    std::string source_sha256, method;
+  };
+  EventCalibration event_bf16, event_f32;
+  EventCalibration const& EventCalibrationFor(std::string_view dtype) const;
   /// "sm_80" | "sm_89" | "sm_90" | "sm_120"
   std::string arch_tag;
   int sm_major = 0;

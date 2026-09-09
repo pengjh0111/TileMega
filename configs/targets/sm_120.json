@@ -1,4 +1,46 @@
 {
+  "event_calibration_by_dtype": {
+    "bf16": {
+      "source": "docs/experiments/OCCUPANCY/raw_sm120/attrib.tsv",
+      "source_sha256": "5ad82afe973eaf2b8cb06e31659d68fa0613d8edf92498a0e69a75f59949f933",
+      "method": "three-cell leave-one-out; final origin-constrained least squares on four cell medians",
+      "notify": {
+        "ns": 11.76532827309475,
+        "reason": "measured",
+        "unit": "ns/runtime_task_ref"
+      },
+      "poll": {
+        "ns": 1.5438009302734836,
+        "reason": "measured",
+        "unit": "ns/runtime_wait_entry"
+      },
+      "fence": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      }
+    },
+    "f32": {
+      "source": "",
+      "source_sha256": "",
+      "method": "",
+      "notify": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
+      "poll": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
+      "fence": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      }
+    }
+  },
   "arch_tag": "sm_120",
   "sm_major": 12,
   "sm_minor": 0,

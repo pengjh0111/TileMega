@@ -17,6 +17,15 @@ int main() {
   assert(TargetSpec::ComputeStages(100, 30, 10, 16) == 3);
   assert(TargetSpec::ComputeStages(8, 16, 0, 16) == 0);
   assert(sm120.ToJson().find("\"tcgen05\": false") != std::string::npos);
+  assert(!sm80.EventCalibrationFor("bf16").notify.ns);
+  assert(sm80.EventCalibrationFor("bf16").notify.reason == "not_calibrated");
+  auto const& events = sm120.EventCalibrationFor("bf16");
+  assert(events.notify.ns && *events.notify.ns > 0);
+  assert(events.notify.unit == "ns/runtime_task_ref");
+  assert(events.poll.unit == "ns/runtime_wait_entry");
+  assert(!events.fence.ns && events.fence.reason == "not_calibrated");
+  assert(!sm120.EventCalibrationFor("f32").notify.ns);
+  assert(sm120.ToJson().find("ns/runtime_task_ref") != std::string::npos);
   static_assert(!tilemega::arch::Caps<tilemega::arch::Sm120>::kTcgen05);
   return 0;
 }

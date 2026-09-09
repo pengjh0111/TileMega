@@ -7,6 +7,7 @@
 #include <cuda_runtime_api.h>
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -222,6 +223,29 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
   spec.arch_tag = root.At("arch_tag").AsString("arch_tag");
   spec.sm_major = static_cast<int>(root.At("sm_major").AsNumber("sm_major"));
   spec.sm_minor = static_cast<int>(root.At("sm_minor").AsNumber("sm_minor"));
+  if (auto grouped = root.Find("event_calibration_by_dtype")) {
+    auto parse = [&](char const* dtype, EventCalibration& out) {
+      auto record = grouped->Find(dtype);
+      if (!record) return;
+      out.source = record->At("source").AsString("event source");
+      if (auto v = record->Find("source_sha256")) out.source_sha256 = v->AsString("source hash");
+      if (auto v = record->Find("method")) out.method = v->AsString("event fit method");
+      auto rate = [&](char const* name, EventRate& dst) {
+        auto const& value = record->At(name);
+        dst.reason = value.At("reason").AsString("event rate reason");
+        if (auto unit = value.Find("unit")) dst.unit = unit->AsString("event rate unit");
+        if (!value.At("ns").IsNull()) {
+          double ns = value.At("ns").AsNumber("event rate ns");
+          if (!std::isfinite(ns) || ns < 0 || dst.reason != "measured" || dst.unit.empty())
+            throw std::invalid_argument("invalid calibrated event rate");
+          dst.ns = ns;
+        } else if (dst.reason != "not_calibrated" && dst.reason != "capability_absent")
+          throw std::invalid_argument("missing event rate needs an explicit reason");
+      };
+      rate("notify", out.notify); rate("poll", out.poll); rate("fence", out.fence);
+    };
+    parse("bf16", spec.event_bf16); parse("f32", spec.event_f32);
+  }
 
   json::Value const& caps = root.At("caps");
   spec.caps.cluster = caps.At("cluster").AsBool("caps.cluster");
@@ -273,6 +297,12 @@ TargetSpec::Calib const& TargetSpec::CalibrationFor(
                               std::string(dtype));
 }
 
+TargetSpec::EventCalibration const& TargetSpec::EventCalibrationFor(std::string_view dtype) const {
+  if (dtype == "bf16") return event_bf16;
+  if (dtype == "f32") return event_f32;
+  throw std::invalid_argument("unsupported event calibration dtype");
+}
+
 TargetSpec::Calib& TargetSpec::CalibrationFor(std::string_view dtype) {
   return const_cast<Calib&>(
       static_cast<TargetSpec const&>(*this).CalibrationFor(dtype));
@@ -301,6 +331,17 @@ std::string TargetSpec::ToJson() const {
                         {"warp_size", res.warp_size}});
 
   root.Set("calibration", CalibrationJson(calib));
+  auto event_json = [](EventCalibration const& e) {
+    auto rate = [](EventRate const& r) {
+      return json::Value(json::Object{{"ns", r.ns ? json::Value(*r.ns) : json::Value()},
+                                     {"reason", r.reason}, {"unit", r.unit}});
+    };
+    return json::Value(json::Object{{"source", e.source}, {"source_sha256", e.source_sha256},
+                                    {"method", e.method}, {"notify", rate(e.notify)},
+                                    {"poll", rate(e.poll)}, {"fence", rate(e.fence)}});
+  };
+  root.Set("event_calibration_by_dtype", json::Object{
+      {"bf16", event_json(event_bf16)}, {"f32", event_json(event_f32)}});
   if (calib_bf16.calibrated || !calib_bf16.measurements.empty()) {
     root.Set("calibration_by_dtype",
              json::Object{{"bf16", CalibrationJson(calib_bf16)}});
