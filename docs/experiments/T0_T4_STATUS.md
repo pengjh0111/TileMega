@@ -30,7 +30,7 @@
 - `third_party/barvinok` 原有未跟踪内容保留，未作清理，不纳入本轮提交。
 # T1–T5 current status (baseline c8be09e)
 
-This section supersedes the status of the old round below; it does not erase
+This section supersedes the status of the old round above; it does not erase
 its experiments or negative results. **The new round is incomplete.**
 
 | Task | Verified in this continuation | Open work / blocking limitation |
@@ -42,8 +42,11 @@ its experiments or negative results. **The new round is incomplete.**
 | T3.1 | 6/6 finite instances have strictly dominating balanced mappings; 78/78 graphs acyclic, explicit zero isl refs; Pareto plot and raw data | Finite/offline only, not overresident I3 or GPU evidence |
 | T3.2–3.5 | Not implemented | Logical→runtime stage / split projection, L-sched writeback and lowering, BF16 50-process tests, price/timing comparison, sm_120 script |
 | T4.3 | Primary-paper evaluation lookup recorded in BF16/related_work.md | Explicit numerical reference/tolerance/depth protocol not found; no inferred community criterion |
-| T4.1/4.2/4.4/4.5 | No new GPU measurements | Depth sweep, BF16 noise floor, original 4×4096 best-config rerun, FP32 GPU 50-process regression, measured combine rate |
+| T4.1/4.2 | 300 fresh processes; depth2/4/6 each50/50, depth8/12/16 each0/50; all inter-level hashes agree. At16 k_L2=.9913284393 supports noise-floor attribution. CPU golden threads8→56 alone reproduce162→198 mismatches | Fixed criterion still fails at depth; no new k threshold adopted, no proof excluding all shared bugs |
+| T4.4 | Original 4×4096 split8 with FP32 partials fails0/1, one mismatched element, max_abs=.046875; stopped immediately | Condition9 remains open; split16 compiled/not run, no50-process claim. Numerical-domain feasibility design recorded, not implemented |
+| T4.5 | FP32 GPU partial-storage regression400/400; both models, split1/16, both states,50fresh processes each; identical paired hashes | Actual FP32-partial combine-rate calibration still missing; analytic traffic increment is not a measured coefficient |
 | T5.1 | Points() leak localized by before/after ref guard; caller-owned contexts; zero-ref tool evidence | No claim about unexecuted error branches; audit deliberately rejects new leaks |
+| T5 enumeration follow-up | Exact finite-basic-component union avoids pathological disjointization; independent set tests and generated-CUDA byte equality | Wide split8 >1089s unfinished→17.1849s;16-layer321.8086→322.9925s has no observed improvement |
 | T5.2 | Four-arm comparison now interleaves build states; logs execution_index | New future fusion/placement runners must preserve both state and arm rotation |
 | T5.3 | Nested polylib generated autotools files locally ignored | Local git info/exclude, not an upstream submodule change or portable ignore policy |
 | T5.4/5 | BF16 input gate migrated, all old failures included; status/findings updated | Full L2 symbolic CostBreakdown gate awaits T1 implementation |
@@ -56,8 +59,15 @@ answer. Relation/QP audits and calibration metadata are preparatory work,
 incidence graph and its runtime projection, not an implicit fallback to .cu.
 
 No numerical tolerance, occupancy goal, atomic fan-in hypothesis or TC-lane
-attribution was revived. No new GPU correctness/performance result is
-claimed. sm_120 raw evidence was supplied at c8be09e, not executed locally.
+attribution was revived. The new GPU evidence is limited to the explicit
+T4 diagnostics/regressions above, not new comparative performance results.
+sm_120 raw evidence was supplied at c8be09e, not executed locally.
+
+The condition9 stop is recorded in `REALMODEL/condition9_result.md` with the
+sole failed log, resources, unrun split16 and a numerical-feasibility design.
+`REALMODEL/depth_result.md` records the independently completed depth/noise
+experiment and its golden-thread detour. These do not close T1, fusion,
+production placement, BF16 ranking or the measured combine-rate debt.
 
 Verification: full build, check-policy, five-target audit zero failures,
 24/24 CTest. FP32 predictions/finite-DP TSVs remain byte-identical to HEAD

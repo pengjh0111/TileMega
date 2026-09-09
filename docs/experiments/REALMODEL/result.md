@@ -1,5 +1,26 @@
 # Part 4 — production width and depth
 
+## c8be09e continuation (supersedes pending items, preserves old data)
+
+✅ [Controlled depth/noise experiment](depth_result.md): 300 fresh processes,
+50 at each of six fixed-input/weight-prefix depths. Fixed-criterion passes
+are 50/50 at2/4/6 and 0/50 at8/12/16. k_L2=.9913284393 at16 supports the
+observed BF16 noise-floor attribution, not criterion acceptance. CPU golden
+thread count alone explains the historical198 versus controlled162
+mismatches; TileMega's hash did not change.
+
+✅ [Original condition9 rerun](condition9_result.md): FP32 partials do not
+fully repair the original 4×4096 leader. split8 fails with one mismatched
+element, max_abs=.046875. Stopped at0/1; split16 compiled but not run.
+Condition9 remains open. Do not interpret the historical descriptions of
+old split failures below as the new FP32-partial process counts.
+
+✅ Exact component-wise isl endpoint enumeration avoids a >1089s unfinished
+wide split8 codegen and finishes that same input in17.1849s. The16-layer
+control is byte-identical but 321.8086→322.9925s, **no observed benefit**;
+[evidence and switch](../ISL_LIFETIME/enumeration_result.md). No GPU timing
+claim follows from these individual compiler runs.
+
 Reproduce with `run.sh`. The default is the Llama-3.2-1B decoder shape; the
 width control is:
 

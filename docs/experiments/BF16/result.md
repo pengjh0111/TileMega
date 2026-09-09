@@ -1,5 +1,28 @@
 # BF16 end-to-end and calibration
 
+## T1–T5 continuation: numerical evidence and stop (baseline c8be09e)
+
+✅ T4.1/T4.2: fixed-prefix depth scan completed 300 fresh processes.
+Depth2/4/6 each pass 50/50; depth8/12/16 each remain 0/50 under the unchanged
+criterion. All 300 inter-level hashes and second-iteration comparisons agree.
+Final-hidden noise-floor ratio at depth16 is k_L2=.9913284393. The controlled
+golden uses 8 CPU threads: changing only this to historical default56
+reproduces 162→198 mismatches without changing TileMega output. Full table,
+methodology and limits: [depth report](../REALMODEL/depth_result.md).
+
+✅ T4.5 FP32 GPU regression: **400/400**, two models × split{1,16} ×
+partials{0,1} × 50 fresh processes, same output hashes across states;
+[report and raw evidence](fp32_regression.md). ⚠️ Actual FP32-partial
+combine-rate calibration remains undone; the old analytic traffic
+increment is not a measured replacement coefficient.
+
+✅ T4.4 triggered the stop: original 4×4096 split8 still has one element
+outside tolerance with FP32 partials, max_abs=.046875, **0/1**. The driver
+stopped before split16 or further rounds. This is not 50-process evidence.
+Condition9 remains open; [failure and feasibility design](../REALMODEL/condition9_result.md).
+No tolerance change, split ban, new feasibility filter or BF16 ranking
+acceptance is claimed. Historical results below are preserved.
+
 ## 本轮 T2.a：FP32 partials（基线 e305a9f）
 
 ✅ RTX 4090，seq=128、past=3，两个模型各 split={1,2,4,8,16}，每格
@@ -379,7 +402,8 @@ See `../PARAMETRIC/result.md` and its per-configuration data.
 elementwise numerical tolerances/depth protocols were not found in the
 inspected evaluation sections; this is not evidence that no tests exist.
 
-⚠️ T4.1/T4.2/T4.4/T4.5 are not yet run: no fixed-weight depth curve, no
+Historical checkpoint, superseded by the continuation at the top:
+⚠️ T4.1/T4.2/T4.4/T4.5 were not yet run: no fixed-weight depth curve, no
 three-way FP32-golden noise floor, no original 4×4096 best-split rerun, no
 new FP32 GPU 50-process regression or measured FP32-partial combine rate.
 No criterion or tolerance has changed. Historical results below are retained.

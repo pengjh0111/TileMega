@@ -2170,3 +2170,54 @@ This does not retire (b) as an implementation, prove (a), rerun GPU numerical
 acceptance, or correct BF16 rho/top-k. F-96 blocks the event functionality
 gate independently. Code: `tools/tilemega-parametric.cpp:1`;
 evidence: `docs/experiments/PARAMETRIC/input_gate_bf16.tsv` and logs.
+
+## F-99 — Exact finite component enumeration avoids one pathological codegen
+
+✅ Wide4×4096 split8 compilation was interrupted after1089s, sampled in
+isl disjointization from Points(). Enumerating each basic component then
+deduplicating the finite union completes the same input in17.1849s.
+Independent overlapping-set tests pass; reference gqa2/mha4 and16-layer
+generated CUDA are byte-identical. The16-layer compiler control is
+321.8086→322.9925s: **no observed speed benefit** there. These are individual
+CPU compiler timings, not GPU performance statistics or a universal scaling
+claim. Macro TILEMEGA_ISL_COMPONENT_ENUMERATION retains the old control.
+Code: `lib/Analysis/CouplingRelation.cpp:222`; evidence:
+`docs/experiments/ISL_LIFETIME/enumeration_result.md`.
+
+## F-100 — Fixed-prefix depth growth is on the observed BF16 noise scale
+
+✅ Six depths×50=300fresh processes with common input/weight-prefix hashes.
+Depth2/4/6 each pass50/50;8/12/16 each fail0/50 under the unchanged criterion.
+max_abs=.015625/.03125/.03125/.046875/.0625/.078125, with4 rather than
+hundreds of mismatches at depth8. All300 inter-level hashes and existing
+second-iteration comparisons agree. Final-hidden depth16 errors against
+common FP32 are1.26496978(PyTorch BF16) and1.25400052(TileMega BF16),
+k_L2=.9913284393. This supports arithmetic accumulation/noise-floor
+attribution in this fixture; it does not prove every shared defect absent
+or authorize a replacement tolerance. Condition7's fixed criterion fails.
+
+✅ CPU golden threads alone explain a historical discrepancy:8threads give
+162mismatches,56threads give198, max_abs=.078125 in both, against the same
+historical TileMega hash621738651f623f5b. Thus162 is not an accuracy gain.
+The controlled thread pin predates the sweep; both deep runs still fail.
+Code: `docs/experiments/REALMODEL/export_real.py:62`, `run_depth.py:79`,
+`compare_golden_threads.py:10`; raw data and limits: `depth_result.md`.
+
+## F-101 — FP32 partials pass FP32 regression but do not close the wide scene
+
+✅ FP32 dtype partial-state regression passes400/400fresh processes:
+two models×split1/16×partials0/1×50; paired output hashes agree.
+`docs/experiments/BF16/run_splitk.py` and `fp32_regression.md` carry the
+implementation and complete evidence. Actual FP32-partial combine-rate
+calibration remains unmeasured; traffic accounting is not its substitute.
+
+✅ The original4×4096 BF16 cost-leading split8, now using FP32 partials,
+still fails with1mismatched element, max_abs=.046875. The runner stops at
+0/1; split16 is compiled but unrun, and there is no50-process claim.
+L0.5/L1/L2 hashes agree in that one run. Condition9 **remains open**;
+the two-reference-model500/500 results on each architecture do not imply
+this scene passes. No split ban or criterion change follows. Remaining
+cause is unresolved; a data-domain-aware pre-cost feasibility design,
+not an implemented legality proof, is in `REALMODEL/condition9_result.md`.
+Code: `docs/experiments/REALMODEL/run_condition9.py:17`;
+evidence: `condition9/k8_r0.txt` and `correctness.tsv` in that directory.
