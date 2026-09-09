@@ -199,6 +199,10 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
             {Read(producer_of(stage.operands[0]),
                   space_of(stage.operands[0], {Ax("m", S), Ax("h", width)}),
                   {IndexResult::Dim("m"), IndexResult::Dim("r")})});
+#if TILEMEGA_COMPLETE_NORMALIZATION_READS
+        op.operands.push_back(Read("",
+            space_of(stage.operands[1],{Ax("h",width)}),{IndexResult::Dim("h")}));
+#endif
         record(std::move(op), OpRole::kNorm, OwnershipKind::kTilePerBlock, i,
                layer, stage.operands[2]);
         break;

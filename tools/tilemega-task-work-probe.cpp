@@ -132,8 +132,23 @@ int main(int argc, char** argv) try {
     auto lifted=LiftSemantics(plan,{});
     auto granularity=LaunchGranularity(lifted,plan,{});
     auto graph=Instantiate(lifted.sem,granularity);
-    int checked=0;
+    int checked=0, norms=0;
     for (auto const& op:lifted.sem.ops) {
+      if (op.arithmetic=="rmsnorm") {
+        auto const* node=graph.Find(op.name);
+        if (!node || op.operands.size()!=2)
+          throw std::runtime_error("normalization scale read is missing");
+        auto derived=DeriveTaskWork(op,*node,{});
+        long width=op.result.axes.back().extent.Eval({},{});
+        for (int seq:{1,4,128,512,2048}) {
+          ParamBinding theta; theta.Bind("S",seq).Bind("past",3);
+          for (auto const& coordinate:node->Coordinates()) theta.Bind(coordinate,0);
+          if (derived.task_count.Eval(theta)!=seq || derived.read_elements.Eval(theta)!=2*width ||
+              derived.write_elements.Eval(theta)!=width || derived.task_reduce_extent.Eval(theta)!=width)
+            throw std::runtime_error("normalization access-derived work mismatch");
+          ++norms;
+        }
+      }
       if (op.kind!=OperatorKind::kMatmul) continue;
       auto const* node=graph.Find(op.name);
       if (!node || op.operands.size()!=2)
@@ -157,5 +172,8 @@ int main(int argc, char** argv) try {
     if (!checked) throw std::runtime_error("export contains no checked GEMM");
     std::cerr<<"A3_PRODUCTION_EXPORT file="<<argv[input]<<" count_nominal_cells="<<checked
              <<" status=PASS cost_integration=pending\n";
+    if (!norms) throw std::runtime_error("export contains no checked normalization");
+    std::cerr << "A3_NORMALIZATION_EXPORT file=" << argv[input] << " cells=" << norms
+              << " status=PASS scale_read=present\n";
   }
 } catch(std::exception const& e) { std::cerr<<e.what()<<'\n'; return 2; }

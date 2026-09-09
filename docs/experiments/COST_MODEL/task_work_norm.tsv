@@ -1,0 +1,4 @@
+seq	task_count	physical_bytes_per_iter	nominal_bytes_per_iter	legacy_mainloop_bytes	physical_equal
+4	4	4224	8192	8192	0
+128	4	8192	8192	8192	1
+512	16	8192	8192	8192	1

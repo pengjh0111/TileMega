@@ -145,6 +145,10 @@ ReferenceModel LlamaDecoderLayerSem(DecoderShape const& s,
       n("rmsnorm1"), OperatorKind::kReduction,
       {Par("m", s.S), Par("h", s.H), Red("r", s.H)}, norm1,
       {Read("", hidden, {IndexResult::Dim("m"), IndexResult::Dim("r")})}));
+#if TILEMEGA_COMPLETE_NORMALIZATION_READS
+  graph.ops.back().operands.push_back(Read("",Space(n("rmsnorm1.weight"),{Ax("h",s.H)}),
+                                         {IndexResult::Dim("h")}));
+#endif
   g.Tile(n("rmsnorm1"), "m", s.Tm);
 
   // The QKV projections tile their column axis by one head, not by Tn: §2.7
@@ -252,6 +256,10 @@ ReferenceModel LlamaDecoderLayerSem(DecoderShape const& s,
       n("rmsnorm2"), OperatorKind::kReduction,
       {Par("i", s.S), Par("h", s.H), Red("r", s.H)}, norm2,
       {Read(n("add1"), resid1, {IndexResult::Dim("i"), IndexResult::Dim("r")})}));
+#if TILEMEGA_COMPLETE_NORMALIZATION_READS
+  graph.ops.back().operands.push_back(Read("",Space(n("rmsnorm2.weight"),{Ax("h",s.H)}),
+                                         {IndexResult::Dim("h")}));
+#endif
   g.Tile(n("rmsnorm2"), "i", s.Tm);
 
   graph.ops.push_back(Matmul(n("wgate"), s, s.I, n("rmsnorm2"), norm2));
@@ -321,6 +329,10 @@ ReferenceModel MlpStackSem(DecoderShape const& s, int blocks) {
         {Par("m", s.S), Par("h", s.H), Red("r", s.H)}, norm,
         {Read(producer, carry,
               {IndexResult::Dim("m"), IndexResult::Dim("r")})}));
+#if TILEMEGA_COMPLETE_NORMALIZATION_READS
+    graph.ops.back().operands.push_back(Read("",Space(prefix+"norm.weight",{Ax("h",s.H)}),
+                                           {IndexResult::Dim("h")}));
+#endif
     g.Tile(prefix + "norm", "m", s.Tm);
 
     graph.ops.push_back(Matmul(prefix + "fc1", s, s.I, prefix + "norm", norm));

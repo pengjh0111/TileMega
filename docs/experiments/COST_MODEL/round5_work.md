@@ -105,6 +105,24 @@ ISL references). The complete 1077-configuration work gate is running in
 but is not a cost/price gate. Combiner work and production CG
 serialization/consumption remain open.
 
+### Normalization scale access
+
+✅ `SemanticLifting.cpp` now records the actual RMSNorm scale operand from
+`stage.operands[1]`, indexed by the output's hidden coordinate. The reference
+semantics records the same weight read. `TILEMEGA_COMPLETE_NORMALIZATION_READS=0`
+retains the old omission as an independent control, not a pricing fallback.
+As with GEMM weights, the input has no task producer and creates no extra
+event edge. `task_work_norm.*` checks 20 gqa2 + 40 mha4 cases: one task per
+token, two widths of unique reads (activation and scale), one width of
+writes, and reduction span=width. The semantic comparison still passes
+without changing expected differences; both tools report zero ISL references.
+
+✅ Both models, default and ownership-variant generation, remain **4/4
+byte-identical** to the preserved pre-refactor compiler. Raw hashes and logs
+are in `EVENT_COST/runtime_projection/norm_codegen_control`. This verifies
+that adding the external read did not alter generated dependencies; it is
+not a GPU test or proof that incomplete RoPE reads are already fixed.
+
 ## A4 arithmetic declaration audit
 
 The single table is `lib/Analysis/OpArithmetic.cpp:9`. Work is represented

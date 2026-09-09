@@ -24,10 +24,11 @@ option(TILEMEGA_BALANCED_QP_SUM "Deduplicate and balance exact QP additions" ON)
 option(TILEMEGA_OP_ARITHMETIC "Enable audited operator arithmetic declarations" ON)
 option(TILEMEGA_TASK_WORK "Derive physical and nominal work from access maps" ON)
 option(TILEMEGA_COMPLETE_GEMM_READS "Include external GEMM weights in semantic reads" ON)
+option(TILEMEGA_COMPLETE_NORMALIZATION_READS "Include normalization scale reads" ON)
 set_source_files_properties(lib/Analysis/TaskWork.cpp PROPERTIES
   COMPILE_DEFINITIONS "TILEMEGA_TASK_WORK=$<BOOL:${TILEMEGA_TASK_WORK}>")
 set_source_files_properties(lib/Analysis/ReferenceModels.cpp lib/Frontend/SemanticLifting.cpp PROPERTIES
-  COMPILE_DEFINITIONS "TILEMEGA_COMPLETE_GEMM_READS=$<BOOL:${TILEMEGA_COMPLETE_GEMM_READS}>")
+  COMPILE_DEFINITIONS "TILEMEGA_COMPLETE_GEMM_READS=$<BOOL:${TILEMEGA_COMPLETE_GEMM_READS}>;TILEMEGA_COMPLETE_NORMALIZATION_READS=$<BOOL:${TILEMEGA_COMPLETE_NORMALIZATION_READS}>")
 set_source_files_properties(lib/Analysis/OpArithmetic.cpp PROPERTIES
   COMPILE_DEFINITIONS "TILEMEGA_OP_ARITHMETIC=$<BOOL:${TILEMEGA_OP_ARITHMETIC}>")
 set_source_files_properties(lib/Analysis/QuasiPolynomial.cpp PROPERTIES
