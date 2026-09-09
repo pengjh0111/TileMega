@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
+#include <tilemega/Codegen/RuntimePlan.h>
+#include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Codegen/HostLauncherEmitter.h>
 #include <tilemega/Codegen/ScheduleTableEmitter.h>
 #include <tilemega/Codegen/SyncEmitter.h>
@@ -89,23 +91,6 @@ mlir::DictionaryAttr dictionaryEntry(mlir::Attribute value,
   return result;
 }
 
-/// One row of the emitted `kDependencies[]`. `window.narrowed == false` is the
-/// I2 relaxation to the producer's whole launch axis.
-struct DependencyRecord {
-  std::uint32_t producer;
-  std::uint32_t consumer;
-  analysis::WaitWindow window;
-};
-
-struct GemmRuntimeRecord {
-  std::uint16_t compiled_variant = 0;
-  std::uint16_t split_k = 1;
-  std::uint16_t tile_m = 128;
-  std::uint16_t tile_n = 128;
-  std::uint16_t tile_k = 16;
-  std::uint16_t stages = 3;
-};
-
 struct ScheduleStageRecord {
   std::uint32_t stage = 0;
   std::uint32_t dependency_begin = 0;
@@ -160,10 +145,10 @@ std::uint32_t readOwnershipFlags(mlir::ModuleOp module) {
     if (auto value = module->getAttrOfType<mlir::BoolAttr>(name))
       if (value.getValue()) flags |= bit;
   };
-  add("tilemega.rope_tile_per_block", 1u << 0);
-  add("tilemega.kv_tile_per_block", 1u << 1);
-  add("tilemega.activation_tile_per_block", 1u << 2);
-  add("tilemega.combiner_tile_per_block", 1u << 3);
+  add("tilemega.rope_tile_per_block", kRoPETileOwnership);
+  add("tilemega.kv_tile_per_block", kKVTileOwnership);
+  add("tilemega.activation_tile_per_block", kActivationTileOwnership);
+  add("tilemega.combiner_tile_per_block", kCombinerTileOwnership);
   return flags;
 }
 
@@ -529,6 +514,22 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
   return result;
 }
 
+}  // namespace
+
+RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
+  analysis::IslReferenceAudit audit(__func__);
+  auto analysis = AnalyzeVariantModule(module);
+  auto model = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  if (!model) throw std::invalid_argument("CG has no runtime model plan");
+  RuntimePlan result;
+  result.dependencies = std::move(analysis.dependencies);
+  result.gemms = readRuntimeGemms(module, arrayField(model, "gemms").size());
+  result.ownership_flags = readOwnershipFlags(module);
+  result.cluster_dim = analysis.cluster_dim;
+  return result;
+}
+
+namespace {
 std::string EmitGemmInstantiations(
     std::vector<std::tuple<int, int, int, int>> const& shapes) {
   if (shapes.empty() || shapes.size() > 16)
@@ -702,17 +703,19 @@ std::string CouplingGraphToCUDA::LowerVariants(
     if (!plan || plan != first_plan)
       throw std::invalid_argument(
           "runtime variants must have byte-identical tilemega.model_plan data");
-    VariantAnalysis analysis = AnalyzeVariantModule(input.module);
-    if (cluster_dim < 0) cluster_dim = analysis.cluster_dim;
-    else if (cluster_dim != analysis.cluster_dim)
+    RuntimePlan runtime_plan = ReadRuntimePlan(input.module);
+    if (cluster_dim < 0) cluster_dim = runtime_plan.cluster_dim;
+    else if (cluster_dim != runtime_plan.cluster_dim)
       throw std::invalid_argument(
           "runtime variants cannot change the kernel cluster dimension");
     RuntimeVariantRecord record;
     record.seq_begin = input.seq_begin;
     record.seq_end = input.seq_end;
-    record.ownership_flags = readOwnershipFlags(input.module);
-    record.dependencies = std::move(analysis.dependencies);
-    record.gemms = readRuntimeGemms(input.module, gemm_count);
+    record.ownership_flags = runtime_plan.ownership_flags;
+    record.dependencies = std::move(runtime_plan.dependencies);
+    record.gemms = std::move(runtime_plan.gemms);
+    if (record.gemms.size() != gemm_count)
+      throw std::invalid_argument("runtime variant GEMM count changed");
     for (auto& impl : record.gemms) {
       auto key = std::make_tuple(static_cast<int>(impl.tile_m),
                                  static_cast<int>(impl.tile_n),

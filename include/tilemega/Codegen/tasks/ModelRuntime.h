@@ -11,6 +11,7 @@
 #include <cuda_runtime.h>
 
 #include <tilemega/Codegen/tasks/TaskBase.h>
+#include <tilemega/Codegen/RuntimeOwnership.h>
 #include <cutlass/bfloat16.h>
 
 #include <cstdint>
@@ -227,13 +228,6 @@ struct RuntimeVariantDesc {
   std::uint32_t seq_begin;  ///< inclusive, for diagnostics
   std::uint32_t seq_end;    ///< inclusive, for diagnostics
   std::uint32_t ownership_flags;
-};
-
-enum RuntimeOwnershipFlag : std::uint32_t {
-  kRoPETileOwnership = 1u << 0,
-  kKVTileOwnership = 1u << 1,
-  kActivationTileOwnership = 1u << 2,
-  kCombinerTileOwnership = 1u << 3,
 };
 
 #ifndef TILEMEGA_EVENT_SPLIT_LINES
