@@ -5,16 +5,22 @@
 // GEMM shapes and the same stage sequence the megakernel executes, in a form
 // the solver can evaluate without a compiler or a device.
 //
-// It is read back out of a generated .cu rather than re-derived from the CG:
-// the generated file is the artifact the measured configurations were built
-// from, so a cost model validated against those measurements must describe
-// exactly it.
+// The archived generated-.cu reader remains an independent measurement
+// anchor. The CG reader carries semantic dimension roles and symbolic metrics;
+// callers must bind dimensions before entering the existing FP64 evaluator.
 #pragma once
 
 #include <tilemega/Solver/BackendCostQuery.h>
+#include <tilemega/Analysis/QuasiPolynomial.h>
 
 #include <string>
 #include <vector>
+
+#ifndef TILEMEGA_PARAMETRIC_INPUT
+#define TILEMEGA_PARAMETRIC_INPUT 1
+#endif
+
+namespace mlir { class ModuleOp; }
 
 namespace tilemega::solver {
 
@@ -23,6 +29,17 @@ struct ModelDims {
   int seq = 0;
   int past = 0;
   int total = 0;
+  // Empty names preserve the historical concrete representation. Unbound
+  // symbolic dimensions must be substituted before entering FP64 evaluation.
+  std::string seq_parameter;
+  std::string past_parameter;
+  bool IsSymbolic() const { return !seq_parameter.empty() || !past_parameter.empty(); }
+  static ModelDims Symbolic(std::string seq_name, int concrete_past);
+};
+
+struct ModelCouplingMetrics {
+  int producer = -1, consumer = -1;
+  analysis::QuasiPolynomial wait, fanout, volume, count;
 };
 
 /// M stays symbolic, so a GEMM contributes only N and K.  The destination
@@ -73,6 +90,10 @@ struct ModelDescription {
   /// reduced by the generator, so it is the DAG the megakernel actually
   /// enforces rather than a re-derivation of it (§P4.8).
   std::vector<std::vector<int>> stage_successors;
+  std::vector<ModelCouplingMetrics> coupling_metrics;
+  analysis::ParamBinding metric_bindings;
+  std::string seq_metric_parameter, past_metric_parameter;
+  std::vector<std::pair<std::string, std::string>> metric_aliases;
 
   /// Parse the `kGemms` and `kStages` tables out of a generated .cu.  Throws
   /// std::runtime_error when either table is missing or malformed -- a silent
@@ -80,6 +101,9 @@ struct ModelDescription {
   static ModelDescription FromGeneratedCuda(std::string const& path,
                                             ModelDims dims,
                                             std::string name);
+  static ModelDescription FromCouplingGraph(mlir::ModuleOp module,
+                                            ModelDims dims, std::string name);
+  ModelDescription SubstituteParams(analysis::ParamBinding const& bindings) const;
 
   /// Bytes of parameter and activation storage the model keeps live, which is
   /// what the L2 must hold for the weight stream to stay resident (§2.2(e)).

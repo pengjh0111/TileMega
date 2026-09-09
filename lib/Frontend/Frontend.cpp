@@ -464,6 +464,11 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
   if (symbolic.dimensions.size() > 0) liftOptions.seq_symbol = symbolic.dimensions.front();
   for (auto const& symbol : symbolic.dimensions)
     if (symbol != liftOptions.seq_symbol) { liftOptions.past_symbol = symbol; break; }
+  // Preserve semantic dimension roles for consumers of symbolic CG metrics.
+  // Import witness values are not runtime dimensions and must not be reused.
+  module->setAttr("tilemega.dimension_roles", builder.getDictionaryAttr({
+      builder.getNamedAttr("seq", builder.getStringAttr(liftOptions.seq_symbol)),
+      builder.getNamedAttr("past", builder.getStringAttr(liftOptions.past_symbol))}));
   LiftedModel lifted = plan.stages.empty()
                            ? LiftGenericSemantics(tasks, stages, liftOptions)
                            : LiftSemantics(plan, liftOptions);

@@ -463,6 +463,8 @@ double CostModel::BarrierNs(Residency residency) const {
 CostBreakdown CostModel::Evaluate(ModelDescription const& model,
                                   std::vector<GemmConfig> const& configs,
                                   Residency residency) const {
+  if (model.dims.IsSymbolic())
+    throw std::invalid_argument("bind model dimensions before FP64 evaluation");
   if (configs.size() != model.gemms.size()) {
     throw std::invalid_argument("one GemmConfig per model GEMM is required");
   }
