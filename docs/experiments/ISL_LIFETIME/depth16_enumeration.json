@@ -1,0 +1,9 @@
+{
+  "returncode": 0,
+  "seconds": 322.9925169800408,
+  "stdout": "",
+  "stderr": "CODEGEN_SUMMARY tasks=272 couplings=350 stages=240 symbolic_windows=350 fallback_windows=0 output=/tmp/tilemega-points.PYKsfW/depth16_after.cu\n",
+  "equal": true,
+  "before_sha256": "e47db18ab27a7030df23c24a9d0ce2f0626c8920749ec400d0f5a111210d5791",
+  "after_sha256": "e47db18ab27a7030df23c24a9d0ce2f0626c8920749ec400d0f5a111210d5791"
+}

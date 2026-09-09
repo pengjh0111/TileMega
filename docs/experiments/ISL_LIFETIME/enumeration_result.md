@@ -42,3 +42,14 @@ relations by bounded host loops and compares exact point sets; an explicit
 overlap case checks duplicate elimination. No GPU race claim comes from this
 CPU test. Full build/policy/CTest evidence is in `enumeration_build.txt` and
 `enumeration_ctest.txt`; condition9 GPU acceptance is reported separately.
+
+## Sixteen-layer control: no observed speed benefit
+
+✅ The complete 16×2048 input is also byte-identical before/after, SHA256
+`e47db18ab27a7030df23c24a9d0ce2f0626c8920749ec400d0f5a111210d5791`.
+The old run took 321.8086 s and the new run 322.9925 s. These are individual
+compiler invocations, not a statistically significant slowdown or speedup.
+Both produce 272 tasks / 350 couplings / 240 stages and 350 symbolic,
+zero fallback windows. Evidence: `depth16_enumeration.json` and
+`../REALMODEL/depth_results/commands.json`. The wide split8 improvement
+must not be generalized to all codegen; this depth case shows no benefit.
