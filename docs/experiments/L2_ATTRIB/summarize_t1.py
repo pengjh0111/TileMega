@@ -20,7 +20,8 @@ out.mkdir(parents=True, exist_ok=True)
 data = {}
 for row in rows:
     key = row['model'], int(row['seq']), row['variant'], int(row['round'])
-    data.setdefault(key, {})[row['arm']] = tuple(float(row[c]) for c in ['l1_ms', 'l2_ms'])
+    columns = ['l1_ms', 'l2_ms'] + (['l05_ms'] if 'l05_ms' in row else [])
+    data.setdefault(key, {})[row['arm']] = tuple(float(row[c]) for c in columns)
 expected_arms = set(row['arm'] for row in rows)
 for key, arms in data.items():
     if set(arms) != expected_arms:
@@ -58,8 +59,10 @@ derived = {}
 for (model, seq, variant, r), arms in data.items():
     if 'full' not in arms:
         continue
-    l1, l2 = arms['full']
+    l1, l2 = arms['full'][:2]
     vals = {'l1_ms': l1, 'l2_ms': l2, 'ratio': l2/l1}
+    if len(arms['full']) > 2:
+        vals['l05_ms'] = arms['full'][2]
     if set(['nowait', 'neither', 'l1nosync']).issubset(arms):
         neither, nowait, nosync = arms['neither'][1], arms['nowait'][1], arms['l1nosync'][0]
         vals.update(notify_ms=nowait-neither, wait_ms=l2-nowait,

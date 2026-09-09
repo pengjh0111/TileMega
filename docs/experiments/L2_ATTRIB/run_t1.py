@@ -6,6 +6,7 @@ import csv
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 
@@ -33,7 +34,7 @@ arms = {'full': [], 'nowait': ['-DTILEMEGA_UNSAFE_NO_EVENT_WAIT=1'],
                     '-DTILEMEGA_UNSAFE_NO_EVENT_NOTIFY=1'],
         'l1nosync': ['-DTILEMEGA_UNSAFE_NO_GRID_SYNC=1']}
 arms = {name: arms[name] for name in a.arms.split(',')}
-for sub in ['src', 'bin', 'log']:
+for sub in ['src', 'bin', 'log', 'ptxas']:
     (out / sub).mkdir(parents=True, exist_ok=True)
 
 if 'build' in phases or 'snapshot' in phases:
@@ -55,7 +56,10 @@ def flags(variant):
     lines = variant in ('lines', 'load_lines', 'cluster') or variant.startswith('shard')
     sharded = variant.startswith(('shard', 'fanin')) or variant == 'cluster'
     shard = int(variant[5:]) if variant.startswith(('shard', 'fanin')) else 0
-    return [f'-DTILEMEGA_EVENT_LOAD_POLL={int(load)}',
+    minimum = int(variant[3:]) if variant.startswith('occ') else 1
+    return [f'-DTILEMEGA_MIN_BLOCKS_PER_SM={minimum}',
+            f'-DTILEMEGA_COLD_START_TIMING={int(variant == "cold")}',
+            f'-DTILEMEGA_EVENT_LOAD_POLL={int(load)}',
             f'-DTILEMEGA_EVENT_SPLIT_LINES={int(lines)}',
             f'-DTILEMEGA_EVENT_SHARDED={int(sharded)}',
             f'-DTILEMEGA_EVENT_SHARDS={shard}',
@@ -74,17 +78,36 @@ if 'build' in phases:
         for variant in variants:
             for arm, extra in arms.items():
                 cmd = [os.environ.get('CUDACXX', '/usr/local/cuda/bin/nvcc'),
-                       '-std=c++17', '-O2', f'-arch={a.arch}', '-lineinfo',
+                       '-std=c++17', '-O2', f'-arch={a.arch}', '-lineinfo', '-Xptxas=-v,--warn-on-spills',
                        f'-DTILEMEGA_EVENT_KAPPA={a.kappa}']
                 cmd += [f'-I{repo / sub}' for sub in
                         ('include', 'third_party/cutlass/include',
                          'third_party/cutlass/tools/util/include', 'third_party/cutlass/test')]
                 cmd += flags(variant) + extra + [str(src), str(build / 'libtilemega.a'),
-                       '-L/usr/local/cuda-12.8/lib64', '-lcudart', '-o',
+                       f'-L{Path(os.environ.get("CUDACXX", "/usr/local/cuda/bin/nvcc")).parent.parent / "lib64"}', '-lcudart', '-o',
                        str(out / 'bin' / f'{model}_{variant}_{arm}')]
-                with (out / 'log' / f'{model}_{variant}_{arm}.build').open('w') as log:
+                with (out / 'ptxas' / f'{model}_{variant}_{arm}.build').open('w') as log:
                     subprocess.run(cmd, stdout=log, stderr=log, check=True)
                 print('BUILT', model, variant, arm, flush=True)
+
+resource_columns = ['reg', 'ctas_per_sm', 'grid', 'block', 'task_smem',
+                    'occupancy_smem', 'static_smem', 'regs_per_sm', 'smem_per_sm',
+                    'threads_per_sm', 'l1_reg', 'l05_reg', 'l1_ctas', 'l2_ctas', 'min_blocks', 'warp_size']
+
+def ptxas_resources(model, variant, arm):
+    current = None
+    values = {}
+    for line in (out / 'ptxas' / f'{model}_{variant}_{arm}.build').read_text().splitlines():
+        if 'Compiling entry function' in line:
+            current = next((k for k in ('tilemega_l2_kernel', 'tilemega_l1_kernel',
+                                       'tilemega_stage_kernel') if k in line), None)
+        if current:
+            entry = values.setdefault(current, {})
+            m = re.search(r'Used (\d+) registers', line)
+            if m: entry['reg'] = int(m[1])
+            m = re.search(r'(\d+) bytes spill stores, (\d+) bytes spill loads', line)
+            if m: entry.update(stores=int(m[1]), loads=int(m[2]))
+    return values
 
 def run(model, variant, arm, seq, past, repeat, phase):
     fixture = repo / f'docs/experiments/SEQSCAN/raw/fixture/{model}_s{seq}_p{past}'
@@ -101,8 +124,30 @@ def run(model, variant, arm, seq, past, repeat, phase):
     if timing is None:
         raise RuntimeError(f'missing timing; stop at {log}')
     fields = dict(word.split('=', 1) for word in timing.split()[1:] if '=' in word)
+    resource = next(line for line in result.stdout.splitlines() if line.startswith('E2E_RESOURCE '))
+    resource = dict(word.split('=', 1) for word in resource.split()[1:] if '=' in word)
+    compiled = ptxas_resources(model, variant, arm)
+    l2 = compiled['tilemega_l2_kernel']
+    if l2['reg'] != int(resource['reg']):
+        raise RuntimeError(f'ptxas/runtime register mismatch: {log}')
+    block, reg = int(resource['block']), int(resource['reg'])
+    warp = int(resource['warp_size'])
+    # F-40's tested allocation rule: registers round to 256 per warp. The
+    # budgets and actual block/warp sizes come from TargetSpec/runtime.
+    by_reg = int(resource['regs_per_sm']) // (((block+warp-1)//warp) * ((reg*warp+255)//256) * 256)
+    by_smem = int(resource['smem_per_sm']) // (int(resource['occupancy_smem']) + int(resource['static_smem']))
+    by_threads = int(resource['threads_per_sm']) // block
+    predicted = min(by_reg, by_smem, by_threads)
+    if int(resource['min_blocks']) == 2 and predicted == 2 and int(resource['l2_ctas']) == 1:
+        raise RuntimeError(f'F-40 predicts 2, runtime L2 has 1; stop: {log}')
+    binding = '+'.join(name for name, value in [('registers', by_reg), ('smem', by_smem),
+                                               ('threads', by_threads)] if value == predicted)
     return [model, variant, arm, seq, past, repeat, int(passed),
-            fields['l1_ms'], fields['l2_ms']]
+            fields['l1_ms'], fields['l2_ms'], fields['l05_ms'],
+            *[resource[c] for c in resource_columns],
+            *[compiled[k][c] for k in ('tilemega_stage_kernel', 'tilemega_l1_kernel',
+                                       'tilemega_l2_kernel') for c in ('stores', 'loads')],
+            predicted, binding]
 
 for phase in ('correctness', 'attrib', 'e2e', 'matrix'):
     if phase not in phases:
@@ -111,7 +156,10 @@ for phase in ('correctness', 'attrib', 'e2e', 'matrix'):
     with (out / f'{phase}.tsv').open('w') as handle:
         writer = csv.writer(handle, delimiter='\t', lineterminator='\n')
         writer.writerow(['model', 'variant', 'arm', 'seq', 'past', 'round', 'pass',
-                         'l1_ms', 'l2_ms'])
+                         'l1_ms', 'l2_ms', 'l05_ms', *resource_columns,
+                         'l05_spill_stores', 'l05_spill_loads', 'l1_spill_stores',
+                         'l1_spill_loads', 'l2_spill_stores', 'l2_spill_loads',
+                         'f40_ctas', 'f40_binding'])
         for model in ('gqa2', 'mha4'):
             for seq in ([1, 4, 128, 512, 2048] if phase == 'matrix' else seqs):
                 for past in ([0, 3, 512] if phase == 'matrix' else [3]):
