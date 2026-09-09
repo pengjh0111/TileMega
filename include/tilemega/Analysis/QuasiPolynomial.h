@@ -56,6 +56,10 @@ class QuasiPolynomial {
   long Eval(ParamBinding const& known) const;
   /// Sum over task-coordinate dimensions, retaining symbolic parameters.
   QuasiPolynomial SumDomain() const;
+  /// Add exact functions, treating points outside either domain as zero.
+  QuasiPolynomial Add(QuasiPolynomial const& other) const;
+  QuasiPolynomial Scale(long factor) const;
+  static QuasiPolynomial Sum(std::vector<QuasiPolynomial> const& terms);
   /// True when, after substituting `known` on both sides, `*this` and
   /// `other` are the same function (of whatever task-coordinate dimensions
   /// remain) -- not merely equal at every point `known` happens to bind.

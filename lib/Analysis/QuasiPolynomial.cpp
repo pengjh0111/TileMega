@@ -8,11 +8,69 @@
 
 #include <sstream>
 #include <stdexcept>
+#include <cctype>
+#include <map>
+
+#ifndef TILEMEGA_EARLY_QP_BINDING
+#define TILEMEGA_EARLY_QP_BINDING 1
+#endif
 
 namespace tilemega::analysis {
 
 namespace {
 isl_ctx* Ctx() { return SharedIslContext().raw(); }
+
+// Specialize parameter tokens before parsing the polynomial body. This does
+// no arithmetic: isl still parses/evaluates every operator and rational. A
+// late fix otherwise first normalizes thousands of unnecessary symbolic
+// floor terms, even when the caller has already supplied every parameter.
+std::string BindParameterTokens(std::string const& text, ParamBinding const& known) {
+  IslReferenceAudit audit(__func__);
+#if !TILEMEGA_EARLY_QP_BINDING
+  return text;
+#endif
+  auto begin = text.find_first_not_of(" \n\t");
+  if (known.values.empty() || begin == std::string::npos || text[begin] != '[') return text;
+  auto close = text.find(']',begin), body = text.find('{',close);
+  if (close == std::string::npos || body == std::string::npos)
+    throw std::invalid_argument("malformed canonical quasi-polynomial parameters");
+  auto parameters = isl_util::ReadSet(Ctx(),text.substr(begin,close-begin+1)+" -> { : }");
+  std::map<std::string,long> replace;
+  std::vector<std::string> remaining;
+  for (int i=0; i<isl_set_dim(parameters.get(),isl_dim_param); ++i) {
+    char const* raw = isl_set_get_dim_name(parameters.get(),isl_dim_param,i);
+    if (!raw) throw std::invalid_argument("unnamed quasi-polynomial parameter");
+    std::string name(raw);
+    if (known.Contains(name)) replace.emplace(name,known.At(name));
+    else remaining.push_back(name);
+  }
+  if (replace.empty()) return text;
+  std::string result;
+  if (!remaining.empty()) {
+    result = "[";
+    for (std::size_t i=0; i<remaining.size(); ++i) result += (i ? "," : "")+remaining[i];
+    result += "] -> ";
+  }
+  auto identifier_start = [](unsigned char c) { return std::isalpha(c) || c == '_'; };
+  auto identifier_part = [&](unsigned char c) {
+    return identifier_start(c) || std::isdigit(c) || c == '\'';
+  };
+  for (std::size_t i=body; i<text.size();) {
+    if (!identifier_start(text[i])) { result += text[i++]; continue; }
+    std::size_t end = i+1;
+    while (end<text.size() && identifier_part(text[end])) ++end;
+    auto token = text.substr(i,end-i);
+    auto found = replace.find(token);
+    if (found == replace.end()) result += token;
+    else {
+      // isl's printer can emit an implicit integer coefficient, e.g. 31S.
+      if (i>body && std::isdigit(static_cast<unsigned char>(text[i-1]))) result += '*';
+      result += "("+std::to_string(found->second)+")";
+    }
+    i = end;
+  }
+  return result;
+}
 
 /// isl_pw_qpolynomial has no direct get_dim_name; go through its space,
 /// which does (isl_space_get_dim_name).
@@ -90,17 +148,42 @@ QuasiPolynomial QuasiPolynomial::Card(CouplingRelation const& relation) {
   return relation.Card();
 }
 
+QuasiPolynomial QuasiPolynomial::Add(QuasiPolynomial const& other) const {
+  return Sum({*this,other});
+}
+
+QuasiPolynomial QuasiPolynomial::Scale(long factor) const {
+  IslReferenceAudit audit(__func__);
+  auto value = isl_util::ReadPwQPolynomial(Ctx(),text_);
+  isl_util::PwQPolynomial scaled(isl_pw_qpolynomial_scale_val(
+      value.release(),isl_val_int_from_si(Ctx(),factor)));
+  if (!scaled) throw std::runtime_error("quasi-polynomial scaling failed");
+  return QuasiPolynomial(isl_util::ToString(scaled.get()));
+}
+
+QuasiPolynomial QuasiPolynomial::Sum(std::vector<QuasiPolynomial> const& terms) {
+  IslReferenceAudit audit(__func__);
+  auto sum = isl_util::ReadPwQPolynomial(Ctx(), "{ 0 }");
+  for (auto const& term : terms) {
+    auto rhs = isl_util::ReadPwQPolynomial(Ctx(), term.text_);
+    sum = isl_util::PwQPolynomial(isl_pw_qpolynomial_add(sum.release(),rhs.release()));
+    if (!sum) throw std::invalid_argument("incompatible quasi-polynomial sum");
+  }
+  sum = isl_util::PwQPolynomial(isl_pw_qpolynomial_coalesce(sum.release()));
+  return QuasiPolynomial(isl_util::ToString(sum.get()));
+}
+
 QuasiPolynomial QuasiPolynomial::SubstituteParams(
     ParamBinding const& known) const {
   IslReferenceAudit audit(__func__);
-  isl_util::PwQPolynomial value = isl_util::ReadPwQPolynomial(Ctx(), text_);
+  isl_util::PwQPolynomial value = isl_util::ReadPwQPolynomial(Ctx(), BindParameterTokens(text_,known));
   value = FixParams(std::move(value), known);
   return QuasiPolynomial(isl_util::ToString(value.get()));
 }
 
 long QuasiPolynomial::Eval(ParamBinding const& known) const {
   IslReferenceAudit audit(__func__);
-  isl_util::PwQPolynomial value = isl_util::ReadPwQPolynomial(Ctx(), text_);
+  isl_util::PwQPolynomial value = isl_util::ReadPwQPolynomial(Ctx(), BindParameterTokens(text_,known));
   value = FixParams(std::move(value), known);
   // isl_pw_qpolynomial_max/_min range over the *whole* remaining domain --
   // both task coordinates (e.g. wait's own consumer coordinate) and any

@@ -97,6 +97,8 @@ class CouplingRelation {
   /// coordinates.
   QuasiPolynomial Card() const;
   QuasiPolynomial ImageCard() const;
+  /// Exact, coalesced image represented as an empty-domain relation.
+  CouplingRelation Image() const;
   /// Aggregate-only event policy: all producer coordinates map to zero.
   CouplingRelation AggregateImage() const;
   /// fanout(y) = |this^-1(y)|, a function of `this`'s range (producer)

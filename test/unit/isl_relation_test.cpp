@@ -75,6 +75,7 @@ int main() {
   assert(triangular_wait.SumDomain().Eval({}) == 28);
   assert(triangular.FanoutCard().SumDomain().Eval({}) == 28);
   assert(triangular.ImageCard().Eval({}) == 7);
+  assert(triangular.Image().ImageCard().Eval({}) == 7);
   assert(triangular.Coarsen({2}).ImageCard().Eval({}) == 4);
   assert(triangular.AggregateImage().ImageCard().Eval({}) == 1);
   auto symbolic_sum = QuasiPolynomial::FromIslText(
@@ -82,6 +83,20 @@ int main() {
   ParamBinding eight;
   eight.Bind("S", 8);
   assert(symbolic_sum.SubstituteParams(eight).Eval(eight) == 28);
+  auto disjoint_sum = QuasiPolynomial::FromIslText("[S] -> { S : 0 <= S <= 4 }")
+      .Add(QuasiPolynomial::FromIslText("[S] -> { 2*S : S >= 4 }"));
+  for (int s : {0,3,4,8}) {
+    ParamBinding theta; theta.Bind("S",s);
+    assert(disjoint_sum.Eval(theta) == (s <= 4 ? s : 0) + (s >= 4 ? 2*s : 0));
+  }
+  auto lexical = QuasiPolynomial::FromIslText(
+      "[S,SS] -> { [x] -> 31*S + SS + floor((S+3)/4) : 0 <= x < SS and S >= -2 }");
+  ParamBinding partial; partial.Bind("S",-2);
+  auto specialized = lexical.SubstituteParams(partial);
+  partial.Bind("SS",3);
+  assert(lexical.Eval(partial) == -59);
+  assert(specialized.Eval(partial) == -59);
+  assert(QuasiPolynomial::Sum({disjoint_sum,disjoint_sum.Scale(-1)}).Eval(eight) == 0);
   auto overlap = CouplingRelation::FromIslText(
       "{ [i] -> [j] : 0 <= i < 5 and j=i; [i] -> [j] : 2 <= i < 8 and j=i }");
   auto overlapping_points = overlap.Points();

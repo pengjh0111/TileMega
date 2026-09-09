@@ -263,6 +263,17 @@ QuasiPolynomial CouplingRelation::ImageCard() const {
   return QuasiPolynomial::FromIslText(isl_util::ToString(count.get()));
 }
 
+CouplingRelation CouplingRelation::Image() const {
+  IslReferenceAudit audit(__func__);
+  if (empty()) return {};
+  auto map = isl_util::ReadMap(Ctx(), text_);
+  isl_util::Set image(isl_map_range(map.release()));
+  image = isl_util::Set(isl_set_coalesce(image.release()));
+  isl_util::Map result(isl_map_from_range(image.release()));
+  if (!result) throw std::runtime_error("isl: image projection failed");
+  return CouplingRelation(isl_util::ToString(result.get()));
+}
+
 CouplingRelation CouplingRelation::AggregateImage() const {
   IslReferenceAudit audit(__func__);
   if (empty()) return {};
