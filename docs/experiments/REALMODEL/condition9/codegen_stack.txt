@@ -1,0 +1,19 @@
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x0000565022eaabd7 in isl_seq_clr ()
+
+Thread 1 (Thread 0x7f502e910940 (LWP 2426933) "tilemega-compil"):
+#0  0x0000565022eaabd7 in isl_seq_clr ()
+#1  0x0000565022e36c85 in isl_basic_map_alloc_inequality ()
+#2  0x0000565022ee3a8e in isl_basic_map_add_constraints_dim_map ()
+#3  0x0000565022e3768d in isl_basic_map_extend ()
+#4  0x0000565022e5368a in eliminate_unit_div ()
+#5  0x0000565022e59843 in isl_basic_map_simplify ()
+#6  0x0000565022e5dd5a in basic_map_collect_diff.part ()
+#7  0x0000565022e5f3ce in isl_map_make_disjoint ()
+#8  0x0000565022e737bd in isl_set_foreach_point ()
+#9  0x0000565022bdea83 in tilemega::analysis::CouplingRelation::Points() const ()
+#10 0x0000565022c0f96d in tilemega::analysis::FitWaitWindowSymbolic(tilemega::analysis::CouplingEdge const&, tilemega::analysis::OperatorNode const&, tilemega::analysis::OperatorNode const&, tilemega::analysis::ParamBinding const&, tilemega::analysis::ParamBinding const&) ()
+#11 0x0000565022b6128e in tilemega::frontend::TorchExportImporter::Import(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, mlir::MLIRContext&, tilemega::frontend::ImportSummary*, tilemega::frontend::ImportOptions const&) const ()
+#12 0x0000565022b4f132 in main ()
+[Inferior 1 (process 2426933) detached]

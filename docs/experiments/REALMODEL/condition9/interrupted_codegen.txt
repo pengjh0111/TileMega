@@ -1,0 +1,2 @@
+    PID ELAPSED     TIME COMMAND
+2426933    1089 00:18:07 /root/TileMega/build-portable/tools/tilemega-compile /root/TileMega/docs/experiments/REALMODEL/raw/work/condition9/model.json /root/TileMega/docs/experiments/REALMODEL/raw/work/condition9/k8.cu --variants /root/TileMega/docs/experiments/REALMODEL/plan_split8.json

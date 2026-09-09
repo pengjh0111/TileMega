@@ -1,0 +1,3 @@
+CODEGEN_SUMMARY tasks=96 couplings=114 stages=60 symbolic_windows=114 fallback_windows=0 output=/tmp/tilemega-points.PYKsfW/wide_k8_after.cu
+
+EXIT=0 seconds=17.184903416
