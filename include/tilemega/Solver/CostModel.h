@@ -27,6 +27,10 @@
 #include <array>
 #include <vector>
 
+#ifndef TILEMEGA_TASK_TRAIT_COSTS
+#define TILEMEGA_TASK_TRAIT_COSTS 1
+#endif
+
 namespace tilemega::solver {
 
 /// Why a lane of `ResourceVector` carries zero.  A zero lane is never bare:
@@ -118,6 +122,7 @@ struct CostModelOptions {
   /// Must match the generated runtime's independent partial-storage switch.
   /// It changes BF16 split traffic only; FP32 and unsplit GEMMs are unchanged.
   bool fp32_partials = true;
+  bool task_body_traits = TILEMEGA_TASK_TRAIT_COSTS;
 };
 
 class CostModel {

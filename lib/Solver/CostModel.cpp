@@ -8,7 +8,6 @@
 namespace tilemega::solver {
 namespace {
 
-constexpr int kSimtThreads = 256;
 constexpr int kCacheLineBytes = 128;
 
 double CeilDiv(double a, double b) { return std::ceil(a / b); }
@@ -397,6 +396,10 @@ double CostModel::NonGemmStageNs(ModelStage const& stage, ModelDims const& dims,
   auto const& calib = *calib_;
   double ctas = 0.0, bytes = 0.0, sfu_ops = 0.0;
   int depth = 0, barriers = 0;
+  // The non-GEMM bodies share the megakernel's collective launch width.
+  // OFF preserves the historical FP32-family assumption as an ablation.
+  int const kSimtThreads = options_.task_body_traits && dtype_ == ScalarType::kBF16
+                              ? kTensorBF16Threads : kSimtF32Threads;
   double const width = std::max(stage.width, 1);
   double const extent = std::max(stage.extent, 1);
   switch (stage.kind) {

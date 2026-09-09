@@ -273,6 +273,7 @@ int main(int argc, char** argv) try {
   std::string register_dir;
   bool histogram_only = false;
   bool fp32_partials = true;
+  bool task_body_traits = true;
   std::string gqa_cu;
   std::string mha_cu;
   ScalarType dtype = ScalarType::kF32;
@@ -285,6 +286,7 @@ int main(int argc, char** argv) try {
     else if (arg == "--histogram-only") histogram_only = true;
     else if (arg == "--fp32-partials") fp32_partials = true;
     else if (arg == "--bf16-partials-baseline") fp32_partials = false;
+    else if (arg == "--legacy-task-traits") task_body_traits = false;
     else if (arg == "--gqa-cu" && i + 1 < argc) gqa_cu = argv[++i];
     else if (arg == "--mha-cu" && i + 1 < argc) mha_cu = argv[++i];
     else if (arg == "--dtype" && i + 1 < argc) {
@@ -296,6 +298,7 @@ int main(int argc, char** argv) try {
                          " [--dtype f32|bf16] [--screen-dir DIR]"
                          " [--register-dir DIR] [--histogram-only]"
                          " [--fp32-partials|--bf16-partials-baseline]"
+                         " [--legacy-task-traits]"
                          " [--gqa-cu FILE] [--mha-cu FILE]\n"; return 2; }
   }
   if (screen_dir.empty()) screen_dir = repo + "/docs/experiments/ORACLE/raw";
@@ -316,6 +319,7 @@ int main(int argc, char** argv) try {
 
   CostModelOptions full_options;
   full_options.fp32_partials = fp32_partials;
+  full_options.task_body_traits = task_body_traits;
   CostModel const full(target, dtype, full_options);
   std::cout << "fit: lds=" << full.fit().lds_ns << " ns/instr (rel rms "
             << 100 * full.fit().lds_rel_rms << "%), setup=" << full.fit().setup_ns
@@ -325,6 +329,7 @@ int main(int argc, char** argv) try {
   struct Layer { char const* name; CostModelOptions options; };
   CostModelOptions roofline;
   roofline.fp32_partials = fp32_partials;
+  roofline.task_body_traits = task_body_traits;
   roofline.pipeline_envelope = false;
   roofline.wave_tail = false;
   roofline.cache_model = false;
