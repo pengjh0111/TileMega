@@ -148,7 +148,9 @@ int main() {
   rejects([&] { event_cost.Evaluate(event_model,wrong_config,{1}); });
   auto wrong_kappa=event_options; wrong_kappa.kappa=0;
   rejects([&] { CostModel(event_target,ScalarType::kBF16,wrong_kappa).Evaluate(event_model,event_config,{1}); });
-  rejects([&] { CostModel(target,ScalarType::kBF16,event_options).Evaluate(event_model,event_config,{1}); });
+  auto missing_event_target=target;
+  missing_event_target.event_bf16.poll={std::nullopt,"not_calibrated","ns/runtime_wait_entry"};
+  rejects([&] { CostModel(missing_event_target,ScalarType::kBF16,event_options).Evaluate(event_model,event_config,{1}); });
   rejects([&] { ChainDP(event_cost,Candidates()).Solve(event_model,{}); });
   auto l1_event=CostModel(event_target,ScalarType::kBF16).Evaluate(event_model,event_config,{1});
   auto l1_original=CostModel(target,ScalarType::kBF16).Evaluate(model,event_config,{1});
