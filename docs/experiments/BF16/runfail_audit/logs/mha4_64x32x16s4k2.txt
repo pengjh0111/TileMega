@@ -1,0 +1,17 @@
+E2E_RESOURCE block=128 reg=ptxas smem=16384 gemm_union=12288 variant_count=1 ctas_per_sm=5 num_sms=128 grid=640 resident_formula=ctas_per_sm*num_sms
+E2E_TIME l05_ms=0.458752 l1_ms=0.477184 ratio=1.040179 l2_ms=0.709632 l2_over_l1=1.487124
+E2E_DIFF l05_vs_l0_mismatch=1 max_abs=0.046875 max_rel=3173.8281 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=73 mismatch=1 max_abs=0.046875 max_rel=3173.8281
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0.015625 max_rel=2.289855
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0.0078125 max_rel=3.4137931
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.015625 max_rel=44
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.015625 max_rel=1.9595376
+E2E_OUTPUT_DIFF index=5 buffer=71 mismatch=0 max_abs=0.015625 max_rel=4
+E2E_OUTPUT_DIFF index=6 buffer=72 mismatch=0 max_abs=0.015625 max_rel=4.1219511
+E2E_OUTPUT_DIFF index=7 buffer=95 mismatch=0 max_abs=0.015625 max_rel=8.454545
+E2E_OUTPUT_DIFF index=8 buffer=96 mismatch=0 max_abs=0.015625 max_rel=49.567902
+E2E_HASH l05=e6d64c3f1467e24e l1=e6d64c3f1467e24e l2=e6d64c3f1467e24e
+E2E_ITER l2_iter1_ms=0.719872 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=MISMATCH

@@ -1,5 +1,49 @@
 # BF16 end-to-end and calibration
 
+## 本轮 T2.a：FP32 partials（基线 e305a9f）
+
+✅ RTX 4090，seq=128、past=3，两个模型各 split={1,2,4,8,16}，每格
+50 个全新进程。修复路径 500/500 通过；修复前后总计 1000 次运行，
+原始记录 `raw_splitk/correctness.tsv`，完整 ptxas 与运行日志分别在
+`raw_splitk/ptxas/`、`raw_splitk/logs/`。BF16 容差没有修改。
+
+| 模型 | split | BF16 partials 通过 | FP32 partials 通过 | max_abs 前 → 后 | partial bytes 前 → 后 |
+|---|---:|---:|---:|---|---|
+| gqa2 | 1 | 50/50 | 50/50 | .03125 → .03125 | 0 → 0 |
+| gqa2 | 2 | 0/50 | 50/50 | .09375 → .03125 | 4194304 → 8388608 |
+| gqa2 | 4 | 0/50 | 50/50 | .0625 → .03125 | 8388608 → 16777216 |
+| gqa2 | 8 | 50/50 | 50/50 | .0625 → .03125 | 16777216 → 33554432 |
+| gqa2 | 16 | 0/50 | 50/50 | .09375 → .03125 | 33554432 → 67108864 |
+| mha4 | 1 | 50/50 | 50/50 | .03125 → .03125 | 0 → 0 |
+| mha4 | 2 | 0/50 | 50/50 | .078125 → .046875 | 9437184 → 18874368 |
+| mha4 | 4 | 0/50 | 50/50 | .078125 → .046875 | 18874368 → 37748736 |
+| mha4 | 8 | 0/50 | 50/50 | .09375 → .046875 | 37748736 → 75497472 |
+| mha4 | 16 | 0/50 | 50/50 | .09375 → .046875 | 75497472 → 150994944 |
+
+max_abs 是每格 50 次中的最大值，不是逐元素相对判据；因此同样 .0625 可能通过，
+也可能失败。不能单凭它反推 pass。扫描没有显示误差随 split 单调增长。
+
+实现：`ModelRuntime.h:22` 的 `TILEMEGA_FP32_PARTIALS`，默认 1，=0 为原基线；
+`GemmStageTaskBody.h:391` 用 FP32 output epilogue 写 split partial，
+`ModelHarness.cuh:863` 按实际元素类型分配，`GemmCombineTaskBody.h:22` 合并。
+还必须保持图中的舍入边界：完整 GEMM 归约之后先转 BF16，再加 residual，
+不能让第一路 partial 提前承担 residual，也不能把 Linear→BF16→add 改成单次末尾舍入。
+这属于同一 partial-storage 实现所需的语义处理，不把收益全归因于少一种舍入。
+
+流量：`CostModel.cpp:342` 的 EpilogueBytes 随 split partial 的 4 B 存储增长；
+`:372` 的 combine 路径计入额外 2 B/partial 读取，并用新工作集评估 L2/DRAM。
+该增量是解析流量项，**不是重新标定的 combine 系数**。需 DRAM 系数而未标定时
+显式报 not_calibrated，不取零或退回旧路径。CostModelOptions 与 runtime 默认同步，
+`tilemega-costmodel --bf16-partials-baseline` 可重放旧流量模型。
+
+✅ FP32 代价模型开关前后 2154/2154 全 CostBreakdown double 位模式相等，
+见 `../PARAMETRIC/input_gate.log`。⚠️ 不将 CPU 位模式闸门冒充新的 FP32 GPU 50 进程回归。
+条件 9 的“大 split 在该参考配置上必然失败”已消失；尚未对所有 tile、所有参数域
+证明数值可行性，更未宣称 973M 条件 7 或 BF16 排名条件已经达标。
+sm_120 仅写 `run_splitk_sm120.sh`，未运行。
+
+以下为历史记录，旧 ρ 数字不作为本轮达标证据；RUNFAIL 分类见文末 T2.c。
+
 Evidence status: ✅ measured on RTX 4090 (`sm_89`) on 2026-09-05.
 
 The dtype is read from every `ExportedProgram` FakeTensor and stored on the
@@ -274,3 +318,53 @@ working set, or holds the global working set fixed while repeating shared
 loads. Until that measurement exists, BF16 marks the scalar-`ld.shared` SMEM
 lane `not_calibrated` and carries one identifiable byte lane (`l2`). Keeping
 two fitted coefficients would create an unidentifiable degree of freedom.
+# T0–T4 本轮进度（基线 e305a9f）
+
+## T2.c：308 个 RUNFAIL 的分类
+
+✅ 已对原始 308 个失败配置的**原有二进制**逐一重放，308/308 均为数值判据失败，
+不是编译失败、资源不足或 CUDA 执行异常。split=2 与 split=16 各 154 个。
+新分类在 `runfail_audit/classification.tsv`，每项包含退出码、原二进制 SHA256 和
+完整日志；`classify_runfail.py` 可复现。不把一次重放称作 50 进程并发正确性验证。
+
+原筛选脚本 `docs/experiments/ORACLE/run_bf16.sh:117` 先检查退出码，任何非零就
+写 RUNFAIL 并 break；harness 的数值 MISMATCH 也返回非零，因此从未走到后面的
+MISMATCH 分支。它还丢弃 stderr、未保存这一轮 stdout，所以这里严格称为
+“原二进制重放分类”，不伪称恢复了丢失的历史日志。
+
+代表：`runfail_audit/logs/mha4_32x16x16s2k2.txt`，L0.5 对 golden 有 1 个元素失败，
+max_abs=0.046875；L1 对 L0.5、L2 对 L1 均 0 mismatch，三层 hash 一致。
+这解释的是原筛选标签与样本排除，不独自证明 partial 精度是全部误差根因。
+在完成数值可行性复核前，不以旧 BF16 ρ/top-k 判定本轮是否达标。
+
+## T2.b：golden 来源（先查清，再决定）
+
+✅ `python/tilemega/export_bridge.py` 输出图/shape/dtype 元数据，不计算数值 golden。
+973M 的实际入口是 `REALMODEL/export_real.py:114`：模型和输入在 CPU 上构造为
+torch.bfloat16，`:137` 用 exported program.module() 执行，`:145` 按 BF16 写参考。
+模型中 linear/matmul 是 PyTorch CPU 后端运算，没有指定 CUTLASS 的 tile 或
+split-K 顺序。具体 CPU GEMM 归约树不在 exported graph 中，尚不能从图恢复。
+
+`V_H/export_probe.py:21` RMSNorm 将平方/均值/rsqrt 放在 FP32，随后 cast 回输入
+dtype 再乘权重；attention softmax 同样先转 FP32 再转回 BF16。残差、线性层输出
+和 KV cache 是 BF16。它不是“整层全 FP32、最后统一转 BF16”的 golden。
+
+三条路线的当前评估（均不能以层间 hash 一致替代 PyTorch 对照）：
+
+1. **相同归约顺序 golden**：图有 BF16 materialization 边界，却未编码 CPU/GPU
+   GEMM 的 reduction tree。可独立实现给定 tile/split 的 FP32 运算序列解释器，
+   逐层检查后生成同序参考；直接把 TileMega L0.5 输出改名 golden 是循环验证，
+   不可采用。当前没有这样的独立解释器，故尚不能声称此路已经解决 973M。
+2. **重设深层判据**：相对范数/余弦只约束整体方向或平均误差，可掩盖少量大离群值，
+   尤其最终 hidden 还不是 logits。需要事先固定 FP32/BF16 共用指标、独立的扰动
+   负控制及 4×4096 对照，才能证明没有放水。当前证据不足，本轮不选此路，
+   不修改逐元素容差，也不把历史 0/50 重新标成通过。
+3. **FP32 层间激活**：只扩大存储而下一层立即转 BF16 不会消除舍入；要有效就要
+   修改消费端的混合 dtype 运算和 residual/materialization 语义。每个跨层激活
+   增加 `2*seq*hidden` 字节存储，每次完整写后再读增加 `4*seq*hidden` 字节流量。
+   它不等价于扩大所有权重到 FP32。TaskSmem 是否增长取决于实际混合 dtype
+   collective，不能由上述 global 字节数推断 occupancy 或时间。尚未实现该路径，
+   因而 smem/时间的实测代价仍缺失，不填推测数字。
+
+选择：保留固定判据，优先独立同序逐层诊断，而不是更换验收指标。
+⚠️ 这是路线评估，T2.b 的独立诊断与第三条路线实测尚未完成；973M 仍未通过。

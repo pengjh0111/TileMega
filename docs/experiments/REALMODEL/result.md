@@ -84,6 +84,15 @@ reuse it.
 
 ## Correctness: depth fails before width
 
+⚠️ T0–T4 update (baseline e305a9f): the results below are historical, not a
+rerun with FP32 split partials. The new reference-model split sweep passes
+500/500 but does not establish acceptance of either 973M or the 4×4096
+cost-optimal configurations. The golden is computed by the exported PyTorch
+CPU BF16 program, with explicit FP32 normalization/softmax and BF16 graph
+materialization boundaries; its GEMM reduction tree is not specified in the
+export. See `../BF16/result.md`, T2.b, for the three evaluated routes and
+their unimplemented measurements. No threshold or golden has been replaced.
+
 The requested 16-layer 1B shape runs, and all three TileMega paths are
 bit-identical to each other in every process. It nevertheless fails the fixed
 PyTorch comparison in **0/50** processes:
