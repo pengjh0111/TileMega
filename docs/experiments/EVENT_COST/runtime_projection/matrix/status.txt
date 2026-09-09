@@ -1,0 +1,1 @@
+CPU PASS; full A2 acceptance OPEN: 0 cross-cells lack runtime archives

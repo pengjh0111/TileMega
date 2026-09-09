@@ -1,0 +1,60 @@
+Internal ctest changing into directory: /root/TileMega/build-portable
+Test project /root/TileMega/build-portable
+      Start  7: incidence_identity
+      Start  8: imported_incidence_identity
+      Start 11: runtime_projection
+      Start  3: target_audit
+ 1/27 Test #11: runtime_projection ...............   Passed    0.26 sec
+      Start 23: frontend_import
+ 2/27 Test #23: frontend_import ..................   Passed    1.43 sec
+      Start 25: wiring_coupling
+ 3/27 Test #25: wiring_coupling ..................   Passed    0.40 sec
+      Start  6: semantics
+ 4/27 Test  #6: semantics ........................   Passed    0.27 sec
+      Start  1: cg_lit
+ 5/27 Test  #3: target_audit .....................   Passed    2.57 sec
+      Start  5: table27
+ 6/27 Test  #1: cg_lit ...........................   Passed    0.24 sec
+      Start  9: containment
+ 7/27 Test  #9: containment ......................   Passed    0.19 sec
+      Start 12: isl_relation
+ 8/27 Test  #5: table27 ..........................   Passed    0.24 sec
+      Start 10: event_synthesis
+ 9/27 Test #12: isl_relation .....................   Passed    0.19 sec
+      Start  4: coupling_types
+10/27 Test #10: event_synthesis ..................   Passed    0.17 sec
+      Start 24: semantic_lifting
+11/27 Test #24: semantic_lifting .................   Passed    0.04 sec
+      Start 20: impl_contract
+12/27 Test #20: impl_contract ....................   Passed    0.04 sec
+      Start 16: chain_dp
+13/27 Test #16: chain_dp .........................   Passed    0.01 sec
+      Start 13: layout_bridge
+14/27 Test #13: layout_bridge ....................   Passed    0.02 sec
+      Start 22: bf16_task_body_compile
+15/27 Test #22: bf16_task_body_compile ...........   Passed    0.01 sec
+      Start 14: cg_attr_roundtrip
+16/27 Test #14: cg_attr_roundtrip ................   Passed    0.01 sec
+      Start 17: list_scheduler
+17/27 Test #17: list_scheduler ...................   Passed    0.01 sec
+      Start 15: backend_query
+18/27 Test #15: backend_query ....................   Passed    0.01 sec
+      Start 19: alignment_propagation
+19/27 Test #19: alignment_propagation ............   Passed    0.01 sec
+      Start 26: frontend_degradation
+20/27 Test  #4: coupling_types ...................   Passed    0.19 sec
+      Start 18: cluster_labeling
+21/27 Test #26: frontend_degradation .............   Passed    0.01 sec
+      Start 27: isl_crosslink
+22/27 Test #18: cluster_labeling .................   Passed    0.01 sec
+      Start  2: target_spec
+23/27 Test #27: isl_crosslink ....................   Passed    0.01 sec
+      Start 21: task_body_contract
+24/27 Test  #2: target_spec ......................   Passed    0.01 sec
+25/27 Test #21: task_body_contract ...............   Passed    0.01 sec
+26/27 Test  #8: imported_incidence_identity ......   Passed    3.79 sec
+27/27 Test  #7: incidence_identity ...............   Passed    5.22 sec
+
+100% tests passed, 0 tests failed out of 27
+
+Total Test time (real) =   5.22 sec

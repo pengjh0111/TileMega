@@ -1,0 +1,76 @@
+[
+  {
+    "command": [
+      "cmake",
+      "-S",
+      "/root/TileMega",
+      "-B",
+      "/root/TileMega/build-portable",
+      "-DTILEMEGA_EARLY_QP_BINDING=OFF"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "cmake",
+      "--build",
+      "/root/TileMega/build-portable",
+      "--target",
+      "isl_relation_test",
+      "tilemega-event-cost",
+      "-j",
+      "4"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/isl_relation_test"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-event-cost",
+      "/root/TileMega"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "cmake",
+      "-S",
+      "/root/TileMega",
+      "-B",
+      "/root/TileMega/build-portable",
+      "-DTILEMEGA_EARLY_QP_BINDING=ON"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "cmake",
+      "--build",
+      "/root/TileMega/build-portable",
+      "--target",
+      "isl_relation_test",
+      "tilemega-event-cost",
+      "-j",
+      "4"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/isl_relation_test"
+    ],
+    "returncode": 0
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-event-cost",
+      "/root/TileMega"
+    ],
+    "returncode": 0
+  }
+]

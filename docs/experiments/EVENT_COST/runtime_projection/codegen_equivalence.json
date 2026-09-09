@@ -1,0 +1,54 @@
+[
+  {
+    "model": "gqa2",
+    "variants": false,
+    "equal": true,
+    "sha256": [
+      "43819c4b3a9af240de87f1878dbc7d5e85a36b89cfeb181a11f81a241dc99067",
+      "43819c4b3a9af240de87f1878dbc7d5e85a36b89cfeb181a11f81a241dc99067"
+    ],
+    "bytes": [
+      14168,
+      14168
+    ]
+  },
+  {
+    "model": "gqa2",
+    "variants": true,
+    "equal": true,
+    "sha256": [
+      "017a39b966658b8b5ce3b22cef6528366068806a2503a53110395fe19c5c9b9c",
+      "017a39b966658b8b5ce3b22cef6528366068806a2503a53110395fe19c5c9b9c"
+    ],
+    "bytes": [
+      14219,
+      14219
+    ]
+  },
+  {
+    "model": "mha4",
+    "variants": false,
+    "equal": true,
+    "sha256": [
+      "2d421e94e96af0d38a3298788d03ea508c0b8d51ab84772466cc8ae4f0c1baf3",
+      "2d421e94e96af0d38a3298788d03ea508c0b8d51ab84772466cc8ae4f0c1baf3"
+    ],
+    "bytes": [
+      26344,
+      26344
+    ]
+  },
+  {
+    "model": "mha4",
+    "variants": true,
+    "equal": true,
+    "sha256": [
+      "1be74406debdc487b29ad0bdac4a0757d96a683135cac16caf1c9332a8c71cd2",
+      "1be74406debdc487b29ad0bdac4a0757d96a683135cac16caf1c9332a8c71cd2"
+    ],
+    "bytes": [
+      26449,
+      26449
+    ]
+  }
+]
