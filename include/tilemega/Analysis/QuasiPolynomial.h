@@ -59,6 +59,9 @@ class QuasiPolynomial {
   /// Add exact functions, treating points outside either domain as zero.
   QuasiPolynomial Add(QuasiPolynomial const& other) const;
   QuasiPolynomial Scale(long factor) const;
+  /// Exact ISL domain splitting where a floor attains at most this many
+  /// values. This changes representation, not parameter sampling or values.
+  QuasiPolynomial SplitPeriods(int max_periods) const;
   static QuasiPolynomial Sum(std::vector<QuasiPolynomial> const& terms);
   /// True when, after substituting `known` on both sides, `*this` and
   /// `other` are the same function (of whatever task-coordinate dimensions

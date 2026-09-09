@@ -6,6 +6,7 @@
 #include <tilemega/Analysis/QuasiPolynomial.h>
 
 #include <cassert>
+#include <iostream>
 #include <set>
 #include <sstream>
 
@@ -100,6 +101,32 @@ int main() {
   auto coordinate_sum = QuasiPolynomial::Sum({triangular_wait, triangular_wait});
   assert(coordinate_sum.SumDomain().Eval({}) == 56);
   assert(QuasiPolynomial::Sum({}).Eval({}) == 0);
+  auto periodic = QuasiPolynomial::FromIslText(
+      "[S] -> { floor((S+3)/4) + floor(S/7) : 0 <= S <= 63 }");
+  for (int limit : {1,4,16,64}) {
+    auto split_periods = periodic.SplitPeriods(limit);
+    bool equivalent = periodic.SemanticallyEqual(split_periods, {});
+    std::cerr << "PERIOD_CHECK limit=" << limit << " symbolic_equal=" << equivalent
+              << " before=" << periodic.ToString() << " after=" << split_periods.ToString() << '\n';
+    for (int s=0;s<=63;++s) {
+      ParamBinding theta; theta.Bind("S",s);
+      assert(split_periods.Eval(theta) == periodic.Eval(theta));
+    }
+    auto difference = periodic.Add(split_periods.Scale(-1));
+    // is_zero is structural: it misses floor expressions confined to S=0.
+    // Equal global min/max of the difference proves the whole domain, not
+    // merely the finite point checks above; no numerical tolerance is used.
+    std::cerr << "PERIOD_DIFFERENCE limit=" << limit << " expression="
+              << difference.ToString() << " range_value=" << difference.Eval({}) << '\n';
+    assert(difference.Eval({}) == 0);
+  }
+  int references = isl_context.ReferenceCount();
+  bool rejected_period_limit = false;
+  try { (void)periodic.SplitPeriods(0); }
+  catch (std::invalid_argument const&) { rejected_period_limit = true; }
+  assert(rejected_period_limit && isl_context.ReferenceCount() == references);
+  std::cout << "PERIOD_ERROR rejected=" << rejected_period_limit
+            << " before=" << references << " after=" << isl_context.ReferenceCount() << '\n';
   assert(triangular.Union(triangular).Card().SumDomain().Eval({}) == 28);
   assert(CouplingRelation().Union(triangular) == triangular);
   assert(triangular.Union(CouplingRelation()) == triangular);

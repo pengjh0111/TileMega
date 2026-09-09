@@ -14,6 +14,9 @@
 #ifndef TILEMEGA_EARLY_QP_BINDING
 #define TILEMEGA_EARLY_QP_BINDING 1
 #endif
+#ifndef TILEMEGA_BALANCED_QP_SUM
+#define TILEMEGA_BALANCED_QP_SUM 1
+#endif
 
 namespace tilemega::analysis {
 
@@ -164,6 +167,32 @@ QuasiPolynomial QuasiPolynomial::Scale(long factor) const {
 QuasiPolynomial QuasiPolynomial::Sum(std::vector<QuasiPolynomial> const& terms) {
   IslReferenceAudit audit(__func__);
   if (terms.empty()) return Constant(0);
+#if TILEMEGA_BALANCED_QP_SUM
+  // Repeated stage/worker counts otherwise repeatedly gist a growing domain.
+  // This only reorders exact rational/integer additions, never FP64 prices.
+  std::map<std::string,long> repeats;
+  for (auto const& term : terms) ++repeats[term.text_];
+  std::vector<isl_util::PwQPolynomial> level;
+  for (auto const& [text, count] : repeats) {
+    auto value = isl_util::ReadPwQPolynomial(Ctx(),text);
+    if (count>1) value = isl_util::PwQPolynomial(isl_pw_qpolynomial_scale_val(
+        value.release(),isl_val_int_from_si(Ctx(),count)));
+    if (!value) throw std::invalid_argument("quasi-polynomial repeated sum failed");
+    level.push_back(std::move(value));
+  }
+  while (level.size()>1) {
+    std::vector<isl_util::PwQPolynomial> next;
+    for (std::size_t i=0;i<level.size();i+=2) {
+      auto value = std::move(level[i]);
+      if (i+1<level.size()) value = isl_util::PwQPolynomial(
+          isl_pw_qpolynomial_add(value.release(),level[i+1].release()));
+      if (!value) throw std::invalid_argument("incompatible quasi-polynomial sum");
+      next.push_back(std::move(value));
+    }
+    level = std::move(next);
+  }
+  auto sum = std::move(level.front());
+#else
   // The additive identity must live in the task-coordinate space. A scalar
   // {0} seed cannot be added to a per-task polynomial [m,n] -> work.
   auto sum = isl_util::ReadPwQPolynomial(Ctx(), terms.front().text_);
@@ -172,8 +201,18 @@ QuasiPolynomial QuasiPolynomial::Sum(std::vector<QuasiPolynomial> const& terms) 
     sum = isl_util::PwQPolynomial(isl_pw_qpolynomial_add(sum.release(),rhs.release()));
     if (!sum) throw std::invalid_argument("incompatible quasi-polynomial sum");
   }
+#endif
   sum = isl_util::PwQPolynomial(isl_pw_qpolynomial_coalesce(sum.release()));
   return QuasiPolynomial(isl_util::ToString(sum.get()));
+}
+
+QuasiPolynomial QuasiPolynomial::SplitPeriods(int max_periods) const {
+  IslReferenceAudit audit(__func__);
+  if (max_periods<=0) throw std::invalid_argument("period split limit must be positive");
+  auto value=isl_util::ReadPwQPolynomial(Ctx(),text_);
+  isl_util::PwQPolynomial split(isl_pw_qpolynomial_split_periods(value.release(),max_periods));
+  if (!split) throw std::runtime_error("exact quasi-polynomial period splitting failed");
+  return QuasiPolynomial(isl_util::ToString(split.get()));
 }
 
 QuasiPolynomial QuasiPolynomial::SubstituteParams(

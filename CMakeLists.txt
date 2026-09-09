@@ -20,6 +20,7 @@ option(TILEMEGA_PHYSICAL_WAIT_DOMAIN
   "Count and persist couplings on physical producer domains" ON)
 option(TILEMEGA_SYMBOLIC_RUNTIME_PROJECTION "Build symbolic runtime queue counts" ON)
 option(TILEMEGA_EARLY_QP_BINDING "Specialize bound QP parameter tokens before parsing" ON)
+option(TILEMEGA_BALANCED_QP_SUM "Deduplicate and balance exact QP additions" ON)
 option(TILEMEGA_OP_ARITHMETIC "Enable audited operator arithmetic declarations" ON)
 option(TILEMEGA_TASK_WORK "Derive physical and nominal work from access maps" ON)
 option(TILEMEGA_COMPLETE_GEMM_READS "Include external GEMM weights in semantic reads" ON)
@@ -30,7 +31,7 @@ set_source_files_properties(lib/Analysis/ReferenceModels.cpp lib/Frontend/Semant
 set_source_files_properties(lib/Analysis/OpArithmetic.cpp PROPERTIES
   COMPILE_DEFINITIONS "TILEMEGA_OP_ARITHMETIC=$<BOOL:${TILEMEGA_OP_ARITHMETIC}>")
 set_source_files_properties(lib/Analysis/QuasiPolynomial.cpp PROPERTIES
-  COMPILE_DEFINITIONS "TILEMEGA_EARLY_QP_BINDING=$<BOOL:${TILEMEGA_EARLY_QP_BINDING}>")
+  COMPILE_DEFINITIONS "TILEMEGA_EARLY_QP_BINDING=$<BOOL:${TILEMEGA_EARLY_QP_BINDING}>;TILEMEGA_BALANCED_QP_SUM=$<BOOL:${TILEMEGA_BALANCED_QP_SUM}>")
 set_source_files_properties(lib/Solver/RuntimeProjection.cpp PROPERTIES
   COMPILE_DEFINITIONS "TILEMEGA_SYMBOLIC_RUNTIME_PROJECTION=$<BOOL:${TILEMEGA_SYMBOLIC_RUNTIME_PROJECTION}>")
 set_source_files_properties(lib/Analysis/CouplingDerivation.cpp PROPERTIES
