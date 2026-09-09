@@ -10,6 +10,7 @@ struct RuntimeProjectionOptions {
   int threads = 0;
   int kappa = 0;
   bool force_all_dependencies = false;
+  bool cg_split_task_order = TILEMEGA_CG_SPLIT_TASK_ORDER;
 };
 
 struct ProjectedStage {

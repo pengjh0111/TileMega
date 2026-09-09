@@ -171,8 +171,11 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
   }
   for (std::size_t i=0; i<entry.size(); ++i) if (done[i] != entry[i]) {
     if (plan.ownership_flags & codegen::kCombinerTileOwnership) {
-      for (int chunk=0; chunk<stage_chunks[i]; ++chunk)
-        edges.push_back({entry[i],done[i],{true,1,1,0,1},Mul(tiles[i],chunk)});
+      if (options.cg_split_task_order)
+        edges.push_back({entry[i],done[i],{true,1,stage_chunks[i],0,stage_chunks[i]},"0"});
+      else
+        for (int chunk=0; chunk<stage_chunks[i]; ++chunk)
+          edges.push_back({entry[i],done[i],{true,1,1,0,1},Mul(tiles[i],chunk)});
     } else edges.push_back({entry[i],done[i],{},"0"});
   }
   std::vector<std::string> wait_pieces;

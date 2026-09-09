@@ -957,12 +957,20 @@ inline DeviceModel Create(ModelSpec const& spec,
   for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
     if (done[i] != entry[i]) {
       if (model.params.ownership_flags & kCombinerTileOwnership) {
+#if TILEMEGA_CG_SPLIT_TASK_ORDER
+        // The chunk axis is contiguous in the CG task order, not storage order.
+        int const chunks = gemm_chunks[spec.stages[i].gemm];
+        dependencies.push_back(
+            {entry[i], done[i], StageDependency::Map::kWindow, 1u, chunks,
+             0, static_cast<std::uint32_t>(chunks)});
+#else
         GemmInvocation const& invocation = gemms[model.stages[entry[i]].gemm];
         int const tiles = invocation.tiles_m * invocation.tiles_n;
         for (int chunk = 0; chunk < gemm_chunks[spec.stages[i].gemm]; ++chunk)
           dependencies.push_back(
               {entry[i], done[i], StageDependency::Map::kWindow, 1u, 1,
                chunk * tiles, 1u});
+#endif
       } else {
         dependencies.push_back(
             {entry[i], done[i], StageDependency::Map::kAll, 1u, 0, 0, 1u});

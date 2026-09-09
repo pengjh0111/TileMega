@@ -481,9 +481,10 @@ struct GemmStageTaskBody {
                                         SmemUnion& smem, int task) {
     auto const* table = static_cast<GemmInvocation const*>(p.gemms);
     int const tiles = table[stage.gemm].tiles_m * table[stage.gemm].tiles_n;
-    int chunk = task / tiles;
-    auto const& invocation = table[stage.gemm + chunk];
-    int local = task - chunk * tiles;
+    // CG appends the split axis: row-major task ids are (m,n,chunk).
+    auto const coordinate = DecodeSplitTask(task,tiles,table[stage.gemm].chunks);
+    int const local = coordinate.tile;
+    auto const& invocation = table[stage.gemm + coordinate.chunk];
     char* shared = reinterpret_cast<char*>(&smem.gemm);
 #if TILEMEGA_GEMM_VARIANT_COUNT == 1
     RunTask<0>(invocation, local, shared);

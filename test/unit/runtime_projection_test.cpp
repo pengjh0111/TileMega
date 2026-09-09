@@ -7,6 +7,15 @@
 int main() {
   tilemega::analysis::IslContext context;
   {
+    // A2's real counterexample: row-major (m,n,j) must address the same M
+    // row as the emitted norm -> partial window for every split contribution.
+    for (int chunks : {1,2,4,8,16}) for (int m=0;m<4;++m)
+      for (int n=0;n<4;++n) for (int j=0;j<chunks;++j) {
+        int task=(m*4+n)*chunks+j;
+        auto coordinate=tilemega::codegen::DecodeSplitTask(task,16,chunks,true);
+        assert(coordinate.chunk==j && coordinate.tile/4==m);
+        assert(task/(4*chunks)==coordinate.tile/4);
+      }
     tilemega::solver::ModelDescription model;
     model.dims = tilemega::solver::ModelDims::Symbolic("S",3);
     model.gemms = {{4,4,0,1}};
@@ -20,18 +29,19 @@ int main() {
     plan.ownership_flags = tilemega::codegen::kCombinerTileOwnership |
                            tilemega::codegen::kActivationTileOwnership;
     plan.dependencies = {{0,1,{true,2,2,0,2}}};
-    for (int kappa : {0,1,2}) {
-      auto projected = tilemega::solver::ProjectRuntimeQueues(model,plan,{2,2,kappa});
+    for (bool cg_order : {false,true}) for (int kappa : {0,1,2}) {
+      auto projected = tilemega::solver::ProjectRuntimeQueues(model,plan,{2,2,kappa,false,cg_order});
       for (int s : {1,2,3,4,7,8,16}) {
         tilemega::analysis::ParamBinding theta; theta.Bind("S",s);
         int tiles_m = (s+1)/2;
         assert(projected.stages.size() == 3);
         assert(projected.runtime_task_refs.Eval(theta) == 6*tiles_m+s);
         assert(projected.max_worker_task_refs.Eval(theta) == 4*tiles_m);
-        // Tile ownership makes every split contribution local for kappa=1.
-        // Each elementwise row needs the other worker's one N tile.
+        // In CG order each combiner needs one remote partial; in historical
+        // chunk-major order all its partials were local on this two-worker grid.
         int waits = kappa == 0 ? 2+std::min(s,2) :
-                    kappa == 1 ? s : 4*tiles_m+s;
+                    kappa == 1 ? (cg_order ? 2*tiles_m+s : s) :
+                    (cg_order ? 2*tiles_m+s : 4*tiles_m+s);
         assert(projected.runtime_wait_entries.Eval(theta) == waits);
       }
     }
