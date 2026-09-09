@@ -14,6 +14,26 @@
         "reason": "not_calibrated",
         "unit": ""
       },
+      "notify_stage": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/runtime_stage"
+      },
+      "notify_longest_worker": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/max_worker_task_ref"
+      },
+      "poll_stage": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/runtime_stage"
+      },
+      "poll_longest_worker": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/max_worker_task_ref"
+      },
       "fence": {
         "ns": null,
         "reason": "not_calibrated",
@@ -33,6 +53,26 @@
         "ns": null,
         "reason": "not_calibrated",
         "unit": ""
+      },
+      "notify_stage": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/runtime_stage"
+      },
+      "notify_longest_worker": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/max_worker_task_ref"
+      },
+      "poll_stage": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/runtime_stage"
+      },
+      "poll_longest_worker": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/max_worker_task_ref"
       },
       "fence": {
         "ns": null,
@@ -102,6 +142,14 @@
     },
     "streamk": [],
     "combine_fixed_ns": 0.0,
+    "fp32_partial_combine": {
+      "fixed_ns": null,
+      "base_ns": null,
+      "d_l2_ns": null,
+      "d_dram_ns": null,
+      "reason": "not_calibrated",
+      "method": ""
+    },
     "combine_fixed_resolved": false,
     "combine_d_dram_ns": 0.0,
     "interference_ratio": 0.0,

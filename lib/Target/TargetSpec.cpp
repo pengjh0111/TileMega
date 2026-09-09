@@ -271,6 +271,10 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
           throw std::invalid_argument("missing event rate needs an explicit reason");
       };
       rate("notify", out.notify); rate("poll", out.poll); rate("fence", out.fence);
+      if (record->Find("notify_stage")) rate("notify_stage",out.notify_stage);
+      if (record->Find("notify_longest_worker")) rate("notify_longest_worker",out.notify_longest_worker);
+      if (record->Find("poll_stage")) rate("poll_stage",out.poll_stage);
+      if (record->Find("poll_longest_worker")) rate("poll_longest_worker",out.poll_longest_worker);
     };
     parse("bf16", spec.event_bf16); parse("f32", spec.event_f32);
   }
@@ -366,7 +370,11 @@ std::string TargetSpec::ToJson() const {
     };
     return json::Value(json::Object{{"source", e.source}, {"source_sha256", e.source_sha256},
                                     {"method", e.method}, {"notify", rate(e.notify)},
-                                    {"poll", rate(e.poll)}, {"fence", rate(e.fence)}});
+                                    {"poll", rate(e.poll)}, {"fence", rate(e.fence)},
+                                    {"notify_stage",rate(e.notify_stage)},
+                                    {"notify_longest_worker",rate(e.notify_longest_worker)},
+                                    {"poll_stage",rate(e.poll_stage)},
+                                    {"poll_longest_worker",rate(e.poll_longest_worker)}});
   };
   root.Set("event_calibration_by_dtype", json::Object{
       {"bf16", event_json(event_bf16)}, {"f32", event_json(event_f32)}});

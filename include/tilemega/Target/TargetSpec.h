@@ -43,6 +43,7 @@ struct TargetSpec {
   };
   struct EventCalibration {
     EventRate notify, poll, fence;
+    EventRate notify_stage, notify_longest_worker, poll_stage, poll_longest_worker;
     std::string source;
     std::string source_sha256, method;
   };
