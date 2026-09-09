@@ -129,6 +129,7 @@ struct ReductionSemantics {
 /// One structured operator. Everything about it is g-independent.
 struct SemanticOp {
   std::string name;
+  std::string arithmetic;  ///< declaration key; empty means unavailable, never zero work
   OperatorKind kind = OperatorKind::kPointwise;
   ScalarType dtype = ScalarType::kF32;
   std::vector<IterationDim> domain;

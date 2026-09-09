@@ -11,6 +11,7 @@ def CG_TaskSpaceOp : CG_Op<"task_space", [Symbol]> {
                        CG_AccessMapAttr:$write_map,
                        I64Attr:$stage,
                        StrAttr:$operator_name,
+                       OptionalAttr<StrAttr>:$arithmetic,
                        // The derived indexing map, one entry per operand, in
                        // operand order, spans already evaluated under
                        // (theta, g). Optional so IR written before §5 still

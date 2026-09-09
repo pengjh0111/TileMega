@@ -3,6 +3,7 @@
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Analysis/CouplingDerivation.h>
+#include <tilemega/Analysis/OpArithmetic.h>
 #include <tilemega/Dialect/CouplingGraph/CGContract.h>
 
 #include <mlir/IR/BuiltinAttributes.h>
@@ -103,6 +104,16 @@ LogicalResult TaskSpaceOp::verify() {
   if (llvm::none_of(known, [&](StringRef value) { return value == kind; }))
     return emitOpError() << "unknown task kind '" << kind << "'";
   if (getStage() < 0) return emitOpError("stage must be non-negative");
+  if (auto name = getArithmetic()) {
+    auto const& declarations = analysis::ArithmeticDeclarations();
+    auto found = llvm::find_if(declarations, [&](auto const& declaration) {
+      return *name == declaration.name;
+    });
+    if (found == declarations.end())
+      return emitOpError() << "missing arithmetic signature '" << *name << "'";
+    try { analysis::ValidateArithmeticDeclaration(*found); }
+    catch (std::exception const& error) { return emitOpError(error.what()); }
+  }
   return success();
 }
 

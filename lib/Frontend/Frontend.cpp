@@ -562,6 +562,13 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
     state.addAttribute("stage", builder.getI64IntegerAttr(origin.stage));
     state.addAttribute("operator_name", builder.getStringAttr(node.name));
     state.addAttribute("fx_name", builder.getStringAttr(origin.fx_name));
+    if (auto const* semantic = lifted.sem.Find(origin.name)) {
+      std::string arithmetic = semantic->arithmetic;
+      if (llvm::StringRef(node.name).ends_with(".combine"))
+        arithmetic = semantic->reduction.reduction_operator == "add" ? "sum" : "";
+      if (!arithmetic.empty())
+        state.addAttribute("arithmetic", builder.getStringAttr(arithmetic));
+    }
     builder.create(state);
   }
 

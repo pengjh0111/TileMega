@@ -165,6 +165,17 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
   auto record = [&](SemanticOp op, OpRole role, OwnershipKind ownership,
                     std::size_t stage, int layer, std::uint32_t result) {
     op.dtype = dtype;
+    switch (role) {
+      case OpRole::kNorm: op.arithmetic = "rmsnorm"; break;
+      case OpRole::kQkvProjection:
+      case OpRole::kProjection: op.arithmetic = "gemm"; break;
+      case OpRole::kRoPE: op.arithmetic = "rope"; break;
+      case OpRole::kKVAppend: op.arithmetic = "kv_append"; break;
+      case OpRole::kAttention: op.arithmetic = "attention"; break;
+      case OpRole::kActivation: op.arithmetic = "swiglu"; break;
+      case OpRole::kResidualAdd: op.arithmetic = "add"; break;
+      case OpRole::kGeneric: break;
+    }
     last_writer[result] = op.name;
     written_space[result] = op.result;
     model.ops.push_back({op.name, role, ownership, static_cast<int>(stage),
@@ -230,6 +241,7 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
         // The matmul's own result is a value no buffer holds, so it is
         // recorded under the op name rather than a plan buffer.
         op.dtype = dtype;
+        op.arithmetic = "gemm";
         model.ops.push_back({op.name, role, OwnershipKind::kTilePerBlock,
                              static_cast<int>(i), layer,
                              plan.stages[i].representative});

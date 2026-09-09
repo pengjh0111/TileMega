@@ -149,7 +149,9 @@ std::string SemanticOp::Serialize() const {
   std::ostringstream out;
   out << "op " << name << " kind=" << ToString(kind)
       << " dtype=" << ToString(dtype)
-      << (generic ? " generic" : "") << "\n  domain";
+      << (generic ? " generic" : "");
+  if (!arithmetic.empty()) out << " arithmetic=" << arithmetic;
+  out << "\n  domain";
   for (auto const& dim : domain) {
     out << " " << dim.name << ":" << ToString(dim.type) << "["
         << dim.origin.ToString() << ", " << dim.extent.ToString() << ")";

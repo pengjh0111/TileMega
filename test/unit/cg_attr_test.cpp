@@ -36,6 +36,15 @@ int main() {
   tilemega::analysis::IslContext isl_context;
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
+  for (auto const* signature : {"add", "missing_operator"}) {
+    std::string text = "module { tilemega.task_space @t {granularity = {}, "
+      "kind = #tilemega.task_kind<\"elementwise\">, stage = 0 : i64, "
+      "operator_name = \"test\", write_map = #tilemega.access_map<{}>, arithmetic = \"";
+    text += signature;
+    text += "\"} }";
+    auto parsed = mlir::parseSourceString<mlir::ModuleOp>(text, &context);
+    assert(static_cast<bool>(parsed) == (std::string(signature)=="add"));
+  }
 
   // MetricAttr: a QuasiPolynomial (wait/fanout/volume/count's storage type)
   // round-trips through MLIR IR text with its value intact.
