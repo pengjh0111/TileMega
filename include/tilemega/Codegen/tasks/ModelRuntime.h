@@ -19,12 +19,22 @@ namespace tilemega::codegen {
 
 enum class ScalarType : std::uint32_t { kF32 = 0, kBF16 = 1 };
 
+#ifndef TILEMEGA_FP32_PARTIALS
+#define TILEMEGA_FP32_PARTIALS 1
+#endif
+
 #if defined(TILEMEGA_MODEL_BF16) && TILEMEGA_MODEL_BF16
 using ModelElement = cutlass::bfloat16_t;
 inline constexpr ScalarType kCompiledScalarType = ScalarType::kBF16;
 #else
 using ModelElement = float;
 inline constexpr ScalarType kCompiledScalarType = ScalarType::kF32;
+#endif
+
+#if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
+using ModelPartialElement = float;
+#else
+using ModelPartialElement = ModelElement;
 #endif
 
 /// The symbolic dimensions, and only those. Everything static about a model

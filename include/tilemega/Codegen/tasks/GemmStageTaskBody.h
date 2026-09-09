@@ -387,10 +387,21 @@ struct GemmMainloopOperands {
 };
 
 /// Host-built launch arguments for one generated GemmDesc.
+#if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
+using PartialEpilogue = cutlass::epilogue::collective::DefaultEpilogue<
+    float, typename GemmEpilogue::StrideC, typename GemmEpilogue::StrideD,
+    cutlass::epilogue::thread::LinearCombination<float, 1, float, float>,
+    typename GemmEpilogue::EpilogueSchedule>;
+#endif
 struct GemmInvocation {
   GemmProblem problem;
   GemmMainloopOperands mainloop;
   GemmEpilogue::Params epilogue;
+#if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
+  PartialEpilogue::Params partial_epilogue;
+  ModelElement const* residual = nullptr;
+  float residual_beta = 0;
+#endif
   int tiles_m;
   int tiles_n;
   int tile_m;
@@ -452,6 +463,14 @@ struct GemmStageTaskBody {
     Mainloop mainloop;
     mainloop(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
              static_cast<int>(threadIdx.x), shared);
+#if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
+    if (invocation.chunks > 1) {
+      PartialEpilogue epilogue(invocation.partial_epilogue);
+      epilogue(invocation.problem, tile_shape, make_coord(tile_m, tile_n, 0, 0),
+               accum, tiled_mma, residue, static_cast<int>(threadIdx.x), shared);
+      return;
+    }
+#endif
     Epilogue epilogue(invocation.epilogue);
     epilogue(invocation.problem, tile_shape, make_coord(tile_m, tile_n, 0, 0),
              accum, tiled_mma, residue, static_cast<int>(threadIdx.x), shared);

@@ -833,6 +833,7 @@ inline DeviceModel Create(ModelSpec const& spec,
   std::vector<std::uint32_t> gemm_base(spec.gemm_count);
   std::vector<std::uint32_t> gemm_partial(spec.gemm_count, kNoOperand);
   std::vector<int> gemm_chunks(spec.gemm_count, 1);
+  std::size_t partial_bytes = 0;
   for (std::uint32_t i = 0; i < spec.gemm_count; ++i) {
     GemmDesc const& desc = spec.gemms[i];
     int m = dims.seq;
@@ -859,12 +860,15 @@ inline DeviceModel Create(ModelSpec const& spec,
     gemm_chunks[i] = chunks;
     gemm_base[i] = static_cast<std::uint32_t>(gemms.size());
     if (chunks > 1) {
-      ModelElement* partial = nullptr;
+      partial_bytes += static_cast<std::size_t>(chunks) * m * desc.n * sizeof(ModelPartialElement);
+      ModelPartialElement* partial = nullptr;
       TILEMEGA_CUDA_CHECK(cudaMalloc(
           &partial, static_cast<std::size_t>(chunks) * m * desc.n *
-                        sizeof(ModelElement)));
+                        sizeof(ModelPartialElement)));
       gemm_partial[i] = static_cast<std::uint32_t>(model.buffers.size());
-      model.buffers.push_back(partial);
+      // This table carries addresses; only the combiner interprets a partial
+      // entry, explicitly as ModelPartialElement, never as model storage.
+      model.buffers.push_back(reinterpret_cast<ModelElement*>(partial));
       model.host_sources.emplace_back();
     }
     for (int chunk = 0; chunk < chunks; ++chunk) {
@@ -890,10 +894,14 @@ inline DeviceModel Create(ModelSpec const& spec,
           model.buffers[desc.b] + k_begin, stride_b};
       // Only the first chunk applies beta*C; the combiner adds no residual, so
       // the split result differs from the unsplit one only by association.
+#if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
+      ModelElement* destination = model.buffers[desc.d];
+#else
       ModelElement* destination = chunks > 1
           ? model.buffers[gemm_partial[i]] +
                 static_cast<std::size_t>(chunk) * m * desc.n
           : model.buffers[desc.d];
+#endif
       typename GemmEpilogue::Arguments epilogue_args{
           {1.0f, chunk == 0 ? desc.beta : 0.0f}, model.buffers[desc.c], stride_c,
           destination, stride_d};
@@ -902,6 +910,16 @@ inline DeviceModel Create(ModelSpec const& spec,
       invocation.mainloop = main_args;
       invocation.epilogue =
           GemmEpilogue::to_underlying_arguments(problem, epilogue_args, nullptr);
+#if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
+      if (chunks > 1) {
+        auto* partial = reinterpret_cast<float*>(model.buffers[gemm_partial[i]]) +
+                        static_cast<std::size_t>(chunk) * m * desc.n;
+        PartialEpilogue::Arguments args{{1.0f, 0.0f}, nullptr, stride_c, partial, stride_d};
+        invocation.partial_epilogue = PartialEpilogue::to_underlying_arguments(problem, args, nullptr);
+        invocation.residual = model.buffers[desc.c];
+        invocation.residual_beta = desc.beta;
+      }
+#endif
       invocation.tiles_m = CeilDiv(m, tiling.tile_m);
       invocation.tiles_n = CeilDiv(desc.n, tiling.tile_n);
       invocation.tile_m = tiling.tile_m;
@@ -913,6 +931,9 @@ inline DeviceModel Create(ModelSpec const& spec,
   }
 
   // Rewrite the stage list and the dependency graph around the combiners.
+  std::printf("E2E_PARTIALS fp32=%d element_bytes=%zu total_bytes=%zu\n",
+              TILEMEGA_FP32_PARTIALS && kCompiledScalarType == ScalarType::kBF16,
+              sizeof(ModelPartialElement), partial_bytes);
   std::vector<std::uint32_t> entry(spec.stage_count), done(spec.stage_count);
   for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
     StageDesc stage = spec.stages[i];

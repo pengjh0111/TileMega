@@ -19,6 +19,21 @@ struct GemmCombineTaskBody {
   static constexpr int kNumThreads = Threads;
   static constexpr bool kLegal = true;
 
+  __device__ static ModelElement Finish(float sum, Params const& p,
+                                        StageDesc const& stage, int index) {
+#if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
+    // Preserve the exported Linear -> BF16 -> residual-add boundary, but
+    // round only the complete GEMM sum, never each partial or partial+residual.
+    auto const& invocation = static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+    ModelElement rounded(sum);
+    return invocation.residual_beta == 0 ? rounded : ModelElement(
+        static_cast<float>(rounded) + invocation.residual_beta *
+        static_cast<float>(invocation.residual[index]));
+#else
+    return ModelElement(sum);
+#endif
+  }
+
   __device__ static TaskOwnership Ownership(Params const& p,
                                             StageDesc const& stage) {
     if (p.ownership_flags & kCombinerTileOwnership) {
@@ -34,7 +49,7 @@ struct GemmCombineTaskBody {
 
   __device__ static void RunTask(Params const& p, StageDesc const& stage,
                                  SmemUnion&, int task) {
-    ModelElement const* partials = p.buffers[stage.operand[0]];
+    auto const* partials = reinterpret_cast<ModelPartialElement const*>(p.buffers[stage.operand[0]]);
     ModelElement* out = p.buffers[stage.operand[1]];
     int count = p.dims.seq * static_cast<int>(stage.width);
     int chunks = static_cast<int>(stage.group);
@@ -54,7 +69,7 @@ struct GemmCombineTaskBody {
         float sum = 0.0f;
         for (int c = 0; c < chunks; ++c)
           sum += static_cast<float>(partials[c * count + i]);
-        out[i] = ModelElement(sum);
+        out[i] = Finish(sum, p, stage, i);
       }
       return;
     }
@@ -63,7 +78,7 @@ struct GemmCombineTaskBody {
     float sum = 0.0f;
     for (int c = 0; c < chunks; ++c)
       sum += static_cast<float>(partials[c * count + i]);
-    out[i] = ModelElement(sum);
+    out[i] = Finish(sum, p, stage, i);
   }
 
   __device__ void operator()(Params const& p, StageDesc const& stage,
