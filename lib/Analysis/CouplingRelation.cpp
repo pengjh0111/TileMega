@@ -245,9 +245,11 @@ CouplingRelation::Points() const {
 }
 
 QuasiPolynomial CouplingRelation::Card() const {
+  IslReferenceAudit audit(__func__);
   if (empty()) return QuasiPolynomial::Constant(0);
   isl_util::Map map = isl_util::ReadMap(Ctx(), text_);
   isl_util::PwQPolynomial card(isl_map_card(map.release()));
+  if (!card) throw std::runtime_error("isl: relation cardinality failed");
   return QuasiPolynomial::FromIslText(isl_util::ToString(card.get()));
 }
 
@@ -281,6 +283,7 @@ CouplingRelation CouplingRelation::AggregateImage() const {
 }
 
 QuasiPolynomial CouplingRelation::FanoutCard() const {
+  IslReferenceAudit audit(__func__);
   if (empty()) return QuasiPolynomial::Constant(0);
   isl_util::Map map = isl_util::ReadMap(Ctx(), text_);
   isl_util::Set range(isl_map_range(isl_map_copy(map.get())));
@@ -288,6 +291,7 @@ QuasiPolynomial CouplingRelation::FanoutCard() const {
   isl_util::Map restricted(
       isl_map_intersect_domain(reversed.release(), range.release()));
   isl_util::PwQPolynomial card(isl_map_card(restricted.release()));
+  if (!card) throw std::runtime_error("isl: reversed relation cardinality failed");
   return QuasiPolynomial::FromIslText(isl_util::ToString(card.get()));
 }
 

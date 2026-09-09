@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/CouplingDerivation.h>
+#include <tilemega/Analysis/ISLContext.h>
 
 #include <cctype>
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
+
+#ifndef TILEMEGA_PHYSICAL_WAIT_DOMAIN
+#define TILEMEGA_PHYSICAL_WAIT_DOMAIN 1
+#endif
 
 namespace tilemega::analysis {
 namespace {
@@ -490,22 +495,8 @@ namespace {
 /// `{ [p0,...] : 0 <= p_i < producer_extent_i }`, the producer-side twin of
 /// DomainBoxText, named after C's actual range dimensions.
 ///
-/// This is applied *only* when counting fanout (and by the relaxation
-/// check), never folded into C itself.
-/// Both halves of that split are load-bearing, and each was established by a
-/// failure:
-///   * Without any range bound, isl_map_card's own piecewise decomposition of
-///     the reversed map keeps a "reachable only for some other parameter
-///     value" tail whose formula evaluates to 0 (attn_combine->wo retains a
-///     p0-in-[S, 126+S] piece), so fanout looks position-dependent (max 32,
-///     min 0) when it is really a uniform 32.
-///   * With the bound folded into C, the *wait* direction regresses instead:
-///     counting a relation that carries both a genuine isl parameter (S) and
-///     an inequality-range-derived producer coordinate bounded on both sides
-///     drives barvinok into "unexpected missing (bounded) solution"
-///     (basis_reduction_tab.c) and an incomplete result.
-/// Restricting only the reversed map keeps each direction in the regime its
-/// own counting problem is tractable in. See TileMega_skeleton.md §1.5.1.
+/// Both incidence counts must use this physical range. The historical
+/// fanout-only restriction made wait include nonexistent boundary tasks.
 }  // namespace
 
 std::string ProducerTaskSpaceText(CouplingRelation const& C,
@@ -557,18 +548,17 @@ DerivedMetrics ComputeMetrics(CouplingRelation const& C, AccessRelation const& W
                               OperatorNode const& producer,
                               OperatorNode const& consumer,
                               ParamBinding const& known) {
+  IslReferenceAudit audit(__func__);
   DerivedMetrics metrics;
 
-  // wait(x) = |C(x)|, fanout(y) = |C^-1(y)|: both barvinok counts over the
-  // derived relation, per §2 Definition 4. C is already bound to the
-  // consumer's own task-space box (DeriveCoupling's `assemble`), so wait is
-  // finite without further restriction. fanout additionally needs the
-  // producer side bounded -- but only on the reversed map, never folded back
-  // into C; see ProducerRangeBoxText for why each direction needs a
-  // different regime.
+  auto physical = C.IntersectRange(ProducerTaskSpaceText(C, producer, known));
+#if TILEMEGA_PHYSICAL_WAIT_DOMAIN
+  metrics.wait = physical.Card();
+#else
+  // Explicit historical control only, never selected after a count failure.
   metrics.wait = C.Card();
-  metrics.fanout =
-      C.IntersectRange(ProducerTaskSpaceText(C, producer, known)).FanoutCard();
+#endif
+  metrics.fanout = physical.FanoutCard();
 
   // volume(y,x) = |W_p(y) ^ R_c(x)|, per tensor axis.  Data-independent of the
   // task space for every access pattern this codebase derives, so it stays a
@@ -624,6 +614,12 @@ std::vector<CouplingEdge> CouplingDerivation::Derive(
       edge.dst = TaskSpaceId{consumer.name};
       CouplingDetail detail;
       edge.C = DeriveCoupling(W, R, *producer, consumer, known, &detail);
+#if TILEMEGA_PHYSICAL_WAIT_DOMAIN
+      // Persist the same physical graph that the metrics count. Otherwise
+      // CG verification would correctly reject wait != |C(x)| at tile tails.
+      edge.C = edge.C.IntersectRange(
+          ProducerTaskSpaceText(edge.C, *producer, known));
+#endif
       edge.exact = detail.exact;
       edge.guard = detail.guard;
       edge.relaxation = detail.relaxation;

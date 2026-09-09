@@ -16,6 +16,10 @@ project(TileMega VERSION 0.1.0 LANGUAGES C CXX CUDA)
 
 option(TILEMEGA_BUILD_TESTS "Build unit and integration tests" ON)
 option(TILEMEGA_BUILD_VERIFY "Build verification experiments" ON)
+option(TILEMEGA_PHYSICAL_WAIT_DOMAIN
+  "Count and persist couplings on physical producer domains" ON)
+set_source_files_properties(lib/Analysis/CouplingDerivation.cpp PROPERTIES
+  COMPILE_DEFINITIONS "TILEMEGA_PHYSICAL_WAIT_DOMAIN=$<BOOL:${TILEMEGA_PHYSICAL_WAIT_DOMAIN}>")
 option(TILEMEGA_ENABLE_MLIR "Build the required MLIR Coupling Graph contract" ON)
 option(TILEMEGA_ENABLE_ISL
   "Build the required isl/barvinok coupling-derivation solver (Phase 3)" ON)
@@ -307,6 +311,11 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(semantics_test test/unit/semantics_test.cpp)
   target_link_libraries(semantics_test PRIVATE TileMega::tilemega)
   add_test(NAME semantics COMMAND semantics_test)
+  add_executable(incidence_test test/unit/incidence_test.cpp)
+  target_link_libraries(incidence_test PRIVATE TileMega::tilemega)
+  add_test(NAME incidence_identity COMMAND incidence_test)
+  add_test(NAME imported_incidence_identity
+    COMMAND tilemega-event-cost ${CMAKE_CURRENT_SOURCE_DIR})
 
   add_executable(containment_test test/unit/containment_test.cpp)
   target_link_libraries(containment_test PRIVATE TileMega::tilemega)

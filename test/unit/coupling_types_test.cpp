@@ -56,7 +56,14 @@ int main() {
 
   // §2.7 row 7: attn_combine -> wo, wait = Tm * n_h = 4096.
   auto combineToWo = Find(edges, "attn_combine", "wo");
-  REQUIRE(combineToWo.metrics.wait.Eval(known) == 4096);
+  // A full 128-row tile waits for 128*32 producers. With S unbound this
+  // is no longer a constant: S=4 has only 4*32 physical producers.
+  ParamBinding full = known;
+  full.Bind("S", 512).Bind("past", 512).Bind("L_s", 1024);
+  REQUIRE(combineToWo.metrics.wait.Eval(full) == 4096);
+  ParamBinding tail = known;
+  tail.Bind("S", 4).Bind("past", 3).Bind("L_s", 7);
+  REQUIRE(combineToWo.metrics.wait.Eval(tail) == 128);
 
   // §2.7 row 11: wgate -> silu and wup -> silu, wait = 1 each (the table's
   // combined "1 + 1 = 2" is the per-operand split, §2.7's difference (a)).
@@ -76,7 +83,8 @@ int main() {
   // This is the operation AffineRelation could not express at all (it had no
   // composition operator), so it is the migration's own reason to exist.
   QuasiPolynomial coarseWait = combineToWo.C.Coarsen({1, 4}).Card();
-  REQUIRE(coarseWait.Eval(known) == 1024);  // 4096 / 4
+  REQUIRE(coarseWait.Eval(full) == 1024);  // 4096 / 4
+  REQUIRE(coarseWait.Eval(tail) == 32);    // 128 / 4
 
   // Coarsening is a group homomorphism on the granularity, and the identity
   // at kappa = 1. Both were false at first: the fresh output names Coarsen
@@ -85,9 +93,13 @@ int main() {
   // variable whose only solution is 0 -- silently collapsing that coordinate
   // to a point rather than halving it. Keeping these two laws asserted is
   // what makes a repeat of that failure impossible to miss.
-  REQUIRE(combineToWo.C.Coarsen({1, 1}) == combineToWo.C);
-  REQUIRE(combineToWo.C.Coarsen({1, 2}).Coarsen({1, 2}) ==
-          combineToWo.C.Coarsen({1, 4}));
+  auto identity = combineToWo.C.Coarsen({1, 1});
+  REQUIRE(identity.IsSubset(combineToWo.C));
+  REQUIRE(combineToWo.C.IsSubset(identity));
+  auto twice = combineToWo.C.Coarsen({1, 2}).Coarsen({1, 2});
+  auto once = combineToWo.C.Coarsen({1, 4});
+  REQUIRE(twice.IsSubset(once));
+  REQUIRE(once.IsSubset(twice));
 
   // A coupling whose wait is genuinely a piecewise quasi-polynomial, which
   // is what makes barvinok load-bearing rather than merely equivalent to the

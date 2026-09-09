@@ -162,9 +162,13 @@ int main() {
   // needs exactly one producer block); fanout(p0) = |{row mapping to p0}| is
   // genuinely Tm = 128 (each 128-row producer block feeds 128 row-tasks),
   // not the table's 1 -- see the file header and table27.md.
-  EQ(t.Row("rope_k", "kvappend_k").C.ToString(),
-     std::string("[S] -> { [row, hh] -> [p0, p1 = hh] : 0 <= row < S and 0 <= hh <= 7 "
-                 "and -127 + row <= 128p0 <= row }"));
+  auto rope_append = CouplingRelation::FromIslText(
+      "[S] -> { [row, hh] -> [p0, p1 = hh] : 0 <= row < S and 0 <= hh <= 7 "
+      "and -127 + row <= 128p0 <= row }");
+  // Range clipping may preserve redundant inequalities in isl's printer;
+  // mutual containment checks the original exact mathematical expectation.
+  REQUIRE(t.Row("rope_k", "kvappend_k").C.IsSubset(rope_append));
+  REQUIRE(rope_append.IsSubset(t.Row("rope_k", "kvappend_k").C));
   EQ(t.Wait("rope_k", "kvappend_k"), 1L);
   EQ(t.Fanout("rope_k", "kvappend_k"), 128L);
   EQ(t.Fanout("wv", "kvappend_v"), 128L);
@@ -277,7 +281,9 @@ int main() {
   REQUIRE(t.Row("rope_k", "kvappend_k").attributes.ToString() ==
           "layout_mediated + symbolic_static + exact + none + constant");
   REQUIRE(t.Row("kvappend_k", "attn_chunk").attributes.ToString() ==
-          "layout_mediated + runtime_dynamic + exact + prefix_sum + constant");
+          "layout_mediated + runtime_dynamic + exact + prefix_sum + piecewise_quasipoly");
+  // A chunk crossing past/S boundaries has fewer newly produced KV rows;
+  // the corrected physical wait therefore is not a constant chunk width.
 
   // The derivation finds one edge the table does not list: the residual
   // add1 -> add2.  Asserted so that it cannot silently disappear.
