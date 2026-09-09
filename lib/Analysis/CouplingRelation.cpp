@@ -231,6 +231,35 @@ QuasiPolynomial CouplingRelation::Card() const {
   return QuasiPolynomial::FromIslText(isl_util::ToString(card.get()));
 }
 
+QuasiPolynomial CouplingRelation::ImageCard() const {
+  IslReferenceAudit audit(__func__);
+  if (empty()) return QuasiPolynomial::Constant(0);
+  auto map = isl_util::ReadMap(Ctx(), text_);
+  isl_util::Set image(isl_map_range(map.release()));
+  isl_util::PwQPolynomial count(isl_set_card(image.release()));
+  if (!count) throw std::runtime_error("isl: event image is not countable");
+  return QuasiPolynomial::FromIslText(isl_util::ToString(count.get()));
+}
+
+CouplingRelation CouplingRelation::AggregateImage() const {
+  IslReferenceAudit audit(__func__);
+  if (empty()) return {};
+  auto names = RangeDimNames();
+  std::ostringstream projection;
+  projection << "{ [";
+  for (std::size_t i=0; i<names.size(); ++i) {
+    if (i) projection << ',';
+    projection << names[i];
+  }
+  projection << "] -> [";
+  for (std::size_t i=0; i<names.size(); ++i) {
+    if (i) projection << ',';
+    projection << '0';
+  }
+  projection << "] }";
+  return ApplyRange(FromIslText(projection.str()));
+}
+
 QuasiPolynomial CouplingRelation::FanoutCard() const {
   if (empty()) return QuasiPolynomial::Constant(0);
   isl_util::Map map = isl_util::ReadMap(Ctx(), text_);

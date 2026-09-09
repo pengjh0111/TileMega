@@ -132,6 +132,14 @@ long QuasiPolynomial::Eval(ParamBinding const& known) const {
   return isl_val_get_num_si(max_value.get());
 }
 
+QuasiPolynomial QuasiPolynomial::SumDomain() const {
+  IslReferenceAudit audit(__func__);
+  auto value = isl_util::ReadPwQPolynomial(Ctx(), text_);
+  isl_util::PwQPolynomial sum(isl_pw_qpolynomial_sum(value.release()));
+  if (!sum) throw std::runtime_error("isl: cannot sum quasi-polynomial domain");
+  return FromIslText(isl_util::ToString(sum.get()));
+}
+
 bool QuasiPolynomial::SemanticallyEqual(QuasiPolynomial const& other,
                                         ParamBinding const& known) const {
   // Try the constant-vs-constant shortcut first: if both sides reduce to a

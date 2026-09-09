@@ -54,6 +54,8 @@ class QuasiPolynomial {
   /// std::out_of_range naming the first dimension still unbound, matching
   /// ClosedForm::Eval's contract.
   long Eval(ParamBinding const& known) const;
+  /// Sum over task-coordinate dimensions, retaining symbolic parameters.
+  QuasiPolynomial SumDomain() const;
   /// True when, after substituting `known` on both sides, `*this` and
   /// `other` are the same function (of whatever task-coordinate dimensions
   /// remain) -- not merely equal at every point `known` happens to bind.

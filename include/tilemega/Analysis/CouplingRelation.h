@@ -96,6 +96,9 @@ class CouplingRelation {
   /// wait(x) = |this(x)|, a function of `this`'s domain (consumer)
   /// coordinates.
   QuasiPolynomial Card() const;
+  QuasiPolynomial ImageCard() const;
+  /// Aggregate-only event policy: all producer coordinates map to zero.
+  CouplingRelation AggregateImage() const;
   /// fanout(y) = |this^-1(y)|, a function of `this`'s range (producer)
   /// coordinates, restricted to y actually in range(this). Not simply
   /// `Reverse().Card()`: the domain tuple is bound in DeriveCoupling

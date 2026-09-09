@@ -70,6 +70,16 @@ int main() {
     threw = true;
   }
   assert(threw);
+  assert(triangular_wait.SumDomain().Eval({}) == 28);
+  assert(triangular.FanoutCard().SumDomain().Eval({}) == 28);
+  assert(triangular.ImageCard().Eval({}) == 7);
+  assert(triangular.Coarsen({2}).ImageCard().Eval({}) == 4);
+  assert(triangular.AggregateImage().ImageCard().Eval({}) == 1);
+  auto symbolic_sum = QuasiPolynomial::FromIslText(
+      "[S] -> { [i] -> i : 0 <= i < S }").SumDomain();
+  ParamBinding eight;
+  eight.Bind("S", 8);
+  assert(symbolic_sum.SubstituteParams(eight).Eval(eight) == 28);
 
   // SemanticallyEqual: same function after substitution, spelled differently.
   QuasiPolynomial a = QuasiPolynomial::FromIslText("[S] -> { S : S > 0 }");
