@@ -115,6 +115,9 @@ struct CostModelOptions {
   /// preserving every other model layer, which makes BF16 Tensor Core
   /// contribution measurable without changing the fitted constants.
   std::array<bool, ResourceVector::kLaneCount> disabled_lanes{};
+  /// Must match the generated runtime's independent partial-storage switch.
+  /// It changes BF16 split traffic only; FP32 and unsplit GEMMs are unchanged.
+  bool fp32_partials = true;
 };
 
 class CostModel {

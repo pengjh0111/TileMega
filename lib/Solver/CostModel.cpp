@@ -59,8 +59,8 @@ double MainloopFlops(GemmConfig const& c) {
   return 2.0 * c.tile_m * c.tile_n * c.tile_k;
 }
 
-double EpilogueBytes(GemmConfig const& c, ScalarType dtype) {
-  return ElementBytes(dtype) * c.tile_m * c.tile_n;
+double EpilogueBytes(GemmConfig const& c, ScalarType dtype, bool fp32_partial = false) {
+  return (fp32_partial ? 4.0 : ElementBytes(dtype)) * c.tile_m * c.tile_n;
 }
 
 }  // namespace
@@ -340,7 +340,8 @@ double CostModel::GemmStageNs(GemmOp const& gemm, GemmConfig const& config,
       fit_.setup_per_output_ns * double(config.tile_m) * double(config.tile_n) +
       config.stages * (MainloopBytes(config, dtype_) / l2_bytes_per_ns_per_sm_) +
       calib_->l2_latency_ns +
-      EpilogueBytes(config, dtype_) / l2_bytes_per_ns_per_sm_;
+      EpilogueBytes(config, dtype_, options_.fp32_partials &&
+          dtype_ == ScalarType::kBF16 && chunks > 1) / l2_bytes_per_ns_per_sm_;
   // §2.2(b): the first `stages - 1` iterations are covered by the fill.  The
   // second factor of `d = stages * resident_tiles_per_SM - 1` is 1 here: a CTA
   // of this collective owns exactly one output tile per wave, so resident CTAs
@@ -374,6 +375,19 @@ double CostModel::CombineStageNs(GemmOp const& gemm, int chunks,
   double const b = calib.streamk.empty() ? 0.0 : calib.streamk.front().b_ns;
   double const d = calib.streamk.empty() ? 0.0 : calib.streamk.front().d_ns;
   double const elements = static_cast<double>(dims.seq) * gemm.n;
+  if (options_.fp32_partials && dtype_ == ScalarType::kBF16) {
+    // The existing coefficients measured BF16 partial reads. Add the extra
+    // two bytes per partial, not a 2x scale of the entire compute/launch fit.
+    // A doubled working set can cross the L2 knee; the measured DRAM peer
+    // coefficient must then replace the L2 coefficient explicitly.
+    double const miss = 1.0 - CacheHitProbability(4.0 * chunks * elements);
+    if (miss > 0.0 && calib.combine_d_dram_ns <= 0.0)
+      throw std::runtime_error("FP32 partial combine DRAM rate: not_calibrated");
+    double const peer = (1.0-miss)*d + miss*calib.combine_d_dram_ns;
+    double const extra = 2.0 * chunks * elements *
+        ((1.0-miss)/calib.l2_gbps + miss/calib.dram_gbps);
+    return calib.combine_fixed_ns + (b + peer * (chunks - 1)) * elements + extra;
+  }
   return calib.combine_fixed_ns + (b + d * (chunks - 1)) * elements;
 }
 
