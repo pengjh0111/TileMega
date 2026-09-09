@@ -6,7 +6,12 @@
 
 #include "IslUtil.h"
 
+#include <algorithm>
 #include <sstream>
+
+#ifndef TILEMEGA_ISL_COMPONENT_ENUMERATION
+#define TILEMEGA_ISL_COMPONENT_ENUMERATION 1
+#endif
 
 namespace tilemega::analysis {
 
@@ -202,6 +207,12 @@ isl_stat CollectPoint(isl_point* point, void* user) {
   return isl_stat_ok;
 }
 
+isl_stat EnumerateBasicSet(isl_basic_set* basic, void* user) {
+  isl_util::Set part(isl_set_from_basic_set(basic));
+  if (!part) return isl_stat_error;
+  return isl_set_foreach_point(part.get(), CollectPoint, user);
+}
+
 }  // namespace
 
 std::vector<std::pair<std::vector<long>, std::vector<long>>>
@@ -219,8 +230,17 @@ CouplingRelation::Points() const {
     throw std::invalid_argument("isl: Points() needs a bounded relation: " +
                                 text_);
   PointSink sink{arity, &points, false};
+#if TILEMEGA_ISL_COMPONENT_ENUMERATION
+  // Disjointizing a many-piece endpoint relation can dominate the entire
+  // import. Enumerate each convex component, then remove overlaps exactly.
+  if (isl_set_foreach_basic_set(wrapped.get(), EnumerateBasicSet, &sink) != isl_stat_ok)
+    throw std::runtime_error("isl: point enumeration failed");
+  std::sort(points.begin(), points.end());
+  points.erase(std::unique(points.begin(), points.end()), points.end());
+#else
   if (isl_set_foreach_point(wrapped.get(), CollectPoint, &sink) != isl_stat_ok)
     throw std::runtime_error("isl: point enumeration failed");
+#endif
   return points;
 }
 

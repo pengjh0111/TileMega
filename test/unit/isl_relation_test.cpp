@@ -6,6 +6,8 @@
 #include <tilemega/Analysis/QuasiPolynomial.h>
 
 #include <cassert>
+#include <set>
+#include <sstream>
 
 using namespace tilemega::analysis;
 
@@ -80,6 +82,33 @@ int main() {
   ParamBinding eight;
   eight.Bind("S", 8);
   assert(symbolic_sum.SubstituteParams(eight).Eval(eight) == 28);
+  auto overlap = CouplingRelation::FromIslText(
+      "{ [i] -> [j] : 0 <= i < 5 and j=i; [i] -> [j] : 2 <= i < 8 and j=i }");
+  auto overlapping_points = overlap.Points();
+  assert(overlapping_points.size() == 8);
+  for (int i = 0; i < 8; ++i) {
+    assert(overlapping_points[i].first == std::vector<long>{i});
+    assert(overlapping_points[i].second == std::vector<long>{i});
+  }
+  for (int seed = 0; seed < 32; ++seed) {
+    std::ostringstream text;
+    std::set<std::pair<std::vector<long>, std::vector<long>>> expected;
+    text << "{ ";
+    for (int part = 0; part < 8; ++part) {
+      int il = (seed+part)%5, ih = 5+(2*seed+part)%5;
+      int jl = (3*seed+part)%5, jh = 5+(seed+3*part)%5;
+      int offset = part%3;
+      text << (part ? "; " : "") << "[i] -> [j] : " << il << " <= i < " << ih
+           << " and " << jl << " <= j < " << jh << " and j <= i+" << offset;
+      for (long i = il; i < ih; ++i)
+        for (long j = jl; j < jh; ++j)
+          if (j <= i+offset) expected.insert({{i},{j}});
+    }
+    text << " }";
+    auto points = CouplingRelation::FromIslText(text.str()).Points();
+    assert(points.size() == expected.size());
+    assert((decltype(expected)(points.begin(),points.end()) == expected));
+  }
 
   // SemanticallyEqual: same function after substitution, spelled differently.
   QuasiPolynomial a = QuasiPolynomial::FromIslText("[S] -> { S : S > 0 }");
