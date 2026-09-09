@@ -18,6 +18,12 @@ option(TILEMEGA_BUILD_TESTS "Build unit and integration tests" ON)
 option(TILEMEGA_BUILD_VERIFY "Build verification experiments" ON)
 option(TILEMEGA_PHYSICAL_WAIT_DOMAIN
   "Count and persist couplings on physical producer domains" ON)
+option(TILEMEGA_SYMBOLIC_RUNTIME_PROJECTION "Build symbolic runtime queue counts" ON)
+option(TILEMEGA_EARLY_QP_BINDING "Specialize bound QP parameter tokens before parsing" ON)
+set_source_files_properties(lib/Analysis/QuasiPolynomial.cpp PROPERTIES
+  COMPILE_DEFINITIONS "TILEMEGA_EARLY_QP_BINDING=$<BOOL:${TILEMEGA_EARLY_QP_BINDING}>")
+set_source_files_properties(lib/Solver/RuntimeProjection.cpp PROPERTIES
+  COMPILE_DEFINITIONS "TILEMEGA_SYMBOLIC_RUNTIME_PROJECTION=$<BOOL:${TILEMEGA_SYMBOLIC_RUNTIME_PROJECTION}>")
 set_source_files_properties(lib/Analysis/CouplingDerivation.cpp PROPERTIES
   COMPILE_DEFINITIONS "TILEMEGA_PHYSICAL_WAIT_DOMAIN=$<BOOL:${TILEMEGA_PHYSICAL_WAIT_DOMAIN}>")
 option(TILEMEGA_ENABLE_MLIR "Build the required MLIR Coupling Graph contract" ON)
@@ -118,6 +124,7 @@ add_library(tilemega STATIC
   lib/Solver/ListScheduler.cpp
   lib/Solver/CostModel.cpp
   lib/Solver/ModelDescription.cpp
+  lib/Solver/RuntimeProjection.cpp
   lib/Codegen/Codegen.cpp
   lib/Runtime/EventBuffer.cpp
   lib/Runtime/MegakernelRuntime.cpp)
@@ -226,6 +233,10 @@ set_target_properties(tilemega-affine-probe PROPERTIES
 
 add_executable(tilemega-parametric tools/tilemega-parametric.cpp)
 add_executable(tilemega-event-cost tools/tilemega-event-cost.cpp)
+add_executable(tilemega-runtime-projection tools/tilemega-runtime-projection.cpp)
+target_link_libraries(tilemega-runtime-projection PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-runtime-projection PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 target_link_libraries(tilemega-event-cost PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-event-cost PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
@@ -326,6 +337,9 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME event_synthesis COMMAND event_synthesis_test)
 
   add_executable(isl_relation_test test/unit/isl_relation_test.cpp)
+  add_executable(runtime_projection_test test/unit/runtime_projection_test.cpp)
+  target_link_libraries(runtime_projection_test PRIVATE TileMega::tilemega)
+  add_test(NAME runtime_projection COMMAND runtime_projection_test)
   target_link_libraries(isl_relation_test PRIVATE TileMega::tilemega)
   add_test(NAME isl_relation COMMAND isl_relation_test)
 
