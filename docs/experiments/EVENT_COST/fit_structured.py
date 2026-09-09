@@ -14,6 +14,63 @@ FEATURES = {
 }
 
 
+def signed_rank_p(values):
+    """Two-sided exact sign-randomization Wilcoxon; drop zeros, average ties."""
+    values=np.asarray(values,dtype=float)
+    values=values[values!=0]
+    if not len(values):
+        return 1.0
+    absolute=np.abs(values)
+    weights=np.zeros(len(values),dtype=int)
+    order=np.argsort(absolute)
+    begin=0
+    while begin<len(values):
+        end=begin+1
+        while end<len(values) and absolute[order[end]]==absolute[order[begin]]:
+            end+=1
+        # Twice the average of one-based ranks begin+1 through end.
+        weights[order[begin:end]]=begin+1+end
+        begin=end
+    observed=int(weights[values>0].sum())
+    distribution={0:1}
+    for weight in weights:
+        following=dict(distribution)
+        for score,count in distribution.items():
+            following[score+int(weight)]=following.get(score+int(weight),0)+count
+        distribution=following
+    low=sum(count for score,count in distribution.items() if score<=observed)
+    high=sum(count for score,count in distribution.items() if score>=observed)
+    return min(1.0,2*min(low,high)/(1 << len(values)))
+
+
+def decomposition(paired,out,samples,seed):
+    if samples<=0:
+        raise ValueError('bootstrap sample count must be positive')
+    rng=np.random.default_rng(seed)
+    cells={}
+    for key,arms in paired.items():
+        l2=lambda arm:float(arms[arm]['l2_ms'])*1e6
+        l1=lambda arm:float(arms[arm]['l1_ms'])*1e6
+        notify=l2('nowait')-l2('neither')
+        wait=l2('full')-l2('nowait')
+        row=dict(notify=notify,wait=wait,barrier=l1('full')-l1('l1nosync'),
+                 loop=l2('neither')-l1('l1nosync'),gap=l2('full')-l1('full'),
+                 closure=l2('full')-(l2('neither')+notify+wait))
+        cells.setdefault(key[:-1],[]).append(row)
+    with (out/'decomposition.tsv').open('w') as stream:
+        writer=csv.writer(stream,delimiter='\t',lineterminator='\n')
+        writer.writerow(['model','variant','seq','past','term','paired_process_rounds',
+                         'median_ns','paired_bootstrap_low_ns','paired_bootstrap_high_ns',
+                         'wilcoxon_exact_p','max_abs_closure_ns'])
+        for key,rows in cells.items():
+            for term in ('notify','wait','barrier','loop','gap'):
+                values=np.array([row[term] for row in rows])
+                indices=rng.integers(0,len(values),size=(samples,len(values)))
+                low,high=np.percentile(np.median(values[indices],axis=1),[2.5,97.5])
+                writer.writerow([*key,term,len(values),float(np.median(values)),low,high,
+                                 signed_rank_p(values),max(abs(row['closure']) for row in rows)])
+
+
 def fit(x, y):
     if np.linalg.matrix_rank(x) != x.shape[1]:
         raise ValueError('not_calibrated: feature matrix is rank deficient')
@@ -41,6 +98,8 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('raw',type=Path)
     p.add_argument('--out',type=Path,required=True)
+    p.add_argument('--bootstrap-samples',type=int,default=10000)
+    p.add_argument('--seed',type=int,default=0)
     a = p.parse_args()
     if a.out.exists():
         raise RuntimeError('refusing to overwrite fit evidence')
@@ -79,6 +138,9 @@ def main():
                   fit='nonnegative least squares; no intercept or regularization',
                   hardware_publication='pending A2 and functional gate',
                   fence_ns=dict(reason='not_calibrated'),cells=len(cells),rates={})
+    output['paired_statistics']=dict(bootstrap_samples=a.bootstrap_samples,seed=a.seed,
+        confidence=0.95,wilcoxon='two-sided exact sign randomization; zero differences dropped; averaged tied ranks')
+    decomposition(paired,a.out,a.bootstrap_samples,a.seed)
     with (a.out/'cross_validation.tsv').open('w') as stream:
         writer = csv.writer(stream,delimiter='\t',lineterminator='\n')
         writer.writerow(['term','model','variant','seq','past','observed_ns',
