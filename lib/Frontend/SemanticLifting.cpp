@@ -208,6 +208,12 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
                   space_of(gemm.a, {Ax("m", S), Ax("k", k)}),
                   {IndexResult::Dim("m"), IndexResult::Dim("k")})});
         op.reduction.splittable = true;
+#if TILEMEGA_COMPLETE_GEMM_READS
+        // External operands have no CG producer edge, but still belong to R.
+        op.operands.push_back(Read(producer_of(gemm.b),
+            space_of(gemm.b, {Ax("n", n), Ax("k", k)}),
+            {IndexResult::Dim("n"), IndexResult::Dim("k")}));
+#endif
         op.reduction.dim = "k";
         op.reduction.reduction_operator = "add";
         op.reduction.partial_tensor = name + ".partial";

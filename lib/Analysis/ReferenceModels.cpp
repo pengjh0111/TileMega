@@ -75,7 +75,7 @@ SemanticOp Op(std::string name, OperatorKind kind,
   return op;
 }
 
-/// out[m, n] = sum_k in[m, k] * weight[k, n]: two parallel dims and one
+/// out[m, n] = sum_k in[m, k] * weight[n, k]: two parallel dims and one
 /// reduction dim, declared splittable so §2.4's split-K is a granularity
 /// choice rather than a TaskBody feature.
 SemanticOp Matmul(std::string name, DecoderShape const& s, ClosedForm out_cols,
@@ -91,6 +91,11 @@ SemanticOp Matmul(std::string name, DecoderShape const& s, ClosedForm out_cols,
   TensorSpace result = Space(name, {Ax("m", s.S), Ax("n", out_cols)});
   std::vector<SemanticOperand> operands = {Read(
       std::move(input_producer), std::move(input), std::move(results))};
+#if TILEMEGA_COMPLETE_GEMM_READS
+  operands.push_back(Read("", Space(name + ".weight",
+      {Ax("n", out_cols), Ax("k", depth)}),
+      {IndexResult::Dim("n"), IndexResult::Dim("k")}));
+#endif
   SemanticOp op = Op(name, OperatorKind::kMatmul, std::move(domain),
                      std::move(result), std::move(operands));
   op.reduction.splittable = true;

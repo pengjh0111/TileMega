@@ -20,6 +20,12 @@ option(TILEMEGA_PHYSICAL_WAIT_DOMAIN
   "Count and persist couplings on physical producer domains" ON)
 option(TILEMEGA_SYMBOLIC_RUNTIME_PROJECTION "Build symbolic runtime queue counts" ON)
 option(TILEMEGA_EARLY_QP_BINDING "Specialize bound QP parameter tokens before parsing" ON)
+option(TILEMEGA_TASK_WORK "Derive physical and nominal work from access maps" ON)
+option(TILEMEGA_COMPLETE_GEMM_READS "Include external GEMM weights in semantic reads" ON)
+set_source_files_properties(lib/Analysis/TaskWork.cpp PROPERTIES
+  COMPILE_DEFINITIONS "TILEMEGA_TASK_WORK=$<BOOL:${TILEMEGA_TASK_WORK}>")
+set_source_files_properties(lib/Analysis/ReferenceModels.cpp lib/Frontend/SemanticLifting.cpp PROPERTIES
+  COMPILE_DEFINITIONS "TILEMEGA_COMPLETE_GEMM_READS=$<BOOL:${TILEMEGA_COMPLETE_GEMM_READS}>")
 set_source_files_properties(lib/Analysis/QuasiPolynomial.cpp PROPERTIES
   COMPILE_DEFINITIONS "TILEMEGA_EARLY_QP_BINDING=$<BOOL:${TILEMEGA_EARLY_QP_BINDING}>")
 set_source_files_properties(lib/Solver/RuntimeProjection.cpp PROPERTIES
@@ -125,6 +131,7 @@ add_library(tilemega STATIC
   lib/Solver/CostModel.cpp
   lib/Solver/ModelDescription.cpp
   lib/Solver/RuntimeProjection.cpp
+  lib/Analysis/TaskWork.cpp
   lib/Codegen/Codegen.cpp
   lib/Runtime/EventBuffer.cpp
   lib/Runtime/MegakernelRuntime.cpp)
@@ -233,6 +240,10 @@ set_target_properties(tilemega-affine-probe PROPERTIES
 
 add_executable(tilemega-parametric tools/tilemega-parametric.cpp)
 add_executable(tilemega-event-cost tools/tilemega-event-cost.cpp)
+add_executable(tilemega-task-work-probe tools/tilemega-task-work-probe.cpp)
+target_link_libraries(tilemega-task-work-probe PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-task-work-probe PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 add_executable(tilemega-runtime-projection tools/tilemega-runtime-projection.cpp)
 target_link_libraries(tilemega-runtime-projection PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-runtime-projection PROPERTIES
@@ -340,6 +351,9 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(runtime_projection_test test/unit/runtime_projection_test.cpp)
   target_link_libraries(runtime_projection_test PRIVATE TileMega::tilemega)
   add_test(NAME runtime_projection COMMAND runtime_projection_test)
+  add_test(NAME task_work_domains COMMAND tilemega-task-work-probe
+    "${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/gqa2.json"
+    "${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/mha4.json")
   target_link_libraries(isl_relation_test PRIVATE TileMega::tilemega)
   add_test(NAME isl_relation COMMAND isl_relation_test)
 

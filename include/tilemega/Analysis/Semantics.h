@@ -22,6 +22,10 @@
 #include <tilemega/Analysis/ClosedForm.h>
 #include <tilemega/Analysis/TensorSpace.h>
 
+#ifndef TILEMEGA_COMPLETE_GEMM_READS
+#define TILEMEGA_COMPLETE_GEMM_READS 1
+#endif
+
 namespace tilemega::analysis {
 
 enum class IteratorType { kParallel, kReduction };
