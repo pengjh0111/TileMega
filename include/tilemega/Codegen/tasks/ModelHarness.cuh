@@ -1868,12 +1868,16 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
               TILEMEGA_GEMM_VARIANT_COUNT, blocks_per_sm,
               target.res.num_sms, grid, l1_attributes.numRegs, l05_attributes.numRegs,
               l1_ctas, l2_ctas, TILEMEGA_MIN_BLOCKS_PER_SM, target.res.warp_size);
+  std::uint32_t max_worker_task_refs = 0;
+  for (std::size_t worker = 0; worker + 1 < model.schedule_offsets.size(); ++worker)
+    max_worker_task_refs = std::max(max_worker_task_refs,
+        model.schedule_offsets[worker + 1] - model.schedule_offsets[worker]);
   std::printf("E2E_SCHEDULE workers=%d variant_stages=%u task_refs=%zu "
               "task_ref_bytes=%zu waits=%zu wait_bytes=%zu raw_polls=%zu "
               "lifted_polls=%zu waiting_tasks=%zu normalization_dummies_lb=%zu "
               "max_span=%u generated_max_span=%u "
               "max_worker_span=%u resident_limit=%d global_fanin=%d "
-              "i3_current=pass i3_overresident=reject\n",
+              "i3_current=pass i3_overresident=reject max_worker_task_refs=%u\n",
               grid, runtime_variant.schedule_count, model.schedule.size(),
               model.schedule.size() * sizeof(TaskRef), model.task_waits.size(),
               model.task_waits.size() * sizeof(TaskWait),
@@ -1883,7 +1887,7 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
               model.normalization_dummy_lower_bound,
               model.schedule_max_span, runtime_variant.max_dependency_span,
               model.schedule_max_worker_span, grid,
-              model.schedule_has_global_fanin ? 1 : 0);
+              model.schedule_has_global_fanin ? 1 : 0, max_worker_task_refs);
   std::printf("E2E_TIME l05_ms=%.6f l1_ms=%.6f ratio=%.6f l2_ms=%.6f "
               "l2_over_l1=%.6f\n", l05_ms, l1_ms, l1_ms / l05_ms, l2_ms,
               l2_ms / l1_ms);
