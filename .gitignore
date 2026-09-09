@@ -67,3 +67,8 @@ docs/experiments/PLACE/raw/place_probe
 docs/experiments/L2_ATTRIB/raw_t1*/bin/
 docs/experiments/L2_ATTRIB/raw_t1*/src/
 docs/experiments/L2_ATTRIB/raw_t1*/log/
+docs/experiments/OCCUPANCY/raw*/bin/
+docs/experiments/OCCUPANCY/raw*/src/
+docs/experiments/BF16/raw_splitk*/bin/
+docs/experiments/BF16/raw_splitk*/src/
+!docs/experiments/PARAMETRIC/input_gate.log
