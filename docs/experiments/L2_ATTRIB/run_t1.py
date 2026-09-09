@@ -159,15 +159,19 @@ for phase in ('correctness', 'attrib', 'e2e', 'matrix'):
                          'l1_ms', 'l2_ms', 'l05_ms', *resource_columns,
                          'l05_spill_stores', 'l05_spill_loads', 'l1_spill_stores',
                          'l1_spill_loads', 'l2_spill_stores', 'l2_spill_loads',
-                         'f40_ctas', 'f40_binding'])
+                         'f40_ctas', 'f40_binding', 'execution_index'])
+        execution_index = 0
         for model in ('gqa2', 'mha4'):
             for seq in ([1, 4, 128, 512, 2048] if phase == 'matrix' else seqs):
                 for past in ([0, 3, 512] if phase == 'matrix' else [3]):
-                    combinations = [(v, arm) for v in variants
-                                    for arm in (arms if phase == 'attrib' else ['full'])]
+                    combinations = [(v, arm)
+                                    for arm in (arms if phase == 'attrib' else ['full'])
+                                    for v in variants]
                     for r in range(rounds):
                         order = combinations[r % len(combinations):] + combinations[:r % len(combinations)]
                         for variant, arm in order:
-                            writer.writerow(run(model, variant, arm, seq, past, r, phase))
+                            writer.writerow([*run(model, variant, arm, seq, past, r, phase),
+                                             execution_index])
+                            execution_index += 1
                             handle.flush()
                     print('DONE', phase, model, seq, past, rounds, flush=True)
