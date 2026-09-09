@@ -84,6 +84,7 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
     if (std::getenv("TILEMEGA_PROJECTION_TRACE") && std::string(label) != "worker_waits")
       std::fprintf(stderr,"RUNTIME_PROJECTION count=%s stage=%d\n",label,stage);
     auto count = image.ImageCard();
+    if (options.split_count_periods) count = count.SplitPeriods(options.grid);
     cardinalities.emplace(image.ToString(),count);
     return count;
   };
@@ -213,13 +214,26 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
     for (auto const& [key,pieces] : event_pieces) {
       auto map = relation(pieces).ApplyRange(analysis::CouplingRelation::FromIslText(
           "{ [w,pstage,kind,g] -> [w,g] }"));
-      wait_counts.push_back(cardinality(map,"waits",key.first));
+      auto count_workers = [&](analysis::CouplingRelation const& events, char const* label) {
+        if (!options.partition_worker_counts) return cardinality(events,label,key.first);
+        // Worker ids form a finite disjoint partition. This enumerates no theta
+        // values: each one-dimensional event image retains the full parameter
+        // domain, avoiding a costly joint (worker,event) barvinok decomposition.
+        std::vector<analysis::QuasiPolynomial> per_worker;
+        for (int worker=0;worker<options.grid;++worker) {
+          auto owned=events.IntersectRange("{ [w,g] : w="+std::to_string(worker)+" }")
+              .ApplyRange(analysis::CouplingRelation::FromIslText("{ [w,g] -> [g] }"));
+          per_worker.push_back(cardinality(owned,label,key.first));
+        }
+        return analysis::QuasiPolynomial::Sum(per_worker);
+      };
+      wait_counts.push_back(count_workers(map,"waits"));
       if (key.second == 1 && options.kappa == 1) {
         // With singleton events, locality is a property of (worker,event),
         // independent of the consumer. Subtract that subset after the union.
         auto local = map.IntersectRange("{ [w,g] : w = g % "+
             std::to_string(options.grid)+" }");
-        wait_counts.push_back(cardinality(local,"local_waits",key.first).Scale(-1));
+        wait_counts.push_back(count_workers(local,"local_waits").Scale(-1));
       }
     }
     result.runtime_wait_entries = analysis::QuasiPolynomial::Sum(wait_counts);

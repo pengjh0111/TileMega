@@ -29,8 +29,9 @@ int main() {
     plan.ownership_flags = tilemega::codegen::kCombinerTileOwnership |
                            tilemega::codegen::kActivationTileOwnership;
     plan.dependencies = {{0,1,{true,2,2,0,2}}};
-    for (bool cg_order : {false,true}) for (int kappa : {0,1,2}) {
-      auto projected = tilemega::solver::ProjectRuntimeQueues(model,plan,{2,2,kappa,false,cg_order});
+    for (bool periods : {false,true}) for (bool partition : {false,true})
+      for (bool cg_order : {false,true}) for (int kappa : {0,1,2}) {
+      auto projected = tilemega::solver::ProjectRuntimeQueues(model,plan,{2,2,kappa,false,cg_order,partition,periods});
       for (int s : {1,2,3,4,7,8,16}) {
         tilemega::analysis::ParamBinding theta; theta.Bind("S",s);
         int tiles_m = (s+1)/2;

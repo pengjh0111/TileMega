@@ -5,3 +5,4 @@
 /calibration_sm120/bin/
 /runtime_projection/unpartitioned_bin/
 /runtime_projection/sequential_sum_bin/
+/runtime_projection/period_bin/

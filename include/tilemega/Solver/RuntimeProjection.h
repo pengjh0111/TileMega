@@ -3,6 +3,13 @@
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Codegen/RuntimePlan.h>
 
+#ifndef TILEMEGA_PROJECTION_PARTITION_WORKERS
+#define TILEMEGA_PROJECTION_PARTITION_WORKERS 0
+#endif
+#ifndef TILEMEGA_PROJECTION_SPLIT_PERIODS
+#define TILEMEGA_PROJECTION_SPLIT_PERIODS 0
+#endif
+
 namespace tilemega::solver {
 
 struct RuntimeProjectionOptions {
@@ -11,6 +18,8 @@ struct RuntimeProjectionOptions {
   int kappa = 0;
   bool force_all_dependencies = false;
   bool cg_split_task_order = TILEMEGA_CG_SPLIT_TASK_ORDER;
+  bool partition_worker_counts = TILEMEGA_PROJECTION_PARTITION_WORKERS;
+  bool split_count_periods = TILEMEGA_PROJECTION_SPLIT_PERIODS;
 };
 
 struct ProjectedStage {

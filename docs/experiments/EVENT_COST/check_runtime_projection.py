@@ -22,16 +22,24 @@ def main():
     parser.add_argument('--models', nargs='+', default=['gqa2','mha4'])
     parser.add_argument('--splits', nargs='+', type=int, default=[1,2,4,8,16])
     parser.add_argument('--pasts', nargs='+', type=int, default=[0,3,512])
+    parser.add_argument('--order', type=int, choices=[0,1], default=1)
+    parser.add_argument('--partition-workers', type=int, choices=[0,1], default=0)
+    parser.add_argument('--split-periods', type=int, choices=[0,1], default=0)
+    parser.add_argument('--tool',type=Path)
+    parser.add_argument('--runs', type=int, default=1,
+                        help='number of completed fresh-process logs to compare per cell')
     parser.add_argument('--out', type=Path)
     parser.add_argument('--runtime-logs', type=Path,
                         help='independent one-process-per-cell captures; not a synchronization gate')
     args = parser.parse_args()
+    if args.runs < 1:
+        parser.error('--runs must be positive')
     here = Path(__file__).resolve().parent
     repo = here.parents[2]
     out = args.out or here/'runtime_projection/matrix'
     out.mkdir(parents=True, exist_ok=True)
-    tool = repo/'build-portable/tools/tilemega-runtime-projection'
-    manifest = dict(arguments={**vars(args),'out':str(out),'runtime_logs':str(args.runtime_logs)}, tool_sha256=hashlib.sha256(tool.read_bytes()).hexdigest(),
+    tool = args.tool or repo/'build-portable/tools/tilemega-runtime-projection'
+    manifest = dict(arguments={**vars(args),'out':str(out),'runtime_logs':str(args.runtime_logs),'tool':str(tool)}, tool_sha256=hashlib.sha256(tool.read_bytes()).hexdigest(),
                     commands=[], archive_comparisons=0, unverified_cells=[])
     (out/'status.txt').write_text('RUNNING CPU projection audit; no GPU launches\n')
     try:
@@ -56,11 +64,20 @@ def main():
                             raise RuntimeError('projection binary changed during the experiment')
                         command = [str(tool),str(repo/f'docs/experiments/SEQSCAN/raw/export/{model}.json'),
                                    resource['grid'],resource['block'],'1',request,
-                                   *[str(tile[k]) for k in ('tile_m','tile_n','tile_k','stages','split_k')],'tile']
+                                   *[str(tile[k]) for k in ('tile_m','tile_n','tile_k','stages','split_k')],
+                                   'tile',str(args.order),str(args.partition_workers),str(args.split_periods)]
                         start = time.monotonic()
-                        run = subprocess.run(command,capture_output=True,text=True,timeout=600,
-                                             env=dict(os.environ,TILEMEGA_ISL_AUDIT='1'))
                         tag = f'{model}_k{split}_p{request}'
+                        try:
+                            run = subprocess.run(command,capture_output=True,text=True,timeout=600,
+                                                 env=dict(os.environ,TILEMEGA_ISL_AUDIT='1'))
+                        except subprocess.TimeoutExpired as error:
+                            decode = lambda value: value.decode(errors='replace') if isinstance(value,bytes) else value or ''
+                            (out/f'{tag}.tsv').write_text(decode(error.stdout))
+                            (out/f'{tag}.log').write_text(decode(error.stderr))
+                            manifest['commands'].append(dict(command=command,seconds=time.monotonic()-start,
+                                                             result='TIMEOUT',returncode=None))
+                            raise
                         (out/f'{tag}.tsv').write_text(run.stdout)
                         (out/f'{tag}.log').write_text(run.stderr)
                         manifest['commands'].append(dict(command=command,seconds=time.monotonic()-start,
@@ -75,10 +92,12 @@ def main():
                             archives = []
                             if split == 1:
                                 archives.append(repo/f'docs/experiments/SEQSCAN/raw/log/{model}_s{seq}_p{past}.txt')
-                            elif seq == 128 and past == 3:
+                            elif args.order == 0 and seq == 128 and past == 3:
                                 archives += [source.parent/f'{model}_k{split}_fp321_r{r}.txt' for r in range(50)]
                             if args.runtime_logs:
-                                archives.append(args.runtime_logs/f'{model}_s{seq}_p{past}_k{split}.txt')
+                                for r in range(args.runs):
+                                    archives.append(args.runtime_logs/
+                                        f'{model}_k{split}_order{args.order}_s{seq}_p{past}_r{r}.txt')
                             seen = 0
                             for archive in archives:
                                 resources = records(archive,'E2E_RESOURCE')

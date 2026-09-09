@@ -9,15 +9,25 @@
 
 int main(int argc, char** argv) try {
   tilemega::analysis::IslContext isl_context;
-  if (argc != 12 && argc != 13)
+  if (argc < 12 || argc > 15)
     throw std::invalid_argument("usage: tilemega-runtime-projection EXPORT.json "
-        "GRID THREADS KAPPA {PAST|symbolic} TILE_M TILE_N TILE_K STAGES SPLIT {tile|element} [CG_ORDER=0|1]");
+        "GRID THREADS KAPPA {PAST|symbolic} TILE_M TILE_N TILE_K STAGES SPLIT {tile|element} [CG_ORDER=0|1] [PARTITION_WORKERS=0|1] [SPLIT_PERIODS=0|1]");
   tilemega::solver::RuntimeProjectionOptions options{
       std::stoi(argv[2]),std::stoi(argv[3]),std::stoi(argv[4])};
-  if (argc==13) {
+  if (argc>=13) {
     if (std::string(argv[12])!="0" && std::string(argv[12])!="1")
       throw std::invalid_argument("CG_ORDER must be 0 or 1");
     options.cg_split_task_order = std::string(argv[12])=="1";
+  }
+  if (argc>=14) {
+    if (std::string(argv[13])!="0" && std::string(argv[13])!="1")
+      throw std::invalid_argument("PARTITION_WORKERS must be 0 or 1");
+    options.partition_worker_counts = std::string(argv[13])=="1";
+  }
+  if (argc==15) {
+    if (std::string(argv[14])!="0" && std::string(argv[14])!="1")
+      throw std::invalid_argument("SPLIT_PERIODS must be 0 or 1");
+    options.split_count_periods = std::string(argv[14])=="1";
   }
   bool symbolic_past = std::string(argv[5]) == "symbolic";
   int past = symbolic_past ? 0 : std::stoi(argv[5]);
