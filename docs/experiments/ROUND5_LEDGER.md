@@ -33,8 +33,8 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 |---|---|---|---|---|
 | A0 | 原始失败 split8 同输入、同 golden 线程；CPU common-FP32 三比较及 k；≤1.003关闭，>1.2报告，其余不擅定 | 已验证 | 用户授权一次原二进制采集；hash/diff完全复现；56线程golden逐位复现；k=.9961308506568204，条件9归因关闭 | REALMODEL/condition9_noise/result.json、condition9_result.md；ab91cc8、b4a1e69 |
 | A1 | wait 求交 actual producer domain；所有fixture每边参数网格 Σwait=Σfanout；前后逐边表；无512下游修正 | 已验证 | 参考8图2505/2505、生产2模型1920/1920；OFF372格不等；ON26/26 CTest；物理C同步写回保持verifier | INCIDENCE/result.md及逐边表；148ed7e、a723d9a |
-| A2 | QP runtime_task_refs/runtime_wait_entries；split/ownership/attention映射；所有fixture/seq/split与runtime逐值对账；供B复用 | 修复验证中 | 聚焦OFF 0/50、ON 50/50；完整150格×50轮已7500/7500，独立日志/构建验证通过。最终device指令/资源10/10同冻结构建。完整CPU符号矩阵仍在运行；其余ownership/variants未关闭 | 修复77c942e；controls52d9f8e、5f0ce84；EVENT_COST/split_order_matrix/verification.json |
-| A3 | CG逐task count/read/write；从输出索引识别reduce/parallel轴；QP work；GEMM count/MainloopBytes位一致 | 进行中 | 用户批准双域；210生产GEMM检查通过；split局部跨度25格通过，另验证内层K padding不会改物理R。1077×2模型×2dtype work门运行中，不是A6价格门；生产CG消费未完成 | 1cb4b71、945e8e2；COST_MODEL/round5_work.md |
+| A2 | QP runtime_task_refs/runtime_wait_entries；split/ownership/attention映射；所有fixture/seq/split与runtime逐值对账；供B复用 | 修复验证中 | 聚焦OFF 0/50、ON 50/50；150格×50轮7500/7500，符号S/P投影与所有进程15000/15000计数相等。最终device指令/资源10/10同冻结构建；其余ownership/variants未关闭 | 修复77c942e；EVENT_COST/split_order_matrix/symbolic_verification.json |
+| A3 | CG逐task count/read/write；从输出索引识别reduce/parallel轴；QP work；GEMM count/MainloopBytes位一致 | 进行中 | 用户批准双域；1077×2模型×2dtype=4308组、1357020项GEMM work位检查全过；split/内层padding及60个RMSNorm读集检查通过。不是A6价格门；完整非GEMM R/W和生产CG消费仍缺 | 1cb4b71、945e8e2、b67e0a7、9e8456d；COST_MODEL/round5_work.md |
 | A4 | 单位置签名schema；GEMM/attention/RMS/RoPE/SiLU/mul/add/SwiGLU/KV/MoE/Softmax/LayerNorm/GeLU全部语义推导；缺项抛错；op-audit | 进行中 | 单表14签名schema零失败、4真实错误出口零残留；4个独立TaskBody缺失/占位明确拒绝执行定价。前端标识接入，A6消费未做 | 5c869fc；COST_MODEL/op_audit.txt、round5_work.md |
 | A5 | shared/threads/stages从TaskBody traits暴露，消除本地假设 | 进行中 | traits统一、union真实max、BF16线程取128；CUDA合约编译通过。10/10最终device SASS及资源与冻结矩阵相同；FP32两模型1077打印预测及排名字节相同（非A6位门）。完整统一消费仍待A6 | 7f18db8、598c440、c15b79c；TaskResources.h、round5_work.md |
 | A6 | 统一TaskCostNs；九lane/max/尾波原序不变；QP；旧路径开关；顶层task_sum/combine/barrier/event | 未开始 | 每GEMM stage×1077×2×两dtype位门；非GEMM逐条新旧比值解释；BF16/FP32排名且FP32不降 | COST_MODEL/result.md待更新 |
@@ -42,13 +42,13 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 | A7.2 | chunk_extent shared；同步TaskSmem/static_assert/kNonGemmTaskSmem/CtasPerSm；四chunk资源与F40 | 未开始 | 未验证 | 待填 |
 | A7.3 | 2模型×2seq×4chunk×50=800新进程BF16；chunk1哈希同基线；预测/实测排序；长上下文attention新旧占比 | 未开始 | 未运行 | COST_MODEL/result.md待更新 |
 | A8 | CG wait与volume定价Interface，实际使用两个tile；旧Carry开关；spread非零及per-op收益；若零解释并反事实轴 | 未开始 | 依赖A1，未验证 | COST_MODEL/result.md待更新 |
-| A9.1 | notify/poll各拟合stages/max_worker/total结构；≥12格25轮四臂；4090运行/5090脚本；LOO残差 | 正确性/采样运行中 | 12格BF16 fixture与8二进制已准备；最长队列/实测timing字段、结构NNLS/LOO脚本和sm120脚本已实现。7500矩阵结束后才启动GPU采样；结果未完成 | 169de41、e849759、133fab0；EVENT_COST/calibration_round5 |
-| A9.2 | coupling_metrics QP消费A2投影；L1保留；κ仅改wait；fence/fusion接口零且带缺失理由 | 未开始 | 未验证 | 待填 |
-| A9.3 | κ0/1 event差非零且符号正确；具体数值；B后补fusion/placement两门 | 未开始 | A阶段必过κ门；其余待B | 待填 |
+| A9.1 | notify/poll各拟合stages/max_worker/total结构；≥12格25轮四臂；4090运行/5090脚本；LOO残差 | 已验证 | 600/600正确性、1200四臂进程；12格LOO完成，poll误差最高95.06%。两个最长队列系数均为0，保留不凑系数。sm120只写脚本未运行 | EVENT_COST/round5_structured.md、calibration_round5_fit |
+| A9.2 | coupling_metrics QP消费A2投影；L1保留；κ仅改wait；fence/fusion接口零且带缺失理由 | 具体价格已验证 | exact variant输入/缺失rates拒绝；L1独立保留。L2候选级DP转移未实现且显式拒绝，不能当作A6或符号DP通过 | b08cd50；CostModel.cpp:475 |
+| A9.3 | κ0/1 event差非零且符号正确；具体数值；B后补fusion/placement两门 | A阶段已验证 | 两模型×6seq的κ0/1均非零且符号正确，κ1→2下降；36/36代入位相同，队列字段1200/1200；B两门尚未做 | EVENT_COST/calibration_round5_fit/functional_gate.json |
 | A10 | 残差不作为B入口门，报告而继续 | 已验证 | 已登记执行规则；不代表A9实现 | 本表 |
 | A11 | A1后SEMANTIC/P3/derive重跑；14边/44边440格逐条影响；OWNERSHIP与labeling来源只审计不乱重跑 | 已验证 | 6份derive/4份wiring/4份normalization codegen；440格仍4命名差；runtime poll与volume×count reach未受wait修正影响；补跑验证fanout/count/volume均未变 | INCIDENCE/history_audit；a723d9a |
 | A12.1 | 新isl路径scoped guard，实际错误分支零残留 | 进行中 | A1 ComputeMetrics及A2无效grid实走错误分支before0/after0；工具remaining0；未覆盖全部新增错误出口，不作全量关闭 | INCIDENCE及EVENT_COST/runtime_projection；ab8ab21 |
-| A12.2 | FP32-partial combine微基准实测速率替代解析extra；缺失reason | 未开始 | 未运行 | 待填 |
+| A12.2 | FP32-partial combine微基准实测速率替代解析extra；缺失reason | 局部停止：固定项未分辨 | 已实现并实际GPU运行，带宽斜率有值但小宽度减launch均−128ns，fixed_resolved=false；拒绝发布、不取旧率或ε，开关保持OFF。等待测量方法修复，不阻塞独立项 | 1d8f769、53eb3a7、619c932；COST_MODEL/partial_combine.md |
 | A12.3 | barvinok未跟踪检查；ignore或清理，保留用户内容 | 已验证 | 8个未跟踪autotools文件按精确路径移至可恢复临时目录，前后SHA256一致，未动gitlink/跟踪文件 | EVENT_COST/runtime_projection/autotools_cleanup.md |
 
 ## B：入口未通过，不提前实现
@@ -78,7 +78,7 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 - [ ] A-C2：算术签名缺项报错，无零/默认值。
 - [ ] A-C3：chunk同步union和occupancy。
 - [ ] A-C4：Interface实际使用两端tile。
-- [ ] A-C5：标定不是过原点四格单斜率。
+- [x] A-C5：十二格三特征结构拟合，零系数与大残差原样记录。
 - [x] A-C6：历史审计限推导侧；A11证据见INCIDENCE。
 - [ ] A-C7：work从第一版即QP。
 - [ ] B-C1：fanout重算定价。
@@ -96,7 +96,7 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 - [ ] A-D3/B-D6：EVENT_COST/result.md（A2/A9及B补齐功能门）。
 - [ ] A-D4：COST_MODEL/result.md（A3–A8全部门/表/排序/占比）。
 - [ ] A-D5：COST_MODEL/op_audit.txt零失败。
-- [ ] A-D6：EVENT_COST/run_sm120.sh。
+- [x] A-D6：EVENT_COST/run_sm120.sh（未运行）。
 - [ ] A-D7/B-D8：FINDINGS本轮条目，历史负结果保留。
 - [ ] A-D8：skeleton统一形式/签名层/条件4、7、9准确状态。
 - [ ] A-D9/B-D10：T0_T4_STATUS更新并链接本表逐项检查。
@@ -114,12 +114,13 @@ A0已按单独授权完成一次原二进制采集及CPU三比较。A1恒等式�
 通过、target-audit 5目标0失败，FP32输入2154与BF16输入1540位门通过（非A6门）。
 A2原runtime split坐标错误触发局部停止后，已实现CG顺序的独立开关修复；
 首条入边192/256个task漏等的反例仍保留。聚焦反例旧臂0/50、修复臂50/50，
-完整修复臂150格×50进程矩阵已7500/7500，独立日志/构建核验完成；符号对账仍待更新。
+完整修复臂150格×50进程矩阵7500/7500；完整S/P投影与全矩阵15000/15000计数相等。
 A3已得到物理/名义双域QP原型：seq4的4224 vs 8192 B/iter反例已报告，
 用户批准分别用于实际访存与旧collective定价，A6历史GEMM位一致门不变。
 生产访问关系补全与价格消费尚未完成。split局部跨度和内层K padding已有独立检查；
-全1077配置work门正在运行。A4声明/audit及A5资源traits已有分项提交与CPU验证，
-不等于A6通过。A9的12格fixture、8二进制及拟合脚本已准备，矩阵结束后已启动采样。
-最新全套29/29及policy通过（详见period报告的版本范围）；A6–A9、B均未完成，
-B尚未启动。后台GPU矩阵运行期间不做并发计时。
+全1077配置work门已两模型两dtype4308/4308组通过，不是A6价格门。A4声明/audit及A5资源traits已有分项提交与CPU验证，
+不等于A6通过。A9采样、结构拟合及κ功能门完成；L2候选级DP转移仍未实现。
+续跑只补齐已核验前缀之后的缺项，原中断记录未覆盖。
+最新全套29/29、policy、target-audit五目标0失败；A6/A7/A8与B未完成。
+B仍因A6未通过而不启动。A12.2独立局部停止：固定开销未分辨，未发布系数。
 停止门槛只停止当前项及依赖项；继续独立项，有明确修法可修复后重验并记录。

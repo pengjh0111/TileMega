@@ -1,16 +1,17 @@
-# Round 5 current status: A2 repair validation; A9 pricing still pending
+# Round 5 current status: A9 concrete event pricing verified; A6 still open
 
 Current recovery: split coordinate repair `77c942e` has a focused old/new
 **0/50 vs 50/50** fresh-process control. The full repaired sweep subsequently
 passed **7500/7500** fresh processes and independent log/build verification.
-The repaired symbolic-count matrix is still running; A2's other ownership
+The repaired symbolic-count matrix matches 15000/15000 process counters; A2's other ownership
 and variant gates remain open. See [the repair report](runtime_projection/result.md).
-A9 now has a twelve-cell steady-state runner, exact longest-worker counter,
-and structured-fit script. All fixtures and eight four-arm binaries are
-prepared. Its correctness/attribution run started **after** the 7500-process
-matrix ended; no concurrent GPU timing was used. Calibration results and
-functional event pricing remain pending. `run_sm120.sh` is manual-only and
-has not been executed.
+A9 completed 600/600 correctness processes and 1200 four-arm processes,
+then fitted stages / longest queue / total work. The κ price gate passes,
+with 1200/1200 runtime-counter comparisons and 36/36 substitution bit checks.
+The longest-queue coefficients are zero and LOO residuals remain large; both
+are preserved without tuning. [Full current report](round5_structured.md).
+`run_sm120.sh` is manual-only and has not been executed. A6 and L2 DP
+transitions are not complete; B has not started.
 
 The next paragraphs retain the initial stop and older controls as history.
 
@@ -26,8 +27,8 @@ This is not the closed BF16 criterion artifact. No subsequent GPU cell ran.
 
 Implementation, exact scope, raw evidence, code locations, detours and the
 user-approved kappa-direction interpretation are in
-[A2 report](runtime_projection/result.md). A2 is not accepted, A9 is not
-implemented, and B has not started. Counts matching an incorrect schedule
+[A2 report](runtime_projection/result.md). At that initial stop A2 was not
+accepted and A9 was not implemented. Counts matching an incorrect schedule
 are insufficient evidence of semantic correctness.
 
 # Historical T1 event pricing: rejected assumptions, not an acceptance report

@@ -2330,3 +2330,40 @@ Raw provenance and all100 independently audited logs are in
 EVENT_COST/split_order_repair and split_order_matrix. Ten final-header builds
 match the frozen device instructions and resource records10/10; this is
 build-equivalence evidence, not another50-process claim.
+
+## F-108 — Exact runtime work now changes the event price
+
+✅ Round5 A9 imports BF16 CG, attaches A2's single-authority runtime QPs to
+coupling_metrics, and CostModel consumes them with structured measured rates
+(`CostModel.cpp:475`). Twelve cells give600/600 correctness processes and
+1200 four-arm processes, warmup5/repeat11,25 paired rounds. κ0→1 event price
+atseq128 rises6176.488129ns(gqa2) /12552.353211ns(mha4), matching the actual
+wait-count increase. κ0 is aggregate, not positive coarsening's first point;
+the user approved this semantic correction. κ1→2 decreases waits and price.
+36/36 substitution prices are bit-identical; runtime fields1200/1200 match.
+This is functional consumption, not carrier-only acceptance.
+
+The longest-worker feature is present but both NNLS coefficients are0.
+Poll leave-one-cell-out error still reaches95.06%; no positive epsilon or
+hidden rescaling was applied. fence remainsnot_calibrated. L1 is preserved,
+L2 DP transitions explicitly reject until implemented, and A6/B remain open.
+EVENT_COST/round5_structured.md preserves values, uncertainty and limitations.
+
+## F-109 — Repaired queue counts close the full sampled process matrix
+
+✅ Ten exact symbolic S/P queries cover two models×five splits; their150
+cells match15000/15000 counters from all7500 repaired GPU processes.
+Interruption after query8 was recovered by adding only the two missing CPU
+queries; neither raw batch was overwritten. The frozen tool, manifests,
+zero-reference logs and independent process audit are underEVENT_COST.
+This closes this sampled tile-ownership matrix, not every variant/domain.
+
+## F-110 — Typed partial bandwidth resolves, fixed cost does not
+
+✅ A12.2's float-partial/BF16-output width/peer microbenchmark ran after A9,
+with no concurrent GPU timing. Small-width launch-subtracted measurements
+were all−128ns; the existing fixed-cost resolution test failed. The new
+profile was correctly rejected asnot_calibrated instead of silently using
+the old BF16 coefficient or clamped zero. Positive L2/DRAM peer slopes are
+diagnostic only; COST_MODEL/partial_combine.md records them and the raw log.
+This locally stops A12.2 pending a resolvable measurement method, not A3/A6/A9.
