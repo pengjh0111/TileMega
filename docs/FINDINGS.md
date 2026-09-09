@@ -2221,3 +2221,34 @@ cause is unresolved; a data-domain-aware pre-cost feasibility design,
 not an implemented legality proof, is in `REALMODEL/condition9_result.md`.
 Code: `docs/experiments/REALMODEL/run_condition9.py:17`;
 evidence: `condition9/k8_r0.txt` and `correctness.tsv` in that directory.
+
+## F-102 — Round5 A0 closes condition9 as a criterion artifact
+
+✅ The original failed wide split8 has k_L2=.9961308506568204 against common
+FP32, inside the user-specified attribution interval. CPU threads56 reproduce
+all original BF16 golden tensors bitwise. The missing tensor dump required
+one original-binary GPU capture, explicitly approved by the user; its hash
+and diff exactly match the old failed process. Tolerance was not changed.
+Per the new task, conditions7/9 are closed as attributed criterion artifacts
+and T2.d is cancelled, not implemented. This supersedes F-101's pending
+feasibility proposal without rewriting the historical failure as PASS.
+Code/data: `REALMODEL/condition9_noise.py:16`, `condition9_noise/result.json`.
+
+## F-103 — Physical wait correction also requires physical C in verified CG
+
+✅ A1's initial wait-only patch was rejected by CG verification: the stored
+nominal relation still counted nonexistent producer tasks. Derivation now
+persists and counts the same physically bounded relation. The verifier was
+not weakened. BF16 production gates are1920/1920, versus372 unequal sums
+in the explicit old-path control; first gqa2 seq4 edge changes512→16.
+Eight reference graphs pass2505/2505; all26CTest pass. Real ComputeMetrics
+error-exit audit reports before0/after0, and both gate tools end remaining0.
+
+Boundary waits become genuinely piecewise; tests retain original full-tile
+numeric anchors and add short-seq checks. Redundant printed inequalities
+are checked by mutual containment, not updated output snapshots. A11's
+44-edge/440-cell wiring comparison still has4 naming differences. The
+OWNERSHIP poll statistic is runtime-side; labeling uses unchanged volume
+and count. No old solver rank or GPU timing is said to be contaminated by
+the previously unconsumed wait metric. Evidence: `INCIDENCE/result.md`;
+code: `lib/Analysis/CouplingDerivation.cpp:546`, `test/unit/incidence_test.cpp:14`.
