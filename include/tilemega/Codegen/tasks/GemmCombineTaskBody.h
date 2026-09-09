@@ -4,6 +4,7 @@
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/GemmStageTaskBody.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 
 namespace tilemega::codegen {
 
@@ -14,9 +15,11 @@ namespace tilemega::codegen {
 /// unsplit GEMM: a different association of the same sum).
 template <class Arch, class SmemUnion, int Threads>
 struct GemmCombineTaskBody {
-  using SharedStorage = float[1];
+  using ResourceTraits = SimtTaskResources<TaskKind::kGemmCombine,Threads>;
+  using SharedStorage = typename ResourceTraits::SharedStorage;
   static constexpr int kSmemBytes = sizeof(SharedStorage);
   static constexpr int kNumThreads = Threads;
+  static constexpr int kStages = ResourceTraits::kStages;
   static constexpr bool kLegal = true;
 
   __device__ static ModelElement Finish(float sum, Params const& p,

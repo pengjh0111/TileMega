@@ -3,6 +3,7 @@
 #pragma once
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 
 namespace tilemega::codegen {
 
@@ -11,9 +12,11 @@ namespace tilemega::codegen {
 /// sub-window the derived coupling guards on.
 template <class Arch, class SmemUnion, int Threads>
 struct KVAppendTaskBody {
-  using SharedStorage = float[1];
+  using ResourceTraits = SimtTaskResources<TaskKind::kKVAppend,Threads>;
+  using SharedStorage = typename ResourceTraits::SharedStorage;
   static constexpr int kSmemBytes = sizeof(SharedStorage);
   static constexpr int kNumThreads = Threads;
+  static constexpr int kStages = ResourceTraits::kStages;
   static constexpr bool kLegal = true;
 
   /// Two grid-stride loops (append, retain) over the same buffer; the CTA

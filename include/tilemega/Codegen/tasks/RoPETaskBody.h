@@ -3,6 +3,7 @@
 #pragma once
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 
 namespace tilemega::codegen {
 
@@ -17,9 +18,11 @@ __device__ inline float RoPEPosition(int past, int token) {
 /// tensor (a per-token count, so the token axis stays symbolic).
 template <class Arch, class SmemUnion, int Threads>
 struct RoPETaskBody {
-  using SharedStorage = float[1];
+  using ResourceTraits = SimtTaskResources<TaskKind::kRoPE,Threads>;
+  using SharedStorage = typename ResourceTraits::SharedStorage;
   static constexpr int kSmemBytes = sizeof(SharedStorage);
   static constexpr int kNumThreads = Threads;
+  static constexpr int kStages = ResourceTraits::kStages;
   static constexpr bool kLegal = true;
 
   /// Grid-stride over (token, head, half-dim) pairs -- an element chunk, not

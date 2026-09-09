@@ -3,15 +3,18 @@
 #pragma once
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 
 namespace tilemega::codegen {
 
 /// operand = {input, weight, output}.  One CTA per token row.
 template <class Arch, class SmemUnion, int Threads>
 struct RMSNormTaskBody {
-  using SharedStorage = float[Threads];
+  using ResourceTraits = SimtTaskResources<TaskKind::kRMSNorm,Threads>;
+  using SharedStorage = typename ResourceTraits::SharedStorage;
   static constexpr int kSmemBytes = sizeof(SharedStorage);
   static constexpr int kNumThreads = Threads;
+  static constexpr int kStages = ResourceTraits::kStages;
   static constexpr bool kLegal = true;
 
   /// One token per CTA: `blockIdx.x` is the task index (§2.7's `m`).

@@ -3,20 +3,19 @@
 #pragma once
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 
 namespace tilemega::codegen {
-
-#ifndef TILEMEGA_ATTENTION_MAX_TOTAL
-#define TILEMEGA_ATTENTION_MAX_TOTAL 4096
-#endif
 
 /// operand = {q_rot, full_k, full_v, context}.  One CTA per (token, head);
 /// the chunk loop and the combine are fused in this body.
 template <class Arch, class SmemUnion, int Threads>
 struct AttentionTaskBody {
-  using SharedStorage = float[TILEMEGA_ATTENTION_MAX_TOTAL];
+  using ResourceTraits = SimtTaskResources<TaskKind::kAttention,Threads>;
+  using SharedStorage = typename ResourceTraits::SharedStorage;
   static constexpr int kSmemBytes = sizeof(SharedStorage);
   static constexpr int kNumThreads = Threads;
+  static constexpr int kStages = ResourceTraits::kStages;
   static constexpr bool kLegal = true;
 
   /// One (token, head) query per CTA: `blockIdx.x` is the task index.

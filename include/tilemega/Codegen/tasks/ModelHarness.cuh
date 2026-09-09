@@ -82,13 +82,13 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 
 /// §8.6: one explicit union covering every family the dispatch can reach.
 union TaskSmem {
-  float rms[kHarnessThreads];
-  float attention[TILEMEGA_ATTENTION_MAX_TOTAL];
-  float pointwise[1];
+  SimtTaskResources<TaskKind::kRMSNorm,kHarnessThreads>::SharedStorage rms;
+  SimtTaskResources<TaskKind::kAttention,kHarnessThreads>::SharedStorage attention;
+  SimtTaskResources<TaskKind::kElementwise,kHarnessThreads>::SharedStorage pointwise;
   GemmVariantSmem gemm;
 };
 inline constexpr std::size_t kNonGemmTaskSmem =
-    sizeof(float) * TILEMEGA_ATTENTION_MAX_TOTAL;
+    std::max({sizeof(TaskSmem::rms), sizeof(TaskSmem::attention), sizeof(TaskSmem::pointwise)});
 inline constexpr std::size_t kExpectedTaskSmem =
     sizeof(GemmVariantSmem) > kNonGemmTaskSmem ? sizeof(GemmVariantSmem)
                                                : kNonGemmTaskSmem;

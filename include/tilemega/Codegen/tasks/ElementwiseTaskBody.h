@@ -3,15 +3,18 @@
 #pragma once
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 
 namespace tilemega::codegen {
 
 /// operand = {gate, up, out}; `extent` is the per-token width.
 template <class Arch, class SmemUnion, int Threads>
 struct ElementwiseTaskBody {
-  using SharedStorage = float[1];
+  using ResourceTraits = SimtTaskResources<TaskKind::kElementwise,Threads>;
+  using SharedStorage = typename ResourceTraits::SharedStorage;
   static constexpr int kSmemBytes = sizeof(SharedStorage);
   static constexpr int kNumThreads = Threads;
+  static constexpr int kStages = ResourceTraits::kStages;
   static constexpr bool kLegal = true;
 
   /// Grid-stride over a flat element range: CTA `b` owns elements
