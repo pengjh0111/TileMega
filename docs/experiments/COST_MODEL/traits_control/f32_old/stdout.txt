@@ -1,0 +1,58 @@
+fit: lds=0.864813 ns/instr (rel rms 5.46011%), setup=-132.126 ns (rms 210.222 ns), over 12 calibrated (shape, CTAs/SM) points
+gqa2: 1077 measured points, 14 GEMMs, 30 generated stages, footprint 18.4551 MiB, L2 hit 1 occupancy_feature_mismatches=2
+BOTTLENECK dtype=f32 model=gqa2 lane=tc count=0 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=cuda count=30 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=sfu count=0 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=tmem count=0 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=smem count=1047 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=l1_5 count=0 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=l2 count=0 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=ddr count=0 total=1077
+BOTTLENECK dtype=f32 model=gqa2 lane=net count=0 total=1077
+gqa2	roofline	1077	179.20	0.4459	0	0	2	29
+gqa2	+splitk	1077	39.41	0.8987	1	2	7	51
+gqa2	+sync	1077	30.29	0.9009	1	2	9	39
+gqa2	+waves	1077	33.79	0.9432	1	3	6	23
+gqa2	+cache	1077	33.79	0.9432	1	3	6	23
+gqa2	+nongemm(full)	1077	31.48	0.9432	1	3	6	23
+gqa2	full+envelope	1077	30.04	0.9424	1	3	7	54
+gqa2	full-lanes(smem only)	1077	31.50	0.9424	1	3	6	23
+gqa2	full-minus-tc	1077	31.48	0.9432	1	3	6	23
+gqa2	full-minus-cuda	1077	31.50	0.9424	1	3	6	23
+gqa2	full-minus-sfu	1077	31.48	0.9432	1	3	6	23
+gqa2	full-minus-tmem	1077	31.48	0.9432	1	3	6	23
+gqa2	full-minus-smem	1077	62.76	0.8920	1	2	6	11
+gqa2	full-minus-l1_5	1077	31.48	0.9432	1	3	6	23
+gqa2	full-minus-l2	1077	31.48	0.9432	1	3	6	23
+gqa2	full-minus-ddr	1077	31.48	0.9432	1	3	6	23
+gqa2	full-minus-net	1077	31.48	0.9432	1	3	6	23
+gqa2	tier2-baseline	1077	0.00	0.4608	0	0	0	95
+mha4: 1077 measured points, 28 GEMMs, 60 generated stages, footprint 41.0234 MiB, L2 hit 1.0000 occupancy_feature_mismatches=2
+BOTTLENECK dtype=f32 model=mha4 lane=tc count=0 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=cuda count=30 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=sfu count=0 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=tmem count=0 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=smem count=1047 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=l1_5 count=0 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=l2 count=0 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=ddr count=0 total=1077
+BOTTLENECK dtype=f32 model=mha4 lane=net count=0 total=1077
+mha4	roofline	1077	182.83	0.4328	0	0	1	250
+mha4	+splitk	1077	38.99	0.8960	1	2	4	24
+mha4	+sync	1077	30.02	0.8986	1	2	5	18
+mha4	+waves	1077	32.76	0.9421	1	3	6	14
+mha4	+cache	1077	32.76	0.9421	1	3	6	14
+mha4	+nongemm(full)	1077	30.43	0.9421	1	3	6	14
+mha4	full+envelope	1077	29.05	0.9399	1	3	7	16
+mha4	full-lanes(smem only)	1077	30.44	0.9413	1	3	6	14
+mha4	full-minus-tc	1077	30.43	0.9421	1	3	6	14
+mha4	full-minus-cuda	1077	30.44	0.9413	1	3	6	14
+mha4	full-minus-sfu	1077	30.43	0.9421	1	3	6	14
+mha4	full-minus-tmem	1077	30.43	0.9421	1	3	6	14
+mha4	full-minus-smem	1077	62.21	0.8886	1	2	5	66
+mha4	full-minus-l1_5	1077	30.43	0.9421	1	3	6	14
+mha4	full-minus-l2	1077	30.43	0.9421	1	3	6	14
+mha4	full-minus-ddr	1077	30.43	0.9421	1	3	6	14
+mha4	full-minus-net	1077	30.43	0.9421	1	3	6	14
+mha4	tier2-baseline	1077	0.00	0.4462	0	0	0	191
+worst per-configuration evaluation: 7.5774 us

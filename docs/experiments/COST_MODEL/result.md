@@ -1,5 +1,11 @@
 # P4.4 — analytical cost model, validated on the 2154 measured points
 
+Round 5 status: [A3 dual-domain reasoning, A4 declarations and A5 controls](round5_work.md).
+The 4224/8192 B tail counterexample is retained; the user approved separate
+physical and nominal work domains. Current count/nominal checks are 210/210,
+not A6's all-configuration per-stage bit gate. A6 remains unimplemented.
+All historical ranking tables below remain historical, not new acceptance.
+
 ## T2.1 gate — 2026-09-08, source baseline c4f4123
 
 ✅ **The requested pre-change diagnostic falsifies the hypothesis that BF16

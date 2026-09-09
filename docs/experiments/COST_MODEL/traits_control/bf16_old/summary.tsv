@@ -1,0 +1,37 @@
+model	layer	n	mape_pct	spearman	top1	top3	top10	optimum_rank
+gqa2	roofline	770	27.90	0.8428	0	1	5	5
+gqa2	+splitk	770	61.64	0.8893	1	2	5	9
+gqa2	+sync	770	40.79	0.8665	0	0	0	34
+gqa2	+waves	770	53.12	0.9049	0	0	0	47
+gqa2	+cache	770	53.12	0.9049	0	0	0	47
+gqa2	+nongemm(full)	770	50.63	0.9049	0	0	0	47
+gqa2	full+envelope	770	46.23	0.9265	0	0	0	55
+gqa2	full-lanes(smem only)	770	61.52	0.7112	0	0	0	162
+gqa2	full-minus-tc	770	52.61	0.9016	0	0	0	47
+gqa2	full-minus-cuda	770	50.63	0.9049	0	0	0	47
+gqa2	full-minus-sfu	770	50.63	0.9049	0	0	0	47
+gqa2	full-minus-tmem	770	50.63	0.9049	0	0	0	47
+gqa2	full-minus-smem	770	50.63	0.9049	0	0	0	47
+gqa2	full-minus-l1_5	770	50.63	0.9049	0	0	0	47
+gqa2	full-minus-l2	770	52.91	0.8909	0	0	0	63
+gqa2	full-minus-ddr	770	50.63	0.9049	0	0	0	47
+gqa2	full-minus-net	770	50.63	0.9049	0	0	0	47
+gqa2	tier2-baseline	770	0.00	0.8778	0	1	3	25
+mha4	roofline	462	26.63	0.8503	0	1	4	5
+mha4	+splitk	462	57.26	0.8793	1	3	7	2
+mha4	+sync	462	37.19	0.8665	0	0	0	18
+mha4	+waves	462	51.34	0.8929	0	0	0	43
+mha4	+cache	462	51.34	0.8929	0	0	0	43
+mha4	+nongemm(full)	462	48.78	0.8929	0	0	0	43
+mha4	full+envelope	462	44.51	0.9155	0	0	0	39
+mha4	full-lanes(smem only)	462	61.92	0.6488	0	0	0	136
+mha4	full-minus-tc	462	51.25	0.8889	0	0	0	43
+mha4	full-minus-cuda	462	48.78	0.8929	0	0	0	43
+mha4	full-minus-sfu	462	48.78	0.8929	0	0	0	43
+mha4	full-minus-tmem	462	48.78	0.8929	0	0	0	43
+mha4	full-minus-smem	462	48.78	0.8929	0	0	0	43
+mha4	full-minus-l1_5	462	48.78	0.8929	0	0	0	43
+mha4	full-minus-l2	462	51.46	0.8705	0	0	0	58
+mha4	full-minus-ddr	462	48.78	0.8929	0	0	0	43
+mha4	full-minus-net	462	48.78	0.8929	0	0	0	43
+mha4	tier2-baseline	462	0.00	0.8738	0	0	2	19
