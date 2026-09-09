@@ -7,6 +7,7 @@
 // target's numbers -- run this on that hardware, or leave the file
 // uncalibrated.
 #include <tilemega/Target/Calibration.h>
+#include <tilemega/Target/ArchDispatch.h>
 #include <tilemega/Target/TargetSpec.h>
 
 #include <exception>
@@ -21,11 +22,13 @@ int main(int argc, char** argv) {
   std::string base;
   std::string dtype = "f32";
   bool quiet = false;
+  bool partial_combine_only = false;
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
     if (arg == "--device" && i + 1 < argc) options.device = std::stoi(argv[++i]);
     else if (arg == "--repeats" && i + 1 < argc) options.repeats = std::stoi(argv[++i]);
     else if (arg == "--skip-streamk") options.skip_streamk = true;
+    else if (arg == "--fp32-partial-combine-only") partial_combine_only = true;
     else if (arg == "--dtype" && i + 1 < argc) dtype = argv[++i];
     else if (arg == "--base" && i + 1 < argc) base = argv[++i];
     else if (arg == "--quiet") quiet = true;
@@ -35,6 +38,7 @@ int main(int argc, char** argv) {
           "usage: tilemega-calibrate [--device N] [--repeats N]\n"
           "                          [--dtype f32|bf16] [--base FILE]\n"
           "                          [--skip-streamk] [--quiet] [--out FILE]\n"
+          "                          [--fp32-partial-combine-only]\n"
           "\n"
           "Measures the §4.4 cost-model constants on the GPU at --device and\n"
           "writes the target JSON to --out (stdout when omitted).\n"
@@ -54,6 +58,10 @@ int main(int argc, char** argv) {
     return 2;
   }
   options.bf16 = dtype == "bf16";
+  if (partial_combine_only && (base.empty() || options.skip_streamk)) {
+    std::cerr << "--fp32-partial-combine-only requires --base and excludes --skip-streamk\n";
+    return 2;
+  }
 
   try {
     auto const probed = tilemega::TargetSpec::Probe(options.device);
@@ -66,7 +74,13 @@ int main(int argc, char** argv) {
     std::ostream& log =
         quiet ? static_cast<std::ostream&>(discard) : std::cerr;
     log << target.Summary() << '\n';
-    if (options.bf16) {
+    if (partial_combine_only) {
+      if (!target.CalibrationFor(dtype).calibrated || target.res.num_sms!=probed.res.num_sms)
+        throw std::runtime_error("partial-only calibration requires the matching calibrated device profile");
+      if (options.bf16 && !tilemega::arch::RuntimeCapsForTag(target.arch_tag).bf16_tensor_core)
+        throw std::runtime_error("BF16 partial combine: capability_absent");
+      tilemega::calib::MeasureFP32PartialCombine(target,options,log);
+    } else if (options.bf16) {
       auto fp32 = std::move(target.calib);
       target.calib = {};
       tilemega::calib::Run(target, options, log);

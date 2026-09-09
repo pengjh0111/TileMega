@@ -62,6 +62,9 @@ void MeasurePipelines(TargetSpec& spec, Options const& options, std::ostream& lo
 void MeasureSync(TargetSpec& spec, Options const& options, std::ostream& log);
 void MeasureInterference(TargetSpec& spec, Options const& options, std::ostream& log);
 void MeasureStreamK(TargetSpec& spec, Options const& options, std::ostream& log);
+/// Measure only float-partial -> selected-output reduction; keep existing
+/// GEMM/pipeline fits intact. A12's rate is not extrapolated from BF16 reads.
+void MeasureFP32PartialCombine(TargetSpec& spec, Options const& options, std::ostream& log);
 
 /// Run every group, stamp provenance, and set `calibrated`.
 void Run(TargetSpec& spec, Options const& options, std::ostream& log);

@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <ctime>
 #include <ostream>
 #include <stdexcept>
 #include <string>
@@ -155,9 +156,9 @@ __global__ __launch_bounds__(Candidate::kThreads, 1) void CalibGemmKernel(
 
 /// The reduction half of §2.4's Split, byte for byte the GemmCombineTaskBody
 /// loop the harness runs.
-template <class Element>
-__global__ __launch_bounds__(256) void CalibCombineKernel(
-    Element const* partials, Element* out, int count, int chunks) {
+template <class Element, class Partial=Element, int Threads=256>
+__global__ __launch_bounds__(Threads) void CalibCombineKernel(
+    Partial const* partials, Element* out, int count, int chunks) {
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < count;
        i += gridDim.x * blockDim.x) {
     float sum = 0.0f;
@@ -373,16 +374,17 @@ void BuildTable(Buffers const& buffers, int n, int k, int chunks,
 /// models reduce 4 x N outputs with N <= 4096 over at most 16 chunks, so at
 /// most 1 MB: the L2 regime.  d is fitted there, and the DRAM-regime value is
 /// recorded beside it so the two are never silently averaged.
-template <class Element>
+template <class Element, class Partial=Element, int Threads=256>
 CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
                           std::ostream& log) {
   CombineFit fit;
   constexpr int kWidest = 1048576;   ///< 128 MB of partials: past the L2 knee
   constexpr int kL2Widest = 262144;  ///< 32 MB: still inside the 72 MB L2
   constexpr int kBaseWidest = 4194304;  ///< 32 MB at two elements per output
-  Element *partials = nullptr, *out = nullptr;
+  Partial* partials = nullptr;
+  Element* out = nullptr;
   CheckCuda(cudaMalloc(&partials, static_cast<std::size_t>(kWidest) *
-                                      kMaxChunks * sizeof(Element)),
+                                      kMaxChunks * sizeof(Partial)),
             "cudaMalloc(combine partials)");
   CheckCuda(cudaMalloc(&out, kBaseWidest * sizeof(Element)),
             "cudaMalloc(combine D)");
@@ -409,12 +411,12 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
   // BF16 Stream-K shapes at a negative `a` (F-70).
   double const launch_ns =
       TimeMs(options.repeats,
-             [&] { CalibCombineKernel<Element><<<blocks, 256>>>(partials, out, 0, 1); })
+             [&] { CalibCombineKernel<Element,Partial,Threads><<<blocks, Threads>>>(partials, out, 0, 1); })
           .median_ms * 1e6;
 
   auto sweep_single = [&](int count) {
     Timed timed = TimeMs(options.repeats, [&] {
-      CalibCombineKernel<Element><<<blocks, 256>>>(partials, out, count, 1);
+      CalibCombineKernel<Element,Partial,Threads><<<blocks, Threads>>>(partials, out, count, 1);
     });
     fit.worst_rsd = std::max(fit.worst_rsd, timed.rel_stddev);
     double ns = timed.median_ms * 1e6 - launch_ns;
@@ -427,7 +429,7 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
     std::vector<double> peers, combine_ns;
     for (int chunks : {2, 4, 8, 16, 32}) {
       Timed timed = TimeMs(options.repeats, [&] {
-        CalibCombineKernel<Element><<<blocks, 256>>>(partials, out, count,
+        CalibCombineKernel<Element,Partial,Threads><<<blocks, Threads>>>(partials, out, count,
                                                      chunks);
       });
       fit.worst_rsd = std::max(fit.worst_rsd, timed.rel_stddev);
@@ -778,6 +780,47 @@ bool FitShape(TargetSpec& spec, Options const& options, Buffers const& buffers,
 }
 
 }  // namespace
+
+void MeasureFP32PartialCombine(TargetSpec& spec, Options const& options,
+                              std::ostream& log) {
+  if (options.repeats<=0) throw std::invalid_argument("combine repeats must be positive");
+  CheckCuda(cudaSetDevice(options.device),"cudaSetDevice");
+  // Reuse the historical sweep and fitting method while keeping its old
+  // coefficients intact. Only the actual partial type and body thread trait
+  // change; the new profile never silently falls back to a BF16 read rate.
+  auto scratch=spec;
+  scratch.calib=spec.CalibrationFor(options.bf16 ? "bf16" : "f32");
+  scratch.calib.measurements.clear();
+  CombineFit fit=options.bf16
+      ? MeasureCombine<cutlass::bfloat16_t,float,solver::kTensorBF16Threads>(scratch,options,log)
+      : MeasureCombine<float,float,solver::kSimtF32Threads>(scratch,options,log);
+  auto& profile=spec.CalibrationFor(options.bf16 ? "bf16" : "f32");
+  auto& combined=profile.fp32_partial_combine;
+  combined={};
+  for (auto measurement:scratch.calib.measurements) {
+    measurement.name="fp32_partial_"+measurement.name;
+    measurement.method="float partial reads -> "+std::string(options.bf16 ? "BF16" : "FP32")+
+        " output; threads="+std::to_string(options.bf16 ? solver::kTensorBF16Threads : solver::kSimtF32Threads)+
+        "; "+measurement.method;
+    profile.measurements.push_back(std::move(measurement));
+  }
+  if (!fit.valid || !fit.fixed_resolved || fit.base_ns_per_elem<0 ||
+      fit.d_ns_per_peer_elem<=0 || fit.dram_d_ns_per_peer_elem<=0)
+    throw std::runtime_error("FP32 partial combine: not_calibrated; unresolved measured fit (see log)");
+  combined.fixed_ns=fit.fixed_ns;
+  combined.base_ns=fit.base_ns_per_elem;
+  combined.d_l2_ns=fit.d_ns_per_peer_elem;
+  combined.d_dram_ns=fit.dram_d_ns_per_peer_elem;
+  combined.reason="measured";
+  combined.method="float partial reads; output="+std::string(options.bf16 ? "bf16" : "f32")+
+      "; historical width/peer sweep with selected TaskBody thread trait; no BF16 bandwidth extrapolation";
+  std::time_t now=std::time(nullptr);
+  char stamp[32];
+  std::strftime(stamp,sizeof(stamp),"%Y-%m-%dT%H:%M:%SZ",std::gmtime(&now));
+  cudaDeviceProp properties{};
+  CheckCuda(cudaGetDeviceProperties(&properties,options.device),"cudaGetDeviceProperties");
+  combined.method+="; measured_at="+std::string(stamp)+"; device="+properties.name;
+}
 
 std::vector<TargetSpec::StreamKPoint> StreamKShapes(bool bf16) {
   auto shape = [](int m, int n, int k, int stages) {
