@@ -1,0 +1,11 @@
+{
+  "binary_sha256": "b411a025384a76cec7f4db4de47a54b5f00c955f8edd08227fd8eb63e146d359",
+  "returncode": 1,
+  "command": [
+    "/root/TileMega/docs/experiments/REALMODEL/raw/work/condition9/k8",
+    "/root/TileMega/docs/experiments/REALMODEL/raw/work/condition9/export/fixture"
+  ],
+  "warmup": 5,
+  "repeat": 11,
+  "authorization": "user approved one original-binary output capture"
+}

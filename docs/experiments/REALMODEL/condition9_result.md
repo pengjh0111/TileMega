@@ -1,5 +1,45 @@
 # T4.4: original 4×4096 scene still fails with FP32 partials
 
+## Round 5 A0: attributed criterion artifact; condition 9 closed
+
+✅ On the **same failed split8** fixture, common-FP32 final-hidden errors are:
+
+| Comparison | L2 error | Relative L2 | max_abs |
+|---|---:|---:|---:|
+| PyTorch BF16 vs common FP32 | .7320349608319298 | .005039898151213335 | .05296945571899414 |
+| TileMega BF16 vs common FP32 | .7292026082440424 | .005020398032591876 | .05296945571899414 |
+| TileMega BF16 vs PyTorch BF16 | .6681653716095042 | .004600364477172711 | .046875 |
+
+`k_L2=.9961308506568204`, inside the user-specified [0.989,1.003] interval.
+**Under the Round5 A0 decision rule, condition9 is a criterion artifact and
+is closed; T2.d numerical-feasibility work is cancelled.** This supersedes
+the pending conclusion below, not its historical failure data. The original
+elementwise criterion and tolerance remain unchanged and still report one
+mismatch. This attribution is not a new 50-process numerical PASS claim.
+
+Method: `condition9_noise.py:16` reuses `run_depth.py:29` noise_metrics and
+the same eager-model FP32 widening as `export_real.py:160`. CPU threads=56,
+PyTorch2.14.0+cpu. BF16 eager outputs reproduce **all** original golden
+tensors bitwise before the common-FP32 reference is computed. Inputs and
+weights are loaded from the original export, not independently regenerated.
+The final hidden has16384 elements. Raw metrics, input hashes and binary
+hash are in `condition9_noise/result.json` and `capture_manifest.json`.
+
+Scope adjustment was explicit: the previous failed process had no output
+tensor dump, so k could not be reconstructed from max_abs and a hash.
+The user authorized **one original-binary output capture**. `capture.txt`
+reproduces the original E2E_HASH and E2E_DIFF exactly, with the same
+warmup5/repeat11; no binary was rebuilt and no fixture/golden was replaced.
+All subsequent arithmetic ran on CPU. The script refuses a second capture
+when that log already exists. Recompute CPU only with:
+
+```sh
+python3 docs/experiments/REALMODEL/condition9_noise.py --threads 56
+```
+
+The historical feasibility proposal below is retained as a superseded
+proposal, **not an implementation TODO for this round**.
+
 ✅ The requested original blocking scene was rerun on RTX 4090: four layers,
 hidden=4096, intermediate=14336, heads=32, KV heads=8, seq=4/past=3,
 BF16, unchanged seed and CPU-default golden. This is **one failed diagnostic
