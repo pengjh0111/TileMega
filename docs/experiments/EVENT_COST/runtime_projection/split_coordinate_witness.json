@@ -1,0 +1,67 @@
+{
+  "source": "docs/experiments/BF16/raw_splitk/src/gqa2_k16.cu",
+  "source_sha256": "9b30d55c007abe66d4803f1e403df86e90d8ed6ae3bbd6361ffabadd546d894b",
+  "seq": 512,
+  "n": 512,
+  "k": 512,
+  "shape": {
+    "tile_m": 128,
+    "tile_n": 128,
+    "tile_k": 16,
+    "stages": 3,
+    "split_k": 16
+  },
+  "window": {
+    "div": 64,
+    "scale": 128,
+    "offset": 0,
+    "count": 128
+  },
+  "consumer_tasks": 256,
+  "undercovered_tasks": 192,
+  "witnesses": [
+    {
+      "task": 4,
+      "chunk": 0,
+      "tile_m": 1,
+      "required_rows": [
+        128,
+        255
+      ],
+      "window_rows": [
+        0,
+        127
+      ],
+      "missing_rows": 128
+    },
+    {
+      "task": 5,
+      "chunk": 0,
+      "tile_m": 1,
+      "required_rows": [
+        128,
+        255
+      ],
+      "window_rows": [
+        0,
+        127
+      ],
+      "missing_rows": 128
+    },
+    {
+      "task": 6,
+      "chunk": 0,
+      "tile_m": 1,
+      "required_rows": [
+        128,
+        255
+      ],
+      "window_rows": [
+        0,
+        127
+      ],
+      "missing_rows": 128
+    }
+  ],
+  "scope": "static incoming-edge undercoverage before queue lifting; not an exclusive dynamic-cause proof"
+}
