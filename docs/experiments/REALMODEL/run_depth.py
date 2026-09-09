@@ -24,6 +24,22 @@ def fields(line):
     return dict(word.split('=', 1) for word in line.split()[1:] if '=' in word)
 
 
+def noise_metrics(py, tm, wide):
+    """Final-hidden comparisons against one common FP32 reference."""
+    import torch
+    rows = []
+    for name, a, b in (('pytorch_bf16_vs_fp32', py, wide),
+                       ('tilemega_bf16_vs_fp32', tm, wide),
+                       ('tilemega_vs_pytorch_bf16', tm, py)):
+        error = a-b
+        rows.append({'comparison': name,
+                     'l2_error': torch.linalg.vector_norm(error).item(),
+                     'relative_l2': (torch.linalg.vector_norm(error)/
+                                     torch.linalg.vector_norm(b)).item(),
+                     'max_abs': error.abs().max().item()})
+    return rows
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--depths', nargs='+', type=int, default=[2, 4, 6, 8, 12, 16])
@@ -140,14 +156,9 @@ def main():
             buffer = re.search(r'E2E_OUTPUT_DIFF index=0 buffer=(\d+)', log)[1]
             tm = load(directory/f'dump/buffer_{buffer}.bin', torch.bfloat16)
             errors = {}
-            for name, a, b in (('pytorch_bf16_vs_fp32', py, wide),
-                               ('tilemega_bf16_vs_fp32', tm, wide), ('tilemega_vs_pytorch_bf16', tm, py)):
-                error = a-b
-                norm = torch.linalg.vector_norm(error).item()
-                errors[name] = norm
-                noise.append({'depth': depth, 'comparison': name, 'l2_error': norm,
-                              'relative_l2': norm/torch.linalg.vector_norm(b).item(),
-                              'max_abs': error.abs().max().item()})
+            for metrics in noise_metrics(py, tm, wide):
+                errors[metrics['comparison']] = metrics['l2_error']
+                noise.append({'depth': depth, **metrics})
             print(f'NOISE depth={depth} k_l2={errors["tilemega_bf16_vs_fp32"]/errors["pytorch_bf16_vs_fp32"]}', flush=True)
         with (out/'noise.tsv').open('w') as stream:
             writer = csv.DictWriter(stream, fieldnames=noise[0], delimiter='\t', lineterminator='\n')
