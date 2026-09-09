@@ -11,12 +11,15 @@ import tempfile
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--control', type=Path, required=True)
+    parser.add_argument('--out', type=Path)
     args = parser.parse_args()
     here = Path(__file__).resolve().parent
     repo = here.parents[2]
     current = repo/'build-portable/tools/tilemega-compile'
-    output = here/'runtime_projection'
-    output.mkdir(exist_ok=True)
+    output = args.out or here/'runtime_projection'
+    output.mkdir(parents=True,exist_ok=True)
+    if args.out and (output/'codegen_equivalence.json').exists():
+        raise RuntimeError('refusing to overwrite codegen evidence')
     rows = []
     with tempfile.TemporaryDirectory(prefix='tilemega-projection-codegen-') as tmp:
         for model in ('gqa2','mha4'):
