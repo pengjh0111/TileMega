@@ -75,3 +75,54 @@ resident_limit=256 来自本轮参考 kernel 的 `E2E_RESOURCE grid=256`（128 S
 3. 本例没有触发参数化除数平台限制，因为参数已经固定。不能由此声称参数化仿射映射的问题已解决。
 
 复现：`RESIDENT_LIMIT=256 WORKERS=16 docs/experiments/AFFINE_PROBE/run.sh`，再将 WORKERS 改为 256。使用其他 kernel 时必须重新取得其 resident_limit。
+# T1–T5 update: balanced mappings (baseline c8be09e)
+
+✅ `run_balanced.py` runs all six existing finite reference instances, four
+old mappings and nine new variants: affine/modulo, band, wavefront, each
+with queue caps floor(1.0/1.1/1.2 × stage-major longest queue).
+`tools/tilemega-affine-probe.cpp:233` assigns in the legal affine order,
+maximizes already-assigned producer affinity under the cap, then breaks ties
+by queue length and the original mapping. This is an offline greedy mapping,
+not a proof of globally optimal placement. No generator or kernel changed.
+
+Every instance has a Pareto point that strictly improves locality with no
+increase in longest queue (stronger than the requested 1.2× allowance):
+
+| seq/workers | Selected variant | Longest queue, old → new | Same-worker edges, old → new | Same-worker fraction, old → new |
+|---|---|---:|---:|---:|
+| 4/16 | affine_balanced_100 | 18 → 18 | 80 → 94 | .239521 → .281437 |
+| 4/256 | affine_balanced_100 | 18 → 18 | 80 → 90 | .239521 → .269461 |
+| 128/16 | affine_balanced_100 | 142 → 142 | 8684 → 13904 | .063959 → .102405 |
+| 128/256 | band_tiling_balanced_100 | 22 → 22 | 584 → 1913 | .004301 → .014090 |
+| 512/16 | band_tiling_balanced_100 | 913 → 913 | 134040 → 227352 | .062981 → .106826 |
+| 512/256 | band_tiling_balanced_100 | 70 → 70 | 8514 → 21453 | .004000 → .010080 |
+
+All 78 C+queue graphs are acyclic; all six invocations report
+`ISL_CONTEXT remaining=0`. This is CPU graph validation, **not** a 50-process
+GPU correctness claim. Full min/p50/p95/max slot spans, forward worker span,
+fractions, exact counts, queue caps, Pareto flags and gate flags are in
+[`balanced/mappings.tsv`](balanced/mappings.tsv). Negative slot spans are
+retained: slots on different workers are not a single temporal clock.
+
+![Offline Pareto frontiers](balanced/pareto.svg)
+
+The plot uses a log10 queue axis, gray candidate points, blue nondominated
+points, and red stage-major. The three heuristic families can coincide.
+Cross-worker and same-worker fractions are complements, not independent
+measurements. Looser caps need not help this greedy algorithm: e.g. 512/256
+band locality falls from .010080 at cap70 to .008957 at cap84.
+
+I3 qualification: workers are 16 or 256 and supplied resident_limit=256;
+these finite experiments use the fully resident sufficient condition.
+512/16 still has slot spans above 256. The probe explicitly reports
+`overresident_proven=0`; no parameter-domain or overresident proof follows
+from these finite samples. Same-worker edge counts also do not prove a
+runtime fence can be removed when another consumer is on a different worker.
+
+⚠️ T3.1's offline gate passes, but T3.2–T3.5 remain unimplemented. Production
+logical-task → stage and split-rewrite projection must be exact and the T1
+event-price units/domain issue remains open (`../EVENT_COST/result.md`).
+No runtime speedup or model price difference is inferred from this table.
+The historical negative results below are preserved.
+
+---
