@@ -1,0 +1,31 @@
+/root/TileMega/include/tilemega/Codegen/tasks/ModelHarness.cuh(961): warning #177-D: variable "tiles" was declared but never referenced
+          int const tiles = invocation.tiles_m * invocation.tiles_n;
+                    ^
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+/root/TileMega/include/tilemega/Codegen/tasks/GemmStageTaskBody.h(483): warning #177-D: variable "tiles" was declared but never referenced
+      int const tiles = table[stage.gemm].tiles_m * table[stage.gemm].tiles_n;
+                ^
+
+ptxas info    : 208 bytes gmem, 104 bytes cmem[4]
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi
+    72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 55 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0]
+ptxas info    : Compile time = 22.487 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 212 registers, used 1 barriers, 32 bytes cumulative stack size, 376 bytes cmem[0], 72 bytes cmem[2]
+ptxas info    : Compile time = 720.933 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 210 registers, used 1 barriers, 32 bytes cumulative stack size, 376 bytes cmem[0], 40 bytes cmem[2]
+ptxas info    : Compile time = 737.539 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj
+    32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 208 registers, used 1 barriers, 32 bytes cumulative stack size, 364 bytes cmem[0], 40 bytes cmem[2]
+ptxas info    : Compile time = 733.894 ms
