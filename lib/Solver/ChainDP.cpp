@@ -104,6 +104,44 @@ double ChainDP::Interface(ModelDescription const& model, int from, int to,
          CarryNs(model, gemm_stages, from, to, miss, from_config, to_config);
 }
 
+FiniteDpSolution ChainDP::SolveFiniteParameter(
+    ModelDescription const& symbolic, FiniteParameterDomain const& domain,
+    ChainDpOptions options) const {
+#if !TILEMEGA_FINITE_PARAMETER_DP
+  throw std::runtime_error("finite parameter DP disabled at compile time");
+#endif
+  if (domain.begin < 0 || domain.end < domain.begin || domain.parameter.empty())
+    throw std::invalid_argument("invalid finite parameter domain");
+  if (domain.parameter != symbolic.dims.seq_parameter &&
+      domain.parameter != symbolic.dims.past_parameter)
+    throw std::invalid_argument("finite domain must bind a symbolic model dimension");
+  auto same_choice = [](ChainDpSolution const& a, ChainDpSolution const& b) {
+    if (a.feasible != b.feasible || a.residency.ctas_per_sm != b.residency.ctas_per_sm ||
+        a.configs.size() != b.configs.size()) return false;
+    for (std::size_t i = 0; i < a.configs.size(); ++i) {
+      auto const& x = a.configs[i]; auto const& y = b.configs[i];
+      if (x.tile_m != y.tile_m || x.tile_n != y.tile_n || x.tile_k != y.tile_k ||
+          x.stages != y.stages || x.split_k != y.split_k) return false;
+    }
+    return true;
+  };
+  FiniteDpSolution result;
+  result.parameter = domain.parameter;
+  for (long long point = domain.begin; point <= domain.end; ++point) {
+    auto bindings = domain.fixed;
+    bindings.Bind(domain.parameter, point);
+    auto bound = symbolic.SubstituteParams(bindings);
+    auto solution = Solve(bound, options);
+    if (result.pieces.empty() ||
+        !same_choice(result.pieces.back().points.back(), solution))
+      result.pieces.push_back({static_cast<int>(point), static_cast<int>(point), {}});
+    result.pieces.back().end = static_cast<int>(point);
+    result.pieces.back().points.push_back(std::move(solution));
+    ++result.evaluated_points;
+  }
+  return result;
+}
+
 ChainDpSolution ChainDP::Solve(ModelDescription const& model,
                                ChainDpOptions options,
                                ChainDpStats* stats) const {

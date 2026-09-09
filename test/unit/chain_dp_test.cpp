@@ -6,6 +6,7 @@
 #include <tilemega/Target/TargetSpec.h>
 
 #include <cmath>
+#include <cstring>
 #include <cstdio>
 #include <cstdlib>
 #include <set>
@@ -76,6 +77,34 @@ int main() {
   CostModel const cost(target);
   ModelDescription const model = TinyModel();
   ChainDP const dp(cost, Candidates());
+
+  // Finite-domain design (b) must retain the concrete DP's exact choices and
+  // IEEE cost values, not fit/interpolate across untested points.
+  auto symbolic = model;
+  symbolic.dims = ModelDims::Symbolic("S", 3);
+  auto finite = dp.SolveFiniteParameter(symbolic, {"S", 1, 12, {}}, {});
+  REQUIRE(finite.evaluated_points == 12);
+  int expected_point = 1;
+  for (auto const& piece : finite.pieces) {
+    REQUIRE(piece.begin == expected_point);
+    REQUIRE(piece.points.size() == static_cast<std::size_t>(piece.end-piece.begin+1));
+    for (auto const& actual : piece.points) {
+      auto concrete = model;
+      concrete.dims = {expected_point, 3, expected_point+3};
+      auto expected = dp.Solve(concrete, {});
+      REQUIRE(actual.feasible == expected.feasible);
+      REQUIRE(actual.residency.ctas_per_sm == expected.residency.ctas_per_sm);
+      REQUIRE(std::memcmp(&actual.cost.total_ns, &expected.cost.total_ns, sizeof(double)) == 0);
+      REQUIRE(actual.configs.size() == expected.configs.size());
+      for (std::size_t i = 0; i < actual.configs.size(); ++i) {
+        auto const& a = actual.configs[i]; auto const& b = expected.configs[i];
+        REQUIRE(a.tile_m == b.tile_m && a.tile_n == b.tile_n && a.tile_k == b.tile_k &&
+                a.stages == b.stages && a.split_k == b.split_k);
+      }
+      ++expected_point;
+    }
+  }
+  REQUIRE(expected_point == 13);
 
   // BF16 collectives use 128 threads, not the FP32 path's 256.  Reusing the
   // old literal halves the solver's inferred residency before any cost is

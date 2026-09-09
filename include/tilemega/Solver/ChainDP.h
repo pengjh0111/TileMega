@@ -20,6 +20,10 @@
 
 #include <vector>
 
+#ifndef TILEMEGA_FINITE_PARAMETER_DP
+#define TILEMEGA_FINITE_PARAMETER_DP 1
+#endif
+
 namespace tilemega::solver {
 
 /// One point of the per-operator search space, with the two tier-3 numbers no
@@ -89,12 +93,38 @@ struct ChainDpSolution {
   int max_registers = 0;
 };
 
+/// Design (b): an explicitly bounded integer parameter domain. This is NOT
+/// a symbolic lane-intersection solver. Each integer point is solved exactly
+/// by the existing DP with residency still pinned in its outer loop.
+struct FiniteParameterDomain {
+  std::string parameter;
+  int begin = 1;
+  int end = 1;  ///< inclusive
+  analysis::ParamBinding fixed;
+};
+
+struct FiniteDpPiece {
+  int begin = 0, end = 0;  ///< inclusive, only identical choices coalesce
+  std::vector<ChainDpSolution> points;
+  // Costs remain pointwise IEEE values, not a fabricated constant polynomial.
+};
+
+struct FiniteDpSolution {
+  std::string parameter;
+  std::vector<FiniteDpPiece> pieces;
+  long long evaluated_points = 0;
+};
+
 class ChainDP {
  public:
   ChainDP(CostModel const& model, std::vector<DpCandidate> candidates);
 
   ChainDpSolution Solve(ModelDescription const& model, ChainDpOptions options,
                         ChainDpStats* stats = nullptr) const;
+
+  FiniteDpSolution SolveFiniteParameter(ModelDescription const& symbolic,
+                                       FiniteParameterDomain const& domain,
+                                       ChainDpOptions options) const;
 
   /// Everything the megakernel executes between GEMM `from` and GEMM `to`,
   /// plus what the boundary itself costs.  `from < 0` is the model prefix and
