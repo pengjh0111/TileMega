@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: BSD-3-Clause
-#include <tilemega/Analysis/ISLContext.h>
 // T3: offline experiment only; no production scheduling code is changed.
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Analysis/ISLContext.h>
@@ -24,6 +23,10 @@
 #include <sstream>
 #include <stdexcept>
 #include <vector>
+
+#ifndef TILEMEGA_BALANCED_PLACEMENT_PROBE
+#define TILEMEGA_BALANCED_PLACEMENT_PROBE 1
+#endif
 
 using namespace tilemega::analysis;
 namespace {
@@ -213,7 +216,22 @@ int main(int argc, char** argv) try {
   auto stage_order = tilemega::solver::ListScheduler().Schedule(successors);
   std::vector<int> rank(stage_order.size());
   for (std::size_t i = 0; i < stage_order.size(); ++i) rank[stage_order[i]] = i;
-  for (std::string const mode : {"stage_major", "affine", "band_tiling", "wavefront"}) {
+  std::vector<std::vector<int>> incoming(tasks.size());
+  for (auto const& [producer, consumer] : dependencies)
+    incoming[task_ids.at(consumer)].push_back(task_ids.at(producer));
+  std::vector<std::string> modes{"stage_major", "affine", "band_tiling", "wavefront"};
+#if TILEMEGA_BALANCED_PLACEMENT_PROBE
+  for (std::string base : {"affine", "band_tiling", "wavefront"})
+    for (int percent : {100, 110, 120})
+      modes.push_back(base + "_balanced_" + std::to_string(percent));
+#endif
+  int baseline_max_queue = 0;
+  for (std::string const& mode : modes) {
+    auto const balance_pos = mode.find("_balanced_");
+    bool const balanced = balance_pos != std::string::npos;
+    std::string const base = mode.substr(0, balance_pos);
+    int const queue_cap = balanced
+        ? baseline_max_queue * std::stoi(mode.substr(balance_pos + 10)) / 100 : 0;
     bool const affine = mode != "stage_major";
     std::vector<int> order(tasks.size()); std::iota(order.begin(), order.end(), 0);
     std::sort(order.begin(), order.end(), [&](int a, int b) {
@@ -222,7 +240,7 @@ int main(int argc, char** argv) try {
       if (rank[x.op] != rank[y.op]) return rank[x.op] < rank[y.op];
       return x.coordinates < y.coordinates;
     });
-    std::vector<int> worker(tasks.size()), slot(tasks.size()), lengths(workers, 0);
+    std::vector<int> worker(tasks.size(), -1), slot(tasks.size()), lengths(workers, 0);
     std::vector<std::vector<int>> task_successors(tasks.size());
     std::vector<int> indegree(tasks.size(), 0), last(workers, -1);
     auto add_dependency = [&](int from, int to) {
@@ -233,7 +251,7 @@ int main(int argc, char** argv) try {
       int const id = order[i];
       if (tasks[id].op != previous) { previous = tasks[id].op; logical = 0; }
       int w = affine ? i % workers : logical++ % workers;
-      if (mode == "band_tiling") {
+      if (base == "band_tiling") {
         auto const found = band_placement.coordinate.find({tasks[id].op, tasks[id].coordinates});
         if (found == band_placement.coordinate.end())
           throw std::runtime_error("band mapping has a task without a parallel band");
@@ -241,12 +259,33 @@ int main(int argc, char** argv) try {
         auto const [low, high] = band_placement.bounds.at(band);
         long const tile_width = (high - low + 1 + workers - 1) / workers;
         w = static_cast<int>((value - low) / tile_width);
-      } else if (mode == "wavefront") {
+      } else if (base == "wavefront") {
         if (tasks[id].time.size() < 2)
           throw std::runtime_error("wavefront needs two schedule dimensions");
         // time[0] is the wave; lexicographic ordering preserves its order.
         // Keep equal second coordinates on one worker within every wave.
         w = static_cast<int>((tasks[id].time[1] % workers + workers) % workers);
+      }
+      if (balanced) {
+        std::vector<int> affinity(workers, 0);
+        for (int producer : incoming[id]) {
+          if (worker[producer] < 0)
+            throw std::runtime_error("balanced placement needs a topological task order");
+          ++affinity[worker[producer]];
+        }
+        int chosen = -1;
+        for (int candidate = 0; candidate < workers; ++candidate) {
+          if (lengths[candidate] >= queue_cap) continue;
+          // The hard cap prevents locality from concentrating a whole band.
+          // Among equal local-edge scores prefer load, then the original map.
+          if (chosen < 0 || affinity[candidate] > affinity[chosen] ||
+              (affinity[candidate] == affinity[chosen] &&
+               (lengths[candidate] < lengths[chosen] ||
+                (lengths[candidate] == lengths[chosen] && candidate == w))))
+            chosen = candidate;
+        }
+        if (chosen < 0) throw std::runtime_error("balanced placement exhausted its queue budget");
+        w = chosen;
       }
       worker[id] = w; slot[id] = lengths[w]++;
       if (last[w] >= 0) add_dependency(last[w], id);
@@ -267,6 +306,10 @@ int main(int argc, char** argv) try {
     for (std::size_t i = 0; i < ready.size(); ++i)
       for (int next : task_successors[ready[i]]) if (!--indegree[next]) ready.push_back(next);
     if (ready.size() != tasks.size()) throw std::runtime_error("worker queue introduces a cycle");
+    int const max_queue = *std::max_element(lengths.begin(), lengths.end());
+    if (mode == "stage_major") baseline_max_queue = max_queue;
+    if (balanced && max_queue > queue_cap)
+      throw std::runtime_error("balanced placement exceeds its queue budget");
     std::sort(spans.begin(), spans.end());
     if (spans.empty()) throw std::runtime_error("no dependency spans");
     std::cout << "SPAN mode=" << mode
@@ -276,7 +319,7 @@ int main(int argc, char** argv) try {
               << " cross_worker_fraction=" << double(spans.size()-same_worker)/spans.size()
               << " same_worker_fraction=" << double(same_worker)/spans.size()
               << " used_workers=" << std::count_if(lengths.begin(), lengths.end(), [](int n) { return n > 0; })
-              << " max_queue=" << *std::max_element(lengths.begin(), lengths.end())
+              << " max_queue=" << max_queue << " queue_cap=" << queue_cap
               << " min=" << spans.front() << " p50=" << spans[spans.size()/2]
               << " p95=" << spans[spans.size()*95/100] << " max=" << spans.back()
               << " forward_worker_span=" << forward_worker_span
@@ -287,7 +330,7 @@ int main(int argc, char** argv) try {
     std::map<int, std::size_t> distribution;
     for (int span : spans) ++distribution[span];
     for (auto const& [span, count] : distribution)
-      std::cout << "HIST mode=" << (affine ? "affine" : "stage_major")
+      std::cout << "HIST mode=" << mode
                 << " slot_span=" << span << " edges=" << count << '\n';
   }
   std::cout << "RESULT legal=1 bands=" << bands << " bounded_at_fixed_parameters=1\n";
