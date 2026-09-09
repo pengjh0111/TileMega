@@ -246,6 +246,10 @@ set_target_properties(tilemega-affine-probe PROPERTIES
 
 add_executable(tilemega-parametric tools/tilemega-parametric.cpp)
 add_executable(tilemega-event-cost tools/tilemega-event-cost.cpp)
+add_executable(tilemega-event-price tools/tilemega-event-price.cpp)
+target_link_libraries(tilemega-event-price PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-event-price PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 add_executable(tilemega-op-audit tools/tilemega-op-audit.cpp)
 add_executable(tilemega-task-work-probe tools/tilemega-task-work-probe.cpp)
 add_executable(tilemega-task-work-gate tools/tilemega-task-work-gate.cpp)

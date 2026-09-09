@@ -201,7 +201,7 @@ ModelDescription ModelDescription::FromCouplingGraph(
   for (auto edge : module.getOps<dialect::CouplingOp>()) {
     int const producer = task_stage.at(edge.getSrc().str());
     int const consumer = task_stage.at(edge.getDst().str());
-    model.coupling_metrics.push_back({producer, consumer,
+    model.coupling_metrics.edges.push_back({producer, consumer,
         edge.getWait().getValue(), edge.getFanout().getValue(),
         edge.getVolume().getValue(), edge.getCount().getValue(), edge.getRelation().getMap()});
     if (producer != consumer) model.stage_successors.at(producer).push_back(consumer);
@@ -238,22 +238,33 @@ ModelDescription ModelDescription::SubstituteParams(analysis::ParamBinding const
       out.dims.seq > std::numeric_limits<int>::max() - out.dims.past)
     throw std::out_of_range("model total dimension outside int range");
   if (symbolic || !out.dims.total) out.dims.total = out.dims.seq + out.dims.past;
-  auto known = metric_bindings;
-  for (auto const& [name, value] : bindings.values) known.Bind(name, value);
-  known.Bind("S", out.dims.seq).Bind("past", out.dims.past).Bind("L_s", out.dims.total);
-  if (!seq_metric_parameter.empty()) known.Bind(seq_metric_parameter, out.dims.seq);
-  if (!past_metric_parameter.empty()) known.Bind(past_metric_parameter, out.dims.past);
-  for (auto const& [alias, canonical] : metric_aliases)
-    if (known.Contains(canonical)) known.Bind(alias, known.At(canonical));
-  for (auto& edge : out.coupling_metrics) {
+  auto known = out.MetricBindings(bindings);
+  for (auto& edge : out.coupling_metrics.edges) {
     edge.wait = edge.wait.SubstituteParams(known);
     edge.fanout = edge.fanout.SubstituteParams(known);
     edge.volume = edge.volume.SubstituteParams(known);
     edge.count = edge.count.SubstituteParams(known);
     edge.relation = edge.relation.BindParams(known);
   }
+  if (auto& runtime=out.coupling_metrics.runtime) {
+    for (auto* quantity:{&runtime->task_refs,&runtime->wait_entries,&runtime->max_worker_task_refs,
+                        &runtime->fence_free_producers,&runtime->fused_edges})
+      *quantity=quantity->SubstituteParams(known);
+  }
   out.metric_bindings = std::move(known);
   return out;
+}
+
+analysis::ParamBinding ModelDescription::MetricBindings(analysis::ParamBinding const& bindings) const {
+  if (dims.IsSymbolic()) throw std::invalid_argument("bind dimensions before resolving metric aliases");
+  auto known = metric_bindings;
+  for (auto const& [name, value] : bindings.values) known.Bind(name, value);
+  known.Bind("S", dims.seq).Bind("past", dims.past).Bind("P",dims.past).Bind("L_s", dims.total);
+  if (!seq_metric_parameter.empty()) known.Bind(seq_metric_parameter, dims.seq);
+  if (!past_metric_parameter.empty()) known.Bind(past_metric_parameter, dims.past);
+  for (auto const& [alias, canonical] : metric_aliases)
+    if (known.Contains(canonical)) known.Bind(alias, known.At(canonical));
+  return known;
 }
 
 int ModelStage::ReadGranularity() const {

@@ -43,5 +43,7 @@ struct RuntimeProjection {
 RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
                                       codegen::RuntimePlan const& plan,
                                       RuntimeProjectionOptions options);
+void AttachRuntimeEventMetrics(ModelDescription& model, codegen::RuntimePlan const& plan,
+                               RuntimeProjectionOptions options);
 
 }  // namespace tilemega::solver

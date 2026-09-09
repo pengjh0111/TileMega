@@ -33,6 +33,9 @@
 #ifndef TILEMEGA_MEASURED_PARTIAL_COMBINE
 #define TILEMEGA_MEASURED_PARTIAL_COMBINE 0
 #endif
+#ifndef TILEMEGA_L2_EVENT_COST
+#define TILEMEGA_L2_EVENT_COST 0
+#endif
 
 namespace tilemega::solver {
 
@@ -101,6 +104,7 @@ struct CostBreakdown {
   double combine_ns = 0.0;
   double other_ns = 0.0;
   double barrier_ns = 0.0;
+  double event_ns = 0.0;
   int stage_count = 0;  ///< after the split rewrite, so one barrier each
 };
 
@@ -127,6 +131,8 @@ struct CostModelOptions {
   bool fp32_partials = true;
   bool task_body_traits = TILEMEGA_TASK_TRAIT_COSTS;
   bool measured_partial_combine = TILEMEGA_MEASURED_PARTIAL_COMBINE;
+  bool l2_events = TILEMEGA_L2_EVENT_COST;
+  int kappa = 1;
 };
 
 class CostModel {
@@ -169,6 +175,8 @@ class CostModel {
                         Residency residency) const;
   /// §2.2(f): one stage barrier, at this grid width.
   double BarrierNs(Residency residency) const;
+  double EventNs(ModelDescription const& model, std::vector<GemmConfig> const& configs,
+                 Residency residency, int stage_count) const;
 
   /// The steady-state resource vector of one mainloop iteration for `o`
   /// resident CTAs, before the envelope is applied.

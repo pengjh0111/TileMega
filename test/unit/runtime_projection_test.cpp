@@ -47,6 +47,16 @@ int main() {
       }
     }
     auto forced = tilemega::solver::ProjectRuntimeQueues(model,plan,{2,2,1,true});
+    tilemega::solver::AttachRuntimeEventMetrics(model,plan,{2,2,1});
+    assert(model.coupling_metrics.runtime);
+    assert(model.coupling_metrics.runtime->stage_count==3);
+    for (int seq:{1,4,128}) {
+      tilemega::analysis::ParamBinding bindings; bindings.Bind("S",seq);
+      auto bound=model.SubstituteParams(bindings);
+      auto const& metrics=*bound.coupling_metrics.runtime;
+      assert(metrics.task_refs.Eval({})==6*((seq+1)/2)+seq);
+      assert(metrics.wait_entries.Eval({})==2*((seq+1)/2)+seq);
+    }
     tilemega::analysis::ParamBinding four; four.Bind("S",4);
     assert(forced.runtime_wait_entries.Eval(four) == 4);
     // Element chunks own ceil(S*N/threads) combine and activation tasks.

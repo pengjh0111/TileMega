@@ -119,7 +119,7 @@ int main(int argc, char** argv) try {
     }
     if (count != (bf16 ? 770 : 1077)) throw std::runtime_error("incomplete archived configuration universe");
     total += count;
-    std::cerr << "CG_INPUT model=" << name << " metrics=" << symbolic.coupling_metrics.size()
+    std::cerr << "CG_INPUT model=" << name << " metrics=" << symbolic.coupling_metrics.edges.size()
               << " configs=" << count << " excluded_historical_nonpass=" << excluded
               << " recovered_numerical_failures=" << recovered << '\n';
     ChainDP dp(cost, candidates);

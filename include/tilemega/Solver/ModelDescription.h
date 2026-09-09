@@ -13,6 +13,8 @@
 #include <tilemega/Solver/BackendCostQuery.h>
 #include <tilemega/Analysis/QuasiPolynomial.h>
 #include <tilemega/Analysis/CouplingRelation.h>
+#include <tilemega/Codegen/RuntimePlan.h>
+#include <optional>
 
 #include <string>
 #include <vector>
@@ -42,6 +44,18 @@ struct ModelCouplingMetrics {
   int producer = -1, consumer = -1;
   analysis::QuasiPolynomial wait, fanout, volume, count;
   analysis::CouplingRelation relation;
+};
+struct ModelRuntimeEventMetrics {
+  analysis::QuasiPolynomial task_refs, wait_entries, max_worker_task_refs;
+  analysis::QuasiPolynomial fence_free_producers, fused_edges;
+  std::vector<codegen::GemmRuntimeRecord> gemms;
+  int grid=0, threads=0, kappa=0, stage_count=0;
+};
+struct ModelCouplingAnalysis {
+  std::vector<ModelCouplingMetrics> edges;
+  // Counts belong to an exact runtime variant/residency, not to every g a
+  // caller might try against the same concrete model description.
+  std::optional<ModelRuntimeEventMetrics> runtime;
 };
 
 /// M stays symbolic, so a GEMM contributes only N and K.  The destination
@@ -92,7 +106,7 @@ struct ModelDescription {
   /// reduced by the generator, so it is the DAG the megakernel actually
   /// enforces rather than a re-derivation of it (§P4.8).
   std::vector<std::vector<int>> stage_successors;
-  std::vector<ModelCouplingMetrics> coupling_metrics;
+  ModelCouplingAnalysis coupling_metrics;
   analysis::ParamBinding metric_bindings;
   std::string seq_metric_parameter, past_metric_parameter;
   std::vector<std::pair<std::string, std::string>> metric_aliases;
@@ -106,6 +120,7 @@ struct ModelDescription {
   static ModelDescription FromCouplingGraph(mlir::ModuleOp module,
                                             ModelDims dims, std::string name);
   ModelDescription SubstituteParams(analysis::ParamBinding const& bindings) const;
+  analysis::ParamBinding MetricBindings(analysis::ParamBinding const& bindings = {}) const;
 
   /// Bytes of parameter and activation storage the model keeps live, which is
   /// what the L2 must hold for the weight stream to stay resident (§2.2(e)).

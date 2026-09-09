@@ -145,6 +145,8 @@ FiniteDpSolution ChainDP::SolveFiniteParameter(
 ChainDpSolution ChainDP::Solve(ModelDescription const& model,
                                ChainDpOptions options,
                                ChainDpStats* stats) const {
+  if (cost_->options().l2_events)
+    throw std::invalid_argument("L2 DP requires candidate-specific runtime metrics and transitions; not implemented");
   auto const started = std::chrono::steady_clock::now();
   std::vector<int> const gemm_stages = GemmStages(model);
   int const layers = static_cast<int>(gemm_stages.size());

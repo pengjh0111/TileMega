@@ -105,6 +105,56 @@ int main() {
   REQUIRE(synthetic_cost.CombineStageNs(model.gemms.front(),2,model.dims)==
           12.0+0.75*model.dims.seq*model.gemms.front().n);
 
+  // Algebra and missing-data tests, not device calibration or A9 acceptance.
+  auto event_model=model;
+  event_model.dtype=ScalarType::kBF16;
+  auto& metrics=event_model.coupling_metrics.runtime.emplace();
+  metrics.grid=target.res.num_sms; metrics.threads=128;
+  metrics.kappa=1; metrics.stage_count=static_cast<int>(model.stages.size());
+  GemmConfig event_config{128,128,16,3,1};
+  metrics.gemms.assign(model.gemms.size(),{0,1,128,128,16,3});
+  using analysis::QuasiPolynomial;
+  metrics.task_refs=QuasiPolynomial::FromIslText("[S] -> { 10*S }");
+  metrics.wait_entries=QuasiPolynomial::FromIslText("[S, P] -> { 2*S+P }");
+  metrics.max_worker_task_refs=QuasiPolynomial::FromIslText("[S] -> { S }");
+  auto event_target=target;
+  auto& event_rates=event_target.event_bf16;
+  event_rates.notify={2.0,"measured","ns/runtime_task_ref"};
+  event_rates.poll={3.0,"measured","ns/runtime_wait_entry"};
+  event_rates.notify_stage={5.0,"measured","ns/runtime_stage"};
+  event_rates.poll_stage={7.0,"measured","ns/runtime_stage"};
+  event_rates.notify_longest_worker={11.0,"measured","ns/max_worker_task_ref"};
+  event_rates.poll_longest_worker={13.0,"measured","ns/max_worker_task_ref"};
+  event_rates.fence={std::nullopt,"not_calibrated","ns/fence_free_producer"};
+  CostModelOptions event_options; event_options.l2_events=true;
+  CostModel event_cost(event_target,ScalarType::kBF16,event_options);
+  auto priced=event_cost.Evaluate(event_model,event_config,{1});
+  REQUIRE(priced.event_ns==40*2+11*3+5*(5+7)+4*(11+13));
+  REQUIRE(priced.barrier_ns==0);
+  auto symbolic_event=event_model;
+  symbolic_event.dims=ModelDims::Symbolic("seq_symbol",3);
+  analysis::ParamBinding event_binding; event_binding.Bind("seq_symbol",4);
+  auto bound_event=symbolic_event.SubstituteParams(event_binding);
+  auto bound_price=event_cost.Evaluate(bound_event,event_config,{1});
+  REQUIRE(std::memcmp(&priced.event_ns,&bound_price.event_ns,sizeof(double))==0);
+  auto rejects=[&](auto operation) {
+    bool rejected=false;
+    try { operation(); } catch (std::exception const&) { rejected=true; }
+    REQUIRE(rejected);
+  };
+  rejects([&] { event_cost.Evaluate(model,event_config,{1}); });
+  rejects([&] { event_cost.Evaluate(event_model,event_config,{2}); });
+  auto wrong_config=event_config; wrong_config.tile_m=64;
+  rejects([&] { event_cost.Evaluate(event_model,wrong_config,{1}); });
+  auto wrong_kappa=event_options; wrong_kappa.kappa=0;
+  rejects([&] { CostModel(event_target,ScalarType::kBF16,wrong_kappa).Evaluate(event_model,event_config,{1}); });
+  rejects([&] { CostModel(target,ScalarType::kBF16,event_options).Evaluate(event_model,event_config,{1}); });
+  rejects([&] { ChainDP(event_cost,Candidates()).Solve(event_model,{}); });
+  auto l1_event=CostModel(event_target,ScalarType::kBF16).Evaluate(event_model,event_config,{1});
+  auto l1_original=CostModel(target,ScalarType::kBF16).Evaluate(model,event_config,{1});
+  REQUIRE(std::memcmp(&l1_event.total_ns,&l1_original.total_ns,sizeof(double))==0);
+  REQUIRE(l1_event.event_ns==0);
+
   // Finite-domain design (b) must retain the concrete DP's exact choices and
   // IEEE cost values, not fit/interpolate across untested points.
   auto symbolic = model;

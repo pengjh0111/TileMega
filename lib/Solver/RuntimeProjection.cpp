@@ -240,4 +240,18 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
   }
   return result;
 }
+void AttachRuntimeEventMetrics(ModelDescription& model, codegen::RuntimePlan const& plan,
+                               RuntimeProjectionOptions options) {
+  auto projection=ProjectRuntimeQueues(model,plan,options);
+  ModelRuntimeEventMetrics metrics;
+  metrics.task_refs=std::move(projection.runtime_task_refs);
+  metrics.wait_entries=std::move(projection.runtime_wait_entries);
+  metrics.max_worker_task_refs=std::move(projection.max_worker_task_refs);
+  metrics.gemms=plan.gemms;
+  metrics.grid=options.grid; metrics.threads=options.threads; metrics.kappa=options.kappa;
+  metrics.stage_count=static_cast<int>(projection.stages.size());
+  // Fusion and all-consumers-local producer counts are supplied by B, not
+  // estimated from edge locality percentages in A.
+  model.coupling_metrics.runtime=std::move(metrics);
+}
 }  // namespace tilemega::solver

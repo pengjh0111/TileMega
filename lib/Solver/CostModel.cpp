@@ -472,6 +472,50 @@ double CostModel::BarrierNs(Residency residency) const {
   return Interpolate(calib_->grid_barrier_ctas, calib_->grid_barrier_ns, grid);
 }
 
+double CostModel::EventNs(ModelDescription const& model, std::vector<GemmConfig> const& configs,
+                         Residency residency, int stage_count) const {
+  if (!options_.sync || !options_.l2_events) return 0.0;
+  if (!model.coupling_metrics.runtime)
+    throw std::invalid_argument("L2 price requires exact CG runtime event metrics");
+  auto const& metrics=*model.coupling_metrics.runtime;
+  int threads=dtype_==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
+  if (metrics.grid!=target_->res.num_sms*residency.ctas_per_sm || metrics.threads!=threads ||
+      metrics.kappa!=options_.kappa || metrics.stage_count!=stage_count || metrics.gemms.size()!=configs.size())
+    throw std::invalid_argument("event metrics do not match runtime residency, kappa or stage rewrite");
+  for (std::size_t i=0;i<configs.size();++i) {
+    auto const& a=configs[i]; auto const& b=metrics.gemms[i];
+    if (a.tile_m!=b.tile_m || a.tile_n!=b.tile_n || a.tile_k!=b.tile_k ||
+        a.stages!=b.stages || a.split_k!=b.split_k)
+      throw std::invalid_argument("event metrics belong to a different GEMM variant");
+  }
+  auto const& calibration=target_->EventCalibrationFor(dtype_==ScalarType::kBF16 ? "bf16" : "f32");
+  auto rate=[](TargetSpec::EventRate const& r,char const* unit) {
+    if (!r.ns || r.reason!="measured") throw std::runtime_error("structured event rate: "+r.reason);
+    if (r.unit!=unit || !std::isfinite(*r.ns) || *r.ns<0)
+      throw std::invalid_argument("structured event rate has invalid units or value");
+    return *r.ns;
+  };
+  auto known=model.MetricBindings();
+  auto count=[&](analysis::QuasiPolynomial const& q) {
+    long value=q.SubstituteParams(known).Eval({});
+    if (value<0) throw std::invalid_argument("negative runtime event work");
+    return static_cast<double>(value);
+  };
+  double notify=rate(calibration.notify,"ns/runtime_task_ref");
+  double poll=rate(calibration.poll,"ns/runtime_wait_entry");
+  double total=count(metrics.task_refs)*notify+count(metrics.wait_entries)*poll;
+  total+=metrics.stage_count*(rate(calibration.notify_stage,"ns/runtime_stage")+
+                             rate(calibration.poll_stage,"ns/runtime_stage"));
+  total+=count(metrics.max_worker_task_refs)*
+      (rate(calibration.notify_longest_worker,"ns/max_worker_task_ref")+
+       rate(calibration.poll_longest_worker,"ns/max_worker_task_ref"));
+  if (calibration.fence.ns)
+    total-=count(metrics.fence_free_producers)*rate(calibration.fence,"ns/fence_free_producer");
+  total-=count(metrics.fused_edges)*(notify+poll);
+  if (total<0) throw std::invalid_argument("event rebates exceed the priced event work");
+  return total;
+}
+
 CostBreakdown CostModel::Evaluate(ModelDescription const& model,
                                   std::vector<GemmConfig> const& configs,
                                   Residency residency) const {
@@ -499,8 +543,10 @@ CostBreakdown CostModel::Evaluate(ModelDescription const& model,
       ++out.stage_count;
     }
   }
-  out.barrier_ns = out.stage_count * BarrierNs(residency);
+  out.barrier_ns = options_.l2_events ? 0.0 : out.stage_count * BarrierNs(residency);
+  out.event_ns=EventNs(model,configs,residency,out.stage_count);
   out.total_ns = out.gemm_ns + out.combine_ns + out.other_ns + out.barrier_ns;
+  if (options_.l2_events) out.total_ns+=out.event_ns;
   return out;
 }
 

@@ -41,7 +41,7 @@ int main(int argc, char** argv) try {
     for (int seq : {1,4,128,512,2048}) {
       tilemega::analysis::ParamBinding theta; theta.Bind("S",seq);
       auto model = symbolic.SubstituteParams(theta);
-      for (auto const& edge : model.coupling_metrics) {
+      for (auto const& edge : model.coupling_metrics.edges) {
         auto eval = [&](tilemega::analysis::QuasiPolynomial const& q) {
           return q.SubstituteParams(model.metric_bindings).Eval(model.metric_bindings);
         };
