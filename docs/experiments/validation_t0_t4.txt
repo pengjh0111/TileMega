@@ -1,0 +1,57 @@
+ninja: Entering directory `build-portable'
+[1/1] Checking architecture-dispatch and hardware-constant policy
+-- TileMega policy checks passed
+Internal ctest changing into directory: /root/TileMega/build-portable
+Test project /root/TileMega/build-portable
+      Start  3: target_audit
+      Start 20: frontend_import
+      Start 22: wiring_coupling
+      Start  1: cg_lit
+ 1/24 Test  #1: cg_lit ...........................   Passed    0.25 sec
+      Start  6: semantics
+ 2/24 Test #22: wiring_coupling ..................   Passed    0.31 sec
+      Start  5: table27
+ 3/24 Test  #6: semantics ........................   Passed    0.21 sec
+      Start  7: containment
+ 4/24 Test  #5: table27 ..........................   Passed    0.20 sec
+      Start 17: impl_contract
+ 5/24 Test  #7: containment ......................   Passed    0.16 sec
+      Start  4: coupling_types
+ 6/24 Test #17: impl_contract ....................   Passed    0.12 sec
+      Start  8: event_synthesis
+ 7/24 Test  #8: event_synthesis ..................   Passed    0.14 sec
+      Start 21: semantic_lifting
+ 8/24 Test  #4: coupling_types ...................   Passed    0.15 sec
+      Start  9: isl_relation
+ 9/24 Test  #9: isl_relation .....................   Passed    0.02 sec
+      Start 11: cg_attr_roundtrip
+10/24 Test #21: semantic_lifting .................   Passed    0.03 sec
+      Start 19: bf16_task_body_compile
+11/24 Test #19: bf16_task_body_compile ...........   Passed    0.01 sec
+      Start 10: layout_bridge
+12/24 Test #11: cg_attr_roundtrip ................   Passed    0.01 sec
+      Start 13: chain_dp
+13/24 Test #13: chain_dp .........................   Passed    0.01 sec
+      Start 12: backend_query
+14/24 Test #10: layout_bridge ....................   Passed    0.02 sec
+      Start 14: list_scheduler
+15/24 Test #12: backend_query ....................   Passed    0.01 sec
+      Start 23: frontend_degradation
+16/24 Test #14: list_scheduler ...................   Passed    0.01 sec
+      Start 15: cluster_labeling
+17/24 Test #23: frontend_degradation .............   Passed    0.01 sec
+      Start 16: alignment_propagation
+18/24 Test #15: cluster_labeling .................   Passed    0.01 sec
+      Start 24: isl_crosslink
+19/24 Test #16: alignment_propagation ............   Passed    0.01 sec
+      Start  2: target_spec
+20/24 Test #24: isl_crosslink ....................   Passed    0.01 sec
+      Start 18: task_body_contract
+21/24 Test  #2: target_spec ......................   Passed    0.01 sec
+22/24 Test #18: task_body_contract ...............   Passed    0.01 sec
+23/24 Test #20: frontend_import ..................   Passed    1.14 sec
+24/24 Test  #3: target_audit .....................   Passed    2.52 sec
+
+100% tests passed, 0 tests failed out of 24
+
+Total Test time (real) =   2.53 sec

@@ -2029,3 +2029,75 @@
   `include/tilemega/Codegen/tasks/`); `lib/Codegen/Codegen.cpp:364`.
   Evidence: `docs/experiments/L2_ATTRIB/t1_result.md`, `t1_final/`,
   `raw_t1_final/`; updated E2E_L2 and COARSEN status sections.
+
+## F-90 — Warmup measurements expose an instance mismatch in the occupancy premise
+
+✅ T0, baseline e305a9f. Shared benchmarking now uses 5 untimed warmups and
+11 timed samples, resetting inputs/events outside timing. Historical cold
+single-launch timings remain available behind an independent macro and are
+not mixed into the new comparison. Per-arm ptxas and runtime resource fields
+are recorded, including actual occupancy-query shared memory.
+
+The tested BF16 instances have 128 threads, 212 L2 registers, 24576 shared
+bytes and two CTAs/SM under both min-blocks=1 and =2. F-40 predicts 2/4/12
+for register/shared/thread limits. No spills occur. Thus this experiment did
+not exercise a one-to-two-CTA tradeoff; the supplied 256-thread example was
+not this instance. No thread count or TaskSmem semantics were changed to
+manufacture the desired transition. Correctness is 400/400; four-arm 25-round
+paired measurements do not establish an occupancy gain. This changes the
+current fusion shared budget to 26624 B, not 1152 B.
+
+Code: `include/tilemega/Codegen/tasks/Benchmark.cuh:1`,
+`docs/experiments/L2_ATTRIB/run_t1.py:1`. Full data and ptxas logs:
+`docs/experiments/OCCUPANCY/result.md`, `raw/`, `report/`.
+
+## F-91 — BF16 split partial storage is a numerical defect, independent of ranking attribution
+
+✅ FP32 partial epilogues and FP32 combination preserve the exported
+Linear→BF16→residual boundary. At seq=128/past=3, both reference models and
+split=1/2/4/8/16 pass 50 fresh processes each: 500/500. The paired baseline
+fails many split settings; error is not monotonic in split. No tolerance
+changed. Storage doubles for split>1; the cost model charges the additional
+epilogue and combine traffic, with an explicit missing-calibration error.
+The FP32 CPU cost regression is bit-identical on 2154/2154 configurations.
+This does not prove the unrerun 973M or 4×4096 configurations acceptable.
+
+✅ Original-binary replay classifies all 308 mha4 RUNFAIL entries as numerical
+criterion failures (154 split=2, 154 split=16). The historical shell driver
+classified every nonzero exit as RUNFAIL before examining mismatch output.
+The replay logs are new evidence, not recovered historical stdout.
+
+Code: `include/tilemega/Codegen/tasks/ModelRuntime.h:22`,
+`GemmStageTaskBody.h:391`, `GemmCombineTaskBody.h:22` in the same directory;
+`lib/Solver/CostModel.cpp:372`. Evidence: `docs/experiments/BF16/result.md`,
+`raw_splitk/`, `runfail_audit/`. F-87's rejected TC attribution remains rejected.
+
+## F-92 — A concrete-input equality gate is necessary but insufficient for symbolic consumption
+
+✅ Direct verified-CG model input and parameter binding agree with the
+archived generated-input path on all five CostBreakdown double bit patterns
+at 2154 FP32 points. A finite integer-domain DP on S=1..16 produces one piece
+per model, with all 32 concrete choices and cost bits matching independently
+bound historical input. ⚠️ The coupling metrics are not yet fully priced,
+and this enumerator is not a general symbolic-intersection DP. The input-only gate must not be called
+T1 acceptance. Initially S/past binding missed CG's s11/s14 names and aliases;
+the input gate still passed, illustrating exactly why carry-only metric
+parsing cannot prove consumption. Frontend now records semantic roles.
+
+The existing cache model contains sqrt/exp, and repeated-wave IEEE addition
+is not equivalent bitwise to multiplication by a wave count. Design (b) is
+documented explicitly, without claiming generic quasi-polynomial max roots.
+Code: `lib/Solver/ModelDescription.cpp:136`, `tools/tilemega-parametric.cpp:1`;
+design and gate: `docs/experiments/PARAMETRIC/`.
+
+## F-93 — Band-aware placement improves finite-graph locality but can worsen balance
+
+✅ Six offline instances show more same-worker edges for band tiling and
+wavefront than stage-major. Cross-worker proportion is the complementary
+statistic, not independent evidence. For seq=128/workers=256, same-worker
+fraction rises .004301→.026898 while the longest queue rises 22→425.
+No latency improvement follows from this count alone. All finite C + queue
+graphs are acyclic and wholly resident; this is not an overresident I3 proof.
+⚠️ T4.2 production integration and GPU acceptance remain undone.
+Code: `tools/tilemega-affine-probe.cpp:1`; evidence:
+`docs/experiments/AFFINE_PROBE/raw_mappings/`, `result.md`.
