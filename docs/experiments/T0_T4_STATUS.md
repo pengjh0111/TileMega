@@ -8,7 +8,15 @@
 ✅ A0 common-FP32 三比较完成，k_L2=.9961308506568204；按新 prompt，条件9
 关闭为判据产物，条件7同样定性关闭，T2.d 取消。不修改容差，不声称原失败变 PASS。
 一次原二进制GPU输出采集经用户单独授权，其余CPU计算。
-⚠️ A1正在整理恒等式/历史审计证据；A2–A9未通过，B尚未开工。
+✅ A1/A11已完成当前fixture恒等式与限定历史审计，见INCIDENCE/result.md。
+⚠️ A2符号实现已提交，split1归档3000/3000计数相等，但补采遇到正确性停止门：
+原二进制gqa2/seq512/past0/split16的L2-vs-L1失配223287，max_abs=1.1054688。
+CG的split展平顺序与runtime chunk-major顺序不一致，静态首边192/256个task漏等。
+补采94通过后第95格失败即停止；不是50进程同步验收，也不是BF16噪声判据问题。
+修复与完整A2矩阵仍欠；未用kAll回退掩盖。A3–A9未通过，B尚未开工。
+实现提交f8fba8e、ab5b706、146800a、ab8ab21；完整限制见EVENT_COST/runtime_projection/result.md。
+✅ A12.3将8个未跟踪autotools文件移至可恢复临时目录，未动跟踪文件/gitlink。
+用户已批准A9.3按实际κ定义判定价格差方向，详见ROUND5_LEDGER与EVENT_COST。
 
 本文件是进度记录，**不是整轮完成报告**。不覆盖历史负结果，不降低验收阈值。
 

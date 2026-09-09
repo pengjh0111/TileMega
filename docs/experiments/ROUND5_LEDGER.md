@@ -15,6 +15,10 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 - B 全部登记但不提前开工，必须先通过 A6/A9；A2 投影仅实现一次供 B 复用。
 - 停止门只停止相应项及依赖项，独立项继续。不得用此规则绕过 B 的入口门。
 - A10：标定残差不阻塞下游，但 A9.3 非零且符号正确的功能门必须通过。
+- A9.3 用户已批准按实际κ语义修订方向判断，并要求记录分析流程：κ=0是
+  aggregate特例，不是正整数粗化序列起点。保留κ0/1非零预测差，方向与精确
+  runtime等待数一致，另报正整数κ粗化；不改运行时κ定义、不用系数凑方向。
+  依据：gqa2 seq4/128，κ0 waits=244/4520，κ1=500/16292，后者已与归档日志一致。
 - 条件7按新 prompt 关闭为“判据产物，已归因”；T2.d 数值可行域线取消。
   保留历史失败日志，不修改数值容差、不再扩展深度/宽度诊断；A0 是明确例外。
 - 拒绝重启两级原子扇入、TC 永不获胜、occupancy1→2；不运行 sm_120 脚本。
@@ -25,9 +29,9 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 
 | ID | 范围与验收（不可删减） | 实现状态 | 验证状态/剩余项 | 证据、commit |
 |---|---|---|---|---|
-| A0 | 原始失败 split8 同输入、同 golden 线程；CPU common-FP32 三比较及 k；≤1.003关闭，>1.2报告，其余不擅定 | 已验证 | 用户授权一次原二进制采集；hash/diff完全复现；56线程golden逐位复现；k=.9961308506568204，条件9归因关闭 | REALMODEL/condition9_noise/result.json、condition9_result.md；commit待填 |
-| A1 | wait 求交 actual producer domain；所有fixture每边参数网格 Σwait=Σfanout；前后逐边表；无512下游修正 | 已验证 | 参考8图2505/2505、生产2模型1920/1920；OFF372格不等；ON26/26 CTest；物理C同步写回保持verifier | INCIDENCE/result.md及逐边表；commit待填 |
-| A2 | QP runtime_task_refs/runtime_wait_entries；split/ownership/attention映射；所有fixture/seq/split与runtime逐值对账；供B复用 | 未开始 | 未验证 | EVENT_COST/result.md待更新 |
+| A0 | 原始失败 split8 同输入、同 golden 线程；CPU common-FP32 三比较及 k；≤1.003关闭，>1.2报告，其余不擅定 | 已验证 | 用户授权一次原二进制采集；hash/diff完全复现；56线程golden逐位复现；k=.9961308506568204，条件9归因关闭 | REALMODEL/condition9_noise/result.json、condition9_result.md；ab91cc8、b4a1e69 |
+| A1 | wait 求交 actual producer domain；所有fixture每边参数网格 Σwait=Σfanout；前后逐边表；无512下游修正 | 已验证 | 参考8图2505/2505、生产2模型1920/1920；OFF372格不等；ON26/26 CTest；物理C同步写回保持verifier | INCIDENCE/result.md及逐边表；148ed7e、a723d9a |
+| A2 | QP runtime_task_refs/runtime_wait_entries；split/ownership/attention映射；所有fixture/seq/split与runtime逐值对账；供B复用 | 触发停止门槛 | split1 3000/3000归档计数相等；split2首组100/100。补采95/150格后停止：94通过，gqa2 S512/p0/split16 的L2失配223287，原二进制未改。已证明split坐标顺序不一致，尚未修复；全矩阵未验收 | EVENT_COST/runtime_projection/result.md；f8fba8e、ab5b706、146800a、ab8ab21 |
 | A3 | CG逐task count/read/write；从输出索引识别reduce/parallel轴；QP work；GEMM count/MainloopBytes位一致 | 未开始 | 未验证 | COST_MODEL/result.md待更新 |
 | A4 | 单位置签名schema；GEMM/attention/RMS/RoPE/SiLU/mul/add/SwiGLU/KV/MoE/Softmax/LayerNorm/GeLU全部语义推导；缺项抛错；op-audit | 未开始 | 签名无法推导须停，不填实测常数 | COST_MODEL/op_audit.txt待生成 |
 | A5 | shared/threads/stages从TaskBody traits暴露，消除本地假设 | 未开始 | 未验证 | 待填 |
@@ -40,10 +44,10 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 | A9.2 | coupling_metrics QP消费A2投影；L1保留；κ仅改wait；fence/fusion接口零且带缺失理由 | 未开始 | 未验证 | 待填 |
 | A9.3 | κ0/1 event差非零且符号正确；具体数值；B后补fusion/placement两门 | 未开始 | A阶段必过κ门；其余待B | 待填 |
 | A10 | 残差不作为B入口门，报告而继续 | 已验证 | 已登记执行规则；不代表A9实现 | 本表 |
-| A11 | A1后SEMANTIC/P3/derive重跑；14边/44边440格逐条影响；OWNERSHIP与labeling来源只审计不乱重跑 | 已验证 | 6份derive/4份wiring/4份normalization codegen；440格仍4命名差；runtime poll与volume×count reach未受wait修正影响 | INCIDENCE/history_audit；commit待填 |
-| A12.1 | 新isl路径scoped guard，实际错误分支零残留 | 未开始 | 不用正常exit替代 | 待填 |
+| A11 | A1后SEMANTIC/P3/derive重跑；14边/44边440格逐条影响；OWNERSHIP与labeling来源只审计不乱重跑 | 已验证 | 6份derive/4份wiring/4份normalization codegen；440格仍4命名差；runtime poll与volume×count reach未受wait修正影响；补跑验证fanout/count/volume均未变 | INCIDENCE/history_audit；a723d9a |
+| A12.1 | 新isl路径scoped guard，实际错误分支零残留 | 进行中 | A1 ComputeMetrics及A2无效grid实走错误分支before0/after0；工具remaining0；未覆盖全部新增错误出口，不作全量关闭 | INCIDENCE及EVENT_COST/runtime_projection；ab8ab21 |
 | A12.2 | FP32-partial combine微基准实测速率替代解析extra；缺失reason | 未开始 | 未运行 | 待填 |
-| A12.3 | barvinok未跟踪检查；ignore或清理，保留用户内容 | 未开始 | 旧轮仅本地exclude，需本轮核实 | 待填 |
+| A12.3 | barvinok未跟踪检查；ignore或清理，保留用户内容 | 已验证 | 8个未跟踪autotools文件按精确路径移至可恢复临时目录，前后SHA256一致，未动gitlink/跟踪文件 | EVENT_COST/runtime_projection/autotools_cleanup.md |
 
 ## B：入口未通过，不提前实现
 
@@ -86,7 +90,7 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 ## 交付物对账
 
 - [ ] A-D1/B-D1：代码、独立开关矩阵、分类commit。
-- [ ] A-D2：REALMODEL/condition9_result.md（A0）。
+- [x] A-D2：REALMODEL/condition9_result.md（A0），ab91cc8、b4a1e69。
 - [ ] A-D3/B-D6：EVENT_COST/result.md（A2/A9及B补齐功能门）。
 - [ ] A-D4：COST_MODEL/result.md（A3–A8全部门/表/排序/占比）。
 - [ ] A-D5：COST_MODEL/op_audit.txt零失败。
@@ -103,6 +107,10 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 
 ## 恢复点
 
-A0已按单独授权完成一次原二进制采集及CPU三比较。A1恒等式当前参考2505/2505、
-生产1920/1920；旧生产372/1920不等；全套26/26通过。A11归档正在生成。
-A2仅设计核查，未实现。无B实现进程。未完成项不得因阶段交接被抹去。
+A0已按单独授权完成一次原二进制采集及CPU三比较。A1恒等式参考2505/2505、
+生产1920/1920；旧生产372/1920不等；A11归档完成。最新全套27/27通过，policy
+通过、target-audit 5目标0失败，FP32输入2154与BF16输入1540位门通过（非A6门）。
+A2符号实现已提交，但原runtime split坐标错误触发停止：capture第95格失败，
+没有继续GPU采集；首条入边192/256个task漏等实际所需行。修复须统一CG与runtime
+坐标顺序，不可切kAll规避，随后重做逐值对账与≥50新进程正确性。详见A2报告。
+A3–A9未实现，B未启动；没有后台实验进程。未完成项不得因交接被抹去。

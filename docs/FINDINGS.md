@@ -2252,3 +2252,44 @@ OWNERSHIP poll statistic is runtime-side; labeling uses unchanged volume
 and count. No old solver rank or GPU timing is said to be contaminated by
 the previously unconsumed wait metric. Evidence: `INCIDENCE/result.md`;
 code: `lib/Analysis/CouplingDerivation.cpp:546`, `test/unit/incidence_test.cpp:14`.
+
+## F-104 — A2 exact runtime counts do not prove the runtime projection is sound
+
+✅ Round5 A2 adds a shared verified-CG runtime plan and symbolic task/wait/
+longest-worker counts (`lib/Solver/RuntimeProjection.cpp:35`). Split1 matches
+3000/3000 archived task_refs/waits values across 1500 archived processes;
+the codegen refactor is byte-identical in4/4 controls. CTest27/27, policy and
+five-target audit pass. BF16 input1540/1540 and FP32 input2154/2154 still pass;
+these are not A6 per-stage cost gates. No event price is connected yet.
+
+✅ New one-process-per-cell capture with unchanged archived BF16 binaries
+stopped at95/150 cells:94 passed, gqa2/seq512/past0/split16 failed with223287
+L2-vs-L1 mismatches, max_abs1.1054688. L0.5/L1 hashes agree; iteration1 L2
+also differs from iteration0. This is not the closed common-FP32 criterion
+artifact and is not a new50-process correctness claim. No later cell ran.
+
+✅ Static witness: `TaskInstantiation.cpp:170` appends chunk as the last
+coordinate, while `GemmStageTaskBody.h:483` decodes chunk-major. The archived
+first edge uses div64/scale128/count128, applied directly to runtime task id
+at `ModelHarness.cuh:1263`. Task4 needs producer rows128–255 but waits for
+rows0–127;192/256 tasks on this incoming edge are undercovered. This explains
+why matching existing runtime counts cannot by itself establish semantic
+validity, and why the old seq128 split sweep missed a multi-M-tile defect.
+❌ The undercoverage is a plausible dynamic cause, not yet an exclusive
+attribution established by repaired-code controls. A2 remains stopped,
+without a kAll fallback, tolerance change or premature B implementation.
+Evidence/code: `EVENT_COST/runtime_projection/result.md`,
+`EVENT_COST/explain_split_projection.py:13`,
+`EVENT_COST/runtime_projection/capture/gqa2_s512_p0_k16.txt`.
+
+## F-105 — Kappa0 is not the start of a monotonic coarsening sequence
+
+✅ The current policy makes kappa0 a whole-stage aggregate special case and
+kappa1 a singleton-event policy. Exact gqa2 seq4/128 waits are244/4520 for
+kappa0 and500/16292 for kappa1; only the latter has been matched to runtime
+archives in A2. The user approved judging A9.3 by nonzero price difference
+with direction consistent with actual counts, separately reporting positive
+kappa coarsening. Kappa1's same-worker elision also precludes assuming a
+monotonic positive-kappa curve without checking it. No runtime semantics or
+price coefficients were altered to force the original stated direction.
+This resolves a gate-definition conflict; A9 itself remains unimplemented.

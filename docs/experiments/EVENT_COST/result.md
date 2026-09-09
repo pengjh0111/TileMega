@@ -1,4 +1,22 @@
-# T1 event pricing: rejected assumptions, not an acceptance report
+# Round 5 current status: A2 stopped; A9 event pricing not implemented
+
+✅ Symbolic runtime counts and shared verified-CG projection seed are
+implemented. Split1 task_refs/waits match 3000/3000 archived values; final
+codegen refactor is byte-identical in 4/4 controls; CTest passes 27/27.
+
+**Correctness stop:** one-process-per-cell capture using unchanged archived
+BF16 binaries stopped after 94 PASS and 1 FAIL. gqa2 seq512/past0/split16 has
+223287 L2-vs-L1 mismatches, max_abs=1.1054688. A static witness proves the
+emitted split task order and runtime task order disagree on required rows.
+This is not the closed BF16 criterion artifact. No subsequent GPU cell ran.
+
+Implementation, exact scope, raw evidence, code locations, detours and the
+user-approved kappa-direction interpretation are in
+[A2 report](runtime_projection/result.md). A2 is not accepted, A9 is not
+implemented, and B has not started. Counts matching an incorrect schedule
+are insufficient evidence of semantic correctness.
+
+# Historical T1 event pricing: rejected assumptions, not an acceptance report
 
 Baseline: c8be09e. No L2 runtime optimization, numerical tolerance change,
 cache-model replacement, or new GPU timing was made for this report.
