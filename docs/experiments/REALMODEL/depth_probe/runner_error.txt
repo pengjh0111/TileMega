@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/root/TileMega/docs/experiments/REALMODEL/run_depth.py", line 160, in <module>
+    main()
+  File "/root/TileMega/docs/experiments/REALMODEL/run_depth.py", line 92, in main
+    command(['nvidia-smi', '-q'], out/'gpu_before.txt')
+  File "/root/TileMega/docs/experiments/REALMODEL/run_depth.py", line 47, in command
+    'seconds': time.monotonic()-start, 'log': str(log.relative_to(repo))})
+  File "/usr/lib/python3.10/pathlib.py", line 818, in relative_to
+    raise ValueError("{!r} is not in the subpath of {!r}"
+ValueError: 'docs/experiments/REALMODEL/depth_probe/gpu_before.txt' is not in the subpath of '/root/TileMega' OR one path is relative and the other is absolute.

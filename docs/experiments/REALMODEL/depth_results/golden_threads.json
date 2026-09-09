@@ -1,0 +1,18 @@
+{
+  "torch_version": "2.14.0+cpu",
+  "default_threads": 56,
+  "rows": [
+    {
+      "threads": 8,
+      "mismatch_vs_tilemega": 162,
+      "max_abs": 0.078125,
+      "changed_from_stored": 0
+    },
+    {
+      "threads": 56,
+      "mismatch_vs_tilemega": 198,
+      "max_abs": 0.078125,
+      "changed_from_stored": 33628
+    }
+  ]
+}

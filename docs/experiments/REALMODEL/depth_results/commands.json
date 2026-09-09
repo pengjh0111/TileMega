@@ -1,0 +1,413 @@
+[
+  {
+    "command": [
+      "/usr/bin/python3",
+      "/root/TileMega/docs/experiments/REALMODEL/export_real.py",
+      "--repo",
+      "/root/TileMega",
+      "--out",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l2/export",
+      "--layers",
+      "2",
+      "--prefix-depth",
+      "16",
+      "--fp32-reference"
+    ],
+    "returncode": 0,
+    "seconds": 11.263164918171242,
+    "log": "docs/experiments/REALMODEL/depth_results/export_l2.txt"
+  },
+  {
+    "command": [
+      "/usr/bin/python3",
+      "/root/TileMega/python/tilemega/export_bridge.py",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l2/export/exported_program.pt2",
+      "--out",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l2/model.json"
+    ],
+    "returncode": 0,
+    "seconds": 3.6810701319482177,
+    "log": "docs/experiments/REALMODEL/depth_results/bridge_l2.txt"
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-compile",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l2/model.json",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l2/model.cu",
+      "--variants",
+      "/root/TileMega/docs/experiments/OWNERSHIP/plan_structured.json"
+    ],
+    "returncode": 0,
+    "seconds": 0.618215189082548,
+    "log": "docs/experiments/REALMODEL/depth_results/codegen_l2.txt"
+  },
+  {
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O2",
+      "-arch=native",
+      "-lineinfo",
+      "-Xptxas=-v,--warn-on-spills",
+      "--expt-relaxed-constexpr",
+      "-DTILEMEGA_FP32_PARTIALS=1",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-I/root/TileMega/third_party/cutlass/tools/util/include",
+      "-I/root/TileMega/third_party/cutlass/test",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l2/model.cu",
+      "/root/TileMega/build-portable/libtilemega.a",
+      "-L/usr/local/cuda/lib64",
+      "-lcudart",
+      "-o",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l2/model"
+    ],
+    "returncode": 0,
+    "seconds": 32.59723680908792,
+    "log": "docs/experiments/REALMODEL/depth_results/ptxas_l2.txt"
+  },
+  {
+    "command": [
+      "/usr/bin/python3",
+      "/root/TileMega/docs/experiments/REALMODEL/export_real.py",
+      "--repo",
+      "/root/TileMega",
+      "--out",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l4/export",
+      "--layers",
+      "4",
+      "--prefix-depth",
+      "16",
+      "--fp32-reference"
+    ],
+    "returncode": 0,
+    "seconds": 14.725366024998948,
+    "log": "docs/experiments/REALMODEL/depth_results/export_l4.txt"
+  },
+  {
+    "command": [
+      "/usr/bin/python3",
+      "/root/TileMega/python/tilemega/export_bridge.py",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l4/export/exported_program.pt2",
+      "--out",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l4/model.json"
+    ],
+    "returncode": 0,
+    "seconds": 4.533730590948835,
+    "log": "docs/experiments/REALMODEL/depth_results/bridge_l4.txt"
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-compile",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l4/model.json",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l4/model.cu",
+      "--variants",
+      "/root/TileMega/docs/experiments/OWNERSHIP/plan_structured.json"
+    ],
+    "returncode": 0,
+    "seconds": 1.4207611409947276,
+    "log": "docs/experiments/REALMODEL/depth_results/codegen_l4.txt"
+  },
+  {
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O2",
+      "-arch=native",
+      "-lineinfo",
+      "-Xptxas=-v,--warn-on-spills",
+      "--expt-relaxed-constexpr",
+      "-DTILEMEGA_FP32_PARTIALS=1",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-I/root/TileMega/third_party/cutlass/tools/util/include",
+      "-I/root/TileMega/third_party/cutlass/test",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l4/model.cu",
+      "/root/TileMega/build-portable/libtilemega.a",
+      "-L/usr/local/cuda/lib64",
+      "-lcudart",
+      "-o",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l4/model"
+    ],
+    "returncode": 0,
+    "seconds": 31.640686637023464,
+    "log": "docs/experiments/REALMODEL/depth_results/ptxas_l4.txt"
+  },
+  {
+    "command": [
+      "/usr/bin/python3",
+      "/root/TileMega/docs/experiments/REALMODEL/export_real.py",
+      "--repo",
+      "/root/TileMega",
+      "--out",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l6/export",
+      "--layers",
+      "6",
+      "--prefix-depth",
+      "16",
+      "--fp32-reference"
+    ],
+    "returncode": 0,
+    "seconds": 17.52124499808997,
+    "log": "docs/experiments/REALMODEL/depth_results/export_l6.txt"
+  },
+  {
+    "command": [
+      "/usr/bin/python3",
+      "/root/TileMega/python/tilemega/export_bridge.py",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l6/export/exported_program.pt2",
+      "--out",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l6/model.json"
+    ],
+    "returncode": 0,
+    "seconds": 5.326181703014299,
+    "log": "docs/experiments/REALMODEL/depth_results/bridge_l6.txt"
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-compile",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l6/model.json",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l6/model.cu",
+      "--variants",
+      "/root/TileMega/docs/experiments/OWNERSHIP/plan_structured.json"
+    ],
+    "returncode": 0,
+    "seconds": 4.625973019981757,
+    "log": "docs/experiments/REALMODEL/depth_results/codegen_l6.txt"
+  },
+  {
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O2",
+      "-arch=native",
+      "-lineinfo",
+      "-Xptxas=-v,--warn-on-spills",
+      "--expt-relaxed-constexpr",
+      "-DTILEMEGA_FP32_PARTIALS=1",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-I/root/TileMega/third_party/cutlass/tools/util/include",
+      "-I/root/TileMega/third_party/cutlass/test",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l6/model.cu",
+      "/root/TileMega/build-portable/libtilemega.a",
+      "-L/usr/local/cuda/lib64",
+      "-lcudart",
+      "-o",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l6/model"
+    ],
+    "returncode": 0,
+    "seconds": 31.843172939959913,
+    "log": "docs/experiments/REALMODEL/depth_results/ptxas_l6.txt"
+  },
+  {
+    "command": [
+      "/usr/bin/python3",
+      "/root/TileMega/docs/experiments/REALMODEL/export_real.py",
+      "--repo",
+      "/root/TileMega",
+      "--out",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l8/export",
+      "--layers",
+      "8",
+      "--prefix-depth",
+      "16",
+      "--fp32-reference"
+    ],
+    "returncode": 0,
+    "seconds": 22.049479210050777,
+    "log": "docs/experiments/REALMODEL/depth_results/export_l8.txt"
+  },
+  {
+    "command": [
+      "/usr/bin/python3",
+      "/root/TileMega/python/tilemega/export_bridge.py",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l8/export/exported_program.pt2",
+      "--out",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l8/model.json"
+    ],
+    "returncode": 0,
+    "seconds": 6.227624109014869,
+    "log": "docs/experiments/REALMODEL/depth_results/bridge_l8.txt"
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-compile",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l8/model.json",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l8/model.cu",
+      "--variants",
+      "/root/TileMega/docs/experiments/OWNERSHIP/plan_structured.json"
+    ],
+    "returncode": 0,
+    "seconds": 15.211174089927226,
+    "log": "docs/experiments/REALMODEL/depth_results/codegen_l8.txt"
+  },
+  {
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O2",
+      "-arch=native",
+      "-lineinfo",
+      "-Xptxas=-v,--warn-on-spills",
+      "--expt-relaxed-constexpr",
+      "-DTILEMEGA_FP32_PARTIALS=1",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-I/root/TileMega/third_party/cutlass/tools/util/include",
+      "-I/root/TileMega/third_party/cutlass/test",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l8/model.cu",
+      "/root/TileMega/build-portable/libtilemega.a",
+      "-L/usr/local/cuda/lib64",
+      "-lcudart",
+      "-o",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l8/model"
+    ],
+    "returncode": 0,
+    "seconds": 32.34424597886391,
+    "log": "docs/experiments/REALMODEL/depth_results/ptxas_l8.txt"
+  },
+  {
+    "command": [
+      "/usr/bin/python3",
+      "/root/TileMega/docs/experiments/REALMODEL/export_real.py",
+      "--repo",
+      "/root/TileMega",
+      "--out",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l12/export",
+      "--layers",
+      "12",
+      "--prefix-depth",
+      "16",
+      "--fp32-reference"
+    ],
+    "returncode": 0,
+    "seconds": 25.36071333801374,
+    "log": "docs/experiments/REALMODEL/depth_results/export_l12.txt"
+  },
+  {
+    "command": [
+      "/usr/bin/python3",
+      "/root/TileMega/python/tilemega/export_bridge.py",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l12/export/exported_program.pt2",
+      "--out",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l12/model.json"
+    ],
+    "returncode": 0,
+    "seconds": 7.794889166019857,
+    "log": "docs/experiments/REALMODEL/depth_results/bridge_l12.txt"
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-compile",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l12/model.json",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l12/model.cu",
+      "--variants",
+      "/root/TileMega/docs/experiments/OWNERSHIP/plan_structured.json"
+    ],
+    "returncode": 0,
+    "seconds": 98.21498471708037,
+    "log": "docs/experiments/REALMODEL/depth_results/codegen_l12.txt"
+  },
+  {
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O2",
+      "-arch=native",
+      "-lineinfo",
+      "-Xptxas=-v,--warn-on-spills",
+      "--expt-relaxed-constexpr",
+      "-DTILEMEGA_FP32_PARTIALS=1",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-I/root/TileMega/third_party/cutlass/tools/util/include",
+      "-I/root/TileMega/third_party/cutlass/test",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l12/model.cu",
+      "/root/TileMega/build-portable/libtilemega.a",
+      "-L/usr/local/cuda/lib64",
+      "-lcudart",
+      "-o",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l12/model"
+    ],
+    "returncode": 0,
+    "seconds": 30.98843634594232,
+    "log": "docs/experiments/REALMODEL/depth_results/ptxas_l12.txt"
+  },
+  {
+    "command": [
+      "/usr/bin/python3",
+      "/root/TileMega/docs/experiments/REALMODEL/export_real.py",
+      "--repo",
+      "/root/TileMega",
+      "--out",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l16/export",
+      "--layers",
+      "16",
+      "--prefix-depth",
+      "16",
+      "--fp32-reference"
+    ],
+    "returncode": 0,
+    "seconds": 29.424112003063783,
+    "log": "docs/experiments/REALMODEL/depth_results/export_l16.txt"
+  },
+  {
+    "command": [
+      "/usr/bin/python3",
+      "/root/TileMega/python/tilemega/export_bridge.py",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l16/export/exported_program.pt2",
+      "--out",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l16/model.json"
+    ],
+    "returncode": 0,
+    "seconds": 7.291488107061014,
+    "log": "docs/experiments/REALMODEL/depth_results/bridge_l16.txt"
+  },
+  {
+    "command": [
+      "/root/TileMega/build-portable/tools/tilemega-compile",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l16/model.json",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l16/model.cu",
+      "--variants",
+      "/root/TileMega/docs/experiments/OWNERSHIP/plan_structured.json"
+    ],
+    "returncode": 0,
+    "seconds": 321.8085765570868,
+    "log": "docs/experiments/REALMODEL/depth_results/codegen_l16.txt"
+  },
+  {
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O2",
+      "-arch=native",
+      "-lineinfo",
+      "-Xptxas=-v,--warn-on-spills",
+      "--expt-relaxed-constexpr",
+      "-DTILEMEGA_FP32_PARTIALS=1",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-I/root/TileMega/third_party/cutlass/tools/util/include",
+      "-I/root/TileMega/third_party/cutlass/test",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l16/model.cu",
+      "/root/TileMega/build-portable/libtilemega.a",
+      "-L/usr/local/cuda/lib64",
+      "-lcudart",
+      "-o",
+      "/root/TileMega/docs/experiments/REALMODEL/depth_work/l16/model"
+    ],
+    "returncode": 0,
+    "seconds": 25.80479933996685,
+    "log": "docs/experiments/REALMODEL/depth_results/ptxas_l16.txt"
+  },
+  {
+    "command": [
+      "nvidia-smi",
+      "-q"
+    ],
+    "returncode": 0,
+    "seconds": 0.21608805400319397,
+    "log": "docs/experiments/REALMODEL/depth_results/gpu_before.txt"
+  }
+]

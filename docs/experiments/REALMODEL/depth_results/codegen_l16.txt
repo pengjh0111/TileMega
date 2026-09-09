@@ -1,0 +1,1 @@
+CODEGEN_SUMMARY tasks=272 couplings=350 stages=240 symbolic_windows=350 fallback_windows=0 output=/root/TileMega/docs/experiments/REALMODEL/depth_work/l16/model.cu
