@@ -18,6 +18,8 @@ p.add_argument('--runs', type=int, default=50)
 p.add_argument('--seq', type=int, default=128)
 p.add_argument('--past', type=int, default=3)
 p.add_argument('--jobs', type=int, default=4)
+p.add_argument('--dtype', choices=('bf16', 'f32'), default='bf16')
+p.add_argument('--splits', type=int, nargs='+', default=[1, 2, 4, 8, 16])
 a = p.parse_args()
 repo = Path(__file__).resolve().parents[3]
 build = Path(os.environ.get('BUILD_DIR', repo / 'build-portable'))
@@ -26,24 +28,51 @@ nvcc = Path(os.environ.get('CUDACXX', '/usr/local/cuda/bin/nvcc'))
 for sub in ('bin', 'src', 'plan', 'ptxas', 'logs'):
     (out / sub).mkdir(parents=True, exist_ok=True)
 configs = [(model, split, precision) for model in ('gqa2', 'mha4')
-           for split in (1, 2, 4, 8, 16) for precision in (0, 1)]
+           for split in a.splits for precision in (0, 1)]
+export_root = out/'export' if a.dtype == 'f32' else repo/'docs/experiments/SEQSCAN/raw/export'
+
+def fixture_path(model):
+    return (out/'fixture'/model if a.dtype == 'f32' else
+            repo/f'docs/experiments/SEQSCAN/raw/fixture/{model}_s{a.seq}_p{a.past}')
 
 def tag(config):
     model, split, precision = config
     return f'{model}_k{split}_fp32{precision}'
 
 if 'build' in a.phases.split(','):
+    if a.dtype == 'f32':
+        import sys
+        export_root.mkdir(exist_ok=True)
+        for model in ('gqa2', 'mha4'):
+            exported = export_root/model
+            if model == 'gqa2':
+                export_command = [sys.executable, str(repo/'docs/experiments/V_H/export_probe.py'),
+                                  '--out', str(exported), '--dtype', 'f32', '--seq-max', '2048', '--past-max', '512']
+            else:
+                export_command = [sys.executable, str(repo/'docs/experiments/P3_GENERALIZATION/export_second.py'),
+                                  '--repo', str(repo), '--out', str(exported), '--dtype', 'f32',
+                                  '--seq-max', '2048', '--past-max', '512']
+            subprocess.run(export_command, check=True)
+            subprocess.run([sys.executable, str(repo/'python/tilemega/export_bridge.py'),
+                            str(exported/'exported_program.pt2'), '--out', str(export_root/f'{model}.json')], check=True)
+            if model == 'gqa2':
+                prepare = [sys.executable, str(repo/'docs/experiments/E2E/prepare_e2e.py'),
+                           '--vh-raw', str(exported)]
+            else:
+                prepare = [sys.executable, str(repo/'docs/experiments/P3_GENERALIZATION/prepare_fixture.py'),
+                           '--repo', str(repo), '--program', str(exported/'exported_program.pt2')]
+            subprocess.run(prepare + ['--out', str(fixture_path(model)), '--seq', str(a.seq), '--past', str(a.past)], check=True)
     manifest = {'args': vars(a), 'sources': {str(f.relative_to(repo)): hashlib.sha256(f.read_bytes()).hexdigest()
                 for f in sorted((repo / 'include/tilemega/Codegen/tasks').glob('*')) if f.is_file()}}
     (out / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     for model in ('gqa2', 'mha4'):
-        for split in (1, 2, 4, 8, 16):
+        for split in a.splits:
             plan = json.loads((repo / 'docs/experiments/OWNERSHIP/plan_structured.json').read_text())
             plan['variants'][0]['uniform']['split_k'] = split
             plan_path = out / 'plan' / f'{model}_k{split}.json'
             plan_path.write_text(json.dumps(plan, indent=2) + '\n')
             subprocess.run([str(build / 'tools/tilemega-compile'),
-                            str(repo / f'docs/experiments/SEQSCAN/raw/export/{model}.json'),
+                            str(export_root / f'{model}.json'),
                             str(out / 'src' / f'{model}_k{split}.cu'), '--variants', str(plan_path)], check=True)
     def compile_one(config):
         model, split, precision = config
@@ -66,12 +95,14 @@ if 'correctness' in a.phases.split(','):
         with (out / 'correctness.tsv').open('w') as handle:
             writer = csv.writer(handle, delimiter='\t', lineterminator='\n')
             writer.writerow(['model', 'split', 'fp32_partials', 'round', 'pass', 'mismatch',
-                             'max_abs', 'partial_bytes', 'l05_ms', 'l1_ms', 'l2_ms'])
+                             'max_abs', 'partial_bytes', 'l05_ms', 'l1_ms', 'l2_ms',
+                             'dtype', 'execution_index', 'hash'])
             for r in range(a.runs):
-                for config in configs[r % len(configs):] + configs[:r % len(configs)]:
+                round_hashes = {}
+                for execution_index, config in enumerate(configs[r % len(configs):] + configs[:r % len(configs)]):
                     model, split, precision = config
                     result = subprocess.run([str(out / 'bin' / tag(config)),
-                                             str(repo / f'docs/experiments/SEQSCAN/raw/fixture/{model}_s{a.seq}_p{a.past}')],
+                                             str(fixture_path(model))],
                                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120)
                     log = out / 'logs' / f'{tag(config)}_r{r}.txt'
                     log.write_text(result.stdout)
@@ -81,13 +112,22 @@ if 'correctness' in a.phases.split(','):
                     timing = next(x for x in result.stdout.splitlines() if x.startswith('E2E_TIME '))
                     timing = dict(x.split('=', 1) for x in timing.split()[1:] if '=' in x)
                     partials = re.search(r'E2E_PARTIALS .*total_bytes=(\d+)', result.stdout)
+                    output_hash = re.search(r'E2E_HASH l05=(\S+) l1=(\S+) l2=(\S+)', result.stdout)
+                    if not output_hash or len(set(output_hash.groups())) != 1:
+                        raise RuntimeError(f'inter-level hash disagreement: {log}')
                     writer.writerow([model, split, precision, r, int(passed), match[1], match[2],
-                                     partials[1], timing['l05_ms'], timing['l1_ms'], timing['l2_ms']])
+                                     partials[1], timing['l05_ms'], timing['l1_ms'], timing['l2_ms'],
+                                     a.dtype, execution_index, output_hash[1]])
                     handle.flush()
                     # BF16-partial baseline is the requested negative control.
                     # A failure of the *new* path is a gate, never discarded.
-                    if precision and not passed:
+                    if (precision or a.dtype == 'f32') and not passed:
                         raise RuntimeError(f'FP32 partial numerical gate failed; stop: {log}')
+                    if a.dtype == 'f32':
+                        key = (model, split)
+                        if key in round_hashes and round_hashes[key] != output_hash[1]:
+                            raise RuntimeError(f'FP32 partial switch changed output bits: {log}')
+                        round_hashes[key] = output_hash[1]
                 print('ROUND', r + 1, flush=True)
         (out / 'status.txt').write_text('PASS\n')
     except BaseException:
