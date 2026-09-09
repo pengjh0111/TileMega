@@ -4,6 +4,8 @@
 #include <tilemega/Codegen/RuntimeOwnership.h>
 #include <cstdint>
 #include <vector>
+#include <map>
+#include <string>
 
 namespace mlir { class ModuleOp; }
 namespace tilemega::codegen {
@@ -30,6 +32,8 @@ struct RuntimePlan {
   std::vector<GemmRuntimeRecord> gemms;
   std::uint32_t ownership_flags = 0;
   int cluster_dim = 0;
+  std::map<std::string,std::pair<long,long>> parameter_ranges;
+  std::map<std::string,std::uint32_t> task_stages;
 };
 
 RuntimePlan ReadRuntimePlan(mlir::ModuleOp module);

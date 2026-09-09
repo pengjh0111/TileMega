@@ -2,6 +2,7 @@
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Codegen/RuntimePlan.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Frontend/SymbolicShapeBridge.h>
 #include <tilemega/Codegen/HostLauncherEmitter.h>
 #include <tilemega/Codegen/ScheduleTableEmitter.h>
 #include <tilemega/Codegen/SyncEmitter.h>
@@ -444,6 +445,7 @@ std::vector<std::pair<std::uint32_t, std::uint32_t>> TransitiveReduction(
 struct VariantAnalysis {
   std::vector<DependencyRecord> dependencies;
   int cluster_dim = 1;
+  std::map<std::string,std::uint32_t> task_stages;
 };
 
 VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
@@ -491,6 +493,7 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
   }
 
   VariantAnalysis result;
+  result.task_stages.insert(task_stages.begin(),task_stages.end());
   std::size_t placements = 0;
   for (auto placement : module.getOps<dialect::PlacementOp>()) {
     ++placements;
@@ -526,6 +529,18 @@ RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
   result.gemms = readRuntimeGemms(module, arrayField(model, "gemms").size());
   result.ownership_flags = readOwnershipFlags(module);
   result.cluster_dim = analysis.cluster_dim;
+  result.task_stages = std::move(analysis.task_stages);
+  if (auto domains = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.param_domain")) {
+    std::unordered_map<std::string,std::string> text;
+    for (auto domain : domains) {
+      auto value = llvm::dyn_cast<mlir::StringAttr>(domain.getValue());
+      if (!value) throw std::invalid_argument("malformed CG parameter range");
+      text.emplace(domain.getName().str(),value.getValue().str());
+    }
+    auto shape = frontend::SymbolicShapeBridge{}.Parse(text,{},{});
+    for (auto const& [name,range] : shape.ranges)
+      result.parameter_ranges.emplace(name,std::make_pair(range.minimum,range.maximum));
+  }
   return result;
 }
 
