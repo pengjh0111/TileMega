@@ -1,0 +1,10 @@
+CODEGEN_SUMMARY tasks=34 couplings=42 stages=30 symbolic_windows=42 fallback_windows=0 output=/root/TileMega/docs/experiments/EVENT_COST/calibration_round5/src/gqa2.cu
+BUILT gqa2 base full
+BUILT gqa2 base nowait
+BUILT gqa2 base neither
+BUILT gqa2 base l1nosync
+CODEGEN_SUMMARY tasks=68 couplings=86 stages=60 symbolic_windows=86 fallback_windows=0 output=/root/TileMega/docs/experiments/EVENT_COST/calibration_round5/src/mha4.cu
+BUILT mha4 base full
+BUILT mha4 base nowait
+BUILT mha4 base neither
+BUILT mha4 base l1nosync

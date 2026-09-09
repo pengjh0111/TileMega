@@ -1,0 +1,73 @@
+{
+  "exact_runtime_counter_comparisons": 1200,
+  "parameter_substitution_bit_checks": 36,
+  "kappa_differences": [
+    {
+      "model": "gqa2",
+      "seq": 1,
+      "delta_ns": 9.968847642900073
+    },
+    {
+      "model": "gqa2",
+      "seq": 4,
+      "delta_ns": 134.3171050832898
+    },
+    {
+      "model": "gqa2",
+      "seq": 16,
+      "delta_ns": 682.079049251086
+    },
+    {
+      "model": "gqa2",
+      "seq": 128,
+      "delta_ns": 6176.488129064441
+    },
+    {
+      "model": "gqa2",
+      "seq": 512,
+      "delta_ns": 28141.53221971632
+    },
+    {
+      "model": "gqa2",
+      "seq": 2048,
+      "delta_ns": 117798.19986281276
+    },
+    {
+      "model": "mha4",
+      "seq": 1,
+      "delta_ns": 15.215609560196754
+    },
+    {
+      "model": "mha4",
+      "seq": 4,
+      "delta_ns": 256.04198156500934
+    },
+    {
+      "model": "mha4",
+      "seq": 16,
+      "delta_ns": 1320.0852983967343
+    },
+    {
+      "model": "mha4",
+      "seq": 128,
+      "delta_ns": 12552.353210986883
+    },
+    {
+      "model": "mha4",
+      "seq": 512,
+      "delta_ns": 55611.47891401616
+    },
+    {
+      "model": "mha4",
+      "seq": 2048,
+      "delta_ns": 231713.79590681172
+    }
+  ],
+  "evidence_sha256": {
+    "docs/experiments/EVENT_COST/calibration_round5_fit/gqa2_price.log": "dcf4612372d44af7463c582d640831d6f03402cfdf25a8993c86b09bdb03898e",
+    "docs/experiments/EVENT_COST/calibration_round5_fit/gqa2_price.tsv": "42da1193a03f88654371f8dd8515a80a79ba2e6120bb62a99f8c271bcd7a54ab",
+    "docs/experiments/EVENT_COST/calibration_round5_fit/mha4_price.log": "9e75ad0b18b564ee75bcabeb370dfd61901e5931a834f99df423359f04c7177d",
+    "docs/experiments/EVENT_COST/calibration_round5_fit/mha4_price.tsv": "6004a21af4219881dc38d90f042130f51df37a1f78b5f7a70a1a85b3f0275e1f"
+  },
+  "scope": "A9 event price only; not A6 or L2 DP acceptance"
+}

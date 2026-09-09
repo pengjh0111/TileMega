@@ -1,0 +1,302 @@
+Internal ctest changing into directory: /root/TileMega/build-portable
+Test project /root/TileMega/build-portable
+      Start  7: incidence_identity
+      Start  8: imported_incidence_identity
+      Start 13: task_work_domains
+      Start 11: runtime_projection
+ 1/29 Test #13: task_work_domains ................   Passed    0.90 sec
+      Start  3: target_audit
+ 2/29 Test #11: runtime_projection ...............   Passed    1.08 sec
+      Start 25: frontend_import
+ 3/29 Test #25: frontend_import ..................   Passed    1.42 sec
+      Start 27: wiring_coupling
+ 4/29 Test #27: wiring_coupling ..................   Passed    0.30 sec
+      Start  6: semantics
+ 5/29 Test  #6: semantics ........................   Passed    0.26 sec
+      Start  1: cg_lit
+ 6/29 Test  #3: target_audit .....................***Failed    2.37 sec
+== sm_80
+FAIL sm_80 SCHEMA missing field /calibration/fp32_partial_combine
+FAIL sm_80 SCHEMA missing field /calibration/fp32_partial_combine/base_ns
+FAIL sm_80 SCHEMA missing field /calibration/fp32_partial_combine/d_dram_ns
+FAIL sm_80 SCHEMA missing field /calibration/fp32_partial_combine/d_l2_ns
+FAIL sm_80 SCHEMA missing field /calibration/fp32_partial_combine/fixed_ns
+FAIL sm_80 SCHEMA missing field /calibration/fp32_partial_combine/method
+FAIL sm_80 SCHEMA missing field /calibration/fp32_partial_combine/reason
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/ns
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/reason
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/unit
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/ns
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/reason
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/unit
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/ns
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/reason
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/unit
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/ns
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/reason
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/unit
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/ns
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/reason
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/unit
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/ns
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/reason
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/unit
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/ns
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/reason
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/unit
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/ns
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/reason
+FAIL sm_80 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/unit
+sm_80   SCHEMA fields=94 missing=39 extra=0 provenance=0
+sm_80   CAPS   checked=9 disagree=0 collective="cp.async multistage"
+sm_80   LANES  UNAVAILABLE reason=not_calibrated (cost model needs a calibrated target: run tilemega-calibrate)
+sm_80   TERMS  UNAVAILABLE reason=not_calibrated
+sm_80   CROSS  stages=5 nvcc=ok
+== sm_89
+FAIL sm_89 SCHEMA missing field /calibration/fp32_partial_combine
+FAIL sm_89 SCHEMA missing field /calibration/fp32_partial_combine/base_ns
+FAIL sm_89 SCHEMA missing field /calibration/fp32_partial_combine/d_dram_ns
+FAIL sm_89 SCHEMA missing field /calibration/fp32_partial_combine/d_l2_ns
+FAIL sm_89 SCHEMA missing field /calibration/fp32_partial_combine/fixed_ns
+FAIL sm_89 SCHEMA missing field /calibration/fp32_partial_combine/method
+FAIL sm_89 SCHEMA missing field /calibration/fp32_partial_combine/reason
+FAIL sm_89 SCHEMA missing field /calibration_by_dtype/bf16/fp32_partial_combine
+FAIL sm_89 SCHEMA missing field /calibration_by_dtype/bf16/fp32_partial_combine/base_ns
+FAIL sm_89 SCHEMA missing field /calibration_by_dtype/bf16/fp32_partial_combine/d_dram_ns
+FAIL sm_89 SCHEMA missing field /calibration_by_dtype/bf16/fp32_partial_combine/d_l2_ns
+FAIL sm_89 SCHEMA missing field /calibration_by_dtype/bf16/fp32_partial_combine/fixed_ns
+FAIL sm_89 SCHEMA missing field /calibration_by_dtype/bf16/fp32_partial_combine/method
+FAIL sm_89 SCHEMA missing field /calibration_by_dtype/bf16/fp32_partial_combine/reason
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/ns
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/reason
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/unit
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/ns
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/reason
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/unit
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/ns
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/reason
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/unit
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/ns
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/reason
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/unit
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/ns
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/reason
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/unit
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/ns
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/reason
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/unit
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/ns
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/reason
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/unit
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/ns
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/reason
+FAIL sm_89 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/unit
+sm_89   SCHEMA fields=174 missing=46 extra=0 provenance=0
+sm_89   CAPS   checked=9 disagree=0 collective="cp.async multistage"
+sm_89   LANES  live=[tc cuda sfu smem l2 ddr ] capability_absent=[tmem l1_5 net ] not_calibrated=[]
+sm_89   TERMS  gemm=live combine=zero other=live barrier=live total=live config=16x16x16s2 reason=calibrated bad=0
+sm_89   CROSS  stages=3 nvcc=ok
+== sm_90
+FAIL sm_90 SCHEMA missing field /calibration/fp32_partial_combine
+FAIL sm_90 SCHEMA missing field /calibration/fp32_partial_combine/base_ns
+FAIL sm_90 SCHEMA missing field /calibration/fp32_partial_combine/d_dram_ns
+FAIL sm_90 SCHEMA missing field /calibration/fp32_partial_combine/d_l2_ns
+FAIL sm_90 SCHEMA missing field /calibration/fp32_partial_combine/fixed_ns
+FAIL sm_90 SCHEMA missing field /calibration/fp32_partial_combine/method
+FAIL sm_90 SCHEMA missing field /calibration/fp32_partial_combine/reason
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/ns
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/reason
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/unit
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/ns
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/reason
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/unit
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/ns
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/reason
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/unit
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/ns
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/reason
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/unit
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/ns
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/reason
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/unit
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/ns
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/reason
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/unit
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/ns
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/reason
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/unit
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/ns
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/reason
+FAIL sm_90 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/unit
+sm_90   SCHEMA fields=94 missing=39 extra=0 provenance=0
+sm_90   CAPS   checked=9 disagree=0 collective="TMA warp-specialized"
+sm_90   LANES  UNAVAILABLE reason=not_calibrated (cost model needs a calibrated target: run tilemega-calibrate)
+sm_90   TERMS  UNAVAILABLE reason=not_calibrated
+sm_90   CROSS  stages=7 nvcc=ok
+== sm_100
+FAIL sm_100 SCHEMA missing field /calibration/fp32_partial_combine
+FAIL sm_100 SCHEMA missing field /calibration/fp32_partial_combine/base_ns
+FAIL sm_100 SCHEMA missing field /calibration/fp32_partial_combine/d_dram_ns
+FAIL sm_100 SCHEMA missing field /calibration/fp32_partial_combine/d_l2_ns
+FAIL sm_100 SCHEMA missing field /calibration/fp32_partial_combine/fixed_ns
+FAIL sm_100 SCHEMA missing field /calibration/fp32_partial_combine/method
+FAIL sm_100 SCHEMA missing field /calibration/fp32_partial_combine/reason
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/ns
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/reason
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/unit
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/ns
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/reason
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/unit
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/ns
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/reason
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/unit
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/ns
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/reason
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/unit
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/ns
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/reason
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/unit
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/ns
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/reason
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/unit
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/ns
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/reason
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/unit
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/ns
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/reason
+FAIL sm_100 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/unit
+sm_100  SCHEMA fields=95 missing=39 extra=0 provenance=1
+sm_100  CAPS   checked=9 disagree=0 collective="TMA warp-specialized (tcgen05)"
+sm_100  LANES  UNAVAILABLE reason=not_calibrated (cost model needs a calibrated target: run tilemega-calibrate)
+sm_100  TERMS  UNAVAILABLE reason=not_calibrated
+sm_100  CROSS  stages=7 nvcc=ok
+== sm_120
+FAIL sm_120 SCHEMA missing field /calibration/fp32_partial_combine
+FAIL sm_120 SCHEMA missing field /calibration/fp32_partial_combine/base_ns
+FAIL sm_120 SCHEMA missing field /calibration/fp32_partial_combine/d_dram_ns
+FAIL sm_120 SCHEMA missing field /calibration/fp32_partial_combine/d_l2_ns
+FAIL sm_120 SCHEMA missing field /calibration/fp32_partial_combine/fixed_ns
+FAIL sm_120 SCHEMA missing field /calibration/fp32_partial_combine/method
+FAIL sm_120 SCHEMA missing field /calibration/fp32_partial_combine/reason
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/ns
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/reason
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_longest_worker/unit
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/ns
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/reason
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/notify_stage/unit
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/ns
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/reason
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_longest_worker/unit
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/ns
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/reason
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/bf16/poll_stage/unit
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/ns
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/reason
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/notify_longest_worker/unit
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/ns
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/reason
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/notify_stage/unit
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/ns
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/reason
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/poll_longest_worker/unit
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/ns
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/reason
+FAIL sm_120 SCHEMA missing field /event_calibration_by_dtype/f32/poll_stage/unit
+sm_120  SCHEMA fields=94 missing=39 extra=0 provenance=0
+sm_120  CAPS   checked=9 disagree=0 collective="TMA warp-specialized (SM120 MMA)"
+sm_120  LANES  UNAVAILABLE reason=not_calibrated (cost model needs a calibrated target: run tilemega-calibrate)
+sm_120  TERMS  UNAVAILABLE reason=not_calibrated
+sm_120  CROSS  stages=3 nvcc=ok
+SUMMARY targets=5 failures=202
+
+      Start  5: table27
+ 7/29 Test  #1: cg_lit ...........................   Passed    0.22 sec
+      Start 14: isl_relation
+ 8/29 Test  #5: table27 ..........................   Passed    0.23 sec
+      Start  9: containment
+ 9/29 Test #14: isl_relation .....................   Passed    0.29 sec
+      Start  4: coupling_types
+10/29 Test  #9: containment ......................   Passed    0.19 sec
+      Start 10: event_synthesis
+11/29 Test  #4: coupling_types ...................   Passed    0.20 sec
+      Start 12: op_arithmetic_audit
+12/29 Test #12: op_arithmetic_audit ..............   Passed    0.01 sec
+      Start 26: semantic_lifting
+13/29 Test #26: semantic_lifting .................   Passed    0.04 sec
+      Start 22: impl_contract
+14/29 Test #10: event_synthesis ..................   Passed    0.17 sec
+      Start 15: layout_bridge
+15/29 Test  #8: imported_incidence_identity ......   Passed    3.87 sec
+      Start 18: chain_dp
+16/29 Test #18: chain_dp .........................   Passed    0.01 sec
+      Start 16: cg_attr_roundtrip
+17/29 Test #15: layout_bridge ....................   Passed    0.02 sec
+      Start 24: bf16_task_body_compile
+18/29 Test #24: bf16_task_body_compile ...........   Passed    0.01 sec
+      Start 17: backend_query
+19/29 Test #16: cg_attr_roundtrip ................   Passed    0.01 sec
+      Start 21: alignment_propagation
+20/29 Test #17: backend_query ....................   Passed    0.01 sec
+      Start 20: cluster_labeling
+21/29 Test #21: alignment_propagation ............   Passed    0.01 sec
+      Start 19: list_scheduler
+22/29 Test #20: cluster_labeling .................   Passed    0.01 sec
+      Start 28: frontend_degradation
+23/29 Test #19: list_scheduler ...................   Passed    0.01 sec
+      Start 29: isl_crosslink
+24/29 Test #28: frontend_degradation .............   Passed    0.01 sec
+      Start  2: target_spec
+25/29 Test #29: isl_crosslink ....................   Passed    0.01 sec
+      Start 23: task_body_contract
+26/29 Test  #2: target_spec ......................   Passed    0.01 sec
+27/29 Test #23: task_body_contract ...............   Passed    0.01 sec
+28/29 Test #22: impl_contract ....................   Passed    0.11 sec
+29/29 Test  #7: incidence_identity ...............   Passed    5.21 sec
+
+97% tests passed, 1 tests failed out of 29
+
+Total Test time (real) =   5.22 sec
+
+The following tests FAILED:
+	  3 - target_audit (Failed)
+Errors while running CTest

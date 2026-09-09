@@ -1,0 +1,42 @@
+{
+  "arguments": {
+    "out": "docs/experiments/EVENT_COST/calibration_round5",
+    "variants": "base",
+    "phases": "build",
+    "runs": 25,
+    "correctness_runs": 50,
+    "seqs": "1,4,16,128,512,2048",
+    "kappa": 1,
+    "arms": "full,nowait,neither,l1nosync",
+    "arch": "native",
+    "cluster_dim": 1,
+    "cluster_reserve": false
+  },
+  "sha256": {
+    "lib/Codegen/Codegen.cpp": "e1e8ec3871a0a1fa10e67a28de9fb7ac04db3f1314cec88f45e3ead861090a7d",
+    "build-portable/tools/tilemega-compile": "aecb0cfd3610487cbcb1c76214fb49a3717fa8a970f8e7138aa3060a4f629b76",
+    "build-portable/libtilemega.a": "ba9e9018ae7984d66e2583ab523524f9ce677f4d48d604c97205bff2ad1e7b23",
+    "include/tilemega/Codegen/tasks/AttentionChunkTaskBody.h": "41b002d6891dbcaa7d57a081ea94be4ce3924bd440a6f6893ce3c159070c0829",
+    "include/tilemega/Codegen/tasks/AttentionCombineTaskBody.h": "c5d8923415680eb3e35424abc7320025eb3482602a1625f2e471378eaf1118e9",
+    "include/tilemega/Codegen/tasks/Benchmark.cuh": "eae0f18db6ec3eb281746c49aef533f6858f9204addbca88d79ca903ad2a8d23",
+    "include/tilemega/Codegen/tasks/ClusterSync.cuh": "1d5bfb887211d121b039413babc8ec9e118c9d2a7a984bdc450168032b31754a",
+    "include/tilemega/Codegen/tasks/ElementwiseTaskBody.h": "d10662bc766afd0b6d9f7ac681eab6dbe74ec7167cbdad68ba201743b7cd006a",
+    "include/tilemega/Codegen/tasks/EventSync.cuh": "4bb031b621a8a8068c0b50592ae071207063d9ac0a2c1743468a906598df60e3",
+    "include/tilemega/Codegen/tasks/GemmCombineTaskBody.h": "4b751d58fdd6aaf88d3ebf84f7b33d0616a9a6cb8bace90f1cac203ad3ea989e",
+    "include/tilemega/Codegen/tasks/GemmSplitKTaskBody.h": "396fe5256315558faefbae1f1e169d0b02e6db7f77298a089c0c2b0a51edc825",
+    "include/tilemega/Codegen/tasks/GemmStageTaskBody.h": "958e170c888465e3277a8271fc7fc3efee8e4add674c412aa12c9a97e8c48589",
+    "include/tilemega/Codegen/tasks/GemmTaskBody.h": "8b5f1af8b28260c3152877967a21c8d46a40d87d9c17402ab1aa9f7968f3d365",
+    "include/tilemega/Codegen/tasks/GeneratedLlamaRuntime.cuh": "fca05f9896812eba97411d84df8dcbbd11b1443d7b8dc2a24a451e71d2947587",
+    "include/tilemega/Codegen/tasks/KVAppendTaskBody.h": "ebecaadf0002417f980e824d14d22406a6eea2fc9a3fa33d8867a4bceeaced8d",
+    "include/tilemega/Codegen/tasks/MoERouterTaskBody.h": "d0495303ff1251d586ea7642e8c38d950627c0e12b03caa6e7e2c6f8a4b0b6c0",
+    "include/tilemega/Codegen/tasks/ModelHarness.cuh": "9949ec9af6792de38530f9a6d7c6d50e1115634df65525d9e1a64d402cbb9aef",
+    "include/tilemega/Codegen/tasks/ModelRuntime.h": "a1eefbdc1e137d7d220817d8b03527a1caf41a9d09bde8e57a14f56543b81488",
+    "include/tilemega/Codegen/tasks/Placement.cuh": "39dd4e7d659a962982d5517ea74b92b6621daca204158000b42be530503b1244",
+    "include/tilemega/Codegen/tasks/RMSNormTaskBody.h": "d6810456434ce6799191bd85fd5db7783c4f8767dcb86ab412d9444bb9d276d2",
+    "include/tilemega/Codegen/tasks/RoPETaskBody.h": "9e94b8427f5545b51c9e27406d00e18f211541c87657bb33530a996724ae8748",
+    "include/tilemega/Codegen/tasks/SchedulerTaskBody.h": "152887167bb4b325bfef24802b5d6ad0ab99fa3e4a8b7fefb3151640cbf16c81",
+    "include/tilemega/Codegen/tasks/TaskBase.h": "abe99ef1d844c448826276f139f9dc7056d4bae47d5822ae4fd29b95fe7ae7fe",
+    "include/tilemega/Codegen/tasks/TaskResources.h": "c88fb5e767ddb20e67503af1f7b3ad45276f76b33c6a08e3152ec612be6863df"
+  },
+  "head": "5c869fcc142d1fb45150a2a6ac4137fd2445b196"
+}

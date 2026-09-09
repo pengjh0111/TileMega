@@ -1,0 +1,2 @@
+FIT_UNIT known_positive_coefficients=PASS synthetic_only
+FIT_UNIT boundary_face=PASS synthetic_only

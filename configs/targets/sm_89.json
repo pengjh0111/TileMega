@@ -1,43 +1,43 @@
 {
   "event_calibration_by_dtype": {
     "bf16": {
-      "source": "docs/experiments/OCCUPANCY/raw/attrib.tsv",
-      "source_sha256": "5efd78ab0f888208cd6d4ee1a0d2c9590e42a5982423e67758d5952d70108f4c",
-      "method": "three-cell leave-one-out; final origin-constrained least squares on four cell medians",
+      "source": "docs/experiments/EVENT_COST/calibration_round5/attrib.tsv",
+      "source_sha256": "82c0ce990760410d8b6f63e911bfc500e73f05be7b65b39cc8e4aed2cccda9f3",
+      "method": "stages + longest_worker_queue + total_work; nonnegative least squares; no intercept or regularization; twelve cells, paired warmup=5/repeat=11",
       "notify": {
-        "ns": 14.017099653096926,
+        "ns": 4.184597721499793,
         "reason": "measured",
         "unit": "ns/runtime_task_ref"
       },
       "poll": {
-        "ns": 1.438740042803652,
+        "ns": 0.5246761917316038,
         "reason": "measured",
         "unit": "ns/runtime_wait_entry"
       },
       "notify_stage": {
-        "ns": null,
-        "reason": "not_calibrated",
+        "ns": 2030.8367987160177,
+        "reason": "measured",
+        "unit": "ns/runtime_stage"
+      },
+      "poll_stage": {
+        "ns": 824.1297704910431,
+        "reason": "measured",
         "unit": "ns/runtime_stage"
       },
       "notify_longest_worker": {
-        "ns": null,
-        "reason": "not_calibrated",
+        "ns": 0,
+        "reason": "measured",
         "unit": "ns/max_worker_task_ref"
       },
-      "poll_stage": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": "ns/runtime_stage"
-      },
       "poll_longest_worker": {
-        "ns": null,
-        "reason": "not_calibrated",
+        "ns": 0,
+        "reason": "measured",
         "unit": "ns/max_worker_task_ref"
       },
       "fence": {
         "ns": null,
         "reason": "not_calibrated",
-        "unit": ""
+        "unit": "ns/fence_free_producer"
       }
     },
     "f32": {

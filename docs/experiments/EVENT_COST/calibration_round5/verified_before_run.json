@@ -1,0 +1,21 @@
+{
+  "docs/experiments/EVENT_COST/calibration_round5/bin/mha4_base_nowait": "c1402926163734aeee1a30fbca9414b8ff7caeebe1d5cb7c82e8bb49ab544815",
+  "docs/experiments/EVENT_COST/calibration_round5/bin/gqa2_base_l1nosync": "4f2c896a093b6f23bf01a7e23170735cceb3afbfb078f03c72370292ca18a1b1",
+  "docs/experiments/EVENT_COST/calibration_round5/bin/gqa2_base_full": "74173b719a558c491609d0072018d188ab7033453dd57300c3e02af0c3bcbd74",
+  "docs/experiments/EVENT_COST/calibration_round5/bin/gqa2_base_nowait": "e4b3cdb3c3db22799a500a5f5aeff6dd76127c11b18f21eadec10134f70834a1",
+  "docs/experiments/EVENT_COST/calibration_round5/bin/gqa2_base_neither": "ed05d7ce115778b14ee9a3e7b854c4c60db55c1b9b3f1142d2d65002994b4ff3",
+  "docs/experiments/EVENT_COST/calibration_round5/bin/mha4_base_neither": "23807f8b89926e840e5031246803f6b396d1f91367a6c6dcf32aee91336e2d9d",
+  "docs/experiments/EVENT_COST/calibration_round5/bin/mha4_base_l1nosync": "03816ff04231582d0731bbd8c9e842b9a0840760de4ea63842463638134f5eaf",
+  "docs/experiments/EVENT_COST/calibration_round5/bin/mha4_base_full": "f6e3661d7145367ca48df792e56c126251f25af1316b1b64e43f8fc73229c19e",
+  "docs/experiments/EVENT_COST/calibration_round5/ptxas/mha4_base_nowait.build": "dca12b19c6a11f3ec17016cb211265dad7b5a503651e23a6f73a2daf2bdf2291",
+  "docs/experiments/EVENT_COST/calibration_round5/ptxas/mha4_base_neither.build": "716eb6e0574003bb3e9ecc61e8133d46e349153410634281aef8e7684fc50084",
+  "docs/experiments/EVENT_COST/calibration_round5/ptxas/gqa2_base_neither.build": "407f60dde53d396fec564315c07eb4142c67e7f984e84d92a988683aae1240ca",
+  "docs/experiments/EVENT_COST/calibration_round5/ptxas/mha4_base_full.build": "4067cee6be941f9fa9ad272937029571cd1e715da6ede396ff464f70ee779e93",
+  "docs/experiments/EVENT_COST/calibration_round5/ptxas/gqa2_base_nowait.build": "b77df3d58b313b4b455e9ebcdab841260cc5a189de1f760bce2b45e4b108f4e1",
+  "docs/experiments/EVENT_COST/calibration_round5/ptxas/gqa2_base_full.build": "ab6c1be552221c279bda940df7fb8023022c7067fe71d7b0d780462892d3e420",
+  "docs/experiments/EVENT_COST/calibration_round5/ptxas/gqa2_base_l1nosync.build": "3c4e831490f4424e51a85e77c63dc9ac3c33dabfa2b255f018802080921a5931",
+  "docs/experiments/EVENT_COST/calibration_round5/ptxas/mha4_base_l1nosync.build": "f56d28c845e36992f3aeec8a3eb29772202d3388aaa86bcf440b81a02512b93f",
+  "/root/TileMega/include/tilemega/Codegen/RuntimeOwnership.h": "26cdbaa4b33bf5f453b9f4e84c4b3c46768b962ac5ce9aed5211a09180bba784",
+  "/root/TileMega/configs/targets/sm_89.json": "a6df2196977be4c17237aa57b85dd036a40f85212349fc2f778f44f2030bbac6",
+  "/root/TileMega/configs/targets/sm_120.json": "4812d0d517918e65b8bdd693a172b1a0901bdc2c31ec0ae9d31e487f1f5a3efe"
+}

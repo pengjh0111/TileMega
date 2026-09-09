@@ -1,0 +1,71 @@
+ninja: Entering directory `build-portable'
+[1/12] Building CXX object CMakeFiles/tilemega-calibrate.dir/tools/tilemega-calibrate.cpp.o
+[2/12] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ChainDP.cpp.o
+[3/12] Linking CXX static library libtilemega.a
+[4/12] Building CXX object CMakeFiles/runtime_projection_test.dir/test/unit/runtime_projection_test.cpp.o
+[5/12] Linking CXX executable runtime_projection_test
+[6/12] Checking architecture-dispatch and hardware-constant policy
+-- TileMega policy checks passed
+[7/12] Building CXX object CMakeFiles/chain_dp_test.dir/test/unit/chain_dp_test.cpp.o
+FAILED: CMakeFiles/chain_dp_test.dir/test/unit/chain_dp_test.cpp.o 
+/usr/bin/c++ -DTILEMEGA_SOURCE_DIR=\"/root/TileMega\" -I/root/TileMega/build-portable/include -I/root/TileMega/include -I/root/TileMega/third_party/cutlass/include -I/root/TileMega/third_party/cutlass/tools/util/include -I/root/TileMega/third_party/cutlass/test -isystem /tmp/tilemega-vf-llvm-project/llvm/include -isystem /tmp/tilemega-vf-build/llvm-project/include -isystem /tmp/tilemega-vf-llvm-project/mlir/include -isystem /tmp/tilemega-vf-build/llvm-project/tools/mlir/include -isystem /usr/local/cuda/include -isystem /root/TileMega/third_party/barvinok/isl/include -isystem /root/TileMega/build-isl/include -isystem /root/TileMega/third_party/barvinok/polylib/include -isystem /root/TileMega/third_party/barvinok -isystem /root/TileMega/third_party/barvinok/barvinok -isystem /root/TileMega/build-barvinok -O3 -DNDEBUG -UNDEBUG -MD -MT CMakeFiles/chain_dp_test.dir/test/unit/chain_dp_test.cpp.o -MF CMakeFiles/chain_dp_test.dir/test/unit/chain_dp_test.cpp.o.d -o CMakeFiles/chain_dp_test.dir/test/unit/chain_dp_test.cpp.o -c /root/TileMega/test/unit/chain_dp_test.cpp
+/root/TileMega/test/unit/chain_dp_test.cpp: In function ‘int main()’:
+/root/TileMega/test/unit/chain_dp_test.cpp:117:54: error: ‘tilemega::analysis::QuasiPolynomial::QuasiPolynomial(std::string)’ is private within this context
+  117 |   metrics.task_refs=QuasiPolynomial("[S] -> { 10*S }");
+      |                                                      ^
+In file included from /root/TileMega/include/tilemega/Solver/ModelDescription.h:14,
+                 from /root/TileMega/include/tilemega/Solver/CostModel.h:24,
+                 from /root/TileMega/include/tilemega/Solver/ChainDP.h:19,
+                 from /root/TileMega/test/unit/chain_dp_test.cpp:6:
+/root/TileMega/include/tilemega/Analysis/QuasiPolynomial.h:86:12: note: declared private here
+   86 |   explicit QuasiPolynomial(std::string text) : text_(std::move(text)) {}
+      |            ^~~~~~~~~~~~~~~
+/root/TileMega/test/unit/chain_dp_test.cpp:118:61: error: ‘tilemega::analysis::QuasiPolynomial::QuasiPolynomial(std::string)’ is private within this context
+  118 |   metrics.wait_entries=QuasiPolynomial("[S, P] -> { 2*S+P }");
+      |                                                             ^
+In file included from /root/TileMega/include/tilemega/Solver/ModelDescription.h:14,
+                 from /root/TileMega/include/tilemega/Solver/CostModel.h:24,
+                 from /root/TileMega/include/tilemega/Solver/ChainDP.h:19,
+                 from /root/TileMega/test/unit/chain_dp_test.cpp:6:
+/root/TileMega/include/tilemega/Analysis/QuasiPolynomial.h:86:12: note: declared private here
+   86 |   explicit QuasiPolynomial(std::string text) : text_(std::move(text)) {}
+      |            ^~~~~~~~~~~~~~~
+/root/TileMega/test/unit/chain_dp_test.cpp:119:62: error: ‘tilemega::analysis::QuasiPolynomial::QuasiPolynomial(std::string)’ is private within this context
+  119 |   metrics.max_worker_task_refs=QuasiPolynomial("[S] -> { S }");
+      |                                                              ^
+In file included from /root/TileMega/include/tilemega/Solver/ModelDescription.h:14,
+                 from /root/TileMega/include/tilemega/Solver/CostModel.h:24,
+                 from /root/TileMega/include/tilemega/Solver/ChainDP.h:19,
+                 from /root/TileMega/test/unit/chain_dp_test.cpp:6:
+/root/TileMega/include/tilemega/Analysis/QuasiPolynomial.h:86:12: note: declared private here
+   86 |   explicit QuasiPolynomial(std::string text) : text_(std::move(text)) {}
+      |            ^~~~~~~~~~~~~~~
+/root/TileMega/test/unit/chain_dp_test.cpp:120:55: error: ‘tilemega::analysis::QuasiPolynomial::QuasiPolynomial(std::string)’ is private within this context
+  120 |   metrics.fence_free_producers=QuasiPolynomial("{ 0 }");
+      |                                                       ^
+In file included from /root/TileMega/include/tilemega/Solver/ModelDescription.h:14,
+                 from /root/TileMega/include/tilemega/Solver/CostModel.h:24,
+                 from /root/TileMega/include/tilemega/Solver/ChainDP.h:19,
+                 from /root/TileMega/test/unit/chain_dp_test.cpp:6:
+/root/TileMega/include/tilemega/Analysis/QuasiPolynomial.h:86:12: note: declared private here
+   86 |   explicit QuasiPolynomial(std::string text) : text_(std::move(text)) {}
+      |            ^~~~~~~~~~~~~~~
+/root/TileMega/test/unit/chain_dp_test.cpp:121:46: error: ‘tilemega::analysis::QuasiPolynomial::QuasiPolynomial(std::string)’ is private within this context
+  121 |   metrics.fused_edges=QuasiPolynomial("{ 0 }");
+      |                                              ^
+In file included from /root/TileMega/include/tilemega/Solver/ModelDescription.h:14,
+                 from /root/TileMega/include/tilemega/Solver/CostModel.h:24,
+                 from /root/TileMega/include/tilemega/Solver/ChainDP.h:19,
+                 from /root/TileMega/test/unit/chain_dp_test.cpp:6:
+/root/TileMega/include/tilemega/Analysis/QuasiPolynomial.h:86:12: note: declared private here
+   86 |   explicit QuasiPolynomial(std::string text) : text_(std::move(text)) {}
+      |            ^~~~~~~~~~~~~~~
+[8/12] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/Calibration.cu.o
+[9/12] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/GemmCalibration.cu.o
+/root/TileMega/lib/Target/GemmCalibration.cu(203): warning #177-D: function "tilemega::calib::<unnamed>::FillKernel" was declared but never referenced
+            void FillKernel(float* v, std::size_t elements) {
+                 ^
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+ninja: build stopped: subcommand failed.

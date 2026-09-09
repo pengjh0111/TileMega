@@ -1,0 +1,27 @@
+{
+  "model": "stages + longest_worker_queue + total_work",
+  "fit": "nonnegative least squares; no intercept or regularization",
+  "hardware_publication": "pending A2 and functional gate",
+  "fence_ns": {
+    "reason": "not_calibrated"
+  },
+  "cells": 12,
+  "rates": {
+    "notify": {
+      "variant_stages": 2030.8367987160177,
+      "max_worker_task_refs": 0.0,
+      "task_refs": 4.184597721499793
+    },
+    "poll": {
+      "variant_stages": 824.1297704910431,
+      "max_worker_task_refs": 0.0,
+      "waits": 0.5246761917316038
+    }
+  },
+  "paired_statistics": {
+    "bootstrap_samples": 10000,
+    "seed": 0,
+    "confidence": 0.95,
+    "wilcoxon": "two-sided exact sign randomization; zero differences dropped; averaged tied ranks"
+  }
+}
