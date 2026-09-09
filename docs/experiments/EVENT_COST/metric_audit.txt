@@ -1,0 +1,5 @@
+model	seq	producer	consumer	wait_sum	fanout_sum	count	volume
+gqa2	4	0	1	512	16	4	512
+METRIC_DOMAIN_MISMATCH relation={ [m = 0, n] -> [p0] : 0 <= n <= 3 and 0 <= p0 <= 127 }
+ISL_CONTEXT remaining=0
+event-cost: wait/fanout sum different task domains; event pricing refused

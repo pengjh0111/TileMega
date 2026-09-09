@@ -1,0 +1,20 @@
+{
+  "dtype": "bf16",
+  "method": "three-cell leave-one-out; final origin-constrained least squares on four cell medians",
+  "source": "docs/experiments/OCCUPANCY/raw/attrib.tsv",
+  "source_sha256": "5efd78ab0f888208cd6d4ee1a0d2c9590e42a5982423e67758d5952d70108f4c",
+  "notify": {
+    "ns": 14.017099653096926,
+    "reason": "measured",
+    "unit": "ns/runtime_task_ref"
+  },
+  "poll": {
+    "ns": 1.438740042803652,
+    "reason": "measured",
+    "unit": "ns/runtime_wait_entry"
+  },
+  "fence": {
+    "ns": null,
+    "reason": "not_calibrated"
+  }
+}
