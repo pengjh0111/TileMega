@@ -25,8 +25,11 @@ option(TILEMEGA_OP_ARITHMETIC "Enable audited operator arithmetic declarations" 
 option(TILEMEGA_TASK_WORK "Derive physical and nominal work from access maps" ON)
 option(TILEMEGA_EXACT_ELEMENT_WORK "Count exact predicated element reads" ON)
 option(TILEMEGA_SEMANTIC_COST_INPUT "Carry validated semantic accesses through CG" ON)
+option(TILEMEGA_DERIVED_TASK_COST "Enable explicit access-derived task pricing" ON)
 set_source_files_properties(lib/Frontend/Frontend.cpp PROPERTIES
   COMPILE_DEFINITIONS "TILEMEGA_SEMANTIC_COST_INPUT=$<BOOL:${TILEMEGA_SEMANTIC_COST_INPUT}>")
+set_source_files_properties(lib/Solver/CostModel.cpp PROPERTIES
+  COMPILE_DEFINITIONS "TILEMEGA_DERIVED_TASK_COST=$<BOOL:${TILEMEGA_DERIVED_TASK_COST}>")
 option(TILEMEGA_COMPLETE_GEMM_READS "Include external GEMM weights in semantic reads" ON)
 option(TILEMEGA_COMPLETE_NORMALIZATION_READS "Include normalization scale reads" ON)
 set_source_files_properties(lib/Analysis/TaskWork.cpp PROPERTIES
@@ -259,6 +262,10 @@ set_target_properties(tilemega-event-price PROPERTIES
 add_executable(tilemega-op-audit tools/tilemega-op-audit.cpp)
 add_executable(tilemega-task-work-probe tools/tilemega-task-work-probe.cpp)
 add_executable(tilemega-task-work-gate tools/tilemega-task-work-gate.cpp)
+add_executable(tilemega-task-cost-gate tools/tilemega-task-cost-gate.cpp)
+target_link_libraries(tilemega-task-cost-gate PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-task-cost-gate PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 target_link_libraries(tilemega-task-work-gate PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-task-work-gate PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")

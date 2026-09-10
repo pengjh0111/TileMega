@@ -39,6 +39,8 @@
 
 namespace tilemega::solver {
 
+struct DerivedTaskInput;
+
 /// Why a lane of `ResourceVector` carries zero.  A zero lane is never bare:
 /// it is either live, or the target has no such pipe, or the pipe exists and
 /// nobody measured it.  `Bottleneck()` is a max, so a zeroed lane drops out
@@ -173,6 +175,11 @@ class CostModel {
                         ModelDims const& dims) const;
   double NonGemmStageNs(ModelStage const& stage, ModelDims const& dims,
                         Residency residency) const;
+  // Access-derived candidate input. The historical stage evaluators remain
+  // independent controls until the complete unified-path acceptance gate.
+  double TaskCostNs(DerivedTaskInput const& input, BackendTraits const& traits,
+                    Residency residency, ModelDescription const& model,
+                    int chunks) const;
   /// §2.2(f): one stage barrier, at this grid width.
   double BarrierNs(Residency residency) const;
   double EventNs(ModelDescription const& model, std::vector<GemmConfig> const& configs,

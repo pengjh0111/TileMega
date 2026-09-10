@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/CostModel.h>
+#include <tilemega/Solver/TaskModel.h>
 
 #include <algorithm>
 #include <cmath>
@@ -397,6 +398,68 @@ double CostModel::CombineStageNs(GemmOp const& gemm, int chunks,
     return calib.combine_fixed_ns + (b + peer * (chunks - 1)) * elements + extra;
   }
   return calib.combine_fixed_ns + (b + d * (chunks - 1)) * elements;
+}
+
+double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const& traits,
+                             Residency residency, ModelDescription const& model,
+                             int chunks) const {
+#if defined(TILEMEGA_DERIVED_TASK_COST) && !TILEMEGA_DERIVED_TASK_COST
+  throw std::runtime_error("access-derived task pricing is disabled");
+#endif
+  if (traits.stages<=0 || traits.tile_k<=0)
+    throw std::invalid_argument("scalar task latency DAG has not been supplied");
+  if (model.dims.IsSymbolic()) throw std::invalid_argument("bind theta before FP64 task evaluation");
+  auto known=model.MetricBindings();
+  analysis::ParamBinding point;
+  for (auto const& coordinate:input.task.Coordinates()) point.Bind(coordinate,0);
+  auto value=[&](analysis::QuasiPolynomial const& quantity) {
+    return double(quantity.BindCoordinates(point).SubstituteParams(known).Eval({}));
+  };
+  double const ctas=double(input.work.task_count.SubstituteParams(known).Eval({}));
+  double const iters=value(input.work.nominal_task_reduce_extent)/traits.tile_k;
+  if (iters<=0 || iters!=std::floor(iters)) throw std::invalid_argument("invalid collective reduction work");
+  double const reads=value(input.work.nominal_read_elements)/iters;
+  double const writes=value(input.work.nominal_write_elements);
+  double const bytes=ElementBytes(dtype_)*reads;
+  double const flops=input.arithmetic.flops_per_output_element.Eval(known)*writes/iters;
+  double const transc=input.arithmetic.transcendental_per_output_element.Eval(known)*writes/iters;
+  double const dram_fraction=1.0-CacheHitProbability(model.LiveFootprintBytes());
+  // Keep the calibrated factorized FP64 setup order. beta*(M*N) is not in
+  // general bit-identical to (beta*M)*N, although the integer work is exact.
+  double setup=fit_.setup_per_output_ns;
+  for (std::size_t axis=0;axis<input.task.tile.size();++axis) {
+    setup*=double(input.task.tile[axis].Eval(known,known));
+  }
+  double const epilogue=(options_.fp32_partials && dtype_==ScalarType::kBF16 && chunks>1
+                           ? double(sizeof(float)) : ElementBytes(dtype_))*writes;
+  double const fixed=fit_.setup_ns+setup+traits.stages*(bytes/l2_bytes_per_ns_per_sm_)+
+      calib_->l2_latency_ns+epilogue/l2_bytes_per_ns_per_sm_;
+  double const effective_iters=options_.pipeline_envelope
+      ? std::max(iters-(traits.stages-1),0.0) : iters;
+  double const grid=double(target_->res.num_sms)*std::max(1,residency.ctas_per_sm);
+  double total=0.0;
+  for (double remaining=ctas;remaining>0.0;remaining-=grid) {
+    double const active=std::min(grid,remaining);
+    double const o=options_.wave_tail ? std::max(1.0,active/target_->res.num_sms)
+                                    : std::max(1,residency.ctas_per_sm);
+    ResourceVector u;
+    // The historical scalar 16x16 thread layout issues read_elements/2
+    // scalar shared warp instructions; BF16's corresponding lane is disabled.
+    u.smem=o*(dtype_==ScalarType::kBF16 ? bytes : reads/2.0)*fit_.lds_ns;
+    if (options_.resource_lanes) {
+      if (input.arithmetic.flops_use_mma) u.tensor_core=o*flops/tc_flops_per_ns_per_sm_;
+      else u.cuda_core=o*flops/cuda_flops_per_ns_per_sm_;
+      u.sfu=o*transc/sfu_ops_per_ns_per_sm_;
+      u.l2=(o*bytes)/l2_bytes_per_ns_per_sm_;
+      u.dram=(o*bytes)*dram_fraction/dram_bytes_per_ns_per_sm_;
+    }
+    for (int i=0;i<ResourceVector::kLaneCount;++i) {
+      auto lane=static_cast<ResourceVector::Lane>(i);
+      if (lanes_[lane]!=LaneStatus::kLive || options_.disabled_lanes[lane]) u[lane]=0.0;
+    }
+    total+=fixed+effective_iters*u.Bottleneck();
+  }
+  return total;
 }
 
 double CostModel::NonGemmStageNs(ModelStage const& stage, ModelDims const& dims,
