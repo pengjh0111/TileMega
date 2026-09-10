@@ -2,12 +2,18 @@
 #include <tilemega/Analysis/FusionAccess.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Solver/FusionResources.h>
+#include <tilemega/Codegen/ResidentSchedule.h>
 #include <iostream>
 #include <stdexcept>
 
 using namespace tilemega::analysis;
 int main() try {
   IslContext context;
+  using tilemega::codegen::ResidentScheduleLegal;
+  if (!ResidentScheduleLegal(true,16,256) || !ResidentScheduleLegal(true,256,256) ||
+      ResidentScheduleLegal(true,257,256) || ResidentScheduleLegal(false,16,256) ||
+      ResidentScheduleLegal(true,0,256))
+    throw std::runtime_error("resident-only schedule validation failed");
   auto relation = [](char const* text) { return CouplingRelation::FromIslText(text); };
   TaskAccesses producer, consumer;
   producer.writes["mid"] = relation("[S] -> { [p] -> [i] : S > 0 and 0 <= p < S and 2p <= i < 2p+2 }");

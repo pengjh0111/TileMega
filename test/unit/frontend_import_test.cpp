@@ -67,6 +67,20 @@ int main() {
          std::string::npos);
   assert(cuda.find("kDependencyOffsets0, kSchedule0, 30u") !=
          std::string::npos);
+  {
+    mlir::OwningOpRef<mlir::ModuleOp> resident(module->clone());
+    for (auto placement:resident->getOps<tilemega::dialect::PlacementOp>())
+      placement->setAttr("resident_only",mlir::BoolAttr::get(&context,true));
+    auto emitted=tilemega::codegen::CouplingGraphToCUDA{}.Lower(*resident);
+    assert(emitted.find(", nullptr, true}")!=std::string::npos);
+    auto first=*resident->getOps<tilemega::dialect::PlacementOp>().begin();
+    first->removeAttr("resident_only");
+    int before=isl_context.ReferenceCount();
+    bool rejected=false;
+    try { (void)tilemega::codegen::CouplingGraphToCUDA{}.Lower(*resident); }
+    catch (std::invalid_argument const&) { rejected=true; }
+    assert(rejected && isl_context.ReferenceCount()==before);
+  }
 
   // Phase-5 prerequisite: two independently instantiated granularities are
   // fused into one binary, and ModelSpec -- not an external -D plan -- binds

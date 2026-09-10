@@ -34,6 +34,7 @@ struct RuntimePlan {
   std::vector<AttentionRuntimeRecord> attention;  ///< original-stage indexed; empty is direct
   std::uint32_t ownership_flags = 0;
   int cluster_dim = 0;
+  bool resident_only = true;
   std::map<std::string,std::pair<long,long>> parameter_ranges;
   std::map<std::string,std::uint32_t> task_stages;
 };

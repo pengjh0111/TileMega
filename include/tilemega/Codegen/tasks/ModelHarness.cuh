@@ -10,6 +10,7 @@
 #include <cuda_runtime.h>
 #include <tilemega/Codegen/tasks/EventSync.cuh>
 #include <tilemega/Codegen/tasks/Benchmark.cuh>
+#include <tilemega/Codegen/ResidentSchedule.h>
 
 #include <tilemega/Codegen/tasks/AttentionChunkTaskBody.h>
 #include <tilemega/Codegen/tasks/ElementwiseTaskBody.h>
@@ -1831,6 +1832,12 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
     return 2;
   }
 #endif
+  int const resident_limit = std::min(l1_ctas,l2_ctas)*target.res.num_sms;
+  if (!codegen::ResidentScheduleLegal(runtime_variant.resident_only,grid,resident_limit)) {
+    std::fprintf(stderr,"L-sched resident-only constraint rejected grid=%d limit=%d\n",
+                 grid,resident_limit);
+    return 2;
+  }
   int blocks_per_sm = std::max(1, grid / target.res.num_sms);
 #if TILEMEGA_PLACEMENT == 1
   // The `pair` placement needs the residency the grid was sized from.

@@ -267,6 +267,11 @@ LogicalResult ImplementationOp::verify() {
 }
 
 LogicalResult PlacementOp::verify() {
+  if (auto attr = (*this)->getAttr("resident_only")) {
+    auto flag = llvm::dyn_cast<BoolAttr>(attr);
+    if (!flag || !flag.getValue())
+      return emitOpError("resident_only must be true; over-resident proof is unavailable");
+  }
   if (getCluster() < 1) return emitOpError("cluster must be positive");
   if (getMap().empty()) return emitOpError("placement map cannot be empty");
   if (!SymbolTable::lookupNearestSymbolFrom<TaskSpaceOp>(*this, getTaskAttr()))

@@ -25,6 +25,22 @@
 
 namespace tilemega::codegen {
 namespace {
+bool readResidentConstraint(mlir::ModuleOp module) {
+  std::size_t count=0, explicit_count=0;
+  for (auto placement:module.getOps<dialect::PlacementOp>()) {
+    ++count;
+    if (auto attr=placement->getAttr("resident_only")) {
+      auto flag=llvm::dyn_cast<mlir::BoolAttr>(attr);
+      if (!flag || !flag.getValue())
+        throw std::invalid_argument("placement requires resident_only=true; no over-resident proof");
+      ++explicit_count;
+    }
+  }
+  if (explicit_count && explicit_count!=count)
+    throw std::invalid_argument("resident constraint must cover every placement");
+  return explicit_count!=0;
+}
+
 analysis::ParamBinding readBinding(mlir::ModuleOp module, llvm::StringRef name) {
   analysis::ParamBinding result;
   if (auto values = module->getAttrOfType<mlir::DictionaryAttr>(name))
@@ -107,6 +123,7 @@ struct RuntimeVariantRecord {
   std::vector<ScheduleStageRecord> schedule;
   std::uint32_t max_dependency_span = 0;
   std::uint32_t ownership_flags = 0;
+  bool explicit_resident_constraint = false;
 };
 
 void BuildVariantSchedule(RuntimeVariantRecord& variant,
@@ -377,6 +394,8 @@ std::string emitModelPlan(mlir::ModuleOp module,
         << variants[v].seq_begin << "u, " << variants[v].seq_end
         << "u, " << variants[v].ownership_flags << "u";
     if (!variants[v].attention.empty()) out << ", kRuntimeAttention" << v;
+    else if (variants[v].explicit_resident_constraint) out << ", nullptr";
+    if (variants[v].explicit_resident_constraint) out << ", true";
     out << "},\n";
   }
   std::uint32_t const seq_count = variants.back().seq_end + 1;
@@ -585,6 +604,7 @@ RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
   auto model = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   if (!model) throw std::invalid_argument("CG has no runtime model plan");
   RuntimePlan result;
+  (void)readResidentConstraint(module);
   result.dependencies = std::move(analysis.dependencies);
   result.gemms = readRuntimeGemms(module, arrayField(model, "gemms").size());
   result.attention = readRuntimeAttention(module);
@@ -758,6 +778,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
                                    arrayField(modelPlan, "gemms").size());
   runtime.dependencies = std::move(dependencies);
   runtime.ownership_flags = readOwnershipFlags(module);
+  runtime.explicit_resident_constraint = readResidentConstraint(module);
   runtime.attention = std::move(attention_storage.attention);
   out << emitModelPlan(module, {std::move(runtime)});
   return out.str();
@@ -792,6 +813,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
     record.seq_begin = input.seq_begin;
     record.seq_end = input.seq_end;
     record.ownership_flags = runtime_plan.ownership_flags;
+    record.explicit_resident_constraint = readResidentConstraint(input.module);
     record.dependencies = std::move(runtime_plan.dependencies);
     record.gemms = std::move(runtime_plan.gemms);
     record.attention = std::move(runtime_plan.attention);
