@@ -1,0 +1,112 @@
+{
+  "builds": [
+    {
+      "tag": "gqa2_p0",
+      "binary_sha256": "0c2e0c6f68d4f6301a5e314f1dd343fd532182bcebdb60717be0023a663ea4dc",
+      "source_sha256": "cfe8fe98bcc057f468fa1817bd3f18a4fe8e882c6eb3bfc4210c49f05aae84dd",
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "-arch=native",
+        "-lineinfo",
+        "-Xptxas=-v,--warn-on-spills",
+        "--expt-relaxed-constexpr",
+        "-DTILEMEGA_FP32_PARTIALS=1",
+        "-DTILEMEGA_CG_SPLIT_TASK_ORDER=1",
+        "-DTILEMEGA_PLACEMENT=0",
+        "-I/root/TileMega/include",
+        "-I/root/TileMega/third_party/cutlass/include",
+        "-I/root/TileMega/third_party/cutlass/tools/util/include",
+        "-I/root/TileMega/third_party/cutlass/test",
+        "/root/TileMega/docs/experiments/PLACE/balanced_runtime/src/gqa2_p0.cu",
+        "/root/TileMega/build-portable/libtilemega.a",
+        "-L/usr/local/cuda/lib64",
+        "-lcudart",
+        "-o",
+        "/root/TileMega/docs/experiments/PLACE/balanced_runtime/bin/gqa2_p0"
+      ]
+    },
+    {
+      "tag": "gqa2_p4",
+      "binary_sha256": "fc80ad70c3989406cb24c399a2edf44d625c4a32bf22614924b255e219693f57",
+      "source_sha256": "3b4375fdb412150dbd09c56173da0832448467ead3734e9dda40d638e4146f80",
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "-arch=native",
+        "-lineinfo",
+        "-Xptxas=-v,--warn-on-spills",
+        "--expt-relaxed-constexpr",
+        "-DTILEMEGA_FP32_PARTIALS=1",
+        "-DTILEMEGA_CG_SPLIT_TASK_ORDER=1",
+        "-DTILEMEGA_PLACEMENT=4",
+        "-I/root/TileMega/include",
+        "-I/root/TileMega/third_party/cutlass/include",
+        "-I/root/TileMega/third_party/cutlass/tools/util/include",
+        "-I/root/TileMega/third_party/cutlass/test",
+        "/root/TileMega/docs/experiments/PLACE/balanced_runtime/src/gqa2_p4.cu",
+        "/root/TileMega/build-portable/libtilemega.a",
+        "-L/usr/local/cuda/lib64",
+        "-lcudart",
+        "-o",
+        "/root/TileMega/docs/experiments/PLACE/balanced_runtime/bin/gqa2_p4"
+      ]
+    },
+    {
+      "tag": "mha4_p0",
+      "binary_sha256": "351bdebd78191ba6e083fdc70d8ea871dad21a92dce8f1545a906284f87df147",
+      "source_sha256": "56c541e563b4c9944a3db0a0e871800d8e0e19253657e28506d2888d6f8421c7",
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "-arch=native",
+        "-lineinfo",
+        "-Xptxas=-v,--warn-on-spills",
+        "--expt-relaxed-constexpr",
+        "-DTILEMEGA_FP32_PARTIALS=1",
+        "-DTILEMEGA_CG_SPLIT_TASK_ORDER=1",
+        "-DTILEMEGA_PLACEMENT=0",
+        "-I/root/TileMega/include",
+        "-I/root/TileMega/third_party/cutlass/include",
+        "-I/root/TileMega/third_party/cutlass/tools/util/include",
+        "-I/root/TileMega/third_party/cutlass/test",
+        "/root/TileMega/docs/experiments/PLACE/balanced_runtime/src/mha4_p0.cu",
+        "/root/TileMega/build-portable/libtilemega.a",
+        "-L/usr/local/cuda/lib64",
+        "-lcudart",
+        "-o",
+        "/root/TileMega/docs/experiments/PLACE/balanced_runtime/bin/mha4_p0"
+      ]
+    },
+    {
+      "tag": "mha4_p4",
+      "binary_sha256": "c8dc98c28767ad43593236171084b061065c291eb42f9d03541f983dc108d013",
+      "source_sha256": "b45b040f553b8a7b9cf33c25c27038decf304f2d7b58e68e4dfff9d38e5c71f5",
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "-arch=native",
+        "-lineinfo",
+        "-Xptxas=-v,--warn-on-spills",
+        "--expt-relaxed-constexpr",
+        "-DTILEMEGA_FP32_PARTIALS=1",
+        "-DTILEMEGA_CG_SPLIT_TASK_ORDER=1",
+        "-DTILEMEGA_PLACEMENT=4",
+        "-I/root/TileMega/include",
+        "-I/root/TileMega/third_party/cutlass/include",
+        "-I/root/TileMega/third_party/cutlass/tools/util/include",
+        "-I/root/TileMega/third_party/cutlass/test",
+        "/root/TileMega/docs/experiments/PLACE/balanced_runtime/src/mha4_p4.cu",
+        "/root/TileMega/build-portable/libtilemega.a",
+        "-L/usr/local/cuda/lib64",
+        "-lcudart",
+        "-o",
+        "/root/TileMega/docs/experiments/PLACE/balanced_runtime/bin/mha4_p4"
+      ]
+    }
+  ]
+}

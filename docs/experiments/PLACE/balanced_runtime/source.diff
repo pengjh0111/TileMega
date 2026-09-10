@@ -1,0 +1,834 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c9a0ee62..1ca07bcb 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -145,6 +145,8 @@ add_library(tilemega STATIC
+   lib/Solver/ListScheduler.cpp
+   lib/Solver/CostModel.cpp
+   lib/Solver/FusionResources.cpp
++  lib/Solver/BalancedPlacement.cpp
++  lib/Codegen/RuntimeTaskGraph.cpp
+   lib/Solver/CacheServiceCurve.cpp
+   lib/Solver/ModelDescription.cpp
+   lib/Solver/TaskModel.cpp
+diff --git a/docs/experiments/FUSION/result.md b/docs/experiments/FUSION/result.md
+index 49c2c5ff..efc8cbd2 100644
+--- a/docs/experiments/FUSION/result.md
++++ b/docs/experiments/FUSION/result.md
+@@ -1,5 +1,34 @@
+ # T3：Fusion 参数化——实施前设计
+ 
++## Round 5 当前进度
++
++✅ `lib/Analysis/FusionAccess.cpp` 保留消费者索引的逐 tensor 中间 tile，
++`lib/Solver/FusionResources.cpp` 从精确物理集合计算 peak bytes，再取
++`max(producer_scratch, consumer_scratch) + peak`；寄存器取两阶段 max。
++`FusionCtasPerSm` 使用 TargetSpec 预算、调用方的寄存器分配粒度及静态 shared，
++不把不合法配置夹成 1。旧 ChainDP 路径保持不变，避免改动历史位一致锚点。
++这仍需融合 kernel 的 tier-3 编译资源复核，不能把 max 寄存器声明当实测。
++
++✅ `test/unit/fusion_access_test.cpp` 验证 max 而非 sum、外部写回、fanout、
++shared 台阶（51200 B 动态加 1 B 静态：2→1）、单 CTA 超预算返回 0；
++9 个错误分支分别检查引用数不变，`ISL_CONTEXT remaining=0`。
++
++✅ `lib/Solver/TaskModel.cpp:DeriveModelTaskAccesses` 复用生产语义的物理元素访问，
++scalar 使用已有 runtime ownership；完整 element_reads 替代矩形读集，名义
++collective 工作量不进入融合访存分析。`task_element_work_test` 对两份生产
++export 执行，gqa2/mha4 semantic roundtrip 34/68，错误分支合计 13，零残留。
++
++⚠️ 这些是 B1.1 的组成部分，不是融合完成。混合 task 定价、区间 DP、
++L-task 写回与两条真实 GPU 融合仍待实现。特别是现有 `TaskCostNs` 返回整个
++stage 的 wave 总价，不能直接作为 fanout 重算公式的单 task 单价。
++
++⚠️ `run_sm120.sh` 已替换占位逻辑，调用 `../run_schedule_sm120.py`。
++用法：`run_sm120.sh --manifest <frozen-builds.json> --out <new-directory>`。
++runner 核对实际 sm_120 GPU、BF16 全比较矩阵、source/binary/ptxas/prediction
++哈希，50 轮完整状态轮转，warmup=5/repeat=11，输出全部 resource/schedule
++记录与预测并在正确性失败时停止。两条 CPU 单测与 shell 语法检查通过。
++未运行 sm_120；真实融合构建/预测 manifest 尚未产出，因此 B1.5 未整体验收。
++
+ ⚠️ 尚未实现区间 DP 或两条手工融合 kernel；不是已验证结果。
+ 形式化已先写入 skeleton §2.3（第六个 CG 操作 Fuse）。
+ 
+diff --git a/docs/experiments/ROUND5_LEDGER.md b/docs/experiments/ROUND5_LEDGER.md
+index c45fea47..ebd416f0 100644
+--- a/docs/experiments/ROUND5_LEDGER.md
++++ b/docs/experiments/ROUND5_LEDGER.md
+@@ -11,6 +11,21 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
+ 
+ ## 执行规则与范围
+ 
++### 当前补做记录
++
++此前将 B 的未实现主体笼统称为依赖阻塞不准确。A6/A9 已放行，B1/B2/B3.2
++属于仍须继续的实现工作。B3.1 的负门保留 CDF 默认路径，不禁止独立开关下
++继续设计 (a)。B4.2/B4.3 分别由 A12.2/A12.3 完成，不重复列待办。
++
++本次已增加 B1.1 精确跨界 shared 与零驻留拒绝检查、生产物理 R/W 适配，
++CPU 测试通过；尚未将这些部件接入区间 DP 或 GPU，不能标完整融合。
++两份 sm120 占位脚本已替换为可执行的冻结产物比较 runner，CPU 单测通过，
++但真实 fusion/placement manifest 未生成，不声称 GPU 或完整脚本流程已验收。
++
++A7 的已归档生产 chunk 数值门为 800/800（`COST_MODEL/attention_models`），
++不是仅 primitive 50 进程；plan/runtime/四阶段展开已接入。仍缺 chunk 价格、
++候选 DP、独立投影对账及预测/实测排序，不能以数值通过替代这些项。
++
+ - A0 最先检查；A1+A2 优先，随后 A3–A6、A9、A7、A8、A11、A12。
+ - B 全部登记但不提前开工，必须先通过 A6/A9；A2 投影仅实现一次供 B 复用。
+ - 停止门只停止相应项及依赖项，独立项继续。不得用此规则绕过 B 的入口门。
+diff --git a/include/tilemega/Codegen/tasks/ModelHarness.cuh b/include/tilemega/Codegen/tasks/ModelHarness.cuh
+index 9079a70c..ba35f44c 100644
+--- a/include/tilemega/Codegen/tasks/ModelHarness.cuh
++++ b/include/tilemega/Codegen/tasks/ModelHarness.cuh
+@@ -11,6 +11,9 @@
+ #include <tilemega/Codegen/tasks/EventSync.cuh>
+ #include <tilemega/Codegen/tasks/Benchmark.cuh>
+ #include <tilemega/Codegen/ResidentSchedule.h>
++#include <tilemega/Codegen/RuntimeTaskGraph.h>
++#include <tilemega/Solver/BalancedPlacement.h>
++#include <tilemega/Solver/ListScheduler.h>
+ 
+ #include <tilemega/Codegen/tasks/AttentionChunkTaskBody.h>
+ #include <tilemega/Codegen/tasks/ElementwiseTaskBody.h>
+@@ -1147,12 +1150,49 @@ inline DeviceModel Create(ModelSpec const& spec,
+   std::vector<int> physical_worker(grid);
+   for (int worker = 0; worker < grid; ++worker)
+     physical_worker[HostPlacedBlock(worker, grid, blocks_per_sm)] = worker;
++  std::vector<std::vector<int>> task_owner(model.stages.size());
++  for (std::uint32_t stage=0;stage<model.stages.size();++stage) {
++    task_owner[stage].resize(active_tasks(stage));
++    for (int task=0;task<active_tasks(stage);++task)
++      task_owner[stage][task]=physical_worker[task%grid];
++  }
++#if TILEMEGA_PLACEMENT == 4
++  if (!runtime_variant.balanced_placement) {
++    std::fprintf(stderr,"placement=4 requires balanced L-sched writeback\n");
++    std::exit(2);
++  }
++  std::vector<int> counts;
++  for (std::uint32_t stage=0;stage<model.stages.size();++stage) counts.push_back(active_tasks(stage));
++  std::vector<RuntimeDependencyWindow> windows;
++  for (auto const& edge:dependencies)
++    windows.push_back({static_cast<int>(edge.producer),static_cast<int>(edge.consumer),
++        edge.map==StageDependency::Map::kAll,edge.div,edge.scale,edge.offset,edge.count});
++  auto graph=MaterializeRuntimeTaskGraph(counts,windows,grid);
++  auto order=solver::ListScheduler{}.Schedule(graph.successors);
++  auto placed_tasks=solver::BalanceTaskPlacement(graph.successors,order,graph.preferred_worker,
++      grid,graph.baseline_max_queue);
++  for (std::size_t stage=0;stage<counts.size();++stage)
++    for (int task=0;task<counts[stage];++task)
++      task_owner[stage][task]=placed_tasks.worker[graph.stage_offsets[stage]+task];
++  std::printf("E2E_BALANCED max_queue=%d baseline_max_queue=%d same_worker_edges=%ld "
++              "fence_free_producers=%ld resident_only=1\n",placed_tasks.max_queue,
++              graph.baseline_max_queue,placed_tasks.same_worker_edges,placed_tasks.fence_free_producers);
++#else
++  if (runtime_variant.balanced_placement) {
++    std::fprintf(stderr,"balanced L-sched requires TILEMEGA_PLACEMENT=4\n");
++    std::exit(2);
++  }
++#endif
++  std::vector<std::vector<std::vector<int>>> owned(grid,
++      std::vector<std::vector<int>>(model.stages.size()));
++  for (std::size_t stage=0;stage<task_owner.size();++stage)
++    for (std::size_t task=0;task<task_owner[stage].size();++task)
++      owned[task_owner[stage][task]][stage].push_back(task);
+   std::vector<int> stage_max_producer_worker(model.stages.size(), -1);
+   for (std::uint32_t stage = 0; stage < model.stages.size(); ++stage) {
+-    int const owners = std::min(active_tasks(stage), grid);
+-    for (int owner = 0; owner < owners; ++owner)
++    for (int owner : task_owner[stage])
+       stage_max_producer_worker[stage] = std::max(
+-          stage_max_producer_worker[stage], physical_worker[owner]);
++          stage_max_producer_worker[stage], owner);
+   }
+ #if TILEMEGA_EVENT_KAPPA > 0
+   int const per_group = TILEMEGA_EVENT_KAPPA;
+@@ -1213,7 +1253,7 @@ inline DeviceModel Create(ModelSpec const& spec,
+       if (end - begin == 1) { model.event_fanin[row] = {}; return; }
+       std::uint32_t first = shards, last = 0;
+       for (int logical = begin; logical < end; ++logical) {
+-        unsigned const cluster = physical_worker[logical % grid] / TILEMEGA_GENERATED_CLUSTER_DIM;
++        unsigned const cluster = task_owner[stage][logical] / TILEMEGA_GENERATED_CLUSTER_DIM;
+         first = std::min(first, cluster); last = std::max(last, cluster);
+       }
+       plan.first_cluster = first;
+@@ -1221,7 +1261,7 @@ inline DeviceModel Create(ModelSpec const& spec,
+ #endif
+       model.shard_targets.resize(plan.begin + plan.modulus, 0);
+       for (int logical = begin; logical < end; ++logical) {
+-        int const worker = physical_worker[logical % grid];
++        int const worker = task_owner[stage][logical];
+ #if TILEMEGA_EVENT_CLUSTER_FANIN
+         ++model.shard_targets[plan.begin + worker / TILEMEGA_GENERATED_CLUSTER_DIM - plan.first_cluster];
+ #else
+@@ -1273,10 +1313,9 @@ inline DeviceModel Create(ModelSpec const& spec,
+   model.params.event_shard_count = 1;
+ #endif
+   for (int worker = 0; worker < grid; ++worker) {
+-    int const placed = HostPlacedBlock(worker, grid, blocks_per_sm);
+     for (std::uint32_t stage : model.stage_order) {
+       int const count = active_tasks(stage);
+-      for (int logical = placed; logical < count; logical += grid) {
++      for (int logical : owned[worker][stage]) {
+         TaskRef task{};
+         task.stage = stage;
+         task.logical_task = static_cast<std::uint32_t>(logical);
+@@ -1293,7 +1332,7 @@ inline DeviceModel Create(ModelSpec const& spec,
+           int const produced = active_tasks(dep.producer);
+ #if TILEMEGA_EVENT_KAPPA > 0
+           auto observe_owner = [&](int owner) {
+-            int const producer_worker = physical_worker[owner];
++            int const producer_worker = owner;
+             if (producer_worker > worker)
+               model.schedule_max_worker_span = std::max(
+                   model.schedule_max_worker_span,
+@@ -1315,14 +1354,14 @@ inline DeviceModel Create(ModelSpec const& spec,
+                 at + static_cast<int>(dep.count), produced);
+             for (int producer_task = begin; producer_task < end;
+                  ++producer_task) {
+-              int const owner = producer_task % grid;
++              int const owner = task_owner[dep.producer][producer_task];
+               int const group = producer_task / per_group;
+               int const group_end = std::min((group + 1) * per_group, produced);
+               for (int member = group * per_group; member < group_end; ++member)
+-                observe_owner(member % grid);
++                observe_owner(task_owner[dep.producer][member]);
+               // With one worker per event, this worker's earlier queue entry
+               // is already a proof; no global-memory poll is needed.
+-              if (per_group == 1 && owner == placed) continue;
++              if (per_group == 1 && owner == worker) continue;
+               desired.emplace(dep.producer,
+                               static_cast<std::uint32_t>(group));
+             }
+@@ -1347,7 +1386,7 @@ inline DeviceModel Create(ModelSpec const& spec,
+         if (task.wait_count != 0) ++model.schedule_waiting_tasks;
+         if (task.wait_count > 1)
+           model.normalization_dummy_lower_bound += task.wait_count - 1;
+-        if (logical + grid >= count) task.flags |= kLastTaskOfStage;
++        if (logical == owned[worker][stage].back()) task.flags |= kLastTaskOfStage;
+         model.schedule.push_back(task);
+       }
+     }
+diff --git a/include/tilemega/Codegen/tasks/ModelRuntime.h b/include/tilemega/Codegen/tasks/ModelRuntime.h
+index 2ba4dfd0..45c3d715 100644
+--- a/include/tilemega/Codegen/tasks/ModelRuntime.h
++++ b/include/tilemega/Codegen/tasks/ModelRuntime.h
+@@ -231,6 +231,7 @@ struct RuntimeVariantDesc {
+   std::uint32_t ownership_flags;
+   AttentionRuntimeRecord const* attention = nullptr;  ///< stage_count entries if present
+   bool resident_only = true;
++  bool balanced_placement = false;
+ };
+ 
+ #ifndef TILEMEGA_EVENT_SPLIT_LINES
+diff --git a/include/tilemega/Codegen/tasks/Placement.cuh b/include/tilemega/Codegen/tasks/Placement.cuh
+index 0f5aa2d0..ab64ff67 100644
+--- a/include/tilemega/Codegen/tasks/Placement.cuh
++++ b/include/tilemega/Codegen/tasks/Placement.cuh
+@@ -27,7 +27,7 @@
+ namespace tilemega::codegen {
+ 
+ inline int HostPlacedBlock(int b, int grid, int blocks_per_sm) {
+-#if TILEMEGA_PLACEMENT == 0
++#if TILEMEGA_PLACEMENT == 0 || TILEMEGA_PLACEMENT == 4
+   (void)grid;
+   (void)blocks_per_sm;
+   return b;
+@@ -44,7 +44,7 @@ inline int HostPlacedBlock(int b, int grid, int blocks_per_sm) {
+   return grid % 31 == 0 ? b
+                         : static_cast<int>((static_cast<long long>(b) * 31) % grid);
+ #else
+-#error "TILEMEGA_PLACEMENT must be 0 (identity), 1 (pair), 2 (reverse) or 3 (scatter)"
++#error "TILEMEGA_PLACEMENT must be 0..4 (4 is task-balanced)"
+ #endif
+ }
+ 
+@@ -60,7 +60,7 @@ static __device__ int tilemega_blocks_per_sm = 1;
+ 
+ __device__ inline int PlacedBlock() {
+   int const b = static_cast<int>(blockIdx.x);
+-#if TILEMEGA_PLACEMENT == 0
++#if TILEMEGA_PLACEMENT == 0 || TILEMEGA_PLACEMENT == 4
+   return b;
+ #else
+   int const g = static_cast<int>(gridDim.x);
+diff --git a/include/tilemega/Frontend/TorchExportImporter.h b/include/tilemega/Frontend/TorchExportImporter.h
+index acf4ba0d..fdf664e1 100644
+--- a/include/tilemega/Frontend/TorchExportImporter.h
++++ b/include/tilemega/Frontend/TorchExportImporter.h
+@@ -27,6 +27,7 @@ struct ImportOptions {
+   bool kv_tile_per_block = false;
+   bool activation_tile_per_block = false;
+   bool combiner_tile_per_block = false;
++  bool balanced_placement = false;
+ };
+ class TorchExportImporter {
+  public:
+diff --git a/include/tilemega/Solver/CostModel.h b/include/tilemega/Solver/CostModel.h
+index 191c8a3e..e975792d 100644
+--- a/include/tilemega/Solver/CostModel.h
++++ b/include/tilemega/Solver/CostModel.h
+@@ -200,6 +200,12 @@ class CostModel {
+   double TaskCostNs(DerivedTaskInput const& input, BackendTraits const& traits,
+                     Residency residency, ModelDescription const& model,
+                     int chunks) const;
++  // One task at its actual coordinates and wave occupancy; fusion replication
++  // must not multiply the complete stage's wave sum by fanout.
++  double TaskInstanceNs(DerivedTaskInput const& input, BackendTraits const& traits,
++                        Residency residency, ModelDescription const& model,
++                        int chunks, analysis::ParamBinding const& coordinates,
++                        double active_ctas_per_sm) const;
+   double TaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,
+                      Residency residency) const;
+   /// §2.2(f): one stage barrier, at this grid width.
+@@ -233,6 +239,10 @@ class CostModel {
+   }
+ 
+  private:
++  double TaskCostImpl(DerivedTaskInput const& input, BackendTraits const& traits,
++                     Residency residency, ModelDescription const& model, int chunks,
++                     analysis::ParamBinding const* coordinates,
++                     double active_ctas_per_sm) const;
+   double WavesNs(double per_sm_work_count, Residency residency,
+                  GemmConfig const& config, double iters,
+                  double dram_fraction) const;
+diff --git a/include/tilemega/Solver/FusionResources.h b/include/tilemega/Solver/FusionResources.h
+index 2e4799d7..b6aba34d 100644
+--- a/include/tilemega/Solver/FusionResources.h
++++ b/include/tilemega/Solver/FusionResources.h
+@@ -2,6 +2,7 @@
+ #pragma once
+ #include <tilemega/Analysis/FusionAccess.h>
+ #include <tilemega/Solver/BackendCostQuery.h>
++#include <tilemega/Solver/CostModel.h>
+ #include <map>
+ 
+ namespace tilemega::solver {
+@@ -13,6 +14,10 @@ struct FusionResources {
+ // Returns zero for an impossible CTA; never promotes it to residency one.
+ int FusionCtasPerSm(FusionResources const& resources, TargetSpec const& target,
+                     int register_allocation_per_warp, int static_shared_bytes);
++double FusionRecomputeNs(analysis::FusionAccesses const& accesses,
++    CostModel const& cost, DerivedTaskInput const& producer, BackendTraits const& traits,
++    Residency residency, ModelDescription const& model, int chunks,
++    double active_ctas_per_sm);
+ // Registers are tier-3 input, not inferred from the access relation.
+ FusionResources DeriveFusionResources(analysis::FusionAccesses const& accesses,
+     analysis::ParamBinding const& theta, std::map<std::string,int> const& element_bytes,
+diff --git a/include/tilemega/Solver/RuntimeProjection.h b/include/tilemega/Solver/RuntimeProjection.h
+index 3c932dd1..1d306db4 100644
+--- a/include/tilemega/Solver/RuntimeProjection.h
++++ b/include/tilemega/Solver/RuntimeProjection.h
+@@ -2,6 +2,7 @@
+ #pragma once
+ #include <tilemega/Solver/ModelDescription.h>
+ #include <tilemega/Codegen/RuntimePlan.h>
++#include <tilemega/Solver/BalancedPlacement.h>
+ 
+ #ifndef TILEMEGA_PROJECTION_PARTITION_WORKERS
+ #define TILEMEGA_PROJECTION_PARTITION_WORKERS 0
+@@ -32,11 +33,18 @@ struct ProjectedStage {
+ struct RuntimeProjection {
+   std::vector<ProjectedStage> stages;
+   analysis::CouplingRelation tasks;
++  analysis::CouplingRelation dependencies;  ///< consumer [stage,task] -> producer
+   analysis::CouplingRelation waits;
+   analysis::QuasiPolynomial runtime_task_refs;
+   analysis::QuasiPolynomial runtime_wait_entries;
+   analysis::QuasiPolynomial max_worker_task_refs;
+ };
++struct ProjectedPlacement {
++  std::vector<std::vector<long>> task_ids;
++  TaskPlacement placement;
++};
++ProjectedPlacement BalanceProjectedQueues(RuntimeProjection const& projection,
++    analysis::ParamBinding const& theta, int workers);
+ 
+ /// The current stage-major queues use a bijection of worker labels. Cardinal
+ /// totals and maximum length are invariant under those permutations; a new
+diff --git a/lib/Codegen/Codegen.cpp b/lib/Codegen/Codegen.cpp
+index 1c264e1e..15d67661 100644
+--- a/lib/Codegen/Codegen.cpp
++++ b/lib/Codegen/Codegen.cpp
+@@ -41,6 +41,22 @@ bool readResidentConstraint(mlir::ModuleOp module) {
+   return explicit_count!=0;
+ }
+ 
++bool readBalancedPlacement(mlir::ModuleOp module) {
++  std::size_t count=0,balanced=0;
++  for (auto placement:module.getOps<dialect::PlacementOp>()) {
++    ++count;
++    if (auto attr=placement->getAttr("mapping_mode")) {
++      auto mode=llvm::dyn_cast<mlir::StringAttr>(attr);
++      if (!mode || mode.getValue()!="balanced")
++        throw std::invalid_argument("unknown placement mapping_mode");
++      ++balanced;
++    }
++  }
++  if (balanced && (balanced!=count || !readResidentConstraint(module)))
++    throw std::invalid_argument("balanced mapping requires complete resident-only L-sched");
++  return balanced!=0;
++}
++
+ analysis::ParamBinding readBinding(mlir::ModuleOp module, llvm::StringRef name) {
+   analysis::ParamBinding result;
+   if (auto values = module->getAttrOfType<mlir::DictionaryAttr>(name))
+@@ -124,6 +140,7 @@ struct RuntimeVariantRecord {
+   std::uint32_t max_dependency_span = 0;
+   std::uint32_t ownership_flags = 0;
+   bool explicit_resident_constraint = false;
++  bool balanced_placement = false;
+ };
+ 
+ void BuildVariantSchedule(RuntimeVariantRecord& variant,
+@@ -396,6 +413,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
+     if (!variants[v].attention.empty()) out << ", kRuntimeAttention" << v;
+     else if (variants[v].explicit_resident_constraint) out << ", nullptr";
+     if (variants[v].explicit_resident_constraint) out << ", true";
++    if (variants[v].balanced_placement) out << ", true";
+     out << "},\n";
+   }
+   std::uint32_t const seq_count = variants.back().seq_end + 1;
+@@ -779,6 +797,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
+   runtime.dependencies = std::move(dependencies);
+   runtime.ownership_flags = readOwnershipFlags(module);
+   runtime.explicit_resident_constraint = readResidentConstraint(module);
++  runtime.balanced_placement = readBalancedPlacement(module);
+   runtime.attention = std::move(attention_storage.attention);
+   out << emitModelPlan(module, {std::move(runtime)});
+   return out.str();
+@@ -814,6 +833,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
+     record.seq_end = input.seq_end;
+     record.ownership_flags = runtime_plan.ownership_flags;
+     record.explicit_resident_constraint = readResidentConstraint(input.module);
++    record.balanced_placement = readBalancedPlacement(input.module);
+     record.dependencies = std::move(runtime_plan.dependencies);
+     record.gemms = std::move(runtime_plan.gemms);
+     record.attention = std::move(runtime_plan.attention);
+diff --git a/lib/Dialect/CouplingGraph/CGDialect.cpp b/lib/Dialect/CouplingGraph/CGDialect.cpp
+index 5d71f932..342b50cb 100644
+--- a/lib/Dialect/CouplingGraph/CGDialect.cpp
++++ b/lib/Dialect/CouplingGraph/CGDialect.cpp
+@@ -267,6 +267,12 @@ LogicalResult ImplementationOp::verify() {
+ }
+ 
+ LogicalResult PlacementOp::verify() {
++  if (auto attr=(*this)->getAttr("mapping_mode")) {
++    auto mode=llvm::dyn_cast<StringAttr>(attr);
++    auto resident=(*this)->getAttrOfType<BoolAttr>("resident_only");
++    if (!mode || mode.getValue()!="balanced" || !resident || !resident.getValue())
++      return emitOpError("balanced mapping requires resident_only=true");
++  }
+   if (auto attr = (*this)->getAttr("resident_only")) {
+     auto flag = llvm::dyn_cast<BoolAttr>(attr);
+     if (!flag || !flag.getValue())
+diff --git a/lib/Frontend/Frontend.cpp b/lib/Frontend/Frontend.cpp
+index 2c730206..9ee428ac 100644
+--- a/lib/Frontend/Frontend.cpp
++++ b/lib/Frontend/Frontend.cpp
+@@ -754,6 +754,10 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
+     state.addAttribute("task", mlir::FlatSymbolRefAttr::get(&context, symbols.at(node.name)));
+     state.addAttribute("map", builder.getDenseI64ArrayAttr({0}));
+     state.addAttribute("cluster", builder.getI64IntegerAttr(1));
++    if (options.balanced_placement) {
++      state.addAttribute("resident_only",builder.getBoolAttr(true));
++      state.addAttribute("mapping_mode",builder.getStringAttr("balanced"));
++    }
+     builder.create(state);
+   }
+   if (mlir::failed(mlir::verify(module)))
+diff --git a/lib/Solver/CostModel.cpp b/lib/Solver/CostModel.cpp
+index 9b6dac32..7a2f91d4 100644
+--- a/lib/Solver/CostModel.cpp
++++ b/lib/Solver/CostModel.cpp
+@@ -412,6 +412,38 @@ double CostModel::CombineStageNs(GemmOp const& gemm, int chunks,
+ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const& traits,
+                              Residency residency, ModelDescription const& model,
+                              int chunks) const {
++  return TaskCostImpl(input,traits,residency,model,chunks,nullptr,0);
++}
++
++double CostModel::TaskInstanceNs(DerivedTaskInput const& input, BackendTraits const& traits,
++    Residency residency, ModelDescription const& model, int chunks,
++    analysis::ParamBinding const& coordinates, double active_ctas_per_sm) const {
++  if (!std::isfinite(active_ctas_per_sm) || active_ctas_per_sm<1 ||
++      active_ctas_per_sm>residency.ctas_per_sm)
++    throw std::invalid_argument("task instance requires valid wave occupancy");
++  if (coordinates.values.size()!=input.cost_coordinates.size())
++    throw std::invalid_argument("task instance coordinate rank mismatch");
++  auto known=model.MetricBindings();
++  for (auto const& name:input.cost_coordinates) {
++    if (!coordinates.Contains(name) || coordinates.values.at(name)<0)
++      throw std::invalid_argument("task instance coordinate is missing or negative");
++  }
++  if (input.scalar_flow) {
++    if (coordinates.values.at("q")>=input.work.task_count.SubstituteParams(known).Eval({}))
++      throw std::invalid_argument("scalar task instance outside domain");
++  } else {
++    for (std::size_t axis=0;axis<input.task.output.axes.size();++axis)
++      if (input.task.IsTiled(axis) && coordinates.values.at(input.task.output.axes[axis].name)>=
++          input.task.CoordinateExtent(axis).Eval(known,known))
++        throw std::invalid_argument("collective task instance outside domain");
++  }
++  return TaskCostImpl(input,traits,residency,model,chunks,&coordinates,active_ctas_per_sm);
++}
++
++double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits const& traits,
++                             Residency residency, ModelDescription const& model,
++                             int chunks, analysis::ParamBinding const* coordinates,
++                             double active_ctas_per_sm) const {
+   analysis::IslReferenceAudit audit(__func__);
+ #if defined(TILEMEGA_DERIVED_TASK_COST) && !TILEMEGA_DERIVED_TASK_COST
+   throw std::runtime_error("access-derived task pricing is disabled");
+@@ -423,6 +455,7 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
+       throw std::invalid_argument("scalar task latency DAG/ownership has not been supplied");
+     auto [depth,barriers]=input.scalar_flow->MemoryDepthAndBarriers(traits.threads);
+     double ctas=double(input.work.task_count.SubstituteParams(known).Eval({}));
++    if (coordinates) ctas=1;
+     double grid=double(target_->res.num_sms)*std::max(1,residency.ctas_per_sm);
+     double miss=1.0-CacheHitProbability(model.LiveFootprintBytes());
+     double flops_per_output=input.arithmetic.flops_per_output_element.Eval(known);
+@@ -434,6 +467,10 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
+               << depth << ':' << barriers << ':' << traits.threads << ':' << residency.ctas_per_sm
+               << ':' << input.arithmetic.smem_staged;
+     for (auto const& [name,value]:known.values) cache_key << ':' << name << '=' << value;
++    if (coordinates) {
++      cache_key << ":instance:" << active_ctas_per_sm;
++      for (auto const& [name,value]:coordinates->values) cache_key << ':' << name << '=' << value;
++    }
+     auto cached=scalar_price_cache_.find(cache_key.str());
+     if (cached!=scalar_price_cache_.end()) return cached->second;
+     auto statuses=lanes_;
+@@ -441,11 +478,12 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
+     // The measured scalar pipe applies; the GEMM ldmatrix status is unchanged.
+     statuses[ResourceVector::kSmem]=calib_->smem_gbps>0 ? LaneStatus::kLive : LaneStatus::kNotCalibrated;
+     double total=0;
+-    long first=0;
++    long first=coordinates ? coordinates->values.at("q") : 0;
+     for (double remaining=ctas;remaining>0;remaining-=grid) {
+       double active=std::min(grid,remaining);
+       double o=options_.wave_tail ? std::max(1.0,active/target_->res.num_sms)
+                                  : std::max(1,residency.ctas_per_sm);
++      if (coordinates) o=active_ctas_per_sm;
+       double wave=-std::numeric_limits<double>::infinity();
+       for (long q=first;q<first+long(active);++q) {
+         analysis::ParamBinding coordinate; coordinate.Bind("q",q);
+@@ -490,10 +528,11 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
+   if (traits.tile_k<=0) throw std::invalid_argument("collective reduction tile is missing");
+   analysis::ParamBinding point;
+   for (auto const& coordinate:input.task.Coordinates()) point.Bind(coordinate,0);
++  if (coordinates) point=*coordinates;
+   auto value=[&](analysis::QuasiPolynomial const& quantity) {
+     return double(quantity.BindCoordinates(point).SubstituteParams(known).Eval({}));
+   };
+-  double const ctas=double(input.work.task_count.SubstituteParams(known).Eval({}));
++  double const ctas=coordinates ? 1 : double(input.work.task_count.SubstituteParams(known).Eval({}));
+   double const iters=value(input.work.nominal_task_reduce_extent)/traits.tile_k;
+   if (iters<=0 || iters!=std::floor(iters)) throw std::invalid_argument("invalid collective reduction work");
+   double const reads=value(input.work.nominal_read_elements)/iters;
+@@ -518,8 +557,9 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
+   double total=0.0;
+   for (double remaining=ctas;remaining>0.0;remaining-=grid) {
+     double const active=std::min(grid,remaining);
+-    double const o=options_.wave_tail ? std::max(1.0,active/target_->res.num_sms)
+-                                    : std::max(1,residency.ctas_per_sm);
++    double const o=coordinates ? active_ctas_per_sm :
++        (options_.wave_tail ? std::max(1.0,active/target_->res.num_sms)
++                           : std::max(1,residency.ctas_per_sm));
+     ResourceVector u;
+     // The historical scalar 16x16 thread layout issues read_elements/2
+     // scalar shared warp instructions; BF16's corresponding lane is disabled.
+diff --git a/lib/Solver/FusionResources.cpp b/lib/Solver/FusionResources.cpp
+index 881cc605..bab83826 100644
+--- a/lib/Solver/FusionResources.cpp
++++ b/lib/Solver/FusionResources.cpp
+@@ -1,11 +1,37 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ #include <tilemega/Solver/FusionResources.h>
+ #include <tilemega/Analysis/ISLContext.h>
++#include <tilemega/Solver/TaskModel.h>
+ #include <algorithm>
+ #include <limits>
+ #include <stdexcept>
+ 
+ namespace tilemega::solver {
++double FusionRecomputeNs(analysis::FusionAccesses const& accesses,
++    CostModel const& cost, DerivedTaskInput const& producer, BackendTraits const& traits,
++    Residency residency, ModelDescription const& model, int chunks,
++    double active_ctas_per_sm) {
++  analysis::IslReferenceAudit audit(__func__);
++  auto theta=model.MetricBindings();
++  auto relation=accesses.consumer_to_producer.BindParams(theta);
++  auto names=relation.RangeDimNames();
++  if (names!=producer.cost_coordinates)
++    throw std::invalid_argument("fusion producer cost coordinates differ from coupling");
++  std::map<std::vector<long>,long> fanout;
++  for (auto const& [consumer,task]:relation.Points()) ++fanout[task];
++  double total=0;
++  for (auto const& [task,count]:fanout) {
++    analysis::ParamBinding point;
++    for (std::size_t axis=0;axis<names.size();++axis) point.Bind(names[axis],task[axis]);
++    auto exact=accesses.fanout.BindCoordinates(point).SubstituteParams(theta).Eval({});
++    if (exact!=count) throw std::runtime_error("fusion fanout differs from exact CG metric");
++    if (count>1)
++      total+=static_cast<double>(count-1)*cost.TaskInstanceNs(producer,traits,residency,
++          model,chunks,point,active_ctas_per_sm);
++  }
++  return total;
++}
++
+ int FusionCtasPerSm(FusionResources const& r, TargetSpec const& target,
+                     int register_allocation_per_warp, int static_shared_bytes) {
+   auto const& res=target.res;
+diff --git a/lib/Solver/RuntimeProjection.cpp b/lib/Solver/RuntimeProjection.cpp
+index b470b618..bb037700 100644
+--- a/lib/Solver/RuntimeProjection.cpp
++++ b/lib/Solver/RuntimeProjection.cpp
+@@ -1,6 +1,7 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ #include <tilemega/Solver/RuntimeProjection.h>
+ #include <tilemega/Analysis/ISLContext.h>
++#include <tilemega/Solver/ListScheduler.h>
+ 
+ #include <algorithm>
+ #include <map>
+@@ -33,6 +34,32 @@ std::string Join(std::vector<std::string> const& parts) {
+ }
+ }  // namespace
+ 
++ProjectedPlacement BalanceProjectedQueues(RuntimeProjection const& projection,
++    analysis::ParamBinding const& theta, int workers) {
++  analysis::IslReferenceAudit audit(__func__);
++  if (workers<=0) throw std::invalid_argument("projected placement requires workers");
++  ProjectedPlacement out;
++  for (auto const& [domain,task]:projection.tasks.BindParams(theta).Points())
++    out.task_ids.push_back(task);
++  std::sort(out.task_ids.begin(),out.task_ids.end());
++  std::map<std::vector<long>,int> ids;
++  std::vector<int> preferred,lengths(workers);
++  for (std::size_t i=0;i<out.task_ids.size();++i) {
++    auto const& task=out.task_ids[i];
++    if (task.size()!=2 || task[0]<0 || task[1]<0 || !ids.emplace(task,i).second)
++      throw std::invalid_argument("invalid projected runtime task identity");
++    preferred.push_back(task[1]%workers);
++    ++lengths[preferred.back()];
++  }
++  std::vector<std::vector<int>> successors(ids.size());
++  for (auto const& [consumer,producer]:projection.dependencies.BindParams(theta).Points())
++    successors.at(ids.at(producer)).push_back(ids.at(consumer));
++  auto order=ListScheduler{}.Schedule(successors);
++  out.placement=BalanceTaskPlacement(successors,order,preferred,workers,
++      *std::max_element(lengths.begin(),lengths.end()));
++  return out;
++}
++
+ analysis::CouplingRelation ProjectScalarTaskOwnership(ModelTaskSemantics const& semantic,
+     analysis::OperatorNode const& task,ModelStage const& stage,int threads) {
+   analysis::IslReferenceAudit audit(__func__);
+@@ -246,9 +273,19 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
+           edges.push_back({entry[i],done[i],{true,1,1,0,1},Mul(tiles[i],chunk)});
+     } else edges.push_back({entry[i],done[i],{},"0"});
+   }
+-  std::vector<std::string> wait_pieces;
++  std::vector<std::string> wait_pieces, dependency_pieces;
+   std::map<std::pair<int,int>,std::vector<std::string>> event_pieces;
+   for (auto const& edge : edges) {
++    std::string exact="[cs="+std::to_string(edge.consumer)+",c] -> [ps="+
++        std::to_string(edge.producer)+",p] : "+valid+" and 0<=c<("+
++        counts[edge.consumer]+") and 0<=p<("+counts[edge.producer]+")";
++    if (edge.window.narrowed && !options.force_all_dependencies) {
++      if (edge.window.div<=0) throw std::invalid_argument("nonpositive dependency divisor");
++      auto at="floord(c,"+std::to_string(edge.window.div)+")*"+
++          std::to_string(edge.window.scale)+"+("+edge.offset+")";
++      exact+=" and ("+at+")<=p<("+at+")+"+std::to_string(edge.window.count);
++    }
++    dependency_pieces.push_back(exact);
+     std::string base = "[cs="+std::to_string(edge.consumer)+",c] -> [w,pstage="+
+         std::to_string(edge.producer)+",kind,g] : "+valid+" and 0 <= c < ("+
+         counts[edge.consumer]+") and w = c % "+std::to_string(options.grid);
+@@ -269,6 +306,8 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
+     }
+   }
+   result.tasks = relation(task_pieces);
++  result.dependencies = relation(dependency_pieces.empty()
++      ? std::vector<std::string>{"[cs,c] -> [ps,p] : false"} : dependency_pieces);
+   if (wait_pieces.empty()) {
+     result.runtime_wait_entries = analysis::QuasiPolynomial::Constant(0);
+   } else {
+diff --git a/test/unit/list_scheduler_test.cpp b/test/unit/list_scheduler_test.cpp
+index b11b8a23..f220a103 100644
+--- a/test/unit/list_scheduler_test.cpp
++++ b/test/unit/list_scheduler_test.cpp
+@@ -3,6 +3,7 @@
+ // P4.8: the schedule is only worth anything if `levels` is really the DAG's
+ // depth, so every assertion here pins one way of getting that wrong.
+ #include <tilemega/Solver/ListScheduler.h>
++#include <tilemega/Solver/BalancedPlacement.h>
+ 
+ #include <algorithm>
+ #include <cstdio>
+@@ -25,6 +26,23 @@ using namespace tilemega::solver;
+ int main() {
+   tilemega::analysis::IslContext isl_context;
+   ListScheduler scheduler;
++  {
++    std::vector<std::vector<int>> dag={{2,2},{3},{},{}};
++    auto mapped=BalanceTaskPlacement(dag,{0,1,2,3},{0,1,1,0},2,2);
++    REQUIRE(mapped.max_queue==2);
++    REQUIRE(mapped.same_worker_edges==2 && mapped.fence_free_producers==2);
++    REQUIRE(mapped.worker[0]==mapped.worker[2] && mapped.worker[1]==mapped.worker[3]);
++    int errors=0;
++    auto reject=[&](auto action) {
++      bool failed=false;
++      try { action(); } catch (std::invalid_argument const&) { failed=true; }
++      REQUIRE(failed); ++errors;
++    };
++    reject([&]{BalanceTaskPlacement(dag,{0,1,2,3},{0,1,1,0},2,1);});
++    reject([&]{BalanceTaskPlacement(dag,{2,1,0,3},{0,1,1,0},2,2);});
++    reject([&]{BalanceTaskPlacement(dag,{0,1,2,3},{0,2,1,0},2,2);});
++    REQUIRE(errors==3);
++  }
+ 
+   // A chain: nothing to pack, one level per node.
+   {
+diff --git a/test/unit/runtime_projection_test.cpp b/test/unit/runtime_projection_test.cpp
+index d74792d4..957fc786 100644
+--- a/test/unit/runtime_projection_test.cpp
++++ b/test/unit/runtime_projection_test.cpp
+@@ -59,6 +59,8 @@ int main() {
+     }
+     tilemega::analysis::ParamBinding four; four.Bind("S",4);
+     assert(forced.runtime_wait_entries.Eval(four) == 4);
++    auto balanced=tilemega::solver::BalanceProjectedQueues(forced,four,2);
++    assert(balanced.task_ids.size()==16 && balanced.placement.max_queue<=8);
+     // Element chunks own ceil(S*N/threads) combine and activation tasks.
+     plan.ownership_flags = 0;
+     for (int kappa : {0,1,2}) {
+diff --git a/tools/tilemega-compile.cpp b/tools/tilemega-compile.cpp
+index 0c3d91ee..8aaf0d1f 100644
+--- a/tools/tilemega-compile.cpp
++++ b/tools/tilemega-compile.cpp
+@@ -89,6 +89,8 @@ std::vector<VariantRequest> readVariants(std::string const& path,
+       request.options.activation_tile_per_block = *own;
+     if (auto own = object->getBoolean("combiner_tile_per_block"))
+       request.options.combiner_tile_per_block = *own;
++    if (auto balanced = object->getBoolean("balanced_placement"))
++      request.options.balanced_placement = *balanced;
+     if (auto* uniform = object->getObject("uniform")) {
+       request.options.gemms.assign(gemm_count, readGemm(*uniform));
+     } else if (auto* gemms = object->getArray("gemms")) {
+diff --git a/tools/tilemega-runtime-projection.cpp b/tools/tilemega-runtime-projection.cpp
+index 66cbf8bf..f49b0c31 100644
+--- a/tools/tilemega-runtime-projection.cpp
++++ b/tools/tilemega-runtime-projection.cpp
+@@ -9,9 +9,9 @@
+ 
+ int main(int argc, char** argv) try {
+   tilemega::analysis::IslContext isl_context;
+-  if (argc < 12 || argc > 17 || argc==16)
++  if (argc < 12 || argc > 18 || argc==16)
+     throw std::invalid_argument("usage: tilemega-runtime-projection EXPORT.json "
+-        "GRID THREADS KAPPA {PAST|symbolic} TILE_M TILE_N TILE_K STAGES SPLIT {tile|element} [CG_ORDER=0|1] [PARTITION_WORKERS=0|1] [SPLIT_PERIODS=0|1] [ATTENTION_CHUNKS CHUNK_EXTENT]");
++        "GRID THREADS KAPPA {PAST|symbolic} TILE_M TILE_N TILE_K STAGES SPLIT {tile|element} [CG_ORDER=0|1] [PARTITION_WORKERS=0|1] [SPLIT_PERIODS=0|1] [ATTENTION_CHUNKS CHUNK_EXTENT [PLACEMENT_SEQ]]");
+   tilemega::solver::RuntimeProjectionOptions options{
+       std::stoi(argv[2]),std::stoi(argv[3]),std::stoi(argv[4])};
+   if (argc>=13) {
+@@ -44,7 +44,7 @@ int main(int argc, char** argv) try {
+   context.getOrLoadDialect<tilemega::dialect::CGDialect>();
+   auto module = tilemega::frontend::TorchExportImporter{}.Import(argv[1],context,nullptr,import);
+   auto seed = tilemega::codegen::ReadRuntimePlan(*module);
+-  if (argc==17) {
++  if (argc>=17) {
+     int chunks=std::stoi(argv[15]),extent=std::stoi(argv[16]);
+     if (chunks<=0 || extent<=0) throw std::invalid_argument("attention chunks and extent must be positive");
+     auto seed_model=tilemega::solver::ModelDescription::FromCouplingGraph(
+@@ -66,6 +66,18 @@ int main(int argc, char** argv) try {
+   std::cerr << "CG_ROLES seq=" << model.seq_metric_parameter
+             << " past=" << model.past_metric_parameter << '\n';
+   auto projection = tilemega::solver::ProjectRuntimeQueues(model,plan,options);
++  if (argc==18) {
++    int seq=std::stoi(argv[17]);
++    if (seq<=0 || symbolic_past) throw std::invalid_argument("placement needs positive seq and concrete past");
++    tilemega::analysis::ParamBinding theta; theta.Bind("S",seq);
++    auto placed=tilemega::solver::BalanceProjectedQueues(projection,theta,options.grid);
++    std::cerr << "PRODUCTION_PLACEMENT seq=" << seq << " tasks=" << placed.task_ids.size()
++              << " stages=" << projection.stages.size() << " max_queue=" << placed.placement.max_queue
++              << " baseline_max_queue=" << projection.max_worker_task_refs.Eval(theta)
++              << " same_worker_edges=" << placed.placement.same_worker_edges
++              << " fence_free_producers=" << placed.placement.fence_free_producers
++              << " max_worker_span=" << placed.placement.max_worker_span << " resident_only=1\n";
++  }
+   std::cerr << "runtime_task_refs=" << projection.runtime_task_refs.ToString()
+             << "\nruntime_wait_entries=" << projection.runtime_wait_entries.ToString()
+             << "\nmax_worker_task_refs=" << projection.max_worker_task_refs.ToString() << '\n';
+diff --git a/tools/tilemega-scalar-error-probe.cpp b/tools/tilemega-scalar-error-probe.cpp
+index 21b25842..6a94cf74 100644
+--- a/tools/tilemega-scalar-error-probe.cpp
++++ b/tools/tilemega-scalar-error-probe.cpp
+@@ -4,6 +4,7 @@
+ #include <tilemega/Frontend/TorchExportImporter.h>
+ #include <tilemega/Solver/TaskModel.h>
+ #include <tilemega/Solver/RuntimeProjection.h>
++#include <tilemega/Solver/FusionResources.h>
+ #include <mlir/IR/MLIRContext.h>
+ #include <iostream>
+ #include <stdexcept>
+@@ -39,6 +40,24 @@ int main(int argc,char** argv) try {
+       auto task=*graph.Find(semantic.op.name);
+       auto input=DeriveModelTaskInput(model,semantic,graph,nullptr);
+       BackendTraits traits; traits.threads=kTensorBF16Threads;
++      analysis::ParamBinding point; point.Bind("q",0);
++      double instance=cost.TaskInstanceNs(input,traits,{2},model,1,point,1);
++      if (!(instance>0)) throw std::runtime_error("nonpositive real scalar instance");
++      analysis::FusionAccesses replicated;
++      replicated.consumer_to_producer=analysis::CouplingRelation::FromIslText(
++          "{ [c] -> [q] : 0<=c<2 and q=0 }");
++      replicated.fanout=replicated.consumer_to_producer.FanoutCard();
++      if (FusionRecomputeNs(replicated,cost,input,traits,{2},model,1,1)!=instance)
++        throw std::runtime_error("fanout two must charge one real task, not the whole stage");
++      replicated.consumer_to_producer=analysis::CouplingRelation::FromIslText("{ [c=0] -> [q=0] }");
++      replicated.fanout=replicated.consumer_to_producer.FanoutCard();
++      if (FusionRecomputeNs(replicated,cost,input,traits,{2},model,1,1)!=0)
++        throw std::runtime_error("fanout one must not charge recomputation");
++      reject("instance_occupancy",[&] { cost.TaskInstanceNs(input,traits,{2},model,1,point,3); });
++      reject("instance_rank",[&] { cost.TaskInstanceNs(input,traits,{2},model,1,{},1); });
++      reject("instance_negative",[&] { auto p=point; p.Bind("q",-1); cost.TaskInstanceNs(input,traits,{2},model,1,p,1); });
++      reject("instance_domain",[&] { auto p=point; p.Bind("q",1000000); cost.TaskInstanceNs(input,traits,{2},model,1,p,1); });
++      reject("fusion_fanout",[&] { auto f=replicated; f.fanout=f.fanout.Scale(2); FusionRecomputeNs(f,cost,input,traits,{2},model,1,1); });
+       reject("threads",[&] { ProjectScalarTaskOwnership(semantic,task,stage,0); });
+       reject("rank",[&] { auto t=task; t.output.axes.pop_back(); ProjectScalarTaskOwnership(semantic,t,stage,traits.threads); });
+       reject("collective",[&] { auto s=stage; s.kind=StageKind::kGemm; ProjectScalarTaskOwnership(semantic,task,s,traits.threads); });
+@@ -58,6 +77,6 @@ int main(int argc,char** argv) try {
+       break;
+     }
+   }
+-  if (branches!=13 || context.ReferenceCount()) throw std::runtime_error("incomplete scalar rejection audit");
++  if (branches!=18 || context.ReferenceCount()) throw std::runtime_error("incomplete scalar rejection audit");
+   std::cout << "SCALAR_ERRORS branches=" << branches << " reference_delta=0\nISL_CONTEXT remaining=0\n";
+ } catch (std::exception const& e) { std::cerr << e.what() << '\n'; return 2; }
+diff --git a/tools/tilemega-task-cost-gate.cpp b/tools/tilemega-task-cost-gate.cpp
+index b754b634..164a5be4 100644
+--- a/tools/tilemega-task-cost-gate.cpp
++++ b/tools/tilemega-task-cost-gate.cpp
+@@ -69,6 +69,21 @@ int main(int argc,char** argv) try {
+           double old=cost.GemmStageNs(gemm,config,{resident},model,&chunks);
+           double current=cost.TaskCostNs(input,traits,{resident},model,chunks);
+           double stage_entry=cost.TaskStageNs(model,semantic.stage,config,{resident});
++          if (seq==4) {
++            auto binding=model.MetricBindings();
++            analysis::ParamBinding point;
++            for (auto const& coordinate:input.cost_coordinates) point.Bind(coordinate,0);
++            double assembled=0;
++            long count=input.work.task_count.SubstituteParams(binding).Eval({});
++            long grid=long(target.res.num_sms)*resident;
++            for (long remaining=count;remaining>0;remaining-=grid) {
++              double active=std::min(grid,remaining);
++              assembled+=cost.TaskInstanceNs(input,traits,{resident},model,chunks,point,
++                  std::max(1.0,active/target.res.num_sms));
++            }
++            if (!Bits(assembled,current))
++              throw std::runtime_error("instance wave composition changed stage bits");
++          }
+           if (!Bits(old,current) || !Bits(old,stage_entry)) {
+             std::cerr << std::setprecision(17) << "TASK_PRICE_MISMATCH dtype=" << dtype
+                       << " model=" << name << " stage=" << semantic.op.name << " seq=" << seq
