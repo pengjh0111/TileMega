@@ -1,0 +1,9 @@
+/root/TileMega/third_party/barvinok/isl/basis_reduction_tab.c:210: unexpected missing (bounded) solution
+/root/TileMega/third_party/barvinok/isl/basis_reduction_tab.c:210: unexpected missing (bounded) solution
+/root/TileMega/third_party/barvinok/isl/basis_reduction_tab.c:210: unexpected missing (bounded) solution
+/root/TileMega/third_party/barvinok/isl/basis_reduction_tab.c:210: unexpected missing (bounded) solution
+/root/TileMega/third_party/barvinok/isl/basis_reduction_tab.c:210: unexpected missing (bounded) solution
+/root/TileMega/third_party/barvinok/isl/basis_reduction_tab.c:210: unexpected missing (bounded) solution
+/root/TileMega/third_party/barvinok/isl/basis_reduction_tab.c:210: unexpected missing (bounded) solution
+/root/TileMega/third_party/barvinok/isl/basis_reduction_tab.c:210: unexpected missing (bounded) solution
+ISL_CONTEXT remaining=0

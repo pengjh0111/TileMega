@@ -1,0 +1,22 @@
+[
+  {
+    "model": "gqa2",
+    "case": "rope_kv",
+    "exit": 0
+  },
+  {
+    "model": "gqa2",
+    "case": "nonadjacent",
+    "exit": 1
+  },
+  {
+    "model": "mha4",
+    "case": "rope_kv",
+    "exit": 0
+  },
+  {
+    "model": "mha4",
+    "case": "nonadjacent",
+    "exit": 1
+  }
+]

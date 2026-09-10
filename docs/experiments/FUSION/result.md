@@ -2,6 +2,12 @@
 
 ## Round 5 当前进度
 
+最新补做：mixed task 阶段价格已实现，4308 GEMM 位模式组及14张scalar
+历史表回归通过，见[task_prices_streamed/result.md](task_prices_streamed/result.md)。
+独立L-task写回pass已在两模型验证，新增融合op、删除内部边并重建外部耦合，
+1890/1890新图守恒格通过，见[rewrite_complete/result.md](rewrite_complete/result.md)。
+尚未接区间DP决策、融合runtime投影和GPU；以下历史未实现描述以本段为最新状态。
+
 ✅ 逐 task 定价入口 `CostModel::TaskInstanceNs` 与整 stage 入口共用
 `TaskCostImpl`；`FusionRecomputeNs` 按 producer 的精确 fanout 和坐标逐项收费，
 不以平均 fanout 或整 stage 成本代替。真实 scalar 输入测试 fanout=2 收一次、
@@ -26,9 +32,9 @@ scalar 使用已有 runtime ownership；完整 element_reads 替代矩形读集�
 collective 工作量不进入融合访存分析。`task_element_work_test` 对两份生产
 export 执行，gqa2/mha4 semantic roundtrip 34/68，错误分支合计 13，零残留。
 
-⚠️ 这些是 B1.1 的组成部分，不是融合完成。混合 task 定价、区间 DP、
-L-task 写回与两条真实 GPU 融合仍待实现。特别是现有 `TaskCostNs` 返回整个
-stage 的 wave 总价，不能直接作为 fanout 重算公式的单 task 单价。
+⚠️ 这些仍不是融合完成。混合task定价和独立L-task写回已补做，
+区间DP、事件重投影与两条真实GPU融合待实现。`TaskInstanceNs`用于单task
+重算，不能拿整个stage的`TaskCostNs`替代。
 
 ⚠️ `run_sm120.sh` 已替换占位逻辑，调用 `../run_schedule_sm120.py`。
 用法：`run_sm120.sh --manifest <frozen-builds.json> --out <new-directory>`。
