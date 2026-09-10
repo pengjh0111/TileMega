@@ -13,6 +13,7 @@
 #include <tilemega/Codegen/tasks/TaskBase.h>
 #include <tilemega/Codegen/RuntimeOwnership.h>
 #include <tilemega/Codegen/AttentionPlan.h>
+#include <tilemega/Codegen/RuntimeTaskGraph.h>
 #include <cutlass/bfloat16.h>
 
 #include <cstdint>
@@ -232,6 +233,7 @@ struct RuntimeVariantDesc {
   AttentionRuntimeRecord const* attention = nullptr;  ///< stage_count entries if present
   bool resident_only = true;
   bool balanced_placement = false;
+  RuntimeExactDependencyDesc const* exact_dependencies = nullptr;
 };
 
 #ifndef TILEMEGA_EVENT_SPLIT_LINES

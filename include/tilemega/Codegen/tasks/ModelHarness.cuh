@@ -17,9 +17,11 @@
 
 #include <tilemega/Codegen/tasks/AttentionChunkTaskBody.h>
 #include <tilemega/Codegen/tasks/ElementwiseTaskBody.h>
+#include <tilemega/Codegen/tasks/AddTaskBody.h>
 #include <tilemega/Codegen/tasks/GemmCombineTaskBody.h>
 #include <tilemega/Codegen/tasks/GemmStageTaskBody.h>
 #include <tilemega/Codegen/tasks/FusedGemmTaskBody.h>
+#include <tilemega/Codegen/tasks/FusedRoPEKVTaskBody.h>
 #include <tilemega/Codegen/tasks/KVAppendTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
@@ -89,6 +91,15 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 #ifndef TILEMEGA_FUSION_RUNTIME
 #define TILEMEGA_FUSION_RUNTIME 0
 #endif
+#ifndef TILEMEGA_FUSION_GEMM_RUNTIME
+#define TILEMEGA_FUSION_GEMM_RUNTIME TILEMEGA_FUSION_RUNTIME
+#endif
+#ifndef TILEMEGA_FUSION_ROPE_RUNTIME
+#define TILEMEGA_FUSION_ROPE_RUNTIME 0
+#endif
+#ifndef TILEMEGA_FUSION_ROPE_MAX_WIDTH
+#define TILEMEGA_FUSION_ROPE_MAX_WIDTH 0
+#endif
 
 /// §8.6: one explicit union covering every family the dispatch can reach.
 union TaskSmem {
@@ -96,17 +107,23 @@ union TaskSmem {
   SimtTaskResources<TaskKind::kAttention,kHarnessThreads>::SharedStorage attention;
   SimtTaskResources<TaskKind::kElementwise,kHarnessThreads>::SharedStorage pointwise;
   GemmVariantSmem gemm;
-#if TILEMEGA_FUSION_RUNTIME
+#if TILEMEGA_FUSION_GEMM_RUNTIME
   alignas(16) unsigned char fused_gemm[
       FusedGemmStorageBytes<arch::CurrentArch,kHarnessThreads>()];
+#endif
+#if TILEMEGA_FUSION_ROPE_RUNTIME
+  ModelElement fused_rope[std::max(2*kHarnessThreads,TILEMEGA_FUSION_ROPE_MAX_WIDTH)];
 #endif
 };
 inline constexpr std::size_t kNonGemmTaskSmem =
     std::max({sizeof(TaskSmem::rms), sizeof(TaskSmem::attention), sizeof(TaskSmem::pointwise)});
 inline constexpr std::size_t kExpectedTaskSmem =
     std::max({sizeof(GemmVariantSmem),kNonGemmTaskSmem
-#if TILEMEGA_FUSION_RUNTIME
+#if TILEMEGA_FUSION_GEMM_RUNTIME
         ,sizeof(TaskSmem::fused_gemm)
+#endif
+#if TILEMEGA_FUSION_ROPE_RUNTIME
+        ,sizeof(TaskSmem::fused_rope)
 #endif
     });
 static_assert(sizeof(TaskSmem) == kExpectedTaskSmem,
@@ -118,11 +135,16 @@ using T_Norm = RMSNormTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_RoPE = RoPETaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_KV = KVAppendTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_Elementwise = ElementwiseTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
+using T_Add = AddTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_Attention = AttentionTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_GemmCombine = GemmCombineTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
-#if TILEMEGA_FUSION_RUNTIME
+#if TILEMEGA_FUSION_GEMM_RUNTIME
 using T_FusedGemm = FusedGemmStageTaskBody<HarnessArch,TaskSmem,kHarnessThreads>;
 static_assert(T_FusedGemm::kLegal && DeclaresOwnership<T_FusedGemm>::value);
+#endif
+#if TILEMEGA_FUSION_ROPE_RUNTIME
+using T_FusedRoPE = FusedRoPEKVTaskBody<HarnessArch,TaskSmem,kHarnessThreads>;
+static_assert(T_FusedRoPE::kLegal && DeclaresOwnership<T_FusedRoPE>::value);
 #endif
 static_assert(T_Gemm::kLegal && T_Norm::kLegal && T_RoPE::kLegal &&
               T_KV::kLegal && T_Elementwise::kLegal && T_Attention::kLegal &&
@@ -151,12 +173,19 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
     case TaskKind::kRoPE: T_RoPE{}(p, stage, smem); break;
     case TaskKind::kKVAppend: T_KV{}(p, stage, smem); break;
     case TaskKind::kElementwise: T_Elementwise{}(p, stage, smem); break;
+    case TaskKind::kAdd: T_Add{}(p, stage, smem); break;
     case TaskKind::kAttention: T_Attention{}(p, stage, smem); break;
     case TaskKind::kGemmCombine: T_GemmCombine{}(p, stage, smem); break;
     case TaskKind::kGemmAdd:
     case TaskKind::kGemmRMSNorm:
-#if TILEMEGA_FUSION_RUNTIME
+#if TILEMEGA_FUSION_GEMM_RUNTIME
       T_FusedGemm{}(p,stage,smem); break;
+#else
+      asm volatile("trap;"); break;
+#endif
+    case TaskKind::kRoPEKVAppend:
+#if TILEMEGA_FUSION_ROPE_RUNTIME
+      T_FusedRoPE{}(p,stage,smem); break;
 #else
       asm volatile("trap;"); break;
 #endif
@@ -175,6 +204,7 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
       T_Gemm::RunLogicalTask(p, stage, smem, task);
       break;
     case TaskKind::kRMSNorm: T_Norm::RunTask(p, stage, smem, task); break;
+    case TaskKind::kAdd: T_Add::RunTask(p, stage, smem, task); break;
     case TaskKind::kRoPE: T_RoPE::RunTask(p, stage, smem, task); break;
     case TaskKind::kKVAppend: T_KV::RunTask(p, stage, smem, task); break;
     case TaskKind::kElementwise:
@@ -188,8 +218,14 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
       break;
     case TaskKind::kGemmAdd:
     case TaskKind::kGemmRMSNorm:
-#if TILEMEGA_FUSION_RUNTIME
+#if TILEMEGA_FUSION_GEMM_RUNTIME
       T_FusedGemm::RunTask(p,stage,smem,task); break;
+#else
+      asm volatile("trap;"); break;
+#endif
+    case TaskKind::kRoPEKVAppend:
+#if TILEMEGA_FUSION_ROPE_RUNTIME
+      T_FusedRoPE::RunTask(p,stage,smem,task); break;
 #else
       asm volatile("trap;"); break;
 #endif
@@ -260,6 +296,7 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
   switch (stage.kind) {
     case TaskKind::kGemm: return T_Gemm::Ownership(p, stage).count;
     case TaskKind::kRMSNorm: return T_Norm::Ownership(p, stage).count;
+    case TaskKind::kAdd: return T_Add::Ownership(p, stage).count;
     case TaskKind::kRoPE: return T_RoPE::Ownership(p, stage).count;
     case TaskKind::kKVAppend: return T_KV::Ownership(p, stage).count;
     case TaskKind::kElementwise: return T_Elementwise::Ownership(p, stage).count;
@@ -267,8 +304,14 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
     case TaskKind::kGemmCombine: return T_GemmCombine::Ownership(p, stage).count;
     case TaskKind::kGemmAdd:
     case TaskKind::kGemmRMSNorm:
-#if TILEMEGA_FUSION_RUNTIME
+#if TILEMEGA_FUSION_GEMM_RUNTIME
       return T_FusedGemm::Ownership(p,stage).count;
+#else
+      asm volatile("trap;"); return 0;
+#endif
+    case TaskKind::kRoPEKVAppend:
+#if TILEMEGA_FUSION_ROPE_RUNTIME
+      return T_FusedRoPE::Ownership(p,stage).count;
 #else
       asm volatile("trap;"); return 0;
 #endif
@@ -983,7 +1026,8 @@ inline DeviceModel Create(ModelSpec const& spec,
     bool const fused_gemm = stage.kind == TaskKind::kGemmAdd ||
                             stage.kind == TaskKind::kGemmRMSNorm;
     if (fused_gemm) {
-      if (!TILEMEGA_FUSION_RUNTIME || stage.gemm >= spec.gemm_count ||
+      if (!TILEMEGA_FUSION_RUNTIME || !TILEMEGA_FUSION_GEMM_RUNTIME ||
+          !runtime_variant.exact_dependencies || stage.gemm >= spec.gemm_count ||
           stage.operand[0] >= model.buffers.size() || stage.operand[1] >= model.buffers.size()) {
         std::fprintf(stderr,"invalid or disabled fused GEMM runtime stage\n");
         std::exit(2);
@@ -992,6 +1036,18 @@ inline DeviceModel Create(ModelSpec const& spec,
       if (invocation.chunks != 1 ||
           (stage.kind == TaskKind::kGemmRMSNorm && invocation.tiles_n != 1)) {
         std::fprintf(stderr,"fused GEMM requires unsplit accumulation and a full-row norm tile\n");
+        std::exit(2);
+      }
+    }
+    if (stage.kind==TaskKind::kRoPEKVAppend) {
+      bool valid=TILEMEGA_FUSION_RUNTIME && TILEMEGA_FUSION_ROPE_RUNTIME &&
+          runtime_variant.exact_dependencies && stage.width>0 && stage.width%2==0 && stage.extent>0;
+      if ((model.params.ownership_flags & kRoPETileOwnership) &&
+          stage.width>std::max(2*kHarnessThreads,TILEMEGA_FUSION_ROPE_MAX_WIDTH)) valid=false;
+      for (int operand=0;operand<4;++operand)
+        if (stage.operand[operand]>=model.buffers.size()) valid=false;
+      if (!valid) {
+        std::fprintf(stderr,"invalid or disabled fused RoPE/KV runtime stage\n");
         std::exit(2);
       }
     }
@@ -1019,7 +1075,8 @@ inline DeviceModel Create(ModelSpec const& spec,
       continue;
     }
     int chunks = stage.kind == TaskKind::kGemm ? gemm_chunks[stage.gemm] : 1;
-    if (stage.kind == TaskKind::kGemm || fused_gemm) stage.gemm = gemm_base[stage.gemm];
+    if (stage.kind == TaskKind::kGemm || stage.kind == TaskKind::kAdd || fused_gemm)
+      stage.gemm = gemm_base[stage.gemm];
     model.stages.push_back(stage);
     done[i] = entry[i];
     if (chunks <= 1) continue;
@@ -1156,6 +1213,10 @@ inline DeviceModel Create(ModelSpec const& spec,
         GemmInvocation const& invocation = gemms[stage.gemm];
         return invocation.tiles_m * invocation.tiles_n * invocation.chunks;
       }
+      case TaskKind::kAdd: {
+        GemmInvocation const& invocation = gemms[stage.gemm];
+        return invocation.tiles_m * invocation.tiles_n;
+      }
       case TaskKind::kRMSNorm:
       case TaskKind::kGemmRMSNorm: return dims.seq;
       case TaskKind::kRoPE:
@@ -1165,6 +1226,7 @@ inline DeviceModel Create(ModelSpec const& spec,
                            (static_cast<int>(stage.width) / 2),
                        kHarnessThreads);
       case TaskKind::kKVAppend:
+      case TaskKind::kRoPEKVAppend:
         if (model.params.ownership_flags & kKVTileOwnership)
           return dims.seq * static_cast<int>(stage.extent);
         return CeilDiv(std::max(dims.seq, dims.past) *
@@ -1196,6 +1258,44 @@ inline DeviceModel Create(ModelSpec const& spec,
   // deduplicated for the task and then lifted out of later tasks in the same
   // worker queue.  The latter is valid only because epoch never decreases.
   model.schedule_offsets.resize(static_cast<std::size_t>(grid) + 1, 0);
+#if TILEMEGA_FUSION_RUNTIME
+  std::vector<int> exact_stage_offsets;
+  std::vector<std::vector<std::pair<int,int>>> exact_predecessors;
+  if (runtime_variant.exact_dependencies) {
+    if (runtime_variant.balanced_placement) {
+      std::fprintf(stderr,"fused exact dependencies require their selected stage-major placement\n");
+      std::exit(2);
+    }
+    std::vector<int> counts;
+    for (std::uint32_t stage=0;stage<model.stages.size();++stage) counts.push_back(active_tasks(stage));
+    auto graph=MaterializeExactRuntimeTaskGraph(counts,*runtime_variant.exact_dependencies,
+                                               dims.seq,dims.past,grid);
+    exact_stage_offsets=graph.stage_offsets;
+    exact_predecessors.resize(graph.successors.size());
+    std::set<std::pair<int,int>> declared;
+    for (auto const& edge:dependencies) declared.emplace(edge.producer,edge.consumer);
+    for (std::size_t producer=0;producer<graph.successors.size();++producer) {
+      int ps=std::upper_bound(graph.stage_offsets.begin(),graph.stage_offsets.end(),producer)-
+             graph.stage_offsets.begin()-1;
+      for (int consumer:graph.successors[producer]) {
+        int cs=std::upper_bound(graph.stage_offsets.begin(),graph.stage_offsets.end(),consumer)-
+               graph.stage_offsets.begin()-1;
+        if (!declared.count({ps,cs})) {
+          std::fprintf(stderr,"exact task dependency is missing its generated stage policy\n");
+          std::exit(2);
+        }
+        exact_predecessors[consumer].emplace_back(ps,producer-graph.stage_offsets[ps]);
+      }
+    }
+    std::printf("E2E_EXACT_FUSION task_refs=%zu stage_count=%zu\n",
+                graph.successors.size(),counts.size());
+  }
+#else
+  if (runtime_variant.exact_dependencies) {
+    std::fprintf(stderr,"exact fusion schedule requires TILEMEGA_FUSION_RUNTIME=1\n");
+    std::exit(2);
+  }
+#endif
   std::vector<std::set<std::pair<std::uint32_t, std::uint32_t>>> seen(grid);
 #if TILEMEGA_EVENT_KAPPA > 0
   bool const force_all_dependencies =
@@ -1406,8 +1506,7 @@ inline DeviceModel Create(ModelSpec const& spec,
             int const begin = std::max(at, 0);
             int const end = std::min(
                 at + static_cast<int>(dep.count), produced);
-            for (int producer_task = begin; producer_task < end;
-                 ++producer_task) {
+            auto require_task = [&](int producer_task) {
               int const owner = task_owner[dep.producer][producer_task];
               int const group = producer_task / per_group;
               int const group_end = std::min((group + 1) * per_group, produced);
@@ -1415,10 +1514,18 @@ inline DeviceModel Create(ModelSpec const& spec,
                 observe_owner(task_owner[dep.producer][member]);
               // With one worker per event, this worker's earlier queue entry
               // is already a proof; no global-memory poll is needed.
-              if (per_group == 1 && owner == worker) continue;
+              if (per_group == 1 && owner == worker) return;
               desired.emplace(dep.producer,
                               static_cast<std::uint32_t>(group));
-            }
+            };
+#if TILEMEGA_FUSION_RUNTIME
+            if (runtime_variant.exact_dependencies) {
+              for (auto const& incoming:exact_predecessors[exact_stage_offsets[stage]+logical])
+                if (incoming.first==int(dep.producer)) require_task(incoming.second);
+            } else
+#endif
+              for (int producer_task=begin;producer_task<end;++producer_task)
+                require_task(producer_task);
           }
 #else
           (void)produced;
@@ -1567,7 +1674,8 @@ inline void ResetBuffersOnly(DeviceModel& model) {
   }
   if (model.params.ownership_flags & kKVTileOwnership) {
     for (StageDesc const& stage : model.stages) {
-      if (stage.kind != TaskKind::kKVAppend || model.params.dims.past == 0)
+      if ((stage.kind != TaskKind::kKVAppend && stage.kind != TaskKind::kRoPEKVAppend) ||
+          model.params.dims.past == 0)
         continue;
       int const heads = static_cast<int>(stage.extent);
       int const dim = static_cast<int>(stage.width);
@@ -1576,9 +1684,9 @@ inline void ResetBuffersOnly(DeviceModel& model) {
           sizeof(ModelElement);
       for (int head = 0; head < heads; ++head)
         TILEMEGA_CUDA_CHECK(cudaMemcpy(
-            model.buffers[stage.operand[2]] +
+            model.buffers[stage.operand[stage.kind==TaskKind::kRoPEKVAppend ? 3 : 2]] +
                 static_cast<std::size_t>(head) * model.params.dims.total * dim,
-            model.buffers[stage.operand[1]] +
+            model.buffers[stage.operand[stage.kind==TaskKind::kRoPEKVAppend ? 2 : 1]] +
                 static_cast<std::size_t>(head) * model.params.dims.past * dim,
             head_bytes, cudaMemcpyDeviceToDevice));
     }

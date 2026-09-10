@@ -72,6 +72,7 @@ inline ScalarDataflow ScalarTaskDataflow(TaskKind kind) {
     case TaskKind::kRoPE:
     case TaskKind::kKVAppend:
     case TaskKind::kElementwise:
+    case TaskKind::kAdd:
       flow.Add(ScalarPhase::kStore,{flow.Add(ScalarPhase::kArithmetic,{input})});
       return flow;
     default: throw std::invalid_argument("TaskBody has no scalar dataflow");

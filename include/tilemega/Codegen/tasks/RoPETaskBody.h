@@ -14,6 +14,22 @@ __device__ inline float RoPEPosition(int past, int token) {
   return static_cast<float>(ModelElement(static_cast<float>(past + token)));
 }
 
+struct RoPEPair { ModelElement first,second; };
+__device__ inline RoPEPair RotateRoPEPair(ModelElement const* input,
+    ModelElement const* inv_freq,int past,int token,int base,int half,int half_dim) {
+  float position = RoPEPosition(past, token);
+  float angle = static_cast<float>(ModelElement(position * static_cast<float>(inv_freq[half])));
+  float c = static_cast<float>(ModelElement(cosf(angle)));
+  float s = static_cast<float>(ModelElement(sinf(angle)));
+  float a = static_cast<float>(input[base + half]);
+  float b = static_cast<float>(input[base + half + half_dim]);
+  float ac = static_cast<float>(ModelElement(a * c));
+  float bs = static_cast<float>(ModelElement(b * s));
+  float bc = static_cast<float>(ModelElement(b * c));
+  float as = static_cast<float>(ModelElement(a * s));
+  return {ModelElement(ac - bs),ModelElement(bc + as)};
+}
+
 /// operand = {input, output, inv_freq}; `extent` is the head count of this
 /// tensor (a per-token count, so the token axis stays symbolic).
 template <class Arch, class SmemUnion, int Threads>
@@ -49,19 +65,9 @@ struct RoPETaskBody {
       int const token = task / heads;
       int const base = task * dim;
       for (int half = threadIdx.x; half < half_dim; half += blockDim.x) {
-        float position = RoPEPosition(p.dims.past, token);
-        float angle = static_cast<float>(ModelElement(
-            position * static_cast<float>(inv_freq[half])));
-        float c = static_cast<float>(ModelElement(cosf(angle)));
-        float s = static_cast<float>(ModelElement(sinf(angle)));
-        float a = static_cast<float>(input[base + half]);
-        float b = static_cast<float>(input[base + half + half_dim]);
-        float ac = static_cast<float>(ModelElement(a * c));
-        float bs = static_cast<float>(ModelElement(b * s));
-        float bc = static_cast<float>(ModelElement(b * c));
-        float as = static_cast<float>(ModelElement(a * s));
-        output[base + half] = ModelElement(ac - bs);
-        output[base + half + half_dim] = ModelElement(bc + as);
+        auto value=RotateRoPEPair(input,inv_freq,p.dims.past,token,base,half,half_dim);
+        output[base + half] = value.first;
+        output[base + half + half_dim] = value.second;
       }
       return;
     }
@@ -72,19 +78,9 @@ struct RoPETaskBody {
     int head_token = index / half_dim;
     int token = head_token / heads;
     int base = head_token * dim;
-    float position = RoPEPosition(p.dims.past, token);
-    float angle = static_cast<float>(ModelElement(
-        position * static_cast<float>(inv_freq[half])));
-    float c = static_cast<float>(ModelElement(cosf(angle)));
-    float s = static_cast<float>(ModelElement(sinf(angle)));
-    float a = static_cast<float>(input[base + half]);
-    float b = static_cast<float>(input[base + half + half_dim]);
-    float ac = static_cast<float>(ModelElement(a * c));
-    float bs = static_cast<float>(ModelElement(b * s));
-    float bc = static_cast<float>(ModelElement(b * c));
-    float as = static_cast<float>(ModelElement(a * s));
-    output[base + half] = ModelElement(ac - bs);
-    output[base + half + half_dim] = ModelElement(bc + as);
+    auto value=RotateRoPEPair(input,inv_freq,p.dims.past,token,base,half,half_dim);
+    output[base + half] = value.first;
+    output[base + half + half_dim] = value.second;
   }
 
   __device__ void operator()(Params const& p, StageDesc const& stage,

@@ -82,6 +82,8 @@ enum class TaskKind : std::uint32_t {
   kGemmCombine = 6,
   kGemmAdd = 7,
   kGemmRMSNorm = 8,
+  kRoPEKVAppend = 9,
+  kAdd = 10,
 };
 
 /// The ownership each TaskKind's TaskBody declares. Every TaskBody's
@@ -91,6 +93,7 @@ enum class TaskKind : std::uint32_t {
 TILEMEGA_TASK_HD constexpr TaskOwnershipKind OwnershipOf(TaskKind kind) {
   switch (kind) {
     case TaskKind::kGemm:
+    case TaskKind::kAdd:
     case TaskKind::kGemmAdd:
     case TaskKind::kGemmRMSNorm:
     case TaskKind::kRMSNorm:
@@ -98,6 +101,7 @@ TILEMEGA_TASK_HD constexpr TaskOwnershipKind OwnershipOf(TaskKind kind) {
       return TaskOwnershipKind::kTilePerBlock;
     case TaskKind::kRoPE:
     case TaskKind::kKVAppend:
+    case TaskKind::kRoPEKVAppend:
     case TaskKind::kElementwise:
     case TaskKind::kGemmCombine:
       return TaskOwnershipKind::kElementChunk;

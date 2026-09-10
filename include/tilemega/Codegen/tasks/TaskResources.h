@@ -21,6 +21,7 @@ constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_exten
     case TaskKind::kRoPE:
     case TaskKind::kKVAppend:
     case TaskKind::kElementwise:
+    case TaskKind::kAdd:
     case TaskKind::kGemmCombine: return 1;
     case TaskKind::kGemm: return 0;
   }
