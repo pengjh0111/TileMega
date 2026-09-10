@@ -155,6 +155,7 @@ add_library(tilemega STATIC
   lib/Solver/CacheServiceCurve.cpp
   lib/Solver/ModelDescription.cpp
   lib/Solver/TaskModel.cpp
+  lib/Solver/FusedTaskInput.cpp
   lib/Solver/RuntimeProjection.cpp
   lib/Analysis/OpArithmetic.cpp
   lib/Analysis/TaskWork.cpp
@@ -299,7 +300,7 @@ set_target_properties(tilemega-task-work-gate PROPERTIES
 target_link_libraries(tilemega-task-work-probe PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-task-work-probe PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-op-audit PRIVATE TileMega::tilemega)
+target_link_libraries(tilemega-op-audit PRIVATE TileMega::tilemega MLIRParser)
 set_target_properties(tilemega-op-audit PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 add_executable(tilemega-runtime-projection tools/tilemega-runtime-projection.cpp)
@@ -472,6 +473,10 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(fusion_rewrite_test PRIVATE TileMega::tilemega)
   target_compile_definitions(fusion_rewrite_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   add_test(NAME fusion_rewrite COMMAND fusion_rewrite_test)
+  add_executable(fusion_written_price_test test/unit/fusion_written_price_test.cpp)
+  target_link_libraries(fusion_written_price_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(fusion_written_price_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  add_test(NAME fusion_written_price COMMAND fusion_written_price_test)
   add_test(NAME attention_work COMMAND tilemega-attention-work "${CMAKE_CURRENT_SOURCE_DIR}")
   target_link_libraries(chain_dp_test PRIVATE TileMega::tilemega)
   target_compile_definitions(chain_dp_test PRIVATE

@@ -1,0 +1,6 @@
+FUSION_WRITTEN_PRICE model=gqa2 producer=l0.s05.rope consumer=l0.s06.append double_fields=6 bits_equal=1
+FUSION_WRITTEN_PRICE model=gqa2 producer=l0.s09.proj consumer=l0.s09.add double_fields=6 bits_equal=1
+FUSION_WRITTEN_PRICE model=mha4 producer=l0.s05.rope consumer=l0.s06.append double_fields=6 bits_equal=1
+FUSION_WRITTEN_PRICE model=mha4 producer=l0.s09.proj consumer=l0.s09.add double_fields=6 bits_equal=1
+FUSION_WRITTEN cases=4 errors=10 remaining=0
+ISL_CONTEXT remaining=0

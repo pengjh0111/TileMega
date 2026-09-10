@@ -1,0 +1,4 @@
+FUSED_ARITHMETIC task=t9__t10 phases=2 runtime_lowering=not_implemented
+PHASE name=l0.s09.proj pipe=mma output_elements=[s11] -> { [m, n] -> 16384 : m >= 0 and 128m <= -129 + s11 and 0 <= n <= 3; [m, n] -> (128 * s11 - 16384 * m) : m >= 0 and -128 + s11 <= 128m < s11 and 0 <= n <= 3 } flops={ 1024 }/1
+PHASE name=l0.s09.add pipe=simt output_elements=[s11] -> { [m, n] -> 16384 : m >= 0 and 128m <= -129 + s11 and 0 <= n <= 3; [m, n] -> (128 * s11 - 16384 * m) : m >= 0 and -128 + s11 <= 128m < s11 and 0 <= n <= 3 } flops={ 1 }/1
+ISL_CONTEXT remaining=0

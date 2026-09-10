@@ -35,6 +35,20 @@ struct ModelFusionCandidate {
   analysis::MixedArithmetic arithmetic;
   analysis::TaskAccesses producer_accesses,consumer_accesses;
 };
+struct FusedTaskInput {
+  std::string name;
+  std::vector<ModelTaskSemantics> semantics;
+  std::vector<DerivedTaskInput> phases;
+  std::vector<analysis::CouplingRelation> phase_maps;
+  analysis::TaskAccesses accesses;
+  analysis::QuasiPolynomial task_count;
+  analysis::MixedArithmetic arithmetic;
+};
+// Read the actual L-task payload, without pretending its original stage plan
+// already describes an executable fused runtime schedule.
+std::vector<FusedTaskInput> ReadFusedTaskInputs(mlir::ModuleOp module);
+ModelFusionCandidate DeriveWrittenFusionCandidate(FusedTaskInput const& input,
+    ModelDescription const& context,std::vector<GemmConfig> const& configs);
 // L-task candidates are identified by semantic names, not runtime stage IDs.
 // Runtime ownership is a later projection and cannot define fusion legality.
 ModelFusionCandidate DeriveLogicalFusionCandidate(ModelDescription const& model,

@@ -28,6 +28,7 @@ try:
         (out / (model+".mlir")).write_text(imported.stdout)
         for name, producer, consumer, success in (
             ("rope_kv", "l0.s05.rope", "l0.s06.append", True),
+            ("existing_gemm_add", "l0.s09.proj", "l0.s09.add", True),
             ("nonadjacent", "l0.s00.norm", "l0.s06.append", False),
         ):
             command = [str(tools / "tilemega-opt"), str(out / (model+".mlir")),
@@ -45,6 +46,13 @@ try:
                 (out / (prefix+"_verify.txt")).write_text(verify.stderr)
                 verify.check_returncode()
                 assert "ISL_CONTEXT remaining=0" in verify.stderr
+                audit = subprocess.run([str(tools / "tilemega-op-audit"), str(out / (prefix+".mlir"))],
+                                       text=True, capture_output=True, env=env, timeout=600)
+                (out / (prefix+"_arithmetic.txt")).write_text(audit.stdout+audit.stderr)
+                audit.check_returncode()
+                assert "FUSED_ARITHMETIC" in audit.stdout
+                assert "phases=2" in audit.stdout
+                assert "ISL_CONTEXT remaining=0" in audit.stderr
             else:
                 assert run.returncode != 0 and "adjacent logical" in run.stderr
             assert "ISL_CONTEXT remaining=0" in run.stderr
@@ -55,7 +63,12 @@ try:
                           capture_output=True, env=env, timeout=600)
     (out / "transaction_and_incidence.txt").write_text(unit.stdout+unit.stderr)
     unit.check_returncode()
-    assert "edge_identities=1890 errors=6 remaining=0" in unit.stdout
+    assert "edge_identities=1890 errors=16 remaining=0" in unit.stdout
+    price = subprocess.run([str(repo / "build-portable/fusion_written_price_test")], text=True,
+                           capture_output=True, env=env, timeout=600)
+    (out / "written_price.txt").write_text(price.stdout+price.stderr)
+    price.check_returncode()
+    assert "FUSION_WRITTEN cases=4 errors=10 remaining=0" in price.stdout
     status.write_text("PASS standalone L-task writeback and reverify; GPU lowering not implemented\n")
 except BaseException as error:
     status.write_text(f"STOP {error}\n")

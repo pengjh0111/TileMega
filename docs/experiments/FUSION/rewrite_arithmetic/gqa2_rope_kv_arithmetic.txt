@@ -1,0 +1,4 @@
+FUSED_ARITHMETIC task=t5__t6 phases=2 runtime_lowering=not_implemented
+PHASE name=l0.s05.rope pipe=simt output_elements=[s11] -> { [row, hh] -> 1 : 0 <= row < s11 and 0 <= hh <= 255 } flops={ 7 }/2
+PHASE name=l0.s06.append pipe=simt output_elements=[s11, s14] -> { [row, hh] -> 1 : 0 <= row < s11 and 0 <= hh <= 255 } flops={ 0 }/1
+ISL_CONTEXT remaining=0

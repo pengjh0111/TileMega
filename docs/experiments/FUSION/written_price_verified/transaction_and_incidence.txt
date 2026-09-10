@@ -1,0 +1,12 @@
+FUSION_REWRITE edge_identities=1890 errors=16 remaining=0
+error: 'tilemega.fused_task_space' op requires attribute 'phase_granularities'
+error: 'tilemega.fused_task_space' op fusion needs ordered semantics, phase maps and an external write
+error: 'tilemega.fused_task_space' op malformed fusion phase
+error: 'tilemega.fused_task_space' op fusion needs ordered semantics, phase maps and an external write
+error: 'tilemega.fused_task_space' op fusion task count differs from consumer domain
+error: 'tilemega.fused_task_space' op requires attribute 'phase_granularities'
+error: 'tilemega.fused_task_space' op fusion needs ordered semantics, phase maps and an external write
+error: 'tilemega.fused_task_space' op malformed fusion phase
+error: 'tilemega.fused_task_space' op fusion needs ordered semantics, phase maps and an external write
+error: 'tilemega.fused_task_space' op fusion task count differs from consumer domain
+ISL_CONTEXT remaining=0

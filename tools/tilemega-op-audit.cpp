@@ -1,13 +1,40 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/OpArithmetic.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Dialect/CouplingGraph/CGDialect.h>
+#include <mlir/IR/MLIRContext.h>
+#include <mlir/IR/BuiltinOps.h>
+#include <mlir/Parser/Parser.h>
 #include <iostream>
 #include <set>
 #include <stdexcept>
 
-int main() try {
+int main(int argc,char** argv) try {
   using namespace tilemega::analysis;
   IslContext context;
+  if (argc>1) {
+    if (argc!=2) throw std::invalid_argument("usage: tilemega-op-audit [fused.mlir]");
+    mlir::MLIRContext mlir_context;
+    mlir_context.getOrLoadDialect<tilemega::dialect::CGDialect>();
+    auto module=mlir::parseSourceFile<mlir::ModuleOp>(argv[1],&mlir_context);
+    if (!module) throw std::invalid_argument("cannot parse fusion arithmetic input");
+    auto tasks=tilemega::solver::ReadFusedTaskInputs(*module);
+    if (tasks.empty()) throw std::invalid_argument("fusion arithmetic input contains no fused tasks");
+    for (auto const& task:tasks) {
+      std::cout << "FUSED_ARITHMETIC task=" << task.name << " phases=" << task.phases.size()
+                << " runtime_lowering=not_implemented\n";
+      for (std::size_t i=0;i<task.phases.size();++i) {
+        auto const& phase=task.arithmetic.phases[i];
+        std::cout << "PHASE name=" << task.semantics[i].op.name
+                  << " pipe=" << (phase.arithmetic.flops_use_mma ? "mma" : "simt")
+                  << " output_elements=" << phase.output_elements.ToString()
+                  << " flops=" << phase.arithmetic.flops_per_output_element.numerator.ToString()
+                  << "/" << phase.arithmetic.flops_per_output_element.denominator << '\n';
+      }
+    }
+    return 0;
+  }
   ArithmeticInputs inputs;
   inputs.reduction = QuasiPolynomial::Constant(64);
   inputs.total = QuasiPolynomial::FromIslText("[S] -> { S+3 }");

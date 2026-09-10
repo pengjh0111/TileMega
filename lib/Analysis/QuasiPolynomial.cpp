@@ -463,6 +463,24 @@ QuasiPolynomial QuasiPolynomial::SumDomain() const {
   return FromIslText(isl_util::ToString(sum.get()));
 }
 
+QuasiPolynomial QuasiPolynomial::SumAlong(CouplingRelation const& relation) const {
+  IslReferenceAudit audit(__func__);
+  if (relation.empty()) throw std::invalid_argument("QP fiber sum requires a relation");
+  auto map=isl_util::ReadMap(Ctx(),relation.ToString());
+  auto value=isl_util::ReadPwQPolynomial(Ctx(),text_);
+  map=isl_util::Map(isl_map_align_params(map.release(),isl_pw_qpolynomial_get_space(value.get())));
+  if (!map || !value) throw std::invalid_argument("QP fiber parameter alignment failed");
+  int inputs=isl_pw_qpolynomial_dim(value.get(),isl_dim_in),outputs=isl_map_dim(map.get(),isl_dim_out);
+  if (inputs==0 && outputs>0) {
+    value=isl_util::PwQPolynomial(isl_pw_qpolynomial_add_dims(value.release(),isl_dim_in,outputs));
+    auto range=isl_util::Space(isl_space_range(isl_map_get_space(map.get())));
+    value=isl_util::PwQPolynomial(isl_pw_qpolynomial_reset_domain_space(value.release(),range.release()));
+  } else if (inputs!=outputs) throw std::invalid_argument("QP fiber sum coordinate rank mismatch");
+  auto sum=isl_util::PwQPolynomial(isl_map_apply_pw_qpolynomial(map.release(),value.release()));
+  if (!sum) throw std::invalid_argument("cannot sum QP along relation");
+  return FromIslText(isl_util::ToString(sum.get()));
+}
+
 QuasiPolynomial QuasiPolynomial::SupportIndicator() const {
   IslReferenceAudit audit(__func__);
   auto value=isl_util::ReadPwQPolynomial(Ctx(),text_);
