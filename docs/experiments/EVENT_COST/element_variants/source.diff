@@ -1,0 +1,262 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 83a79217..b7322d6f 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -140,6 +140,7 @@ add_library(tilemega STATIC
+   lib/Solver/ImplementationContract.cpp
+   lib/Solver/AlignmentPropagation.cpp
+   lib/Solver/ChainDP.cpp
++  lib/Solver/CouplingInterfaceDP.cpp
+   lib/Solver/ListScheduler.cpp
+   lib/Solver/CostModel.cpp
+   lib/Solver/ModelDescription.cpp
+@@ -263,6 +264,10 @@ add_executable(tilemega-op-audit tools/tilemega-op-audit.cpp)
+ add_executable(tilemega-task-work-probe tools/tilemega-task-work-probe.cpp)
+ add_executable(tilemega-task-work-gate tools/tilemega-task-work-gate.cpp)
+ add_executable(tilemega-task-cost-gate tools/tilemega-task-cost-gate.cpp)
++add_executable(tilemega-interface-probe tools/tilemega-interface-probe.cpp)
++target_link_libraries(tilemega-interface-probe PRIVATE TileMega::tilemega)
++set_target_properties(tilemega-interface-probe PROPERTIES
++  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+ target_link_libraries(tilemega-task-cost-gate PRIVATE TileMega::tilemega)
+ set_target_properties(tilemega-task-cost-gate PROPERTIES
+   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+diff --git a/include/tilemega/Solver/ChainDP.h b/include/tilemega/Solver/ChainDP.h
+index cc518c06..99e3e600 100644
+--- a/include/tilemega/Solver/ChainDP.h
++++ b/include/tilemega/Solver/ChainDP.h
+@@ -82,6 +82,7 @@ struct ChainDpStats {
+   /// max over (i, s) of the spread of Interface(., s) across s'.  Zero means
+   /// the chain separates and the DP degenerates to |R| independent minima.
+   double interface_spread_ns = 0.0;
++  int interface_frontier_width = 0;
+ };
+ 
+ struct ChainDpSolution {
+@@ -139,6 +140,8 @@ class ChainDP {
+   std::vector<DpCandidate> const& candidates() const { return candidates_; }
+ 
+  private:
++  ChainDpSolution SolveCouplingInterfaces(ModelDescription const& model,
++      ChainDpOptions options,ChainDpStats* stats) const;
+   /// Stage indices of the GEMMs, in execution order.
+   std::vector<int> GemmStages(ModelDescription const& model) const;
+ 
+diff --git a/include/tilemega/Solver/CostModel.h b/include/tilemega/Solver/CostModel.h
+index 6a245941..63052c84 100644
+--- a/include/tilemega/Solver/CostModel.h
++++ b/include/tilemega/Solver/CostModel.h
+@@ -36,6 +36,12 @@
+ #ifndef TILEMEGA_L2_EVENT_COST
+ #define TILEMEGA_L2_EVENT_COST 0
+ #endif
++#ifndef TILEMEGA_CG_INTERFACE_COST
++#define TILEMEGA_CG_INTERFACE_COST 1
++#endif
++#ifndef TILEMEGA_CG_INTERFACE_DP
++#define TILEMEGA_CG_INTERFACE_DP 0
++#endif
+ 
+ namespace tilemega::solver {
+ 
+@@ -107,6 +113,7 @@ struct CostBreakdown {
+   double other_ns = 0.0;
+   double barrier_ns = 0.0;
+   double event_ns = 0.0;
++  double interface_ns = 0.0;
+   int stage_count = 0;  ///< after the split rewrite, so one barrier each
+ };
+ 
+@@ -134,6 +141,7 @@ struct CostModelOptions {
+   bool task_body_traits = TILEMEGA_TASK_TRAIT_COSTS;
+   bool measured_partial_combine = TILEMEGA_MEASURED_PARTIAL_COMBINE;
+   bool l2_events = TILEMEGA_L2_EVENT_COST;
++  bool cg_interface = TILEMEGA_CG_INTERFACE_DP;
+   int kappa = 1;
+ };
+ 
+@@ -184,6 +192,8 @@ class CostModel {
+   double BarrierNs(Residency residency) const;
+   double EventNs(ModelDescription const& model, std::vector<GemmConfig> const& configs,
+                  Residency residency, int stage_count) const;
++  double InterfaceEdgeNs(ModelCouplingMetrics const& edge,ModelDescription const& model) const;
++  double InterfaceNs(ModelDescription const& model,std::vector<GemmConfig> const& configs) const;
+ 
+   /// The steady-state resource vector of one mainloop iteration for `o`
+   /// resident CTAs, before the envelope is applied.
+diff --git a/include/tilemega/Solver/ModelDescription.h b/include/tilemega/Solver/ModelDescription.h
+index 2d219423..22bdae6b 100644
+--- a/include/tilemega/Solver/ModelDescription.h
++++ b/include/tilemega/Solver/ModelDescription.h
+@@ -46,6 +46,7 @@ struct ModelCouplingMetrics {
+   int producer = -1, consumer = -1;
+   analysis::QuasiPolynomial wait, fanout, volume, count;
+   analysis::CouplingRelation relation;
++  std::string producer_task, consumer_task;
+ };
+ struct ModelRuntimeEventMetrics {
+   analysis::QuasiPolynomial task_refs, wait_entries, max_worker_task_refs;
+diff --git a/include/tilemega/Solver/TaskModel.h b/include/tilemega/Solver/TaskModel.h
+index 3dc09424..47853299 100644
+--- a/include/tilemega/Solver/TaskModel.h
++++ b/include/tilemega/Solver/TaskModel.h
+@@ -7,6 +7,9 @@
+ namespace tilemega::solver {
+ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
+                                             std::vector<GemmConfig> const& configs);
++std::vector<ModelCouplingMetrics> InstantiateModelCouplings(
++    ModelDescription const& model,std::vector<GemmConfig> const& configs,
++    std::optional<std::pair<int,int>> stage_pair=std::nullopt);
+ struct DerivedTaskInput {
+   analysis::OperatorNode task;
+   analysis::TaskWork work;
+diff --git a/lib/Solver/ChainDP.cpp b/lib/Solver/ChainDP.cpp
+index 257b5baa..660ef3ba 100644
+--- a/lib/Solver/ChainDP.cpp
++++ b/lib/Solver/ChainDP.cpp
+@@ -147,6 +147,7 @@ ChainDpSolution ChainDP::Solve(ModelDescription const& model,
+                                ChainDpStats* stats) const {
+   if (cost_->options().l2_events)
+     throw std::invalid_argument("L2 DP requires candidate-specific runtime metrics and transitions; not implemented");
++  if (cost_->options().cg_interface) return SolveCouplingInterfaces(model,options,stats);
+   auto const started = std::chrono::steady_clock::now();
+   std::vector<int> const gemm_stages = GemmStages(model);
+   int const layers = static_cast<int>(gemm_stages.size());
+diff --git a/lib/Solver/CostModel.cpp b/lib/Solver/CostModel.cpp
+index ae09f9bc..8cad2e8b 100644
+--- a/lib/Solver/CostModel.cpp
++++ b/lib/Solver/CostModel.cpp
+@@ -535,6 +535,25 @@ double CostModel::BarrierNs(Residency residency) const {
+   return Interpolate(calib_->grid_barrier_ctas, calib_->grid_barrier_ns, grid);
+ }
+ 
++double CostModel::InterfaceEdgeNs(ModelCouplingMetrics const& edge,
++                                  ModelDescription const& model) const {
++#if !TILEMEGA_CG_INTERFACE_COST
++  throw std::runtime_error("CG interface pricing is disabled");
++#endif
++  auto known=model.MetricBindings();
++  long waits=edge.wait.SumDomain().SubstituteParams(known).Eval({});
++  // Only consumers in domain(C) owe a first read. Subtracting |T_c| would
++  // produce negative work for consumers outside a partial writer's domain.
++  long consumers=edge.relation.Reverse().ImageCard().SubstituteParams(known).Eval({});
++  long volume=edge.volume.SubstituteParams(known).Eval({});
++  if (waits<consumers || volume<0) throw std::invalid_argument("invalid physical interface incidence");
++  if (calib_->l2_gbps<=0 || calib_->dram_gbps<=0)
++    throw std::runtime_error("interface bandwidth: not_calibrated");
++  double miss=1.0-CacheHitProbability(model.LiveFootprintBytes());
++  return double(waits-consumers)*double(volume)*ElementBytes(dtype_)*
++      ((1.0-miss)/calib_->l2_gbps+miss/calib_->dram_gbps);
++}
++
+ double CostModel::EventNs(ModelDescription const& model, std::vector<GemmConfig> const& configs,
+                          Residency residency, int stage_count) const {
+   if (!options_.sync || !options_.l2_events) return 0.0;
+@@ -579,6 +598,13 @@ double CostModel::EventNs(ModelDescription const& model, std::vector<GemmConfig>
+   return total;
+ }
+ 
++double CostModel::InterfaceNs(ModelDescription const& model,
++                               std::vector<GemmConfig> const& configs) const {
++  double total=0;
++  for (auto const& edge:InstantiateModelCouplings(model,configs)) total+=InterfaceEdgeNs(edge,model);
++  return total;
++}
++
+ CostBreakdown CostModel::Evaluate(ModelDescription const& model,
+                                   std::vector<GemmConfig> const& configs,
+                                   Residency residency) const {
+@@ -610,6 +636,10 @@ CostBreakdown CostModel::Evaluate(ModelDescription const& model,
+   out.event_ns=EventNs(model,configs,residency,out.stage_count);
+   out.total_ns = out.gemm_ns + out.combine_ns + out.other_ns + out.barrier_ns;
+   if (options_.l2_events) out.total_ns+=out.event_ns;
++  if (options_.cg_interface) {
++    out.interface_ns=InterfaceNs(model,configs);
++    out.total_ns+=out.interface_ns;
++  }
+   return out;
+ }
+ 
+diff --git a/lib/Solver/ModelDescription.cpp b/lib/Solver/ModelDescription.cpp
+index 5055218a..17a2ffa1 100644
+--- a/lib/Solver/ModelDescription.cpp
++++ b/lib/Solver/ModelDescription.cpp
+@@ -196,8 +196,10 @@ ModelDescription ModelDescription::FromCouplingGraph(
+     model.stages.push_back(std::move(stage));
+   }
+   std::map<std::string, int> task_stage;
++  std::map<std::string, std::string> task_name;
+   for (auto task : module.getOps<dialect::TaskSpaceOp>()) {
+     task_stage.emplace(task.getSymName().str(), task.getStage());
++    task_name.emplace(task.getSymName().str(),task.getOperatorName().str());
+     if (auto payload=task.getSemantic()) {
+       ModelTaskSemantics input;
+       input.op=analysis::DecodeSemanticOp(payload->str());
+@@ -221,7 +223,8 @@ ModelDescription ModelDescription::FromCouplingGraph(
+     int const consumer = task_stage.at(edge.getDst().str());
+     model.coupling_metrics.edges.push_back({producer, consumer,
+         edge.getWait().getValue(), edge.getFanout().getValue(),
+-        edge.getVolume().getValue(), edge.getCount().getValue(), edge.getRelation().getMap()});
++        edge.getVolume().getValue(), edge.getCount().getValue(), edge.getRelation().getMap(),
++        task_name.at(edge.getSrc().str()),task_name.at(edge.getDst().str())});
+     if (producer != consumer) model.stage_successors.at(producer).push_back(consumer);
+   }
+   for (auto& successors : model.stage_successors) {
+diff --git a/lib/Solver/TaskModel.cpp b/lib/Solver/TaskModel.cpp
+index 89a5072b..20b8943d 100644
+--- a/lib/Solver/TaskModel.cpp
++++ b/lib/Solver/TaskModel.cpp
+@@ -2,6 +2,7 @@
+ #include <tilemega/Solver/TaskModel.h>
+ #include <tilemega/Analysis/TaskInstantiation.h>
+ #include <tilemega/Analysis/ISLContext.h>
++#include <tilemega/Analysis/CouplingDerivation.h>
+ #include <algorithm>
+ #include <set>
+ #include <stdexcept>
+@@ -47,6 +48,45 @@ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
+   return analysis::Instantiate(semantics,granularity);
+ }
+ 
++std::vector<ModelCouplingMetrics> InstantiateModelCouplings(
++    ModelDescription const& model,std::vector<GemmConfig> const& configs,
++    std::optional<std::pair<int,int>> stage_pair) {
++  analysis::IslReferenceAudit audit(__func__);
++  auto graph=InstantiateModelTasks(model,configs);
++  std::map<std::string,int> stages;
++  for (auto const& input:model.task_semantics) {
++    stages.emplace(input.op.name,input.stage);
++    if (input.op.reduction.splittable) stages.emplace(input.op.reduction.combiner,input.stage);
++  }
++  auto known=model.metric_bindings;
++  for (auto const& name:{std::string("S"),std::string("past"),std::string("P"),std::string("L_s"),
++                         model.seq_metric_parameter,model.past_metric_parameter})
++    known.values.erase(name);
++  for (auto const& [alias,canonical]:model.metric_aliases)
++    if (canonical==model.seq_metric_parameter || canonical==model.past_metric_parameter)
++      known.values.erase(alias);
++  if (stage_pair) {
++    // Restrict only which edges are queried. Operand access maps and task
++    // spaces are unchanged, so the ordinary derivation remains the authority.
++    for (auto& node:graph.nodes) {
++      auto consumer=stages.at(node.name);
++      node.operands.erase(std::remove_if(node.operands.begin(),node.operands.end(),
++          [&](auto const& operand) {
++            auto producer=stages.find(operand.producer);
++            return consumer!=stage_pair->second || producer==stages.end() ||
++                   producer->second!=stage_pair->first;
++          }),node.operands.end());
++    }
++  }
++  auto derived=analysis::CouplingDerivation{}.Derive(graph,known);
++  std::vector<ModelCouplingMetrics> edges;
++  for (auto const& edge:derived)
++    edges.push_back({stages.at(edge.src.name),stages.at(edge.dst.name),
++      edge.metrics.wait,edge.metrics.fanout,edge.metrics.volume,edge.metrics.count,edge.C,
++      edge.src.name,edge.dst.name});
++  return edges;
++}
++
+ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
+                                     ModelTaskSemantics const& semantic,
+                                     analysis::OperatorGraph const& graph,

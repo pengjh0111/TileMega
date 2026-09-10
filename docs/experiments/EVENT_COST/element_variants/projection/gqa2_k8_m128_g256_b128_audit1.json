@@ -1,0 +1,25 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-runtime-projection",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+    "256",
+    "128",
+    "1",
+    "symbolic",
+    "128",
+    "128",
+    "16",
+    "3",
+    "8",
+    "element",
+    "1",
+    "1",
+    "1"
+  ],
+  "environment": {
+    "TILEMEGA_ISL_AUDIT": "1"
+  },
+  "binary_sha256": "c241083454724824ca5483bc7704716755c7b15e525b14104e2810f02bbb0031",
+  "stdout_sha256": "4caf5d42b0a246f59d0909ef16b4f67995a99fc3b6a466c2413235a6a2a552f4",
+  "stderr_sha256": "730d4990d74e79fbd7f707ba61d9f86c2e32358ee0816b782bd89ba29e937925"
+}

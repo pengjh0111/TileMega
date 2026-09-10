@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/root/TileMega/docs/experiments/EVENT_COST/run_element_variants.py", line 199, in <module>
+    main()
+  File "/root/TileMega/docs/experiments/EVENT_COST/run_element_variants.py", line 182, in main
+    raise RuntimeError('missing explicit zero-reference evidence')
+RuntimeError: missing explicit zero-reference evidence

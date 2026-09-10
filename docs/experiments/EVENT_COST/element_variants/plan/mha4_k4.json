@@ -1,0 +1,35 @@
+{
+  "schema": "tilemega.runtime_variants.v1",
+  "variants": [
+    {
+      "seq_begin": 1,
+      "seq_end": 128,
+      "rope_tile_per_block": false,
+      "kv_tile_per_block": false,
+      "activation_tile_per_block": false,
+      "combiner_tile_per_block": false,
+      "uniform": {
+        "tile_m": 128,
+        "tile_n": 128,
+        "tile_k": 16,
+        "stages": 3,
+        "split_k": 4
+      }
+    },
+    {
+      "seq_begin": 129,
+      "seq_end": 2048,
+      "rope_tile_per_block": false,
+      "kv_tile_per_block": false,
+      "activation_tile_per_block": false,
+      "combiner_tile_per_block": false,
+      "uniform": {
+        "tile_m": 64,
+        "tile_n": 128,
+        "tile_k": 16,
+        "stages": 3,
+        "split_k": 4
+      }
+    }
+  ]
+}

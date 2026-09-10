@@ -1,0 +1,1 @@
+CODEGEN_SUMMARY tasks=96 couplings=114 stages=60 symbolic_windows=38 fallback_windows=0 output=/root/TileMega/docs/experiments/EVENT_COST/element_variants/src/mha4_k2.cu

@@ -1,0 +1,6 @@
+{
+  "processes": 7500,
+  "projection_equalities": 15000,
+  "queries": 20,
+  "status": "PASS"
+}
