@@ -1,0 +1,9 @@
+PERIOD_CHECK limit=1 symbolic_equal=1 before=[S] -> { (floor((3 + S)/4) + floor((S)/7)) : 0 <= S <= 63 } after=[S] -> { (floor((3 + S)/4) + floor((S)/7)) : 0 <= S <= 63 }
+PERIOD_DIFFERENCE limit=1 expression=[S] -> { 0 } range_value=0
+PERIOD_CHECK limit=4 symbolic_equal=1 before=[S] -> { (floor((3 + S)/4) + floor((S)/7)) : 0 <= S <= 63 } after=[S] -> { (floor((3 + S)/4) + floor((S)/7)) : 0 <= S <= 63 }
+PERIOD_DIFFERENCE limit=4 expression=[S] -> { 0 } range_value=0
+PERIOD_CHECK limit=16 symbolic_equal=0 before=[S] -> { (floor((3 + S)/4) + floor((S)/7)) : 0 <= S <= 63 } after=[S] -> { 1 : 0 < S <= 4; 2 : 5 <= S <= 6; 3 : 7 <= S <= 8; 4 : 9 <= S <= 12; 5 : S = 13; 6 : 14 <= S <= 16; 7 : 17 <= S <= 20; 9 : 21 <= S <= 24; 10 : 25 <= S <= 27; 11 : S = 28; 12 : 29 <= S <= 32; 13 : 33 <= S <= 34; 14 : 35 <= S <= 36; 15 : 37 <= S <= 40; 16 : S = 41; 17 : 42 <= S <= 44; 18 : 45 <= S <= 48; 20 : 49 <= S <= 52; 21 : 53 <= S <= 55; 22 : S = 56; 23 : 57 <= S <= 60; 24 : 61 <= S <= 62; 25 : S = 63 }
+PERIOD_DIFFERENCE limit=16 expression=[S] -> { (floor((3 + S)/4) + floor((S)/7)) : S = 0 } range_value=0
+PERIOD_CHECK limit=64 symbolic_equal=0 before=[S] -> { (floor((3 + S)/4) + floor((S)/7)) : 0 <= S <= 63 } after=[S] -> { 1 : 0 < S <= 4; 2 : 5 <= S <= 6; 3 : 7 <= S <= 8; 4 : 9 <= S <= 12; 5 : S = 13; 6 : 14 <= S <= 16; 7 : 17 <= S <= 20; 9 : 21 <= S <= 24; 10 : 25 <= S <= 27; 11 : S = 28; 12 : 29 <= S <= 32; 13 : 33 <= S <= 34; 14 : 35 <= S <= 36; 15 : 37 <= S <= 40; 16 : S = 41; 17 : 42 <= S <= 44; 18 : 45 <= S <= 48; 20 : 49 <= S <= 52; 21 : 53 <= S <= 55; 22 : S = 56; 23 : 57 <= S <= 60; 24 : 61 <= S <= 62; 25 : S = 63 }
+PERIOD_DIFFERENCE limit=64 expression=[S] -> { (floor((3 + S)/4) + floor((S)/7)) : S = 0 } range_value=0
+PERIOD_ERROR rejected=1 before=0 after=0

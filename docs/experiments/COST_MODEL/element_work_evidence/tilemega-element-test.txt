@@ -1,0 +1,8 @@
+syntax error (1, 172): expecting constant value
+got keyword 'floor'
+syntax error (1, 178): expecting other token
+got '('
+syntax error (1, 178): unexpected token
+got '('
+terminate called after throwing an instance of 'std::invalid_argument'
+  what():  isl: failed to parse map: [S] -> { [m,hh] -> [element0,element1] : exists (iteration0,iteration1 : (0) <= iteration0 < (0)+(S) and (0) <= iteration1 < (0)+(8) and 0 <= m < (S) and (m) <= (((0)+(1)*floor((iteration0)/1))+(0)) < (m)+(1) and 0 <= hh < (8) and (hh) <= (((0)+(1)*floor((iteration1)/1))+(0)) < (hh)+(1) and element0 = (0)+(1)*floor((iteration0)/1) and (0) <= element0 < (0)+(S) and element1 = (0)+(1)*floor((iteration1)/1) and (0) <= element1 < (0)+(8)) }

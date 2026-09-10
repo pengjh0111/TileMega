@@ -2367,3 +2367,16 @@ profile was correctly rejected asnot_calibrated instead of silently using
 the old BF16 coefficient or clamped zero. Positive L2/DRAM peer slopes are
 diagnostic only; COST_MODEL/partial_combine.md records them and the raw log.
 This locally stops A12.2 pending a resolvable measurement method, not A3/A6/A9.
+
+## F-111 — Parameter binding is not task-coordinate binding
+
+✅ Causal attention work exposed a real API documentation error:
+QuasiPolynomial::Eval fixes isl parameters, not the remaining task tuple.
+Position-independent GEMM work had hidden the distinction. Explicit
+BindCoordinates now restricts a task point without changing historical Eval
+semantics. Exact RoPE partner/frequency and causal K reads pass 648 production
+BF16 cells plus 48 synthetic cells; set equivalence checks grouped-head
+addresses as well as counts. Five error branches retain zero isl references.
+Full 30/30 CTest and 4/4 generated-CUDA byte comparisons pass. See
+COST_MODEL/element_work.md for source locations and preserved detours.
+This does not close A6 or extend the evidence to split attention.

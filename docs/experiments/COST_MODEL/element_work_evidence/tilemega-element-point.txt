@@ -1,0 +1,3 @@
+CAUSAL_READ_QP [S, past] -> { [s, h] -> ((4 + 4 * S) + 4 * past) : past > -S and 0 <= s < -past and s < S and 0 <= h <= 1; [s, h] -> (((8 + 4 * S) + 8 * past) + 4 * s) : past > -S and s >= 0 and -past <= s < S and 0 <= h <= 1 }
+ISL_CONTEXT remaining=0
+ELEMENT_WORK cells=48 causal_set_equivalence=PASS error_branches=5 remaining=0
