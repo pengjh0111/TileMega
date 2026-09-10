@@ -74,6 +74,9 @@ class QuasiPolynomial {
       std::vector<ParamBinding> const& coordinates) const;
   /// Sum over task-coordinate dimensions, retaining symbolic parameters.
   QuasiPolynomial SumDomain() const;
+  /// Sum this function over each relation fiber. A single-valued relation
+  /// gives an exact pullback; parameter-only functions broadcast to its range.
+  QuasiPolynomial SumAlong(CouplingRelation const& relation) const;
   /// Add exact functions, treating points outside either domain as zero.
   QuasiPolynomial Add(QuasiPolynomial const& other) const;
   QuasiPolynomial Scale(long factor) const;
