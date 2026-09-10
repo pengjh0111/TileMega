@@ -35,6 +35,7 @@ def signed_rank(values):
 
 parser=argparse.ArgumentParser()
 parser.add_argument("root",type=Path)
+parser.add_argument("--out",type=Path)
 args=parser.parse_args()
 root=args.root
 rows=list(csv.DictReader((root/"paired.tsv").open(),delimiter="\t"))
@@ -81,5 +82,10 @@ for group in groups:
                     paired_delta_ms=statistics.median(delta),delta_ci95=interval(delta),
                     paired_ratio=statistics.median(ratios),ratio_ci95=interval(ratios),
                     wilcoxon_normal_tie_corrected_p=signed_rank(delta)))
-print(json.dumps(dict(correctness="400/400",primary_rounds=25,sensitivity_rounds=50,
-    receipts_sha256=hashlib.sha256((root/"paired.tsv").read_bytes()).hexdigest(),results=results),indent=2))
+text=json.dumps(dict(correctness="400/400",primary_rounds=25,sensitivity_rounds=50,
+    receipts_sha256=hashlib.sha256((root/"paired.tsv").read_bytes()).hexdigest(),results=results),indent=2)
+if args.out:
+    with args.out.open("x") as stream:
+        stream.write(text+"\n")
+else:
+    print(text)
