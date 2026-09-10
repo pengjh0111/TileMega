@@ -1,0 +1,1 @@
+PASS: 6 offline instances, 78 mappings; no GPU claim

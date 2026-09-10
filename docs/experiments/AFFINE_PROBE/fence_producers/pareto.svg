@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="700" viewBox="0 0 1080 700">
+<rect width="1080" height="700" fill="white"/>
+<style>text{font:12px sans-serif} .point{fill:#999} .front{fill:#1674bd}</style>
+<text x="50" y="20">Offline Pareto frontier: x = longest queue (log10); y = same-worker fraction</text>
+<text x="55" y="52">seq=4, workers=16</text>
+<path d="M55,70 V300 H335" stroke="black" fill="none"/>
+<text x="55.0" y="318">1</text>
+<text x="255.29471813027502" y="318">10</text>
+<text x="10" y="300.0">0.000</text>
+<text x="10" y="242.5">0.105</text>
+<text x="10" y="185.0">0.209</text>
+<text x="10" y="127.5">0.314</text>
+<text x="10" y="70.0">0.418</text>
+<polyline points="224.26867371710344,280.2434275959681 306.42445258635087,145.24006369183104 306.42445258635087,145.24006369183104 306.42445258635087,145.24006369183104 311.1275920609211,141.94731078935797 319.8335409451414,135.3618049844118 319.8335409451414,135.3618049844118 319.8335409451414,135.3618049844118 335.0,90.90909090909093 335.0,90.90909090909093" fill="none" stroke="#1674bd"/>
+<circle cx="306.42445258635087" cy="168.28933400914258" r="4" fill="#d53232"><title>stage_major</title></circle>
+<text x="271.42445258635087" y="160.28933400914258" fill="#d53232">stage-major</text>
+<circle cx="224.26867371710344" cy="280.2434275959681" r="4" fill="#1674bd"><title>affine</title></circle>
+<circle cx="335.0" cy="90.90909090909093" r="4" fill="#1674bd"><title>band_tiling</title></circle>
+<circle cx="335.0" cy="90.90909090909093" r="4" fill="#1674bd"><title>wavefront</title></circle>
+<circle cx="306.42445258635087" cy="145.24006369183104" r="4" fill="#1674bd"><title>affine_balanced_100</title></circle>
+<circle cx="311.1275920609211" cy="141.94731078935797" r="4" fill="#1674bd"><title>affine_balanced_110</title></circle>
+<circle cx="319.8335409451414" cy="135.3618049844118" r="4" fill="#1674bd"><title>affine_balanced_120</title></circle>
+<circle cx="306.42445258635087" cy="145.24006369183104" r="4" fill="#1674bd"><title>band_tiling_balanced_100</title></circle>
+<circle cx="311.1275920609211" cy="143.5936872405945" r="4" fill="#999"><title>band_tiling_balanced_110</title></circle>
+<circle cx="319.8335409451414" cy="135.3618049844118" r="4" fill="#1674bd"><title>band_tiling_balanced_120</title></circle>
+<circle cx="306.42445258635087" cy="145.24006369183104" r="4" fill="#1674bd"><title>wavefront_balanced_100</title></circle>
+<circle cx="311.1275920609211" cy="143.5936872405945" r="4" fill="#999"><title>wavefront_balanced_110</title></circle>
+<circle cx="319.8335409451414" cy="135.3618049844118" r="4" fill="#1674bd"><title>wavefront_balanced_120</title></circle>
+<text x="410" y="52">seq=4, workers=256</text>
+<path d="M410,70 V300 H690" stroke="black" fill="none"/>
+<text x="410.0" y="318">1</text>
+<text x="610.294718130275" y="318">10</text>
+<text x="365" y="300.0">0.000</text>
+<text x="365" y="242.5">0.105</text>
+<text x="365" y="185.0">0.209</text>
+<text x="365" y="127.5">0.314</text>
+<text x="365" y="70.0">0.418</text>
+<polyline points="410.0,300.0 661.4244525863509,151.82556949677718 661.4244525863509,151.82556949677718 661.4244525863509,151.82556949677718 666.1275920609211,143.5936872405945 666.1275920609211,143.5936872405945 666.1275920609211,143.5936872405945 674.8335409451414,135.3618049844118 674.8335409451414,135.3618049844118 674.8335409451414,135.3618049844118 690.0,90.90909090909093 690.0,90.90909090909093" fill="none" stroke="#1674bd"/>
+<circle cx="661.4244525863509" cy="168.28933400914258" r="4" fill="#d53232"><title>stage_major</title></circle>
+<text x="626.4244525863509" y="160.28933400914258" fill="#d53232">stage-major</text>
+<circle cx="410.0" cy="300.0" r="4" fill="#1674bd"><title>affine</title></circle>
+<circle cx="690.0" cy="90.90909090909093" r="4" fill="#1674bd"><title>band_tiling</title></circle>
+<circle cx="690.0" cy="90.90909090909093" r="4" fill="#1674bd"><title>wavefront</title></circle>
+<circle cx="661.4244525863509" cy="151.82556949677718" r="4" fill="#1674bd"><title>affine_balanced_100</title></circle>
+<circle cx="666.1275920609211" cy="143.5936872405945" r="4" fill="#1674bd"><title>affine_balanced_110</title></circle>
+<circle cx="674.8335409451414" cy="135.3618049844118" r="4" fill="#1674bd"><title>affine_balanced_120</title></circle>
+<circle cx="661.4244525863509" cy="151.82556949677718" r="4" fill="#1674bd"><title>band_tiling_balanced_100</title></circle>
+<circle cx="666.1275920609211" cy="143.5936872405945" r="4" fill="#1674bd"><title>band_tiling_balanced_110</title></circle>
+<circle cx="674.8335409451414" cy="135.3618049844118" r="4" fill="#1674bd"><title>band_tiling_balanced_120</title></circle>
+<circle cx="661.4244525863509" cy="151.82556949677718" r="4" fill="#1674bd"><title>wavefront_balanced_100</title></circle>
+<circle cx="666.1275920609211" cy="143.5936872405945" r="4" fill="#1674bd"><title>wavefront_balanced_110</title></circle>
+<circle cx="674.8335409451414" cy="135.3618049844118" r="4" fill="#1674bd"><title>wavefront_balanced_120</title></circle>
+<text x="765" y="52">seq=128, workers=16</text>
+<path d="M765,70 V300 H1045" stroke="black" fill="none"/>
+<text x="765.0" y="318">1</text>
+<text x="870.4177890666135" y="318">10</text>
+<text x="975.8355781332269" y="318">100</text>
+<text x="720" y="300.0">0.000</text>
+<text x="720" y="242.5">0.028</text>
+<text x="720" y="185.0">0.056</text>
+<text x="720" y="127.5">0.084</text>
+<text x="720" y="70.0">0.113</text>
+<polyline points="988.5462153800177,173.39285635023148 991.8894786987038,90.90909090909093" fill="none" stroke="#1674bd"/>
+<circle cx="991.8894786987038" cy="169.4078680462158" r="4" fill="#d53232"><title>stage_major</title></circle>
+<text x="956.8894786987038" y="161.4078680462158" fill="#d53232">stage-major</text>
+<circle cx="988.5462153800177" cy="173.39285635023148" r="4" fill="#1674bd"><title>affine</title></circle>
+<circle cx="1045.0" cy="136.8649879489194" r="4" fill="#999"><title>band_tiling</title></circle>
+<circle cx="1045.0" cy="136.8649879489194" r="4" fill="#999"><title>wavefront</title></circle>
+<circle cx="991.8894786987038" cy="90.90909090909093" r="4" fill="#1674bd"><title>affine_balanced_100</title></circle>
+<circle cx="996.194346306132" cy="95.59911403473731" r="4" fill="#999"><title>affine_balanced_110</title></circle>
+<circle cx="1000.1289939177104" cy="98.74308338992682" r="4" fill="#999"><title>affine_balanced_120</title></circle>
+<circle cx="991.8894786987038" cy="171.54318636785314" r="4" fill="#999"><title>band_tiling_balanced_100</title></circle>
+<circle cx="996.194346306132" cy="174.80660124017382" r="4" fill="#999"><title>band_tiling_balanced_110</title></circle>
+<circle cx="1000.1289939177104" cy="181.6339844911692" r="4" fill="#999"><title>band_tiling_balanced_120</title></circle>
+<circle cx="991.8894786987038" cy="145.3466405670888" r="4" fill="#999"><title>wavefront_balanced_100</title></circle>
+<circle cx="996.194346306132" cy="139.8576596490761" r="4" fill="#999"><title>wavefront_balanced_110</title></circle>
+<circle cx="1000.1289939177104" cy="155.21161519989704" r="4" fill="#999"><title>wavefront_balanced_120</title></circle>
+<text x="55" y="372">seq=128, workers=256</text>
+<path d="M55,390 V620 H335" stroke="black" fill="none"/>
+<text x="55.0" y="638">1</text>
+<text x="161.5291353188892" y="638">10</text>
+<text x="268.0582706377784" y="638">100</text>
+<text x="10" y="620.0">0.000</text>
+<text x="10" y="562.5">0.007</text>
+<text x="10" y="505.0">0.015</text>
+<text x="10" y="447.5">0.022</text>
+<text x="10" y="390.0">0.030</text>
+<polyline points="156.6546294150982,589.9417048361192 198.00712742045476,510.4732291086464 198.00712742045476,510.4732291086464 202.03271013694774,508.5842467864656 202.03271013694774,508.5842467864656 205.73588725860492,506.69448710530446 205.73588725860492,506.69448710530446 335.0,410.90909090909093 335.0,410.90909090909093" fill="none" stroke="#1674bd"/>
+<circle cx="198.00712742045476" cy="586.5636913871328" r="4" fill="#d53232"><title>stage_major</title></circle>
+<text x="163.00712742045476" y="578.5636913871328" fill="#d53232">stage-major</text>
+<circle cx="156.6546294150982" cy="589.9417048361192" r="4" fill="#1674bd"><title>affine</title></circle>
+<circle cx="335.0" cy="410.90909090909093" r="4" fill="#1674bd"><title>band_tiling</title></circle>
+<circle cx="335.0" cy="410.90909090909093" r="4" fill="#1674bd"><title>wavefront</title></circle>
+<circle cx="198.00712742045476" cy="512.1911924551565" r="4" fill="#999"><title>affine_balanced_100</title></circle>
+<circle cx="202.03271013694774" cy="510.3014327739954" r="4" fill="#999"><title>affine_balanced_110</title></circle>
+<circle cx="205.73588725860492" cy="508.46919765737806" r="4" fill="#999"><title>affine_balanced_120</title></circle>
+<circle cx="198.00712742045476" cy="510.4732291086464" r="4" fill="#1674bd"><title>band_tiling_balanced_100</title></circle>
+<circle cx="202.03271013694774" cy="508.5842467864656" r="4" fill="#1674bd"><title>band_tiling_balanced_110</title></circle>
+<circle cx="205.73588725860492" cy="506.69448710530446" r="4" fill="#1674bd"><title>band_tiling_balanced_120</title></circle>
+<circle cx="198.00712742045476" cy="510.4732291086464" r="4" fill="#1674bd"><title>wavefront_balanced_100</title></circle>
+<circle cx="202.03271013694774" cy="508.5842467864656" r="4" fill="#1674bd"><title>wavefront_balanced_110</title></circle>
+<circle cx="205.73588725860492" cy="506.69448710530446" r="4" fill="#1674bd"><title>wavefront_balanced_120</title></circle>
+<text x="410" y="372">seq=512, workers=16</text>
+<path d="M410,390 V620 H690" stroke="black" fill="none"/>
+<text x="410.0" y="638">1</text>
+<text x="495.7133594795228" y="638">10</text>
+<text x="581.4267189590456" y="638">100</text>
+<text x="667.1400784385685" y="638">1000</text>
+<text x="365" y="620.0">0.000</text>
+<text x="365" y="562.5">0.043</text>
+<text x="365" y="505.0">0.086</text>
+<text x="365" y="447.5">0.129</text>
+<text x="365" y="390.0">0.171</text>
+<polyline points="663.6293785748055,536.3730259911889 663.7518959834197,476.7062352959016 667.2886807878006,443.7070599501475 670.5183950040814,410.90909090909093" fill="none" stroke="#1674bd"/>
+<circle cx="663.7518959834197" cy="535.518301608834" r="4" fill="#d53232"><title>stage_major</title></circle>
+<text x="628.7518959834197" y="527.518301608834" fill="#d53232">stage-major</text>
+<circle cx="663.6293785748055" cy="536.3730259911889" r="4" fill="#1674bd"><title>affine</title></circle>
+<circle cx="665.3089795158672" cy="529.8912319541273" r="4" fill="#999"><title>band_tiling</title></circle>
+<circle cx="690.0" cy="529.6492478383444" r="4" fill="#999"><title>wavefront</title></circle>
+<circle cx="663.7518959834197" cy="476.78403506705126" r="4" fill="#999"><title>affine_balanced_100</title></circle>
+<circle cx="667.2886807878006" cy="443.9458247650552" r="4" fill="#999"><title>affine_balanced_110</title></circle>
+<circle cx="670.5183950040814" cy="411.4349100520337" r="4" fill="#999"><title>affine_balanced_120</title></circle>
+<circle cx="663.7518959834197" cy="476.7062352959016" r="4" fill="#1674bd"><title>band_tiling_balanced_100</title></circle>
+<circle cx="667.2886807878006" cy="443.82375960687204" r="4" fill="#999"><title>band_tiling_balanced_110</title></circle>
+<circle cx="670.5183950040814" cy="410.90909090909093" r="4" fill="#1674bd"><title>band_tiling_balanced_120</title></circle>
+<circle cx="663.7518959834197" cy="476.81891082653215" r="4" fill="#999"><title>wavefront_balanced_100</title></circle>
+<circle cx="667.2886807878006" cy="443.7070599501475" r="4" fill="#1674bd"><title>wavefront_balanced_110</title></circle>
+<circle cx="670.5183950040814" cy="410.9721355512295" r="4" fill="#999"><title>wavefront_balanced_120</title></circle>
+<text x="765" y="372">seq=512, workers=256</text>
+<path d="M765,390 V620 H1045" stroke="black" fill="none"/>
+<text x="765.0" y="638">1</text>
+<text x="856.7338286716612" y="638">10</text>
+<text x="948.4676573433223" y="638">100</text>
+<text x="1040.2014860149836" y="638">1000</text>
+<text x="720" y="620.0">0.000</text>
+<text x="720" y="562.5">0.003</text>
+<text x="720" y="505.0">0.006</text>
+<text x="720" y="447.5">0.008</text>
+<text x="720" y="390.0">0.011</text>
+<polyline points="926.0731231791382,539.1821870454027 934.2579074850858,410.90909090909093" fill="none" stroke="#1674bd"/>
+<circle cx="934.2579074850858" cy="537.018490978174" r="4" fill="#d53232"><title>stage_major</title></circle>
+<text x="899.2579074850858" y="529.018490978174" fill="#d53232">stage-major</text>
+<circle cx="926.0731231791382" cy="539.1821870454027" r="4" fill="#1674bd"><title>affine</title></circle>
+<circle cx="952.9826150025067" cy="435.90827471949683" r="4" fill="#999"><title>band_tiling</title></circle>
+<circle cx="1045.0" cy="430.9961391075666" r="4" fill="#999"><title>wavefront</title></circle>
+<circle cx="934.2579074850858" cy="428.3256930171147" r="4" fill="#999"><title>affine_balanced_100</title></circle>
+<circle cx="938.0550169736504" cy="426.79548633626473" r="4" fill="#999"><title>affine_balanced_110</title></circle>
+<circle cx="941.5215063440271" cy="421.85389574959123" r="4" fill="#999"><title>affine_balanced_120</title></circle>
+<circle cx="934.2579074850858" cy="410.90909090909093" r="4" fill="#1674bd"><title>band_tiling_balanced_100</title></circle>
+<circle cx="938.0550169736504" cy="426.14229115692393" r="4" fill="#999"><title>band_tiling_balanced_110</title></circle>
+<circle cx="941.5215063440271" cy="434.2125393777659" r="4" fill="#999"><title>band_tiling_balanced_120</title></circle>
+<circle cx="934.2579074850858" cy="460.79109063672706" r="4" fill="#999"><title>wavefront_balanced_100</title></circle>
+<circle cx="938.0550169736504" cy="422.8968507707806" r="4" fill="#999"><title>wavefront_balanced_110</title></circle>
+<circle cx="941.5215063440271" cy="455.57673038957944" r="4" fill="#999"><title>wavefront_balanced_120</title></circle>
+</svg>

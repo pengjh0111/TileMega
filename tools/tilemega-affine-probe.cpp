@@ -294,11 +294,15 @@ int main(int argc, char** argv) try {
     std::vector<int> spans;
     int forward_worker_span = 0;
     std::size_t same_worker = 0;
+    std::vector<bool> has_consumer(tasks.size(), false);
+    std::vector<bool> remote_consumer(tasks.size(), false);
     for (auto const& [producer, consumer] : dependencies) {
       int a = task_ids.at(producer), b = task_ids.at(consumer);
       add_dependency(a, b);
       spans.push_back(slot[b] - slot[a]);
       same_worker += worker[a] == worker[b];
+      has_consumer[a] = true;
+      remote_consumer[a] = remote_consumer[a] || worker[a] != worker[b];
       forward_worker_span = std::max(forward_worker_span, worker[a] - worker[b]);
     }
     std::vector<int> ready;
@@ -312,10 +316,18 @@ int main(int argc, char** argv) try {
       throw std::runtime_error("balanced placement exceeds its queue budget");
     std::sort(spans.begin(), spans.end());
     if (spans.empty()) throw std::runtime_error("no dependency spans");
+    std::size_t fence_free = 0, producers = 0;
+    for (std::size_t id = 0; id < tasks.size(); ++id) {
+      // Terminal outputs are externally visible, not vacuously fence-free.
+      producers += has_consumer[id];
+      fence_free += has_consumer[id] && !remote_consumer[id];
+    }
     std::cout << "SPAN mode=" << mode
               << " seq=" << seq << " workers=" << workers << " resident_limit=" << resident
               << " tasks=" << tasks.size() << " edges=" << spans.size()
               << " same_worker_edges=" << same_worker
+              << " producer_tasks=" << producers
+              << " fence_free_producers=" << fence_free
               << " cross_worker_fraction=" << double(spans.size()-same_worker)/spans.size()
               << " same_worker_fraction=" << double(same_worker)/spans.size()
               << " used_workers=" << std::count_if(lengths.begin(), lengths.end(), [](int n) { return n > 0; })
