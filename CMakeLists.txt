@@ -159,6 +159,7 @@ add_library(tilemega STATIC
   lib/Solver/FusedTaskInput.cpp
   lib/Solver/RuntimeProjection.cpp
   lib/Solver/FusedRuntimeProjection.cpp
+  lib/Codegen/ExactRuntimeTaskGraph.cpp
   lib/Analysis/OpArithmetic.cpp
   lib/Analysis/TaskWork.cpp
   lib/Analysis/FusionAccess.cpp
@@ -277,8 +278,11 @@ set_target_properties(tilemega-event-price PROPERTIES
 add_executable(tilemega-op-audit tools/tilemega-op-audit.cpp)
 add_executable(tilemega-fusion-events tools/tilemega-fusion-events.cpp)
 add_executable(tilemega-fusion-dp tools/tilemega-fusion-dp.cpp)
-target_link_libraries(tilemega-fusion-dp PRIVATE TileMega::tilemega)
+target_link_libraries(tilemega-fusion-dp PRIVATE TileMega::tilemega MLIRParser)
 set_target_properties(tilemega-fusion-dp PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+add_executable(tilemega-fusion-chain tools/tilemega-fusion-chain.cpp)
+target_link_libraries(tilemega-fusion-chain PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-fusion-chain PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 target_link_libraries(tilemega-fusion-events PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-fusion-events PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 add_executable(tilemega-task-work-probe tools/tilemega-task-work-probe.cpp)
@@ -488,6 +492,9 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(fused_runtime_projection_test test/unit/fused_runtime_projection_test.cpp)
   target_link_libraries(fused_runtime_projection_test PRIVATE TileMega::tilemega)
   add_test(NAME fused_runtime_projection COMMAND fused_runtime_projection_test)
+  add_executable(exact_runtime_task_graph_test test/unit/exact_runtime_task_graph_test.cpp)
+  target_link_libraries(exact_runtime_task_graph_test PRIVATE TileMega::tilemega)
+  add_test(NAME exact_runtime_task_graph COMMAND exact_runtime_task_graph_test)
   add_executable(fusion_batch_rewrite_test test/unit/fusion_batch_rewrite_test.cpp)
   target_link_libraries(fusion_batch_rewrite_test PRIVATE TileMega::tilemega)
   target_compile_definitions(fusion_batch_rewrite_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

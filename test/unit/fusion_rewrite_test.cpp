@@ -66,11 +66,19 @@ int main() try {
     reject_attribute("phase_stages",builder.getDenseI64ArrayAttr({5}));
     if (task.getWrites().get("l0.k_rot") || !task.getWrites().get("l0.full_k") || task.getReads().get("l0.k_rot"))
       throw std::runtime_error("internal tensor escaped the composed task");
+    auto source_dependencies=(*module)->getAttr("tilemega.fusion_source_dependencies");
+    (*module)->removeAttr("tilemega.fusion_source_dependencies");
     reject([&] { (void)codegen::CouplingGraphToCUDA{}.Lower(*module); });
+    (*module)->setAttr("tilemega.fusion_source_dependencies",source_dependencies);
+    auto cuda=codegen::CouplingGraphToCUDA{}.Lower(*module);
+    if (cuda.find("kRoPEKVAppend")==std::string::npos ||
+        cuda.find("RuntimeExactDependencyDesc")==std::string::npos)
+      throw std::runtime_error("verified fused graph did not reach physical lowering");
     reject([&] { (void)solver::ModelDescription::FromCouplingGraph(*module,{4,3,7},model); });
     auto saved=task.getTaskCountAttr();
     task.setTaskCountAttr(dialect::MetricAttr::get(&context,analysis::QuasiPolynomial::Constant(0)));
     if (mlir::succeeded(mlir::verify(*module))) throw std::runtime_error("false fused task count accepted");
+    reject([&] { (void)codegen::CouplingGraphToCUDA{}.Lower(*module); });
     task.setTaskCountAttr(saved);
     auto inputs=solver::ReadFusedTaskInputs(*module);
     if (inputs.size()!=1 || inputs.front().phases.size()!=2)

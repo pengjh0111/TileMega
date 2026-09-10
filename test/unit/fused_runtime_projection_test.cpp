@@ -60,6 +60,19 @@ int main() try {
     auto shared=ProjectRuntimeQueues(model,external,options);
     reject([&] { FuseProjectedQueues(shared,0,1,relation,options); });
   }
+  auto optional_model=model;
+  optional_model.stages[0].extent=4;
+  optional_model.stages[1].extent=12;
+  optional_model.stages[2].extent=12;
+  RuntimeProjectionOptions options{4,4,1};
+  auto optional_source=ProjectRuntimeQueues(optional_model,plan,options);
+  auto optional=FuseProjectedQueues(optional_source,0,1,relation,options,true);
+  for (int seq:{1,4,16}) {
+    analysis::ParamBinding theta; theta.Bind("S",seq);
+    if (optional.projection.runtime_task_refs.Eval(theta)!=6*seq ||
+        optional.projection.dependencies.BindParams(theta).Points().size()!=std::size_t(3*seq))
+      throw std::runtime_error("optional producer dropped independent consumer work");
+  }
   if (isl.ReferenceCount()) throw std::runtime_error("fusion projection retained references");
   std::cout << "FUSED_RUNTIME checks=" << checks << " errors=" << errors << " remaining=0\n";
 } catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }

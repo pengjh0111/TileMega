@@ -45,6 +45,10 @@ int main() try {
   auto resources=tilemega::solver::DeriveFusionResources(fused,fixed,{{"mid",2}},p,212,c,32);
   if (resources.shared_bytes!=24580 || resources.intermediate_bytes!=4 || resources.registers!=212)
     throw std::runtime_error("fusion scratch must be max plus exact intermediate, not sum");
+  auto allocated=tilemega::solver::DeriveFusionResources(fused,fixed,{{"mid",2}},p,212,c,32,128);
+  if (allocated.shared_bytes!=24704 || allocated.intermediate_bytes!=128)
+    throw std::runtime_error("predicated tail reduced the allocated shared tile");
+  reject([&] { tilemega::solver::DeriveFusionResources(fused,fixed,{{"mid",2}},p,212,c,32,2); });
   tilemega::TargetSpec target;
   target.res.regs_per_sm=65536;
   target.res.max_smem_per_sm=102400;
