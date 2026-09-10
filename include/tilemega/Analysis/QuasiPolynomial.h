@@ -20,6 +20,7 @@
 #pragma once
 
 #include <string>
+#include <array>
 
 #include <llvm/ADT/Hashing.h>
 
@@ -34,6 +35,19 @@ class CouplingRelation;  // fwd, for QuasiPolynomial::Card(CouplingRelation)
 /// a genuine function of a task coordinate, e.g. `[n] -> { [i] -> i : ... }`.
 class QuasiPolynomial {
  public:
+  struct PolynomialPiece {
+    std::string domain;
+    std::array<std::string,3> coefficients;  ///< exact rational, ascending degree
+  };
+  std::vector<PolynomialPiece> QuadraticPieces(std::string const& parameter) const;
+  struct PolynomialInterval {
+    long begin, end;
+    std::array<std::string,3> coefficients;
+  };
+  // Split bounded floor domains exactly. Non-interval parameter sets and
+  // degree > 2 remain explicit errors, never fitted polynomial samples.
+  std::vector<PolynomialInterval> QuadraticIntervals(std::string const& parameter,
+      long begin,long end) const;
   QuasiPolynomial();  // the constant 0
 
   static QuasiPolynomial Constant(long value);
@@ -61,6 +75,8 @@ class QuasiPolynomial {
   /// Add exact functions, treating points outside either domain as zero.
   QuasiPolynomial Add(QuasiPolynomial const& other) const;
   QuasiPolynomial Scale(long factor) const;
+  QuasiPolynomial ScaleRational(std::string const& factor) const;
+  QuasiPolynomial Multiply(QuasiPolynomial const& other) const;
   /// Exact ISL domain splitting where a floor attains at most this many
   /// values. This changes representation, not parameter sampling or values.
   QuasiPolynomial SplitPeriods(int max_periods) const;

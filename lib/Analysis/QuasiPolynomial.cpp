@@ -5,11 +5,13 @@
 #include <tilemega/Analysis/ISLContext.h>
 
 #include "IslUtil.h"
+#include <isl/ilp.h>
 
 #include <sstream>
 #include <stdexcept>
 #include <cctype>
 #include <map>
+#include <limits>
 
 #ifndef TILEMEGA_EARLY_QP_BINDING
 #define TILEMEGA_EARLY_QP_BINDING 1
@@ -19,6 +21,114 @@
 #endif
 
 namespace tilemega::analysis {
+
+std::vector<QuasiPolynomial::PolynomialInterval> QuasiPolynomial::QuadraticIntervals(
+    std::string const& parameter,long begin,long end) const {
+  IslReferenceAudit audit(__func__);
+  if (begin>end || end==std::numeric_limits<long>::max() ||
+      static_cast<unsigned long>(end)-static_cast<unsigned long>(begin)>=
+          static_cast<unsigned long>(std::numeric_limits<int>::max()))
+    throw std::invalid_argument("invalid bounded polynomial interval");
+  auto* ctx=SharedIslContext().raw();
+  auto polynomial=isl_util::ReadPwQPolynomial(ctx,text_);
+  if (isl_pw_qpolynomial_dim(polynomial.get(),isl_dim_param)==0) {
+    polynomial=isl_util::PwQPolynomial(isl_pw_qpolynomial_add_dims(polynomial.release(),isl_dim_param,1));
+    polynomial=isl_util::PwQPolynomial(isl_pw_qpolynomial_set_dim_name(polynomial.release(),isl_dim_param,0,parameter.c_str()));
+  }
+  auto space=isl_util::Space(isl_pw_qpolynomial_get_space(polynomial.get()));
+  int param=isl_space_find_dim_by_name(space.get(),isl_dim_param,parameter.c_str());
+  if (param<0 || isl_space_dim(space.get(),isl_dim_param)!=1 ||
+      isl_pw_qpolynomial_dim(polynomial.get(),isl_dim_in)!=0)
+    throw std::invalid_argument("polynomial interval requires one parameter and no task coordinates");
+  auto domain=isl_util::Set(isl_set_universe(isl_space_params(space.release())));
+  domain=isl_util::Set(isl_set_lower_bound_val(domain.release(),isl_dim_param,param,isl_val_int_from_si(ctx,begin)));
+  domain=isl_util::Set(isl_set_upper_bound_val(domain.release(),isl_dim_param,param,isl_val_int_from_si(ctx,end)));
+  polynomial=isl_util::PwQPolynomial(isl_pw_qpolynomial_intersect_params(polynomial.release(),domain.release()));
+  if (!polynomial) throw std::invalid_argument("failed polynomial interval restriction");
+  auto bounded=QuasiPolynomial(isl_util::ToString(polynomial.get())).SplitPeriods(
+      static_cast<int>(static_cast<unsigned long>(end)-static_cast<unsigned long>(begin)+1));
+  auto pieces=bounded.QuadraticPieces(parameter);
+  std::vector<PolynomialInterval> intervals;
+  for (auto const& piece:pieces) {
+    auto set=isl_util::ReadSet(ctx,piece.domain);
+    set=isl_util::Set(isl_set_move_dims(set.release(),isl_dim_set,0,isl_dim_param,0,1));
+    auto min=isl_util::Val(isl_set_dim_min_val(isl_set_copy(set.get()),0));
+    auto max=isl_util::Val(isl_set_dim_max_val(isl_set_copy(set.get()),0));
+    if (!min || !max || isl_val_is_int(min.get())!=isl_bool_true ||
+        isl_val_is_int(max.get())!=isl_bool_true)
+      throw std::invalid_argument("unbounded polynomial piece after interval restriction");
+    auto hull=isl_util::Set(isl_set_universe(isl_set_get_space(set.get())));
+    hull=isl_util::Set(isl_set_lower_bound_val(hull.release(),isl_dim_set,0,isl_val_copy(min.get())));
+    hull=isl_util::Set(isl_set_upper_bound_val(hull.release(),isl_dim_set,0,isl_val_copy(max.get())));
+    if (isl_set_is_equal(set.get(),hull.get())!=isl_bool_true)
+      throw std::invalid_argument("polynomial piece has non-interval congruence constraints");
+    intervals.push_back({isl_val_get_num_si(min.get()),isl_val_get_num_si(max.get()),piece.coefficients});
+  }
+  return intervals;
+}
+
+std::vector<QuasiPolynomial::PolynomialPiece> QuasiPolynomial::QuadraticPieces(
+    std::string const& parameter) const {
+  IslReferenceAudit audit(__func__);
+  auto* ctx=SharedIslContext().raw();
+  auto polynomial=isl_util::ReadPwQPolynomial(ctx,text_);
+  auto space=isl_util::Space(isl_pw_qpolynomial_get_space(polynomial.get()));
+  int param=isl_space_find_dim_by_name(space.get(),isl_dim_param,parameter.c_str());
+  if (param<0 || isl_pw_qpolynomial_dim(polynomial.get(),isl_dim_param)!=1 ||
+      isl_pw_qpolynomial_dim(polynomial.get(),isl_dim_in)!=0)
+    throw std::invalid_argument("quadratic extraction requires exactly one bound-role parameter");
+  struct State {
+    std::vector<PolynomialPiece> pieces;
+    std::string error;
+    int param;
+  } state{{},{},param};
+  auto piece=[](isl_set* raw_set,isl_qpolynomial* raw_qp,void* user)->isl_stat {
+    isl_util::Set domain(raw_set);
+    isl_util::Obj<isl_qpolynomial,isl_qpolynomial_copy,isl_qpolynomial_free> qp(raw_qp);
+    auto& state=*static_cast<State*>(user);
+    struct Terms {
+      std::array<isl_util::Val,3> coefficients;
+      std::string error;
+      int param;
+    } terms{{isl_util::Val(isl_val_zero(isl_set_get_ctx(raw_set))),
+             isl_util::Val(isl_val_zero(isl_set_get_ctx(raw_set))),
+             isl_util::Val(isl_val_zero(isl_set_get_ctx(raw_set)))},{},state.param};
+    auto term=[](isl_term* raw,void* data)->isl_stat {
+      isl_util::Obj<isl_term,isl_term_copy,isl_term_free> value(raw);
+      auto& terms=*static_cast<Terms*>(data);
+      if (isl_term_dim(raw,isl_dim_div)>0) {
+        terms.error="quadratic extraction requires exact floor-domain partition first";
+        return isl_stat_error;
+      }
+      int degree=isl_term_get_exp(raw,isl_dim_param,terms.param);
+      if (degree<0 || degree>2) {
+        terms.error="lane intersection degree exceeds two; numerical search is forbidden";
+        return isl_stat_error;
+      }
+      terms.coefficients[degree]=isl_util::Val(isl_val_add(terms.coefficients[degree].release(),
+                                                         isl_term_get_coefficient_val(raw)));
+      return terms.coefficients[degree] ? isl_stat_ok : isl_stat_error;
+    };
+    if (isl_qpolynomial_foreach_term(qp.get(),term,&terms)!=isl_stat_ok) {
+      state.error=terms.error.empty() ? "failed polynomial term extraction" : terms.error;
+      return isl_stat_error;
+    }
+    PolynomialPiece output;
+    char* text=isl_set_to_str(domain.get());
+    if (!text) { state.error="failed polynomial domain printing"; return isl_stat_error; }
+    output.domain=text; free(text);
+    for (int i=0;i<3;++i) {
+      text=isl_val_to_str(terms.coefficients[i].get());
+      if (!text) { state.error="failed polynomial coefficient printing"; return isl_stat_error; }
+      output.coefficients[i]=text; free(text);
+    }
+    state.pieces.push_back(std::move(output));
+    return isl_stat_ok;
+  };
+  if (isl_pw_qpolynomial_foreach_piece(polynomial.get(),piece,&state)!=isl_stat_ok)
+    throw std::invalid_argument(state.error.empty() ? "failed polynomial piece extraction" : state.error);
+  return state.pieces;
+}
 
 namespace {
 isl_ctx* Ctx() { return SharedIslContext().raw(); }
@@ -153,6 +263,26 @@ QuasiPolynomial QuasiPolynomial::Card(CouplingRelation const& relation) {
 
 QuasiPolynomial QuasiPolynomial::Add(QuasiPolynomial const& other) const {
   return Sum({*this,other});
+}
+
+QuasiPolynomial QuasiPolynomial::ScaleRational(std::string const& factor) const {
+  IslReferenceAudit audit(__func__);
+  auto value=isl_util::ReadPwQPolynomial(Ctx(),text_);
+  auto scale=isl_util::Val(isl_val_read_from_str(Ctx(),factor.c_str()));
+  if (!scale || isl_val_is_rat(scale.get())!=isl_bool_true)
+    throw std::invalid_argument("polynomial scale must be finite rational");
+  value=isl_util::PwQPolynomial(isl_pw_qpolynomial_scale_val(value.release(),scale.release()));
+  if (!value) throw std::invalid_argument("invalid rational polynomial scale");
+  return QuasiPolynomial(isl_util::ToString(value.get()));
+}
+
+QuasiPolynomial QuasiPolynomial::Multiply(QuasiPolynomial const& other) const {
+  IslReferenceAudit audit(__func__);
+  auto first=isl_util::ReadPwQPolynomial(Ctx(),text_);
+  auto second=isl_util::ReadPwQPolynomial(Ctx(),other.text_);
+  auto product=isl_util::PwQPolynomial(isl_pw_qpolynomial_mul(first.release(),second.release()));
+  if (!product) throw std::invalid_argument("incompatible polynomial product domains");
+  return QuasiPolynomial(isl_util::ToString(product.get()));
 }
 
 QuasiPolynomial QuasiPolynomial::Scale(long factor) const {

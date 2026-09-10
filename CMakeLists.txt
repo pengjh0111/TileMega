@@ -146,6 +146,7 @@ add_library(tilemega STATIC
   lib/Solver/CostModel.cpp
   lib/Solver/FusionResources.cpp
   lib/Solver/BalancedPlacement.cpp
+  lib/Solver/LaneIntersections.cpp
   lib/Codegen/RuntimeTaskGraph.cpp
   lib/Solver/CacheServiceCurve.cpp
   lib/Solver/ModelDescription.cpp
@@ -445,6 +446,9 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(fusion_access_test test/unit/fusion_access_test.cpp)
   target_link_libraries(fusion_access_test PRIVATE TileMega::tilemega)
   add_test(NAME fusion_access COMMAND fusion_access_test)
+  add_executable(lane_intersections_test test/unit/lane_intersections_test.cpp)
+  target_link_libraries(lane_intersections_test PRIVATE TileMega::tilemega)
+  add_test(NAME lane_intersections COMMAND lane_intersections_test)
   target_link_libraries(chain_dp_test PRIVATE TileMega::tilemega)
   target_compile_definitions(chain_dp_test PRIVATE
     TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
