@@ -29,7 +29,8 @@ QuasiPolynomial Polynomial(ClosedForm const& value, ParamBinding const& known) {
 CouplingRelation ExactElementRead(SemanticOp const& semantic, OperatorNode const& task,
                                  ElementRead const& read, ParamBinding const& known) {
   IslReferenceAudit audit(__func__);
-  if (task.output.axes.size()!=semantic.result_map.results.size() ||
+  bool split=task.output.axes.size()==semantic.result_map.results.size()+1 && semantic.reduction.splittable;
+  if ((!split && task.output.axes.size()!=semantic.result_map.results.size()) ||
       read.tensor.axes.size()!=read.map.results.size())
     throw std::invalid_argument("exact element indexing rank mismatch or unprojected split");
   std::set<std::string> parameters;
@@ -67,6 +68,7 @@ CouplingRelation ExactElementRead(SemanticOp const& semantic, OperatorNode const
   for (std::size_t i=0;i<task.output.axes.size();++i) {
     if (task.IsTiled(i)) bounds.push_back("0 <= "+task.output.axes[i].name+" < ("+
                                          expression(task.CoordinateExtent(i))+")");
+    if (i>=semantic.result_map.results.size()) continue;
     // The output indexing map is relative to the tensor's semantic origin.
     auto point="("+index(semantic.result_map.results[i])+")+("+
                expression(semantic.result.axes[i].origin)+")";
@@ -74,6 +76,30 @@ CouplingRelation ExactElementRead(SemanticOp const& semantic, OperatorNode const
     for (auto const& symbol:interval.base.FreeSymbols()) if (!known.Contains(symbol)) parameters.insert(symbol);
     auto base=interval.base.ToIslText(known);
     bounds.push_back("("+base+") <= ("+point+") < ("+base+")+("+expression(interval.span)+")");
+  }
+  if (split) {
+    bool found=false;
+    if (semantic.operands.size()!=task.operands.size())
+      throw std::invalid_argument("split element read requires matching semantic operands");
+    for (std::size_t operand=0;operand<semantic.operands.size();++operand) {
+      auto access=BuildReadMap(task,operand);
+      auto const& map=semantic.operands[operand].map.results;
+      if (map.size()!=access.index.size()) throw std::invalid_argument("split read indexing rank mismatch");
+      for (std::size_t axis=0;axis<map.size();++axis) {
+        auto const& index=map[axis];
+        if (index.kind!=IndexResult::Kind::kAffine || index.terms.size()!=1 ||
+            index.terms[0].dim!=semantic.reduction.dim) continue;
+        if (!index.terms[0].coefficient.IsLiteral(1) || !index.terms[0].group.IsLiteral(1))
+          throw std::invalid_argument("split reduction requires direct iteration indexing");
+        auto const& interval=access.index[axis];
+        for (auto const& symbol:interval.base.FreeSymbols()) if (!known.Contains(symbol)) parameters.insert(symbol);
+        auto base=interval.base.ToIslText(known),span=expression(interval.span);
+        auto variable=variables.at(semantic.reduction.dim);
+        bounds.push_back("("+base+") <= "+variable+" < ("+base+")+("+span+")");
+        found=true;
+      }
+    }
+    if (!found) throw std::invalid_argument("split reduction has no indexed read span");
   }
   for (std::size_t i=0;i<read.map.results.size();++i) {
     auto element="element"+std::to_string(i); elements.push_back(element);

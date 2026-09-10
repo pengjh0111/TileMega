@@ -2,6 +2,7 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/TaskWork.h>
+#include <tilemega/Analysis/SemanticCodec.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <iostream>
@@ -44,6 +45,10 @@ int main(int argc, char** argv) {
   k.map.results={IndexResult::Dim("kv"),IndexResult::Dim("h",c(1),c(2))};
   v=k; v.tensor.name="v"; attention.operands={q,k,v};
   attention.reduction.dim="kv";
+  attention.reduction.splittable=true;
+  attention.reduction.partial_tensor="attention.partial";
+  attention.reduction.combiner="attention.combine";
+  attention.reduction.reduction_operator="flash_combine";
   SetCausalAttentionReads(attention,c(4),c(2),P);
   Granularity g; g.Tile("attention","s",c(1)).Tile("attention","h",c(4));
   auto graph=Instantiate(SemanticGraph{{attention}},g);
@@ -55,6 +60,15 @@ int main(int argc, char** argv) {
       "[S,past] -> { [s,h] -> [key,d] : 0<=s<S and 0<=h<2 and "
       "0<=key<S+past and key<=past+s and 0<=d<4 }");
   Require(reads.IsSubset(expected) && expected.IsSubset(reads));
+  auto split_g=g;
+  split_g.Split("attention",c(4));
+  auto split_graph=Instantiate(SemanticGraph{{attention}},split_g);
+  auto split_reads=ExactElementRead(attention,*split_graph.Find("attention"),attention.element_reads[1],{});
+  auto expected_split=CouplingRelation::FromIslText(
+      "[S,past] -> { [s,h,j] -> [key,d] : 0<=s<S and 0<=h<2 and "
+      "0<=j<ceild(S+past,4) and 4*j<=key<4*j+4 and 0<=key<S+past and "
+      "key<=past+s and 0<=d<4 }");
+  Require(split_reads.IsSubset(expected_split) && expected_split.IsSubset(split_reads));
   for (int seq:{1,4,128}) for (int past:{0,3,512}) for (int token:{0,seq-1}) {
     ParamBinding theta; theta.Bind("S",seq).Bind("past",past).Bind("s",token).Bind("h",1);
     Require(work.read_elements.BindCoordinates(theta).Eval(theta)==4*(1+(past+token+1)+(past+seq)));
@@ -75,18 +89,37 @@ int main(int argc, char** argv) {
   reject([&]{ExactElementRead(attention,task,bad,{});});
   bad=attention.element_reads[1]; bad.map.results[0].terms[0].group=c(0);
   reject([&]{ExactElementRead(attention,task,bad,{});});
+  int codec_rejected=0;
+  auto reject_codec=[&](std::string const& payload) {
+    auto before=rejected;
+    reject([&]{DecodeSemanticOp(payload);});
+    Require(rejected==before+1); ++codec_rejected;
+  };
+  reject_codec("{}");
+  auto invalid=attention;
+  invalid.domain.push_back(invalid.domain.front());
+  reject_codec(EncodeSemanticOp(invalid));
+  invalid=attention; invalid.result_map.results.clear();
+  reject_codec(EncodeSemanticOp(invalid));
+  invalid=attention; invalid.operands[0].map.results[0].terms[0].dim="unknown";
+  reject_codec(EncodeSemanticOp(invalid));
+  invalid=attention; invalid.reduction.dim="unknown";
+  reject_codec(EncodeSemanticOp(invalid));
   Require(context.ReferenceCount()==0);
   std::cout << "ELEMENT_WORK cells=" << cells << " causal_set_equivalence=PASS error_branches="
-            << rejected << " remaining=" << context.ReferenceCount() << '\n';
+            << rejected << " codec_errors=" << codec_rejected
+            << " split_set_equivalence=PASS remaining=" << context.ReferenceCount() << '\n';
   for (int input=1; input<argc; ++input) {
     using namespace tilemega::frontend;
     auto bridge=ReadExportBridge(argv[input]);
     auto plan=BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs);
     auto lifted=LiftSemantics(plan,{});
     auto production=Instantiate(lifted.sem,LaunchGranularity(lifted,plan,{}));
-    int rotations=0, attentions=0;
+    int rotations=0, attentions=0, roundtrips=0;
     for (std::size_t i=0;i<lifted.ops.size();++i) {
       auto const& op=lifted.sem.ops[i];
+      Require(DecodeSemanticOp(EncodeSemanticOp(op)).Serialize()==op.Serialize());
+      ++roundtrips;
       auto const& stage=plan.stages.at(lifted.ops[i].stage);
       if (op.arithmetic!="rope" && op.arithmetic!="attention") continue;
       auto const& node=*production.Find(op.name);
@@ -124,6 +157,7 @@ int main(int argc, char** argv) {
     Require(rotations>0 && attentions>0 && context.ReferenceCount()==0);
     std::cout << "PRODUCTION_ELEMENT_WORK file=" << argv[input]
               << " rotation_cells=" << rotations << " attention_cells=" << attentions
+              << " semantic_roundtrips=" << roundtrips
               << " exact_key_sets=PASS remaining=" << context.ReferenceCount() << '\n';
   }
 }

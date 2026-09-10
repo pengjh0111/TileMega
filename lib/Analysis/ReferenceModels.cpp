@@ -235,6 +235,7 @@ ReferenceModel LlamaDecoderLayerSem(DecoderShape const& s,
   attn.reduction.partial_tensor = n("partial");
   attn.reduction.combiner = n("attn_combine");
   attn.reduction.ownership = {"s", "h"};
+  SetCausalAttentionReads(attn,s.d,s.group,s.past);
   graph.ops.push_back(std::move(attn));
   g.Tile(n("attn_chunk"), "s", ClosedForm::Constant(1))
       .Tile(n("attn_chunk"), "h", s.d)
