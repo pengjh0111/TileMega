@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <cmath>
 #include <ctime>
+#include <cstring>
 #include <ostream>
 #include <stdexcept>
 #include <string>
@@ -60,6 +61,65 @@ struct Timed {
   double rel_stddev = 0.0;
   int samples = 0;
 };
+
+#ifndef TILEMEGA_COMBINE_GRAPH_TIMING
+#define TILEMEGA_COMBINE_GRAPH_TIMING 1
+#endif
+
+template<class Launch>
+Timed PairedGraphMs(int repeats,int batch,Launch&& launch,std::ostream& log) {
+#if !TILEMEGA_COMBINE_GRAPH_TIMING
+  throw std::runtime_error("paired combine graph timing is disabled");
+#endif
+  if (repeats<=0 || batch<=0) throw std::invalid_argument("invalid paired graph measurement protocol");
+  struct Resources {
+    cudaStream_t stream=nullptr;
+    cudaGraph_t graph[2]={nullptr,nullptr};
+    cudaGraphExec_t executable[2]={nullptr,nullptr};
+    cudaEvent_t begin=nullptr,end=nullptr;
+    ~Resources() {
+      for (int arm=0;arm<2;++arm) {
+        if (executable[arm]) cudaGraphExecDestroy(executable[arm]);
+        if (graph[arm]) cudaGraphDestroy(graph[arm]);
+      }
+      if (begin) cudaEventDestroy(begin);
+      if (end) cudaEventDestroy(end);
+      if (stream) cudaStreamDestroy(stream);
+    }
+  } resources;
+  CheckCuda(cudaStreamCreate(&resources.stream),"create measurement stream");
+  CheckCuda(cudaEventCreate(&resources.begin),"create graph start event");
+  CheckCuda(cudaEventCreate(&resources.end),"create graph stop event");
+  for (int arm=0;arm<2;++arm) {
+    CheckCuda(cudaStreamBeginCapture(resources.stream,cudaStreamCaptureModeThreadLocal),"begin graph capture");
+    for (int i=0;i<batch;++i) launch(resources.stream,arm!=0);
+    CheckCuda(cudaStreamEndCapture(resources.stream,&resources.graph[arm]),"end graph capture");
+    CheckCuda(cudaGraphInstantiate(&resources.executable[arm],resources.graph[arm],nullptr,nullptr,0),
+              "instantiate measurement graph");
+  }
+  for (int warmup=0;warmup<3;++warmup) for (int arm=0;arm<2;++arm)
+    CheckCuda(cudaGraphLaunch(resources.executable[(warmup+arm)%2],resources.stream),"warm graph");
+  CheckCuda(cudaStreamSynchronize(resources.stream),"graph warmup completion");
+  std::vector<double> differences;
+  for (int round=0;round<repeats;++round) {
+    double values[2]={};
+    for (int order=0;order<2;++order) {
+      int arm=(round+order)%2;
+      CheckCuda(cudaEventRecord(resources.begin,resources.stream),"record graph start");
+      CheckCuda(cudaGraphLaunch(resources.executable[arm],resources.stream),"launch measurement graph");
+      CheckCuda(cudaEventRecord(resources.end,resources.stream),"record graph stop");
+      CheckCuda(cudaEventSynchronize(resources.end),"complete measurement graph");
+      float elapsed=0;
+      CheckCuda(cudaEventElapsedTime(&elapsed,resources.begin,resources.end),"time measurement graph");
+      values[arm]=double(elapsed)/batch;
+    }
+    differences.push_back(values[1]-values[0]);
+    log << "    COMBINE_PAIR round=" << round << " batch=" << batch
+        << " first=" << round%2 << " control_ns=" << values[0]*1e6
+        << " work_ns=" << values[1]*1e6 << " delta_ns=" << differences.back()*1e6 << '\n';
+  }
+  return {Median(differences),RelStddev(differences),repeats};
+}
 
 template <class Launch>
 Timed TimeMs(int repeats, Launch&& launch) {
@@ -409,15 +469,27 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
   // `NullKernel` the launch-subtracted duration at one output came out at
   // -928 ns, which is impossible and is the same ~1 us bias that put three
   // BF16 Stream-K shapes at a negative `a` (F-70).
-  double const launch_ns =
+  double const launch_ns = options.combine_graph_batch>0 ? 0.0 :
       TimeMs(options.repeats,
              [&] { CalibCombineKernel<Element,Partial,Threads><<<blocks, Threads>>>(partials, out, 0, 1); })
           .median_ms * 1e6;
 
-  auto sweep_single = [&](int count) {
-    Timed timed = TimeMs(options.repeats, [&] {
-      CalibCombineKernel<Element,Partial,Threads><<<blocks, Threads>>>(partials, out, count, 1);
+  auto measure=[&](int count,int chunks) {
+    if (options.combine_graph_batch>0) {
+      log << "  COMBINE_GRAPH count=" << count << " chunks=" << chunks << '\n';
+      return PairedGraphMs(options.repeats,options.combine_graph_batch,
+          [&](cudaStream_t stream,bool active) {
+            CalibCombineKernel<Element,Partial,Threads><<<blocks,Threads,0,stream>>>(
+                partials,out,active ? count : 0,chunks);
+          },log);
+    }
+    return TimeMs(options.repeats,[&] {
+      CalibCombineKernel<Element,Partial,Threads><<<blocks,Threads>>>(partials,out,count,chunks);
     });
+  };
+
+  auto sweep_single = [&](int count) {
+    Timed timed = measure(count,1);
     fit.worst_rsd = std::max(fit.worst_rsd, timed.rel_stddev);
     double ns = timed.median_ms * 1e6 - launch_ns;
     log << "  combine single count=" << count << ": " << ns << "ns ("
@@ -428,10 +500,7 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
   auto sweep_peers = [&](int count) {
     std::vector<double> peers, combine_ns;
     for (int chunks : {2, 4, 8, 16, 32}) {
-      Timed timed = TimeMs(options.repeats, [&] {
-        CalibCombineKernel<Element,Partial,Threads><<<blocks, Threads>>>(partials, out, count,
-                                                     chunks);
-      });
+      Timed timed = measure(count,chunks);
       fit.worst_rsd = std::max(fit.worst_rsd, timed.rel_stddev);
       peers.push_back(static_cast<double>(chunks - 1));
       combine_ns.push_back(timed.median_ms * 1e6 - launch_ns);
@@ -483,10 +552,38 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
     // it, so a plateau inside one tick is not a small fixed cost -- it is no
     // measurement at all, and saying so is the whole point of the flag.
     constexpr double kTimerTickNs = 100.0;
-    fixed_seen = fixed_measured > kTimerTickNs;
+    // The tick belongs to the timed interval, not to its per-launch average.
+    // A graph measures `batch` launches in that interval. Keep the same raw
+    // one-tick criterion rather than mistaking 1/batch normalization for loss
+    // of resolution (or replacing an unresolved value with a positive epsilon).
+    int const launches_per_interval=std::max(1,options.combine_graph_batch);
+    fixed_seen = fixed_measured*launches_per_interval > kTimerTickNs;
+    log << "  COMBINE_FIXED_RESOLUTION per_launch_ns=" << fixed_measured
+        << " launches_per_interval=" << launches_per_interval
+        << " interval_signal_ns=" << fixed_measured*launches_per_interval
+        << " required_interval_ns=" << kTimerTickNs << " resolved=" << fixed_seen << '\n';
     if (!fixed_seen) fixed_measured = 0.0;
   }
   LineFit dram = sweep_peers(kWidest);
+  if (options.combine_graph_batch>0) {
+    // Read the actual initialized operands back: verification must not assume
+    // a constant fill or compare the reduction with its own device result.
+    std::vector<Partial> host_partials(partial_elements);
+    std::vector<Element> host_out(kWidest);
+    CalibCombineKernel<Element,Partial,Threads><<<blocks,Threads>>>(partials,out,kWidest,kMaxChunks);
+    CheckCuda(cudaMemcpy(host_partials.data(),partials,partial_elements*sizeof(Partial),cudaMemcpyDeviceToHost),
+              "read verification partials");
+    CheckCuda(cudaMemcpy(host_out.data(),out,kWidest*sizeof(Element),cudaMemcpyDeviceToHost),
+              "read verification output");
+    for (int i=0;i<kWidest;++i) {
+      float sum=0;
+      for (int c=0;c<kMaxChunks;++c) sum+=float(host_partials[std::size_t(c)*kWidest+i]);
+      Element expected(sum);
+      if (std::memcmp(&expected,&host_out[i],sizeof(Element)))
+        throw std::runtime_error("FP32-partial combine calibration output differs from CPU reduction");
+    }
+    log << "  COMBINE_VERIFY elements=" << kWidest << " chunks=" << kMaxChunks << " bits_equal=1\n";
+  }
   CheckCuda(cudaFree(partials), "cudaFree");
   CheckCuda(cudaFree(out), "cudaFree");
   if (widths.size() < 2) return fit;
@@ -784,6 +881,7 @@ bool FitShape(TargetSpec& spec, Options const& options, Buffers const& buffers,
 void MeasureFP32PartialCombine(TargetSpec& spec, Options const& options,
                               std::ostream& log) {
   if (options.repeats<=0) throw std::invalid_argument("combine repeats must be positive");
+  if (options.combine_graph_batch<0) throw std::invalid_argument("combine graph batch must be nonnegative");
   CheckCuda(cudaSetDevice(options.device),"cudaSetDevice");
   // Reuse the historical sweep and fitting method while keeping its old
   // coefficients intact. Only the actual partial type and body thread trait
@@ -801,6 +899,7 @@ void MeasureFP32PartialCombine(TargetSpec& spec, Options const& options,
     measurement.name="fp32_partial_"+measurement.name;
     measurement.method="float partial reads -> "+std::string(options.bf16 ? "BF16" : "FP32")+
         " output; threads="+std::to_string(options.bf16 ? solver::kTensorBF16Threads : solver::kSimtF32Threads)+
+        "; paired_graph_batch="+std::to_string(options.combine_graph_batch)+
         "; "+measurement.method;
     profile.measurements.push_back(std::move(measurement));
   }
@@ -813,7 +912,8 @@ void MeasureFP32PartialCombine(TargetSpec& spec, Options const& options,
   combined.d_dram_ns=fit.dram_d_ns_per_peer_elem;
   combined.reason="measured";
   combined.method="float partial reads; output="+std::string(options.bf16 ? "bf16" : "f32")+
-      "; historical width/peer sweep with selected TaskBody thread trait; no BF16 bandwidth extrapolation";
+      "; width/peer sweep; paired_graph_batch="+std::to_string(options.combine_graph_batch)+
+      "; selected TaskBody thread trait; no BF16 bandwidth extrapolation";
   std::time_t now=std::time(nullptr);
   char stamp[32];
   std::strftime(stamp,sizeof(stamp),"%Y-%m-%dT%H:%M:%SZ",std::gmtime(&now));

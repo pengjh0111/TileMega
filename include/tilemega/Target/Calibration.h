@@ -44,6 +44,9 @@ struct Options {
   /// scattered ~20% run to run and at 41 it scatters ~5%.  The whole run is
   /// 6 seconds either way.
   int repeats = 41;
+  // Explicit measurement protocol, not a hardware parameter. Zero retains
+  // independent single-launch timing; positive batches use paired graphs.
+  int combine_graph_batch = 0;
   /// Skip the Stream-K fit, which is the only group that compiles and runs
   /// real CUTLASS GEMMs and so dominates wall time.
   bool skip_streamk = false;

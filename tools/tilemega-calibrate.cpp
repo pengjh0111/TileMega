@@ -27,6 +27,7 @@ int main(int argc, char** argv) {
     std::string arg = argv[i];
     if (arg == "--device" && i + 1 < argc) options.device = std::stoi(argv[++i]);
     else if (arg == "--repeats" && i + 1 < argc) options.repeats = std::stoi(argv[++i]);
+    else if (arg == "--combine-graph-batch" && i + 1 < argc) options.combine_graph_batch = std::stoi(argv[++i]);
     else if (arg == "--skip-streamk") options.skip_streamk = true;
     else if (arg == "--fp32-partial-combine-only") partial_combine_only = true;
     else if (arg == "--dtype" && i + 1 < argc) dtype = argv[++i];
@@ -39,6 +40,7 @@ int main(int argc, char** argv) {
           "                          [--dtype f32|bf16] [--base FILE]\n"
           "                          [--skip-streamk] [--quiet] [--out FILE]\n"
           "                          [--fp32-partial-combine-only]\n"
+          "                          [--combine-graph-batch N]\n"
           "\n"
           "Measures the §4.4 cost-model constants on the GPU at --device and\n"
           "writes the target JSON to --out (stdout when omitted).\n"
@@ -58,6 +60,10 @@ int main(int argc, char** argv) {
     return 2;
   }
   options.bf16 = dtype == "bf16";
+  if (options.combine_graph_batch<0 || (options.combine_graph_batch>0 && !partial_combine_only)) {
+    std::cerr << "--combine-graph-batch must be nonnegative and requires --fp32-partial-combine-only\n";
+    return 2;
+  }
   if (partial_combine_only && (base.empty() || options.skip_streamk)) {
     std::cerr << "--fp32-partial-combine-only requires --base and excludes --skip-streamk\n";
     return 2;
