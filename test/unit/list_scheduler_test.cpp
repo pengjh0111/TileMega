@@ -3,6 +3,7 @@
 // P4.8: the schedule is only worth anything if `levels` is really the DAG's
 // depth, so every assertion here pins one way of getting that wrong.
 #include <tilemega/Solver/ListScheduler.h>
+#include <tilemega/Solver/BalancedPlacement.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -25,6 +26,23 @@ using namespace tilemega::solver;
 int main() {
   tilemega::analysis::IslContext isl_context;
   ListScheduler scheduler;
+  {
+    std::vector<std::vector<int>> dag={{2,2},{3},{},{}};
+    auto mapped=BalanceTaskPlacement(dag,{0,1,2,3},{0,1,1,0},2,2);
+    REQUIRE(mapped.max_queue==2);
+    REQUIRE(mapped.same_worker_edges==2 && mapped.fence_free_producers==2);
+    REQUIRE(mapped.worker[0]==mapped.worker[2] && mapped.worker[1]==mapped.worker[3]);
+    int errors=0;
+    auto reject=[&](auto action) {
+      bool failed=false;
+      try { action(); } catch (std::invalid_argument const&) { failed=true; }
+      REQUIRE(failed); ++errors;
+    };
+    reject([&]{BalanceTaskPlacement(dag,{0,1,2,3},{0,1,1,0},2,1);});
+    reject([&]{BalanceTaskPlacement(dag,{2,1,0,3},{0,1,1,0},2,2);});
+    reject([&]{BalanceTaskPlacement(dag,{0,1,2,3},{0,2,1,0},2,2);});
+    REQUIRE(errors==3);
+  }
 
   // A chain: nothing to pack, one level per node.
   {

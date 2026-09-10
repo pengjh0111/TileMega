@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/RuntimeProjection.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Solver/ListScheduler.h>
 
 #include <algorithm>
 #include <map>
@@ -32,6 +33,44 @@ std::string Join(std::vector<std::string> const& parts) {
   return text;
 }
 }  // namespace
+
+ProjectedPlacement BalanceProjectedQueues(RuntimeProjection const& projection,
+    analysis::ParamBinding const& theta, int workers) {
+  analysis::IslReferenceAudit audit(__func__);
+  if (workers<=0) throw std::invalid_argument("projected placement requires workers");
+  ProjectedPlacement out;
+  for (auto const& [domain,task]:projection.tasks.BindParams(theta).Points())
+    out.task_ids.push_back(task);
+  std::sort(out.task_ids.begin(),out.task_ids.end());
+  std::map<std::vector<long>,int> ids;
+  std::vector<int> preferred,lengths(workers);
+  for (std::size_t i=0;i<out.task_ids.size();++i) {
+    auto const& task=out.task_ids[i];
+    if (task.size()!=2 || task[0]<0 || task[1]<0 || !ids.emplace(task,i).second)
+      throw std::invalid_argument("invalid projected runtime task identity");
+    preferred.push_back(task[1]%workers);
+    ++lengths[preferred.back()];
+  }
+  std::vector<std::vector<int>> successors(ids.size());
+  for (auto const& [consumer,producer]:projection.dependencies.BindParams(theta).Points())
+    successors.at(ids.at(producer)).push_back(ids.at(consumer));
+  auto order=ListScheduler{}.Schedule(successors);
+  out.placement=BalanceTaskPlacement(successors,order,preferred,workers,
+      *std::max_element(lengths.begin(),lengths.end()));
+  std::set<std::vector<long>> waits;
+  for (auto const& [consumer,event]:projection.requested_events.BindParams(theta).Points()) {
+    int worker=out.placement.worker.at(ids.at(consumer));
+    if (event.size()!=4) throw std::invalid_argument("invalid projected event coordinate");
+    // kind=2 is a singleton fine event; only these permit owner elision.
+    if (event[2]==2) {
+      int producer=ids.at({event[1],event[3]});
+      if (out.placement.worker[producer]==worker) continue;
+    }
+    waits.insert({worker,event[1],event[2],event[3]});
+  }
+  out.wait_entries=waits.size();
+  return out;
+}
 
 analysis::CouplingRelation ProjectScalarTaskOwnership(ModelTaskSemantics const& semantic,
     analysis::OperatorNode const& task,ModelStage const& stage,int threads) {
@@ -246,14 +285,25 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
           edges.push_back({entry[i],done[i],{true,1,1,0,1},Mul(tiles[i],chunk)});
     } else edges.push_back({entry[i],done[i],{},"0"});
   }
-  std::vector<std::string> wait_pieces;
+  std::vector<std::string> wait_pieces, dependency_pieces, requested_pieces;
   std::map<std::pair<int,int>,std::vector<std::string>> event_pieces;
   for (auto const& edge : edges) {
+    std::string exact="[cs="+std::to_string(edge.consumer)+",c] -> [ps="+
+        std::to_string(edge.producer)+",p] : "+valid+" and 0<=c<("+
+        counts[edge.consumer]+") and 0<=p<("+counts[edge.producer]+")";
+    if (edge.window.narrowed && !options.force_all_dependencies) {
+      if (edge.window.div<=0) throw std::invalid_argument("nonpositive dependency divisor");
+      auto at="floord(c,"+std::to_string(edge.window.div)+")*"+
+          std::to_string(edge.window.scale)+"+("+edge.offset+")";
+      exact+=" and ("+at+")<=p<("+at+")+"+std::to_string(edge.window.count);
+    }
+    dependency_pieces.push_back(exact);
     std::string base = "[cs="+std::to_string(edge.consumer)+",c] -> [w,pstage="+
         std::to_string(edge.producer)+",kind,g] : "+valid+" and 0 <= c < ("+
         counts[edge.consumer]+") and w = c % "+std::to_string(options.grid);
     if (options.kappa == 0 || options.force_all_dependencies || !edge.window.narrowed) {
       wait_pieces.push_back(base+" and kind=0 and g=0");
+      requested_pieces.push_back(wait_pieces.back());
       event_pieces[{edge.producer,0}].push_back(wait_pieces.back());
     } else {
       auto const& window = edge.window;
@@ -264,11 +314,18 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
           counts[edge.producer]+") and ("+at+") <= p < ("+at+")+"+
           std::to_string(window.count)+" and g=floord(p,"+std::to_string(options.kappa)+"))";
       event_pieces[{edge.producer,1}].push_back(fine);
+      requested_pieces.push_back(options.kappa==1 ?
+          base+" and kind=2 and exists (p : 0<=p<("+counts[edge.producer]+
+          ") and ("+at+")<=p<("+at+")+"+std::to_string(window.count)+" and g=p)" : fine);
       wait_pieces.push_back(fine+(options.kappa == 1 ?
           " and g % "+std::to_string(options.grid)+" != w" : ""));
     }
   }
   result.tasks = relation(task_pieces);
+  result.dependencies = relation(dependency_pieces.empty()
+      ? std::vector<std::string>{"[cs,c] -> [ps,p] : false"} : dependency_pieces);
+  result.requested_events=relation(requested_pieces.empty()
+      ? std::vector<std::string>{"[cs,c] -> [w,pstage,kind,g] : false"} : requested_pieces);
   if (wait_pieces.empty()) {
     result.runtime_wait_entries = analysis::QuasiPolynomial::Constant(0);
   } else {

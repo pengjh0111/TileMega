@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Solver/RuntimeProjection.h>
+#include <tilemega/Codegen/RuntimeTaskGraph.h>
 #include <cassert>
 #include <iostream>
 
@@ -59,6 +60,19 @@ int main() {
     }
     tilemega::analysis::ParamBinding four; four.Bind("S",4);
     assert(forced.runtime_wait_entries.Eval(four) == 4);
+    auto balanced=tilemega::solver::BalanceProjectedQueues(forced,four,2);
+    assert(balanced.task_ids.size()==16 && balanced.placement.max_queue<=8);
+    auto concrete=tilemega::codegen::MaterializeRuntimeTaskGraph({8,4,4},
+        {{0,1,true,1,0,0,1},{1,2,true,1,0,0,1}},2);
+    auto exact=forced.dependencies.BindParams(four).Points();
+    std::size_t edges=0;
+    for (auto const& successors:concrete.successors) edges+=successors.size();
+    assert(edges==exact.size());
+    for (auto const& [consumer,producer]:exact) {
+      int p=concrete.stage_offsets[producer[0]]+producer[1];
+      int c=concrete.stage_offsets[consumer[0]]+consumer[1];
+      assert(std::find(concrete.successors[p].begin(),concrete.successors[p].end(),c)!=concrete.successors[p].end());
+    }
     // Element chunks own ceil(S*N/threads) combine and activation tasks.
     plan.ownership_flags = 0;
     for (int kappa : {0,1,2}) {

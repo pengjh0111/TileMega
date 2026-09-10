@@ -2,6 +2,7 @@
 #pragma once
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Codegen/RuntimePlan.h>
+#include <tilemega/Solver/BalancedPlacement.h>
 
 #ifndef TILEMEGA_PROJECTION_PARTITION_WORKERS
 #define TILEMEGA_PROJECTION_PARTITION_WORKERS 0
@@ -32,11 +33,20 @@ struct ProjectedStage {
 struct RuntimeProjection {
   std::vector<ProjectedStage> stages;
   analysis::CouplingRelation tasks;
+  analysis::CouplingRelation dependencies;  ///< consumer [stage,task] -> producer
+  analysis::CouplingRelation requested_events;  ///< before local-owner poll elision
   analysis::CouplingRelation waits;
   analysis::QuasiPolynomial runtime_task_refs;
   analysis::QuasiPolynomial runtime_wait_entries;
   analysis::QuasiPolynomial max_worker_task_refs;
 };
+struct ProjectedPlacement {
+  std::vector<std::vector<long>> task_ids;
+  TaskPlacement placement;
+  long wait_entries = 0;
+};
+ProjectedPlacement BalanceProjectedQueues(RuntimeProjection const& projection,
+    analysis::ParamBinding const& theta, int workers);
 
 /// The current stage-major queues use a bijection of worker labels. Cardinal
 /// totals and maximum length are invariant under those permutations; a new
