@@ -73,6 +73,15 @@ int main() {
     threw = true;
   }
   assert(threw);
+  // Parameter substitution deliberately does not bind task coordinates.
+  ParamBinding task_point;
+  task_point.Bind("i",5);
+  assert(triangular_wait.BindCoordinates(task_point).Eval({})==5);
+  int refs=isl_context.ReferenceCount();
+  threw=false;
+  try { (void)triangular_wait.BindCoordinates({}); }
+  catch (std::invalid_argument const&) { threw=true; }
+  assert(threw && isl_context.ReferenceCount()==refs);
   assert(triangular_wait.SumDomain().Eval({}) == 28);
   assert(triangular.FanoutCard().SumDomain().Eval({}) == 28);
   assert(triangular.ImageCard().Eval({}) == 7);

@@ -45,10 +45,12 @@ class QuasiPolynomial {
   /// fanout(y), depending on which side `relation` is oriented).
   static QuasiPolynomial Card(CouplingRelation const& relation);
 
-  /// Fix every dimension (parameter or set/task-coordinate) named in
-  /// `known` to its literal value; dimensions not named in `known` are left
+  /// Fix every parameter named in `known` to its literal value; parameters not named in `known` are left
   /// symbolic. Never throws: a partial substitution is always well-formed.
   QuasiPolynomial SubstituteParams(ParamBinding const& known) const;
+  /// Restrict every task coordinate to one literal point. Missing coordinate
+  /// bindings are errors; theta/g parameters are still bound separately.
+  QuasiPolynomial BindCoordinates(ParamBinding const& point) const;
   /// Fully evaluate: substitutes `known`, then requires the result to have
   /// no remaining parameters or task-coordinate dimensions. Throws
   /// std::out_of_range naming the first dimension still unbound, matching

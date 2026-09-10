@@ -223,6 +223,24 @@ QuasiPolynomial QuasiPolynomial::SubstituteParams(
   return QuasiPolynomial(isl_util::ToString(value.get()));
 }
 
+QuasiPolynomial QuasiPolynomial::BindCoordinates(ParamBinding const& point) const {
+  IslReferenceAudit audit(__func__);
+  auto value=isl_util::ReadPwQPolynomial(Ctx(),text_);
+  isl_util::Set domain(isl_set_universe(isl_pw_qpolynomial_get_domain_space(value.get())));
+  int dimensions=isl_set_dim(domain.get(),isl_dim_set);
+  for (int i=0;i<dimensions;++i) {
+    char const* raw=isl_set_get_dim_name(domain.get(),isl_dim_set,i);
+    if (!raw || !point.Contains(raw))
+      throw std::invalid_argument("missing task coordinate: "+std::string(raw ? raw : "unnamed"));
+    domain=isl_util::Set(isl_set_fix_val(domain.release(),isl_dim_set,i,
+                                       isl_val_int_from_si(Ctx(),point.At(raw))));
+    if (!domain) throw std::runtime_error("cannot restrict task coordinate");
+  }
+  value=isl_util::PwQPolynomial(isl_pw_qpolynomial_intersect_domain(value.release(),domain.release()));
+  if (!value) throw std::runtime_error("cannot bind quasi-polynomial task point");
+  return QuasiPolynomial(isl_util::ToString(value.get()));
+}
+
 long QuasiPolynomial::Eval(ParamBinding const& known) const {
   IslReferenceAudit audit(__func__);
   isl_util::PwQPolynomial value = isl_util::ReadPwQPolynomial(Ctx(), BindParameterTokens(text_,known));
