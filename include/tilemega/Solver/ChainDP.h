@@ -100,6 +100,21 @@ struct ChainDpSolution {
   int max_smem_bytes = 0;
   int max_registers = 0;
   std::vector<codegen::AttentionRuntimeRecord> attention;
+  std::vector<std::pair<std::string,std::string>> fusion;
+};
+
+// One fully specified implementation domain. Tile/split choices must match
+// the CG runtime seed; the interval recurrence chooses fusion and residency.
+struct FusionDpDomain {
+  codegen::RuntimePlan plan;
+  std::vector<BackendTraits> stage_traits;
+  std::vector<int> stage_registers;
+  int static_shared_bytes=0;
+  std::vector<std::pair<std::string,std::string>> pairs;
+};
+struct FusionDpAlternative {
+  ChainDpSolution solution;
+  long task_refs=0,wait_entries=0;
 };
 
 /// Design (b): an explicitly bounded integer parameter domain. This is NOT
@@ -145,6 +160,9 @@ class ChainDP {
   ChainDpSolution SolveAttentionPlans(ModelDescription const& model,
       std::vector<AttentionDpCandidate> const& plans,ChainDpOptions options,
       std::vector<ChainDpSolution>* alternatives=nullptr) const;
+  ChainDpSolution SolveFusionIntervals(ModelDescription const& model,
+      FusionDpDomain const& domain,ChainDpOptions options,
+      std::vector<FusionDpAlternative>* alternatives=nullptr) const;
 
   FiniteDpSolution SolveFiniteParameter(ModelDescription const& symbolic,
                                        FiniteParameterDomain const& domain,
