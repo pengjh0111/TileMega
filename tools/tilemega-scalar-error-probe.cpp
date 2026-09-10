@@ -4,6 +4,7 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Solver/RuntimeProjection.h>
+#include <tilemega/Solver/FusionResources.h>
 #include <mlir/IR/MLIRContext.h>
 #include <iostream>
 #include <stdexcept>
@@ -39,6 +40,24 @@ int main(int argc,char** argv) try {
       auto task=*graph.Find(semantic.op.name);
       auto input=DeriveModelTaskInput(model,semantic,graph,nullptr);
       BackendTraits traits; traits.threads=kTensorBF16Threads;
+      analysis::ParamBinding point; point.Bind("q",0);
+      double instance=cost.TaskInstanceNs(input,traits,{2},model,1,point,1);
+      if (!(instance>0)) throw std::runtime_error("nonpositive real scalar instance");
+      analysis::FusionAccesses replicated;
+      replicated.consumer_to_producer=analysis::CouplingRelation::FromIslText(
+          "{ [c] -> [q] : 0<=c<2 and q=0 }");
+      replicated.fanout=replicated.consumer_to_producer.FanoutCard();
+      if (FusionRecomputeNs(replicated,cost,input,traits,{2},model,1,1)!=instance)
+        throw std::runtime_error("fanout two must charge one real task, not the whole stage");
+      replicated.consumer_to_producer=analysis::CouplingRelation::FromIslText("{ [c=0] -> [q=0] }");
+      replicated.fanout=replicated.consumer_to_producer.FanoutCard();
+      if (FusionRecomputeNs(replicated,cost,input,traits,{2},model,1,1)!=0)
+        throw std::runtime_error("fanout one must not charge recomputation");
+      reject("instance_occupancy",[&] { cost.TaskInstanceNs(input,traits,{2},model,1,point,3); });
+      reject("instance_rank",[&] { cost.TaskInstanceNs(input,traits,{2},model,1,{},1); });
+      reject("instance_negative",[&] { auto p=point; p.Bind("q",-1); cost.TaskInstanceNs(input,traits,{2},model,1,p,1); });
+      reject("instance_domain",[&] { auto p=point; p.Bind("q",1000000); cost.TaskInstanceNs(input,traits,{2},model,1,p,1); });
+      reject("fusion_fanout",[&] { auto f=replicated; f.fanout=f.fanout.Scale(2); FusionRecomputeNs(f,cost,input,traits,{2},model,1,1); });
       reject("threads",[&] { ProjectScalarTaskOwnership(semantic,task,stage,0); });
       reject("rank",[&] { auto t=task; t.output.axes.pop_back(); ProjectScalarTaskOwnership(semantic,t,stage,traits.threads); });
       reject("collective",[&] { auto s=stage; s.kind=StageKind::kGemm; ProjectScalarTaskOwnership(semantic,task,s,traits.threads); });
@@ -58,6 +77,6 @@ int main(int argc,char** argv) try {
       break;
     }
   }
-  if (branches!=13 || context.ReferenceCount()) throw std::runtime_error("incomplete scalar rejection audit");
+  if (branches!=18 || context.ReferenceCount()) throw std::runtime_error("incomplete scalar rejection audit");
   std::cout << "SCALAR_ERRORS branches=" << branches << " reference_delta=0\nISL_CONTEXT remaining=0\n";
 } catch (std::exception const& e) { std::cerr << e.what() << '\n'; return 2; }

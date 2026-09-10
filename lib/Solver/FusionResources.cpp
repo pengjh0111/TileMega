@@ -1,11 +1,37 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/FusionResources.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Solver/TaskModel.h>
 #include <algorithm>
 #include <limits>
 #include <stdexcept>
 
 namespace tilemega::solver {
+double FusionRecomputeNs(analysis::FusionAccesses const& accesses,
+    CostModel const& cost, DerivedTaskInput const& producer, BackendTraits const& traits,
+    Residency residency, ModelDescription const& model, int chunks,
+    double active_ctas_per_sm) {
+  analysis::IslReferenceAudit audit(__func__);
+  auto theta=model.MetricBindings();
+  auto relation=accesses.consumer_to_producer.BindParams(theta);
+  auto names=relation.RangeDimNames();
+  if (names!=producer.cost_coordinates)
+    throw std::invalid_argument("fusion producer cost coordinates differ from coupling");
+  std::map<std::vector<long>,long> fanout;
+  for (auto const& [consumer,task]:relation.Points()) ++fanout[task];
+  double total=0;
+  for (auto const& [task,count]:fanout) {
+    analysis::ParamBinding point;
+    for (std::size_t axis=0;axis<names.size();++axis) point.Bind(names[axis],task[axis]);
+    auto exact=accesses.fanout.BindCoordinates(point).SubstituteParams(theta).Eval({});
+    if (exact!=count) throw std::runtime_error("fusion fanout differs from exact CG metric");
+    if (count>1)
+      total+=static_cast<double>(count-1)*cost.TaskInstanceNs(producer,traits,residency,
+          model,chunks,point,active_ctas_per_sm);
+  }
+  return total;
+}
+
 int FusionCtasPerSm(FusionResources const& r, TargetSpec const& target,
                     int register_allocation_per_warp, int static_shared_bytes) {
   auto const& res=target.res;

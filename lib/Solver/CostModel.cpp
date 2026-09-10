@@ -412,6 +412,38 @@ double CostModel::CombineStageNs(GemmOp const& gemm, int chunks,
 double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const& traits,
                              Residency residency, ModelDescription const& model,
                              int chunks) const {
+  return TaskCostImpl(input,traits,residency,model,chunks,nullptr,0);
+}
+
+double CostModel::TaskInstanceNs(DerivedTaskInput const& input, BackendTraits const& traits,
+    Residency residency, ModelDescription const& model, int chunks,
+    analysis::ParamBinding const& coordinates, double active_ctas_per_sm) const {
+  if (!std::isfinite(active_ctas_per_sm) || active_ctas_per_sm<1 ||
+      active_ctas_per_sm>residency.ctas_per_sm)
+    throw std::invalid_argument("task instance requires valid wave occupancy");
+  if (coordinates.values.size()!=input.cost_coordinates.size())
+    throw std::invalid_argument("task instance coordinate rank mismatch");
+  auto known=model.MetricBindings();
+  for (auto const& name:input.cost_coordinates) {
+    if (!coordinates.Contains(name) || coordinates.values.at(name)<0)
+      throw std::invalid_argument("task instance coordinate is missing or negative");
+  }
+  if (input.scalar_flow) {
+    if (coordinates.values.at("q")>=input.work.task_count.SubstituteParams(known).Eval({}))
+      throw std::invalid_argument("scalar task instance outside domain");
+  } else {
+    for (std::size_t axis=0;axis<input.task.output.axes.size();++axis)
+      if (input.task.IsTiled(axis) && coordinates.values.at(input.task.output.axes[axis].name)>=
+          input.task.CoordinateExtent(axis).Eval(known,known))
+        throw std::invalid_argument("collective task instance outside domain");
+  }
+  return TaskCostImpl(input,traits,residency,model,chunks,&coordinates,active_ctas_per_sm);
+}
+
+double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits const& traits,
+                             Residency residency, ModelDescription const& model,
+                             int chunks, analysis::ParamBinding const* coordinates,
+                             double active_ctas_per_sm) const {
   analysis::IslReferenceAudit audit(__func__);
 #if defined(TILEMEGA_DERIVED_TASK_COST) && !TILEMEGA_DERIVED_TASK_COST
   throw std::runtime_error("access-derived task pricing is disabled");
@@ -423,6 +455,7 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
       throw std::invalid_argument("scalar task latency DAG/ownership has not been supplied");
     auto [depth,barriers]=input.scalar_flow->MemoryDepthAndBarriers(traits.threads);
     double ctas=double(input.work.task_count.SubstituteParams(known).Eval({}));
+    if (coordinates) ctas=1;
     double grid=double(target_->res.num_sms)*std::max(1,residency.ctas_per_sm);
     double miss=1.0-CacheHitProbability(model.LiveFootprintBytes());
     double flops_per_output=input.arithmetic.flops_per_output_element.Eval(known);
@@ -434,6 +467,10 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
               << depth << ':' << barriers << ':' << traits.threads << ':' << residency.ctas_per_sm
               << ':' << input.arithmetic.smem_staged;
     for (auto const& [name,value]:known.values) cache_key << ':' << name << '=' << value;
+    if (coordinates) {
+      cache_key << ":instance:" << active_ctas_per_sm;
+      for (auto const& [name,value]:coordinates->values) cache_key << ':' << name << '=' << value;
+    }
     auto cached=scalar_price_cache_.find(cache_key.str());
     if (cached!=scalar_price_cache_.end()) return cached->second;
     auto statuses=lanes_;
@@ -441,11 +478,12 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
     // The measured scalar pipe applies; the GEMM ldmatrix status is unchanged.
     statuses[ResourceVector::kSmem]=calib_->smem_gbps>0 ? LaneStatus::kLive : LaneStatus::kNotCalibrated;
     double total=0;
-    long first=0;
+    long first=coordinates ? coordinates->values.at("q") : 0;
     for (double remaining=ctas;remaining>0;remaining-=grid) {
       double active=std::min(grid,remaining);
       double o=options_.wave_tail ? std::max(1.0,active/target_->res.num_sms)
                                  : std::max(1,residency.ctas_per_sm);
+      if (coordinates) o=active_ctas_per_sm;
       double wave=-std::numeric_limits<double>::infinity();
       for (long q=first;q<first+long(active);++q) {
         analysis::ParamBinding coordinate; coordinate.Bind("q",q);
@@ -490,10 +528,11 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
   if (traits.tile_k<=0) throw std::invalid_argument("collective reduction tile is missing");
   analysis::ParamBinding point;
   for (auto const& coordinate:input.task.Coordinates()) point.Bind(coordinate,0);
+  if (coordinates) point=*coordinates;
   auto value=[&](analysis::QuasiPolynomial const& quantity) {
     return double(quantity.BindCoordinates(point).SubstituteParams(known).Eval({}));
   };
-  double const ctas=double(input.work.task_count.SubstituteParams(known).Eval({}));
+  double const ctas=coordinates ? 1 : double(input.work.task_count.SubstituteParams(known).Eval({}));
   double const iters=value(input.work.nominal_task_reduce_extent)/traits.tile_k;
   if (iters<=0 || iters!=std::floor(iters)) throw std::invalid_argument("invalid collective reduction work");
   double const reads=value(input.work.nominal_read_elements)/iters;
@@ -518,8 +557,9 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
   double total=0.0;
   for (double remaining=ctas;remaining>0.0;remaining-=grid) {
     double const active=std::min(grid,remaining);
-    double const o=options_.wave_tail ? std::max(1.0,active/target_->res.num_sms)
-                                    : std::max(1,residency.ctas_per_sm);
+    double const o=coordinates ? active_ctas_per_sm :
+        (options_.wave_tail ? std::max(1.0,active/target_->res.num_sms)
+                           : std::max(1,residency.ctas_per_sm));
     ResourceVector u;
     // The historical scalar 16x16 thread layout issues read_elements/2
     // scalar shared warp instructions; BF16's corresponding lane is disabled.

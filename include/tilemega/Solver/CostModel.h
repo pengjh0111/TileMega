@@ -200,6 +200,12 @@ class CostModel {
   double TaskCostNs(DerivedTaskInput const& input, BackendTraits const& traits,
                     Residency residency, ModelDescription const& model,
                     int chunks) const;
+  // One task at its actual coordinates and wave occupancy; fusion replication
+  // must not multiply the complete stage's wave sum by fanout.
+  double TaskInstanceNs(DerivedTaskInput const& input, BackendTraits const& traits,
+                        Residency residency, ModelDescription const& model,
+                        int chunks, analysis::ParamBinding const& coordinates,
+                        double active_ctas_per_sm) const;
   double TaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,
                      Residency residency) const;
   /// §2.2(f): one stage barrier, at this grid width.
@@ -233,6 +239,10 @@ class CostModel {
   }
 
  private:
+  double TaskCostImpl(DerivedTaskInput const& input, BackendTraits const& traits,
+                     Residency residency, ModelDescription const& model, int chunks,
+                     analysis::ParamBinding const* coordinates,
+                     double active_ctas_per_sm) const;
   double WavesNs(double per_sm_work_count, Residency residency,
                  GemmConfig const& config, double iters,
                  double dram_fraction) const;

@@ -69,6 +69,21 @@ int main(int argc,char** argv) try {
           double old=cost.GemmStageNs(gemm,config,{resident},model,&chunks);
           double current=cost.TaskCostNs(input,traits,{resident},model,chunks);
           double stage_entry=cost.TaskStageNs(model,semantic.stage,config,{resident});
+          if (seq==4) {
+            auto binding=model.MetricBindings();
+            analysis::ParamBinding point;
+            for (auto const& coordinate:input.cost_coordinates) point.Bind(coordinate,0);
+            double assembled=0;
+            long count=input.work.task_count.SubstituteParams(binding).Eval({});
+            long grid=long(target.res.num_sms)*resident;
+            for (long remaining=count;remaining>0;remaining-=grid) {
+              double active=std::min(grid,remaining);
+              assembled+=cost.TaskInstanceNs(input,traits,{resident},model,chunks,point,
+                  std::max(1.0,active/target.res.num_sms));
+            }
+            if (!Bits(assembled,current))
+              throw std::runtime_error("instance wave composition changed stage bits");
+          }
           if (!Bits(old,current) || !Bits(old,stage_entry)) {
             std::cerr << std::setprecision(17) << "TASK_PRICE_MISMATCH dtype=" << dtype
                       << " model=" << name << " stage=" << semantic.op.name << " seq=" << seq

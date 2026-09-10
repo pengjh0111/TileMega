@@ -2,6 +2,7 @@
 #pragma once
 #include <tilemega/Analysis/FusionAccess.h>
 #include <tilemega/Solver/BackendCostQuery.h>
+#include <tilemega/Solver/CostModel.h>
 #include <map>
 
 namespace tilemega::solver {
@@ -13,6 +14,10 @@ struct FusionResources {
 // Returns zero for an impossible CTA; never promotes it to residency one.
 int FusionCtasPerSm(FusionResources const& resources, TargetSpec const& target,
                     int register_allocation_per_warp, int static_shared_bytes);
+double FusionRecomputeNs(analysis::FusionAccesses const& accesses,
+    CostModel const& cost, DerivedTaskInput const& producer, BackendTraits const& traits,
+    Residency residency, ModelDescription const& model, int chunks,
+    double active_ctas_per_sm);
 // Registers are tier-3 input, not inferred from the access relation.
 FusionResources DeriveFusionResources(analysis::FusionAccesses const& accesses,
     analysis::ParamBinding const& theta, std::map<std::string,int> const& element_bytes,
