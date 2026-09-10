@@ -71,7 +71,9 @@ __device__ void Signal(Event* event, unsigned long long value) {
 extern "C" __global__ __launch_bounds__(256)
 void tilemega_megakernel(int* output, Event* events, int extent,
                          tilemega::codegen::Params const* params,
-                         tilemega::codegen::StageDesc const* stage) {
+                         tilemega::codegen::StageDesc const* stage,
+                         float const* attention_partials,
+                         tilemega::codegen::AttentionCombineShape const* attention_shape) {
   extern __shared__ unsigned char dynamic_storage[];
   auto& storage = *reinterpret_cast<TaskStorage*>(dynamic_storage);
   // Keep the caller-owned pipeline allocation observable in generated code.
@@ -81,6 +83,8 @@ void tilemega_megakernel(int* output, Event* events, int extent,
   dynamic_storage[touch] = static_cast<unsigned char>(threadIdx.x);
   tilemega::codegen::TaskContext context;
   context.output = output;
+  context.input0 = attention_partials;
+  context.input1 = attention_shape;
   context.logical_tile = blockIdx.x;
   context.iteration = 1;
   context.extent = extent;

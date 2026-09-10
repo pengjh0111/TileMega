@@ -472,6 +472,12 @@ if(TILEMEGA_BUILD_TESTS)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   set_property(TARGET bf16_task_body_compile_test PROPERTY CUDA_ARCHITECTURES 89)
   add_test(NAME bf16_task_body_compile COMMAND bf16_task_body_compile_test)
+  # Run explicitly: this numerical probe needs a CUDA device, unlike the
+  # compile-only TaskBody contracts in the default CTest suite.
+  add_executable(attention_phase_test test/unit/attention_phase_test.cu)
+  target_link_libraries(attention_phase_test PRIVATE TileMega::tilemega)
+  target_compile_options(attention_phase_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
 
   add_executable(frontend_import_test test/unit/frontend_import_test.cpp)
   add_dependencies(frontend_import_test TileMegaCGIncGen)
