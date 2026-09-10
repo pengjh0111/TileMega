@@ -27,7 +27,7 @@
 namespace tilemega::codegen {
 
 inline int HostPlacedBlock(int b, int grid, int blocks_per_sm) {
-#if TILEMEGA_PLACEMENT == 0
+#if TILEMEGA_PLACEMENT == 0 || TILEMEGA_PLACEMENT == 4
   (void)grid;
   (void)blocks_per_sm;
   return b;
@@ -44,7 +44,7 @@ inline int HostPlacedBlock(int b, int grid, int blocks_per_sm) {
   return grid % 31 == 0 ? b
                         : static_cast<int>((static_cast<long long>(b) * 31) % grid);
 #else
-#error "TILEMEGA_PLACEMENT must be 0 (identity), 1 (pair), 2 (reverse) or 3 (scatter)"
+#error "TILEMEGA_PLACEMENT must be 0..4 (4 is task-balanced)"
 #endif
 }
 
@@ -60,7 +60,7 @@ static __device__ int tilemega_blocks_per_sm = 1;
 
 __device__ inline int PlacedBlock() {
   int const b = static_cast<int>(blockIdx.x);
-#if TILEMEGA_PLACEMENT == 0
+#if TILEMEGA_PLACEMENT == 0 || TILEMEGA_PLACEMENT == 4
   return b;
 #else
   int const g = static_cast<int>(gridDim.x);

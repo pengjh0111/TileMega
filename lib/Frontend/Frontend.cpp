@@ -754,6 +754,10 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
     state.addAttribute("task", mlir::FlatSymbolRefAttr::get(&context, symbols.at(node.name)));
     state.addAttribute("map", builder.getDenseI64ArrayAttr({0}));
     state.addAttribute("cluster", builder.getI64IntegerAttr(1));
+    if (options.balanced_placement) {
+      state.addAttribute("resident_only",builder.getBoolAttr(true));
+      state.addAttribute("mapping_mode",builder.getStringAttr("balanced"));
+    }
     builder.create(state);
   }
   if (mlir::failed(mlir::verify(module)))

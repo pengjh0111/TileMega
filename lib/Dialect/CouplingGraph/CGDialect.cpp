@@ -267,6 +267,12 @@ LogicalResult ImplementationOp::verify() {
 }
 
 LogicalResult PlacementOp::verify() {
+  if (auto attr=(*this)->getAttr("mapping_mode")) {
+    auto mode=llvm::dyn_cast<StringAttr>(attr);
+    auto resident=(*this)->getAttrOfType<BoolAttr>("resident_only");
+    if (!mode || mode.getValue()!="balanced" || !resident || !resident.getValue())
+      return emitOpError("balanced mapping requires resident_only=true");
+  }
   if (auto attr = (*this)->getAttr("resident_only")) {
     auto flag = llvm::dyn_cast<BoolAttr>(attr);
     if (!flag || !flag.getValue())

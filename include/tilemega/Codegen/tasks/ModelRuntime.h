@@ -231,6 +231,7 @@ struct RuntimeVariantDesc {
   std::uint32_t ownership_flags;
   AttentionRuntimeRecord const* attention = nullptr;  ///< stage_count entries if present
   bool resident_only = true;
+  bool balanced_placement = false;
 };
 
 #ifndef TILEMEGA_EVENT_SPLIT_LINES

@@ -27,6 +27,7 @@ struct ImportOptions {
   bool kv_tile_per_block = false;
   bool activation_tile_per_block = false;
   bool combiner_tile_per_block = false;
+  bool balanced_placement = false;
 };
 class TorchExportImporter {
  public:

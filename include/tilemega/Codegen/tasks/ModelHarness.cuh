@@ -11,6 +11,9 @@
 #include <tilemega/Codegen/tasks/EventSync.cuh>
 #include <tilemega/Codegen/tasks/Benchmark.cuh>
 #include <tilemega/Codegen/ResidentSchedule.h>
+#include <tilemega/Codegen/RuntimeTaskGraph.h>
+#include <tilemega/Solver/BalancedPlacement.h>
+#include <tilemega/Solver/ListScheduler.h>
 
 #include <tilemega/Codegen/tasks/AttentionChunkTaskBody.h>
 #include <tilemega/Codegen/tasks/ElementwiseTaskBody.h>
@@ -1147,12 +1150,49 @@ inline DeviceModel Create(ModelSpec const& spec,
   std::vector<int> physical_worker(grid);
   for (int worker = 0; worker < grid; ++worker)
     physical_worker[HostPlacedBlock(worker, grid, blocks_per_sm)] = worker;
+  std::vector<std::vector<int>> task_owner(model.stages.size());
+  for (std::uint32_t stage=0;stage<model.stages.size();++stage) {
+    task_owner[stage].resize(active_tasks(stage));
+    for (int task=0;task<active_tasks(stage);++task)
+      task_owner[stage][task]=physical_worker[task%grid];
+  }
+#if TILEMEGA_PLACEMENT == 4
+  if (!runtime_variant.balanced_placement) {
+    std::fprintf(stderr,"placement=4 requires balanced L-sched writeback\n");
+    std::exit(2);
+  }
+  std::vector<int> counts;
+  for (std::uint32_t stage=0;stage<model.stages.size();++stage) counts.push_back(active_tasks(stage));
+  std::vector<RuntimeDependencyWindow> windows;
+  for (auto const& edge:dependencies)
+    windows.push_back({static_cast<int>(edge.producer),static_cast<int>(edge.consumer),
+        edge.map==StageDependency::Map::kAll,edge.div,edge.scale,edge.offset,edge.count});
+  auto graph=MaterializeRuntimeTaskGraph(counts,windows,grid);
+  auto order=solver::ListScheduler{}.Schedule(graph.successors);
+  auto placed_tasks=solver::BalanceTaskPlacement(graph.successors,order,graph.preferred_worker,
+      grid,graph.baseline_max_queue);
+  for (std::size_t stage=0;stage<counts.size();++stage)
+    for (int task=0;task<counts[stage];++task)
+      task_owner[stage][task]=placed_tasks.worker[graph.stage_offsets[stage]+task];
+  std::printf("E2E_BALANCED max_queue=%d baseline_max_queue=%d same_worker_edges=%ld "
+              "fence_free_producers=%ld resident_only=1\n",placed_tasks.max_queue,
+              graph.baseline_max_queue,placed_tasks.same_worker_edges,placed_tasks.fence_free_producers);
+#else
+  if (runtime_variant.balanced_placement) {
+    std::fprintf(stderr,"balanced L-sched requires TILEMEGA_PLACEMENT=4\n");
+    std::exit(2);
+  }
+#endif
+  std::vector<std::vector<std::vector<int>>> owned(grid,
+      std::vector<std::vector<int>>(model.stages.size()));
+  for (std::size_t stage=0;stage<task_owner.size();++stage)
+    for (std::size_t task=0;task<task_owner[stage].size();++task)
+      owned[task_owner[stage][task]][stage].push_back(task);
   std::vector<int> stage_max_producer_worker(model.stages.size(), -1);
   for (std::uint32_t stage = 0; stage < model.stages.size(); ++stage) {
-    int const owners = std::min(active_tasks(stage), grid);
-    for (int owner = 0; owner < owners; ++owner)
+    for (int owner : task_owner[stage])
       stage_max_producer_worker[stage] = std::max(
-          stage_max_producer_worker[stage], physical_worker[owner]);
+          stage_max_producer_worker[stage], owner);
   }
 #if TILEMEGA_EVENT_KAPPA > 0
   int const per_group = TILEMEGA_EVENT_KAPPA;
@@ -1213,7 +1253,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       if (end - begin == 1) { model.event_fanin[row] = {}; return; }
       std::uint32_t first = shards, last = 0;
       for (int logical = begin; logical < end; ++logical) {
-        unsigned const cluster = physical_worker[logical % grid] / TILEMEGA_GENERATED_CLUSTER_DIM;
+        unsigned const cluster = task_owner[stage][logical] / TILEMEGA_GENERATED_CLUSTER_DIM;
         first = std::min(first, cluster); last = std::max(last, cluster);
       }
       plan.first_cluster = first;
@@ -1221,7 +1261,7 @@ inline DeviceModel Create(ModelSpec const& spec,
 #endif
       model.shard_targets.resize(plan.begin + plan.modulus, 0);
       for (int logical = begin; logical < end; ++logical) {
-        int const worker = physical_worker[logical % grid];
+        int const worker = task_owner[stage][logical];
 #if TILEMEGA_EVENT_CLUSTER_FANIN
         ++model.shard_targets[plan.begin + worker / TILEMEGA_GENERATED_CLUSTER_DIM - plan.first_cluster];
 #else
@@ -1273,10 +1313,9 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.params.event_shard_count = 1;
 #endif
   for (int worker = 0; worker < grid; ++worker) {
-    int const placed = HostPlacedBlock(worker, grid, blocks_per_sm);
     for (std::uint32_t stage : model.stage_order) {
       int const count = active_tasks(stage);
-      for (int logical = placed; logical < count; logical += grid) {
+      for (int logical : owned[worker][stage]) {
         TaskRef task{};
         task.stage = stage;
         task.logical_task = static_cast<std::uint32_t>(logical);
@@ -1293,7 +1332,7 @@ inline DeviceModel Create(ModelSpec const& spec,
           int const produced = active_tasks(dep.producer);
 #if TILEMEGA_EVENT_KAPPA > 0
           auto observe_owner = [&](int owner) {
-            int const producer_worker = physical_worker[owner];
+            int const producer_worker = owner;
             if (producer_worker > worker)
               model.schedule_max_worker_span = std::max(
                   model.schedule_max_worker_span,
@@ -1315,14 +1354,14 @@ inline DeviceModel Create(ModelSpec const& spec,
                 at + static_cast<int>(dep.count), produced);
             for (int producer_task = begin; producer_task < end;
                  ++producer_task) {
-              int const owner = producer_task % grid;
+              int const owner = task_owner[dep.producer][producer_task];
               int const group = producer_task / per_group;
               int const group_end = std::min((group + 1) * per_group, produced);
               for (int member = group * per_group; member < group_end; ++member)
-                observe_owner(member % grid);
+                observe_owner(task_owner[dep.producer][member]);
               // With one worker per event, this worker's earlier queue entry
               // is already a proof; no global-memory poll is needed.
-              if (per_group == 1 && owner == placed) continue;
+              if (per_group == 1 && owner == worker) continue;
               desired.emplace(dep.producer,
                               static_cast<std::uint32_t>(group));
             }
@@ -1347,7 +1386,7 @@ inline DeviceModel Create(ModelSpec const& spec,
         if (task.wait_count != 0) ++model.schedule_waiting_tasks;
         if (task.wait_count > 1)
           model.normalization_dummy_lower_bound += task.wait_count - 1;
-        if (logical + grid >= count) task.flags |= kLastTaskOfStage;
+        if (logical == owned[worker][stage].back()) task.flags |= kLastTaskOfStage;
         model.schedule.push_back(task);
       }
     }

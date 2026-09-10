@@ -81,6 +81,16 @@ int main() {
     catch (std::invalid_argument const&) { rejected=true; }
     assert(rejected && isl_context.ReferenceCount()==before);
   }
+  {
+    auto balanced=module->clone();
+    for (auto placement:balanced.getOps<tilemega::dialect::PlacementOp>()) {
+      placement->setAttr("resident_only",mlir::BoolAttr::get(&context,true));
+      placement->setAttr("mapping_mode",mlir::StringAttr::get(&context,"balanced"));
+    }
+    auto emitted=tilemega::codegen::CouplingGraphToCUDA{}.Lower(balanced);
+    assert(emitted.find(", nullptr, true, true}")!=std::string::npos);
+    balanced.erase();
+  }
 
   // Phase-5 prerequisite: two independently instantiated granularities are
   // fused into one binary, and ModelSpec -- not an external -D plan -- binds
