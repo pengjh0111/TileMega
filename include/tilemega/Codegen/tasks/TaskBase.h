@@ -80,6 +80,8 @@ enum class TaskKind : std::uint32_t {
   /// instantiated stage list: the generator emits one kGemm stage, and the
   /// split transform rewrites it into a partial stage plus this one.
   kGemmCombine = 6,
+  kGemmAdd = 7,
+  kGemmRMSNorm = 8,
 };
 
 /// The ownership each TaskKind's TaskBody declares. Every TaskBody's
@@ -89,6 +91,8 @@ enum class TaskKind : std::uint32_t {
 TILEMEGA_TASK_HD constexpr TaskOwnershipKind OwnershipOf(TaskKind kind) {
   switch (kind) {
     case TaskKind::kGemm:
+    case TaskKind::kGemmAdd:
+    case TaskKind::kGemmRMSNorm:
     case TaskKind::kRMSNorm:
     case TaskKind::kAttention:
       return TaskOwnershipKind::kTilePerBlock;

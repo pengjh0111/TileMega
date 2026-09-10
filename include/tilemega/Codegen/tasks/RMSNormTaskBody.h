@@ -29,23 +29,30 @@ struct RMSNormTaskBody {
     ModelElement const* weight = p.buffers[stage.operand[1]];
     ModelElement* output = p.buffers[stage.operand[2]];
     int hidden = static_cast<int>(stage.width);
+    RunRow(input + token * hidden, weight, output + token * hidden,
+           hidden, smem.rms);
+  }
+
+  __device__ static void RunRow(ModelElement const* input,
+                                ModelElement const* weight,
+                                ModelElement* output, int hidden, float* rms) {
     float local = 0.0f;
     for (int d = threadIdx.x; d < hidden; d += blockDim.x) {
-      float value = static_cast<float>(input[token * hidden + d]);
+      float value = static_cast<float>(input[d]);
       local += value * value;
     }
-    smem.rms[threadIdx.x] = local;
+    rms[threadIdx.x] = local;
     __syncthreads();
     for (int offset = blockDim.x / 2; offset; offset /= 2) {
       if (threadIdx.x < offset)
-        smem.rms[threadIdx.x] += smem.rms[threadIdx.x + offset];
+        rms[threadIdx.x] += rms[threadIdx.x + offset];
       __syncthreads();
     }
-    float scale = rsqrtf(smem.rms[0] / hidden + 1.0e-6f);
+    float scale = rsqrtf(rms[0] / hidden + 1.0e-6f);
     for (int d = threadIdx.x; d < hidden; d += blockDim.x)
-      output[token * hidden + d] = ModelElement(
+      output[d] = ModelElement(
           static_cast<float>(ModelElement(
-              static_cast<float>(input[token * hidden + d]) * scale)) *
+              static_cast<float>(input[d]) * scale)) *
           static_cast<float>(weight[d]));
   }
 

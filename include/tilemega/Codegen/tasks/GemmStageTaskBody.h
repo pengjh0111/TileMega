@@ -12,6 +12,10 @@
 
 #include <type_traits>
 
+#ifndef TILEMEGA_FUSION_SHARED_EPILOGUE
+#define TILEMEGA_FUSION_SHARED_EPILOGUE 1
+#endif
+
 namespace tilemega::codegen {
 
 // The granularity `g` of every GEMM task space.  It is a compile-time knob so
@@ -434,9 +438,9 @@ struct GemmStageTaskBody {
             invocation.tiles_m * invocation.tiles_n * invocation.chunks};
   }
 
-  template <int Variant>
+  template <int Variant, bool SharedOutput = false>
   __device__ static void RunTask(GemmInvocation const& invocation, int local,
-                                 char* shared) {
+                                 char* shared, ModelElement* tile_output = nullptr) {
     using namespace cute;
     using Mainloop = typename GemmVariant<Variant>::Mainloop;
     using Epilogue = typename GemmVariant<Variant>::Epilogue;
@@ -463,6 +467,30 @@ struct GemmStageTaskBody {
     Mainloop mainloop;
     mainloop(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
              static_cast<int>(threadIdx.x), shared);
+    if constexpr (SharedOutput) {
+      static_assert(TILEMEGA_FUSION_SHARED_EPILOGUE || !SharedOutput,
+                    "shared fusion epilogue is disabled");
+      // A split partial cannot be rounded to ModelElement before combining.
+      if (invocation.chunks != 1) { asm volatile("trap;"); return; }
+      auto coordinates = make_identity_tensor(take<0, 2>(tile_shape));
+      auto owned = tiled_mma.get_thread_slice(int(threadIdx.x)).partition_C(coordinates);
+      auto source = make_tensor(make_gmem_ptr(invocation.epilogue.ptr_C),
+                                make_shape(M, N, L), invocation.epilogue.dC);
+      typename Epilogue::ThreadEpilogueOp op(invocation.epilogue.thread);
+      CUTE_STATIC_ASSERT_V(size(owned) == size(accum));
+      // The same thread operation preserves the graph's BF16 rounding boundary;
+      // only the destination address space changes from CUTLASS's global store.
+      CUTLASS_PRAGMA_UNROLL
+      for (int i = 0; i < size(accum); ++i) {
+        int m = get<0>(owned(i)), n = get<1>(owned(i));
+        int global_m = tile_m * size<0>(tile_shape) + m;
+        int global_n = tile_n * size<1>(tile_shape) + n;
+        if (global_m < M && global_n < N)
+          tile_output[m * size<1>(tile_shape) + n] = op.is_source_needed()
+              ? op(accum(i), source(global_m, global_n, 0)) : op(accum(i));
+      }
+      return;
+    }
 #if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
     if (invocation.chunks > 1) {
       PartialEpilogue epilogue(invocation.partial_epilogue);
