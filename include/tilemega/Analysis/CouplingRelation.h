@@ -47,6 +47,9 @@ class CouplingRelation {
   CouplingRelation ApplyRange(CouplingRelation const& other) const;
   /// Exact union in the same task/tensor coordinate space (overlap counted once).
   CouplingRelation Union(CouplingRelation const& other) const;
+  CouplingRelation Subtract(CouplingRelation const& other) const;
+  CouplingRelation ImageIdentity() const;
+  CouplingRelation RangeProduct(CouplingRelation const& other) const;
   /// Restrict the domain to `domain_set_text` (isl set syntax over the same
   /// domain tuple/parameters). DeriveCoupling uses this to bind every
   /// consumer coordinate to its own task-space extent before returning C

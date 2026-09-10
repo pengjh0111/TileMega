@@ -61,6 +61,35 @@ CouplingRelation CouplingRelation::Union(CouplingRelation const& other) const {
   return CouplingRelation(isl_util::ToString(result.get()));
 }
 
+CouplingRelation CouplingRelation::Subtract(CouplingRelation const& other) const {
+  IslReferenceAudit audit(__func__);
+  if (empty() || other.empty()) return *this;
+  auto lhs=isl_util::ReadMap(Ctx(),text_);
+  auto rhs=isl_util::ReadMap(Ctx(),other.text_);
+  isl_util::Map result(isl_map_subtract(lhs.release(),rhs.release()));
+  if (!result) throw std::invalid_argument("difference requires matching relation spaces");
+  return CouplingRelation(isl_util::ToString(result.get()));
+}
+
+CouplingRelation CouplingRelation::ImageIdentity() const {
+  IslReferenceAudit audit(__func__);
+  if (empty()) return {};
+  auto map=isl_util::ReadMap(Ctx(),text_);
+  isl_util::Map result(isl_set_identity(isl_map_range(map.release())));
+  if (!result) throw std::invalid_argument("cannot construct image identity");
+  return CouplingRelation(isl_util::ToString(result.get()));
+}
+
+CouplingRelation CouplingRelation::RangeProduct(CouplingRelation const& other) const {
+  IslReferenceAudit audit(__func__);
+  if (empty() || other.empty()) return {};
+  auto lhs=isl_util::ReadMap(Ctx(),text_);
+  auto rhs=isl_util::ReadMap(Ctx(),other.text_);
+  isl_util::Map result(isl_map_flat_range_product(lhs.release(),rhs.release()));
+  if (!result) throw std::invalid_argument("range product requires common domains");
+  return CouplingRelation(isl_util::ToString(result.get()));
+}
+
 CouplingRelation CouplingRelation::IntersectRange(
     std::string const& range_set_text) const {
   if (empty()) return {};
