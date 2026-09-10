@@ -1,0 +1,27 @@
+ptxas info    : 208 bytes gmem, 104 bytes cmem[4]
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi
+    72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 54 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 68 bytes cmem[2]
+ptxas info    : Compile time = 30.153 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 232 registers, used 1 barriers, 32 bytes cumulative stack size, 376 bytes cmem[0], 80 bytes cmem[2]
+ptxas info    : Compile time = 2188.108 ms
+ptxas info    : Function properties for _ZN8tilemega7codegen17GemmStageTaskBodyIN7cutlass4arch4Sm80ENS0_17FusedGemmTaskBodyIS4_Li0ELi128EE7ScratchELi128EE7RunTaskILi0ELb1EEEvRKNS0_14GemmInvocationEiPcPNS2_10bfloat16_tE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 232 registers, used 1 barriers, 32 bytes cumulative stack size, 376 bytes cmem[0], 40 bytes cmem[2]
+ptxas info    : Compile time = 2182.913 ms
+ptxas info    : Function properties for _ZN8tilemega7codegen17GemmStageTaskBodyIN7cutlass4arch4Sm80ENS0_17FusedGemmTaskBodyIS4_Li0ELi128EE7ScratchELi128EE7RunTaskILi0ELb1EEEvRKNS0_14GemmInvocationEiPcPNS2_10bfloat16_tE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj
+    32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 226 registers, used 1 barriers, 32 bytes cumulative stack size, 364 bytes cmem[0], 40 bytes cmem[2]
+ptxas info    : Compile time = 2251.765 ms
+ptxas info    : Function properties for _ZN8tilemega7codegen17GemmStageTaskBodyIN7cutlass4arch4Sm80ENS0_17FusedGemmTaskBodyIS4_Li0ELi128EE7ScratchELi128EE7RunTaskILi0ELb1EEEvRKNS0_14GemmInvocationEiPcPNS2_10bfloat16_tE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads

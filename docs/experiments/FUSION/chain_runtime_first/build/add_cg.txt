@@ -1,0 +1,2 @@
+FUSION_CHAIN consumer=add n=512 k=512 replacement_cg_verified=1 remaining=0
+ISL_CONTEXT remaining=0

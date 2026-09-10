@@ -1,0 +1,5 @@
+fusion_count	ctas_per_sm	shared	registers	task_refs	waits	task_ns	event_ns	total_ns	pairs
+1	3	23552	148	4	0	5981.3103679001852	2871.70496009306	8853.0153279932456	l0.s00.proj:l0.s01.add,
+0	4	16384	112	8	0	6065.5275157097058	5743.40992018612	11808.937435895827	
+FUSION_PHASE_PRICE producer_tasks=4 consumer_tasks=4 recomputed=0 producer_waves=1 consumer_waves=1 recompute_ns=0 separate_ns=6065.5275157097058 fused_ns=5981.3103679001852 global_before=557056 global_after=548864 local_bytes=8192
+FUSION_DP alternatives=2 selected=1 baseline_bits_equal=1 remaining=0 fused_registers_gpu_verified=1

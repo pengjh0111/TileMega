@@ -1,0 +1,4 @@
+fusion_count	ctas_per_sm	shared	registers	task_refs	waits	task_ns	event_ns	total_ns	pairs
+1	1	84992	232	128	0	21854.751607091544	3390.5950775590345	25245.34668465058	l0.s00.proj:l0.s01.norm,
+0	1	52224	218	132	127	22598.095240354691	6328.9339140020074	28927.0291543567	
+FUSION_DP alternatives=2 selected=1 baseline_bits_equal=1 remaining=0 fused_registers_gpu_verified=1
