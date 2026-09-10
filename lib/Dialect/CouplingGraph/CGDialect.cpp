@@ -133,16 +133,27 @@ LogicalResult TaskSpaceOp::verify() {
 
 LogicalResult FusedTaskSpaceOp::verify() {
   analysis::IslReferenceAudit audit(__func__);
-  if (getPhaseSemantics().size()<2 || getPhaseSemantics().size()!=getPhaseMaps().size() || getWrites().empty())
+  if (getPhaseSemantics().size()<2 || getPhaseSemantics().size()!=getPhaseMaps().size() ||
+      getPhaseSemantics().size()!=getPhaseGranularities().size() ||
+      getPhaseSemantics().size()!=getPhaseStages().size() || getWrites().empty())
     return emitOpError("fusion needs ordered semantics, phase maps and an external write");
   try {
     std::set<std::string> identities;
     analysis::CouplingRelation domain;
-    for (auto [semantic,map]:llvm::zip(getPhaseSemantics(),getPhaseMaps())) {
+    for (auto [semantic,map,granularity,stage]:llvm::zip(getPhaseSemantics(),getPhaseMaps(),getPhaseGranularities(),getPhaseStages())) {
       auto text=dyn_cast<StringAttr>(semantic);
       auto relation=dyn_cast<CouplingMapAttr>(map);
-      if (!text || !relation) return emitOpError("malformed fusion phase");
+      auto tiles=dyn_cast<DictionaryAttr>(granularity);
+      if (!text || !relation || !tiles || stage<0) return emitOpError("malformed fusion phase");
       auto op=analysis::DecodeSemanticOp(text.getValue().str());
+      auto ownership=tiles.getAs<StringAttr>("ownership");
+      if (!ownership || (ownership!="element_chunk" && ownership!="tile_per_block"))
+        return emitOpError("fusion phase lacks ownership model");
+      for (auto const& axis:op.result.axes) {
+        auto tile=tiles.getAs<StringAttr>(axis.name);
+        if (!tile) return emitOpError("fusion phase lacks output tile");
+        (void)analysis::ClosedForm::Parse(tile.getValue().str());
+      }
       if (!identities.insert(op.name).second) return emitOpError("duplicate fusion phase identity");
       auto const& declarations=analysis::ArithmeticDeclarations();
       auto found=llvm::find_if(declarations,[&](auto const& d) { return op.arithmetic==d.name; });

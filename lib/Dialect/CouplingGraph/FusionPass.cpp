@@ -45,6 +45,8 @@ void Rewrite(mlir::ModuleOp module,std::string const& producer,std::string const
   OperationState fused(p.getLoc(),FusedTaskSpaceOp::getOperationName());
   fused.addAttribute("sym_name",builder.getStringAttr(name));
   fused.addAttribute("phase_semantics",builder.getArrayAttr({p.getSemanticAttr(),c.getSemanticAttr()}));
+  fused.addAttribute("phase_granularities",builder.getArrayAttr({p.getGranularity(),c.getGranularity()}));
+  fused.addAttribute("phase_stages",builder.getDenseI64ArrayAttr({int64_t(p.getStage()),int64_t(c.getStage())}));
   fused.addAttribute("phase_maps",builder.getArrayAttr({CouplingMapAttr::get(module.getContext(),mapping),
       CouplingMapAttr::get(module.getContext(),identity)}));
   fused.addAttribute("reads",maps(candidate.accesses.task.reads));

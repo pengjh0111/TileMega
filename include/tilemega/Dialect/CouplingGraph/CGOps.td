@@ -38,6 +38,8 @@ def CG_FusedTaskSpaceOp : CG_Op<"fused_task_space", [Symbol]> {
   let summary = "consumer-indexed sequential L-task composition";
   let arguments = (ins SymbolNameAttr:$sym_name,
                        ArrayAttr:$phase_semantics,
+                       ArrayAttr:$phase_granularities,
+                       DenseI64ArrayAttr:$phase_stages,
                        ArrayAttr:$phase_maps,
                        DictionaryAttr:$reads,
                        DictionaryAttr:$writes,
