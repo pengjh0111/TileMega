@@ -1,0 +1,2 @@
+SYMBOLIC_COLLECTIVE points=2560 remaining=0; full model DP not asserted
+ISL_CONTEXT remaining=0

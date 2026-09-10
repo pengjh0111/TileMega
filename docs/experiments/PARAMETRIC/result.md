@@ -1,5 +1,12 @@
 # T1：参数化消费路径——实现前设计
 
+本轮B3更新：精确二次根整数分段、QP floor区间、min/max包络与cache
+clamp区间已实现并验证，见[quadratic/result.md](quadratic/result.md)。
+真实task价格已完成两模型5120个collective点、768个scalar点对照。
+完整CG-interface符号DP在KVAppend→attention处出现非零三次项，已按B3.2
+停止；具体表达式、运行日志及分析见[task_prices/result.md](task_prices/result.md)。
+(b)尚未退役；以下旧轮选择理由保留为历史，不再用来声称(a)不可实现。
+
 ⚠️ 输入侧 2154/2154 位级一致性及有限域 DP 已验证；完整代价消费与一般符号 DP 尚未通过。
 
 ## max 之外的表示限制与选择

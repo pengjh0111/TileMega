@@ -8,7 +8,7 @@ Verified by `../verify_quadratic.py`:
 | Min/max envelope vs direct QP evaluation | 126/126 |
 | Symbolic cache interpolation vs exact binary synthetic curve | 195/195 |
 | Existing measured cache knots, bit equality | 36/36 |
-| Lane/QP rejection branches | 10, reference delta 0 |
+| Lane/QP rejection branches | 12, reference delta 0 |
 | Cache rejection branches | 11, reference delta 0 |
 
 `QuasiPolynomial::QuadraticIntervals` (`lib/Analysis/QuasiPolynomial.cpp`)

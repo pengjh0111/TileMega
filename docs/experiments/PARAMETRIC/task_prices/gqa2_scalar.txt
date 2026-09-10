@@ -1,0 +1,18 @@
+symbolic scalar stage=0 op=l0.s00.norm
+symbolic scalar stage=4 op=l0.s04.rope
+symbolic scalar stage=5 op=l0.s05.rope
+symbolic scalar stage=6 op=l0.s06.append
+symbolic scalar stage=7 op=l0.s07.append
+symbolic scalar stage=8 op=l0.s08.attn
+symbolic scalar stage=10 op=l0.s10.norm
+symbolic scalar stage=13 op=l0.s13.act
+symbolic scalar stage=15 op=l1.s15.norm
+symbolic scalar stage=19 op=l1.s19.rope
+symbolic scalar stage=20 op=l1.s20.rope
+symbolic scalar stage=21 op=l1.s21.append
+symbolic scalar stage=22 op=l1.s22.append
+symbolic scalar stage=23 op=l1.s23.attn
+symbolic scalar stage=25 op=l1.s25.norm
+symbolic scalar stage=28 op=l1.s28.act
+SYMBOLIC_SCALAR points=256 remaining=0; full model DP not asserted
+ISL_CONTEXT remaining=0

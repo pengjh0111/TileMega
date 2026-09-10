@@ -1,1 +1,1 @@
-LANE_INTERSECTIONS integer_checks=72501 errors=10 envelope_checks=126 reference_delta=0
+LANE_INTERSECTIONS integer_checks=72501 errors=12 envelope_checks=126 reference_delta=0

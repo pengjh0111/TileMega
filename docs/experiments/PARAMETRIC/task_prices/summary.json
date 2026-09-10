@@ -1,0 +1,44 @@
+[
+  {
+    "model": "gqa2",
+    "mode": "collective",
+    "seq_end": 512,
+    "exit": 0,
+    "result": "PASS"
+  },
+  {
+    "model": "gqa2",
+    "mode": "scalar",
+    "seq_end": 16,
+    "exit": 0,
+    "result": "PASS"
+  },
+  {
+    "model": "gqa2",
+    "mode": "dp",
+    "seq_end": 16,
+    "exit": 2,
+    "result": "degree_stop"
+  },
+  {
+    "model": "mha4",
+    "mode": "collective",
+    "seq_end": 512,
+    "exit": 0,
+    "result": "PASS"
+  },
+  {
+    "model": "mha4",
+    "mode": "scalar",
+    "seq_end": 16,
+    "exit": 0,
+    "result": "PASS"
+  },
+  {
+    "model": "mha4",
+    "mode": "dp",
+    "seq_end": 16,
+    "exit": 2,
+    "result": "degree_stop"
+  }
+]
