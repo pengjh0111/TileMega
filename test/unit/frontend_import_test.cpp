@@ -60,6 +60,18 @@ int main() {
   assert(cuda.find("TILEMEGA_GENERATED_RESIDENT_GRID") != std::string::npos);
   assert(cuda.find("ModelHarness.cuh") != std::string::npos);
   assert(cuda.find("GeneratedLlamaRuntime.cuh") == std::string::npos);
+  {
+    tilemega::frontend::ImportOptions separate;
+    separate.separate_residual_tasks=true;
+    tilemega::frontend::ImportSummary expanded_summary;
+    auto expanded=tilemega::frontend::TorchExportImporter{}.Import(
+        std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/E2E_GEN/raw/export_bridge.json",
+        context,&expanded_summary,separate);
+    assert(expanded_summary.stages==summary.stages+4);
+    auto expanded_cuda=tilemega::codegen::CouplingGraphToCUDA{}.Lower(*expanded);
+    assert(expanded_cuda.find("TaskKind::kAdd")!=std::string::npos);
+    assert(expanded_cuda.find(".gemm_product")!=std::string::npos);
+  }
   assert(cuda.find("% 12") == std::string::npos);
   assert(cuda.find("wait_table=") == std::string::npos);
   assert(cuda.find("kRuntimeVariants") != std::string::npos);

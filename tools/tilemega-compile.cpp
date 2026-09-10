@@ -91,6 +91,8 @@ std::vector<VariantRequest> readVariants(std::string const& path,
       request.options.combiner_tile_per_block = *own;
     if (auto balanced = object->getBoolean("balanced_placement"))
       request.options.balanced_placement = *balanced;
+    if (auto separate = object->getBoolean("separate_residual_tasks"))
+      request.options.separate_residual_tasks = *separate;
     if (auto* uniform = object->getObject("uniform")) {
       request.options.gemms.assign(gemm_count, readGemm(*uniform));
     } else if (auto* gemms = object->getArray("gemms")) {

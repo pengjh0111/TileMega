@@ -28,12 +28,17 @@ struct ImportOptions {
   bool activation_tile_per_block = false;
   bool combiner_tile_per_block = false;
   bool balanced_placement = false;
+  bool separate_residual_tasks = false;
 };
 class TorchExportImporter {
  public:
   mlir::OwningOpRef<mlir::ModuleOp> Import(
       std::string const& stable_json_path, mlir::MLIRContext& context,
       ImportSummary* summary = nullptr,
+      ImportOptions const& options = {}) const;
+  mlir::OwningOpRef<mlir::ModuleOp> ImportPlan(
+      std::string const& stable_json_path, ModelPlan const& plan,
+      mlir::MLIRContext& context, ImportSummary* summary = nullptr,
       ImportOptions const& options = {}) const;
 };
 }  // namespace tilemega::frontend

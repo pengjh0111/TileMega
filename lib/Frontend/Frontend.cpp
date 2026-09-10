@@ -196,6 +196,7 @@ llvm::StringRef taskKindName(PlanTaskKind kind) {
     case PlanTaskKind::kKVAppend: return "kKVAppend";
     case PlanTaskKind::kElementwise: return "kElementwise";
     case PlanTaskKind::kAttention: return "kAttention";
+    case PlanTaskKind::kAdd: return "kAdd";
   }
   llvm_unreachable("unknown plan task kind");
 }
@@ -377,11 +378,10 @@ ExportBridge ReadExportBridge(std::string const& path) {
   return bridge;
 }
 
-mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
-    std::string const& path, mlir::MLIRContext& context,
-    ImportSummary* summary, ImportOptions const& options) const {
+static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
+    ExportBridge bridge, ModelPlan const* selected_plan, mlir::MLIRContext& context,
+    ImportSummary* summary, ImportOptions const& options) {
   context.getOrLoadDialect<dialect::CGDialect>();
-  ExportBridge bridge = ReadExportBridge(path);
   std::vector<FxNodeRecord>& allNodes = bridge.nodes;
   std::vector<FxNodeRecord>& tasks = bridge.tasks;
   std::vector<SignatureInput>& signatureInputs = bridge.inputs;
@@ -407,7 +407,12 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
       bridge.range_texts;
   std::vector<std::string> const& guards = bridge.guards;
   SymbolicShape symbolic = SymbolicShapeBridge{}.Parse(rangeTexts, guards, userShapes);
-  ModelPlan plan = BuildModelPlan(allNodes, signatureInputs, signatureOutputs);
+  ModelPlan plan = selected_plan ? *selected_plan : BuildModelPlan(allNodes, signatureInputs, signatureOutputs);
+  if (options.separate_residual_tasks) {
+    if (!options.attention.empty())
+      throw std::invalid_argument("separate residual stages require attention indices from the expanded plan");
+    SeparateResidualTasks(plan);
+  }
   if (!options.gemms.empty() && options.gemms.size() != plan.gemms.size())
     throw std::invalid_argument(
         "runtime variant must provide exactly one entry per model GEMM");
@@ -766,6 +771,20 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
     *summary = {graph.nodes.size(), edge, plan.stages.size(), guards.size(),
                 symbolicWindows, fallbackWindows, bridge.unsupported};
   return mlir::OwningOpRef<mlir::ModuleOp>(module);
+}
+
+mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
+    std::string const& path,mlir::MLIRContext& context,
+    ImportSummary* summary,ImportOptions const& options) const {
+  return ImportBridgePlan(ReadExportBridge(path),nullptr,context,summary,options);
+}
+
+mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::ImportPlan(
+    std::string const& path,ModelPlan const& plan,mlir::MLIRContext& context,
+    ImportSummary* summary,ImportOptions const& options) const {
+  if (plan.stages.empty() || plan.outputs.empty())
+    throw std::invalid_argument("explicit plan requires stages and observable outputs");
+  return ImportBridgePlan(ReadExportBridge(path),&plan,context,summary,options);
 }
 
 }  // namespace tilemega::frontend

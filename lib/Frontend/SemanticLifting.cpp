@@ -263,6 +263,21 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
                OwnershipKind::kTilePerBlock, i, layer, gemm.d);
         break;
       }
+      case PlanTaskKind::kAdd: {
+        ClosedForm n=Fixed(stage.extent);
+        auto op=Op(StageName(layer,i,"add"),OperatorKind::kPointwise,
+            {Par("m",S),Par("n",n)},
+            Space(name_of(stage.operands[2]),{Ax("m",S),Ax("n",n)}),
+            {Read(producer_of(stage.operands[0]),
+                  space_of(stage.operands[0],{Ax("m",S),Ax("n",n)}),
+                  {IndexResult::Dim("m"),IndexResult::Dim("n")}),
+             Read(producer_of(stage.operands[1]),
+                  space_of(stage.operands[1],{Ax("m",S),Ax("n",n)}),
+                  {IndexResult::Dim("m"),IndexResult::Dim("n")})});
+        record(std::move(op),OpRole::kResidualAdd,OwnershipKind::kTilePerBlock,
+               i,layer,stage.operands[2]);
+        break;
+      }
       case PlanTaskKind::kRoPE: {
         ClosedForm cols = Fixed(stage.extent * stage.width);
         model.head_dim = Fixed(stage.width);
@@ -483,7 +498,8 @@ analysis::Granularity LaunchGranularity(
     if (op.stage < 0 || static_cast<std::size_t>(op.stage) >= plan.stages.size())
       throw std::invalid_argument("lifted GEMM has no ModelPlan stage");
     PlanStage const& stage = plan.stages[op.stage];
-    if (stage.kind != PlanTaskKind::kGemm || stage.gemm >= plan.gemms.size())
+    if ((stage.kind != PlanTaskKind::kGemm && stage.kind != PlanTaskKind::kAdd) ||
+        stage.gemm >= plan.gemms.size())
       throw std::invalid_argument("lifted projection does not name a ModelPlan GEMM");
     return gemms.empty() ? GemmGranularity{} : gemms[stage.gemm];
   };

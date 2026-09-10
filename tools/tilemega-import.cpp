@@ -12,15 +12,17 @@
 
 int main(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
-  if (argc != 2) {
-    std::cerr << "usage: tilemega-import STABLE_EXPORT.json\n";
+  if (argc != 2 && !(argc==3 && std::string(argv[2])=="--separate-residual-tasks")) {
+    std::cerr << "usage: tilemega-import STABLE_EXPORT.json [--separate-residual-tasks]\n";
     return 2;
   }
   try {
     mlir::MLIRContext context;
     context.getOrLoadDialect<tilemega::dialect::CGDialect>();
     tilemega::frontend::ImportSummary summary;
-    auto module = tilemega::frontend::TorchExportImporter{}.Import(argv[1], context, &summary);
+    tilemega::frontend::ImportOptions options;
+    options.separate_residual_tasks=argc==3;
+    auto module = tilemega::frontend::TorchExportImporter{}.Import(argv[1], context, &summary,options);
     module->print(llvm::outs(), mlir::OpPrintingFlags().enableDebugInfo(false));
     llvm::outs() << "\n";
     llvm::errs() << "IMPORT_SUMMARY tasks=" << summary.task_spaces

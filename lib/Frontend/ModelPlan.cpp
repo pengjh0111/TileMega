@@ -413,6 +413,38 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   return std::move(builder.plan);
 }
 
+void SeparateResidualTasks(ModelPlan& plan) {
+  std::vector<PlanStage> stages;
+  for (auto stage:plan.stages) {
+    if (stage.kind!=PlanTaskKind::kGemm || plan.gemms.at(stage.gemm).beta==0.0f) {
+      stages.push_back(stage);
+      continue;
+    }
+    auto& gemm=plan.gemms.at(stage.gemm);
+    if (gemm.beta!=1.0f)
+      throw std::invalid_argument("explicit residual task requires unit residual scaling");
+    auto output=gemm.d,residual=gemm.c;
+    auto intermediate=plan.buffers.at(output);
+    intermediate.name+=".gemm_product";
+    intermediate.source=PlanBuffer::Source::kZero;
+    intermediate.file.clear();
+    gemm.d=plan.buffers.size();
+    plan.buffers.push_back(std::move(intermediate));
+    gemm.c=gemm.d;
+    gemm.beta=0.0f;
+    stages.push_back(stage);
+    stage.kind=PlanTaskKind::kAdd;
+    stage.extent=gemm.n;
+    stage.width=gemm.n;
+    stage.operands.fill(std::numeric_limits<std::uint32_t>::max());
+    stage.operands[0]=gemm.d;
+    stage.operands[1]=residual;
+    stage.operands[2]=output;
+    stages.push_back(stage);
+  }
+  plan.stages=std::move(stages);
+}
+
 std::vector<int> FormSemanticStages(std::vector<FxNodeRecord> const& tasks,
                                     ModelPlan const& plan) {
   std::vector<int> result;

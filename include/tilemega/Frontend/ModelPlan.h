@@ -53,6 +53,7 @@ enum class PlanTaskKind {
   kKVAppend,
   kElementwise,
   kAttention,
+  kAdd,
 };
 
 struct PlanStage {
@@ -86,6 +87,7 @@ struct ModelPlan {
 ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                          std::vector<SignatureInput> const& inputs,
                          std::vector<std::string> const& outputs);
+void SeparateResidualTasks(ModelPlan& plan);
 
 /// Assign every call_function to the first semantic stage whose representative
 /// is at or after it. Representatives come from structural FX matches, not a
