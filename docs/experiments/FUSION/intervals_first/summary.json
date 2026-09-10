@@ -1,0 +1,50 @@
+[
+  {
+    "model": "gqa2",
+    "seq": 4,
+    "mode": "events",
+    "rows": 4
+  },
+  {
+    "model": "gqa2",
+    "seq": 4,
+    "mode": "dp",
+    "rows": 4
+  },
+  {
+    "model": "gqa2",
+    "seq": 128,
+    "mode": "events",
+    "rows": 4
+  },
+  {
+    "model": "gqa2",
+    "seq": 128,
+    "mode": "dp",
+    "rows": 4
+  },
+  {
+    "model": "mha4",
+    "seq": 4,
+    "mode": "events",
+    "rows": 8
+  },
+  {
+    "model": "mha4",
+    "seq": 4,
+    "mode": "dp",
+    "rows": 16
+  },
+  {
+    "model": "mha4",
+    "seq": 128,
+    "mode": "events",
+    "rows": 8
+  },
+  {
+    "model": "mha4",
+    "seq": 128,
+    "mode": "dp",
+    "rows": 16
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-fusion-dp",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+    "/root/TileMega/configs/targets/sm_89.json",
+    "/root/TileMega/docs/experiments/OCCUPANCY/raw/ptxas/gqa2_occ1_full.build",
+    "4",
+    "3"
+  ],
+  "sha256": {
+    "build-portable/tools/tilemega-fusion-dp": "179522fc5e54eae5594566517315cdec1b15fe35a620f9ffaf3fbd74ef96b0cd",
+    "docs/experiments/SEQSCAN/raw/export/gqa2.json": "cb0cc9afb4776cbdc201c839a4b0be7e3dde14e2938f38c6f9c7449fee273add",
+    "configs/targets/sm_89.json": "648e2f74975d3ac406b3c74f3b44009292cf0b95d4de5b4f506df631f7874069",
+    "docs/experiments/OCCUPANCY/raw/ptxas/gqa2_occ1_full.build": "80ba05abda1c167c4e3025195c03b2e6b8d65b5362c3bc7ddec7cd9ff7f7871a"
+  }
+}

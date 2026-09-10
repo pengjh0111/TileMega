@@ -1,0 +1,1 @@
+PASS CPU fixed-implementation fusion intervals and event projection; GPU not verified

@@ -1,0 +1,10 @@
+RUNTIME_FUSION_PRICE producer=l0.s05.rope consumer=l0.s06.append separate_ns=810.805 fused_ns=853.041 recompute_ns=73017.8 runtime_tasks=512
+RUNTIME_FUSION_PRICE producer=l0.s05.rope consumer=l0.s06.append separate_ns=810.805 fused_ns=853.041 recompute_ns=73017.8 runtime_tasks=512
+RUNTIME_FUSION_PRICE producer=l1.s20.rope consumer=l1.s21.append separate_ns=810.805 fused_ns=853.041 recompute_ns=73017.8 runtime_tasks=512
+RUNTIME_FUSION_PRICE producer=l1.s20.rope consumer=l1.s21.append separate_ns=810.805 fused_ns=853.041 recompute_ns=73017.8 runtime_tasks=512
+RUNTIME_FUSION_PRICE producer=l2.s35.rope consumer=l2.s36.append separate_ns=810.805 fused_ns=853.041 recompute_ns=73017.8 runtime_tasks=512
+RUNTIME_FUSION_PRICE producer=l2.s35.rope consumer=l2.s36.append separate_ns=810.805 fused_ns=853.041 recompute_ns=73017.8 runtime_tasks=512
+RUNTIME_FUSION_PRICE producer=l3.s50.rope consumer=l3.s51.append separate_ns=810.805 fused_ns=853.041 recompute_ns=73017.8 runtime_tasks=512
+RUNTIME_FUSION_PRICE producer=l3.s50.rope consumer=l3.s51.append separate_ns=810.805 fused_ns=853.041 recompute_ns=73017.8 runtime_tasks=512
+FUSION_EVENTS cases=8 remaining=0 gpu_verified=0
+ISL_CONTEXT remaining=0

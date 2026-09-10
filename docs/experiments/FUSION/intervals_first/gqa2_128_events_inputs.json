@@ -1,0 +1,14 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-fusion-events",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+    "/root/TileMega/configs/targets/sm_89.json",
+    "128",
+    "3"
+  ],
+  "sha256": {
+    "build-portable/tools/tilemega-fusion-events": "6b08462c4543c577e8d6597a1882f3c1f1741f4900579d253fcf380f5044eba5",
+    "docs/experiments/SEQSCAN/raw/export/gqa2.json": "cb0cc9afb4776cbdc201c839a4b0be7e3dde14e2938f38c6f9c7449fee273add",
+    "configs/targets/sm_89.json": "648e2f74975d3ac406b3c74f3b44009292cf0b95d4de5b4f506df631f7874069"
+  }
+}

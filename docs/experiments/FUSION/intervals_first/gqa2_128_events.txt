@@ -1,0 +1,6 @@
+RUNTIME_FUSION_PRICE producer=l0.s05.rope consumer=l0.s06.append separate_ns=535.195 fused_ns=442.546 recompute_ns=32816.6 runtime_tasks=256
+RUNTIME_FUSION_PRICE producer=l0.s05.rope consumer=l0.s06.append separate_ns=535.195 fused_ns=442.546 recompute_ns=32816.6 runtime_tasks=256
+RUNTIME_FUSION_PRICE producer=l1.s20.rope consumer=l1.s21.append separate_ns=535.195 fused_ns=442.546 recompute_ns=32816.6 runtime_tasks=256
+RUNTIME_FUSION_PRICE producer=l1.s20.rope consumer=l1.s21.append separate_ns=535.195 fused_ns=442.546 recompute_ns=32816.6 runtime_tasks=256
+FUSION_EVENTS cases=4 remaining=0 gpu_verified=0
+ISL_CONTEXT remaining=0
