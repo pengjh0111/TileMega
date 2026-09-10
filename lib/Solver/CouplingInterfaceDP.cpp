@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/ChainDP.h>
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Solver/AttentionWork.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <algorithm>
 #include <chrono>
@@ -64,7 +65,8 @@ ChainDpSolution ChainDP::SolveCouplingInterfaces(ModelDescription const& model,
     return total;
   };
   std::vector<int> ctas;
-  for (auto const& candidate:candidates_) ctas.push_back(CtasPerSm(candidate.smem_bytes,candidate.registers));
+  for (auto const& candidate:candidates_)
+    ctas.push_back(CtasPerSm(std::max(candidate.smem_bytes,model.NonGemmSharedBytes()),candidate.registers));
   for (int r=1;r<=options.max_ctas_per_sm;++r) {
     std::vector<int> admitted;
     for (int c=0;c<int(candidates_.size());++c) if (ctas[c]>=r) admitted.push_back(c);
@@ -93,7 +95,8 @@ ChainDpSolution ChainDP::SolveCouplingInterfaces(ModelDescription const& model,
     double barrier=cost_->BarrierNs(residency),fixed=0;
     for (auto const& stage:model.stages) if (stage.kind!=StageKind::kGemm)
       fixed+=(cost_->options().unified_task_cost ? cost_->TaskStageNs(model,int(&stage-model.stages.data()),
-          candidates_.front().config,residency) : cost_->NonGemmStageNs(stage,model.dims,residency))+barrier;
+          candidates_.front().config,residency) : cost_->NonGemmStageNs(stage,model.dims,residency))+
+          model.RuntimeStages(int(&stage-model.stages.data()))*barrier;
     std::vector<int> empty(layers,0);
     for (auto& f:factors) if (f.variables.empty()) fixed+=price(f,empty);
     std::vector<std::vector<double>> unary(layers,std::vector<double>(candidates_.size()));
@@ -146,6 +149,8 @@ ChainDpSolution ChainDP::SolveCouplingInterfaces(ModelDescription const& model,
       for (auto const& [key,state]:prev) {
         if (!state.exact || !(state.ns<best_total)) continue;
         ChainDpSolution solution; solution.feasible=true; solution.residency=residency;
+        if (model.attention_plan) solution.attention=model.attention_plan->choices;
+        solution.max_smem_bytes=model.NonGemmSharedBytes();
         solution.configs.resize(model.gemms.size());
         for (int i=0;i<layers;++i) {
           auto const& c=candidates_[state.choice[i]];

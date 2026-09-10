@@ -15,6 +15,7 @@
 #include <tilemega/Analysis/CouplingRelation.h>
 #include <tilemega/Analysis/Semantics.h>
 #include <map>
+#include <memory>
 #include <set>
 #include <tilemega/Codegen/RuntimePlan.h>
 #include <optional>
@@ -29,6 +30,7 @@
 namespace mlir { class ModuleOp; }
 
 namespace tilemega::solver {
+struct AttentionCostPlan;
 
 /// The symbolic dimensions, bound at launch (ModelRuntime.h `ModelDims`).
 struct ModelDims {
@@ -110,6 +112,7 @@ struct ModelDescription {
   std::string name;
   ScalarType dtype = ScalarType::kF32;
   ModelDims dims;
+  std::shared_ptr<AttentionCostPlan const> attention_plan;
   std::vector<GemmOp> gemms;
   std::vector<ModelStage> stages;
   // Empty on archived generated inputs. Access-derived pricing requires this
@@ -140,6 +143,8 @@ struct ModelDescription {
   /// Bytes of parameter and activation storage the model keeps live, which is
   /// what the L2 must hold for the weight stream to stay resident (§2.2(e)).
   double LiveFootprintBytes() const;
+  int RuntimeStages(int stage) const;
+  int NonGemmSharedBytes() const;
 };
 
 }  // namespace tilemega::solver

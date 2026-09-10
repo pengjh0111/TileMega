@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/ModelDescription.h>
+#include <tilemega/Solver/AttentionWork.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/SemanticCodec.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
@@ -250,6 +251,9 @@ ModelDescription ModelDescription::FromCouplingGraph(
           model.metric_bindings.Bind(item.getName().str(), value.getInt());
   if (!model.dims.IsSymbolic() && !model.dims.total)
     model.dims.total = model.dims.seq + model.dims.past;
+  if (module->hasAttr("tilemega.attention_runtime"))
+    ApplyAttentionCostPlan(model,codegen::ReadAttentionRuntime(module),
+        model.dtype==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads);
   return model;
 }
 
@@ -389,7 +393,17 @@ double ModelDescription::LiveFootprintBytes() const {
     bytes += element_bytes * dims.total * std::max(stage.extent, 1) *
              std::max(stage.width, 1);
   }
+  if (attention_plan) bytes+=double(attention_plan->workspace_bytes.Eval(MetricBindings()));
   return bytes;
+}
+
+int ModelDescription::RuntimeStages(int stage) const {
+  return attention_plan && attention_plan->stages.count(stage)
+      ? static_cast<int>(codegen::kAttentionExpandedPhases.size()) : 1;
+}
+
+int ModelDescription::NonGemmSharedBytes() const {
+  return attention_plan ? attention_plan->shared_bytes : 0;
 }
 
 }  // namespace tilemega::solver

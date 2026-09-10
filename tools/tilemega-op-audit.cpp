@@ -40,7 +40,8 @@ int main() try {
               << " derivation=" << d.derivation << '\n';
   }
   for (char const* required : {"gemm","attention","rmsnorm","rope","silu","mul",
-        "add","swiglu","kv_append","sum","softmax","layernorm","gelu_tanh","moe_router"})
+        "add","swiglu","kv_append","sum","softmax","layernorm","gelu_tanh","moe_router",
+        "attention_scores","attention_normalize","attention_mac","attention_sum"})
     if (!names.count(required)) throw std::runtime_error(std::string("missing required signature: ")+required);
   auto attention = InstantiateArithmetic("attention",inputs);
   auto mixed=ComposeArithmetic({{InstantiateArithmetic("gemm",inputs),QuasiPolynomial::Constant(128)},

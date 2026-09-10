@@ -142,6 +142,7 @@ add_library(tilemega STATIC
   lib/Solver/ChainDP.cpp
   lib/Solver/CouplingInterfaceDP.cpp
   lib/Solver/ScalarTaskWork.cpp
+  lib/Solver/AttentionWork.cpp
   lib/Solver/ListScheduler.cpp
   lib/Solver/CostModel.cpp
   lib/Solver/FusionResources.cpp
@@ -300,6 +301,15 @@ set_target_properties(tilemega-op-audit PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 add_executable(tilemega-runtime-projection tools/tilemega-runtime-projection.cpp)
 add_executable(tilemega-fusion-probe tools/tilemega-fusion-probe.cpp)
+add_executable(tilemega-attention-work tools/tilemega-attention-work.cpp)
+add_executable(tilemega-attention-plan-price tools/tilemega-attention-plan-price.cpp)
+add_executable(tilemega-attention-dp tools/tilemega-attention-dp.cpp)
+target_link_libraries(tilemega-attention-dp PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-attention-dp PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+target_link_libraries(tilemega-attention-plan-price PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-attention-plan-price PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+target_link_libraries(tilemega-attention-work PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-attention-work PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 target_link_libraries(tilemega-fusion-probe PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-fusion-probe PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 target_link_libraries(tilemega-runtime-projection PRIVATE TileMega::tilemega)
@@ -449,6 +459,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(lane_intersections_test test/unit/lane_intersections_test.cpp)
   target_link_libraries(lane_intersections_test PRIVATE TileMega::tilemega)
   add_test(NAME lane_intersections COMMAND lane_intersections_test)
+  add_test(NAME attention_work COMMAND tilemega-attention-work "${CMAKE_CURRENT_SOURCE_DIR}")
   target_link_libraries(chain_dp_test PRIVATE TileMega::tilemega)
   target_compile_definitions(chain_dp_test PRIVATE
     TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

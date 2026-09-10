@@ -55,6 +55,7 @@
 namespace tilemega::solver {
 
 struct DerivedTaskInput;
+struct AttentionPhaseWork;
 
 /// Why a lane of `ResourceVector` carries zero.  A zero lane is never bare:
 /// it is either live, or the target has no such pipe, or the pipe exists and
@@ -200,6 +201,8 @@ class CostModel {
   double TaskCostNs(DerivedTaskInput const& input, BackendTraits const& traits,
                     Residency residency, ModelDescription const& model,
                     int chunks) const;
+  double TaskCostNs(AttentionPhaseWork const& input, BackendTraits const& traits,
+                    Residency residency, ModelDescription const& model) const;
   // One task at its actual coordinates and wave occupancy; fusion replication
   // must not multiply the complete stage's wave sum by fanout.
   double TaskInstanceNs(DerivedTaskInput const& input, BackendTraits const& traits,
@@ -239,6 +242,9 @@ class CostModel {
   }
 
  private:
+  double ScalarInstanceNs(double bytes,double output_bytes,double flops,double transc,
+                          double occupancy,double miss,bool shared_staged,
+                          int depth,int barriers) const;
   double TaskCostImpl(DerivedTaskInput const& input, BackendTraits const& traits,
                      Residency residency, ModelDescription const& model, int chunks,
                      analysis::ParamBinding const* coordinates,

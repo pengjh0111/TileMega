@@ -40,5 +40,6 @@ struct RuntimePlan {
 };
 
 RuntimePlan ReadRuntimePlan(mlir::ModuleOp module);
+std::vector<AttentionRuntimeRecord> ReadAttentionRuntime(mlir::ModuleOp module);
 
 }  // namespace tilemega::codegen

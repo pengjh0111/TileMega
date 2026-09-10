@@ -35,6 +35,13 @@ struct DpCandidate {
   int smem_bytes = 0;
 };
 
+// A compiled attention plan owns whole-kernel register evidence. Candidate
+// GEMM shapes must be compiled with that plan, not borrowed from another arm.
+struct AttentionDpCandidate {
+  std::vector<codegen::AttentionRuntimeRecord> choices;
+  std::vector<DpCandidate> gemms;
+};
+
 /// How much of the state each operator is allowed to choose for itself.
 enum class DpMode {
   /// One configuration for the whole model -- the oracle's search space, and
@@ -92,6 +99,7 @@ struct ChainDpSolution {
   CostBreakdown cost;
   int max_smem_bytes = 0;
   int max_registers = 0;
+  std::vector<codegen::AttentionRuntimeRecord> attention;
 };
 
 /// Design (b): an explicitly bounded integer parameter domain. This is NOT
@@ -122,6 +130,9 @@ class ChainDP {
 
   ChainDpSolution Solve(ModelDescription const& model, ChainDpOptions options,
                         ChainDpStats* stats = nullptr) const;
+  ChainDpSolution SolveAttentionPlans(ModelDescription const& model,
+      std::vector<AttentionDpCandidate> const& plans,ChainDpOptions options,
+      std::vector<ChainDpSolution>* alternatives=nullptr) const;
 
   FiniteDpSolution SolveFiniteParameter(ModelDescription const& symbolic,
                                        FiniteParameterDomain const& domain,

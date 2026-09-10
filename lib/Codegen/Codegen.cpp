@@ -616,6 +616,10 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
 
 }  // namespace
 
+std::vector<AttentionRuntimeRecord> ReadAttentionRuntime(mlir::ModuleOp module) {
+  return readRuntimeAttention(module);
+}
+
 RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
   analysis::IslReferenceAudit audit(__func__);
   auto analysis = AnalyzeVariantModule(module);

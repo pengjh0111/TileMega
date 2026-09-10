@@ -2,6 +2,7 @@
 
 #include <tilemega/Solver/ChainDP.h>
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Solver/AttentionWork.h>
 
 #include <algorithm>
 #include <array>
@@ -23,6 +24,31 @@ using ShapeKey = std::array<int, 4>;
 
 ChainDP::ChainDP(CostModel const& model, std::vector<DpCandidate> candidates)
     : cost_(&model), candidates_(std::move(candidates)) {}
+
+ChainDpSolution ChainDP::SolveAttentionPlans(ModelDescription const& model,
+    std::vector<AttentionDpCandidate> const& plans,ChainDpOptions options,
+    std::vector<ChainDpSolution>* alternatives) const {
+  if (plans.empty()) throw std::invalid_argument("attention DP candidate domain is empty");
+  if (cost_->options().l2_events)
+    throw std::invalid_argument("attention L2 DP needs candidate-specific event transitions");
+  ChainDpSolution best;
+  if (alternatives) alternatives->clear();
+  int threads=model.dtype==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
+  for (auto const& plan:plans) {
+    if (plan.gemms.empty()) throw std::invalid_argument("attention DP lacks compiled GEMM resources");
+    for (auto const& candidate:plan.gemms)
+      if (candidate.registers<=0 || candidate.smem_bytes<=0)
+        throw std::invalid_argument("attention DP requires measured candidate register/shared resources");
+    auto bound=model;
+    ApplyAttentionCostPlan(bound,plan.choices,threads);
+    ChainDP inner(*cost_,plan.gemms);
+    auto chosen=inner.Solve(bound,options);
+    chosen.attention=plan.choices;
+    if (alternatives) alternatives->push_back(chosen);
+    if (chosen.feasible && (!best.feasible || chosen.cost.total_ns<best.cost.total_ns)) best=std::move(chosen);
+  }
+  return best;
+}
 
 int ChainDP::CtasPerSm(int smem_bytes, int registers) const {
   // F-40, verified on 1075 of the oracle's 1077 measured shapes.
@@ -71,7 +97,7 @@ double ChainDP::BetweenNs(ModelDescription const& model,
     ns += (cost_->options().unified_task_cost
                ? cost_->TaskStageNs(model,i,candidates_.empty() ? GemmConfig{} : candidates_.front().config,residency)
                : cost_->NonGemmStageNs(model.stages[i], model.dims, residency)) +
-          barrier;
+          model.RuntimeStages(i)*barrier;
   }
   return ns;
 }
@@ -162,6 +188,10 @@ ChainDpSolution ChainDP::Solve(ModelDescription const& model,
                                ChainDpStats* stats) const {
   if (cost_->options().l2_events)
     throw std::invalid_argument("L2 DP requires candidate-specific runtime metrics and transitions; not implemented");
+  if (model.NonGemmSharedBytes()>cost_->target().res.max_dynamic_smem_per_cta) {
+    if (stats) *stats={};
+    return {};
+  }
   if (cost_->options().cg_interface) return SolveCouplingInterfaces(model,options,stats);
   auto const started = std::chrono::steady_clock::now();
   std::vector<int> const gemm_stages = GemmStages(model);
@@ -181,7 +211,7 @@ ChainDpSolution ChainDP::Solve(ModelDescription const& model,
 
   std::vector<int> ctas(candidates_.size());
   for (std::size_t c = 0; c < candidates_.size(); ++c) {
-    ctas[c] = CtasPerSm(candidates_[c].smem_bytes, candidates_[c].registers);
+    ctas[c] = CtasPerSm(std::max(candidates_[c].smem_bytes,model.NonGemmSharedBytes()), candidates_[c].registers);
   }
 
   for (int r = 1; r <= options.max_ctas_per_sm; ++r) {
@@ -463,8 +493,10 @@ ChainDpSolution ChainDP::Solve(ModelDescription const& model,
     if (choice.front() < 0 || total >= best_total) continue;
     ChainDpSolution candidate;
     candidate.feasible = true;
+    if (model.attention_plan) candidate.attention=model.attention_plan->choices;
     candidate.residency = residency;
     candidate.configs.assign(model.gemms.size(), GemmConfig{});
+    candidate.max_smem_bytes=model.NonGemmSharedBytes();
     for (int i = 0; i < layers; ++i) {
       DpCandidate const& picked = candidates_[admissible[choice[i]]];
       candidate.configs[model.stages[gemm_stages[i]].gemm] = picked.config;
