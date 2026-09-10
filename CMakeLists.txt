@@ -140,6 +140,7 @@ add_library(tilemega STATIC
   lib/Solver/ListScheduler.cpp
   lib/Solver/CostModel.cpp
   lib/Solver/ModelDescription.cpp
+  lib/Solver/TaskModel.cpp
   lib/Solver/RuntimeProjection.cpp
   lib/Analysis/OpArithmetic.cpp
   lib/Analysis/TaskWork.cpp
