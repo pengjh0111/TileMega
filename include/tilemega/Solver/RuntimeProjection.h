@@ -45,9 +45,16 @@ struct FusedRuntimeProjection {
   RuntimeProjection projection;
   analysis::CouplingRelation phase_tasks; ///< new [stage,task] -> old [stage,task]
 };
+struct WrittenFusionProjection {
+  RuntimeProjection projection;
+  std::vector<analysis::CouplingRelation> consumer_to_producer;
+  std::vector<std::pair<int,int>> original_stages;
+};
+WrittenFusionProjection ProjectWrittenFusionQueues(mlir::ModuleOp module,
+    ModelDims dims,RuntimeProjectionOptions options);
 FusedRuntimeProjection FuseProjectedQueues(RuntimeProjection const& original,
     int producer,int consumer,analysis::CouplingRelation const& consumer_to_producer,
-    RuntimeProjectionOptions options);
+    RuntimeProjectionOptions options,bool optional_producer=false);
 struct ProjectedPlacement {
   std::vector<std::vector<long>> task_ids;
   TaskPlacement placement;
@@ -63,6 +70,8 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
                                       codegen::RuntimePlan const& plan,
                                       RuntimeProjectionOptions options);
 analysis::CouplingRelation ProjectScalarTaskOwnership(ModelTaskSemantics const& semantic,
+    analysis::OperatorNode const& task,ModelStage const& stage,int threads);
+analysis::CouplingRelation ProjectTaskOwnership(ModelTaskSemantics const& semantic,
     analysis::OperatorNode const& task,ModelStage const& stage,int threads);
 void AttachRuntimeEventMetrics(ModelDescription& model, codegen::RuntimePlan const& plan,
                                RuntimeProjectionOptions options);

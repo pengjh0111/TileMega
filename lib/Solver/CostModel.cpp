@@ -700,6 +700,8 @@ double CostModel::NonGemmStageNs(ModelStage const& stage, ModelDims const& dims,
       sfu_ops = kSimtThreads;
       depth = 2;
       break;
+    case StageKind::kAdd:
+      throw std::invalid_argument("explicit add tasks require the unified task cost path");
     case StageKind::kAttention:
       ctas = dims.seq * extent;
       bytes = (2.0 * dims.total * width + 2.0 * width) * 4.0;
@@ -867,6 +869,8 @@ double CostModel::InterfaceNs(ModelDescription const& model,
 CostBreakdown CostModel::Evaluate(ModelDescription const& model,
                                   std::vector<GemmConfig> const& configs,
                                   Residency residency) const {
+  if (model.fusion_phase_context)
+    throw std::invalid_argument("fusion phase context is geometry, not an executable priced model");
   if (model.dims.IsSymbolic())
     throw std::invalid_argument("bind model dimensions before FP64 evaluation");
   if (configs.size() != model.gemms.size()) {
@@ -880,7 +884,8 @@ CostBreakdown CostModel::Evaluate(ModelDescription const& model,
     out.stage_count+=model.RuntimeStages(i);
     if (stage.kind != StageKind::kGemm) {
       if (options_.unified_task_cost)
-        out.task_ns_sum+=TaskStageNs(model,int(i),configs.empty() ? GemmConfig{} : configs.front(),residency);
+        out.task_ns_sum+=TaskStageNs(model,int(i),stage.gemm>=0 ? configs.at(stage.gemm) :
+            (configs.empty() ? GemmConfig{} : configs.front()),residency);
       else out.other_ns += NonGemmStageNs(stage, model.dims, residency);
       continue;
     }

@@ -83,6 +83,7 @@ enum class StageKind {
   kKVAppend,
   kElementwise,
   kAttention,
+  kAdd = 10,
 };
 
 struct ModelStage {
@@ -128,6 +129,7 @@ struct ModelDescription {
   analysis::ParamBinding metric_bindings;
   std::string seq_metric_parameter, past_metric_parameter;
   std::vector<std::pair<std::string, std::string>> metric_aliases;
+  bool fusion_phase_context = false;
 
   /// Parse the `kGemms` and `kStages` tables out of a generated .cu.  Throws
   /// std::runtime_error when either table is missing or malformed -- a silent
@@ -137,8 +139,18 @@ struct ModelDescription {
                                             std::string name);
   static ModelDescription FromCouplingGraph(mlir::ModuleOp module,
                                             ModelDims dims, std::string name);
+  /// Original phase geometry for runtime ownership projection, not a priced
+  /// fused model. Evaluate rejects this context until replacement is applied.
+  static ModelDescription FromFusionPhases(mlir::ModuleOp module,
+                                            ModelDims dims, std::string name);
   ModelDescription SubstituteParams(analysis::ParamBinding const& bindings) const;
   analysis::ParamBinding MetricBindings(analysis::ParamBinding const& bindings = {}) const;
+
+ private:
+  static ModelDescription ReadCouplingGraph(mlir::ModuleOp module,
+      ModelDims dims, std::string name, bool phase_context);
+
+ public:
 
   /// Bytes of parameter and activation storage the model keeps live, which is
   /// what the L2 must hold for the weight stream to stay resident (§2.2(e)).

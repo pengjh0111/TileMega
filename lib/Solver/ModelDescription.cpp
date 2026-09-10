@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Solver/AttentionWork.h>
+#include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/SemanticCodec.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
@@ -94,6 +95,7 @@ StageKind ParseKind(std::string const& text) {
   if (text == "TaskKind::kRoPE") return StageKind::kRoPE;
   if (text == "TaskKind::kKVAppend") return StageKind::kKVAppend;
   if (text == "TaskKind::kElementwise") return StageKind::kElementwise;
+  if (text == "TaskKind::kAdd") return StageKind::kAdd;
   if (text == "TaskKind::kAttention") return StageKind::kAttention;
   throw std::runtime_error("unmodelled stage kind: " + text);
 }
@@ -139,13 +141,21 @@ ModelDims ModelDims::Symbolic(std::string seq_name, int concrete_past) {
 
 ModelDescription ModelDescription::FromCouplingGraph(
     mlir::ModuleOp module, ModelDims dims, std::string name) {
+  return ReadCouplingGraph(module,std::move(dims),std::move(name),false);
+}
+ModelDescription ModelDescription::FromFusionPhases(
+    mlir::ModuleOp module, ModelDims dims, std::string name) {
+  return ReadCouplingGraph(module,std::move(dims),std::move(name),true);
+}
+ModelDescription ModelDescription::ReadCouplingGraph(
+    mlir::ModuleOp module, ModelDims dims, std::string name, bool phase_context) {
   analysis::IslReferenceAudit audit(__func__);
 #if !TILEMEGA_PARAMETRIC_INPUT
   throw std::runtime_error("parametric CG input disabled at compile time");
 #endif
   if (!module || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument("cost input requires a verified CG module");
-  if (!module.getOps<dialect::FusedTaskSpaceOp>().empty())
+  if (!phase_context && !module.getOps<dialect::FusedTaskSpaceOp>().empty())
     throw std::invalid_argument("fused L-task cost input requires phase-aware model reconstruction");
   auto plan = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   if (!plan) throw std::invalid_argument("CG has no semantic model plan");
@@ -162,6 +172,7 @@ ModelDescription ModelDescription::FromCouplingGraph(
     return value;
   };
   ModelDescription model;
+  model.fusion_phase_context = phase_context;
   model.name = std::move(name); model.dims = std::move(dims);
   auto roles = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.dimension_roles");
   if (!roles || !roles.getAs<mlir::StringAttr>("seq") || !roles.getAs<mlir::StringAttr>("past"))
@@ -202,7 +213,8 @@ ModelDescription ModelDescription::FromCouplingGraph(
     if (!kind || !operands) throw std::invalid_argument("incomplete CG stage plan");
     ModelStage stage;
     stage.kind = ParseKind("TaskKind::" + kind.getValue().str());
-    stage.gemm = stage.kind == StageKind::kGemm ? integer(dict, "gemm") : -1;
+    stage.gemm = stage.kind == StageKind::kGemm || stage.kind == StageKind::kAdd
+        ? integer(dict, "gemm") : -1;
     stage.extent = integer(dict, "extent"); stage.width = integer(dict, "width");
     stage.group = integer(dict, "group");
     for (auto operand : operands.asArrayRef())
@@ -233,7 +245,16 @@ ModelDescription ModelDescription::FromCouplingGraph(
     }
   }
   model.stage_successors.resize(model.stages.size());
+  if (phase_context) {
+    auto fused=ReadFusedTaskInputs(module);
+    if (fused.empty()) throw std::invalid_argument("fusion phase context requires a replacement task");
+    for (auto const& input:fused)
+      model.task_semantics.insert(model.task_semantics.end(),input.semantics.begin(),input.semantics.end());
+    std::stable_sort(model.task_semantics.begin(),model.task_semantics.end(),
+        [](auto const& a,auto const& b) { return a.stage<b.stage; });
+  }
   for (auto edge : module.getOps<dialect::CouplingOp>()) {
+    if (phase_context) continue;
     int const producer = task_stage.at(edge.getSrc().str());
     int const consumer = task_stage.at(edge.getDst().str());
     model.coupling_metrics.edges.push_back({producer, consumer,
@@ -338,7 +359,7 @@ ModelDescription ModelDescription::FromGeneratedCuda(std::string const& path,
     if (fields.size() < 5) throw std::runtime_error("short StageDesc in " + path);
     ModelStage stage;
     stage.kind = ParseKind(fields[0]);
-    stage.gemm = stage.kind == StageKind::kGemm ? AsInt(fields[1], "stage.gemm")
+    stage.gemm = stage.kind == StageKind::kGemm || stage.kind == StageKind::kAdd ? AsInt(fields[1], "stage.gemm")
                                                 : -1;
     stage.extent = AsInt(fields[2], "stage.extent");
     stage.width = AsInt(fields[3], "stage.width");
@@ -392,6 +413,10 @@ double ModelDescription::LiveFootprintBytes() const {
   }
   for (auto const& stage : stages) {
     if (stage.kind == StageKind::kGemm) continue;
+    if (stage.kind == StageKind::kAdd) {
+      bytes += element_bytes * dims.seq * stage.extent * 3;
+      continue;
+    }
     bytes += element_bytes * dims.total * std::max(stage.extent, 1) *
              std::max(stage.width, 1);
   }

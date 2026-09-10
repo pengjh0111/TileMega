@@ -74,9 +74,16 @@ ProjectedPlacement BalanceProjectedQueues(RuntimeProjection const& projection,
 
 analysis::CouplingRelation ProjectScalarTaskOwnership(ModelTaskSemantics const& semantic,
     analysis::OperatorNode const& task,ModelStage const& stage,int threads) {
-  analysis::IslReferenceAudit audit(__func__);
-  if (threads<=0 || task.output.axes.size()!=2 || stage.kind==StageKind::kGemm)
+  if (stage.kind==StageKind::kGemm || task.output.axes.size()!=2)
     throw std::invalid_argument("unsupported scalar ownership domain");
+  return ProjectTaskOwnership(semantic,task,stage,threads);
+}
+analysis::CouplingRelation ProjectTaskOwnership(ModelTaskSemantics const& semantic,
+    analysis::OperatorNode const& task,ModelStage const& stage,int threads) {
+  analysis::IslReferenceAudit audit(__func__);
+  if (threads<=0 || task.output.axes.empty() ||
+      (semantic.element_chunk && task.output.axes.size()!=2))
+    throw std::invalid_argument("unsupported runtime ownership domain");
   std::set<std::string> parameters;
   std::vector<std::string> bounds;
   std::string flat="0";
@@ -219,13 +226,14 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
     }
     std::string count;
     switch (stage.kind) {
+      case StageKind::kAdd:
       case StageKind::kGemm: {
         if (stage.gemm < 0 || static_cast<std::size_t>(stage.gemm) >= plan.gemms.size())
           throw std::invalid_argument("stage GEMM index outside projection plan");
         auto const& g = plan.gemms[stage.gemm];
         int ntiles = (model.gemms[stage.gemm].n+g.tile_n-1)/g.tile_n;
         tiles[i] = Mul(Ceil(seq,g.tile_m),ntiles);
-        stage_chunks[i] = chunks[stage.gemm];
+        stage_chunks[i] = stage.kind==StageKind::kAdd ? 1 : chunks[stage.gemm];
         count = Mul(tiles[i],stage_chunks[i]);
         break;
       }

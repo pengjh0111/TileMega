@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/RuntimeProjection.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Dialect/CouplingGraph/CGOps.h>
+#include <mlir/IR/BuiltinOps.h>
 #include <stdexcept>
 
 #ifndef TILEMEGA_FUSED_RUNTIME_PROJECTION
@@ -8,9 +11,107 @@
 #endif
 
 namespace tilemega::solver {
+WrittenFusionProjection ProjectWrittenFusionQueues(mlir::ModuleOp module,
+    ModelDims dims,RuntimeProjectionOptions options) {
+  analysis::IslReferenceAudit audit(__func__);
+  auto context=ModelDescription::FromFusionPhases(module,std::move(dims),"fusion-runtime-phases");
+  auto source=codegen::ReadFusionSourcePlan(module);
+  if (context.dims.IsSymbolic() &&
+      ((!context.dims.seq_parameter.empty() && context.dims.seq_parameter!=context.seq_metric_parameter) ||
+       (!context.dims.past_parameter.empty() && context.dims.past_parameter!=context.past_metric_parameter)))
+    throw std::invalid_argument("symbolic fusion projection requires the CG dimension-role names");
+  WrittenFusionProjection result;
+  result.projection=ProjectRuntimeQueues(context,source,options);
+  auto known=context.metric_bindings;
+  if (context.dims.IsSymbolic()) {
+    auto fixed=context;
+    fixed.dims.seq_parameter.clear(); fixed.dims.past_parameter.clear();
+    fixed.dims.total=fixed.dims.seq+fixed.dims.past;
+    known=fixed.MetricBindings();
+    std::set<std::string> symbolic{"L_s"};
+    if (!context.dims.seq_parameter.empty()) {
+      symbolic.insert("S"); symbolic.insert(context.seq_metric_parameter);
+    }
+    if (!context.dims.past_parameter.empty()) {
+      symbolic.insert("P"); symbolic.insert("past"); symbolic.insert(context.past_metric_parameter);
+    }
+    for (auto const& name:symbolic) known.values.erase(name);
+    for (auto const& [alias,canonical]:context.metric_aliases) {
+      if (symbolic.count(canonical)) known.values.erase(alias);
+    }
+  } else known=context.MetricBindings();
+  for (auto const& input:ReadFusedTaskInputs(module)) {
+    auto const& p=input.semantics.at(0); auto const& c=input.semantics.at(1);
+    if (c.stage!=p.stage+1)
+      throw std::invalid_argument("runtime fusion requires adjacent distinct stages");
+    auto po=ProjectTaskOwnership(p,input.phases.at(0).task,context.stages.at(p.stage),options.threads);
+    auto co=ProjectTaskOwnership(c,input.phases.at(1).task,context.stages.at(c.stage),options.threads);
+    auto mapping=co.ApplyRange(input.phase_maps.at(0)).ApplyRange(po.Reverse()).BindParams(known);
+    int producer=-1,consumer=-1;
+    for (int stage=0;stage<int(result.projection.stages.size());++stage) {
+      if (result.projection.stages[stage].logical_stage==p.stage) producer=stage;
+      if (result.projection.stages[stage].logical_stage==c.stage) consumer=stage;
+    }
+    auto live=[&](int stage) {
+      return result.projection.tasks.IntersectRange("{ [s,t] : s="+std::to_string(stage)+" }")
+          .ApplyRange(analysis::CouplingRelation::FromIslText("{ [s,t] -> [t] }")).ImageIdentity();
+    };
+    mapping=live(consumer).ApplyRange(mapping).ApplyRange(live(producer));
+    result.projection=FuseProjectedQueues(result.projection,producer,consumer,mapping,options,true).projection;
+    result.original_stages.emplace_back(p.stage,c.stage);
+    result.consumer_to_producer.push_back(std::move(mapping));
+  }
+  // Retained scheduling provenance may overapproximate C, but must never
+  // omit a dependency in the replacement CG. Check it after ownership and
+  // stage projection; a malformed source-plan attribute must not weaken sync.
+  std::vector<GemmConfig> configs;
+  for (auto const& g:source.gemms) configs.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
+  auto graph=InstantiateModelTasks(context,configs);
+  struct Endpoint { int stage; analysis::CouplingRelation ownership; };
+  std::map<std::string,Endpoint> endpoints;
+  auto endpoint=[&](std::string const& symbol,ModelTaskSemantics const& semantic,
+                    analysis::OperatorNode const& node) {
+    int projected=-1;
+    for (int s=0;s<int(result.projection.stages.size());++s)
+      if (result.projection.stages[s].logical_stage==semantic.stage &&
+          !result.projection.stages[s].combine) projected=s;
+    if (projected<0) throw std::invalid_argument("fusion erased an externally required runtime phase");
+    endpoints.emplace(symbol,Endpoint{projected,ProjectTaskOwnership(semantic,node,
+        context.stages.at(semantic.stage),options.threads).BindParams(known)});
+  };
+  for (auto task:module.getOps<dialect::TaskSpaceOp>()) {
+    auto name=task.getOperatorName().str();
+    auto semantic=std::find_if(context.task_semantics.begin(),context.task_semantics.end(),
+        [&](auto const& entry) { return entry.op.name==name; });
+    auto const* node=graph.Find(name);
+    if (semantic==context.task_semantics.end() || !node)
+      throw std::invalid_argument("replacement CG lacks runtime phase semantics");
+    endpoint(task.getSymName().str(),*semantic,*node);
+  }
+  for (auto const& input:ReadFusedTaskInputs(module))
+    endpoint(input.name,input.semantics.at(1),input.phases.at(1).task);
+  for (auto edge:module.getOps<dialect::CouplingOp>()) {
+    auto const& p=endpoints.at(edge.getSrc().str());
+    auto const& c=endpoints.at(edge.getDst().str());
+    if (p.stage==c.stage) continue;
+    auto exact=c.ownership.ApplyRange(edge.getRelation().getMap().BindParams(known))
+        .ApplyRange(p.ownership.Reverse());
+    auto required=analysis::CouplingRelation::FromIslText(
+        "{ [s="+std::to_string(c.stage)+",t] -> [t] }").ApplyRange(exact)
+        .ApplyRange(analysis::CouplingRelation::FromIslText(
+            "{ [t] -> [s="+std::to_string(p.stage)+",t] }"));
+    auto live=result.projection.tasks.ImageIdentity();
+    required=live.ApplyRange(required).ApplyRange(live);
+    if (!required.IsSubset(result.projection.dependencies))
+      throw std::invalid_argument("fused runtime projection omits replacement CG dependency "+
+          edge.getSrc().str()+" -> "+edge.getDst().str()+": "+
+          required.Subtract(result.projection.dependencies).ToString());
+  }
+  return result;
+}
 FusedRuntimeProjection FuseProjectedQueues(RuntimeProjection const& original,
     int producer,int consumer,analysis::CouplingRelation const& coupling,
-    RuntimeProjectionOptions options) {
+    RuntimeProjectionOptions options,bool optional_producer) {
   analysis::IslReferenceAudit audit(__func__);
 #if !TILEMEGA_FUSED_RUNTIME_PROJECTION
   throw std::invalid_argument("fused runtime projection disabled");
@@ -22,6 +123,9 @@ FusedRuntimeProjection FuseProjectedQueues(RuntimeProjection const& original,
       options.grid<=0 || options.threads<=0 || options.kappa<0 ||
       options.grid!=original.options.grid || options.threads!=original.options.threads ||
       options.kappa!=original.options.kappa ||
+      options.cg_split_task_order!=original.options.cg_split_task_order ||
+      options.partition_worker_counts!=original.options.partition_worker_counts ||
+      options.split_count_periods!=original.options.split_count_periods ||
       options.force_all_dependencies!=original.options.force_all_dependencies)
     throw std::invalid_argument("fusion projection requires an adjacent pair and matching runtime options");
   if (coupling.DomainDimNames().size()!=1 || coupling.RangeDimNames().size()!=1 ||
@@ -34,7 +138,8 @@ FusedRuntimeProjection FuseProjectedQueues(RuntimeProjection const& original,
   auto p_tasks=stage_set(producer).ApplyRange(parse("{ [s,t] -> [t] }"));
   auto c_tasks=stage_set(consumer).ApplyRange(parse("{ [s,t] -> [t] }"));
   if (!equal(coupling.Image(),p_tasks.Image()) ||
-      !equal(coupling.Reverse().Image(),c_tasks.Image()))
+      !(optional_producer ? coupling.Reverse().Image().IsSubset(c_tasks.Image()) :
+                            equal(coupling.Reverse().Image(),c_tasks.Image())))
     throw std::invalid_argument("fusion runtime mapping does not cover both phase task spaces");
   auto internal=original.dependencies.IntersectDomain("{ [s,t] : s="+c+" }")
       .IntersectRange("{ [s,t] : s="+p+" }");
