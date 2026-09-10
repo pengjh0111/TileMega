@@ -18,6 +18,9 @@ struct FusionAccesses {
   CouplingRelation consumer_to_producer;
   QuasiPolynomial fanout, recompute_tasks, task_count;
   std::set<std::string> retained_intermediates;
+  // Consumer-indexed footprint that survives the phase boundary. Separate
+  // tensors cannot alias merely because their element coordinates coincide.
+  std::map<std::string, CouplingRelation> intermediate_tiles;
 };
 
 // Exact L-task composition, indexed by consumer coordinates. A multi-tile

@@ -144,6 +144,7 @@ add_library(tilemega STATIC
   lib/Solver/ScalarTaskWork.cpp
   lib/Solver/ListScheduler.cpp
   lib/Solver/CostModel.cpp
+  lib/Solver/FusionResources.cpp
   lib/Solver/CacheServiceCurve.cpp
   lib/Solver/ModelDescription.cpp
   lib/Solver/TaskModel.cpp

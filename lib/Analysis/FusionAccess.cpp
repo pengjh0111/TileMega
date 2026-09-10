@@ -27,6 +27,8 @@ FusionAccesses ComposeFusionAccesses(TaskAccesses const& producer,
   auto const& coupling = out.consumer_to_producer;
   if (!coupling.IsSingleValued())
     throw std::invalid_argument("fusion tile constraint: consumer spans multiple producer tasks");
+  for (auto const& name : internal_tensors)
+    out.intermediate_tiles.emplace(name,coupling.ApplyRange(producer.writes.at(name)));
   auto consumer_domain = consumer.writes.begin()->second.Reverse().Image();
   for (auto const& [name, write] : consumer.writes)
     consumer_domain = consumer_domain.Union(write.Reverse().Image());
