@@ -1,0 +1,29 @@
+gemm  n     k     consumer            Tr    producer            Tk    kept
+0     512   512   RoPE       @4       128   RMSNorm    @0       512   770/770
+1     512   512   RoPE       @5       128   RMSNorm    @0       512   770/770
+2     512   512   KVAppend   @7       128   RMSNorm    @0       512   770/770
+3     512   512   RMSNorm    @10      512   Attention  @8       128   770/770
+4     1024  512   Elementwise@13      1024  RMSNorm    @10      512   770/770
+5     1024  512   Elementwise@13      1024  RMSNorm    @10      512   770/770
+6     512   1024  RMSNorm    @15      512   Elementwise@13      1024  770/770
+7     512   512   RoPE       @19      128   RMSNorm    @15      512   770/770
+8     512   512   RoPE       @20      128   RMSNorm    @15      512   770/770
+9     512   512   KVAppend   @22      128   RMSNorm    @15      512   770/770
+10    512   512   RMSNorm    @25      512   Attention  @23      128   770/770
+11    1024  512   Elementwise@28      1024  RMSNorm    @25      512   770/770
+12    1024  512   Elementwise@28      1024  RMSNorm    @25      512   770/770
+13    512   1024  RMSNorm    @30      512   Elementwise@28      1024  770/770
+14    512   512   RoPE       @34      128   RMSNorm    @30      512   770/770
+15    512   512   RoPE       @35      128   RMSNorm    @30      512   770/770
+16    512   512   KVAppend   @37      128   RMSNorm    @30      512   770/770
+17    512   512   RMSNorm    @40      512   Attention  @38      128   770/770
+18    1024  512   Elementwise@43      1024  RMSNorm    @40      512   770/770
+19    1024  512   Elementwise@43      1024  RMSNorm    @40      512   770/770
+20    512   1024  RMSNorm    @45      512   Elementwise@43      1024  770/770
+21    512   512   RoPE       @49      128   RMSNorm    @45      512   770/770
+22    512   512   RoPE       @50      128   RMSNorm    @45      512   770/770
+23    512   512   KVAppend   @52      128   RMSNorm    @45      512   770/770
+24    512   512   RMSNorm    @55      512   Attention  @53      128   770/770
+25    1024  512   Elementwise@58      1024  RMSNorm    @55      512   770/770
+26    1024  512   Elementwise@58      1024  RMSNorm    @55      512   770/770
+27    512   1024  -          @-1      0     Elementwise@58      1024  770/770

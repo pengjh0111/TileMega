@@ -1,0 +1,3 @@
+ninja: Entering directory `build-portable'
+[1/2] Building CXX object CMakeFiles/tilemega-solve.dir/tools/tilemega-solve.cpp.o
+[2/2] Linking CXX executable tools/tilemega-solve

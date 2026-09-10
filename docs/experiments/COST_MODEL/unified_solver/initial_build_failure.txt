@@ -1,0 +1,84 @@
+ninja: Entering directory `build-portable'
+[1/2] Building CXX object CMakeFiles/tilemega-solve.dir/tools/tilemega-solve.cpp.o
+FAILED: CMakeFiles/tilemega-solve.dir/tools/tilemega-solve.cpp.o 
+/usr/bin/c++  -I/root/TileMega/build-portable/include -I/root/TileMega/include -I/root/TileMega/third_party/cutlass/include -I/root/TileMega/third_party/cutlass/tools/util/include -I/root/TileMega/third_party/cutlass/test -isystem /tmp/tilemega-vf-llvm-project/llvm/include -isystem /tmp/tilemega-vf-build/llvm-project/include -isystem /tmp/tilemega-vf-llvm-project/mlir/include -isystem /tmp/tilemega-vf-build/llvm-project/tools/mlir/include -isystem /usr/local/cuda/include -isystem /root/TileMega/third_party/barvinok/isl/include -isystem /root/TileMega/build-isl/include -isystem /root/TileMega/third_party/barvinok/polylib/include -isystem /root/TileMega/third_party/barvinok -isystem /root/TileMega/third_party/barvinok/barvinok -isystem /root/TileMega/build-barvinok -O3 -DNDEBUG -MD -MT CMakeFiles/tilemega-solve.dir/tools/tilemega-solve.cpp.o -MF CMakeFiles/tilemega-solve.dir/tools/tilemega-solve.cpp.o.d -o CMakeFiles/tilemega-solve.dir/tools/tilemega-solve.cpp.o -c /root/TileMega/tools/tilemega-solve.cpp
+/root/TileMega/tools/tilemega-solve.cpp:111:5: error: ‘tilemega::ScalarType’ has not been declared
+  111 |     tilemega::ScalarType dtype) {
+      |     ^~~~~~~~
+/root/TileMega/tools/tilemega-solve.cpp: In function ‘std::vector<tilemega::solver::DpCandidate> {anonymous}::BuildCandidates(const std::vector<{anonymous}::Point>&, const std::map<std::__cxx11::basic_string<char>, int>&, int)’:
+/root/TileMega/tools/tilemega-solve.cpp:121:26: error: ‘tilemega::ScalarType’ has not been declared
+  121 |     if (dtype==tilemega::ScalarType::kBF16) {
+      |                          ^~~~~~~~~~
+/root/TileMega/tools/tilemega-solve.cpp:124:34: error: ‘kScalarTaskSmemBytes’ is not a member of ‘tilemega::codegen’
+  124 |           int(tilemega::codegen::kScalarTaskSmemBytes<kTensorBF16Threads>));
+      |                                  ^~~~~~~~~~~~~~~~~~~~
+/root/TileMega/tools/tilemega-solve.cpp:124:11: error: expected primary-expression before ‘int’
+  124 |           int(tilemega::codegen::kScalarTaskSmemBytes<kTensorBF16Threads>));
+      |           ^~~
+/root/TileMega/tools/tilemega-solve.cpp: In function ‘int main(int, char**)’:
+/root/TileMega/tools/tilemega-solve.cpp:168:13: error: ‘ScalarType’ is not a member of ‘tilemega’
+  168 |   tilemega::ScalarType dtype=tilemega::ScalarType::kF32;
+      |             ^~~~~~~~~~
+/root/TileMega/tools/tilemega-solve.cpp:168:13: note: suggested alternatives:
+In file included from /root/TileMega/include/tilemega/Solver/ModelDescription.h:16,
+                 from /root/TileMega/include/tilemega/Solver/AlignmentPropagation.h:17,
+                 from /root/TileMega/tools/tilemega-solve.cpp:19:
+/root/TileMega/include/tilemega/Analysis/Semantics.h:38:12: note:   ‘tilemega::analysis::ScalarType’
+   38 | enum class ScalarType { kF32, kBF16 };
+      |            ^~~~~~~~~~
+In file included from /root/TileMega/include/tilemega/Solver/ModelDescription.h:13,
+                 from /root/TileMega/include/tilemega/Solver/AlignmentPropagation.h:17,
+                 from /root/TileMega/tools/tilemega-solve.cpp:19:
+/root/TileMega/include/tilemega/Solver/BackendCostQuery.h:16:12: note:   ‘tilemega::solver::ScalarType’
+   16 | enum class ScalarType { kF32, kBF16 };
+      |            ^~~~~~~~~~
+/root/TileMega/tools/tilemega-solve.cpp:179:26: error: ‘dtype’ was not declared in this scope; did you mean ‘wctype’?
+  179 |       if (value=="bf16") dtype=tilemega::ScalarType::kBF16;
+      |                          ^~~~~
+      |                          wctype
+/root/TileMega/tools/tilemega-solve.cpp:179:42: error: ‘tilemega::ScalarType’ has not been declared
+  179 |       if (value=="bf16") dtype=tilemega::ScalarType::kBF16;
+      |                                          ^~~~~~~~~~
+/root/TileMega/tools/tilemega-solve.cpp:180:30: error: ‘dtype’ was not declared in this scope; did you mean ‘wctype’?
+  180 |       else if (value=="f32") dtype=tilemega::ScalarType::kF32;
+      |                              ^~~~~
+      |                              wctype
+/root/TileMega/tools/tilemega-solve.cpp:180:46: error: ‘tilemega::ScalarType’ has not been declared
+  180 |       else if (value=="f32") dtype=tilemega::ScalarType::kF32;
+      |                                              ^~~~~~~~~~
+/root/TileMega/tools/tilemega-solve.cpp:193:7: error: ‘dtype’ was not declared in this scope; did you mean ‘wctype’?
+  193 |   if (dtype==tilemega::ScalarType::kBF16 && !unified)
+      |       ^~~~~
+      |       wctype
+/root/TileMega/tools/tilemega-solve.cpp:193:24: error: ‘tilemega::ScalarType’ has not been declared
+  193 |   if (dtype==tilemega::ScalarType::kBF16 && !unified)
+      |                        ^~~~~~~~~~
+/root/TileMega/tools/tilemega-solve.cpp:197:31: error: ‘dtype’ was not declared in this scope; did you mean ‘wctype’?
+  197 |   CostModel const cost(target,dtype,cost_options);
+      |                               ^~~~~
+      |                               wctype
+/root/TileMega/tools/tilemega-solve.cpp:223:42: error: ‘tilemega::ScalarType’ has not been declared
+  223 |       std::string input=dtype==tilemega::ScalarType::kBF16
+      |                                          ^~~~~~~~~~
+/root/TileMega/tools/tilemega-solve.cpp:242:21: error: no matching function for call to ‘std::vector<tilemega::solver::TileAxes>::push_back(<brace-enclosed initializer list>)’
+  242 |       axes.push_back({c.config.tile_n, c.config.tile_k});
+      |       ~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /usr/include/c++/11/vector:67,
+                 from /root/TileMega/include/tilemega/Target/TargetSpec.h:27,
+                 from /root/TileMega/include/tilemega/Solver/BackendCostQuery.h:6,
+                 from /root/TileMega/include/tilemega/Solver/ModelDescription.h:13,
+                 from /root/TileMega/include/tilemega/Solver/AlignmentPropagation.h:17,
+                 from /root/TileMega/tools/tilemega-solve.cpp:19:
+/usr/include/c++/11/bits/stl_vector.h:1187:7: note: candidate: ‘void std::vector<_Tp, _Alloc>::push_back(const value_type&) [with _Tp = tilemega::solver::TileAxes; _Alloc = std::allocator<tilemega::solver::TileAxes>; std::vector<_Tp, _Alloc>::value_type = tilemega::solver::TileAxes]’
+ 1187 |       push_back(const value_type& __x)
+      |       ^~~~~~~~~
+/usr/include/c++/11/bits/stl_vector.h:1187:35: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘const value_type&’ {aka ‘const tilemega::solver::TileAxes&’}
+ 1187 |       push_back(const value_type& __x)
+      |                 ~~~~~~~~~~~~~~~~~~^~~
+/usr/include/c++/11/bits/stl_vector.h:1203:7: note: candidate: ‘void std::vector<_Tp, _Alloc>::push_back(std::vector<_Tp, _Alloc>::value_type&&) [with _Tp = tilemega::solver::TileAxes; _Alloc = std::allocator<tilemega::solver::TileAxes>; std::vector<_Tp, _Alloc>::value_type = tilemega::solver::TileAxes]’
+ 1203 |       push_back(value_type&& __x)
+      |       ^~~~~~~~~
+/usr/include/c++/11/bits/stl_vector.h:1203:30: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘std::vector<tilemega::solver::TileAxes>::value_type&&’ {aka ‘tilemega::solver::TileAxes&&’}
+ 1203 |       push_back(value_type&& __x)
+      |                 ~~~~~~~~~~~~~^~~
+ninja: build stopped: subcommand failed.

@@ -1,0 +1,27 @@
+
+== gqa2: 14 GEMMs, 770 candidates, 770 measured configurations
+schedule   = 30 stages -> 20 barrier intervals (widest 3), 10 barriers saved = 33.3333% of the barrier count
+tier 2     = 770 -> [770, 770] candidates per operator (mean 770), joint space 10^40.4109 -> 10^40.4109, 0 operators unconstrained
+           counterfactual on a tile_n axis stepped by 16: 48 -> [21, 48] per operator, joint space 10^23.5374 -> 10^21.3832
+uniform g  = 32x16x16s2k1  ctas/sm 6  predicted 0.0890518 ms  measured rank 232/770 (top-3% band = 23) REJECT
+           measured 0.241664 ms vs best 0.176096 ms (37.2342% off)
+           tier-1-only control picks 32x16x16s2k1 (same answer)
+split-only = 32x16x16s2 with 1 distinct split factors  predicted 0.0890518 ms (0% below uniform)
+per-op g   = 3 distinct configurations  ctas/sm 2  predicted 0.0588226 ms (33.9456% below uniform)
+           general 16113175 transitions in 49.7202 ms; separable 3.25178 ms; objectives differ by 0 ns
+           interface spread 0 ns, decomposition error 7.27596e-12 ns, 6 residency levels admitted
+
+== mha4: 28 GEMMs, 770 candidates, 462 measured configurations
+schedule   = 60 stages -> 40 barrier intervals (widest 3), 20 barriers saved = 33.3333% of the barrier count
+tier 2     = 770 -> [770, 770] candidates per operator (mean 770), joint space 10^80.8217 -> 10^80.8217, 0 operators unconstrained
+           counterfactual on a tile_n axis stepped by 16: 48 -> [21, 48] per operator, joint space 10^47.0748 -> 10^42.7665
+uniform g  = 32x16x16s2k1  ctas/sm 6  predicted 0.178104 ms  measured rank 145/462 (top-3% band = 13) REJECT
+           measured 0.475136 ms vs best 0.340992 ms (39.3393% off)
+           tier-1-only control picks 32x16x16s2k1 (same answer)
+split-only = 32x16x16s2 with 1 distinct split factors  predicted 0.178104 ms (0% below uniform)
+per-op g   = 3 distinct configurations  ctas/sm 2  predicted 0.116037 ms (34.8484% below uniform)
+           general 33465825 transitions in 106.381 ms; separable 9.42025 ms; objectives differ by 0 ns
+           interface spread 0 ns, decomposition error 2.91038e-11 ns, 6 residency levels admitted
+
+acceptance (a) uniform g inside the measured top 3% on both models: FAIL
+ISL_CONTEXT remaining=0

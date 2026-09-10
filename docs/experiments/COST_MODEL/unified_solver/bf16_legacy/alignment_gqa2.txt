@@ -1,0 +1,15 @@
+gemm  n     k     consumer            Tr    producer            Tk    kept
+0     512   512   RoPE       @4       128   RMSNorm    @0       512   770/770
+1     256   512   RoPE       @5       128   RMSNorm    @0       512   770/770
+2     256   512   KVAppend   @7       128   RMSNorm    @0       512   770/770
+3     512   512   RMSNorm    @10      512   Attention  @8       128   770/770
+4     1024  512   Elementwise@13      1024  RMSNorm    @10      512   770/770
+5     1024  512   Elementwise@13      1024  RMSNorm    @10      512   770/770
+6     512   1024  RMSNorm    @15      512   Elementwise@13      1024  770/770
+7     512   512   RoPE       @19      128   RMSNorm    @15      512   770/770
+8     256   512   RoPE       @20      128   RMSNorm    @15      512   770/770
+9     256   512   KVAppend   @22      128   RMSNorm    @15      512   770/770
+10    512   512   RMSNorm    @25      512   Attention  @23      128   770/770
+11    1024  512   Elementwise@28      1024  RMSNorm    @25      512   770/770
+12    1024  512   Elementwise@28      1024  RMSNorm    @25      512   770/770
+13    512   1024  -          @-1      0     Elementwise@28      1024  770/770
