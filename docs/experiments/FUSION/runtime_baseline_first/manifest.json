@@ -1,0 +1,54 @@
+[
+  {
+    "model": "gqa2",
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O2",
+      "-arch=sm_89",
+      "-lineinfo",
+      "-Xptxas=-v,--warn-on-spills",
+      "--expt-relaxed-constexpr",
+      "-DTILEMEGA_FUSION_RUNTIME=0",
+      "-DTILEMEGA_PLACEMENT=0",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-I/root/TileMega/third_party/cutlass/tools/util/include",
+      "-I/root/TileMega/third_party/cutlass/test",
+      "/root/TileMega/docs/experiments/PLACE/balanced_runtime/src/gqa2_p0.cu",
+      "/root/TileMega/build-portable/libtilemega.a",
+      "-L/usr/local/cuda/lib64",
+      "-lcudart",
+      "-o",
+      "/root/TileMega/docs/experiments/FUSION/runtime_baseline_first/bin/gqa2"
+    ],
+    "source_sha256": "cfe8fe98bcc057f468fa1817bd3f18a4fe8e882c6eb3bfc4210c49f05aae84dd",
+    "binary_sha256": "95a9274863d28e4d027b8e274cbd7ccf7493e2a3b123c20b0ba377cbe3623d35"
+  },
+  {
+    "model": "mha4",
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O2",
+      "-arch=sm_89",
+      "-lineinfo",
+      "-Xptxas=-v,--warn-on-spills",
+      "--expt-relaxed-constexpr",
+      "-DTILEMEGA_FUSION_RUNTIME=0",
+      "-DTILEMEGA_PLACEMENT=0",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-I/root/TileMega/third_party/cutlass/tools/util/include",
+      "-I/root/TileMega/third_party/cutlass/test",
+      "/root/TileMega/docs/experiments/PLACE/balanced_runtime/src/mha4_p0.cu",
+      "/root/TileMega/build-portable/libtilemega.a",
+      "-L/usr/local/cuda/lib64",
+      "-lcudart",
+      "-o",
+      "/root/TileMega/docs/experiments/FUSION/runtime_baseline_first/bin/mha4"
+    ],
+    "source_sha256": "56c541e563b4c9944a3db0a0e871800d8e0e19253657e28506d2888d6f8421c7",
+    "binary_sha256": "d9c7968829d45ca49b3955db481017765ec3d32f11d2a6612859a7a9d3043eee"
+  }
+]
