@@ -1,0 +1,12 @@
+ninja: Entering directory `build-portable'
+[1/10] Linking CXX executable tools/tilemega-op-audit
+[2/10] Linking CXX executable tools/tilemega-task-work-probe
+[3/10] Linking CXX executable task_element_work_test
+[4/10] Checking architecture-dispatch and hardware-constant policy
+-- TileMega policy checks passed
+[5/10] Building CXX object CMakeFiles/runtime_projection_test.dir/test/unit/runtime_projection_test.cpp.o
+[6/10] Linking CXX executable runtime_projection_test
+[7/10] Building CXX object CMakeFiles/tilemega-target-audit.dir/tools/tilemega-target-audit.cpp.o
+[8/10] Linking CXX executable tools/tilemega-target-audit
+[9/10] Building CXX object CMakeFiles/chain_dp_test.dir/test/unit/chain_dp_test.cpp.o
+[10/10] Linking CXX executable chain_dp_test

@@ -1,0 +1,9 @@
+ninja: Entering directory `build-portable'
+[0/1] Re-running CMake...
+-- Using MLIR  from /root/toolchains/mlir-23a60f15/lib/cmake/mlir
+-- ISL stack: isl=/root/TileMega/build-isl/.libs/libisl.a polylib=/root/TileMega/build-polylib/.libs/libpolylibgmp.a barvinok=/root/TileMega/build-barvinok/.libs/libbarvinok.a
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /root/TileMega/build-portable
+[1/2] Building CXX object CMakeFiles/tilemega-scalar-error-probe.dir/tools/tilemega-scalar-error-probe.cpp.o
+[2/2] Linking CXX executable tools/tilemega-scalar-error-probe

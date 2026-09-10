@@ -1,0 +1,248 @@
+{
+  "binary": "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+  "binary_sha256": "2524981a7cca716fa94eeac20968636012fba834ca3fb794a113e2dcc9aebaaf",
+  "commit": "e2fa0f79d590204348478d7e7b5e5483b4683214",
+  "cases": [
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "gqa2",
+        "bf16",
+        "1",
+        "512"
+      ],
+      "returncode": 0,
+      "stdout": "bf16_gqa2_s1_p512.tsv",
+      "stdout_sha256": "bb48c32153defc7127922b2a0bb8b7d4bf523f59b5ae577405131ae84b4e9552",
+      "stderr": "bf16_gqa2_s1_p512.txt",
+      "stderr_sha256": "dad76cf3666dd2d5327a49a0b0c7e91da1d9fcfbee1f45fb7ffcb97d8f7526f0"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "gqa2",
+        "bf16",
+        "4",
+        "3"
+      ],
+      "returncode": 0,
+      "stdout": "bf16_gqa2_s4_p3.tsv",
+      "stdout_sha256": "0ae72d98c6f9b9a40683b92892dda7b3425351b62172325546e061557afef546",
+      "stderr": "bf16_gqa2_s4_p3.txt",
+      "stderr_sha256": "cee63c85c3bd0f9f199d8ce1faf45576e5cae79d8b3f6b73e1eeba078b6a97be"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "gqa2",
+        "bf16",
+        "128",
+        "3"
+      ],
+      "returncode": 0,
+      "stdout": "bf16_gqa2_s128_p3.tsv",
+      "stdout_sha256": "3a0d67e0e88783aba90703b4964b7dbf56dce2037869a33a766c4db79c4950ed",
+      "stderr": "bf16_gqa2_s128_p3.txt",
+      "stderr_sha256": "cee63c85c3bd0f9f199d8ce1faf45576e5cae79d8b3f6b73e1eeba078b6a97be"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "gqa2",
+        "bf16",
+        "4",
+        "2048"
+      ],
+      "returncode": 2,
+      "stdout": "bf16_gqa2_s4_p2048.tsv",
+      "stdout_sha256": "0ebd45bc28475b93f26a3bed927042e6c54daf16249103f9159f71960a5dd6da",
+      "stderr": "bf16_gqa2_s4_p2048.txt",
+      "stderr_sha256": "a9b2c1734ae8d0e808661e1bff8132de9b47f95598aed6c62e086bc97e3aaa84"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "gqa2",
+        "bf16",
+        "512",
+        "512"
+      ],
+      "returncode": 0,
+      "stdout": "bf16_gqa2_s512_p512.tsv",
+      "stdout_sha256": "d0d1837c9df77ea6d18ad8bfcfc4ba9fba9359a5c9420d732f57af96c28f11fe",
+      "stderr": "bf16_gqa2_s512_p512.txt",
+      "stderr_sha256": "cee63c85c3bd0f9f199d8ce1faf45576e5cae79d8b3f6b73e1eeba078b6a97be"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "mha4",
+        "bf16",
+        "1",
+        "512"
+      ],
+      "returncode": 0,
+      "stdout": "bf16_mha4_s1_p512.tsv",
+      "stdout_sha256": "9edcfb92e363717713d9d7409b61a11491f16b3a583336cf75f9ed0ee6f3326f",
+      "stderr": "bf16_mha4_s1_p512.txt",
+      "stderr_sha256": "b9234edccef24eb2a65a4fb40b4916550136f985b064f81b303df56924e14530"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "mha4",
+        "bf16",
+        "4",
+        "3"
+      ],
+      "returncode": 0,
+      "stdout": "bf16_mha4_s4_p3.tsv",
+      "stdout_sha256": "0ee9c658728104ea5f3fbeed9116a3294f5382a4569c8144c952b258bb1cd2b5",
+      "stderr": "bf16_mha4_s4_p3.txt",
+      "stderr_sha256": "e0c799419f9dabe23c2cc79713da7f0bf139277aaaa64e066ca8e6ec3fb1659d"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "mha4",
+        "bf16",
+        "128",
+        "3"
+      ],
+      "returncode": 0,
+      "stdout": "bf16_mha4_s128_p3.tsv",
+      "stdout_sha256": "6f31d425f6086ab94aedf33240648a75169e56b085889d6c58e6018cb8f027c0",
+      "stderr": "bf16_mha4_s128_p3.txt",
+      "stderr_sha256": "e0c799419f9dabe23c2cc79713da7f0bf139277aaaa64e066ca8e6ec3fb1659d"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "mha4",
+        "bf16",
+        "512",
+        "512"
+      ],
+      "returncode": 0,
+      "stdout": "bf16_mha4_s512_p512.tsv",
+      "stdout_sha256": "36dcab3a5d26c474aef38880994186640c058adba3e5fb4b4d2ab4e7d788d614",
+      "stderr": "bf16_mha4_s512_p512.txt",
+      "stderr_sha256": "e0c799419f9dabe23c2cc79713da7f0bf139277aaaa64e066ca8e6ec3fb1659d"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "gqa2",
+        "f32",
+        "1",
+        "512"
+      ],
+      "returncode": 2,
+      "stdout": "f32_gqa2_s1_p512.tsv",
+      "stdout_sha256": "0ebd45bc28475b93f26a3bed927042e6c54daf16249103f9159f71960a5dd6da",
+      "stderr": "f32_gqa2_s1_p512.txt",
+      "stderr_sha256": "a9b2c1734ae8d0e808661e1bff8132de9b47f95598aed6c62e086bc97e3aaa84"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "gqa2",
+        "f32",
+        "1",
+        "3"
+      ],
+      "returncode": 0,
+      "stdout": "f32_gqa2_s1_p3.tsv",
+      "stdout_sha256": "ee48dca789312bd97babb5839315a6536ca7307b5b2f512131e9e32bb52410b2",
+      "stderr": "f32_gqa2_s1_p3.txt",
+      "stderr_sha256": "a1bf9ca350188b851233fbe3917a4b59c0a4bcf26f85c11bbb6ca7ac45c0f46e"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "gqa2",
+        "f32",
+        "4",
+        "3"
+      ],
+      "returncode": 0,
+      "stdout": "f32_gqa2_s4_p3.tsv",
+      "stdout_sha256": "c2a9335466d125f99ebc5c1541e995dab3bb73e5d03cca6d5886241548748ceb",
+      "stderr": "f32_gqa2_s4_p3.txt",
+      "stderr_sha256": "adfba068a09886898174ae6c8b781ee714b48d663ac1ca5fe18bebca4b473a28"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "gqa2",
+        "f32",
+        "8",
+        "8"
+      ],
+      "returncode": 0,
+      "stdout": "f32_gqa2_s8_p8.tsv",
+      "stdout_sha256": "0169c8fd82dfb7e9cce34c320f0d868f3875b8397fba5affa794cc187801e474",
+      "stderr": "f32_gqa2_s8_p8.txt",
+      "stderr_sha256": "cee63c85c3bd0f9f199d8ce1faf45576e5cae79d8b3f6b73e1eeba078b6a97be"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "mha4",
+        "f32",
+        "1",
+        "3"
+      ],
+      "returncode": 0,
+      "stdout": "f32_mha4_s1_p3.tsv",
+      "stdout_sha256": "df85bd6097f633fd9b74b0f884ae4ae82621d3eeb201c8d3bf27f41027f5868a",
+      "stderr": "f32_mha4_s1_p3.txt",
+      "stderr_sha256": "4e086e3cad202f2451ac13e5ef350aaa3fb9746dc154f6fbba2133b3e6dbe6bf"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "mha4",
+        "f32",
+        "4",
+        "3"
+      ],
+      "returncode": 0,
+      "stdout": "f32_mha4_s4_p3.tsv",
+      "stdout_sha256": "f547622f38985ba36749831f0a1683165c09234bef23408238168a34f5540614",
+      "stderr": "f32_mha4_s4_p3.txt",
+      "stderr_sha256": "e0c799419f9dabe23c2cc79713da7f0bf139277aaaa64e066ca8e6ec3fb1659d"
+    },
+    {
+      "command": [
+        "/root/TileMega/build-portable/tools/tilemega-scalar-cost-probe",
+        "/root/TileMega",
+        "mha4",
+        "f32",
+        "8",
+        "8"
+      ],
+      "returncode": 0,
+      "stdout": "f32_mha4_s8_p8.tsv",
+      "stdout_sha256": "8953de20e49cc16af20c156baeccee420a40fc860fbac66cabdb4c70df7d3810",
+      "stderr": "f32_mha4_s8_p8.txt",
+      "stderr_sha256": "e0c799419f9dabe23c2cc79713da7f0bf139277aaaa64e066ca8e6ec3fb1659d"
+    }
+  ],
+  "purpose": "CPU TaskBody index emulation and symbolic scalar pricing"
+}

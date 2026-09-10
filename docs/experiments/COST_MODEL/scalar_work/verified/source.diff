@@ -1,0 +1,821 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 83a79217..b1cf2496 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -140,6 +140,8 @@ add_library(tilemega STATIC
+   lib/Solver/ImplementationContract.cpp
+   lib/Solver/AlignmentPropagation.cpp
+   lib/Solver/ChainDP.cpp
++  lib/Solver/CouplingInterfaceDP.cpp
++  lib/Solver/ScalarTaskWork.cpp
+   lib/Solver/ListScheduler.cpp
+   lib/Solver/CostModel.cpp
+   lib/Solver/ModelDescription.cpp
+@@ -263,6 +265,16 @@ add_executable(tilemega-op-audit tools/tilemega-op-audit.cpp)
+ add_executable(tilemega-task-work-probe tools/tilemega-task-work-probe.cpp)
+ add_executable(tilemega-task-work-gate tools/tilemega-task-work-gate.cpp)
+ add_executable(tilemega-task-cost-gate tools/tilemega-task-cost-gate.cpp)
++add_executable(tilemega-interface-probe tools/tilemega-interface-probe.cpp)
++add_executable(tilemega-scalar-cost-probe tools/tilemega-scalar-cost-probe.cpp)
++target_link_libraries(tilemega-scalar-cost-probe PRIVATE TileMega::tilemega)
++set_target_properties(tilemega-scalar-cost-probe PROPERTIES
++  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
++target_link_libraries(tilemega-interface-probe PRIVATE TileMega::tilemega)
++set_target_properties(tilemega-interface-probe PROPERTIES
++  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
++add_test(NAME coupling_interface_gqa2 COMMAND tilemega-interface-probe "${CMAKE_SOURCE_DIR}" gqa2)
++add_test(NAME coupling_interface_mha4 COMMAND tilemega-interface-probe "${CMAKE_SOURCE_DIR}" mha4)
+ target_link_libraries(tilemega-task-cost-gate PRIVATE TileMega::tilemega)
+ set_target_properties(tilemega-task-cost-gate PROPERTIES
+   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+diff --git a/include/tilemega/Codegen/tasks/TaskResources.h b/include/tilemega/Codegen/tasks/TaskResources.h
+index 9ad2a369..4f6c5513 100644
+--- a/include/tilemega/Codegen/tasks/TaskResources.h
++++ b/include/tilemega/Codegen/tasks/TaskResources.h
+@@ -1,6 +1,7 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ #pragma once
+ #include <tilemega/Codegen/tasks/TaskBase.h>
++#include <tilemega/Codegen/tasks/ScalarDataflow.h>
+ 
+ #ifndef TILEMEGA_ATTENTION_MAX_TOTAL
+ #define TILEMEGA_ATTENTION_MAX_TOTAL 4096
+@@ -31,6 +32,7 @@ struct SimtTaskResources {
+   static constexpr int kSmemBytes = sizeof(SharedStorage);
+   static constexpr int kNumThreads = Threads;
+   static constexpr int kStages = 0;  // No asynchronous multistage mainloop.
++  static ScalarDataflow Dataflow() { return ScalarTaskDataflow(Kind); }
+ };
+ 
+ }  // namespace tilemega::codegen
+diff --git a/include/tilemega/Solver/ChainDP.h b/include/tilemega/Solver/ChainDP.h
+index cc518c06..51549660 100644
+--- a/include/tilemega/Solver/ChainDP.h
++++ b/include/tilemega/Solver/ChainDP.h
+@@ -3,10 +3,10 @@
+ //                state (resident CTAs per SM).
+ //
+ // DP[i][s] = min_{s'} { DP[i-1][s'] + Cost_i(s) + Interface(s', s) } over the
+-// GEMM operators in the order the megakernel executes them.  Execution order
+-// is the right chain: L1 puts a grid barrier after every stage, so the DAG's
+-// forks (gate/up) are already linearised by the generator and a chain over the
+-// emitted stage list is exact rather than an approximation of the DAG.
++// GEMM operators in execution order for the historical, pair-local cost.
++// With CG interface costs, residual edges can join non-adjacent GEMMs even
++// under L1. The exact transition state therefore retains every earlier
++// configuration with an unpriced outgoing factor (CouplingInterfaceDP.cpp).
+ //
+ // The one quantity that is not per-operator is `resident_tiles_per_SM`: it
+ // follows from the *union* of every TaskBody's shared memory and the *maximum*
+@@ -82,6 +82,7 @@ struct ChainDpStats {
+   /// max over (i, s) of the spread of Interface(., s) across s'.  Zero means
+   /// the chain separates and the DP degenerates to |R| independent minima.
+   double interface_spread_ns = 0.0;
++  int interface_frontier_width = 0;
+ };
+ 
+ struct ChainDpSolution {
+@@ -139,6 +140,8 @@ class ChainDP {
+   std::vector<DpCandidate> const& candidates() const { return candidates_; }
+ 
+  private:
++  ChainDpSolution SolveCouplingInterfaces(ModelDescription const& model,
++      ChainDpOptions options,ChainDpStats* stats) const;
+   /// Stage indices of the GEMMs, in execution order.
+   std::vector<int> GemmStages(ModelDescription const& model) const;
+ 
+diff --git a/include/tilemega/Solver/CostModel.h b/include/tilemega/Solver/CostModel.h
+index 6a245941..cb58b333 100644
+--- a/include/tilemega/Solver/CostModel.h
++++ b/include/tilemega/Solver/CostModel.h
+@@ -25,6 +25,7 @@
+ #include <tilemega/Target/TargetSpec.h>
+ 
+ #include <array>
++#include <memory>
+ #include <vector>
+ 
+ #ifndef TILEMEGA_TASK_TRAIT_COSTS
+@@ -36,6 +37,15 @@
+ #ifndef TILEMEGA_L2_EVENT_COST
+ #define TILEMEGA_L2_EVENT_COST 0
+ #endif
++#ifndef TILEMEGA_CG_INTERFACE_COST
++#define TILEMEGA_CG_INTERFACE_COST 1
++#endif
++#ifndef TILEMEGA_CG_INTERFACE_DP
++#define TILEMEGA_CG_INTERFACE_DP 0
++#endif
++#ifndef TILEMEGA_UNIFIED_TASK_COST
++#define TILEMEGA_UNIFIED_TASK_COST 0
++#endif
+ 
+ namespace tilemega::solver {
+ 
+@@ -102,11 +112,13 @@ struct Residency {
+ 
+ struct CostBreakdown {
+   double total_ns = 0.0;
++  double task_ns_sum = 0.0;
+   double gemm_ns = 0.0;
+   double combine_ns = 0.0;
+   double other_ns = 0.0;
+   double barrier_ns = 0.0;
+   double event_ns = 0.0;
++  double interface_ns = 0.0;
+   int stage_count = 0;  ///< after the split rewrite, so one barrier each
+ };
+ 
+@@ -134,6 +146,8 @@ struct CostModelOptions {
+   bool task_body_traits = TILEMEGA_TASK_TRAIT_COSTS;
+   bool measured_partial_combine = TILEMEGA_MEASURED_PARTIAL_COMBINE;
+   bool l2_events = TILEMEGA_L2_EVENT_COST;
++  bool cg_interface = TILEMEGA_CG_INTERFACE_DP;
++  bool unified_task_cost = TILEMEGA_UNIFIED_TASK_COST;
+   int kappa = 1;
+ };
+ 
+@@ -180,10 +194,14 @@ class CostModel {
+   double TaskCostNs(DerivedTaskInput const& input, BackendTraits const& traits,
+                     Residency residency, ModelDescription const& model,
+                     int chunks) const;
++  double TaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,
++                     Residency residency) const;
+   /// §2.2(f): one stage barrier, at this grid width.
+   double BarrierNs(Residency residency) const;
+   double EventNs(ModelDescription const& model, std::vector<GemmConfig> const& configs,
+                  Residency residency, int stage_count) const;
++  double InterfaceEdgeNs(ModelCouplingMetrics const& edge,ModelDescription const& model) const;
++  double InterfaceNs(ModelDescription const& model,std::vector<GemmConfig> const& configs) const;
+ 
+   /// The steady-state resource vector of one mainloop iteration for `o`
+   /// resident CTAs, before the envelope is applied.
+@@ -224,6 +242,8 @@ class CostModel {
+   double cuda_flops_per_ns_per_sm_ = 0.0;
+   double sfu_ops_per_ns_per_sm_ = 0.0;
+   double tc_flops_per_ns_per_sm_ = 0.0;
++  mutable std::map<std::string,std::shared_ptr<DerivedTaskInput>> task_input_cache_;
++  mutable std::map<std::string,double> scalar_price_cache_;
+ };
+ 
+ }  // namespace tilemega::solver
+diff --git a/include/tilemega/Solver/ModelDescription.h b/include/tilemega/Solver/ModelDescription.h
+index 2d219423..22bdae6b 100644
+--- a/include/tilemega/Solver/ModelDescription.h
++++ b/include/tilemega/Solver/ModelDescription.h
+@@ -46,6 +46,7 @@ struct ModelCouplingMetrics {
+   int producer = -1, consumer = -1;
+   analysis::QuasiPolynomial wait, fanout, volume, count;
+   analysis::CouplingRelation relation;
++  std::string producer_task, consumer_task;
+ };
+ struct ModelRuntimeEventMetrics {
+   analysis::QuasiPolynomial task_refs, wait_entries, max_worker_task_refs;
+diff --git a/include/tilemega/Solver/RuntimeProjection.h b/include/tilemega/Solver/RuntimeProjection.h
+index 9f7de4af..2c65d61b 100644
+--- a/include/tilemega/Solver/RuntimeProjection.h
++++ b/include/tilemega/Solver/RuntimeProjection.h
+@@ -43,6 +43,8 @@ struct RuntimeProjection {
+ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
+                                       codegen::RuntimePlan const& plan,
+                                       RuntimeProjectionOptions options);
++analysis::CouplingRelation ProjectScalarTaskOwnership(ModelTaskSemantics const& semantic,
++    analysis::OperatorNode const& task,ModelStage const& stage,int threads);
+ void AttachRuntimeEventMetrics(ModelDescription& model, codegen::RuntimePlan const& plan,
+                                RuntimeProjectionOptions options);
+ 
+diff --git a/include/tilemega/Solver/TaskModel.h b/include/tilemega/Solver/TaskModel.h
+index 3dc09424..61c07364 100644
+--- a/include/tilemega/Solver/TaskModel.h
++++ b/include/tilemega/Solver/TaskModel.h
+@@ -3,15 +3,32 @@
+ #include <tilemega/Solver/CostModel.h>
+ #include <tilemega/Analysis/TaskWork.h>
+ #include <tilemega/Analysis/OpArithmetic.h>
++#include <tilemega/Codegen/tasks/ScalarDataflow.h>
+ 
+ namespace tilemega::solver {
++#ifndef TILEMEGA_SCALAR_TASK_WORK
++#define TILEMEGA_SCALAR_TASK_WORK 1
++#endif
+ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
+                                             std::vector<GemmConfig> const& configs);
++std::vector<ModelCouplingMetrics> InstantiateModelCouplings(
++    ModelDescription const& model,std::vector<GemmConfig> const& configs,
++    std::optional<std::pair<int,int>> stage_pair=std::nullopt);
++struct RuntimeScalarAccess {
++  analysis::CouplingRelation ownership,writes;
++  std::map<std::string,analysis::CouplingRelation> reads;
++};
+ struct DerivedTaskInput {
+   analysis::OperatorNode task;
+   analysis::TaskWork work;
+   analysis::OpArithmetic arithmetic;
++  std::vector<std::string> cost_coordinates;
++  std::optional<codegen::ScalarDataflow> scalar_flow;
++  std::optional<RuntimeScalarAccess> scalar_access;
+ };
++analysis::TaskWork DeriveRuntimeScalarWork(ModelDescription const& model,
++    ModelTaskSemantics const& semantic,analysis::OperatorNode const& task,
++    analysis::TaskWork work,int threads,RuntimeScalarAccess* accesses=nullptr);
+ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
+                                     ModelTaskSemantics const& semantic,
+                                     analysis::OperatorGraph const& graph,
+diff --git a/lib/Solver/ChainDP.cpp b/lib/Solver/ChainDP.cpp
+index 257b5baa..e406c64e 100644
+--- a/lib/Solver/ChainDP.cpp
++++ b/lib/Solver/ChainDP.cpp
+@@ -1,6 +1,7 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ 
+ #include <tilemega/Solver/ChainDP.h>
++#include <tilemega/Solver/TaskModel.h>
+ 
+ #include <algorithm>
+ #include <array>
+@@ -67,7 +68,9 @@ double ChainDP::BetweenNs(ModelDescription const& model,
+   double const barrier = cost_->BarrierNs(residency);
+   double ns = 0.0;
+   for (int i = begin; i < end; ++i) {
+-    ns += cost_->NonGemmStageNs(model.stages[i], model.dims, residency) +
++    ns += (cost_->options().unified_task_cost
++               ? cost_->TaskStageNs(model,i,candidates_.empty() ? GemmConfig{} : candidates_.front().config,residency)
++               : cost_->NonGemmStageNs(model.stages[i], model.dims, residency)) +
+           barrier;
+   }
+   return ns;
+@@ -98,6 +101,18 @@ double ChainDP::Interface(ModelDescription const& model, int from, int to,
+                           GemmConfig const& to_config,
+                           Residency residency) const {
+   std::vector<int> const gemm_stages = GemmStages(model);
++  if (cost_->options().cg_interface) {
++    if (from<0 || to<0) return BetweenNs(model,gemm_stages,from,to,residency);
++    int producer=model.stages.at(gemm_stages.at(from)).gemm;
++    int consumer=model.stages.at(gemm_stages.at(to)).gemm;
++    std::vector<GemmConfig> configs(model.gemms.size(),from_config);
++    configs.at(producer)=from_config; configs.at(consumer)=to_config;
++    double ns=BetweenNs(model,gemm_stages,from,to,residency);
++    for (auto const& edge:InstantiateModelCouplings(model,configs,
++          std::pair{gemm_stages.at(from),gemm_stages.at(to)}))
++      ns+=cost_->InterfaceEdgeNs(edge,model);
++    return ns;
++  }
+   double const miss =
+       1.0 - cost_->CacheHitProbability(model.LiveFootprintBytes());
+   return BetweenNs(model, gemm_stages, from, to, residency) +
+@@ -147,6 +162,7 @@ ChainDpSolution ChainDP::Solve(ModelDescription const& model,
+                                ChainDpStats* stats) const {
+   if (cost_->options().l2_events)
+     throw std::invalid_argument("L2 DP requires candidate-specific runtime metrics and transitions; not implemented");
++  if (cost_->options().cg_interface) return SolveCouplingInterfaces(model,options,stats);
+   auto const started = std::chrono::steady_clock::now();
+   std::vector<int> const gemm_stages = GemmStages(model);
+   int const layers = static_cast<int>(gemm_stages.size());
+@@ -237,7 +253,11 @@ ChainDpSolution ChainDP::Solve(ModelDescription const& model,
+       for (std::size_t j = 0; j < n; ++j) {
+         GemmConfig const& cfg = candidates_[admissible[j]].config;
+         int chunks = 1;
+-        double ns = cost_->GemmStageNs(gemm, cfg, residency, model, &chunks);
++        double ns;
++        if (cost_->options().unified_task_cost) {
++          chunks=cost_->Chunks(gemm,cfg);
++          ns=cost_->TaskStageNs(model,gemm_stages[i],cfg,residency);
++        } else ns=cost_->GemmStageNs(gemm, cfg, residency, model, &chunks);
+         if (chunks > 1) {
+           ns += cost_->CombineStageNs(gemm, chunks, model.dims) + barrier;
+         }
+diff --git a/lib/Solver/CostModel.cpp b/lib/Solver/CostModel.cpp
+index ae09f9bc..e9a54772 100644
+--- a/lib/Solver/CostModel.cpp
++++ b/lib/Solver/CostModel.cpp
+@@ -1,10 +1,14 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ #include <tilemega/Solver/CostModel.h>
+ #include <tilemega/Solver/TaskModel.h>
++#include <tilemega/Analysis/SemanticCodec.h>
++#include <tilemega/Codegen/tasks/TaskResources.h>
+ 
+ #include <algorithm>
+ #include <cmath>
+ #include <stdexcept>
++#include <limits>
++#include <sstream>
+ 
+ namespace tilemega::solver {
+ namespace {
+@@ -406,10 +410,78 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
+ #if defined(TILEMEGA_DERIVED_TASK_COST) && !TILEMEGA_DERIVED_TASK_COST
+   throw std::runtime_error("access-derived task pricing is disabled");
+ #endif
+-  if (traits.stages<=0 || traits.tile_k<=0)
+-    throw std::invalid_argument("scalar task latency DAG has not been supplied");
+   if (model.dims.IsSymbolic()) throw std::invalid_argument("bind theta before FP64 task evaluation");
+   auto known=model.MetricBindings();
++  if (traits.stages<=0) {
++    if (!input.scalar_flow || input.cost_coordinates!=std::vector<std::string>{"q"})
++      throw std::invalid_argument("scalar task latency DAG/ownership has not been supplied");
++    auto [depth,barriers]=input.scalar_flow->MemoryDepthAndBarriers(traits.threads);
++    double ctas=double(input.work.task_count.SubstituteParams(known).Eval({}));
++    double grid=double(target_->res.num_sms)*std::max(1,residency.ctas_per_sm);
++    double miss=1.0-CacheHitProbability(model.LiveFootprintBytes());
++    double flops_per_output=input.arithmetic.flops_per_output_element.Eval(known);
++    double transc_per_output=input.arithmetic.transcendental_per_output_element.Eval(known);
++    std::ostringstream cache_key;
++    cache_key << input.work.read_elements.ToString() << '\n' << input.work.write_elements.ToString()
++              << '\n' << input.work.task_count.ToString() << '\n' << std::hexfloat
++              << miss << ':' << flops_per_output << ':' << transc_per_output << ':'
++              << depth << ':' << barriers << ':' << traits.threads << ':' << residency.ctas_per_sm
++              << ':' << input.arithmetic.smem_staged;
++    for (auto const& [name,value]:known.values) cache_key << ':' << name << '=' << value;
++    auto cached=scalar_price_cache_.find(cache_key.str());
++    if (cached!=scalar_price_cache_.end()) return cached->second;
++    auto statuses=lanes_;
++    // Unlike a BF16 MMA collective, these bodies issue scalar shared accesses.
++    // The measured scalar pipe applies; the GEMM ldmatrix status is unchanged.
++    statuses[ResourceVector::kSmem]=calib_->smem_gbps>0 ? LaneStatus::kLive : LaneStatus::kNotCalibrated;
++    double total=0;
++    long first=0;
++    for (double remaining=ctas;remaining>0;remaining-=grid) {
++      double active=std::min(grid,remaining);
++      double o=options_.wave_tail ? std::max(1.0,active/target_->res.num_sms)
++                                 : std::max(1,residency.ctas_per_sm);
++      double wave=-std::numeric_limits<double>::infinity();
++      for (long q=first;q<first+long(active);++q) {
++        analysis::ParamBinding coordinate; coordinate.Bind("q",q);
++        auto value=[&](analysis::QuasiPolynomial const& work) {
++          return double(work.BindCoordinates(coordinate).SubstituteParams(known).Eval({}));
++        };
++        double writes=value(input.work.write_elements);
++        double bytes=(value(input.work.read_elements)+writes)*ElementBytes(dtype_);
++        double flops=flops_per_output*writes,transc=transc_per_output*writes;
++        if ((flops>0 && lanes_[ResourceVector::kCudaCore]!=LaneStatus::kLive) ||
++            (transc>0 && lanes_[ResourceVector::kSfu]!=LaneStatus::kLive))
++          throw std::runtime_error("scalar arithmetic rate: not_calibrated");
++        ResourceVector u;
++        if (flops>0) u.cuda_core=o*flops/cuda_flops_per_ns_per_sm_;
++        if (transc>0) u.sfu=o*transc/sfu_ops_per_ns_per_sm_;
++        if (input.arithmetic.smem_staged && statuses[ResourceVector::kSmem]==LaneStatus::kLive)
++          u.smem=o*bytes/(calib_->smem_gbps/target_->res.num_sms);
++        u.l2=o*bytes/l2_bytes_per_ns_per_sm_;
++        u.dram=o*bytes*miss/dram_bytes_per_ns_per_sm_;
++        for (int i=0;i<ResourceVector::kLaneCount;++i) {
++          auto lane=static_cast<ResourceVector::Lane>(i);
++          if (statuses[lane]!=LaneStatus::kLive || options_.disabled_lanes[lane] ||
++              (!options_.resource_lanes && lane!=ResourceVector::kSmem)) u[lane]=0;
++        }
++        // The fitted alpha+beta*tile_area describes a collective accumulator
++        // tile's setup. ScalarDataflow has no such initialization phase:
++        // scalar arithmetic is charged in u, memory phases in this DAG term.
++        // In particular a negative GEMM regression intercept cannot be
++        // extrapolated into a small SIMT task then silently clamped to zero.
++        double fixed=depth*calib_->l2_latency_ns+barriers*calib_->syncthreads_ns+
++            writes*ElementBytes(dtype_)/l2_bytes_per_ns_per_sm_;
++        if (!(fixed+u.Bottleneck()>0) || !std::isfinite(fixed+u.Bottleneck()))
++          throw std::runtime_error("nonpositive or nonfinite scalar task price");
++        wave=std::max(wave,fixed+u.Bottleneck());
++      }
++      total+=wave;
++      first+=long(active);
++    }
++    scalar_price_cache_.emplace(cache_key.str(),total);
++    return total;
++  }
++  if (traits.tile_k<=0) throw std::invalid_argument("collective reduction tile is missing");
+   analysis::ParamBinding point;
+   for (auto const& coordinate:input.task.Coordinates()) point.Bind(coordinate,0);
+   auto value=[&](analysis::QuasiPolynomial const& quantity) {
+@@ -528,6 +600,48 @@ double CostModel::NonGemmStageNs(ModelStage const& stage, ModelDims const& dims,
+   return total;
+ }
+ 
++double CostModel::TaskStageNs(ModelDescription const& model,int index,
++                              GemmConfig const& requested,Residency residency) const {
++  GemmConfig config=requested;
++  if (!options_.split_k) config.split_k=1;
++  auto const& stage=model.stages.at(index);
++  if (stage.kind!=StageKind::kGemm && !options_.non_gemm) return 0;
++  ModelTaskSemantics const* selected=nullptr;
++  for (auto const& semantic:model.task_semantics) if (semantic.stage==index) {
++    // A native residual epilogue belongs to the existing collective stage
++    // envelope. It is not a second runtime task or a newly selected fusion.
++    if (stage.kind==StageKind::kGemm && semantic.op.arithmetic=="add") continue;
++    if (selected) throw std::invalid_argument("runtime stage needs an explicit mixed-task composition");
++    selected=&semantic;
++  }
++  if (!selected) throw std::invalid_argument("runtime stage lacks a CG semantic cost input");
++  BackendTraits traits;
++  bool collective=stage.kind==StageKind::kGemm;
++  int chunks=collective ? Chunks(model.gemms.at(stage.gemm),config) : 1;
++  if (collective) traits=dtype_==ScalarType::kBF16
++      ? TensorBF16Traits(config.tile_m,config.tile_n,config.tile_k,config.stages)
++      : SimtF32Traits(config.tile_m,config.tile_n,config.tile_k,config.stages);
++  else {
++    traits.threads=dtype_==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
++    traits.smem_bytes=sizeof(float)*codegen::SimtSharedElements(
++        static_cast<codegen::TaskKind>(stage.kind),traits.threads,TILEMEGA_ATTENTION_MAX_TOTAL);
++  }
++  std::ostringstream key;
++  key << analysis::EncodeSemanticOp(selected->op) << ':' << selected->element_chunk << ':'
++      << stage.width << ':' << stage.extent << ':' << stage.group << ':' << int(model.dtype);
++  for (int operand:stage.operands) key << ':' << operand;
++  for (auto const& [name,tile]:selected->tiles) key << ':' << name << '=' << tile.ToString();
++  if (collective) key << ':' << config.tile_m << ':' << config.tile_n << ':' << config.tile_k
++                       << ':' << config.stages << ':' << config.split_k;
++  auto found=task_input_cache_.find(key.str());
++  if (found==task_input_cache_.end()) {
++    auto graph=InstantiateModelTasks(model,std::vector<GemmConfig>(model.gemms.size(),config));
++    auto input=std::make_shared<DerivedTaskInput>(DeriveModelTaskInput(model,*selected,graph,collective ? &config : nullptr));
++    found=task_input_cache_.emplace(key.str(),std::move(input)).first;
++  }
++  return TaskCostNs(*found->second,traits,residency,model,chunks);
++}
++
+ double CostModel::BarrierNs(Residency residency) const {
+   if (!options_.sync) return 0.0;
+   double const grid = static_cast<double>(target_->res.num_sms) *
+@@ -535,6 +649,25 @@ double CostModel::BarrierNs(Residency residency) const {
+   return Interpolate(calib_->grid_barrier_ctas, calib_->grid_barrier_ns, grid);
+ }
+ 
++double CostModel::InterfaceEdgeNs(ModelCouplingMetrics const& edge,
++                                  ModelDescription const& model) const {
++#if !TILEMEGA_CG_INTERFACE_COST
++  throw std::runtime_error("CG interface pricing is disabled");
++#endif
++  auto known=model.MetricBindings();
++  long waits=edge.wait.SumDomain().SubstituteParams(known).Eval({});
++  // Only consumers in domain(C) owe a first read. Subtracting |T_c| would
++  // produce negative work for consumers outside a partial writer's domain.
++  long consumers=edge.relation.Reverse().ImageCard().SubstituteParams(known).Eval({});
++  long volume=edge.volume.SubstituteParams(known).Eval({});
++  if (waits<consumers || volume<0) throw std::invalid_argument("invalid physical interface incidence");
++  if (calib_->l2_gbps<=0 || calib_->dram_gbps<=0)
++    throw std::runtime_error("interface bandwidth: not_calibrated");
++  double miss=1.0-CacheHitProbability(model.LiveFootprintBytes());
++  return double(waits-consumers)*double(volume)*ElementBytes(dtype_)*
++      ((1.0-miss)/calib_->l2_gbps+miss/calib_->dram_gbps);
++}
++
+ double CostModel::EventNs(ModelDescription const& model, std::vector<GemmConfig> const& configs,
+                          Residency residency, int stage_count) const {
+   if (!options_.sync || !options_.l2_events) return 0.0;
+@@ -579,6 +712,13 @@ double CostModel::EventNs(ModelDescription const& model, std::vector<GemmConfig>
+   return total;
+ }
+ 
++double CostModel::InterfaceNs(ModelDescription const& model,
++                               std::vector<GemmConfig> const& configs) const {
++  double total=0;
++  for (auto const& edge:InstantiateModelCouplings(model,configs)) total+=InterfaceEdgeNs(edge,model);
++  return total;
++}
++
+ CostBreakdown CostModel::Evaluate(ModelDescription const& model,
+                                   std::vector<GemmConfig> const& configs,
+                                   Residency residency) const {
+@@ -588,16 +728,22 @@ CostBreakdown CostModel::Evaluate(ModelDescription const& model,
+     throw std::invalid_argument("one GemmConfig per model GEMM is required");
+   }
+   CostBreakdown out;
+-  for (auto const& stage : model.stages) {
++  for (std::size_t i=0;i<model.stages.size();++i) {
++    auto const& stage=model.stages[i];
+     ++out.stage_count;
+     if (stage.kind != StageKind::kGemm) {
+-      out.other_ns += NonGemmStageNs(stage, model.dims, residency);
++      if (options_.unified_task_cost)
++        out.task_ns_sum+=TaskStageNs(model,int(i),configs.empty() ? GemmConfig{} : configs.front(),residency);
++      else out.other_ns += NonGemmStageNs(stage, model.dims, residency);
+       continue;
+     }
+     GemmOp const& gemm = model.gemms[stage.gemm];
+     GemmConfig const& config = configs[stage.gemm];
+     int chunks = 1;
+-    out.gemm_ns += GemmStageNs(gemm, config, residency, model, &chunks);
++    if (options_.unified_task_cost) {
++      chunks=Chunks(gemm,config);
++      out.task_ns_sum+=TaskStageNs(model,int(i),config,residency);
++    } else out.gemm_ns += GemmStageNs(gemm, config, residency, model, &chunks);
+     if (chunks > 1) {
+       // The split rewrite appends a combiner stage, which the megakernel pays
+       // for with its own grid barrier: split-K buys arithmetic parallelism and
+@@ -608,8 +754,13 @@ CostBreakdown CostModel::Evaluate(ModelDescription const& model,
+   }
+   out.barrier_ns = options_.l2_events ? 0.0 : out.stage_count * BarrierNs(residency);
+   out.event_ns=EventNs(model,configs,residency,out.stage_count);
+-  out.total_ns = out.gemm_ns + out.combine_ns + out.other_ns + out.barrier_ns;
++  out.total_ns = options_.unified_task_cost ? out.task_ns_sum+out.combine_ns+out.barrier_ns
++      : out.gemm_ns + out.combine_ns + out.other_ns + out.barrier_ns;
+   if (options_.l2_events) out.total_ns+=out.event_ns;
++  if (options_.cg_interface) {
++    out.interface_ns=InterfaceNs(model,configs);
++    out.total_ns+=out.interface_ns;
++  }
+   return out;
+ }
+ 
+diff --git a/lib/Solver/ModelDescription.cpp b/lib/Solver/ModelDescription.cpp
+index 5055218a..17a2ffa1 100644
+--- a/lib/Solver/ModelDescription.cpp
++++ b/lib/Solver/ModelDescription.cpp
+@@ -196,8 +196,10 @@ ModelDescription ModelDescription::FromCouplingGraph(
+     model.stages.push_back(std::move(stage));
+   }
+   std::map<std::string, int> task_stage;
++  std::map<std::string, std::string> task_name;
+   for (auto task : module.getOps<dialect::TaskSpaceOp>()) {
+     task_stage.emplace(task.getSymName().str(), task.getStage());
++    task_name.emplace(task.getSymName().str(),task.getOperatorName().str());
+     if (auto payload=task.getSemantic()) {
+       ModelTaskSemantics input;
+       input.op=analysis::DecodeSemanticOp(payload->str());
+@@ -221,7 +223,8 @@ ModelDescription ModelDescription::FromCouplingGraph(
+     int const consumer = task_stage.at(edge.getDst().str());
+     model.coupling_metrics.edges.push_back({producer, consumer,
+         edge.getWait().getValue(), edge.getFanout().getValue(),
+-        edge.getVolume().getValue(), edge.getCount().getValue(), edge.getRelation().getMap()});
++        edge.getVolume().getValue(), edge.getCount().getValue(), edge.getRelation().getMap(),
++        task_name.at(edge.getSrc().str()),task_name.at(edge.getDst().str())});
+     if (producer != consumer) model.stage_successors.at(producer).push_back(consumer);
+   }
+   for (auto& successors : model.stage_successors) {
+diff --git a/lib/Solver/RuntimeProjection.cpp b/lib/Solver/RuntimeProjection.cpp
+index e81a3a98..7288a257 100644
+--- a/lib/Solver/RuntimeProjection.cpp
++++ b/lib/Solver/RuntimeProjection.cpp
+@@ -8,6 +8,7 @@
+ #include <cstdlib>
+ #include <sstream>
+ #include <stdexcept>
++#include <set>
+ 
+ #ifndef TILEMEGA_SYMBOLIC_RUNTIME_PROJECTION
+ #define TILEMEGA_SYMBOLIC_RUNTIME_PROJECTION 1
+@@ -32,6 +33,48 @@ std::string Join(std::vector<std::string> const& parts) {
+ }
+ }  // namespace
+ 
++analysis::CouplingRelation ProjectScalarTaskOwnership(ModelTaskSemantics const& semantic,
++    analysis::OperatorNode const& task,ModelStage const& stage,int threads) {
++  analysis::IslReferenceAudit audit(__func__);
++  if (threads<=0 || task.output.axes.size()!=2 || stage.kind==StageKind::kGemm)
++    throw std::invalid_argument("unsupported scalar ownership domain");
++  std::set<std::string> parameters;
++  std::vector<std::string> bounds;
++  std::string flat="0";
++  long stride=1;
++  for (int axis=int(task.output.axes.size())-1;axis>=0;--axis) {
++    auto extent=task.CoordinateExtent(axis);
++    for (auto const& parameter:extent.FreeSymbols()) parameters.insert(parameter);
++    if (task.IsTiled(axis)) {
++      auto const& name=task.output.axes[axis].name;
++      bounds.push_back("0 <= "+name+" < ("+extent.ToIslText()+")");
++      flat+="+"+std::to_string(stride)+"*"+name;
++    }
++    if (axis) stride*=extent.Eval({},{});
++  }
++  if (semantic.element_chunk) {
++    if (!task.tile[0].IsLiteral(1) || !task.tile[1].IsLiteral(1))
++      throw std::invalid_argument("element ownership requires unit logical tasks");
++    if (stage.kind==StageKind::kRoPE) {
++      if (stage.width<=0 || stage.width%2) throw std::invalid_argument("rotation head width must be positive and even");
++      auto const& row=task.output.axes[0].name;
++      auto const& col=task.output.axes[1].name;
++      long cols=task.output.axes[1].extent.Eval({},{});
++      flat=std::to_string(cols/2)+"*"+row+"+"+std::to_string(stage.width/2)+
++          "*floord("+col+","+std::to_string(stage.width)+")+"+col+"%"+std::to_string(stage.width/2);
++    }
++    flat="floord(("+flat+"),"+std::to_string(threads)+")";
++  }
++  std::string prefix;
++  for (auto const& name:parameters) prefix+=(prefix.empty() ? "" : ",")+name;
++  if (!prefix.empty()) prefix="["+prefix+"] -> ";
++  std::string coordinates;
++  for (auto const& name:task.Coordinates()) coordinates+=(coordinates.empty() ? "" : ",")+name;
++  std::string condition="q = "+flat;
++  for (auto const& bound:bounds) condition+=" and "+bound;
++  return analysis::CouplingRelation::FromIslText(prefix+"{ [q] -> ["+coordinates+"] : "+condition+" }");
++}
++
+ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
+                                       codegen::RuntimePlan const& plan,
+                                       RuntimeProjectionOptions options) {
+diff --git a/lib/Solver/TaskModel.cpp b/lib/Solver/TaskModel.cpp
+index 89a5072b..b203df70 100644
+--- a/lib/Solver/TaskModel.cpp
++++ b/lib/Solver/TaskModel.cpp
+@@ -2,6 +2,7 @@
+ #include <tilemega/Solver/TaskModel.h>
+ #include <tilemega/Analysis/TaskInstantiation.h>
+ #include <tilemega/Analysis/ISLContext.h>
++#include <tilemega/Analysis/CouplingDerivation.h>
+ #include <algorithm>
+ #include <set>
+ #include <stdexcept>
+@@ -47,6 +48,45 @@ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
+   return analysis::Instantiate(semantics,granularity);
+ }
+ 
++std::vector<ModelCouplingMetrics> InstantiateModelCouplings(
++    ModelDescription const& model,std::vector<GemmConfig> const& configs,
++    std::optional<std::pair<int,int>> stage_pair) {
++  analysis::IslReferenceAudit audit(__func__);
++  auto graph=InstantiateModelTasks(model,configs);
++  std::map<std::string,int> stages;
++  for (auto const& input:model.task_semantics) {
++    stages.emplace(input.op.name,input.stage);
++    if (input.op.reduction.splittable) stages.emplace(input.op.reduction.combiner,input.stage);
++  }
++  auto known=model.metric_bindings;
++  for (auto const& name:{std::string("S"),std::string("past"),std::string("P"),std::string("L_s"),
++                         model.seq_metric_parameter,model.past_metric_parameter})
++    known.values.erase(name);
++  for (auto const& [alias,canonical]:model.metric_aliases)
++    if (canonical==model.seq_metric_parameter || canonical==model.past_metric_parameter)
++      known.values.erase(alias);
++  if (stage_pair) {
++    // Restrict only which edges are queried. Operand access maps and task
++    // spaces are unchanged, so the ordinary derivation remains the authority.
++    for (auto& node:graph.nodes) {
++      auto consumer=stages.at(node.name);
++      node.operands.erase(std::remove_if(node.operands.begin(),node.operands.end(),
++          [&](auto const& operand) {
++            auto producer=stages.find(operand.producer);
++            return consumer!=stage_pair->second || producer==stages.end() ||
++                   producer->second!=stage_pair->first;
++          }),node.operands.end());
++    }
++  }
++  auto derived=analysis::CouplingDerivation{}.Derive(graph,known);
++  std::vector<ModelCouplingMetrics> edges;
++  for (auto const& edge:derived)
++    edges.push_back({stages.at(edge.src.name),stages.at(edge.dst.name),
++      edge.metrics.wait,edge.metrics.fanout,edge.metrics.volume,edge.metrics.count,edge.C,
++      edge.src.name,edge.dst.name});
++  return edges;
++}
++
+ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
+                                     ModelTaskSemantics const& semantic,
+                                     analysis::OperatorGraph const& graph,
+@@ -66,7 +106,14 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
+   arithmetic.dtype=semantic.op.dtype;
+   auto signature=analysis::InstantiateArithmetic(semantic.op.arithmetic,arithmetic);
+   analysis::RequireArithmeticImplementation(signature);
+-  (void)model;
+-  return {*task,std::move(work),std::move(signature)};
++  DerivedTaskInput result{*task,std::move(work),std::move(signature),task->Coordinates(),std::nullopt,std::nullopt};
++  if (!config) {
++    int threads=model.dtype==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
++    result.scalar_access.emplace();
++    result.work=DeriveRuntimeScalarWork(model,semantic,*task,std::move(result.work),threads,&*result.scalar_access);
++    result.cost_coordinates={"q"};
++    result.scalar_flow=codegen::ScalarTaskDataflow(static_cast<codegen::TaskKind>(model.stages.at(semantic.stage).kind));
++  }
++  return result;
+ }
+ }  // namespace tilemega::solver
+diff --git a/tools/tilemega-costmodel.cpp b/tools/tilemega-costmodel.cpp
+index 7a1aa764..75b49e22 100644
+--- a/tools/tilemega-costmodel.cpp
++++ b/tools/tilemega-costmodel.cpp
+@@ -15,6 +15,9 @@
+ #include <tilemega/Solver/CostModel.h>
+ #include <tilemega/Solver/ModelDescription.h>
+ #include <tilemega/Target/TargetSpec.h>
++#include <tilemega/Frontend/TorchExportImporter.h>
++#include <tilemega/Dialect/CouplingGraph/CGDialect.h>
++#include <mlir/IR/MLIRContext.h>
+ 
+ #include <algorithm>
+ #include <chrono>
+@@ -275,6 +278,8 @@ int main(int argc, char** argv) try {
+   bool fp32_partials = true;
+   bool task_body_traits = true;
+   bool measured_partial_combine = TILEMEGA_MEASURED_PARTIAL_COMBINE;
++  bool unified_task_cost = TILEMEGA_UNIFIED_TASK_COST;
++  bool full_only = false;
+   std::string target_file;
+   std::string gqa_cu;
+   std::string mha_cu;
+@@ -291,6 +296,9 @@ int main(int argc, char** argv) try {
+     else if (arg == "--legacy-task-traits") task_body_traits = false;
+     else if (arg == "--measured-partial-combine") measured_partial_combine = true;
+     else if (arg == "--analytic-partial-combine") measured_partial_combine = false;
++    else if (arg == "--unified-task-cost") unified_task_cost = true;
++    else if (arg == "--legacy-task-cost") unified_task_cost = false;
++    else if (arg == "--full-only") full_only = true;
+     else if (arg == "--target" && i + 1 < argc) target_file = argv[++i];
+     else if (arg == "--gqa-cu" && i + 1 < argc) gqa_cu = argv[++i];
+     else if (arg == "--mha-cu" && i + 1 < argc) mha_cu = argv[++i];
+@@ -305,6 +313,7 @@ int main(int argc, char** argv) try {
+                          " [--fp32-partials|--bf16-partials-baseline]"
+                          " [--legacy-task-traits]"
+                          " [--measured-partial-combine|--analytic-partial-combine] [--target FILE]"
++                         " [--unified-task-cost|--legacy-task-cost] [--full-only]"
+                          " [--gqa-cu FILE] [--mha-cu FILE]\n"; return 2; }
+   }
+   if (screen_dir.empty()) screen_dir = repo + "/docs/experiments/ORACLE/raw";
+@@ -328,6 +337,7 @@ int main(int argc, char** argv) try {
+   full_options.fp32_partials = fp32_partials;
+   full_options.task_body_traits = task_body_traits;
+   full_options.measured_partial_combine = measured_partial_combine;
++  full_options.unified_task_cost = unified_task_cost;
+   CostModel const full(target, dtype, full_options);
+   std::cout << "fit: lds=" << full.fit().lds_ns << " ns/instr (rel rms "
+             << 100 * full.fit().lds_rel_rms << "%), setup=" << full.fit().setup_ns
+@@ -339,6 +349,7 @@ int main(int argc, char** argv) try {
+   roofline.fp32_partials = fp32_partials;
+   roofline.task_body_traits = task_body_traits;
+   roofline.measured_partial_combine = measured_partial_combine;
++  roofline.unified_task_cost = unified_task_cost;
+   roofline.pipeline_envelope = false;
+   roofline.wave_tail = false;
+   roofline.cache_model = false;
+@@ -385,8 +396,17 @@ int main(int argc, char** argv) try {
+     auto const points =
+         ReadScreen(screen_dir + "/screen_" + source.name + ".tsv",
+                    registers, target, dtype, &missing, &occupancy_mismatches);
+-    ModelDescription const model = ModelDescription::FromGeneratedCuda(
+-        source.cu, ModelDims{4, 3, 7}, source.name);
++    ModelDescription model;
++    if (unified_task_cost) {
++      mlir::MLIRContext context;
++      context.getOrLoadDialect<tilemega::dialect::CGDialect>();
++      std::string input=dtype==ScalarType::kBF16
++          ? repo+"/docs/experiments/SEQSCAN/raw/export/"+source.name+".json"
++          : repo+"/docs/experiments/"+(std::string(source.name)=="gqa2" ? "E2E_GEN" : "P3_GENERALIZATION")+
++              "/raw/export_bridge.json";
++      auto cg=tilemega::frontend::TorchExportImporter{}.Import(input,context);
++      model=ModelDescription::FromCouplingGraph(*cg,{4,3,7},source.name);
++    } else model=ModelDescription::FromGeneratedCuda(source.cu,{4,3,7},source.name);
+     if (model.dtype != dtype)
+       throw std::runtime_error("generated model dtype does not match --dtype");
+     std::cout << source.name << ": " << points.size() << " measured points, "
+@@ -409,6 +429,7 @@ int main(int argc, char** argv) try {
+     CandidateGenerator const generator(target, dtype);
+ 
+     for (auto const& layer : ladder) {
++      if (full_only && std::string(layer.name)!="+nongemm(full)") continue;
+       CostModel const cost(target, dtype, layer.options);
+       std::vector<double> predicted(points.size());
+       auto const start = std::chrono::steady_clock::now();
+@@ -429,7 +450,9 @@ int main(int argc, char** argv) try {
+         std::ofstream detail(out_dir + "/predictions_" + source.name + ".tsv");
+         detail << "tile_m\ttile_n\ttile_k\tstages\tsplit_k\tctas_per_sm"
+                   "\tmeasured_ms\tmodel_ms\tgemm_ms\tcombine_ms\tother_ms"
+-                  "\tbarrier_ms\tstages_after_split\n";
++                  "\tbarrier_ms\tstages_after_split";
++        if (unified_task_cost) detail << "\ttask_ns_sum";
++        detail << '\n';
+         for (std::size_t i = 0; i < points.size(); ++i) {
+           CostBreakdown const b = cost.Evaluate(
+               model, points[i].config, Residency{points[i].ctas_per_sm});
+@@ -439,7 +462,9 @@ int main(int argc, char** argv) try {
+                  << points[i].ctas_per_sm << '\t' << points[i].measured_ms
+                  << '\t' << b.total_ns / 1e6 << '\t' << b.gemm_ns / 1e6 << '\t'
+                  << b.combine_ns / 1e6 << '\t' << b.other_ns / 1e6 << '\t'
+-                 << b.barrier_ns / 1e6 << '\t' << b.stage_count << '\n';
++                 << b.barrier_ns / 1e6 << '\t' << b.stage_count;
++          if (unified_task_cost) detail << '\t' << b.task_ns_sum;
++          detail << '\n';
+         }
+       }
+     }
+@@ -448,6 +473,7 @@ int main(int argc, char** argv) try {
+     // lanes are retained deliberately: their identical score is evidence for
+     // which dimensions remain structurally zero on this target.
+     for (int lane = 0; lane < ResourceVector::kLaneCount; ++lane) {
++      if (full_only) continue;
+       CostModelOptions ablated = plus_nongemm;
+       ablated.disabled_lanes[lane] = true;
+       CostModel const cost(target, dtype, ablated);
+diff --git a/tools/tilemega-task-cost-gate.cpp b/tools/tilemega-task-cost-gate.cpp
+index 14b7697f..b754b634 100644
+--- a/tools/tilemega-task-cost-gate.cpp
++++ b/tools/tilemega-task-cost-gate.cpp
+@@ -68,12 +68,13 @@ int main(int argc,char** argv) try {
+           int chunks=0;
+           double old=cost.GemmStageNs(gemm,config,{resident},model,&chunks);
+           double current=cost.TaskCostNs(input,traits,{resident},model,chunks);
+-          if (!Bits(old,current)) {
++          double stage_entry=cost.TaskStageNs(model,semantic.stage,config,{resident});
++          if (!Bits(old,current) || !Bits(old,stage_entry)) {
+             std::cerr << std::setprecision(17) << "TASK_PRICE_MISMATCH dtype=" << dtype
+                       << " model=" << name << " stage=" << semantic.op.name << " seq=" << seq
+                       << " residency=" << resident << " config=" << row[0] << 'x' << row[1]
+                       << 'x' << row[2] << 's' << row[3] << 'k' << row[4]
+-                      << " old=" << old << " new=" << current << '\n';
++                      << " old=" << old << " new=" << current << " stage_entry=" << stage_entry << '\n';
+             throw std::runtime_error("A6 GEMM stage-price bit gate failed; stop");
+           }
+           ++checks;
+@@ -87,7 +88,7 @@ int main(int argc,char** argv) try {
+     }
+     if (configurations!=1077) throw std::runtime_error("incomplete 1077-configuration price gate");
+     std::cerr << "TASK_PRICE_GATE dtype=" << dtype << " model=" << name
+-              << " configs=" << configurations << " status=PASS scalar_path=pending\n";
++              << " configs=" << configurations << " status=PASS stage_entry_bits_equal=1\n";
+   }
+   if (context.ReferenceCount()!=0) throw std::runtime_error("task price gate retained isl objects");
+   std::cerr << "ISL_CONTEXT remaining=" << context.ReferenceCount() << '\n';

@@ -1,0 +1,2 @@
+SCALAR_INDEX_CHECKS task_points=94 exact_write_sets=1 read_counts=1
+ISL_CONTEXT remaining=0

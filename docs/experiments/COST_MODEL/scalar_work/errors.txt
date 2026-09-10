@@ -1,0 +1,15 @@
+threads	before=0	after=0	unsupported scalar ownership domain
+rank	before=0	after=0	unsupported scalar ownership domain
+collective	before=0	after=0	unsupported scalar ownership domain
+element_tile	before=0	after=0	element ownership requires unit logical tasks
+odd_rotation	before=0	after=0	rotation head width must be positive and even
+missing_signature	before=0	after=0	missing arithmetic signature: absent_signature
+missing_flow	before=0	after=0	scalar task latency DAG/ownership has not been supplied
+coordinate_contract	before=0	after=0	scalar task latency DAG/ownership has not been supplied
+reduction_threads	before=0	after=0	invalid scalar dataflow or reduction width
+cyclic_flow	before=0	after=0	scalar dataflow is not a topological DAG
+empty_flow	before=0	after=0	invalid scalar dataflow or reduction width
+unbound_theta	before=0	after=0	bind theta before FP64 task evaluation
+missing_stage_semantics	before=0	after=0	runtime stage lacks a CG semantic cost input
+SCALAR_ERRORS branches=13 reference_delta=0
+ISL_CONTEXT remaining=0
