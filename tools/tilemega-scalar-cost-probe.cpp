@@ -106,7 +106,9 @@ int main(int argc,char** argv) try {
     int threads=model.dtype==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
     auto symbolic=model; symbolic.dims=ModelDims::Symbolic("S",past);
     auto projection=ProjectRuntimeQueues(symbolic,plan,{target.res.num_sms*2,threads,0});
-    CostModel cost(target,model.dtype);
+    CostModelOptions unified; unified.unified_task_cost=true;
+    CostModel cost(target,model.dtype,unified);
+    double old_attention=0,new_attention=0;
     for (auto const& semantic:model.task_semantics) {
       auto const& stage=model.stages.at(semantic.stage);
       if (stage.kind==StageKind::kGemm) continue;
@@ -122,12 +124,23 @@ int main(int argc,char** argv) try {
       auto [depth,barriers]=input.scalar_flow->MemoryDepthAndBarriers(threads);
       double old=cost.NonGemmStageNs(stage,model.dims,{2});
       double current=cost.TaskCostNs(input,traits,{2},model,1);
+      if (stage.kind==StageKind::kAttention) { old_attention+=old; new_attention+=current; }
       std::cout << dtype << '\t' << name << '\t' << (tiles ? "tile" : "element") << '\t'
           << seq << '\t' << past << '\t' << semantic.stage << '\t' << semantic.op.name << '\t'
           << count << '\t' << input.work.read_elements.SumDomain().SubstituteParams(bindings).Eval({}) << '\t'
           << input.work.write_elements.SumDomain().SubstituteParams(bindings).Eval({}) << '\t'
           << depth << '\t' << barriers << '\t' << old << '\t' << current << '\t' << current/old << '\n';
     }
+    CostModelOptions legacy; legacy.unified_task_cost=false;
+    double old_total=CostModel(target,model.dtype,legacy).Evaluate(model,configs,{2}).total_ns;
+    double new_total=cost.Evaluate(model,configs,{2}).total_ns;
+    std::cerr << std::setprecision(17) << "SCALAR_TOTAL model=" << name << " dtype=" << dtype
+              << " ownership=" << (tiles ? "tile" : "element") << " seq=" << seq << " past=" << past
+              << " old_ns=" << old_total << " new_ns=" << new_total
+              << " footprint_bytes=" << model.LiveFootprintBytes()
+              << " cache_hit=" << cost.CacheHitProbability(model.LiveFootprintBytes())
+              << " old_attention_ns=" << old_attention << " new_attention_ns=" << new_attention
+              << " old_fraction=" << old_attention/old_total << " new_fraction=" << new_attention/new_total << '\n';
   }
   std::cerr << "SCALAR_INDEX_CHECKS task_points=" << index_checks << " exact_write_sets=1 read_counts=1\n";
   if (context.ReferenceCount()) throw std::runtime_error("scalar probe retained isl objects");
