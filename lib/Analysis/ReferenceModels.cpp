@@ -169,11 +169,13 @@ ReferenceModel LlamaDecoderLayerSem(DecoderShape const& s,
       Space(n("rope_q"), {Ax("m", s.S), Ax("hh", q_cols)}),
       {Read(n("wq"), q, {IndexResult::Dim("m"), IndexResult::Dim("hh")})}));
   g.Tile(n("rope_q"), "m", s.Tm).Tile(n("rope_q"), "hh", s.d);
+  SetRotationElementReads(graph.ops.back(),Space(n("inv_freq"),{Ax("half",s.d.FloorDiv(ClosedForm::Constant(2)))}),s.d);
   graph.ops.push_back(Op(
       n("rope_k"), OperatorKind::kPointwise, {Par("m", s.S), Par("hh", kv_cols)},
       Space(n("rope_k"), {Ax("m", s.S), Ax("hh", kv_cols)}),
       {Read(n("wk"), k, {IndexResult::Dim("m"), IndexResult::Dim("hh")})}));
   g.Tile(n("rope_k"), "m", s.Tm).Tile(n("rope_k"), "hh", s.d);
+  SetRotationElementReads(graph.ops.back(),Space(n("inv_freq"),{Ax("half",s.d.FloorDiv(ClosedForm::Constant(2)))}),s.d);
 
   TensorSpace q_rot = Space(n("rope_q"), {Ax("m", s.S), Ax("hh", q_cols)});
   TensorSpace k_rot = Space(n("rope_k"), {Ax("m", s.S), Ax("hh", kv_cols)});

@@ -26,6 +26,69 @@ QuasiPolynomial Polynomial(ClosedForm const& value, ParamBinding const& known) {
 }
 }  // namespace
 
+CouplingRelation ExactElementRead(SemanticOp const& semantic, OperatorNode const& task,
+                                 ElementRead const& read, ParamBinding const& known) {
+  IslReferenceAudit audit(__func__);
+  if (task.output.axes.size()!=semantic.result_map.results.size() ||
+      read.tensor.axes.size()!=read.map.results.size())
+    throw std::invalid_argument("exact element indexing rank mismatch or unprojected split");
+  std::set<std::string> parameters;
+  auto expression=[&](ClosedForm const& value) {
+    auto bound=value.Substitute(known);
+    for (auto const& symbol:bound.FreeSymbols()) parameters.insert(symbol);
+    return bound.ToIslText();
+  };
+  std::map<std::string,std::string> variables;
+  std::vector<std::string> bounds, existential, elements;
+  for (std::size_t i=0;i<semantic.domain.size();++i) {
+    auto const& dim=semantic.domain[i];
+    std::string variable="iteration"+std::to_string(i);
+    if (!variables.emplace(dim.name,variable).second)
+      throw std::invalid_argument("duplicate semantic iteration axis");
+    existential.push_back(variable);
+    auto origin=expression(dim.origin),extent=expression(dim.extent);
+    bounds.push_back("("+origin+") <= "+variable+" < ("+origin+")+("+extent+")");
+  }
+  auto index=[&](IndexResult const& result) {
+    if (result.kind!=IndexResult::Kind::kAffine)
+      throw std::invalid_argument("exact element read requires affine indexing");
+    std::string value="("+expression(result.offset)+")";
+    for (auto const& term:result.terms) {
+      auto dim=variables.find(term.dim);
+      if (dim==variables.end()) throw std::invalid_argument("unknown element indexing axis: "+term.dim);
+      auto divisor=term.group.Eval(known,known);
+      if (divisor<=0) throw std::invalid_argument("nonpositive element indexing divisor");
+      long scale=term.coefficient.Eval(known,known);
+      value+=" + "+std::to_string(scale)+"*floord("+dim->second+", "+std::to_string(divisor)+")";
+    }
+    return value;
+  };
+  auto writes=BuildWriteMap(task);
+  for (std::size_t i=0;i<task.output.axes.size();++i) {
+    if (task.IsTiled(i)) bounds.push_back("0 <= "+task.output.axes[i].name+" < ("+
+                                         expression(task.CoordinateExtent(i))+")");
+    // The output indexing map is relative to the tensor's semantic origin.
+    auto point="("+index(semantic.result_map.results[i])+")+("+
+               expression(semantic.result.axes[i].origin)+")";
+    auto const& interval=writes.index[i];
+    for (auto const& symbol:interval.base.FreeSymbols()) if (!known.Contains(symbol)) parameters.insert(symbol);
+    auto base=interval.base.ToIslText(known);
+    bounds.push_back("("+base+") <= ("+point+") < ("+base+")+("+expression(interval.span)+")");
+  }
+  for (std::size_t i=0;i<read.map.results.size();++i) {
+    auto element="element"+std::to_string(i); elements.push_back(element);
+    bounds.push_back(element+" = "+index(read.map.results[i]));
+    auto const& axis=read.tensor.axes[i];
+    auto origin=expression(axis.origin),extent=expression(axis.extent);
+    bounds.push_back("("+origin+") <= "+element+" < ("+origin+")+("+extent+")");
+  }
+  for (auto const& predicate:read.nonnegative) bounds.push_back("("+index(predicate)+") >= 0");
+  std::string condition=Join(bounds," and ");
+  if (!existential.empty()) condition="exists ("+Join(existential,",")+" : "+condition+")";
+  return CouplingRelation::FromIslText(Prefix(parameters)+"{ ["+Join(task.Coordinates(),",")+
+      "] -> ["+Join(elements,",")+"] : "+condition+" }");
+}
+
 CouplingRelation ElementAccess(OperatorNode const& task, AccessRelation const& access,
                                ParamBinding const& known, AccessDomain domain) {
   IslReferenceAudit audit(__func__);
@@ -130,6 +193,20 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
   }
   work.read_elements = QuasiPolynomial::Sum(reads);
   work.nominal_read_elements = QuasiPolynomial::Sum(nominal_reads);
+  if (TILEMEGA_EXACT_ELEMENT_WORK && !semantic.element_reads.empty()) {
+    std::map<std::string,CouplingRelation> exact;
+    std::map<std::string,std::string> exact_layouts;
+    for (auto const& read:semantic.element_reads) {
+      if (read.tensor.name.empty()) throw std::invalid_argument("exact read tensor identity missing");
+      auto [layout,inserted]=exact_layouts.emplace(read.tensor.name,read.tensor.layout_id);
+      if (!inserted && layout->second!=read.tensor.layout_id)
+        throw std::invalid_argument("exact read union has conflicting layouts");
+      exact[read.tensor.name]=exact[read.tensor.name].Union(ExactElementRead(semantic,task,read,known));
+    }
+    std::vector<QuasiPolynomial> counts;
+    for (auto const& [name,relation]:exact) counts.push_back(relation.Card());
+    work.read_elements=QuasiPolynomial::Sum(counts);
+  }
   ClosedForm reduce=ClosedForm::Constant(1), parallel=ClosedForm::Constant(1);
   ClosedForm local_reduce=ClosedForm::Constant(1);
   ClosedForm nominal_reduce=ClosedForm::Constant(1);

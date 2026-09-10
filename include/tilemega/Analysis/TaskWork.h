@@ -6,6 +6,10 @@
 #include <tilemega/Analysis/Semantics.h>
 #include <map>
 
+#ifndef TILEMEGA_EXACT_ELEMENT_WORK
+#define TILEMEGA_EXACT_ELEMENT_WORK 1
+#endif
+
 namespace tilemega::analysis {
 enum class AccessDomain { kPhysicalTensor, kNominalTile };
 
@@ -13,6 +17,8 @@ enum class AccessDomain { kPhysicalTensor, kNominalTile };
 // tensor elements than the allocated/issued collective tile contains.
 CouplingRelation ElementAccess(OperatorNode const& task, AccessRelation const& access,
                                ParamBinding const& known, AccessDomain domain);
+CouplingRelation ExactElementRead(SemanticOp const& semantic, OperatorNode const& task,
+                                 ElementRead const& read, ParamBinding const& known);
 struct TaskWork {
   QuasiPolynomial task_count;
   QuasiPolynomial read_elements, write_elements;

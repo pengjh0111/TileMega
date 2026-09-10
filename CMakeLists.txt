@@ -23,10 +23,11 @@ option(TILEMEGA_EARLY_QP_BINDING "Specialize bound QP parameter tokens before pa
 option(TILEMEGA_BALANCED_QP_SUM "Deduplicate and balance exact QP additions" ON)
 option(TILEMEGA_OP_ARITHMETIC "Enable audited operator arithmetic declarations" ON)
 option(TILEMEGA_TASK_WORK "Derive physical and nominal work from access maps" ON)
+option(TILEMEGA_EXACT_ELEMENT_WORK "Count exact predicated element reads" ON)
 option(TILEMEGA_COMPLETE_GEMM_READS "Include external GEMM weights in semantic reads" ON)
 option(TILEMEGA_COMPLETE_NORMALIZATION_READS "Include normalization scale reads" ON)
 set_source_files_properties(lib/Analysis/TaskWork.cpp PROPERTIES
-  COMPILE_DEFINITIONS "TILEMEGA_TASK_WORK=$<BOOL:${TILEMEGA_TASK_WORK}>")
+  COMPILE_DEFINITIONS "TILEMEGA_TASK_WORK=$<BOOL:${TILEMEGA_TASK_WORK}>;TILEMEGA_EXACT_ELEMENT_WORK=$<BOOL:${TILEMEGA_EXACT_ELEMENT_WORK}>")
 set_source_files_properties(lib/Analysis/ReferenceModels.cpp lib/Frontend/SemanticLifting.cpp PROPERTIES
   COMPILE_DEFINITIONS "TILEMEGA_COMPLETE_GEMM_READS=$<BOOL:${TILEMEGA_COMPLETE_GEMM_READS}>;TILEMEGA_COMPLETE_NORMALIZATION_READS=$<BOOL:${TILEMEGA_COMPLETE_NORMALIZATION_READS}>")
 set_source_files_properties(lib/Analysis/OpArithmetic.cpp PROPERTIES
@@ -369,6 +370,11 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(runtime_projection_test test/unit/runtime_projection_test.cpp)
   target_link_libraries(runtime_projection_test PRIVATE TileMega::tilemega)
   add_test(NAME runtime_projection COMMAND runtime_projection_test)
+  add_executable(task_element_work_test test/unit/task_element_work_test.cpp)
+  target_link_libraries(task_element_work_test PRIVATE TileMega::tilemega)
+  add_test(NAME task_element_work COMMAND task_element_work_test
+    ${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/gqa2.json
+    ${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/mha4.json)
   add_test(NAME op_arithmetic_audit COMMAND tilemega-op-audit)
   add_test(NAME task_work_domains COMMAND tilemega-task-work-probe
     "${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/gqa2.json"

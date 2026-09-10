@@ -273,6 +273,8 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
             {Read(producer_of(stage.operands[0]),
                   space_of(stage.operands[0], {Ax("m", S), Ax("hh", cols)}),
                   {IndexResult::Dim("m"), IndexResult::Dim("hh")})});
+        analysis::SetRotationElementReads(op,
+            space_of(stage.operands[2],{Ax("half",Fixed(stage.width/2))}),Fixed(stage.width));
         record(std::move(op), OpRole::kRoPE, OwnershipKind::kElementChunk, i,
                layer, stage.operands[1]);
         break;
@@ -337,6 +339,7 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
         op.reduction.partial_tensor = name + ".partial";
         op.reduction.combiner = name + ".combine";
         op.reduction.ownership = {"s", "h"};
+        analysis::SetCausalAttentionReads(op,Fixed(stage.width),group,past);
         record(std::move(op), OpRole::kAttention, OwnershipKind::kTilePerBlock,
                i, layer, stage.operands[3]);
         break;

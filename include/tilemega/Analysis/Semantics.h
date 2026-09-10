@@ -113,6 +113,15 @@ struct SemanticOperand {
   MemoryEffect effect;
 };
 
+/// Exact element reads where a rectangular task-level coupling projection
+/// loses information (rotation partners, grouped-head offsets, causal masks).
+/// Each predicate is an affine expression required to be nonnegative.
+struct ElementRead {
+  TensorSpace tensor;
+  IndexingMap map;
+  std::vector<IndexResult> nonnegative;
+};
+
 /// §2.4 split-K semantics, declared rather than hidden in a TaskBody. An op
 /// whose reduction dimension can be partitioned says so here; splitting it is
 /// then an L-task transform (SplitReduction) that materializes a partial
@@ -140,6 +149,9 @@ struct SemanticOp {
   IndexingMap result_map;
   MemoryEffect result_effect;
   std::vector<SemanticOperand> operands;
+  /// When nonempty this is the complete physical read set, not an increment
+  /// to operands. Coupling projection and issued nominal work stay separate.
+  std::vector<ElementRead> element_reads;
   ReductionSemantics reduction;
   /// Set when the op fell through every declarative pattern and was given the
   /// conservative generic semantics (identity result map, full-range reads).
@@ -156,6 +168,10 @@ struct SemanticGraph {
   /// construction; test/unit/semantics_test.cpp asserts it.
   std::string Serialize() const;
 };
+
+void SetRotationElementReads(SemanticOp& op, TensorSpace frequency, ClosedForm head_width);
+void SetCausalAttentionReads(SemanticOp& op, ClosedForm head_width,
+                            ClosedForm head_group, ClosedForm past);
 
 /// Conservative semantics for an operator no pattern recognized: the result is
 /// written elementwise, every operand is read in full. It is I2-safe (the read

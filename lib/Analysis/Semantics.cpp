@@ -145,12 +145,58 @@ IterationDim const* SemanticOp::Dim(std::string const& name) const {
   return nullptr;
 }
 
+void SetRotationElementReads(SemanticOp& op, TensorSpace frequency, ClosedForm head_width) {
+  if (op.operands.size()!=1 || op.operands[0].map.results.size()!=2)
+    throw std::invalid_argument("rotation element reads require a rank-two source");
+  auto const& source=op.operands[0];
+  auto const& column=source.map.results[1];
+  if (column.terms.size()!=1 || !column.terms[0].coefficient.IsLiteral(1) ||
+      !column.terms[0].group.IsLiteral(1))
+    throw std::invalid_argument("rotation source must expose its element column");
+  auto dim=column.terms[0].dim;
+  auto one=ClosedForm::Constant(1),two=ClosedForm::Constant(2),minus=ClosedForm::Constant(-1);
+  auto half=head_width.FloorDiv(two);
+  auto partner=source.map;
+  // Swap half-heads without treating the discontinuous permutation as an
+  // interval: h + D/2 - D*floor(h/(D/2)) + 2D*floor(h/D).
+  partner.results[1]=IndexResult::Affine({{dim,one,one},{dim,minus*head_width,half},
+                                        {dim,two*head_width,head_width}},half);
+  IndexingMap freq{{IndexResult::Affine({{dim,one,one},{dim,minus*half,half}})}};
+  op.element_reads={{source.tensor,source.map,{}},{source.tensor,partner,{}},
+                    {std::move(frequency),std::move(freq),{}}};
+}
+
+void SetCausalAttentionReads(SemanticOp& op, ClosedForm head_width,
+                            ClosedForm head_group, ClosedForm past) {
+  if (op.operands.size()!=3 || op.result_map.results.size()!=2 || op.reduction.dim.empty())
+    throw std::invalid_argument("causal attention requires Q/K/V and a reduction axis");
+  auto q=op.operands[0]; auto k=op.operands[1]; auto v=op.operands[2];
+  auto const& output=op.result_map.results;
+  if (output[0].terms.size()!=1 || output[1].terms.size()!=1)
+    throw std::invalid_argument("causal attention requires direct token/head coordinates");
+  auto token=output[0].terms[0].dim,head=output[1].terms[0].dim;
+  auto one=ClosedForm::Constant(1),minus=ClosedForm::Constant(-1);
+  // Flattened element h = head*D+d maps to floor(head/G)*D+d, not floor(h/G).
+  auto grouped=IndexResult::Affine({{head,head_width,head_width*head_group},
+                                    {head,one,one},{head,minus*head_width,head_width}});
+  k.map.results[1]=v.map.results[1]=grouped;
+  auto causal=IndexResult::Affine({{token,one,one},{op.reduction.dim,minus,one}},past);
+  // PV still reads all V positions, including positions whose probability is
+  // zero; only QK's global K loads are guarded by the causal predicate.
+  op.element_reads={{q.tensor,q.map,{}},{k.tensor,k.map,{causal}},{v.tensor,v.map,{}}};
+}
+
 std::string SemanticOp::Serialize() const {
   std::ostringstream out;
   out << "op " << name << " kind=" << ToString(kind)
       << " dtype=" << ToString(dtype)
       << (generic ? " generic" : "");
   if (!arithmetic.empty()) out << " arithmetic=" << arithmetic;
+  for (auto const& read:element_reads) {
+    out << "\n  element_read " << SerializeTensor(read.tensor) << ' ' << read.map.Serialize();
+    for (auto const& predicate:read.nonnegative)
+      out << " where " << predicate.Serialize() << ">=0";
+  }
   out << "\n  domain";
   for (auto const& dim : domain) {
     out << " " << dim.name << ":" << ToString(dim.type) << "["
