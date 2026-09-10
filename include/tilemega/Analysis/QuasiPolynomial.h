@@ -70,6 +70,8 @@ class QuasiPolynomial {
   /// std::out_of_range naming the first dimension still unbound, matching
   /// ClosedForm::Eval's contract.
   long Eval(ParamBinding const& known) const;
+  std::vector<long> EvalPoints(ParamBinding const& known,
+      std::vector<ParamBinding> const& coordinates) const;
   /// Sum over task-coordinate dimensions, retaining symbolic parameters.
   QuasiPolynomial SumDomain() const;
   /// Add exact functions, treating points outside either domain as zero.

@@ -405,6 +405,37 @@ long QuasiPolynomial::Eval(ParamBinding const& known) const {
   return isl_val_get_num_si(max_value.get());
 }
 
+std::vector<long> QuasiPolynomial::EvalPoints(ParamBinding const& known,
+    std::vector<ParamBinding> const& coordinates) const {
+  IslReferenceAudit audit(__func__);
+  auto value=isl_util::ReadPwQPolynomial(Ctx(),BindParameterTokens(text_,known));
+  value=FixParams(std::move(value),known);
+  auto space=isl_util::Space(isl_pw_qpolynomial_get_domain_space(value.get()));
+  int parameters=isl_space_dim(space.get(),isl_dim_param),dims=isl_space_dim(space.get(),isl_dim_set);
+  std::vector<long> result;
+  result.reserve(coordinates.size());
+  for (auto const& coordinate:coordinates) {
+    auto point=isl_util::Point(isl_point_zero(isl_space_copy(space.get())));
+    for (auto type:{isl_dim_param,isl_dim_set}) {
+      int count=type==isl_dim_param ? parameters : dims;
+      auto const& binding=type==isl_dim_param ? known : coordinate;
+      for (int i=0;i<count;++i) {
+        auto name=isl_space_get_dim_name(space.get(),type,i);
+        if (!name || !binding.Contains(name))
+          throw std::invalid_argument("batch QP evaluation requires every parameter and task coordinate");
+        point=isl_util::Point(isl_point_set_coordinate_val(point.release(),type,i,isl_val_int_from_si(Ctx(),binding.At(name))));
+      }
+    }
+    auto evaluated=isl_util::Val(isl_pw_qpolynomial_eval(isl_pw_qpolynomial_copy(value.get()),point.release()));
+    if (!evaluated || isl_val_is_int(evaluated.get())!=isl_bool_true ||
+        isl_val_cmp_si(evaluated.get(),std::numeric_limits<long>::min())<0 ||
+        isl_val_cmp_si(evaluated.get(),std::numeric_limits<long>::max())>0)
+      throw std::invalid_argument("batch QP value is not a representable integer");
+    result.push_back(isl_val_get_num_si(evaluated.get()));
+  }
+  return result;
+}
+
 QuasiPolynomial QuasiPolynomial::SumDomain() const {
   IslReferenceAudit audit(__func__);
   auto value = isl_util::ReadPwQPolynomial(Ctx(), text_);

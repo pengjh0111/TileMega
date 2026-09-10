@@ -40,6 +40,16 @@ int main() try {
   if (!product.SemanticallyEqual(QuasiPolynomial::FromIslText("[S] -> { S^2 }"),{}))
     throw std::runtime_error("exact work/rate composition failed");
   auto intervals=periodic.QuadraticIntervals("S",1,63);
+  auto per_task=QuasiPolynomial::FromIslText("[S] -> { [q] -> S+floor(q/3) : 0<=q<2*S }");
+  ParamBinding known; known.Bind("S",8);
+  std::vector<ParamBinding> points(16);
+  for (int q=0;q<16;++q) points[q].Bind("q",q);
+  auto values=per_task.EvalPoints(known,points);
+  for (int q=0;q<16;++q)
+    if (values[q]!=per_task.BindCoordinates(points[q]).Eval(known))
+      throw std::runtime_error("batch QP evaluation changed scalar result");
+  reject([&]{per_task.EvalPoints({},points);});
+  reject([&]{per_task.EvalPoints(known,{{}});});
   for (long s=1;s<=63;++s) {
     int hits=0;
     for (auto const& interval:intervals) if (interval.begin<=s && s<=interval.end) {
