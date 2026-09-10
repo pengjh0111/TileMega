@@ -181,6 +181,7 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
         (model.gemms[i].k+g.tile_k-1)/g.tile_k));
   }
   RuntimeProjection result;
+  result.options=options;
   std::vector<int> entry(model.stages.size()), done(model.stages.size());
   std::vector<std::string> counts, tiles(model.stages.size());
   std::vector<int> stage_chunks(model.stages.size(),1);
@@ -367,10 +368,15 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
 void AttachRuntimeEventMetrics(ModelDescription& model, codegen::RuntimePlan const& plan,
                                RuntimeProjectionOptions options) {
   auto projection=ProjectRuntimeQueues(model,plan,options);
+  AttachProjectedEventMetrics(model,plan,projection);
+}
+void AttachProjectedEventMetrics(ModelDescription& model,codegen::RuntimePlan const& plan,
+                               RuntimeProjection const& projection) {
+  auto const& options=projection.options;
   ModelRuntimeEventMetrics metrics;
-  metrics.task_refs=std::move(projection.runtime_task_refs);
-  metrics.wait_entries=std::move(projection.runtime_wait_entries);
-  metrics.max_worker_task_refs=std::move(projection.max_worker_task_refs);
+  metrics.task_refs=projection.runtime_task_refs;
+  metrics.wait_entries=projection.runtime_wait_entries;
+  metrics.max_worker_task_refs=projection.max_worker_task_refs;
   metrics.gemms=plan.gemms;
   metrics.grid=options.grid; metrics.threads=options.threads; metrics.kappa=options.kappa;
   metrics.stage_count=static_cast<int>(projection.stages.size());

@@ -31,6 +31,7 @@ struct ProjectedStage {
 };
 
 struct RuntimeProjection {
+  RuntimeProjectionOptions options;
   std::vector<ProjectedStage> stages;
   analysis::CouplingRelation tasks;
   analysis::CouplingRelation dependencies;  ///< consumer [stage,task] -> producer
@@ -40,6 +41,13 @@ struct RuntimeProjection {
   analysis::QuasiPolynomial runtime_wait_entries;
   analysis::QuasiPolynomial max_worker_task_refs;
 };
+struct FusedRuntimeProjection {
+  RuntimeProjection projection;
+  analysis::CouplingRelation phase_tasks; ///< new [stage,task] -> old [stage,task]
+};
+FusedRuntimeProjection FuseProjectedQueues(RuntimeProjection const& original,
+    int producer,int consumer,analysis::CouplingRelation const& consumer_to_producer,
+    RuntimeProjectionOptions options);
 struct ProjectedPlacement {
   std::vector<std::vector<long>> task_ids;
   TaskPlacement placement;
@@ -58,5 +66,7 @@ analysis::CouplingRelation ProjectScalarTaskOwnership(ModelTaskSemantics const& 
     analysis::OperatorNode const& task,ModelStage const& stage,int threads);
 void AttachRuntimeEventMetrics(ModelDescription& model, codegen::RuntimePlan const& plan,
                                RuntimeProjectionOptions options);
+void AttachProjectedEventMetrics(ModelDescription& model,codegen::RuntimePlan const& plan,
+                               RuntimeProjection const& projection);
 
 }  // namespace tilemega::solver

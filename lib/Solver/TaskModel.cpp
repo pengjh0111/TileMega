@@ -146,6 +146,14 @@ ModelFusionCandidate ComposeModelCandidate(ModelDescription const& model,
   };
   auto p=input(*producer),c=input(*consumer);
   auto pa=DeriveModelTaskAccesses(*producer,p),ca=DeriveModelTaskAccesses(*consumer,c);
+  if (runtime_ownership) {
+    if (model.dims.IsSymbolic())
+      throw std::invalid_argument("runtime fusion candidate requires bound dimensions");
+    auto theta=model.MetricBindings();
+    for (auto* accesses:{&pa,&ca})
+      for (auto* maps:{&accesses->reads,&accesses->writes})
+        for (auto& [tensor,map]:*maps) map=map.BindParams(theta);
+  }
   std::set<std::string> internal,external;
   for (auto const& [name,write]:pa.writes) {
     if (ca.reads.count(name)) internal.insert(name);
