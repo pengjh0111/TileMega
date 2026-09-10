@@ -1,0 +1,10 @@
+{
+  "binary": "/root/TileMega/build-portable/tools/tilemega-calibrate",
+  "binary_sha256": "f0303ee41510457cc70367a017cb92c5f87f8754f87161b3db3baabdacec800e",
+  "base": "/root/TileMega/configs/targets/sm_89.json",
+  "base_sha256": "b4c4ac66e8cf56f3c7ac6b14db00b0da815b0bbefbbff46d0a720b26b4c72776",
+  "batch": 64,
+  "repeats": 41,
+  "processes": 50,
+  "commit": "c259172c13d57950b66a8195f9ec57983a7d8f48"
+}

@@ -1,0 +1,365 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 2fcecb5e..83a79217 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -25,8 +25,11 @@ option(TILEMEGA_OP_ARITHMETIC "Enable audited operator arithmetic declarations"
+ option(TILEMEGA_TASK_WORK "Derive physical and nominal work from access maps" ON)
+ option(TILEMEGA_EXACT_ELEMENT_WORK "Count exact predicated element reads" ON)
+ option(TILEMEGA_SEMANTIC_COST_INPUT "Carry validated semantic accesses through CG" ON)
++option(TILEMEGA_DERIVED_TASK_COST "Enable explicit access-derived task pricing" ON)
+ set_source_files_properties(lib/Frontend/Frontend.cpp PROPERTIES
+   COMPILE_DEFINITIONS "TILEMEGA_SEMANTIC_COST_INPUT=$<BOOL:${TILEMEGA_SEMANTIC_COST_INPUT}>")
++set_source_files_properties(lib/Solver/CostModel.cpp PROPERTIES
++  COMPILE_DEFINITIONS "TILEMEGA_DERIVED_TASK_COST=$<BOOL:${TILEMEGA_DERIVED_TASK_COST}>")
+ option(TILEMEGA_COMPLETE_GEMM_READS "Include external GEMM weights in semantic reads" ON)
+ option(TILEMEGA_COMPLETE_NORMALIZATION_READS "Include normalization scale reads" ON)
+ set_source_files_properties(lib/Analysis/TaskWork.cpp PROPERTIES
+@@ -259,6 +262,10 @@ set_target_properties(tilemega-event-price PROPERTIES
+ add_executable(tilemega-op-audit tools/tilemega-op-audit.cpp)
+ add_executable(tilemega-task-work-probe tools/tilemega-task-work-probe.cpp)
+ add_executable(tilemega-task-work-gate tools/tilemega-task-work-gate.cpp)
++add_executable(tilemega-task-cost-gate tools/tilemega-task-cost-gate.cpp)
++target_link_libraries(tilemega-task-cost-gate PRIVATE TileMega::tilemega)
++set_target_properties(tilemega-task-cost-gate PROPERTIES
++  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+ target_link_libraries(tilemega-task-work-gate PRIVATE TileMega::tilemega)
+ set_target_properties(tilemega-task-work-gate PROPERTIES
+   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+diff --git a/include/tilemega/Solver/CostModel.h b/include/tilemega/Solver/CostModel.h
+index d3f91767..fd25926d 100644
+--- a/include/tilemega/Solver/CostModel.h
++++ b/include/tilemega/Solver/CostModel.h
+@@ -39,6 +39,8 @@
+ 
+ namespace tilemega::solver {
+ 
++struct DerivedTaskInput;
++
+ /// Why a lane of `ResourceVector` carries zero.  A zero lane is never bare:
+ /// it is either live, or the target has no such pipe, or the pipe exists and
+ /// nobody measured it.  `Bottleneck()` is a max, so a zeroed lane drops out
+@@ -173,6 +175,11 @@ class CostModel {
+                         ModelDims const& dims) const;
+   double NonGemmStageNs(ModelStage const& stage, ModelDims const& dims,
+                         Residency residency) const;
++  // Access-derived candidate input. The historical stage evaluators remain
++  // independent controls until the complete unified-path acceptance gate.
++  double TaskCostNs(DerivedTaskInput const& input, BackendTraits const& traits,
++                    Residency residency, ModelDescription const& model,
++                    int chunks) const;
+   /// §2.2(f): one stage barrier, at this grid width.
+   double BarrierNs(Residency residency) const;
+   double EventNs(ModelDescription const& model, std::vector<GemmConfig> const& configs,
+diff --git a/include/tilemega/Target/Calibration.h b/include/tilemega/Target/Calibration.h
+index 7d6b2927..0975e68f 100644
+--- a/include/tilemega/Target/Calibration.h
++++ b/include/tilemega/Target/Calibration.h
+@@ -44,6 +44,9 @@ struct Options {
+   /// scattered ~20% run to run and at 41 it scatters ~5%.  The whole run is
+   /// 6 seconds either way.
+   int repeats = 41;
++  // Explicit measurement protocol, not a hardware parameter. Zero retains
++  // independent single-launch timing; positive batches use paired graphs.
++  int combine_graph_batch = 0;
+   /// Skip the Stream-K fit, which is the only group that compiles and runs
+   /// real CUTLASS GEMMs and so dominates wall time.
+   bool skip_streamk = false;
+diff --git a/lib/Solver/CostModel.cpp b/lib/Solver/CostModel.cpp
+index 2be0388b..ae09f9bc 100644
+--- a/lib/Solver/CostModel.cpp
++++ b/lib/Solver/CostModel.cpp
+@@ -1,5 +1,6 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ #include <tilemega/Solver/CostModel.h>
++#include <tilemega/Solver/TaskModel.h>
+ 
+ #include <algorithm>
+ #include <cmath>
+@@ -399,6 +400,68 @@ double CostModel::CombineStageNs(GemmOp const& gemm, int chunks,
+   return calib.combine_fixed_ns + (b + d * (chunks - 1)) * elements;
+ }
+ 
++double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const& traits,
++                             Residency residency, ModelDescription const& model,
++                             int chunks) const {
++#if defined(TILEMEGA_DERIVED_TASK_COST) && !TILEMEGA_DERIVED_TASK_COST
++  throw std::runtime_error("access-derived task pricing is disabled");
++#endif
++  if (traits.stages<=0 || traits.tile_k<=0)
++    throw std::invalid_argument("scalar task latency DAG has not been supplied");
++  if (model.dims.IsSymbolic()) throw std::invalid_argument("bind theta before FP64 task evaluation");
++  auto known=model.MetricBindings();
++  analysis::ParamBinding point;
++  for (auto const& coordinate:input.task.Coordinates()) point.Bind(coordinate,0);
++  auto value=[&](analysis::QuasiPolynomial const& quantity) {
++    return double(quantity.BindCoordinates(point).SubstituteParams(known).Eval({}));
++  };
++  double const ctas=double(input.work.task_count.SubstituteParams(known).Eval({}));
++  double const iters=value(input.work.nominal_task_reduce_extent)/traits.tile_k;
++  if (iters<=0 || iters!=std::floor(iters)) throw std::invalid_argument("invalid collective reduction work");
++  double const reads=value(input.work.nominal_read_elements)/iters;
++  double const writes=value(input.work.nominal_write_elements);
++  double const bytes=ElementBytes(dtype_)*reads;
++  double const flops=input.arithmetic.flops_per_output_element.Eval(known)*writes/iters;
++  double const transc=input.arithmetic.transcendental_per_output_element.Eval(known)*writes/iters;
++  double const dram_fraction=1.0-CacheHitProbability(model.LiveFootprintBytes());
++  // Keep the calibrated factorized FP64 setup order. beta*(M*N) is not in
++  // general bit-identical to (beta*M)*N, although the integer work is exact.
++  double setup=fit_.setup_per_output_ns;
++  for (std::size_t axis=0;axis<input.task.tile.size();++axis) {
++    setup*=double(input.task.tile[axis].Eval(known,known));
++  }
++  double const epilogue=(options_.fp32_partials && dtype_==ScalarType::kBF16 && chunks>1
++                           ? double(sizeof(float)) : ElementBytes(dtype_))*writes;
++  double const fixed=fit_.setup_ns+setup+traits.stages*(bytes/l2_bytes_per_ns_per_sm_)+
++      calib_->l2_latency_ns+epilogue/l2_bytes_per_ns_per_sm_;
++  double const effective_iters=options_.pipeline_envelope
++      ? std::max(iters-(traits.stages-1),0.0) : iters;
++  double const grid=double(target_->res.num_sms)*std::max(1,residency.ctas_per_sm);
++  double total=0.0;
++  for (double remaining=ctas;remaining>0.0;remaining-=grid) {
++    double const active=std::min(grid,remaining);
++    double const o=options_.wave_tail ? std::max(1.0,active/target_->res.num_sms)
++                                    : std::max(1,residency.ctas_per_sm);
++    ResourceVector u;
++    // The historical scalar 16x16 thread layout issues read_elements/2
++    // scalar shared warp instructions; BF16's corresponding lane is disabled.
++    u.smem=o*(dtype_==ScalarType::kBF16 ? bytes : reads/2.0)*fit_.lds_ns;
++    if (options_.resource_lanes) {
++      if (input.arithmetic.flops_use_mma) u.tensor_core=o*flops/tc_flops_per_ns_per_sm_;
++      else u.cuda_core=o*flops/cuda_flops_per_ns_per_sm_;
++      u.sfu=o*transc/sfu_ops_per_ns_per_sm_;
++      u.l2=(o*bytes)/l2_bytes_per_ns_per_sm_;
++      u.dram=(o*bytes)*dram_fraction/dram_bytes_per_ns_per_sm_;
++    }
++    for (int i=0;i<ResourceVector::kLaneCount;++i) {
++      auto lane=static_cast<ResourceVector::Lane>(i);
++      if (lanes_[lane]!=LaneStatus::kLive || options_.disabled_lanes[lane]) u[lane]=0.0;
++    }
++    total+=fixed+effective_iters*u.Bottleneck();
++  }
++  return total;
++}
++
+ double CostModel::NonGemmStageNs(ModelStage const& stage, ModelDims const& dims,
+                                  Residency residency) const {
+   if (!options_.non_gemm) return 0.0;
+diff --git a/lib/Target/GemmCalibration.cu b/lib/Target/GemmCalibration.cu
+index 11eddef5..fb69ff96 100644
+--- a/lib/Target/GemmCalibration.cu
++++ b/lib/Target/GemmCalibration.cu
+@@ -24,6 +24,7 @@
+ #include <algorithm>
+ #include <cmath>
+ #include <ctime>
++#include <cstring>
+ #include <ostream>
+ #include <stdexcept>
+ #include <string>
+@@ -61,6 +62,65 @@ struct Timed {
+   int samples = 0;
+ };
+ 
++#ifndef TILEMEGA_COMBINE_GRAPH_TIMING
++#define TILEMEGA_COMBINE_GRAPH_TIMING 1
++#endif
++
++template<class Launch>
++Timed PairedGraphMs(int repeats,int batch,Launch&& launch,std::ostream& log) {
++#if !TILEMEGA_COMBINE_GRAPH_TIMING
++  throw std::runtime_error("paired combine graph timing is disabled");
++#endif
++  if (repeats<=0 || batch<=0) throw std::invalid_argument("invalid paired graph measurement protocol");
++  struct Resources {
++    cudaStream_t stream=nullptr;
++    cudaGraph_t graph[2]={nullptr,nullptr};
++    cudaGraphExec_t executable[2]={nullptr,nullptr};
++    cudaEvent_t begin=nullptr,end=nullptr;
++    ~Resources() {
++      for (int arm=0;arm<2;++arm) {
++        if (executable[arm]) cudaGraphExecDestroy(executable[arm]);
++        if (graph[arm]) cudaGraphDestroy(graph[arm]);
++      }
++      if (begin) cudaEventDestroy(begin);
++      if (end) cudaEventDestroy(end);
++      if (stream) cudaStreamDestroy(stream);
++    }
++  } resources;
++  CheckCuda(cudaStreamCreate(&resources.stream),"create measurement stream");
++  CheckCuda(cudaEventCreate(&resources.begin),"create graph start event");
++  CheckCuda(cudaEventCreate(&resources.end),"create graph stop event");
++  for (int arm=0;arm<2;++arm) {
++    CheckCuda(cudaStreamBeginCapture(resources.stream,cudaStreamCaptureModeThreadLocal),"begin graph capture");
++    for (int i=0;i<batch;++i) launch(resources.stream,arm!=0);
++    CheckCuda(cudaStreamEndCapture(resources.stream,&resources.graph[arm]),"end graph capture");
++    CheckCuda(cudaGraphInstantiate(&resources.executable[arm],resources.graph[arm],nullptr,nullptr,0),
++              "instantiate measurement graph");
++  }
++  for (int warmup=0;warmup<3;++warmup) for (int arm=0;arm<2;++arm)
++    CheckCuda(cudaGraphLaunch(resources.executable[(warmup+arm)%2],resources.stream),"warm graph");
++  CheckCuda(cudaStreamSynchronize(resources.stream),"graph warmup completion");
++  std::vector<double> differences;
++  for (int round=0;round<repeats;++round) {
++    double values[2]={};
++    for (int order=0;order<2;++order) {
++      int arm=(round+order)%2;
++      CheckCuda(cudaEventRecord(resources.begin,resources.stream),"record graph start");
++      CheckCuda(cudaGraphLaunch(resources.executable[arm],resources.stream),"launch measurement graph");
++      CheckCuda(cudaEventRecord(resources.end,resources.stream),"record graph stop");
++      CheckCuda(cudaEventSynchronize(resources.end),"complete measurement graph");
++      float elapsed=0;
++      CheckCuda(cudaEventElapsedTime(&elapsed,resources.begin,resources.end),"time measurement graph");
++      values[arm]=double(elapsed)/batch;
++    }
++    differences.push_back(values[1]-values[0]);
++    log << "    COMBINE_PAIR round=" << round << " batch=" << batch
++        << " first=" << round%2 << " control_ns=" << values[0]*1e6
++        << " work_ns=" << values[1]*1e6 << " delta_ns=" << differences.back()*1e6 << '\n';
++  }
++  return {Median(differences),RelStddev(differences),repeats};
++}
++
+ template <class Launch>
+ Timed TimeMs(int repeats, Launch&& launch) {
+   cudaEvent_t start, stop;
+@@ -409,15 +469,27 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
+   // `NullKernel` the launch-subtracted duration at one output came out at
+   // -928 ns, which is impossible and is the same ~1 us bias that put three
+   // BF16 Stream-K shapes at a negative `a` (F-70).
+-  double const launch_ns =
++  double const launch_ns = options.combine_graph_batch>0 ? 0.0 :
+       TimeMs(options.repeats,
+              [&] { CalibCombineKernel<Element,Partial,Threads><<<blocks, Threads>>>(partials, out, 0, 1); })
+           .median_ms * 1e6;
+ 
+-  auto sweep_single = [&](int count) {
+-    Timed timed = TimeMs(options.repeats, [&] {
+-      CalibCombineKernel<Element,Partial,Threads><<<blocks, Threads>>>(partials, out, count, 1);
++  auto measure=[&](int count,int chunks) {
++    if (options.combine_graph_batch>0) {
++      log << "  COMBINE_GRAPH count=" << count << " chunks=" << chunks << '\n';
++      return PairedGraphMs(options.repeats,options.combine_graph_batch,
++          [&](cudaStream_t stream,bool active) {
++            CalibCombineKernel<Element,Partial,Threads><<<blocks,Threads,0,stream>>>(
++                partials,out,active ? count : 0,chunks);
++          },log);
++    }
++    return TimeMs(options.repeats,[&] {
++      CalibCombineKernel<Element,Partial,Threads><<<blocks,Threads>>>(partials,out,count,chunks);
+     });
++  };
++
++  auto sweep_single = [&](int count) {
++    Timed timed = measure(count,1);
+     fit.worst_rsd = std::max(fit.worst_rsd, timed.rel_stddev);
+     double ns = timed.median_ms * 1e6 - launch_ns;
+     log << "  combine single count=" << count << ": " << ns << "ns ("
+@@ -428,10 +500,7 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
+   auto sweep_peers = [&](int count) {
+     std::vector<double> peers, combine_ns;
+     for (int chunks : {2, 4, 8, 16, 32}) {
+-      Timed timed = TimeMs(options.repeats, [&] {
+-        CalibCombineKernel<Element,Partial,Threads><<<blocks, Threads>>>(partials, out, count,
+-                                                     chunks);
+-      });
++      Timed timed = measure(count,chunks);
+       fit.worst_rsd = std::max(fit.worst_rsd, timed.rel_stddev);
+       peers.push_back(static_cast<double>(chunks - 1));
+       combine_ns.push_back(timed.median_ms * 1e6 - launch_ns);
+@@ -483,10 +552,38 @@ CombineFit MeasureCombine(TargetSpec& spec, Options const& options,
+     // it, so a plateau inside one tick is not a small fixed cost -- it is no
+     // measurement at all, and saying so is the whole point of the flag.
+     constexpr double kTimerTickNs = 100.0;
+-    fixed_seen = fixed_measured > kTimerTickNs;
++    // The tick belongs to the timed interval, not to its per-launch average.
++    // A graph measures `batch` launches in that interval. Keep the same raw
++    // one-tick criterion rather than mistaking 1/batch normalization for loss
++    // of resolution (or replacing an unresolved value with a positive epsilon).
++    int const launches_per_interval=std::max(1,options.combine_graph_batch);
++    fixed_seen = fixed_measured*launches_per_interval > kTimerTickNs;
++    log << "  COMBINE_FIXED_RESOLUTION per_launch_ns=" << fixed_measured
++        << " launches_per_interval=" << launches_per_interval
++        << " interval_signal_ns=" << fixed_measured*launches_per_interval
++        << " required_interval_ns=" << kTimerTickNs << " resolved=" << fixed_seen << '\n';
+     if (!fixed_seen) fixed_measured = 0.0;
+   }
+   LineFit dram = sweep_peers(kWidest);
++  if (options.combine_graph_batch>0) {
++    // Read the actual initialized operands back: verification must not assume
++    // a constant fill or compare the reduction with its own device result.
++    std::vector<Partial> host_partials(partial_elements);
++    std::vector<Element> host_out(kWidest);
++    CalibCombineKernel<Element,Partial,Threads><<<blocks,Threads>>>(partials,out,kWidest,kMaxChunks);
++    CheckCuda(cudaMemcpy(host_partials.data(),partials,partial_elements*sizeof(Partial),cudaMemcpyDeviceToHost),
++              "read verification partials");
++    CheckCuda(cudaMemcpy(host_out.data(),out,kWidest*sizeof(Element),cudaMemcpyDeviceToHost),
++              "read verification output");
++    for (int i=0;i<kWidest;++i) {
++      float sum=0;
++      for (int c=0;c<kMaxChunks;++c) sum+=float(host_partials[std::size_t(c)*kWidest+i]);
++      Element expected(sum);
++      if (std::memcmp(&expected,&host_out[i],sizeof(Element)))
++        throw std::runtime_error("FP32-partial combine calibration output differs from CPU reduction");
++    }
++    log << "  COMBINE_VERIFY elements=" << kWidest << " chunks=" << kMaxChunks << " bits_equal=1\n";
++  }
+   CheckCuda(cudaFree(partials), "cudaFree");
+   CheckCuda(cudaFree(out), "cudaFree");
+   if (widths.size() < 2) return fit;
+@@ -784,6 +881,7 @@ bool FitShape(TargetSpec& spec, Options const& options, Buffers const& buffers,
+ void MeasureFP32PartialCombine(TargetSpec& spec, Options const& options,
+                               std::ostream& log) {
+   if (options.repeats<=0) throw std::invalid_argument("combine repeats must be positive");
++  if (options.combine_graph_batch<0) throw std::invalid_argument("combine graph batch must be nonnegative");
+   CheckCuda(cudaSetDevice(options.device),"cudaSetDevice");
+   // Reuse the historical sweep and fitting method while keeping its old
+   // coefficients intact. Only the actual partial type and body thread trait
+@@ -801,6 +899,7 @@ void MeasureFP32PartialCombine(TargetSpec& spec, Options const& options,
+     measurement.name="fp32_partial_"+measurement.name;
+     measurement.method="float partial reads -> "+std::string(options.bf16 ? "BF16" : "FP32")+
+         " output; threads="+std::to_string(options.bf16 ? solver::kTensorBF16Threads : solver::kSimtF32Threads)+
++        "; paired_graph_batch="+std::to_string(options.combine_graph_batch)+
+         "; "+measurement.method;
+     profile.measurements.push_back(std::move(measurement));
+   }
+@@ -813,7 +912,8 @@ void MeasureFP32PartialCombine(TargetSpec& spec, Options const& options,
+   combined.d_dram_ns=fit.dram_d_ns_per_peer_elem;
+   combined.reason="measured";
+   combined.method="float partial reads; output="+std::string(options.bf16 ? "bf16" : "f32")+
+-      "; historical width/peer sweep with selected TaskBody thread trait; no BF16 bandwidth extrapolation";
++      "; width/peer sweep; paired_graph_batch="+std::to_string(options.combine_graph_batch)+
++      "; selected TaskBody thread trait; no BF16 bandwidth extrapolation";
+   std::time_t now=std::time(nullptr);
+   char stamp[32];
+   std::strftime(stamp,sizeof(stamp),"%Y-%m-%dT%H:%M:%SZ",std::gmtime(&now));
+diff --git a/tools/tilemega-calibrate.cpp b/tools/tilemega-calibrate.cpp
+index 5af867d4..67102f6d 100644
+--- a/tools/tilemega-calibrate.cpp
++++ b/tools/tilemega-calibrate.cpp
+@@ -27,6 +27,7 @@ int main(int argc, char** argv) {
+     std::string arg = argv[i];
+     if (arg == "--device" && i + 1 < argc) options.device = std::stoi(argv[++i]);
+     else if (arg == "--repeats" && i + 1 < argc) options.repeats = std::stoi(argv[++i]);
++    else if (arg == "--combine-graph-batch" && i + 1 < argc) options.combine_graph_batch = std::stoi(argv[++i]);
+     else if (arg == "--skip-streamk") options.skip_streamk = true;
+     else if (arg == "--fp32-partial-combine-only") partial_combine_only = true;
+     else if (arg == "--dtype" && i + 1 < argc) dtype = argv[++i];
+@@ -39,6 +40,7 @@ int main(int argc, char** argv) {
+           "                          [--dtype f32|bf16] [--base FILE]\n"
+           "                          [--skip-streamk] [--quiet] [--out FILE]\n"
+           "                          [--fp32-partial-combine-only]\n"
++          "                          [--combine-graph-batch N]\n"
+           "\n"
+           "Measures the §4.4 cost-model constants on the GPU at --device and\n"
+           "writes the target JSON to --out (stdout when omitted).\n"
+@@ -58,6 +60,10 @@ int main(int argc, char** argv) {
+     return 2;
+   }
+   options.bf16 = dtype == "bf16";
++  if (options.combine_graph_batch<0 || (options.combine_graph_batch>0 && !partial_combine_only)) {
++    std::cerr << "--combine-graph-batch must be nonnegative and requires --fp32-partial-combine-only\n";
++    return 2;
++  }
+   if (partial_combine_only && (base.empty() || options.skip_streamk)) {
+     std::cerr << "--fp32-partial-combine-only requires --base and excludes --skip-streamk\n";
+     return 2;

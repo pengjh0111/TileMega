@@ -1,0 +1,45 @@
+{
+  "processes": 50,
+  "verified_elements": 52428800,
+  "verified_chunk_contributions": 1677721600,
+  "rates": {
+    "fixed_ns": {
+      "median": 61.750004535,
+      "minimum": 51.00003909,
+      "maximum": 64.00002167,
+      "median_ci95": [
+        60.99999882,
+        62.50001024
+      ]
+    },
+    "base_ns": {
+      "median": 0.0044639512115000005,
+      "minimum": 0.004447350247,
+      "maximum": 0.004469880621,
+      "median_ci95": [
+        0.004463739,
+        0.0044660920635
+      ]
+    },
+    "d_l2_ns": {
+      "median": 0.00064544765595,
+      "minimum": 0.0006433604079,
+      "maximum": 0.0007007122992,
+      "median_ci95": [
+        0.0006452556833,
+        0.0006464945116
+      ]
+    },
+    "d_dram_ns": {
+      "median": 0.0043108035155,
+      "minimum": 0.004309978341,
+      "maximum": 0.004311460758,
+      "median_ci95": [
+        0.004310747438,
+        0.004310833004
+      ]
+    }
+  },
+  "source_sha256": "6fc6cc3c50535764c9780bded1d87c20f812960fdecbb0eb458f670b7315ca4d",
+  "status": "PASS"
+}
