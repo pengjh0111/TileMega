@@ -22,6 +22,10 @@
 #include <tilemega/Solver/ListScheduler.h>
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Target/TargetSpec.h>
+#include <tilemega/Frontend/TorchExportImporter.h>
+#include <tilemega/Dialect/CouplingGraph/CGDialect.h>
+#include <tilemega/Codegen/tasks/TaskResources.h>
+#include <mlir/IR/MLIRContext.h>
 
 #include <algorithm>
 #include <cmath>
@@ -80,7 +84,7 @@ std::map<std::string, int> ReadRegisters(std::string const& path) {
   return out;
 }
 
-std::vector<Point> ReadScreen(std::string const& path) {
+std::vector<Point> ReadScreen(std::string const& path, bool include_unmeasured=false) {
   std::vector<Point> out;
   std::ifstream input(path);
   if (!input) throw std::runtime_error("cannot open oracle sweep: " + path);
@@ -88,11 +92,11 @@ std::vector<Point> ReadScreen(std::string const& path) {
   std::getline(input, line);
   while (std::getline(input, line)) {
     auto f = Split(line, '\t');
-    if (f.size() < 13 || f[8] != "PASS") continue;
+    if (f.size() < 13 || (!include_unmeasured && f[8] != "PASS")) continue;
     Point point;
     point.config = {std::stoi(f[0]), std::stoi(f[1]), std::stoi(f[2]),
                     std::stoi(f[3]), std::stoi(f[4])};
-    point.measured_ms = std::stod(f[6]);
+    if (f[8]=="PASS") point.measured_ms = std::stod(f[6]);
     out.push_back(point);
   }
   return out;
@@ -103,7 +107,8 @@ std::vector<Point> ReadScreen(std::string const& path) {
 /// shape (F-40) and a candidate whose occupancy is unknown cannot be placed.
 std::vector<DpCandidate> BuildCandidates(
     std::vector<Point> const& points,
-    std::map<std::string, int> const& registers) {
+    std::map<std::string, int> const& registers,
+    ScalarType dtype) {
   std::vector<DpCandidate> out;
   std::set<std::string> seen;
   for (auto const& point : points) {
@@ -113,7 +118,15 @@ std::vector<DpCandidate> BuildCandidates(
     DpCandidate candidate;
     candidate.config = point.config;
     candidate.registers = it->second;
-    candidate.smem_bytes = SmemBytes(point.config);
+    if (dtype==ScalarType::kBF16) {
+      auto const& c=point.config;
+      candidate.smem_bytes=TensorBF16Traits(c.tile_m,c.tile_n,c.tile_k,c.stages).smem_bytes;
+      using tilemega::codegen::TaskKind;
+      for (auto kind:{TaskKind::kRMSNorm,TaskKind::kRoPE,TaskKind::kKVAppend,
+                      TaskKind::kAttention,TaskKind::kElementwise,TaskKind::kGemmCombine})
+        candidate.smem_bytes=std::max(candidate.smem_bytes,int(sizeof(float))*
+            tilemega::codegen::SimtSharedElements(kind,kTensorBF16Threads,TILEMEGA_ATTENTION_MAX_TOTAL));
+    } else candidate.smem_bytes = SmemBytes(point.config);
     out.push_back(candidate);
   }
   return out;
@@ -154,21 +167,36 @@ int main(int argc, char** argv) try {
   std::string repo = ".";
   std::string cost_dir = "docs/experiments/COST_MODEL/raw";
   std::string out_dir = "docs/experiments/SOLVER/raw";
+  std::string screen_dir;
+  bool unified=TILEMEGA_UNIFIED_TASK_COST;
+  ScalarType dtype=ScalarType::kF32;
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
     if (arg == "--repo" && i + 1 < argc) repo = argv[++i];
     else if (arg == "--cost-dir" && i + 1 < argc) cost_dir = argv[++i];
     else if (arg == "--out" && i + 1 < argc) out_dir = argv[++i];
+    else if (arg == "--screen-dir" && i + 1 < argc) screen_dir = argv[++i];
+    else if (arg == "--unified-task-cost") unified=true;
+    else if (arg == "--legacy-task-cost") unified=false;
+    else if (arg == "--dtype" && i+1<argc) {
+      std::string value=argv[++i];
+      if (value=="bf16") dtype=ScalarType::kBF16;
+      else if (value=="f32") dtype=ScalarType::kF32;
+      else throw std::invalid_argument("dtype must be bf16 or f32");
+    }
     else {
       std::cerr << "usage: tilemega-solve [--repo DIR] [--cost-dir DIR]"
-                   " [--out DIR]\n";
+                   " [--out DIR] [--screen-dir DIR] [--dtype bf16|f32]"
+                   " [--unified-task-cost|--legacy-task-cost]\n";
       return 2;
     }
   }
 
   TargetSpec const target =
       TargetSpec::FromJson(repo + "/configs/targets/sm_89.json");
-  CostModel const cost(target);
+  if (screen_dir.empty()) screen_dir=repo+"/docs/experiments/ORACLE/raw";
+  CostModelOptions cost_options; cost_options.unified_task_cost=unified;
+  CostModel const cost(target,dtype,cost_options);
 
   struct ModelSource { char const* name; char const* cu; };
   ModelSource const sources[] = {
@@ -185,11 +213,21 @@ int main(int argc, char** argv) try {
   for (auto const& source : sources) {
     auto const registers =
         ReadRegisters(cost_dir + "/registers_" + source.name + ".tsv");
-    auto const points = ReadScreen(
-        repo + "/docs/experiments/ORACLE/raw/screen_" + source.name + ".tsv");
-    auto const candidates = BuildCandidates(points, registers);
-    ModelDescription const model = ModelDescription::FromGeneratedCuda(
-        repo + source.cu, ModelDims{4, 3, 7}, source.name);
+    std::string screen=screen_dir+"/screen_"+source.name+".tsv";
+    auto const points = ReadScreen(screen);
+    // A historical numerical failure must not silently remove a DP choice.
+    auto const candidate_points=ReadScreen(screen,true);
+    auto const candidates = BuildCandidates(candidate_points, registers,dtype);
+    ModelDescription model;
+    if (unified || dtype==ScalarType::kBF16) {
+      mlir::MLIRContext context;
+      context.getOrLoadDialect<tilemega::dialect::CGDialect>();
+      std::string input=dtype==ScalarType::kBF16
+          ? repo+"/docs/experiments/SEQSCAN/raw/export/"+source.name+".json"
+          : repo+"/docs/experiments/"+(std::string(source.name)=="gqa2" ? "E2E_GEN" : "P3_GENERALIZATION")+"/raw/export_bridge.json";
+      auto cg=tilemega::frontend::TorchExportImporter{}.Import(input,context);
+      model=ModelDescription::FromCouplingGraph(*cg,{4,3,7},source.name);
+    } else model=ModelDescription::FromGeneratedCuda(repo+source.cu,{4,3,7},source.name);
     ChainDP const dp(cost, candidates);
 
     std::cout << "\n== " << source.name << ": " << model.gemms.size()
@@ -390,6 +428,8 @@ int main(int argc, char** argv) try {
 
   std::cout << "\nacceptance (a) uniform g inside the measured top 3% on both"
                " models: " << (accepted ? "PASS" : "FAIL") << '\n';
+  if (isl_context.ReferenceCount()) throw std::runtime_error("solver retained isl objects");
+  std::cout << "ISL_CONTEXT remaining=0\n";
   return accepted ? 0 : 1;
 } catch (std::exception const& error) {
   std::cerr << "tilemega-solve: " << error.what() << '\n';
