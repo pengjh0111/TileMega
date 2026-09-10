@@ -3,6 +3,7 @@
 Round 5: [A3 dual-domain reasoning, A4 declarations and A5 controls](round5_work.md),
 [unified scalar task prices and per-stage differences](scalar_work/result.md),
 [A8 physical interfaces and exact frontier DP](interface_work/result.md),
+[attention work, chunk-plan DP and paired GPU comparisons](attention_prices_batch/result.md),
 [unified BF16/FP32 ranking controls](unified_rank/result.md), and
 [measured FP32-partial combine rates](partial_combine.md).
 The 4224/8192 B counterexample remains an explicit user-approved physical /

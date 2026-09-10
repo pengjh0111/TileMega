@@ -13,11 +13,13 @@ records through import, codegen, ModelSpec, host allocation and symbolic
 projection. Internal dependencies are the exact three phase edges. The host
 checks chunk scratch capacity before launch and rejects invalid plans.
 
-The complete-model runner currently records timings and correctness. A paired
-rank/CI analysis and a large-context attention-share comparison are separate
-follow-up measurements; this result deliberately does not infer them from
-the 50-round medians. The unchanged BF16 comparison criterion is used; no
-tolerance was modified.
+The later CPU analysis in `../attention_prices_batch/result.md` checks all
+four chunk plans against these receipts. `paired_stats.json` adds primary
+25-round paired bootstrap confidence intervals and tie-corrected normal
+Wilcoxon tests, plus a separate 50-round sensitivity, after rechecking all
+800 log hashes. This is reuse of the recorded experiment, not a new run.
+The large-context attention-share comparison is in `../scalar_work/result.md`.
+The unchanged BF16 comparison criterion is used; no tolerance was modified.
 
 Source locations: `include/tilemega/Codegen/AttentionPlan.h`,
 `include/tilemega/Codegen/tasks/AttentionPhasedTaskBody.h`,

@@ -1,0 +1,385 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b33685f1..c12ea763 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -142,6 +142,7 @@ add_library(tilemega STATIC
+   lib/Solver/ChainDP.cpp
+   lib/Solver/CouplingInterfaceDP.cpp
+   lib/Solver/ScalarTaskWork.cpp
++  lib/Solver/AttentionWork.cpp
+   lib/Solver/ListScheduler.cpp
+   lib/Solver/CostModel.cpp
+   lib/Solver/FusionResources.cpp
+@@ -300,6 +301,12 @@ set_target_properties(tilemega-op-audit PROPERTIES
+   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+ add_executable(tilemega-runtime-projection tools/tilemega-runtime-projection.cpp)
+ add_executable(tilemega-fusion-probe tools/tilemega-fusion-probe.cpp)
++add_executable(tilemega-attention-work tools/tilemega-attention-work.cpp)
++add_executable(tilemega-attention-plan-price tools/tilemega-attention-plan-price.cpp)
++target_link_libraries(tilemega-attention-plan-price PRIVATE TileMega::tilemega)
++set_target_properties(tilemega-attention-plan-price PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
++target_link_libraries(tilemega-attention-work PRIVATE TileMega::tilemega)
++set_target_properties(tilemega-attention-work PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+ target_link_libraries(tilemega-fusion-probe PRIVATE TileMega::tilemega)
+ set_target_properties(tilemega-fusion-probe PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+ target_link_libraries(tilemega-runtime-projection PRIVATE TileMega::tilemega)
+diff --git a/include/tilemega/Codegen/RuntimePlan.h b/include/tilemega/Codegen/RuntimePlan.h
+index d07130c1..75e51341 100644
+--- a/include/tilemega/Codegen/RuntimePlan.h
++++ b/include/tilemega/Codegen/RuntimePlan.h
+@@ -40,5 +40,6 @@ struct RuntimePlan {
+ };
+ 
+ RuntimePlan ReadRuntimePlan(mlir::ModuleOp module);
++std::vector<AttentionRuntimeRecord> ReadAttentionRuntime(mlir::ModuleOp module);
+ 
+ }  // namespace tilemega::codegen
+diff --git a/include/tilemega/Solver/CostModel.h b/include/tilemega/Solver/CostModel.h
+index e975792d..40325f43 100644
+--- a/include/tilemega/Solver/CostModel.h
++++ b/include/tilemega/Solver/CostModel.h
+@@ -55,6 +55,7 @@
+ namespace tilemega::solver {
+ 
+ struct DerivedTaskInput;
++struct AttentionPhaseWork;
+ 
+ /// Why a lane of `ResourceVector` carries zero.  A zero lane is never bare:
+ /// it is either live, or the target has no such pipe, or the pipe exists and
+@@ -200,6 +201,8 @@ class CostModel {
+   double TaskCostNs(DerivedTaskInput const& input, BackendTraits const& traits,
+                     Residency residency, ModelDescription const& model,
+                     int chunks) const;
++  double TaskCostNs(AttentionPhaseWork const& input, BackendTraits const& traits,
++                    Residency residency, ModelDescription const& model) const;
+   // One task at its actual coordinates and wave occupancy; fusion replication
+   // must not multiply the complete stage's wave sum by fanout.
+   double TaskInstanceNs(DerivedTaskInput const& input, BackendTraits const& traits,
+@@ -239,6 +242,9 @@ class CostModel {
+   }
+ 
+  private:
++  double ScalarInstanceNs(double bytes,double output_bytes,double flops,double transc,
++                          double occupancy,double miss,bool shared_staged,
++                          int depth,int barriers) const;
+   double TaskCostImpl(DerivedTaskInput const& input, BackendTraits const& traits,
+                      Residency residency, ModelDescription const& model, int chunks,
+                      analysis::ParamBinding const* coordinates,
+diff --git a/include/tilemega/Solver/ModelDescription.h b/include/tilemega/Solver/ModelDescription.h
+index de3ac9a1..819f7936 100644
+--- a/include/tilemega/Solver/ModelDescription.h
++++ b/include/tilemega/Solver/ModelDescription.h
+@@ -29,6 +29,7 @@
+ namespace mlir { class ModuleOp; }
+ 
+ namespace tilemega::solver {
++struct AttentionCostPlan;
+ 
+ /// The symbolic dimensions, bound at launch (ModelRuntime.h `ModelDims`).
+ struct ModelDims {
+@@ -110,6 +111,7 @@ struct ModelDescription {
+   std::string name;
+   ScalarType dtype = ScalarType::kF32;
+   ModelDims dims;
++  std::shared_ptr<AttentionCostPlan const> attention_plan;
+   std::vector<GemmOp> gemms;
+   std::vector<ModelStage> stages;
+   // Empty on archived generated inputs. Access-derived pricing requires this
+@@ -140,6 +142,8 @@ struct ModelDescription {
+   /// Bytes of parameter and activation storage the model keeps live, which is
+   /// what the L2 must hold for the weight stream to stay resident (§2.2(e)).
+   double LiveFootprintBytes() const;
++  int RuntimeStages(int stage) const;
++  int NonGemmSharedBytes() const;
+ };
+ 
+ }  // namespace tilemega::solver
+diff --git a/lib/Analysis/OpArithmetic.cpp b/lib/Analysis/OpArithmetic.cpp
+index 32b43e74..a2c641bd 100644
+--- a/lib/Analysis/OpArithmetic.cpp
++++ b/lib/Analysis/OpArithmetic.cpp
+@@ -15,6 +15,14 @@ std::vector<ArithmeticDeclaration> const& ArithmeticDeclarations() {
+      "implemented", "one length-K dot per output: K FMA = 2K; BF16 MMA, FP32 SIMT"},
+     {"attention", {0,0,4,0,1,false}, {0,0,1,0,1,true}, false,true,true,
+      "dense_semantic_work", "QK and PV each use 2*total FLOP/output; total exp/head divided by width; causal QK and softmax overhead require task-domain accounting"},
++    {"attention_scores", {1,0,0,2,1,false}, {0,0,0,0,1,false}, false,true,true,
++     "phased_attention", "each causally valid score: width FMA plus constant-width scale; masked scores have no arithmetic"},
++    {"attention_normalize", {3,0,0,0,1,false}, {1,0,0,0,1,false}, false,false,true,
++     "phased_attention", "each score: subtract maximum, zero-seeded sum addition, divide; one exp; max comparisons excluded"},
++    {"attention_mac", {2,0,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
++     "phased_attention", "one scalar FMA per probability/value pair, including zero probabilities"},
++    {"attention_sum", {0,1,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
++     "phased_attention", "zero-seeded sum of R FP32 partials issues R adds per output"},
+     {"rmsnorm", {1,0,0,4,1,true}, {1,0,0,0,1,true}, false,true,true,
+      "semantic_reduction", "W squares + W-1 sum + mean and epsilon + 2W scale/weight = 4W+1; one rsqrt/row; parallel replication is not included"},
+     {"rope", {7,0,0,0,2,false}, {1,0,0,0,1,false}, false,false,true,
+diff --git a/lib/Codegen/Codegen.cpp b/lib/Codegen/Codegen.cpp
+index 15d67661..ea4e1cba 100644
+--- a/lib/Codegen/Codegen.cpp
++++ b/lib/Codegen/Codegen.cpp
+@@ -616,6 +616,10 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
+ 
+ }  // namespace
+ 
++std::vector<AttentionRuntimeRecord> ReadAttentionRuntime(mlir::ModuleOp module) {
++  return readRuntimeAttention(module);
++}
++
+ RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
+   analysis::IslReferenceAudit audit(__func__);
+   auto analysis = AnalyzeVariantModule(module);
+diff --git a/lib/Solver/ChainDP.cpp b/lib/Solver/ChainDP.cpp
+index 1e87f2da..4a0e8deb 100644
+--- a/lib/Solver/ChainDP.cpp
++++ b/lib/Solver/ChainDP.cpp
+@@ -71,7 +71,7 @@ double ChainDP::BetweenNs(ModelDescription const& model,
+     ns += (cost_->options().unified_task_cost
+                ? cost_->TaskStageNs(model,i,candidates_.empty() ? GemmConfig{} : candidates_.front().config,residency)
+                : cost_->NonGemmStageNs(model.stages[i], model.dims, residency)) +
+-          barrier;
++          model.RuntimeStages(i)*barrier;
+   }
+   return ns;
+ }
+@@ -181,7 +181,7 @@ ChainDpSolution ChainDP::Solve(ModelDescription const& model,
+ 
+   std::vector<int> ctas(candidates_.size());
+   for (std::size_t c = 0; c < candidates_.size(); ++c) {
+-    ctas[c] = CtasPerSm(candidates_[c].smem_bytes, candidates_[c].registers);
++    ctas[c] = CtasPerSm(std::max(candidates_[c].smem_bytes,model.NonGemmSharedBytes()), candidates_[c].registers);
+   }
+ 
+   for (int r = 1; r <= options.max_ctas_per_sm; ++r) {
+@@ -465,6 +465,7 @@ ChainDpSolution ChainDP::Solve(ModelDescription const& model,
+     candidate.feasible = true;
+     candidate.residency = residency;
+     candidate.configs.assign(model.gemms.size(), GemmConfig{});
++    candidate.max_smem_bytes=model.NonGemmSharedBytes();
+     for (int i = 0; i < layers; ++i) {
+       DpCandidate const& picked = candidates_[admissible[choice[i]]];
+       candidate.configs[model.stages[gemm_stages[i]].gemm] = picked.config;
+diff --git a/lib/Solver/CostModel.cpp b/lib/Solver/CostModel.cpp
+index 7a2f91d4..f1439829 100644
+--- a/lib/Solver/CostModel.cpp
++++ b/lib/Solver/CostModel.cpp
+@@ -2,6 +2,7 @@
+ #include <tilemega/Solver/CostModel.h>
+ #include <tilemega/Analysis/ISLContext.h>
+ #include <tilemega/Solver/TaskModel.h>
++#include <tilemega/Solver/AttentionWork.h>
+ #include <tilemega/Analysis/SemanticCodec.h>
+ #include <tilemega/Codegen/tasks/TaskResources.h>
+ 
+@@ -440,6 +441,62 @@ double CostModel::TaskInstanceNs(DerivedTaskInput const& input, BackendTraits co
+   return TaskCostImpl(input,traits,residency,model,chunks,&coordinates,active_ctas_per_sm);
+ }
+ 
++double CostModel::ScalarInstanceNs(double bytes,double output_bytes,double flops,double transc,
++    double o,double miss,bool shared_staged,int depth,int barriers) const {
++  if ((flops>0 && lanes_[ResourceVector::kCudaCore]!=LaneStatus::kLive) ||
++      (transc>0 && lanes_[ResourceVector::kSfu]!=LaneStatus::kLive))
++    throw std::runtime_error("scalar arithmetic rate: not_calibrated");
++  auto statuses=lanes_;
++  statuses[ResourceVector::kSmem]=calib_->smem_gbps>0 ? LaneStatus::kLive : LaneStatus::kNotCalibrated;
++  ResourceVector u;
++  if (flops>0) u.cuda_core=o*flops/cuda_flops_per_ns_per_sm_;
++  if (transc>0) u.sfu=o*transc/sfu_ops_per_ns_per_sm_;
++  if (shared_staged && statuses[ResourceVector::kSmem]==LaneStatus::kLive)
++    u.smem=o*bytes/(calib_->smem_gbps/target_->res.num_sms);
++  u.l2=o*bytes/l2_bytes_per_ns_per_sm_;
++  u.dram=o*bytes*miss/dram_bytes_per_ns_per_sm_;
++  for (int i=0;i<ResourceVector::kLaneCount;++i) {
++    auto lane=static_cast<ResourceVector::Lane>(i);
++    if (statuses[lane]!=LaneStatus::kLive || options_.disabled_lanes[lane] ||
++        (!options_.resource_lanes && lane!=ResourceVector::kSmem)) u[lane]=0;
++  }
++  double fixed=depth*calib_->l2_latency_ns+barriers*calib_->syncthreads_ns+
++      output_bytes/l2_bytes_per_ns_per_sm_;
++  if (!(fixed+u.Bottleneck()>0) || !std::isfinite(fixed+u.Bottleneck()))
++    throw std::runtime_error("nonpositive or nonfinite scalar task price");
++  return fixed+u.Bottleneck();
++}
++
++double CostModel::TaskCostNs(AttentionPhaseWork const& input,BackendTraits const& traits,
++                            Residency residency,ModelDescription const& model) const {
++  analysis::IslReferenceAudit audit(__func__);
++  if (model.dims.IsSymbolic() || residency.ctas_per_sm<=0 || traits.threads<=0 ||
++      traits.smem_bytes<input.shared_bytes)
++    throw std::invalid_argument("attention phase price requires bound theta and complete resources");
++  auto known=model.MetricBindings();
++  auto [depth,barriers]=input.flow.MemoryDepthAndBarriers(traits.threads);
++  long tasks=input.task_count.Eval(known);
++  long grid=static_cast<long>(target_->res.num_sms)*residency.ctas_per_sm;
++  if (grid<=0 || tasks<0) throw std::invalid_argument("invalid attention wave domain");
++  double miss=1.0-CacheHitProbability(model.LiveFootprintBytes()),total=0;
++  auto reads=input.read_bytes.SubstituteParams(known),writes=input.write_bytes.SubstituteParams(known);
++  auto flops=input.flops.SubstituteParams(known),transc=input.transcendental.SubstituteParams(known);
++  for (long first=0;first<tasks;first+=grid) {
++    long active=std::min(grid,tasks-first);
++    double o=options_.wave_tail ? std::max(1.0,double(active)/target_->res.num_sms) : residency.ctas_per_sm;
++    double wave=0;
++    for (long q=first;q<first+active;++q) {
++      analysis::ParamBinding point; point.Bind("q",q);
++      auto eval=[&](auto const& work) { return double(work.BindCoordinates(point).Eval({})); };
++      double output_bytes=eval(writes);
++      wave=std::max(wave,ScalarInstanceNs(eval(reads)+output_bytes,output_bytes,eval(flops),eval(transc),
++          o,miss,input.shared_bytes>0,depth,barriers));
++    }
++    total+=wave;
++  }
++  return total;
++}
++
+ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits const& traits,
+                              Residency residency, ModelDescription const& model,
+                              int chunks, analysis::ParamBinding const* coordinates,
+@@ -473,10 +530,6 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
+     }
+     auto cached=scalar_price_cache_.find(cache_key.str());
+     if (cached!=scalar_price_cache_.end()) return cached->second;
+-    auto statuses=lanes_;
+-    // Unlike a BF16 MMA collective, these bodies issue scalar shared accesses.
+-    // The measured scalar pipe applies; the GEMM ldmatrix status is unchanged.
+-    statuses[ResourceVector::kSmem]=calib_->smem_gbps>0 ? LaneStatus::kLive : LaneStatus::kNotCalibrated;
+     double total=0;
+     long first=coordinates ? coordinates->values.at("q") : 0;
+     for (double remaining=ctas;remaining>0;remaining-=grid) {
+@@ -493,31 +546,13 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
+         double writes=value(input.work.write_elements);
+         double bytes=(value(input.work.read_elements)+writes)*ElementBytes(dtype_);
+         double flops=flops_per_output*writes,transc=transc_per_output*writes;
+-        if ((flops>0 && lanes_[ResourceVector::kCudaCore]!=LaneStatus::kLive) ||
+-            (transc>0 && lanes_[ResourceVector::kSfu]!=LaneStatus::kLive))
+-          throw std::runtime_error("scalar arithmetic rate: not_calibrated");
+-        ResourceVector u;
+-        if (flops>0) u.cuda_core=o*flops/cuda_flops_per_ns_per_sm_;
+-        if (transc>0) u.sfu=o*transc/sfu_ops_per_ns_per_sm_;
+-        if (input.arithmetic.smem_staged && statuses[ResourceVector::kSmem]==LaneStatus::kLive)
+-          u.smem=o*bytes/(calib_->smem_gbps/target_->res.num_sms);
+-        u.l2=o*bytes/l2_bytes_per_ns_per_sm_;
+-        u.dram=o*bytes*miss/dram_bytes_per_ns_per_sm_;
+-        for (int i=0;i<ResourceVector::kLaneCount;++i) {
+-          auto lane=static_cast<ResourceVector::Lane>(i);
+-          if (statuses[lane]!=LaneStatus::kLive || options_.disabled_lanes[lane] ||
+-              (!options_.resource_lanes && lane!=ResourceVector::kSmem)) u[lane]=0;
+-        }
+         // The fitted alpha+beta*tile_area describes a collective accumulator
+         // tile's setup. ScalarDataflow has no such initialization phase:
+         // scalar arithmetic is charged in u, memory phases in this DAG term.
+         // In particular a negative GEMM regression intercept cannot be
+         // extrapolated into a small SIMT task then silently clamped to zero.
+-        double fixed=depth*calib_->l2_latency_ns+barriers*calib_->syncthreads_ns+
+-            writes*ElementBytes(dtype_)/l2_bytes_per_ns_per_sm_;
+-        if (!(fixed+u.Bottleneck()>0) || !std::isfinite(fixed+u.Bottleneck()))
+-          throw std::runtime_error("nonpositive or nonfinite scalar task price");
+-        wave=std::max(wave,fixed+u.Bottleneck());
++        wave=std::max(wave,ScalarInstanceNs(bytes,writes*ElementBytes(dtype_),flops,transc,
++            o,miss,input.arithmetic.smem_staged,depth,barriers));
+       }
+       total+=wave;
+       first+=long(active);
+@@ -653,6 +688,20 @@ double CostModel::TaskStageNs(ModelDescription const& model,int index,
+   if (!options_.split_k) config.split_k=1;
+   auto const& stage=model.stages.at(index);
+   if (stage.kind!=StageKind::kGemm && !options_.non_gemm) return 0;
++  if (model.attention_plan) {
++    auto found=model.attention_plan->stages.find(index);
++    if (found!=model.attention_plan->stages.end()) {
++      auto const& choice=model.attention_plan->choices.at(index);
++      if (model.dims.IsSymbolic() || model.dims.total<=0 ||
++          (static_cast<long>(model.dims.total)+choice.chunks-1)/choice.chunks>choice.chunk_extent)
++        throw std::invalid_argument("attention workload exceeds selected scratch capacity");
++      BackendTraits traits; traits.threads=dtype_==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
++      traits.smem_bytes=model.attention_plan->shared_bytes;
++      double total=0;
++      for (auto const& phase:found->second) total+=TaskCostNs(phase,traits,residency,model);
++      return total;
++    }
++  }
+   ModelTaskSemantics const* selected=nullptr;
+   for (auto const& semantic:model.task_semantics) if (semantic.stage==index) {
+     // A native residual epilogue belongs to the existing collective stage
+@@ -776,9 +825,11 @@ CostBreakdown CostModel::Evaluate(ModelDescription const& model,
+     throw std::invalid_argument("one GemmConfig per model GEMM is required");
+   }
+   CostBreakdown out;
++  if (model.attention_plan && !options_.unified_task_cost)
++    throw std::invalid_argument("chunk attention cannot use the historical scalar template price");
+   for (std::size_t i=0;i<model.stages.size();++i) {
+     auto const& stage=model.stages[i];
+-    ++out.stage_count;
++    out.stage_count+=model.RuntimeStages(i);
+     if (stage.kind != StageKind::kGemm) {
+       if (options_.unified_task_cost)
+         out.task_ns_sum+=TaskStageNs(model,int(i),configs.empty() ? GemmConfig{} : configs.front(),residency);
+diff --git a/lib/Solver/CouplingInterfaceDP.cpp b/lib/Solver/CouplingInterfaceDP.cpp
+index 6d076c23..a9a97d8b 100644
+--- a/lib/Solver/CouplingInterfaceDP.cpp
++++ b/lib/Solver/CouplingInterfaceDP.cpp
+@@ -64,7 +64,8 @@ ChainDpSolution ChainDP::SolveCouplingInterfaces(ModelDescription const& model,
+     return total;
+   };
+   std::vector<int> ctas;
+-  for (auto const& candidate:candidates_) ctas.push_back(CtasPerSm(candidate.smem_bytes,candidate.registers));
++  for (auto const& candidate:candidates_)
++    ctas.push_back(CtasPerSm(std::max(candidate.smem_bytes,model.NonGemmSharedBytes()),candidate.registers));
+   for (int r=1;r<=options.max_ctas_per_sm;++r) {
+     std::vector<int> admitted;
+     for (int c=0;c<int(candidates_.size());++c) if (ctas[c]>=r) admitted.push_back(c);
+@@ -93,7 +94,8 @@ ChainDpSolution ChainDP::SolveCouplingInterfaces(ModelDescription const& model,
+     double barrier=cost_->BarrierNs(residency),fixed=0;
+     for (auto const& stage:model.stages) if (stage.kind!=StageKind::kGemm)
+       fixed+=(cost_->options().unified_task_cost ? cost_->TaskStageNs(model,int(&stage-model.stages.data()),
+-          candidates_.front().config,residency) : cost_->NonGemmStageNs(stage,model.dims,residency))+barrier;
++          candidates_.front().config,residency) : cost_->NonGemmStageNs(stage,model.dims,residency))+
++          model.RuntimeStages(int(&stage-model.stages.data()))*barrier;
+     std::vector<int> empty(layers,0);
+     for (auto& f:factors) if (f.variables.empty()) fixed+=price(f,empty);
+     std::vector<std::vector<double>> unary(layers,std::vector<double>(candidates_.size()));
+@@ -146,6 +148,7 @@ ChainDpSolution ChainDP::SolveCouplingInterfaces(ModelDescription const& model,
+       for (auto const& [key,state]:prev) {
+         if (!state.exact || !(state.ns<best_total)) continue;
+         ChainDpSolution solution; solution.feasible=true; solution.residency=residency;
++        solution.max_smem_bytes=model.NonGemmSharedBytes();
+         solution.configs.resize(model.gemms.size());
+         for (int i=0;i<layers;++i) {
+           auto const& c=candidates_[state.choice[i]];
+diff --git a/lib/Solver/ModelDescription.cpp b/lib/Solver/ModelDescription.cpp
+index 16f9be3d..33c5cdc1 100644
+--- a/lib/Solver/ModelDescription.cpp
++++ b/lib/Solver/ModelDescription.cpp
+@@ -1,5 +1,6 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ #include <tilemega/Solver/ModelDescription.h>
++#include <tilemega/Solver/AttentionWork.h>
+ #include <tilemega/Analysis/ISLContext.h>
+ #include <tilemega/Analysis/SemanticCodec.h>
+ #include <tilemega/Dialect/CouplingGraph/CGOps.h>
+@@ -250,6 +251,9 @@ ModelDescription ModelDescription::FromCouplingGraph(
+           model.metric_bindings.Bind(item.getName().str(), value.getInt());
+   if (!model.dims.IsSymbolic() && !model.dims.total)
+     model.dims.total = model.dims.seq + model.dims.past;
++  if (module->hasAttr("tilemega.attention_runtime"))
++    ApplyAttentionCostPlan(model,codegen::ReadAttentionRuntime(module),
++        model.dtype==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads);
+   return model;
+ }
+ 
+@@ -389,7 +393,17 @@ double ModelDescription::LiveFootprintBytes() const {
+     bytes += element_bytes * dims.total * std::max(stage.extent, 1) *
+              std::max(stage.width, 1);
+   }
++  if (attention_plan) bytes+=double(attention_plan->workspace_bytes.Eval(MetricBindings()));
+   return bytes;
+ }
+ 
++int ModelDescription::RuntimeStages(int stage) const {
++  return attention_plan && attention_plan->stages.count(stage)
++      ? static_cast<int>(codegen::kAttentionExpandedPhases.size()) : 1;
++}
++
++int ModelDescription::NonGemmSharedBytes() const {
++  return attention_plan ? attention_plan->shared_bytes : 0;
++}
++
+ }  // namespace tilemega::solver

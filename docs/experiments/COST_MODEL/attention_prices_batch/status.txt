@@ -1,0 +1,1 @@
+PASS 16 CPU price cells; 3200 resource/count comparisons; archived GPU medians only

@@ -1,0 +1,1 @@
+STOP Command '['/root/TileMega/docs/experiments/COST_MODEL/attention_prices/bin/tilemega-attention-plan-price', '/root/TileMega', 'gqa2', '4', '160', '212']' died with <Signals.SIGTERM: 15>.

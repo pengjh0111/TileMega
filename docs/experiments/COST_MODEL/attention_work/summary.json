@@ -1,0 +1,7 @@
+{
+  "phase_task_checks": 2720,
+  "rejection_branches": 14,
+  "scalar_tables_byte_identical": 14,
+  "retained_domain_rejections": 2,
+  "gpu_run": false
+}
