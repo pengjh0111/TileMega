@@ -121,6 +121,7 @@ add_library(tilemega STATIC
   lib/Frontend/SemanticLifting.cpp
   lib/Analysis/SemanticCodec.cpp
   lib/Dialect/CouplingGraph/CGDialect.cpp
+  lib/Dialect/CouplingGraph/FusionPass.cpp
   lib/Dialect/CouplingGraph/CGContract.cpp
   lib/Analysis/ClosedForm.cpp
   lib/Analysis/AffineRelation.cpp
@@ -170,7 +171,7 @@ target_include_directories(tilemega PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/tools/util/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/test>)
 add_dependencies(tilemega TileMegaCGIncGen)
-target_link_libraries(tilemega PUBLIC CUDA::cudart MLIRIR MLIRSupport
+target_link_libraries(tilemega PUBLIC CUDA::cudart MLIRIR MLIRSupport MLIRPass
   tilemega::isl_stack)
 if(NOT LLVM_ENABLE_RTTI)
   target_compile_options(tilemega PRIVATE -fno-rtti)
@@ -467,6 +468,10 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(lane_intersections_test test/unit/lane_intersections_test.cpp)
   target_link_libraries(lane_intersections_test PRIVATE TileMega::tilemega)
   add_test(NAME lane_intersections COMMAND lane_intersections_test)
+  add_executable(fusion_rewrite_test test/unit/fusion_rewrite_test.cpp)
+  target_link_libraries(fusion_rewrite_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(fusion_rewrite_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  add_test(NAME fusion_rewrite COMMAND fusion_rewrite_test)
   add_test(NAME attention_work COMMAND tilemega-attention-work "${CMAKE_CURRENT_SOURCE_DIR}")
   target_link_libraries(chain_dp_test PRIVATE TileMega::tilemega)
   target_compile_definitions(chain_dp_test PRIVATE

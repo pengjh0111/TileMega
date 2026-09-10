@@ -440,6 +440,8 @@ std::string emitModelPlan(mlir::ModuleOp module,
 }  // namespace
 
 std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
+  if (module && !module.getOps<dialect::FusedTaskSpaceOp>().empty())
+    throw std::invalid_argument("fused L-task requires mixed-body runtime projection before CUDA lowering");
   (void)module;
   return "#include <tilemega/Codegen/tasks/ModelHarness.cuh>\n";
 }
@@ -546,6 +548,8 @@ struct VariantAnalysis {
 };
 
 VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
+  if (module && !module.getOps<dialect::FusedTaskSpaceOp>().empty())
+    throw std::invalid_argument("fused L-task requires mixed-body runtime projection before CUDA lowering");
   if (!module || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument(
         "CouplingGraphToCUDA requires a verified CG ModuleOp");
@@ -672,6 +676,8 @@ std::string EmitGemmInstantiations(
 }  // namespace
 
 std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
+  if (module && !module.getOps<dialect::FusedTaskSpaceOp>().empty())
+    throw std::invalid_argument("fused L-task requires mixed-body runtime projection before CUDA lowering");
   if (!module || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument("CouplingGraphToCUDA requires a verified CG ModuleOp");
 

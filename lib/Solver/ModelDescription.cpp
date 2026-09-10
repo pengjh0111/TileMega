@@ -145,6 +145,8 @@ ModelDescription ModelDescription::FromCouplingGraph(
 #endif
   if (!module || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument("cost input requires a verified CG module");
+  if (!module.getOps<dialect::FusedTaskSpaceOp>().empty())
+    throw std::invalid_argument("fused L-task cost input requires phase-aware model reconstruction");
   auto plan = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   if (!plan) throw std::invalid_argument("CG has no semantic model plan");
   auto integer = [](mlir::DictionaryAttr dict, llvm::StringRef key) -> int {

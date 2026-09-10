@@ -34,6 +34,18 @@ def CG_EventTensorOp : CG_Op<"event_tensor", [Symbol]> {
   let hasVerifier = 1;
 }
 
+def CG_FusedTaskSpaceOp : CG_Op<"fused_task_space", [Symbol]> {
+  let summary = "consumer-indexed sequential L-task composition";
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                       ArrayAttr:$phase_semantics,
+                       ArrayAttr:$phase_maps,
+                       DictionaryAttr:$reads,
+                       DictionaryAttr:$writes,
+                       CG_MetricAttr:$task_count);
+  let assemblyFormat = "$sym_name attr-dict";
+  let hasVerifier = 1;
+}
+
 def CG_CouplingOp : CG_Op<"coupling", [Symbol]> {
   let summary = "consumer-to-producer structured coupling";
   let arguments = (ins SymbolNameAttr:$sym_name,

@@ -16,6 +16,7 @@
 #include <llvm/ADT/TypeSwitch.h>
 
 #include <cctype>
+#include <set>
 #include <stdexcept>
 
 #ifndef TILEMEGA_VERIFY_COUPLING_INCIDENCE
@@ -130,6 +131,41 @@ LogicalResult TaskSpaceOp::verify() {
   return success();
 }
 
+LogicalResult FusedTaskSpaceOp::verify() {
+  analysis::IslReferenceAudit audit(__func__);
+  if (getPhaseSemantics().size()<2 || getPhaseSemantics().size()!=getPhaseMaps().size() || getWrites().empty())
+    return emitOpError("fusion needs ordered semantics, phase maps and an external write");
+  try {
+    std::set<std::string> identities;
+    analysis::CouplingRelation domain;
+    for (auto [semantic,map]:llvm::zip(getPhaseSemantics(),getPhaseMaps())) {
+      auto text=dyn_cast<StringAttr>(semantic);
+      auto relation=dyn_cast<CouplingMapAttr>(map);
+      if (!text || !relation) return emitOpError("malformed fusion phase");
+      auto op=analysis::DecodeSemanticOp(text.getValue().str());
+      if (!identities.insert(op.name).second) return emitOpError("duplicate fusion phase identity");
+      auto const& declarations=analysis::ArithmeticDeclarations();
+      auto found=llvm::find_if(declarations,[&](auto const& d) { return op.arithmetic==d.name; });
+      if (found==declarations.end()) return emitOpError("fusion phase lacks arithmetic signature");
+      analysis::ValidateArithmeticDeclaration(*found);
+      if (!relation.getMap().IsSingleValued()) return emitOpError("fusion phase map must be single-valued");
+      auto current=relation.getMap().Reverse().Image();
+      if (!domain.empty() && (!current.IsSubset(domain) || !domain.IsSubset(current)))
+        return emitOpError("fusion phase domains differ");
+      domain=current;
+    }
+    if (!domain.ImageCard().Add(getTaskCount().getValue().Scale(-1)).IsZero())
+      return emitOpError("fusion task count differs from consumer domain");
+    for (auto accesses:{getReads(),getWrites()}) for (auto named:accesses) {
+      auto map=dyn_cast<CouplingMapAttr>(named.getValue());
+      if (!map) return emitOpError("fusion physical access is not a relation");
+      if (!map.getMap().Reverse().Image().IsSubset(domain))
+        return emitOpError("fusion access extends beyond task domain");
+    }
+  } catch (std::exception const& error) { return emitOpError(error.what()); }
+  return success();
+}
+
 LogicalResult EventTensorOp::verify() {
   auto tensor = dyn_cast<RankedTensorType>(getEventType());
   if (!tensor || !tensor.getElementType().isInteger(32))
@@ -175,9 +211,11 @@ LogicalResult CouplingOp::verify() {
   analysis::IslReferenceAudit audit(__func__);
   auto module = (*this)->getParentOfType<ModuleOp>();
   if (!module) return emitOpError("must be nested in a module");
-  if (!SymbolTable::lookupNearestSymbolFrom<TaskSpaceOp>(*this, getSrcAttr()))
+  auto source=SymbolTable::lookupNearestSymbolFrom(*this,getSrcAttr());
+  auto destination=SymbolTable::lookupNearestSymbolFrom(*this,getDstAttr());
+  if (!source || !isa<TaskSpaceOp,FusedTaskSpaceOp>(source))
     return emitOpError() << "unknown source task " << getSrc();
-  if (!SymbolTable::lookupNearestSymbolFrom<TaskSpaceOp>(*this, getDstAttr()))
+  if (!destination || !isa<TaskSpaceOp,FusedTaskSpaceOp>(destination))
     return emitOpError() << "unknown destination task " << getDst();
   auto event = SymbolTable::lookupNearestSymbolFrom<EventTensorOp>(*this, getEventAttr());
   if (!event) return emitOpError() << "unknown event tensor " << getEvent();
