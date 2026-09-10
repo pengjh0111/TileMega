@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Codegen/tasks/TaskBase.h>
+#include <tilemega/Codegen/tasks/ScalarDataflow.h>
 
 #ifndef TILEMEGA_ATTENTION_MAX_TOTAL
 #define TILEMEGA_ATTENTION_MAX_TOTAL 4096
@@ -31,6 +32,7 @@ struct SimtTaskResources {
   static constexpr int kSmemBytes = sizeof(SharedStorage);
   static constexpr int kNumThreads = Threads;
   static constexpr int kStages = 0;  // No asynchronous multistage mainloop.
+  static ScalarDataflow Dataflow() { return ScalarTaskDataflow(Kind); }
 };
 
 }  // namespace tilemega::codegen
