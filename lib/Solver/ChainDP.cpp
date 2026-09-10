@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include <tilemega/Solver/ChainDP.h>
+#include <tilemega/Solver/TaskModel.h>
 
 #include <algorithm>
 #include <array>
@@ -67,7 +68,9 @@ double ChainDP::BetweenNs(ModelDescription const& model,
   double const barrier = cost_->BarrierNs(residency);
   double ns = 0.0;
   for (int i = begin; i < end; ++i) {
-    ns += cost_->NonGemmStageNs(model.stages[i], model.dims, residency) +
+    ns += (cost_->options().unified_task_cost
+               ? cost_->TaskStageNs(model,i,candidates_.empty() ? GemmConfig{} : candidates_.front().config,residency)
+               : cost_->NonGemmStageNs(model.stages[i], model.dims, residency)) +
           barrier;
   }
   return ns;
@@ -98,6 +101,18 @@ double ChainDP::Interface(ModelDescription const& model, int from, int to,
                           GemmConfig const& to_config,
                           Residency residency) const {
   std::vector<int> const gemm_stages = GemmStages(model);
+  if (cost_->options().cg_interface) {
+    if (from<0 || to<0) return BetweenNs(model,gemm_stages,from,to,residency);
+    int producer=model.stages.at(gemm_stages.at(from)).gemm;
+    int consumer=model.stages.at(gemm_stages.at(to)).gemm;
+    std::vector<GemmConfig> configs(model.gemms.size(),from_config);
+    configs.at(producer)=from_config; configs.at(consumer)=to_config;
+    double ns=BetweenNs(model,gemm_stages,from,to,residency);
+    for (auto const& edge:InstantiateModelCouplings(model,configs,
+          std::pair{gemm_stages.at(from),gemm_stages.at(to)}))
+      ns+=cost_->InterfaceEdgeNs(edge,model);
+    return ns;
+  }
   double const miss =
       1.0 - cost_->CacheHitProbability(model.LiveFootprintBytes());
   return BetweenNs(model, gemm_stages, from, to, residency) +
@@ -147,6 +162,7 @@ ChainDpSolution ChainDP::Solve(ModelDescription const& model,
                                ChainDpStats* stats) const {
   if (cost_->options().l2_events)
     throw std::invalid_argument("L2 DP requires candidate-specific runtime metrics and transitions; not implemented");
+  if (cost_->options().cg_interface) return SolveCouplingInterfaces(model,options,stats);
   auto const started = std::chrono::steady_clock::now();
   std::vector<int> const gemm_stages = GemmStages(model);
   int const layers = static_cast<int>(gemm_stages.size());
@@ -237,7 +253,11 @@ ChainDpSolution ChainDP::Solve(ModelDescription const& model,
       for (std::size_t j = 0; j < n; ++j) {
         GemmConfig const& cfg = candidates_[admissible[j]].config;
         int chunks = 1;
-        double ns = cost_->GemmStageNs(gemm, cfg, residency, model, &chunks);
+        double ns;
+        if (cost_->options().unified_task_cost) {
+          chunks=cost_->Chunks(gemm,cfg);
+          ns=cost_->TaskStageNs(model,gemm_stages[i],cfg,residency);
+        } else ns=cost_->GemmStageNs(gemm, cfg, residency, model, &chunks);
         if (chunks > 1) {
           ns += cost_->CombineStageNs(gemm, chunks, model.dims) + barrier;
         }

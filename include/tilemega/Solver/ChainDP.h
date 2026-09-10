@@ -3,10 +3,10 @@
 //                state (resident CTAs per SM).
 //
 // DP[i][s] = min_{s'} { DP[i-1][s'] + Cost_i(s) + Interface(s', s) } over the
-// GEMM operators in the order the megakernel executes them.  Execution order
-// is the right chain: L1 puts a grid barrier after every stage, so the DAG's
-// forks (gate/up) are already linearised by the generator and a chain over the
-// emitted stage list is exact rather than an approximation of the DAG.
+// GEMM operators in execution order for the historical, pair-local cost.
+// With CG interface costs, residual edges can join non-adjacent GEMMs even
+// under L1. The exact transition state therefore retains every earlier
+// configuration with an unpriced outgoing factor (CouplingInterfaceDP.cpp).
 //
 // The one quantity that is not per-operator is `resident_tiles_per_SM`: it
 // follows from the *union* of every TaskBody's shared memory and the *maximum*
@@ -82,6 +82,7 @@ struct ChainDpStats {
   /// max over (i, s) of the spread of Interface(., s) across s'.  Zero means
   /// the chain separates and the DP degenerates to |R| independent minima.
   double interface_spread_ns = 0.0;
+  int interface_frontier_width = 0;
 };
 
 struct ChainDpSolution {
@@ -139,6 +140,8 @@ class ChainDP {
   std::vector<DpCandidate> const& candidates() const { return candidates_; }
 
  private:
+  ChainDpSolution SolveCouplingInterfaces(ModelDescription const& model,
+      ChainDpOptions options,ChainDpStats* stats) const;
   /// Stage indices of the GEMMs, in execution order.
   std::vector<int> GemmStages(ModelDescription const& model) const;
 

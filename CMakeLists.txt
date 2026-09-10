@@ -140,6 +140,7 @@ add_library(tilemega STATIC
   lib/Solver/ImplementationContract.cpp
   lib/Solver/AlignmentPropagation.cpp
   lib/Solver/ChainDP.cpp
+  lib/Solver/CouplingInterfaceDP.cpp
   lib/Solver/ScalarTaskWork.cpp
   lib/Solver/ListScheduler.cpp
   lib/Solver/CostModel.cpp
