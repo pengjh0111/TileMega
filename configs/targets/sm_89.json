@@ -955,12 +955,12 @@
       ],
       "combine_fixed_ns": 0,
       "fp32_partial_combine": {
-        "fixed_ns": null,
-        "base_ns": null,
-        "d_l2_ns": null,
-        "d_dram_ns": null,
-        "reason": "not_calibrated",
-        "method": ""
+        "fixed_ns": 61.750004535,
+        "base_ns": 0.0044639512115000005,
+        "d_l2_ns": 0.00064544765595,
+        "d_dram_ns": 0.0043108035155,
+        "reason": "measured",
+        "method": "sm_89 BF16 output / FP32 partials; median of 50 fresh processes, 41 interleaved paired CUDA-graph samples of 64 identical launches; unchanged combine kernel; 52428800 CPU bit-verified outputs; docs/experiments/COST_MODEL/partial_graph_validation"
       },
       "combine_fixed_resolved": false,
       "combine_d_dram_ns": 0.0006037476218,

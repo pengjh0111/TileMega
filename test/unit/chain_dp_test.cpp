@@ -81,7 +81,9 @@ int main() {
   ChainDP const dp(cost, Candidates());
   CostModelOptions measured_options;
   measured_options.measured_partial_combine=true;
-  CostModel const missing_partial(target,ScalarType::kBF16,measured_options);
+  auto missing_target=target;
+  missing_target.calib_bf16.fp32_partial_combine={};
+  CostModel const missing_partial(missing_target,ScalarType::kBF16,measured_options);
   bool missing_rejected=false;
   try { (void)missing_partial.CombineStageNs(model.gemms.front(),2,model.dims); }
   catch (std::runtime_error const& error) {
