@@ -2,6 +2,7 @@
 #include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/CouplingDerivation.h>
 #include <algorithm>
 #include <set>
 #include <stdexcept>
@@ -47,6 +48,45 @@ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
   return analysis::Instantiate(semantics,granularity);
 }
 
+std::vector<ModelCouplingMetrics> InstantiateModelCouplings(
+    ModelDescription const& model,std::vector<GemmConfig> const& configs,
+    std::optional<std::pair<int,int>> stage_pair) {
+  analysis::IslReferenceAudit audit(__func__);
+  auto graph=InstantiateModelTasks(model,configs);
+  std::map<std::string,int> stages;
+  for (auto const& input:model.task_semantics) {
+    stages.emplace(input.op.name,input.stage);
+    if (input.op.reduction.splittable) stages.emplace(input.op.reduction.combiner,input.stage);
+  }
+  auto known=model.metric_bindings;
+  for (auto const& name:{std::string("S"),std::string("past"),std::string("P"),std::string("L_s"),
+                         model.seq_metric_parameter,model.past_metric_parameter})
+    known.values.erase(name);
+  for (auto const& [alias,canonical]:model.metric_aliases)
+    if (canonical==model.seq_metric_parameter || canonical==model.past_metric_parameter)
+      known.values.erase(alias);
+  if (stage_pair) {
+    // Restrict only which edges are queried. Operand access maps and task
+    // spaces are unchanged, so the ordinary derivation remains the authority.
+    for (auto& node:graph.nodes) {
+      auto consumer=stages.at(node.name);
+      node.operands.erase(std::remove_if(node.operands.begin(),node.operands.end(),
+          [&](auto const& operand) {
+            auto producer=stages.find(operand.producer);
+            return consumer!=stage_pair->second || producer==stages.end() ||
+                   producer->second!=stage_pair->first;
+          }),node.operands.end());
+    }
+  }
+  auto derived=analysis::CouplingDerivation{}.Derive(graph,known);
+  std::vector<ModelCouplingMetrics> edges;
+  for (auto const& edge:derived)
+    edges.push_back({stages.at(edge.src.name),stages.at(edge.dst.name),
+      edge.metrics.wait,edge.metrics.fanout,edge.metrics.volume,edge.metrics.count,edge.C,
+      edge.src.name,edge.dst.name});
+  return edges;
+}
+
 DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
                                     ModelTaskSemantics const& semantic,
                                     analysis::OperatorGraph const& graph,
@@ -66,7 +106,14 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
   arithmetic.dtype=semantic.op.dtype;
   auto signature=analysis::InstantiateArithmetic(semantic.op.arithmetic,arithmetic);
   analysis::RequireArithmeticImplementation(signature);
-  (void)model;
-  return {*task,std::move(work),std::move(signature)};
+  DerivedTaskInput result{*task,std::move(work),std::move(signature),task->Coordinates(),std::nullopt,std::nullopt};
+  if (!config) {
+    int threads=model.dtype==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
+    result.scalar_access.emplace();
+    result.work=DeriveRuntimeScalarWork(model,semantic,*task,std::move(result.work),threads,&*result.scalar_access);
+    result.cost_coordinates={"q"};
+    result.scalar_flow=codegen::ScalarTaskDataflow(static_cast<codegen::TaskKind>(model.stages.at(semantic.stage).kind));
+  }
+  return result;
 }
 }  // namespace tilemega::solver

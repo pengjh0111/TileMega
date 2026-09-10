@@ -46,6 +46,7 @@ struct ModelCouplingMetrics {
   int producer = -1, consumer = -1;
   analysis::QuasiPolynomial wait, fanout, volume, count;
   analysis::CouplingRelation relation;
+  std::string producer_task, consumer_task;
 };
 struct ModelRuntimeEventMetrics {
   analysis::QuasiPolynomial task_refs, wait_entries, max_worker_task_refs;

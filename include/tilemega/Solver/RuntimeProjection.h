@@ -43,6 +43,8 @@ struct RuntimeProjection {
 RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
                                       codegen::RuntimePlan const& plan,
                                       RuntimeProjectionOptions options);
+analysis::CouplingRelation ProjectScalarTaskOwnership(ModelTaskSemantics const& semantic,
+    analysis::OperatorNode const& task,ModelStage const& stage,int threads);
 void AttachRuntimeEventMetrics(ModelDescription& model, codegen::RuntimePlan const& plan,
                                RuntimeProjectionOptions options);
 

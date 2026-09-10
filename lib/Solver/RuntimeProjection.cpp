@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <sstream>
 #include <stdexcept>
+#include <set>
 
 #ifndef TILEMEGA_SYMBOLIC_RUNTIME_PROJECTION
 #define TILEMEGA_SYMBOLIC_RUNTIME_PROJECTION 1
@@ -31,6 +32,48 @@ std::string Join(std::vector<std::string> const& parts) {
   return text;
 }
 }  // namespace
+
+analysis::CouplingRelation ProjectScalarTaskOwnership(ModelTaskSemantics const& semantic,
+    analysis::OperatorNode const& task,ModelStage const& stage,int threads) {
+  analysis::IslReferenceAudit audit(__func__);
+  if (threads<=0 || task.output.axes.size()!=2 || stage.kind==StageKind::kGemm)
+    throw std::invalid_argument("unsupported scalar ownership domain");
+  std::set<std::string> parameters;
+  std::vector<std::string> bounds;
+  std::string flat="0";
+  long stride=1;
+  for (int axis=int(task.output.axes.size())-1;axis>=0;--axis) {
+    auto extent=task.CoordinateExtent(axis);
+    for (auto const& parameter:extent.FreeSymbols()) parameters.insert(parameter);
+    if (task.IsTiled(axis)) {
+      auto const& name=task.output.axes[axis].name;
+      bounds.push_back("0 <= "+name+" < ("+extent.ToIslText()+")");
+      flat+="+"+std::to_string(stride)+"*"+name;
+    }
+    if (axis) stride*=extent.Eval({},{});
+  }
+  if (semantic.element_chunk) {
+    if (!task.tile[0].IsLiteral(1) || !task.tile[1].IsLiteral(1))
+      throw std::invalid_argument("element ownership requires unit logical tasks");
+    if (stage.kind==StageKind::kRoPE) {
+      if (stage.width<=0 || stage.width%2) throw std::invalid_argument("rotation head width must be positive and even");
+      auto const& row=task.output.axes[0].name;
+      auto const& col=task.output.axes[1].name;
+      long cols=task.output.axes[1].extent.Eval({},{});
+      flat=std::to_string(cols/2)+"*"+row+"+"+std::to_string(stage.width/2)+
+          "*floord("+col+","+std::to_string(stage.width)+")+"+col+"%"+std::to_string(stage.width/2);
+    }
+    flat="floord(("+flat+"),"+std::to_string(threads)+")";
+  }
+  std::string prefix;
+  for (auto const& name:parameters) prefix+=(prefix.empty() ? "" : ",")+name;
+  if (!prefix.empty()) prefix="["+prefix+"] -> ";
+  std::string coordinates;
+  for (auto const& name:task.Coordinates()) coordinates+=(coordinates.empty() ? "" : ",")+name;
+  std::string condition="q = "+flat;
+  for (auto const& bound:bounds) condition+=" and "+bound;
+  return analysis::CouplingRelation::FromIslText(prefix+"{ [q] -> ["+coordinates+"] : "+condition+" }");
+}
 
 RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
                                       codegen::RuntimePlan const& plan,

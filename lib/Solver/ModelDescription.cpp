@@ -196,8 +196,10 @@ ModelDescription ModelDescription::FromCouplingGraph(
     model.stages.push_back(std::move(stage));
   }
   std::map<std::string, int> task_stage;
+  std::map<std::string, std::string> task_name;
   for (auto task : module.getOps<dialect::TaskSpaceOp>()) {
     task_stage.emplace(task.getSymName().str(), task.getStage());
+    task_name.emplace(task.getSymName().str(),task.getOperatorName().str());
     if (auto payload=task.getSemantic()) {
       ModelTaskSemantics input;
       input.op=analysis::DecodeSemanticOp(payload->str());
@@ -221,7 +223,8 @@ ModelDescription ModelDescription::FromCouplingGraph(
     int const consumer = task_stage.at(edge.getDst().str());
     model.coupling_metrics.edges.push_back({producer, consumer,
         edge.getWait().getValue(), edge.getFanout().getValue(),
-        edge.getVolume().getValue(), edge.getCount().getValue(), edge.getRelation().getMap()});
+        edge.getVolume().getValue(), edge.getCount().getValue(), edge.getRelation().getMap(),
+        task_name.at(edge.getSrc().str()),task_name.at(edge.getDst().str())});
     if (producer != consumer) model.stage_successors.at(producer).push_back(consumer);
   }
   for (auto& successors : model.stage_successors) {
