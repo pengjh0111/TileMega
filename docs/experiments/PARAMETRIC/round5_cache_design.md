@@ -5,7 +5,8 @@ A6/A9's entry gates passed before this work started; see
 
 The explicit experimental option is `TILEMEGA_MEASURED_CACHE_CURVE` (default
 OFF) / `CostModelOptions::measured_cache_curve`. CDF remains the independent
-control and is not removed or silently bypassed. Ranking validation is pending.
+control and is not removed or silently bypassed. Ranking validation completed:
+both BF16 rows regress slightly; see `cache_curve/result.md`. Default remains OFF.
 
 ## Representation choice
 

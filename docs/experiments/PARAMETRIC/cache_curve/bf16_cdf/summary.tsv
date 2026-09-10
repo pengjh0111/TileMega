@@ -1,0 +1,5 @@
+model	layer	n	mape_pct	spearman	top1	top3	top10	optimum_rank
+gqa2	+nongemm(full)	770	49.47	0.9040	0	0	0	47
+gqa2	tier2-baseline	770	0.00	0.8778	0	1	3	25
+mha4	+nongemm(full)	462	47.62	0.8911	0	0	0	44
+mha4	tier2-baseline	462	0.00	0.8738	0	0	2	19

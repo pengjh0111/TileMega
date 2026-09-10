@@ -1,0 +1,137 @@
+{
+  "scope": "CPU prediction comparison on archived measured subsets; no GPU ranking claim",
+  "cells": [
+    {
+      "dtype": "bf16",
+      "model": "gqa2",
+      "configs": 770,
+      "cdf": {
+        "rho_from_printed_predictions": 0.9038734673277106,
+        "top1_top3_top10": [
+          0,
+          0,
+          0
+        ]
+      },
+      "curve": {
+        "rho_from_printed_predictions": 0.9036449014585587,
+        "top1_top3_top10": [
+          0,
+          0,
+          0
+        ]
+      },
+      "cdf_baseline_byte_equal": true,
+      "rho_regression": true,
+      "inputs": [
+        {
+          "path": "cache_curve/bf16_cdf/predictions_gqa2.tsv",
+          "sha256": "29acf08b92e56eb7bc9ab0bd6e5a614932722e85a0b5ba82f11c6b8fb2fb4777"
+        },
+        {
+          "path": "cache_curve/bf16_curve/predictions_gqa2.tsv",
+          "sha256": "26cd6397f4ba4fd74225e0caf49e906c5ca76cd01f4fd96dc68353dd82dc948e"
+        }
+      ]
+    },
+    {
+      "dtype": "bf16",
+      "model": "mha4",
+      "configs": 462,
+      "cdf": {
+        "rho_from_printed_predictions": 0.8910704759067422,
+        "top1_top3_top10": [
+          0,
+          0,
+          0
+        ]
+      },
+      "curve": {
+        "rho_from_printed_predictions": 0.8910404180154867,
+        "top1_top3_top10": [
+          0,
+          0,
+          0
+        ]
+      },
+      "cdf_baseline_byte_equal": true,
+      "rho_regression": true,
+      "inputs": [
+        {
+          "path": "cache_curve/bf16_cdf/predictions_mha4.tsv",
+          "sha256": "d71303c71729184ef02d3d02656652c3371f669624f7055cccb970410d0298d4"
+        },
+        {
+          "path": "cache_curve/bf16_curve/predictions_mha4.tsv",
+          "sha256": "082255102f983883519bc0c8c152fd05560ad1f8a66f726c627e90584459e96d"
+        }
+      ]
+    },
+    {
+      "dtype": "f32",
+      "model": "gqa2",
+      "configs": 1077,
+      "cdf": {
+        "rho_from_printed_predictions": 0.943179364105432,
+        "top1_top3_top10": [
+          1,
+          3,
+          6
+        ]
+      },
+      "curve": {
+        "rho_from_printed_predictions": 0.943179364105432,
+        "top1_top3_top10": [
+          1,
+          3,
+          6
+        ]
+      },
+      "cdf_baseline_byte_equal": true,
+      "rho_regression": false,
+      "inputs": [
+        {
+          "path": "cache_curve/f32_cdf/predictions_gqa2.tsv",
+          "sha256": "3c3176742e6856a4ef6ebb7f4196caf621b87d5f22f06c6d2aae787b1c451a20"
+        },
+        {
+          "path": "cache_curve/f32_curve/predictions_gqa2.tsv",
+          "sha256": "3c3176742e6856a4ef6ebb7f4196caf621b87d5f22f06c6d2aae787b1c451a20"
+        }
+      ]
+    },
+    {
+      "dtype": "f32",
+      "model": "mha4",
+      "configs": 1077,
+      "cdf": {
+        "rho_from_printed_predictions": 0.9421013798584228,
+        "top1_top3_top10": [
+          1,
+          3,
+          6
+        ]
+      },
+      "curve": {
+        "rho_from_printed_predictions": 0.9421013798584228,
+        "top1_top3_top10": [
+          1,
+          3,
+          6
+        ]
+      },
+      "cdf_baseline_byte_equal": true,
+      "rho_regression": false,
+      "inputs": [
+        {
+          "path": "cache_curve/f32_cdf/predictions_mha4.tsv",
+          "sha256": "6636ddd7799b97c940e22549b1084c446f51f376041f3d1b9be8367a808fcba2"
+        },
+        {
+          "path": "cache_curve/f32_curve/predictions_mha4.tsv",
+          "sha256": "6636ddd7799b97c940e22549b1084c446f51f376041f3d1b9be8367a808fcba2"
+        }
+      ]
+    }
+  ]
+}
