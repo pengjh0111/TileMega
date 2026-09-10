@@ -290,6 +290,7 @@ int main(int argc, char** argv) try {
     else if (arg == "--bf16-partials-baseline") fp32_partials = false;
     else if (arg == "--legacy-task-traits") task_body_traits = false;
     else if (arg == "--measured-partial-combine") measured_partial_combine = true;
+    else if (arg == "--analytic-partial-combine") measured_partial_combine = false;
     else if (arg == "--target" && i + 1 < argc) target_file = argv[++i];
     else if (arg == "--gqa-cu" && i + 1 < argc) gqa_cu = argv[++i];
     else if (arg == "--mha-cu" && i + 1 < argc) mha_cu = argv[++i];
@@ -303,7 +304,7 @@ int main(int argc, char** argv) try {
                          " [--register-dir DIR] [--histogram-only]"
                          " [--fp32-partials|--bf16-partials-baseline]"
                          " [--legacy-task-traits]"
-                         " [--measured-partial-combine] [--target FILE]"
+                         " [--measured-partial-combine|--analytic-partial-combine] [--target FILE]"
                          " [--gqa-cu FILE] [--mha-cu FILE]\n"; return 2; }
   }
   if (screen_dir.empty()) screen_dir = repo + "/docs/experiments/ORACLE/raw";
