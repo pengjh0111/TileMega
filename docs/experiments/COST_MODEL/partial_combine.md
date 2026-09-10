@@ -1,4 +1,63 @@
-# A12.2 FP32-partial combine calibration (measurement unresolved)
+# A12.2 FP32-partial combine calibration
+
+## Resolved measurement (supersedes the local stop, preserves it below)
+
+✅ `lib/Target/GemmCalibration.cu:70` now measures a pair of CUDA graphs,
+each containing 64 launches of the **same** combine kernel and launch shape.
+The control uses count=0; each of 41 timed rounds rotates control/work order.
+Three warmup pairs precede timing. Batching resolves the interval without
+changing the kernel, input, numerical tolerance, or fitting a positive epsilon.
+`TILEMEGA_COMBINE_GRAPH_TIMING=0` rejects this explicit measurement mode;
+`--combine-graph-batch 0` retains the historical timing protocol.
+
+✅ Fifty fresh processes pass the CPU sequential-FP32-reduction bit check
+for all 1048576 outputs with 32 chunks: **50/50**, 52428800 output elements,
+1677721600 partial contributions. Actual initialized GPU partials are read
+back; expected values are not a constant fill. Raw logs, per-process profiles,
+frozen source diff and binary/base hashes are in `partial_graph_validation/`.
+The independent verifier checks hashes, arm rotation, raw timer resolution,
+profile/table agreement and correctness counts (`verification_profile.json`).
+No GPU timing ran concurrently. This checks the calibration kernel, not a new
+50-process end-to-end FP32-model regression claim.
+
+| BF16-output / FP32-partial coefficient | 50-process median | 95% bootstrap median CI |
+|---|---:|---:|
+| fixed ns | 61.750004535 | [60.99999882, 62.50001024] |
+| base ns/output element | .0044639512115 | [.004463739, .0044660920635] |
+| L2 ns/extra partial/element | .00064544765595 | [.0006452556833, .0006464945116] |
+| DRAM ns/extra partial/element | .0043108035155 | [.004310747438, .004310833004] |
+
+Bootstrap: 10000 resamples of independent processes, NumPy generator seed 0.
+Only the BF16 `fp32_partial_combine` subtree in `configs/targets/sm_89.json`
+was published, not the rounded full-target serializer output. Other targets
+remain explicitly `not_calibrated`; missing profiles reject measured pricing.
+`CostModel.cpp:379` consumes all four rates instead of the analytical extra.
+`TILEMEGA_MEASURED_PARTIAL_COMBINE` now defaults ON, with
+`--analytic-partial-combine` / the OFF macro retaining the historical control.
+No FP32 or unsplit pricing expression was changed.
+
+✅ Both FP32 prediction tables (1077 configurations each) and the entire
+ablation/ranking summary are byte-identical between measured ON and OFF
+(`partial_rate_comparison/`). FP32 rho/top-k therefore does not regress.
+⚠️ The preserved historical BF16 subset diagnostic changes full-model rho
+gqa2 .9049→.9040, mha4 .8929→.8911; top1/3/10 remains 0/0/0. This slight
+negative result is retained, **not a post-repair BF16 ranking acceptance**:
+the archive contains 770/462 accepted points from the old partial format,
+and its omitted 308 mha4 entries were numerical failures, not run failures.
+The cost comparison changes rates only; it does not rerun that GPU oracle.
+
+### Measurement detour and correction
+
+The first graph attempt already resolved about 62 ns per launch, but the
+first implementation compared that per-launch mean against a 100 ns
+**whole timed interval** resolution test. It incorrectly rejected the run
+(`first_resolution_failure.txt`). The corrected test compares
+`per_launch_ns * batch > 100 ns`; the physical one-tick requirement remains
+unchanged. `single_resolved.txt` and all 50 subsequent process logs report
+both units. The earlier negative single-launch result below remains valid
+for that protocol and is not overwritten.
+
+## Historical unresolved single-launch measurement
 
 ✅ After A9's 1200 attribution processes finished, the prepared command below
 ran alone on sm_89. ⚠️ The measured profile was rejected as `not_calibrated`;
