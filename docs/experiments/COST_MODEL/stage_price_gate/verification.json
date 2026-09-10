@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "groups": 4308,
+  "price_bit_checks": 904680,
+  "stage_entry_bit_checks": 904680,
+  "prices_sha256": "8903ec0e434a13ea0ee63a3f52b8d81862b7603c9f9511549888c3a9788ca1f9",
+  "scope": "GEMM only; scalar and solver evidence recorded separately"
+}

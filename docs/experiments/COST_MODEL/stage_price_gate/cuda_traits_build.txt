@@ -1,0 +1,6 @@
+ninja: Entering directory `build-portable'
+[1/4] Building CUDA object CMakeFiles/task_body_contract_test.dir/test/unit/task_body_contract_test.cu.o
+nvcc warning : Support for offline compilation for architectures prior to '<compute/sm/lto>_75' will be removed in a future release (Use -Wno-deprecated-gpu-targets to suppress warning).
+[2/4] Linking CXX executable task_body_contract_test
+[3/4] Building CUDA object CMakeFiles/bf16_task_body_compile_test.dir/test/unit/bf16_task_body_compile_test.cu.o
+[4/4] Linking CXX executable bf16_task_body_compile_test

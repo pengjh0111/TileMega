@@ -1,0 +1,30 @@
+{
+  "plan_checks": [
+    {
+      "dtype": "bf16",
+      "model": "gqa2",
+      "equal": true,
+      "sha256": "fa550f345218afd4e4281f77caad9067c4d48e251d3c329cbe31b712a06926b0"
+    },
+    {
+      "dtype": "bf16",
+      "model": "mha4",
+      "equal": true,
+      "sha256": "a43076e6b5abde0a7c5ac26648d717834259590b988a0a14d5ef21cc572a66c3"
+    },
+    {
+      "dtype": "f32",
+      "model": "gqa2",
+      "equal": true,
+      "sha256": "0b4778653af7904664fa21fa0e9956385fbcf9133cf7788fd1f15a4100da3b40"
+    },
+    {
+      "dtype": "f32",
+      "model": "mha4",
+      "equal": true,
+      "sha256": "62092ca7da336e0516371108bbf4692f78fb3393697ff6cf7aa895cb1d5a2606"
+    }
+  ],
+  "repeat_price_fields": 8,
+  "scope": "CPU plans and printed price fields; BF16 old/new ranking acceptance remains FAIL"
+}

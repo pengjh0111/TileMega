@@ -1,0 +1,11 @@
+ninja: Entering directory `build-portable'
+[1/10] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ScalarTaskWork.cpp.o
+[2/10] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/CouplingInterfaceDP.cpp.o
+[3/10] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ChainDP.cpp.o
+[4/10] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/CostModel.cpp.o
+[5/10] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/TaskModel.cpp.o
+[6/10] Linking CXX static library libtilemega.a
+[7/10] Building CXX object CMakeFiles/tilemega-task-cost-gate.dir/tools/tilemega-task-cost-gate.cpp.o
+[8/10] Linking CXX executable tools/tilemega-task-cost-gate
+[9/10] Building CXX object CMakeFiles/tilemega-scalar-cost-probe.dir/tools/tilemega-scalar-cost-probe.cpp.o
+[10/10] Linking CXX executable tools/tilemega-scalar-cost-probe

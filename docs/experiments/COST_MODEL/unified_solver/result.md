@@ -32,8 +32,11 @@ a new megakernel occupancy measurement or a reopening of the closed T0 line.
 The first unified executable SHA256 was
 `e96d84d485d6495d7b6ffac7e882dc83c49806f4c750c92494313498f65a7bfc`;
 it is frozen locally as `/tmp/tilemega-solve-a6-before-guards`.
-The `f32_audited` repeat uses the explicit zero-reference tool footer and
-`TILEMEGA_ISL_AUDIT=1`; it is pending at this report's checkpoint.
+✅ The `f32_audited` repeat uses the explicit zero-reference tool footer and
+`TILEMEGA_ISL_AUDIT=1`; it passes both ranking checks. All eight printed
+price fields and non-timing summary fields match the first run. Independent
+`verify_unified_solver.py` checks all four old/new per-GEMM plan files and
+the repeat, recording their hashes in `verification.json`.
 
 ⚠️ Host evaluation remains expensive: the first unified uniform solve
 took approximately 22.7/31.2s for FP32 and 28.5/52.4s for BF16, versus

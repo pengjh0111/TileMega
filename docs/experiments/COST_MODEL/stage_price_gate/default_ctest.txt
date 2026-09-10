@@ -1,0 +1,72 @@
+Internal ctest changing into directory: /root/TileMega/build-portable
+Test project /root/TileMega/build-portable
+      Start  3: coupling_interface_mha4
+      Start  2: coupling_interface_gqa2
+      Start 15: task_element_work
+      Start 10: incidence_identity
+ 1/33 Test #15: task_element_work ................   Passed    2.04 sec
+      Start 11: imported_incidence_identity
+ 2/33 Test #10: incidence_identity ...............   Passed    5.05 sec
+      Start  1: scalar_cost_errors
+ 3/33 Test  #1: scalar_cost_errors ...............   Passed    0.58 sec
+      Start 14: runtime_projection
+ 4/33 Test #11: imported_incidence_identity ......   Passed    3.85 sec
+      Start 17: task_work_domains
+ 5/33 Test #14: runtime_projection ...............   Passed    0.98 sec
+      Start  6: target_audit
+ 6/33 Test #17: task_work_domains ................   Passed    0.94 sec
+      Start 29: frontend_import
+ 7/33 Test #29: frontend_import ..................   Passed    1.42 sec
+      Start 31: wiring_coupling
+ 8/33 Test #31: wiring_coupling ..................   Passed    0.40 sec
+      Start  4: cg_lit
+ 9/33 Test  #4: cg_lit ...........................   Passed    0.15 sec
+      Start  9: semantics
+10/33 Test  #6: target_audit .....................   Passed    2.20 sec
+      Start 18: isl_relation
+11/33 Test  #9: semantics ........................   Passed    0.27 sec
+      Start  8: table27
+12/33 Test #18: isl_relation .....................   Passed    0.29 sec
+      Start  7: coupling_types
+13/33 Test  #7: coupling_types ...................   Passed    0.10 sec
+      Start 13: event_synthesis
+14/33 Test  #8: table27 ..........................   Passed    0.23 sec
+      Start 26: impl_contract
+15/33 Test #13: event_synthesis ..................   Passed    0.11 sec
+      Start 12: containment
+16/33 Test #26: impl_contract ....................   Passed    0.03 sec
+      Start 16: op_arithmetic_audit
+17/33 Test #16: op_arithmetic_audit ..............   Passed    0.01 sec
+      Start 30: semantic_lifting
+18/33 Test #30: semantic_lifting .................   Passed    0.04 sec
+      Start 19: layout_bridge
+19/33 Test #19: layout_bridge ....................   Passed    0.02 sec
+      Start 21: backend_query
+20/33 Test #21: backend_query ....................   Passed    0.01 sec
+      Start 32: frontend_degradation
+21/33 Test #32: frontend_degradation .............   Passed    0.01 sec
+      Start 20: cg_attr_roundtrip
+22/33 Test #20: cg_attr_roundtrip ................   Passed    0.01 sec
+      Start 25: alignment_propagation
+23/33 Test #25: alignment_propagation ............   Passed    0.01 sec
+      Start 24: cluster_labeling
+24/33 Test #24: cluster_labeling .................   Passed    0.01 sec
+      Start 33: isl_crosslink
+25/33 Test #33: isl_crosslink ....................   Passed    0.01 sec
+      Start 23: list_scheduler
+26/33 Test #23: list_scheduler ...................   Passed    0.01 sec
+      Start 22: chain_dp
+27/33 Test #22: chain_dp .........................   Passed    0.01 sec
+      Start  5: target_spec
+28/33 Test  #5: target_spec ......................   Passed    0.01 sec
+      Start 28: bf16_task_body_compile
+29/33 Test #28: bf16_task_body_compile ...........   Passed    0.01 sec
+      Start 27: task_body_contract
+30/33 Test #27: task_body_contract ...............   Passed    0.01 sec
+31/33 Test #12: containment ......................   Passed    0.19 sec
+32/33 Test  #2: coupling_interface_gqa2 ..........   Passed   18.14 sec
+33/33 Test  #3: coupling_interface_mha4 ..........   Passed   34.02 sec
+
+100% tests passed, 0 tests failed out of 33
+
+Total Test time (real) =  34.03 sec

@@ -1,0 +1,25 @@
+ninja: Entering directory `build-portable'
+[1/23] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ScalarTaskWork.cpp.o
+[2/23] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/CouplingInterfaceDP.cpp.o
+[3/23] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ChainDP.cpp.o
+[4/23] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/CostModel.cpp.o
+[5/23] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/TaskModel.cpp.o
+[6/23] Linking CXX static library libtilemega.a
+[7/23] Building CXX object CMakeFiles/tilemega-scalar-error-probe.dir/tools/tilemega-scalar-error-probe.cpp.o
+[8/23] Building CXX object CMakeFiles/tilemega-interface-probe.dir/tools/tilemega-interface-probe.cpp.o
+[9/23] Linking CXX executable tools/tilemega-scalar-error-probe
+[10/23] Linking CXX executable tools/tilemega-interface-probe
+[11/23] Building CXX object CMakeFiles/tilemega-costmodel.dir/tools/tilemega-costmodel.cpp.o
+[12/23] Building CXX object CMakeFiles/tilemega-parametric.dir/tools/tilemega-parametric.cpp.o
+[13/23] Linking CXX executable tools/tilemega-costmodel
+[14/23] Linking CXX executable tools/tilemega-parametric
+[15/23] Building CXX object CMakeFiles/tilemega-target-audit.dir/tools/tilemega-target-audit.cpp.o
+[16/23] Building CXX object CMakeFiles/tilemega-migrate.dir/tools/tilemega-migrate.cpp.o
+[17/23] Linking CXX executable tools/tilemega-target-audit
+[18/23] Checking architecture-dispatch and hardware-constant policy
+-- TileMega policy checks passed
+[19/23] Linking CXX executable tools/tilemega-migrate
+[20/23] Building CXX object CMakeFiles/chain_dp_test.dir/test/unit/chain_dp_test.cpp.o
+[21/23] Linking CXX executable chain_dp_test
+[22/23] Building CXX object CMakeFiles/tilemega-solve.dir/tools/tilemega-solve.cpp.o
+[23/23] Linking CXX executable tools/tilemega-solve

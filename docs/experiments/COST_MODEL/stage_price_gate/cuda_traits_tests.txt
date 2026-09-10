@@ -1,0 +1,10 @@
+Internal ctest changing into directory: /root/TileMega/build-portable
+Test project /root/TileMega/build-portable
+    Start 27: task_body_contract
+1/2 Test #27: task_body_contract ...............   Passed    0.01 sec
+    Start 28: bf16_task_body_compile
+2/2 Test #28: bf16_task_body_compile ...........   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.02 sec
