@@ -61,8 +61,12 @@ std::vector<FusedTaskInput> ReadFusedTaskInputs(mlir::ModuleOp module) {
       // Pull each phase's output work into consumer coordinates. Repeated
       // producer execution is counted once per consumer, not once globally.
       auto pulled=signature;
-      pulled.flops_per_output_element.numerator=signature.flops_per_output_element.numerator.SumAlong(mapping);
-      pulled.transcendental_per_output_element.numerator=signature.transcendental_per_output_element.numerator.SumAlong(mapping);
+      auto pull=[&](analysis::QuasiPolynomial const& value) {
+        try { (void)value.Eval({}); return value; }
+        catch (std::out_of_range const&) { return value.SumAlong(mapping); }
+      };
+      pulled.flops_per_output_element.numerator=pull(signature.flops_per_output_element.numerator);
+      pulled.transcendental_per_output_element.numerator=pull(signature.transcendental_per_output_element.numerator);
       arithmetic.push_back({std::move(pulled),mapping.ApplyRange(write).Card()});
       input.phases.push_back({*node,std::move(work),std::move(signature),node->Coordinates(),
                               std::nullopt,std::nullopt});

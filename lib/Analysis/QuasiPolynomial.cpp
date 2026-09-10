@@ -470,6 +470,15 @@ QuasiPolynomial QuasiPolynomial::SumAlong(CouplingRelation const& relation) cons
   auto value=isl_util::ReadPwQPolynomial(Ctx(),text_);
   map=isl_util::Map(isl_map_align_params(map.release(),isl_pw_qpolynomial_get_space(value.get())));
   if (!map || !value) throw std::invalid_argument("QP fiber parameter alignment failed");
+  auto parameters=isl_util::Space(isl_space_params(isl_map_get_space(map.get())));
+  auto space=isl_util::Space(isl_space_align_params(
+      isl_pw_qpolynomial_get_space(value.get()),isl_space_copy(parameters.get())));
+  std::unique_ptr<isl_union_pw_qpolynomial,decltype(&isl_union_pw_qpolynomial_free)> united(
+      isl_union_pw_qpolynomial_align_params(isl_union_pw_qpolynomial_from_pw_qpolynomial(value.release()),
+          parameters.release()),&isl_union_pw_qpolynomial_free);
+  if (!united || !space) throw std::invalid_argument("QP fiber parameter union failed");
+  value=isl_util::PwQPolynomial(isl_union_pw_qpolynomial_extract_pw_qpolynomial(united.get(),space.release()));
+  if (!value) throw std::invalid_argument("QP fiber aligned extraction failed");
   int inputs=isl_pw_qpolynomial_dim(value.get(),isl_dim_in),outputs=isl_map_dim(map.get(),isl_dim_out);
   if (inputs==0 && outputs>0) {
     value=isl_util::PwQPolynomial(isl_pw_qpolynomial_add_dims(value.release(),isl_dim_in,outputs));
