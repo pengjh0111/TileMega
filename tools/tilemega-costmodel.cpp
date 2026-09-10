@@ -279,6 +279,7 @@ int main(int argc, char** argv) try {
   bool task_body_traits = true;
   bool measured_partial_combine = TILEMEGA_MEASURED_PARTIAL_COMBINE;
   bool unified_task_cost = TILEMEGA_UNIFIED_TASK_COST;
+  bool measured_cache_curve = TILEMEGA_MEASURED_CACHE_CURVE;
   bool full_only = false;
   std::string target_file;
   std::string gqa_cu;
@@ -299,6 +300,8 @@ int main(int argc, char** argv) try {
     else if (arg == "--unified-task-cost") unified_task_cost = true;
     else if (arg == "--legacy-task-cost") unified_task_cost = false;
     else if (arg == "--full-only") full_only = true;
+    else if (arg == "--measured-cache-curve") measured_cache_curve = true;
+    else if (arg == "--sdcm-cache") measured_cache_curve = false;
     else if (arg == "--target" && i + 1 < argc) target_file = argv[++i];
     else if (arg == "--gqa-cu" && i + 1 < argc) gqa_cu = argv[++i];
     else if (arg == "--mha-cu" && i + 1 < argc) mha_cu = argv[++i];
@@ -314,6 +317,7 @@ int main(int argc, char** argv) try {
                          " [--legacy-task-traits]"
                          " [--measured-partial-combine|--analytic-partial-combine] [--target FILE]"
                          " [--unified-task-cost|--legacy-task-cost] [--full-only]"
+                         " [--measured-cache-curve|--sdcm-cache]"
                          " [--gqa-cu FILE] [--mha-cu FILE]\n"; return 2; }
   }
   if (screen_dir.empty()) screen_dir = repo + "/docs/experiments/ORACLE/raw";
@@ -338,6 +342,7 @@ int main(int argc, char** argv) try {
   full_options.task_body_traits = task_body_traits;
   full_options.measured_partial_combine = measured_partial_combine;
   full_options.unified_task_cost = unified_task_cost;
+  full_options.measured_cache_curve = measured_cache_curve;
   CostModel const full(target, dtype, full_options);
   std::cout << "fit: lds=" << full.fit().lds_ns << " ns/instr (rel rms "
             << 100 * full.fit().lds_rel_rms << "%), setup=" << full.fit().setup_ns
@@ -350,6 +355,7 @@ int main(int argc, char** argv) try {
   roofline.task_body_traits = task_body_traits;
   roofline.measured_partial_combine = measured_partial_combine;
   roofline.unified_task_cost = unified_task_cost;
+  roofline.measured_cache_curve = measured_cache_curve;
   roofline.pipeline_envelope = false;
   roofline.wave_tail = false;
   roofline.cache_model = false;

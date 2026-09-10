@@ -144,6 +144,7 @@ add_library(tilemega STATIC
   lib/Solver/ScalarTaskWork.cpp
   lib/Solver/ListScheduler.cpp
   lib/Solver/CostModel.cpp
+  lib/Solver/CacheServiceCurve.cpp
   lib/Solver/ModelDescription.cpp
   lib/Solver/TaskModel.cpp
   lib/Solver/RuntimeProjection.cpp
@@ -430,6 +431,10 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME backend_query COMMAND backend_query_test)
 
   add_executable(chain_dp_test test/unit/chain_dp_test.cpp)
+  add_executable(cache_service_curve_test test/unit/cache_service_curve_test.cpp)
+  target_link_libraries(cache_service_curve_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(cache_service_curve_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_test(NAME cache_service_curve COMMAND cache_service_curve_test)
   target_link_libraries(chain_dp_test PRIVATE TileMega::tilemega)
   target_compile_definitions(chain_dp_test PRIVATE
     TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

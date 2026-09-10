@@ -22,10 +22,12 @@
 #pragma once
 
 #include <tilemega/Solver/ModelDescription.h>
+#include <tilemega/Solver/CacheServiceCurve.h>
 #include <tilemega/Target/TargetSpec.h>
 
 #include <array>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #ifndef TILEMEGA_TASK_TRAIT_COSTS
@@ -45,6 +47,9 @@
 #endif
 #ifndef TILEMEGA_UNIFIED_TASK_COST
 #define TILEMEGA_UNIFIED_TASK_COST 1
+#endif
+#ifndef TILEMEGA_MEASURED_CACHE_CURVE
+#define TILEMEGA_MEASURED_CACHE_CURVE 0
 #endif
 
 namespace tilemega::solver {
@@ -133,6 +138,7 @@ struct CostModelOptions {
   bool pipeline_envelope = false;
   bool wave_tail = true;          ///< §2.2(d): tail wave at its own active-SM count
   bool cache_model = true;        ///< §2.2(e): SDCM hit probability feeds the DRAM lane
+  bool measured_cache_curve = TILEMEGA_MEASURED_CACHE_CURVE;
   bool split_k = true;            ///< §2.3
   bool non_gemm = true;           ///< the non-GEMM stages' latency model
   bool sync = true;               ///< §2.2(f)
@@ -244,6 +250,7 @@ class CostModel {
   double tc_flops_per_ns_per_sm_ = 0.0;
   mutable std::map<std::string,std::shared_ptr<DerivedTaskInput>> task_input_cache_;
   mutable std::map<std::string,double> scalar_price_cache_;
+  std::optional<CacheServiceCurve> cache_service_curve_;
 };
 
 }  // namespace tilemega::solver

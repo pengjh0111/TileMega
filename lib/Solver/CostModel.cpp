@@ -141,6 +141,8 @@ CostModel::CostModel(TargetSpec const& target, ScalarType dtype,
     throw std::runtime_error(
         "cost model needs a calibrated target: run tilemega-calibrate");
   }
+  if (options_.cache_model && options_.measured_cache_curve)
+    cache_service_curve_.emplace(calib.l2_curve_bytes,calib.l2_curve_gbps);
   // A lane is live only if the target has the pipe *and* something measured
   // its rate.  Anything else is one of the two reasons, never a bare zero:
   // the tmem/l1_5/net lanes are absent on every target measured so far, and
@@ -274,6 +276,8 @@ CostModel::CostModel(TargetSpec const& target, ScalarType dtype,
 
 double CostModel::CacheHitProbability(double footprint_bytes) const {
   if (!options_.cache_model) return 1.0;
+  if (options_.measured_cache_curve)
+    return cache_service_curve_->HitFraction(footprint_bytes,calib_->l2_gbps,calib_->dram_gbps);
   double const capacity_lines =
       calib_->l2_knee_bytes / static_cast<double>(kCacheLineBytes);
   double const block_lines =
