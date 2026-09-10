@@ -150,6 +150,7 @@ add_library(tilemega STATIC
   lib/Solver/RuntimeProjection.cpp
   lib/Analysis/OpArithmetic.cpp
   lib/Analysis/TaskWork.cpp
+  lib/Analysis/FusionAccess.cpp
   lib/Codegen/Codegen.cpp
   lib/Runtime/EventBuffer.cpp
   lib/Runtime/MegakernelRuntime.cpp)
@@ -435,6 +436,9 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(cache_service_curve_test PRIVATE TileMega::tilemega)
   target_compile_definitions(cache_service_curve_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_test(NAME cache_service_curve COMMAND cache_service_curve_test)
+  add_executable(fusion_access_test test/unit/fusion_access_test.cpp)
+  target_link_libraries(fusion_access_test PRIVATE TileMega::tilemega)
+  add_test(NAME fusion_access COMMAND fusion_access_test)
   target_link_libraries(chain_dp_test PRIVATE TileMega::tilemega)
   target_compile_definitions(chain_dp_test PRIVATE
     TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
