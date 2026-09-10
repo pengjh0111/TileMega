@@ -46,6 +46,20 @@ runner 核对实际 sm_120 GPU、BF16 全比较矩阵、source/binary/ptxas/pred
 ⚠️ 尚未实现区间 DP 或两条手工融合 kernel；不是已验证结果。
 形式化已先写入 skeleton §2.3（第六个 CG 操作 Fuse）。
 
+✅ 本次补做：`FusedTaskInput` 从写回的 `phase_semantics`、`phase_granularities`、
+`phase_stages` 和 `phase_maps` 重建阶段输入；它重新计算物理读写集合并与写回
+属性做双向集合检查，外部消费者/导出张量会强制保留生产者写回。实际
+RoPE→KV 与已有 GEMM→add 两类候选（gqa2/mha4 共 4 格）写回前后六个
+double 价格字段逐位相等，10 个非法输入分支均拒绝且 `ISL_CONTEXT remaining=0`。
+混合算术审计确认 GEMM 保持 MMA、add/非 GEMM 保持 SIMT；这是 CPU 功能验证，
+不是 GPU 融合执行验收。`SumAlong(C)` 使用 barvinok 的精确关系 fiber 求和，
+不采样参数，也不把阶段坐标依赖强行当常量。
+
+本次验证：portable CTest 39/39 通过；`fusion_rewrite_test` 的融合图仍为
+1890/1890 边守恒、16 个拒绝错误分支，`fusion_written_price_test` 为
+4/4、10 个拒绝分支、零 isl 残留；五个 target audit 均 0 failures，policy
+通过。阶段粒度/stage 元数据的缺失、错长和负 stage 均有独立拒绝测试。
+
 本轮仅链上相邻的单生产者融合，不跨分支。合法性需要 tile 投影匹配，外部仍需
 中间值时不能删除写回。收益分别是内部边同步与中间 global 流量；代价分别是
 生产者 tile 限制、整个融合段的 live shared/register 预算及 task 数收缩后的

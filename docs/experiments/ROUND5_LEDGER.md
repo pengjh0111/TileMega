@@ -94,9 +94,9 @@ A7 的已归档生产 chunk 数值门为 800/800（`COST_MODEL/attention_models`
 
 | ID | 范围与验收（不可删减） | 实现状态 | 验证状态/依赖 | 证据、commit |
 |---|---|---|---|---|
-| B1.1 | CouplingRelation复合/I1；外部中间写回合法性；fanout重算、索引导出tile约束、max scratch+跨界tile/live regs residency、消费者task数wave四代价；事件与流量收益 | task价格已验证，事件重投影未完 | mixed阶段价格、精确重算及物理global/shared流量已接；4308组位回归通过。实际融合编译资源及runtime event差尚缺 | 08de932b；FUSION/task_prices_streamed/result.md |
+| B1.1 | CouplingRelation复合/I1；外部中间写回合法性；fanout重算、索引导出tile约束、max scratch+跨界tile/live regs residency、消费者task数wave四代价；事件与流量收益 | task价格及写回读取已验证，事件重投影未完 | mixed阶段价格、精确重算及物理global/shared流量已接；4308组位回归通过；写回前后4/4价格六字段逐位相等；实际融合编译资源及runtime event差尚缺 | 08de932b、2aa3e942、f2872d2f；FUSION/task_prices_streamed、written_price_verified |
 | B1.2 | 相邻单生产者区间DP；融合在求解内；GemmStages唯一性 | 未开始 | 内部实现待办，非外部阻塞；先完成mixed task四成本 | 待填 |
-| B1.3 | L-task FusionPass重建任务及L-sched；opt独立调用verify；新拓扑A1门；混合签名组合规则进op-audit | 独立写回已验证，生产未接 | 新fused_task_space与外部边复合，1890/1890守恒；非法请求不改原图；runtime lowering明确拒绝，尚未由DP选择 | 8aff469a；FUSION/rewrite_complete/result.md |
+| B1.3 | L-task FusionPass重建任务及L-sched；opt独立调用verify；新拓扑A1门；混合签名组合规则进op-audit | 独立写回及阶段读取已验证，生产未接 | 新fused_task_space与外部边复合，1890/1890守恒；非法请求不改原图；阶段元数据缺失/错位拒绝；混合 MMA/SIMT 组合可审计；runtime lowering明确拒绝，尚未由DP选择 | 8aff469a、db7799b6、2aa3e942；FUSION/rewrite_complete、rewrite_arithmetic、written_price_verified |
 | B1.4 | 两条真实融合BF16各50进程；稳态时间/资源/spill/事件/schedule；预测胜负相符；A9.3融合差非零正确 | 未开始 | 待B1.3 | FUSION/result.md |
 | B1.5 | sm_120融合脚本，预测与实测同输出，状态轮转；只写不跑 | runner已实现 | CPU校验通过；真实fusion构建/预测manifest未生成，sm120未运行 | 7ba67440；FUSION/run_sm120.sh |
 | B2.1 | 六例全消费者同CTA的fence_free_producers；并列same-worker边；价格只用前者 | 离线已验证 | 六例78映射通过；seq4不改善，128/256时35→541且队列22不变。fence未标定折扣仍0；未声称GPU免fence通过 | 63c366f1、9a09cf21；AFFINE_PROBE/fence_producers/result.md |
