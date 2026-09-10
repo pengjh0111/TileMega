@@ -141,6 +141,7 @@ add_library(tilemega STATIC
   lib/Solver/ImplementationContract.cpp
   lib/Solver/AlignmentPropagation.cpp
   lib/Solver/ChainDP.cpp
+  lib/Solver/FusionIntervalDP.cpp
   lib/Solver/SymbolicChainDP.cpp
   lib/Solver/CouplingInterfaceDP.cpp
   lib/Solver/ScalarTaskWork.cpp
@@ -157,6 +158,7 @@ add_library(tilemega STATIC
   lib/Solver/TaskModel.cpp
   lib/Solver/FusedTaskInput.cpp
   lib/Solver/RuntimeProjection.cpp
+  lib/Solver/FusedRuntimeProjection.cpp
   lib/Analysis/OpArithmetic.cpp
   lib/Analysis/TaskWork.cpp
   lib/Analysis/FusionAccess.cpp
@@ -273,6 +275,12 @@ target_link_libraries(tilemega-event-price PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-event-price PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 add_executable(tilemega-op-audit tools/tilemega-op-audit.cpp)
+add_executable(tilemega-fusion-events tools/tilemega-fusion-events.cpp)
+add_executable(tilemega-fusion-dp tools/tilemega-fusion-dp.cpp)
+target_link_libraries(tilemega-fusion-dp PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-fusion-dp PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+target_link_libraries(tilemega-fusion-events PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-fusion-events PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 add_executable(tilemega-task-work-probe tools/tilemega-task-work-probe.cpp)
 add_executable(tilemega-task-work-gate tools/tilemega-task-work-gate.cpp)
 add_executable(tilemega-task-cost-gate tools/tilemega-task-cost-gate.cpp)
@@ -477,6 +485,16 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(fusion_written_price_test PRIVATE TileMega::tilemega)
   target_compile_definitions(fusion_written_price_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   add_test(NAME fusion_written_price COMMAND fusion_written_price_test)
+  add_executable(fused_runtime_projection_test test/unit/fused_runtime_projection_test.cpp)
+  target_link_libraries(fused_runtime_projection_test PRIVATE TileMega::tilemega)
+  add_test(NAME fused_runtime_projection COMMAND fused_runtime_projection_test)
+  add_executable(fusion_batch_rewrite_test test/unit/fusion_batch_rewrite_test.cpp)
+  target_link_libraries(fusion_batch_rewrite_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(fusion_batch_rewrite_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  add_test(NAME fusion_batch_rewrite COMMAND fusion_batch_rewrite_test)
+  add_executable(fiber_sum_test test/unit/fiber_sum_test.cpp)
+  target_link_libraries(fiber_sum_test PRIVATE TileMega::tilemega)
+  add_test(NAME fiber_sum COMMAND fiber_sum_test)
   add_test(NAME attention_work COMMAND tilemega-attention-work "${CMAKE_CURRENT_SOURCE_DIR}")
   target_link_libraries(chain_dp_test PRIVATE TileMega::tilemega)
   target_compile_definitions(chain_dp_test PRIVATE
@@ -517,6 +535,23 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(attention_phase_test PRIVATE TileMega::tilemega)
   target_compile_options(attention_phase_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+
+  add_executable(fused_gemm_task_body_test test/unit/fused_gemm_task_body_test.cu)
+  target_link_libraries(fused_gemm_task_body_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(fused_gemm_task_body_test PRIVATE
+    TILEMEGA_MODEL_BF16=1 TILEMEGA_GEMM_TILE_M=32 TILEMEGA_GEMM_TILE_N=128
+    TILEMEGA_GEMM_TILE_K=16 TILEMEGA_GEMM_STAGES=3)
+  target_compile_options(fused_gemm_task_body_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  set_property(TARGET fused_gemm_task_body_test PROPERTY CUDA_ARCHITECTURES 89)
+
+  add_executable(fused_harness_compile_test test/unit/bf16_task_body_compile_test.cu)
+  target_link_libraries(fused_harness_compile_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(fused_harness_compile_test PRIVATE TILEMEGA_FUSION_RUNTIME=1)
+  target_compile_options(fused_harness_compile_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  set_property(TARGET fused_harness_compile_test PROPERTY CUDA_ARCHITECTURES 89)
+  add_test(NAME fused_harness_compile COMMAND fused_harness_compile_test)
 
   add_executable(frontend_import_test test/unit/frontend_import_test.cpp)
   add_dependencies(frontend_import_test TileMegaCGIncGen)
