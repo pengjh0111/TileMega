@@ -15,6 +15,7 @@
 #include <tilemega/Analysis/CouplingRelation.h>
 #include <tilemega/Analysis/Semantics.h>
 #include <map>
+#include <set>
 #include <tilemega/Codegen/RuntimePlan.h>
 #include <optional>
 
@@ -114,6 +115,7 @@ struct ModelDescription {
   // Empty on archived generated inputs. Access-derived pricing requires this
   // verified CG payload and must not reconstruct it from generated numbers.
   std::vector<ModelTaskSemantics> task_semantics;
+  std::set<std::string> exported_tensors;
   /// `stage_successors[i]` = the stages that depend on stage `i`, read out of
   /// the generated `kDependencies` table.  That table is already transitively
   /// reduced by the generator, so it is the DAG the megakernel actually

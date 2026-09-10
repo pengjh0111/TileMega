@@ -125,6 +125,57 @@ analysis::TaskAccesses DeriveModelTaskAccesses(ModelTaskSemantics const& semanti
   return accesses;
 }
 
+ModelFusionCandidate DeriveModelFusionCandidate(ModelDescription const& model,
+    std::vector<GemmConfig> const& configs, int producer_stage, int consumer_stage) {
+  analysis::IslReferenceAudit audit(__func__);
+  if (producer_stage<0 || consumer_stage!=producer_stage+1 ||
+      consumer_stage>=static_cast<int>(model.stages.size()))
+    throw std::invalid_argument("fusion requires adjacent runtime stages");
+  ModelTaskSemantics const* producer=nullptr;
+  ModelTaskSemantics const* consumer=nullptr;
+  for (auto const& semantic:model.task_semantics) {
+    auto assign=[&](auto& chosen) {
+      if (chosen) throw std::invalid_argument("fusion stage has multiple logical tasks");
+      chosen=&semantic;
+    };
+    if (semantic.stage==producer_stage) assign(producer);
+    if (semantic.stage==consumer_stage) assign(consumer);
+  }
+  if (!producer || !consumer) throw std::invalid_argument("fusion stage lacks semantic task");
+  std::set<std::string> incoming;
+  for (auto const& operand:consumer->op.operands)
+    if (!operand.producer.empty()) incoming.insert(operand.producer);
+  if (incoming!=std::set<std::string>{producer->op.name})
+    throw std::invalid_argument("fusion consumer is not a single-producer chain node");
+  auto graph=InstantiateModelTasks(model,configs);
+  auto input=[&](ModelTaskSemantics const& semantic) {
+    auto const& stage=model.stages.at(semantic.stage);
+    GemmConfig const* config=stage.gemm<0 ? nullptr : &configs.at(stage.gemm);
+    if (config && config->split_k!=1)
+      throw std::invalid_argument("fusion partial stage requires explicit combine ownership");
+    return DeriveModelTaskInput(model,semantic,graph,config);
+  };
+  auto p=input(*producer),c=input(*consumer);
+  auto pa=DeriveModelTaskAccesses(*producer,p),ca=DeriveModelTaskAccesses(*consumer,c);
+  std::set<std::string> internal,external;
+  for (auto const& [name,write]:pa.writes) {
+    if (ca.reads.count(name)) internal.insert(name);
+    if (model.exported_tensors.count(name)) external.insert(name);
+    for (auto const& other:model.task_semantics) {
+      if (&other==consumer) continue;
+      for (auto const& operand:other.op.operands)
+        if (operand.tensor.name==name) external.insert(name);
+    }
+  }
+  auto accesses=analysis::ComposeFusionAccesses(pa,ca,internal,external);
+  // Arithmetic phases keep distinct output domains. The coupled producer
+  // work is re-indexed by the consumer relation, not averaged over fanout.
+  auto producer_outputs=accesses.intermediate_tiles.at(*internal.begin()).Card();
+  auto arithmetic=analysis::ComposeArithmetic({{p.arithmetic,std::move(producer_outputs)},
+                                              {c.arithmetic,c.work.write_elements}});
+  return {std::move(p),std::move(c),std::move(accesses),std::move(arithmetic)};
+}
+
 DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
                                     ModelTaskSemantics const& semantic,
                                     analysis::OperatorGraph const& graph,

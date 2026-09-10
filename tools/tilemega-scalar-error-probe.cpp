@@ -25,6 +25,7 @@ int main(int argc,char** argv) try {
     auto graph=InstantiateModelTasks(model,configs);
     auto target=TargetSpec::FromJson(std::string(argv[1])+"/configs/targets/sm_89.json");
     CostModel cost(target,model.dtype);
+    if (model.exported_tensors.empty()) throw std::runtime_error("CG exported tensor visibility was lost");
     auto reject=[&](char const* name,auto&& action) {
       auto before=context.ReferenceCount();
       std::string error;
@@ -58,6 +59,8 @@ int main(int argc,char** argv) try {
       reject("instance_negative",[&] { auto p=point; p.Bind("q",-1); cost.TaskInstanceNs(input,traits,{2},model,1,p,1); });
       reject("instance_domain",[&] { auto p=point; p.Bind("q",1000000); cost.TaskInstanceNs(input,traits,{2},model,1,p,1); });
       reject("fusion_fanout",[&] { auto f=replicated; f.fanout=f.fanout.Scale(2); FusionRecomputeNs(f,cost,input,traits,{2},model,1,1); });
+      reject("fusion_nonadjacent",[&] { DeriveModelFusionCandidate(model,configs,0,2); });
+      reject("fusion_missing_semantics",[&] { auto m=model; m.task_semantics.clear(); DeriveModelFusionCandidate(m,configs,0,1); });
       reject("threads",[&] { ProjectScalarTaskOwnership(semantic,task,stage,0); });
       reject("rank",[&] { auto t=task; t.output.axes.pop_back(); ProjectScalarTaskOwnership(semantic,t,stage,traits.threads); });
       reject("collective",[&] { auto s=stage; s.kind=StageKind::kGemm; ProjectScalarTaskOwnership(semantic,task,s,traits.threads); });
@@ -77,6 +80,6 @@ int main(int argc,char** argv) try {
       break;
     }
   }
-  if (branches!=18 || context.ReferenceCount()) throw std::runtime_error("incomplete scalar rejection audit");
+  if (branches!=20 || context.ReferenceCount()) throw std::runtime_error("incomplete scalar rejection audit");
   std::cout << "SCALAR_ERRORS branches=" << branches << " reference_delta=0\nISL_CONTEXT remaining=0\n";
 } catch (std::exception const& e) { std::cerr << e.what() << '\n'; return 2; }

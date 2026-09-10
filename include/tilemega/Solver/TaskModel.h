@@ -29,6 +29,13 @@ struct DerivedTaskInput {
 };
 analysis::TaskAccesses DeriveModelTaskAccesses(ModelTaskSemantics const& semantic,
                                              DerivedTaskInput const& input);
+struct ModelFusionCandidate {
+  DerivedTaskInput producer, consumer;
+  analysis::FusionAccesses accesses;
+  analysis::MixedArithmetic arithmetic;
+};
+ModelFusionCandidate DeriveModelFusionCandidate(ModelDescription const& model,
+    std::vector<GemmConfig> const& configs, int producer_stage, int consumer_stage);
 analysis::TaskWork DeriveRuntimeScalarWork(ModelDescription const& model,
     ModelTaskSemantics const& semantic,analysis::OperatorNode const& task,
     analysis::TaskWork work,int threads,RuntimeScalarAccess* accesses=nullptr);

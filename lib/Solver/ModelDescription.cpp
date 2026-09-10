@@ -173,6 +173,18 @@ ModelDescription ModelDescription::FromCouplingGraph(
   if (!dtype || (dtype.getValue() != "f32" && dtype.getValue() != "bf16"))
     throw std::invalid_argument("unsupported CG model dtype");
   model.dtype = dtype.getValue() == "bf16" ? ScalarType::kBF16 : ScalarType::kF32;
+  auto buffers=array("buffers");
+  for (auto output:array("outputs")) {
+    auto entry=llvm::dyn_cast<mlir::DictionaryAttr>(output);
+    if (!entry) throw std::invalid_argument("malformed CG output entry");
+    int index=integer(entry,"buffer");
+    if (index<0 || index>=static_cast<int>(buffers.size()))
+      throw std::invalid_argument("CG output buffer outside plan");
+    auto buffer=llvm::dyn_cast<mlir::DictionaryAttr>(buffers[index]);
+    auto name=buffer ? buffer.getAs<mlir::StringAttr>("name") : mlir::StringAttr{};
+    if (!name) throw std::invalid_argument("CG output tensor identity missing");
+    model.exported_tensors.insert(name.getValue().str());
+  }
   for (auto item : array("gemms")) {
     auto dict = llvm::dyn_cast<mlir::DictionaryAttr>(item);
     if (!dict) throw std::invalid_argument("malformed CG GEMM plan");
