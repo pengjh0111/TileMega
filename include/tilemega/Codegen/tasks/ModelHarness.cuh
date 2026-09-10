@@ -31,6 +31,7 @@
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <numeric>
 #include <set>
 #include <string>
@@ -935,9 +936,32 @@ inline DeviceModel Create(ModelSpec const& spec,
               TILEMEGA_FP32_PARTIALS && kCompiledScalarType == ScalarType::kBF16,
               sizeof(ModelPartialElement), partial_bytes);
   std::vector<std::uint32_t> entry(spec.stage_count), done(spec.stage_count);
+  std::vector<std::uint32_t> attention_chunks(spec.stage_count,1);
   for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
     StageDesc stage = spec.stages[i];
     entry[i] = static_cast<std::uint32_t>(model.stages.size());
+    if (stage.kind == TaskKind::kAttention && runtime_variant.attention)
+      attention_chunks[i] = runtime_variant.attention[i].chunks;
+    if (attention_chunks[i] > 1) {
+      auto allocate_float = [&](std::size_t elements) {
+        float* buffer = nullptr;
+        TILEMEGA_CUDA_CHECK(cudaMalloc(&buffer,elements*sizeof(float)));
+        auto id = static_cast<std::uint32_t>(model.buffers.size());
+        model.buffers.push_back(reinterpret_cast<ModelElement*>(buffer));
+        model.host_sources.emplace_back();
+        return id;
+      };
+      std::size_t queries = static_cast<std::size_t>(dims.seq)*stage.extent;
+      stage.operand[4] = allocate_float(queries*dims.total);
+      stage.operand[5] = allocate_float(queries*attention_chunks[i]*stage.width);
+      stage.operand[6] = attention_chunks[i];
+      for (auto phase : kAttentionExpandedPhases) {
+        stage.operand[7] = static_cast<std::uint32_t>(phase);
+        model.stages.push_back(stage);
+      }
+      done[i] = static_cast<std::uint32_t>(model.stages.size())-1;
+      continue;
+    }
     int chunks = stage.kind == TaskKind::kGemm ? gemm_chunks[stage.gemm] : 1;
     if (stage.kind == TaskKind::kGemm) stage.gemm = gemm_base[stage.gemm];
     model.stages.push_back(stage);
@@ -955,7 +979,13 @@ inline DeviceModel Create(ModelSpec const& spec,
   }
   std::vector<StageDependency> dependencies;
   for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
-    if (done[i] != entry[i]) {
+    if (attention_chunks[i] > 1) {
+      int chunks = static_cast<int>(attention_chunks[i]);
+      for (auto const& dep : AttentionInternalDependencies(chunks))
+        dependencies.push_back({entry[i]+dep.producer,entry[i]+dep.consumer,
+            StageDependency::Map::kWindow,static_cast<std::uint32_t>(dep.div),
+            dep.scale,0,static_cast<std::uint32_t>(dep.count)});
+    } else if (done[i] != entry[i]) {
       if (model.params.ownership_flags & kCombinerTileOwnership) {
 #if TILEMEGA_CG_SPLIT_TASK_ORDER
         // The chunk axis is contiguous in the CG task order, not storage order.
@@ -982,10 +1012,16 @@ inline DeviceModel Create(ModelSpec const& spec,
       std::uint32_t const producer = edge.producer;
       edge.producer = done[producer];
       edge.consumer = entry[i];
+      if (attention_chunks[i] > 1 && edge.map != StageDependency::Map::kAll) {
+        if (edge.div > std::numeric_limits<std::uint32_t>::max()/attention_chunks[i]) {
+          std::fprintf(stderr,"attention dependency divisor overflow\n"); std::exit(2);
+        }
+        edge.div *= attention_chunks[i];
+      }
       // Split-K moves the producer event onto the combiner, which owns its
       // tasks by element chunk -- blockIdx no longer names the tile the
       // window was fitted against, so the edge falls back to kAll.
-      if (done[producer] != entry[producer] &&
+      if (spec.stages[producer].kind == TaskKind::kGemm && done[producer] != entry[producer] &&
           !(model.params.ownership_flags & kCombinerTileOwnership)) {
         edge.map = StageDependency::Map::kAll;
         edge.div = 1u;
@@ -1022,8 +1058,8 @@ inline DeviceModel Create(ModelSpec const& spec,
     }
     scheduled_once[original] = true;
     model.stage_order.push_back(entry[original]);
-    if (done[original] != entry[original])
-      model.stage_order.push_back(done[original]);
+    for (auto expanded = entry[original]+1; expanded <= done[original]; ++expanded)
+      model.stage_order.push_back(expanded);
   }
   // Experimental control for Part 3.3.  Stage ids are emitted in the
   // frontend's original topological order, including an immediately-following
@@ -1083,7 +1119,10 @@ inline DeviceModel Create(ModelSpec const& spec,
         return CeilDiv(dims.seq * static_cast<int>(stage.extent),
                        kHarnessThreads);
       case TaskKind::kAttention:
-        return dims.seq * static_cast<int>(stage.extent);
+        return stage.operand[7] == kNoOperand || stage.operand[7] == 0
+            ? dims.seq * static_cast<int>(stage.extent)
+            : AttentionPhaseTasks(static_cast<AttentionPhase>(stage.operand[7]),
+                dims.seq * static_cast<int>(stage.extent),stage.operand[6]);
       case TaskKind::kGemmCombine:
         if (model.params.ownership_flags & kCombinerTileOwnership) {
           GemmInvocation const& invocation = gemms[stage.gemm];
@@ -1687,12 +1726,6 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
     return 2;
   }
   ModelDims dims = BindDims(spec.dims, fixture_dir);
-  if (dims.total > TILEMEGA_ATTENTION_MAX_TOTAL) {
-    std::fprintf(stderr,
-                 "seq+past=%d exceeds compiled attention capacity %d\n",
-                 dims.total, TILEMEGA_ATTENTION_MAX_TOTAL);
-    return 2;
-  }
   if (dims.seq <= 0 || static_cast<std::uint32_t>(dims.seq) >=
                            spec.seq_variant_count) {
     std::fprintf(stderr,
@@ -1708,6 +1741,22 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   }
   RuntimeVariantDesc const& runtime_variant =
       spec.runtime_variants[runtime_variant_index];
+  for (std::uint32_t s=0; s<spec.stage_count; ++s) {
+    if (spec.stages[s].kind != TaskKind::kAttention) continue;
+    AttentionRuntimeRecord choice = runtime_variant.attention
+        ? runtime_variant.attention[s] : AttentionRuntimeRecord{};
+    if (!choice.chunks || (choice.chunks > 1 && !TILEMEGA_CHUNKED_ATTENTION) ||
+        (choice.chunks > 1 && !choice.chunk_extent)) {
+      std::fprintf(stderr,"attention plan is invalid or chunk execution is disabled\n"); return 2;
+    }
+    std::size_t extent = (static_cast<std::size_t>(dims.total)+choice.chunks-1)/choice.chunks;
+    std::size_t capacity = sizeof(TaskSmem::attention)/sizeof(float);
+    if (extent > capacity || (choice.chunk_extent && extent > choice.chunk_extent) ||
+        static_cast<std::size_t>(dims.seq)*spec.stages[s].extent*choice.chunks >
+            static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+      std::fprintf(stderr,"attention plan exceeds compiled scratch or task-count capacity\n"); return 2;
+    }
+  }
   if (static_cast<std::uint32_t>(dims.seq) < runtime_variant.seq_begin ||
       static_cast<std::uint32_t>(dims.seq) > runtime_variant.seq_end) {
     std::fprintf(stderr, "runtime variant table/interval mismatch for seq=%d\n",
