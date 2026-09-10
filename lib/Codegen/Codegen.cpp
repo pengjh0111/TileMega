@@ -102,6 +102,7 @@ struct RuntimeVariantRecord {
   std::uint32_t seq_begin = 1;
   std::uint32_t seq_end = 65535;
   std::vector<GemmRuntimeRecord> gemms;
+  std::vector<AttentionRuntimeRecord> attention;
   std::vector<DependencyRecord> dependencies;
   std::vector<ScheduleStageRecord> schedule;
   std::uint32_t max_dependency_span = 0;
@@ -179,6 +180,54 @@ std::vector<GemmRuntimeRecord> readRuntimeGemms(mlir::ModuleOp module,
     result.push_back(record);
   }
   return result;
+}
+
+std::vector<AttentionRuntimeRecord> readRuntimeAttention(mlir::ModuleOp module) {
+  auto choices = module->getAttrOfType<mlir::ArrayAttr>("tilemega.attention_runtime");
+  if (!choices) {
+    if (module->hasAttr("tilemega.attention_runtime"))
+      throw std::invalid_argument("attention runtime plan must be an array");
+    return {};
+  }
+  auto model = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  if (!model) throw std::invalid_argument("attention runtime plan has no model");
+  auto stages = arrayField(model,"stages");
+  std::vector<AttentionRuntimeRecord> result(stages.size());
+  std::set<long> selected;
+  for (auto value : choices) {
+    auto choice = dictionaryEntry(value,"attention_runtime");
+    long stage = integerField(choice,"stage"), chunks = integerField(choice,"chunks");
+    long extent = integerField(choice,"chunk_extent");
+    if (stage < 0 || static_cast<std::size_t>(stage) >= stages.size() ||
+        !selected.insert(stage).second || chunks <= 0 || extent <= 0 ||
+        chunks > std::numeric_limits<int>::max() || extent > std::numeric_limits<int>::max() ||
+        stringField(dictionaryEntry(stages[stage],"stages"),"kind") != "kAttention")
+      throw std::invalid_argument("invalid stage or geometry in attention runtime plan");
+    result[stage] = {static_cast<std::uint32_t>(chunks),static_cast<std::uint32_t>(extent)};
+  }
+  return result;
+}
+
+std::string emitAttentionStorage(mlir::ModuleOp module,
+                                 std::vector<RuntimeVariantRecord> const& variants) {
+  auto model = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  auto stages = arrayField(model,"stages");
+  std::uint32_t extent = 0;
+  bool direct_default = false, enabled = false;
+  for (auto const& variant : variants) {
+    enabled = enabled || !variant.attention.empty();
+    for (std::size_t s=0; s<stages.size(); ++s) {
+      if (stringField(dictionaryEntry(stages[s],"stages"),"kind") != "kAttention") continue;
+      if (variant.attention.empty() || !variant.attention[s].chunk_extent) direct_default = true;
+      else extent = std::max(extent,variant.attention[s].chunk_extent);
+    }
+  }
+  if (!enabled) return {};
+  std::string size = std::to_string(extent);
+  if (direct_default)
+    size = "((TILEMEGA_ATTENTION_MAX_TOTAL > "+size+") ? TILEMEGA_ATTENTION_MAX_TOTAL : "+size+")";
+  return "#ifndef TILEMEGA_CHUNKED_ATTENTION\n#define TILEMEGA_CHUNKED_ATTENTION 1\n#endif\n"
+      "#define TILEMEGA_ATTENTION_SCRATCH_EXTENT "+size+"\n";
 }
 
 std::string emitModelPlan(mlir::ModuleOp module,
@@ -277,6 +326,14 @@ std::string emitModelPlan(mlir::ModuleOp module,
                        return a.consumer < b.consumer;
                      });
     BuildVariantSchedule(variant, stages.size());
+    if (!variant.attention.empty()) {
+      if (variant.attention.size()!=stages.size())
+        throw std::invalid_argument("attention runtime table has wrong length");
+      out << "constexpr AttentionRuntimeRecord kRuntimeAttention" << v << "[] = {\n";
+      for (auto const& item : variant.attention)
+        out << "  {" << item.chunks << "u, " << item.chunk_extent << "u},\n";
+      out << "};\n\n";
+    }
     out << "constexpr GemmRuntimeDesc kRuntimeGemms" << v << "[] = {\n";
     for (auto const& impl : variant.gemms)
       out << "  {" << impl.compiled_variant << "u, " << impl.split_k << "u, "
@@ -312,13 +369,16 @@ std::string emitModelPlan(mlir::ModuleOp module,
     out << "};\n\n";
   }
   out << "constexpr RuntimeVariantDesc kRuntimeVariants[] = {\n";
-  for (std::size_t v = 0; v < variants.size(); ++v)
+  for (std::size_t v = 0; v < variants.size(); ++v) {
     out << "  {kRuntimeGemms" << v << ", kDependencies" << v << ", "
         << variants[v].dependencies.size() << "u, kDependencyOffsets" << v
         << ", kSchedule" << v << ", " << variants[v].schedule.size()
         << "u, " << variants[v].max_dependency_span << "u, "
         << variants[v].seq_begin << "u, " << variants[v].seq_end
-        << "u, " << variants[v].ownership_flags << "u},\n";
+        << "u, " << variants[v].ownership_flags << "u";
+    if (!variants[v].attention.empty()) out << ", kRuntimeAttention" << v;
+    out << "},\n";
+  }
   std::uint32_t const seq_count = variants.back().seq_end + 1;
   out << "};\n\nconstexpr auto MakeSeqVariant() {\n"
       << "  std::array<std::uint16_t, " << seq_count << "> table{};\n";
@@ -527,6 +587,7 @@ RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
   RuntimePlan result;
   result.dependencies = std::move(analysis.dependencies);
   result.gemms = readRuntimeGemms(module, arrayField(model, "gemms").size());
+  result.attention = readRuntimeAttention(module);
   result.ownership_flags = readOwnershipFlags(module);
   result.cluster_dim = analysis.cluster_dim;
   result.task_stages = std::move(analysis.task_stages);
@@ -673,6 +734,8 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
       "tilemega.model_plan");
   if (!emittedPlan)
     throw std::invalid_argument("verified CG has no tilemega.model_plan");
+  RuntimeVariantRecord attention_storage;
+  attention_storage.attention = readRuntimeAttention(module);
   out << "// SPDX-License-Identifier: BSD-3-Clause\n"
       << "// Generated by CouplingGraphToCUDA from verified tilemega.* ops.\n"
       << (stringField(emittedPlan, "dtype") == "bf16"
@@ -681,6 +744,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
                                std::to_string(clusterDim) + "\n"
                           : std::string())
       << generatedGemm
+      << emitAttentionStorage(module, {attention_storage})
       << SyncEmitter{}.EmitWait("global")
       << SyncEmitter{}.EmitSignal("global")
       << HostLauncherEmitter{}.Emit("l1_kernel")
@@ -694,6 +758,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
                                    arrayField(modelPlan, "gemms").size());
   runtime.dependencies = std::move(dependencies);
   runtime.ownership_flags = readOwnershipFlags(module);
+  runtime.attention = std::move(attention_storage.attention);
   out << emitModelPlan(module, {std::move(runtime)});
   return out.str();
 }
@@ -729,6 +794,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
     record.ownership_flags = runtime_plan.ownership_flags;
     record.dependencies = std::move(runtime_plan.dependencies);
     record.gemms = std::move(runtime_plan.gemms);
+    record.attention = std::move(runtime_plan.attention);
     if (record.gemms.size() != gemm_count)
       throw std::invalid_argument("runtime variant GEMM count changed");
     for (auto& impl : record.gemms) {
@@ -756,6 +822,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
       << (stringField(first_plan, "dtype") == "bf16"
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
       << EmitGemmInstantiations(shapes)
+      << emitAttentionStorage(first, records)
       << (cluster_dim > 1 ? "#define TILEMEGA_GENERATED_CLUSTER_DIM " +
                                 std::to_string(cluster_dim) + "\n"
                           : std::string())

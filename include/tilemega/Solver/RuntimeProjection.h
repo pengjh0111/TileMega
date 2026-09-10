@@ -26,6 +26,7 @@ struct ProjectedStage {
   int logical_stage = -1;
   bool combine = false;
   analysis::QuasiPolynomial task_count;
+  codegen::AttentionPhase attention_phase = codegen::AttentionPhase::kDirect;
 };
 
 struct RuntimeProjection {

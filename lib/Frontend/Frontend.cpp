@@ -446,6 +446,21 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
         builder.getNamedAttr("stages", builder.getI64IntegerAttr(impl.stages)),
         builder.getNamedAttr("split_k", builder.getI64IntegerAttr(impl.split_k))}));
   module->setAttr("tilemega.gemm_runtime", builder.getArrayAttr(runtimePlan));
+  if (!options.attention.empty()) {
+    llvm::SmallVector<mlir::Attribute> choices;
+    std::set<int> selected;
+    for (auto const& choice : options.attention) {
+      if (choice.stage < 0 || static_cast<std::size_t>(choice.stage) >= plan.stages.size() ||
+          plan.stages[choice.stage].kind != PlanTaskKind::kAttention ||
+          !selected.insert(choice.stage).second || !choice.runtime.chunks || !choice.runtime.chunk_extent)
+        throw std::invalid_argument("attention plan requires unique attention stages and positive geometry");
+      choices.push_back(dict(builder, {
+          builder.getNamedAttr("stage",builder.getI64IntegerAttr(choice.stage)),
+          builder.getNamedAttr("chunks",builder.getI64IntegerAttr(choice.runtime.chunks)),
+          builder.getNamedAttr("chunk_extent",builder.getI64IntegerAttr(choice.runtime.chunk_extent))}));
+    }
+    module->setAttr("tilemega.attention_runtime",builder.getArrayAttr(choices));
+  }
   module->setAttr("tilemega.rope_tile_per_block",
                   builder.getBoolAttr(options.rope_tile_per_block));
   module->setAttr("tilemega.kv_tile_per_block",

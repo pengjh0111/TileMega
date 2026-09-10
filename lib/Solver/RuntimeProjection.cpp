@@ -85,6 +85,8 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
   if (options.grid <= 0 || options.threads <= 0 || options.kappa < 0 ||
       plan.gemms.size() != model.gemms.size() || model.stages.empty())
     throw std::invalid_argument("incomplete runtime projection configuration");
+  if (!plan.attention.empty() && plan.attention.size()!=model.stages.size())
+    throw std::invalid_argument("attention projection table has wrong length");
   auto dimension = [](std::string const& parameter, int value) {
     return parameter.empty() ? std::to_string(value) : parameter;
   };
@@ -161,6 +163,20 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
   };
   for (std::size_t i=0; i<model.stages.size(); ++i) {
     auto const& stage = model.stages[i];
+    if (!plan.attention.empty() && plan.attention[i].chunks>1) {
+      auto const& choice = plan.attention[i];
+      if (stage.kind!=StageKind::kAttention || !choice.chunk_extent)
+        throw std::invalid_argument("invalid attention stage in runtime projection");
+      stage_chunks[i] = choice.chunks;
+      entry[i] = counts.size();
+      for (auto phase : codegen::kAttentionExpandedPhases) {
+        int multiplier = codegen::AttentionPhaseTasks(phase,1,choice.chunks);
+        append(i,false,Mul(Mul(seq,stage.extent),multiplier));
+        result.stages.back().attention_phase = phase;
+      }
+      done[i] = counts.size()-1;
+      continue;
+    }
     std::string count;
     switch (stage.kind) {
       case StageKind::kGemm: {
@@ -207,14 +223,22 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
     if (edge.producer >= entry.size() || edge.consumer >= entry.size())
       throw std::invalid_argument("dependency outside runtime projection stages");
     auto window = edge.window;
-    if (done[edge.producer] != entry[edge.producer] &&
+    if (model.stages[edge.producer].kind == StageKind::kGemm &&
+        done[edge.producer] != entry[edge.producer] &&
         !(plan.ownership_flags & codegen::kCombinerTileOwnership))
       window = {};
+    if (model.stages[edge.consumer].kind==StageKind::kAttention &&
+        stage_chunks[edge.consumer]>1 && window.narrowed)
+      window.div *= stage_chunks[edge.consumer];
     edges.push_back({done[edge.producer],entry[edge.consumer],window,
                      std::to_string(window.offset)});
   }
   for (std::size_t i=0; i<entry.size(); ++i) if (done[i] != entry[i]) {
-    if (plan.ownership_flags & codegen::kCombinerTileOwnership) {
+    if (model.stages[i].kind==StageKind::kAttention) {
+      for (auto const& dep : codegen::AttentionInternalDependencies(stage_chunks[i]))
+        edges.push_back({entry[i]+dep.producer,entry[i]+dep.consumer,
+            {true,dep.div,dep.scale,0,dep.count},"0"});
+    } else if (plan.ownership_flags & codegen::kCombinerTileOwnership) {
       if (options.cg_split_task_order)
         edges.push_back({entry[i],done[i],{true,1,stage_chunks[i],0,stage_chunks[i]},"0"});
       else

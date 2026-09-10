@@ -14,6 +14,7 @@
 #include <exception>
 #include <algorithm>
 #include <cstdlib>
+#include <climits>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -66,6 +67,20 @@ std::vector<VariantRequest> readVariants(std::string const& path,
     VariantRequest request;
     request.seq_begin = requiredInteger(*object, "seq_begin");
     request.seq_end = requiredInteger(*object, "seq_end");
+    if (auto* attention = object->getArray("attention")) {
+      for (auto const& value : *attention) {
+        auto* choice = value.getAsObject();
+        if (!choice) throw std::runtime_error("attention choice must be an object");
+        auto stage = requiredInteger(*choice,"stage");
+        auto chunks = requiredInteger(*choice,"chunks");
+        auto extent = requiredInteger(*choice,"chunk_extent");
+        if (stage < 0 || stage > INT_MAX || chunks <= 0 || chunks > INT_MAX ||
+            extent <= 0 || extent > INT_MAX)
+          throw std::runtime_error("invalid attention stage/chunks/scratch extent");
+        request.options.attention.push_back({static_cast<int>(stage),
+            {static_cast<std::uint32_t>(chunks),static_cast<std::uint32_t>(extent)}});
+      }
+    }
     if (auto own = object->getBoolean("rope_tile_per_block"))
       request.options.rope_tile_per_block = *own;
     if (auto own = object->getBoolean("kv_tile_per_block"))

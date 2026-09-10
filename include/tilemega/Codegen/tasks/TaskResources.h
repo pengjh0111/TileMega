@@ -6,6 +6,9 @@
 #ifndef TILEMEGA_ATTENTION_MAX_TOTAL
 #define TILEMEGA_ATTENTION_MAX_TOTAL 4096
 #endif
+#ifndef TILEMEGA_ATTENTION_SCRATCH_EXTENT
+#define TILEMEGA_ATTENTION_SCRATCH_EXTENT TILEMEGA_ATTENTION_MAX_TOTAL
+#endif
 
 namespace tilemega::codegen {
 
@@ -24,7 +27,7 @@ constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_exten
   return 0;
 }
 
-template <TaskKind Kind, int Threads, int AttentionExtent = TILEMEGA_ATTENTION_MAX_TOTAL>
+template <TaskKind Kind, int Threads, int AttentionExtent = TILEMEGA_ATTENTION_SCRATCH_EXTENT>
 struct SimtTaskResources {
   static_assert(Kind != TaskKind::kGemm, "read GEMM resources from its collective");
   static_assert(Threads>0 && AttentionExtent>0, "invalid TaskBody resource dimensions");

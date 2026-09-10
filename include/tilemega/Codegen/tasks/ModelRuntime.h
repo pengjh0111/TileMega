@@ -12,6 +12,7 @@
 
 #include <tilemega/Codegen/tasks/TaskBase.h>
 #include <tilemega/Codegen/RuntimeOwnership.h>
+#include <tilemega/Codegen/AttentionPlan.h>
 #include <cutlass/bfloat16.h>
 
 #include <cstdint>
@@ -228,6 +229,7 @@ struct RuntimeVariantDesc {
   std::uint32_t seq_begin;  ///< inclusive, for diagnostics
   std::uint32_t seq_end;    ///< inclusive, for diagnostics
   std::uint32_t ownership_flags;
+  AttentionRuntimeRecord const* attention = nullptr;  ///< stage_count entries if present
 };
 
 #ifndef TILEMEGA_EVENT_SPLIT_LINES

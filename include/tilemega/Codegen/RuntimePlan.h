@@ -2,6 +2,7 @@
 #pragma once
 #include <tilemega/Analysis/DependencyForm.h>
 #include <tilemega/Codegen/RuntimeOwnership.h>
+#include <tilemega/Codegen/AttentionPlan.h>
 #include <cstdint>
 #include <vector>
 #include <map>
@@ -30,6 +31,7 @@ struct GemmRuntimeRecord {
 struct RuntimePlan {
   std::vector<DependencyRecord> dependencies;
   std::vector<GemmRuntimeRecord> gemms;
+  std::vector<AttentionRuntimeRecord> attention;  ///< original-stage indexed; empty is direct
   std::uint32_t ownership_flags = 0;
   int cluster_dim = 0;
   std::map<std::string,std::pair<long,long>> parameter_ranges;

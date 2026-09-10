@@ -2,6 +2,7 @@
 #pragma once
 #include <tilemega/Codegen/tasks/TaskBase.h>
 #include <cstdint>
+#include <array>
 
 #ifndef TILEMEGA_CHUNKED_ATTENTION
 #define TILEMEGA_CHUNKED_ATTENTION 0
@@ -20,6 +21,19 @@ struct AttentionRuntimeRecord {
   // Capacity of the compiled chunk scratch, not the workload's total length.
   std::uint32_t chunk_extent = 0;
 };
+struct AttentionPlanSelection {
+  int stage = -1;
+  AttentionRuntimeRecord runtime;
+};
+inline constexpr std::array<AttentionPhase, 4> kAttentionExpandedPhases{
+    AttentionPhase::kScores, AttentionPhase::kNormalize,
+    AttentionPhase::kPartialValue, AttentionPhase::kCombine};
+struct AttentionInternalDependency {
+  int producer, consumer, div, scale, count;
+};
+constexpr std::array<AttentionInternalDependency, 3> AttentionInternalDependencies(int chunks) {
+  return {{{0,1,1,chunks,chunks}, {1,2,chunks,1,1}, {2,3,1,chunks,chunks}}};
+}
 
 TILEMEGA_TASK_HD constexpr int AttentionPhaseTasks(AttentionPhase phase,
     int queries, int chunks) {

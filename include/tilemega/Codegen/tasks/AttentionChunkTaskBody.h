@@ -4,6 +4,7 @@
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
 #include <tilemega/Codegen/tasks/TaskResources.h>
+#include <tilemega/Codegen/tasks/AttentionPhasedTaskBody.h>
 
 namespace tilemega::codegen {
 
@@ -22,11 +23,20 @@ struct AttentionTaskBody {
   __device__ static TaskOwnership Ownership(Params const& p,
                                             StageDesc const& stage) {
     return {OwnershipOf(TaskKind::kAttention),
-            p.dims.seq * static_cast<int>(stage.extent)};
+            stage.operand[7] == kNoOperand || stage.operand[7] == 0
+                ? p.dims.seq * static_cast<int>(stage.extent)
+                : AttentionPhaseTasks(static_cast<AttentionPhase>(stage.operand[7]),
+                    p.dims.seq * static_cast<int>(stage.extent),stage.operand[6])};
   }
 
   __device__ static void RunTask(Params const& p, StageDesc const& stage,
                                  SmemUnion& smem, int query) {
+#if TILEMEGA_CHUNKED_ATTENTION
+    if (stage.operand[7] != kNoOperand && stage.operand[7] != 0) {
+      AttentionPhasedTaskBody<Arch,SmemUnion,Threads>::RunTask(p,stage,smem,query);
+      return;
+    }
+#endif
     ModelElement const* q_rot = p.buffers[stage.operand[0]];
     ModelElement const* full_k = p.buffers[stage.operand[1]];
     ModelElement const* full_v = p.buffers[stage.operand[2]];
@@ -82,8 +92,7 @@ struct AttentionTaskBody {
 
   __device__ void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion& smem) const {
-    int const heads = static_cast<int>(stage.extent);
-    for (int query = PlacedBlock(); query < p.dims.seq * heads;
+    for (int query = PlacedBlock(); query < Ownership(p,stage).count;
          query += gridDim.x) {
       RunTask(p, stage, smem, query);
       __syncthreads();

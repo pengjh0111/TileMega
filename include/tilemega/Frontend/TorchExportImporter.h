@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <tilemega/Frontend/SemanticLifting.h>
+#include <tilemega/Codegen/AttentionPlan.h>
 namespace tilemega::frontend {
 struct ImportSummary {
   std::size_t task_spaces = 0;
@@ -21,6 +22,7 @@ struct ImportSummary {
 };
 struct ImportOptions {
   std::vector<GemmGranularity> gemms;
+  std::vector<codegen::AttentionPlanSelection> attention;
   bool rope_tile_per_block = false;
   bool kv_tile_per_block = false;
   bool activation_tile_per_block = false;
