@@ -140,11 +140,13 @@ add_library(tilemega STATIC
   lib/Solver/ImplementationContract.cpp
   lib/Solver/AlignmentPropagation.cpp
   lib/Solver/ChainDP.cpp
+  lib/Solver/SymbolicChainDP.cpp
   lib/Solver/CouplingInterfaceDP.cpp
   lib/Solver/ScalarTaskWork.cpp
   lib/Solver/AttentionWork.cpp
   lib/Solver/ListScheduler.cpp
   lib/Solver/CostModel.cpp
+  lib/Solver/SymbolicTaskCost.cpp
   lib/Solver/FusionResources.cpp
   lib/Solver/BalancedPlacement.cpp
   lib/Solver/LaneIntersections.cpp
@@ -302,6 +304,9 @@ set_target_properties(tilemega-op-audit PROPERTIES
 add_executable(tilemega-runtime-projection tools/tilemega-runtime-projection.cpp)
 add_executable(tilemega-fusion-probe tools/tilemega-fusion-probe.cpp)
 add_executable(tilemega-fusion-cost tools/tilemega-fusion-cost.cpp)
+add_executable(tilemega-symbolic-task-price tools/tilemega-symbolic-task-price.cpp)
+target_link_libraries(tilemega-symbolic-task-price PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-symbolic-task-price PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 target_link_libraries(tilemega-fusion-cost PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-fusion-cost PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 add_executable(tilemega-attention-work tools/tilemega-attention-work.cpp)

@@ -218,6 +218,21 @@ class CostModel {
                         TaskMemoryTraffic const* memory=nullptr) const;
   double TaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,
                      Residency residency) const;
+  // Exact algebraic collective wave price on a bounded seq domain. Rates
+  // are lifted from their calibrated binary64 values; this is not an IEEE
+  // operation trace. Scalar phases and DP transitions compose separately.
+  analysis::QuasiPolynomial SymbolicCollectiveNs(DerivedTaskInput const& input,
+      BackendTraits const& traits,Residency residency,ModelDescription const& model,
+      int chunks,std::string const& parameter,long begin,long end) const;
+  analysis::QuasiPolynomial SymbolicScalarNs(DerivedTaskInput const& input,
+      BackendTraits const& traits,Residency residency,ModelDescription const& model,
+      std::string const& parameter,long begin,long end) const;
+  analysis::QuasiPolynomial SymbolicStageNs(ModelDescription const& model,int stage,
+      GemmConfig const& config,Residency residency,std::string const& parameter,long begin,long end) const;
+  analysis::QuasiPolynomial SymbolicCombineNs(GemmOp const& gemm,int chunks,
+      std::string const& parameter,long begin,long end) const;
+  analysis::QuasiPolynomial SymbolicInterfaceEdgeNs(ModelCouplingMetrics const& edge,
+      ModelDescription const& model,std::string const& parameter,long begin,long end) const;
   /// §2.2(f): one stage barrier, at this grid width.
   double BarrierNs(Residency residency) const;
   double EventNs(ModelDescription const& model, std::vector<GemmConfig> const& configs,

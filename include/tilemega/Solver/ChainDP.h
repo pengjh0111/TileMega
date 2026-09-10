@@ -124,6 +124,18 @@ struct FiniteDpSolution {
   long long evaluated_points = 0;
 };
 
+struct SymbolicDpPiece {
+  long begin=0,end=0;
+  analysis::QuasiPolynomial total_ns;
+  std::vector<GemmConfig> configs;
+  Residency residency;
+};
+struct SymbolicDpSolution {
+  std::string parameter;
+  std::vector<SymbolicDpPiece> pieces;
+  long long transitions=0;
+};
+
 class ChainDP {
  public:
   ChainDP(CostModel const& model, std::vector<DpCandidate> candidates);
@@ -137,6 +149,8 @@ class ChainDP {
   FiniteDpSolution SolveFiniteParameter(ModelDescription const& symbolic,
                                        FiniteParameterDomain const& domain,
                                        ChainDpOptions options) const;
+  SymbolicDpSolution SolveSymbolicParameter(ModelDescription const& symbolic,
+      FiniteParameterDomain const& domain,ChainDpOptions options) const;
 
   /// Everything the megakernel executes between GEMM `from` and GEMM `to`,
   /// plus what the boundary itself costs.  `from < 0` is the model prefix and
