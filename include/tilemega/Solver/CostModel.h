@@ -25,6 +25,7 @@
 #include <tilemega/Target/TargetSpec.h>
 
 #include <array>
+#include <memory>
 #include <vector>
 
 #ifndef TILEMEGA_TASK_TRAIT_COSTS
@@ -35,6 +36,15 @@
 #endif
 #ifndef TILEMEGA_L2_EVENT_COST
 #define TILEMEGA_L2_EVENT_COST 0
+#endif
+#ifndef TILEMEGA_CG_INTERFACE_COST
+#define TILEMEGA_CG_INTERFACE_COST 1
+#endif
+#ifndef TILEMEGA_CG_INTERFACE_DP
+#define TILEMEGA_CG_INTERFACE_DP 0
+#endif
+#ifndef TILEMEGA_UNIFIED_TASK_COST
+#define TILEMEGA_UNIFIED_TASK_COST 0
 #endif
 
 namespace tilemega::solver {
@@ -102,11 +112,13 @@ struct Residency {
 
 struct CostBreakdown {
   double total_ns = 0.0;
+  double task_ns_sum = 0.0;
   double gemm_ns = 0.0;
   double combine_ns = 0.0;
   double other_ns = 0.0;
   double barrier_ns = 0.0;
   double event_ns = 0.0;
+  double interface_ns = 0.0;
   int stage_count = 0;  ///< after the split rewrite, so one barrier each
 };
 
@@ -134,6 +146,8 @@ struct CostModelOptions {
   bool task_body_traits = TILEMEGA_TASK_TRAIT_COSTS;
   bool measured_partial_combine = TILEMEGA_MEASURED_PARTIAL_COMBINE;
   bool l2_events = TILEMEGA_L2_EVENT_COST;
+  bool cg_interface = TILEMEGA_CG_INTERFACE_DP;
+  bool unified_task_cost = TILEMEGA_UNIFIED_TASK_COST;
   int kappa = 1;
 };
 
@@ -180,10 +194,14 @@ class CostModel {
   double TaskCostNs(DerivedTaskInput const& input, BackendTraits const& traits,
                     Residency residency, ModelDescription const& model,
                     int chunks) const;
+  double TaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,
+                     Residency residency) const;
   /// §2.2(f): one stage barrier, at this grid width.
   double BarrierNs(Residency residency) const;
   double EventNs(ModelDescription const& model, std::vector<GemmConfig> const& configs,
                  Residency residency, int stage_count) const;
+  double InterfaceEdgeNs(ModelCouplingMetrics const& edge,ModelDescription const& model) const;
+  double InterfaceNs(ModelDescription const& model,std::vector<GemmConfig> const& configs) const;
 
   /// The steady-state resource vector of one mainloop iteration for `o`
   /// resident CTAs, before the envelope is applied.
@@ -224,6 +242,8 @@ class CostModel {
   double cuda_flops_per_ns_per_sm_ = 0.0;
   double sfu_ops_per_ns_per_sm_ = 0.0;
   double tc_flops_per_ns_per_sm_ = 0.0;
+  mutable std::map<std::string,std::shared_ptr<DerivedTaskInput>> task_input_cache_;
+  mutable std::map<std::string,double> scalar_price_cache_;
 };
 
 }  // namespace tilemega::solver

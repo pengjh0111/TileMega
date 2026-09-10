@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/CostModel.h>
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <limits>
+#include <sstream>
 
 namespace tilemega::solver {
 namespace {
@@ -406,10 +410,78 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
 #if defined(TILEMEGA_DERIVED_TASK_COST) && !TILEMEGA_DERIVED_TASK_COST
   throw std::runtime_error("access-derived task pricing is disabled");
 #endif
-  if (traits.stages<=0 || traits.tile_k<=0)
-    throw std::invalid_argument("scalar task latency DAG has not been supplied");
   if (model.dims.IsSymbolic()) throw std::invalid_argument("bind theta before FP64 task evaluation");
   auto known=model.MetricBindings();
+  if (traits.stages<=0) {
+    if (!input.scalar_flow || input.cost_coordinates!=std::vector<std::string>{"q"})
+      throw std::invalid_argument("scalar task latency DAG/ownership has not been supplied");
+    auto [depth,barriers]=input.scalar_flow->MemoryDepthAndBarriers(traits.threads);
+    double ctas=double(input.work.task_count.SubstituteParams(known).Eval({}));
+    double grid=double(target_->res.num_sms)*std::max(1,residency.ctas_per_sm);
+    double miss=1.0-CacheHitProbability(model.LiveFootprintBytes());
+    double flops_per_output=input.arithmetic.flops_per_output_element.Eval(known);
+    double transc_per_output=input.arithmetic.transcendental_per_output_element.Eval(known);
+    std::ostringstream cache_key;
+    cache_key << input.work.read_elements.ToString() << '\n' << input.work.write_elements.ToString()
+              << '\n' << input.work.task_count.ToString() << '\n' << std::hexfloat
+              << miss << ':' << flops_per_output << ':' << transc_per_output << ':'
+              << depth << ':' << barriers << ':' << traits.threads << ':' << residency.ctas_per_sm
+              << ':' << input.arithmetic.smem_staged;
+    for (auto const& [name,value]:known.values) cache_key << ':' << name << '=' << value;
+    auto cached=scalar_price_cache_.find(cache_key.str());
+    if (cached!=scalar_price_cache_.end()) return cached->second;
+    auto statuses=lanes_;
+    // Unlike a BF16 MMA collective, these bodies issue scalar shared accesses.
+    // The measured scalar pipe applies; the GEMM ldmatrix status is unchanged.
+    statuses[ResourceVector::kSmem]=calib_->smem_gbps>0 ? LaneStatus::kLive : LaneStatus::kNotCalibrated;
+    double total=0;
+    long first=0;
+    for (double remaining=ctas;remaining>0;remaining-=grid) {
+      double active=std::min(grid,remaining);
+      double o=options_.wave_tail ? std::max(1.0,active/target_->res.num_sms)
+                                 : std::max(1,residency.ctas_per_sm);
+      double wave=-std::numeric_limits<double>::infinity();
+      for (long q=first;q<first+long(active);++q) {
+        analysis::ParamBinding coordinate; coordinate.Bind("q",q);
+        auto value=[&](analysis::QuasiPolynomial const& work) {
+          return double(work.BindCoordinates(coordinate).SubstituteParams(known).Eval({}));
+        };
+        double writes=value(input.work.write_elements);
+        double bytes=(value(input.work.read_elements)+writes)*ElementBytes(dtype_);
+        double flops=flops_per_output*writes,transc=transc_per_output*writes;
+        if ((flops>0 && lanes_[ResourceVector::kCudaCore]!=LaneStatus::kLive) ||
+            (transc>0 && lanes_[ResourceVector::kSfu]!=LaneStatus::kLive))
+          throw std::runtime_error("scalar arithmetic rate: not_calibrated");
+        ResourceVector u;
+        if (flops>0) u.cuda_core=o*flops/cuda_flops_per_ns_per_sm_;
+        if (transc>0) u.sfu=o*transc/sfu_ops_per_ns_per_sm_;
+        if (input.arithmetic.smem_staged && statuses[ResourceVector::kSmem]==LaneStatus::kLive)
+          u.smem=o*bytes/(calib_->smem_gbps/target_->res.num_sms);
+        u.l2=o*bytes/l2_bytes_per_ns_per_sm_;
+        u.dram=o*bytes*miss/dram_bytes_per_ns_per_sm_;
+        for (int i=0;i<ResourceVector::kLaneCount;++i) {
+          auto lane=static_cast<ResourceVector::Lane>(i);
+          if (statuses[lane]!=LaneStatus::kLive || options_.disabled_lanes[lane] ||
+              (!options_.resource_lanes && lane!=ResourceVector::kSmem)) u[lane]=0;
+        }
+        // The fitted alpha+beta*tile_area describes a collective accumulator
+        // tile's setup. ScalarDataflow has no such initialization phase:
+        // scalar arithmetic is charged in u, memory phases in this DAG term.
+        // In particular a negative GEMM regression intercept cannot be
+        // extrapolated into a small SIMT task then silently clamped to zero.
+        double fixed=depth*calib_->l2_latency_ns+barriers*calib_->syncthreads_ns+
+            writes*ElementBytes(dtype_)/l2_bytes_per_ns_per_sm_;
+        if (!(fixed+u.Bottleneck()>0) || !std::isfinite(fixed+u.Bottleneck()))
+          throw std::runtime_error("nonpositive or nonfinite scalar task price");
+        wave=std::max(wave,fixed+u.Bottleneck());
+      }
+      total+=wave;
+      first+=long(active);
+    }
+    scalar_price_cache_.emplace(cache_key.str(),total);
+    return total;
+  }
+  if (traits.tile_k<=0) throw std::invalid_argument("collective reduction tile is missing");
   analysis::ParamBinding point;
   for (auto const& coordinate:input.task.Coordinates()) point.Bind(coordinate,0);
   auto value=[&](analysis::QuasiPolynomial const& quantity) {
@@ -528,11 +600,72 @@ double CostModel::NonGemmStageNs(ModelStage const& stage, ModelDims const& dims,
   return total;
 }
 
+double CostModel::TaskStageNs(ModelDescription const& model,int index,
+                              GemmConfig const& requested,Residency residency) const {
+  GemmConfig config=requested;
+  if (!options_.split_k) config.split_k=1;
+  auto const& stage=model.stages.at(index);
+  if (stage.kind!=StageKind::kGemm && !options_.non_gemm) return 0;
+  ModelTaskSemantics const* selected=nullptr;
+  for (auto const& semantic:model.task_semantics) if (semantic.stage==index) {
+    // A native residual epilogue belongs to the existing collective stage
+    // envelope. It is not a second runtime task or a newly selected fusion.
+    if (stage.kind==StageKind::kGemm && semantic.op.arithmetic=="add") continue;
+    if (selected) throw std::invalid_argument("runtime stage needs an explicit mixed-task composition");
+    selected=&semantic;
+  }
+  if (!selected) throw std::invalid_argument("runtime stage lacks a CG semantic cost input");
+  BackendTraits traits;
+  bool collective=stage.kind==StageKind::kGemm;
+  int chunks=collective ? Chunks(model.gemms.at(stage.gemm),config) : 1;
+  if (collective) traits=dtype_==ScalarType::kBF16
+      ? TensorBF16Traits(config.tile_m,config.tile_n,config.tile_k,config.stages)
+      : SimtF32Traits(config.tile_m,config.tile_n,config.tile_k,config.stages);
+  else {
+    traits.threads=dtype_==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
+    traits.smem_bytes=sizeof(float)*codegen::SimtSharedElements(
+        static_cast<codegen::TaskKind>(stage.kind),traits.threads,TILEMEGA_ATTENTION_MAX_TOTAL);
+  }
+  std::ostringstream key;
+  key << analysis::EncodeSemanticOp(selected->op) << ':' << selected->element_chunk << ':'
+      << stage.width << ':' << stage.extent << ':' << stage.group << ':' << int(model.dtype);
+  for (int operand:stage.operands) key << ':' << operand;
+  for (auto const& [name,tile]:selected->tiles) key << ':' << name << '=' << tile.ToString();
+  if (collective) key << ':' << config.tile_m << ':' << config.tile_n << ':' << config.tile_k
+                       << ':' << config.stages << ':' << config.split_k;
+  auto found=task_input_cache_.find(key.str());
+  if (found==task_input_cache_.end()) {
+    auto graph=InstantiateModelTasks(model,std::vector<GemmConfig>(model.gemms.size(),config));
+    auto input=std::make_shared<DerivedTaskInput>(DeriveModelTaskInput(model,*selected,graph,collective ? &config : nullptr));
+    found=task_input_cache_.emplace(key.str(),std::move(input)).first;
+  }
+  return TaskCostNs(*found->second,traits,residency,model,chunks);
+}
+
 double CostModel::BarrierNs(Residency residency) const {
   if (!options_.sync) return 0.0;
   double const grid = static_cast<double>(target_->res.num_sms) *
                       std::max(1, residency.ctas_per_sm);
   return Interpolate(calib_->grid_barrier_ctas, calib_->grid_barrier_ns, grid);
+}
+
+double CostModel::InterfaceEdgeNs(ModelCouplingMetrics const& edge,
+                                  ModelDescription const& model) const {
+#if !TILEMEGA_CG_INTERFACE_COST
+  throw std::runtime_error("CG interface pricing is disabled");
+#endif
+  auto known=model.MetricBindings();
+  long waits=edge.wait.SumDomain().SubstituteParams(known).Eval({});
+  // Only consumers in domain(C) owe a first read. Subtracting |T_c| would
+  // produce negative work for consumers outside a partial writer's domain.
+  long consumers=edge.relation.Reverse().ImageCard().SubstituteParams(known).Eval({});
+  long volume=edge.volume.SubstituteParams(known).Eval({});
+  if (waits<consumers || volume<0) throw std::invalid_argument("invalid physical interface incidence");
+  if (calib_->l2_gbps<=0 || calib_->dram_gbps<=0)
+    throw std::runtime_error("interface bandwidth: not_calibrated");
+  double miss=1.0-CacheHitProbability(model.LiveFootprintBytes());
+  return double(waits-consumers)*double(volume)*ElementBytes(dtype_)*
+      ((1.0-miss)/calib_->l2_gbps+miss/calib_->dram_gbps);
 }
 
 double CostModel::EventNs(ModelDescription const& model, std::vector<GemmConfig> const& configs,
@@ -579,6 +712,13 @@ double CostModel::EventNs(ModelDescription const& model, std::vector<GemmConfig>
   return total;
 }
 
+double CostModel::InterfaceNs(ModelDescription const& model,
+                               std::vector<GemmConfig> const& configs) const {
+  double total=0;
+  for (auto const& edge:InstantiateModelCouplings(model,configs)) total+=InterfaceEdgeNs(edge,model);
+  return total;
+}
+
 CostBreakdown CostModel::Evaluate(ModelDescription const& model,
                                   std::vector<GemmConfig> const& configs,
                                   Residency residency) const {
@@ -588,16 +728,22 @@ CostBreakdown CostModel::Evaluate(ModelDescription const& model,
     throw std::invalid_argument("one GemmConfig per model GEMM is required");
   }
   CostBreakdown out;
-  for (auto const& stage : model.stages) {
+  for (std::size_t i=0;i<model.stages.size();++i) {
+    auto const& stage=model.stages[i];
     ++out.stage_count;
     if (stage.kind != StageKind::kGemm) {
-      out.other_ns += NonGemmStageNs(stage, model.dims, residency);
+      if (options_.unified_task_cost)
+        out.task_ns_sum+=TaskStageNs(model,int(i),configs.empty() ? GemmConfig{} : configs.front(),residency);
+      else out.other_ns += NonGemmStageNs(stage, model.dims, residency);
       continue;
     }
     GemmOp const& gemm = model.gemms[stage.gemm];
     GemmConfig const& config = configs[stage.gemm];
     int chunks = 1;
-    out.gemm_ns += GemmStageNs(gemm, config, residency, model, &chunks);
+    if (options_.unified_task_cost) {
+      chunks=Chunks(gemm,config);
+      out.task_ns_sum+=TaskStageNs(model,int(i),config,residency);
+    } else out.gemm_ns += GemmStageNs(gemm, config, residency, model, &chunks);
     if (chunks > 1) {
       // The split rewrite appends a combiner stage, which the megakernel pays
       // for with its own grid barrier: split-K buys arithmetic parallelism and
@@ -608,8 +754,13 @@ CostBreakdown CostModel::Evaluate(ModelDescription const& model,
   }
   out.barrier_ns = options_.l2_events ? 0.0 : out.stage_count * BarrierNs(residency);
   out.event_ns=EventNs(model,configs,residency,out.stage_count);
-  out.total_ns = out.gemm_ns + out.combine_ns + out.other_ns + out.barrier_ns;
+  out.total_ns = options_.unified_task_cost ? out.task_ns_sum+out.combine_ns+out.barrier_ns
+      : out.gemm_ns + out.combine_ns + out.other_ns + out.barrier_ns;
   if (options_.l2_events) out.total_ns+=out.event_ns;
+  if (options_.cg_interface) {
+    out.interface_ns=InterfaceNs(model,configs);
+    out.total_ns+=out.interface_ns;
+  }
   return out;
 }
 
