@@ -1,0 +1,11 @@
+/root/TileMega/include/tilemega/Codegen/tasks/AddTaskBody.h(16): error: expression must be a pointer to a complete object type
+      auto const& g=p.gemms[stage.gemm];
+                    ^
+          detected during instantiation of "tilemega::codegen::TaskOwnership tilemega::codegen::AddTaskBody<Arch, SmemUnion, Threads>::Ownership(const tilemega::codegen::Params &, const tilemega::codegen::StageDesc &) [with Arch=tilemega::codegen::HarnessArch, SmemUnion=tilemega::codegen::TaskSmem, Threads=128]" at line 299 of /root/TileMega/include/tilemega/Codegen/tasks/ModelHarness.cuh
+
+/root/TileMega/include/tilemega/Codegen/tasks/AddTaskBody.h(20): error: expression must be a pointer to a complete object type
+      auto const& g=p.gemms[stage.gemm];
+                    ^
+          detected during instantiation of "void tilemega::codegen::AddTaskBody<Arch, SmemUnion, Threads>::RunTask(const tilemega::codegen::Params &, const tilemega::codegen::StageDesc &, SmemUnion &, int) [with Arch=tilemega::codegen::HarnessArch, SmemUnion=tilemega::codegen::TaskSmem, Threads=128]" at line 207 of /root/TileMega/include/tilemega/Codegen/tasks/ModelHarness.cuh
+
+2 errors detected in the compilation of "/root/TileMega/docs/experiments/FUSION/selected_runtime_first/src/mha4_f0.cu".

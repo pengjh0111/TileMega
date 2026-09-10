@@ -1,0 +1,2 @@
+CODEGEN_SUMMARY tasks=60 couplings=82 stages=60 symbolic_windows=0 fallback_windows=0 output=/root/TileMega/docs/experiments/FUSION/selected_runtime_second/src/mha4_f1.cu
+ISL_CONTEXT remaining=0

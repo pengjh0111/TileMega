@@ -1,0 +1,35 @@
+fusion_count	ctas_per_sm	shared	registers	task_refs	waits	task_ns	event_ns	total_ns	pairs
+2	2	24576	212	224	516	290210.45966725075	81147.146742347162	371357.60640959791	l0.s05.rope:l0.s06.append,l1.s20.rope:l1.s21.append,
+1	2	24576	212	228	520	290312.72384497791	84020.950407207143	374333.67425218504	l1.s20.rope:l1.s21.append,
+1	2	24576	212	228	520	290312.72384497791	84020.950407207143	374333.67425218504	l0.s05.rope:l0.s06.append,
+0	2	24576	212	232	524	290414.98802270507	86894.754072067124	377309.74209477217	
+FUSION_EXCLUDED producer=l0.s00.norm consumer=l0.s01.proj reason=fusion tile constraint: consumer spans multiple producer tasks
+FUSION_EXCLUDED producer=l0.s01.proj consumer=l0.s02.proj reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l0.s02.proj consumer=l0.s03.proj reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l0.s03.proj consumer=l0.s04.rope reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l0.s04.rope consumer=l0.s05.rope reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l0.s06.append consumer=l0.s07.append reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l0.s07.append consumer=l0.s08.attn reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l0.s08.attn consumer=l0.s09.proj reason=fusion tile constraint: consumer spans multiple producer tasks
+FUSION_EXCLUDED producer=l0.s09.add consumer=l0.s10.norm reason=fusion tile constraint: consumer spans multiple producer tasks
+FUSION_EXCLUDED producer=l0.s10.norm consumer=l0.s11.proj reason=fusion tile constraint: consumer spans multiple producer tasks
+FUSION_EXCLUDED producer=l0.s11.proj consumer=l0.s12.proj reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l0.s12.proj consumer=l0.s13.act reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l0.s13.act consumer=l0.s14.proj reason=fusion tile constraint: consumer spans multiple producer tasks
+FUSION_EXCLUDED producer=l0.s14.add consumer=l1.s15.norm reason=fusion tile constraint: consumer spans multiple producer tasks
+FUSION_EXCLUDED producer=l1.s15.norm consumer=l1.s16.proj reason=fusion tile constraint: consumer spans multiple producer tasks
+FUSION_EXCLUDED producer=l1.s16.proj consumer=l1.s17.proj reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l1.s17.proj consumer=l1.s18.proj reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l1.s18.proj consumer=l1.s19.rope reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l1.s19.rope consumer=l1.s20.rope reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l1.s21.append consumer=l1.s22.append reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l1.s22.append consumer=l1.s23.attn reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l1.s23.attn consumer=l1.s24.proj reason=fusion tile constraint: consumer spans multiple producer tasks
+FUSION_EXCLUDED producer=l1.s24.add consumer=l1.s25.norm reason=fusion tile constraint: consumer spans multiple producer tasks
+FUSION_EXCLUDED producer=l1.s25.norm consumer=l1.s26.proj reason=fusion tile constraint: consumer spans multiple producer tasks
+FUSION_EXCLUDED producer=l1.s26.proj consumer=l1.s27.proj reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l1.s27.proj consumer=l1.s28.act reason=fusion consumer is not a single-producer chain node
+FUSION_EXCLUDED producer=l1.s28.act consumer=l1.s29.proj reason=fusion tile constraint: consumer spans multiple producer tasks
+FUSION_WRITTEN event_bits_equal=1 replacement_dependencies_verified=1
+FUSION_DP alternatives=4 selected=2 baseline_bits_equal=1 remaining=0 fused_registers_gpu_verified=0
+ISL_CONTEXT remaining=0
