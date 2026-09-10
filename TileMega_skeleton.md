@@ -485,7 +485,7 @@ V-A 的局部环在 2×容量仍推进，而 V-J 的反向依赖在 `resident_li
 | **Label** | ⚠️ 部分 | `sync_kind` 的判定与 `ClusterSync` 原语都在，簇常数也已标定，但没有一条 CG 边在 sm_89 上能取 `cluster`，所以它现在恒取 `global`；端到端消融欠一台 sm_90+ 机器。 |
 | **Place** | ✅ 是 | `ListScheduler` 的关键路径优先序现在随每个 runtime variant 发进 `ModelSpec`，host 在绑定动态 task 数后物化每 worker 队列；round-robin 对照走同一二进制的 host 开关。另有 TaskBody 的 tile-aligned ownership，二者仍是正交决策。硬件价值以本轮 `PLACE` 重测为准，旧 CTA-bijection 数字全部作废。 |
 | **Relax** | ✅ 是（安全方向） | `Contains(C', C)` 是 `isl_map_is_subset`，真正的 Tier 2/3 非精确边仍可取 `kAll` 超集；但“编译粒度与推导粒度不匹配”的回退已经不存在——每个运行时变体携带自己粒度下推导的精确表，不再有 `wait_table=degraded`。 |
-| **Fuse** | ⚠️ 本轮设计，尚未验收 | 仅链上相邻算子；区间 DP、手工两边校准、全局 residency 约束须全部接上后才算实现。 |
+| **Fuse** | ⚠️ 部件已验证，整体未验收 | 精确访问复合、mixed价格、独立L-task写回及1890守恒格已过；区间DP、事件重投影、两条真实GPU融合未完。 |
 
 ### Fuse 的语义与代价（T0–T4，本轮实现前定义）
 
@@ -494,10 +494,14 @@ V-A 的局部环在 2×容量仍推进，而 V-J 的反向依赖在 `resident_li
 不写回 global。外部消费者若仍需要中间值，不得仅删该写回。本轮只接受链上
 相邻的单生产者融合，不跨分支或合并多入边。
 
-收益有两项：删除该边同步成本（现有 barrier_ns 项）及中间全局流量。
-代价必须同时保留：`g_p ≡ Π(g_c)` 的 tile 匹配约束；两个活跃 task 的 shared
-存储合并进入整 kernel 的 residency 预算；归约独占整轴导致的 task 数收缩和
-wave tail。不能仅“减一次 barrier”而忽略后两者。
+收益有两项：删除内部依赖的runtime事件成本（A9 event_ns，须按融合后实际
+task/wait重投影，不以逻辑边数猜测）及中间global流量。L1的barrier_ns保持独立。
+四项代价必须同时保留：(1) inverse fanout>1时按每producer精确计价的重算，
+`recompute_ns = Σ_y (fanout(y)-1)*producer_task_ns(y)`；(2) 从读取indexing map
+导出的 `g_p ≡ Π(g_c)` tile约束；(3) `max(scratch_p,scratch_c)+跨界中间tile`
+的shared预算与`max(reg_p,reg_c)`，进入整个kernel的Residency并由编译资源复核；
+(4) 消费者坐标决定`|T_fused|=|T_c|`，归约独占整轴带来的wave tail。
+重算诊断量不重复加到已包含重复producer执行的融合wave总价上。
 
 Residency 仍在 DP 链外固定，融合段必须满足该固定层级的寄存器/shared/线程
 预算，不得让相邻状态任意选择不同 CTA/SM。T0 的实测结果决定哪个预算绑定；
@@ -2058,7 +2062,10 @@ task 数均衡同样不足以优化执行时间；不能宣布 Place 最优求�
    poll 的 LOO 最大相对误差仍约95%；不将残差包装成高精度。
    `EVENT_COST/round5_structured.md` 记录完整证据。A6统一任务价格已通过：
    两个GEMM入口各904680位比较相等、FP32排名不降、四份DP计划不变；
-   B入口已开放。L2候选级DP与符号转移仍未完成。以下为旧输入阶段的历史状态：
+   B入口已开放。L2候选级DP未完成；真实task符号价格5120 GEMM/768 scalar点
+   已对照，完整CG-interface DP因KVAppend→attention的二次重复计数乘一次
+   cache曲线产生seq³，触发B3.2停止门，(b)未退役。这不是以采样替代符号求解
+   的理由。证据：`PARAMETRIC/task_prices/result.md`。以下为旧输入阶段的历史状态：
    `wait`/`fanout`/`volume`/`count` 是 `S`/`past`/`L_s` 的
    拟多项式而不是 `S_min` 上的整数（420/420 逐点复核）。这是 P5.1「代价函数
    以 θ 为参数 → DP 输出分段拟多项式」的输入前提，此前不成立。

@@ -2,6 +2,18 @@
 
 ## Round 5 A/B（基线 c1281b9，当前执行轮）
 
+最新补做：A7四统一chunk候选的模型价格/驻留/排序已核对，16候选、3200字段、
+4个DP最小值，历史800GPU进程未冒充新运行。B1 mixed价格4308位组回归通过；
+独立L-task FusionPass两模型1890新图守恒格通过；区间DP、runtime投影与GPU
+仍为内部实现待办，非外部阻塞。B3完整符号CG接口出现seq³已局部停止，真实
+task价格5120 GEMM+768 scalar对照通过不等于完整(a)，(b)未退役。
+详见ROUND5_LEDGER最新行、FUSION及PARAMETRIC/task_prices。
+
+当前补做：B1逻辑task适配与已有epilogue区分已验证（新候选2/4条）；
+B3精确根/包络/cache区间部件已验证，尚非完整(a)。A7正在补四阶段
+QP价格、候选chunk、共享预算与完整模型排序；原14张标量价格表字节不变。
+各编号的当前状态以ROUND5_LEDGER为准，不以旧段落的“未开始”覆盖新进展。
+
 最新补做：A7 原800进程队列经独立CG投影2400/2400计数核对；B1新增物理
 R/W适配、max scratch+中间tile资源、逐task价格及fanout重算、混合算术
 签名保留MMA/SIMT各自输出域。4308配置组价格位门复跑通过。

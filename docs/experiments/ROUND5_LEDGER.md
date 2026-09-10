@@ -13,6 +13,22 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 
 ### 当前补做记录
 
+最新进展：A7完整候选计划价格/资源与排序核对完成（16候选、3200资源/计数
+核对、4个DP最小值及25轮配对统计）；仅覆盖四个统一chunk计划，非任意每层
+chunk组合与L2联合DP。B1混合phase价格及4308组位回归完成；独立L-task
+FusionPass与1890新图守恒格完成，区间DP/生产投影/GPU仍未完成。
+B3实际GEMM5120点、scalar768点符号对照通过；完整CG-interface DP在6→8
+产生非零seq³，触发局部高次门。详见PARAMETRIC/task_prices/result.md；(b)未退役。
+本段覆盖下方历史补做记录的旧状态，不删除历史失败证据。
+
+最新实现：B1按逻辑task名构造候选，gqa2/mha4分别有2/4条新逻辑候选，
+各1条已有epilogue融合单独标记，23错误出口零残留。B3已实现精确有理数
+二次根整数分段、QP floor区间、min/max包络和cache clamp区间；72501根序、
+126包络、195cache逐点对照通过，仍不等于完整(a) DP。
+A7四阶段QP访问/算术量2720格通过，14张原标量价格表字节不变；chunk计划
+价格/shared/workspace/barrier及固定chunk的DP已接入，完整候选/排序验证进行中。
+不得将上述未验收主体标成外部阻塞。当前GPU正确性仍引用原800进程，不是新跑。
+
 最新追加：A7 独立投影核对已完成，800 个原 GPU 进程的 task/wait/最长队列
 共 2400/2400 相等（attention_projection）；新模型 GPU 运行不是重复跑的。
 B1.1 新增逐 task 价格及精确非均匀 fanout 重算，4308 位门复跑通过。
@@ -32,7 +48,7 @@ CPU 测试通过；尚未将这些部件接入区间 DP 或 GPU，不能标完�
 
 A7 的已归档生产 chunk 数值门为 800/800（`COST_MODEL/attention_models`），
 不是仅 primitive 50 进程；plan/runtime/四阶段展开已接入。仍缺 chunk 价格、
-候选 DP、独立投影对账及预测/实测排序，不能以数值通过替代这些项。
+候选 DP与预测/实测排序，不能以数值通过替代这些项；独立投影已2400/2400。
 
 - A0 最先检查；A1+A2 优先，随后 A3–A6、A9、A7、A8、A11、A12。
 - B 全部登记但不提前开工，必须先通过 A6/A9；A2 投影仅实现一次供 B 复用。
@@ -61,9 +77,9 @@ A7 的已归档生产 chunk 数值门为 800/800（`COST_MODEL/attention_models`
 | A4 | 单位置签名schema；GEMM/attention/RMS/RoPE/SiLU/mul/add/SwiGLU/KV/MoE/Softmax/LayerNorm/GeLU全部语义推导；缺项抛错；op-audit | 当前签名已验证 | 单表14签名schema零失败、4真实错误出口零残留；4个独立TaskBody缺失/占位明确拒绝执行定价。A6真实消费，混合签名扩展归B1.3 | 5c869fc；COST_MODEL/op_audit.txt、scalar_work/result.md |
 | A5 | shared/threads/stages从TaskBody traits暴露，消除本地假设 | 当前TaskBody已验证 | traits、scalar控制流DAG与union消费已接入A6；BF16线程128；实际CUDA合约重编译通过，原10/10 SASS/资源比较保留。chunk/fusion新增资源另随对应任务验证 | TaskResources.h、ScalarDataflow.h；COST_MODEL/scalar_work、stage_price_gate |
 | A6 | 统一TaskCostNs；九lane/max/尾波原序不变；QP；旧路径开关；顶层task_sum/combine/barrier/event | 硬门已验证 | 4308/4308组，显式及实际TaskStageNs入口各904680位比较相等；14标量格、13错误分支零残留。FP32全1077×2排名不降；BF16历史770/462子集排名不变（非新oracle）。四份完整DP计划与旧路径逐字节相同；默认统一路径后33/33测试通过 | 1264431e、ccdb90d8；COST_MODEL/stage_price_gate、scalar_work、unified_rank、unified_solver |
-| A7.1 | attention FLOP/非TC；chunk候选/plan/runtime/iters/combine价格及复用理由 | 数值原型实施中 | 已实现四阶段QK/normalize/PV/combine原型，保留score/prob两处BF16舍入；50/50新进程数值单测通过，但生产plan/DP/投影/价格未接入。原combine占位已识别，不当成已有实现 | COST_MODEL/attention_phases，非完整模型验收 |
-| A7.2 | chunk_extent shared；同步TaskSmem/static_assert/kNonGemmTaskSmem/CtasPerSm；四chunk资源与F40 | 未开始 | 未验证 | 待填 |
-| A7.3 | 2模型×2seq×4chunk×50=800新进程BF16；chunk1哈希同基线；预测/实测排序；长上下文attention新旧占比 | 部分验证 | 长上下文占比诊断已完成；数值原型50进程不是800生产模型门。后者及排序仍待接入 | COST_MODEL/scalar_work/result.md、attention_phases |
+| A7.1 | attention FLOP/非TC；chunk候选/plan/runtime/iters/combine价格及复用理由 | 四个统一chunk计划已验证 | 四阶段2720格；16候选价格位同直接路径、4个精确DP最小值。未枚举任意逐层chunk组合；L2联合转移仍缺 | 4c98c25a、6bbd3aaf；COST_MODEL/attention_dp |
+| A7.2 | chunk_extent shared；同步TaskSmem/static_assert/kNonGemmTaskSmem/CtasPerSm；四chunk资源与F40 | 已验证 | 原800进程资源均2CTA/24576B；16格模型资源与task_refs/waits共3200对账相等，scratch/workspace分别定价 | COST_MODEL/attention_prices_batch |
+| A7.3 | 2模型×2seq×4chunk×50=800新进程BF16；chunk1哈希同基线；预测/实测排序；长上下文attention新旧占比 | 数值与排序对照已验证 | 原800/800生产进程哈希重新核验；25轮主统计及50轮敏感性；部分排序不符如实保留，非新增GPU进程 | COST_MODEL/attention_models/paired_stats.json、attention_prices_batch/result.md |
 | A8 | CG wait与volume定价Interface，实际使用两个tile；旧Carry开关；spread非零及per-op收益；若零解释并反事实轴 | CPU功能已验证 | 两模型真实残差边M32→128为19.2307693963ns，其余三组合0；八候选spread615.3908806976ns。跨非相邻GEMM残差使旧链不再精确，新增frontier DP；两模型×16穷举选择位相同，统一价格组合路径复核通过。不是全1077候选性能或GPU收益 | 8cb78e55；COST_MODEL/interface_work/result.md |
 | A9.1 | notify/poll各拟合stages/max_worker/total结构；≥12格25轮四臂；4090运行/5090脚本；LOO残差 | 已验证 | 600/600正确性、1200四臂进程；12格LOO完成，poll误差最高95.06%。两个最长队列系数均为0，保留不凑系数。sm120只写脚本未运行 | EVENT_COST/round5_structured.md、calibration_round5_fit |
 | A9.2 | coupling_metrics QP消费A2投影；L1保留；κ仅改wait；fence/fusion接口零且带缺失理由 | 具体价格已验证 | exact variant输入/缺失rates拒绝；L1独立保留。L2候选级DP转移未实现且显式拒绝，不能当作A6或符号DP通过 | b08cd50；CostModel.cpp:475 |
@@ -78,9 +94,9 @@ A7 的已归档生产 chunk 数值门为 800/800（`COST_MODEL/attention_models`
 
 | ID | 范围与验收（不可删减） | 实现状态 | 验证状态/依赖 | 证据、commit |
 |---|---|---|---|---|
-| B1.1 | CouplingRelation复合/I1；外部中间写回合法性；fanout重算、索引导出tile约束、max scratch+跨界tile/live regs residency、消费者task数wave四代价；事件与流量收益 | 部分实施 | 精确访问复合、fanout重算量、索引tile单生产者约束、外部唯一写回检查已实现，符号单测及5错误分支零残留；四成本及生产CG适配未完 | a496c870；FUSION/round5_access_design.md |
+| B1.1 | CouplingRelation复合/I1；外部中间写回合法性；fanout重算、索引导出tile约束、max scratch+跨界tile/live regs residency、消费者task数wave四代价；事件与流量收益 | task价格已验证，事件重投影未完 | mixed阶段价格、精确重算及物理global/shared流量已接；4308组位回归通过。实际融合编译资源及runtime event差尚缺 | 08de932b；FUSION/task_prices_streamed/result.md |
 | B1.2 | 相邻单生产者区间DP；融合在求解内；GemmStages唯一性 | 未开始 | 内部实现待办，非外部阻塞；先完成mixed task四成本 | 待填 |
-| B1.3 | L-task FusionPass重建任务及L-sched；opt独立调用verify；新拓扑A1门；混合签名组合规则进op-audit | 未开始 | 待B1.2 | 待填 |
+| B1.3 | L-task FusionPass重建任务及L-sched；opt独立调用verify；新拓扑A1门；混合签名组合规则进op-audit | 独立写回已验证，生产未接 | 新fused_task_space与外部边复合，1890/1890守恒；非法请求不改原图；runtime lowering明确拒绝，尚未由DP选择 | 8aff469a；FUSION/rewrite_complete/result.md |
 | B1.4 | 两条真实融合BF16各50进程；稳态时间/资源/spill/事件/schedule；预测胜负相符；A9.3融合差非零正确 | 未开始 | 待B1.3 | FUSION/result.md |
 | B1.5 | sm_120融合脚本，预测与实测同输出，状态轮转；只写不跑 | runner已实现 | CPU校验通过；真实fusion构建/预测manifest未生成，sm120未运行 | 7ba67440；FUSION/run_sm120.sh |
 | B2.1 | 六例全消费者同CTA的fence_free_producers；并列same-worker边；价格只用前者 | 离线已验证 | 六例78映射通过；seq4不改善，128/256时35→541且队列22不变。fence未标定折扣仍0；未声称GPU免fence通过 | 63c366f1、9a09cf21；AFFINE_PROBE/fence_producers/result.md |
@@ -90,7 +106,7 @@ A7 的已归档生产 chunk 数值门为 800/800（`COST_MODEL/attention_models`
 | B2.5 | BF162模型×2seq×50=200进程；时间/调度字段；预测差与实测差；A9.3 placement差非零正确 | 正确性通过、性能负 | 两臂400/400，新映射wait200/200对账；25轮配对四格显著变慢，价格预测下降，sign门不通过 | 93ee45df、3d76ae55；PLACE/round5_balanced_result.md |
 | B2.6 | sm_120 placement脚本只写不跑，状态轮转 | runner已实现 | CPU校验通过，未生成sm120实际构建manifest，未运行 | 7ba67440；PLACE/run_sm120.sh |
 | B3.1 | cache实测分段曲线/CDF开关；BF16/FP32全配置ρ/top-k/逐点差；BF16变差保留报告 | 负门已触发 | BF16历史770/462子集ρ分别−.00022857/−.00003006；FP32全1077×2预测字节不变。曲线保留OFF，不默认替换CDF；不是新BF16全oracle | ebace9bf、2a0df628；PARAMETRIC/cache_curve/result.md |
-| B3.2 | live-lane ≤二次闭式根，>2报错；cache/ceil/lane分段并集；符号DP包含全部决策；residency链外；有限(b)仅对照S1..16选择同 | 未开始 | 内部实现待办，非外部阻塞；B3.1负结果不禁止独立曲线路径实现(a) | PARAMETRIC/result.md |
+| B3.2 | live-lane ≤二次闭式根，>2报错；cache/ceil/lane分段并集；符号DP包含全部决策；residency链外；有限(b)仅对照S1..16选择同 | 高次门局部停止 | 真实GEMM5120、scalar768对照过；6→8接口二次计数×一次cache产生三次项，两模型复现exit2且零残留。完整选择门未过，(b)未退役 | 7dd4a28b、8427cea1；PARAMETRIC/task_prices/result.md |
 | B4.1 | 承接A12.1未完成项 | 未开始 | 与A12.1同一任务，不重复计数 | 待填 |
 | B4.2 | 承接A12.2未完成项 | 已验证 | 与A12.2同一任务，不重复计数 | COST_MODEL/partial_combine.md |
 | B4.3 | 承接A12.3未完成项 | 已验证 | 与A12.3同一任务，不重复计数 | EVENT_COST/runtime_projection/autotools_cleanup.md |

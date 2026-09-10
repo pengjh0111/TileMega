@@ -2473,3 +2473,59 @@ measure spin duration. These are candidate explanations, not a measured
 decomposition of the slowdown. Code and full paired evidence:
 `docs/experiments/PLACE/round5_balanced_result.md`. This does not block
 independent Fusion or symbolic-pricing implementation.
+
+## F-119 — Chunk prices need sequential runtime phases and compiled resources
+
+✅ Attention chunk plans now price scores, normalization, partial PV and
+combination separately, with exact CG physical work and workspace. Sixteen
+BF16 candidates agree bitwise with direct evaluation; four supplied-plan DP
+minima all select chunk=1. Archived 800-process GPU receipts yield 3200 exact
+resource/task/wait matches. The 25-pair rankings are not universally correct:
+for gqa2 seq128/chunk8, predicted L2 is .545651 ms versus .938992 ms measured.
+Normalization's tid0 serialization remains outside this throughput estimate.
+Do not equate exact work counts with validated latency or arbitrary per-layer
+chunk optimization. `COST_MODEL/attention_prices_batch/result.md` and
+`attention_dp/result.md` record scope and all paired controls.
+
+## F-120 — Mixed phase pricing is not an extra charge per logical edge
+
+✅ `CostModel::TaskInstanceNs` now accepts physical memory-space traffic,
+and `PriceFusionTasks` retains each phase's MMA/SIMT route. A counterfactual
+4-producer/16-consumer partition really executes twelve extra producer
+instances, reports 219645.236054 ns recompute work and increases global
+traffic to 2170880 bytes. That work is not charged a second time after
+assembling fused waves. All 4308 historical GEMM price groups and fourteen
+scalar tables retain their bit patterns/bytes. Existing GEMM residual
+epilogues are labeled existing fusion, not new runtime event savings.
+See `FUSION/task_prices_streamed/result.md`; no new fused GPU claim.
+
+## F-121 — A measured cache curve can make a CG interface price cubic
+
+✅ Both BF16 models hit the exact degree guard on KVAppend->attention:
+`repeated=512*S^2-4*S`, volume=1, multiplied by a nonconstant affine cache
+service coefficient produces a nonzero cubic term. This is derived from
+the real CG, not a synthetic high-degree rejection. The 5120 collective and
+768 scalar task-price controls pass, but complete symbolic DP stops with
+exit=2 and zero ISL references. Design (b) is not retired. Removing the CDF
+eliminates transcendental expressions but does not bound polynomial degree
+by two. Full coefficients and failed DP receipts:
+`PARAMETRIC/task_prices/result.md`. No numerical search or sampling fallback
+was used; B1 remains independent.
+
+## F-122 — Fusion verification must check the replacement, not the old plan
+
+✅ `FusionPass.cpp` applies an explicit logical pair transactionally and
+creates a new consumer-indexed fused task space. The two-model rewrite
+removes the internal edge and passes 1890/1890 A1 incidence matrix checks;
+changed edges also pass symbolic conservation. Six rejection branches retain
+zero ISL references. Codegen and ModelDescription reject the replacement
+until mixed-body runtime projection exists, so an old model_plan cannot
+silently masquerade as executed fusion. Interval selection and GPU bodies
+are still unfinished. `FUSION/rewrite_complete/result.md` records the failed
+proof attempt on untouched c3 (floor expressions not structurally zero),
+the export-parameter alias correction and the final checks.
+
+✅ Strengthening `CouplingOp::verify` also exposed an invalid old test fixture:
+for `0<=j<=i<=3`, fanout(j) is `4-j`, not scalar 1. The corrected fixture
+follows independent inverse-fiber counting; a dedicated false-fanout fixture
+must now fail. This is not a change to numerical acceptance tolerance.
