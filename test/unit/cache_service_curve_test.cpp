@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/CacheServiceCurve.h>
 #include <tilemega/Solver/CostModel.h>
+#include <tilemega/Analysis/ISLContext.h>
+#include <gmpxx.h>
 #include <cstring>
 #include <iostream>
 #include <limits>
@@ -8,6 +10,7 @@
 
 int main() try {
   using namespace tilemega::solver;
+  tilemega::analysis::IslContext context;
   CacheServiceCurve synthetic({8,16},{8,2});
   if (synthetic.ServiceNsPerByte(8)!=0.125 || synthetic.ServiceNsPerByte(16)!=0.5 ||
       synthetic.ServiceNsPerByte(12)!=0.3125 || synthetic.HitFraction(12,8,2)!=0.5 ||
@@ -28,6 +31,28 @@ int main() try {
   reject([] { CacheServiceCurve({1},{std::numeric_limits<double>::quiet_NaN()}); });
   reject([&] { synthetic.ServiceNsPerByte(-1); });
   reject([&] { synthetic.HitFraction(8,2,8); });
+  reject([&] { synthetic.MissIntervals({"-1","0"},1,16,8,2); });
+  reject([&] { synthetic.MissIntervals({"1/0","1"},1,16,8,2); });
+  reject([&] { synthetic.MissIntervals({"0","1"},2,1,8,2); });
+  int symbolic_checks=0;
+  for (auto const& footprint:{std::array<std::string,2>{"0","1"},
+                              std::array<std::string,2>{"64","-1"},
+                              std::array<std::string,2>{"12","0"}}) {
+    auto intervals=synthetic.MissIntervals(footprint,0,64,8,2);
+    long next=0;
+    for (auto const& interval:intervals) {
+      if (interval.begin!=next) throw std::runtime_error("cache partition gap");
+      for (long s=interval.begin;s<=interval.end;++s) {
+        mpq_class value=mpq_class(interval.coefficients[0])+s*mpq_class(interval.coefficients[1]);
+        double bytes=std::stod(footprint[0])+s*std::stod(footprint[1]);
+        if (value.get_d()!=1.0-synthetic.HitFraction(bytes,8,2))
+          throw std::runtime_error("symbolic cache interpolation mismatch");
+        ++symbolic_checks;
+      }
+      next=interval.end+1;
+    }
+    if (next!=65) throw std::runtime_error("incomplete cache partition");
+  }
   auto target=tilemega::TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/sm_89.json");
   int knots=0;
   for (auto dtype:{ScalarType::kBF16,ScalarType::kF32}) {
@@ -45,5 +70,6 @@ int main() try {
       if (std::memcmp(&expected,&actual,sizeof(double))) throw std::runtime_error("cost model did not consume service curve");
     }
   }
-  std::cout << "CACHE_SERVICE knots=" << knots << " bits_equal=1 errors=" << rejects << '\n';
+  std::cout << "CACHE_SERVICE knots=" << knots << " bits_equal=1 errors=" << rejects
+            << " symbolic_checks=" << symbolic_checks << " reference_delta=" << context.ReferenceCount() << '\n';
 } catch (std::exception const& e) { std::cerr << e.what() << '\n'; return 1; }
