@@ -1,0 +1,145 @@
+{
+  "note": "BF16 comparison is conditional on historical PASS subset; not a new GPU oracle.",
+  "cells": [
+    {
+      "dtype": "bf16",
+      "model": "gqa2",
+      "configs": 770,
+      "old": {
+        "rho_from_printed_predictions": 0.9038734673277106,
+        "top1_top3_top10": [
+          0,
+          0,
+          0
+        ]
+      },
+      "unified": {
+        "rho_from_printed_predictions": 0.9038734673277106,
+        "top1_top3_top10": [
+          0,
+          0,
+          0
+        ]
+      },
+      "delta_ms_min_max": [
+        0.003170000000000117,
+        0.0031799999999999606
+      ],
+      "inputs": [
+        {
+          "path": "partial_rate_comparison/bf16_measured/predictions_gqa2.tsv",
+          "sha256": "213ad65996661d5d5b5025c448a66bf6212b9af36bdbfd6c05fbb4b36762b829"
+        },
+        {
+          "path": "unified_rank/bf16/predictions_gqa2.tsv",
+          "sha256": "29acf08b92e56eb7bc9ab0bd6e5a614932722e85a0b5ba82f11c6b8fb2fb4777"
+        }
+      ]
+    },
+    {
+      "dtype": "bf16",
+      "model": "mha4",
+      "configs": 462,
+      "old": {
+        "rho_from_printed_predictions": 0.8910704759067422,
+        "top1_top3_top10": [
+          0,
+          0,
+          0
+        ]
+      },
+      "unified": {
+        "rho_from_printed_predictions": 0.8910704759067422,
+        "top1_top3_top10": [
+          0,
+          0,
+          0
+        ]
+      },
+      "delta_ms_min_max": [
+        0.00633999999999979,
+        0.0063500000000003
+      ],
+      "inputs": [
+        {
+          "path": "partial_rate_comparison/bf16_measured/predictions_mha4.tsv",
+          "sha256": "6bedc265a80a8f183f4227178ab2c968a2bba154fac3e203a335ee46ca3ca91c"
+        },
+        {
+          "path": "unified_rank/bf16/predictions_mha4.tsv",
+          "sha256": "d71303c71729184ef02d3d02656652c3371f669624f7055cccb970410d0298d4"
+        }
+      ]
+    },
+    {
+      "dtype": "f32",
+      "model": "gqa2",
+      "configs": 1077,
+      "old": {
+        "rho_from_printed_predictions": 0.943179364105432,
+        "top1_top3_top10": [
+          1,
+          3,
+          6
+        ]
+      },
+      "unified": {
+        "rho_from_printed_predictions": 0.943179364105432,
+        "top1_top3_top10": [
+          1,
+          3,
+          6
+        ]
+      },
+      "delta_ms_min_max": [
+        0.005029999999999646,
+        0.0050400000000001555
+      ],
+      "inputs": [
+        {
+          "path": "partial_rate_comparison/f32_measured/predictions_gqa2.tsv",
+          "sha256": "000f4c0ef28f31fcaabaaaa3033563d6e3f9b9006b10f4c74d551dc07f8166be"
+        },
+        {
+          "path": "unified_rank/f32/predictions_gqa2.tsv",
+          "sha256": "3c3176742e6856a4ef6ebb7f4196caf621b87d5f22f06c6d2aae787b1c451a20"
+        }
+      ]
+    },
+    {
+      "dtype": "f32",
+      "model": "mha4",
+      "configs": 1077,
+      "old": {
+        "rho_from_printed_predictions": 0.9421013798584228,
+        "top1_top3_top10": [
+          1,
+          3,
+          6
+        ]
+      },
+      "unified": {
+        "rho_from_printed_predictions": 0.9421013798584228,
+        "top1_top3_top10": [
+          1,
+          3,
+          6
+        ]
+      },
+      "delta_ms_min_max": [
+        0.010069999999999801,
+        0.010080000000000311
+      ],
+      "inputs": [
+        {
+          "path": "partial_rate_comparison/f32_measured/predictions_mha4.tsv",
+          "sha256": "7c278d8e9421b00489cbeb6ff2ea920b6f98318c252f044580c756c0c4c7d5d3"
+        },
+        {
+          "path": "unified_rank/f32/predictions_mha4.tsv",
+          "sha256": "6636ddd7799b97c940e22549b1084c446f51f376041f3d1b9be8367a808fcba2"
+        }
+      ]
+    }
+  ]
+}
