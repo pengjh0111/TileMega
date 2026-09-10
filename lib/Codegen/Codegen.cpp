@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Codegen/RuntimePlan.h>
+#include <tilemega/Solver/RuntimeProjection.h>
+#include <tilemega/Solver/TaskModel.h>
+#include <mlir/IR/Builders.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Frontend/SymbolicShapeBridge.h>
 #include <tilemega/Codegen/HostLauncherEmitter.h>
@@ -141,6 +144,7 @@ struct RuntimeVariantRecord {
   std::uint32_t ownership_flags = 0;
   bool explicit_resident_constraint = false;
   bool balanced_placement = false;
+  std::string exact_tasks,exact_dependencies,seq_parameter,past_parameter;
 };
 
 void BuildVariantSchedule(RuntimeVariantRecord& variant,
@@ -402,6 +406,12 @@ std::string emitModelPlan(mlir::ModuleOp module,
     }
     out << "};\n\n";
   }
+  for (std::size_t v=0;v<variants.size();++v) if (!variants[v].exact_tasks.empty())
+    out << "constexpr RuntimeExactDependencyDesc kExactDependencies" << v << " = {"
+        << quoteCString(variants[v].exact_tasks) << ", "
+        << quoteCString(variants[v].exact_dependencies) << ", "
+        << quoteCString(variants[v].seq_parameter) << ", "
+        << quoteCString(variants[v].past_parameter) << "};\n";
   out << "constexpr RuntimeVariantDesc kRuntimeVariants[] = {\n";
   for (std::size_t v = 0; v < variants.size(); ++v) {
     out << "  {kRuntimeGemms" << v << ", kDependencies" << v << ", "
@@ -410,6 +420,13 @@ std::string emitModelPlan(mlir::ModuleOp module,
         << "u, " << variants[v].max_dependency_span << "u, "
         << variants[v].seq_begin << "u, " << variants[v].seq_end
         << "u, " << variants[v].ownership_flags << "u";
+    if (!variants[v].exact_tasks.empty()) {
+      if (variants[v].attention.empty()) out << ", nullptr";
+      else out << ", kRuntimeAttention" << v;
+      out << ", true, false, &kExactDependencies" << v;
+      out << "},\n";
+      continue;
+    }
     if (!variants[v].attention.empty()) out << ", kRuntimeAttention" << v;
     else if (variants[v].explicit_resident_constraint) out << ", nullptr";
     if (variants[v].explicit_resident_constraint) out << ", true";
@@ -440,8 +457,6 @@ std::string emitModelPlan(mlir::ModuleOp module,
 }  // namespace
 
 std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
-  if (module && !module.getOps<dialect::FusedTaskSpaceOp>().empty())
-    throw std::invalid_argument("fused L-task requires mixed-body runtime projection before CUDA lowering");
   (void)module;
   return "#include <tilemega/Codegen/tasks/ModelHarness.cuh>\n";
 }
@@ -624,6 +639,20 @@ std::vector<AttentionRuntimeRecord> ReadAttentionRuntime(mlir::ModuleOp module) 
   return readRuntimeAttention(module);
 }
 
+static void ReadParameterRanges(mlir::ModuleOp module,RuntimePlan& result) {
+  if (auto domains = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.param_domain")) {
+    std::unordered_map<std::string,std::string> text;
+    for (auto domain : domains) {
+      auto value = llvm::dyn_cast<mlir::StringAttr>(domain.getValue());
+      if (!value) throw std::invalid_argument("malformed CG parameter range");
+      text.emplace(domain.getName().str(),value.getValue().str());
+    }
+    auto shape = frontend::SymbolicShapeBridge{}.Parse(text,{},{});
+    for (auto const& [name,range] : shape.ranges)
+      result.parameter_ranges.emplace(name,std::make_pair(range.minimum,range.maximum));
+  }
+}
+
 RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
   analysis::IslReferenceAudit audit(__func__);
   auto analysis = AnalyzeVariantModule(module);
@@ -637,17 +666,39 @@ RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
   result.ownership_flags = readOwnershipFlags(module);
   result.cluster_dim = analysis.cluster_dim;
   result.task_stages = std::move(analysis.task_stages);
-  if (auto domains = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.param_domain")) {
-    std::unordered_map<std::string,std::string> text;
-    for (auto domain : domains) {
-      auto value = llvm::dyn_cast<mlir::StringAttr>(domain.getValue());
-      if (!value) throw std::invalid_argument("malformed CG parameter range");
-      text.emplace(domain.getName().str(),value.getValue().str());
-    }
-    auto shape = frontend::SymbolicShapeBridge{}.Parse(text,{},{});
-    for (auto const& [name,range] : shape.ranges)
-      result.parameter_ranges.emplace(name,std::make_pair(range.minimum,range.maximum));
+  ReadParameterRanges(module,result);
+  return result;
+}
+
+RuntimePlan ReadFusionSourcePlan(mlir::ModuleOp module) {
+  analysis::IslReferenceAudit audit(__func__);
+  if (!module || mlir::failed(mlir::verify(module)) ||
+      module.getOps<dialect::FusedTaskSpaceOp>().empty())
+    throw std::invalid_argument("fusion source plan requires verified replacement CG");
+  auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  auto dependencies=module->getAttrOfType<mlir::ArrayAttr>("tilemega.fusion_source_dependencies");
+  auto cluster=module->getAttrOfType<mlir::IntegerAttr>("tilemega.fusion_source_cluster");
+  if (!model || !dependencies || !cluster)
+    throw std::invalid_argument("fusion source schedule provenance is missing");
+  RuntimePlan result;
+  result.cluster_dim=cluster.getInt();
+  if (result.cluster_dim<=0) throw std::invalid_argument("fusion source cluster is invalid");
+  result.gemms=readRuntimeGemms(module,arrayField(model,"gemms").size());
+  result.attention=readRuntimeAttention(module);
+  result.ownership_flags=readOwnershipFlags(module);
+  ReadParameterRanges(module,result);
+  for (auto item:dependencies) {
+    auto entry=dictionaryEntry(item,"fusion source dependency");
+    auto p=integerField(entry,"producer"),c=integerField(entry,"consumer");
+    if (p<0 || c<=p || c>=int64_t(arrayField(model,"stages").size()))
+      throw std::invalid_argument("fusion source dependency stage is invalid");
+    result.dependencies.push_back({static_cast<std::uint32_t>(p),
+        static_cast<std::uint32_t>(c),analysis::ParseWaitWindow(stringField(entry,"window"))});
   }
+  for (auto task:module.getOps<dialect::TaskSpaceOp>())
+    result.task_stages.emplace(task.getSymName().str(),task.getStage());
+  for (auto task:module.getOps<dialect::FusedTaskSpaceOp>())
+    result.task_stages.emplace(task.getSymName().str(),task.getPhaseStages().back());
   return result;
 }
 
@@ -673,13 +724,138 @@ std::string EmitGemmInstantiations(
   return out.str();
 }
 
+std::string LowerFusedRuntime(mlir::ModuleOp module) {
+  analysis::IslReferenceAudit audit(__func__);
+  auto source=ReadFusionSourcePlan(module);
+  if (source.cluster_dim!=1 || readBalancedPlacement(module))
+    throw std::invalid_argument("fused lowering requires its resident stage-major schedule");
+  auto original=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  auto stages=arrayField(original,"stages");
+  auto roles=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.dimension_roles");
+  if (!roles) throw std::invalid_argument("fused lowering has no dimension roles");
+  solver::ModelDims dims;
+  dims.seq_parameter=stringField(roles,"seq");
+  dims.past_parameter=stringField(roles,"past");
+  int threads=stringField(original,"dtype")=="bf16" ? solver::kTensorBF16Threads : solver::kSimtF32Threads;
+  auto projected=solver::ProjectWrittenFusionQueues(module,dims,{1,threads,1});
+  auto inputs=solver::ReadFusedTaskInputs(module);
+  mlir::OpBuilder builder(module.getContext());
+  std::vector<bool> removed(stages.size());
+  std::map<int,mlir::Attribute> replacements;
+  bool gemm_body=false,rope_body=false;
+  int max_rope_width=0;
+  for (auto const& input:inputs) {
+    int p=input.semantics[0].stage,c=input.semantics[1].stage;
+    if (p<0 || c!=p+1 || c>=int(stages.size()) || removed[p] || replacements.count(c))
+      throw std::invalid_argument("fused lowering has overlapping or invalid stage phases");
+    auto producer=dictionaryEntry(stages[p],"fusion producer");
+    auto consumer=dictionaryEntry(stages[c],"fusion consumer");
+    auto pk=stringField(producer,"kind"),ck=stringField(consumer,"kind");
+    auto po=llvm::cast<mlir::DenseI64ArrayAttr>(requireField(producer,"operands"));
+    auto co=llvm::cast<mlir::DenseI64ArrayAttr>(requireField(consumer,"operands"));
+    if (po.size()!=8 || co.size()!=8) throw std::invalid_argument("fused phase operands are incomplete");
+    if (input.accesses.writes.count(input.semantics[0].op.result.name))
+      throw std::invalid_argument("selected shared body cannot discard an externally read intermediate");
+    mlir::NamedAttrList replacement(consumer);
+    std::vector<int64_t> operands(8,std::numeric_limits<std::uint32_t>::max());
+    if (pk=="kRoPE" && ck=="kKVAppend") {
+      if (po[1]!=co[0] || integerField(producer,"width")!=integerField(consumer,"width") ||
+          integerField(producer,"extent")!=integerField(consumer,"extent"))
+        throw std::invalid_argument("rotation and KV phases disagree on their physical intermediate");
+      replacement.set("kind",builder.getStringAttr("kRoPEKVAppend"));
+      operands[0]=po[0]; operands[1]=po[2]; operands[2]=co[1]; operands[3]=co[2];
+      rope_body=true;
+      max_rope_width=std::max(max_rope_width,int(integerField(producer,"width")));
+    } else if (pk=="kGemm" && ck=="kAdd") {
+      int gemm=integerField(producer,"gemm");
+      auto description=dictionaryEntry(arrayField(original,"gemms")[gemm],"fusion GEMM");
+      if (source.gemms.at(gemm).split_k!=1 || co[0]!=integerField(description,"d") ||
+          gemm!=integerField(consumer,"gemm"))
+        throw std::invalid_argument("GEMM add phases disagree on their tile or intermediate");
+      replacement.set("kind",builder.getStringAttr("kGemmAdd"));
+      operands[0]=co[1]; operands[1]=co[2]; gemm_body=true;
+    } else if (pk=="kGemm" && ck=="kRMSNorm") {
+      int gemm=integerField(producer,"gemm");
+      auto description=dictionaryEntry(arrayField(original,"gemms")[gemm],"fusion GEMM");
+      auto const& config=source.gemms.at(gemm);
+      if (config.split_k!=1 || config.tile_n<integerField(description,"n") ||
+          co[0]!=integerField(description,"d"))
+        throw std::invalid_argument("GEMM norm fusion requires an unsplit full-row intermediate");
+      replacement.set("kind",builder.getStringAttr("kGemmRMSNorm"));
+      replacement.set("gemm",builder.getI64IntegerAttr(gemm));
+      operands[0]=co[1]; operands[1]=co[2]; gemm_body=true;
+    } else {
+      throw std::invalid_argument("selected fusion has no matching physical runtime body");
+    }
+    replacement.set("operands",builder.getDenseI64ArrayAttr(operands));
+    replacements.emplace(c,replacement.getDictionary(module.getContext()));
+    removed[p]=true;
+  }
+  std::vector<int> renumber(stages.size(),-1);
+  std::vector<mlir::Attribute> rewritten;
+  RuntimeVariantRecord runtime;
+  runtime.gemms=source.gemms;
+  runtime.ownership_flags=source.ownership_flags;
+  runtime.explicit_resident_constraint=true;
+  for (int s=0;s<int(stages.size());++s) if (!removed[s]) {
+    renumber[s]=rewritten.size();
+    auto replacement=replacements.find(s);
+    rewritten.push_back(replacement==replacements.end() ? stages[s] : replacement->second);
+    if (!source.attention.empty()) runtime.attention.push_back(source.attention[s]);
+  }
+  for (auto const& input:inputs) renumber[input.semantics[0].stage]=renumber[input.semantics[1].stage];
+  for (auto const& edge:source.dependencies) {
+    int p=renumber.at(edge.producer),c=renumber.at(edge.consumer);
+    if (p==c) continue;
+    runtime.dependencies.push_back({std::uint32_t(p),std::uint32_t(c),edge.window});
+  }
+  std::sort(runtime.dependencies.begin(),runtime.dependencies.end(),[](auto const& a,auto const& b) {
+    return std::tie(a.consumer,a.producer)<std::tie(b.consumer,b.producer);
+  });
+  runtime.exact_tasks=projected.projection.tasks.ToString();
+  runtime.exact_dependencies=projected.projection.dependencies.ToString();
+  runtime.seq_parameter=dims.seq_parameter; runtime.past_parameter=dims.past_parameter;
+  auto seq_range=source.parameter_ranges.find(dims.seq_parameter);
+  if (seq_range==source.parameter_ranges.end() || seq_range->second.first<1 ||
+      seq_range->second.second>65535)
+    throw std::invalid_argument("fused runtime requires a bounded sequence dispatch domain");
+  runtime.seq_begin=seq_range->second.first; runtime.seq_end=seq_range->second.second;
+  std::vector<std::tuple<int,int,int,int>> shapes;
+  for (auto& gemm:runtime.gemms) {
+    auto shape=std::make_tuple(gemm.tile_m,gemm.tile_n,gemm.tile_k,gemm.stages);
+    auto found=std::find(shapes.begin(),shapes.end(),shape);
+    if (found==shapes.end()) { gemm.compiled_variant=shapes.size(); shapes.push_back(shape); }
+    else gemm.compiled_variant=found-shapes.begin();
+  }
+  mlir::OwningOpRef<mlir::ModuleOp> lowered(llvm::cast<mlir::ModuleOp>(module->clone()));
+  mlir::NamedAttrList plan(original);
+  plan.set("stages",builder.getArrayAttr(rewritten));
+  (*lowered)->setAttr("tilemega.model_plan",plan.getDictionary(module.getContext()));
+  std::ostringstream out;
+  out << "// SPDX-License-Identifier: BSD-3-Clause\n"
+      << "// Generated from verified fused L-task phase and dependency projections.\n";
+  if (stringField(original,"dtype")=="bf16") out << "#define TILEMEGA_MODEL_BF16 1\n";
+  auto feature=[&](char const* name,int value) {
+    out << "#ifndef " << name << "\n#define " << name << ' ' << value << "\n#endif\n";
+  };
+  feature("TILEMEGA_FUSION_RUNTIME",1);
+  feature("TILEMEGA_FUSION_GEMM_RUNTIME",gemm_body);
+  feature("TILEMEGA_FUSION_ROPE_RUNTIME",rope_body);
+  feature("TILEMEGA_FUSION_ROPE_MAX_WIDTH",max_rope_width);
+  out << EmitGemmInstantiations(shapes) << emitAttentionStorage(*lowered,{runtime})
+      << SyncEmitter{}.EmitWait("global") << SyncEmitter{}.EmitSignal("global")
+      << HostLauncherEmitter{}.Emit("l1_kernel") << TaskBodyEmitter{}.Emit(*lowered) << '\n'
+      << emitModelPlan(*lowered,{std::move(runtime)});
+  return out.str();
+}
+
 }  // namespace
 
 std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
-  if (module && !module.getOps<dialect::FusedTaskSpaceOp>().empty())
-    throw std::invalid_argument("fused L-task requires mixed-body runtime projection before CUDA lowering");
   if (!module || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument("CouplingGraphToCUDA requires a verified CG ModuleOp");
+  if (!module.getOps<dialect::FusedTaskSpaceOp>().empty())
+    return LowerFusedRuntime(module);
 
   std::size_t tasks = 0, couplings = 0, placements = 0;
   auto theta = readBinding(module, "tilemega.theta");

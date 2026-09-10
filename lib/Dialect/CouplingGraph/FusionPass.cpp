@@ -138,6 +138,17 @@ void FuseTaskPairs(mlir::ModuleOp module,
     candidates.push_back(solver::DeriveLogicalFusionCandidate(model,configs,producer,consumer));
   }
   mlir::OwningOpRef<mlir::ModuleOp> clone(llvm::cast<mlir::ModuleOp>(module->clone()));
+  mlir::OpBuilder builder(module.getContext());
+  std::vector<mlir::Attribute> source_dependencies;
+  for (auto const& edge:plan.dependencies) {
+    mlir::NamedAttrList record;
+    record.set("producer",builder.getI64IntegerAttr(edge.producer));
+    record.set("consumer",builder.getI64IntegerAttr(edge.consumer));
+    record.set("window",builder.getStringAttr(edge.window.ToString()));
+    source_dependencies.push_back(record.getDictionary(module.getContext()));
+  }
+  (*clone)->setAttr("tilemega.fusion_source_dependencies",builder.getArrayAttr(source_dependencies));
+  (*clone)->setAttr("tilemega.fusion_source_cluster",builder.getI64IntegerAttr(plan.cluster_dim));
   for (std::size_t i=0;i<pairs.size();++i)
     Rewrite(*clone,pairs[i].first,pairs[i].second,candidates[i]);
   module->setAttrs((*clone)->getAttrs());

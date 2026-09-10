@@ -40,6 +40,9 @@ struct RuntimePlan {
 };
 
 RuntimePlan ReadRuntimePlan(mlir::ModuleOp module);
+/// Original phase schedule retained by transactional L-task fusion. This is
+/// input to the replacement projection, never the final fused schedule.
+RuntimePlan ReadFusionSourcePlan(mlir::ModuleOp module);
 std::vector<AttentionRuntimeRecord> ReadAttentionRuntime(mlir::ModuleOp module);
 
 }  // namespace tilemega::codegen
