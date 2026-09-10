@@ -11,6 +11,29 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 
 ## 执行规则与范围
 
+### 当前补做记录
+
+最新追加：A7 独立投影核对已完成，800 个原 GPU 进程的 task/wait/最长队列
+共 2400/2400 相等（attention_projection）；新模型 GPU 运行不是重复跑的。
+B1.1 新增逐 task 价格及精确非均匀 fanout 重算，4308 位门复跑通过。
+B2 已接 L-sched resident-only、共享 runtime task 图、映射4与事件计数；
+400/400 正确性、200/200 balanced wait 对账通过。但四格性能显著变差，
+预测 sign 门失败，详见 PLACE/round5_balanced_result.md。保留独立开关，
+不把它标成求解器已具备最优 placement，也不因此停止独立 B1/B3 工作。
+
+此前将 B 的未实现主体笼统称为依赖阻塞不准确。A6/A9 已放行，B1/B2/B3.2
+属于仍须继续的实现工作。B3.1 的负门保留 CDF 默认路径，不禁止独立开关下
+继续设计 (a)。B4.2/B4.3 分别由 A12.2/A12.3 完成，不重复列待办。
+
+本次已增加 B1.1 精确跨界 shared 与零驻留拒绝检查、生产物理 R/W 适配，
+CPU 测试通过；尚未将这些部件接入区间 DP 或 GPU，不能标完整融合。
+两份 sm120 占位脚本已替换为可执行的冻结产物比较 runner，CPU 单测通过，
+但真实 fusion/placement manifest 未生成，不声称 GPU 或完整脚本流程已验收。
+
+A7 的已归档生产 chunk 数值门为 800/800（`COST_MODEL/attention_models`），
+不是仅 primitive 50 进程；plan/runtime/四阶段展开已接入。仍缺 chunk 价格、
+候选 DP、独立投影对账及预测/实测排序，不能以数值通过替代这些项。
+
 - A0 最先检查；A1+A2 优先，随后 A3–A6、A9、A7、A8、A11、A12。
 - B 全部登记但不提前开工，必须先通过 A6/A9；A2 投影仅实现一次供 B 复用。
 - 停止门只停止相应项及依赖项，独立项继续。不得用此规则绕过 B 的入口门。
@@ -56,21 +79,21 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 | ID | 范围与验收（不可删减） | 实现状态 | 验证状态/依赖 | 证据、commit |
 |---|---|---|---|---|
 | B1.1 | CouplingRelation复合/I1；外部中间写回合法性；fanout重算、索引导出tile约束、max scratch+跨界tile/live regs residency、消费者task数wave四代价；事件与流量收益 | 部分实施 | 精确访问复合、fanout重算量、索引tile单生产者约束、外部唯一写回检查已实现，符号单测及5错误分支零残留；四成本及生产CG适配未完 | a496c870；FUSION/round5_access_design.md |
-| B1.2 | 相邻单生产者区间DP；融合在求解内；GemmStages唯一性 | 未开始 | 待B1.1 | 待填 |
+| B1.2 | 相邻单生产者区间DP；融合在求解内；GemmStages唯一性 | 未开始 | 内部实现待办，非外部阻塞；先完成mixed task四成本 | 待填 |
 | B1.3 | L-task FusionPass重建任务及L-sched；opt独立调用verify；新拓扑A1门；混合签名组合规则进op-audit | 未开始 | 待B1.2 | 待填 |
 | B1.4 | 两条真实融合BF16各50进程；稳态时间/资源/spill/事件/schedule；预测胜负相符；A9.3融合差非零正确 | 未开始 | 待B1.3 | FUSION/result.md |
-| B1.5 | sm_120融合脚本，预测与实测同输出，状态轮转；只写不跑 | 未开始 | 待可执行B1路径 | FUSION/run_sm120.sh |
+| B1.5 | sm_120融合脚本，预测与实测同输出，状态轮转；只写不跑 | runner已实现 | CPU校验通过；真实fusion构建/预测manifest未生成，sm120未运行 | 7ba67440；FUSION/run_sm120.sh |
 | B2.1 | 六例全消费者同CTA的fence_free_producers；并列same-worker边；价格只用前者 | 离线已验证 | 六例78映射通过；seq4不改善，128/256时35→541且队列22不变。fence未标定折扣仍0；未声称GPU免fence通过 | 63c366f1、9a09cf21；AFFINE_PROBE/fence_producers/result.md |
-| B2.2 | 参数域worker跨度证明或L-sched强制grid≤resident；lowering检查；不能凭有限采样 | 未开始 | 写回硬前置 | 待填 |
-| B2.3 | 复用A2投影覆盖30/60stage、split与attention chunk，不另写固定图 | 未开始 | 待A2 | 待填 |
-| B2.4 | 纯L-sched属性/lowering，第四placement开关；原三对照；Validate/I3/E2E_SCHEDULE全字段保留 | 未开始 | 待B2.1–3 | 待填 |
-| B2.5 | BF162模型×2seq×50=200进程；时间/调度字段；预测差与实测差；A9.3 placement差非零正确 | 未开始 | 待B2.4 | PLACE/result.md |
-| B2.6 | sm_120 placement脚本只写不跑，状态轮转 | 未开始 | 待可执行B2路径 | PLACE/run_sm120.sh |
+| B2.2 | 参数域worker跨度证明或L-sched强制grid≤resident；lowering检查；不能凭有限采样 | resident-only已实现 | IR往返/拒绝、lowering与CUDA编译通过；400进程约束通过，无超驻留证明声明 | 04d46cd4；ResidentSchedule.h |
+| B2.3 | 复用A2投影覆盖30/60stage、split与attention chunk，不另写固定图 | 已接共享投影 | A7 2400计数核对；生产chunk2图与原30/60stage映射已跑，split矩阵沿用A2但新映射split GPU未覆盖 | 87cd7ef3、17112d85 |
+| B2.4 | 纯L-sched属性/lowering，第四placement开关；原三对照；Validate/I3/E2E_SCHEDULE全字段保留 | 映射4已接入 | 显式比较plan写回，不是DP选出的最优配置；默认0保持 | 61cf08a7 |
+| B2.5 | BF162模型×2seq×50=200进程；时间/调度字段；预测差与实测差；A9.3 placement差非零正确 | 正确性通过、性能负 | 两臂400/400，新映射wait200/200对账；25轮配对四格显著变慢，价格预测下降，sign门不通过 | 93ee45df、3d76ae55；PLACE/round5_balanced_result.md |
+| B2.6 | sm_120 placement脚本只写不跑，状态轮转 | runner已实现 | CPU校验通过，未生成sm120实际构建manifest，未运行 | 7ba67440；PLACE/run_sm120.sh |
 | B3.1 | cache实测分段曲线/CDF开关；BF16/FP32全配置ρ/top-k/逐点差；BF16变差保留报告 | 负门已触发 | BF16历史770/462子集ρ分别−.00022857/−.00003006；FP32全1077×2预测字节不变。曲线保留OFF，不默认替换CDF；不是新BF16全oracle | ebace9bf、2a0df628；PARAMETRIC/cache_curve/result.md |
-| B3.2 | live-lane ≤二次闭式根，>2报错；cache/ceil/lane分段并集；符号DP包含全部决策；residency链外；有限(b)仅对照S1..16选择同 | 未开始 | 待B3.1、A6/A9 | PARAMETRIC/result.md |
+| B3.2 | live-lane ≤二次闭式根，>2报错；cache/ceil/lane分段并集；符号DP包含全部决策；residency链外；有限(b)仅对照S1..16选择同 | 未开始 | 内部实现待办，非外部阻塞；B3.1负结果不禁止独立曲线路径实现(a) | PARAMETRIC/result.md |
 | B4.1 | 承接A12.1未完成项 | 未开始 | 与A12.1同一任务，不重复计数 | 待填 |
-| B4.2 | 承接A12.2未完成项 | 未开始 | 与A12.2同一任务 | 待填 |
-| B4.3 | 承接A12.3未完成项 | 未开始 | 与A12.3同一任务 | 待填 |
+| B4.2 | 承接A12.2未完成项 | 已验证 | 与A12.2同一任务，不重复计数 | COST_MODEL/partial_combine.md |
+| B4.3 | 承接A12.3未完成项 | 已验证 | 与A12.3同一任务，不重复计数 | EVENT_COST/runtime_projection/autotools_cleanup.md |
 
 ## 容易遗漏清单（prompt A/B §1.1）
 
@@ -83,8 +106,8 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 - [x] A-C7：work从第一版即QP；运行时标量所有权也使用关系复合和barvinok计数。
 - [ ] B-C1：fanout重算定价。
 - [ ] B-C2：shared活跃期max加中间tile。
-- [ ] B-C3：fence按producer而非边。
-- [ ] B-C4：I3写回前解决。
+- [x] B-C3：fence按producer而非边；未标定折扣0。
+- [x] B-C4：I3采用resident-only属性和launch检查。
 - [ ] B-C5：Fusion L-task/Place L-sched分层。
 - [ ] B-C6：融合拓扑重过A1恒等式。
 - [ ] B-C7：两份sm120脚本仅编写。

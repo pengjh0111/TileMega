@@ -2,6 +2,14 @@
 
 ## Round 5 A/B（基线 c1281b9，当前执行轮）
 
+最新补做：A7 原800进程队列经独立CG投影2400/2400计数核对；B1新增物理
+R/W适配、max scratch+中间tile资源、逐task价格及fanout重算、混合算术
+签名保留MMA/SIMT各自输出域。4308配置组价格位门复跑通过。
+B2映射4已接入L-sched/resident-only/host队列，BF16 400/400正确性、
+200/200新映射wait对账通过，但性能显著变差且预测方向不符，不标通过。
+详情见PLACE/round5_balanced_result.md；独立B1/B3仍属待实现而非外部阻塞。
+sm120占位脚本已替换为实际轮转runner，只有CPU测试，未运行sm120。
+
 最新续接：✅ A6两个GEMM入口各904680位比较全过、FP32排名不降、四份完整DP计划
 不变，统一路径默认ON，A6/A9已解除B入口。✅ A2追加element ownership与runtime
 tile variants矩阵7500/7500进程、15000/15000符号计数相等。

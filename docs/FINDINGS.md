@@ -2457,3 +2457,19 @@ affine_balanced_100 increases 35 to 541 with queue length still 22. Six
 instances and 78 mappings pass the offline DAG check with explicit zero isl
 references. This is not a GPU fence-elision claim; the uncalibrated fence
 rebate remains zero. See `AFFINE_PROBE/fence_producers/result.md`.
+
+## F-118 — Count-balanced production placement can still be much slower
+
+✅ Two models x two sequence lengths x two states x 50 fresh BF16 processes:
+400/400 correct, with state-rotated steady timing. Runtime mapping 4 has the
+same maximum queue lengths and 212 registers / 2 CTAs per SM as mapping 0.
+Its reduced waits match the independent CG projection in 200/200 records.
+Yet the primary 25-pair L2 ratios are 1.639908, 3.087011, 1.396662, 4.002253.
+The event model predicts small improvements, so the performance-sign gate
+fails. Keep this negative result and the default mapping unchanged.
+
+⚠️ Task-count balance is not work/critical-path balance; poll count does not
+measure spin duration. These are candidate explanations, not a measured
+decomposition of the slowdown. Code and full paired evidence:
+`docs/experiments/PLACE/round5_balanced_result.md`. This does not block
+independent Fusion or symbolic-pricing implementation.

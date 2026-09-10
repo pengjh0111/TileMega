@@ -1937,6 +1937,16 @@ P6.2 的 oracle 已给出投入判据：固定 `g` 与最优 `g` 相差 **6.11×
 
 ### P4.8 层5 Place
 
+Round 5 更新：新增 L-sched `mapping_mode="balanced", resident_only=true`，
+以共享 runtime 投影的 task DAG 最大化本地入边，受原最大队列长度上限约束。
+映射4已被 host/queue 消费；35/35 CPU 测试及 BF16 400/400 新进程正确性通过。
+但四格 L2 配对比值 1.640/3.087/1.397/4.002，显著变慢，虽 wait 数下降且与
+CG 200/200 对账相等。原 `ListScheduler` 单独不足以优化 locality，新版仅按
+task 数均衡同样不足以优化执行时间；不能宣布 Place 最优求解完成。
+默认映射不变，负结果见 `docs/experiments/PLACE/round5_balanced_result.md`。
+这是当前 Place 性能门的局部失败，不阻塞独立 Fusion/(a) 实现；Phase 5 的
+完整参数化求解条件不因映射接入而关闭。
+
 **当前状态（任务队列实现）**：
 
 - [x] `ListScheduler` 的关键路径优先序按 runtime variant 写入

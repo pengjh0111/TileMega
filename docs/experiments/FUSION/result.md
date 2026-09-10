@@ -1,5 +1,42 @@
 # T3：Fusion 参数化——实施前设计
 
+## Round 5 当前进度
+
+✅ 逐 task 定价入口 `CostModel::TaskInstanceNs` 与整 stage 入口共用
+`TaskCostImpl`；`FusionRecomputeNs` 按 producer 的精确 fanout 和坐标逐项收费，
+不以平均 fanout 或整 stage 成本代替。真实 scalar 输入测试 fanout=2 收一次、
+fanout=1 收零，18 个错误分支 before/after 均为 0。
+`COST_MODEL/instance_price_gate` 重跑 4308 配置组，两个 stage 入口各
+904680 次 double 位比较全部相等；新增 seq4 的逐 task 波次组装检查也通过。
+这尚不是融合后的 mixed task 完整定价或区间 DP。
+
+✅ `lib/Analysis/FusionAccess.cpp` 保留消费者索引的逐 tensor 中间 tile，
+`lib/Solver/FusionResources.cpp` 从精确物理集合计算 peak bytes，再取
+`max(producer_scratch, consumer_scratch) + peak`；寄存器取两阶段 max。
+`FusionCtasPerSm` 使用 TargetSpec 预算、调用方的寄存器分配粒度及静态 shared，
+不把不合法配置夹成 1。旧 ChainDP 路径保持不变，避免改动历史位一致锚点。
+这仍需融合 kernel 的 tier-3 编译资源复核，不能把 max 寄存器声明当实测。
+
+✅ `test/unit/fusion_access_test.cpp` 验证 max 而非 sum、外部写回、fanout、
+shared 台阶（51200 B 动态加 1 B 静态：2→1）、单 CTA 超预算返回 0；
+9 个错误分支分别检查引用数不变，`ISL_CONTEXT remaining=0`。
+
+✅ `lib/Solver/TaskModel.cpp:DeriveModelTaskAccesses` 复用生产语义的物理元素访问，
+scalar 使用已有 runtime ownership；完整 element_reads 替代矩形读集，名义
+collective 工作量不进入融合访存分析。`task_element_work_test` 对两份生产
+export 执行，gqa2/mha4 semantic roundtrip 34/68，错误分支合计 13，零残留。
+
+⚠️ 这些是 B1.1 的组成部分，不是融合完成。混合 task 定价、区间 DP、
+L-task 写回与两条真实 GPU 融合仍待实现。特别是现有 `TaskCostNs` 返回整个
+stage 的 wave 总价，不能直接作为 fanout 重算公式的单 task 单价。
+
+⚠️ `run_sm120.sh` 已替换占位逻辑，调用 `../run_schedule_sm120.py`。
+用法：`run_sm120.sh --manifest <frozen-builds.json> --out <new-directory>`。
+runner 核对实际 sm_120 GPU、BF16 全比较矩阵、source/binary/ptxas/prediction
+哈希，50 轮完整状态轮转，warmup=5/repeat=11，输出全部 resource/schedule
+记录与预测并在正确性失败时停止。两条 CPU 单测与 shell 语法检查通过。
+未运行 sm_120；真实融合构建/预测 manifest 尚未产出，因此 B1.5 未整体验收。
+
 ⚠️ 尚未实现区间 DP 或两条手工融合 kernel；不是已验证结果。
 形式化已先写入 skeleton §2.3（第六个 CG 操作 Fuse）。
 

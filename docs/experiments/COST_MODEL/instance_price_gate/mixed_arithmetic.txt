@@ -1,0 +1,18 @@
+ISL_CONTEXT remaining=0
+OP name=gemm flops={ 128 }/1 transc={ 0 }/1 mma=1 staged=1 implemented=1 reason=implemented derivation=one length-K dot per output: K FMA = 2K; BF16 MMA, FP32 SIMT
+OP name=attention flops=[S] -> { (12 + 4 * S) }/1 transc=[S] -> { (3 + S) }/128 mma=0 staged=1 implemented=1 reason=dense_semantic_work derivation=QK and PV each use 2*total FLOP/output; total exp/head divided by width; causal QK and softmax overhead require task-domain accounting
+OP name=rmsnorm flops={ 513 }/128 transc={ 1 }/128 mma=0 staged=1 implemented=1 reason=semantic_reduction derivation=W squares + W-1 sum + mean and epsilon + 2W scale/weight = 4W+1; one rsqrt/row; parallel replication is not included
+OP name=rope flops={ 7 }/2 transc={ 1 }/1 mma=0 staged=0 implemented=1 reason=implemented derivation=per pair: angle multiply + four multiplies + two adds = 7; sin and cos = 2, divided by two outputs
+OP name=silu flops={ 3 }/1 transc={ 1 }/1 mma=0 staged=0 implemented=1 reason=activation_component derivation=negate, add one, divide; one exp
+OP name=mul flops={ 1 }/1 transc={ 0 }/1 mma=0 staged=0 implemented=1 reason=activation_component derivation=one multiplication
+OP name=add flops={ 1 }/1 transc={ 0 }/1 mma=0 staged=0 implemented=1 reason=residual_component derivation=one addition (unit residual coefficient)
+OP name=swiglu flops={ 4 }/1 transc={ 1 }/1 mma=0 staged=0 implemented=1 reason=implemented derivation=SiLU's three scalar ops followed by gate/up multiply; one exp
+OP name=kv_append flops={ 0 }/1 transc={ 0 }/1 mma=0 staged=0 implemented=1 reason=pure_data_movement derivation=copy only, index arithmetic excluded from floating-point lanes
+OP name=sum flops={ 63 }/1 transc={ 0 }/1 mma=0 staged=0 implemented=1 reason=combine_component derivation=R values require R-1 additions; zero-seeded implementation overhead is separate
+OP name=softmax flops={ 383 }/128 transc={ 1 }/1 mma=0 staged=1 implemented=0 reason=no_standalone_taskbody derivation=per row: W subtract + W-1 sum + W divide = 3W-1; W exp; max comparisons excluded
+OP name=layernorm flops={ 1025 }/128 transc={ 1 }/128 mma=0 staged=1 implemented=0 reason=no_standalone_taskbody derivation=two-pass: mean W ops, variance 3W ops, epsilon 1, center/normalize/affine 4W ops = 8W+1; one rsqrt
+OP name=gelu_tanh flops={ 8 }/1 transc={ 1 }/1 mma=0 staged=0 implemented=0 reason=no_standalone_taskbody derivation=0.5*x*(1+tanh(c*(x+0.044715*x^3))): cube 2, scaled cube 1, add 1, scale 1, add one 1, final multiplies 2 = 8
+OP name=moe_router flops={ 383 }/128 transc={ 1 }/1 mma=0 staged=1 implemented=0 reason=placeholder_taskbody derivation=softmax over expert scores as above; top-k comparison/selection is not floating arithmetic; existing body only stores an integer, so pricing rejects it
+MIXED_ARITHMETIC phases=2 mma=16384 simt=64 per_phase_output_domains=1 status=PASS
+OP_ERRORS rejected=7 before=0 after=0
+OP_AUDIT declarations=14 schema_failures=0 unavailable_implementations=4 price_integration=not_implemented
