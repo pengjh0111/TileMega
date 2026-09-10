@@ -6,9 +6,11 @@ Round 5: [A3 dual-domain reasoning, A4 declarations and A5 controls](round5_work
 [unified BF16/FP32 ranking controls](unified_rank/result.md), and
 [measured FP32-partial combine rates](partial_combine.md).
 The 4224/8192 B counterexample remains an explicit user-approved physical /
-nominal domain distinction. The explicit GEMM price gate now passes 904680
-bit comparisons; the new cached production entry is undergoing its complete
-repeat. A6 implementation exists but its final gate record is not yet closed.
+nominal domain distinction. Both the explicit GEMM price gate and cached
+production entry pass 904680 bit comparisons each. A6 is closed and default
+ON; see [the complete gate](stage_price_gate/result.md) and
+[production DP controls](unified_solver/result.md). This releases B, not its
+unfinished fusion/placement/symbolic-DP acceptance tests.
 All historical ranking tables below remain historical, not new acceptance.
 
 ## T2.1 gate — 2026-09-08, source baseline c4f4123

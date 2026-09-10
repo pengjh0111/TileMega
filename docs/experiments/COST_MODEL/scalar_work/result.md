@@ -6,8 +6,8 @@ accesses with `ProjectScalarTaskOwnership` (`RuntimeProjection.cpp:36`).
 TaskBody resources to `CostModel::TaskCostNs` (`CostModel.cpp:408`).
 The actual `TaskStageNs` / Evaluate / DP paths consume this entry; the old
 `NonGemmStageNs` switch is retained only as an explicit historical control.
-`TILEMEGA_UNIFIED_TASK_COST` is independently selectable (currently default
-OFF pending the complete A6 acceptance record). `TILEMEGA_SCALAR_TASK_WORK=0`
+`TILEMEGA_UNIFIED_TASK_COST` is independently selectable (default ON after
+the complete `../stage_price_gate/result.md` gates). `TILEMEGA_SCALAR_TASK_WORK=0`
 rejects the explicit derived-scalar path, not a silent fallback.
 
 ## What is derived

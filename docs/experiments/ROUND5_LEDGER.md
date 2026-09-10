@@ -33,14 +33,14 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 |---|---|---|---|---|
 | A0 | 原始失败 split8 同输入、同 golden 线程；CPU common-FP32 三比较及 k；≤1.003关闭，>1.2报告，其余不擅定 | 已验证 | 用户授权一次原二进制采集；hash/diff完全复现；56线程golden逐位复现；k=.9961308506568204，条件9归因关闭 | REALMODEL/condition9_noise/result.json、condition9_result.md；ab91cc8、b4a1e69 |
 | A1 | wait 求交 actual producer domain；所有fixture每边参数网格 Σwait=Σfanout；前后逐边表；无512下游修正 | 已验证 | 参考8图2505/2505、生产2模型1920/1920；OFF372格不等；ON26/26 CTest；物理C同步写回保持verifier | INCIDENCE/result.md及逐边表；148ed7e、a723d9a |
-| A2 | QP runtime_task_refs/runtime_wait_entries；split/ownership/attention映射；所有fixture/seq/split与runtime逐值对账；供B复用 | 修复验证中 | 聚焦OFF 0/50、ON 50/50；150格×50轮7500/7500，符号S/P投影与所有进程15000/15000计数相等。最终device指令/资源10/10同冻结构建；其余ownership/variants未关闭 | 修复77c942e；EVENT_COST/split_order_matrix/symbolic_verification.json |
-| A3 | CG逐task count/read/write；从输出索引识别reduce/parallel轴；QP work；GEMM count/MainloopBytes位一致 | 进行中 | 用户批准双域；4308组、1357020项GEMM work位检查全过；RMSNorm读集通过。新增648格生产RoPE/attention读集、精确K集合等价、显式task坐标绑定通过；30/30 CTest、4/4 codegen逐字节相同。不是A6价格门；split attention及生产CG消费仍缺 | COST_MODEL/round5_work.md、element_work.md |
-| A4 | 单位置签名schema；GEMM/attention/RMS/RoPE/SiLU/mul/add/SwiGLU/KV/MoE/Softmax/LayerNorm/GeLU全部语义推导；缺项抛错；op-audit | 进行中 | 单表14签名schema零失败、4真实错误出口零残留；4个独立TaskBody缺失/占位明确拒绝执行定价。前端标识接入，A6消费未做 | 5c869fc；COST_MODEL/op_audit.txt、round5_work.md |
-| A5 | shared/threads/stages从TaskBody traits暴露，消除本地假设 | 进行中 | traits统一、union真实max、BF16线程取128；CUDA合约编译通过。10/10最终device SASS及资源与冻结矩阵相同；FP32两模型1077打印预测及排名字节相同（非A6位门）。完整统一消费仍待A6 | 7f18db8、598c440、c15b79c；TaskResources.h、round5_work.md |
-| A6 | 统一TaskCostNs；九lane/max/尾波原序不变；QP；旧路径开关；顶层task_sum/combine/barrier/event | 实现并验证中 | 显式GEMM入口904680/904680位相等；实际TaskStageNs缓存入口全门运行中。标量14/14合法域CPU格、13错误分支零残留。FP32全1077×2排名不降；BF16历史770/462子集排名不变，不能充作新全量GPU oracle | d13bb259、f6eaa5aa、37d4c515；COST_MODEL/gemm_price_gate、scalar_work、unified_rank |
-| A7.1 | attention FLOP/非TC；chunk候选/plan/runtime/iters/combine价格及复用理由 | 未开始 | 依赖A4/A6 | 待填 |
+| A2 | QP runtime_task_refs/runtime_wait_entries；split/ownership/attention映射；所有fixture/seq/split与runtime逐值对账；供B复用 | 当前结构已验证 | 原tile ownership矩阵7500/7500、15000计数相等；追加element ownership+双runtime tile variants矩阵7500/7500、15000计数相等。新attention chunk/placement须另过门 | 修复77c942e、1cfab978；EVENT_COST/split_order_matrix、element_variants/result.md |
+| A3 | CG逐task count/read/write；从输出索引识别reduce/parallel轴；QP work；GEMM count/MainloopBytes位一致 | 当前任务族已验证 | 用户批准双域；4308组1357020项GEMM work门，648生产/48合成精确元素格；完整CG语义4/4 codegen字节不变；生产TaskCost已消费。新split attention工作另归A7 | COST_MODEL/round5_work.md、element_work.md、scalar_work/result.md |
+| A4 | 单位置签名schema；GEMM/attention/RMS/RoPE/SiLU/mul/add/SwiGLU/KV/MoE/Softmax/LayerNorm/GeLU全部语义推导；缺项抛错；op-audit | 当前签名已验证 | 单表14签名schema零失败、4真实错误出口零残留；4个独立TaskBody缺失/占位明确拒绝执行定价。A6真实消费，混合签名扩展归B1.3 | 5c869fc；COST_MODEL/op_audit.txt、scalar_work/result.md |
+| A5 | shared/threads/stages从TaskBody traits暴露，消除本地假设 | 当前TaskBody已验证 | traits、scalar控制流DAG与union消费已接入A6；BF16线程128；实际CUDA合约重编译通过，原10/10 SASS/资源比较保留。chunk/fusion新增资源另随对应任务验证 | TaskResources.h、ScalarDataflow.h；COST_MODEL/scalar_work、stage_price_gate |
+| A6 | 统一TaskCostNs；九lane/max/尾波原序不变；QP；旧路径开关；顶层task_sum/combine/barrier/event | 硬门已验证 | 4308/4308组，显式及实际TaskStageNs入口各904680位比较相等；14标量格、13错误分支零残留。FP32全1077×2排名不降；BF16历史770/462子集排名不变（非新oracle）。四份完整DP计划与旧路径逐字节相同；默认统一路径后33/33测试通过 | 1264431e、ccdb90d8；COST_MODEL/stage_price_gate、scalar_work、unified_rank、unified_solver |
+| A7.1 | attention FLOP/非TC；chunk候选/plan/runtime/iters/combine价格及复用理由 | 数值原型实施中 | 已实现四阶段QK/normalize/PV/combine原型，保留score/prob两处BF16舍入；50/50新进程数值单测通过，但生产plan/DP/投影/价格未接入。原combine占位已识别，不当成已有实现 | COST_MODEL/attention_phases，非完整模型验收 |
 | A7.2 | chunk_extent shared；同步TaskSmem/static_assert/kNonGemmTaskSmem/CtasPerSm；四chunk资源与F40 | 未开始 | 未验证 | 待填 |
-| A7.3 | 2模型×2seq×4chunk×50=800新进程BF16；chunk1哈希同基线；预测/实测排序；长上下文attention新旧占比 | 未开始 | 未运行 | COST_MODEL/result.md待更新 |
+| A7.3 | 2模型×2seq×4chunk×50=800新进程BF16；chunk1哈希同基线；预测/实测排序；长上下文attention新旧占比 | 部分验证 | 长上下文占比诊断已完成；数值原型50进程不是800生产模型门。后者及排序仍待接入 | COST_MODEL/scalar_work/result.md、attention_phases |
 | A8 | CG wait与volume定价Interface，实际使用两个tile；旧Carry开关；spread非零及per-op收益；若零解释并反事实轴 | CPU功能已验证 | 两模型真实残差边M32→128为19.2307693963ns，其余三组合0；八候选spread615.3908806976ns。跨非相邻GEMM残差使旧链不再精确，新增frontier DP；两模型×16穷举选择位相同，统一价格组合路径复核通过。不是全1077候选性能或GPU收益 | 8cb78e55；COST_MODEL/interface_work/result.md |
 | A9.1 | notify/poll各拟合stages/max_worker/total结构；≥12格25轮四臂；4090运行/5090脚本；LOO残差 | 已验证 | 600/600正确性、1200四臂进程；12格LOO完成，poll误差最高95.06%。两个最长队列系数均为0，保留不凑系数。sm120只写脚本未运行 | EVENT_COST/round5_structured.md、calibration_round5_fit |
 | A9.2 | coupling_metrics QP消费A2投影；L1保留；κ仅改wait；fence/fusion接口零且带缺失理由 | 具体价格已验证 | exact variant输入/缺失rates拒绝；L1独立保留。L2候选级DP转移未实现且显式拒绝，不能当作A6或符号DP通过 | b08cd50；CostModel.cpp:475 |
@@ -51,22 +51,22 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 | A12.2 | FP32-partial combine微基准实测速率替代解析extra；缺失reason | 已修复并验证 | 保留原−128ns失败；同kernel的64-launch配对graph解决分辨率，50/50新进程且每次完整1048576输出CPU位核对。四系数已发布sm89，缺目标仍明确报not_calibrated；独立旧解析开关保留。FP32预测/排名逐字节不变 | ee93cd44、77a8148e、f8088813、35a6732b；COST_MODEL/partial_combine.md |
 | A12.3 | barvinok未跟踪检查；ignore或清理，保留用户内容 | 已验证 | 8个未跟踪autotools文件按精确路径移至可恢复临时目录，前后SHA256一致，未动gitlink/跟踪文件 | EVENT_COST/runtime_projection/autotools_cleanup.md |
 
-## B：入口未通过，不提前实现
+## B：A6/A9入口已通过，后续逐项实施
 
 | ID | 范围与验收（不可删减） | 实现状态 | 验证状态/依赖 | 证据、commit |
 |---|---|---|---|---|
-| B1.1 | CouplingRelation复合/I1；外部中间写回合法性；fanout重算、索引导出tile约束、max scratch+跨界tile/live regs residency、消费者task数wave四代价；事件与流量收益 | 未开始 | 待A6/A9 | FUSION/result.md |
+| B1.1 | CouplingRelation复合/I1；外部中间写回合法性；fanout重算、索引导出tile约束、max scratch+跨界tile/live regs residency、消费者task数wave四代价；事件与流量收益 | 部分实施 | 精确访问复合、fanout重算量、索引tile单生产者约束、外部唯一写回检查已实现，符号单测及5错误分支零残留；四成本及生产CG适配未完 | a496c870；FUSION/round5_access_design.md |
 | B1.2 | 相邻单生产者区间DP；融合在求解内；GemmStages唯一性 | 未开始 | 待B1.1 | 待填 |
 | B1.3 | L-task FusionPass重建任务及L-sched；opt独立调用verify；新拓扑A1门；混合签名组合规则进op-audit | 未开始 | 待B1.2 | 待填 |
 | B1.4 | 两条真实融合BF16各50进程；稳态时间/资源/spill/事件/schedule；预测胜负相符；A9.3融合差非零正确 | 未开始 | 待B1.3 | FUSION/result.md |
 | B1.5 | sm_120融合脚本，预测与实测同输出，状态轮转；只写不跑 | 未开始 | 待可执行B1路径 | FUSION/run_sm120.sh |
-| B2.1 | 六例全消费者同CTA的fence_free_producers；并列same-worker边；价格只用前者 | 未开始 | 待A6/A9入口 | AFFINE_PROBE/result.md |
+| B2.1 | 六例全消费者同CTA的fence_free_producers；并列same-worker边；价格只用前者 | 离线已验证 | 六例78映射通过；seq4不改善，128/256时35→541且队列22不变。fence未标定折扣仍0；未声称GPU免fence通过 | 63c366f1、9a09cf21；AFFINE_PROBE/fence_producers/result.md |
 | B2.2 | 参数域worker跨度证明或L-sched强制grid≤resident；lowering检查；不能凭有限采样 | 未开始 | 写回硬前置 | 待填 |
 | B2.3 | 复用A2投影覆盖30/60stage、split与attention chunk，不另写固定图 | 未开始 | 待A2 | 待填 |
 | B2.4 | 纯L-sched属性/lowering，第四placement开关；原三对照；Validate/I3/E2E_SCHEDULE全字段保留 | 未开始 | 待B2.1–3 | 待填 |
 | B2.5 | BF162模型×2seq×50=200进程；时间/调度字段；预测差与实测差；A9.3 placement差非零正确 | 未开始 | 待B2.4 | PLACE/result.md |
 | B2.6 | sm_120 placement脚本只写不跑，状态轮转 | 未开始 | 待可执行B2路径 | PLACE/run_sm120.sh |
-| B3.1 | cache实测分段曲线/CDF开关；BF16/FP32全配置ρ/top-k/逐点差；BF16变差保留报告 | 未开始 | 待A入口，不提前开工 | PARAMETRIC/result.md |
+| B3.1 | cache实测分段曲线/CDF开关；BF16/FP32全配置ρ/top-k/逐点差；BF16变差保留报告 | 负门已触发 | BF16历史770/462子集ρ分别−.00022857/−.00003006；FP32全1077×2预测字节不变。曲线保留OFF，不默认替换CDF；不是新BF16全oracle | ebace9bf、2a0df628；PARAMETRIC/cache_curve/result.md |
 | B3.2 | live-lane ≤二次闭式根，>2报错；cache/ceil/lane分段并集；符号DP包含全部决策；residency链外；有限(b)仅对照S1..16选择同 | 未开始 | 待B3.1、A6/A9 | PARAMETRIC/result.md |
 | B4.1 | 承接A12.1未完成项 | 未开始 | 与A12.1同一任务，不重复计数 | 待填 |
 | B4.2 | 承接A12.2未完成项 | 未开始 | 与A12.2同一任务 | 待填 |
@@ -74,7 +74,7 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 
 ## 容易遗漏清单（prompt A/B §1.1）
 
-- [ ] A-C1：GEMM逐stage位一致，而非仅模型输入相等。
+- [x] A-C1：GEMM逐stage位一致，两入口各904680位比较。
 - [x] A-C2：算术签名缺项报错，无零/默认值；op-audit及新增实走错误分支。
 - [ ] A-C3：chunk同步union和occupancy。
 - [x] A-C4：Interface实际使用两端tile；非相邻残差因子进入精确frontier DP。
@@ -138,3 +138,9 @@ A8的非零两端shape价格和exact-frontier DP已验证；独立实验开关�
 因预存MLIR-OFF缓存失败；正确配置`build-portable`的policy通过，不冒称前者通过。
 A2追加element ownership+运行时两variant的7500新进程矩阵仍运行中；冻结二进制
 与投影工具未重编，未将未结束矩阵报满分。A7及B尚未宣告完成或解除入口门。
+
+**入口更新**：A6完整四模型/dtype组门已结束，两入口各904680比较全过；
+默认统一价格33/33 CTest、重编的BF16/FP32 TaskBody契约均通过。
+A6/A9入口现已解除（1264431e、ccdb90d8）。A7与B可以启动；旧“待A6”行仅指
+此前依赖，不再是当前阻塞理由。A2扩展矩阵仍独立运行。禁止把BF16历史子集的
+排名失败混成A6的GEMM位门失败，或用它终止独立后续任务。

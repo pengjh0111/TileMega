@@ -2425,3 +2425,35 @@ unchanged. Fourteen legal CPU model/domain cases in both ownership modes
 check independent index sets/counts; 13 real rejection paths have zero isl
 reference deltas. Two out-of-export-domain attempts remain recorded instead
 of widening the domains. See COST_MODEL/scalar_work/result.md.
+
+## F-115 — Unified task pricing passes both GEMM entry gates
+
+✅ A6 verifies 4308 configuration/model/dtype groups: direct `TaskCostNs`
+and cached production `TaskStageNs` each pass 904680 bit comparisons.
+FP32's two complete 1077-configuration rankings do not regress; all four
+dtype/model solver plans are byte-identical to their controls. BF16's
+historical measured subsets still have top-k failures: unchanged ranking is
+not a new accuracy achievement. The unified path is now the default, with
+the archived path explicitly selectable. A6/A9 release the B entry gate;
+neither fusion nor symbolic DP is thereby complete. See
+`COST_MODEL/stage_price_gate/result.md` and `unified_solver/result.md`.
+
+## F-116 — Measured service interpolation slightly worsens BF16 ranking
+
+✅ B3.1's affine service-time curve changes BF16 rho from .9038734673 to
+.9036449015 (gqa2) and .8910704759 to .8910404180 (mha4), on the same
+historical 770/462 measured subsets. FP32 predictions are byte-identical.
+The negative gate is retained despite its small magnitude: CDF stays the
+default; the curve remains an explicit experimental option, not a silent
+substitution to enable design (a). `PARAMETRIC/cache_curve/result.md` records
+every paired prediction and the interpolation/physical-clamp distinction.
+
+## F-117 — More local edges need not mean more removable fences
+
+✅ Counting complete producer fanout changes B2's interpretation: at seq=4
+neither worker count improves the 47 fence-free producers without queue
+growth, despite improved same-worker edge counts. At seq=128/workers=256,
+affine_balanced_100 increases 35 to 541 with queue length still 22. Six
+instances and 78 mappings pass the offline DAG check with explicit zero isl
+references. This is not a GPU fence-elision claim; the uncalibrated fence
+rebate remains zero. See `AFFINE_PROBE/fence_producers/result.md`.
