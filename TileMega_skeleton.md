@@ -485,7 +485,7 @@ V-A 的局部环在 2×容量仍推进，而 V-J 的反向依赖在 `resident_li
 | **Label** | ⚠️ 部分 | `sync_kind` 的判定与 `ClusterSync` 原语都在，簇常数也已标定，但没有一条 CG 边在 sm_89 上能取 `cluster`，所以它现在恒取 `global`；端到端消融欠一台 sm_90+ 机器。 |
 | **Place** | ✅ 是 | `ListScheduler` 的关键路径优先序现在随每个 runtime variant 发进 `ModelSpec`，host 在绑定动态 task 数后物化每 worker 队列；round-robin 对照走同一二进制的 host 开关。另有 TaskBody 的 tile-aligned ownership，二者仍是正交决策。硬件价值以本轮 `PLACE` 重测为准，旧 CTA-bijection 数字全部作废。 |
 | **Relax** | ✅ 是（安全方向） | `Contains(C', C)` 是 `isl_map_is_subset`，真正的 Tier 2/3 非精确边仍可取 `kAll` 超集；但“编译粒度与推导粒度不匹配”的回退已经不存在——每个运行时变体携带自己粒度下推导的精确表，不再有 `wait_table=degraded`。 |
-| **Fuse** | ⚠️ 部件已验证，整体未验收 | 精确访问复合、mixed价格、独立L-task写回及1890守恒格已过；区间DP、事件重投影、两条真实GPU融合未完。 |
+| **Fuse** | ⚠️ 正确性已验证，定价方向门未过 | 固定域区间DP→L-task写回→exact C lowering已接；RoPE/KV完整模型400/400、GEMM两链400/400正确。add预测/实测一致，RMS预测加速却慢6.25%/35.21%，局部停止定价及依赖的联合搜索，见FUSION/runtime_result.md。 |
 
 ### Fuse 的语义与代价（T0–T4，本轮实现前定义）
 

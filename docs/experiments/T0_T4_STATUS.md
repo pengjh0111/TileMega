@@ -2,6 +2,25 @@
 
 ## Round 5 A/B（基线 c1281b9，当前执行轮）
 
+最新验收：生产 RoPE/KV 融合 BF16 400/400，GEMM 两条链400/400，
+跨状态/跨级逐位一致；完整模型 task/wait400/400、链资源/计数2000/2000。
+RMS的预测胜负门失败，add通过；局部停止融合定价及依赖的联合搜索，不影响
+已完成 runtime/lowering/固定域DP。见 FUSION/runtime_result.md，未调容差/系数。
+
+最新续接：生产融合 CG -> exact runtime C -> task queue 已接入；固定实现域
+区间选择及写回事件价格位核对通过，两个完整 BF16 模型正在跑 400 进程矩阵。
+两条 GEMM 校准链经同一前端/pass/lowering 生成，不用 TaskBody 单测冒充。
+补正了 predicated 有效元素与实际 tile shared 分配的混淆，加入融合模式级
+ptxas 寄存器证据；联合实现域搜索仍未完成。详见 FUSION/interval_runtime_progress.md。
+
+最新续接：B1 固定 tile/split/chunk 域的区间选择已完成两模型 × seq4/128，
+分别 4/16 个模式，未融合分支价格逐位一致；精确融合事件投影差非零。
+GEMM→add/RMSNorm shared TaskBody 已 BF16 50/50、FP32 50/50 全新进程，
+每进程 24 个用例逐位相等且无 global 中间写回。启用融合 dispatch 的 harness
+编译通过，portable 43/43、policy/target audit 通过。生产 CG lowering、
+联合形状搜索及完整模型 GPU 验收仍是内部待办，非外部阻塞，未宣告 B1 完成。
+详见 FUSION/interval_runtime_progress.md；后续旧状态按时间保留。
+
 最新补做：A7四统一chunk候选的模型价格/驻留/排序已核对，16候选、3200字段、
 4个DP最小值，历史800GPU进程未冒充新运行。B1 mixed价格4308位组回归通过；
 独立L-task FusionPass两模型1890新图守恒格通过；区间DP、runtime投影与GPU

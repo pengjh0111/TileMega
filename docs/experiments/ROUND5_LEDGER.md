@@ -13,6 +13,16 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 
 ### 当前补做记录
 
+最终实验检查点：RoPE/KV完整模型400/400、两条GEMM链400/400正确；
+生产lowering与固定域DP已真实执行。B1.4的RMS方向门失败，add通过，
+资源/计数2000/2000匹配；联合搜索依赖该价格门，不能标整体完成。
+详见FUSION/runtime_result.md。B2/B3原局部负门保留。
+
+本次最新：B1 固定实现域区间 DP、写回和生产 exact-C lowering 已接通，
+两模型 RoPE/KV 融合矩阵在验收中；两条 GEMM 校准链已真实生成，不再只停在
+TaskBody。修正有效尾块字节低估 shared 分配，加入模式级 ptxas 寄存器证据。
+下方历史“生产未接/尚未由DP选择”已被本段取代；联合实现域及方向门仍未完成。
+
 最新进展：A7完整候选计划价格/资源与排序核对完成（16候选、3200资源/计数
 核对、4个DP最小值及25轮配对统计）；仅覆盖四个统一chunk计划，非任意每层
 chunk组合与L2联合DP。B1混合phase价格及4308组位回归完成；独立L-task
@@ -95,9 +105,9 @@ A7 的已归档生产 chunk 数值门为 800/800（`COST_MODEL/attention_models`
 | ID | 范围与验收（不可删减） | 实现状态 | 验证状态/依赖 | 证据、commit |
 |---|---|---|---|---|
 | B1.1 | CouplingRelation复合/I1；外部中间写回合法性；fanout重算、索引导出tile约束、max scratch+跨界tile/live regs residency、消费者task数wave四代价；事件与流量收益 | task价格及写回读取已验证，事件重投影未完 | mixed阶段价格、精确重算及物理global/shared流量已接；4308组位回归通过；写回前后4/4价格六字段逐位相等；实际融合编译资源及runtime event差尚缺 | 08de932b、2aa3e942、f2872d2f；FUSION/task_prices_streamed、written_price_verified |
-| B1.2 | 相邻单生产者区间DP；融合在求解内；GemmStages唯一性 | 未开始 | 内部实现待办，非外部阻塞；先完成mixed task四成本 | 待填 |
-| B1.3 | L-task FusionPass重建任务及L-sched；opt独立调用verify；新拓扑A1门；混合签名组合规则进op-audit | 独立写回及阶段读取已验证，生产未接 | 新fused_task_space与外部边复合，1890/1890守恒；非法请求不改原图；阶段元数据缺失/错位拒绝；混合 MMA/SIMT 组合可审计；runtime lowering明确拒绝，尚未由DP选择 | 8aff469a、db7799b6、2aa3e942；FUSION/rewrite_complete、rewrite_arithmetic、written_price_verified |
-| B1.4 | 两条真实融合BF16各50进程；稳态时间/资源/spill/事件/schedule；预测胜负相符；A9.3融合差非零正确 | 未开始 | 待B1.3 | FUSION/result.md |
+| B1.2 | 相邻单生产者区间DP；融合在求解内；GemmStages唯一性 | 固定实现域已验证，联合搜索未完成 | 两模型×seq4/128各4/16模式；基线位同；residency外层；尚欠tile/split/chunk联合域与规模优化 | 64176b71；FUSION/intervals_first |
+| B1.3 | L-task FusionPass重建任务及L-sched；opt独立调用verify；新拓扑A1门；混合签名组合规则进op-audit | 写回与生产lowering已验证 | DP选择→写回CG→exact runtime投影→kernel；两模型400/400；GEMM两链400/400；独立pass/守恒/算术审计保留 | 9c51f0b6、e441fabf；FUSION/runtime_result.md |
+| B1.4 | 两条真实融合BF16各50进程；稳态时间/资源/spill/事件/schedule；预测胜负相符；A9.3融合差非零正确 | 正确性通过，RMS方向门失败 | GEMM两链2seq×2状态×50=400/400；add预测/实测一致；RMS预测快、实测慢6.25%/35.21%，局部停止，未调参；链不是完整decoder | FUSION/chain_runtime_first、runtime_result.md |
 | B1.5 | sm_120融合脚本，预测与实测同输出，状态轮转；只写不跑 | runner已实现 | CPU校验通过；真实fusion构建/预测manifest未生成，sm120未运行 | 7ba67440；FUSION/run_sm120.sh |
 | B2.1 | 六例全消费者同CTA的fence_free_producers；并列same-worker边；价格只用前者 | 离线已验证 | 六例78映射通过；seq4不改善，128/256时35→541且队列22不变。fence未标定折扣仍0；未声称GPU免fence通过 | 63c366f1、9a09cf21；AFFINE_PROBE/fence_producers/result.md |
 | B2.2 | 参数域worker跨度证明或L-sched强制grid≤resident；lowering检查；不能凭有限采样 | resident-only已实现 | IR往返/拒绝、lowering与CUDA编译通过；400进程约束通过，无超驻留证明声明 | 04d46cd4；ResidentSchedule.h |

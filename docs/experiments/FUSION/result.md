@@ -2,6 +2,18 @@
 
 ## Round 5 当前进度
 
+✅ 本次完整验证见 [runtime_result.md](runtime_result.md)：DP 选定 RoPE/KV
+完整模型400/400，GEMM/add 与 GEMM/RMSNorm 链式生产 harness400/400，
+全部 BF16、每格50全新进程，原容差、跨级/跨状态逐位相等。资源/队列对账通过。
+⚠️ B1.4 局部门触发：add方向一致，RMS预测加速但实测慢6.25%/35.21%。
+未调系数；联合融合优化依赖该定价问题，未宣告 B1 整体完成。
+
+最新续接见 [interval_runtime_progress.md](interval_runtime_progress.md)：生产融合
+CG lowering 已接入真实队列及 exact C，RoPE/KV 完整模型矩阵正在验证。
+固定实现域区间 DP 可选择融合并以写回 CG 复核事件价格；两条 GEMM 链已生成
+真实 shared runtime，正在做独立 GPU 校准。联合实现域和性能方向门仍单列，
+以下“未接 lowering/区间 DP”均为历史检查点，不代表当前状态。
+
 最新补做：mixed task 阶段价格已实现，4308 GEMM 位模式组及14张scalar
 历史表回归通过，见[task_prices_streamed/result.md](task_prices_streamed/result.md)。
 独立L-task写回pass已在两模型验证，新增融合op、删除内部边并重建外部耦合，
@@ -43,7 +55,10 @@ runner 核对实际 sm_120 GPU、BF16 全比较矩阵、source/binary/ptxas/pred
 记录与预测并在正确性失败时停止。两条 CPU 单测与 shell 语法检查通过。
 未运行 sm_120；真实融合构建/预测 manifest 尚未产出，因此 B1.5 未整体验收。
 
-⚠️ 尚未实现区间 DP 或两条手工融合 kernel；不是已验证结果。
+⚠️ 以下为此前状态：当时尚未实现区间 DP 或两条手工融合 kernel。
+最新续接见 [interval_runtime_progress.md](interval_runtime_progress.md)：固定实现域
+区间选择已跑通，两条 shared TaskBody 已各经 BF16/FP32 50 新进程验证；
+生产 CG lowering 与完整模型融合验收仍未完成，不能以这些部件通过代替。
 形式化已先写入 skeleton §2.3（第六个 CG 操作 Fuse）。
 
 ✅ 本次补做：`FusedTaskInput` 从写回的 `phase_semantics`、`phase_granularities`、

@@ -2529,3 +2529,57 @@ the export-parameter alias correction and the final checks.
 for `0<=j<=i<=3`, fanout(j) is `4-j`, not scalar 1. The corrected fixture
 follows independent inverse-fiber counting; a dedicated false-fanout fixture
 must now fail. This is not a change to numerical acceptance tolerance.
+
+## F-123 — Logical fusion fanout is not runtime fusion fanout
+
+✅ A2 ownership projection makes the tested RoPE/KV logical unit-fanout edge
+runtime fanout 2: one RoPE CTA writes twice the elements of a KV CTA.
+Fused runtime pricing must include that producer recomputation. Exact phase
+composition and worker/event-image counting give a nonzero event-price delta
+(-2873.8036648599809 ns for one gqa2/seq4 pair at kappa1). Four production CPU
+cells enumerate 4/16 fusion patterns with bit-identical unfused baselines.
+This is not a measured fused-kernel speedup.
+
+✅ Genuine shared GEMM/add and GEMM/RMS bodies pass BF16 50/50 and FP32
+50/50 fresh processes (24 cases each), with no global intermediate writes.
+RMS consumes one row while recomputing the full producer tile, preserving
+the fanout cost instead of retaining the unfused producer parallelism.
+⚠️ Full-model lowering and GPU price/sign acceptance remain unfinished.
+Details, resources, corrections and explicit scope are in
+`FUSION/interval_runtime_progress.md`.
+
+## F-124 — Physical tail traffic is not allocated fusion storage
+
+✅ The genuine GEMM/add chain exposed a resource-model undercount: tile32x128,
+seq4 uses only 4 live rows, but its compiled intermediate reserves all 32.
+The original physical-R/W calculation predicted 16384 B shared; the body
+allocates 23552 B. `DeriveFusionResources` now takes explicit allocation bytes
+from the implementation while preserving predicated traffic accounting.
+The full-pattern register API likewise accepts ptxas evidence: add separate
+and fused L2 use 112 and 148 registers, not their old parent model's 212.
+Tests reject an allocation smaller than the live intermediate.
+
+✅ Production fusion lowering consumes replacement CG dependencies and verifies
+them against exact runtime ownership, rather than reusing stage windows as
+proof. The CG verifier runs before the fused lowering branch. Two GEMM chains
+now pass this same path. GPU process matrices and prediction/sign acceptance
+are separately recorded in `FUSION/interval_runtime_progress.md`.
+
+## F-125 — Fusion correctness does not establish a useful fusion optimizer
+
+✅ Actual generated RoPE/KV decoder fusion passes400/400 BF16 fresh processes.
+Two generated GEMM calibration chains also pass400/400, with original numeric
+tolerance and identical output bits across states and levels. CPU/GPU exact
+task/wait/resource comparisons pass. GEMM/add improves at both seq4/128.
+
+✅ GEMM/RMSNorm violates the price/sign gate: paired L2 ratios1.0625 and1.3521,
+while the model predicts improvement. Full N, task counts and residency match.
+At seq128,4 original producers become128 fused executions, but both fit one
+modeled128-worker wave; predicted task time scarcely changes while global
+traffic rises2.75→71.57MB. This exposes the recomputation/wave service envelope,
+not an omitted fanout counter. The precise hardware bottleneck remains
+unprofiled. No fitted coefficient or acceptance threshold was changed.
+
+⚠️ Joint fusion search remains unaccepted and depends on this failed price
+gate. Runtime/lowering are no longer missing. All comparisons and rejected
+explanations are retained in `FUSION/runtime_result.md`.
