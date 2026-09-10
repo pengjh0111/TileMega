@@ -111,6 +111,10 @@ struct FusionDpDomain {
   std::vector<int> stage_registers;
   int static_shared_bytes=0;
   std::vector<std::pair<std::string,std::string>> pairs;
+  // Whole-kernel tier-3 results are keyed by the complete fusion pattern;
+  // maxima of separately compiled phases do not predict allocator pressure.
+  std::map<std::vector<std::pair<std::string,std::string>>,int> compiled_registers;
+  bool require_compiled_registers=false;
 };
 struct FusionDpAlternative {
   ChainDpSolution solution;

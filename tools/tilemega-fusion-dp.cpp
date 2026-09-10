@@ -16,15 +16,20 @@
 #include <cstring>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/raw_ostream.h>
+#include <mlir/Parser/Parser.h>
 
 int main(int argc,char** argv) try {
   using namespace tilemega;
   using namespace tilemega::solver;
-  if (argc!=6 && argc!=7) throw std::invalid_argument("usage: tilemega-fusion-dp EXPORT TARGET PTXAS_LOG SEQ PAST [SELECTED.mlir]");
+  if (argc!=6 && argc!=7 && argc!=9) throw std::invalid_argument("usage: tilemega-fusion-dp EXPORT TARGET PTXAS_LOG SEQ PAST [SELECTED.mlir|- [--fused-ptxas LOG]]");
   analysis::IslContext isl;
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
-  auto module=frontend::TorchExportImporter{}.Import(argv[1],context);
+  std::string input_path=argv[1];
+  auto module=input_path.size()>=5 && input_path.substr(input_path.size()-5)==".mlir"
+      ? mlir::parseSourceFile<mlir::ModuleOp>(input_path,&context)
+      : frontend::TorchExportImporter{}.Import(input_path,context);
+  if (!module) throw std::invalid_argument("cannot read fusion input module");
   int seq=std::stoi(argv[4]),past=std::stoi(argv[5]);
   auto model=ModelDescription::FromCouplingGraph(*module,{seq,past,seq+past},argv[1]);
   auto target=TargetSpec::FromJson(argv[2]);
@@ -42,7 +47,7 @@ int main(int argc,char** argv) try {
   for (auto const& g:domain.plan.gemms) configs.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
   for (auto const& stage:model.stages) {
     BackendTraits traits;
-    if (stage.gemm>=0) {
+    if (stage.kind==StageKind::kGemm) {
       auto const& g=configs.at(stage.gemm);
       traits=model.dtype==ScalarType::kBF16 ? TensorBF16Traits(g.tile_m,g.tile_n,g.tile_k,g.stages)
           : SimtF32Traits(g.tile_m,g.tile_n,g.tile_k,g.stages);
@@ -70,6 +75,19 @@ int main(int argc,char** argv) try {
     domain.pairs.emplace_back(p.op.name,c.op.name);
   }
   CostModelOptions pricing; pricing.l2_events=true; pricing.kappa=1;
+  if (argc==9) {
+    if (std::string(argv[7])!="--fused-ptxas" || domain.pairs.size()!=1)
+      throw std::invalid_argument("fused ptxas comparison requires exactly one candidate pair");
+    std::ifstream fused_file(argv[8]);
+    if (!fused_file) throw std::invalid_argument("cannot read fused register evidence");
+    std::string fused_log{std::istreambuf_iterator<char>(fused_file),std::istreambuf_iterator<char>()};
+    BackendCandidate fused;
+    if (!fused.RecordPtxas(fused_log,"tilemega_l2_kernel"))
+      throw std::invalid_argument("fused L2 register evidence is missing");
+    domain.compiled_registers[{}]=registers;
+    domain.compiled_registers[domain.pairs]=*fused.estimatedRegisters();
+    domain.require_compiled_registers=true;
+  }
   CostModel cost(target,model.dtype,pricing);
   ChainDP dp(cost,{});
   ChainDpOptions options;
@@ -99,10 +117,20 @@ int main(int argc,char** argv) try {
   }
   if (!checked_baseline || best.cost.total_ns!=minimum || isl.ReferenceCount())
     throw std::runtime_error("fusion interval minimum, control or reference audit failed");
-  if (argc==7) {
+  if (argc>=7 && std::string(argv[6])!="-") {
     if (!best.fusion.empty()) dialect::FuseTaskPairs(*module,best.fusion);
     auto inputs=ReadFusedTaskInputs(*module);
     if (inputs.size()!=best.fusion.size()) throw std::runtime_error("selected interval writeback lost a fusion");
+    if (!best.fusion.empty()) {
+      auto written=ProjectWrittenFusionQueues(*module,model.dims,
+          {target.res.num_sms*best.residency.ctas_per_sm,threads,1});
+      auto priced=model;
+      AttachProjectedEventMetrics(priced,domain.plan,written.projection);
+      double event=cost.EventNs(priced,configs,best.residency,written.projection.stages.size());
+      if (std::memcmp(&event,&best.cost.event_ns,sizeof(double)))
+        throw std::runtime_error("written interval projection differs from selected event price");
+      std::cerr << "FUSION_WRITTEN event_bits_equal=1 replacement_dependencies_verified=1\n";
+    }
     std::error_code error;
     llvm::raw_fd_ostream output(argv[6],error,llvm::sys::fs::CD_CreateNew);
     if (error) throw std::runtime_error("cannot create selected fusion module: "+error.message());
@@ -110,5 +138,6 @@ int main(int argc,char** argv) try {
     if (output.has_error()) throw std::runtime_error("selected fusion module write failed");
   }
   std::cerr << "FUSION_DP alternatives=" << alternatives.size() << " selected=" << best.fusion.size()
-            << " baseline_bits_equal=1 remaining=0 fused_registers_gpu_verified=0\n";
+            << " baseline_bits_equal=1 remaining=0 fused_registers_gpu_verified="
+            << domain.require_compiled_registers << '\n';
 } catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 2; }

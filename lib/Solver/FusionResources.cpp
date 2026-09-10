@@ -184,11 +184,12 @@ int FusionCtasPerSm(FusionResources const& r, TargetSpec const& target,
 FusionResources DeriveFusionResources(analysis::FusionAccesses const& accesses,
     analysis::ParamBinding const& theta, std::map<std::string,int> const& element_bytes,
     BackendTraits const& producer, int producer_registers,
-    BackendTraits const& consumer, int consumer_registers) {
+    BackendTraits const& consumer, int consumer_registers,
+    long allocated_intermediate_bytes) {
   analysis::IslReferenceAudit audit(__func__);
   if (producer.threads<=0 || producer.threads!=consumer.threads ||
       producer.smem_bytes<0 || consumer.smem_bytes<0 ||
-      producer_registers<=0 || consumer_registers<=0)
+      producer_registers<=0 || consumer_registers<=0 || allocated_intermediate_bytes<0)
     throw std::invalid_argument("fusion requires compatible threads and measured resources");
   std::map<std::vector<long>,long> live;
   for (auto const& [tensor,relation]:accesses.intermediate_tiles) {
@@ -206,6 +207,10 @@ FusionResources DeriveFusionResources(analysis::FusionAccesses const& accesses,
   }
   long peak=0;
   for (auto const& [task,bytes]:live) peak=std::max(peak,bytes);
+  // Physical R/W excludes predicated tails; storage allocation does not.
+  if (allocated_intermediate_bytes && allocated_intermediate_bytes<peak)
+    throw std::invalid_argument("fusion allocation cannot hold its live intermediate");
+  peak=std::max(peak,allocated_intermediate_bytes);
   long scratch=std::max(producer.smem_bytes,consumer.smem_bytes);
   if (peak>std::numeric_limits<int>::max()-scratch)
     throw std::overflow_error("fusion shared resource overflow");

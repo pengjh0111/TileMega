@@ -37,5 +37,6 @@ double FusionRecomputeNs(analysis::FusionAccesses const& accesses,
 FusionResources DeriveFusionResources(analysis::FusionAccesses const& accesses,
     analysis::ParamBinding const& theta, std::map<std::string,int> const& element_bytes,
     BackendTraits const& producer, int producer_registers,
-    BackendTraits const& consumer, int consumer_registers);
+    BackendTraits const& consumer, int consumer_registers,
+    long allocated_intermediate_bytes=0);
 }  // namespace tilemega::solver

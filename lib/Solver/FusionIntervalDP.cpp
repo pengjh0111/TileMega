@@ -40,6 +40,7 @@ ChainDpSolution ChainDP::SolveFusionIntervals(ModelDescription const& model,
   struct Pair {
     int producer,consumer;
     ModelFusionCandidate runtime;
+    analysis::CouplingRelation queue_mapping;
     FusionResources resources;
     std::pair<std::string,std::string> names;
   };
@@ -54,13 +55,31 @@ ChainDpSolution ChainDP::SolveFusionIntervals(ModelDescription const& model,
       if (task.op.name==names.second) c=task.stage;
     }
     auto candidate=DeriveModelFusionCandidate(model,configs,p,c);
+    auto ownership=[&](int stage,DerivedTaskInput const& input) {
+      if (input.scalar_access)
+        return analysis::CouplingRelation::FromIslText("{ [q] -> [q] }");
+      auto semantic=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),
+          [&](auto const& entry) { return entry.stage==stage; });
+      if (semantic==model.task_semantics.end())
+        throw std::invalid_argument("fusion phase has no ownership semantics");
+      return ProjectTaskOwnership(*semantic,input.task,model.stages.at(stage),threads)
+          .BindParams(model.MetricBindings());
+    };
+    auto queue_mapping=ownership(c,candidate.consumer)
+        .ApplyRange(candidate.accesses.consumer_to_producer)
+        .ApplyRange(ownership(p,candidate.producer).Reverse());
     std::map<std::string,int> types;
     for (auto const& [tensor,map]:candidate.accesses.intermediate_tiles)
       types.emplace(tensor,cost_->dtype()==ScalarType::kBF16 ? 2 : 4);
+    long allocated=0;
+    if (model.stages[p].kind==StageKind::kGemm) {
+      auto const& g=configs.at(model.stages[p].gemm);
+      allocated=static_cast<long>(g.tile_m)*g.tile_n*(cost_->dtype()==ScalarType::kBF16 ? 2 : 4);
+    }
     auto resources=DeriveFusionResources(candidate.accesses,model.MetricBindings(),types,
         domain.stage_traits.at(p),domain.stage_registers.at(p),
-        domain.stage_traits.at(c),domain.stage_registers.at(c));
-    pairs.push_back({p,c,std::move(candidate),resources,names});
+        domain.stage_traits.at(c),domain.stage_registers.at(c),allocated);
+    pairs.push_back({p,c,std::move(candidate),std::move(queue_mapping),resources,names});
   }
   // An interval transition consumes one stage or a selected adjacent pair.
   // Keep the fusion choices until the terminal state: poll image deduplication
@@ -84,6 +103,18 @@ ChainDpSolution ChainDP::SolveFusionIntervals(ModelDescription const& model,
     states[stage].clear();
   }
   if (alternatives) alternatives->clear();
+  for (auto& state:states.back()) {
+    std::vector<std::pair<std::string,std::string>> pattern;
+    for (int pair:state.pairs) pattern.push_back(pairs[pair].names);
+    std::sort(pattern.begin(),pattern.end());
+    auto evidence=domain.compiled_registers.find(pattern);
+    if (evidence!=domain.compiled_registers.end()) {
+      if (evidence->second<=0) throw std::invalid_argument("invalid fused kernel register evidence");
+      state.registers=evidence->second;
+    } else if (domain.require_compiled_registers) {
+      throw std::invalid_argument("fusion pattern lacks whole-kernel register evidence");
+    }
+  }
   ChainDpSolution best;
   auto resident=[&](State const& state) {
     long long shared=static_cast<long long>(state.shared)+domain.static_shared_bytes;
@@ -119,7 +150,7 @@ ChainDpSolution ChainDP::SolveFusionIntervals(ModelDescription const& model,
           if (projection.stages[stage].logical_stage==pair.producer) p=stage;
           if (projection.stages[stage].logical_stage==pair.consumer) c=stage;
         }
-        projection=FuseProjectedQueues(projection,p,c,pair.runtime.accesses.consumer_to_producer,projection_options).projection;
+        projection=FuseProjectedQueues(projection,p,c,pair.queue_mapping,projection_options).projection;
         solution.fusion.push_back(pair.names);
         // Replace the actual two baseline stage prices, not a second estimate
         // of them, so the unfused branch stays bit-identical to Evaluate.
