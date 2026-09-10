@@ -6,15 +6,17 @@
 #include <vector>
 
 namespace tilemega::codegen {
-enum class ScalarPhase { kLoad, kStore, kArithmetic, kBlockReduction, kPublish };
+enum class ScalarPhase { kLoad, kStore, kArithmetic, kBlockReduction, kPublish, kLocalLoad, kLocalStore };
 struct ScalarFlowNode {
   ScalarPhase phase;
   std::vector<int> inputs;
+  // Empty means every input operand; otherwise indices follow the TaskBody.
+  std::vector<int> read_operands;
 };
 struct ScalarDataflow {
   std::vector<ScalarFlowNode> nodes;
   int Add(ScalarPhase phase,std::vector<int> inputs={}) {
-    nodes.push_back({phase,std::move(inputs)});
+    nodes.push_back({phase,std::move(inputs),{}});
     return int(nodes.size())-1;
   }
   // The latency depth counts dependent global-memory phases, not FLOPs.
@@ -49,9 +51,11 @@ inline ScalarDataflow ScalarTaskDataflow(TaskKind kind) {
   int input=flow.Add(ScalarPhase::kLoad);
   switch (kind) {
     case TaskKind::kRMSNorm: {
+      flow.nodes[input].read_operands={0};
       int sum=flow.Add(ScalarPhase::kBlockReduction,{input});
       int scale=flow.Add(ScalarPhase::kArithmetic,{sum});
       int weighted=flow.Add(ScalarPhase::kLoad,{scale});
+      flow.nodes[weighted].read_operands={0,1};
       flow.Add(ScalarPhase::kStore,{weighted});
       return flow;
     }

@@ -6,6 +6,21 @@
 #include <map>
 
 namespace tilemega::solver {
+struct ModelFusionCandidate;
+#ifndef TILEMEGA_FUSION_TASK_COST
+#define TILEMEGA_FUSION_TASK_COST 1
+#endif
+struct FusionTaskPrice {
+  long producer_tasks=0,consumer_tasks=0,recomputed_tasks=0;
+  long producer_waves=0,consumer_waves=0;
+  double separate_ns=0,fused_ns=0,recompute_ns=0;
+  double global_bytes_before=0,global_bytes_after=0,local_bytes=0;
+};
+// Task-only price at an externally pinned whole-kernel residency. Events
+// belong to the reprojected L-sched, not to a guessed per-logical-edge fee.
+FusionTaskPrice PriceFusionTasks(ModelFusionCandidate const& candidate,
+    CostModel const& cost,BackendTraits const& producer,BackendTraits const& consumer,
+    Residency residency,ModelDescription const& model);
 struct FusionResources {
   long intermediate_bytes = 0;
   int shared_bytes = 0, registers = 0, threads = 0;

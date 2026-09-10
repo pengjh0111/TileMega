@@ -7,6 +7,134 @@
 #include <stdexcept>
 
 namespace tilemega::solver {
+namespace {
+analysis::ParamBinding Coordinate(std::vector<std::string> const& names,std::vector<long> const& values) {
+  if (names.size()!=values.size()) throw std::invalid_argument("fusion coordinate rank mismatch");
+  analysis::ParamBinding point;
+  for (std::size_t i=0;i<names.size();++i) point.Bind(names[i],values[i]);
+  return point;
+}
+
+using Counts=std::map<std::string,std::vector<long>>;
+Counts AccessCounts(std::map<std::string,analysis::CouplingRelation> const& accesses,
+    analysis::ParamBinding const& theta,std::vector<std::vector<long>> const& coordinates) {
+  Counts result;
+  for (auto const& [name,relation]:accesses) {
+    std::vector<analysis::ParamBinding> points;
+    auto names=relation.DomainDimNames();
+    for (auto const& coordinate:coordinates) points.push_back(Coordinate(names,coordinate));
+    result.emplace(name,relation.Card().EvalPoints(theta,points));
+  }
+  return result;
+}
+}  // namespace
+
+FusionTaskPrice PriceFusionTasks(ModelFusionCandidate const& candidate,
+    CostModel const& cost,BackendTraits const& producer,BackendTraits const& consumer,
+    Residency residency,ModelDescription const& model) {
+  analysis::IslReferenceAudit audit(__func__);
+#if !TILEMEGA_FUSION_TASK_COST
+  throw std::runtime_error("fusion task pricing disabled");
+#endif
+  if (model.dims.IsSymbolic() || residency.ctas_per_sm<=0 || producer.threads<=0 ||
+      producer.threads!=consumer.threads || producer.stages<0 || consumer.stages!=0)
+    throw std::invalid_argument("fusion price requires bound theta, common CTA and a SIMT consumer");
+  auto theta=model.MetricBindings();
+  auto relation=candidate.accesses.consumer_to_producer.BindParams(theta);
+  if (!relation.IsSingleValued()) throw std::invalid_argument("fusion price violates tile constraint");
+  auto pairs=relation.Points();
+  std::sort(pairs.begin(),pairs.end());
+  std::vector<std::vector<long>> pc,cc;
+  std::map<std::vector<long>,long> fanouts;
+  for (auto const& [c,p]:pairs) { cc.push_back(c); pc.push_back(p); ++fanouts[p]; }
+  FusionTaskPrice result;
+  result.producer_tasks=candidate.producer.work.task_count.Eval(theta);
+  result.consumer_tasks=candidate.accesses.task_count.Eval(theta);
+  result.recomputed_tasks=candidate.accesses.recompute_tasks.Eval(theta);
+  if (result.consumer_tasks!=static_cast<long>(pairs.size()) ||
+      result.producer_tasks!=static_cast<long>(fanouts.size()))
+    throw std::invalid_argument("fusion price requires complete producer/consumer coverage");
+  if (result.recomputed_tasks!=result.consumer_tasks-result.producer_tasks)
+    throw std::invalid_argument("fusion recomputation metric differs from coupling");
+  auto pr=AccessCounts(candidate.producer_accesses.reads,theta,pc);
+  auto pw=AccessCounts(candidate.producer_accesses.writes,theta,pc);
+  auto cr=AccessCounts(candidate.consumer_accesses.reads,theta,cc);
+  auto cw=AccessCounts(candidate.consumer_accesses.writes,theta,cc);
+  double bytes=model.dtype==ScalarType::kBF16 ? 2 : 4;
+  long grid=static_cast<long>(cost.target().res.num_sms)*residency.ctas_per_sm;
+  if (grid<=0) throw std::invalid_argument("fusion wave grid is empty");
+  auto occupancy=[&](long active) { return cost.options().wave_tail
+      ? std::max(1.0,double(active)/cost.target().res.num_sms) : residency.ctas_per_sm; };
+  std::set<std::vector<long>> seen;
+  std::vector<std::vector<long>> unique;
+  for (auto const& p:pc) if (seen.insert(p).second) unique.push_back(p);
+  std::sort(unique.begin(),unique.end());
+  std::vector<analysis::ParamBinding> producer_points;
+  for (auto const& p:unique) producer_points.push_back(Coordinate(relation.RangeDimNames(),p));
+  auto checked_fanout=candidate.accesses.fanout.EvalPoints(theta,producer_points);
+  for (std::size_t i=0;i<unique.size();++i)
+    if (checked_fanout[i]!=fanouts.at(unique[i]))
+      throw std::invalid_argument("fusion per-producer fanout differs from CG metric");
+  auto separate=[&](DerivedTaskInput const& input,BackendTraits const& traits,
+                    std::vector<std::vector<long>> const& coordinates,bool is_producer) {
+    double total=0;
+    for (long first=0;first<static_cast<long>(coordinates.size());first+=grid) {
+      long active=std::min(grid,static_cast<long>(coordinates.size())-first);
+      double wave=0,o=occupancy(active);
+      for (long i=first;i<first+active;++i) {
+        auto point=Coordinate(input.cost_coordinates,coordinates[i]);
+        double ns=cost.TaskInstanceNs(input,traits,residency,model,1,point,o);
+        wave=std::max(wave,ns);
+        if (is_producer) result.recompute_ns+=(fanouts.at(coordinates[i])-1)*ns;
+      }
+      total+=wave;
+    }
+    return total;
+  };
+  result.separate_ns=separate(candidate.producer,producer,unique,true)+
+      separate(candidate.consumer,consumer,cc,false);
+  result.producer_waves=(result.producer_tasks+grid-1)/grid;
+  result.consumer_waves=(result.consumer_tasks+grid-1)/grid;
+  seen.clear();
+  for (long first=0;first<result.consumer_tasks;first+=grid) {
+    long active=std::min(grid,result.consumer_tasks-first);
+    double wave=0,o=occupancy(active);
+    for (long i=first;i<first+active;++i) {
+      TaskMemoryTraffic pm,cm;
+      for (auto const& [name,counts]:pr) pm.global_read_bytes+=bytes*counts[i];
+      for (auto const& [name,counts]:pw) {
+        bool local=candidate.accesses.intermediate_tiles.count(name);
+        if (local) pm.local_write_bytes+=bytes*counts[i];
+        if (!local || candidate.accesses.retained_intermediates.count(name))
+          pm.global_write_bytes+=bytes*counts[i];
+      }
+      for (auto const& [name,counts]:cr) {
+        bool local=candidate.accesses.intermediate_tiles.count(name);
+        (local ? cm.local_read_bytes : cm.global_read_bytes)+=bytes*counts[i];
+      }
+      for (std::size_t operand=0;operand<candidate.consumer.task.operands.size();++operand)
+        if (candidate.accesses.intermediate_tiles.count(candidate.consumer.task.operands[operand].tensor.name))
+          cm.local_read_operands.insert(operand);
+      for (auto const& [name,counts]:cw) cm.global_write_bytes+=bytes*counts[i];
+      double p=cost.TaskInstanceNs(candidate.producer,producer,residency,model,1,
+          Coordinate(candidate.producer.cost_coordinates,pc[i]),o,&pm);
+      double c=cost.TaskInstanceNs(candidate.consumer,consumer,residency,model,1,
+          Coordinate(candidate.consumer.cost_coordinates,cc[i]),o,&cm);
+      wave=std::max(wave,p+c+cost.target().calib.syncthreads_ns);
+      result.global_bytes_after+=pm.global_read_bytes+pm.global_write_bytes+cm.global_read_bytes+cm.global_write_bytes;
+      result.local_bytes+=pm.local_write_bytes+cm.local_read_bytes;
+      if (seen.insert(pc[i]).second) {
+        for (auto const& [name,counts]:pr) result.global_bytes_before+=bytes*counts[i];
+        for (auto const& [name,counts]:pw) result.global_bytes_before+=bytes*counts[i];
+      }
+      for (auto const& [name,counts]:cr) result.global_bytes_before+=bytes*counts[i];
+      for (auto const& [name,counts]:cw) result.global_bytes_before+=bytes*counts[i];
+    }
+    result.fused_ns+=wave;
+  }
+  return result;
+}
+
 double FusionRecomputeNs(analysis::FusionAccesses const& accesses,
     CostModel const& cost, DerivedTaskInput const& producer, BackendTraits const& traits,
     Residency residency, ModelDescription const& model, int chunks,

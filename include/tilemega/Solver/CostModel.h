@@ -28,6 +28,7 @@
 #include <array>
 #include <memory>
 #include <optional>
+#include <set>
 #include <vector>
 
 #ifndef TILEMEGA_TASK_TRAIT_COSTS
@@ -56,6 +57,11 @@ namespace tilemega::solver {
 
 struct DerivedTaskInput;
 struct AttentionPhaseWork;
+struct TaskMemoryTraffic {
+  double global_read_bytes=0, global_write_bytes=0;
+  double local_read_bytes=0, local_write_bytes=0;
+  std::set<int> local_read_operands;
+};
 
 /// Why a lane of `ResourceVector` carries zero.  A zero lane is never bare:
 /// it is either live, or the target has no such pipe, or the pipe exists and
@@ -208,7 +214,8 @@ class CostModel {
   double TaskInstanceNs(DerivedTaskInput const& input, BackendTraits const& traits,
                         Residency residency, ModelDescription const& model,
                         int chunks, analysis::ParamBinding const& coordinates,
-                        double active_ctas_per_sm) const;
+                        double active_ctas_per_sm,
+                        TaskMemoryTraffic const* memory=nullptr) const;
   double TaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,
                      Residency residency) const;
   /// §2.2(f): one stage barrier, at this grid width.
@@ -244,11 +251,11 @@ class CostModel {
  private:
   double ScalarInstanceNs(double bytes,double output_bytes,double flops,double transc,
                           double occupancy,double miss,bool shared_staged,
-                          int depth,int barriers) const;
+                          int depth,int barriers,double local_bytes=0) const;
   double TaskCostImpl(DerivedTaskInput const& input, BackendTraits const& traits,
                      Residency residency, ModelDescription const& model, int chunks,
                      analysis::ParamBinding const* coordinates,
-                     double active_ctas_per_sm) const;
+                     double active_ctas_per_sm,TaskMemoryTraffic const* memory=nullptr) const;
   double WavesNs(double per_sm_work_count, Residency residency,
                  GemmConfig const& config, double iters,
                  double dram_fraction) const;

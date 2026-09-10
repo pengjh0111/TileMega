@@ -33,6 +33,7 @@ struct ModelFusionCandidate {
   DerivedTaskInput producer, consumer;
   analysis::FusionAccesses accesses;
   analysis::MixedArithmetic arithmetic;
+  analysis::TaskAccesses producer_accesses,consumer_accesses;
 };
 // L-task candidates are identified by semantic names, not runtime stage IDs.
 // Runtime ownership is a later projection and cannot define fusion legality.

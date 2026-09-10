@@ -138,7 +138,8 @@ ModelFusionCandidate ComposeModelCandidate(ModelDescription const& model,
   auto graph=InstantiateModelTasks(model,configs);
   auto input=[&](ModelTaskSemantics const& semantic) {
     auto const& stage=model.stages.at(semantic.stage);
-    GemmConfig const* config=stage.gemm<0 ? nullptr : &configs.at(stage.gemm);
+    GemmConfig const* config=stage.gemm<0 || semantic.op.kind!=analysis::OperatorKind::kMatmul
+        ? nullptr : &configs.at(stage.gemm);
     if (config && config->split_k!=1)
       throw std::invalid_argument("fusion partial stage requires explicit combine ownership");
     return DeriveModelTaskInput(model,semantic,graph,config,runtime_ownership);
@@ -161,7 +162,7 @@ ModelFusionCandidate ComposeModelCandidate(ModelDescription const& model,
   auto producer_outputs=accesses.intermediate_tiles.at(*internal.begin()).Card();
   auto arithmetic=analysis::ComposeArithmetic({{p.arithmetic,std::move(producer_outputs)},
                                               {c.arithmetic,c.work.write_elements}});
-  return {std::move(p),std::move(c),std::move(accesses),std::move(arithmetic)};
+  return {std::move(p),std::move(c),std::move(accesses),std::move(arithmetic),std::move(pa),std::move(ca)};
 }
 }  // namespace
 
@@ -228,6 +229,12 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
     result.work=DeriveRuntimeScalarWork(model,semantic,*task,std::move(result.work),threads,&*result.scalar_access);
     result.cost_coordinates={"q"};
     result.scalar_flow=codegen::ScalarTaskDataflow(static_cast<codegen::TaskKind>(model.stages.at(semantic.stage).kind));
+  }
+  if (!config && !runtime_ownership) {
+    auto kind=static_cast<codegen::TaskKind>(model.stages.at(semantic.stage).kind);
+    if (kind==codegen::TaskKind::kGemm && task->kind==analysis::OperatorKind::kPointwise)
+      kind=codegen::TaskKind::kElementwise;
+    result.scalar_flow=codegen::ScalarTaskDataflow(kind);
   }
   return result;
 }

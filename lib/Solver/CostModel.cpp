@@ -418,7 +418,8 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
 
 double CostModel::TaskInstanceNs(DerivedTaskInput const& input, BackendTraits const& traits,
     Residency residency, ModelDescription const& model, int chunks,
-    analysis::ParamBinding const& coordinates, double active_ctas_per_sm) const {
+    analysis::ParamBinding const& coordinates, double active_ctas_per_sm,
+    TaskMemoryTraffic const* memory) const {
   if (!std::isfinite(active_ctas_per_sm) || active_ctas_per_sm<1 ||
       active_ctas_per_sm>residency.ctas_per_sm)
     throw std::invalid_argument("task instance requires valid wave occupancy");
@@ -429,7 +430,18 @@ double CostModel::TaskInstanceNs(DerivedTaskInput const& input, BackendTraits co
     if (!coordinates.Contains(name) || coordinates.values.at(name)<0)
       throw std::invalid_argument("task instance coordinate is missing or negative");
   }
-  if (input.scalar_flow) {
+  if (memory) {
+    for (double bytes:{memory->global_read_bytes,memory->global_write_bytes,
+                       memory->local_read_bytes,memory->local_write_bytes})
+      if (!std::isfinite(bytes) || bytes<0)
+        throw std::invalid_argument("invalid instance memory traffic");
+    if (traits.stages>0 && memory->local_read_bytes>0)
+      throw std::invalid_argument("collective shared input requires a compatible mainloop");
+    for (int operand:memory->local_read_operands)
+      if (operand<0 || operand>=static_cast<int>(input.task.operands.size()))
+        throw std::invalid_argument("local input operand is outside task signature");
+  }
+  if (input.scalar_access) {
     if (coordinates.values.at("q")>=input.work.task_count.SubstituteParams(known).Eval({}))
       throw std::invalid_argument("scalar task instance outside domain");
   } else {
@@ -438,11 +450,11 @@ double CostModel::TaskInstanceNs(DerivedTaskInput const& input, BackendTraits co
           input.task.CoordinateExtent(axis).Eval(known,known))
         throw std::invalid_argument("collective task instance outside domain");
   }
-  return TaskCostImpl(input,traits,residency,model,chunks,&coordinates,active_ctas_per_sm);
+  return TaskCostImpl(input,traits,residency,model,chunks,&coordinates,active_ctas_per_sm,memory);
 }
 
 double CostModel::ScalarInstanceNs(double bytes,double output_bytes,double flops,double transc,
-    double o,double miss,bool shared_staged,int depth,int barriers) const {
+    double o,double miss,bool shared_staged,int depth,int barriers,double local_bytes) const {
   if ((flops>0 && lanes_[ResourceVector::kCudaCore]!=LaneStatus::kLive) ||
       (transc>0 && lanes_[ResourceVector::kSfu]!=LaneStatus::kLive))
     throw std::runtime_error("scalar arithmetic rate: not_calibrated");
@@ -453,6 +465,11 @@ double CostModel::ScalarInstanceNs(double bytes,double output_bytes,double flops
   if (transc>0) u.sfu=o*transc/sfu_ops_per_ns_per_sm_;
   if (shared_staged && statuses[ResourceVector::kSmem]==LaneStatus::kLive)
     u.smem=o*bytes/(calib_->smem_gbps/target_->res.num_sms);
+  if (local_bytes>0) {
+    if (statuses[ResourceVector::kSmem]!=LaneStatus::kLive)
+      throw std::runtime_error("local task traffic: shared bandwidth not_calibrated");
+    u.smem+=o*local_bytes/(calib_->smem_gbps/target_->res.num_sms);
+  }
   u.l2=o*bytes/l2_bytes_per_ns_per_sm_;
   u.dram=o*bytes*miss/dram_bytes_per_ns_per_sm_;
   for (int i=0;i<ResourceVector::kLaneCount;++i) {
@@ -502,7 +519,7 @@ double CostModel::TaskCostNs(AttentionPhaseWork const& input,BackendTraits const
 double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits const& traits,
                              Residency residency, ModelDescription const& model,
                              int chunks, analysis::ParamBinding const* coordinates,
-                             double active_ctas_per_sm) const {
+                             double active_ctas_per_sm,TaskMemoryTraffic const* memory) const {
   analysis::IslReferenceAudit audit(__func__);
 #if defined(TILEMEGA_DERIVED_TASK_COST) && !TILEMEGA_DERIVED_TASK_COST
   throw std::runtime_error("access-derived task pricing is disabled");
@@ -510,9 +527,21 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
   if (model.dims.IsSymbolic()) throw std::invalid_argument("bind theta before FP64 task evaluation");
   auto known=model.MetricBindings();
   if (traits.stages<=0) {
-    if (!input.scalar_flow || input.cost_coordinates!=std::vector<std::string>{"q"})
+    if (!input.scalar_flow || (!coordinates && input.cost_coordinates!=std::vector<std::string>{"q"}))
       throw std::invalid_argument("scalar task latency DAG/ownership has not been supplied");
-    auto [depth,barriers]=input.scalar_flow->MemoryDepthAndBarriers(traits.threads);
+    auto flow=*input.scalar_flow;
+    if (memory) for (auto& node:flow.nodes) {
+      if (node.phase==codegen::ScalarPhase::kStore && memory->global_write_bytes==0)
+        node.phase=codegen::ScalarPhase::kLocalStore;
+      if (node.phase!=codegen::ScalarPhase::kLoad) continue;
+      auto operands=node.read_operands;
+      if (operands.empty())
+        for (int i=0;i<static_cast<int>(input.task.operands.size());++i) operands.push_back(i);
+      if (!operands.empty() && std::all_of(operands.begin(),operands.end(),
+            [&](int operand) { return memory->local_read_operands.count(operand); }))
+        node.phase=codegen::ScalarPhase::kLocalLoad;
+    }
+    auto [depth,barriers]=flow.MemoryDepthAndBarriers(traits.threads);
     double ctas=double(input.work.task_count.SubstituteParams(known).Eval({}));
     if (coordinates) ctas=1;
     double grid=double(target_->res.num_sms)*std::max(1,residency.ctas_per_sm);
@@ -530,10 +559,12 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
       cache_key << ":instance:" << active_ctas_per_sm;
       for (auto const& [name,value]:coordinates->values) cache_key << ':' << name << '=' << value;
     }
+    if (memory) cache_key << ":memory:" << memory->global_read_bytes << ':' << memory->global_write_bytes
+        << ':' << memory->local_read_bytes << ':' << memory->local_write_bytes;
     auto cached=scalar_price_cache_.find(cache_key.str());
     if (cached!=scalar_price_cache_.end()) return cached->second;
     double total=0;
-    long first=coordinates ? coordinates->values.at("q") : 0;
+    long first=coordinates && input.scalar_access ? coordinates->values.at("q") : 0;
     for (double remaining=ctas;remaining>0;remaining-=grid) {
       double active=std::min(grid,remaining);
       double o=options_.wave_tail ? std::max(1.0,active/target_->res.num_sms)
@@ -542,6 +573,7 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
       double wave=-std::numeric_limits<double>::infinity();
       for (long q=first;q<first+long(active);++q) {
         analysis::ParamBinding coordinate; coordinate.Bind("q",q);
+        if (coordinates) coordinate=*coordinates;
         auto value=[&](analysis::QuasiPolynomial const& work) {
           return double(work.BindCoordinates(coordinate).SubstituteParams(known).Eval({}));
         };
@@ -553,8 +585,14 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
         // scalar arithmetic is charged in u, memory phases in this DAG term.
         // In particular a negative GEMM regression intercept cannot be
         // extrapolated into a small SIMT task then silently clamped to zero.
-        wave=std::max(wave,ScalarInstanceNs(bytes,writes*ElementBytes(dtype_),flops,transc,
-            o,miss,input.arithmetic.smem_staged,depth,barriers));
+        double output_bytes=writes*ElementBytes(dtype_),local_bytes=0;
+        if (memory) {
+          bytes=memory->global_read_bytes+memory->global_write_bytes;
+          output_bytes=memory->global_write_bytes;
+          local_bytes=memory->local_read_bytes+memory->local_write_bytes;
+        }
+        wave=std::max(wave,ScalarInstanceNs(bytes,output_bytes,flops,transc,
+            o,miss,input.arithmetic.smem_staged,depth,barriers,local_bytes));
       }
       total+=wave;
       first+=long(active);
@@ -586,8 +624,16 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
   }
   double const epilogue=(options_.fp32_partials && dtype_==ScalarType::kBF16 && chunks>1
                            ? double(sizeof(float)) : ElementBytes(dtype_))*writes;
+  double epilogue_ns=epilogue/l2_bytes_per_ns_per_sm_;
+  if (memory) {
+    if (memory->local_write_bytes>0 && calib_->smem_gbps<=0)
+      throw std::runtime_error("collective shared output: bandwidth not_calibrated");
+    epilogue_ns=memory->global_write_bytes/l2_bytes_per_ns_per_sm_;
+    if (memory->local_write_bytes>0)
+      epilogue_ns+=memory->local_write_bytes/(calib_->smem_gbps/target_->res.num_sms);
+  }
   double const fixed=fit_.setup_ns+setup+traits.stages*(bytes/l2_bytes_per_ns_per_sm_)+
-      calib_->l2_latency_ns+epilogue/l2_bytes_per_ns_per_sm_;
+      calib_->l2_latency_ns+epilogue_ns;
   double const effective_iters=options_.pipeline_envelope
       ? std::max(iters-(traits.stages-1),0.0) : iters;
   double const grid=double(target_->res.num_sms)*std::max(1,residency.ctas_per_sm);

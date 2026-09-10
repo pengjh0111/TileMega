@@ -58,6 +58,15 @@ int main(int argc,char** argv) try {
       reject("instance_rank",[&] { cost.TaskInstanceNs(input,traits,{2},model,1,{},1); });
       reject("instance_negative",[&] { auto p=point; p.Bind("q",-1); cost.TaskInstanceNs(input,traits,{2},model,1,p,1); });
       reject("instance_domain",[&] { auto p=point; p.Bind("q",1000000); cost.TaskInstanceNs(input,traits,{2},model,1,p,1); });
+      reject("negative_memory",[&] { TaskMemoryTraffic memory; memory.local_read_bytes=-1;
+        cost.TaskInstanceNs(input,traits,{2},model,1,point,1,&memory); });
+      reject("infinite_memory",[&] { TaskMemoryTraffic memory;
+        memory.global_read_bytes=std::numeric_limits<double>::infinity();
+        cost.TaskInstanceNs(input,traits,{2},model,1,point,1,&memory); });
+      reject("local_operand",[&] { TaskMemoryTraffic memory; memory.local_read_operands.insert(-1);
+        cost.TaskInstanceNs(input,traits,{2},model,1,point,1,&memory); });
+      reject("collective_local_input",[&] { TaskMemoryTraffic memory; memory.local_read_bytes=2;
+        auto t=traits; t.stages=3; cost.TaskInstanceNs(input,t,{2},model,1,point,1,&memory); });
       reject("fusion_fanout",[&] { auto f=replicated; f.fanout=f.fanout.Scale(2); FusionRecomputeNs(f,cost,input,traits,{2},model,1,1); });
       reject("fusion_nonadjacent",[&] { DeriveModelFusionCandidate(model,configs,0,2); });
       reject("fusion_missing_semantics",[&] { auto m=model; m.task_semantics.clear(); DeriveModelFusionCandidate(m,configs,0,1); });
@@ -85,6 +94,6 @@ int main(int argc,char** argv) try {
       break;
     }
   }
-  if (branches!=23 || context.ReferenceCount()) throw std::runtime_error("incomplete scalar rejection audit");
+  if (branches!=27 || context.ReferenceCount()) throw std::runtime_error("incomplete scalar rejection audit");
   std::cout << "SCALAR_ERRORS branches=" << branches << " reference_delta=0\nISL_CONTEXT remaining=0\n";
 } catch (std::exception const& e) { std::cerr << e.what() << '\n'; return 2; }
