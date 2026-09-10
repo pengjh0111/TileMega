@@ -3,6 +3,7 @@
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Analysis/CouplingDerivation.h>
+#include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/OpArithmetic.h>
 #include <tilemega/Analysis/SemanticCodec.h>
 #include <tilemega/Dialect/CouplingGraph/CGContract.h>
@@ -16,6 +17,10 @@
 
 #include <cctype>
 #include <stdexcept>
+
+#ifndef TILEMEGA_VERIFY_COUPLING_INCIDENCE
+#define TILEMEGA_VERIFY_COUPLING_INCIDENCE 1
+#endif
 
 using namespace mlir;
 using namespace tilemega::dialect;
@@ -167,6 +172,7 @@ LogicalResult EventTensorOp::verify() {
 }
 
 LogicalResult CouplingOp::verify() {
+  analysis::IslReferenceAudit audit(__func__);
   auto module = (*this)->getParentOfType<ModuleOp>();
   if (!module) return emitOpError("must be nested in a module");
   if (!SymbolTable::lookupNearestSymbolFrom<TaskSpaceOp>(*this, getSrcAttr()))
@@ -219,11 +225,13 @@ LogicalResult CouplingOp::verify() {
       return emitOpError() << "wait " << getWait().getValue().ToString()
                            << " does not match the relation's fiber "
                               "cardinality " << expectedWait.ToString();
+#if TILEMEGA_VERIFY_COUPLING_INCIDENCE
     auto expectedFanout=getRelation().getMap().FanoutCard();
     if (!expectedFanout.SemanticallyEqual(getFanout().getValue(),known))
       return emitOpError("fanout does not match the inverse relation's fiber cardinality");
     if (!expectedWait.SumDomain().SemanticallyEqual(expectedFanout.SumDomain(),known))
       return emitOpError("coupling violates sum(wait) == sum(fanout)");
+#endif
     // image(C_kappa) itself is not re-derived from the relation here: doing
     // so needs "does producer coordinate depend on consumer coordinate X"
     // per domain dimension, and the only isl query available for that
