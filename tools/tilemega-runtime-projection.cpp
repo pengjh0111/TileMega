@@ -9,9 +9,9 @@
 
 int main(int argc, char** argv) try {
   tilemega::analysis::IslContext isl_context;
-  if (argc < 12 || argc > 15)
+  if (argc < 12 || argc > 17 || argc==16)
     throw std::invalid_argument("usage: tilemega-runtime-projection EXPORT.json "
-        "GRID THREADS KAPPA {PAST|symbolic} TILE_M TILE_N TILE_K STAGES SPLIT {tile|element} [CG_ORDER=0|1] [PARTITION_WORKERS=0|1] [SPLIT_PERIODS=0|1]");
+        "GRID THREADS KAPPA {PAST|symbolic} TILE_M TILE_N TILE_K STAGES SPLIT {tile|element} [CG_ORDER=0|1] [PARTITION_WORKERS=0|1] [SPLIT_PERIODS=0|1] [ATTENTION_CHUNKS CHUNK_EXTENT]");
   tilemega::solver::RuntimeProjectionOptions options{
       std::stoi(argv[2]),std::stoi(argv[3]),std::stoi(argv[4])};
   if (argc>=13) {
@@ -24,7 +24,7 @@ int main(int argc, char** argv) try {
       throw std::invalid_argument("PARTITION_WORKERS must be 0 or 1");
     options.partition_worker_counts = std::string(argv[13])=="1";
   }
-  if (argc==15) {
+  if (argc>=15) {
     if (std::string(argv[14])!="0" && std::string(argv[14])!="1")
       throw std::invalid_argument("SPLIT_PERIODS must be 0 or 1");
     options.split_count_periods = std::string(argv[14])=="1";
@@ -44,6 +44,17 @@ int main(int argc, char** argv) try {
   context.getOrLoadDialect<tilemega::dialect::CGDialect>();
   auto module = tilemega::frontend::TorchExportImporter{}.Import(argv[1],context,nullptr,import);
   auto seed = tilemega::codegen::ReadRuntimePlan(*module);
+  if (argc==17) {
+    int chunks=std::stoi(argv[15]),extent=std::stoi(argv[16]);
+    if (chunks<=0 || extent<=0) throw std::invalid_argument("attention chunks and extent must be positive");
+    auto seed_model=tilemega::solver::ModelDescription::FromCouplingGraph(
+        *module,tilemega::solver::ModelDims::Symbolic("S",past),argv[1]);
+    for (std::size_t stage=0;stage<seed_model.stages.size();++stage)
+      if (seed_model.stages[stage].kind==tilemega::solver::StageKind::kAttention)
+        import.attention.push_back({static_cast<int>(stage),
+            {static_cast<std::uint32_t>(chunks),static_cast<std::uint32_t>(extent)}});
+    if (import.attention.empty()) throw std::invalid_argument("model has no attention stages");
+  }
   import.gemms.assign(seed.gemms.size(),shape);
   module = tilemega::frontend::TorchExportImporter{}.Import(argv[1],context,nullptr,import);
   auto plan = tilemega::codegen::ReadRuntimePlan(*module);

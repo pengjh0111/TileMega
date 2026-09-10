@@ -1,0 +1,7 @@
+{
+  "fresh_processes": 800,
+  "exact_count_comparisons": 2400,
+  "tool_sha256": "9f2970de66234e18a4abb27ad1530140b6629bd35bfa13a7b188b9730b3cef37",
+  "input_sha256": "6fe744e017d9bb576a5085f9e66bfb7ab8c4697216114624dbea5859f6f0f220",
+  "scope": "task_refs, waits, longest queue; not chunk pricing or GPU performance acceptance"
+}

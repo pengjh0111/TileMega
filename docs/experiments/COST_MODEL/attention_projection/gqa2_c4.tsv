@@ -1,0 +1,6 @@
+seq	past	split	kappa	stages	task_refs	waits	max_worker_tasks
+1	3	1	1	36	194	309	36
+4	3	1	1	36	520	1190	36
+128	3	1	1	36	14656	25252	74
+512	3	1	1	36	58624	89812	242
+2048	3	1	1	36	234496	346948	926
