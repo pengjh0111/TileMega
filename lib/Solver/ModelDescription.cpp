@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/SemanticCodec.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <mlir/IR/Verifier.h>
 
@@ -195,8 +196,25 @@ ModelDescription ModelDescription::FromCouplingGraph(
     model.stages.push_back(std::move(stage));
   }
   std::map<std::string, int> task_stage;
-  for (auto task : module.getOps<dialect::TaskSpaceOp>())
+  for (auto task : module.getOps<dialect::TaskSpaceOp>()) {
     task_stage.emplace(task.getSymName().str(), task.getStage());
+    if (auto payload=task.getSemantic()) {
+      ModelTaskSemantics input;
+      input.op=analysis::DecodeSemanticOp(payload->str());
+      input.stage=task.getStage();
+      auto granularity=task.getGranularity();
+      auto ownership=granularity.getAs<mlir::StringAttr>("ownership");
+      if (!ownership || (ownership!="element_chunk" && ownership!="tile_per_block"))
+        throw std::invalid_argument("semantic task has no exact ownership model");
+      input.element_chunk=ownership=="element_chunk";
+      for (auto const& axis:input.op.result.axes) {
+        auto tile=granularity.getAs<mlir::StringAttr>(axis.name);
+        if (!tile) throw std::invalid_argument("semantic task is missing an output tile");
+        input.tiles.emplace(axis.name,analysis::ClosedForm::Parse(tile.getValue().str()));
+      }
+      model.task_semantics.push_back(std::move(input));
+    }
+  }
   model.stage_successors.resize(model.stages.size());
   for (auto edge : module.getOps<dialect::CouplingOp>()) {
     int const producer = task_stage.at(edge.getSrc().str());

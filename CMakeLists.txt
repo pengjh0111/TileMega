@@ -24,6 +24,9 @@ option(TILEMEGA_BALANCED_QP_SUM "Deduplicate and balance exact QP additions" ON)
 option(TILEMEGA_OP_ARITHMETIC "Enable audited operator arithmetic declarations" ON)
 option(TILEMEGA_TASK_WORK "Derive physical and nominal work from access maps" ON)
 option(TILEMEGA_EXACT_ELEMENT_WORK "Count exact predicated element reads" ON)
+option(TILEMEGA_SEMANTIC_COST_INPUT "Carry validated semantic accesses through CG" ON)
+set_source_files_properties(lib/Frontend/Frontend.cpp PROPERTIES
+  COMPILE_DEFINITIONS "TILEMEGA_SEMANTIC_COST_INPUT=$<BOOL:${TILEMEGA_SEMANTIC_COST_INPUT}>")
 option(TILEMEGA_COMPLETE_GEMM_READS "Include external GEMM weights in semantic reads" ON)
 option(TILEMEGA_COMPLETE_NORMALIZATION_READS "Include normalization scale reads" ON)
 set_source_files_properties(lib/Analysis/TaskWork.cpp PROPERTIES
@@ -113,6 +116,7 @@ add_library(tilemega STATIC
   lib/Frontend/GraphPattern.cpp
   lib/Frontend/ModelPlan.cpp
   lib/Frontend/SemanticLifting.cpp
+  lib/Analysis/SemanticCodec.cpp
   lib/Dialect/CouplingGraph/CGDialect.cpp
   lib/Dialect/CouplingGraph/CGContract.cpp
   lib/Analysis/ClosedForm.cpp

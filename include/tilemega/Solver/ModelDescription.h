@@ -13,6 +13,8 @@
 #include <tilemega/Solver/BackendCostQuery.h>
 #include <tilemega/Analysis/QuasiPolynomial.h>
 #include <tilemega/Analysis/CouplingRelation.h>
+#include <tilemega/Analysis/Semantics.h>
+#include <map>
 #include <tilemega/Codegen/RuntimePlan.h>
 #include <optional>
 
@@ -95,12 +97,22 @@ struct ModelStage {
   int ReadGranularity() const;
 };
 
+struct ModelTaskSemantics {
+  analysis::SemanticOp op;
+  std::map<std::string,analysis::ClosedForm> tiles;
+  int stage = -1;
+  bool element_chunk = false;
+};
+
 struct ModelDescription {
   std::string name;
   ScalarType dtype = ScalarType::kF32;
   ModelDims dims;
   std::vector<GemmOp> gemms;
   std::vector<ModelStage> stages;
+  // Empty on archived generated inputs. Access-derived pricing requires this
+  // verified CG payload and must not reconstruct it from generated numbers.
+  std::vector<ModelTaskSemantics> task_semantics;
   /// `stage_successors[i]` = the stages that depend on stage `i`, read out of
   /// the generated `kDependencies` table.  That table is already transitively
   /// reduced by the generator, so it is the DAG the megakernel actually

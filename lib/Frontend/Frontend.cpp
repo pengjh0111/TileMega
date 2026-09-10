@@ -7,6 +7,7 @@
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Analysis/DependencyForm.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
+#include <tilemega/Analysis/SemanticCodec.h>
 #include <tilemega/Dialect/CouplingGraph/CGAttrs.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
@@ -563,6 +564,10 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
     state.addAttribute("operator_name", builder.getStringAttr(node.name));
     state.addAttribute("fx_name", builder.getStringAttr(origin.fx_name));
     if (auto const* semantic = lifted.sem.Find(origin.name)) {
+#if TILEMEGA_SEMANTIC_COST_INPUT
+      if (node.name==origin.name)
+        state.addAttribute("semantic",builder.getStringAttr(analysis::EncodeSemanticOp(*semantic)));
+#endif
       std::string arithmetic = semantic->arithmetic;
       if (llvm::StringRef(node.name).ends_with(".combine"))
         arithmetic = semantic->reduction.reduction_operator == "add" ? "sum" : "";
