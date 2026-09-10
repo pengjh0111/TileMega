@@ -219,6 +219,11 @@ LogicalResult CouplingOp::verify() {
       return emitOpError() << "wait " << getWait().getValue().ToString()
                            << " does not match the relation's fiber "
                               "cardinality " << expectedWait.ToString();
+    auto expectedFanout=getRelation().getMap().FanoutCard();
+    if (!expectedFanout.SemanticallyEqual(getFanout().getValue(),known))
+      return emitOpError("fanout does not match the inverse relation's fiber cardinality");
+    if (!expectedWait.SumDomain().SemanticallyEqual(expectedFanout.SumDomain(),known))
+      return emitOpError("coupling violates sum(wait) == sum(fanout)");
     // image(C_kappa) itself is not re-derived from the relation here: doing
     // so needs "does producer coordinate depend on consumer coordinate X"
     // per domain dimension, and the only isl query available for that
