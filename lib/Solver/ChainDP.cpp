@@ -27,7 +27,7 @@ ChainDP::ChainDP(CostModel const& model, std::vector<DpCandidate> candidates)
 int ChainDP::CtasPerSm(int smem_bytes, int registers) const {
   // F-40, verified on 1075 of the oracle's 1077 measured shapes.
   auto const& res = cost_->target().res;
-  int const threads = cost_->dtype() == ScalarType::kBF16 ? 128 : 256;
+  int const threads = cost_->dtype() == ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
   int const per_cta_regs = 8 * ((registers * 32 + 255) / 256) * threads;
   int const by_regs = per_cta_regs > 0 ? res.regs_per_sm / per_cta_regs : 1;
   int const by_smem =

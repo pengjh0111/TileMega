@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/CostModel.h>
+#include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Analysis/SemanticCodec.h>
 #include <tilemega/Codegen/tasks/TaskResources.h>
@@ -407,6 +408,7 @@ double CostModel::CombineStageNs(GemmOp const& gemm, int chunks,
 double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const& traits,
                              Residency residency, ModelDescription const& model,
                              int chunks) const {
+  analysis::IslReferenceAudit audit(__func__);
 #if defined(TILEMEGA_DERIVED_TASK_COST) && !TILEMEGA_DERIVED_TASK_COST
   throw std::runtime_error("access-derived task pricing is disabled");
 #endif
@@ -602,6 +604,7 @@ double CostModel::NonGemmStageNs(ModelStage const& stage, ModelDims const& dims,
 
 double CostModel::TaskStageNs(ModelDescription const& model,int index,
                               GemmConfig const& requested,Residency residency) const {
+  analysis::IslReferenceAudit audit(__func__);
   GemmConfig config=requested;
   if (!options_.split_k) config.split_k=1;
   auto const& stage=model.stages.at(index);
@@ -651,6 +654,7 @@ double CostModel::BarrierNs(Residency residency) const {
 
 double CostModel::InterfaceEdgeNs(ModelCouplingMetrics const& edge,
                                   ModelDescription const& model) const {
+  analysis::IslReferenceAudit audit(__func__);
 #if !TILEMEGA_CG_INTERFACE_COST
   throw std::runtime_error("CG interface pricing is disabled");
 #endif
