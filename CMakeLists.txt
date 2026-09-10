@@ -298,6 +298,9 @@ target_link_libraries(tilemega-op-audit PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-op-audit PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 add_executable(tilemega-runtime-projection tools/tilemega-runtime-projection.cpp)
+add_executable(tilemega-fusion-probe tools/tilemega-fusion-probe.cpp)
+target_link_libraries(tilemega-fusion-probe PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-fusion-probe PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 target_link_libraries(tilemega-runtime-projection PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-runtime-projection PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")

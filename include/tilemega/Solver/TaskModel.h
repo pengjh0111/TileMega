@@ -34,6 +34,11 @@ struct ModelFusionCandidate {
   analysis::FusionAccesses accesses;
   analysis::MixedArithmetic arithmetic;
 };
+// L-task candidates are identified by semantic names, not runtime stage IDs.
+// Runtime ownership is a later projection and cannot define fusion legality.
+ModelFusionCandidate DeriveLogicalFusionCandidate(ModelDescription const& model,
+    std::vector<GemmConfig> const& configs, std::string const& producer,
+    std::string const& consumer);
 ModelFusionCandidate DeriveModelFusionCandidate(ModelDescription const& model,
     std::vector<GemmConfig> const& configs, int producer_stage, int consumer_stage);
 analysis::TaskWork DeriveRuntimeScalarWork(ModelDescription const& model,
@@ -42,5 +47,6 @@ analysis::TaskWork DeriveRuntimeScalarWork(ModelDescription const& model,
 DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
                                     ModelTaskSemantics const& semantic,
                                     analysis::OperatorGraph const& graph,
-                                    GemmConfig const* config);
+                                    GemmConfig const* config,
+                                    bool runtime_ownership=true);
 }  // namespace tilemega::solver

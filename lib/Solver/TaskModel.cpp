@@ -125,23 +125,11 @@ analysis::TaskAccesses DeriveModelTaskAccesses(ModelTaskSemantics const& semanti
   return accesses;
 }
 
-ModelFusionCandidate DeriveModelFusionCandidate(ModelDescription const& model,
-    std::vector<GemmConfig> const& configs, int producer_stage, int consumer_stage) {
+namespace {
+ModelFusionCandidate ComposeModelCandidate(ModelDescription const& model,
+    std::vector<GemmConfig> const& configs, ModelTaskSemantics const* producer,
+    ModelTaskSemantics const* consumer, bool runtime_ownership) {
   analysis::IslReferenceAudit audit(__func__);
-  if (producer_stage<0 || consumer_stage!=producer_stage+1 ||
-      consumer_stage>=static_cast<int>(model.stages.size()))
-    throw std::invalid_argument("fusion requires adjacent runtime stages");
-  ModelTaskSemantics const* producer=nullptr;
-  ModelTaskSemantics const* consumer=nullptr;
-  for (auto const& semantic:model.task_semantics) {
-    auto assign=[&](auto& chosen) {
-      if (chosen) throw std::invalid_argument("fusion stage has multiple logical tasks");
-      chosen=&semantic;
-    };
-    if (semantic.stage==producer_stage) assign(producer);
-    if (semantic.stage==consumer_stage) assign(consumer);
-  }
-  if (!producer || !consumer) throw std::invalid_argument("fusion stage lacks semantic task");
   std::set<std::string> incoming;
   for (auto const& operand:consumer->op.operands)
     if (!operand.producer.empty()) incoming.insert(operand.producer);
@@ -153,7 +141,7 @@ ModelFusionCandidate DeriveModelFusionCandidate(ModelDescription const& model,
     GemmConfig const* config=stage.gemm<0 ? nullptr : &configs.at(stage.gemm);
     if (config && config->split_k!=1)
       throw std::invalid_argument("fusion partial stage requires explicit combine ownership");
-    return DeriveModelTaskInput(model,semantic,graph,config);
+    return DeriveModelTaskInput(model,semantic,graph,config,runtime_ownership);
   };
   auto p=input(*producer),c=input(*consumer);
   auto pa=DeriveModelTaskAccesses(*producer,p),ca=DeriveModelTaskAccesses(*consumer,c);
@@ -175,11 +163,49 @@ ModelFusionCandidate DeriveModelFusionCandidate(ModelDescription const& model,
                                               {c.arithmetic,c.work.write_elements}});
   return {std::move(p),std::move(c),std::move(accesses),std::move(arithmetic)};
 }
+}  // namespace
+
+ModelFusionCandidate DeriveLogicalFusionCandidate(ModelDescription const& model,
+    std::vector<GemmConfig> const& configs, std::string const& producer_name,
+    std::string const& consumer_name) {
+  analysis::IslReferenceAudit audit(__func__);
+  auto find=[&](std::string const& name) {
+    auto found=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),
+        [&](auto const& semantic) { return semantic.op.name==name; });
+    if (found==model.task_semantics.end())
+      throw std::invalid_argument("fusion semantic task is missing: "+name);
+    return found;
+  };
+  auto producer=find(producer_name),consumer=find(consumer_name);
+  if (std::next(producer)!=consumer)
+    throw std::invalid_argument("fusion requires adjacent logical tasks");
+  return ComposeModelCandidate(model,configs,&*producer,&*consumer,false);
+}
+
+ModelFusionCandidate DeriveModelFusionCandidate(ModelDescription const& model,
+    std::vector<GemmConfig> const& configs, int producer_stage, int consumer_stage) {
+  analysis::IslReferenceAudit audit(__func__);
+  if (producer_stage<0 || consumer_stage!=producer_stage+1 ||
+      consumer_stage>=static_cast<int>(model.stages.size()))
+    throw std::invalid_argument("fusion requires adjacent runtime stages");
+  ModelTaskSemantics const* producer=nullptr;
+  ModelTaskSemantics const* consumer=nullptr;
+  for (auto const& semantic:model.task_semantics) {
+    auto assign=[&](auto& chosen) {
+      if (chosen) throw std::invalid_argument("fusion stage has multiple logical tasks");
+      chosen=&semantic;
+    };
+    if (semantic.stage==producer_stage) assign(producer);
+    if (semantic.stage==consumer_stage) assign(consumer);
+  }
+  if (!producer || !consumer) throw std::invalid_argument("fusion stage lacks semantic task");
+  return ComposeModelCandidate(model,configs,producer,consumer,true);
+}
 
 DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
                                     ModelTaskSemantics const& semantic,
                                     analysis::OperatorGraph const& graph,
-                                    GemmConfig const* config) {
+                                    GemmConfig const* config, bool runtime_ownership) {
   analysis::IslReferenceAudit audit(__func__);
   auto const* task=graph.Find(semantic.op.name);
   if (!task) throw std::invalid_argument("semantic cost task is absent from candidate graph");
@@ -196,7 +222,7 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
   auto signature=analysis::InstantiateArithmetic(semantic.op.arithmetic,arithmetic);
   analysis::RequireArithmeticImplementation(signature);
   DerivedTaskInput result{*task,std::move(work),std::move(signature),task->Coordinates(),std::nullopt,std::nullopt};
-  if (!config) {
+  if (!config && runtime_ownership) {
     int threads=model.dtype==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
     result.scalar_access.emplace();
     result.work=DeriveRuntimeScalarWork(model,semantic,*task,std::move(result.work),threads,&*result.scalar_access);

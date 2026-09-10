@@ -61,6 +61,11 @@ int main(int argc,char** argv) try {
       reject("fusion_fanout",[&] { auto f=replicated; f.fanout=f.fanout.Scale(2); FusionRecomputeNs(f,cost,input,traits,{2},model,1,1); });
       reject("fusion_nonadjacent",[&] { DeriveModelFusionCandidate(model,configs,0,2); });
       reject("fusion_missing_semantics",[&] { auto m=model; m.task_semantics.clear(); DeriveModelFusionCandidate(m,configs,0,1); });
+      reject("logical_fusion_missing",[&] { DeriveLogicalFusionCandidate(model,configs,"absent",semantic.op.name); });
+      reject("logical_fusion_nonadjacent",[&] { DeriveLogicalFusionCandidate(model,configs,
+          model.task_semantics.front().op.name,model.task_semantics.back().op.name); });
+      reject("logical_fusion_reverse",[&] { DeriveLogicalFusionCandidate(model,configs,
+          model.task_semantics.back().op.name,model.task_semantics.front().op.name); });
       reject("threads",[&] { ProjectScalarTaskOwnership(semantic,task,stage,0); });
       reject("rank",[&] { auto t=task; t.output.axes.pop_back(); ProjectScalarTaskOwnership(semantic,t,stage,traits.threads); });
       reject("collective",[&] { auto s=stage; s.kind=StageKind::kGemm; ProjectScalarTaskOwnership(semantic,task,s,traits.threads); });
@@ -80,6 +85,6 @@ int main(int argc,char** argv) try {
       break;
     }
   }
-  if (branches!=20 || context.ReferenceCount()) throw std::runtime_error("incomplete scalar rejection audit");
+  if (branches!=23 || context.ReferenceCount()) throw std::runtime_error("incomplete scalar rejection audit");
   std::cout << "SCALAR_ERRORS branches=" << branches << " reference_delta=0\nISL_CONTEXT remaining=0\n";
 } catch (std::exception const& e) { std::cerr << e.what() << '\n'; return 2; }
