@@ -1,0 +1,14 @@
+{
+  "gqa2": {
+    "new_logical_candidates": 2,
+    "existing_runtime_fusions": 1,
+    "rejected": 30,
+    "gpu_lowering_verified": false
+  },
+  "mha4": {
+    "new_logical_candidates": 4,
+    "existing_runtime_fusions": 1,
+    "rejected": 62,
+    "gpu_lowering_verified": false
+  }
+}

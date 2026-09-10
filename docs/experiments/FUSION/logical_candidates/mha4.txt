@@ -1,0 +1,1 @@
+FUSION_CANDIDATES accepted=5 rejected=62 remaining=0

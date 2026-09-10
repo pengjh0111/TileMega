@@ -1,0 +1,60 @@
+producer	consumer	status	reason
+0	1	REJECT	fusion tile constraint: consumer spans multiple producer tasks
+1	2	REJECT	fusion consumer is not a single-producer chain node
+2	3	REJECT	fusion consumer is not a single-producer chain node
+3	4	REJECT	fusion consumer is not a single-producer chain node
+4	5	REJECT	fusion consumer is not a single-producer chain node
+5	6	REJECT	fusion edge does not cover the complete consumer task space
+6	7	REJECT	fusion consumer is not a single-producer chain node
+7	8	REJECT	fusion consumer is not a single-producer chain node
+8	9	REJECT	fusion stage has multiple logical tasks
+9	10	REJECT	fusion stage has multiple logical tasks
+10	11	REJECT	fusion tile constraint: consumer spans multiple producer tasks
+11	12	REJECT	fusion consumer is not a single-producer chain node
+12	13	REJECT	fusion consumer is not a single-producer chain node
+13	14	REJECT	fusion stage has multiple logical tasks
+14	15	REJECT	fusion stage has multiple logical tasks
+15	16	REJECT	fusion tile constraint: consumer spans multiple producer tasks
+16	17	REJECT	fusion consumer is not a single-producer chain node
+17	18	REJECT	fusion consumer is not a single-producer chain node
+18	19	REJECT	fusion consumer is not a single-producer chain node
+19	20	REJECT	fusion consumer is not a single-producer chain node
+20	21	REJECT	fusion edge does not cover the complete consumer task space
+21	22	REJECT	fusion consumer is not a single-producer chain node
+22	23	REJECT	fusion consumer is not a single-producer chain node
+23	24	REJECT	fusion stage has multiple logical tasks
+24	25	REJECT	fusion stage has multiple logical tasks
+25	26	REJECT	fusion tile constraint: consumer spans multiple producer tasks
+26	27	REJECT	fusion consumer is not a single-producer chain node
+27	28	REJECT	fusion consumer is not a single-producer chain node
+28	29	REJECT	fusion stage has multiple logical tasks
+29	30	REJECT	fusion stage has multiple logical tasks
+30	31	REJECT	fusion tile constraint: consumer spans multiple producer tasks
+31	32	REJECT	fusion consumer is not a single-producer chain node
+32	33	REJECT	fusion consumer is not a single-producer chain node
+33	34	REJECT	fusion consumer is not a single-producer chain node
+34	35	REJECT	fusion consumer is not a single-producer chain node
+35	36	REJECT	fusion edge does not cover the complete consumer task space
+36	37	REJECT	fusion consumer is not a single-producer chain node
+37	38	REJECT	fusion consumer is not a single-producer chain node
+38	39	REJECT	fusion stage has multiple logical tasks
+39	40	REJECT	fusion stage has multiple logical tasks
+40	41	REJECT	fusion tile constraint: consumer spans multiple producer tasks
+41	42	REJECT	fusion consumer is not a single-producer chain node
+42	43	REJECT	fusion consumer is not a single-producer chain node
+43	44	REJECT	fusion stage has multiple logical tasks
+44	45	REJECT	fusion stage has multiple logical tasks
+45	46	REJECT	fusion tile constraint: consumer spans multiple producer tasks
+46	47	REJECT	fusion consumer is not a single-producer chain node
+47	48	REJECT	fusion consumer is not a single-producer chain node
+48	49	REJECT	fusion consumer is not a single-producer chain node
+49	50	REJECT	fusion consumer is not a single-producer chain node
+50	51	REJECT	fusion edge does not cover the complete consumer task space
+51	52	REJECT	fusion consumer is not a single-producer chain node
+52	53	REJECT	fusion consumer is not a single-producer chain node
+53	54	REJECT	fusion stage has multiple logical tasks
+54	55	REJECT	fusion stage has multiple logical tasks
+55	56	REJECT	fusion tile constraint: consumer spans multiple producer tasks
+56	57	REJECT	fusion consumer is not a single-producer chain node
+57	58	REJECT	fusion consumer is not a single-producer chain node
+58	59	REJECT	fusion stage has multiple logical tasks
