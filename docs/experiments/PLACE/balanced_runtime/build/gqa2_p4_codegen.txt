@@ -1,0 +1,1 @@
+CODEGEN_SUMMARY tasks=34 couplings=42 stages=30 symbolic_windows=22 fallback_windows=0 output=/root/TileMega/docs/experiments/PLACE/balanced_runtime/src/gqa2_p4.cu
