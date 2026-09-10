@@ -1,0 +1,15 @@
+INTERFACE_PROBE model=gqa2 m=32 n=32 edges=42 remaining=0
+INTERFACE_PROBE model=gqa2 m=32 n=128 edges=42 remaining=0
+INTERFACE_PROBE model=gqa2 m=128 n=32 edges=42 remaining=0
+INTERFACE_PROBE model=gqa2 m=128 n=128 edges=42 remaining=0
+INTERFACE_PAIR producer_gemm=3 consumer_gemm=6 producer_m=32 consumer_m=32 ns=0
+INTERFACE_PAIR producer_gemm=3 consumer_gemm=6 producer_m=32 consumer_m=128 ns=0
+INTERFACE_PAIR producer_gemm=3 consumer_gemm=6 producer_m=128 consumer_m=32 ns=0
+INTERFACE_PAIR producer_gemm=3 consumer_gemm=6 producer_m=128 consumer_m=128 ns=0
+INTERFACE_DP model=gqa2 mode=0 old_ns=102488.8674846806 new_ns=102696.19921723443 interface_ns=207.33173255384327 spread_ns=51.282051723462679 frontier=1 decomposition_ns=1.4551915228366852e-10 transitions=224
+INTERFACE_DP model=gqa2 mode=1 old_ns=102488.8674846806 new_ns=102696.19921723443 interface_ns=207.33173255384327 spread_ns=51.282051723462679 frontier=1 decomposition_ns=1.4551915228366852e-10 transitions=384
+INTERFACE_DP model=gqa2 mode=2 old_ns=83197.144282354944 new_ns=83426.498751476553 interface_ns=229.35446912160961 spread_ns=51.282051723462679 frontier=1 decomposition_ns=4.3655745685100555e-11 transitions=1746
+INTERFACE_EXHAUSTIVE model=gqa2 configurations=16 price_bits_equal=1 unified=1 seq=4
+/root/TileMega/third_party/barvinok/summate.c:929: input polynomial has no domain
+INTERFACE_ERRORS branches=5 reference_delta=0
+ISL_CONTEXT remaining=0

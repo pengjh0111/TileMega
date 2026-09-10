@@ -1,0 +1,13 @@
+INTERFACE_PROBE model=gqa2 m=32 n=32 edges=42 remaining=0
+INTERFACE_PROBE model=gqa2 m=32 n=128 edges=42 remaining=0
+INTERFACE_PROBE model=gqa2 m=128 n=32 edges=42 remaining=0
+INTERFACE_PROBE model=gqa2 m=128 n=128 edges=42 remaining=0
+INTERFACE_PAIR producer_gemm=3 consumer_gemm=6 producer_m=32 consumer_m=32 ns=0
+INTERFACE_PAIR producer_gemm=3 consumer_gemm=6 producer_m=32 consumer_m=128 ns=19.230769396298506
+INTERFACE_PAIR producer_gemm=3 consumer_gemm=6 producer_m=128 consumer_m=32 ns=0
+INTERFACE_PAIR producer_gemm=3 consumer_gemm=6 producer_m=128 consumer_m=128 ns=0
+INTERFACE_DP model=gqa2 mode=0 old_ns=127226.8179254006 new_ns=147701.52763689353 interface_ns=20474.709711492924 spread_ns=615.3908806976317 frontier=1 decomposition_ns=1.1641532182693481e-10 transitions=224
+INTERFACE_DP model=gqa2 mode=1 old_ns=127226.8179254006 new_ns=147701.52763689353 interface_ns=20474.709711492924 spread_ns=615.3908806976317 frontier=1 decomposition_ns=1.1641532182693481e-10 transitions=384
+INTERFACE_DP model=gqa2 mode=2 old_ns=111119.04882271661 new_ns=131509.97447900119 interface_ns=20390.925656284577 spread_ns=615.3908806976317 frontier=1 decomposition_ns=8.7311491370201111e-11 transitions=1746
+INTERFACE_EXHAUSTIVE model=gqa2 configurations=16 price_bits_equal=1
+ISL_CONTEXT remaining=0
