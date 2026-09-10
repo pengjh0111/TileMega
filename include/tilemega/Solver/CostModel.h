@@ -44,7 +44,7 @@
 #define TILEMEGA_CG_INTERFACE_DP 0
 #endif
 #ifndef TILEMEGA_UNIFIED_TASK_COST
-#define TILEMEGA_UNIFIED_TASK_COST 0
+#define TILEMEGA_UNIFIED_TASK_COST 1
 #endif
 
 namespace tilemega::solver {
