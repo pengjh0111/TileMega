@@ -26,6 +26,7 @@ int main(int argc,char** argv) try {
   using namespace tilemega::solver;
   analysis::IslContext context;
   if (argc!=2) throw std::invalid_argument("usage: tilemega-task-cost-gate REPO");
+  std::cout << std::unitbuf;
   std::string root=argv[1];
   auto target=TargetSpec::FromJson(root+"/configs/targets/sm_89.json");
   mlir::MLIRContext mlir;

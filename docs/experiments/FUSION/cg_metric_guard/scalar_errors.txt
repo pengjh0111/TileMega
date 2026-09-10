@@ -1,0 +1,29 @@
+instance_occupancy	before=0	after=0	task instance requires valid wave occupancy
+instance_rank	before=0	after=0	task instance coordinate rank mismatch
+instance_negative	before=0	after=0	task instance coordinate is missing or negative
+instance_domain	before=0	after=0	scalar task instance outside domain
+negative_memory	before=0	after=0	invalid instance memory traffic
+infinite_memory	before=0	after=0	invalid instance memory traffic
+local_operand	before=0	after=0	local input operand is outside task signature
+collective_local_input	before=0	after=0	collective shared input requires a compatible mainloop
+fusion_fanout	before=0	after=0	fusion fanout differs from exact CG metric
+fusion_nonadjacent	before=0	after=0	fusion requires adjacent runtime stages
+fusion_missing_semantics	before=0	after=0	fusion stage lacks semantic task
+logical_fusion_missing	before=0	after=0	fusion semantic task is missing: absent
+logical_fusion_nonadjacent	before=0	after=0	fusion requires adjacent logical tasks
+logical_fusion_reverse	before=0	after=0	fusion requires adjacent logical tasks
+threads	before=0	after=0	unsupported scalar ownership domain
+rank	before=0	after=0	unsupported scalar ownership domain
+collective	before=0	after=0	unsupported scalar ownership domain
+element_tile	before=0	after=0	element ownership requires unit logical tasks
+odd_rotation	before=0	after=0	rotation head width must be positive and even
+missing_signature	before=0	after=0	missing arithmetic signature: absent_signature
+missing_flow	before=0	after=0	scalar task latency DAG/ownership has not been supplied
+coordinate_contract	before=0	after=0	scalar task latency DAG/ownership has not been supplied
+reduction_threads	before=0	after=0	invalid scalar dataflow or reduction width
+cyclic_flow	before=0	after=0	scalar dataflow is not a topological DAG
+empty_flow	before=0	after=0	invalid scalar dataflow or reduction width
+unbound_theta	before=0	after=0	bind theta before FP64 task evaluation
+missing_stage_semantics	before=0	after=0	runtime stage lacks a CG semantic cost input
+SCALAR_ERRORS branches=27 reference_delta=0
+ISL_CONTEXT remaining=0

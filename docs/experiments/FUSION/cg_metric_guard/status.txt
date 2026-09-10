@@ -1,0 +1,1 @@
+PASS 3 verifier paths and 27 scalar/fusion error paths; zero ISL references

@@ -1,0 +1,549 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 1bf27440..b971cb57 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -301,6 +301,9 @@ set_target_properties(tilemega-op-audit PROPERTIES
+   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+ add_executable(tilemega-runtime-projection tools/tilemega-runtime-projection.cpp)
+ add_executable(tilemega-fusion-probe tools/tilemega-fusion-probe.cpp)
++add_executable(tilemega-fusion-cost tools/tilemega-fusion-cost.cpp)
++target_link_libraries(tilemega-fusion-cost PRIVATE TileMega::tilemega)
++set_target_properties(tilemega-fusion-cost PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+ add_executable(tilemega-attention-work tools/tilemega-attention-work.cpp)
+ add_executable(tilemega-attention-plan-price tools/tilemega-attention-plan-price.cpp)
+ add_executable(tilemega-attention-dp tools/tilemega-attention-dp.cpp)
+diff --git a/docs/experiments/PARAMETRIC/quadratic/lane_intersections_test.txt b/docs/experiments/PARAMETRIC/quadratic/lane_intersections_test.txt
+index 5eb3c31b..90f0afbf 100644
+--- a/docs/experiments/PARAMETRIC/quadratic/lane_intersections_test.txt
++++ b/docs/experiments/PARAMETRIC/quadratic/lane_intersections_test.txt
+@@ -1 +1 @@
+-LANE_INTERSECTIONS integer_checks=72501 errors=10 envelope_checks=126 reference_delta=0
++LANE_INTERSECTIONS integer_checks=72501 errors=12 envelope_checks=126 reference_delta=0
+diff --git a/docs/experiments/PARAMETRIC/result.md b/docs/experiments/PARAMETRIC/result.md
+index cea3885e..e87f2227 100644
+--- a/docs/experiments/PARAMETRIC/result.md
++++ b/docs/experiments/PARAMETRIC/result.md
+@@ -1,5 +1,10 @@
+ # T1：参数化消费路径——实现前设计
+ 
++本轮B3更新：精确二次根整数分段、QP floor区间、min/max包络与cache
++clamp区间已实现并验证，见[quadratic/result.md](quadratic/result.md)。
++真实模型符号DP仍未完成，(b)尚未退役；以下旧轮选择理由保留为历史，
++不再用来声称(a)不可实现。
++
+ ⚠️ 输入侧 2154/2154 位级一致性及有限域 DP 已验证；完整代价消费与一般符号 DP 尚未通过。
+ 
+ ## max 之外的表示限制与选择
+diff --git a/docs/experiments/ROUND5_LEDGER.md b/docs/experiments/ROUND5_LEDGER.md
+index 3ade8620..5ddb9626 100644
+--- a/docs/experiments/ROUND5_LEDGER.md
++++ b/docs/experiments/ROUND5_LEDGER.md
+@@ -13,6 +13,14 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
+ 
+ ### 当前补做记录
+ 
++最新实现：B1按逻辑task名构造候选，gqa2/mha4分别有2/4条新逻辑候选，
++各1条已有epilogue融合单独标记，23错误出口零残留。B3已实现精确有理数
++二次根整数分段、QP floor区间、min/max包络和cache clamp区间；72501根序、
++126包络、195cache逐点对照通过，仍不等于完整(a) DP。
++A7四阶段QP访问/算术量2720格通过，14张原标量价格表字节不变；chunk计划
++价格/shared/workspace/barrier及固定chunk的DP已接入，完整候选/排序验证进行中。
++不得将上述未验收主体标成外部阻塞。当前GPU正确性仍引用原800进程，不是新跑。
++
+ 最新追加：A7 独立投影核对已完成，800 个原 GPU 进程的 task/wait/最长队列
+ 共 2400/2400 相等（attention_projection）；新模型 GPU 运行不是重复跑的。
+ B1.1 新增逐 task 价格及精确非均匀 fanout 重算，4308 位门复跑通过。
+@@ -32,7 +40,7 @@ CPU 测试通过；尚未将这些部件接入区间 DP 或 GPU，不能标完
+ 
+ A7 的已归档生产 chunk 数值门为 800/800（`COST_MODEL/attention_models`），
+ 不是仅 primitive 50 进程；plan/runtime/四阶段展开已接入。仍缺 chunk 价格、
+-候选 DP、独立投影对账及预测/实测排序，不能以数值通过替代这些项。
++候选 DP与预测/实测排序，不能以数值通过替代这些项；独立投影已2400/2400。
+ 
+ - A0 最先检查；A1+A2 优先，随后 A3–A6、A9、A7、A8、A11、A12。
+ - B 全部登记但不提前开工，必须先通过 A6/A9；A2 投影仅实现一次供 B 复用。
+@@ -61,9 +69,9 @@ A7 的已归档生产 chunk 数值门为 800/800（`COST_MODEL/attention_models`
+ | A4 | 单位置签名schema；GEMM/attention/RMS/RoPE/SiLU/mul/add/SwiGLU/KV/MoE/Softmax/LayerNorm/GeLU全部语义推导；缺项抛错；op-audit | 当前签名已验证 | 单表14签名schema零失败、4真实错误出口零残留；4个独立TaskBody缺失/占位明确拒绝执行定价。A6真实消费，混合签名扩展归B1.3 | 5c869fc；COST_MODEL/op_audit.txt、scalar_work/result.md |
+ | A5 | shared/threads/stages从TaskBody traits暴露，消除本地假设 | 当前TaskBody已验证 | traits、scalar控制流DAG与union消费已接入A6；BF16线程128；实际CUDA合约重编译通过，原10/10 SASS/资源比较保留。chunk/fusion新增资源另随对应任务验证 | TaskResources.h、ScalarDataflow.h；COST_MODEL/scalar_work、stage_price_gate |
+ | A6 | 统一TaskCostNs；九lane/max/尾波原序不变；QP；旧路径开关；顶层task_sum/combine/barrier/event | 硬门已验证 | 4308/4308组，显式及实际TaskStageNs入口各904680位比较相等；14标量格、13错误分支零残留。FP32全1077×2排名不降；BF16历史770/462子集排名不变（非新oracle）。四份完整DP计划与旧路径逐字节相同；默认统一路径后33/33测试通过 | 1264431e、ccdb90d8；COST_MODEL/stage_price_gate、scalar_work、unified_rank、unified_solver |
+-| A7.1 | attention FLOP/非TC；chunk候选/plan/runtime/iters/combine价格及复用理由 | 数值原型实施中 | 已实现四阶段QK/normalize/PV/combine原型，保留score/prob两处BF16舍入；50/50新进程数值单测通过，但生产plan/DP/投影/价格未接入。原combine占位已识别，不当成已有实现 | COST_MODEL/attention_phases，非完整模型验收 |
+-| A7.2 | chunk_extent shared；同步TaskSmem/static_assert/kNonGemmTaskSmem/CtasPerSm；四chunk资源与F40 | 未开始 | 未验证 | 待填 |
+-| A7.3 | 2模型×2seq×4chunk×50=800新进程BF16；chunk1哈希同基线；预测/实测排序；长上下文attention新旧占比 | 部分验证 | 长上下文占比诊断已完成；数值原型50进程不是800生产模型门。后者及排序仍待接入 | COST_MODEL/scalar_work/result.md、attention_phases |
++| A7.1 | attention FLOP/非TC；chunk候选/plan/runtime/iters/combine价格及复用理由 | 价格及候选实现中 | 生产plan/runtime/投影已接；四阶段访问与FLOP2720格过；固定chunk DP与候选计划外层已实现，完整验收未完 | COST_MODEL/attention_work、attention_prices |
++| A7.2 | chunk_extent shared；同步TaskSmem/static_assert/kNonGemmTaskSmem/CtasPerSm；四chunk资源与F40 | runtime已验证、模型验证中 | 原800进程资源均2CTA/24576B；新模型按scratch_extent与union传入两种DP的驻留筛选，完整资源对账运行中 | COST_MODEL/attention_models、attention_prices |
++| A7.3 | 2模型×2seq×4chunk×50=800新进程BF16；chunk1哈希同基线；预测/实测排序；长上下文attention新旧占比 | 数值门已验证、排序进行中 | 800/800生产进程与chunk1哈希门完成；独立投影2400计数相等；预测/实测排序正在补，未声称完成 | COST_MODEL/attention_models、attention_projection、attention_prices |
+ | A8 | CG wait与volume定价Interface，实际使用两个tile；旧Carry开关；spread非零及per-op收益；若零解释并反事实轴 | CPU功能已验证 | 两模型真实残差边M32→128为19.2307693963ns，其余三组合0；八候选spread615.3908806976ns。跨非相邻GEMM残差使旧链不再精确，新增frontier DP；两模型×16穷举选择位相同，统一价格组合路径复核通过。不是全1077候选性能或GPU收益 | 8cb78e55；COST_MODEL/interface_work/result.md |
+ | A9.1 | notify/poll各拟合stages/max_worker/total结构；≥12格25轮四臂；4090运行/5090脚本；LOO残差 | 已验证 | 600/600正确性、1200四臂进程；12格LOO完成，poll误差最高95.06%。两个最长队列系数均为0，保留不凑系数。sm120只写脚本未运行 | EVENT_COST/round5_structured.md、calibration_round5_fit |
+ | A9.2 | coupling_metrics QP消费A2投影；L1保留；κ仅改wait；fence/fusion接口零且带缺失理由 | 具体价格已验证 | exact variant输入/缺失rates拒绝；L1独立保留。L2候选级DP转移未实现且显式拒绝，不能当作A6或符号DP通过 | b08cd50；CostModel.cpp:475 |
+@@ -90,7 +98,7 @@ A7 的已归档生产 chunk 数值门为 800/800（`COST_MODEL/attention_models`
+ | B2.5 | BF162模型×2seq×50=200进程；时间/调度字段；预测差与实测差；A9.3 placement差非零正确 | 正确性通过、性能负 | 两臂400/400，新映射wait200/200对账；25轮配对四格显著变慢，价格预测下降，sign门不通过 | 93ee45df、3d76ae55；PLACE/round5_balanced_result.md |
+ | B2.6 | sm_120 placement脚本只写不跑，状态轮转 | runner已实现 | CPU校验通过，未生成sm120实际构建manifest，未运行 | 7ba67440；PLACE/run_sm120.sh |
+ | B3.1 | cache实测分段曲线/CDF开关；BF16/FP32全配置ρ/top-k/逐点差；BF16变差保留报告 | 负门已触发 | BF16历史770/462子集ρ分别−.00022857/−.00003006；FP32全1077×2预测字节不变。曲线保留OFF，不默认替换CDF；不是新BF16全oracle | ebace9bf、2a0df628；PARAMETRIC/cache_curve/result.md |
+-| B3.2 | live-lane ≤二次闭式根，>2报错；cache/ceil/lane分段并集；符号DP包含全部决策；residency链外；有限(b)仅对照S1..16选择同 | 未开始 | 内部实现待办，非外部阻塞；B3.1负结果不禁止独立曲线路径实现(a) | PARAMETRIC/result.md |
++| B3.2 | live-lane ≤二次闭式根，>2报错；cache/ceil/lane分段并集；符号DP包含全部决策；residency链外；有限(b)仅对照S1..16选择同 | 精确分段部件已验证 | 有理二次根/ceil区间/min-max/cache区间已实现；真实lane及符号DP未完，(b)未退役；非外部阻塞 | aebce625、e80b7c1d；PARAMETRIC/quadratic/result.md |
+ | B4.1 | 承接A12.1未完成项 | 未开始 | 与A12.1同一任务，不重复计数 | 待填 |
+ | B4.2 | 承接A12.2未完成项 | 已验证 | 与A12.2同一任务，不重复计数 | COST_MODEL/partial_combine.md |
+ | B4.3 | 承接A12.3未完成项 | 已验证 | 与A12.3同一任务，不重复计数 | EVENT_COST/runtime_projection/autotools_cleanup.md |
+diff --git a/docs/experiments/T0_T4_STATUS.md b/docs/experiments/T0_T4_STATUS.md
+index 27c54b5d..1b5a4c3e 100644
+--- a/docs/experiments/T0_T4_STATUS.md
++++ b/docs/experiments/T0_T4_STATUS.md
+@@ -2,6 +2,11 @@
+ 
+ ## Round 5 A/B（基线 c1281b9，当前执行轮）
+ 
++当前补做：B1逻辑task适配与已有epilogue区分已验证（新候选2/4条）；
++B3精确根/包络/cache区间部件已验证，尚非完整(a)。A7正在补四阶段
++QP价格、候选chunk、共享预算与完整模型排序；原14张标量价格表字节不变。
++各编号的当前状态以ROUND5_LEDGER为准，不以旧段落的“未开始”覆盖新进展。
++
+ 最新补做：A7 原800进程队列经独立CG投影2400/2400计数核对；B1新增物理
+ R/W适配、max scratch+中间tile资源、逐task价格及fanout重算、混合算术
+ 签名保留MMA/SIMT各自输出域。4308配置组价格位门复跑通过。
+diff --git a/include/tilemega/Codegen/tasks/ScalarDataflow.h b/include/tilemega/Codegen/tasks/ScalarDataflow.h
+index d398bd65..55b63db9 100644
+--- a/include/tilemega/Codegen/tasks/ScalarDataflow.h
++++ b/include/tilemega/Codegen/tasks/ScalarDataflow.h
+@@ -6,15 +6,17 @@
+ #include <vector>
+ 
+ namespace tilemega::codegen {
+-enum class ScalarPhase { kLoad, kStore, kArithmetic, kBlockReduction, kPublish };
++enum class ScalarPhase { kLoad, kStore, kArithmetic, kBlockReduction, kPublish, kLocalLoad, kLocalStore };
+ struct ScalarFlowNode {
+   ScalarPhase phase;
+   std::vector<int> inputs;
++  // Empty means every input operand; otherwise indices follow the TaskBody.
++  std::vector<int> read_operands;
+ };
+ struct ScalarDataflow {
+   std::vector<ScalarFlowNode> nodes;
+   int Add(ScalarPhase phase,std::vector<int> inputs={}) {
+-    nodes.push_back({phase,std::move(inputs)});
++    nodes.push_back({phase,std::move(inputs),{}});
+     return int(nodes.size())-1;
+   }
+   // The latency depth counts dependent global-memory phases, not FLOPs.
+@@ -49,9 +51,11 @@ inline ScalarDataflow ScalarTaskDataflow(TaskKind kind) {
+   int input=flow.Add(ScalarPhase::kLoad);
+   switch (kind) {
+     case TaskKind::kRMSNorm: {
++      flow.nodes[input].read_operands={0};
+       int sum=flow.Add(ScalarPhase::kBlockReduction,{input});
+       int scale=flow.Add(ScalarPhase::kArithmetic,{sum});
+       int weighted=flow.Add(ScalarPhase::kLoad,{scale});
++      flow.nodes[weighted].read_operands={0,1};
+       flow.Add(ScalarPhase::kStore,{weighted});
+       return flow;
+     }
+diff --git a/include/tilemega/Solver/CostModel.h b/include/tilemega/Solver/CostModel.h
+index 40325f43..cea29449 100644
+--- a/include/tilemega/Solver/CostModel.h
++++ b/include/tilemega/Solver/CostModel.h
+@@ -28,6 +28,7 @@
+ #include <array>
+ #include <memory>
+ #include <optional>
++#include <set>
+ #include <vector>
+ 
+ #ifndef TILEMEGA_TASK_TRAIT_COSTS
+@@ -56,6 +57,11 @@ namespace tilemega::solver {
+ 
+ struct DerivedTaskInput;
+ struct AttentionPhaseWork;
++struct TaskMemoryTraffic {
++  double global_read_bytes=0, global_write_bytes=0;
++  double local_read_bytes=0, local_write_bytes=0;
++  std::set<int> local_read_operands;
++};
+ 
+ /// Why a lane of `ResourceVector` carries zero.  A zero lane is never bare:
+ /// it is either live, or the target has no such pipe, or the pipe exists and
+@@ -208,7 +214,8 @@ class CostModel {
+   double TaskInstanceNs(DerivedTaskInput const& input, BackendTraits const& traits,
+                         Residency residency, ModelDescription const& model,
+                         int chunks, analysis::ParamBinding const& coordinates,
+-                        double active_ctas_per_sm) const;
++                        double active_ctas_per_sm,
++                        TaskMemoryTraffic const* memory=nullptr) const;
+   double TaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,
+                      Residency residency) const;
+   /// §2.2(f): one stage barrier, at this grid width.
+@@ -244,11 +251,11 @@ class CostModel {
+  private:
+   double ScalarInstanceNs(double bytes,double output_bytes,double flops,double transc,
+                           double occupancy,double miss,bool shared_staged,
+-                          int depth,int barriers) const;
++                          int depth,int barriers,double local_bytes=0) const;
+   double TaskCostImpl(DerivedTaskInput const& input, BackendTraits const& traits,
+                      Residency residency, ModelDescription const& model, int chunks,
+                      analysis::ParamBinding const* coordinates,
+-                     double active_ctas_per_sm) const;
++                     double active_ctas_per_sm,TaskMemoryTraffic const* memory=nullptr) const;
+   double WavesNs(double per_sm_work_count, Residency residency,
+                  GemmConfig const& config, double iters,
+                  double dram_fraction) const;
+diff --git a/include/tilemega/Solver/FusionResources.h b/include/tilemega/Solver/FusionResources.h
+index b6aba34d..b7e7fcb3 100644
+--- a/include/tilemega/Solver/FusionResources.h
++++ b/include/tilemega/Solver/FusionResources.h
+@@ -6,6 +6,21 @@
+ #include <map>
+ 
+ namespace tilemega::solver {
++struct ModelFusionCandidate;
++#ifndef TILEMEGA_FUSION_TASK_COST
++#define TILEMEGA_FUSION_TASK_COST 1
++#endif
++struct FusionTaskPrice {
++  long producer_tasks=0,consumer_tasks=0,recomputed_tasks=0;
++  long producer_waves=0,consumer_waves=0;
++  double separate_ns=0,fused_ns=0,recompute_ns=0;
++  double global_bytes_before=0,global_bytes_after=0,local_bytes=0;
++};
++// Task-only price at an externally pinned whole-kernel residency. Events
++// belong to the reprojected L-sched, not to a guessed per-logical-edge fee.
++FusionTaskPrice PriceFusionTasks(ModelFusionCandidate const& candidate,
++    CostModel const& cost,BackendTraits const& producer,BackendTraits const& consumer,
++    Residency residency,ModelDescription const& model);
+ struct FusionResources {
+   long intermediate_bytes = 0;
+   int shared_bytes = 0, registers = 0, threads = 0;
+diff --git a/include/tilemega/Solver/TaskModel.h b/include/tilemega/Solver/TaskModel.h
+index 2ae49c8a..5e550633 100644
+--- a/include/tilemega/Solver/TaskModel.h
++++ b/include/tilemega/Solver/TaskModel.h
+@@ -33,6 +33,7 @@ struct ModelFusionCandidate {
+   DerivedTaskInput producer, consumer;
+   analysis::FusionAccesses accesses;
+   analysis::MixedArithmetic arithmetic;
++  analysis::TaskAccesses producer_accesses,consumer_accesses;
+ };
+ // L-task candidates are identified by semantic names, not runtime stage IDs.
+ // Runtime ownership is a later projection and cannot define fusion legality.
+diff --git a/lib/Solver/CostModel.cpp b/lib/Solver/CostModel.cpp
+index eb7ae99c..810bd304 100644
+--- a/lib/Solver/CostModel.cpp
++++ b/lib/Solver/CostModel.cpp
+@@ -418,7 +418,8 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
+ 
+ double CostModel::TaskInstanceNs(DerivedTaskInput const& input, BackendTraits const& traits,
+     Residency residency, ModelDescription const& model, int chunks,
+-    analysis::ParamBinding const& coordinates, double active_ctas_per_sm) const {
++    analysis::ParamBinding const& coordinates, double active_ctas_per_sm,
++    TaskMemoryTraffic const* memory) const {
+   if (!std::isfinite(active_ctas_per_sm) || active_ctas_per_sm<1 ||
+       active_ctas_per_sm>residency.ctas_per_sm)
+     throw std::invalid_argument("task instance requires valid wave occupancy");
+@@ -429,7 +430,18 @@ double CostModel::TaskInstanceNs(DerivedTaskInput const& input, BackendTraits co
+     if (!coordinates.Contains(name) || coordinates.values.at(name)<0)
+       throw std::invalid_argument("task instance coordinate is missing or negative");
+   }
+-  if (input.scalar_flow) {
++  if (memory) {
++    for (double bytes:{memory->global_read_bytes,memory->global_write_bytes,
++                       memory->local_read_bytes,memory->local_write_bytes})
++      if (!std::isfinite(bytes) || bytes<0)
++        throw std::invalid_argument("invalid instance memory traffic");
++    if (traits.stages>0 && memory->local_read_bytes>0)
++      throw std::invalid_argument("collective shared input requires a compatible mainloop");
++    for (int operand:memory->local_read_operands)
++      if (operand<0 || operand>=static_cast<int>(input.task.operands.size()))
++        throw std::invalid_argument("local input operand is outside task signature");
++  }
++  if (input.scalar_access) {
+     if (coordinates.values.at("q")>=input.work.task_count.SubstituteParams(known).Eval({}))
+       throw std::invalid_argument("scalar task instance outside domain");
+   } else {
+@@ -438,11 +450,11 @@ double CostModel::TaskInstanceNs(DerivedTaskInput const& input, BackendTraits co
+           input.task.CoordinateExtent(axis).Eval(known,known))
+         throw std::invalid_argument("collective task instance outside domain");
+   }
+-  return TaskCostImpl(input,traits,residency,model,chunks,&coordinates,active_ctas_per_sm);
++  return TaskCostImpl(input,traits,residency,model,chunks,&coordinates,active_ctas_per_sm,memory);
+ }
+ 
+ double CostModel::ScalarInstanceNs(double bytes,double output_bytes,double flops,double transc,
+-    double o,double miss,bool shared_staged,int depth,int barriers) const {
++    double o,double miss,bool shared_staged,int depth,int barriers,double local_bytes) const {
+   if ((flops>0 && lanes_[ResourceVector::kCudaCore]!=LaneStatus::kLive) ||
+       (transc>0 && lanes_[ResourceVector::kSfu]!=LaneStatus::kLive))
+     throw std::runtime_error("scalar arithmetic rate: not_calibrated");
+@@ -453,6 +465,11 @@ double CostModel::ScalarInstanceNs(double bytes,double output_bytes,double flops
+   if (transc>0) u.sfu=o*transc/sfu_ops_per_ns_per_sm_;
+   if (shared_staged && statuses[ResourceVector::kSmem]==LaneStatus::kLive)
+     u.smem=o*bytes/(calib_->smem_gbps/target_->res.num_sms);
++  if (local_bytes>0) {
++    if (statuses[ResourceVector::kSmem]!=LaneStatus::kLive)
++      throw std::runtime_error("local task traffic: shared bandwidth not_calibrated");
++    u.smem+=o*local_bytes/(calib_->smem_gbps/target_->res.num_sms);
++  }
+   u.l2=o*bytes/l2_bytes_per_ns_per_sm_;
+   u.dram=o*bytes*miss/dram_bytes_per_ns_per_sm_;
+   for (int i=0;i<ResourceVector::kLaneCount;++i) {
+@@ -502,7 +519,7 @@ double CostModel::TaskCostNs(AttentionPhaseWork const& input,BackendTraits const
+ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits const& traits,
+                              Residency residency, ModelDescription const& model,
+                              int chunks, analysis::ParamBinding const* coordinates,
+-                             double active_ctas_per_sm) const {
++                             double active_ctas_per_sm,TaskMemoryTraffic const* memory) const {
+   analysis::IslReferenceAudit audit(__func__);
+ #if defined(TILEMEGA_DERIVED_TASK_COST) && !TILEMEGA_DERIVED_TASK_COST
+   throw std::runtime_error("access-derived task pricing is disabled");
+@@ -510,9 +527,21 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
+   if (model.dims.IsSymbolic()) throw std::invalid_argument("bind theta before FP64 task evaluation");
+   auto known=model.MetricBindings();
+   if (traits.stages<=0) {
+-    if (!input.scalar_flow || input.cost_coordinates!=std::vector<std::string>{"q"})
++    if (!input.scalar_flow || (!coordinates && input.cost_coordinates!=std::vector<std::string>{"q"}))
+       throw std::invalid_argument("scalar task latency DAG/ownership has not been supplied");
+-    auto [depth,barriers]=input.scalar_flow->MemoryDepthAndBarriers(traits.threads);
++    auto flow=*input.scalar_flow;
++    if (memory) for (auto& node:flow.nodes) {
++      if (node.phase==codegen::ScalarPhase::kStore && memory->global_write_bytes==0)
++        node.phase=codegen::ScalarPhase::kLocalStore;
++      if (node.phase!=codegen::ScalarPhase::kLoad) continue;
++      auto operands=node.read_operands;
++      if (operands.empty())
++        for (int i=0;i<static_cast<int>(input.task.operands.size());++i) operands.push_back(i);
++      if (!operands.empty() && std::all_of(operands.begin(),operands.end(),
++            [&](int operand) { return memory->local_read_operands.count(operand); }))
++        node.phase=codegen::ScalarPhase::kLocalLoad;
++    }
++    auto [depth,barriers]=flow.MemoryDepthAndBarriers(traits.threads);
+     double ctas=double(input.work.task_count.SubstituteParams(known).Eval({}));
+     if (coordinates) ctas=1;
+     double grid=double(target_->res.num_sms)*std::max(1,residency.ctas_per_sm);
+@@ -530,10 +559,12 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
+       cache_key << ":instance:" << active_ctas_per_sm;
+       for (auto const& [name,value]:coordinates->values) cache_key << ':' << name << '=' << value;
+     }
++    if (memory) cache_key << ":memory:" << memory->global_read_bytes << ':' << memory->global_write_bytes
++        << ':' << memory->local_read_bytes << ':' << memory->local_write_bytes;
+     auto cached=scalar_price_cache_.find(cache_key.str());
+     if (cached!=scalar_price_cache_.end()) return cached->second;
+     double total=0;
+-    long first=coordinates ? coordinates->values.at("q") : 0;
++    long first=coordinates && input.scalar_access ? coordinates->values.at("q") : 0;
+     for (double remaining=ctas;remaining>0;remaining-=grid) {
+       double active=std::min(grid,remaining);
+       double o=options_.wave_tail ? std::max(1.0,active/target_->res.num_sms)
+@@ -542,6 +573,7 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
+       double wave=-std::numeric_limits<double>::infinity();
+       for (long q=first;q<first+long(active);++q) {
+         analysis::ParamBinding coordinate; coordinate.Bind("q",q);
++        if (coordinates) coordinate=*coordinates;
+         auto value=[&](analysis::QuasiPolynomial const& work) {
+           return double(work.BindCoordinates(coordinate).SubstituteParams(known).Eval({}));
+         };
+@@ -553,8 +585,14 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
+         // scalar arithmetic is charged in u, memory phases in this DAG term.
+         // In particular a negative GEMM regression intercept cannot be
+         // extrapolated into a small SIMT task then silently clamped to zero.
+-        wave=std::max(wave,ScalarInstanceNs(bytes,writes*ElementBytes(dtype_),flops,transc,
+-            o,miss,input.arithmetic.smem_staged,depth,barriers));
++        double output_bytes=writes*ElementBytes(dtype_),local_bytes=0;
++        if (memory) {
++          bytes=memory->global_read_bytes+memory->global_write_bytes;
++          output_bytes=memory->global_write_bytes;
++          local_bytes=memory->local_read_bytes+memory->local_write_bytes;
++        }
++        wave=std::max(wave,ScalarInstanceNs(bytes,output_bytes,flops,transc,
++            o,miss,input.arithmetic.smem_staged,depth,barriers,local_bytes));
+       }
+       total+=wave;
+       first+=long(active);
+@@ -586,8 +624,16 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
+   }
+   double const epilogue=(options_.fp32_partials && dtype_==ScalarType::kBF16 && chunks>1
+                            ? double(sizeof(float)) : ElementBytes(dtype_))*writes;
++  double epilogue_ns=epilogue/l2_bytes_per_ns_per_sm_;
++  if (memory) {
++    if (memory->local_write_bytes>0 && calib_->smem_gbps<=0)
++      throw std::runtime_error("collective shared output: bandwidth not_calibrated");
++    epilogue_ns=memory->global_write_bytes/l2_bytes_per_ns_per_sm_;
++    if (memory->local_write_bytes>0)
++      epilogue_ns+=memory->local_write_bytes/(calib_->smem_gbps/target_->res.num_sms);
++  }
+   double const fixed=fit_.setup_ns+setup+traits.stages*(bytes/l2_bytes_per_ns_per_sm_)+
+-      calib_->l2_latency_ns+epilogue/l2_bytes_per_ns_per_sm_;
++      calib_->l2_latency_ns+epilogue_ns;
+   double const effective_iters=options_.pipeline_envelope
+       ? std::max(iters-(traits.stages-1),0.0) : iters;
+   double const grid=double(target_->res.num_sms)*std::max(1,residency.ctas_per_sm);
+diff --git a/lib/Solver/FusionResources.cpp b/lib/Solver/FusionResources.cpp
+index bab83826..b2e1d79a 100644
+--- a/lib/Solver/FusionResources.cpp
++++ b/lib/Solver/FusionResources.cpp
+@@ -7,6 +7,134 @@
+ #include <stdexcept>
+ 
+ namespace tilemega::solver {
++namespace {
++analysis::ParamBinding Coordinate(std::vector<std::string> const& names,std::vector<long> const& values) {
++  if (names.size()!=values.size()) throw std::invalid_argument("fusion coordinate rank mismatch");
++  analysis::ParamBinding point;
++  for (std::size_t i=0;i<names.size();++i) point.Bind(names[i],values[i]);
++  return point;
++}
++
++using Counts=std::map<std::string,std::vector<long>>;
++Counts AccessCounts(std::map<std::string,analysis::CouplingRelation> const& accesses,
++    analysis::ParamBinding const& theta,std::vector<std::vector<long>> const& coordinates) {
++  Counts result;
++  for (auto const& [name,relation]:accesses) {
++    std::vector<analysis::ParamBinding> points;
++    auto names=relation.DomainDimNames();
++    for (auto const& coordinate:coordinates) points.push_back(Coordinate(names,coordinate));
++    result.emplace(name,relation.Card().EvalPoints(theta,points));
++  }
++  return result;
++}
++}  // namespace
++
++FusionTaskPrice PriceFusionTasks(ModelFusionCandidate const& candidate,
++    CostModel const& cost,BackendTraits const& producer,BackendTraits const& consumer,
++    Residency residency,ModelDescription const& model) {
++  analysis::IslReferenceAudit audit(__func__);
++#if !TILEMEGA_FUSION_TASK_COST
++  throw std::runtime_error("fusion task pricing disabled");
++#endif
++  if (model.dims.IsSymbolic() || residency.ctas_per_sm<=0 || producer.threads<=0 ||
++      producer.threads!=consumer.threads || producer.stages<0 || consumer.stages!=0)
++    throw std::invalid_argument("fusion price requires bound theta, common CTA and a SIMT consumer");
++  auto theta=model.MetricBindings();
++  auto relation=candidate.accesses.consumer_to_producer.BindParams(theta);
++  if (!relation.IsSingleValued()) throw std::invalid_argument("fusion price violates tile constraint");
++  auto pairs=relation.Points();
++  std::sort(pairs.begin(),pairs.end());
++  std::vector<std::vector<long>> pc,cc;
++  std::map<std::vector<long>,long> fanouts;
++  for (auto const& [c,p]:pairs) { cc.push_back(c); pc.push_back(p); ++fanouts[p]; }
++  FusionTaskPrice result;
++  result.producer_tasks=candidate.producer.work.task_count.Eval(theta);
++  result.consumer_tasks=candidate.accesses.task_count.Eval(theta);
++  result.recomputed_tasks=candidate.accesses.recompute_tasks.Eval(theta);
++  if (result.consumer_tasks!=static_cast<long>(pairs.size()) ||
++      result.producer_tasks!=static_cast<long>(fanouts.size()))
++    throw std::invalid_argument("fusion price requires complete producer/consumer coverage");
++  if (result.recomputed_tasks!=result.consumer_tasks-result.producer_tasks)
++    throw std::invalid_argument("fusion recomputation metric differs from coupling");
++  auto pr=AccessCounts(candidate.producer_accesses.reads,theta,pc);
++  auto pw=AccessCounts(candidate.producer_accesses.writes,theta,pc);
++  auto cr=AccessCounts(candidate.consumer_accesses.reads,theta,cc);
++  auto cw=AccessCounts(candidate.consumer_accesses.writes,theta,cc);
++  double bytes=model.dtype==ScalarType::kBF16 ? 2 : 4;
++  long grid=static_cast<long>(cost.target().res.num_sms)*residency.ctas_per_sm;
++  if (grid<=0) throw std::invalid_argument("fusion wave grid is empty");
++  auto occupancy=[&](long active) { return cost.options().wave_tail
++      ? std::max(1.0,double(active)/cost.target().res.num_sms) : residency.ctas_per_sm; };
++  std::set<std::vector<long>> seen;
++  std::vector<std::vector<long>> unique;
++  for (auto const& p:pc) if (seen.insert(p).second) unique.push_back(p);
++  std::sort(unique.begin(),unique.end());
++  std::vector<analysis::ParamBinding> producer_points;
++  for (auto const& p:unique) producer_points.push_back(Coordinate(relation.RangeDimNames(),p));
++  auto checked_fanout=candidate.accesses.fanout.EvalPoints(theta,producer_points);
++  for (std::size_t i=0;i<unique.size();++i)
++    if (checked_fanout[i]!=fanouts.at(unique[i]))
++      throw std::invalid_argument("fusion per-producer fanout differs from CG metric");
++  auto separate=[&](DerivedTaskInput const& input,BackendTraits const& traits,
++                    std::vector<std::vector<long>> const& coordinates,bool is_producer) {
++    double total=0;
++    for (long first=0;first<static_cast<long>(coordinates.size());first+=grid) {
++      long active=std::min(grid,static_cast<long>(coordinates.size())-first);
++      double wave=0,o=occupancy(active);
++      for (long i=first;i<first+active;++i) {
++        auto point=Coordinate(input.cost_coordinates,coordinates[i]);
++        double ns=cost.TaskInstanceNs(input,traits,residency,model,1,point,o);
++        wave=std::max(wave,ns);
++        if (is_producer) result.recompute_ns+=(fanouts.at(coordinates[i])-1)*ns;
++      }
++      total+=wave;
++    }
++    return total;
++  };
++  result.separate_ns=separate(candidate.producer,producer,unique,true)+
++      separate(candidate.consumer,consumer,cc,false);
++  result.producer_waves=(result.producer_tasks+grid-1)/grid;
++  result.consumer_waves=(result.consumer_tasks+grid-1)/grid;
++  seen.clear();
++  for (long first=0;first<result.consumer_tasks;first+=grid) {
++    long active=std::min(grid,result.consumer_tasks-first);
++    double wave=0,o=occupancy(active);
++    for (long i=first;i<first+active;++i) {
++      TaskMemoryTraffic pm,cm;
++      for (auto const& [name,counts]:pr) pm.global_read_bytes+=bytes*counts[i];
++      for (auto const& [name,counts]:pw) {
++        bool local=candidate.accesses.intermediate_tiles.count(name);
++        if (local) pm.local_write_bytes+=bytes*counts[i];
++        if (!local || candidate.accesses.retained_intermediates.count(name))
++          pm.global_write_bytes+=bytes*counts[i];
++      }
++      for (auto const& [name,counts]:cr) {
++        bool local=candidate.accesses.intermediate_tiles.count(name);
++        (local ? cm.local_read_bytes : cm.global_read_bytes)+=bytes*counts[i];
++      }
++      for (std::size_t operand=0;operand<candidate.consumer.task.operands.size();++operand)
++        if (candidate.accesses.intermediate_tiles.count(candidate.consumer.task.operands[operand].tensor.name))
++          cm.local_read_operands.insert(operand);
++      for (auto const& [name,counts]:cw) cm.global_write_bytes+=bytes*counts[i];
++      double p=cost.TaskInstanceNs(candidate.producer,producer,residency,model,1,
++          Coordinate(candidate.producer.cost_coordinates,pc[i]),o,&pm);
++      double c=cost.TaskInstanceNs(candidate.consumer,consumer,residency,model,1,
++          Coordinate(candidate.consumer.cost_coordinates,cc[i]),o,&cm);
++      wave=std::max(wave,p+c+cost.target().calib.syncthreads_ns);
++      result.global_bytes_after+=pm.global_read_bytes+pm.global_write_bytes+cm.global_read_bytes+cm.global_write_bytes;
++      result.local_bytes+=pm.local_write_bytes+cm.local_read_bytes;
++      if (seen.insert(pc[i]).second) {
++        for (auto const& [name,counts]:pr) result.global_bytes_before+=bytes*counts[i];
++        for (auto const& [name,counts]:pw) result.global_bytes_before+=bytes*counts[i];
++      }
++      for (auto const& [name,counts]:cr) result.global_bytes_before+=bytes*counts[i];
++      for (auto const& [name,counts]:cw) result.global_bytes_before+=bytes*counts[i];
++    }
++    result.fused_ns+=wave;
++  }
++  return result;
++}
++
+ double FusionRecomputeNs(analysis::FusionAccesses const& accesses,
+     CostModel const& cost, DerivedTaskInput const& producer, BackendTraits const& traits,
+     Residency residency, ModelDescription const& model, int chunks,
+diff --git a/lib/Solver/TaskModel.cpp b/lib/Solver/TaskModel.cpp
+index 3eed217e..be3d052b 100644
+--- a/lib/Solver/TaskModel.cpp
++++ b/lib/Solver/TaskModel.cpp
+@@ -138,7 +138,8 @@ ModelFusionCandidate ComposeModelCandidate(ModelDescription const& model,
+   auto graph=InstantiateModelTasks(model,configs);
+   auto input=[&](ModelTaskSemantics const& semantic) {
+     auto const& stage=model.stages.at(semantic.stage);
+-    GemmConfig const* config=stage.gemm<0 ? nullptr : &configs.at(stage.gemm);
++    GemmConfig const* config=stage.gemm<0 || semantic.op.kind!=analysis::OperatorKind::kMatmul
++        ? nullptr : &configs.at(stage.gemm);
+     if (config && config->split_k!=1)
+       throw std::invalid_argument("fusion partial stage requires explicit combine ownership");
+     return DeriveModelTaskInput(model,semantic,graph,config,runtime_ownership);
+@@ -161,7 +162,7 @@ ModelFusionCandidate ComposeModelCandidate(ModelDescription const& model,
+   auto producer_outputs=accesses.intermediate_tiles.at(*internal.begin()).Card();
+   auto arithmetic=analysis::ComposeArithmetic({{p.arithmetic,std::move(producer_outputs)},
+                                               {c.arithmetic,c.work.write_elements}});
+-  return {std::move(p),std::move(c),std::move(accesses),std::move(arithmetic)};
++  return {std::move(p),std::move(c),std::move(accesses),std::move(arithmetic),std::move(pa),std::move(ca)};
+ }
+ }  // namespace
+ 
+@@ -229,6 +230,12 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
+     result.cost_coordinates={"q"};
+     result.scalar_flow=codegen::ScalarTaskDataflow(static_cast<codegen::TaskKind>(model.stages.at(semantic.stage).kind));
+   }
++  if (!config && !runtime_ownership) {
++    auto kind=static_cast<codegen::TaskKind>(model.stages.at(semantic.stage).kind);
++    if (kind==codegen::TaskKind::kGemm && task->kind==analysis::OperatorKind::kPointwise)
++      kind=codegen::TaskKind::kElementwise;
++    result.scalar_flow=codegen::ScalarTaskDataflow(kind);
++  }
+   return result;
+ }
+ }  // namespace tilemega::solver

@@ -1,0 +1,4 @@
+SCALAR_TOTAL model=mha4 dtype=f32 ownership=element seq=1 past=3 old_ns=1950834.2957376046 new_ns=1960908.2411631404 footprint_bytes=42377216 cache_hit=1 old_attention_ns=3558.6848930439014 new_attention_ns=3008.0367762603723 old_fraction=0.0018241861447788282 new_fraction=0.0015340018023873023
+SCALAR_TOTAL model=mha4 dtype=f32 ownership=tile seq=1 past=3 old_ns=1950834.2957376046 new_ns=1960293.5184889659 footprint_bytes=42377216 cache_hit=1 old_attention_ns=3558.6848930439014 new_attention_ns=3008.0367762603723 old_fraction=0.0018241861447788282 new_fraction=0.00153448284549705
+SCALAR_INDEX_CHECKS task_points=136 exact_write_sets=1 read_counts=1
+ISL_CONTEXT remaining=0

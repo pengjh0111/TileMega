@@ -1,0 +1,1 @@
+PASS production logical mixed prices; counterfactual fanout; 4308 GEMM bit groups; no GPU run

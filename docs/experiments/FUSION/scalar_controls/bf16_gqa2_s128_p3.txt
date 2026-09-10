@@ -1,0 +1,4 @@
+SCALAR_TOTAL model=gqa2 dtype=bf16 ownership=element seq=128 past=3 old_ns=348716.55509482493 new_ns=336291.10746516188 footprint_bytes=15643648 cache_hit=1 old_attention_ns=30129.075756686398 new_attention_ns=14371.35445090507 old_fraction=0.086399900768959856 new_fraction=0.042734863134594993
+SCALAR_TOTAL model=gqa2 dtype=bf16 ownership=tile seq=128 past=3 old_ns=348716.55509482493 new_ns=335361.74305604218 footprint_bytes=15643648 cache_hit=1 old_attention_ns=30129.075756686398 new_attention_ns=14371.35445090507 old_fraction=0.086399900768959856 new_fraction=0.042853291254821152
+SCALAR_INDEX_CHECKS task_points=96 exact_write_sets=1 read_counts=1
+ISL_CONTEXT remaining=0

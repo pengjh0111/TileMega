@@ -1,0 +1,4 @@
+model	producer	consumer	existing_epilogue	producer_tasks	consumer_tasks	recompute_tasks	producer_waves	consumer_waves	separate_ns	fused_ns	recompute_ns	global_bytes_before	global_bytes_after	local_bytes	shared_bytes	registers
+gqa2	l0.s05.rope	l0.s06.append	0	1024	1024	0	4	4	1720.5076632036266	1438.6544790309031	0	12288	8192	4096	6	212
+gqa2	l0.s09.proj	l0.s09.add	1	4	4	0	1	1	18621.046671635409	17921.44490314434	0	557056	548864	8192	25600	212
+gqa2	l1.s20.rope	l1.s21.append	0	1024	1024	0	4	4	1720.5076632036266	1438.6544790309031	0	12288	8192	4096	6	212

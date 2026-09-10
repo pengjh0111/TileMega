@@ -8,10 +8,11 @@ import subprocess
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--build", default="build-portable")
+parser.add_argument("--out", type=Path)
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[3]
-output = Path(__file__).resolve().parent / "attention_work"
-output.mkdir(exist_ok=True)
+output = args.out.resolve() if args.out else Path(__file__).resolve().parent / "attention_work"
+output.mkdir(exist_ok=not bool(args.out))
 tool = repo / args.build / "tools"
 result = subprocess.run([str(tool / "tilemega-attention-work"), str(repo)], text=True, capture_output=True)
 (output / "phases.tsv").write_text(result.stdout)

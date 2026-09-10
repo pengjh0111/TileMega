@@ -1,0 +1,5 @@
+TASK_PRICE_GATE dtype=bf16 model=gqa2 configs=1077 status=PASS stage_entry_bits_equal=1
+TASK_PRICE_GATE dtype=bf16 model=mha4 configs=1077 status=PASS stage_entry_bits_equal=1
+TASK_PRICE_GATE dtype=f32 model=gqa2 configs=1077 status=PASS stage_entry_bits_equal=1
+TASK_PRICE_GATE dtype=f32 model=mha4 configs=1077 status=PASS stage_entry_bits_equal=1
+ISL_CONTEXT remaining=0

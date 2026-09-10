@@ -1,0 +1,2 @@
+FUSION_FANOUT producer=4 consumer=16 recomputed=12 recompute_ns=219645.23605426183 fused_ns=17863.752594955444 global_bytes=2170880
+FUSION_COST candidates=3 error_branches=9 remaining=0
