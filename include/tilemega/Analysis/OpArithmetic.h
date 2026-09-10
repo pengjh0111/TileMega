@@ -56,4 +56,17 @@ OpArithmetic InstantiateArithmetic(std::string const& name,
                                   ArithmeticInputs const& inputs);
 void RequireArithmeticImplementation(OpArithmetic const& arithmetic);
 
+// Sequential phases retain their own output domains and execution pipes.
+// A GEMM+add signature must never route add FLOPs to the MMA lane.
+struct MixedArithmeticPhase {
+  OpArithmetic arithmetic;
+  QuasiPolynomial output_elements;
+};
+struct MixedArithmetic {
+  std::vector<MixedArithmeticPhase> phases;
+  struct Work { double mma=0, simt=0, transcendental=0; };
+  Work Eval(ParamBinding const& theta) const;
+};
+MixedArithmetic ComposeArithmetic(std::vector<MixedArithmeticPhase> phases);
+
 }  // namespace tilemega::analysis

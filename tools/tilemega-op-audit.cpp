@@ -43,6 +43,13 @@ int main() try {
         "add","swiglu","kv_append","sum","softmax","layernorm","gelu_tanh","moe_router"})
     if (!names.count(required)) throw std::runtime_error(std::string("missing required signature: ")+required);
   auto attention = InstantiateArithmetic("attention",inputs);
+  auto mixed=ComposeArithmetic({{InstantiateArithmetic("gemm",inputs),QuasiPolynomial::Constant(128)},
+                               {InstantiateArithmetic("add",inputs),QuasiPolynomial::Constant(64)}});
+  auto mixed_work=mixed.Eval(theta);
+  if (mixed_work.mma!=16384 || mixed_work.simt!=64 || mixed_work.transcendental!=0)
+    throw std::runtime_error("mixed GEMM/add signature lost phase output domain or pipe");
+  std::cout << "MIXED_ARITHMETIC phases=2 mma=" << mixed_work.mma << " simt=" << mixed_work.simt
+            << " per_phase_output_domains=1 status=PASS\n";
   if (attention.flops_per_output_element.Eval(theta)!=4.0*131 ||
       attention.transcendental_per_output_element.Eval(theta)!=131.0/128 || attention.flops_use_mma)
     throw std::runtime_error("attention semantic arithmetic gate");
@@ -61,7 +68,15 @@ int main() try {
   auto invalid = ArithmeticDeclarations().front(); invalid.reason = nullptr;
   try { ValidateArithmeticDeclaration(invalid); }
   catch (std::invalid_argument const&) { ++rejected; }
-  if (rejected!=4 || before!=context.ReferenceCount())
+  try { ComposeArithmetic({}); }
+  catch (std::invalid_argument const&) { ++rejected; }
+  auto absent=mixed.phases; absent.front().arithmetic.runtime_implemented=false;
+  try { ComposeArithmetic(absent); }
+  catch (std::invalid_argument const&) { ++rejected; }
+  auto negative=mixed; negative.phases.front().output_elements=QuasiPolynomial::Constant(-1);
+  try { negative.Eval(theta); }
+  catch (std::invalid_argument const&) { ++rejected; }
+  if (rejected!=7 || before!=context.ReferenceCount())
     throw std::runtime_error("arithmetic error-path gate");
   std::cout << "OP_ERRORS rejected=" << rejected << " before=" << before
             << " after=" << context.ReferenceCount() << '\n';

@@ -89,4 +89,26 @@ void RequireArithmeticImplementation(OpArithmetic const& a) {
   if (!a.runtime_implemented)
     throw std::invalid_argument("arithmetic task implementation absent: "+a.reason);
 }
+
+MixedArithmetic ComposeArithmetic(std::vector<MixedArithmeticPhase> phases) {
+  IslReferenceAudit audit(__func__);
+  if (phases.size()<2) throw std::invalid_argument("mixed arithmetic requires at least two phases");
+  for (auto const& phase:phases) RequireArithmeticImplementation(phase.arithmetic);
+  return {std::move(phases)};
+}
+
+MixedArithmetic::Work MixedArithmetic::Eval(ParamBinding const& theta) const {
+  IslReferenceAudit audit(__func__);
+  Work out;
+  for (auto const& phase:phases) {
+    auto elements=phase.output_elements.Eval(theta);
+    if (elements<0) throw std::invalid_argument("negative mixed arithmetic output work");
+    auto const& a=phase.arithmetic;
+    double flops=a.flops_per_output_element.Eval(theta)*elements;
+    if (a.flops_use_mma) out.mma+=flops;
+    else out.simt+=flops;
+    out.transcendental+=a.transcendental_per_output_element.Eval(theta)*elements;
+  }
+  return out;
+}
 }  // namespace tilemega::analysis
