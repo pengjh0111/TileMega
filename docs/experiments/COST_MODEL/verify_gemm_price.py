@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Audit the complete stage-price gate against the archived ORACLE universe."""
 import csv
+import argparse
 import hashlib
 import json
 from pathlib import Path
 
-directory = Path(__file__).resolve().parent / 'gemm_price_gate'
+parser = argparse.ArgumentParser()
+parser.add_argument('--directory', type=Path, default=Path(__file__).resolve().parent / 'gemm_price_gate')
+parser.add_argument('--stage-entry', action='store_true')
+args=parser.parse_args()
+directory = args.directory.resolve()
 repo = directory.parents[3]
 rows = list(csv.DictReader((directory/'prices.tsv').open(), delimiter='\t'))
 checks = 0
@@ -23,6 +28,9 @@ for dtype in ('bf16', 'f32'):
             checks += int(r['price_bit_checks'])
 assert len(rows)==4308 and checks==904680
 assert 'ISL_CONTEXT remaining=0' in (directory/'status.txt').read_text()
+if args.stage_entry:
+    assert (directory/'status.txt').read_text().count('status=PASS stage_entry_bits_equal=1')==4
 print(json.dumps(dict(status='PASS',groups=len(rows),price_bit_checks=checks,
+    stage_entry_bit_checks=checks if args.stage_entry else 0,
     prices_sha256=hashlib.sha256((directory/'prices.tsv').read_bytes()).hexdigest(),
-    scope='GEMM only; scalar pricing and unified DP acceptance pending'),indent=2))
+    scope='GEMM only; scalar and solver evidence recorded separately'),indent=2))
