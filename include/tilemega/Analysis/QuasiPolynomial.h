@@ -79,6 +79,9 @@ class QuasiPolynomial {
   QuasiPolynomial Scale(long factor) const;
   QuasiPolynomial ScaleRational(std::string const& factor) const;
   QuasiPolynomial Multiply(QuasiPolynomial const& other) const;
+  // One on the represented support and zero elsewhere. Used for per-task
+  // fixed costs without charging nonexistent tasks in a symbolic wave.
+  QuasiPolynomial SupportIndicator() const;
   /// Exact ISL domain splitting where a floor attains at most this many
   /// values. This changes representation, not parameter sampling or values.
   QuasiPolynomial SplitPeriods(int max_periods) const;

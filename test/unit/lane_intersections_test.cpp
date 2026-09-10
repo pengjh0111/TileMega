@@ -39,6 +39,18 @@ int main() try {
       QuasiPolynomial::FromIslText("[S] -> { 3*S }")).ScaleRational("1/6");
   if (!product.SemanticallyEqual(QuasiPolynomial::FromIslText("[S] -> { S^2 }"),{}))
     throw std::runtime_error("exact work/rate composition failed");
+  if (!QuasiPolynomial::Constant(3).Multiply(QuasiPolynomial::FromIslText("[S] -> { S }")).SemanticallyEqual(
+          QuasiPolynomial::FromIslText("[S] -> { 3*S }"),{}) ||
+      !QuasiPolynomial::FromIslText("[S,P] -> { S : 1<=S<=16 and 1<=P<=4 }").Multiply(
+          QuasiPolynomial::FromIslText("[P,S] -> { P : 1<=S<=16 and 1<=P<=4 }")).SemanticallyEqual(
+          QuasiPolynomial::FromIslText("[S,P] -> { S*P : 1<=S<=16 and 1<=P<=4 }"),{}))
+    throw std::runtime_error("polynomial product did not align named parameters");
+  for (auto const& scalar:{QuasiPolynomial::Constant(0),QuasiPolynomial::Constant(7),product})
+    if (!(scalar.SumDomain()==scalar)) throw std::runtime_error("sum over zero coordinate axes changed value");
+  auto supported=QuasiPolynomial::FromIslText("[S] -> { S+1 : 3<=S<=7 }").SupportIndicator();
+  if (!supported.SemanticallyEqual(QuasiPolynomial::FromIslText("[S] -> { 1 : 3<=S<=7 }"),{}) ||
+      !QuasiPolynomial::Constant(0).SupportIndicator().IsZero())
+    throw std::runtime_error("task support indicator changed its domain");
   auto intervals=periodic.QuadraticIntervals("S",1,63);
   auto per_task=QuasiPolynomial::FromIslText("[S] -> { [q] -> S+floor(q/3) : 0<=q<2*S }");
   ParamBinding known; known.Bind("S",8);

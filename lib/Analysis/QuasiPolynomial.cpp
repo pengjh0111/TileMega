@@ -280,8 +280,26 @@ QuasiPolynomial QuasiPolynomial::Multiply(QuasiPolynomial const& other) const {
   IslReferenceAudit audit(__func__);
   auto first=isl_util::ReadPwQPolynomial(Ctx(),text_);
   auto second=isl_util::ReadPwQPolynomial(Ctx(),other.text_);
+  // This isl version aligns parameters for addition, but not multiplication.
+  auto parameters=isl_util::Space(isl_space_align_params(
+      isl_space_params(isl_pw_qpolynomial_get_domain_space(first.get())),
+      isl_space_params(isl_pw_qpolynomial_get_domain_space(second.get()))));
+  if (!parameters) throw std::invalid_argument("incompatible polynomial parameters");
+  auto align=[&](isl_util::PwQPolynomial value) {
+    auto space=isl_util::Space(isl_space_align_params(
+        isl_pw_qpolynomial_get_space(value.get()),isl_space_copy(parameters.get())));
+    std::unique_ptr<isl_union_pw_qpolynomial,decltype(&isl_union_pw_qpolynomial_free)> united(
+        isl_union_pw_qpolynomial_align_params(
+          isl_union_pw_qpolynomial_from_pw_qpolynomial(value.release()),isl_space_copy(parameters.get())),
+        &isl_union_pw_qpolynomial_free);
+    if (!united || !space) throw std::invalid_argument("cannot align polynomial parameters");
+    auto aligned=isl_util::PwQPolynomial(isl_union_pw_qpolynomial_extract_pw_qpolynomial(united.get(),space.release()));
+    if (!aligned) throw std::invalid_argument("cannot extract aligned polynomial");
+    return aligned;
+  };
+  first=align(std::move(first)); second=align(std::move(second));
   auto product=isl_util::PwQPolynomial(isl_pw_qpolynomial_mul(first.release(),second.release()));
-  if (!product) throw std::invalid_argument("incompatible polynomial product domains");
+  if (!product) throw std::invalid_argument("incompatible polynomial product domains: "+text_+" * "+other.text_);
   return QuasiPolynomial(isl_util::ToString(product.get()));
 }
 
@@ -439,9 +457,22 @@ std::vector<long> QuasiPolynomial::EvalPoints(ParamBinding const& known,
 QuasiPolynomial QuasiPolynomial::SumDomain() const {
   IslReferenceAudit audit(__func__);
   auto value = isl_util::ReadPwQPolynomial(Ctx(), text_);
+  if (isl_pw_qpolynomial_dim(value.get(),isl_dim_in)==0) return *this;
   isl_util::PwQPolynomial sum(isl_pw_qpolynomial_sum(value.release()));
   if (!sum) throw std::runtime_error("isl: cannot sum quasi-polynomial domain");
   return FromIslText(isl_util::ToString(sum.get()));
+}
+
+QuasiPolynomial QuasiPolynomial::SupportIndicator() const {
+  IslReferenceAudit audit(__func__);
+  auto value=isl_util::ReadPwQPolynomial(Ctx(),text_);
+  auto domain=isl_util::Set(isl_pw_qpolynomial_domain(value.release()));
+  if (!domain) throw std::runtime_error("cannot obtain polynomial support");
+  auto* scalar=isl_qpolynomial_val_on_domain(isl_set_get_space(domain.get()),isl_val_one(Ctx()));
+  auto indicator=isl_util::PwQPolynomial(isl_pw_qpolynomial_from_qpolynomial(scalar));
+  indicator=isl_util::PwQPolynomial(isl_pw_qpolynomial_intersect_domain(indicator.release(),domain.release()));
+  if (!indicator) throw std::runtime_error("cannot construct polynomial support indicator");
+  return FromIslText(isl_util::ToString(indicator.get()));
 }
 
 bool QuasiPolynomial::SemanticallyEqual(QuasiPolynomial const& other,
