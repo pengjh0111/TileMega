@@ -17,13 +17,9 @@
 
 namespace tilemega::dialect {
 namespace {
-void Rewrite(mlir::ModuleOp module,std::string const& producer,std::string const& consumer) {
+void Rewrite(mlir::ModuleOp module,std::string const& producer,std::string const& consumer,
+             solver::ModelFusionCandidate const& candidate) {
   using namespace mlir;
-  auto model=solver::ModelDescription::FromCouplingGraph(module,{0,0,0},"fusion-pass");
-  auto plan=codegen::ReadRuntimePlan(module);
-  std::vector<solver::GemmConfig> configs;
-  for (auto const& g:plan.gemms) configs.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
-  auto candidate=solver::DeriveLogicalFusionCandidate(model,configs,producer,consumer);
   TaskSpaceOp p,c;
   for (auto task:module.getOps<TaskSpaceOp>()) {
     if (task.getOperatorName()==producer) p=task;
@@ -119,14 +115,31 @@ struct FusionPass : mlir::PassWrapper<FusionPass,mlir::OperationPass<mlir::Modul
 };
 }
 void FuseTaskPair(mlir::ModuleOp module,std::string const& producer,std::string const& consumer) {
+  FuseTaskPairs(module,{{producer,consumer}});
+}
+void FuseTaskPairs(mlir::ModuleOp module,
+    std::vector<std::pair<std::string,std::string>> const& pairs) {
   analysis::IslReferenceAudit audit(__func__);
 #if !TILEMEGA_CG_FUSION_PASS
   throw std::invalid_argument("CG fusion pass is disabled");
 #endif
-  if (!module || producer.empty() || consumer.empty() || mlir::failed(mlir::verify(module)))
+  if (!module || pairs.empty() || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument("fusion requires verified CG and an explicit task pair");
+  auto model=solver::ModelDescription::FromCouplingGraph(module,{0,0,0},"fusion-pass");
+  auto plan=codegen::ReadRuntimePlan(module);
+  std::vector<solver::GemmConfig> configs;
+  for (auto const& g:plan.gemms) configs.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
+  std::set<std::string> selected;
+  std::vector<solver::ModelFusionCandidate> candidates;
+  for (auto const& [producer,consumer]:pairs) {
+    if (producer.empty() || consumer.empty() || !selected.insert(producer).second ||
+        !selected.insert(consumer).second)
+      throw std::invalid_argument("selected fusion intervals overlap or have missing identities");
+    candidates.push_back(solver::DeriveLogicalFusionCandidate(model,configs,producer,consumer));
+  }
   mlir::OwningOpRef<mlir::ModuleOp> clone(llvm::cast<mlir::ModuleOp>(module->clone()));
-  Rewrite(*clone,producer,consumer);
+  for (std::size_t i=0;i<pairs.size();++i)
+    Rewrite(*clone,pairs[i].first,pairs[i].second,candidates[i]);
   module->setAttrs((*clone)->getAttrs());
   module.getBodyRegion().takeBody(clone->getBodyRegion());
 }
