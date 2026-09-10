@@ -1,0 +1,576 @@
+diff --git a/include/tilemega/Codegen/AttentionPlan.h b/include/tilemega/Codegen/AttentionPlan.h
+index ee678577..0e421b19 100644
+--- a/include/tilemega/Codegen/AttentionPlan.h
++++ b/include/tilemega/Codegen/AttentionPlan.h
+@@ -2,6 +2,7 @@
+ #pragma once
+ #include <tilemega/Codegen/tasks/TaskBase.h>
+ #include <cstdint>
++#include <array>
+ 
+ #ifndef TILEMEGA_CHUNKED_ATTENTION
+ #define TILEMEGA_CHUNKED_ATTENTION 0
+@@ -20,6 +21,19 @@ struct AttentionRuntimeRecord {
+   // Capacity of the compiled chunk scratch, not the workload's total length.
+   std::uint32_t chunk_extent = 0;
+ };
++struct AttentionPlanSelection {
++  int stage = -1;
++  AttentionRuntimeRecord runtime;
++};
++inline constexpr std::array<AttentionPhase, 4> kAttentionExpandedPhases{
++    AttentionPhase::kScores, AttentionPhase::kNormalize,
++    AttentionPhase::kPartialValue, AttentionPhase::kCombine};
++struct AttentionInternalDependency {
++  int producer, consumer, div, scale, count;
++};
++constexpr std::array<AttentionInternalDependency, 3> AttentionInternalDependencies(int chunks) {
++  return {{{0,1,1,chunks,chunks}, {1,2,chunks,1,1}, {2,3,1,chunks,chunks}}};
++}
+ 
+ TILEMEGA_TASK_HD constexpr int AttentionPhaseTasks(AttentionPhase phase,
+     int queries, int chunks) {
+diff --git a/include/tilemega/Codegen/RuntimePlan.h b/include/tilemega/Codegen/RuntimePlan.h
+index 6b0a89f6..5ded6fb0 100644
+--- a/include/tilemega/Codegen/RuntimePlan.h
++++ b/include/tilemega/Codegen/RuntimePlan.h
+@@ -2,6 +2,7 @@
+ #pragma once
+ #include <tilemega/Analysis/DependencyForm.h>
+ #include <tilemega/Codegen/RuntimeOwnership.h>
++#include <tilemega/Codegen/AttentionPlan.h>
+ #include <cstdint>
+ #include <vector>
+ #include <map>
+@@ -30,6 +31,7 @@ struct GemmRuntimeRecord {
+ struct RuntimePlan {
+   std::vector<DependencyRecord> dependencies;
+   std::vector<GemmRuntimeRecord> gemms;
++  std::vector<AttentionRuntimeRecord> attention;  ///< original-stage indexed; empty is direct
+   std::uint32_t ownership_flags = 0;
+   int cluster_dim = 0;
+   std::map<std::string,std::pair<long,long>> parameter_ranges;
+diff --git a/include/tilemega/Codegen/tasks/AttentionChunkTaskBody.h b/include/tilemega/Codegen/tasks/AttentionChunkTaskBody.h
+index 1fa977cd..0afae5c0 100644
+--- a/include/tilemega/Codegen/tasks/AttentionChunkTaskBody.h
++++ b/include/tilemega/Codegen/tasks/AttentionChunkTaskBody.h
+@@ -4,6 +4,7 @@
+ #include <tilemega/Codegen/tasks/ModelRuntime.h>
+ #include <tilemega/Codegen/tasks/Placement.cuh>
+ #include <tilemega/Codegen/tasks/TaskResources.h>
++#include <tilemega/Codegen/tasks/AttentionPhasedTaskBody.h>
+ 
+ namespace tilemega::codegen {
+ 
+@@ -22,11 +23,20 @@ struct AttentionTaskBody {
+   __device__ static TaskOwnership Ownership(Params const& p,
+                                             StageDesc const& stage) {
+     return {OwnershipOf(TaskKind::kAttention),
+-            p.dims.seq * static_cast<int>(stage.extent)};
++            stage.operand[7] == kNoOperand || stage.operand[7] == 0
++                ? p.dims.seq * static_cast<int>(stage.extent)
++                : AttentionPhaseTasks(static_cast<AttentionPhase>(stage.operand[7]),
++                    p.dims.seq * static_cast<int>(stage.extent),stage.operand[6])};
+   }
+ 
+   __device__ static void RunTask(Params const& p, StageDesc const& stage,
+                                  SmemUnion& smem, int query) {
++#if TILEMEGA_CHUNKED_ATTENTION
++    if (stage.operand[7] != kNoOperand && stage.operand[7] != 0) {
++      AttentionPhasedTaskBody<Arch,SmemUnion,Threads>::RunTask(p,stage,smem,query);
++      return;
++    }
++#endif
+     ModelElement const* q_rot = p.buffers[stage.operand[0]];
+     ModelElement const* full_k = p.buffers[stage.operand[1]];
+     ModelElement const* full_v = p.buffers[stage.operand[2]];
+@@ -82,8 +92,7 @@ struct AttentionTaskBody {
+ 
+   __device__ void operator()(Params const& p, StageDesc const& stage,
+                              SmemUnion& smem) const {
+-    int const heads = static_cast<int>(stage.extent);
+-    for (int query = PlacedBlock(); query < p.dims.seq * heads;
++    for (int query = PlacedBlock(); query < Ownership(p,stage).count;
+          query += gridDim.x) {
+       RunTask(p, stage, smem, query);
+       __syncthreads();
+diff --git a/include/tilemega/Codegen/tasks/ModelHarness.cuh b/include/tilemega/Codegen/tasks/ModelHarness.cuh
+index fdc953fd..00894ba0 100644
+--- a/include/tilemega/Codegen/tasks/ModelHarness.cuh
++++ b/include/tilemega/Codegen/tasks/ModelHarness.cuh
+@@ -31,6 +31,7 @@
+ #include <cstring>
+ #include <fstream>
+ #include <iterator>
++#include <limits>
+ #include <numeric>
+ #include <set>
+ #include <string>
+@@ -935,9 +936,32 @@ inline DeviceModel Create(ModelSpec const& spec,
+               TILEMEGA_FP32_PARTIALS && kCompiledScalarType == ScalarType::kBF16,
+               sizeof(ModelPartialElement), partial_bytes);
+   std::vector<std::uint32_t> entry(spec.stage_count), done(spec.stage_count);
++  std::vector<std::uint32_t> attention_chunks(spec.stage_count,1);
+   for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
+     StageDesc stage = spec.stages[i];
+     entry[i] = static_cast<std::uint32_t>(model.stages.size());
++    if (stage.kind == TaskKind::kAttention && runtime_variant.attention)
++      attention_chunks[i] = runtime_variant.attention[i].chunks;
++    if (attention_chunks[i] > 1) {
++      auto allocate_float = [&](std::size_t elements) {
++        float* buffer = nullptr;
++        TILEMEGA_CUDA_CHECK(cudaMalloc(&buffer,elements*sizeof(float)));
++        auto id = static_cast<std::uint32_t>(model.buffers.size());
++        model.buffers.push_back(reinterpret_cast<ModelElement*>(buffer));
++        model.host_sources.emplace_back();
++        return id;
++      };
++      std::size_t queries = static_cast<std::size_t>(dims.seq)*stage.extent;
++      stage.operand[4] = allocate_float(queries*dims.total);
++      stage.operand[5] = allocate_float(queries*attention_chunks[i]*stage.width);
++      stage.operand[6] = attention_chunks[i];
++      for (auto phase : kAttentionExpandedPhases) {
++        stage.operand[7] = static_cast<std::uint32_t>(phase);
++        model.stages.push_back(stage);
++      }
++      done[i] = static_cast<std::uint32_t>(model.stages.size())-1;
++      continue;
++    }
+     int chunks = stage.kind == TaskKind::kGemm ? gemm_chunks[stage.gemm] : 1;
+     if (stage.kind == TaskKind::kGemm) stage.gemm = gemm_base[stage.gemm];
+     model.stages.push_back(stage);
+@@ -955,7 +979,13 @@ inline DeviceModel Create(ModelSpec const& spec,
+   }
+   std::vector<StageDependency> dependencies;
+   for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
+-    if (done[i] != entry[i]) {
++    if (attention_chunks[i] > 1) {
++      int chunks = static_cast<int>(attention_chunks[i]);
++      for (auto const& dep : AttentionInternalDependencies(chunks))
++        dependencies.push_back({entry[i]+dep.producer,entry[i]+dep.consumer,
++            StageDependency::Map::kWindow,static_cast<std::uint32_t>(dep.div),
++            dep.scale,0,static_cast<std::uint32_t>(dep.count)});
++    } else if (done[i] != entry[i]) {
+       if (model.params.ownership_flags & kCombinerTileOwnership) {
+ #if TILEMEGA_CG_SPLIT_TASK_ORDER
+         // The chunk axis is contiguous in the CG task order, not storage order.
+@@ -982,10 +1012,16 @@ inline DeviceModel Create(ModelSpec const& spec,
+       std::uint32_t const producer = edge.producer;
+       edge.producer = done[producer];
+       edge.consumer = entry[i];
++      if (attention_chunks[i] > 1 && edge.map != StageDependency::Map::kAll) {
++        if (edge.div > std::numeric_limits<std::uint32_t>::max()/attention_chunks[i]) {
++          std::fprintf(stderr,"attention dependency divisor overflow\n"); std::exit(2);
++        }
++        edge.div *= attention_chunks[i];
++      }
+       // Split-K moves the producer event onto the combiner, which owns its
+       // tasks by element chunk -- blockIdx no longer names the tile the
+       // window was fitted against, so the edge falls back to kAll.
+-      if (done[producer] != entry[producer] &&
++      if (spec.stages[producer].kind == TaskKind::kGemm && done[producer] != entry[producer] &&
+           !(model.params.ownership_flags & kCombinerTileOwnership)) {
+         edge.map = StageDependency::Map::kAll;
+         edge.div = 1u;
+@@ -1022,8 +1058,8 @@ inline DeviceModel Create(ModelSpec const& spec,
+     }
+     scheduled_once[original] = true;
+     model.stage_order.push_back(entry[original]);
+-    if (done[original] != entry[original])
+-      model.stage_order.push_back(done[original]);
++    for (auto expanded = entry[original]+1; expanded <= done[original]; ++expanded)
++      model.stage_order.push_back(expanded);
+   }
+   // Experimental control for Part 3.3.  Stage ids are emitted in the
+   // frontend's original topological order, including an immediately-following
+@@ -1083,7 +1119,10 @@ inline DeviceModel Create(ModelSpec const& spec,
+         return CeilDiv(dims.seq * static_cast<int>(stage.extent),
+                        kHarnessThreads);
+       case TaskKind::kAttention:
+-        return dims.seq * static_cast<int>(stage.extent);
++        return stage.operand[7] == kNoOperand || stage.operand[7] == 0
++            ? dims.seq * static_cast<int>(stage.extent)
++            : AttentionPhaseTasks(static_cast<AttentionPhase>(stage.operand[7]),
++                dims.seq * static_cast<int>(stage.extent),stage.operand[6]);
+       case TaskKind::kGemmCombine:
+         if (model.params.ownership_flags & kCombinerTileOwnership) {
+           GemmInvocation const& invocation = gemms[stage.gemm];
+@@ -1687,12 +1726,6 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
+     return 2;
+   }
+   ModelDims dims = BindDims(spec.dims, fixture_dir);
+-  if (dims.total > TILEMEGA_ATTENTION_MAX_TOTAL) {
+-    std::fprintf(stderr,
+-                 "seq+past=%d exceeds compiled attention capacity %d\n",
+-                 dims.total, TILEMEGA_ATTENTION_MAX_TOTAL);
+-    return 2;
+-  }
+   if (dims.seq <= 0 || static_cast<std::uint32_t>(dims.seq) >=
+                            spec.seq_variant_count) {
+     std::fprintf(stderr,
+@@ -1708,6 +1741,22 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
+   }
+   RuntimeVariantDesc const& runtime_variant =
+       spec.runtime_variants[runtime_variant_index];
++  for (std::uint32_t s=0; s<spec.stage_count; ++s) {
++    if (spec.stages[s].kind != TaskKind::kAttention) continue;
++    AttentionRuntimeRecord choice = runtime_variant.attention
++        ? runtime_variant.attention[s] : AttentionRuntimeRecord{};
++    if (!choice.chunks || (choice.chunks > 1 && !TILEMEGA_CHUNKED_ATTENTION) ||
++        (choice.chunks > 1 && !choice.chunk_extent)) {
++      std::fprintf(stderr,"attention plan is invalid or chunk execution is disabled\n"); return 2;
++    }
++    std::size_t extent = (static_cast<std::size_t>(dims.total)+choice.chunks-1)/choice.chunks;
++    std::size_t capacity = sizeof(TaskSmem::attention)/sizeof(float);
++    if (extent > capacity || (choice.chunk_extent && extent > choice.chunk_extent) ||
++        static_cast<std::size_t>(dims.seq)*spec.stages[s].extent*choice.chunks >
++            static_cast<std::size_t>(std::numeric_limits<int>::max())) {
++      std::fprintf(stderr,"attention plan exceeds compiled scratch or task-count capacity\n"); return 2;
++    }
++  }
+   if (static_cast<std::uint32_t>(dims.seq) < runtime_variant.seq_begin ||
+       static_cast<std::uint32_t>(dims.seq) > runtime_variant.seq_end) {
+     std::fprintf(stderr, "runtime variant table/interval mismatch for seq=%d\n",
+diff --git a/include/tilemega/Codegen/tasks/ModelRuntime.h b/include/tilemega/Codegen/tasks/ModelRuntime.h
+index 34e522d1..fd79c519 100644
+--- a/include/tilemega/Codegen/tasks/ModelRuntime.h
++++ b/include/tilemega/Codegen/tasks/ModelRuntime.h
+@@ -12,6 +12,7 @@
+ 
+ #include <tilemega/Codegen/tasks/TaskBase.h>
+ #include <tilemega/Codegen/RuntimeOwnership.h>
++#include <tilemega/Codegen/AttentionPlan.h>
+ #include <cutlass/bfloat16.h>
+ 
+ #include <cstdint>
+@@ -228,6 +229,7 @@ struct RuntimeVariantDesc {
+   std::uint32_t seq_begin;  ///< inclusive, for diagnostics
+   std::uint32_t seq_end;    ///< inclusive, for diagnostics
+   std::uint32_t ownership_flags;
++  AttentionRuntimeRecord const* attention = nullptr;  ///< stage_count entries if present
+ };
+ 
+ #ifndef TILEMEGA_EVENT_SPLIT_LINES
+diff --git a/include/tilemega/Codegen/tasks/TaskResources.h b/include/tilemega/Codegen/tasks/TaskResources.h
+index 4f6c5513..7bc70ab6 100644
+--- a/include/tilemega/Codegen/tasks/TaskResources.h
++++ b/include/tilemega/Codegen/tasks/TaskResources.h
+@@ -6,6 +6,9 @@
+ #ifndef TILEMEGA_ATTENTION_MAX_TOTAL
+ #define TILEMEGA_ATTENTION_MAX_TOTAL 4096
+ #endif
++#ifndef TILEMEGA_ATTENTION_SCRATCH_EXTENT
++#define TILEMEGA_ATTENTION_SCRATCH_EXTENT TILEMEGA_ATTENTION_MAX_TOTAL
++#endif
+ 
+ namespace tilemega::codegen {
+ 
+@@ -24,7 +27,7 @@ constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_exten
+   return 0;
+ }
+ 
+-template <TaskKind Kind, int Threads, int AttentionExtent = TILEMEGA_ATTENTION_MAX_TOTAL>
++template <TaskKind Kind, int Threads, int AttentionExtent = TILEMEGA_ATTENTION_SCRATCH_EXTENT>
+ struct SimtTaskResources {
+   static_assert(Kind != TaskKind::kGemm, "read GEMM resources from its collective");
+   static_assert(Threads>0 && AttentionExtent>0, "invalid TaskBody resource dimensions");
+diff --git a/include/tilemega/Frontend/TorchExportImporter.h b/include/tilemega/Frontend/TorchExportImporter.h
+index 60c303f9..acf4ba0d 100644
+--- a/include/tilemega/Frontend/TorchExportImporter.h
++++ b/include/tilemega/Frontend/TorchExportImporter.h
+@@ -7,6 +7,7 @@
+ #include <string>
+ #include <vector>
+ #include <tilemega/Frontend/SemanticLifting.h>
++#include <tilemega/Codegen/AttentionPlan.h>
+ namespace tilemega::frontend {
+ struct ImportSummary {
+   std::size_t task_spaces = 0;
+@@ -21,6 +22,7 @@ struct ImportSummary {
+ };
+ struct ImportOptions {
+   std::vector<GemmGranularity> gemms;
++  std::vector<codegen::AttentionPlanSelection> attention;
+   bool rope_tile_per_block = false;
+   bool kv_tile_per_block = false;
+   bool activation_tile_per_block = false;
+diff --git a/include/tilemega/Solver/RuntimeProjection.h b/include/tilemega/Solver/RuntimeProjection.h
+index 2c65d61b..3c932dd1 100644
+--- a/include/tilemega/Solver/RuntimeProjection.h
++++ b/include/tilemega/Solver/RuntimeProjection.h
+@@ -26,6 +26,7 @@ struct ProjectedStage {
+   int logical_stage = -1;
+   bool combine = false;
+   analysis::QuasiPolynomial task_count;
++  codegen::AttentionPhase attention_phase = codegen::AttentionPhase::kDirect;
+ };
+ 
+ struct RuntimeProjection {
+diff --git a/lib/Codegen/Codegen.cpp b/lib/Codegen/Codegen.cpp
+index f40bfdb2..3d4fd025 100644
+--- a/lib/Codegen/Codegen.cpp
++++ b/lib/Codegen/Codegen.cpp
+@@ -102,6 +102,7 @@ struct RuntimeVariantRecord {
+   std::uint32_t seq_begin = 1;
+   std::uint32_t seq_end = 65535;
+   std::vector<GemmRuntimeRecord> gemms;
++  std::vector<AttentionRuntimeRecord> attention;
+   std::vector<DependencyRecord> dependencies;
+   std::vector<ScheduleStageRecord> schedule;
+   std::uint32_t max_dependency_span = 0;
+@@ -181,6 +182,54 @@ std::vector<GemmRuntimeRecord> readRuntimeGemms(mlir::ModuleOp module,
+   return result;
+ }
+ 
++std::vector<AttentionRuntimeRecord> readRuntimeAttention(mlir::ModuleOp module) {
++  auto choices = module->getAttrOfType<mlir::ArrayAttr>("tilemega.attention_runtime");
++  if (!choices) {
++    if (module->hasAttr("tilemega.attention_runtime"))
++      throw std::invalid_argument("attention runtime plan must be an array");
++    return {};
++  }
++  auto model = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
++  if (!model) throw std::invalid_argument("attention runtime plan has no model");
++  auto stages = arrayField(model,"stages");
++  std::vector<AttentionRuntimeRecord> result(stages.size());
++  std::set<long> selected;
++  for (auto value : choices) {
++    auto choice = dictionaryEntry(value,"attention_runtime");
++    long stage = integerField(choice,"stage"), chunks = integerField(choice,"chunks");
++    long extent = integerField(choice,"chunk_extent");
++    if (stage < 0 || static_cast<std::size_t>(stage) >= stages.size() ||
++        !selected.insert(stage).second || chunks <= 0 || extent <= 0 ||
++        chunks > std::numeric_limits<int>::max() || extent > std::numeric_limits<int>::max() ||
++        stringField(dictionaryEntry(stages[stage],"stages"),"kind") != "kAttention")
++      throw std::invalid_argument("invalid stage or geometry in attention runtime plan");
++    result[stage] = {static_cast<std::uint32_t>(chunks),static_cast<std::uint32_t>(extent)};
++  }
++  return result;
++}
++
++std::string emitAttentionStorage(mlir::ModuleOp module,
++                                 std::vector<RuntimeVariantRecord> const& variants) {
++  auto model = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
++  auto stages = arrayField(model,"stages");
++  std::uint32_t extent = 0;
++  bool direct_default = false, enabled = false;
++  for (auto const& variant : variants) {
++    enabled = enabled || !variant.attention.empty();
++    for (std::size_t s=0; s<stages.size(); ++s) {
++      if (stringField(dictionaryEntry(stages[s],"stages"),"kind") != "kAttention") continue;
++      if (variant.attention.empty() || !variant.attention[s].chunk_extent) direct_default = true;
++      else extent = std::max(extent,variant.attention[s].chunk_extent);
++    }
++  }
++  if (!enabled) return {};
++  std::string size = std::to_string(extent);
++  if (direct_default)
++    size = "((TILEMEGA_ATTENTION_MAX_TOTAL > "+size+") ? TILEMEGA_ATTENTION_MAX_TOTAL : "+size+")";
++  return "#ifndef TILEMEGA_CHUNKED_ATTENTION\n#define TILEMEGA_CHUNKED_ATTENTION 1\n#endif\n"
++      "#define TILEMEGA_ATTENTION_SCRATCH_EXTENT "+size+"\n";
++}
++
+ std::string emitModelPlan(mlir::ModuleOp module,
+                           std::vector<RuntimeVariantRecord> variants) {
+   auto plan = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+@@ -277,6 +326,14 @@ std::string emitModelPlan(mlir::ModuleOp module,
+                        return a.consumer < b.consumer;
+                      });
+     BuildVariantSchedule(variant, stages.size());
++    if (!variant.attention.empty()) {
++      if (variant.attention.size()!=stages.size())
++        throw std::invalid_argument("attention runtime table has wrong length");
++      out << "constexpr AttentionRuntimeRecord kRuntimeAttention" << v << "[] = {\n";
++      for (auto const& item : variant.attention)
++        out << "  {" << item.chunks << "u, " << item.chunk_extent << "u},\n";
++      out << "};\n\n";
++    }
+     out << "constexpr GemmRuntimeDesc kRuntimeGemms" << v << "[] = {\n";
+     for (auto const& impl : variant.gemms)
+       out << "  {" << impl.compiled_variant << "u, " << impl.split_k << "u, "
+@@ -312,13 +369,16 @@ std::string emitModelPlan(mlir::ModuleOp module,
+     out << "};\n\n";
+   }
+   out << "constexpr RuntimeVariantDesc kRuntimeVariants[] = {\n";
+-  for (std::size_t v = 0; v < variants.size(); ++v)
++  for (std::size_t v = 0; v < variants.size(); ++v) {
+     out << "  {kRuntimeGemms" << v << ", kDependencies" << v << ", "
+         << variants[v].dependencies.size() << "u, kDependencyOffsets" << v
+         << ", kSchedule" << v << ", " << variants[v].schedule.size()
+         << "u, " << variants[v].max_dependency_span << "u, "
+         << variants[v].seq_begin << "u, " << variants[v].seq_end
+-        << "u, " << variants[v].ownership_flags << "u},\n";
++        << "u, " << variants[v].ownership_flags << "u";
++    if (!variants[v].attention.empty()) out << ", kRuntimeAttention" << v;
++    out << "},\n";
++  }
+   std::uint32_t const seq_count = variants.back().seq_end + 1;
+   out << "};\n\nconstexpr auto MakeSeqVariant() {\n"
+       << "  std::array<std::uint16_t, " << seq_count << "> table{};\n";
+@@ -527,6 +587,7 @@ RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
+   RuntimePlan result;
+   result.dependencies = std::move(analysis.dependencies);
+   result.gemms = readRuntimeGemms(module, arrayField(model, "gemms").size());
++  result.attention = readRuntimeAttention(module);
+   result.ownership_flags = readOwnershipFlags(module);
+   result.cluster_dim = analysis.cluster_dim;
+   result.task_stages = std::move(analysis.task_stages);
+@@ -673,6 +734,8 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
+       "tilemega.model_plan");
+   if (!emittedPlan)
+     throw std::invalid_argument("verified CG has no tilemega.model_plan");
++  RuntimeVariantRecord attention_storage;
++  attention_storage.attention = readRuntimeAttention(module);
+   out << "// SPDX-License-Identifier: BSD-3-Clause\n"
+       << "// Generated by CouplingGraphToCUDA from verified tilemega.* ops.\n"
+       << (stringField(emittedPlan, "dtype") == "bf16"
+@@ -681,6 +744,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
+                                std::to_string(clusterDim) + "\n"
+                           : std::string())
+       << generatedGemm
++      << emitAttentionStorage(module, {attention_storage})
+       << SyncEmitter{}.EmitWait("global")
+       << SyncEmitter{}.EmitSignal("global")
+       << HostLauncherEmitter{}.Emit("l1_kernel")
+@@ -694,6 +758,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
+                                    arrayField(modelPlan, "gemms").size());
+   runtime.dependencies = std::move(dependencies);
+   runtime.ownership_flags = readOwnershipFlags(module);
++  runtime.attention = std::move(attention_storage.attention);
+   out << emitModelPlan(module, {std::move(runtime)});
+   return out.str();
+ }
+@@ -729,6 +794,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
+     record.ownership_flags = runtime_plan.ownership_flags;
+     record.dependencies = std::move(runtime_plan.dependencies);
+     record.gemms = std::move(runtime_plan.gemms);
++    record.attention = std::move(runtime_plan.attention);
+     if (record.gemms.size() != gemm_count)
+       throw std::invalid_argument("runtime variant GEMM count changed");
+     for (auto& impl : record.gemms) {
+@@ -756,6 +822,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
+       << (stringField(first_plan, "dtype") == "bf16"
+               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
+       << EmitGemmInstantiations(shapes)
++      << emitAttentionStorage(first, records)
+       << (cluster_dim > 1 ? "#define TILEMEGA_GENERATED_CLUSTER_DIM " +
+                                 std::to_string(cluster_dim) + "\n"
+                           : std::string())
+diff --git a/lib/Frontend/Frontend.cpp b/lib/Frontend/Frontend.cpp
+index 7897ca71..2c730206 100644
+--- a/lib/Frontend/Frontend.cpp
++++ b/lib/Frontend/Frontend.cpp
+@@ -446,6 +446,21 @@ mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(
+         builder.getNamedAttr("stages", builder.getI64IntegerAttr(impl.stages)),
+         builder.getNamedAttr("split_k", builder.getI64IntegerAttr(impl.split_k))}));
+   module->setAttr("tilemega.gemm_runtime", builder.getArrayAttr(runtimePlan));
++  if (!options.attention.empty()) {
++    llvm::SmallVector<mlir::Attribute> choices;
++    std::set<int> selected;
++    for (auto const& choice : options.attention) {
++      if (choice.stage < 0 || static_cast<std::size_t>(choice.stage) >= plan.stages.size() ||
++          plan.stages[choice.stage].kind != PlanTaskKind::kAttention ||
++          !selected.insert(choice.stage).second || !choice.runtime.chunks || !choice.runtime.chunk_extent)
++        throw std::invalid_argument("attention plan requires unique attention stages and positive geometry");
++      choices.push_back(dict(builder, {
++          builder.getNamedAttr("stage",builder.getI64IntegerAttr(choice.stage)),
++          builder.getNamedAttr("chunks",builder.getI64IntegerAttr(choice.runtime.chunks)),
++          builder.getNamedAttr("chunk_extent",builder.getI64IntegerAttr(choice.runtime.chunk_extent))}));
++    }
++    module->setAttr("tilemega.attention_runtime",builder.getArrayAttr(choices));
++  }
+   module->setAttr("tilemega.rope_tile_per_block",
+                   builder.getBoolAttr(options.rope_tile_per_block));
+   module->setAttr("tilemega.kv_tile_per_block",
+diff --git a/lib/Solver/RuntimeProjection.cpp b/lib/Solver/RuntimeProjection.cpp
+index 7288a257..b470b618 100644
+--- a/lib/Solver/RuntimeProjection.cpp
++++ b/lib/Solver/RuntimeProjection.cpp
+@@ -85,6 +85,8 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
+   if (options.grid <= 0 || options.threads <= 0 || options.kappa < 0 ||
+       plan.gemms.size() != model.gemms.size() || model.stages.empty())
+     throw std::invalid_argument("incomplete runtime projection configuration");
++  if (!plan.attention.empty() && plan.attention.size()!=model.stages.size())
++    throw std::invalid_argument("attention projection table has wrong length");
+   auto dimension = [](std::string const& parameter, int value) {
+     return parameter.empty() ? std::to_string(value) : parameter;
+   };
+@@ -161,6 +163,20 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
+   };
+   for (std::size_t i=0; i<model.stages.size(); ++i) {
+     auto const& stage = model.stages[i];
++    if (!plan.attention.empty() && plan.attention[i].chunks>1) {
++      auto const& choice = plan.attention[i];
++      if (stage.kind!=StageKind::kAttention || !choice.chunk_extent)
++        throw std::invalid_argument("invalid attention stage in runtime projection");
++      stage_chunks[i] = choice.chunks;
++      entry[i] = counts.size();
++      for (auto phase : codegen::kAttentionExpandedPhases) {
++        int multiplier = codegen::AttentionPhaseTasks(phase,1,choice.chunks);
++        append(i,false,Mul(Mul(seq,stage.extent),multiplier));
++        result.stages.back().attention_phase = phase;
++      }
++      done[i] = counts.size()-1;
++      continue;
++    }
+     std::string count;
+     switch (stage.kind) {
+       case StageKind::kGemm: {
+@@ -207,14 +223,22 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
+     if (edge.producer >= entry.size() || edge.consumer >= entry.size())
+       throw std::invalid_argument("dependency outside runtime projection stages");
+     auto window = edge.window;
+-    if (done[edge.producer] != entry[edge.producer] &&
++    if (model.stages[edge.producer].kind == StageKind::kGemm &&
++        done[edge.producer] != entry[edge.producer] &&
+         !(plan.ownership_flags & codegen::kCombinerTileOwnership))
+       window = {};
++    if (model.stages[edge.consumer].kind==StageKind::kAttention &&
++        stage_chunks[edge.consumer]>1 && window.narrowed)
++      window.div *= stage_chunks[edge.consumer];
+     edges.push_back({done[edge.producer],entry[edge.consumer],window,
+                      std::to_string(window.offset)});
+   }
+   for (std::size_t i=0; i<entry.size(); ++i) if (done[i] != entry[i]) {
+-    if (plan.ownership_flags & codegen::kCombinerTileOwnership) {
++    if (model.stages[i].kind==StageKind::kAttention) {
++      for (auto const& dep : codegen::AttentionInternalDependencies(stage_chunks[i]))
++        edges.push_back({entry[i]+dep.producer,entry[i]+dep.consumer,
++            {true,dep.div,dep.scale,0,dep.count},"0"});
++    } else if (plan.ownership_flags & codegen::kCombinerTileOwnership) {
+       if (options.cg_split_task_order)
+         edges.push_back({entry[i],done[i],{true,1,stage_chunks[i],0,stage_chunks[i]},"0"});
+       else
+diff --git a/tools/tilemega-compile.cpp b/tools/tilemega-compile.cpp
+index fed4e8fd..0c3d91ee 100644
+--- a/tools/tilemega-compile.cpp
++++ b/tools/tilemega-compile.cpp
+@@ -14,6 +14,7 @@
+ #include <exception>
+ #include <algorithm>
+ #include <cstdlib>
++#include <climits>
+ #include <filesystem>
+ #include <fstream>
+ #include <iostream>
+@@ -66,6 +67,20 @@ std::vector<VariantRequest> readVariants(std::string const& path,
+     VariantRequest request;
+     request.seq_begin = requiredInteger(*object, "seq_begin");
+     request.seq_end = requiredInteger(*object, "seq_end");
++    if (auto* attention = object->getArray("attention")) {
++      for (auto const& value : *attention) {
++        auto* choice = value.getAsObject();
++        if (!choice) throw std::runtime_error("attention choice must be an object");
++        auto stage = requiredInteger(*choice,"stage");
++        auto chunks = requiredInteger(*choice,"chunks");
++        auto extent = requiredInteger(*choice,"chunk_extent");
++        if (stage < 0 || stage > INT_MAX || chunks <= 0 || chunks > INT_MAX ||
++            extent <= 0 || extent > INT_MAX)
++          throw std::runtime_error("invalid attention stage/chunks/scratch extent");
++        request.options.attention.push_back({static_cast<int>(stage),
++            {static_cast<std::uint32_t>(chunks),static_cast<std::uint32_t>(extent)}});
++      }
++    }
+     if (auto own = object->getBoolean("rope_tile_per_block"))
+       request.options.rope_tile_per_block = *own;
+     if (auto own = object->getBoolean("kv_tile_per_block"))

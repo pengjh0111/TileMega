@@ -1,0 +1,28 @@
+{
+  "schema": "tilemega.runtime_variants.v1",
+  "variants": [
+    {
+      "seq_begin": 1,
+      "seq_end": 128,
+      "uniform": {
+        "tile_m": 128,
+        "tile_n": 128,
+        "tile_k": 16,
+        "stages": 3,
+        "split_k": 1
+      },
+      "attention": [
+        {
+          "stage": 8,
+          "chunks": 4,
+          "chunk_extent": 160
+        },
+        {
+          "stage": 23,
+          "chunks": 4,
+          "chunk_extent": 160
+        }
+      ]
+    }
+  ]
+}
