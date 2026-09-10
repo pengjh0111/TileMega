@@ -76,10 +76,12 @@ int main() {
   TargetSpec const target =
       TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR) +
                            "/configs/targets/sm_89.json");
-  CostModel const cost(target);
+  CostModelOptions legacy_options;
+  legacy_options.unified_task_cost=false;  // TinyModel is deliberately a non-CG historical fixture.
+  CostModel const cost(target,ScalarType::kF32,legacy_options);
   ModelDescription const model = TinyModel();
   ChainDP const dp(cost, Candidates());
-  CostModelOptions measured_options;
+  CostModelOptions measured_options=legacy_options;
   measured_options.measured_partial_combine=true;
   auto missing_target=target;
   missing_target.calib_bf16.fp32_partial_combine={};
@@ -128,7 +130,7 @@ int main() {
   event_rates.notify_longest_worker={11.0,"measured","ns/max_worker_task_ref"};
   event_rates.poll_longest_worker={13.0,"measured","ns/max_worker_task_ref"};
   event_rates.fence={std::nullopt,"not_calibrated","ns/fence_free_producer"};
-  CostModelOptions event_options; event_options.l2_events=true;
+  CostModelOptions event_options=legacy_options; event_options.l2_events=true;
   CostModel event_cost(event_target,ScalarType::kBF16,event_options);
   auto priced=event_cost.Evaluate(event_model,event_config,{1});
   REQUIRE(priced.event_ns==40*2+11*3+5*(5+7)+4*(11+13));
@@ -154,8 +156,8 @@ int main() {
   missing_event_target.event_bf16.poll={std::nullopt,"not_calibrated","ns/runtime_wait_entry"};
   rejects([&] { CostModel(missing_event_target,ScalarType::kBF16,event_options).Evaluate(event_model,event_config,{1}); });
   rejects([&] { ChainDP(event_cost,Candidates()).Solve(event_model,{}); });
-  auto l1_event=CostModel(event_target,ScalarType::kBF16).Evaluate(event_model,event_config,{1});
-  auto l1_original=CostModel(target,ScalarType::kBF16).Evaluate(model,event_config,{1});
+  auto l1_event=CostModel(event_target,ScalarType::kBF16,legacy_options).Evaluate(event_model,event_config,{1});
+  auto l1_original=CostModel(target,ScalarType::kBF16,legacy_options).Evaluate(model,event_config,{1});
   REQUIRE(std::memcmp(&l1_event.total_ns,&l1_original.total_ns,sizeof(double))==0);
   REQUIRE(l1_event.event_ns==0);
 

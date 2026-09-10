@@ -332,7 +332,9 @@ int main(int argc, char** argv) {
     // fabricated zeros.  That refusal is itself the reason a lane and a term
     // carry no value here, so it is reported and not counted as a failure.
     try {
-      CostModel const model(spec);
+      CostModelOptions legacy_options;
+      legacy_options.unified_task_cost=false;  // This audit's probe is the historical .cu table.
+      CostModel const model(spec,ScalarType::kF32,legacy_options);
       CheckLanes(tag, spec, model);
       CheckTerms(tag, spec, model, probe);
     } catch (std::exception const& error) {

@@ -310,8 +310,10 @@ int main(int argc, char** argv) try {
   transfer.calib = calib.calib;
   transfer.calib_bf16 = calib.calib_bf16;
 
-  CostModel const model_native(calib, dtype);
-  CostModel const model_transfer(transfer, dtype);
+  CostModelOptions legacy_options;
+  legacy_options.unified_task_cost=false;  // Preserve the archived migration experiment.
+  CostModel const model_native(calib, dtype, legacy_options);
+  CostModel const model_transfer(transfer, dtype, legacy_options);
 
   // The validation set has to be the one the shipped form is measured on: a
   // rank transfer scored against the FP32 sweep would answer a question about

@@ -34,9 +34,11 @@ int main(int argc, char** argv) try {
   std::string const oracle = root + "/docs/experiments/ORACLE/" + (bf16 ? "raw_bf16/" : "raw/");
   auto target = tilemega::TargetSpec::FromJson(root + "/configs/targets/sm_89.json");
   CostModelOptions legacy_options;
+  legacy_options.unified_task_cost = false;  // Historical .cu input/price anchor.
   legacy_options.fp32_partials = bf16;
   CostModel cost(target, scalar, legacy_options);
   CostModelOptions partial_options;
+  partial_options.unified_task_cost = false;
   partial_options.fp32_partials = true;
   CostModel partial_cost(target, scalar, partial_options);
   mlir::MLIRContext context;
