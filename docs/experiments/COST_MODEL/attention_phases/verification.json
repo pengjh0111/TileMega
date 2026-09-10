@@ -1,0 +1,466 @@
+{
+  "scope": "BF16 numerical primitive; not full models or persistent queues",
+  "binary": "/root/TileMega/build-portable/attention_phase_test",
+  "binary_sha256": "5290e15936ee3325c45ba3cb3b43c76dbf3715e59197fd4d16dd7a5020db6cf1",
+  "processes": 50,
+  "cases": 1600,
+  "chunk1_bit_cases": 400,
+  "rows": [
+    {
+      "seed": 1,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "1"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 2,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "2"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 3,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "3"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 4,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "4"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 5,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "5"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 6,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "6"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 7,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "7"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 8,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "8"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 9,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "9"
+      ],
+      "log_sha256": "7bcff8c8163e2a739a2a4d86c7c3eb24ba4e400f05e44508e7dd38b5a3ea0260",
+      "max_abs": 0.00390625
+    },
+    {
+      "seed": 10,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "10"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 11,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "11"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 12,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "12"
+      ],
+      "log_sha256": "7bcff8c8163e2a739a2a4d86c7c3eb24ba4e400f05e44508e7dd38b5a3ea0260",
+      "max_abs": 0.00390625
+    },
+    {
+      "seed": 13,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "13"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 14,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "14"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 15,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "15"
+      ],
+      "log_sha256": "7bcff8c8163e2a739a2a4d86c7c3eb24ba4e400f05e44508e7dd38b5a3ea0260",
+      "max_abs": 0.00390625
+    },
+    {
+      "seed": 16,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "16"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 17,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "17"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 18,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "18"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 19,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "19"
+      ],
+      "log_sha256": "7bcff8c8163e2a739a2a4d86c7c3eb24ba4e400f05e44508e7dd38b5a3ea0260",
+      "max_abs": 0.00390625
+    },
+    {
+      "seed": 20,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "20"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 21,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "21"
+      ],
+      "log_sha256": "a3c3a037b7e40347e8425e65c01e8a895f42a762f51f5054dd997964ebbd1b4c",
+      "max_abs": 0.00048828125
+    },
+    {
+      "seed": 22,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "22"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 23,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "23"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 24,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "24"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 25,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "25"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 26,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "26"
+      ],
+      "log_sha256": "a3c3a037b7e40347e8425e65c01e8a895f42a762f51f5054dd997964ebbd1b4c",
+      "max_abs": 0.00048828125
+    },
+    {
+      "seed": 27,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "27"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 28,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "28"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 29,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "29"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 30,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "30"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 31,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "31"
+      ],
+      "log_sha256": "a3c3a037b7e40347e8425e65c01e8a895f42a762f51f5054dd997964ebbd1b4c",
+      "max_abs": 0.00048828125
+    },
+    {
+      "seed": 32,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "32"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 33,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "33"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 34,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "34"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 35,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "35"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 36,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "36"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 37,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "37"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 38,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "38"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 39,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "39"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 40,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "40"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 41,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "41"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 42,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "42"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 43,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "43"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 44,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "44"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 45,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "45"
+      ],
+      "log_sha256": "a3c3a037b7e40347e8425e65c01e8a895f42a762f51f5054dd997964ebbd1b4c",
+      "max_abs": 0.00048828125
+    },
+    {
+      "seed": 46,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "46"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 47,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "47"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    },
+    {
+      "seed": 48,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "48"
+      ],
+      "log_sha256": "ab600183358bacc41ef142f089540e6ad59496a5aac1a2f5ee7bc88c2c0d723b",
+      "max_abs": 0.0009765625
+    },
+    {
+      "seed": 49,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "49"
+      ],
+      "log_sha256": "7bcff8c8163e2a739a2a4d86c7c3eb24ba4e400f05e44508e7dd38b5a3ea0260",
+      "max_abs": 0.00390625
+    },
+    {
+      "seed": 50,
+      "command": [
+        "/root/TileMega/build-portable/attention_phase_test",
+        "50"
+      ],
+      "log_sha256": "3990db19812a922dfc8d130998fd3b3c2e4f20deda4678f676669daf6bb65f9f",
+      "max_abs": 0.001953125
+    }
+  ],
+  "sources": {
+    "test/unit/attention_phase_test.cu": "73a2f6e5dbe2d8342896980becdfd3d1246c73fd6c0b823ab5085705dac1b4d5",
+    "include/tilemega/Codegen/AttentionPlan.h": "a0c51201e9dd8798bd3475e430aeecd4d924f650b3ba63bce850a6ac9798d473",
+    "include/tilemega/Codegen/tasks/AttentionPhasedTaskBody.h": "bfb5dd7d1f214e04cd6696bc0ffef56909dc52cdcf18e5e4937f8043b47e1aaa",
+    "include/tilemega/Codegen/tasks/AttentionCombineTaskBody.h": "a699013ad6ae19a9e83a201feaf5a8e958d7e9ca472a27ebda040efcbc0f1b0c"
+  }
+}
