@@ -1,0 +1,26 @@
+ptxas info    : 10 bytes gmem, 80 bytes cmem[4]
+ptxas info    : Compiling entry function '_Z10fused_normN8tilemega7codegen14GemmInvocationEPKN7cutlass10bfloat16_tEPS3_' for 'sm_89'
+ptxas info    : Function properties for _Z10fused_normN8tilemega7codegen14GemmInvocationEPKN7cutlass10bfloat16_tEPS3_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 92 registers, used 1 barriers, 648 bytes cmem[0]
+ptxas info    : Compile time = 113.157 ms
+ptxas info    : Compiling entry function '_Z9fused_addN8tilemega7codegen14GemmInvocationEPKN7cutlass10bfloat16_tEPS3_' for 'sm_89'
+ptxas info    : Function properties for _Z9fused_addN8tilemega7codegen14GemmInvocationEPKN7cutlass10bfloat16_tEPS3_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 94 registers, used 1 barriers, 648 bytes cmem[0]
+ptxas info    : Compile time = 71.651 ms
+ptxas info    : Compiling entry function '_Z10plain_normPKN7cutlass10bfloat16_tES2_PS0_i' for 'sm_89'
+ptxas info    : Function properties for _Z10plain_normPKN7cutlass10bfloat16_tES2_PS0_i
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 16 registers, used 1 barriers, 512 bytes smem, 380 bytes cmem[0]
+ptxas info    : Compile time = 9.474 ms
+ptxas info    : Compiling entry function '_Z9plain_addPKN7cutlass10bfloat16_tES2_PS0_i' for 'sm_89'
+ptxas info    : Function properties for _Z9plain_addPKN7cutlass10bfloat16_tES2_PS0_i
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 12 registers, used 0 barriers, 380 bytes cmem[0]
+ptxas info    : Compile time = 1.265 ms
+ptxas info    : Compiling entry function '_Z10plain_gemmN8tilemega7codegen14GemmInvocationE' for 'sm_89'
+ptxas info    : Function properties for _Z10plain_gemmN8tilemega7codegen14GemmInvocationE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 96 registers, used 1 barriers, 632 bytes cmem[0]
+ptxas info    : Compile time = 72.753 ms

@@ -1,0 +1,1 @@
+FUSED_GEMM_TASK_BODY cases=24 bit_equal=1 global_intermediate_untouched=1 threads=128 shared=23552 add_regs=94 norm_regs=92 add_ctas=4 norm_ctas=4

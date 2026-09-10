@@ -1,0 +1,26 @@
+ptxas info    : 10 bytes gmem, 80 bytes cmem[4]
+ptxas info    : Compiling entry function '_Z10fused_normN8tilemega7codegen14GemmInvocationEPKfPf' for 'sm_89'
+ptxas info    : Function properties for _Z10fused_normN8tilemega7codegen14GemmInvocationEPKfPf
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 96 registers, used 1 barriers, 544 bytes cmem[0]
+ptxas info    : Compile time = 100.224 ms
+ptxas info    : Compiling entry function '_Z9fused_addN8tilemega7codegen14GemmInvocationEPKfPf' for 'sm_89'
+ptxas info    : Function properties for _Z9fused_addN8tilemega7codegen14GemmInvocationEPKfPf
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 95 registers, used 1 barriers, 544 bytes cmem[0]
+ptxas info    : Compile time = 62.170 ms
+ptxas info    : Compiling entry function '_Z10plain_normPKfS0_Pfi' for 'sm_89'
+ptxas info    : Function properties for _Z10plain_normPKfS0_Pfi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 16 registers, used 1 barriers, 1024 bytes smem, 380 bytes cmem[0]
+ptxas info    : Compile time = 9.172 ms
+ptxas info    : Compiling entry function '_Z9plain_addPKfS0_Pfi' for 'sm_89'
+ptxas info    : Function properties for _Z9plain_addPKfS0_Pfi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 12 registers, used 0 barriers, 380 bytes cmem[0]
+ptxas info    : Compile time = 1.138 ms
+ptxas info    : Compiling entry function '_Z10plain_gemmN8tilemega7codegen14GemmInvocationE' for 'sm_89'
+ptxas info    : Function properties for _Z10plain_gemmN8tilemega7codegen14GemmInvocationE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 96 registers, used 1 barriers, 528 bytes cmem[0]
+ptxas info    : Compile time = 50.688 ms
