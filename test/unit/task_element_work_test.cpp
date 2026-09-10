@@ -5,6 +5,7 @@
 #include <tilemega/Analysis/SemanticCodec.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Frontend/SemanticLifting.h>
+#include <tilemega/Solver/TaskModel.h>
 #include <iostream>
 #include <stdexcept>
 
@@ -56,6 +57,13 @@ int main(int argc, char** argv) {
   auto work=DeriveTaskWork(attention,task,{});
   std::cerr << "CAUSAL_READ_QP " << work.read_elements.ToString() << '\n';
   auto reads=ExactElementRead(attention,task,attention.element_reads[1],{});
+  tilemega::solver::ModelTaskSemantics model_semantic;
+  model_semantic.op=attention;
+  tilemega::solver::DerivedTaskInput model_input;
+  model_input.task=task;
+  auto fusion_access=tilemega::solver::DeriveModelTaskAccesses(model_semantic,model_input);
+  Require(fusion_access.reads.at("k").IsSubset(reads) &&
+          reads.IsSubset(fusion_access.reads.at("k")));
   auto expected=CouplingRelation::FromIslText(
       "[S,past] -> { [s,h] -> [key,d] : 0<=s<S and 0<=h<2 and "
       "0<=key<S+past and key<=past+s and 0<=d<4 }");
@@ -80,6 +88,23 @@ int main(int argc, char** argv) {
     try { action(); } catch (std::exception const&) { failed=true; }
     Require(failed && context.ReferenceCount()==before); ++rejected;
   };
+  auto invalid_input=model_input;
+  invalid_input.task.output.name.clear();
+  reject([&]{tilemega::solver::DeriveModelTaskAccesses(model_semantic,invalid_input);});
+  auto invalid_semantic=model_semantic;
+  invalid_semantic.op.element_reads[0].tensor.name.clear();
+  reject([&]{tilemega::solver::DeriveModelTaskAccesses(invalid_semantic,model_input);});
+  invalid_semantic=model_semantic;
+  auto duplicate=invalid_semantic.op.element_reads.front();
+  duplicate.tensor.layout_id="different";
+  invalid_semantic.op.element_reads.push_back(duplicate);
+  reject([&]{tilemega::solver::DeriveModelTaskAccesses(invalid_semantic,model_input);});
+  model_input.scalar_access.emplace();
+  model_input.scalar_access->writes=CouplingRelation::FromIslText("{ [q] -> [i] : 0<=q<4 and i=q }");
+  model_input.scalar_access->reads.emplace("runtime_only",model_input.scalar_access->writes);
+  auto runtime_access=tilemega::solver::DeriveModelTaskAccesses(model_semantic,model_input);
+  Require(runtime_access.reads.size()==1 && runtime_access.reads.count("runtime_only") &&
+          runtime_access.writes.at(task.output.name).IsSubset(model_input.scalar_access->writes));
   auto bad=attention.element_reads[1]; bad.map.results.pop_back();
   reject([&]{work.read_elements.BindCoordinates({});});
   reject([&]{ExactElementRead(attention,task,bad,{});});
@@ -123,6 +148,13 @@ int main(int argc, char** argv) {
       auto const& stage=plan.stages.at(lifted.ops[i].stage);
       if (op.arithmetic!="rope" && op.arithmetic!="attention") continue;
       auto const& node=*production.Find(op.name);
+      tilemega::solver::ModelTaskSemantics production_semantic;
+      production_semantic.op=op;
+      tilemega::solver::DerivedTaskInput production_input;
+      production_input.task=node;
+      auto accesses=tilemega::solver::DeriveModelTaskAccesses(production_semantic,production_input);
+      for (auto const& read:op.element_reads)
+        Require(ExactElementRead(op,node,read,{}).IsSubset(accesses.reads.at(read.tensor.name)));
       auto derived=DeriveTaskWork(op,node,{});
       Require(!op.element_reads.empty());
       for (int seq:{1,4,128}) for (int past:{0,3,512}) for (int token:{0,seq-1}) {

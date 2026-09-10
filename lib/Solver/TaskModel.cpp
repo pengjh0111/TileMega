@@ -87,6 +87,44 @@ std::vector<ModelCouplingMetrics> InstantiateModelCouplings(
   return edges;
 }
 
+analysis::TaskAccesses DeriveModelTaskAccesses(ModelTaskSemantics const& semantic,
+                                             DerivedTaskInput const& input) {
+  analysis::IslReferenceAudit audit(__func__);
+  analysis::TaskAccesses accesses;
+  auto const& task=input.task;
+  if (task.output.name.empty())
+    throw std::invalid_argument("fusion output tensor identity is missing");
+  if (input.scalar_access) {
+    accesses.reads=input.scalar_access->reads;
+    accesses.writes.emplace(task.output.name,input.scalar_access->writes);
+    return accesses;
+  }
+  accesses.writes.emplace(task.output.name,analysis::ElementAccess(task,
+      analysis::BuildWriteMap(task),{},analysis::AccessDomain::kPhysicalTensor));
+  std::map<std::string,std::string> layouts;
+  auto append=[&](analysis::TensorSpace const& tensor, analysis::CouplingRelation relation) {
+    if (tensor.name.empty()) throw std::invalid_argument("fusion input tensor identity is missing");
+    auto [layout,inserted]=layouts.emplace(tensor.name,tensor.layout_id);
+    if (!inserted && layout->second!=tensor.layout_id)
+      throw std::invalid_argument("fusion read union requires a common tensor layout");
+    auto found=accesses.reads.find(tensor.name);
+    if (found==accesses.reads.end()) accesses.reads.emplace(tensor.name,std::move(relation));
+    else found->second=found->second.Union(relation);
+  };
+  // Complete element reads replace rectangular coupling projections; using
+  // issued/nominal work here would incorrectly retain predicated tail bytes.
+  if (!semantic.op.element_reads.empty()) {
+    for (auto const& read:semantic.op.element_reads)
+      append(read.tensor,analysis::ExactElementRead(semantic.op,task,read,{}));
+  } else {
+    for (std::size_t operand=0;operand<task.operands.size();++operand) {
+      auto read=analysis::BuildReadMap(task,operand);
+      append(read.tensor,analysis::ElementAccess(task,read,{},analysis::AccessDomain::kPhysicalTensor));
+    }
+  }
+  return accesses;
+}
+
 DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
                                     ModelTaskSemantics const& semantic,
                                     analysis::OperatorGraph const& graph,

@@ -3,6 +3,7 @@
 #include <tilemega/Solver/CostModel.h>
 #include <tilemega/Analysis/TaskWork.h>
 #include <tilemega/Analysis/OpArithmetic.h>
+#include <tilemega/Analysis/FusionAccess.h>
 #include <tilemega/Codegen/tasks/ScalarDataflow.h>
 
 namespace tilemega::solver {
@@ -26,6 +27,8 @@ struct DerivedTaskInput {
   std::optional<codegen::ScalarDataflow> scalar_flow;
   std::optional<RuntimeScalarAccess> scalar_access;
 };
+analysis::TaskAccesses DeriveModelTaskAccesses(ModelTaskSemantics const& semantic,
+                                             DerivedTaskInput const& input);
 analysis::TaskWork DeriveRuntimeScalarWork(ModelDescription const& model,
     ModelTaskSemantics const& semantic,analysis::OperatorNode const& task,
     analysis::TaskWork work,int threads,RuntimeScalarAccess* accesses=nullptr);
