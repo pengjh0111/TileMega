@@ -15,6 +15,9 @@
 #include <tilemega/Solver/CostModel.h>
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Target/TargetSpec.h>
+#include <tilemega/Frontend/TorchExportImporter.h>
+#include <tilemega/Dialect/CouplingGraph/CGDialect.h>
+#include <mlir/IR/MLIRContext.h>
 
 #include <algorithm>
 #include <chrono>
@@ -275,6 +278,8 @@ int main(int argc, char** argv) try {
   bool fp32_partials = true;
   bool task_body_traits = true;
   bool measured_partial_combine = TILEMEGA_MEASURED_PARTIAL_COMBINE;
+  bool unified_task_cost = TILEMEGA_UNIFIED_TASK_COST;
+  bool full_only = false;
   std::string target_file;
   std::string gqa_cu;
   std::string mha_cu;
@@ -291,6 +296,9 @@ int main(int argc, char** argv) try {
     else if (arg == "--legacy-task-traits") task_body_traits = false;
     else if (arg == "--measured-partial-combine") measured_partial_combine = true;
     else if (arg == "--analytic-partial-combine") measured_partial_combine = false;
+    else if (arg == "--unified-task-cost") unified_task_cost = true;
+    else if (arg == "--legacy-task-cost") unified_task_cost = false;
+    else if (arg == "--full-only") full_only = true;
     else if (arg == "--target" && i + 1 < argc) target_file = argv[++i];
     else if (arg == "--gqa-cu" && i + 1 < argc) gqa_cu = argv[++i];
     else if (arg == "--mha-cu" && i + 1 < argc) mha_cu = argv[++i];
@@ -305,6 +313,7 @@ int main(int argc, char** argv) try {
                          " [--fp32-partials|--bf16-partials-baseline]"
                          " [--legacy-task-traits]"
                          " [--measured-partial-combine|--analytic-partial-combine] [--target FILE]"
+                         " [--unified-task-cost|--legacy-task-cost] [--full-only]"
                          " [--gqa-cu FILE] [--mha-cu FILE]\n"; return 2; }
   }
   if (screen_dir.empty()) screen_dir = repo + "/docs/experiments/ORACLE/raw";
@@ -328,6 +337,7 @@ int main(int argc, char** argv) try {
   full_options.fp32_partials = fp32_partials;
   full_options.task_body_traits = task_body_traits;
   full_options.measured_partial_combine = measured_partial_combine;
+  full_options.unified_task_cost = unified_task_cost;
   CostModel const full(target, dtype, full_options);
   std::cout << "fit: lds=" << full.fit().lds_ns << " ns/instr (rel rms "
             << 100 * full.fit().lds_rel_rms << "%), setup=" << full.fit().setup_ns
@@ -339,6 +349,7 @@ int main(int argc, char** argv) try {
   roofline.fp32_partials = fp32_partials;
   roofline.task_body_traits = task_body_traits;
   roofline.measured_partial_combine = measured_partial_combine;
+  roofline.unified_task_cost = unified_task_cost;
   roofline.pipeline_envelope = false;
   roofline.wave_tail = false;
   roofline.cache_model = false;
@@ -385,8 +396,17 @@ int main(int argc, char** argv) try {
     auto const points =
         ReadScreen(screen_dir + "/screen_" + source.name + ".tsv",
                    registers, target, dtype, &missing, &occupancy_mismatches);
-    ModelDescription const model = ModelDescription::FromGeneratedCuda(
-        source.cu, ModelDims{4, 3, 7}, source.name);
+    ModelDescription model;
+    if (unified_task_cost) {
+      mlir::MLIRContext context;
+      context.getOrLoadDialect<tilemega::dialect::CGDialect>();
+      std::string input=dtype==ScalarType::kBF16
+          ? repo+"/docs/experiments/SEQSCAN/raw/export/"+source.name+".json"
+          : repo+"/docs/experiments/"+(std::string(source.name)=="gqa2" ? "E2E_GEN" : "P3_GENERALIZATION")+
+              "/raw/export_bridge.json";
+      auto cg=tilemega::frontend::TorchExportImporter{}.Import(input,context);
+      model=ModelDescription::FromCouplingGraph(*cg,{4,3,7},source.name);
+    } else model=ModelDescription::FromGeneratedCuda(source.cu,{4,3,7},source.name);
     if (model.dtype != dtype)
       throw std::runtime_error("generated model dtype does not match --dtype");
     std::cout << source.name << ": " << points.size() << " measured points, "
@@ -409,6 +429,7 @@ int main(int argc, char** argv) try {
     CandidateGenerator const generator(target, dtype);
 
     for (auto const& layer : ladder) {
+      if (full_only && std::string(layer.name)!="+nongemm(full)") continue;
       CostModel const cost(target, dtype, layer.options);
       std::vector<double> predicted(points.size());
       auto const start = std::chrono::steady_clock::now();
@@ -429,7 +450,9 @@ int main(int argc, char** argv) try {
         std::ofstream detail(out_dir + "/predictions_" + source.name + ".tsv");
         detail << "tile_m\ttile_n\ttile_k\tstages\tsplit_k\tctas_per_sm"
                   "\tmeasured_ms\tmodel_ms\tgemm_ms\tcombine_ms\tother_ms"
-                  "\tbarrier_ms\tstages_after_split\n";
+                  "\tbarrier_ms\tstages_after_split";
+        if (unified_task_cost) detail << "\ttask_ns_sum";
+        detail << '\n';
         for (std::size_t i = 0; i < points.size(); ++i) {
           CostBreakdown const b = cost.Evaluate(
               model, points[i].config, Residency{points[i].ctas_per_sm});
@@ -439,7 +462,9 @@ int main(int argc, char** argv) try {
                  << points[i].ctas_per_sm << '\t' << points[i].measured_ms
                  << '\t' << b.total_ns / 1e6 << '\t' << b.gemm_ns / 1e6 << '\t'
                  << b.combine_ns / 1e6 << '\t' << b.other_ns / 1e6 << '\t'
-                 << b.barrier_ns / 1e6 << '\t' << b.stage_count << '\n';
+                 << b.barrier_ns / 1e6 << '\t' << b.stage_count;
+          if (unified_task_cost) detail << '\t' << b.task_ns_sum;
+          detail << '\n';
         }
       }
     }
@@ -448,6 +473,7 @@ int main(int argc, char** argv) try {
     // lanes are retained deliberately: their identical score is evidence for
     // which dimensions remain structurally zero on this target.
     for (int lane = 0; lane < ResourceVector::kLaneCount; ++lane) {
+      if (full_only) continue;
       CostModelOptions ablated = plus_nongemm;
       ablated.disabled_lanes[lane] = true;
       CostModel const cost(target, dtype, ablated);

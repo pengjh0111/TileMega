@@ -265,6 +265,21 @@ add_executable(tilemega-op-audit tools/tilemega-op-audit.cpp)
 add_executable(tilemega-task-work-probe tools/tilemega-task-work-probe.cpp)
 add_executable(tilemega-task-work-gate tools/tilemega-task-work-gate.cpp)
 add_executable(tilemega-task-cost-gate tools/tilemega-task-cost-gate.cpp)
+add_executable(tilemega-interface-probe tools/tilemega-interface-probe.cpp)
+add_executable(tilemega-scalar-cost-probe tools/tilemega-scalar-cost-probe.cpp)
+add_executable(tilemega-scalar-error-probe tools/tilemega-scalar-error-probe.cpp)
+target_link_libraries(tilemega-scalar-error-probe PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-scalar-error-probe PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+add_test(NAME scalar_cost_errors COMMAND tilemega-scalar-error-probe "${CMAKE_SOURCE_DIR}")
+target_link_libraries(tilemega-scalar-cost-probe PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-scalar-cost-probe PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+target_link_libraries(tilemega-interface-probe PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-interface-probe PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+add_test(NAME coupling_interface_gqa2 COMMAND tilemega-interface-probe "${CMAKE_SOURCE_DIR}" gqa2)
+add_test(NAME coupling_interface_mha4 COMMAND tilemega-interface-probe "${CMAKE_SOURCE_DIR}" mha4)
 target_link_libraries(tilemega-task-cost-gate PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-task-cost-gate PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")

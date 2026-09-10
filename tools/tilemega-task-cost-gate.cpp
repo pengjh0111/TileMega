@@ -68,12 +68,13 @@ int main(int argc,char** argv) try {
           int chunks=0;
           double old=cost.GemmStageNs(gemm,config,{resident},model,&chunks);
           double current=cost.TaskCostNs(input,traits,{resident},model,chunks);
-          if (!Bits(old,current)) {
+          double stage_entry=cost.TaskStageNs(model,semantic.stage,config,{resident});
+          if (!Bits(old,current) || !Bits(old,stage_entry)) {
             std::cerr << std::setprecision(17) << "TASK_PRICE_MISMATCH dtype=" << dtype
                       << " model=" << name << " stage=" << semantic.op.name << " seq=" << seq
                       << " residency=" << resident << " config=" << row[0] << 'x' << row[1]
                       << 'x' << row[2] << 's' << row[3] << 'k' << row[4]
-                      << " old=" << old << " new=" << current << '\n';
+                      << " old=" << old << " new=" << current << " stage_entry=" << stage_entry << '\n';
             throw std::runtime_error("A6 GEMM stage-price bit gate failed; stop");
           }
           ++checks;
@@ -87,7 +88,7 @@ int main(int argc,char** argv) try {
     }
     if (configurations!=1077) throw std::runtime_error("incomplete 1077-configuration price gate");
     std::cerr << "TASK_PRICE_GATE dtype=" << dtype << " model=" << name
-              << " configs=" << configurations << " status=PASS scalar_path=pending\n";
+              << " configs=" << configurations << " status=PASS stage_entry_bits_equal=1\n";
   }
   if (context.ReferenceCount()!=0) throw std::runtime_error("task price gate retained isl objects");
   std::cerr << "ISL_CONTEXT remaining=" << context.ReferenceCount() << '\n';
