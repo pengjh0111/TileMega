@@ -885,10 +885,30 @@ barvinok 计数一致；`tilemega.implementation` 的 threads/smem/alignment/arc
         由 `tilemega-target-audit` 逐目标检查
 波分解  CTA 按 num_sms × ctas_per_sm 分波；尾波按它自己的活跃 SM 占比
         o = active/num_sms 重新代入 u(o) 求值，而不是外加一个 T_quant 修正项
-Split-K Interface 用 Stream-K 形式 a + b·[peers>1] + c·iters + d·(peers−1)
-其余    非 GEMM stage、grid barrier 按标定的 combine_fixed_ns 与
-        grid_barrier_* 曲线计入；count / volume 仍由 barvinok 给
+Split-K combine 用 Stream-K 归约项；BF16 FP32-partial 使用独立实测速率
+任务项  TaskCostNs(CG work QP, arithmetic signature, TaskBody traits, Residency)
+        GEMM 用名义 issued collective work（物理读集另外保留），保持历史位序
+        SIMT 用投影到 runtime task 的物理 R/W、算术签名及控制流 DAG
+        depth 是依赖 memory phase 链长，barriers 从归约/发布结构求出
+总价    task_ns_sum + combine_ns + barrier_ns + event_ns
+        L1 barrier_ns = stage_count × grid_barrier(grid)，历史语义保留
+        L2 event_ns 消费 CG runtime refs/waits 与最长队列 QP；不是事件组×notify
+接口项  可独立打开 (Σwait − |domain(C)|) × volume × dtype_bytes × memory_rate
+        非相邻残差边须保留 live endpoint 的精确 frontier DP，不能冒充相邻链
 ```
+
+Round5 实现/证据状态：`TILEMEGA_UNIFIED_TASK_COST` 保留独立旧路径开关；
+显式 GEMM entry 已通过 904680 位比较，实际缓存入口的全量重验仍进行中。
+非 GEMM 14 格 CPU 访问/价格核对、13 错误分支零残留、FP32 两模型完整
+1077 配置排序不降；BF16 历史770/462可测子集排序不变，不是新全量oracle。
+统一价格不等于 A7 chunk、混合 fusion 或 B3 符号 DP 已完成，详见
+`docs/experiments/COST_MODEL/scalar_work/result.md` 与 Round5 台账。
+
+算术声明层仅有 `lib/Analysis/OpArithmetic.cpp` 一张 schema 表，包含14类算术
+签名，缺项/缺运行实现明确报错。`flops`/`transcendental` 使用 QP 比值表达，
+attention 是 `4×total` FLOP/输出、`total/head_dim` exp/输出，当前走 SIMT CUDA
+lane 而非 TC。物理读写域由访问关系计数；TaskBody traits 提供线程/shared/stages
+及控制结构，不在 CostModel 中重填每类字节数。B 的混合 task 签名组合尚待实现。
 
 被推翻的三条，以及推翻它们的证据：
 

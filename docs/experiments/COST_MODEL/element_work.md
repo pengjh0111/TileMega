@@ -53,8 +53,13 @@ passed a JSON path where the tool requires the repository root. Both command
 errors were corrected without changing the build or audit policy.
 
 ⚠️ This is analysis-only evidence, not a new GPU synchronization claim.
-Exact element projection currently rejects an unprojected split result axis;
-the production unsplit attention paths above are covered, reference split
-attention and A7 chunk projection are not. A3's solver-side CG transport and
-A6 price consumption remain open. The 4308-group historical GEMM work gate
-does not substitute for A6's stage-price bit gate.
+The initial version rejected an unprojected split result axis. Follow-up
+16750b96 restricts exact reads to the actual split reduction span from
+BuildReadMap; it does not reconstruct a second split formula. The production
+CG semantic payload is now validated, transported, and consumed by candidate
+task pricing (8806c37c, c259172c, 00371d09); 4/4 generated CUDA byte comparisons
+remain identical, archived under `semantic_payload_codegen/`.
+The new runtime scalar projection and independent index checks are documented
+in [scalar_work/result.md](scalar_work/result.md). A7 attention chunk runtime
+is still separate and not claimed by these access-set checks. Neither the
+4308-group historical work gate nor input transport replaces A6's price gate.

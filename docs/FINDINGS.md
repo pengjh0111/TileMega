@@ -2380,3 +2380,48 @@ addresses as well as counts. Five error branches retain zero isl references.
 Full 30/30 CTest and 4/4 generated-CUDA byte comparisons pass. See
 COST_MODEL/element_work.md for source locations and preserved detours.
 This does not close A6 or extend the evidence to split attention.
+
+## F-112 — Paired graph timing resolves the partial-combine fixed term
+
+✅ F-110's local stop was repaired without changing the measured kernel.
+`lib/Target/GemmCalibration.cu:472` times rotated work/control graphs with
+64 identical launches per timed interval. The resolution test applies to
+the whole interval, not the divided per-launch number. The first graph
+attempt incorrectly tested the latter and is retained as a measurement-unit
+detour. Fifty fresh processes resolve the fixed term at median 61.750004535ns;
+each also compares all 1048576 outputs bitwise against a sequential FP32 CPU
+combine. Four coefficients are published only for the measured sm89 BF16
+float-partial path; missing targets still report not_calibrated. No unrelated
+FP32 calibration numbers changed. Full FP32 predictions/ranks remain byte
+identical; the conditional historical BF16 rank comparison slightly worsens,
+as recorded without threshold changes in COST_MODEL/partial_combine.md.
+
+## F-113 — Physical interface pricing exposes non-adjacent DP factors
+
+✅ `CostModel.cpp:655` consumes physical wait/volume instead of discarding
+both endpoint shapes. At seq128, GEMM3 M32→GEMM6 M128 costs
+19.230769396298506ns while the other three {32,128} endpoint combinations
+cost zero. These residual edges are not adjacent in the GEMM list, so the
+old chain/separable recurrence is not exact for the new price.
+`CouplingInterfaceDP.cpp:14` retains live endpoints until their last factor,
+with Residency still outside; reference frontier width is one. Two models'
+16-assignment non-adjacent oracles match selected full-Evaluate price bits,
+also with unified scalar task pricing enabled. Eight-candidate interface
+spread is 615.3908806976317ns; per-op predicted percentage benefit decreases,
+not increases, relative to the historical-price control. These are CPU
+prices, not measured GPU gains. See COST_MODEL/interface_work/result.md.
+
+## F-114 — A collective regression intercept cannot initialize SIMT work
+
+✅ A6's scalar prototype initially reused the calibrated GEMM setup
+intercept (-344.946ns for this BF16 profile). Small scalar task prices became
+negative and a zero-initialized wave max masked them as zero. The bad output
+is retained. `ScalarDataflow.h:47` now exposes actual TaskBody phases;
+`CostModel.cpp:408` prices their memory depth, reduction/publication barriers
+and schema arithmetic directly. There is no collective accumulator setup
+phase to charge in these bodies. Negative/nonfinite scalar task prices are
+rejected, not clamped. GEMM fitted expressions and arithmetic order are
+unchanged. Fourteen legal CPU model/domain cases in both ownership modes
+check independent index sets/counts; 13 real rejection paths have zero isl
+reference deltas. Two out-of-export-domain attempts remain recorded instead
+of widening the domains. See COST_MODEL/scalar_work/result.md.

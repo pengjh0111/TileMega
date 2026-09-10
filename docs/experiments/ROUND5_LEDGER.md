@@ -37,18 +37,18 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 | A3 | CG逐task count/read/write；从输出索引识别reduce/parallel轴；QP work；GEMM count/MainloopBytes位一致 | 进行中 | 用户批准双域；4308组、1357020项GEMM work位检查全过；RMSNorm读集通过。新增648格生产RoPE/attention读集、精确K集合等价、显式task坐标绑定通过；30/30 CTest、4/4 codegen逐字节相同。不是A6价格门；split attention及生产CG消费仍缺 | COST_MODEL/round5_work.md、element_work.md |
 | A4 | 单位置签名schema；GEMM/attention/RMS/RoPE/SiLU/mul/add/SwiGLU/KV/MoE/Softmax/LayerNorm/GeLU全部语义推导；缺项抛错；op-audit | 进行中 | 单表14签名schema零失败、4真实错误出口零残留；4个独立TaskBody缺失/占位明确拒绝执行定价。前端标识接入，A6消费未做 | 5c869fc；COST_MODEL/op_audit.txt、round5_work.md |
 | A5 | shared/threads/stages从TaskBody traits暴露，消除本地假设 | 进行中 | traits统一、union真实max、BF16线程取128；CUDA合约编译通过。10/10最终device SASS及资源与冻结矩阵相同；FP32两模型1077打印预测及排名字节相同（非A6位门）。完整统一消费仍待A6 | 7f18db8、598c440、c15b79c；TaskResources.h、round5_work.md |
-| A6 | 统一TaskCostNs；九lane/max/尾波原序不变；QP；旧路径开关；顶层task_sum/combine/barrier/event | 未开始 | 每GEMM stage×1077×2×两dtype位门；非GEMM逐条新旧比值解释；BF16/FP32排名且FP32不降 | COST_MODEL/result.md待更新 |
+| A6 | 统一TaskCostNs；九lane/max/尾波原序不变；QP；旧路径开关；顶层task_sum/combine/barrier/event | 实现并验证中 | 显式GEMM入口904680/904680位相等；实际TaskStageNs缓存入口全门运行中。标量14/14合法域CPU格、13错误分支零残留。FP32全1077×2排名不降；BF16历史770/462子集排名不变，不能充作新全量GPU oracle | d13bb259、f6eaa5aa、37d4c515；COST_MODEL/gemm_price_gate、scalar_work、unified_rank |
 | A7.1 | attention FLOP/非TC；chunk候选/plan/runtime/iters/combine价格及复用理由 | 未开始 | 依赖A4/A6 | 待填 |
 | A7.2 | chunk_extent shared；同步TaskSmem/static_assert/kNonGemmTaskSmem/CtasPerSm；四chunk资源与F40 | 未开始 | 未验证 | 待填 |
 | A7.3 | 2模型×2seq×4chunk×50=800新进程BF16；chunk1哈希同基线；预测/实测排序；长上下文attention新旧占比 | 未开始 | 未运行 | COST_MODEL/result.md待更新 |
-| A8 | CG wait与volume定价Interface，实际使用两个tile；旧Carry开关；spread非零及per-op收益；若零解释并反事实轴 | 未开始 | 依赖A1，未验证 | COST_MODEL/result.md待更新 |
+| A8 | CG wait与volume定价Interface，实际使用两个tile；旧Carry开关；spread非零及per-op收益；若零解释并反事实轴 | CPU功能已验证 | 两模型真实残差边M32→128为19.2307693963ns，其余三组合0；八候选spread615.3908806976ns。跨非相邻GEMM残差使旧链不再精确，新增frontier DP；两模型×16穷举选择位相同，统一价格组合路径复核通过。不是全1077候选性能或GPU收益 | 8cb78e55；COST_MODEL/interface_work/result.md |
 | A9.1 | notify/poll各拟合stages/max_worker/total结构；≥12格25轮四臂；4090运行/5090脚本；LOO残差 | 已验证 | 600/600正确性、1200四臂进程；12格LOO完成，poll误差最高95.06%。两个最长队列系数均为0，保留不凑系数。sm120只写脚本未运行 | EVENT_COST/round5_structured.md、calibration_round5_fit |
 | A9.2 | coupling_metrics QP消费A2投影；L1保留；κ仅改wait；fence/fusion接口零且带缺失理由 | 具体价格已验证 | exact variant输入/缺失rates拒绝；L1独立保留。L2候选级DP转移未实现且显式拒绝，不能当作A6或符号DP通过 | b08cd50；CostModel.cpp:475 |
 | A9.3 | κ0/1 event差非零且符号正确；具体数值；B后补fusion/placement两门 | A阶段已验证 | 两模型×6seq的κ0/1均非零且符号正确，κ1→2下降；36/36代入位相同，队列字段1200/1200；B两门尚未做 | EVENT_COST/calibration_round5_fit/functional_gate.json |
 | A10 | 残差不作为B入口门，报告而继续 | 已验证 | 已登记执行规则；不代表A9实现 | 本表 |
 | A11 | A1后SEMANTIC/P3/derive重跑；14边/44边440格逐条影响；OWNERSHIP与labeling来源只审计不乱重跑 | 已验证 | 6份derive/4份wiring/4份normalization codegen；440格仍4命名差；runtime poll与volume×count reach未受wait修正影响；补跑验证fanout/count/volume均未变 | INCIDENCE/history_audit；a723d9a |
 | A12.1 | 新isl路径scoped guard，实际错误分支零残留 | 进行中 | A1 ComputeMetrics及A2无效grid实走错误分支before0/after0；工具remaining0；未覆盖全部新增错误出口，不作全量关闭 | INCIDENCE及EVENT_COST/runtime_projection；ab8ab21 |
-| A12.2 | FP32-partial combine微基准实测速率替代解析extra；缺失reason | 局部停止：固定项未分辨 | 已实现并实际GPU运行，带宽斜率有值但小宽度减launch均−128ns，fixed_resolved=false；拒绝发布、不取旧率或ε，开关保持OFF。等待测量方法修复，不阻塞独立项 | 1d8f769、53eb3a7、619c932；COST_MODEL/partial_combine.md |
+| A12.2 | FP32-partial combine微基准实测速率替代解析extra；缺失reason | 已修复并验证 | 保留原−128ns失败；同kernel的64-launch配对graph解决分辨率，50/50新进程且每次完整1048576输出CPU位核对。四系数已发布sm89，缺目标仍明确报not_calibrated；独立旧解析开关保留。FP32预测/排名逐字节不变 | ee93cd44、77a8148e、f8088813、35a6732b；COST_MODEL/partial_combine.md |
 | A12.3 | barvinok未跟踪检查；ignore或清理，保留用户内容 | 已验证 | 8个未跟踪autotools文件按精确路径移至可恢复临时目录，前后SHA256一致，未动gitlink/跟踪文件 | EVENT_COST/runtime_projection/autotools_cleanup.md |
 
 ## B：入口未通过，不提前实现
@@ -75,12 +75,12 @@ commit 列记录实现/证据提交；本表自身记录提交不算功能实现
 ## 容易遗漏清单（prompt A/B §1.1）
 
 - [ ] A-C1：GEMM逐stage位一致，而非仅模型输入相等。
-- [ ] A-C2：算术签名缺项报错，无零/默认值。
+- [x] A-C2：算术签名缺项报错，无零/默认值；op-audit及新增实走错误分支。
 - [ ] A-C3：chunk同步union和occupancy。
-- [ ] A-C4：Interface实际使用两端tile。
+- [x] A-C4：Interface实际使用两端tile；非相邻残差因子进入精确frontier DP。
 - [x] A-C5：十二格三特征结构拟合，零系数与大残差原样记录。
 - [x] A-C6：历史审计限推导侧；A11证据见INCIDENCE。
-- [ ] A-C7：work从第一版即QP。
+- [x] A-C7：work从第一版即QP；运行时标量所有权也使用关系复合和barvinok计数。
 - [ ] B-C1：fanout重算定价。
 - [ ] B-C2：shared活跃期max加中间tile。
 - [ ] B-C3：fence按producer而非边。
@@ -124,3 +124,17 @@ A3已得到物理/名义双域QP原型：seq4的4224 vs 8192 B/iter反例已报�
 最新全套29/29、policy、target-audit五目标0失败；A6/A7/A8与B未完成。
 B仍因A6未通过而不启动。A12.2独立局部停止：固定开销未分辨，未发布系数。
 停止门槛只停止当前项及依赖项；继续独立项，有明确修法可修复后重验并记录。
+
+### 最新检查点（上述恢复记录为历史，不覆盖失败证据）
+
+A12.2局部停止已由配对graph修复并经50新进程独立核对，sm89实测速率发布。
+A3的生产CG语义传输、split物理读集和候选级输入已接入；A6正在消费这些输入，
+并非“携带即消费”。A6统一显式GEMM价格904680位门已过，实际缓存入口的完整
+再核对仍在运行。非GEMM14格CPU检查（两种所有权）、13条错误出口零残留；
+两次导出域拒绝原样保留：BF16 past2048超出512上界、FP32历史域只有1..8。
+未放宽域，长上下文采用prompt列出的BF16512/512。
+A8的非零两端shape价格和exact-frontier DP已验证；独立实验开关默认仍保留旧路径。
+最新33/33 CTest，policy通过、target-audit五目标零失败。字面`ninja -C build`
+因预存MLIR-OFF缓存失败；正确配置`build-portable`的policy通过，不冒称前者通过。
+A2追加element ownership+运行时两variant的7500新进程矩阵仍运行中；冻结二进制
+与投影工具未重编，未将未结束矩阵报满分。A7及B尚未宣告完成或解除入口门。

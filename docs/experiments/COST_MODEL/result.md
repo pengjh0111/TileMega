@@ -1,9 +1,14 @@
 # P4.4 — analytical cost model, validated on the 2154 measured points
 
-Round 5 status: [A3 dual-domain reasoning, A4 declarations and A5 controls](round5_work.md).
-The 4224/8192 B tail counterexample is retained; the user approved separate
-physical and nominal work domains. Current count/nominal checks are 210/210,
-not A6's all-configuration per-stage bit gate. A6 remains unimplemented.
+Round 5: [A3 dual-domain reasoning, A4 declarations and A5 controls](round5_work.md),
+[unified scalar task prices and per-stage differences](scalar_work/result.md),
+[A8 physical interfaces and exact frontier DP](interface_work/result.md),
+[unified BF16/FP32 ranking controls](unified_rank/result.md), and
+[measured FP32-partial combine rates](partial_combine.md).
+The 4224/8192 B counterexample remains an explicit user-approved physical /
+nominal domain distinction. The explicit GEMM price gate now passes 904680
+bit comparisons; the new cached production entry is undergoing its complete
+repeat. A6 implementation exists but its final gate record is not yet closed.
 All historical ranking tables below remain historical, not new acceptance.
 
 ## T2.1 gate — 2026-09-08, source baseline c4f4123

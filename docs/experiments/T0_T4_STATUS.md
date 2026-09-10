@@ -109,3 +109,31 @@ before the new input-gate code. Commits are split by implementation category
 and experiment, with single-line repository-convention messages.
 
 ---
+
+## Round5 A/B latest continuation
+
+Authoritative checklist: [ROUND5_LEDGER.md](ROUND5_LEDGER.md). Older round
+tables above remain historical, not current blockers. A0/A1/A9/A11 are
+verified; A2 tile ownership is 7500/7500 with 15000/15000 symbolic counts,
+and a second element-ownership/runtime-variant matrix is still running.
+
+A3 semantic CG transport and candidate access work are consumed by the new
+A6 entry. Explicit GEMM pricing passes 904680 bit comparisons; the cached
+TaskStageNs production entry's full repeat is pending. Scalar CPU evidence
+is 14/14 legal cases (both ownership modes), 13 rejection branches with zero
+isl reference deltas, 33/33 current tests, policy and five-target audit pass.
+Full FP32 ranking does not decline. Historical BF16 770/462 conditional
+ranking is unchanged with top1/3/10 still zero; it is not a post-repair oracle.
+
+A8 is implemented with genuine two-shape prices and exact live-endpoint DP;
+two models' 16-assignment non-adjacent oracles agree bitwise. The current
+eight-candidate experiment is not a full-search GPU speedup claim.
+A12.2's unresolved-timer stop has been repaired using paired graph timing:
+50/50 fresh processes, full-output CPU checks, sm89 measured profile published.
+Its failed single-launch and first graph-resolution attempts are preserved.
+
+Open: A6 final gate closure and main solver validation, A7 real attention
+chunk plan/runtime/combine/shared/occupancy/GPU matrix, and all B fusion,
+placement and symbolic (a) implementation. B still waits for complete A6.
+No sm120 GPU runs, numerical tolerance changes, silent missing-rate defaults,
+or revived atomic-fan-in/occupancy/TC-never-wins investigations occurred.
