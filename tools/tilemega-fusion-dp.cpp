@@ -6,6 +6,7 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Solver/ChainDP.h>
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Solver/FusionResources.h>
 #include <tilemega/Solver/RuntimeProjection.h>
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <mlir/IR/MLIRContext.h>
@@ -43,6 +44,10 @@ int main(int argc,char** argv) try {
     throw std::invalid_argument("L2 register evidence missing in ptxas log");
   int registers=*compiled.estimatedRegisters();
   int threads=model.dtype==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
+  domain.resident_shared_floor=sizeof(float)*std::max({
+      codegen::SimtSharedElements(codegen::TaskKind::kRMSNorm,threads,TILEMEGA_ATTENTION_MAX_TOTAL),
+      codegen::SimtSharedElements(codegen::TaskKind::kAttention,threads,TILEMEGA_ATTENTION_MAX_TOTAL),
+      codegen::SimtSharedElements(codegen::TaskKind::kElementwise,threads,TILEMEGA_ATTENTION_MAX_TOTAL)});
   std::vector<GemmConfig> configs;
   for (auto const& g:domain.plan.gemms) configs.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
   for (auto const& stage:model.stages) {
@@ -113,6 +118,22 @@ int main(int argc,char** argv) try {
       if (std::memcmp(&baseline.total_ns,&s.cost.total_ns,sizeof(double)))
         throw std::runtime_error("unfused interval branch is not bit-identical to Evaluate");
       checked_baseline=true;
+    }
+    if (domain.require_compiled_registers && !s.fusion.empty()) {
+      auto const& names=s.fusion.front();
+      int p=-1,c=-1;
+      for (auto const& semantic:model.task_semantics) {
+        if (semantic.op.name==names.first) p=semantic.stage;
+        if (semantic.op.name==names.second) c=semantic.stage;
+      }
+      auto candidate=DeriveModelFusionCandidate(model,configs,p,c);
+      auto detail=PriceFusionTasks(candidate,cost,domain.stage_traits.at(p),domain.stage_traits.at(c),s.residency,model);
+      std::cerr<<std::setprecision(17)<<"FUSION_PHASE_PRICE producer_tasks="<<detail.producer_tasks
+               <<" consumer_tasks="<<detail.consumer_tasks<<" recomputed="<<detail.recomputed_tasks
+               <<" producer_waves="<<detail.producer_waves<<" consumer_waves="<<detail.consumer_waves
+               <<" recompute_ns="<<detail.recompute_ns<<" separate_ns="<<detail.separate_ns
+               <<" fused_ns="<<detail.fused_ns<<" global_before="<<detail.global_bytes_before
+               <<" global_after="<<detail.global_bytes_after<<" local_bytes="<<detail.local_bytes<<'\n';
     }
   }
   if (!checked_baseline || best.cost.total_ns!=minimum || isl.ReferenceCount())

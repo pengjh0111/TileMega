@@ -110,6 +110,7 @@ struct FusionDpDomain {
   std::vector<BackendTraits> stage_traits;
   std::vector<int> stage_registers;
   int static_shared_bytes=0;
+  int resident_shared_floor=0;
   std::vector<std::pair<std::string,std::string>> pairs;
   // Whole-kernel tier-3 results are keyed by the complete fusion pattern;
   // maxima of separately compiled phases do not predict allocator pressure.

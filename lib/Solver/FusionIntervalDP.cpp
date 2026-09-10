@@ -27,6 +27,7 @@ ChainDpSolution ChainDP::SolveFusionIntervals(ModelDescription const& model,
   if (domain.plan.gemms.size()!=model.gemms.size() || domain.pairs.empty() ||
       domain.stage_traits.size()!=model.stages.size() ||
       domain.stage_registers.size()!=model.stages.size() || domain.static_shared_bytes<0 ||
+      domain.resident_shared_floor<0 ||
       options.max_ctas_per_sm<=0 || !options.per_operator_candidates.empty())
     throw std::invalid_argument("incomplete fusion interval implementation domain");
   (void)GemmStages(model);
@@ -86,7 +87,7 @@ ChainDpSolution ChainDP::SolveFusionIntervals(ModelDescription const& model,
   // is global and cannot be replaced by additive per-edge rebates.
   struct State { std::vector<int> pairs; int shared=0,registers=0; };
   std::vector<std::vector<State>> states(model.stages.size()+1);
-  states[0].push_back({});
+  states[0].push_back({{},domain.resident_shared_floor,0});
   for (std::size_t stage=0;stage<model.stages.size();++stage) {
     for (auto const& state:states[stage]) {
       auto single=state;
