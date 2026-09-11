@@ -8,6 +8,10 @@
 > **配套文档**：`docs/VERIFICATION_PLAN.md`（开工前验证计划，独立维护）。
 >
 > **维护约定**：完成的条目打勾并追加实测结论；推翻的假设保留原文并注明推翻原因。
+>
+> **文档地图（v2.1）**：设计与契约 → `TileMega_skeleton.md`；实现状态 → `docs/STATUS.md`；待办 → `docs/TODO.md`；实测发现 → `docs/FINDINGS.md`；v2.0 待办原文 → `docs/archive/TODO_v2.0.md`；开工前验证计划 → `docs/VERIFICATION_PLAN.md`。每类信息只有一个权威位置，其他位置只放指针。
+>
+> **维护约定（v2.1 补充）**：上一条约定自 v2.1 起适用于 `docs/TODO.md`。本文件只写设计与契约：设计变更在文末变更记录登记；推翻的设计假设保留原文并注明推翻原因与证据；实现状态、打勾与新的实测数字不再写入本文件（历史段落中已有的保留原样）。
 
 ---
 
@@ -19,6 +23,7 @@
 - [3. 构建基础](#3-构建基础)
 - [4. 架构](#4-架构)
 - [5. Lowering 路径](#5-lowering-路径)
+  - [5.7 执行模型与 Plan 契约](#57-执行模型与-plan-契约)
 - [6. 仓库结构](#6-仓库结构)
 - [7. 分阶段 TODO](#7-分阶段-todo)（⚠️ v2.1：已迁至 docs/TODO.md）
 - [8. Codegen 规则](#8-codegen-规则)
@@ -231,6 +236,8 @@ V-A 的局部环在 2×容量仍推进，而 V-J 的反向依赖在 `resident_li
 | **Relax** 松弛 | `C → C' ⊇ C` | Tier 2/3 的保守化 |
 | **Fuse** 融合 | 将链上相邻生产者/消费者合成一个 task，内部边 `C_{p→c} → ∅` | 相邻融合区间及 tile 一致性 |
 
+**Place 的执行语义（v2.1）**：`(worker, slot)` 中的 slot 是执行语义的一部分，必须由执行器按 §5.7 消费；只给出 worker、再由 host 或 Codegen 另行决定顺序，不构成 Place 的实现。L2 执行下 Label 是 Place 的子决策：cluster 同步只在相关生产者与消费者被放进同一 cluster 时可选（§5.7.1）。
+
 各操作的实际接入状态见 [`docs/STATUS.md`](docs/STATUS.md) §1.5.4（v2.1 迁出）。
 
 ### Fuse 的语义与代价（T0–T4，本轮实现前定义）
@@ -334,6 +341,8 @@ wait      = Tm × n_h / Kc
 | L1 生成 | 节点 → TaskBody 模板实例；边 → 同步代码；Place → 静态调度表 |
 | 代价模型 | 每一项都是派生量的函数（§4.4） |
 | L5 运行时 | 代入 `θ` 实例化 Tier 2 的 extent；`O(1)` 查表选变体 |
+
+> v2.1 注：L1 对 Place 的消费以 §5.7 为契约；当前只落地了 stage 置换与 host 端映射，见 `docs/STATUS.md` §1.5.2。
 
 ## 2.7 Llama decoder layer 的耦合表（L3 验收基准）
 
@@ -609,6 +618,10 @@ barvinok 计数一致；`tilemega.implementation` 的 threads/smem/alignment/arc
 
 ## 4.4 求解流程
 
+### 4.4.1 L1 目标（stage 串行 + 每 stage barrier）——已实现
+
+以下为 v2.0 的求解流程与代价模型，目标函数均为 L1 执行（stage 串行、每 stage 一次 grid barrier）下的总时长。执行感知的 L2 目标见 §4.4.2。
+
 ```
 层1  合法性剪枝：从 CUTLASS TiledMma 的原生形状出发沿各维扩张，撞资源墙停
      ← 走编译期 traits，多数候选不编译
@@ -779,6 +792,23 @@ BF16 形状再拟合出负的每 CTA setup。钳位已删除，改由 `combine_f
 但 BF16 下 SMEM 道已不参与，所以只剩一条字节道、不再有不可辨识的自由度
 （⚠️ 这是关于"标定了什么"的决定，不是两条管线相同的证明）。
 
+### 4.4.2 L2 目标（执行感知，v2.1，待实现）
+
+- **目标函数**：按 §5.7 Plan 执行时的 makespan。
+- **代价**：以离散事件模拟器取代 `CostModel::EventNs`（计数 × 速率）。
+  - task 时长取 `TaskInstanceNs` 在实际坐标上的值。
+  - 同 SM 上并发的 task 按资源向量合并各道需求后取 max。§4.4.1 的九道模型在此成为共驻干扰模型。
+  - 每跳延迟与 notify/poll 开销由 trace 标定。
+- **决策变量**：
+  - π/σ：EFT 式 list scheduling，另以闭式模板作为候选；
+  - W 与 policy；
+  - sync（Label 作为 Place 的子决策）；
+  - κ；
+  - 与 g、split-K、residency 联合搜索：外层以 max(work 下界, 关键路径下界) 剪枝，内层用模拟器评估，最终实测 top-3。
+- **现状**：ChainDP 的目标是 Σ(stage + barrier)，并在 `l2_events` 下拒绝求解。因此当前全部求解配置都是 L1 最优，其 L2 最优性未经检验（F-128）。
+- **验收**：沿用 §4.4.1 的排序口径。
+- **承接项**：`docs/TODO.md` EX-S1–EX-S5。
+
 ## 4.5 Label：通信归属
 
 **问题**：把 CG 划分成大小 ≤ C（可移植 8，部分架构最多 16）的簇，
@@ -810,6 +840,8 @@ BF16 形状再拟合出负的每 CTA setup。钳位已删除，改由 `combine_f
 所以「算子间数据流」这条路上簇大约只值六分之一的流量。
 证据：`docs/experiments/CLUSTER/result.md` §7.7。
 
+**L2 执行下的 Label（v2.1）**：cluster 同步（DSMEM、`barrier.cluster`）要求相关生产者与消费者被放进同一个 cluster，因此在执行感知求解中 Label 是 Place 的子决策（§5.7.1）。上文 13.6% / 18.7% 的簇内流量捕获率，是在 stage 串行、reach = 1 的假设下得到的；在 Plan 驱动执行下需重新估计（EX-S2）。
+
 ## 4.6 Serving harness（L5）
 
 | 组件 | 接入方式 |
@@ -839,6 +871,8 @@ CG（已求解：g, κ, label, placement）
         ↓  nvcc
 cubin / .so → torch extension
 ```
+
+> v2.1 注：(d) 中的"静态调度表"以 §5.7 的 Plan 为契约；当前生成物只含 stage 置换，见 `docs/STATUS.md` §1.5.2 G1。
 
 ## 5.2 三层职责
 
@@ -909,6 +943,20 @@ TaskBody 必须用 grid-stride 循环遍历自己的 task
 恰好成立，一旦 tile 变小或 split-K 打开就不成立，多出来的 task 被静默丢弃，
 表现为结果错而不是崩溃（实测 512 task / 384 grid，4090 个元素不匹配）。（F-36）
 
+### 5.3.1 分相 ABI（目标，v2.1，未实现）
+
+TaskBody 可选实现三段：
+
+- `Prefetch(p, stage, task, ctx)`：只读取在 CG 中没有入边的操作数（例如 GEMM 的权重）。可在等待依赖之前或上一 task 的收尾阶段发出。
+- `Wait`：由执行器负责，不属于 TaskBody。
+- `Compute`：读取依赖操作数，完成计算与写回。
+
+"没有入边的操作数"由分析层按操作数的读关系 R 与 CG 入边推出，随生成表发出，不接受手写标注。这是 CG 相对依赖标注式系统的直接收益。
+
+sm_89 上的 Prefetch 先以 L2 预取实现：不占 shared memory，不改变 §8.6 的 union。若要把预取落到 shared memory，需要改变 §8.6 的生命周期约定（双缓冲或分页），并在采用前按 §8.6 的闭式与实测核对 occupancy。
+
+承接项：`docs/TODO.md` EX-E4。
+
 ## 5.4 Megakernel 骨架
 
 ```cpp
@@ -975,6 +1023,15 @@ L0.5/L1 保留 `RunStage` 用作正确性阶梯；只有 L2 走上述队列。�
 `constexpr` 表与 device `__constant__` 表，禁止手写两份；否则前者不能被 device
 读取，或两级正确性阶梯可能发生调度漂移。（F-21）
 
+**当前实现（as-built，v2.1 核实）**：
+
+- **调度来源**：生成器只发出 stage 置换（`ScheduleStageDesc`），由 `Codegen.cpp` 的 `BuildVariantSchedule` 调用 `ListScheduler` 计算。
+- **归属**：host 在绑定 θ、完成 split-K 改写与驻留 grid 之后决定归属。默认 `task_owner[stage][task] = task mod grid`；`TILEMEGA_PLACEMENT=4` 时改用 balanced 启发式。
+- **队列**：按"worker → stage_order → 该 worker 在该 stage 拥有的 task"物化，因此恒为 stage-major，且默认归属与 L1 的 grid-stride 相同。
+- **执行**：L2 kernel 严格按 slot 顺序执行 wait → run → notify（W = 1）。
+
+上面的骨架代码只表达 §5.7 语义中 W = 1 的特例。它与实现的差距见 `docs/STATUS.md` §1.5.2 的 G1–G3。
+
 ## 5.5 同步的三条 lowering 路径
 
 由边的 `sync_kind`（Label 的输出）决定：
@@ -1004,6 +1061,32 @@ __device__ void wait_deps(TaskDesc const& d, EventCounter* ev, int layer) {
 }
 ```
 
+### 5.5.1 当前协议（as-built，v2.1 核实）
+
+上面的 `switch(sync_kind)` 是原始设计，不是现行实现。现行 L2 执行器的协议如下：
+
+- **task 完成时**：
+  1. 全体线程执行 `__threadfence()`，随后 `__syncthreads()`；
+  2. thread0 对每个需要发布的事件行执行 `atomicAdd(arrivals)`，取返回值判断自己是否最后到达；
+  3. 最后到达者执行 `__threadfence()` 与 `atomicExch(epoch)`；
+  4. 再次 `__syncthreads()`。
+- **双行发布**：一个 stage 同时被 kAll 型与窗口型消费者引用时，fine 行与 aggregate 行各发布一次。
+- **消费者**：按 TaskWait 由多线程并行轮询 epoch，带 `__nanosleep(64)` 退避；轮询结束后执行 `__syncthreads()` 与 `__threadfence()`。默认的 `EventPoll` 是 `atomicAdd(ev, 0)`（`TILEMEGA_EVENT_LOAD_POLL=0`）。
+- **屏障次数**：L2 kernel 在执行器层面每个 task 最多执行 5 次 `__syncthreads()`。
+- **local**：没有对应的事件实现。κ = 1 时，同 worker 生产者以省略 poll 的方式处理，这依赖严格 FIFO（§5.7.3 L-d）。
+- **cluster**：只存在于 L1 的 stage barrier 与 T1 分片 fan-in 实验（F-89）中。
+
+### 5.5.2 目标协议 v2（待验证，v2.1）
+
+以下步骤逐步开关、逐步验收（`docs/TODO.md` EX-E3）。在通过之前，不替换 §5.5.1 与 §8.5：
+
+1. 单成员事件直接发布 epoch。
+2. aggregate 行改为生产者无返回值的 release 归约，消费者以 acquire 加载轮询。
+3. 每个 task 的 CTA 屏障不超过 2 次。
+4. "CTA 屏障之后仅 thread0 执行一次 release fence"须先通过 litmus（见 §8.5 注）。
+5. 发布异步化。
+6. 同 CTA 依赖以 shared memory 标志实现；在具备 `caps.cluster` 的目标上评估 cluster 级同步。
+
 ## 5.6 求解结果到代码的映射
 
 | CG 上的决策 | 落到生成代码的哪里 |
@@ -1016,6 +1099,81 @@ __device__ void wait_deps(TaskDesc const& d, EventCounter* ev, int layer) {
 | Place：worker 内顺序 | 同表内的 task 序 |
 | Stages（受 smem 预算） | TaskBody 的 `Stages` 模板实参 |
 | 区间划分 | 多套实例化 + host 端 `O(1)` 查表选 kernel |
+
+> v2.1 注：上表是目标映射；每一行的当前落地程度见 `docs/STATUS.md` §1.5.5。
+
+## 5.7 执行模型与 Plan 契约
+
+> 本节是求解层（L2）与生成层（L1）之间关于"如何执行"的契约（v2.1 新增）。§2.3 对 Place 的定义（`T_op` 的点 → `(worker, slot)`）不变；本节规定 slot 必须被执行器消费，并给出执行器语义、计划合法的条件以及各层的职责边界。当前实现与本节的差距见 `docs/STATUS.md` §1.5.2，承接项见 `docs/TODO.md` 的 EX 主线。
+
+### 5.7.1 Plan
+
+对每个运行时变体（一个 seq 区间），求解器输出：
+
+```
+Plan = ( π, σ, W, policy, sync, κ )
+  π      : task → worker          worker ∈ [0, grid)，grid ≤ resident_limit（§2.2 I3 的 resident-only 形式）
+  σ      : task → slot key        同一 worker 上按 σ 升序即其队列顺序
+  W      : 执行窗口，W ≥ 1；W = 1 即严格 FIFO
+  policy : producer stage → {aot, jit}；jit 预留给时长数据相关的 stage
+  sync   : CG 边 → {local, fine(κ), aggregate, cluster}
+  κ      : producer stage → 事件粒度
+```
+
+π 与 σ 有两种给出方式。两种方式都由 `lib/Solver` 中的同一实现计算，Codegen 与 host 只消费、不决定：
+
+- **模板形式**：π、σ 是 task 坐标与 θ 的拟仿射函数（如 grid-stride、跨 stage 连续轮询、band、wavefront），模板号与参数写入 CG。
+- **物化形式**：host 在绑定 θ 后，按 CG 中记录的策略与参数调用同一 Solver 例程（如 EFT list scheduling）完成物化，并按 θ 缓存。
+
+Label 在 L2 执行下是 Place 的子决策：只有当相关生产者与消费者被放进同一 cluster 时，sync 才可以取 cluster。
+
+### 5.7.2 执行器语义
+
+每个 worker 持有按 σ 升序排列的队列 `q[0..n)`，并维护 `head`，即最小的未完成 slot。执行器只能选择窗口 `[head, head+W)` 中的 slot。
+
+一个 slot 就绪，当且仅当同时满足：
+1. 它的所有全局等待都已被观测到满足；
+2. 它的所有本地依赖（同 worker、距离小于 W 的前驱 slot）都已完成。
+
+多个 slot 同时就绪时，取 slot 编号最小者。执行完成后，按其出边的 sync 种类发布；`head` 前移，越过已完成的连续前缀。
+
+推论：slot j 开始执行时，所有 i ≤ j − W 的 slot 必已完成。W = 1 时退化为严格 FIFO，即当前实现的语义。
+
+### 5.7.3 合法性条件
+
+- **L-a 无环**：以下三类边之并必须无环——CG 推出的 task 依赖边、同 worker 的窗口边（i → j，i ≤ j − W）、同 worker 的本地依赖边。
+  - 模板形式：在生成期由 ISL 在区间上证明。
+  - 物化形式：在 host 物化后检查，失败即拒绝启动。
+- **L-b 驻留**：grid ≤ resident_limit。在拿到 over-resident 证明之前不放宽（§2.2 I3、§8.7）。
+- **L-c 同 worker 顺序**：生产者与消费者在同一 worker 时，必须满足 σ(producer) < σ(consumer)。
+- **L-d 窗口感知的等待提升与本地省略**：
+  - slot j 的某个全局等待，只有在同 worker 上某个 i ≤ j − W 的 slot 已等待过同一事件时，才可以省略；
+  - 同 worker 生产者只有位于 i ≤ j − W 时，才可以省略对它的全局 poll；否则必须转为本地依赖，并计入 L-a；
+  - W = 1 时即现行规则（F-80、F-130）。
+- **L-e 发布一致**：每条边所需的事件行必须由其全部生产者发布；不被任何消费者引用的行不发布。
+- **L-f 单调 epoch**：§8.2 不变，任何协议变更都不得引入计数器重置。
+
+### 5.7.4 层间职责
+
+- **求解器**写入 CG：
+  - 每个 task space 的 `tilemega.placement`：mode、模板参数或物化策略与参数、W、policy；
+  - 每条 `tilemega.coupling` 的 `sync_kind`；
+  - 每个 producer 的 κ。
+  - `map=[0]` 的占位写法仅保留为 legacy 模式。
+- **Codegen** 发出 `RuntimeVariantDesc` 中的 Plan 描述，作为唯一调度来源；只编码 stage 置换的 `ScheduleStageDesc` 仅作为 legacy 模式的输入保留。Codegen 不自行计算调度。
+- **Host** 在绑定 θ、完成 split-K 改写与驻留 grid 之后，按 (π, σ) 生成每个 worker 的队列，按 L-d 计算 TaskWait，并按 L-a、L-b 校验。
+
+### 5.7.5 结构性上界
+
+设 π(stage, t) = t mod grid（与 L1 的 grid-stride 归属相同），且队列为 stage-major。此时 L1 与 L2 的每个 CTA 执行同一批 task；即使同步零成本，L2 相对 L1 的收益上界也只有 (barrier + |loop|) / L1，参考模型上为 9.1–13.6%（F-126，inferred）。
+
+因此，L2 的性能工作必须先改变 π 与 σ；事件原语的调优只在这个上界之内起作用。
+
+### 5.7.6 与其他章节的接口
+
+- 分相 TaskBody 见 §5.3.1。
+- 当前同步协议与目标协议见 §5.5.1 与 §5.5.2。
+- 窗口规则的 codegen 约束见 §8.10，调度决策权的约束见 §8.11。
 
 ---
 
@@ -1087,6 +1245,8 @@ tilemega/
 ├── benchmarks/
 └── docs/design/
 ```
+
+文档布局（v2.1）：`TileMega_skeleton.md`（设计与契约）、`docs/STATUS.md`（实现状态）、`docs/TODO.md`（待办）、`docs/FINDINGS.md`（发现）、`docs/archive/`（归档）、`docs/experiments/`（证据）。上方目录树是 v2.0 的规划形态，与仓库实际布局存在差异，以仓库为准。
 
 **依赖处理**：
 
@@ -1172,6 +1332,8 @@ if (threadIdx.x == 0) atomicExch(&ev[e].v, new_value);
 16384 为 0/50），因此大 GEMM tile 测不出错误不构成正确性证据，验证集必须包含
 norm/RoPE 一类小 tile。（F-1、F-3、F-10）
 
+⚠️ v2.1 待验证（不改变本规则）："CTA 屏障之后由 thread0 做一次 release fence 再发布"这一形态目前没有直接证据——F-1 的负对照是"无屏障"。在按 F-1/F-3/F-10 的要求完成 litmus 之前（地址复用、小 tile、CTA 协作写、grid 64/128/256、每格 ≥ 50 全新进程），本规则保持"每个 writer fence"。见 `docs/TODO.md` EX-E3 第 4 步。
+
 ## 8.6 smem union 取 max
 
 各 task 类型的 `SharedStorage` 必须组成**单个显式 union**，且该 union 的生命周期
@@ -1217,6 +1379,17 @@ Label 选中的边用 `cluster.sync()` 而非全局自旋：
 粒度变化（含 split-K）通过模板实参与 `TaskDesc` 字段表达，不新增 TaskBody。
 split-K 用 `k_begin` / `k_count`。
 
+## 8.10 等待提升与本地省略必须与执行窗口一致
+
+见 §5.7.3 L-d。任何增加执行顺序自由度的变更（W > 1、jit/动态发射）都必须同时修改 host 的提升与省略规则，并提供一个负对照：沿用旧规则时必须失败。
+
+## 8.11 调度只能由求解器决定
+
+Codegen 与 host 只消费 Plan（§5.7.4），不得在其中新增调度决策逻辑。现有的两处属于待迁移项（`docs/TODO.md` EX-E1）：
+
+- Codegen 内的 `BuildVariantSchedule`；
+- host 端的 balanced 启发式。
+
 ---
 
 # 9. 风险与未决问题
@@ -1235,6 +1408,10 @@ split-K 用 `k_begin` / `k_count`。
 | R8 | `cutlass_compiler` 的现代架构路径覆盖不足 | 中 | 仅用于分析层的 layout 表示，不用于 codegen |
 | R9 | mirage / MPK 许可证限制借鉴范围 | 低 | 只借鉴机制设计，不复制代码 |
 | R10 | 代价模型分不出 top-10% 内部的名次（实测两次 25 进程复现选出不同冠军，冠军漂 9.04%） | 中 | 验收口径改为「落进 top 3%」而不是「命中 argmin」；别为不存在的分辨率投入 |
+| R11 | 在与 L1 相同的 task 归属下，L2 结构上只能省掉 barrier（F-126） | 高 | 先改 π/σ（EX-D2、EX-E1、EX-S2）；事件原语调优只在该上界内有效 |
+| R12 | 参考 fixture 处于纯延迟区，κ、窗口与放置的结论可能不外推到 real-width | 中高 | EX-V1：以 real-width 为主基准，toy 结论注明适用范围 |
+| R13 | 静态计划对代价模型误差敏感，误差以 HOL 的形式放大 | 中 | EX-E2 窗口执行器；EX-S4 发射策略 |
+| R14 | 执行模拟器的精度不足以对放置排序 | 中 | EX-S1 按排序验收；不足时退化为"模拟粗排 + 实测 top-k" |
 
 ## 9.2 需要小实验确认
 
@@ -1248,6 +1425,9 @@ split-K 用 `k_begin` / `k_count`。
       只留寄存器项会在 150 个上算错。闭式在 1077/1077 上与实测相等（F-40，
       §8.6）。⚠️ 只覆盖了本轮的 6 种 task 类型与 256 线程/CTA；
       「task 类型数 3 / 5 / 10」这条消融没有做。
+- [ ] 跨 stage 连续轮询放置能否抬高放置吞吐上界（`docs/TODO.md` EX-D2）
+- [ ] "CTA 屏障 + thread0 单次 release fence"的正确性（EX-E3 第 4 步）
+- [ ] `%globaltimer` 在目标 GPU 上的分辨率（EX-D1）
 
 ## 9.3 设计决策待定
 
@@ -1288,6 +1468,10 @@ split-K 用 `k_begin` / `k_count`。
 | 运行时元数据逃生舱 | `TaskMetadata` union（8 字节） | 一般化为 indptr |
 | Serving 集成 | `TASK_SCHD_PREPARE_BATCH` | 请求准入 / 剔除放进 kernel 内 task |
 | 资源预算参考 | `runtime_header.h` | 保留静态 SHM 6KB/3KB；MAX 动态 SHM 207KB(B200) |
+| JIT/AOT 双队列（stated） | 论文 §5.2 | worker 优先执行已就绪的 JIT task，JIT 队列空时才检查 AOT 队首事件；仅在无就绪工作时阻塞（参照 EX-E2、EX-E5） |
+| 跨 task 软件流水（stated） | 论文 §5.3 | task 拆为预取与计算两阶段，配合分页 shared memory（参照 EX-E4） |
+| 轮询分发的前提（stated） | 论文 §4.1、§5.2 | 默认每个算子的 task 数与 SM 数成比例，AOT task 轮询分发；TileMega 的小 stage 不满足该前提（F-126） |
+| 任务描述预取（stated） | 论文 §5.3 | 预取后续 task 的描述到 shared memory |
 
 ## A.3 ETC / Event Tensor（概念参照）
 
@@ -1298,6 +1482,10 @@ split-K 用 `k_begin` / `k_count`。
 | 数据相关事件更新 | expert 计数器初值由 runtime `topk` 决定 |
 | 数据相关 task 触发 | `exp_indptr` 前缀和决定激活 `[indptr[i], indptr[i+1])` 区间 |
 | split-K 事件范例 | `task B̂_{i,j} → E[i]`（wait=4）`→ task Ĉ_i` |
+| 静态队列构建（stated） | 论文 §3.1：静态调度以轮询构建每个 SM 的队列 |
+| 静态/动态对比（stated） | 论文 §4.5 表 3：Qwen3-32B TP=4 上，静态调度相对"算子间单事件"的 unfused megakernel 为 1.09/1.06/1.07/1.06（batch 1/16/32/128），动态为 0.83/0.82/0.85/0.89；表 2（MoE）中动态在 128–4096 token 上优于静态 |
+| 权重预取 pass（stated） | 论文 §3.4：依据用户标注生成权重预取函数；TileMega 可由 CG 按操作数的读关系自动推出（§5.3.1） |
+| early push（stated） | 论文附录 E：生产者派发即推送消费者，依赖由消费者侧等待保证 |
 
 ## A.4 其他
 
@@ -1349,6 +1537,8 @@ split-K 用 `k_begin` / `k_count`。
 | Roller | OSDI'22 | 构造法 tile 配置 |
 | Rammer | OSDI'20 | rTask / rProgram |
 | Mirage | OSDI'25 | multi-level superoptimizer |
+| MPK（v2） | arXiv 2512.22219v2（2026-06-10）；OSDI 2026（据 mirage 仓库 README，stated） | JIT/AOT 双队列、跨 task 流水、分页 shared memory |
+| ETC（补充） | arXiv 2604.13327v2 | 静态队列轮询构建；依据用户标注的权重预取 pass；early push |
 
 ---
 
@@ -1357,3 +1547,4 @@ split-K 用 `k_begin` / `k_count`。
 | 日期 | 版本 | 变更 |
 |---|---|---|
 | 2026-08 | v2.0 | 引入 Coupling Graph 作为核心抽象；后端为 CuTe/CUTLASS + nvcc；验证计划拆为独立文档 |
+| 2026-09 | v2.1 | 实现状态迁至 `docs/STATUS.md`，待办迁至 `docs/TODO.md`（v2.0 §7 原文归档）；新增 §5.7 执行模型与 Plan 契约；修订 §2.3、§2.6、§4.4、§4.5、§5.1、§5.3–§5.6、§6、§8、§9、附录 A/B |
