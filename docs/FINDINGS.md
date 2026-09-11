@@ -1883,6 +1883,8 @@
   does not price task duration or ready-queue slack.
 - Evidence: docs/experiments/PLACE/.
 
+⚠️ Read with F-126: measured under L1-identical ownership, stage-major queues and FIFO execution; not evidence about the value of placement, ordering or windows in general.
+
 ## F-83 — BF16's top ten identify a feature interaction, not a missing scale
 
 - After correcting occupancy construction, BF16 reaches ρ 0.8984 / 0.8871 but
@@ -1953,6 +1955,8 @@
   the bare queue loop is faster than barrier-free L1.
 - Evidence: docs/experiments/COARSEN/, docs/experiments/E2E_L2/,
   docs/experiments/L2_ATTRIB/.
+
+⚠️ Read with F-126: measured under L1-identical ownership, stage-major queues and FIFO execution; not evidence about the value of placement, ordering or windows in general.
 
 ## F-87 — BF16 TC already wins 37.66% of the pre-change resource vectors
 
@@ -2474,6 +2478,8 @@ decomposition of the slowdown. Code and full paired evidence:
 `docs/experiments/PLACE/round5_balanced_result.md`. This does not block
 independent Fusion or symbolic-pricing implementation.
 
+⚠️ Read with F-126: measured under L1-identical ownership, stage-major queues and FIFO execution; not evidence about the value of placement, ordering or windows in general.
+
 ## F-119 — Chunk prices need sequential runtime phases and compiled resources
 
 ✅ Attention chunk plans now price scores, normalization, partial PV and
@@ -2586,20 +2592,66 @@ explanations are retained in `FUSION/runtime_result.md`.
 
 ## F-126 — Default L2 ownership is L1's grid-stride ownership, so L2 can at most recover the barrier
 
-✅ Code inspection: `harness::Create()` assigns ownership by `task % grid`; queues are stage-major and FIFO. L1 and L2 therefore execute the same task ownership. ⚠️ Inferred from `docs/experiments/L2_ATTRIB/result.md`: free-synchronization ceiling is 13.6%, 9.4%, 12.1%, 9.1%; measured wait+notify/barrier is 2.2×, 2.5×, 2.1×, 2.9×.
+✅ Code inspection: `harness::Create()` sets `task_owner[stage][task] =
+physical_worker[task % grid]`, and `HostPlacedBlock` is the identity for
+`TILEMEGA_PLACEMENT` 0 and 4 (before the balanced override). L1 task bodies own
+tasks through `for (task = PlacedBlock(); task < count; task += gridDim.x)`.
+Every CTA therefore executes the same tasks in L1 and L2. Queues are built
+worker → stage_order → owned tasks, so the first tasks of every small stage
+land on the same low-index workers, whose queues serialize the stage chain.
+
+⚠️ Inferred bound from the four-arm medians in
+`docs/experiments/L2_ATTRIB/result.md` (unsafe probes, not valid kernels):
+`neither − l1nosync` is the loop term only. With free synchronization, L2's
+gain over L1 is at most (barrier + |loop|) / L1 = 13.6%, 9.4%, 12.1%, 9.1% for gqa2/4, gqa2/128, mha4/4 and mha4/128, while measured wait+notify is 2.2×, 2.5×, 2.1×, 2.9× the
+barrier it replaces. The 1.081–1.113 L2/L1 ratio is structural before it is a
+primitive-cost problem.
+
+Consequence: F-82, F-86, F-118 and the OVERLAP early-start fraction measure this
+executor structure; they are not general statements about ordering, windows,
+κ or placement. Skeleton impact: §5.7.5. Code: `ModelHarness.cuh`
+(`harness::Create`), `Placement.cuh`, `GemmStageTaskBody.h`.
 
 ## F-127 — The solver-to-codegen contract carries no task-level placement
 
-✅ Frontend emits placeholder `tilemega.placement`; codegen computes stage permutation; balanced placement's `slot` has no reader.
+✅ The frontend emits one `tilemega.placement` per task space with `map = [0]`
+and `cluster = 1` (plus optional `resident_only` and `mapping_mode =
+"balanced"`); no solver pass writes it. `BuildVariantSchedule` in
+`lib/Codegen/Codegen.cpp` computes a stage permutation with `ListScheduler`
+during code generation and emits `ScheduleStageDesc {stage, dependency_begin,
+dependency_count}`. `BalanceTaskPlacement` returns `slot`, which no caller
+reads; the host consumes only `worker` and rebuilds stage-major queues. The
+skeleton's §2.6/§5.6 division — L2 decides placement, L1 lowers it — is
+therefore not implemented. Skeleton impact: §2.3, §5.7.4, §8.11.
 
 ## F-128 — The chain DP optimizes the L1 objective; its L2 optimality is untested
 
-✅ `ChainDP::Solve` prices stage plus barrier and rejects `l2_events`; `CostModel::EventNs` is calibrated count × rate.
+✅ `ChainDP::Solve` prices each operator as stage time plus one barrier (plus
+combine and another barrier when split) and throws when `l2_events` is
+enabled. `CostModel::Evaluate` replaces barriers by `EventNs`, a sum of
+calibrated rates times runtime counts, with no execution timing. Every solver
+configuration, including `16x64x16s2k16`, is thus optimal for L1 execution.
+⚠️ Hypothesis, not a finding: aggressive split-K buys per-stage parallelism for
+the barrier model but multiplies task refs, events and combine hops under L2.
+EX-S3 tests it. Skeleton impact: §4.4.2.
 
 ## F-129 — Balanced placement is affinity-first and can collapse a stage onto its producers' workers
 
-✅ `BalanceTaskPlacement` prioritizes affinity, then queue length and preferred worker. Attribution of slowdown remains inferred.
+✅ `BalanceTaskPlacement` picks the worker holding the most producers of a task;
+a shorter queue only breaks ties, and the cap is the baseline maximum queue
+length. When all tasks of a stage depend on the same few producers (at seq=4,
+every QKV GEMM task depends on the four RMSNorm tasks), the stage fills those
+workers up to the cap before any other worker is used. ⚠️ Attributing F-118's
+1.40–4.00× slowdown to this mechanism is inferred; EX-D1 traces must confirm
+it. A capped task count is neither work balance nor critical-path balance.
 
 ## F-130 — Queue-order wait lifting and owner elision are sound only for FIFO execution
 
-✅ Host wait lifting and same-worker poll elision rely on strict FIFO execution. ⚠️ Windowed or out-of-order execution requires revised dependency handling.
+✅ The host drops a task's wait when an earlier task in the same worker queue
+already waited for the same event (`seen[worker]`), and drops the poll when a
+κ=1 producer is on the same worker. Both are valid because each worker executes
+strictly in slot order. ⚠️ Inferred: an executor that may run a later ready slot
+first would skip required waits. With a window W, lifting or elision is sound
+only from slots i ≤ j − W; nearer producers must become local dependencies.
+EX-E2's negative control must demonstrate the failure. Skeleton impact: §5.7.3
+L-d, §8.10.
