@@ -1,5 +1,282 @@
 # TileMega 待办
 
+> **文档地图（v2.1）**：设计与契约 → `TileMega_skeleton.md`；实现状态 → `docs/STATUS.md`；待办 → `docs/TODO.md`；实测发现 → `docs/FINDINGS.md`；v2.0 待办原文 → `docs/archive/TODO_v2.0.md`；开工前验证计划 → `docs/VERIFICATION_PLAN.md`。每类信息只有一个权威位置，其他位置只放指针。
+
+## 0. 约定
+
+> **v2.1 新增常设条件**
+>
+> 1. 每条 L2 性能结论都必须注明执行器配置：π 模式、σ 模式、W、同步协议版本、κ、发射策略。
+> 2. L2 性能验收必须同时报告放置吞吐上界与关键路径上的每跳同步时间。
+> 3. 验收门在实现前写定；未过门的项不打勾，负结果保留并写入 FINDINGS。
+> 4. 每个 EX 条目对应一次独立的执行 prompt。
+
+## 1. 主线：执行模型与执行感知求解（EX，v2.1）
+
+> 依据：`docs/STATUS.md` §1.5.2（差距 G1–G14）、`TileMega_skeleton.md` §5.7（Plan 契约）、F-126–F-130。
+>
+> 术语：
+> - **每跳延迟**：从生产者 task 的事件发布完成，到消费者观测到该事件（最后一次 poll 成功）的时间差；同 worker 依赖不计。
+> - **放置吞吐上界**：去掉 wait 与 notify 后的 L2 时长（`neither` 臂），或由 EX-D1 重建的"各 worker 的 task 时长之和"的最大值。
+> - **研究门**：在同会话配对测量下，求解器选出的 Plan 使实测 L2 < L1，且 CI 不含 1。
+
+### EX 条目台账
+
+| ID | 状态 | 主题 |
+|---|---|---|
+| EX-D1 | [ ] | trace v2 |
+| EX-D2 | [ ] | 余量诊断与跨 stage 连续轮询 |
+| EX-E1 | [ ] | Plan 契约与物化 |
+| EX-E2 | [ ] | 窗口执行器 |
+| EX-E3 | [ ] | 同步协议 v2 |
+| EX-E4 | [ ] | 分相 TaskBody 与跨 task 预取 |
+| EX-S1 | [ ] | 执行模拟器 |
+| EX-S2 | [ ] | 放置与排序 |
+| EX-S3 | [ ] | 联合搜索 |
+| EX-S4 | [ ] | 发射策略决策 |
+| EX-S5 | [ ] | 参数化 Place |
+| EX-V1 | [ ] | 基准迁移 |
+| EX-C1 | [ ] | 清理 |
+
+## 2. v2.0 延续项（原文迁入）
+
+未关闭条目原文见本文件后续 Phase 小节；完整 v2.0 §7 归档见 [`archive/TODO_v2.0.md`](archive/TODO_v2.0.md)。
+
+## 3. 已完成条目索引（v2.0，原文见 archive）
+
+已完成条目保留于 [`archive/TODO_v2.0.md`](archive/TODO_v2.0.md)，状态以归档原文为准。
+
+### 1.1 依赖与里程碑
+
+```
+EX-D1 ──► EX-D2 ──► {EX-E1, EX-E3, EX-E4}（先后由 EX-D2 的分叉规则决定）
+EX-E1 ──► EX-E2 ──► EX-S2
+EX-D1 ──► EX-S1 ──► EX-S2 ──► EX-S3
+EX-E1 ──► EX-S5
+EX-E1..E4 ──► EX-E5 ──► EX-S4
+EX-V1 与所有性能项并行；EX-C1 任意时间（slot 部分随 EX-E1）
+```
+
+| 里程碑 | 条目 | 退出条件 |
+|---|---|---|
+| M1 诊断 | EX-D1、EX-D2 | 分叉结论写入 FINDINGS |
+| M2 执行器能力 | EX-E1、EX-E2、EX-E3 步骤 1–3、EX-E4 第 1 步 | 任意合法 Plan 可执行且正确；每跳延迟有测量 |
+| M3 执行感知求解 | EX-S1、EX-S2 | 研究门 |
+| M4 扩展 | EX-S3、EX-S5、EX-E3 步骤 4–6、EX-E4 第 2 步、EX-E5、EX-S4 | 各自的验收门 |
+
+### 1.2 条目台账
+
+状态词沿用 ROUND5_LEDGER：未开始／进行中／已验证／触发停止门槛／待外部条件／经用户批准取消。实现与验证分列；代码存在不等于完成；历史数据不得冒充本轮运行。
+
+| ID | 范围与验收（不可删减，详见 §1.3） | 依赖 | 实现状态 | 验证状态/剩余项 | 证据、commit |
+|---|---|---|---|---|---|
+| EX-D1 | trace v2：逐 slot 时间线、每跳延迟、HOL、关键路径重建 | — | 未开始 | — | 待填 |
+| EX-D2 | 余量诊断 + 跨 stage 连续轮询放置 | EX-D1 | 未开始 | — | 待填 |
+| EX-E1 | Plan 契约：求解器输出 (π, σ, W, …)，host 按 Plan 物化 | EX-D2 | 未开始 | — | 待填 |
+| EX-E2 | 窗口执行器（W）+ 窗口感知的提升与本地依赖 | EX-E1 | 未开始 | — | 待填 |
+| EX-E3 | 同步协议 v2（六步，逐步开关、逐步验收） | EX-D1 | 未开始 | — | 待填 |
+| EX-E4 | 分相 TaskBody：CG 推导的无入边操作数预取 | EX-D1 | 未开始 | — | 待填 |
+| EX-E5 | 混合/动态发射策略 | EX-E1–E4 | 未开始 | — | 待填 |
+| EX-S1 | 执行模拟器作为 L2 代价模型 | EX-D1 | 未开始 | — | 待填 |
+| EX-S2 | EFT 放置与排序 + 闭式模板候选（研究门） | EX-S1、EX-E1、EX-E2 | 未开始 | — | 待填 |
+| EX-S3 | g / split-K / κ / W / residency 与 Plan 联合搜索 | EX-S2 | 未开始 | — | 待填 |
+| EX-S4 | 发射策略作为 variant 级决策 | EX-E5 | 未开始 | — | 待填 |
+| EX-S5 | 参数化 Place：由 ISL 在 seq 区间上证明合法性 | EX-E1 | 未开始 | — | 待填 |
+| EX-V1 | real-width 作为 L2 主基准 + 逐机制消融 | — | 未开始 | — | 待填 |
+| EX-C1 | 清理死字段与遗留头文件 | — | 未开始 | — | 待填 |
+
+### 1.3 条目详述
+
+#### EX-D1 trace v2
+
+- **目标**：重建每个 task 的时间线，量化每跳延迟、HOL 与关键路径构成（G7）。
+- **设计要点**：
+  - 新增编译开关（如 `TILEMEGA_TRACE_V2`，默认关）。关闭时，默认构建的 SASS 必须与改动前逐字节相同。
+  - 每个 slot 由 thread0 写入独立数组，不使用全局原子。记录的时刻为：wait 开始、最后一次 poll 成功（ready）、RunTask 开始、RunTask 结束、发布完成；同时记录 `%smid`、worker、stage、logical_task。每个事件行另记录 epoch 的发布时刻。
+  - 先实测目标 GPU 上 `%globaltimer` 的分辨率（连续读取的最小非零增量）并记录。若大于 100 ns，同时记录 `clock64`，并给出每 SM 偏移的估计方法与误差。
+  - 离线分析脚本输出：
+    - 每跳延迟分布（p50 / p90 / max）；
+    - HOL 可回收时间：worker 等待队首期间，其队列中已有就绪后续 task 的时间总和；
+    - 每个 worker 的忙与闲；
+    - 关键路径构成（task 时间 / 同步 / 空闲）；
+    - work 下界与关键路径下界。
+- **验收**：
+  - 两参考模型的 trace 构建在 50 个全新进程中 50/50 正确；
+  - trace 开/关的 L2 配对 25 轮，中位比 ≤ 1.02；
+  - 重建出的关键路径长度与实测 kernel 时长之差 ≤ 5%；超出则报告原因，不放宽。
+- **停止条件**：若 trace 扰动 > 2% 且无法降低，暂停并报告，不以扰动后的数据下结论。
+- **证据目录**：`docs/experiments/TRACE_V2/`。
+
+#### EX-D2 余量诊断与跨 stage 连续轮询
+
+- **目标**：在投入执行器与求解器之前，量出"并行余量"与"每跳成本"哪个是主瓶颈（F-126）。
+- **设计要点**：
+  - **(a) 离线**：用 EX-D1 实测的 task 时长与每跳延迟，计算 work 下界、关键路径下界与 EFT list scheduling 的模拟 makespan。覆盖两参考模型 seq∈{4,128}；real-width 4×4096（REALMODEL）seq∈{4,128} 能跑则跑。
+  - **(b) 在线**：新增一个 host 放置模式，即新的 `TILEMEGA_PLACEMENT` 取值：
+    - 映射为 `π(s,t) = (t + base_s) mod grid`，其中 `base_s = (Σ_{stage_order 中 s 之前的 s'} count(s')) mod grid`。效果是把轮询从"每个 stage 都从 worker 0 重新开始"改为跨 stage 连续进行。
+    - 队列仍为 stage-major，W=1；只改 host 端 `task_owner` 的初始化。
+  - 四臂（full / nowait / neither / l1nosync）在同会话内配对 25 轮；每格用 50 进程验证正确性。
+- **预先声明的分叉规则**（写入实现 prompt 后不得修改）：
+  1. `neither` 比默认放置下降 ≥ 5%，而 full L2 不降 → 每跳成本为主，先做 EX-E3、EX-E4；
+  2. 两者都下降 → 先做 EX-E1、EX-S2；
+  3. `neither` 不降 → 该规模下 DAG 缺乏并行余量，先做 EX-E4、融合与 EX-V1。
+
+  同时报告跨 worker 边比例的变化。
+- **验收**：每格正确性 50/50；分叉结论与数据写入 FINDINGS。
+- **证据目录**：`docs/experiments/PLACE_ROTATE/`。
+
+#### EX-E1 Plan 契约与物化
+
+- **目标**：让任意合法的 (π, σ) 都能落地（G1、G2，以及 G14 中的 slot 部分），实现 skeleton §5.7.4。
+- **设计要点**：
+  - **CG**：`tilemega.placement` 承载求解输出，包括：
+    - `mode ∈ {legacy_grid_stride, rotate, balanced_legacy, template, host_list_schedule}`；
+    - 模板参数或物化策略参数；
+    - `window`（W）与 `policy`。
+
+    `map=[0]` 的写法仅作为 legacy 模式保留。
+  - **Codegen**：发出 `RuntimeVariantDesc` 中的 SchedulePlan 描述；`BuildVariantSchedule` 迁入 `lib/Solver`，Codegen 只消费；`ScheduleStageDesc` 仅作为 legacy 输入保留。
+  - **Host**：在绑定 θ、完成 split-K 改写与驻留 grid 之后，按 (π, σ) 物化每个 worker 的队列；按 §5.7.3 L-d 计算 TaskWait；按 L-a、L-b 校验。`TaskPlacement::slot` 要么被消费，要么删除。
+- **验收**：
+  - legacy 模式 + W=1：两参考模型在 seq∈{4,128,512} 下物化出的 TaskRef、TaskWait 与事件表与改动前逐字节相同（dump 后 diff）；生成的 `.cu` 除新增字段外逐字节相同（列出 diff）。
+  - balanced 模式经新契约得到的队列，与现 `TILEMEGA_PLACEMENT=4` 下的队列相同。
+  - 新增单元测试：任意合法的 σ 被严格遵守；含环的 σ 被拒绝。
+  - 全部 CTest 通过；SEQSCAN 子集 seq∈{4,128,2048} × past∈{0,512} 各 50/50。
+- **证据目录**：`docs/experiments/PLAN_CONTRACT/`。
+
+#### EX-E2 窗口执行器
+
+- **目标**：消除 HOL，使静态计划能容忍代价模型的误差（G3、G5）。
+- **设计要点**：
+  - 设备端窗口 W：编译期给上限，运行期取值。
+  - 队首未就绪时，对窗口内的后续 slot 做非阻塞探测（每个等待只做一次加载）。
+  - 用 shared memory 位图记录本 worker 已完成的 slot。
+  - host 按 §5.7.3 L-d 生成提升、省略与本地依赖。
+  - W=1 时退化为现行实现。
+- **验收**：
+  - W∈{1,2,4} 各跑完整 SEQSCAN 矩阵（1500/1500 口径）。
+  - W=1 的性能与现行实现无显著差：配对 25 轮，CI 含 1 或 |Δ| < 0.5%。
+  - 负对照：构造一个能触发乱序的最小图，证明"W>1 执行器 + W=1 提升规则"会失败（≥ 50 进程，报告失败率）。若在参考模型上触发不了，如实记录，并保留构造图与失败证据。
+  - W>1 的性能收益在 EX-S2 之后评估，不作为本项的门。
+- **证据目录**：`docs/experiments/WINDOW/`。
+
+#### EX-E3 同步协议 v2
+
+- **目标**：把每跳成本降到不高于 barrier（G4）。
+- **步骤**：每步有独立的编译开关与独立的验收。若某一步使 notify 上升，即回退并记录，先例见 F-89。
+  1. **去掉冗余的 CTA 屏障**：trace 关闭时去掉 RunTask 之前的屏障；把 RunTask 之后与 NotifyTask 内的屏障合并。目标是每个 task ≤ 2 次。
+  2. **单成员事件**（members = 1）：省去 arrivals 原子，直接发布 epoch。
+  3. **aggregate 行**：生产者做无返回值的 release 归约，消费者以 acquire 加载轮询计数目标，取代"最后到达者发布 epoch"。此前对"直接轮询计数"的否定结论，得自 thread0 串行 + RMW 轮询的 stage-loop 执行器，必须重测。
+  4. **litmus**：比较"`__syncthreads()` 之后仅由 thread0 执行一次 release fence 再发布"与现行的"每个 writer 各自 fence"。
+     - 按 F-1/F-3/F-10 的要求：地址复用、小 tile（含 ≤ 4096 元素）、CTA 协作写、grid 64/128/256、每格 ≥ 50 个全新进程，并包含"无屏障"负对照。
+     - 通过之前，§8.5 的规则不变。
+  5. **发布异步化**（依赖第 4 步）：由一个 warp 完成 fence 与发布，其余 warp 进入下一个 task 的 Prefetch（与 EX-E4 联动）。
+  6. **本地与 cluster 同步**（依赖 EX-E2）：同 CTA 依赖改用 shared memory 标志；在具备 `caps.cluster` 的目标上评估 cluster 级同步（承接 P3.5、P4.7）。
+- **每步验收**：
+  - 两模型 50/50，并通过 SEQSCAN 子集；
+  - 四臂配对 25 轮，报告 notify、wait 与每跳延迟（EX-D1）的变化；
+  - 目标（不是正确性门）：默认放置下 wait + notify ≤ barrier。
+- **不变量**：§8.2 的单调 epoch 不变；§8.5 在第 4 步通过之前不改。
+- **证据目录**：`docs/experiments/SYNC_V2/`。
+
+#### EX-E4 分相 TaskBody 与跨 task 预取
+
+- **目标**：把同步延迟与加载延迟移出关键路径（G6）。
+- **设计要点**：
+  - 分析层按操作数输出"无入边操作数"掩码（例如 GEMM 的权重），并随生成表发出。掩码由每个操作数的读关系 R 与 CG 入边推出，不接受手写标注。
+  - TaskBody ABI 增加可选的 Prefetch（skeleton §5.3.1）。
+  - **第 1 步**：在等待期间或上一个 task 收尾时，对下一个 slot 的无入边操作数发出 L2 预取。不占 shared memory，不改变 §8.6。
+  - **第 2 步**（依第 1 步的结果决定是否进行）：做 shared memory 级的跨 task 流水。这需要修改 §8.6 的生命周期约定，并用 F-40 的闭式与实测核对 occupancy。
+- **验收**：
+  - 掩码与人工核对表一致（两参考模型的全部 stage）；
+  - 正确性 50/50，并通过 SEQSCAN 子集；
+  - decode seq∈{1,4} 上 L2 配对 25 轮，报告每跳延迟的变化。
+  - 注意：参考模型的权重可能整体驻留在 L2 中，收益应以 real-width 为主评估。
+- **证据目录**：`docs/experiments/PREFETCH/`。
+
+#### EX-E5 混合/动态发射策略
+
+- **目标**：为时长依赖数据的 stage（如 ragged attention）提供负载均衡。
+- **设计要点**：
+  - 每个 producer stage 带 jit 标记，默认由 Tier 或时长方差决定；
+  - 就绪队列；
+  - 生产者派发即推送（early push）；
+  - worker 先执行已就绪的 jit task，再检查 aot 队首。
+- **验收**：通过正确性矩阵；在 attention 占比高或 L_s 不均的配置上与 static 对比。依赖 EX-E1–E4。
+
+#### EX-S1 执行模拟器（L2 代价模型）
+
+- **目标**：取代 `CostModel::EventNs`（计数 × 速率），作为 L2 的目标函数（G9）。
+- **设计要点**：以离散事件模拟 skeleton §5.7.2 的执行语义。输入包括：
+  - 精确的 runtime task DAG（`RuntimeProjection` / `ExactRuntimeTaskGraph`）；
+  - `CostModel::TaskInstanceNs` 在实际坐标上给出的 task 时长；
+  - 同 SM 共驻 task 的资源向量合并（各道需求相加后取 max）；
+  - EX-D1 标定的每跳延迟与 notify/poll 开销。
+- **验收**：
+  - 与 EX-D1 的 trace 对照（≥ 2 模型 × 3 seq × 3 种放置），报告逐 task 开始时间的误差分布。
+  - 在"放置 × 配置"扫描上沿用排序口径：Spearman；模型 top-3 中至少一个落入实测 top-3%。
+  - 单个 Plan 的求值时间：参考模型 < 1 ms，real-width < 10 ms。
+  - 绝对误差不作为门，但必须报告。
+- **证据目录**：`docs/experiments/SIMULATOR/`。
+
+#### EX-S2 放置与排序（研究门）
+
+- **目标**：由求解器输出 (π, σ)，使实测 L2 < L1（G2、G10）。
+- **设计要点**：
+  - 在精确的 task DAG 上做 EFT 式 list scheduling：
+    - 优先级为以 ns 计的向上秩，含跨 worker 的每跳延迟；
+    - 为每个 task 选择最早完成时间最小的 worker：同 worker 前驱不计同步代价，跨 worker 前驱加上每跳延迟，同 SM 上的两个 worker 按资源向量计干扰；
+    - 只使用驻留 grid（resident-only）。
+  - 候选还包括 legacy、EX-D2 的连续轮询、AFFINE_PROBE 中的 band/wavefront（F-93、F-97）以及 balanced，由 EX-S1 选优。
+  - Label 作为子决策：只有相关 task 同簇时才可选 cluster 同步。
+- **验收**：
+  - 两参考模型与 real-width 在 seq∈{4,128} 上，EX-S1 选出的 Plan 实测 L2 < L1（配对 25 轮，CI 不含 1）；
+  - 每格正确性 50/50；
+  - 报告跨 worker 边的比例，以及关键路径上的同步时间。
+- **证据目录**：`docs/experiments/PLACE_EFT/`。
+
+#### EX-S3 联合搜索
+
+- **目标**：把 g 与 Plan 联合优化（G8、G11）。
+- **设计要点**：
+  - 外层搜索 (g, split-K, κ, W, residency)，用 max(work 下界, 关键路径下界) 剪枝；内层用 EX-S2 + EX-S1 评估 top-k；最终编译并实测 top-3。
+  - ChainDP（L1 目标）保留，作为 L1 路径与初始候选的来源。
+  - 若证实有必要，把 κ 从全局编译宏改为每个 producer stage 的运行期字段。
+- **验收**：
+  - 在预先定义的候选集上，预测最优落入实测 top-3%；
+  - 报告所选 split-K 与 L1 DP 所选的差异——这个差异本身作为结果记录。
+
+#### EX-S4 发射策略决策
+
+- 把 static / static+W / hybrid 作为 variant 级决策，默认由 Tier 决定。在 EX-E5 之后进行。
+
+#### EX-S5 参数化 Place
+
+- **目标**：把不变量 I1 从依赖推广到放置。
+- **设计要点**：
+  - 把 π/σ 模板写成 task 坐标与 θ 的拟仿射函数；
+  - 在每个 seq 区间上，用 ISL 证明 §5.7.3 的 L-a（无环）、L-b（驻留）以及依赖跨度上界；
+  - 每个 binary ≤ 2 个变体（F-66）。
+- **验收**：区间内的证明通过；在区间端点与 3 个内点处，host 物化结果与模板求值一致。
+
+#### EX-V1 基准迁移
+
+- **目标**：避免只在纯延迟区得出结论（G12）。
+- **设计要点**：
+  - 以 real-width 4×4096 / intermediate 14336（REALMODEL）和一个真实的 1B 级配置作为 L2 主基准；
+  - decode seq∈{1,4,16,64}，另含 128/512；
+  - 按机制逐项消融：放置、W、同步 v2、预取。
+  - 数值判据不变；条件 7/9 的判据产物按 F-102 处理。
+- **验收**：每个 EX 性能结论同时给出参考模型与 real-width 的数据，或说明缺失原因。
+
+#### EX-C1 清理
+
+- **内容**：
+  - `kLastTaskOfStage`：删除或启用；
+  - `GeneratedLlamaRuntime.cuh`：若没有包含者则删除；
+  - `TaskPlacement::slot`：随 EX-E1 处理。
+- **验收**：构建与全部 CTest 通过；生成的 `.cu` 逐字节不变。
+
 # 7. 分阶段 TODO
 
 > `[ ]` 待办 `[~]` 进行中 `[x]` 完成 `[!]` 阻塞 `[-]` 已放弃（保留并注明原因）

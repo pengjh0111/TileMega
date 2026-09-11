@@ -1,0 +1,6 @@
+status	baseline	result
+PASS	059f8532509fcf21c9cc96e078903cc1edc13a5a	skeleton_map
+PASS	059f8532509fcf21c9cc96e078903cc1edc13a5a	plan_contract
+PASS	059f8532509fcf21c9cc96e078903cc1edc13a5a	status_sections
+PASS	059f8532509fcf21c9cc96e078903cc1edc13a5a	todo_sections
+PASS	059f8532509fcf21c9cc96e078903cc1edc13a5a	findings

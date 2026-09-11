@@ -1,5 +1,8 @@
 # TileMega 实现状态
 
+> **文档地图（v2.1）**：设计与契约 → `TileMega_skeleton.md`；实现状态 → `docs/STATUS.md`；待办 → `docs/TODO.md`；实测发现 → `docs/FINDINGS.md`；v2.0 待办原文 → `docs/archive/TODO_v2.0.md`；开工前验证计划 → `docs/VERIFICATION_PLAN.md`。每类信息只有一个权威位置，其他位置只放指针。
+> 本文件是实现状态的唯一权威来源。v2.1 起由 `TileMega_skeleton.md` 迁入：§1.5、§1.5.1 为 v2.0 原文（逐字保留），§1.5.4 为原 skeleton §2.3 的接入状态表原文；原文中的修正一律以“（⚠️ v2.1：……）”注记或 §1.5.2 之后的新增小节表达，不改原句。
+
 ## 1.5 当前状态
 
 | 层 | 路径已验证 | 代码已实现 | 证据 |
@@ -11,12 +14,25 @@
 | L3a 符号类型 | ✅ | ✅ | F-14；`coupling_types_test` / `cg_attr_roundtrip` |
 | L3b 派生量参数化 | ✅ | ✅ | `wait`/`fanout`/`volume`/`count` 是 `S`/`past`/`L_s` 的拟多项式；符号求值与逐点重推 **420/420** 一致（`docs/experiments/SYMBOLIC/`） |
 | L3b 耦合推导 | ✅ | ✅ | P3/P3_ISL：`W⁻¹∘R` 为 isl_map，wait/fanout 为 barvinok 计数；§2.7 全 13 行交叉验证（并纠正表中边 3 的 fanout）；Coarsen/I2/事件综合单测。**已驱动生产路径**：`Frontend.cpp` 按算子粒度建 `OperatorGraph` 并调 `CouplingDerivation`，`wait_map` 落到 IR、经 codegen 成为 `StageDependency`（gqa2 38 对：20 `kAll` / 3 `kIdentity` / 15 `kWindow`，`docs/experiments/WIRING/`） |
-| L2 Solver | ✅ | ⚠️ | FP32：ρ = 0.9432 / 0.9421、top-3 落入实测 top-3%（`COST_MODEL`）。BF16 在修正 occupancy 特征后为 **0.8984 / 0.8871**，仍低于 FP32，top-1/3/10 仍为 0；误判集中在窄 N + split=1 与激进 split=8/16，阈值未放宽（`BF16`）。链上 DP、Label、Coarsen 见各实验；Place 的关键路径排序现已实际进入 L2 队列，不再只是求出未消费 |
-| L2 执行模型 | ✅ | ✅ | 每变体携带 solver schedule；host 物化每 worker 的 `TaskRef` 队列，逐 task 等待/执行/通知，task 内 `(producer,group)` 去重、单调 epoch 提升、CTA 并行 poll。`kAll` 用聚合完成事件，窗口用逻辑 task 组，只发布被引用的行。两模型 50/50，seq×past **1500/1500**；50 进程跨 stage 提前启动平均 34.36% / 40.18%。生成期与 launch 前双重环检查，当前 resident grid 通过、不可证明的 over-resident 被拒绝（`TASKQUEUE` / `OVERLAP`） |
+| L2 Solver | ✅ | ⚠️ | FP32：ρ = 0.9432 / 0.9421、top-3 落入实测 top-3%（`COST_MODEL`）。BF16 在修正 occupancy 特征后为 **0.8984 / 0.8871**，仍低于 FP32，top-1/3/10 仍为 0；误判集中在窄 N + split=1 与激进 split=8/16，阈值未放宽（`BF16`）。链上 DP、Label、Coarsen 见各实验；Place 的关键路径排序现已实际进入 L2 队列，不再只是求出未消费 （⚠️ v2.1：目标函数为 L1，Place 仅为 stage 置换，见 §1.5.2 G1/G8） |
+| L2 执行模型 | ✅ | ✅ | 每变体携带 solver schedule；host 物化每 worker 的 `TaskRef` 队列，逐 task 等待/执行/通知，task 内 `(producer,group)` 去重、单调 epoch 提升、CTA 并行 poll。`kAll` 用聚合完成事件，窗口用逻辑 task 组，只发布被引用的行。两模型 50/50，seq×past **1500/1500**；50 进程跨 stage 提前启动平均 34.36% / 40.18%。生成期与 launch 前双重环检查，当前 resident grid 通过、不可证明的 over-resident 被拒绝（`TASKQUEUE` / `OVERLAP`） （⚠️ v2.1：正确性成立；执行能力受限——归属与 L1 相同、队列 stage-major、W=1，见 §1.5.2 G2/G3） |
 | L1 Codegen | ✅ | ✅ | 单二进制最多 16 个生成器控制的粒度变体，运行时 O(1) 选取；每变体携带自己的精确依赖表与调度顺序。窗口由 isl 端点发现并做符号集合等价证明，两个参考模型 128/128 条边零 fallback 且生成结果逐字节不变；无 occupancy 损失的实测上限为 2 变体（`VARIANT` / `REALMODEL`） |
 | L0 Backend | ✅ | ✅ | V-I 四架构交叉编译；FP32 SIMT 与 BF16 Tensor Core 均由 `ArchDispatch::Caps` 分发，BF16 二进制各确认 96 条 `HMMA.16816.F32.BF16` 静态指令 |
 
 此表是项目实现状态的唯一权威来源；每轮结束随代码和实验证据同步更新。
+
+### 1.5.4 CG 操作的实际接入状态（原 skeleton §2.3，v2.0 原文）
+
+**操作的实际接入状态**（不能把“形式化”当成“已经在决策”）：
+
+| 操作 | 是否驱动求解器 | 为什么 |
+|---|---|---|
+| **Reparam** | ✅ 是 | 链上 DP 的状态就是 `g`（tile 形状、stages、split-K）。它也是唯一**不需要** `C` 的一个：代价模型读的是形状与标定表，不读耦合关系。 |
+| **Coarsen** | ❌ 否 | 最终队列上重测 κ∈{0,1,2,4,8,16,32}，两模型 argmin 都为 κ=1，相对聚合-only 快 0.285%/0.165%。收益侧首次非零，但两参考模型仍共用同一最优值，本轮不进 DP；“κ=0 结构最优”的旧论证已作废。 |
+| **Label** | ⚠️ 部分 | `sync_kind` 的判定与 `ClusterSync` 原语都在，簇常数也已标定，但没有一条 CG 边在 sm_89 上能取 `cluster`，所以它现在恒取 `global`；端到端消融欠一台 sm_90+ 机器。 （⚠️ v2.1：L2 执行下 Label 是 Place 的子决策，见 skeleton §5.7.1） |
+| **Place** | ✅ 是 | `ListScheduler` 的关键路径优先序现在随每个 runtime variant 发进 `ModelSpec`，host 在绑定动态 task 数后物化每 worker 队列；round-robin 对照走同一二进制的 host 开关。另有 TaskBody 的 tile-aligned ownership，二者仍是正交决策。硬件价值以本轮 `PLACE` 重测为准，旧 CTA-bijection 数字全部作废。 （⚠️ v2.1：降级为部分——只有 stage 置换与 host 映射，slot 未被消费，见 §1.5.2） |
+| **Relax** | ✅ 是（安全方向） | `Contains(C', C)` 是 `isl_map_is_subset`，真正的 Tier 2/3 非精确边仍可取 `kAll` 超集；但“编译粒度与推导粒度不匹配”的回退已经不存在——每个运行时变体携带自己粒度下推导的精确表，不再有 `wait_table=degraded`。 |
+| **Fuse** | ⚠️ 正确性已验证，定价方向门未过 | 固定域区间DP→L-task写回→exact C lowering已接；RoPE/KV完整模型400/400、GEMM两链400/400正确。add预测/实测一致，RMS预测加速却慢6.25%/35.21%，局部停止定价及依赖的联合搜索，见FUSION/runtime_result.md。 |
 
 ### 1.5.1 残留技术债（本轮结束时的诚实记录）
 
@@ -265,3 +281,59 @@
 ## 1.5.2 v2.1 执行模型差距
 
 ⚠️ solver 到 codegen 的 task-level placement 与 L2 执行感知目标仍待实现；证据见 `docs/FINDINGS.md` F-127、F-128。
+
+
+### 1.5.2 v2.1 状态修订与 L2 执行模型差距
+
+**状态修订**（追加；上表原文不改）：
+
+| 项 | 路径已验证 | 代码已实现 | 证据 |
+|---|---|---|---|
+| Place（task → (worker, slot)） | ⚠️ | ⚠️ | 已执行的只有两部分：一是 stage 级置换，由 Codegen 内的 `BuildVariantSchedule` 调用 `ListScheduler` 算出；二是 host 端的 task→worker 映射，默认 `t mod grid`，`TILEMEGA_PLACEMENT=4` 时为 balanced 启发式。`BalanceTaskPlacement` 算出的 slot 无人读取；CG 的 `tilemega.placement` 仍是 `map=[0]` 占位。关键路径序对 round_robin 为 1.000000 / 0.998552（F-82）；balanced 为 1.639908 / 3.087011 / 1.396662 / 4.002253（F-118）。见 F-127、F-129 |
+| L2 执行器能力 | ⚠️ | ⚠️ | 队列 stage-major，归属与 L1 的 grid-stride 相同，严格 FIFO（W=1）；L2/L1 = 1.081–1.113（`E2E_L2`）；同步零成本时的结构上界见 F-126（inferred） |
+| L2 求解目标函数 | ✅（L1 目标） | ⚠️（缺 L2 目标） | `ChainDP` 的 op_cost = stage + barrier，在 `l2_events` 下拒绝求解；`CostModel::EventNs` 为计数 × 速率。见 F-128 |
+
+**差距清单**：
+
+| ID | 差距 | 证据（标注） | 影响 | 承接 |
+|---|---|---|---|---|
+| G1 | L2→L1 契约没有 Place 通道 | ✅ `Frontend.cpp` 以 `map=[0]`、`cluster=1` 生成 `tilemega.placement`，没有求解器写回；`Codegen.cpp::BuildVariantSchedule` 在生成期计算 stage 置换；`ScheduleStageDesc` 只含 `{stage, dependency_begin, dependency_count}`（F-127） | 求解器无法表达 task 级计划 | EX-E1 |
+| G2 | 默认归属与 L1 相同，队列 stage-major | ✅ `harness::Create()` 的 `task_owner` 初始化与物化循环；⚠️ inferred：同步零成本时存在结构上界（F-126） | L2 至多只能省掉 barrier | EX-D2、EX-E1、EX-S2 |
+| G3 | 严格 FIFO（W=1），存在 HOL | ✅ `tilemega_l2_kernel` | 放置改变之后才显著；对代价模型误差没有容忍度 | EX-E2 |
+| G4 | 每个 task 的发布协议偏重 | ✅ `NotifyTask`、`ArriveEvent`、`EventPoll`；每 task 最多 5 次 CTA 屏障（skeleton §5.5.1）；✅ 测量：notify 是 L2 超出 L1 的最大正项（`L2_ATTRIB`） | 每跳成本高于 barrier | EX-E3 |
+| G5 | 等待提升与本地省略依赖 FIFO | ✅ `seen[worker]`、`per_group == 1 && owner == worker`；⚠️ inferred：一旦乱序即失效（F-130） | 阻碍窗口执行与动态执行 | EX-E2 |
+| G6 | 没有跨 task 预取 | ✅ `GemmStageTaskBody::RunTask`；wait 位于整个 body 之前 | 同步延迟与加载延迟完全暴露在关键路径上 | EX-E4 |
+| G7 | trace 不足 | ✅ `TaskTrace{start,end}` 由全局原子取值 | 无法测 HOL、每跳延迟与关键路径 | EX-D1 |
+| G8 | 求解目标为 L1 | ✅ `ChainDP::Solve`（F-128） | 配置是 L1 最优，L2 最优性未经检验 | EX-S3 |
+| G9 | L2 价格是计数 × 速率 | ✅ `CostModel::EventNs` | 预测不了重叠，也预测不了放置引入的串行化（F-118 的方向与预测相反） | EX-S1 |
+| G10 | balanced 贪心以 affinity 优先 | ✅ 机制；⚠️ inferred 归因（F-129） | 可能把整个 stage 压到少数 worker 上 | EX-S2 |
+| G11 | κ 为全局编译宏，κ=0 为聚合特例 | ✅ `TILEMEGA_EVENT_KAPPA`；F-105 | κ 不能按 stage 选择 | EX-S3 |
+| G12 | 参考 fixture 处于纯延迟区 | ⚠️ inferred（若写入 F-131 则引用之） | 结论存在外推风险 | EX-V1 |
+| G13 | SIMT task 共用 GEMM 的启动配置 | stated：128 线程、212 寄存器、2 CTA/SM（F-90、`PLACE/round5_balanced_result.md`） | 访存型 task 占用率低 | 在 EX-V1 中观测；若成立则另立条目 |
+| G14 | 死字段与遗留头文件 | ✅ grep：`TaskPlacement::slot`、`kLastTaskOfStage` 只写不读；`GeneratedLlamaRuntime.cuh` 没有包含者 | 误导读者 | EX-C1 |
+
+
+### 1.5.3 被执行器结构混淆的历史结论（v2.1）
+
+以下结论作为"该执行器结构下的测量"继续有效，但不得外推为关于放置、排序、窗口或 κ 的一般结论。它们都是在 G2（归属与 L1 相同、队列 stage-major）与 G3（W = 1）下测得的（F-126）：
+
+- F-82：关键路径序对 round_robin 为 1.000000 / 0.998552。stage 置换只在独立 stage 之间有自由度，且各 stage 的 task 仍落在相同的 worker 上。
+- F-86 与 COARSEN：exact window 对 kAll 的收益随 seq 反号（seq=4 快 0.694% / 0.322%，seq=512 慢 1.171% / 1.163%）；κ=1 为 argmin（快 0.285% / 0.165%）。
+- F-118：balanced 映射慢 1.639908 / 3.087011 / 1.396662 / 4.002253 倍。该测量中 slot 被丢弃（G1），贪心以 affinity 为先（G10）；它说明放置的影响量级，不说明局部性没有价值。
+- OVERLAP：34.36% / 40.18% 的跨 stage 提前启动主要是非关键 worker 上的尾部重叠，不是关键路径上的重叠。
+
+
+### 1.5.5 求解结果到代码的落地程度（v2.1）
+
+对应 skeleton §5.6 的目标映射。
+
+| CG 上的决策 | 目标落点（skeleton §5.6） | 当前落地 | 证据 |
+|---|---|---|---|
+| Reparam：tile 形状 `g` | TaskBody 的 `TileShape` 模板实参 | ✅ 每个 binary 最多 16 个模板变体 | `VARIANT`、F-66 |
+| Reparam：split-K 因子 | `TaskDesc` 的 `k_begin` / `k_count` | ✅ host 改写为按 chunk 的调用，并插入 combine stage | `harness::Create()` |
+| Coarsen：κ | 事件张量 extent 与索引映射 | ⚠️ 全局编译宏 `TILEMEGA_EVENT_KAPPA`；κ=0 为聚合特例 | F-105 |
+| Label：簇归属 | `__cluster_dims__` + `SYNC_CLUSTER` + DSMEM | ⚠️ 仅有 L1 stage barrier 的簇形态与 T1 分片 fan-in 实验；L2 没有 cluster 边 | P3.5、F-89 |
+| Place：task→worker | `p.schedule[worker][s]` | ⚠️ host 默认 `t mod grid`，或 balanced 启发式 | F-126、F-127 |
+| Place：worker 内顺序 | 同一张表内的 task 序 | ❌ 恒为 stage-major，slot 未被消费 | F-127 |
+| Stages | TaskBody 的 `Stages` 模板实参 | ✅ | — |
+| 区间划分 | 多套实例化 + host 端 O(1) 查表 | ✅ 每个 binary 无损上限为 2 个变体 | `VARIANT`、F-66 |

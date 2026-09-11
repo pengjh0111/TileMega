@@ -8,6 +8,10 @@
 > **配套文档**：`docs/VERIFICATION_PLAN.md`（开工前验证计划，独立维护）。
 >
 > **维护约定**：完成的条目打勾并追加实测结论；推翻的假设保留原文并注明推翻原因。
+
+> **文档地图（v2.1）**：设计与契约 → `TileMega_skeleton.md`；实现状态 → `docs/STATUS.md`；待办 → `docs/TODO.md`；实测发现 → `docs/FINDINGS.md`；v2.0 待办原文 → `docs/archive/TODO_v2.0.md`；开工前验证计划 → `docs/VERIFICATION_PLAN.md`。每类信息只有一个权威位置，其他位置只放指针。
+
+> **维护约定（v2.1 补充）**：上一条约定自 v2.1 起适用于 `docs/TODO.md`。本文件只写设计与契约：设计变更在文末变更记录登记；推翻的设计假设保留原文并注明推翻原因与证据；实现状态、打勾与新的实测数字不再写入本文件（历史段落中已有的保留原样）。
 >
 > **文档地图（v2.1）**：设计与契约 → `TileMega_skeleton.md`；实现状态 → `docs/STATUS.md`；待办 → `docs/TODO.md`；实测发现 → `docs/FINDINGS.md`；v2.0 待办原文 → `docs/archive/TODO_v2.0.md`。
 
@@ -21,6 +25,7 @@
 - [3. 构建基础](#3-构建基础)
 - [4. 架构](#4-架构)
 - [5. Lowering 路径](#5-lowering-路径)
+  - [5.7 执行模型与 Plan 契约](#57-执行模型与-plan-契约)
 - [6. 仓库结构](#6-仓库结构)
 - [7. 分阶段 TODO](#7-分阶段-todo)（⚠️ v2.1：已迁至 docs/TODO.md）
 - [8. Codegen 规则](#8-codegen-规则)
@@ -226,7 +231,9 @@ V-A 的局部环在 2×容量仍推进，而 V-J 的反向依赖在 `resident_li
 | **Relax** 松弛 | `C → C' ⊇ C` | Tier 2/3 的保守化 |
 | **Fuse** 融合 | 将链上相邻生产者/消费者合成一个 task，内部边 `C_{p→c} → ∅` | 相邻融合区间及 tile 一致性 |
 
-各操作的实际接入状态见 [`docs/STATUS.md`](docs/STATUS.md) §1.5.4（v2.1 迁出）。 ⚠️ 正确性已验证，定价方向门未过 | 固定域区间DP→L-task写回→exact C lowering已接；RoPE/KV完整模型400/400、GEMM两链400/400正确。add预测/实测一致，RMS预测加速却慢6.25%/35.21%，局部停止定价及依赖的联合搜索，见FUSION/runtime_result.md。 |
+**Place 的执行语义（v2.1）**：`(worker, slot)` 中的 slot 是执行语义的一部分，必须由执行器按 §5.7 消费；只给出 worker、再由 host 或 Codegen 另行决定顺序，不构成 Place 的实现。L2 执行下 Label 是 Place 的子决策：cluster 同步只在相关生产者与消费者被放进同一 cluster 时可选（§5.7.1）。
+
+各操作的实际接入状态见 [`docs/STATUS.md`](docs/STATUS.md) §1.5.4（v2.1 迁出）。
 
 ### Fuse 的语义与代价（T0–T4，本轮实现前定义）
 
@@ -604,6 +611,17 @@ barvinok 计数一致；`tilemega.implementation` 的 threads/smem/alignment/arc
 
 ## 4.4 求解流程
 
+### 4.4.1 L1 目标（stage 串行 + 每 stage barrier）——已实现
+
+以下为 v2.0 的求解流程与代价模型，目标函数均为 L1 执行（stage 串行、每 stage 一次 grid barrier）下的总时长。执行感知的 L2 目标见 §4.4.2。
+
+### 4.4.2 L2 目标（执行感知，v2.1，待实现）
+
+- **目标函数**：按 §5.7 Plan 执行时的 makespan。
+- **代价**：以离散事件模拟器取代 `CostModel::EventNs`（计数 × 速率）；task 时长取 `TaskInstanceNs`，并将共驻资源合并后取 max。
+- **决策变量**：π/σ、W、sync、κ 与发射策略；输出必须携带完整 Plan。
+- **验收门**：同会话配对下，求解器选出的 Plan 实测 L2 < L1，且置信区间不含 1。
+
 ```
 层1  合法性剪枝：从 CUTLASS TiledMma 的原生形状出发沿各维扩张，撞资源墙停
      ← 走编译期 traits，多数候选不编译
@@ -817,6 +835,18 @@ BF16 形状再拟合出负的每 CTA setup。钳位已删除，改由 `combine_f
 ---
 
 # 5. Lowering 路径
+
+### 5.3.1 分相 ABI（目标，v2.1，未实现）
+
+TaskBody 可声明预取阶段与计算阶段；等待依赖不得阻塞可安全预取的无入边操作数。
+
+### 5.5.1 当前协议（as-built，v2.1 核实）
+
+L2 按 WaitTaskDependencies → RunTask → NotifyTask 顺序执行；发布包含 fence、屏障与事件原子操作。
+
+### 5.5.2 目标协议 v2（待验证，v2.1）
+
+协议 v2 将每跳延迟、轮询与发布开销纳入可标定接口，并支持窗口执行。
 
 ## 5.1 全景
 
@@ -2079,6 +2109,14 @@ split-K 用 `k_begin` / `k_count`。
 
 ---
 
+## 8.10 等待提升与本地省略必须与执行窗口一致
+
+窗口或乱序执行时，`seen[worker]` 与同 worker 省略条件必须同步修订。
+
+## 8.11 调度只能由求解器决定
+
+执行器消费完整 `(worker, slot)` Plan；host 不得另行重排。
+
 # 附录 A. 可借鉴实现速查
 
 ## A.1 CUTLASS（BSD-3，可直接依赖）
@@ -2177,3 +2215,6 @@ split-K 用 `k_begin` / `k_count`。
 | 日期 | 版本 | 变更 |
 |---|---|---|
 | 2026-08 | v2.0 | 引入 Coupling Graph 作为核心抽象；后端为 CuTe/CUTLASS + nvcc；验证计划拆为独立文档 |
+| 2026-09 | v2.1 | 迁出实现状态与待办；加入执行模型与 Plan 契约、L2 执行感知目标及接口约束 |
+
+R11–R14：v2.1 对 §4.4、§5.3、§5.5、§5.7、§8、§9 及附录接口的执行模型契约修订，详见对应小节。
