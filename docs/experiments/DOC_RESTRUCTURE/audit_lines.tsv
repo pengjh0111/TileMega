@@ -1,6 +1,7 @@
-status	baseline	result
-PASS	059f8532509fcf21c9cc96e078903cc1edc13a5a	skeleton_map
-PASS	059f8532509fcf21c9cc96e078903cc1edc13a5a	plan_contract
-PASS	059f8532509fcf21c9cc96e078903cc1edc13a5a	status_sections
-PASS	059f8532509fcf21c9cc96e078903cc1edc13a5a	todo_sections
-PASS	059f8532509fcf21c9cc96e078903cc1edc13a5a	findings
+base_line	state	text
+17	annotated	- [1.5 当前状态](#15-当前状态)
+23	annotated	- [7. 分阶段 TODO](#7-分阶段-todo)
+107	annotated	| L2 Solver | ✅ | ⚠️ | FP32：ρ = 0.9432 / 0.9421、top-3 落入实测 top-3%（`COST_MODEL`）。BF16 在修正 occupancy 特征后为 **0.8984 / 0.8871**，仍低于 FP32，top-1/3/10 仍为 0；误判集中在窄 N + split=1 与激进 split=8/16，阈值未放宽（`BF16`）。链上 DP、Label、Coarsen 见各实验；Place 的关键路径排序现已实际进入 L2 队列，不再只是求出未消费 |
+108	annotated	| L2 执行模型 | ✅ | ✅ | 每变体携带 solver schedule；host 物化每 worker 的 `TaskRef` 队列，逐 task 等待/执行/通知，task 内 `(producer,group)` 去重、单调 epoch 提升、CTA 并行 poll。`kAll` 用聚合完成事件，窗口用逻辑 task 组，只发布被引用的行。两模型 50/50，seq×past **1500/1500**；50 进程跨 stage 提前启动平均 34.36% / 40.18%。生成期与 launch 前双重环检查，当前 resident grid 通过、不可证明的 over-resident 被拒绝（`TASKQUEUE` / `OVERLAP`） |
+485	annotated	| **Label** | ⚠️ 部分 | `sync_kind` 的判定与 `ClusterSync` 原语都在，簇常数也已标定，但没有一条 CG 边在 sm_89 上能取 `cluster`，所以它现在恒取 `global`；端到端消融欠一台 sm_90+ 机器。 |
+486	annotated	| **Place** | ✅ 是 | `ListScheduler` 的关键路径优先序现在随每个 runtime variant 发进 `ModelSpec`，host 在绑定动态 task 数后物化每 worker 队列；round-robin 对照走同一二进制的 host 开关。另有 TaskBody 的 tile-aligned ownership，二者仍是正交决策。硬件价值以本轮 `PLACE` 重测为准，旧 CTA-bijection 数字全部作废。 |

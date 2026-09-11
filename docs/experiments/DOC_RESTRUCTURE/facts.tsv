@@ -1,31 +1,31 @@
 id	status	evidence
-K1	✅	§4 verification
-K2	✅	§4 verification
-K3	✅	§4 verification
-K4	✅	§4 verification
-K5	✅	§4 verification
-K6	✅	§4 verification
-K7	✅	§4 verification
-K8	✅	§4 verification
-K9	✅	§4 verification
-K10	✅	§4 verification
-K11	✅	§4 verification
-K12	✅	§4 verification
-K13	✅	§4 verification
-K14	✅	§4 verification
-K15	✅	§4 verification
-K16	✅	§4 verification
-K17	✅	§4 verification
-K18	✅	§4 verification
-K19	✅	§4 verification
-K20	✅	§4 verification
-K21	✅	§4 verification
-K22	✅	§4 verification
-K23	✅	§4 verification
-K24	✅	§4 verification
-K25	✅	§4 verification
-K26	✅	§4 verification
-K27	✅	§4 verification
-K28	✅	§4 verification
-K29	✅	§4 verification
-P1	✅	formula P1
+K1	✅	include/tilemega/Codegen/tasks/ModelHarness.cuh:1311; include/tilemega/Codegen/tasks/Placement.cuh:30; include/tilemega/Codegen/tasks/Placement.cuh:63
+K2	✅	include/tilemega/Codegen/tasks/AddTaskBody.h:32; include/tilemega/Codegen/tasks/ElementwiseTaskBody.h:66; include/tilemega/Codegen/tasks/FusedGemmTaskBody.h:106; include/tilemega/Codegen/tasks/FusedRoPEKVTaskBody.h:64; include/tilemega/Codegen/tasks/GemmCombineTaskBody.h:94; include/tilemega/Codegen/tasks/GemmCombineTaskBody.h:99
+K3	✅	include/tilemega/Codegen/tasks/ModelHarness.cuh:1470; include/tilemega/Codegen/tasks/ModelHarness.cuh:1472; include/tilemega/Codegen/tasks/ModelHarness.cuh:1550
+K4	✅	worker uses include/tilemega/Codegen/tasks/ModelHarness.cuh:1330; slot reads 0
+K5	✅	hits lib/Solver/BalancedPlacement.cpp:26; lib/Solver/BalancedPlacement.cpp:44; non-write hits []
+K6	✅	lib/Frontend/Frontend.cpp:760; lib/Frontend/Frontend.cpp:761; solver writes 0
+K7	✅	lib/Codegen/Codegen.cpp:158; include/tilemega/Codegen/tasks/ModelRuntime.h:159
+K8	✅	comparator lines lib/Solver/ListScheduler.cpp:27; lib/Solver/ListScheduler.cpp:37; lib/Solver/ListScheduler.cpp:43; lib/Solver/ListScheduler.cpp:48; lib/Solver/ListScheduler.cpp:49; lib/Solver/ListScheduler.cpp:50
+K9	✅	include/tilemega/Codegen/tasks/ModelHarness.cuh wait/run/notify at lines [685, 690, 695]
+K10	✅	NotifyTask fence/barrier/arrive at [563, 564, 575]; ArriveEvent atomicAdd at 532
+K11	✅	include/tilemega/Codegen/tasks/EventSync.cuh:7; include/tilemega/Codegen/tasks/EventSync.cuh:18
+K12	✅	barriers in WaitTaskDependencies / L2 kernel / NotifyTask = [1, 2, 2]
+K13	✅	include/tilemega/Codegen/tasks/ModelHarness.cuh:1543; include/tilemega/Codegen/tasks/ModelHarness.cuh:1517
+K14	✅	include/tilemega/Codegen/tasks/ModelRuntime.h:205; include/tilemega/Codegen/tasks/ModelHarness.cuh:688; include/tilemega/Codegen/tasks/ModelHarness.cuh:694
+K15	✅	lib/Solver/ChainDP.cpp:32; lib/Solver/ChainDP.cpp:189; lib/Solver/ChainDP.cpp:292; lib/Solver/ChainDP.cpp:294
+K16	✅	lib/Solver/CostModel.cpp:818; lib/Solver/CostModel.cpp:869; lib/Solver/CostModel.cpp:919
+K17	✅	lib/Solver/BalancedPlacement.cpp:38
+K18	✅	hits include/tilemega/Codegen/tasks/ModelHarness.cuh:1550; include/tilemega/Codegen/tasks/ModelRuntime.h:185; reads []
+K19	✅	includes []
+K20	✅	mainloop at 468, epilogue at 496
+K21	✅	include/tilemega/Solver/RuntimeProjection.h:66
+K22	✅	include/tilemega/Codegen/tasks/ModelHarness.cuh:254
+K23	✅	all 20 medians found in docs/experiments/L2_ATTRIB/result.md; missing []
+K24	✅	missing []
+K25	✅	missing []; F-90 128 threads True
+K26	✅	missing []
+K27	✅	include/tilemega/Codegen/tasks/TaskBase.h:59; include/tilemega/Codegen/tasks/TaskBase.h:64; include/tilemega/Codegen/tasks/TaskBase.h:65; include/tilemega/Codegen/tasks/TaskBase.h:93
+K28	✅	last base finding F-125
+K29	✅	base §6 tree lists include/tilemega/tasks/; actual include/tilemega/Codegen/tasks
+P1	✅	gqa2/4: ceiling 13.6% / ratio 2.2x; gqa2/128: ceiling 9.4% / ratio 2.5x; mha4/4: ceiling 12.1% / ratio 2.1x; mha4/128: ceiling 9.1% / ratio 2.9x

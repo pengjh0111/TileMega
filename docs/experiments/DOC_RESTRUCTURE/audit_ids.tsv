@@ -1,2 +1,49 @@
-status	result
-PASS	P and EX identifiers present
+kind	id	state
+P	P0.1	ok
+P	P0.2	ok
+P	P0.3	ok
+P	P1.1	ok
+P	P1.2	ok
+P	P1.3	ok
+P	P1.4	ok
+P	P2.1	ok
+P	P2.2	ok
+P	P2.3	ok
+P	P2.4	ok
+P	P3.1	ok
+P	P3.2	ok
+P	P3.3	ok
+P	P3.4	ok
+P	P3.5	ok
+P	P3.6	ok
+P	P3.7	ok
+P	P4.1	ok
+P	P4.2	ok
+P	P4.3	ok
+P	P4.4	ok
+P	P4.5	ok
+P	P4.6	ok
+P	P4.7	ok
+P	P4.8	ok
+P	P4.9	ok
+P	P5.1	ok
+P	P5.2	ok
+P	P5.3	ok
+P	P5.4	ok
+P	P6.1	ok
+P	P6.2	ok
+P	P6.3	ok
+EX heading count	EX-C1	1
+EX heading count	EX-D1	1
+EX heading count	EX-D2	1
+EX heading count	EX-E1	1
+EX heading count	EX-E2	1
+EX heading count	EX-E3	1
+EX heading count	EX-E4	1
+EX heading count	EX-E5	1
+EX heading count	EX-S1	1
+EX heading count	EX-S2	1
+EX heading count	EX-S3	1
+EX heading count	EX-S4	1
+EX heading count	EX-S5	1
+EX heading count	EX-V1	1

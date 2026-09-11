@@ -1,1 +1,7 @@
 file	line	reference	mapping
+lib/Frontend/Frontend.cpp	94	§0.1	unknown
+lib/Frontend/ModelPlan.cpp	212	§0.1	unknown
+include/tilemega/Frontend/SemanticLifting.h	91	§0.1	unknown
+include/tilemega/Target/TargetSpec.h	85	§0	unknown
+tools/tilemega-costmodel.cpp	10	§0.3	unknown
+test/unit/degradation_test.cpp	4	§0.1	unknown
