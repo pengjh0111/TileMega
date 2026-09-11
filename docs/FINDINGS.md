@@ -2583,3 +2583,23 @@ unprofiled. No fitted coefficient or acceptance threshold was changed.
 ⚠️ Joint fusion search remains unaccepted and depends on this failed price
 gate. Runtime/lowering are no longer missing. All comparisons and rejected
 explanations are retained in `FUSION/runtime_result.md`.
+
+## F-126 — Default L2 ownership is L1's grid-stride ownership, so L2 can at most recover the barrier
+
+✅ Code inspection: `harness::Create()` assigns ownership by `task % grid`; queues are stage-major and FIFO. L1 and L2 therefore execute the same task ownership. ⚠️ Inferred from `docs/experiments/L2_ATTRIB/result.md`: free-synchronization ceiling is 13.6%, 9.4%, 12.1%, 9.1%; measured wait+notify/barrier is 2.2×, 2.5×, 2.1×, 2.9×.
+
+## F-127 — The solver-to-codegen contract carries no task-level placement
+
+✅ Frontend emits placeholder `tilemega.placement`; codegen computes stage permutation; balanced placement's `slot` has no reader.
+
+## F-128 — The chain DP optimizes the L1 objective; its L2 optimality is untested
+
+✅ `ChainDP::Solve` prices stage plus barrier and rejects `l2_events`; `CostModel::EventNs` is calibrated count × rate.
+
+## F-129 — Balanced placement is affinity-first and can collapse a stage onto its producers' workers
+
+✅ `BalanceTaskPlacement` prioritizes affinity, then queue length and preferred worker. Attribution of slowdown remains inferred.
+
+## F-130 — Queue-order wait lifting and owner elision are sound only for FIFO execution
+
+✅ Host wait lifting and same-worker poll elision rely on strict FIFO execution. ⚠️ Windowed or out-of-order execution requires revised dependency handling.
