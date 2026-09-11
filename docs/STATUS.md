@@ -1,7 +1,8 @@
 # TileMega 实现状态
 
 > **文档地图（v2.1）**：设计与契约 → `TileMega_skeleton.md`；实现状态 → `docs/STATUS.md`；待办 → `docs/TODO.md`；实测发现 → `docs/FINDINGS.md`；v2.0 待办原文 → `docs/archive/TODO_v2.0.md`；开工前验证计划 → `docs/VERIFICATION_PLAN.md`。每类信息只有一个权威位置，其他位置只放指针。
-> 本文件是实现状态的唯一权威来源。v2.1 起由 `TileMega_skeleton.md` 迁入：§1.5、§1.5.1 为 v2.0 原文（逐字保留），§1.5.4 为原 skeleton §2.3 的接入状态表原文；原文中的修正一律以“（⚠️ v2.1：……）”注记或 §1.5.2 之后的新增小节表达，不改原句。
+>
+> 本文件是实现状态的唯一权威来源。v2.1 起由 `TileMega_skeleton.md` 迁入：§1.5、§1.5.1 为 v2.0 原文（逐字保留），§1.5.4 为原 skeleton §2.3 的接入状态表原文；原文中的修正一律以"（⚠️ v2.1：……）"注记或 §1.5.2 之后的新增小节表达，不改原句。
 
 ## 1.5 当前状态
 
@@ -20,19 +21,6 @@
 | L0 Backend | ✅ | ✅ | V-I 四架构交叉编译；FP32 SIMT 与 BF16 Tensor Core 均由 `ArchDispatch::Caps` 分发，BF16 二进制各确认 96 条 `HMMA.16816.F32.BF16` 静态指令 |
 
 此表是项目实现状态的唯一权威来源；每轮结束随代码和实验证据同步更新。
-
-### 1.5.4 CG 操作的实际接入状态（原 skeleton §2.3，v2.0 原文）
-
-**操作的实际接入状态**（不能把“形式化”当成“已经在决策”）：
-
-| 操作 | 是否驱动求解器 | 为什么 |
-|---|---|---|
-| **Reparam** | ✅ 是 | 链上 DP 的状态就是 `g`（tile 形状、stages、split-K）。它也是唯一**不需要** `C` 的一个：代价模型读的是形状与标定表，不读耦合关系。 |
-| **Coarsen** | ❌ 否 | 最终队列上重测 κ∈{0,1,2,4,8,16,32}，两模型 argmin 都为 κ=1，相对聚合-only 快 0.285%/0.165%。收益侧首次非零，但两参考模型仍共用同一最优值，本轮不进 DP；“κ=0 结构最优”的旧论证已作废。 |
-| **Label** | ⚠️ 部分 | `sync_kind` 的判定与 `ClusterSync` 原语都在，簇常数也已标定，但没有一条 CG 边在 sm_89 上能取 `cluster`，所以它现在恒取 `global`；端到端消融欠一台 sm_90+ 机器。 （⚠️ v2.1：L2 执行下 Label 是 Place 的子决策，见 skeleton §5.7.1） |
-| **Place** | ✅ 是 | `ListScheduler` 的关键路径优先序现在随每个 runtime variant 发进 `ModelSpec`，host 在绑定动态 task 数后物化每 worker 队列；round-robin 对照走同一二进制的 host 开关。另有 TaskBody 的 tile-aligned ownership，二者仍是正交决策。硬件价值以本轮 `PLACE` 重测为准，旧 CTA-bijection 数字全部作废。 （⚠️ v2.1：降级为部分——只有 stage 置换与 host 映射，slot 未被消费，见 §1.5.2） |
-| **Relax** | ✅ 是（安全方向） | `Contains(C', C)` 是 `isl_map_is_subset`，真正的 Tier 2/3 非精确边仍可取 `kAll` 超集；但“编译粒度与推导粒度不匹配”的回退已经不存在——每个运行时变体携带自己粒度下推导的精确表，不再有 `wait_table=degraded`。 |
-| **Fuse** | ⚠️ 正确性已验证，定价方向门未过 | 固定域区间DP→L-task写回→exact C lowering已接；RoPE/KV完整模型400/400、GEMM两链400/400正确。add预测/实测一致，RMS预测加速却慢6.25%/35.21%，局部停止定价及依赖的联合搜索，见FUSION/runtime_result.md。 |
 
 ### 1.5.1 残留技术债（本轮结束时的诚实记录）
 
@@ -269,20 +257,6 @@
   所以 κ 暂不进 DP 状态，但“结构上永远为 0”的旧论证已作废。见 P4.6 与
   `docs/experiments/COARSEN/result.md`。
 
----
-
-# 2. 核心抽象：Coupling Graph
-
-> 贯穿全系统的唯一数据结构。前端构造它，分析层填充它，求解层在它上面优化，
-> 代码生成层遍历它，代价模型的每一项都是它的派生量。
-
-
-
-## 1.5.2 v2.1 执行模型差距
-
-⚠️ solver 到 codegen 的 task-level placement 与 L2 执行感知目标仍待实现；证据见 `docs/FINDINGS.md` F-127、F-128。
-
-
 ### 1.5.2 v2.1 状态修订与 L2 执行模型差距
 
 **状态修订**（追加；上表原文不改）：
@@ -308,10 +282,9 @@
 | G9 | L2 价格是计数 × 速率 | ✅ `CostModel::EventNs` | 预测不了重叠，也预测不了放置引入的串行化（F-118 的方向与预测相反） | EX-S1 |
 | G10 | balanced 贪心以 affinity 优先 | ✅ 机制；⚠️ inferred 归因（F-129） | 可能把整个 stage 压到少数 worker 上 | EX-S2 |
 | G11 | κ 为全局编译宏，κ=0 为聚合特例 | ✅ `TILEMEGA_EVENT_KAPPA`；F-105 | κ 不能按 stage 选择 | EX-S3 |
-| G12 | 参考 fixture 处于纯延迟区 | ⚠️ inferred（若写入 F-131 则引用之） | 结论存在外推风险 | EX-V1 |
+| G12 | 参考 fixture 处于纯延迟区 | ⚠️ inferred（权重字节未核实） | 结论存在外推风险 | EX-V1 |
 | G13 | SIMT task 共用 GEMM 的启动配置 | stated：128 线程、212 寄存器、2 CTA/SM（F-90、`PLACE/round5_balanced_result.md`） | 访存型 task 占用率低 | 在 EX-V1 中观测；若成立则另立条目 |
 | G14 | 死字段与遗留头文件 | ✅ grep：`TaskPlacement::slot`、`kLastTaskOfStage` 只写不读；`GeneratedLlamaRuntime.cuh` 没有包含者 | 误导读者 | EX-C1 |
-
 
 ### 1.5.3 被执行器结构混淆的历史结论（v2.1）
 
@@ -322,6 +295,18 @@
 - F-118：balanced 映射慢 1.639908 / 3.087011 / 1.396662 / 4.002253 倍。该测量中 slot 被丢弃（G1），贪心以 affinity 为先（G10）；它说明放置的影响量级，不说明局部性没有价值。
 - OVERLAP：34.36% / 40.18% 的跨 stage 提前启动主要是非关键 worker 上的尾部重叠，不是关键路径上的重叠。
 
+### 1.5.4 CG 操作的实际接入状态（原 skeleton §2.3，v2.0 原文）
+
+**操作的实际接入状态**（不能把“形式化”当成“已经在决策”）：
+
+| 操作 | 是否驱动求解器 | 为什么 |
+|---|---|---|
+| **Reparam** | ✅ 是 | 链上 DP 的状态就是 `g`（tile 形状、stages、split-K）。它也是唯一**不需要** `C` 的一个：代价模型读的是形状与标定表，不读耦合关系。 |
+| **Coarsen** | ❌ 否 | 最终队列上重测 κ∈{0,1,2,4,8,16,32}，两模型 argmin 都为 κ=1，相对聚合-only 快 0.285%/0.165%。收益侧首次非零，但两参考模型仍共用同一最优值，本轮不进 DP；“κ=0 结构最优”的旧论证已作废。 |
+| **Label** | ⚠️ 部分 | `sync_kind` 的判定与 `ClusterSync` 原语都在，簇常数也已标定，但没有一条 CG 边在 sm_89 上能取 `cluster`，所以它现在恒取 `global`；端到端消融欠一台 sm_90+ 机器。 （⚠️ v2.1：L2 执行下 Label 是 Place 的子决策，见 skeleton §5.7.1） |
+| **Place** | ✅ 是（⚠️ v2.1：降级为部分——只有 stage 置换与 host 映射，slot 未被消费，见 §1.5.2） | `ListScheduler` 的关键路径优先序现在随每个 runtime variant 发进 `ModelSpec`，host 在绑定动态 task 数后物化每 worker 队列；round-robin 对照走同一二进制的 host 开关。另有 TaskBody 的 tile-aligned ownership，二者仍是正交决策。硬件价值以本轮 `PLACE` 重测为准，旧 CTA-bijection 数字全部作废。 |
+| **Relax** | ✅ 是（安全方向） | `Contains(C', C)` 是 `isl_map_is_subset`，真正的 Tier 2/3 非精确边仍可取 `kAll` 超集；但“编译粒度与推导粒度不匹配”的回退已经不存在——每个运行时变体携带自己粒度下推导的精确表，不再有 `wait_table=degraded`。 |
+| **Fuse** | ⚠️ 正确性已验证，定价方向门未过 | 固定域区间DP→L-task写回→exact C lowering已接；RoPE/KV完整模型400/400、GEMM两链400/400正确。add预测/实测一致，RMS预测加速却慢6.25%/35.21%，局部停止定价及依赖的联合搜索，见FUSION/runtime_result.md。 |
 
 ### 1.5.5 求解结果到代码的落地程度（v2.1）
 
