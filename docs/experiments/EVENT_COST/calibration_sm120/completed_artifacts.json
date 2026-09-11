@@ -1,0 +1,21 @@
+{
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/bin/mha4_base_l1nosync": "ef94bdf1010e977d7b842fb4e41de5d9fa69f8b0cf5507cd0bd70552709d8e3f",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/bin/mha4_base_nowait": "8f9f153c420370b07bbca4827b9425c73c364438bf6f4eb1f3f7d54d63b19daa",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/bin/gqa2_base_neither": "72ff62201602e7ef2c793240fca05e779a1eed7b407843a8b22fb62f1930eb8e",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/bin/mha4_base_neither": "5b09224fe8acb9f6bfc45ab408eca5263da087b0b24da2f821ec3198e75764f4",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/bin/mha4_base_full": "b3a78312fb9f7847cbdc28ede3095360b9dcb72d98332ea17fb5f8b47bd1158f",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/bin/gqa2_base_nowait": "b60789159c88aca555ec047605065b392d87aca77d58a0254bc3b6fe631036d9",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/bin/gqa2_base_full": "808079c3d33fe6f6a506caee30689c7738fe73be93425b21ce0a9d0c5c8061d0",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/bin/gqa2_base_l1nosync": "3dadf3f90833c9f1e9a03a8c167eb59efa42f4a76d1ecc826bc4370683e22744",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/ptxas/mha4_base_nowait.build": "c41fd3e4e5423370f4c3184b44b200ccf1441cb0cda9bec2f2d26e489b8cefb8",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/ptxas/gqa2_base_full.build": "31a7a5597d00313bc38612cb5e6130f51e419b66a7e9bf548e15d7f3ff5d9853",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/ptxas/mha4_base_full.build": "c5ca0eace7adc884873fdf4869b510f71f4c377ac2968728f89d7edc19ee7453",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/ptxas/gqa2_base_l1nosync.build": "9e84f86ecfb3555576d6769ad8d8bbe376e9bc6353c0de9ca28eb5a367d8fdfc",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/ptxas/mha4_base_l1nosync.build": "d6add80efbb5a54d35e8abc1d0ea2b477f47689752ac4a543d3d09b7977f8128",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/ptxas/mha4_base_neither.build": "de543a7b026658ed001aa53eec74b0df71bb2dba1a1b96712ff7255271b810e3",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/ptxas/gqa2_base_neither.build": "706f77b0cb1de6c72452596856c0c1f089475b7949a0015b015ca161a9187ea7",
+  "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120/ptxas/gqa2_base_nowait.build": "1916a0daf73c8199e2fff74ef91cb17e58452a47da155f56652f865e3bdf9123",
+  "/root/TileMega/include/tilemega/Codegen/RuntimeOwnership.h": "26cdbaa4b33bf5f453b9f4e84c4b3c46768b962ac5ce9aed5211a09180bba784",
+  "/root/TileMega/configs/targets/sm_89.json": "648e2f74975d3ac406b3c74f3b44009292cf0b95d4de5b4f506df631f7874069",
+  "/root/TileMega/configs/targets/sm_120.json": "b01f1a85d8d24619f262ab5bd339ef791ec609028e8129bf0d68dfc0a3ac4c05"
+}

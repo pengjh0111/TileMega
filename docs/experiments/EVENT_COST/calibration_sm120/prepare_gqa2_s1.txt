@@ -1,0 +1,6 @@
+{
+  "source_task_spaces": 183,
+  "source_couplings": 223,
+  "whitelist_size": 30,
+  "unsupported": []
+}

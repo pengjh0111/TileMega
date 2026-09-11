@@ -1,0 +1,31 @@
+{
+  "command": [
+    "/usr/bin/python3",
+    "/root/TileMega/docs/experiments/L2_ATTRIB/run_t1.py",
+    "--out",
+    "/root/TileMega/docs/experiments/EVENT_COST/calibration_sm120",
+    "--arch",
+    "sm_120",
+    "--variants",
+    "base",
+    "--seqs",
+    "1,4,16,128,512,2048",
+    "--kappa",
+    "1",
+    "--correctness-runs",
+    "50",
+    "--runs",
+    "25",
+    "--phases",
+    "build,correctness,attrib"
+  ],
+  "warmup": 5,
+  "repeat": 11,
+  "correctness_processes": 600,
+  "attribution_processes": 1200,
+  "models": [
+    "gqa2",
+    "mha4"
+  ],
+  "dtype": "bf16"
+}
