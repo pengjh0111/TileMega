@@ -830,3 +830,18 @@ chunked prefill（Tier 2，regime C 的载体）、MoE 路由（Tier 3 的 indpt
       1.081–1.113；四臂分解逐轮精确闭合，详见 `E2E_L2` 与 `L2_ATTRIB`
 - [ ] L2 → L3（Reparam + Coarsen + Label 的贡献）
 - [ ] 符号化的贡献（vs bucketing）
+
+
+## 1 EX 执行模型与执行感知求解
+
+### EX-E1 Plan 与 task-level placement
+
+[ ] 建立 `(worker, slot)` 的完整消费契约。
+
+### EX-S1 L2 执行模拟器
+
+[ ] 以离散事件模拟替代计数乘速率。
+
+### EX-S2 放置与排序
+
+[ ] 在精确 task DAG 上进行 EFT 调度。

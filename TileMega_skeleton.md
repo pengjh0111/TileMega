@@ -8,6 +8,8 @@
 > **配套文档**：`docs/VERIFICATION_PLAN.md`（开工前验证计划，独立维护）。
 >
 > **维护约定**：完成的条目打勾并追加实测结论；推翻的假设保留原文并注明推翻原因。
+>
+> **文档地图（v2.1）**：设计与契约 → `TileMega_skeleton.md`；实现状态 → `docs/STATUS.md`；待办 → `docs/TODO.md`；实测发现 → `docs/FINDINGS.md`；v2.0 待办原文 → `docs/archive/TODO_v2.0.md`。
 
 ---
 
@@ -996,6 +998,10 @@ __device__ void wait_deps(TaskDesc const& d, EventCounter* ev, int layer) {
   }
 }
 ```
+
+## 5.7 执行模型与 Plan 契约
+
+Plan 是 `(worker, slot)` 序列；L2 按 slot 顺序执行 WaitTaskDependencies、RunTask、NotifyTask。窗口或乱序执行必须同步修订等待提升与同 worker 省略规则。
 
 ## 5.6 求解结果到代码的映射
 
