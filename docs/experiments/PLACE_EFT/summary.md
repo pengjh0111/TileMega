@@ -26,8 +26,9 @@
 | 11 | `70880443` | `docs: rebase the restructure audit on the current tree` | 9 |
 | 12 | `57443492` | `experiments: add the sm_120 runners for round two` | 10 |
 | 13 | `5a578a1b` | `docs: record the round two scheduling results` | 11 |
+| 14 | `19d3e5d6` | `docs: report the round two results` | 14（本文件） |
 
-§13 列了 11 步，实际 13 个提交：多出 `acbad55a`、`48554a81` 两个，且步骤 7 的一部分
+§13 列了 11 步，实际 14 个提交（再加一个只为本表补上第 14 行的提交，不动其它内容）：多出 `acbad55a`、`48554a81` 两个（以及 §13 没有安排的报告提交），且步骤 7 的一部分
 内容落到了步骤 8——三处都在第 6 节列为偏离。提交信息里的 `cg:`、`solver:`、`place:`
 三个前缀不在 `CLAUDE.md` 的 `<area>` 白名单内，但它们是 §13 表格里写死的字符串，
 按 prompt 原样使用，同样列在第 6 节。
