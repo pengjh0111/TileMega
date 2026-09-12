@@ -1,0 +1,33 @@
+SIMULATE_SKIP model=gqa2 seq=4 candidate=eft reason="placement mode eft is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=gqa2 seq=4 candidate=band reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=gqa2 seq=4 candidate=wavefront reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_CELL model=gqa2 seq=4 past=3 stages=30 nodes=200 grid=256 ctas_per_sm=2 worker_sm=modulo
+SIMULATE_SKIP model=gqa2 seq=128 candidate=eft reason="placement mode eft is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=gqa2 seq=128 candidate=band reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=gqa2 seq=128 candidate=wavefront reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_CELL model=gqa2 seq=128 past=3 stages=30 nodes=4416 grid=256 ctas_per_sm=2 worker_sm=traced
+SIMULATE_SKIP model=gqa2 seq=512 candidate=eft reason="placement mode eft is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=gqa2 seq=512 candidate=band reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=gqa2 seq=512 candidate=wavefront reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_CELL model=gqa2 seq=512 past=3 stages=30 nodes=17664 grid=256 ctas_per_sm=2 worker_sm=traced
+SIMULATE_SKIP model=mha4 seq=4 candidate=eft reason="placement mode eft is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=mha4 seq=4 candidate=band reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=mha4 seq=4 candidate=wavefront reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_CELL model=mha4 seq=4 past=3 stages=60 nodes=512 grid=256 ctas_per_sm=2 worker_sm=traced
+SIMULATE_SKIP model=mha4 seq=128 candidate=eft reason="placement mode eft is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=mha4 seq=128 candidate=band reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=mha4 seq=128 candidate=wavefront reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_CELL model=mha4 seq=128 past=3 stages=60 nodes=11920 grid=256 ctas_per_sm=2 worker_sm=traced
+SIMULATE_SKIP model=mha4 seq=512 candidate=eft reason="placement mode eft is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=mha4 seq=512 candidate=band reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=mha4 seq=512 candidate=wavefront reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_CELL model=mha4 seq=512 past=3 stages=60 nodes=47680 grid=256 ctas_per_sm=2 worker_sm=traced
+SIMULATE_SKIP model=real seq=4 candidate=eft reason="placement mode eft is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=real seq=4 candidate=band reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=real seq=4 candidate=wavefront reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_CELL model=real seq=4 past=3 stages=60 nodes=2800 grid=256 ctas_per_sm=2 worker_sm=modulo
+SIMULATE_SKIP model=real seq=128 candidate=eft reason="placement mode eft is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=real seq=128 candidate=band reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_SKIP model=real seq=128 candidate=wavefront reason="placement mode template is not materialized yet (EX-S2)"
+SIMULATE_CELL model=real seq=128 past=3 stages=60 nodes=47936 grid=256 ctas_per_sm=2 worker_sm=modulo
+SIMULATE_SUMMARY cells=8 stat_mismatches=0

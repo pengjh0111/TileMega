@@ -148,6 +148,7 @@ add_library(tilemega STATIC
   lib/Solver/ScalarTaskWork.cpp
   lib/Solver/AttentionWork.cpp
   lib/Solver/ListScheduler.cpp
+  lib/Solver/ExecutionSimulator.cpp
   lib/Solver/PlanMaterialize.cpp
   lib/Solver/VariantSchedule.cpp
   lib/Solver/CostModel.cpp
@@ -308,6 +309,13 @@ add_test(NAME coupling_interface_gqa2 COMMAND tilemega-interface-probe "${CMAKE_
 add_test(NAME coupling_interface_mha4 COMMAND tilemega-interface-probe "${CMAKE_SOURCE_DIR}" mha4)
 target_link_libraries(tilemega-task-cost-gate PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-task-cost-gate PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+# EX-S1's driver lives with its experiment rather than in tools/, which R2's
+# scope fence excludes; it needs the frontend to price tasks, so it is a target
+# here instead of an nvcc one-off inside the runner.
+add_executable(tilemega-simulate docs/experiments/SIMULATOR/simulate.cpp)
+target_link_libraries(tilemega-simulate PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-simulate PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 target_link_libraries(tilemega-task-work-gate PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-task-work-gate PROPERTIES
@@ -518,6 +526,10 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(plan_contract_test test/unit/plan_contract_test.cpp)
   target_link_libraries(plan_contract_test PRIVATE TileMega::tilemega)
   add_test(NAME plan_contract COMMAND plan_contract_test)
+
+  add_executable(execution_simulator_test test/unit/execution_simulator_test.cpp)
+  target_link_libraries(execution_simulator_test PRIVATE TileMega::tilemega)
+  add_test(NAME execution_simulator COMMAND execution_simulator_test)
 
   add_executable(cluster_labeling_test test/unit/cluster_labeling_test.cpp)
   target_link_libraries(cluster_labeling_test PRIVATE TileMega::tilemega)

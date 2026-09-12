@@ -1,0 +1,7 @@
+map           as expanded  with barriers
+kIdentity           1,548          1,548
+kWindow            16,896         16,896
+kAll              530,432          5,136
+TOTAL             548,876         23,580
+
+kAll is 96.6% of the edge budget; compressing it is 23x fewer edges to sweep.

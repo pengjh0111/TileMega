@@ -1,0 +1,3 @@
+seq	128
+status	PASS
+export	/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s128/model.json

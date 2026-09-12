@@ -1,0 +1,3 @@
+seq	4
+status	PASS
+export	/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s4/model.json

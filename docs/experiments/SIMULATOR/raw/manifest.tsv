@@ -1,0 +1,9 @@
+model	seq	past	generated_cu	out_prefix	trace_dir
+gqa2	4	3	/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/gqa2.cu	/root/TileMega/docs/experiments/SIMULATOR/raw/run/gqa2	/root/TileMega/docs/experiments/SIMULATOR/raw/dump/gqa2_s4_p5
+gqa2	128	3	/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/gqa2.cu	/root/TileMega/docs/experiments/SIMULATOR/raw/run/gqa2	/root/TileMega/docs/experiments/SIMULATOR/raw/dump/gqa2_s128_p5
+gqa2	512	3	/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/gqa2.cu	/root/TileMega/docs/experiments/SIMULATOR/raw/run/gqa2	/root/TileMega/docs/experiments/SIMULATOR/raw/dump/gqa2_s512_p5
+mha4	4	3	/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/mha4.cu	/root/TileMega/docs/experiments/SIMULATOR/raw/run/mha4	/root/TileMega/docs/experiments/SIMULATOR/raw/dump/mha4_s4_p5
+mha4	128	3	/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/mha4.cu	/root/TileMega/docs/experiments/SIMULATOR/raw/run/mha4	/root/TileMega/docs/experiments/SIMULATOR/raw/dump/mha4_s128_p5
+mha4	512	3	/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/mha4.cu	/root/TileMega/docs/experiments/SIMULATOR/raw/run/mha4	/root/TileMega/docs/experiments/SIMULATOR/raw/dump/mha4_s512_p5
+real	4	3	/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s4/model.cu	/root/TileMega/docs/experiments/SIMULATOR/raw/run/real	-	/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s4/model.json
+real	128	3	/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s128/model.cu	/root/TileMega/docs/experiments/SIMULATOR/raw/run/real	-	/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s128/model.json

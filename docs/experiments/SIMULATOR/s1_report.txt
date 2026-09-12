@@ -1,0 +1,74 @@
+S1-a  per-task start error, both sides shifted to their first task
+  cell              tasks     span_ns       bias      |p50|      |p90|       |max|  p90/span
+  gqa2 s4 p0          200      404480     -62049      62049     110347      124099     27.3%
+  gqa2 s4 p4          200      541696    -103942     103942     178535      191519     33.0%
+  gqa2 s4 p5          200      225280     -26123      26123      46815       52247     20.8%
+  gqa2 s128 p0       4416      564224    -134954     134954     205938      270932     36.5%
+  gqa2 s128 p4       4416      896000    -284460     284460     458566      600324     51.2%
+  gqa2 s128 p5       4416      367616     -92386      92386     137314      182724     37.4%
+  gqa2 s512 p0      17664     1897472    -729121     729121    1177282     1461525     62.0%
+  gqa2 s512 p4      17664     4753408   -1501509    1501509    2625153     3875282     55.2%
+  gqa2 s512 p5      17664     1743872    -706114     706114    1137323     1414074     65.2%
+  mha4 s4 p0          512      852992    -129364     129364     229699      260777     26.9%
+  mha4 s4 p4          512     1075200    -175540     175540     316043      356456     29.4%
+  mha4 s4 p5          512      490496     -56993      56993      96436      112962     19.7%
+  mha4 s128 p0      11920     1161216    -269245     269245     444865      538491     38.3%
+  mha4 s128 p4      11920     3712000   -1097904    1097904    1572140     2497803     42.4%
+  mha4 s128 p5      11920      813056    -202572     202572     338738      406167     41.7%
+  mha4 s512 p0      47680     3591168   -1061253    1061253    1612678     2124474     44.9%
+  mha4 s512 p4      47680    29289472   -9838503    9838503   18742872    23138587     64.0%
+  mha4 s512 p5      47680     3318784   -1056524    1056524    1656225     2134342     49.9%
+  real width carries no trace arm; it appears under S1-c only
+  coverage: 2 models x 3 seq x 3 placements = 18 cells (gate asks >= 2 x 3 x 3)
+
+S1-b  ranking over the placement x config scan
+  cell             candidate             predicted_us  measured_us   ratio
+  gqa2 s4          legacy_grid_stride           310.6        447.3   0.694
+  gqa2 s4          balanced                     380.4        631.8   0.602
+  gqa2 s4          rotate                       203.3        293.9   0.692
+  gqa2 s128        legacy_grid_stride           323.5        615.3   0.526
+  gqa2 s128        balanced                     325.9       1012.0   0.322
+  gqa2 s128        rotate                       215.1        456.7   0.471
+  gqa2 s512        legacy_grid_stride           467.4       1761.4   0.265
+  gqa2 s512        balanced                     908.4       4591.8   0.198
+  gqa2 s512        rotate                       360.0       1617.9   0.223
+  mha4 s4          legacy_grid_stride           622.5        887.8   0.701
+  mha4 s4          balanced                     749.0       1207.3   0.620
+  mha4 s4          rotate                       407.8        578.6   0.705
+  mha4 s128        legacy_grid_stride           653.0       1145.9   0.570
+  mha4 s128        balanced                    1244.4       3663.7   0.340
+  mha4 s128        rotate                       437.1        857.1   0.510
+  mha4 s512        legacy_grid_stride          1508.2       3597.1   0.419
+  mha4 s512        balanced                    6311.1      28971.0   0.218
+  mha4 s512        rotate                      1225.9       3324.0   0.369
+
+  cell               n     rho  argmin predicted     argmin measured     
+  gqa2 s4            3   1.000  rotate               rotate               same
+  gqa2 s128          3   1.000  rotate               rotate               same
+  gqa2 s512          3   1.000  rotate               rotate               same
+  mha4 s4            3   1.000  rotate               rotate               same
+  mha4 s128          3   1.000  rotate               rotate               same
+  mha4 s512          3   1.000  rotate               rotate               same
+
+  pooled Spearman (raw, n=18):            0.880
+  within-config Spearman (config mean removed): 0.973
+  argmin agreement: 6/6 configs pick the same placement
+  measured top 3% of the 18-cell scan = 1 cell(s): gqa2 s4 rotate
+  predicted top 3: gqa2 s4 rotate, gqa2 s128 rotate, gqa2 s4 legacy_grid_stride
+  S1-b top-3 criterion: PASS
+
+S1-c  evaluation time per Plan (proportional arm)
+  gqa2 s4          n=3 median=     53.0us max=     61.4us  vs    1000us  PASS
+  gqa2 s128        n=3 median=   3236.6us max=   3317.2us  vs    1000us  FAIL
+  gqa2 s512        n=3 median=  33592.9us max=  34103.7us  vs    1000us  FAIL
+  mha4 s4          n=3 median=     96.4us max=     98.4us  vs    1000us  PASS
+  mha4 s128        n=3 median=  11066.1us max=  11581.1us  vs    1000us  FAIL
+  mha4 s512        n=3 median= 140259.9us max= 238034.4us  vs    1000us  FAIL
+  real s4          n=3 median=    700.7us max=    781.1us  vs   10000us  PASS
+  real s128        n=3 median=  91183.7us max=  92493.6us  vs   10000us  FAIL
+  over budget: gqa2 s128 at 3.3x (3317us vs 1000us)
+  over budget: gqa2 s512 at 34.1x (34104us vs 1000us)
+  over budget: mha4 s128 at 11.6x (11581us vs 1000us)
+  over budget: mha4 s512 at 238.0x (238034us vs 1000us)
+  over budget: real s128 at 9.2x (92494us vs 10000us)
+  S1-c: FAIL (gate fixed before implementation, not moved -- H7)
