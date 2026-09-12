@@ -241,13 +241,27 @@ entire critical-path cost of synchronization is 10.24 µs.
 
    Both refuse to run unless `nvidia-smi --query-gpu=compute_cap` reports
    `12.0`, reject inherited `TILEMEGA_*` overrides, and write `PASS`/`FAIL` to
-   `raw_sm120/status.txt`. **Neither has been run on sm_120**; both were checked
-   only by their own CPU-side `SELF_CHECK=1` path on the 4090, which touches no
-   GPU. The Blackwell run must produce its own `FORK` line rather than inherit
-   this one.
+   `raw_sm120/status.txt`.
+
+   **Answered on 2026-09-12.** Both ran on an RTX 5090 from this round's head
+   commit; the run's own report is
+   [`../sm120_round_one_20260912.md`](../sm120_round_one_20260912.md) and the
+   findings are F-137 to F-142. The mode-5 gain holds — 0.6514, 0.7403, 0.6313
+   and 0.7491 on the full arm — and the Blackwell run produced its own
+   `FORK rule=2 r_neither=0.1687 r_full=0.6985` rather than inheriting this
+   one. Ownership concentration reproduces at 77–84% of `l2_ms`. Two findings
+   weaken: D1-d's reconstruction error is worse (14.33–20.07%) and the publish
+   correction no longer closes it (4.73–6.51%, two cells above 5%). Every
+   number in sections 1 to 6 above is an sm_89 measurement and is unchanged;
+   absolute latency is not comparable between the two machines.
 2. Re-measure the `%globaltimer` tick first (`run_sm120.sh` does this before
    anything else). If it is finer than 1024 ns, the per-hop distribution becomes
    informative at single-hop granularity, which it is not here.
+
+   **Answered on 2026-09-12**: 32 ns on sm_120, so the per-hop figure there is a
+   measurement rather than a floor — 512, 512, 512 and 480 ns over 10,528 hops
+   with none negative (F-138). One caveat the sm_89 probe did not have: the
+   cross-SM read spread is 160 ns rather than 0 ns (F-137).
 3. The gap between `r_full = 0.6705` and `r_neither = 0.2240` is the part of the
    rotated placement's headroom that the current publish protocol re-serializes.
    Whether that is EX-E3's six-step protocol or EX-E4's prefetch is not

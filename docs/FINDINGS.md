@@ -2801,3 +2801,121 @@ ordering). Consequence for G1: mode 5 is a hard-coded host heuristic behind a
 compile macro, exactly the shape F-127 says the contract cannot express; the
 measured 0.67 is therefore a lower bound on what an expressible plan is worth,
 not an implementation to keep.
+
+## F-137 — On sm_120 `%globaltimer` is a 32 ns ruler with a 160 ns cross-SM spread; F-131's tick is an sm_89 number
+
+Provenance for F-137 to F-142: the Blackwell run was executed on the sm_120
+machine on 2026-09-12 (RTX 5090, compute capability 12.0, driver 580.105.08,
+CUDA 12.8, `build-cluster`) from source commit `886f0dc9`; the numbers below are
+read here from its committed artifacts, not re-executed on this machine. The
+run's own report is `docs/experiments/sm120_round_one_20260912.md`. It wrote
+into the sm_89 `raw/` trees in place, so its artifacts now live under
+`<experiment>/raw_sm120/` and `<experiment>/raw_sm120/insitu/` and the sm_89
+files were restored from `886f0dc9`; `verify.py` re-run afterwards reproduces
+the committed 24-of-25 output byte for byte apart from its temp directory name.
+Absolute latency is not comparable across the two machines — different device,
+different session — so every cross-architecture statement below is a comparison
+of ratios or of fractions of the same kernel.
+
+✅ The resolution probe (`TRACE_V2/raw_sm120/insitu/resolution.tsv`) measures
+`%globaltimer`'s adjacent-delta minimum, median, p99 and maximum all at
+**32 ns**, a 32× finer ruler than sm_89's 1024 ns. Only 53.4327% of
+back-to-back reads return an unchanged value against 98.2949% on sm_89, and no
+read goes backwards. `clock64` is 42 cycles minimum and p50, 64 at p99.
+`needs_clock64_columns` is 0, so §3.5's conditional branch resolves the same way
+as on sm_89 and `%globaltimer` alone carries the trace.
+
+⚠️ The device-wide broadcast is *not* exact here. 128 CTAs on 128 distinct SMs,
+released from one software barrier, read values spanning **160 ns** where sm_89
+spanned 0 ns. A cross-SM hop on sm_120 therefore carries up to ~160 ns of offset
+error; that is 31% of the measured 512 ns hop (F-138) and is why a single-tick
+hop figure would still not be trustworthy even at this resolution.
+
+stated, recorded because it would otherwise look like a gap in the evidence: the
+trace metadata's `globaltimer_resolution_ns` field came back empty in this run.
+The 32 ns tick rests on `resolution.tsv` and the probe log, not on that field.
+
+## F-138 — On sm_120 the 512 ns hop is a real measurement, not a tick floor, and the whole synchronization term is ≈5 µs
+
+✅ At a 32 ns ruler the per-hop p50 is **512, 512, 512 and 480 ns** across
+gqa2/128, gqa2/4, mha4/128 and mha4/4 — 15 to 16 ticks, not one — over 10,528
+hop samples with **zero negative hops**
+(`TRACE_V2/raw_sm120/analysis.tsv`). F-133's sm_89 hop sat at or below its
+1024 ns tick and was therefore a floor; the same conclusion now rests on a
+measurement that the clock can actually resolve.
+
+✅ The conclusion strengthens rather than changes. Charging every cross-worker
+edge on the critical path at the measured hop instead of zero moves the
+reconstruction lower bound by `cp_lb_sync − cp_lb_nosync` = **5.12, 5.12, 5.12
+and 4.80 µs**, against measured `l2_ms` of 0.5675, 0.3700, 1.1621 and 0.7477 ms
+— under 1% of the kernel in every cell. On sm_89 the same term was 10.24 µs.
+Synchronization is not what L2 spends its time on, on either architecture.
+
+## F-139 — Ownership concentration reproduces on Blackwell: the busiest worker's own queue is 77–84% of the kernel
+
+✅ `queue_lb_ms / measured_l2_ms` is **0.7746, 0.8386, 0.7741 and 0.8236**
+(gqa2/4, gqa2/128, mha4/4, mha4/128) against F-134's 81–85% on sm_89. The
+shape is identical: the seq=4 cells occupy **16 of 340** resident workers, the
+seq=128 cells occupy all 340, 95.07–99.72% of DAG edges cross workers, and
+head-of-line blocking accounts for 19.13%, 40.28%, 56.04% and 67.47% of the
+kernel span. Round one's diagnosis is not an Ada artifact.
+
+## F-140 — Mode 5 and the fork rule land in the same place on Blackwell
+
+✅ Cross-stage continuous round robin on the correct (full) arm gives
+placement-5/placement-0 ratios **0.6514, 0.7403, 0.6313 and 0.7491**
+(`PLACE_ROTATE/raw_sm120/summary.tsv`, 25 rounds per cell, Wilcoxon
+p = 1.307e-05 in all four), against 0.63–0.75 on sm_89. Correctness is
+400/400 across eight cells of 50 fresh processes each, zero failures or hangs.
+The mechanism is visible in the placement statistics
+(`PLACE_ROTATE/raw_sm120/insitu/raw/place_stats.txt`): max queue depth falls
+from 30/34/60/80 to **1/13/2/36** while cross-worker edges grow only slightly
+(1108→1292, 545476→547472, 3604→4108, 2150884→2155964) — the trade F-135
+describes, on a second architecture.
+
+✅ The fork rule fixed before measurement adjudicates from this run's own
+pooled medians (`PLACE_ROTATE/raw_sm120/fork.txt`):
+
+```
+FORK rule=2 r_neither=0.1687 ci=[0.1302,0.2039] r_full=0.6985 ci=[0.6527,0.7401] cells=4
+```
+
+Rule 2 again, as on sm_89 (0.2240 / 0.6705). The routing to **EX-E1** and
+**EX-S2** is therefore confirmed on both architectures rather than resting on
+one machine.
+
+## F-141 — The critical-path reconstruction degrades on sm_120, and charging publish to the producer no longer closes it
+
+✅ `cp_error_vs_l2_ms` is **19.59%, 14.33%, 20.07% and 15.51%** (gqa2/4,
+gqa2/128, mha4/4, mha4/128) against 12.10–14.51% on sm_89. D1-d's 5% limit,
+already failed on sm_89 and recorded rather than repaired (H7), fails wider
+here.
+
+⚠️ F-132's repair does not carry over. `cp_with_publish_error` is **6.51%,
+4.74%, 6.23% and 4.73%** — two of four cells still above 5%, where the same
+secondary account closed sm_89 to 2.1–3.4%. The publish term is not an
+architecture-independent explanation of the residual.
+
+inferred, and left open rather than concluded: `cp_split_gap_ns` is negative in
+every cell (−1152, −222944, −82528, −487968 ns), so the split terms sum past
+the chain span they decompose. That is consistent with double counting between
+the wait and publish terms, but nothing in this run isolates it. Whatever the
+reconstruction is missing, F-138 and F-139 do not depend on it: both are
+measured directly rather than through the reconstruction.
+
+## F-142 — The sm_120 real-width arm covers seq=4 only, and its headroom table is not a clean sm_120 result
+
+✅ The 4-layer, hidden-4096 real-width seq=4 cell completed with status PASS.
+The seq=128 cell is FAIL: it died during PyTorch export with
+`RuntimeError: basic_ios::clear: iostream error`, and the filesystem was 100%
+full with zero bytes available after the run. Disk exhaustion is the inferred
+cause; the run did not isolate it further. The PLACE_ROTATE wrapper tolerates
+real-width failure, so its overall PASS must not be read as real-width
+acceptance on Blackwell.
+
+⚠️ F-136's headroom numbers are **not** reproduced on sm_120. The run's
+`headroom.tsv` carries older reference and real-width rows plus append
+duplicates, and its `HEADROOM cell=real_s128` line was computed from a dump
+whose metadata predates the session (19:37:42 against a 20:07:52 start). It is
+retained as raw provenance only. The 2.3–5.8× rescheduling headroom stands on
+the sm_89 evidence alone until a Blackwell run has the disk to finish.
