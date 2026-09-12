@@ -69,6 +69,10 @@ struct PlacementPlanRecord {
   std::uint32_t window = 1;
   std::uint32_t policy = 0;
   bool carried = false;
+  /// `eft` only: the materialized (pi, sigma) the solver computed, and the
+  /// theta it is pinned to.  Empty for every closed-form mode, which is what
+  /// keeps their emitted initializer the five fields it has always been (H2).
+  dialect::PlacementTable table;
 };
 
 PlacementPlanRecord readPlacementPlan(mlir::ModuleOp module) {
@@ -104,6 +108,21 @@ PlacementPlanRecord readPlacementPlan(mlir::ModuleOp module) {
     throw std::invalid_argument("the placement plan must cover every task space");
   if (plan.carried && plan.window != dialect::kPlacementWindowImplemented)
     throw std::invalid_argument("the executor implements window=1 only; W>1 is EX-E2");
+  // One parser, shared with the verifier, so a table cannot be well formed in
+  // the dialect and mean something else by the time it is emitted.
+  std::string reason;
+  if (!dialect::ReadPlacementTable(module, &plan.table, &reason))
+    throw std::invalid_argument(reason);
+  auto const mode = static_cast<dialect::PlacementMode>(plan.mode);
+  if (!plan.table.worker.empty() &&
+      (!plan.carried || mode != dialect::PlacementMode::kEft))
+    throw std::invalid_argument(
+        std::string(dialect::kPlacementTableAttr) + " needs placement mode eft");
+  if (plan.carried && mode == dialect::PlacementMode::kEft &&
+      plan.table.worker.empty())
+    throw std::invalid_argument(
+        "placement mode eft needs its materialized table in " +
+        std::string(dialect::kPlacementTableAttr));
   return plan;
 }
 
@@ -442,10 +461,24 @@ std::string emitModelPlan(mlir::ModuleOp module,
       out << (i ? ", " : "") << variants[v].plan.params[i];
     out << "};\n";
   }
-  // §5.7.1 template form: mode plus its parameters.  The materialized form of
-  // an `eft` plan is the host running the same solver routine after binding
-  // theta, because a variant's task counts stay symbolic across its whole seq
-  // interval and no table can be emitted for all of them at once.
+  // §5.7.1 materialized form: (pi, sigma) per runtime node, flat node ids.  A
+  // variant's task counts stay symbolic across its whole seq interval, so this
+  // table fits exactly one theta and carries it; the host compares and refuses
+  // rather than recomputing, having no cost model to recompute with.
+  for (std::size_t v=0;v<variants.size();++v) if (!variants[v].plan.table.worker.empty()) {
+    auto const& table = variants[v].plan.table;
+    auto emitArray = [&](char const* name, std::vector<int> const& values) {
+      out << "constexpr std::int32_t " << name << v << "[] = {";
+      for (std::size_t i=0;i<values.size();++i)
+        out << (i ? "," : "") << (i % 24 == 0 ? "\n  " : " ") << values[i];
+      out << "};\n";
+    };
+    emitArray("kPlanWorker", table.worker);
+    emitArray("kPlanSlot", table.slot);
+  }
+  // §5.7.1 template form: mode plus its parameters, and for `eft` the table
+  // above.  The trailing fields are defaulted, so a closed-form mode still
+  // emits the same five it always has (H2, E1-b).
   auto planInitializer = [&](std::size_t v) {
     auto const& plan = variants[v].plan;
     std::ostringstream init;
@@ -453,7 +486,12 @@ std::string emitModelPlan(mlir::ModuleOp module,
          << (plan.params.empty() ? std::string("nullptr")
                                  : "kPlanParams" + std::to_string(v))
          << ", " << plan.params.size() << "u, " << plan.window << "u, "
-         << plan.policy << "u}";
+         << plan.policy << "u";
+    if (!plan.table.worker.empty())
+      init << ", kPlanWorker" << v << ", kPlanSlot" << v << ", "
+           << plan.table.worker.size() << "u, " << plan.table.seq << "u, "
+           << plan.table.past << "u, " << plan.table.grid << "u";
+    init << "}";
     return init.str();
   };
   out << "constexpr RuntimeVariantDesc kRuntimeVariants[] = {\n";

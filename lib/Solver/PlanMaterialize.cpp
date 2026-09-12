@@ -5,6 +5,7 @@
 #include <numeric>
 
 #include <tilemega/Solver/BalancedPlacement.h>
+#include <tilemega/Solver/EftPlacement.h>
 #include <tilemega/Solver/ListScheduler.h>
 
 namespace tilemega::solver {
@@ -93,11 +94,123 @@ bool MaterializePlanPlacement(PlanRequest const& request, MaterializedPlan* out,
       break;
     }
 
-    case PlacementMode::kEft:
-    case PlacementMode::kTemplate:
-      return fail(std::string("placement mode ") +
-                  dialect::PlacementModeName(request.mode) +
-                  " is not materialized yet (EX-S2)");
+    case PlacementMode::kEft: {
+      if (!request.graph) return fail("eft placement needs the task DAG");
+      bool const table = !request.eft_worker.empty() || !request.eft_slot.empty();
+      if (request.eft && table)
+        return fail("eft placement was given both the solver inputs and a "
+                    "materialized table; they are two spellings of one Plan, "
+                    "so a request must carry exactly one");
+      if (!request.eft && !table)
+        return fail("eft placement needs either the solver inputs "
+                    "(PlanRequest::eft, offline only) or a materialized "
+                    "(worker, slot) table (PlanRequest::eft_worker/eft_slot)");
+      int const nodes = request.graph->stage_offsets.empty()
+                            ? 0 : request.graph->stage_offsets.back();
+      std::vector<int> const* worker = &request.eft_worker;
+      std::vector<int> const* slot = &request.eft_slot;
+      EftSchedule schedule;
+      if (request.eft) {
+        // Pointer equality, not a repair: a schedule is a function of the DAG
+        // it was computed on, and silently scheduling a different one would
+        // produce a legal-looking plan for the wrong theta (§5.7.4).
+        if (request.eft->graph != request.graph)
+          return fail("the eft inputs carry a different task DAG than the "
+                      "request");
+        if (request.eft->grid != request.grid)
+          return fail("the eft inputs are for a grid of " +
+                      std::to_string(request.eft->grid) + ", not " +
+                      std::to_string(request.grid));
+        if (!ScheduleByEarliestFinish(*request.eft, &schedule, error))
+          return false;
+        worker = &schedule.worker;
+        slot = &schedule.slot;
+      }
+      if (static_cast<int>(worker->size()) != nodes ||
+          static_cast<int>(slot->size()) != nodes)
+        return fail("the eft table covers " + std::to_string(worker->size()) +
+                    " workers and " + std::to_string(slot->size()) +
+                    " slots for " + std::to_string(nodes) +
+                    " runtime tasks; it is pinned to one bound theta and this "
+                    "is not that one");
+      // pi is the physical CTA already.  `physical_worker` is not applied a
+      // second time because which SM a worker sits on is part of what the
+      // scheduler optimised; remapping it afterwards would discard that.
+      for (std::size_t stage = 0; stage < stages; ++stage)
+        for (int task = 0; task < request.counts[stage]; ++task) {
+          int const node = request.graph->stage_offsets[stage] + task;
+          out->owner[stage][task] = (*worker)[node];
+          out->slot[stage][task] = (*slot)[node];
+        }
+      // sigma comes from the scheduler, which interleaves stages on purpose.
+      return BuildPlanQueues(request.counts, request.grid, out, error);
+    }
+
+    case PlacementMode::kTemplate: {
+      auto const family = static_cast<dialect::PlacementTemplate>(request.params[0]);
+      if (family == dialect::PlacementTemplate::kBand) {
+        // The probe tiled the outermost parallel band coordinate
+        // (`tile_width = ceil(span / workers)`, `w = value / tile_width`); on
+        // the runtime graph that coordinate is the logical task index within a
+        // stage, so the closed form carries over unchanged.  F-93 measured the
+        // trade offline: the same-worker edge fraction rises .004301 -> .026898
+        // and the longest queue 22 -> 425, which is why this is a candidate and
+        // not a default.
+        for (std::size_t stage = 0; stage < stages; ++stage) {
+          int const width =
+              std::max(1, (request.counts[stage] + request.grid - 1) / request.grid);
+          for (int task = 0; task < request.counts[stage]; ++task)
+            out->owner[stage][task] =
+                request.physical_worker[(task / width) % request.grid];
+        }
+        break;  // stage-major sigma, like every other closed form
+      }
+      if (family != dialect::PlacementTemplate::kWavefront)
+        return fail("placement template " + std::to_string(request.params[0]) +
+                    " is not kBand or kWavefront");
+      if (!request.graph) return fail("the wavefront template needs the task DAG");
+      // The probe read `w = tasks[id].time[1] % workers`, with time[0] the wave
+      // and time[1] the position in it.  The runtime graph has no schedule
+      // coordinates, so the wave is the longest-path level and the position is
+      // the rank within that level.  Reading the position as the within-stage
+      // index instead would make this exactly kLegacyGridStride, which is the
+      // mistake worth naming: the point of the template is that a level spans
+      // stages.
+      int const nodes = request.graph->stage_offsets.empty()
+                            ? 0 : request.graph->stage_offsets.back();
+      std::vector<int> level(nodes, 0), indegree(nodes, 0), order;
+      for (int node = 0; node < nodes; ++node)
+        for (int succ : request.graph->successors[node]) ++indegree[succ];
+      order.reserve(nodes);
+      for (int node = 0; node < nodes; ++node)
+        if (indegree[node] == 0) order.push_back(node);
+      for (std::size_t i = 0; i < order.size(); ++i)
+        for (int succ : request.graph->successors[order[i]]) {
+          level[succ] = std::max(level[succ], level[order[i]] + 1);
+          if (--indegree[succ] == 0) order.push_back(succ);
+        }
+      if (order.size() != static_cast<std::size_t>(nodes))
+        return fail("the wavefront template found a cycle over " +
+                    std::to_string(nodes - order.size()) + " tasks");
+      // Level order, then node id inside a level, so sigma is a function of the
+      // graph alone; sorting by level also gives L-c for free, since an edge
+      // strictly increases the level.
+      std::vector<int> by_level(nodes);
+      std::iota(by_level.begin(), by_level.end(), 0);
+      std::stable_sort(by_level.begin(), by_level.end(),
+                       [&](int a, int b) { return level[a] < level[b]; });
+      std::vector<int> next(request.grid, 0);
+      for (std::size_t i = 0, position = 0; i < by_level.size(); ++i) {
+        if (i > 0 && level[by_level[i]] != level[by_level[i - 1]]) position = 0;
+        int const node = by_level[i];
+        int const stage = StageOfNode(*request.graph, node);
+        int const task = node - request.graph->stage_offsets[stage];
+        int const owner = request.physical_worker[position++ % request.grid];
+        out->owner[stage][task] = owner;
+        out->slot[stage][task] = next[owner]++;
+      }
+      return BuildPlanQueues(request.counts, request.grid, out, error);
+    }
   }
 
   NumberStageMajor(request, out);

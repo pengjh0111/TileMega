@@ -179,10 +179,18 @@ int main() {
     REQUIRE(rotated.owner[1] == std::vector<int>({1, 0, 1, 0}));
 
     // EX-S2's modes are refused rather than silently materialized as legacy.
+    // Until EX-S2 landed this asserted the "not materialized yet" message; the
+    // refusal is now the narrower one -- eft reads the task DAG and this
+    // request carries none -- and the assertion moved with the implementation
+    // rather than being deleted.  eft_placement_test pins the rest.
     request.mode = dialect::PlacementMode::kEft;
     MaterializedPlan unused;
     REQUIRE(!solver::MaterializePlanPlacement(request, &unused, &error));
-    REQUIRE(error.find("not materialized yet") != std::string::npos);
+    REQUIRE(error.find("needs the task DAG") != std::string::npos);
+    request.mode = dialect::PlacementMode::kTemplate;
+    request.params = {3};
+    REQUIRE(!solver::MaterializePlanPlacement(request, &unused, &error));
+    REQUIRE(error.find("kBand or kWavefront") != std::string::npos);
   }
 
   std::printf("plan_contract_test: ok\n");

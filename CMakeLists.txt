@@ -149,6 +149,7 @@ add_library(tilemega STATIC
   lib/Solver/AttentionWork.cpp
   lib/Solver/ListScheduler.cpp
   lib/Solver/ExecutionSimulator.cpp
+  lib/Solver/EftPlacement.cpp
   lib/Solver/PlanMaterialize.cpp
   lib/Solver/VariantSchedule.cpp
   lib/Solver/CostModel.cpp
@@ -530,6 +531,18 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(execution_simulator_test test/unit/execution_simulator_test.cpp)
   target_link_libraries(execution_simulator_test PRIVATE TileMega::tilemega)
   add_test(NAME execution_simulator COMMAND execution_simulator_test)
+
+  add_executable(eft_placement_test test/unit/eft_placement_test.cpp)
+  target_link_libraries(eft_placement_test PRIVATE TileMega::tilemega)
+  add_test(NAME eft_placement COMMAND eft_placement_test)
+
+  add_executable(plan_table_test test/unit/plan_table_test.cpp)
+  add_dependencies(plan_table_test TileMegaCGIncGen)
+  target_link_libraries(plan_table_test PRIVATE TileMega::tilemega MLIRIR MLIRParser)
+  if(NOT LLVM_ENABLE_RTTI)
+    target_compile_options(plan_table_test PRIVATE -fno-rtti)
+  endif()
+  add_test(NAME plan_table COMMAND plan_table_test)
 
   add_executable(cluster_labeling_test test/unit/cluster_labeling_test.cpp)
   target_link_libraries(cluster_labeling_test PRIVATE TileMega::tilemega)

@@ -179,6 +179,17 @@ struct RuntimePlanDesc {
   std::uint32_t param_count = 0;
   std::uint32_t window = 1;
   std::uint32_t policy = 0;
+  /// `eft` only: pi and sigma per runtime node, flat node ids, `eft_nodes`
+  /// entries each.  That mode prices task durations, so it cannot be evaluated
+  /// here and travels already solved -- which pins it to the one theta and grid
+  /// below.  The host compares all four and refuses a mismatch; it has no cost
+  /// model with which to recompute the schedule (§5.7.1, §5.7.4).
+  std::int32_t const* eft_worker = nullptr;
+  std::int32_t const* eft_slot = nullptr;
+  std::uint32_t eft_nodes = 0;
+  std::uint32_t eft_seq = 0;
+  std::uint32_t eft_past = 0;
+  std::uint32_t eft_grid = 0;
 };
 
 /// One unique event a concrete task still has to observe.  The host removes

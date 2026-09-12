@@ -94,8 +94,14 @@ def CG_PlacementOp : CG_Op<"placement", []> {
     | `legacy_grid_stride` | `task % grid`, queues stage-major                          | empty             |
     | `rotate`             | `(task + base[stage]) % grid`, `base` the prefix sum of the active task counts along the stage order, mod grid | empty |
     | `balanced`           | affinity-first greedy under a queue cap                    | empty             |
-    | `eft`                | materialized: the explicit (worker, slot) table travels in `RuntimeVariantDesc`, not here | empty |
+    | `eft`                | materialized: the explicit (worker, slot) table is the module attribute `tilemega.placement_table`, one object for the whole model at one bound theta | empty |
     | `template`           | closed form selected by `params[0]`: 0 = band tiling, 1 = wavefront (F-93, F-97) | one entry |
+
+    `eft` is the one mode that cannot be evaluated below L2 -- it prices task
+    durations -- so it travels already solved, and the verifier requires the
+    module table and the mode to appear together in both directions.  The table
+    is pinned to the `seq`, `past` and grid it was scheduled for, and the host
+    refuses it for any other.
 
     `window` is W.  The executor implements W = 1 only (strict FIFO); the
     verifier admits any positive W so that EX-E2 changes the executor rather

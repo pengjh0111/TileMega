@@ -18,6 +18,10 @@
 
 namespace tilemega::solver {
 
+/// Solver/EftPlacement.h.  Forward declared because the host includes this
+/// header from device code and must not pull in the cost model with it.
+struct EftRequest;
+
 /// One queue entry, in sigma order.
 struct PlanQueueItem {
   std::uint32_t stage;
@@ -57,6 +61,18 @@ struct PlanRequest {
   std::vector<int> physical_worker;
   /// Required by the modes that read the task DAG; ignored by the rest.
   codegen::RuntimeTaskGraph const* graph = nullptr;
+
+  /// `kEft`, solver form: the inputs `ScheduleByEarliestFinish` needs.  Only
+  /// an offline caller can supply these -- the host has no cost model -- so the
+  /// host uses the table below and the two must agree (§5.7.1: a template mode
+  /// and its materialized form are the same Plan).
+  EftRequest const* eft = nullptr;
+  /// `kEft`, materialized form: pi and sigma per runtime node, flat node ids.
+  /// Both empty means the solver form; both set is a contradiction, not a
+  /// preference, and is rejected (H5).  The table is pinned to one bound theta:
+  /// its length must match the graph the request carries.
+  std::vector<int> eft_worker;
+  std::vector<int> eft_slot;
 };
 
 /// False, with `*error` set, for a mode this build cannot materialize or a

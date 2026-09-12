@@ -1461,6 +1461,29 @@ inline DeviceModel Create(ModelSpec const& spec,
   plan_request.stage_order.assign(model.stage_order.begin(),model.stage_order.end());
   plan_request.physical_worker=physical_worker;
   plan_request.graph=&runtime_graph;
+  if (plan_mode==dialect::PlacementMode::kEft) {
+    auto const& plan_table=runtime_variant.plan;
+    int const plan_nodes=runtime_graph.stage_offsets.empty()
+                             ? 0 : runtime_graph.stage_offsets.back();
+    // The table is (pi, sigma) for one bound theta on one grid, and there is no
+    // cost model here to recompute it with, so a mismatch is a wrong schedule
+    // and not a reason to fall back to a closed form (H5).
+    if (plan_table.eft_worker==nullptr || plan_table.eft_slot==nullptr ||
+        plan_table.eft_nodes!=static_cast<std::uint32_t>(plan_nodes) ||
+        plan_table.eft_seq!=static_cast<std::uint32_t>(dims.seq) ||
+        plan_table.eft_past!=static_cast<std::uint32_t>(dims.past) ||
+        plan_table.eft_grid!=static_cast<std::uint32_t>(grid)) {
+      std::fprintf(stderr,"the eft plan table is pinned to nodes=%u seq=%u past=%u "
+                   "grid=%u, not nodes=%d seq=%d past=%d grid=%d\n",
+                   plan_table.eft_nodes,plan_table.eft_seq,plan_table.eft_past,
+                   plan_table.eft_grid,plan_nodes,dims.seq,dims.past,grid);
+      std::exit(2);
+    }
+    plan_request.eft_worker.assign(plan_table.eft_worker,
+                                   plan_table.eft_worker+plan_nodes);
+    plan_request.eft_slot.assign(plan_table.eft_slot,
+                                 plan_table.eft_slot+plan_nodes);
+  }
   solver::MaterializedPlan plan;
   std::string plan_error;
   if (!solver::MaterializePlanPlacement(plan_request,&plan,&plan_error)) {

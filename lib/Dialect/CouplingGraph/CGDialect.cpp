@@ -349,6 +349,42 @@ LogicalResult PlacementOp::verify() {
   return success();
 }
 
+bool ReadPlacementTable(mlir::ModuleOp module, PlacementTable* table,
+                        std::string* error) {
+  auto fail = [&](std::string message) {
+    if (error) *error = std::move(message);
+    return false;
+  };
+  *table = {};
+  if (!module) return true;
+  auto const attr = module->getAttr(kPlacementTableAttr);
+  if (!attr) return true;
+  auto const fields = llvm::dyn_cast<DictionaryAttr>(attr);
+  if (!fields)
+    return fail(std::string(kPlacementTableAttr) + " must be a dictionary");
+  auto integers = [&](char const* name, std::vector<int>* out) {
+    auto const array = fields.getAs<DenseI64ArrayAttr>(name);
+    if (!array) return false;
+    out->assign(array.asArrayRef().begin(), array.asArrayRef().end());
+    return true;
+  };
+  auto scalar = [&](char const* name, long long* out) {
+    auto const value = fields.getAs<IntegerAttr>(name);
+    if (!value) return false;
+    *out = value.getInt();
+    return true;
+  };
+  if (!integers("worker", &table->worker) || !integers("slot", &table->slot) ||
+      !scalar("seq", &table->seq) || !scalar("past", &table->past) ||
+      !scalar("grid", &table->grid))
+    return fail(std::string(kPlacementTableAttr) +
+                " needs worker and slot as array<i64> and seq, past and grid as "
+                "integers");
+  std::string reason;
+  if (!ValidatePlacementTable(*table, &reason)) return fail(reason);
+  return true;
+}
+
 /// The §5.7.1 Plan half of the op.  All four attributes are optional together:
 /// absent is the `legacy_grid_stride` form `map = [0]` has always denoted.
 LogicalResult PlacementOp::verifyPlan() {
@@ -394,6 +430,22 @@ LogicalResult PlacementOp::verifyPlan() {
     if (policy.getValue() != kPlacementPolicyAot)
       return emitOpError() << "unknown placement policy " << policy.getValue();
   }
+  // The materialized table is a module attribute, because at a bound theta it
+  // is one object for the whole model; this is the only place both halves of an
+  // `eft` Plan are visible at once, so the pairing is checked here.
+  PlacementTable table;
+  std::string reason;
+  if (!ReadPlacementTable((*this)->getParentOfType<mlir::ModuleOp>(), &table,
+                          &reason))
+    return emitOpError() << reason;
+  if (!table.worker.empty() && mode != PlacementMode::kEft)
+    return emitOpError() << kPlacementTableAttr << " needs placement mode eft, not "
+                         << PlacementModeName(mode);
+  if (mode == PlacementMode::kEft && table.worker.empty())
+    return emitOpError() << "placement mode eft needs its materialized table in "
+                         << kPlacementTableAttr
+                         << ": it prices task durations, and no layer below the "
+                            "solver has a cost model to recompute it with";
   return success();
 }
 
