@@ -23,7 +23,6 @@ TaskPlacement BalanceTaskPlacement(std::vector<std::vector<int>> const& successo
   }
   TaskPlacement out;
   out.worker.assign(successors.size(),-1);
-  out.slot.resize(successors.size());
   std::vector<int> lengths(workers),last(workers,-1);
   auto queue_dag=unique;
   for (int task:order) {
@@ -41,7 +40,7 @@ TaskPlacement BalanceTaskPlacement(std::vector<std::vector<int>> const& successo
     }
     if (chosen<0) throw std::runtime_error("balanced placement exhausted queue capacity");
     out.worker[task]=chosen;
-    out.slot[task]=lengths[chosen]++;
+    ++lengths[chosen];
     if (last[chosen]>=0) queue_dag[last[chosen]].push_back(task);
     last[chosen]=task;
   }

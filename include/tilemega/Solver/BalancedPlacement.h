@@ -4,7 +4,7 @@
 
 namespace tilemega::solver {
 struct TaskPlacement {
-  std::vector<int> worker, slot;
+  std::vector<int> worker;
   int max_queue = 0, max_worker_span = 0;
   long same_worker_edges = 0, fence_free_producers = 0;
 };
