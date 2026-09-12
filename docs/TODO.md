@@ -76,6 +76,8 @@ EX-V1 与所有性能项并行；EX-C1 任意时间（slot 部分随 EX-E1）
 | M3 执行感知求解 | EX-S1、EX-S2 | 研究门 |
 | M4 扩展 | EX-S3、EX-S5、EX-E3 步骤 4–6、EX-E4 第 2 步、EX-E5、EX-S4 | 各自的验收门 |
 
+（⚠️ v2.1 第二轮：M3 的退出条件「研究门」本轮未达成，M3 未退出。上面的依赖图不变，但建议的推进顺序追加一条：EX-S2 在 `W = 1` 下已经到顶（纯 EFT 与无代价模型的闭式 wavefront 相差不到 3%，F-150），所以 M3 的下一次尝试应排在 EX-E3 与 EX-E2 之后，而不是继续在放置轴上迭代。原顺序保留不删。）
+
 ### 1.2 条目台账
 
 状态词沿用 ROUND5_LEDGER：未开始／进行中／已验证／触发停止门槛／待外部条件／经用户批准取消。实现与验证分列；代码存在不等于完成；历史数据不得冒充本轮运行。
@@ -84,18 +86,18 @@ EX-V1 与所有性能项并行；EX-C1 任意时间（slot 部分随 EX-E1）
 |---|---|---|---|---|---|
 | EX-D1 | trace v2：逐 slot 时间线、每跳延迟、HOL、关键路径重建 | — | 已验证 | D1-a/b/c/e 通过；**D1-d 触发停止门槛**：按 §3.6 节点定义重建误差 12.10%–14.51%（门槛 5%），原因已测定为节点权重未计生产者自身 publish（补上后 2.08%–3.17%），未放宽定义；⚠️ sm_120 复算后该停止门槛加剧：重建误差 14.33%–20.07%，publish 修正只收到 4.73%–6.51%（四格中两格仍超 5%），说明该修正不是架构无关的解释（F-141） | `docs/experiments/TRACE_V2/`（`resolution.md`、`analysis.md`、`raw/perturbation.txt`、`sass_identity/`）；F-131、F-132、F-133、F-134；commit 477f5432、11c0199f、37c4a1a6；sm_120 复算见 `docs/experiments/sm120_round_one_20260912.md` 与 `TRACE_V2/raw_sm120/`，F-137、F-138、F-141 |
 | EX-D2 | 余量诊断 + 跨 stage 连续轮询放置 | EX-D1 | 已验证 | D2-a..D2-e 全部通过；mode 5 两模型 × seq∈{4,128} 各 50/50；四臂 8 组合 × 4 cell × 25 轮无缺样；`FORK rule=2` 由脚本产出；✅ sm_120 复算通过：400/400 正确、mode 5 比值 0.6514/0.7403/0.6313/0.7491、脚本再次判定 `FORK rule=2`（F-139、F-140）；⚠️ real-width 只覆盖 seq=4，seq=128 因磁盘耗尽 FAIL，headroom 未在 sm_120 复现（F-142） | `docs/experiments/PLACE_ROTATE/`（`raw/summary.tsv`、`raw/fork.txt`、`raw/place_stats.txt`、`headroom.md`）；F-135、F-136；commit f2f5b558、5c04690e；sm_120 复算见 `PLACE_ROTATE/raw_sm120/`（`summary.tsv`、`fork.txt`、`insitu/`），F-139、F-140、F-142 |
-| EX-E1 | Plan 契约：求解器输出 (π, σ, W, …)，host 按 Plan 物化 | EX-D2 | 未开始 | — | 待填 |
+| EX-E1 | Plan 契约：求解器输出 (π, σ, W, …)，host 按 Plan 物化 | EX-D2 | 已验证 | E1-a..E1-e 全部通过：legacy 位同 diff 为空（两模型 sha256 逐字节相同，正对照为每模型恰好一行差异）；模式 0/4/5 经新契约物化后 36/36 dump 文件与 `TILEMEGA_PLACEMENT` 逐字节相同（24/24 cell PASS，`mode_identity` 仅 E2E_TIME/E2E_ITER 行不同）；四组单元测试含两个负对照全部通过；CTest 全绿且 SEQSCAN 子集 12/12 各 50/50；`lib/Codegen/Codegen.cpp` 内仅剩一处消费调用 `solver::BuildVariantStageSchedule`，非调度决策。本轮 `window` 恒为 1，执行器语义未改 | `docs/experiments/PLAN_CONTRACT/`（`legacy_identity/`、`mode_identity/`、`sigma/`、`seqscan/`、`h4_grep.txt`、`ctest.txt`）；F-143、F-144；commit bbe813e5、157b5960、e7b4c5cc、e3b8934c、acbad55a |
 | EX-E2 | 窗口执行器（W）+ 窗口感知的提升与本地依赖 | EX-E1 | 未开始 | — | 待填 |
 | EX-E3 | 同步协议 v2（六步，逐步开关、逐步验收） | EX-D1 | 未开始 | — | 待填 |
 | EX-E4 | 分相 TaskBody：CG 推导的无入边操作数预取 | EX-D1 | 未开始 | — | 待填 |
 | EX-E5 | 混合/动态发射策略 | EX-E1–E4 | 未开始 | — | 待填 |
-| EX-S1 | 执行模拟器作为 L2 代价模型 | EX-D1 | 未开始 | — | 待填 |
-| EX-S2 | EFT 放置与排序 + 闭式模板候选（研究门） | EX-S1、EX-E1、EX-E2 | 未开始 | — | 待填 |
+| EX-S1 | 执行模拟器作为 L2 代价模型 | EX-D1 | 已验证 | S1-a/b/d/e 通过，**S1-c 触发停止门槛**：单 Plan 求值参考模型最坏 276.8 ms（门槛 1 ms，超 276.8×）、real-width 99.8 ms（门槛 10 ms，超 10.0×），按 §9 第四条「先报告」记录，未改门；S1-a 逐 task 开始时刻误差 18 格全部报数（\|p50\| 11.6%–40.5%、\|p90\| 19.7%–65.2%、\|max\| 23.0%–81.5% of span），18/18 有符号 p50 为负（系统性早预测）；S1-b Spearman 0.8803、配置内 0.973、argmin 6/6、模式 0 与模式 5 的相对次序 6/6 正确；S1-d `hop_ns(N,R)` 覆盖 N≤256、R≤64 共 96 格 × 4 臂；S1-e 标定集（gqa2 seq{4,128} 模式 0/5 + 争用微基准）与评测集分离且未逐 cell 拟合 | `docs/experiments/SIMULATOR/`（`contention.tsv`、`hop_ns.tsv`、`hop_fit.txt`、`raw/predicted.tsv`、`raw/dump/`、`raw/time/l2.tsv`）；F-145、F-146、F-147；commit f3781430、a177995b |
+| EX-S2 | EFT 放置与排序 + 闭式模板候选（研究门） | EX-S1、EX-E1、EX-E2 | 已验证 | S2-a 通过：34/34 arm-cell 各 50/50 新鲜进程，SEQSCAN 子集 12/12 各 50/50；**S2-b 研究门未达成（负结果）**：eft/模式 5 中位比 1.0096/1.0141/1.0022/1.0273，四格 95% CI 全部完全大于 1，0/4 通过；按 H7 不改门，也不退回「快于 L1」（eft/L1 为 0.7320/0.7276/0.8091/0.8537）；S2-c real-width 已报数：seq4 1.0273 [1.0269,1.0281]、seq128 1.0487 [1.0483,1.0493]，同样不过；S2-d 归因已报数（四臂分解显示模式 5 的无同步下界好 2.4–4.1×，eft 的同步项便宜 3.6–4.2×，两者抵消）；S2-e 逐格 Spearman +0.824/+0.794/+0.812/+0.928 | `docs/experiments/PLACE_EFT/`（`README.md`、`raw/summary.tsv`、`raw/samples.tsv`、`raw/place_stats.txt`、`raw/predicted.tsv`、`raw/correctness.tsv`、`verify.py`）；F-148、F-149、F-150；commit aa68bc19、a1516c62 |
 | EX-S3 | g / split-K / κ / W / residency 与 Plan 联合搜索 | EX-S2 | 未开始 | — | 待填 |
 | EX-S4 | 发射策略作为 variant 级决策 | EX-E5 | 未开始 | — | 待填 |
 | EX-S5 | 参数化 Place：由 ISL 在 seq 区间上证明合法性 | EX-E1 | 未开始 | — | 待填 |
 | EX-V1 | real-width 作为 L2 主基准 + 逐机制消融 | — | 未开始 | ⚠️ 外部条件：sm_120 上 real-width seq=128 在 PyTorch 导出阶段 FAIL，运行后文件系统 100% 占满（推断为磁盘耗尽，未进一步隔离）；seq=4 PASS（F-142） | `docs/experiments/sm120_round_one_20260912.md`；F-142 |
-| EX-C1 | 清理死字段与遗留头文件 | — | 进行中 | `kLastTaskOfStage` 与 `GeneratedLlamaRuntime.cuh` 已删除，两参考模型生成的 `.cu` 逐字节不变；`TaskPlacement::slot` 按本轮范围未处理，留待 EX-E1 | `docs/experiments/PLACE_ROTATE/raw/c1/`；commit 待填 |
+| EX-C1 | 清理死字段与遗留头文件 | — | 已验证 | `kLastTaskOfStage` 与 `GeneratedLlamaRuntime.cuh` 已删除，两参考模型生成的 `.cu` 逐字节不变；⚠️ v2.1 第二轮：`TaskPlacement::slot` 经 EX-E1 后仍是只写字段（被消费的 σ 是 `MaterializedPlan::slot`），已删除并保留 `lengths[chosen]++` 的计数副作用，CTest 全绿 | `docs/experiments/PLACE_ROTATE/raw/c1/`；commit 48554a81 |
 
 ### 1.3 条目详述
 
@@ -155,6 +157,7 @@ EX-V1 与所有性能项并行；EX-C1 任意时间（slot 部分随 EX-E1）
   - 新增单元测试：任意合法的 σ 被严格遵守；含环的 σ 被拒绝。
   - 全部 CTest 通过；SEQSCAN 子集 seq∈{4,128,2048} × past∈{0,512} 各 50/50。
 - **证据目录**：`docs/experiments/PLAN_CONTRACT/`。
+- （⚠️ v2.1 第二轮：已验证。`TaskPlacement::slot` 这一条本轮查明仍未被消费——被物化路径读取的 σ 是 `MaterializedPlan::slot`——已随 EX-C1 删除，见 commit 48554a81。`window` 字段已进入 Plan 与 `RuntimeVariantDesc`，但本轮恒为 1，执行器语义未改，harness 对非 1 的 W 直接 `exit(2)`。）
 
 #### EX-E2 窗口执行器
 
@@ -230,6 +233,8 @@ EX-V1 与所有性能项并行；EX-C1 任意时间（slot 部分随 EX-E1）
   - 单个 Plan 的求值时间：参考模型 < 1 ms，real-width < 10 ms。
   - 绝对误差不作为门，但必须报告。
 - **证据目录**：`docs/experiments/SIMULATOR/`。
+- （⚠️ v2.1 第二轮：排序门（S1-b）通过，求值时间门（S1-c）未通过且差一个数量级以上——参考模型最坏 276.8 ms 对 1 ms、real-width 99.8 ms 对 10 ms。按 R2 §9 第四条这是「先报告」的停止条件，本轮如实记录、未改门、未改算法。现实现是逐事件推进的单线程模拟，复杂度随 task 数与边数增长；若要进入联合搜索（EX-S3），必须先给它一个增量或分层的求值路径。）
+- （⚠️ v2.1 第二轮：标定集与评测集的分离按 H8 执行并在 `SIMULATOR/README.md` 中列出；未做逐 cell 系数拟合。S1-a 的误差在 18/18 格上有符号 p50 为负，是系统性早预测而非随机误差，见 F-146。）
 
 #### EX-S2 放置与排序（研究门）
 
@@ -246,6 +251,8 @@ EX-V1 与所有性能项并行；EX-C1 任意时间（slot 部分随 EX-E1）
   - 每格正确性 50/50；
   - 报告跨 worker 边的比例，以及关键路径上的同步时间。
 - **证据目录**：`docs/experiments/PLACE_EFT/`。
+- （⚠️ v2.1 第二轮：研究门由「实测 L2 < L1」提高为「实测快于模式 5」，原句保留不改。理由是模式 5 已经通过了 L1 门（F-135，L2/L1 = 0.807/0.724/0.828/0.716），继续用 L1 作分母无法分辨求解器是否带来新的东西。本轮结果为负：eft 对模式 5 的四格中位比 1.0096/1.0141/1.0022/1.0273，95% CI 全部大于 1；对 L1 的比值 0.7320/0.7276/0.8091/0.8537 则远低于 1，即旧门通过而新门未过（F-149）。按 H7 门不回退。）
+- （⚠️ v2.1 第二轮：「Label 作为子决策」本轮未实现，仍未开始。）
 
 #### EX-S3 联合搜索
 

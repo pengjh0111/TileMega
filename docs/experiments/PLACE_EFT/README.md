@@ -130,7 +130,8 @@ through.
 
 S2-e, the simulator against this candidate set: per-cell Spearman +0.824 /
 +0.794 / +0.812 / +0.928 (`raw/predicted.tsv` against the measured medians). It
-ranks the families correctly and calls the eft/mode-5 near-tie the wrong way,
+ranks the families correctly and calls the eft/mode-5 near-tie the wrong way in
+all four cells,
 which is the honest limit of a model whose own start-time bias (F-146) is larger
 than the gap being called.
 

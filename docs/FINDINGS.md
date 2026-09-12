@@ -2919,3 +2919,272 @@ duplicates, and its `HEADROOM cell=real_s128` line was computed from a dump
 whose metadata predates the session (19:37:42 against a 20:07:52 start). It is
 retained as raw provenance only. The 2.3–5.8× rescheduling headroom stands on
 the sm_89 evidence alone until a Blackwell run has the disk to finish.
+
+## F-143 — The Plan contract reproduces the pre-plan host byte for byte on modes 0, 4 and 5
+
+✅ The solver now emits `(π, σ)` and the host materializes each worker's queue
+by σ instead of walking stages; the generated source carries it as
+`RuntimePlanDesc{mode, params, param_count, window, policy}` on
+`RuntimeVariantDesc`, and `BuildVariantStageSchedule` moved out of
+`lib/Codegen/` into `lib/Solver/`. With a `legacy_grid_stride` plan at `W = 1`
+the two reference models' generated `.cu` are byte-identical to the round-2
+baseline `6c359e2b`: sha256 `017a39b9…` for gqa2 and `1be74406…` for mha4, on
+both sides (`PLAN_CONTRACT/legacy_identity/`). The emitter is not merely silent
+— the same source generated with `balanced_placement` on changes exactly one
+line per model, the variant initializer, which is the positive control that an
+empty diff is evidence.
+
+✅ Host materialization is identical too. 12 cells (2 models × placements
+{0, 4, 5} × seq {4, 128}) dump `schedule.tsv`, `waits.tsv` and `events.tsv`
+before any device work; 36/36 files are byte-identical between a baseline host
+rebuilt from `6c359e2b:ModelHarness.cuh` and the working tree, and 24/24 runs
+report `RESULT status=PASS` (`PLAN_CONTRACT/mode_identity/`). The dump block is
+the same source text in both binaries, so the identity is about the placement
+and not about the dumper. `E2E_PLACE_STATS` gains one field, `plan=`, and no
+existing field changes; the refreshed `.out` files differ from the previous
+commit only in `E2E_TIME` and `E2E_ITER`'s `l2_iter1_ms`, with every correctness
+field and `sha256.txt` unchanged.
+
+✅ H4 holds: `grep -n "ListScheduler\|BalanceTaskPlacement\|BuildVariantSchedule\|Schedule("
+lib/Codegen/Codegen.cpp` leaves one hit, and it is a consumption call —
+`solver::BuildVariantStageSchedule(variant.dependencies, stages.size())`
+(`PLAN_CONTRACT/h4_grep.txt`; the recorded line number moved 384 → 403 when
+EX-S2 grew the file above it, and `PLACE_EFT/verify.py` recomputes the grep live
+rather than trusting the number).
+
+## F-144 — An arbitrary σ is obeyed, and the poll-elision condition had to be stated as a hard check
+
+✅ σ is the only thing that orders a worker's queue: `BuildPlanQueues` fills
+`plan.queue` from `owner` and `slot` alone and rejects any σ that is not a dense
+permutation of `[0, n)` on a worker, because anything else is not a total order
+and has no executable queue (§5.7.2). Four unit tests pin this
+(`test/unit/plan_contract_test.cpp`, `plan_table_test.cpp`,
+`eft_placement_test.cpp`, `execution_simulator_test.cpp`): a σ that interleaves
+stages on one worker is materialized in exactly that order; a σ containing a
+cycle over the union of task edges and same-worker window edges is rejected; a grid
+larger than the resident limit is rejected (`ResidentScheduleLegal`, L-b) as is
+an owner outside the grid; and every rejection is a hard failure with a message,
+never a warning (H5).
+
+✅ The negative control is the one that changed the implementation. Before a
+consumer polls a producer's event, the host elides the poll when the producer
+runs earlier on the same worker. Stated that way the condition is wrong: a
+same-worker producer with `σ(producer) > σ(consumer)` would have its poll
+silently elided and the consumer would read an unpublished row. `CheckPlanLegality`
+therefore checks L-c *first* and hard-fails such a Plan
+(`lib/Solver/PlanMaterialize.cpp`), and the test constructs exactly that Plan and
+asserts the rejection rather than asserting the elision.
+
+✅ Correctness under the new materialization path: the SEQSCAN subset
+seq ∈ {4, 128, 2048} × past ∈ {0, 512} on both reference models is 50/50 fresh
+processes in all 12 cells, recounted from the per-process logs, and the full
+CTest suite passes (`PLAN_CONTRACT/seqscan/`, `PLAN_CONTRACT/ctest.txt`).
+
+## F-145 — Polling contention is not the missing factor: the hop is 1235 ns and flat over 256× line sharing
+
+✅ `hop_ns(N, R) = c0 + c1·log2(1 + N/R) + c2·log2(R)`, fitted by weighted least
+squares over 24 cells (`N ∈ {1…256}` × `R ∈ {1, 4, 16, 64}`, `N ≥ R`), 4096
+rounds each, on the primitives the runtime executes — `EventPoll` and `atomicExch`
+on a 128-byte-padded `EventCounter` row (`SIMULATOR/contention.cu`). In the arm
+the generated kernel actually runs (RMW poll with `__nanosleep(64)` backoff):
+
+```
+c0 = 1235.4 ± 17.2 ns   c1 = −0.40 ± 2.41   c2 = −2.67 ± 2.36
+```
+
+Both contention coefficients are **zero inside one standard error**, and across
+a 256-fold range of line sharing and a 64-fold range of live rows the hop stays
+between 1211 and 1249 ns — a 3.1 % spread. R2 §0 item four hypothesised that
+round one's 1.7–3.7× underestimate of mode 5 was polling contention; this
+measurement does **not support** it. Recorded as a negative result; no gate was
+moved.
+
+✅ 910 ns of the 1235 ns hop is the `__nanosleep(64)` backoff granularity
+(1235.4 − 325.0 with the backoff removed), not coherence traffic. With the
+backoff out, contention becomes measurable and stays small: 4.04 ± 2.62 ns per
+doubling of sharing for one consumer, 12.2 ± 4.6 ns for the slowest of the
+consumers on one row — about 100 ns over the whole 256× range. That is a
+synchronization-protocol observation and R2 §1 excludes protocol changes this
+round, so it is carried to the next-round priority discussion rather than acted
+on.
+
+✅ `inversions = 0` in all 96 cells across both arms and both poll modes: no
+observe timestamp precedes its publish. Two measurement artifacts were found by
+measurement and are recorded rather than papered over — a fixed guard spin made
+the sweep return exactly 1024.0 ns with `se = 0.00` in all 24 cells (the round
+loop was periodic; fixed with a per-round phase dither), and one process of the
+load-poll arm recorded a single ~2.3 ms device stall per cell, which is why the
+fit uses a 0.1 %-trimmed mean with nothing dropped from the table
+(`SIMULATOR/hop_fit.txt`).
+
+## F-146 — The execution simulator ranks placements well and predicts runtimes badly, in one direction
+
+✅ `lib/Solver/ExecutionSimulator.cpp` replays §5.7.2: each worker walks
+`plan.queue[w]` in σ order one task at a time, and a task starts at
+`max(worker free, every predecessor's end + hop)` with the hop zero on a
+same-worker edge. That last clause is the whole point — round one priced a
+schedule as `max(work_lb, queue_lb, critical_path)`, and none of those three
+bounds can express a worker idling at a not-yet-ready queue head while a task it
+could have run waits behind it (F-139).
+
+✅ S1-a, reported without a gate: per-task start-time error over 18 cells
+(2 models × seq {4, 128, 512} × placements {0, 4, 5}), as a fraction of each
+cell's own span, is |p50| 11.6–40.5 %, |p90| 19.7–65.2 %, |max| 23.0–81.5 %.
+**The sign is negative in 18/18 cells**: the simulator predicts every task
+starting earlier than it measurably did. A one-sided bias of that shape cancels
+in an ordering and does not cancel in an absolute makespan, so the simulator's
+output must be read as a ranking and never as a predicted runtime.
+
+✅ S1-b, the hard gate, **PASS**: pooled Spearman **0.880** over the
+placement × config scan, within-config 0.973, argmin correct in 6/6 configs, and
+the predicted top-3 contains the measured top 3 %. The regime that mattered is
+separated — `rotate` is predicted fastest in all six configs and measured
+fastest in all six, and the predicted mode-5/mode-0 ratio (0.654–0.813) has the
+same sign as the measured one (0.652–0.924). A model that could not tell modes 0
+and 5 apart would have been unusable, and this one can.
+
+⚠️ Two modelling choices are arms rather than assumptions, and the reported
+numbers use the weaker one. `proportional_sharing` stretches a co-resident set by
+its size; the nine-lane §4.4.1 resource model stretches it by aggregate demand.
+**The whole-model numbers run the proportional arm** because only GEMM stages
+expose a `ResourceVector`, so a mixed zero/non-zero lane set would make
+`LaneStretch` return 1 and systematically under-estimate. The lane model is
+unit-tested and carried; it is not what the numbers above use.
+
+## F-147 — The simulator is two orders of magnitude over its evaluation budget, which is a §9 stop condition
+
+✅ S1-c **FAILS**, and it fails by more than one order of magnitude, which is R2
+§9's fourth stop condition ("the algorithm was chosen wrong — report first").
+One `SimulateExecution` call, wall time measured around that call alone
+(`predicted.tsv` column `eval_us`):
+
+| cell | worst candidate | budget | over |
+| --- | --- | --- | --- |
+| gqa2 seq 4 | 61.4 µs | 1 ms | 0.06× |
+| mha4 seq 4 | 128.0 µs | 1 ms | 0.13× |
+| gqa2 seq 128 | 3.32 ms | 1 ms | 3.3× |
+| mha4 seq 128 | 11.58 ms | 1 ms | 11.6× |
+| gqa2 seq 512 | 38.58 ms | 1 ms | 38.6× |
+| mha4 seq 512 | 276.79 ms | 1 ms | **276.8×** |
+| real width seq 4 | 0.83 ms | 10 ms | 0.08× |
+| real width seq 128 | 99.80 ms | 10 ms | **10.0×** |
+
+Both budgets hold at seq 4 and break as the node count grows (200 nodes at gqa2
+seq 4, 47 680 at mha4 seq 512), so the cost is the graph size and not a fixed
+overhead. The gate was fixed before implementation and is **not moved** (H7);
+the round continued to EX-S2 because §9 item four says "report first" where item
+five says "stop immediately", and EX-S2 needs the simulator only to rank six
+candidates per cell, which it does inside a second.
+
+stated, and corrected here rather than deleted: an earlier draft of
+`SIMULATOR/README.md` recorded S1-c as failing "at 2.9×, not 29×, so it is not
+the §9 stop condition". That was written when the evaluation set stopped at
+seq 128 for the reference models; adding seq 512 and real width made it false.
+`eval_us` is host wall time and so is the one column not reproducible to the
+digit — a previous run of the same driver gave 34.5 ms and 157.8 ms at seq 512
+and 97.8 ms at real width seq 128, over budget by the same order of magnitude.
+
+## F-148 — EFT and mode 5 trade the same quantity in opposite directions and cancel to within 3%
+
+✅ The four-arm decomposition (25 paired rounds per combination, the `arm ×
+probe` pair rotated by `(round + slot) % 8`, one fresh process per round) says
+where each plan's L2 time goes. `neither` compiles out both the wait and the
+notify — an unsafe probe, not a valid kernel — so it is the placement's
+throughput bound; `full` is the real kernel:
+
+| cell | mode 5 `neither` | mode 5 `full` | eft `neither` | eft `full` |
+| --- | --- | --- | --- | --- |
+| gqa2 s4 | 0.0584 ms | 0.2917 ms | 0.2376 ms | 0.2929 ms |
+| mha4 s4 | 0.1355 ms | 0.5794 ms | 0.4700 ms | 0.5880 ms |
+| gqa2 s128 | 0.1577 ms | 0.4557 ms | 0.3807 ms | 0.4567 ms |
+| mha4 s128 | 0.2661 ms | 0.9114 ms | 0.6975 ms | 0.8787 ms |
+
+Mode 5's placement is **4.1×, 3.5×, 2.4× and 2.6× better in the
+no-synchronization limit**, and EFT's synchronization cost (`full − neither`) is
+**0.055 / 0.118 / 0.076 / 0.181 ms against mode 5's 0.233 / 0.444 / 0.298 /
+0.645 ms — 4.2×, 3.8×, 3.9× and 3.6× cheaper**. The two effects cancel to within
+3%. That is the answer to "where is it stuck": under `W = 1` the total is a
+throughput bound plus a synchronization term, EFT buys the second by spending
+the first, and at this hop price the exchange rate is almost exactly one.
+
+✅ The mechanism is visible in the host's own placement statistics
+(`raw/place_stats.txt`), which EFT moves in the direction its cost model asks
+for: same-worker edges 184 → 100, 504 → 280, 3736 → 3216 and 12664 → 11524
+against `legacy_grid_stride`, longest queue 30 → 20, 60 → 40, 34 → 28, 80 → 74.
+Mode 5 goes the other way — **zero** same-worker edges at seq 4 and a longest
+queue of 1 and 2 — and wins the throughput bound by exactly that. The busiest
+worker's own queue (`raw/predicted.tsv` `busiest_worker_ns`) as a fraction of the
+measured `l2_ms` is **0.103 / 0.104 / 0.110 / 0.109 for mode 5 and 0.608 / 0.613 /
+0.423 / 0.448 for EFT**: EFT drives the makespan down onto the busiest worker's
+own work, which is what a good schedule is supposed to do, and it still does not
+win.
+
+⚠️ inferred: EFT priced a cross-worker hop at 1235 ns (F-145), 0.07–0.8 of a
+single task's duration in these cells, so avoiding a hop looked worth
+co-locating for. The measurement says the marginal cost of a hop inside the real
+kernel is lower than that — the `neither`/`full` gap is dominated by per-task
+publish, not by hop latency (F-133) — so the greedy over-bought locality. That is
+a cost-model calibration question rather than a scheduling-algorithm one, and it
+is the first thing to re-examine if EX-S2 is revisited after EX-E3.
+
+## F-149 — The solver's plan loses to mode 5 by 0.2–4.9%: the research gate is a clean negative
+
+✅ S2-b **FAILS**. 25 paired rounds per cell, six arms rotating by
+`(round + slot) % 6`, one fresh process per round, ratios formed inside a round
+so no median crosses a session boundary. EFT `l2_ms` against mode 5, with the
+two other denominators from the same rounds:
+
+| cell | eft / mode 5 | 95% CI | p | eft / mode 0 | eft / L1 |
+| --- | --- | --- | --- | --- | --- |
+| gqa2 s4 | **1.0096** | [1.0070, 1.0137] | 2.2e-05 | 0.6636 | 0.7320 |
+| mha4 s4 | **1.0141** | [1.0106, 1.0212] | 1.3e-05 | 0.6624 | 0.7276 |
+| gqa2 s128 | **1.0022** | [1.0017, 1.0026] | 8.4e-05 | 0.7451 | 0.8091 |
+| mha4 s128 | **1.0273** | [1.0263, 1.0275] | 1.3e-05 | 0.7679 | 0.8537 |
+| pooled (100 pairs) | **1.0111** | [1.0086, 1.0147] | 4.8e-17 | — | — |
+| real s4 (S2-c) | **1.0273** | [1.0269, 1.0281] | 2.3e-04 | 0.7888 | 0.8419 |
+| real s128 (S2-c) | **1.0487** | [1.0483, 1.0493] | 3.0e-05 | 0.8768 | 0.9711 |
+
+0/4 reference cells pass, and neither real-width cell does: every CI lies
+entirely **above** 1. The gate R2 §6.3 fixed before implementation was "faster
+than mode 5"; it is **not** moved back to "faster than L1" (H7), even though EFT
+passes that older gate at 0.73–0.85 on the reference cells. Correctness is not
+the issue: S2-a is 50/50 fresh processes in all 34 arm-cells and the SEQSCAN
+subset is 50/50 in all 12.
+
+✅ The other candidates place the result. `wavefront` — a closed form that owns no
+cost model at all — is statistically indistinguishable from EFT on the reference
+cells (pooled 1.0105 [1.0050, 1.0149]) and is the one arm that touches mode 5 at
+real width seq 128: median **0.9987**, CI [0.9982, 0.9994], but Wilcoxon
+p = 0.063, so it is reported as a tie and not as a win, and it is in any case not
+the plan the solver chose. `band` is byte-identical to `legacy_grid_stride` in
+every cell (same `max_queue`, `same_worker_edges` and `cross_worker_edges`), so
+its 1.49 is mode 0's number under another name and it is recorded as a degenerate
+candidate rather than a result. `balanced` is the slowest arm at 2.21 pooled and
+4.28 at mha4 s128, reproducing F-118's direction.
+
+✅ S2-e, the simulator's predictive power on this round's real candidate set:
+per-cell Spearman **+0.824 / +0.794 / +0.812 / +0.928**. The ordering is good and
+not perfect — the simulator put `eft` first in three of the four cells `rotate`
+actually won, and `wavefront` first in the fourth, predicting a near-tie (gqa2
+s4: 200.8 µs for eft against 203.3 µs for rotate) where the measurement found a
+0.96% loss. A model whose predicted gap is smaller
+than its own S1-a bias (F-146) cannot call that ordering, and this one did not.
+
+## F-150 — What the negative result costs, and what it does not
+
+⚠️ inferred, stated as this round's reading of F-148 and F-149 together: the
+placement axis at `W = 1` is close to exhausted. Two plans built on opposite
+principles — pure EFT with a measured cost model, and a two-line closed form
+that owns no model — land within 3% of each other while both beat the legacy
+placement by 1.14–1.53×. The remaining 0.2–4.9% is not where the next factor is.
+
+The decomposition says where it is. Mode 5's `neither` runs at 0.20 / 0.23 /
+0.35 / 0.29 of its `full`: **65–80% of the correct kernel's L2 time is the
+per-task publish protocol**, and F-145 measured that 910 ns of the 1235 ns hop is
+`__nanosleep(64)` backoff granularity rather than coherence traffic. That is
+EX-E3, which R2 §1 excluded from this round by design, so it is recorded as the
+next lever and not acted on. The second is EX-E2: F-134's reclaimable
+head-of-line blocking is 18.9–64.0% of all stall time, and `W = 1` is what makes
+it unreclaimable — with a window, EFT's concentrated queues stop being a
+liability and its 3.6–4.2× cheaper synchronization becomes the whole of the
+difference.
