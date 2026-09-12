@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// EX-S2: earliest-finish-time placement, and the two spellings of the same
-// Plan.  What is pinned here: the greedy actually minimises finish time rather
-// than queue length; sigma is start-time order, so L-c holds without a sort
-// (§5.7.3); the solver form and the materialized (worker, slot) table produce
-// the identical plan, which is what §5.7.1 means by a template mode and its
-// materialization being one Plan; and the two closed-form templates are legal
-// and are not each other.
+// EX-S2: earliest-finish-time placement, and the host's replay of it.  What is
+// pinned here: the greedy actually minimises finish time rather than queue
+// length; sigma is start-time order, so L-c holds without a sort (§5.7.3); the
+// queues the host builds from the shipped (worker, slot) table are the
+// scheduler's own queues, which is what §5.7.4 means by the solver deciding and
+// the host materializing; and the two closed-form templates are legal and are
+// not each other.
 #include <tilemega/Codegen/RuntimeTaskGraph.h>
 #include <tilemega/Solver/EftPlacement.h>
 #include <tilemega/Solver/PlanMaterialize.h>
@@ -179,12 +179,6 @@ int main() {
     eft.hop.c0 = 120.0;
     eft.hop.c1 = 8.0;
 
-    PlanRequest solver_form = MakeRequest(graph, counts, 4);
-    solver_form.eft = &eft;
-    MaterializedPlan from_solver;
-    REQUIRE(MaterializePlanPlacement(solver_form, &from_solver, &error));
-    REQUIRE(solver::CheckPlanLegality(graph, from_solver, &error));
-
     EftSchedule schedule;
     REQUIRE(ScheduleByEarliestFinish(eft, &schedule, &error));
     PlanRequest host_form = MakeRequest(graph, counts, 4);
@@ -192,25 +186,25 @@ int main() {
     host_form.eft_slot = schedule.slot;
     MaterializedPlan from_table;
     REQUIRE(MaterializePlanPlacement(host_form, &from_table, &error));
-    REQUIRE(from_table.owner == from_solver.owner);
-    REQUIRE(from_table.slot == from_solver.slot);
-    for (int w = 0; w < 4; ++w) {
-      REQUIRE(from_table.queue[w].size() == from_solver.queue[w].size());
-      for (std::size_t i = 0; i < from_table.queue[w].size(); ++i) {
-        REQUIRE(from_table.queue[w][i].stage == from_solver.queue[w][i].stage);
-        REQUIRE(from_table.queue[w][i].logical == from_solver.queue[w][i].logical);
-      }
+    REQUIRE(solver::CheckPlanLegality(graph, from_table, &error));
+    // The host replays rather than re-decides: every queue is the scheduler's
+    // own answer read back, node for node, in sigma order.
+    for (int node = 0; node < 20; ++node) {
+      int const stage = node < 8 ? 0 : (node < 16 ? 1 : 2);
+      int const task = node - graph.stage_offsets[stage];
+      REQUIRE(from_table.owner[stage][task] == schedule.worker[node]);
+      REQUIRE(from_table.slot[stage][task] == schedule.slot[node]);
+      auto const& item = from_table.queue[schedule.worker[node]][schedule.slot[node]];
+      REQUIRE(static_cast<int>(item.stage) == stage);
+      REQUIRE(item.logical == task);
     }
 
-    // Both forms at once is a contradiction, and neither is a missing input.
-    PlanRequest both = host_form;
-    both.eft = &eft;
+    // The mode has no closed form, so a request with no table is a missing
+    // input rather than a default (H5).
     MaterializedPlan scratch;
-    REQUIRE(!MaterializePlanPlacement(both, &scratch, &error));
-    REQUIRE(error.find("exactly one") != std::string::npos);
     PlanRequest none = MakeRequest(graph, counts, 4);
     REQUIRE(!MaterializePlanPlacement(none, &scratch, &error));
-    REQUIRE(error.find("either the solver inputs") != std::string::npos);
+    REQUIRE(error.find("materialized (worker, slot) table") != std::string::npos);
 
     // A table from a different theta must hard-fail, not be padded (H5).
     PlanRequest stale = host_form;

@@ -6,3 +6,11 @@
 
 $ grep -n "ListScheduler\|BalanceTaskPlacement\|BuildVariantSchedule\|Schedule(" lib/Codegen/Codegen.cpp
 384:        solver::BuildVariantStageSchedule(variant.dependencies, stages.size());
+
+# Re-checked at aa68bc19 (after EX-S2 added lib/Solver/EftPlacement.cpp).  The
+# hit moved from line 384 to 403 because that commit grew the file above it; the
+# line itself is unchanged, and `verify.py` recomputes this grep live rather
+# than reading the number above.
+
+$ grep -n "ListScheduler\|BalanceTaskPlacement\|BuildVariantSchedule\|Schedule(" lib/Codegen/Codegen.cpp
+403:        solver::BuildVariantStageSchedule(variant.dependencies, stages.size());

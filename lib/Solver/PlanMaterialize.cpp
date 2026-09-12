@@ -5,7 +5,6 @@
 #include <numeric>
 
 #include <tilemega/Solver/BalancedPlacement.h>
-#include <tilemega/Solver/EftPlacement.h>
 #include <tilemega/Solver/ListScheduler.h>
 
 namespace tilemega::solver {
@@ -96,36 +95,15 @@ bool MaterializePlanPlacement(PlanRequest const& request, MaterializedPlan* out,
 
     case PlacementMode::kEft: {
       if (!request.graph) return fail("eft placement needs the task DAG");
-      bool const table = !request.eft_worker.empty() || !request.eft_slot.empty();
-      if (request.eft && table)
-        return fail("eft placement was given both the solver inputs and a "
-                    "materialized table; they are two spellings of one Plan, "
-                    "so a request must carry exactly one");
-      if (!request.eft && !table)
-        return fail("eft placement needs either the solver inputs "
-                    "(PlanRequest::eft, offline only) or a materialized "
-                    "(worker, slot) table (PlanRequest::eft_worker/eft_slot)");
+      if (request.eft_worker.empty() && request.eft_slot.empty())
+        return fail("eft placement needs a materialized (worker, slot) table "
+                    "(PlanRequest::eft_worker/eft_slot); it prices task "
+                    "durations, so the caller runs the scheduler and passes "
+                    "its answer");
       int const nodes = request.graph->stage_offsets.empty()
                             ? 0 : request.graph->stage_offsets.back();
       std::vector<int> const* worker = &request.eft_worker;
       std::vector<int> const* slot = &request.eft_slot;
-      EftSchedule schedule;
-      if (request.eft) {
-        // Pointer equality, not a repair: a schedule is a function of the DAG
-        // it was computed on, and silently scheduling a different one would
-        // produce a legal-looking plan for the wrong theta (§5.7.4).
-        if (request.eft->graph != request.graph)
-          return fail("the eft inputs carry a different task DAG than the "
-                      "request");
-        if (request.eft->grid != request.grid)
-          return fail("the eft inputs are for a grid of " +
-                      std::to_string(request.eft->grid) + ", not " +
-                      std::to_string(request.grid));
-        if (!ScheduleByEarliestFinish(*request.eft, &schedule, error))
-          return false;
-        worker = &schedule.worker;
-        slot = &schedule.slot;
-      }
       if (static_cast<int>(worker->size()) != nodes ||
           static_cast<int>(slot->size()) != nodes)
         return fail("the eft table covers " + std::to_string(worker->size()) +

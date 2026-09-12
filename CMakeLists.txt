@@ -318,6 +318,10 @@ add_executable(tilemega-simulate docs/experiments/SIMULATOR/simulate.cpp)
 target_link_libraries(tilemega-simulate PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-simulate PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+add_executable(tilemega-place-eft docs/experiments/PLACE_EFT/place_eft.cpp)
+target_link_libraries(tilemega-place-eft PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-place-eft PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 target_link_libraries(tilemega-task-work-gate PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-task-work-gate PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
