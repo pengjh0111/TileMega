@@ -82,8 +82,8 @@ EX-V1 与所有性能项并行；EX-C1 任意时间（slot 部分随 EX-E1）
 
 | ID | 范围与验收（不可删减，详见 §1.3） | 依赖 | 实现状态 | 验证状态/剩余项 | 证据、commit |
 |---|---|---|---|---|---|
-| EX-D1 | trace v2：逐 slot 时间线、每跳延迟、HOL、关键路径重建 | — | 未开始 | — | 待填 |
-| EX-D2 | 余量诊断 + 跨 stage 连续轮询放置 | EX-D1 | 未开始 | — | 待填 |
+| EX-D1 | trace v2：逐 slot 时间线、每跳延迟、HOL、关键路径重建 | — | 已验证 | D1-a/b/c/e 通过；**D1-d 触发停止门槛**：按 §3.6 节点定义重建误差 12.10%–14.51%（门槛 5%），原因已测定为节点权重未计生产者自身 publish（补上后 2.08%–3.17%），未放宽定义 | `docs/experiments/TRACE_V2/`（`resolution.md`、`analysis.md`、`raw/perturbation.txt`、`sass_identity/`）；F-131、F-132、F-133、F-134；commit 477f5432、11c0199f、37c4a1a6 |
+| EX-D2 | 余量诊断 + 跨 stage 连续轮询放置 | EX-D1 | 已验证 | D2-a..D2-e 全部通过；mode 5 两模型 × seq∈{4,128} 各 50/50；四臂 8 组合 × 4 cell × 25 轮无缺样；`FORK rule=2` 由脚本产出 | `docs/experiments/PLACE_ROTATE/`（`raw/summary.tsv`、`raw/fork.txt`、`raw/place_stats.txt`、`headroom.md`）；F-135、F-136；commit f2f5b558、5c04690e |
 | EX-E1 | Plan 契约：求解器输出 (π, σ, W, …)，host 按 Plan 物化 | EX-D2 | 未开始 | — | 待填 |
 | EX-E2 | 窗口执行器（W）+ 窗口感知的提升与本地依赖 | EX-E1 | 未开始 | — | 待填 |
 | EX-E3 | 同步协议 v2（六步，逐步开关、逐步验收） | EX-D1 | 未开始 | — | 待填 |
@@ -95,7 +95,7 @@ EX-V1 与所有性能项并行；EX-C1 任意时间（slot 部分随 EX-E1）
 | EX-S4 | 发射策略作为 variant 级决策 | EX-E5 | 未开始 | — | 待填 |
 | EX-S5 | 参数化 Place：由 ISL 在 seq 区间上证明合法性 | EX-E1 | 未开始 | — | 待填 |
 | EX-V1 | real-width 作为 L2 主基准 + 逐机制消融 | — | 未开始 | — | 待填 |
-| EX-C1 | 清理死字段与遗留头文件 | — | 未开始 | — | 待填 |
+| EX-C1 | 清理死字段与遗留头文件 | — | 进行中 | `kLastTaskOfStage` 与 `GeneratedLlamaRuntime.cuh` 已删除，两参考模型生成的 `.cu` 逐字节不变；`TaskPlacement::slot` 按本轮范围未处理，留待 EX-E1 | `docs/experiments/PLACE_ROTATE/raw/c1/`；commit 待填 |
 
 ### 1.3 条目详述
 

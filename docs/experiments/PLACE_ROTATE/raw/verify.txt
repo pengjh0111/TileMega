@@ -1,0 +1,52 @@
+[PASS] D1-a gqa2 s4: 50/50 fresh processes RESULT status=PASS
+         evidence: /root/TileMega/docs/experiments/TRACE_V2/raw/final/correct_gqa2_s4
+[PASS] D1-a gqa2 s128: 50/50 fresh processes RESULT status=PASS
+         evidence: /root/TileMega/docs/experiments/TRACE_V2/raw/final/correct_gqa2_s128
+[PASS] D1-a mha4 s4: 50/50 fresh processes RESULT status=PASS
+         evidence: /root/TileMega/docs/experiments/TRACE_V2/raw/final/correct_mha4_s4
+[PASS] D1-a mha4 s128: 50/50 fresh processes RESULT status=PASS
+         evidence: /root/TileMega/docs/experiments/TRACE_V2/raw/final/correct_mha4_s128
+[PASS] D1-b: default-build SASS diff bytes {'gqa2.diff': 0, 'mha4.diff': 0}
+         evidence: /root/TileMega/docs/experiments/TRACE_V2/sass_identity
+[PASS] D1-c: paired l2_ms median ratio gqa2_s4=1.0157 gqa2_s128=1.0167 mha4_s4=1.0163 mha4_s128=1.0149, worst 1.0167 <= 1.02
+         evidence: /root/TileMega/docs/experiments/TRACE_V2/raw/final
+[PASS] D1-e: 4 cells, hop(j) < 0 count 0
+         evidence: /tmp/round1-verify-az92bih2/analysis/analysis.tsv
+[FAIL] D1-d: reconstructed critical path vs measured l2_ms, worst gqa2_s4 14.51% (cause reported in analysis.md, definition not relaxed)
+         evidence: /tmp/round1-verify-az92bih2/analysis/analysis.tsv
+[PASS] D2-a p0 gqa2 s4: 50/50 fresh processes RESULT status=PASS
+         evidence: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p0_gqa2_s4
+[PASS] D2-a p0 gqa2 s128: 50/50 fresh processes RESULT status=PASS
+         evidence: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p0_gqa2_s128
+[PASS] D2-a p0 mha4 s4: 50/50 fresh processes RESULT status=PASS
+         evidence: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p0_mha4_s4
+[PASS] D2-a p0 mha4 s128: 50/50 fresh processes RESULT status=PASS
+         evidence: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p0_mha4_s128
+[PASS] D2-a p5 gqa2 s4: 50/50 fresh processes RESULT status=PASS
+         evidence: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p5_gqa2_s4
+[PASS] D2-a p5 gqa2 s128: 50/50 fresh processes RESULT status=PASS
+         evidence: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p5_gqa2_s128
+[PASS] D2-a p5 mha4 s4: 50/50 fresh processes RESULT status=PASS
+         evidence: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p5_mha4_s4
+[PASS] D2-a p5 mha4 s128: 50/50 fresh processes RESULT status=PASS
+         evidence: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p5_mha4_s128
+[PASS] D2-b: BASE_EXAMPLE grid=256 stages=30 mismatches=0 verdict=PASS
+         evidence: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/log/base_dump_gqa2_s4_p5.out
+[PASS] D2-c: 32 arm x placement x cell combinations x 25 rounds, none missing
+         evidence: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final
+[PASS] D2-d: FORK rule=2 r_neither=0.2240 ci=[0.1891,0.2791] r_full=0.6705 ci=[0.6598,0.7392] cells=4
+         evidence: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/fork.txt
+[PASS] D2-e: reference cells 4/4, real-width {'128': 'PASS', '4': 'PASS'}
+         evidence: /root/TileMega/docs/experiments/PLACE_ROTATE/headroom.tsv
+[PASS] C1 flag removed: no kLastTaskOfStage under lib/ include/ tools/ test/
+         evidence: git grep kLastTaskOfStage
+[PASS] C1 header removed: GeneratedLlamaRuntime.cuh absent and unincluded
+         evidence: /root/TileMega/include/tilemega/Codegen/tasks/GeneratedLlamaRuntime.cuh
+[PASS] C1 build: tilemega-compile builds from the current tree
+         evidence: /root/TileMega/build-portable
+[PASS] C1 generated sources: gqa2=identical mha4=identical
+         evidence: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/c1
+[PASS] C1 ctest: 100% tests passed, 0 tests failed out of 44
+         evidence: /root/TileMega/build-portable
+
+VERIFY gates=25 hard=25 failed=1 list=D1-d

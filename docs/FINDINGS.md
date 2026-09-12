@@ -2655,3 +2655,149 @@ first would skip required waits. With a window W, lifting or elision is sound
 only from slots i ≤ j − W; nearer producers must become local dependencies.
 EX-E2's negative control must demonstrate the failure. Skeleton impact: §5.7.3
 L-d, §8.10.
+
+## F-131 — `%globaltimer` is a device-wide 1024 ns ruler; `clock64` is fine but per-SM
+
+✅ Measured before any trace v2 number was interpreted
+(`docs/experiments/TRACE_V2/resolution.md`, RTX 4090, driver 610.43.02).
+`%globaltimer`'s adjacent-delta minimum, median, p99 and maximum are all
+**1024 ns**, 98.2949% of back-to-back reads return an unchanged value, and no
+read ever went backwards. It carries no per-SM offset: 128 CTAs on 128 distinct
+SMs, released from one software barrier, read a bit-identical value (spread
+0 ns). `clock64` is the mirror image — 40 cycles (≈ 16 ns) effective resolution,
+but at one instant its readings differ across SMs by 3.54 × 10⁹ cycles (≈ 1.41 s)
+and its rate follows DVFS. Fitting each SM against the shared globaltimer ruler
+over 256 anchors recovers rates agreeing to 0.006% and leaves a per-SM offset
+uncertainty of 18.99 ns (1σ); the worst-SM fit residual, 303.8 ns RMS, matches
+the 295.6 ns predicted for uniform quantization over a 1024 ns tick, so the
+residual *is* the quantization and no drift term is detectable on top of it.
+Consequence: §3.5's conditional branch applies, `TaskTraceV2` carries
+`run_begin_clk`/`run_end_clk`, and a per-hop figure of one or two ticks reports
+the clock, not the hop. Quantization by a floor is monotone, so a negative hop
+would still be a real ordering violation rather than a clock artifact.
+
+## F-132 — Trace v2 perturbs L2 by 1.7% and reconstructs it to 2.1–3.4%, but only once the publish term is charged to the producer
+
+✅ Paired 25 rounds in one session with arm rotation, one fresh process per
+round (`TRACE_V2/raw/perturbation.txt`): `l2_ms` median ratio on/off is 1.0157,
+1.0167, 1.0163, 1.0149 for gqa2/4, gqa2/128, mha4/4, mha4/128 — worst 1.0167
+against the 1.02 gate. Correctness with the instrumented build is 50/50 fresh
+processes in all four cells, and with `TILEMEGA_TRACE_V2` at its default 0 the
+SASS of both reference kernels is byte-identical to the baseline
+(`TRACE_V2/sass_identity/`, both diffs empty, 6802420 bytes each).
+
+✅ Gate D1-d **fails as defined**: a critical path whose node weight is the
+measured `run_end − run_begin` and whose cross-worker edge weight is the
+measured hop p50 reconstructs only 87.6%, 85.5%, 87.9% and 86.7% of measured
+`l2_ms` (errors 12.42%, 14.51%, 12.10%, 13.27% against a 5% threshold). The
+definition was not relaxed; the residual was measured instead. Decomposing the
+reconstructed chain into its measured parts (task, wait, pre-run barrier,
+publish, gap) sums exactly to the chain span, and the single term the §3.6
+node weight omits is the producer's own notify cost `publish_end − run_end`,
+which is 43–106 µs per chain. Restoring only that term moves the error to
+3.10%, 3.17%, 2.08% and 2.14%. ⚠️ Inferred: §3.6's node definition, not the
+reconstruction method, is what misses 5%; a chain-level critical path must
+charge publish to the producer because the consumer cannot start until the
+publish lands.
+
+## F-133 — Per-hop latency is at or below the clock tick; synchronization is not what L2 is spending its time on
+
+✅ Over every traced slot with a non-empty wait set, `hop(j) = ready(j) −
+max publish(producers)` has p50 = 1024 ns in all four cells — exactly one
+globaltimer tick, i.e. at or under the measurement floor (F-131). p90 is 1024,
+2048, 1024 and 7168 ns; the maximum is 46–54 µs. The count of `hop(j) < 0` is
+**0** in all four cells (gate D1-e). The corresponding bounds agree:
+`cp_lb_sync − cp_lb_nosync`, the entire cost of charging every cross-worker edge
+its measured hop p50 along the critical path, is 10.24 µs in every cell — 0.8%
+to 2.3% of measured `l2_ms`. Consequence: F-126's structural bound is not
+merely an upper bound on what removing synchronization could buy, it is close
+to tight on the critical path itself. G4's per-task publish protocol is
+expensive per *task* (F-132: 43–106 µs of publish along one chain) without the
+*hop* it produces being long.
+
+## F-134 — L2's time is ownership concentration, not synchronization: the busiest worker's own queue is 81–85% of the kernel
+
+✅ From the trace v2 dumps (`TRACE_V2/analysis.md`): `queue_lb`, the sum of
+measured run durations on the single busiest worker, is 0.3666, 0.5304, 0.7485
+and 1.0752 ms against measured `l2_ms` of 0.4516, 0.6267, 0.9020 and 1.2780 ms
+— 81.2%, 84.6%, 83.0% and 84.1%. The work bound `Σ run / grid` is 1.5–17.8% of
+measured, and the critical-path bounds are 22–32%. So no bound except the
+per-worker queue is anywhere near the measurement, and the one that is comes
+from how tasks were handed out.
+
+✅ The mechanism is visible directly. At seq=4 only **16 of 256** workers
+receive any task at all, because `task_owner[stage][task] = physical_worker[task
+% grid]` restarts at worker 0 in every stage and the reference stages have 2–8
+active tasks. Per-worker idle fraction is 74.9% and 72.2% at seq=4 and 82.5%
+and 82.1% at seq=128. Head-of-line blocking that is provably reclaimable — the
+worker is stalled on its queue head while a later task in its own queue already
+has all producers published — totals 18.85%, 52.99%, 56.80% and 63.98% of all
+stall time, and at gqa2/128 and mha4/128 every one of the 256 workers
+contributes some.
+
+✅ The real-width arm makes it worse, not better: a 4-layer, hidden 4096,
+intermediate 14336, 32/8-head model traced at seq ∈ {4, 128}
+(`PLACE_ROTATE/raw/realwidth/`) has `queue_lb` at 6.0436 of 6.2312 ms and
+7.9534 of 8.5492 ms — **97.0% and 93.0%** of measured. So the concentration is
+not an artifact of a 2-layer reference model, and G12's extrapolation risk does
+not apply to this particular finding. This confirms the ⚠️ attribution F-129
+left open and gives G2 and G10 measured numbers. Skeleton impact: §5.7.4,
+§5.7.5.
+
+## F-135 — Cross-stage continuous round robin removes the concentration and is 25–35% faster on the correct kernel
+
+✅ `TILEMEGA_PLACEMENT=5` starts stage *s*'s round-robin where the previous
+stage in execution order stopped: `base[s] = (Σ_{i < pos(s)} active_tasks(
+stage_order[i])) mod grid`, leaving the CTA-to-SM map, the stage-major queue
+order, the window and the whole synchronization protocol untouched. Host-side
+statistics over the exact runtime task DAG (`PLACE_ROTATE/raw/place_stats.txt`):
+maximum queue length falls 30 → 1, 34 → 18, 60 → 2 and 80 → 47, while
+cross-worker edges rise by 0.005% to 17% (1108 → 1292, 545140 → 545252,
+3604 → 4108, 2149540 → 2149788). Locality was never there to lose: the
+cross-worker edge fraction was already 95.1–99.6% under mode 0.
+
+✅ Correctness is 50/50 fresh processes for both modes, both models, seq ∈ {4,
+128}. Online, 25 paired rounds per cell with the arm × placement combination
+rotated by `(round + slot) % 8`, one fresh process per round: the `full` arm —
+the real kernel, `RESULT status=PASS` — gives mode-5/mode-0 `l2_ms` median
+ratios of 0.6582, 0.7421, 0.6521 and 0.7461, pooled **0.6705**, bootstrap 95% CI
+[0.6598, 0.7392], Wilcoxon p = 4.0e-18 over 100 pairs. With synchronization
+removed (`neither`, an unsafe probe and not a valid kernel) the ratio is 0.2240
+[0.1891, 0.2791]. ⚠️ Inferred from the gap between those two: rotation exposes
+parallelism that the current per-task publish protocol then partly re-serializes,
+which is the EX-E3 question, not a placement question.
+
+## F-136 — Rescheduling headroom is 2.3–5.8×, and it is reachable only through a Plan the solver owns
+
+✅ An earliest-finish-time list schedule over the exact runtime task DAG, using
+measured task durations, the measured hop p50 on every cross-worker edge, zero
+on same-worker edges, and free placement over the resident workers
+(`PLACE_ROTATE/headroom.md`) reaches 0.1526, 0.2673, 0.1546 and 0.3533 ms
+against measured 0.4516, 0.6267, 0.9020 and 1.2780 ms — 0.34, 0.43, 0.17 and
+0.28 of measured. On gqa2/4 it uses 118 workers where the shipped placement
+uses 16. The mandatory real-width cells agree: 1.5985 ms against 6.2312 ms
+(0.26) at seq=4 and 3.3065 ms against 8.5492 ms (0.39) at seq=128. This is an
+optimistic bound: it says what rescheduling alone could buy if the executor
+could run any ready task, and it says nothing about legality under today's
+strictly FIFO queue (G3, F-130).
+
+stated, worth recording because it cost a run: the real-width cells first came
+back FAIL because `build-phase12/tools/tilemega-compile` predates the schedule
+table in `RuntimeVariantDesc` and emits an initializer that no longer compiles.
+The generator, not the model, was stale; `realwidth.sh` now defaults to the
+current-tree build.
+
+✅ The fork rule fixed before measurement (`PLACE_ROTATE/fork.py`, §4.4)
+adjudicates from the pooled online medians:
+
+```
+FORK rule=2 r_neither=0.2240 ci=[0.1891,0.2791] r_full=0.6705 ci=[0.6598,0.7392] cells=4
+```
+
+Rule 2 — placement gain is large and real, and it does *not* survive intact
+into the correct kernel — routes the next round to **EX-E1** (a Plan contract
+the solver writes and the host materializes) and **EX-S2** (EFT placement and
+ordering). Consequence for G1: mode 5 is a hard-coded host heuristic behind a
+compile macro, exactly the shape F-127 says the contract cannot express; the
+measured 0.67 is therefore a lower bound on what an expressible plan is worth,
+not an implementation to keep.

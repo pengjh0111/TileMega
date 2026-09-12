@@ -272,15 +272,15 @@
 | ID | 差距 | 证据（标注） | 影响 | 承接 |
 |---|---|---|---|---|
 | G1 | L2→L1 契约没有 Place 通道 | ✅ `Frontend.cpp` 以 `map=[0]`、`cluster=1` 生成 `tilemega.placement`，没有求解器写回；`Codegen.cpp::BuildVariantSchedule` 在生成期计算 stage 置换；`ScheduleStageDesc` 只含 `{stage, dependency_begin, dependency_count}`（F-127） | 求解器无法表达 task 级计划 | EX-E1 |
-| G2 | 默认归属与 L1 相同，队列 stage-major | ✅ `harness::Create()` 的 `task_owner` 初始化与物化循环；⚠️ inferred：同步零成本时存在结构上界（F-126） | L2 至多只能省掉 barrier | EX-D2、EX-E1、EX-S2 |
+| G2 | 默认归属与 L1 相同，队列 stage-major | ✅ `harness::Create()` 的 `task_owner` 初始化与物化循环；⚠️ inferred：同步零成本时存在结构上界（F-126）；✅ 实测：`queue_lb` 占实测 `l2_ms` 的 81.2%/84.6%/83.0%/84.1%，seq=4 时 256 个 worker 只有 16 个拿到 task，最长队列 30/34/60/80（F-134） | L2 至多只能省掉 barrier；✅ 跨 stage 连续轮询（mode 5）把最长队列降到 1/18/2/47，`full` 臂配对中位比 0.6705 CI [0.6598,0.7392]（F-135） | EX-D2 已验证；EX-E1、EX-S2 承接 |
 | G3 | 严格 FIFO（W=1），存在 HOL | ✅ `tilemega_l2_kernel` | 放置改变之后才显著；对代价模型误差没有容忍度 | EX-E2 |
 | G4 | 每个 task 的发布协议偏重 | ✅ `NotifyTask`、`ArriveEvent`、`EventPoll`；每 task 最多 5 次 CTA 屏障（skeleton §5.5.1）；✅ 测量：notify 是 L2 超出 L1 的最大正项（`L2_ATTRIB`） | 每跳成本高于 barrier | EX-E3 |
 | G5 | 等待提升与本地省略依赖 FIFO | ✅ `seen[worker]`、`per_group == 1 && owner == worker`；⚠️ inferred：一旦乱序即失效（F-130） | 阻碍窗口执行与动态执行 | EX-E2 |
 | G6 | 没有跨 task 预取 | ✅ `GemmStageTaskBody::RunTask`；wait 位于整个 body 之前 | 同步延迟与加载延迟完全暴露在关键路径上 | EX-E4 |
-| G7 | trace 不足 | ✅ `TaskTrace{start,end}` 由全局原子取值 | 无法测 HOL、每跳延迟与关键路径 | EX-D1 |
+| G7 | ~~trace 不足~~ 已补齐 | ✅ trace v2（`TILEMEGA_TRACE_V2`，默认关、关时 SASS 逐字节不变）逐 slot 记录 wait/ready/run/publish 与 `%smid`，每事件行记录发布时刻；扰动中位比 ≤ 1.0167；`%globaltimer` 实测 1024 ns、跨 SM 偏移 0 ns（F-131） | HOL、每跳延迟与关键路径已可测；仅 §3.6 节点定义漏计 publish 导致重建误差 12%–15%（F-132） | EX-D1 已验证 |
 | G8 | 求解目标为 L1 | ✅ `ChainDP::Solve`（F-128） | 配置是 L1 最优，L2 最优性未经检验 | EX-S3 |
 | G9 | L2 价格是计数 × 速率 | ✅ `CostModel::EventNs` | 预测不了重叠，也预测不了放置引入的串行化（F-118 的方向与预测相反） | EX-S1 |
-| G10 | balanced 贪心以 affinity 优先 | ✅ 机制；⚠️ inferred 归因（F-129） | 可能把整个 stage 压到少数 worker 上 | EX-S2 |
+| G10 | balanced 贪心以 affinity 优先 | ✅ 机制；~~⚠️ inferred 归因~~ ✅ 归因已实测：可回收的 HOL 阻塞占停顿时间的 18.85%/52.99%/56.80%/63.98%，EFT 重排可达实测的 0.17–0.43 倍（F-134、F-136） | 可能把整个 stage 压到少数 worker 上 | EX-S2 |
 | G11 | κ 为全局编译宏，κ=0 为聚合特例 | ✅ `TILEMEGA_EVENT_KAPPA`；F-105 | κ 不能按 stage 选择 | EX-S3 |
 | G12 | 参考 fixture 处于纯延迟区 | ⚠️ inferred（权重字节未核实） | 结论存在外推风险 | EX-V1 |
 | G13 | SIMT task 共用 GEMM 的启动配置 | stated：128 线程、212 寄存器、2 CTA/SM（F-90、`PLACE/round5_balanced_result.md`） | 访存型 task 占用率低 | 在 EX-V1 中观测；若成立则另立条目 |
