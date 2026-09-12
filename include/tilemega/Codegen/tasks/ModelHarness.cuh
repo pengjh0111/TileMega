@@ -43,6 +43,10 @@
 #include <set>
 #include <string>
 #include <vector>
+#if TILEMEGA_TRACE_V2
+#include <filesystem>
+#include <system_error>
+#endif
 
 #define TILEMEGA_CUDA_CHECK(expr) do { cudaError_t e = (expr); \
   if (e != cudaSuccess) { std::fprintf(stderr, "%s:%d: %s\n", __FILE__, \
@@ -252,6 +256,24 @@ __host__ __device__ inline int CeilDiv(int numerator, int denominator) {
 /// every fine group, keeping one task's descriptor count O(CG in-edges).
 #ifndef TILEMEGA_EVENT_KAPPA
 #define TILEMEGA_EVENT_KAPPA 1
+#endif
+
+#if TILEMEGA_TRACE_V2
+/// %globaltimer is one counter broadcast to every SM, so unlike clock64 it is
+/// directly comparable across workers.  It ticks in 1024 ns steps on sm_89
+/// (TRACE_V2/resolution.md), which is why clock64 is recorded beside it for
+/// the run interval, where the two reads are on one SM and need no calibration.
+__device__ inline unsigned long long TraceNow() {
+  unsigned long long t;
+  asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t) :: "memory");
+  return t;
+}
+
+__device__ inline unsigned int TraceSmid() {
+  unsigned int s;
+  asm volatile("mov.u32 %0, %%smid;" : "=r"(s));
+  return s;
+}
 #endif
 
 /// L1 uses the first stage_count counters. L2 follows with a runtime-sized
@@ -540,6 +562,12 @@ __device__ inline void ArriveEvent(Params const& p, EventCounter* events,
   if (ticket + 1ull == triggers * (iteration + 1ull)) {
     __threadfence();
     TILEMEGA_GENERATED_NOTIFY_global(&events[index].epoch, iteration + 1ull);
+#if TILEMEGA_TRACE_V2
+    // Only the last arriver reaches here, so this plain store has exactly one
+    // writer per event and needs no atomic.  It is the sole source of the
+    // instant a consumer could first have been released.
+    if (p.event_publish != nullptr) p.event_publish[index] = TraceNow();
+#endif
   }
 }
 
@@ -682,17 +710,51 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
   std::uint32_t const last = params->schedule_offsets[worker + 1];
   for (std::uint32_t slot = first; slot < last; ++slot) {
     TaskRef const task = params->schedule[slot];
+#if TILEMEGA_TRACE_V2
+    // Every stamp is thread 0's own plain store into this slot's row: no
+    // atomic, no added barrier, and nothing written inside a polling loop.
+    if (params->task_trace_v2 != nullptr && threadIdx.x == 0)
+      params->task_trace_v2[slot].wait_begin = TraceNow();
+#endif
     WaitTaskDependencies(*params, events, task, iteration);
+#if TILEMEGA_TRACE_V2
+    // `ready` follows the wait's own __syncthreads()/__threadfence(), so it
+    // includes them; the offline report says so rather than subtracting them.
+    if (params->task_trace_v2 != nullptr && threadIdx.x == 0)
+      params->task_trace_v2[slot].ready = TraceNow();
+#endif
     if (params->task_trace != nullptr && threadIdx.x == 0)
       params->task_trace[slot].start =
           atomicAdd(params->trace_sequence, 1ull);
     __syncthreads();
+#if TILEMEGA_TRACE_V2
+    if (params->task_trace_v2 != nullptr && threadIdx.x == 0) {
+      TaskTraceV2& row = params->task_trace_v2[slot];
+      row.run_begin = TraceNow();
+      row.run_begin_clk = static_cast<unsigned long long>(clock64());
+      row.smid = TraceSmid();
+      row.worker = worker;
+      row.stage = task.stage;
+      row.logical_task = task.logical_task;
+    }
+#endif
     RunTask(*params, task.stage, task.logical_task, smem);
     __syncthreads();
+#if TILEMEGA_TRACE_V2
+    if (params->task_trace_v2 != nullptr && threadIdx.x == 0) {
+      TaskTraceV2& row = params->task_trace_v2[slot];
+      row.run_end = TraceNow();
+      row.run_end_clk = static_cast<unsigned long long>(clock64());
+    }
+#endif
     if (params->task_trace != nullptr && threadIdx.x == 0)
       params->task_trace[slot].end =
           atomicAdd(params->trace_sequence, 1ull);
     NotifyTask(*params, events, task.stage, task.logical_task, iteration);
+#if TILEMEGA_TRACE_V2
+    if (params->task_trace_v2 != nullptr && threadIdx.x == 0)
+      params->task_trace_v2[slot].publish_end = TraceNow();
+#endif
   }
   if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled) {
     // No CTA may leave while another still accesses its DSMEM allocation.
@@ -832,6 +894,14 @@ struct DeviceModel {
   std::size_t l2_smem_bytes = sizeof(TaskSmem);
   TaskTrace* device_task_trace = nullptr;
   unsigned long long* device_trace_sequence = nullptr;
+#if TILEMEGA_TRACE_V2
+  TaskTraceV2* device_task_trace_v2 = nullptr;
+  unsigned long long* device_event_publish = nullptr;
+  bool trace_v2_enabled = false;
+  /// active_tasks(stage) kept for the dump: events.tsv reports each row's
+  /// fan-in, which is what the last-arriver condition is counted against.
+  std::vector<std::uint32_t> trace_v2_active_tasks;
+#endif
   std::vector<std::uint32_t> stage_order;
   std::uint32_t schedule_max_span = 0;
   std::uint32_t schedule_max_worker_span = 0;
@@ -844,6 +914,24 @@ struct DeviceModel {
   EventCounter* events = nullptr;
   std::size_t event_count = 0;
 };
+
+#if TILEMEGA_TRACE_V2
+/// Trace v2 allocates and dumps only when asked at run time, so one build
+/// serves both the traced and the untraced arm of the perturbation pairing.
+inline bool TraceV2Enabled() {
+  char const* setting = std::getenv("TILEMEGA_TRACE_V2");
+  return setting != nullptr && std::atoi(setting) != 0;
+}
+
+inline void ZeroTraceV2(DeviceModel& model) {
+  if (model.device_task_trace_v2 != nullptr)
+    TILEMEGA_CUDA_CHECK(cudaMemset(model.device_task_trace_v2, 0,
+                                   model.schedule.size() * sizeof(TaskTraceV2)));
+  if (model.device_event_publish != nullptr)
+    TILEMEGA_CUDA_CHECK(cudaMemset(model.device_event_publish, 0,
+                                   model.event_count * sizeof(unsigned long long)));
+}
+#endif
 
 /// Bind the symbolic dimensions.  The generated tables never carry a token
 /// count; it arrives with the workload, here from the fixture manifest.
@@ -1365,6 +1453,9 @@ inline DeviceModel Create(ModelSpec const& spec,
   }
   for (std::uint32_t stage = 0; stage < model.stages.size(); ++stage) {
     int const count = active_tasks(stage);
+#if TILEMEGA_TRACE_V2
+    model.trace_v2_active_tasks.push_back(static_cast<std::uint32_t>(count));
+#endif
 #if TILEMEGA_EVENT_KAPPA > 0
     std::uint32_t groups = 0;
     if (model.event_flags[stage] & kNeedsAggregateEvent) ++groups;
@@ -1603,6 +1694,10 @@ inline DeviceModel Create(ModelSpec const& spec,
       model.cluster_shard_indices.data(), model.cluster_shard_indices.size() * sizeof(std::uint32_t)));
 #endif
 #endif
+#if TILEMEGA_TRACE_V2
+  // Allocation waits for PrepareEvents, which is where event_count is known.
+  model.trace_v2_enabled = TraceV2Enabled();
+#endif
   if (std::getenv("TILEMEGA_TASK_TRACE") != nullptr) {
     TILEMEGA_CUDA_CHECK(cudaMalloc(
         &model.device_task_trace, model.schedule.size() * sizeof(TaskTrace)));
@@ -1653,6 +1748,20 @@ inline void PrepareEvents(DeviceModel& model, int grid) {
                       model.event_offsets.back();
   TILEMEGA_CUDA_CHECK(
       cudaMalloc(&model.events, sizeof(EventCounter) * model.event_count));
+#if TILEMEGA_TRACE_V2
+  if (model.trace_v2_enabled && model.device_task_trace_v2 == nullptr) {
+    TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_task_trace_v2,
+                                   model.schedule.size() * sizeof(TaskTraceV2)));
+    TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_event_publish,
+                                   model.event_count * sizeof(unsigned long long)));
+    model.params.task_trace_v2 = model.device_task_trace_v2;
+    model.params.event_publish = model.device_event_publish;
+    // device_params was uploaded by Create, before event_count existed.
+    TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params, &model.params,
+                                   sizeof(Params), cudaMemcpyHostToDevice));
+  }
+  ZeroTraceV2(model);
+#endif
 }
 
 /// Restore every buffer to its pre-run contents so two launches see the same
@@ -1716,6 +1825,139 @@ inline std::vector<std::vector<ModelElement>> Download(DeviceModel const& model)
   }
   return output;
 }
+
+#if TILEMEGA_TRACE_V2
+/// Write the four tables §3.4 fixes.  Nothing here is summarised: the offline
+/// analysis is a separate script so the raw stamps stay auditable.
+inline void DumpTraceV2(DeviceModel const& model, char const* fixture_dir,
+                        int grid, float l1_ms, float l2_ms,
+                        char const* traced_launch) {
+  if (!model.trace_v2_enabled || model.device_task_trace_v2 == nullptr) return;
+  char const* dir = std::getenv("TILEMEGA_TRACE_V2_OUT");
+  if (dir == nullptr) return;
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+
+  std::vector<TaskTraceV2> slots(model.schedule.size());
+  TILEMEGA_CUDA_CHECK(cudaMemcpy(slots.data(), model.device_task_trace_v2,
+                                 slots.size() * sizeof(TaskTraceV2),
+                                 cudaMemcpyDeviceToHost));
+  std::vector<unsigned long long> publish(model.event_count);
+  TILEMEGA_CUDA_CHECK(cudaMemcpy(publish.data(), model.device_event_publish,
+                                 publish.size() * sizeof(unsigned long long),
+                                 cudaMemcpyDeviceToHost));
+
+  std::string const base = std::string(dir) + "/";
+  auto open = [&](char const* name) {
+    std::FILE* f = std::fopen((base + name).c_str(), "w");
+    if (f == nullptr) {
+      std::fprintf(stderr, "cannot write %s%s\n", base.c_str(), name);
+      std::exit(2);
+    }
+    return f;
+  };
+
+  std::FILE* f = open("slots.tsv");
+  std::fprintf(f, "slot\tworker\tstage\tlogical_task\tsmid\twait_begin\tready\t"
+                  "run_begin\trun_end\tpublish_end\twait_begin_idx\twait_count\t"
+                  "dependency_begin\tdependency_count\trun_begin_clk\trun_end_clk\n");
+  for (std::size_t i = 0; i < slots.size(); ++i) {
+    TaskTraceV2 const& r = slots[i];
+    TaskRef const& t = model.schedule[i];
+    std::fprintf(f, "%zu\t%u\t%u\t%u\t%u\t%llu\t%llu\t%llu\t%llu\t%llu\t%u\t%u\t%u\t%u\t%llu\t%llu\n",
+                 i, r.worker, t.stage, t.logical_task, r.smid, r.wait_begin,
+                 r.ready, r.run_begin, r.run_end, r.publish_end, t.wait_begin,
+                 t.wait_count, t.dependency_begin, t.dependency_count,
+                 r.run_begin_clk, r.run_end_clk);
+  }
+  std::fclose(f);
+
+  // TaskWait carries only (producer, group); the row a device poll lands on is
+  // recomputed here with EventIndex's formula so the join is explicit offline.
+  auto event_index = [&](std::uint32_t stage, std::uint32_t group) {
+    std::uint32_t const row =
+        static_cast<std::uint32_t>(model.stages.size()) + model.event_offsets[stage];
+#if TILEMEGA_EVENT_KAPPA > 0
+    return group == kWholeStageEventGroup
+               ? row
+               : row + ((model.event_flags[stage] & kNeedsAggregateEvent) ? 1u : 0u) +
+                     group;
+#else
+    (void)group;
+    return row;
+#endif
+  };
+
+  f = open("waits.tsv");
+  std::fprintf(f, "wait_index\tproducer\tgroup\tevent_index\n");
+  for (std::size_t i = 0; i < model.task_waits.size(); ++i) {
+    TaskWait const& w = model.task_waits[i];
+    std::fprintf(f, "%zu\t%u\t%u\t%u\n", i, w.producer, w.group,
+                 event_index(w.producer, w.group));
+  }
+  std::fclose(f);
+
+  f = open("events.tsv");
+  std::fprintf(f, "event_index\tstage\tgroup\tfanin\tpublish_ns\n");
+  // L1 owns the first stage_count rows and L2 never publishes them; they are
+  // listed with fan-in 0 so event_index stays the array index.
+  for (std::uint32_t stage = 0; stage < model.stages.size(); ++stage)
+    std::fprintf(f, "%u\t%u\t%u\t0\t%llu\n", stage, stage,
+                 kWholeStageEventGroup, publish[stage]);
+  for (std::uint32_t stage = 0; stage < model.stages.size(); ++stage) {
+    std::uint32_t const produced = model.trace_v2_active_tasks[stage];
+    std::uint32_t row =
+        static_cast<std::uint32_t>(model.stages.size()) + model.event_offsets[stage];
+    if (model.event_flags[stage] & kNeedsAggregateEvent) {
+      std::fprintf(f, "%u\t%u\t%u\t%u\t%llu\n", row, stage,
+                   kWholeStageEventGroup, produced, publish[row]);
+      ++row;
+    }
+#if TILEMEGA_EVENT_KAPPA > 0
+    if (model.event_flags[stage] & kNeedsFineEvents)
+      for (std::uint32_t begin = 0; begin < produced;
+           begin += TILEMEGA_EVENT_KAPPA, ++row)
+        std::fprintf(f, "%u\t%u\t%u\t%u\t%llu\n", row, stage,
+                     begin / TILEMEGA_EVENT_KAPPA,
+                     std::min<std::uint32_t>(TILEMEGA_EVENT_KAPPA, produced - begin),
+                     publish[row]);
+#endif
+  }
+  std::fclose(f);
+
+  char const* policy = std::getenv("TILEMEGA_SCHEDULE_POLICY");
+  char const* name = std::getenv("TILEMEGA_MODEL_NAME");
+  char const* commit = std::getenv("TILEMEGA_COMMIT");
+  char const* tick = std::getenv("TILEMEGA_GLOBALTIMER_NS");
+  benchmark::Settings const timing;
+  f = open("meta.tsv");
+  std::fprintf(f, "key\tvalue\n");
+  std::fprintf(f, "model\t%s\n", name != nullptr ? name : "unset");
+  std::fprintf(f, "fixture\t%s\n", fixture_dir);
+  std::fprintf(f, "seq\t%d\n", model.params.dims.seq);
+  std::fprintf(f, "past\t%d\n", model.params.dims.past);
+  std::fprintf(f, "grid\t%d\n", grid);
+  std::fprintf(f, "kappa\t%d\n", TILEMEGA_EVENT_KAPPA);
+  std::fprintf(f, "placement\t%d\n", TILEMEGA_PLACEMENT);
+  std::fprintf(f, "schedule_policy\t%s\n",
+               policy != nullptr ? policy : "critical_path");
+  std::fprintf(f, "stage_count\t%zu\n", model.stages.size());
+  std::fprintf(f, "slot_count\t%zu\n", model.schedule.size());
+  std::fprintf(f, "event_count\t%zu\n", model.event_count);
+  std::fprintf(f, "l2_ms\t%.6f\n", l2_ms);
+  std::fprintf(f, "l1_ms\t%.6f\n", l1_ms);
+  std::fprintf(f, "traced_launch\t%s\n", traced_launch);
+  std::fprintf(f, "benchmark_warmup\t%d\n", timing.warmup);
+  std::fprintf(f, "benchmark_repeat\t%d\n", timing.repeat);
+  std::fprintf(f, "globaltimer_resolution_ns\t%s\n",
+               tick != nullptr ? tick : "unset");
+  std::fprintf(f, "commit\t%s\n", commit != nullptr ? commit : "unset");
+  std::fclose(f);
+
+  std::printf("E2E_TRACE_V2 slots=%zu events=%zu traced_launch=%s out=%s\n",
+              slots.size(), model.event_count, traced_launch, dir);
+}
+#endif
 
 inline void ReportTaskTrace(DeviceModel const& model) {
   if (model.device_task_trace == nullptr) return;
@@ -2060,10 +2302,21 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   float l1_ms = benchmark::Forward(timing, reset_forward,
       [&](bool timed) { return LaunchL1(model, grid, 0, timed); });
   auto l1 = Download(model);
+#if TILEMEGA_TRACE_V2
+  // Zeroed outside the timed region; every sample of the Forward below
+  // overwrites the rows, so what is dumped is its last timed launch, and
+  // Reset() clears the event counters before each, keeping the slot stamps and
+  // the publish stamps from one and the same launch.
+  ZeroTraceV2(model);
+#endif
   float l2_ms = benchmark::Forward(timing, reset_forward,
       [&](bool timed) { return LaunchL2(model, grid, 0, timed); });
   auto l2 = Download(model);
   ReportTaskTrace(model);
+#if TILEMEGA_TRACE_V2
+  DumpTraceV2(model, fixture_dir, grid, l1_ms, l2_ms,
+              "l2_forward_last_timed_sample");
+#endif
 
   // §8.2: the counters are monotonic, so a second iteration must be correct
   // *without* clearing them -- `needed` scales with the iteration instead.

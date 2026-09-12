@@ -207,6 +207,30 @@ struct TaskTrace {
   unsigned long long end;
 };
 
+#ifndef TILEMEGA_TRACE_V2
+#define TILEMEGA_TRACE_V2 0
+#endif
+
+/// Trace v2 (EX-D1).  Where TaskTrace orders task boundaries, this records
+/// when they happened, so a per-hop latency can be reconstructed offline as
+/// `ready` minus the producing event's publish stamp.  The field order is the
+/// offline scripts' contract; the two clock64 columns are appended because the
+/// measured %globaltimer tick is 1024 ns (TRACE_V2/resolution.md), far too
+/// coarse for a task duration.
+struct TaskTraceV2 {
+  unsigned long long wait_begin;   ///< before WaitTaskDependencies
+  unsigned long long ready;        ///< after WaitTaskDependencies returns
+  unsigned long long run_begin;    ///< after the pre-run barrier
+  unsigned long long run_end;      ///< after RunTask and its barrier
+  unsigned long long publish_end;  ///< after NotifyTask returns
+  unsigned int smid;               ///< %smid at run_begin
+  unsigned int worker;             ///< blockIdx.x
+  unsigned int stage;
+  unsigned int logical_task;
+  unsigned long long run_begin_clk;  ///< clock64 beside run_begin, same SM
+  unsigned long long run_end_clk;    ///< clock64 beside run_end, same SM
+};
+
 /// A tensor the harness downloads and compares against the L0 reference.
 struct OutputDesc {
   std::uint32_t buffer;
@@ -312,6 +336,13 @@ struct Params {
   std::uint32_t const* event_flags;
   TaskTrace* task_trace;                 ///< nullptr unless profiling
   unsigned long long* trace_sequence;    ///< nullptr unless profiling
+#if TILEMEGA_TRACE_V2
+  /// Guarded so a default build keeps the layout, and therefore the constant
+  /// bank offsets and the SASS, it had before trace v2 existed (H2).
+  TaskTraceV2* task_trace_v2;            ///< nullptr unless TILEMEGA_TRACE_V2=1
+  /// Stamped by the last arriver of each event; the sole source of hop times.
+  unsigned long long* event_publish;     ///< length event_count
+#endif
   std::uint32_t ownership_flags;
   EventFanIn const* event_fanin;
   ArrivalCounter* shard_arrivals;
