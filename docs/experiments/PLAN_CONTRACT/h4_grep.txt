@@ -1,0 +1,8 @@
+# E1-e (H4): no scheduling decision left in lib/Codegen/Codegen.cpp
+# verified 2026-09-12, commit e7b4c5cc + the step-4 test
+#
+# The one remaining hit is a consumption call: codegen asks lib/Solver for the
+# stage order and copies it into the variant (§8.11).
+
+$ grep -n "ListScheduler\|BalanceTaskPlacement\|BuildVariantSchedule\|Schedule(" lib/Codegen/Codegen.cpp
+384:        solver::BuildVariantStageSchedule(variant.dependencies, stages.size());

@@ -24,13 +24,9 @@ int StageOfNode(codegen::RuntimeTaskGraph const& graph, int node) {
 /// makes H2 and H3 byte identities hold by construction rather than by test.
 void NumberStageMajor(PlanRequest const& request, MaterializedPlan* out) {
   std::vector<int> next(request.grid, 0);
-  out->queue.assign(request.grid, {});
   for (std::uint32_t stage : request.stage_order)
-    for (int task = 0; task < request.counts[stage]; ++task) {
-      int const worker = out->owner[stage][task];
-      out->slot[stage][task] = next[worker]++;
-      out->queue[worker].push_back({stage, task});
-    }
+    for (int task = 0; task < request.counts[stage]; ++task)
+      out->slot[stage][task] = next[out->owner[stage][task]]++;
 }
 
 }  // namespace
@@ -105,6 +101,48 @@ bool MaterializePlanPlacement(PlanRequest const& request, MaterializedPlan* out,
   }
 
   NumberStageMajor(request, out);
+  return BuildPlanQueues(request.counts, request.grid, out, error);
+}
+
+bool BuildPlanQueues(std::vector<int> const& counts, int grid,
+                     MaterializedPlan* plan, std::string* error) {
+  auto fail = [&](std::string message) {
+    if (error) *error = std::move(message);
+    return false;
+  };
+  plan->queue.assign(grid, {});
+  std::vector<std::vector<int>> slot_seen(grid);
+  for (std::size_t stage = 0; stage < counts.size(); ++stage)
+    for (int task = 0; task < counts[stage]; ++task) {
+      int const worker = plan->owner[stage][task];
+      if (worker < 0 || worker >= grid)
+        return fail("pi sent stage " + std::to_string(stage) + " task " +
+                    std::to_string(task) + " to worker " +
+                    std::to_string(worker) + ", outside the grid");
+      plan->queue[worker].push_back(
+          {static_cast<std::uint32_t>(stage), task});
+      slot_seen[worker].push_back(plan->slot[stage][task]);
+    }
+  for (int worker = 0; worker < grid; ++worker) {
+    auto& queue = plan->queue[worker];
+    std::vector<std::size_t> order(queue.size());
+    std::iota(order.begin(), order.end(), 0);
+    std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+      return slot_seen[worker][a] < slot_seen[worker][b];
+    });
+    auto sorted_slots = slot_seen[worker];
+    std::sort(sorted_slots.begin(), sorted_slots.end());
+    for (std::size_t i = 0; i < sorted_slots.size(); ++i)
+      if (sorted_slots[i] != static_cast<int>(i))
+        return fail("sigma on worker " + std::to_string(worker) +
+                    " is not a dense order: slot " +
+                    std::to_string(sorted_slots[i]) + " where " +
+                    std::to_string(i) + " was expected");
+    std::vector<PlanQueueItem> ordered;
+    ordered.reserve(queue.size());
+    for (std::size_t index : order) ordered.push_back(queue[index]);
+    queue = std::move(ordered);
+  }
   return true;
 }
 

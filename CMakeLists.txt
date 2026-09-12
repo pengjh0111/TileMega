@@ -515,6 +515,10 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(list_scheduler_test PRIVATE TileMega::tilemega)
   add_test(NAME list_scheduler COMMAND list_scheduler_test)
 
+  add_executable(plan_contract_test test/unit/plan_contract_test.cpp)
+  target_link_libraries(plan_contract_test PRIVATE TileMega::tilemega)
+  add_test(NAME plan_contract COMMAND plan_contract_test)
+
   add_executable(cluster_labeling_test test/unit/cluster_labeling_test.cpp)
   target_link_libraries(cluster_labeling_test PRIVATE TileMega::tilemega)
   add_test(NAME cluster_labeling COMMAND cluster_labeling_test)

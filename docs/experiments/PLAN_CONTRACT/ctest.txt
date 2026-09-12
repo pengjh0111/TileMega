@@ -1,0 +1,102 @@
+# E1-d (partial): full CTest on the plan contract tree
+# verified 2026-09-12, commit e7b4c5cc + test/unit/plan_contract_test.cpp,
+# build-portable, sm_89 (RTX 4090).  45/45 pass, including `plan_contract`.
+#
+# The SEQSCAN subset half of E1-d (seq {4,128,2048} x past {0,512}, 50/50 per
+# cell, both models) is run with the measurement round in ../PLACE_EFT/.
+
+Test project /root/TileMega/build-portable
+      Start  1: scalar_cost_errors
+ 1/45 Test  #1: scalar_cost_errors ...............   Passed    0.94 sec
+      Start  2: coupling_interface_gqa2
+ 2/45 Test  #2: coupling_interface_gqa2 ..........   Passed   18.32 sec
+      Start  3: coupling_interface_mha4
+ 3/45 Test  #3: coupling_interface_mha4 ..........   Passed   34.71 sec
+      Start  4: cg_lit
+ 4/45 Test  #4: cg_lit ...........................   Passed    0.19 sec
+      Start  5: target_spec
+ 5/45 Test  #5: target_spec ......................   Passed    0.01 sec
+      Start  6: target_audit
+ 6/45 Test  #6: target_audit .....................   Passed    2.37 sec
+      Start  7: coupling_types
+ 7/45 Test  #7: coupling_types ...................   Passed    0.12 sec
+      Start  8: table27
+ 8/45 Test  #8: table27 ..........................   Passed    0.24 sec
+      Start  9: semantics
+ 9/45 Test  #9: semantics ........................   Passed    0.27 sec
+      Start 10: incidence_identity
+10/45 Test #10: incidence_identity ...............   Passed    5.09 sec
+      Start 11: imported_incidence_identity
+11/45 Test #11: imported_incidence_identity ......   Passed    5.37 sec
+      Start 12: containment
+12/45 Test #12: containment ......................   Passed    0.19 sec
+      Start 13: event_synthesis
+13/45 Test #13: event_synthesis ..................   Passed    0.17 sec
+      Start 14: runtime_projection
+14/45 Test #14: runtime_projection ...............   Passed    1.25 sec
+      Start 15: task_element_work
+15/45 Test #15: task_element_work ................   Passed    2.34 sec
+      Start 16: op_arithmetic_audit
+16/45 Test #16: op_arithmetic_audit ..............   Passed    0.01 sec
+      Start 17: task_work_domains
+17/45 Test #17: task_work_domains ................   Passed    0.95 sec
+      Start 18: isl_relation
+18/45 Test #18: isl_relation .....................   Passed    0.30 sec
+      Start 19: layout_bridge
+19/45 Test #19: layout_bridge ....................   Passed    0.02 sec
+      Start 20: cg_attr_roundtrip
+20/45 Test #20: cg_attr_roundtrip ................   Passed    0.02 sec
+      Start 21: backend_query
+21/45 Test #21: backend_query ....................   Passed    0.01 sec
+      Start 22: cache_service_curve
+22/45 Test #22: cache_service_curve ..............   Passed    0.01 sec
+      Start 23: fusion_access
+23/45 Test #23: fusion_access ....................   Passed    0.08 sec
+      Start 24: lane_intersections
+24/45 Test #24: lane_intersections ...............   Passed    0.08 sec
+      Start 25: fusion_rewrite
+25/45 Test #25: fusion_rewrite ...................   Passed  125.56 sec
+      Start 26: fusion_written_price
+26/45 Test #26: fusion_written_price .............   Passed   23.11 sec
+      Start 27: fused_runtime_projection
+27/45 Test #27: fused_runtime_projection .........   Passed    0.23 sec
+      Start 28: exact_runtime_task_graph
+28/45 Test #28: exact_runtime_task_graph .........   Passed    0.07 sec
+      Start 29: fusion_batch_rewrite
+29/45 Test #29: fusion_batch_rewrite .............   Passed   12.51 sec
+      Start 30: fiber_sum
+30/45 Test #30: fiber_sum ........................   Passed    0.10 sec
+      Start 31: attention_work
+31/45 Test #31: attention_work ...................   Passed   39.25 sec
+      Start 32: chain_dp
+32/45 Test #32: chain_dp .........................   Passed    0.01 sec
+      Start 33: list_scheduler
+33/45 Test #33: list_scheduler ...................   Passed    0.01 sec
+      Start 34: plan_contract
+34/45 Test #34: plan_contract ....................   Passed    0.01 sec
+      Start 35: cluster_labeling
+35/45 Test #35: cluster_labeling .................   Passed    0.01 sec
+      Start 36: alignment_propagation
+36/45 Test #36: alignment_propagation ............   Passed    0.01 sec
+      Start 37: impl_contract
+37/45 Test #37: impl_contract ....................   Passed    0.12 sec
+      Start 38: task_body_contract
+38/45 Test #38: task_body_contract ...............   Passed    0.01 sec
+      Start 39: bf16_task_body_compile
+39/45 Test #39: bf16_task_body_compile ...........   Passed    0.01 sec
+      Start 40: fused_harness_compile
+40/45 Test #40: fused_harness_compile ............   Passed    0.01 sec
+      Start 41: frontend_import
+41/45 Test #41: frontend_import ..................   Passed    4.36 sec
+      Start 42: semantic_lifting
+42/45 Test #42: semantic_lifting .................   Passed    0.04 sec
+      Start 43: wiring_coupling
+43/45 Test #43: wiring_coupling ..................   Passed    0.44 sec
+      Start 44: frontend_degradation
+44/45 Test #44: frontend_degradation .............   Passed    0.01 sec
+      Start 45: isl_crosslink
+45/45 Test #45: isl_crosslink ....................   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) = 278.97 sec

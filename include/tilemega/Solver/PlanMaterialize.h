@@ -64,6 +64,14 @@ struct PlanRequest {
 bool MaterializePlanPlacement(PlanRequest const& request, MaterializedPlan* out,
                               std::string* error);
 
+/// Fill `plan->queue` from `plan->owner` and `plan->slot` alone, so sigma is
+/// the only thing that decides a worker's order and a mode is free to interleave
+/// stages.  False, with `*error` set, unless sigma is a dense permutation of
+/// [0, n) on every worker: anything else is not a total order and has no
+/// executable queue (§5.7.2).
+bool BuildPlanQueues(std::vector<int> const& counts, int grid,
+                     MaterializedPlan* plan, std::string* error);
+
 /// §5.7.3 L-a (the union of task edges and same-worker queue edges is acyclic)
 /// and L-c (a same-worker producer holds the smaller sigma).  L-b is checked
 /// before the grid is fixed (`ResidentScheduleLegal`), L-d collapses to the
