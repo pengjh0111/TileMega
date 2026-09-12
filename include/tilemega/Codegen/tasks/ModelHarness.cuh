@@ -1393,11 +1393,37 @@ inline DeviceModel Create(ModelSpec const& spec,
   for (int worker = 0; worker < grid; ++worker)
     physical_worker[HostPlacedBlock(worker, grid, blocks_per_sm)] = worker;
   std::vector<std::vector<int>> task_owner(model.stages.size());
+#if TILEMEGA_PLACEMENT == 5
+  // Cross-stage continuous round robin: stage s starts where stage s-1 stopped
+  // handing out workers, in execution order, so a short stage no longer parks
+  // every one of its tasks on the same low-numbered workers the stage before it
+  // used.  Only ownership moves; the CTA-to-SM map stays identity, the queues
+  // stay stage-major and the window stays 1.
+  std::vector<int> rotation_base(model.stages.size(), 0);
+  {
+    long long running = 0;
+    for (std::uint32_t stage : model.stage_order) {
+      rotation_base[stage] = static_cast<int>(running % grid);
+      running += active_tasks(stage);
+    }
+  }
+#endif
   for (std::uint32_t stage=0;stage<model.stages.size();++stage) {
     task_owner[stage].resize(active_tasks(stage));
     for (int task=0;task<active_tasks(stage);++task)
+#if TILEMEGA_PLACEMENT == 5
+      task_owner[stage][task]=physical_worker[(task+rotation_base[stage])%grid];
+#else
       task_owner[stage][task]=physical_worker[task%grid];
+#endif
   }
+#if TILEMEGA_PLACEMENT == 5
+  if (std::getenv("TILEMEGA_PLACEMENT_BASE_DUMP") != nullptr)
+    for (std::uint32_t i = 0; i < model.stage_order.size(); ++i)
+      std::printf("E2E_PLACE_BASE pos=%u stage=%u active=%d base=%d\n", i,
+                  model.stage_order[i], active_tasks(model.stage_order[i]),
+                  rotation_base[model.stage_order[i]]);
+#endif
 #if TILEMEGA_PLACEMENT == 4
   if (!runtime_variant.balanced_placement) {
     std::fprintf(stderr,"placement=4 requires balanced L-sched writeback\n");
@@ -1425,6 +1451,38 @@ inline DeviceModel Create(ModelSpec const& spec,
     std::exit(2);
   }
 #endif
+  {
+    // Edge-by-edge over the same runtime task DAG the balancer materializes, so
+    // the counts describe the tasks that actually run rather than the stage
+    // graph they came from.
+    std::vector<int> stats_counts;
+    for (std::uint32_t stage=0;stage<model.stages.size();++stage)
+      stats_counts.push_back(active_tasks(stage));
+    std::vector<RuntimeDependencyWindow> stats_windows;
+    for (auto const& edge:dependencies)
+      stats_windows.push_back({static_cast<int>(edge.producer),static_cast<int>(edge.consumer),
+          edge.map==StageDependency::Map::kAll,edge.div,edge.scale,edge.offset,edge.count});
+    auto stats_graph=MaterializeRuntimeTaskGraph(stats_counts,stats_windows,grid);
+    auto owner_of=[&](int node){
+      int const stage=static_cast<int>(std::upper_bound(stats_graph.stage_offsets.begin(),
+          stats_graph.stage_offsets.end(),node)-stats_graph.stage_offsets.begin()-1);
+      return task_owner[stage][node-stats_graph.stage_offsets[stage]];
+    };
+    long same_worker_edges=0,cross_worker_edges=0;
+    for (std::size_t producer=0;producer<stats_graph.successors.size();++producer)
+      for (int consumer:stats_graph.successors[producer])
+        (owner_of(static_cast<int>(producer))==owner_of(consumer) ? same_worker_edges
+                                                                 : cross_worker_edges)++;
+    std::vector<int> queue_length(grid,0);
+    for (auto const& stage:task_owner)
+      for (int owner:stage) ++queue_length[owner];
+    int max_queue=0;
+    for (int length:queue_length) max_queue=std::max(max_queue,length);
+    std::printf("E2E_PLACE_STATS placement=%d max_queue=%d same_worker_edges=%ld "
+                "cross_worker_edges=%ld base_rotation=%d\n",
+                TILEMEGA_PLACEMENT,max_queue,same_worker_edges,cross_worker_edges,
+                TILEMEGA_PLACEMENT==5?1:0);
+  }
   std::vector<std::vector<std::vector<int>>> owned(grid,
       std::vector<std::vector<int>>(model.stages.size()));
   for (std::size_t stage=0;stage<task_owner.size();++stage)
