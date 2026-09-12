@@ -14,6 +14,7 @@
 #include <tilemega/Codegen/RuntimeTaskGraph.h>
 #include <tilemega/Solver/BalancedPlacement.h>
 #include <tilemega/Solver/ListScheduler.h>
+#include <tilemega/Solver/PlanMaterialize.h>
 
 #include <tilemega/Codegen/tasks/AttentionChunkTaskBody.h>
 #include <tilemega/Codegen/tasks/ElementwiseTaskBody.h>
@@ -1392,85 +1393,108 @@ inline DeviceModel Create(ModelSpec const& spec,
   std::vector<int> physical_worker(grid);
   for (int worker = 0; worker < grid; ++worker)
     physical_worker[HostPlacedBlock(worker, grid, blocks_per_sm)] = worker;
-  std::vector<std::vector<int>> task_owner(model.stages.size());
-#if TILEMEGA_PLACEMENT == 5
-  // Cross-stage continuous round robin: stage s starts where stage s-1 stopped
-  // handing out workers, in execution order, so a short stage no longer parks
-  // every one of its tasks on the same low-numbered workers the stage before it
-  // used.  Only ownership moves; the CTA-to-SM map stays identity, the queues
-  // stay stage-major and the window stays 1.
-  std::vector<int> rotation_base(model.stages.size(), 0);
+
+  // §5.7.4: the Plan is the only schedule source here.  TILEMEGA_PLACEMENT
+  // still selects the CTA-to-SM map (Placement.cuh); 4 and 5 additionally name
+  // an ownership decision, so a Plan that disagrees with them is a build error
+  // rather than a silent override.
+  auto plan_mode = dialect::PlacementMode::kLegacyGridStride;
+#if TILEMEGA_PLACEMENT == 4
+  plan_mode = dialect::PlacementMode::kBalanced;
+#elif TILEMEGA_PLACEMENT == 5
+  plan_mode = dialect::PlacementMode::kRotate;
+#endif
+  std::vector<std::int64_t> plan_params;
   {
-    long long running = 0;
-    for (std::uint32_t stage : model.stage_order) {
-      rotation_base[stage] = static_cast<int>(running % grid);
-      running += active_tasks(stage);
+    auto const carried =
+        static_cast<dialect::PlacementMode>(runtime_variant.plan.mode);
+    if (carried != dialect::PlacementMode::kLegacyGridStride) {
+      if (plan_mode != dialect::PlacementMode::kLegacyGridStride &&
+          plan_mode != carried) {
+        std::fprintf(stderr,"compiled placement %d contradicts plan mode %s\n",
+                     TILEMEGA_PLACEMENT,dialect::PlacementModeName(carried));
+        std::exit(2);
+      }
+      plan_mode = carried;
+      plan_params.assign(runtime_variant.plan.params,
+                         runtime_variant.plan.params + runtime_variant.plan.param_count);
+    }
+    if (runtime_variant.plan.window != dialect::kPlacementWindowImplemented) {
+      std::fprintf(stderr,"the executor implements window=1 only (§5.7.2)\n");
+      std::exit(2);
+    }
+    if (runtime_variant.plan.policy != 0) {
+      std::fprintf(stderr,"the executor implements the aot dispatch policy only\n");
+      std::exit(2);
     }
   }
-#endif
-  for (std::uint32_t stage=0;stage<model.stages.size();++stage) {
-    task_owner[stage].resize(active_tasks(stage));
-    for (int task=0;task<active_tasks(stage);++task)
-#if TILEMEGA_PLACEMENT == 5
-      task_owner[stage][task]=physical_worker[(task+rotation_base[stage])%grid];
-#else
-      task_owner[stage][task]=physical_worker[task%grid];
-#endif
-  }
-#if TILEMEGA_PLACEMENT == 5
-  if (std::getenv("TILEMEGA_PLACEMENT_BASE_DUMP") != nullptr)
-    for (std::uint32_t i = 0; i < model.stage_order.size(); ++i)
-      std::printf("E2E_PLACE_BASE pos=%u stage=%u active=%d base=%d\n", i,
-                  model.stage_order[i], active_tasks(model.stage_order[i]),
-                  rotation_base[model.stage_order[i]]);
-#endif
+
+  // One runtime task DAG for the placement, the statistics and the legality
+  // checks: three copies of the same projection used to be built per launch.
+  std::vector<int> plan_counts;
+  for (std::uint32_t stage=0;stage<model.stages.size();++stage)
+    plan_counts.push_back(active_tasks(stage));
+  std::vector<RuntimeDependencyWindow> plan_windows;
+  for (auto const& edge:dependencies)
+    plan_windows.push_back({static_cast<int>(edge.producer),static_cast<int>(edge.consumer),
+        edge.map==StageDependency::Map::kAll,edge.div,edge.scale,edge.offset,edge.count});
+  auto const runtime_graph=MaterializeRuntimeTaskGraph(plan_counts,plan_windows,grid);
+
 #if TILEMEGA_PLACEMENT == 4
   if (!runtime_variant.balanced_placement) {
     std::fprintf(stderr,"placement=4 requires balanced L-sched writeback\n");
     std::exit(2);
   }
-  std::vector<int> counts;
-  for (std::uint32_t stage=0;stage<model.stages.size();++stage) counts.push_back(active_tasks(stage));
-  std::vector<RuntimeDependencyWindow> windows;
-  for (auto const& edge:dependencies)
-    windows.push_back({static_cast<int>(edge.producer),static_cast<int>(edge.consumer),
-        edge.map==StageDependency::Map::kAll,edge.div,edge.scale,edge.offset,edge.count});
-  auto graph=MaterializeRuntimeTaskGraph(counts,windows,grid);
-  auto order=solver::ListScheduler{}.Schedule(graph.successors);
-  auto placed_tasks=solver::BalanceTaskPlacement(graph.successors,order,graph.preferred_worker,
-      grid,graph.baseline_max_queue);
-  for (std::size_t stage=0;stage<counts.size();++stage)
-    for (int task=0;task<counts[stage];++task)
-      task_owner[stage][task]=placed_tasks.worker[graph.stage_offsets[stage]+task];
-  std::printf("E2E_BALANCED max_queue=%d baseline_max_queue=%d same_worker_edges=%ld "
-              "fence_free_producers=%ld resident_only=1\n",placed_tasks.max_queue,
-              graph.baseline_max_queue,placed_tasks.same_worker_edges,placed_tasks.fence_free_producers);
 #else
-  if (runtime_variant.balanced_placement) {
+  if (runtime_variant.balanced_placement &&
+      plan_mode != dialect::PlacementMode::kBalanced) {
     std::fprintf(stderr,"balanced L-sched requires TILEMEGA_PLACEMENT=4\n");
     std::exit(2);
   }
 #endif
+
+  solver::PlanRequest plan_request;
+  plan_request.mode=plan_mode;
+  plan_request.params=plan_params;
+  plan_request.grid=grid;
+  plan_request.counts=plan_counts;
+  plan_request.stage_order.assign(model.stage_order.begin(),model.stage_order.end());
+  plan_request.physical_worker=physical_worker;
+  plan_request.graph=&runtime_graph;
+  solver::MaterializedPlan plan;
+  std::string plan_error;
+  if (!solver::MaterializePlanPlacement(plan_request,&plan,&plan_error)) {
+    std::fprintf(stderr,"placement plan rejected: %s\n",plan_error.c_str());
+    std::exit(2);
+  }
+  auto const& task_owner=plan.owner;
+  if (plan.has_balanced_stats)
+    std::printf("E2E_BALANCED max_queue=%d baseline_max_queue=%d same_worker_edges=%ld "
+                "fence_free_producers=%ld resident_only=1\n",plan.balanced.max_queue,
+                plan.balanced.baseline_max_queue,plan.balanced.same_worker_edges,
+                plan.balanced.fence_free_producers);
+  if (!plan.rotate_base.empty() &&
+      std::getenv("TILEMEGA_PLACEMENT_BASE_DUMP") != nullptr)
+    for (std::uint32_t i = 0; i < model.stage_order.size(); ++i)
+      std::printf("E2E_PLACE_BASE pos=%u stage=%u active=%d base=%d\n", i,
+                  model.stage_order[i], active_tasks(model.stage_order[i]),
+                  plan.rotate_base[model.stage_order[i]]);
+  // L-a and L-c on the materialized plan.  L-b was checked before the grid was
+  // fixed (`ResidentScheduleLegal`), L-e below with the event tables, and L-d
+  // collapses to the current hoisting rules only because W = 1 (§5.7.3).
+  if (!solver::CheckPlanLegality(runtime_graph,plan,&plan_error)) {
+    std::fprintf(stderr,"placement plan is illegal: %s\n",plan_error.c_str());
+    std::exit(2);
+  }
   {
-    // Edge-by-edge over the same runtime task DAG the balancer materializes, so
-    // the counts describe the tasks that actually run rather than the stage
-    // graph they came from.
-    std::vector<int> stats_counts;
-    for (std::uint32_t stage=0;stage<model.stages.size();++stage)
-      stats_counts.push_back(active_tasks(stage));
-    std::vector<RuntimeDependencyWindow> stats_windows;
-    for (auto const& edge:dependencies)
-      stats_windows.push_back({static_cast<int>(edge.producer),static_cast<int>(edge.consumer),
-          edge.map==StageDependency::Map::kAll,edge.div,edge.scale,edge.offset,edge.count});
-    auto stats_graph=MaterializeRuntimeTaskGraph(stats_counts,stats_windows,grid);
     auto owner_of=[&](int node){
-      int const stage=static_cast<int>(std::upper_bound(stats_graph.stage_offsets.begin(),
-          stats_graph.stage_offsets.end(),node)-stats_graph.stage_offsets.begin()-1);
-      return task_owner[stage][node-stats_graph.stage_offsets[stage]];
+      int const stage=static_cast<int>(std::upper_bound(runtime_graph.stage_offsets.begin(),
+          runtime_graph.stage_offsets.end(),node)-runtime_graph.stage_offsets.begin()-1);
+      return task_owner[stage][node-runtime_graph.stage_offsets[stage]];
     };
     long same_worker_edges=0,cross_worker_edges=0;
-    for (std::size_t producer=0;producer<stats_graph.successors.size();++producer)
-      for (int consumer:stats_graph.successors[producer])
+    for (std::size_t producer=0;producer<runtime_graph.successors.size();++producer)
+      for (int consumer:runtime_graph.successors[producer])
         (owner_of(static_cast<int>(producer))==owner_of(consumer) ? same_worker_edges
                                                                  : cross_worker_edges)++;
     std::vector<int> queue_length(grid,0);
@@ -1479,15 +1503,11 @@ inline DeviceModel Create(ModelSpec const& spec,
     int max_queue=0;
     for (int length:queue_length) max_queue=std::max(max_queue,length);
     std::printf("E2E_PLACE_STATS placement=%d max_queue=%d same_worker_edges=%ld "
-                "cross_worker_edges=%ld base_rotation=%d\n",
+                "cross_worker_edges=%ld base_rotation=%d plan=%s\n",
                 TILEMEGA_PLACEMENT,max_queue,same_worker_edges,cross_worker_edges,
-                TILEMEGA_PLACEMENT==5?1:0);
+                plan_mode==dialect::PlacementMode::kRotate?1:0,
+                dialect::PlacementModeName(plan_mode));
   }
-  std::vector<std::vector<std::vector<int>>> owned(grid,
-      std::vector<std::vector<int>>(model.stages.size()));
-  for (std::size_t stage=0;stage<task_owner.size();++stage)
-    for (std::size_t task=0;task<task_owner[stage].size();++task)
-      owned[task_owner[stage][task]][stage].push_back(task);
   std::vector<int> stage_max_producer_worker(model.stages.size(), -1);
   for (std::uint32_t stage = 0; stage < model.stages.size(); ++stage) {
     for (int owner : task_owner[stage])
@@ -1616,9 +1636,12 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.params.event_shard_count = 1;
 #endif
   for (int worker = 0; worker < grid; ++worker) {
-    for (std::uint32_t stage : model.stage_order) {
-      int const count = active_tasks(stage);
-      for (int logical : owned[worker][stage]) {
+    // sigma, not stage-major: the queue is whatever order the Plan asked for,
+    // and `plan.queue[worker]` is already sorted by it (§5.7.2).
+    for (auto const& item : plan.queue[worker]) {
+      std::uint32_t const stage = item.stage;
+      int const logical = item.logical;
+      {
         TaskRef task{};
         task.stage = stage;
         task.logical_task = static_cast<std::uint32_t>(logical);
@@ -1661,9 +1684,16 @@ inline DeviceModel Create(ModelSpec const& spec,
               int const group_end = std::min((group + 1) * per_group, produced);
               for (int member = group * per_group; member < group_end; ++member)
                 observe_owner(task_owner[dep.producer][member]);
-              // With one worker per event, this worker's earlier queue entry
-              // is already a proof; no global-memory poll is needed.
-              if (per_group == 1 && owner == worker) return;
+              // With one worker per event, an earlier entry in *this* queue is
+              // already a proof; no global-memory poll is needed.  The test is
+              // on sigma, not on the stage order, because a Plan may interleave
+              // stages on one worker.  L-c has already rejected a same-worker
+              // producer that does not come first, so this cannot silently drop
+              // a poll that was actually needed.
+              if (per_group == 1 && owner == worker &&
+                  plan.slot[dep.producer][producer_task] <
+                      plan.slot[stage][logical])
+                return;
               desired.emplace(dep.producer,
                               static_cast<std::uint32_t>(group));
             };
@@ -1688,9 +1718,20 @@ inline DeviceModel Create(ModelSpec const& spec,
 #endif
         }
         model.schedule_raw_polls += desired.size();
-        for (auto const& wait : desired)
+        for (auto const& wait : desired) {
+          // L-e: a consumer may only wait on a row its producer publishes.
+          std::uint32_t const needed = wait.second == kWholeStageEventGroup
+                                           ? kNeedsAggregateEvent
+                                           : kNeedsFineEvents;
+          if ((model.event_flags[wait.first] & needed) == 0) {
+            std::fprintf(stderr,
+                         "L-e: stage %u waits on an event stage %u never publishes\n",
+                         stage, wait.first);
+            std::exit(2);
+          }
           if (seen[worker].insert(wait).second)
             model.task_waits.push_back({wait.first, wait.second});
+        }
         task.wait_count = static_cast<std::uint32_t>(model.task_waits.size()) -
                           task.wait_begin;
         if (task.wait_count != 0) ++model.schedule_waiting_tasks;
@@ -1701,6 +1742,44 @@ inline DeviceModel Create(ModelSpec const& spec,
     }
     model.schedule_offsets[worker + 1] =
         static_cast<std::uint32_t>(model.schedule.size());
+  }
+
+  // A deterministic view of what the Plan materialized, written before any
+  // device work so the H2/H3 byte identities compare tables, not timings.
+  if (char const* dump_dir = std::getenv("TILEMEGA_PLAN_DUMP")) {
+    std::string const base = std::string(dump_dir) + "/";
+    auto open_dump = [&](char const* name) {
+      std::FILE* f = std::fopen((base + name).c_str(), "w");
+      if (f == nullptr) {
+        std::fprintf(stderr,"cannot write %s%s\n",base.c_str(),name);
+        std::exit(2);
+      }
+      return f;
+    };
+    std::FILE* f = open_dump("schedule.tsv");
+    std::fprintf(f,"worker\tslot\tstage\tlogical_task\tdependency_begin\t"
+                   "dependency_count\twait_begin\twait_count\n");
+    for (int worker = 0; worker < grid; ++worker)
+      for (std::uint32_t i = model.schedule_offsets[worker];
+           i < model.schedule_offsets[worker + 1]; ++i) {
+        TaskRef const& t = model.schedule[i];
+        std::fprintf(f,"%d\t%u\t%u\t%u\t%u\t%u\t%u\t%u\n",worker,
+                     i - model.schedule_offsets[worker],t.stage,t.logical_task,
+                     t.dependency_begin,t.dependency_count,t.wait_begin,t.wait_count);
+      }
+    std::fclose(f);
+    f = open_dump("waits.tsv");
+    std::fprintf(f,"wait_index\tproducer\tgroup\n");
+    for (std::size_t i = 0; i < model.task_waits.size(); ++i)
+      std::fprintf(f,"%zu\t%u\t%u\n",i,model.task_waits[i].producer,
+                   model.task_waits[i].group);
+    std::fclose(f);
+    f = open_dump("events.tsv");
+    std::fprintf(f,"stage\tevent_offset\tevent_flags\n");
+    for (std::size_t stage = 0; stage < model.stages.size(); ++stage)
+      std::fprintf(f,"%zu\t%u\t%u\n",stage,model.event_offsets[stage],
+                   model.event_flags[stage]);
+    std::fclose(f);
   }
 
   auto upload = [](void const* host, std::size_t bytes) {

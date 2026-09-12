@@ -148,6 +148,7 @@ add_library(tilemega STATIC
   lib/Solver/ScalarTaskWork.cpp
   lib/Solver/AttentionWork.cpp
   lib/Solver/ListScheduler.cpp
+  lib/Solver/PlanMaterialize.cpp
   lib/Solver/VariantSchedule.cpp
   lib/Solver/CostModel.cpp
   lib/Solver/SymbolicTaskCost.cpp
