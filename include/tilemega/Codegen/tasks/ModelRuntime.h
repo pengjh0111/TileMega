@@ -162,6 +162,25 @@ struct ScheduleStageDesc {
   std::uint32_t dependency_count;
 };
 
+/// The §5.7.1 Plan, as codegen hands it to the host.  Only pi and sigma are
+/// decisions this round: `window` is W and the executor implements W = 1 only
+/// (§5.7.2), `policy` is `aot`, and `sync`/`kappa` still ride on the coupling
+/// attributes and `TILEMEGA_EVENT_KAPPA`.
+///
+/// The defaults are the legacy grid-stride plan, so a variant that carries no
+/// plan reads exactly as the pre-plan generator emitted it.
+///
+/// `mode` is `tilemega::dialect::PlacementMode` and `policy` is fixed at 0
+/// (`aot`); the names live in the dialect header because the CG is the layer
+/// that decides them, and that header pulls in no MLIR.
+struct RuntimePlanDesc {
+  std::uint32_t mode = 0;
+  std::int64_t const* params = nullptr;  ///< param_count entries, mode specific
+  std::uint32_t param_count = 0;
+  std::uint32_t window = 1;
+  std::uint32_t policy = 0;
+};
+
 /// One unique event a concrete task still has to observe.  The host removes
 /// duplicates both inside a task and against earlier waits in the same worker
 /// queue: epochs are monotone, so an event satisfied once stays satisfied.
@@ -257,6 +276,8 @@ struct RuntimeVariantDesc {
   bool resident_only = true;
   bool balanced_placement = false;
   RuntimeExactDependencyDesc const* exact_dependencies = nullptr;
+  /// Last, and defaulted, so a legacy variant's initializer is unchanged.
+  RuntimePlanDesc plan = {};
 };
 
 #ifndef TILEMEGA_EVENT_SPLIT_LINES

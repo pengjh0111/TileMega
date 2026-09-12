@@ -12,7 +12,8 @@
 #include <tilemega/Codegen/TaskBodyEmitter.h>
 #include <tilemega/Analysis/DependencyForm.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
-#include <tilemega/Solver/ListScheduler.h>
+#include <tilemega/Dialect/CouplingGraph/PlacementPlan.h>
+#include <tilemega/Solver/VariantSchedule.h>
 
 #include <mlir/IR/Verifier.h>
 
@@ -58,6 +59,52 @@ bool readBalancedPlacement(mlir::ModuleOp module) {
   if (balanced && (balanced!=count || !readResidentConstraint(module)))
     throw std::invalid_argument("balanced mapping requires complete resident-only L-sched");
   return balanced!=0;
+}
+
+/// The §5.7.1 Plan the solver wrote onto every task space.  Absent is the
+/// legacy grid-stride plan, which is what `map = [0]` alone has always meant.
+struct PlacementPlanRecord {
+  std::uint32_t mode = 0;
+  std::vector<std::int64_t> params;
+  std::uint32_t window = 1;
+  std::uint32_t policy = 0;
+  bool carried = false;
+};
+
+PlacementPlanRecord readPlacementPlan(mlir::ModuleOp module) {
+  PlacementPlanRecord plan;
+  std::size_t count = 0, carried = 0;
+  for (auto placement : module.getOps<dialect::PlacementOp>()) {
+    ++count;
+    auto const mode = placement.getModeAttr();
+    if (!mode) continue;
+    ++carried;
+    PlacementPlanRecord here;
+    dialect::PlacementMode parsed{};
+    auto const name = mode.getValue();
+    if (!dialect::ParsePlacementMode(name.data(), name.size(), &parsed))
+      throw std::invalid_argument("unknown placement mode on tilemega.placement");
+    here.mode = static_cast<std::uint32_t>(parsed);
+    if (auto const params = placement.getParams())
+      here.params.assign(params->begin(), params->end());
+    here.window = static_cast<std::uint32_t>(placement.getWindow().value_or(
+        dialect::kPlacementWindowImplemented));
+    if (auto const policy = placement.getPolicyAttr())
+      if (policy.getValue() != dialect::kPlacementPolicyAot)
+        throw std::invalid_argument("unknown placement policy on tilemega.placement");
+    here.carried = true;
+    if (carried == 1) plan = std::move(here);
+    else if (plan.mode != here.mode || plan.params != here.params ||
+             plan.window != here.window)
+      throw std::invalid_argument("every task space must carry the same placement plan");
+  }
+  // A half-written plan would leave part of the model on the legacy path with
+  // no way to tell from the emitted tables, so it is rejected outright.
+  if (carried && carried != count)
+    throw std::invalid_argument("the placement plan must cover every task space");
+  if (plan.carried && plan.window != dialect::kPlacementWindowImplemented)
+    throw std::invalid_argument("the executor implements window=1 only; W>1 is EX-E2");
+  return plan;
 }
 
 analysis::ParamBinding readBinding(mlir::ModuleOp module, llvm::StringRef name) {
@@ -144,40 +191,9 @@ struct RuntimeVariantRecord {
   std::uint32_t ownership_flags = 0;
   bool explicit_resident_constraint = false;
   bool balanced_placement = false;
+  PlacementPlanRecord plan;
   std::string exact_tasks,exact_dependencies,seq_parameter,past_parameter;
 };
-
-void BuildVariantSchedule(RuntimeVariantRecord& variant,
-                          std::size_t stage_count) {
-  std::vector<std::vector<int>> successors(stage_count);
-  for (auto const& edge : variant.dependencies) {
-    if (edge.producer >= stage_count || edge.consumer >= stage_count)
-      throw std::invalid_argument("dependency names a stage outside the model");
-    successors[edge.producer].push_back(static_cast<int>(edge.consumer));
-  }
-  solver::ListScheduler scheduler;
-  std::vector<int> const order = scheduler.Schedule(successors);
-  solver::ScheduleSafety const safety = scheduler.Validate(successors, order);
-  variant.max_dependency_span =
-      static_cast<std::uint32_t>(safety.max_dependency_span);
-  variant.schedule.reserve(order.size());
-  for (int stage : order) {
-    auto const first = std::lower_bound(
-        variant.dependencies.begin(), variant.dependencies.end(), stage,
-        [](DependencyRecord const& edge, int consumer) {
-          return edge.consumer < static_cast<std::uint32_t>(consumer);
-        });
-    auto const last = std::upper_bound(
-        first, variant.dependencies.end(), stage,
-        [](int consumer, DependencyRecord const& edge) {
-          return static_cast<std::uint32_t>(consumer) < edge.consumer;
-        });
-    variant.schedule.push_back(
-        {static_cast<std::uint32_t>(stage),
-         static_cast<std::uint32_t>(first - variant.dependencies.begin()),
-         static_cast<std::uint32_t>(last - first)});
-  }
-}
 
 std::uint32_t readOwnershipFlags(mlir::ModuleOp module) {
   std::uint32_t flags = 0;
@@ -363,7 +379,15 @@ std::string emitModelPlan(mlir::ModuleOp module,
                      [](auto const& a, auto const& b) {
                        return a.consumer < b.consumer;
                      });
-    BuildVariantSchedule(variant, stages.size());
+    // §8.11: the stage order is a solver decision; codegen only copies it in.
+    auto const staged =
+        solver::BuildVariantStageSchedule(variant.dependencies, stages.size());
+    variant.max_dependency_span = staged.max_dependency_span;
+    variant.schedule.clear();
+    variant.schedule.reserve(staged.schedule.size());
+    for (auto const& entry : staged.schedule)
+      variant.schedule.push_back(
+          {entry.stage, entry.dependency_begin, entry.dependency_count});
     if (!variant.attention.empty()) {
       if (variant.attention.size()!=stages.size())
         throw std::invalid_argument("attention runtime table has wrong length");
@@ -412,6 +436,26 @@ std::string emitModelPlan(mlir::ModuleOp module,
         << quoteCString(variants[v].exact_dependencies) << ", "
         << quoteCString(variants[v].seq_parameter) << ", "
         << quoteCString(variants[v].past_parameter) << "};\n";
+  for (std::size_t v=0;v<variants.size();++v) if (!variants[v].plan.params.empty()) {
+    out << "constexpr std::int64_t kPlanParams" << v << "[] = {";
+    for (std::size_t i=0;i<variants[v].plan.params.size();++i)
+      out << (i ? ", " : "") << variants[v].plan.params[i];
+    out << "};\n";
+  }
+  // §5.7.1 template form: mode plus its parameters.  The materialized form of
+  // an `eft` plan is the host running the same solver routine after binding
+  // theta, because a variant's task counts stay symbolic across its whole seq
+  // interval and no table can be emitted for all of them at once.
+  auto planInitializer = [&](std::size_t v) {
+    auto const& plan = variants[v].plan;
+    std::ostringstream init;
+    init << "{" << plan.mode << "u, "
+         << (plan.params.empty() ? std::string("nullptr")
+                                 : "kPlanParams" + std::to_string(v))
+         << ", " << plan.params.size() << "u, " << plan.window << "u, "
+         << plan.policy << "u}";
+    return init.str();
+  };
   out << "constexpr RuntimeVariantDesc kRuntimeVariants[] = {\n";
   for (std::size_t v = 0; v < variants.size(); ++v) {
     out << "  {kRuntimeGemms" << v << ", kDependencies" << v << ", "
@@ -420,11 +464,23 @@ std::string emitModelPlan(mlir::ModuleOp module,
         << "u, " << variants[v].max_dependency_span << "u, "
         << variants[v].seq_begin << "u, " << variants[v].seq_end
         << "u, " << variants[v].ownership_flags << "u";
+    bool const carries_plan = variants[v].plan.carried;
     if (!variants[v].exact_tasks.empty()) {
       if (variants[v].attention.empty()) out << ", nullptr";
       else out << ", kRuntimeAttention" << v;
       out << ", true, false, &kExactDependencies" << v;
+      if (carries_plan) out << ", " << planInitializer(v);
       out << "},\n";
+      continue;
+    }
+    if (carries_plan) {
+      // Aggregate initialization is positional, so a plan forces every earlier
+      // optional field to be spelled; `true` is the struct's own default for
+      // `resident_only`.
+      if (variants[v].attention.empty()) out << ", nullptr";
+      else out << ", kRuntimeAttention" << v;
+      out << ", true, " << (variants[v].balanced_placement ? "true" : "false")
+          << ", nullptr, " << planInitializer(v) << "},\n";
       continue;
     }
     if (!variants[v].attention.empty()) out << ", kRuntimeAttention" << v;
@@ -984,6 +1040,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   runtime.ownership_flags = readOwnershipFlags(module);
   runtime.explicit_resident_constraint = readResidentConstraint(module);
   runtime.balanced_placement = readBalancedPlacement(module);
+  runtime.plan = readPlacementPlan(module);
   runtime.attention = std::move(attention_storage.attention);
   out << emitModelPlan(module, {std::move(runtime)});
   return out.str();
@@ -1020,6 +1077,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
     record.ownership_flags = runtime_plan.ownership_flags;
     record.explicit_resident_constraint = readResidentConstraint(input.module);
     record.balanced_placement = readBalancedPlacement(input.module);
+    record.plan = readPlacementPlan(input.module);
     record.dependencies = std::move(runtime_plan.dependencies);
     record.gemms = std::move(runtime_plan.gemms);
     record.attention = std::move(runtime_plan.attention);
