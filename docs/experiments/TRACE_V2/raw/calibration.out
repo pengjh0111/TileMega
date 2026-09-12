@@ -1,1 +1,1 @@
-CALIBRATION blocks=128 rounds=256 window_ns=1879040 clock64_offset_spread_cycles=372526091745 implied_mhz_min=3005.023 implied_mhz_max=3008.166 residual_rms_max_ns=219.7 residual_max_ns=522.6 quantization_sigma_ns=295.6 offset_sigma_ns=13.73
+CALIBRATION blocks=128 rounds=256 window_ns=2186240 clock64_offset_spread_cycles=3544511452 implied_mhz_min=2519.916 implied_mhz_max=2520.071 residual_rms_max_ns=303.8 residual_max_ns=555.4 quantization_sigma_ns=295.6 offset_sigma_ns=18.99

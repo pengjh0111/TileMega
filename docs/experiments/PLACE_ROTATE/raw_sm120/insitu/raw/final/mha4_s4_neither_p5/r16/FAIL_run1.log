@@ -1,0 +1,22 @@
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=5 max_queue=2 same_worker_edges=0 cross_worker_edges=4108 base_rotation=1
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=214 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=170 grid=340 l1_reg=214 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=340 variant_stages=60 task_refs=512 task_ref_bytes=14336 waits=1612 wait_bytes=12896 raw_polls=1612 lifted_polls=0 waiting_tasks=508 normalization_dummies_lb=1104 max_span=10 generated_max_span=10 max_worker_span=335 resident_limit=340 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=2
+E2E_TIME l05_ms=0.671712 l1_ms=0.661184 ratio=0.984327 l2_ms=0.041248 l2_over_l1=0.062385
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.03125 max_rel=4882.8125 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=18036 max_abs=3.3154297 max_rel=328.27274
+E2E_OUTPUT_DIFF index=0 buffer=73 mismatch=0 max_abs=0.03125 max_rel=4882.8125
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0.00048828125 max_rel=0.028571429
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0.0009765625 max_rel=0.0040650405
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=244.14062
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6325758
+E2E_OUTPUT_DIFF index=5 buffer=71 mismatch=0 max_abs=0.0078125 max_rel=0.67839193
+E2E_OUTPUT_DIFF index=6 buffer=72 mismatch=0 max_abs=0.0078125 max_rel=3.7701149
+E2E_OUTPUT_DIFF index=7 buffer=95 mismatch=0 max_abs=0.01171875 max_rel=2.5
+E2E_OUTPUT_DIFF index=8 buffer=96 mismatch=0 max_abs=0.01171875 max_rel=6.2666669
+E2E_HASH l05=35257c986dd92f2f l1=35257c986dd92f2f l2=6fa359213a809f82
+E2E_ITER l2_iter1_ms=0.040704 l2_iter1_vs_iter0_mismatch=192 max_abs=0.43554688
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+E2E_PLACEMENT placement=5
+RESULT status=MISMATCH

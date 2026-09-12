@@ -1,8 +1,8 @@
 gqa2	seq=4	E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0
-gqa2	seq=128	E2E_PLACE_STATS placement=0 max_queue=34 same_worker_edges=3400 cross_worker_edges=545476 base_rotation=0
+gqa2	seq=128	E2E_PLACE_STATS placement=0 max_queue=34 same_worker_edges=3736 cross_worker_edges=545140 base_rotation=0
 gqa2	seq=4	E2E_PLACE_STATS placement=5 max_queue=1 same_worker_edges=0 cross_worker_edges=1292 base_rotation=1
-gqa2	seq=128	E2E_PLACE_STATS placement=5 max_queue=13 same_worker_edges=1404 cross_worker_edges=547472 base_rotation=1
+gqa2	seq=128	E2E_PLACE_STATS placement=5 max_queue=18 same_worker_edges=3624 cross_worker_edges=545252 base_rotation=1
 mha4	seq=4	E2E_PLACE_STATS placement=0 max_queue=60 same_worker_edges=504 cross_worker_edges=3604 base_rotation=0
-mha4	seq=128	E2E_PLACE_STATS placement=0 max_queue=80 same_worker_edges=11320 cross_worker_edges=2150884 base_rotation=0
+mha4	seq=128	E2E_PLACE_STATS placement=0 max_queue=80 same_worker_edges=12664 cross_worker_edges=2149540 base_rotation=0
 mha4	seq=4	E2E_PLACE_STATS placement=5 max_queue=2 same_worker_edges=0 cross_worker_edges=4108 base_rotation=1
-mha4	seq=128	E2E_PLACE_STATS placement=5 max_queue=36 same_worker_edges=6240 cross_worker_edges=2155964 base_rotation=1
+mha4	seq=128	E2E_PLACE_STATS placement=5 max_queue=47 same_worker_edges=12416 cross_worker_edges=2149788 base_rotation=1

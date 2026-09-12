@@ -1,0 +1,19 @@
+key	value
+model	gqa2
+fixture	/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/gqa2_s4_p3
+seq	4
+past	3
+grid	340
+kappa	1
+placement	0
+schedule_policy	critical_path
+stage_count	30
+slot_count	200
+event_count	188
+l2_ms	0.369984
+l1_ms	0.333984
+traced_launch	l2_forward_last_timed_sample
+benchmark_warmup	5
+benchmark_repeat	11
+globaltimer_resolution_ns	
+commit	886f0dc92be727fe06a55b7c951e920923f1c59f

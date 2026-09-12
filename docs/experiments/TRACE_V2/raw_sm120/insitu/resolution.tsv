@@ -1,0 +1,23 @@
+metric	value
+device	NVIDIA GeForce RTX 5090
+compute_cap	12.0
+serial_reads	20000
+globaltimer_min_nonzero_delta_ns	32
+globaltimer_p50_delta_ns	32
+globaltimer_p99_delta_ns	32
+globaltimer_max_delta_ns	32
+globaltimer_zero_deltas	10686
+globaltimer_zero_delta_fraction	0.534327
+globaltimer_backward_deltas	0
+clock64_min_nonzero_delta	42
+clock64_p50_delta	42
+clock64_p99_delta	64
+clock64_zero_deltas	0
+clock64_backward_deltas	0
+instant_blocks	128
+instant_distinct_smids	128
+instant_globaltimer_min_ns	1789214879832100192
+instant_globaltimer_max_ns	1789214879832100352
+instant_globaltimer_spread_ns	160
+needs_clock64_columns	0
+commit	886f0dc92be727fe06a55b7c951e920923f1c59f

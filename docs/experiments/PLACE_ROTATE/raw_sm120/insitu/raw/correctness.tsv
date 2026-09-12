@@ -1,0 +1,16 @@
+STAT label=rotate_p0_gqa2_s4 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p0_gqa2_s4
+STAT label=rotate_p0_gqa2_s128 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p0_gqa2_s128
+STAT label=rotate_p0_mha4_s4 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p0_mha4_s4
+STAT label=rotate_p0_mha4_s128 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p0_mha4_s128
+STAT label=rotate_p5_gqa2_s4 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p5_gqa2_s4
+STAT label=rotate_p5_gqa2_s128 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p5_gqa2_s128
+STAT label=rotate_p5_mha4_s4 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p5_mha4_s4
+STAT label=rotate_p5_mha4_s128 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p5_mha4_s128
+STAT label=rotate_p0_gqa2_s4 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p0_gqa2_s4
+STAT label=rotate_p0_gqa2_s128 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p0_gqa2_s128
+STAT label=rotate_p0_mha4_s4 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p0_mha4_s4
+STAT label=rotate_p0_mha4_s128 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p0_mha4_s128
+STAT label=rotate_p5_gqa2_s4 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p5_gqa2_s4
+STAT label=rotate_p5_gqa2_s128 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p5_gqa2_s128
+STAT label=rotate_p5_mha4_s4 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p5_mha4_s4
+STAT label=rotate_p5_mha4_s128 runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/correct_p5_mha4_s128

@@ -1,0 +1,150 @@
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r0/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r0
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r1/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r1
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r2/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r2
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r3/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r3
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r4/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r4
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r5/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r5
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r6/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r6
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r7/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r7
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r8/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r8
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r9/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r9
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r10/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r10
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r11/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r11
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r12/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r12
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r13/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r13
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r14/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r14
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r15/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r15
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r16/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r16
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r17/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r17
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r18/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r18
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r19/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r19
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r20/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r20
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r21/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r21
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r22/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r22
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r23/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r23
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r24/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r24
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r0/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r0
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r1/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r1
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r2/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r2
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r3/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r3
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r4/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r4
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r5/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r5
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r6/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r6
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r7/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r7
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r8/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r8
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r9/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r9
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r10/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r10
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r11/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r11
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r12/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r12
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r13/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r13
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r14/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r14
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r15/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r15
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r16/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r16
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r17/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r17
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r18/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r18
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r19/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r19
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r20/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r20
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r21/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r21
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r22/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r22
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r23/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r23
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r24/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=rotate_gqa2_128_nowait_p5 runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_ROTATE/raw/final/gqa2_s128_nowait_p5/r24

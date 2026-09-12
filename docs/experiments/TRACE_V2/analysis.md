@@ -11,28 +11,28 @@ hop of one or two ticks is not.
 
 | cell | l2_ms | span_ms | cp_ms | cp err | +publish err | hop p50 | hop p90 | hop max | hop<0 |
 |---|---|---|---|---|---|---|---|---|---|
-| gqa2_s128 | 0.5675 | 0.5620 | 0.4861 | 14.33% | 4.74% | 512 | 672 | 48992 | 0 |
-| gqa2_s4 | 0.3700 | 0.3636 | 0.2975 | 19.59% | 6.51% | 512 | 1664 | 36864 | 0 |
-| mha4_s128 | 1.1621 | 1.1557 | 0.9819 | 15.51% | 4.73% | 512 | 704 | 49184 | 0 |
-| mha4_s4 | 0.7477 | 0.7413 | 0.5976 | 20.07% | 6.23% | 480 | 8224 | 37152 | 0 |
+| gqa2_s128 | 0.6267 | 0.6185 | 0.5489 | 12.42% | 3.10% | 1024 | 1024 | 54272 | 0 |
+| gqa2_s4 | 0.4516 | 0.4434 | 0.3860 | 14.51% | 3.17% | 1024 | 2048 | 46080 | 0 |
+| mha4_s128 | 1.2780 | 1.2708 | 1.1233 | 12.10% | 2.08% | 1024 | 1024 | 54272 | 0 |
+| mha4_s4 | 0.9020 | 0.8950 | 0.7823 | 13.27% | 2.14% | 1024 | 7168 | 48128 | 0 |
 
 ## Bounds
 
 | cell | work_lb | queue_lb | cp_lb_nosync | cp_lb_sync | measured l2_ms |
 |---|---|---|---|---|---|
-| gqa2_s128 | 0.0728 | 0.4759 | 0.1749 | 0.1800 | 0.5675 |
-| gqa2_s4 | 0.0041 | 0.2866 | 0.1123 | 0.1174 | 0.3700 |
-| mha4_s128 | 0.1515 | 0.9572 | 0.1756 | 0.1807 | 1.1621 |
-| mha4_s4 | 0.0093 | 0.5788 | 0.1126 | 0.1174 | 0.7477 |
+| gqa2_s128 | 0.1085 | 0.5304 | 0.1966 | 0.2068 | 0.6267 |
+| gqa2_s4 | 0.0070 | 0.3666 | 0.1434 | 0.1536 | 0.4516 |
+| mha4_s128 | 0.2271 | 1.0752 | 0.1987 | 0.2089 | 1.2780 |
+| mha4_s4 | 0.0155 | 0.7485 | 0.1444 | 0.1546 | 0.9020 |
 
 ## Occupancy and head-of-line blocking
 
 | cell | workers | busy max | idle frac | HOL reclaimable | HOL frac | workers w/ HOL |
 |---|---|---|---|---|---|---|
-| gqa2_s128 | 340 | 475872 | 87.05% | 76966272 | 40.28% | 256 |
-| gqa2_s4 | 16 | 286592 | 75.91% | 1112768 | 19.13% | 8 |
-| mha4_s128 | 340 | 957184 | 86.89% | 265136000 | 67.47% | 340 |
-| mha4_s4 | 16 | 578816 | 73.41% | 6646912 | 56.04% | 16 |
+| gqa2_s128 | 256 | 530432 | 82.45% | 83894272 | 52.99% | 256 |
+| gqa2_s4 | 16 | 366592 | 74.91% | 1337344 | 18.85% | 8 |
+| mha4_s128 | 256 | 1075200 | 82.13% | 208130048 | 63.98% | 256 |
+| mha4_s4 | 16 | 748544 | 72.21% | 8133632 | 56.80% | 16 |
 
 ## Gates
 
@@ -41,23 +41,23 @@ hop of one or two ticks is not.
 
   Cells over the threshold, reported rather than relaxed:
 
-  - `gqa2_s128`: cp 0.4861 ms vs l2 0.5675 ms, error 14.33%.
-    Measured along that chain: task 478464 ns, wait 249152 ns,
-    pre-run barrier 2880 ns, publish 54368 ns, gap -222944 ns,
-    chain span 561920 ns.  Restoring only the publish term to the
-    node weight moves the error to 4.74%.
-  - `gqa2_s4`: cp 0.2975 ms vs l2 0.3700 ms, error 19.59%.
-    Measured along that chain: task 289824 ns, wait 24576 ns,
-    pre-run barrier 1920 ns, publish 48352 ns, gap -1152 ns,
-    chain span 363520 ns.  Restoring only the publish term to the
-    node weight moves the error to 6.51%.
-  - `mha4_s128`: cp 0.9819 ms vs l2 1.1621 ms, error 15.51%.
-    Measured along that chain: task 965984 ns, wait 548160 ns,
-    pre-run barrier 6016 ns, publish 122752 ns, gap -487968 ns,
-    chain span 1154944 ns.  Restoring only the publish term to the
-    node weight moves the error to 4.73%.
-  - `mha4_s4`: cp 0.5976 ms vs l2 0.7477 ms, error 20.07%.
-    Measured along that chain: task 582752 ns, wait 134560 ns,
-    pre-run barrier 3936 ns, publish 102464 ns, gap -82528 ns,
-    chain span 741184 ns.  Restoring only the publish term to the
-    node weight moves the error to 6.23%.
+  - `gqa2_s128`: cp 0.5489 ms vs l2 0.6267 ms, error 12.42%.
+    Measured along that chain: task 533504 ns, wait 48128 ns,
+    pre-run barrier 1024 ns, publish 52224 ns, gap -16384 ns,
+    chain span 618496 ns.  Restoring only the publish term to the
+    node weight moves the error to 3.10%.
+  - `gqa2_s4`: cp 0.3860 ms vs l2 0.4516 ms, error 14.51%.
+    Measured along that chain: task 370688 ns, wait 25600 ns,
+    pre-run barrier 3072 ns, publish 43008 ns, gap 1024 ns,
+    chain span 443392 ns.  Restoring only the publish term to the
+    node weight moves the error to 3.17%.
+  - `mha4_s128`: cp 1.1233 ms vs l2 1.2780 ms, error 12.10%.
+    Measured along that chain: task 1091584 ns, wait 98304 ns,
+    pre-run barrier 2048 ns, publish 106496 ns, gap -27648 ns,
+    chain span 1270784 ns.  Restoring only the publish term to the
+    node weight moves the error to 2.08%.
+  - `mha4_s4`: cp 0.7823 ms vs l2 0.9020 ms, error 13.27%.
+    Measured along that chain: task 748544 ns, wait 48128 ns,
+    pre-run barrier 3072 ns, publish 86016 ns, gap 9216 ns,
+    chain span 894976 ns.  Restoring only the publish term to the
+    node weight moves the error to 2.14%.

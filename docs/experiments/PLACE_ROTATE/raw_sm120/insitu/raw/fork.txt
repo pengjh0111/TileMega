@@ -1,0 +1,1 @@
+FORK rule=2 r_neither=0.1687 ci=[0.1302,0.2039] r_full=0.6985 ci=[0.6527,0.7401] cells=4
