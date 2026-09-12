@@ -7,6 +7,7 @@
 #include <tilemega/Analysis/OpArithmetic.h>
 #include <tilemega/Analysis/SemanticCodec.h>
 #include <tilemega/Dialect/CouplingGraph/CGContract.h>
+#include <tilemega/Dialect/CouplingGraph/PlacementPlan.h>
 
 #include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/IR/BuiltinTypes.h>
@@ -340,10 +341,59 @@ LogicalResult PlacementOp::verify() {
     if (!flag || !flag.getValue())
       return emitOpError("resident_only must be true; over-resident proof is unavailable");
   }
+  if (failed(verifyPlan())) return failure();
   if (getCluster() < 1) return emitOpError("cluster must be positive");
   if (getMap().empty()) return emitOpError("placement map cannot be empty");
   if (!SymbolTable::lookupNearestSymbolFrom<TaskSpaceOp>(*this, getTaskAttr()))
     return emitOpError() << "unknown task space " << getTask();
+  return success();
+}
+
+/// The §5.7.1 Plan half of the op.  All four attributes are optional together:
+/// absent is the `legacy_grid_stride` form `map = [0]` has always denoted.
+LogicalResult PlacementOp::verifyPlan() {
+  auto const mode_attr = getModeAttr();
+  PlacementMode mode = PlacementMode::kLegacyGridStride;
+  if (mode_attr) {
+    auto const name = mode_attr.getValue();
+    if (!ParsePlacementMode(name.data(), name.size(), &mode))
+      return emitOpError() << "unknown placement mode " << name;
+    // A named mode is a solver decision, and every one of them schedules onto
+    // the resident grid only (§5.7.3 L-b, §8.7); nothing here can prove
+    // over-residency, so the claim has to be written down.
+    if (mode != PlacementMode::kLegacyGridStride) {
+      auto resident = (*this)->getAttrOfType<BoolAttr>("resident_only");
+      if (!resident || !resident.getValue())
+        return emitOpError() << "placement mode " << name
+                             << " requires resident_only=true";
+    }
+    if (auto legacy = (*this)->getAttrOfType<StringAttr>("mapping_mode")) {
+      // The pre-plan spelling still reaches codegen; two names for one
+      // decision may not disagree.
+      if (legacy.getValue() == "balanced" && mode != PlacementMode::kBalanced)
+        return emitOpError("mapping_mode=balanced contradicts the placement mode");
+    }
+  }
+  std::size_t const expected = PlacementModeParamCount(mode);
+  auto const params = getParams();
+  if (mode_attr || params) {
+    if (params.value_or(ArrayRef<std::int64_t>{}).size() != expected)
+      return emitOpError() << "placement mode " << PlacementModeName(mode)
+                           << " takes " << expected << " parameters";
+  }
+  if (mode == PlacementMode::kTemplate) {
+    std::int64_t const family = (*params)[0];
+    if (family != static_cast<std::int64_t>(PlacementTemplate::kBand) &&
+        family != static_cast<std::int64_t>(PlacementTemplate::kWavefront))
+      return emitOpError() << "unknown placement template " << family;
+  }
+  if (auto window = getWindow()) {
+    if (*window < 1) return emitOpError("placement window must be positive");
+  }
+  if (auto policy = getPolicyAttr()) {
+    if (policy.getValue() != kPlacementPolicyAot)
+      return emitOpError() << "unknown placement policy " << policy.getValue();
+  }
   return success();
 }
 

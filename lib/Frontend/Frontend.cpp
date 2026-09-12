@@ -11,6 +11,7 @@
 #include <tilemega/Dialect/CouplingGraph/CGAttrs.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
+#include <tilemega/Dialect/CouplingGraph/PlacementPlan.h>
 
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/StringExtras.h>
@@ -762,6 +763,14 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     if (options.balanced_placement) {
       state.addAttribute("resident_only",builder.getBoolAttr(true));
       state.addAttribute("mapping_mode",builder.getStringAttr("balanced"));
+      // The §5.7.1 plan spelling of the same decision.  Absent attributes mean
+      // `legacy_grid_stride`, so the default import stays byte-identical.
+      state.addAttribute("mode",builder.getStringAttr(
+          dialect::PlacementModeName(dialect::PlacementMode::kBalanced)));
+      state.addAttribute("params",builder.getDenseI64ArrayAttr({}));
+      state.addAttribute("window",builder.getI64IntegerAttr(
+          dialect::kPlacementWindowImplemented));
+      state.addAttribute("policy",builder.getStringAttr(dialect::kPlacementPolicyAot));
     }
     builder.create(state);
   }

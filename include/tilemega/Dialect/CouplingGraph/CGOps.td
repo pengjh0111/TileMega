@@ -78,11 +78,42 @@ def CG_CouplingOp : CG_Op<"coupling", [Symbol]> {
 
 def CG_PlacementOp : CG_Op<"placement", []> {
   let summary = "fixed worker placement for one task space";
+  let description = [{
+    Carries the solver's Plan for one task space (skeleton §5.7.1,
+    `Plan = (pi, sigma, W, policy, sync, kappa)`).  `sync` and `kappa` ride on
+    `tilemega.coupling` and the event tables, so only pi/sigma, the execution
+    window and the dispatch policy live here.
+
+    `mode` names how pi and sigma are produced; `params` is that mode's
+    parameter vector.  All four plan attributes are optional, and absent means
+    the `legacy_grid_stride` form that `map = [0]` has always denoted, so IR
+    written before the plan existed still verifies unchanged.
+
+    | mode                 | pi                                                        | params            |
+    |----------------------|-----------------------------------------------------------|-------------------|
+    | `legacy_grid_stride` | `task % grid`, queues stage-major                          | empty             |
+    | `rotate`             | `(task + base[stage]) % grid`, `base` the prefix sum of the active task counts along the stage order, mod grid | empty |
+    | `balanced`           | affinity-first greedy under a queue cap                    | empty             |
+    | `eft`                | materialized: the explicit (worker, slot) table travels in `RuntimeVariantDesc`, not here | empty |
+    | `template`           | closed form selected by `params[0]`: 0 = band tiling, 1 = wavefront (F-93, F-97) | one entry |
+
+    `window` is W.  The executor implements W = 1 only (strict FIFO); the
+    verifier admits any positive W so that EX-E2 changes the executor rather
+    than the contract, and codegen rejects W > 1 until then.
+  }];
   let arguments = (ins FlatSymbolRefAttr:$task,
                        DenseI64ArrayAttr:$map,
-                       I64Attr:$cluster);
+                       I64Attr:$cluster,
+                       OptionalAttr<StrAttr>:$mode,
+                       OptionalAttr<DenseI64ArrayAttr>:$params,
+                       OptionalAttr<I64Attr>:$window,
+                       OptionalAttr<StrAttr>:$policy);
   let assemblyFormat = "$task `map` `=` $map `cluster` `=` $cluster attr-dict";
   let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    /// The §5.7.1 Plan attributes, checked separately from the legacy map.
+    ::mlir::LogicalResult verifyPlan();
+  }];
 }
 
 def CG_ImplementationOp : CG_Op<"implementation", [Symbol]> {
