@@ -1,5 +1,11 @@
 # EX-D2 offline headroom
 
+Provenance warning (2026-09-12): this generated report mixes historical
+reference rows and appended real-width rows. The current sm_120 seq=128
+real-width export failed; its rows below come from a pre-session dump and
+are not successful measurements from this run. See
+[the session report](../sm120_round_one_20260912.md).
+
 `eft_makespan` is an earliest-finish-time list schedule over the
 exact task DAG: measured task durations, measured hop p50 on every
 cross-worker edge, free placement on the resident workers.  It is an
@@ -21,3 +27,5 @@ nothing about whether such a schedule is legal under today's queue.
 |---|---|---|---|---|---|---|---|---|---|
 | real_s128 | 47936 | 8.5492 | 2.7392 | 7.9534 | 1.3158 | 1.3261 | 3.3065 | 0.39 | 256 |
 | real_s4 | 2800 | 6.2312 | 0.9919 | 6.0436 | 1.2145 | 1.2247 | 1.5985 | 0.26 | 256 |
+| real_s128 | 47936 | 8.5492 | 2.7392 | 7.9534 | 1.3158 | 1.3261 | 3.3065 | 0.39 | 256 |
+| real_s4 | 2800 | 5.0084 | 0.5830 | 4.7759 | 0.9771 | 0.9822 | 1.1897 | 0.24 | 340 |

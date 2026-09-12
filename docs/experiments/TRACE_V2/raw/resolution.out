@@ -1,1 +1,1 @@
-RESOLUTION min_nonzero_ns=1024 p50_ns=1024 p99_ns=1024 zero_fraction=0.982949 spread_ns=0 distinct_smids=128 needs_clock64=1
+RESOLUTION min_nonzero_ns=32 p50_ns=32 p99_ns=32 zero_fraction=0.534327 spread_ns=160 distinct_smids=128 needs_clock64=0

@@ -1,18 +1,14 @@
-/usr/local/lib/python3.10/dist-packages/torch/_subclasses/functional_tensor.py:368: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
-  cpu = _conversion_method_template(device=torch.device("cpu"))
-/usr/local/lib/python3.10/dist-packages/torch/_subclasses/functional_tensor.py:368: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
-  cpu = _conversion_method_template(device=torch.device("cpu"))
-r1w_s128	1	1	7.677888	7.681024	8.397664	48cd752301ba3e15
-stage	seconds	note
-export	24	{"layers": 4, "hidden": 4096, "heads": 32, "kv_heads": 8, "head_dim": 128, "parameters": 872448256, "call_functions": 363, "outputs": 9, "build_s": 5.091, "export_s": 7.479}
-bridge	5	{"tasks": 363, "couplings": 449, "guards": 11}
-codegen	14	CODEGEN_SUMMARY tasks=68 couplings=86 stages=60 symbolic_windows=86 fallback_windows=0 output=/root/TileMega/docs/experiments/REALMODEL/raw/work/r1w_s128/model.cu
-nvcc	31	Used 208 registers,Used 210 registers,Used 212 registers,Used 54 registers
-metric	value
-model_json_bytes	254803
-generated_cu_bytes	26720
-generated_cu_lines	428
-dependency_rows	235
-map_kAll	20
-map_kIdentity	15
-map_kWindow	43
+Traceback (most recent call last):
+  File "/root/TileMega/docs/experiments/REALMODEL/export_real.py", line 191, in <module>
+    main()
+  File "/root/TileMega/docs/experiments/REALMODEL/export_real.py", line 143, in main
+    torch.export.save(program, args.out / "exported_program.pt2")
+  File "/usr/local/lib/python3.10/dist-packages/torch/export/__init__.py", line 274, in save
+    package_pt2(
+  File "/usr/local/lib/python3.10/dist-packages/torch/export/pt2_archive/_package.py", line 711, in package_pt2
+    with PT2ArchiveWriter(f) as archive_writer:
+  File "/usr/local/lib/python3.10/dist-packages/torch/export/pt2_archive/_package.py", line 117, in __exit__
+    self.close()
+  File "/usr/local/lib/python3.10/dist-packages/torch/export/pt2_archive/_package.py", line 192, in close
+    self.archive_file.write_end_of_file()
+RuntimeError: basic_ios::clear: iostream error

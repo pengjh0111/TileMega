@@ -1,15 +1,11 @@
-/usr/local/lib/python3.10/dist-packages/torch/_subclasses/functional_tensor.py:368: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
-  cpu = _conversion_method_template(device=torch.device("cpu"))
-/usr/local/lib/python3.10/dist-packages/torch/_subclasses/functional_tensor.py:368: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
-  cpu = _conversion_method_template(device=torch.device("cpu"))
-r1w_s4	1	1	5.828832	5.803008	6.193184	451f7525006a532e
+r1w_s4	1	1	4.873088	4.950400	4.980448	b61d818b1cc4ad6b
 stage	seconds	note
-export	24	{"layers": 4, "hidden": 4096, "heads": 32, "kv_heads": 8, "head_dim": 128, "parameters": 872448256, "call_functions": 363, "outputs": 9, "build_s": 5.457, "export_s": 7.281}
+export	35	{"layers": 4, "hidden": 4096, "heads": 32, "kv_heads": 8, "head_dim": 128, "parameters": 872448256, "call_functions": 363, "outputs": 9, "build_s": 5.455, "export_s": 10.423}
 bridge	5	{"tasks": 363, "couplings": 449, "guards": 11}
-codegen	14	CODEGEN_SUMMARY tasks=68 couplings=86 stages=60 symbolic_windows=86 fallback_windows=0 output=/root/TileMega/docs/experiments/REALMODEL/raw/work/r1w_s4/model.cu
-nvcc	32	Used 208 registers,Used 210 registers,Used 212 registers,Used 54 registers
+codegen	15	CODEGEN_SUMMARY tasks=68 couplings=86 stages=60 symbolic_windows=86 fallback_windows=0 output=/root/TileMega/docs/experiments/REALMODEL/raw/work/r1w_s4/model.cu
+nvcc	28	Used 208 registers,Used 214 registers,Used 218 registers,Used 56 registers
 metric	value
-model_json_bytes	254803
+model_json_bytes	254805
 generated_cu_bytes	26720
 generated_cu_lines	428
 dependency_rows	235

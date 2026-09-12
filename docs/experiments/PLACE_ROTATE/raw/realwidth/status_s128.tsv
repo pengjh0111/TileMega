@@ -1,2 +1,4 @@
 seq	128
-status	PASS
+status	FAIL
+command	LAYERS=4 HIDDEN=4096 INTERMEDIATE=14336 HEADS=32 KV_HEADS=8 FIXTURE_SEQ=128 FIXTURE_PAST=3 LABEL=r1w_s128 RUNS=1 bash docs/experiments/REALMODEL/run.sh
+tail	  File "/usr/local/lib/python3.10/dist-packages/torch/export/pt2_archive/_package.py", line 192, in close     self.archive_file.write_end_of_file() RuntimeError: basic_ios::clear: iostream error 
