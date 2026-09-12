@@ -1,0 +1,6 @@
+cell	rounds	off_median_ms	on_median_ms	ratio	ci_lo	ci_hi
+gqa2_s4	25	0.445440	0.452608	1.0157	1.0134	1.0168
+gqa2_s128	25	0.614400	0.624640	1.0167	1.0151	1.0173
+mha4_s4	25	0.885760	0.898048	1.0163	1.0138	1.0185
+mha4_s128	25	1.175488	1.191936	1.0149	1.0137	1.0159
+PERTURBATION worst_ratio=1.0167 limit=1.02 verdict=PASS
