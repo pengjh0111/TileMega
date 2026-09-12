@@ -20,14 +20,15 @@ Commits, in the order §9 fixes:
 | 6 | `fc5dd139` | `place: bound the available scheduling headroom` |
 | 7 | `17b014d5` | `runtime: drop the unread task flag and stale header` |
 | 8 | `0eac374f` | `experiments: add the sm_120 runners for round one` |
-| 9 | (this commit) | `docs: record the round one diagnosis` |
+| 9 | `ead78247` | `docs: record the round one diagnosis` |
 
-The repository's only remote is `origin`
-(`https://github.com/pengjh0111/TileMega.git`) and this environment has no push
-rights to it, so §9's fallback applies: the nine commits are exported as
-`git format-patch 4cdebdf1..HEAD` into **`/tmp/round1-patches/`**
-(`0001-trace-measure-the-globaltimer-resolution.patch` …
-`0009-docs-record-the-round-one-diagnosis.patch`).
+§9's push succeeded: the branch `tilemega` was pushed to the repository's only
+remote, `origin` (`https://github.com/pengjh0111/TileMega.git`),
+`4cdebdf1..ead78247`. The format-patch fallback was therefore not used.
+
+A tenth commit, `docs: record the pushed round one commit list`, follows: this
+table's ninth row and the push status can only be written after commit 9 exists,
+and rewriting an already-pushed commit to fold them in was the worse option.
 
 ## 2. Gate results
 
