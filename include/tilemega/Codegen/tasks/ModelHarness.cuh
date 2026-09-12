@@ -1696,7 +1696,6 @@ inline DeviceModel Create(ModelSpec const& spec,
         if (task.wait_count != 0) ++model.schedule_waiting_tasks;
         if (task.wait_count > 1)
           model.normalization_dummy_lower_bound += task.wait_count - 1;
-        if (logical == owned[worker][stage].back()) task.flags |= kLastTaskOfStage;
         model.schedule.push_back(task);
       }
     }

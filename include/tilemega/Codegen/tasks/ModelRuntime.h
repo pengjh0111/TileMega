@@ -181,10 +181,6 @@ enum EventRowFlag : std::uint32_t {
   kNeedsFineEvents = 1u << 1,
 };
 
-enum TaskRefFlag : std::uint32_t {
-  kLastTaskOfStage = 1u << 0,
-};
-
 /// A concrete queue item consumed by the L2 persistent kernel.
 struct TaskRef {
   std::uint32_t stage;
@@ -196,6 +192,9 @@ struct TaskRef {
   /// The deduplicated event interval actually polled by this task.
   std::uint32_t wait_begin;
   std::uint32_t wait_count;
+  /// Reserved, and zero in every schedule the harness builds: the one flag that
+  /// ever lived here was written and never read.  The word stays so the queue
+  /// item keeps the size and alignment the device kernel was compiled against.
   std::uint32_t flags;
 };
 
