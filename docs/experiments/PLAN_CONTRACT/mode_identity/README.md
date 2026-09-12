@@ -47,12 +47,20 @@ two binaries are built from the `_balanced` source; 0 and 5 are selected by the
 * 36/36 dump files byte-identical: 12 pairs × 3 TSVs. `sha256.txt` holds the 72
   hashes (24 runs × 3 files); the baseline and plan hash of each cell match.
 * 24/24 runs report `RESULT status=PASS`.
+* The committed `.out` files were refreshed this round, so they differ from the
+  previous commit in exactly two line kinds, both timing: `E2E_TIME` (48 lines)
+  and `E2E_ITER`'s `l2_iter1_ms` (46 lines). Every correctness field on those
+  lines is unchanged, including `l2_iter1_vs_iter0_mismatch=0 max_abs=0`, and
+  `sha256.txt` is unmodified — which is the load-bearing part, since it means
+  the dump TSVs the gate actually compares are byte-identical run to run.
 * `E2E_BALANCED` unchanged.
 * `E2E_PLACE_STATS` is unchanged except for one appended field, `plan=`:
 
   ```
-  mode 5, mha4 s128:  max_queue=18 same_worker_edges=3624 cross_worker_edges=545252 base_rotation=1 plan=rotate
-  mode 4, mha4 s128:  max_queue=34 same_worker_edges=5274 cross_worker_edges=543602 base_rotation=0 plan=balanced
+  mode 5, gqa2 s128:  max_queue=18 same_worker_edges=3624  cross_worker_edges=545252  base_rotation=1 plan=rotate
+  mode 4, gqa2 s128:  max_queue=34 same_worker_edges=5274  cross_worker_edges=543602  base_rotation=0 plan=balanced
+  mode 5, mha4 s128:  max_queue=47 same_worker_edges=12416 cross_worker_edges=2149788 base_rotation=1 plan=rotate
+  mode 4, mha4 s128:  max_queue=80 same_worker_edges=20528 cross_worker_edges=2141676 base_rotation=0 plan=balanced
   ```
 
 The `plan=` field is new output, not a changed value; every pre-existing field
@@ -63,3 +71,7 @@ is byte-identical to the baseline.
 * `sha256.txt` — 72 lines, `<run> <sha256> <file>`.
 * `dumps.tar.gz` — all 24 dump directories.
 * `{base,plan}_{gqa2,mha4}_p{0,4,5}_s{4,128}.out` — the 24 run logs.
+
+Reproduce with `../run.sh`, which prints the E1-a, E1-b and correctness
+verdicts. It regenerates the baseline include tree and both sets of binaries
+from scratch, so it is the script, not these files, that is the claim.
