@@ -1,9 +1,9 @@
 base	059f8532509fcf21c9cc96e078903cc1edc13a5a
-head	67e219de8bb5f850a3705cfec3114d21ef2a3ee4
+head	48554a819a6bd60dfa0ce6429ba93495cca129cd
 A1	PASS	2044 non-empty base lines; missing 0; annotated 6
-A2	PASS	253 numeric tokens in new lines; unsourced 0 (review audit_numbers.tsv)
-A3	PASS	182 references; unresolved 0
+A2	REPORT	697 numeric tokens in new lines; unsourced 6 (review audit_numbers.tsv)
+A3	PASS	224 references; unresolved 0
 A4	PASS	34 P ids, 14 EX headings; problems 0
-A5	PASS	code changes 0; other experiment changes 0
-A6	PASS	6 code references to sections absent from the skeleton (pre-existing; report only)
-A7	PASS	30 facts; failing []
+A5	REPORT	30 code paths and 5142 experiment paths changed since the base (report only; see audit_drift.tsv)
+A6	REPORT	6 code references to sections absent from the skeleton (pre-existing; report only)
+A7	PASS	30 facts; 7 superseded and still failing as recorded; failing []

@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
-"""v2.1 document-restructure audit (A1-A7).
+"""Document invariant audit (A1-A7).
+
+Written for the v2.1 restructure, where it also checked that the restructure
+itself touched no code. Rounds one and two changed code on purpose, so that
+check is now a census (A5) instead of a gate, and what is left is what should
+hold at any commit: every non-empty line of the base skeleton is still
+reachable in the split documents, every reference in the documents resolves,
+every identifier the skeleton defines is findable, and every fact the
+restructure recorded about the tree either still holds or is listed as
+superseded together with the commit that superseded it.
 
 Run from anywhere inside the repository:
     python3 docs/experiments/DOC_RESTRUCTURE/audit.py
 Outputs *.tsv and audit_summary.txt next to this script. Exit status is
-non-zero when a hard check (A1, A3, A4, A5, A7) fails. A2 and A6 are reports.
+non-zero when a hard check (A1, A3, A4, A7) fails. A2, A5 and A6 are reports.
 """
 import glob, os, re, subprocess, sys
 from pathlib import Path
@@ -47,7 +56,8 @@ def tsv(name, header, rows):
 
 def verdict(tag, ok, detail, hard=True):
     global hard_fail
-    summary.append(f"{tag}\t{'PASS' if ok else ('FAIL' if hard else 'REPORT')}\t{detail}")
+    # A report has no pass: calling a census PASS would read as a gate met.
+    summary.append(f"{tag}\t{('PASS' if ok else 'FAIL') if hard else 'REPORT'}\t{detail}")
     if hard and not ok:
         hard_fail = True
 
@@ -81,13 +91,26 @@ n_nonempty = sum(1 for l in old if l.strip())
 verdict('A1', missing == 0, f'{n_nonempty} non-empty base lines; missing {missing}; '
         f'annotated {sum(1 for r in rows if r[1] == "annotated")}')
 
-# ------------------------------------------------------------------ A2 new numbers (report)
+# ------------------------------------------------------------------ A2 number traceability (report)
+# Every number in the prose should be findable in something committed. While
+# the restructure was in flight that meant the base documents plus the seven
+# result files it cited, because no measurement was allowed to be new. Later
+# rounds measure, so the corpus is the committed experiment evidence as well:
+# a number that appears in neither is what this reports.
 corpus = base_text('TileMega_skeleton.md') + base_text('docs/FINDINGS.md')
 for p in ['docs/experiments/L2_ATTRIB/result.md', 'docs/experiments/E2E_L2/result.md',
           'docs/experiments/OVERLAP/result.md', 'docs/experiments/PLACE/round5_balanced_result.md',
           'docs/experiments/TASKQUEUE/result.md', 'docs/experiments/ROUND5_LEDGER.md',
           'docs/experiments/COARSEN/result.md']:
     corpus += read(p) if Path(p).exists() else ''
+# Per-slot trace dumps are excluded: they are megabytes of timestamps, and a
+# number that only matches one of those matched by accident.
+evidence = corpus
+for p in git('ls-files', 'docs/experiments/*.md', 'docs/experiments/*.tsv').split('\n'):
+    if not p or 'DOC_RESTRUCTURE' in p or '/raw/dump/' in p or not Path(p).exists():
+        continue
+    if Path(p).stat().st_size <= 1 << 20:
+        evidence += Path(p).read_text(encoding='utf-8', errors='replace')
 P1 = {'13.6', '9.4', '12.1', '9.1', '2.2', '2.5', '2.1', '2.9'}
 STATED = {'2512.22219', '2604.13327', '2026-06-10', '1.09', '1.06', '1.07', '0.83', '0.82',
           '0.85', '0.89'}
@@ -115,6 +138,8 @@ for d in DOCS[:3] + ['docs/FINDINGS.md', 'docs/PROPOSED_SKELETON_CHANGES.md']:
                 src = 'base docs / cited results'
             elif t in STATED:
                 src = 'stated (paper)'
+            elif t in evidence:
+                src = 'committed experiment evidence'
             else:
                 src = 'UNSOURCED'
             arows.append((d, i, tok, src))
@@ -184,14 +209,27 @@ for e in sorted(set(re.findall(r'\bEX-[A-Z]\d+\b', todo))):
 tsv('audit_ids.tsv', ['kind', 'id', 'state'], irows)
 verdict('A4', bad == 0, f'{len(pids)} P ids, {len(ex_defined)} EX headings; problems {bad}')
 
-# ------------------------------------------------------------------ A5 zero code change
+# ------------------------------------------------------------------ A5 drift since the base (report)
+# This asserted zero code change while the restructure was in flight. Rounds
+# one and two changed code by design, so it is a census now: it lists what has
+# moved since BASE, which is what the superseded entries of A7 are read
+# against.
 changed = [l for l in git('diff', '--name-only', BASE, '--').split('\n') if l]
 changed += [l for l in git('ls-files', '--others', '--exclude-standard').split('\n') if l]
 code = [c for c in changed if c.split('/')[0] in CODE_DIRS or
         c in ('CMakeLists.txt', 'CLAUDE.md', 'AGENTS.md', 'README.md')]
 exp = [c for c in changed if c.startswith('docs/experiments/') and
        not c.startswith('docs/experiments/DOC_RESTRUCTURE/')]
-verdict('A5', not code and not exp, f'code changes {code or 0}; other experiment changes {exp or 0}')
+# Code paths one by one; experiment paths by directory, because rounds one and
+# two left thousands of raw dumps and listing them would bury the code.
+by_dir = {}
+for c in exp:
+    by_dir[c.split('/')[2]] = by_dir.get(c.split('/')[2], 0) + 1
+tsv('audit_drift.tsv', ['path', 'kind', 'files'],
+    [(c, 'code', 1) for c in sorted(code)] +
+    [(f'docs/experiments/{d}', 'experiment', n) for d, n in sorted(by_dir.items())])
+verdict('A5', True, f'{len(code)} code paths and {len(exp)} experiment paths changed since '
+        f'the base (report only; see audit_drift.tsv)', hard=False)
 
 # ------------------------------------------------------------------ A6 dangling section refs (report)
 nums = set()
@@ -247,11 +285,35 @@ def pos(b, pat):
     return None
 
 
+# K1..K29 and P1 were true of the tree at BASE. Seven stopped being true when
+# rounds one and two changed the code they describe. They stay in the table
+# with the commit that superseded them rather than being dropped, and the audit
+# now requires a superseded fact to actually fail: one that starts holding
+# again means this table has gone stale, which is as much a document defect as
+# a missing line.
+SUPERSEDED = {
+    'K1': ('e7b4c5cc', 'the grid-stride owner assignment left the harness for the Plan '
+           'materializer (EX-E1)'),
+    'K3': ('e7b4c5cc', 'queues are built from sigma, so the stage-major ownership loop is '
+           'gone (EX-E1)'),
+    'K4': ('e7b4c5cc', '`placed_tasks` is gone; the harness reads the Plan\'s owner and slot'),
+    'K5': ('e7b4c5cc', 'slot is read now, at lib/Solver/PlanMaterialize.cpp, which is what '
+           'STATUS G14 asked for'),
+    'K7': ('157b5960', '`BuildVariantSchedule` moved from Codegen into the Solver (EX-E1)'),
+    'K12': ('11c0199f', 'per-slot trace timestamps added a sixth barrier, in the L2 kernel'),
+    'K18': ('17b014d5', '`kLastTaskOfStage` was deleted as an unread flag (EX-C1)'),
+}
+
 facts = []
 
 
 def fact(k, ok, ev):
-    facts.append((k, '✅' if ok else '❌', ev))
+    if k not in SUPERSEDED:
+        facts.append((k, '✅' if ok else '❌', ev))
+        return
+    commit, why = SUPERSEDED[k]
+    facts.append((k, '⛔' if not ok else '❌ STALE',
+                  f'superseded by {commit}: {why}; evidence now: {ev}'))
 
 
 e1 = grep(MH, r'task_owner\[stage\]\[task\]\s*=\s*physical_worker\[task\s*%\s*grid\]')
@@ -348,8 +410,9 @@ p1 = '; '.join(f'{k}: ceiling {100 * (b + abs(l)) / L1:.1f}% / ratio {(w + n) / 
                for k, (L1, w, n, b, l) in K.items())
 fact('P1', not miss23, p1)
 tsv('facts.tsv', ['id', 'status', 'evidence'], facts)
-bad = [f[0] for f in facts if f[1] != '✅']
-verdict('A7', not bad, f'{len(facts)} facts; failing {bad}')
+bad = [f[0] for f in facts if f[1] not in ('✅', '⛔')]
+verdict('A7', not bad, f'{len(facts)} facts; {len(SUPERSEDED)} superseded and still failing '
+        f'as recorded; failing {bad}')
 
 (HERE / 'audit_summary.txt').write_text(
     f'base\t{BASE}\nhead\t{git("rev-parse", "HEAD").strip()}\n' + '\n'.join(summary) + '\n',
