@@ -1,0 +1,6 @@
+# hop_ns(N, R) = c0 + c1*log2(1 + N/R) + c2*log2(R)
+# EX-S1 calibration, RMW poll with the generated nanosleep(64), 0.1% trimmed mean
+arm	rmw_backoff64_hop_trim_mean
+c0	1235.411801
+c1	-0.400706
+c2	-2.672205
