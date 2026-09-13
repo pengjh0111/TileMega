@@ -150,6 +150,7 @@ add_library(tilemega STATIC
   lib/Solver/ListScheduler.cpp
   lib/Solver/ExecutionSimulator.cpp
   lib/Solver/EftPlacement.cpp
+  lib/Solver/ChainPlacement.cpp
   lib/Solver/PlanMaterialize.cpp
   lib/Solver/VariantSchedule.cpp
   lib/Solver/CostModel.cpp
@@ -546,6 +547,10 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(eft_placement_test test/unit/eft_placement_test.cpp)
   target_link_libraries(eft_placement_test PRIVATE TileMega::tilemega)
   add_test(NAME eft_placement COMMAND eft_placement_test)
+
+  add_executable(chain_placement_test test/unit/chain_placement_test.cpp)
+  target_link_libraries(chain_placement_test PRIVATE TileMega::tilemega)
+  add_test(NAME chain_placement COMMAND chain_placement_test)
 
   add_executable(plan_table_test test/unit/plan_table_test.cpp)
   add_dependencies(plan_table_test TileMegaCGIncGen)
