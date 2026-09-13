@@ -357,6 +357,27 @@ static_assert(!TILEMEGA_EVENT_CLUSTER_FANIN || TILEMEGA_EVENT_SHARDED,
 #ifndef TILEMEGA_EVENT_RED_PUBLISH
 #define TILEMEGA_EVENT_RED_PUBLISH 0
 #endif
+
+// EX-E2 (§5.7.2): the execution window.  W = 1 is strict FIFO, the only shape
+// the executor implemented before this step; a larger W lets a worker start any
+// of the next W slots whose waits are already satisfied, which is the only way
+// the head-of-line stall time F-134 measured becomes reclaimable.  Off by
+// default (H2).
+//
+// The bound is compile time because the executor's local-dependency mask is
+// W - 1 bits wide; the runtime value comes from the Plan and nothing else
+// (§8.11).  `kSlotWindowMax` is deliberately macro independent: RuntimePlanDesc
+// is also compiled into libtilemega, through Solver/ModelDescription.h and
+// lib/Target/Calibration.cu, which never see a model's macros -- a
+// macro-dependent constant there would give the library and the model two
+// different meanings for one struct.
+#ifndef TILEMEGA_SLOT_WINDOW
+#define TILEMEGA_SLOT_WINDOW 1
+#endif
+inline constexpr std::uint32_t kSlotWindowMax = 4;
+static_assert(TILEMEGA_SLOT_WINDOW >= 1 &&
+                  TILEMEGA_SLOT_WINDOW <= kSlotWindowMax,
+              "the executor implements 1 <= W <= kSlotWindowMax");
 struct alignas(128) ArrivalCounter {
   unsigned long long arrivals;
 };
@@ -411,6 +432,17 @@ struct Params {
   std::uint32_t const* shard_local_offsets;
   std::uint32_t const* cluster_shard_offsets;
   std::uint32_t const* cluster_shard_indices;
+#if TILEMEGA_SLOT_WINDOW > 1
+  /// Per-slot mask of this worker's own predecessors inside the window: bit k
+  /// means slot - (k + 1) must be complete before this slot may start.  These
+  /// are the same-worker edges W > 1 stops FIFO from discharging, so the host
+  /// emits them instead of eliding them (§5.7.3 L-d, R3 H4).  Last, and
+  /// guarded, so a default build keeps the layout and therefore the SASS (H2).
+  std::uint32_t const* slot_local_deps;
+  /// W as the Plan states it.  The executor reads it from here and never from
+  /// TILEMEGA_SLOT_WINDOW, which only bounds what this build can implement.
+  std::uint32_t window;
+#endif
 };
 
 /// Everything the generator emits about one model.  The harness reads only

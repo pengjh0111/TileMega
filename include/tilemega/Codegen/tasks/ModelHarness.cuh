@@ -41,6 +41,7 @@
 #include <iterator>
 #include <limits>
 #include <numeric>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -84,6 +85,15 @@ namespace tilemega::codegen {
 #endif
 #ifndef TILEMEGA_NEGATIVE_TASK_WAIT_CLAMP
 #define TILEMEGA_NEGATIVE_TASK_WAIT_CLAMP 0
+#endif
+// EX-E2 negative control (R3 H4, §8.10): the two L-d rules forced back to
+// their W = 1 form while the executor still runs the window the Plan states.
+// A wait is then lifted out of a task the window may run first, and a
+// same-worker producer inside the window keeps an elision FIFO no longer
+// provides -- so this build must fail.  Never enabled in a shipped build;
+// WINDOW requires it to fail.
+#ifndef TILEMEGA_NEGATIVE_WINDOW_W1_RULES
+#define TILEMEGA_NEGATIVE_WINDOW_W1_RULES 0
 #endif
 static_assert(!arch::kDevicePass || TILEMEGA_GENERATED_CLUSTER_DIM == 1 ||
                   arch::Caps<arch::CurrentArch>::kCluster,
@@ -589,6 +599,62 @@ __device__ inline void WaitTaskDependencies(Params const& p,
 #endif
 }
 
+#if TILEMEGA_SLOT_WINDOW > 1
+/// One non-blocking pass over a task's waits: one load per wait, no backoff and
+/// no sleep, so a failed probe costs a scan rather than a nap (§5.7.2).  The
+/// reduction is CTA wide because threads poll disjoint rows, and every thread
+/// of the block reaches it -- it is never inside a divergent spin (§8.1).
+__device__ inline bool ProbeTaskDependencies(Params const& p,
+                                             EventCounter* events,
+                                             TaskRef const& task,
+                                             unsigned long long iteration) {
+  int mine = 1;
+  for (std::uint32_t i = threadIdx.x; i < task.wait_count; i += blockDim.x) {
+    TaskWait const& wait = p.task_waits[task.wait_begin + i];
+#if TILEMEGA_EVENT_RED_PUBLISH
+    if (EventPoll(&events[EventIndex(p, wait.producer, wait.group)].arrivals) <
+        EventTriggers(p, wait.producer, wait.group) * (iteration + 1ull))
+      mine = 0;
+#else
+    if (EventPoll(&events[EventIndex(p, wait.producer, wait.group)].epoch) <
+        iteration + 1ull)
+      mine = 0;
+#endif
+  }
+  return __syncthreads_and(mine) != 0;
+}
+
+/// Take the lowest slot in [head, head + W) whose waits are satisfied and whose
+/// same-worker predecessors inside the window are done.  When nothing in the
+/// window is ready the head is taken and waited on with the full backoff
+/// policy: the head's own local dependencies are always met, since every slot
+/// below it has completed, so this always makes progress.
+__device__ inline std::uint32_t WindowAcquireSlot(
+    Params const& p, EventCounter* events, unsigned long long iteration,
+    std::uint32_t head, std::uint32_t last, unsigned done_mask) {
+  std::uint32_t const room = last - head;
+  std::uint32_t const span = p.window < room ? p.window : room;
+  for (std::uint32_t k = 0; k < span; ++k) {
+    if ((done_mask >> k) & 1u) continue;
+    // Bit j of the mask names slot - (j + 1).  A predecessor below `head` has
+    // already completed, so only j < k can still block this candidate.
+    unsigned const local = p.slot_local_deps[head + k];
+    bool blocked = false;
+    for (std::uint32_t j = 0; j < k; ++j)
+      if (((local >> j) & 1u) && !((done_mask >> (k - j - 1)) & 1u))
+        blocked = true;
+    if (blocked) continue;
+    TaskRef const candidate = p.schedule[head + k];
+    if (ProbeTaskDependencies(p, events, candidate, iteration)) {
+      if (candidate.wait_count != 0) __threadfence();
+      return head + k;
+    }
+  }
+  WaitTaskDependencies(p, events, p.schedule[head], iteration);
+  return head;
+}
+#endif
+
 // T1.3-A: called after every writer's release fence and CTA convergence.
 // Last arrivals at each level carry the previous writers into the next
 // release. No counter is reset while iterations are using this allocation.
@@ -809,6 +875,28 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
   std::uint32_t const worker = static_cast<std::uint32_t>(blockIdx.x);
   std::uint32_t const first = params->schedule_offsets[worker];
   std::uint32_t const last = params->schedule_offsets[worker + 1];
+#if TILEMEGA_SLOT_WINDOW > 1
+  // §5.7.2: `head` is the lowest slot not yet complete and `done_mask` records
+  // which of [head, head + W) are, so the queue is still consumed exactly once
+  // while the order within the window is free.
+  std::uint32_t head = first;
+  unsigned done_mask = 0u;
+  for (std::uint32_t taken = first; taken < last; ++taken) {
+#if TILEMEGA_TRACE_V2
+    // Read before the slot is chosen and stored once it is: under W > 1 the
+    // wait happens inside the acquire, so stamping after it would report every
+    // task as having waited for nothing.
+    unsigned long long const wait_stamp =
+        params->task_trace_v2 != nullptr ? TraceNow() : 0ull;
+#endif
+    std::uint32_t const slot =
+        WindowAcquireSlot(*params, events, iteration, head, last, done_mask);
+    TaskRef const task = params->schedule[slot];
+#if TILEMEGA_TRACE_V2
+    if (params->task_trace_v2 != nullptr && threadIdx.x == 0)
+      params->task_trace_v2[slot].wait_begin = wait_stamp;
+#endif
+#else
   for (std::uint32_t slot = first; slot < last; ++slot) {
     TaskRef const task = params->schedule[slot];
 #if TILEMEGA_TRACE_V2
@@ -818,6 +906,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
       params->task_trace_v2[slot].wait_begin = TraceNow();
 #endif
     WaitTaskDependencies(*params, events, task, iteration);
+#endif
 #if TILEMEGA_TRACE_V2
     // `ready` follows the wait's own __syncthreads()/__threadfence(), so it
     // includes them; the offline report says so rather than subtracting them.
@@ -865,6 +954,15 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
 #if TILEMEGA_TRACE_V2
     if (params->task_trace_v2 != nullptr && threadIdx.x == 0)
       params->task_trace_v2[slot].publish_end = TraceNow();
+#endif
+#if TILEMEGA_SLOT_WINDOW > 1
+    // Publish along the out-edges happened in NotifyTask; all that is left is
+    // to record the slot and advance the head over the completed prefix.
+    done_mask |= 1u << (slot - head);
+    while ((done_mask & 1u) != 0u) {
+      done_mask >>= 1;
+      ++head;
+    }
 #endif
   }
   if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled) {
@@ -986,9 +1084,17 @@ struct DeviceModel {
   std::vector<TaskRef> schedule;
   std::vector<std::uint32_t> schedule_offsets;
   std::vector<TaskWait> task_waits;
+#if TILEMEGA_SLOT_WINDOW > 1
+  /// One mask per flat slot; bit k means slot - (k + 1) is a same-worker
+  /// producer this worker's window may otherwise reorder past (§5.7.3 L-d).
+  std::vector<std::uint32_t> slot_local_deps;
+#endif
   TaskRef* device_schedule = nullptr;
   std::uint32_t* device_schedule_offsets = nullptr;
   TaskWait* device_task_waits = nullptr;
+#if TILEMEGA_SLOT_WINDOW > 1
+  std::uint32_t* device_slot_local_deps = nullptr;
+#endif
   std::vector<std::uint32_t> event_offsets;
   std::uint32_t* device_event_offsets = nullptr;
   std::vector<std::uint32_t> event_flags;
@@ -1495,7 +1601,19 @@ inline DeviceModel Create(ModelSpec const& spec,
     std::exit(2);
   }
 #endif
-  std::vector<std::set<std::pair<std::uint32_t, std::uint32_t>>> seen(grid);
+  // Wait -> the sigma slot of the queue entry that first observed it.  A set
+  // sufficed while W = 1 lifted a wait out of every later task in the queue;
+  // with W > 1 that lift is only sound when the first observer is at least W
+  // slots back, so the slot has to be remembered and not just the fact of
+  // having been seen (§5.7.3 L-d, H4).
+  std::vector<std::map<std::pair<std::uint32_t, std::uint32_t>, int>> seen(grid);
+  // W exactly as the Plan states it (§8.11), 1 in every default build.  The
+  // two L-d rules below are the pair H4 requires to move with it: a wait may
+  // only be lifted, and a same-worker poll may only be elided, across a
+  // distance the window cannot reorder.
+  int const window = TILEMEGA_NEGATIVE_WINDOW_W1_RULES
+                         ? 1
+                         : static_cast<int>(runtime_variant.plan.window);
 #if TILEMEGA_EVENT_KAPPA > 0
   bool const force_all_dependencies =
       std::getenv("TILEMEGA_FORCE_ALL_DEPENDENCIES") != nullptr;
@@ -1529,8 +1647,16 @@ inline DeviceModel Create(ModelSpec const& spec,
       plan_params.assign(runtime_variant.plan.params,
                          runtime_variant.plan.params + runtime_variant.plan.param_count);
     }
-    if (runtime_variant.plan.window != dialect::kPlacementWindowImplemented) {
-      std::fprintf(stderr,"the executor implements window=1 only (§5.7.2)\n");
+    // W comes from the Plan, never from the macro (§8.11).  A source solved
+    // for a wider window than this build implements is refused rather than run
+    // under lifting rules it was not solved for (H4); W = 1 is accepted by
+    // every build, which is what keeps a default source valid either way.
+    if (runtime_variant.plan.window < 1 ||
+        runtime_variant.plan.window > TILEMEGA_SLOT_WINDOW) {
+      std::fprintf(stderr,
+                   "the executor implements window<=%u; this plan asks %u (§5.7.2)\n",
+                   static_cast<unsigned>(TILEMEGA_SLOT_WINDOW),
+                   static_cast<unsigned>(runtime_variant.plan.window));
       std::exit(2);
     }
     if (runtime_variant.plan.policy != 0) {
@@ -1782,6 +1908,9 @@ inline DeviceModel Create(ModelSpec const& spec,
         task.dependency_count = offsets[stage + 1] - offsets[stage];
         task.wait_begin = static_cast<std::uint32_t>(model.task_waits.size());
         std::set<std::pair<std::uint32_t, std::uint32_t>> desired;
+#if TILEMEGA_SLOT_WINDOW > 1
+        std::uint32_t local_mask = 0u;
+#endif
         for (std::uint32_t e = offsets[stage]; e < offsets[stage + 1]; ++e) {
           // Queue-era negative control at the point L2 actually consumes:
           // truncate every TaskWait interval to zero. Never enabled in a
@@ -1823,10 +1952,24 @@ inline DeviceModel Create(ModelSpec const& spec,
               // stages on one worker.  L-c has already rejected a same-worker
               // producer that does not come first, so this cannot silently drop
               // a poll that was actually needed.
-              if (per_group == 1 && owner == worker &&
-                  plan.slot[dep.producer][producer_task] <
-                      plan.slot[stage][logical])
+              // At W = 1 this is the old `producer slot < consumer slot`; a
+              // wider window may start the two in either order, so only a
+              // producer the window cannot reach is still discharged by FIFO.
+              // The rest become local dependencies rather than global polls.
+              if (per_group == 1 && owner == worker) {
+                int const producer_slot =
+                    plan.slot[dep.producer][producer_task];
+                int const consumer_slot = plan.slot[stage][logical];
+                if (producer_slot + window <= consumer_slot) return;
+#if TILEMEGA_SLOT_WINDOW > 1
+                // Inside the window FIFO proves nothing, so the edge is kept
+                // as a local dependency instead of being promoted to a global
+                // poll (H4).  L-c has already placed a same-worker producer
+                // earlier in the queue, so the distance is positive.
+                local_mask |= 1u << (consumer_slot - producer_slot - 1);
                 return;
+#endif
+              }
               desired.emplace(dep.producer,
                               static_cast<std::uint32_t>(group));
             };
@@ -1862,14 +2005,26 @@ inline DeviceModel Create(ModelSpec const& spec,
                          stage, wait.first);
             std::exit(2);
           }
-          if (seen[worker].insert(wait).second)
+          // L-d lifting, window aware: a wait already observed earlier in this
+          // queue is dropped only when that observer is at least W slots back,
+          // since the window may otherwise run this task first.  When it is
+          // not, the wait is emitted again and becomes the new anchor, so the
+          // next task measures its distance from the nearest observer.
+          int const slot_index = plan.slot[stage][logical];
+          auto const at = seen[worker].emplace(wait, slot_index);
+          if (at.second || at.first->second + window > slot_index) {
+            at.first->second = slot_index;
             model.task_waits.push_back({wait.first, wait.second});
+          }
         }
         task.wait_count = static_cast<std::uint32_t>(model.task_waits.size()) -
                           task.wait_begin;
         if (task.wait_count != 0) ++model.schedule_waiting_tasks;
         if (task.wait_count > 1)
           model.normalization_dummy_lower_bound += task.wait_count - 1;
+#if TILEMEGA_SLOT_WINDOW > 1
+        model.slot_local_deps.push_back(local_mask);
+#endif
         model.schedule.push_back(task);
       }
     }
@@ -1941,6 +2096,12 @@ inline DeviceModel Create(ModelSpec const& spec,
   if (!model.task_waits.empty())
     model.device_task_waits = static_cast<TaskWait*>(upload(
         model.task_waits.data(), model.task_waits.size() * sizeof(TaskWait)));
+#if TILEMEGA_SLOT_WINDOW > 1
+  if (!model.slot_local_deps.empty())
+    model.device_slot_local_deps = static_cast<std::uint32_t*>(
+        upload(model.slot_local_deps.data(),
+               model.slot_local_deps.size() * sizeof(std::uint32_t)));
+#endif
   model.device_event_offsets = static_cast<std::uint32_t*>(upload(
       model.event_offsets.data(),
       model.event_offsets.size() * sizeof(std::uint32_t)));
@@ -1991,6 +2152,10 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.params.schedule_count = static_cast<std::uint32_t>(model.schedule.size());
   model.params.schedule_offsets = model.device_schedule_offsets;
   model.params.task_waits = model.device_task_waits;
+#if TILEMEGA_SLOT_WINDOW > 1
+  model.params.slot_local_deps = model.device_slot_local_deps;
+  model.params.window = runtime_variant.plan.window;
+#endif
   model.params.task_wait_count =
       static_cast<std::uint32_t>(model.task_waits.size());
   model.params.event_offsets = model.device_event_offsets;
