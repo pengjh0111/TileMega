@@ -358,6 +358,34 @@ __device__ inline int ActiveBlocksClamped(Params const& p,
   return active < 1 ? 1 : active;
 }
 
+#if TILEMEGA_EVENT_RED_PUBLISH && TILEMEGA_TRACE_V2
+#error "the RED publish leaves no last arriver to stamp event_publish"
+#endif
+#if TILEMEGA_EVENT_RED_PUBLISH && TILEMEGA_EVENT_SHARDED
+#error "the RED publish has no shard-level target to combine"
+#endif
+
+/// The arrival target of one event row, derived where it is consumed rather
+/// than passed in.  It must equal the `members` `NotifyTask` hands
+/// `ArriveEvent`, which is why it is not `StageArrivalTarget`: that clamps to
+/// the grid, and a grid-strided stage arrives once per task, so `produced`
+/// exceeds the grid and a clamped target would release the consumer early.
+__device__ inline unsigned long long EventTriggers(Params const& p,
+                                                   std::uint32_t producer,
+                                                   std::uint32_t group) {
+  int const produced = ActiveBlocks(p, p.stages[producer]);
+#if TILEMEGA_EVENT_KAPPA > 0
+  if (group != kWholeStageEventGroup) {
+    int const rest = produced - static_cast<int>(group) * TILEMEGA_EVENT_KAPPA;
+    return static_cast<unsigned long long>(
+        rest < TILEMEGA_EVENT_KAPPA ? rest : TILEMEGA_EVENT_KAPPA);
+  }
+#else
+  (void)group;
+#endif
+  return static_cast<unsigned long long>(produced);
+}
+
 /// How many CTAs must arrive before stage `producer` counts as complete at
 /// iteration `iteration` -- §8.2's `needed = num_triggers x iteration_num`.
 /// `num_triggers` is the stage's own active CTA count, not the whole grid:
@@ -429,10 +457,18 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
 #else
     if (poll_index++ % blockDim.x != threadIdx.x) return;
 #endif
+#if TILEMEGA_EVENT_RED_PUBLISH
+    TILEMEGA_GENERATED_WAIT_global(
+        &events[EventIndex(p, producer,
+                           static_cast<std::uint32_t>(group))].arrivals,
+        EventTriggers(p, producer, static_cast<std::uint32_t>(group)) *
+            (iteration + 1ull));
+#else
     TILEMEGA_GENERATED_WAIT_global(
         &events[EventIndex(p, producer,
                            static_cast<std::uint32_t>(group))].epoch,
         iteration + 1ull);
+#endif
   };
   {
     std::uint32_t first = p.dependency_offsets[consumer];
@@ -527,9 +563,15 @@ __device__ inline void WaitTaskDependencies(Params const& p,
   for (std::uint32_t i = threadIdx.x; i < task.wait_count;
        i += blockDim.x) {
     TaskWait const& wait = p.task_waits[task.wait_begin + i];
+#if TILEMEGA_EVENT_RED_PUBLISH
+    TILEMEGA_GENERATED_WAIT_global(
+        &events[EventIndex(p, wait.producer, wait.group)].arrivals,
+        EventTriggers(p, wait.producer, wait.group) * (iteration + 1ull));
+#else
     TILEMEGA_GENERATED_WAIT_global(
         &events[EventIndex(p, wait.producer, wait.group)].epoch,
         iteration + 1ull);
+#endif
   }
 #if TILEMEGA_BARRIER_V2
   // Unconditional: with the barriers around `RunTask` gone this is the only
@@ -578,7 +620,7 @@ __device__ inline void ArriveEvent(Params const& p, EventCounter* events,
     triggers = plan.nonempty;
   }
 #endif
-#if TILEMEGA_EVENT_SOLO
+#if TILEMEGA_EVENT_SOLO && !TILEMEGA_EVENT_RED_PUBLISH
   // One trigger means this CTA is the only arriver, so the counter could only
   // reach `iteration + 1` here and the test below is already true.  Dropping
   // the add cannot strand a later iteration against a larger target: triggers
@@ -594,6 +636,22 @@ __device__ inline void ArriveEvent(Params const& p, EventCounter* events,
 #endif
     return;
   }
+#endif
+#if TILEMEGA_EVENT_RED_PUBLISH
+  // No return value, so no last arriver and no epoch at all: the consumer
+  // tests the count itself.  Discarding the result is the whole mechanism --
+  // nvcc lowers an unused-result `atomicAdd` to RED.E.ADD.64.STRONG.GPU.  Two
+  // hand-written forms were tried first and both were worse: an
+  // `atomic_ref::fetch_add` with its value dropped still emitted an ATOM, and
+  // generic-space `red` PTX emitted an ATOM *plus* an ATOMS.CAST.SPIN generic
+  // dispatch.
+  //
+  // The reduction is relaxed and needs to be no stronger: `NotifyTask` fences
+  // before the CTA barrier that precedes this call (§8.5), so this CTA's
+  // writes are already visible by the time the arrival lands.
+  (void)triggers;
+  atomicAdd(&events[index].arrivals, 1ull);
+  return;
 #endif
   unsigned long long ticket = atomicAdd(&events[index].arrivals, 1ull);
   if (ticket + 1ull == triggers * (iteration + 1ull)) {

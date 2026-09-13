@@ -347,6 +347,16 @@ static_assert(!TILEMEGA_EVENT_CLUSTER_FANIN || TILEMEGA_EVENT_SHARDED,
 #ifndef TILEMEGA_EVENT_SOLO
 #define TILEMEGA_EVENT_SOLO 0
 #endif
+
+// EX-E3 step 3: the arrival add's return value is used for one thing only --
+// finding the last arriver.  Dropping it makes the add a return-value-free
+// release reduction and moves the completion test to the consumer, which
+// polls `arrivals` against `triggers x (iteration + 1)`.  That counter is
+// monotone across iterations exactly as `epoch` is (§8.2).  Off by default
+// (H2).
+#ifndef TILEMEGA_EVENT_RED_PUBLISH
+#define TILEMEGA_EVENT_RED_PUBLISH 0
+#endif
 struct alignas(128) ArrivalCounter {
   unsigned long long arrivals;
 };
