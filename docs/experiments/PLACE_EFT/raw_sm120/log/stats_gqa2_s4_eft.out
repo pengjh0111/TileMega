@@ -1,0 +1,2 @@
+the eft plan table is pinned to nodes=200 seq=4 past=3 grid=256, not nodes=200 seq=4 past=3 grid=340
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0

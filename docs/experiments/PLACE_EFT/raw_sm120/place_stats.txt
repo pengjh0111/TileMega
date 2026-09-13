@@ -1,0 +1,3 @@
+gqa2	seq=4	legacy_grid_stride	E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+gqa2	seq=4	balanced	E2E_PLACE_STATS placement=4 max_queue=30 same_worker_edges=442 cross_worker_edges=850 base_rotation=0 plan=balanced
+gqa2	seq=4	rotate	E2E_PLACE_STATS placement=5 max_queue=1 same_worker_edges=0 cross_worker_edges=1292 base_rotation=1 plan=rotate

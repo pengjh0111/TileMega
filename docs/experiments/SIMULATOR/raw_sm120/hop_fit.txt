@@ -1,0 +1,22 @@
+FIT mode=rmw backoff=64 column=hop_trim_mean_ns cells=24 c0=448.3+-13.9 c1=1.13+-1.96 c2=-0.44+-1.91 resid_rms_ns=15.0 resid_max_ns=42.6 chi2_red=1936.5
+FIT mode=rmw backoff=64 column=hop_mean_ns  cells=24 c0=448.6+-13.9 c1=1.14+-1.95 c2=-0.43+-1.90 resid_rms_ns=15.0 resid_max_ns=42.6 chi2_red=1925.2
+FIT mode=rmw backoff=64 column=last_trim_mean_ns cells=24 c0=436.0+-14.4 c1=18.08+-2.02 c2=3.55+-1.97 resid_rms_ns=17.8 resid_max_ns=47.2 chi2_red=2062.6
+FIT mode=rmw backoff=64 column=last_mean_ns cells=24 c0=436.3+-14.3 c1=18.05+-2.02 c2=3.54+-1.96 resid_rms_ns=17.7 resid_max_ns=47.3 chi2_red=2057.2
+SPREAD mode=rmw backoff=64 hop_min_ns=406.8 hop_max_ns=472.5 range_over_c0=14.7%
+FIT mode=rmw backoff=0 column=hop_trim_mean_ns cells=24 c0=416.2+-7.7 c1=-1.74+-1.07 c2=-0.22+-1.05 resid_rms_ns=6.7 resid_max_ns=12.7 chi2_red=645.3
+FIT mode=rmw backoff=0 column=hop_mean_ns  cells=24 c0=416.3+-7.7 c1=-1.74+-1.07 c2=-0.20+-1.05 resid_rms_ns=6.7 resid_max_ns=12.7 chi2_red=646.8
+FIT mode=rmw backoff=0 column=last_trim_mean_ns cells=24 c0=427.6+-13.2 c1=8.55+-1.85 c2=0.99+-1.81 resid_rms_ns=12.8 resid_max_ns=29.3 chi2_red=1915.5
+FIT mode=rmw backoff=0 column=last_mean_ns cells=24 c0=427.5+-13.2 c1=8.56+-1.85 c2=1.05+-1.81 resid_rms_ns=12.8 resid_max_ns=29.1 chi2_red=1922.5
+SPREAD mode=rmw backoff=0 hop_min_ns=397.1 hop_max_ns=425.0 range_over_c0=6.7%
+FIT mode=load backoff=64 column=hop_trim_mean_ns cells=24 c0=443.9+-14.1 c1=-0.17+-1.97 c2=-2.36+-1.93 resid_rms_ns=17.2 resid_max_ns=41.9 chi2_red=1874.4
+FIT mode=load backoff=64 column=hop_mean_ns  cells=24 c0=444.3+-14.1 c1=-0.18+-1.97 c2=-2.37+-1.93 resid_rms_ns=17.2 resid_max_ns=41.9 chi2_red=1871.7
+FIT mode=load backoff=64 column=last_trim_mean_ns cells=24 c0=458.9+-16.8 c1=13.31+-2.35 c2=-0.52+-2.30 resid_rms_ns=21.7 resid_max_ns=70.4 chi2_red=2669.2
+FIT mode=load backoff=64 column=last_mean_ns cells=24 c0=459.2+-16.8 c1=13.30+-2.35 c2=-0.52+-2.30 resid_rms_ns=21.6 resid_max_ns=70.3 chi2_red=2662.4
+SPREAD mode=load backoff=64 hop_min_ns=401.8 hop_max_ns=473.9 range_over_c0=16.2%
+FIT mode=load backoff=0 column=hop_trim_mean_ns cells=24 c0=386.4+-9.6 c1=1.62+-1.34 c2=0.74+-1.31 resid_rms_ns=8.1 resid_max_ns=16.6 chi2_red=974.9
+FIT mode=load backoff=0 column=hop_mean_ns  cells=24 c0=386.5+-9.6 c1=1.63+-1.34 c2=0.75+-1.31 resid_rms_ns=8.1 resid_max_ns=16.6 chi2_red=972.4
+FIT mode=load backoff=0 column=last_trim_mean_ns cells=24 c0=402.0+-10.8 c1=9.22+-1.51 c2=1.21+-1.48 resid_rms_ns=11.4 resid_max_ns=25.6 chi2_red=1244.7
+FIT mode=load backoff=0 column=last_mean_ns cells=24 c0=402.1+-10.8 c1=9.21+-1.51 c2=1.21+-1.48 resid_rms_ns=11.4 resid_max_ns=25.5 chi2_red=1244.0
+SPREAD mode=load backoff=0 hop_min_ns=381.4 hop_max_ns=406.4 range_over_c0=6.5%
+EMIT /root/TileMega/docs/experiments/SIMULATOR/raw_sm120/hop_ns.tsv
+HOP_NS_DEFAULT c0=448.277 c1=1.134 c2=-0.436

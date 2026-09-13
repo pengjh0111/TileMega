@@ -3188,3 +3188,20 @@ head-of-line blocking is 18.9–64.0% of all stall time, and `W = 1` is what mak
 it unreclaimable — with a window, EFT's concentrated queues stop being a
 liability and its 3.6–4.2× cheaper synchronization becomes the whole of the
 difference.
+
+## sm_120 scheduling follow-up, 2026-09-13
+
+Verified from the RTX 5090 session: SIMULATOR completed both 48-cell sweeps
+at 4096 rounds per cell, with zero recorded inversions and matching artifact
+checksums. The RMW/backoff-64 fit has RMS residual 15.0 ns and reduced
+chi-square 1936.5; sweep PASS does not establish fit adequacy.
+
+Verified: PLACE_EFT stopped in the initial gqa2/seq=4 EFT invocation because
+the copied sm_89 plan is pinned to grid 256 but this sm_120 run selected grid
+340. All four legacy-source provenance comparisons passed and all 24
+reference executables compiled, but the 50-fresh-process correctness gates,
+paired timings, and decomposition were not reached. REALWIDTH was disabled.
+This is a plan/grid transfer failure, not a successful sm_120 EFT experiment;
+no guard or expected value was changed. Outputs remain under `raw_sm120/`,
+without replacing sm_89 records. Full evidence and scope are recorded in
+[the session report](experiments/sm120_simulator_place_eft_20260913.md).
