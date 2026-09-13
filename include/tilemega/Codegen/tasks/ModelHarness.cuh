@@ -60,6 +60,15 @@ namespace tilemega::codegen {
   while (::tilemega::codegen::EventPoll((ev)) < (need)) __nanosleep(64); \
 } while (0)
 #endif
+#if TILEMEGA_WAIT_POLICY
+// Each of the 134 generated sources defines this macro itself, at its line 9,
+// before it includes this header at line 18 -- so the `#ifndef` above never
+// fires for a real model, and only overriding the definition here reaches
+// every model without editing a generated file or the generator (R3 H1).
+#undef TILEMEGA_GENERATED_WAIT_global
+#define TILEMEGA_GENERATED_WAIT_global(ev, need) \
+  ::tilemega::codegen::GradedWait((ev), (need))
+#endif
 #ifndef TILEMEGA_GENERATED_NOTIFY_global
 #define TILEMEGA_GENERATED_NOTIFY_global(ev, value) atomicExch((ev), (value))
 #endif

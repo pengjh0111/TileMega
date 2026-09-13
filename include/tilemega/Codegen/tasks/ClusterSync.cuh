@@ -124,8 +124,9 @@ struct ClusterSync {
                                   unsigned long long need) {
     if (threadIdx.x == 0) {
       ClusterEvent* peer = Peer(self, rank);
+      WaitBackoff backoff;
       while (*reinterpret_cast<volatile unsigned long long*>(&peer->epoch) < need)
-        __nanosleep(64);
+        backoff.Pause();
       if constexpr (kEnabled) {
         asm volatile("fence.acq_rel.cluster;" ::: "memory");
       }
@@ -158,7 +159,8 @@ struct ClusterSync {
           __threadfence();
           atomicExch(epoch, iteration + 1ull);
         } else {
-          while (EventPoll(epoch) < iteration + 1ull) __nanosleep(64);
+          WaitBackoff backoff;
+          while (EventPoll(epoch) < iteration + 1ull) backoff.Pause();
         }
       }
       __syncthreads();

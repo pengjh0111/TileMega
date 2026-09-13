@@ -377,6 +377,13 @@ target_compile_definitions(tilemega-target-audit PRIVATE
 set_target_properties(tilemega-target-audit PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
+add_executable(tilemega-wait-policy tools/tilemega-wait-policy.cpp)
+target_link_libraries(tilemega-wait-policy PRIVATE TileMega::tilemega)
+target_compile_definitions(tilemega-wait-policy PRIVATE
+  TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(tilemega-wait-policy PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
 add_executable(tilemega-solve tools/tilemega-solve.cpp)
 target_link_libraries(tilemega-solve PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-solve PROPERTIES
