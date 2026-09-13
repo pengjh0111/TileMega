@@ -176,6 +176,18 @@ struct TargetSpec {
     /// by the grid, so the cost model reads it as one measured quantity.
     std::vector<double> grid_barrier_ctas;
     std::vector<double> grid_barrier_ns;
+    /// The wait policy (EX-E3 step 0): spin `wait_spin_iters` times, then sleep
+    /// `wait_backoff_ns`, multiplying by `wait_backoff_grow` up to
+    /// `wait_backoff_cap_ns`.  `wait_backoff_ns = 0` is a pure spin.  The
+    /// defaults are the generated wait these fields replace, so a target JSON
+    /// written before this round parses to the behaviour it already had; a
+    /// calibrated target overrides them from its own hop curve
+    /// (`docs/experiments/SYNC_V2/backoff_policy.tsv`) and the two
+    /// architectures do not agree on the answer (F-145).
+    int wait_spin_iters = 0;
+    int wait_backoff_ns = 64;
+    int wait_backoff_grow = 1;
+    int wait_backoff_cap_ns = 64;
 
     // (c) Stream-K coefficients, one entry per calibrated tile shape.
     std::vector<StreamKPoint> streamk;

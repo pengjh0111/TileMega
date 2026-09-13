@@ -29,6 +29,12 @@ int main() {
   auto const& partial=sm120.CalibrationFor("bf16").fp32_partial_combine;
   assert(partial.reason=="not_calibrated" && !partial.fixed_ns && !partial.d_l2_ns);
   assert(sm120.ToJson().find("fp32_partial_combine") != std::string::npos);
+  // EX-E3 step 0: a target JSON written before the wait policy was calibrated
+  // parses to the generated wait, and the policy survives a round trip.
+  assert(sm80.CalibrationFor("bf16").wait_spin_iters == 0);
+  assert(sm80.CalibrationFor("bf16").wait_backoff_ns == 64);
+  assert(sm80.CalibrationFor("bf16").wait_backoff_grow == 1);
+  assert(sm80.ToJson().find("wait_backoff_cap_ns") != std::string::npos);
   static_assert(!tilemega::arch::Caps<tilemega::arch::Sm120>::kTcgen05);
   return 0;
 }

@@ -87,6 +87,16 @@ void ParseCalibration(json::Value const& cal, TargetSpec::Calib& out) {
   out.grid_barrier_ctas =
       NumberArray(sync.At("grid_barrier_ctas"), "grid_barrier_ctas");
   out.grid_barrier_ns = NumberArray(sync.At("grid_barrier_ns"), "grid_barrier_ns");
+  // EX-E3 step 0.  Optional: a target JSON written before the wait policy was
+  // calibrated keeps the generated wait, which is what the defaults hold.
+  auto sync_int = [&](char const* key, int& slot) {
+    if (json::Value const* v = sync.Find(key))
+      slot = static_cast<int>(v->AsNumber(key));
+  };
+  sync_int("wait_spin_iters", out.wait_spin_iters);
+  sync_int("wait_backoff_ns", out.wait_backoff_ns);
+  sync_int("wait_backoff_grow", out.wait_backoff_grow);
+  sync_int("wait_backoff_cap_ns", out.wait_backoff_cap_ns);
 
   for (auto const& item : cal.At("streamk").AsArray("streamk")) {
     TargetSpec::StreamKPoint point;
@@ -188,7 +198,11 @@ json::Value CalibrationJson(TargetSpec::Calib const& calib) {
       {"cluster_sync_ns", calib.cluster_sync_ns},
       {"cluster_sync_calibrated", calib.cluster_sync_calibrated},
       {"grid_barrier_ctas", json::Numbers(calib.grid_barrier_ctas)},
-      {"grid_barrier_ns", json::Numbers(calib.grid_barrier_ns)}});
+      {"grid_barrier_ns", json::Numbers(calib.grid_barrier_ns)},
+      {"wait_spin_iters", static_cast<double>(calib.wait_spin_iters)},
+      {"wait_backoff_ns", static_cast<double>(calib.wait_backoff_ns)},
+      {"wait_backoff_grow", static_cast<double>(calib.wait_backoff_grow)},
+      {"wait_backoff_cap_ns", static_cast<double>(calib.wait_backoff_cap_ns)}});
   json::Array streamk;
   for (auto const& point : calib.streamk) {
     streamk.emplace_back(json::Object{

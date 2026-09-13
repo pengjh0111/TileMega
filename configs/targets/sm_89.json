@@ -138,7 +138,11 @@
       "cluster_sync_ns": 0,
       "cluster_sync_calibrated": false,
       "grid_barrier_ctas": [128, 256, 384, 512, 640, 768],
-      "grid_barrier_ns": [1037.999988, 1039.562514, 1520.000049, 2061.68741, 2060.312545, 2062.000101]
+      "grid_barrier_ns": [1037.999988, 1039.562514, 1520.000049, 2061.68741, 2060.312545, 2062.000101],
+      "wait_spin_iters": 64,
+      "wait_backoff_ns": 64,
+      "wait_backoff_grow": 1,
+      "wait_backoff_cap_ns": 64
     },
     "streamk": [
       {
@@ -859,7 +863,11 @@
         "cluster_sync_ns": 0,
         "cluster_sync_calibrated": false,
         "grid_barrier_ctas": [128, 256, 384, 512, 640, 768],
-        "grid_barrier_ns": [1037.999988, 1039.687544, 1571.999979, 2061.625011, 2061.750041, 2062.000101]
+        "grid_barrier_ns": [1037.999988, 1039.687544, 1571.999979, 2061.625011, 2061.750041, 2062.000101],
+        "wait_spin_iters": 64,
+        "wait_backoff_ns": 64,
+        "wait_backoff_grow": 1,
+        "wait_backoff_cap_ns": 64
       },
       "streamk": [
         {
