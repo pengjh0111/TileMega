@@ -531,10 +531,20 @@ __device__ inline void WaitTaskDependencies(Params const& p,
         &events[EventIndex(p, wait.producer, wait.group)].epoch,
         iteration + 1ull);
   }
+#if TILEMEGA_BARRIER_V2
+  // Unconditional: with the barriers around `RunTask` gone this is the only
+  // convergence between two consecutive tasks, so it is what stops the next
+  // task from reusing the smem union under this one (§8.6).  Threads poll
+  // disjoint subsets of the wait rows, so it is also still the acquire -- but
+  // with no rows there is nothing to acquire, and the fence stays conditional.
+  __syncthreads();
+  if (task.wait_count != 0) __threadfence();
+#else
   if (task.wait_count != 0) {
     __syncthreads();
     __threadfence();
   }
+#endif
 }
 
 // T1.3-A: called after every writer's release fence and CTA convergence.
@@ -622,7 +632,13 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
                   produced, iteration);
     }
   }
+#if !TILEMEGA_BARRIER_V2
+  // Dropped by v2: thread 0 reads only global memory here, so no other thread
+  // can race it, and the next task's wait barrier bounds how far they may run
+  // ahead -- to the poll, never into `RunTask`.  Thread 0 publishes before it
+  // reaches that poll itself, so nothing waits on a CTA that is waiting.
   __syncthreads();
+#endif
 }
 
 /// §8.1/§8.2/§8.3: single-thread polling with backoff on a monotonic counter,
@@ -736,7 +752,12 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     if (params->task_trace != nullptr && threadIdx.x == 0)
       params->task_trace[slot].start =
           atomicAdd(params->trace_sequence, 1ull);
+#if !TILEMEGA_BARRIER_V2 || TILEMEGA_TRACE_V2
+    // v2 drops this as redundant with the wait's own barrier above; the legacy
+    // TaskTrace sequence stamp then loses its bracket, which is why the two
+    // trace paths are not interchangeable under v2.
     __syncthreads();
+#endif
 #if TILEMEGA_TRACE_V2
     if (params->task_trace_v2 != nullptr && threadIdx.x == 0) {
       TaskTraceV2& row = params->task_trace_v2[slot];
@@ -749,7 +770,12 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     }
 #endif
     RunTask(*params, task.stage, task.logical_task, smem);
+#if !TILEMEGA_BARRIER_V2 || TILEMEGA_TRACE_V2
+    // v2 drops this: `NotifyTask`'s release fence and barrier are strictly
+    // stronger, and a task that publishes nothing is covered by the next
+    // task's wait barrier.
     __syncthreads();
+#endif
 #if TILEMEGA_TRACE_V2
     if (params->task_trace_v2 != nullptr && threadIdx.x == 0) {
       TaskTraceV2& row = params->task_trace_v2[slot];

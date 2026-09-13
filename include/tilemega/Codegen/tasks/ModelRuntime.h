@@ -328,6 +328,17 @@ static_assert(!TILEMEGA_EVENT_RELEASE_STORE,
               "T1.4 disabled pending a complete multi-level release proof");
 static_assert(!TILEMEGA_EVENT_CLUSTER_FANIN || TILEMEGA_EVENT_SHARDED,
               "cluster fan-in requires the two-level event protocol");
+
+// EX-E3 step 1: the executor's five per-task `__syncthreads()` (§5.5.1) cut to
+// the two that carry an ordering nothing else carries -- the acquire after the
+// wait, which is also the §8.6 union's WAR barrier, and the §8.5 release before
+// thread 0 publishes.  Off by default (H2).  Trace v2 keeps the pair around
+// RunTask: `run_begin`/`run_end` are thread 0 stamps and without the barriers
+// they would time thread 0 rather than the CTA, so a traced v2 build has four
+// and its task durations are the wider measurement -- recorded, not hidden.
+#ifndef TILEMEGA_BARRIER_V2
+#define TILEMEGA_BARRIER_V2 0
+#endif
 struct alignas(128) ArrivalCounter {
   unsigned long long arrivals;
 };
