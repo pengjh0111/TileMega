@@ -3205,3 +3205,26 @@ This is a plan/grid transfer failure, not a successful sm_120 EFT experiment;
 no guard or expected value was changed. Outputs remain under `raw_sm120/`,
 without replacing sm_89 records. Full evidence and scope are recorded in
 [the session report](experiments/sm120_simulator_place_eft_20260913.md).
+
+### sm_120 EFT preparation repair
+
+Verified from the failed invocation and runtime guard: materialized EFT
+tables bind worker/slot assignments to a particular grid, so copying an
+sm_89 table to sm_120 is not a valid cross-device preparation procedure.
+The sm_120 wrapper now probes the frozen control sources on the selected
+device, then solves using those measured counts/residency/grid, the sm_120
+target, and the local sm_120 hop calibration. The runtime mismatch guard
+remains unchanged. The experiment driver retains its original sm_89 defaults
+for existing callers and accepts explicit target/hop inputs for the new path.
+Without a trace, worker-SM assignment in prediction is explicitly modulo,
+not borrowed sm_89 hardware placement. Output can be redirected with OUT_DIR;
+the sm_89 raw tree is rejected as an output. Verified: driver rebuild,
+two CPU preparation regression tests, shell syntax, and SELF_CHECK passed.
+GPU retry results are recorded separately after execution, not inferred
+from these preparation tests. The first on-device preparation attempt also
+verified that the repository sm_120 BF16 cost profile was uncalibrated.
+Preparation now measures a local BF16 target with tilemega-calibrate when
+none is provided, preserves the repository target file, and refuses an
+unaccepted or wrong-architecture profile. Verified: the on-device 41-repeat
+calibration completed with calibrated=true, and a third CPU regression test
+checks rejection of an unaccepted profile.

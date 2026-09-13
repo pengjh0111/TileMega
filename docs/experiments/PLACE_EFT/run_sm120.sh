@@ -3,10 +3,8 @@
 # EX-S2 on Blackwell: the plan the solver chose, measured against mode 5, mode 0
 # and L1, plus the 50-process correctness arm.
 #
-# It measures the same generated sources sm_89 measured -- SKIP_GENERATE=1 with
-# raw/plan and raw/manifest.tsv copied across -- so a difference between the two
-# parts is the machine and not a second trip through codegen.  Only the compile
-# architecture changes, and that is nvcc's `-arch=native` inside run.sh.
+# Control sources remain frozen. EFT tables are solved again from sm_120
+# control geometry: their worker/slot arrays are bound to a resident grid.
 #
 # Written on the 4090 and checked only by its own CPU-side self-check
 # (SELF_CHECK=1, which touches no GPU); it has never run on a Blackwell part.
@@ -23,7 +21,9 @@
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "${here}/../../.." && pwd)"
-raw="${here}/raw_sm120"
+raw="$(realpath -m "${OUT_DIR:-${here}/raw_sm120}")"
+case "${raw}" in "${here}/raw"|"${here}/raw/"*)
+  echo 'refusing to overwrite sm_89 outputs' >&2; exit 2;; esac
 status="${raw}/status.txt"
 realwidth="${REALWIDTH:-0}"
 
@@ -112,13 +112,14 @@ if [[ -n "${SELF_CHECK:-}" ]]; then
     || { echo "self-check: missing fixtures accepted" >&2; exit 1; }
   bash -n "${here}/run.sh"
   python3 -c "import ast,sys;[ast.parse(open(p).read()) for p in sys.argv[1:]]" \
-    "${here}/summarize.py" "${here}/verify.py"
+    "${here}/summarize.py" "${here}/verify.py" "${here}/prepare_sm120.py"
   # run.sh must honour RAW_DIR, or this script would write over the sm_89 tree.
   # -F: in a basic regexp GNU grep does not match a literal `${`.
   grep -Fq 'raw="${RAW_DIR:-' "${here}/run.sh" \
     || { echo "self-check: run.sh does not honour RAW_DIR" >&2; exit 1; }
-  [[ -s "${here}/raw/manifest.tsv" && -d "${here}/raw/plan" ]] \
-    || { echo "self-check: no sm_89 plan sources to carry over" >&2; exit 1; }
+  [[ -s "${here}/prepare_sm120.py" ]] \
+    || { echo "self-check: sm120 plan preparation missing" >&2; exit 1; }
+  python3 "${here}/test_prepare_sm120.py"
   echo "SELF_CHECK place_eft sm120 ok"
   exit 0
 fi
@@ -135,12 +136,7 @@ if ! compute_cap_ok "${cap}"; then
 fi
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 
-# The plans are carried over rather than regenerated: tilemega-place-eft needs a
-# built MLIR tree, and the point of the Blackwell run is the same plan on a
-# different machine.
-mkdir -p "${raw}/plan"
-cp -p "${here}/raw/manifest.tsv" "${raw}/manifest.tsv"
-cp -p "${here}"/raw/plan/*.cu "${raw}/plan/"
+python3 "${here}/prepare_sm120.py" --out "${raw}" --realwidth "${realwidth}"
 
 RAW_DIR="${raw}" SKIP_GENERATE=1 REALWIDTH="${realwidth}" bash "${here}/run.sh"
 echo PASS > "${status}"

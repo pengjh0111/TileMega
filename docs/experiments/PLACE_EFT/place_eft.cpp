@@ -113,18 +113,26 @@ std::string Emit(std::string const& export_json, mlir::MLIRContext& context,
 }  // namespace
 
 int main(int argc, char** argv) try {
-  if (argc != 4)
+  if (argc != 4 && argc != 8)
     throw std::invalid_argument(
-        "usage: tilemega-place-eft REPO MANIFEST.tsv OUT_DIR\n"
+        "usage: tilemega-place-eft REPO MANIFEST.tsv OUT_DIR [--target TARGET.json --hop HOP.tsv]\n"
         "manifest columns: model seq past generated_cu out_prefix trace_dir export_json");
   analysis::IslContext isl;
   std::string repo = argv[1], manifest_path = argv[2], out = argv[3];
+  std::string target_path = repo + "/configs/targets/sm_89.json";
+  std::string hop_path = repo + "/docs/experiments/SIMULATOR/hop_ns.tsv";
+  if (argc == 8) {
+    if (std::string(argv[4]) != "--target" || std::string(argv[6]) != "--hop")
+      throw std::invalid_argument("expected --target TARGET.json --hop HOP.tsv");
+    target_path = argv[5];
+    hop_path = argv[7];
+  }
 
   HopCurve hop;
   std::string error;
-  if (!HopCurve::FromTsv(repo + "/docs/experiments/SIMULATOR/hop_ns.tsv", &hop, &error))
+  if (!HopCurve::FromTsv(hop_path, &hop, &error))
     throw std::runtime_error("hop curve: " + error);
-  auto target = TargetSpec::FromJson(repo + "/configs/targets/sm_89.json");
+  auto target = TargetSpec::FromJson(target_path);
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
 
