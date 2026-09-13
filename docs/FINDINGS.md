@@ -3017,6 +3017,24 @@ load-poll arm recorded a single ~2.3 ms device stall per cell, which is why the
 fit uses a 0.1 %-trimmed mean with nothing dropped from the table
 (`SIMULATOR/hop_fit.txt`).
 
+✅ **The contention half of this reproduces on sm_120; the constant does not.**
+The same sweep on an RTX 5090 (2026-09-13) fits `448.277066 + 1.134462·log2(1 +
+N/R) − 0.436421·log2(R)`. In the column this finding draws on (`hop_trim_mean`,
+`__nanosleep(64)` backoff) `c1 = +1.13 ± 1.96` is zero inside one standard error
+just as sm_89's `−0.40 ± 2.41` was, and with the backoff removed the slowest
+consumer on a row gives `+8.55 ± 1.85` against sm_89's `12.2 ± 4.6` — the same
+order. R2 §0 item four is a clean negative on both architectures.
+
+⚠️ What does differ is the hop's size and its composition: 448 ns rather than
+1235 ns, of which the `__nanosleep(64)` backoff is about 32 ns (448.3 − 416.2,
+both from `SIMULATOR/raw_sm120/hop_fit.txt`) rather than 910 ns. The backoff granularity that this finding identifies as the
+optimizable part is therefore an sm_89-sized lever, not a universal one — on
+sm_120 it is a twentieth of the size. Recorded as measured on each part; the
+sm_89 numbers above are unchanged. One column cannot be compared: the backoff-64
+`last_*` slope is `+18.08 ± 2.02` on sm_120 and sm_89's equivalent was never
+quoted here. See the sm_120 follow-up section below and
+[the session report](experiments/sm120_simulator_place_eft_20260913.md).
+
 ## F-146 — The execution simulator ranks placements well and predicts runtimes badly, in one direction
 
 ✅ `lib/Solver/ExecutionSimulator.cpp` replays §5.7.2: each worker walks
@@ -3170,6 +3188,12 @@ s4: 200.8 µs for eft against 203.3 µs for rotate) where the measurement found 
 0.96% loss. A model whose predicted gap is smaller
 than its own S1-a bias (F-146) cannot call that ordering, and this one did not.
 
+⚠️ Reproduced on a second architecture, 2026-09-13: on sm_120 the gate fails 0/4
+again and by more — eft/mode 5 is 1.0409 / 1.0528 / 1.0542 / 1.0468 (pooled
+1.0491 [1.0473, 1.0510]) against sm_89's 1.0096 / 1.0141 / 1.0022 / 1.0273, with
+S2-e at +0.812 in every cell and the predicted improvement direction wrong 4/4.
+The negative is not an sm_89 artifact. See the sm_120 follow-up section below.
+
 ## F-150 — What the negative result costs, and what it does not
 
 ⚠️ inferred, stated as this round's reading of F-148 and F-149 together: the
@@ -3188,6 +3212,14 @@ head-of-line blocking is 18.9–64.0% of all stall time, and `W = 1` is what mak
 it unreclaimable — with a window, EFT's concentrated queues stop being a
 liability and its 3.6–4.2× cheaper synchronization becomes the whole of the
 difference.
+
+⚠️ sm_120 sharpens both halves of this, 2026-09-13. The publish protocol is
+**68–91%** of mode 5's L2 time there rather than 65–80%, so the EX-E3 ordering
+holds on a second architecture with a larger prize. The cancellation in F-148
+also survives but stops balancing: mode 5's unsynchronized floor is 2.6–9.4×
+better than EFT's (sm_89: 2.4–4.1×) while EFT's synchronization term is only
+3.1–3.7× cheaper (sm_89: 3.6–4.2×), which is why the loss widens from 0.2–2.7% to
+4.1–5.4%. The mechanism is the same; the coefficients are not.
 
 ## sm_120 scheduling follow-up, 2026-09-13
 

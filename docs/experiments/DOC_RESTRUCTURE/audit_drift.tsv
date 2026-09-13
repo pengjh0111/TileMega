@@ -29,10 +29,12 @@ test/unit/eft_placement_test.cpp	code	1
 test/unit/execution_simulator_test.cpp	code	1
 test/unit/plan_contract_test.cpp	code	1
 test/unit/plan_table_test.cpp	code	1
-docs/experiments/PLACE_EFT	experiment	231
+docs/experiments/PLACE_EFT	experiment	490
 docs/experiments/PLACE_ROTATE	experiment	3770
 docs/experiments/PLAN_CONTRACT	experiment	45
 docs/experiments/REALMODEL	experiment	12
-docs/experiments/SIMULATOR	experiment	163
+docs/experiments/SIMULATOR	experiment	171
 docs/experiments/TRACE_V2	experiment	921
+docs/experiments/sm120_place_eft_retry_20260913.md	experiment	1
 docs/experiments/sm120_round_one_20260912.md	experiment	1
+docs/experiments/sm120_simulator_place_eft_20260913.md	experiment	1

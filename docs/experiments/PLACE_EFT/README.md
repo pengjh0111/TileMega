@@ -11,6 +11,14 @@ Reproduce: `bash docs/experiments/PLACE_EFT/run.sh` (sm_89, RTX 4090, 128 SMs,
 `REALWIDTH=1`. `RAW_DIR` redirects the output tree, which is how
 `run_sm120.sh` keeps a Blackwell run out of the committed sm_89 files.
 
+The sm_120 arm has since been run (2026-09-13, RTX 5090, 170 SMs, `grid = 340`).
+A materialized EFT table binds `(worker, slot)` to the grid it was solved for, so
+the plans cannot be copied across devices — the first attempt was refused by the
+host's plan guard and the preparation was rewritten to re-solve on the target
+(`prepare_sm120.py`, commit `2918f55b`). S2-b fails there too, by a wider margin:
+eft/mode 5 is 1.0409 / 1.0542 / 1.0528 / 1.0468, pooled 1.0491 [1.0473, 1.0510].
+See [`sm120_place_eft_retry_20260913.md`](../sm120_place_eft_retry_20260913.md).
+
 ## The candidates
 
 Six arms per cell. Three are closed forms the host already had, selected by
@@ -131,7 +139,8 @@ through.
 S2-e, the simulator against this candidate set: per-cell Spearman +0.824 /
 +0.794 / +0.812 / +0.928 (`raw/predicted.tsv` against the measured medians). It
 ranks the families correctly and calls the eft/mode-5 near-tie the wrong way in
-all four cells,
+all four cells (on sm_120: +0.812 in every cell, and the predicted improvement
+direction again disagrees with the measurement 4/4),
 which is the honest limit of a model whose own start-time bias (F-146) is larger
 than the gap being called.
 
@@ -141,7 +150,11 @@ than the gap being called.
 | --- | --- |
 | `place_eft.cpp` | the driver: imports each cell, runs the six candidates, writes `raw/plan/*.cu`, `raw/predicted.tsv`, `raw/eft_schedule.tsv` |
 | `run.sh` | the measurement above; `RAW_DIR`, `RUNS`, `CORRECTNESS_RUNS`, `REALWIDTH`, `SKIP_GENERATE` |
-| `run_sm120.sh` | the Blackwell runner (R2 §10). Written and CPU-self-checked here, **never run on a Blackwell part** |
+| `run_sm120.sh` | the Blackwell runner (R2 §10). Run on an RTX 5090 on 2026-09-13; `OUT_DIR` selects the tree and the sm_89 `raw/` is refused as a target |
+| `prepare_sm120.py` | re-solves the reference plans from the target device's measured counts, residency and grid — a materialized table cannot be carried across devices |
+| `test_prepare_sm120.py` | the CPU regression tests `run_sm120.sh` runs in its self-check |
+| `raw_sm120/` | the first sm_120 attempt: provenance, nvcc logs, and the plan/grid rejection that stopped it |
+| `raw_sm120_retry_20260913/` | the repaired sm_120 run: `summary.tsv`, `research_checks.txt`, `samples.tsv` (2600 processes), `predicted.tsv`, `eft_schedule.tsv` |
 | `summarize.py` | paired ratios, bootstrap CI (seed 20260912, 20000 draws), Wilcoxon |
 | `collect_samples.py` | one row per process from the run logs into `raw/samples.tsv`, because `.gitignore:32` excludes `docs/experiments/**/*.log` |
 | `verify.py` | R2 §11: re-checks every round-two gate from raw evidence only |

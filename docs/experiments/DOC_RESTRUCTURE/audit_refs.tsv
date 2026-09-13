@@ -99,6 +99,7 @@ docs/STATUS.md	finding	F-141	ok
 docs/STATUS.md	finding	F-142	ok
 docs/STATUS.md	finding	F-143	ok
 docs/STATUS.md	finding	F-144	ok
+docs/STATUS.md	finding	F-145	ok
 docs/STATUS.md	finding	F-146	ok
 docs/STATUS.md	finding	F-147	ok
 docs/STATUS.md	finding	F-148	ok
@@ -161,7 +162,9 @@ docs/TODO.md	path	docs/experiments/SYNC_V2/	planned
 docs/TODO.md	path	docs/experiments/TRACE_V2/	ok
 docs/TODO.md	path	docs/experiments/WINDOW/	planned
 docs/TODO.md	path	docs/experiments/WIRING/	ok
+docs/TODO.md	path	docs/experiments/sm120_place_eft_retry_20260913.md	ok
 docs/TODO.md	path	docs/experiments/sm120_round_one_20260912.md	ok
+docs/TODO.md	path	docs/experiments/sm120_simulator_place_eft_20260913.md	ok
 docs/TODO.md	finding	F-1	ok
 docs/TODO.md	finding	F-10	ok
 docs/TODO.md	finding	F-102	ok
