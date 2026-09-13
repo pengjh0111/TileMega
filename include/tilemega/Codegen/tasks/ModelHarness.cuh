@@ -368,9 +368,6 @@ __device__ inline int ActiveBlocksClamped(Params const& p,
   return active < 1 ? 1 : active;
 }
 
-#if TILEMEGA_EVENT_RED_PUBLISH && TILEMEGA_TRACE_V2
-#error "the RED publish leaves no last arriver to stamp event_publish"
-#endif
 #if TILEMEGA_EVENT_RED_PUBLISH && TILEMEGA_EVENT_SHARDED
 #error "the RED publish has no shard-level target to combine"
 #endif
@@ -717,6 +714,15 @@ __device__ inline void ArriveEvent(Params const& p, EventCounter* events,
   // writes are already visible by the time the arrival lands.
   (void)triggers;
   atomicAdd(&events[index].arrivals, 1ull);
+#if TILEMEGA_TRACE_V2
+  // No publisher knows it is the last one here, but the instant the event
+  // became satisfied is still the latest of their stamps, so the maximum over
+  // publishers is that instant.  It is taken beside each add rather than after
+  // an identified last arrival, which is the one way this differs from the
+  // plain store below; the difference is recorded, not reconciled.
+  if (p.event_publish != nullptr)
+    atomicMax(&p.event_publish[index], TraceNow());
+#endif
   return;
 #endif
   unsigned long long ticket = atomicAdd(&events[index].arrivals, 1ull);
