@@ -138,7 +138,11 @@
       "cluster_sync_ns": 0.0,
       "cluster_sync_calibrated": false,
       "grid_barrier_ctas": [],
-      "grid_barrier_ns": []
+      "grid_barrier_ns": [],
+      "wait_spin_iters": 0,
+      "wait_backoff_ns": 64,
+      "wait_backoff_grow": 1,
+      "wait_backoff_cap_ns": 64
     },
     "streamk": [],
     "combine_fixed_ns": 0.0,
