@@ -1,0 +1,102 @@
+sm_120: SMs=170 smem/SM=102400 smem/CTA=101376 regs/SM=65536 cluster=true TMA=true tcgen05=false
+pipelines
+  clock warm-up: 1.0 s
+  cuda_fp32_gflops    = 116737
+  cuda_int32_gops     = 30590
+  sfu_exp2_gops       = 7309.45
+  sfu_rsqrt_gops      = 7416.91
+  tc_bf16_gflops      = 254276
+  smem_gbps           = 88619.4
+  smem 2-way conflict -> 0.994863x
+  smem 4-way conflict -> 2.03397x
+  smem 8-way conflict -> 3.83967x
+  smem 16-way conflict -> 7.65656x
+  smem 32-way conflict -> 15.2985x
+  smem_conflict_slope = 0.478611
+  smem 1 CTA/SM -> 68666.4 GB/s
+  smem 2 CTA/SM -> 86198.2 GB/s
+  smem 3 CTA/SM -> 85646 GB/s
+  smem 4 CTA/SM -> 87985.2 GB/s
+  smem 6 CTA/SM -> 87703.8 GB/s
+  l1_latency_ns       = 18.4844
+  l2_latency_ns       = 122.07
+  dram_latency_ns     = 319.053
+  stream 1 MiB -> 3609.14 GB/s
+  stream 2 MiB -> 6317.6 GB/s
+  stream 4 MiB -> 5617.71 GB/s
+  stream 8 MiB -> 6516.64 GB/s
+  stream 16 MiB -> 6979.56 GB/s
+  stream 24 MiB -> 7158.44 GB/s
+  stream 32 MiB -> 7182.86 GB/s
+  stream 48 MiB -> 7069.46 GB/s
+  stream 64 MiB -> 7113.98 GB/s
+  stream 72 MiB -> 7121.16 GB/s
+  stream 80 MiB -> 7108.36 GB/s
+  stream 96 MiB -> 7106.88 GB/s
+  stream 128 MiB -> 5243.82 GB/s
+  stream 192 MiB -> 1717 GB/s
+  stream 256 MiB -> 1709.52 GB/s
+  stream 512 MiB -> 1701.14 GB/s
+  stream 1024 MiB -> 1695.7 GB/s
+  stream 2048 MiB -> 1692.34 GB/s
+  l2_gbps             = 7182.86
+  dram_gbps           = 1695.7
+  l2_knee_bytes       = 1.00663e+08
+sync
+  atomic_uncontended_ns = 137.469
+  atomic 1 CTAs -> 137.5 ns/op
+  atomic 2 CTAs -> 68.7656 ns/op
+  atomic 4 CTAs -> 36.625 ns/op
+  atomic 8 CTAs -> 18.5723 ns/op
+  atomic 16 CTAs -> 9.53223 ns/op
+  atomic 32 CTAs -> 4.7373 ns/op
+  atomic 64 CTAs -> 2.36816 ns/op
+  atomic 128 CTAs -> 1.17664 ns/op
+  atomic 256 CTAs -> 0.588318 ns/op
+  atomic 512 CTAs -> 0.409668 ns/op
+  threadfence_ns      = 356.953
+  syncthreads_ns      = 48.0781
+  named_barrier_ns    = 49
+  grid barrier 170 CTAs -> 1054.37 ns
+  grid barrier 340 CTAs -> 1154.38 ns
+  grid barrier 510 CTAs -> 1318.5 ns
+  grid barrier 680 CTAs -> 1782.5 ns
+  grid barrier 850 CTAs -> 1963.19 ns
+  grid barrier 1020 CTAs -> 2502.38 ns
+  cluster_sync_ns     = uncalibrated (needs docs/experiments/CLUSTER/run_on_cluster_gpu.sh on the cluster target)
+streamk
+  combine count=1024: per-peer=40.043ns (0.0391045ns/elem) r2=0.806788
+  combine count=4096: per-peer=55.7419ns (0.0136089ns/elem) r2=0.802969
+  combine count=16384: per-peer=63.4839ns (0.00387475ns/elem) r2=0.799725
+  combine count=65536: per-peer=64.3226ns (0.000981485ns/elem) r2=0.826185
+  combine count=262144: per-peer=77.7204ns (0.00029648ns/elem) r2=0.8354
+  combine single count=65536: 32ns (0.000488281ns/elem)
+  combine single count=262144: 160ns (0.000610352ns/elem)
+  combine single count=1048576: 3936ns (0.00375366ns/elem)
+  combine single count=4194304: 10240ns (0.00244141ns/elem)
+  combine single count=1: 96ns (96ns/elem)
+  combine single count=64: 32ns (0.5ns/elem)
+  combine single count=256: 0ns (0ns/elem)
+  combine single count=1024: 32ns (0.03125ns/elem)
+  COMBINE_FIXED_RESOLUTION per_launch_ns=0 launches_per_interval=1 interval_signal_ns=0 required_interval_ns=100 resolved=0
+  combine count=1048576: per-peer=361.978ns (0.00034521ns/elem) r2=0.965163
+  combine: d=0.000353323ns/peer/elem (r2=-11.8374) base=0.00251114ns/elem fixed=0ns (r2=0.970205) dram-d=0.00034521ns/peer/elem
+  tile 128x128x16s3: a=3232ns c=456.608ns/iter b=0.00251114ns/elem d=0.000353323ns/peer/elem r2=-11.8374
+  tile 64x64x16s3: a=2048ns c=152.054ns/iter b=0.00251114ns/elem d=0.000353323ns/peer/elem r2=-11.8374 c@1=5.33334 c@2=176 c@4=509.333
+  tile 32x32x32s3: a=1920ns c=187.822ns/iter b=0.00251114ns/elem d=0.000353323ns/peer/elem r2=-11.8374 c@1=170.667 c@2=341.333 c@3=-61.3334 c@4=565.333 c@6=1026.67
+  tile 32x64x32s3: a=1952ns c=294.006ns/iter b=0.00251114ns/elem d=0.000353323ns/peer/elem r2=-11.8374 c@1=336 c@2=525.333
+  tile 32x64x16s2: a=1920ns c=231.02ns/iter b=0.00251114ns/elem d=0.000353323ns/peer/elem r2=-11.8374 c@1=352 c@2=229.333 c@4=514.667
+  tile 256x128x16s3: a=12224ns c=1986.06ns/iter b=0.00251114ns/elem d=0.000353323ns/peer/elem r2=-11.8374
+  tile 32x16x16s2: a=0ns c=193.377ns/iter b=0.00251114ns/elem d=0.000353323ns/peer/elem r2=-11.8374 c@1=176 c@2=333.333 c@3=336 c@4=269.333 c@5=250.667 c@6=165.333 c@8=336
+  tile 32x128x32s3: a=1984ns c=574.418ns/iter b=0.00251114ns/elem d=0.000353323ns/peer/elem r2=-11.8374
+  tile 128x32x32s2: a=1952ns c=475.465ns/iter b=0.00251114ns/elem d=0.000353323ns/peer/elem r2=-11.8374 c@1=509.333 c@2=682.667 c@3=1186.67
+  tile 64x64x32s5: a=1984ns c=385.822ns/iter b=0.00251114ns/elem d=0.000353323ns/peer/elem r2=-11.8374 c@1=346.667 c@2=677.333
+interference
+  clock warm-up: 1.0 s
+  neighbour bandwidth = 863.503 GB/s over 2.48694 ms
+  gemm alone          = 9.248 us
+  gemm with neighbour = 9.696 us
+  interference_ratio  = 1.13534
+  dram peak           = 1792.13 GB/s (94.6191% achieved)
+  dram drift          = 0.0656157%
+dtype=bf16 calibrated=true in 8.73731 s

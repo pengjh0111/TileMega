@@ -1,0 +1,5 @@
+model	seq	past	generated_cu	out_prefix	trace_dir	export_json
+gqa2	4	3	/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/gqa2.cu	/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/prepare/gqa2	-	/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json
+mha4	4	3	/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/mha4.cu	/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/prepare/mha4	-	/root/TileMega/docs/experiments/SEQSCAN/raw/export/mha4.json
+gqa2	128	3	/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/gqa2.cu	/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/prepare/gqa2	-	/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json
+mha4	128	3	/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/mha4.cu	/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/prepare/mha4	-	/root/TileMega/docs/experiments/SEQSCAN/raw/export/mha4.json

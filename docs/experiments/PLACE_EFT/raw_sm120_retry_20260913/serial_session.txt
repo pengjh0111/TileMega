@@ -1,0 +1,128 @@
+disk ok: 16570 MiB free under /root/TileMega/docs/experiments/PLACE_EFT, need about 4096 MiB
+model	seq	bytes	identical
+gqa2	4	14219	1
+mha4	4	26449	1
+gqa2	128	14219	1
+mha4	128	26449	1
+gqa2	seq=4	legacy_grid_stride	E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+gqa2	seq=4	balanced	E2E_PLACE_STATS placement=4 max_queue=30 same_worker_edges=442 cross_worker_edges=850 base_rotation=0 plan=balanced
+gqa2	seq=4	rotate	E2E_PLACE_STATS placement=5 max_queue=1 same_worker_edges=0 cross_worker_edges=1292 base_rotation=1 plan=rotate
+gqa2	seq=4	eft	E2E_PLACE_STATS placement=0 max_queue=20 same_worker_edges=116 cross_worker_edges=1176 base_rotation=0 plan=eft
+gqa2	seq=4	band	E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=template
+gqa2	seq=4	wavefront	E2E_PLACE_STATS placement=0 max_queue=20 same_worker_edges=120 cross_worker_edges=1172 base_rotation=0 plan=template
+mha4	seq=4	legacy_grid_stride	E2E_PLACE_STATS placement=0 max_queue=60 same_worker_edges=504 cross_worker_edges=3604 base_rotation=0 plan=legacy_grid_stride
+mha4	seq=4	balanced	E2E_PLACE_STATS placement=4 max_queue=60 same_worker_edges=1112 cross_worker_edges=2996 base_rotation=0 plan=balanced
+mha4	seq=4	rotate	E2E_PLACE_STATS placement=5 max_queue=2 same_worker_edges=0 cross_worker_edges=4108 base_rotation=1 plan=rotate
+mha4	seq=4	eft	E2E_PLACE_STATS placement=0 max_queue=40 same_worker_edges=280 cross_worker_edges=3828 base_rotation=0 plan=eft
+mha4	seq=4	band	E2E_PLACE_STATS placement=0 max_queue=60 same_worker_edges=504 cross_worker_edges=3604 base_rotation=0 plan=template
+mha4	seq=4	wavefront	E2E_PLACE_STATS placement=0 max_queue=40 same_worker_edges=280 cross_worker_edges=3828 base_rotation=0 plan=template
+gqa2	seq=128	legacy_grid_stride	E2E_PLACE_STATS placement=0 max_queue=34 same_worker_edges=3400 cross_worker_edges=545476 base_rotation=0 plan=legacy_grid_stride
+gqa2	seq=128	balanced	E2E_PLACE_STATS placement=4 max_queue=34 same_worker_edges=4898 cross_worker_edges=543978 base_rotation=0 plan=balanced
+gqa2	seq=128	rotate	E2E_PLACE_STATS placement=5 max_queue=13 same_worker_edges=1404 cross_worker_edges=547472 base_rotation=1 plan=rotate
+gqa2	seq=128	eft	E2E_PLACE_STATS placement=0 max_queue=28 same_worker_edges=2372 cross_worker_edges=546504 base_rotation=0 plan=eft
+gqa2	seq=128	band	E2E_PLACE_STATS placement=0 max_queue=34 same_worker_edges=3736 cross_worker_edges=545140 base_rotation=0 plan=template
+gqa2	seq=128	wavefront	E2E_PLACE_STATS placement=0 max_queue=28 same_worker_edges=2716 cross_worker_edges=546160 base_rotation=0 plan=template
+mha4	seq=128	legacy_grid_stride	E2E_PLACE_STATS placement=0 max_queue=80 same_worker_edges=11320 cross_worker_edges=2150884 base_rotation=0 plan=legacy_grid_stride
+mha4	seq=128	balanced	E2E_PLACE_STATS placement=4 max_queue=80 same_worker_edges=18316 cross_worker_edges=2143888 base_rotation=0 plan=balanced
+mha4	seq=128	rotate	E2E_PLACE_STATS placement=5 max_queue=36 same_worker_edges=6240 cross_worker_edges=2155964 base_rotation=1 plan=rotate
+mha4	seq=128	eft	E2E_PLACE_STATS placement=0 max_queue=64 same_worker_edges=8540 cross_worker_edges=2153664 base_rotation=0 plan=eft
+mha4	seq=128	band	E2E_PLACE_STATS placement=0 max_queue=80 same_worker_edges=12664 cross_worker_edges=2149540 base_rotation=0 plan=template
+mha4	seq=128	wavefront	E2E_PLACE_STATS placement=0 max_queue=64 same_worker_edges=9240 cross_worker_edges=2152964 base_rotation=0 plan=template
+model	seq	arm	passes	processes
+gqa2	4	legacy_grid_stride	50	50
+gqa2	4	balanced	50	50
+gqa2	4	rotate	50	50
+gqa2	4	eft	50	50
+gqa2	4	band	50	50
+gqa2	4	wavefront	50	50
+mha4	4	legacy_grid_stride	50	50
+mha4	4	balanced	50	50
+mha4	4	rotate	50	50
+mha4	4	eft	50	50
+mha4	4	band	50	50
+mha4	4	wavefront	50	50
+gqa2	128	legacy_grid_stride	50	50
+gqa2	128	balanced	50	50
+gqa2	128	rotate	50	50
+gqa2	128	eft	50	50
+gqa2	128	band	50	50
+gqa2	128	wavefront	50	50
+mha4	128	legacy_grid_stride	50	50
+mha4	128	balanced	50	50
+mha4	128	rotate	50	50
+mha4	128	eft	50	50
+mha4	128	band	50	50
+mha4	128	wavefront	50	50
+gate	model	seq	arm	n	base_median_ms	arm_median_ms	ratio	ci_lo	ci_hi	p_wilcoxon
+S2-b	gqa2	4	legacy_grid_stride	25	0.243744	0.374688	1.5347	1.5327	1.5388	1.307e-05
+S2-b	gqa2	4	balanced	25	0.243744	0.542432	2.2223	2.2218	2.2240	1.307e-05
+S2-b	gqa2	4	rotate	25	0.243744	0.243744	1.0000	1.0000	1.0000	nan
+S2-b	gqa2	4	eft	25	0.243744	0.253888	1.0409	1.0389	1.0436	1.307e-05
+S2-b	gqa2	4	band	25	0.243744	0.374240	1.5335	1.5308	1.5383	1.307e-05
+S2-b	gqa2	4	wavefront	25	0.243744	0.255712	1.0491	1.0458	1.0505	1.307e-05
+vs0	gqa2	4	eft	25	0.374688	0.253888	0.6770	0.6761	0.6800	1.307e-05
+vsL1	gqa2	4	eft	25	0.340896	0.253888	0.7442	0.7431	0.7464	1.307e-05
+S2-b	mha4	4	legacy_grid_stride	25	0.478624	0.757376	1.5822	1.5785	1.5835	1.307e-05
+S2-b	mha4	4	balanced	25	0.478624	1.049536	2.1927	2.1892	2.1952	1.307e-05
+S2-b	mha4	4	rotate	25	0.478624	0.478624	1.0000	1.0000	1.0000	nan
+S2-b	mha4	4	eft	25	0.478624	0.504992	1.0542	1.0524	1.0561	1.307e-05
+S2-b	mha4	4	band	25	0.478624	0.757728	1.5836	1.5797	1.5844	1.307e-05
+S2-b	mha4	4	wavefront	25	0.478624	0.507424	1.0602	1.0592	1.0612	1.307e-05
+vs0	mha4	4	eft	25	0.757376	0.504992	0.6666	0.6651	0.6679	1.307e-05
+vsL1	mha4	4	eft	25	0.676128	0.504992	0.7464	0.7457	0.7476	1.307e-05
+S2-b	gqa2	128	legacy_grid_stride	25	0.418144	0.569440	1.3617	1.3603	1.3631	1.307e-05
+S2-b	gqa2	128	balanced	25	0.418144	1.240768	2.9681	2.9611	2.9698	1.307e-05
+S2-b	gqa2	128	rotate	25	0.418144	0.418144	1.0000	1.0000	1.0000	nan
+S2-b	gqa2	128	eft	25	0.418144	0.440384	1.0528	1.0510	1.0548	1.307e-05
+S2-b	gqa2	128	band	25	0.418144	0.575168	1.3754	1.3733	1.3772	1.307e-05
+S2-b	gqa2	128	wavefront	25	0.418144	0.427776	1.0235	1.0214	1.0240	1.307e-05
+vs0	gqa2	128	eft	25	0.569440	0.440384	0.7732	0.7719	0.7742	1.307e-05
+vsL1	gqa2	128	eft	25	0.534368	0.440384	0.8247	0.8239	0.8255	1.307e-05
+S2-b	mha4	128	legacy_grid_stride	25	0.868992	1.166784	1.3411	1.3405	1.3431	1.307e-05
+S2-b	mha4	128	balanced	25	0.868992	4.456032	5.1275	5.1260	5.1334	1.307e-05
+S2-b	mha4	128	rotate	25	0.868992	0.868992	1.0000	1.0000	1.0000	nan
+S2-b	mha4	128	eft	25	0.868992	0.910528	1.0468	1.0457	1.0486	1.307e-05
+S2-b	mha4	128	band	25	0.868992	1.179968	1.3582	1.3571	1.3592	1.307e-05
+S2-b	mha4	128	wavefront	25	0.868992	0.880832	1.0137	1.0124	1.0142	1.307e-05
+vs0	mha4	128	eft	25	1.166784	0.910528	0.7806	0.7793	0.7819	1.307e-05
+vsL1	mha4	128	eft	25	1.068384	0.910528	0.8524	0.8514	0.8529	1.307e-05
+S2-b	ALL	ALL	legacy_grid_stride	100	-	-	1.4466	1.3622	1.5336	3.956e-18
+S2-b	ALL	ALL	balanced	100	-	-	2.5890	2.2230	2.9663	3.956e-18
+S2-b	ALL	ALL	rotate	100	-	-	1.0000	1.0000	1.0000	nan
+S2-b	ALL	ALL	eft	100	-	-	1.0491	1.0473	1.0510	3.956e-18
+S2-b	ALL	ALL	band	100	-	-	1.4514	1.3758	1.5319	3.956e-18
+S2-b	ALL	ALL	wavefront	100	-	-	1.0326	1.0239	1.0481	3.956e-18
+
+gate	model	seq	arm	probe	n	l2_median_ms	l1_median_ms
+S2-d	gqa2	4	rotate	neither	25	0.037632	0.341600
+S2-d	gqa2	4	rotate	nowait	25	0.040672	0.341696
+S2-d	gqa2	4	rotate	full	25	0.243648	0.341856
+S2-d	gqa2	4	rotate	l1nosync	25	0.244000	0.310752
+S2-d	gqa2	4	eft	neither	25	0.196928	0.341408
+S2-d	gqa2	4	eft	nowait	25	0.237280	0.341344
+S2-d	gqa2	4	eft	full	25	0.254176	0.341664
+S2-d	gqa2	4	eft	l1nosync	25	0.254112	0.309152
+S2-d	mha4	4	rotate	neither	25	0.041056	0.675392
+S2-d	mha4	4	rotate	nowait	25	0.045472	0.675232
+S2-d	mha4	4	rotate	full	25	0.478784	0.675584
+S2-d	mha4	4	rotate	l1nosync	25	0.478720	0.617824
+S2-d	mha4	4	eft	neither	25	0.386880	0.676384
+S2-d	mha4	4	eft	nowait	25	0.469440	0.676800
+S2-d	mha4	4	eft	full	25	0.504128	0.676256
+S2-d	mha4	4	eft	l1nosync	25	0.502688	0.617792
+S2-d	gqa2	128	rotate	neither	25	0.133408	0.534080
+S2-d	gqa2	128	rotate	nowait	25	0.151936	0.534432
+S2-d	gqa2	128	rotate	full	25	0.418432	0.534304
+S2-d	gqa2	128	rotate	l1nosync	25	0.418432	0.501472
+S2-d	gqa2	128	eft	neither	25	0.350496	0.534048
+S2-d	gqa2	128	eft	nowait	25	0.393376	0.534112
+S2-d	gqa2	128	eft	full	25	0.440960	0.534016
+S2-d	gqa2	128	eft	l1nosync	25	0.440992	0.502048
+S2-d	mha4	128	rotate	neither	25	0.201728	1.067360
+S2-d	mha4	128	rotate	nowait	25	0.266208	1.067456
+S2-d	mha4	128	rotate	full	25	0.868864	1.067744
+S2-d	mha4	128	rotate	l1nosync	25	0.869056	1.001536
+S2-d	mha4	128	eft	neither	25	0.692352	1.067008
+S2-d	mha4	128	eft	nowait	25	0.799296	1.067296
+S2-d	mha4	128	eft	full	25	0.910080	1.067552
+S2-d	mha4	128	eft	l1nosync	25	0.910112	1.001984

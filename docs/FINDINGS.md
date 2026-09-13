@@ -3228,3 +3228,16 @@ none is provided, preserves the repository target file, and refuses an
 unaccepted or wrong-architecture profile. Verified: the on-device 41-repeat
 calibration completed with calibrated=true, and a third CPU regression test
 checks rejection of an unaccepted profile.
+
+Verified: the repaired reference-only retry completed with grid 340 in all
+four plans and unchanged frozen control-source provenance. Formal
+correctness passed 1200/1200 (24 combinations, 50 fresh processes each);
+paired timing passed 600/600. The 800 sync-decomposition probes completed:
+safe full probes passed 200/200, while 600 intentionally unsafe probes
+reported MISMATCH and remain timing-only. Script completion/PASS does not
+mean the S2-b improvement gate passed: EFT was 4.1--5.4% slower than rotate
+in all four cells, with each paired 95% confidence interval above one.
+Predicted improvement direction disagreed with measurement 4/4. No guard,
+expected value, tuning parameter or gate threshold was changed. REALWIDTH
+was disabled. Per-process evidence, calibration limitations and selective
+research checks are recorded in [the retry report](experiments/sm120_place_eft_retry_20260913.md).

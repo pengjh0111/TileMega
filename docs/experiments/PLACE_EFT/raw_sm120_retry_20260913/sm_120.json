@@ -1,0 +1,1172 @@
+{
+  "arch_tag": "sm_120",
+  "sm_major": 12,
+  "sm_minor": 0,
+  "caps": {
+    "cluster": true,
+    "tma": true,
+    "warp_specialized": true,
+    "tcgen05": false,
+    "l1_5": false,
+    "net": false,
+    "cp_async": true,
+    "mbarrier": true
+  },
+  "resources": {
+    "num_sms": 170,
+    "max_smem_per_sm": 102400,
+    "max_dynamic_smem_per_cta": 101376,
+    "regs_per_sm": 65536,
+    "max_cluster_size": 8,
+    "max_threads_per_sm": 1536,
+    "warp_size": 32
+  },
+  "calibration": {
+    "calibrated": false,
+    "device": "",
+    "measured_at": "",
+    "wall_seconds": 0,
+    "pipelines": {
+      "tc_fp16_gflops": 0,
+      "tc_bf16_gflops": 0,
+      "cuda_fp32_gflops": 0,
+      "cuda_int32_gops": 0,
+      "sfu_exp2_gops": 0,
+      "sfu_rsqrt_gops": 0,
+      "smem_gbps": 0,
+      "smem_conflict_slope": 0,
+      "l1_latency_ns": 0,
+      "l2_latency_ns": 0,
+      "dram_latency_ns": 0,
+      "l2_gbps": 0,
+      "l2_knee_bytes": 0,
+      "dram_gbps": 0,
+      "l2_curve_bytes": [],
+      "l2_curve_gbps": [],
+      "smem_occupancy_ctas": [],
+      "smem_occupancy_gbps": []
+    },
+    "sync": {
+      "atomic_uncontended_ns": 0,
+      "atomic_contention_ctas": [],
+      "atomic_contention_ns": [],
+      "threadfence_ns": 0,
+      "syncthreads_ns": 0,
+      "named_barrier_ns": 0,
+      "cluster_sync_ns": 0,
+      "cluster_sync_calibrated": false,
+      "grid_barrier_ctas": [],
+      "grid_barrier_ns": []
+    },
+    "streamk": [],
+    "combine_fixed_ns": 0,
+    "combine_fixed_resolved": false,
+    "combine_d_dram_ns": 0,
+    "fp32_partial_combine": {
+      "reason": "not_calibrated",
+      "method": "",
+      "fixed_ns": null,
+      "base_ns": null,
+      "d_l2_ns": null,
+      "d_dram_ns": null
+    },
+    "interference_ratio": 0,
+    "measurements": []
+  },
+  "event_calibration_by_dtype": {
+    "bf16": {
+      "source": "docs/experiments/OCCUPANCY/raw_sm120/attrib.tsv",
+      "source_sha256": "5ad82afe973eaf2b8cb06e31659d68fa0613d8edf92498a0e69a75f59949f933",
+      "method": "three-cell leave-one-out; final origin-constrained least squares on four cell medians",
+      "notify": {
+        "ns": 11.76532827,
+        "reason": "measured",
+        "unit": "ns/runtime_task_ref"
+      },
+      "poll": {
+        "ns": 1.54380093,
+        "reason": "measured",
+        "unit": "ns/runtime_wait_entry"
+      },
+      "fence": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
+      "notify_stage": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/runtime_stage"
+      },
+      "notify_longest_worker": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/max_worker_task_ref"
+      },
+      "poll_stage": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/runtime_stage"
+      },
+      "poll_longest_worker": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/max_worker_task_ref"
+      }
+    },
+    "f32": {
+      "source": "",
+      "source_sha256": "",
+      "method": "",
+      "notify": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
+      "poll": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
+      "fence": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
+      "notify_stage": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/runtime_stage"
+      },
+      "notify_longest_worker": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/max_worker_task_ref"
+      },
+      "poll_stage": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/runtime_stage"
+      },
+      "poll_longest_worker": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/max_worker_task_ref"
+      }
+    }
+  },
+  "calibration_by_dtype": {
+    "bf16": {
+      "calibrated": true,
+      "device": "NVIDIA GeForce RTX 5090",
+      "measured_at": "2026-09-13T05:47:23Z",
+      "wall_seconds": 8.737305636,
+      "pipelines": {
+        "tc_fp16_gflops": 0,
+        "tc_bf16_gflops": 254275.7875,
+        "cuda_fp32_gflops": 116737.3363,
+        "cuda_int32_gops": 30589.96546,
+        "sfu_exp2_gops": 7309.44729,
+        "sfu_rsqrt_gops": 7416.905762,
+        "smem_gbps": 88619.39896,
+        "smem_conflict_slope": 0.478611213,
+        "l1_latency_ns": 18.48437455,
+        "l2_latency_ns": 122.0703174,
+        "dram_latency_ns": 319.0534229,
+        "l2_gbps": 7182.861513,
+        "l2_knee_bytes": 100663296,
+        "dram_gbps": 1695.695915,
+        "l2_curve_bytes": [1048576, 2097152, 4194304, 8388608, 16777216, 25165824, 33554432, 50331648, 67108864, 75497472, 83886080, 100663296, 134217728, 201326592, 268435456, 536870912, 1073741824, 2147483648],
+        "l2_curve_gbps": [3609.135717, 6317.601261, 5617.708483, 6516.63603, 6979.55846, 7158.443362, 7182.861513, 7069.458883, 7113.979065, 7121.162814, 7108.361354, 7106.876371, 5243.816372, 1716.996391, 1709.518735, 1701.140601, 1695.695915, 1692.339146],
+        "smem_occupancy_ctas": [1, 2, 3, 4, 6],
+        "smem_occupancy_gbps": [68666.37966, 86198.22408, 85646.02113, 87985.1504, 87703.77062]
+      },
+      "sync": {
+        "atomic_uncontended_ns": 137.4687563,
+        "atomic_contention_ctas": [1, 2, 4, 8, 16, 32, 64, 128, 256, 512],
+        "atomic_contention_ns": [137.4999993, 68.76562838, 36.62499876, 18.57226562, 9.532226613, 4.737304607, 2.368164132, 1.176635692, 0.588317846, 0.4096679618],
+        "threadfence_ns": 356.9531327,
+        "syncthreads_ns": 48.07813093,
+        "named_barrier_ns": 49.00000204,
+        "cluster_sync_ns": 0,
+        "cluster_sync_calibrated": false,
+        "grid_barrier_ctas": [170, 340, 510, 680, 850, 1020],
+        "grid_barrier_ns": [1054.374967, 1154.37503, 1318.500028, 1782.499952, 1963.187475, 2502.37505]
+      },
+      "streamk": [
+        {
+          "tile_m": 128,
+          "tile_n": 128,
+          "tile_k": 16,
+          "stages": 3,
+          "a_ns": 3232.000163,
+          "b_ns": 0.002511144701,
+          "c_ns": 456.6079383,
+          "d_ns": 0.0003533231039,
+          "fit_r2": -11.83737293,
+          "ac_r2": 0.9916215049,
+          "occ_per_sm": [],
+          "occ_a_ns": [],
+          "occ_c_ns": []
+        },
+        {
+          "tile_m": 64,
+          "tile_n": 64,
+          "tile_k": 16,
+          "stages": 3,
+          "a_ns": 2048.000228,
+          "b_ns": 0.002511144701,
+          "c_ns": 152.0541924,
+          "d_ns": 0.0003533231039,
+          "fit_r2": -11.83737293,
+          "ac_r2": 0.977260173,
+          "occ_per_sm": [1, 2, 4],
+          "occ_a_ns": [3978.666617, 3295.999952, 2026.666809],
+          "occ_c_ns": [5.333335139, 176.0000014, 509.3333505]
+        },
+        {
+          "tile_m": 32,
+          "tile_n": 32,
+          "tile_k": 32,
+          "stages": 3,
+          "a_ns": 1919.999951,
+          "b_ns": 0.002511144701,
+          "c_ns": 187.8220092,
+          "d_ns": 0.0003533231039,
+          "fit_r2": -11.83737293,
+          "ac_r2": 0.9856948114,
+          "occ_per_sm": [1, 2, 3, 4, 6],
+          "occ_a_ns": [3349.333613, 2762.666748, 4309.333861, 5194.666019, 2005.333469],
+          "occ_c_ns": [170.6666468, 341.3333131, -61.3334123, 565.3334277, 1026.666626]
+        },
+        {
+          "tile_m": 32,
+          "tile_n": 64,
+          "tile_k": 32,
+          "stages": 3,
+          "a_ns": 1951.999962,
+          "b_ns": 0.002511144701,
+          "c_ns": 294.00622,
+          "d_ns": 0.0003533231039,
+          "fit_r2": -11.83737293,
+          "ac_r2": 0.9925463654,
+          "occ_per_sm": [1, 2],
+          "occ_a_ns": [2752.000156, 1962.666943],
+          "occ_c_ns": [336.0000167, 525.3333172]
+        },
+        {
+          "tile_m": 32,
+          "tile_n": 64,
+          "tile_k": 16,
+          "stages": 2,
+          "a_ns": 1920.000184,
+          "b_ns": 0.002511144701,
+          "c_ns": 231.0199486,
+          "d_ns": 0.0003533231039,
+          "fit_r2": -11.83737293,
+          "ac_r2": 0.9878649459,
+          "occ_per_sm": [1, 2, 4],
+          "occ_a_ns": [608.0002834, 2506.666584, 2005.333314],
+          "occ_c_ns": [351.9999833, 229.3333528, 514.6666663]
+        },
+        {
+          "tile_m": 256,
+          "tile_n": 128,
+          "tile_k": 16,
+          "stages": 3,
+          "a_ns": 12224.00041,
+          "b_ns": 0.002511144701,
+          "c_ns": 1986.062655,
+          "d_ns": 0.0003533231039,
+          "fit_r2": -11.83737293,
+          "ac_r2": 0.9998902552,
+          "occ_per_sm": [],
+          "occ_a_ns": [],
+          "occ_c_ns": []
+        },
+        {
+          "tile_m": 32,
+          "tile_n": 16,
+          "tile_k": 16,
+          "stages": 2,
+          "a_ns": 0,
+          "b_ns": 0.002511144701,
+          "c_ns": 193.377043,
+          "d_ns": 0.0003533231039,
+          "fit_r2": -11.83737293,
+          "ac_r2": 0.9584281916,
+          "occ_per_sm": [1, 2, 3, 4, 5, 6, 8],
+          "occ_a_ns": [1247.999957, 714.6665982, 704.0000055, 1994.666488, 2101.333501, 3434.667053, 2720.000378],
+          "occ_c_ns": [176.0000014, 333.3333492, 335.9999973, 269.3333469, 250.6666545, 165.3332923, 335.9999585]
+        },
+        {
+          "tile_m": 32,
+          "tile_n": 128,
+          "tile_k": 32,
+          "stages": 3,
+          "a_ns": 1984.000206,
+          "b_ns": 0.002511144701,
+          "c_ns": 574.4178489,
+          "d_ns": 0.0003533231039,
+          "fit_r2": -11.83737293,
+          "ac_r2": 0.9735112826,
+          "occ_per_sm": [],
+          "occ_a_ns": [],
+          "occ_c_ns": []
+        },
+        {
+          "tile_m": 128,
+          "tile_n": 32,
+          "tile_k": 32,
+          "stages": 2,
+          "a_ns": 1951.999962,
+          "b_ns": 0.002511144701,
+          "c_ns": 475.4645574,
+          "d_ns": 0.0003533231039,
+          "fit_r2": -11.83737293,
+          "ac_r2": 0.996921534,
+          "occ_per_sm": [1, 2, 3],
+          "occ_a_ns": [2058.66651, 3381.333003, 1493.333606],
+          "occ_c_ns": [509.3333699, 682.6666843, 1186.666661]
+        },
+        {
+          "tile_m": 64,
+          "tile_n": 64,
+          "tile_k": 32,
+          "stages": 5,
+          "a_ns": 1983.999973,
+          "b_ns": 0.002511144701,
+          "c_ns": 385.8223771,
+          "d_ns": 0.0003533231039,
+          "fit_r2": -11.83737293,
+          "ac_r2": 0.9931794362,
+          "occ_per_sm": [1, 2],
+          "occ_a_ns": [2645.333686, 3434.666665],
+          "occ_c_ns": [346.6666288, 677.3333298]
+        }
+      ],
+      "combine_fixed_ns": 0,
+      "combine_fixed_resolved": false,
+      "combine_d_dram_ns": 0.0003452095808,
+      "fp32_partial_combine": {
+        "reason": "not_calibrated",
+        "method": "",
+        "fixed_ns": null,
+        "base_ns": null,
+        "d_l2_ns": null,
+        "d_dram_ns": null
+      },
+      "interference_ratio": 1.135338398,
+      "measurements": [
+        {
+          "name": "cuda_fp32_gflops",
+          "value": 116737.3363,
+          "unit": "GFLOP/s",
+          "samples": 41,
+          "rel_stddev": 0.004449979281,
+          "method": "8 independent FFMA chains x 4096 iterations at full occupancy; 2 flops per FFMA"
+        },
+        {
+          "name": "cuda_int32_gops",
+          "value": 30589.96546,
+          "unit": "GIMAD/s",
+          "samples": 41,
+          "rel_stddev": 0.001476014641,
+          "method": "8 independent IMAD chains x 4096 iterations at full occupancy"
+        },
+        {
+          "name": "sfu_exp2_gops",
+          "value": 7309.44729,
+          "unit": "Gop/s",
+          "samples": 41,
+          "rel_stddev": 0.0007801853122,
+          "method": "inline ex2.approx.f32, 8 chains x 4096 iterations"
+        },
+        {
+          "name": "sfu_rsqrt_gops",
+          "value": 7416.905762,
+          "unit": "Gop/s",
+          "samples": 41,
+          "rel_stddev": 0.006740317272,
+          "method": "inline rsqrt.approx.f32, 8 chains x 4096 iterations"
+        },
+        {
+          "name": "tc_bf16_gflops",
+          "value": 254275.7875,
+          "unit": "GFLOP/s",
+          "samples": 41,
+          "rel_stddev": 0.002333174835,
+          "method": "4 independent mma.sync.m16n8k16.f32.bf16.bf16.f32 chains x 4096 iterations; 4096 flops per instruction"
+        },
+        {
+          "name": "smem_gbps",
+          "value": 88619.39896,
+          "unit": "GB/s",
+          "samples": 41,
+          "rel_stddev": 0.02442626585,
+          "method": "conflict-free ld.shared, 8 loads per iteration x 4096 iterations"
+        },
+        {
+          "name": "smem_conflict_ratio_w2",
+          "value": 0.9948628713,
+          "unit": "x conflict-free",
+          "samples": 41,
+          "rel_stddev": 0.006331676509,
+          "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+        },
+        {
+          "name": "smem_conflict_ratio_w4",
+          "value": 2.03397132,
+          "unit": "x conflict-free",
+          "samples": 41,
+          "rel_stddev": 0.01896661367,
+          "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+        },
+        {
+          "name": "smem_conflict_ratio_w8",
+          "value": 3.839671765,
+          "unit": "x conflict-free",
+          "samples": 41,
+          "rel_stddev": 0.001439111623,
+          "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+        },
+        {
+          "name": "smem_conflict_ratio_w16",
+          "value": 7.65655842,
+          "unit": "x conflict-free",
+          "samples": 41,
+          "rel_stddev": 0.000412361819,
+          "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+        },
+        {
+          "name": "smem_conflict_ratio_w32",
+          "value": 15.29853299,
+          "unit": "x conflict-free",
+          "samples": 41,
+          "rel_stddev": 0.0003504878396,
+          "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+        },
+        {
+          "name": "smem_conflict_slope",
+          "value": 0.478611213,
+          "unit": "multiplier per way",
+          "samples": 164,
+          "rel_stddev": 0.01896661367,
+          "method": "least squares through the origin of t(w)/t(1) against w over the ways whose ratio exceeds 1.05; the cost model applies max(1, slope * ways)"
+        },
+        {
+          "name": "smem_occupancy_gbps",
+          "value": 68666.37966,
+          "unit": "GB/s at 1 CTA/SM",
+          "samples": 205,
+          "rel_stddev": 0.007628547911,
+          "method": "the conflict-free ld.shared loop at a fixed CTAs-per-SM instead of the resident maximum; the recorded value is the 1 CTA/SM point and the curve carries the rest"
+        },
+        {
+          "name": "l1_latency_ns",
+          "value": 18.48437455,
+          "unit": "ns",
+          "samples": 41,
+          "rel_stddev": 0.01261459976,
+          "method": "single-thread pointer chase, random single cycle over the 0 MiB working set at one cache line per hop, 4096 hops, empty launch subtracted"
+        },
+        {
+          "name": "l2_latency_ns",
+          "value": 122.0703174,
+          "unit": "ns",
+          "samples": 41,
+          "rel_stddev": 0.0001144217632,
+          "method": "single-thread pointer chase, random single cycle over the 8 MiB working set at one cache line per hop, 65536 hops, empty launch subtracted"
+        },
+        {
+          "name": "dram_latency_ns",
+          "value": 319.0534229,
+          "unit": "ns",
+          "samples": 3,
+          "rel_stddev": 7.939413009e-05,
+          "method": "single-thread pointer chase, random single cycle over the 512 MiB working set at one cache line per hop, 2000000 hops, empty launch subtracted"
+        },
+        {
+          "name": "l2_gbps",
+          "value": 7182.861513,
+          "unit": "GB/s",
+          "samples": 738,
+          "rel_stddev": 0.009149311738,
+          "method": "ld.global.cg streaming read, plateau (maximum) of the working-set sweep"
+        },
+        {
+          "name": "dram_gbps",
+          "value": 1695.695915,
+          "unit": "GB/s",
+          "samples": 738,
+          "rel_stddev": 0.009149311738,
+          "method": "same sweep, median of the 512-2048 MiB working sets (achieved, not peak)"
+        },
+        {
+          "name": "l2_knee_bytes",
+          "value": 100663296,
+          "unit": "bytes",
+          "samples": 738,
+          "rel_stddev": 0.009149311738,
+          "method": "largest working set of the sweep still within 95% of the plateau bandwidth"
+        },
+        {
+          "name": "atomic_uncontended_ns",
+          "value": 137.4687563,
+          "unit": "ns",
+          "samples": 41,
+          "rel_stddev": 0.003929555433,
+          "method": "one CTA, dependent chain of 2048 global atomicAdd; the return value feeds the next address so this is latency, not issue rate"
+        },
+        {
+          "name": "atomic_contention_ns",
+          "value": 0.4096679618,
+          "unit": "ns per completed atomic",
+          "samples": 410,
+          "rel_stddev": 0.004748141098,
+          "method": "N CTAs hammering one address; the recorded value is inverse throughput (elapsed / N / iters), which is what T_sync = |image(C_kappa)| * latency multiplies"
+        },
+        {
+          "name": "threadfence_ns",
+          "value": 356.9531327,
+          "unit": "ns",
+          "samples": 41,
+          "rel_stddev": 0.001438426197,
+          "method": "store + __threadfence loop at full occupancy, minus the same loop without the fence"
+        },
+        {
+          "name": "syncthreads_ns",
+          "value": 48.07813093,
+          "unit": "ns",
+          "samples": 41,
+          "rel_stddev": 0.01310594772,
+          "method": "store + __syncthreads loop at full occupancy, minus the same loop without the barrier; 256 threads per CTA"
+        },
+        {
+          "name": "named_barrier_ns",
+          "value": 49.00000204,
+          "unit": "ns",
+          "samples": 41,
+          "rel_stddev": 0.01277013472,
+          "method": "store + bar.sync 1 loop at full occupancy, minus the same loop without the barrier; 256 threads per CTA"
+        },
+        {
+          "name": "grid_barrier_ns",
+          "value": 2502.37505,
+          "unit": "ns per barrier",
+          "samples": 246,
+          "rel_stddev": 0.003830392826,
+          "method": "512 back-to-back ModelHarness GridBarriers over a resident grid, one 128-byte-aligned event per barrier, swept over CTAs per SM; the recorded value is the widest grid and the curve carries the rest"
+        },
+        {
+          "name": "streamk_combine_d_ns",
+          "value": 0.0003533231039,
+          "unit": "ns per peer per element",
+          "samples": 1025,
+          "rel_stddev": 0.3019041068,
+          "method": "GemmCombine duration against (peers-1)*elements over widths {1024,4096,16384,65536,262144} x chunks {2,4,8,16,32}, launch subtracted; every point L2-resident, as the reference models are"
+        },
+        {
+          "name": "streamk_combine_d_dram_ns",
+          "value": 0.0003452095808,
+          "unit": "ns per peer per element",
+          "samples": 205,
+          "rel_stddev": 0.3019041068,
+          "method": "the same slope at a 128 MB working set, past the L2 knee: the regime the reference models do not reach, recorded so the two are not averaged"
+        },
+        {
+          "name": "streamk_combine_base_ns",
+          "value": 0.002511144701,
+          "unit": "ns per element",
+          "samples": 205,
+          "rel_stddev": 0.3019041068,
+          "method": "slope of the chunks=1 reduction against width: the output store and the single partial read, measured rather than extrapolated"
+        },
+        {
+          "name": "streamk_combine_fixed_ns",
+          "value": 0,
+          "unit": "ns",
+          "samples": 164,
+          "rel_stddev": 0,
+          "method": "launch-subtracted duration of the chunks=1 reduction at counts {1,64,256,1024}, taken as the minimum: measured directly rather than extrapolated as the wide sweep's intercept, which was unresolved (|value| < 300 ns, 150% spread, either sign) and clamped to 0"
+        },
+        {
+          "name": "streamk_combine_peer_r2",
+          "value": -11.83737293,
+          "unit": "",
+          "samples": 1025,
+          "rel_stddev": 0,
+          "method": "fit quality of d across widths"
+        },
+        {
+          "name": "streamk_combine_width_r2",
+          "value": 0.9702049643,
+          "unit": "",
+          "samples": 1025,
+          "rel_stddev": 0,
+          "method": "fit quality of the peer-independent part across widths"
+        },
+        {
+          "name": "streamk_a_ns[128x128x16s3]",
+          "value": 3232.000163,
+          "unit": "ns",
+          "samples": 287,
+          "rel_stddev": 0.1253695108,
+          "method": "intercept of per-CTA time vs MAC iterations over {1,2,4,8,16,32,64}, unsplit single-wave GEMM at M=4, N=768, launch time subtracted; r2=0.991622"
+        },
+        {
+          "name": "streamk_c_ns[128x128x16s3]",
+          "value": 456.6079383,
+          "unit": "ns per iteration",
+          "samples": 287,
+          "rel_stddev": 0.1253695108,
+          "method": "slope of the same fit"
+        },
+        {
+          "name": "streamk_b_ns[128x128x16s3]",
+          "value": 0.002511144701,
+          "unit": "ns per element",
+          "samples": 164,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_base_ns"
+        },
+        {
+          "name": "streamk_d_ns[128x128x16s3]",
+          "value": 0.0003533231039,
+          "unit": "ns per peer per element",
+          "samples": 1025,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_d_ns"
+        },
+        {
+          "name": "streamk_a_ns[64x64x16s3]",
+          "value": 2048.000228,
+          "unit": "ns",
+          "samples": 287,
+          "rel_stddev": 0.1493733487,
+          "method": "intercept of per-CTA time vs MAC iterations over {1,2,4,8,16,32,64}, unsplit single-wave GEMM at M=4, N=384, launch time subtracted; r2=0.977260"
+        },
+        {
+          "name": "streamk_c_ns[64x64x16s3]",
+          "value": 152.0541924,
+          "unit": "ns per iteration",
+          "samples": 287,
+          "rel_stddev": 0.1493733487,
+          "method": "slope of the same fit"
+        },
+        {
+          "name": "streamk_b_ns[64x64x16s3]",
+          "value": 0.002511144701,
+          "unit": "ns per element",
+          "samples": 164,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_base_ns"
+        },
+        {
+          "name": "streamk_d_ns[64x64x16s3]",
+          "value": 0.0003533231039,
+          "unit": "ns per peer per element",
+          "samples": 1025,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_d_ns"
+        },
+        {
+          "name": "streamk_c_ns[64x64x16s3@1cta/sm]",
+          "value": 5.333335139,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1190301721,
+          "method": "two-point (4,16) re-fit at 170 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[64x64x16s3@2cta/sm]",
+          "value": 176.0000014,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1190301721,
+          "method": "two-point (4,16) re-fit at 340 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[64x64x16s3@4cta/sm]",
+          "value": 509.3333505,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1190301721,
+          "method": "two-point (4,16) re-fit at 680 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_a_ns[32x32x32s3]",
+          "value": 1919.999951,
+          "unit": "ns",
+          "samples": 287,
+          "rel_stddev": 0.2278544909,
+          "method": "intercept of per-CTA time vs MAC iterations over {1,2,4,8,16,32,64}, unsplit single-wave GEMM at M=4, N=192, launch time subtracted; r2=0.985695"
+        },
+        {
+          "name": "streamk_c_ns[32x32x32s3]",
+          "value": 187.8220092,
+          "unit": "ns per iteration",
+          "samples": 287,
+          "rel_stddev": 0.2278544909,
+          "method": "slope of the same fit"
+        },
+        {
+          "name": "streamk_b_ns[32x32x32s3]",
+          "value": 0.002511144701,
+          "unit": "ns per element",
+          "samples": 164,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_base_ns"
+        },
+        {
+          "name": "streamk_d_ns[32x32x32s3]",
+          "value": 0.0003533231039,
+          "unit": "ns per peer per element",
+          "samples": 1025,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_d_ns"
+        },
+        {
+          "name": "streamk_c_ns[32x32x32s3@1cta/sm]",
+          "value": 170.6666468,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.3903726098,
+          "method": "two-point (4,16) re-fit at 170 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x32x32s3@2cta/sm]",
+          "value": 341.3333131,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.3903726098,
+          "method": "two-point (4,16) re-fit at 340 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x32x32s3@3cta/sm]",
+          "value": -61.3334123,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.3903726098,
+          "method": "two-point (4,16) re-fit at 510 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x32x32s3@4cta/sm]",
+          "value": 565.3334277,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.3903726098,
+          "method": "two-point (4,16) re-fit at 680 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x32x32s3@6cta/sm]",
+          "value": 1026.666626,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.3903726098,
+          "method": "two-point (4,16) re-fit at 1020 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_a_ns[32x64x32s3]",
+          "value": 1951.999962,
+          "unit": "ns",
+          "samples": 287,
+          "rel_stddev": 0.2584244208,
+          "method": "intercept of per-CTA time vs MAC iterations over {1,2,4,8,16,32,64}, unsplit single-wave GEMM at M=4, N=384, launch time subtracted; r2=0.992546"
+        },
+        {
+          "name": "streamk_c_ns[32x64x32s3]",
+          "value": 294.00622,
+          "unit": "ns per iteration",
+          "samples": 287,
+          "rel_stddev": 0.2584244208,
+          "method": "slope of the same fit"
+        },
+        {
+          "name": "streamk_b_ns[32x64x32s3]",
+          "value": 0.002511144701,
+          "unit": "ns per element",
+          "samples": 164,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_base_ns"
+        },
+        {
+          "name": "streamk_d_ns[32x64x32s3]",
+          "value": 0.0003533231039,
+          "unit": "ns per peer per element",
+          "samples": 1025,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_d_ns"
+        },
+        {
+          "name": "streamk_c_ns[32x64x32s3@1cta/sm]",
+          "value": 336.0000167,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.08220072214,
+          "method": "two-point (4,16) re-fit at 170 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x64x32s3@2cta/sm]",
+          "value": 525.3333172,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.08220072214,
+          "method": "two-point (4,16) re-fit at 340 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_a_ns[32x64x16s2]",
+          "value": 1920.000184,
+          "unit": "ns",
+          "samples": 287,
+          "rel_stddev": 0.1379039846,
+          "method": "intercept of per-CTA time vs MAC iterations over {1,2,4,8,16,32,64}, unsplit single-wave GEMM at M=4, N=384, launch time subtracted; r2=0.987865"
+        },
+        {
+          "name": "streamk_c_ns[32x64x16s2]",
+          "value": 231.0199486,
+          "unit": "ns per iteration",
+          "samples": 287,
+          "rel_stddev": 0.1379039846,
+          "method": "slope of the same fit"
+        },
+        {
+          "name": "streamk_b_ns[32x64x16s2]",
+          "value": 0.002511144701,
+          "unit": "ns per element",
+          "samples": 164,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_base_ns"
+        },
+        {
+          "name": "streamk_d_ns[32x64x16s2]",
+          "value": 0.0003533231039,
+          "unit": "ns per peer per element",
+          "samples": 1025,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_d_ns"
+        },
+        {
+          "name": "streamk_c_ns[32x64x16s2@1cta/sm]",
+          "value": 351.9999833,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1522979235,
+          "method": "two-point (4,16) re-fit at 170 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x64x16s2@2cta/sm]",
+          "value": 229.3333528,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1522979235,
+          "method": "two-point (4,16) re-fit at 340 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x64x16s2@4cta/sm]",
+          "value": 514.6666663,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1522979235,
+          "method": "two-point (4,16) re-fit at 680 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_a_ns[256x128x16s3]",
+          "value": 12224.00041,
+          "unit": "ns",
+          "samples": 287,
+          "rel_stddev": 0.06148680914,
+          "method": "intercept of per-CTA time vs MAC iterations over {1,2,4,8,16,32,64}, unsplit single-wave GEMM at M=4, N=768, launch time subtracted; r2=0.999890"
+        },
+        {
+          "name": "streamk_c_ns[256x128x16s3]",
+          "value": 1986.062655,
+          "unit": "ns per iteration",
+          "samples": 287,
+          "rel_stddev": 0.06148680914,
+          "method": "slope of the same fit"
+        },
+        {
+          "name": "streamk_b_ns[256x128x16s3]",
+          "value": 0.002511144701,
+          "unit": "ns per element",
+          "samples": 164,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_base_ns"
+        },
+        {
+          "name": "streamk_d_ns[256x128x16s3]",
+          "value": 0.0003533231039,
+          "unit": "ns per peer per element",
+          "samples": 1025,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_d_ns"
+        },
+        {
+          "name": "streamk_a_ns[32x16x16s2]",
+          "value": 0,
+          "unit": "ns",
+          "samples": 287,
+          "rel_stddev": 0.2200595704,
+          "method": "intercept of per-CTA time vs MAC iterations over {1,2,4,8,16,32,64}, unsplit single-wave GEMM at M=4, N=96, launch time subtracted; r2=0.958428"
+        },
+        {
+          "name": "streamk_c_ns[32x16x16s2]",
+          "value": 193.377043,
+          "unit": "ns per iteration",
+          "samples": 287,
+          "rel_stddev": 0.2200595704,
+          "method": "slope of the same fit"
+        },
+        {
+          "name": "streamk_b_ns[32x16x16s2]",
+          "value": 0.002511144701,
+          "unit": "ns per element",
+          "samples": 164,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_base_ns"
+        },
+        {
+          "name": "streamk_d_ns[32x16x16s2]",
+          "value": 0.0003533231039,
+          "unit": "ns per peer per element",
+          "samples": 1025,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_d_ns"
+        },
+        {
+          "name": "streamk_c_ns[32x16x16s2@1cta/sm]",
+          "value": 176.0000014,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1558892806,
+          "method": "two-point (4,16) re-fit at 170 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x16x16s2@2cta/sm]",
+          "value": 333.3333492,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1558892806,
+          "method": "two-point (4,16) re-fit at 340 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x16x16s2@3cta/sm]",
+          "value": 335.9999973,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1558892806,
+          "method": "two-point (4,16) re-fit at 510 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x16x16s2@4cta/sm]",
+          "value": 269.3333469,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1558892806,
+          "method": "two-point (4,16) re-fit at 680 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x16x16s2@5cta/sm]",
+          "value": 250.6666545,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1558892806,
+          "method": "two-point (4,16) re-fit at 850 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x16x16s2@6cta/sm]",
+          "value": 165.3332923,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1558892806,
+          "method": "two-point (4,16) re-fit at 1020 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x16x16s2@8cta/sm]",
+          "value": 335.9999585,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1558892806,
+          "method": "two-point (4,16) re-fit at 1360 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_a_ns[32x128x32s3]",
+          "value": 1984.000206,
+          "unit": "ns",
+          "samples": 287,
+          "rel_stddev": 0.1852838646,
+          "method": "intercept of per-CTA time vs MAC iterations over {1,2,4,8,16,32,64}, unsplit single-wave GEMM at M=4, N=768, launch time subtracted; r2=0.973511"
+        },
+        {
+          "name": "streamk_c_ns[32x128x32s3]",
+          "value": 574.4178489,
+          "unit": "ns per iteration",
+          "samples": 287,
+          "rel_stddev": 0.1852838646,
+          "method": "slope of the same fit"
+        },
+        {
+          "name": "streamk_b_ns[32x128x32s3]",
+          "value": 0.002511144701,
+          "unit": "ns per element",
+          "samples": 164,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_base_ns"
+        },
+        {
+          "name": "streamk_d_ns[32x128x32s3]",
+          "value": 0.0003533231039,
+          "unit": "ns per peer per element",
+          "samples": 1025,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_d_ns"
+        },
+        {
+          "name": "streamk_a_ns[128x32x32s2]",
+          "value": 1951.999962,
+          "unit": "ns",
+          "samples": 287,
+          "rel_stddev": 0.3672251659,
+          "method": "intercept of per-CTA time vs MAC iterations over {1,2,4,8,16,32,64}, unsplit single-wave GEMM at M=4, N=192, launch time subtracted; r2=0.996922"
+        },
+        {
+          "name": "streamk_c_ns[128x32x32s2]",
+          "value": 475.4645574,
+          "unit": "ns per iteration",
+          "samples": 287,
+          "rel_stddev": 0.3672251659,
+          "method": "slope of the same fit"
+        },
+        {
+          "name": "streamk_b_ns[128x32x32s2]",
+          "value": 0.002511144701,
+          "unit": "ns per element",
+          "samples": 164,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_base_ns"
+        },
+        {
+          "name": "streamk_d_ns[128x32x32s2]",
+          "value": 0.0003533231039,
+          "unit": "ns per peer per element",
+          "samples": 1025,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_d_ns"
+        },
+        {
+          "name": "streamk_c_ns[128x32x32s2@1cta/sm]",
+          "value": 509.3333699,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.08921791285,
+          "method": "two-point (4,16) re-fit at 170 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[128x32x32s2@2cta/sm]",
+          "value": 682.6666843,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.08921791285,
+          "method": "two-point (4,16) re-fit at 340 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[128x32x32s2@3cta/sm]",
+          "value": 1186.666661,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.08921791285,
+          "method": "two-point (4,16) re-fit at 510 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_a_ns[64x64x32s5]",
+          "value": 1983.999973,
+          "unit": "ns",
+          "samples": 287,
+          "rel_stddev": 0.2047672159,
+          "method": "intercept of per-CTA time vs MAC iterations over {1,2,4,8,16,32,64}, unsplit single-wave GEMM at M=4, N=384, launch time subtracted; r2=0.993179"
+        },
+        {
+          "name": "streamk_c_ns[64x64x32s5]",
+          "value": 385.8223771,
+          "unit": "ns per iteration",
+          "samples": 287,
+          "rel_stddev": 0.2047672159,
+          "method": "slope of the same fit"
+        },
+        {
+          "name": "streamk_b_ns[64x64x32s5]",
+          "value": 0.002511144701,
+          "unit": "ns per element",
+          "samples": 164,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_base_ns"
+        },
+        {
+          "name": "streamk_d_ns[64x64x32s5]",
+          "value": 0.0003533231039,
+          "unit": "ns per peer per element",
+          "samples": 1025,
+          "rel_stddev": 0.3019041068,
+          "method": "shape-independent: see streamk_combine_d_ns"
+        },
+        {
+          "name": "streamk_c_ns[64x64x32s5@1cta/sm]",
+          "value": 346.6666288,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1611972312,
+          "method": "two-point (4,16) re-fit at 170 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "streamk_c_ns[64x64x32s5@2cta/sm]",
+          "value": 677.3333298,
+          "unit": "ns per iteration",
+          "samples": 82,
+          "rel_stddev": 0.1611972312,
+          "method": "two-point (4,16) re-fit at 340 resident CTAs, launch time subtracted"
+        },
+        {
+          "name": "interference_neighbour_gbps",
+          "value": 863.5030312,
+          "unit": "GB/s",
+          "samples": 41,
+          "rel_stddev": 0.001804497069,
+          "method": "read-modify-write over 256 MiB at one CTA per SM, four passes; the neighbour interference_ratio is measured against"
+        },
+        {
+          "name": "interference_ratio",
+          "value": 1.135338398,
+          "unit": "ratio",
+          "samples": 41,
+          "rel_stddev": 0.05114478858,
+          "method": "median of paired ratios; each pair is the duration of a 32x64x32s3 BF16 Tensor Core GEMM (M=4, N=1536, K=2048, split 16) on its own stream while a 256 MiB streaming read-modify-write runs at one CTA per SM on another stream"
+        },
+        {
+          "name": "dram_peak_gbps",
+          "value": 1792.128,
+          "unit": "GB/s",
+          "samples": 1,
+          "rel_stddev": 0,
+          "method": "2 * memory clock * bus width from cudaDeviceGetAttribute; the pin rate, not an achieved one"
+        },
+        {
+          "name": "dram_fraction_of_peak",
+          "value": 0.9461912958,
+          "unit": "ratio",
+          "samples": 1,
+          "rel_stddev": 0,
+          "method": "achieved dram_gbps over the pin rate; the run is rejected below kMinFractionOfPeak"
+        },
+        {
+          "name": "dram_drift",
+          "value": 0.0006561572461,
+          "unit": "ratio",
+          "samples": 41,
+          "rel_stddev": 0,
+          "method": "largest working set re-measured after every other group, against its value from the sweep; the run is rejected above kMaxDrift"
+        }
+      ]
+    }
+  }
+}

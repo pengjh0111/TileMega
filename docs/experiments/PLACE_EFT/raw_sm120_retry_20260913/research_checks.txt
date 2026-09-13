@@ -1,0 +1,67 @@
+S2-b   FAIL (research)  0/4 of the four reference cells have the solver plan faster than mode 5 with a 95% interval clear of 1
+                        evidence: raw/final/**/run_*.log
+                        note: gqa2 s4: eft/mode5 median 1.0409, 95% CI [1.0389, 1.0436], n=25 paired rounds
+                        note:     eft/mode0 median 0.6770, 95% CI [0.6761, 0.6800], n=25
+                        note:     eft/L1 median 0.7442, 95% CI [0.7431, 0.7464], n=25
+                        note: gqa2 s128: eft/mode5 median 1.0528, 95% CI [1.0510, 1.0548], n=25 paired rounds
+                        note:     eft/mode0 median 0.7732, 95% CI [0.7719, 0.7742], n=25
+                        note:     eft/L1 median 0.8247, 95% CI [0.8239, 0.8255], n=25
+                        note: mha4 s4: eft/mode5 median 1.0542, 95% CI [1.0524, 1.0561], n=25 paired rounds
+                        note:     eft/mode0 median 0.6666, 95% CI [0.6651, 0.6679], n=25
+                        note:     eft/L1 median 0.7464, 95% CI [0.7457, 0.7476], n=25
+                        note: mha4 s128: eft/mode5 median 1.0468, 95% CI [1.0457, 1.0486], n=25 paired rounds
+                        note:     eft/mode0 median 0.7806, 95% CI [0.7793, 0.7819], n=25
+                        note:     eft/L1 median 0.8524, 95% CI [0.8514, 0.8529], n=25
+                        note: R2 §6.3 forbids restating this gate as 'faster than L1'; a negative result is recorded as a negative result
+S2-d   PASS (report)    attribution recomputed for 24 arm-cells: queue lower bound against the measurement, cross-worker edge share, same-worker edges, max_queue and the four-arm decomposition
+                        evidence: docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/place_stats.txt + raw/predicted.tsv + raw/final/dec_*
+                        note: gqa2 s4 rotate: max_queue 1, same_worker_edges 0, cross share 1.0000, queue_lb 25278 ns / measured 243744 ns = 0.104
+                        note:     neither: l2 median 0.037632 ms over 25
+                        note:     nowait: l2 median 0.040672 ms over 25
+                        note:     full: l2 median 0.243648 ms over 25
+                        note:     l1nosync: l2 median 0.244000 ms over 25
+                        note: gqa2 s4 eft: max_queue 20, same_worker_edges 116, cross share 0.9102, queue_lb 141342 ns / measured 253888 ns = 0.557
+                        note:     neither: l2 median 0.196928 ms over 25
+                        note:     nowait: l2 median 0.237280 ms over 25
+                        note:     full: l2 median 0.254176 ms over 25
+                        note:     l1nosync: l2 median 0.254112 ms over 25
+                        note: gqa2 s128 rotate: max_queue 13, same_worker_edges 1404, cross share 0.9974, queue_lb 36843 ns / measured 418144 ns = 0.088
+                        note:     neither: l2 median 0.133408 ms over 25
+                        note:     nowait: l2 median 0.151936 ms over 25
+                        note:     full: l2 median 0.418432 ms over 25
+                        note:     l1nosync: l2 median 0.418432 ms over 25
+                        note: gqa2 s128 eft: max_queue 28, same_worker_edges 2372, cross share 0.9957, queue_lb 152503 ns / measured 440384 ns = 0.346
+                        note:     neither: l2 median 0.350496 ms over 25
+                        note:     nowait: l2 median 0.393376 ms over 25
+                        note:     full: l2 median 0.440960 ms over 25
+                        note:     l1nosync: l2 median 0.440992 ms over 25
+                        note: mha4 s4 rotate: max_queue 2, same_worker_edges 0, cross share 1.0000, queue_lb 28123 ns / measured 478624 ns = 0.059
+                        note:     neither: l2 median 0.041056 ms over 25
+                        note:     nowait: l2 median 0.045472 ms over 25
+                        note:     full: l2 median 0.478784 ms over 25
+                        note:     l1nosync: l2 median 0.478720 ms over 25
+                        note: mha4 s4 eft: max_queue 40, same_worker_edges 280, cross share 0.9318, queue_lb 282685 ns / measured 504992 ns = 0.560
+                        note:     neither: l2 median 0.386880 ms over 25
+                        note:     nowait: l2 median 0.469440 ms over 25
+                        note:     full: l2 median 0.504128 ms over 25
+                        note:     l1nosync: l2 median 0.502688 ms over 25
+                        note: mha4 s128 rotate: max_queue 36, same_worker_edges 6240, cross share 0.9971, queue_lb 54756 ns / measured 868992 ns = 0.063
+                        note:     neither: l2 median 0.201728 ms over 25
+                        note:     nowait: l2 median 0.266208 ms over 25
+                        note:     full: l2 median 0.868864 ms over 25
+                        note:     l1nosync: l2 median 0.869056 ms over 25
+                        note: mha4 s128 eft: max_queue 64, same_worker_edges 8540, cross share 0.9961, queue_lb 307686 ns / measured 910528 ns = 0.338
+                        note:     neither: l2 median 0.692352 ms over 25
+                        note:     nowait: l2 median 0.799296 ms over 25
+                        note:     full: l2 median 0.910080 ms over 25
+                        note:     l1nosync: l2 median 0.910112 ms over 25
+S2-e   PASS (report)    per-cell Spearman of predicted against measured over the six §6.2 candidates: gqa2 s4: +0.812, gqa2 s128: +0.812, mha4 s4: +0.812, mha4 s128: +0.812
+                        evidence: docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/predicted.tsv + raw/final/**/run_*.log
+                        note: gqa2 s4: predicted order ['eft', 'wavefront', 'rotate', 'legacy_grid_stride', 'band', 'balanced']
+                        note:                measured order  ['rotate', 'eft', 'wavefront', 'band', 'legacy_grid_stride', 'balanced']
+                        note: gqa2 s128: predicted order ['eft', 'rotate', 'wavefront', 'legacy_grid_stride', 'band', 'balanced']
+                        note:                measured order  ['rotate', 'wavefront', 'eft', 'legacy_grid_stride', 'band', 'balanced']
+                        note: mha4 s4: predicted order ['eft', 'wavefront', 'rotate', 'legacy_grid_stride', 'band', 'balanced']
+                        note:                measured order  ['rotate', 'eft', 'wavefront', 'legacy_grid_stride', 'band', 'balanced']
+                        note: mha4 s128: predicted order ['eft', 'rotate', 'wavefront', 'legacy_grid_stride', 'band', 'balanced']
+                        note:                measured order  ['rotate', 'wavefront', 'eft', 'legacy_grid_stride', 'band', 'balanced']

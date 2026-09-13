@@ -1,0 +1,75 @@
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r0/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r0
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r1/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r1
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r2/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r2
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r3/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r3
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r4/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r4
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r5/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r5
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r6/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r6
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r7/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r7
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r8/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r8
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r9/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r9
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r10/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r10
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r11/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r11
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r12/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r12
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r13/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r13
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r14/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r14
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r15/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r15
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r16/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r16
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r17/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r17
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r18/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r18
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r19/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r19
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r20/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r20
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r21/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r21
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r22/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r22
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r23/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r23
+  [fail] first mismatch: /root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r24/FAIL_run1.log
+RESULT status=MISMATCH
+STAT label=eftdec_gqa2_128_rotate_l1nosync runs=1 pass=0 fail=1 hang=0 error=0 rate=0.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT/raw_sm120_retry_20260913/final/dec_gqa2_s128_rotate_l1nosync/r24

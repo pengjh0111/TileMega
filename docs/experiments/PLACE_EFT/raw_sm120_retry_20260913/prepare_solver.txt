@@ -1,0 +1,5 @@
+PLACE_CELL model=gqa2 seq=4 nodes=200 grid=340 solve_us=449.148 worker_sm=modulo
+PLACE_CELL model=mha4 seq=4 nodes=512 grid=340 solve_us=1106.79 worker_sm=modulo
+PLACE_CELL model=gqa2 seq=128 nodes=4416 grid=340 solve_us=18285.6 worker_sm=modulo
+PLACE_CELL model=mha4 seq=128 nodes=11920 grid=340 solve_us=60056.1 worker_sm=modulo
+PLACE_SUMMARY cells=4
