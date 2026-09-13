@@ -578,6 +578,23 @@ __device__ inline void ArriveEvent(Params const& p, EventCounter* events,
     triggers = plan.nonempty;
   }
 #endif
+#if TILEMEGA_EVENT_SOLO
+  // One trigger means this CTA is the only arriver, so the counter could only
+  // reach `iteration + 1` here and the test below is already true.  Dropping
+  // the add cannot strand a later iteration against a larger target: triggers
+  // is `Ownership(p, stage).count`, `dims` is fixed for the life of a launch,
+  // and `Reset` zeroes the counters between rounds, so no counter outlives a
+  // change in the trigger count.  The row's `arrivals` has no other reader --
+  // stage barriers use the disjoint rows below `stage_count`.
+  if (triggers == 1ull) {
+    __threadfence();
+    TILEMEGA_GENERATED_NOTIFY_global(&events[index].epoch, iteration + 1ull);
+#if TILEMEGA_TRACE_V2
+    if (p.event_publish != nullptr) p.event_publish[index] = TraceNow();
+#endif
+    return;
+  }
+#endif
   unsigned long long ticket = atomicAdd(&events[index].arrivals, 1ull);
   if (ticket + 1ull == triggers * (iteration + 1ull)) {
     __threadfence();

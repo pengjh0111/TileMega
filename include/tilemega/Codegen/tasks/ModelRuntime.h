@@ -339,6 +339,14 @@ static_assert(!TILEMEGA_EVENT_CLUSTER_FANIN || TILEMEGA_EVENT_SHARDED,
 #ifndef TILEMEGA_BARRIER_V2
 #define TILEMEGA_BARRIER_V2 0
 #endif
+
+// EX-E3 step 2: an event whose producer is a single CTA needs no arrival
+// count -- that CTA is by construction the last arriver, so the atomic only
+// ever returns `iteration` and the completion test is already true.  It
+// publishes the epoch directly instead.  Off by default (H2).
+#ifndef TILEMEGA_EVENT_SOLO
+#define TILEMEGA_EVENT_SOLO 0
+#endif
 struct alignas(128) ArrivalCounter {
   unsigned long long arrivals;
 };
