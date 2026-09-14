@@ -3,11 +3,19 @@
 
 #include <algorithm>
 #include <numeric>
+#include <utility>
 
 namespace tilemega::solver {
 
-bool ScheduleByCriticalChain(ChainRequest const& request, ChainSchedule* out,
-                             std::string* error) {
+namespace {
+
+// One plain pass.  `rank_extra_ns` is added to a node's score in the extraction
+// DP only -- never to the work the stop test, the caps or the simulation go on
+// -- and is empty for the first pass.  `delay_out` reports, per node, the time
+// this schedule has it waiting for its worker rather than for its data.
+bool SchedulePass(ChainRequest const& request,
+                  std::vector<double> const& rank_extra_ns, ChainSchedule* out,
+                  std::vector<double>* delay_out, std::string* error) {
   auto fail = [&](std::string message) {
     if (error) *error = std::move(message);
     return false;
@@ -63,6 +71,7 @@ bool ScheduleByCriticalChain(ChainRequest const& request, ChainSchedule* out,
   out->chain_interleaves = 0;
   out->split_count = 0;
   out->fill_overflows = 0;
+  if (delay_out) delay_out->assign(nodes, 0.0);
   if (nodes == 0) return true;
 
   std::vector<std::vector<int>> predecessors(nodes);
@@ -139,7 +148,8 @@ bool ScheduleByCriticalChain(ChainRequest const& request, ChainSchedule* out,
             follow = succ;
           }
         }
-        down[node] = request.task_ns[node] + tail;
+        down[node] = request.task_ns[node] +
+                     (rank_extra_ns.empty() ? 0.0 : rank_extra_ns[node]) + tail;
         next[node] = follow;
         if (down[node] > best_ns) {
           best_ns = down[node];
@@ -363,6 +373,47 @@ bool ScheduleByCriticalChain(ChainRequest const& request, ChainSchedule* out,
     worker_free[w] = out->end_ns[node];
     out->makespan_ns = std::max(out->makespan_ns, out->end_ns[node]);
   }
+  if (delay_out) {
+    for (int node = 0; node < nodes; ++node) {
+      double ready = 0.0;
+      for (int pred : predecessors[node]) {
+        double arrival = out->end_ns[pred];
+        if (out->worker[pred] != out->worker[node]) arrival += hop_cost[pred];
+        ready = std::max(ready, arrival);
+      }
+      (*delay_out)[node] = std::max(0.0, out->start_ns[node] - ready);
+    }
+  }
+  return true;
+}
+
+}  // namespace
+
+// The static extraction of §6.1 is measured not to shorten the critical path at
+// seq 128: at mha4 s128 the spine is 40 nodes and 362813 ns while the scheduled
+// critical path is 87 steps, 28 of them queue steps, and admitting 21x more
+// chains moves the hop count 39 -> 38 (`raw/stop_ratio_sweep.tsv`), while
+// pricing the fill differently moves it not at all (`raw/fill_cap_sweep.tsv`).
+// The cause is the DP above: it scores a path in work and hops and carries no
+// queue term, so it optimises a path the fill then abandons.  Each feedback
+// round hands that term back and re-extracts.
+bool ScheduleByCriticalChain(ChainRequest const& request, ChainSchedule* out,
+                             std::string* error) {
+  int const rounds = request.feedback_rounds > 0 ? request.feedback_rounds : 0;
+  std::vector<double> extra;
+  ChainSchedule best;
+  bool have_best = false;
+  for (int round = 0; round <= rounds; ++round) {
+    ChainSchedule pass;
+    std::vector<double> delay;
+    if (!SchedulePass(request, extra, &pass, &delay, error)) return false;
+    if (!have_best || pass.makespan_ns < best.makespan_ns) {
+      best = std::move(pass);
+      have_best = true;
+    }
+    extra = std::move(delay);
+  }
+  *out = std::move(best);
   return true;
 }
 

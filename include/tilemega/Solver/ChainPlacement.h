@@ -46,6 +46,13 @@ struct ChainRequest {
   /// extraction stops as soon as chaining stops shortening the longest queue,
   /// which is the point of the exercise: past it, a chain is just a long queue.
   double chain_stop_ratio = 1.0;
+  /// Re-extract after measuring.  §6.1 ranks a path in work and hops; the path
+  /// that ends up critical is a different, longer one manufactured by queueing,
+  /// so each extra round re-scores every node by the delay the previous pass
+  /// measured it spending waiting for its worker rather than for its data.  The
+  /// best pass by makespan wins, so a round cannot make the answer worse.  Zero
+  /// is one plain pass and is the default (H2).
+  int feedback_rounds = 0;
   /// Cap a filled worker in queue count and in work as well as in time.  The
   /// caps predate the earliest-finish fill and answer pathologies it does not
   /// have: that fill prices a queue position by when the task ahead of it
