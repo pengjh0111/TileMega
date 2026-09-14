@@ -22,6 +22,7 @@
 // schedule computed for one (seq, past) is not a schedule for another.
 #pragma once
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,8 @@
 #include <tilemega/Solver/HopCurve.h>
 
 namespace tilemega::solver {
+
+struct ChainSchedule;
 
 struct ChainRequest {
   codegen::RuntimeTaskGraph const* graph = nullptr;
@@ -53,6 +56,17 @@ struct ChainRequest {
   /// best pass by makespan wins, so a round cannot make the answer worse.  Zero
   /// is one plain pass and is the default (H2).
   int feedback_rounds = 0;
+  /// The arbiter, when the caller has one.  Without it a round is scored by the
+  /// estimate this file's own pass ends with, which is a different model from
+  /// the simulator that scores the emitted plan: measured at mha4 s128,
+  /// feedback improved the pass estimate 508348 -> 507331 ns while the
+  /// simulator scored the same plans 530126 -> 532494 ns, so the loop tuned one
+  /// objective and was judged on another.  Given an arbiter, both the selection
+  /// and the next round's ranking term come from it, so one model does both.
+  /// Reports the makespan it scores and, per node, how long that node's worker
+  /// sat blocked at its head.
+  std::function<bool(ChainSchedule const&, double*, std::vector<double>*,
+                     std::string*)> evaluate;
   /// Cap a filled worker in queue count and in work as well as in time.  The
   /// caps predate the earliest-finish fill and answer pathologies it does not
   /// have: that fill prices a queue position by when the task ahead of it

@@ -397,21 +397,35 @@ bool SchedulePass(ChainRequest const& request,
 // The cause is the DP above: it scores a path in work and hops and carries no
 // queue term, so it optimises a path the fill then abandons.  Each feedback
 // round hands that term back and re-extracts.
+//
+// Which model supplies that term decides whether the loop can help at all.
+// Handing back the estimate the pass above ends with made the answer worse:
+// that estimate and the simulator that scores the emitted plan are two models,
+// and a loop tuned on the first while judged by the second walks away from the
+// second (mha4 s128, 39 -> 41 critical-path hops).  So when the caller supplies
+// an arbiter, it both ranks and scores, and the internal estimate is used for
+// neither.  A round can then never lose by the measure that reports the result.
 bool ScheduleByCriticalChain(ChainRequest const& request, ChainSchedule* out,
                              std::string* error) {
   int const rounds = request.feedback_rounds > 0 ? request.feedback_rounds : 0;
   std::vector<double> extra;
   ChainSchedule best;
+  double best_score = 0.0;
   bool have_best = false;
   for (int round = 0; round <= rounds; ++round) {
     ChainSchedule pass;
     std::vector<double> delay;
     if (!SchedulePass(request, extra, &pass, &delay, error)) return false;
-    if (!have_best || pass.makespan_ns < best.makespan_ns) {
+    double score = pass.makespan_ns;
+    std::vector<double> blocked;
+    if (request.evaluate && !request.evaluate(pass, &score, &blocked, error))
+      return false;
+    if (!have_best || score < best_score) {
       best = std::move(pass);
+      best_score = score;
       have_best = true;
     }
-    extra = std::move(delay);
+    extra = request.evaluate ? std::move(blocked) : std::move(delay);
   }
   *out = std::move(best);
   return true;
