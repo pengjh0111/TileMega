@@ -1,0 +1,2 @@
+the executor implements window<=2; this plan asks 4 (§5.7.2)
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0

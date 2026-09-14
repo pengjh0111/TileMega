@@ -1,0 +1,850 @@
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.400384 l1_ms=0.404480 ratio=1.010230 l2_ms=0.477184 l2_over_l1=1.179747
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.475200 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.404480 l1_ms=0.404704 ratio=1.000554 l2_ms=0.479232 l2_over_l1=1.184154
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.479232 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.401408 l1_ms=0.406528 ratio=1.012755 l2_ms=0.479232 l2_over_l1=1.178841
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.480512 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.399360 l1_ms=0.404480 ratio=1.012820 l2_ms=0.476160 l2_over_l1=1.177215
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.477056 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.401408 l1_ms=0.403648 ratio=1.005580 l2_ms=0.475136 l2_over_l1=1.177105
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.475136 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.364672 l1_ms=0.454656 ratio=1.246753 l2_ms=0.534144 l2_over_l1=1.174831
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.535328 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.449984 l1_ms=0.440352 ratio=0.978595 l2_ms=0.533536 l2_over_l1=1.211613
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.535264 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.365568 l1_ms=0.367616 ratio=1.005602 l2_ms=0.434336 l2_over_l1=1.181494
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.434176 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.363584 l1_ms=0.366592 ratio=1.008273 l2_ms=0.437248 l2_over_l1=1.192737
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.438304 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.364544 l1_ms=0.367616 ratio=1.008427 l2_ms=0.481280 l2_over_l1=1.309192
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.479232 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.401376 l1_ms=0.403456 ratio=1.005182 l2_ms=0.432128 l2_over_l1=1.071066
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.433088 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.451584 l1_ms=0.455584 ratio=1.008858 l2_ms=0.532480 l2_over_l1=1.168786
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.532480 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.449536 l1_ms=0.365632 ratio=0.813354 l2_ms=0.432960 l2_over_l1=1.184141
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.433152 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.365568 l1_ms=0.368704 ratio=1.008578 l2_ms=0.434176 l2_over_l1=1.177573
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.433152 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.365568 l1_ms=0.364640 ratio=0.997461 l2_ms=0.434016 l2_over_l1=1.190259
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.434176 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.451264 l1_ms=0.442848 ratio=0.981350 l2_ms=0.536096 l2_over_l1=1.210564
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.536416 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.449664 l1_ms=0.440416 ratio=0.979434 l2_ms=0.532736 l2_over_l1=1.209620
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.441376 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.401312 l1_ms=0.405728 ratio=1.011004 l2_ms=0.478240 l2_over_l1=1.178721
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.478208 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.402432 l1_ms=0.407392 ratio=1.012325 l2_ms=0.479200 l2_over_l1=1.176263
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.477408 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.451744 l1_ms=0.442624 ratio=0.979812 l2_ms=0.540704 l2_over_l1=1.221588
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.540576 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.404416 l1_ms=0.406528 ratio=1.005222 l2_ms=0.479232 l2_over_l1=1.178841
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.479232 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.402304 l1_ms=0.406528 ratio=1.010499 l2_ms=0.479232 l2_over_l1=1.178841
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.479232 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.400416 l1_ms=0.404672 ratio=1.010629 l2_ms=0.477184 l2_over_l1=1.179187
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.477280 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.450592 l1_ms=0.441664 ratio=0.980186 l2_ms=0.534528 l2_over_l1=1.210259
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.535424 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.403456 l1_ms=0.404480 ratio=1.002538 l2_ms=0.476320 l2_over_l1=1.177611
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.476160 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.402432 l1_ms=0.406528 ratio=1.010178 l2_ms=0.481280 l2_over_l1=1.183879
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.481216 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.402432 l1_ms=0.405600 ratio=1.007872 l2_ms=0.485280 l2_over_l1=1.196450
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.535392 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.451424 l1_ms=0.442176 ratio=0.979514 l2_ms=0.535520 l2_over_l1=1.211101
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.533600 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.402368 l1_ms=0.405504 ratio=1.007794 l2_ms=0.474112 l2_over_l1=1.169192
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.474112 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.404480 l1_ms=0.405504 ratio=1.002532 l2_ms=0.476992 l2_over_l1=1.176294
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.477184 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.450816 l1_ms=0.441344 ratio=0.978989 l2_ms=0.533664 l2_over_l1=1.209179
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.531968 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.400512 l1_ms=0.405728 ratio=1.013023 l2_ms=0.476160 l2_over_l1=1.173594
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.476160 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.401408 l1_ms=0.408576 ratio=1.017857 l2_ms=0.481280 l2_over_l1=1.177945
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.478208 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.401408 l1_ms=0.404672 ratio=1.008131 l2_ms=0.483392 l2_over_l1=1.194528
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.535456 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.451168 l1_ms=0.442944 ratio=0.981772 l2_ms=0.535200 l2_over_l1=1.208279
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.534368 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.401408 l1_ms=0.407488 ratio=1.015147 l2_ms=0.477184 l2_over_l1=1.171038
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.477184 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.400384 l1_ms=0.405504 ratio=1.012788 l2_ms=0.474944 l2_over_l1=1.171244
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.474112 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.404480 l1_ms=0.407776 ratio=1.008149 l2_ms=0.480256 l2_over_l1=1.177745
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.479232 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.400544 l1_ms=0.403456 ratio=1.007270 l2_ms=0.475168 l2_over_l1=1.177744
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.621568 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.364544 l1_ms=0.457728 ratio=1.255618 l2_ms=0.533504 l2_over_l1=1.165548
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.534528 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.449536 l1_ms=0.455680 ratio=1.013667 l2_ms=0.530688 l2_over_l1=1.164607
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.532320 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.365312 l1_ms=0.368640 ratio=1.009110 l2_ms=0.436224 l2_over_l1=1.183333
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.435200 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.365664 l1_ms=0.368736 ratio=1.008401 l2_ms=0.436224 l2_over_l1=1.183025
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.437248 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.449888 l1_ms=0.441888 ratio=0.982218 l2_ms=0.532384 l2_over_l1=1.204794
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.533024 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.392192 l1_ms=0.397184 ratio=1.012728 l2_ms=0.463872 l2_over_l1=1.167902
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.462848 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.400384 l1_ms=0.405504 ratio=1.012788 l2_ms=0.479264 l2_over_l1=1.181897
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.480032 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.400384 l1_ms=0.405696 ratio=1.013267 l2_ms=0.479264 l2_over_l1=1.181338
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.479232 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.451328 l1_ms=0.441024 ratio=0.977170 l2_ms=0.535648 l2_over_l1=1.214555
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.535360 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.399520 l1_ms=0.405504 ratio=1.014978 l2_ms=0.478208 l2_over_l1=1.179293
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.478208 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=30 same_worker_edges=184 cross_worker_edges=1108 base_rotation=0 plan=legacy_grid_stride
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=218 smem=24576 task_smem=24576 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=24576 variant_count=1 ctas_per_sm=2 num_sms=128 grid=256 l1_reg=210 l05_reg=208 l1_ctas=2 l2_ctas=2 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=256 variant_stages=30 task_refs=200 task_ref_bytes=5600 waits=580 wait_bytes=4640 raw_polls=580 lifted_polls=0 waiting_tasks=180 normalization_dummies_lb=400 max_span=10 generated_max_span=10 max_worker_span=15 resident_limit=256 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=30
+E2E_TIME l05_ms=0.400384 l1_ms=0.405696 ratio=1.013267 l2_ms=0.477088 l2_over_l1=1.175974
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.015625 max_rel=14 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=25 mismatch=0 max_abs=0.015625 max_rel=8.5
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=14
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6826347
+E2E_HASH l05=4c544373c0add101 l1=4c544373c0add101 l2=4c544373c0add101
+E2E_ITER l2_iter1_ms=0.478016 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS

@@ -1,0 +1,5 @@
+model	seq	passes	processes
+gqa2	4	0	50
+gqa2	128	0	50
+mha4	4	0	50
+mha4	128	0	50

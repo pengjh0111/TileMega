@@ -1,0 +1,1 @@
+stamped window=1 on 1 variant(s) -> /root/TileMega/docs/experiments/WINDOW/raw/src/mha4_w1.cu
