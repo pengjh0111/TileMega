@@ -1,0 +1,100 @@
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xfdc63046
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xcc0ad3a4
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xa1b63e49
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xd8b01fe0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x43611d3c
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x2749924f
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x4af25d0b
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x062a8343
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x5c191a95
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x450433c1
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x372f5cbc
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xfc69edc9
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xb71f7fbe
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xda1ed8b9
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x9d7234d9
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xfaad1dd6
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x96d9fb3c
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x21cb21fa
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x4096c9bf
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x0a427f2f
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x09e2a103
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x6aef5d75
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x06506158
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xa0075f45
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x696f0e39
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xc6b3f398
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x7f640e72
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xd9ceb35e
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xc86cfe50
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x4f9674f3
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xc76f543e
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x563eca82
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x4d19a197
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xb4a35aa1
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x7db6b817
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x45be1cc2
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x91dd0b2b
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xe0c8561e
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xa9582d09
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xd2b26fa7
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x2d6118a5
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x8eb2e279
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xab3ae402
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xcdb209d6
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0x0972bfc1
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xc851b57b
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xee98e9f4
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xea2fcf29
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xde499ae2
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=pass nonce=0xde6e92e0

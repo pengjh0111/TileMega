@@ -1,0 +1,5 @@
+model	seq	past	v2	passes	processes
+gqa2	4	3	1	50	50
+gqa2	128	3	1	50	50
+mha4	4	3	1	50	50
+mha4	128	3	1	50	50

@@ -1,0 +1,13 @@
+# EX-E3 step 0: the calibrated wait policy and the curve it was chosen from.
+# hop_ns(N, R) = c0 + c1*log2(1 + N/R) + c2*log2(R), 0.1%% trimmed mean.
+# rule: smallest c0
+key	value
+arm	spin64_bo64
+spin_iters	64
+backoff_ns	64
+grow	1
+cap_ns	64
+c0	165.322483
+c1	9.777617
+c2	11.466323
+status_quo_c0	1206.514373

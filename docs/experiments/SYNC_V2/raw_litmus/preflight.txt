@@ -1,0 +1,8 @@
+_Z13litmus_kernelILi0EEvPfS0_P12EventCounterS2_iiiijii OCCUPANCY_TOOL block_size=256 registers_per_thread=40 static_smem_bytes=0 dynamic_smem_bytes=32 ctas_per_sm=6 num_sms=128 resident_limit=768
+_Z13litmus_kernelILi1EEvPfS0_P12EventCounterS2_iiiijii OCCUPANCY_TOOL block_size=256 registers_per_thread=40 static_smem_bytes=0 dynamic_smem_bytes=32 ctas_per_sm=6 num_sms=128 resident_limit=768
+_Z13litmus_kernelILi2EEvPfS0_P12EventCounterS2_iiiijii OCCUPANCY_TOOL block_size=256 registers_per_thread=40 static_smem_bytes=0 dynamic_smem_bytes=32 ctas_per_sm=6 num_sms=128 resident_limit=768
+_Z13litmus_kernelILi3EEvPfS0_P12EventCounterS2_iiiijii OCCUPANCY_TOOL block_size=256 registers_per_thread=40 static_smem_bytes=0 dynamic_smem_bytes=32 ctas_per_sm=6 num_sms=128 resident_limit=768
+arms occupancy-matched at ctas_per_sm=6
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=256 co_resident=yes

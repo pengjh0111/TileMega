@@ -1,0 +1,100 @@
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x0db99fac detail=iter=4 block=127 expected=8348025.0 got=8346879.0 delta=-1146.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xc3862675 detail=iter=4 block=127 expected=8337043.0 got=8350467.0 delta=13424.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x5378ed7f detail=iter=4 block=127 expected=8363495.0 got=8371471.0 delta=7976.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xb14a7b40 detail=iter=4 block=127 expected=8342146.0 got=8355675.0 delta=13529.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x0348c864 detail=iter=4 block=127 expected=8373872.0 got=8366990.0 delta=-6882.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xaa5b3c9b detail=iter=4 block=127 expected=8352138.0 got=8347953.0 delta=-4185.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x0495c52a detail=iter=4 block=127 expected=8344794.0 got=8359179.0 delta=14385.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x9b10d04e detail=iter=4 block=127 expected=8338516.0 got=8354409.0 delta=15893.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xc4e4a398 detail=iter=4 block=127 expected=8373692.0 got=8370887.0 delta=-2805.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x5d3e76d9 detail=iter=4 block=127 expected=8347611.0 got=8346298.0 delta=-1313.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xfe8ee0bb detail=iter=4 block=127 expected=8332334.0 got=8333430.0 delta=1096.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x0e9368a7 detail=iter=4 block=32 expected=8322126.0 got=8320735.0 delta=-1391.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x86a17261 detail=iter=5 block=32 expected=8359581.0 got=8375950.0 delta=16369.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xea6b3623 detail=iter=5 block=127 expected=8354828.0 got=8353360.0 delta=-1468.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xea99614c detail=iter=4 block=127 expected=8402645.0 got=8402624.0 delta=-21.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xe36b3ba3 detail=iter=4 block=127 expected=8342783.0 got=8346382.0 delta=3599.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x8e5c6094 detail=iter=4 block=127 expected=8338486.0 got=8310080.0 delta=-28406.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x4d1a28e8 detail=iter=4 block=127 expected=8356033.0 got=8342333.0 delta=-13700.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xddb14c4d detail=iter=4 block=127 expected=8332028.0 got=8342936.0 delta=10908.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x295e80bc detail=iter=4 block=127 expected=8417059.0 got=8406701.0 delta=-10358.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x37dde048 detail=iter=4 block=127 expected=8348663.0 got=8349422.0 delta=759.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xd4763385 detail=iter=4 block=127 expected=8356244.0 got=8341398.0 delta=-14846.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x8e92bd50 detail=iter=4 block=127 expected=8341624.0 got=8346327.0 delta=4703.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x77bba460 detail=iter=4 block=127 expected=8357864.0 got=8380234.0 delta=22370.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xcc2f40f3 detail=iter=4 block=32 expected=8368306.0 got=8372859.0 delta=4553.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x22ad99df detail=iter=4 block=32 expected=8360018.0 got=8343410.0 delta=-16608.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x3b09b33e detail=iter=4 block=127 expected=8351625.0 got=8353633.0 delta=2008.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x1ddc68ea detail=iter=4 block=127 expected=8372670.0 got=8371921.0 delta=-749.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xa5628446 detail=iter=4 block=127 expected=8372530.0 got=8370627.0 delta=-1903.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x53cea750 detail=iter=5 block=127 expected=8301323.0 got=8308504.0 delta=7181.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x0d7c86e8 detail=iter=4 block=127 expected=8341978.0 got=8342795.0 delta=817.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x00d0489e detail=iter=5 block=127 expected=8325307.0 got=8330303.0 delta=4996.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xc2314fe7 detail=iter=5 block=32 expected=8364090.0 got=8364320.0 delta=230.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x606c7e57 detail=iter=5 block=127 expected=8336728.0 got=8334626.0 delta=-2102.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x2939f553 detail=iter=4 block=127 expected=8348813.0 got=8344663.0 delta=-4150.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xdc359beb detail=iter=5 block=127 expected=8343541.0 got=8356596.0 delta=13055.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x2a021771 detail=iter=4 block=127 expected=8346111.0 got=8344588.0 delta=-1523.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x92328dbd detail=iter=4 block=127 expected=8368455.0 got=8371375.0 delta=2920.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x87131baa detail=iter=4 block=127 expected=8358823.0 got=8361933.0 delta=3110.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x561e08d5 detail=iter=4 block=127 expected=8361827.0 got=8355243.0 delta=-6584.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xac05ebde detail=iter=5 block=32 expected=8368742.0 got=8356153.0 delta=-12589.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xef15b926 detail=iter=4 block=127 expected=8343332.0 got=8344498.0 delta=1166.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x871d27cf detail=iter=5 block=127 expected=8365019.0 got=8385701.0 delta=20682.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xd7b3ac27 detail=iter=5 block=32 expected=8357057.0 got=8385098.0 delta=28041.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xbff6c2d9 detail=iter=5 block=127 expected=8336714.0 got=8351987.0 delta=15273.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x8c81e2c1 detail=iter=5 block=63 expected=8344608.0 got=8346127.0 delta=1519.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x5b5f0937 detail=iter=4 block=127 expected=8338783.0 got=8333439.0 delta=-5344.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x3a73c23c detail=iter=4 block=127 expected=8332159.0 got=8332071.0 delta=-88.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0xf6b9c85a detail=iter=5 block=127 expected=8358200.0 got=8321511.0 delta=-36689.0
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=128 co_resident=yes
+RESULT status=MISMATCH nonce=0x71ff6861 detail=iter=5 block=127 expected=8365016.0 got=8365663.0 delta=647.0

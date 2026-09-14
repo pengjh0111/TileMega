@@ -1,0 +1,22 @@
+--- /root/TileMega/docs/experiments/SYNC_V2/raw_litmus/log/r0.norm	2026-09-13 17:48:26.184556052 +0000
++++ /root/TileMega/docs/experiments/SYNC_V2/raw_litmus/log/r1.norm	2026-09-13 17:48:26.128556054 +0000
+@@ -305,15 +305,15 @@
+ STG.E [R22.64], R32 ;
+ @!P1 BRA 0xaf0 ;
+ BSYNC B0 ;
+-MEMBAR.SC.GPU ;
++BAR.SYNC.DEFER_BLOCKING 0x0 ;
+ ISETP.NE.AND P1, PT, R6, RZ, PT ;
+-ERRBAR;
+-CCTL.IVALL ;
+ BSSY B0, 0x1400 ;
+-BAR.SYNC.DEFER_BLOCKING 0x0 ;
+ @P1 BRA 0x13f0 ;
++MEMBAR.SC.GPU ;
+ IADD3 R20, R0, 0x1, RZ ;
+ IMAD.MOV.U32 R23, RZ, RZ, 0x80 ;
++ERRBAR;
++CCTL.IVALL ;
+ SHF.R.S32.HI R21, RZ, 0x1f, R20 ;
+ IMAD.WIDE R22, R4, R23, c[0x0][0x170] ;
+ ATOMG.E.EXCH.64.STRONG.GPU PT, RZ, [R22.64], R20 ;

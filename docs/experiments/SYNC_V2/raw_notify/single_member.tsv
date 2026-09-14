@@ -1,0 +1,5 @@
+cell	stages	tasks	arrive_calls	single_member	share
+gqa2_s4	30	200	196	148	0.7551
+gqa2_s128	30	4416	4412	3372	0.7643
+mha4_s4	60	512	508	332	0.6535
+mha4_s128	60	11920	11916	7772	0.6522
