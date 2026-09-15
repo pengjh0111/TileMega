@@ -755,7 +755,9 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
 #endif
   std::uint32_t const event_flags = p.event_flags[producer];
   if (event_flags == 0) return;
+#if !TILEMEGA_UNSAFE_NO_NOTIFY_FENCE
   __threadfence();
+#endif
   __syncthreads();
   if (threadIdx.x == 0) {
     int const produced = ActiveBlocks(p, p.stages[producer]);
