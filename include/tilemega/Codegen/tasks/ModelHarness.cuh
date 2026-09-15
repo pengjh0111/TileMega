@@ -755,15 +755,10 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
 #endif
   std::uint32_t const event_flags = p.event_flags[producer];
   if (event_flags == 0) return;
-#if TILEMEGA_RELEASE_AFTER_BARRIER
-  __syncthreads();
-  if (threadIdx.x == 0) __threadfence();
-#elif !TILEMEGA_UNSAFE_NO_NOTIFY_FENCE
+#if !TILEMEGA_UNSAFE_NO_NOTIFY_FENCE
   __threadfence();
-  __syncthreads();
-#else
-  __syncthreads();
 #endif
+  __syncthreads();
   if (threadIdx.x == 0) {
     int const produced = ActiveBlocks(p, p.stages[producer]);
 #if TILEMEGA_EVENT_KAPPA > 0
