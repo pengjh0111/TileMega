@@ -169,7 +169,11 @@ def analyze(dump):
     stage_first_slot = {}
     for r in sorted(slots, key=lambda r: r["slot"]):
         stage_first_slot.setdefault(r["stage"], r["slot"])
+    # Each predecessor carries its provenance.  A same-worker *dependency*
+    # remains a DAG edge (with zero hop cost); only the executor's adjacent
+    # slot edge is a queue edge that can be omitted from the no-queue bound.
     preds = defaultdict(list)
+    legacy_preds = defaultdict(list)
     cross = 0
     same = 0
     slot_row = {r["slot"]: r for r in slots}
@@ -181,13 +185,16 @@ def analyze(dump):
                     continue
                 if slot_row[producer]["worker"] == r["worker"]:
                     same += 1
-                    preds[r["slot"]].append((producer, 0))
+                    preds[r["slot"]].append((producer, 0, False))
+                    legacy_preds[r["slot"]].append((producer, 0, True))
                 else:
                     cross += 1
-                    preds[r["slot"]].append((producer, hop_p50))
+                    preds[r["slot"]].append((producer, hop_p50, False))
+                    legacy_preds[r["slot"]].append((producer, hop_p50, False))
     for queue in queues.values():
         for prev, cur in zip(queue, queue[1:]):
-            preds[cur["slot"]].append((prev["slot"], 0))
+            preds[cur["slot"]].append((prev["slot"], 0, True))
+            legacy_preds[cur["slot"]].append((prev["slot"], 0, True))
     out["dag_same_worker_edges"] = same
     out["dag_cross_worker_edges"] = cross
     out["dag_cross_worker_fraction"] = cross / (same + cross) if same + cross else 0.0
@@ -198,17 +205,17 @@ def analyze(dump):
     order = sorted((r["slot"] for r in slots),
                    key=lambda s: (stage_pos[slot_row[s]["stage"]], s))
 
-    def longest(edge_weight, include_queue, node_publish=False):
+    def longest(edge_weight, include_queue, node_publish=False, graph_preds=None):
         """Earliest-finish over the DAG.  `edge_weight` scales the cross-worker
         synchronization cost; `include_queue` decides whether one worker's
         serialization is part of the bound."""
         finish = {}
+        graph_preds = preds if graph_preds is None else graph_preds
         parent = {}
         for s in order:
             best = 0
             best_from = None
-            for pred, w in preds[s]:
-                queue_edge = slot_row[pred]["worker"] == slot_row[s]["worker"]
+            for pred, w, queue_edge in graph_preds[s]:
                 if queue_edge and not include_queue:
                     continue
                 cost = finish.get(pred, 0) + (edge_weight if w else 0)
@@ -228,7 +235,16 @@ def analyze(dump):
             at = parent[at]
         return finish[end], list(reversed(path))
 
+    # Historical reconstruction (same-worker edges were all treated as queue
+    # edges) is retained for comparison; corrected bounds use provenance.
+    legacy_cp_ns, _ = longest(hop_p50, include_queue=True, graph_preds=legacy_preds)
     cp_ns, cp_path = longest(hop_p50, include_queue=True)
+    out["cp_corrected_ns"] = longest(0, include_queue=False)[0]
+    out["cp_corrected_ms"] = out["cp_corrected_ns"] / 1e6
+    out["cp_corrected_sync_ns"] = longest(hop_p50, include_queue=False)[0]
+    out["cp_corrected_sync_ms"] = out["cp_corrected_sync_ns"] / 1e6
+    out["cp_reconstructed_legacy_ns"] = legacy_cp_ns
+    out["cp_reconstructed_legacy_ms"] = legacy_cp_ns / 1e6
     out["cp_reconstructed_ns"] = cp_ns
     out["cp_reconstructed_ms"] = cp_ns / 1e6
     out["cp_nodes"] = len(cp_path)
