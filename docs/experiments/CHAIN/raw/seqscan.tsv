@@ -1,0 +1,13 @@
+model	seq	past	arm	expect	passes	errors	reason	processes
+gqa2	4	0	chain	refuse	0	50	pinned	50
+gqa2	4	3	chain	run	50	0	-	50
+gqa2	4	512	chain	refuse	0	50	pinned	50
+mha4	4	0	chain	refuse	0	50	pinned	50
+mha4	4	3	chain	run	50	0	-	50
+mha4	4	512	chain	refuse	0	50	pinned	50
+gqa2	128	0	chain	refuse	0	50	pinned	50
+gqa2	128	3	chain	run	50	0	-	50
+gqa2	128	512	chain	refuse	0	50	pinned	50
+mha4	128	0	chain	refuse	0	50	pinned	50
+mha4	128	3	chain	run	50	0	-	50
+mha4	128	512	chain	refuse	0	50	pinned	50

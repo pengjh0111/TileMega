@@ -1,0 +1,1 @@
+STAT label=chainscan_gqa2_s128_p512 runs=50 pass=0 fail=0 hang=0 error=50 rate=0.0000 outdir=/root/TileMega/docs/experiments/CHAIN/raw/final/scan_gqa2_s128_p512

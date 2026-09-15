@@ -1,0 +1,1 @@
+STAT label=chainscan_mha4_s4_p0 runs=50 pass=0 fail=0 hang=0 error=50 rate=0.0000 outdir=/root/TileMega/docs/experiments/CHAIN/raw/final/scan_mha4_s4_p0

@@ -1,0 +1,5 @@
+model	seq	bytes	identical
+gqa2	4	14219	1
+mha4	4	26449	1
+gqa2	128	14219	1
+mha4	128	26449	1
