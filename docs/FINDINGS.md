@@ -3273,3 +3273,989 @@ Predicted improvement direction disagreed with measurement 4/4. No guard,
 expected value, tuning parameter or gate threshold was changed. REALWIDTH
 was disabled. Per-process evidence, calibration limitations and selective
 research checks are recorded in [the retry report](experiments/sm120_place_eft_retry_20260913.md).
+
+## F-151 — The calibrated wait policy cuts the isolated hop by 86% and the kernel by 0.4%, and the sign reverses at seq 128
+
+Verified: EX-E3 step 0 replaced the fixed `__nanosleep(64)` in the wait macro
+and in the grid barrier with a graded policy read from `TargetSpec`
+(`spin_iters`, `backoff_ns`, `backoff_grow`, `backoff_cap_ns`), and calibrated
+it from a 168-point hop curve over eight arms. On sm_89 the smallest `c0` is
+`spin_iters=64, backoff_ns=64, grow=1, cap_ns=64` at 165.3 ns against the status
+quo's 1206.5 ns, a drop to 13.7%. Pure spin alone reaches 308.3 ns, so the
+combination beats both extremes. Arm order was rotated three ways and the
+spread is at most 7.2 ns, so the ranking is not an ordering artefact. sm_120's
+target file carries `spin_iters=0` because its hop sits at a ~400 ns floor with
+backoff worth only ~32 ns; that value is scripted, not measured here.
+
+Verified: the same-SM spin interference question is answered and the answer is
+architecture-relevant. A compute worker sharing an SM with a spinning worker is
+unaffected when it is FMA-bound (ratio to idle 1.0000 for both spin and
+backoff, 5120 paired samples) and slowed 0.34% by spin and 0.38% by backoff
+when it is memory-bound, against a 3.03% p90/p50 tolerance. Spinning does not
+cost issue bandwidth; it costs a little memory bandwidth, and backoff costs
+marginally more of it than spin does.
+
+Verified: the 86% cut in the isolated hop does not transfer to the kernel, and
+at seq 128 it reverses. Paired ratios over 25 rotated rounds per cell, policy
+on over off: gqa2 s4 0.995423 [0.993445, 0.997491], mha4 s4 0.995762 [0.993440,
+0.997109], gqa2 s128 1.005000 [1.004643, 1.005269], mha4 s128 1.005281
+[1.004224, 1.006614]. All four confidence intervals exclude one, so both the
+0.4% gain at seq 4 and the 0.5% loss at seq 128 are real.
+
+The cause is located in the four-arm decomposition, not inferred. The `wait`
+term the policy targets is 0.023–0.041 ms of a 0.45–1.14 ms kernel, so removing
+it entirely would cap the gain near 4%; the `notify` term beside it is
+0.065–0.151 ms, between 2.6× and 3.5× larger. Waiting is not where the L2
+protocol spends its time in these kernels — publishing is. At seq 128 the
+`wait` term does not fall at all under the policy but rises, 0.023520 to
+0.026368 at gqa2 and 0.037568 to 0.043040 at mha4, which is the same sign as
+the memory-bandwidth interference measured above and is consistent with §8.3's
+stated reason for backoff existing. Seq 128 tasks are longer and
+memory-bound, so more workers spin concurrently against computing neighbours
+than at seq 4.
+
+Verified and worth separating: the policy helps L1 more than L2. The grid
+barrier at `ClusterSync.cuh` uses the same wait macro, so the L1 baseline moved
+too — gqa2 s4 0.404480 to 0.392384 ms (−3.0%) against L2's −0.44%, mha4 s128
+1.029120 to 1.019904 ms against L2's +0.5%. Any `l2_over_l1` ratio therefore
+moves against the policy even in the cells where L2 improved, and that is an
+artefact of the shared macro rather than a regression in the megakernel.
+
+The concrete next step is not a wider spin budget but a narrower one. The
+calibration optimised `c0` for a single waiting worker; the in-kernel loss
+appears where many workers wait at once, a count the Plan already knows as the
+fan-in of each event. Sizing `spin_iters` per event from that fan-in, carried
+in `TargetSpec` as two budgets rather than one, is the change that would let
+seq 4's gain survive at seq 128.
+
+## F-152 — Removing three of eleven per-task barriers is worth between nothing and 0.29%
+
+Verified: EX-E3 step 1 cut `tilemega_l2_kernel` from 11 `BAR.SYNC` to 8 in the
+plain build and to 10 under trace v2, leaving `membar` at 4 and `nanosleep` at
+1 untouched, with the executor's per-task count at 2. Correctness is 200/200
+across both models × seq ∈ {4, 128} and 1500/1500 over the 30-cell SEQSCAN
+matrix, with both negative controls behaving (old clamp 50/50, task-wait clamp
+0/50).
+
+Verified: the measured gain is near zero. Paired ratios on over off, 25 rounds
+per cell: gqa2 s4 0.999713 [0.997420, 1.000503], mha4 s4 1.000000 [0.997507,
+1.001153], mha4 s128 0.998291 [0.996567, 1.000649], gqa2 s128 0.997087
+[0.996724, 0.998648]. Only gqa2 s128's interval excludes one, at 0.29%.
+
+The cause is visible in the same decomposition and is a matter of scale, not of
+implementation. The `barrier` term is 0.037–0.089 ms of a 0.44–1.24 ms kernel,
+and deleting three of eleven barriers moves it by about a twelfth of itself —
+0.038720 to 0.037152 ms at gqa2 s4. Per-task CTA barriers are not a material
+share of these kernels' time, which is consistent with 910 of the status quo's
+1235 ns hop being backoff rather than barrier. This is recorded as a mechanism
+that missed its expected gain, which §10 explicitly does not make a stop
+condition; the lever it was competing with is the publish side measured in
+F-153.
+
+## F-153 — Publishing single-member events directly is the largest E3 step measured so far, at 0.5%
+
+Verified: two thirds of all event arrivals in the reference models have a
+single member — 148 of 196 calls at gqa2 s4 (75.5%), 3372 of 4412 at gqa2 s128
+(76.4%), 332 of 508 at mha4 s4 (65.4%), 7772 of 11916 at mha4 s128 (65.2%) at
+κ=1. EX-E3 step 2 skips `atomicAdd(&events[index].arrivals, 1)` for those and
+publishes the epoch directly.
+
+Verified: paired ratios on over off are 0.995110, 0.995017, 0.995412 and
+0.995425 across the four cells, every confidence interval strictly below one,
+p ≤ 3.1e-03, with correctness 200/200 and SEQSCAN 1500/1500. The notify term
+moves in the direction the mechanism predicts — 0.147456 to 0.141312 ms at mha4
+s128 — so the gain is attributable to the publish path rather than to noise
+elsewhere in the decomposition.
+
+Verified by comparison: this is a larger effect than either the calibrated wait
+policy (F-151, +0.4%/−0.5% depending on sequence length) or the barrier
+reduction (F-152, 0–0.29%), and it is the only E3 step so far that improves
+every cell. It is also the cheapest of the three. That ordering is itself the
+round's clearest signal about where L2 protocol cost lives: on the publishing
+side, not the waiting side.
+
+⚠️ 2026-09-14: superseded as the largest E3 step by F-156, which measures the
+release-ordered publish at 2.5–3.4%, five to seven times this one. The title's
+"largest so far" is left as it was measured. The ordering claim in the last
+paragraph is not superseded — it is confirmed, and by a wider margin.
+
+## F-154 — Critical-path chaining does not shorten the critical path at seq 128, and three candidate causes are excluded by measurement
+
+Verified: EX-S2c extracts the longest path on the exact runtime task DAG and
+places it whole on one worker, then clusters and fills per §6. At seq 4 it does
+what §6.1 predicts: `critical_path_hops` 17 against rotate's 19 at gqa2 and 35
+against 39 at mha4. At seq 128 it reverses — 18 against rotate's 17 at gqa2, 39
+against 35 at mha4 — and the same reversal appears in the real-width cell.
+`critical_path_same_worker_edges` rises exactly where the hop count rises, 0 to
+20 at mha4 s128 and 0 to 88 at real s128: each hop chaining removes is replaced
+by a queue edge, and the replacement is not free.
+
+Verified: the statically longest path is not the path that ends up critical. At
+mha4 s128 the spine is 40 nodes and 362813 ns while the scheduled critical path
+is 87 steps, 28 of them queue steps. The post-placement critical path is a
+different and longer path manufactured by queueing.
+
+Three candidate causes were tested and excluded, each by its own sweep rather
+than by argument.
+
+Extraction coverage is not the cause. `chain_stop_ratio` swept 1.0, 0.5, 0.25
+and 0.05 forces 4, 84 and 256 chains on mha4 s128 and moves `critical_path_hops`
+only 39 to 38, while making gqa2 s128 strictly worse, 18 to 22
+(`raw/stop_ratio_sweep.tsv`). Twenty-one times more chains buys five
+critical-path nodes.
+
+Fill pricing is not the cause. Uncapping the fill leaves both s4 cells
+byte-identical, makes gqa2 s128 worse at 19 hops against the capped 18, and on
+mha4 s128 gives 39 hops and 523779 ns against rotate's 35 and 437124
+(`raw/fill_cap_sweep.tsv`).
+
+Feeding the measured queue delay back into the extraction is not the cause
+either, and its failure localises the problem precisely. Re-scoring every node
+by the delay the previous pass measured it spending waiting for its worker, then
+re-extracting and keeping the best pass, reaches a fixpoint after one round and
+does not help: s4 and gqa2 s128 are unchanged, mha4 s128 moves from 39 hops to
+41 (`raw/feedback_sweep.tsv`). The reason is that the feedback does improve the
+objective it can see — the solver's own simulated makespan falls from 508348 to
+507331 ns at mha4 s128 and from 4588802 to 4588788 at real s128 — while the
+placement evaluator scores the same plans in the opposite direction, 530126 to
+532494 ns. The two simulations do not model queueing identically.
+
+⚠️ inferred from the above: §6.1's premise, that extracting the longest path and
+placing it whole shortens the critical path, holds on these graphs at seq 4 and
+does not hold at seq 128. The mechanism is default-off and the feedback rounds
+are exposed only as an ablation knob.
+
+The concrete next step is to make the two simulations agree before extracting
+again. The ranking DP in `lib/Solver/ChainPlacement.cpp` scores a path as
+`task_ns + hop_cost` with no queue term, and the pass's own simulation carries
+worker occupancy that the evaluator models differently; closing that gap — one
+simulation, used both to rank and to score — is a precondition for any further
+chaining work, and is a smaller change than the chaining itself was.
+
+## F-155 — Chaining loses at seq 128 on queue-edge task work, not on hops, and one simulation for ranking and scoring does not recover it
+
+F-154 named the next step as making the extraction's two simulations agree: one
+simulation, used both to rank and to score. That is now implemented.
+`ChainRequest::evaluate` takes an arbiter from the caller, and
+`docs/experiments/CHAIN/place_chain.cpp` supplies the same `SimulateExecution`
+that scores the emitted plan, built from the same options, hop curve and
+weights. Both the selection and the next round's ranking term come from it, so
+the pass's own estimate is used for neither. The mechanism stays default-off:
+`feedback_rounds` is zero, the arbiter is never constructed there, and the
+committed `raw/predicted.tsv` reproduces byte-identically through column 20
+(column 21 is wall-clock `eval_us`).
+
+✅ Verified, `raw/feedback_sweep_arbiter.tsv`: the defect F-154 measured is
+gone. Feedback is now monotone in the objective that reports the result — mha4
+s4 403305 → 402832 ns, gqa2 s128 229487 → 228306 ns, every other cell flat —
+where the previous loop moved mha4 s128 the wrong way, 530126 → 532494 ns. The
+pre-arbiter sweep F-154 cites, `raw/feedback_sweep.tsv`, is kept as it was
+measured rather than regenerated: the two files are one sweep over two code
+states, not two runs of one, and overwriting it would have left F-154 stating
+numbers its own evidence no longer contained.
+
+✅ Verified: it does not fix the gate. S2c-b still fails two of four reference
+cells at every feedback depth in {0, 1, 2, 4}: gqa2 s128 18 hops against
+rotate's 17, mha4 s128 39 against 35. The two simulations disagreeing was real,
+and it was not the cause.
+
+Worth recording because it constrains the objective: at gqa2 s128 the arbiter
+improves makespan from 229487 to 228306 ns while the hop count *rises* from 18
+to 20. Makespan and `critical_path_hops` diverge on these graphs, so selecting
+on hops would move the gate's own metric without moving the quantity the gate
+exists to reduce.
+
+### Where the loss actually is
+
+✅ Verified, `raw/path_decompose.tsv`, which splits each realized path's task
+work by the edge that carried it. At mha4 s128 chain loses 93003 ns to rotate:
+
+| term | chain | rotate | delta |
+| --- | --- | --- | --- |
+| task work on queue edges | 78894 | 12576 | +66318 |
+| task work on task edges (h + s) | 378535 | 360293 | +18242 |
+| hop gap | 48078 | 43160 | +4918 |
+| stretch excess | 23035 | 19511 | +3524 |
+
+71% of the loss is task work the path spends behind tasks merely queued ahead of
+it: 28 queue edges carrying 78894 ns against rotate's 32 carrying 12576. The
+same shape holds at real width — queue share 0.1322 against 0.0516, 600221 ns
+against 202583 — and does not hold at gqa2 s128, where chain's queue term is the
+*better* of the two, 3902 against 4878, and the 14360 ns loss is 6916 ns of
+heavier task-edge work. The two failing cells fail for different reasons.
+
+✅ Verified: the internalisation mechanism itself works. `task_h_ns` is within
+0.3% of rotate's in every seq-128 cell — 361229 against 360293 at mha4 s128 —
+and chain carries 20 same-worker task edges worth 17306 ns that rotate pays as
+hops. The 39-against-35 hop count follows from the path being 88 steps instead
+of 68, and the extra steps are the queue detours. ⚠️ inferred: the hop excess
+S2c-b measures is therefore downstream of the queue term, and the gate is not
+out of reach on these graphs — it is blocked behind the fill, not behind the
+extraction. This corrects a reading taken earlier in the same investigation,
+that four mutually cross-linked equal-weight lanes make the hop count
+structurally irreducible; the lane structure is real, but it is not what the
+measurement attributes the loss to.
+
+### A measurement that does not mean what it looks like
+
+✅ Verified, recorded because it cost a working hypothesis: `block_ns` in the
+path dumps is `start - free_at[w]` (`lib/Solver/ExecutionSimulator.cpp:208`),
+the idle gap on one *worker* before a task. It does not telescope along a path
+and does not stay inside the span — at gqa2 s128 rotate it sums to 394397 ns
+inside a 215127 ns span — and its zero on every queue and same-worker step is a
+tautology of the definition, not evidence that those edges are free. Only the
+edge-type split of `task_ns` supports a claim about where a path's time goes.
+
+### Next step
+
+The fill chooses each node's worker by minimising that node's own finish time,
+in topological order, with no notion of which nodes will end up critical
+(`lib/Solver/ChainPlacement.cpp:285-340`). Ordering the fill by remaining
+downstream path length is the untested lever, and it is distinct from the three
+already measured: the stop ratio sets how many chains are extracted, `cap_fill`
+sets the fill's bound, and the feedback objective sets the ranking term, and
+none of them changes which worker a filled node lands on. The constraint on any
+such change is that phase 3 prices `free_ns[w]` in the order it assigns while
+phase 4 re-sorts every queue by topological index
+(`lib/Solver/ChainPlacement.cpp:352-358`), so a priority-ordered assignment must
+not desynchronise the two.
+
+## F-156 — The release-ordered publish is the largest E3 step by a factor of five, and it pays for it on the polling side
+
+EX-E3 step 3's publish side: the producer's `atomicAdd` on the aggregate row
+becomes a return-value-free release reduction (`TILEMEGA_EVENT_RED_PUBLISH`,
+default off). R3 §5 requires the publish side and the polling side be reported
+separately and never merged; this entry is the publish side only. The polling
+side is a different switch (`TILEMEGA_EVENT_LOAD_POLL`) and R3 §5 requires its
+earlier negative result be re-measured rather than cited, so nothing here
+claims anything about it.
+
+✅ Verified, `docs/experiments/SYNC_V2/raw_red/`: correctness 200/200 over four
+cells and SEQSCAN 30 cells 1500/1500, no short row. Paired on-over-off ratios on
+the `full` arm, 25 rounds, rotating arm order:
+
+| cell | ratio | CI95 | p | delta (ms) |
+| --- | --- | --- | --- | --- |
+| gqa2 s4 | 0.965596 | [0.963387, 0.969905] | 1.29e-05 | −0.015360 |
+| mha4 s4 | 0.970885 | [0.969620, 0.972463] | 2.27e-04 | −0.023488 |
+| gqa2 s128 | 0.974938 | [0.973631, 0.976667] | 1.30e-05 | −0.015424 |
+| mha4 s128 | 0.973170 | [0.972380, 0.974087] | 2.53e-04 | −0.031392 |
+
+✅ Verified, and this is the part that matters: the mechanism moves cost between
+two terms rather than only removing it. `notify` falls 29.6%, 30.1%, 33.5% and
+34.1% across the four cells, while `wait` rises 17.3%, 30.0%, 36.5% and 53.6%.
+The publish side wins by more than the polling side loses in every cell, and the
+two terms account for the end-to-end result: notify's fall minus wait's rise
+reproduces the measured delta to within 5% in all four cells (gqa2 s4 −0.015296
+against −0.015360 ms; mha4 s128 −0.031360 against −0.031392). The win is
+therefore attributable to the protocol decomposition, not to drift elsewhere.
+
+⚠️ inferred: the `wait` rise is the consumer observing a publish it no longer
+shares a fence with, so the cost reappears where the consumer polls. This is
+stated as the reading of the decomposition, not as a separately measured
+mechanism.
+
+✅ Verified at the instruction level, `raw_red/census.tsv`: in the plain build
+`membar` falls 4 → 2 and counted `atomics` 9 → 7 with `bar_sync` unmoved at 11
+and `nanosleep` at 1. The release reduction removes two fences as well as two
+atomics rather than merely rewriting an `atomicAdd` in place, which is why the
+notify term moves as far as it does. The trace build reads 11 atomics at v2=1
+because trace stamps publish from every red arrival (commit `41d85013`), not
+because the publish path differs there.
+
+✅ Verified by comparison, `docs/experiments/SYNC_V2/e3_steps.tsv`: against the
+other three E3 steps measured in isolation against their own baselines — the
+calibrated wait policy (F-151), the barrier reduction (F-152) and the
+single-member publish (F-153) — this step is five to seven times the largest of
+them, and it is the only one that moves `notify` at all. The other three touch
+the `wait` and `barrier` terms, which is why they are inert end to end: `notify`
+is the largest positive term in the decomposition, 0.057–0.184 ms, and until
+this step nothing in E3 had attacked it.
+
+⚠️ The four ratios above cannot be multiplied to predict the all-on
+configuration. Each switch was measured in its own fresh-process session per H6,
+so their `l2` baselines differ for the same cell (gqa2 s4: 0.446368, 0.445440,
+0.416768, 0.446368 ms). The cumulative staircase R3 §8 asks for is a separate
+measurement, not a derivation from these.
+
+## F-157 — The thread0 release fence is indistinguishable from the per-writer fence wherever the harness can tell them apart, and that is six cells of eighteen
+
+✅ Verified, `raw_litmus/litmus.tsv`: EX-E3 step 4 ran four release shapes over
+grid ∈ {64, 128, 256} × tile ∈ {1024, 4096, 16384} × acquire ∈ {1, 0}, 50 fresh
+processes per cell — 18 cells and 900 runs per arm, 3600 runs in all. The rule
+§8.5 states, `per_writer` (every writer fences, then the barrier, then thread 0
+publishes), passed 900/900. The candidate `thread0_fence` (barrier first, then
+one `__threadfence()` by thread 0, then publish) also passed 900/900. Per H3
+this step changes nothing: §8.5 stands as written, and what follows is a
+conclusion, not a licence.
+
+⚠️ The number that bounds this conclusion is not 900 but 6. A cell is evidence
+only where the harness can observe a missing release at all, which the
+`no_fence` sensitivity arm measures directly: it mismatches only with the
+consumer's acquire fence dropped and the tile at 1024 or 4096 elements — six
+cells. At tile 16384 it passes 50/50 in every grid, and with acquire = 1 it
+passes 50/50 everywhere, so twelve of the eighteen cells cannot distinguish any
+release shape from any other. `thread0_fence` held in all six readable cells and
+was never put under load in the other twelve. "Indistinguishable where the
+harness can tell them apart" is the whole claim; F-3 and F-10 predicted exactly
+this tile dependence.
+
+⚠️ Verified and not smoothed: the negative control sleeps in one of those six
+cells. `no_barrier` — the per-writer fence kept, the consumer-side barrier
+removed — mismatched in 849 of 900 runs, but at (acquire = 0, grid 128, tile
+4096) it passed 50/50, and at (acquire = 0, grid 128, tile 16384) it passed once
+in 50. The hard gate asks the control to fire in a readable cell and it fires in
+five of the six, so E3-4 passes; the sixth is recorded rather than rounded up.
+⚠️ inferred as to cause: the race the control opens is the window between thread
+0's publish and the other warps' stores retiring, and its width depends on
+occupancy and on how long a tile's stores take. grid 128 at tile 4096 is the one
+combination where that window closed on this device — grids 64 and 256 at the
+same tile both mismatch 50/50 — so it is not a property of the tile size alone.
+
+✅ Verified, `raw_litmus/per_writer_vs_thread0.diff` and `raw_litmus/census.tsv`:
+the candidate is not cheaper in static instructions. Both shapes compile to the
+same counts — `membar` 2, `atom_red` 11, 800 instructions — and the diff shows
+why: the `MEMBAR.SC.GPU`, `ERRBAR` and `CCTL.IVALL` triple does not disappear, it
+moves. In `per_writer` it sits ahead of `BAR.SYNC.DEFER_BLOCKING`, where every
+thread runs it; in `thread0_fence` the barrier comes first and the triple lands
+past the `@P1 BRA` that sends every non-zero thread away, so one thread runs it.
+The saving is dynamic and its size is the CTA's warp count, which no instruction
+census can show.
+
+What this means for round four's E3-5: the correctness question this step was
+built to answer is answered as far as this harness reaches, and the cost question
+is not asked here at all — no timing arm was run, because §5 scoped this step to
+a conclusion. E3-5's async publish rests on the same shape, so what it needs next
+is a paired timing of the two release shapes inside the megakernel, not another
+litmus. The detector gap is the thing to fix first: a litmus that cannot see a
+missing release at tile 16384 cannot certify a publish shape for the tile sizes
+the real models actually write.
+
+## F-158 — No chain placement can close a cycle, so the split count is provably zero, and §6.3's hazard is not the condition that gates a Plan
+
+✅ Verified, `raw/chain_weights.tsv`: `split_count` is 0 in all ten rows — both
+weight sources, all six cells. R3 §6.3 asks for the number of chains the
+implementation had to split to keep the Plan legal, and the honest answer is that
+the number is zero for a structural reason rather than a lucky one.
+
+The argument is a proof rather than an observation. A chain is a path in the task
+DAG, so the queue edges between its consecutive members are task edges already;
+and every queue is ordered by `topo_index` (`lib/Solver/ChainPlacement.cpp` phase
+4), so the union of task edges and queue edges is a subset of one topological
+order. L-a tests exactly that union for acyclicity. No chain placement can close
+a cycle, and there is nothing for a split to repair.
+
+⚠️ Recorded, not reconciled: §6.3 describes a hazard that is real but is not L-a.
+Two chains with cross edges in both directions — a1→a2 and b1→b2, plus a1→b2 and
+b1→a2 — close a cycle in the *contracted* graph, where each chain is one node.
+That condition is strictly stronger than L-a and is not what gates a Plan.
+`test/unit/chain_placement_test.cpp` constructs precisely that case: four nodes,
+edges 0→1, 2→3, 0→3, 2→1, weights 100/100/90/90 and grid 2, chosen so the
+extractor picks 0→1 and 2→3 and no mixed path. Both chains land whole,
+`split_count` is 0, the two land on different workers, and `CheckPlanLegality` —
+the check that actually gates a Plan, not the test's own idea of legality —
+accepts the result. A cycle in the union would need a2→b1 together with b2→a1,
+which is already a cycle in the task DAG and so can never reach a scheduler. The
+same test hands `ScheduleByCriticalChain` a genuine two-node cycle (0→1, 1→0) and
+requires it to be refused with "cycle" in the message. The binary prints
+`chain_placement_test: ok`.
+
+✅ Verified and worth keeping: enforcing the contracted form instead — this
+round's first attempt — cost the mechanism everything it was for. At gqa2 s4 it
+refused 770 chain extensions over 200 nodes and left a 19.9 µs spine against a
+179.8 µs longest path, because a bypass around a path edge breaks convexity and
+these graphs are full of bypasses. What is left worth protecting is contiguity,
+which is a performance property, and it is counted as `chain_interleaves` rather
+than enforced.
+
+✅ Verified, and the answer to §6.2's instruction to try both weight sources and
+report the difference: they are not interchangeable, and at seq 128 they are
+barely related.
+
+| cell | nodes | spine, cost model | spine, trace | solo work, cost model | solo work, trace | nodes moved |
+|---|---|---|---|---|---|---|
+| gqa2 s4 | 200 | 179817 ns | 223232 ns | 1.34 ms | 1.65 ms | 97 (48.5%) |
+| mha4 s4 | 512 | 359634 ns | 448512 ns | 2.99 ms | 3.68 ms | 240 (46.9%) |
+| gqa2 s128 | 4416 | 181407 ns | 314368 ns | 4.32 ms | 25.30 ms | 4359 (98.7%) |
+| mha4 s128 | 11920 | 362813 ns | 628736 ns | 9.66 ms | 52.83 ms | 9378 (78.7%) |
+
+⚠️ inferred, from the shape of that table: trace durations are measured under
+co-residency and therefore carry the stretch the cost model prices at solo, which
+is why the gap widens with sequence length — 1.2× the total work at seq 4, 5.9×
+at gqa2 s128. The extraction is not robust to it. At gqa2 s128 the trace source
+moves 98.7% of nodes to a different worker and collapses the chain count from 36
+to 4, so the two sources do not produce variants of one schedule; they produce
+different schedules. The two `makespan_ns` columns must not be compared across
+sources, because the node weights themselves differ — what is comparable is the
+placement each induces, which is what `worker_diff` counts.
+
+The trace source is also not always available: it needs a round-one trace
+directory, which the two `real` cells do not have, so those rows exist only in
+the cost-model form. Any decision to prefer trace weights would therefore have to
+carry a fallback for exactly the widths that matter most in serving.
+
+## F-159 — The slot window adds head-of-line time instead of reclaiming it, and inflates its own ceiling while doing so
+
+✅ Verified, `docs/experiments/WINDOW/raw/summary.tsv` (E2-d) and
+`raw/analysis/analysis.tsv`: widening the execution window makes every reference
+cell slower and leaves more head-of-line time behind, not less.
+
+| cell | W | `measured_l2_ms` | `hol_reclaimable_ns` | `hol_workers_nonzero` |
+|---|---|---|---|---|
+| gqa2 s4 | 1 / 2 / 4 | 0.428032 / 0.470016 / 0.471904 | 1274880 / 1347584 / 1360896 | 8 / 8 / 8 |
+| gqa2 s128 | 1 / 2 / 4 | 0.592896 / 0.646144 / 0.647296 | 79889408 / 86979584 / 86464512 | 256 / 256 / 256 |
+| mha4 s4 | 1 / 2 / 4 | 0.849920 / 0.934912 / 0.939104 | 7692288 / 8433664 / 8445952 | 16 / 16 / 16 |
+| mha4 s128 | 1 / 2 / 4 | 1.277952 / 1.324032 / 1.325056 | 207584256 / 217905152 / 216441856 | 256 / 256 / 256 |
+
+`hol_delta_vs_w1_ns` is signed as reclamation — `summarize.py` computes W=1's HOL
+minus this row's — so its negative value in all twelve rows means the window
+added head-of-line time. `hol_workers_nonzero` never moves: the same 8, 16 and
+256 workers block at W=4 as at W=1. HOL was therefore never the binding
+constraint, and a wider window has nothing to spend it on. F-134 measured HOL as
+18.85–63.98% of stall time; that remains true and is not the same claim as HOL
+being *reclaimable* by reordering within a worker.
+
+✅ Verified, and it is the reason the E2-d ratio column must not be read as a
+result: `measured_over_ceiling` improves from 3.1429 to 1.9125 (gqa2 s4), 6.2406
+to 1.9384 (mha4 s4) and 6.5000 to 1.9473 (mha4 s128) **while the measured kernel
+gets slower in each**. The numerator rose and the ratio still fell, because the
+denominator rose faster.
+
+✅ Verified cause, by exact counting rather than inference. `cp_lb_nosync` is a
+longest path over edges that `TRACE_V2/analyze.py` recovers from *recorded
+waits*: its `preds` is built from the wait rows, and `longest` classifies an edge
+as a queue edge when its two endpoints share a worker. H4 stops eliding the
+same-worker producer poll for slots inside the window, so those polls now execute
+and enter the trace, and each contributes one edge counted as cross-worker. At
+seq 4, where the elision change is the only thing moving, the counts match
+exactly: `dag_cross_worker_edges` 1028 → 1108 (+80) at gqa2 s4 and 3396 → 3604
+(+208) at mha4 s4, with `dag_same_worker_edges` flat at 48 and 176. `cp_lb_nosync`
+rises with them, 0.136192 → 0.245760 ms and 0.136192 → 0.482304 ms. That the W=1
+value is byte-identical across two different models (0.136192 in both) is the
+same effect at its maximum: maximal elision leaves both models the same sparse
+skeleton.
+
+⚠️ Recorded rather than generalized: that clean split holds at seq 4 only. At
+seq 128 both columns roughly double (gqa2 s128 same-worker 1040 → 2072,
+cross-worker 278932 → 545140), so "same-worker edges are unchanged under W" is
+not a general claim.
+
+✅ Verified, what the window does buy: `wait_total_ns` +12.4% and
+`publish_total_ns` +13.5% at gqa2 s4 (3558400 → 4000768 and 281600 → 319488),
+`hop_p90_ns` 2048 → 25600 there and 7168 → 27648 at mha4 s4, while
+`idle_fraction_of_worker_time` barely moves (0.7505 / 0.7562 / 0.7587). More
+polling, no more overlap.
+
+Next step, per §0 item 2 and recorded in `PLACE_EFT2/summary.md` §11: the ceiling
+must stop being a function of the executor's elision policy before the window can
+be evaluated at all. `preds` should be built from the task DAG and the
+materialized σ — which the CG skeleton has exactly — and an edge classified as a
+queue edge by whether it *is* one, not by whether its endpoints share a worker.
+Until then no ceiling is comparable across executor configurations. W stays at 1.
+
+## F-160 — The W=1 lifting rules fail in every cell under a W=2 executor, 0 of 200 processes
+
+✅ Verified, `docs/experiments/WINDOW/raw/negative.tsv`, H4's mandatory negative
+control: built with `TILEMEGA_NEGATIVE_WINDOW_W1_RULES=1`
+(`ModelHarness.cuh:96`), which keeps the W=1 wait-lifting and poll-elision rules
+while running the W=2 executor, every one of the four reference cells fails.
+
+| model | seq | passes | processes | failure rate |
+|---|---|---|---|---|
+| gqa2 | 4 | 0 | 50 | 1.0000 |
+| gqa2 | 128 | 0 | 50 | 1.0000 |
+| mha4 | 4 | 0 | 50 | 1.0000 |
+| mha4 | 128 | 0 | 50 | 1.0000 |
+
+200 fresh processes, 0 passes. The rules are not redundant bookkeeping: lifting a
+wait out of slot `j` from a producer in slot `i` is only sound when `i ≤ j − W`,
+and eliding a same-worker producer poll is only sound under the same condition.
+Run the W=2 executor under the W=1 conditions and the results are wrong, every
+time, in every cell.
+
+⚠️ Worth stating because §10 requires it: the informative outcome here is the
+one that occurred. Had the control *passed*, that would have been a stop
+condition and specifically not evidence that the rule can be dropped — it would
+have meant the reference models never reach the reordering the rule exists to
+make safe, and H4 would then require a graph that does. As measured, the four
+reference models do reach it.
+
+## F-161 — Configuration B alone is the best cell in all four references; the three levers do not compound
+
+✅ Verified, `docs/experiments/PLACE_EFT2/raw/final`, 25 paired rounds per
+cell-candidate-configuration, configuration and candidate rotated together so
+neither axis sits at a fixed point in a session's drift (H6). 96 cell-arm-config
+cells, every one at n=25. Median L2 in microseconds; A is no flags, B the
+calibrated wait policy plus E3 steps 1-3, D is B plus the window at W=2, W the
+window alone.
+
+| cell | best under A | best under B | best under D | best under W |
+|---|---|---|---|---|
+| gqa2 s4 | rotate 292.9 | **chain 280.6** | rotate 294.9 | rotate 304.0 |
+| gqa2 s128 | rotate 456.7 | **eft 440.3** | wavefront 465.8 | rotate 477.2 |
+| mha4 s4 | rotate 578.7 | **chain 557.8** | chain 587.8 | rotate 601.1 |
+| mha4 s128 | rotate 860.2 | **rotate 833.6** | rotate 877.6 | rotate 901.1 |
+
+✅ Verified, and it is a property of every candidate rather than of the winner:
+the configuration ordering **B < A < D < W** holds in 23 of the 24 (cell,
+candidate) pairs. The one exception is a tie, not a reversal — `chain` at gqa2
+s128 gives A = D = 519.2 µs. Pairwise the pattern has no exception at all: B < A
+in 24/24, B < D in 24/24, D < W in 24/24.
+
+Holding the candidate at `rotate` to read the mechanism sizes directly, against
+A: B is −2.80 / −2.73 / −2.70 / −3.09 percent across the four cells; D is +0.70 /
++2.22 / +1.56 / +2.02; W is +3.79 / +4.48 / +3.87 / +4.76.
+
+✅ Verified consequence, and it is the round's central negative result: **the
+three levers of R3 §1 do not compound.** D is the configuration that has all of
+them on, and it is slower than A — the protocol's ~3% is smaller than the
+window's ~4-5% regression, so turning both on is worse than turning neither on.
+No cell in the round is won by C (protocol + chaining) or by D. The best
+configuration in all four reference cells is B, the protocol alone.
+
+⚠️ Recorded as a sign change rather than a ranking: chaining is the only
+mechanism whose value depends on the cell. Under B it wins both seq 4 cells
+(280.6 against rotate's 284.7, and 557.8 against 563.1) and loses both seq 128
+cells, by 11.3% at gqa2 (494.6 against eft's 440.3) and by 36.0% at mha4 (1133.6
+against rotate's 833.6). The discrete-event predictor called the direction in
+advance — chain's predicted makespan at gqa2 s128 is 229487 ns against eft's
+215120 ns — so this is the predictor agreeing with the measurement, not a
+surprise. F-154, F-155 and `PLACE_EFT2/summary.md` §11 locate the cause in the
+fill pass rather than in the capacity cap, by the sweep that tests the cap.
+
+✅ Verified distance to the §7.3 ceiling, which is what the research gate S2r-b
+is anchored to. `target = ceiling_A + 0.5 x (measured_A - ceiling_A)`; the gate
+asks for the best configuration's median at or under target with the 95% CI
+upper bound strictly below it, in at least 3 of 4 cells.
+
+| cell | ceiling | target | best measured | 95% CI | gap closed |
+|---|---|---|---|---|---|
+| gqa2 s4 | 143 | 218 | chain_b 280.6 | [280.6, 281.6] | 8% |
+| gqa2 s128 | 197 | 328 | eft_b 440.3 | [440.1, 441.2] | 7% |
+| mha4 s4 | 144 | 362 | chain_b 557.8 | [556.2, 559.1] | 5% |
+| mha4 s128 | 199 | 528 | rotate_b 833.6 | [831.6, 848.8] | 3% |
+
+**0 of 4, and not narrowly.** The round closed 3-8% of the distance between the
+round-two measurement and the ceiling where the gate asks for 50%. Per H7 the
+gate is not redefined, widened, or re-scoped, and per R3 §0 item 2 this is not
+written up as a finding that the direction is exhausted: the cause is located in
+F-162 and in `summary.md` §11, and the next step named there.
+
+## F-162 — The polling-side re-measurement timed one binary against itself: `TILEMEGA_EVENT_LOAD_POLL` has no reachable call site in the build it was measured in
+
+R3 §5 requires the old "poll the count directly" negative result to be
+re-measured rather than cited, and reported separately from the publish side.
+The re-measurement ran and returned a clean null. It is void data, and is
+recorded here as void rather than as a reproduced negative result.
+
+✅ Verified what ran. `SYNC_V2/run_barrier.sh` with
+`SWITCH=TILEMEGA_EVENT_LOAD_POLL TAG=poll OUT_DIR=.../raw_poll`, so the two arms
+were `-DTILEMEGA_EVENT_LOAD_POLL=1` and `=0`: four attribution arms x switch
+off/on, 25 paired rounds with the arm order rotated (H6). The phase passed every
+gate it carries — correctness 4 cells 50/50, the SEQSCAN matrix 30 cells
+1500/1500, and both negative controls behaving (`old_clamp` 50/50,
+`task_wait_clamp` 0/50).
+
+| cell | n | ratio on/off | 95% CI | delta ms | p |
+|---|---|---|---|---|---|
+| gqa2 s4 | 25 | 1.001584 | [0.999928, 1.002371] | +0.000704 | 1.577e-01 |
+| gqa2 s128 | 25 | 0.999687 | [0.998331, 1.000000] | −0.000192 | 7.311e-02 |
+| mha4 s4 | 25 | 1.000000 | [0.997699, 1.002093] | 0.000000 | 7.494e-01 |
+| mha4 s128 | 25 | 0.999719 | [0.998332, 1.001406] | −0.000352 | 8.077e-01 |
+
+⚠️ The table above says nothing about load polling. `mha4 s4` returns a ratio of
+exactly 1.000000 on a delta of exactly 0.000000, and `gqa2 s128`'s CI upper bound
+is exactly 1.000000. Paired medians that agree to the last digit are what timing
+one device image against itself produces.
+
+✅ Verified that both arms are the same device image, by two independent
+measurements. The SASS census is identical across the switch for both models and
+for both the plain and the trace build — `tilemega_l2_kernel` 11 `BAR.SYNC` / 4
+`MEMBAR` / 1 `NANOSLEEP` / 9 counted atomics, `tilemega_l1_kernel` 11/3/1/4,
+`tilemega_stage_kernel` 9/0/0/0. The dumps are byte-identical, and the first 16
+hex digits of their sha256 are `e31a9311ca09a94c` for `raw_poll` v0, `raw_poll`
+v1, `raw_barrier` v0 and `raw_solo` v0 alike: the "on" arm shares a device image
+with two unrelated experiments' baselines.
+
+✅ Verified that the switch was passed and is honored. The driver set the flag,
+and a minimal translation unit shows the preprocessor selecting the
+`cuda::atomic_ref::load(memory_order_relaxed)` branch of `EventPoll` under it.
+
+✅ Verified that the switch does change code, in isolation. Compiling a probe
+that calls `EventPoll` directly, `nvcc -arch=sm_89 -cubin` with and without the
+macro, gives `2 ATOMG.E.ADD.64.STRONG.GPU` off against `2 LD.E.64.STRONG.GPU`
+on, 140 differing lines, with the `VOTEU.ANY`/`FLO.U32` warp-aggregation preamble
+present only in the off arm. The macro works; nothing reached it.
+
+✅ Verified cause: at this round's default switch settings every one of the three
+`EventPoll` call sites is dead at compile time, each for its own reason.
+
+1. The executor's wait path never calls it. Each of the 134 generated sources
+   defines `TILEMEGA_GENERATED_WAIT_global` itself, at its own line 9, with the
+   poll spelled inline as `atomicAdd((ev), 0ull)` — before it includes the
+   harness at line 18. The harness's `#ifndef` fallback, which is the definition
+   that would route through `EventPoll`, therefore never fires for a real model;
+   the header says so itself at `ModelHarness.cuh:65-68`. The harness's
+   `#undef`/override, which redirects the macro to `GradedWait` and so to
+   `EventPoll` at `EventSync.cuh:79-81`, is gated on `#if TILEMEGA_WAIT_POLICY`,
+   which the poll arm never set.
+2. `ProbeTaskDependencies` (`ModelHarness.cuh:604`) and its only call site
+   (`:645`) both sit inside `#if TILEMEGA_SLOT_WINDOW > 1`, which opens at `:599`
+   and closes at `:653`. The default is `W = 1`, so the whole window path is
+   preprocessed away.
+3. `ClusterSync::StageBarrier` (`ClusterSync.cuh:163`) is reached only from
+   `GridBarrier`'s `#elif TILEMEGA_GENERATED_CLUSTER_DIM > 1` branch at
+   `ModelHarness.cuh:822`. Neither generated source defines that macro, so the
+   harness default of 1 at `:80-82` applies, the branch is preprocessed out, and
+   a never-called member of a class template is never instantiated.
+
+⚠️ So the finding is not "load polling costs nothing". It is that the switch has
+no reachable call site in the configuration it was measured in, and the cost of
+load polling remains unmeasured. F-156 deferred the polling side to this switch;
+that deferral still stands.
+
+**Next step**, concrete and cheap. Measure the switch on top of the calibrated
+policy, which is the configuration in which `EventPoll` is live: reuse the
+`ON_FLAGS`/`OFF_FLAGS` path of `run_barrier.sh` that E3-0 already uses, with
+`OFF_FLAGS` the calibrated policy string and `ON_FLAGS` that string plus
+`-DTILEMEGA_EVENT_LOAD_POLL=1`, so the override is installed in both arms and
+only the poll spelling differs. Gate the GPU time on a SASS diff between the two
+builds taken first: if they come out byte-identical again, the arm is still dead
+and no timing should be spent on it. This matters to the round's own arithmetic —
+E3-3 drove `notify` down 29.6-34.1% while `wait` rose 17.3-53.6% (F-156), `wait`
+is the polling side, and the protocol lever is worth about 3% overall (F-161),
+so the `wait` term is where any remainder would have to come from.
+
+## F-163 — The cumulative E3 staircase: three of the four steps are inside ±1%, the release publish carries the protocol, and the whole is worth ~1 pp more than its parts
+
+✅ Verified, `docs/experiments/SYNC_V2/raw_stair{1,2,3,4}`, 25 paired rounds per
+cell per step, `full` arm, rotating arm order in fresh processes (H6). Each
+directory's `v1` arm adds one switch to the arm before it and its `v0` arm is
+the common all-off build, so the column below is cumulative against the round's
+baseline rather than against the previous step:
+
+| step | `ON_FLAGS` | adds |
+|---|---|---|
+| stair1 | calibrated wait policy | E3-0 |
+| stair2 | `+ -DTILEMEGA_BARRIER_V2=1` | E3-1 |
+| stair3 | `+ -DTILEMEGA_EVENT_SOLO=1` | E3-2 |
+| stair4 | `+ -DTILEMEGA_EVENT_RED_PUBLISH=1` | E3-3 |
+
+`OFF_FLAGS` is `-DTILEMEGA_BARRIER_V2=0` in all four, which is the all-off build
+— an empty `OFF_FLAGS` would be treated as unset by `run_barrier.sh`'s
+`${OFF_FLAGS:-...}` and would silently become `-DTILEMEGA_BARRIER_V2=0` anyway.
+Median of per-round L2 ratios, bootstrap CI (seed 20260906, 20000 draws),
+Wilcoxon signed-rank p — the estimator of `summarize_barrier.py`:
+
+| cell | stair1 | stair2 | stair3 | stair4 |
+|---|---|---|---|---|
+| gqa2 s4 | −0.40% | −0.69% | −1.01% | **−5.16%** |
+| gqa2 s128 | +0.35% | +0.18% | −0.40% | **−3.48%** |
+| mha4 s4 | −0.22% | −0.35% | −0.70% | **−4.79%** |
+| mha4 s128 | +0.52% | +0.10% | −0.43% | **−3.74%** |
+
+Ratios and CIs for the last step, which is the one that moves: 0.948403
+[0.945293, 0.954545], 0.965186 [0.962500, 0.967263], 0.952133 [0.948212,
+0.957125], 0.962600 [0.961669, 0.964508], every p = 1.3e-05. ⚠️ One cell of the
+sixteen is not significant: stair2 at mha4 s128, ratio 1.001019 with CI
+[0.994791, 1.004476] and p = 0.648. The barrier cut is a null there, not a
+regression.
+
+✅ Verified shape: **three of the four steps are inside ±1% cumulative and the
+fourth carries the protocol.** After E3-0, E3-1 and E3-2 together the staircase
+stands at −1.01 / −0.40 / −0.70 / −0.43 percent; adding E3-3 alone takes it to
+−5.16 / −3.48 / −4.79 / −3.74. This agrees in direction and magnitude with
+F-156, which measured the release-ordered publish in isolation as the largest E3
+step by a factor of five.
+
+✅ Verified, and it is the one place the steps are not independent: the
+cumulative result is **larger than the product of the isolated ratios** in all
+four cells. F-156's caveat that the isolated arms cannot be multiplied into a
+staircase — each ran in its own fresh-process session with its own `l2_off`
+baseline — is why this is a measurement and not arithmetic:
+
+| cell | product of isolated (`e3_steps.tsv`) | measured cumulative | difference |
+|---|---|---|---|
+| gqa2 s4 | −4.38% | −5.16% | −0.78 pp |
+| gqa2 s128 | −2.79% | −3.48% | −0.69 pp |
+| mha4 s4 | −3.77% | −4.79% | −1.02 pp |
+| mha4 s128 | −2.78% | −3.74% | −0.96 pp |
+
+⚠️ Inferred from the sign and the consistency across all four cells: the steps
+are mildly super-additive rather than independent — each earlier step removes
+work that would otherwise have hidden part of the next one's saving. The effect
+is ~1 pp, so it changes no ranking in the round.
+
+✅ Verified cross-check, and it corrects a discrepancy rather than confirming an
+expectation. Stair 4 is configuration B's flag set, so it should equal
+PLACE_EFT2's B-against-A — and at first reading it does not, −5.16% against
+F-161's −2.80% at gqa2 s4. The cause is placement, not the protocol:
+`run_barrier.sh` passes no `-DTILEMEGA_PLACEMENT` (`:59`), so every staircase
+binary takes `Placement.cuh:23-25`'s default of 0, `legacy_grid_stride`, while
+F-161 reads its mechanism sizes at `rotate`. Recomputed on PLACE_EFT2's own
+`legacy_grid_stride` arm with the staircase's estimator, the two agree:
+
+| cell | stair4 (SYNC_V2, legacy) | PLACE_EFT2 B/A at legacy | PLACE_EFT2 B/A at rotate |
+|---|---|---|---|
+| gqa2 s4 | −5.16% | −4.83% | −2.81% |
+| gqa2 s128 | −3.48% | −3.14% | −2.87% |
+| mha4 s4 | −4.79% | −4.81% | −2.67% |
+| mha4 s128 | −3.74% | −3.93% | −3.10% |
+
+Agreement within 0.35 pp in every cell, across two experiments that built their
+own binaries and ran in separate sessions, which is also a session-to-session
+reproducibility result for the protocol under H6.
+
+✅ Verified consequence: **the protocol lever is worth roughly twice as much on
+legacy placement as on rotate**, in absolute terms as well as in percent. At
+gqa2 s4 configuration B saves 21.5 µs against a 445.4 µs legacy baseline but
+8.2 µs against a 292.9 µs rotate baseline; across the four cells legacy saves
+21.5 / 19.3 / 42.8 / 45.8 µs where rotate saves 8.2 / 13.1 / 15.4 / 26.6 µs.
+
+✅ Verified, and it refutes the obvious explanation rather than confirming it.
+The natural reading of the line above is that rotate, being the faster
+placement, has already removed the stall the protocol collects. Recomputing
+B-against-A on all six candidates from `raw/final` — no GPU time, those binaries
+and logs already exist — says otherwise. Across the twenty cells that exclude
+`balanced` the percentage saving is **uncorrelated** with the baseline, Pearson
+r = −0.003 against median L2 under A. (The r = 0.964 that the *absolute* saving
+shows across all 24 cells is carried by `balanced` alone, whose baselines run to
+3845 µs; drop it and the absolute correlation falls to 0.919 while the
+percentage one vanishes.) At gqa2 s4 `rotate`, `eft`, `wavefront` and `chain`
+start within 4.2 µs of one another — 292.9, 294.7, 297.0, 295.9 — and the
+protocol saves 8.2, 13.1, 13.3 and 15.2 µs respectively. Equal baselines,
+savings differing by 1.9x.
+
+✅ Verified, and this is the substantive result: **rotate is specifically
+resistant to the protocol, and that is what moves the round's best candidate.**
+Rotate is the only candidate saving under 3.2% in every cell (−2.81 / −2.87 /
+−2.67 / −3.10); every other candidate lands between −3.79% and −5.12%. Rotate is
+first under A in all four cells and loses that lead under B in three of them —
+at gqa2 s4 from 1st to 4th of the four (292.9 best under A, 284.7 under B against
+chain's 280.6), at mha4 s4 from 1st to 4th, at gqa2 s128 from 1st to 3rd, and
+only at mha4 s128 does it stay first. ⚠️ Inferred: this is the mechanism behind
+F-161's table changing its winner from rotate under A to chain under B — not that
+chain improved, but that rotate collected least from the protocol.
+
+⚠️ Left as a question rather than an answer: *what* rotate does that the others
+do not is not established here. It is the only candidate in that group carried as
+a host-evaluated placement macro (`TILEMEGA_PLACEMENT=5`) rather than an emitted
+Plan — but `legacy_grid_stride` is a macro too (`=0`) and behaves like the
+Plan-carrying candidates, so the macro/Plan split is not the explanation either.
+
+**Next step**, and it is the decomposition this entry could not do. The four-arm
+attribution in `run_barrier.sh` (`neither`/`nowait`/`full`/`l1nosync`) splits L2
+into `wait`, `notify`, `barrier` and `loop`, and it has only ever been run at the
+header's default placement, which is why every decomposition in this round
+describes legacy. Passing `-DTILEMEGA_PLACEMENT=5` through both `ON_FLAGS` and
+`OFF_FLAGS` runs the identical decomposition at rotate without editing the script
+(H1), and differencing it against the legacy decomposition already in
+`raw_stair4` names the term rotate has removed. The specific prediction to test:
+if rotate's `notify` share is already small, the release-ordered publish — which
+F-156 measured as the one E3 step that moves — has little left to collect there,
+and the protocol's remaining headroom on a placement becomes predictable from
+that placement's `notify` share, which is the quantity this entry has just shown
+the baseline does *not* predict.
+
+## F-164 — `cp_lb_nosync` stops counting the spine that chaining co-locates, and chain's own queue floor is above the S2r-b target in all four reference cells
+
+`TRACE_V2/analyze.py:201` computes every bound with one path search,
+`longest(edge_weight, include_queue)`. A predecessor scheduled on the same
+worker is a queue edge (`slot_row[pred]["worker"] == slot_row[s]["worker"]`),
+and when `include_queue` is false that edge is skipped outright — the
+predecessor's accumulated finish time is dropped, not repriced. The two bounds
+this round scores against are `cp_lb_nosync = longest(0, include_queue=False)`
+(`:270`) and `queue_lb = max(busy.values())` (`:266`), the busiest worker's own
+total task time.
+
+✅ Verified, and it appears as an identity rather than an inference. In
+configuration A at gqa2 s4, rotate and chain report the *same* reconstructed
+path — `cp_nodes` 20 for both, `cp_split_task_ns` 242688 ns for both — yet
+`cp_lb_nosync` reads 242688 ns for rotate and 122880 ns for chain. The task DAG
+is identical; what differs is that chaining places the spine on one worker, so
+its edges become queue edges and `include_queue=False` discards them. The work
+does not leave: chain's 242688 ns of path task time reappears as its `queue_lb`
+of 241664 ns, against rotate's 41984 ns. At mha4 s4 the identity is plainer
+still — chain's path task time is 488448 ns and its own `queue_lb` is 485376 ns.
+
+⚠️ The consequence is a metric/mechanism interaction, and it runs against the
+mechanism this round built: `cp_lb_nosync` is not placement-neutral, and it
+under-reports by construction for exactly the placement EX-S2c exists to
+produce. R3 §1 defines the ceiling as this quantity. No gate score moves,
+because the ceiling used in §5 and in `verify.py` is the larger of the two
+bounds — a dropped edge can only lower `cp_lb_nosync`, and `queue_lb` catches
+the co-located work. What moves is the reading.
+
+⚠️ This corrects a sentence in `docs/experiments/PLACE_EFT2/summary.md` §5 that
+I wrote from this same table: "chaining does cut the critical path — chain's
+`cp_lb_nosync` is about half rotate's at both seq 4 cells". It does not. The
+halving is the excluded queue edges, and the equal `cp_split_task_ns` above is
+the direct evidence. Recorded here rather than silently amended, per CLAUDE.md;
+§5 is corrected in place and the ceilings it tabulates are unchanged.
+
+✅ Verified, and it is the arithmetic half of S2r-b's 0/4. Against §7.3's fixed
+targets, configuration A's floors are (µs):
+
+| cell | target | chain `queue_lb` | rotate binding bound | admits the target for |
+|---|---|---|---|---|
+| gqa2 s4 | 218 | 241.7 | 242.7 (path) | neither |
+| gqa2 s128 | 328 | 342.0 | 154.6 (queue) | rotate only |
+| mha4 s4 | 362 | 485.4 | 244.7 (path) | rotate only |
+| mha4 s128 | 528 | 603.1 | 297.0 (queue) | rotate only |
+
+Chain is above target in all four cells with synchronization priced at zero, and
+rotate is above it at gqa2 s4. These are traced builds, which F-131 measured at
+up to 1.0167x the untraced median; deflating by that worst case leaves chain at
+237.7/336.4/477.4/593.2 and rotate's gqa2 s4 path floor at 238.7, so every
+exclusion survives — though gqa2 s128 survives by 8.4 µs and should be read as
+marginal rather than settled. ⚠️ Only rotate and chain were traced
+(`TRACE_ARMS`), so nothing is claimed here about the floors of `eft`,
+`wavefront`, `balanced` or `legacy_grid_stride`.
+
+✅ Verified, the measured half, and it is not marginal. Over six candidates x
+four configurations x 25 paired rounds, the best median in each cell is 280.6
+(chain B), 440.3 (eft B), 557.8 (chain B) and 833.6 µs (rotate B), against
+targets of 218/328/362/528 — 1.29x, 1.34x, 1.54x and 1.58x. No candidate under
+any configuration reached any target in any cell.
+
+✅ Verified, and it separates the miss into two causes that need different
+answers. Where the floor excludes the target the gap is arithmetic and no
+protocol work can close it: gqa2 s4 for both traced candidates, and all four
+cells for chain — the candidate F-161 ranks best under configuration B. Where
+the floor admits the target the gap is overhead: rotate at B sits at 2.82x,
+2.29x and 2.74x its own binding bound at gqa2 s128, mha4 s4 and mha4 s128, and
+configuration B collects about 3% of it (F-161, F-163). S2r-b needs three of
+four cells, and gqa2 s4 is not among the three available to any traced candidate.
+
+**Next step**, and it is a target-setting change rather than a mechanism. §7.3
+derives each target from `ceiling_A + 0.5 x (measured_A - ceiling_A)` with
+`ceiling_A` taken from `TILEMEGA_PLACEMENT=0` traces, then scores it against a
+different Plan's binary; F-163 found the same mismatch on the mechanism side and
+§5 on the bound side. The concrete step is to trace the four untraced candidates
+in configuration A — `TRACE_ARMS` already parameterizes this and it needs no new
+code — and recompute per candidate whether that Plan's own
+`max(cp_lb_nosync, queue_lb)` admits the §7.3 target at all. If none does at
+gqa2 s4, that cell measures no mechanism this round built, and the next round's
+gate should be anchored per candidate, as H8 already requires of the ceiling but
+§7.3 does not yet require of the target.
+
+## F-165 — `per_task=2` on the E3-1 gate line is arithmetic on a stated constant, and the three barrier counts in play are not the same unit
+
+✅ Verified, read from the three sources named. R3 §1.2 states **6** CTA
+barriers per task. `TileMega_skeleton.md:1075` states
+"L2 kernel 在执行器层面每个 task 最多执行 5 次 `__syncthreads()`" — at most **5**
+per task. `SYNC_V2/raw_barrier/census.tsv` counts **11** `bar_sync` in
+`tilemega_l2_kernel` at `v2=0`, falling to 8 in the plain build and to 10 under
+trace, in both models. The first two are dynamic per-task counts; the third is a
+static instruction-site census over the whole kernel, including sites outside
+the per-task loop. They are not three estimates of one quantity. §1.2's
+requirement that the difference be recorded and not reconciled was already met
+by `docs/TODO.md`'s EX-E3 row, which names all three and defers to SASS; what
+this entry adds is what each number counts, and the consequence below.
+
+✅ Verified: the gate mixes the two units. `verify.py:55-56` sets
+`BARRIERS_PER_TASK_BASE = 5` and `BARRIERS_PER_TASK_GATE = 2`; `:203` computes
+`drop` as the static census delta and `:204` computes
+`per_task = BARRIERS_PER_TASK_BASE - drop`. The `per_task=2` printed on
+`E3-1-barriers`' PASS line is therefore the skeleton's *stated* 5 minus a
+*verified* static delta of 3. By CLAUDE.md's marking it is stated-minus-verified
+rather than verified: no dynamic per-task barrier count was measured this round,
+on either arm.
+
+✅ Verified: the static delta of 3 is real, and all three dropped sites are on
+the per-task path, so the subtraction is at least dimensionally defensible.
+`TILEMEGA_BARRIER_V2` guards exactly four sites in `ModelHarness.cuh`. Three are
+dropped in a plain v2 build: `:782`, the `__syncthreads()` closing `NotifyTask`,
+once per task; and `:925` and `:943`, which bracket `RunTask` inside the task
+loop. Both of the latter carry `#if !TILEMEGA_BARRIER_V2 || TILEMEGA_TRACE_V2`,
+so a trace build keeps them and drops only `:782` — which is exactly the 11 → 10
+the census reports for the trace variant against 11 → 8 for plain, and the two
+trace paths are documented in the source as not interchangeable under v2.
+
+⚠️ Inferred, and the reason the subtraction is not a safe model: the fourth
+site, `:583` in `WaitTaskDependencies`, is not a removal. v2 makes that
+`__syncthreads()` **unconditional**, where the off arm executes it only when
+`task.wait_count != 0`. So v2 does not dominate the off arm site by site — for a
+task with no waits the off arm executes no barrier there and v2 executes one.
+The `≤ 2` bound is unaffected, since the site is counted in both arms, but a
+`BASE - drop` subtraction cannot express a conditional becoming unconditional
+and would not have caught it had it gone the other way.
+
+⚠️ Correction, recorded rather than rewritten, per CLAUDE.md. F-152's title and
+its sentence "deleting three of eleven barriers" read the census's 11 as a
+per-task count; 11 is the static `BAR.SYNC` total of `tilemega_l2_kernel`.
+F-152's paired ratios, its correctness counts and its conclusion are untouched by
+this — the term it decomposes (`barrier`, 0.037–0.089 ms of a 0.44–1.24 ms
+kernel) is measured directly and is not derived from the 11.
+
+Next step: a dynamic per-task count is one counter, not an experiment — an
+`atomicAdd` on a per-CTA slot beside each executor `__syncthreads()` under a
+trace-only switch, read back per task. That measures the quantity §1.2's 6 and
+the skeleton's 5 both name, and would settle the unit question instead of
+recording it. Until it exists, `E3-1-barriers` should print the census delta it
+verifies and either omit `per_task` or mark it stated.
+
+## F-166 — Chaining loses to rotate on measured L2 in all six cells, and at seq 4 it loses where the model predicted it would win
+
+Evidence: `docs/experiments/CHAIN/raw/summary.tsv` gate `S2c-d`, 25 paired rounds
+per cell, each arm's L2 ratioed against `rotate`'s in the same round; correctness
+from `raw/correctness.tsv`; predicted makespan from gate `S2c-b` in the same
+file. Fresh processes this round (H6), rotating arm order.
+
+✅ Verified, correctness first: 18 arm-cells, 900/900 processes, every cell
+50/50 across `legacy_grid_stride`, `rotate` and `chain` at gqa2/mha4/real x
+seq 4/128.
+
+✅ Verified, the measured result:
+
+| cell | legacy/rotate | chain/rotate | 95% CI | p | predicted chain/rotate |
+|---|---|---|---|---|---|
+| gqa2 s4 | 1.5210 | 1.0070 | [1.0035, 1.0104] | 2.861e-05 | 0.988 |
+| mha4 s4 | 1.5345 | 1.0114 | [1.0106, 1.0124] | 1.298e-05 | 0.989 |
+| gqa2 s128 | 1.3475 | 1.1368 | [1.1368, 1.1388] | 1.263e-05 | 1.067 |
+| mha4 s128 | 1.3374 | 1.2581 | [1.2558, 1.2612] | 1.307e-05 | 1.213 |
+| real s4 | 1.2996 | 1.0235 | [1.0182, 1.0292] | 3.115e-04 | 1.032 |
+| real s128 | 1.1932 | 1.1329 | [1.1226, 1.1332] | 1.307e-05 | 1.135 |
+| ALL, n=100 | 1.4763 [1.3517, 1.5209] | 1.0757 | [1.0124, 1.1368] | 8.433e-18 | — |
+
+✅ Verified: **chain is slower than rotate in all six cells**, and the CI excludes
+1.0 in all six. The penalty runs 0.70% at gqa2 s4 to 25.81% at mha4 s128. The
+`legacy_grid_stride` control is 19.3–53.5% slower than rotate in the same rounds,
+so the comparison resolves a placement effect an order of magnitude smaller than
+the one it is being asked to see; chain's 0.70% is a measurement, not a floor
+artifact.
+
+⚠️ Inferred from pairing the measured and predicted columns, and it is the part
+that localizes the failure rather than restating it: the model and the binary
+agree at the four seq-128-class cells and disagree in sign at the two seq 4
+reference cells. Predicted 1.213 measured 1.2581 (mha4 s128); predicted 1.135
+measured 1.1329 (real s128); predicted 1.067 measured 1.1368 (gqa2 s128). But at
+gqa2 s4 the solver predicted chaining would win by 1.2% and it lost by 0.70%, and
+at mha4 s4 predicted a 1.1% win against a measured 1.14% loss — a swing of about
+2 pp in each, carried by the 2 and 3 same-worker critical-path edges those two
+Plans place. Those edges are exactly what the mechanism exists to create, and the
+cost model books each as a removed hop at zero cost. F-164 shows the lower-bound
+side of the same error: `cp_lb_nosync` stops counting the co-located spine
+entirely, and the work reappears in `queue_lb` (241.7 µs against rotate's 42.0 at
+gqa2 s4). So the same-worker edge is not merely mispriced, it is priced as a
+saving when it is a serialization.
+
+✅ Verified, and it bounds how much of this is recoverable by tuning: real s4 at
+1.0235 is chain's best cell and is also the cell whose prediction was closest to
+neutral (1.032), while `split_count` is 0 everywhere (F-158) and `fill_overflows`
+is 0 in four of six cells. The loss is not coming from split repair or from the
+capacity cap in the cells where chaining comes closest; it is in the price of the
+edge itself.
+
+Next step, and it is one measurement rather than a redesign: at gqa2 s4, where
+chain and rotate differ by 1.15 µs of measured L2 and by two same-worker path
+edges, read the realized start-to-start delay across each of those two edges out
+of the existing trace dumps and compare it against the hop it replaced —
+1230.5 ns on sm_89 by F-145's RMW+backoff64 row. If the serialization delay
+exceeds the hop, chaining is structurally unprofitable whenever a spine
+predecessor's task time exceeds the hop, which is a testable predicate the
+extraction can evaluate before it co-locates an edge, and the fix is to refuse
+the edge rather than to reweight it. That predicate also says what chaining needs
+from an architecture: on sm_120 the hop floor is ~400 ns (F-145's sm_120 fit),
+so the task-time threshold below which co-location pays is three times tighter
+there, not looser.
