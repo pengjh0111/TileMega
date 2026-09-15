@@ -265,6 +265,26 @@ if has seqscan; then
     exit 1; }
 fi
 
+# A fresh process can lose `cudaMalloc` to the previous run's context teardown.
+# Round three lost this stage at r13 of mha4_s128_v1_full after thirteen clean
+# rounds, and the `full` arm is the one whose failure is fatal below, so the
+# transient landed exactly where it could not be tolerated.  Retry that single
+# signature once from a cleared output directory, so the first attempt's
+# ERROR_first.log cannot be counted against the retry.  Anything else stays
+# fatal.  H1 holds `scripts/gpu_stat_run.sh` outside this round's fence, so the
+# same guard is repeated in PLACE_EFT2/run.sh rather than shared.
+retry_oom() {
+  local out="$1"; shift
+  local rc=0
+  "$@" || rc=$?
+  [[ ${rc} -eq 0 ]] && return 0
+  grep -qs 'out of memory' "${out}/ERROR_first.log" || return "${rc}"
+  echo "  [retry] transient OOM, resettling: ${out}" >&2
+  rm -rf "${out}"
+  sleep 5
+  "$@"
+}
+
 if has attrib; then
   for model in gqa2 mha4; do
     for seq in 4 128; do
@@ -273,9 +293,11 @@ if has attrib; then
         for ((slot=0; slot<${#arms[@]}; ++slot)); do
           arm="${arms[$(((round + slot) % ${#arms[@]}))]}"
           for v2 in $(((round % 2))) $((1 - (round % 2))); do
-            "${repo}/scripts/gpu_stat_run.sh" -n 1 -t 120 \
+            attempt="${raw}/final/${model}_s${seq}_v${v2}_${arm}/r${round}"
+            retry_oom "${attempt}" \
+              "${repo}/scripts/gpu_stat_run.sh" -n 1 -t 120 \
               -l "${tag}_${model}_${seq}_v${v2}_${arm}" -k \
-              -o "${raw}/final/${model}_s${seq}_v${v2}_${arm}/r${round}" -- \
+              -o "${attempt}" -- \
               "${raw}/bin/${model}_v${v2}_${arm}" "${fixture}" \
               >> "${raw}/log/${model}_s${seq}_v${v2}_${arm}.runner" 2>&1 \
               || [[ "${arm}" != full ]]
