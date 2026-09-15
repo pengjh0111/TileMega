@@ -1,0 +1,1 @@
+STAT label=eft2_b_mha4_4_chain runs=50 pass=50 fail=0 hang=0 error=0 rate=1.0000 outdir=/root/TileMega/docs/experiments/PLACE_EFT2/raw/final/correct_b_mha4_s4_chain

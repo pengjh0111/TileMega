@@ -1,0 +1,7 @@
+cell	arm	bytes	identical_to_control
+gqa2_s4	legacy_grid_stride	14219	1
+gqa2_s128	legacy_grid_stride	14219	1
+mha4_s4	legacy_grid_stride	26449	1
+mha4_s128	legacy_grid_stride	26449	1
+real_s4	legacy_grid_stride	26720	1
+real_s128	legacy_grid_stride	26720	1
