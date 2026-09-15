@@ -1,0 +1,49 @@
+{
+  "started_utc": "2026-09-15T15:49:07.622650+00:00",
+  "head": "8299ccaa8451a548897850d3b86371fb0fc0e06a",
+  "prompt_sha256": "669c77165cc4f776088b37f24fda2039f8c2b29ae49f2a3e3133cd000d35484c",
+  "source_sha256": {
+    "docs/experiments/SYNC_V2/litmus.cu": "077d4ca0405110632972c4df7fde3138ab110d756bb5114f6ae1e600eb28082b",
+    "docs/experiments/SYNC_V2/run_litmus.sh": "40dc5ff72b789606c7a1b0efa199ad8b8a7d03a304190f6da42de70838f86f2b",
+    "test/harness/alternating_fill.h": "4d4d40d1ff7883772131970ca399c6b6be75f5d14c0071d686abd861807a3369"
+  },
+  "purpose": "Recheck R4 section 1.1 premise 3 and section 7.1 litmus before any further protocol change",
+  "command": [
+    "bash",
+    "docs/experiments/SYNC_V2/run_litmus.sh"
+  ],
+  "environment": {
+    "OUT_DIR": "/root/TileMega/docs/experiments/SYNC_V3/litmus_recheck",
+    "RUNS": "50",
+    "PHASES": "build,sass,preflight,scan"
+  },
+  "finished_utc": "2026-09-15T16:07:10.503374+00:00",
+  "runner_exit_code": 0,
+  "raw_cells": 72,
+  "raw_counts_by_arm": {
+    "no_barrier": {
+      "runs": 900,
+      "pass_count": 52,
+      "mismatch": 848,
+      "other": 0
+    },
+    "no_fence": {
+      "runs": 900,
+      "pass_count": 600,
+      "mismatch": 300,
+      "other": 0
+    },
+    "per_writer": {
+      "runs": 900,
+      "pass_count": 900,
+      "mismatch": 0,
+      "other": 0
+    },
+    "thread0_fence": {
+      "runs": 900,
+      "pass_count": 900,
+      "mismatch": 0,
+      "other": 0
+    }
+  }
+}

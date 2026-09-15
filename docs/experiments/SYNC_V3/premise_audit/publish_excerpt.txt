@@ -1,0 +1,127 @@
+71030: $L__BB2_362:
+71031: 	.loc	1 961 5
+71032: 	.loc	1 756 3, function_name $L__info_string300, inlined_at 1 961 5
+71033: 	ld.global.u64 	%rd1440, [%rd1+32];
+71034: 	shl.b64 	%rd1441, %rd5, 2;
+71035: 	add.s64 	%rd1442, %rd1440, %rd1441;
+71036: 	ld.u32 	%r325, [%rd1442];
+71037: 	.loc	1 757 3, function_name $L__info_string300, inlined_at 1 961 5
+71038: 	setp.eq.s32 	%p895, %r325, 0;
+71039: 	@%p895 bra 	$L__BB2_373;
+71040: 
+71041: 	.loc	1 759 3, function_name $L__info_string300, inlined_at 1 961 5
+71042: 	membar.gl;
+71043: 	.loc	1 761 3, function_name $L__info_string300, inlined_at 1 961 5
+71044: 	bar.sync 	0;
+71045: 	.loc	1 762 3, function_name $L__info_string300, inlined_at 1 961 5
+71046: 	@%p32 bra 	$L__BB2_373;
+71047: 
+71048: 	.loc	1 226 3, function_name $L__info_string290, inlined_at 1 944 5
+71049: 	mul.lo.s64 	%rd1463, %rd5, 52;
+71050: 	.loc	1 763 5, function_name $L__info_string300, inlined_at 1 961 5
+71051: 	ld.global.u64 	%rd1443, [%rd1+-56];
+71052: 	.loc	1 763 5, function_name $L__info_string300, inlined_at 1 961 5
+71053: 	.loc	1 338 3, function_name $L__info_string293, inlined_at 1 763 5
+71054: 	add.s64 	%rd1445, %rd1443, %rd1463;
+71055: 	ld.u32 	%r3373, [%rd1445];
+71056: 	add.s32 	%r3374, %r3373, -7;
+71057: 	setp.lt.u32 	%p897, %r3374, 2;
+71058: 	@%p897 bra 	$L__BB2_375;
+71059: 	bra.uni 	$L__BB2_365;
+71060: 
+71061: $L__BB2_375:
+71062: 	.loc	1 352 7, function_name $L__info_string293, inlined_at 1 763 5
+71063: 	// begin inline asm
+71064: 	trap;
+71065: 	// end inline asm
+71066: 	bra.uni 	$L__BB2_367;
+71067: 
+71068: $L__BB2_365:
+71069: 	.loc	1 338 3, function_name $L__info_string293, inlined_at 1 763 5
+71070: 	setp.eq.s32 	%p898, %r3373, 9;
+71071: 	@%p898 bra 	$L__BB2_366;
+71072: 	bra.uni 	$L__BB2_367;
+71073: 
+71074: $L__BB2_366:
+71075: 	.loc	1 358 7, function_name $L__info_string293, inlined_at 1 763 5
+71076: 	// begin inline asm
+71077: 	trap;
+71078: 	// end inline asm
+71079: 
+71080: $L__BB2_367:
+71081: 	.loc	1 765 5, function_name $L__info_string300, inlined_at 1 961 5
+71082: 	and.b32  	%r3375, %r325, 2;
+71083: 	setp.eq.s32 	%p899, %r3375, 0;
+71084: 	@%p899 bra 	$L__BB2_371;
+71085: 
+71086: 	.loc	1 772 7, function_name $L__info_string300, inlined_at 1 961 5
+71087: 	.loc	1 307 3, function_name $L__info_string291, inlined_at 1 772 7
+71088: 	ld.global.u64 	%rd1446, [%rd1+24];
+71089: 	add.s64 	%rd1448, %rd1446, %rd1441;
+71090: 	ld.u32 	%r3376, [%rd1448];
+71091: 	ld.global.u32 	%r3377, [%rd1+-48];
+71092: 	add.s32 	%r3460, %r3376, %r3377;
+71093: 	.loc	1 309 3, function_name $L__info_string291, inlined_at 1 772 7
+71094: 	setp.eq.s32 	%p900, %r14, -1;
+71095: 	@%p900 bra 	$L__BB2_370;
+71096: 
+71097: 	.loc	1 311 16, function_name $L__info_string291, inlined_at 1 772 7
+71098: 	ld.global.u64 	%rd1449, [%rd1+32];
+71099: 	add.s64 	%rd1451, %rd1449, %rd1441;
+71100: 	ld.u32 	%r3378, [%rd1451];
+71101: 	and.b32  	%r3379, %r3378, 1;
+71102: 	add.s32 	%r3380, %r3460, %r14;
+71103: 	.loc	1 312 20, function_name $L__info_string291, inlined_at 1 772 7
+71104: 	add.s32 	%r3460, %r3380, %r3379;
+71105: 
+71106: $L__BB2_370:
+71107: 	.loc	1 0 20
+71108: 	cvta.to.global.u64 	%rd1452, %rd149;
+71109: 	.loc	1 772 7, function_name $L__info_string300, inlined_at 1 961 5
+71110: 	.loc	1 716 3, function_name $L__info_string301, inlined_at 1 772 7
+71111: 	mul.wide.u32 	%rd1453, %r3460, 128;
+71112: 	add.s64 	%rd1454, %rd1452, %rd1453;
+71113: 	.loc	1 716 3, function_name $L__info_string301, inlined_at 1 772 7
+71114: 	.loc	44 226 3, function_name $L__info_string283, inlined_at 1 716 3
+71115: 	atom.global.add.u64 	%rd1455, [%rd1454], 1;
+71116: 
+71117: $L__BB2_371:
+71118: 	.loc	1 779 5, function_name $L__info_string300, inlined_at 1 961 5
+71119: 	and.b32  	%r3381, %r325, 1;
+71120: 	setp.eq.b32 	%p901, %r3381, 1;
+71121: 	mov.pred 	%p902, 0;
+71122: 	xor.pred  	%p903, %p901, %p902;
+71123: 	not.pred 	%p904, %p903;
+71124: 	@%p904 bra 	$L__BB2_373;
+71125: 
+71126: 	.loc	1 780 7, function_name $L__info_string300, inlined_at 1 961 5
+71127: 	.loc	1 307 3, function_name $L__info_string291, inlined_at 1 780 7
+71128: 	ld.global.u64 	%rd1456, [%rd1+24];
+71129: 	add.s64 	%rd1458, %rd1456, %rd1441;
+71130: 	ld.u32 	%r3382, [%rd1458];
+71131: 	ld.global.u32 	%r3383, [%rd1+-48];
+71132: 	add.s32 	%r3384, %r3382, %r3383;
+71133: 	cvta.to.global.u64 	%rd1459, %rd149;
+71134: 	.loc	1 780 7, function_name $L__info_string300, inlined_at 1 961 5
+71135: 	.loc	1 716 3, function_name $L__info_string301, inlined_at 1 780 7
+71136: 	mul.wide.u32 	%rd1460, %r3384, 128;
+71137: 	add.s64 	%rd1461, %rd1459, %rd1460;
+71138: 	.loc	1 716 3, function_name $L__info_string301, inlined_at 1 780 7
+71139: 	.loc	44 226 3, function_name $L__info_string283, inlined_at 1 716 3
+71140: 	atom.global.add.u64 	%rd1462, [%rd1461], 1;
+71141: 
+71142: $L__BB2_373:
+71143: 	.loc	44 0 3
+71144: 	cvt.u32.u64 	%r3385, %rd4;
+71145: 	.loc	1 908 49
+71146: 	add.s32 	%r3402, %r3385, 1;
+71147: 	.loc	1 908 3
+71148: 	setp.lt.u32 	%p905, %r3402, %r1;
+71149: 	@%p905 bra 	$L__BB2_2;
+71150: 
+71151: $L__BB2_374:
+71152: 	.loc	1 987 1
+71153: 	ret;
+71154: 
+71155: }
+71156: 	// .globl	_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi

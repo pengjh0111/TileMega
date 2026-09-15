@@ -1,0 +1,9 @@
+candidate	model	seq	floor_ns	measured_A_ns	target_ns	dump	frozen
+chain	gqa2	128	349184.0	523263.99999999994	436224.0	docs/experiments/PLACE_EFT2/raw/final/trace_a_gqa2_s128_chain	0
+rotate	gqa2	128	346112.0	461824.0	403968.0	docs/experiments/PLACE_EFT2/raw/final/trace_a_gqa2_s128_rotate	0
+chain	gqa2	4	242688.0	299904.0	271296.0	docs/experiments/PLACE_EFT2/raw/final/trace_a_gqa2_s4_chain	0
+rotate	gqa2	4	242688.0	293888.0	268288.0	docs/experiments/PLACE_EFT2/raw/final/trace_a_gqa2_s4_rotate	0
+chain	mha4	128	624640.0	1204224.0	914432.0	docs/experiments/PLACE_EFT2/raw/final/trace_a_mha4_s128_chain	0
+rotate	mha4	128	697344.0	956416.0	826880.0	docs/experiments/PLACE_EFT2/raw/final/trace_a_mha4_s128_rotate	0
+chain	mha4	4	488448.0	596992.0	542720.0	docs/experiments/PLACE_EFT2/raw/final/trace_a_mha4_s4_chain	0
+rotate	mha4	4	488448.0	578560.0	533504.0	docs/experiments/PLACE_EFT2/raw/final/trace_a_mha4_s4_rotate	0
