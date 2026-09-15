@@ -4259,3 +4259,113 @@ the edge rather than to reweight it. That predicate also says what chaining need
 from an architecture: on sm_120 the hop floor is ~400 ns (F-145's sm_120 fit),
 so the task-time threshold below which co-location pays is three times tighter
 there, not looser.
+
+
+## F-167 — Recovering elided task dependencies removes the placement-dependent trace bound
+
+✅ Verified offline in R4, `docs/experiments/TRACE_V2/r4_rebuild/`: all 32 R3
+placement dumps and all 12 W=1/2/4 dumps pass the floor inequality and the
+nonnegative causal split closure. These are reanalyses of historical traces,
+not new R4 performance measurements. Input paths and hashes are retained.
+
+The unsimplified dependency windows are absent from `schedule.tsv`,
+`waits.tsv`, and `events.tsv`: the first carries offsets, the second has
+already undergone local omission and wait lifting, and the last identifies
+publication rows. `analyze.py::dependency_graph` now reads the matching
+generated `kDependencies0` table and validates every trace dependency slice.
+DAG edges survive even when their endpoints share a worker. Executor edges
+are explicitly distinct. All old metrics are retained with `_legacy` suffixes.
+
+✅ Configuration A at gqa2 s4: rotate and chain both recover 20 nodes with
+242688 ns task weight. At gqa2 s128 rotate's zero-sync bound changes from
+89088 to 346112 ns; at mha4 s128 from 91136 to 697344 ns. The causal
+reconstructions for those two traces are 454656/948224 ns against recorded
+spans of 455680/948224 ns. Split intervals start after the predecessor's work
+completes, so simultaneous waits on different CTAs are not repeatedly charged
+to a serial path. The final publication tail is included; root pre-run delay
+is excluded. No measured task duration is rescaled.
+
+✅ Fixed-input tests preserve the same bound for W=1/2/4 and retain zero-tick
+nodes on tied paths. The residual cross-configuration variation comes from
+observed task durations, not W-dependent omission of DAG edges.
+
+✅ Corrected W=4 HOL is lower than W=1 in all four window cells. For example,
+gqa2 s4 changes from 483328 to 62464 ns and mha4 s128 from 47318016 to
+23089152 ns (sum over workers). The previous claim that the window reclaimed
+no HOL relied on lifted waits being mistaken for readiness. The raw paired
+E2E_TIME ratios remain unchanged: the analyzer repair explains 0% of the
+recorded end-to-end regression. It changes its interpretation, not its timing.
+⚠️ Inferred: scan/probe work can still exceed reclaimed stalls. This offline
+reanalysis cannot allocate the timing delta between execution overhead and
+hardware noise; a new paired ablation is required. W remains 1 by default.
+
+Next step: export the full semantic task DAG with future traces, including
+exact-ISL variants, instead of requiring archived generated sources. Reprice
+all candidate floors before freezing targets; only rotate and chain have the
+32 R3 placement dumps.
+
+## F-168 — R3's publication reduction is relaxed at the atomic instruction
+
+✅ Verified by a new R4 compilation of the gqa2 generated model with R3 B
+flags, followed by ptxas and cuobjdump. Evidence:
+`docs/experiments/SYNC_V3/premise_audit/compile.json`, `gqa2_b.ptx`,
+`gqa2_b.sass`, and the two publication excerpts. `ArriveEvent` emits
+`atom.global.add.u64` without a `.sem` qualifier at both publication sites;
+ptxas lowers the unused results to `RED.E.ADD.64.STRONG.GPU`. The preceding
+`NotifyTask` fence remains `membar.gl` / `MEMBAR.SC.GPU`.
+
+The instruction's default ordering is relaxed when `.sem` is absent, as
+specified by [NVIDIA PTX ISA 8.7](https://docs.nvidia.com/cuda/archive/12.8.0/pdf/ptx_isa_8.7.pdf).
+This does not say the complete protocol lacks a release sequence: the
+per-writer fence supplies ordering before the relaxed arrival. It does say
+R4 §1.1's attribution to `red.release` itself is not the emitted mechanism.
+The source comment in `ArriveEvent` explicitly describes the relaxed reduction.
+
+⚠️ Inferred: R3's gain may come from eliminating the last-arriver test,
+epoch publication and their fences, rather than moving ordering into the
+atomic instruction. No new performance gain is claimed from this compilation.
+Per R4 §11, the contradicted premise stops further protocol implementation.
+
+Next step: distinguish relaxed arrival plus writer fence, explicit release
+arrival plus writer fence, and the proposed single-writer-fence protocol as
+separate measured configurations. Run B's five arms first; do not remove a
+fence by treating STRONG.GPU as an explicit release qualifier.
+
+
+## F-169 — R4 reproduces the silent no-barrier control in the single-writer litmus
+
+✅ Verified in 3600 fresh processes on the RTX 4090, 72 cells at 50 processes
+each, rebuilt from the unchanged `SYNC_V2/litmus.cu`. Evidence is
+`docs/experiments/SYNC_V3/litmus_recheck/`: source/command provenance, raw
+per-process logs, occupancy preflight, SASS census and instruction diff.
+`per_writer` and `thread0_fence` each pass 900/900, with no launch error or
+hang. No correctness claim is derived from a performance-only probe.
+
+✅ All six sensitive cells (acquire fence off, grid 64/128/256, tile
+1024/4096) observe no-fence mismatches in 50/50 processes. The no-barrier
+control mismatches in 50/50 in five of these cells, but at grid=128,
+tile=4096 it passes 50/50. Over its entire matrix it mismatches 848/900;
+the other two passes are at acquire=1, grid=128, tile=4096. Therefore R4's
+requirement that both negative controls fire in each readable cell is not met.
+The legacy runner's PASS is not the R4 acceptance verdict: R4 verify.py reads
+each raw RESULT line and reports C1-litmus FAIL, 5/6 sensitive cells.
+
+This reproduces the exception already recorded in F-157, rather than the
+stronger premise in R4 §1.1 that both negative controls passed their check.
+Per R4 §11, §8.5 is unchanged and no single-writer release is enabled. The
+premature C1 implementation from the previous assistant turn was reverted
+before this audit; that ordering error is recorded, not erased.
+
+⚠️ Inferred cause: the current no-barrier arm removes both the writer-side
+and reader-side barriers but does not force an inter-warp store skew. At this
+geometry, the omitted synchronization is not exposed by its schedule. This
+is a detector limitation, not evidence that barriers are redundant.
+
+Next step: construct an independently checked delayed-writer witness that
+keeps the consumer acquire path fixed while removing only the producer
+convergence, retains address reuse and small tiles, and explicitly verifies
+that the reader runs before the delayed writer in the negative arm. Freeze
+that construction before rerunning all required 50-process cells. Keep the
+existing no-fence arm as a separate sensitivity check. Complete B's measured fence pricing before the ordered C1 implementation.
+Unseal §8.5 only after that implementation and the required sensitive litmus
+checks pass; a repaired detector alone does not complete C1.

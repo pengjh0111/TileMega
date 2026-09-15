@@ -286,6 +286,16 @@
 | G13 | SIMT task 共用 GEMM 的启动配置 | stated：128 线程、212 寄存器、2 CTA/SM（F-90、`PLACE/round5_balanced_result.md`） | 访存型 task 占用率低 | 在 EX-V1 中观测；若成立则另立条目 |
 | G14 | 死字段与遗留头文件 | ✅ grep：`TaskPlacement::slot`、`kLastTaskOfStage` 只写不读；`GeneratedLlamaRuntime.cuh` 没有包含者；（⚠️ v2.1 第二轮：三项均已清除。`kLastTaskOfStage` 与 `GeneratedLlamaRuntime.cuh` 在第一轮删除；`TaskPlacement::slot` 经 EX-E1 后复查仍是只写——物化路径读的是 `MaterializedPlan::slot`——本轮删除，保留 `lengths[chosen]++` 的计数副作用，commit 48554a81） | 误导读者 | EX-C1 已验证 |
 
+（⚠️ v2.1 第四轮，2026-09-15：G4 的协议开销尚未完成本轮定价，
+R3 E3-3 的到达指令应读为 relaxed 原子加前置 release fence，不能从
+`STRONG.GPU` 推断为显式 `red.release`（F-168）。C1 的 3600 进程
+复核重现一个不敏感的无屏障负对照，R4 §11 停止，§8.5 保持原规则（F-169）。
+G5 的执行器合法性与窗口规则保持不变；修订的是旁路分析器：完整 task DAG
+恢复已省略的本地边和提升边，W=4 的 HOL 在四格下降而原始计时回退仍在（F-167）。
+G7 的 R4 归因维护已验证：32 个放置 dump 和 12 个窗口 dump 的界与 split
+44/44 通过，gqa2 s4 rotate/chain 同为 20 节点、242688 ns，原口径并列保留。
+这不宣称新同步协议、sm_120 或联合搜索已通过验收。）
+
 ### 1.5.3 被执行器结构混淆的历史结论（v2.1）
 
 以下结论作为"该执行器结构下的测量"继续有效，但不得外推为关于放置、排序、窗口或 κ 的一般结论。它们都是在 G2（归属与 L1 相同、队列 stage-major）与 G3（W = 1）下测得的（F-126）：

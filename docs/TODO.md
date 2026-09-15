@@ -99,6 +99,19 @@ EX-V1 与所有性能项并行；EX-C1 任意时间（slot 部分随 EX-E1）
 | EX-V1 | real-width 作为 L2 主基准 + 逐机制消融 | — | 未开始 | ⚠️ 外部条件：sm_120 上 real-width seq=128 在 PyTorch 导出阶段 FAIL，运行后文件系统 100% 占满（推断为磁盘耗尽，未进一步隔离）；seq=4 PASS（F-142） | `docs/experiments/sm120_round_one_20260912.md`；F-142 |
 | EX-C1 | 清理死字段与遗留头文件 | — | 已验证 | `kLastTaskOfStage` 与 `GeneratedLlamaRuntime.cuh` 已删除，两参考模型生成的 `.cu` 逐字节不变；⚠️ v2.1 第二轮：`TaskPlacement::slot` 经 EX-E1 后仍是只写字段（被消费的 σ 是 `MaterializedPlan::slot`），已删除并保留 `lengths[chosen]++` 的计数副作用，CTest 全绿 | `docs/experiments/PLACE_ROTATE/raw/c1/`；commit 48554a81 |
 
+（⚠️ v2.1 第四轮，2026-09-15：EX-D1 工具修复通过 R4 A-a/A-b/A-c，
+32 个放置 dump 加 12 个窗口 dump 共 44/44；原口径保留为 `_legacy`。
+EX-E2 的 HOL 结论修订：完整 DAG 下 W=4 在四格都回收了部分 HOL，
+但原始配对计时的回退并未被分析器修复消除，W 默认仍为 1（F-167）。
+EX-E3 未完成第 4–6 步：复核 litmus 共 3600 个新进程，candidate
+900/900，但 grid=128、tile=4096、acquire=0 的无屏障负对照为
+50/50 PASS，触发 R4 §11；§8.5 不解封（F-169）。另一本轮编译确认
+R3 E3-3 的原子到达实际为 relaxed，加上前置 writer fence 保持序关系，
+不能把已有收益归因于 `red.release` 指令（F-168）。EX-S2c 代价感知
+修改与重测尚未执行。原里程碑与历史台账保留；恢复顺序是修复敏感性见证、
+补齐候选自身 A trace 与有效冻结表、完成 B 五臂，再推进 C/D。
+停止报告：`docs/experiments/SYNC_V3/summary.md`。）
+
 ### 1.3 条目详述
 
 #### EX-D1 trace v2
