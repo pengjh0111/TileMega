@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""EX-D1 §3.6: reconstruct per-hop latency, head-of-line blocking, per-worker
-occupancy, the critical path and the four bounds from one trace v2 dump.
+"""Trace v2 analysis with the R1 formulas preserved in analyze_legacy.
 
-Every definition here is the one fixed in the round-one prompt before the
-measurement was taken.  Nothing is dropped silently: a hop that comes out
-negative is counted and printed, never filtered.
+R4 reconstruction requires the unsimplified generated runtime DAG and the
+materialized window. All historical metrics are retained with _legacy suffixes.
 """
 import argparse
 import os
 import sys
+import re
+import heapq
+import hashlib
+from pathlib import Path
 from collections import defaultdict
 
 WHOLE_STAGE = 0xFFFFFFFF
@@ -57,7 +59,7 @@ def load(dump):
     return meta, slots, waits, events
 
 
-def analyze(dump):
+def analyze_legacy(dump):
     meta, slots, waits, events = load(dump)
     kappa = int(meta["kappa"])
     grid = int(meta["grid"])
@@ -169,11 +171,7 @@ def analyze(dump):
     stage_first_slot = {}
     for r in sorted(slots, key=lambda r: r["slot"]):
         stage_first_slot.setdefault(r["stage"], r["slot"])
-    # Each predecessor carries its provenance.  A same-worker *dependency*
-    # remains a DAG edge (with zero hop cost); only the executor's adjacent
-    # slot edge is a queue edge that can be omitted from the no-queue bound.
     preds = defaultdict(list)
-    legacy_preds = defaultdict(list)
     cross = 0
     same = 0
     slot_row = {r["slot"]: r for r in slots}
@@ -185,16 +183,13 @@ def analyze(dump):
                     continue
                 if slot_row[producer]["worker"] == r["worker"]:
                     same += 1
-                    preds[r["slot"]].append((producer, 0, False))
-                    legacy_preds[r["slot"]].append((producer, 0, True))
+                    preds[r["slot"]].append((producer, 0))
                 else:
                     cross += 1
-                    preds[r["slot"]].append((producer, hop_p50, False))
-                    legacy_preds[r["slot"]].append((producer, hop_p50, False))
+                    preds[r["slot"]].append((producer, hop_p50))
     for queue in queues.values():
         for prev, cur in zip(queue, queue[1:]):
-            preds[cur["slot"]].append((prev["slot"], 0, True))
-            legacy_preds[cur["slot"]].append((prev["slot"], 0, True))
+            preds[cur["slot"]].append((prev["slot"], 0))
     out["dag_same_worker_edges"] = same
     out["dag_cross_worker_edges"] = cross
     out["dag_cross_worker_fraction"] = cross / (same + cross) if same + cross else 0.0
@@ -205,17 +200,17 @@ def analyze(dump):
     order = sorted((r["slot"] for r in slots),
                    key=lambda s: (stage_pos[slot_row[s]["stage"]], s))
 
-    def longest(edge_weight, include_queue, node_publish=False, graph_preds=None):
+    def longest(edge_weight, include_queue, node_publish=False):
         """Earliest-finish over the DAG.  `edge_weight` scales the cross-worker
         synchronization cost; `include_queue` decides whether one worker's
         serialization is part of the bound."""
         finish = {}
-        graph_preds = preds if graph_preds is None else graph_preds
         parent = {}
         for s in order:
             best = 0
             best_from = None
-            for pred, w, queue_edge in graph_preds[s]:
+            for pred, w in preds[s]:
+                queue_edge = slot_row[pred]["worker"] == slot_row[s]["worker"]
                 if queue_edge and not include_queue:
                     continue
                 cost = finish.get(pred, 0) + (edge_weight if w else 0)
@@ -235,16 +230,7 @@ def analyze(dump):
             at = parent[at]
         return finish[end], list(reversed(path))
 
-    # Historical reconstruction (same-worker edges were all treated as queue
-    # edges) is retained for comparison; corrected bounds use provenance.
-    legacy_cp_ns, _ = longest(hop_p50, include_queue=True, graph_preds=legacy_preds)
     cp_ns, cp_path = longest(hop_p50, include_queue=True)
-    out["cp_corrected_ns"] = longest(0, include_queue=False)[0]
-    out["cp_corrected_ms"] = out["cp_corrected_ns"] / 1e6
-    out["cp_corrected_sync_ns"] = longest(hop_p50, include_queue=False)[0]
-    out["cp_corrected_sync_ms"] = out["cp_corrected_sync_ns"] / 1e6
-    out["cp_reconstructed_legacy_ns"] = legacy_cp_ns
-    out["cp_reconstructed_legacy_ms"] = legacy_cp_ns / 1e6
     out["cp_reconstructed_ns"] = cp_ns
     out["cp_reconstructed_ms"] = cp_ns / 1e6
     out["cp_nodes"] = len(cp_path)
@@ -305,14 +291,220 @@ def analyze(dump):
     return out
 
 
+def dependency_graph(slots, source, variant=0):
+    """Recover the unsimplified DAG from the generated runtime table.
+
+    R1/R3 dumps contain offsets into this table, not the table itself. Wait
+    lifting is irreversible: a missing wait does not identify its producer.
+    Require the actual generated source and validate every dependency slice.
+    The window expansion matches MaterializeRuntimeTaskGraph.
+    """
+    text = Path(source).read_text()
+    if re.search(r'constexpr\s+RuntimeExactDependencyDesc', text):
+        raise ValueError('exact ISL dependencies require a task_dag.tsv export')
+    match = re.search(r'constexpr StageDependency kDependencies' + str(variant)
+                      + r'\[\] = \{(.*?)\n\};', text, re.S)
+    if not match:
+        raise ValueError(f'{source}: no dependency table for variant {variant}')
+    pattern = re.compile(r'\{(\d+)u,\s*(\d+)u,\s*StageDependency::Map::'
+                         r'(kAll|kWindow|kIdentity),\s*(\d+)u,\s*(-?\d+),'
+                         r'\s*(-?\d+),\s*(\d+)u\}')
+    deps = []
+    for line in match[1].splitlines():
+        if not line.strip():
+            continue
+        m = pattern.search(line)
+        if not m:
+            raise ValueError(f'{source}: unsupported dependency row {line!r}')
+        p, c, mode, div, scale, offset, count = m.groups()
+        deps.append((int(p), int(c), mode, int(div), int(scale), int(offset), int(count)))
+    ids = {(r['stage'], r['logical_task']): r['slot'] for r in slots}
+    if len(ids) != len(slots):
+        raise ValueError('a trace contains duplicate task identities')
+    counts = defaultdict(int)
+    for stage, task in ids:
+        counts[stage] = max(counts[stage], task + 1)
+    if sum(counts.values()) != len(slots):
+        raise ValueError('task coordinates are not contiguous')
+    incoming = {r['slot']: set() for r in slots}
+    for r in slots:
+        begin, count = r['dependency_begin'], r['dependency_count']
+        selected = deps[begin:begin + count]
+        expected = [d for d in deps if d[1] == r['stage']]
+        if selected != expected or len(selected) != count:
+            raise ValueError(f'{source}: trace dependency slice disagrees at {r["slot"]}')
+        for p, c, mode, div, scale, offset, count in selected:
+            if p >= c or div <= 0 or p not in counts:
+                raise ValueError('invalid runtime dependency')
+            at = (r['logical_task'] // div) * scale + offset
+            lo = 0 if mode == 'kAll' else max(0, at)
+            hi = counts[p] if mode == 'kAll' else min(counts[p], at + count)
+            incoming[r['slot']].update(ids[p, t] for t in range(lo, hi))
+    return incoming
+
+
+def graph_longest(rows, incoming, weight, edge=lambda p, s: 0):
+    """Topologically evaluate all edges; never treat an unseen parent as zero."""
+    successors = defaultdict(list)
+    degree = {}
+    for s in rows:
+        degree[s] = len(incoming[s])
+        for p in incoming[s]:
+            if p not in rows or p == s:
+                raise ValueError('invalid predecessor')
+            successors[p].append(s)
+    ready = [s for s in rows if not degree[s]]
+    heapq.heapify(ready)
+    finish, parent, lengths = {}, {}, {}
+    while ready:
+        s = heapq.heappop(ready)
+        choices = [(finish[p] + edge(p, s), p) for p in incoming[s]]
+        # Keep zero-duration (timer-quantized) nodes on tied paths. Task
+        # coordinates settle remaining ties without using worker assignment.
+        best, pred = max(choices, key=lambda x: (x[0], lengths[x[1]], -rows[x[1]]['stage'],
+                          -rows[x[1]]['logical_task'])) if choices else (0, None)
+        finish[s], parent[s] = best + weight(s), pred
+        lengths[s] = (lengths[pred] if pred is not None else 0) + 1
+        for t in successors[s]:
+            degree[t] -= 1
+            if not degree[t]:
+                heapq.heappush(ready, t)
+    if len(finish) != len(rows):
+        raise ValueError('dependency/queue graph is cyclic')
+    last = max(finish, key=lambda s: (finish[s], lengths[s], -rows[s]['stage'], -rows[s]['logical_task']))
+    path, at = [], last
+    while at is not None:
+        path.append(at)
+        at = parent[at]
+    return finish[last], path[::-1]
+
+
+def analyze(dump, source=None, window=None, variant=0):
+    legacy = analyze_legacy(dump)
+    if source is None:
+        return {**legacy, **{k + '_legacy': v for k, v in legacy.items()},
+                'corrected_status': 'unavailable: runtime DAG source required'}
+    if window not in (1, 2, 4):
+        raise ValueError('supply the materialized Plan window (1, 2, or 4)')
+    meta, slots, _, _ = load(dump)
+    rows = {r['slot']: r for r in slots}
+    if len(rows) != len(slots):
+        raise ValueError('duplicate slot')
+    incoming = dependency_graph(slots, source, variant)
+    queues = defaultdict(list)
+    for r in sorted(slots, key=lambda r: r['slot']):
+        queues[r['worker']].append(r['slot'])
+    run = lambda s: rows[s]['run_end'] - rows[s]['run_begin']
+    cp, path = graph_longest(rows, incoming, run)
+    sync_cp, _ = graph_longest(rows, incoming, run,
+        lambda p, s: legacy['hop_p50_ns'] if rows[p]['worker'] != rows[s]['worker'] else 0)
+    plan_edges = {s: set(ps) for s, ps in incoming.items()}
+    for queue in queues.values():
+        for j, s in enumerate(queue):
+            # W>1 guarantees all i <= j-W, not adjacent sigma slots.
+            plan_edges[s].update(queue[:max(0, j - window + 1)])
+    plan_cp, _ = graph_longest(rows, plan_edges, run)
+    # Actual execution introduces additional serialization, observable in the
+    # task stamps even when it differs from sigma. This is a reconstruction,
+    # never an extra constraint on the zero-sync task-DAG bound above.
+    executed_edges = {s: set(ps) for s, ps in incoming.items()}
+    for queue in queues.values():
+        ordered = sorted(queue, key=lambda s: (rows[s]['run_begin'], rows[s]['run_end'], s))
+        for p, s in zip(ordered, ordered[1:]):
+            executed_edges[s].add(p)
+    def elapsed(p, s):
+        delay = rows[s]['run_begin'] - rows[p]['run_end']
+        if delay < 0:
+            raise ValueError(f'task dependency overlaps: {p}->{s}, {delay} ns')
+        return delay
+    reconstructed, realized_path = graph_longest(rows, executed_edges, run, elapsed)
+    split = dict(task=0, wait=0, prerun_barrier=0, publish=0, gap=0)
+    for s in realized_path:
+        split['task'] += run(s)
+    for p, s in zip(realized_path, realized_path[1:]):
+        # Partition only the interval AFTER the predecessor completes. Summing
+        # every consumer's entire wait double-counts concurrent waiting CTAs.
+        cursor, end = rows[p]['run_end'], rows[s]['run_begin']
+        for name, lo, hi in (
+            ('publish', cursor, rows[p]['publish_end']),
+            ('wait', rows[s]['wait_begin'], rows[s]['ready']),
+            ('prerun_barrier', rows[s]['ready'], end),
+        ):
+            a, b = max(cursor, lo), min(end, hi)
+            if b > a:
+                split['gap'] += a - cursor
+                split[name] += b - a
+                cursor = b
+        split['gap'] += end - cursor
+    tail = rows[realized_path[-1]]['publish_end'] - rows[realized_path[-1]]['run_end']
+    split['publish'] += tail
+    reconstructed += tail
+    if min(split.values()) < 0 or sum(split.values()) != reconstructed:
+        raise ValueError('causal interval partition is not closed')
+    out = dict(legacy)
+    out.update({k + '_legacy': v for k, v in legacy.items()})
+    out.update(corrected_status='available', task_dag_source=str(source),
+               task_dag_source_sha256=hashlib.sha256(Path(source).read_bytes()).hexdigest(),
+               window=window, cp_corrected_ns=cp, cp_corrected_ms=cp / 1e6,
+               cp_lb_nosync_ns=cp, cp_lb_nosync_ms=cp / 1e6,
+               cp_lb_sync_ns=sync_cp, cp_lb_sync_ms=sync_cp / 1e6,
+               cp_corrected_nodes=len(path), cp_corrected_task_ns=sum(run(s) for s in path),
+               cp_plan_nosync_ns=plan_cp,
+               cp_corrected_path=','.join(f'{rows[s]["stage"]}:{rows[s]["logical_task"]}' for s in path),
+               dag_same_worker_edges=sum(rows[p]['worker'] == rows[s]['worker'] for s in incoming for p in incoming[s]),
+               dag_cross_worker_edges=sum(rows[p]['worker'] != rows[s]['worker'] for s in incoming for p in incoming[s]),
+               cp_reconstructed_ns=reconstructed, cp_reconstructed_ms=reconstructed / 1e6,
+               cp_nodes=len(realized_path), cp_chain_span_ns=reconstructed)
+    out.update({'cp_split_' + k + '_ns': v for k, v in split.items()})
+    out['cp_error_vs_l2_ms'] = abs(reconstructed / 1e6 - float(meta['l2_ms'])) / float(meta['l2_ms'])
+    out['cp_with_publish_ns'] = reconstructed
+    out['cp_with_publish_ms'] = reconstructed / 1e6
+    out['cp_with_publish_error'] = out['cp_error_vs_l2_ms']
+    edges = out['dag_same_worker_edges'] + out['dag_cross_worker_edges']
+    out['dag_cross_worker_fraction'] = out['dag_cross_worker_edges'] / edges if edges else 0
+    # DAG-ready instants include dependencies whose polls were lifted away.
+    # Count actual head stalls once per worker, only when an eligible later
+    # slot is dependency-ready; for W>1 this is not a FIFO-only estimate.
+    start = min(r['wait_begin'] for r in slots)
+    hol = 0
+    hol_workers = []
+    for queue in queues.values():
+        worker_hol = 0
+        actual = sorted(queue, key=lambda s: (rows[s]['run_begin'], rows[s]['run_end'], s))
+        done, previous = set(), start
+        for s in actual:
+            lo, hi = max(previous, rows[s]['wait_begin']), rows[s]['ready']
+            head = next((j for j, t in enumerate(queue) if t not in done), len(queue))
+            # Reclaimability asks whether opening the queue could expose work;
+            # report all remaining slots, as the legacy HOL definition does.
+            alternatives = [t for t in queue[head:] if t not in done and t != s]
+            ready_at = [max([rows[p]['run_end'] for p in incoming[t]] or [start]) for t in alternatives]
+            if ready_at:
+                worker_hol += max(0, hi - max(lo, min(ready_at)))
+            done.add(s)
+            previous = rows[s]['publish_end']
+        hol_workers.append(worker_hol)
+        hol += worker_hol
+    out['hol_reclaimable_ns'] = hol
+    out['hol_fraction_of_kernel'] = hol / (out['kernel_span_ns'] * len(queues))
+    out['hol_worker_p50_ns'] = percentile(hol_workers, .5)
+    out['hol_worker_p90_ns'] = percentile(hol_workers, .9)
+    out['hol_worker_max_ns'] = max(hol_workers)
+    out['hol_workers_nonzero'] = sum(v > 0 for v in hol_workers)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("dumps", nargs="+", help="trace v2 dump directories")
     ap.add_argument("--out", required=True, help="output directory")
+    ap.add_argument("--source", help="generated source containing the unsimplified runtime DAG")
+    ap.add_argument("--window", type=int, choices=(1, 2, 4))
+    ap.add_argument("--variant", type=int, default=0)
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
 
-    rows = [analyze(d) for d in args.dumps]
+    rows = [analyze(d, args.source, args.window, args.variant) for d in args.dumps]
     keys = list(rows[0].keys())
     with open(os.path.join(args.out, "analysis.tsv"), "w") as f:
         f.write("cell\t" + "\t".join(keys) + "\n")
@@ -326,6 +518,18 @@ def main():
         f.write("# EX-D1 §3.6 reconstruction\n\n")
         f.write("Generated by `analyze.py`; every number is a measurement from the\n")
         f.write("dump named in the first column of `analysis.tsv`.\n\n")
+        if args.source:
+            f.write("R4 mode: runtime-DAG dependencies retain same-worker edges. "
+                    "The reconstruction partitions non-overlapping causal intervals; "
+                    "all R1 metrics remain in the TSV with `_legacy` suffixes.\n\n")
+            f.write("| dump | legacy zero-sync bound (ms) | corrected (ms) | DAG nodes |\n")
+            f.write("|---|---:|---:|---:|\n")
+            for d, r in zip(args.dumps, rows):
+                f.write(f"| {d} | {r['cp_lb_nosync_ms_legacy']:.6f} | "
+                        f"{r['cp_corrected_ms']:.6f} | {r['cp_corrected_nodes']} |\n")
+        else:
+            f.write("Legacy-only mode: no unsimplified runtime DAG was supplied. "
+                    "These results do not establish the R4 corrected gates.\n\n")
         f.write("`ready` is stamped after `WaitTaskDependencies` returns and therefore\n")
         f.write("includes that function's own `__syncthreads()` and `__threadfence()`.\n")
         f.write("The globaltimer tick is 1024 ns, so a single hop is quantized to that\n")
