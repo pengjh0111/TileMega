@@ -330,6 +330,9 @@ static_assert(alignof(EventCounter) == 128, "event cache-line alignment");
 #ifndef TILEMEGA_RELEASE_AFTER_BARRIER
 #define TILEMEGA_RELEASE_AFTER_BARRIER 0
 #endif
+#ifndef TILEMEGA_ASYNC_PUBLISH
+#define TILEMEGA_ASYNC_PUBLISH 0
+#endif
 static_assert(!TILEMEGA_EVENT_RELEASE_STORE,
               "T1.4 disabled pending a complete multi-level release proof");
 static_assert(!TILEMEGA_EVENT_CLUSTER_FANIN || TILEMEGA_EVENT_SHARDED,
@@ -345,6 +348,9 @@ static_assert(!TILEMEGA_EVENT_CLUSTER_FANIN || TILEMEGA_EVENT_SHARDED,
 #ifndef TILEMEGA_BARRIER_V2
 #define TILEMEGA_BARRIER_V2 0
 #endif
+static_assert(!TILEMEGA_ASYNC_PUBLISH ||
+                  (TILEMEGA_RELEASE_AFTER_BARRIER && TILEMEGA_BARRIER_V2),
+              "async publication requires the single release and next-wait convergence");
 
 // EX-E3 step 2: an event whose producer is a single CTA needs no arrival
 // count -- that CTA is by construction the last arriver, so the atomic only

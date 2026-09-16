@@ -758,6 +758,31 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
   __threadfence();
 #endif
   __syncthreads();
+#if TILEMEGA_ASYNC_PUBLISH
+  if (threadIdx.x < 32) {
+#if !TILEMEGA_UNSAFE_NO_NOTIFY_FENCE
+    if (threadIdx.x == 0) __threadfence();
+#endif
+    // Transfer the release to both publishing lanes. Other warps may enter
+    // the next wait, whose CTA barrier still precedes every RunTask.
+    __syncwarp();
+    bool const fine = threadIdx.x == 0;
+    std::uint32_t const lane_flag = fine ? kNeedsFineEvents : kNeedsAggregateEvent;
+    if (threadIdx.x < 2 && (event_flags & lane_flag)) {
+      int const produced = ActiveBlocks(p, p.stages[producer]);
+      std::uint32_t group = kWholeStageEventGroup;
+      int members = produced;
+#if TILEMEGA_EVENT_KAPPA > 0
+      if (fine) {
+        group = logical_task / TILEMEGA_EVENT_KAPPA;
+        int const remaining = produced - static_cast<int>(group) * TILEMEGA_EVENT_KAPPA;
+        members = remaining < TILEMEGA_EVENT_KAPPA ? remaining : TILEMEGA_EVENT_KAPPA;
+      }
+#endif
+      ArriveEvent(p, events, EventIndex(p, producer, group), members, iteration);
+    }
+  }
+#else
   if (threadIdx.x == 0) {
 #if TILEMEGA_RELEASE_AFTER_BARRIER && !TILEMEGA_UNSAFE_NO_NOTIFY_FENCE
     // SYNC_V3/litmus_v3: both visibility and delayed-writer controls are
@@ -785,6 +810,7 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
                   produced, iteration);
     }
   }
+#endif
 #if !TILEMEGA_BARRIER_V2
   // Dropped by v2: thread 0 reads only global memory here, so no other thread
   // can race it, and the next task's wait barrier bounds how far they may run
