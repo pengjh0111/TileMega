@@ -1,0 +1,1 @@
+{"command": ["/root/TileMega/docs/experiments/PHASE/raw/bin/mha4_p5_off", "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/mha4_s128_p3"], "environment": {}, "exit_code": 0, "session": "1789550945703362496", "round": 11, "order": 1, "time_ns": 1789551101675426288, "binary_sha256": "10635ca60b858faaa33d8a242214b478461567c7c804db1fafe17107599b2e4b"}

@@ -1,0 +1,1 @@
+{"command": ["/root/TileMega/docs/experiments/PHASE/raw/bin/gqa2_p5_off", "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/gqa2_s128_p3"], "environment": {}, "exit_code": 0, "session": "1789550945703362496", "round": 23, "order": 1, "time_ns": 1789551018705271920, "binary_sha256": "bb00a5f9fd7cfd73353e58dd56952debcbadf5f11562e9fb1bb0acc76a4a8651"}
