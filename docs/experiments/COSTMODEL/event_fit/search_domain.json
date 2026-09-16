@@ -1,0 +1,37 @@
+{
+  "scope": "R6 reduced search: measured backend geometries only; splits 1,2,4,8,16,32 and kappa 1,2,4 remain solver decisions",
+  "source": "docs/experiments/COSTMODEL/body_fit/observations.tsv",
+  "source_sha256": "48b11af6c8c7eaa7f92aa9c7d87983bb97f8309397669b1a18c77b6a71ffe030",
+  "geometries": [
+    {
+      "tile_m": 32,
+      "tile_n": 16,
+      "tile_k": 16,
+      "stages": 2
+    },
+    {
+      "tile_m": 32,
+      "tile_n": 16,
+      "tile_k": 32,
+      "stages": 2
+    },
+    {
+      "tile_m": 32,
+      "tile_n": 16,
+      "tile_k": 64,
+      "stages": 2
+    },
+    {
+      "tile_m": 64,
+      "tile_n": 128,
+      "tile_k": 16,
+      "stages": 2
+    },
+    {
+      "tile_m": 128,
+      "tile_n": 128,
+      "tile_k": 16,
+      "stages": 3
+    }
+  ]
+}

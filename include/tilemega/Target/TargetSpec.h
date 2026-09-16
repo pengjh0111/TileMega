@@ -44,6 +44,9 @@ struct TargetSpec {
   struct EventCalibration {
     EventRate notify, poll, fence;
     EventRate notify_stage, notify_longest_worker, poll_stage, poll_longest_worker;
+    // Per-task causal model; separate from stage/work regression coefficients.
+    EventRate task_publication, task_wait;
+    std::string task_source, task_source_sha256;
     std::string source;
     std::string source_sha256, method;
   };

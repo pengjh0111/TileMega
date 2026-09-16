@@ -27,6 +27,15 @@ int main(int argc,char** argv) try {
   if (!same(a.fixed,b.fixed) || !same(a.loop_body,b.loop_body) || !same(a.loop_wait,b.loop_wait) ||
       !same(a.loop_fixed,b.loop_fixed) || a.samples!=b.samples || a.source!=b.source)
     throw std::runtime_error("TaskBody calibration JSON round trip changed");
+  auto const& events=target.event_bf16;auto const& again=roundtrip.event_bf16;
+  for (auto rates:{std::make_pair(events.task_publication,again.task_publication),
+                  std::make_pair(events.task_wait,again.task_wait)}) {
+    if (rates.first.ns.has_value()!=rates.second.ns.has_value() ||
+        (rates.first.ns && std::abs(*rates.first.ns-*rates.second.ns)>1e-9*std::max(1.,*rates.first.ns)) ||
+        rates.first.unit!=rates.second.unit) throw std::runtime_error("task event rate round trip changed");
+  }
+  if (events.task_source!=again.task_source || events.task_source_sha256!=again.task_source_sha256)
+    throw std::runtime_error("task event provenance changed");
   using namespace tilemega::solver;
   CostModel cost(target,model.dtype);std::vector<DpCandidate> candidates;
   // Resource admission is deliberately restricted to two CTAs for this CPU

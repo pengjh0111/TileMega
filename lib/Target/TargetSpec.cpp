@@ -315,6 +315,16 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
       if (record->Find("notify_longest_worker")) rate("notify_longest_worker",out.notify_longest_worker);
       if (record->Find("poll_stage")) rate("poll_stage",out.poll_stage);
       if (record->Find("poll_longest_worker")) rate("poll_longest_worker",out.poll_longest_worker);
+      if (record->Find("task_publication")) {
+        rate("task_publication",out.task_publication);rate("task_wait",out.task_wait);
+        out.task_source=record->At("task_source").AsString("task event source");
+        out.task_source_sha256=record->At("task_source_sha256").AsString("task event source hash");
+        if (out.task_source.empty() || out.task_source_sha256.empty())
+          throw std::invalid_argument("task event rates require raw calibration provenance");
+        if ((out.task_publication.ns && out.task_publication.unit!="ns/publishing_runtime_task") ||
+            (out.task_wait.ns && out.task_wait.unit!="ns/waiting_runtime_task"))
+          throw std::invalid_argument("task event calibration uses an incompatible unit");
+      }
     };
     parse("bf16", spec.event_bf16); parse("f32", spec.event_f32);
   }
@@ -408,13 +418,18 @@ std::string TargetSpec::ToJson() const {
       return json::Value(json::Object{{"ns", r.ns ? json::Value(*r.ns) : json::Value()},
                                      {"reason", r.reason}, {"unit", r.unit}});
     };
-    return json::Value(json::Object{{"source", e.source}, {"source_sha256", e.source_sha256},
+    auto result=json::Value(json::Object{{"source", e.source}, {"source_sha256", e.source_sha256},
                                     {"method", e.method}, {"notify", rate(e.notify)},
                                     {"poll", rate(e.poll)}, {"fence", rate(e.fence)},
                                     {"notify_stage",rate(e.notify_stage)},
                                     {"notify_longest_worker",rate(e.notify_longest_worker)},
                                     {"poll_stage",rate(e.poll_stage)},
                                     {"poll_longest_worker",rate(e.poll_longest_worker)}});
+    if (e.task_publication.ns || e.task_wait.ns) {
+      result.Set("task_publication",rate(e.task_publication));result.Set("task_wait",rate(e.task_wait));
+      result.Set("task_source",e.task_source);result.Set("task_source_sha256",e.task_source_sha256);
+    }
+    return result;
   };
   root.Set("event_calibration_by_dtype", json::Object{
       {"bf16", event_json(event_bf16)}, {"f32", event_json(event_f32)}});

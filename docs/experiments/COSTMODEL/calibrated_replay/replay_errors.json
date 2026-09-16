@@ -1,0 +1,7 @@
+{
+  "points": 68,
+  "p50": 0.04539963931735,
+  "p90": 0.111969670612,
+  "max": 0.138277099034,
+  "scope": "Fresh CPU replay of existing R3/R4 dump task durations and actual queues; not a fresh GPU speedup"
+}

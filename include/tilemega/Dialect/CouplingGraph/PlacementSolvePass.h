@@ -150,6 +150,11 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
     for (std::size_t s=0;s<projection.stages.size();++s)
       if (projection.stages[s].logical_stage==int(entry.stage)) request.stage_order.push_back(std::uint32_t(s));
   SimulatorOptions sim;sim.observed_task_times=true;sim.flat_hop=true;
+  auto const& rates=options.target.EventCalibrationFor(model.dtype==ScalarType::kBF16 ? "bf16" : "f32");
+  sim.publication_ns=rates.task_publication.ns.value_or(0.0);
+  sim.consumer_wait_ns=rates.task_wait.ns.value_or(0.0);
+  module->setAttr("tilemega.event_cost_calibrated",mlir::BoolAttr::get(module.getContext(),
+      rates.task_publication.ns.has_value() && rates.task_wait.ns.has_value()));
   // Group readiness depends on the selected queue: singleton polls can be
   // elided only after ownership is known. Validate every inner candidate.
   auto price_events=[&](MaterializedPlan const& plan,codegen::RuntimeTaskGraph& grouped,

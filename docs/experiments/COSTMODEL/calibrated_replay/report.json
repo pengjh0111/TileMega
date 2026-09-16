@@ -1,0 +1,28 @@
+{
+  "points": 18,
+  "scope": "18-point historical raw calibration validation; fresh CPU evaluations, not fresh GPU speedup",
+  "C-b": {
+    "spearman": 0.8844169246646026,
+    "threshold": 0.880288958,
+    "pass": true
+  },
+  "C-c": {
+    "spearman": 0.7667698658410733,
+    "threshold": 0.85,
+    "pass": false
+  },
+  "reference": {
+    "prepare_us": 145561.384,
+    "coarse_us": 1148.798,
+    "full_us": 2480.201,
+    "budget_us": 1000,
+    "pass": false
+  },
+  "real": {
+    "prepare_us": 242049.983,
+    "coarse_us": 1306.672,
+    "full_us": 2873.3,
+    "budget_us": 10000,
+    "pass": true
+  }
+}

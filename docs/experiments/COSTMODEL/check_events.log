@@ -1,0 +1,3 @@
+CALIBRATED_DP feasible=1 decomposition_error_ns=1.45519e-11
+CALIBRATION_ROUNDTRIP PASS samples=43168
+CHAIN_DP_EVALUATE PASS error_ns=1.45519e-11 selected_k=64 total_ns=124682
