@@ -1,0 +1,98 @@
+[
+  {
+    "configuration": "c2",
+    "phase": "correctness",
+    "command": [
+      "python3",
+      "/root/TileMega/docs/experiments/FENCE/run.py",
+      "correctness",
+      "--raw",
+      "/root/TileMega/docs/experiments/SYNC_V3/c2"
+    ],
+    "exit_code": 0
+  },
+  {
+    "configuration": "c2",
+    "phase": "seqscan",
+    "command": [
+      "python3",
+      "/root/TileMega/docs/experiments/FENCE/run.py",
+      "seqscan",
+      "--raw",
+      "/root/TileMega/docs/experiments/SYNC_V3/c2"
+    ],
+    "exit_code": 0
+  },
+  {
+    "configuration": "c2_dependency",
+    "phase": "correctness",
+    "command": [
+      "python3",
+      "/root/TileMega/docs/experiments/FENCE/run.py",
+      "correctness",
+      "--raw",
+      "/root/TileMega/docs/experiments/SYNC_V3/c2_dependency"
+    ],
+    "exit_code": 0
+  },
+  {
+    "configuration": "local2",
+    "phase": "correctness",
+    "command": [
+      "python3",
+      "/root/TileMega/docs/experiments/FENCE/run.py",
+      "correctness",
+      "--raw",
+      "/root/TileMega/docs/experiments/SYNC_V3/local2"
+    ],
+    "exit_code": 0
+  },
+  {
+    "configuration": "local4",
+    "phase": "correctness",
+    "command": [
+      "python3",
+      "/root/TileMega/docs/experiments/FENCE/run.py",
+      "correctness",
+      "--raw",
+      "/root/TileMega/docs/experiments/SYNC_V3/local4"
+    ],
+    "exit_code": 0
+  },
+  {
+    "configuration": "window2",
+    "phase": "correctness",
+    "command": [
+      "python3",
+      "/root/TileMega/docs/experiments/FENCE/run.py",
+      "correctness",
+      "--raw",
+      "/root/TileMega/docs/experiments/SYNC_V3/window2"
+    ],
+    "exit_code": 0
+  },
+  {
+    "configuration": "window4",
+    "phase": "correctness",
+    "command": [
+      "python3",
+      "/root/TileMega/docs/experiments/FENCE/run.py",
+      "correctness",
+      "--raw",
+      "/root/TileMega/docs/experiments/SYNC_V3/window4"
+    ],
+    "exit_code": 0
+  },
+  {
+    "configuration": "sharded_red",
+    "phase": "correctness",
+    "command": [
+      "python3",
+      "/root/TileMega/docs/experiments/FENCE/run.py",
+      "correctness",
+      "--raw",
+      "/root/TileMega/docs/experiments/SYNC_V3/sharded_red"
+    ],
+    "exit_code": 0
+  }
+]

@@ -28,23 +28,23 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def jobs():
+def jobs(arms=ARMS, placements=(0, 5)):
     for model in ('gqa2', 'mha4'):
-        for placement in (0, 5):
-            for arm in ARMS:
+        for placement in placements:
+            for arm in arms:
                 yield model, placement, arm
 
 
-def build(job, raw, extra, arch='sm_89', window=1):
+def build(job, raw, extra, arch='sm_89', window=1, kappa=1, source_override=None):
     model, placement, arm = job
     key = f'{model}_p{placement}_{arm}'
-    source = REPO / f'docs/experiments/PLAN_CONTRACT/legacy_identity/plan/{model}.cu'
+    source = source_override or REPO / f'docs/experiments/PLAN_CONTRACT/legacy_identity/plan/{model}.cu'
     if window > 1:
         source = raw / 'src' / f'{model}_w{window}.cu'
     policy = shlex.split(subprocess.check_output([str(REPO / 'build-portable/tools/tilemega-wait-policy'),
                          arch, 'bf16', str(REPO)], text=True, stderr=subprocess.DEVNULL))
     cmd = ['/usr/local/cuda/bin/nvcc', '-std=c++17', '-O2', f'-arch={arch}', '-lineinfo',
-           '-DTILEMEGA_EVENT_KAPPA=1', '-DTILEMEGA_BARRIER_V2=1', '-DTILEMEGA_EVENT_SOLO=1',
+           f'-DTILEMEGA_EVENT_KAPPA={kappa}', '-DTILEMEGA_BARRIER_V2=1', '-DTILEMEGA_EVENT_SOLO=1',
            '-DTILEMEGA_EVENT_RED_PUBLISH=1', *policy, f'-DTILEMEGA_PLACEMENT={placement}',
            f'-DTILEMEGA_SLOT_WINDOW={window}', *extra, *FLAGS[arm],
            *[f'-I{REPO / p}' for p in ('include', 'third_party/cutlass/include',
@@ -124,6 +124,31 @@ def correctness(raw, subset=False):
                 raise ValueError(f'{folder}: correctness gate failed')
 
 
+def sass(raw):
+    out = raw / 'sass'
+    out.mkdir(exist_ok=True)
+    rows = []
+    for model in ('gqa2', 'mha4'):
+        for placement in (0, 5):
+            key = f'{model}_p{placement}_full'
+            binary = raw / 'bin' / key
+            with (out / f'{key}.sass').open('w') as f:
+                subprocess.run(['/usr/local/cuda-12.8/bin/cuobjdump', '--dump-sass', str(binary)], stdout=f, check=True)
+            with (out / f'{key}.report.txt').open('w') as f:
+                subprocess.run(['bash', str(REPO / 'scripts/sass_report.sh'), str(binary)], stdout=f, check=True)
+            for chunk in (out / f'{key}.sass').read_text().split('Function : ')[1:]:
+                name = chunk.splitlines()[0].strip()
+                if 'tilemega_l2_kernel' in name:
+                    rows.append(dict(model=model, placement=placement, kernel=name,
+                        membar_sc_gpu=len(re.findall(r'\bMEMBAR\.SC\.GPU', chunk)),
+                        membar=len(re.findall(r'\bMEMBAR', chunk)),
+                        bar_sync=len(re.findall(r'\bBAR\.SYNC', chunk)), binary_sha256=sha(binary)))
+    with (out / 'census.tsv').open('w') as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0]), delimiter='\t', lineterminator='\n')
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def interval(values):
     rng = random.Random(167)
     boot = sorted(statistics.median(rng.choices(values, k=len(values))) for _ in range(10000))
@@ -164,12 +189,15 @@ def summarize(raw):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('phase', choices=('build', 'measure', 'summarize', 'correctness', 'seqscan'))
+    parser.add_argument('phase', choices=('build', 'measure', 'summarize', 'correctness', 'seqscan', 'sass'))
     parser.add_argument('--raw', type=Path, default=HERE / 'raw')
     parser.add_argument('--extra-flags', default='')
     parser.add_argument('--jobs', type=int, default=3)
     parser.add_argument('--arch', choices=('sm_89', 'sm_120'), default='sm_89')
     parser.add_argument('--window', type=int, choices=(1, 2, 4), default=1)
+    parser.add_argument('--kappa', type=int, default=1)
+    parser.add_argument('--arms', nargs='+', choices=ARMS, default=ARMS)
+    parser.add_argument('--placements', nargs='+', type=int, choices=(0, 5), default=(0, 5))
     args = parser.parse_args()
     inherited = [k for k in os.environ if k.startswith('TILEMEGA_')]
     if inherited:
@@ -189,11 +217,14 @@ def main():
                     str(REPO / f'docs/experiments/PLAN_CONTRACT/legacy_identity/plan/{model}.cu'),
                     str(args.window), str(raw / 'src' / f'{model}_w{args.window}.cu')], check=True)
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
-            list(pool.map(lambda job: build(job, raw, shlex.split(args.extra_flags), args.arch, args.window), jobs()))
+            list(pool.map(lambda job: build(job, raw, shlex.split(args.extra_flags), args.arch, args.window,
+                                           args.kappa), jobs(args.arms, args.placements)))
     elif args.phase == 'measure':
         measure(raw)
     elif args.phase in ('correctness', 'seqscan'):
         correctness(raw, args.phase == 'seqscan')
+    elif args.phase == 'sass':
+        sass(raw)
     else:
         summarize(raw)
 

@@ -1,0 +1,30 @@
+[
+  {
+    "model": "gqa2",
+    "placement": 0,
+    "identical": true,
+    "bytes": 6800762,
+    "sha256": "437a75b4670cdfe587b805cf4659371f5f098bc6b05d658da61c85d85587f948"
+  },
+  {
+    "model": "gqa2",
+    "placement": 5,
+    "identical": true,
+    "bytes": 6800762,
+    "sha256": "437a75b4670cdfe587b805cf4659371f5f098bc6b05d658da61c85d85587f948"
+  },
+  {
+    "model": "mha4",
+    "placement": 0,
+    "identical": true,
+    "bytes": 6800762,
+    "sha256": "8ebd6babca79812568d56f17e39c137c8703640dc82e34c1fbaf75027d95ef9a"
+  },
+  {
+    "model": "mha4",
+    "placement": 5,
+    "identical": true,
+    "bytes": 6800762,
+    "sha256": "8ebd6babca79812568d56f17e39c137c8703640dc82e34c1fbaf75027d95ef9a"
+  }
+]

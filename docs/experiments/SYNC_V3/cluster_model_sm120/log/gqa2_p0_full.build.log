@@ -1,0 +1,4 @@
+In file included from /root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/gqa2.cu:18:
+/root/TileMega/include/tilemega/Codegen/tasks/ModelHarness.cuh:375:2: error: #error "the RED publish has no shard-level target to combine"
+  375 | #error "the RED publish has no shard-level target to combine"
+      |  ^~~~~

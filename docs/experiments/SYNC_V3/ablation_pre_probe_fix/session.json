@@ -1,0 +1,14 @@
+{
+  "session": "1789527117775456286",
+  "manifest_sha256": "89becd1598adab43b9aa560a3f05e818de6827dfd72ab31cb254f97e0514094c",
+  "configurations": {
+    "baseline": "docs/experiments/FENCE/raw",
+    "c1": "docs/experiments/SYNC_V3/c1",
+    "c2": "docs/experiments/SYNC_V3/c2",
+    "window2": "docs/experiments/SYNC_V3/window2",
+    "local2": "docs/experiments/SYNC_V3/local2",
+    "window4": "docs/experiments/SYNC_V3/window4",
+    "local4": "docs/experiments/SYNC_V3/local4"
+  },
+  "rounds": 25
+}

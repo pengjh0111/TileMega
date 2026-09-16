@@ -1,0 +1,10 @@
+{
+  "recorded_after_build": true,
+  "explanation": "The runtime snapshot used by the repaired unsafe builds is byte-identical to the committed probe repair; compile sidecars retain the pre-commit HEAD and executable digests without being rewritten.",
+  "runtime_commit": "b8d66aa9ac7d8afd5e27a237b25e2f61872a0d34",
+  "inputs": {
+    "include/tilemega/Codegen/tasks/ModelHarness.cuh": "a31bb43842a8123bc894a19c5f140e1488e4e0ac139d1bf2e2c96a527ffddfbe",
+    "include/tilemega/Codegen/tasks/ModelRuntime.h": "2b731bd3bb5bb8f801f22a0f4d873b12588b1a560679a507aabb3fc6f17acf84",
+    "include/tilemega/Codegen/tasks/ClusterSync.cuh": "e227bfc907c8e8ecd24d448793132690f1fb1cc3714ca100c763366d78b06d11"
+  }
+}

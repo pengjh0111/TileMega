@@ -1,0 +1,4 @@
+{
+  "reason": "UNSAFE_NO_EVENT_WAIT did not bypass ProbeTaskDependencies at W>1; partial matrix is diagnostic only, all final configurations will be remeasured together.",
+  "time_ns": 1789527697754784426
+}
