@@ -617,6 +617,12 @@ __device__ inline bool ProbeTaskDependencies(Params const& p,
                                              EventCounter* events,
                                              TaskRef const& task,
                                              unsigned long long iteration) {
+#if TILEMEGA_UNSAFE_NO_EVENT_WAIT
+  // The timing probe removes window look-ahead event reads too. Otherwise
+  // nowait/neither would retain polling work whenever W > 1.
+  (void)p; (void)events; (void)task; (void)iteration;
+  return true;
+#endif
   int mine = 1;
   for (std::uint32_t i = threadIdx.x; i < task.wait_count; i += blockDim.x) {
     TaskWait const& wait = p.task_waits[task.wait_begin + i];
