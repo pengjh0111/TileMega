@@ -97,3 +97,44 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
                        SimulatorResult* out, std::string* error);
 
 }  // namespace tilemega::solver
+
+namespace tilemega::solver {
+
+/// Immutable task costs and semantic-DAG bounds shared by placement candidates.
+/// Preparation walks the DAG once; its time is reported separately from a
+/// placement evaluation. Queue edges are deliberately not semantic edges.
+struct PreparedPlanBounds {
+  std::vector<int> stage_offsets;
+  std::vector<double> task_ns;
+  double work_ns = 0;
+  double critical_path_ns = 0;
+};
+struct PlanBounds {
+  double work_lb_ns = 0;
+  double queue_lb_ns = 0;
+  double critical_path_ns = 0;
+  double lower_bound_ns = 0;
+};
+struct RankedPlan {
+  std::size_t index = 0;
+  PlanBounds bounds;
+  bool simulated = false;
+  double makespan_ns = 0;
+};
+
+bool PreparePlanBounds(SimulatorInput const& input, PreparedPlanBounds* out,
+                       std::string* error);
+bool EvaluatePlanBounds(PreparedPlanBounds const& input,
+                        MaterializedPlan const& plan, PlanBounds* out,
+                        std::string* error);
+/// Coarse sort by max(work, DAG, queue). Boundary ties remain eligible, since
+/// a zero-synchronization bound cannot distinguish tied placements. Only the
+/// eligible top-k set is fully simulated; a measured rank is never invented
+/// for an unmeasured candidate. The caller retains normal Plan legality checks.
+bool RankPlans(SimulatorInput const& input, PreparedPlanBounds const& prepared,
+               std::vector<MaterializedPlan const*> const& plans,
+               SimulatorOptions const& options, HopCurve const& hop,
+               std::size_t top_k, std::vector<RankedPlan>* out,
+               std::string* error);
+
+}  // namespace tilemega::solver

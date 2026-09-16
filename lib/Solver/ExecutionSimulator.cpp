@@ -321,3 +321,119 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
 }
 
 }  // namespace tilemega::solver
+
+namespace tilemega::solver {
+
+bool PreparePlanBounds(SimulatorInput const& input, PreparedPlanBounds* out,
+                       std::string* error) {
+  auto fail = [&](char const* message) {
+    if (error) *error = message;
+    return false;
+  };
+  if (!input.graph || input.graph->stage_offsets.empty())
+    return fail("bounds require a runtime graph");
+  auto const& graph = *input.graph;
+  int const nodes = graph.stage_offsets.back();
+  if (nodes < 0 || input.task_ns.size() != std::size_t(nodes) ||
+      graph.successors.size() != std::size_t(nodes))
+    return fail("bounds graph/cost size mismatch");
+  std::vector<int> degree(nodes, 0), ready;
+  for (auto const& row : graph.successors)
+    for (int next : row) {
+      if (next < 0 || next >= nodes) return fail("bounds invalid successor");
+      ++degree[next];
+    }
+  std::vector<double> end(nodes, 0);
+  double work = 0, cp = 0;
+  for (int n = 0; n < nodes; ++n) {
+    if (!std::isfinite(input.task_ns[n]) || input.task_ns[n] < 0)
+      return fail("bounds require finite nonnegative node costs");
+    work += input.task_ns[n];
+    if (!degree[n]) ready.push_back(n);
+  }
+  std::size_t visited = 0;
+  while (visited < ready.size()) {
+    int const node = ready[visited++];
+    end[node] += input.task_ns[node];
+    cp = std::max(cp, end[node]);
+    for (int next : graph.successors[node]) {
+      end[next] = std::max(end[next], end[node]);
+      if (--degree[next] == 0) ready.push_back(next);
+    }
+  }
+  if (visited != std::size_t(nodes)) return fail("bounds task graph is cyclic");
+  *out = {graph.stage_offsets, input.task_ns, work, cp};
+  return true;
+}
+
+bool EvaluatePlanBounds(PreparedPlanBounds const& input,
+                        MaterializedPlan const& plan, PlanBounds* out,
+                        std::string* error) {
+  auto fail = [&](char const* message) {
+    if (error) *error = message;
+    return false;
+  };
+  if (plan.queue.empty()) return fail("bounds plan has no workers");
+  std::vector<unsigned char> seen(input.task_ns.size(), 0);
+  double queue = 0;
+  std::size_t count = 0;
+  for (auto const& worker : plan.queue) {
+    double work = 0;
+    for (auto const& item : worker) {
+      if (item.stage + 1 >= input.stage_offsets.size() || item.logical < 0)
+        return fail("bounds invalid stage/task");
+      int const node = input.stage_offsets[item.stage] + item.logical;
+      if (node >= input.stage_offsets[item.stage + 1] || seen[node]++)
+        return fail("bounds task outside stage or duplicated");
+      work += input.task_ns[node];
+      ++count;
+    }
+    queue = std::max(queue, work);
+  }
+  if (count != input.task_ns.size()) return fail("bounds plan omits tasks");
+  out->work_lb_ns = input.work_ns / plan.queue.size();
+  out->queue_lb_ns = queue;
+  out->critical_path_ns = input.critical_path_ns;
+  out->lower_bound_ns = std::max({out->work_lb_ns, queue, input.critical_path_ns});
+  return true;
+}
+
+bool RankPlans(SimulatorInput const& input, PreparedPlanBounds const& prepared,
+               std::vector<MaterializedPlan const*> const& plans,
+               SimulatorOptions const& options, HopCurve const& hop,
+               std::size_t top_k, std::vector<RankedPlan>* out,
+               std::string* error) {
+  if (!top_k || plans.empty() || prepared.task_ns != input.task_ns ||
+      !input.graph || prepared.stage_offsets != input.graph->stage_offsets) {
+    if (error) *error = "invalid or stale hierarchical ranking input";
+    return false;
+  }
+  out->clear();
+  for (std::size_t i = 0; i < plans.size(); ++i) {
+    RankedPlan item;
+    item.index = i;
+    if (!plans[i] || !EvaluatePlanBounds(prepared, *plans[i], &item.bounds, error))
+      return false;
+    item.makespan_ns = item.bounds.lower_bound_ns;
+    out->push_back(item);
+  }
+  std::stable_sort(out->begin(), out->end(), [](auto const& a, auto const& b) {
+    return a.bounds.lower_bound_ns < b.bounds.lower_bound_ns;
+  });
+  double const cutoff = (*out)[std::min(top_k, out->size()) - 1].bounds.lower_bound_ns;
+  for (auto& item : *out) {
+    if (item.bounds.lower_bound_ns > cutoff) break;
+    SimulatorResult result;
+    if (!SimulateExecution(input, *plans[item.index], options, hop, &result, error))
+      return false;
+    item.simulated = true;
+    item.makespan_ns = result.makespan_ns;
+  }
+  std::stable_sort(out->begin(), out->end(), [](auto const& a, auto const& b) {
+    if (a.simulated != b.simulated) return a.simulated > b.simulated;
+    return a.makespan_ns < b.makespan_ns;
+  });
+  return true;
+}
+
+}  // namespace tilemega::solver

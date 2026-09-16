@@ -1,0 +1,18 @@
+{
+  "head": "b02e5a903cf2c2020bf8be710f38ba7b2a37c24b",
+  "time_ns": 1789550879037354162,
+  "command": [
+    "/tmp/r5-evaluate",
+    "/root/TileMega",
+    "/root/TileMega/docs/experiments/SIMULATOR/r5"
+  ],
+  "inputs": {
+    "docs/experiments/SIMULATOR/r5/evaluate.cpp": "2afcd9d413585d21b65c526d7889e5050d5ab85e1fc85f181847020c36f373d3",
+    "include/tilemega/Solver/ExecutionSimulator.h": "df403cfb642eeff42d894360195e45354f7c834365a3e3d4d80012ee99c16e33",
+    "lib/Solver/ExecutionSimulator.cpp": "da40be31a0fbf653f15bcce6b48d521c123e5ecfd5d6d865bee7c385166ea44e",
+    "docs/experiments/SIMULATOR/raw/manifest.tsv": "ab0ede5e9cd105fd697578cd15568787e47bdfd428680f5cfdeff8fcd9a339fb",
+    "docs/experiments/SIMULATOR/raw/stage_price.tsv": "96a8769e75bfa490f3b789f6285fa01572820576e81737f34adf95e5cbe44b43",
+    "docs/experiments/SIMULATOR/raw/time/l2.tsv": "91e9107bdcaf1e6f95d02e5c64a5174e419949912d3ff5b6256735c9f9799eba"
+  },
+  "binary_sha256": "79c568ef1cabfcafad285b818641ca4fe7fb3cc860363f5e33fbd0a31829db2a"
+}
