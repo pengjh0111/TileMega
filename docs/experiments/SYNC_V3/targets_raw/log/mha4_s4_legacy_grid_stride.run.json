@@ -1,0 +1,9 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SYNC_V3/targets_raw/bin/mha4_s4_legacy_grid_stride",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/mha4_s4_p3"
+  ],
+  "exit_code": 0,
+  "time_ns": 1789521806562155541,
+  "binary_sha256": "5ecc1ca6b0072aad225bd4478b37aa7cd5a01ab52da1db849ddbdfa43ffef92e"
+}

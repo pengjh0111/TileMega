@@ -1,0 +1,9 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SYNC_V3/targets_raw/bin/gqa2_s128_legacy_grid_stride",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/gqa2_s128_p3"
+  ],
+  "exit_code": 0,
+  "time_ns": 1789521803614448198,
+  "binary_sha256": "fd9bb3a7bcdf80d1a9373e4399ba75d2ee87774075287a00b4c231ee3ed6c24c"
+}

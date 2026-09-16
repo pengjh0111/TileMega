@@ -1,0 +1,9 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SYNC_V3/targets_raw/bin/mha4_s128_wavefront",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/mha4_s128_p3"
+  ],
+  "exit_code": 0,
+  "time_ns": 1789521813081963498,
+  "binary_sha256": "7a75d9205191a7c7f30ebb94a27ce0ce328bb06486b3ad41d775582db77281c5"
+}

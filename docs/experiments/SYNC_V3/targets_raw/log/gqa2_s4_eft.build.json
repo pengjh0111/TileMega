@@ -1,0 +1,32 @@
+{
+  "model": "gqa2",
+  "seq": 4,
+  "candidate": "eft",
+  "source": "/root/TileMega/docs/experiments/PLACE_EFT2/raw/plan/gqa2_s4_eft.cu",
+  "key": "gqa2_s4_eft",
+  "placement": 0,
+  "command": [
+    "/usr/local/cuda/bin/nvcc",
+    "-std=c++17",
+    "-O2",
+    "-arch=sm_89",
+    "-lineinfo",
+    "-DTILEMEGA_EVENT_KAPPA=1",
+    "-DTILEMEGA_TRACE_V2=1",
+    "-DTILEMEGA_PLACEMENT=0",
+    "-I/root/TileMega/include",
+    "-I/root/TileMega/third_party/cutlass/include",
+    "-I/root/TileMega/third_party/cutlass/tools/util/include",
+    "-I/root/TileMega/third_party/cutlass/test",
+    "/root/TileMega/docs/experiments/PLACE_EFT2/raw/plan/gqa2_s4_eft.cu",
+    "/root/TileMega/build-portable/libtilemega.a",
+    "-L/usr/local/cuda/lib64",
+    "-lcudart",
+    "-o",
+    "/root/TileMega/docs/experiments/SYNC_V3/targets_raw/bin/gqa2_s4_eft"
+  ],
+  "exit_code": 0,
+  "source_sha256": "3f53aeee2a6d568e0d7dac40d44a852374cd0c2b8069f52994717295e739bfa5",
+  "head": "fbd27a9f138b3c7f6827039aa1819847b8f54a91",
+  "binary_sha256": "35c44a0b9eb682b7979ac395ccf171620045c75bba0d410898aae9fff576ca65"
+}

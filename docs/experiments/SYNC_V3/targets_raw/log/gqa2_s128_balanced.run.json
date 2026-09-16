@@ -1,0 +1,9 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SYNC_V3/targets_raw/bin/gqa2_s128_balanced",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/gqa2_s128_p3"
+  ],
+  "exit_code": 0,
+  "time_ns": 1789521804084149549,
+  "binary_sha256": "7865ddf83b55662017bf217128d508a674b975ff328b9cc271c11717769fb812"
+}

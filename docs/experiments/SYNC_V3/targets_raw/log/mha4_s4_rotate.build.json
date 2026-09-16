@@ -1,0 +1,32 @@
+{
+  "model": "mha4",
+  "seq": 4,
+  "candidate": "rotate",
+  "source": "/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/mha4.cu",
+  "key": "mha4_s4_rotate",
+  "placement": 5,
+  "command": [
+    "/usr/local/cuda/bin/nvcc",
+    "-std=c++17",
+    "-O2",
+    "-arch=sm_89",
+    "-lineinfo",
+    "-DTILEMEGA_EVENT_KAPPA=1",
+    "-DTILEMEGA_TRACE_V2=1",
+    "-DTILEMEGA_PLACEMENT=5",
+    "-I/root/TileMega/include",
+    "-I/root/TileMega/third_party/cutlass/include",
+    "-I/root/TileMega/third_party/cutlass/tools/util/include",
+    "-I/root/TileMega/third_party/cutlass/test",
+    "/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/mha4.cu",
+    "/root/TileMega/build-portable/libtilemega.a",
+    "-L/usr/local/cuda/lib64",
+    "-lcudart",
+    "-o",
+    "/root/TileMega/docs/experiments/SYNC_V3/targets_raw/bin/mha4_s4_rotate"
+  ],
+  "exit_code": 0,
+  "source_sha256": "1be74406debdc487b29ad0bdac4a0757d96a683135cac16caf1c9332a8c71cd2",
+  "head": "fbd27a9f138b3c7f6827039aa1819847b8f54a91",
+  "binary_sha256": "2e99922bb800a8e2e65f1a6e6ec3b25667be92c55a4c8a8d8dd061200f765e66"
+}

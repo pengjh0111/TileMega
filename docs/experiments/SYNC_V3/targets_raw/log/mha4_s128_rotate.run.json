@@ -1,0 +1,9 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SYNC_V3/targets_raw/bin/mha4_s128_rotate",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/mha4_s128_p3"
+  ],
+  "exit_code": 0,
+  "time_ns": 1789521811676882613,
+  "binary_sha256": "acd8689b9982b171198fbc22b020369594e7d23a7b689ed3bd42a36df184d7b1"
+}
