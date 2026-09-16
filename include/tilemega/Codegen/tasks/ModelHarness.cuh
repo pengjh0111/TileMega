@@ -371,16 +371,12 @@ __device__ inline int ActiveBlocksClamped(Params const& p,
   return active < 1 ? 1 : active;
 }
 
-#if TILEMEGA_EVENT_RED_PUBLISH && TILEMEGA_EVENT_SHARDED
-#error "the RED publish has no shard-level target to combine"
-#endif
-
 /// The arrival target of one event row, derived where it is consumed rather
 /// than passed in.  It must equal the `members` `NotifyTask` hands
 /// `ArriveEvent`, which is why it is not `StageArrivalTarget`: that clamps to
 /// the grid, and a grid-strided stage arrives once per task, so `produced`
 /// exceeds the grid and a clamped target would release the consumer early.
-__device__ inline unsigned long long EventTriggers(Params const& p,
+__device__ inline unsigned long long RawEventTriggers(Params const& p,
                                                    std::uint32_t producer,
                                                    std::uint32_t group) {
   int const produced = ActiveBlocks(p, p.stages[producer]);
@@ -394,6 +390,19 @@ __device__ inline unsigned long long EventTriggers(Params const& p,
   (void)group;
 #endif
   return static_cast<unsigned long long>(produced);
+}
+
+__device__ inline unsigned long long EventTriggers(Params const& p,
+                                                   std::uint32_t producer,
+                                                   std::uint32_t group) {
+  unsigned long long const members = RawEventTriggers(p, producer, group);
+#if TILEMEGA_EVENT_SHARDED
+  // One global reduction per completed nonempty shard, rather than per raw
+  // producer. The multiplier stays fixed for every monotone iteration.
+  if (members > 1 && p.event_shard_count > 1)
+    return p.event_fanin[EventIndex(p, producer, group)].nonempty;
+#endif
+  return members;
 }
 
 /// How many CTAs must arrive before stage `producer` counts as complete at
