@@ -1,0 +1,9 @@
+PROJECT imported mha4 s4
+PROJECT graph nodes=512
+PROJECT placement=legacy_grid_stride
+PROJECT placement=rotate
+PROJECT placement=balanced
+PROJECT placement=eft
+PROJECT placement=wavefront
+PROJECT placement=chain
+JOINT_PROJECT PASS model=mha4 seq=4 nodes=512 plans=6

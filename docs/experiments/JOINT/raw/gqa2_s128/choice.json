@@ -1,0 +1,37 @@
+{
+  "arm": "top2",
+  "pilot_medians": {
+    "top1": 0.23552,
+    "top2": 0.22528,
+    "top3": 0.290816
+  },
+  "choice": {
+    "m": "32",
+    "n": "16",
+    "k": "32",
+    "stages": "2",
+    "split": "1",
+    "kappa": "1",
+    "residency": "5",
+    "status": "ok",
+    "work_lb_ns": "3660.483490909091",
+    "cp_lb_ns": "0.0",
+    "priority_ns": "141868.000001",
+    "estimated_work_ns": "41586688.0",
+    "estimated_stage_cp_ns": "141868.0",
+    "register_seed": "88",
+    "key": "32x16x32s2k1_k1_r5",
+    "placement": "eft",
+    "simulated": "1",
+    "makespan_ns": "216607.436276",
+    "floor_ns": "141868",
+    "cp_ns": "141868",
+    "queue_lb_ns": "141868",
+    "nodes": "6400",
+    "grid": "640",
+    "grouping_model": "projected_events_and_sigma_lifting",
+    "source": "/root/TileMega/docs/experiments/JOINT/raw/gqa2_s128/plans/32x16x32s2k1_k1_r5/eft.cu",
+    "placement_macro": "0"
+  },
+  "frozen_ns": 1789553734813127156
+}

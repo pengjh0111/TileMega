@@ -1,0 +1,7 @@
+placement	simulated	makespan_ns	floor_ns	cp_ns	queue_lb_ns	nodes	grid	kappa	grouping_model	status
+legacy_grid_stride	1	987194.041589	685096	278896	685096	16384	128	4	projected_events_and_sigma_lifting	ok
+rotate	1	987194.041589	685096	278896	685096	16384	128	4	projected_events_and_sigma_lifting	ok
+wavefront	1	987194.041589	685096	278896	685096	16384	128	4	projected_events_and_sigma_lifting	ok
+balanced	1	985078.215949	685096	278896	685096	16384	128	4	projected_events_and_sigma_lifting	ok
+eft	0	686706	686706	278896	686706	16384	128	4	projected_events_and_sigma_lifting	ok
+chain	0	692182	692182	278896	692182	16384	128	4	projected_events_and_sigma_lifting	ok
