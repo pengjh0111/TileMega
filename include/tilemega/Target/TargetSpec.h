@@ -121,6 +121,18 @@ struct TargetSpec {
     std::vector<double> occ_c_ns;
   };
 
+  struct TaskBodyCalibration {
+    // Nonnegative fits to raw in-body phase measurements. Coefficients are
+    // backend work features, never model/stage IDs or end-to-end latencies.
+    std::vector<double> fixed;       // [1, output elements, staged operand elements]
+    std::vector<double> loop_body;   // [1, tile multiply-accumulate elements]
+    std::vector<double> loop_wait;   // [1, operand elements]
+    std::vector<double> loop_fixed;  // [1, output elements]
+    double scalar_fixed_ns=0;
+    int samples=0;
+    std::string source;
+  };
+
   /// Cost-model calibration, filled by tools/tilemega-calibrate (skeleton
   /// §4.4).  `calibrated` gates its use: every field is zero until a real
   /// measurement wrote it, and a fabricated constant is worse than none.
@@ -191,6 +203,7 @@ struct TargetSpec {
 
     // (c) Stream-K coefficients, one entry per calibrated tile shape.
     std::vector<StreamKPoint> streamk;
+    TaskBodyCalibration task_body;
     /// Width-independent part of the reduction stage, launch excluded.
     /// Measured at the narrow end of the width sweep, not extrapolated as its
     /// intercept: the extrapolation was unresolved and its clamp to zero made

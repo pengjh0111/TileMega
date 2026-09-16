@@ -596,7 +596,7 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
         wave=std::max(wave,ScalarInstanceNs(bytes,output_bytes,flops,transc,
             o,miss,input.arithmetic.smem_staged,depth,barriers,local_bytes));
       }
-      total+=wave;
+      total+=wave+(calib_->task_body.samples>0 ? calib_->task_body.scalar_fixed_ns : 0);
       first+=long(active);
     }
     scalar_price_cache_.emplace(cache_key.str(),total);
@@ -636,8 +636,16 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
     if (memory->local_write_bytes>0)
       epilogue_ns+=memory->local_write_bytes/(calib_->smem_gbps/target_->res.num_sms);
   }
-  double const fixed=fit_.setup_ns+setup+traits.stages*(bytes/l2_bytes_per_ns_per_sm_)+
+  double fixed=fit_.setup_ns+setup+traits.stages*(bytes/l2_bytes_per_ns_per_sm_)+
       calib_->l2_latency_ns+epilogue_ns;
+  double measured_body=0,measured_wait=0;
+  if (calib_->task_body.samples>0 && !memory) {
+    auto const& fit=calib_->task_body;
+    fixed=fit.fixed[0]+fit.fixed[1]*writes+fit.fixed[2]*reads*traits.stages+
+        fit.loop_fixed[0]+fit.loop_fixed[1]*writes;
+    measured_body=fit.loop_body[0]+fit.loop_body[1]*writes*traits.tile_k;
+    measured_wait=fit.loop_wait[0]+fit.loop_wait[1]*reads;
+  }
   double const effective_iters=options_.pipeline_envelope
       ? std::max(iters-(traits.stages-1),0.0) : iters;
   double const grid=double(target_->res.num_sms)*std::max(1,residency.ctas_per_sm);
@@ -662,7 +670,10 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
       auto lane=static_cast<ResourceVector::Lane>(i);
       if (lanes_[lane]!=LaneStatus::kLive || options_.disabled_lanes[lane]) u[lane]=0.0;
     }
-    total+=fixed+effective_iters*u.Bottleneck();
+    // Resource lanes still bound service; phase calibration additionally
+    // resolves per-iteration instruction latency and exposed operand waits.
+    // Memory-overridden fusion probes retain their explicit traffic pricing.
+    total+=fixed+effective_iters*(std::max(u.Bottleneck(),measured_body)+measured_wait);
   }
   return total;
 }

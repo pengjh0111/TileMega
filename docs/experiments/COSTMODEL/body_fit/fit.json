@@ -1,0 +1,22 @@
+{
+  "fixed": [
+    1926.8891682830172,
+    0.3049473927331086,
+    0.0
+  ],
+  "loop_body": [
+    184.46191465750113,
+    0.0016364509152362859
+  ],
+  "loop_wait": [
+    98.551412617407,
+    0.0
+  ],
+  "loop_fixed": [
+    70.18442460151601,
+    0.0007616836473117389
+  ],
+  "scalar_fixed_ns": 622.0237204079194,
+  "samples": 43168,
+  "source": "/root/TileMega/docs/experiments/COSTMODEL/body_fit/sources.json"
+}

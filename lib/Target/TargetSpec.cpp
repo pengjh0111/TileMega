@@ -115,6 +115,24 @@ void ParseCalibration(json::Value const& cal, TargetSpec::Calib& out) {
     point.occ_c_ns = NumberArray(item.At("occ_c_ns"), "occ_c_ns");
     out.streamk.push_back(std::move(point));
   }
+  if (auto const* body=cal.Find("task_body")) {
+    auto& fit=out.task_body;
+    fit.fixed=NumberArray(body->At("fixed"),"fixed");
+    fit.loop_body=NumberArray(body->At("loop_body"),"loop_body");
+    fit.loop_wait=NumberArray(body->At("loop_wait"),"loop_wait");
+    fit.loop_fixed=NumberArray(body->At("loop_fixed"),"loop_fixed");
+    fit.scalar_fixed_ns=body->At("scalar_fixed_ns").AsNumber("scalar_fixed_ns");
+    fit.samples=int(body->At("samples").AsNumber("samples"));
+    fit.source=body->At("source").AsString("source");
+    if (fit.fixed.size()!=3 || fit.loop_body.size()!=2 || fit.loop_wait.size()!=2 ||
+        fit.loop_fixed.size()!=2 || fit.samples<=0 || fit.source.empty())
+      throw std::invalid_argument("incomplete TaskBody calibration");
+    std::vector<double> values{fit.scalar_fixed_ns};
+    for (auto const* coefficients:{&fit.fixed,&fit.loop_body,&fit.loop_wait,&fit.loop_fixed})
+      values.insert(values.end(),coefficients->begin(),coefficients->end());
+    for (double value:values) if (!std::isfinite(value) || value<0)
+      throw std::invalid_argument("TaskBody calibration must be finite and nonnegative");
+  }
   out.combine_fixed_ns = cal.At("combine_fixed_ns").AsNumber("combine_fixed_ns");
   if (json::Value const* resolved = cal.Find("combine_fixed_resolved"))
     out.combine_fixed_resolved = resolved->AsBool("combine_fixed_resolved");
@@ -222,7 +240,7 @@ json::Value CalibrationJson(TargetSpec::Calib const& calib) {
         {"unit", record.unit}, {"samples", record.samples},
         {"rel_stddev", record.rel_stddev}, {"method", record.method}});
   }
-  return json::Value(json::Object{
+  json::Object result{
       {"calibrated", calib.calibrated}, {"device", calib.device},
       {"measured_at", calib.measured_at}, {"wall_seconds", calib.wall_seconds},
       {"pipelines", pipelines}, {"sync", sync},
@@ -232,7 +250,15 @@ json::Value CalibrationJson(TargetSpec::Calib const& calib) {
       {"combine_d_dram_ns", calib.combine_d_dram_ns},
       {"fp32_partial_combine", partial_combine},
       {"interference_ratio", calib.interference_ratio},
-      {"measurements", json::Value(measurements)}});
+      { "measurements", json::Value(measurements)}};
+  if (calib.task_body.samples>0) {
+    auto const& fit=calib.task_body;
+    result.emplace_back("task_body",json::Object{
+      {"fixed",json::Numbers(fit.fixed)},{"loop_body",json::Numbers(fit.loop_body)},
+      {"loop_wait",json::Numbers(fit.loop_wait)},{"loop_fixed",json::Numbers(fit.loop_fixed)},
+      {"scalar_fixed_ns",fit.scalar_fixed_ns},{"samples",fit.samples},{"source",fit.source}});
+  }
+  return json::Value(std::move(result));
 }
 
 }  // namespace

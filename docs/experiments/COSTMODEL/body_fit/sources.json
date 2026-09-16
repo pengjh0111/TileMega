@@ -1,0 +1,29 @@
+{
+  "raw_phase_sha256": {
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/gqa2_s128/phase/selected/dump/phases.tsv": "feca91f5d55b77fbeb70dce74575d64b69640859b408133352dd42f9399d0dac",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/gqa2_s128/phase/k16/dump/phases.tsv": "ea0f190ad46d2961dc8663207b5c8a52efd442d87f2529ac0bf8da9c635fbe4f",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/gqa2_s128/phase/k32/dump/phases.tsv": "1f1d0fc1a8cfe402f4ccf574b8c38461d1bd2b34761751db9b680e3a7db915ed",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/gqa2_s4/phase/selected/dump/phases.tsv": "7b6675b324dc3221168d09fbd7e5a1ed84b3af1cef8fd43383fa5854b169e991",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/gqa2_s4/phase/k16/dump/phases.tsv": "e85a003ad6220a3d0e806c6489bb3814d7505367deeb9506b18527fca3515d73",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/gqa2_s4/phase/k32/dump/phases.tsv": "b1274da255cd5cb1c16e336bdef03b53314a6565a8849c26c253f8c24fc253e2",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/gqa2_s4/phase/k64/dump/phases.tsv": "962760e0be68c14a0358bfad6b98480e517d4cbc9e388ddca139f841318b908b",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/mha4_s128/phase/selected/dump/phases.tsv": "9c3d8430866b4965bf96e52a14b7744375df5cb3427cacf1be1eb0dc318eed28",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/mha4_s128/phase/k16/dump/phases.tsv": "1832ff7592bd1ed9dd343543c64fe546b98094ba6d8c4d5169a6e51835b15962",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/mha4_s128/phase/k32/dump/phases.tsv": "4e5de871c044ccc577e53b92904aab204ec7f737cec1d9ad061d6d2400eb88a7",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/mha4_s4/phase/selected/dump/phases.tsv": "d5aa70bab140296c7ccec605a94bbaab69065d8bc876966bdf188bd383c19605",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/mha4_s4/phase/k16/dump/phases.tsv": "ce7cf44ebff3f6547eba2f3ef96afdefc83a22cdc0cde082deb9a05b37ad8b19",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/mha4_s4/phase/k32/dump/phases.tsv": "d865b525c9cc31dedc85737bec5c5b8741653418bc86d1451a42f0a034968d1b",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/mha4_s4/phase/k64/dump/phases.tsv": "f573e11eb2d8079fd7271a4e81c21338066b2b5f4da74537ac4c620059091dfe",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/real_s128/phase/selected/dump/phases.tsv": "cedac0250842762b64288309d97a9c79728d9eeae082fabf9bc3f4dc75ada129",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_kloop/real_s4/phase/selected/dump/phases.tsv": "2574f894d85f5e552761570727b1cb86a4e212ccab06ef756b3f0ff8d24beab6",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_control_kloop/gqa2_s128/phase/selected/dump/phases.tsv": "4a44fb5f04564475e1ae4b3288926c0e909d50fbdfabcc82e1216dd1edbb4ac0",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_control_kloop/gqa2_s4/phase/selected/dump/phases.tsv": "842c046e7510541664e5be72a3b8cb6721d72de2f6e03e220dc45c9b0b69adc6",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_control_kloop/mha4_s128/phase/selected/dump/phases.tsv": "de4f1a741b935c451ebf3f8ed38a19eafa7621501eb8594cd2f3b16a50028c90",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_control_kloop/mha4_s4/phase/selected/dump/phases.tsv": "d02cb8ff1a6701dfdc533161e7adbdc043594b2f09980a2338685558e55584ac",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_control_kloop/real_s128/phase/selected/dump/phases.tsv": "a77f19dd14510450a5b9920c1f1868d62094fca66d6e6cf60ac9f3921692f7c9",
+    "/root/TileMega/docs/experiments/COSTMODEL/raw_control_kloop/real_s4/phase/selected/dump/phases.tsv": "50ca8776e68d2673a1d110f8f2f6d39af67a509db2246ef0674a1b576cc09388"
+  },
+  "target": "/root/TileMega/configs/targets/sm_89.json",
+  "target_sha256": "79bdb749cf267d384a23a73eb1a12ed80bd9b65bc90cbb160cd6c9db889df775",
+  "scope": "raw instrumented TaskBody service; not a fit to end-to-end L2 timings"
+}
