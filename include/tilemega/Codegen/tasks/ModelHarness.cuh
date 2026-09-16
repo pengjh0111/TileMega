@@ -750,10 +750,19 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
                                   unsigned long long iteration) {
 #if TILEMEGA_UNSAFE_NO_EVENT_NOTIFY
   (void)p; (void)events; (void)producer; (void)logical_task; (void)iteration;
+#if TILEMEGA_LOCAL_DEP_SMEM && TILEMEGA_SLOT_WINDOW > 1
+  __syncthreads();
+#endif
   return;
 #endif
   std::uint32_t const event_flags = p.event_flags[producer];
-  if (event_flags == 0) return;
+  if (event_flags == 0) {
+#if TILEMEGA_LOCAL_DEP_SMEM && TILEMEGA_SLOT_WINDOW > 1
+    // Completion flags still publish locally when there is no global event.
+    __syncthreads();
+#endif
+    return;
+  }
 #if !TILEMEGA_RELEASE_AFTER_BARRIER && !TILEMEGA_UNSAFE_NO_NOTIFY_FENCE
   __threadfence();
 #endif
@@ -917,9 +926,25 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
   // §5.7.2: `head` is the lowest slot not yet complete and `done_mask` records
   // which of [head, head + W) are, so the queue is still consumed exactly once
   // while the order within the window is free.
+#if TILEMEGA_LOCAL_DEP_SMEM
+  // Separate from TaskSmem: the release barrier publishes this completion
+  // state while the task union retains its original dispatch lifetime.
+  __shared__ unsigned local_head;
+  __shared__ unsigned local_done;
+  if (threadIdx.x == 0) {
+    local_head = first;
+    local_done = 0u;
+  }
+  __syncthreads();
+#else
   std::uint32_t head = first;
   unsigned done_mask = 0u;
+#endif
   for (std::uint32_t taken = first; taken < last; ++taken) {
+#if TILEMEGA_LOCAL_DEP_SMEM
+    std::uint32_t const head = local_head;
+    unsigned const done_mask = local_done;
+#endif
 #if TILEMEGA_TRACE_V2
     // Read before the slot is chosen and stored once it is: under W > 1 the
     // wait happens inside the acquire, so stamping after it would report every
@@ -988,12 +1013,26 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     if (params->task_trace != nullptr && threadIdx.x == 0)
       params->task_trace[slot].end =
           atomicAdd(params->trace_sequence, 1ull);
+#if TILEMEGA_LOCAL_DEP_SMEM && TILEMEGA_SLOT_WINDOW > 1
+    if (threadIdx.x == 0) {
+      unsigned completed = done_mask | (1u << (slot - head));
+      unsigned next_head = head;
+      while ((completed & 1u) != 0u) {
+        completed >>= 1;
+        ++next_head;
+      }
+      local_done = completed;
+      local_head = next_head;
+    }
+    // NotifyTask converges every writer before another warp can consume the
+    // flags. It supplies that convergence even for a task with no out-events.
+#endif
     NotifyTask(*params, events, task.stage, task.logical_task, iteration);
 #if TILEMEGA_TRACE_V2
     if (params->task_trace_v2 != nullptr && threadIdx.x == 0)
       params->task_trace_v2[slot].publish_end = TraceNow();
 #endif
-#if TILEMEGA_SLOT_WINDOW > 1
+#if TILEMEGA_SLOT_WINDOW > 1 && !TILEMEGA_LOCAL_DEP_SMEM
     // Publish along the out-edges happened in NotifyTask; all that is left is
     // to record the slot and advance the head over the completed prefix.
     done_mask |= 1u << (slot - head);

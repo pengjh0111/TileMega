@@ -333,6 +333,9 @@ static_assert(alignof(EventCounter) == 128, "event cache-line alignment");
 #ifndef TILEMEGA_ASYNC_PUBLISH
 #define TILEMEGA_ASYNC_PUBLISH 0
 #endif
+#ifndef TILEMEGA_LOCAL_DEP_SMEM
+#define TILEMEGA_LOCAL_DEP_SMEM 0
+#endif
 static_assert(!TILEMEGA_EVENT_RELEASE_STORE,
               "T1.4 disabled pending a complete multi-level release proof");
 static_assert(!TILEMEGA_EVENT_CLUSTER_FANIN || TILEMEGA_EVENT_SHARDED,
