@@ -4640,3 +4640,25 @@ and frozen-candidate work continues while this dependent item is repaired.
 ✅ All 24 frozen targets reproduce from their candidate-specific configuration-A traces and none is below its own floor. The three W=1 protocols are measured on every unchanged frozen candidate; target_positions/positions.tsv records their positions. Balanced uses placement 4, matching the frozen trace; its earlier unused placement-0 compile is archived and was not measured. The new Chain2 Plan is reported separately and does not inherit the old chain floor. No target entry changes after commit 03053089.
 
 ✅ 4/24 fixed candidate/cells are at or below their frozen target in the best measured W=1 protocol. These are fresh untraced timings against trace-observed floors, not proof of a target-independent hardware lower bound.
+
+## F-180 — R5 reproduces the mean path cost but finds a different measured tile
+
+✅ Verified in eight fresh processes using digest-checked R4 configuration-A
+trace executables; `PHASE/audit/` retains every raw log, dump and build digest.
+`PHASE/audit.py` uses the R4 corrected DAG path. The gqa2/mha4 seq=4 paths
+contain 20/40 nodes. At rotate their mean durations are 12.186/12.288 us,
+p50 4.096/4.096 us, p90 23.552/23.552 us and maxima 43.008/43.008 us.
+All-node means are 9.114/7.966 us, with p50 3.072/2.048 us. At seq=128,
+rotate path means are 17.510/17.382 us, p50 24.576 us, and maxima
+53.248/54.272 us. Every placement's complete distribution is in durations.tsv.
+
+✅ The actual generated baseline is BF16 128x128x16, stages=3, split=1;
+F-128's 16x64x16s2k16 example is not the source used by R4's floor table.
+Fresh rotate measured/floor values are 1.20588/1.32721/1.18333/1.37555
+(gqa2 s4/s128, mha4 s4/s128). The motivating magnitude is reproduced,
+while interpreting the mean as every node's duration is incorrect.
+
+⚠️ Stated before measurement: R5 FORK5 uses the four rotate reference cells;
+legacy and real-width are separate diagnostics. S3-b uses a fresh rotate +
+R3 B protocol control; the prompt's 0.7129 ms is legacy placement's historical
+geometric mean. No threshold or required coverage changes.

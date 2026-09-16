@@ -1,0 +1,9 @@
+{
+  "base": "a001b0ac53197551fe1e5e115528a9ea40d24783",
+  "prompt": "/root/Prompt/TileMega_R5_prompt.md",
+  "prompt_sha256": "7773c35f1f45e920048cf2d86f36e84ba06472efa1ffe1f22c6205a2c982e586",
+  "session": "1789549939150978846",
+  "reused_binaries": "R4 default-configuration trace binaries, new processes; immutable digest checked",
+  "actual_generated_tile": "128x128x16 stages=3, split=1; F-128 DP result is a different configuration",
+  "comparison": "S3-b control is rotate plus R3 B protocol; 0.7129ms belongs to placement0 and is historical only"
+}

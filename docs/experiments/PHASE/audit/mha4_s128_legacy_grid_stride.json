@@ -1,0 +1,43 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SYNC_V3/targets_raw/bin/mha4_s128_legacy_grid_stride",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/mha4_s128_p3"
+  ],
+  "session": "1789549939150978846",
+  "time_ns": 1789549948547150029,
+  "exit_code": 0,
+  "build": {
+    "model": "mha4",
+    "seq": 128,
+    "candidate": "legacy_grid_stride",
+    "source": "/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/mha4.cu",
+    "key": "mha4_s128_legacy_grid_stride",
+    "placement": 0,
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O2",
+      "-arch=sm_89",
+      "-lineinfo",
+      "-DTILEMEGA_EVENT_KAPPA=1",
+      "-DTILEMEGA_TRACE_V2=1",
+      "-DTILEMEGA_PLACEMENT=0",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-I/root/TileMega/third_party/cutlass/tools/util/include",
+      "-I/root/TileMega/third_party/cutlass/test",
+      "/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/mha4.cu",
+      "/root/TileMega/build-portable/libtilemega.a",
+      "-L/usr/local/cuda/lib64",
+      "-lcudart",
+      "-o",
+      "/root/TileMega/docs/experiments/SYNC_V3/targets_raw/bin/mha4_s128_legacy_grid_stride"
+    ],
+    "exit_code": 0,
+    "source_sha256": "1be74406debdc487b29ad0bdac4a0757d96a683135cac16caf1c9332a8c71cd2",
+    "head": "fbd27a9f138b3c7f6827039aa1819847b8f54a91",
+    "binary_sha256": "a11d8c276570786200231da5b27f133a548343ae31d27c7e13e113f143bbf4a9"
+  },
+  "source_sha256": "1be74406debdc487b29ad0bdac4a0757d96a683135cac16caf1c9332a8c71cd2",
+  "binary_sha256": "a11d8c276570786200231da5b27f133a548343ae31d27c7e13e113f143bbf4a9"
+}

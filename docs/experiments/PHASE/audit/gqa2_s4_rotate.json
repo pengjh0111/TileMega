@@ -1,0 +1,43 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SYNC_V3/targets_raw/bin/gqa2_s4_rotate",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/gqa2_s4_p3"
+  ],
+  "session": "1789549939150978846",
+  "time_ns": 1789549940067445233,
+  "exit_code": 0,
+  "build": {
+    "model": "gqa2",
+    "seq": 4,
+    "candidate": "rotate",
+    "source": "/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/gqa2.cu",
+    "key": "gqa2_s4_rotate",
+    "placement": 5,
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O2",
+      "-arch=sm_89",
+      "-lineinfo",
+      "-DTILEMEGA_EVENT_KAPPA=1",
+      "-DTILEMEGA_TRACE_V2=1",
+      "-DTILEMEGA_PLACEMENT=5",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-I/root/TileMega/third_party/cutlass/tools/util/include",
+      "-I/root/TileMega/third_party/cutlass/test",
+      "/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/gqa2.cu",
+      "/root/TileMega/build-portable/libtilemega.a",
+      "-L/usr/local/cuda/lib64",
+      "-lcudart",
+      "-o",
+      "/root/TileMega/docs/experiments/SYNC_V3/targets_raw/bin/gqa2_s4_rotate"
+    ],
+    "exit_code": 0,
+    "source_sha256": "017a39b966658b8b5ce3b22cef6528366068806a2503a53110395fe19c5c9b9c",
+    "head": "fbd27a9f138b3c7f6827039aa1819847b8f54a91",
+    "binary_sha256": "a59f3de4b869b8c9544f164ef339fe60f167c426673ae109c58d8d720a116b74"
+  },
+  "source_sha256": "017a39b966658b8b5ce3b22cef6528366068806a2503a53110395fe19c5c9b9c",
+  "binary_sha256": "a59f3de4b869b8c9544f164ef339fe60f167c426673ae109c58d8d720a116b74"
+}
