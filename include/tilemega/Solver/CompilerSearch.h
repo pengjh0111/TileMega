@@ -57,6 +57,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
       }
     }
   }
+  auto task_prices=std::make_shared<dialect::PlacementTaskPriceCache>();
   CompilerSearchResult result;
   double best=std::numeric_limits<double>::infinity(),best_sim=best;
   evidence << "candidate\tplacement\tstatus\tfloor_ns\tcp_ns\tqueue_lb_ns\tpredicted_ns\tgrid\tkappa\n";
@@ -75,7 +76,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
       if (limit<1) throw std::invalid_argument("compiled kernel has no resident CTA");
       for (int residency=1;residency<=limit;++residency) {
         auto placed=mlir::OwningOpRef<mlir::ModuleOp>(mlir::cast<mlir::ModuleOp>(module->clone()));
-        auto placement=options.placement;placement.kappa=candidate.kappa;
+        auto placement=options.placement;placement.kappa=candidate.kappa;placement.task_price_cache=task_prices;
         placement.residency=residency;placement.verified_resident_limit=limit;
         auto solved=dialect::SolveAndWritePlacement(*placed,placement);
         for (auto const& plan:solved.candidates) {

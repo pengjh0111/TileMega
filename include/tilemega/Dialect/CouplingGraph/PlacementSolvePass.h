@@ -15,6 +15,9 @@
 #include <tilemega/Analysis/VisitFiniteRelation.h>
 
 namespace tilemega::dialect {
+// Scoped to one compile invocation. Keys include the complete immutable CG,
+// target calibration and bound theta; values exclude grid-dependent combines.
+struct PlacementTaskPriceCache { std::map<std::string,std::vector<double>> prices; };
 struct PlacementSolveOptions {
   TargetSpec target;
   solver::ModelDims dims;
@@ -22,6 +25,7 @@ struct PlacementSolveOptions {
   int kappa=1;
   int verified_resident_limit=0;
   solver::HopCurve hop;
+  std::shared_ptr<PlacementTaskPriceCache> task_price_cache;
 };
 struct PlacementSolveResult {
   std::vector<solver::PlacementEvaluation> candidates;
@@ -106,7 +110,18 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
   for (auto& row:graph.successors) {
     std::sort(row.begin(),row.end());row.erase(std::unique(row.begin(),row.end()),row.end());
   }
-  auto semantic_graph=InstantiateModelTasks(model,result.geometry);
+  std::string price_key;
+  std::vector<double> const* cached_prices=nullptr;
+  if (options.task_price_cache) {
+    llvm::raw_string_ostream text(price_key);module.print(text);text.flush();
+    price_key+=options.target.ToJson()+"|"+std::to_string(options.dims.seq)+"|"+
+        std::to_string(options.dims.past)+"|"+std::to_string(options.dims.total)+"|"+std::to_string(threads);
+    for (int n:counts)price_key+="|"+std::to_string(n);
+    auto found=options.task_price_cache->prices.find(price_key);
+    if(found!=options.task_price_cache->prices.end())cached_prices=&found->second;
+  }
+  std::optional<analysis::OperatorGraph> semantic_graph;
+  if(!cached_prices)semantic_graph=InstantiateModelTasks(model,result.geometry);
   SimulatorInput input;input.graph=&graph;input.task_ns.resize(graph.successors.size());
   CostModel cost(options.target,model.dtype);
   auto theta=model.MetricBindings();
@@ -120,11 +135,15 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
       std::fill(input.task_ns.begin()+graph.stage_offsets[s],input.task_ns.begin()+graph.stage_offsets[s+1],ns);
       continue;
     }
+    if(cached_prices) {
+      std::copy(cached_prices->begin()+graph.stage_offsets[s],cached_prices->begin()+graph.stage_offsets[s+1],
+                input.task_ns.begin()+graph.stage_offsets[s]);continue;
+    }
     auto found=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),[&](auto const& x) {
       return x.stage==projected.logical_stage && (!stage.IsCollective() || x.op.kind==analysis::OperatorKind::kMatmul);
     });
     if (found==model.task_semantics.end()) throw std::invalid_argument("stage lacks derived semantic task costs");
-    auto task=DeriveModelTaskInput(model,*found,semantic_graph,stage.IsCollective() ? &g : nullptr);
+    auto task=DeriveModelTaskInput(model,*found,*semantic_graph,stage.IsCollective() ? &g : nullptr);
     auto traits=ModelTaskTraits(model,projected.logical_stage,g);
     int chunks=stage.IsCollective() ? cost.Chunks(model.gemms.at(stage.gemm),g) : 1;
     std::vector<analysis::ParamBinding> coordinates(counts[s]);
@@ -142,6 +161,8 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
     auto prices=PriceTaskInstances(cost,task,traits,{options.residency},model,chunks,coordinates,1.0);
     std::copy(prices.begin(),prices.end(),input.task_ns.begin()+graph.stage_offsets[s]);
   }
+  if(options.task_price_cache && !cached_prices)
+    options.task_price_cache->prices.emplace(std::move(price_key),input.task_ns);
   PlanRequest request;request.graph=&graph;request.grid=result.grid;request.counts=counts;
   request.physical_worker.resize(result.grid);std::iota(request.physical_worker.begin(),request.physical_worker.end(),0);
   auto edges=runtime.dependencies;
