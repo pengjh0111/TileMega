@@ -1,0 +1,3 @@
+11111 
+FINITE_PROOF total_image_positive_holes_negative_grid_negative PASS
+SYMBOLIC_PROOF positive_and_cycle_negative PASS

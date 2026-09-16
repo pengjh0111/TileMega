@@ -24,6 +24,7 @@ struct PlacementSolveOptions {
   int residency=1;
   int kappa=1;
   int verified_resident_limit=0;
+  int requested_grid=0; // Zero uses the full compiled resident grid.
   solver::HopCurve hop;
   std::shared_ptr<PlacementTaskPriceCache> task_price_cache;
 };
@@ -79,7 +80,11 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
     throw std::invalid_argument("placement solve requires verified CG, bound theta and positive kappa");
   auto runtime=codegen::ReadRuntimePlan(module);
   auto model=ModelDescription::FromCouplingGraph(module,options.dims,"placement-pass");
-  PlacementSolveResult result;result.grid=options.target.res.num_sms*options.residency;
+  PlacementSolveResult result;
+  int resident_grid=options.target.res.num_sms*options.residency;
+  if(options.requested_grid<0 || options.requested_grid>resident_grid)
+    throw std::invalid_argument("requested grid exceeds the compiled resident grid");
+  result.grid=options.requested_grid ? options.requested_grid : resident_grid;
   for (auto const& g:runtime.gemms) result.geometry.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
   int threads=0,max_shared=0;
   for (std::size_t s=0;s<model.stages.size();++s) {
