@@ -1,0 +1,1 @@
+{"command": ["/tmp/r5-project-theta", "/root/TileMega", "/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s4/model.json", "real", "4", "32", "128", "64", "2", "4", "1", "2", "/root/TileMega/docs/experiments/JOINT/raw/real_s4/plans/32x128x64s2k4_k1_r2", "3"], "exit_code": 0, "started_ns": 1789555231741830236, "elapsed_ns": 26457285066}

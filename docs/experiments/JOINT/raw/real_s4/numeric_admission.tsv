@@ -1,0 +1,6 @@
+key	status	log
+32x128x64s2k1_k1_r2	PASS	docs/experiments/JOINT/raw/real_s4/numeric_admission/correctness/admit_32x128x64s2k1_k1_r2/r0.log
+32x128x64s2k2_k1_r2	PASS	docs/experiments/JOINT/raw/real_s4/numeric_admission/correctness/admit_32x128x64s2k2_k1_r2/r0.log
+32x128x64s2k4_k1_r2	FAIL	docs/experiments/JOINT/raw/real_s4/numeric_admission/correctness/admit_32x128x64s2k4_k1_r2/r0.log
+32x128x64s2k16_k1_r2	PASS	docs/experiments/JOINT/raw/real_s4/numeric_admission/correctness/admit_32x128x64s2k16_k1_r2/r0.log
+32x128x64s2k32_k1_r2	PASS	docs/experiments/JOINT/raw/real_s4/numeric_admission/correctness/admit_32x128x64s2k32_k1_r2/r0.log

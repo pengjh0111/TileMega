@@ -1,0 +1,4 @@
+m	n	k	stages	split	reason	evidence
+128	128	16	2	2	new split2 candidate has one CPU BF16 golden mismatch; L0.5/L1/L2 agree; exclude arithmetic geometry without relaxing tolerance	docs/experiments/JOINT/raw/real_s128/pilot/top1/r0.log
+128	128	32	2	2	new split2 candidate has one CPU BF16 golden mismatch; L0.5/L1/L2 agree; exclude arithmetic geometry without relaxing tolerance	docs/experiments/JOINT/raw/real_s128/numeric_diagnostic/correctness/top2/r0.log
+128	128	16	2	2	new split2 candidate has one CPU BF16 golden mismatch; L0.5/L1/L2 agree; exclude arithmetic geometry without relaxing tolerance	docs/experiments/JOINT/raw/real_s128/numeric_diagnostic/correctness/top3/r0.log

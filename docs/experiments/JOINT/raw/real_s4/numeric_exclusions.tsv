@@ -1,0 +1,5 @@
+m	n	k	stages	split	reason	evidence
+32	128	16	2	8	new candidate L0.5/L1/L2 agree; CPU BF16 golden has one mismatch; reject arithmetic geometry for every placement	docs/experiments/JOINT/raw/real_s4/pilot/top1/r0.log
+32	128	32	2	8	new candidate L0.5/L1/L2 agree; CPU BF16 golden has one mismatch; reject arithmetic geometry for every placement	docs/experiments/JOINT/raw/real_s4/numeric_diagnostic/top2/r0.log
+32	128	64	2	8	new candidate L0.5/L1/L2 agree; CPU BF16 golden has one mismatch; reject arithmetic geometry for every placement	docs/experiments/JOINT/raw/real_s4/numeric_diagnostic/top3/r0.log
+32	128	64	2	4	new candidate BF16 golden mismatch; no tolerance change	docs/experiments/JOINT/raw/real_s4/numeric_admission/correctness/admit_32x128x64s2k4_k1_r2/r0.log

@@ -1,0 +1,7 @@
+{
+  "encoding": "sorted-adjacency-runs-v1",
+  "original_bytes": 684200322,
+  "original_sha256": "3c06c22ee488ab978a7919f0f7ff8ffe9df352a820a55e32a344c73da1103db8",
+  "runs": "dag_store/3c06c22ee488ab978a7919f0f7ff8ffe9df352a820a55e32a344c73da1103db8.runs.gz",
+  "decode": "gzip -dc RUNS | dag_codec decode"
+}
