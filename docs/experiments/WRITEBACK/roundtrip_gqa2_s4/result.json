@@ -1,0 +1,7 @@
+{
+  "status": "PASS",
+  "nodes": 2696,
+  "cg": "docs/experiments/WRITEBACK/gqa2_auto.mlir",
+  "dump": "docs/experiments/WRITEBACK/driver_gqa2_s4/plan",
+  "diff_bytes": 0
+}

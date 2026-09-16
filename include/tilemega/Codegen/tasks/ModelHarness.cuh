@@ -1314,6 +1314,15 @@ inline DeviceModel Create(ModelSpec const& spec,
                           ModelDims const& dims, std::string const& dir,
                           int grid, int blocks_per_sm, TargetSpec const& target,
                           std::size_t l2_smem_bytes) {
+#if defined(TILEMEGA_SOLVED_SEQ)
+  // A concrete solve proves this point and resident grid. Interval templates
+  // carry a separate proof; a variant table alone does not make it portable.
+  if (dims.seq!=TILEMEGA_SOLVED_SEQ || dims.past!=TILEMEGA_SOLVED_PAST ||
+      grid!=TILEMEGA_SOLVED_GRID) {
+    std::fprintf(stderr,"workload or resident grid differs from solved Plan\n");
+    std::exit(2);
+  }
+#endif
   DeviceModel model;
   model.spec = &spec;
   model.runtime_variant = &runtime_variant;

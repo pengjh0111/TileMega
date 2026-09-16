@@ -1,0 +1,2 @@
+SOLVE_SUMMARY evaluated=6 deferred=3648 residency_scope=1 hop_calibrated=0
+CODEGEN_SUMMARY tasks=48 couplings=56 stages=30 symbolic_windows=56 fallback_windows=0 output=docs/experiments/WRITEBACK/gqa2_auto.cu

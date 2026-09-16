@@ -5,6 +5,7 @@
 #include <tilemega/Solver/ExecutionSimulator.h>
 #include <algorithm>
 #include <numeric>
+#include <functional>
 #include <stdexcept>
 
 namespace tilemega::solver {
@@ -20,7 +21,9 @@ struct PlacementEvaluation {
 /// remain individual candidate results, and never become an admissible plan.
 inline std::vector<PlacementEvaluation> SolvePlacementCatalog(
     SimulatorInput const& input,PlanRequest request,SimulatorOptions const& options,
-    HopCurve const& hop) {
+    HopCurve const& hop,
+    std::function<void(MaterializedPlan const&,codegen::RuntimeTaskGraph&,SimulatorInput&)>
+        price_events = {}) {
   std::vector<PlacementEvaluation> results(6);
   results[0].name="legacy_grid_stride";
   results[1].name="rotate";results[1].mode=dialect::PlacementMode::kRotate;
@@ -50,10 +53,22 @@ inline std::vector<PlacementEvaluation> SolvePlacementCatalog(
       }
     }
     if (!MaterializePlanPlacement(request,&result.plan,&result.error) ||
-        !CheckPlanLegality(*input.graph,result.plan,&result.error) ||
-        !EvaluatePlanBounds(prepared,result.plan,&result.bounds,&result.error)) continue;
+        !CheckPlanLegality(*input.graph,result.plan,&result.error)) continue;
+    auto candidate_input=priced;
+    codegen::RuntimeTaskGraph event_graph;
+    PreparedPlanBounds event_bounds;
+    auto const* candidate_bounds=&prepared;
+    if (price_events) {
+      event_graph=*input.graph; candidate_input.graph=&event_graph;
+      candidate_input.prepared_graph=nullptr;
+      price_events(result.plan,event_graph,candidate_input);
+      if (!CheckPlanLegality(event_graph,result.plan,&result.error) ||
+          !PreparePlanBounds(candidate_input,&event_bounds,&result.error)) continue;
+      candidate_bounds=&event_bounds;candidate_input.prepared_graph=&event_bounds.graph;
+    }
+    if (!EvaluatePlanBounds(*candidate_bounds,result.plan,&result.bounds,&result.error)) continue;
     SimulatorResult sim;
-    if (!SimulateExecution(priced,result.plan,options,hop,&sim,&result.error)) continue;
+    if (!SimulateExecution(candidate_input,result.plan,options,hop,&sim,&result.error)) continue;
     result.predicted_ns=sim.makespan_ns;
   }
   std::stable_sort(results.begin(),results.end(),[](auto const& a,auto const& b) {

@@ -5,6 +5,8 @@
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Frontend/ExportBridge.h>
+#include <tilemega/Solver/CompilerSearch.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/Parser/Parser.h>
@@ -114,9 +116,10 @@ std::vector<VariantRequest> readVariants(std::string const& path,
 
 int main(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
-  if (argc != 3 && argc != 5) {
+  if (argc < 3 || argc % 2 == 0) {
     std::cerr << "usage: tilemega-compile {STABLE_EXPORT.json|CG.mlir} "
-                 "{OUTPUT.cu|OUTPUT.so} [--variants PLAN.json]\n";
+                 "{OUTPUT.cu|OUTPUT.so} [--variants PLAN.json] [--solve TARGET.json --seq N --past N\n"
+                 " --search-capacity N --dump-cg FILE.mlir --hop-curve FILE.tsv]\n";
     return 2;
   }
   try {
@@ -125,11 +128,45 @@ int main(int argc, char** argv) {
     tilemega::frontend::ImportSummary summary;
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
-    bool has_variants = argc == 5;
-    if (has_variants && std::string(argv[3]) != "--variants")
-      throw std::runtime_error("expected --variants before the plan path");
+    std::string variants_path,solve_target,dump_cg,hop_path;
+    tilemega::solver::CompilerSearchOptions solve_options;
+    solve_options.placement.dims={4,3,7};
+    for (int i=3;i<argc;i+=2) {
+      std::string flag=argv[i],value=argv[i+1];
+      if (flag=="--variants") variants_path=value;
+      else if (flag=="--solve") solve_target=value;
+      else if (flag=="--seq") solve_options.placement.dims.seq=std::stoi(value);
+      else if (flag=="--past") solve_options.placement.dims.past=std::stoi(value);
+      else if (flag=="--search-capacity") solve_options.capacity=std::stoul(value);
+      else if (flag=="--dump-cg") dump_cg=value;
+      else if (flag=="--hop-curve") hop_path=value;
+      else throw std::runtime_error("unknown option: "+flag);
+    }
+    bool has_variants=!variants_path.empty();
+    if (!solve_target.empty() && has_variants)
+      throw std::runtime_error("--solve chooses variants; cannot combine with --variants");
     std::string source;
-    if (input.extension() == ".mlir") {
+    if (!solve_target.empty()) {
+      if (input.extension()==".mlir")
+        throw std::runtime_error("automatic geometry search requires export JSON; use tilemega-opt for placement-only CG solving");
+      solve_options.placement.target=tilemega::TargetSpec::FromJson(solve_target);
+      auto& dims=solve_options.placement.dims;dims.total=dims.seq+dims.past;
+      if (!hop_path.empty()) {
+        std::string error;
+        if (!tilemega::solver::HopCurve::FromTsv(hop_path,&solve_options.placement.hop,&error))
+          throw std::runtime_error(error);
+      }
+      std::ofstream evidence(std::string(argv[2])+".search.tsv");
+      if (!evidence) throw std::runtime_error("cannot open search evidence");
+      auto solved=tilemega::solver::SolveExport(input.string(),context,solve_options,&summary,evidence);
+      module=std::move(solved.module);
+      std::vector<tilemega::codegen::RuntimeVariantModule> inputs{{*module,
+          1u,static_cast<std::uint32_t>(dims.seq)}};
+      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(inputs);
+      std::cerr << "SOLVE_SUMMARY evaluated=" << solved.stats.evaluated
+          << " deferred=" << solved.stats.capacity_deferred
+          << " residency_scope=1 hop_calibrated=" << !hop_path.empty() << "\n";
+    } else if (input.extension() == ".mlir") {
       if (has_variants)
         throw std::runtime_error("runtime variants require stable export JSON input");
       module = mlir::parseSourceFile<mlir::ModuleOp>(input.string(), &context);
@@ -152,7 +189,7 @@ int main(int argc, char** argv) {
       auto bridge = tilemega::frontend::ReadExportBridge(argv[1]);
       auto plan = tilemega::frontend::BuildModelPlan(
           bridge.nodes, bridge.inputs, bridge.outputs);
-      auto requests = readVariants(argv[4], plan.gemms.size());
+      auto requests = readVariants(variants_path, plan.gemms.size());
       std::vector<mlir::OwningOpRef<mlir::ModuleOp>> modules;
       std::vector<tilemega::codegen::RuntimeVariantModule> inputs;
       modules.reserve(requests.size());
@@ -165,6 +202,12 @@ int main(int argc, char** argv) {
                           requests[i].seq_end});
       }
       source = tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(inputs);
+    }
+    if (!dump_cg.empty()) {
+      if (!module) throw std::runtime_error("--dump-cg requires a single module");
+      std::error_code error;llvm::raw_fd_ostream dump(dump_cg,error);
+      if (error) throw std::runtime_error("cannot write CG dump: "+error.message());
+      module->print(dump);dump << "\n";
     }
     std::filesystem::path requested(argv[2]);
     bool shared = requested.extension() == ".so";

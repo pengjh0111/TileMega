@@ -1,0 +1,1 @@
+CORRECTNESS model=gqa2 seq=4 pass=50/50

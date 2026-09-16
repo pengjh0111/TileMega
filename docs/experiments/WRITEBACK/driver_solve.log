@@ -1,0 +1,1 @@
+tilemega-compile: runtime variant intervals must be contiguous, disjoint, and start at seq=1

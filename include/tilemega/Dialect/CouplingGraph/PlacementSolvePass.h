@@ -11,6 +11,8 @@
 #include <mlir/Pass/Pass.h>
 #include <mlir/Pass/PassRegistry.h>
 #include <limits>
+#include <set>
+#include <tilemega/Analysis/VisitFiniteRelation.h>
 
 namespace tilemega::dialect {
 struct PlacementSolveOptions {
@@ -57,6 +59,8 @@ inline void WriteSolvedPlacement(mlir::ModuleOp module,
   module->setAttr("tilemega.solved_placement",b.getStringAttr(selected.name));
   module->setAttr("tilemega.solved_kappa",b.getI64IntegerAttr(options.kappa));
   module->setAttr("tilemega.solved_residency",b.getI64IntegerAttr(options.residency));
+  module->setAttr("tilemega.solved_seq",b.getI64IntegerAttr(options.dims.seq));
+  module->setAttr("tilemega.solved_past",b.getI64IntegerAttr(options.dims.past));
   module->setAttr("tilemega.solved_grid",b.getI64IntegerAttr(grid));
   module->setAttr("tilemega.solved_floor_ns",b.getF64FloatAttr(selected.bounds.lower_bound_ns));
   if (mlir::failed(mlir::verify(module))) throw std::invalid_argument("solved placement failed CG verification");
@@ -66,8 +70,8 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
     PlacementSolveOptions const& options) {
   using namespace solver;
   if (!module || mlir::failed(mlir::verify(module)) || options.dims.seq<=0 ||
-      options.dims.past<0 || options.residency<=0 || options.kappa!=1)
-    throw std::invalid_argument("placement solve requires verified CG, bound theta and kappa=1 until grouped-event readiness is supplied");
+      options.dims.past<0 || options.residency<=0 || options.kappa<=0)
+    throw std::invalid_argument("placement solve requires verified CG, bound theta and positive kappa");
   auto runtime=codegen::ReadRuntimePlan(module);
   auto model=ModelDescription::FromCouplingGraph(module,options.dims,"placement-pass");
   PlacementSolveResult result;result.grid=options.target.res.num_sms*options.residency;
@@ -83,13 +87,23 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
   // every legal body, whereas an unmeasured higher resident count is not.
   if (options.residency!=1 || max_shared>options.target.res.max_dynamic_smem_per_cta)
     throw std::invalid_argument("resident grid requires compiler-confirmed resource metadata");
-  RuntimeProjectionOptions po{result.grid,threads,1};po.count_wait_entries=false;
+  RuntimeProjectionOptions po{result.grid,threads,options.kappa};po.count_wait_entries=false;
   auto projection=ProjectRuntimeQueues(model,runtime,po);
   std::vector<int> counts;
   for (auto const& stage:projection.stages) counts.push_back(int(stage.task_count.Eval({})));
-  auto tasks=projection.tasks.ToString(),dependencies=projection.dependencies.ToString();
-  codegen::RuntimeExactDependencyDesc desc{tasks.c_str(),dependencies.c_str(),"S","past"};
-  auto graph=codegen::MaterializeExactRuntimeTaskGraph(counts,desc,options.dims.seq,options.dims.past,result.grid);
+  auto graph=codegen::MaterializeRuntimeTaskGraph(counts,{},result.grid);
+  auto node=[&](long stage,long task) {
+    if (stage<0 || stage>=long(counts.size()) || task<0 || task>=counts[stage])
+      throw std::invalid_argument("projected relation outside task domain");
+    return graph.stage_offsets[stage]+task;
+  };
+  analysis::VisitFiniteRelation(analysis::SharedIslContext(),
+      projection.dependencies.ToString(),4,[&](long const* e) {
+        graph.successors[node(e[2],e[3])].push_back(node(e[0],e[1]));
+      });
+  for (auto& row:graph.successors) {
+    std::sort(row.begin(),row.end());row.erase(std::unique(row.begin(),row.end()),row.end());
+  }
   auto semantic_graph=InstantiateModelTasks(model,result.geometry);
   SimulatorInput input;input.graph=&graph;input.task_ns.resize(graph.successors.size());
   CostModel cost(options.target,model.dtype);
@@ -134,7 +148,40 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
     for (std::size_t s=0;s<projection.stages.size();++s)
       if (projection.stages[s].logical_stage==int(entry.stage)) request.stage_order.push_back(std::uint32_t(s));
   SimulatorOptions sim;sim.observed_task_times=true;sim.flat_hop=true;
-  result.candidates=SolvePlacementCatalog(input,request,sim,options.hop);
+  // Group readiness depends on the selected queue: singleton polls can be
+  // elided only after ownership is known. Validate every inner candidate.
+  auto price_events=[&](MaterializedPlan const& plan,codegen::RuntimeTaskGraph& grouped,
+                        SimulatorInput& priced) {
+    std::vector<std::set<std::pair<int,int>>> desired(input.task_ns.size());
+    std::set<int> publishing;
+    priced.publication_required.assign(input.task_ns.size(),0);
+    priced.consumer_wait_required.assign(input.task_ns.size(),0);
+    analysis::VisitFiniteRelation(analysis::SharedIslContext(),
+        projection.requested_events.ToString(),6,[&](long const* e) {
+      int cn=node(e[0],e[1]),ps=e[3],kind=e[4],group=e[5];
+      if (ps<0 || ps>=int(counts.size()) || kind<0 || kind>2)
+        throw std::invalid_argument("invalid projected event");
+      if (kind==2 && plan.owner.at(ps).at(group)==plan.owner.at(e[0]).at(e[1])) return;
+      publishing.insert(ps);
+      if (!desired[cn].insert({ps,kind==0 ? -1 : group}).second) return;
+      int begin=kind==0 ? 0 : group*options.kappa;
+      int end=kind==0 ? counts[ps] : std::min(counts[ps],begin+options.kappa);
+      for (int pt=begin;pt<end;++pt) grouped.successors[node(ps,pt)].push_back(cn);
+    });
+    for (auto& row:grouped.successors) {
+      std::sort(row.begin(),row.end());row.erase(std::unique(row.begin(),row.end()),row.end());
+    }
+    for (int ps:publishing)
+      std::fill(priced.publication_required.begin()+graph.stage_offsets[ps],
+                priced.publication_required.begin()+graph.stage_offsets[ps+1],1);
+    for (auto const& queue:plan.queue) {
+      std::set<std::pair<int,int>> seen;
+      for (auto task:queue) for (auto event:desired[node(task.stage,task.logical)])
+        if (seen.insert(event).second) priced.consumer_wait_required[node(task.stage,task.logical)]=1;
+    }
+  };
+  result.kappa=options.kappa;
+  result.candidates=SolvePlacementCatalog(input,request,sim,options.hop,price_events);
   WriteSolvedPlacement(module,result.candidates.front(),options);
   return result;
 }
@@ -146,12 +193,13 @@ struct PlacementSolvePass : mlir::PassWrapper<PlacementSolvePass,mlir::Operation
   mlir::Pass::Option<std::string> target{*this,"target",llvm::cl::desc("Calibrated TargetSpec JSON")};
   mlir::Pass::Option<int> seq{*this,"seq",llvm::cl::init(4)};
   mlir::Pass::Option<int> past{*this,"past",llvm::cl::init(3)};
+  mlir::Pass::Option<int> kappa{*this,"kappa",llvm::cl::init(1)};
   llvm::StringRef getArgument() const final {return "tilemega-solve-placement";}
   llvm::StringRef getDescription() const final {return "Solve the placement catalog and write the selected Plan into CG";}
   void runOnOperation() override {
     try {
       PlacementSolveOptions options;options.target=TargetSpec::FromJson(target);
-      options.dims={seq,past,seq+past};
+      options.dims={seq,past,seq+past};options.kappa=kappa;
       SolveAndWritePlacement(getOperation(),options);
     } catch (std::exception const& e) {getOperation().emitError(e.what());signalPassFailure();}
   }
