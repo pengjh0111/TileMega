@@ -91,6 +91,19 @@ PlacementPlanRecord readPlacementPlan(mlir::ModuleOp module) {
     here.mode = static_cast<std::uint32_t>(parsed);
     if (auto const params = placement.getParams())
       here.params.assign(params->begin(), params->end());
+    if (auto const param_map=placement.getParamsMapAttr()) {
+      analysis::ParamBinding known;
+      if (auto bindings=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.placement_bindings"))
+        for (auto binding:bindings) {
+          auto integer=llvm::dyn_cast<mlir::IntegerAttr>(binding.getValue());
+          if (!integer) throw std::invalid_argument("placement theta binding must be an integer");
+          known.Bind(binding.getName().str(),integer.getInt());
+        }
+      auto points=param_map.getMap().BindParams(known).Points();
+      if (points.size()!=1 || !points[0].first.empty())
+        throw std::invalid_argument("bind placement theta before generating its parameter vector");
+      here.params.assign(points[0].second.begin(),points[0].second.end());
+    }
     here.window = static_cast<std::uint32_t>(placement.getWindow().value_or(
         dialect::kPlacementWindowImplemented));
     if (auto const policy = placement.getPolicyAttr())

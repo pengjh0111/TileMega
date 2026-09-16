@@ -410,14 +410,44 @@ LogicalResult PlacementOp::verifyPlan() {
         return emitOpError("mapping_mode=balanced contradicts the placement mode");
     }
   }
+  auto verifyFunction=[&](CouplingMapAttr attr,std::size_t arity,char const* name) -> LogicalResult {
+    if (!attr) return success();
+    auto const& map=attr.getMap();
+    if (!map.DomainDimNames().empty() || map.RangeDimNames().size()!=arity || !map.IsSingleValued())
+      return emitOpError() << name << " must be a single-valued theta function with " << arity << " outputs";
+    return success();
+  };
   std::size_t const expected = PlacementModeParamCount(mode);
   auto const params = getParams();
-  if (mode_attr || params) {
+  auto param_map=getParamsMapAttr();
+  if (param_map && params) return emitOpError("params and params_map are alternative representations");
+  if (failed(verifyFunction(param_map,expected,"params_map")) ||
+      failed(verifyFunction(getGridMapAttr(),1,"grid_map")) ||
+      failed(verifyFunction(getResidentLimitMapAttr(),1,"resident_limit_map"))) return failure();
+  if (bool(getGridMapAttr())!=bool(getResidentLimitMapAttr()))
+    return emitOpError("grid_map and resident_limit_map must be carried together");
+  if (getGridMapAttr()) {
+    auto grid=getGridMapAttr().getMap(),limit=getResidentLimitMapAttr().getMap();
+    auto gd=grid.Reverse().Image(),ld=limit.Reverse().Image();
+    if (!gd.IsSubset(ld) || !ld.IsSubset(gd))
+      return emitOpError("grid and resident limit theta domains differ");
+    auto product=grid.RangeProduct(limit);
+    if (!product.IsSubset(product.IntersectRange("{ [grid, resident] : 0 < grid <= resident }")))
+      return emitOpError("symbolic grid does not prove 0 < grid <= resident_limit");
+    if (!(*this)->getAttrOfType<BoolAttr>("resident_only"))
+      return emitOpError("symbolic grid requires resident_only=true");
+  }
+  if ((mode_attr || params) && !param_map) {
     if (params.value_or(ArrayRef<std::int64_t>{}).size() != expected)
       return emitOpError() << "placement mode " << PlacementModeName(mode)
                            << " takes " << expected << " parameters";
   }
-  if (mode == PlacementMode::kTemplate) {
+  if (mode == PlacementMode::kTemplate && param_map) {
+    auto map=param_map.getMap();
+    if (!map.IsSubset(map.IntersectRange("{ [family] : 0 <= family <= 1 }")))
+      return emitOpError("symbolic placement template must select family 0 or 1");
+  }
+  if (mode == PlacementMode::kTemplate && !param_map) {
     std::int64_t const family = (*params)[0];
     if (family != static_cast<std::int64_t>(PlacementTemplate::kBand) &&
         family != static_cast<std::int64_t>(PlacementTemplate::kWavefront))

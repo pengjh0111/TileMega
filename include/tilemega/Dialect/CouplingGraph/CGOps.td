@@ -103,6 +103,15 @@ def CG_PlacementOp : CG_Op<"placement", []> {
     is pinned to the `seq`, `past` and grid it was scheduled for, and the host
     refuses it for any other.
 
+    `params_map` is an alternative to the constant `params` vector: an ISL
+    single-valued map from an empty task tuple to the parameter tuple, with
+    theta left symbolic. `grid_map` and `resident_limit_map` carry one output
+    each over the same theta domain; their product must establish 0 < grid <=
+    resident_limit. Constant legacy attributes remain valid without these maps.
+    Bound code generation evaluates parameter maps using the module's
+    `tilemega.placement_bindings` dictionary. Materialized tables remain one
+    module-level CG attribute, avoiding a duplicate full table per task space.
+
     `window` is W.  The executor implements W = 1 only (strict FIFO); the
     verifier admits any positive W so that EX-E2 changes the executor rather
     than the contract, and codegen rejects W > 1 until then.
@@ -113,7 +122,10 @@ def CG_PlacementOp : CG_Op<"placement", []> {
                        OptionalAttr<StrAttr>:$mode,
                        OptionalAttr<DenseI64ArrayAttr>:$params,
                        OptionalAttr<I64Attr>:$window,
-                       OptionalAttr<StrAttr>:$policy);
+                       OptionalAttr<StrAttr>:$policy,
+                       OptionalAttr<CG_CouplingMapAttr>:$params_map,
+                       OptionalAttr<CG_CouplingMapAttr>:$grid_map,
+                       OptionalAttr<CG_CouplingMapAttr>:$resident_limit_map);
   let assemblyFormat = "$task `map` `=` $map `cluster` `=` $cluster attr-dict";
   let hasVerifier = 1;
   let extraClassDeclaration = [{

@@ -92,3 +92,24 @@ module attributes {tilemega.placement_table = {grid = 2 : i64, past = 3 : i64, s
   // expected-error@+1 {{puts node 1 at slot 1 of a queue of 1}}
   tilemega.placement @p map = [0] cluster = 1 {mode = "eft", params = array<i64>, resident_only = true}
 }
+
+// -----
+module {
+  tilemega.task_space @p {granularity = {Tm = 1 : i64}, kind = #tilemega.task_kind<"gemm">, operator_name = "aten.linear.default", stage = 0 : i64, write_map = #tilemega.access_map<{kind = "identity"}>}
+  // expected-error@+1 {{params_map must be a single-valued theta function}}
+  tilemega.placement @p map = [0] cluster = 1 {mode = "template", params_map = #tilemega.coupling_map<"[S] -> { [] -> [p] : 0 <= p <= 1 and S > 0 }">, resident_only = true}
+}
+
+// -----
+module {
+  tilemega.task_space @p {granularity = {Tm = 1 : i64}, kind = #tilemega.task_kind<"gemm">, operator_name = "aten.linear.default", stage = 0 : i64, write_map = #tilemega.access_map<{kind = "identity"}>}
+  // expected-error@+1 {{symbolic grid does not prove 0 < grid <= resident_limit}}
+  tilemega.placement @p map = [0] cluster = 1 {grid_map = #tilemega.coupling_map<"[S] -> { [] -> [S] : 1 <= S <= 512 }">, resident_limit_map = #tilemega.coupling_map<"[S] -> { [] -> [256] : 1 <= S <= 512 }">, resident_only = true}
+}
+
+// -----
+module {
+  tilemega.task_space @p {granularity = {Tm = 1 : i64}, kind = #tilemega.task_kind<"gemm">, operator_name = "aten.linear.default", stage = 0 : i64, write_map = #tilemega.access_map<{kind = "identity"}>}
+  // expected-error@+1 {{grid and resident limit theta domains differ}}
+  tilemega.placement @p map = [0] cluster = 1 {grid_map = #tilemega.coupling_map<"[S] -> { [] -> [128] : 1 <= S <= 256 }">, resident_limit_map = #tilemega.coupling_map<"[S] -> { [] -> [256] : 1 <= S <= 128 }">, resident_only = true}
+}
