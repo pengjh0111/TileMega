@@ -103,6 +103,9 @@ static_assert(!arch::kDevicePass || TILEMEGA_GENERATED_CLUSTER_DIM == 1 ||
 static_assert(!arch::kDevicePass || !TILEMEGA_EVENT_CLUSTER_FANIN ||
                   arch::Caps<arch::CurrentArch>::kCluster,
               "cluster event aggregation requires caps.cluster");
+static_assert(!arch::kDevicePass || !TILEMEGA_CLUSTER_ARRIVE ||
+                  !arch::Caps<arch::CurrentArch>::kCluster || TILEMEGA_EVENT_CLUSTER_FANIN,
+              "cluster-scoped arrival requires the cluster-local fan-in layout");
 
 #ifndef TILEMEGA_GENERATED_RESIDENT_GRID
 #define TILEMEGA_GENERATED_RESIDENT_GRID(target, function, block_size, dynamic_smem) \
@@ -676,7 +679,11 @@ __device__ inline void ArriveEvent(Params const& p, EventCounter* events,
       shard = plan.begin + blockIdx.x % plan.modulus;
       counter = &p.shard_arrivals[shard].arrivals;
     }
-    unsigned long long ticket = atomicAdd(counter, 1ull);
+    unsigned long long ticket;
+    if constexpr (TILEMEGA_CLUSTER_ARRIVE && TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled)
+      ticket = CS::ArriveCounter(counter);
+    else
+      ticket = atomicAdd(counter, 1ull);
     if (ticket + 1ull != static_cast<unsigned long long>(p.shard_targets[shard]) *
                               (iteration + 1ull)) return;
     __threadfence();

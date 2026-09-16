@@ -1,0 +1,5 @@
+{
+  "test/litmus/sync_v3_cluster_compile.cu": "3a008f55b3681cc233ddada6d74e17d0cdf2587fab979b86898f137ff5174028",
+  "include/tilemega/Codegen/tasks/ClusterSync.cuh": "e227bfc907c8e8ecd24d448793132690f1fb1cc3714ca100c763366d78b06d11",
+  "include/tilemega/Target/ArchDispatch.h": "04004a72cf46291a01be23dac710b4497afca9b938360dfc241d92d5c4a6543e"
+}

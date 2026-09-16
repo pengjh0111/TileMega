@@ -1,0 +1,62 @@
+[
+  {
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O2",
+      "-arch=sm_89",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-cubin",
+      "/root/TileMega/test/litmus/sync_v3_cluster_compile.cu",
+      "-o",
+      "/root/TileMega/docs/experiments/SYNC_V3/cluster_compile/probe_sm_89.cubin"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O2",
+      "-arch=sm_89",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-ptx",
+      "/root/TileMega/test/litmus/sync_v3_cluster_compile.cu",
+      "-o",
+      "/root/TileMega/docs/experiments/SYNC_V3/cluster_compile/probe_sm_89.ptx"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O2",
+      "-arch=sm_120",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-cubin",
+      "/root/TileMega/test/litmus/sync_v3_cluster_compile.cu",
+      "-o",
+      "/root/TileMega/docs/experiments/SYNC_V3/cluster_compile/probe_sm_120.cubin"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O2",
+      "-arch=sm_120",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-ptx",
+      "/root/TileMega/test/litmus/sync_v3_cluster_compile.cu",
+      "-o",
+      "/root/TileMega/docs/experiments/SYNC_V3/cluster_compile/probe_sm_120.ptx"
+    ],
+    "exit_code": 0
+  }
+]

@@ -100,6 +100,21 @@ struct ClusterSync {
     return rank == 0u ? self : nullptr;
   }
 
+  /// Cluster-local fan-in only. The last arrival must still forward at GPU
+  /// scope when the event has consumers outside this cluster.
+  __device__ static unsigned long long ArriveCounter(unsigned long long* counter) {
+    if constexpr (kEnabled) {
+#if defined(_CG_HAS_CLUSTER_GROUP)
+      unsigned const address = static_cast<unsigned>(__cvta_generic_to_shared(counter));
+      unsigned long long previous;
+      asm volatile("atom.acq_rel.cluster.shared::cluster.add.u64 %0, [%1], 1;"
+                   : "=l"(previous) : "r"(address) : "memory");
+      return previous;
+#endif
+    }
+    return atomicAdd(counter, 1ull);
+  }
+
   /// Point-to-point release (§8.5): every write this CTA published must be
   /// visible before the epoch a peer polls. The fence is cluster-scoped and
   /// not device-scoped precisely because the consumer is another CTA of the
