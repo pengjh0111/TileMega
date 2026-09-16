@@ -1,0 +1,50 @@
+[
+  {
+    "configuration": "window2",
+    "model": "gqa2",
+    "command": [
+      "/usr/local/cuda/bin/cuobjdump",
+      "--dump-sass",
+      "/root/TileMega/docs/experiments/SYNC_V3/window2/bin/gqa2_p0_neither"
+    ],
+    "exit_code": 0,
+    "binary_sha256": "9b056b63d7262316f09c8891ac468bb479a5a10270d1dbc584b476408d8812d4",
+    "sass_sha256": "44350d381f756dd565097e340f7fe4d2953af14923aa803fcc416a6eff091909"
+  },
+  {
+    "configuration": "window2",
+    "model": "mha4",
+    "command": [
+      "/usr/local/cuda/bin/cuobjdump",
+      "--dump-sass",
+      "/root/TileMega/docs/experiments/SYNC_V3/window2/bin/mha4_p0_neither"
+    ],
+    "exit_code": 0,
+    "binary_sha256": "c2cdf84c151b27c18c063641f9cecdcf1011a51ca6d1975d5527df9a7cfea03a",
+    "sass_sha256": "a948c5f6f44356c26fed5886a70d18be7facaecd35448eeb8984953d5adc26b0"
+  },
+  {
+    "configuration": "local2",
+    "model": "gqa2",
+    "command": [
+      "/usr/local/cuda/bin/cuobjdump",
+      "--dump-sass",
+      "/root/TileMega/docs/experiments/SYNC_V3/local2/bin/gqa2_p0_neither"
+    ],
+    "exit_code": 0,
+    "binary_sha256": "d43e8ed53a1385c8cece900842c0f542f80eccc74675d04deabf0cb4de8d9f30",
+    "sass_sha256": "422ae884821468fc3dee4caba8c1cdd19ee5f39b3218b45baaddac3d560114b3"
+  },
+  {
+    "configuration": "local2",
+    "model": "mha4",
+    "command": [
+      "/usr/local/cuda/bin/cuobjdump",
+      "--dump-sass",
+      "/root/TileMega/docs/experiments/SYNC_V3/local2/bin/mha4_p0_neither"
+    ],
+    "exit_code": 0,
+    "binary_sha256": "cc37412468e08f019a685106d6ce8c53dd50b0ee7805a0c39f7bb29ed05f9c03",
+    "sass_sha256": "aa7069f5b62997d55e9a62b20fc009f7dfab7cd1e2e8456a8fecedca4c0203d0"
+  }
+]

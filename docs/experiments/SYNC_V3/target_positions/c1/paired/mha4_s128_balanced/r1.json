@@ -1,0 +1,1 @@
+{"command": ["/root/TileMega/docs/experiments/SYNC_V3/target_positions/c1/bin/mha4_s128_balanced_p4_full", "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/mha4_s128_p3"], "exit_code": 0, "session": "1789530383627475465", "round": 1, "order": 3, "time_ns": 1789530761953405443, "binary_sha256": "06242d1a74aaef62fba52497b186c1daa34f991c85b4ebea9f314fa6081b383b"}

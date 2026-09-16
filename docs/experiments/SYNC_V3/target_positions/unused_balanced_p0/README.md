@@ -1,0 +1,1 @@
+These placement-0 balanced builds were not measured. The frozen balanced candidate uses placement 4; correct placement-4 binaries were built before target-position measurement. Source and binary provenance from the unused compile is retained here, outside the measured configuration logs.
