@@ -1,0 +1,51 @@
+{
+  "llama_config.json": {
+    "url": "https://huggingface.co/meta-llama/Llama-3.2-1B/raw/main/config.json",
+    "error": "HTTP Error 401: Unauthorized"
+  },
+  "qwen_config.json": {
+    "url": "https://huggingface.co/Qwen/Qwen3-1.7B/raw/main/config.json",
+    "sha256": "1ddb5b89ebc90dcb417a45c213d818577e65976454d29385c8f6140771d95197",
+    "bytes": 726
+  },
+  "modeling_llama.py": {
+    "url": "https://raw.githubusercontent.com/huggingface/transformers/main/src/transformers/models/llama/modeling_llama.py",
+    "sha256": "13e65b752a9c9d8a5c22b83df73009a8940c0eefdc58c101df3eb910e3efc2f9",
+    "bytes": 20924
+  },
+  "modeling_qwen3.py": {
+    "url": "https://raw.githubusercontent.com/huggingface/transformers/main/src/transformers/models/qwen3/modeling_qwen3.py",
+    "sha256": "cbb7f2dc274c2f5592746c0dc6985ca50353efa07376f92cc922b77680a74f69",
+    "bytes": 23039
+  },
+  "meta_sku_list.py": {
+    "url": "https://raw.githubusercontent.com/meta-llama/llama-models/main/models/sku_list.py",
+    "sha256": "a71a8ca23c8daf3d1daec02c13e9916c36e315c5056b56ed20b18df98d10c486",
+    "bytes": 34287
+  },
+  "meta_args.py": {
+    "url": "https://raw.githubusercontent.com/meta-llama/llama-models/main/models/llama3/args.py",
+    "sha256": "fce632ac3b167b490362a1c287de6886228e74977956667d455fdf6313cf602e",
+    "bytes": 2399
+  },
+  "meta_model.py": {
+    "url": "https://raw.githubusercontent.com/meta-llama/llama-models/main/models/llama3/model.py",
+    "sha256": "ff135f051d66b03a9e32789966d2be84186a00b90cef398c05b10f7e9d2a7dc3",
+    "bytes": 11383
+  },
+  "llama_api.json": {
+    "url": "https://huggingface.co/api/models/meta-llama/Llama-3.2-1B?expand=config",
+    "sha256": "1910cf7883df22dfc44a8924b6327872c4689b39e79051974fa21e9990a1fc91",
+    "bytes": 217
+  },
+  "llama_original_params.json": {
+    "url": "https://huggingface.co/meta-llama/Llama-3.2-1B/resolve/main/original/params.json?download=true",
+    "error": "HTTP Error 401: Unauthorized"
+  },
+  "llama_config_public_copy.json": {
+    "url": "https://huggingface.co/unsloth/Llama-3.2-1B/raw/main/config.json",
+    "sha256": "8f028e2cd88148fad38c7dece460947681adf6178e46e11ece9742aa49b378dd",
+    "bytes": 889,
+    "provenance": "public redistributor config; dimensions checked against Meta SKU"
+  }
+}

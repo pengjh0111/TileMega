@@ -1,0 +1,34 @@
+model	operator	task_kind	status
+llama	token embedding	missing	no indexed embedding TaskKind / decoder importer input is hidden states
+llama	input pre-attention RMSNorm	kRMSNorm	configured epsilon=1e-05; backend epsilon=1e-06; parameter gap
+llama	Q/K/V projections	kGemm	shape_supported; exact export path pending
+llama	RoPE frequency scaling	kRoPE	config-dependent frequency table can be an input buffer
+llama	RoPE rotation	kRoPE	partial: backend rounds positions and angles to ModelElement before sin/cos; public implementation uses FP32 angles
+llama	KV cache append	kKVAppend	shape_supported
+llama	GQA score/mask/softmax/value	kAttention	shape_supported; composite implementation, precise export check pending
+llama	output projection	kGemm	shape_supported
+llama	attention residual	kAdd / kGemm epilogue	shape_supported
+llama	post-attention RMSNorm	kRMSNorm	configured epsilon=1e-05; backend epsilon=1e-06; parameter gap
+llama	gate/up projections	kGemm	shape_supported
+llama	SiLU times gate	kElementwise	shape_supported
+llama	down projection and residual	kGemm / kAdd	shape_supported
+llama	final RMSNorm	kRMSNorm	partial: no standalone final-normalization stage in DecoderLayerPattern; configured epsilon=1e-05; backend epsilon=1e-06; parameter gap
+llama	vocabulary projection	kGemm	partial: collective can implement dimensions; decoder-only importer does not emit final LM head
+llama	reshape/transpose/broadcast	layout metadata	absorbed by semantic access maps; no standalone task
+qwen	token embedding	missing	no indexed embedding TaskKind / decoder importer input is hidden states
+qwen	input pre-attention RMSNorm	kRMSNorm	configured epsilon=1e-06; backend epsilon=1e-06; matches
+qwen	Q/K/V projections	kGemm	shape_supported; exact export path pending
+qwen	per-head Q/K RMSNorm	missing	Qwen only; existing RMSNorm owns one token row, not one token/head
+qwen	RoPE frequency scaling	kRoPE	config-dependent frequency table can be an input buffer
+qwen	RoPE rotation	kRoPE	partial: backend rounds positions and angles to ModelElement before sin/cos; public implementation uses FP32 angles
+qwen	KV cache append	kKVAppend	shape_supported
+qwen	GQA score/mask/softmax/value	kAttention	shape_supported; composite implementation, precise export check pending
+qwen	output projection	kGemm	shape_supported
+qwen	attention residual	kAdd / kGemm epilogue	shape_supported
+qwen	post-attention RMSNorm	kRMSNorm	configured epsilon=1e-06; backend epsilon=1e-06; matches
+qwen	gate/up projections	kGemm	shape_supported
+qwen	SiLU times gate	kElementwise	shape_supported
+qwen	down projection and residual	kGemm / kAdd	shape_supported
+qwen	final RMSNorm	kRMSNorm	partial: no standalone final-normalization stage in DecoderLayerPattern; configured epsilon=1e-06; backend epsilon=1e-06; matches
+qwen	vocabulary projection	kGemm	partial: collective can implement dimensions; decoder-only importer does not emit final LM head
+qwen	reshape/transpose/broadcast	layout metadata	absorbed by semantic access maps; no standalone task

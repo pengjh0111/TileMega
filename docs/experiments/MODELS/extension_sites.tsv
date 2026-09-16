@@ -1,0 +1,16 @@
+index	site	path	condition
+1	TaskKind enum	include/tilemega/Codegen/tasks/TaskBase.h	new distinct TaskKind
+2	OwnershipOf	include/tilemega/Codegen/tasks/TaskBase.h	new ownership classification
+3	TaskBody implementation	include/tilemega/Codegen/tasks/	new backend body
+4	resource traits and resource query	include/tilemega/Codegen/tasks/TaskResources.h	threads/shared source
+5	backend scalar dataflow	include/tilemega/Codegen/tasks/ScalarDataflow.h	control-flow latency declaration
+6	L1 dispatch	include/tilemega/Codegen/tasks/ModelHarness.cuh	RunStage
+7	L2 dispatch	include/tilemega/Codegen/tasks/ModelHarness.cuh	RunTask
+8	active ownership dispatch	include/tilemega/Codegen/tasks/ModelHarness.cuh	ActiveTaskCount
+9	frontend plan role	include/tilemega/Frontend/SemanticLifting.h	plan role and operator semantics
+10	frontend pattern	lib/Frontend/ModelPlan.cpp	recognize actual use-def subgraph
+11	semantic access lifting	lib/Frontend/SemanticLifting.cpp	read/write/reduction relations
+12	frontend runtime spelling	lib/Frontend/Frontend.cpp	PlanTaskKind to emitted TaskKind
+13	model stage representation	include/tilemega/Solver/ModelDescription.h	new kind identity, no prices
+14	model stage parser	lib/Solver/ModelDescription.cpp	new kind spelling, no prices
+15	ownership adapter if new map	lib/Solver/ScalarTaskWork.cpp	conditional for a new physical ownership relation

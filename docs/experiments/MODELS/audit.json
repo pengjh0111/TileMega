@@ -1,0 +1,23 @@
+{
+  "status": "static_audit_verified; end_to_end_pending",
+  "task_kind_count": 11,
+  "task_kinds": [
+    "kGemm",
+    "kRMSNorm",
+    "kRoPE",
+    "kKVAppend",
+    "kElementwise",
+    "kAttention",
+    "kGemmCombine",
+    "kGemmAdd",
+    "kGemmRMSNorm",
+    "kRoPEKVAppend",
+    "kAdd"
+  ],
+  "new_distinct_operator_sites": 15,
+  "generic_cost_formula_edits": 0,
+  "derivation": "DeriveTaskWork and TaskInstanceNs consume semantic access and backend traits; ownership adapter may still need extension",
+  "llama_config_provenance": "public redistributed config with primary Meta SKU dimensional cross-check; official HF raw config returned401",
+  "normalization_position": "pre-attention; pre-MLP; final model norm; Qwen additionally per-head Q/K norm before RoPE",
+  "maximal_subset_status": "not yet established by executable export; dimension-only decoder is not full architecture coverage"
+}
