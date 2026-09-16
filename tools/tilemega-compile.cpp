@@ -12,6 +12,8 @@
 #include <mlir/Parser/Parser.h>
 #include <llvm/Support/JSON.h>
 #include <llvm/Support/MemoryBuffer.h>
+#include <llvm/Support/SHA256.h>
+#include <llvm/ADT/StringExtras.h>
 
 #include <exception>
 #include <algorithm>
@@ -182,7 +184,7 @@ int main(int argc, char** argv) {
     tilemega::frontend::ImportSummary summary;
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
-    std::string variants_path,solve_target,dump_cg,hop_path,domain_path;
+    std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path;
     bool resource_probes=true;
     tilemega::solver::CompilerSearchOptions solve_options;
     solve_options.placement.dims={4,3,7};
@@ -197,6 +199,7 @@ int main(int argc, char** argv) {
       else if (flag=="--hop-curve") hop_path=value;
       else if (flag=="--resource-probes") resource_probes=std::stoi(value)!=0;
       else if (flag=="--search-domain") domain_path=value;
+      else if (flag=="--numerical-rejections") rejections_path=value;
       else throw std::runtime_error("unknown option: "+flag);
     }
     bool has_variants=!variants_path.empty();
@@ -218,6 +221,27 @@ int main(int argc, char** argv) {
           auto* o=shape.getAsObject();if (!o) throw std::runtime_error("invalid geometry domain entry");
           solve_options.geometry_domain.push_back({int(requiredInteger(*o,"tile_m")),int(requiredInteger(*o,"tile_n")),
               int(requiredInteger(*o,"tile_k")),int(requiredInteger(*o,"stages")),1});
+        }
+      }
+      if(!rejections_path.empty()) {
+        auto file=llvm::MemoryBuffer::getFile(rejections_path);
+        if(!file)throw std::runtime_error("cannot read numerical exclusions");
+        auto value=llvm::json::parse(file.get()->getBuffer());auto* object=value ? value->getAsObject() : nullptr;
+        auto* entries=object ? object->getArray("rejected") : nullptr;
+        if(!entries || requiredInteger(*object,"seq")!=solve_options.placement.dims.seq ||
+            requiredInteger(*object,"past")!=solve_options.placement.dims.past)
+          throw std::runtime_error("numerical exclusion theta does not match the request");
+        auto fingerprint=object->getString("model_sha256");
+        auto model_file=llvm::MemoryBuffer::getFile(argv[1]);
+        if(!fingerprint || !model_file)throw std::runtime_error("numerical exclusion requires its model fingerprint");
+        llvm::SHA256 digest;digest.update(model_file.get()->getBuffer());
+        if(llvm::toHex(digest.final(),true)!=*fingerprint)
+          throw std::runtime_error("numerical exclusion model fingerprint does not match the request");
+        for(auto const& entry:*entries) {
+          auto* o=entry.getAsObject();if(!o || !o->getString("reason") || o->getString("reason")->empty())
+            throw std::runtime_error("numerical exclusion requires its raw-evidence reason");
+          solve_options.numerical_rejections.push_back({{int(requiredInteger(*o,"tile_m")),int(requiredInteger(*o,"tile_n")),
+              int(requiredInteger(*o,"tile_k")),int(requiredInteger(*o,"stages")),int(requiredInteger(*o,"split_k"))},o->getString("reason")->str()});
         }
       }
       auto& dims=solve_options.placement.dims;dims.total=dims.seq+dims.past;

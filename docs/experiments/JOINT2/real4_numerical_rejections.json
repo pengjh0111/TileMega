@@ -1,0 +1,21 @@
+{
+  "seq": 4,
+  "past": 3,
+  "model_source": "docs/experiments/REALMODEL/raw/work/r2sim_s4/model.json",
+  "model_sha256": "5403646501da6f246062f02e0e622ce0f0450a1f154fc7a29825987124d46665",
+  "rejected": [
+    {
+      "tile_m": 64,
+      "tile_n": 128,
+      "tile_k": 16,
+      "stages": 2,
+      "split_k": 8,
+      "reason": "L0 CPU golden mismatch=1; L05=L1=L2 bit-identical; raw docs/experiments/JOINT2/workclass/real_s4/pilot/top1/r0.log"
+    }
+  ],
+  "raw_sha256": {
+    "docs/experiments/JOINT2/workclass/real_s4/pilot/top1/r0.log": "c81d3bff8da3ecba832ee01c9c04a39f2421ebdeaa1fbf1a980bb2a7339bed39",
+    "docs/experiments/JOINT2/workclass/real_s4/pilot/top2/r0.log": "04e291476d1b5eca88b1ed180d7066d508f35843920b632f9aace48d17fa3279",
+    "docs/experiments/JOINT2/workclass/real_s4/pilot/top3/r0.log": "73d966404a985166feff7bfbcbadfaf77079a06ee06892c8e1d4a67b59db1989"
+  }
+}

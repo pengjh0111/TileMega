@@ -1,0 +1,17 @@
+{
+  "command": [
+    "build-portable/tools/tilemega-compile",
+    "docs/experiments/REALMODEL/raw/work/r2sim_s4/model.json",
+    "/tmp/r6-rejection-negative.cu",
+    "--solve",
+    "docs/experiments/COSTMODEL/event_fit/target.json",
+    "--seq",
+    "128",
+    "--past",
+    "3",
+    "--numerical-rejections",
+    "docs/experiments/JOINT2/real4_numerical_rejections.json"
+  ],
+  "exit_code": 1,
+  "expected_rejection": true
+}

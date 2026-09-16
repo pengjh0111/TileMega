@@ -13,6 +13,7 @@ struct CompilerSearchOptions {
   // Optional externally evidenced backend domain for a disclosed reduced
   // search. Split and kappa remain decisions of the solver.
   std::vector<GemmConfig> geometry_domain;
+  std::vector<std::pair<GemmConfig,std::string>> numerical_rejections;
   std::function<int(mlir::ModuleOp,int)> query_residency;
 };
 struct CompilerSearchResult {
@@ -65,6 +66,12 @@ inline CompilerSearchResult SolveExport(std::string const& path,
       [&](JointCandidate const& candidate) {
     std::vector<JointEvaluation> evaluations;
     try {
+      for(auto const& [rejected,reason]:options.numerical_rejections) {
+        auto const& g=candidate.config;
+        if(std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k)==
+           std::tie(rejected.tile_m,rejected.tile_n,rejected.tile_k,rejected.stages,rejected.split_k))
+          throw std::invalid_argument("numerical exclusion: "+reason);
+      }
       frontend::ImportOptions import;
       auto const& g=candidate.config;
       import.gemms.assign(model.gemms.size(),{g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
