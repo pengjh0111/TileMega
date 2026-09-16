@@ -67,7 +67,7 @@ std::vector<int> ChainDP::GemmStages(ModelDescription const& model) const {
   std::vector<bool> seen(model.gemms.size(), false);
   for (std::size_t i = 0; i < model.stages.size(); ++i) {
     auto const& stage = model.stages[i];
-    if (stage.kind != StageKind::kGemm) continue;
+    if (!stage.IsCollective()) continue;
     if (stage.gemm < 0 ||
         static_cast<std::size_t>(stage.gemm) >= model.gemms.size()) {
       throw std::runtime_error("stage names a GEMM the model does not have");
@@ -94,9 +94,7 @@ double ChainDP::BetweenNs(ModelDescription const& model,
   double const barrier = cost_->BarrierNs(residency);
   double ns = 0.0;
   for (int i = begin; i < end; ++i) {
-    ns += (cost_->options().unified_task_cost
-               ? cost_->TaskStageNs(model,i,candidates_.empty() ? GemmConfig{} : candidates_.front().config,residency)
-               : cost_->NonGemmStageNs(model.stages[i], model.dims, residency)) +
+    ns += cost_->TaskStageNs(model,i,candidates_.empty() ? GemmConfig{} : candidates_.front().config,residency) +
           model.RuntimeStages(i)*barrier;
   }
   return ns;
@@ -282,12 +280,8 @@ ChainDpSolution ChainDP::Solve(ModelDescription const& model,
       GemmOp const& gemm = model.gemms[model.stages[gemm_stages[i]].gemm];
       for (std::size_t j = 0; j < n; ++j) {
         GemmConfig const& cfg = candidates_[admissible[j]].config;
-        int chunks = 1;
-        double ns;
-        if (cost_->options().unified_task_cost) {
-          chunks=cost_->Chunks(gemm,cfg);
-          ns=cost_->TaskStageNs(model,gemm_stages[i],cfg,residency);
-        } else ns=cost_->GemmStageNs(gemm, cfg, residency, model, &chunks);
+        int chunks=cost_->Chunks(gemm,cfg);
+        double ns=cost_->TaskStageNs(model,gemm_stages[i],cfg,residency);
         if (chunks > 1) {
           ns += cost_->CombineStageNs(gemm, chunks, model.dims) + barrier;
         }

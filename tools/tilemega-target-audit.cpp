@@ -23,6 +23,9 @@
 //
 // Exits non-zero when any target fails, so it can be a ctest case.
 
+#include <tilemega/Frontend/TorchExportImporter.h>
+#include <tilemega/Dialect/CouplingGraph/CGDialect.h>
+#include <mlir/IR/MLIRContext.h>
 #include <tilemega/Solver/CandidateGenerator.h>
 #include <tilemega/Solver/CostModel.h>
 #include <tilemega/Solver/ModelDescription.h>
@@ -308,9 +311,11 @@ int main(int argc, char** argv) {
   ModelDescription probe_storage;
   ModelDescription const* probe = nullptr;
   try {
-    probe_storage = ModelDescription::FromGeneratedCuda(
-        repo + "/docs/experiments/E2E_GEN/raw/generated_e2e.cu",
-        ModelDims{4, 3, 7}, "gqa2");
+    mlir::MLIRContext context;
+    context.getOrLoadDialect<tilemega::dialect::CGDialect>();
+    auto cg=tilemega::frontend::TorchExportImporter{}.Import(
+        repo+"/docs/experiments/E2E_GEN/raw/export_bridge.json",context);
+    probe_storage=ModelDescription::FromCouplingGraph(*cg,ModelDims{4,3,7},"gqa2");
     probe = &probe_storage;
   } catch (std::exception const& error) {
     std::cout << "NOTE probe model unavailable: " << error.what() << '\n';
@@ -332,9 +337,7 @@ int main(int argc, char** argv) {
     // fabricated zeros.  That refusal is itself the reason a lane and a term
     // carry no value here, so it is reported and not counted as a failure.
     try {
-      CostModelOptions legacy_options;
-      legacy_options.unified_task_cost=false;  // This audit's probe is the historical .cu table.
-      CostModel const model(spec,ScalarType::kF32,legacy_options);
+      CostModel const model(spec,probe ? probe->dtype : ScalarType::kF32);
       CheckLanes(tag, spec, model);
       CheckTerms(tag, spec, model, probe);
     } catch (std::exception const& error) {

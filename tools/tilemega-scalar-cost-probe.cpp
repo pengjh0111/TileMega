@@ -1,3 +1,4 @@
+#include <limits>
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
@@ -108,7 +109,7 @@ int main(int argc,char** argv) try {
     auto projection=ProjectRuntimeQueues(symbolic,plan,{target.res.num_sms*2,threads,0});
     CostModelOptions unified; unified.unified_task_cost=true;
     CostModel cost(target,model.dtype,unified);
-    double old_attention=0,new_attention=0;
+    double old_attention=std::numeric_limits<double>::quiet_NaN(),new_attention=0;
     for (auto const& semantic:model.task_semantics) {
       auto const& stage=model.stages.at(semantic.stage);
       if (stage.kind==StageKind::kGemm) continue;
@@ -119,10 +120,9 @@ int main(int argc,char** argv) try {
       auto projected=projection.stages.at(semantic.stage).task_count.SubstituteParams(theta).Eval({});
       if (projected!=count) throw std::runtime_error("scalar ownership task count disagrees with runtime projection: "+semantic.op.name);
       index_checks+=CheckIndices(stage,tiles,threads,model,input,count);
-      BackendTraits traits; traits.threads=threads;
-      traits.smem_bytes=sizeof(float)*codegen::SimtSharedElements(static_cast<codegen::TaskKind>(stage.kind),threads,TILEMEGA_ATTENTION_MAX_TOTAL);
+      auto traits=ModelTaskTraits(model,semantic.stage,{});
       auto [depth,barriers]=input.scalar_flow->MemoryDepthAndBarriers(threads);
-      double old=cost.NonGemmStageNs(stage,model.dims,{2});
+      double old=std::numeric_limits<double>::quiet_NaN();
       double current=cost.TaskCostNs(input,traits,{2},model,1);
       if (stage.kind==StageKind::kAttention) { old_attention+=old; new_attention+=current; }
       std::cout << dtype << '\t' << name << '\t' << (tiles ? "tile" : "element") << '\t'
@@ -131,10 +131,9 @@ int main(int argc,char** argv) try {
           << input.work.write_elements.SumDomain().SubstituteParams(bindings).Eval({}) << '\t'
           << depth << '\t' << barriers << '\t' << old << '\t' << current << '\t' << current/old << '\n';
     }
-    CostModelOptions legacy; legacy.unified_task_cost=false;
-    double old_total=CostModel(target,model.dtype,legacy).Evaluate(model,configs,{2}).total_ns;
+    double old_total=std::numeric_limits<double>::quiet_NaN();
     double new_total=cost.Evaluate(model,configs,{2}).total_ns;
-    std::cerr << std::setprecision(17) << "SCALAR_TOTAL model=" << name << " dtype=" << dtype
+    std::cerr << std::setprecision(17) << "SCALAR_TOTAL legacy_status=retired model=" << name << " dtype=" << dtype
               << " ownership=" << (tiles ? "tile" : "element") << " seq=" << seq << " past=" << past
               << " old_ns=" << old_total << " new_ns=" << new_total
               << " footprint_bytes=" << model.LiveFootprintBytes()

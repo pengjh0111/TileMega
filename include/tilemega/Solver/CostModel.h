@@ -160,6 +160,7 @@ struct CostModelOptions {
   bool measured_partial_combine = TILEMEGA_MEASURED_PARTIAL_COMBINE;
   bool l2_events = TILEMEGA_L2_EVENT_COST;
   bool cg_interface = TILEMEGA_CG_INTERFACE_DP;
+  // Source compatibility for archived probes; stage/DP pricing is always unified.
   bool unified_task_cost = TILEMEGA_UNIFIED_TASK_COST;
   int kappa = 1;
 };
@@ -200,10 +201,8 @@ class CostModel {
                      int* chunks_out = nullptr) const;
   double CombineStageNs(GemmOp const& gemm, int chunks,
                         ModelDims const& dims) const;
-  double NonGemmStageNs(ModelStage const& stage, ModelDims const& dims,
-                        Residency residency) const;
-  // Access-derived candidate input. The historical stage evaluators remain
-  // independent controls until the complete unified-path acceptance gate.
+  // All stage/DP evaluation uses access-derived tasks. GemmStageNs is retained
+  // only as a direct collective calibration control.
   double TaskCostNs(DerivedTaskInput const& input, BackendTraits const& traits,
                     Residency residency, ModelDescription const& model,
                     int chunks) const;

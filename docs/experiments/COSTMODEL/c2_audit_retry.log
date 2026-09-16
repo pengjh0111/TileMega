@@ -1,0 +1,8 @@
+Internal ctest changing into directory: /root/TileMega/build-portable
+Test project /root/TileMega/build-portable
+    Start 6: target_audit
+1/1 Test #6: target_audit .....................   Passed    4.19 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   4.19 sec

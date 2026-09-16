@@ -406,17 +406,31 @@ double ModelDescription::LiveFootprintBytes() const {
   if (dims.IsSymbolic()) throw std::invalid_argument("bind theta before evaluating footprint");
   double bytes = 0.0;
   double const element_bytes = dtype == ScalarType::kBF16 ? 2.0 : 4.0;
+  if (!task_semantics.empty()) {
+    std::map<std::string,double> tensors;
+    auto known=MetricBindings();
+    auto add=[&](analysis::TensorSpace const& tensor) {
+      if (tensor.name.empty()) throw std::invalid_argument("footprint tensor lacks identity");
+      double elements=1;
+      for (auto const& axis:tensor.axes) elements*=axis.extent.Eval(known,known);
+      tensors[tensor.name]=std::max(tensors[tensor.name],elements);
+    };
+    for (auto const& semantic:task_semantics) {
+      add(semantic.op.result);
+      for (auto const& operand:semantic.op.operands) add(operand.tensor);
+      for (auto const& read:semantic.op.element_reads) add(read.tensor);
+    }
+    for (auto const& [name,elements]:tensors) bytes+=element_bytes*elements;
+    if (attention_plan) bytes+=double(attention_plan->workspace_bytes.Eval(known));
+    return bytes;
+  }
   for (auto const& gemm : gemms) {
     // B is the parameter; A and D are the activations either side of it.
     bytes += element_bytes * gemm.n * gemm.k;
     bytes += element_bytes * dims.seq * (gemm.n + gemm.k);
   }
   for (auto const& stage : stages) {
-    if (stage.kind == StageKind::kGemm) continue;
-    if (stage.kind == StageKind::kAdd) {
-      bytes += element_bytes * dims.seq * stage.extent * 3;
-      continue;
-    }
+    if (stage.IsCollective()) continue;
     bytes += element_bytes * dims.total * std::max(stage.extent, 1) *
              std::max(stage.width, 1);
   }

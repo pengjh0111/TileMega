@@ -100,6 +100,7 @@ struct ModelStage {
   /// the generated table rather than assumed: RoPE and KVAppend carry it in
   /// `width` (the head dimension), the elementwise tail in `extent`.
   int ReadGranularity() const;
+  bool IsCollective() const { return kind == StageKind::kGemm; }
 };
 
 struct ModelTaskSemantics {

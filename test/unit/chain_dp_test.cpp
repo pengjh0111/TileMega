@@ -43,6 +43,53 @@ ModelDescription TinyModel() {
       {StageKind::kGemm, 1, 0, 0, 0},
       {StageKind::kElementwise, -1, 256, 0, 0},
   };
+  using namespace analysis;
+  auto c=[](int value) { return ClosedForm::Constant(value); };
+  auto S=ClosedForm::Symbol("S");
+  for (int stage=0;stage<int(model.stages.size());++stage) {
+    auto const& runtime=model.stages[stage];
+    bool gemm=runtime.IsCollective();
+    bool norm=runtime.kind==StageKind::kRMSNorm;
+    int width=gemm ? model.gemms[runtime.gemm].n : norm ? runtime.width : runtime.extent;
+    ModelTaskSemantics semantic;
+    semantic.stage=stage;
+    auto& op=semantic.op;
+    op.name="task"+std::to_string(stage);
+    op.kind=gemm ? OperatorKind::kMatmul : norm ? OperatorKind::kReduction : OperatorKind::kPointwise;
+    op.arithmetic=gemm ? "gemm" : norm ? "rmsnorm" : "silu";
+    op.domain={{"m",S},{"n",c(width)}};
+    op.result={op.name+".out",{{"m",S},{"n",c(width)}}};
+    op.result_map.results={IndexResult::Dim("m"),IndexResult::Dim("n")};
+    op.result_effect.kind=EffectKind::kWrite;
+    SemanticOperand a,b;
+    if (gemm || norm) {
+      int depth=gemm ? model.gemms[runtime.gemm].k : width;
+      IterationDim reduction;
+      reduction.name="k"; reduction.extent=c(depth); reduction.type=IteratorType::kReduction;
+      op.domain.push_back(reduction);
+      op.reduction.dim="k";
+      a.tensor={op.name+".input",{{"m",S},{"k",c(depth)}}};
+      a.map.results={IndexResult::Dim("m"),IndexResult::Dim("k")};
+      if (gemm) {
+        b.tensor={op.name+".weight",{{"n",c(width)},{"k",c(depth)}}};
+        b.map.results={IndexResult::Dim("n"),IndexResult::Dim("k")};
+        op.reduction.splittable=true;
+        op.reduction.reduction_operator="add";
+        op.reduction.partial_tensor=op.name+".partial";
+        op.reduction.combiner=op.name+".combine";
+        op.reduction.ownership={"m","n"};
+      } else {
+        b.tensor={op.name+".weight",{{"n",c(width)}}};
+        b.map.results={IndexResult::Dim("n")};
+      }
+    } else {
+      a.tensor=op.result; a.tensor.name=op.name+".gate"; a.map=op.result_map;
+      b=a; b.tensor.name=op.name+".up";
+    }
+    op.operands={a,b};
+    semantic.tiles={{"m",c(1)},{"n",c(width)}};
+    model.task_semantics.push_back(std::move(semantic));
+  }
   return model;
 }
 
@@ -77,7 +124,7 @@ int main() {
       TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR) +
                            "/configs/targets/sm_89.json");
   CostModelOptions legacy_options;
-  legacy_options.unified_task_cost=false;  // TinyModel is deliberately a non-CG historical fixture.
+  legacy_options.unified_task_cost=false;  // Deprecated flag must not select a second stage price.
   CostModel const cost(target,ScalarType::kF32,legacy_options);
   ModelDescription const model = TinyModel();
   ChainDP const dp(cost, Candidates());
@@ -157,7 +204,7 @@ int main() {
   rejects([&] { CostModel(missing_event_target,ScalarType::kBF16,event_options).Evaluate(event_model,event_config,{1}); });
   rejects([&] { ChainDP(event_cost,Candidates()).Solve(event_model,{}); });
   auto l1_event=CostModel(event_target,ScalarType::kBF16,legacy_options).Evaluate(event_model,event_config,{1});
-  auto l1_original=CostModel(target,ScalarType::kBF16,legacy_options).Evaluate(model,event_config,{1});
+  auto l1_original=CostModel(target,ScalarType::kBF16,legacy_options).Evaluate(event_model,event_config,{1});
   REQUIRE(std::memcmp(&l1_event.total_ns,&l1_original.total_ns,sizeof(double))==0);
   REQUIRE(l1_event.event_ns==0);
 

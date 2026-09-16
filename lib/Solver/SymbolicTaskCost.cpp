@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/CostModel.h>
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Solver/AttentionWork.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <gmpxx.h>
 #include <cmath>
@@ -35,13 +36,38 @@ analysis::ParamBinding FixedExceptSeq(ModelDescription const& model,std::string 
   }
   return known;
 }
-std::array<std::string,2> Footprint(ModelDescription const& model,int element_bytes) {
+std::array<std::string,2> Footprint(ModelDescription const& model,int element_bytes,
+    std::string const& parameter) {
+  if (!model.task_semantics.empty()) {
+    auto known=FixedExceptSeq(model,parameter);
+    std::map<std::string,analysis::ClosedForm> tensors;
+    auto add=[&](analysis::TensorSpace const& tensor) {
+      auto elements=analysis::ClosedForm::Constant(1);
+      for (auto const& axis:tensor.axes) elements=elements*axis.extent.Substitute(known);
+      auto [it,inserted]=tensors.emplace(tensor.name,elements);
+      if (!inserted && !(it->second==elements))
+        throw std::invalid_argument("symbolic footprint has inconsistent tensor views");
+    };
+    for (auto const& semantic:model.task_semantics) {
+      add(semantic.op.result);
+      for (auto const& operand:semantic.op.operands) add(operand.tensor);
+      for (auto const& read:semantic.op.element_reads) add(read.tensor);
+    }
+    auto total=analysis::ClosedForm::Constant(0);
+    for (auto const& [name,elements]:tensors) total=total+elements;
+    auto bytes=Polynomial::FromIslText("["+parameter+"] -> { "+total.ToIslText()+" }").Scale(element_bytes);
+    if (model.attention_plan) bytes=bytes.Add(model.attention_plan->workspace_bytes.SubstituteParams(known));
+    auto pieces=bytes.QuadraticPieces(parameter);
+    if (pieces.size()!=1 || pieces[0].coefficients[2]!="0")
+      throw std::invalid_argument("cache service footprint requires an affine interval");
+    return {pieces[0].coefficients[0],pieces[0].coefficients[1]};
+  }
   mpq_class base=0,slope=0;
   for (auto const& gemm:model.gemms) {
     base+=mpq_class(element_bytes)*gemm.n*gemm.k;
     slope+=mpq_class(element_bytes)*(gemm.n+gemm.k);
   }
-  for (auto const& stage:model.stages) if (stage.kind!=StageKind::kGemm) {
+  for (auto const& stage:model.stages) if (!stage.IsCollective()) {
     mpq_class amount=mpq_class(element_bytes)*std::max(stage.extent,1)*std::max(stage.width,1);
     base+=amount*model.dims.past; slope+=amount;
   }
@@ -61,13 +87,13 @@ Polynomial CostModel::SymbolicStageNs(ModelDescription const& model,int stage_id
   auto const& stage=model.stages.at(stage_id);
   auto selected=model.task_semantics.end();
   for (auto it=model.task_semantics.begin();it!=model.task_semantics.end();++it)
-    if (it->stage==stage_id && (stage.kind!=StageKind::kGemm || it->op.kind==analysis::OperatorKind::kMatmul)) {
+    if (it->stage==stage_id && (!stage.IsCollective() || it->op.kind==analysis::OperatorKind::kMatmul)) {
       if (selected!=model.task_semantics.end()) throw std::invalid_argument("ambiguous symbolic stage semantics");
       selected=it;
     }
   if (selected==model.task_semantics.end()) throw std::invalid_argument("symbolic stage lacks CG semantics");
   auto graph=InstantiateModelTasks(model,std::vector<GemmConfig>(model.gemms.size(),config));
-  bool collective=stage.kind==StageKind::kGemm;
+  bool collective=stage.IsCollective();
   auto input=DeriveModelTaskInput(model,*selected,graph,collective ? &config : nullptr);
   BackendTraits traits;
   if (collective) {
@@ -75,7 +101,7 @@ Polynomial CostModel::SymbolicStageNs(ModelDescription const& model,int stage_id
                                   : SimtF32Traits(config.tile_m,config.tile_n,config.tile_k,config.stages);
     return SymbolicCollectiveNs(input,traits,residency,model,Chunks(model.gemms.at(stage.gemm),config),parameter,begin,end);
   }
-  traits.threads=dtype_==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
+  traits=ModelTaskTraits(model,stage_id,config);
   return SymbolicScalarNs(input,traits,residency,model,parameter,begin,end);
 }
 
@@ -139,7 +165,7 @@ Polynomial CostModel::SymbolicInterfaceEdgeNs(ModelCouplingMetrics const& edge,
   std::vector<Polynomial::PolynomialInterval> misses{{begin,end,{"1","0","0"}}};
   if (options_.cache_model) {
     if (!cache_service_curve_) throw std::invalid_argument("symbolic interface cache: not_calibrated");
-    misses=cache_service_curve_->MissIntervals(Footprint(model,dtype_==ScalarType::kBF16 ? 2 : 4),begin,end,calib_->l2_gbps,calib_->dram_gbps);
+    misses=cache_service_curve_->MissIntervals(Footprint(model,dtype_==ScalarType::kBF16 ? 2 : 4,parameter),begin,end,calib_->l2_gbps,calib_->dram_gbps);
   }
   std::vector<Polynomial> pieces;
   for (auto const& region:misses) {
@@ -220,7 +246,7 @@ Polynomial CostModel::SymbolicCollectiveNs(DerivedTaskInput const& input,
   std::vector<Polynomial::PolynomialInterval> misses{{begin,end,{"1","0","0"}}};
   if (options_.cache_model) {
     if (!cache_service_curve_) throw std::invalid_argument("symbolic cache curve: not_calibrated");
-    misses=cache_service_curve_->MissIntervals(Footprint(model,dtype_==ScalarType::kBF16 ? 2 : 4),
+    misses=cache_service_curve_->MissIntervals(Footprint(model,dtype_==ScalarType::kBF16 ? 2 : 4,parameter),
         begin,end,calib_->l2_gbps,calib_->dram_gbps);
   }
   auto counts=input.work.task_count.SubstituteParams(known).QuadraticIntervals(parameter,begin,end);
@@ -305,7 +331,7 @@ Polynomial CostModel::SymbolicScalarNs(DerivedTaskInput const& input,
   std::vector<Polynomial::PolynomialInterval> misses{{begin,end,{"1","0","0"}}};
   if (options_.cache_model) {
     if (!cache_service_curve_) throw std::invalid_argument("symbolic cache curve: not_calibrated");
-    misses=cache_service_curve_->MissIntervals(Footprint(model,element_bytes),begin,end,calib_->l2_gbps,calib_->dram_gbps);
+    misses=cache_service_curve_->MissIntervals(Footprint(model,element_bytes,parameter),begin,end,calib_->l2_gbps,calib_->dram_gbps);
   }
   std::vector<Polynomial> miss_terms;
   for (auto const& piece:misses) miss_terms.push_back(Expression(parameter,piece.begin,piece.end,piece.coefficients));

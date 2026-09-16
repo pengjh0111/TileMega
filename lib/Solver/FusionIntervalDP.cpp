@@ -73,7 +73,7 @@ ChainDpSolution ChainDP::SolveFusionIntervals(ModelDescription const& model,
     for (auto const& [tensor,map]:candidate.accesses.intermediate_tiles)
       types.emplace(tensor,cost_->dtype()==ScalarType::kBF16 ? 2 : 4);
     long allocated=0;
-    if (model.stages[p].kind==StageKind::kGemm) {
+    if (model.stages[p].IsCollective()) {
       auto const& g=configs.at(model.stages[p].gemm);
       allocated=static_cast<long>(g.tile_m)*g.tile_n*(cost_->dtype()==ScalarType::kBF16 ? 2 : 4);
     }

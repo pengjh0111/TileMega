@@ -93,21 +93,17 @@ ChainDpSolution ChainDP::SolveCouplingInterfaces(ModelDescription const& model,
     ++local.residency_levels;
     Residency residency{r};
     double barrier=cost_->BarrierNs(residency),fixed=0;
-    for (auto const& stage:model.stages) if (stage.kind!=StageKind::kGemm)
-      fixed+=(cost_->options().unified_task_cost ? cost_->TaskStageNs(model,int(&stage-model.stages.data()),
-          candidates_.front().config,residency) : cost_->NonGemmStageNs(stage,model.dims,residency))+
+    for (auto const& stage:model.stages) if (!stage.IsCollective())
+      fixed+=cost_->TaskStageNs(model,int(&stage-model.stages.data()),
+          candidates_.front().config,residency)+
           model.RuntimeStages(int(&stage-model.stages.data()))*barrier;
     std::vector<int> empty(layers,0);
     for (auto& f:factors) if (f.variables.empty()) fixed+=price(f,empty);
     std::vector<std::vector<double>> unary(layers,std::vector<double>(candidates_.size()));
     for (int i=0;i<layers;++i) for (int c:admitted) {
-      int chunks=0;
       auto const& gemm=model.gemms.at(model.stages.at(gemm_stages[i]).gemm);
-      double ns;
-      if (cost_->options().unified_task_cost) {
-        chunks=cost_->Chunks(gemm,candidates_[c].config);
-        ns=cost_->TaskStageNs(model,gemm_stages[i],candidates_[c].config,residency)+barrier;
-      } else ns=cost_->GemmStageNs(gemm,candidates_[c].config,residency,model,&chunks)+barrier;
+      int chunks=cost_->Chunks(gemm,candidates_[c].config);
+      double ns=cost_->TaskStageNs(model,gemm_stages[i],candidates_[c].config,residency)+barrier;
       if (chunks>1) ns+=cost_->CombineStageNs(gemm,chunks,model.dims)+barrier;
       unary[i][c]=ns;
     }

@@ -614,7 +614,10 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
   if (iters<=0 || iters!=std::floor(iters)) throw std::invalid_argument("invalid collective reduction work");
   double const reads=value(input.work.nominal_read_elements)/iters;
   double const writes=value(input.work.nominal_write_elements);
-  double const bytes=ElementBytes(dtype_)*reads;
+  auto traffic=DeriveTaskMemoryTraffic(input,known,point,ElementBytes(dtype_),
+      options_.fp32_partials && dtype_==ScalarType::kBF16 && chunks>1
+          ? int(sizeof(float)) : ElementBytes(dtype_),analysis::AccessDomain::kNominalTile);
+  double const bytes=(memory ? memory->global_read_bytes : traffic.global_read_bytes)/iters;
   double const flops=input.arithmetic.flops_per_output_element.Eval(known)*writes/iters;
   double const transc=input.arithmetic.transcendental_per_output_element.Eval(known)*writes/iters;
   double const dram_fraction=1.0-CacheHitProbability(model.LiveFootprintBytes());
@@ -624,8 +627,7 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
   for (std::size_t axis=0;axis<input.task.tile.size();++axis) {
     setup*=double(input.task.tile[axis].Eval(known,known));
   }
-  double const epilogue=(options_.fp32_partials && dtype_==ScalarType::kBF16 && chunks>1
-                           ? double(sizeof(float)) : ElementBytes(dtype_))*writes;
+  double const epilogue=traffic.global_write_bytes;
   double epilogue_ns=epilogue/l2_bytes_per_ns_per_sm_;
   if (memory) {
     if (memory->local_write_bytes>0 && calib_->smem_gbps<=0)
@@ -665,81 +667,13 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
   return total;
 }
 
-double CostModel::NonGemmStageNs(ModelStage const& stage, ModelDims const& dims,
-                                 Residency residency) const {
-  if (!options_.non_gemm) return 0.0;
-  auto const& calib = *calib_;
-  double ctas = 0.0, bytes = 0.0, sfu_ops = 0.0;
-  int depth = 0, barriers = 0;
-  // The non-GEMM bodies share the megakernel's collective launch width.
-  // OFF preserves the historical FP32-family assumption as an ablation.
-  int const kSimtThreads = options_.task_body_traits && dtype_ == ScalarType::kBF16
-                              ? kTensorBF16Threads : kSimtF32Threads;
-  double const width = std::max(stage.width, 1);
-  double const extent = std::max(stage.extent, 1);
-  switch (stage.kind) {
-    case StageKind::kRMSNorm:
-      ctas = dims.seq;
-      bytes = 3.0 * width * 4.0;
-      depth = 2;
-      barriers = 2;
-      break;
-    case StageKind::kRoPE:
-      ctas = CeilDiv(dims.seq * extent * (width / 2.0), kSimtThreads);
-      bytes = kSimtThreads * 4.0 * 4.0;
-      sfu_ops = 2.0 * kSimtThreads;
-      depth = 2;
-      break;
-    case StageKind::kKVAppend:
-      ctas = CeilDiv(std::max(dims.seq, dims.past) * extent * width,
-                     kSimtThreads);
-      bytes = kSimtThreads * 2.0 * 4.0;
-      depth = 2;
-      break;
-    case StageKind::kElementwise:
-      ctas = CeilDiv(dims.seq * extent, kSimtThreads);
-      bytes = kSimtThreads * 3.0 * 4.0;
-      sfu_ops = kSimtThreads;
-      depth = 2;
-      break;
-    case StageKind::kAdd:
-      throw std::invalid_argument("explicit add tasks require the unified task cost path");
-    case StageKind::kAttention:
-      ctas = dims.seq * extent;
-      bytes = (2.0 * dims.total * width + 2.0 * width) * 4.0;
-      sfu_ops = kSimtThreads;
-      depth = 3;
-      barriers = 3;
-      break;
-    case StageKind::kGemm:
-      return 0.0;
-  }
-  double const grid = static_cast<double>(target_->res.num_sms) *
-                      std::max(1, residency.ctas_per_sm);
-  double total = 0.0;
-  for (double remaining = std::max(ctas, 1.0); remaining > 0.0;
-       remaining -= grid) {
-    double const active = std::min(grid, remaining);
-    double const o = std::max(1.0, active / target_->res.num_sms);
-    // These stages own a few hundred elements per CTA.  Their cost is a
-    // handful of dependent round trips plus that traffic, not a bandwidth:
-    // a model built only on rates predicts a few tens of nanoseconds for a
-    // stage the profile shows at several microseconds.
-    total += depth * calib.l2_latency_ns +
-             o * bytes / l2_bytes_per_ns_per_sm_ +
-             barriers * calib.syncthreads_ns +
-             o * sfu_ops / sfu_ops_per_ns_per_sm_;
-  }
-  return total;
-}
-
 double CostModel::TaskStageNs(ModelDescription const& model,int index,
                               GemmConfig const& requested,Residency residency) const {
   analysis::IslReferenceAudit audit(__func__);
   GemmConfig config=requested;
   if (!options_.split_k) config.split_k=1;
   auto const& stage=model.stages.at(index);
-  if (stage.kind!=StageKind::kGemm && !options_.non_gemm) return 0;
+  if (!stage.IsCollective() && !options_.non_gemm) return 0;
   if (model.attention_plan) {
     auto found=model.attention_plan->stages.find(index);
     if (found!=model.attention_plan->stages.end()) {
@@ -758,13 +692,13 @@ double CostModel::TaskStageNs(ModelDescription const& model,int index,
   for (auto const& semantic:model.task_semantics) if (semantic.stage==index) {
     // A native residual epilogue belongs to the existing collective stage
     // envelope. It is not a second runtime task or a newly selected fusion.
-    if (stage.kind==StageKind::kGemm && semantic.op.arithmetic=="add") continue;
+    if (stage.IsCollective() && semantic.op.arithmetic=="add") continue;
     if (selected) throw std::invalid_argument("runtime stage needs an explicit mixed-task composition");
     selected=&semantic;
   }
   if (!selected) throw std::invalid_argument("runtime stage lacks a CG semantic cost input");
   BackendTraits traits=ModelTaskTraits(model,index,config);
-  bool collective=stage.kind==StageKind::kGemm;
+  bool collective=stage.IsCollective();
   int chunks=collective ? Chunks(model.gemms.at(stage.gemm),config) : 1;
   std::ostringstream key;
   key << analysis::EncodeSemanticOp(selected->op) << ':' << selected->element_chunk << ':'
@@ -871,37 +805,23 @@ CostBreakdown CostModel::Evaluate(ModelDescription const& model,
     throw std::invalid_argument("one GemmConfig per model GEMM is required");
   }
   CostBreakdown out;
-  if (model.attention_plan && !options_.unified_task_cost)
-    throw std::invalid_argument("chunk attention cannot use the historical scalar template price");
   for (std::size_t i=0;i<model.stages.size();++i) {
     auto const& stage=model.stages[i];
     out.stage_count+=model.RuntimeStages(i);
-    if (stage.kind != StageKind::kGemm) {
-      if (options_.unified_task_cost)
-        out.task_ns_sum+=TaskStageNs(model,int(i),stage.gemm>=0 ? configs.at(stage.gemm) :
-            (configs.empty() ? GemmConfig{} : configs.front()),residency);
-      else out.other_ns += NonGemmStageNs(stage, model.dims, residency);
-      continue;
-    }
-    GemmOp const& gemm = model.gemms[stage.gemm];
-    GemmConfig const& config = configs[stage.gemm];
-    int chunks = 1;
-    if (options_.unified_task_cost) {
-      chunks=Chunks(gemm,config);
-      out.task_ns_sum+=TaskStageNs(model,int(i),config,residency);
-    } else out.gemm_ns += GemmStageNs(gemm, config, residency, model, &chunks);
-    if (chunks > 1) {
-      // The split rewrite appends a combiner stage, which the megakernel pays
-      // for with its own grid barrier: split-K buys arithmetic parallelism and
-      // spends synchronization.
-      out.combine_ns += CombineStageNs(gemm, chunks, model.dims);
+    auto config=stage.gemm>=0 ? configs.at(stage.gemm) :
+        (configs.empty() ? GemmConfig{} : configs.front());
+    out.task_ns_sum+=TaskStageNs(model,int(i),config,residency);
+    if (!stage.IsCollective()) continue;
+    auto const& gemm=model.gemms.at(stage.gemm);
+    int chunks=Chunks(gemm,config);
+    if (chunks>1) {
+      out.combine_ns+=CombineStageNs(gemm,chunks,model.dims);
       ++out.stage_count;
     }
   }
   out.barrier_ns = options_.l2_events ? 0.0 : out.stage_count * BarrierNs(residency);
   out.event_ns=EventNs(model,configs,residency,out.stage_count);
-  out.total_ns = options_.unified_task_cost ? out.task_ns_sum+out.combine_ns+out.barrier_ns
-      : out.gemm_ns + out.combine_ns + out.other_ns + out.barrier_ns;
+  out.total_ns=out.task_ns_sum+out.combine_ns+out.barrier_ns;
   if (options_.l2_events) out.total_ns+=out.event_ns;
   if (options_.cg_interface) {
     out.interface_ns=InterfaceNs(model,configs);

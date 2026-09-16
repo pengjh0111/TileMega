@@ -124,7 +124,7 @@ SymbolicDpSolution ChainDP::SolveSymbolicParameter(ModelDescription const& symbo
     if (std::none_of(admitted.begin(),admitted.end(),[&](int c) { return ctas[c]==r; })) continue;
     auto barrier=Constant(parameter,domain.begin,domain.end,cost_->BarrierNs({r}));
     std::vector<QP> fixed;
-    for (int s=0;s<int(model.stages.size());++s) if (model.stages[s].kind!=StageKind::kGemm)
+    for (int s=0;s<int(model.stages.size());++s) if (!model.stages[s].IsCollective())
       fixed.push_back(cost_->SymbolicStageNs(model,s,candidates_.front().config,{r},parameter,domain.begin,domain.end)
           .Add(barrier.Scale(model.RuntimeStages(s))));
     for (auto& f:factors) if (f.variables.empty()) fixed.push_back(price(f,{}));

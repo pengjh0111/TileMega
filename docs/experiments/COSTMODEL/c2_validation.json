@@ -1,0 +1,22 @@
+{
+  "status": "verified",
+  "retired_symbol": "NonGemmStageNs",
+  "callsites": [
+    "CostModel::Evaluate",
+    "SolveChainDP",
+    "SolveCouplingInterfaceDP",
+    "tilemega-scalar-cost-probe"
+  ],
+  "tests": {
+    "initial": "c2_full_tests.log",
+    "initial_pass": 48,
+    "initial_fail": 1,
+    "retry": "c2_audit_retry.log",
+    "retry_pass": 1
+  },
+  "fixture_migrations": [
+    "chain_dp_test semantic access descriptions",
+    "target-audit imports export_bridge.json instead of legacy CUDA table"
+  ],
+  "legacy_probe_columns": "NaN with legacy_status=retired; historical observations unchanged"
+}
