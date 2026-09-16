@@ -4758,7 +4758,7 @@ Corrected CP lengths change 228352→89088, 320512→190464,
 452608→185344, 645120→393216 ns. Node counts change 20→20,
 20→19, 40→40, 40→40. queue_lb/CP changes
 0.1704→0.9425, 0.4473→0.8871, 0.1719→0.9061, 0.4270→0.9271.
-`JOINT/reference_paths.tsv` and the raw trace directories preserve both graphs.
+`JOINT/comparisons.tsv` and the raw trace directories preserve both graphs.
 This is primarily cheaper nodes and broader execution, not removal of stages.
 
 ✅ Fresh ChainDP's uniform L1 seed is 32x16x16s2 split1, not the R4

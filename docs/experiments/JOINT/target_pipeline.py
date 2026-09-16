@@ -18,13 +18,13 @@ def main():
   (out/'conditional_degradation.txt').write_text(fork+'\nTarget requires E4, but R5 sm_89 rule3 did not implement it. Continue non-prefetch search; conditional E4 is unresolved, not passed.\n')
  run(HERE/'calibrate_target.py','--out',out/'calibration','--phase',out/'phase')
  pub=json.loads((out/'calibration/publication.json').read_text());env.update(JOINT_TARGET=str(out/'target.json'),JOINT_HOP_TSV=str(out/'calibration/hop_ns.tsv'),JOINT_PUBLICATION_NS=str(pub['publication_ns']),JOINT_WAIT_NS=str(pub['consumer_wait_ns']))
- for action in ('screen','project','select'):run(HERE/'search.py',action,'--raw',out/'joint','--driver',out/'tools/project','--rank-driver',out/'tools/rank')
  # A numerical candidate failure stops that cell only. Other cells retain
  # their independent data; no inherited sm_89 Plan or numeric exclusion.
  failures=[]
  for m in ('gqa2','mha4','real'):
   for s in (4,128):
    try:
+    for action in ('screen','project','select'):run(HERE/'search.py',action,'--raw',out/'joint','--models',m,'--seqs',s,'--driver',out/'tools/project','--rank-driver',out/'tools/rank')
     for action in ('build','pilot','freeze','measure','correctness','trace_build','trace'):run(HERE/'measure.py',action,'--raw',out/'joint','--arch','sm_120','--models',m,'--seqs',s)
     if m!='real':
      for action in ('prepare','run'):run(HERE/'seqscan.py',action,'--raw',out/'joint','--arch','sm_120','--models',m,'--seqs',s,'--jobs','1','--driver',out/'tools/project')
