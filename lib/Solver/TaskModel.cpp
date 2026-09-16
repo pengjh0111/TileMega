@@ -45,6 +45,30 @@ std::vector<TaskMemoryTraffic> DeriveTaskMemoryTrafficBatch(DerivedTaskInput con
   return result;
 }
 
+std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput const& input,
+    BackendTraits const& traits,Residency residency,ModelDescription const& model,int chunks,
+    std::vector<analysis::ParamBinding> const& coordinates,double active_ctas_per_sm) {
+  auto theta=model.MetricBindings();bool collective=traits.stages>0;
+  int bytes=model.dtype==ScalarType::kBF16 ? 2 : 4;
+  auto traffic=DeriveTaskMemoryTrafficBatch(input,theta,coordinates,bytes,bytes,
+      collective ? analysis::AccessDomain::kNominalTile : analysis::AccessDomain::kPhysicalTensor);
+  std::vector<long> reduction(coordinates.size(),0);
+  if (collective) reduction=input.work.nominal_task_reduce_extent.EvalPoints(theta,coordinates);
+  // Within one immutable task signature these are every coordinate-dependent
+  // quantity consumed by TaskCostImpl. Equal work classes have exactly equal
+  // prices; no averaging, sampling, stage-kind rule or fitted shortcut occurs.
+  std::map<std::tuple<double,double,long>,double> classes;
+  std::vector<double> result;result.reserve(coordinates.size());
+  for (std::size_t i=0;i<coordinates.size();++i) {
+    auto key=std::make_tuple(traffic[i].global_read_bytes,traffic[i].global_write_bytes,reduction[i]);
+    auto found=classes.find(key);
+    if (found==classes.end()) found=classes.emplace(key,cost.TaskInstanceNs(
+        input,traits,residency,model,chunks,coordinates[i],active_ctas_per_sm)).first;
+    result.push_back(found->second);
+  }
+  return result;
+}
+
 BackendTraits ModelTaskTraits(ModelDescription const& model, int index,
                               GemmConfig const& config) {
   auto collective = model.dtype == ScalarType::kBF16

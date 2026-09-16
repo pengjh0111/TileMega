@@ -139,8 +139,8 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
         for (std::size_t i=0;i<names.size();++i) coordinates[physical[0]].Bind(names[i],logical[i]);
       }
     }
-    for (int t=0;t<counts[s];++t)
-      input.task_ns[graph.stage_offsets[s]+t]=cost.TaskInstanceNs(task,traits,{options.residency},model,chunks,coordinates[t],1.0);
+    auto prices=PriceTaskInstances(cost,task,traits,{options.residency},model,chunks,coordinates,1.0);
+    std::copy(prices.begin(),prices.end(),input.task_ns.begin()+graph.stage_offsets[s]);
   }
   PlanRequest request;request.graph=&graph;request.grid=result.grid;request.counts=counts;
   request.physical_worker.resize(result.grid);std::iota(request.physical_worker.begin(),request.physical_worker.end(),0);
