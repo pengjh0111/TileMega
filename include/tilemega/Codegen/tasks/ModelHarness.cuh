@@ -709,9 +709,8 @@ __device__ inline void ArriveEvent(Params const& p, EventCounter* events,
   // generic-space `red` PTX emitted an ATOM *plus* an ATOMS.CAST.SPIN generic
   // dispatch.
   //
-  // The reduction is relaxed and needs to be no stronger: `NotifyTask` fences
-  // before the CTA barrier that precedes this call (§8.5), so this CTA's
-  // writes are already visible by the time the arrival lands.
+  // The reduction is relaxed: NotifyTask supplies the selected CTA release
+  // protocol before this call (§8.5), including the writer convergence.
   (void)triggers;
   atomicAdd(&events[index].arrivals, 1ull);
 #if TILEMEGA_TRACE_V2
@@ -755,11 +754,16 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
 #endif
   std::uint32_t const event_flags = p.event_flags[producer];
   if (event_flags == 0) return;
-#if !TILEMEGA_UNSAFE_NO_NOTIFY_FENCE
+#if !TILEMEGA_RELEASE_AFTER_BARRIER && !TILEMEGA_UNSAFE_NO_NOTIFY_FENCE
   __threadfence();
 #endif
   __syncthreads();
   if (threadIdx.x == 0) {
+#if TILEMEGA_RELEASE_AFTER_BARRIER && !TILEMEGA_UNSAFE_NO_NOTIFY_FENCE
+    // SYNC_V3/litmus_v3: both visibility and delayed-writer controls are
+    // sensitive. The preceding CTA barrier must not move after this fence.
+    __threadfence();
+#endif
     int const produced = ActiveBlocks(p, p.stages[producer]);
 #if TILEMEGA_EVENT_KAPPA > 0
     if (event_flags & kNeedsFineEvents) {
