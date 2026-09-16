@@ -1334,6 +1334,8 @@ norm/RoPE 一类小 tile。（F-1、F-3、F-10）
 
 ⚠️ v2.1 待验证（不改变本规则）："CTA 屏障之后由 thread0 做一次 release fence 再发布"这一形态目前没有直接证据——F-1 的负对照是"无屏障"。在按 F-1/F-3/F-10 的要求完成 litmus 之前（地址复用、小 tile、CTA 协作写、grid 64/128/256、每格 ≥ 50 全新进程），本规则保持"每个 writer fence"。见 `docs/TODO.md` EX-E3 第 4 步。
 
+（⚠️ v2.1：R4 在 sm_89 上完成上述解封条件，原句保留为历史规则。允许可选形态“全体 writer 完成写入 → `__syncthreads()` → thread0 `__threadfence()` → 发布”。`TILEMEGA_RELEASE_AFTER_BARRIER` 默认关闭；开启时每个发布 task 的该次 device fence 从 128 个线程执行降为 1 个线程执行，静态 MEMBAR 指令数不因此必然减少。`docs/experiments/SYNC_V3/litmus_v3/scan/` 含地址复用、CTA 协作写、tile 1024/4096、grid 64/128/256，每格 50 个全新进程：缓存可见性与延迟 writer 两套独立测试中的参考和候选均 50/50 通过，分别移除 fence、发布侧屏障的负对照均 50/50 失配，共 1800 个进程。延迟 writer 测试保留消费者屏障，并向所有臂施加相同延迟；不再依赖 R3 中偶尔失敏的“同时去掉两个屏障”对照。sm_120 尚待目标机复核，禁止把本机结果写成跨架构验证。）
+
 ## 8.6 smem union 取 max
 
 各 task 类型的 `SharedStorage` 必须组成**单个显式 union**，且该 union 的生命周期

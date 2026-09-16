@@ -1,0 +1,31 @@
+{
+  "grid": [
+    64,
+    128,
+    256
+  ],
+  "tile": [
+    1024,
+    4096
+  ],
+  "runs": 50,
+  "cache": {
+    "writer_skew_cycles": 0,
+    "acquire_fence": false,
+    "arms": [
+      "per_writer",
+      "thread0_fence",
+      "no_fence"
+    ]
+  },
+  "skew": {
+    "writer_skew_cycles": 2000000,
+    "acquire_fence": true,
+    "arms": [
+      "per_writer",
+      "thread0_fence",
+      "no_barrier"
+    ]
+  },
+  "expected": "Positive arms 50/50 PASS and the suite-specific negative 50/50 MISMATCH in every cell; unchanged fills/expected values; other-warp skew identical in all arms."
+}

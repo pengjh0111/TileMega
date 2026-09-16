@@ -1,0 +1,5 @@
+kernel	bar_sync	membar
+_Z13litmus_kernelILi3EEvPfS0_P12EventCounterS2_iiiijiiy	6	1
+_Z13litmus_kernelILi2EEvPfS0_P12EventCounterS2_iiiijiiy	5	2
+_Z13litmus_kernelILi1EEvPfS0_P12EventCounterS2_iiiijiiy	6	2
+_Z13litmus_kernelILi0EEvPfS0_P12EventCounterS2_iiiijiiy	6	2

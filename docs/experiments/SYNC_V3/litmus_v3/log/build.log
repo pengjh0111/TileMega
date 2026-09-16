@@ -1,0 +1,21 @@
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z13litmus_kernelILi3EEvPfS0_P12EventCounterS2_iiiijiiy' for 'sm_89'
+ptxas info    : Function properties for _Z13litmus_kernelILi3EEvPfS0_P12EventCounterS2_iiiijiiy
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 424 bytes cmem[0]
+ptxas info    : Compile time = 64.691 ms
+ptxas info    : Compiling entry function '_Z13litmus_kernelILi2EEvPfS0_P12EventCounterS2_iiiijiiy' for 'sm_89'
+ptxas info    : Function properties for _Z13litmus_kernelILi2EEvPfS0_P12EventCounterS2_iiiijiiy
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 424 bytes cmem[0]
+ptxas info    : Compile time = 47.242 ms
+ptxas info    : Compiling entry function '_Z13litmus_kernelILi1EEvPfS0_P12EventCounterS2_iiiijiiy' for 'sm_89'
+ptxas info    : Function properties for _Z13litmus_kernelILi1EEvPfS0_P12EventCounterS2_iiiijiiy
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 424 bytes cmem[0]
+ptxas info    : Compile time = 39.213 ms
+ptxas info    : Compiling entry function '_Z13litmus_kernelILi0EEvPfS0_P12EventCounterS2_iiiijiiy' for 'sm_89'
+ptxas info    : Function properties for _Z13litmus_kernelILi0EEvPfS0_P12EventCounterS2_iiiijiiy
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 424 bytes cmem[0]
+ptxas info    : Compile time = 34.974 ms

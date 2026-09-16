@@ -1,0 +1,1 @@
+{"command": ["/root/TileMega/docs/experiments/SYNC_V3/litmus_v3/bin/litmus", "--release", "per_writer", "--grid", "64", "--tile", "4096", "--writer-skew-cycles", "2000000"], "exit_code": 0, "time_ns": 1789522220030310759, "round": 42, "order": 0}

@@ -1,0 +1,2 @@
+OCCUPANCY blocks_per_sm=6 num_sms=128 resident_cap=768 grid=64 co_resident=yes
+RESULT status=MISMATCH nonce=0x5d12d1db detail=iter=1 block=0 expected=517629.0 got=523875.0 delta=6246.0
