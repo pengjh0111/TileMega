@@ -1076,6 +1076,16 @@ __device__ void wait_deps(TaskDesc const& d, EventCounter* ev, int layer) {
 - **local**：没有对应的事件实现。κ = 1 时，同 worker 生产者以省略 poll 的方式处理，这依赖严格 FIFO（§5.7.3 L-d）。
 - **cluster**：只存在于 L1 的 stage barrier 与 T1 分片 fan-in 实验（F-89）中。
 
+（⚠️ v2.1：第四轮补充，以上历史 as-built 文本保留。新增协议均为显式开关、默认关闭；
+启用 C1 时为 CTA barrier → thread0 单次 device fence → 发布；启用 C2 时发布 warp 的
+lane 0/1 分别完成 fine/aggregate 到达，其他 warp 进入下一 slot 的等待，下一次 RunTask
+前仍 CTA 汇合，不预取、不改变 TaskSmem 生命周期。W>1 的本地依赖已由物化器转为
+slot_local_deps；C3(a) 将完成跟踪改为独立 shared 标志，而非声称移除旧实现不存在的
+全局 poll。C3(b) 仅把 cluster 内 DSMEM fan-in 到达降为 cluster scope，跨 cluster
+转发保留 GPU 作用域；caps.cluster=false 编译期退化。R3 RED 是 relaxed reduction
+配合前置 fence，不能仅由 STRONG.GPU 名称推断为显式 red.release。每 task fence
+参与线程数与静态 SASS 指令站点数分开报告。实测与边界见 SYNC_V3/summary.md。）
+
 ### 5.5.2 目标协议 v2（待验证，v2.1）
 
 以下步骤逐步开关、逐步验收（`docs/TODO.md` EX-E3）。在通过之前，不替换 §5.5.1 与 §8.5：
@@ -1086,6 +1096,15 @@ __device__ void wait_deps(TaskDesc const& d, EventCounter* ev, int layer) {
 4. "CTA 屏障之后仅 thread0 执行一次 release fence"须先通过 litmus（见 §8.5 注）。
 5. 发布异步化。
 6. 同 CTA 依赖以 shared memory 标志实现；在具备 `caps.cluster` 的目标上评估 cluster 级同步。
+
+（⚠️ v2.1：第四轮状态，保留上述六步目标原句。第 1–3 步沿用第三轮的开关；
+第 2 步当前实现为 relaxed 到达加 fence 的序关系，第 3 步的动态屏障上限不能用
+静态站点数相减冒充实测。第 4 步已应用为 C1，新的两套敏感 litmus 共 1800 个
+全新进程后解封 §8.5。第 5 步已实现 C2，本轮只进入下一 slot 的等待，Prefetch
+仍留给 EX-E4。第 6 步的 shared 标志已实现并在 sm_89 的 W=2/4 各四格 50/50
+验证；cluster 到达已实现、编译及 caps=false 退化有独立证据，sm_120 硬件验证
+仍待目标脚本运行，不能标为已验证。所有步骤的五臂与研究门另见 SYNC_V3；默认
+放置下 wait + notify ≤ barrier 的目标不因实现完成而自动达成。默认开关均为 0。）
 
 ## 5.6 求解结果到代码的映射
 

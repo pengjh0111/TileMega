@@ -34,7 +34,7 @@ above is interpreted as a global task cancellation.
 
 ## C2 ordering argument to test
 
-⚠️ Inferred, pending implementation and its raw correctness matrix: all task
+⚠️ Inferred ordering argument, exercised by the separate raw correctness and retained-dependency matrices: all task
 writers first converge at the release barrier. Thread 0 fences their writes,
 then the publishing warp synchronizes before its event-writing lanes proceed.
 Other warps may enter only the next slot's wait. The publishing warp completes
@@ -46,7 +46,7 @@ touches global event rows, not TaskSmem. No prefetch is introduced.
 
 ## C3(a) completion flags and TaskSmem
 
-⚠️ Inferred, pending implementation and tests: a separate shared completion
+⚠️ Inferred ordering argument for the implemented shared flags: a separate shared completion
 word and head, outside TaskSmem, can be written by thread 0 before the existing
 release barrier. All warps read the next window state after that barrier.
 Tasks without outgoing events need equivalent convergence for the shared
@@ -82,3 +82,49 @@ C3(a) must be priced as replacing existing register completion tracking, not
 as removing nonexistent local global polls. Fence/notify ratios above one in
 rotate are interactions between the waiting-on and waiting-off probe contexts;
 they are preserved in FENCE's table rather than clipped or reclassified.
+
+## Composition and measurement decisions
+
+The existing RED-plus-shards compile-time exclusion prevented the completed
+protocol from reaching the cluster experiment. The exclusion is removed and
+consumer RED targets use the number of nonempty shards when local fan-in is
+active. A closed shard contributes exactly one global reduction per iteration;
+the monotonically increasing target therefore counts closed shards, not all
+original writers. The one-member/S=1 paths are unchanged. `sharded_red` tests
+this composition on sm_89 before relying on the sm_120 cluster script.
+
+`matrix_manifest.json` fixes seven configurations before measurement. All
+70 configuration/placement/probe combinations rotate within each round and
+share one measurement session. The required five rows are retained, with W=4
+control/local rows added. Real-width seq=4 legacy has the required five rows.
+Every configuration is evaluated on all four default-placement reference
+cells against the unchanged registered ratio threshold. One configuration
+must achieve at least three cells. The representative configuration maximizes
+achieved cells, then minimizes the geometric mean of the four protocol/barrier
+medians; fastest end-to-end time is reported separately. A winning window
+configuration remains opt-in, not a new default. All configurations remain
+visible. `research_rule.json` records this evaluation before the corrected
+measurement session. Candidate-specific target positions additionally
+measure all three W=1 configurations on each unchanged frozen Plan; the new
+Chain2 Plan is reported separately and does not inherit the old chain floor.
+
+The prompt's static MEMBAR-count prediction is not the mechanism's instruction
+count. C1 changes the participants at the release site from 128 threads to
+one; it need not remove the static site. The BARRIERS reports and neighboring
+SASS predicates show static L2 MEMBAR.SC.GPU 2 -> 2, while the release moves
+after CTA convergence and under the thread-0 condition. This correction is
+reported explicitly; static instruction elimination is not claimed.
+
+## Window no-wait coverage correction
+
+The first partial C ablation exposed a source-level coverage error: at W>1,
+NO_EVENT_WAIT removed the blocking wait but ProbeTaskDependencies retained
+its event reads and CTA reduction. The partial session is retained separately
+and is not used as final data. The repair removes those operations only in
+unsafe no-wait builds. Complete safe W=2 SASS is byte-identical for both
+models when compiled under the same source identifiers; the unsafe nowait
+kernel loses one BAR.RED and one ATOMG event-poll site. All seven configurations
+are remeasured in a new paired session. B and all safe correctness data are
+unaffected. Independent Chain2 and frozen-candidate measurements continue
+while unsafe window binaries are rebuilt; commit dependencies A/E/B/C remain
+unchanged. See `window_probe_fix/` for commands and raw instruction evidence.

@@ -4369,3 +4369,274 @@ that construction before rerunning all required 50-process cells. Keep the
 existing no-fence arm as a separate sensitivity check. Complete B's measured fence pricing before the ordered C1 implementation.
 Unseal §8.5 only after that implementation and the required sensitive litmus
 checks pass; a repaired detector alone does not complete C1.
+
+## F-170 — The notify fence is a placement-dependent minority of protocol cost
+
+✅ Verified in R4, `docs/experiments/FENCE/raw/paired`: five arms, both default
+placement 0 and rotate 5, four reference cells, 25 rotated paired rounds in
+one session, 1,000 fresh processes; all 200 full-arm processes pass. Unsafe
+arms supply timing only. In gqa2 s4/s128, mha4 s4/s128 order, full-minus-nofence
+medians are 15.360/22.528/31.744/56.160 us at default placement and
+13.376/16.480/24.576/45.056 us at rotate. Paired fence/protocol medians are
+0.2146/0.2857/0.2316/0.3307 and 0.0597/0.0575/0.0576/0.0730, respectively.
+
+✅ Verified: the probe removes only NotifyTask's top-level device fence. Publication,
+polling, CTA barriers and atomics remain. Fence/notify ratios can exceed one
+at rotate because notify is measured with waits disabled whereas the fence
+probe retains waits; these interacting contexts are not silently equated.
+All finite signed differences are retained, including noisy negative paired
+barrier differences. The full raw records, rather than filtered samples,
+determine the median and bootstrap interval.
+
+⚠️ Inferred design consequence, frozen before resumed C1: the single-writer
+release can recover only part of a marginal fence delta, not the whole
+protocol excess. C2 therefore specializes actual fine/aggregate publication,
+and C3 prices the implemented local completion state rather than assuming
+that it removes global polls. See `SYNC_V3/design.md` for the design decision.
+
+## F-171 — A sensitive delayed-writer witness permits the optional single-writer release
+
+✅ Verified in R4, `SYNC_V3/litmus_v3/scan`: 1,800 fresh processes, with address
+reuse and cooperative writes at grid 64/128/256 and tile 1024/4096. Cache
+visibility and producer-barrier sensitivity are separate suites. Every
+positive per-writer/thread0-fence cell passes 50/50; every no-fence cache
+cell and no-barrier delayed-writer cell mismatches 50/50. The latter keeps
+consumer synchronization intact and delays nonpublisher warps on odd CTAs
+by a fixed 2,000,000 cycles in every arm. Pilot sensitivity precedes the
+formal run; no expected value or stress constant changes during that run.
+F-169's insensitive 3,600-process rerun remains as raw evidence.
+
+✅ Verified: C1 is implemented under `TILEMEGA_RELEASE_AFTER_BARRIER=0` by default.
+Its enabled order is CTA barrier, thread0 device fence, publication. Four
+reference correctness cells pass 50/50 each and six SEQSCAN subset cells
+pass 50/50 each, including seq=2048 and past=512. The §8.5 historical rule
+is retained with a subsequent v2.1 unsealing note after this fresh litmus.
+
+✅ Verified: SASS/BARRIERS evidence in `FENCE/raw/sass` and `SYNC_V3/c1/sass` shows two
+static MEMBAR.SC.GPU sites in either L2 kernel. The notify release moves from
+before the CTA barrier to after it under the thread0 predicate. Participation
+changes from 128 writer threads to one, or four issuing warps to one for the
+128-thread reference CTA. Static instruction count does not decrease; the
+prompt's static-count expectation was a dimensional mistake, not a measured
+128-fold instruction-count reduction. Paired timing is reported separately
+in the completed protocol ablation; correctness does not imply a speedup.
+
+## F-172 — The publishing warp can finish a retained next-slot dependency before waiting
+
+✅ Verified implementation behind default-off `TILEMEGA_ASYNC_PUBLISH`: after CTA writer
+convergence, thread0 fences and syncwarp transfers ordering to publishing
+lanes. Fine and aggregate arrivals use lanes 0 and 1 at a shared ArriveEvent
+call site. R3 B had already removed the trailing CTA barrier, so simply
+removing it again would have been an ineffective implementation of C2.
+
+⚠️ Inferred ordering argument: each publishing lane reaches its own event
+arrival before entering the next slot's dependency wait. Other warps may
+already be waiting, but cannot prevent the publishing warp from finishing.
+The CTA convergence before the next RunTask prevents TaskSmem reuse while
+publication or another warp's wait is outstanding. Publication uses global
+event rows and no TaskSmem field. No Prefetch is introduced; that remains
+EX-E4 work. The retained kappa=2 grouped-dependency construction is recorded
+in `SYNC_V3/c2_dependency`, rather than assuming sigma omission always holds.
+
+✅ Verified: four reference cells pass 50/50 under C2, and all six SEQSCAN subset cells
+pass 50/50. The separate kappa=2 configuration also passes all four reference
+cells 50/50. Raw process logs and command/digest sidecars are retained; the
+final verifier additionally reconstructs adjacent-slot dependency witnesses
+from the trace tables: gqa2 s4/s128 and mha4 s4/s128 contain 68/68/108/140
+retained adjacent-slot witnesses. All four trace executions pass. Performance
+is measured with the full five-arm matrix.
+
+## F-173 — Shared local completion replaces existing register tracking inside a window
+
+✅ Verified by source inspection corrects the R4 premise: the existing W>1 materializer
+already converts eligible same-worker edges to `slot_local_deps`, consumed
+by per-thread `done_mask`; those edges are not globally polled. The new
+`TILEMEGA_LOCAL_DEP_SMEM` uses shared head/completion words separate from
+TaskSmem. Thread0 writes them before NotifyTask's convergence; tasks without
+global out-events also converge so all warps can consume the shared state.
+The next RunTask's convergence and §5.7.3 legality checks remain intact.
+
+✅ Verified: all four reference cells pass 50/50 at both W=2 and W=4. The corresponding
+window controls also pass 50/50. Static L2 MEMBAR.SC.GPU counts are three for
+window/shared variants, while BAR.SYNC sites are eight for the window
+control and ten for the shared variant, reflecting initialization and the
+no-global-event completion path. These counts are not per-task dynamic
+barrier counts. The five-arm matrix measures the net effect of those costs;
+W remains opt-in and is not made the default.
+
+## F-174 — Cluster-local arrivals preserve GPU forwarding and need target-hardware validation
+
+✅ Verified implementation under default-off `TILEMEGA_CLUSTER_ARRIVE`: DSMEM fan-in uses
+`atom.acq_rel.cluster.shared::cluster.add.u64` only where both the cluster
+fan-in layout and `caps.cluster` are active. The local last arrival still
+performs the GPU-scoped fence and forwarding publication needed by consumers
+outside that cluster. Global event visibility is not silently reduced to a
+scope that excludes a consumer.
+
+✅ Verified: the previously forbidden RED/shard combination is now composable. A closed
+shard contributes one global reduction per iteration, and RED consumers use
+the number of nonempty shards as their monotonic trigger multiplier. This
+composition passes all four reference cells 50/50 on sm_89 using global
+shards. No counter resets or epoch changes were introduced.
+
+✅ Verified: `cluster_compile/` contains successful sm_89/sm_120 PTX and cubin compilation;
+only sm_120 PTX contains the cluster-scope arrival instruction. Both complete
+reference models also compile for sm_120 with C1/C2, RED, cluster fan-in and
+the new scope enabled (`cluster_model_sm120_composed/`). On sm_89, enabling
+the new scope switch with `caps.cluster=false` gives byte-identical complete
+SASS to C2 at both placements (`cluster_degenerate/sass/`). The final H2
+artifact independently regenerates this fallback proof at the sealed head.
+
+⚠️ Stated execution limit: no sm_120 kernel has run on this sm_89 workstation.
+`SYNC_V3/run_sm120.sh` regenerates target-local runtime Plans and rotates
+cluster_off/on with all other mechanism/probe arms in one paired session.
+Its CPU SELF_CHECK passes; compilation and CPU checks do not establish the
+cluster mechanism's hardware correctness or performance. That specific
+validation remains for the target machine and does not block the sm_89 work.
+
+## F-175 — The window no-wait probe had retained event reads
+
+✅ Verified by source and SASS in `SYNC_V3/window_probe_fix`: with W>1,
+UNSAFE_NO_EVENT_WAIT bypassed the blocking wait but not
+ProbeTaskDependencies. Its nowait/neither timings therefore still included
+look-ahead event polling and a CTA reduction. The initial partial ablation
+was stopped and retained as `ablation_pre_probe_fix/`; no required cell had
+25 complete rounds and no final performance conclusion uses that session.
+
+✅ The repaired unsafe path returns ready before reading events. The gqa2
+W=2 nowait L2 kernel loses one BAR.RED and one ATOMG polling site. Both
+reference safe W=2 kernels remain byte-identical after recompilation under
+the same source paths. The initial control comparison differed only in
+source identifier headers; the binaries were rebuilt using the original
+paths instead of stripping evidence lines. The final verification log and
+raw SASS are committed with the repair.
+
+✅ All 32 reference-window and four real-width-window unsafe binaries were
+rebuilt. Full, nofence and l1nosync images are unchanged; B pricing and the
+safe correctness matrices remain applicable. The complete seven-configuration
+matrix is restarted in one fresh paired session, retaining the same 25-round
+coverage, attribution equations and research threshold. Independent chain
+and frozen-candidate work continues while this dependent item is repaired.
+
+## F-176 — Cost-aware extraction must also price the queue placement it creates
+
+✅ Verified in R4: the strict extension test uses the calibrated hop curve and the successor task weight from the same cost-model source as extraction. Equality rejects; capacity formulas and hard Plan legality checks remain. The default-off implementation also ranks ready tasks by remaining critical work, prices sibling-SM sharing in finish_on, and breaks equal finishes toward fewer path hops. Four existing feedback rounds are fixed for the selected recipe, with a cost-off four-round matched control and the original zero-feedback chain retained. See CHAIN2/design.json and README.md.
+
+✅ The isolated price-only variant with the same four feedback rounds still gives 40 hops and 597673.9223 ns on mha4 s128. The completed recipe gives 35 hops and 446326.144 ns, against rotate at 35 hops and 437123.7068 ns. These are simulator path-record results, independently counted from CHAIN2/final/replay/path and CHAIN2/diagnostic/minimal/path. Replayed materialized chain sources match the measured Plans byte for byte. Four reference correctness cells pass 50/50.
+
+✅ Fresh-process paired GPU measurements (25 rotated rounds, configuration A):
+
+| cell | arm | L2 ms | ratio to rotate | 95% CI |
+|---|---|---|---|---|
+| gqa2 s4 | rotate | 0.290816 | 1.00000 | [1.00000, 1.00000] |
+| gqa2 s4 | chain | 0.291616 | 1.00011 | [1.00000, 1.00330] |
+| gqa2 s4 | chain_control | 0.292640 | 1.00363 | [1.00296, 1.00671] |
+| gqa2 s4 | original | 0.292864 | 1.00671 | [1.00406, 1.00749] |
+| gqa2 s128 | rotate | 0.455680 | 1.00000 | [1.00000, 1.00000] |
+| gqa2 s128 | chain | 0.500896 | 1.09930 | [1.09888, 1.10112] |
+| gqa2 s128 | chain_control | 0.514912 | 1.12986 | [1.12817, 1.13034] |
+| gqa2 s128 | original | 0.518144 | 1.13708 | [1.13687, 1.13708] |
+| mha4 s4 | rotate | 0.576512 | 1.00000 | [1.00000, 1.00000] |
+| mha4 s4 | chain | 0.575488 | 0.99972 | [0.99768, 1.00813] |
+| mha4 s4 | chain_control | 0.581632 | 1.01377 | [1.01101, 1.01593] |
+| mha4 s4 | original | 0.549856 | 1.01223 | [1.01040, 1.01399] |
+| mha4 s128 | rotate | 0.855040 | 1.00000 | [1.00000, 1.00000] |
+| mha4 s128 | chain | 0.967680 | 1.13119 | [1.13043, 1.13291] |
+| mha4 s128 | chain_control | 1.077248 | 1.25988 | [1.25854, 1.26127] |
+| mha4 s128 | original | 1.076224 | 1.25796 | [1.25625, 1.26005] |
+| real s4 | rotate | 4.407232 | 1.00000 | [1.00000, 1.00000] |
+| real s4 | chain | 5.107776 | 1.15996 | [1.15881, 1.16875] |
+| real s4 | chain_control | 4.500480 | 1.02139 | [1.02045, 1.02367] |
+| real s4 | original | 4.500480 | 1.02115 | [1.02053, 1.02325] |
+| real s128 | rotate | 6.499328 | 1.00000 | [1.00000, 1.00000] |
+| real s128 | chain | 7.163776 | 1.10213 | [1.10194, 1.10242] |
+| real s128 | chain_control | 7.364608 | 1.13293 | [1.13263, 1.13345] |
+| real s128 | original | 7.363584 | 1.13280 | [1.13235, 1.13315] |
+
+✅ Unique excluded cost-model DAG edges: gqa2 s4/s128 412/538124, mha4 s4/s128 908/2127388, real s4/s128 25952/34394336. Exact hop/queue prices and multiplicities are retained in final/on/rejected_extensions.tsv. These count unique edges in the selected pass, not repeated DP visits. Reference worker-SM maps come from the existing traced calibration; real-width uses the modulo model.
+
+✅ The replayed critical path still adds queue edges: gqa2 s128 10→20 and mha4 s128 32→55, despite unchanged hop counts 17/35. Real s4 path task weight rises from 3718.801 to 4722.158 us. These are direct node/edge records.
+
+⚠️ Inferred next correction for slower cells: finish_on still approximates sharing and does not propagate all downstream queue blocking. free_ns tracks task weights without separately pricing NotifyTask work still executed on those queues; a fresh phase trace must quantify that contribution. Price extension by the simulator makespan increment with affected queue edges, rather than only the successor weight. The hop test remains part of that redesign; reverting it is not the outcome. No ChainDP change is included.
+
+## F-177 — Completed-protocol gains and shared-window costs are measured together
+
+✅ Verified from SYNC_V3/ablation: seven configurations, two placements, four reference cells and five probes, 25 rotated rounds in one session (7000 fresh processes). The required real-width seq=4 legacy matrix adds five configurations and 625 fresh processes. The superseded partial matrix with the window probe coverage hole is excluded. All full processes pass.
+
+| cell | paired contrast | L2 ratio | 95% CI | latency reduction |
+|---|---|---|---|---|
+| gqa2_s4_p0 | c1/baseline | 1.00881 | [1.00527, 1.01006] | -0.88% |
+| gqa2_s4_p0 | c2/c1 | 1.00000 | [0.99760, 1.00262] | 0.00% |
+| gqa2_s4_p0 | local2/window2 | 0.96364 | [0.96347, 0.96568] | 3.64% |
+| gqa2_s4_p0 | local4/window4 | 0.96373 | [0.96136, 0.96593] | 3.63% |
+| gqa2_s4_p0 | local2/c2 | 1.01562 | [1.01199, 1.01687] | -1.56% |
+| gqa2_s4_p0 | local4/c2 | 1.02102 | [1.01906, 1.02190] | -2.10% |
+| gqa2_s4_p5 | c1/baseline | 0.99719 | [0.99638, 1.00000] | 0.28% |
+| gqa2_s4_p5 | c2/c1 | 1.00690 | [1.00385, 1.00722] | -0.69% |
+| gqa2_s4_p5 | local2/window2 | 0.95449 | [0.95139, 0.95486] | 4.55% |
+| gqa2_s4_p5 | local4/window4 | 0.95444 | [0.95163, 0.95486] | 4.56% |
+| gqa2_s4_p5 | local2/c2 | 0.98208 | [0.98170, 0.98466] | 1.79% |
+| gqa2_s4_p5 | local4/c2 | 0.98214 | [0.98195, 0.98566] | 1.79% |
+| gqa2_s128_p0 | c1/baseline | 1.00359 | [1.00344, 1.00376] | -0.36% |
+| gqa2_s128_p0 | c2/c1 | 1.00000 | [0.99989, 1.00166] | 0.00% |
+| gqa2_s128_p0 | local2/window2 | 0.97577 | [0.97433, 0.97581] | 2.42% |
+| gqa2_s128_p0 | local4/window4 | 0.97428 | [0.97393, 0.97585] | 2.57% |
+| gqa2_s128_p0 | local2/c2 | 1.03419 | [1.03359, 1.03424] | -3.42% |
+| gqa2_s128_p0 | local4/c2 | 1.03590 | [1.03419, 1.03628] | -3.59% |
+| gqa2_s128_p5 | c1/baseline | 1.00187 | [1.00000, 1.00230] | -0.19% |
+| gqa2_s128_p5 | c2/c1 | 1.00000 | [0.99971, 1.00231] | 0.00% |
+| gqa2_s128_p5 | local2/window2 | 0.97807 | [0.97780, 0.97992] | 2.19% |
+| gqa2_s128_p5 | local4/window4 | 0.97817 | [0.97598, 0.97821] | 2.18% |
+| gqa2_s128_p5 | local2/c2 | 1.02507 | [1.02480, 1.02588] | -2.51% |
+| gqa2_s128_p5 | local4/c2 | 1.03189 | [1.02989, 1.03226] | -3.19% |
+| mha4_s4_p0 | c1/baseline | 1.00485 | [1.00330, 1.00727] | -0.49% |
+| mha4_s4_p0 | c2/c1 | 1.00347 | [1.00000, 1.00478] | -0.35% |
+| mha4_s4_p0 | local2/window2 | 0.96453 | [0.96233, 0.96577] | 3.55% |
+| mha4_s4_p0 | local4/window4 | 0.96343 | [0.96130, 0.96465] | 3.66% |
+| mha4_s4_p0 | local2/c2 | 1.01166 | [1.00957, 1.01304] | -1.17% |
+| mha4_s4_p0 | local4/c2 | 1.01424 | [1.01202, 1.01452] | -1.42% |
+| mha4_s4_p5 | c1/baseline | 0.99818 | [0.99636, 0.99994] | 0.18% |
+| mha4_s4_p5 | c2/c1 | 1.00000 | [0.99818, 1.00182] | 0.00% |
+| mha4_s4_p5 | local2/window2 | 0.95288 | [0.95280, 0.95455] | 4.71% |
+| mha4_s4_p5 | local4/window4 | 0.95288 | [0.95132, 0.95459] | 4.71% |
+| mha4_s4_p5 | local2/c2 | 0.99801 | [0.99635, 0.99818] | 0.20% |
+| mha4_s4_p5 | local4/c2 | 0.99971 | [0.99636, 1.00143] | 0.03% |
+| mha4_s128_p0 | c1/baseline | 1.00592 | [1.00443, 1.00761] | -0.59% |
+| mha4_s128_p0 | c2/c1 | 1.00087 | [0.99916, 1.01203] | -0.09% |
+| mha4_s128_p0 | local2/window2 | 0.97488 | [0.97261, 0.97951] | 2.51% |
+| mha4_s128_p0 | local4/window4 | 0.97715 | [0.97418, 0.98341] | 2.29% |
+| mha4_s128_p0 | local2/c2 | 1.04291 | [1.02774, 1.05428] | -4.29% |
+| mha4_s128_p0 | local4/c2 | 1.04626 | [1.04203, 1.05428] | -4.63% |
+| mha4_s128_p5 | c1/baseline | 1.00980 | [0.98191, 1.04833] | -0.98% |
+| mha4_s128_p5 | c2/c1 | 0.99768 | [0.97232, 1.00577] | 0.23% |
+| mha4_s128_p5 | local2/window2 | 0.97864 | [0.95036, 1.00335] | 2.14% |
+| mha4_s128_p5 | local4/window4 | 0.97362 | [0.95005, 1.02558] | 2.64% |
+| mha4_s128_p5 | local2/c2 | 1.03815 | [1.00868, 1.05963] | -3.81% |
+| mha4_s128_p5 | local4/c2 | 1.03443 | [1.00112, 1.06433] | -3.44% |
+
+✅ Static instruction counts remain separate from these measured gains: C1 changes notify-fence participation from 128 threads to one while static L2 MEMBAR.SC.GPU remains two. Window variants have three MEMBAR sites; shared variants have ten BAR.SYNC sites versus eight for the register-state window control. W remains disabled by default.
+
+✅ The neither probe also retains local completion convergence: its W=2 L2 SASS has six BAR.SYNC sites in the register control and eight in the shared variant, for both models (local_probe_sass/). The report lists paired full and neither changes separately. The registered full-minus-neither marginal excludes local state-management work retained by neither; a smaller research ratio must not be presented as the same percentage of full-kernel speedup. The gate equations are unchanged.
+
+⚠️ Inferred remaining window cost is localized in ProbeTaskDependencies and WindowAcquireSlot: candidate wait scans and a CTA reduction per probe remain even after local completion is shared. The next design should batch candidate readiness reductions and retain all four Plan legality checks, rather than assume that shared flags remove pre-existing global polls.
+
+## F-178 — The registered default-placement protocol target remains the research test
+
+✅ Verified from the fresh paired matrix. Every configuration is evaluated on all four default-placement cells; one configuration must achieve at least three. The representative maximizes achieved cells and then minimizes geometric mean protocol/barrier, with fastest end-to-end time reported separately. The ratio threshold 1, coverage, 25 rounds and bootstrap rule were not relaxed. research_rule.json was committed before the corrected matrix session.
+
+| cell | configuration | historical ratio | current ratio | 95% CI | historical excess gap closed |
+|---|---|---|---|---|---|
+| gqa2 s4 | local2 | 2.23 | 1.36253 | [1.31362, 1.37320] | 70.53% |
+| gqa2 s128 | local2 | 2.49 | 1.80645 | [1.78648, 1.83317] | 45.88% |
+| mha4 s4 | local2 | 2.1 | 1.27840 | [1.18731, 1.34628] | 74.69% |
+| mha4 s128 | local2 | 2.91 | 1.79608 | [1.57021, 2.31856] | 58.32% |
+
+✅ Achieved cells: 0/4; required: 3/4. The full five-arm and L1 ratios, including other configurations, remain in ablation.tsv and research_all.tsv. Negative gap closure is retained.
+
+⚠️ Inferred residual causes: WaitTaskDependencies still issues the acquire fence from all threads when waits exist; EventPoll still uses atomicAdd(ev,0) with EVENT_LOAD_POLL=0; ArriveEvent still updates globally visible counters. The next concrete steps are an acquire-fence price probe and sensitive cooperative-acquire litmus, plus the existing load-poll ablation under WAIT_POLICY=1 with a nonempty SASS diff (F-162). The SOLO direct-epoch path is also disabled in the RED combination; single-member arrivals publication needs its own monotonicity/visibility check. Joint kappa/placement search must price both fewer global events and added readiness/queue delay. The unsafe full-minus-neither contrast includes dependency serialization as well as synchronization instructions; it is not a sum of fence opcodes.
+
+## F-179 — Frozen ceilings stay attached to the original candidate Plans
+
+✅ All 24 frozen targets reproduce from their candidate-specific configuration-A traces and none is below its own floor. The three W=1 protocols are measured on every unchanged frozen candidate; target_positions/positions.tsv records their positions. Balanced uses placement 4, matching the frozen trace; its earlier unused placement-0 compile is archived and was not measured. The new Chain2 Plan is reported separately and does not inherit the old chain floor. No target entry changes after commit 03053089.
+
+✅ 4/24 fixed candidate/cells are at or below their frozen target in the best measured W=1 protocol. These are fresh untraced timings against trace-observed floors, not proof of a target-independent hardware lower bound.

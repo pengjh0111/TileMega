@@ -140,6 +140,7 @@ def main():
     achieved=sum(r['median_pass']=='1' for r in research)
     block=f'''<!-- R4_FINAL_BEGIN -->
 （⚠️ v2.1 第四轮恢复完成，2026-09-16：此前 2026-09-15 的停止状态保留为历史。
+旧停止报告归档于 SYNC_V3/summary_pre_resume.md；当前完整结果见 SYNC_V3/summary.md。
 C1/C2 各四参考格 50/50、SEQSCAN 子集各 300/300；新的双套件敏感 litmus
 1800 个进程全部符合正/负对照预期，§8.5 已在复核后追加解封注记。C2 的 κ=2
 相邻 slot 见证为 68/68/108/140 条，四格 50/50。C3(a) 在 W=2/4 各四格

@@ -4,6 +4,7 @@ import csv
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import statistics
 import sys
@@ -114,6 +115,13 @@ def render():
         '消费者等待非空 shard 数，而非原始 writer 数。sm_89 的组合正确性、caps=false '
         'SASS 退化及 sm_120 PTX/完整模型编译有证据；sm_120 硬件正确性与性能未运行，'
         '不能据 sm_89 推定通过。\n']
+    parts += [table(['sm_120 runner','NEED_MIB','CPU 自检','目标机任务'],[
+        ('[FENCE/run_sm120.sh](../FENCE/run_sm120.sh)',4096,'PASS','两放置五臂定价'),
+        ('[SYNC_V3/run_sm120.sh](run_sm120.sh)',16384,'PASS','C1/C2/C3(a) 消融、cluster off/on、real-width'),
+        ('[CHAIN2/run_sm120.sh](../CHAIN2/run_sm120.sh)',16384,'PASS','独立 hop/BF16 标定、重解 Plan、四臂链化对照')]),
+        '三个 runner 均未在 sm_120 上运行。目标机器需重建 build-portable，并准备参考模型与 '
+        'real-width 的可移植 source/export/fixture；不得搬运 sm_89 的物化 worker/slot 表。'
+        'CHAIN2 的新 hop 曲线写入自己的 calibration 目录，历史 sm_120 证据保持只读。\n']
     counts=[]
     for c in metrics.CONFIGS:
         root=REPO/'docs/experiments/FENCE/raw' if c=='baseline' else HERE/c
@@ -121,7 +129,7 @@ def render():
             counts.append((c,r['model'],r['placement'],r['membar_sc_gpu'],r['bar_sync']))
     parts += [table(['配置','模型','放置','静态 MEMBAR.SC.GPU','静态 BAR.SYNC'],counts)]
     parts += ['## 7. 修正归因、旧界与窗口回退\n',
-        (REPO/'docs/experiments/TRACE_V2/r4_rebuild/report.md').read_text().replace('# R4 task-DAG reconstruction audit','### 归因审计原始重算'),
+        re.sub(r'^(#+) ',r'##\1 ',(REPO/'docs/experiments/TRACE_V2/r4_rebuild/report.md').read_text(),flags=re.M),
         '补充：上述 32 个历史 dump 只有 rotate/chain；其余四候选的新 A trace 已由 '
         '`targets_raw/` 补齐后完成 24 项冻结。\n']
     gains=[]
@@ -242,7 +250,8 @@ def render():
         'cluster_off/on 配对；脚本会在目标上重新求解驻留 Plan。编译通过与 CPU 自检 '
         '没有替代该正确性/性能验证。\n']
     parts += ['## 13. 下一轮优先级\n',
-        '1. **EX-S1c + EX-S3 联合搜索优先**：同时优化 κ、跨 worker 跳数和新增队列延迟。'
+        '1. **EX-S1c + EX-S3 联合搜索优先**：先完成 EX-S1c 已登记的单 Plan 求值预算，'
+        '再在 EX-S3 中同时优化 κ、跨 worker 跳数和新增队列延迟。'
         '六步实现后剩下的 wait/notify 主要仍是全局事件可见性、acquire、计数更新与 '
         'Plan 引入的依赖距离；减少真正必要的全局事件数量比继续改发布线程数更直接。\n'
         '2. **EX-S5 ISL 参数化放置其次**：用于表达并搜索 co-location/跨 stage 归属，'
