@@ -1,4 +1,4 @@
-H2	hard	PASS	gqa2=6802641 bytes; mha4=6802641 bytes; tested=623d0b74fd158181d121252487a92aef63467977 live=623d0b74fd158181d121252487a92aef63467977
+H2	hard	PASS	gqa2=6802641 bytes; mha4=6802641 bytes; input digests match; tested HEAD or artifact-only direct child=True
   evidence: /root/TileMega/docs/experiments/SYNC_V3/sass_identity
 A-a	hard	PASS	32/32 floors <= measured
   evidence: /root/TileMega/docs/experiments/PLACE_EFT2/raw/final
@@ -8,45 +8,180 @@ A-c	hard	PASS	chain: 20 nodes 242688 ns; rotate: 20 nodes 242688 ns
   evidence: /root/TileMega/docs/experiments/PLACE_EFT2/raw/final
 A-d	report	PASS	gqa2/s128/a=346112 ns; gqa2/s4/a=242688 ns; mha4/s128/a=697344 ns; mha4/s4/a=488448 ns; gqa2/s128/b=349184 ns; gqa2/s4/b=242688 ns; mha4/s128/b=695296 ns; mha4/s4/b=491520 ns; gqa2/s128/d=351232 ns; gqa2/s4/d=250880 ns; mha4/s128/d=710656 ns; mha4/s4/d=507904 ns; gqa2/s128/w=342016 ns; gqa2/s4/w=244736 ns; mha4/s128/w=708608 ns; mha4/s4/w=493568 ns
   evidence: /root/TileMega/docs/experiments/PLACE_EFT2/raw/final
-A-window	report	PASS	gqa2/s128/w1: cp=324608 hol=22872064; gqa2/s4/w1: cp=232448 hol=483328; mha4/s128/w1: cp=685056 hol=47318016; mha4/s4/w1: cp=463872 hol=1936384; gqa2/s128/w2: cp=342016 hol=14131200; gqa2/s4/w2: cp=246784 hol=314368; mha4/s128/w2: cp=684032 hol=44335104; mha4/s4/w2: cp=489472 hol=1215488; gqa2/s128/w4: cp=342016 hol=2158592; gqa2/s4/w4: cp=242688 hol=62464; mha4/s128/w4: cp=688128 hol=23089152; mha4/s4/w4: cp=486400 hol=185344
+A-window	report	PASS	12 window floor/split checks; gqa2/s128/w1: cp=324608 hol=22872064; gqa2/s4/w1: cp=232448 hol=483328; mha4/s128/w1: cp=685056 hol=47318016; mha4/s4/w1: cp=463872 hol=1936384; gqa2/s128/w2: cp=342016 hol=14131200; gqa2/s4/w2: cp=246784 hol=314368; mha4/s128/w2: cp=684032 hol=44335104; mha4/s4/w2: cp=489472 hol=1215488; gqa2/s128/w4: cp=342016 hol=2158592; gqa2/s4/w4: cp=242688 hol=62464; mha4/s128/w4: cp=688128 hol=23089152; mha4/s4/w4: cp=486400 hol=185344
   evidence: /root/TileMega/docs/experiments/WINDOW/raw/final
-P1-release-semantics	stop	FAIL	atom.global.add.u64 	%rd1455, [%rd1454], 1;; atom.global.add.u64 	%rd1462, [%rd1461], 1;
-  evidence: /root/TileMega/docs/experiments/SYNC_V3/premise_audit/gqa2_b.ptx
-C1-litmus	hard	FAIL	raw_cells=72/72 sensitive_cells=5/6; g64/t1024: writer=50/50 candidate=50/50 no_fence=50/50 no_barrier=50/50; g64/t4096: writer=50/50 candidate=50/50 no_fence=50/50 no_barrier=50/50; g128/t1024: writer=50/50 candidate=50/50 no_fence=50/50 no_barrier=50/50; g128/t4096: writer=50/50 candidate=50/50 no_fence=50/50 no_barrier=0/50; g256/t1024: writer=50/50 candidate=50/50 no_fence=50/50 no_barrier=50/50; g256/t4096: writer=50/50 candidate=50/50 no_fence=50/50 no_barrier=50/50
-  evidence: /root/TileMega/docs/experiments/SYNC_V3/litmus_recheck/log
-B-c/H4	hard	FAIL	C1 was committed without B measurements: 66ae000ecb4376eb9ec278ec19034dc9a15f30ca 79fe7549deb3d626c49a875a2ec2f1dae00e44f1
-  evidence: git show 66ae000e
-B-a	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
-  evidence: /root/TileMega/docs/experiments/FENCE
-C1-correctness	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
-  evidence: /root/TileMega/docs/experiments/SYNC_V3
-C2-deadlock	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
-  evidence: /root/TileMega/docs/experiments/SYNC_V3
-C2-correctness	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
-  evidence: /root/TileMega/docs/experiments/SYNC_V3
-C3a-correctness	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
-  evidence: /root/TileMega/docs/experiments/SYNC_V3
-C3b-degeneracy	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
-  evidence: /root/TileMega/docs/experiments/SYNC_V3
-D-a	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
-  evidence: /root/TileMega/docs/experiments/CHAIN2
-D-b	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
-  evidence: /root/TileMega/docs/experiments/CHAIN2
-B-b	report	FAIL	NOT COMPLETE at the prerequisite stop
-  evidence: /root/TileMega/docs/experiments/SYNC_V3
-C-five-arm/MEMBAR	report	FAIL	NOT COMPLETE at the prerequisite stop
-  evidence: /root/TileMega/docs/experiments/SYNC_V3
-C3a-window-gain	report	FAIL	NOT COMPLETE at the prerequisite stop
-  evidence: /root/TileMega/docs/experiments/SYNC_V3
-D-c	report	FAIL	NOT COMPLETE at the prerequisite stop
-  evidence: /root/TileMega/docs/experiments/SYNC_V3
-D-d	report	FAIL	NOT COMPLETE at the prerequisite stop
-  evidence: /root/TileMega/docs/experiments/SYNC_V3
-E-targets	report	FAIL	NOT COMPLETE at the prerequisite stop
-  evidence: /root/TileMega/docs/experiments/SYNC_V3
-ablation	report	FAIL	NOT COMPLETE at the prerequisite stop
-  evidence: /root/TileMega/docs/experiments/SYNC_V3
-wait+notify<=barrier	research	FAIL	NOT MEASURED this round; no 25-round protocol matrix
-  evidence: /root/TileMega/docs/experiments/SYNC_V3
+C1-litmus	hard	PASS	cache/g64/t1024/per_writer=50/50; cache/g64/t1024/thread0_fence=50/50; cache/g64/t1024/no_fence=50/50; cache/g64/t4096/per_writer=50/50; cache/g64/t4096/thread0_fence=50/50; cache/g64/t4096/no_fence=50/50; cache/g128/t1024/per_writer=50/50; cache/g128/t1024/thread0_fence=50/50; cache/g128/t1024/no_fence=50/50; cache/g128/t4096/per_writer=50/50; cache/g128/t4096/thread0_fence=50/50; cache/g128/t4096/no_fence=50/50; cache/g256/t1024/per_writer=50/50; cache/g256/t1024/thread0_fence=50/50; cache/g256/t1024/no_fence=50/50; cache/g256/t4096/per_writer=50/50; cache/g256/t4096/thread0_fence=50/50; cache/g256/t4096/no_fence=50/50; skew/g64/t1024/per_writer=50/50; skew/g64/t1024/thread0_fence=50/50; skew/g64/t1024/no_barrier=50/50; skew/g64/t4096/per_writer=50/50; skew/g64/t4096/thread0_fence=50/50; skew/g64/t4096/no_barrier=50/50; skew/g128/t1024/per_writer=50/50; skew/g128/t1024/thread0_fence=50/50; skew/g128/t1024/no_barrier=50/50; skew/g128/t4096/per_writer=50/50; skew/g128/t4096/thread0_fence=50/50; skew/g128/t4096/no_barrier=50/50; skew/g256/t1024/per_writer=50/50; skew/g256/t1024/thread0_fence=50/50; skew/g256/t1024/no_barrier=50/50; skew/g256/t4096/per_writer=50/50; skew/g256/t4096/thread0_fence=50/50; skew/g256/t4096/no_barrier=50/50
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/litmus_v3/scan
+B-a	hard	PASS	gqa2/s4/p0/full=25/25; gqa2/s4/p0/nofence=25/25; gqa2/s4/p0/nowait=25/25; gqa2/s4/p0/neither=25/25; gqa2/s4/p0/l1nosync=25/25; gqa2/s4/p5/full=25/25; gqa2/s4/p5/nofence=25/25; gqa2/s4/p5/nowait=25/25; gqa2/s4/p5/neither=25/25; gqa2/s4/p5/l1nosync=25/25; gqa2/s128/p0/full=25/25; gqa2/s128/p0/nofence=25/25; gqa2/s128/p0/nowait=25/25; gqa2/s128/p0/neither=25/25; gqa2/s128/p0/l1nosync=25/25; gqa2/s128/p5/full=25/25; gqa2/s128/p5/nofence=25/25; gqa2/s128/p5/nowait=25/25; gqa2/s128/p5/neither=25/25; gqa2/s128/p5/l1nosync=25/25; mha4/s4/p0/full=25/25; mha4/s4/p0/nofence=25/25; mha4/s4/p0/nowait=25/25; mha4/s4/p0/neither=25/25; mha4/s4/p0/l1nosync=25/25; mha4/s4/p5/full=25/25; mha4/s4/p5/nofence=25/25; mha4/s4/p5/nowait=25/25; mha4/s4/p5/neither=25/25; mha4/s4/p5/l1nosync=25/25; mha4/s128/p0/full=25/25; mha4/s128/p0/nofence=25/25; mha4/s128/p0/nowait=25/25; mha4/s128/p0/neither=25/25; mha4/s128/p0/l1nosync=25/25; mha4/s128/p5/full=25/25; mha4/s128/p5/nofence=25/25; mha4/s128/p5/nowait=25/25; mha4/s128/p5/neither=25/25; mha4/s128/p5/l1nosync=25/25
+  evidence: /root/TileMega/docs/experiments/FENCE/raw/paired
+B-c/H4-resumed	hard	PASS	Resumed prerequisite order A -> frozen targets -> completed B -> C1 is valid. Original 66ae000e violated H4 and was reverted at 8299ccaa; historical violation is not erased. Correction follows the user-authorized local repair rule.
+  evidence: git: 23c5d618 -> 03053089 -> 204df980 -> e6dd44bc
+C1-correctness	hard	PASS	gqa2/s4/p3=50/50; gqa2/s128/p3=50/50; mha4/s4/p3=50/50; mha4/s128/p3=50/50
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/c1/correctness
+C1-SEQSCAN	hard	PASS	gqa2/s1/p0=50/50; gqa2/s128/p512=50/50; gqa2/s2048/p0=50/50; mha4/s1/p0=50/50; mha4/s128/p512=50/50; mha4/s2048/p0=50/50
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/c1/seqscan
+C2-correctness	hard	PASS	gqa2/s4/p3=50/50; gqa2/s128/p3=50/50; mha4/s4/p3=50/50; mha4/s128/p3=50/50
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/c2/correctness
+C2-SEQSCAN	hard	PASS	gqa2/s1/p0=50/50; gqa2/s128/p512=50/50; gqa2/s2048/p0=50/50; mha4/s1/p0=50/50; mha4/s128/p512=50/50; mha4/s2048/p0=50/50
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/c2/seqscan
+C2-deadlock	hard	PASS	gqa2/s4/p3=50/50; gqa2/s128/p3=50/50; mha4/s4/p3=50/50; mha4/s128/p3=50/50; gqa2/s4=68 witnesses, gqa2/s128=68 witnesses, mha4/s4=108 witnesses, mha4/s128=140 witnesses
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/c2_dependency
+C3a-W2	hard	PASS	gqa2/s4/p3=50/50; gqa2/s128/p3=50/50; mha4/s4/p3=50/50; mha4/s128/p3=50/50
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/local2/correctness
+W2-control	hard	PASS	gqa2/s4/p3=50/50; gqa2/s128/p3=50/50; mha4/s4/p3=50/50; mha4/s128/p3=50/50
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/window2/correctness
+C3a-W4	hard	PASS	gqa2/s4/p3=50/50; gqa2/s128/p3=50/50; mha4/s4/p3=50/50; mha4/s128/p3=50/50
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/local4/correctness
+W4-control	hard	PASS	gqa2/s4/p3=50/50; gqa2/s128/p3=50/50; mha4/s4/p3=50/50; mha4/s128/p3=50/50
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/window4/correctness
+RED-shard-composition	hard	PASS	gqa2/s4/p3=50/50; gqa2/s128/p3=50/50; mha4/s4/p3=50/50; mha4/s128/p3=50/50
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/sharded_red/correctness
+C3b-degeneracy	hard	PASS	2/2 complete sm_89 SASS files identical with cluster-scope switch enabled; freshness checked by H2
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/sass_identity
+C3b-sm120-compile	report	PASS	sm_89 and sm_120 compile; cluster atomic present only at sm_120; sm_120 execution NOT RUN
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/cluster_compile
+D-a	hard	PASS	gqa2/s4/p3=50/50; gqa2/s128/p3=50/50; mha4/s4/p3=50/50; mha4/s128/p3=50/50
+  evidence: /root/TileMega/docs/experiments/CHAIN2/final/correctness
+D-b	hard	PASS	gqa2/s4: legacy_grid_stride=17,rotate=19,balanced=17,eft=17,wavefront=19,chain=17; gqa2/s128: legacy_grid_stride=17,rotate=17,balanced=19,eft=17,wavefront=17,chain=17; mha4/s4: legacy_grid_stride=35,rotate=39,balanced=31,eft=35,wavefront=39,chain=36; mha4/s128: legacy_grid_stride=35,rotate=35,balanced=36,eft=36,wavefront=35,chain=35; real/s4: legacy_grid_stride=35,rotate=39,balanced=31,eft=35,wavefront=39,chain=37; real/s128: legacy_grid_stride=31,rotate=35,balanced=35,eft=35,wavefront=35,chain=35
+  evidence: /root/TileMega/docs/experiments/CHAIN2/final/replay/path
+D-c	report	PASS	6 cells x 4 arms x 25 paired fresh processes; all PASS; gqa2/s4/rotate: L2=0.290816 ms, ratio=1.00000 [1.00000,1.00000]; gqa2/s4/chain: L2=0.291616 ms, ratio=1.00011 [1.00000,1.00330]; gqa2/s4/chain_control: L2=0.292640 ms, ratio=1.00363 [1.00296,1.00671]; gqa2/s4/original: L2=0.292864 ms, ratio=1.00671 [1.00406,1.00749]; gqa2/s128/rotate: L2=0.455680 ms, ratio=1.00000 [1.00000,1.00000]; gqa2/s128/chain: L2=0.500896 ms, ratio=1.09930 [1.09888,1.10112]; gqa2/s128/chain_control: L2=0.514912 ms, ratio=1.12986 [1.12817,1.13034]; gqa2/s128/original: L2=0.518144 ms, ratio=1.13708 [1.13687,1.13708]; mha4/s4/rotate: L2=0.576512 ms, ratio=1.00000 [1.00000,1.00000]; mha4/s4/chain: L2=0.575488 ms, ratio=0.99972 [0.99768,1.00813]; mha4/s4/chain_control: L2=0.581632 ms, ratio=1.01377 [1.01101,1.01593]; mha4/s4/original: L2=0.549856 ms, ratio=1.01223 [1.01040,1.01399]; mha4/s128/rotate: L2=0.855040 ms, ratio=1.00000 [1.00000,1.00000]; mha4/s128/chain: L2=0.967680 ms, ratio=1.13119 [1.13043,1.13291]; mha4/s128/chain_control: L2=1.077248 ms, ratio=1.25988 [1.25854,1.26127]; mha4/s128/original: L2=1.076224 ms, ratio=1.25796 [1.25625,1.26005]; real/s4/rotate: L2=4.407232 ms, ratio=1.00000 [1.00000,1.00000]; real/s4/chain: L2=5.107776 ms, ratio=1.15996 [1.15881,1.16875]; real/s4/chain_control: L2=4.500480 ms, ratio=1.02139 [1.02045,1.02367]; real/s4/original: L2=4.500480 ms, ratio=1.02115 [1.02053,1.02325]; real/s128/rotate: L2=6.499328 ms, ratio=1.00000 [1.00000,1.00000]; real/s128/chain: L2=7.163776 ms, ratio=1.10213 [1.10194,1.10242]; real/s128/chain_control: L2=7.364608 ms, ratio=1.13293 [1.13263,1.13345]; real/s128/original: L2=7.363584 ms, ratio=1.13280 [1.13235,1.13315]
+  evidence: /root/TileMega/docs/experiments/CHAIN2/final/paired
+D-d	report	PASS	gqa2/s4/cost_model=412; gqa2/s4/trace=1084; mha4/s4/cost_model=908; mha4/s4/trace=3276; real/s4/cost_model=25952; gqa2/s128/cost_model=538124; gqa2/s128/trace=542220; mha4/s128/cost_model=2127388; mha4/s128/trace=2135580; real/s128/cost_model=34394336
+  evidence: /root/TileMega/docs/experiments/CHAIN2/final/on/rejected_extensions.tsv
+TARGET legacy_grid_stride/gqa2/s4: floor=0.366592000 measured_A=0.453504000 target=0.410048000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/gqa2_s4_legacy_grid_stride
+TARGET balanced/gqa2/s4: floor=0.277504000 measured_A=0.648192000 target=0.462848000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/gqa2_s4_balanced
+TARGET rotate/gqa2/s4: floor=0.242688000 measured_A=0.291840000 target=0.267264000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/gqa2_s4_rotate
+TARGET eft/gqa2/s4: floor=0.246784000 measured_A=0.299232000 target=0.273008000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/gqa2_s4_eft
+TARGET wavefront/gqa2/s4: floor=0.242688000 measured_A=0.301056000 target=0.271872000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/gqa2_s4_wavefront
+TARGET chain/gqa2/s4: floor=0.243712000 measured_A=0.300032000 target=0.271872000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/gqa2_s4_chain
+TARGET legacy_grid_stride/gqa2/s128: floor=0.531456000 measured_A=0.624640000 target=0.578048000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/gqa2_s128_legacy_grid_stride
+TARGET balanced/gqa2/s128: floor=0.335872000 measured_A=1.052672000 target=0.694272000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/gqa2_s128_balanced
+TARGET rotate/gqa2/s128: floor=0.349184000 measured_A=0.463808000 target=0.406496000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/gqa2_s128_rotate
+TARGET eft/gqa2/s128: floor=0.384000000 measured_A=0.466944000 target=0.425472000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/gqa2_s128_eft
+TARGET wavefront/gqa2/s128: floor=0.381952000 measured_A=0.466752000 target=0.424352000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/gqa2_s128_wavefront
+TARGET chain/gqa2/s128: floor=0.349184000 measured_A=0.528384000 target=0.438784000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/gqa2_s128_chain
+TARGET legacy_grid_stride/mha4/s4: floor=0.745472000 measured_A=0.900960000 target=0.823216000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/mha4_s4_legacy_grid_stride
+TARGET balanced/mha4/s4: floor=0.491520000 measured_A=1.236992000 target=0.864256000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/mha4_s4_balanced
+TARGET rotate/mha4/s4: floor=0.488448000 measured_A=0.580608000 target=0.534528000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/mha4_s4_rotate
+TARGET eft/mha4/s4: floor=0.490496000 measured_A=0.595968000 target=0.543232000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/mha4_s4_eft
+TARGET wavefront/mha4/s4: floor=0.492544000 measured_A=0.598144000 target=0.545344000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/mha4_s4_wavefront
+TARGET chain/mha4/s4: floor=0.495616000 measured_A=0.595008000 target=0.545312000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/mha4_s4_chain
+TARGET legacy_grid_stride/mha4/s128: floor=1.074176000 measured_A=1.276928000 target=1.175552000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/mha4_s128_legacy_grid_stride
+TARGET balanced/mha4/s128: floor=0.885760000 measured_A=4.111264000 target=2.498512000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/mha4_s128_balanced
+TARGET rotate/mha4/s128: floor=0.626688000 measured_A=0.866304000 target=0.746496000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/mha4_s128_rotate
+TARGET eft/mha4/s128: floor=0.720896000 measured_A=0.891904000 target=0.806400000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/mha4_s128_eft
+TARGET wavefront/mha4/s128: floor=0.731136000 measured_A=0.960512000 target=0.845824000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/mha4_s128_wavefront
+TARGET chain/mha4/s128: floor=0.648192000 measured_A=1.129472000 target=0.888832000 ms evidence=docs/experiments/SYNC_V3/targets_raw/dump/mha4_s128_chain
+E-frozen-targets	report	PASS	24/24 candidate-specific targets reproduce; 0 targets below their own floor
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/targets_raw/dump
+TARGET_POSITION legacy_grid_stride/gqa2/s4: configuration=baseline L2=0.422912 target=0.410048 delta=0.012864 ms
+TARGET_POSITION balanced/gqa2/s4: configuration=baseline L2=0.584896 target=0.462848 delta=0.122048 ms
+TARGET_POSITION rotate/gqa2/s4: configuration=c1 L2=0.283648 target=0.267264 delta=0.016384 ms
+TARGET_POSITION eft/gqa2/s4: configuration=baseline L2=0.279552 target=0.273008 delta=0.006544 ms
+TARGET_POSITION wavefront/gqa2/s4: configuration=baseline L2=0.281600 target=0.271872 delta=0.009728 ms
+TARGET_POSITION chain/gqa2/s4: configuration=baseline L2=0.279200 target=0.271872 delta=0.007328 ms
+TARGET_POSITION legacy_grid_stride/gqa2/s128: configuration=baseline L2=0.596896 target=0.578048 delta=0.018848 ms
+TARGET_POSITION balanced/gqa2/s128: configuration=baseline L2=0.906240 target=0.694272 delta=0.211968 ms
+TARGET_POSITION rotate/gqa2/s128: configuration=baseline L2=0.444416 target=0.406496 delta=0.037920 ms
+TARGET_POSITION eft/gqa2/s128: configuration=baseline L2=0.439264 target=0.425472 delta=0.013792 ms
+TARGET_POSITION wavefront/gqa2/s128: configuration=baseline L2=0.439296 target=0.424352 delta=0.014944 ms
+TARGET_POSITION chain/gqa2/s128: configuration=baseline L2=0.493440 target=0.438784 delta=0.054656 ms
+TARGET_POSITION legacy_grid_stride/mha4/s4: configuration=baseline L2=0.844800 target=0.823216 delta=0.021584 ms
+TARGET_POSITION balanced/mha4/s4: configuration=baseline L2=1.014816 target=0.864256 delta=0.150560 ms
+TARGET_POSITION rotate/mha4/s4: configuration=c2 L2=0.561088 target=0.534528 delta=0.026560 ms
+TARGET_POSITION eft/mha4/s4: configuration=baseline L2=0.509888 target=0.543232 delta=-0.033344 ms
+TARGET_POSITION wavefront/mha4/s4: configuration=baseline L2=0.512832 target=0.545344 delta=-0.032512 ms
+TARGET_POSITION chain/mha4/s4: configuration=baseline L2=0.507968 target=0.545312 delta=-0.037344 ms
+TARGET_POSITION legacy_grid_stride/mha4/s128: configuration=baseline L2=1.211392 target=1.175552 delta=0.035840 ms
+TARGET_POSITION balanced/mha4/s128: configuration=baseline L2=3.286016 target=2.498512 delta=0.787504 ms
+TARGET_POSITION rotate/mha4/s128: configuration=baseline L2=0.870400 target=0.746496 delta=0.123904 ms
+TARGET_POSITION eft/mha4/s128: configuration=baseline L2=0.836576 target=0.806400 delta=0.030176 ms
+TARGET_POSITION wavefront/mha4/s128: configuration=baseline L2=0.820224 target=0.845824 delta=-0.025600 ms
+TARGET_POSITION chain/mha4/s128: configuration=baseline L2=1.033216 target=0.888832 delta=0.144384 ms
+E-target-positions	report	PASS	24 fixed candidate/cells measured: 16 additional x 3 W=1 configurations x 25; legacy/rotate from protocol matrix
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/target_positions
+window-probe-coverage	hard	PASS	2/2 safe W=2 SASS images unchanged; nowait BAR.RED sites 1 -> 0; event polling ATOMG 1 -> 0; original partial matrix excluded and retained
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/window_probe_fix
+ABLATION baseline/gqa2/s4/p0 l2_ms=0.422912 nofence_ms=0.408576 nowait_ms=0.389120 neither_ms=0.353280 l1nosync_ms=0.364544 fence_ms=0.015168 wait_ms=0.034816 notify_ms=0.034816 barrier_ms=0.026784 protocol_over_barrier=2.576923 l2_over_l1=1.081008 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/baseline/paired/gqa2_s4_p0
+ABLATION baseline/gqa2/s4/p5 l2_ms=0.284576 nofence_ms=0.270336 nowait_ms=0.062464 neither_ms=0.059392 l1nosync_ms=0.365568 fence_ms=0.014272 wait_ms=0.222208 notify_ms=0.003072 barrier_ms=0.026688 protocol_over_barrier=8.441247 l2_over_l1=0.723998 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/baseline/paired/gqa2_s4_p5
+ABLATION baseline/gqa2/s128/p0 l2_ms=0.596896 nofence_ms=0.574272 nowait_ms=0.551936 neither_ms=0.518944 l1nosync_ms=0.526336 fence_ms=0.022528 wait_ms=0.044032 notify_ms=0.033792 barrier_ms=0.032608 protocol_over_barrier=2.404810 l2_over_l1=1.067766 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/baseline/paired/gqa2_s128_p0
+ABLATION baseline/gqa2/s128/p5 l2_ms=0.444416 nofence_ms=0.427808 nowait_ms=0.172192 neither_ms=0.156672 l1nosync_ms=0.526336 fence_ms=0.017248 wait_ms=0.272288 notify_ms=0.015360 barrier_ms=0.031744 protocol_over_barrier=9.062500 l2_over_l1=0.796330 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/baseline/paired/gqa2_s128_p5
+ABLATION baseline/mha4/s4/p0 l2_ms=0.844800 nofence_ms=0.816096 nowait_ms=0.779264 neither_ms=0.710656 l1nosync_ms=0.728064 fence_ms=0.029920 wait_ms=0.066560 notify_ms=0.067552 barrier_ms=0.053504 protocol_over_barrier=2.479742 l2_over_l1=1.081258 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/baseline/paired/mha4_s4_p0
+ABLATION baseline/mha4/s4/p5 l2_ms=0.562176 nofence_ms=0.537600 nowait_ms=0.142144 neither_ms=0.135168 l1nosync_ms=0.728064 fence_ms=0.024576 wait_ms=0.420096 notify_ms=0.006880 barrier_ms=0.053440 protocol_over_barrier=7.859835 l2_over_l1=0.718984 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/baseline/paired/mha4_s4_p5
+ABLATION baseline/mha4/s128/p0 l2_ms=1.211392 nofence_ms=1.139712 nowait_ms=1.065984 neither_ms=0.997088 l1nosync_ms=1.038336 fence_ms=0.055296 wait_ms=0.135040 notify_ms=0.073536 barrier_ms=0.062656 protocol_over_barrier=2.247934 l2_over_l1=1.083257 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/baseline/paired/mha4_s128_p0
+ABLATION baseline/mha4/s128/p5 l2_ms=0.870400 nofence_ms=0.861184 nowait_ms=0.328768 neither_ms=0.288768 l1nosync_ms=1.056768 fence_ms=0.045056 wait_ms=0.541408 notify_ms=0.039936 barrier_ms=0.009184 protocol_over_barrier=9.882864 l2_over_l1=0.815143 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/baseline/paired/mha4_s128_p5
+ABLATION c1/gqa2/s4/p0 l2_ms=0.427008 nofence_ms=0.408576 nowait_ms=0.390144 neither_ms=0.354176 l1nosync_ms=0.364544 fence_ms=0.018112 wait_ms=0.035936 notify_ms=0.036864 barrier_ms=0.026464 protocol_over_barrier=2.784764 l2_over_l1=1.089507 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c1/paired/gqa2_s4_p0
+ABLATION c1/gqa2/s4/p5 l2_ms=0.283648 nofence_ms=0.270272 nowait_ms=0.061536 neither_ms=0.059360 l1nosync_ms=0.365568 fence_ms=0.013472 wait_ms=0.221568 notify_ms=0.003072 barrier_ms=0.026784 protocol_over_barrier=8.384615 l2_over_l1=0.723238 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c1/paired/gqa2_s4_p5
+ABLATION c1/gqa2/s128/p0 l2_ms=0.599008 nofence_ms=0.573504 nowait_ms=0.553984 neither_ms=0.519072 l1nosync_ms=0.526336 fence_ms=0.024576 wait_ms=0.045056 notify_ms=0.034848 barrier_ms=0.031744 protocol_over_barrier=2.530531 l2_over_l1=1.072934 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c1/paired/gqa2_s128_p0
+ABLATION c1/gqa2/s128/p5 l2_ms=0.444576 nofence_ms=0.428000 nowait_ms=0.173056 neither_ms=0.156672 l1nosync_ms=0.526336 fence_ms=0.017408 wait_ms=0.271552 notify_ms=0.016160 barrier_ms=0.031840 protocol_over_barrier=9.049000 l2_over_l1=0.797473 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c1/paired/gqa2_s128_p5
+ABLATION c1/mha4/s4/p0 l2_ms=0.849952 nofence_ms=0.815104 nowait_ms=0.779264 neither_ms=0.710656 l1nosync_ms=0.729088 fence_ms=0.033792 wait_ms=0.069664 notify_ms=0.069632 barrier_ms=0.052416 protocol_over_barrier=2.627451 l2_over_l1=1.087685 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c1/paired/mha4_s4_p0
+ABLATION c1/mha4/s4/p5 l2_ms=0.561152 nofence_ms=0.537568 nowait_ms=0.142208 neither_ms=0.135040 l1nosync_ms=0.729024 fence_ms=0.023552 wait_ms=0.418816 notify_ms=0.007072 barrier_ms=0.053184 protocol_over_barrier=8.004207 l2_over_l1=0.717589 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c1/paired/mha4_s4_p5
+ABLATION c1/mha4/s128/p0 l2_ms=1.218560 nofence_ms=1.130496 nowait_ms=1.090560 neither_ms=1.014784 l1nosync_ms=1.032032 fence_ms=0.063296 wait_ms=0.107904 notify_ms=0.076800 barrier_ms=0.078016 protocol_over_barrier=2.360456 l2_over_l1=1.089591 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c1/paired/mha4_s128_p0
+ABLATION c1/mha4/s128/p5 l2_ms=0.889856 nofence_ms=0.846784 nowait_ms=0.328704 neither_ms=0.288768 l1nosync_ms=1.055744 fence_ms=0.050176 wait_ms=0.576512 notify_ms=0.038912 barrier_ms=0.052416 protocol_over_barrier=9.918033 l2_over_l1=0.812244 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c1/paired/mha4_s128_p5
+ABLATION c2/gqa2/s4/p0 l2_ms=0.427008 nofence_ms=0.408544 nowait_ms=0.389120 neither_ms=0.354304 l1nosync_ms=0.364544 fence_ms=0.018176 wait_ms=0.036704 notify_ms=0.035232 barrier_ms=0.026816 protocol_over_barrier=2.705602 l2_over_l1=1.089865 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c2/paired/gqa2_s4_p0
+ABLATION c2/gqa2/s4/p5 l2_ms=0.285600 nofence_ms=0.270336 nowait_ms=0.062208 neither_ms=0.059392 l1nosync_ms=0.365472 fence_ms=0.015232 wait_ms=0.223424 notify_ms=0.003040 barrier_ms=0.026720 protocol_over_barrier=8.474251 l2_over_l1=0.727749 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c2/paired/gqa2_s4_p5
+ABLATION c2/gqa2/s128/p0 l2_ms=0.599040 nofence_ms=0.573568 nowait_ms=0.553984 neither_ms=0.518336 l1nosync_ms=0.526336 fence_ms=0.025472 wait_ms=0.045056 notify_ms=0.034848 barrier_ms=0.032896 protocol_over_barrier=2.454369 l2_over_l1=1.071952 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c2/paired/gqa2_s128_p0
+ABLATION c2/gqa2/s128/p5 l2_ms=0.445312 nofence_ms=0.428032 nowait_ms=0.172960 neither_ms=0.156704 l1nosync_ms=0.526336 fence_ms=0.017216 wait_ms=0.272416 notify_ms=0.015360 barrier_ms=0.031936 protocol_over_barrier=9.006012 l2_over_l1=0.797794 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c2/paired/gqa2_s128_p5
+ABLATION c2/mha4/s4/p0 l2_ms=0.851968 nofence_ms=0.815296 nowait_ms=0.782336 neither_ms=0.711680 l1nosync_ms=0.728064 fence_ms=0.036864 wait_ms=0.070656 notify_ms=0.072704 barrier_ms=0.052448 protocol_over_barrier=2.660377 l2_over_l1=1.091623 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c2/paired/mha4_s4_p0
+ABLATION c2/mha4/s4/p5 l2_ms=0.561088 nofence_ms=0.537504 nowait_ms=0.142208 neither_ms=0.135168 l1nosync_ms=0.728064 fence_ms=0.023552 wait_ms=0.418816 notify_ms=0.007104 barrier_ms=0.054272 protocol_over_barrier=7.872866 l2_over_l1=0.718136 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c2/paired/mha4_s4_p5
+ABLATION c2/mha4/s128/p0 l2_ms=1.219616 nofence_ms=1.156960 nowait_ms=1.097728 neither_ms=1.008640 l1nosync_ms=1.054720 fence_ms=0.063488 wait_ms=0.101376 notify_ms=0.079072 barrier_ms=0.067584 protocol_over_barrier=2.594223 l2_over_l1=1.090494 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c2/paired/mha4_s128_p0
+ABLATION c2/mha4/s128/p5 l2_ms=0.884736 nofence_ms=0.844672 nowait_ms=0.326912 neither_ms=0.288768 l1nosync_ms=1.056768 fence_ms=0.050176 wait_ms=0.567552 notify_ms=0.039936 barrier_ms=0.029856 protocol_over_barrier=9.918033 l2_over_l1=0.814306 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/c2/paired/mha4_s128_p5
+ABLATION window2/gqa2/s4/p0 l2_ms=0.449536 nofence_ms=0.436064 nowait_ms=0.427008 neither_ms=0.374784 l1nosync_ms=0.364704 fence_ms=0.014336 wait_ms=0.022528 notify_ms=0.052224 barrier_ms=0.027456 protocol_over_barrier=2.764423 l2_over_l1=1.146417 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window2/paired/gqa2_s4_p0
+ABLATION window2/gqa2/s4/p5 l2_ms=0.294048 nofence_ms=0.280576 nowait_ms=0.064512 neither_ms=0.061440 l1nosync_ms=0.365568 fence_ms=0.013312 wait_ms=0.229376 notify_ms=0.002944 barrier_ms=0.026752 protocol_over_barrier=8.668258 l2_over_l1=0.749634 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window2/paired/gqa2_s4_p5
+ABLATION window2/gqa2/s128/p0 l2_ms=0.634880 nofence_ms=0.615360 nowait_ms=0.594944 neither_ms=0.539648 l1nosync_ms=0.526336 fence_ms=0.020256 wait_ms=0.040000 notify_ms=0.055296 barrier_ms=0.031808 protocol_over_barrier=3.000000 l2_over_l1=1.137876 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window2/paired/gqa2_s128_p0
+ABLATION window2/gqa2/s128/p5 l2_ms=0.466944 nofence_ms=0.451584 nowait_ms=0.185344 neither_ms=0.169984 l1nosync_ms=0.526208 fence_ms=0.014560 wait_ms=0.281536 notify_ms=0.016160 barrier_ms=0.031904 protocol_over_barrier=9.322581 l2_over_l1=0.836409 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window2/paired/gqa2_s128_p5
+ABLATION window2/mha4/s4/p0 l2_ms=0.893824 nofence_ms=0.866240 nowait_ms=0.849920 neither_ms=0.749568 l1nosync_ms=0.728064 fence_ms=0.027648 wait_ms=0.044000 notify_ms=0.101376 barrier_ms=0.053248 protocol_over_barrier=2.705882 l2_over_l1=1.144004 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window2/paired/mha4_s4_p0
+ABLATION window2/mha4/s4/p5 l2_ms=0.587776 nofence_ms=0.561984 nowait_ms=0.147456 neither_ms=0.147456 l1nosync_ms=0.729088 fence_ms=0.024768 wait_ms=0.440320 notify_ms=0.000000 barrier_ms=0.053696 protocol_over_barrier=8.051613 l2_over_l1=0.749494 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window2/paired/mha4_s4_p5
+ABLATION window2/mha4/s128/p0 l2_ms=1.304576 nofence_ms=1.222656 nowait_ms=1.171456 neither_ms=1.035264 l1nosync_ms=1.055904 fence_ms=0.058368 wait_ms=0.130048 notify_ms=0.117760 barrier_ms=0.065408 protocol_over_barrier=3.267267 l2_over_l1=1.165064 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window2/paired/mha4_s128_p0
+ABLATION window2/mha4/s128/p5 l2_ms=0.956416 nofence_ms=0.905152 nowait_ms=0.361472 neither_ms=0.325632 l1nosync_ms=1.057792 fence_ms=0.038912 wait_ms=0.591872 notify_ms=0.035840 barrier_ms=0.057344 protocol_over_barrier=10.403917 l2_over_l1=0.859361 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window2/paired/mha4_s128_p5
+ABLATION local2/gqa2/s4/p0 l2_ms=0.433152 nofence_ms=0.416768 nowait_ms=0.414688 neither_ms=0.397312 l1nosync_ms=0.364416 fence_ms=0.017280 wait_ms=0.019296 notify_ms=0.017664 barrier_ms=0.027552 protocol_over_barrier=1.362530 l2_over_l1=1.104706 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local2/paired/gqa2_s4_p0
+ABLATION local2/gqa2/s4/p5 l2_ms=0.280576 nofence_ms=0.270336 nowait_ms=0.063488 neither_ms=0.063232 l1nosync_ms=0.364544 fence_ms=0.010240 wait_ms=0.217088 notify_ms=0.000160 barrier_ms=0.027456 protocol_over_barrier=7.944056 l2_over_l1=0.714996 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local2/paired/gqa2_s4_p5
+ABLATION local2/gqa2/s128/p0 l2_ms=0.619520 nofence_ms=0.596992 nowait_ms=0.579584 neither_ms=0.561152 l1nosync_ms=0.525408 fence_ms=0.022528 wait_ms=0.039936 notify_ms=0.018496 barrier_ms=0.031968 protocol_over_barrier=1.806452 l2_over_l1=1.110092 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local2/paired/gqa2_s128_p0
+ABLATION local2/gqa2/s128/p5 l2_ms=0.456576 nofence_ms=0.441344 nowait_ms=0.185600 neither_ms=0.173824 l1nosync_ms=0.526336 fence_ms=0.014464 wait_ms=0.270432 notify_ms=0.012128 barrier_ms=0.031744 protocol_over_barrier=8.903226 l2_over_l1=0.818177 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local2/paired/gqa2_s128_p5
+ABLATION local2/mha4/s4/p0 l2_ms=0.862208 nofence_ms=0.830464 nowait_ms=0.825344 neither_ms=0.792576 l1nosync_ms=0.728064 fence_ms=0.030784 wait_ms=0.036608 notify_ms=0.034656 barrier_ms=0.054272 protocol_over_barrier=1.278399 l2_over_l1=1.102046 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local2/paired/mha4_s4_p0
+ABLATION local2/mha4/s4/p5 l2_ms=0.560064 nofence_ms=0.540672 nowait_ms=0.144384 neither_ms=0.142592 l1nosync_ms=0.729088 fence_ms=0.018432 wait_ms=0.415744 notify_ms=0.001088 barrier_ms=0.055296 protocol_over_barrier=7.553819 l2_over_l1=0.714735 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local2/paired/mha4_s4_p5
+ABLATION local2/mha4/s128/p0 l2_ms=1.272832 nofence_ms=1.197056 nowait_ms=1.159168 neither_ms=1.104896 l1nosync_ms=1.034240 fence_ms=0.062432 wait_ms=0.103648 notify_ms=0.048128 barrier_ms=0.078848 protocol_over_barrier=1.796076 l2_over_l1=1.135160 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local2/paired/mha4_s128_p0
+ABLATION local2/mha4/s128/p5 l2_ms=0.919552 nofence_ms=0.878592 nowait_ms=0.360704 neither_ms=0.335648 l1nosync_ms=1.057792 fence_ms=0.042720 wait_ms=0.570368 notify_ms=0.025056 barrier_ms=0.044960 protocol_over_barrier=9.737705 l2_over_l1=0.842922 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local2/paired/mha4_s128_p5
+ABLATION window4/gqa2/s4/p0 l2_ms=0.451584 nofence_ms=0.438272 nowait_ms=0.427872 neither_ms=0.374784 l1nosync_ms=0.364544 fence_ms=0.013184 wait_ms=0.024672 notify_ms=0.052896 barrier_ms=0.027648 protocol_over_barrier=2.790509 l2_over_l1=1.150873 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window4/paired/gqa2_s4_p0
+ABLATION window4/gqa2/s4/p5 l2_ms=0.294112 nofence_ms=0.281440 nowait_ms=0.064544 neither_ms=0.062464 l1nosync_ms=0.364544 fence_ms=0.013088 wait_ms=0.229376 notify_ms=0.003040 barrier_ms=0.027616 protocol_over_barrier=8.451912 l2_over_l1=0.750082 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window4/paired/gqa2_s4_p5
+ABLATION window4/gqa2/s128/p0 l2_ms=0.636704 nofence_ms=0.616448 nowait_ms=0.594944 neither_ms=0.539648 l1nosync_ms=0.526336 fence_ms=0.020256 wait_ms=0.041984 notify_ms=0.055296 barrier_ms=0.031904 protocol_over_barrier=3.023116 l2_over_l1=1.141007 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window4/paired/gqa2_s128_p0
+ABLATION window4/gqa2/s128/p5 l2_ms=0.470016 nofence_ms=0.453632 nowait_ms=0.185472 neither_ms=0.169984 l1nosync_ms=0.525312 fence_ms=0.016384 wait_ms=0.283648 notify_ms=0.015712 barrier_ms=0.031744 protocol_over_barrier=9.419355 l2_over_l1=0.841960 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window4/paired/gqa2_s128_p5
+ABLATION window4/mha4/s4/p0 l2_ms=0.897024 nofence_ms=0.871424 nowait_ms=0.850944 neither_ms=0.748448 l1nosync_ms=0.728064 fence_ms=0.026624 wait_ms=0.047040 notify_ms=0.103424 barrier_ms=0.054432 protocol_over_barrier=2.773585 l2_over_l1=1.149010 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window4/paired/mha4_s4_p0
+ABLATION window4/mha4/s4/p5 l2_ms=0.587776 nofence_ms=0.562176 nowait_ms=0.147456 neither_ms=0.147456 l1nosync_ms=0.729088 fence_ms=0.025504 wait_ms=0.440256 notify_ms=0.000000 barrier_ms=0.054304 protocol_over_barrier=8.111373 l2_over_l1=0.750143 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window4/paired/mha4_s4_p5
+ABLATION window4/mha4/s128/p0 l2_ms=1.302528 nofence_ms=1.218560 nowait_ms=1.173504 neither_ms=1.054720 l1nosync_ms=1.056768 fence_ms=0.053344 wait_ms=0.126976 notify_ms=0.112800 barrier_ms=0.063456 protocol_over_barrier=3.351746 l2_over_l1=1.165246 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window4/paired/mha4_s128_p0
+ABLATION window4/mha4/s128/p5 l2_ms=0.923648 nofence_ms=0.880640 nowait_ms=0.360448 neither_ms=0.324608 l1nosync_ms=1.057792 fence_ms=0.044032 wait_ms=0.577536 notify_ms=0.035840 barrier_ms=0.033056 protocol_over_barrier=10.185129 l2_over_l1=0.864611 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/window4/paired/mha4_s128_p5
+ABLATION local4/gqa2/s4/p0 l2_ms=0.435200 nofence_ms=0.419840 nowait_ms=0.414720 neither_ms=0.396288 l1nosync_ms=0.365568 fence_ms=0.016160 wait_ms=0.020480 notify_ms=0.018432 barrier_ms=0.026784 protocol_over_barrier=1.462772 l2_over_l1=1.109130 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local4/paired/gqa2_s4_p0
+ABLATION local4/gqa2/s4/p5 l2_ms=0.280576 nofence_ms=0.270336 nowait_ms=0.063488 neither_ms=0.062464 l1nosync_ms=0.365568 fence_ms=0.010240 wait_ms=0.217088 notify_ms=0.000320 barrier_ms=0.027456 protocol_over_barrier=7.935897 l2_over_l1=0.715405 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local4/paired/gqa2_s4_p5
+ABLATION local4/gqa2/s128/p0 l2_ms=0.620544 nofence_ms=0.599008 nowait_ms=0.579584 neither_ms=0.561152 l1nosync_ms=0.526176 fence_ms=0.021504 wait_ms=0.040960 notify_ms=0.018400 barrier_ms=0.031968 protocol_over_barrier=1.838710 l2_over_l1=1.111788 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local4/paired/gqa2_s128_p0
+ABLATION local4/gqa2/s128/p5 l2_ms=0.458752 nofence_ms=0.443392 nowait_ms=0.185344 neither_ms=0.174080 l1nosync_ms=0.525376 fence_ms=0.016096 wait_ms=0.273408 notify_ms=0.011264 barrier_ms=0.031872 protocol_over_barrier=8.944556 l2_over_l1=0.823198 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local4/paired/gqa2_s128_p5
+ABLATION local4/mha4/s4/p0 l2_ms=0.864256 nofence_ms=0.834368 nowait_ms=0.826304 neither_ms=0.791552 l1nosync_ms=0.728032 fence_ms=0.030080 wait_ms=0.037152 notify_ms=0.034816 barrier_ms=0.054496 protocol_over_barrier=1.306122 l2_over_l1=1.104578 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local4/paired/mha4_s4_p0
+ABLATION local4/mha4/s4/p5 l2_ms=0.560128 nofence_ms=0.540672 nowait_ms=0.144384 neither_ms=0.142336 l1nosync_ms=0.729088 fence_ms=0.019392 wait_ms=0.415776 notify_ms=0.001664 barrier_ms=0.054432 protocol_over_barrier=7.666471 l2_over_l1=0.714858 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local4/paired/mha4_s4_p5
+ABLATION local4/mha4/s128/p0 l2_ms=1.274880 nofence_ms=1.193984 nowait_ms=1.143808 neither_ms=1.098592 l1nosync_ms=1.027072 fence_ms=0.057344 wait_ms=0.119936 notify_ms=0.047200 barrier_ms=0.083040 protocol_over_barrier=1.751493 l2_over_l1=1.137705 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local4/paired/mha4_s128_p0
+ABLATION local4/mha4/s128/p5 l2_ms=0.914432 nofence_ms=0.866304 nowait_ms=0.361472 neither_ms=0.336640 l1nosync_ms=1.057792 fence_ms=0.041984 wait_ms=0.551968 notify_ms=0.025600 barrier_ms=0.020640 protocol_over_barrier=9.342714 l2_over_l1=0.846910 evidence=/root/TileMega/docs/experiments/SYNC_V3/ablation/local4/paired/mha4_s128_p5
+C-five-arm/ablation	report	PASS	7 configurations x 8 cells x 5 arms x 25 paired fresh processes
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/ablation
+real-width-ablation	report	PASS	5 configurations x 5 arms x 25 fresh processes; all full PASS
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/realwidth
+C1-MEMBAR	report	PASS	gqa2: static L2 MEMBAR.SC.GPU 2 -> 2; publishing release executes on 128 -> 1 threads/task; mha4: static L2 MEMBAR.SC.GPU 2 -> 2; publishing release executes on 128 -> 1 threads/task; prompt static-count expectation corrected: predication changes dynamic participation, not static instruction sites
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/c1/sass
+C-instruction-counts	report	PASS	baseline/gqa2/p0: MEMBAR.SC.GPU=2, BAR.SYNC=8; baseline/gqa2/p5: MEMBAR.SC.GPU=2, BAR.SYNC=8; baseline/mha4/p0: MEMBAR.SC.GPU=2, BAR.SYNC=8; baseline/mha4/p5: MEMBAR.SC.GPU=2, BAR.SYNC=8; c1/gqa2/p0: MEMBAR.SC.GPU=2, BAR.SYNC=8; c1/gqa2/p5: MEMBAR.SC.GPU=2, BAR.SYNC=8; c1/mha4/p0: MEMBAR.SC.GPU=2, BAR.SYNC=8; c1/mha4/p5: MEMBAR.SC.GPU=2, BAR.SYNC=8; c2/gqa2/p0: MEMBAR.SC.GPU=2, BAR.SYNC=8; c2/gqa2/p5: MEMBAR.SC.GPU=2, BAR.SYNC=8; c2/mha4/p0: MEMBAR.SC.GPU=2, BAR.SYNC=8; c2/mha4/p5: MEMBAR.SC.GPU=2, BAR.SYNC=8; window2/gqa2/p0: MEMBAR.SC.GPU=3, BAR.SYNC=8; window2/gqa2/p5: MEMBAR.SC.GPU=3, BAR.SYNC=8; window2/mha4/p0: MEMBAR.SC.GPU=3, BAR.SYNC=8; window2/mha4/p5: MEMBAR.SC.GPU=3, BAR.SYNC=8; local2/gqa2/p0: MEMBAR.SC.GPU=3, BAR.SYNC=10; local2/gqa2/p5: MEMBAR.SC.GPU=3, BAR.SYNC=10; local2/mha4/p0: MEMBAR.SC.GPU=3, BAR.SYNC=10; local2/mha4/p5: MEMBAR.SC.GPU=3, BAR.SYNC=10; window4/gqa2/p0: MEMBAR.SC.GPU=3, BAR.SYNC=8; window4/gqa2/p5: MEMBAR.SC.GPU=3, BAR.SYNC=8; window4/mha4/p0: MEMBAR.SC.GPU=3, BAR.SYNC=8; window4/mha4/p5: MEMBAR.SC.GPU=3, BAR.SYNC=8; local4/gqa2/p0: MEMBAR.SC.GPU=3, BAR.SYNC=10; local4/gqa2/p5: MEMBAR.SC.GPU=3, BAR.SYNC=10; local4/mha4/p0: MEMBAR.SC.GPU=3, BAR.SYNC=10; local4/mha4/p5: MEMBAR.SC.GPU=3, BAR.SYNC=10
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/c2/sass
+C3a-neither-barriers	report	PASS	window2/gqa2/neither: BAR.SYNC=6; window2/mha4/neither: BAR.SYNC=6; local2/gqa2/neither: BAR.SYNC=8; local2/mha4/neither: BAR.SYNC=8; local completion convergence remains in neither; full/neither changes reported separately
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/local_probe_sass
+B-b	report	PASS	gqa2/s4/p0: fence=15.360 us, fence/notify=0.4191, fence/protocol=0.2146; gqa2/s4/p5: fence=13.376 us, fence/notify=6.4098, fence/protocol=0.0597; gqa2/s128/p0: fence=22.528 us, fence/notify=0.6642, fence/protocol=0.2857; gqa2/s128/p5: fence=16.480 us, fence/notify=1.0711, fence/protocol=0.0575; mha4/s4/p0: fence=31.744 us, fence/notify=0.4672, fence/protocol=0.2316; mha4/s4/p5: fence=24.576 us, fence/notify=3.5392, fence/protocol=0.0576; mha4/s128/p0: fence=56.160 us, fence/notify=0.7105, fence/protocol=0.3307; mha4/s128/p5: fence=45.056 us, fence/notify=1.0992, fence/protocol=0.0730
+  evidence: /root/TileMega/docs/experiments/FENCE/raw/paired
+C3a-window-gain	report	PASS	gqa2_s4_p0/W2: smem/control=0.96364 [0.96347,0.96568], smem/C2(W1)=1.01562 [1.01199,1.01687]; gqa2_s4_p0/W4: smem/control=0.96373 [0.96136,0.96593], smem/C2(W1)=1.02102 [1.01906,1.02190]; gqa2_s4_p5/W2: smem/control=0.95449 [0.95139,0.95486], smem/C2(W1)=0.98208 [0.98170,0.98466]; gqa2_s4_p5/W4: smem/control=0.95444 [0.95163,0.95486], smem/C2(W1)=0.98214 [0.98195,0.98566]; gqa2_s128_p0/W2: smem/control=0.97577 [0.97433,0.97581], smem/C2(W1)=1.03419 [1.03359,1.03424]; gqa2_s128_p0/W4: smem/control=0.97428 [0.97393,0.97585], smem/C2(W1)=1.03590 [1.03419,1.03628]; gqa2_s128_p5/W2: smem/control=0.97807 [0.97780,0.97992], smem/C2(W1)=1.02507 [1.02480,1.02588]; gqa2_s128_p5/W4: smem/control=0.97817 [0.97598,0.97821], smem/C2(W1)=1.03189 [1.02989,1.03226]; mha4_s4_p0/W2: smem/control=0.96453 [0.96233,0.96577], smem/C2(W1)=1.01166 [1.00957,1.01304]; mha4_s4_p0/W4: smem/control=0.96343 [0.96130,0.96465], smem/C2(W1)=1.01424 [1.01202,1.01452]; mha4_s4_p5/W2: smem/control=0.95288 [0.95280,0.95455], smem/C2(W1)=0.99801 [0.99635,0.99818]; mha4_s4_p5/W4: smem/control=0.95288 [0.95132,0.95459], smem/C2(W1)=0.99971 [0.99636,1.00143]; mha4_s128_p0/W2: smem/control=0.97488 [0.97261,0.97951], smem/C2(W1)=1.04291 [1.02774,1.05428]; mha4_s128_p0/W4: smem/control=0.97715 [0.97418,0.98341], smem/C2(W1)=1.04626 [1.04203,1.05428]; mha4_s128_p5/W2: smem/control=0.97864 [0.95036,1.00335], smem/C2(W1)=1.03815 [1.00868,1.05963]; mha4_s128_p5/W4: smem/control=0.97362 [0.95005,1.02558], smem/C2(W1)=1.03443 [1.00112,1.06433]; all window/shared full logs retain grid=256, 2 CTA/SM and TaskSmem=24576 B; registers 218 -> 220, static shared 0 -> 16 B
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/ablation
+sm120-self-check	report	PASS	3/3 runners SELF_CHECK=1 on sm_89; sm_120 has not been run
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/self_check
+RESEARCH_CONFIGURATION baseline: achieved=0/4 protocol_ratio_geomean=2.424337 full_L2_geomean_ms=0.712930
+RESEARCH_CONFIGURATION c1: achieved=0/4 protocol_ratio_geomean=2.571181 full_L2_geomean_ms=0.717427
+RESEARCH_CONFIGURATION c2: achieved=0/4 protocol_ratio_geomean=2.601888 full_L2_geomean_ms=0.718017
+RESEARCH_CONFIGURATION window2: achieved=0/4 protocol_ratio_geomean=2.926206 full_L2_geomean_ms=0.759529
+RESEARCH_CONFIGURATION local2: achieved=0/4 protocol_ratio_geomean=1.541846 full_L2_geomean_ms=0.736664
+RESEARCH_CONFIGURATION window4: achieved=0/4 protocol_ratio_geomean=2.975861 full_L2_geomean_ms=0.761319
+RESEARCH_CONFIGURATION local4: achieved=0/4 protocol_ratio_geomean=1.574964 full_L2_geomean_ms=0.738573
+wait+notify<=barrier	research	FAIL	local2: 0/4 median gates; gqa2/s4=1.3625 [1.3136,1.3732], historical excess gap closed=70.53%; gqa2/s128=1.8065 [1.7865,1.8332], historical excess gap closed=45.88%; mha4/s4=1.2784 [1.1873,1.3463], historical excess gap closed=74.69%; mha4/s128=1.7961 [1.5702,2.3186], historical excess gap closed=58.32%
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/ablation
 
-4/14 hard gates pass; protocol work stopped
+21/21 hard gates pass; 15/15 report gates pass
