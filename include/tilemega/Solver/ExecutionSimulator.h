@@ -50,6 +50,12 @@ struct SimulatorOptions {
   /// is what a cost model that priced every task at `ctas_per_sm` already
   /// assumes, kept as the control arm for the lane-stretch model.
   bool proportional_sharing = false;
+  /// Once per publishing producer, in addition to consumer visibility delay.
+  /// Zero preserves the historical simulator exactly. Measured node times
+  /// already include co-resident stretching when observed_task_times is true.
+  double publication_ns = 0.0;
+  double consumer_wait_ns = 0.0;
+  bool observed_task_times = false;
 };
 
 struct SimulatorInput {
@@ -62,6 +68,11 @@ struct SimulatorInput {
   std::vector<ResourceVector> task_lanes;
   /// Physical worker -> SM.  Empty means `w % sms`.
   std::vector<int> worker_sm;
+  /// Actual runtime publication requirement per task. Empty uses the minimal
+  /// graph requirement (at least one cross-worker consumer). Runtime stage-wide
+  /// event flags may publish more tasks; a dump-backed caller supplies them.
+  std::vector<unsigned char> publication_required;
+  std::vector<unsigned char> consumer_wait_required;
 };
 
 struct SimulatedTask {

@@ -121,6 +121,7 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
 
   std::vector<int> unmet(nodes, 0);
   std::vector<int> cross_fanout(nodes, 0);
+  std::vector<unsigned char> cross_input(nodes, 0);
   long cross_edges = 0, same_edges = 0;
   // Counted branchlessly: on a plan like mode 5 almost every edge is cross, on
   // mode 0 the mix is uneven, and a mispredicted branch per edge is a third of
@@ -130,12 +131,31 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
     long same = 0;
     for (int succ : graph.successors[node]) {
       ++unmet[succ];
+      cross_input[succ] |= owner_of[succ] != mine;
       same += owner_of[succ] == mine;
     }
     long const total = static_cast<long>(graph.successors[node].size());
     same_edges += same;
     cross_edges += total - same;
     cross_fanout[node] = static_cast<int>(total - same);
+  }
+
+  if (!std::isfinite(options.publication_ns) || options.publication_ns < 0)
+    return fail("publication cost must be finite and nonnegative");
+  if (!input.publication_required.empty() && input.publication_required.size() != std::size_t(nodes))
+    return fail("publication mask must have one entry per task");
+  if (!std::isfinite(options.consumer_wait_ns) || options.consumer_wait_ns < 0)
+    return fail("consumer wait cost must be finite and nonnegative");
+  if (!input.consumer_wait_required.empty() && input.consumer_wait_required.size() != std::size_t(nodes))
+    return fail("consumer wait mask must have one entry per task");
+  std::vector<double> publication(nodes, 0.0), consumer_wait(nodes, 0.0);
+  for (int node = 0; node < nodes; ++node) {
+    bool const needed = input.publication_required.empty()
+        ? cross_fanout[node] != 0 : input.publication_required[node] != 0;
+    publication[node] = needed ? options.publication_ns : 0.0;
+    bool const waits = input.consumer_wait_required.empty()
+        ? cross_input[node] != 0 : input.consumer_wait_required[node] != 0;
+    consumer_wait[node] = waits ? options.consumer_wait_ns : 0.0;
   }
 
   out->tasks.assign(nodes, SimulatedTask{});
@@ -186,7 +206,7 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
       remaining[m] = std::max(0.0, remaining[m] - (now - updated[m]) * rate[m]);
       updated[m] = now;
     }
-    double const stretch = std::max(1.0, use_lanes
+    double const stretch = options.observed_task_times ? 1.0 : std::max(1.0, use_lanes
         ? LaneStretch(lanes, set) : static_cast<double>(set.size()));
     for (int m : set) {
       rate[m] = 1.0 / stretch;
@@ -199,7 +219,7 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
     if (head[w] >= static_cast<int>(queue[w].size())) return;
     int const node = queue[w][head[w]];
     if (unmet[node] != 0) return;
-    double const start = std::max(free_at[w], ready[node]);
+    double const start = std::max(free_at[w], ready[node]) + consumer_wait[node];
     if (start > now) { pending.push({start, w, 0, false}); return; }
     int const sm = worker_sm[w];
     SimulatedTask& task = out->tasks[node];
@@ -242,7 +262,7 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
     auto& set = in_flight[sm];
     set.erase(std::find(set.begin(), set.end(), node));
     --in_flight_total;
-    free_at[w] = task.end_ns;
+    free_at[w] = task.end_ns + publication[node];
     busy[w] = 0;
     by_end.push_back(node);
     ++completed;
@@ -258,7 +278,8 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
         : (options.flat_hop ? hop.c0
                             : hop.Ns(cross_fanout[node], std::max(1, in_flight_total)));
     for (int succ : graph.successors[node]) {
-      double const arrival = task.end_ns + (owner_of[succ] == w ? 0.0 : edge);
+      double const arrival = task.end_ns +
+          (owner_of[succ] == w ? 0.0 : publication[node] + edge);
       ready[succ] = std::max(ready[succ], arrival);
       if (--unmet[succ] == 0 && owner_of[succ] != w) try_start(owner_of[succ], now);
     }
@@ -291,7 +312,7 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
   std::vector<double> worker_busy(grid, 0.0);
   for (int node = 0; node < nodes; ++node) {
     SimulatedTask const& task = out->tasks[node];
-    out->makespan_ns = std::max(out->makespan_ns, task.end_ns);
+    out->makespan_ns = std::max(out->makespan_ns, task.end_ns + publication[node]);
     out->total_work_ns += task.end_ns - task.start_ns;
     out->solo_work_ns += input.task_ns[node];
     out->total_block_ns += task.block_ns;

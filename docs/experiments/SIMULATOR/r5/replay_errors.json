@@ -1,0 +1,23 @@
+{
+  "all": {
+    "cells": 68,
+    "absolute_relative_p50": 0.04539963931735,
+    "absolute_relative_p90": 0.108475523182,
+    "absolute_relative_max": 0.138277099034,
+    "signed_relative_median": 0.039676246459450004
+  },
+  "fifo": {
+    "cells": 44,
+    "absolute_relative_p50": 0.0489200703895,
+    "absolute_relative_p90": 0.108475523182,
+    "absolute_relative_max": 0.138277099034,
+    "signed_relative_median": 0.0444291792461
+  },
+  "window_projection": {
+    "cells": 24,
+    "absolute_relative_p50": 0.033276781512,
+    "absolute_relative_p90": 0.111969670612,
+    "absolute_relative_max": 0.120875518039,
+    "signed_relative_median": 0.033276781512
+  }
+}

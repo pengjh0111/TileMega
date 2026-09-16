@@ -1,0 +1,22 @@
+{
+  "measured_source": "R2 raw/time/l2.tsv: historical calibration set, not R5 GPU performance",
+  "points": 18,
+  "coarse_ns": {
+    "spearman": 0.5612409846058792,
+    "actual_top1_predicted_rank": 1
+  },
+  "full_ns": {
+    "spearman": 0.8802889576883385,
+    "actual_top1_predicted_rank": 1
+  },
+  "reference": {
+    "prepare_us": 68589.98,
+    "coarse_us": 151.007,
+    "full_us": 140259.531
+  },
+  "real": {
+    "prepare_us": 71269.681,
+    "coarse_us": 619.341,
+    "full_us": 138348.284
+  }
+}

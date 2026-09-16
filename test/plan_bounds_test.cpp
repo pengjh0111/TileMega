@@ -24,6 +24,24 @@ int main() {
   assert(RankPlans(in,prepared,{&one,&two},options,hop,1,&ranked,&error));
   assert(ranked[0].index==1 && ranked[0].simulated && !ranked[1].simulated);
   assert(ranked[0].makespan_ns==16);
+  // Publication occupies the producer queue once regardless of fanout.
+  options.publication_ns=2; options.observed_task_times=true;
+  SimulatorResult sim;
+  assert(SimulateExecution(in,two,options,hop,&sim,&error));
+  assert(sim.makespan_ns==16); // every dependency stays on its worker
+  in.publication_required={1,1,0,0};
+  assert(SimulateExecution(in,two,options,hop,&sim,&error));
+  assert(sim.makespan_ns==18); // actual stage-wide flags can require more
+  MaterializedPlan cross; cross.queue={{{0,0},{1,1}},{{0,1},{1,0}}};
+  in.publication_required.clear();
+  assert(SimulateExecution(in,cross,options,hop,&sim,&error));
+  assert(sim.makespan_ns==18);
+  options.consumer_wait_ns=4;
+  assert(SimulateExecution(in,cross,options,hop,&sim,&error));
+  assert(sim.makespan_ns==22); // one wait charge, never multiplied by fan-in
+  in.consumer_wait_required={0,0,0,0};
+  assert(SimulateExecution(in,cross,options,hop,&sim,&error));
+  assert(sim.makespan_ns==18);
   one.queue[0].pop_back();
   assert(!EvaluatePlanBounds(prepared,one,&a,&error));
   graph.successors[2].push_back(0);

@@ -1,0 +1,28 @@
+{
+  "command": [
+    "/usr/local/cuda/bin/nvcc",
+    "-std=c++17",
+    "-O2",
+    "-arch=sm_89",
+    "-lineinfo",
+    "-DTILEMEGA_EVENT_KAPPA=1",
+    "-DTILEMEGA_PLACEMENT=5",
+    "-DTILEMEGA_TRACE_PHASE=0",
+    "-I/root/TileMega/include",
+    "-I/root/TileMega/third_party/cutlass/include",
+    "-I/root/TileMega/third_party/cutlass/tools/util/include",
+    "-I/root/TileMega/third_party/cutlass/test",
+    "/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s4/model.cu",
+    "/root/TileMega/build-portable/libtilemega.a",
+    "-L/usr/local/cuda/lib64",
+    "-lcudart",
+    "-o",
+    "/root/TileMega/docs/experiments/PHASE/raw/bin/real_p5_off"
+  ],
+  "exit_code": 0,
+  "head": "b02e5a903cf2c2020bf8be710f38ba7b2a37c24b",
+  "source": "/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s4/model.cu",
+  "source_sha256": "ac2850192990785f3ba181cffb7dc5f6c9e56243f08217e980431d73670fb078",
+  "time_ns": 1789550437564162316,
+  "binary_sha256": "3a567776b2a0fd33edecc64930fd9235f0b4426bcf14915b41167f8b0ea26a24"
+}

@@ -2,7 +2,12 @@
 """Budget and historical calibration ordering; input measurements stay labelled."""
 import csv,json,statistics
 from pathlib import Path
-from scipy.stats import spearmanr
+def spearman(x,y):
+    def ranks(v):
+        ordered=sorted(v)
+        return [(ordered.index(a)+len(ordered)-ordered[::-1].index(a)+1)/2 for a in v]
+    a,b=ranks(x),ranks(y);am,bm=statistics.mean(a),statistics.mean(b)
+    return sum((u-am)*(v-bm) for u,v in zip(a,b))/(sum((u-am)**2 for u in a)*sum((v-bm)**2 for v in b))**.5
 HERE=Path(__file__).resolve().parent
 REPO=HERE.parents[3]
 def read(p):
@@ -16,7 +21,7 @@ def main():
     for column in ('coarse_ns','full_ns'):
         predicted=[float(r[column]) for r in selected]
         rank=sorted(range(len(selected)),key=lambda i:predicted[i]);best=min(range(len(selected)),key=lambda i:actual[i])
-        output[column]=dict(spearman=float(spearmanr(predicted,actual).statistic),actual_top1_predicted_rank=rank.index(best)+1)
+        output[column]=dict(spearman=spearman(predicted,actual),actual_top1_predicted_rank=rank.index(best)+1)
     for model in ('reference','real'):
         group=[r for r in rows if (r['model']=='real')==(model=='real')]
         output[model]={k:max(float(r[k]) for r in group) for k in ('prepare_us','coarse_us','full_us')}
