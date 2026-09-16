@@ -1,0 +1,26 @@
+{
+  "placement": 0,
+  "rounds": 25,
+  "ratio": "median of paired (full.L2 - neither.L2) / (full.L1 - l1nosync.L1)",
+  "threshold": 1.0,
+  "required_cells": 3,
+  "reference_cells": [
+    "gqa2_s4",
+    "gqa2_s128",
+    "mha4_s4",
+    "mha4_s128"
+  ],
+  "configurations": [
+    "baseline",
+    "c1",
+    "c2",
+    "window2",
+    "local2",
+    "window4",
+    "local4"
+  ],
+  "evaluation": "Evaluate all four cells for every configuration. The research gate passes if one configuration achieves at least three cells. Report every configuration; representative selection maximizes achieved cells, then minimizes geometric mean of the four protocol/barrier medians. Fastest end-to-end configuration is reported separately.",
+  "bootstrap_resamples": 10000,
+  "bootstrap_seed": 167,
+  "provenance": "Records the existing prompt research threshold without changing its metric, count or coverage; fixed before the corrected ablation session. The superseded partial session is excluded."
+}
