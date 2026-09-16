@@ -1,0 +1,1 @@
+{"command": ["/root/TileMega/docs/experiments/FENCE/raw/bin/mha4_p0_nowait", "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/mha4_s128_p3"], "exit_code": 1, "session": "1789522488363895919", "round": 9, "order": 3, "time_ns": 1789522902238479784, "binary_sha256": "c875e4c905173c5bb4a284a20851f17b013a30541fbe18a4815fe5295f2410bc"}
