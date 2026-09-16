@@ -173,7 +173,7 @@ std::vector<VariantRequest> readVariants(std::string const& path,
 int main(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   if (argc < 3 || argc % 2 == 0) {
-    std::cerr << "usage: tilemega-compile {STABLE_EXPORT.json|CG.mlir} "
+    std::cerr << "usage: tilemega-compile {EXPORTED_PROGRAM.pt2|STABLE_EXPORT.json|CG.mlir} "
                  "{OUTPUT.cu|OUTPUT.so} [--variants PLAN.json] [--solve TARGET.json --seq N --past N\n"
                  " --search-capacity N --dump-cg FILE.mlir --hop-curve FILE.tsv]\n";
     return 2;
@@ -201,6 +201,16 @@ int main(int argc, char** argv) {
       else if (flag=="--search-domain") domain_path=value;
       else if (flag=="--numerical-rejections") rejections_path=value;
       else throw std::runtime_error("unknown option: "+flag);
+    }
+    if(input.extension()==".pt2") {
+      auto bridge=std::filesystem::absolute(std::string(argv[2])+".export.json");
+      std::string python_path=std::string(TILEMEGA_SOURCE_DIR)+"/python";
+      if(auto inherited=std::getenv("PYTHONPATH"))python_path+=":"+std::string(inherited);
+      std::string command="PYTHONPATH="+quote(python_path)+" python3 -m tilemega.export_bridge "+
+          quote(std::filesystem::absolute(input).string())+" --out "+quote(bridge.string());
+      if(std::system(command.c_str())!=0)throw std::runtime_error("torch.export bridge failed");
+      input=bridge;
+      std::cerr<<"EXPORT_BRIDGE source="<<std::quoted(argv[1])<<" output="<<std::quoted(input.string())<<'\n';
     }
     bool has_variants=!variants_path.empty();
     if (!solve_target.empty() && has_variants)
@@ -301,10 +311,10 @@ int main(int argc, char** argv) {
         summary.guards = guards.getInt();
       source = tilemega::codegen::CouplingGraphToCUDA{}.Lower(*module);
     } else if (!has_variants) {
-      module = tilemega::frontend::TorchExportImporter{}.Import(argv[1], context, &summary);
+      module = tilemega::frontend::TorchExportImporter{}.Import(input.string(), context, &summary);
       source = tilemega::codegen::CouplingGraphToCUDA{}.Lower(*module);
     } else {
-      auto bridge = tilemega::frontend::ReadExportBridge(argv[1]);
+      auto bridge = tilemega::frontend::ReadExportBridge(input.string());
       auto plan = tilemega::frontend::BuildModelPlan(
           bridge.nodes, bridge.inputs, bridge.outputs);
       auto requests = readVariants(variants_path, plan.gemms.size());
@@ -314,7 +324,7 @@ int main(int argc, char** argv) {
       inputs.reserve(requests.size());
       for (std::size_t i = 0; i < requests.size(); ++i) {
         modules.push_back(tilemega::frontend::TorchExportImporter{}.Import(
-            argv[1], context, i == 0 ? &summary : nullptr,
+            input.string(), context, i == 0 ? &summary : nullptr,
             requests[i].options));
         inputs.push_back({*modules.back(), requests[i].seq_begin,
                           requests[i].seq_end});

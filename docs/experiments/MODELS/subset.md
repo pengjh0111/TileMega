@@ -17,8 +17,7 @@ Reproduce from the repository root (requires approximately 6 GiB temporary disk)
 
 ```sh
 python3 docs/experiments/MODELS/export_mlp.py --model llama --seq 4 --out /tmp/r6-llama-mlp
-PYTHONPATH=python python3 -m tilemega.export_bridge /tmp/r6-llama-mlp/exported_program.pt2 --out /tmp/r6-llama-mlp/model.json
-build-portable/tools/tilemega-compile /tmp/r6-llama-mlp/model.json /tmp/r6-llama-mlp/auto.cu --solve docs/experiments/COSTMODEL/event_fit/target.json --seq 4 --past 3 --search-capacity 3 --search-domain docs/experiments/COSTMODEL/event_fit/search_domain.json --dump-cg /tmp/r6-llama-mlp/auto.mlir --hop-curve docs/experiments/SIMULATOR/hop_ns.tsv
+build-portable/tools/tilemega-compile docs/experiments/MODELS/llama_mlp/exported_program.pt2 docs/experiments/MODELS/llama_mlp/direct_pt2.cu --solve docs/experiments/COSTMODEL/event_fit/target.json --seq 4 --past 3 --search-capacity 3 --search-domain docs/experiments/COSTMODEL/event_fit/search_domain.json --dump-cg docs/experiments/MODELS/llama_mlp/direct_pt2.mlir --hop-curve docs/experiments/SIMULATOR/hop_ns.tsv
 ```
 
 The final command imports, solves geometry/kappa/placement/residency, writes the
@@ -29,3 +28,8 @@ including all 16 CPU golden output comparisons. Warmup=0, repeat=1 makes their
 latencies single-launch observations, not a steady-state performance claim.
 Large regenerated random fixtures, torch archives and executables are omitted
 from git; their hashes and build commands remain in the evidence.
+
+The direct `.pt2` invocation was executed in this round; its export bridge and
+compiled occupancy logs are in `llama_mlp/direct_pt2.log`. Its generated CUDA
+is byte-identical to `llama_mlp/auto.cu`, which produced the 50/50 results above
+(`direct_pt2.equivalence.tsv`). The bridge remains internal to this command.

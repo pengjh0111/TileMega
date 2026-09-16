@@ -1,0 +1,24 @@
+{
+  "command": [
+    "build-portable/tools/tilemega-compile",
+    "docs/experiments/MODELS/llama_mlp/exported_program.pt2",
+    "docs/experiments/MODELS/llama_mlp/direct_pt2.cu",
+    "--solve",
+    "docs/experiments/COSTMODEL/event_fit/target.json",
+    "--seq",
+    "4",
+    "--past",
+    "3",
+    "--search-capacity",
+    "3",
+    "--search-domain",
+    "docs/experiments/COSTMODEL/event_fit/search_domain.json",
+    "--dump-cg",
+    "docs/experiments/MODELS/llama_mlp/direct_pt2.mlir",
+    "--hop-curve",
+    "docs/experiments/SIMULATOR/hop_ns.tsv"
+  ],
+  "source_sha256": "87c9800a59f4f7574ed268a2fb4427398eca1c9221492d0992d5a129aec3815c",
+  "output_sha256": "f6ae6e1251355544f6fb4eee5e3e0b405975719ef36fe096fb76cf4cbe16af34",
+  "raw_log": "docs/experiments/MODELS/llama_mlp/direct_pt2.log"
+}

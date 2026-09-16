@@ -1,0 +1,4 @@
+rank	key	placement	tile_m	tile_n	tile_k	stages	split_k	kappa	residency	floor_ns	predicted_ns	source	cg
+1	64x128x16s2split8kappa1r3	eft	64	128	16	2	8	1	3	753904	867303	docs/experiments/MODELS/llama_mlp/direct_pt2.cu.top1.cu	docs/experiments/MODELS/llama_mlp/direct_pt2.cu.top1.mlir
+2	64x128x16s2split8kappa2r3	eft	64	128	16	2	8	2	3	753904	867303	docs/experiments/MODELS/llama_mlp/direct_pt2.cu.top2.cu	docs/experiments/MODELS/llama_mlp/direct_pt2.cu.top2.mlir
+3	64x128x16s2split8kappa4r3	eft	64	128	16	2	8	4	3	753904	867303	docs/experiments/MODELS/llama_mlp/direct_pt2.cu.top3.cu	docs/experiments/MODELS/llama_mlp/direct_pt2.cu.top3.mlir
