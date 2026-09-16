@@ -76,9 +76,10 @@ bool PrepareExecutionGraph(codegen::RuntimeTaskGraph const& graph,
     if (group<0) {
       group=int(result.successors.size());
       result.successors.push_back(row);
-      result.producer_count.push_back(0);
+      result.producer_count.push_back(0);result.producers.emplace_back();
       buckets[hash].push_back(group);
     }
+    result.producers[group].push_back(int(result.group_of_node.size()));
     result.group_of_node.push_back(group);
     ++result.producer_count[group];
   }
@@ -166,62 +167,49 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
   int const groups=int(prepared->successors.size());
   std::vector<int> unmet(nodes,0),cross_fanout(nodes,0);
   std::vector<unsigned char> cross_input(nodes,0);
-  using OwnerCounts=std::vector<std::pair<int,int>>;
-  std::vector<OwnerCounts> producer_owners(groups),consumer_owners(groups);
-  for (int n=0;n<nodes;++n) producer_owners[prepared->group_of_node[n]].push_back({owner_of[n],1});
-  auto compact=[](OwnerCounts& counts) {
-    std::sort(counts.begin(),counts.end());
-    std::size_t n=0;
-    for (auto p:counts) {
-      if (n && counts[n-1].first==p.first) counts[n-1].second+=p.second;
-      else counts[n++]=p;
-    }
-    counts.resize(n);
-  };
-  auto count_owner=[](OwnerCounts const& counts,int owner) {
-    auto it=std::lower_bound(counts.begin(),counts.end(),std::pair<int,int>{owner,0});
-    return it==counts.end() || it->first!=owner ? 0 : it->second;
-  };
+  // Reuse graph membership and one worker histogram. Sorting owner lists for
+  // each successor group was more expensive than the event recurrence itself.
+  std::vector<int> consumer_counts(grid,0),touched;
+  long cross_edges=0,same_edges=0;
   for (int g=0;g<groups;++g) {
-    compact(producer_owners[g]);
+    auto const& producers=prepared->producers[g];
+    int first_owner=owner_of[producers.front()];bool mixed=false;
+    for (int n:producers) mixed|=owner_of[n]!=first_owner;
     for (int succ:prepared->successors[g]) {
       ++unmet[succ];int w=owner_of[succ];
-      consumer_owners[g].push_back({w,1});
-      cross_input[succ]|=count_owner(producer_owners[g],w)!=prepared->producer_count[g];
+      if (!consumer_counts[w]++) touched.push_back(w);
+      cross_input[succ]|=mixed || w!=first_owner;
     }
-    compact(consumer_owners[g]);
-  }
-  long cross_edges=0,same_edges=0;
-  for (int n=0;n<nodes;++n) {
-    int g=prepared->group_of_node[n];
-    int same=count_owner(consumer_owners[g],owner_of[n]);
-    cross_fanout[n]=int(prepared->successors[g].size())-same;
-    same_edges+=same;cross_edges+=cross_fanout[n];
+    for (int n:producers) {
+      int same=consumer_counts[owner_of[n]];
+      cross_fanout[n]=int(prepared->successors[g].size())-same;
+      same_edges+=same;cross_edges+=cross_fanout[n];
+    }
+    for (int w:touched) consumer_counts[w]=0;
+    touched.clear();
   }
   struct GroupCompletion {
     int remaining;
-    double cross_first=0,cross_second=0,chain=0;
+    double cross_first=0,cross_second=0,chain=0,end_max=0;
     int first_owner=-1;
-    std::vector<std::pair<int,double>> local_end;
     void arrive(int owner,double end,double cross) {
-      auto it=std::lower_bound(local_end.begin(),local_end.end(),std::pair<int,double>{owner,0});
-      it->second=std::max(it->second,end);
+      end_max=std::max(end_max,end);
       if (first_owner==owner) cross_first=std::max(cross_first,cross);
       else if (cross>=cross_first) {
         cross_second=cross_first;cross_first=cross;first_owner=owner;
       } else cross_second=std::max(cross_second,cross);
     }
     double ready_at(int owner) const {
-      auto it=std::lower_bound(local_end.begin(),local_end.end(),std::pair<int,double>{owner,0});
-      double local=it==local_end.end() || it->first!=owner ? 0 : it->second;
-      return std::max(local,first_owner==owner ? cross_second : cross_first);
+      // A foreign producer's cross arrival is at least its end; therefore
+      // the global end maximum plus the best foreign arrival also covers the
+      // local-owner maximum, without a per-owner end-time table.
+      return std::max(end_max,first_owner==owner ? cross_second : cross_first);
     }
   };
   std::vector<GroupCompletion> group_completion;
   group_completion.reserve(groups);
   for (int g=0;g<groups;++g) {
     group_completion.push_back({prepared->producer_count[g]});
-    for (auto [owner,count]:producer_owners[g]) group_completion.back().local_end.push_back({owner,0});
   }
   std::vector<double> chain(nodes,0);
   double critical_path=0;
@@ -247,6 +235,7 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
   // With observed durations and a context-independent hop, event times are
   // exactly the weighted DAG recurrence. No resource rate can change in flight.
   if (options.observed_task_times && (options.flat_hop || (hop.c1==0 && hop.c2==0))) {
+    if (!std::isfinite(hop.c0) || hop.c0<0) return fail("invalid flat hop cost");
     out->tasks.assign(nodes,SimulatedTask{});
     std::vector<int> queue_next(nodes,-1),ready_nodes;
     std::vector<double> arrival(nodes,0),queue_end(nodes,0),worker_busy(grid,0);
@@ -401,6 +390,7 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
         ? 0.0
         : (options.flat_hop ? hop.c0
                             : hop.Ns(cross_fanout[node], std::max(1, in_flight_total)));
+    if (!std::isfinite(edge) || edge<0) return fail("invalid contextual hop cost");
     auto& group=group_completion[prepared->group_of_node[node]];
     group.arrive(w,task.end_ns,task.end_ns+publication[node]+edge);
     chain[node]+=task.end_ns-task.start_ns;

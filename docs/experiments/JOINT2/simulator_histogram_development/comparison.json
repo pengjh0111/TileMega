@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "plans": 40,
+  "differences": [],
+  "old": "docs/experiments/JOINT2/simulator_compact_development/evaluations.tsv",
+  "new": "docs/experiments/JOINT2/simulator_histogram_development/evaluations.tsv",
+  "scope": "frozen historical weights; timing development only, not R6 calibrated rank acceptance"
+}

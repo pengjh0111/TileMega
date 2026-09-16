@@ -1,0 +1,6 @@
+[1/6] Building CXX object CMakeFiles/execution_simulator_test.dir/test/unit/execution_simulator_test.cpp.o
+[2/6] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ExecutionSimulator.cpp.o
+[3/6] Linking CXX static library libtilemega.a
+[4/6] Linking CXX executable execution_simulator_test
+[5/6] Building CXX object CMakeFiles/tilemega-compile.dir/tools/tilemega-compile.cpp.o
+[6/6] Linking CXX executable tools/tilemega-compile

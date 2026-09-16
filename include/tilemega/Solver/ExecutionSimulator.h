@@ -62,7 +62,7 @@ struct SimulatorOptions {
 /// reusable while the source graph is immutable; queue placement remains free.
 struct PreparedExecutionGraph {
   codegen::RuntimeTaskGraph const* source = nullptr;
-  std::vector<std::vector<int>> successors;
+  std::vector<std::vector<int>> successors, producers;
   std::vector<int> group_of_node, producer_count;
 };
 bool PrepareExecutionGraph(codegen::RuntimeTaskGraph const& graph,
