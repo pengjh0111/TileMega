@@ -22,8 +22,8 @@ def prepare(cell,m,selected_seq,seq,past,driver,arch):
     env=os.environ.copy();env.update(JOINT_PAST=str(past),JOINT_PHASE_SEQ=str(selected_seq),JOINT_PARTITION_WORKERS='1',JOINT_VALIDATE_PLACEMENT=chosen['placement'],JOINT_ONLY_PLACEMENT=chosen['placement'])
     cmd=[str(driver),str(REPO),str(exported(m)),m,str(seq),*[chosen[k] for k in ('m','n','k','stages','split','kappa','residency')],str(d.resolve()),'3']
     begin=time.time_ns()
-    with (d/'project.log').open('w') as f:r=subprocess.run(cmd,env=env,stdout=f,stderr=subprocess.STDOUT,timeout=1800)
-    (d/'process.json').write_text(json.dumps(dict(command=cmd,exit_code=r.returncode,environment={k:env[k] for k in ('JOINT_PAST','JOINT_PHASE_SEQ','JOINT_PARTITION_WORKERS','JOINT_VALIDATE_PLACEMENT','JOINT_ONLY_PLACEMENT')},started_ns=begin,elapsed_ns=time.time_ns()-begin))+'\n')
+    with (d/'project.log').open('w') as f:r=subprocess.run(cmd,env=env,stdout=f,stderr=subprocess.STDOUT,timeout=7200)
+    (d/'process.json').write_text(json.dumps(dict(command=cmd,exit_code=r.returncode,environment={k:v for k,v in env.items() if k.startswith('JOINT_')},started_ns=begin,elapsed_ns=time.time_ns()-begin))+'\n')
     r.check_returncode()
     selected=next(r for r in table(d/'predicted.tsv') if r['placement']==chosen['placement'])
     if selected['status']!='ok' or selected['simulated']!='1':raise RuntimeError('selected SEQSCAN group/queue validation failed')

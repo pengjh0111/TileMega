@@ -1,0 +1,10 @@
+PROJECT imported gqa2 s4
+PROJECT exact relation cache=/root/TileMega/docs/experiments/JOINT/self_check/graph_cache
+PROJECT graph nodes=648
+PROJECT placement=legacy_grid_stride
+PROJECT placement=rotate
+PROJECT placement=balanced
+PROJECT placement=eft
+PROJECT placement=wavefront
+PROJECT placement=chain
+JOINT_PROJECT PASS model=gqa2 seq=4 nodes=648 plans=6

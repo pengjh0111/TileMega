@@ -101,10 +101,33 @@ int main(int argc,char**argv) try{
   std::vector<int> counts;codegen::RuntimeTaskGraph graph;graph.stage_offsets={0};
   for(auto const&s:projection.stages){int n=s.task_count.Eval({});counts.push_back(n);graph.stage_offsets.push_back(graph.stage_offsets.back()+n);}
   int nodes=graph.stage_offsets.back();graph.successors.resize(nodes);graph.preferred_worker.resize(nodes);
-  std::cerr<<"PROJECT projected; streaming dependencies"<<std::endl;
-  VisitRelation(isl,projection.dependencies.ToString(),4,[&](long const* e){
-    int p=graph.stage_offsets.at(e[2])+e[3],c=graph.stage_offsets.at(e[0])+e[1];graph.successors.at(p).push_back(c);
-  });
+  auto relation_text=projection.dependencies.ToString();
+  std::ofstream(out+"/dependencies.isl")<<relation_text;
+  std::ostringstream count_text;for(int n:counts)count_text<<n<<'\n';
+  std::ofstream(out+"/stage_counts.txt")<<count_text.str();
+  if(std::getenv("JOINT_RELATION_ONLY")){std::cout<<"JOINT_RELATION_ONLY PASS nodes="<<nodes<<std::endl;return 0;}
+  bool cached=false;
+  if(auto cache=std::getenv("JOINT_GRAPH_CACHE")){
+    auto contents=[](std::string const& path){std::ifstream f(path);return std::string(std::istreambuf_iterator<char>(f),{});};
+    std::string dir=cache;
+    if(contents(dir+"/dependencies.isl")==relation_text && contents(dir+"/stage_counts.txt")==count_text.str()){
+      std::ifstream runs(dir+"/task_dag.runs.tsv");std::string header;std::getline(runs,header);
+      if(header!="producer\tfirst\tlast")throw std::runtime_error("DAG cache header");
+      int p,first,last;
+      while(runs>>p>>first>>last){
+        if(p<0 || p>=nodes || first<0 || last>=nodes || first>last)throw std::runtime_error("DAG cache bounds");
+        for(int c=first;c<=last;++c)graph.successors[p].push_back(c);
+      }
+      if(!runs.eof())throw std::runtime_error("DAG cache parse");
+      cached=true;std::cerr<<"PROJECT exact relation cache="<<dir<<std::endl;
+    }
+  }
+  if(!cached){
+    std::cerr<<"PROJECT projected; streaming dependencies"<<std::endl;
+    VisitRelation(isl,relation_text,4,[&](long const* e){
+      int p=graph.stage_offsets.at(e[2])+e[3],c=graph.stage_offsets.at(e[0])+e[1];graph.successors.at(p).push_back(c);
+    });
+  }
   for(auto& edges:graph.successors){std::sort(edges.begin(),edges.end());edges.erase(std::unique(edges.begin(),edges.end()),edges.end());}
   std::vector<int> node_stage(nodes);std::vector<int> baseline_queue(grid);
   for(std::size_t s=0;s<counts.size();++s)for(int t=0;t<counts[s];++t){int n=graph.stage_offsets[s]+t;node_stage[n]=s;graph.preferred_worker[n]=t%grid;++baseline_queue[t%grid];}

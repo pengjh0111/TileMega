@@ -1,0 +1,38 @@
+{
+  "task_dag.tsv": {
+    "identical": true,
+    "sha256": "ceb73f93544f680a0898904c402d6fad957fa58cf0e9a8f624ef4f6eed30285f"
+  },
+  "weights.tsv": {
+    "identical": true,
+    "sha256": "8a87f6689c973fbe36092f05554c3946f234f0e9e4cdae0e4d8987bed85b8e0c"
+  },
+  "predicted.tsv": {
+    "identical": true,
+    "sha256": "087e8d1b268056a09a87f80248f7b50fc8669a0fd5b1a1275e2d50af37be748f"
+  },
+  "legacy_grid_stride.cu": {
+    "identical": true,
+    "sha256": "43756878b192cf2c6b8bc941eca8c80d6faae4757f6802f7ef626ccbcac97463"
+  },
+  "rotate.cu": {
+    "identical": true,
+    "sha256": "9be074be1839e58774f25ef7cf8917db7510bcc5f6160e84631d229d45a6b3b7"
+  },
+  "balanced.cu": {
+    "identical": true,
+    "sha256": "d455a6bed1d1ce9f66c4d11684b70fe18cba8268285512ef89f14e865c04782e"
+  },
+  "eft.cu": {
+    "identical": true,
+    "sha256": "b9a968e6fd0a53e5d187f841efac7d4370c6357e8bab42b0f8fc7ce64ad25820"
+  },
+  "wavefront.cu": {
+    "identical": true,
+    "sha256": "f771495829c039ba45798ca9dcd0fc7d3f6a8c8f0416412de332cd0dda193514"
+  },
+  "chain.cu": {
+    "identical": true,
+    "sha256": "1ba058ce4774d2d97c390ea0de3a7be67f51347ad296cb2404b41c7fc199b3a8"
+  }
+}
