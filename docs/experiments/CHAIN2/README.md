@@ -35,7 +35,11 @@ buckets in `rejected_extensions.tsv`; their counts are unique DAG edges in
 the selected extraction pass, not repeated DP visits. Each bucket records
 hop, queue cost, multiplicity and an example producer/successor.
 
-The sm_120 runner regenerates geometry, calibration and all materialized
-Plans on its target. Its original/feedback-matched/cost-aware arms expose
+The sm_120 runner regenerates geometry, BF16 calibration, the RMW/load hop
+curve and all materialized Plans on its target. The curve is fitted into
+its own `calibration/` directory; the old `SIMULATOR/raw_sm120` evidence is
+neither reused as a new measurement nor overwritten. CPU self-check refits
+the committed sm_89 sweeps and verifies the exact existing coefficients.
+Its original/feedback-matched/cost-aware arms expose
 whether a cheaper hop changes the relative value of the extension test.
 Only CPU self-checks and sm_120 compilation have been performed here.

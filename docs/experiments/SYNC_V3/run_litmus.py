@@ -17,9 +17,13 @@ ARMS = {'cache': ('per_writer', 'thread0_fence', 'no_fence'),
 
 
 def main():
+    global RAW
     parser = argparse.ArgumentParser()
     parser.add_argument('phase', choices=('build', 'pilot', 'scan', 'sass'))
+    parser.add_argument('--arch', choices=('sm_89', 'sm_120'), default='sm_89')
+    parser.add_argument('--raw', type=Path, default=RAW)
     args = parser.parse_args()
+    RAW = args.raw.resolve()
     for sub in ('bin', 'log'):
         (RAW / sub).mkdir(parents=True, exist_ok=True)
     binary = RAW / 'bin/litmus'
@@ -32,7 +36,7 @@ def main():
         print(f'DISK NEED_MIB=512 FREE_MIB={free}', flush=True)
         if free < 512:
             raise RuntimeError('insufficient disk before compilation')
-        cmd = ['/usr/local/cuda/bin/nvcc', '-O2', '-std=c++17', '-arch=sm_89', '-lineinfo',
+        cmd = ['/usr/local/cuda/bin/nvcc', '-O2', '-std=c++17', f'-arch={args.arch}', '-lineinfo',
                '--ptxas-options=-v', f'-I{REPO}/test/harness', str(HERE / 'litmus.cu'), '-o', str(binary)]
         with (RAW / 'log/build.log').open('w') as f:
             subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, check=True)
@@ -56,6 +60,8 @@ def main():
                                '--writer-skew-cycles', '2000000' if suite == 'skew' else '0']
                         if suite == 'cache':
                             cmd += ['--no-acquire-fence']
+                        if (directory / f'r{round_}.log').exists():
+                            raise ValueError(f'refusing to overwrite {directory}/r{round_}')
                         try:
                             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
                             output, rc = result.stdout+result.stderr, result.returncode

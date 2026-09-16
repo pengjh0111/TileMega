@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import tempfile
+import json
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +32,38 @@ class LitmusAuditTest(unittest.TestCase):
             (raw/'status.txt').write_text('PASS\n')
             (raw/'litmus.tsv').write_text('thread0_fence\t50\tPASS\n')
             self.assertEqual(verify.litmus_counts(raw),{})
+
+
+class RawCorrectnessTest(unittest.TestCase):
+    def make_cell(self, root, failed=None):
+        (root/'log').mkdir()
+        for model in ('gqa2','mha4'):
+            (root/'log'/f'{model}_p0_full.build.json').write_text(json.dumps(
+                dict(exit_code=0,binary_sha256='one-binary')))
+            for seq in (4,128):
+                folder=root/'correctness'/f'{model}_s{seq}_p3'
+                folder.mkdir(parents=True)
+                for i in range(50):
+                    (folder/f'r{i}.log').write_text('RESULT status='+('MISMATCH' if i==failed else 'PASS')+'\n')
+                    (folder/f'r{i}.json').write_text(json.dumps(dict(exit_code=int(i==failed),round=i,
+                        time_ns=i,binary_sha256='one-binary')))
+
+    def test_single_failed_process_fails_fifty_run_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            raw=Path(tmp);self.make_cell(raw,failed=17)
+            with self.assertRaises(ValueError):verify.audit_raw.correctness(raw)
+
+    def test_duplicate_timestamps_do_not_count_as_fresh_processes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            raw=Path(tmp);self.make_cell(raw)
+            path=raw/'correctness/gqa2_s4_p3/r49.json'
+            meta=json.loads(path.read_text());meta['time_ns']=0;path.write_text(json.dumps(meta))
+            with self.assertRaises(ValueError):verify.audit_raw.correctness(raw)
+
+    def test_raw_logs_are_required_despite_pass_summary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            raw=Path(tmp);(raw/'summary.md').write_text('All 200/200 PASS')
+            with self.assertRaises(ValueError):verify.audit_raw.correctness(raw)
 
 
 if __name__=='__main__':

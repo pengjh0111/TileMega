@@ -1,0 +1,5 @@
+DISK NEED_MIB=16384 FREE_MIB=1542560
+DISK NEED_MIB=1099511627776 FREE_MIB=1542560
+SELF_CHECK chain2 PASS; GPU untouched; sm_120 untested
+chain_placement_test: ok
+HOP_REFIT committed sm_89 inputs PASS; no GPU execution

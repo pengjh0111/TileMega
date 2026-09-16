@@ -1,0 +1,16 @@
+{
+  "command": [
+    "bash",
+    "/root/TileMega/docs/experiments/FENCE/run_sm120.sh"
+  ],
+  "env": {
+    "SELF_CHECK": "1"
+  },
+  "exit_code": 0,
+  "time_ns": 1789535121525829818,
+  "inputs": {
+    "docs/experiments/FENCE/run_sm120.sh": "f35106fd9c8a2a6921f3bae1396e1d9470969b606454cc3dcd19898bbfe472da",
+    "docs/experiments/SYNC_V3/sm120_common.sh": "15646fc838a2a30e4f268f73b5a7a5640edf404d4c523b8fa58e3d6f46a784d4",
+    "docs/experiments/FENCE/run.py": "612526b24b2341021fa55e561bc3d4ff04dcc9322092bff0387c7c79f1ea0554"
+  }
+}

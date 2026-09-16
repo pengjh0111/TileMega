@@ -1,0 +1,21 @@
+{
+  "command": [
+    "bash",
+    "/root/TileMega/docs/experiments/SYNC_V3/run_sm120.sh"
+  ],
+  "env": {
+    "SELF_CHECK": "1"
+  },
+  "exit_code": 0,
+  "time_ns": 1789535121676727661,
+  "inputs": {
+    "docs/experiments/SYNC_V3/run_sm120.sh": "51ef04063d595781abb3c973f80e1545be4f5c04959102ba9e7e7a48e267ee21",
+    "docs/experiments/SYNC_V3/sm120_common.sh": "15646fc838a2a30e4f268f73b5a7a5640edf404d4c523b8fa58e3d6f46a784d4",
+    "docs/experiments/FENCE/run.py": "612526b24b2341021fa55e561bc3d4ff04dcc9322092bff0387c7c79f1ea0554",
+    "docs/experiments/SYNC_V3/audit_raw.py": "88a8255fc17e093c5cd435e7663a5b72e4c4be75adb2151c36bf710cd6de4581",
+    "docs/experiments/SYNC_V3/measure_matrix.py": "981680a50cdb22889ff8d1d9b40bf37973eb056dce31bd5e1408a91764a10be5",
+    "docs/experiments/SYNC_V3/run_litmus.py": "965acd8b432b9234c737412aa140b466eee0f0b71c35365b286a6e6412af34ae",
+    "docs/experiments/SYNC_V3/trace_dependency.py": "980b09731ca774c945cd38d8be306b47517aebab03c76e16a947e044499f57ad",
+    "docs/experiments/SYNC_V3/realwidth.py": "3b54b9deeef0da000cfeafc8ac32f8637b4db22ff756d04cf849d2831bd7f8fe"
+  }
+}

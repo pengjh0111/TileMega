@@ -1,0 +1,22 @@
+{
+  "command": [
+    "bash",
+    "/root/TileMega/docs/experiments/CHAIN2/run_sm120.sh"
+  ],
+  "env": {
+    "SELF_CHECK": "1"
+  },
+  "exit_code": 0,
+  "time_ns": 1789535121966177527,
+  "inputs": {
+    "docs/experiments/CHAIN2/run_sm120.sh": "09f49e6c401f068ffd49185c2f40db8c1ec916113104d6325533bbfb5ad781d7",
+    "docs/experiments/SYNC_V3/sm120_common.sh": "15646fc838a2a30e4f268f73b5a7a5640edf404d4c523b8fa58e3d6f46a784d4",
+    "docs/experiments/CHAIN2/run.py": "ef860ce814ea212212a8de8ae19464e56deb42e30f8c185aaf837d9eb6039371",
+    "docs/experiments/CHAIN2/build.py": "312cac7ff3466fd6ae7a0baa78d45c7fb116192316ce1615994babd11f247195",
+    "docs/experiments/CHAIN2/prepare_sm120.py": "8a73774bff94fb7aa44ad4569eb226cab0e866efe417a354f72465d587c515ca",
+    "docs/experiments/SIMULATOR/hop_fit.py": "2ececf29d37a5f75dd35f945f72c6013340effdc4844e1b741a4527b5038eb9d",
+    "docs/experiments/SIMULATOR/contention.tsv": "a874f9fd292993f9f14cd9b90711dc54ac346798181af0ee6af075f58bcef84d",
+    "docs/experiments/SIMULATOR/contention_load.tsv": "fca136f4031b5098d4652cdf4be159744b30987d62d055ad6828175f55c9dcd0",
+    "docs/experiments/SIMULATOR/hop_ns.tsv": "bd9cf73b7e47fc1452618636f82ad6ee0404c1657649777ec28fcef81c0052ea"
+  }
+}

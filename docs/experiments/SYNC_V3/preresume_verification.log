@@ -1,0 +1,52 @@
+H2	hard	PASS	gqa2=6802641 bytes; mha4=6802641 bytes; tested=623d0b74fd158181d121252487a92aef63467977 live=623d0b74fd158181d121252487a92aef63467977
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/sass_identity
+A-a	hard	PASS	32/32 floors <= measured
+  evidence: /root/TileMega/docs/experiments/PLACE_EFT2/raw/final
+A-b	hard	PASS	32/32 split closes, nonnegative, wait <= span
+  evidence: /root/TileMega/docs/experiments/PLACE_EFT2/raw/final
+A-c	hard	PASS	chain: 20 nodes 242688 ns; rotate: 20 nodes 242688 ns
+  evidence: /root/TileMega/docs/experiments/PLACE_EFT2/raw/final
+A-d	report	PASS	gqa2/s128/a=346112 ns; gqa2/s4/a=242688 ns; mha4/s128/a=697344 ns; mha4/s4/a=488448 ns; gqa2/s128/b=349184 ns; gqa2/s4/b=242688 ns; mha4/s128/b=695296 ns; mha4/s4/b=491520 ns; gqa2/s128/d=351232 ns; gqa2/s4/d=250880 ns; mha4/s128/d=710656 ns; mha4/s4/d=507904 ns; gqa2/s128/w=342016 ns; gqa2/s4/w=244736 ns; mha4/s128/w=708608 ns; mha4/s4/w=493568 ns
+  evidence: /root/TileMega/docs/experiments/PLACE_EFT2/raw/final
+A-window	report	PASS	gqa2/s128/w1: cp=324608 hol=22872064; gqa2/s4/w1: cp=232448 hol=483328; mha4/s128/w1: cp=685056 hol=47318016; mha4/s4/w1: cp=463872 hol=1936384; gqa2/s128/w2: cp=342016 hol=14131200; gqa2/s4/w2: cp=246784 hol=314368; mha4/s128/w2: cp=684032 hol=44335104; mha4/s4/w2: cp=489472 hol=1215488; gqa2/s128/w4: cp=342016 hol=2158592; gqa2/s4/w4: cp=242688 hol=62464; mha4/s128/w4: cp=688128 hol=23089152; mha4/s4/w4: cp=486400 hol=185344
+  evidence: /root/TileMega/docs/experiments/WINDOW/raw/final
+P1-release-semantics	stop	FAIL	atom.global.add.u64 	%rd1455, [%rd1454], 1;; atom.global.add.u64 	%rd1462, [%rd1461], 1;
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/premise_audit/gqa2_b.ptx
+C1-litmus	hard	FAIL	raw_cells=72/72 sensitive_cells=5/6; g64/t1024: writer=50/50 candidate=50/50 no_fence=50/50 no_barrier=50/50; g64/t4096: writer=50/50 candidate=50/50 no_fence=50/50 no_barrier=50/50; g128/t1024: writer=50/50 candidate=50/50 no_fence=50/50 no_barrier=50/50; g128/t4096: writer=50/50 candidate=50/50 no_fence=50/50 no_barrier=0/50; g256/t1024: writer=50/50 candidate=50/50 no_fence=50/50 no_barrier=50/50; g256/t4096: writer=50/50 candidate=50/50 no_fence=50/50 no_barrier=50/50
+  evidence: /root/TileMega/docs/experiments/SYNC_V3/litmus_recheck/log
+B-c/H4	hard	FAIL	C1 was committed without B measurements: 66ae000ecb4376eb9ec278ec19034dc9a15f30ca 79fe7549deb3d626c49a875a2ec2f1dae00e44f1
+  evidence: git show 66ae000e
+B-a	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
+  evidence: /root/TileMega/docs/experiments/FENCE
+C1-correctness	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
+  evidence: /root/TileMega/docs/experiments/SYNC_V3
+C2-deadlock	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
+  evidence: /root/TileMega/docs/experiments/SYNC_V3
+C2-correctness	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
+  evidence: /root/TileMega/docs/experiments/SYNC_V3
+C3a-correctness	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
+  evidence: /root/TileMega/docs/experiments/SYNC_V3
+C3b-degeneracy	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
+  evidence: /root/TileMega/docs/experiments/SYNC_V3
+D-a	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
+  evidence: /root/TileMega/docs/experiments/CHAIN2
+D-b	hard	FAIL	NOT RUN: stopped on the contradicted R4 premise; no acceptance evidence
+  evidence: /root/TileMega/docs/experiments/CHAIN2
+B-b	report	FAIL	NOT COMPLETE at the prerequisite stop
+  evidence: /root/TileMega/docs/experiments/SYNC_V3
+C-five-arm/MEMBAR	report	FAIL	NOT COMPLETE at the prerequisite stop
+  evidence: /root/TileMega/docs/experiments/SYNC_V3
+C3a-window-gain	report	FAIL	NOT COMPLETE at the prerequisite stop
+  evidence: /root/TileMega/docs/experiments/SYNC_V3
+D-c	report	FAIL	NOT COMPLETE at the prerequisite stop
+  evidence: /root/TileMega/docs/experiments/SYNC_V3
+D-d	report	FAIL	NOT COMPLETE at the prerequisite stop
+  evidence: /root/TileMega/docs/experiments/SYNC_V3
+E-targets	report	FAIL	NOT COMPLETE at the prerequisite stop
+  evidence: /root/TileMega/docs/experiments/SYNC_V3
+ablation	report	FAIL	NOT COMPLETE at the prerequisite stop
+  evidence: /root/TileMega/docs/experiments/SYNC_V3
+wait+notify<=barrier	research	FAIL	NOT MEASURED this round; no 25-round protocol matrix
+  evidence: /root/TileMega/docs/experiments/SYNC_V3
+
+4/14 hard gates pass; protocol work stopped
