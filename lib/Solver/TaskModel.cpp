@@ -28,6 +28,23 @@ TaskMemoryTraffic DeriveTaskMemoryTraffic(DerivedTaskInput const& input,
   return traffic;
 }
 
+std::vector<TaskMemoryTraffic> DeriveTaskMemoryTrafficBatch(DerivedTaskInput const& input,
+    analysis::ParamBinding const& theta,std::vector<analysis::ParamBinding> const& coordinates,
+    int read_element_bytes,int write_element_bytes,analysis::AccessDomain domain) {
+  if (read_element_bytes<=0 || write_element_bytes<=0)
+    throw std::invalid_argument("task traffic needs positive element byte widths");
+  bool physical=domain==analysis::AccessDomain::kPhysicalTensor;
+  auto reads=(physical ? input.work.read_elements : input.work.nominal_read_elements).EvalPoints(theta,coordinates);
+  auto writes=(physical ? input.work.write_elements : input.work.nominal_write_elements).EvalPoints(theta,coordinates);
+  std::vector<TaskMemoryTraffic> result(coordinates.size());
+  for (std::size_t i=0;i<result.size();++i) {
+    if (reads[i]<0 || writes[i]<0) throw std::invalid_argument("negative access-derived task footprint");
+    result[i].global_read_bytes=double(reads[i])*read_element_bytes;
+    result[i].global_write_bytes=double(writes[i])*write_element_bytes;
+  }
+  return result;
+}
+
 BackendTraits ModelTaskTraits(ModelDescription const& model, int index,
                               GemmConfig const& config) {
   auto collective = model.dtype == ScalarType::kBF16

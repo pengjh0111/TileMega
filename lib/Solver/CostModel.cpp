@@ -565,6 +565,14 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
     if (cached!=scalar_price_cache_.end()) return cached->second;
     double total=0;
     long first=coordinates && input.scalar_access ? coordinates->values.at("q") : 0;
+    long const initial=first;
+    std::vector<analysis::ParamBinding> points(static_cast<std::size_t>(ctas));
+    for (long q=0;q<long(ctas);++q) {
+      if (coordinates) points[q]=*coordinates;
+      else points[q].Bind("q",first+q);
+    }
+    auto traffic_batch=DeriveTaskMemoryTrafficBatch(input,known,points,
+        int(ElementBytes(dtype_)),int(ElementBytes(dtype_)));
     for (double remaining=ctas;remaining>0;remaining-=grid) {
       double active=std::min(grid,remaining);
       double o=options_.wave_tail ? std::max(1.0,active/target_->res.num_sms)
@@ -572,14 +580,8 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
       if (coordinates) o=active_ctas_per_sm;
       double wave=-std::numeric_limits<double>::infinity();
       for (long q=first;q<first+long(active);++q) {
-        analysis::ParamBinding coordinate; coordinate.Bind("q",q);
-        if (coordinates) coordinate=*coordinates;
-        auto value=[&](analysis::QuasiPolynomial const& work) {
-          return double(work.BindCoordinates(coordinate).SubstituteParams(known).Eval({}));
-        };
-        double writes=value(input.work.write_elements);
-        auto traffic=DeriveTaskMemoryTraffic(input,known,coordinate,
-            int(ElementBytes(dtype_)),int(ElementBytes(dtype_)));
+        auto const& traffic=traffic_batch[q-initial];
+        double writes=traffic.global_write_bytes/ElementBytes(dtype_);
         double bytes=traffic.global_read_bytes+traffic.global_write_bytes;
         double flops=flops_per_output*writes,transc=transc_per_output*writes;
         // The fitted alpha+beta*tile_area describes a collective accumulator
