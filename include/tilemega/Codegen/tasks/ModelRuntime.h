@@ -240,6 +240,13 @@ struct TaskTrace {
 #define TILEMEGA_TRACE_PHASE 0
 #endif
 
+#ifndef TILEMEGA_TRACE_KLOOP
+#define TILEMEGA_TRACE_KLOOP 0
+#endif
+#if TILEMEGA_TRACE_KLOOP && !TILEMEGA_TRACE_PHASE
+#error "TILEMEGA_TRACE_KLOOP requires TILEMEGA_TRACE_PHASE"
+#endif
+
 // Opt-in EX-S3 launch bound. Zero preserves occupancy-selected residency.
 #ifndef TILEMEGA_RESIDENCY_CAP
 #define TILEMEGA_RESIDENCY_CAP 0
@@ -253,6 +260,10 @@ struct TaskTrace {
 struct TaskPhase {
   unsigned long long ns[6]; // run, setup, first operand, mainloop, body return, run end
   unsigned long long cycles[6];
+#if TILEMEGA_TRACE_KLOOP
+  unsigned long long loop_begin_cycles, loop_end_cycles;
+  unsigned long long operand_wait_cycles, iterations;
+#endif
 };
 
 /// Trace v2 (EX-D1).  Where TaskTrace orders task boundaries, this records

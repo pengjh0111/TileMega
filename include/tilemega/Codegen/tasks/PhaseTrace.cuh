@@ -4,6 +4,14 @@
 
 #if TILEMEGA_TRACE_PHASE
 namespace tilemega::codegen {
+#if TILEMEGA_TRACE_KLOOP
+__device__ inline unsigned long long PhaseLoopClock(TaskPhase* phase) {
+  unsigned long long cycles=0;
+  if (phase != nullptr && threadIdx.x == 0)
+    asm volatile("mov.u64 %0, %%clock64;" : "=l"(cycles) :: "memory");
+  return cycles;
+}
+#endif
 __device__ inline void PhaseStamp(TaskPhase* phase, int boundary) {
   if (phase != nullptr && threadIdx.x == 0) {
     unsigned long long time, cycles;

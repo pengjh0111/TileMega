@@ -32,6 +32,7 @@
 // R5 diagnostic adapter of CUTLASS sm80_mma_multistage.hpp's predicated
 // operator. The original file is untouched. Only three boundary stamps are
 // added; every copy, wait and barrier retains its original order.
+// R6 optionally accumulates loop wait cycles in registers and stores once.
 #include <tilemega/Codegen/tasks/PhaseTrace.cuh>
 namespace tilemega::codegen {
 template <class Mainloop, class FrgTensorD, class TensorA, class TensorB,
@@ -232,6 +233,9 @@ CUTLASS_DEVICE void
       copy(smem_tiled_copy_B, tCsB_p(_,_,Int<0>{}), tCrB_copy_view(_,_,Int<0>{}));
     }
 
+#if TILEMEGA_TRACE_KLOOP
+    unsigned long long loop_begin=PhaseLoopClock(phase), operand_wait=0, iterations=0;
+#endif
     bool first_tile = true;
     CUTLASS_PRAGMA_NO_UNROLL
     for ( ; k_tile_count > -(DispatchPolicy::Stages-1); --k_tile_count)
@@ -248,10 +252,27 @@ CUTLASS_DEVICE void
           tCsB_p = tCsB(_,_,_,smem_pipe_read);
 
           // Commit the smem for smem_pipe_read
+#if TILEMEGA_TRACE_KLOOP
+          auto wait_begin=PhaseLoopClock(phase);
+#endif
           cp_async_wait<DispatchPolicy::Stages-2>();
           __syncthreads();
+#if TILEMEGA_TRACE_KLOOP
+          auto wait_end=PhaseLoopClock(phase);
           if constexpr (decltype(K_BLOCK_MAX)::value == 1) {
-            if (first_tile) PhaseStamp(phase, 2);
+            if (!first_tile) operand_wait+=wait_end-wait_begin;
+          } else {
+            operand_wait+=wait_end-wait_begin;
+          }
+#endif
+          if constexpr (decltype(K_BLOCK_MAX)::value == 1) {
+            if (first_tile) {
+              PhaseStamp(phase, 2);
+#if TILEMEGA_TRACE_KLOOP
+              // This first wait belongs to the existing prologue phase.
+              loop_begin=PhaseLoopClock(phase);
+#endif
+            }
           }
         }
 
@@ -285,9 +306,21 @@ CUTLASS_DEVICE void
         cute::gemm(tiled_mma, accum, tCrA(_,_,k_block), tCrB(_,_,k_block), src_accum);
       });
       first_tile = false;
+#if TILEMEGA_TRACE_KLOOP
+      ++iterations;
+#endif
 
     }
 
+#if TILEMEGA_TRACE_KLOOP
+    auto loop_end=PhaseLoopClock(phase);
+    if (phase != nullptr && threadIdx.x == 0) {
+      phase->loop_begin_cycles=loop_begin;
+      phase->loop_end_cycles=loop_end;
+      phase->operand_wait_cycles=operand_wait;
+      phase->iterations=iterations;
+    }
+#endif
     cp_async_wait<0>();
     __syncthreads();
   }

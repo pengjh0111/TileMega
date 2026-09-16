@@ -1031,6 +1031,10 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
       phase->ns[0] = params->task_trace_v2[slot].run_begin;
       phase->cycles[0] = params->task_trace_v2[slot].run_begin_clk;
       phase->ns[3] = 0;
+#if TILEMEGA_TRACE_KLOOP
+      phase->loop_begin_cycles=phase->loop_end_cycles=0;
+      phase->operand_wait_cycles=phase->iterations=0;
+#endif
     }
 #endif
     RunTask(*params, task.stage, task.logical_task, smem TILEMEGA_PHASE_PASS);
@@ -2448,6 +2452,9 @@ inline void DumpTraceV2(DeviceModel const& model, char const* fixture_dir,
     std::fprintf(pf, "slot\tkind\ttile_m\ttile_n\ttile_k\tsplit_k\toperand_bytes");
     for (auto name : {"run_begin", "setup_end", "first_operand_ready", "mainloop_end", "epilogue_end", "run_end"})
       std::fprintf(pf, "\t%s_ns\t%s_cycles", name, name);
+#if TILEMEGA_TRACE_KLOOP
+    std::fprintf(pf, "\tloop_begin_cycles\tloop_end_cycles\toperand_wait_cycles\tk_iterations");
+#endif
     std::fprintf(pf, "\n");
     for (std::size_t i = 0; i < phases.size(); ++i) {
       auto const& stage = model.stages[model.schedule[i].stage];
@@ -2462,6 +2469,10 @@ inline void DumpTraceV2(DeviceModel const& model, char const* fixture_dir,
       }
       std::fprintf(pf, "%zu\t%d\t%d\t%d\t%d\t%d\t%llu", i, int(stage.kind), m,n,k,split,bytes);
       for (int j=0; j<6; ++j) std::fprintf(pf, "\t%llu\t%llu", phases[i].ns[j], phases[i].cycles[j]);
+#if TILEMEGA_TRACE_KLOOP
+      std::fprintf(pf, "\t%llu\t%llu\t%llu\t%llu", phases[i].loop_begin_cycles,
+          phases[i].loop_end_cycles,phases[i].operand_wait_cycles,phases[i].iterations);
+#endif
       std::fprintf(pf, "\n");
     }
     std::fclose(pf);

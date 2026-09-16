@@ -1,0 +1,6 @@
+{
+  "include/tilemega/Codegen/tasks/ModelRuntime.h": "8879e8d683a0ee897c550b84fa6f8accb66bf67483fa0aa5b5d5c213fb7ea7af",
+  "include/tilemega/Codegen/tasks/ModelHarness.cuh": "8de21acf653ce28617abf37eed19ef34a3ae3aed9e3ee0d2af7b205403db5bcf",
+  "include/tilemega/Codegen/tasks/PhaseTrace.cuh": "86f3719a6413759768c4bb23f63d26fea3262a477d843abf53bd819110db6c78",
+  "include/tilemega/Codegen/tasks/PhaseGemmMainloop.cuh": "cd0a1f2c7e8f57dd17e4728cfeebd31b2f920f2ab325ad42ee3af55744fc0f88"
+}
