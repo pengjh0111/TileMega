@@ -3,11 +3,51 @@
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/CouplingDerivation.h>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 #include <algorithm>
 #include <set>
 #include <stdexcept>
 
 namespace tilemega::solver {
+TaskMemoryTraffic DeriveTaskMemoryTraffic(DerivedTaskInput const& input,
+    analysis::ParamBinding const& theta, analysis::ParamBinding const& coordinates,
+    int read_element_bytes, int write_element_bytes, analysis::AccessDomain domain) {
+  if (read_element_bytes <= 0 || write_element_bytes <= 0)
+    throw std::invalid_argument("task traffic needs positive element byte widths");
+  auto count = [&](analysis::QuasiPolynomial const& work) {
+    auto elements = work.BindCoordinates(coordinates).SubstituteParams(theta).Eval({});
+    if (elements < 0) throw std::invalid_argument("negative access-derived task footprint");
+    return double(elements);
+  };
+  bool physical = domain == analysis::AccessDomain::kPhysicalTensor;
+  TaskMemoryTraffic traffic;
+  traffic.global_read_bytes = read_element_bytes * count(physical
+      ? input.work.read_elements : input.work.nominal_read_elements);
+  traffic.global_write_bytes = write_element_bytes * count(physical
+      ? input.work.write_elements : input.work.nominal_write_elements);
+  return traffic;
+}
+
+BackendTraits ModelTaskTraits(ModelDescription const& model, int index,
+                              GemmConfig const& config) {
+  auto collective = model.dtype == ScalarType::kBF16
+      ? TensorBF16Traits(config.tile_m, config.tile_n, config.tile_k, config.stages)
+      : SimtF32Traits(config.tile_m, config.tile_n, config.tile_k, config.stages);
+  auto const& stage = model.stages.at(index);
+  bool uses_collective = false;
+  for (auto const& semantic : model.task_semantics)
+    if (semantic.stage == index)
+      uses_collective |= semantic.op.kind == analysis::OperatorKind::kMatmul;
+  if (uses_collective) return collective;
+  auto resources = codegen::ReadSimtTaskResources(
+      static_cast<codegen::TaskKind>(stage.kind), collective.threads);
+  BackendTraits traits;
+  traits.threads = resources.threads;
+  traits.smem_bytes = resources.shared_bytes;
+  traits.shape_legal = true;
+  return traits;
+}
+
 analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
                                             std::vector<GemmConfig> const& configs) {
   analysis::IslReferenceAudit audit(__func__);
@@ -232,7 +272,7 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
   analysis::RequireArithmeticImplementation(signature);
   DerivedTaskInput result{*task,std::move(work),std::move(signature),task->Coordinates(),std::nullopt,std::nullopt};
   if (!config && runtime_ownership) {
-    int threads=model.dtype==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
+    int threads=ModelTaskTraits(model,semantic.stage,{}).threads;
     result.scalar_access.emplace();
     result.work=DeriveRuntimeScalarWork(model,semantic,*task,std::move(result.work),threads,&*result.scalar_access);
     result.cost_coordinates={"q"};

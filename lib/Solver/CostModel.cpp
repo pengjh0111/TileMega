@@ -578,14 +578,16 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
           return double(work.BindCoordinates(coordinate).SubstituteParams(known).Eval({}));
         };
         double writes=value(input.work.write_elements);
-        double bytes=(value(input.work.read_elements)+writes)*ElementBytes(dtype_);
+        auto traffic=DeriveTaskMemoryTraffic(input,known,coordinate,
+            int(ElementBytes(dtype_)),int(ElementBytes(dtype_)));
+        double bytes=traffic.global_read_bytes+traffic.global_write_bytes;
         double flops=flops_per_output*writes,transc=transc_per_output*writes;
         // The fitted alpha+beta*tile_area describes a collective accumulator
         // tile's setup. ScalarDataflow has no such initialization phase:
         // scalar arithmetic is charged in u, memory phases in this DAG term.
         // In particular a negative GEMM regression intercept cannot be
         // extrapolated into a small SIMT task then silently clamped to zero.
-        double output_bytes=writes*ElementBytes(dtype_),local_bytes=0;
+        double output_bytes=traffic.global_write_bytes,local_bytes=0;
         if (memory) {
           bytes=memory->global_read_bytes+memory->global_write_bytes;
           output_bytes=memory->global_write_bytes;
@@ -761,17 +763,9 @@ double CostModel::TaskStageNs(ModelDescription const& model,int index,
     selected=&semantic;
   }
   if (!selected) throw std::invalid_argument("runtime stage lacks a CG semantic cost input");
-  BackendTraits traits;
+  BackendTraits traits=ModelTaskTraits(model,index,config);
   bool collective=stage.kind==StageKind::kGemm;
   int chunks=collective ? Chunks(model.gemms.at(stage.gemm),config) : 1;
-  if (collective) traits=dtype_==ScalarType::kBF16
-      ? TensorBF16Traits(config.tile_m,config.tile_n,config.tile_k,config.stages)
-      : SimtF32Traits(config.tile_m,config.tile_n,config.tile_k,config.stages);
-  else {
-    traits.threads=dtype_==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
-    traits.smem_bytes=sizeof(float)*codegen::SimtSharedElements(
-        static_cast<codegen::TaskKind>(stage.kind),traits.threads,TILEMEGA_ATTENTION_MAX_TOTAL);
-  }
   std::ostringstream key;
   key << analysis::EncodeSemanticOp(selected->op) << ':' << selected->element_chunk << ':'
       << stage.width << ':' << stage.extent << ':' << stage.group << ':' << int(model.dtype);

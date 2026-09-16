@@ -27,6 +27,12 @@ struct DerivedTaskInput {
   std::optional<codegen::ScalarDataflow> scalar_flow;
   std::optional<RuntimeScalarAccess> scalar_access;
 };
+TaskMemoryTraffic DeriveTaskMemoryTraffic(DerivedTaskInput const& input,
+    analysis::ParamBinding const& theta, analysis::ParamBinding const& coordinates,
+    int read_element_bytes, int write_element_bytes,
+    analysis::AccessDomain domain = analysis::AccessDomain::kPhysicalTensor);
+BackendTraits ModelTaskTraits(ModelDescription const& model, int stage,
+                              GemmConfig const& config);
 analysis::TaskAccesses DeriveModelTaskAccesses(ModelTaskSemantics const& semantic,
                                              DerivedTaskInput const& input);
 struct ModelFusionCandidate {

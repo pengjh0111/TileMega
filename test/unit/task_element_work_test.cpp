@@ -6,6 +6,7 @@
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 #include <iostream>
 #include <stdexcept>
 
@@ -33,6 +34,12 @@ int main(int argc, char** argv) {
       ParamBinding theta; theta.Bind("S",seq).Bind("m",seq-1).Bind("hh",column);
       Require(work.read_elements.BindCoordinates(theta).Eval(theta)==(tile==1 ? 3 : 6));
       Require(work.write_elements.Eval(theta)==tile); ++cells;
+      tilemega::solver::DerivedTaskInput input;
+      input.work=work;
+      ParamBinding coordinate; coordinate.Bind("m",seq-1).Bind("hh",column);
+      auto bytes=tilemega::solver::DeriveTaskMemoryTraffic(input,theta,coordinate,2,4);
+      Require(bytes.global_read_bytes==2*(tile==1 ? 3 : 6));
+      Require(bytes.global_write_bytes==4*tile);
     }
   }
   SemanticOp attention;
@@ -88,6 +95,16 @@ int main(int argc, char** argv) {
     try { action(); } catch (std::exception const&) { failed=true; }
     Require(failed && context.ReferenceCount()==before); ++rejected;
   };
+  reject([&]{tilemega::solver::DeriveTaskMemoryTraffic(model_input,{}, {},0,2);});
+  using namespace tilemega::codegen;
+  for (int threads : {128,256}) {
+    auto norm=ReadSimtTaskResources(TaskKind::kRMSNorm,threads);
+    auto rope=ReadSimtTaskResources(TaskKind::kRoPE,threads);
+    Require(norm.threads==threads && norm.shared_bytes==4*threads);
+    Require(rope.threads==threads && rope.shared_bytes==4);
+  }
+  reject([&]{ReadSimtTaskResources(TaskKind::kRMSNorm,64);});
+  reject([&]{ReadSimtTaskResources(TaskKind::kGemm,128);});
   auto invalid_input=model_input;
   invalid_input.task.output.name.clear();
   reject([&]{tilemega::solver::DeriveModelTaskAccesses(model_semantic,invalid_input);});

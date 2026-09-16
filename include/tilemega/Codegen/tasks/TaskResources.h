@@ -33,10 +33,42 @@ struct SimtTaskResources {
   static_assert(Kind != TaskKind::kGemm, "read GEMM resources from its collective");
   static_assert(Threads>0 && AttentionExtent>0, "invalid TaskBody resource dimensions");
   using SharedStorage = float[SimtSharedElements(Kind,Threads,AttentionExtent)];
+  using Traits = TaskTraits<Threads, sizeof(SharedStorage)>;
   static constexpr int kSmemBytes = sizeof(SharedStorage);
   static constexpr int kNumThreads = Threads;
   static constexpr int kStages = 0;  // No asynchronous multistage mainloop.
   static ScalarDataflow Dataflow() { return ScalarTaskDataflow(Kind); }
 };
+
+struct TaskResourceInfo {
+  int threads;
+  int shared_bytes;
+};
+
+template <TaskKind Kind, int Threads>
+constexpr TaskResourceInfo ReadSimtTaskResources() {
+  using Traits = typename SimtTaskResources<Kind, Threads>::Traits;
+  return {Traits::kThreads, int(Traits::kSharedStorageBytes)};
+}
+
+template <int Threads>
+inline TaskResourceInfo ReadSimtTaskResources(TaskKind kind) {
+  switch (kind) {
+    case TaskKind::kRMSNorm: return ReadSimtTaskResources<TaskKind::kRMSNorm, Threads>();
+    case TaskKind::kRoPE: return ReadSimtTaskResources<TaskKind::kRoPE, Threads>();
+    case TaskKind::kKVAppend: return ReadSimtTaskResources<TaskKind::kKVAppend, Threads>();
+    case TaskKind::kElementwise: return ReadSimtTaskResources<TaskKind::kElementwise, Threads>();
+    case TaskKind::kAttention: return ReadSimtTaskResources<TaskKind::kAttention, Threads>();
+    case TaskKind::kAdd: return ReadSimtTaskResources<TaskKind::kAdd, Threads>();
+    case TaskKind::kGemmCombine: return ReadSimtTaskResources<TaskKind::kGemmCombine, Threads>();
+    default: throw std::invalid_argument("TaskBody has no scalar resource declaration");
+  }
+}
+
+inline TaskResourceInfo ReadSimtTaskResources(TaskKind kind, int launch_threads) {
+  if (launch_threads == 128) return ReadSimtTaskResources<128>(kind);
+  if (launch_threads == 256) return ReadSimtTaskResources<256>(kind);
+  throw std::invalid_argument("unsupported collective launch width for scalar TaskBody");
+}
 
 }  // namespace tilemega::codegen

@@ -1,0 +1,11 @@
+{
+  "baseline": "bad8a0d9b17804b73afe00a6d545dcea72cc6cbb",
+  "prompt": "/root/Prompt/TileMega_R6_prompt.md",
+  "prompt_sha256": "908c09131f8b395c6dfdf3e9329db5a684baf965822e528cfc4c5c2bf551793c",
+  "branch": "tilemega",
+  "notes": [
+    "R5 inner evaluator already simulates makespan; queue-bound omission concerns coarse geometry screening and calibration.",
+    "The old measured geometry and fresh ChainDP output differ; their difference alone does not identify a ChainDP selection bug.",
+    "TaskBase.h contains 11 TaskKind enumerators, not the prompt stated 16. Audit backend bodies separately."
+  ]
+}
