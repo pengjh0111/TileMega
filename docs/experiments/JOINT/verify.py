@@ -61,7 +61,7 @@ def main():
     def gate(name,hard,fn):
         try:passed,detail,path=fn();status='PASS' if passed else 'FAIL'
         except Exception as e:status='FAIL';detail=f'{type(e).__name__}: {e}';path='see error path'
-        line=f'{name} {status} {detail} evidence={path}';print(line,flush=True);gates.append(dict(gate=name,status=status,hard=hard,detail=detail,evidence=path))
+        line=f'{name} {status} {detail} evidence={path}';print(line,flush=True);gates.append(dict(gate=name,status=status,hard=hard,detail=detail,evidence=str(path)))
     def identity():
         d=PHASE/'sass_identity';m=json.loads((d/'manifest.json').read_text());assert not m['provisional']
         head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=REPO,text=True).strip()
