@@ -36,9 +36,9 @@ bool SchedulePass(ChainRequest const& request,
     return fail("chain_stop_ratio must be positive");
 
   // Charged exactly as the earliest-finish path charges it, so the two
-  // schedulers rank the same plan by the same hop.  Co-residency stretch is
-  // deliberately absent: this greedy decides pi, and `SimulateExecution` is
-  // the arbiter of the makespan that follows from it.
+  // schedulers rank the same plan by the same hop. The cost-aware fill also
+  // approximates sibling-CTA sharing; SimulateExecution remains the arbiter
+  // of the makespan, including the existing feedback evaluations.
   std::vector<int> worker_sm = request.worker_sm;
   if (worker_sm.empty()) {
     int const sms = request.sms > 0 ? request.sms : grid;
@@ -71,6 +71,7 @@ bool SchedulePass(ChainRequest const& request,
   out->chain_interleaves = 0;
   out->split_count = 0;
   out->fill_overflows = 0;
+  out->rejected_extensions.clear();
   if (delay_out) delay_out->assign(nodes, 0.0);
   if (nodes == 0) return true;
 
@@ -96,7 +97,9 @@ bool SchedulePass(ChainRequest const& request,
       stack.pop_back();
       topo.push_back(node);
       for (int succ : graph.successors[node])
-        if (--degree[succ] == 0) stack.push_back(succ);
+        if (--degree[succ] == 0) {
+          stack.push_back(succ);
+        }
     }
     if (static_cast<int>(topo.size()) != nodes)
       return fail("the task DAG has a cycle over " +
@@ -110,6 +113,46 @@ bool SchedulePass(ChainRequest const& request,
     if (!graph.successors[node].empty())
       hop_cost[node] =
           request.hop.Ns(static_cast<int>(graph.successors[node].size()), 1);
+
+  if (request.cost_aware_extend) {
+    // Rank the fill's ready tasks by their remaining dependency path, so a
+    // short off-path branch cannot occupy a queue ahead of a critical one.
+    std::vector<double> rank(nodes, 0.0);
+    for (int i = nodes - 1; i >= 0; --i) {
+      int const node = topo[i];
+      double tail = 0.0;
+      for (int succ : graph.successors[node])
+        tail = std::max(tail, hop_cost[node] + rank[succ]);
+      rank[node] = request.task_ns[node] + tail;
+    }
+    auto lower_rank = [&](int a, int b) {
+      return rank[a] != rank[b] ? rank[a] < rank[b] : a > b;
+    };
+    std::vector<int> ready, degree = indegree;
+    for (int node = 0; node < nodes; ++node)
+      if (degree[node] == 0) ready.push_back(node);
+    std::make_heap(ready.begin(), ready.end(), lower_rank);
+    topo.clear();
+    while (!ready.empty()) {
+      std::pop_heap(ready.begin(), ready.end(), lower_rank);
+      int const node = ready.back();
+      ready.pop_back();
+      topo.push_back(node);
+      for (int succ : graph.successors[node])
+        if (--degree[succ] == 0) {
+          ready.push_back(succ);
+          std::push_heap(ready.begin(), ready.end(), lower_rank);
+        }
+    }
+    for (int i = 0; i < nodes; ++i) topo_index[topo[i]] = i;
+  }
+
+  if (request.cost_aware_extend)
+    for (int node = 0; node < nodes; ++node)
+      for (int succ : graph.successors[node])
+        if (hop_cost[node] <= request.task_ns[succ])
+          out->rejected_extensions.push_back(
+              {node, succ, hop_cost[node], request.task_ns[succ]});
 
   // Phase 1 and 2 (§6.1, §6.2).  A chain is the longest path through the nodes
   // no chain has claimed yet.  The ranking DP charges the hop on every edge for
@@ -142,6 +185,10 @@ bool SchedulePass(ChainRequest const& request,
         int follow = -1;
         for (int succ : graph.successors[node]) {
           if (cluster[succ] >= 0) continue;
+          // A zero-hop queue edge still serializes the successor's work.
+          if (request.cost_aware_extend &&
+              hop_cost[node] <= request.task_ns[succ])
+            continue;
           double const reach = down[succ] + hop_cost[node];
           if (reach > tail || follow < 0) {
             tail = reach;
@@ -273,14 +320,28 @@ bool SchedulePass(ChainRequest const& request,
   // it is actually sooner, which is the part the old rule assumed.
   std::vector<double> est_end(nodes, 0.0);
   std::vector<double> free_ns(grid, 0.0);
-  auto finish_on = [&](int node, int w) {
+  std::vector<int> est_hops(nodes, 0), free_hops(grid, 0);
+  std::vector<std::vector<int>> sm_workers(sm_count);
+  if (request.cost_aware_extend)
+    for (int w = 0; w < grid; ++w) sm_workers[worker_sm[w]].push_back(w);
+  auto finish_on = [&](int node, int w, int* path_hops = nullptr) {
     double start = free_ns[w];
+    int hops = free_hops[w];
     for (int pred : predecessors[node]) {
       double arrival = est_end[pred];
       if (out->worker[pred] != w) arrival += hop_cost[pred];
+      if (arrival >= start) {
+        int const incoming = est_hops[pred] + (out->worker[pred] != w);
+        hops = arrival > start ? incoming : std::max(hops, incoming);
+      }
       start = std::max(start, arrival);
     }
-    return start + request.task_ns[node];
+    double stretch = 1.0;
+    if (request.cost_aware_extend)
+      for (int sibling : sm_workers[worker_sm[w]])
+        if (sibling != w && free_ns[sibling] > start) stretch += 1.0;
+    if (path_hops) *path_hops = hops;
+    return start + request.task_ns[node] * stretch;
   };
   for (int i = 0; i < nodes; ++i) {
     int const node = topo[i];
@@ -289,15 +350,19 @@ bool SchedulePass(ChainRequest const& request,
       (void)work_limit;
       int chosen = -1;
       double best = 0.0;
+      int best_hops = 0;
       for (int w = 0; w < grid; ++w) {
         if (!clear_of_chain(w, node)) continue;
         if (request.cap_fill &&
             (static_cast<int>(queue[w].size()) >= fill_cap ||
              load[w] + request.task_ns[node] > work_limit))
           continue;
-        double const finish = finish_on(node, w);
-        if (chosen < 0 || finish < best) {
+        int path_hops = 0;
+        double const finish = finish_on(node, w, &path_hops);
+        if (chosen < 0 || finish < best ||
+            (request.cost_aware_extend && finish == best && path_hops < best_hops)) {
           best = finish;
+          best_hops = path_hops;
           chosen = w;
         }
       }
@@ -307,9 +372,12 @@ bool SchedulePass(ChainRequest const& request,
         // hidden.
         for (int w = 0; w < grid; ++w) {
           if (!clear_of_chain(w, node)) continue;
-          double const finish = finish_on(node, w);
-          if (chosen < 0 || finish < best) {
+          int path_hops = 0;
+          double const finish = finish_on(node, w, &path_hops);
+          if (chosen < 0 || finish < best ||
+              (request.cost_aware_extend && finish == best && path_hops < best_hops)) {
             best = finish;
+            best_hops = path_hops;
             chosen = w;
           }
         }
@@ -320,9 +388,12 @@ bool SchedulePass(ChainRequest const& request,
         // at stake -- the queue stays topological either way -- so the task is
         // placed and the lost contiguity is recorded rather than hidden.
         for (int w = 0; w < grid; ++w) {
-          double const finish = finish_on(node, w);
-          if (chosen < 0 || finish < best) {
+          int path_hops = 0;
+          double const finish = finish_on(node, w, &path_hops);
+          if (chosen < 0 || finish < best ||
+              (request.cost_aware_extend && finish == best && path_hops < best_hops)) {
             best = finish;
+            best_hops = path_hops;
             chosen = w;
           }
         }
@@ -335,8 +406,9 @@ bool SchedulePass(ChainRequest const& request,
     // Priced in topological order, which is also the order phase 4 gives every
     // queue, so this estimate is the schedule phase 4 goes on to confirm.
     int const w = out->worker[node];
-    est_end[node] = finish_on(node, w);
+    est_end[node] = finish_on(node, w, &est_hops[node]);
     free_ns[w] = est_end[node];
+    free_hops[w] = est_hops[node];
   }
   for (int w = 0; w < grid; ++w)
     out->max_queue_ns = std::max(out->max_queue_ns, load[w]);

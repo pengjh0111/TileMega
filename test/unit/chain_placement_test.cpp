@@ -72,6 +72,35 @@ int main() {
   std::string error;
 
   {
+    // Equality rejects: a hop must strictly pay for the added queue work.
+    auto const graph = MakeGraph({3}, {{0, 1}, {1, 2}});
+    ChainRequest request;
+    request.graph = &graph;
+    request.task_ns = {10.0, 100.0, 25.0};
+    request.grid = 4;
+    request.hop.c0 = 100.0;
+    request.cost_aware_extend = true;
+    ChainSchedule schedule;
+    REQUIRE(ScheduleByCriticalChain(request, &schedule, &error));
+    REQUIRE(schedule.rejected_extensions.size() == 1);
+    auto const& rejected = schedule.rejected_extensions.front();
+    REQUIRE(rejected.producer == 0 && rejected.successor == 1);
+    REQUIRE(rejected.hop_ns == 100.0 && rejected.queue_ns == 100.0);
+    REQUIRE(schedule.chain_of[1] == schedule.chain_of[2]);
+    REQUIRE(schedule.chain_of[0] != schedule.chain_of[1]);
+    CheckQueues(graph, schedule, 3, 4);
+    // The target's cheaper hop can reject an extension accepted above; the
+    // queue weights stay fixed across targets rather than being rescaled.
+    request.hop.c0 = 20.0;
+    REQUIRE(ScheduleByCriticalChain(request, &schedule, &error));
+    REQUIRE(schedule.rejected_extensions.size() == 2);
+    request.cost_aware_extend = false;
+    REQUIRE(ScheduleByCriticalChain(request, &schedule, &error));
+    REQUIRE(schedule.rejected_extensions.empty());
+    REQUIRE(schedule.chain_of[0] == schedule.chain_of[2]);
+  }
+
+  {
     // The spine is the whole graph, so it lands whole on one worker and pays
     // no hop at all: 3 x 1000 ns with a 100 ns hop is 3000, not 3200.
     auto const graph = MakeGraph({1, 1, 1}, {{0, 1}, {1, 2}});

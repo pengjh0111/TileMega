@@ -76,6 +76,16 @@ struct ChainRequest {
   /// at mha4 s128, 4640 at real s128, 0 wherever it wins), and a forced
   /// placement is one that ignored the time estimate.
   bool cap_fill = true;
+  /// EX-S2c R4: accept an extension only when the saved calibrated hop pays
+  /// for the successor's queue work. Uses the same task_ns as extraction.
+  bool cost_aware_extend = false;
+};
+
+struct ChainRejectedExtension {
+  int producer = -1;
+  int successor = -1;
+  double hop_ns = 0.0;
+  double queue_ns = 0.0;
 };
 
 struct ChainSchedule {
@@ -122,6 +132,9 @@ struct ChainSchedule {
   /// 437124), so a filled worker is bounded in work by total work / grid rather
   /// than by the spine, which only the extracted chains earn.
   int fill_overflows = 0;
+  /// Unique candidate DAG edges excluded by the extension price test in the
+  /// selected pass. Repeated DP visits do not inflate the rejection count.
+  std::vector<ChainRejectedExtension> rejected_extensions;
 };
 
 /// False, with `*error` set, on a malformed request or a cyclic task DAG.
