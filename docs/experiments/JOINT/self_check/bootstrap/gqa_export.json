@@ -1,0 +1,1 @@
+{"command": ["python3", "/root/TileMega/docs/experiments/V_H/export_probe.py", "--out", "/tmp/r5-bootstrap-selfcheck/export/gqa2", "--dtype", "bf16", "--seq-max", "2048", "--past-max", "512"], "exit_code": 0, "time_ns": 1789560603850145626}

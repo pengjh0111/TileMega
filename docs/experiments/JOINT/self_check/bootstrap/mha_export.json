@@ -1,0 +1,1 @@
+{"command": ["python3", "/root/TileMega/docs/experiments/P3_GENERALIZATION/export_second.py", "--repo", "/root/TileMega", "--out", "/tmp/r5-bootstrap-selfcheck/export/mha4", "--dtype", "bf16", "--seq-max", "2048", "--past-max", "512", "--fixture-seq", "4", "--fixture-past", "3"], "exit_code": 0, "time_ns": 1789560612192379796}

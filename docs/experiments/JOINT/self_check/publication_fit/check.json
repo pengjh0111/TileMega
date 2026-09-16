@@ -1,0 +1,8 @@
+{
+  "phase_only_rejected": true,
+  "historical_fit_unchanged": {
+    "publication_ns": 1074.1284026707756,
+    "consumer_wait_ns": 1764.3682109690692,
+    "visibility_ns": 1235.411801
+  }
+}

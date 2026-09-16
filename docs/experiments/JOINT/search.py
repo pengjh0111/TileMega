@@ -20,11 +20,16 @@ def write(p,rows):
     with p.open('w') as f:
         w=csv.DictWriter(f,fieldnames=list(rows[0]),delimiter='\t',lineterminator='\n');w.writeheader();w.writerows(rows)
 def source(model):
+    if os.getenv('R5_INPUT_ROOT'):return Path(os.environ['R5_INPUT_ROOT'])/'src'/f'{model}.cu'
     return REPO/(f'docs/experiments/PLAN_CONTRACT/legacy_identity/plan/{model}.cu' if model!='real' else 'docs/experiments/REALMODEL/raw/work/r2sim_s4/model.cu')
 def exported(model):
+    if os.getenv('R5_INPUT_ROOT'):return Path(os.environ['R5_INPUT_ROOT'])/'export'/f'{model}.json'
     return REPO/(f'docs/experiments/SEQSCAN/raw/export/{model}.json' if model!='real' else 'docs/experiments/REALMODEL/raw/work/r2sim_s4/model.json')
 def key(c):return f"{c['m']}x{c['n']}x{c['k']}s{c['stages']}k{c['split']}_k{c['kappa']}_r{c['residency']}"
 def screen(model,seq,out,geometries):
+    target=json.loads(Path(os.getenv('JOINT_TARGET',str(REPO/'configs/targets/sm_89.json'))).read_text())
+    sms=target['resources']['num_sms'];smem_limit=target['resources']['max_smem_per_sm']-2048
+    sm89=target['arch_tag']=='sm_89'
     phase=Path(os.getenv('JOINT_PHASE_ROOT',str(REPO/'docs/experiments/PHASE/raw')))
     nodes=table(phase/f'trace/{model}_s{seq}_p5/node_phases.tsv')
     grouped=defaultdict(list)
@@ -39,7 +44,7 @@ def screen(model,seq,out,geometries):
     deps=source(model).read_text().split('constexpr StageDependency kDependencies0[] = {')[1].split('};')[0]
     for p,c in re.findall(r'\{(\d+)u,\s*(\d+)u,\s*StageDependency',deps):dag[int(c)].add(int(p))
     shape_regs={}
-    if model!='real':
+    if model!='real' and sm89:
         p=REPO/f'docs/experiments/ORACLE/raw_bf16/cost/registers_{model}.tsv'
         for line in p.read_text().splitlines():
             if not line.startswith('#'):
@@ -52,7 +57,7 @@ def screen(model,seq,out,geometries):
         admissible=m%32==0 and n%16==0 and k%16==0
         smem=max(2*stages*k*(m+n),16384)
         regs=shape_regs.get(shape,0)
-        natural=min(6,100352//smem,65536//(128*((regs+7)//8*8))) if regs else min(2,100352//smem)
+        natural=min(6,smem_limit//smem,65536//(128*((regs+7)//8*8))) if regs else min(2,smem_limit//smem)
         # Residency candidates include low occupancy and the tier-3 seed's
         # natural limit. Recompilation must independently confirm that limit.
         for kap in (1,2,4):
@@ -76,8 +81,8 @@ def screen(model,seq,out,geometries):
                     serial=max(path.values())
                 # Whole-device arithmetic throughput is a deliberately weak
                 # admissible bound, not the phase-scaled priority estimate.
-                work_lb=required_flops/330000.0
-                c.update(status=status,work_lb_ns=work_lb,cp_lb_ns=0.,priority_ns=max(work/(128*resid),serial)+kap*1e-6,
+                work_lb=required_flops/(330000.0 if sm89 else 1e9)
+                c.update(status=status,work_lb_ns=work_lb,cp_lb_ns=0.,priority_ns=max(work/(sms*resid),serial)+kap*1e-6,
                          estimated_work_ns=work,estimated_stage_cp_ns=serial,register_seed=regs)
                 c['key']=key(c);rows.append(c)
                 if status=='eligible':legal.append(c)
@@ -102,7 +107,7 @@ def screen(model,seq,out,geometries):
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('action',choices=['screen','project','select']);ap.add_argument('--models',nargs='+',default=['gqa2','mha4','real'])
     ap.add_argument('--seqs',nargs='+',type=int,default=[4,128]);ap.add_argument('--geometries',type=int,default=3)
-    ap.add_argument('--raw',type=Path,default=HERE/'raw');ap.add_argument('--driver',type=Path,default=Path('/tmp/r5-project'));a=ap.parse_args()
+    ap.add_argument('--raw',type=Path,default=HERE/'raw');ap.add_argument('--driver',type=Path,default=Path('/tmp/r5-project'));ap.add_argument('--rank-driver',type=Path,default=Path('/tmp/r5-rank'));a=ap.parse_args()
     for m in a.models:
         for seq in a.seqs:
             cell=a.raw/f'{m}_s{seq}'
@@ -120,7 +125,7 @@ def main():
                     (out/'process.json').write_text(json.dumps(dict(command=cmd,exit_code=status,started_ns=begin,elapsed_ns=time.time_ns()-begin,driver_sha256=hashlib.sha256(a.driver.read_bytes()).hexdigest()))+'\n')
                     print('PROJECT',m,seq,c['key'],status,flush=True)
             else:
-                subprocess.run(['/tmp/r5-rank',str(cell)],check=True)
+                subprocess.run([str(a.rank_driver),str(cell)],check=True)
                 ranked=[]
                 for c in manifest:
                     d=cell/'plans'/c['key'];meta=d/'process.json'
@@ -135,7 +140,11 @@ def main():
                 rank_position={k:i for i,k in enumerate(core_keys)}
                 ranked.sort(key=lambda r:rank_position.get((r['key'],r['placement']),len(core_keys)))
                 write(cell/'ranking.tsv',ranked)
-                available=[r for r in ranked if r['status']=='ok' and r['simulated']=='1']
+                excluded=set()
+                exclusion_file=cell/'numeric_exclusions.tsv'
+                if exclusion_file.exists():
+                    excluded={tuple(r[k] for k in ('m','n','k','stages','split')) for r in table(exclusion_file)}
+                available=[r for r in ranked if r['status']=='ok' and r['simulated']=='1' and tuple(r[k] for k in ('m','n','k','stages','split')) not in excluded]
                 top=[];used_shapes=set();used_residency=set()
                 while available and len(top)<3:
                     best=min(float(r['makespan_ns']) for r in available)

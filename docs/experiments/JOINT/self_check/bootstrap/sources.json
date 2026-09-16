@@ -1,0 +1,17 @@
+[
+  {
+    "file": "/tmp/r5-bootstrap-selfcheck/src/mha4.cu",
+    "sha256": "1be74406debdc487b29ad0bdac4a0757d96a683135cac16caf1c9332a8c71cd2",
+    "bytes": 26449
+  },
+  {
+    "file": "/tmp/r5-bootstrap-selfcheck/src/gqa2.cu",
+    "sha256": "017a39b966658b8b5ce3b22cef6528366068806a2503a53110395fe19c5c9b9c",
+    "bytes": 14219
+  },
+  {
+    "file": "/tmp/r5-bootstrap-selfcheck/src/real.cu",
+    "sha256": "ac2850192990785f3ba181cffb7dc5f6c9e56243f08217e980431d73670fb078",
+    "bytes": 26720
+  }
+]

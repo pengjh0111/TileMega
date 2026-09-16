@@ -507,7 +507,10 @@ def analyze_phases(dump, source, window=1, variant=0):
     Epilogue includes the separately reported return-to-run_end harness tail.
     """
     result = analyze(dump, source, window, variant)
-    _, slots, _, _ = load(dump)
+    _, slots, _, phase_events = load(dump)
+    # Phase-only builds intentionally omit event-line timestamps. Retain the
+    # historical columns verbatim, but mark their hop estimates unavailable.
+    result['phase_event_timestamps_available'] = int(any(e['publish_ns'] for e in phase_events))
     phases = read_tsv(Path(dump) / 'phases.tsv')
     by_slot = {r['slot']: r for r in slots}
     path = {tuple(map(int, x.split(':'))) for x in result['cp_corrected_path'].split(',')}

@@ -16,10 +16,12 @@ REPO=HERE.parents[2]
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
 
 def source(model):
+    if os.getenv('R5_INPUT_ROOT'):return Path(os.environ['R5_INPUT_ROOT'])/'src'/f'{model}.cu'
     return REPO/(f'docs/experiments/PLAN_CONTRACT/legacy_identity/plan/{model}.cu' if model!='real'
                 else 'docs/experiments/REALMODEL/raw/work/r2sim_s4/model.cu')
 
 def fixture(model,seq):
+    if os.getenv('R5_INPUT_ROOT'):return Path(os.environ['R5_INPUT_ROOT'])/'fixture'/f'{model}_s{seq}_p3'
     return REPO/(f'docs/experiments/SEQSCAN/raw/fixture/{model}_s{seq}_p3' if model!='real'
                 else f'docs/experiments/REALMODEL/raw/work/r2sim_s{seq}/export/fixture')
 
@@ -47,7 +49,7 @@ def run(raw,model,seq,p,arm,folder,session,round_,order,dump=False):
     env={k:v for k,v in os.environ.items() if not k.startswith('TILEMEGA_')}
     if 'correctness' in folder.parts:
         env.update(TILEMEGA_WARMUP='0', TILEMEGA_REPEAT='1')
-    if arm=='phase': env.update(TILEMEGA_TRACE_PHASE='1',TILEMEGA_MODEL_NAME=model)
+    if arm=='phase': env.update(TILEMEGA_TRACE_PHASE='1',TILEMEGA_MODEL_NAME=model,TILEMEGA_GLOBALTIMER_NS=os.getenv('PHASE_TICK_NS','1024'))
     if dump: env['TILEMEGA_TRACE_PHASE_OUT']=str(folder/'dump')
     cmd=[str(binary),str(fixture(model,seq))]
     result=subprocess.run(cmd,env=env,capture_output=True,text=True,timeout=300)

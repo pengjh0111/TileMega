@@ -1,0 +1,1 @@
+{"command": ["python3", "/root/TileMega/python/tilemega/export_bridge.py", "/tmp/r5-bootstrap-selfcheck/export/mha4/exported_program.pt2", "--out", "/tmp/r5-bootstrap-selfcheck/export/mha4.json"], "exit_code": 0, "time_ns": 1789560673250102449}

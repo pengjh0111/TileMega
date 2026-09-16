@@ -1,0 +1,1 @@
+{"command": ["/root/TileMega/build-portable/tools/tilemega-compile", "/tmp/r5-bootstrap-selfcheck/export/gqa2.json", "/tmp/r5-bootstrap-selfcheck/src/gqa2.cu", "--variants", "/root/TileMega/docs/experiments/OWNERSHIP/plan_structured.json"], "exit_code": 0, "time_ns": 1789560648998441515}

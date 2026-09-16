@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/root/TileMega/docs/experiments/SIMULATOR/r5/calibrate.py", line 84, in <module>
+    if __name__=='__main__':main()
+  File "/root/TileMega/docs/experiments/SIMULATOR/r5/calibrate.py", line 41, in main
+    raise ValueError(f'publication calibration requires TRACE_V2 event timestamps: {dump}')
+ValueError: publication calibration requires TRACE_V2 event timestamps: docs/experiments/PHASE/raw/trace/gqa2_s4_p0/dump

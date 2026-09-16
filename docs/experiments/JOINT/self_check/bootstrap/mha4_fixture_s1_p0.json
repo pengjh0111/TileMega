@@ -1,0 +1,1 @@
+{"command": ["python3", "/root/TileMega/docs/experiments/P3_GENERALIZATION/prepare_fixture.py", "--repo", "/root/TileMega", "--program", "/tmp/r5-bootstrap-selfcheck/export/mha4/exported_program.pt2", "--out", "/tmp/r5-bootstrap-selfcheck/fixture/mha4_s1_p0", "--seq", "1", "--past", "0"], "exit_code": 0, "time_ns": 1789560690495971780}

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Analyze every phase dump using the retained R4 formulas plus R5 columns."""
 import csv
+import os
 import importlib.util
 from pathlib import Path
 import sys
@@ -21,7 +22,7 @@ def main():
     for folder in sorted((raw/'trace').glob('*')):
         m,s,p=folder.name.split('_');seq=int(s[1:]);placement=int(p[1:])
         values,nodes=trace.analyze_phases(folder/'dump',source(m))
-        rows.append(dict(values, model=m,seq=seq,placement=placement,dump=str((folder/'dump').relative_to(REPO))))
+        rows.append(dict(values, model=m,seq=seq,placement=placement,dump=os.path.relpath(folder/'dump',REPO)))
         write(folder/'node_phases.tsv',nodes)
     write(raw/'analysis.tsv',rows)
     print(decide(rows))

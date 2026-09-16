@@ -1,0 +1,1 @@
+{"command": ["python3", "/root/TileMega/docs/experiments/E2E/prepare_e2e.py", "--vh-raw", "/tmp/r5-bootstrap-selfcheck/export/gqa2", "--out", "/tmp/r5-bootstrap-selfcheck/fixture/gqa2_s128_p512", "--seq", "128", "--past", "512"], "exit_code": 0, "time_ns": 1789560664787391783}

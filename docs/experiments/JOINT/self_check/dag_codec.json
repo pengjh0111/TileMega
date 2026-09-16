@@ -1,0 +1,1 @@
+{"roundtrip_equal": true, "partial_row_exit": 1, "encoded": "producer\tfirst\tlast\n0\t1\t2\n0\t4\t4\n1\t5\t5\n"}

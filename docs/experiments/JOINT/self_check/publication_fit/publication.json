@@ -1,0 +1,10 @@
+{
+  "publication_ns": 1074.1284026707756,
+  "visibility_ns": 1235.411801,
+  "consumer_wait_ns": 1764.3682109690692,
+  "unconstrained_publication_ns": 1074.1284026707756,
+  "unconstrained_consumer_wait_ns": 1764.3682109690692,
+  "method": "pooled median: unsafe nowait-neither per busiest publishing queue, then corrected causal-path residual per waiting consumer, retaining the independently calibrated hop",
+  "limitation": "Marginal probes include schedule/resource changes; these are model parameters, not identified instruction latencies. Calibration provenance is identified by publication_inputs.tsv; historical inputs do not become fresh performance measurements.",
+  "publication_requirement": "Use actual runtime event flags; minimal cross-consumer DAG mask is a separate idealized option. Stage-wide fine flags can publish tasks with only local direct consumers."
+}
