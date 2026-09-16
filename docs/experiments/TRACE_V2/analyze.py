@@ -390,7 +390,9 @@ def analyze(dump, source=None, window=None, variant=0):
     rows = {r['slot']: r for r in slots}
     if len(rows) != len(slots):
         raise ValueError('duplicate slot')
-    incoming = dependency_graph(slots, source, variant)
+    runtime_source = Path(dump) / 'runtime_dependencies.cuh'
+    incoming = dependency_graph(slots, runtime_source if runtime_source.exists() else source,
+                                0 if runtime_source.exists() else variant)
     queues = defaultdict(list)
     for r in sorted(slots, key=lambda r: r['slot']):
         queues[r['worker']].append(r['slot'])
@@ -443,8 +445,8 @@ def analyze(dump, source=None, window=None, variant=0):
         raise ValueError('causal interval partition is not closed')
     out = dict(legacy)
     out.update({k + '_legacy': v for k, v in legacy.items()})
-    out.update(corrected_status='available', task_dag_source=str(source),
-               task_dag_source_sha256=hashlib.sha256(Path(source).read_bytes()).hexdigest(),
+    out.update(corrected_status='available', task_dag_source=str(runtime_source if runtime_source.exists() else source),
+               task_dag_source_sha256=hashlib.sha256((runtime_source if runtime_source.exists() else Path(source)).read_bytes()).hexdigest(),
                window=window, cp_corrected_ns=cp, cp_corrected_ms=cp / 1e6,
                cp_lb_nosync_ns=cp, cp_lb_nosync_ms=cp / 1e6,
                cp_lb_sync_ns=sync_cp, cp_lb_sync_ms=sync_cp / 1e6,

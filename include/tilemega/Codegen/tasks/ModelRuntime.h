@@ -240,6 +240,11 @@ struct TaskTrace {
 #define TILEMEGA_TRACE_PHASE 0
 #endif
 
+// Opt-in EX-S3 launch bound. Zero preserves occupancy-selected residency.
+#ifndef TILEMEGA_RESIDENCY_CAP
+#define TILEMEGA_RESIDENCY_CAP 0
+#endif
+
 #ifndef TILEMEGA_TRACE_V2
 #define TILEMEGA_TRACE_V2 0
 #endif

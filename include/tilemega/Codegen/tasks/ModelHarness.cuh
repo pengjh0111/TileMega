@@ -1241,6 +1241,7 @@ struct DeviceModel {
   /// active_tasks(stage) kept for the dump: events.tsv reports each row's
   /// fan-in, which is what the last-arriver condition is counted against.
   std::vector<std::uint32_t> trace_v2_active_tasks;
+  std::vector<StageDependency> trace_runtime_dependencies;
 #endif
   std::vector<std::uint32_t> stage_order;
   std::uint32_t schedule_max_span = 0;
@@ -1802,6 +1803,9 @@ inline DeviceModel Create(ModelSpec const& spec,
     plan_windows.push_back({static_cast<int>(edge.producer),static_cast<int>(edge.consumer),
         edge.map==StageDependency::Map::kAll,edge.div,edge.scale,edge.offset,edge.count});
   auto const runtime_graph=MaterializeRuntimeTaskGraph(plan_counts,plan_windows,grid);
+#if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
+  model.trace_runtime_dependencies = dependencies;
+#endif
 
 #if TILEMEGA_PLACEMENT == 4
   if (!runtime_variant.balanced_placement) {
@@ -2426,6 +2430,15 @@ inline void DumpTraceV2(DeviceModel const& model, char const* fixture_dir,
     return f;
   };
 
+  // The host split rewrite changes stage ids and windows. Export that exact
+  // DAG seed, so analysis never applies pre-rewrite windows to split tasks.
+  std::FILE* dag_file = open("runtime_dependencies.cuh");
+  std::fprintf(dag_file, "constexpr StageDependency kDependencies0[] = {\n");
+  for (auto const& e : model.trace_runtime_dependencies)
+    std::fprintf(dag_file, "  {%uu, %uu, StageDependency::Map::%s, %uu, %d, %d, %uu},\n",
+        e.producer, e.consumer, e.map==StageDependency::Map::kAll ? "kAll" : "kWindow",
+        e.div, e.scale, e.offset, e.count);
+  std::fprintf(dag_file, "};\n"); std::fclose(dag_file);
 #if TILEMEGA_TRACE_PHASE
   if (model.device_task_phase != nullptr) {
     std::vector<TaskPhase> phases(model.schedule.size());
@@ -2837,6 +2850,15 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   int l2_grid = TILEMEGA_GENERATED_RESIDENT_GRID(target, tilemega_l2_kernel,
                                                  kHarnessThreads, l2_smem_bytes);
   if (l2_grid < grid) grid = l2_grid;
+#if TILEMEGA_RESIDENCY_CAP > 0
+  int const requested_grid = TILEMEGA_RESIDENCY_CAP * target.res.num_sms;
+  if (requested_grid > grid) {
+    std::fprintf(stderr, "joint residency rejected: requested=%d resident=%d\n",
+                 requested_grid, grid);
+    return 2;
+  }
+  grid = requested_grid;
+#endif
   int const l1_ctas = target.ActiveBlocksPerSM(
       reinterpret_cast<void const*>(tilemega_l1_kernel), kHarnessThreads, sizeof(TaskSmem));
   int const l2_ctas = target.ActiveBlocksPerSM(
