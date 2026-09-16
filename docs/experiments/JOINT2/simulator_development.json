@@ -1,0 +1,15 @@
+{
+  "status": "development_not_acceptance",
+  "methods": [
+    "share identical successor sets across producers",
+    "cache immutable graph preparation across placements",
+    "propagate readiness and critical path once per shared set",
+    "exact weighted-DAG recurrence for observed durations and constant hops; dynamic sharing retains event heap"
+  ],
+  "test": "simulator_compact_tests.log",
+  "random_trials": 100,
+  "placements_per_trial": 3,
+  "fixture": "R5 frozen stage prices; not R6 calibrated costs",
+  "price_sha256": "96a8769e75bfa490f3b789f6285fa01572820576e81737f34adf95e5cbe44b43",
+  "budget_status": "pending final calibration; retain preparation and evaluation times separately"
+}

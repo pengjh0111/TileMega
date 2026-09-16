@@ -8,6 +8,7 @@
 #include <fstream>
 #include <queue>
 #include <sstream>
+#include <unordered_map>
 
 namespace tilemega::solver {
 namespace {
@@ -47,6 +48,41 @@ bool HopCurve::FromTsv(std::string const& path, HopCurve* out, std::string* erro
     if (error) *error = path + " does not carry c0, c1 and c2";
     return false;
   }
+  return true;
+}
+
+bool PrepareExecutionGraph(codegen::RuntimeTaskGraph const& graph,
+    PreparedExecutionGraph* out,std::string* error) {
+  if (graph.stage_offsets.empty() || graph.stage_offsets.back()<0 ||
+      graph.successors.size()!=std::size_t(graph.stage_offsets.back())) {
+    if (error) *error="prepared graph has inconsistent node counts";
+    return false;
+  }
+  PreparedExecutionGraph result;
+  result.source=&graph;
+  std::unordered_map<std::size_t,std::vector<int>> buckets;
+  for (auto const& row:graph.successors) {
+    std::size_t hash=row.size();
+    for (int succ:row) {
+      if (succ<0 || succ>=graph.stage_offsets.back()) {
+        if (error) *error="prepared graph successor out of range";
+        return false;
+      }
+      hash^=std::size_t(succ)+0x9e3779b9+(hash<<6)+(hash>>2);
+    }
+    int group=-1;
+    for (int candidate:buckets[hash])
+      if (result.successors[candidate]==row) {group=candidate;break;}
+    if (group<0) {
+      group=int(result.successors.size());
+      result.successors.push_back(row);
+      result.producer_count.push_back(0);
+      buckets[hash].push_back(group);
+    }
+    result.group_of_node.push_back(group);
+    ++result.producer_count[group];
+  }
+  *out=std::move(result);
   return true;
 }
 
@@ -119,26 +155,76 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
                   " task " + std::to_string(node - graph.stage_offsets[StageOfNode(graph, node)]) +
                   " is in no worker's queue");
 
-  std::vector<int> unmet(nodes, 0);
-  std::vector<int> cross_fanout(nodes, 0);
-  std::vector<unsigned char> cross_input(nodes, 0);
-  long cross_edges = 0, same_edges = 0;
-  // Counted branchlessly: on a plan like mode 5 almost every edge is cross, on
-  // mode 0 the mix is uneven, and a mispredicted branch per edge is a third of
-  // this sweep on a graph with half a million of them.
-  for (int node = 0; node < nodes; ++node) {
-    int const mine = owner_of[node];
-    long same = 0;
-    for (int succ : graph.successors[node]) {
-      ++unmet[succ];
-      cross_input[succ] |= owner_of[succ] != mine;
-      same += owner_of[succ] == mine;
-    }
-    long const total = static_cast<long>(graph.successors[node].size());
-    same_edges += same;
-    cross_edges += total - same;
-    cross_fanout[node] = static_cast<int>(total - same);
+  PreparedExecutionGraph local_prepared;
+  auto const* prepared=input.prepared_graph;
+  if (!prepared) {
+    if (!PrepareExecutionGraph(graph,&local_prepared,error)) return false;
+    prepared=&local_prepared;
   }
+  if (prepared->source!=&graph || prepared->group_of_node.size()!=std::size_t(nodes))
+    return fail("prepared graph belongs to a different immutable graph");
+  int const groups=int(prepared->successors.size());
+  std::vector<int> unmet(nodes,0),cross_fanout(nodes,0);
+  std::vector<unsigned char> cross_input(nodes,0);
+  using OwnerCounts=std::vector<std::pair<int,int>>;
+  std::vector<OwnerCounts> producer_owners(groups),consumer_owners(groups);
+  for (int n=0;n<nodes;++n) producer_owners[prepared->group_of_node[n]].push_back({owner_of[n],1});
+  auto compact=[](OwnerCounts& counts) {
+    std::sort(counts.begin(),counts.end());
+    std::size_t n=0;
+    for (auto p:counts) {
+      if (n && counts[n-1].first==p.first) counts[n-1].second+=p.second;
+      else counts[n++]=p;
+    }
+    counts.resize(n);
+  };
+  auto count_owner=[](OwnerCounts const& counts,int owner) {
+    auto it=std::lower_bound(counts.begin(),counts.end(),std::pair<int,int>{owner,0});
+    return it==counts.end() || it->first!=owner ? 0 : it->second;
+  };
+  for (int g=0;g<groups;++g) {
+    compact(producer_owners[g]);
+    for (int succ:prepared->successors[g]) {
+      ++unmet[succ];int w=owner_of[succ];
+      consumer_owners[g].push_back({w,1});
+      cross_input[succ]|=count_owner(producer_owners[g],w)!=prepared->producer_count[g];
+    }
+    compact(consumer_owners[g]);
+  }
+  long cross_edges=0,same_edges=0;
+  for (int n=0;n<nodes;++n) {
+    int g=prepared->group_of_node[n];
+    int same=count_owner(consumer_owners[g],owner_of[n]);
+    cross_fanout[n]=int(prepared->successors[g].size())-same;
+    same_edges+=same;cross_edges+=cross_fanout[n];
+  }
+  struct GroupCompletion {
+    int remaining;
+    double cross_first=0,cross_second=0,chain=0;
+    int first_owner=-1;
+    std::vector<std::pair<int,double>> local_end;
+    void arrive(int owner,double end,double cross) {
+      auto it=std::lower_bound(local_end.begin(),local_end.end(),std::pair<int,double>{owner,0});
+      it->second=std::max(it->second,end);
+      if (first_owner==owner) cross_first=std::max(cross_first,cross);
+      else if (cross>=cross_first) {
+        cross_second=cross_first;cross_first=cross;first_owner=owner;
+      } else cross_second=std::max(cross_second,cross);
+    }
+    double ready_at(int owner) const {
+      auto it=std::lower_bound(local_end.begin(),local_end.end(),std::pair<int,double>{owner,0});
+      double local=it==local_end.end() || it->first!=owner ? 0 : it->second;
+      return std::max(local,first_owner==owner ? cross_second : cross_first);
+    }
+  };
+  std::vector<GroupCompletion> group_completion;
+  group_completion.reserve(groups);
+  for (int g=0;g<groups;++g) {
+    group_completion.push_back({prepared->producer_count[g]});
+    for (auto [owner,count]:producer_owners[g]) group_completion.back().local_end.push_back({owner,0});
+  }
+  std::vector<double> chain(nodes,0);
+  double critical_path=0;
 
   if (!std::isfinite(options.publication_ns) || options.publication_ns < 0)
     return fail("publication cost must be finite and nonnegative");
@@ -156,6 +242,47 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
     bool const waits = input.consumer_wait_required.empty()
         ? cross_input[node] != 0 : input.consumer_wait_required[node] != 0;
     consumer_wait[node] = waits ? options.consumer_wait_ns : 0.0;
+  }
+
+  // With observed durations and a context-independent hop, event times are
+  // exactly the weighted DAG recurrence. No resource rate can change in flight.
+  if (options.observed_task_times && (options.flat_hop || (hop.c1==0 && hop.c2==0))) {
+    out->tasks.assign(nodes,SimulatedTask{});
+    std::vector<int> queue_next(nodes,-1),ready_nodes;
+    std::vector<double> arrival(nodes,0),queue_end(nodes,0),worker_busy(grid,0);
+    for (auto const& row:queue) for (std::size_t i=1;i<row.size();++i) {
+      queue_next[row[i-1]]=row[i];++unmet[row[i]];
+    }
+    for (int n=0;n<nodes;++n) if (!unmet[n]) ready_nodes.push_back(n);
+    std::size_t visited=0;
+    out->makespan_ns=out->total_work_ns=out->solo_work_ns=out->total_block_ns=0;
+    while (visited<ready_nodes.size()) {
+      int n=ready_nodes[visited++],w=owner_of[n];
+      auto& task=out->tasks[n];task.worker=w;
+      task.start_ns=std::max(arrival[n],queue_end[n])+consumer_wait[n];
+      task.end_ns=task.start_ns+input.task_ns[n];task.block_ns=task.start_ns-queue_end[n];
+      task.stretch=1;
+      out->makespan_ns=std::max(out->makespan_ns,task.end_ns+publication[n]);
+      out->solo_work_ns+=input.task_ns[n];out->total_block_ns+=task.block_ns;
+      worker_busy[w]+=input.task_ns[n];
+      auto release=[&](int succ) {if (--unmet[succ]==0) ready_nodes.push_back(succ);};
+      if (queue_next[n]>=0) {queue_end[queue_next[n]]=task.end_ns+publication[n];release(queue_next[n]);}
+      auto& group=group_completion[prepared->group_of_node[n]];
+      group.arrive(w,task.end_ns,task.end_ns+publication[n]+hop.c0);
+      chain[n]+=input.task_ns[n];critical_path=std::max(critical_path,chain[n]);
+      group.chain=std::max(group.chain,chain[n]);
+      if (--group.remaining==0) for (int succ:prepared->successors[prepared->group_of_node[n]]) {
+        arrival[succ]=std::max(arrival[succ],group.ready_at(owner_of[succ]));
+        chain[succ]=std::max(chain[succ],group.chain);release(succ);
+      }
+    }
+    if (visited!=std::size_t(nodes)) return fail("the queue order deadlocks (L-a)");
+    out->total_work_ns=out->solo_work_ns;
+    out->busiest_worker=int(std::max_element(worker_busy.begin(),worker_busy.end())-worker_busy.begin());
+    out->busiest_worker_ns=worker_busy[out->busiest_worker];
+    out->cross_worker_edges=cross_edges;out->same_worker_edges=same_edges;
+    out->critical_path_ns=critical_path;
+    return true;
   }
 
   out->tasks.assign(nodes, SimulatedTask{});
@@ -237,8 +364,6 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
   };
 
   double now = 0.0;
-  std::vector<int> by_end;
-  by_end.reserve(nodes);
   for (int w = 0; w < grid; ++w) try_start(w, now);
   int completed = 0;
   while (!pending.empty()) {
@@ -264,7 +389,6 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
     --in_flight_total;
     free_at[w] = task.end_ns + publication[node];
     busy[w] = 0;
-    by_end.push_back(node);
     ++completed;
     refresh(sm, now);
 
@@ -277,11 +401,17 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
         ? 0.0
         : (options.flat_hop ? hop.c0
                             : hop.Ns(cross_fanout[node], std::max(1, in_flight_total)));
-    for (int succ : graph.successors[node]) {
-      double const arrival = task.end_ns +
-          (owner_of[succ] == w ? 0.0 : publication[node] + edge);
-      ready[succ] = std::max(ready[succ], arrival);
-      if (--unmet[succ] == 0 && owner_of[succ] != w) try_start(owner_of[succ], now);
+    auto& group=group_completion[prepared->group_of_node[node]];
+    group.arrive(w,task.end_ns,task.end_ns+publication[node]+edge);
+    chain[node]+=task.end_ns-task.start_ns;
+    critical_path=std::max(critical_path,chain[node]);
+    group.chain=std::max(group.chain,chain[node]);
+    if (--group.remaining==0) {
+      for (int succ:prepared->successors[prepared->group_of_node[node]]) {
+        ready[succ]=std::max(ready[succ],group.ready_at(owner_of[succ]));
+        chain[succ]=std::max(chain[succ],group.chain);
+        if (--unmet[succ]==0 && owner_of[succ]!=w) try_start(owner_of[succ],now);
+      }
     }
     try_start(w, now);
 
@@ -325,19 +455,7 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
   out->cross_worker_edges = cross_edges;
   out->same_worker_edges = same_edges;
 
-  // Longest end-to-end chain in the realized schedule, over task edges only:
-  // the part of the makespan no placement can remove.  The sweep needs a
-  // topological order and node ids are not guaranteed to be one, so it walks
-  // `by_end`, the order the loop retired tasks in, which is topological by
-  // construction -- a successor cannot end before its predecessor.
-  std::vector<double> chain(nodes, 0.0);
-  out->critical_path_ns = 0.0;
-  for (int node : by_end) {
-    chain[node] += out->tasks[node].end_ns - out->tasks[node].start_ns;
-    out->critical_path_ns = std::max(out->critical_path_ns, chain[node]);
-    for (int succ : graph.successors[node])
-      chain[succ] = std::max(chain[succ], chain[node]);
-  }
+  out->critical_path_ns=critical_path;
   return true;
 }
 
@@ -384,7 +502,7 @@ bool PreparePlanBounds(SimulatorInput const& input, PreparedPlanBounds* out,
   }
   if (visited != std::size_t(nodes)) return fail("bounds task graph is cyclic");
   *out = {graph.stage_offsets, input.task_ns, work, cp};
-  return true;
+  return PrepareExecutionGraph(graph,&out->graph,error);
 }
 
 bool EvaluatePlanBounds(PreparedPlanBounds const& input,
@@ -396,26 +514,53 @@ bool EvaluatePlanBounds(PreparedPlanBounds const& input,
   };
   if (plan.queue.empty()) return fail("bounds plan has no workers");
   std::vector<unsigned char> seen(input.task_ns.size(), 0);
+  std::vector<int> queue_next(input.task_ns.size(),-1),degree(input.task_ns.size(),0);
   double queue = 0;
   std::size_t count = 0;
   for (auto const& worker : plan.queue) {
     double work = 0;
+    int prior=-1;
     for (auto const& item : worker) {
       if (item.stage + 1 >= input.stage_offsets.size() || item.logical < 0)
         return fail("bounds invalid stage/task");
       int const node = input.stage_offsets[item.stage] + item.logical;
       if (node >= input.stage_offsets[item.stage + 1] || seen[node]++)
         return fail("bounds task outside stage or duplicated");
+      if (prior>=0) {queue_next[prior]=node;++degree[node];}
+      prior=node;
       work += input.task_ns[node];
       ++count;
     }
     queue = std::max(queue, work);
   }
   if (count != input.task_ns.size()) return fail("bounds plan omits tasks");
+  auto const& graph=input.graph;
+  if (graph.group_of_node.size()!=input.task_ns.size()) return fail("unprepared binding bound");
+  auto remaining=graph.producer_count;
+  std::vector<double> group_end(graph.successors.size(),0),end(input.task_ns.size(),0);
+  for (auto const& row:graph.successors) for (int succ:row) ++degree[succ];
+  std::vector<int> ready;
+  for (int n=0;n<int(degree.size());++n) if (!degree[n]) ready.push_back(n);
+  double binding=0;
+  std::size_t visited=0;
+  while (visited<ready.size()) {
+    int n=ready[visited++];end[n]+=input.task_ns[n];binding=std::max(binding,end[n]);
+    auto arrive=[&](int succ,double time) {
+      end[succ]=std::max(end[succ],time);
+      if (--degree[succ]==0) ready.push_back(succ);
+    };
+    if (queue_next[n]>=0) arrive(queue_next[n],end[n]);
+    int group=graph.group_of_node[n];
+    group_end[group]=std::max(group_end[group],end[n]);
+    if (--remaining[group]==0)
+      for (int succ:graph.successors[group]) arrive(succ,group_end[group]);
+  }
+  if (visited!=input.task_ns.size()) return fail("binding-bound queue order violates L-a");
+  out->binding_path_ns=binding;
   out->work_lb_ns = input.work_ns / plan.queue.size();
   out->queue_lb_ns = queue;
   out->critical_path_ns = input.critical_path_ns;
-  out->lower_bound_ns = std::max({out->work_lb_ns, queue, input.critical_path_ns});
+  out->lower_bound_ns = std::max({out->work_lb_ns, queue, binding});
   return true;
 }
 
@@ -429,6 +574,8 @@ bool RankPlans(SimulatorInput const& input, PreparedPlanBounds const& prepared,
     if (error) *error = "invalid or stale hierarchical ranking input";
     return false;
   }
+  auto shared_input=input;
+  shared_input.prepared_graph=&prepared.graph;
   out->clear();
   for (std::size_t i = 0; i < plans.size(); ++i) {
     RankedPlan item;
@@ -445,7 +592,7 @@ bool RankPlans(SimulatorInput const& input, PreparedPlanBounds const& prepared,
   for (auto& item : *out) {
     if (item.bounds.lower_bound_ns > cutoff) break;
     SimulatorResult result;
-    if (!SimulateExecution(input, *plans[item.index], options, hop, &result, error))
+    if (!SimulateExecution(shared_input, *plans[item.index], options, hop, &result, error))
       return false;
     item.simulated = true;
     item.makespan_ns = result.makespan_ns;

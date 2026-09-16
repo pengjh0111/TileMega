@@ -9,6 +9,8 @@
 #include <tilemega/Solver/ExecutionSimulator.h>
 
 #include <cmath>
+#include <random>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -278,6 +280,57 @@ int main() {
     SimulatorResult result;
     REQUIRE(solver::SimulateExecution(input, plan, options, curve, &result, &error));
     REQUIRE_NEAR(result.makespan_ns, 10.0 + 1200.0 + 10.0);
+  }
+
+  { // Independent earliest-start recurrence on random DAG + FIFO orders.
+    std::mt19937 rng(601);
+    for (int trial=0;trial<100;++trial) {
+      constexpr int n=72,grid=7;
+      std::vector<std::pair<int,int>> edges;
+      for (int a=0;a<n;++a) for (int b=a+1;b<n;++b)
+        if ((a/12+1==b/12 && trial%2==0) || rng()%37==0) edges.push_back({a,b});
+      auto graph=MakeGraph({n},edges);
+      solver::PreparedExecutionGraph prepared;
+      REQUIRE(solver::PrepareExecutionGraph(graph,&prepared,&error));
+      for (int placement=0;placement<3;++placement) {
+        std::vector<int> owner(n),slot(n),counts(grid,0),prior(grid,-1);
+        std::vector<double> costs(n),start(n),end(n),publication(n,0),wait(n,0);
+        for (int v=0;v<n;++v) {owner[v]=rng()%grid;slot[v]=counts[owner[v]]++;costs[v]=1+rng()%100;}
+        auto plan=MakePlan({n},owner,slot,grid);
+        auto input=MakeInput(graph,costs);input.prepared_graph=&prepared;
+        SimulatorOptions options;options.sms=grid;options.publication_ns=13;options.consumer_wait_ns=7;
+        for (auto [p,c]:edges) if (owner[p]!=owner[c]) {publication[p]=13;wait[c]=7;}
+        double expected=0;
+        for (int v=0;v<n;++v) {
+          int prev=prior[owner[v]];
+          double ready=prev<0 ? 0 : end[prev]+publication[prev];
+          for (auto [p,c]:edges) if (c==v)
+            ready=std::max(ready,end[p]+(owner[p]==owner[v] ? 0 : publication[p]+flat.c0));
+          start[v]=ready+wait[v];end[v]=start[v]+costs[v];prior[owner[v]]=v;
+          expected=std::max(expected,end[v]+publication[v]);
+        }
+        SimulatorResult result;
+        REQUIRE(solver::SimulateExecution(input,plan,options,flat,&result,&error));
+        REQUIRE_NEAR(result.makespan_ns,expected);
+        auto heap=result;
+        options.observed_task_times=true;
+        REQUIRE(solver::SimulateExecution(input,plan,options,flat,&result,&error));
+        REQUIRE_NEAR(result.makespan_ns,heap.makespan_ns);
+        REQUIRE_NEAR(result.critical_path_ns,heap.critical_path_ns);
+        solver::PreparedPlanBounds prepared_bound;
+        REQUIRE(solver::PreparePlanBounds(input,&prepared_bound,&error));
+        solver::PlanBounds bound;
+        REQUIRE(solver::EvaluatePlanBounds(prepared_bound,plan,&bound,&error));
+        options.publication_ns=options.consumer_wait_ns=0;
+        SimulatorResult zero;
+        REQUIRE(solver::SimulateExecution(input,plan,options,HopCurve{},&zero,&error));
+        REQUIRE_NEAR(bound.binding_path_ns,zero.makespan_ns);
+        for (int v=0;v<n;++v) {
+          REQUIRE_NEAR(result.tasks[v].start_ns,start[v]);
+          REQUIRE_NEAR(result.tasks[v].end_ns,end[v]);
+        }
+      }
+    }
   }
 
   std::printf("execution_simulator_test: PASS\n");

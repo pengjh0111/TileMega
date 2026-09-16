@@ -58,6 +58,16 @@ struct SimulatorOptions {
   bool observed_task_times = false;
 };
 
+/// Identical successor sets are shared dependency groups. Preparation is
+/// reusable while the source graph is immutable; queue placement remains free.
+struct PreparedExecutionGraph {
+  codegen::RuntimeTaskGraph const* source = nullptr;
+  std::vector<std::vector<int>> successors;
+  std::vector<int> group_of_node, producer_count;
+};
+bool PrepareExecutionGraph(codegen::RuntimeTaskGraph const& graph,
+    PreparedExecutionGraph* out, std::string* error);
+
 struct SimulatorInput {
   codegen::RuntimeTaskGraph const* graph = nullptr;
   /// Solo duration of each runtime node, one resident CTA per SM.  Indexed by
@@ -73,6 +83,7 @@ struct SimulatorInput {
   /// event flags may publish more tasks; a dump-backed caller supplies them.
   std::vector<unsigned char> publication_required;
   std::vector<unsigned char> consumer_wait_required;
+  PreparedExecutionGraph const* prepared_graph = nullptr;
 };
 
 struct SimulatedTask {
@@ -119,12 +130,14 @@ struct PreparedPlanBounds {
   std::vector<double> task_ns;
   double work_ns = 0;
   double critical_path_ns = 0;
+  PreparedExecutionGraph graph;
 };
 struct PlanBounds {
   double work_lb_ns = 0;
   double queue_lb_ns = 0;
   double critical_path_ns = 0;
   double lower_bound_ns = 0;
+  double binding_path_ns = 0;  ///< CG plus FIFO queue edges; semantic CP stays separate.
 };
 struct RankedPlan {
   std::size_t index = 0;
