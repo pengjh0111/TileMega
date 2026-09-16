@@ -1,0 +1,8 @@
+DISK NEED_MIB=8192 FREE_MIB=1520720
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/MODELS/llama_mlp/auto.cu.resources/1789579101103144555/0" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1520707
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/MODELS/llama_mlp/auto.cu.resources/1789579101103144555/1" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1520630
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/MODELS/llama_mlp/auto.cu.resources/1789579101103144555/2" resident=3
+SOLVE_SUMMARY evaluated=3 deferred=87 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=128 couplings=112 stages=64 symbolic_windows=112 fallback_windows=0 output=docs/experiments/MODELS/llama_mlp/auto.cu

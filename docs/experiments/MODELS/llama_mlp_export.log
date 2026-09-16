@@ -1,0 +1,17 @@
+/usr/local/lib/python3.10/dist-packages/torch/_subclasses/functional_tensor.py:368: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+{
+  "seq": 4,
+  "past": 3,
+  "layers": 16,
+  "hidden": 2048,
+  "intermediate": 8192,
+  "dtype": "torch.bfloat16",
+  "golden_device": "cpu",
+  "torch_version": "2.14.0+cpu",
+  "scope": "Export existing SwiGLU TaskBody coverage at the published model dimensions.\n\nThese are independent post-normalization MLP regions, one per original layer.\nBoundary inputs are explicit random tensors. This is NOT a full-model timing:\nattention, normalization, RoPE, embedding and final head are excluded. No\nmissing operator is replaced with an approximate implementation.\n",
+  "config_source": "/root/TileMega/docs/experiments/MODELS/sources/llama_config_public_copy.json",
+  "config_sha256": "8f028e2cd88148fad38c7dece460947681adf6178e46e11ece9742aa49b378dd",
+  "parameters": 805306368,
+  "outputs": 16
+}

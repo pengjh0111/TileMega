@@ -1,0 +1,6 @@
+{
+  "source": "/root/TileMega/docs/experiments/MODELS/llama_mlp/auto.cu",
+  "kappa": "1",
+  "residency": "3",
+  "placement_macro": "0"
+}

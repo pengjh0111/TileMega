@@ -1,0 +1,16 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/MODELS/llama_mlp/bin/selected",
+    "/root/TileMega/docs/experiments/MODELS/llama_mlp/fixture"
+  ],
+  "exit_code": 0,
+  "session": "1789579798828149055",
+  "round": 38,
+  "started_ns": 1789579875389774831,
+  "elapsed_ns": 2059346734,
+  "binary_sha256": "20b393066b00953d30b9d475ad9201ebbe4c114d89edec28905e07b429f3a4e1",
+  "environment": {
+    "TILEMEGA_WARMUP": "0",
+    "TILEMEGA_REPEAT": "1"
+  }
+}

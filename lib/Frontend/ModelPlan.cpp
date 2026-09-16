@@ -191,6 +191,70 @@ GraphPattern const& DecoderLayerPattern() {
   return pattern;
 }
 
+// An independently exported, already-normalized SwiGLU region uses only
+// existing GEMM/elementwise TaskBodies. This adapter does not synthesize a
+// missing normalization or silently substitute an approximate RoPE.
+ModelPlan BuildMlpRegions(std::vector<FxNodeRecord> const& nodes,
+    std::vector<SignatureInput> const& inputs,std::vector<std::string> const& outputs) {
+  GraphPattern pattern{"mlp_region",{
+    {"gate","contraction",{Input(),Param()}},
+    {"act","activation",{Value("gate")}},
+    {"up","contraction",{Input(),Param()}},
+    {"product","multiply",{Dep("act"),Value("up")},true},
+    {"down","contraction",{Value("product"),Param()}},
+    {"residual","add",{Value("down"),Input()},true}},
+    {{"residual",-1,"down",-1}}};
+  PatternMatcher matcher(nodes,inputs);auto matches=matcher.FindAll(pattern);
+  if (matches.empty()) return {};
+  std::sort(matches.begin(),matches.end(),[](auto const& a,auto const& b) {
+    return a.at("residual")->index<b.at("residual")->index;
+  });
+  PlanBuilder builder(nodes);std::map<std::string,SignatureInput const*> signature;
+  for (auto const& input:inputs) signature.emplace(input.name,&input);
+  auto input_buffer=[&](std::string name) {
+    name=matcher.Value(name);auto const& node=builder.Node(name);
+    if (!signature.count(name) || signature.at(name)->kind!="USER_INPUT")
+      throw std::invalid_argument("MLP cut boundary is not an exported input");
+    return builder.Buffer({name,0,StaticExtent(node,node.shape.size()-1),0,0,
+        PlanBuffer::Source::kFixture,"input_"+name+".bin"});
+  };
+  auto weight=[&](std::string name) {
+    name=matcher.Value(name);
+    if (!signature.count(name) || signature.at(name)->kind=="USER_INPUT")
+      throw std::invalid_argument("MLP weight is not a parameter");
+    return builder.Weight(*signature.at(name));
+  };
+  std::map<std::string,std::uint32_t> result;
+  builder.plan.dtype=StorageDtype(builder.Node(matcher.Value(matches.front().at("gate")->inputs[0])));
+  for (auto const& input:inputs) if (StorageDtype(builder.Node(input.name))!=builder.plan.dtype)
+    throw std::invalid_argument("mixed storage types in MLP region");
+  for (auto const& match:matches) {
+    auto const& gate=*match.at("gate");auto const& up=*match.at("up");
+    auto const& down=*match.at("down");auto const& residual=*match.at("residual");
+    if (result.count(residual.name)) throw std::invalid_argument("ambiguous MLP region");
+    if (matcher.Value(gate.inputs[0])!=matcher.Value(up.inputs[0]))
+      throw std::invalid_argument("MLP gate and up do not share an input");
+    auto x=input_buffer(gate.inputs[0]);std::string residual_input;
+    for (auto const& input:residual.inputs)
+      if (matcher.Value(input)!=matcher.Value(down.name)) residual_input=input;
+    auto r=input_buffer(residual_input);
+    auto hidden=StaticExtent(builder.Node(matcher.Value(gate.inputs[0])),gate.shape.size()-1);
+    auto intermediate=StaticExtent(gate,gate.shape.size()-1);
+    auto g=builder.Scratch(gate.name,intermediate),u=builder.Scratch(up.name,intermediate);
+    auto y=builder.Scratch(residual.name,hidden);
+    builder.Stage(PlanTaskKind::kGemm,gate.name,builder.Gemm(x,weight(gate.inputs[1]),g,g,intermediate,hidden,0),0,0,1);
+    builder.Stage(PlanTaskKind::kGemm,up.name,builder.Gemm(x,weight(up.inputs[1]),u,u,intermediate,hidden,0),0,0,1);
+    builder.Stage(PlanTaskKind::kElementwise,match.at("product")->name,0,intermediate,0,1,{g,u,g});
+    builder.Stage(PlanTaskKind::kGemm,residual.name,builder.Gemm(g,weight(down.inputs[1]),r,y,hidden,intermediate,1),0,0,1);
+    result[residual.name]=y;builder.plan.node_buffer[residual.name]=y;
+  }
+  for (std::size_t i=0;i<outputs.size();++i) {
+    if (!result.count(outputs[i])) throw std::invalid_argument("MLP region does not cover an exported output");
+    builder.plan.outputs.push_back({result.at(outputs[i]),"reference_"+std::to_string(i)+".bin"});
+  }
+  return std::move(builder.plan);
+}
+
 }  // namespace
 
 ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
@@ -211,7 +275,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                                layers[i].at("resid2")->name);
   // Degradation, not refusal (skeleton §0.1): a graph the decoder pattern does
   // not cover still imports, as one task space per operator, with no plan.
-  if (layers.empty()) return {};
+  if (layers.empty()) return BuildMlpRegions(nodes,inputs,outputs);
 
   // The hidden state is the model input the first layer's query projection
   // reads; the KV inputs never reach it, so no name convention is needed.
