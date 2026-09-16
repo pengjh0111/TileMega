@@ -182,7 +182,7 @@ int main(int argc, char** argv) {
     tilemega::frontend::ImportSummary summary;
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
-    std::string variants_path,solve_target,dump_cg,hop_path;
+    std::string variants_path,solve_target,dump_cg,hop_path,domain_path;
     bool resource_probes=true;
     tilemega::solver::CompilerSearchOptions solve_options;
     solve_options.placement.dims={4,3,7};
@@ -196,6 +196,7 @@ int main(int argc, char** argv) {
       else if (flag=="--dump-cg") dump_cg=value;
       else if (flag=="--hop-curve") hop_path=value;
       else if (flag=="--resource-probes") resource_probes=std::stoi(value)!=0;
+      else if (flag=="--search-domain") domain_path=value;
       else throw std::runtime_error("unknown option: "+flag);
     }
     bool has_variants=!variants_path.empty();
@@ -206,6 +207,19 @@ int main(int argc, char** argv) {
       if (input.extension()==".mlir")
         throw std::runtime_error("automatic geometry search requires export JSON; use tilemega-opt for placement-only CG solving");
       solve_options.placement.target=tilemega::TargetSpec::FromJson(solve_target);
+      if (!domain_path.empty()) {
+        auto file=llvm::MemoryBuffer::getFile(domain_path);
+        if (!file) throw std::runtime_error("cannot read calibration search domain");
+        auto value=llvm::json::parse(file.get()->getBuffer());
+        auto* object=value ? value->getAsObject() : nullptr;
+        auto* shapes=object ? object->getArray("geometries") : nullptr;
+        if (!shapes || shapes->empty()) throw std::runtime_error("search domain needs calibrated geometries");
+        for (auto const& shape:*shapes) {
+          auto* o=shape.getAsObject();if (!o) throw std::runtime_error("invalid geometry domain entry");
+          solve_options.geometry_domain.push_back({int(requiredInteger(*o,"tile_m")),int(requiredInteger(*o,"tile_n")),
+              int(requiredInteger(*o,"tile_k")),int(requiredInteger(*o,"stages")),1});
+        }
+      }
       auto& dims=solve_options.placement.dims;dims.total=dims.seq+dims.past;
       if (!hop_path.empty()) {
         std::string error;
@@ -222,6 +236,23 @@ int main(int argc, char** argv) {
         return queryResidency(m,kappa,solve_options,resource_root/std::to_string(probe_index++),library);
       };
       auto solved=tilemega::solver::SolveExport(input.string(),context,solve_options,&summary,evidence);
+      std::ofstream shortlist(std::string(argv[2])+".top3.tsv");
+      shortlist << "rank\tkey\tplacement\ttile_m\ttile_n\ttile_k\tstages\tsplit_k\tkappa\tresidency\tfloor_ns\tpredicted_ns\tsource\tcg\n";
+      for (std::size_t i=0;i<solved.shortlist.size();++i) {
+        auto const& entry=solved.shortlist[i];auto const& e=entry.evaluation;
+        auto const& g=e.candidate.config;
+        std::string stem=std::string(argv[2])+".top"+std::to_string(i+1);
+        std::vector<tilemega::codegen::RuntimeVariantModule> variants{{*entry.module,1u,
+            static_cast<std::uint32_t>(dims.seq)}};
+        std::ofstream(stem+".cu") << tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(variants);
+        std::error_code ec;llvm::raw_fd_ostream cg(stem+".mlir",ec);
+        if (ec) throw std::runtime_error("cannot write shortlisted CG");
+        (*entry.module).print(cg);
+        shortlist << i+1 << '\t' << e.candidate.key << '\t' << e.placement << '\t'
+            << g.tile_m << '\t' << g.tile_n << '\t' << g.tile_k << '\t' << g.stages << '\t' << g.split_k << '\t'
+            << e.candidate.kappa << '\t' << e.candidate.ctas_per_sm << '\t' << e.floor_ns << '\t' << e.makespan_ns
+            << '\t' << stem << ".cu\t" << stem << ".mlir\n";
+      }
       module=std::move(solved.module);
       std::vector<tilemega::codegen::RuntimeVariantModule> inputs{{*module,
           1u,static_cast<std::uint32_t>(dims.seq)}};

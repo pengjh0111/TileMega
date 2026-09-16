@@ -10,12 +10,20 @@ namespace tilemega::solver {
 struct CompilerSearchOptions {
   dialect::PlacementSolveOptions placement;
   std::size_t capacity=8;
+  // Optional externally evidenced backend domain for a disclosed reduced
+  // search. Split and kappa remain decisions of the solver.
+  std::vector<GemmConfig> geometry_domain;
   std::function<int(mlir::ModuleOp,int)> query_residency;
 };
 struct CompilerSearchResult {
+  struct ShortlistEntry {
+    JointEvaluation evaluation;
+    mlir::OwningOpRef<mlir::ModuleOp> module;
+  };
   mlir::OwningOpRef<mlir::ModuleOp> module;
   JointSearchStats stats;
   std::vector<JointEvaluation> ranking;
+  std::vector<ShortlistEntry> shortlist;
 };
 /// The finite budget is disclosed as deferred work, never an optimality proof.
 /// Reimport each geometry so ownership and CG relations change together.
@@ -29,6 +37,11 @@ inline CompilerSearchResult SolveExport(std::string const& path,
   std::vector<JointCandidate> candidates;
   for (auto const& backend:generator.Enumerate()) {
     auto const& t=backend.traits();
+    if (!options.geometry_domain.empty() && std::none_of(options.geometry_domain.begin(),
+        options.geometry_domain.end(),[&](auto const& g) {
+          return std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages)==
+                 std::tie(t.tile_m,t.tile_n,t.tile_k,t.stages);
+        })) continue;
     for (int split:{1,2,4,8,16,32}) {
       GemmConfig g{t.tile_m,t.tile_n,t.tile_k,t.stages,split};
       // This is a ranking heuristic, not a pruning bound. Exact task-domain
@@ -71,6 +84,18 @@ inline CompilerSearchResult SolveExport(std::string const& path,
           e.placement=plan.name;e.status=plan.error.empty() ? "ok" : plan.error;
           e.floor_ns=plan.bounds.lower_bound_ns;e.makespan_ns=plan.predicted_ns;e.simulated=plan.error.empty();
           evaluations.push_back(e);
+          if (e.simulated && (result.shortlist.size()<3 ||
+              std::tie(e.floor_ns,e.makespan_ns)<std::tie(result.shortlist.back().evaluation.floor_ns,
+                                                       result.shortlist.back().evaluation.makespan_ns))) {
+            auto copy=mlir::OwningOpRef<mlir::ModuleOp>(mlir::cast<mlir::ModuleOp>(placed->clone()));
+            dialect::WriteSolvedPlacement(*copy,plan,placement);
+            result.shortlist.push_back({e,std::move(copy)});
+            std::stable_sort(result.shortlist.begin(),result.shortlist.end(),[](auto const& a,auto const& b) {
+              return std::tie(a.evaluation.floor_ns,a.evaluation.makespan_ns)<
+                     std::tie(b.evaluation.floor_ns,b.evaluation.makespan_ns);
+            });
+            if (result.shortlist.size()>3) result.shortlist.pop_back();
+          }
           evidence << e.candidate.key << '\t' << plan.name << '\t' << e.status << '\t'
               << e.floor_ns << '\t' << plan.bounds.critical_path_ns << '\t'
               << plan.bounds.queue_lb_ns << '\t' << e.makespan_ns << '\t'
@@ -92,6 +117,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
   if (!result.module) throw std::runtime_error("no legal solver configuration; inspect search evidence");
   mlir::OpBuilder b(&context);
   result.module->getOperation()->setAttr("tilemega.search_deferred",b.getI64IntegerAttr(result.stats.capacity_deferred));
+  result.module->getOperation()->setAttr("tilemega.search_restricted_geometry",b.getBoolAttr(!options.geometry_domain.empty()));
   result.module->getOperation()->setAttr("tilemega.search_scope",b.getStringAttr(
       options.query_residency ? "uniform geometry; six placements; kappa 1,2,4; all compiled resident levels" :
       "uniform geometry; six placements; kappa 1,2,4; residency 1 pending compiled resource evidence"));
