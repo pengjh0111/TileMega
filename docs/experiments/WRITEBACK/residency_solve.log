@@ -1,0 +1,4 @@
+DISK NEED_MIB=8192 FREE_MIB=1524089
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/WRITEBACK/gqa2_resident_auto.cu.resources/1789575499162296546/0" resident=5
+SOLVE_SUMMARY evaluated=1 deferred=3653 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=48 couplings=56 stages=30 symbolic_windows=56 fallback_windows=0 output=docs/experiments/WRITEBACK/gqa2_resident_auto.cu

@@ -1,0 +1,6 @@
+{
+  "source": "/root/TileMega/docs/experiments/WRITEBACK/gqa2_resident_auto.cu",
+  "kappa": "1",
+  "residency": "4",
+  "placement_macro": "0"
+}

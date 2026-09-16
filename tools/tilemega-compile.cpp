@@ -20,12 +20,66 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <chrono>
+#include <iomanip>
 
 namespace {
 std::string quote(std::string const& value) {
   std::string result = "'";
   for (char c : value) result += c == '\'' ? "'\\''" : std::string(1, c);
   return result + "'";
+}
+
+
+int queryResidency(mlir::ModuleOp module,int kappa,
+    tilemega::solver::CompilerSearchOptions const& options,
+    std::filesystem::path const& directory,std::filesystem::path const& library) {
+  std::filesystem::create_directories(directory);
+  auto const free_mib=std::filesystem::space(directory).available/(1024*1024);
+  std::cerr << "DISK NEED_MIB=8192 FREE_MIB=" << free_mib << '\n';
+  if (free_mib<8192) throw std::runtime_error("insufficient disk for resource probe");
+  std::vector<tilemega::codegen::RuntimeVariantModule> variants{{module,1,
+      static_cast<std::uint32_t>(options.placement.dims.seq)}};
+  auto source=directory/"candidate.cu",probe=directory/"query.cu",binary=directory/"query";
+  std::ofstream(source) << "#define TILEMEGA_EVENT_KAPPA " << kappa << '\n'
+      << tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(variants);
+  std::ofstream wrapper(probe);
+  wrapper << "#define main tilemega_fixture_main\n#include \"candidate.cu\"\n#undef main\n"
+      << "int main() { using namespace tilemega::codegen;\n"
+      << "auto target=tilemega::TargetSpec::Probe();\n"
+      << "if (target.arch_tag!=" << std::quoted(options.placement.target.arch_tag)
+      << " || target.res.num_sms!=" << options.placement.target.res.num_sms << ") return 3;\n"
+      << "cudaFuncAttributes a{},b{};\n"
+      << "TILEMEGA_CUDA_CHECK(cudaFuncGetAttributes(&a,tilemega_l1_kernel));\n"
+      << "TILEMEGA_CUDA_CHECK(cudaFuncGetAttributes(&b,tilemega_l2_kernel));\n"
+      << "TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(tilemega_l1_kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(TaskSmem)));\n"
+      << "TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(tilemega_l2_kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(TaskSmem)));\n"
+      << "int l1=target.ActiveBlocksPerSM(reinterpret_cast<void const*>(tilemega_l1_kernel),kHarnessThreads,sizeof(TaskSmem));\n"
+      << "int l2=target.ActiveBlocksPerSM(reinterpret_cast<void const*>(tilemega_l2_kernel),kHarnessThreads,sizeof(TaskSmem));\n"
+      << "std::printf(\"{\\\"resident\\\":%d,\\\"l1\\\":%d,\\\"l2\\\":%d,\\\"registers_l1\\\":%d,\\\"registers_l2\\\":%d,\\\"dynamic_shared\\\":%zu,\\\"threads\\\":%d}\\n\",std::min(l1,l2),l1,l2,a.numRegs,b.numRegs,sizeof(TaskSmem),kHarnessThreads);\n}\n";
+  wrapper.close();
+  std::string root=TILEMEGA_SOURCE_DIR;
+  std::string nvcc=std::getenv("CUDACXX") ? std::getenv("CUDACXX") : "/usr/local/cuda/bin/nvcc";
+  std::string command=quote(nvcc)+" -std=c++17 -O2 -lineinfo -Xptxas=-v -arch="+
+      quote(options.placement.target.NvccArch());
+  for (char const* sub:{"include","third_party/cutlass/include","third_party/cutlass/tools/util/include","third_party/cutlass/test"})
+    command+=" -I"+quote(root+"/"+sub);
+  command+=" "+quote(probe.string())+" "+quote(library.string())+
+      " -L/usr/local/cuda/lib64 -lcudart -o "+quote(binary.string());
+  std::ofstream(directory/"build_command.txt") << command << '\n';
+  if (std::system((command+" >"+quote((directory/"build.log").string())+" 2>&1").c_str()))
+    throw std::runtime_error("resource probe compilation failed: "+directory.string());
+  if (std::system((quote(binary.string())+" >"+quote((directory/"resources.json").string())+
+      " 2>"+quote((directory/"query.log").string())).c_str()))
+    throw std::runtime_error("resource probe does not match target or failed: "+directory.string());
+  auto file=llvm::MemoryBuffer::getFile((directory/"resources.json").string());
+  if (!file) throw std::runtime_error("missing resource query result");
+  auto value=llvm::json::parse(file.get()->getBuffer());
+  auto* object=value ? value->getAsObject() : nullptr;
+  auto count=object ? object->getInteger("resident") : std::nullopt;
+  if (!count || *count<=0) throw std::runtime_error("invalid resident limit from CUDA");
+  std::cerr << "RESOURCE_QUERY directory=" << directory << " resident=" << *count << '\n';
+  return int(*count);
 }
 
 struct VariantRequest {
@@ -129,6 +183,7 @@ int main(int argc, char** argv) {
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path;
+    bool resource_probes=true;
     tilemega::solver::CompilerSearchOptions solve_options;
     solve_options.placement.dims={4,3,7};
     for (int i=3;i<argc;i+=2) {
@@ -140,6 +195,7 @@ int main(int argc, char** argv) {
       else if (flag=="--search-capacity") solve_options.capacity=std::stoul(value);
       else if (flag=="--dump-cg") dump_cg=value;
       else if (flag=="--hop-curve") hop_path=value;
+      else if (flag=="--resource-probes") resource_probes=std::stoi(value)!=0;
       else throw std::runtime_error("unknown option: "+flag);
     }
     bool has_variants=!variants_path.empty();
@@ -158,6 +214,13 @@ int main(int argc, char** argv) {
       }
       std::ofstream evidence(std::string(argv[2])+".search.tsv");
       if (!evidence) throw std::runtime_error("cannot open search evidence");
+      auto resource_root=std::filesystem::absolute(std::string(argv[2])+".resources") /
+          std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+      auto library=std::filesystem::canonical(argv[0]).parent_path().parent_path()/"libtilemega.a";
+      int probe_index=0;
+      if (resource_probes) solve_options.query_residency=[&](mlir::ModuleOp m,int kappa) {
+        return queryResidency(m,kappa,solve_options,resource_root/std::to_string(probe_index++),library);
+      };
       auto solved=tilemega::solver::SolveExport(input.string(),context,solve_options,&summary,evidence);
       module=std::move(solved.module);
       std::vector<tilemega::codegen::RuntimeVariantModule> inputs{{*module,
@@ -165,7 +228,7 @@ int main(int argc, char** argv) {
       source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(inputs);
       std::cerr << "SOLVE_SUMMARY evaluated=" << solved.stats.evaluated
           << " deferred=" << solved.stats.capacity_deferred
-          << " residency_scope=1 hop_calibrated=" << !hop_path.empty() << "\n";
+          << " residency_scope=" << (resource_probes ? "compiled" : "1_degraded") << " hop_calibrated=" << !hop_path.empty() << "\n";
     } else if (input.extension() == ".mlir") {
       if (has_variants)
         throw std::runtime_error("runtime variants require stable export JSON input");

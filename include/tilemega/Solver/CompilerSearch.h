@@ -10,6 +10,7 @@ namespace tilemega::solver {
 struct CompilerSearchOptions {
   dialect::PlacementSolveOptions placement;
   std::size_t capacity=8;
+  std::function<int(mlir::ModuleOp,int)> query_residency;
 };
 struct CompilerSearchResult {
   mlir::OwningOpRef<mlir::ModuleOp> module;
@@ -32,9 +33,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
       GemmConfig g{t.tile_m,t.tile_n,t.tile_k,t.stages,split};
       // This is a ranking heuristic, not a pruning bound. Exact task-domain
       // bounds are evaluated after importing the candidate's own CG below.
-      double priority=0;
-      for (auto const& gemm:model.gemms)
-        priority+=cost.GemmStageNs(gemm,g,{1},model);
+      double priority=cost.Evaluate(model,g,{1}).total_ns;
       for (int kappa:{1,2,4}) {
         JointCandidate candidate;candidate.config=g;candidate.kappa=kappa;
         candidate.ctas_per_sm=1;candidate.priority_ns=priority;
@@ -59,23 +58,31 @@ inline CompilerSearchResult SolveExport(std::string const& path,
       import.activation_tile_per_block=import.combiner_tile_per_block=true;
       frontend::ImportSummary candidate_summary;
       auto module=frontend::TorchExportImporter{}.Import(path,context,&candidate_summary,import);
-      auto placement=options.placement;placement.kappa=candidate.kappa;
-      placement.residency=candidate.ctas_per_sm;
-      auto solved=dialect::SolveAndWritePlacement(*module,placement);
-      for (auto const& plan:solved.candidates) {
-        JointEvaluation e;e.placement=plan.name;e.status=plan.error.empty() ? "ok" : plan.error;
-        e.floor_ns=plan.bounds.lower_bound_ns;e.makespan_ns=plan.predicted_ns;e.simulated=plan.error.empty();
-        evaluations.push_back(e);
-        evidence << candidate.key << '\t' << plan.name << '\t' << e.status << '\t'
-            << e.floor_ns << '\t' << plan.bounds.critical_path_ns << '\t'
-            << plan.bounds.queue_lb_ns << '\t' << e.makespan_ns << '\t'
-            << solved.grid << '\t' << candidate.kappa << '\n';
+      int limit=options.query_residency ? options.query_residency(*module,candidate.kappa) : 1;
+      if (limit<1) throw std::invalid_argument("compiled kernel has no resident CTA");
+      for (int residency=1;residency<=limit;++residency) {
+        auto placed=mlir::OwningOpRef<mlir::ModuleOp>(mlir::cast<mlir::ModuleOp>(module->clone()));
+        auto placement=options.placement;placement.kappa=candidate.kappa;
+        placement.residency=residency;placement.verified_resident_limit=limit;
+        auto solved=dialect::SolveAndWritePlacement(*placed,placement);
+        for (auto const& plan:solved.candidates) {
+          JointEvaluation e;e.candidate=candidate;e.candidate.ctas_per_sm=residency;
+          e.candidate.key+="r"+std::to_string(residency);
+          e.placement=plan.name;e.status=plan.error.empty() ? "ok" : plan.error;
+          e.floor_ns=plan.bounds.lower_bound_ns;e.makespan_ns=plan.predicted_ns;e.simulated=plan.error.empty();
+          evaluations.push_back(e);
+          evidence << e.candidate.key << '\t' << plan.name << '\t' << e.status << '\t'
+              << e.floor_ns << '\t' << plan.bounds.critical_path_ns << '\t'
+              << plan.bounds.queue_lb_ns << '\t' << e.makespan_ns << '\t'
+              << solved.grid << '\t' << candidate.kappa << '\n';
+        }
+        auto const& chosen=solved.candidates.front();
+        if (std::tie(chosen.bounds.lower_bound_ns,chosen.predicted_ns)<std::tie(best,best_sim)) {
+          best=chosen.bounds.lower_bound_ns;best_sim=chosen.predicted_ns;
+          result.module=std::move(placed);if (summary) *summary=candidate_summary;
+        }
       }
-      auto const& chosen=solved.candidates.front();
-      if (std::tie(chosen.bounds.lower_bound_ns,chosen.predicted_ns)<std::tie(best,best_sim)) {
-        best=chosen.bounds.lower_bound_ns;best_sim=chosen.predicted_ns;
-        result.module=std::move(module);if (summary) *summary=std::move(candidate_summary);
-      }
+
     } catch (std::exception const& e) {
       JointEvaluation failed;failed.status=e.what();evaluations.push_back(failed);
       evidence << candidate.key << "\t-\t" << e.what() << "\t0\t0\t0\t0\t0\t" << candidate.kappa << '\n';
@@ -86,6 +93,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
   mlir::OpBuilder b(&context);
   result.module->getOperation()->setAttr("tilemega.search_deferred",b.getI64IntegerAttr(result.stats.capacity_deferred));
   result.module->getOperation()->setAttr("tilemega.search_scope",b.getStringAttr(
+      options.query_residency ? "uniform geometry; six placements; kappa 1,2,4; all compiled resident levels" :
       "uniform geometry; six placements; kappa 1,2,4; residency 1 pending compiled resource evidence"));
   return result;
 }

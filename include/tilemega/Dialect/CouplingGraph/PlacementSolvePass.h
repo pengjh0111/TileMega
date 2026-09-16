@@ -20,6 +20,7 @@ struct PlacementSolveOptions {
   solver::ModelDims dims;
   int residency=1;
   int kappa=1;
+  int verified_resident_limit=0;
   solver::HopCurve hop;
 };
 struct PlacementSolveResult {
@@ -83,9 +84,10 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
     auto traits=ModelTaskTraits(model,int(s),g);
     threads=std::max(threads,traits.threads);max_shared=std::max(max_shared,traits.smem_bytes);
   }
-  // Register residency still requires ptxas confirmation; one CTA is safe for
-  // every legal body, whereas an unmeasured higher resident count is not.
-  if (options.residency!=1 || max_shared>options.target.res.max_dynamic_smem_per_cta)
+  // Higher residency must come from the compiler's whole-kernel occupancy
+  // query, never from the maximum of separate TaskBody resource estimates.
+  if (options.residency>std::max(1,options.verified_resident_limit) ||
+      max_shared>options.target.res.max_dynamic_smem_per_cta)
     throw std::invalid_argument("resident grid requires compiler-confirmed resource metadata");
   RuntimeProjectionOptions po{result.grid,threads,options.kappa};po.count_wait_entries=false;
   auto projection=ProjectRuntimeQueues(model,runtime,po);

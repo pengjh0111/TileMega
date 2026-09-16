@@ -54,7 +54,7 @@ inline std::vector<JointEvaluation> SearchL2Configurations(
     if(stats->evaluated==capacity) {++stats->capacity_deferred;continue;}
     auto inner=evaluate(c);++stats->evaluated;
     for(auto& r:inner) {
-      r.candidate=c;
+      if (r.candidate.key.empty()) r.candidate=c;
       if(r.status=="ok" && r.simulated) {
         if (!std::isfinite(r.floor_ns) || r.floor_ns<0 || !std::isfinite(r.makespan_ns))
           throw std::invalid_argument("invalid binding-bound evaluation");
