@@ -1,0 +1,14 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/WRITEBACK/legacy/bin/mha4_head",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/mha4_s2048_p512"
+  ],
+  "exit_code": 0,
+  "binary_sha256": "4041af791ce440616fa32513b4b66e8007d022f17cab4cc0ded604552a84dcf7",
+  "started_ns": 1789577873401439176,
+  "elapsed_ns": 21588157630,
+  "environment": {
+    "TILEMEGA_WARMUP": "0",
+    "TILEMEGA_REPEAT": "1"
+  }
+}

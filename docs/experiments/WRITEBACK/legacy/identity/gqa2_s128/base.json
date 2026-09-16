@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/WRITEBACK/legacy/bin/gqa2_base",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/gqa2_s128_p3"
+  ],
+  "exit_code": 0,
+  "binary_sha256": "955499e6c8da65ba6222821eda9f8d3ecce1b7dd8d0bff3741bafc309118be33",
+  "started_ns": 1789575690017613475,
+  "elapsed_ns": 350778163,
+  "environment": {
+    "TILEMEGA_WARMUP": "0",
+    "TILEMEGA_REPEAT": "1",
+    "TILEMEGA_PLAN_DUMP": "/root/TileMega/docs/experiments/WRITEBACK/legacy/identity/gqa2_s128/base"
+  }
+}
