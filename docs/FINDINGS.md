@@ -4687,3 +4687,188 @@ prologue exposure permits at most about 0.6% median path reduction if eliminated
 alone; deeper operand stalls would require a different experiment. Real-width
 instrumentation perturbation is being measured separately and is not hidden
 inside the reference-cell fork.
+
+## F-182 — Phase instrumentation closes the task interval without changing the fork
+
+✅ Verified: the phase-enabled reference builds pass 50/50 fresh processes in
+all four cells. In twelve placement/model/sequence pairs, the largest reference
+median on/off ratio is 1.045860, below 1.05. All 135568 original-matrix nodes have
+nonnegative phases and exact four-part closure against run_end-run_begin.
+`PHASE/raw/{correctness,measure,trace}` contains the raw evidence; ns and
+clock64 boundaries are both retained. The independently compiled sm_120 phase
+body passes compilation on the 4090, with no sm_120 execution claimed.
+
+✅ The original four rotate reference cells keep the frozen F-181 rule. The
+full CP/all-node phase tables and operand-byte associations are reproduced by
+`JOINT/collect.py`. Phase-only builds omit event-line timestamps: the retained
+historical hop columns are unavailable, explicitly marked by
+`phase_event_timestamps_available=0`; they are not used as phase costs.
+The initial real-s128 rotate snapshot is slower than its repeated timing cohort;
+a single snapshot is not a robust estimate of the target's median task cost.
+
+⚠️ Inferred: first-prologue exposure is small; it does not bound stalls inside
+the pipelined mainloop. The four phases partition time, not independent
+hardware bottlenecks. SIMT load_wait=0 is a structural boundary convention.
+
+## F-183 — Fast bounds fit the budget but do not preserve the required ranking
+
+✅ Fresh CPU evaluations in `SIMULATOR/r5/evaluations.tsv`: full simulation's
+worst reference/real-width times are 140259.531/138348.284 us, failing the
+1000/10000 us gates. Coarse evaluation's maxima are 151.007/619.341 us;
+preparation is separately timed. On the historical 18-point calibration set,
+coarse Spearman is 0.561240985, full Spearman 0.880288958, and actual top1 has
+coarse rank 1. `ranks.tsv` retains the k=1..5 cost/quality tradeoff. Top-k=3
+includes boundary ties, preserving uncertain candidates instead of resolving
+ties using GPU measurements. The simultaneous budget/ranking gate fails.
+
+✅ Replaying 68 R3/R4 dumps yields absolute relative errors p50 0.045399639,
+p90 0.108475523 and maximum 0.138277099. The 24 windowed dumps use their
+observed execution order as a FIFO approximation; they are not a window
+execution prediction. The remaining 44 are W=1. Raw inputs and per-evaluation
+CPU timings remain under `SIMULATOR/r5/`.
+
+⚠️ Inferred model parameters, not instruction latencies: publication
+1074.1284026707756 ns and consumer wait 1764.3682109690692 ns are fitted from
+R4 marginal probes and corrected paths, retaining primitive hop
+1235.411801 ns. Actual runtime stage-wide publishing flags are used; a minimal
+cross-consumer mask is an idealization, not the current publisher set.
+Trace-observed task weights disable a second occupancy stretch. Historical
+replay is an explanatory check and does not establish unseen-tile accuracy.
+
+⚠️ Stated degradation: EX-S3 enumerates the full requested axis catalog, but
+projects three distinct priority geometries plus L1/R4 seeds, with all retained
+kappa/residency combinations and all six placements. Capacity deferrals are
+explicit in screen.tsv; they are not renamed bound pruning. Unmeasured catalog
+points have no empirical percentile, so S3-c cannot be certified from top-3.
+
+## F-184 — Joint configuration selection shortens task cost and uses more width
+
+✅ Four reference cells achieve S3-b, using 25 new rotated confirmation rounds
+after a separate five-round pilot and frozen choice. Selected/control median
+ratios and bootstrap 95% CIs (gqa2 s4/s128, mha4 s4/s128) are
+0.409039 [0.405965,0.413588], 0.549580 [0.548132,0.550373],
+0.460194 [0.458923,0.462054], 0.553799 [0.550798,0.559244].
+All four selected configurations also pass 50/50 fresh correctness processes.
+The control is the same-session rotate + R3 B protocol, not historical 0.7129 ms.
+
+✅ Selected tile/split/kappa/CTA-per-SM/placement:
+32x16x64s2/1/1/1/EFT; 32x16x32s2/1/1/5/EFT;
+32x16x64s2/1/1/1/EFT; 32x16x16s2/1/2/5/EFT.
+Corrected CP lengths change 228352→89088, 320512→190464,
+452608→185344, 645120→393216 ns. Node counts change 20→20,
+20→19, 40→40, 40→40. queue_lb/CP changes
+0.1704→0.9425, 0.4473→0.8871, 0.1719→0.9061, 0.4270→0.9271.
+`JOINT/reference_paths.tsv` and the raw trace directories preserve both graphs.
+This is primarily cheaper nodes and broader execution, not removal of stages.
+
+✅ Fresh ChainDP's uniform L1 seed is 32x16x16s2 split1, not the R4
+128x128x16s3 split1 baseline. Relative to the same-cell top1 L1-geometry arm,
+selected/top1 is 0.829630, 0.948498, 0.847684 and 0.944559; their 95% CIs all
+exclude 1. The last contrast changes kappa, not tile geometry. Per-operator
+L1 DP also chooses split4/8 in some GEMMs; its complete fresh output is in
+`PHASE/chain_dp/`. Thus the gain against R4 must not all be attributed to the
+L2 objective: adopting a better geometry accounts for part of it.
+
+⚠️ Inferred mechanism: at seq4, the real baseline M=128 leaves only 4/128
+logical rows active in a full tensor-core tile; M=32 reduces this padding.
+N=16 distributes independent output tiles more widely. K=64 reduces the
+number of mainloop iterations in the short-sequence winner. The current
+70%-area/30%-operand-size extrapolator does not price K-loop fixed cost and
+predicts K16/32/64 ties that fresh measurements separate. Calibrating per-K
+iteration setup/copy/wait costs is the concrete next model change.
+
+## F-185 — Numerical admissibility is a configuration constraint at real width
+
+✅ The initial real-s4 32x128 split8 shortlist and real-s128 128x128 split2
+shortlist fail one CPU-BF16 golden element, while L0.5/L1/L2 agree exactly.
+Both original control cells pass. These are new-configuration failures, not
+regressions in an existing configuration or evidence of a synchronization bug.
+`JOINT/raw/real_s*/numeric_diagnostic/details` reproduces the offending values:
+s4 index3224 is 1.34375 versus 1.3046875 (delta0.0390625, tolerance0.0368750021);
+s128 index6597 is -0.138671875 versus -0.118652344
+(delta0.0200195312, tolerance0.0178984385). No tolerance or golden changes.
+
+✅ The real-s4 expanded split sweep admits 1/2/16/32 and rejects 4 in one
+fresh process each; these probes are not 50/50 claims. Geometry exclusions
+reference raw failed logs and apply independently of placement, since even
+L0.5 fails. Rejected pilot/build evidence remains in rejected_split8 and
+rejected_split2. New admissible shortlists get fresh pilot/confirmation cohorts.
+
+⚠️ Inferred cause: FP32 split partial accumulation followed by BF16 rounding
+changes the arithmetic reduction order and propagates through later layers.
+`GemmCombineTaskBody` already preserves rounding before residual addition;
+removing that boundary would not be a valid repair. The next extension is
+per-GEMM split admission: locate the first diverging stage, keep it unsplit,
+and retain parallel splits at stages whose measured error stays admissible.
+This is a specific search constraint to solve, not a conclusion that split-K
+has no benefit.
+
+## F-186 — Real-width selection moves the active floor to worker queues
+
+✅ Final admitted real-s4 and real-s128 selections each pass 50/50 fresh
+processes. Their 25-pair selected/control ratios are 0.873807459
+[0.872940156,0.874120290] and 1.009736191
+[0.997029998,1.039465695]. The latter does not establish improvement.
+Selected configurations are 32x16x16s2 split1/kappa1/residency2/EFT and
+64x128x16s2 split1/kappa1/residency2/wavefront. Raw pilot, frozen choices,
+confirmation and correctness are under `JOINT/raw/real_s{4,128}/`.
+
+✅ CP lengths change 4661248→2136064 ns (40→36 nodes) and
+4775936→4687872 ns (37→40 nodes). Selected queue bounds are
+3757056/6644736 ns, exceeding CP by factors 1.758869/1.417431.
+Thus the active floor becomes queue work, unlike the reference cells.
+Selected L2/own-L1 is 0.917369/0.949472 and L2/own-floor is
+1.098392/1.049468. These floors use fresh traced task costs and are not
+geometry-independent hardware limits. The s128 shortlist needs new valid
+64x128 K32/K64 split1 measurements and explicit K-loop/residency pricing;
+those proposed alternatives have not been measured in this round.
+
+## F-187 — Selected phase costs and same-geometry split diagnostics
+
+✅ Supplemental selected CP setup/load/mainloop/epilogue fractions are:
+gqa2 s4 0.162500/0.062500/0.675000/0.100000;
+gqa2 s128 0.100529/0.031746/0.793651/0.074074;
+mha4 s4 0.163743/0.064327/0.643275/0.128655;
+mha4 s128 0.094488/0.013123/0.800525/0.091864;
+real s4 0.015707/0.004760/0.943360/0.036173;
+real s128 0.008827/0.004646/0.951220/0.035308.
+`JOINT/selected_phases.py` derives these from new private-slot dumps; they
+do not rewrite the pre-search FORK5. Mainloop includes copies and waits,
+so its dominance is not proof of arithmetic saturation.
+
+✅ At fixed 32x128x64s2 and 20480 first-tile operand bytes, the admitted
+real-s4 split1/16 diagnostic gives mean GEMM load_wait 3334.095/2951.381 ns
+and 8262.421/7369.500 cycles. CP load shares are 0.010402/0.077406.
+Both snapshots pass correctness. Splitting changes the DAG and shortens
+individual task work, increasing relative first-load exposure despite a
+smaller mean wait. This association is not an independently confirmed
+end-to-end performance comparison. Raw `operand_probe/` and derived
+`operand_split_probe.tsv` retain the evidence.
+
+## F-188 — Exact streaming repairs preparation without weakening legality
+
+✅ Graph-only runtime projection can defer unused wait cardinality, but
+`AttachProjectedEventMetrics` rejects an uncounted projection. Default counted
+projection is unchanged. The runtime-projection and execution-simulator tests
+pass; streamed small-cell DAGs, weights, predictions and all six generated
+sources match the earlier implementation byte-for-byte. Exact cache reuse
+requires identical dependency relation text and stage counts; a seq8 mismatch
+is rejected. CPU evidence is under `JOINT/self_check/`.
+
+✅ MHA seq2048 preparation emits 262144 nodes and a 9806 MB textual DAG.
+Coordinate-pair materialization previously exhausted host memory; streaming
+integer adjacency and exact relation reuse let preparation complete. The two
+selected geometries' DAG byte hashes agree, while placement, residency and
+kappa are re-solved independently. Sorted adjacency run encoding is lossless:
+each original is decoded and SHA256-checked before bulky text is replaced.
+This is storage compression, not graph sparsification. Initial failed/aborted
+attempts are retained in the raw preparation directories.
+
+✅ sm_120 runners pass SELF_CHECK on 4090, including compute-capability and
+inherited-environment rejection, disk-budget failure checks, parser checks,
+and compilation of contention plus a full phase-instrumented model object.
+No sm_120 GPU execution occurred. Target scripts export inputs, calibrate and
+solve Plans locally. Publication fitting now separately collects TRACE_V2
+and rejects phase-only zero event timestamps; the historical fitted parameters
+reproduce exactly after this guard. A different target FORK5 is recorded, and
+rule1 explicitly leaves conditional prefetch unresolved instead of claiming it.
