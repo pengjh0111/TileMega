@@ -1,0 +1,32 @@
+{
+  "configuration": "local2",
+  "criterion": "all four cells for every configuration; most cells at the registered threshold, then lowest protocol/barrier geometric mean",
+  "fastest_end_to_end": "baseline",
+  "l2_scores": {
+    "baseline": 0.712929886195347,
+    "c1": 0.717426621713376,
+    "c2": 0.7180167201878732,
+    "window2": 0.759529033721914,
+    "local2": 0.7366644246112045,
+    "window4": 0.7613192547163824,
+    "local4": 0.7385727748349528
+  },
+  "protocol_scores": {
+    "baseline": 2.424337228238512,
+    "c1": 2.5711809869003046,
+    "c2": 2.6018879675959687,
+    "window2": 2.926205580111266,
+    "local2": 1.541845662463073,
+    "window4": 2.9758613048790594,
+    "local4": 1.5749636357638341
+  },
+  "achieved_cells": {
+    "baseline": 0,
+    "c1": 0,
+    "c2": 0,
+    "window2": 0,
+    "local2": 0,
+    "window4": 0,
+    "local4": 0
+  }
+}

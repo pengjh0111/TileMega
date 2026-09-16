@@ -1,0 +1,45 @@
+[
+  {
+    "command": [
+      "python3",
+      "/root/TileMega/docs/experiments/CHAIN2/run.py",
+      "correctness"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "python3",
+      "/root/TileMega/docs/experiments/CHAIN2/run.py",
+      "measure"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "python3",
+      "/root/TileMega/docs/experiments/SYNC_V3/target_positions.py",
+      "measure"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "python3",
+      "/root/TileMega/docs/experiments/SYNC_V3/measure_matrix.py",
+      "--manifest",
+      "/root/TileMega/docs/experiments/SYNC_V3/matrix_manifest.json",
+      "--out",
+      "/root/TileMega/docs/experiments/SYNC_V3/ablation"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "python3",
+      "/root/TileMega/docs/experiments/SYNC_V3/realwidth.py",
+      "measure"
+    ],
+    "exit_code": 0
+  }
+]

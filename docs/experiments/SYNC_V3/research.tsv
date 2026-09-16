@@ -1,0 +1,5 @@
+model	seq	configuration	ratio	ci_low	ci_high	historical_ratio	historical_gap_closed	median_pass	evidence
+gqa2	4	local2	1.3625304136253058	1.3136160714285692	1.3732004429678877	2.23	0.7052598263208896	0	docs/experiments/SYNC_V3/ablation/local2/paired/gqa2_s4_p0
+gqa2	128	local2	1.806451612903228	1.786483839373161	1.8331658291457325	2.49	0.4587573067763571	0	docs/experiments/SYNC_V3/ablation/local2/paired/gqa2_s128_p0
+mha4	4	local2	1.2783990582695712	1.1873129862357876	1.3462826523777658	2.1	0.7469099470276626	0	docs/experiments/SYNC_V3/ablation/local2/paired/mha4_s4_p0
+mha4	128	local2	1.7960756832515747	1.5702110389610402	2.3185628742515	2.91	0.583206448559385	0	docs/experiments/SYNC_V3/ablation/local2/paired/mha4_s128_p0
