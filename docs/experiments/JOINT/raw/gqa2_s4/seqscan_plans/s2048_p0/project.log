@@ -1,0 +1,9 @@
+PROJECT imported gqa2 s2048
+PROJECT graph nodes=102400
+PROJECT placement=legacy_grid_stride
+PROJECT placement=rotate
+PROJECT placement=balanced
+PROJECT placement=eft
+PROJECT placement=wavefront
+PROJECT placement=chain
+JOINT_PROJECT PASS model=gqa2 seq=2048 nodes=102400 plans=6

@@ -1,0 +1,107 @@
+[
+  {
+    "gate": "D3-a/H2",
+    "status": "PASS",
+    "hard": true,
+    "detail": "models=2/2 bytes_identical final_source_stamp_valid",
+    "evidence": "/root/TileMega/docs/experiments/PHASE/sass_identity"
+  },
+  {
+    "gate": "D3-b",
+    "status": "PASS",
+    "hard": true,
+    "detail": "gqa2:s4=50/50 gqa2:s128=50/50 mha4:s4=50/50 mha4:s128=50/50",
+    "evidence": "/root/TileMega/docs/experiments/PHASE/raw/correctness"
+  },
+  {
+    "gate": "D3-c",
+    "status": "PASS",
+    "hard": true,
+    "detail": "gqa2:s4:p0=1.043578[1.041379,1.045690] gqa2:s4:p5=1.013986[1.011042,1.016719] gqa2:s128:p0=1.023541[1.023256,1.024834] gqa2:s128:p5=1.026545[1.024775,1.026957] mha4:s4:p0=1.045860[1.044360,1.048031] mha4:s4:p5=1.030627[1.028377,1.032572] mha4:s128:p0=1.025911[1.025067,1.026882] mha4:s128:p5=1.021204[1.020359,1.021609] real:s4:p0=1.004464[1.001075,1.008344] real:s4:p5=1.006492[1.005754,1.007293] real:s128:p0=0.984078[0.959777,1.010655] real:s128:p5=1.006492[1.005771,1.007652]",
+    "evidence": "/root/TileMega/docs/experiments/PHASE/raw/measure"
+  },
+  {
+    "gate": "D3-d",
+    "status": "PASS",
+    "hard": true,
+    "detail": "baseline_nodes=135568 supplemental_nodes=113544 max_relative_closure_error=0.000000000",
+    "evidence": "PHASE/raw/trace + JOINT/raw/*/{phase,operand_probe}"
+  },
+  {
+    "gate": "D3-e/H4",
+    "status": "PASS",
+    "hard": true,
+    "detail": "FORK5 rule=3 load_share=0.006 fixed_share=0.232 math_share=0.763 cells=4",
+    "evidence": "/root/TileMega/docs/experiments/PHASE/raw/trace"
+  },
+  {
+    "gate": "S1c-a",
+    "status": "FAIL",
+    "hard": true,
+    "detail": "reference_full_us=140259.531 real_full_us=138348.284",
+    "evidence": "/root/TileMega/docs/experiments/SIMULATOR/r5/evaluations.tsv"
+  },
+  {
+    "gate": "S1c-b",
+    "status": "FAIL",
+    "hard": true,
+    "detail": "points=18 coarse_rho=0.561240985 full_rho=0.880288958 actual_top1_coarse_rank=1",
+    "evidence": "/root/TileMega/docs/experiments/SIMULATOR/r5/evaluations.tsv"
+  },
+  {
+    "gate": "S1c-c",
+    "status": "PASS",
+    "hard": false,
+    "detail": "dumps=68 abs_relative_p50=0.045399639 p90=0.108475523 max=0.138277099",
+    "evidence": "/root/TileMega/docs/experiments/SIMULATOR/r5/replay.tsv"
+  },
+  {
+    "gate": "S3-a",
+    "status": "PASS",
+    "hard": true,
+    "detail": "gqa2:s4=50/50 gqa2:s128=50/50 mha4:s4=50/50 mha4:s128=50/50 SEQSCAN=PASS",
+    "evidence": "/root/TileMega/docs/experiments/JOINT/raw"
+  },
+  {
+    "gate": "S3-b",
+    "status": "PASS",
+    "hard": false,
+    "detail": "achieved=4/4 gqa2:s4:top3=0.409039[0.405965,0.413588] gqa2:s128:top2=0.549580[0.548132,0.550373] mha4:s4:top3=0.460194[0.458923,0.462054] mha4:s128:top3=0.553799[0.550798,0.559244]",
+    "evidence": "/root/TileMega/docs/experiments/JOINT/raw/*/measure"
+  },
+  {
+    "gate": "S1c-d",
+    "status": "PASS",
+    "hard": false,
+    "detail": "gqa2:s4:predicted_top1_measured_rank=3/3 gqa2:s128:predicted_top1_measured_rank=2/3 mha4:s4:predicted_top1_measured_rank=3/3 mha4:s128:predicted_top1_measured_rank=3/3 real:s4:predicted_top1_measured_rank=3/3 real:s128:predicted_top1_measured_rank=1/3",
+    "evidence": "/root/TileMega/docs/experiments/JOINT/raw/*/measure"
+  },
+  {
+    "gate": "S3-c",
+    "status": "FAIL",
+    "hard": true,
+    "detail": "gqa2:s4:predicted_top1_measured_rank=3/3 gqa2:s128:predicted_top1_measured_rank=2/3 mha4:s4:predicted_top1_measured_rank=3/3 mha4:s128:predicted_top1_measured_rank=3/3 real:s4:predicted_top1_measured_rank=3/3 real:s128:predicted_top1_measured_rank=1/3 catalog_top_3_percent=unresolved unmeasured_catalog_candidates_have_no_empirical_rank",
+    "evidence": "/root/TileMega/docs/experiments/JOINT/raw/*/measure"
+  },
+  {
+    "gate": "S3-d/f",
+    "status": "PASS",
+    "hard": false,
+    "detail": "gqa2:s4:control:cp_ns=228352,nodes=20,mean_ns=11417.600,queue_cp=0.170404,l2_l1=0.724194,l2_floor=1.237668 gqa2:s4:top3:cp_ns=89088,nodes=20,mean_ns=4454.400,queue_cp=0.942529,l2_l1=0.783217,l2_floor=1.295259 gqa2:s128:control:cp_ns=320512,nodes=20,mean_ns=16025.600,queue_cp=0.447284,l2_l1=0.800399,l2_floor=1.284345 gqa2:s128:top2:cp_ns=190464,nodes=19,mean_ns=10024.421,queue_cp=0.887097,l2_l1=0.761102,l2_floor=1.188172 mha4:s4:control:cp_ns=452608,nodes=40,mean_ns=11315.200,queue_cp=0.171946,l2_l1=0.727305,l2_floor=1.160351 mha4:s4:top3:cp_ns=185344,nodes=40,mean_ns=4633.600,queue_cp=0.906077,l2_l1=0.765472,l2_floor=1.303867 mha4:s128:control:cp_ns=645120,nodes=40,mean_ns=16128.000,queue_cp=0.426984,l2_l1=0.818002,l2_floor=1.297222 mha4:s128:top3:cp_ns=393216,nodes=40,mean_ns=9830.400,queue_cp=0.927083,l2_l1=0.699225,l2_floor=1.181641 real:s4:control:cp_ns=4661248,nodes=40,mean_ns=116531.200,queue_cp=0.367311,l2_l1=0.814461,l2_floor=1.013366 real:s4:top1:cp_ns=2136064,nodes=36,mean_ns=59335.111,queue_cp=1.758869,l2_l1=0.917369,l2_floor=1.098392 real:s128:control:cp_ns=4775936,nodes=37,mean_ns=129079.351,queue_cp=0.709262,l2_l1=0.910670,l2_floor=1.408240 real:s128:top1:cp_ns=4687872,nodes=40,mean_ns=117196.800,queue_cp=1.417431,l2_l1=0.949472,l2_floor=1.049468",
+    "evidence": "/root/TileMega/docs/experiments/JOINT/raw/*/trace"
+  },
+  {
+    "gate": "S3-e",
+    "status": "PASS",
+    "hard": false,
+    "detail": "real:s4=0.873807[0.872940,0.874120] correctness=50/50 real:s128=1.009736[0.997030,1.039466] correctness=50/50",
+    "evidence": "/root/TileMega/docs/experiments/JOINT/raw/real*"
+  },
+  {
+    "gate": "E4-conditional",
+    "status": "PASS",
+    "hard": false,
+    "detail": "not_applicable FORK5 rule=3 load_share=0.006 fixed_share=0.232 math_share=0.763 cells=4 EX-E4 excluded by frozen rule",
+    "evidence": "/root/TileMega/docs/experiments/PHASE/raw/trace"
+  }
+]

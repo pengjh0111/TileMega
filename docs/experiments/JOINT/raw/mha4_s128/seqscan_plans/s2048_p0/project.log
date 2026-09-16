@@ -1,0 +1,5 @@
+PROJECT imported mha4 s2048
+PROJECT exact relation cache=/root/TileMega/docs/experiments/JOINT/raw/mha4_s4/seqscan_graph_cache
+PROJECT graph nodes=262144
+PROJECT placement=eft
+JOINT_PROJECT PASS model=mha4 seq=2048 nodes=262144 plans=1

@@ -4872,3 +4872,28 @@ solve Plans locally. Publication fitting now separately collects TRACE_V2
 and rejects phase-only zero event timestamps; the historical fitted parameters
 reproduce exactly after this guard. A different target FORK5 is recorded, and
 rule1 explicitly leaves conditional prefetch unresolved instead of claiming it.
+
+## F-189 — Final R5 acceptance distinguishes speedup from search-model completion
+
+✅ The selected four reference configurations pass 50/50 each, both selected
+real-width configurations pass 50/50 each, and all twelve re-solved SEQSCAN
+cells pass 50/50 (600 fresh processes total). The independent phase builds
+also pass four reference cells at 50/50. No golden tolerance was changed.
+The final raw verifier completes every gate before returning its failure code;
+its full output and evidence paths are in `JOINT/verify_output.txt`.
+
+✅ Phase closure checks cover 135568 original and 113544 supplemental nodes,
+with no negative component and zero maximum relative closure error. Default
+OFF SASS is byte-identical for both reference models. The final evidence
+manifest names the last source/documentation commit, and the direct child
+contains only SASS identity artifacts. sm_120 execution remains pending by
+explicit round scope; both target scripts complete 4090 SELF_CHECK.
+
+⚠️ Stated incomplete gates: S1c-a (full-simulator time), S1c-b (coarse ranking)
+and S3-c (empirical full-catalog top-3% coverage) remain FAIL. The verifier
+returns 1; no gate is weakened. S3-b independently passes 4/4 reference cells.
+Real-s128's confidence interval includes parity. The reduced candidate set,
+K-loop extrapolation error, numerical exclusions and the real-width queue
+floor are concrete remaining work, not claims of a completed optimal search.
+The pilot-frozen real-s4 choice is retained even though another kappa ranks
+slightly faster in confirmation; selection is not changed after seeing it.

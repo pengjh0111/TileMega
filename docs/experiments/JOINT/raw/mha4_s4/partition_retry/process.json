@@ -1,0 +1,11 @@
+{
+  "exit_code": -15,
+  "recorded_ns": 1789561213943368589,
+  "reason": "Partitioned cardinality still allocates gigabytes. Project driver does not consume runtime_wait_entries; graph-only exact relation projection replaces this unnecessary count.",
+  "environment": {
+    "JOINT_PARTITION_WORKERS": "1",
+    "JOINT_PAST": "0",
+    "JOINT_PHASE_SEQ": "4",
+    "TILEMEGA_PROJECTION_TRACE": "1"
+  }
+}

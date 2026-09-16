@@ -1,0 +1,5 @@
+{
+  "origin": "raw/mha4_s4/seqscan_plans/s2048_p0",
+  "original_sha256": "714480cbd6400b3ebcc07a599861b202207eae9f92f15f8847fd718fab73dd29",
+  "condition": "reuse only when exact dependency relation text and stage counts match; worker ownership and placement are re-solved"
+}

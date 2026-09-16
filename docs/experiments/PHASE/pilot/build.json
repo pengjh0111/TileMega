@@ -1,0 +1,20 @@
+[
+  "/usr/local/cuda/bin/nvcc",
+  "-std=c++17",
+  "-O2",
+  "-arch=sm_89",
+  "-lineinfo",
+  "-DTILEMEGA_EVENT_KAPPA=1",
+  "-DTILEMEGA_TRACE_PHASE=1",
+  "-DTILEMEGA_PLACEMENT=5",
+  "-I/root/TileMega/include",
+  "-I/root/TileMega/third_party/cutlass/include",
+  "-I/root/TileMega/third_party/cutlass/tools/util/include",
+  "-I/root/TileMega/third_party/cutlass/test",
+  "/root/TileMega/docs/experiments/PLAN_CONTRACT/legacy_identity/plan/gqa2.cu",
+  "/root/TileMega/build-portable/libtilemega.a",
+  "-L/usr/local/cuda/lib64",
+  "-lcudart",
+  "-o",
+  "docs/experiments/PHASE/pilot/gqa2_phase"
+]
