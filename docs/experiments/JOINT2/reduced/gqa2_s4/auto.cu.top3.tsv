@@ -1,0 +1,4 @@
+rank	key	placement	tile_m	tile_n	tile_k	stages	split_k	kappa	residency	floor_ns	predicted_ns	source	cg
+1	32x16x64s2split4kappa1r4	eft	32	16	64	2	4	1	4	41600.2	143448	docs/experiments/JOINT2/reduced/gqa2_s4/auto.cu.top1.cu	docs/experiments/JOINT2/reduced/gqa2_s4/auto.cu.top1.mlir
+2	32x16x64s2split4kappa1r5	eft	32	16	64	2	4	1	5	41600.2	143448	docs/experiments/JOINT2/reduced/gqa2_s4/auto.cu.top2.cu	docs/experiments/JOINT2/reduced/gqa2_s4/auto.cu.top2.mlir
+3	32x16x64s2split4kappa1r5	rotate	32	16	64	2	4	1	5	41600.2	151596	docs/experiments/JOINT2/reduced/gqa2_s4/auto.cu.top3.cu	docs/experiments/JOINT2/reduced/gqa2_s4/auto.cu.top3.mlir

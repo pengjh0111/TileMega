@@ -1,0 +1,16 @@
+{
+  "arm": "top3",
+  "pilot_medians": {
+    "top1": 0.306368,
+    "top2": 0.306176,
+    "top3": 0.304832
+  },
+  "choice": {
+    "source": "/root/TileMega/docs/experiments/JOINT2/reduced/gqa2_s128/auto.cu.top3.cu",
+    "kappa": "4",
+    "residency": "5",
+    "placement_macro": "0"
+  },
+  "frozen_ns": 1789581204508583545,
+  "excluded": {}
+}

@@ -1,0 +1,4 @@
+rank	key	placement	tile_m	tile_n	tile_k	stages	split_k	kappa	residency	floor_ns	predicted_ns	source	cg
+1	32x16x64s2split1kappa1r5	eft	32	16	64	2	1	1	5	64366	136418	/root/TileMega/docs/experiments/JOINT2/reduced/gqa2_s128/auto.cu.top1.cu	/root/TileMega/docs/experiments/JOINT2/reduced/gqa2_s128/auto.cu.top1.mlir
+2	32x16x64s2split1kappa2r5	eft	32	16	64	2	1	2	5	64366	141770	/root/TileMega/docs/experiments/JOINT2/reduced/gqa2_s128/auto.cu.top2.cu	/root/TileMega/docs/experiments/JOINT2/reduced/gqa2_s128/auto.cu.top2.mlir
+3	32x16x64s2split1kappa4r5	eft	32	16	64	2	1	4	5	64366	141770	/root/TileMega/docs/experiments/JOINT2/reduced/gqa2_s128/auto.cu.top3.cu	/root/TileMega/docs/experiments/JOINT2/reduced/gqa2_s128/auto.cu.top3.mlir

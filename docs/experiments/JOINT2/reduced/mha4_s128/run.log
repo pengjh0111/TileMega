@@ -1,0 +1,20 @@
+DISK NEED_MIB=8192 FREE_MIB=1523788
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/reduced/mha4_s128/auto.cu.resources/1789578693375565618/0" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1523875
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/reduced/mha4_s128/auto.cu.resources/1789578693375565618/1" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1523779
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/reduced/mha4_s128/auto.cu.resources/1789578693375565618/2" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1520619
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/reduced/mha4_s128/auto.cu.resources/1789578693375565618/3" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1520661
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/reduced/mha4_s128/auto.cu.resources/1789578693375565618/4" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1520695
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/reduced/mha4_s128/auto.cu.resources/1789578693375565618/5" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1520727
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/reduced/mha4_s128/auto.cu.resources/1789578693375565618/6" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1520714
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/reduced/mha4_s128/auto.cu.resources/1789578693375565618/7" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1520588
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/reduced/mha4_s128/auto.cu.resources/1789578693375565618/8" resident=3
+SOLVE_SUMMARY evaluated=9 deferred=81 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=68 couplings=86 stages=60 symbolic_windows=86 fallback_windows=0 output=/root/TileMega/docs/experiments/JOINT2/reduced/mha4_s128/auto.cu
