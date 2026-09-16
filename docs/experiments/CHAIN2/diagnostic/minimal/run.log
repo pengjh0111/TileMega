@@ -1,0 +1,4 @@
+CHAIN_REJECT model=mha4 seq=128 source=cost_model count=2127388
+CHAIN_REJECT model=mha4 seq=128 source=trace count=2135580
+CHAIN_CELL model=mha4 seq=128 nodes=11920 grid=256 solve_us=4.99285e+06 chains=1 interleaves=0 splits=0 fill_overflows=1383 spine_ns=18540.9 worker_sm=traced
+CHAIN_SUMMARY cells=1

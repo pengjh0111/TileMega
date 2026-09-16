@@ -1,0 +1,17 @@
+CHAIN_REJECT model=gqa2 seq=4 source=cost_model count=412
+CHAIN_REJECT model=gqa2 seq=4 source=trace count=1084
+CHAIN_CELL model=gqa2 seq=4 nodes=200 grid=256 solve_us=2901.34 chains=32 interleaves=0 splits=0 fill_overflows=0 spine_ns=19239.5 worker_sm=modulo
+CHAIN_REJECT model=mha4 seq=4 source=cost_model count=908
+CHAIN_REJECT model=mha4 seq=4 source=trace count=3276
+CHAIN_CELL model=mha4 seq=4 nodes=512 grid=256 solve_us=7586.06 chains=48 interleaves=0 splits=0 fill_overflows=0 spine_ns=19242.7 worker_sm=traced
+CHAIN_REJECT model=real seq=4 source=cost_model count=25952
+CHAIN_CELL model=real seq=4 nodes=2800 grid=256 solve_us=80535.1 chains=1 interleaves=0 splits=0 fill_overflows=58 spine_ns=144352 worker_sm=modulo
+CHAIN_REJECT model=gqa2 seq=128 source=cost_model count=538124
+CHAIN_REJECT model=gqa2 seq=128 source=trace count=542220
+CHAIN_CELL model=gqa2 seq=128 nodes=4416 grid=256 solve_us=483706 chains=64 interleaves=0 splits=0 fill_overflows=844 spine_ns=30235.1 worker_sm=traced
+CHAIN_REJECT model=mha4 seq=128 source=cost_model count=2127388
+CHAIN_REJECT model=mha4 seq=128 source=trace count=2135580
+CHAIN_CELL model=mha4 seq=128 nodes=11920 grid=256 solve_us=2.27109e+06 chains=1 interleaves=0 splits=0 fill_overflows=948 spine_ns=18537.7 worker_sm=traced
+CHAIN_REJECT model=real seq=128 source=cost_model count=34394336
+CHAIN_CELL model=real seq=128 nodes=47936 grid=256 solve_us=3.05586e+07 chains=1 interleaves=0 splits=0 fill_overflows=4000 spine_ns=143771 worker_sm=modulo
+CHAIN_SUMMARY cells=6

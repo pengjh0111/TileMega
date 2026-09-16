@@ -1,0 +1,3 @@
+model	seq	source	nodes	observed	solo_work_ns	spine_length_ns	max_queue_ns	chain_count	chain_interleaves	split_count	makespan_ns	fill_overflows	worker_diff	solve_us
+mha4	128	cost_model	11920	11920	9659072.598	18540.91847	169990.2328	1	0	0	571942.1558	1383	0	4992847.949
+mha4	128	trace	11920	11920	52825960.33	23552	335240.4825	1	0	0	1029435.639	520	9217	4754214.707

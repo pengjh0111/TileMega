@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/CHAIN2/raw/minimal/place_chain",
+    "/root/TileMega",
+    "/root/TileMega/docs/experiments/CHAIN2/diagnostic/minimal/manifest.tsv",
+    "/root/TileMega/docs/experiments/CHAIN2/diagnostic/minimal"
+  ],
+  "environment": {
+    "TILEMEGA_CHAIN_COST_AWARE": "1",
+    "TILEMEGA_CHAIN_FEEDBACK": "4",
+    "TILEMEGA_CHAIN_PATH_DUMP": "/root/TileMega/docs/experiments/CHAIN2/diagnostic/minimal/path"
+  },
+  "exit_code": 0,
+  "binary_sha256": "e481c50ffa926a083f56129f24a2038b1734820f2d2a973eda0c0f77e2bafc41"
+}

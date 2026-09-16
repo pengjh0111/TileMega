@@ -1,0 +1,16 @@
+{
+  "cost_aware_extend": true,
+  "feedback_rounds": 4,
+  "cap_fill": true,
+  "chain_stop_ratio": 1.0,
+  "selection": "Frozen from CPU mechanism diagnosis before any R4 Chain2 GPU measurements. Four existing simulator-feedback rounds carry realized queue blocking into extraction; pure price testing remains an explicit diagnostic arm.",
+  "hop_source": "docs/experiments/SIMULATOR/hop_ns.tsv",
+  "weight_source": "the cost_model rows of chain_weights.tsv",
+  "gpu_protocol": "configuration A, matching the status-quo hop calibration; all C switches disabled",
+  "controls": [
+    "rotate",
+    "original_chain_feedback0",
+    "chain_feedback4_cost_off"
+  ],
+  "candidate": "chain_feedback4_cost_on"
+}

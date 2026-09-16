@@ -1,0 +1,43 @@
+{
+  "manifest": "docs/experiments/PLACE_EFT2/raw/manifest.tsv",
+  "manifest_sha256": "026e6b362b7f062ab8f4d2163100496309fe8a9738dba79e1acb63b97c855ec4",
+  "commands": {
+    "on": {
+      "argv": [
+        "docs/experiments/CHAIN2/raw/place_chain",
+        "/root/TileMega",
+        "docs/experiments/PLACE_EFT2/raw/manifest.tsv",
+        "docs/experiments/CHAIN2/final/on"
+      ],
+      "environment": {
+        "TILEMEGA_CHAIN_COST_AWARE": "1",
+        "TILEMEGA_CHAIN_FEEDBACK": "4"
+      }
+    },
+    "off": {
+      "argv": [
+        "docs/experiments/CHAIN2/raw/place_chain",
+        "/root/TileMega",
+        "docs/experiments/PLACE_EFT2/raw/manifest.tsv",
+        "docs/experiments/CHAIN2/final/off"
+      ],
+      "environment": {
+        "TILEMEGA_CHAIN_COST_AWARE": "0",
+        "TILEMEGA_CHAIN_FEEDBACK": "4"
+      }
+    },
+    "replay": {
+      "argv": [
+        "docs/experiments/CHAIN2/raw/place_chain",
+        "/root/TileMega",
+        "docs/experiments/PLACE_EFT2/raw/manifest.tsv",
+        "docs/experiments/CHAIN2/final/replay"
+      ],
+      "environment": {
+        "TILEMEGA_CHAIN_COST_AWARE": "1",
+        "TILEMEGA_CHAIN_FEEDBACK": "4",
+        "TILEMEGA_CHAIN_PATH_DUMP": "docs/experiments/CHAIN2/final/replay/path"
+      }
+    }
+  }
+}

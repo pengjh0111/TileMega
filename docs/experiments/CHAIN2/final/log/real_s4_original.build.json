@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/usr/local/cuda/bin/nvcc",
+    "-std=c++17",
+    "-O2",
+    "-arch=sm_89",
+    "-lineinfo",
+    "-DTILEMEGA_EVENT_KAPPA=1",
+    "-DTILEMEGA_PLACEMENT=0",
+    "-I/root/TileMega/include",
+    "-I/root/TileMega/third_party/cutlass/include",
+    "-I/root/TileMega/third_party/cutlass/tools/util/include",
+    "-I/root/TileMega/third_party/cutlass/test",
+    "/root/TileMega/docs/experiments/PLACE_EFT2/raw/plan/real_s4_chain.cu",
+    "/root/TileMega/build-portable/libtilemega.a",
+    "-L/usr/local/cuda/lib64",
+    "-lcudart",
+    "-o",
+    "/root/TileMega/docs/experiments/CHAIN2/final/bin/real_s4_original"
+  ],
+  "source_sha256": "441cbd42a9a216199299efb88816db973e5cda42de5973fbc6cc44440e39c3ee",
+  "binary_sha256": "865a7ed8f74076e2edb6551caf3bb6f72e906fe4d96ecfca11c876ce20c469f7",
+  "head": "f026dfe6818c98c0f8cc9d94324095a7157440d1"
+}
