@@ -4662,3 +4662,28 @@ while interpreting the mean as every node's duration is incorrect.
 legacy and real-width are separate diagnostics. S3-b uses a fresh rotate +
 R3 B protocol control; the prompt's 0.7129 ms is legacy placement's historical
 geometric mean. No threshold or required coverage changes.
+
+## F-181 — Task phases freeze R5's search direction before implementation
+
+✅ Verified from twelve new phase dumps (two models and real-width, two
+sequences, legacy/rotate), with raw ns and cycle boundaries retained in
+`PHASE/raw/trace/`. The independent script prints exactly:
+
+```
+FORK5 rule=3 load_share=0.006 fixed_share=0.232 math_share=0.763 cells=4
+```
+
+⚠️ Stated decision: rule 3 excludes EX-E4 this round and directs EX-S3 to
+joint tile/split/kappa/residency selection. This line and its raw evidence are
+committed before the first EX-S3 implementation. The four rotate reference
+cells determine the median; legacy and real-width do not change the rule.
+
+⚠️ Inferred limitation: mainloop includes interleaved arithmetic, copies and
+waits, so 76.3% does not establish arithmetic saturation. SIMT loops have no
+separable first-operand prologue; their load_wait is zero by the documented
+boundary contract, not by a claim of free memory access. Epilogue includes the
+existing executor barrier tail, also exported separately. The measured first
+prologue exposure permits at most about 0.6% median path reduction if eliminated
+alone; deeper operand stalls would require a different experiment. Real-width
+instrumentation perturbation is being measured separately and is not hidden
+inside the reference-cell fork.
