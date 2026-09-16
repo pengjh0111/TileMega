@@ -1,0 +1,1 @@
+FORK6 rule=1 mainloop_exposed_wait_share=0.278 kloop_fixed_share=0.014 cells=4

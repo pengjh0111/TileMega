@@ -1,0 +1,33 @@
+{
+  "selected": {
+    "m": "32",
+    "n": "16",
+    "k": "16",
+    "stages": "2",
+    "split": "1",
+    "kappa": "1",
+    "residency": "2",
+    "status": "ok",
+    "work_lb_ns": "21149.46016969697",
+    "cp_lb_ns": "0.0",
+    "priority_ns": "971505.500001",
+    "estimated_work_ns": "248705408.0",
+    "estimated_stage_cp_ns": "652712.5",
+    "register_seed": "0",
+    "key": "32x16x16s2k1_k1_r2",
+    "placement": "eft",
+    "simulated": "1",
+    "makespan_ns": "1407001.96122",
+    "floor_ns": "1201370.07143",
+    "cp_ns": "652712.5",
+    "queue_lb_ns": "1201370.07143",
+    "nodes": "12208",
+    "grid": "256",
+    "grouping_model": "projected_events_and_sigma_lifting",
+    "source": "/root/TileMega/docs/experiments/JOINT/raw/real_s4/plans/32x16x16s2k1_k1_r2/eft.cu",
+    "placement_macro": "0",
+    "extra": [
+      "TRACE_KLOOP=1"
+    ]
+  }
+}

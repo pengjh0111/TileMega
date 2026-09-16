@@ -4897,3 +4897,38 @@ K-loop extrapolation error, numerical exclusions and the real-width queue
 floor are concrete remaining work, not claims of a completed optimal search.
 The pilot-frozen real-s4 choice is retained even though another kappa ranks
 slightly faster in confirmation; selection is not changed after seeing it.
+
+
+## F-190 — R6 K-loop waits distinguish K16, K32 and K64
+
+✅ Verified: the optional `TRACE_KLOOP` probe retains every R5 phase column,
+adds no synchronization, and writes accumulated loop counters only from
+thread0 after the loop. All six selected R5 configurations pass 50/50 fresh
+processes (four reference cells and two real-width cells). Raw logs and
+slot-private stamps are in `COSTMODEL/raw_kloop/`; `analyze_kloop.py` checks
+that loop body + exposed wait + outside-loop fixed work exactly equals each
+instrumented GEMM mainloop in clock cycles. The existing cp.async wait and
+CTA rendezvous are timed together, so this is operand availability latency,
+not a claim about pure DRAM latency.
+
+✅ Verified, on corrected-path GEMM mainloops: exposed-wait shares are
+0.164841/0.367150/0.188533/0.529201 for gqa2 s4/s128 and mha4 s4/s128.
+The median loop-iteration costs are 494.574/519.355/504.267/318.945 ns;
+median outside-loop fixed costs are 84.156/219.341/52.239/67.038 ns.
+Real-width s4/s128 exposed-wait shares are 0.638735/0.420782, with
+266.040/538.262 ns per iteration and 52.492/102.693 ns outside-loop fixed
+cost. These absolute values use each task's measured ns/cycle ratio.
+The paired geometric alternatives remain separate raw observations, not an
+end-to-end speedup claim.
+
+```
+FORK6 rule=1 mainloop_exposed_wait_share=0.278 kloop_fixed_share=0.014 cells=4
+```
+
+⚠️ Scope limitation: this line partitions instrumented GEMM K-loops. SIMT
+mainloops interleave loads and arithmetic and are retained explicitly as
+unmeasured by this extension. Dividing measured GEMM wait by all CP mainloop
+cycles instead gives a 0.161782 median lower bound; no SIMT wait is imputed.
+Thus the GEMM-scoped rule is not a verified whole-task-pipeline rule. The
+R7 decision must carry this measurement limitation rather than treating the
+unmeasured SIMT region as zero-latency arithmetic.
