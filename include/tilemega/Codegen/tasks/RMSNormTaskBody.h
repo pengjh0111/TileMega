@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Skeleton ref: §5.3.  Handwritten TaskBody; every shape arrives at run time.
 #pragma once
+#include <tilemega/Codegen/tasks/PhaseTrace.cuh>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
 #include <tilemega/Codegen/tasks/TaskResources.h>
@@ -24,18 +25,19 @@ struct RMSNormTaskBody {
   }
 
   __device__ static void RunTask(Params const& p, StageDesc const& stage,
-                                 SmemUnion& smem, int token) {
+                                 SmemUnion& smem, int token TILEMEGA_PHASE_ARG) {
     ModelElement const* input = p.buffers[stage.operand[0]];
     ModelElement const* weight = p.buffers[stage.operand[1]];
     ModelElement* output = p.buffers[stage.operand[2]];
     int hidden = static_cast<int>(stage.width);
+    TILEMEGA_PHASE_SIMT_SETUP();
     RunRow(input + token * hidden, weight, output + token * hidden,
-           hidden, smem.rms);
+           hidden, smem.rms TILEMEGA_PHASE_PASS);
   }
 
   __device__ static void RunRow(ModelElement const* input,
                                 ModelElement const* weight,
-                                ModelElement* output, int hidden, float* rms) {
+                                ModelElement* output, int hidden, float* rms TILEMEGA_PHASE_ARG) {
     float local = 0.0f;
     for (int d = threadIdx.x; d < hidden; d += blockDim.x) {
       float value = static_cast<float>(input[d]);
@@ -48,6 +50,7 @@ struct RMSNormTaskBody {
         rms[threadIdx.x] += rms[threadIdx.x + offset];
       __syncthreads();
     }
+    TILEMEGA_PHASE_STAMP(3);
     float scale = rsqrtf(rms[0] / hidden + 1.0e-6f);
     for (int d = threadIdx.x; d < hidden; d += blockDim.x)
       output[d] = ModelElement(

@@ -11,6 +11,10 @@
 #include <cutlass/util/packed_stride.hpp>
 
 #include <type_traits>
+#include <tilemega/Codegen/tasks/PhaseTrace.cuh>
+#if TILEMEGA_TRACE_PHASE
+#include <tilemega/Codegen/tasks/PhaseGemmMainloop.cuh>
+#endif
 
 #ifndef TILEMEGA_FUSION_SHARED_EPILOGUE
 #define TILEMEGA_FUSION_SHARED_EPILOGUE 1
@@ -440,7 +444,7 @@ struct GemmStageTaskBody {
 
   template <int Variant, bool SharedOutput = false>
   __device__ static void RunTask(GemmInvocation const& invocation, int local,
-                                 char* shared, ModelElement* tile_output = nullptr) {
+                                 char* shared, ModelElement* tile_output = nullptr TILEMEGA_PHASE_ARG) {
     using namespace cute;
     using Mainloop = typename GemmVariant<Variant>::Mainloop;
     using Epilogue = typename GemmVariant<Variant>::Epilogue;
@@ -464,9 +468,15 @@ struct GemmStageTaskBody {
     Tensor accum = partition_fragment_C(tiled_mma, take<0, 2>(tile_shape));
     clear(accum);
     auto k_iter = make_coord_iterator(shape<2>(gA));
+#if TILEMEGA_TRACE_PHASE
+    RunPhaseMainloop<Mainloop>(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
+                              static_cast<int>(threadIdx.x), shared, phase);
+#else
     Mainloop mainloop;
     mainloop(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
              static_cast<int>(threadIdx.x), shared);
+#endif
+    TILEMEGA_PHASE_STAMP(3);
     if constexpr (SharedOutput) {
       static_assert(TILEMEGA_FUSION_SHARED_EPILOGUE || !SharedOutput,
                     "shared fusion epilogue is disabled");
@@ -506,7 +516,7 @@ struct GemmStageTaskBody {
 
   __device__ static void RunLogicalTask(Params const& p,
                                         StageDesc const& stage,
-                                        SmemUnion& smem, int task) {
+                                        SmemUnion& smem, int task TILEMEGA_PHASE_ARG) {
     auto const* table = static_cast<GemmInvocation const*>(p.gemms);
     int const tiles = table[stage.gemm].tiles_m * table[stage.gemm].tiles_n;
     // CG appends the split axis: row-major task ids are (m,n,chunk).
@@ -515,52 +525,52 @@ struct GemmStageTaskBody {
     auto const& invocation = table[stage.gemm + coordinate.chunk];
     char* shared = reinterpret_cast<char*>(&smem.gemm);
 #if TILEMEGA_GEMM_VARIANT_COUNT == 1
-    RunTask<0>(invocation, local, shared);
+    RunTask<0>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS);
 #else
     switch (invocation.variant) {
-      case 0: RunTask<0>(invocation, local, shared); break;
-      case 1: RunTask<1>(invocation, local, shared); break;
+      case 0: RunTask<0>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 1: RunTask<1>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #if TILEMEGA_GEMM_VARIANT_COUNT > 2
-      case 2: RunTask<2>(invocation, local, shared); break;
+      case 2: RunTask<2>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 3
-      case 3: RunTask<3>(invocation, local, shared); break;
+      case 3: RunTask<3>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 4
-      case 4: RunTask<4>(invocation, local, shared); break;
+      case 4: RunTask<4>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 5
-      case 5: RunTask<5>(invocation, local, shared); break;
+      case 5: RunTask<5>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 6
-      case 6: RunTask<6>(invocation, local, shared); break;
+      case 6: RunTask<6>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 7
-      case 7: RunTask<7>(invocation, local, shared); break;
+      case 7: RunTask<7>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 8
-      case 8: RunTask<8>(invocation, local, shared); break;
+      case 8: RunTask<8>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 9
-      case 9: RunTask<9>(invocation, local, shared); break;
+      case 9: RunTask<9>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 10
-      case 10: RunTask<10>(invocation, local, shared); break;
+      case 10: RunTask<10>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 11
-      case 11: RunTask<11>(invocation, local, shared); break;
+      case 11: RunTask<11>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 12
-      case 12: RunTask<12>(invocation, local, shared); break;
+      case 12: RunTask<12>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 13
-      case 13: RunTask<13>(invocation, local, shared); break;
+      case 13: RunTask<13>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 14
-      case 14: RunTask<14>(invocation, local, shared); break;
+      case 14: RunTask<14>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 15
-      case 15: RunTask<15>(invocation, local, shared); break;
+      case 15: RunTask<15>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
 #endif
       default: break;
     }

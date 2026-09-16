@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Skeleton ref: §5.3.  Handwritten TaskBody; every shape arrives at run time.
 #pragma once
+#include <tilemega/Codegen/tasks/PhaseTrace.cuh>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
 #include <tilemega/Codegen/tasks/TaskResources.h>
@@ -36,13 +37,14 @@ struct KVAppendTaskBody {
   }
 
   __device__ static void RunTask(Params const& p, StageDesc const& stage,
-                                 SmemUnion&, int task) {
+                                 SmemUnion&, int task TILEMEGA_PHASE_ARG) {
     ModelElement const* source = p.buffers[stage.operand[0]];
     ModelElement const* prefix = p.buffers[stage.operand[1]];
     ModelElement* full = p.buffers[stage.operand[2]];
     int const dim = static_cast<int>(stage.width);
     int const seq = p.dims.seq, past = p.dims.past, total = p.dims.total;
     int const kv_heads = static_cast<int>(stage.extent);
+    TILEMEGA_PHASE_SIMT_SETUP();
     if (p.ownership_flags & kKVTileOwnership) {
       int token = task / kv_heads;
       int kv = task % kv_heads;

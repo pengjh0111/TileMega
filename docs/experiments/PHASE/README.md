@@ -34,3 +34,30 @@ Before phase measurements, freeze the following interpretations:
 `SIMULATOR/` new evidence is authorized by R5 §5 despite omission from H1's
 list of new directories. Existing experiment files remain untouched, except
 for the explicitly authorized TRACE_V2/analyze.py.
+
+## Phase boundary contract
+
+The optional phase ABI is compiled away when disabled. Only thread zero writes
+its private slot; the predicated CUTLASS mainloop retains every existing barrier
+and issues no new atomics. The first operand stamp follows the first existing
+copy-wait/barrier. SIMT setup is measured, but most SIMT loops interleave loads,
+math and stores: their load_wait is collapsed to zero and their mainloop includes
+those operations. RMSNorm separates reduction from final scaling/stores.
+
+The outer run interval already includes the executor's existing post-RunTask
+barrier. The reported epilogue therefore includes that harness tail, which is
+also exported separately from the body epilogue. This explicit extension is
+needed for the requested four-way closure against run_end minus run_begin;
+it must not be described as pure global-store time. Both globaltimer and
+clock64 boundaries are retained. The 1024 ns timer quantization remains visible.
+
+Phase-only builds do not stamp global events: historical hop/publish-event
+statistics that depend on event stamps are unavailable for these dumps. The
+corrected DAG path and phase columns use only slot stamps and remain valid.
+The legacy formulas are retained for historical comparison. A cached DAG-ready
+map replaces repeated HOL scans without changing their formula.
+
+`run.py` records fresh process pairs, commands, binary hashes and exit status.
+`analyze.py` replays the raw graph and writes phase values; `fork.py` implements
+the frozen rule. `sass_identity.py --provisional` compares baseline/current
+whole SASS; the final run is deliberately deferred until after all code/docs.

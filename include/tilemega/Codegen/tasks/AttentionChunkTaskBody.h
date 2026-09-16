@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Skeleton ref: §5.3.  Handwritten TaskBody; every shape arrives at run time.
 #pragma once
+#include <tilemega/Codegen/tasks/PhaseTrace.cuh>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
 #include <tilemega/Codegen/tasks/TaskResources.h>
@@ -30,7 +31,7 @@ struct AttentionTaskBody {
   }
 
   __device__ static void RunTask(Params const& p, StageDesc const& stage,
-                                 SmemUnion& smem, int query) {
+                                 SmemUnion& smem, int query TILEMEGA_PHASE_ARG) {
 #if TILEMEGA_CHUNKED_ATTENTION
     if (stage.operand[7] != kNoOperand && stage.operand[7] != 0) {
       AttentionPhasedTaskBody<Arch,SmemUnion,Threads>::RunTask(p,stage,smem,query);
@@ -49,6 +50,7 @@ struct AttentionTaskBody {
     int token = query / heads;
     int head = query % heads;
     int kv = head / (heads / kv_heads);
+    TILEMEGA_PHASE_SIMT_SETUP();
     for (int key_pos = threadIdx.x; key_pos < total;
          key_pos += blockDim.x) {
       float score = -INFINITY;

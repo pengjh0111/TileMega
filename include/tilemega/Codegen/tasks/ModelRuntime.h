@@ -236,9 +236,19 @@ struct TaskTrace {
   unsigned long long end;
 };
 
+#ifndef TILEMEGA_TRACE_PHASE
+#define TILEMEGA_TRACE_PHASE 0
+#endif
+
 #ifndef TILEMEGA_TRACE_V2
 #define TILEMEGA_TRACE_V2 0
 #endif
+
+/// EX-D3 slot-private task phase boundaries, in both timer domains.
+struct TaskPhase {
+  unsigned long long ns[6]; // run, setup, first operand, mainloop, body return, run end
+  unsigned long long cycles[6];
+};
 
 /// Trace v2 (EX-D1).  Where TaskTrace orders task boundaries, this records
 /// when they happened, so a per-hop latency can be reconstructed offline as
@@ -435,9 +445,12 @@ struct Params {
   std::uint32_t const* event_flags;
   TaskTrace* task_trace;                 ///< nullptr unless profiling
   unsigned long long* trace_sequence;    ///< nullptr unless profiling
-#if TILEMEGA_TRACE_V2
+#if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
   /// Guarded so a default build keeps the layout, and therefore the constant
   /// bank offsets and the SASS, it had before trace v2 existed (H2).
+#if TILEMEGA_TRACE_PHASE
+  TaskPhase* task_phase = nullptr;
+#endif
   TaskTraceV2* task_trace_v2;            ///< nullptr unless TILEMEGA_TRACE_V2=1
   /// Stamped by the last arriver of each event; the sole source of hop times.
   unsigned long long* event_publish;     ///< length event_count

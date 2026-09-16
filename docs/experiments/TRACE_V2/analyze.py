@@ -451,6 +451,7 @@ def analyze(dump, source=None, window=None, variant=0):
                cp_corrected_nodes=len(path), cp_corrected_task_ns=sum(run(s) for s in path),
                cp_plan_nosync_ns=plan_cp,
                cp_corrected_path=','.join(f'{rows[s]["stage"]}:{rows[s]["logical_task"]}' for s in path),
+               cp_realized_path=','.join(f'{rows[s]["stage"]}:{rows[s]["logical_task"]}' for s in realized_path),
                dag_same_worker_edges=sum(rows[p]['worker'] == rows[s]['worker'] for s in incoming for p in incoming[s]),
                dag_cross_worker_edges=sum(rows[p]['worker'] != rows[s]['worker'] for s in incoming for p in incoming[s]),
                cp_reconstructed_ns=reconstructed, cp_reconstructed_ms=reconstructed / 1e6,
@@ -466,6 +467,8 @@ def analyze(dump, source=None, window=None, variant=0):
     # Count actual head stalls once per worker, only when an eligible later
     # slot is dependency-ready; for W>1 this is not a FIFO-only estimate.
     start = min(r['wait_begin'] for r in slots)
+    dag_ready_at = {s: max((rows[p]['run_end'] for p in incoming[s]), default=start)
+                    for s in rows}
     hol = 0
     hol_workers = []
     for queue in queues.values():
@@ -478,7 +481,7 @@ def analyze(dump, source=None, window=None, variant=0):
             # Reclaimability asks whether opening the queue could expose work;
             # report all remaining slots, as the legacy HOL definition does.
             alternatives = [t for t in queue[head:] if t not in done and t != s]
-            ready_at = [max([rows[p]['run_end'] for p in incoming[t]] or [start]) for t in alternatives]
+            ready_at = [dag_ready_at[t] for t in alternatives]
             if ready_at:
                 worker_hol += max(0, hi - max(lo, min(ready_at)))
             done.add(s)
@@ -494,6 +497,49 @@ def analyze(dump, source=None, window=None, variant=0):
     return out
 
 
+def analyze_phases(dump, source, window=1, variant=0):
+    """Phase totals on the corrected semantic DAG path; no legacy columns change.
+
+    Absolute times use the original globaltimer stamps. clock64 supplies a
+    separate within-CTA share estimate, never an invented inter-SM clock.
+    Epilogue includes the separately reported return-to-run_end harness tail.
+    """
+    result = analyze(dump, source, window, variant)
+    _, slots, _, _ = load(dump)
+    phases = read_tsv(Path(dump) / 'phases.tsv')
+    by_slot = {r['slot']: r for r in slots}
+    path = {tuple(map(int, x.split(':'))) for x in result['cp_corrected_path'].split(',')}
+    names = ('run_begin', 'setup_end', 'first_operand_ready', 'mainloop_end', 'epilogue_end', 'run_end')
+    rows = []
+    for item in phases:
+        r = {k: int(v) for k, v in item.items()}
+        slot = by_slot[r['slot']]
+        out = dict(slot=r['slot'], stage=slot['stage'], logical_task=slot['logical_task'],
+                   kind=r['kind'], on_cp=int((slot['stage'], slot['logical_task']) in path),
+                   tile_m=r['tile_m'], tile_n=r['tile_n'], tile_k=r['tile_k'],
+                   split_k=r['split_k'], operand_bytes=r['operand_bytes'])
+        for unit in ('ns', 'cycles'):
+            stamps = [r[n+'_'+unit] for n in names]
+            if not stamps[0] or any(b<a for a,b in zip(stamps,stamps[1:])):
+                raise ValueError(f"nonmonotonic/missing phase: slot {r['slot']} {unit} {stamps}")
+            for name, lo, hi in [('setup',0,1),('load_wait',1,2),('mainloop',2,3),('epilogue',3,5),
+                                 ('body_epilogue',3,4),('harness_tail',4,5),('run',0,5)]:
+                out[name+'_'+unit]=stamps[hi]-stamps[lo]
+        if out['run_ns'] != slot['run_end']-slot['run_begin']:
+            raise ValueError(f"phase and slot clocks disagree: {r['slot']}")
+        rows.append(out)
+    if len(rows)!=len(slots): raise ValueError('phase slot coverage')
+    for label, group in [('all',rows),('cp',[r for r in rows if r['on_cp']])]:
+        for unit in ('ns','cycles'):
+            total=sum(r['run_'+unit] for r in group)
+            result[f'phase_{label}_run_{unit}']=total
+            for name in ('setup','load_wait','mainloop','epilogue','body_epilogue','harness_tail'):
+                v=sum(r[name+'_'+unit] for r in group)
+                result[f'phase_{label}_{name}_{unit}']=v
+                result[f'phase_{label}_{name}_share_{unit}']=v/total if total else 0
+    return result, rows
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("dumps", nargs="+", help="trace v2 dump directories")
@@ -504,7 +550,9 @@ def main():
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
 
-    rows = [analyze(d, args.source, args.window, args.variant) for d in args.dumps]
+    rows = [analyze_phases(d, args.source, args.window, args.variant)[0]
+            if args.source and (Path(d) / 'phases.tsv').exists()
+            else analyze(d, args.source, args.window, args.variant) for d in args.dumps]
     keys = list(rows[0].keys())
     with open(os.path.join(args.out, "analysis.tsv"), "w") as f:
         f.write("cell\t" + "\t".join(keys) + "\n")

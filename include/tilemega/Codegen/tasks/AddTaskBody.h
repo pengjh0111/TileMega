@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Codegen/tasks/PhaseTrace.cuh>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/GemmStageTaskBody.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
@@ -17,9 +18,10 @@ struct AddTaskBody {
     auto const& g=static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
     return {OwnershipOf(TaskKind::kAdd),g.tiles_m*g.tiles_n};
   }
-  __device__ static void RunTask(Params const& p,StageDesc const& stage,SmemUnion&,int task) {
+  __device__ static void RunTask(Params const& p,StageDesc const& stage,SmemUnion&,int task TILEMEGA_PHASE_ARG) {
     auto const& g=static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
     int m0=(task/g.tiles_n)*g.tile_m,n0=(task%g.tiles_n)*g.tile_n;
+    TILEMEGA_PHASE_SIMT_SETUP();
     for (int offset=threadIdx.x;offset<g.tile_m*g.tile_n;offset+=blockDim.x) {
       int m=m0+offset/g.tile_n,n=n0+offset%g.tile_n;
       if (m>=p.dims.seq || n>=int(stage.extent)) continue;

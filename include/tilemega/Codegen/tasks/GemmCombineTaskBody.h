@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Skeleton ref: §2.4 split reduction -- the combiner of a split-K GEMM.
 #pragma once
+#include <tilemega/Codegen/tasks/PhaseTrace.cuh>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/GemmStageTaskBody.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
@@ -51,11 +52,12 @@ struct GemmCombineTaskBody {
   }
 
   __device__ static void RunTask(Params const& p, StageDesc const& stage,
-                                 SmemUnion&, int task) {
+                                 SmemUnion&, int task TILEMEGA_PHASE_ARG) {
     auto const* partials = reinterpret_cast<ModelPartialElement const*>(p.buffers[stage.operand[0]]);
     ModelElement* out = p.buffers[stage.operand[1]];
     int count = p.dims.seq * static_cast<int>(stage.width);
     int chunks = static_cast<int>(stage.group);
+    TILEMEGA_PHASE_SIMT_SETUP();
     if (p.ownership_flags & kCombinerTileOwnership) {
       auto const& invocation =
           static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
