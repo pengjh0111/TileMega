@@ -419,7 +419,7 @@ double CostModel::TaskCostNs(DerivedTaskInput const& input, BackendTraits const&
 double CostModel::TaskInstanceNs(DerivedTaskInput const& input, BackendTraits const& traits,
     Residency residency, ModelDescription const& model, int chunks,
     analysis::ParamBinding const& coordinates, double active_ctas_per_sm,
-    TaskMemoryTraffic const* memory) const {
+    TaskMemoryTraffic const* memory,TaskMemoryTraffic const* derived_scalar_traffic) const {
   if (!std::isfinite(active_ctas_per_sm) || active_ctas_per_sm<1 ||
       active_ctas_per_sm>residency.ctas_per_sm)
     throw std::invalid_argument("task instance requires valid wave occupancy");
@@ -450,7 +450,7 @@ double CostModel::TaskInstanceNs(DerivedTaskInput const& input, BackendTraits co
           input.task.CoordinateExtent(axis).Eval(known,known))
         throw std::invalid_argument("collective task instance outside domain");
   }
-  return TaskCostImpl(input,traits,residency,model,chunks,&coordinates,active_ctas_per_sm,memory);
+  return TaskCostImpl(input,traits,residency,model,chunks,&coordinates,active_ctas_per_sm,memory,derived_scalar_traffic);
 }
 
 double CostModel::ScalarInstanceNs(double bytes,double output_bytes,double flops,double transc,
@@ -519,7 +519,7 @@ double CostModel::TaskCostNs(AttentionPhaseWork const& input,BackendTraits const
 double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits const& traits,
                              Residency residency, ModelDescription const& model,
                              int chunks, analysis::ParamBinding const* coordinates,
-                             double active_ctas_per_sm,TaskMemoryTraffic const* memory) const {
+                             double active_ctas_per_sm,TaskMemoryTraffic const* memory,TaskMemoryTraffic const* derived_scalar_traffic) const {
   analysis::IslReferenceAudit audit(__func__);
 #if defined(TILEMEGA_DERIVED_TASK_COST) && !TILEMEGA_DERIVED_TASK_COST
   throw std::runtime_error("access-derived task pricing is disabled");
@@ -571,8 +571,15 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
       if (coordinates) points[q]=*coordinates;
       else points[q].Bind("q",first+q);
     }
-    auto traffic_batch=DeriveTaskMemoryTrafficBatch(input,known,points,
-        int(ElementBytes(dtype_)),int(ElementBytes(dtype_)));
+    // The batch caller already evaluated these exact access cardinalities.
+    // This is the original traffic, not a fusion memory override: resource
+    // flow, arithmetic, calibration and locality semantics stay identical.
+    if (derived_scalar_traffic && (!coordinates || ctas!=1))
+      throw std::invalid_argument("derived scalar traffic requires one instance");
+    auto traffic_batch=derived_scalar_traffic
+        ? std::vector<TaskMemoryTraffic>{*derived_scalar_traffic}
+        : DeriveTaskMemoryTrafficBatch(input,known,points,
+            int(ElementBytes(dtype_)),int(ElementBytes(dtype_)));
     for (double remaining=ctas;remaining>0;remaining-=grid) {
       double active=std::min(grid,remaining);
       double o=options_.wave_tail ? std::max(1.0,active/target_->res.num_sms)

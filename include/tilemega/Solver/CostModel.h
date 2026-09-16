@@ -214,7 +214,8 @@ class CostModel {
                         Residency residency, ModelDescription const& model,
                         int chunks, analysis::ParamBinding const& coordinates,
                         double active_ctas_per_sm,
-                        TaskMemoryTraffic const* memory=nullptr) const;
+                        TaskMemoryTraffic const* memory=nullptr,
+                        TaskMemoryTraffic const* derived_scalar_traffic=nullptr) const;
   double TaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,
                      Residency residency) const;
   // Exact algebraic collective wave price on a bounded seq domain. Rates
@@ -269,7 +270,8 @@ class CostModel {
   double TaskCostImpl(DerivedTaskInput const& input, BackendTraits const& traits,
                      Residency residency, ModelDescription const& model, int chunks,
                      analysis::ParamBinding const* coordinates,
-                     double active_ctas_per_sm,TaskMemoryTraffic const* memory=nullptr) const;
+                     double active_ctas_per_sm,TaskMemoryTraffic const* memory=nullptr,
+                        TaskMemoryTraffic const* derived_scalar_traffic=nullptr) const;
   double WavesNs(double per_sm_work_count, Residency residency,
                  GemmConfig const& config, double iters,
                  double dram_fraction) const;

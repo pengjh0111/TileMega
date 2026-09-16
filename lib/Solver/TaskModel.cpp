@@ -63,7 +63,8 @@ std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput co
     auto key=std::make_tuple(traffic[i].global_read_bytes,traffic[i].global_write_bytes,reduction[i]);
     auto found=classes.find(key);
     if (found==classes.end()) found=classes.emplace(key,cost.TaskInstanceNs(
-        input,traits,residency,model,chunks,coordinates[i],active_ctas_per_sm)).first;
+        input,traits,residency,model,chunks,coordinates[i],active_ctas_per_sm,nullptr,
+        collective ? nullptr : &traffic[i])).first;
     result.push_back(found->second);
   }
   return result;

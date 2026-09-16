@@ -17,11 +17,16 @@ int main(int argc,char** argv) try {
   auto theta=model.MetricBindings();int checked=0;
   for(auto const& semantic:model.task_semantics) {
     auto const& stage=model.stages.at(semantic.stage);
-    if(stage.IsCollective()) continue;
-    auto task=DeriveModelTaskInput(model,semantic,graph,nullptr);
+    if(stage.IsCollective() && semantic.op.kind!=analysis::OperatorKind::kMatmul)continue;
+    auto task=DeriveModelTaskInput(model,semantic,graph,stage.IsCollective()? &configs.at(stage.gemm):nullptr);
     auto n=task.work.task_count.SubstituteParams(theta).Eval({});
     std::vector<analysis::ParamBinding> points;
     for(long q:{0L,n/2,n-1}) if(q>=0 && q<n){analysis::ParamBinding p;p.Bind("q",q);points.push_back(p);}
+    if(stage.IsCollective()) {
+      points.clear();analysis::ParamBinding p;
+      for(auto const& name:task.cost_coordinates)p.Bind(name,0);
+      points.push_back(p);points.push_back(p);
+    }
     auto batch=DeriveTaskMemoryTrafficBatch(task,theta,points,2,2);
     auto traits=ModelTaskTraits(model,semantic.stage,configs.front());
     auto prices=PriceTaskInstances(cost,task,traits,{1},model,1,points);
