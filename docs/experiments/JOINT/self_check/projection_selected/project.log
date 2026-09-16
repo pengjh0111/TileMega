@@ -1,0 +1,5 @@
+PROJECT imported gqa2 s4
+PROJECT projected; streaming dependencies
+PROJECT graph nodes=648
+PROJECT placement=eft
+JOINT_PROJECT PASS model=gqa2 seq=4 nodes=648 plans=1

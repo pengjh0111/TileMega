@@ -21,6 +21,9 @@ struct RuntimeProjectionOptions {
   bool cg_split_task_order = TILEMEGA_CG_SPLIT_TASK_ORDER;
   bool partition_worker_counts = TILEMEGA_PROJECTION_PARTITION_WORKERS;
   bool split_count_periods = TILEMEGA_PROJECTION_SPLIT_PERIODS;
+  // Graph-only clients can defer the expensive symbolic wait cardinality.
+  // AttachProjectedEventMetrics rejects a projection with this disabled.
+  bool count_wait_entries = true;
 };
 
 struct ProjectedStage {

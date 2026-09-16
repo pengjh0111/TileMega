@@ -341,6 +341,7 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
     // Project away the consumer coordinate before counting: union cardinality
     // removes per-task duplicates AND repeated polls lifted along each queue.
     result.waits = relation(wait_pieces);
+    if (!options.count_wait_entries) return result;
     std::vector<analysis::QuasiPolynomial> wait_counts;
     // Producer and event kind are disjoint keys. Count each image separately
     // so barvinok need not partition a union across unrelated stage planes.
@@ -381,6 +382,8 @@ void AttachRuntimeEventMetrics(ModelDescription& model, codegen::RuntimePlan con
 void AttachProjectedEventMetrics(ModelDescription& model,codegen::RuntimePlan const& plan,
                                RuntimeProjection const& projection) {
   auto const& options=projection.options;
+  if (!options.count_wait_entries)
+    throw std::invalid_argument("runtime wait cardinality was deferred by graph-only projection");
   ModelRuntimeEventMetrics metrics;
   metrics.task_refs=projection.runtime_task_refs;
   metrics.wait_entries=projection.runtime_wait_entries;

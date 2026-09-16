@@ -1,0 +1,2 @@
+placement	simulated	makespan_ns	floor_ns	cp_ns	queue_lb_ns	nodes	grid	kappa	grouping_model	status
+eft	1	134848.443049	65592	65592	65592	648	128	1	projected_events_and_sigma_lifting	ok

@@ -21,6 +21,12 @@
 #include <numeric>
 #include <regex>
 #include <set>
+#include <functional>
+#include <array>
+#include <isl/map.h>
+#include <isl/set.h>
+#include <isl/point.h>
+#include <isl/val.h>
 using namespace tilemega;using namespace tilemega::solver;
 using namespace tilemega::experiments;
 using Row=std::map<std::string,std::string>;
@@ -46,10 +52,37 @@ void attach(mlir::ModuleOp module,Candidate const& c,dialect::PlacementTable con
   }
   if(mlir::failed(mlir::verify(module)))throw std::runtime_error("candidate Plan verifier");
 }
+// Stream finite relation components instead of building Points()'s vector of
+// heap-allocated coordinate pairs. Components may overlap; clients deduplicate
+// their integer adjacency/event keys exactly before using them.
+void VisitRelation(analysis::IslContext& ctx,std::string const& text,int arity,
+                   std::function<void(long const*)> const& visit) {
+  struct Sink { int arity; std::function<void(long const*)> const* visit; std::string error; } sink{arity,&visit,{}};
+  auto point=[](isl_point* p,void* data)->isl_stat {
+    auto& s=*static_cast<Sink*>(data);std::array<long,6> coordinates{};
+    for(int i=0;i<s.arity;++i){auto v=isl_point_get_coordinate_val(p,isl_dim_set,i);coordinates[i]=isl_val_get_num_si(v);isl_val_free(v);}
+    isl_point_free(p);
+    try { (*s.visit)(coordinates.data()); } catch(std::exception const& e){s.error=e.what();return isl_stat_error;}
+    return isl_stat_ok;
+  };
+  struct Parts { Sink* sink; decltype(point)* callback; } parts{&sink,&point};
+  auto component=[](isl_basic_set* b,void* data)->isl_stat {
+    auto& p=*static_cast<Parts*>(data);auto set=isl_set_from_basic_set(b);
+    auto status=isl_set_foreach_point(set,*p.callback,p.sink);isl_set_free(set);return status;
+  };
+  auto map=isl_map_read_from_str(ctx.raw(),text.c_str());
+  if(!map || isl_map_dim(map,isl_dim_param)!=0){isl_map_free(map);throw std::runtime_error("relation must be finite and bound");}
+  auto set=isl_map_wrap(map);
+  if(isl_set_is_bounded(set)!=isl_bool_true){isl_set_free(set);throw std::runtime_error("unbounded task relation");}
+  auto status=isl_set_foreach_basic_set(set,component,&parts);isl_set_free(set);
+  if(status!=isl_stat_ok)throw std::runtime_error("relation stream: "+sink.error);
+}
 int main(int argc,char**argv) try{
   if(argc!=14)throw std::runtime_error("project REPO EXPORT MODEL SEQ M N K STAGES SPLIT KAPPA RESID OUT TOP_K");
   analysis::IslContext isl;std::string repo=argv[1],name=argv[3],out=argv[12],error;
   int seq=std::stoi(argv[4]),kappa=std::stoi(argv[10]),res=std::stoi(argv[11]);
+  int past=std::getenv("JOINT_PAST")?std::stoi(std::getenv("JOINT_PAST")):3;
+  int phase_seq=std::getenv("JOINT_PHASE_SEQ")?std::stoi(std::getenv("JOINT_PHASE_SEQ")):seq;
   GemmConfig g{std::stoi(argv[5]),std::stoi(argv[6]),std::stoi(argv[7]),std::stoi(argv[8]),std::stoi(argv[9])};
   if(!TensorBF16ShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages))throw std::runtime_error("backend illegal shape");
   auto target=TargetSpec::FromJson(std::getenv("JOINT_TARGET")?std::getenv("JOINT_TARGET"):repo+"/configs/targets/sm_89.json");int grid=target.res.num_sms*res;
@@ -59,21 +92,27 @@ int main(int argc,char**argv) try{
   mlir::MLIRContext context;context.getOrLoadDialect<dialect::CGDialect>();
   auto module=frontend::TorchExportImporter{}.Import(argv[2],context,nullptr,options);
   auto runtime=codegen::ReadRuntimePlan(*module);
-  auto model=ModelDescription::FromCouplingGraph(*module,{seq,3,seq+3},name);
+  auto model=ModelDescription::FromCouplingGraph(*module,{seq,past,seq+past},name);
   std::cerr<<"PROJECT imported "<<name<<" s"<<seq<<std::endl;
-  auto projection=ProjectRuntimeQueues(model,runtime,{grid,128,kappa});
+  RuntimeProjectionOptions projection_options{grid,128,kappa};
+  projection_options.partition_worker_counts=std::getenv("JOINT_PARTITION_WORKERS") && std::string(std::getenv("JOINT_PARTITION_WORKERS"))=="1";
+  projection_options.count_wait_entries=false; // this driver consumes relations, not cardinality prices
+  auto projection=ProjectRuntimeQueues(model,runtime,projection_options);
   std::vector<int> counts;codegen::RuntimeTaskGraph graph;graph.stage_offsets={0};
   for(auto const&s:projection.stages){int n=s.task_count.Eval({});counts.push_back(n);graph.stage_offsets.push_back(graph.stage_offsets.back()+n);}
   int nodes=graph.stage_offsets.back();graph.successors.resize(nodes);graph.preferred_worker.resize(nodes);
-  for(auto const&e:projection.dependencies.Points()){
-    int p=graph.stage_offsets[e.second[0]]+e.second[1],c=graph.stage_offsets[e.first[0]]+e.first[1];graph.successors.at(p).push_back(c);
-  }
+  std::cerr<<"PROJECT projected; streaming dependencies"<<std::endl;
+  VisitRelation(isl,projection.dependencies.ToString(),4,[&](long const* e){
+    int p=graph.stage_offsets.at(e[2])+e[3],c=graph.stage_offsets.at(e[0])+e[1];graph.successors.at(p).push_back(c);
+  });
+  for(auto& edges:graph.successors){std::sort(edges.begin(),edges.end());edges.erase(std::unique(edges.begin(),edges.end()),edges.end());}
   std::vector<int> node_stage(nodes);std::vector<int> baseline_queue(grid);
   for(std::size_t s=0;s<counts.size();++s)for(int t=0;t<counts[s];++t){int n=graph.stage_offsets[s]+t;node_stage[n]=s;graph.preferred_worker[n]=t%grid;++baseline_queue[t%grid];}
   graph.baseline_max_queue=*std::max_element(baseline_queue.begin(),baseline_queue.end());
   std::cerr<<"PROJECT graph nodes="<<nodes<<std::endl;
   struct Phase{double fixed=0,loop=0,load=0;int count=0;};std::map<int,Phase> phases;
-  for(auto r:read(repo+"/docs/experiments/PHASE/raw/trace/"+name+"_s"+std::to_string(seq)+"_p5/node_phases.tsv")){
+  std::string phase_root=std::getenv("JOINT_PHASE_ROOT")?std::getenv("JOINT_PHASE_ROOT"):repo+"/docs/experiments/PHASE/raw";
+  for(auto r:read(phase_root+"/trace/"+name+"_s"+std::to_string(phase_seq)+"_p5/node_phases.tsv")){
     auto& p=phases[std::stoi(r.at("stage"))];++p.count;p.fixed+=std::stod(r.at("setup_ns"))+std::stod(r.at("epilogue_ns"));p.loop+=std::stod(r.at("mainloop_ns"));p.load+=std::stod(r.at("load_wait_ns"));}
   for(auto&[s,p]:phases){p.fixed/=p.count;p.loop/=p.count;p.load/=p.count;}
   SimulatorInput in;in.graph=&graph;in.task_ns.resize(nodes);
@@ -108,6 +147,10 @@ int main(int argc,char**argv) try{
   if(request.stage_order.size()!=counts.size())throw std::runtime_error("expanded generated schedule mismatch");
   request.physical_worker.resize(grid);std::iota(request.physical_worker.begin(),request.physical_worker.end(),0);
   std::vector<Candidate> candidates={{"legacy_grid_stride",dialect::PlacementMode::kLegacyGridStride,{}},{"rotate",dialect::PlacementMode::kRotate,{}},{"balanced",dialect::PlacementMode::kBalanced,{}},{"eft",dialect::PlacementMode::kEft,{}},{"wavefront",dialect::PlacementMode::kTemplate,{long(dialect::PlacementTemplate::kWavefront)}},{"chain",dialect::PlacementMode::kEft,{}}};
+  if(auto only=std::getenv("JOINT_ONLY_PLACEMENT")){
+    candidates.erase(std::remove_if(candidates.begin(),candidates.end(),[&](auto const& c){return std::string(c.name)!=only;}),candidates.end());
+    if(candidates.empty())throw std::runtime_error("unknown selected placement");
+  }
   std::vector<MaterializedPlan> plans;std::vector<dialect::PlacementTable> tables;
   for(auto c:candidates){request.mode=c.mode;request.params=c.params;request.eft_worker.clear();request.eft_slot.clear();
     if(std::string(c.name)=="eft"){EftRequest e;e.graph=&graph;e.task_ns=in.task_ns;e.grid=grid;e.sms=grid;e.ctas_per_sm=1;e.hop=hop;EftSchedule s;
@@ -115,7 +158,7 @@ int main(int argc,char**argv) try{
     if(std::string(c.name)=="chain"){ChainRequest e;e.graph=&graph;e.task_ns=in.task_ns;e.grid=grid;e.sms=grid;e.ctas_per_sm=1;e.hop=hop;e.cost_aware_extend=true;ChainSchedule s;
       if(!ScheduleByCriticalChain(e,&s,&error))throw std::runtime_error(error);request.eft_worker=s.worker;request.eft_slot=s.slot;}
     MaterializedPlan plan;if(!MaterializePlanPlacement(request,&plan,&error)||!CheckPlanLegality(graph,plan,&error))throw std::runtime_error(error);
-    dialect::PlacementTable table;table.seq=seq;table.past=3;table.grid=grid;
+    dialect::PlacementTable table;table.seq=seq;table.past=past;table.grid=grid;
     for(std::size_t s=0;s<counts.size();++s)for(int t=0;t<counts[s];++t){table.worker.push_back(plan.owner[s][t]);table.slot.push_back(plan.slot[s][t]);}
     plans.push_back(std::move(plan));tables.push_back(std::move(table));std::cerr<<"PROJECT placement="<<c.name<<std::endl;
   }
@@ -123,23 +166,26 @@ int main(int argc,char**argv) try{
   std::vector<MaterializedPlan const*> pointers;for(auto const&p:plans)pointers.push_back(&p);
   std::vector<RankedPlan> ranking;
   if(!RankPlans(in,bounds,pointers,sim,hop,std::stoul(argv[13]),&ranking,&error))throw std::runtime_error(error);
-  auto requested=projection.requested_events.Points();
+  auto requested=projection.requested_events.ToString();
   std::ofstream predicted(out+"/predicted.tsv");predicted<<std::setprecision(12)<<"placement\tsimulated\tmakespan_ns\tfloor_ns\tcp_ns\tqueue_lb_ns\tnodes\tgrid\tkappa\tgrouping_model\tstatus\n";
   for(auto r:ranking){
     std::string status="ok";auto const& plan=plans[r.index];
-    if(r.simulated){
+    bool validate_selected=std::getenv("JOINT_VALIDATE_PLACEMENT") && std::string(std::getenv("JOINT_VALIDATE_PLACEMENT"))==candidates[r.index].name;
+    if(r.simulated || validate_selected){
+      r.simulated=true;
       auto grouped=graph;SimulatorInput priced=in;priced.graph=&grouped;
       priced.publication_required.assign(nodes,0);priced.consumer_wait_required.assign(nodes,0);
       std::vector<std::set<std::pair<int,int>>> desired(nodes);
       std::set<int> publishing_stages;
-      for(auto const& [consumer,event]:requested){
-        int cs=consumer[0],ct=consumer[1],cn=graph.stage_offsets[cs]+ct;
-        int ps=event[1],kind=event[2],group=event[3];
-        if(kind==2 && plan.owner[ps][group]==plan.owner[cs][ct])continue;
-        publishing_stages.insert(ps);desired[cn].insert({ps,kind==0?-1:group});
+      VisitRelation(isl,requested,6,[&](long const* event){
+        int cs=event[0],ct=event[1],cn=graph.stage_offsets[cs]+ct;
+        int ps=event[3],kind=event[4],group=event[5];
+        if(kind==2 && plan.owner[ps][group]==plan.owner[cs][ct])return;
+        publishing_stages.insert(ps);
+        if(!desired[cn].insert({ps,kind==0?-1:group}).second)return;
         int begin=kind==0?0:group*kappa,end=kind==0?counts[ps]:std::min(counts[ps],begin+kappa);
         for(int pt=begin;pt<end;++pt)grouped.successors[graph.stage_offsets[ps]+pt].push_back(cn);
-      }
+      });
       for(auto& edges:grouped.successors){std::sort(edges.begin(),edges.end());edges.erase(std::unique(edges.begin(),edges.end()),edges.end());}
       for(int s:publishing_stages)for(int n=graph.stage_offsets[s];n<graph.stage_offsets[s+1];++n)priced.publication_required[n]=1;
       for(auto const& queue:plan.queue){std::set<std::pair<int,int>> seen;

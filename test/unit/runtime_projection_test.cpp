@@ -47,6 +47,20 @@ int main() {
         assert(projected.runtime_wait_entries.Eval(theta) == waits);
       }
     }
+    // Graph-only projection must preserve every task/dependency/event relation
+    // while refusing to advertise an uncomputed cardinality as a cost metric.
+    tilemega::solver::RuntimeProjectionOptions graph_options{2,2,1};
+    auto counted = tilemega::solver::ProjectRuntimeQueues(model,plan,graph_options);
+    graph_options.count_wait_entries=false;
+    auto graph_only = tilemega::solver::ProjectRuntimeQueues(model,plan,graph_options);
+    assert(graph_only.tasks.ToString()==counted.tasks.ToString());
+    assert(graph_only.dependencies.ToString()==counted.dependencies.ToString());
+    assert(graph_only.requested_events.ToString()==counted.requested_events.ToString());
+    assert(graph_only.waits.ToString()==counted.waits.ToString());
+    bool missing_count_rejected=false;
+    try { tilemega::solver::AttachProjectedEventMetrics(model,plan,graph_only); }
+    catch (std::invalid_argument const&) { missing_count_rejected=true; }
+    assert(missing_count_rejected);
     auto forced = tilemega::solver::ProjectRuntimeQueues(model,plan,{2,2,1,true});
     tilemega::solver::AttachRuntimeEventMetrics(model,plan,{2,2,1});
     assert(model.coupling_metrics.runtime);
