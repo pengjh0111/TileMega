@@ -64,9 +64,24 @@ struct PreparedExecutionGraph {
   codegen::RuntimeTaskGraph const* source = nullptr;
   std::vector<std::vector<int>> successors, producers;
   std::vector<int> group_of_node, producer_count;
+  bool forward_node_order=false;
 };
 bool PrepareExecutionGraph(codegen::RuntimeTaskGraph const& graph,
     PreparedExecutionGraph* out, std::string* error);
+
+// Immutable queue readiness can be reused across different calibrated task
+// prices. Rebuild this object whenever the graph or any worker queue changes.
+struct PreparedExecutionPlan {
+  codegen::RuntimeTaskGraph const* graph=nullptr;
+  MaterializedPlan const* plan=nullptr;
+  std::vector<std::vector<int>> queue;
+  std::vector<int> owner,unmet,cross_fanout,queue_next;
+  std::vector<unsigned char> cross_input;
+  long cross_edges=0,same_edges=0;
+  bool forward_node_order=false;
+};
+bool PrepareExecutionPlan(PreparedExecutionGraph const& graph,MaterializedPlan const& plan,
+    PreparedExecutionPlan* out,std::string* error);
 
 struct SimulatorInput {
   codegen::RuntimeTaskGraph const* graph = nullptr;
@@ -84,6 +99,7 @@ struct SimulatorInput {
   std::vector<unsigned char> publication_required;
   std::vector<unsigned char> consumer_wait_required;
   PreparedExecutionGraph const* prepared_graph = nullptr;
+  PreparedExecutionPlan const* prepared_plan = nullptr;
 };
 
 struct SimulatedTask {

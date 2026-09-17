@@ -317,6 +317,18 @@ int main() {
         REQUIRE(solver::SimulateExecution(input,plan,options,flat,&result,&error));
         REQUIRE_NEAR(result.makespan_ns,heap.makespan_ns);
         REQUIRE_NEAR(result.critical_path_ns,heap.critical_path_ns);
+        solver::PreparedExecutionPlan readiness;
+        REQUIRE(solver::PrepareExecutionPlan(prepared,plan,&readiness,&error));
+        input.prepared_plan=&readiness;
+        SimulatorResult cached;
+        REQUIRE(solver::SimulateExecution(input,plan,options,flat,&cached,&error));
+        REQUIRE_NEAR(cached.makespan_ns,result.makespan_ns);
+        for(int v=0;v<n;++v) {
+          REQUIRE_NEAR(cached.tasks[v].start_ns,result.tasks[v].start_ns);
+          REQUIRE_NEAR(cached.tasks[v].end_ns,result.tasks[v].end_ns);
+        }
+        auto different_plan=plan;
+        REQUIRE(!solver::SimulateExecution(input,different_plan,options,flat,&cached,&error));
         solver::PreparedPlanBounds prepared_bound;
         REQUIRE(solver::PreparePlanBounds(input,&prepared_bound,&error));
         solver::PlanBounds bound;

@@ -60,10 +60,13 @@ bool PrepareExecutionGraph(codegen::RuntimeTaskGraph const& graph,
   }
   PreparedExecutionGraph result;
   result.source=&graph;
+  result.forward_node_order=true;
+  int source_node=0;
   std::unordered_map<std::size_t,std::vector<int>> buckets;
   for (auto const& row:graph.successors) {
     std::size_t hash=row.size();
     for (int succ:row) {
+      result.forward_node_order &= succ>source_node;
       if (succ<0 || succ>=graph.stage_offsets.back()) {
         if (error) *error="prepared graph successor out of range";
         return false;
@@ -82,8 +85,82 @@ bool PrepareExecutionGraph(codegen::RuntimeTaskGraph const& graph,
     result.producers[group].push_back(int(result.group_of_node.size()));
     result.group_of_node.push_back(group);
     ++result.producer_count[group];
+    ++source_node;
   }
   *out=std::move(result);
+  return true;
+}
+
+bool PrepareExecutionPlan(PreparedExecutionGraph const& prepared,MaterializedPlan const& plan,
+    PreparedExecutionPlan* out,std::string* error) {
+  auto fail=[&](std::string message){if(error)*error=std::move(message);return false;};
+  if(!prepared.source || prepared.source->stage_offsets.empty() || plan.queue.empty())
+    return fail("readiness requires a prepared graph and worker queues");
+  auto const& graph=*prepared.source;int nodes=graph.stage_offsets.back(),grid=plan.queue.size();
+  // Flatten the plan's queues onto node ids once; everything below indexes by
+  // node, so sigma never has to be consulted again.
+  std::vector<int> owner_of(nodes, -1);
+  std::vector<std::vector<int>> queue(grid);
+  for (int w = 0; w < grid; ++w) {
+    queue[w].reserve(plan.queue[w].size());
+    for (std::size_t i = 0; i < plan.queue[w].size(); ++i) {
+      PlanQueueItem const& item = plan.queue[w][i];
+      int const stage = static_cast<int>(item.stage);
+      if (stage < 0 || stage + 1 >= static_cast<int>(graph.stage_offsets.size()))
+        return fail("the plan names stage " + std::to_string(stage) +
+                    ", which the task graph does not have");
+      int const node = graph.stage_offsets[stage] + item.logical;
+      if (node < graph.stage_offsets[stage] ||
+          node >= graph.stage_offsets[stage + 1])
+        return fail("the plan names task " + std::to_string(item.logical) +
+                    " of stage " + std::to_string(stage) + ", out of range");
+      if (owner_of[node] != -1)
+        return fail("stage " + std::to_string(stage) + " task " +
+                    std::to_string(item.logical) + " is queued twice");
+      owner_of[node] = w;
+      queue[w].push_back(node);
+    }
+  }
+  for (int node = 0; node < nodes; ++node)
+    if (owner_of[node] == -1)
+      return fail("stage " + std::to_string(StageOfNode(graph, node)) +
+                  " task " + std::to_string(node - graph.stage_offsets[StageOfNode(graph, node)]) +
+                  " is in no worker's queue");
+
+  int const groups=int(prepared.successors.size());
+  std::vector<int> unmet(nodes,0),cross_fanout(nodes,0);
+  std::vector<unsigned char> cross_input(nodes,0);
+  // Reuse graph membership and one worker histogram. Sorting owner lists for
+  // each successor group was more expensive than the event recurrence itself.
+  std::vector<int> consumer_counts(grid,0),touched;
+  long cross_edges=0,same_edges=0;
+  for (int g=0;g<groups;++g) {
+    auto const& producers=prepared.producers[g];
+    int first_owner=owner_of[producers.front()];bool mixed=false;
+    for (int n:producers) mixed|=owner_of[n]!=first_owner;
+    for (int succ:prepared.successors[g]) {
+      ++unmet[succ];int w=owner_of[succ];
+      if (!consumer_counts[w]++) touched.push_back(w);
+      cross_input[succ]|=mixed || w!=first_owner;
+    }
+    for (int n:producers) {
+      int same=consumer_counts[owner_of[n]];
+      cross_fanout[n]=int(prepared.successors[g].size())-same;
+      same_edges+=same;cross_edges+=cross_fanout[n];
+    }
+    for (int w:touched) consumer_counts[w]=0;
+    touched.clear();
+  }
+
+  out->graph=&graph;out->plan=&plan;out->queue=std::move(queue);
+  out->owner=std::move(owner_of);out->unmet=std::move(unmet);
+  out->cross_fanout=std::move(cross_fanout);out->cross_input=std::move(cross_input);
+  out->cross_edges=cross_edges;out->same_edges=same_edges;
+  out->queue_next.assign(nodes,-1);
+  out->forward_node_order=prepared.forward_node_order;
+  for(auto const& row:out->queue)for(std::size_t i=1;i<row.size();++i) {
+    out->queue_next[row[i-1]]=row[i];out->forward_node_order &= row[i]>row[i-1];
+  }
   return true;
 }
 
@@ -125,37 +202,6 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
   int sm_count = 0;
   for (int sm : worker_sm) sm_count = std::max(sm_count, sm + 1);
 
-  // Flatten the plan's queues onto node ids once; everything below indexes by
-  // node, so sigma never has to be consulted again.
-  std::vector<int> owner_of(nodes, -1), position(nodes, -1);
-  std::vector<std::vector<int>> queue(grid);
-  for (int w = 0; w < grid; ++w) {
-    queue[w].reserve(plan.queue[w].size());
-    for (std::size_t i = 0; i < plan.queue[w].size(); ++i) {
-      PlanQueueItem const& item = plan.queue[w][i];
-      int const stage = static_cast<int>(item.stage);
-      if (stage < 0 || stage + 1 >= static_cast<int>(graph.stage_offsets.size()))
-        return fail("the plan names stage " + std::to_string(stage) +
-                    ", which the task graph does not have");
-      int const node = graph.stage_offsets[stage] + item.logical;
-      if (node < graph.stage_offsets[stage] ||
-          node >= graph.stage_offsets[stage + 1])
-        return fail("the plan names task " + std::to_string(item.logical) +
-                    " of stage " + std::to_string(stage) + ", out of range");
-      if (owner_of[node] != -1)
-        return fail("stage " + std::to_string(stage) + " task " +
-                    std::to_string(item.logical) + " is queued twice");
-      owner_of[node] = w;
-      position[node] = static_cast<int>(i);
-      queue[w].push_back(node);
-    }
-  }
-  for (int node = 0; node < nodes; ++node)
-    if (owner_of[node] == -1)
-      return fail("stage " + std::to_string(StageOfNode(graph, node)) +
-                  " task " + std::to_string(node - graph.stage_offsets[StageOfNode(graph, node)]) +
-                  " is in no worker's queue");
-
   PreparedExecutionGraph local_prepared;
   auto const* prepared=input.prepared_graph;
   if (!prepared) {
@@ -164,30 +210,22 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
   }
   if (prepared->source!=&graph || prepared->group_of_node.size()!=std::size_t(nodes))
     return fail("prepared graph belongs to a different immutable graph");
-  int const groups=int(prepared->successors.size());
-  std::vector<int> unmet(nodes,0),cross_fanout(nodes,0);
-  std::vector<unsigned char> cross_input(nodes,0);
-  // Reuse graph membership and one worker histogram. Sorting owner lists for
-  // each successor group was more expensive than the event recurrence itself.
-  std::vector<int> consumer_counts(grid,0),touched;
-  long cross_edges=0,same_edges=0;
-  for (int g=0;g<groups;++g) {
-    auto const& producers=prepared->producers[g];
-    int first_owner=owner_of[producers.front()];bool mixed=false;
-    for (int n:producers) mixed|=owner_of[n]!=first_owner;
-    for (int succ:prepared->successors[g]) {
-      ++unmet[succ];int w=owner_of[succ];
-      if (!consumer_counts[w]++) touched.push_back(w);
-      cross_input[succ]|=mixed || w!=first_owner;
-    }
-    for (int n:producers) {
-      int same=consumer_counts[owner_of[n]];
-      cross_fanout[n]=int(prepared->successors[g].size())-same;
-      same_edges+=same;cross_edges+=cross_fanout[n];
-    }
-    for (int w:touched) consumer_counts[w]=0;
-    touched.clear();
+
+  PreparedExecutionPlan local_plan;
+  auto const* readiness=input.prepared_plan;
+  if(!readiness) {
+    if(!PrepareExecutionPlan(*prepared,plan,&local_plan,error))return false;
+    readiness=&local_plan;
   }
+  if(readiness->graph!=&graph || readiness->plan!=&plan || readiness->owner.size()!=std::size_t(nodes))
+    return fail("prepared readiness belongs to a different immutable graph/plan");
+  auto const& owner_of=readiness->owner;
+  auto const& queue=readiness->queue;
+  auto unmet=readiness->unmet;
+  auto const& cross_fanout=readiness->cross_fanout;
+  auto const& cross_input=readiness->cross_input;
+  long cross_edges=readiness->cross_edges,same_edges=readiness->same_edges;
+  int const groups=int(prepared->successors.size());
   struct GroupCompletion {
     int remaining;
     double cross_first=0,cross_second=0,chain=0,end_max=0;
@@ -237,16 +275,16 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
   if (options.observed_task_times && (options.flat_hop || (hop.c1==0 && hop.c2==0))) {
     if (!std::isfinite(hop.c0) || hop.c0<0) return fail("invalid flat hop cost");
     out->tasks.assign(nodes,SimulatedTask{});
-    std::vector<int> queue_next(nodes,-1),ready_nodes;
+    auto const& queue_next=readiness->queue_next;
+    std::vector<int> ready_nodes;ready_nodes.reserve(nodes);
     std::vector<double> arrival(nodes,0),queue_end(nodes,0),worker_busy(grid,0);
-    for (auto const& row:queue) for (std::size_t i=1;i<row.size();++i) {
-      queue_next[row[i-1]]=row[i];++unmet[row[i]];
-    }
-    for (int n=0;n<nodes;++n) if (!unmet[n]) ready_nodes.push_back(n);
+    if(!readiness->forward_node_order)for(int next:queue_next)if(next>=0)++unmet[next];
+    if(!readiness->forward_node_order)for (int n=0;n<nodes;++n) if (!unmet[n]) ready_nodes.push_back(n);
     std::size_t visited=0;
     out->makespan_ns=out->total_work_ns=out->solo_work_ns=out->total_block_ns=0;
-    while (visited<ready_nodes.size()) {
-      int n=ready_nodes[visited++],w=owner_of[n];
+    while (visited<(readiness->forward_node_order ? std::size_t(nodes) : ready_nodes.size())) {
+      int n=readiness->forward_node_order ? int(visited) : ready_nodes[visited];++visited;
+      int w=owner_of[n];
       auto& task=out->tasks[n];task.worker=w;
       task.start_ns=std::max(arrival[n],queue_end[n])+consumer_wait[n];
       task.end_ns=task.start_ns+input.task_ns[n];task.block_ns=task.start_ns-queue_end[n];
@@ -254,7 +292,7 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
       out->makespan_ns=std::max(out->makespan_ns,task.end_ns+publication[n]);
       out->solo_work_ns+=input.task_ns[n];out->total_block_ns+=task.block_ns;
       worker_busy[w]+=input.task_ns[n];
-      auto release=[&](int succ) {if (--unmet[succ]==0) ready_nodes.push_back(succ);};
+      auto release=[&](int succ) {if (!readiness->forward_node_order && --unmet[succ]==0) ready_nodes.push_back(succ);};
       if (queue_next[n]>=0) {queue_end[queue_next[n]]=task.end_ns+publication[n];release(queue_next[n]);}
       auto& group=group_completion[prepared->group_of_node[n]];
       group.arrive(w,task.end_ns,task.end_ns+publication[n]+hop.c0);
