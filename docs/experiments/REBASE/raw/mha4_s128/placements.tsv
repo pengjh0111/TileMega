@@ -1,0 +1,7 @@
+placement	kappa	residency	grid	zero_sync_floor_ns	semantic_cp_ns	queue_lb_ns	predicted_ns	source
+rotate	1	4	512	135592	128732	94385	296591	/root/TileMega/docs/experiments/REBASE/raw/mha4_s128/rotate.cu
+wavefront	1	4	512	135592	128732	133131	296591	/root/TileMega/docs/experiments/REBASE/raw/mha4_s128/wavefront.cu
+eft	1	4	512	135605	128732	135605	295894	/root/TileMega/docs/experiments/REBASE/raw/mha4_s128/eft.cu
+chain	1	4	512	151259	128732	90060.4	336182	/root/TileMega/docs/experiments/REBASE/raw/mha4_s128/chain.cu
+legacy_grid_stride	1	4	512	193753	128732	191291	362699	/root/TileMega/docs/experiments/REBASE/raw/mha4_s128/legacy_grid_stride.cu
+balanced	1	4	512	294164	128732	135131	508224	/root/TileMega/docs/experiments/REBASE/raw/mha4_s128/balanced.cu

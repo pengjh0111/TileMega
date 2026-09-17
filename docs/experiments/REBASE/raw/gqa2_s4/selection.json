@@ -1,0 +1,21 @@
+{
+  "joint": "/root/TileMega/docs/experiments/JOINT2/reduced/gqa2_s4",
+  "choice": {
+    "arm": "top2",
+    "pilot_medians": {
+      "top1": 0.149504,
+      "top2": 0.14944,
+      "top3": 0.155488
+    },
+    "choice": {
+      "source": "/root/TileMega/docs/experiments/JOINT2/reduced/gqa2_s4/auto.cu.top2.cu",
+      "kappa": "1",
+      "residency": "5",
+      "placement_macro": "0"
+    },
+    "frozen_ns": 1789581204506074868,
+    "excluded": {}
+  },
+  "placement": "eft",
+  "frozen_commit": "4772fba175070711e80c87aeaf55bd3aa42adea7"
+}
