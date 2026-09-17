@@ -1,0 +1,26 @@
+DISK NEED_MIB=8192 FREE_MIB=1510127
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.resources/1789674594844353832/0" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1510073
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.resources/1789674594844353832/1" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1510046
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.resources/1789674594844353832/2" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1510212
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.resources/1789674594844353832/3" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1510208
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.resources/1789674594844353832/4" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1510195
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.resources/1789674594844353832/5" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1510153
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.resources/1789674594844353832/6" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1510187
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.resources/1789674594844353832/7" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1510185
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.resources/1789674594844353832/8" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1510131
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.resources/1789674594844353832/9" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1510179
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.resources/1789674594844353832/10" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1510179
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.resources/1789674594844353832/11" resident=5
+SOLVE_SUMMARY evaluated=12 deferred=36 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=48 couplings=56 stages=30 symbolic_windows=56 fallback_windows=0 output=docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu
