@@ -5171,3 +5171,50 @@ the existing structural region import to the covered attention cuts and
 assemble the largest connected/exportable covered graph before promoting
 this anchor to the EX-V1 main benchmark. `MODELS/subset.md` retains the exact
 cut boundaries and regeneration command.
+
+## F-197 — R6 improves both real-width controls while reference gates fail
+
+✅ Verified: all six frozen selected configurations pass 50/50 fresh
+processes. Selected reference SEQSCAN adds 400/400 at seq 4/128 and past
+0/512. Each cell has 25 same-session rotated rounds of control, R5 champion
+and the three predicted candidates. Separate five-round pilots determine the
+frozen choices; the confirmatory samples do not choose a new winner.
+Raw inputs are indexed by `JOINT2/cells.json`; process metadata and complete
+trace dumps remain next to each cell's `choice.json`.
+
+The unique research gate **J-a passes 2/2**. Real-width s4 selected/control
+is 0.556566970 [0.556037286, 0.577495619]; s128 is 0.927801799
+[0.913513489, 0.948331047]. Against the fresh R5 champions the ratios are
+0.637556076 [0.636955526, 0.638260870] and 0.934261122
+[0.905858521, 0.972870662]. These are paired bootstrap 95% intervals,
+not ratios to archived R5 timings. Full selected medians are 2.626560 and
+6.368480 ms; L2/L1 is 0.926678/0.954487 and measured/floor is
+1.113281/1.141560.
+
+✅ Verified: **J-b fails both real-width cells**. The selected semantic
+CP/queue bounds are 1275904/2359296 ns and 3277824/5578752 ns;
+queue/semantic-CP is 1.849117 and 1.701968. The fresh R5 champion ratios
+are 1.751788/1.428188 (historical R5: 1.7589/1.4174). Queue service decreases
+in absolute terms while the semantic path decreases more. The search's
+binding objective is not mathematically a constraint on their ratio.
+Replacing the denominator with a queue-containing union path would make
+this gate tautological; that substitution was not made.
+
+✅ Verified: **J-e fails 4/4**. Selected/R5-champion ratios, ordered gqa2
+s4/s128 and mha4 s4/s128, are 1.291205752 [1.285477178, 1.292035398],
+1.253164557 [1.252869015, 1.254237288], 1.345579955
+[1.342342342, 1.352684233], and 1.087647778 [1.085632000, 1.089210291].
+Their upper bounds exceed the unchanged 1.02 line. **J-d fails** as well:
+predicted top1 ranks 1/3, 3/3, 1/3, 1/3, 3/3, 3/3 across the six cells,
+so only 3/6 land in the measured top two (required at least four).
+Five selected placements are EFT; mha4 s128 selects rotate. Every evaluated
+geometry includes all six placement families, but the finite outer capacity
+is still an explicitly degraded search, not a global optimum certificate.
+
+⚠️ Inferred next work: the F-194 combine and serial-attention price errors
+remain large enough to change split, geometry and placement ranking. Repair
+those service prices and the active-residency term before enlarging the
+candidate domain. If queue/semantic-CP <=1 remains a required admissibility
+condition, search that feasible subset explicitly and measure its latency
+tradeoff; minimizing the maximum alone does not enforce the condition.
+The real-width gains do not erase these failed reference/ranking gates.
