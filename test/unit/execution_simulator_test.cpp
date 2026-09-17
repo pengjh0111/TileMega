@@ -282,6 +282,26 @@ int main() {
     REQUIRE_NEAR(result.makespan_ns, 10.0 + 1200.0 + 10.0);
   }
 
+  { // Non-topological node ids exercise the general ready-set recurrence.
+    auto graph=MakeGraph({4},{{2,0},{0,1}});
+    auto plan=MakePlan({4},{0,1,0,1},{1,1,0,0},2);
+    auto input=MakeInput(graph,{11,19,7,3});
+    SimulatorOptions options;options.sms=2;options.publication_ns=13;
+    options.consumer_wait_ns=7;
+    SimulatorResult heap,dag;
+    REQUIRE(solver::SimulateExecution(input,plan,options,flat,&heap,&error));
+    options.observed_task_times=true;
+    REQUIRE(solver::SimulateExecution(input,plan,options,flat,&dag,&error));
+    REQUIRE_NEAR(heap.makespan_ns,dag.makespan_ns);
+    for(int i=0;i<4;++i) {
+      REQUIRE_NEAR(heap.tasks[i].start_ns,dag.tasks[i].start_ns);
+      REQUIRE_NEAR(heap.tasks[i].end_ns,dag.tasks[i].end_ns);
+      REQUIRE_NEAR(heap.tasks[i].block_ns,dag.tasks[i].block_ns);
+    }
+    input.task_ns[0]=-1;
+    REQUIRE(!solver::SimulateExecution(input,plan,options,flat,&dag,&error));
+  }
+
   { // Independent earliest-start recurrence on random DAG + FIFO orders.
     std::mt19937 rng(601);
     for (int trial=0;trial<100;++trial) {

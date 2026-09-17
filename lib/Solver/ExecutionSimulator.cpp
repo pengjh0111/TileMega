@@ -221,7 +221,6 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
     return fail("prepared readiness belongs to a different immutable graph/plan");
   auto const& owner_of=readiness->owner;
   auto const& queue=readiness->queue;
-  auto unmet=readiness->unmet;
   auto const& cross_fanout=readiness->cross_fanout;
   auto const& cross_input=readiness->cross_input;
   long cross_edges=readiness->cross_edges,same_edges=readiness->same_edges;
@@ -260,15 +259,16 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
     return fail("consumer wait cost must be finite and nonnegative");
   if (!input.consumer_wait_required.empty() && input.consumer_wait_required.size() != std::size_t(nodes))
     return fail("consumer wait mask must have one entry per task");
-  std::vector<double> publication(nodes, 0.0), consumer_wait(nodes, 0.0);
-  for (int node = 0; node < nodes; ++node) {
-    bool const needed = input.publication_required.empty()
+  auto publication_cost = [&](int node) {
+    bool needed = input.publication_required.empty()
         ? cross_fanout[node] != 0 : input.publication_required[node] != 0;
-    publication[node] = needed ? options.publication_ns : 0.0;
-    bool const waits = input.consumer_wait_required.empty()
+    return needed ? options.publication_ns : 0.0;
+  };
+  auto wait_cost = [&](int node) {
+    bool needed = input.consumer_wait_required.empty()
         ? cross_input[node] != 0 : input.consumer_wait_required[node] != 0;
-    consumer_wait[node] = waits ? options.consumer_wait_ns : 0.0;
-  }
+    return needed ? options.consumer_wait_ns : 0.0;
+  };
 
   // With observed durations and a context-independent hop, event times are
   // exactly the weighted DAG recurrence. No resource rate can change in flight.
@@ -276,8 +276,14 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
     if (!std::isfinite(hop.c0) || hop.c0<0) return fail("invalid flat hop cost");
     out->tasks.assign(nodes,SimulatedTask{});
     auto const& queue_next=readiness->queue_next;
-    std::vector<int> ready_nodes;ready_nodes.reserve(nodes);
-    std::vector<double> arrival(nodes,0),queue_end(nodes,0),worker_busy(grid,0);
+    std::vector<int> unmet, ready_nodes;
+    if (!readiness->forward_node_order) {
+      unmet=readiness->unmet;
+      ready_nodes.reserve(nodes);
+    }
+    // Queue successors are released only after their previous task. A single
+    // end time per worker is therefore sufficient even with a general ready set.
+    std::vector<double> arrival(nodes,0),queue_end(grid,0),worker_busy(grid,0);
     if(!readiness->forward_node_order)for(int next:queue_next)if(next>=0)++unmet[next];
     if(!readiness->forward_node_order)for (int n=0;n<nodes;++n) if (!unmet[n]) ready_nodes.push_back(n);
     std::size_t visited=0;
@@ -285,17 +291,21 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
     while (visited<(readiness->forward_node_order ? std::size_t(nodes) : ready_nodes.size())) {
       int n=readiness->forward_node_order ? int(visited) : ready_nodes[visited];++visited;
       int w=owner_of[n];
+      if (!std::isfinite(input.task_ns[n]) || input.task_ns[n]<0)
+        return fail("task duration must be finite and nonnegative");
+      double publish=publication_cost(n);
       auto& task=out->tasks[n];task.worker=w;
-      task.start_ns=std::max(arrival[n],queue_end[n])+consumer_wait[n];
-      task.end_ns=task.start_ns+input.task_ns[n];task.block_ns=task.start_ns-queue_end[n];
+      task.start_ns=std::max(arrival[n],queue_end[w])+wait_cost(n);
+      task.end_ns=task.start_ns+input.task_ns[n];task.block_ns=task.start_ns-queue_end[w];
       task.stretch=1;
-      out->makespan_ns=std::max(out->makespan_ns,task.end_ns+publication[n]);
+      out->makespan_ns=std::max(out->makespan_ns,task.end_ns+publish);
       out->solo_work_ns+=input.task_ns[n];out->total_block_ns+=task.block_ns;
       worker_busy[w]+=input.task_ns[n];
       auto release=[&](int succ) {if (!readiness->forward_node_order && --unmet[succ]==0) ready_nodes.push_back(succ);};
-      if (queue_next[n]>=0) {queue_end[queue_next[n]]=task.end_ns+publication[n];release(queue_next[n]);}
+      queue_end[w]=task.end_ns+publish;
+      if (queue_next[n]>=0) release(queue_next[n]);
       auto& group=group_completion[prepared->group_of_node[n]];
-      group.arrive(w,task.end_ns,task.end_ns+publication[n]+hop.c0);
+      group.arrive(w,task.end_ns,task.end_ns+publish+hop.c0);
       chain[n]+=input.task_ns[n];critical_path=std::max(critical_path,chain[n]);
       group.chain=std::max(group.chain,chain[n]);
       if (--group.remaining==0) for (int succ:prepared->successors[prepared->group_of_node[n]]) {
@@ -312,6 +322,12 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
     return true;
   }
 
+  auto unmet=readiness->unmet;
+  std::vector<double> publication(nodes), consumer_wait(nodes);
+  for (int n=0;n<nodes;++n) {
+    publication[n]=publication_cost(n);
+    consumer_wait[n]=wait_cost(n);
+  }
   out->tasks.assign(nodes, SimulatedTask{});
   std::vector<double> ready(nodes, 0.0);
   std::vector<int> head(grid, 0);
