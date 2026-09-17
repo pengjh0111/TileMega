@@ -9,10 +9,10 @@ is inferred from the narrower archived verifier.
 |---|---|
 | C1/C2 all task prices | Implemented and tested: access-derived combine work, typed partial/residual traffic, all stage callers (F-201) |
 | C3 and C-a..f | 49 CTest pass; corrected replay C-b/C-c pass; preserve frozen FORK6 and instrumented-GEMM scope |
-| J1 all six inner placements and binding bound | Repaired previously zero outer bounds: exact task-DAG CP, work and queue pigeonhole bound; fresh bounded search running |
+| J1 all six inner placements and binding bound | Repaired previously zero outer bounds: exact task-DAG CP, work and queue pigeonhole bound; all six bounded searches complete; final real128 pilot/freeze and confirmation running |
 | J2/J-c preparation and full evaluation | Immutable readiness, shared successor intervals and changed event-row reuse implemented and independently checked; latest reference 1555.545 us still fails the 1 ms budget |
 | J3 Fuse bound | Recompute with changed prices; no fusion implementation |
-| J-a,b,d,e,f | Five choices frozen and fully measured/correct/trace; sixth real128 search continues; all eight selected SEQSCAN cells complete 50/50 |
+| J-a,b,d,e,f | Five choices frozen and fully measured/correct/trace; sixth real128 search complete, pilot/freeze/confirmation continuing; all eight selected SEQSCAN cells complete 50/50 |
 | W1 schema/carrier | Existing implementation; retain legacy syntax and tests |
 | W2 theta interval solve/writeback | Implemented finite integer interval producer; all six placements per point, 5 x 50 correctness and CG/generated/host equality (F-202) |
 | W3 one-command compiler | Point and finite interval channels integrated; maximal model command remains under numerical admission |
