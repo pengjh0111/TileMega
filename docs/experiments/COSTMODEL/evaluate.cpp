@@ -26,7 +26,7 @@ int main(int argc,char** argv) try {
   std::ifstream manifest(repo+"/docs/experiments/SIMULATOR/raw/manifest.tsv");
   std::string line;
   std::ofstream result(out+"/evaluations.tsv"),ranks(out+"/ranks.tsv");
-  result<<std::setprecision(12)<<"model\tseq\tcandidate\tprepare_us\tcoarse_us\tfull_us\tcoarse_ns\tfull_ns\tbinding_cp_ns\tsemantic_cp_ns\tqueue_lb_ns\n";
+  result<<std::setprecision(12)<<"model\tseq\tcandidate\tprepare_us\tcoarse_us\tfull_us\tcoarse_ns\tfull_ns\tbinding_cp_ns\tsemantic_cp_ns\tqueue_lb_ns\treadiness_us\tcached_us\n";
   ranks<<std::setprecision(12)<<"model\tseq\tk\tindex\tcandidate\tsimulated\tpredicted_ns\tbatch_us\n";
   HopCurve hop;if (!HopCurve::FromTsv(repo+"/docs/experiments/SIMULATOR/hop_ns.tsv",&hop,&error)) throw std::runtime_error(error);
   std::getline(manifest,line);
@@ -81,6 +81,8 @@ int main(int argc,char** argv) try {
     auto start=Clock::now();PreparedPlanBounds prepared;
     if (!PreparePlanBounds(input,&prepared,&error)) throw std::runtime_error(error);
     double preparation=micros(start);
+    std::size_t grouped_edges=0;for(auto const& row:prepared.graph.successors)grouped_edges+=row.size();
+    std::cout<<"SHAPE "<<f[0]<<" seq="<<seq<<" nodes="<<input.task_ns.size()<<" groups="<<prepared.graph.successors.size()<<" edges="<<grouped_edges<<std::endl;
     input.prepared_graph=&prepared.graph;
     SimulatorOptions options;options.sms=cell.num_sms;options.ctas_per_sm=cell.ctas_per_sm;options.proportional_sharing=true;
     options.observed_task_times=true;options.flat_hop=true;
@@ -103,7 +105,13 @@ int main(int argc,char** argv) try {
       double coarse=micros(start);SimulatorResult full;start=Clock::now();
       if (!SimulateExecution(input,plans[i],options,hop,&full,&error)) throw std::runtime_error(error);
       double full_us=micros(start);
-      result<<f[0]<<'\t'<<seq<<'\t'<<names[i]<<'\t'<<preparation<<'\t'<<coarse<<'\t'<<full_us<<'\t'<<b.lower_bound_ns<<'\t'<<full.makespan_ns<<'\t'<<b.binding_path_ns<<'\t'<<b.critical_path_ns<<'\t'<<b.queue_lb_ns<<'\n';
+      PreparedExecutionPlan readiness;start=Clock::now();
+      if(!PrepareExecutionPlan(prepared.graph,plans[i],&readiness,&error))throw std::runtime_error(error);
+      double readiness_us=micros(start);input.prepared_plan=&readiness;SimulatorResult cached;start=Clock::now();
+      if(!SimulateExecution(input,plans[i],options,hop,&cached,&error))throw std::runtime_error(error);
+      double cached_us=micros(start);input.prepared_plan=nullptr;
+      if(cached.makespan_ns!=full.makespan_ns)throw std::runtime_error("prepared readiness changed prediction");
+      result<<f[0]<<'\t'<<seq<<'\t'<<names[i]<<'\t'<<preparation<<'\t'<<coarse<<'\t'<<full_us<<'\t'<<b.lower_bound_ns<<'\t'<<full.makespan_ns<<'\t'<<b.binding_path_ns<<'\t'<<b.critical_path_ns<<'\t'<<b.queue_lb_ns<<'\t'<<readiness_us<<'\t'<<cached_us<<'\n';
     }
     for (std::size_t k=1;k<=plans.size();++k) {
       std::vector<RankedPlan> ranked;start=Clock::now();
