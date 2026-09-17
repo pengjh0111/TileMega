@@ -9,8 +9,8 @@ is inferred from the narrower archived verifier.
 |---|---|
 | C1/C2 all task prices | Implemented and tested: access-derived combine work, typed partial/residual traffic, all stage callers (F-199) |
 | C3 and C-a..f | 49 CTest pass; corrected replay C-b/C-c pass; preserve frozen FORK6 and instrumented-GEMM scope |
-| J1 all six inner placements and binding bound | Existing implementation; retest after corrected prices |
-| J2/J-c preparation and full evaluation | Reference 1 ms budget remains open |
+| J1 all six inner placements and binding bound | Repaired previously zero outer bounds: exact task-DAG CP, work and queue pigeonhole bound; fresh bounded search running |
+| J2/J-c preparation and full evaluation | Immutable readiness and changed event-row reuse implemented and independently checked; reference 1 ms budget remains open |
 | J3 Fuse bound | Recompute with changed prices; no fusion implementation |
 | J-a,b,d,e,f | Fresh search, frozen choices, paired controls/top3, correctness and SEQSCAN required |
 | W1 schema/carrier | Existing implementation; retain legacy syntax and tests |
@@ -20,7 +20,7 @@ is inferred from the narrower archived verifier.
 | B1 | Remeasure at newly frozen selections; diagnose control bands without dropping samples |
 | S5 | Finite template certificates retained; interval producer preserves actual point winners outside fitted families; refresh selected-winner audit after new J search |
 | A1 audit | Public configs/coverage retained; refresh maximal-coverage assessment |
-| A1 maximal covered subset | OPEN: compose supported attention/projection/MLP regions at explicit semantic cuts |
+| A1 maximal covered subset | Implemented all supported attention/projection/MLP/head regions; new maximal graph fails one final residual element in five geometries. A1 numerical admission stops under §9.2; old MLP 50/50 remains narrower, never maximal (MODELS/subset.md). |
 | D1 and documentation | Update actual results, preserve original text and skeleton scope |
 | H1..H7 | Scope/order/provenance checks; default SASS stamp after final source/docs |
 | Four sm_120 runners | Self-check current code; never run sm_120 on this GPU |
