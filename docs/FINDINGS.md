@@ -5453,3 +5453,49 @@ CG relation regions through preparation, instead of enumerating every edge.
 Evidence: `COSTMODEL/closure_intervals/{evaluations.tsv,run.log,build.json,command.json,prediction_equivalence.json}`,
 `JOINT2/closure/{ctest_intervals.log,event_intervals.log}`, and the read-only
 outer-search stack sample in `JOINT2/closure/search_profile/`.
+
+
+## F-205 — R6 selects retained-prefix work from the CG state effect
+
+✅ **Verified.** The continuation audit found one remaining `StageKind`
+branch in `ScalarTaskWork.cpp`: it selected the retained-prefix access region
+for element-owned cache updates. The region cardinality was already derived,
+but the dispatch still violated the intended separation of cost and operator
+kind. It now follows the CG `kv_cache` state effect and the existing ownership
+field, requiring a read-write effect. No per-operator byte/time constant was
+introduced. `COSTMODEL/stagekind_audit.txt` records the new whole-tree grep;
+remaining tags perform parsing, ownership projection, alignment constraints or
+attention-contract validation, not pricing dispatch.
+
+✅ **Verified.** The independent element test counts old and newly appended
+regions at seq {1,5}, past {0,3,7}, under two scalar stage tags, and rejects an
+invalid read-only state effect. All 49 CTest tests pass (132.04 s). A fresh
+40-plan CPU evaluation preserves all five prediction columns byte for byte.
+The latest cold full-evaluation maxima are 1555.545 µs for references and
+2028.897 µs for real-width; the reference 1000 µs gate still fails. This source
+change does not optimize the simulator recurrence: differences from the prior
+1985.803/2073.203 µs process are repeated-measurement variation, not an attributed
+speedup. Evidence: `COSTMODEL/closure_effects/` and
+`JOINT2/closure/state_effects/`.
+
+## F-206 — R6 target runners derive their calibration domain locally
+
+✅ **Verified locally; target execution unverified.** The sm_120 orchestration
+now generates unmaterialized calibration sources for five geometry probes from
+its local exported inputs, fits local phase observations, and derives the
+search-domain file and its provenance hash from those observations. No sm_89
+worker/slot table or calibration-domain measurement is reused. The explicit
+calibration shapes are an experimental design, not a selected production
+configuration. The target runner also re-materializes its selected reference
+plans at past 0/512, runs the 50-process selected SEQSCAN cells, and writes local
+J and B1 analysis tables.
+
+✅ **Verified.** On sm_89, generating the explicit-root SEQSCAN sources at seq 4,
+past 0/512 reproduces both existing CUDA and CG artifacts byte for byte. All
+five unmaterialized calibration sources generate successfully. Four runner
+SELF_CHECK executions pass guard/parser and sm_120 compilation checks; none
+launches an sm_120 kernel. Existing-control numerical failures are distinguished
+from unsafe probes and new-candidate exclusions and trigger the global-stop
+record. Evidence: `WRITEBACK/portable_seqscan/`,
+`COSTMODEL/portable_sources/`, `JOINT2/closure/portable_analysis/`, and each
+runner's `selfcheck_sm120_portable/` directory.
