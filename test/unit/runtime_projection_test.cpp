@@ -21,6 +21,20 @@ int main() {
       tilemega::analysis::VisitFiniteRelation(context,text,2,[&](long const* p){actual.insert({p[0],p[1]});});
       assert(actual==expected);
     }
+    for(auto const& text:{"{ [s,i] -> [t,j] : s=1 and t=0 and 0<=i<4 and 512*i<=j<512*i+512 }",
+        "{ [s,i] -> [t,j] : s=1 and t=0 and 0<=i<4 and 512*i<=j<512*i+512 and j%2=0 }"}) {
+      std::set<std::array<long,4>> actual,expected;
+      for(auto const& [a,b]:tilemega::analysis::CouplingRelation::FromIslText(text).Points())
+        expected.insert({a[0],a[1],b[0],b[1]});
+      tilemega::analysis::VisitFiniteRelation(context,text,4,[&](long const* p){actual.insert({p[0],p[1],p[2],p[3]});});
+      assert(actual==expected);
+    }
+    auto band=isl_map_wrap(isl_map_read_from_str(context.raw(),
+        "{ [s,i] -> [t,j] : s=1 and t=0 and 0<=i<4 and 512*i<=j<512*i+512 }"));
+    int sliced_points=0;
+    assert(tilemega::analysis::VisitFiniteSlices(band,4,[&](long const*){++sliced_points;},
+        [](isl_set*){throw std::runtime_error("unexpected non-box slice");return isl_stat_error;}));
+    isl_set_free(band);assert(sliced_points==2048);
     std::vector<std::array<long,2>> boundary;
     auto maximum=std::to_string(std::numeric_limits<long>::max());
     tilemega::analysis::VisitFiniteRelation(context,"{ [i] -> [j] : i="+maximum+" and j="+maximum+" }",2,

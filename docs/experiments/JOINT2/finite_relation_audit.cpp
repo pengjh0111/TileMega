@@ -36,6 +36,7 @@ int main(int argc,char** argv)try {
   analysis::IslContext isl;mlir::MLIRContext ctx;ctx.getOrLoadDialect<dialect::CGDialect>();
   std::cout<<"relation\tpoints\treference_us\texact_box_us\tidentical\n";
   compare(isl,"rectangular_1M","{ [i] -> [j] : 0<=i<1024 and 0<=j<1024 }",2);
+  compare(isl,"coupled_band_512K","{ [s,i] -> [t,j] : s=1 and t=0 and 0<=i<512 and 1024*i<=j<1024*i+1024 }",4);
   for(int arg=1;arg<argc;++arg) {
     auto m=mlir::parseSourceFile<mlir::ModuleOp>(argv[arg],&ctx);if(!m)throw std::runtime_error("invalid CG");
     auto attr=[&](char const* key){return int(m->getOperation()->getAttrOfType<mlir::IntegerAttr>(key).getInt());};

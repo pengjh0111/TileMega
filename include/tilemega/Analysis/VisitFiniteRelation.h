@@ -7,6 +7,8 @@
 #include <isl/val.h>
 #include <isl/ilp.h>
 #include <limits>
+#include <vector>
+#include <utility>
 #include <array>
 #include <functional>
 #include <stdexcept>
@@ -42,6 +44,46 @@ inline bool VisitFiniteBox(isl_set* set,int arity,
   return true;
 }
 
+// Dense two-coordinate relations often become boxes after fixing one task
+// coordinate. A wide first slice amortizes the ISL query per slice; sparse
+// diagonals and modular holes keep the point enumerator.
+inline bool VisitFiniteSlices(isl_set* set,int arity,
+    std::function<void(long const*)> const& visit,
+    std::function<isl_stat(isl_set*)> const& general) {
+  if(arity!=4)return false;
+  std::array<long,4> low{},high{};std::vector<int> varying;
+  for(int i=0;i<arity;++i) {
+    auto lo=isl_set_dim_min_val(isl_set_copy(set),i),hi=isl_set_dim_max_val(isl_set_copy(set),i);
+    bool fits=isl_val_is_int(lo)==isl_bool_true && isl_val_is_int(hi)==isl_bool_true &&
+        isl_val_cmp_si(lo,std::numeric_limits<long>::min())>=0 &&
+        isl_val_cmp_si(hi,std::numeric_limits<long>::max())<=0;
+    if(!fits){isl_val_free(lo);isl_val_free(hi);return false;}
+    low[i]=isl_val_get_num_si(lo);high[i]=isl_val_get_num_si(hi);isl_val_free(lo);isl_val_free(hi);
+    if(low[i]!=high[i])varying.push_back(i);
+  }
+  if(varying.size()!=2)return false;
+  int axis=varying[0],other=varying[1];
+  if(static_cast<long double>(high[axis])-low[axis]>static_cast<long double>(high[other])-low[other])std::swap(axis,other);
+  auto slice_at=[&](long coordinate){return isl_set_fix_val(isl_set_copy(set),isl_dim_set,axis,isl_val_int_from_si(isl_set_get_ctx(set),coordinate));};
+  auto probe=slice_at(low[axis]);
+  bool wide=false;
+  if(isl_set_is_box(probe)==isl_bool_true) {
+    auto lo=isl_set_dim_min_val(isl_set_copy(probe),other),hi=isl_set_dim_max_val(isl_set_copy(probe),other);
+    wide=isl_val_is_int(lo)==isl_bool_true && isl_val_is_int(hi)==isl_bool_true &&
+        static_cast<long double>(isl_val_get_num_si(hi))-isl_val_get_num_si(lo)>=255;
+    isl_val_free(lo);isl_val_free(hi);
+  }
+  isl_set_free(probe);if(!wide)return false;
+  for(long coordinate=low[axis];;) {
+    auto slice=slice_at(coordinate);
+    try {
+      if(isl_set_is_empty(slice)!=isl_bool_true && !VisitFiniteBox(slice,arity,visit) && general(slice)!=isl_stat_ok)
+        throw std::runtime_error("relation slice enumeration failed");
+    } catch(...) {isl_set_free(slice);throw;}
+    isl_set_free(slice);if(coordinate==high[axis])break;++coordinate;
+  }
+  return true;
+}
 // Basic pieces may overlap: adjacency clients deduplicate their emitted edges.
 inline void VisitFiniteRelation(IslContext& ctx,std::string const& text,int arity,
                    std::function<void(long const*)> const& visit) {
@@ -58,7 +100,9 @@ inline void VisitFiniteRelation(IslContext& ctx,std::string const& text,int arit
   auto component=[](isl_basic_set* b,void* data)->isl_stat {
     auto& p=*static_cast<Parts*>(data);auto set=isl_set_from_basic_set(b);
     try {
-      if(VisitFiniteBox(set,p.sink->arity,*p.sink->visit)) {isl_set_free(set);return isl_stat_ok;}
+      auto general=[&](isl_set* slice){return isl_set_foreach_point(slice,*p.callback,p.sink);};
+      if(VisitFiniteBox(set,p.sink->arity,*p.sink->visit) ||
+          VisitFiniteSlices(set,p.sink->arity,*p.sink->visit,general)) {isl_set_free(set);return isl_stat_ok;}
     } catch(std::exception const& e) {p.sink->error=e.what();isl_set_free(set);return isl_stat_error;}
     auto status=isl_set_foreach_point(set,*p.callback,p.sink);isl_set_free(set);return status;
   };
