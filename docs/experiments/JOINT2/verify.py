@@ -198,7 +198,7 @@ def interval_writeback():
  check(len(hashes)==1,'interval used multiple binaries')
  return ok,detail+'; one binary, all six placements at every integer point; geometry selected at upper endpoint, fixed past/grid'
 def we():
- log=HERE/'closure/finite_relations/ctest.log';text=log.read_text();match=re.search(r'100% tests passed, 0 tests failed out of (\d+)',text);ok,detail=collections([W/'legacy_closure/seqscan'/f'{m}_s{s}_p{p}' for m in ('gqa2','mha4') for s in (4,128,2048) for p in (0,512)])
+ log=HERE/'closure/finite_slices/ctest.log';text=log.read_text();match=re.search(r'100% tests passed, 0 tests failed out of (\d+)',text);ok,detail=collections([W/'legacy_closure/seqscan'/f'{m}_s{s}_p{p}' for m in ('gqa2','mha4') for s in (4,128,2048) for p in (0,512)])
  return bool(match) and int(match[1])>=49 and ok,f'CTest={match[1] if match else "FAIL"} {evidence(log)}; '+detail
 
 def symbolic_proofs():

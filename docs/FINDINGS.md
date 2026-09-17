@@ -5522,3 +5522,25 @@ budget measurement or a claim about end-to-end solve time. The change directly
 addresses the stack sample in dense ISL point enumeration; dense successor
 storage and non-box relations remain concrete follow-up work. Evidence:
 `JOINT2/closure/finite_relations/` and `JOINT2/finite_relation_audit.cpp`.
+
+
+## F-208 — R6 enumerates dense dependency slices without changing points
+
+✅ **Verified.** Four-coordinate relation pieces with two varying coordinates
+can be sliced on one task coordinate. Each exact box slice is enumerated
+natively; every other slice uses ISL. The dispatch requires a dense first
+slice, preserving the general route for sparse/modular relations. Complete
+point multisets, including overlapping pieces, match the original enumerator
+on all five frozen winners' dependency and event relations. Band, modular-hole,
+empty-set, callback-error and integer-endpoint cases remain covered. All 49
+CTest tests pass (121.47 s). No search domain, target, cost, dependency, or
+legality condition changes.
+
+✅ **Verified diagnostic.** A fresh CPU comparison measures the 4,574,080-point
+mha4-s128 dependency relation at 5,855,250 versus 838,770 µs; the 1,529,728-point
+gqa2-s128 relation at 2,889,220 versus 472,635 µs. These single-process
+enumeration comparisons are not paired GPU results or the cold full-plan
+budget gate. Event relations retain essentially the same route. Dense edge
+storage still remains after enumeration; retaining shared successor regions
+through preparation is the next concrete change if preparation dominates.
+Evidence: `JOINT2/closure/finite_slices/` and `finite_relation_audit.cpp`.
