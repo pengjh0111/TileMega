@@ -1,0 +1,6 @@
+{
+  "stopped_pid": 952675,
+  "started_parent": 952665,
+  "at_ns": 1789649197997333620,
+  "reason": "Repeated CouplingRelation::BindParams reparses the entire parameterized map for each point. Reuse parsed ISL maps in this evidence driver; proof domains and comparison points stay identical."
+}

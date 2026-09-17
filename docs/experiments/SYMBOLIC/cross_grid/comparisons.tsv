@@ -1,0 +1,17 @@
+grid	family	reference	reference_family	different_entries	template_file	reference_file
+256	legacy_grid_stride	selected	eft	2052	g256_legacy_grid_stride_template.tsv	g256_eft.tsv
+256	legacy_grid_stride	resolved	wavefront	2388	g256_legacy_grid_stride_template.tsv	g256_wavefront.tsv
+256	rotate	selected	eft	2692	g256_rotate_template.tsv	g256_eft.tsv
+256	rotate	resolved	wavefront	2692	g256_rotate_template.tsv	g256_wavefront.tsv
+256	band	selected	eft	2052	g256_band_template.tsv	g256_eft.tsv
+256	band	resolved	wavefront	2388	g256_band_template.tsv	g256_wavefront.tsv
+256	wavefront	selected	eft	1544	g256_wavefront_template.tsv	g256_eft.tsv
+256	wavefront	resolved	wavefront	0	g256_wavefront_template.tsv	g256_wavefront.tsv
+340	legacy_grid_stride	selected	eft	2228	g340_legacy_grid_stride_template.tsv	g340_eft.tsv
+340	legacy_grid_stride	resolved	eft	2228	g340_legacy_grid_stride_template.tsv	g340_eft.tsv
+340	rotate	selected	eft	2692	g340_rotate_template.tsv	g340_eft.tsv
+340	rotate	resolved	eft	2692	g340_rotate_template.tsv	g340_eft.tsv
+340	band	selected	eft	2228	g340_band_template.tsv	g340_eft.tsv
+340	band	resolved	eft	2228	g340_band_template.tsv	g340_eft.tsv
+340	wavefront	selected	eft	1422	g340_wavefront_template.tsv	g340_eft.tsv
+340	wavefront	resolved	eft	1422	g340_wavefront_template.tsv	g340_eft.tsv

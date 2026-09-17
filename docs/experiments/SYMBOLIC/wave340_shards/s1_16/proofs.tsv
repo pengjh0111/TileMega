@@ -1,0 +1,17 @@
+family	grid	begin	end	total	bijective	dense	acyclic	resident	level_exact	span_bound	status
+wavefront	340	1	1	1	1	1	1	1	1	22	PASS
+wavefront	340	2	2	1	1	1	1	1	1	22	PASS
+wavefront	340	3	3	1	1	1	1	1	1	22	PASS
+wavefront	340	4	4	1	1	1	1	1	1	22	PASS
+wavefront	340	5	5	1	1	1	1	1	1	22	PASS
+wavefront	340	6	6	1	1	1	1	1	1	22	PASS
+wavefront	340	7	7	1	1	1	1	1	1	22	PASS
+wavefront	340	8	8	1	1	1	1	1	1	22	PASS
+wavefront	340	9	9	1	1	1	1	1	1	22	PASS
+wavefront	340	10	10	1	1	1	1	1	1	22	PASS
+wavefront	340	11	11	1	1	1	1	1	1	22	PASS
+wavefront	340	12	12	1	1	1	1	1	1	22	PASS
+wavefront	340	13	13	1	1	1	1	1	1	22	PASS
+wavefront	340	14	14	1	1	1	1	1	1	22	PASS
+wavefront	340	15	15	1	1	1	1	1	1	22	PASS
+wavefront	340	16	16	1	1	1	1	1	1	22	PASS

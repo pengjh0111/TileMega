@@ -1,0 +1,5 @@
+family	seq	grid	nodes	different_entries	template_file	selected_file
+legacy_grid_stride	128	640	6400	6144	legacy_grid_stride.tsv	selected.tsv
+rotate	128	640	6400	6272	rotate.tsv	selected.tsv
+band	128	640	6400	6144	band.tsv	selected.tsv
+wavefront	128	640	6400	5952	wavefront.tsv	selected.tsv

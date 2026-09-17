@@ -1,0 +1,129 @@
+PROVE wavefront_g340 S=49..49
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=50..50
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=51..51
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=52..52
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=53..53
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=54..54
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=55..55
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=56..56
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=57..57
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=58..58
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=59..59
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=60..60
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=61..61
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=62..62
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=63..63
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+PROVE wavefront_g340 S=64..64
+ISL_CHECK total
+ISL_CHECK bijective
+ISL_CHECK dense
+ISL_CHECK resident
+ISL_CHECK queue_edges
+ISL_CHECK ranked_edges
+ISL_CHECK acyclic
+SYMBOLIC_TEMPLATE wavefront_g340 done

@@ -1,0 +1,5 @@
+{
+  "reason": "ISL rank subset proof scales poorly at non-power-of-two grid; S=2 singleton proof passes; cover the entire finite interval by 128 exact integer-domain pieces",
+  "replacement": "gqa2_wave340_finite",
+  "time_ns": 1789582641199820509
+}

@@ -1,0 +1,15 @@
+{
+  "base": "/root/TileMega/docs/experiments/SYMBOLIC/gqa2_pieces",
+  "exhaustive_shards": [
+    "/root/TileMega/docs/experiments/SYMBOLIC/wave340_shards/s1_16",
+    "/root/TileMega/docs/experiments/SYMBOLIC/wave340_shards/s17_32",
+    "/root/TileMega/docs/experiments/SYMBOLIC/wave340_shards/s33_48",
+    "/root/TileMega/docs/experiments/SYMBOLIC/wave340_shards/s49_64",
+    "/root/TileMega/docs/experiments/SYMBOLIC/wave340_shards/s65_80",
+    "/root/TileMega/docs/experiments/SYMBOLIC/wave340_shards/s81_96",
+    "/root/TileMega/docs/experiments/SYMBOLIC/wave340_shards/s97_112",
+    "/root/TileMega/docs/experiments/SYMBOLIC/wave340_shards/s113_128"
+  ],
+  "source_cg": "docs/experiments/WRITEBACK/gqa2_resident_auto.mlir",
+  "scope": "seq integer interval [1,128], grids 256 and 340; eight proof shards are not binary variants"
+}
