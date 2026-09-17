@@ -1,0 +1,9 @@
+{
+  "command": [
+    "/tmp/r6_evaluate_compact",
+    "/root/TileMega",
+    "docs/experiments/COSTMODEL/closure_compact",
+    "docs/experiments/COSTMODEL/event_fit/target.json"
+  ],
+  "note": "Command recorded after execution; run.log and evaluation rows are original outputs."
+}
