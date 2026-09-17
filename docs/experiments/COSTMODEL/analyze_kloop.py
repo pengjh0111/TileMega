@@ -67,7 +67,7 @@ def main():
             if not dump.exists():continue
             result,nodes=analyze(dump,Path(s['source']))
             write(dump.parent/'node_kloop.tsv',nodes)
-            results.append(dict(result,model=model,seq=int(seq),arm=arm,source=s['source'],dump=str(dump.relative_to(REPO))))
+            results.append(dict(result,model=model,seq=int(seq),arm=arm,source=s['source'],dump=str(dump.relative_to(REPO) if dump.is_relative_to(REPO) else dump)))
     if not results:raise ValueError('no raw dumps')
     write(a.raw/'analysis.tsv',results)
     reference=[r for r in results if r['model'] in ('gqa2','mha4') and r['arm']=='selected']

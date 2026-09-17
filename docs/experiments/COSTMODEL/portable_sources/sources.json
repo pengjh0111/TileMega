@@ -1,0 +1,74 @@
+{
+  "gqa2": {
+    "uniform_m32n16k16s2": {
+      "source": "/root/TileMega/docs/experiments/COSTMODEL/portable_sources/gqa2/uniform_m32n16k16s2/model.cu",
+      "placement_macro": "5",
+      "kappa": "1",
+      "residency": "0",
+      "m": "32",
+      "n": "16",
+      "k": "16",
+      "stages": "2",
+      "split": "1",
+      "extra": [
+        "TRACE_KLOOP=1"
+      ]
+    },
+    "uniform_m32n16k32s2": {
+      "source": "/root/TileMega/docs/experiments/COSTMODEL/portable_sources/gqa2/uniform_m32n16k32s2/model.cu",
+      "placement_macro": "5",
+      "kappa": "1",
+      "residency": "0",
+      "m": "32",
+      "n": "16",
+      "k": "32",
+      "stages": "2",
+      "split": "1",
+      "extra": [
+        "TRACE_KLOOP=1"
+      ]
+    },
+    "uniform_m32n16k64s2": {
+      "source": "/root/TileMega/docs/experiments/COSTMODEL/portable_sources/gqa2/uniform_m32n16k64s2/model.cu",
+      "placement_macro": "5",
+      "kappa": "1",
+      "residency": "0",
+      "m": "32",
+      "n": "16",
+      "k": "64",
+      "stages": "2",
+      "split": "1",
+      "extra": [
+        "TRACE_KLOOP=1"
+      ]
+    },
+    "uniform_m64n128k16s2": {
+      "source": "/root/TileMega/docs/experiments/COSTMODEL/portable_sources/gqa2/uniform_m64n128k16s2/model.cu",
+      "placement_macro": "5",
+      "kappa": "1",
+      "residency": "0",
+      "m": "64",
+      "n": "128",
+      "k": "16",
+      "stages": "2",
+      "split": "1",
+      "extra": [
+        "TRACE_KLOOP=1"
+      ]
+    },
+    "uniform_m128n128k16s3": {
+      "source": "/root/TileMega/docs/experiments/COSTMODEL/portable_sources/gqa2/uniform_m128n128k16s3/model.cu",
+      "placement_macro": "5",
+      "kappa": "1",
+      "residency": "0",
+      "m": "128",
+      "n": "128",
+      "k": "16",
+      "stages": "3",
+      "split": "1",
+      "extra": [
+        "TRACE_KLOOP=1"
+      ]
+    }
+  }
+}

@@ -39,9 +39,10 @@ def trace_cell(cell,arm):
  cp=a['cp_corrected_ns'];queue=a['queue_lb_ms']*1e6
  return dict(cp_ns=cp,queue_lb_ns=queue,floor_ns=max(cp,queue),nodes=len(path),node_mean_ns=statistics.mean(durations),queue_over_cp=queue/cp,dump=str(dump))
 def main():
- ap=argparse.ArgumentParser();ap.add_argument('--models',nargs='+',default=['gqa2','mha4','real']);a=ap.parse_args();rows=[]
- for name,path in json.loads((HERE/'cells.json').read_text()).items():
-  if name.split('_s')[0] not in a.models:continue
+ ap=argparse.ArgumentParser();ap.add_argument('--models',nargs='+',default=['gqa2','mha4','real']);ap.add_argument('--seqs',nargs='+',type=int,default=[4,128]);ap.add_argument('--raw',type=Path);ap.add_argument('--out',type=Path,default=HERE);a=ap.parse_args();rows=[]
+ mappings=({f'{m}_s{s}':str(a.raw/f'{m}_s{s}') for m in a.models for s in a.seqs} if a.raw else json.loads((HERE/'cells.json').read_text()))
+ for name,path in mappings.items():
+  if name.split('_s')[0] not in a.models or int(name.split('_s')[1]) not in a.seqs:continue
   cell=REPO/path;arm=chosen(cell);row=dict(cell=name,arm=arm)
   for control in ('control','champion'):
    med,lo,hi=paired(cell,arm,control);row.update({control+'_ratio':med,control+'_ci_lo':lo,control+'_ci_hi':hi})
@@ -56,6 +57,7 @@ def main():
   row['measured_floor_ratio']=row['l2_ms']*1e6/row[arm+'_floor_ns'];rows.append(row)
   print(json.dumps(row),flush=True)
  keys=list(dict.fromkeys(k for r in rows for k in r))
- with (HERE/('comparisons_'+('_'.join(a.models))+'.tsv')).open('w') as f:
+ a.out.mkdir(parents=True,exist_ok=True)
+ with (a.out/('comparisons_'+('_'.join(a.models))+('' if a.seqs==[4,128] else '_s'+'_'.join(map(str,a.seqs)))+'.tsv')).open('w') as f:
   w=csv.DictWriter(f,fieldnames=keys,delimiter='\t');w.writeheader();w.writerows(rows)
 if __name__=='__main__':main()

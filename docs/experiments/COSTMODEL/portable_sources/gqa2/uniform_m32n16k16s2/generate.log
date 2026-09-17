@@ -1,0 +1,1 @@
+CODEGEN_SUMMARY tasks=34 couplings=42 stages=30 symbolic_windows=42 fallback_windows=0 output=/root/TileMega/docs/experiments/COSTMODEL/portable_sources/gqa2/uniform_m32n16k16s2/model.cu

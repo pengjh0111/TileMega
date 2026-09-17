@@ -1,0 +1,5 @@
+{
+  "existing_control_stop": "PASS; ignores rejected candidates and unsafe probes",
+  "uniform_geometry_count": 5,
+  "unmaterialized_sources": "PASS"
+}

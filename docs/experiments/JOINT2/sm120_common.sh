@@ -9,9 +9,11 @@
 # Dependencies: CUDA with sm_120 support, configured build-portable for this
 # target, MLIR/ISL/Barvinok, Python/PyTorch and the repository export bridge.
 # Artifacts: status.txt, pipeline.log, device.json, local_r5/{inputs,calibration,
-# joint}, kloop/{build,bin,correctness,phase}, body_fit, target.json, replay.tsv,
+# joint}, calibration_sources (local unmaterialized geometry probes),
+# kloop/{build,bin,correctness,phase}, body_fit, search_domain.json, target.json, replay.tsv,
 # tools, joint/*/{auto.cu,auto.mlir,top-3,pilot,measure,correctness,trace},
-# symbolic (local CG only), optional rebase and llama_covered maximal supported graph artifacts.
+# analysis, seqscan (locally re-materialized past 0/512), symbolic (local CG only),
+# optional rebase/rebase_analysis and llama_covered maximal supported graph artifacts.
 set -euo pipefail
 mode="$1"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,7 +48,7 @@ from pathlib import Path
 repo=Path(sys.argv[1])
 for name in ('COSTMODEL','JOINT2','REBASE','MODELS','SYMBOLIC'):
  for p in (repo/'docs/experiments'/name).glob('*.py'):ast.parse(p.read_text(),filename=str(p))
-for name in ('COSTMODEL/kloop.py','COSTMODEL/fit_body.py','JOINT2/run.py','JOINT2/build_tools.py','REBASE/generate.cpp','SYMBOLIC/r6_templates.cpp','MODELS/export_covered.py','MODELS/run_covered.py'):
+for name in ('COSTMODEL/kloop.py','COSTMODEL/uniform_sources.py','COSTMODEL/fit_body.py','JOINT2/run.py','JOINT2/build_tools.py','JOINT2/seqscan.py','JOINT2/seqscan.cpp','REBASE/generate.cpp','SYMBOLIC/r6_templates.cpp','MODELS/export_covered.py','MODELS/run_covered.py'):
  assert (repo/'docs/experiments'/name).is_file(),name
 PY
   /usr/local/cuda/bin/nvcc -std=c++17 -O2 -arch=sm_120 \

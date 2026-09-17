@@ -29,6 +29,7 @@ def main():
     ap.add_argument('--models',nargs='+',default=['gqa2','mha4','real']);ap.add_argument('--seqs',nargs='+',type=int,default=[4,128]);ap.add_argument('--raw',type=Path,default=HERE/'reduced');ap.add_argument('--capacity',type=int,default=9);ap.add_argument('--jobs',type=int,default=2)
     ap.add_argument('--target',type=Path,default=REPO/'docs/experiments/COSTMODEL/event_fit/target.json');ap.add_argument('--hop',type=Path,default=REPO/'docs/experiments/SIMULATOR/hop_ns.tsv');ap.add_argument('--arch',default='sm_89');ap.add_argument('--champion-root',type=Path,default=REPO/'docs/experiments/JOINT/raw')
     ap.add_argument('--numerical-rejections',type=Path)
+    ap.add_argument('--search-domain',type=Path,default=REPO/'docs/experiments/COSTMODEL/event_fit/search_domain.json')
     a=ap.parse_args();a.raw.mkdir(parents=True,exist_ok=True);session=str(time.time_ns())
     cells=[(a.raw/f'{m}_s{s}',m,s) for m in a.models for s in a.seqs]
     if a.action=='search':
@@ -37,7 +38,7 @@ def main():
             if (cell/'auto.cu').exists():raise RuntimeError('refusing overwrite search')
             source=REPO/(f'docs/experiments/SEQSCAN/raw/export/{m}.json' if m!='real' else f'docs/experiments/REALMODEL/raw/work/r2sim_s{s}/model.json')
             if os.getenv('R5_INPUT_ROOT'):source=Path(os.environ['R5_INPUT_ROOT'])/'export'/f'{m}.json'
-            cmd=[str(REPO/'build-portable/tools/tilemega-compile'),str(source),str(cell/'auto.cu'),'--solve',str(a.target),'--seq',str(s),'--past','3','--search-capacity',str(a.capacity),'--search-domain',str(REPO/'docs/experiments/COSTMODEL/event_fit/search_domain.json'),'--dump-cg',str(cell/'auto.mlir'),'--hop-curve',str(a.hop)]
+            cmd=[str(REPO/'build-portable/tools/tilemega-compile'),str(source),str(cell/'auto.cu'),'--solve',str(a.target),'--seq',str(s),'--past','3','--search-capacity',str(a.capacity),'--search-domain',str(a.search_domain),'--dump-cg',str(cell/'auto.mlir'),'--hop-curve',str(a.hop)]
             if a.numerical_rejections:cmd+=['--numerical-rejections',str(a.numerical_rejections)]
             (cell/'search_command.json').write_text(json.dumps(dict(command=cmd,session=session),indent=2)+'\n')
             with (cell/'run.log').open('w') as f:subprocess.run(cmd,stdout=f,stderr=subprocess.STDOUT,check=True)

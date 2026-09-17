@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-compile",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+    "/root/TileMega/docs/experiments/COSTMODEL/portable_sources/gqa2/uniform_m32n16k32s2/model.cu",
+    "--variants",
+    "/root/TileMega/docs/experiments/COSTMODEL/portable_sources/gqa2/uniform_m32n16k32s2/geometry.json"
+  ],
+  "started_ns": 1789682286071521028,
+  "exit_code": 0
+}

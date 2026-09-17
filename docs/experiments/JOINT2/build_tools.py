@@ -9,7 +9,7 @@ def main():
  lines=subprocess.check_output(['ninja','-C',str(b),'-t','commands','tools/tilemega-compile'],text=True).splitlines()
  compile=shlex.split(next(x for x in lines if ' -c ' in x and x.endswith('/tools/tilemega-compile.cpp')))
  link=shlex.split(lines[-1].removeprefix(': && ').removesuffix(' && :'))
- for name,source in [('rebase_generate','REBASE/generate.cpp'),('parametric','SYMBOLIC/r6_templates.cpp'),('replay','COSTMODEL/replay.cpp'),('fuse_bound','JOINT2/fuse_bound.cpp'),('symbolic_cg','SYMBOLIC/cg_roundtrip.cpp'),('cross_grid','SYMBOLIC/cross_grid.cpp'),('champion_fit','SYMBOLIC/champion_fit.cpp')]:
+ for name,source in [('rebase_generate','REBASE/generate.cpp'),('seqscan','JOINT2/seqscan.cpp'),('parametric','SYMBOLIC/r6_templates.cpp'),('replay','COSTMODEL/replay.cpp'),('fuse_bound','JOINT2/fuse_bound.cpp'),('symbolic_cg','SYMBOLIC/cg_roundtrip.cpp'),('cross_grid','SYMBOLIC/cross_grid.cpp'),('champion_fit','SYMBOLIC/champion_fit.cpp')]:
   obj=str((a.out/(name+'.o')).resolve());exe=str((a.out/name).resolve());cmd=[];i=0
   while i<len(compile):
    x=compile[i]
