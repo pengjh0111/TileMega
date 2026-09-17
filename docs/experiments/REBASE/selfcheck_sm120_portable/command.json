@@ -1,0 +1,9 @@
+{
+  "command": [
+    "bash",
+    "/root/TileMega/docs/experiments/REBASE/run_sm120.sh"
+  ],
+  "started_ns": 1789682479727631304,
+  "head": "d2eb8899aa0fa97df38d6b6b4e30e733909ee9f9",
+  "exit_code": 0
+}

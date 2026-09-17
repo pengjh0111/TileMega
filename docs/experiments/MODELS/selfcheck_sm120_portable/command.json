@@ -1,0 +1,9 @@
+{
+  "command": [
+    "bash",
+    "/root/TileMega/docs/experiments/MODELS/run_sm120.sh"
+  ],
+  "started_ns": 1789682506236504321,
+  "head": "d2eb8899aa0fa97df38d6b6b4e30e733909ee9f9",
+  "exit_code": 0
+}

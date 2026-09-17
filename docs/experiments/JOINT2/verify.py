@@ -49,16 +49,15 @@ def collections(folders):
   valid,text=processes(f);ok &= valid;details.append(text)
  return ok,'; '.join(details)
 def cost_branches():
- files=['CostModel.cpp','ChainDP.cpp','CouplingInterfaceDP.cpp','TaskModel.cpp']
+ files=['CostModel.cpp','ChainDP.cpp','CouplingInterfaceDP.cpp','TaskModel.cpp','ScalarTaskWork.cpp']
  hits=[]
  for f in files:
   for n,line in enumerate((REPO/'lib/Solver'/f).read_text().splitlines(),1):
    if 'NonGemmStageNs' in line or re.search(r'(case\s+StageKind|(?:if|switch).*StageKind)',line):hits.append(f'{f}:{n}:{line.strip()}')
- command=['rg','-n','StageKind|NonGemmStageNs','lib/Solver/CostModel.cpp','lib/Solver/ChainDP.cpp','lib/Solver/CouplingInterfaceDP.cpp','lib/Solver/TaskModel.cpp']
+ command=['rg','-n','StageKind|NonGemmStageNs','lib/Solver/CostModel.cpp','lib/Solver/ChainDP.cpp','lib/Solver/CouplingInterfaceDP.cpp','lib/Solver/TaskModel.cpp','lib/Solver/ScalarTaskWork.cpp']
  output=subprocess.run(command,cwd=REPO,text=True,capture_output=True).stdout.strip()
  roles={'ModelDescription.cpp':'model parsing', 'AlignmentPropagation.cpp':'alignment constraints',
         'RuntimeProjection.cpp':'runtime ownership and dependency projection',
-        'ScalarTaskWork.cpp':'CG-derived retained-prefix access region',
         'AttentionWork.cpp':'attention semantic/resource contract validation'}
  all_command=['rg','-n','StageKind|NonGemmStageNs','lib/Solver']
  whole=subprocess.run(all_command,cwd=REPO,text=True,capture_output=True).stdout.strip()
@@ -68,11 +67,11 @@ def cost_branches():
   check('NonGemmStageNs' not in line,'retired formula remains: '+line)
  return not hits,'command='+ ' '.join(command)+'; output='+repr(output)+'; whole-tree command=rg -n StageKind lib/Solver; reviewed non-price roles='+repr(roles)+'; full grep evidence=COSTMODEL/stagekind_audit.txt'
 def rank_gate(key,threshold):
- rows=table(C/'closure_intervals/evaluations.tsv');actual=table(EX/'SIMULATOR/raw/time/l2.tsv');modes={'legacy_grid_stride':'0','balanced':'4','rotate':'5'}
+ rows=table(C/'closure_effects/evaluations.tsv');actual=table(EX/'SIMULATOR/raw/time/l2.tsv');modes={'legacy_grid_stride':'0','balanced':'4','rotate':'5'}
  rows=[r for r in rows if r['model']!='real' and r['candidate'] in modes]
  y=[statistics.median(float(x['l2_ms'])*1e6 for x in actual if (x['model'],x['seq'],x['place'])==(r['model'],r['seq'],modes[r['candidate']])) for r in rows]
  rho=rank.spearman([float(r[key]) for r in rows],y)
- return len(rows)==18 and rho>=threshold,f'n={len(rows)} rho={rho:.12f} required={threshold}; {evidence(C/"closure_intervals/evaluations.tsv")} + SIMULATOR/raw/time/l2.tsv (historical GPU calibration, fresh CPU evaluation)'
+ return len(rows)==18 and rho>=threshold,f'n={len(rows)} rho={rho:.12f} required={threshold}; {evidence(C/"closure_effects/evaluations.tsv")} + SIMULATOR/raw/time/l2.tsv (historical GPU calibration, fresh CPU evaluation)'
 def replay():
  rows=table(C/'closure_replay/replay.tsv');v=sorted(abs(float(r['predicted_ns'])/float(r['measured_ns'])-1) for r in rows)
  return len(rows)==68,f'n={len(rows)} relative_error p50={statistics.median(v):.9f} p90={joint.trace.percentile(v,.9):.9f} max={max(v):.9f}; {evidence(C/"closure_replay/replay.tsv")}'
@@ -133,11 +132,11 @@ def outer_bounds():
  return True,'; '.join(details)
 
 def budget():
- rows=table(C/'closure_intervals/evaluations.tsv');parts=[];ok=True
+ rows=table(C/'closure_effects/evaluations.tsv');parts=[];ok=True
  for model,limit in [('reference',1000),('real',10000)]:
   rs=[r for r in rows if (r['model']=='real')==(model=='real')];worst=max(rs,key=lambda r:float(r['full_us']));us=float(worst['full_us']);ok &=us<limit
   parts.append(f'{model} full_max_us={us:.3f} budget={limit} at {worst["model"]}/s{worst["seq"]}/{worst["candidate"]}; prepare_max_us={max(float(r["prepare_us"]) for r in rs):.3f}')
- return ok,'; '.join(parts)+'; '+evidence(C/'closure_intervals/evaluations.tsv')
+ return ok,'; '.join(parts)+'; '+evidence(C/'closure_effects/evaluations.tsv')
 def ranking():
  parts=[];good=0
  for name in ALL:
@@ -199,7 +198,7 @@ def interval_writeback():
  check(len(hashes)==1,'interval used multiple binaries')
  return ok,detail+'; one binary, all six placements at every integer point; geometry selected at upper endpoint, fixed past/grid'
 def we():
- log=HERE/'closure/ctest_intervals.log';text=log.read_text();match=re.search(r'100% tests passed, 0 tests failed out of (\d+)',text);ok,detail=collections([W/'legacy_closure/seqscan'/f'{m}_s{s}_p{p}' for m in ('gqa2','mha4') for s in (4,128,2048) for p in (0,512)])
+ log=HERE/'closure/state_effects/ctest.log';text=log.read_text();match=re.search(r'100% tests passed, 0 tests failed out of (\d+)',text);ok,detail=collections([W/'legacy_closure/seqscan'/f'{m}_s{s}_p{p}' for m in ('gqa2','mha4') for s in (4,128,2048) for p in (0,512)])
  return bool(match) and int(match[1])>=49 and ok,f'CTest={match[1] if match else "FAIL"} {evidence(log)}; '+detail
 
 def symbolic_proofs():
@@ -339,7 +338,7 @@ def history_order():
 def target_selfcheck():
  details=[]
  for name in ('COSTMODEL','JOINT2','REBASE','MODELS'):
-  folder=EX/name/'selfcheck_sm120_intervals';text=(folder/'status.txt').read_text();check('SELF_CHECK PASS; sm_120 not run' in text,'self-check failed '+name)
+  folder=EX/name/'selfcheck_sm120_portable';text=(folder/'status.txt').read_text();check('SELF_CHECK PASS; sm_120 not run' in text,'self-check failed '+name)
   check((folder/'compile.log').exists(),'compile evidence missing '+name);details.append(evidence(folder))
  return True,'four local compile/guard checks; no sm_120 execution claim; '+'; '.join(details)
 

@@ -1,0 +1,9 @@
+{
+  "command": [
+    "bash",
+    "/root/TileMega/docs/experiments/JOINT2/run_sm120.sh"
+  ],
+  "started_ns": 1789682454059798505,
+  "head": "5ad408aac43e83b570b8e69dc542115d7fab6145",
+  "exit_code": 0
+}

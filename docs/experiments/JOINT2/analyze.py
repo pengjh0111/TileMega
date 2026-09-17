@@ -46,6 +46,7 @@ def main():
   cell=REPO/path;arm=chosen(cell);row=dict(cell=name,arm=arm)
   for control in ('control','champion'):
    med,lo,hi=paired(cell,arm,control);row.update({control+'_ratio':med,control+'_ci_lo':lo,control+'_ci_hi':hi})
+  med,lo,hi=paired(cell,'champion','control');row.update(r5_champion_control_ratio=med,r5_champion_control_ci_lo=lo,r5_champion_control_ci_hi=hi)
   times=[timing(cell/'measure'/arm/f'r{i}.log') for i in range(25)]
   row['l2_ms']=statistics.median(t['l2_ms'] for t in times);row['l2_l1_ratio']=statistics.median(t['l2_ms']/t['l1_ms'] for t in times)
   top=[x for x in ('top1','top2','top3') if (cell/'measure'/x/'r24.log').exists()]
@@ -59,5 +60,5 @@ def main():
  keys=list(dict.fromkeys(k for r in rows for k in r))
  a.out.mkdir(parents=True,exist_ok=True)
  with (a.out/('comparisons_'+('_'.join(a.models))+('' if a.seqs==[4,128] else '_s'+'_'.join(map(str,a.seqs)))+'.tsv')).open('w') as f:
-  w=csv.DictWriter(f,fieldnames=keys,delimiter='\t');w.writeheader();w.writerows(rows)
+  w=csv.DictWriter(f,fieldnames=keys,delimiter='\t',lineterminator='\n');w.writeheader();w.writerows(rows)
 if __name__=='__main__':main()
