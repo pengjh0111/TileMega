@@ -114,12 +114,30 @@ def queue_gate():
   try:r=trace(name,choice(name));values.append(f'{name} queue/semantic_CP={r["queue_over_cp"]:.9f} {r["dump"]}');ok &= r['queue_over_cp']<=1
   except Exception as e:ok=False;values.append(f'{name}: {e}')
  return ok,'; '.join(values)
+def outer_bounds():
+ details=[]
+ for name in ALL:
+  root=HERE/'bounded_search'/name;rows=table(root/'auto.cu.bounds.tsv')
+  bounds={r['candidate']:max(float(r[k]) for k in ('work_lb_ns','cp_lb_ns','queue_lb_lb_ns')) for r in rows}
+  check(len(rows)>0 and all(v>0 and math.isfinite(v) for v in bounds.values()),'missing nonzero task-derived bounds')
+  for r in rows:check(math.isclose(float(r['priority_ns']),bounds[r['candidate']],rel_tol=1e-12),'outer priority is not the binding bound')
+  plans=table(root/'auto.cu.search.tsv');groups={};checked=0
+  for r in plans:
+   if r['placement']=='-':continue
+   groups.setdefault(r['candidate'],set()).add(r['placement'])
+   if r['status']=='ok':
+    key=re.sub(r'r[0-9]+$','',r['candidate']);floor=float(r['floor_ns'])
+    check(bounds[key]<=floor+max(1e-4,abs(floor)*1e-5),'outer bound exceeds evaluated plan floor: '+name+'/'+key);checked+=1
+  for modes in groups.values():check(modes=={'legacy_grid_stride','rotate','balanced','eft','wavefront','chain'},'inner placement coverage gap')
+  details.append(f'{name} outer={len(rows)} inner={checked} admissible=all; {evidence(root)}')
+ return True,'; '.join(details)
+
 def budget():
- rows=table(C/'closure_forward/evaluations.tsv');parts=[];ok=True
+ rows=table(C/'closure_compact/evaluations.tsv');parts=[];ok=True
  for model,limit in [('reference',1000),('real',10000)]:
   rs=[r for r in rows if (r['model']=='real')==(model=='real')];worst=max(rs,key=lambda r:float(r['full_us']));us=float(worst['full_us']);ok &=us<limit
   parts.append(f'{model} full_max_us={us:.3f} budget={limit} at {worst["model"]}/s{worst["seq"]}/{worst["candidate"]}; prepare_max_us={max(float(r["prepare_us"]) for r in rs):.3f}')
- return ok,'; '.join(parts)+'; '+evidence(C/'closure_forward/evaluations.tsv')
+ return ok,'; '.join(parts)+'; '+evidence(C/'closure_compact/evaluations.tsv')
 def ranking():
  parts=[];good=0
  for name in ALL:
@@ -128,13 +146,13 @@ def ranking():
   except Exception as e:parts.append(f'{name}: {e}')
  return good>=4,f'{good}/6 top1 in measured top2; '+'; '.join(parts)
 def jf():
- a,t=collections([cell(n)/'correctness' for n in ALL]);b,u=collections([HERE/'selected_seqscan'/f'{m}_s{s}_p{p}'/'correctness' for m in ('gqa2','mha4') for s in (4,128) for p in (0,512)])
+ a,t=collections([cell(n)/'correctness' for n in ALL]);b,u=collections([HERE/'bounded_seqscan'/f'{m}_s{s}_p{p}'/'correctness' for m in ('gqa2','mha4') for s in (4,128) for p in (0,512)])
  return a and b,t+'; selected SEQSCAN '+u
 
 def fuse():
  parts=[];maximum=0
  for name in ALL:
-  root=HERE/'fuse_upper'/f'{name}_selected.tsv';rows=table(root);supported=[r for r in rows if r['status']=='SUPPORTED'];bound=0
+  root=HERE/'bounded_fuse'/f'{name}_selected.tsv';rows=table(root);supported=[r for r in rows if r['status']=='SUPPORTED'];bound=0
   for r in supported:
    separate=float(r['separate_task_ns']);fixed=.232*separate;traffic=max(0.,separate-float(r['traffic_floor_ns']));upper=min(separate,fixed+traffic)
    check(float(r['fixed_share_input'])==.232,'fixed share changed');check(math.isclose(upper,float(r['optimistic_upper_ns']),rel_tol=1e-8),'upper arithmetic mismatch');bound+=upper
@@ -181,7 +199,7 @@ def interval_writeback():
  check(len(hashes)==1,'interval used multiple binaries')
  return ok,detail+'; one binary, all six placements at every integer point; geometry selected at upper endpoint, fixed past/grid'
 def we():
- log=HERE/'closure/ctest_current.log';text=log.read_text();match=re.search(r'100% tests passed, 0 tests failed out of (\d+)',text);ok,detail=collections([W/'legacy_closure/seqscan'/f'{m}_s{s}_p{p}' for m in ('gqa2','mha4') for s in (4,128,2048) for p in (0,512)])
+ log=HERE/'closure/ctest_final.log';text=log.read_text();match=re.search(r'100% tests passed, 0 tests failed out of (\d+)',text);ok,detail=collections([W/'legacy_closure/seqscan'/f'{m}_s{s}_p{p}' for m in ('gqa2','mha4') for s in (4,128,2048) for p in (0,512)])
  return bool(match) and int(match[1])>=49 and ok,f'CTest={match[1] if match else "FAIL"} {evidence(log)}; '+detail
 
 def symbolic_proofs():
@@ -209,14 +227,14 @@ def symbolic_samples():
 def symbolic_champion():
  parts=[]
  for name in ALL:
-  root=S/'fit_native'/name;rows=table(root/'fit.tsv');check(len(rows)==4,'missing family '+name);fits=[]
+  root=S/'bounded_fit'/name;rows=table(root/'fit.tsv');check(len(rows)==4,'missing family '+name);fits=[]
   for r in rows:
    symbolic=(root/r['template_file']).read_bytes();native=(root/(r['family']+'_native.tsv')).read_bytes();check(symbolic==native,'wrong template evaluation '+str(root))
    selected=(root/r['selected_file']).read_bytes();pairs=list(zip(symbolic.splitlines()[1:],selected.splitlines()[1:]));check(len(symbolic.splitlines())==len(selected.splitlines()),'count mismatch')
    different=sum(a!=b for a,b in pairs);check(different==int(r['different_entries']),'fit counter mismatch')
    if not different:fits.append(r['family'])
   parts.append(name+'='+(','.join(fits) if fits else 'outside_these_four_template_families'))
- return True,'; '.join(parts)+'; SYMBOLIC/fit_native/*/fit.tsv and complete native/symbolic/selected tables; point witnesses do not assert impossibility in every quasi-affine family'
+ return True,'; '.join(parts)+'; SYMBOLIC/bounded_fit/*/fit.tsv and complete native/symbolic/selected tables; point witnesses do not assert impossibility in every quasi-affine family'
 
 def sd():
  root=S/'cross_grid';rows=table(root/'comparisons.tsv');check(len(rows)==16,'expected four templates x two grids x two references')
@@ -231,7 +249,7 @@ def sd():
 def rebase():
  ok=True;details=[]
  for name in ALL:
-  root=B/'raw'/name
+  root=B/'bounded_raw'/name
   try:
    specs=json.loads((root/'specs.json').read_text());names=list(specs);check(len(names)==50,'expected 10 configurations x 5 arms');starts=set();sessions=set();n=0
    for i in range(25):
@@ -251,9 +269,16 @@ def rebase():
    medians=[statistics.median(v[k] for v in values) if all(math.isfinite(v[k]) for v in values) else float('nan') for k in range(6)]
    details.append(name+' (rotate/legacy,selected_wait_ms,notify_ms,fence_ms,barrier_ms,protocol/barrier)='+repr(medians)+'; selected_nonpositive_barrier_pairs='+str(sum(v[4]<=0 for v in values)))
   except Exception as e:ok=False;details.append(f'{name}: {e}')
- return ok,'; '.join(details)+'; REBASE/raw/*/measure'
+ return ok,'; '.join(details)+'; REBASE/bounded_raw/*/measure'
 def models():
- root=EX/'MODELS';ok,detail=processes(root/'llama_mlp/correctness');return ok,detail+'; exact full architectures NOT covered: executable scope is documented independent normalized MLP components'
+ root=EX/'MODELS';old_ok,old_detail=processes(root/'llama_mlp/correctness')
+ maximal=root/'covered_llama_admitted2';ok,detail=processes(maximal/'correctness')
+ raw=(maximal/'correctness/r0.log').read_text()
+ outputs=re.findall(r'^E2E_OUTPUT_DIFF index=(\d+) .*?mismatch=(\d+)',raw,re.M)
+ check(len(outputs)==66 and {int(i) for i,_ in outputs}==set(range(66)),'maximal graph output coverage differs')
+ cg=(maximal/'auto.mlir').read_text();check('tilemega.solved_kappa' in cg,'maximal graph bypassed solver')
+ mismatches=[(int(i),int(n)) for i,n in outputs if int(n)]
+ return ok,detail+f'; maximal connected graph checked_outputs=66 mismatches={mismatches}; '+evidence(maximal/'correctness/r0.log')+'; earlier independent MLP subset='+str(old_ok)+' '+old_detail+' does not satisfy maximal-graph admission; no tolerance or output changes'
 
 def history_order():
  pairs=[('567cb81d','6344daa5','C1 before J1'),('dbfb4051','6344daa5','C2 before J1'),('7fc201bd','eaedcd14','FORK6 before Fuse R7 decision'),('c8d58a18','a88ec285','W2 before symbolic proof implementation')]
@@ -261,7 +286,7 @@ def history_order():
  for before,after,label in pairs:
   check(subprocess.run(['git','merge-base','--is-ancestor',before,after],cwd=REPO).returncode==0,label);details.append(label)
  for name in ALL:
-  root=B/'raw'/name;m=json.loads((root/'selection.json').read_text());rev=m['frozen_commit']
+  root=B/'bounded_raw'/name;m=json.loads((root/'selection.json').read_text());rev=m['frozen_commit']
   check(subprocess.run(['git','merge-base','--is-ancestor',rev,'HEAD'],cwd=REPO).returncode==0,'selection commit not an ancestor')
   choice_path=(cell(name)/'choice.json').relative_to(REPO)
   recorded=json.loads(subprocess.check_output(['git','show',rev+':'+str(choice_path)],cwd=REPO,text=True));check(recorded==m['choice'],'choice was not frozen at the recorded commit')
@@ -273,12 +298,12 @@ def history_order():
 def target_selfcheck():
  details=[]
  for name in ('COSTMODEL','JOINT2','REBASE','MODELS'):
-  folder=EX/name/'selfcheck_sm120_closure';text=(folder/'status.txt').read_text();check('SELF_CHECK PASS; sm_120 not run' in text,'self-check failed '+name)
+  folder=EX/name/'selfcheck_sm120_final';text=(folder/'status.txt').read_text();check('SELF_CHECK PASS; sm_120 not run' in text,'self-check failed '+name)
   check((folder/'compile.log').exists(),'compile evidence missing '+name);details.append(evidence(folder))
  return True,'four local compile/guard checks; no sm_120 execution claim; '+'; '.join(details)
 
 def main():
- gates=[('C-a','hard',cost_branches),('C-b','hard',lambda:rank_gate('full_ns',.880288958)),('C-c','hard',lambda:rank_gate('coarse_ns',.85)),('C-d','report',replay),('C-e','report',kloop),('C-f','hard',cf),('J-a','research',lambda:paired_gate(REAL,'control',1)),('J-b','hard',queue_gate),('J-c','hard',budget),('J-d','hard',ranking),('J-e','hard',lambda:paired_gate(REFS,'champion',1.02)),('J-f','hard',jf),('J-g','report',fuse),('W-a','hard',writeback),('W-b','hard',command_gate),('W-c','hard',legacy),('W-d','hard',roundtrip),('W-e','hard',we),('W-interval','hard',interval_writeback),('B1','report',rebase),('S-a','hard',symbolic_proofs),('S-b','hard',symbolic_samples),('S-c','hard',symbolic_champion),('S-d','report',sd),('A1-subset','report',models),('H2','hard',sass),('H4','hard',history_order),('H7','report',target_selfcheck)]
+ gates=[('C-a','hard',cost_branches),('C-b','hard',lambda:rank_gate('full_ns',.880288958)),('C-c','hard',lambda:rank_gate('coarse_ns',.85)),('C-d','report',replay),('C-e','report',kloop),('C-f','hard',cf),('J-a','research',lambda:paired_gate(REAL,'control',1)),('J-b','hard',queue_gate),('J-c','hard',budget),('J-outer','hard',outer_bounds),('J-d','hard',ranking),('J-e','hard',lambda:paired_gate(REFS,'champion',1.02)),('J-f','hard',jf),('J-g','report',fuse),('W-a','hard',writeback),('W-b','hard',command_gate),('W-c','hard',legacy),('W-d','hard',roundtrip),('W-e','hard',we),('W-interval','hard',interval_writeback),('B1','report',rebase),('S-a','hard',symbolic_proofs),('S-b','hard',symbolic_samples),('S-c','hard',symbolic_champion),('S-d','report',sd),('A1-subset','report',models),('H2','hard',sass),('H4','hard',history_order),('H7','report',target_selfcheck)]
  for name,kind,fn in gates:gate(name,kind,fn)
  failed=sum(not ok and kind=='hard' for _,kind,ok in results);print(f'R6_VERIFY gates={len(results)} hard_failures={failed} exit={int(failed>0)}',flush=True);return int(failed>0)
 if __name__=='__main__':sys.exit(main())

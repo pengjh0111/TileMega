@@ -5,6 +5,7 @@ Run after fuse_bound.cpp has evaluated each frozen selected CG. The common
 0.232 fixed fraction is the prompt's extrapolation, not a measured per-pair
 fraction. The additional entire-pair cap makes that assumption inspectable.
 """
+import argparse
 import csv
 import json
 from pathlib import Path
@@ -15,10 +16,13 @@ REPO = HERE.parents[2]
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--out", type=Path, default=HERE / "fuse_upper")
+    args = parser.parse_args()
     rows = []
     for name, path in json.loads((HERE / 'cells.json').read_text()).items():
         root = REPO / path
-        raw = analyze.table(HERE / 'fuse_upper' / (name + '_selected.tsv'))
+        raw = analyze.table(args.out / (name + '_selected.tsv'))
         supported = [r for r in raw if r['status'] == 'SUPPORTED']
         summed = lambda k: sum(float(r[k]) for r in supported)
         fixed = .232 * summed('separate_task_ns')
@@ -40,7 +44,7 @@ def main():
                          entire_pair_envelope_cap_ns=envelope,
                          entire_pair_envelope_cap_share=envelope / trace['floor_ns']))
         print(json.dumps(rows[-1]), flush=True)
-    with (HERE / 'fuse_upper/bounds.tsv').open('w') as stream:
+    with (args.out / 'bounds.tsv').open('w') as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]), delimiter='\t',
                                 lineterminator='\n')
         writer.writeheader()
@@ -48,7 +52,7 @@ def main():
     maximum = max(r['upper_share'] for r in rows)
     line = (f'FUSE6 enter_r7={int(maximum >= .1)} '
             f'maximum_bound_share={maximum:.6f} cells={len(rows)}')
-    (HERE / 'fuse_upper/decision.txt').write_text(line + '\n')
+    (args.out / 'decision.txt').write_text(line + '\n')
     print(line, flush=True)
 
 
