@@ -1,0 +1,110 @@
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=352321536
+E2E_PLACE_BASE pos=0 stage=0 active=128 base=0
+E2E_PLACE_BASE pos=1 stage=3 active=64 base=128
+E2E_PLACE_BASE pos=2 stage=4 active=16 base=192
+E2E_PLACE_BASE pos=3 stage=1 active=256 base=208
+E2E_PLACE_BASE pos=4 stage=2 active=64 base=80
+E2E_PLACE_BASE pos=5 stage=5 active=64 base=144
+E2E_PLACE_BASE pos=6 stage=6 active=16 base=208
+E2E_PLACE_BASE pos=7 stage=8 active=1024 base=224
+E2E_PLACE_BASE pos=8 stage=7 active=4096 base=96
+E2E_PLACE_BASE pos=9 stage=10 active=1024 base=352
+E2E_PLACE_BASE pos=10 stage=9 active=1024 base=224
+E2E_PLACE_BASE pos=11 stage=11 active=4096 base=96
+E2E_PLACE_BASE pos=12 stage=12 active=256 base=352
+E2E_PLACE_BASE pos=13 stage=13 active=64 base=224
+E2E_PLACE_BASE pos=14 stage=14 active=128 base=288
+E2E_PLACE_BASE pos=15 stage=15 active=896 base=32
+E2E_PLACE_BASE pos=16 stage=16 active=224 base=160
+E2E_PLACE_BASE pos=17 stage=17 active=896 base=0
+E2E_PLACE_BASE pos=18 stage=18 active=224 base=128
+E2E_PLACE_BASE pos=19 stage=19 active=128 base=352
+E2E_PLACE_BASE pos=20 stage=20 active=256 base=96
+E2E_PLACE_BASE pos=21 stage=21 active=64 base=352
+E2E_PLACE_BASE pos=22 stage=22 active=128 base=32
+E2E_PLACE_BASE pos=23 stage=25 active=64 base=160
+E2E_PLACE_BASE pos=24 stage=26 active=16 base=224
+E2E_PLACE_BASE pos=25 stage=23 active=256 base=240
+E2E_PLACE_BASE pos=26 stage=24 active=64 base=112
+E2E_PLACE_BASE pos=27 stage=27 active=64 base=176
+E2E_PLACE_BASE pos=28 stage=28 active=16 base=240
+E2E_PLACE_BASE pos=29 stage=30 active=1024 base=256
+E2E_PLACE_BASE pos=30 stage=29 active=4096 base=128
+E2E_PLACE_BASE pos=31 stage=32 active=1024 base=0
+E2E_PLACE_BASE pos=32 stage=31 active=1024 base=256
+E2E_PLACE_BASE pos=33 stage=33 active=4096 base=128
+E2E_PLACE_BASE pos=34 stage=34 active=256 base=0
+E2E_PLACE_BASE pos=35 stage=35 active=64 base=256
+E2E_PLACE_BASE pos=36 stage=36 active=128 base=320
+E2E_PLACE_BASE pos=37 stage=37 active=896 base=64
+E2E_PLACE_BASE pos=38 stage=38 active=224 base=192
+E2E_PLACE_BASE pos=39 stage=39 active=896 base=32
+E2E_PLACE_BASE pos=40 stage=40 active=224 base=160
+E2E_PLACE_BASE pos=41 stage=41 active=128 base=0
+E2E_PLACE_BASE pos=42 stage=42 active=256 base=128
+E2E_PLACE_BASE pos=43 stage=43 active=64 base=0
+E2E_PLACE_BASE pos=44 stage=44 active=128 base=64
+E2E_PLACE_BASE pos=45 stage=47 active=64 base=192
+E2E_PLACE_BASE pos=46 stage=48 active=16 base=256
+E2E_PLACE_BASE pos=47 stage=45 active=256 base=272
+E2E_PLACE_BASE pos=48 stage=46 active=64 base=144
+E2E_PLACE_BASE pos=49 stage=49 active=64 base=208
+E2E_PLACE_BASE pos=50 stage=50 active=16 base=272
+E2E_PLACE_BASE pos=51 stage=52 active=1024 base=288
+E2E_PLACE_BASE pos=52 stage=51 active=4096 base=160
+E2E_PLACE_BASE pos=53 stage=54 active=1024 base=32
+E2E_PLACE_BASE pos=54 stage=53 active=1024 base=288
+E2E_PLACE_BASE pos=55 stage=55 active=4096 base=160
+E2E_PLACE_BASE pos=56 stage=56 active=256 base=32
+E2E_PLACE_BASE pos=57 stage=57 active=64 base=288
+E2E_PLACE_BASE pos=58 stage=58 active=128 base=352
+E2E_PLACE_BASE pos=59 stage=59 active=896 base=96
+E2E_PLACE_BASE pos=60 stage=60 active=224 base=224
+E2E_PLACE_BASE pos=61 stage=61 active=896 base=64
+E2E_PLACE_BASE pos=62 stage=62 active=224 base=192
+E2E_PLACE_BASE pos=63 stage=63 active=128 base=32
+E2E_PLACE_BASE pos=64 stage=64 active=256 base=160
+E2E_PLACE_BASE pos=65 stage=65 active=64 base=32
+E2E_PLACE_BASE pos=66 stage=66 active=128 base=96
+E2E_PLACE_BASE pos=67 stage=69 active=64 base=224
+E2E_PLACE_BASE pos=68 stage=70 active=16 base=288
+E2E_PLACE_BASE pos=69 stage=67 active=256 base=304
+E2E_PLACE_BASE pos=70 stage=68 active=64 base=176
+E2E_PLACE_BASE pos=71 stage=71 active=64 base=240
+E2E_PLACE_BASE pos=72 stage=72 active=16 base=304
+E2E_PLACE_BASE pos=73 stage=74 active=1024 base=320
+E2E_PLACE_BASE pos=74 stage=73 active=4096 base=192
+E2E_PLACE_BASE pos=75 stage=76 active=1024 base=64
+E2E_PLACE_BASE pos=76 stage=75 active=1024 base=320
+E2E_PLACE_BASE pos=77 stage=77 active=4096 base=192
+E2E_PLACE_BASE pos=78 stage=78 active=256 base=64
+E2E_PLACE_BASE pos=79 stage=79 active=64 base=320
+E2E_PLACE_BASE pos=80 stage=80 active=128 base=0
+E2E_PLACE_BASE pos=81 stage=81 active=896 base=128
+E2E_PLACE_BASE pos=82 stage=82 active=224 base=256
+E2E_PLACE_BASE pos=83 stage=83 active=896 base=96
+E2E_PLACE_BASE pos=84 stage=84 active=224 base=224
+E2E_PLACE_BASE pos=85 stage=85 active=128 base=64
+E2E_PLACE_BASE pos=86 stage=86 active=256 base=192
+E2E_PLACE_BASE pos=87 stage=87 active=64 base=64
+E2E_PLACE_STATS placement=0 max_queue=157 same_worker_edges=122448 cross_worker_edges=39603568 base_rotation=1 plan=rotate
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_TRACE_V2 slots=60032 events=8864 traced_launch=l2_forward_last_timed_sample out=/root/TileMega/docs/experiments/REBASE/raw/real_s128/trace/rotate__full/dump
+E2E_RESOURCE block=128 reg=142 smem=16384 task_smem=16384 occupancy_smem=16384 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=12288 variant_count=1 ctas_per_sm=3 num_sms=128 grid=384 l1_reg=140 l05_reg=146 l1_ctas=3 l2_ctas=3 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=384 variant_stages=60 task_refs=60032 task_ref_bytes=1680896 waits=156224 wait_bytes=1249792 raw_polls=273472 lifted_polls=117248 waiting_tasks=35712 normalization_dummies_lb=120512 max_span=13 generated_max_span=10 max_worker_span=383 resident_limit=384 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=157
+E2E_TIME l05_ms=6.627328 l1_ms=6.672384 ratio=1.006799 l2_ms=6.419200 l2_over_l1=0.962055
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.046875 max_rel=3906.25 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=73 mismatch=0 max_abs=0.046875 max_rel=3417.9688
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0.0078125 max_rel=0.14285715
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0.0078125 max_rel=0.35820895
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.015625 max_rel=3906.25
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.015625 max_rel=152.27272
+E2E_OUTPUT_DIFF index=5 buffer=71 mismatch=0 max_abs=0.015625 max_rel=3906.25
+E2E_OUTPUT_DIFF index=6 buffer=72 mismatch=0 max_abs=0.015625 max_rel=1301.5883
+E2E_OUTPUT_DIFF index=7 buffer=95 mismatch=0 max_abs=0.015625 max_rel=3906.25
+E2E_OUTPUT_DIFF index=8 buffer=96 mismatch=0 max_abs=0.015625 max_rel=88.987877
+E2E_HASH l05=4e22b914fb919b52 l1=4e22b914fb919b52 l2=4e22b914fb919b52
+E2E_ITER l2_iter1_ms=6.412288 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=4 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=128
+RESULT status=PASS

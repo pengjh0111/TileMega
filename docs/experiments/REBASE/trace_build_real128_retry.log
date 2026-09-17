@@ -1,0 +1,11 @@
+DISK NEED_MIB=16384 FREE_MIB=1518176
+BUILD real_s128 eft__full_trace 0
+BUILD real_s128 wavefront__full_trace 0
+BUILD real_s128 rotate__full_trace 0
+BUILD real_s128 legacy_grid_stride__full_trace 0
+BUILD real_s128 chain__full_trace 0
+BUILD real_s128 balanced__full_trace 0
+BUILD real_s128 protocol_off__full_trace 0
+BUILD real_s128 c1__full_trace 0
+BUILD real_s128 c2__full_trace 0
+BUILD real_s128 c3__full_trace 0

@@ -1,0 +1,21 @@
+{
+  "joint": "docs/experiments/JOINT2/prepared/real_s128",
+  "choice": {
+    "arm": "top3",
+    "pilot_medians": {
+      "top1": 6.677344,
+      "top2": 6.347776,
+      "top3": 6.053888
+    },
+    "choice": {
+      "source": "/root/TileMega/docs/experiments/JOINT2/prepared/real_s128/auto.cu.top3.cu",
+      "kappa": "4",
+      "residency": "3",
+      "placement_macro": "0"
+    },
+    "frozen_ns": 1789648050566420480,
+    "excluded": {}
+  },
+  "placement": "eft",
+  "frozen_commit": "9882773976513bc0824a81450988566252b30584"
+}

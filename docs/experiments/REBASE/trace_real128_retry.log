@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/root/TileMega/docs/experiments/REBASE/run.py", line 66, in <module>
+    if __name__=='__main__':main()
+  File "/root/TileMega/docs/experiments/REBASE/run.py", line 59, in main
+    try:r5.run(cell,m,s,arm,cell/a.action/name,i,k,session,a.action=='trace')
+  File "/root/TileMega/docs/experiments/JOINT/measure.py", line 51, in run
+    if log.exists():raise RuntimeError('refusing overwrite '+str(log))
+RuntimeError: refusing overwrite /root/TileMega/docs/experiments/REBASE/raw/real_s128/trace/eft__full/r0.log
