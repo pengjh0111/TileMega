@@ -1,0 +1,13 @@
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x000055f5c81f3670 in tilemega::analysis::VisitFiniteBox(isl_set*, int, std::function<void (long const*)> const&) ()
+
+Thread 1 (Thread 0x7f5a3defa000 (LWP 1222239) "tilemega-compil"):
+#0  0x000055f5c81f3670 in tilemega::analysis::VisitFiniteBox(isl_set*, int, std::function<void (long const*)> const&) ()
+#1  0x000055f5c81fd1cc in tilemega::analysis::VisitFiniteRelation(tilemega::analysis::IslContext&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, int, std::function<void (long const*)> const&)::{lambda(isl_basic_set*, void*)#2}::_FUN(isl_basic_set*, void*) ()
+#2  0x000055f5c861178c in isl_set_foreach_basic_set ()
+#3  0x000055f5c81f767c in tilemega::analysis::VisitFiniteRelation(tilemega::analysis::IslContext&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, int, std::function<void (long const*)> const&) ()
+#4  0x000055f5c820230b in tilemega::dialect::PreparePlacementProblem(mlir::ModuleOp, tilemega::dialect::PlacementSolveOptions const&) ()
+#5  0x000055f5c8214951 in tilemega::solver::SolveExport(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, mlir::MLIRContext&, tilemega::solver::CompilerSearchOptions const&, tilemega::frontend::ImportSummary*, std::ostream&) ()
+#6  0x000055f5c81e1fb5 in main ()
+[Inferior 1 (process 1222239) detached]

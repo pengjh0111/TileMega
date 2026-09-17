@@ -1,0 +1,26 @@
+DISK NEED_MIB=8192 FREE_MIB=1506737
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.resources/1789684448738393197/0" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1506734
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.resources/1789684448738393197/1" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1506728
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.resources/1789684448738393197/2" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1506719
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.resources/1789684448738393197/3" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1506679
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.resources/1789684448738393197/4" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1506652
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.resources/1789684448738393197/5" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1506644
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.resources/1789684448738393197/6" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1506641
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.resources/1789684448738393197/7" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1506629
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.resources/1789684448738393197/8" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1506624
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.resources/1789684448738393197/9" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1503074
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.resources/1789684448738393197/10" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1503071
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.resources/1789684448738393197/11" resident=5
+SOLVE_SUMMARY evaluated=12 deferred=72 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=96 couplings=114 stages=60 symbolic_windows=114 fallback_windows=0 output=docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu

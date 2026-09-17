@@ -1,0 +1,18 @@
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x00007f5b5096a2ce in __gmpn_divexact () from /lib/x86_64-linux-gnu/libgmp.so.10
+
+Thread 1 (Thread 0x7f5b503c3000 (LWP 1211833) "tilemega-compil"):
+#0  0x00007f5b5096a2ce in __gmpn_divexact () from /lib/x86_64-linux-gnu/libgmp.so.10
+#1  0x00007f5b50929636 in __gmpz_divexact () from /lib/x86_64-linux-gnu/libgmp.so.10
+#2  0x000055be5c91956f in isl_tab_add_row ()
+#3  0x000055be5c91994f in isl_tab_add_valid_eq ()
+#4  0x000055be5c8f8b5f in isl_basic_set_scan ()
+#5  0x000055be5c8dcb2e in isl_set_foreach_point ()
+#6  0x000055be5c48b28e in tilemega::analysis::VisitFiniteRelation(tilemega::analysis::IslContext&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, int, std::function<void (long const*)> const&)::{lambda(isl_basic_set*, void*)#2}::_FUN(isl_basic_set*, void*) ()
+#7  0x000055be5c8adc4c in isl_set_foreach_basic_set ()
+#8  0x000055be5c49462c in tilemega::analysis::VisitFiniteRelation(tilemega::analysis::IslContext&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, int, std::function<void (long const*)> const&) ()
+#9  0x000055be5c49ec3b in tilemega::dialect::PreparePlacementProblem(mlir::ModuleOp, tilemega::dialect::PlacementSolveOptions const&) ()
+#10 0x000055be5c4b1051 in tilemega::solver::SolveExport(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, mlir::MLIRContext&, tilemega::solver::CompilerSearchOptions const&, tilemega::frontend::ImportSummary*, std::ostream&) ()
+#11 0x000055be5c47efb5 in main ()
+[Inferior 1 (process 1211833) detached]

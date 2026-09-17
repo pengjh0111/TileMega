@@ -1,0 +1,18 @@
+{
+  "command": [
+    "gdb",
+    "-q",
+    "-batch",
+    "-p",
+    "1211833",
+    "-ex",
+    "set pagination off",
+    "-ex",
+    "thread apply all bt 12",
+    "-ex",
+    "detach"
+  ],
+  "exit_code": 0,
+  "observed_ns": 1789683737390866299,
+  "note": "Read-only stack sample; exact-box search briefly paused and detached. Not part of per-plan simulator timing."
+}
