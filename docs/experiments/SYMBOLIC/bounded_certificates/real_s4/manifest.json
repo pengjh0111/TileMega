@@ -1,0 +1,20 @@
+{
+  "source": "/root/TileMega/docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.top2.mlir",
+  "source_sha256": "9de2003de24f854267b27bbdb04627b6b4196d4850e28052f359c3c729c84f6e",
+  "family": "wavefront",
+  "grid": 256,
+  "interval": [
+    1,
+    128
+  ],
+  "shards": [
+    "s1_16",
+    "s17_32",
+    "s33_48",
+    "s49_64",
+    "s65_80",
+    "s81_96",
+    "s97_112",
+    "s113_128"
+  ]
+}

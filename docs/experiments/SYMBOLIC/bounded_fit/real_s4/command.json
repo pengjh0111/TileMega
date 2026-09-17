@@ -1,0 +1,25 @@
+{
+  "command": [
+    "/tmp/r6_bounded_champion_fit",
+    "docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.top2.mlir",
+    "docs/experiments/SYMBOLIC/bounded_fit/real_s4"
+  ],
+  "source_choice": {
+    "rank": "2",
+    "key": "64x128x16s2split16kappa2r2",
+    "placement": "wavefront",
+    "tile_m": "64",
+    "tile_n": "128",
+    "tile_k": "16",
+    "stages": "2",
+    "split_k": "16",
+    "kappa": "2",
+    "residency": "2",
+    "floor_ns": "2.07187e+06",
+    "predicted_ns": "2.36897e+06",
+    "source": "docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.top2.cu",
+    "cg": "docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.top2.mlir"
+  },
+  "started_ns": 1789677749223347840,
+  "exit_code": 0
+}
