@@ -1,0 +1,17 @@
+{
+  "command": [
+    "gdb",
+    "-q",
+    "-batch",
+    "-p",
+    "1141139",
+    "-ex",
+    "set pagination off",
+    "-ex",
+    "thread apply all bt 10",
+    "-ex",
+    "detach"
+  ],
+  "observed_ns": 1789679628933262200,
+  "note": "Read-only stack sample; CPU search briefly paused for attachment, then detached. Not a simulator budget measurement. The independently locked GPU collection continues."
+}

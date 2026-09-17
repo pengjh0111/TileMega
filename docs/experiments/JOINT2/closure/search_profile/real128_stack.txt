@@ -1,0 +1,17 @@
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x00007f7cefef96c9 in _int_free (av=0x7f7cf0071c80 <main_arena>, p=0x55ab07913d40, have_lock=0) at ./malloc/malloc.c:4450
+4450	./malloc/malloc.c: No such file or directory.
+
+Thread 1 (Thread 0x7f7cf08d6000 (LWP 1141139) "tilemega-compil"):
+#0  0x00007f7cefef96c9 in _int_free (av=0x7f7cf0071c80 <main_arena>, p=0x55ab07913d40, have_lock=0) at ./malloc/malloc.c:4450
+#1  0x00007f7cefefc413 in __GI___libc_free (mem=<optimized out>) at ./malloc/malloc.c:3391
+#2  0x000055aaf6c4d063 in isl_val_free ()
+#3  0x000055aaf67a72eb in tilemega::analysis::VisitFiniteRelation(tilemega::analysis::IslContext&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, int, std::function<void (long const*)> const&)::{lambda(isl_point*, void*)#1}::_FUN(isl_point*, void*) ()
+#4  0x000055aaf6c13e17 in isl_basic_set_scan ()
+#5  0x000055aaf6bf7dae in isl_set_foreach_point ()
+#6  0x000055aaf67a7259 in tilemega::analysis::VisitFiniteRelation(tilemega::analysis::IslContext&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, int, std::function<void (long const*)> const&)::{lambda(isl_basic_set*, void*)#2}::_FUN(isl_basic_set*, void*) ()
+#7  0x000055aaf6bc8ecc in isl_set_foreach_basic_set ()
+#8  0x000055aaf67b01a4 in tilemega::analysis::VisitFiniteRelation(tilemega::analysis::IslContext&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, int, std::function<void (long const*)> const&) ()
+#9  0x000055aaf67ba64b in tilemega::dialect::PreparePlacementProblem(mlir::ModuleOp, tilemega::dialect::PlacementSolveOptions const&) ()
+[Inferior 1 (process 1141139) detached]
