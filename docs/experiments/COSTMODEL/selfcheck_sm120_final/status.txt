@@ -1,0 +1,1 @@
+SELF_CHECK PASS; sm_120 not run

@@ -43,14 +43,9 @@ def main():
   subprocess.run([str(out/'tools/replay'),'/',str(manifest),str(out/'replay.tsv'),str(pub['publication_ns']),str(pub['consumer_wait_ns']),str(pub['visibility_ns'])],cwd=REPO,env=env,stdout=f,stderr=subprocess.STDOUT,check=True)
  if a.mode=='cost':return
  if a.mode=='models':
-  model=out/'llama_mlp';run('MODELS/export_mlp.py','--model','llama','--seq','4','--out',model)
+  model=out/'llama_covered';run('MODELS/export_covered.py','--seq','4','--out',model)
   subprocess.run([str(REPO/'build-portable/tools/tilemega-compile'),str(model/'exported_program.pt2'),str(model/'auto.cu'),'--solve',str(target_path),'--seq','4','--past','3','--search-capacity',str(a.capacity),'--search-domain',str(HERE.parent/'COSTMODEL/event_fit/search_domain.json'),'--hop-curve',str(base/'calibration/hop_ns.tsv'),'--dump-cg',str(model/'auto.mlir')],cwd=REPO,env=env,check=True)
-  sys.path.insert(0,str(HERE.parent/'JOINT'));import measure
-  import csv
-  selected=next(csv.DictReader((model/'auto.cu.top3.tsv').open(),delimiter='\t'))
-  spec=dict(source=str(model/'auto.cu'),kappa=selected['kappa'],residency=selected['residency'],placement_macro='0')
-  if measure.build(model,'llama','selected',spec,'sm_120'):raise RuntimeError('model subset build failed')
-  run('MODELS/run_correctness.py','--root',model)
+  run('MODELS/run_covered.py','--root',model,'--fixture',model/'fixture','--arch','sm_120')
   return
  common=['--raw',out/'joint','--target',target_path,'--hop',base/'calibration/hop_ns.tsv','--arch','sm_120','--champion-root',base/'joint','--capacity',a.capacity]
  failures=[];successful=[]
