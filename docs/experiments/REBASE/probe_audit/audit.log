@@ -1,0 +1,5 @@
+PROBE_AUDIT processes=1250/1250 pairs=250/250 nonpositive=44 zero=0
+KERNEL_IDENTITY {'arm': 'nofence', 'function': '_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy', 'bytes': 1427046, 'identical_full': 0}
+KERNEL_IDENTITY {'arm': 'nofence', 'function': '_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy', 'bytes': 1698086, 'identical_full': 1}
+KERNEL_IDENTITY {'arm': 'l1nosync', 'function': '_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy', 'bytes': 1428982, 'identical_full': 1}
+KERNEL_IDENTITY {'arm': 'l1nosync', 'function': '_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy', 'bytes': 1684534, 'identical_full': 0}
