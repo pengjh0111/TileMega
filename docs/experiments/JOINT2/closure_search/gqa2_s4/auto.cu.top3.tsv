@@ -1,0 +1,4 @@
+rank	key	placement	tile_m	tile_n	tile_k	stages	split_k	kappa	residency	floor_ns	predicted_ns	source	cg
+1	32x16x64s2split4kappa1r2	wavefront	32	16	64	2	4	1	2	56397.5	168541	docs/experiments/JOINT2/closure_search/gqa2_s4/auto.cu.top1.cu	docs/experiments/JOINT2/closure_search/gqa2_s4/auto.cu.top1.mlir
+2	32x16x64s2split4kappa2r2	wavefront	32	16	64	2	4	2	2	56397.5	168541	docs/experiments/JOINT2/closure_search/gqa2_s4/auto.cu.top2.cu	docs/experiments/JOINT2/closure_search/gqa2_s4/auto.cu.top2.mlir
+3	32x16x64s2split4kappa4r2	wavefront	32	16	64	2	4	4	2	56397.5	168541	docs/experiments/JOINT2/closure_search/gqa2_s4/auto.cu.top3.cu	docs/experiments/JOINT2/closure_search/gqa2_s4/auto.cu.top3.mlir
