@@ -338,7 +338,7 @@ def history_order():
 def target_selfcheck():
  details=[]
  for name in ('COSTMODEL','JOINT2','REBASE','MODELS'):
-  folder=EX/name/'selfcheck_sm120_portable';text=(folder/'status.txt').read_text();check('SELF_CHECK PASS; sm_120 not run' in text,'self-check failed '+name)
+  folder=EX/name/'selfcheck_sm120_slices';text=(folder/'status.txt').read_text();check('SELF_CHECK PASS; sm_120 not run' in text,'self-check failed '+name)
   check((folder/'compile.log').exists(),'compile evidence missing '+name);details.append(evidence(folder))
  return True,'four local compile/guard checks; no sm_120 execution claim; '+'; '.join(details)
 
