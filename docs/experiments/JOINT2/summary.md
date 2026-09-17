@@ -1,3 +1,11 @@
+> **Continuation in progress:** the report below is the preceding checkpoint,
+> not the final acceptance result for the repaired cost, interval-writeback and
+> outer-bound paths. Current work is tracked in `closure/requirements.md`.
+> Five frozen search cells have complete confirmatory/correctness/trace data;
+> real-s128 solving and the full B1 campaign are still running. Final raw
+> verification, report regeneration and the final-parent SASS stamp remain
+> pending. Earlier performance tables must not be mixed with `bounded_search`.
+
 # TileMega R6 — solver pipeline closure and real-model anchoring
 
 The production point-solve/writeback path and the bounded symbolic templates are implemented. Performance acceptance is **not fully closed**: the verifier below retains every failed hard gate. These results do not establish that all single-inference decisions or all real-model operators are solved. The selected configurations remain opt-in; their reference regressions are not a delivered performance improvement.
