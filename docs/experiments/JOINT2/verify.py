@@ -2,8 +2,8 @@
 """Recompute every R6 gate from raw processes, evaluator rows, and plan dumps.
 
 Run from any directory: python3 docs/experiments/JOINT2/verify.py
-No summary.md, report.json, result.json, comparisons.tsv or gate-result input
-is consulted. Missing evidence is FAIL. All gates run before the exit code.
+No summary.md, report.json, result.json or gate-result input is consulted.
+Cross-grid metadata indexes raw Plan pairs; differences are recomputed. Missing evidence is FAIL. All gates run before the exit code.
 Research/report failures are displayed; any hard failure returns one.
 """
 import csv,hashlib,importlib.util,json,math,re,statistics,subprocess,sys,traceback
@@ -56,7 +56,17 @@ def cost_branches():
    if 'NonGemmStageNs' in line or re.search(r'(case\s+StageKind|(?:if|switch).*StageKind)',line):hits.append(f'{f}:{n}:{line.strip()}')
  command=['rg','-n','StageKind|NonGemmStageNs','lib/Solver/CostModel.cpp','lib/Solver/ChainDP.cpp','lib/Solver/CouplingInterfaceDP.cpp','lib/Solver/TaskModel.cpp']
  output=subprocess.run(command,cwd=REPO,text=True,capture_output=True).stdout.strip()
- return not hits,'command='+ ' '.join(command)+'; output='+repr(output)+'; remaining StageKind in parsing, access projection and ownership is not a cost formula'
+ roles={'ModelDescription.cpp':'model parsing', 'AlignmentPropagation.cpp':'alignment constraints',
+        'RuntimeProjection.cpp':'runtime ownership and dependency projection',
+        'ScalarTaskWork.cpp':'CG-derived retained-prefix access region',
+        'AttentionWork.cpp':'attention semantic/resource contract validation'}
+ all_command=['rg','-n','StageKind|NonGemmStageNs','lib/Solver']
+ whole=subprocess.run(all_command,cwd=REPO,text=True,capture_output=True).stdout.strip()
+ for line in whole.splitlines():
+  filename=Path(line.split(':',1)[0]).name
+  check(filename in roles,'unreviewed operator-kind branch: '+line)
+  check('NonGemmStageNs' not in line,'retired formula remains: '+line)
+ return not hits,'command='+ ' '.join(command)+'; output='+repr(output)+'; whole-tree command=rg -n StageKind lib/Solver; reviewed non-price roles='+repr(roles)+'; full grep evidence=COSTMODEL/stagekind_audit.txt'
 def rank_gate(key,threshold):
  rows=table(C/'calibrated_replay/evaluations.tsv');actual=table(EX/'SIMULATOR/raw/time/l2.tsv');modes={'legacy_grid_stride':'0','balanced':'4','rotate':'5'}
  rows=[r for r in rows if r['model']!='real' and r['candidate'] in modes]
@@ -204,6 +214,17 @@ def rebase():
      if arm.endswith('__full'):check(m['exit_code']==0 and 'RESULT status=PASS' in p.read_text(),'full correctness failed')
      n+=1
    check(n==1250 and len(starts)==1250 and len(sessions)==1,'missing/reused sessions');details.append(f'{name} {n}/1250')
+   values=[]
+   for i in range(25):
+    at=lambda arm:joint.timing(root/'measure'/arm/f'r{i}.log')
+    rotate=at('rotate__full')['l2_ms'];legacy=at('legacy_grid_stride__full')['l2_ms']
+    selected=json.loads((root/'selection.json').read_text())['placement']
+    full=at(selected+'__full');nowait=at(selected+'__nowait')['l2_ms'];neither=at(selected+'__neither')['l2_ms']
+    barrier=full['l1_ms']-at(selected+'__l1nosync')['l1_ms']
+    check(barrier>0,'nonpositive paired barrier '+name)
+    values.append((rotate/legacy,full['l2_ms']-nowait,nowait-neither,full['l2_ms']-at(selected+'__nofence')['l2_ms'],barrier,(full['l2_ms']-neither)/barrier))
+   medians=[statistics.median(v[k] for v in values) for k in range(6)]
+   details.append(name+' (rotate/legacy,selected_wait_ms,notify_ms,fence_ms,barrier_ms,protocol/barrier)='+repr(medians))
   except Exception as e:ok=False;details.append(f'{name}: {e}')
  return ok,'; '.join(details)+'; REBASE/raw/*/measure'
 def models():
