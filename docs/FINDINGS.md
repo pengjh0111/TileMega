@@ -5369,3 +5369,33 @@ than claiming the older independent-MLP 50/50 closes the maximal graph.
 Evidence: `MODELS/subset.md`, `covered_llama*/correctness/r0.log`,
 `covered_geometry_probes/*/run.log`, and
 `covered_llama_admitted2/diagnostic/{cpu_buffers_aligned.tsv,first_v_rounding.json,first_context_isolation.json}`.
+
+## F-202 — R6 fills the outer bounds and preserves simulator predictions
+
+✅ **Verified implementation.** The continuation found that outer candidate
+work/CP/queue bounds were zero and the finite budget was ordered by an L1
+heuristic. `PreparePlacementProblem` now supplies the same derived-cost task
+graph to both outer bounds and the six-placement inner catalog. The outer
+priority is max(work, semantic CP, queue pigeonhole bound); each candidate's
+raw bounds and evaluated/deferred/pruned status are emitted. The grid upper
+bound uses SM count and hardware thread capacity, not guessed compiled
+occupancy. Exact compiled occupancy still controls inner legal residencies.
+Final campaigns use `JOINT2/bounded_search`; earlier `closure_search` results
+are superseded diagnostics, not final acceptance evidence.
+
+✅ **Verified.** Incremental event-row reuse equals an independent full graph
+rebuild in 36 model/placement comparisons (`JOINT2/closure/event_reuse.log`).
+The compact fixed-duration recurrence keeps queue end times per worker and
+avoids unused per-node publication/wait/readiness arrays. Random DAG/FIFO
+cases and non-topological node ids agree with the independent event heap.
+All 40 replay predictions, including both CP definitions and queue bound,
+remain byte-identical across five numeric columns.
+
+✅ **Verified budget result.** Cold full evaluation, including plan readiness,
+peaks at 2633.135 us on references and 2548.311 us on real-width in
+`COSTMODEL/closure_compact/evaluations.tsv`. J-c still FAILs its reference
+1000 us gate; cached-only timing does not replace it. Shared graph preparation
+is separately reported. Finite candidate capacity remains an explicit
+degradation, with no optimality claim. The next budget work is to reduce
+remaining cold readiness/recurrence memory traffic and allocation while
+retaining independent timestamp equivalence and the full timing boundary.
