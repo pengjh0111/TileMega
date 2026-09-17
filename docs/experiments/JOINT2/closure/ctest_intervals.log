@@ -1,0 +1,104 @@
+Internal ctest changing into directory: /root/TileMega/build-portable
+Test project /root/TileMega/build-portable
+      Start 25: fusion_rewrite
+      Start  3: coupling_interface_mha4
+ 1/49 Test  #3: coupling_interface_mha4 ..........   Passed   42.61 sec
+      Start 31: attention_work
+ 2/49 Test #31: attention_work ...................   Passed   30.35 sec
+      Start 26: fusion_written_price
+ 3/49 Test #26: fusion_written_price .............   Passed   19.88 sec
+      Start  2: coupling_interface_gqa2
+ 4/49 Test  #2: coupling_interface_gqa2 ..........   Passed   25.47 sec
+      Start 29: fusion_batch_rewrite
+ 5/49 Test #25: fusion_rewrite ...................   Passed  127.84 sec
+      Start 10: incidence_identity
+ 6/49 Test #10: incidence_identity ...............   Passed    5.07 sec
+      Start 11: imported_incidence_identity
+ 7/49 Test #29: fusion_batch_rewrite .............   Passed   18.09 sec
+      Start 15: task_element_work
+ 8/49 Test #11: imported_incidence_identity ......   Passed    5.22 sec
+      Start  6: target_audit
+ 9/49 Test #15: task_element_work ................   Passed    2.61 sec
+      Start 32: chain_dp
+10/49 Test #32: chain_dp .........................   Passed    2.90 sec
+      Start 45: frontend_import
+11/49 Test  #6: target_audit .....................   Passed    3.84 sec
+      Start 14: runtime_projection
+12/49 Test #14: runtime_projection ...............   Passed    1.31 sec
+      Start  1: scalar_cost_errors
+13/49 Test  #1: scalar_cost_errors ...............   Passed    0.85 sec
+      Start 17: task_work_domains
+14/49 Test #17: task_work_domains ................   Passed    0.94 sec
+      Start 27: fused_runtime_projection
+15/49 Test #27: fused_runtime_projection .........   Passed    0.44 sec
+      Start 47: wiring_coupling
+16/49 Test #47: wiring_coupling ..................   Passed    0.40 sec
+      Start 30: fiber_sum
+17/49 Test #30: fiber_sum ........................   Passed    0.10 sec
+      Start 28: exact_runtime_task_graph
+18/49 Test #28: exact_runtime_task_graph .........   Passed    0.07 sec
+      Start 24: lane_intersections
+19/49 Test #24: lane_intersections ...............   Passed    0.08 sec
+      Start  4: cg_lit
+20/49 Test #45: frontend_import ..................   Passed    4.34 sec
+      Start  9: semantics
+21/49 Test  #4: cg_lit ...........................   Passed    0.27 sec
+      Start 18: isl_relation
+22/49 Test  #9: semantics ........................   Passed    0.26 sec
+      Start 23: fusion_access
+23/49 Test #23: fusion_access ....................   Passed    0.08 sec
+      Start  8: table27
+24/49 Test #18: isl_relation .....................   Passed    0.29 sec
+      Start 35: execution_simulator
+25/49 Test #35: execution_simulator ..............   Passed    0.09 sec
+      Start  7: coupling_types
+26/49 Test  #8: table27 ..........................   Passed    0.24 sec
+      Start 13: event_synthesis
+27/49 Test  #7: coupling_types ...................   Passed    0.19 sec
+      Start 12: containment
+28/49 Test #13: event_synthesis ..................   Passed    0.17 sec
+      Start 37: chain_placement
+29/49 Test #37: chain_placement ..................   Passed    0.01 sec
+      Start 41: impl_contract
+30/49 Test #41: impl_contract ....................   Passed    0.03 sec
+      Start 46: semantic_lifting
+31/49 Test #46: semantic_lifting .................   Passed    0.04 sec
+      Start 36: eft_placement
+32/49 Test #36: eft_placement ....................   Passed    0.01 sec
+      Start 38: plan_table
+33/49 Test #38: plan_table .......................   Passed    0.01 sec
+      Start 22: cache_service_curve
+34/49 Test #22: cache_service_curve ..............   Passed    0.01 sec
+      Start 34: plan_contract
+35/49 Test #34: plan_contract ....................   Passed    0.00 sec
+      Start 16: op_arithmetic_audit
+36/49 Test #16: op_arithmetic_audit ..............   Passed    0.01 sec
+      Start 44: fused_harness_compile
+37/49 Test #44: fused_harness_compile ............   Passed    0.01 sec
+      Start 19: layout_bridge
+38/49 Test #19: layout_bridge ....................   Passed    0.02 sec
+      Start 20: cg_attr_roundtrip
+39/49 Test #20: cg_attr_roundtrip ................   Passed    0.02 sec
+      Start 21: backend_query
+40/49 Test #12: containment ......................   Passed    0.19 sec
+      Start 48: frontend_degradation
+41/49 Test #21: backend_query ....................   Passed    0.01 sec
+      Start 43: bf16_task_body_compile
+42/49 Test #43: bf16_task_body_compile ...........   Passed    0.01 sec
+      Start 40: alignment_propagation
+43/49 Test #48: frontend_degradation .............   Passed    0.01 sec
+      Start 33: list_scheduler
+44/49 Test #40: alignment_propagation ............   Passed    0.01 sec
+      Start 39: cluster_labeling
+45/49 Test #33: list_scheduler ...................   Passed    0.01 sec
+      Start 49: isl_crosslink
+46/49 Test #39: cluster_labeling .................   Passed    0.01 sec
+      Start  5: target_spec
+47/49 Test #49: isl_crosslink ....................   Passed    0.01 sec
+      Start 42: task_body_contract
+48/49 Test  #5: target_spec ......................   Passed    0.01 sec
+49/49 Test #42: task_body_contract ...............   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 49
+
+Total Test time (real) = 147.25 sec

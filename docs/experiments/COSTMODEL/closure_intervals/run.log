@@ -1,0 +1,16 @@
+SHAPE gqa2 seq=4 nodes=200 groups=79 edges=276 stored_ints=132
+BOUNDS gqa2 seq=4 plans=5
+SHAPE gqa2 seq=128 nodes=4416 groups=1567 edges=6476 stored_ints=1620
+BOUNDS gqa2 seq=128 plans=5
+SHAPE gqa2 seq=512 nodes=17664 groups=6241 edges=25904 stored_ints=6480
+BOUNDS gqa2 seq=512 plans=5
+SHAPE mha4 seq=4 nodes=512 groups=193 edges=684 stored_ints=312
+BOUNDS mha4 seq=4 plans=5
+SHAPE mha4 seq=128 nodes=11920 groups=4161 edges=16556 stored_ints=4280
+BOUNDS mha4 seq=128 plans=5
+SHAPE mha4 seq=512 nodes=47680 groups=16593 edges=66224 stored_ints=17120
+BOUNDS mha4 seq=512 plans=5
+SHAPE real seq=4 nodes=2800 groups=901 edges=4400 stored_ints=1608
+BOUNDS real seq=4 plans=5
+SHAPE real seq=128 nodes=47936 groups=20741 edges=92192 stored_ints=21448
+BOUNDS real seq=128 plans=5

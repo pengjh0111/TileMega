@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/tmp/r6_evaluate_intervals",
+    "/root/TileMega",
+    "docs/experiments/COSTMODEL/closure_intervals",
+    "docs/experiments/COSTMODEL/event_fit/target.json"
+  ],
+  "started_ns": 1789680872059406252,
+  "binary_sha256": "874aaf186f36a7ad3813b2169576ad54c414e632e4c1b415ffc88a5d6df854c1",
+  "exit_code": 0
+}

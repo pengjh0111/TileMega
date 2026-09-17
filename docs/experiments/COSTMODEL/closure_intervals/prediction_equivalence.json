@@ -1,0 +1,13 @@
+{
+  "rows": 40,
+  "value_columns": [
+    "coarse_ns",
+    "full_ns",
+    "binding_cp_ns",
+    "semantic_cp_ns",
+    "queue_lb_ns"
+  ],
+  "identical": true,
+  "old_sha256": "1e2f52d15370e0799ca1d9d7be5d680049782a3df91c5ab1fba8f056f01d5066",
+  "new_sha256": "f37ce4e94b97fc195dd711aebb6b167750fa50e3504a16a778372c233f090292"
+}

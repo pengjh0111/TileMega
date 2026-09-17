@@ -81,8 +81,8 @@ int main(int argc,char** argv) try {
     auto start=Clock::now();PreparedPlanBounds prepared;
     if (!PreparePlanBounds(input,&prepared,&error)) throw std::runtime_error(error);
     double preparation=micros(start);
-    std::size_t grouped_edges=0;for(auto const& row:prepared.graph.successors)grouped_edges+=row.size();
-    std::cout<<"SHAPE "<<f[0]<<" seq="<<seq<<" nodes="<<input.task_ns.size()<<" groups="<<prepared.graph.successors.size()<<" edges="<<grouped_edges<<std::endl;
+    std::size_t grouped_edges=0,stored_ints=0;for(auto const& row:prepared.graph.successors){grouped_edges+=row.size();stored_ints+=row.stored_ints();}
+    std::cout<<"SHAPE "<<f[0]<<" seq="<<seq<<" nodes="<<input.task_ns.size()<<" groups="<<prepared.graph.successors.size()<<" edges="<<grouped_edges<<" stored_ints="<<stored_ints<<std::endl;
     input.prepared_graph=&prepared.graph;
     SimulatorOptions options;options.sms=cell.num_sms;options.ctas_per_sm=cell.ctas_per_sm;options.proportional_sharing=true;
     options.observed_task_times=true;options.flat_hop=true;
