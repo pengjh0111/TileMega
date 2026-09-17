@@ -1,8 +1,8 @@
 {
   "baseline": "bad8a0d9b17804b73afe00a6d545dcea72cc6cbb",
-  "source_head": "d95e1e2b85b2057f8c4802e92b08f95154fa1215",
+  "source_head": "fe9290f41266a980ab6d928776c42b2d41eff983",
   "provisional": false,
-  "started_utc": "2026-09-17T18:20:19.672580+00:00",
+  "started_utc": "2026-09-17T18:32:17.540383+00:00",
   "models": {
     "gqa2": {
       "sha256": "3a302f1123378cbd6ccc5bcbf88c4e4799d82147b7e45e829462b3513c03dde2",
@@ -3975,7 +3975,7 @@
     "docs/experiments/JOINT2/rejection_scope_check.json": "5e7dae7e66f3f5512770db87ef4ad0e9a6fc419db74a1868152eefd3fae5a434",
     "docs/experiments/JOINT2/rejection_scope_check.log": "bed849650d32b05e3db4dc6ddcceb094f9820af26ebd5821384b0fed8ee8fe63",
     "docs/experiments/JOINT2/rejection_wrong_model.json": "7bc46874027903ef406b212737639f99c0f77e02ccc3b394035b6897ee2f867d",
-    "docs/experiments/JOINT2/report.py": "ded2237e2b8ce4877523761dcb4e05a872873bd1934299ecd406c8c127047241",
+    "docs/experiments/JOINT2/report.py": "2bfa01be50787138b3a0a428aede494eb87155adc6db9bd1472ec3856e9d7942",
     "docs/experiments/JOINT2/run.py": "cf741ac2b827ff14f58a88927a23890cf5854e4472253762cbdf593c773637dd",
     "docs/experiments/JOINT2/run_sm120.sh": "44874b7da43be84bbb5236539522beb01f58d5120f1a9d8b42c261e3aeb26cfd",
     "docs/experiments/JOINT2/sass_identity.py": "c8ce8dd36e0b0ab4319f2fa38a62989ced771d9c8c38f64cd5199341bb7d64b4",
@@ -4842,6 +4842,7 @@
     "docs/experiments/JOINT2/simulator_histogram_driver.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "docs/experiments/JOINT2/simulator_histogram_run.log": "8c1cf71ec99358c2f357875ff97f5c4fa4eace0dfe7ce228e880c174de568ccd",
     "docs/experiments/JOINT2/sm120_common.sh": "5e9dbc4982a809b2c4550f40d6eafe782af4a66eb1d143e410ea4d157595fd1e",
+    "docs/experiments/JOINT2/summary.md": "4f1b85f895bd05eb6f50609df531d3f7dc13b4afbfb317d6922169d4f6d617b3",
     "docs/experiments/JOINT2/target_pipeline.py": "5fe4e1b5874f1021e9346dd464b117da75f31103daee51380cf85f8f94af3ca4",
     "docs/experiments/JOINT2/verify.py": "4374c5a766eaf06f8579d05ec5d30ef5ae46c1441e00af446b97376873a9db11",
     "docs/experiments/MODELS/audit.json": "59ce6896e40e545644dbcd8bc08c75f21646d91cf9b965696b1623368d3573d5",
@@ -5007,8 +5008,10 @@
     "docs/experiments/MODELS/sources/qwen_config.json": "1ddb5b89ebc90dcb417a45c213d818577e65976454d29385c8f6140771d95197",
     "docs/experiments/MODELS/subset.md": "a1eb4d5c2a50ecaa7aa0d7a5c91e5f17508563f1c754bd21e2f83bcd001cbbec",
     "docs/experiments/REBASE/analyze.py": "f09332caf9ea670f3c6a60fee61339064d824acba2541c17e75e6e48af7cf3e1",
+    "docs/experiments/REBASE/analyze_real_closure.log": "9dbab9da8fde4493a29a3fa36dfbe66abd3a789f068bf22269583f659a1f6e99",
     "docs/experiments/REBASE/analyze_reference_closure.log": "521eee32d40984cfeb2481609b8f708fbaf808f04cc635a69add4e0d9cd43834",
     "docs/experiments/REBASE/attribution_gqa2_mha4.tsv": "e06403ba655dd4faca8c9c8bf5afc3515abcf3d170794ada8443403c52fda2ed",
+    "docs/experiments/REBASE/attribution_real.tsv": "887d22608bf7e205c983b19bb11a76d3781b1a0dd5035e87f8ca1cc7741038a5",
     "docs/experiments/REBASE/attribution_real_s4.tsv": "a912039f1aee74c7c98fb5a5635b54ca7a09ca31278daa9b2e1e199ae9294955",
     "docs/experiments/REBASE/build_real128.log": "c291e4a75102922e5792d32fe3d4e2bed3542b71e435cc20b9b09f2077db66ea",
     "docs/experiments/REBASE/generate.cpp": "1ddcc27d0815e4661271e8fd508d6a85ab546a526551c107bdca9dcf3516bd6d",
@@ -5016,6 +5019,8 @@
     "docs/experiments/REBASE/measure_real128.log": "bd6db7027156eaff9ce80122e668bda1fb0d265686ca23c3c9711ed24e75e451",
     "docs/experiments/REBASE/probe_audit.py": "4dccea47dca17ba42b7cd8d3f5917a0e85b1dba11b3ea8ea92d39aaef55c18fd",
     "docs/experiments/REBASE/probe_audit/README.md": "c693027c00b209426576a516024ac644d5aefb8a531fade595d10b33efd0de0b",
+    "docs/experiments/REBASE/probe_audit/audit.log": "9c82ad1ff2ef0d7bfa4e8aa43664196b93277fa80e352f7c95b22c62e8657f9c",
+    "docs/experiments/REBASE/probe_audit/barrier_pairs.tsv": "9e5586ff72fedd8196077e12771394049394be60e87a6e390e2ff9c90e0cc2df",
     "docs/experiments/REBASE/probe_audit/full.command.json": "b96f0722c04dbcc862b702b8f351bca6d8964c32068e8de8c058f325d760965c",
     "docs/experiments/REBASE/probe_audit/full.sass": "d2d3d1113357f3022725329947a9a88613900ebf16080599b7a12b79794dbc5f",
     "docs/experiments/REBASE/probe_audit/kernel_identity.tsv": "592ccd4f1b185e0ef01c70abb5cf16577c4d96e05d918d07d175f041417e21b6",
@@ -5023,6 +5028,7 @@
     "docs/experiments/REBASE/probe_audit/l1nosync.sass": "fb0cf36923409040b336c9119e2b0e9fac767481876b1f26d967d0a4516e7a29",
     "docs/experiments/REBASE/probe_audit/nofence.command.json": "a7afc4601a08257ef09bc8f3e88009b73f14984a1d5914f0a65c6a8a6e0033d7",
     "docs/experiments/REBASE/probe_audit/nofence.sass": "8e6da47987877c70f580152c9b25b83c6c6b3e381673fd54fbc9d865e7451889",
+    "docs/experiments/REBASE/probe_audit/unchanged_controls.tsv": "b86c1b8439d9dfb77719792de809ffe7902213cfded41e12d130fe4bcdb934da",
     "docs/experiments/REBASE/raw/gqa2_s128/balanced.cu": "d2f387c7a206cba08cc5ae192953d237a94270b95a2fc10dc96dbddaf420f04e",
     "docs/experiments/REBASE/raw/gqa2_s128/balanced.mlir": "9694b598adb8d08dfef191b6df31604dd4b1588db107b99c8d5740003bedef25",
     "docs/experiments/REBASE/raw/gqa2_s128/build/balanced__full.json": "5a4fdf8c874a80611613d533bb1ec7ce35a85a434a3582c3b0703743ec041ca9",
@@ -23511,5 +23517,5 @@
   },
   "baseline_host_sha256": "5abd64cef322aac2dfce91c533ebccdaed79a3863e3de9263bbb5b608a493d3c",
   "head_host_sha256": "cea5089b8b5f6b83468be88ec01b719c17c8a191210e83ea0f8ca191e71020c8",
-  "finished_utc": "2026-09-17T18:22:12.695709+00:00"
+  "finished_utc": "2026-09-17T18:34:23.044359+00:00"
 }
