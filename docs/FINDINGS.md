@@ -5399,3 +5399,24 @@ is separately reported. Finite candidate capacity remains an explicit
 degradation, with no optimality claim. The next budget work is to reduce
 remaining cold readiness/recurrence memory traffic and allocation while
 retaining independent timestamp equivalence and the full timing boundary.
+
+## F-203 — R6 proves current wavefront winners at their actual grid
+
+✅ **Verified.** The refreshed gqa2 s4 and mha4 s4 winners use wavefront at
+grid 512. Each unchanged template is now proved for every integer seq in
+[1,128], with all legality/residency/level predicates true in 128 singleton
+ISL certificates per model. Complete native versus template tables agree at
+seq 1,32,64,96,128. These are proof pieces, not additional GPU variants. The
+earlier four-family grid-256/340 proof is retained separately and is not
+presented as proof of a grid-512 winner.
+
+✅ **Verified scope.** The current seq128 EFT winners differ from all four
+tested template families; their exact materialized plans remain selected.
+This is a counterexample to those specific fits, not a proof that no other
+quasi-affine expression can describe the finite placement. The finite W2
+interval carrier retains exact point solutions without substituting a worse
+template.
+
+Evidence: `SYMBOLIC/bounded_certificates/{gqa2_s4,mha4_s4}/`, including the
+solved-CG hash, proof-process commands, every certificate and all native tables;
+`SYMBOLIC/bounded_fit/` for all four reference winners.
