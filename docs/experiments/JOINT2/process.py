@@ -2,7 +2,8 @@
 """R6 fresh-process collection with per-process hardware context.
 
 The timing protocol, fixture and correctness tolerances match JOINT/measure.py.
-Telemetry is sampled before/after the child, outside its CUDA timing interval.
+Telemetry includes pre/post snapshots and a 100 ms external hardware sampler.
+The sampler adds no instructions to the measured kernels.
 No sample is filtered based on telemetry or timing.
 """
 import fcntl,json,os,subprocess,time
@@ -27,10 +28,17 @@ def run(cell,m,seq,arm,folder,round_,order,session,dump=False,past=3,phase=False
  command=[str(binary.resolve()),str(r5.fixture(m,seq,past))]
  with open('/tmp/tilemega-r5-gpu.lock','w') as lock:
   fcntl.flock(lock,fcntl.LOCK_EX);before=context();start=time.time_ns()
-  try:
-   r=subprocess.run(command,env=env,capture_output=True,text=True,timeout=300);status=r.returncode;text=r.stdout+r.stderr
-  except subprocess.TimeoutExpired as e:status=124;text=str(e)
+  sampler_command=before['command']+['-lms','100']
+  with log.with_suffix('.gpu.csv').open('w') as telemetry:
+   sampler=subprocess.Popen(sampler_command,stdout=telemetry,stderr=subprocess.DEVNULL,text=True)
+   try:
+    r=subprocess.run(command,env=env,capture_output=True,text=True,timeout=300);status=r.returncode;text=r.stdout+r.stderr
+   except subprocess.TimeoutExpired as e:status=124;text=str(e)
+   finally:
+    sampler.terminate()
+    try:sampler.wait(timeout=5)
+    except subprocess.TimeoutExpired:sampler.kill();sampler.wait()
   elapsed=time.time_ns()-start;after=context()
  log.write_text(text)
- log.with_suffix('.json').write_text(json.dumps(dict(command=command,environment={k:v for k,v in env.items() if k.startswith('TILEMEGA_')},exit_code=status,session=session,round=round_,order=order,started_ns=start,elapsed_ns=elapsed,binary_sha256=r5.sha(binary),telemetry_before=before,telemetry_after=after))+'\n')
+ log.with_suffix('.json').write_text(json.dumps(dict(command=command,environment={k:v for k,v in env.items() if k.startswith('TILEMEGA_')},exit_code=status,session=session,round=round_,order=order,started_ns=start,elapsed_ns=elapsed,binary_sha256=r5.sha(binary),telemetry_before=before,telemetry_after=after,sampler_command=sampler_command))+'\n')
  if status or 'RESULT status=PASS' not in text:raise RuntimeError('correctness: '+str(log))

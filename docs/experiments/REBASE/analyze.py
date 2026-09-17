@@ -30,10 +30,11 @@ def analyze(root):
  return rows
 
 def main():
- ap=argparse.ArgumentParser();ap.add_argument('--models',nargs='+',default=['gqa2','mha4','real']);ap.add_argument('--seqs',nargs='+',type=int,default=[4,128]);a=ap.parse_args();rows=[]
+ ap=argparse.ArgumentParser();ap.add_argument('--raw',type=Path,default=HERE/'raw');ap.add_argument('--out',type=Path,default=HERE);ap.add_argument('--models',nargs='+',default=['gqa2','mha4','real']);ap.add_argument('--seqs',nargs='+',type=int,default=[4,128]);a=ap.parse_args();rows=[]
  for m in a.models:
-  for s in a.seqs:rows+=analyze(HERE/'raw'/f'{m}_s{s}')
- with (HERE/('attribution_'+ '_'.join(a.models)+('' if a.seqs==[4,128] else '_s'+'_'.join(map(str,a.seqs)))+'.tsv')).open('w') as f:
+  for s in a.seqs:rows+=analyze(a.raw/f'{m}_s{s}')
+ a.out.mkdir(parents=True,exist_ok=True)
+ with (a.out/('attribution_'+ '_'.join(a.models)+('' if a.seqs==[4,128] else '_s'+'_'.join(map(str,a.seqs)))+'.tsv')).open('w') as f:
   w=csv.DictWriter(f,fieldnames=list(rows[0]),delimiter='\t');w.writeheader();w.writerows(rows)
  for r in rows:print(json.dumps(r),flush=True)
 if __name__=='__main__':main()

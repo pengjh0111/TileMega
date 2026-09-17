@@ -41,15 +41,18 @@ def write_table(path, rows):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dump-sass', action='store_true')
+    parser.add_argument('--raw', type=Path, default=HERE / 'raw/real_s128')
+    parser.add_argument('--out', type=Path, default=HERE / 'probe_audit')
+    parser.add_argument('--placement', default='eft')
     args = parser.parse_args()
-    root = HERE / 'raw/real_s128'
-    out = HERE / 'probe_audit'
-    out.mkdir(exist_ok=True)
+    root = args.raw
+    out = args.out
+    out.mkdir(parents=True, exist_ok=True)
     disassembly = {}
     for arm in ('full', 'nofence', 'l1nosync'):
         path = out / (arm + '.sass')
         if args.dump_sass:
-            binary = root / 'bin' / ('eft__' + arm)
+            binary = root / 'bin' / (args.placement + '__' + arm)
             command = ['/usr/local/cuda/bin/cuobjdump', '--dump-sass', str(binary)]
             with path.open('w') as stream:
                 subprocess.run(command, stdout=stream, check=True)
