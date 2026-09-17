@@ -65,8 +65,9 @@ values are transposed to the backend's token-major layout before comparison in
 an attention indexing error.
 
 **A1's maximal-graph 50/50 result is FAIL, not completed by the old 16-region
-MLP result.** R6 §9.2 stops numerical admission of this new graph. R6 §2/§7.3
-keep newly exposed operator/precision implementation work out of this audit.
+MLP result.** R6 §9.2 stops numerical admission of this new graph after the
+five failed candidates. The §2/§7.3 exclusion concerns missing operators; it
+is not a blanket prohibition on fixing existing backend numerical behavior.
 The R7 action is to specify and validate the BF16 contraction accumulation and
 rounding contract in `GemmStageTaskBody.h` against the exported CPU operation,
 then recheck propagation through `AttentionChunkTaskBody.h` and residual Add.
