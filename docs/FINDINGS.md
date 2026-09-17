@@ -5362,8 +5362,10 @@ interventions never replace the frozen golden.
 selective recomputation near BF16 midpoints in `GemmStageTaskBody.h`, with
 backend cost traits, should address the first cause. The full downstream
 attention/residual chain must then be revalidated; this is not yet a proven
-fix. R6 A1 is a coverage audit and excludes newly exposed backend completion.
-Record this numerical stop and its downstream A1 timing exclusion, rather
+fix. The controlling rule for this numerical stop is §9.2 after failed
+admission; the missing-operator exclusion is not a blanket prohibition on
+backend bug fixes. Unlock requires a demonstrated accuracy fix and unchanged-
+golden revalidation. Record the downstream A1 timing exclusion, rather
 than claiming the older independent-MLP 50/50 closes the maximal graph.
 
 Evidence: `MODELS/subset.md`, `covered_llama*/correctness/r0.log`,
