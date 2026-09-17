@@ -173,6 +173,8 @@ ModelDescription ModelDescription::ReadCouplingGraph(
   };
   ModelDescription model;
   model.fusion_phase_context = phase_context;
+  if (auto attr=module->getAttrOfType<mlir::BoolAttr>("tilemega.combiner_tile_per_block"))
+    model.combiner_tile_ownership=attr.getValue();
   model.name = std::move(name); model.dims = std::move(dims);
   auto roles = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.dimension_roles");
   if (!roles || !roles.getAs<mlir::StringAttr>("seq") || !roles.getAs<mlir::StringAttr>("past"))

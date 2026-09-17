@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
+#include <tilemega/Solver/RuntimeProjection.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Codegen/tasks/TaskResources.h>
@@ -23,6 +24,8 @@ TaskMemoryTraffic DeriveTaskMemoryTraffic(DerivedTaskInput const& input,
   TaskMemoryTraffic traffic;
   traffic.global_read_bytes = read_element_bytes * count(physical
       ? input.work.read_elements : input.work.nominal_read_elements);
+  if (physical && input.physical_read_bytes)
+    traffic.global_read_bytes = count(*input.physical_read_bytes);
   traffic.global_write_bytes = write_element_bytes * count(physical
       ? input.work.write_elements : input.work.nominal_write_elements);
   return traffic;
@@ -35,6 +38,10 @@ std::vector<TaskMemoryTraffic> DeriveTaskMemoryTrafficBatch(DerivedTaskInput con
     throw std::invalid_argument("task traffic needs positive element byte widths");
   bool physical=domain==analysis::AccessDomain::kPhysicalTensor;
   auto reads=(physical ? input.work.read_elements : input.work.nominal_read_elements).EvalPoints(theta,coordinates);
+  if (physical && input.physical_read_bytes) {
+    reads=input.physical_read_bytes->EvalPoints(theta,coordinates);
+    read_element_bytes=1;
+  }
   auto writes=(physical ? input.work.write_elements : input.work.nominal_write_elements).EvalPoints(theta,coordinates);
   std::vector<TaskMemoryTraffic> result(coordinates.size());
   for (std::size_t i=0;i<result.size();++i) {
@@ -67,6 +74,78 @@ std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput co
         collective ? nullptr : &traffic[i])).first;
     result.push_back(found->second);
   }
+  return result;
+}
+
+
+DerivedTaskInput DeriveCombineTaskInput(ModelDescription const& model,int stage,
+    GemmConfig const& config,analysis::OperatorGraph const& graph,
+    int threads,bool tile_ownership,bool fp32_partials) {
+  using namespace analysis;
+  auto semantic=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),
+      [&](auto const& s){return s.stage==stage && s.op.reduction.splittable;});
+  if (semantic==model.task_semantics.end() || threads<=0)
+    throw std::invalid_argument("combine lacks split semantics or launch width");
+  auto const* declared=graph.Find(semantic->op.reduction.combiner);
+  if (!declared || declared->output.axes.size()!=2 || declared->operands.size()!=1)
+    throw std::invalid_argument("combine requires the instantiated partial tensor");
+  auto task=*declared;
+  if (!tile_ownership) task.tile={ClosedForm::Constant(1),ClosedForm::Constant(1)};
+  SemanticOp reduction;
+  reduction.name=task.name;reduction.kind=OperatorKind::kReduction;
+  reduction.dtype=semantic->op.dtype;reduction.result=task.output;
+  for (auto const& a:task.output.axes) {
+    reduction.domain.push_back({a.name,a.extent,a.origin});
+    reduction.result_map.results.push_back(IndexResult::Dim(a.name));
+  }
+  auto const& partial=task.operands.front().tensor;
+  auto const& chunk=partial.axes.back();
+  reduction.domain.push_back({chunk.name,chunk.extent,chunk.origin,IteratorType::kReduction});
+  SemanticOperand read;read.tensor=partial;read.map=reduction.result_map;
+  read.map.results.push_back(IndexResult::Dim(chunk.name));reduction.operands.push_back(read);
+  // Residual addition is an explicit semantic phase on the same runtime
+  // stage. Only the external operand is read here; the GEMM output is the
+  // rounded register result of reducing the partial tensor.
+  for (auto const& phase:model.task_semantics) {
+    if (!fp32_partials || model.dtype!=ScalarType::kBF16 ||
+        phase.stage!=stage || phase.op.kind!=OperatorKind::kPointwise) continue;
+    if (phase.op.arithmetic!="add")
+      throw std::invalid_argument("combine epilogue has no declared residual implementation");
+    for (auto const& operand:phase.op.operands) {
+      if (operand.tensor.name==semantic->op.result.name) continue;
+      if (operand.tensor.axes.size()!=task.output.axes.size())
+        throw std::invalid_argument("combine residual rank mismatch");
+      Operand r;r.tensor=operand.tensor;r.producer=operand.producer;
+      for (int axis=0;axis<2;++axis) r.axes.push_back(OperandAxisMap::Indexed(axis));
+      task.operands.push_back(r);
+      auto mapped=operand;mapped.map=reduction.result_map;reduction.operands.push_back(mapped);
+    }
+  }
+  auto work=DeriveTaskWork(reduction,task,{});
+  auto ownership_semantic=*semantic;ownership_semantic.element_chunk=!tile_ownership;
+  auto ownership=ProjectTaskOwnership(ownership_semantic,task,model.stages.at(stage),threads);
+  RuntimeScalarAccess accesses;accesses.ownership=ownership;
+  accesses.writes=ownership.ApplyRange(ElementAccess(task,BuildWriteMap(task),{},AccessDomain::kPhysicalTensor));
+  std::vector<QuasiPolynomial> read_elements,read_bytes;
+  int element_bytes=model.dtype==ScalarType::kBF16 ? 2 : 4;
+  for (std::size_t i=0;i<task.operands.size();++i) {
+    auto relation=ownership.ApplyRange(ElementAccess(task,BuildReadMap(task,i),{},AccessDomain::kPhysicalTensor));
+    accesses.reads.emplace(task.operands[i].tensor.name,relation);
+    auto count=relation.Card();read_elements.push_back(count);
+    read_bytes.push_back(count.Scale(i==0 && fp32_partials ? 4 : element_bytes));
+  }
+  work.read_elements=QuasiPolynomial::Sum(read_elements);
+  work.write_elements=accesses.writes.Card();work.task_count=accesses.writes.Reverse().ImageCard();
+  ArithmeticInputs arithmetic;arithmetic.reduction=work.task_reduce_extent;
+  auto signature=InstantiateArithmetic("sum",arithmetic);
+  for (std::size_t i=1;i<task.operands.size();++i) {
+    auto add=InstantiateArithmetic("add",{});
+    signature.flops_per_output_element.numerator=signature.flops_per_output_element.numerator.Add(
+        add.flops_per_output_element.numerator);
+  }
+  DerivedTaskInput result{task,work,signature,{"q"},
+      codegen::ScalarTaskDataflow(codegen::TaskKind::kGemmCombine),accesses};
+  result.physical_read_bytes=QuasiPolynomial::Sum(read_bytes);
   return result;
 }
 

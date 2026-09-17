@@ -6,6 +6,7 @@
 #include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Solver/VariantSchedule.h>
 #include <tilemega/Codegen/RuntimePlan.h>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/Verifier.h>
 #include <mlir/Pass/Pass.h>
@@ -16,7 +17,7 @@
 
 namespace tilemega::dialect {
 // Scoped to one compile invocation. Keys include the complete immutable CG,
-// target calibration and bound theta; values exclude grid-dependent combines.
+// target calibration, bound theta and compiled residency.
 struct PlacementTaskPriceCache { std::map<std::string,std::vector<double>> prices; };
 struct PlacementSolveOptions {
   TargetSpec target;
@@ -120,7 +121,7 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
   if (options.task_price_cache) {
     llvm::raw_string_ostream text(price_key);module.print(text);text.flush();
     price_key+=options.target.ToJson()+"|"+std::to_string(options.dims.seq)+"|"+
-        std::to_string(options.dims.past)+"|"+std::to_string(options.dims.total)+"|"+std::to_string(threads);
+        std::to_string(options.dims.past)+"|"+std::to_string(options.dims.total)+"|"+std::to_string(threads)+"|"+std::to_string(options.residency);
     for (int n:counts)price_key+="|"+std::to_string(n);
     auto found=options.task_price_cache->prices.find(price_key);
     if(found!=options.task_price_cache->prices.end())cached_prices=&found->second;
@@ -133,16 +134,22 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
   for (std::size_t s=0;s<counts.size();++s) {
     auto const& projected=projection.stages[s];auto const& stage=model.stages[projected.logical_stage];
     auto const& g=result.geometry.at(stage.IsCollective() ? stage.gemm : 0);
-    if (projected.combine) {
-      int chunks=cost.Chunks(model.gemms.at(stage.gemm),g);
-      double waves=std::ceil(double(counts[s])/result.grid);
-      double ns=cost.CombineStageNs(model.gemms.at(stage.gemm),chunks,model.dims)/std::max(1.,waves);
-      std::fill(input.task_ns.begin()+graph.stage_offsets[s],input.task_ns.begin()+graph.stage_offsets[s+1],ns);
-      continue;
-    }
     if(cached_prices) {
       std::copy(cached_prices->begin()+graph.stage_offsets[s],cached_prices->begin()+graph.stage_offsets[s+1],
                 input.task_ns.begin()+graph.stage_offsets[s]);continue;
+    }
+    if (projected.combine) {
+      auto task=DeriveCombineTaskInput(model,projected.logical_stage,g,*semantic_graph,threads,
+          runtime.ownership_flags & codegen::kCombinerTileOwnership,cost.options().fp32_partials);
+      auto resources=codegen::ReadSimtTaskResources(codegen::TaskKind::kGemmCombine,threads);
+      BackendTraits traits;traits.threads=resources.threads;traits.smem_bytes=resources.shared_bytes;traits.shape_legal=true;
+      std::vector<analysis::ParamBinding> coordinates(counts[s]);
+      for (int t=0;t<counts[s];++t) coordinates[t].Bind("q",t);
+      if(task.work.task_count.Eval(theta)!=counts[s])
+        throw std::invalid_argument("combine access ownership disagrees with projected count");
+      auto prices=PriceTaskInstances(cost,task,traits,{options.residency},model,1,coordinates,options.residency);
+      std::copy(prices.begin(),prices.end(),input.task_ns.begin()+graph.stage_offsets[s]);
+      continue;
     }
     auto found=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),[&](auto const& x) {
       return x.stage==projected.logical_stage && (!stage.IsCollective() || x.op.kind==analysis::OperatorKind::kMatmul);
@@ -163,7 +170,7 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
         for (std::size_t i=0;i<names.size();++i) coordinates[physical[0]].Bind(names[i],logical[i]);
       }
     }
-    auto prices=PriceTaskInstances(cost,task,traits,{options.residency},model,chunks,coordinates,1.0);
+    auto prices=PriceTaskInstances(cost,task,traits,{options.residency},model,chunks,coordinates,options.residency);
     std::copy(prices.begin(),prices.end(),input.task_ns.begin()+graph.stage_offsets[s]);
   }
   if(options.task_price_cache && !cached_prices)

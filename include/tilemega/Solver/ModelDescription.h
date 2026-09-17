@@ -131,6 +131,7 @@ struct ModelDescription {
   std::string seq_metric_parameter, past_metric_parameter;
   std::vector<std::pair<std::string, std::string>> metric_aliases;
   bool fusion_phase_context = false;
+  bool combiner_tile_ownership = false;
 
   /// Parse the `kGemms` and `kStages` tables out of a generated .cu.  Throws
   /// std::runtime_error when either table is missing or malformed -- a silent

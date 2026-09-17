@@ -216,6 +216,8 @@ class CostModel {
                         double active_ctas_per_sm,
                         TaskMemoryTraffic const* memory=nullptr,
                         TaskMemoryTraffic const* derived_scalar_traffic=nullptr) const;
+  double CombineTaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,
+                            Residency residency) const;
   double TaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,
                      Residency residency) const;
   // Exact algebraic collective wave price on a bounded seq domain. Rates

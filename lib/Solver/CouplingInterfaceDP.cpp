@@ -104,7 +104,7 @@ ChainDpSolution ChainDP::SolveCouplingInterfaces(ModelDescription const& model,
       auto const& gemm=model.gemms.at(model.stages.at(gemm_stages[i]).gemm);
       int chunks=cost_->Chunks(gemm,candidates_[c].config);
       double ns=cost_->TaskStageNs(model,gemm_stages[i],candidates_[c].config,residency)+barrier;
-      if (chunks>1) ns+=cost_->CombineStageNs(gemm,chunks,model.dims)+barrier;
+      if (chunks>1) ns+=cost_->CombineTaskStageNs(model,gemm_stages[i],candidates_[c].config,residency)+barrier;
       unary[i][c]=ns;
     }
     std::vector<std::vector<int>> groups;

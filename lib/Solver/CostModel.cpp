@@ -2,9 +2,9 @@
 #include <tilemega/Solver/CostModel.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 #include <tilemega/Solver/AttentionWork.h>
 #include <tilemega/Analysis/SemanticCodec.h>
-#include <tilemega/Codegen/tasks/TaskResources.h>
 
 #include <algorithm>
 #include <cmath>
@@ -546,7 +546,7 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
     if (coordinates) ctas=1;
     double grid=double(target_->res.num_sms)*std::max(1,residency.ctas_per_sm);
     double miss=1.0-CacheHitProbability(model.LiveFootprintBytes());
-    double flops_per_output=input.arithmetic.flops_per_output_element.Eval(known);
+    double flops_per_output=input.arithmetic.flops_per_output_element.Eval(known)+flow.extra_flops_per_output;
     double transc_per_output=input.arithmetic.transcendental_per_output_element.Eval(known);
     std::ostringstream cache_key;
     cache_key << input.work.read_elements.ToString() << '\n' << input.work.write_elements.ToString()
@@ -561,6 +561,7 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
     }
     if (memory) cache_key << ":memory:" << memory->global_read_bytes << ':' << memory->global_write_bytes
         << ':' << memory->local_read_bytes << ':' << memory->local_write_bytes;
+    if (input.physical_read_bytes) cache_key << ":typed_reads:" << input.physical_read_bytes->ToString();
     auto cached=scalar_price_cache_.find(cache_key.str());
     if (cached!=scalar_price_cache_.end()) return cached->second;
     double total=0;
@@ -736,6 +737,31 @@ double CostModel::TaskStageNs(ModelDescription const& model,int index,
   return TaskCostNs(*found->second,traits,residency,model,chunks);
 }
 
+
+double CostModel::CombineTaskStageNs(ModelDescription const& model,int index,
+    GemmConfig const& config,Residency residency) const {
+  auto const& stage=model.stages.at(index);
+  if (Chunks(model.gemms.at(stage.gemm),config)<=1) return 0;
+  auto collective=ModelTaskTraits(model,index,config);
+  auto resources=codegen::ReadSimtTaskResources(codegen::TaskKind::kGemmCombine,collective.threads);
+  BackendTraits traits;traits.threads=resources.threads;traits.smem_bytes=resources.shared_bytes;traits.shape_legal=true;
+  std::ostringstream key;key << "combine:" << index << ':' << config.tile_m << ':' << config.tile_n
+      << ':' << config.tile_k << ':' << config.stages << ':' << config.split_k << ':' << options_.fp32_partials;
+  bool tile_ownership=model.combiner_tile_ownership;
+  for (auto const& semantic:model.task_semantics) if (semantic.stage==index) {
+    key << ':' << analysis::EncodeSemanticOp(semantic.op);
+  }
+  key << ':' << tile_ownership << ':' << traits.threads;
+  auto found=task_input_cache_.find(key.str());
+  if (found==task_input_cache_.end()) {
+    auto graph=InstantiateModelTasks(model,std::vector<GemmConfig>(model.gemms.size(),config));
+    auto input=std::make_shared<DerivedTaskInput>(DeriveCombineTaskInput(
+        model,index,config,graph,traits.threads,tile_ownership,options_.fp32_partials));
+    found=task_input_cache_.emplace(key.str(),std::move(input)).first;
+  }
+  return TaskCostNs(*found->second,traits,residency,model,1);
+}
+
 double CostModel::BarrierNs(Residency residency) const {
   if (!options_.sync) return 0.0;
   double const grid = static_cast<double>(target_->res.num_sms) *
@@ -835,7 +861,7 @@ CostBreakdown CostModel::Evaluate(ModelDescription const& model,
     auto const& gemm=model.gemms.at(stage.gemm);
     int chunks=Chunks(gemm,config);
     if (chunks>1) {
-      out.combine_ns+=CombineStageNs(gemm,chunks,model.dims);
+      out.combine_ns+=CombineTaskStageNs(model,int(i),config,residency);
       ++out.stage_count;
     }
   }

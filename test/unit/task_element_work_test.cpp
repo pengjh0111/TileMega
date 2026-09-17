@@ -131,6 +131,46 @@ int main(int argc, char** argv) {
   reject([&]{ExactElementRead(attention,task,bad,{});});
   bad=attention.element_reads[1]; bad.map.results[0].terms[0].group=c(0);
   reject([&]{ExactElementRead(attention,task,bad,{});});
+
+  // Enumerate the device combiner's element ownership independently, including
+  // predicated M/N tails, FP32 partials and the post-rounding residual read.
+  for (bool tiled:{false,true}) for (bool fp32:{false,true}) {
+    SemanticOp gemm;
+    gemm.name="gemm";gemm.arithmetic="gemm";gemm.kind=OperatorKind::kMatmul;
+    gemm.dtype=ScalarType::kBF16;gemm.domain={{"m",S},{"n",c(19)},{"k",c(96)}};
+    gemm.result={"matmul",{{"m",S},{"n",c(19)}}};
+    gemm.result_map.results={IndexResult::Dim("m"),IndexResult::Dim("n")};
+    SemanticOperand a,b;
+    a.tensor={"a",{{"m",S},{"k",c(96)}}};a.map.results={IndexResult::Dim("m"),IndexResult::Dim("k")};
+    b.tensor={"b",{{"k",c(96)},{"n",c(19)}}};b.map.results={IndexResult::Dim("k"),IndexResult::Dim("n")};
+    gemm.operands={a,b};gemm.reduction={"k","add","partial","combine",true,{}};
+    SemanticOp add;add.name="residual";add.arithmetic="add";add.dtype=ScalarType::kBF16;
+    add.domain={{"m",S},{"n",c(19)}};add.result={"out",gemm.result.axes};add.result_map=gemm.result_map;
+    SemanticOperand output,residual;output.tensor=gemm.result;output.map=gemm.result_map;
+    residual=output;residual.tensor.name="residual_input";add.operands={output,residual};
+    tilemega::solver::ModelDescription model;model.dtype=tilemega::solver::ScalarType::kBF16;
+    model.dims={5,0,5};model.metric_bindings.Bind("S",5);
+    model.gemms.push_back({19,96,0,1});model.stages.push_back({tilemega::solver::StageKind::kGemm,0});
+    model.task_semantics={{gemm,{},0,false},{add,{},0,false}};
+    tilemega::solver::GemmConfig config{4,16,16,2,4};
+    auto graph=tilemega::solver::InstantiateModelTasks(model,{config});
+    auto derived=tilemega::solver::DeriveCombineTaskInput(model,0,config,graph,128,tiled,fp32);
+    long count=derived.work.task_count.Eval(model.MetricBindings());Require(count==(tiled ? 4 : 1));
+    std::vector<ParamBinding> points(count);
+    for (int q=0;q<count;++q) points[q].Bind("q",q);
+    auto batch=tilemega::solver::DeriveTaskMemoryTrafficBatch(derived,model.MetricBindings(),points,2,2);
+    for (int q=0;q<count;++q) {
+      long elements=0;
+      for (int row=0;row<5;++row) for (int col=0;col<19;++col)
+        if ((tiled ? (row/4)*2+col/16 : (row*19+col)/128)==q) ++elements;
+      Require(batch[q].global_write_bytes==2*elements);
+      Require(batch[q].global_read_bytes==elements*(4*(fp32 ? 4 : 2)+(fp32 ? 2 : 0)));
+      auto single=tilemega::solver::DeriveTaskMemoryTraffic(derived,model.MetricBindings(),points[q],2,2);
+      Require(single.global_read_bytes==batch[q].global_read_bytes);
+      Require(derived.arithmetic.flops_per_output_element.Eval({})+derived.scalar_flow->extra_flops_per_output==(fp32 ? 5 : 4));
+      ++cells;
+    }
+  }
   int codec_rejected=0;
   auto reject_codec=[&](std::string const& payload) {
     auto before=rejected;

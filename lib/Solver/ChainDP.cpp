@@ -283,7 +283,7 @@ ChainDpSolution ChainDP::Solve(ModelDescription const& model,
         int chunks=cost_->Chunks(gemm,cfg);
         double ns=cost_->TaskStageNs(model,gemm_stages[i],cfg,residency);
         if (chunks > 1) {
-          ns += cost_->CombineStageNs(gemm, chunks, model.dims) + barrier;
+          ns += cost_->CombineTaskStageNs(model,gemm_stages[i],cfg,residency) + barrier;
         }
         op_cost[i][j] = ns + barrier;
       }

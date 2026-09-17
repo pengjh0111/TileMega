@@ -26,7 +26,13 @@ struct DerivedTaskInput {
   std::vector<std::string> cost_coordinates;
   std::optional<codegen::ScalarDataflow> scalar_flow;
   std::optional<RuntimeScalarAccess> scalar_access;
+  // Mixed-width storage (e.g. FP32 partials and BF16 residuals) retains
+  // each access cardinality before converting elements to bytes.
+  std::optional<analysis::QuasiPolynomial> physical_read_bytes;
 };
+DerivedTaskInput DeriveCombineTaskInput(ModelDescription const& model, int stage,
+    GemmConfig const& config, analysis::OperatorGraph const& graph,
+    int threads, bool tile_ownership, bool fp32_partials);
 TaskMemoryTraffic DeriveTaskMemoryTraffic(DerivedTaskInput const& input,
     analysis::ParamBinding const& theta, analysis::ParamBinding const& coordinates,
     int read_element_bytes, int write_element_bytes,

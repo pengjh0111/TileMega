@@ -14,6 +14,7 @@ struct ScalarFlowNode {
   std::vector<int> read_operands;
 };
 struct ScalarDataflow {
+  int extra_flops_per_output=0;
   std::vector<ScalarFlowNode> nodes;
   int Add(ScalarPhase phase,std::vector<int> inputs={}) {
     nodes.push_back({phase,std::move(inputs),{}});
@@ -69,6 +70,10 @@ inline ScalarDataflow ScalarTaskDataflow(TaskKind kind) {
       flow.Add(ScalarPhase::kStore,{pv});
       return flow;
     }
+    case TaskKind::kGemmCombine:
+      flow.extra_flops_per_output=1; // Zero-seeded chunk summation.
+      flow.Add(ScalarPhase::kStore,{flow.Add(ScalarPhase::kArithmetic,{input})});
+      return flow;
     case TaskKind::kRoPE:
     case TaskKind::kKVAppend:
     case TaskKind::kElementwise:
