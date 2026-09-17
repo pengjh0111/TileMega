@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cctype>
 #include <limits>
+#include <functional>
 #include <map>
 #include <set>
 #include <stdexcept>
@@ -191,6 +192,127 @@ GraphPattern const& DecoderLayerPattern() {
   return pattern;
 }
 
+
+// Preserve supported regions on both sides of explicit normalization/RoPE
+// cuts. Every non-layout input must resolve to a fixture or emitted stage;
+// an unmatched calculation cannot silently become a graph input.
+ModelPlan BuildCoveredRegions(std::vector<FxNodeRecord> const& nodes,
+    std::vector<SignatureInput> const& inputs,std::vector<std::string> const& outputs) {
+  PatternMatcher matcher(nodes,inputs);
+  GraphPattern attention{"cut_attention",{
+      {"cat_k","concat",{Input(),Input()}},
+      {"cat_v","concat",{Input(),Any()}},
+      {"score","contraction",{Input(),Near("concat","cat_k")}},
+      {"prob","softmax",{Near("contraction","score")}},
+      {"ctx","contraction",{Value("prob"),Dep("cat_v")}},
+      {"o","contraction",{Value("ctx"),Param()}}},{}};
+  auto attentions=matcher.FindAll(attention);
+  if (attentions.empty()) return {};
+  PlanBuilder builder(nodes);
+  std::map<std::string,SignatureInput const*> signature;
+  for (auto const& input:inputs) signature.emplace(input.name,&input);
+  builder.plan.dtype=StorageDtype(builder.Node(inputs.front().name));
+  for (auto const& input:inputs)
+    if (StorageDtype(builder.Node(input.name))!=builder.plan.dtype)
+      throw std::invalid_argument("mixed storage in covered regions");
+  std::map<std::string,std::uint32_t> values;
+  auto resolve=[&](std::string name) {
+    name=matcher.Value(name);
+    if (auto found=values.find(name);found!=values.end()) return found->second;
+    auto found=signature.find(name);
+    if (found==signature.end() || found->second->kind!="USER_INPUT")
+      throw std::invalid_argument("covered region has an unsupported boundary: "+name);
+    auto const& node=builder.Node(name);
+    if (node.shape.size()!=3)
+      throw std::invalid_argument("activation boundary requires token-major rank three: "+name);
+    auto id=builder.Buffer({name,0,StaticExtent(node,2),0,0,
+        PlanBuffer::Source::kFixture,"input_"+name+".bin"});
+    values.emplace(name,id);return id;
+  };
+  auto weight=[&](std::string name) {
+    name=matcher.Value(name);auto found=signature.find(name);
+    if (found==signature.end() || found->second->kind=="USER_INPUT")
+      throw std::invalid_argument("covered contraction has no parameter");
+    return builder.Weight(*found->second);
+  };
+  std::map<int,std::function<void()>> actions;
+  auto add_action=[&](FxNodeRecord const* n,std::function<void()> action) {
+    if (!actions.emplace(n->index,std::move(action)).second)
+      throw std::invalid_argument("ambiguous covered region at "+n->name);
+  };
+  std::set<std::string> cats,contexts;
+  for (auto const& match:attentions) {
+    auto const* score=match.at("score"),*ctx=match.at("ctx");
+    auto const& q_layout=builder.Node(score->inputs.at(0));
+    if (q_layout.shape.size()!=4) throw std::invalid_argument("cut attention query must carry heads");
+    unsigned heads=StaticExtent(q_layout,1),width=StaticExtent(q_layout,3);
+    unsigned kv=StaticExtent(*match.at("cat_k"),1);
+    if (!kv || heads%kv) throw std::invalid_argument("invalid cut attention head grouping");
+    for (auto slot:{"cat_k","cat_v"}) {
+      auto const* cat=match.at(slot);
+      if (!cats.insert(cat->name).second) continue;
+      add_action(cat,[&,cat,kv,width] {
+        auto past_name=matcher.Value(cat->inputs.at(0));auto const& past=builder.Node(past_name);
+        if (!matcher.IsInput(past_name) || past.shape.size()!=4 || StaticExtent(past,1)!=kv || StaticExtent(past,3)!=width)
+          throw std::invalid_argument("cache boundary is not head-major past storage");
+        auto p=builder.Buffer({past_name,0,0,kv*width,0,PlanBuffer::Source::kFixture,"input_"+past_name+".bin"});
+        auto current=resolve(cat->inputs.at(1));
+        auto full=builder.Buffer({cat->name,0,0,0,kv*width,PlanBuffer::Source::kZero,{}});
+        builder.Stage(PlanTaskKind::kKVAppend,cat->name,0,kv,width,1,{current,p,full});
+        values[cat->name]=full;builder.plan.node_buffer[cat->name]=full;
+      });
+    }
+    if (!contexts.insert(ctx->name).second) throw std::invalid_argument("ambiguous cut attention context");
+    auto k=match.at("cat_k")->name,v=match.at("cat_v")->name;
+    add_action(ctx,[&,ctx,score,k,v,heads,kv,width] {
+      auto q=resolve(score->inputs.at(0));auto out=builder.Scratch(ctx->name,heads*width);
+      builder.Stage(PlanTaskKind::kAttention,ctx->name,0,heads,width,heads/kv,{q,values.at(k),values.at(v),out});
+      values[ctx->name]=out;builder.plan.node_buffer[ctx->name]=out;
+    });
+  }
+  GraphPattern linear{"covered_linear",{{"linear","contraction",{Any(),Param()}}},{}};
+  for (auto const& match:matcher.FindAll(linear)) {
+    auto const* node=match.at("linear");
+    add_action(node,[&,node] {
+      auto a=resolve(node->inputs.at(0)),b=weight(node->inputs.at(1));
+      auto const& parameter=builder.Node(matcher.Value(node->inputs.at(1)));
+      unsigned n=StaticExtent(parameter,0),k=StaticExtent(parameter,1);
+      auto d=builder.Scratch(node->name,n);
+      builder.Stage(PlanTaskKind::kGemm,node->name,builder.Gemm(a,b,d,d,n,k,0),0,0,1);
+      values[node->name]=d;builder.plan.node_buffer[node->name]=d;
+    });
+  }
+  GraphPattern swiglu{"covered_swiglu",{
+      {"gate","contraction",{Input(),Param()}},{"act","activation",{Value("gate")}},
+      {"up","contraction",{Input(),Param()}},{"product","multiply",{Dep("act"),Value("up")},true}},{}};
+  for (auto const& match:matcher.FindAll(swiglu)) {
+    auto const* node=match.at("product");auto gate=match.at("gate")->name,up=match.at("up")->name;
+    add_action(node,[&,node,gate,up] {
+      unsigned width=StaticExtent(*node,node->shape.size()-1);auto out=builder.Scratch(node->name,width);
+      builder.Stage(PlanTaskKind::kElementwise,node->name,0,width,0,1,{values.at(gate),values.at(up),out});
+      values[node->name]=out;builder.plan.node_buffer[node->name]=out;
+    });
+  }
+  GraphPattern residual{"covered_residual",{{"projection","contraction",{Any(),Param()}},
+      {"sum","add",{Value("projection"),Any()},true}},{{"sum",-1,"projection",-1}}};
+  for (auto const& match:matcher.FindAll(residual)) {
+    auto const* node=match.at("sum");
+    add_action(node,[&,node] {
+      auto a=resolve(node->inputs.at(0)),b=resolve(node->inputs.at(1));
+      unsigned width=StaticExtent(*node,node->shape.size()-1);auto out=builder.Scratch(node->name,width);
+      builder.Stage(PlanTaskKind::kAdd,node->name,0,width,0,1,{a,b,out});
+      values[node->name]=out;builder.plan.node_buffer[node->name]=out;
+    });
+  }
+  for (auto const& [index,action]:actions) action();
+  for (std::size_t i=0;i<outputs.size();++i) {
+    auto name=matcher.Value(outputs[i]);
+    if (!values.count(name)) throw std::invalid_argument("uncovered exported output: "+outputs[i]);
+    builder.plan.outputs.push_back({values.at(name),"reference_"+std::to_string(i)+".bin"});
+  }
+  return std::move(builder.plan);
+}
+
 // An independently exported, already-normalized SwiGLU region uses only
 // existing GEMM/elementwise TaskBodies. This adapter does not synthesize a
 // missing normalization or silently substitute an approximate RoPE.
@@ -275,7 +397,11 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                                layers[i].at("resid2")->name);
   // Degradation, not refusal (skeleton §0.1): a graph the decoder pattern does
   // not cover still imports, as one task space per operator, with no plan.
-  if (layers.empty()) return BuildMlpRegions(nodes,inputs,outputs);
+  if (layers.empty()) {
+    auto covered=BuildCoveredRegions(nodes,inputs,outputs);
+    if (!covered.stages.empty()) return covered;
+    return BuildMlpRegions(nodes,inputs,outputs);
+  }
 
   // The hidden state is the model input the first layer's query projection
   // reads; the KV inputs never reach it, so no name convention is needed.
