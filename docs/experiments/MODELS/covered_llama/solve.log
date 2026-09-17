@@ -1,0 +1,12 @@
+/usr/local/lib/python3.10/dist-packages/torch/_subclasses/functional_tensor.py:368: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+{"tasks": 628, "couplings": 705, "guards": 112}
+EXPORT_BRIDGE source="docs/experiments/MODELS/covered_llama/exported_program.pt2" output="/root/TileMega/docs/experiments/MODELS/covered_llama/auto.cu.export.json"
+DISK NEED_MIB=8192 FREE_MIB=1513176
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/MODELS/covered_llama/auto.cu.resources/1789671947457679984/0" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1513156
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/MODELS/covered_llama/auto.cu.resources/1789671947457679984/1" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1513153
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/MODELS/covered_llama/auto.cu.resources/1789671947457679984/2" resident=3
+SOLVE_SUMMARY evaluated=3 deferred=87 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=322 couplings=288 stages=209 symbolic_windows=288 fallback_windows=0 output=docs/experiments/MODELS/covered_llama/auto.cu

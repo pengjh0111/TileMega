@@ -5331,3 +5331,41 @@ Evidence: `docs/experiments/WRITEBACK/interval_closure/README.md`,
 `host/s*/schedule.tsv`, and `roundtrip_v3.log` in the same directory. The raw
 verifier adds an explicit interval gate and checks the generated/host arrays;
 the previously checked single-point round trip remains covered separately.
+
+## F-201 — R6 maximal covered Llama graph fails numerical admission
+
+✅ **Verified.** The continuation imports all supported regions of the public
+Llama-3.2-1B architecture: 16 connected residual layers, Q/K/V/O projections,
+KV append, attention, SwiGLU and the vocabulary head. Only the previously
+audited embedding, RMSNorm parameter and FP32 RoPE gaps are external inputs.
+There are 98 inputs and 66 checked outputs; the solver writes and generates
+209 runtime stages. This supersedes the earlier independent-MLP scope as an
+implementation, but does **not** supersede its correctness result with a pass.
+
+✅ **Verified.** Two solver-selected geometries (64x128x16s2 split8 and split4)
+and three explicitly manual split1 diagnostic geometries fail the same final
+residual element: actual -0.41796875, expected -0.44921875, absolute difference
+0.03125, fixed tolerance 0.0231875014. All other 65 outputs pass; L0.5, L1 and
+L2 agree bit for bit. This new graph was never an admitted baseline. Its
+maximal-graph 50-process gate is FAIL; the first failure stops that admission
+under §9.2, without changing tolerance, seed, output set or residual edges.
+
+✅ **Verified.** An independent FP64 recomputation localizes the initial error
+to V[0,463] of the first layer. The FP64 accumulator -0.450195362966042 is
+just below the BF16 midpoint -0.4501953125; CPU and FP64-rounded values are
+-0.451171875, whereas GPU gives -0.44921875. Substituting only the captured GPU
+V into the diagnostic CPU attention removes all three context discrepancies.
+Later residual additions amplify the first rounding difference. Diagnostic
+interventions never replace the frozen golden.
+
+⚠️ **Inferred next implementation.** Accurate/compensated accumulation or
+selective recomputation near BF16 midpoints in `GemmStageTaskBody.h`, with
+backend cost traits, should address the first cause. The full downstream
+attention/residual chain must then be revalidated; this is not yet a proven
+fix. R6 A1 is a coverage audit and excludes newly exposed backend completion.
+Record this numerical stop and its downstream A1 timing exclusion, rather
+than claiming the older independent-MLP 50/50 closes the maximal graph.
+
+Evidence: `MODELS/subset.md`, `covered_llama*/correctness/r0.log`,
+`covered_geometry_probes/*/run.log`, and
+`covered_llama_admitted2/diagnostic/{cpu_buffers_aligned.tsv,first_v_rounding.json,first_context_isolation.json}`.

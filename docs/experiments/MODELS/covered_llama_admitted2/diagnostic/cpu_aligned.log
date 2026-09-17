@@ -1,0 +1,34 @@
+/usr/local/lib/python3.10/dist-packages/torch/_subclasses/functional_tensor.py:368: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+{'node': 'add_2', 'buffer': 17, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 55, 'mismatch': 0, 'max_abs': 0.0078125, 'gpu389': -1.796875, 'cpu389': -1.8046875}
+{'node': 'add_3', 'buffer': 26, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 88, 'mismatch': 0, 'max_abs': 0.0078125, 'gpu389': -1.7890625, 'cpu389': -1.796875}
+{'node': 'add_6', 'buffer': 43, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 66, 'mismatch': 0, 'max_abs': 0.0078125, 'gpu389': -1.96875, 'cpu389': -1.9765625}
+{'node': 'add_7', 'buffer': 52, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 65, 'mismatch': 0, 'max_abs': 0.0078125, 'gpu389': -1.96875, 'cpu389': -1.9765625}
+{'node': 'add_10', 'buffer': 69, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 50, 'mismatch': 0, 'max_abs': 0.0078125, 'gpu389': -1.890625, 'cpu389': -1.8984375}
+{'node': 'add_11', 'buffer': 78, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 50, 'mismatch': 0, 'max_abs': 0.015625, 'gpu389': -1.734375, 'cpu389': -1.75}
+{'node': 'add_14', 'buffer': 95, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 43, 'mismatch': 0, 'max_abs': 0.015625, 'gpu389': -1.2890625, 'cpu389': -1.3046875}
+{'node': 'add_15', 'buffer': 104, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 58, 'mismatch': 0, 'max_abs': 0.015625, 'gpu389': -1.25, 'cpu389': -1.265625}
+{'node': 'add_18', 'buffer': 121, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 51, 'mismatch': 0, 'max_abs': 0.015625, 'gpu389': -2.046875, 'cpu389': -2.0625}
+{'node': 'add_19', 'buffer': 130, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 53, 'mismatch': 0, 'max_abs': 0.015625, 'gpu389': -2.15625, 'cpu389': -2.171875}
+{'node': 'add_22', 'buffer': 147, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 45, 'mismatch': 0, 'max_abs': 0.015625, 'gpu389': -1.9140625, 'cpu389': -1.9296875}
+{'node': 'add_23', 'buffer': 156, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 53, 'mismatch': 0, 'max_abs': 0.015625, 'gpu389': -1.875, 'cpu389': -1.890625}
+{'node': 'add_26', 'buffer': 173, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 47, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -2.15625, 'cpu389': -2.1875}
+{'node': 'add_27', 'buffer': 182, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 76, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -2.015625, 'cpu389': -2.046875}
+{'node': 'add_30', 'buffer': 199, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 62, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -1.875, 'cpu389': -1.90625}
+{'node': 'add_31', 'buffer': 208, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 68, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -1.859375, 'cpu389': -1.890625}
+{'node': 'add_34', 'buffer': 225, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 60, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -2.234375, 'cpu389': -2.265625}
+{'node': 'add_35', 'buffer': 234, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 92, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -2.234375, 'cpu389': -2.265625}
+{'node': 'add_38', 'buffer': 251, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 81, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -2.25, 'cpu389': -2.28125}
+{'node': 'add_39', 'buffer': 260, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 81, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -2.265625, 'cpu389': -2.296875}
+{'node': 'add_42', 'buffer': 277, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 78, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -2.21875, 'cpu389': -2.25}
+{'node': 'add_43', 'buffer': 286, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 81, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -2.125, 'cpu389': -2.15625}
+{'node': 'add_46', 'buffer': 303, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 76, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -1.828125, 'cpu389': -1.859375}
+{'node': 'add_47', 'buffer': 312, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 85, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -1.75, 'cpu389': -1.78125}
+{'node': 'add_50', 'buffer': 329, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 77, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -1.40625, 'cpu389': -1.4375}
+{'node': 'add_51', 'buffer': 338, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 80, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -1.609375, 'cpu389': -1.640625}
+{'node': 'add_54', 'buffer': 355, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 67, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -1.3203125, 'cpu389': -1.3515625}
+{'node': 'add_55', 'buffer': 364, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 72, 'mismatch': 0, 'max_abs': 0.03125, 'gpu389': -1.3828125, 'cpu389': -1.4140625}
+{'node': 'add_58', 'buffer': 381, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 67, 'mismatch': 1, 'max_abs': 0.03125, 'gpu389': -0.88671875, 'cpu389': -0.91796875}
+{'node': 'add_59', 'buffer': 390, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 76, 'mismatch': 1, 'max_abs': 0.03125, 'gpu389': -0.828125, 'cpu389': -0.859375}
+{'node': 'add_62', 'buffer': 407, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 95, 'mismatch': 1, 'max_abs': 0.03125, 'gpu389': -0.55859375, 'cpu389': -0.58984375}
+{'node': 'add_63', 'buffer': 416, 'target': 'aten.add.Tensor', 'shape': '(1, 4, 2048)', 'elements': 8192, 'different': 101, 'mismatch': 1, 'max_abs': 0.03125, 'gpu389': -0.41796875, 'cpu389': -0.44921875}

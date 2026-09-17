@@ -1,0 +1,1 @@
+CODEGEN_SUMMARY tasks=209 couplings=175 stages=209 symbolic_windows=175 fallback_windows=0 output=/root/TileMega/docs/experiments/MODELS/covered_geometry_probes/m64n128k16split1/model.cu

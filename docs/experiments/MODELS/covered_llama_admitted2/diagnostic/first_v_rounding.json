@@ -1,0 +1,16 @@
+{
+  "scope": "Independent FP64 diagnostic at the first connected V projection.\n\nThis never rewrites the frozen CPU golden or changes any acceptance tolerance.\n",
+  "gpu_vs_cpu": 1,
+  "gpu_vs_fp64": 1,
+  "cpu_vs_fp64": 0,
+  "different_elements": [
+    {
+      "token": 0,
+      "column": 463,
+      "gpu": -0.44921875,
+      "cpu": -0.451171875,
+      "fp64_rounded": -0.451171875,
+      "fp64_accumulator": -0.450195362966042
+    }
+  ]
+}

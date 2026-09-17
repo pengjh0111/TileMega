@@ -1,0 +1,15 @@
+{
+  "seq": 4,
+  "past": 3,
+  "model_sha256": "2a537812b0c324dceceefc6ec99752626a924fbc63c10356004db71083736bc1",
+  "rejected": [
+    {
+      "tile_m": 64,
+      "tile_n": 128,
+      "tile_k": 16,
+      "stages": 2,
+      "split_k": 8,
+      "reason": "docs/experiments/MODELS/covered_llama/correctness/r0.log: one final residual element fails fixed CPU golden tolerance; L05=L1=L2"
+    }
+  ]
+}

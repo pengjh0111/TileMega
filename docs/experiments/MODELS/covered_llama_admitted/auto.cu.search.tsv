@@ -1,0 +1,4 @@
+candidate	placement	status	floor_ns	cp_ns	queue_lb_ns	predicted_ns	grid	kappa
+64x128x16s2split8kappa1	-	numerical exclusion: docs/experiments/MODELS/covered_llama/correctness/r0.log: one final residual element fails fixed CPU golden tolerance; L05=L1=L2	0	0	0	0	0	1
+64x128x16s2split8kappa2	-	numerical exclusion: docs/experiments/MODELS/covered_llama/correctness/r0.log: one final residual element fails fixed CPU golden tolerance; L05=L1=L2	0	0	0	0	0	2
+64x128x16s2split8kappa4	-	numerical exclusion: docs/experiments/MODELS/covered_llama/correctness/r0.log: one final residual element fails fixed CPU golden tolerance; L05=L1=L2	0	0	0	0	0	4

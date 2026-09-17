@@ -1,0 +1,8 @@
+DISK NEED_MIB=8192 FREE_MIB=1513141
+BUILD covered_llama selected 0
+Traceback (most recent call last):
+  File "/root/TileMega/docs/experiments/MODELS/run_covered.py", line 26, in <module>
+    if __name__=='__main__':main()
+  File "/root/TileMega/docs/experiments/MODELS/run_covered.py", line 24, in main
+    if r.returncode or 'RESULT status=PASS' not in r.stdout:raise RuntimeError(str(log))
+RuntimeError: /root/TileMega/docs/experiments/MODELS/covered_llama/correctness/r0.log
