@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/VisitFiniteRelation.h>
+#include <set>
 #include <tilemega/Solver/RuntimeProjection.h>
 #include <tilemega/Codegen/RuntimeTaskGraph.h>
 #include <cassert>
@@ -7,6 +9,30 @@
 
 int main() {
   tilemega::analysis::IslContext context;
+  {
+    for (auto const& text:{"{ [i] -> [j] : -3<=i<=4 and 2<=j<=7 }",
+        "{ [i] -> [j] : 0<=i<=9 and j=i+2 }",
+        "{ [i] -> [j] : 0<=i<=9 and 0<=j<=8 and (i+j)%2=0 }",
+        "{ [i] -> [j] : 0<=i<=3 and 0<=j<=2; [i] -> [j] : 2<=i<=4 and 1<=j<=3 }",
+        "{ [i] -> [j] : false }"}) {
+      std::set<std::array<long,2>> actual,expected;
+      auto relation=tilemega::analysis::CouplingRelation::FromIslText(text);
+      for(auto const& [a,b]:relation.Points())expected.insert({a[0],b[0]});
+      tilemega::analysis::VisitFiniteRelation(context,text,2,[&](long const* p){actual.insert({p[0],p[1]});});
+      assert(actual==expected);
+    }
+    std::vector<std::array<long,2>> boundary;
+    auto maximum=std::to_string(std::numeric_limits<long>::max());
+    tilemega::analysis::VisitFiniteRelation(context,"{ [i] -> [j] : i="+maximum+" and j="+maximum+" }",2,
+        [&](long const* p){boundary.push_back({p[0],p[1]});});
+    assert(boundary.size()==1 && boundary[0][0]==std::numeric_limits<long>::max());
+    bool rejected=false;
+    try {tilemega::analysis::VisitFiniteRelation(context,"{ [i] -> [j] : i=0 and j=0 }",2,
+        [](long const*){throw std::runtime_error("visitor failed");});}
+    catch(std::runtime_error const& e){rejected=std::string(e.what()).find("visitor failed")!=std::string::npos;}
+    assert(rejected);
+  }
+
   {
     // A2's real counterexample: row-major (m,n,j) must address the same M
     // row as the emitted norm -> partial window for every split contribution.

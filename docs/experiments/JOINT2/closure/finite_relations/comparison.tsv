@@ -1,0 +1,12 @@
+relation	points	reference_us	exact_box_us	identical
+rectangular_1M	1048576	1.51332e+06	32858.4	1
+docs/experiments/JOINT2/bounded_search/gqa2_s4/auto.cu.top3.mlir:dependencies	32784	69277.9	20260	1
+docs/experiments/JOINT2/bounded_search/gqa2_s4/auto.cu.top3.mlir:events	6384	50138.1	50117.6	1
+docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.top3.mlir:dependencies	1529728	2.90688e+06	730375	1
+docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.top3.mlir:events	148352	605374	608035	1
+docs/experiments/JOINT2/bounded_search/mha4_s4/auto.cu.top3.mlir:dependencies	74976	154113	42270.3	1
+docs/experiments/JOINT2/bounded_search/mha4_s4/auto.cu.top3.mlir:events	14208	106386	107959	1
+docs/experiments/JOINT2/bounded_search/mha4_s128/auto.cu.top3.mlir:dependencies	4574080	5.87481e+06	1.18766e+06	1
+docs/experiments/JOINT2/bounded_search/mha4_s128/auto.cu.top3.mlir:events	176512	516110	515882	1
+docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.top2.mlir:dependencies	418016	519813	52783	1
+docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.top2.mlir:events	56608	165038	164832	1

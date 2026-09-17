@@ -1,0 +1,7 @@
+ninja: Entering directory `build-portable'
+[1/6] Building CXX object CMakeFiles/runtime_projection_test.dir/test/unit/runtime_projection_test.cpp.o
+[2/6] Linking CXX executable runtime_projection_test
+[3/6] Building CXX object CMakeFiles/tilemega-opt.dir/tools/tilemega-opt.cpp.o
+[4/6] Linking CXX executable tools/tilemega-opt
+[5/6] Building CXX object CMakeFiles/tilemega-compile.dir/tools/tilemega-compile.cpp.o
+[6/6] Linking CXX executable tools/tilemega-compile

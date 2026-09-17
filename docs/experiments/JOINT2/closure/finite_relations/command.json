@@ -1,0 +1,12 @@
+{
+  "command": [
+    "/tmp/r6_finite_relation_audit",
+    "docs/experiments/JOINT2/bounded_search/gqa2_s4/auto.cu.top3.mlir",
+    "docs/experiments/JOINT2/bounded_search/gqa2_s128/auto.cu.top3.mlir",
+    "docs/experiments/JOINT2/bounded_search/mha4_s4/auto.cu.top3.mlir",
+    "docs/experiments/JOINT2/bounded_search/mha4_s128/auto.cu.top3.mlir",
+    "docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.top2.mlir"
+  ],
+  "started_ns": 1789683301480237793,
+  "exit_code": 0
+}

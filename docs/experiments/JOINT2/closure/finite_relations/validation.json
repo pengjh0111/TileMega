@@ -1,0 +1,13 @@
+{
+  "source_sha256": "7ed29dfaec0f389e5916ee4b9e95be20e01d26c6ce13a9135db183dd26e3c7b1",
+  "ctest_command": [
+    "ctest",
+    "--test-dir",
+    "build-portable",
+    "--output-on-failure",
+    "-j",
+    "4"
+  ],
+  "ctest_exit_code": 0,
+  "scope": "same emitted point multisets including overlap multiplicity; no bound/placement/timing model change"
+}

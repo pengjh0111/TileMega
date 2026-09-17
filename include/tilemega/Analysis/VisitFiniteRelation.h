@@ -5,10 +5,43 @@
 #include <isl/set.h>
 #include <isl/point.h>
 #include <isl/val.h>
+#include <isl/ilp.h>
+#include <limits>
 #include <array>
 #include <functional>
 #include <stdexcept>
 namespace tilemega::analysis {
+// Exact box equality is required before bypassing ISL point allocation.
+// Coupled coordinates and modular holes stay on the general enumerator.
+inline bool VisitFiniteBox(isl_set* set,int arity,
+    std::function<void(long const*)> const& visit) {
+  if(isl_set_is_box(set)!=isl_bool_true)return false;
+  std::array<long,6> low{},high{},point{};
+  auto box=isl_set_universe(isl_set_get_space(set));
+  for(int i=0;i<arity;++i) {
+    auto lo=isl_set_dim_min_val(isl_set_copy(set),i);
+    auto hi=isl_set_dim_max_val(isl_set_copy(set),i);
+    bool fits=isl_val_is_int(lo)==isl_bool_true && isl_val_is_int(hi)==isl_bool_true &&
+        isl_val_cmp_si(lo,std::numeric_limits<long>::min())>=0 &&
+        isl_val_cmp_si(hi,std::numeric_limits<long>::max())<=0;
+    if(!fits) {isl_val_free(lo);isl_val_free(hi);isl_set_free(box);return false;}
+    low[i]=isl_val_get_num_si(lo);high[i]=isl_val_get_num_si(hi);
+    box=isl_set_lower_bound_val(box,isl_dim_set,i,lo);
+    box=isl_set_upper_bound_val(box,isl_dim_set,i,hi);
+  }
+  bool exact=isl_set_is_equal(set,box)==isl_bool_true;isl_set_free(box);
+  if(!exact)return false;
+  point=low;
+  while(true) {
+    visit(point.data());
+    int i=arity-1;
+    while(i>=0 && point[i]==high[i]) {point[i]=low[i];--i;}
+    if(i<0)break;
+    ++point[i];
+  }
+  return true;
+}
+
 // Basic pieces may overlap: adjacency clients deduplicate their emitted edges.
 inline void VisitFiniteRelation(IslContext& ctx,std::string const& text,int arity,
                    std::function<void(long const*)> const& visit) {
@@ -24,11 +57,15 @@ inline void VisitFiniteRelation(IslContext& ctx,std::string const& text,int arit
   struct Parts { Sink* sink; decltype(point)* callback; } parts{&sink,&point};
   auto component=[](isl_basic_set* b,void* data)->isl_stat {
     auto& p=*static_cast<Parts*>(data);auto set=isl_set_from_basic_set(b);
+    try {
+      if(VisitFiniteBox(set,p.sink->arity,*p.sink->visit)) {isl_set_free(set);return isl_stat_ok;}
+    } catch(std::exception const& e) {p.sink->error=e.what();isl_set_free(set);return isl_stat_error;}
     auto status=isl_set_foreach_point(set,*p.callback,p.sink);isl_set_free(set);return status;
   };
   auto map=isl_map_read_from_str(ctx.raw(),text.c_str());
   if(!map || isl_map_dim(map,isl_dim_param)!=0){isl_map_free(map);throw std::runtime_error("relation must be finite and bound");}
   auto set=isl_map_wrap(map);
+  if(isl_set_dim(set,isl_dim_set)!=arity){isl_set_free(set);throw std::invalid_argument("relation arity mismatch");}
   if(isl_set_is_bounded(set)!=isl_bool_true){isl_set_free(set);throw std::runtime_error("unbounded task relation");}
   auto status=isl_set_foreach_basic_set(set,component,&parts);isl_set_free(set);
   if(status!=isl_stat_ok)throw std::runtime_error("relation stream: "+sink.error);
