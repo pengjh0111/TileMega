@@ -34,7 +34,9 @@ int main(int argc,char** argv) try {
   int threads=model.dtype==ScalarType::kBF16 ? 128 : 256;
   int kappa=1;
   if (auto attr=module->getOperation()->getAttrOfType<mlir::IntegerAttr>("tilemega.solved_kappa")) kappa=attr.getInt();
-  RuntimeProjectionOptions po{256,threads,kappa};po.count_wait_entries=false;
+  int projection_grid=argc>=5 ? std::stoi(argv[4]) : 256;
+  if(projection_grid<=0)throw std::invalid_argument("grid must be positive");
+  RuntimeProjectionOptions po{projection_grid,threads,kappa};po.count_wait_entries=false;
   auto projection=ProjectRuntimeQueues(model,runtime,po);
   auto event_members=map("{ [w,s,kind,g] -> [s,t] : kind=0 or (kind=1 and g*"+
       std::to_string(kappa)+"<=t<(g+1)*"+std::to_string(kappa)+") or (kind=2 and t=g) }");
@@ -69,8 +71,8 @@ int main(int argc,char** argv) try {
   counts_out << "stage\tcount\n";
   for (int s=0;s<n;++s) counts_out << s << '\t' << projection.stages[s].task_count.ToString() << '\n';
   int failures=0;
-  for (int grid:{256,340}) {
-    if(argc>=5 && grid!=std::stoi(argv[4]))continue;
+  std::vector<int> grids=argc>=5 ? std::vector<int>{projection_grid} : std::vector<int>{256,340};
+  for (int grid:grids) {
     auto local_cuts=cuts;
     if(argc>=5){int step=std::getenv("SYMBOLIC_PIECE_STEP") ? std::stoi(std::getenv("SYMBOLIC_PIECE_STEP")) : 4;
       if(step<1)throw std::invalid_argument("invalid proof piece width");for(int s=begin;s<=end;s+=step)local_cuts.insert(s);}
@@ -108,9 +110,9 @@ int main(int argc,char** argv) try {
         std::optional<ParametricPlacement> joined;
         bool all_pass=true;
         auto proof_pieces=pieces;
-        if(family=="wavefront" && grid==340) {
+        if(family=="wavefront" && (grid&(grid-1))!=0) {
           // Exhaust the COMPLETE finite integer interval, rather than sample
-          // it. Wide-parameter rank subsets at this non-power-of-two modulus
+          // it. Wide-parameter rank subsets at a non-power-of-two modulus
           // make ISL's redundant-inequality elimination explode. The template
           // formula is unchanged; these are certificate pieces, not binaries.
           proof_pieces.clear();

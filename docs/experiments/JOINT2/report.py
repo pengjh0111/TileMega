@@ -97,6 +97,7 @@ def main():
   good=[r['family'] for r in rr if int(r['different_entries'])==0]
   fits.append([name,', '.join(good) if good else 'outside these four families'])
  add(table(['Current winner','Exact template matches'],fits)+'\n')
+ add('For every current winner that exactly fits a template, bounded_certificates/ also proves all 128 integer seq values at that winner’s actual grid, with five native-table endpoint/interior comparisons. The unchanged template is proved using exhaustive singleton certificate pieces; shards are not GPU variants. These current-winner certificates supplement the original four-family G256/G340 proof.\n')
  add('No worse template replaces a measured winner. The retained same-CG G256/G340 template versus fresh-solve comparison is CPU portability evidence over two finite grid branches, not cross-architecture performance or unbounded variable-divisor support. Materialized winners remain exact in the finite W2 interval carrier.\n')
  add('## 10. A1 — model sources, coverage and executable subset\n')
  dims=rows(EX/'MODELS/dimensions.tsv');add(table(list(dims[0]),[list(r.values()) for r in dims])+'\n')

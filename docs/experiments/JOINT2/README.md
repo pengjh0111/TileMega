@@ -25,12 +25,12 @@ Evidence is divided by responsibility:
 | --- | --- |
 | `../COSTMODEL/` | Derived-access prices, K-loop traces, calibration and replay rows |
 | `cells.json` and its six indexed directories | Frozen choices, separate pilots, 25-round comparisons, 50-process correctness and trace dumps |
-| `fuse_upper/` | Existing legal fusion-pair model bounds and aggregation |
+| `bounded_fuse/` | Existing legal fusion-pair model bounds and aggregation |
 | `../WRITEBACK/` | Compiler commands, CG/host round trips, legacy tables, CTest and SEQSCAN |
-| `../REBASE/raw/` | Ten configurations × five probe arms × 25 processes in each of six cells |
+| `../REBASE/bounded_raw/` | Ten configurations × five probe arms × 25 processes in each of six cells |
 | `../REBASE/probe_audit/` | Signed barrier pairs and unchanged-kernel control checks; no sample filtering |
 | `../SYMBOLIC/complete/` and `../SYMBOLIC/cross_grid/` | Finite interval certificates and complete materialized-table comparisons |
-| `../MODELS/` | Public config bytes/URLs, operator coverage and the explicitly cut MLP graph |
+| `../MODELS/` | Public config bytes/URLs, operator coverage and the maximal covered graph’s explicit numerical-admission failure |
 | `sass_identity/` | Final baseline/current disassembly, empty diffs and source-parent manifest |
 
 The phase and Plan tables use nanoseconds where marked `_ns`; benchmark
@@ -67,3 +67,15 @@ budget. `LOCAL_R5_ROOT` may reuse only a runner-produced local calibration
 with the same GPU UUID; otherwise the pipeline regenerates and recalibrates
 the controls. Materialized sm_89 Plans must not be copied to the target GPU.
 Symbolic portability comparisons also use that target's freshly solved CG.
+
+The continuation’s final cells are indexed by `cells.json` under
+`bounded_search/`; `closure/prior_cells.json` preserves the previous run’s
+index. Intermediate `closure_search/` samples are diagnostics, not final gate
+evidence. `SYMBOLIC/bounded_fit/` compares current winners with native templates;
+`bounded_certificates/` proves every integer seq in [1,128] at each exactly
+fitted winner’s actual grid. Certificate shards are not binary variants.
+`COSTMODEL/bounded_prices/` exposes each physical task’s production price.
+
+The connected covered Llama graph fails its first numerical-admission process;
+its 66 output checks and unchanged CPU golden are retained. The prior independent
+MLP 50/50 cannot substitute for this graph. See `MODELS/subset.md` and F-201.
