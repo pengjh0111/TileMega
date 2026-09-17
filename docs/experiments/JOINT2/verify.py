@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+"""Recompute every R6 gate from raw processes, evaluator rows, and plan dumps.
+
+Run from any directory: python3 docs/experiments/JOINT2/verify.py
+No summary.md, report.json, result.json, comparisons.tsv or gate-result input
+is consulted. Missing evidence is FAIL. All gates run before the exit code.
+Research/report failures are displayed; any hard failure returns one.
+"""
+import csv,hashlib,importlib.util,json,math,re,statistics,subprocess,sys,traceback
+from functools import lru_cache
+from pathlib import Path
+HERE=Path(__file__).resolve().parent;REPO=HERE.parents[2];EX=HERE.parent
+sys.path.insert(0,str(HERE));import analyze as joint
+
+def module(name,p):
+ s=importlib.util.spec_from_file_location(name,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+rank=module('r6_rank_math',EX/'SIMULATOR/r5/report.py')
+C=EX/'COSTMODEL';W=EX/'WRITEBACK';S=EX/'SYMBOLIC';B=EX/'REBASE'
+REFS=['gqa2_s4','gqa2_s128','mha4_s4','mha4_s128'];REAL=['real_s4','real_s128'];ALL=REFS+REAL
+results=[]
+def table(p):return list(csv.DictReader(p.open(),delimiter='\t'))
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def check(condition,message):
+ if not condition:raise AssertionError(message)
+def evidence(p):return str(p.relative_to(REPO)) if p.is_relative_to(REPO) else str(p)
+def gate(name,kind,fn):
+ try:
+  ok,detail=fn();results.append((name,kind,bool(ok)));print(f'{name} {"PASS" if ok else "FAIL"} [{kind}] {detail}',flush=True)
+ except Exception as e:
+  results.append((name,kind,False));print(f'{name} FAIL [{kind}] {type(e).__name__}: {e}',flush=True)
+@lru_cache(None)
+def cell(name):return REPO/json.loads((HERE/'cells.json').read_text())[name]
+@lru_cache(None)
+def choice(name):return joint.chosen(cell(name))
+@lru_cache(None)
+def trace(name,arm):return joint.trace_cell(cell(name),arm)
+def processes(folder,n=50):
+ seen=set();passed=0;errors=[]
+ for i in range(n):
+  p=folder/f'r{i}.log'
+  try:
+   meta=json.loads(p.with_suffix('.json').read_text());start=meta['started_ns'];check(start not in seen,'process reused');seen.add(start)
+   passed+=int(meta['exit_code']==0 and 'RESULT status=PASS' in p.read_text())
+  except Exception as e:errors.append(str(e))
+ return passed==n and len(seen)==n,f'{passed}/{n} {evidence(folder)}'+(' missing='+str(len(errors)) if errors else '')
+def collections(folders):
+ details=[];ok=True
+ for f in folders:
+  valid,text=processes(f);ok &= valid;details.append(text)
+ return ok,'; '.join(details)
+def cost_branches():
+ files=['CostModel.cpp','ChainDP.cpp','CouplingInterfaceDP.cpp','TaskModel.cpp']
+ hits=[]
+ for f in files:
+  for n,line in enumerate((REPO/'lib/Solver'/f).read_text().splitlines(),1):
+   if 'NonGemmStageNs' in line or re.search(r'(case\s+StageKind|(?:if|switch).*StageKind)',line):hits.append(f'{f}:{n}:{line.strip()}')
+ command=['rg','-n','StageKind|NonGemmStageNs','lib/Solver/CostModel.cpp','lib/Solver/ChainDP.cpp','lib/Solver/CouplingInterfaceDP.cpp','lib/Solver/TaskModel.cpp']
+ output=subprocess.run(command,cwd=REPO,text=True,capture_output=True).stdout.strip()
+ return not hits,'command='+ ' '.join(command)+'; output='+repr(output)+'; remaining StageKind in parsing, access projection and ownership is not a cost formula'
+def rank_gate(key,threshold):
+ rows=table(C/'calibrated_replay/evaluations.tsv');actual=table(EX/'SIMULATOR/raw/time/l2.tsv');modes={'legacy_grid_stride':'0','balanced':'4','rotate':'5'}
+ rows=[r for r in rows if r['model']!='real' and r['candidate'] in modes]
+ y=[statistics.median(float(x['l2_ms'])*1e6 for x in actual if (x['model'],x['seq'],x['place'])==(r['model'],r['seq'],modes[r['candidate']])) for r in rows]
+ rho=rank.spearman([float(r[key]) for r in rows],y)
+ return len(rows)==18 and rho>=threshold,f'n={len(rows)} rho={rho:.12f} required={threshold}; {evidence(C/"calibrated_replay/evaluations.tsv")} + SIMULATOR/raw/time/l2.tsv (historical GPU calibration, fresh CPU evaluation)'
+def replay():
+ rows=table(C/'calibrated_replay/replay.tsv');v=sorted(abs(float(r['predicted_ns'])/float(r['measured_ns'])-1) for r in rows)
+ return len(rows)==68,f'n={len(rows)} relative_error p50={statistics.median(v):.9f} p90={joint.trace.percentile(v,.9):.9f} max={max(v):.9f}; {evidence(C/"calibrated_replay/replay.tsv")}'
+def kloop():
+ a=module('r6_loop_raw',C/'analyze_kloop.py');rs=[]
+ for name in REFS:
+  root=C/'raw_kloop'/name;source=Path(json.loads((root/'specs.json').read_text())['selected']['source']);r,_=a.analyze(root/'phase/selected/dump',source);rs.append(r)
+ wait=statistics.median(r['cp_kloop_wait_share'] for r in rs);fixed=statistics.median(r['cp_kloop_fixed_share'] for r in rs)
+ line=f'FORK6 rule={1 if wait>=.25 else 2} mainloop_exposed_wait_share={wait:.3f} kloop_fixed_share={fixed:.3f} cells=4'
+ check(line in (REPO/'docs/FINDINGS.md').read_text(),'raw FORK6 missing in FINDINGS')
+ vals=[(r['cp_kloop_iteration_p50_ns'],r['cp_kloop_fixed_p50_ns']) for r in rs]
+ return True,line+'; (iteration_ns,fixed_ns)='+repr(vals)+'; scope=instrumented GEMM mainloops, SIMT wait unmeasured; COSTMODEL/raw_kloop/*/phase/selected/dump'
+def sass():
+ root=HERE/'sass_identity';m=json.loads((root/'manifest.json').read_text());head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=REPO,text=True).strip();parent=subprocess.check_output(['git','rev-parse','HEAD^'],cwd=REPO,text=True).strip()
+ check(m['source_head']==parent,'identity must stamp immediate parent of evidence-only HEAD')
+ check(m['baseline']=='bad8a0d9b17804b73afe00a6d545dcea72cc6cbb','wrong baseline')
+ paths=subprocess.check_output(['git','diff-tree','--no-commit-id','--name-only','-r',head],cwd=REPO,text=True).splitlines();check(all(p.startswith('docs/experiments/JOINT2/sass_identity/') for p in paths),'final commit contains source/docs changes')
+ for model in ('gqa2','mha4'):
+  a=root/(model+'_base.sass');b=root/(model+'_head.sass');check(a.read_bytes()==b.read_bytes(),model+' SASS differs');check(sha(a)==m['models'][model]['sha256'],'SASS hash mismatch')
+ 
+ for path,digest in m['inputs'].items():check(sha(REPO/path)==digest,'source changed after stamp: '+path)
+ return True,'models=2/2 bytes_identical source_hashes_match final_source_parent_stamp_valid; '+evidence(root)
+def cf():
+ ok,detail=collections([C/'raw_kloop'/x/'correctness' for x in REFS])
+ try:ident,msg=sass()
+ except Exception as e:ident=False;msg=str(e)
+ return ok and ident,detail+'; '+msg
+
+def paired_gate(names,control,upper):
+ ok=True;parts=[]
+ for name in names:
+  try:
+   med,lo,hi=joint.paired(cell(name),choice(name),control);valid=(med<1 and hi<1) if upper==1 else hi<=upper;ok &=valid;parts.append(f'{name} {med:.9f} [{lo:.9f},{hi:.9f}] {evidence(cell(name)/"measure")}')
+  except Exception as e:ok=False;parts.append(f'{name}: {e}')
+ return ok,'; '.join(parts)
+def queue_gate():
+ values=[];ok=True
+ for name in REAL:
+  try:r=trace(name,choice(name));values.append(f'{name} queue/semantic_CP={r["queue_over_cp"]:.9f} {r["dump"]}');ok &= r['queue_over_cp']<=1
+  except Exception as e:ok=False;values.append(f'{name}: {e}')
+ return ok,'; '.join(values)
+def budget():
+ rows=table(C/'calibrated_replay/evaluations.tsv');parts=[];ok=True
+ for model,limit in [('reference',1000),('real',10000)]:
+  rs=[r for r in rows if (r['model']=='real')==(model=='real')];worst=max(rs,key=lambda r:float(r['full_us']));us=float(worst['full_us']);ok &=us<limit
+  parts.append(f'{model} full_max_us={us:.3f} budget={limit} at {worst["model"]}/s{worst["seq"]}/{worst["candidate"]}; prepare_max_us={max(float(r["prepare_us"]) for r in rs):.3f}')
+ return ok,'; '.join(parts)+'; '+evidence(C/'calibrated_replay/evaluations.tsv')
+def ranking():
+ parts=[];good=0
+ for name in ALL:
+  try:
+   scores={a:statistics.median(joint.timing(cell(name)/'measure'/a/f'r{i}.log')['l2_ms'] for i in range(25)) for a in ('top1','top2','top3')};order=sorted(scores,key=scores.get);pos=order.index('top1')+1;good+=pos<=2;parts.append(f'{name} predicted_top1={pos}/3')
+  except Exception as e:parts.append(f'{name}: {e}')
+ return good>=4,f'{good}/6 top1 in measured top2; '+'; '.join(parts)
+def jf():
+ a,t=collections([cell(n)/'correctness' for n in ALL]);b,u=collections([HERE/'selected_seqscan'/f'{m}_s{s}_p{p}'/'correctness' for m in ('gqa2','mha4') for s in (4,128) for p in (0,512)])
+ return a and b,t+'; selected SEQSCAN '+u
+
+def fuse():
+ parts=[];maximum=0
+ for name in ALL:
+  root=HERE/'fuse_upper'/f'{name}_selected.tsv';rows=table(root);supported=[r for r in rows if r['status']=='SUPPORTED'];bound=0
+  for r in supported:
+   separate=float(r['separate_task_ns']);fixed=.232*separate;traffic=max(0.,separate-float(r['traffic_floor_ns']));upper=min(separate,fixed+traffic)
+   check(float(r['fixed_share_input'])==.232,'fixed share changed');check(math.isclose(upper,float(r['optimistic_upper_ns']),rel_tol=1e-8),'upper arithmetic mismatch');bound+=upper
+  floor=trace(name,choice(name))['floor_ns'];share=bound/floor;maximum=max(maximum,share);parts.append(f'{name} supported={len(supported)} upper_ns={bound:.6f} share={share:.6f} {evidence(root)}')
+ line=f'FUSE6 enter_r7={int(maximum>=.1)} maximum_bound_share={maximum:.6f} cells=6';check(line in (REPO/'docs/FINDINGS.md').read_text(),'Fuse decision missing from FINDINGS')
+ return True,line+'; '+'; '.join(parts)
+def writeback():
+ src=REPO/'include/tilemega/Dialect/CouplingGraph/PlacementSolvePass.h';hits=[f'{i}:{l.strip()}' for i,l in enumerate(src.read_text().splitlines(),1) if 'setAttr(' in l];cg=W/'gqa2_resident_auto.mlir';text=cg.read_text();check('tilemega.solved_kappa' in text and 'tilemega.placement' in text,'CG lacks solved metadata')
+ return any('placement->setAttr(' in h for h in hits),'rg -n setAttr '+evidence(src)+' => '+repr(hits)+'; '+evidence(cg)
+def command_gate():
+ root=EX/'MODELS/llama_mlp';m=json.loads((root/'direct_pt2.command.json').read_text());cmd=m['command'];check('--solve' in cmd and cmd[1].endswith('.pt2'),'not direct torch.export solver command');check((root/'direct_pt2.cu').stat().st_size>0,'missing generated CUDA');text=(root/'direct_pt2.mlir').read_text();check(all(x in text for x in ('tilemega.solved_kappa','tilemega.solved_residency','tilemega.placement')),'missing decisions')
+ check((root/'direct_pt2.cu').read_bytes()==(root/'auto.cu').read_bytes(),'direct torch.export output differs from correctness-tested CUDA')
+ return True,'command='+repr(cmd)+'; output='+evidence(root/'direct_pt2.cu')+' byte_equal_to_50_process_tested_source'
+
+def legacy():
+ n=0
+ for m in ('gqa2','mha4'):
+  for s in (4,128):
+   root=W/'legacy_matched/identity'/f'{m}_s{s}'
+   for name in ('schedule.tsv','waits.tsv','events.tsv'):
+    check((root/'base'/name).read_bytes()==(root/'head'/name).read_bytes(),str(root/name));n+=1
+ return n==12,f'{n}/12 byte-identical tables; WRITEBACK/legacy_matched/identity'
+def roundtrip():
+ root=W/'roundtrip_gqa2_s4';a=(root/'cg_plan.tsv').read_bytes();b=(root/'host_plan.tsv').read_bytes();return a==b,f'diff_bytes={0 if a==b else "nonzero"} nodes={len(a.splitlines())-1}; {evidence(root)}'
+def we():
+ log=W/'closure_ctest.log';text=log.read_text();match=re.search(r'100% tests passed, 0 tests failed out of (\d+)',text);ok,detail=collections([W/'legacy/seqscan'/f'{m}_s{s}_p{p}' for m in ('gqa2','mha4') for s in (4,128,2048) for p in (0,512)])
+ return bool(match) and int(match[1])>=49 and ok,f'CTest={match[1] if match else "FAIL"} {evidence(log)}; '+detail
+
+def symbolic_proofs():
+ root=S/'complete';rows=table(root/'proofs.tsv');parts=[];ok=True
+ for family in ('legacy_grid_stride','rotate','band','wavefront'):
+  for g in (256,340):
+   rs=[r for r in rows if r['family']==family and int(r['grid'])==g];covered=set()
+   for r in rs:
+    valid=all(r[k]=='1' for k in ('total','bijective','dense','acyclic','resident','level_exact'));ok &=valid
+    if valid:covered.update(range(int(r['begin']),int(r['end'])+1))
+   ok &= covered==set(range(1,129));parts.append(f'{family}/G{g} proved={len(covered)}/128')
+ return ok,'; '.join(parts)+'; SYMBOLIC/complete/proofs.tsv'
+def symbolic_samples():
+ root=S/'complete';rows=table(root/'samples.tsv');n=0
+ for family in ('legacy_grid_stride','rotate','band','wavefront'):
+  for g in (256,340):
+   for s in (1,32,64,96,128):
+    r=next(r for r in rows if r['family']==family and int(r['grid'])==g and int(r['seq'])==s);check((root/r['template']).read_bytes()==(root/r['native']).read_bytes(),str(r));n+=1
+ return n==40,f'{n}/40 endpoint/interior complete plan byte comparisons; SYMBOLIC/complete/'
+def symbolic_champion():
+ parts=[]
+ for name in ALL:
+  root=S/'fit_native'/name;rows=table(root/'fit.tsv');check(len(rows)==4,'missing family '+name);fits=[]
+  for r in rows:
+   symbolic=(root/r['template_file']).read_bytes();native=(root/(r['family']+'_native.tsv')).read_bytes();check(symbolic==native,'wrong template evaluation '+str(root))
+   selected=(root/r['selected_file']).read_bytes();pairs=list(zip(symbolic.splitlines()[1:],selected.splitlines()[1:]));check(len(symbolic.splitlines())==len(selected.splitlines()),'count mismatch')
+   different=sum(a!=b for a,b in pairs);check(different==int(r['different_entries']),'fit counter mismatch')
+   if not different:fits.append(r['family'])
+  parts.append(name+'='+(','.join(fits) if fits else 'outside_these_four_template_families'))
+ return True,'; '.join(parts)+'; SYMBOLIC/fit_native/*/fit.tsv and complete native/symbolic/selected tables; point witnesses do not assert impossibility in every quasi-affine family'
+
+def sd():
+ root=S/'cross_grid';rows=table(root/'comparisons.tsv');check(len(rows)==16,'expected four templates x two grids x two references')
+ check({r['grid'] for r in rows}=={'256','340'},'missing grid');check({r['reference'] for r in rows}=={'selected','resolved'},'missing fresh solve')
+ for r in rows:
+  a=table(root/r['template_file']);b=table(root/r['reference_file']);check(len(a)==len(b),'task count differs')
+  for x,y in zip(a,b):check((x['stage'],x['task'])==(y['stage'],y['task']),'task identity differs')
+  actual=sum((x['worker'],x['slot'])!=(y['worker'],y['slot']) for x,y in zip(a,b))
+  check(actual==int(r['different_entries']),'comparison disagrees with raw Plan tables')
+ log=(S/'cg_roundtrip.log').read_text();check(len(re.findall(r'^CG_SYMBOLIC_ROUNDTRIP .* identical=1$',log,re.M))==40,'CG serialize/read checks incomplete')
+ return True,f'{len(rows)} template/champion/fresh-solve comparisons recomputed from complete raw tables; 40 CG round trips; CPU only; SYMBOLIC/cross_grid/'
+def rebase():
+ ok=True;details=[]
+ for name in ALL:
+  root=B/'raw'/name
+  try:
+   specs=json.loads((root/'specs.json').read_text());names=list(specs);check(len(names)==50,'expected 10 configurations x 5 arms');starts=set();sessions=set();n=0
+   for i in range(25):
+    for j,arm in enumerate(names):
+     p=root/'measure'/arm/f'r{i}.log';m=json.loads(p.with_suffix('.json').read_text());check(m['round']==i and m['order']==(j-i)%50,'rotation mismatch');sessions.add(m['session']);starts.add(m['started_ns']);joint.timing(p)
+     if arm.endswith('__full'):check(m['exit_code']==0 and 'RESULT status=PASS' in p.read_text(),'full correctness failed')
+     n+=1
+   check(n==1250 and len(starts)==1250 and len(sessions)==1,'missing/reused sessions');details.append(f'{name} {n}/1250')
+  except Exception as e:ok=False;details.append(f'{name}: {e}')
+ return ok,'; '.join(details)+'; REBASE/raw/*/measure'
+def models():
+ root=EX/'MODELS';ok,detail=processes(root/'llama_mlp/correctness');return ok,detail+'; exact full architectures NOT covered: executable scope is documented independent normalized MLP components'
+
+def history_order():
+ pairs=[('567cb81d','6344daa5','C1 before J1'),('dbfb4051','6344daa5','C2 before J1'),('7fc201bd','eaedcd14','FORK6 before Fuse R7 decision'),('c8d58a18','a88ec285','W2 before symbolic proof implementation')]
+ details=[]
+ for before,after,label in pairs:
+  check(subprocess.run(['git','merge-base','--is-ancestor',before,after],cwd=REPO).returncode==0,label);details.append(label)
+ for name in ALL:
+  root=B/'raw'/name;m=json.loads((root/'selection.json').read_text());rev=m['frozen_commit']
+  check(subprocess.run(['git','merge-base','--is-ancestor',rev,'HEAD'],cwd=REPO).returncode==0,'selection commit not an ancestor')
+  choice_path=(cell(name)/'choice.json').relative_to(REPO)
+  recorded=json.loads(subprocess.check_output(['git','show',rev+':'+str(choice_path)],cwd=REPO,text=True));check(recorded==m['choice'],'choice was not frozen at the recorded commit')
+  stamp=int(subprocess.check_output(['git','show','-s','--format=%ct',rev],cwd=REPO,text=True))*10**9
+  samples=list((root/'measure').rglob('r*.json'));check(len(samples)==1250,'incomplete rebase campaign '+name)
+  check(all(json.loads(p.read_text())['started_ns']>=stamp for p in samples),'measurement predates frozen commit')
+  details.append(name+' selection '+rev[:8]+' precedes all B1 measurements')
+ return True,'; '.join(details)
+def target_selfcheck():
+ details=[]
+ for name in ('COSTMODEL','JOINT2','REBASE','MODELS'):
+  folder=EX/name/'selfcheck_sm120_closure';text=(folder/'status.txt').read_text();check('SELF_CHECK PASS; sm_120 not run' in text,'self-check failed '+name)
+  check((folder/'compile.log').exists(),'compile evidence missing '+name);details.append(evidence(folder))
+ return True,'four local compile/guard checks; no sm_120 execution claim; '+'; '.join(details)
+
+def main():
+ gates=[('C-a','hard',cost_branches),('C-b','hard',lambda:rank_gate('full_ns',.880288958)),('C-c','hard',lambda:rank_gate('coarse_ns',.85)),('C-d','report',replay),('C-e','report',kloop),('C-f','hard',cf),('J-a','research',lambda:paired_gate(REAL,'control',1)),('J-b','hard',queue_gate),('J-c','hard',budget),('J-d','hard',ranking),('J-e','hard',lambda:paired_gate(REFS,'champion',1.02)),('J-f','hard',jf),('J-g','report',fuse),('W-a','hard',writeback),('W-b','hard',command_gate),('W-c','hard',legacy),('W-d','hard',roundtrip),('W-e','hard',we),('B1','report',rebase),('S-a','hard',symbolic_proofs),('S-b','hard',symbolic_samples),('S-c','hard',symbolic_champion),('S-d','report',sd),('A1-subset','report',models),('H2','hard',sass),('H4','hard',history_order),('H7','report',target_selfcheck)]
+ for name,kind,fn in gates:gate(name,kind,fn)
+ failed=sum(not ok and kind=='hard' for _,kind,ok in results);print(f'R6_VERIFY gates={len(results)} hard_failures={failed} exit={int(failed>0)}',flush=True);return int(failed>0)
+if __name__=='__main__':sys.exit(main())

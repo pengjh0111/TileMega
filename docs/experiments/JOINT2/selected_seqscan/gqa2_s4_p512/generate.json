@@ -1,0 +1,29 @@
+{
+  "command": [
+    "/tmp/r6_seqscan",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+    "docs/experiments/JOINT2/reduced/gqa2_s4/auto.cu.top2.mlir",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/target.json",
+    "4",
+    "512",
+    "/root/TileMega/docs/experiments/JOINT2/selected_seqscan/gqa2_s4_p512/model.cu",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv"
+  ],
+  "source_choice": {
+    "rank": "2",
+    "key": "32x16x64s2split4kappa1r5",
+    "placement": "eft",
+    "tile_m": "32",
+    "tile_n": "16",
+    "tile_k": "64",
+    "stages": "2",
+    "split_k": "4",
+    "kappa": "1",
+    "residency": "5",
+    "floor_ns": "41600.2",
+    "predicted_ns": "143448",
+    "source": "docs/experiments/JOINT2/reduced/gqa2_s4/auto.cu.top2.cu",
+    "cg": "docs/experiments/JOINT2/reduced/gqa2_s4/auto.cu.top2.mlir"
+  },
+  "session": "1789583920338362672"
+}

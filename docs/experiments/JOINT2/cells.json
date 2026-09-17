@@ -1,0 +1,8 @@
+{
+  "gqa2_s4": "docs/experiments/JOINT2/reduced/gqa2_s4",
+  "gqa2_s128": "docs/experiments/JOINT2/reduced/gqa2_s128",
+  "mha4_s4": "docs/experiments/JOINT2/reduced/mha4_s4",
+  "mha4_s128": "docs/experiments/JOINT2/reduced/mha4_s128",
+  "real_s4": "docs/experiments/JOINT2/admissible/real_s4",
+  "real_s128": "docs/experiments/JOINT2/prepared/real_s128"
+}

@@ -1,0 +1,1 @@
+The first provisional diff contains one nvcc fatbin identifier path only. All instructions and hexadecimal encodings are already byte-identical. Baseline and head must link their own host ABI; the corrected runner supplies both via the same archive argument path. No disassembly normalization or instruction exclusion is used. Original evidence: sass_provisional_paths/gqa2.diff.
