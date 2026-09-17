@@ -10,6 +10,7 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
+#include <tilemega/Solver/RuntimeProjection.h>
 using namespace tilemega;
 using namespace tilemega::solver;
 using namespace tilemega::experiments;
@@ -34,7 +35,20 @@ int main(int argc,char** argv) try {
     auto graph=codegen::MaterializeRuntimeTaskGraph(cell.counts,ReadDependencies(f[3],0),cell.grid);
     SimulatorInput input;input.graph=&graph;input.task_ns.resize(graph.stage_offsets.back());
     auto path=f[0]=="real" ? f.at(6) : repo+"/docs/experiments/SEQSCAN/raw/export/"+f[0]+".json";
-    auto module=frontend::TorchExportImporter{}.Import(path,context);
+    std::ifstream generated(f[3]);std::string generated_line;bool variants=false;int ownership=-1;
+    while(std::getline(generated,generated_line)) {
+      if(generated_line.find("kRuntimeVariants[]")!=std::string::npos){variants=true;continue;}
+      if(variants && generated_line.find("kRuntimeGemms")!=std::string::npos) {
+        auto fields=Split(generated_line,',');ownership=std::stoi(fields.at(9));break;
+      }
+    }
+    if(ownership<0)throw std::runtime_error("historical source lacks ownership flags");
+    frontend::ImportOptions imported;
+    imported.rope_tile_per_block=ownership & codegen::kRoPETileOwnership;
+    imported.kv_tile_per_block=ownership & codegen::kKVTileOwnership;
+    imported.activation_tile_per_block=ownership & codegen::kActivationTileOwnership;
+    imported.combiner_tile_per_block=ownership & codegen::kCombinerTileOwnership;
+    auto module=frontend::TorchExportImporter{}.Import(path,context,nullptr,imported);
     auto model=ModelDescription::FromCouplingGraph(*module,{seq,3,seq+3},"calibration-replay");
     std::vector<GemmConfig> configs(model.gemms.size(),{128,128,16,3,1});
     auto semantic=InstantiateModelTasks(model,configs);CostModel cost(target,model.dtype);
@@ -44,11 +58,24 @@ int main(int argc,char** argv) try {
       auto found=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),[&](auto const& x){return x.stage==s;});
       if (found==model.task_semantics.end()) throw std::runtime_error("missing semantic stage");
       auto task=DeriveModelTaskInput(model,*found,semantic,stage.IsCollective()? &g:nullptr);
-      auto traits=ModelTaskTraits(model,s,g);analysis::ParamBinding point;
-      for (auto const& coordinate:task.cost_coordinates) point.Bind(coordinate,0);
-      if(task.scalar_access) point.Bind("q",0);
-      double ns=cost.TaskInstanceNs(task,traits,{cell.ctas_per_sm},model,1,point,1.0);
-      for (int n=graph.stage_offsets[s];n<graph.stage_offsets[s+1];++n) input.task_ns[n]=ns;
+      auto traits=ModelTaskTraits(model,s,g);
+      if (task.scalar_access && task.work.task_count.Eval(model.MetricBindings())!=cell.counts[s])
+        throw std::runtime_error("scalar ownership count model="+f[0]+" stage="+std::to_string(s)+
+            " expected="+std::to_string(cell.counts[s])+" derived="+std::to_string(task.work.task_count.Eval(model.MetricBindings())));
+      std::vector<analysis::ParamBinding> points(cell.counts[s]);
+      if (task.scalar_access) {
+        for (int q=0;q<cell.counts[s];++q) points[q].Bind("q",q);
+      } else {
+        auto ownership=ProjectTaskOwnership(*found,task.task,stage,traits.threads).BindParams(model.MetricBindings());
+        auto names=ownership.RangeDimNames();
+        for (auto const& [physical,logical]:ownership.Points()) {
+          if (physical.size()!=1 || physical[0]<0 || physical[0]>=cell.counts[s])
+            throw std::runtime_error("calibration task ownership mismatch");
+          for (std::size_t i=0;i<names.size();++i) points[physical[0]].Bind(names[i],logical[i]);
+        }
+      }
+      auto prices=PriceTaskInstances(cost,task,traits,{cell.ctas_per_sm},model,1,points,cell.ctas_per_sm);
+      std::copy(prices.begin(),prices.end(),input.task_ns.begin()+graph.stage_offsets[s]);
     }
     if (f[5]!="-") input.worker_sm=ReadWorkerSm(f[5]+"/slots.tsv",cell.grid);
     auto start=Clock::now();PreparedPlanBounds prepared;

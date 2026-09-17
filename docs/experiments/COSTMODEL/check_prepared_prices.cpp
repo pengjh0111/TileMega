@@ -22,6 +22,6 @@ int main(int argc,char** argv)try{
    if(x.name!=y.name || x.bounds.lower_bound_ns!=y.bounds.lower_bound_ns || x.predicted_ns!=y.predicted_ns || x.plan.owner!=y.plan.owner || x.plan.slot!=y.plan.slot)throw std::runtime_error("cache changed plan or cost");++compared;
   }
  }
- if(cache->prices.size()!=1)throw std::runtime_error("residency incorrectly invalidated immutable task work");
+ if(cache->prices.size()!=2)throw std::runtime_error("residency-dependent service prices shared a cache key");
  std::cout<<"PREPARED_PRICES PASS independent_catalog_comparisons="<<compared<<" cache_entries="<<cache->prices.size()<<'\n';
 }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
