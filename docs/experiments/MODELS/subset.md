@@ -16,7 +16,7 @@ operator-specific solver cost rule. The ordinary decoder pattern takes priority.
 Reproduce from the repository root (requires approximately 6 GiB temporary disk):
 
 ```sh
-python3 docs/experiments/MODELS/export_mlp.py --model llama --seq 4 --out /tmp/r6-llama-mlp
+python3 docs/experiments/MODELS/export_mlp.py --model llama --seq 4 --out docs/experiments/MODELS/llama_mlp
 build-portable/tools/tilemega-compile docs/experiments/MODELS/llama_mlp/exported_program.pt2 docs/experiments/MODELS/llama_mlp/direct_pt2.cu --solve docs/experiments/COSTMODEL/event_fit/target.json --seq 4 --past 3 --search-capacity 3 --search-domain docs/experiments/COSTMODEL/event_fit/search_domain.json --dump-cg docs/experiments/MODELS/llama_mlp/direct_pt2.mlir --hop-curve docs/experiments/SIMULATOR/hop_ns.tsv
 ```
 

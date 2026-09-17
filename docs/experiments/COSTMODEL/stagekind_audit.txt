@@ -1,0 +1,36 @@
+lib/Solver/AttentionWork.cpp:63:  if (stage.kind!=StageKind::kAttention || op.arithmetic!="attention" ||
+lib/Solver/ScalarTaskWork.cpp:33:  if (stage.kind==StageKind::kKVAppend && semantic.element_chunk) {
+lib/Solver/ModelDescription.cpp:92:StageKind ParseKind(std::string const& text) {
+lib/Solver/ModelDescription.cpp:93:  if (text == "TaskKind::kGemm") return StageKind::kGemm;
+lib/Solver/ModelDescription.cpp:94:  if (text == "TaskKind::kRMSNorm") return StageKind::kRMSNorm;
+lib/Solver/ModelDescription.cpp:95:  if (text == "TaskKind::kRoPE") return StageKind::kRoPE;
+lib/Solver/ModelDescription.cpp:96:  if (text == "TaskKind::kKVAppend") return StageKind::kKVAppend;
+lib/Solver/ModelDescription.cpp:97:  if (text == "TaskKind::kElementwise") return StageKind::kElementwise;
+lib/Solver/ModelDescription.cpp:98:  if (text == "TaskKind::kAdd") return StageKind::kAdd;
+lib/Solver/ModelDescription.cpp:99:  if (text == "TaskKind::kAttention") return StageKind::kAttention;
+lib/Solver/ModelDescription.cpp:216:    stage.gemm = stage.kind == StageKind::kGemm || stage.kind == StageKind::kAdd
+lib/Solver/ModelDescription.cpp:362:    stage.gemm = stage.kind == StageKind::kGemm || stage.kind == StageKind::kAdd ? AsInt(fields[1], "stage.gemm")
+lib/Solver/RuntimeProjection.cpp:77:  if (stage.kind==StageKind::kGemm || task.output.axes.size()!=2)
+lib/Solver/RuntimeProjection.cpp:104:    if (stage.kind==StageKind::kRoPE) {
+lib/Solver/RuntimeProjection.cpp:215:      if (stage.kind!=StageKind::kAttention || !choice.chunk_extent)
+lib/Solver/RuntimeProjection.cpp:229:      case StageKind::kAdd:
+lib/Solver/RuntimeProjection.cpp:230:      case StageKind::kGemm: {
+lib/Solver/RuntimeProjection.cpp:236:        stage_chunks[i] = stage.kind==StageKind::kAdd ? 1 : chunks[stage.gemm];
+lib/Solver/RuntimeProjection.cpp:240:      case StageKind::kRMSNorm: count = seq; break;
+lib/Solver/RuntimeProjection.cpp:241:      case StageKind::kRoPE:
+lib/Solver/RuntimeProjection.cpp:245:      case StageKind::kKVAppend:
+lib/Solver/RuntimeProjection.cpp:252:      case StageKind::kElementwise:
+lib/Solver/RuntimeProjection.cpp:256:      case StageKind::kAttention: count = Mul(seq,stage.extent); break;
+lib/Solver/RuntimeProjection.cpp:274:    if (model.stages[edge.producer].kind == StageKind::kGemm &&
+lib/Solver/RuntimeProjection.cpp:278:    if (model.stages[edge.consumer].kind==StageKind::kAttention &&
+lib/Solver/RuntimeProjection.cpp:285:    if (model.stages[i].kind==StageKind::kAttention) {
+lib/Solver/AlignmentPropagation.cpp:16:char const* KindName(StageKind kind) {
+lib/Solver/AlignmentPropagation.cpp:18:    case StageKind::kGemm: return "Gemm";
+lib/Solver/AlignmentPropagation.cpp:19:    case StageKind::kRMSNorm: return "RMSNorm";
+lib/Solver/AlignmentPropagation.cpp:20:    case StageKind::kRoPE: return "RoPE";
+lib/Solver/AlignmentPropagation.cpp:21:    case StageKind::kKVAppend: return "KVAppend";
+lib/Solver/AlignmentPropagation.cpp:22:    case StageKind::kElementwise: return "Elementwise";
+lib/Solver/AlignmentPropagation.cpp:23:    case StageKind::kAttention: return "Attention";
+lib/Solver/AlignmentPropagation.cpp:58:    if (stage.kind == StageKind::kGemm && stage.gemm >= 0) {
+lib/Solver/AlignmentPropagation.cpp:74:      if (stage.kind == StageKind::kGemm) {
+lib/Solver/AlignmentPropagation.cpp:96:      if (stage.kind == StageKind::kGemm) continue;

@@ -4932,3 +4932,242 @@ cycles instead gives a 0.161782 median lower bound; no SIMT wait is imputed.
 Thus the GEMM-scoped rule is not a verified whole-task-pipeline rule. The
 R7 decision must carry this measurement limitation rather than treating the
 unmeasured SIMT region as zero-latency arithmetic.
+
+## F-191 — R6 unifies semantic task costs without resolving coarse ranking
+
+✅ Verified: `NonGemmStageNs` has no remaining caller. `Evaluate`, `ChainDP`
+and `CouplingInterfaceDP` consume the same derived task-work path. Physical
+read/write cardinalities come from access relations; scalar launch/storage
+resources and dataflow declarations come from backend TaskBody traits. The
+command `rg -n 'StageKind|NonGemmStageNs' lib/Solver/{CostModel,ChainDP,CouplingInterfaceDP,TaskModel}.cpp`
+prints no matches. Operator recognition and ownership projection elsewhere in
+Solver are distinct from a per-operator nanosecond formula. The complete
+`rg -n "StageKind|NonGemmStageNs" lib/Solver` output is archived in
+`COSTMODEL/stagekind_audit.txt`; its five remaining files implement parsing,
+alignment, ownership, retained-prefix accesses and attention validation.
+The standalone
+`COSTMODEL/check_body_admission.log` checks the shared decomposition to
+1.45519e-11 ns. Batch evaluation is compared with independent individual
+queries on 152 scalar/collective points; immutable work-class reuse is exact,
+not a sampled approximation (`reuse_traffic_check.log`, `check_prepared.log`).
+
+✅ Verified, historical calibration validation with fresh CPU evaluations:
+18-point full Spearman is 0.884416924665 versus the R5 0.880288958 threshold;
+coarse Spearman is 0.766769865841, below 0.85. Raw evaluator rows are in
+`COSTMODEL/calibrated_replay/evaluations.tsv`; the measured reference is
+`SIMULATOR/raw/time/l2.tsv`. These are not fresh GPU speedup measurements.
+The 68-dump replay relative errors, recomputed as
+`abs(predicted_ns / measured_ns - 1)`, are p50 4.539964%, p90 10.847552%
+(using the same percentile function as R5), max 13.827710%. R5's corresponding reported values were
+4.54%/10.85%/13.83%. The coarse ranking gate remains failed.
+
+✅ Verified: full evaluation, with immutable graph preparation separately
+reported, peaks at 2480.201 us for a reference point (mha4 seq512 legacy),
+and 2873.300 us for real-width. Thus the reference 1 ms budget still fails;
+the real-width 10 ms budget passes. Preparation peaks at 145561.384 and
+242049.983 us respectively. Omitting seq512 would hide the failed budget.
+Shared dependency sets, worker histograms, and the exact flat-hop recurrence
+remove the previous dense event propagation work, but do not make preparation
+or every reference evaluation meet the target.
+
+⚠️ Inferred next work: `PlacementSolvePass.h` still converts the calibrated
+whole-stage `CombineStageNs` estimate to a task price by dividing by waves.
+This combine conversion does not derive the actual partial/residual traffic
+of each tile. `PriceTaskInstances(..., active_ctas=1.0)` and observed-duration
+simulation also do not model the occupancy-dependent change in service time
+of a new geometry. These are concrete remaining pricing problems, not a claim
+that unifying the retired non-GEMM branches has completed every cost model.
+
+## F-192 — R6 closes the concrete placement producer and preserves legacy tables
+
+✅ Verified: the MLIR placement pass writes `mode`, `params`, `window`,
+`policy`, `resident_only`, `grid_map` and `resident_limit_map` directly on
+`PlacementOp`. Materialized EFT tables are carried in the CG module attribute,
+so the serialized graph is self-contained. Legacy `map=[0]` remains valid.
+The one-point solve records theta, kappa, geometry and compiled resident-grid
+constraints; it does not pretend a point-specialized EFT table is an interval
+solution. Higher residency is admitted from a whole-kernel CUDA occupancy
+query, not a maximum over individual TaskBody estimates.
+
+✅ Verified: `WRITEBACK/roundtrip_gqa2_s4/{cg_plan,host_plan}.tsv` are byte equal
+for 2696 nodes. Baseline and current legacy schedule/waits/events tables are
+byte equal in all 12 comparisons under `WRITEBACK/legacy_matched/identity`.
+Each baseline executable links its own baseline host archive: R6 enlarged
+`TargetSpec`, so combining old headers with the current host library would be
+an ABI error. Full default SEQSCAN is 600/600 (two reference models, seq
+4/128/2048, past 0/512, fifty fresh processes each). All 49 CTest cases pass
+after rebuilding the grid-aware driver (`WRITEBACK/grid_ctest.log`).
+
+⚠️ Scope: production solves are available through `--solve TARGET.json`;
+the legacy import/codegen route remains for compatibility. This closes the
+previously missing concrete producer/consumer channel, not an assertion that
+all parameter intervals or all graph families have an automatic solution.
+
+## F-193 — R6 bounds the currently legal fusion family before expanding search
+
+✅ Verified (model evaluation, not an executed fused kernel): the selected
+six CGs contain respectively 2/2/4/4/4/4 supported adjacent RoPE→KVAppend
+pairs, ordered gqa2 s4/s128, mha4 s4/s128, real-width s4/s128. Every adjacent
+logical pair is attempted using `DeriveLogicalFusionCandidate`; unsupported
+pairs and exact rejection reasons remain in `JOINT2/fuse_upper/*_selected.tsv`.
+This is the existing FusionPass family; the report does not infer eligibility
+for a broader multi-producer or split-partial fusion.
+
+The optimistic model bound uses the prescribed historical fixed share 0.232
+of the pair's separate task envelope, plus the resource-path reduction when
+only internal intermediate traffic is free. The latter invokes the same
+`TaskInstanceNs` path with access-derived `TaskMemoryTraffic`, retains external
+traffic and arithmetic, and charges no extra shared copy, fused barrier,
+recomputation or occupancy loss. It is capped at the separate envelope.
+The old net prediction (`separate_task_ns - fused_task_ns`) remains alongside
+this upper-bound calculation; it is not substituted for an upper bound.
+Summing pair envelopes is optimistic about their critical-path exposure.
+This is a calibrated model bound with the current wave-price assumptions,
+not a proof about unmeasured physical execution.
+The common 0.232 fixed fraction is the prompt's extrapolation assumption,
+not a measured fixed fraction for every RoPE/append pair. Even removing the
+entire modeled pair envelope (including all its arithmetic) caps the largest
+share at 0.034358, still below 0.10. Thus the current-family decision does not
+hinge on interpreting the common fixed fraction as a per-pair measurement.
+
+✅ Verified: the maximum bound divided by the selected candidate's measured
+`max(cp_corrected, queue_lb)` is 0.012657, below the frozen 0.10 decision line.
+Raw price rows, source CG hashes, removed-node and intermediate-byte counts,
+and arithmetic are in `JOINT2/fuse_upper/`; `verify.py` recomputes the bound
+and its denominator rather than reading `bounds.tsv` or `decision.txt`.
+
+```text
+FUSE6 enter_r7=0 maximum_bound_share=0.012657 cells=6
+```
+
+⚠️ Inferred next step: this keeps the current narrow Fuse family out of the
+R7 outer search. To reach a larger bound, extend logical adjacency/ownership
+composition in `TaskModel.cpp::ComposeModelCandidate` to the rejected
+multi-producer and split-combine cases, then reprice their actual eliminated
+nodes and traffic. The existing Fuse direction gate remains unchanged;
+no new fusion decision or fused TaskBody was implemented in R6.
+
+## F-194 — R6 task-zero audits localize the remaining price mismatch
+
+✅ Verified: `COSTMODEL/audit_selected.cpp` reproduces the production task-zero
+query for every runtime stage in the six frozen selected CGs. Its inputs,
+source hashes and raw prices are in `COSTMODEL/selected_prices/`. The Python
+companion joins physical `(stage, logical_task=0)` to fresh selected trace
+slots; it also reports all-task stage medians separately. This is not an
+assumption that boundary tasks share task zero's work.
+
+For non-combine stages, medians across stages of measured/task-zero-price are
+1.449 / 1.902 / 1.449 / 1.313 / 2.213 / 2.007 (gqa2 s4/s128, mha4 s4/s128,
+real-width s4/s128). For the four split configurations, the corresponding
+combine ratios are **23.282 / 25.320 / 31.399 / 12.885** (gqa2 s4, mha4 s4,
+real-width s4/s128). The global-timer tick is 1024 ns; zero-length scalar
+observations are retained, not clamped into positive samples.
+
+One concrete gqa2 s4 example is runtime stage 2: the production conversion
+predicts 74.858 ns, while task zero measures 2048 ns and the stage median is
+1024 ns. In real-width s128 stage 2 the prediction is 3417.347 ns versus
+26624 ns for task zero and the stage median. At gqa2 s128 runtime stage 8,
+the non-combine prediction is 2118.708 ns versus 36864 ns for task zero and
+31744 ns for the median. The price error is therefore not only publication
+or a small tie-breaking constant.
+
+⚠️ Inferred repair order: replace the whole-stage-to-task conversion at
+`PlacementSolvePass.h`'s `projected.combine` branch with access-derived
+FP32 partial/residual reads, output stores and backend-declared per-thread
+iteration work; calibrate the task's fixed term at the compiled geometry.
+Then calibrate occupancy-sensitive service in `PriceTaskInstances`, which
+currently receives `active_ctas_per_sm=1.0`, rather than treating observed
+new-geometry task duration as occupancy-independent. Re-run the frozen
+ranking and end-to-end gates after these changes. This audit does not change
+the R6 selected candidates or relabel a failed gate as passed.
+The attention example also points to `AttentionChunkTaskBody.h`'s thread-zero
+softmax loops: `ScalarDataflow.h` currently describes their phase order but
+not their one-lane serial iteration count. Carry this implementation work
+into backend traits and calibrate the sequential instruction term; a peak
+SFU/CUDA throughput price cannot by itself represent that loop latency.
+
+## F-195 — R6 proves a finite symbolic domain without replacing unfit winners
+
+✅ Verified: four template families (grid-stride, rotate, band, wavefront)
+cover every integer seq in [1,128] at grids 256 and 340 for the gqa2 CG
+recorded in `SYMBOLIC/complete/provenance.json` (M32 N16 K16, split4, kappa1,
+compiled residency witness 512). The 166 certificate pieces establish total
+ownership, bijection/dense slots, acyclicity of semantic/queue/grouped-event
+edges, resident-grid legality and a dependency-span bound. The non-power-of-two
+wavefront case exhausts all 128 integer points as ISL proof pieces; it does
+not infer an interval proof from five samples. These pieces are not binary
+variants. All generated benchmark binaries retain one geometry variant.
+
+✅ Verified: forty endpoint/interior full Plan comparisons (seq 1/32/64/96/128,
+two grids, four families) are byte-identical to native host materialization.
+The four combined-grid maps are carried in **one serialized CG** and forty
+read-back evaluations also agree (`SYMBOLIC/cg_roundtrip.log`). Reusing parsed
+ISL maps in this evidence driver removes repeated parsing of the same large
+map; the domain and every comparison point are unchanged. Source maps,
+certificates, complete Plan tables and the serialized CG are retained.
+
+✅ Verified: `SYMBOLIC/fit_native/` independently compares each of the six
+actual selected Plans against four native-checked templates at its own grid.
+Only mha4 s128 matches rotate. The other five EFT selections fall outside
+these four families; they remain materialized EFT Plans. This does not prove
+that no other quasi-affine family can express them.
+
+✅ Verified, CPU only: the same carried CG evaluated at grids 256 and 340 is
+compared with fresh six-catalog solves (`SYMBOLIC/cross_grid/`, sixteen full
+Plan comparisons). The fresh winner is wavefront at 256 and EFT at 340.
+Thus a symbolic template is reusable over the proven grid alternatives,
+while a winner and its materialized table are not presumed invariant. The
+original compiled resident limit is retained; the experiment does not change
+the physical SM count or move a 4090 table onto another architecture.
+
+⚠️ Scope: divisors are constant within the two grid branches. An unbounded
+symbolic grid divisor is not affine/Presburger. This evidence is specific to
+the recorded graph and finite interval; it is not a proof for all six winner
+geometries, arbitrary sequence lengths, or an sm_120 performance result.
+
+## F-196 — R6 anchors public architectures and quantifies the remaining import gaps
+
+✅ Verified, source inspection: the archived public configurations give
+Llama-3.2-1B 16 layers, hidden 2048, intermediate 8192, 32 query/8 KV heads,
+head_dim 64, RoPE theta 500000, RMS epsilon 1e-5; Qwen3-1.7B has 28 layers,
+hidden 2048, intermediate 6144, 16 query/8 KV heads, head_dim 128, RoPE theta
+1000000, epsilon 1e-6. RoPE scaling, vocabulary/tied-head settings and context
+limits are in `MODELS/dimensions.tsv`. Qwen uses its official public config.
+Meta's config download returned HTTP 401; the archived Unsloth public copy
+is explicitly identified as a redistributor source and dimensions were
+cross-checked against Meta's public SKU/implementation. URLs, bytes, hashes
+and failed requests are preserved in `MODELS/sources/manifest.json`.
+
+✅ Verified, repository inspection: there are 11 current TaskKind values,
+not the prompt's assumed 16. The coverage table distinguishes shape-capable
+backends from verified architecture import. Gaps include token embedding,
+final-head import, Llama's normalization epsilon, the backend's BF16 RoPE
+angle rounding versus the public FP32 computation, and Qwen's per-head Q/K
+normalization. No missing operator was implemented in this audit.
+`MODELS/extension_sites.tsv` counts 15 conditional integration sites for a
+new distinct task/ownership shape, including three harness dispatch sites.
+The unified cost path needs access semantics and backend traits/dataflow;
+it does not require adding another operator-specific nanosecond formula.
+
+✅ Verified, explicitly degraded execution scope: one `tilemega-compile`
+command consumes the exported `.pt2`, performs the internal import bridge,
+queries compiled occupancy, solves geometry/kappa/placement/residency,
+writes CG and emits CUDA. Its output is byte-identical to the source with
+50/50 fresh-process numerical PASS results and sixteen output comparisons
+per process (`MODELS/llama_mlp/direct_pt2.command.json`, `correctness/`).
+The graph comprises sixteen independent, already-normalized Llama-width MLP
+regions with distinct random weights and explicit boundary inputs. It is
+neither a sequential decoder nor the maximal whole-graph covered subset;
+covered attention regions have not been assembled into that subset.
+
+The fifty single-launch observations (warmup=0, repeat=1) have L2 median
+2.016880 ms, range 1.973248–2.034688 ms; L1 median is 3.050624 ms.
+These are diagnostic execution times, not a steady-state full-model speedup.
+No pretrained weights or Hugging Face runtime dependency were needed.
+
+⚠️ Inferred next work: first expose exact epsilon and FP32 RoPE semantics,
+then lift embedding/final-head and per-head normalization ownership; extend
+the existing structural region import to the covered attention cuts and
+assemble the largest connected/exportable covered graph before promoting
+this anchor to the EX-V1 main benchmark. `MODELS/subset.md` retains the exact
+cut boundaries and regeneration command.
