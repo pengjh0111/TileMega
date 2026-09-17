@@ -4,7 +4,7 @@
 This presentation tool may read derived tables. verify.py deliberately does
 not; its complete output is supplied through --verification.
 """
-import argparse,csv,json,re,subprocess
+import argparse,csv,json,re,statistics,subprocess
 from pathlib import Path
 HERE=Path(__file__).resolve().parent;EX=HERE.parent;REPO=HERE.parents[2]
 BASE='bad8a0d9b17804b73afe00a6d545dcea72cc6cbb'
@@ -50,6 +50,11 @@ def main():
  add('```text\nFORK6 rule=1 mainloop_exposed_wait_share=0.278 kloop_fixed_share=0.014 cells=4\n```\n')
  add('The denominator is instrumented GEMM mainloops. SIMT exposed wait is unmeasured; the all-path-mainloop lower-bound denominator gives 0.161782. The prescribed rule is applied to the measured GEMM scope, with this deviation explicit. Per-cell iteration/fixed p50 ns: gqa2 s4 494.574/84.156, s128 519.355/219.341; mha4 s4 504.267/52.239, s128 318.945/67.038; real s4 266.040/52.492, s128 538.262/102.693. Raw: `../COSTMODEL/raw_kloop/`.\n')
  add('The continuation removes the remaining whole-stage/waves combine conversion. Combine tasks derive semantic reduction and typed physical traffic, then use TaskInstanceNs like other tasks; tail coordinates and FP32 partial versus BF16 residual bytes are explicit. Replay now respects each archived binary’s physical ownership flags and evaluates actual task coordinates instead of repeating task zero. F-199 records the independent element-enumeration checks. These repairs close the earlier implementation omissions, while remaining predictive error is still reported rather than assumed solved.\n')
+ prices=rows(EX/'COSTMODEL/bounded_prices/comparison_gqa2_mha4_real.tsv')
+ groups={}
+ for r in prices:groups.setdefault((r['cell'],r['task_kind'],r['combine']),[]).append(r)
+ add(table(['Cell','Backend kind','Combine','Physical tasks','Median stage measured/price','Total measured / total price'],[[cell,kind,combine,sum(int(r['tasks']) for r in rr),f(statistics.median(float(r['measured_predicted_p50']) for r in rr)),f(sum(float(r['measured_total_ns']) for r in rr)/sum(float(r['predicted_total_ns']) for r in rr))] for (cell,kind,combine),rr in groups.items()])+'\n')
+ add('This diagnostic joins every physical trace task with its actual coordinate/residency price; no task-zero extrapolation or zero-duration filtering is used. The 1024 ns global-timer quantization remains visible. Kind labels describe backend observations and do not reintroduce Solver per-operator pricing branches. The task-level mismatch is distinct from the historical whole-plan replay error above.\n')
  add('## 6. J — binding objective, fresh comparisons and Fuse bound\n')
  data=[];config=[]
  for r in joint:
@@ -113,7 +118,7 @@ def main():
  add('## 12. Excluded work confirmation\n')
  add('No EX-V1 full anchored decode sweep; no Fuse outer-search decision or fused implementation; no EX-E4 shared-memory pipeline or TaskSmem union-lifetime change; no A1 missing-operator implementation; no EX-E5, EX-S4 or L5 serving. Plan execution semantics, W=1, monotonic epochs, release rules and legality checks remain unchanged. Only the skeleton changelog and §4.4.2 were edited. User-owned edits in PLACE_EFT2/summary.md and SYNC_V2/sass_identity/meta.tsv were preserved.\n')
  add('## 13. Failed gates: causes and concrete next changes\n')
- add('The earlier C-c ownership/coordinate defects, combine whole-stage shortcut and zero outer bounds have been repaired. For any remaining J-d/J-e failure, inspect per-task prices under compiled residency and the deferred-bound candidate list; fit backend service dilation and widen the measured feasible shortlist without changing this round’s gates. J-c remains limited by per-plan readiness and recurrence memory traffic; next optimize immutable prepared storage and allocation while retaining the full cold metric. J-b is a separate feasibility condition: minimizing the binding makespan does not mathematically enforce queue/semantic-CP≤1. Any explicit feasibility restriction must expose its latency tradeoff and be measured against the same controls. A1 requires accurate contraction accumulation near BF16 rounding midpoints, then revalidation of the connected residual chain.\n')
+ add('The earlier C-c ownership/coordinate defects, combine whole-stage shortcut and zero outer bounds have been repaired. For any remaining J-d/J-e failure, inspect per-task prices under compiled residency and the deferred-bound candidate list; fit backend service dilation and widen the measured feasible shortlist without changing this round’s gates. Concrete model sites are CostModel::TaskInstanceNs (the task_body fixed/loop_body/loop_wait fits) and ScalarInstanceNs. AttentionChunkTaskBody.h has a thread-zero softmax loop whose active-lane service should be represented in backend phase traits; the audit establishes the price error, while this causal explanation still requires a phase-specific calibration. J-c remains limited by per-plan readiness and recurrence memory traffic; next optimize immutable prepared storage and allocation while retaining the full cold metric. J-b is a separate feasibility condition: minimizing the binding makespan does not mathematically enforce queue/semantic-CP≤1. Any explicit feasibility restriction must expose its latency tradeoff and be measured against the same controls. A1 requires accurate contraction accumulation near BF16 rounding midpoints, then revalidation of the connected residual chain.\n')
  add('## 14. R7 priorities and decisions still outside the solver\n')
  add(table(['Priority','Block','Dependency / action','Inferred effort'],[
  ['0','Finish price/ranking closure','Remaining calibrated serial/resource service, shortlist coverage and cold budget; preserve the frozen gates.','3–7 developer-days + fresh campaigns'],
