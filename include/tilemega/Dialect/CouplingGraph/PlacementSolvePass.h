@@ -226,12 +226,66 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
   return result;
 }
 
+
+// A finite integer theta interval is solved exhaustively. Materialized winners
+// are retained at every point; this is a bounded table, not an extrapolated
+// template or a claim of portability to an unmeasured resident grid.
+inline void SolveAndWritePlacementInterval(mlir::ModuleOp module,
+    PlacementSolveOptions const& options,int begin,int end,std::ostream* evidence=nullptr) {
+  if(begin<1 || end<begin || options.dims.past<0)
+    throw std::invalid_argument("invalid placement theta interval");
+  mlir::OpBuilder b(module.getContext());std::vector<mlir::Attribute> entries;
+  auto seed=mlir::OwningOpRef<mlir::ModuleOp>(mlir::cast<mlir::ModuleOp>(module->clone()));
+  for(int seq=begin;seq<=end;++seq) {
+    auto point=mlir::OwningOpRef<mlir::ModuleOp>(mlir::cast<mlir::ModuleOp>((*seed)->clone()));
+    auto bound=options;bound.dims={seq,options.dims.past,seq+options.dims.past};
+    auto solved=SolveAndWritePlacement(*point,bound);
+    auto const& winner=solved.candidates.front();
+    if(!winner.error.empty())throw std::runtime_error("no legal interval placement at seq="+std::to_string(seq));
+    auto materialized=winner;materialized.mode=PlacementMode::kEft;materialized.params.clear();
+    WriteSolvedPlacement(*point,materialized,bound);
+    auto table=(*point)->getAttrOfType<mlir::DictionaryAttr>(kPlacementTableAttr);
+    mlir::NamedAttrList fields(table);
+    fields.set("selected_family",b.getStringAttr(winner.name));
+    fields.set("floor_ns",b.getF64FloatAttr(winner.bounds.lower_bound_ns));
+    entries.push_back(fields.getDictionary(module.getContext()));
+    if(evidence)for(auto const& choice:solved.candidates)
+      *evidence<<seq<<'\t'<<choice.name<<'\t'<<choice.bounds.lower_bound_ns<<'\t'
+          <<choice.predicted_ns<<'\t'<<choice.error<<'\n';
+    if(seq==begin) {
+      module->setAttrs((*point)->getAttrs());
+      for(auto placement:module.getOps<PlacementOp>()) {
+        placement->setAttr("mode",b.getStringAttr("eft"));
+        placement->setAttr("params",b.getDenseI64ArrayAttr({}));
+        placement->setAttr("window",b.getI64IntegerAttr(1));
+        placement->setAttr("policy",b.getStringAttr(kPlacementPolicyAot));
+        placement->setAttr("resident_only",b.getBoolAttr(true));
+        placement->removeAttr("params_map");placement->removeAttr("mapping_mode");
+        auto map=analysis::CouplingRelation::FromIslText("[S,past] -> { [] -> ["+
+            std::to_string(solved.grid)+"] : "+std::to_string(begin)+"<=S<="+
+            std::to_string(end)+" and past="+std::to_string(options.dims.past)+" }");
+        placement->setAttr("grid_map",CouplingMapAttr::get(module.getContext(),map));
+        placement->setAttr("resident_limit_map",CouplingMapAttr::get(module.getContext(),map));
+      }
+    }
+  }
+  mlir::NamedAttrList table(llvm::cast<mlir::DictionaryAttr>(entries.front()));
+  table.set("interval",b.getArrayAttr(entries));
+  module->setAttr(kPlacementTableAttr,table.getDictionary(module.getContext()));
+  module->removeAttr("tilemega.solved_seq");
+  module->setAttr("tilemega.solved_seq_begin",b.getI64IntegerAttr(begin));
+  module->setAttr("tilemega.solved_seq_end",b.getI64IntegerAttr(end));
+  module->setAttr("tilemega.solved_placement",b.getStringAttr("finite_theta_interval"));
+  if(mlir::failed(mlir::verify(module)))throw std::invalid_argument("interval CG verification failed");
+}
+
 struct PlacementSolvePass : mlir::PassWrapper<PlacementSolvePass,mlir::OperationPass<mlir::ModuleOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(PlacementSolvePass)
   PlacementSolvePass()=default;
   PlacementSolvePass(PlacementSolvePass const& other):PassWrapper(other) {}
   mlir::Pass::Option<std::string> target{*this,"target",llvm::cl::desc("Calibrated TargetSpec JSON")};
   mlir::Pass::Option<int> seq{*this,"seq",llvm::cl::init(4)};
+  mlir::Pass::Option<int> seq_end{*this,"seq-end",llvm::cl::init(0)};
   mlir::Pass::Option<int> past{*this,"past",llvm::cl::init(3)};
   mlir::Pass::Option<int> kappa{*this,"kappa",llvm::cl::init(1)};
   llvm::StringRef getArgument() const final {return "tilemega-solve-placement";}
@@ -240,7 +294,8 @@ struct PlacementSolvePass : mlir::PassWrapper<PlacementSolvePass,mlir::Operation
     try {
       PlacementSolveOptions options;options.target=TargetSpec::FromJson(target);
       options.dims={seq,past,seq+past};options.kappa=kappa;
-      SolveAndWritePlacement(getOperation(),options);
+      if(seq_end)SolveAndWritePlacementInterval(getOperation(),options,seq,seq_end);
+      else SolveAndWritePlacement(getOperation(),options);
     } catch (std::exception const& e) {getOperation().emitError(e.what());signalPassFailure();}
   }
 };

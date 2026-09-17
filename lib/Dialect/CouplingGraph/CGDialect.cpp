@@ -349,15 +349,13 @@ LogicalResult PlacementOp::verify() {
   return success();
 }
 
-bool ReadPlacementTable(mlir::ModuleOp module, PlacementTable* table,
-                        std::string* error) {
+static bool ReadPlacementFields(mlir::Attribute attr, PlacementTable* table,
+                                std::string* error) {
   auto fail = [&](std::string message) {
     if (error) *error = std::move(message);
     return false;
   };
   *table = {};
-  if (!module) return true;
-  auto const attr = module->getAttr(kPlacementTableAttr);
   if (!attr) return true;
   auto const fields = llvm::dyn_cast<DictionaryAttr>(attr);
   if (!fields)
@@ -383,6 +381,38 @@ bool ReadPlacementTable(mlir::ModuleOp module, PlacementTable* table,
   std::string reason;
   if (!ValidatePlacementTable(*table, &reason)) return fail(reason);
   return true;
+}
+
+
+bool ReadPlacementIntervalTables(mlir::ModuleOp module,std::vector<PlacementTable>* tables,
+    std::string* error) {
+  tables->clear();
+  auto fail=[&](char const* reason){if(error)*error=reason;return false;};
+  if(!module)return true;
+  auto attr=module->getAttr(kPlacementTableAttr);
+  if(!attr)return true;
+  auto fields=llvm::dyn_cast<DictionaryAttr>(attr);
+  if(!fields)return fail("placement table must be a dictionary");
+  auto entries=fields.get("interval");if(!entries)return true;
+  auto array=llvm::dyn_cast<ArrayAttr>(entries);
+  if(!array || array.empty())return fail("placement interval must be a nonempty array");
+  PlacementTable first;if(!ReadPlacementFields(fields,&first,error))return false;
+  for(auto entry:array) {
+    PlacementTable table;if(!ReadPlacementFields(entry,&table,error))return false;
+    if(table.seq!=first.seq+static_cast<long long>(tables->size()) ||
+        table.past!=first.past || table.grid!=first.grid)
+      return fail("placement interval must have contiguous seq and one past/grid");
+    if(tables->empty() && (table.worker!=first.worker || table.slot!=first.slot))
+      return fail("placement interval first point differs from its root table");
+    tables->push_back(std::move(table));
+  }
+  return true;
+}
+
+bool ReadPlacementTable(mlir::ModuleOp module,PlacementTable* table,std::string* error) {
+  if(!ReadPlacementFields(module ? module->getAttr(kPlacementTableAttr) : mlir::Attribute{},table,error))return false;
+  std::vector<PlacementTable> interval;
+  return ReadPlacementIntervalTables(module,&interval,error);
 }
 
 /// The §5.7.1 Plan half of the op.  All four attributes are optional together:

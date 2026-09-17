@@ -1314,6 +1314,21 @@ inline DeviceModel Create(ModelSpec const& spec,
                           ModelDims const& dims, std::string const& dir,
                           int grid, int blocks_per_sm, TargetSpec const& target,
                           std::size_t l2_smem_bytes) {
+  RuntimePlanDesc const* selected_plan=&runtime_variant.plan;
+  if(selected_plan->interval_count) {
+    if(!selected_plan->interval || dims.seq<int(selected_plan->interval_begin) ||
+        dims.seq-int(selected_plan->interval_begin)>=int(selected_plan->interval_count)) {
+      std::fprintf(stderr,"workload outside solved placement interval\n");std::exit(2);
+    }
+    selected_plan=&selected_plan->interval[dims.seq-selected_plan->interval_begin];
+  }
+  auto const& bound_plan=*selected_plan;
+#if defined(TILEMEGA_SOLVED_SEQ_BEGIN)
+  if(dims.seq<TILEMEGA_SOLVED_SEQ_BEGIN || dims.seq>TILEMEGA_SOLVED_SEQ_END ||
+      dims.past!=TILEMEGA_SOLVED_PAST || grid!=TILEMEGA_SOLVED_GRID) {
+    std::fprintf(stderr,"workload or grid outside solved interval\n");std::exit(2);
+  }
+#endif
 #if defined(TILEMEGA_SOLVED_SEQ)
   // A concrete solve proves this point and resident grid. Interval templates
   // carry a separate proof; a variant table alone does not make it portable.
@@ -1754,7 +1769,7 @@ inline DeviceModel Create(ModelSpec const& spec,
   // distance the window cannot reorder.
   int const window = TILEMEGA_NEGATIVE_WINDOW_W1_RULES
                          ? 1
-                         : static_cast<int>(runtime_variant.plan.window);
+                         : static_cast<int>(bound_plan.window);
 #if TILEMEGA_EVENT_KAPPA > 0
   bool const force_all_dependencies =
       std::getenv("TILEMEGA_FORCE_ALL_DEPENDENCIES") != nullptr;
@@ -1776,7 +1791,7 @@ inline DeviceModel Create(ModelSpec const& spec,
   std::vector<std::int64_t> plan_params;
   {
     auto const carried =
-        static_cast<dialect::PlacementMode>(runtime_variant.plan.mode);
+        static_cast<dialect::PlacementMode>(bound_plan.mode);
     if (carried != dialect::PlacementMode::kLegacyGridStride) {
       if (plan_mode != dialect::PlacementMode::kLegacyGridStride &&
           plan_mode != carried) {
@@ -1785,22 +1800,22 @@ inline DeviceModel Create(ModelSpec const& spec,
         std::exit(2);
       }
       plan_mode = carried;
-      plan_params.assign(runtime_variant.plan.params,
-                         runtime_variant.plan.params + runtime_variant.plan.param_count);
+      plan_params.assign(bound_plan.params,
+                         bound_plan.params + bound_plan.param_count);
     }
     // W comes from the Plan, never from the macro (§8.11).  A source solved
     // for a wider window than this build implements is refused rather than run
     // under lifting rules it was not solved for (H4); W = 1 is accepted by
     // every build, which is what keeps a default source valid either way.
-    if (runtime_variant.plan.window < 1 ||
-        runtime_variant.plan.window > TILEMEGA_SLOT_WINDOW) {
+    if (bound_plan.window < 1 ||
+        bound_plan.window > TILEMEGA_SLOT_WINDOW) {
       std::fprintf(stderr,
                    "the executor implements window<=%u; this plan asks %u (§5.7.2)\n",
                    static_cast<unsigned>(TILEMEGA_SLOT_WINDOW),
-                   static_cast<unsigned>(runtime_variant.plan.window));
+                   static_cast<unsigned>(bound_plan.window));
       std::exit(2);
     }
-    if (runtime_variant.plan.policy != 0) {
+    if (bound_plan.policy != 0) {
       std::fprintf(stderr,"the executor implements the aot dispatch policy only\n");
       std::exit(2);
     }
@@ -1842,7 +1857,7 @@ inline DeviceModel Create(ModelSpec const& spec,
   plan_request.physical_worker=physical_worker;
   plan_request.graph=&runtime_graph;
   if (plan_mode==dialect::PlacementMode::kEft) {
-    auto const& plan_table=runtime_variant.plan;
+    auto const& plan_table=bound_plan;
     int const plan_nodes=runtime_graph.stage_offsets.empty()
                              ? 0 : runtime_graph.stage_offsets.back();
     // The table is (pi, sigma) for one bound theta on one grid, and there is no
@@ -2298,7 +2313,7 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.params.task_waits = model.device_task_waits;
 #if TILEMEGA_SLOT_WINDOW > 1
   model.params.slot_local_deps = model.device_slot_local_deps;
-  model.params.window = runtime_variant.plan.window;
+  model.params.window = bound_plan.window;
 #endif
   model.params.task_wait_count =
       static_cast<std::uint32_t>(model.task_waits.size());

@@ -73,6 +73,7 @@ struct PlacementPlanRecord {
   /// theta it is pinned to.  Empty for every closed-form mode, which is what
   /// keeps their emitted initializer the five fields it has always been (H2).
   dialect::PlacementTable table;
+  std::vector<dialect::PlacementTable> interval;
 };
 
 PlacementPlanRecord readPlacementPlan(mlir::ModuleOp module) {
@@ -125,6 +126,8 @@ PlacementPlanRecord readPlacementPlan(mlir::ModuleOp module) {
   // the dialect and mean something else by the time it is emitted.
   std::string reason;
   if (!dialect::ReadPlacementTable(module, &plan.table, &reason))
+    throw std::invalid_argument(reason);
+  if (!dialect::ReadPlacementIntervalTables(module,&plan.interval,&reason))
     throw std::invalid_argument(reason);
   auto const mode = static_cast<dialect::PlacementMode>(plan.mode);
   if (!plan.table.worker.empty() &&
@@ -489,6 +492,29 @@ std::string emitModelPlan(mlir::ModuleOp module,
     emitArray("kPlanWorker", table.worker);
     emitArray("kPlanSlot", table.slot);
   }
+
+  for(std::size_t v=0;v<variants.size();++v) {
+    auto const& entries=variants[v].plan.interval;
+    if(entries.empty())continue;
+    for(std::size_t i=0;i<entries.size();++i) {
+      auto const& entry=entries[i];
+      auto emit=[&](char const* name,std::vector<int> const& values) {
+        out<<"constexpr std::int32_t "<<name<<v<<'_'<<i<<"[] = {";
+        for(std::size_t j=0;j<values.size();++j)out<<(j ? "," : "")<<values[j];
+        out<<"};\n";
+      };
+      emit("kIntervalWorker",entry.worker);emit("kIntervalSlot",entry.slot);
+    }
+    out<<"constexpr RuntimePlanDesc kPlanInterval"<<v<<"[] = {\n";
+    for(std::size_t i=0;i<entries.size();++i) {
+      auto const& entry=entries[i];
+      out<<"  {"<<static_cast<unsigned>(dialect::PlacementMode::kEft)
+          <<"u, nullptr, 0u, 1u, 0u, kIntervalWorker"<<v<<'_'<<i
+          <<", kIntervalSlot"<<v<<'_'<<i<<", "<<entry.worker.size()<<"u, "
+          <<entry.seq<<"u, "<<entry.past<<"u, "<<entry.grid<<"u},\n";
+    }
+    out<<"};\n";
+  }
   // §5.7.1 template form: mode plus its parameters, and for `eft` the table
   // above.  The trailing fields are defaulted, so a closed-form mode still
   // emits the same five it always has (H2, E1-b).
@@ -504,6 +530,8 @@ std::string emitModelPlan(mlir::ModuleOp module,
       init << ", kPlanWorker" << v << ", kPlanSlot" << v << ", "
            << plan.table.worker.size() << "u, " << plan.table.seq << "u, "
            << plan.table.past << "u, " << plan.table.grid << "u";
+    if(!plan.interval.empty())
+      init << ", kPlanInterval" << v << ", " << plan.interval.size() << "u, " << plan.interval.front().seq << "u";
     init << "}";
     return init.str();
   };
@@ -964,6 +992,8 @@ std::string emitSolvedLaunch(mlir::ModuleOp module) {
       {"tilemega.solved_kappa","TILEMEGA_EVENT_KAPPA"},
       { "tilemega.solved_residency","TILEMEGA_RESIDENCY_CAP"},
       {"tilemega.solved_seq","TILEMEGA_SOLVED_SEQ"},
+      {"tilemega.solved_seq_begin","TILEMEGA_SOLVED_SEQ_BEGIN"},
+      {"tilemega.solved_seq_end","TILEMEGA_SOLVED_SEQ_END"},
       {"tilemega.solved_past","TILEMEGA_SOLVED_PAST"},
       {"tilemega.solved_grid","TILEMEGA_SOLVED_GRID"}}) {
     if (auto value=module->getAttrOfType<mlir::IntegerAttr>(attr)) {

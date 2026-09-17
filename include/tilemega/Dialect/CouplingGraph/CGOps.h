@@ -19,4 +19,6 @@ namespace tilemega::dialect {
 bool ReadPlacementTable(::mlir::ModuleOp module, PlacementTable* table,
                         ::std::string* error);
 
+bool ReadPlacementIntervalTables(::mlir::ModuleOp module,
+    ::std::vector<PlacementTable>* tables,::std::string* error);
 }  // namespace tilemega::dialect

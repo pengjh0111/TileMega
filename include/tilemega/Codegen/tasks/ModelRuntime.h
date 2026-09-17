@@ -190,6 +190,9 @@ struct RuntimePlanDesc {
   std::uint32_t eft_seq = 0;
   std::uint32_t eft_past = 0;
   std::uint32_t eft_grid = 0;
+  RuntimePlanDesc const* interval = nullptr;
+  std::uint32_t interval_count = 0;
+  std::uint32_t interval_begin = 0;
 };
 
 /// One unique event a concrete task still has to observe.  The host removes
