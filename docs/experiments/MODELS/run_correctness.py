@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Fifty fresh processes for the explicitly cut Llama MLP program."""
-import fcntl,hashlib,json,os,subprocess,time
+import argparse,fcntl,hashlib,json,os,subprocess,time
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
-root=HERE/'llama_mlp';binary=root/'bin/selected';output=root/'correctness';output.mkdir(exist_ok=True)
+ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('--root',type=Path,default=HERE/'llama_mlp');args=ap.parse_args()
+root=args.root;binary=root/'bin/selected';output=root/'correctness';output.mkdir(exist_ok=True)
 sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
 session=str(time.time_ns())
 for i in range(50):

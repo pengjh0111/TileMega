@@ -20,8 +20,8 @@ REPO=HERE.parents[2]
 sys.path.insert(0,str(REPO/'docs/experiments/JOINT'))
 import measure
 
-def specs(model,seq):
-    old=REPO/'docs/experiments/JOINT/raw'/f'{model}_s{seq}'
+def specs(model,seq,root):
+    old=root/f'{model}_s{seq}'
     choice=json.loads((old/'choice.json').read_text())['choice']
     result={'selected':dict(choice)}
     if model!='real':
@@ -39,12 +39,13 @@ def main():
     ap.add_argument('--seqs',nargs='+',type=int,default=[4,128])
     ap.add_argument('--jobs',type=int,default=2)
     ap.add_argument('--arch',default='sm_89')
+    ap.add_argument('--champion-root',type=Path,default=REPO/'docs/experiments/JOINT/raw')
     a=ap.parse_args();a.raw.mkdir(parents=True,exist_ok=True)
     session=str(time.time_ns());cells=[]
     for m in a.models:
         for s in a.seqs:
             cell=a.raw/f'{m}_s{s}';cell.mkdir(parents=True,exist_ok=True)
-            spec=specs(m,s);cells.append((m,s,cell,spec))
+            spec=specs(m,s,a.champion_root);cells.append((m,s,cell,spec))
             (cell/'specs.json').write_text(json.dumps(spec,indent=2)+'\n')
     if a.action=='build':
         free=shutil.disk_usage(a.raw).free//2**20
