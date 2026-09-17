@@ -1,0 +1,26 @@
+DISK NEED_MIB=8192 FREE_MIB=1509798
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.resources/1789675301778395785/0" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1509838
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.resources/1789675301778395785/1" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1509733
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.resources/1789675301778395785/2" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1509753
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.resources/1789675301778395785/3" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1509644
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.resources/1789675301778395785/4" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1509806
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.resources/1789675301778395785/5" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1509802
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.resources/1789675301778395785/6" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1509655
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.resources/1789675301778395785/7" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1509407
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.resources/1789675301778395785/8" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1509350
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.resources/1789675301778395785/9" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1508993
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.resources/1789675301778395785/10" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1508930
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/JOINT2/bounded_search/real_s4/auto.cu.resources/1789675301778395785/11" resident=5
+SOLVE_SUMMARY evaluated=12 deferred=66 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=96 couplings=114 stages=60 symbolic_windows=114 fallback_windows=0 output=docs/experiments/JOINT2/bounded_search/real_s4/auto.cu
