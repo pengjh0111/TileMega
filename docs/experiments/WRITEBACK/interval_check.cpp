@@ -5,10 +5,11 @@
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <mlir/Parser/Parser.h>
 #include <iostream>
+#include <fstream>
 #include <stdexcept>
 using namespace tilemega;
 int main(int argc,char** argv)try {
-  if(argc!=3)throw std::invalid_argument("interval_check CG TARGET");
+  if(argc!=3 && argc!=4)throw std::invalid_argument("interval_check CG TARGET [TABLE_PREFIX]");
   analysis::IslContext isl;mlir::MLIRContext context;context.getOrLoadDialect<dialect::CGDialect>();
   auto module=mlir::parseSourceFile<mlir::ModuleOp>(argv[1],&context);
   if(!module)throw std::invalid_argument("invalid interval CG");
@@ -30,6 +31,11 @@ int main(int argc,char** argv)try {
       slot.insert(slot.end(),plan.slot[s].begin(),plan.slot[s].end());
     }
     if(worker!=table.worker || slot!=table.slot)throw std::runtime_error("interval changed point winner");
+    if(argc==4) {
+      std::ofstream out(std::string(argv[3])+std::to_string(table.seq)+".tsv");
+      out<<"node\tworker\tslot\n";
+      for(std::size_t n=0;n<worker.size();++n)out<<n<<'\t'<<worker[n]<<'\t'<<slot[n]<<'\n';
+    }
     ++compared;std::cout<<"INTERVAL_POINT seq="<<table.seq<<" nodes="<<worker.size()<<" diff_bytes=0\n";
   }
   auto source=codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,5}});
