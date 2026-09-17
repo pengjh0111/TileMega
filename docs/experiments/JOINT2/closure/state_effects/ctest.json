@@ -1,0 +1,12 @@
+{
+  "command": [
+    "ctest",
+    "--test-dir",
+    "build-portable",
+    "--output-on-failure",
+    "-j",
+    "4"
+  ],
+  "started_ns": 1789682715272974048,
+  "exit_code": 0
+}

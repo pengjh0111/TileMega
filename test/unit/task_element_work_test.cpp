@@ -132,6 +132,41 @@ int main(int argc, char** argv) {
   bad=attention.element_reads[1]; bad.map.results[0].terms[0].group=c(0);
   reject([&]{ExactElementRead(attention,task,bad,{});});
 
+  // Retained-prefix traffic follows the state effect, independent of the
+  // scalar stage tag. Enumerate old/new storage regions separately.
+  {
+    SemanticOp append;append.name="append";append.kind=OperatorKind::kConcat;
+    append.domain={{"row",S},{"hh",c(8)}};
+    append.result={"cache",{{"row",S},{"hh",c(8)}}};
+    append.result.axes[0].origin=P;
+    append.result_map.results={IndexResult::Dim("row"),IndexResult::Dim("hh")};
+    SemanticOperand current;current.tensor={"current",{{"row",S},{"hh",c(8)}}};
+    current.map=append.result_map;append.operands={current};
+    append.result_effect={EffectKind::kReadWrite,"kv_cache","kv_cache"};
+    Granularity granularity;granularity.Tile("append","row",c(1)).Tile("append","hh",c(1));
+    auto graph=Instantiate(SemanticGraph{{append}},granularity);
+    auto const& task=*graph.Find("append");
+    auto base=DeriveTaskWork(append,task,{});
+    tilemega::solver::ModelDescription model;
+    tilemega::solver::ModelStage stage;stage.width=4;stage.extent=2;stage.operands={0,1,2};
+    model.stages={stage};
+    tilemega::solver::ModelTaskSemantics semantic{append,{},0,true};
+    for (auto kind:{tilemega::solver::StageKind::kKVAppend,tilemega::solver::StageKind::kElementwise}) {
+      model.stages[0].kind=kind;
+      auto work=tilemega::solver::DeriveRuntimeScalarWork(model,semantic,task,base,8,nullptr);
+      for (int seq:{1,5}) for (int past:{0,3,7}) for (int q=0;q<std::max(seq,past);++q) {
+        ParamBinding theta;theta.Bind("S",seq).Bind("past",past);
+        ParamBinding coordinate;coordinate.Bind("q",q);
+        int elements=8*(int(q<seq)+int(q<past));
+        Require(work.read_elements.BindCoordinates(coordinate).Eval(theta)==elements);
+        Require(work.write_elements.BindCoordinates(coordinate).Eval(theta)==elements);
+        ++cells;
+      }
+    }
+    semantic.op.result_effect.kind=EffectKind::kRead;
+    reject([&]{tilemega::solver::DeriveRuntimeScalarWork(model,semantic,task,base,8,nullptr);});
+  }
+
   // Enumerate the device combiner's element ownership independently, including
   // predicated M/N tails, FP32 partials and the post-rounding residual read.
   for (bool tiled:{false,true}) for (bool fp32:{false,true}) {

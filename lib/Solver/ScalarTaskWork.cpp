@@ -30,13 +30,13 @@ analysis::TaskWork DeriveRuntimeScalarWork(ModelDescription const& model,
           ownership.ApplyRange(ElementAccess(task,read,{},AccessDomain::kPhysicalTensor)));
     }
   }
-  if (stage.kind==StageKind::kKVAppend && semantic.element_chunk) {
+  if (semantic.op.result_effect.state_object=="kv_cache" && semantic.element_chunk) {
     // Tile ownership preloads the retained prefix on the host; element
     // ownership copies it in this same task. Its range comes from the CG
     // append origin. Count the additional region, not a handwritten byte
     // estimate, and keep the two output regions in one address-space union.
     if (stage.operands.size()!=3 || semantic.op.result.axes.size()!=2 ||
-        semantic.op.result_effect.state_object!="kv_cache")
+        semantic.op.result_effect.kind!=EffectKind::kReadWrite)
       throw std::invalid_argument("KV prefix copy has no CG state/operand contract");
     auto past=semantic.op.result.axes[0].origin;
     long cols=semantic.op.result.axes[1].extent.Eval({},{});

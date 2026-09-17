@@ -1,0 +1,11 @@
+{
+  "command": [
+    "ninja",
+    "-C",
+    "build-portable",
+    "-j",
+    "4"
+  ],
+  "started_ns": 1789682708107158041,
+  "exit_code": 0
+}

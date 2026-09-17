@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/tmp/r6_evaluate_effects",
+    "/root/TileMega",
+    "docs/experiments/COSTMODEL/closure_effects",
+    "docs/experiments/COSTMODEL/event_fit/target.json"
+  ],
+  "started_ns": 1789682731414239473,
+  "binary_sha256": "775ea6db7307bcde44f765302396e1b4b5c29bb289ce949c48114bbafd1eda20",
+  "exit_code": 0
+}

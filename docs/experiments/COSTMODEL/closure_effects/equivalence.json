@@ -1,0 +1,16 @@
+{
+  "rows": 40,
+  "columns": [
+    "model",
+    "seq",
+    "candidate",
+    "coarse_ns",
+    "full_ns",
+    "binding_cp_ns",
+    "semantic_cp_ns",
+    "queue_lb_ns"
+  ],
+  "identical": true,
+  "old_sha256": "f37ce4e94b97fc195dd711aebb6b167750fa50e3504a16a778372c233f090292",
+  "new_sha256": "16e9970635962b418029cca591f584b9eccd129fef68f72f4c1b5f4a94aeed3d"
+}
