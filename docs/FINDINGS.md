@@ -5422,3 +5422,34 @@ template.
 Evidence: `SYMBOLIC/bounded_certificates/{gqa2_s4,mha4_s4}/`, including the
 solved-CG hash, proof-process commands, every certificate and all native tables;
 `SYMBOLIC/bounded_fit/` for all four reference winners.
+
+## F-204 — R6 stores shared successor regions as exact intervals
+
+✅ **Verified implementation.** Shared dependency groups now store consecutive
+node runs as half-open intervals. Sparse rows retain the original vector when
+interval pairs would require more storage. Original visitation order, holes,
+repeated entries and non-topological node ids are preserved. The exact same
+interval-backed rows serve readiness, the event heap, the fixed-duration
+recurrence and the binding bound. The immutable source graph still uses its
+original representation; this does not claim that initial CG enumeration has
+been removed.
+
+✅ **Verified.** All 49 CTest tests pass after this change. Independent
+DAG/FIFO/heap checks preserve task timestamps, and 36 full versus incremental
+event-graph evaluations agree. All 40 calibration rows remain byte-identical
+across five prediction columns. On mha4 s512, shared successor storage holds
+17,120 integers instead of 66,224; on real s128 it holds 21,448 instead of
+92,192. Frozen CUDA plans and kernels are unchanged by this CPU representation.
+
+✅ **Verified budget result.** A new evaluation process records a maximum
+per-plan full time of 1985.803 us for references and 2073.203 us for real-width.
+The reference gate remains FAIL, 985.803 us above its 1000 us limit. Shared
+graph preparation is separately exposed (reference max 258470.395 us, real
+max 125221.387 us), and cached-only recurrence never replaces the full metric.
+These single-process budget observations are not a paired speedup claim.
+The remaining work is to reduce cold readiness/recurrence traffic and retain
+CG relation regions through preparation, instead of enumerating every edge.
+
+Evidence: `COSTMODEL/closure_intervals/{evaluations.tsv,run.log,build.json,command.json,prediction_equivalence.json}`,
+`JOINT2/closure/{ctest_intervals.log,event_intervals.log}`, and the read-only
+outer-search stack sample in `JOINT2/closure/search_profile/`.
