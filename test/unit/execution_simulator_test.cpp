@@ -86,6 +86,28 @@ SimulatorInput MakeInput(codegen::RuntimeTaskGraph const& graph,
 }  // namespace
 
 int main() {
+  {
+    // Long runs, holes, reversed numbering and duplicates must retain the
+    // exact original traversal order; sparse fallback never expands storage.
+    std::vector<std::vector<int>> rows{{}, {7}, {4,5,6,7,8,9,10},
+      {7,1,9,3}, {3,4,5,6,1,2,3,4,3,4,5,6}, {1,1,2,2}};
+    rows.push_back({std::numeric_limits<int>::max()-3, std::numeric_limits<int>::max()-2,
+      std::numeric_limits<int>::max()-1, std::numeric_limits<int>::max()});
+    for (auto const& row : rows) {
+      solver::SuccessorIntervals compact(row);
+      std::vector<int> decoded;
+      compact.Visit([&](int node) { decoded.push_back(node); });
+      REQUIRE(decoded == row);
+      REQUIRE(compact.Equals(row));
+      REQUIRE(compact.size() == row.size());
+      REQUIRE(compact.stored_ints() <= row.size());
+      auto other = row;
+      if (other.empty()) other.push_back(1); else other.back() ^= 1;
+      REQUIRE(!compact.Equals(other));
+    }
+    solver::SuccessorIntervals long_run(rows[2]);
+    REQUIRE(long_run.stored_ints() == 2);
+  }
   HopCurve const flat{1000.0, 0.0, 0.0};
   std::string error;
 

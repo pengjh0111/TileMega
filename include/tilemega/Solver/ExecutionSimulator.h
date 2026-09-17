@@ -29,6 +29,8 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -58,11 +60,55 @@ struct SimulatorOptions {
   bool observed_task_times = false;
 };
 
+// Consecutive node runs use half-open intervals; sparse rows retain their
+// original storage when interval pairs would be larger. Traversal preserves
+// order and duplicate entries, including non-topological node numbering.
+class SuccessorIntervals {
+ public:
+  explicit SuccessorIntervals(std::vector<int> const& nodes) : size_(nodes.size()) {
+    std::size_t runs = 0;
+    bool encodable = true;
+    for (std::size_t i = 0; i < nodes.size(); ++i) {
+      if (i == 0 || std::int64_t(nodes[i]) != std::int64_t(nodes[i - 1]) + 1) ++runs;
+      encodable &= nodes[i] != std::numeric_limits<int>::max();
+    }
+    intervals_ = encodable && 2 * runs < nodes.size();
+    if (!intervals_) { storage_ = nodes; return; }
+    storage_.reserve(2 * runs);
+    for (std::size_t i = 0; i < nodes.size(); ++i) {
+      if (i == 0 || std::int64_t(nodes[i]) != std::int64_t(nodes[i - 1]) + 1) {
+        storage_.push_back(nodes[i]);
+        storage_.push_back(nodes[i] + 1);
+      } else storage_.back() = nodes[i] + 1;
+    }
+  }
+  std::size_t size() const { return size_; }
+  std::size_t stored_ints() const { return storage_.size(); }
+  template<class Visitor> void Visit(Visitor&& visitor) const {
+    if (intervals_) {
+      for (std::size_t i = 0; i < storage_.size(); i += 2)
+        for (int node = storage_[i]; node < storage_[i + 1]; ++node) visitor(node);
+    } else for (int node : storage_) visitor(node);
+  }
+  bool Equals(std::vector<int> const& nodes) const {
+    if (nodes.size() != size_) return false;
+    bool equal = true;
+    std::size_t i = 0;
+    Visit([&](int node) { equal &= node == nodes[i++]; });
+    return equal;
+  }
+ private:
+  std::vector<int> storage_;
+  std::size_t size_ = 0;
+  bool intervals_ = false;
+};
+
 /// Identical successor sets are shared dependency groups. Preparation is
 /// reusable while the source graph is immutable; queue placement remains free.
 struct PreparedExecutionGraph {
   codegen::RuntimeTaskGraph const* source = nullptr;
-  std::vector<std::vector<int>> successors, producers;
+  std::vector<SuccessorIntervals> successors;
+  std::vector<std::vector<int>> producers;
   std::vector<int> group_of_node, producer_count;
   bool forward_node_order=false;
 };

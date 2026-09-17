@@ -75,10 +75,10 @@ bool PrepareExecutionGraph(codegen::RuntimeTaskGraph const& graph,
     }
     int group=-1;
     for (int candidate:buckets[hash])
-      if (result.successors[candidate]==row) {group=candidate;break;}
+      if (result.successors[candidate].Equals(row)) {group=candidate;break;}
     if (group<0) {
       group=int(result.successors.size());
-      result.successors.push_back(row);
+      result.successors.emplace_back(row);
       result.producer_count.push_back(0);result.producers.emplace_back();
       buckets[hash].push_back(group);
     }
@@ -138,11 +138,11 @@ bool PrepareExecutionPlan(PreparedExecutionGraph const& prepared,MaterializedPla
     auto const& producers=prepared.producers[g];
     int first_owner=owner_of[producers.front()];bool mixed=false;
     for (int n:producers) mixed|=owner_of[n]!=first_owner;
-    for (int succ:prepared.successors[g]) {
+    prepared.successors[g].Visit([&](int succ) {
       ++unmet[succ];int w=owner_of[succ];
       if (!consumer_counts[w]++) touched.push_back(w);
       cross_input[succ]|=mixed || w!=first_owner;
-    }
+    });
     for (int n:producers) {
       int same=consumer_counts[owner_of[n]];
       cross_fanout[n]=int(prepared.successors[g].size())-same;
@@ -308,10 +308,10 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
       group.arrive(w,task.end_ns,task.end_ns+publish+hop.c0);
       chain[n]+=input.task_ns[n];critical_path=std::max(critical_path,chain[n]);
       group.chain=std::max(group.chain,chain[n]);
-      if (--group.remaining==0) for (int succ:prepared->successors[prepared->group_of_node[n]]) {
+      if (--group.remaining==0) prepared->successors[prepared->group_of_node[n]].Visit([&](int succ) {
         arrival[succ]=std::max(arrival[succ],group.ready_at(owner_of[succ]));
         chain[succ]=std::max(chain[succ],group.chain);release(succ);
-      }
+      });
     }
     if (visited!=std::size_t(nodes)) return fail("the queue order deadlocks (L-a)");
     out->total_work_ns=out->solo_work_ns;
@@ -451,11 +451,11 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
     critical_path=std::max(critical_path,chain[node]);
     group.chain=std::max(group.chain,chain[node]);
     if (--group.remaining==0) {
-      for (int succ:prepared->successors[prepared->group_of_node[node]]) {
+      prepared->successors[prepared->group_of_node[node]].Visit([&](int succ) {
         ready[succ]=std::max(ready[succ],group.ready_at(owner_of[succ]));
         chain[succ]=std::max(chain[succ],group.chain);
         if (--unmet[succ]==0 && owner_of[succ]!=w) try_start(owner_of[succ],now);
-      }
+      });
     }
     try_start(w, now);
 
@@ -582,7 +582,7 @@ bool EvaluatePlanBounds(PreparedPlanBounds const& input,
   if (graph.group_of_node.size()!=input.task_ns.size()) return fail("unprepared binding bound");
   auto remaining=graph.producer_count;
   std::vector<double> group_end(graph.successors.size(),0),end(input.task_ns.size(),0);
-  for (auto const& row:graph.successors) for (int succ:row) ++degree[succ];
+  for (auto const& row:graph.successors) row.Visit([&](int succ) { ++degree[succ]; });
   std::vector<int> ready;
   for (int n=0;n<int(degree.size());++n) if (!degree[n]) ready.push_back(n);
   double binding=0;
@@ -597,7 +597,7 @@ bool EvaluatePlanBounds(PreparedPlanBounds const& input,
     int group=graph.group_of_node[n];
     group_end[group]=std::max(group_end[group],end[n]);
     if (--remaining[group]==0)
-      for (int succ:graph.successors[group]) arrive(succ,group_end[group]);
+      graph.successors[group].Visit([&](int succ) { arrive(succ,group_end[group]); });
   }
   if (visited!=input.task_ns.size()) return fail("binding-bound queue order violates L-a");
   out->binding_path_ns=binding;
