@@ -5274,7 +5274,7 @@ arms as one list, allowing a pair to straddle almost a full round. Diagnose
 the common timing bands before interpreting these differences as physical
 service costs. The present samples and their signs remain unchanged.
 
-## F-199 — R6 continuation derives combine work and corrects replay ownership
+## F-201 — R6 continuation derives combine work and corrects replay ownership
 
 **✅ verified.** `DeriveCombineTaskInput` now derives each instantiated reduction
 from its semantic node and access relations, including the tail task and the
@@ -5304,7 +5304,7 @@ publication, consumer wait and visibility constants unchanged; p50/max absolute
 relative errors remain 4.53996%/13.82771%. CPU timing and new-search performance
 are separate gates and are not inferred from the improved calibration rank.
 
-## F-200 — R6 writes every placement in a finite theta interval through CG
+## F-202 — R6 writes every placement in a finite theta interval through CG
 
 **✅ verified.** `SolveAndWritePlacementInterval` invokes the six-family solver
 at every integer seq in a requested interval, retaining each point's winner.
@@ -5332,7 +5332,7 @@ Evidence: `docs/experiments/WRITEBACK/interval_closure/README.md`,
 verifier adds an explicit interval gate and checks the generated/host arrays;
 the previously checked single-point round trip remains covered separately.
 
-## F-201 — R6 maximal covered Llama graph fails numerical admission
+## F-203 — R6 maximal covered Llama graph fails numerical admission
 
 ✅ **Verified.** The continuation imports all supported regions of the public
 Llama-3.2-1B architecture: 16 connected residual layers, Q/K/V/O projections,
@@ -5372,7 +5372,7 @@ Evidence: `MODELS/subset.md`, `covered_llama*/correctness/r0.log`,
 `covered_geometry_probes/*/run.log`, and
 `covered_llama_admitted2/diagnostic/{cpu_buffers_aligned.tsv,first_v_rounding.json,first_context_isolation.json}`.
 
-## F-202 — R6 fills the outer bounds and preserves simulator predictions
+## F-204 — R6 fills the outer bounds and preserves simulator predictions
 
 ✅ **Verified implementation.** The continuation found that outer candidate
 work/CP/queue bounds were zero and the finite budget was ordered by an L1
@@ -5402,7 +5402,7 @@ degradation, with no optimality claim. The next budget work is to reduce
 remaining cold readiness/recurrence memory traffic and allocation while
 retaining independent timestamp equivalence and the full timing boundary.
 
-## F-203 — R6 proves current wavefront winners at their actual grid
+## F-205 — R6 proves current wavefront winners at their actual grid
 
 ✅ **Verified.** The refreshed gqa2 s4 and mha4 s4 winners use wavefront at
 grid 512. Each unchanged template is now proved for every integer seq in
@@ -5423,7 +5423,7 @@ Evidence: `SYMBOLIC/bounded_certificates/{gqa2_s4,mha4_s4}/`, including the
 solved-CG hash, proof-process commands, every certificate and all native tables;
 `SYMBOLIC/bounded_fit/` for all four reference winners.
 
-## F-204 — R6 stores shared successor regions as exact intervals
+## F-206 — R6 stores shared successor regions as exact intervals
 
 ✅ **Verified implementation.** Shared dependency groups now store consecutive
 node runs as half-open intervals. Sparse rows retain the original vector when
@@ -5455,7 +5455,7 @@ Evidence: `COSTMODEL/closure_intervals/{evaluations.tsv,run.log,build.json,comma
 outer-search stack sample in `JOINT2/closure/search_profile/`.
 
 
-## F-205 — R6 selects retained-prefix work from the CG state effect
+## F-207 — R6 selects retained-prefix work from the CG state effect
 
 ✅ **Verified.** The continuation audit found one remaining `StageKind`
 branch in `ScalarTaskWork.cpp`: it selected the retained-prefix access region
@@ -5478,7 +5478,7 @@ change does not optimize the simulator recurrence: differences from the prior
 speedup. Evidence: `COSTMODEL/closure_effects/` and
 `JOINT2/closure/state_effects/`.
 
-## F-206 — R6 target runners derive their calibration domain locally
+## F-208 — R6 target runners derive their calibration domain locally
 
 ✅ **Verified locally; target execution unverified.** The sm_120 orchestration
 now generates unmaterialized calibration sources for five geometry probes from
@@ -5501,7 +5501,7 @@ record. Evidence: `WRITEBACK/portable_seqscan/`,
 runner's `selfcheck_sm120_portable/` directory.
 
 
-## F-207 — R6 bypasses point allocation only for proven integer boxes
+## F-209 — R6 bypasses point allocation only for proven integer boxes
 
 ✅ **Verified.** `VisitFiniteRelation` now first checks a relation piece's box
 structure, then proves equality with its integer min/max box before directly
@@ -5524,7 +5524,7 @@ storage and non-box relations remain concrete follow-up work. Evidence:
 `JOINT2/closure/finite_relations/` and `JOINT2/finite_relation_audit.cpp`.
 
 
-## F-208 — R6 enumerates dense dependency slices without changing points
+## F-210 — R6 enumerates dense dependency slices without changing points
 
 ✅ **Verified.** Four-coordinate relation pieces with two varying coordinates
 can be sliced on one task coordinate. Each exact box slice is enumerated

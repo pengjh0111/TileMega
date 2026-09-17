@@ -78,4 +78,4 @@ fitted winner’s actual grid. Certificate shards are not binary variants.
 
 The connected covered Llama graph fails its first numerical-admission process;
 its 66 output checks and unchanged CPU golden are retained. The prior independent
-MLP 50/50 cannot substitute for this graph. See `MODELS/subset.md` and F-201.
+MLP 50/50 cannot substitute for this graph. See `MODELS/subset.md` and F-203.
