@@ -1,0 +1,54 @@
+{
+  "control": {
+    "source": "/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s4/model.cu",
+    "kappa": "1",
+    "residency": "0",
+    "placement_macro": "5"
+  },
+  "champion": {
+    "m": "64",
+    "n": "128",
+    "k": "16",
+    "stages": "2",
+    "split": "1",
+    "kappa": "1",
+    "residency": "2",
+    "status": "ok",
+    "work_lb_ns": "676782.725430303",
+    "cp_lb_ns": "0.0",
+    "priority_ns": "6999080.800000999",
+    "estimated_work_ns": "1791764684.7999997",
+    "estimated_stage_cp_ns": "6669967.357142856",
+    "register_seed": "0",
+    "key": "64x128x16s2k1_k1_r2",
+    "placement": "wavefront",
+    "simulated": "1",
+    "makespan_ns": "11063490.636",
+    "floor_ns": "10805853.2571",
+    "cp_ns": "6669967.35714",
+    "queue_lb_ns": "10805853.2571",
+    "nodes": "49280",
+    "grid": "256",
+    "grouping_model": "projected_events_and_sigma_lifting",
+    "source": "/root/TileMega/docs/experiments/JOINT/raw/real_s128/plans/64x128x16s2k1_k1_r2/wavefront.cu",
+    "placement_macro": "0"
+  },
+  "top1": {
+    "source": "/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.top1.cu",
+    "kappa": "1",
+    "residency": "2",
+    "placement_macro": "0"
+  },
+  "top2": {
+    "source": "/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.top2.cu",
+    "kappa": "2",
+    "residency": "2",
+    "placement_macro": "0"
+  },
+  "top3": {
+    "source": "/root/TileMega/docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.top3.cu",
+    "kappa": "4",
+    "residency": "2",
+    "placement_macro": "0"
+  }
+}

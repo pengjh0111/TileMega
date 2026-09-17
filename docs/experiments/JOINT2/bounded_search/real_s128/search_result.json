@@ -1,0 +1,29 @@
+{
+  "source_head": "3839031dda290cfabb7ef6c1c3fd1dc6ae5086e4",
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-compile",
+    "/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s128/model.json",
+    "docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu",
+    "--solve",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/target.json",
+    "--seq",
+    "128",
+    "--past",
+    "3",
+    "--search-capacity",
+    "12",
+    "--search-domain",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/search_domain.json",
+    "--dump-cg",
+    "docs/experiments/JOINT2/bounded_boxes/real_s128/auto.mlir",
+    "--hop-curve",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv"
+  ],
+  "started_ns": 1789684448704042780,
+  "binary_sha256": "2085383e947719c81c07d4e003a42f5fecc377b6a5cbbfba00f64f6d249a63bd",
+  "source_sha256": "943d181454398a08151c6ce8e0806c901f577cb409764025da3f203eeb0bfe06",
+  "supersedes_pid": 1211833,
+  "reason": "Identical domain and capacity; proven dense-slice enumeration, complete multiset checks and all 49 CTest pass.",
+  "exit_code": 0,
+  "finished_ns": 1789688089915495242
+}
