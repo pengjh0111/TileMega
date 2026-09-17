@@ -1,0 +1,8 @@
+{
+  "command": [
+    "/usr/local/cuda/bin/cuobjdump",
+    "--dump-sass",
+    "/root/TileMega/docs/experiments/REBASE/raw/real_s128/bin/eft__l1nosync"
+  ],
+  "binary_sha256": "ceb3e9b214905f7dd2a92d13f6cca4a328049219272cb909b8743c5d33cc8bb3"
+}

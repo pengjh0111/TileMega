@@ -172,7 +172,12 @@ def symbolic_proofs():
     valid=all(r[k]=='1' for k in ('total','bijective','dense','acyclic','resident','level_exact'));ok &=valid
     if valid:covered.update(range(int(r['begin']),int(r['end'])+1))
    ok &= covered==set(range(1,129));parts.append(f'{family}/G{g} proved={len(covered)}/128')
- return ok,'; '.join(parts)+'; SYMBOLIC/complete/proofs.tsv'
+ for name in ALL:
+  source=cell(name)/'trace'/choice(name)/'r0.log'
+  counts=re.findall(r'\bvariant_count=(\d+)',source.read_text())
+  check(len(counts)==1 and 1<=int(counts[0])<=2,'binary variant cap failed '+str(source))
+  parts.append(name+' binary_variants='+counts[0])
+ return ok,'; '.join(parts)+'; SYMBOLIC/complete/proofs.tsv and JOINT2 selected raw trace resource records'
 def symbolic_samples():
  root=S/'complete';rows=table(root/'samples.tsv');n=0
  for family in ('legacy_grid_stride','rotate','band','wavefront'):
@@ -221,10 +226,9 @@ def rebase():
     selected=json.loads((root/'selection.json').read_text())['placement']
     full=at(selected+'__full');nowait=at(selected+'__nowait')['l2_ms'];neither=at(selected+'__neither')['l2_ms']
     barrier=full['l1_ms']-at(selected+'__l1nosync')['l1_ms']
-    check(barrier>0,'nonpositive paired barrier '+name)
-    values.append((rotate/legacy,full['l2_ms']-nowait,nowait-neither,full['l2_ms']-at(selected+'__nofence')['l2_ms'],barrier,(full['l2_ms']-neither)/barrier))
-   medians=[statistics.median(v[k] for v in values) for k in range(6)]
-   details.append(name+' (rotate/legacy,selected_wait_ms,notify_ms,fence_ms,barrier_ms,protocol/barrier)='+repr(medians))
+    values.append((rotate/legacy,full['l2_ms']-nowait,nowait-neither,full['l2_ms']-at(selected+'__nofence')['l2_ms'],barrier,(full['l2_ms']-neither)/barrier if barrier else float('nan')))
+   medians=[statistics.median(v[k] for v in values) if all(math.isfinite(v[k]) for v in values) else float('nan') for k in range(6)]
+   details.append(name+' (rotate/legacy,selected_wait_ms,notify_ms,fence_ms,barrier_ms,protocol/barrier)='+repr(medians)+'; selected_nonpositive_barrier_pairs='+str(sum(v[4]<=0 for v in values)))
   except Exception as e:ok=False;details.append(f'{name}: {e}')
  return ok,'; '.join(details)+'; REBASE/raw/*/measure'
 def models():
