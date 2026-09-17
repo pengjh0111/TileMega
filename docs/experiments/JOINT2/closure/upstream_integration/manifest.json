@@ -1,0 +1,31 @@
+{
+  "prior_head": "71c834454e3039b7ad42b468d19d525910df340b",
+  "merged_head": "61165f0ac1cd09730da1c4e76ad0234f71c68531",
+  "upstream": "8f4951c114dc7bac2964aba2f67106ead1f8bdb4",
+  "changed": [
+    ".gitignore",
+    "docs/FINDINGS.md",
+    "docs/experiments/CLUSTER/run_on_cluster_gpu.sh",
+    "docs/experiments/PLACE_EFT2/summary.md",
+    "docs/experiments/SEQSCAN/run.sh",
+    "docs/experiments/SYNC_V3/run_cluster_gate_sm120.sh"
+  ],
+  "user_worktree_sha256": {
+    "docs/experiments/PLACE_EFT2/summary.md": "b1a6298f95b444ba19381215a63ae335397399799bafdd7c1e122e825d262d42",
+    "docs/experiments/SYNC_V2/sass_identity/meta.tsv": "532a68fe80a8348bb52575ac98db7db3df71e29f85e623a266633b28bf8029f6"
+  },
+  "findings_mapping": {
+    "199": "201",
+    "200": "202",
+    "201": "203",
+    "202": "204",
+    "203": "205",
+    "204": "206",
+    "205": "207",
+    "206": "208",
+    "207": "209",
+    "208": "210"
+  },
+  "note": "Remote user commits preserved via isolated worktree merge. Main branch index/reference advanced without replacing either user-owned dirty file. Remote experiment edits are external contributions, not R6-scope implementation changes.",
+  "recorded_ns": 1789687154109612741
+}
