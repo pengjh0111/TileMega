@@ -62,6 +62,19 @@ inline CompilerSearchResult SolveExport(std::string const& path,
   CompilerSearchResult result;
   double best=std::numeric_limits<double>::infinity(),best_sim=best;
   evidence << "candidate\tplacement\tstatus\tfloor_ns\tcp_ns\tqueue_lb_ns\tpredicted_ns\tgrid\tkappa\n";
+  // Rejected numerical geometries are outside the admitted domain, so their
+  // kappa variants must not consume the finite evaluation budget.
+  candidates.erase(std::remove_if(candidates.begin(),candidates.end(),[&](auto const& candidate) {
+    for(auto const& [rejected,reason]:options.numerical_rejections) {
+      auto const& g=candidate.config;
+      if(std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k)==
+          std::tie(rejected.tile_m,rejected.tile_n,rejected.tile_k,rejected.stages,rejected.split_k)) {
+        evidence<<candidate.key<<"\t-\tnumerical exclusion: "<<reason<<"\t0\t0\t0\t0\t0\t"<<candidate.kappa<<'\n';
+        return true;
+      }
+    }
+    return false;
+  }),candidates.end());
   result.ranking=SearchL2Configurations(std::move(candidates),options.capacity,
       [&](JointCandidate const& candidate) {
     std::vector<JointEvaluation> evaluations;
