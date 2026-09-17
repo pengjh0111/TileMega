@@ -309,6 +309,12 @@ int main(int argc, char** argv) {
             << e.candidate.kappa << '\t' << e.candidate.ctas_per_sm << '\t' << e.floor_ns << '\t' << e.makespan_ns
             << '\t' << stem << ".cu\t" << stem << ".mlir\n";
       }
+      std::ofstream outer(std::string(argv[2])+".bounds.tsv");
+      outer<<"candidate\twork_lb_ns\tcp_lb_ns\tqueue_lb_lb_ns\tpriority_ns\n";
+      outer<<std::setprecision(17);
+      for(auto const& candidate:solved.outer_candidates)
+        outer<<candidate.key<<'\t'<<candidate.work_lb_ns<<'\t'<<candidate.cp_lb_ns
+             <<'\t'<<candidate.queue_lb_lb_ns<<'\t'<<candidate.priority_ns<<'\n';
       module=std::move(solved.module);
       if(interval_begin) {
         auto interval_options=solve_options.placement;

@@ -73,7 +73,17 @@ inline void WriteSolvedPlacement(mlir::ModuleOp module,
   if (mlir::failed(mlir::verify(module))) throw std::invalid_argument("solved placement failed CG verification");
 }
 
-inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
+struct PreparedPlacementProblem {
+  codegen::RuntimePlan runtime;
+  solver::ModelDescription model;
+  std::vector<solver::GemmConfig> geometry;
+  int grid=0,threads=0;
+  solver::RuntimeProjection projection;
+  std::vector<int> counts;
+  codegen::RuntimeTaskGraph graph;
+  std::vector<double> task_ns;
+};
+inline PreparedPlacementProblem PreparePlacementProblem(mlir::ModuleOp module,
     PlacementSolveOptions const& options) {
   using namespace solver;
   if (!module || mlir::failed(mlir::verify(module)) || options.dims.seq<=0 ||
@@ -175,6 +185,24 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
   }
   if(options.task_price_cache && !cached_prices)
     options.task_price_cache->prices.emplace(std::move(price_key),input.task_ns);
+  return {std::move(runtime),std::move(model),std::move(result.geometry),result.grid,threads,
+          std::move(projection),std::move(counts),std::move(graph),std::move(input.task_ns)};
+}
+
+inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
+    PlacementSolveOptions const& options) {
+  using namespace solver;
+  auto prepared=PreparePlacementProblem(module,options);
+  auto const& runtime=prepared.runtime;auto const& model=prepared.model;
+  auto const& projection=prepared.projection;auto const& counts=prepared.counts;
+  auto& graph=prepared.graph;
+  PlacementSolveResult result;result.grid=prepared.grid;result.geometry=prepared.geometry;
+  SimulatorInput input;input.graph=&graph;input.task_ns=std::move(prepared.task_ns);
+  auto node=[&](long stage,long task) {
+    if (stage<0 || stage>=long(counts.size()) || task<0 || task>=counts[stage])
+      throw std::invalid_argument("projected relation outside task domain");
+    return graph.stage_offsets[stage]+task;
+  };
   PlanRequest request;request.graph=&graph;request.grid=result.grid;request.counts=counts;
   request.physical_worker.resize(result.grid);std::iota(request.physical_worker.begin(),request.physical_worker.end(),0);
   auto edges=runtime.dependencies;
@@ -191,7 +219,8 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
   // Group readiness depends on the selected queue: singleton polls can be
   // elided only after ownership is known. Validate every inner candidate.
   auto price_events=[&](MaterializedPlan const& plan,codegen::RuntimeTaskGraph& grouped,
-                        SimulatorInput& priced) {
+                        SimulatorInput& priced,std::vector<int>& changed_rows) {
+    std::vector<unsigned char> changed(input.task_ns.size(),0);
     std::vector<std::set<std::pair<int,int>>> desired(input.task_ns.size());
     std::set<int> publishing;
     priced.publication_required.assign(input.task_ns.size(),0);
@@ -206,9 +235,18 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
       if (!desired[cn].insert({ps,kind==0 ? -1 : group}).second) return;
       int begin=kind==0 ? 0 : group*options.kappa;
       int end=kind==0 ? counts[ps] : std::min(counts[ps],begin+options.kappa);
-      for (int pt=begin;pt<end;++pt) grouped.successors[node(ps,pt)].push_back(cn);
+      for (int pt=begin;pt<end;++pt) {
+        int producer=node(ps,pt);auto const& semantic=graph.successors[producer];
+        bool contiguous=!semantic.empty() && semantic.back()-semantic.front()+1==int(semantic.size());
+        bool present=contiguous ? cn>=semantic.front() && cn<=semantic.back()
+                                : std::binary_search(semantic.begin(),semantic.end(),cn);
+        if(present)continue;
+        if(!changed[producer]) {changed[producer]=1;changed_rows.push_back(producer);}
+        grouped.successors[producer].push_back(cn);
+      }
     });
-    for (auto& row:grouped.successors) {
+    for (int producer:changed_rows) {
+      auto& row=grouped.successors[producer];
       std::sort(row.begin(),row.end());row.erase(std::unique(row.begin(),row.end()),row.end());
     }
     for (int ps:publishing)

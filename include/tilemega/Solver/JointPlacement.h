@@ -22,7 +22,7 @@ struct PlacementEvaluation {
 inline std::vector<PlacementEvaluation> SolvePlacementCatalog(
     SimulatorInput const& input,PlanRequest request,SimulatorOptions const& options,
     HopCurve const& hop,
-    std::function<void(MaterializedPlan const&,codegen::RuntimeTaskGraph&,SimulatorInput&)>
+    std::function<void(MaterializedPlan const&,codegen::RuntimeTaskGraph&,SimulatorInput&,std::vector<int>&)>
         price_events = {}) {
   std::vector<PlacementEvaluation> results(6);
   results[0].name="legacy_grid_stride";
@@ -34,6 +34,9 @@ inline std::vector<PlacementEvaluation> SolvePlacementCatalog(
   PreparedPlanBounds prepared;std::string error;
   if (!PreparePlanBounds(input,&prepared,&error)) throw std::invalid_argument(error);
   auto priced=input;priced.prepared_graph=&prepared.graph;
+  codegen::RuntimeTaskGraph event_graph;
+  if(price_events)event_graph=*input.graph;
+  std::vector<int> changed_rows;
   for (auto& result:results) {
     request.mode=result.mode;request.params=result.params;
     request.eft_worker.clear();request.eft_slot.clear();
@@ -55,16 +58,20 @@ inline std::vector<PlacementEvaluation> SolvePlacementCatalog(
     if (!MaterializePlanPlacement(request,&result.plan,&result.error) ||
         !CheckPlanLegality(*input.graph,result.plan,&result.error)) continue;
     auto candidate_input=priced;
-    codegen::RuntimeTaskGraph event_graph;
     PreparedPlanBounds event_bounds;
     auto const* candidate_bounds=&prepared;
     if (price_events) {
-      event_graph=*input.graph; candidate_input.graph=&event_graph;
-      candidate_input.prepared_graph=nullptr;
-      price_events(result.plan,event_graph,candidate_input);
-      if (!CheckPlanLegality(event_graph,result.plan,&result.error) ||
-          !PreparePlanBounds(candidate_input,&event_bounds,&result.error)) continue;
-      candidate_bounds=&event_bounds;candidate_input.prepared_graph=&event_bounds.graph;
+      // Restore only rows extended by the previous event grouping. The
+      // semantic graph and its prepared groups are shared by the catalog.
+      for(int node:changed_rows)event_graph.successors[node]=input.graph->successors[node];
+      changed_rows.clear();
+      price_events(result.plan,event_graph,candidate_input,changed_rows);
+      if(!changed_rows.empty()) {
+        candidate_input.graph=&event_graph;candidate_input.prepared_graph=nullptr;
+        if (!CheckPlanLegality(event_graph,result.plan,&result.error) ||
+            !PreparePlanBounds(candidate_input,&event_bounds,&result.error)) continue;
+        candidate_bounds=&event_bounds;candidate_input.prepared_graph=&event_bounds.graph;
+      }
     }
     if (!EvaluatePlanBounds(*candidate_bounds,result.plan,&result.bounds,&result.error)) continue;
     SimulatorResult sim;

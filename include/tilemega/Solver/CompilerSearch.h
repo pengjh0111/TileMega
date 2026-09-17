@@ -24,6 +24,7 @@ struct CompilerSearchResult {
   mlir::OwningOpRef<mlir::ModuleOp> module;
   JointSearchStats stats;
   std::vector<JointEvaluation> ranking;
+  std::vector<JointCandidate> outer_candidates;
   std::vector<ShortlistEntry> shortlist;
 };
 /// The finite budget is disclosed as deferred work, never an optimality proof.
@@ -34,7 +35,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
   auto seed=frontend::TorchExportImporter{}.Import(path,context);
   auto model=ModelDescription::FromCouplingGraph(*seed,options.placement.dims,"compile-search");
   CandidateGenerator generator(options.placement.target,model.dtype,{256,64,5});
-  CostModel cost(options.placement.target,model.dtype);
+  CompilerSearchResult result;
   std::vector<JointCandidate> candidates;
   for (auto const& backend:generator.Enumerate()) {
     auto const& t=backend.traits();
@@ -45,12 +46,37 @@ inline CompilerSearchResult SolveExport(std::string const& path,
         })) continue;
     for (int split:{1,2,4,8,16,32}) {
       GemmConfig g{t.tile_m,t.tile_n,t.tile_k,t.stages,split};
-      // This is a ranking heuristic, not a pruning bound. Exact task-domain
-      // bounds are evaluated after importing the candidate's own CG below.
-      double priority=cost.Evaluate(model,g,{1}).total_ns;
+      frontend::ImportOptions import;
+      import.gemms.assign(model.gemms.size(),{g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
+      import.rope_tile_per_block=import.kv_tile_per_block=true;
+      import.activation_tile_per_block=import.combiner_tile_per_block=true;
+      auto coarse_module=frontend::TorchExportImporter{}.Import(path,context,nullptr,import);
+      auto optimistic=options.placement;optimistic.residency=1;optimistic.verified_resident_limit=1;
+      optimistic.requested_grid=0;optimistic.kappa=1;
+      auto problem=dialect::PreparePlacementProblem(*coarse_module,optimistic);
+      SimulatorInput input;input.graph=&problem.graph;input.task_ns=std::move(problem.task_ns);
+      PreparedPlanBounds bounds;std::string error;
+      if(!PreparePlanBounds(input,&bounds,&error))throw std::invalid_argument(error);
+      // Before compiling occupancy, the hardware thread limit is an upper
+      // bound on any legal grid. One-CTA task service is a lower bound on
+      // every residency priced by this monotone resource model.
+      int max_ctas=std::max(1,options.placement.target.res.max_threads_per_sm/problem.threads);
+      int grid_upper=options.placement.target.res.num_sms*max_ctas;
+      double work=bounds.work_ns/grid_upper,queue=0;
+      for(std::size_t stage=0;stage<problem.counts.size();++stage) {
+        int begin=problem.graph.stage_offsets[stage],end=problem.graph.stage_offsets[stage+1];
+        if(begin==end)continue;
+        double minimum=*std::min_element(input.task_ns.begin()+begin,input.task_ns.begin()+end);
+        // Some worker must execute this many tasks of the stage, even if
+        // all other stages can be placed arbitrarily.
+        queue=std::max(queue,minimum*double((end-begin+grid_upper-1)/grid_upper));
+      }
+      double priority=std::max({work,bounds.critical_path_ns,queue});
       for (int kappa:{1,2,4}) {
         JointCandidate candidate;candidate.config=g;candidate.kappa=kappa;
         candidate.ctas_per_sm=1;candidate.priority_ns=priority;
+        candidate.work_lb_ns=work;candidate.cp_lb_ns=bounds.critical_path_ns;
+        candidate.queue_lb_lb_ns=queue;
         candidate.key=std::to_string(g.tile_m)+"x"+std::to_string(g.tile_n)+"x"+
             std::to_string(g.tile_k)+"s"+std::to_string(g.stages)+"split"+
             std::to_string(split)+"kappa"+std::to_string(kappa);
@@ -59,7 +85,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
     }
   }
   auto task_prices=std::make_shared<dialect::PlacementTaskPriceCache>();
-  CompilerSearchResult result;
+  result.outer_candidates=candidates;
   double best=std::numeric_limits<double>::infinity(),best_sim=best;
   evidence << "candidate\tplacement\tstatus\tfloor_ns\tcp_ns\tqueue_lb_ns\tpredicted_ns\tgrid\tkappa\n";
   // Rejected numerical geometries are outside the admitted domain, so their
