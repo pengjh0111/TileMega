@@ -1,0 +1,7 @@
+candidate	placement	status	floor_ns	cp_ns	queue_lb_ns	predicted_ns	grid	kappa
+32x16x64s2split1kappa1r1	eft	ok	61212.1	61212.1	61212.1	130469	128	1
+32x16x64s2split1kappa1r1	rotate	ok	61212.1	61212.1	31773.2	138616	128	1
+32x16x64s2split1kappa1r1	wavefront	ok	61212.1	61212.1	61173.6	138616	128	1
+32x16x64s2split1kappa1r1	chain	ok	75752.2	61212.1	29128.8	156379	128	1
+32x16x64s2split1kappa1r1	legacy_grid_stride	ok	93722.5	61212.1	93684.1	176159	128	1
+32x16x64s2split1kappa1r1	balanced	ok	515206	61212.1	155167	722476	128	1

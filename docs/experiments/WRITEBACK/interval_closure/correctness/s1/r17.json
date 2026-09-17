@@ -1,0 +1,1 @@
+{"command": ["/root/TileMega/docs/experiments/WRITEBACK/interval_closure/bin/interval", "/root/TileMega/docs/experiments/WRITEBACK/interval_closure/fixtures/s1"], "seq": 1, "round": 17, "session": "1789672534484019263", "started_ns": 1789672544085260091, "elapsed_ns": 305591812, "exit_code": 0, "binary_sha256": "ebd413d81ee8617208356737c4f5a95027a3db8beac49b4ba8a2d7becbfa9e69"}
