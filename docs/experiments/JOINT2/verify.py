@@ -306,6 +306,10 @@ def rebase():
      details.append(f'{name}/{config} relative_previous={previous}:{joint.interval(incremental)}')
     details.append(f'{name}/{config} cp_ns={cp:.3f} queue_ns={queue:.3f} measured_floor={latency*1e6/floor:.6f} l2_l1={statistics.median(r["l2_ms"]/r["l1_ms"] for r in timed):.6f} relative_selected={joint.interval(relative)} dump='+evidence(dump))
   except Exception as e:ok=False;details.append(f'{name}: {e}')
+ try:
+  pool=module('r6_placement_pool',B/'placement_pool.py');pooled,_=pool.calculate(B/'bounded_raw')
+  details.extend('placement_pool '+repr(r) for r in pooled)
+ except Exception as e:ok=False;details.append('placement_pool: '+str(e))
  return ok,'; '.join(details)+'; REBASE/bounded_raw/*/measure'
 def models():
  root=EX/'MODELS';old_ok,old_detail=processes(root/'llama_mlp/correctness')
