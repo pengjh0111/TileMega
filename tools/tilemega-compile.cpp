@@ -18,6 +18,7 @@
 #include <exception>
 #include <algorithm>
 #include <cstdlib>
+#include <cstdio>
 #include <climits>
 #include <filesystem>
 #include <fstream>
@@ -30,6 +31,27 @@ std::string quote(std::string const& value) {
   std::string result = "'";
   for (char c : value) result += c == '\'' ? "'\\''" : std::string(1, c);
   return result + "'";
+}
+
+std::string modelFingerprint(std::string const& path) {
+  // This LLVM version keeps SHA256's byte count in uint32_t and shifts it
+  // before widening. torch.export archives can exceed its 512 MiB limit.
+  if(std::filesystem::file_size(path)>=(std::uintmax_t(1)<<29)) {
+    std::string script="import hashlib,sys; h=hashlib.sha256(); "
+        "f=open(sys.argv[1],'rb'); "
+        "[h.update(b) for b in iter(lambda:f.read(1048576),b'')]; print(h.hexdigest())";
+    auto command="python3 -c "+quote(script)+" "+quote(path);
+    auto* pipe=popen(command.c_str(),"r");
+    if(!pipe)throw std::runtime_error("cannot hash model archive");
+    char buffer[66]={};auto* got=fgets(buffer,sizeof(buffer),pipe);int status=pclose(pipe);
+    if(!got || status || std::string(buffer).size()!=65)
+      throw std::runtime_error("model archive hash failed");
+    return std::string(buffer,64);
+  }
+  auto file=llvm::MemoryBuffer::getFile(path);
+  if(!file)throw std::runtime_error("cannot read model fingerprint input");
+  llvm::SHA256 digest;digest.update(file.get()->getBuffer());
+  return llvm::toHex(digest.final(),true);
 }
 
 
@@ -175,7 +197,7 @@ int main(int argc, char** argv) {
   if (argc < 3 || argc % 2 == 0) {
     std::cerr << "usage: tilemega-compile {EXPORTED_PROGRAM.pt2|STABLE_EXPORT.json|CG.mlir} "
                  "{OUTPUT.cu|OUTPUT.so} [--variants PLAN.json] [--solve TARGET.json --seq N --past N\n"
-                 " --search-capacity N --dump-cg FILE.mlir --hop-curve FILE.tsv]\n";
+                 " --search-capacity N --dump-cg FILE.mlir --hop-curve FILE.tsv --seq-begin N]\n";
     return 2;
   }
   try {
@@ -186,12 +208,14 @@ int main(int argc, char** argv) {
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path;
     bool resource_probes=true;
+    int interval_begin=0;
     tilemega::solver::CompilerSearchOptions solve_options;
     solve_options.placement.dims={4,3,7};
     for (int i=3;i<argc;i+=2) {
       std::string flag=argv[i],value=argv[i+1];
       if (flag=="--variants") variants_path=value;
       else if (flag=="--solve") solve_target=value;
+      else if (flag=="--seq-begin") interval_begin=std::stoi(value);
       else if (flag=="--seq") solve_options.placement.dims.seq=std::stoi(value);
       else if (flag=="--past") solve_options.placement.dims.past=std::stoi(value);
       else if (flag=="--search-capacity") solve_options.capacity=std::stoul(value);
@@ -242,10 +266,8 @@ int main(int argc, char** argv) {
             requiredInteger(*object,"past")!=solve_options.placement.dims.past)
           throw std::runtime_error("numerical exclusion theta does not match the request");
         auto fingerprint=object->getString("model_sha256");
-        auto model_file=llvm::MemoryBuffer::getFile(argv[1]);
-        if(!fingerprint || !model_file)throw std::runtime_error("numerical exclusion requires its model fingerprint");
-        llvm::SHA256 digest;digest.update(model_file.get()->getBuffer());
-        if(llvm::toHex(digest.final(),true)!=*fingerprint)
+        if(!fingerprint)throw std::runtime_error("numerical exclusion requires its model fingerprint");
+        if(modelFingerprint(argv[1])!=*fingerprint)
           throw std::runtime_error("numerical exclusion model fingerprint does not match the request");
         for(auto const& entry:*entries) {
           auto* o=entry.getAsObject();if(!o || !o->getString("reason") || o->getString("reason")->empty())
@@ -288,6 +310,17 @@ int main(int argc, char** argv) {
             << '\t' << stem << ".cu\t" << stem << ".mlir\n";
       }
       module=std::move(solved.module);
+      if(interval_begin) {
+        auto interval_options=solve_options.placement;
+        auto integer=[&](char const* key){return int((*module)->getAttrOfType<mlir::IntegerAttr>(key).getInt());};
+        interval_options.residency=integer("tilemega.solved_residency");
+        interval_options.verified_resident_limit=interval_options.residency;
+        interval_options.kappa=integer("tilemega.solved_kappa");
+        interval_options.requested_grid=integer("tilemega.solved_grid");
+        std::ofstream interval_evidence(std::string(argv[2])+".interval.tsv");
+        interval_evidence<<"seq\tplacement\tfloor_ns\tpredicted_ns\terror\n";
+        tilemega::dialect::SolveAndWritePlacementInterval(*module,interval_options,interval_begin,dims.seq,&interval_evidence);
+      }
       std::vector<tilemega::codegen::RuntimeVariantModule> inputs{{*module,
           1u,static_cast<std::uint32_t>(dims.seq)}};
       source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(inputs);
