@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-compile",
+    "/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s128/model.json",
+    "docs/experiments/JOINT2/prepared/real_s128/auto.cu",
+    "--solve",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/target.json",
+    "--seq",
+    "128",
+    "--past",
+    "3",
+    "--search-capacity",
+    "9",
+    "--search-domain",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/search_domain.json",
+    "--dump-cg",
+    "docs/experiments/JOINT2/prepared/real_s128/auto.mlir",
+    "--hop-curve",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv"
+  ],
+  "session": "1789581834543868435"
+}
