@@ -300,6 +300,10 @@ def rebase():
     timed=[joint.timing(root/'measure'/arm/f'r{i}.log') for i in range(25)]
     latency=statistics.median(r['l2_ms'] for r in timed)
     relative=[timed[i]['l2_ms']/joint.timing(root/'measure'/(selected+'__full')/f'r{i}.log')['l2_ms'] for i in range(25)]
+    if config in ('c1','c2','c3'):
+     previous={'c1':selected,'c2':'c1','c3':'c2'}[config]
+     incremental=[timed[i]['l2_ms']/joint.timing(root/'measure'/(previous+'__full')/f'r{i}.log')['l2_ms'] for i in range(25)]
+     details.append(f'{name}/{config} relative_previous={previous}:{joint.interval(incremental)}')
     details.append(f'{name}/{config} cp_ns={cp:.3f} queue_ns={queue:.3f} measured_floor={latency*1e6/floor:.6f} l2_l1={statistics.median(r["l2_ms"]/r["l1_ms"] for r in timed):.6f} relative_selected={joint.interval(relative)} dump='+evidence(dump))
   except Exception as e:ok=False;details.append(f'{name}: {e}')
  return ok,'; '.join(details)+'; REBASE/bounded_raw/*/measure'

@@ -8,12 +8,13 @@ sys.path.insert(0,str(HERE.parent/'JOINT2'));import analyze as joint
 def analyze(root):
  specs=json.loads((root/'specs.json').read_text());configs=list(dict.fromkeys(x.split('__')[0] for x in specs));selected=json.loads((root/'selection.json').read_text())['placement'];rows=[]
  for config in configs:
+  previous={'c1':selected,'c2':'c1','c3':'c2'}.get(config,selected)
   raw=[]
   for i in range(25):
    arms={a:joint.timing(root/'measure'/(config+'__'+a)/f'r{i}.log') for a in ('full','nofence','nowait','neither','l1nosync')}
    full=arms['full']['l2_ms'];wait=full-arms['nowait']['l2_ms'];notify=arms['nowait']['l2_ms']-arms['neither']['l2_ms'];barrier=arms['full']['l1_ms']-arms['l1nosync']['l1_ms']
-   raw.append(dict(l2_ms=full,wait_ms=wait,notify_ms=notify,barrier_ms=barrier,fence_ms=full-arms['nofence']['l2_ms'],protocol_ms=wait+notify,protocol_barrier=(wait+notify)/barrier if barrier else float('nan'),l2_l1=full/arms['full']['l1_ms'],relative_selected=full/joint.timing(root/'measure'/(selected+'__full')/f'r{i}.log')['l2_ms'],relative_legacy=full/joint.timing(root/'measure/legacy_grid_stride__full'/f'r{i}.log')['l2_ms']))
-  row=dict(cell=root.name,config=config,selected=selected)
+   raw.append(dict(l2_ms=full,wait_ms=wait,notify_ms=notify,barrier_ms=barrier,fence_ms=full-arms['nofence']['l2_ms'],protocol_ms=wait+notify,protocol_barrier=(wait+notify)/barrier if barrier else float('nan'),l2_l1=full/arms['full']['l1_ms'],relative_previous=full/joint.timing(root/'measure'/(previous+'__full')/f'r{i}.log')['l2_ms'],relative_selected=full/joint.timing(root/'measure'/(selected+'__full')/f'r{i}.log')['l2_ms'],relative_legacy=full/joint.timing(root/'measure/legacy_grid_stride__full'/f'r{i}.log')['l2_ms']))
+  row=dict(cell=root.name,config=config,selected=selected,previous=previous)
   for key in raw[0]:
    values=[r[key] for r in raw]
    med,lo,hi=joint.interval(values) if all(math.isfinite(v) for v in values) else (float('nan'),)*3
