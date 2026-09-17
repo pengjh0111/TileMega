@@ -68,14 +68,14 @@ def cost_branches():
   check('NonGemmStageNs' not in line,'retired formula remains: '+line)
  return not hits,'command='+ ' '.join(command)+'; output='+repr(output)+'; whole-tree command=rg -n StageKind lib/Solver; reviewed non-price roles='+repr(roles)+'; full grep evidence=COSTMODEL/stagekind_audit.txt'
 def rank_gate(key,threshold):
- rows=table(C/'calibrated_replay/evaluations.tsv');actual=table(EX/'SIMULATOR/raw/time/l2.tsv');modes={'legacy_grid_stride':'0','balanced':'4','rotate':'5'}
+ rows=table(C/'closure_replay/evaluations.tsv');actual=table(EX/'SIMULATOR/raw/time/l2.tsv');modes={'legacy_grid_stride':'0','balanced':'4','rotate':'5'}
  rows=[r for r in rows if r['model']!='real' and r['candidate'] in modes]
  y=[statistics.median(float(x['l2_ms'])*1e6 for x in actual if (x['model'],x['seq'],x['place'])==(r['model'],r['seq'],modes[r['candidate']])) for r in rows]
  rho=rank.spearman([float(r[key]) for r in rows],y)
- return len(rows)==18 and rho>=threshold,f'n={len(rows)} rho={rho:.12f} required={threshold}; {evidence(C/"calibrated_replay/evaluations.tsv")} + SIMULATOR/raw/time/l2.tsv (historical GPU calibration, fresh CPU evaluation)'
+ return len(rows)==18 and rho>=threshold,f'n={len(rows)} rho={rho:.12f} required={threshold}; {evidence(C/"closure_replay/evaluations.tsv")} + SIMULATOR/raw/time/l2.tsv (historical GPU calibration, fresh CPU evaluation)'
 def replay():
- rows=table(C/'calibrated_replay/replay.tsv');v=sorted(abs(float(r['predicted_ns'])/float(r['measured_ns'])-1) for r in rows)
- return len(rows)==68,f'n={len(rows)} relative_error p50={statistics.median(v):.9f} p90={joint.trace.percentile(v,.9):.9f} max={max(v):.9f}; {evidence(C/"calibrated_replay/replay.tsv")}'
+ rows=table(C/'closure_replay/replay.tsv');v=sorted(abs(float(r['predicted_ns'])/float(r['measured_ns'])-1) for r in rows)
+ return len(rows)==68,f'n={len(rows)} relative_error p50={statistics.median(v):.9f} p90={joint.trace.percentile(v,.9):.9f} max={max(v):.9f}; {evidence(C/"closure_replay/replay.tsv")}'
 def kloop():
  a=module('r6_loop_raw',C/'analyze_kloop.py');rs=[]
  for name in REFS:
@@ -115,11 +115,11 @@ def queue_gate():
   except Exception as e:ok=False;values.append(f'{name}: {e}')
  return ok,'; '.join(values)
 def budget():
- rows=table(C/'calibrated_replay/evaluations.tsv');parts=[];ok=True
+ rows=table(C/'closure_forward/evaluations.tsv');parts=[];ok=True
  for model,limit in [('reference',1000),('real',10000)]:
   rs=[r for r in rows if (r['model']=='real')==(model=='real')];worst=max(rs,key=lambda r:float(r['full_us']));us=float(worst['full_us']);ok &=us<limit
   parts.append(f'{model} full_max_us={us:.3f} budget={limit} at {worst["model"]}/s{worst["seq"]}/{worst["candidate"]}; prepare_max_us={max(float(r["prepare_us"]) for r in rs):.3f}')
- return ok,'; '.join(parts)+'; '+evidence(C/'calibrated_replay/evaluations.tsv')
+ return ok,'; '.join(parts)+'; '+evidence(C/'closure_forward/evaluations.tsv')
 def ranking():
  parts=[];good=0
  for name in ALL:
@@ -153,14 +153,35 @@ def legacy():
  n=0
  for m in ('gqa2','mha4'):
   for s in (4,128):
-   root=W/'legacy_matched/identity'/f'{m}_s{s}'
+   root=W/'legacy_closure/identity'/f'{m}_s{s}'
    for name in ('schedule.tsv','waits.tsv','events.tsv'):
     check((root/'base'/name).read_bytes()==(root/'head'/name).read_bytes(),str(root/name));n+=1
- return n==12,f'{n}/12 byte-identical tables; WRITEBACK/legacy_matched/identity'
+ return n==12,f'{n}/12 byte-identical tables; WRITEBACK/legacy_closure/identity'
 def roundtrip():
- root=W/'roundtrip_gqa2_s4';a=(root/'cg_plan.tsv').read_bytes();b=(root/'host_plan.tsv').read_bytes();return a==b,f'diff_bytes={0 if a==b else "nonzero"} nodes={len(a.splitlines())-1}; {evidence(root)}'
+ root=W/'roundtrip_gqa2_s4';a=(root/'cg_plan.tsv').read_bytes();b=(root/'host_plan.tsv').read_bytes();check(a==b,'point CG/host table differs')
+ interval=W/'interval_closure';counts=[]
+ source=(interval/'gqa2.cu').read_text()
+ for seq in range(1,6):
+  expected=table(interval/f'direct_s{seq}.tsv')
+  actual=sorted(table(interval/'host'/f's{seq}/schedule.tsv'),key=lambda r:(int(r['stage']),int(r['logical_task'])))
+  check(len(actual)==len(expected),'interval node count differs')
+  for key in ('worker','slot'):
+   values=[int(r[key]) for r in expected];check(values==[int(r[key]) for r in actual],f'host {key} differs at seq={seq}')
+   name='Worker' if key=='worker' else 'Slot'
+   generated=re.search(r'kInterval'+name+f'0_{seq-1}'+r'\[\] = \{([^}]+)\}',source)
+   check(generated is not None and values==[int(v) for v in generated[1].split(',')],f'generated {key} differs')
+  counts.append(len(actual))
+ return True,f'point + interval CG/direct solver/generated/host arrays identical; interval nodes={counts}; {evidence(interval)}'
+def interval_writeback():
+ root=W/'interval_closure';ok,detail=collections([root/'correctness'/f's{s}' for s in range(1,6)])
+ cg=(root/'gqa2.mlir').read_text();check('tilemega.solved_seq_begin = 1' in cg and 'tilemega.solved_seq_end = 5' in cg,'missing interval bounds')
+ rows=table(root/'gqa2.cu.interval.tsv');check(len(rows)==30,'not all six placements per point')
+ for seq in range(1,6):check(len({r['placement'] for r in rows if int(r['seq'])==seq})==6,'placement coverage gap')
+ hashes={json.loads(p.read_text())['binary_sha256'] for p in (root/'correctness').rglob('r*.json')}
+ check(len(hashes)==1,'interval used multiple binaries')
+ return ok,detail+'; one binary, all six placements at every integer point; geometry selected at upper endpoint, fixed past/grid'
 def we():
- log=W/'closure_ctest.log';text=log.read_text();match=re.search(r'100% tests passed, 0 tests failed out of (\d+)',text);ok,detail=collections([W/'legacy/seqscan'/f'{m}_s{s}_p{p}' for m in ('gqa2','mha4') for s in (4,128,2048) for p in (0,512)])
+ log=HERE/'closure/ctest_current.log';text=log.read_text();match=re.search(r'100% tests passed, 0 tests failed out of (\d+)',text);ok,detail=collections([W/'legacy_closure/seqscan'/f'{m}_s{s}_p{p}' for m in ('gqa2','mha4') for s in (4,128,2048) for p in (0,512)])
  return bool(match) and int(match[1])>=49 and ok,f'CTest={match[1] if match else "FAIL"} {evidence(log)}; '+detail
 
 def symbolic_proofs():
@@ -257,7 +278,7 @@ def target_selfcheck():
  return True,'four local compile/guard checks; no sm_120 execution claim; '+'; '.join(details)
 
 def main():
- gates=[('C-a','hard',cost_branches),('C-b','hard',lambda:rank_gate('full_ns',.880288958)),('C-c','hard',lambda:rank_gate('coarse_ns',.85)),('C-d','report',replay),('C-e','report',kloop),('C-f','hard',cf),('J-a','research',lambda:paired_gate(REAL,'control',1)),('J-b','hard',queue_gate),('J-c','hard',budget),('J-d','hard',ranking),('J-e','hard',lambda:paired_gate(REFS,'champion',1.02)),('J-f','hard',jf),('J-g','report',fuse),('W-a','hard',writeback),('W-b','hard',command_gate),('W-c','hard',legacy),('W-d','hard',roundtrip),('W-e','hard',we),('B1','report',rebase),('S-a','hard',symbolic_proofs),('S-b','hard',symbolic_samples),('S-c','hard',symbolic_champion),('S-d','report',sd),('A1-subset','report',models),('H2','hard',sass),('H4','hard',history_order),('H7','report',target_selfcheck)]
+ gates=[('C-a','hard',cost_branches),('C-b','hard',lambda:rank_gate('full_ns',.880288958)),('C-c','hard',lambda:rank_gate('coarse_ns',.85)),('C-d','report',replay),('C-e','report',kloop),('C-f','hard',cf),('J-a','research',lambda:paired_gate(REAL,'control',1)),('J-b','hard',queue_gate),('J-c','hard',budget),('J-d','hard',ranking),('J-e','hard',lambda:paired_gate(REFS,'champion',1.02)),('J-f','hard',jf),('J-g','report',fuse),('W-a','hard',writeback),('W-b','hard',command_gate),('W-c','hard',legacy),('W-d','hard',roundtrip),('W-e','hard',we),('W-interval','hard',interval_writeback),('B1','report',rebase),('S-a','hard',symbolic_proofs),('S-b','hard',symbolic_samples),('S-c','hard',symbolic_champion),('S-d','report',sd),('A1-subset','report',models),('H2','hard',sass),('H4','hard',history_order),('H7','report',target_selfcheck)]
  for name,kind,fn in gates:gate(name,kind,fn)
  failed=sum(not ok and kind=='hard' for _,kind,ok in results);print(f'R6_VERIFY gates={len(results)} hard_failures={failed} exit={int(failed>0)}',flush=True);return int(failed>0)
 if __name__=='__main__':sys.exit(main())

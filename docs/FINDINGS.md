@@ -5273,3 +5273,61 @@ rotate configuration order. `REBASE/run.py` currently rotates all fifty
 arms as one list, allowing a pair to straddle almost a full round. Diagnose
 the common timing bands before interpreting these differences as physical
 service costs. The present samples and their signs remain unchanged.
+
+## F-199 — R6 continuation derives combine work and corrects replay ownership
+
+**✅ verified.** `DeriveCombineTaskInput` now derives each instantiated reduction
+from its semantic node and access relations, including the tail task and the
+physical tile/element ownership map. FP32 partial reads and BF16 residual reads
+have distinct byte cardinalities. The backend declares the zero-seeded extra
+addition; the solver does not introduce a per-operator latency formula.
+`Evaluate`, `ChainDP` and `CouplingInterfaceDP` use `CombineTaskStageNs`, and the
+placement producer prices actual combine instances rather than dividing a
+whole-stage estimate by waves. Compiled residency is part of each price and
+its cache key. `task_element_work_test` independently enumerates both ownership
+forms and typed tail traffic; the full 49-test CTest suite passes.
+
+**✅ verified.** The calibration replay previously imported element ownership
+although the measured sources declared tile ownership, and copied task-zero
+prices across a stage. For example, the historical RoPE stage had 16 tasks
+while the imported task domain had 8. `COSTMODEL/evaluate.cpp` now reads the
+original source's ownership flags, checks cardinality and prices every task
+coordinate. On the unchanged historical 18-point calibration set, fresh CPU
+re-evaluation gives coarse Spearman **0.876160990712** and full Spearman
+**0.896800825593**. C-c's 0.85 and C-b's 0.880288958 gates therefore pass.
+This is a correction of calibration replay inputs, not a fresh GPU speedup.
+
+Evidence: `docs/experiments/COSTMODEL/closure_replay/{evaluations.tsv,ranks.tsv}`,
+`docs/experiments/JOINT2/closure/ctest_current.log`, and the retained historical
+`docs/experiments/SIMULATOR/raw/time/l2.tsv`. The new 68-dump replay keeps the
+publication, consumer wait and visibility constants unchanged; p50/max absolute
+relative errors remain 4.53996%/13.82771%. CPU timing and new-search performance
+are separate gates and are not inferred from the improved calibration rank.
+
+## F-200 — R6 writes every placement in a finite theta interval through CG
+
+**✅ verified.** `SolveAndWritePlacementInterval` invokes the six-family solver
+at every integer seq in a requested interval, retaining each point's winner.
+The CG carries the materialized interval as an array of tables, and Codegen
+emits one runtime variant whose host selects the table by seq. The compiler's
+`--seq-begin` option chooses geometry, kappa and residency at the upper endpoint,
+then holds them and past/grid fixed while solving placements over the interval.
+This is exact bounded materialization, not an unbounded affine fit or a proof
+of joint geometry optimality over the interval. Out-of-range workloads and
+inconsistent seq/past/grid metadata are rejected.
+
+**✅ verified.** A single generated binary passes **50/50 fresh processes at
+seq 1, 2, 3, 4 and 5**, with past=3. All six placements are evaluated at each
+point. Independently solved arrays, written CG, generated table arrays and
+actual host queue dumps agree byte-for-byte at 546/580/614/648/682 nodes. CG
+serialization leaves generated CUDA identical; three malformed interval cases
+(seq gap, different past, different grid) are rejected. This focused campaign
+uses residency=1 and capacity=1 without compiled resource probes; it is not the
+performance search. Materialized EFT winners are not replaced by a weaker
+symbolic family to make a certificate pass.
+
+Evidence: `docs/experiments/WRITEBACK/interval_closure/README.md`,
+`gqa2.cu.interval.tsv`, `correctness/s*/r*.{log,json}`, `direct_s*.tsv`,
+`host/s*/schedule.tsv`, and `roundtrip_v3.log` in the same directory. The raw
+verifier adds an explicit interval gate and checks the generated/host arrays;
+the previously checked single-point round trip remains covered separately.
