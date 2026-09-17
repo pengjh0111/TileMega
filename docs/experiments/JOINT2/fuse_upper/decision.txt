@@ -1,0 +1,1 @@
+FUSE6 enter_r7=0 maximum_bound_share=0.012657 cells=6

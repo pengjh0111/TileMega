@@ -1,0 +1,4 @@
+{
+  "source_cg": "docs/experiments/JOINT2/prepared/real_s128/auto.cu.top3.mlir",
+  "choice": "docs/experiments/JOINT2/prepared/real_s128/choice.json"
+}

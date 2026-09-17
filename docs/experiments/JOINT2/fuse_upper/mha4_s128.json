@@ -1,0 +1,12 @@
+{
+  "command": [
+    "/tmp/r6_fuse_bound",
+    "docs/experiments/JOINT2/reduced/mha4_s128/auto.cu.top1.mlir",
+    "docs/experiments/COSTMODEL/event_fit/target.json",
+    "128",
+    "docs/experiments/JOINT2/fuse_upper/mha4_s128_selected.tsv"
+  ],
+  "source_sha256": "afa050bcbf29ee2ebbaa0ffd9508da4e8314dba1f7e0c92d8a07072ce396e213",
+  "started_ns": 1789648768574535597,
+  "exit_code": 0
+}

@@ -1,0 +1,34 @@
+producer	consumer	producer_stage	consumer_stage	status	reason	producer_nodes	consumer_nodes	eliminated_nodes	removed_global_bytes	separate_task_ns	fused_task_ns	recompute_ns	fixed_share_input	fixed_upper_ns	traffic_floor_ns	traffic_upper_ns	optimistic_upper_ns
+l0.s00.norm	l0.s01.proj	0	1	UNSUPPORTED	fusion partial stage requires explicit combine ownership	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s01.proj	l0.s02.proj	1	2	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s02.proj	l0.s03.proj	2	3	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s03.proj	l0.s04.rope	3	4	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s04.rope	l0.s05.rope	4	5	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s05.rope	l0.s06.append	5	6	SUPPORTED	logical adjacency and single-producer ownership	8	8	8	4096	1715.13990184	1625.69623704	0	0.232	397.912457227	1481.19623544	233.943666396	631.856123623
+l0.s06.append	l0.s07.append	6	7	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s07.append	l0.s08.attn	7	8	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s08.attn	l0.s09.proj	8	9	UNSUPPORTED	fusion partial stage requires explicit combine ownership	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s09.proj	l0.s09.add	9	9	UNSUPPORTED	fusion partial stage requires explicit combine ownership	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s09.add	l0.s10.norm	9	10	UNSUPPORTED	fusion tile constraint: consumer spans multiple producer tasks	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s10.norm	l0.s11.proj	10	11	UNSUPPORTED	fusion partial stage requires explicit combine ownership	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s11.proj	l0.s12.proj	11	12	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s12.proj	l0.s13.act	12	13	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s13.act	l0.s14.proj	13	14	UNSUPPORTED	fusion partial stage requires explicit combine ownership	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s14.proj	l0.s14.add	14	14	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l0.s14.add	l1.s15.norm	14	15	UNSUPPORTED	fusion tile constraint: consumer spans multiple producer tasks	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s15.norm	l1.s16.proj	15	16	UNSUPPORTED	fusion partial stage requires explicit combine ownership	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s16.proj	l1.s17.proj	16	17	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s17.proj	l1.s18.proj	17	18	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s18.proj	l1.s19.rope	18	19	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s19.rope	l1.s20.rope	19	20	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s20.rope	l1.s21.append	20	21	SUPPORTED	logical adjacency and single-producer ownership	8	8	8	4096	1715.13990184	1625.69623704	0	0.232	397.912457227	1481.19623544	233.943666396	631.856123623
+l1.s21.append	l1.s22.append	21	22	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s22.append	l1.s23.attn	22	23	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s23.attn	l1.s24.proj	23	24	UNSUPPORTED	fusion partial stage requires explicit combine ownership	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s24.proj	l1.s24.add	24	24	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s24.add	l1.s25.norm	24	25	UNSUPPORTED	fusion tile constraint: consumer spans multiple producer tasks	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s25.norm	l1.s26.proj	25	26	UNSUPPORTED	fusion partial stage requires explicit combine ownership	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s26.proj	l1.s27.proj	26	27	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s27.proj	l1.s28.act	27	28	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s28.act	l1.s29.proj	28	29	UNSUPPORTED	fusion partial stage requires explicit combine ownership	0	0	0	0	0	0	0	0.232	0	0	0	0
+l1.s29.proj	l1.s29.add	29	29	UNSUPPORTED	fusion consumer is not a single-producer chain node	0	0	0	0	0	0	0	0.232	0	0	0	0

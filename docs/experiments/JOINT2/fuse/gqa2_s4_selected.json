@@ -1,0 +1,4 @@
+{
+  "source_cg": "docs/experiments/JOINT2/reduced/gqa2_s4/auto.cu.top2.mlir",
+  "choice": "docs/experiments/JOINT2/reduced/gqa2_s4/choice.json"
+}

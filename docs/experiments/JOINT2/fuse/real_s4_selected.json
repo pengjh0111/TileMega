@@ -1,0 +1,4 @@
+{
+  "source_cg": "docs/experiments/JOINT2/admissible/real_s4/auto.cu.top3.mlir",
+  "choice": "docs/experiments/JOINT2/admissible/real_s4/choice.json"
+}

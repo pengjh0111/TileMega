@@ -1,0 +1,4 @@
+{
+  "source_cg": "/root/TileMega/docs/experiments/JOINT2/reduced/gqa2_s128/auto.cu.top3.mlir",
+  "choice": "docs/experiments/JOINT2/reduced/gqa2_s128/choice.json"
+}
