@@ -927,6 +927,102 @@ touching backoff is cluster-scope arrival.
 `SELF_CHECK=1` on the 4090, which touches no GPU; they have never run on a
 Blackwell part.
 
+## 13. sm_120 (RTX 5090) execution — round three's own runners, actually run
+
+The runners named throughout this report were executed on a real Blackwell
+part. Device: GeForce RTX 5090, `sm_120` (compute capability 12.0), 170 SMs,
+`max_cluster_size=8`, probed by `TargetSpec::Probe()` (`raw_sm120/sm_120.json`
+under each runner), CUDA 12.8, at `HEAD=ee905036d2ec0c9dc880df604097981552423e`.
+`docs/experiments/CHAIN/run_sm120.sh` and
+`docs/experiments/PLACE_EFT2/run_sm120.sh REALWIDTH=0` were run to completion;
+`docs/experiments/WINDOW/run_sm120.sh` was intentionally not run this pass —
+⚠️ stated, not verified here — round four's own implementation work reports the
+slot window carries no benefit, so this round did not spend the GPU time
+re-confirming that on the second architecture. `SYNC_V2/run_sm120.sh` covers
+step 0 (backoff) only in this section; its barrier-reduction and litmus arms
+were not run this pass, deprioritized to move to round four, and are not
+reported here.
+
+**Correctness first, and it is unqualified.** CHAIN: 12 arm-cells, 600/600
+processes (`raw_sm120/correctness.tsv`). PLACE_EFT2: configs `b` and `d` (the
+two `CORRECTNESS_CONFIGS` runs by default) at 6 arms x 4 cells each, 2400/2400
+processes (`raw_sm120/correctness.tsv`); configs `a` and `w` were timed and
+traced but not put through the 50-fresh-process gate, matching the script's
+own default rather than an oversight here.
+
+**§6 replicates on sm_120: chain still does not beat rotate anywhere.** S2c-d,
+25 paired rounds per cell, ratio to rotate's L2 in the same round
+(`docs/experiments/CHAIN/raw_sm120/summary.tsv`):
+
+| cell | legacy / rotate | chain / rotate | 95% CI | p (Wilcoxon) |
+|---|---|---|---|---|
+| gqa2 s4 | 1.5297 | 1.0361 | [1.0347, 1.0379] | 1.306e-05 |
+| mha4 s4 | 1.5813 | 1.0386 | [1.0381, 1.0401] | 1.307e-05 |
+| gqa2 s128 | 1.3546 | 1.0100 | [1.0093, 1.0103] | 1.307e-05 |
+| mha4 s128 | 1.3354 | 1.1635 | [1.1625, 1.1640] | 1.307e-05 |
+| ALL (n=100) | 1.4394 [1.3553, 1.5282] | 1.0381 [1.0370, 1.0390] | — | 3.956e-18 |
+
+✅ Verified: the sm_89 finding in §6 reproduces on Blackwell. Chain loses to
+rotate in all four measured cells, by 1.00% (gqa2 s128) to 16.35% (mha4 s128);
+legacy is 33.5–58.1% worse than rotate, again the control that shows the
+comparison is sensitive. `raw_sm120/provenance.tsv` confirms every arm's flat
+control is byte-identical to the shared reference (14219 / 26449 bytes).
+
+PLACE_EFT2's own trace-based reconstruction (`raw_sm120/analysis/analysis.md`)
+agrees at the instruction level: measured `l2_ms` is higher for `chain` than for
+`rotate` in every one of the 16 traced cells across configs a/b/d/w. The same
+file's D1-d gate (critical-path reconstruction within 5% of measured `l2_ms`)
+**FAILs** on sm_120 as it does on sm_89, and by a related but new pattern: the
+reconstruction error is *larger* for `rotate` (44.6–68.8%) than for `chain`
+(11.1–33.0%) in every cell, i.e. on this hardware the model is further from
+measuring rotate's real cost than chain's — the reverse of assuming the two
+placements are equally hard to model.
+
+**§7 replicates the pre-registered prediction.** The report's own §5-second-
+question already predicted this before any sm_120 run existed: "the hop is
+448 ns of which about 32 ns is the backoff... the same lever can reclaim at
+most a twentieth as much and the fitted optimum moves to pure polling."
+Measured (`docs/experiments/SYNC_V2/raw_sm120/backoff/backoff_policy.tsv`):
+
+| arm | hop c0 (ns) | c0 / literal64 |
+|---|---|---|
+| literal64 (status quo) | 439.7 | 1.0000 |
+| bo64 | 439.8 | 1.0002 |
+| bo16 | 439.6 | 0.9997 |
+| spin64_bo16 | 420.5 | 0.9563 |
+| grow16_1024 | 422.1 | 0.9600 |
+| spin64_bo64 | 422.3 | 0.9603 |
+| **spin256_bo64 — chosen** | **419.6** | **0.9543** |
+| spin | 423.9 | 0.9641 |
+
+✅ Verified: the fitted optimum is a near-pure-spin arm (`spin256_bo64`, 256 spin
+iterations against a 64 ns backoff floor), not the backoff-heavy `spin64_bo64`
+sm_89 chose. The gain is 439.7 → 419.6 ns, −20.1 ns, 95.4% of the status quo —
+i.e. a 4.6% reduction, smaller than even the "at most a twentieth" (~5%) upper
+bound the prediction offered, and nowhere near sm_89's 1041 ns / 86.3%
+reduction. This is the two architectures wanting different answers, exactly as
+predicted, for the reason already given: sm_120's hop has almost no backoff
+left to remove.
+
+**Infrastructure notes from this pass**, kept here because they shaped which
+numbers above exist rather than what they measured:
+
+- `docs/experiments/SEQSCAN/run.sh`'s fixed `timeout 120s` per correctness
+  process was too short for `mha4` at `seq=2048` on this host — measured
+  218s wall clock for a single correct (`RESULT status=PASS`) run, killing the
+  process and, under `set -euo pipefail`, silently aborting the whole matrix
+  with no diagnostic. Raised to a configurable `RUN_TIMEOUT` (default 300s) and
+  made the per-cell loop resumable (skip a cell whose log already carries 50
+  completed results) so a timeout further down the matrix does not discard
+  cells that already passed.
+- `docs/experiments/SYNC_V2/run_barrier.sh`'s `sass_report.sh` requires
+  `ripgrep` on `PATH`; it was not installed on this host and had to be added
+  (`apt-get install ripgrep`).
+
+⚠️ Per H9, everything above §13 in this report remains sm_89-only as
+originally written; this section is the first sm_120 hardware evidence in this
+file.
+
 ## H2 audit at HEAD
 
 Every mechanism defaults off, so "all switches off" is baseline behaviour rather
