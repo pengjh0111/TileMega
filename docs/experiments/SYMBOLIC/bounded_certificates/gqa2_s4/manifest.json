@@ -1,0 +1,20 @@
+{
+  "source": "docs/experiments/JOINT2/bounded_search/gqa2_s4/auto.cu.top3.mlir",
+  "source_sha256": "e95f1703a46d74d703d68b9bba4291e9c1ad272942460d132c9c32d5c266f674",
+  "family": "wavefront",
+  "grid": 512,
+  "interval": [
+    1,
+    128
+  ],
+  "shards": [
+    "s1_16",
+    "s17_32",
+    "s33_48",
+    "s49_64",
+    "s65_80",
+    "s81_96",
+    "s97_112",
+    "s113_128"
+  ]
+}

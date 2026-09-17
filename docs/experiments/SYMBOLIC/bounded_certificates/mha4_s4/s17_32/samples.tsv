@@ -1,0 +1,2 @@
+family	grid	seq	nodes	identical	template	native
+wavefront	512	32	14336	1	wavefront_g512_s32.template.tsv	wavefront_g512_s32.native.tsv

@@ -1,0 +1,16 @@
+{
+  "command": [
+    "/tmp/r6_bounded_templates",
+    "docs/experiments/JOINT2/bounded_search/mha4_s4/auto.cu.top3.mlir",
+    "/root/TileMega/docs/experiments/SYMBOLIC/bounded_certificates/mha4_s4/s1_16",
+    "wavefront",
+    "512",
+    "1",
+    "16"
+  ],
+  "environment": {
+    "SYMBOLIC_PIECE_STEP": "1"
+  },
+  "started_ns": 1789677333036898774,
+  "exit_code": 0
+}
