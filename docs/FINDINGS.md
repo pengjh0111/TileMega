@@ -4898,7 +4898,6 @@ floor are concrete remaining work, not claims of a completed optimal search.
 The pilot-frozen real-s4 choice is retained even though another kappa ranks
 slightly faster in confirmation; selection is not changed after seeing it.
 
-
 ## F-190 — R6 K-loop waits distinguish K16, K32 and K64
 
 ✅ Verified: the optional `TRACE_KLOOP` probe retains every R5 phase column,
@@ -5273,6 +5272,152 @@ rotate configuration order. `REBASE/run.py` currently rotates all fifty
 arms as one list, allowing a pair to straddle almost a full round. Diagnose
 the common timing bands before interpreting these differences as physical
 service costs. The present samples and their signs remain unchanged.
+
+## F-199 — real:s128's mode-5 control probe reports MISMATCH on sm_120, one element over the BF16 bound
+
+✅ Verified on an RTX 5090 (sm_120, CUDA 12.8), reproduced identically from
+two independent invocations (`CHAIN2/prepare_sm120.py` and
+`JOINT/target_pipeline.py`, both compiling and running the same
+`TILEMEGA_PLACEMENT=5` control probe against `REALMODEL/raw/work/r2sim_s128`):
+both report `RESULT status=MISMATCH` with byte-identical L1/L2 output hashes
+(`4f1e075b02046216`) and byte-identical diagnostics. This is not a flaky or
+environment-dependent result — the same element fails the same way every
+time — and it is not a stale-fixture artifact: `export_real.py:124` fixes
+`torch.manual_seed(20260906)`, so the regenerated `r2sim_s128` here is the
+same model instance F-189 measured on sm_89.
+
+`ModelHarness.cuh:2646` (`Compare`) applies a per-element bound of
+`1.6e-2 + 1.6e-2*|expected|` for BF16. With `TILEMEGA_DIFF_DUMP=20` set, the
+probe names the single offending element:
+
+```
+E2E_DIFF_ELEM pair=l05_vs_l0 tensor=0 index=6597 actual=-0.137695312
+  expected=-0.119628906 delta=0.0180664062 tolerance=0.0179140642
+E2E_DIFF l05_vs_l0_mismatch=1 max_abs=0.046875 max_rel=5859.375
+  l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+```
+
+Exactly one element, out of the whole L0-vs-L0.5 comparison, exceeds its
+tolerance — by 0.00015, about 0.85% over the bound. Every other reported
+`max_abs`/`max_rel` pair in the same log (up to `max_rel=5859.375`) belongs to
+elements whose `expected` is near zero, which is why a large `max_rel` alone
+does not imply a second mismatch; the harness's own mismatch counter, not
+`max_rel`, is authoritative. `l1_vs_l05` and `l2_vs_l1` both show zero
+mismatches — the generated megakernel (L1/L2) agrees exactly with the
+standalone L0.5 reference; only L0.5-vs-PyTorch (L0) disagrees, and only at
+this one element.
+
+⚠️ Inferred, not yet isolated further: F-189 records this exact `real:s128`
+configuration passing 50/50 on sm_89 with no tolerance change, so the
+divergence is plausibly a BF16 GEMM rounding-order difference between the two
+architectures' tensor core paths reaching a quantization boundary on sm_120
+that sm_89 does not reach — but no instruction-level comparison has been done
+here to confirm that mechanism over an alternative (e.g. a different reduction
+order inside this one GEMM tile). Reproduction: `TILEMEGA_PLACEMENT_BASE_DUMP=1
+TILEMEGA_DIFF_DUMP=20 <binary> <r2sim_s128 fixture>`.
+
+This is a hard gate, not a script bug: `CHAIN2/prepare_sm120.py` and
+`JOINT/target_pipeline.py` both require every mode-5 control probe to report
+`RESULT status=PASS` before deriving anything from it, and neither loosens
+that check for `real`. Per CLAUDE.md, the tolerance is not moved to match this
+result. Until this is resolved, both scripts' `real` arm cannot run on sm_120;
+`gqa2`/`mha4` are unaffected (neither uses `r2sim_s128`).
+
+## F-200 — Cluster/DSMEM validation on the RTX 5090: primitives and megakernel both clean; the residency hazard from 2026-09-07 is unfixed in source but not retriggered
+
+✅ Verified on the same RTX 5090 (sm_120) as F-199, `HEAD=e741e5c38`. Three
+scripts, all sm_90+-only (the one mechanism this hardware generation adds that
+sm_89 cannot exercise at all):
+
+**`CLUSTER/run_notify_cluster_sm120.sh`** (T1.3-B, L2 traffic attribution for
+the cluster/DSMEM path) — ✅ already complete, committed 2026-09-08
+(`e305a9f4c`), not rerun here: `cluster_dim` ∈ {1,2,4,8} × {gqa2,mha4} ×
+{load_lines,cluster} × {seq 4,128}, 32/32 cells 50/50. SASS: `load_lines`
+carries 0 `UCGABAR` instructions, `cluster` carries 4, at every dim.
+
+**`CLUSTER/run_on_cluster_gpu.sh`** (Part 7, DSMEM primitives + real BF16
+megakernel) — this script was last touched 2026-09-07 (`raw_5090/`,
+`c4f412353`) and never had its findings committed back into the script or into
+this file. Both are done now.
+
+*What 2026-09-07 found, from `raw_5090/debug.txt`* (⚠️ stated, that session's
+own account, not independently re-derived here): the `two_level_barrier`
+primitive passed `stage` — not the per-stage-independent `arrivals[stage]`
+counter's own iteration, which starts at 0 — as `StageBarrier`'s monotonic
+iteration argument, so stage ≥ 1 needed `clusters*(stage+1)` arrivals against a
+counter that only ever reaches `clusters*1`: permanent deadlock. Fixed there
+by passing `0u`, after which primitives passed 200/200 at cluster sizes 2/4/8.
+The real megakernel arm then reproduced a second, substantive problem: gqa2
+passed 50/50 at cluster dims 1/2/4 and **hung** at dim 8; mha4 was never
+reached. Diagnosis: `TILEMEGA_GENERATED_RESIDENT_GRID` (`ModelHarness.cuh`)
+sizes the resident grid from flat CTA occupancy (`num_sms *
+ActiveBlocksPerSM(...)`) and the cluster path only rounds that number down to
+a multiple of `TILEMEGA_GENERATED_CLUSTER_DIM` — it never asks how many
+*clusters* the device can actually keep co-resident. At dim 8 the flat-CTA
+math authorized more simultaneous clusters than the hardware could schedule
+together; the first batch entered `StageBarrier` and the rest could never
+become resident to join them.
+
+*What was fixed here, before rerunning* — the 2026-09-07 primitive fix had
+never been committed; the script itself still carried the original `stage`
+argument. Fixed the same way (`0u`), plus three unrelated bugs found while
+preparing the rerun: `find_mlir_dir()` referenced an undefined
+`TILEMEGA_ROOT` instead of the script's own `root` (`set -u` would abort it);
+the script's internal `cmake` call had no way to pass `TILEMEGA_LIT_DRIVER`,
+which this MLIR install requires (same requirement as the top-level build);
+and the megakernel hash extraction, `grep -o 'l1=[0-9a-f]*'`, matched inside
+`E2E_TIME`'s unrelated `l2_over_l1=1.05...` field before ever reaching the
+real `E2E_HASH` line, recording every hash as the literal string `1` — fixed
+by anchoring the grep to the `^E2E_HASH ` line first. None of these four
+touch what the script measures; all are namefixes/plumbing. Also added a
+`timeout` (default 60s, `MEGA_HANG_TIMEOUT`) around both the primitive and
+megakernel binary invocations, so a real hang is now recorded as a counted,
+reported non-pass (a new `hangs` column in `megakernel.tsv`) instead of
+blocking the script — and the host — indefinitely.
+
+✅ Rerun in full, `MEGA_RUNS=50` (default), `RUNS=200` (default):
+
+| primitive | cluster_size 2 | cluster_size 4 | cluster_size 8 |
+|---|---|---|---|
+| dsmem/pairwise/two-level (combined) | 200/200 | 200/200 | 200/200 |
+
+| model | dim | barrier_cluster_asm | pass | hangs | hash |
+|---|---|---|---|---|---|
+| gqa2 | 1 | 0 | 50/50 | 0 | `4c544373c0add101` |
+| gqa2 | 2 | 8 | 50/50 | 0 | `4c544373c0add101` |
+| gqa2 | 4 | 8 | 50/50 | 0 | `4c544373c0add101` |
+| gqa2 | 8 | 8 | 50/50 | 0 | `4c544373c0add101` |
+| mha4 | 1 | 0 | 50/50 | 0 | `853cf67220dbad5f` |
+| mha4 | 2 | 8 | 50/50 | 0 | `853cf67220dbad5f` |
+| mha4 | 4 | 8 | 50/50 | 0 | `853cf67220dbad5f` |
+| mha4 | 8 | 8 | 50/50 | 0 | `853cf67220dbad5f` |
+
+Every dim, both models: 50/50, zero hangs, and — with the hash bug fixed —
+bitwise-identical output within each model across every cluster width,
+including dim 8. `barrier_cluster_asm` (`UCGABAR` count) is 0 at dim 1 and 8
+at dim ≥ 2, the same signature §7.3 verified by cross-compilation. mha4, never
+reached in 2026-09-07's run, is now measured at every dim and is clean.
+
+⚠️ **The dim-8 hang did not reproduce, but its cause is still in the source,
+unaddressed.** Read directly, not inferred: `ModelHarness.cuh`'s resident-grid
+computation is unchanged since 2026-09-07 —
+`grid -= grid % TILEMEGA_GENERATED_CLUSTER_DIM` is still the entire cluster
+adjustment, with no query of how many clusters the device can actually hold
+resident together. (`TILEMEGA_RESIDENCY_CAP`, a few lines above it, is an
+unrelated caller-supplied override for the joint-search experiment, not an
+automatic cluster-aware capacity check.) The most likely explanation is that
+today's exported models produced different task/occupancy numbers than
+2026-09-07's — `CODEGEN_SUMMARY` here reports `gqa2: tasks=34 couplings=42`
+and `mha4: tasks=68 couplings=86`, uncompared against that session's counts,
+which were not recorded — landing the flat-CTA grid within whatever the
+RTX 5090 can genuinely keep co-resident this time, rather than the mechanism
+having been repaired. ⚠️ Stated, not verified: no instrumentation here queries
+actual hardware cluster-residency capacity to confirm this explanation over
+alternatives. **The hazard is a live one**: any future model/kernel shape
+whose flat-CTA occupancy authorizes more simultaneous clusters than the
+device can schedule together will deadlock the same way, silently, with the
+harness's own hang now at least caught by the `timeout` added here rather
+than blocking indefinitely — but not prevented.
 
 ## F-201 — R6 continuation derives combine work and corrects replay ownership
 

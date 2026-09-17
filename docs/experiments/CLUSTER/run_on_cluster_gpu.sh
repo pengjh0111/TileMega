@@ -25,7 +25,7 @@ trap 'rm -rf "$work"' EXIT
 find_mlir_dir() {
   if [[ -n "${MLIR_DIR:-}" ]]; then echo "${MLIR_DIR}"; return 0; fi
   local cache
-  for cache in "${TILEMEGA_ROOT}"/build*/CMakeCache.txt; do
+  for cache in "${root}"/build*/CMakeCache.txt; do
     [[ -e "${cache}" ]] || continue
     local found
     found=$(sed -n 's/^MLIR_DIR:[^=]*=//p' "${cache}" | head -1)
@@ -163,7 +163,12 @@ __global__ void two_level_barrier(unsigned long long* counters,
   __syncthreads();
   for (unsigned stage = 0; stage < stages; ++stage) {
     if (threadIdx.x == 0) atomicAdd(&counters[stage], 1ull);
-    CS::StageBarrier(&arrivals[stage], &epochs[stage], stage, clusters);
+    // Each stage owns an independent arrivals[stage]/epochs[stage] pair that
+    // starts fresh at 0; passing the monotonic `stage` here as the iteration
+    // argument made stage>=1 need arrival count clusters*(stage+1) against a
+    // counter that only ever reaches clusters*1, which never completes
+    // (raw_5090/debug.txt, reproduced 2026-09-07).
+    CS::StageBarrier(&arrivals[stage], &epochs[stage], 0u, clusters);
     if (threadIdx.x == 0 && counters[stage] != gridDim.x)
       atomicAdd(mismatches, 1ull);
   }
@@ -235,7 +240,7 @@ for size in 2 4 8; do
   fi
   pass=0
   for ((run = 1; run <= runs; ++run)); do
-    if line=$("$work/cluster_test" "$size" 8 32 2>&1); then
+    if line=$(timeout "${MEGA_HANG_TIMEOUT:-60}s" "$work/cluster_test" "$size" 8 32 2>&1); then
       status=PASS; pass=$((pass + 1))
     else
       status="FAIL:${line}"
@@ -270,8 +275,10 @@ mlir_dir=$(find_mlir_dir) || {
   echo "FAIL: no MLIR install tree found; set MLIR_DIR=/path/to/lib/cmake/mlir" >&2
   exit 77
 }
+lit_driver_args=()
+[[ -n "${TILEMEGA_LIT_DRIVER:-}" ]] && lit_driver_args=(-DTILEMEGA_LIT_DRIVER="${TILEMEGA_LIT_DRIVER}")
 cmake -S "$root" -B "$build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-  -DTILEMEGA_TARGET_ARCH=auto -DMLIR_DIR="${mlir_dir}" >/dev/null
+  -DTILEMEGA_TARGET_ARCH=auto -DMLIR_DIR="${mlir_dir}" "${lit_driver_args[@]}" >/dev/null
 cmake --build "$build" --target tilemega-compile --parallel "$(nproc)" >/dev/null
 
 python3 "$root/docs/experiments/V_H/export_probe.py" --out "$work/gqa2" \
@@ -296,7 +303,7 @@ mega_models=(
 )
 mega_lib="$build/libtilemega.a"
 : > "$out/megakernel.tsv"
-printf 'model\tcluster_dim\tbarrier_cluster_asm\tpass\ttotal\thash\tl1_ms\tl2_ms\n' \
+printf 'model\tcluster_dim\tbarrier_cluster_asm\tpass\ttotal\thangs\thash\tl1_ms\tl2_ms\n' \
     >> "$out/megakernel.tsv"
 have_all=1
 for entry in "${mega_models[@]}"; do
@@ -319,7 +326,7 @@ else
     ref_hash=
     for dim in 1 2 4 8; do
       if (( dim > max_cluster )); then
-        printf '%s\t%d\tskipped_max_cluster_size_%s\t-\t-\t-\t-\t-\n' \
+        printf '%s\t%d\tskipped_max_cluster_size_%s\t-\t-\t-\t-\t-\t-\n' \
             "$model" "$dim" "$max_cluster" >> "$out/megakernel.tsv"
         continue
       fi
@@ -344,24 +351,41 @@ else
              "arm would measure the flat kernel under a cluster label" >&2
         exit 4
       fi
-      pass=0; l1s=; l2s=; hashes=
+      # A software global barrier across an under-resident cluster grid hangs
+      # forever rather than failing (raw_5090/debug.txt: TileMega sizes the
+      # cluster-mode resident grid from flat CTA occupancy, not from how many
+      # clusters can actually be co-resident, so a cluster launched past that
+      # ceiling deadlocks in its own StageBarrier). `timeout` turns a hang
+      # into a counted, reported non-pass instead of blocking this script --
+      # and the machine -- indefinitely.
+      mega_timeout="${MEGA_HANG_TIMEOUT:-60}"
+      pass=0; hangs=0; l1s=; l2s=; hashes=
       for ((run = 1; run <= mega_runs; ++run)); do
-        if line=$("$work/mega_${model}_$dim" "$mega_fixture" 2>&1); then
+        if line=$(timeout "${mega_timeout}s" "$work/mega_${model}_$dim" "$mega_fixture" 2>&1); then
           grep -q '^RESULT status=PASS' <<<"$line" && pass=$((pass + 1))
           t=$(grep -o 'l1_ms=[0-9.]*' <<<"$line" | head -1 | cut -d= -f2)
           u=$(grep -o 'l2_ms=[0-9.]*' <<<"$line" | head -1 | cut -d= -f2)
-          h=$(grep -o 'l1=[0-9a-f]*' <<<"$line" | head -1 | cut -d= -f2)
+          # Unanchored 'l1=[0-9a-f]*' also matches inside E2E_TIME's
+          # l2_over_l1=1.05..., taking "1" as the hash before grep ever
+          # reaches the real E2E_HASH line. Anchor to that line first.
+          h=$(grep '^E2E_HASH ' <<<"$line" | grep -o 'l1=[0-9a-f]*' | head -1 | cut -d= -f2)
           l1s+="$t"$'\n'; l2s+="$u"$'\n'; hashes+="$h"$'\n'
+        elif [[ $? == 124 ]]; then
+          hangs=$((hangs + 1))
         fi
       done
+      if (( hangs > 0 )); then
+        echo "HANG: $model dim $dim timed out $hangs/$mega_runs runs after ${mega_timeout}s each" >&2
+        overall=1
+      fi
       hash=$(printf '%s' "$hashes" | sort -u | grep -v '^$' | paste -sd, -)
       [[ -z "$ref_hash" ]] && ref_hash="$hash"
-      if [[ "$hash" != "$ref_hash" ]]; then
+      if [[ -n "$hash" && "$hash" != "$ref_hash" ]]; then
         echo "FAIL: $model dim $dim output hash $hash != flat control $ref_hash" >&2
         overall=1
       fi
-      printf '%s\t%d\t%d\t%d\t%d\t%s\t%s\t%s\n' "$model" "$dim" "$asm" "$pass" \
-          "$mega_runs" "${hash:-none}" "$(printf '%s' "$l1s" | med)" \
+      printf '%s\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%s\n' "$model" "$dim" "$asm" "$pass" \
+          "$mega_runs" "$hangs" "${hash:-none}" "$(printf '%s' "$l1s" | med)" \
           "$(printf '%s' "$l2s" | med)" >> "$out/megakernel.tsv"
       (( pass == mega_runs )) || overall=1
     done

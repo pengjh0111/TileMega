@@ -48,6 +48,10 @@ docs/experiments/VARIANT/raw/
 docs/experiments/BF16/raw/
 docs/experiments/OWNERSHIP/raw/
 docs/experiments/SEQSCAN/raw/
+docs/experiments/CHAIN/raw_sm120/
+docs/experiments/SYNC_V2/raw_sm120/
+docs/experiments/PLACE_EFT2/raw_sm120/
+docs/experiments/WINDOW/raw_sm120/
 docs/experiments/MIGRATION/raw/
 docs/experiments/CLUSTER/raw/
 docs/experiments/REALMODEL/raw/work/
