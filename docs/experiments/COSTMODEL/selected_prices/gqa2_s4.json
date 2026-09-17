@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/tmp/r6_audit_selected",
+    "docs/experiments/JOINT2/reduced/gqa2_s4/auto.cu.top2.mlir",
+    "docs/experiments/COSTMODEL/event_fit/target.json",
+    "docs/experiments/COSTMODEL/selected_prices/gqa2_s4.tsv"
+  ],
+  "source_sha256": "d93ba098961bf555723f5837a8894a91726a83868571ec3cd7cb0587b46c287a",
+  "started_ns": 1789649071907346411,
+  "exit_code": 0
+}
