@@ -1,0 +1,10 @@
+{
+  "binary_sha256": "87bfe91b8be777d2b11ffabd49afbca279c6975d1e31653f8cc8f2593fbc6910",
+  "base_head": "4d575936d1dbe0a0b00720fd1ee4119721ed6eb6",
+  "source_sha256": {
+    "include/tilemega/Analysis/VisitFiniteRelation.h": "7ed29dfaec0f389e5916ee4b9e95be20e01d26c6ce13a9135db183dd26e3c7b1",
+    "lib/Solver/ScalarTaskWork.cpp": "4083d01279dc466b6e20393f66fafc625d61d3bc738d9fcc3f83e825394f7d02",
+    "include/tilemega/Solver/CompilerSearch.h": "e59a81a188b5d25cec4fcc1fb85b8ee80b9ee659001d2ae242e30780387bb815"
+  },
+  "note": "Search started after exact point-multiset checks; source commit follows final CTest before any adoption or pilot."
+}

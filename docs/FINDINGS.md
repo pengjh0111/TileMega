@@ -5499,3 +5499,26 @@ from unsafe probes and new-candidate exclusions and trigger the global-stop
 record. Evidence: `WRITEBACK/portable_seqscan/`,
 `COSTMODEL/portable_sources/`, `JOINT2/closure/portable_analysis/`, and each
 runner's `selfcheck_sm120_portable/` directory.
+
+
+## F-207 — R6 bypasses point allocation only for proven integer boxes
+
+✅ **Verified.** `VisitFiniteRelation` now first checks a relation piece's box
+structure, then proves equality with its integer min/max box before directly
+enumerating coordinates. Coupled coordinates, modular holes and other pieces
+retain the general ISL enumerator. The carry loop handles `LONG_MAX` without
+increment overflow; empty sets, overlapping pieces, callback exceptions and
+coupled/modular cases are tested. No dependency, event, ownership or legality
+rule changes. All 49 CTest tests pass (120.60 s).
+
+✅ **Verified diagnostic, not a GPU speedup claim.** Complete emitted point
+multisets match the previous enumerator for the five already frozen reference
+and real-s4 winners, on both dependencies and requested events. This includes
+4,574,080 mha4-s128 dependency points. A fresh CPU diagnostic reports that
+relation's enumeration at 5,874,810 versus 1,187,660 µs, and real-s4 dependencies
+at 519,813 versus 52,783 µs. Event enumeration stays on the general route where
+box structure is absent. These single diagnostic pairs are not the simulator
+budget measurement or a claim about end-to-end solve time. The change directly
+addresses the stack sample in dense ISL point enumeration; dense successor
+storage and non-box relations remain concrete follow-up work. Evidence:
+`JOINT2/closure/finite_relations/` and `JOINT2/finite_relation_audit.cpp`.
