@@ -11,6 +11,7 @@ from pathlib import Path
 HERE=Path(__file__).resolve().parent;REPO=HERE.parents[2]
 sys.path.insert(0,str(REPO/'docs/experiments/JOINT'))
 import measure as r5
+sys.path.insert(0,str(HERE));from process import run as run_process
 
 def rows(p):return list(csv.DictReader(p.open(),delimiter='\t'))
 def specs(cell,m,seq,champion_root):
@@ -71,7 +72,7 @@ def main():
                 for j in range(len(order)):
                     arm=order[(i+j)%len(order)]
                     if arm in excluded:continue
-                    try:r5.run(cell,m,s,arm,cell/a.action/arm,i,j,session)
+                    try:run_process(cell,m,s,arm,cell/a.action/arm,i,j,session)
                     except RuntimeError as e:
                         if a.action!='pilot' or arm in ('control','champion'):raise
                         excluded[arm]=dict(reason=str(e),log=str(cell/a.action/arm/f'r{i}.log'),time_ns=time.time_ns())
@@ -79,9 +80,9 @@ def main():
             print(a.action,m,s,'completed',flush=True)
         elif a.action=='correctness':
             arm=json.loads((cell/'choice.json').read_text())['arm']
-            for i in range(50):r5.run(cell,m,s,arm,cell/'correctness',i,0,session)
+            for i in range(50):run_process(cell,m,s,arm,cell/'correctness',i,0,session)
             print('CORRECTNESS',m,s,'50/50',flush=True)
         elif a.action=='trace':
             arm=json.loads((cell/'choice.json').read_text())['arm']
-            for j,k in enumerate(('control','champion',arm)):r5.run(cell,m,s,k+'_trace',cell/'trace'/k,0,j,session,True)
+            for j,k in enumerate(('control','champion',arm)):run_process(cell,m,s,k+'_trace',cell/'trace'/k,0,j,session,True)
 if __name__=='__main__':main()

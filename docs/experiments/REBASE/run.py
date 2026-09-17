@@ -11,6 +11,7 @@ import argparse,concurrent.futures,csv,hashlib,json,os,subprocess,sys,time
 from pathlib import Path
 HERE=Path(__file__).resolve().parent;REPO=HERE.parents[2]
 sys.path.insert(0,str(REPO/'docs/experiments/JOINT'));import measure as r5
+sys.path.insert(0,str(REPO/'docs/experiments/JOINT2'));from process import run as run_process
 ARMS={'full':[],'nofence':['UNSAFE_NO_NOTIFY_FENCE=1'],'nowait':['UNSAFE_NO_EVENT_WAIT=1'],'neither':['UNSAFE_NO_EVENT_WAIT=1','UNSAFE_NO_EVENT_NOTIFY=1'],'l1nosync':['UNSAFE_NO_GRID_SYNC=1']}
 def cells(a):return [(m,s,HERE/a.out/f'{m}_s{s}',a.joint/f'{m}_s{s}') for m in a.models for s in a.seqs]
 def specs(cell):
@@ -56,7 +57,7 @@ def main():
     name=names[(i+k)%len(names)]
     if a.action=='trace' and not name.endswith('__full'):continue
     arm=name+('_trace' if a.action=='trace' else '')
-    try:r5.run(cell,m,s,arm,cell/a.action/name,i,k,session,a.action=='trace')
+    try:run_process(cell,m,s,arm,cell/a.action/name,i,k,session,a.action=='trace')
     except RuntimeError:
      # Unsafe timing probes deliberately permit numerical mismatches. A
      # complete timing record is still required, just as in the R4 harness.
