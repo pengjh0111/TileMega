@@ -5218,3 +5218,58 @@ candidate domain. If queue/semantic-CP <=1 remains a required admissibility
 condition, search that feasible subset explicitly and measure its latency
 tradeoff; minimizing the maximum alone does not enforce the condition.
 The real-width gains do not erase these failed reference/ranking gates.
+
+## F-198 — R6 remeasures placement and protocol on the selected geometries
+
+✅ Verified: B1 completes six cells, ten configurations per cell, five probe
+arms per configuration and 25 rotated fresh-process rounds: 7500 processes.
+The complete-execution arms pass 1500/1500. Each cell contains the six
+placement families, R3 B disabled, and cumulative C1/C2/C3(a) additions.
+W remains 1, so the window-only C3(a) local-dependency mechanism is inert.
+Raw logs, process metadata, generated sources and full trace dumps are in
+`REBASE/raw/`; choices were committed before these measurements began.
+These are solver-selected diagnostic geometries, not qualified optima:
+the failed J-b/J-d/J-e gates in F-197 remain failed.
+
+| Cell | Rotate / legacy, paired median [95% CI] | R3 B on / off, paired median [95% CI] | +C1 / B | +C1+C2 / B | +C1+C2+C3(a) / B |
+| --- | --- | --- | --- | --- | --- |
+| gqa2 s4 | 0.763348 [0.759781, 0.764688] | 0.899306 [0.896412, 0.901265] | 0.997849 | 0.993831 | 0.998494 |
+| gqa2 s128 | 0.739130 [0.734291, 0.743233] | 0.955636 [0.954281, 0.958065] | 0.999790 | 0.997054 | 1.000000 |
+| mha4 s4 | 0.711779 [0.711055, 0.713568] | 0.925926 [0.910370, 0.967742] | 1.000000 | 1.003344 | 1.000521 |
+| mha4 s128 | 0.734715 [0.733359, 0.736485] | 0.992579 [0.990724, 0.994424] | 0.987394 | 0.989136 | 0.990637 |
+| real s4 | 0.943148 [0.933309, 0.948023] | 0.978700 [0.978103, 0.983907] | 1.001633 | 1.002379 | 1.001890 |
+| real s128 | 0.954921 [0.952561, 0.981870] | 0.989346 [0.940345, 1.013014] | 0.999155 | 1.000825 | 1.000670 |
+
+Placement comparisons fix R3 B; protocol comparisons fix the selected
+placement. Thus these are conditional effects, not independent factors to
+multiply. R1's historical pooled rotate/legacy ratio was 0.6705. R3's default
+placement cumulative B reductions were 5.16/3.48/4.79/3.74%; R4's 36%
+protocol/barrier reduction coexisted with slower full execution. Those
+historical percentages do not transfer to the current geometries. All five
+intervention differences, floor and L1 ratios, and their paired intervals
+are retained in `REBASE/attribution_*.tsv`.
+
+✅ Verified limitation: real-s128 has **44/250 nonpositive barrier pairs**
+(all strictly negative; none zero). Pair start-time separation has median
+59.017 s and maximum 1213.832 s. The unchanged EFT full L1 control ranges
+from 6.316000 to 13.919040 ms; nofence L1 ranges from 6.320128 to 13.634560
+ms. Exact per-function SASS comparison establishes that nofence changes
+only L2, while l1nosync changes only L1 (`REBASE/probe_audit/`). The large
+control variation cannot be identified as the direct instruction cost of
+the removed L2 fence. Its underlying physical cause is not established.
+
+The analyzer retains every signed difference and every paired ratio. It
+does not clamp negatives, discard slow processes or replace them with
+additional samples. A zero denominator would make the complete ratio
+statistic undefined, rather than silently removing that pair. Removing the
+analyzer's extra positivity assertion changes neither the prompt's gates
+nor the prescribed subtraction; it corrects an unsupported implementation
+assumption. Causal isolation of the real-s128 protocol components is an
+explicitly degraded result, even though sample coverage is complete.
+
+⚠️ Inferred next work: record clocks, power and allocation information per
+process; rotate the five arms within each configuration and independently
+rotate configuration order. `REBASE/run.py` currently rotates all fifty
+arms as one list, allowing a pair to straddle almost a full round. Diagnose
+the common timing bands before interpreting these differences as physical
+service costs. The present samples and their signs remain unchanged.

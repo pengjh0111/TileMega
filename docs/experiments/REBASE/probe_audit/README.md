@@ -13,6 +13,11 @@ timings from every process, without a fast/slow classification used for
 filtering. `audit.log` records the exact coverage at the time of the audit;
 the audit is rerun after all 1250 processes complete.
 
+The completed run contains 44/250 nonpositive pairs, all strictly negative,
+and no zero denominator. Pair start-time separation has median 59.017 s and
+maximum 1213.832 s. These are observed separations, not an identified cause
+of the control timing bands.
+
 The analyzer originally assumed every paired barrier difference was positive.
 That assumption is not a gate in the R6 prompt. The corrected analyzer keeps
 the same subtraction and per-pair ratio, including negative values, and reports
