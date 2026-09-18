@@ -19,13 +19,13 @@ is inferred from the narrower archived verifier.
 | W-c,d,e | Complete: 12 legacy table pairs identical, point and interval CG/host equality plus fifteen full schedule/waits/events comparisons from ten fresh processes, 49 CTest, and 12 default SEQSCAN cells each 50/50 |
 | B1 | Complete 7500 processes and 60 traces; supplemental 100-process identical-kernel diagnostic does not reproduce original W1 timing band, causal interpretation locally stopped (F-214) |
 | S5 | Finite template certificates retained; interval producer preserves actual point winners outside fitted families; all six selected-winner audits complete, three fitted winners proved at their actual grids; 55/55 actual native/template queues also identical (F-211) |
-| A1 audit | Public configs/coverage retained; refresh maximal-coverage assessment |
+| A1 audit | Public configs/coverage complete; maximal supported connected graph assessed and its numerical stop recorded |
 | A1 maximal covered subset | Implemented all supported attention/projection/MLP/head regions; new maximal graph fails one final residual element in five geometries. A1 numerical admission stops under §9.2; old MLP 50/50 remains narrower, never maximal (MODELS/subset.md). |
 | D1 and documentation | Final continuation results annotated; original text and skeleton scope preserved |
 | H1..H7 | Scope/order/provenance checks; default SASS stamp after final source/docs |
 | Four sm_120 runners | Complete SELF_CHECK=1 after local calibration-domain/SEQSCAN portability repairs; no sm_120 GPU execution |
-| Raw verifier | Add coverage checks for formerly under-tested obligations; run all before exit |
-| Report and push | Pending final full verifier, report regeneration, parent/child SASS stamp and push; hard-gate failures remain explicit |
+| Raw verifier | All 30 raw-data gates run to completion: four hard failures retained, A1 report failure retained; B1 causal limitation separately recorded |
+| Report and push | Complete report is generated from actual full verifier output. Final identity is resolved by sass_identity/manifest.json and its artifact-only child commit; remote delivery is checked against origin/tilemega. Hard-gate failures remain explicit. |
 
 Explicit exclusions remain R6 section 2: new missing operators, actual Fuse
 search, shared-memory prefetch pipeline, EX-V1 full sweep, EX-E5/S4 and serving.
