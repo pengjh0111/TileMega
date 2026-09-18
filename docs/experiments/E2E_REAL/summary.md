@@ -22,8 +22,16 @@ Written for: the TileMega maintainers reviewing this round against the R7 prompt
 | 10 | `465737737` docs: record the round seven closure results | 15, 17 |
 | 11 | `bfd3102f3` experiments: stamp the sass identity at head | 18 |
 
-No push rights on `origin`; the series is at `/tmp/round7-patches/` (11
-patches, `git format-patch 4e0e7b119..HEAD`).
+| 12 | this report's commit list | — |
+| 13 | `experiments: stamp the sass identity at head` | 18 |
+
+Commit 13 is the H2 stamp, regenerated so that it follows every source and
+document commit, as R4–R6 did; its `manifest.json` records `source_head` as its
+parent, commit 12. The stamp committed earlier at commit 11 is superseded by it
+and reported the same result.
+
+No push rights on `origin`; the series is at `/tmp/round7-patches/`
+(`git format-patch 4e0e7b119..HEAD`).
 
 Prompt §13 lists 18 steps as 18 commits; this round used two extra commits to
 keep a mechanism separate from the experiment that measures it and the analysis
