@@ -5809,3 +5809,140 @@ unchanged L1 under nofence and unchanged L2 under l1nosync; all 250 barrier
 differences remain, including 25 nonpositive values. Evidence:
 `REBASE/bounded_raw/`, `bounded_w1_identity/`, `bounded_w1_repeat/`,
 `bounded_probe_audit/` and `bounded_analysis/`.
+
+## F-215 — R7 separates the two precision defects from the R6 numerical failure
+
+✅ **Verified.** Both defects R6 recorded are real and both are fixed. The
+normalization epsilon is no longer the hardcoded `1.0e-6f` of
+`RMSNormTaskBody.h`: it is read off the `add(variance, eps)` literal inside each
+matched normalization, carried in `ModelPlan::norm_epsilon`, generated as
+`TILEMEGA_NORM_EPSILON` and cross-checked against `ModelSpec` at run time. A
+Llama-3.2-1B configuration now generates `1e-05f` and a Qwen3-1.7B one
+`1e-06f`, from the graph rather than from a model name or a dtype. The rotary
+phase is no longer rounded to model storage: when the exported frequency table
+is FP32 the position, the table read and the angle stay FP32, and only the
+cosine and sine are rounded once, which is what the reference implementations
+do before they multiply.
+
+✅ **Verified.** Neither defect explains F-203. Four builds of R6's frozen
+covered graph -- baseline, epsilon only, RoPE only, and both -- give the same
+`V[0,463] = -0.44921875` and the same single failing output of 66
+(`MODELS2/ablation/admitted2/ablation.tsv`). This is structural, not a null
+result: `MODELS/export_covered.py` cuts the embedding, both per-layer
+normalizations, the rotation and the final normalization out of the covered
+region, so that graph contains no `kRMSNorm` and no `kRoPE` stage at all (113
+`kGemm`, 32 `kAdd`, 32 `kKVAppend`, 16 `kAttention`, 16 `kElementwise`). An
+epsilon no stage reads and a rotation no stage performs cannot move an output.
+R7 §1(三) attributes the A1-subset failure to these two defects; for this graph
+that attribution does not hold, and the ablation is the evidence.
+
+Evidence: `MODELS2/ablation/admitted2/{ablation.tsv,*/run.json}`,
+`MODELS2/subset.md`.
+
+## F-216 — R7 admits the maximal connected Llama graph by settling one rounding
+
+✅ **Verified.** `V[0,463]` of the first layer is `v_proj` applied to a graph
+input: one 2048-term FP32 dot product, with nothing upstream. Its FP64 value
+-0.450195362966042 sits 5.05e-8 -- about 1.69 FP32 ulp -- from the BF16 midpoint
+-0.4501953125, against a realistic FP32 K-loop error some thirty times larger.
+No association of that sum decides the rounding reliably.
+
+✅ **Verified.** `TILEMEGA_MIDPOINT_REFINE` recomputes in FP64 exactly those
+elements whose accumulator lies within `TILEMEGA_MIDPOINT_GUARD` (2^-6) of a
+BF16 ulp of a midpoint. A BF16 product is exact in FP64, so only the FP64
+summation error remains, around 2^-40 of the FP32 one. Both rounding sites are
+covered: the unsplit CUTLASS epilogue and the split-K combiner, the latter
+through a new `GemmInvocation::k_total`, since a chunk cannot recover the
+undivided K. With it the whole first-layer V matches its FP64 rounding in every
+element, all 66 outputs pass, and 50 fresh processes are 50/50 with one binary
+-- tolerance 0.0231875014, output set, seed and residual edges unchanged from
+the run that failed. The switch is off by default, so the generated code without
+it is what it was before the pass existed.
+
+Evidence: `MODELS2/admission/admitted2/correctness/r{0..49}.{log,json}`,
+`MODELS2/ablation/admitted2/refine/run.json`.
+
+## F-217 — R7 fills the three operator gaps, at a higher change cost than audited
+
+✅ **Verified.** Three families landed. The token embedding is a new
+`TaskKind::kEmbedding` owning one token row; its identifiers keep the exported
+index tensor's own width (`TILEMEGA_TOKEN_ID_BITS`, 64 for a `torch.int64`
+export) and occupy that many model elements, because widening an index to BF16
+storage would alias vocabulary rows above 2^8. The per-head query/key
+normalization is a new `TaskKind::kQKNorm`: the arithmetic is the row body's,
+but the ownership is one (token, head) rather than one token, so `OwnershipOf`,
+the device `ActiveBlocks`, the host task count and the runtime projection all
+extend. The final normalization is recognized after the last layer's residual,
+outside `DecoderLayerPattern`, and emitted as a stage of its own, together with
+the vocabulary projection that reads it.
+
+⚠️ **Stated: the audited cost was an underestimate.** R6's
+`MODELS/extension_sites.tsv` lists 15 conditional sites. The embedding alone
+touched 19, and four of them are outside that table: `PlanTaskKind` is a
+separate enumeration from the plan role; the CG's known task kinds and the
+arithmetic signature table each need an entry; and a generated per-family
+runtime switch is required, which the table could not have predicted because it
+is a consequence of the default-build SASS identity rule rather than of the
+operator (F-218). `ScalarTaskWork.cpp`'s conditional was not needed: both new
+families reuse `kTilePerBlock`. The QK normalization touched 16 sites, the final
+normalization 2.
+
+Evidence: `MODELS2/subset.md`, commits `ef71973ec`, `35d8751fb`, `66c6497a4`.
+
+## F-218 — A new TaskBody family costs default-build SASS unless it is generated
+
+✅ **Verified.** Adding `case TaskKind::kEmbedding` to the three device
+dispatches moved the two reference models' default-build SASS: branch targets
+shift by 0x60 and the diff runs to 54747 lines, although no reference model has
+an embedding stage. The switch is over a runtime value, so an unreachable case
+is still code. Compiling the case out behind a generated
+`TILEMEGA_EMBEDDING_RUNTIME`, which Codegen defines only when the plan names the
+family, restores byte identity: the SASS then differs from baseline only in
+nvcc's compile-path identifier string. `TILEMEGA_QK_NORM_RUNTIME` follows the
+same rule.
+
+✅ **Verified.** With both families off by default, `gqa2.cu` and `mha4.cu`
+compiled against the baseline tree's headers and host archive and against
+HEAD's are byte-identical in SASS.
+
+## F-219 — R7 counts a gather by the row it reads, not by the table it might read
+
+✅ **Verified.** The embedding's table read is data dependent: the row index is
+a value, so no rectangle expresses it and `ElementAccess` refuses it. The whole
+table is the only sound rectangular cover, which is what the coupling
+derivation uses and what sends the operator to the I2 relaxation -- but read as
+traffic it overstates the work by the whole vocabulary, which would dominate
+the solve. The operator therefore declares a complete element read: the count is
+one row of `hidden` elements per token, which is exact. `DeriveTaskWork` now
+skips the rectangular projection for a data-dependent operand whose tensor has
+such a declaration, since the exact pass already replaces the count.
+
+⚠️ **Stated.** The declared read carries a zero offset on the vocabulary axis.
+Only its cardinality is consumed; the location fact stays in the data-dependent
+operand map. A consumer that reads this relation as a footprint rather than as
+a count would be wrong, and nothing currently does.
+
+## F-220 — R7's whole-decoder path runs, and it is what first exercises A1 and A2
+
+✅ **Verified.** `MODELS2/export_full.py` exports a complete decoder -- token
+embedding, every layer, the final normalization and the vocabulary head, with
+the rotary table computed on the host per config (`rope_scaling` applied) and
+registered as an FP32 buffer. `tilemega-compile` imports, solves, writes back
+and generates it in one command. A Llama-shaped model generates
+`TILEMEGA_NORM_EPSILON 1e-05f`, `TILEMEGA_ROPE_FP32_PHASE 1`,
+`TILEMEGA_TOKEN_ID_BITS 64` and three `kRMSNorm` stages; a Qwen3-shaped one
+generates `1e-06f` and two `kQKNorm` stages. Both run correct against their CPU
+golden with L0.5, L1 and L2 agreeing bit for bit.
+
+✅ **Verified: the FP32 rotary path was unreachable before this round.** The
+importer required every model input to agree with the model's storage dtype, so
+an FP32 frequency table -- the only thing that sets `rope_fp32_phase` -- was
+rejected before the layer loop could look at it. The check is now deferred: the
+identifiers and the phase table are named as the two legitimate exceptions by
+the loop that consumes them, and any other disagreement still throws.
+
+⚠️ **Stated.** Two frontend robustness fixes were needed and both are
+architectural facts, not accommodations: `DecoderLayerPattern`'s input
+normalization is now unordered, because the published modeling code writes
+`self.weight * hidden_states` while the archived reference graph scales then
+weights; and `aten.reshape.default` and `aten.slice.Tensor` are layout-only.
