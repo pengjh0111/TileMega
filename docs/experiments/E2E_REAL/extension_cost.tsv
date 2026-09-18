@@ -1,0 +1,4 @@
+operator	change_sites	audited_by_r6	sites_outside_the_r6_table	notes
+token_embedding	19	15	PlanTaskKind enumeration; CG known task kinds; arithmetic signature table; generated per-family runtime switch	ScalarTaskWork.cpp's conditional was not needed: kTilePerBlock is reused
+per_head_qk_norm	16	15	PlanTaskKind enumeration; CG task-kind mapping; generated per-family runtime switch; runtime projection task count	new ownership is one (token, head); OwnershipOf, device ActiveBlocks, host task count and the projection all extend
+final_norm_and_head	2	15	none	recognized after the last residual, outside DecoderLayerPattern; no new TaskKind
