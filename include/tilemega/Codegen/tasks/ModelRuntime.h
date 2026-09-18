@@ -43,6 +43,21 @@ enum class ScalarType : std::uint32_t { kF32 = 0, kBF16 = 1 };
 #define TILEMEGA_ROPE_FP32_PHASE 0
 #endif
 
+// Whether a GEMM element whose FP32 accumulator sits near a BF16 rounding
+// boundary is recomputed in FP64 before it is rounded. Off by default: at zero
+// refinements the generated code is what it was before the pass existed, which
+// is what the default-build SASS identity checks.
+#ifndef TILEMEGA_MIDPOINT_REFINE
+#define TILEMEGA_MIDPOINT_REFINE 0
+#endif
+
+// How close to the boundary counts as near, in units of the BF16 ulp at that
+// magnitude. The FP32 K-loop error grows with the running partial sums rather
+// than with the result, so the guard is relative to the ulp and not absolute.
+#ifndef TILEMEGA_MIDPOINT_GUARD
+#define TILEMEGA_MIDPOINT_GUARD 0.015625f
+#endif
+
 // Ablation only, never generated: keeps `cosf`/`sinf` in FP32 instead of
 // rounding them once to model storage. The reference implementations cast the
 // cosine and sine to the model dtype before multiplying, so the rounded form

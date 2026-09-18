@@ -1472,6 +1472,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       invocation.tile_n = tiling.tile_n;
       invocation.chunks = chunks;
       invocation.variant = variant;
+      invocation.k_total = desc.k;
       gemms.push_back(invocation);
     }
   }

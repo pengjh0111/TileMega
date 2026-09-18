@@ -23,6 +23,20 @@ struct GemmCombineTaskBody {
   static constexpr int kStages = ResourceTraits::kStages;
   static constexpr bool kLegal = true;
 
+  /// The combined sum, with an element near a BF16 rounding boundary settled
+  /// against the whole dot product rather than against the split association.
+  __device__ static float Refine(Params const& p, StageDesc const& stage,
+                                 int row, int col, float sum) {
+#if TILEMEGA_MIDPOINT_REFINE
+    auto const& invocation =
+        static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+    return RefinedGemmElement(invocation, row, col, sum);
+#else
+    (void)p; (void)stage; (void)row; (void)col;
+    return sum;
+#endif
+  }
+
   __device__ static ModelElement Finish(float sum, Params const& p,
                                         StageDesc const& stage, int index) {
 #if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
@@ -74,7 +88,7 @@ struct GemmCombineTaskBody {
         float sum = 0.0f;
         for (int c = 0; c < chunks; ++c)
           sum += static_cast<float>(partials[c * count + i]);
-        out[i] = Finish(sum, p, stage, i);
+        out[i] = Finish(Refine(p, stage, row, col, sum), p, stage, i);
       }
       return;
     }
@@ -83,7 +97,9 @@ struct GemmCombineTaskBody {
     float sum = 0.0f;
     for (int c = 0; c < chunks; ++c)
       sum += static_cast<float>(partials[c * count + i]);
-    out[i] = Finish(sum, p, stage, i);
+    out[i] = Finish(Refine(p, stage, i / static_cast<int>(stage.width),
+                           i % static_cast<int>(stage.width), sum),
+                    p, stage, i);
   }
 
   __device__ void operator()(Params const& p, StageDesc const& stage,

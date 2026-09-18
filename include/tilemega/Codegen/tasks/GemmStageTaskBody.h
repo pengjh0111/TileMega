@@ -421,7 +421,60 @@ struct GemmInvocation {
   /// Which compiled tile shape runs this GEMM.  Host-assigned, so the DP's
   /// per-operator plan reaches the device without a second task kind.
   int variant = 0;
+  /// The undivided K. `problem.k` is this chunk's slice of it, so a consumer
+  /// that has to reproduce the whole dot product -- the combiner refining an
+  /// element -- cannot recover it from the chunk alone.
+  int k_total = 0;
 };
+
+/// The exact dot product behind one output element. A BF16 product is exact in
+/// FP64, so the only error left is the FP64 summation, some 2^-40 of the FP32
+/// one; it settles the BF16 rounding the FP32 accumulator could not.
+__device__ inline float ExactGemmElement(GemmInvocation const& invocation,
+                                         int m, int n) {
+  using namespace cute;
+  auto [M, N, K, L] = invocation.problem;
+  int const k_total = invocation.k_total;
+  Tensor matrix_a = make_tensor(make_gmem_ptr(invocation.mainloop.ptr_A),
+                                make_shape(M, k_total, L), invocation.mainloop.dA);
+  Tensor matrix_b = make_tensor(make_gmem_ptr(invocation.mainloop.ptr_B),
+                                make_shape(N, k_total, L), invocation.mainloop.dB);
+  double sum = 0.0;
+  for (int k = 0; k < k_total; ++k)
+    sum += static_cast<double>(static_cast<float>(matrix_a(m, k, 0))) *
+           static_cast<double>(static_cast<float>(matrix_b(n, k, 0)));
+  return static_cast<float>(sum);
+}
+
+/// Whether the FP32 accumulation error could have put `value` on the wrong
+/// side of the BF16 rounding boundary. F-203: one element of the covered Llama
+/// graph misses the boundary by 1.7 FP32 ulp, which no association of a 2048
+/// term FP32 sum resolves.
+__device__ inline bool NearRoundingBoundary(float value) {
+  if (!isfinite(value)) return false;
+  float const rounded = static_cast<float>(ModelElement(value));
+  std::uint32_t const bits = __float_as_uint(rounded);
+  // One step of the BF16 significand, away from zero: the pattern is the top
+  // half of the FP32 one, so incrementing it moves by exactly one BF16 ulp.
+  float const next = __uint_as_float(((bits >> 16) + 1u) << 16);
+  float const ulp = fabsf(next - rounded);
+  if (!isfinite(ulp) || ulp == 0.0f) return false;
+  return fabsf(fabsf(value - rounded) - 0.5f * ulp) <
+         TILEMEGA_MIDPOINT_GUARD * ulp;
+}
+
+/// The FP32 sum an element should be rounded from: the accumulated one, unless
+/// it sits near a boundary the accumulation cannot be trusted to have chosen.
+__device__ inline float RefinedGemmElement(GemmInvocation const& invocation,
+                                           int m, int n, float sum,
+                                           float bias = 0.0f) {
+#if TILEMEGA_MIDPOINT_REFINE
+  if (NearRoundingBoundary(sum + bias)) return ExactGemmElement(invocation, m, n);
+#else
+  (void)invocation; (void)m; (void)n; (void)bias;
+#endif
+  return sum;
+}
 
 template <class Arch, class SmemUnion, int Threads>
 struct GemmStageTaskBody {
@@ -477,6 +530,27 @@ struct GemmStageTaskBody {
              static_cast<int>(threadIdx.x), shared);
 #endif
     TILEMEGA_PHASE_STAMP(3);
+#if TILEMEGA_MIDPOINT_REFINE
+    // An unsplit GEMM rounds here, so this is where an accumulator too close to
+    // a BF16 boundary has to be settled; a split one rounds in the combiner.
+    if (invocation.chunks == 1 && invocation.epilogue.thread.alpha == 1.0f) {
+      auto owned = tiled_mma.get_thread_slice(int(threadIdx.x))
+                       .partition_C(make_identity_tensor(take<0, 2>(tile_shape)));
+      auto source = make_tensor(make_gmem_ptr(invocation.epilogue.ptr_C),
+                                make_shape(M, N, L), invocation.epilogue.dC);
+      float const beta = invocation.epilogue.thread.beta;
+      CUTLASS_PRAGMA_UNROLL
+      for (int i = 0; i < size(accum); ++i) {
+        int global_m = tile_m * size<0>(tile_shape) + get<0>(owned(i));
+        int global_n = tile_n * size<1>(tile_shape) + get<1>(owned(i));
+        if (global_m >= M || global_n >= N) continue;
+        float bias = (beta != 0.0f && invocation.epilogue.ptr_C != nullptr)
+                         ? beta * static_cast<float>(source(global_m, global_n, 0))
+                         : 0.0f;
+        accum(i) = RefinedGemmElement(invocation, global_m, global_n, accum(i), bias);
+      }
+    }
+#endif
     if constexpr (SharedOutput) {
       static_assert(TILEMEGA_FUSION_SHARED_EPILOGUE || !SharedOutput,
                     "shared fusion epilogue is disabled");
