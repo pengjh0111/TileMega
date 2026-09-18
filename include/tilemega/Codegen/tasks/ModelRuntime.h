@@ -35,6 +35,22 @@ enum class ScalarType : std::uint32_t { kF32 = 0, kBF16 = 1 };
 #define TILEMEGA_NORM_EPSILON 1.0e-6f
 #endif
 
+// Whether the rotary phase is built in FP32: the position, the angle and the
+// frequency table itself. Generated from the imported model, because the
+// exported graph decides it -- a frequency table exported in model storage
+// rounds the angle to that storage, one exported in FP32 does not.
+#ifndef TILEMEGA_ROPE_FP32_PHASE
+#define TILEMEGA_ROPE_FP32_PHASE 0
+#endif
+
+// Ablation only, never generated: keeps `cosf`/`sinf` in FP32 instead of
+// rounding them once to model storage. The reference implementations cast the
+// cosine and sine to the model dtype before multiplying, so the rounded form
+// is the faithful one; this switch exists to measure the difference.
+#ifndef TILEMEGA_ROPE_FP32_TRIG
+#define TILEMEGA_ROPE_FP32_TRIG 0
+#endif
+
 #if defined(TILEMEGA_MODEL_BF16) && TILEMEGA_MODEL_BF16
 using ModelElement = cutlass::bfloat16_t;
 inline constexpr ScalarType kCompiledScalarType = ScalarType::kBF16;

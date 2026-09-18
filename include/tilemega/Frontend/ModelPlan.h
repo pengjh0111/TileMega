@@ -89,6 +89,12 @@ struct ModelPlan {
   /// every matched normalization. Zero means no normalization was matched;
   /// it is never defaulted to a dtype- or model-specific constant.
   double norm_epsilon = 0.0;
+  /// Whether the exported graph builds the RoPE phase in FP32. It is read off
+  /// the frequency table's own dtype: a table exported in FP32 is multiplied
+  /// by FP32 positions and produces an FP32 angle, while a table exported in
+  /// model storage rounds the angle to that storage. Both exist, so neither
+  /// can be assumed.
+  bool rope_fp32_phase = false;
   std::vector<PlanBuffer> buffers;
   std::vector<PlanGemm> gemms;
   std::vector<PlanStage> stages;

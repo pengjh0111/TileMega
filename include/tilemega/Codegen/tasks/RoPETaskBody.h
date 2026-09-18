@@ -8,6 +8,20 @@
 
 namespace tilemega::codegen {
 
+#if TILEMEGA_ROPE_FP32_PHASE
+/// The exported graph keeps the positions in FP32, so no conversion boundary
+/// exists to reproduce here.
+__device__ inline float RoPEPosition(int past, int token) {
+  return static_cast<float>(past + token);
+}
+
+/// An FP32 frequency table occupies two model elements per value, so that the
+/// host-computed table -- `rope_scaling` applied -- is copied in unchanged and
+/// read back at its own precision.
+__device__ inline float RoPEFrequency(ModelElement const* table, int half) {
+  return reinterpret_cast<float const*>(table)[half];
+}
+#else
 /// The source graph materializes an integer arange then converts it to model
 /// storage. Keeping that conversion boundary here makes non-zero-past RoPE
 /// independent of backend-specific low-precision arange midpoint behavior.
@@ -15,13 +29,29 @@ __device__ inline float RoPEPosition(int past, int token) {
   return static_cast<float>(ModelElement(static_cast<float>(past + token)));
 }
 
+__device__ inline float RoPEFrequency(ModelElement const* table, int half) {
+  return static_cast<float>(table[half]);
+}
+#endif
+
 struct RoPEPair { ModelElement first,second; };
 __device__ inline RoPEPair RotateRoPEPair(ModelElement const* input,
     ModelElement const* inv_freq,int past,int token,int base,int half,int half_dim) {
   float position = RoPEPosition(past, token);
+#if TILEMEGA_ROPE_FP32_PHASE
+  float angle = position * RoPEFrequency(inv_freq, half);
+#else
   float angle = static_cast<float>(ModelElement(position * static_cast<float>(inv_freq[half])));
+#endif
+#if TILEMEGA_ROPE_FP32_TRIG
+  float c = cosf(angle);
+  float s = sinf(angle);
+#else
+  // The reference casts the cosine and sine to the model dtype before the
+  // multiply, so this rounding is part of the expected value, not a shortcut.
   float c = static_cast<float>(ModelElement(cosf(angle)));
   float s = static_cast<float>(ModelElement(sinf(angle)));
+#endif
   float a = static_cast<float>(input[base + half]);
   float b = static_cast<float>(input[base + half + half_dim]);
   float ac = static_cast<float>(ModelElement(a * c));
@@ -32,7 +62,9 @@ __device__ inline RoPEPair RotateRoPEPair(ModelElement const* input,
 }
 
 /// operand = {input, output, inv_freq}; `extent` is the head count of this
-/// tensor (a per-token count, so the token axis stays symbolic).
+/// tensor (a per-token count, so the token axis stays symbolic). Under
+/// `TILEMEGA_ROPE_FP32_PHASE` the frequency buffer holds FP32 values, two
+/// model elements each.
 template <class Arch, class SmemUnion, int Threads>
 struct RoPETaskBody {
   using ResourceTraits = SimtTaskResources<TaskKind::kRoPE,Threads>;

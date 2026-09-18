@@ -96,10 +96,14 @@ struct PlanBuilder {
     return id;
   }
 
-  std::uint32_t Weight(SignatureInput const& input) {
+  /// `elements_per_value` is 2 for a table the device reads back as FP32:
+  /// buffers are arrays of model elements, so an FP32 value occupies two of
+  /// them and the fixture bytes are copied in unchanged.
+  std::uint32_t Weight(SignatureInput const& input,
+                       std::uint32_t elements_per_value = 1) {
     FxNodeRecord const& node = Node(input.name);
-    return Buffer({input.name, NumericElements(node), 0, 0, 0,
-                   PlanBuffer::Source::kWeight,
+    return Buffer({input.name, NumericElements(node) * elements_per_value,
+                   0, 0, 0, PlanBuffer::Source::kWeight,
                    "state_" + FileComponent(input.target) + ".bin"});
   }
 
@@ -564,7 +568,11 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     std::uint32_t wg = weight(gate_node.inputs[1]);
     std::uint32_t wu = weight(up_node.inputs[1]);
     std::uint32_t wd = weight(down_node.inputs[1]);
-    std::uint32_t inv = builder.Weight(*inv_freq_sig->second);
+    bool const fp32_phase =
+        builder.Node(inv_freq_sig->first).dtype == "torch.float32";
+    builder.plan.rope_fp32_phase = fp32_phase;
+    std::uint32_t inv =
+        builder.Weight(*inv_freq_sig->second, fp32_phase ? 2u : 1u);
     std::uint32_t past_k = builder.Buffer(
         {past_k_name, 0, 0, kv_width, 0, PlanBuffer::Source::kFixture,
          "input_" + past_k_name + ".bin"});

@@ -192,10 +192,23 @@ std::string formatFloat(double value) {
   return out.str();
 }
 
+/// Absent in every CG dumped before the RoPE phase precision became model
+/// data, where it was uniformly the storage dtype.
+bool optionalBoolField(mlir::DictionaryAttr dictionary, llvm::StringRef name) {
+  auto value = llvm::dyn_cast_or_null<mlir::BoolAttr>(dictionary.get(name));
+  return value && value.getValue();
+}
+
 /// The generated define that carries the model's own normalization epsilon to
 /// the device. It is a macro rather than a `ModelSpec` load so the constant
 /// stays an immediate in the normalization bodies; `ModelSpec` carries the
 /// same number and the harness checks that the two agree.
+std::string emitRoPEPrecision(mlir::DictionaryAttr plan) {
+  if (!optionalBoolField(plan, "rope_fp32_phase")) return {};
+  return "#ifndef TILEMEGA_ROPE_FP32_PHASE\n"
+         "#define TILEMEGA_ROPE_FP32_PHASE 1\n#endif\n";
+}
+
 std::string emitNormEpsilon(mlir::DictionaryAttr plan) {
   double epsilon = optionalFloatField(plan, "norm_epsilon");
   if (epsilon <= 0.0) return {};
@@ -1000,7 +1013,7 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
   out << "// SPDX-License-Identifier: BSD-3-Clause\n"
       << "// Generated from verified fused L-task phase and dependency projections.\n";
   if (stringField(original,"dtype")=="bf16") out << "#define TILEMEGA_MODEL_BF16 1\n";
-  out << emitNormEpsilon(original);
+  out << emitNormEpsilon(original) << emitRoPEPrecision(original);
   auto feature=[&](char const* name,int value) {
     out << "#ifndef " << name << "\n#define " << name << ' ' << value << "\n#endif\n";
   };
@@ -1154,6 +1167,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
       << (stringField(emittedPlan, "dtype") == "bf16"
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
       << emitNormEpsilon(emittedPlan)
+      << emitRoPEPrecision(emittedPlan)
       << (clusterDim > 1 ? "#define TILEMEGA_GENERATED_CLUSTER_DIM " +
                                std::to_string(clusterDim) + "\n"
                           : std::string())
@@ -1245,6 +1259,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
       << (stringField(first_plan, "dtype") == "bf16"
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
       << emitNormEpsilon(first_plan)
+      << emitRoPEPrecision(first_plan)
       << emitSolvedLaunch(first)
       << EmitGemmInstantiations(shapes)
       << emitAttentionStorage(first, records)
