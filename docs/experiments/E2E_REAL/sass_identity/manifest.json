@@ -1,8 +1,8 @@
 {
   "baseline": "4e0e7b119b30500456a59db719614d0abf7fa699",
-  "source_head": "4657377370e7fd10e254657c37110715a40203e3",
+  "source_head": "868ac438c5d2bb0ef871412bd97d41450fdaeb17",
   "provisional": false,
-  "started_utc": "2026-09-18T23:03:58.540430+00:00",
+  "started_utc": "2026-09-18T23:08:32.753599+00:00",
   "models": {
     "gqa2": {
       "sha256": "5f6c72bafd6a56bdb5cf095e624aa998817163cf2216f91f57896bba9f133412",
@@ -99,7 +99,7 @@
     "docs/experiments/E2E_REAL/run_e2e.py": "e1bced36deb740e4f1b2ea64faeae36e1c6ac15b3dd315a9d33bf70c73243900",
     "docs/experiments/E2E_REAL/run_sm120.sh": "80fbc02f3b3767f8a95e8542c681771018f30af951bda8fd4fe8683a63720c0a",
     "docs/experiments/E2E_REAL/sass_identity.py": "9d73e70b45957f9980f6c6ca9bcdfacae6409f0654bcbfeab72c3e9a1b9a9634",
-    "docs/experiments/E2E_REAL/summary.md": "d9c86f25d4e3c258262adf2410985d61561e0285c519417cf4297dd6f87f555e",
+    "docs/experiments/E2E_REAL/summary.md": "4cf1a5fdb98d32dc5bbafa774bd6d771f9f46b29d3d81a5415c80cfee031bd36",
     "docs/experiments/E2E_REAL/verify.py": "122f45850a81730e89f8448020fb9cce5e443b62d01856951549357d0cf0e515",
     "docs/experiments/MODELS2/ablate.py": "22eaf0806b9f0e4b1ba882565dbeedd4af3be951077ebf2b676a757076dde8f3",
     "docs/experiments/MODELS2/ablation/admitted2/a1/dump/buffer_0.bin": "a2d1f9b1f1e61a30edf1716f6367e2a48c525f7562db32a630a80809d6de5767",
@@ -458,5 +458,5 @@
   },
   "baseline_host_sha256": "6625bc29b380bd7948aa3f7da8f5dc1d6fe0c82e9c3e0fd9ce249463c42888c0",
   "head_host_sha256": "b1ea93a644b43f69ef1a4783142585326d45141c9864b52886e32ef078bacac4",
-  "finished_utc": "2026-09-18T23:05:49.367255+00:00"
+  "finished_utc": "2026-09-18T23:10:21.537794+00:00"
 }
