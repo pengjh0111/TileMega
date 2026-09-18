@@ -1,8 +1,8 @@
 {
   "baseline": "bad8a0d9b17804b73afe00a6d545dcea72cc6cbb",
-  "source_head": "948bdfb79f1e313177b8573de81ee129b7f37a77",
+  "source_head": "481d550dd28cbe2dedb3fbe37eb0e484ec202125",
   "provisional": false,
-  "started_utc": "2026-09-18T07:57:20.029423+00:00",
+  "started_utc": "2026-09-18T08:30:03.739635+00:00",
   "models": {
     "gqa2": {
       "sha256": "3a302f1123378cbd6ccc5bcbf88c4e4799d82147b7e45e829462b3513c03dde2",
@@ -92,7 +92,7 @@
   "inputs": {
     "TileMega_skeleton.md": "69072e65a2d67d98b70ec164f13dd228c638dcbcf68d04e741917eae12274cb3",
     "docs/FINDINGS.md": "0d80237cfada13811277d52dcca10d2f5c310875b74301b6f329feb6912d2cfc",
-    "docs/STATUS.md": "fea5df4c97fea1b0fca0f80a67cb021ea9fb78764b82ffef6cfba8ccf4046319",
+    "docs/STATUS.md": "62aa6671ab740f473cf8d5718cdf8c91de704e5343b9610afd58cd794b1a87db",
     "docs/TODO.md": "5f2350840e2bad0d8e67704d94a9769d01ee863f0f2d22c05053b7cee480aeaa",
     "docs/experiments/COSTMODEL/analyze_kloop.py": "7c1f698931a1e7424a3e9b2cf9e8ca485d870b41beafd8d4c56138173894eb6f",
     "docs/experiments/COSTMODEL/audit_prepared.cpp": "e8225fb588acabae8ff0d8462ef3d6a3fcbf9ac87974e9066a56226791b27e4f",
@@ -6497,7 +6497,7 @@
     "docs/experiments/JOINT2/closure/portable_analysis/comparisons_gqa2_s4.tsv": "cd18a996e5b4dcc50ec768e40772b1fc2b975c653f5a4f3f3ef3d883061d0f55",
     "docs/experiments/JOINT2/closure/portable_analysis/portability.json": "30c7c40ad6f54746654984cfcc4ca6049a34faa29310b85398b36a43ace10cac",
     "docs/experiments/JOINT2/closure/prior_cells.json": "8036fe2b786a0be443c7deb0be721ec2316573092c7031255590ed8f33f10625",
-    "docs/experiments/JOINT2/closure/requirements.md": "1774ae46ac3bb3700e934a1f8a0295ac824967546acca1d8824c51a1a317875f",
+    "docs/experiments/JOINT2/closure/requirements.md": "418964ab96ed9da0e750f9107c8fd7c6724fd560dda6187bfe1f2ce3fcf984bd",
     "docs/experiments/JOINT2/closure/search_profile/box_attempt/auto.cu.search.tsv": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "docs/experiments/JOINT2/closure/search_profile/box_attempt/run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "docs/experiments/JOINT2/closure/search_profile/box_attempt/search_command.json": "334590a0734201f43f360717fa91392a290d290c357d63568c940da654549ed8",
@@ -9034,7 +9034,7 @@
     "docs/experiments/JOINT2/rejection_scope_check.json": "5e7dae7e66f3f5512770db87ef4ad0e9a6fc419db74a1868152eefd3fae5a434",
     "docs/experiments/JOINT2/rejection_scope_check.log": "bed849650d32b05e3db4dc6ddcceb094f9820af26ebd5821384b0fed8ee8fe63",
     "docs/experiments/JOINT2/rejection_wrong_model.json": "7bc46874027903ef406b212737639f99c0f77e02ccc3b394035b6897ee2f867d",
-    "docs/experiments/JOINT2/report.py": "4a58ed84f013db779bc2e9ad8f82c147ecea0eeaf7b1252dc117cd9ea7a2cb08",
+    "docs/experiments/JOINT2/report.py": "819af9ff1412cdbd5f659d0a61c64c7171b7a45f6914d02875abb0cb17b00d30",
     "docs/experiments/JOINT2/run.py": "0a7f3fbeaf661095c6cb8d6d836a2473f13e4a910902c120454130b5bdf7eca4",
     "docs/experiments/JOINT2/run_sm120.sh": "44874b7da43be84bbb5236539522beb01f58d5120f1a9d8b42c261e3aeb26cfd",
     "docs/experiments/JOINT2/sass_identity.py": "c8ce8dd36e0b0ab4319f2fa38a62989ced771d9c8c38f64cd5199341bb7d64b4",
@@ -9912,7 +9912,7 @@
     "docs/experiments/JOINT2/simulator_histogram_driver.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "docs/experiments/JOINT2/simulator_histogram_run.log": "8c1cf71ec99358c2f357875ff97f5c4fa4eace0dfe7ce228e880c174de568ccd",
     "docs/experiments/JOINT2/sm120_common.sh": "0ac2ad9725b5741ce956ff6f65ebaccca420806100897f02d39d98c32ca57400",
-    "docs/experiments/JOINT2/summary.md": "ee43be74e98391305af8baafbadc4dbc9fd4b35680d822f21a2486c4992ae196",
+    "docs/experiments/JOINT2/summary.md": "4fa9887224d913d620151bb36058f3b2ee3e72fe39c835df2bd2b3b9fa728bf2",
     "docs/experiments/JOINT2/target_pipeline.py": "bb0484fa6aef67ba1b4cb334514f98b6e42f7d6d54a620d7b36633e153d2e9e2",
     "docs/experiments/JOINT2/verify.py": "c6112b0892eea3cf26ae00d1915a1347d3bf57828013b4791889b6a12d570177",
     "docs/experiments/MODELS/audit.json": "59ce6896e40e545644dbcd8bc08c75f21646d91cf9b965696b1623368d3573d5",
@@ -10178,6 +10178,16 @@
     "docs/experiments/REBASE/attribution_real.tsv": "887d22608bf7e205c983b19bb11a76d3781b1a0dd5035e87f8ca1cc7741038a5",
     "docs/experiments/REBASE/attribution_real_s4.tsv": "a912039f1aee74c7c98fb5a5635b54ca7a09ca31278daa9b2e1e199ae9294955",
     "docs/experiments/REBASE/audit_w1_noop.py": "3954c93d3b11354567bce058f2dc02488b36f2f6e0a9f3eef8fc99978c78fe0a",
+    "docs/experiments/REBASE/bounded_analysis/attribution_gqa2_mha4.tsv": "107293c16790cce423ada0857b3ed543c356a9b3e22c1e35b43a6a082b11e498",
+    "docs/experiments/REBASE/bounded_analysis/attribution_real.tsv": "a683360d36782a4b70b6af0e9193b2a808b4dd61877e1f5ddc28a678daf6d2ba",
+    "docs/experiments/REBASE/bounded_analysis/context_gqa2_s128.tsv": "a13a808047785509f0950fa1560c01e9fc2c691c513263290038f3bfd8e6ca1e",
+    "docs/experiments/REBASE/bounded_analysis/context_gqa2_s4.tsv": "51672a6061e102e7091823b557359acb018c9a9aec6f21a38de3adcb46178f40",
+    "docs/experiments/REBASE/bounded_analysis/context_mha4_s128.tsv": "f370606195ef19130cc1f6aee84457a555b97e5d561e882f1fdd0d7657d1008d",
+    "docs/experiments/REBASE/bounded_analysis/context_mha4_s4.tsv": "1eb33dabdbc35f1b042900bb921a9cc772faf04c323df78b2020ad2e759a0499",
+    "docs/experiments/REBASE/bounded_analysis/context_real_s128.tsv": "82dfda7107e93b29ddccada46a67dbc13e20473d4cbb889bdffff1b78aa30a7a",
+    "docs/experiments/REBASE/bounded_analysis/context_real_s4.tsv": "8c70cf5aca3f5253e82899a5f68cd2064be43a15e2114a743a2278f9e74975f7",
+    "docs/experiments/REBASE/bounded_analysis/placement_pairs.tsv": "9820062bcf3f4a78c5b85c85d0c450585dcb480e009d2479273b07fb2d28d0cd",
+    "docs/experiments/REBASE/bounded_analysis/placement_pool.tsv": "8d938d77f31ce729cd5ce95d6af0906da29e486a6625a9e5daa68919353b30ad",
     "docs/experiments/REBASE/bounded_probe_audit/barrier_pairs.tsv": "173f786e0dc44cee7044047bd75b9c7059b9938bc0e6da114135d0ec7159f288",
     "docs/experiments/REBASE/bounded_probe_audit/full.command.json": "72baae82c8c4c3518f7a4ed5110ea9056e2f5c4413ff9451b1f3234a26454353",
     "docs/experiments/REBASE/bounded_probe_audit/full.sass": "59beecfc21eb7323af5bd3bdd0470f9678a23d0887ccca06608cf710f37dbaae",
@@ -55160,5 +55170,5 @@
   },
   "baseline_host_sha256": "5abd64cef322aac2dfce91c533ebccdaed79a3863e3de9263bbb5b608a493d3c",
   "head_host_sha256": "6625bc29b380bd7948aa3f7da8f5dc1d6fe0c82e9c3e0fd9ce249463c42888c0",
-  "finished_utc": "2026-09-18T07:59:11.990575+00:00"
+  "finished_utc": "2026-09-18T08:32:07.754836+00:00"
 }
