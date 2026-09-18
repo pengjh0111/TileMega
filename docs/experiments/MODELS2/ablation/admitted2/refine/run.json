@@ -1,0 +1,26 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/MODELS2/ablation/admitted2/bin/refine",
+    "/root/TileMega/docs/experiments/MODELS/covered_llama/fixture"
+  ],
+  "arm": "refine",
+  "geometry": "admitted2",
+  "defines": [
+    "NORM_EPSILON=1e-5f",
+    "ROPE_FP32_PHASE=1",
+    "MIDPOINT_REFINE=1"
+  ],
+  "started_ns": 1789769100660512704,
+  "elapsed_ns": 7177945466,
+  "exit_code": 0,
+  "source_sha256": "dfbf24ade2f772d9a25f401c3f9cb8c4d318818385299d1792ff7454ddc7bd96",
+  "binary_sha256": "d1683f89ac965e33552f99eb6cdc32ee6d449762f8cb8bd7ff9d7f4894f6440b",
+  "head": "db9669a609de4cead945b6231a6b0bcf6fa01a40",
+  "passed": true,
+  "v_0_463": {
+    "gpu": -0.451171875,
+    "fp64_accumulator": -0.450195362966042,
+    "fp64_rounded": -0.451171875,
+    "elements_differing_from_fp64": 0
+  }
+}
