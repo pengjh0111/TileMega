@@ -1,0 +1,6 @@
+family	grid	seq	map
+wavefront	512	1	/root/TileMega/docs/experiments/SYMBOLIC/bounded_certificates/mha4_s4/s1_16/wavefront_g512.pi_sigma.isl
+wavefront	512	32	/root/TileMega/docs/experiments/SYMBOLIC/bounded_certificates/mha4_s4/s17_32/wavefront_g512.pi_sigma.isl
+wavefront	512	64	/root/TileMega/docs/experiments/SYMBOLIC/bounded_certificates/mha4_s4/s49_64/wavefront_g512.pi_sigma.isl
+wavefront	512	96	/root/TileMega/docs/experiments/SYMBOLIC/bounded_certificates/mha4_s4/s81_96/wavefront_g512.pi_sigma.isl
+wavefront	512	128	/root/TileMega/docs/experiments/SYMBOLIC/bounded_certificates/mha4_s4/s113_128/wavefront_g512.pi_sigma.isl

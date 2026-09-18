@@ -1,0 +1,5 @@
+QUEUE_EQUAL wavefront_g512_s1 nodes=5154
+QUEUE_EQUAL wavefront_g512_s32 nodes=6208
+QUEUE_EQUAL wavefront_g512_s64 nodes=12416
+QUEUE_EQUAL wavefront_g512_s96 nodes=18624
+QUEUE_EQUAL wavefront_g512_s128 nodes=24832

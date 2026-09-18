@@ -1,0 +1,20 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SYMBOLIC/queue_roundtrip/bin/check_queues",
+    "docs/experiments/JOINT2/bounded_search/gqa2_s4/auto.cu.top3.mlir",
+    "/root/TileMega/docs/experiments/SYMBOLIC/queue_roundtrip/gqa2_s4/inputs.tsv",
+    "/root/TileMega/docs/experiments/SYMBOLIC/queue_roundtrip/gqa2_s4"
+  ],
+  "inputs": {
+    "docs/experiments/JOINT2/bounded_search/gqa2_s4/auto.cu.top3.mlir": "e95f1703a46d74d703d68b9bba4291e9c1ad272942460d132c9c32d5c266f674",
+    "/root/TileMega/docs/experiments/SYMBOLIC/bounded_certificates/gqa2_s4/s1_16/wavefront_g512.pi_sigma.isl": "6fc2ef1960509a20be278ba706fa1baf0923da7bfe0c73b0902d5343968b7177",
+    "/root/TileMega/docs/experiments/SYMBOLIC/bounded_certificates/gqa2_s4/s17_32/wavefront_g512.pi_sigma.isl": "6f43d65fab786978f719edf6cd1292b4ba17ce7959dfd6763abab5a6b0592457",
+    "/root/TileMega/docs/experiments/SYMBOLIC/bounded_certificates/gqa2_s4/s49_64/wavefront_g512.pi_sigma.isl": "4339d7701b4ededfa23d09e0cc320167cf348573f223f3e140765d2b3b0d33c0",
+    "/root/TileMega/docs/experiments/SYMBOLIC/bounded_certificates/gqa2_s4/s81_96/wavefront_g512.pi_sigma.isl": "7448b3f27403ffc71c0c8b6efefec4ac1c0c0d6c48ede88afe3360f76ec5d110",
+    "/root/TileMega/docs/experiments/SYMBOLIC/bounded_certificates/gqa2_s4/s113_128/wavefront_g512.pi_sigma.isl": "35e7c46b6773e7846df89f0f44369903c2d99e646567053fe95cdea77a8cb87e"
+  },
+  "binary_sha256": "0ba28c4e78e78123a323b2e4db4fa8c92863d2a1090293add10aa0f15fe2bc3c",
+  "started_ns": 1789690059214623901,
+  "exit_code": 0,
+  "elapsed_ns": 42486217927
+}

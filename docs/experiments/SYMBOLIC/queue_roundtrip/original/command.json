@@ -1,0 +1,23 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SYMBOLIC/queue_roundtrip/bin/check_queues",
+    "/root/TileMega/docs/experiments/WRITEBACK/gqa2_resident_auto.mlir",
+    "/root/TileMega/docs/experiments/SYMBOLIC/queue_roundtrip/original/inputs.tsv",
+    "/root/TileMega/docs/experiments/SYMBOLIC/queue_roundtrip/original"
+  ],
+  "inputs": {
+    "/root/TileMega/docs/experiments/WRITEBACK/gqa2_resident_auto.mlir": "abfc48e8cb5bf750bd58bcc2656473ff4e695cc303ad4df21408ec0f9d05520a",
+    "/root/TileMega/docs/experiments/SYMBOLIC/complete/legacy_grid_stride_g256.pi_sigma.isl": "29eab42beaccbedadca47bd97a99bd7d68907a41dbe3a033083c154d12d283b1",
+    "/root/TileMega/docs/experiments/SYMBOLIC/complete/rotate_g256.pi_sigma.isl": "a5faccc2b7d5896d79d21d5d7ffc40b9b54ef391bf728fc11c51c7f32a51d5d2",
+    "/root/TileMega/docs/experiments/SYMBOLIC/complete/band_g256.pi_sigma.isl": "325c2813c6ab1295ad12b41e038aabd4237a8401fb65c673ed89e95777d11bc2",
+    "/root/TileMega/docs/experiments/SYMBOLIC/complete/wavefront_g256.pi_sigma.isl": "e5a0c181f92f15d731cf84df7f34ad4bb8cf30f1a0605876df1825cbc8be8401",
+    "/root/TileMega/docs/experiments/SYMBOLIC/complete/legacy_grid_stride_g340.pi_sigma.isl": "d8bea61203e5d6b3d47a7de57d4c34354ee7a0bac5c0e7e5ba44ecec9a69394e",
+    "/root/TileMega/docs/experiments/SYMBOLIC/complete/rotate_g340.pi_sigma.isl": "d216887512389fc3b582d9e5e6574962b78a577f83e4720140eba0a3fcc924bd",
+    "/root/TileMega/docs/experiments/SYMBOLIC/complete/band_g340.pi_sigma.isl": "81cef5b36c5064c6db87280641dff22bb6ab4d733136a7078839d9ef3cf8a8b8",
+    "/root/TileMega/docs/experiments/SYMBOLIC/complete/wavefront_g340.pi_sigma.isl": "c56517ece4c4d1acf1e7567bb8c39e86aadf72338c0d175501300e486ac00741"
+  },
+  "binary_sha256": "0ba28c4e78e78123a323b2e4db4fa8c92863d2a1090293add10aa0f15fe2bc3c",
+  "started_ns": 1789690059246276604,
+  "exit_code": 0,
+  "elapsed_ns": 539457857342
+}

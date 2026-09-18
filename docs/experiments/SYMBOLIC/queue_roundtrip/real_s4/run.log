@@ -1,0 +1,5 @@
+QUEUE_EQUAL wavefront_g256_s1 nodes=23212
+QUEUE_EQUAL wavefront_g256_s32 nodes=34496
+QUEUE_EQUAL wavefront_g256_s64 nodes=46144
+QUEUE_EQUAL wavefront_g256_s96 nodes=80640
+QUEUE_EQUAL wavefront_g256_s128 nodes=92288
