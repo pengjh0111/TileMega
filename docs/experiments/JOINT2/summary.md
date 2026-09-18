@@ -2,6 +2,8 @@
 
 The production point and finite-interval solve/writeback paths and the bounded symbolic templates are implemented. Performance acceptance is **not fully closed**: the verifier below retains every failed hard gate. These results do not establish that all single-inference decisions or all real-model operators are solved. The selected configurations remain opt-in; their reference regressions are not a delivered performance improvement.
 
+The final requirement-by-requirement documentation audit is in [closure/documentation_audit.md](closure/documentation_audit.md). It distinguishes delivered implementation, failed acceptance, permitted degradation and explicitly excluded work; it also corrects the stale EX-A detail in TODO without rewriting historical results. This documentation-only follow-up preserves the complete raw verifier output below and regenerates the final SASS parent/child stamp.
+
 ## 1. Provenance and auditable order
 
 Baseline: `bad8a0d9b17804b73afe00a6d545dcea72cc6cbb`. Branch: `tilemega`. External prompt: `/root/Prompt/TileMega_R6_prompt.md`; SHA256 `908c09131f8b395c6dfdf3e9329db5a684baf965822e528cfc4c5c2bf551793c`. Machine: RTX 4090 / sm_89. The final artifact-only child commit records its source parent in `sass_identity/manifest.json`; that parent is the final source/document revision for this report.
