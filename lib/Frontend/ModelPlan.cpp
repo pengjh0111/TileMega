@@ -193,7 +193,10 @@ GraphPattern const& DecoderLayerPattern() {
           // The layer starts at its input norm: the three projections that
           // read one scaled tensor are Q, K and V by definition, and pinning
           // them to a shared operand is what keeps a match inside one layer.
-          {"norm1", "multiply", {Any(), Param()}},
+          // Unordered: the reference graph scales then weights
+          // (`value * weight`), while the published modeling code writes
+          // `self.weight * hidden_states`. Both are the same normalization.
+          {"norm1", "multiply", {Any(), Param()}, /*unordered=*/true},
           {"q", "contraction", {Value("norm1"), Param()}},
           {"k", "contraction", {Value("norm1"), Param()}},
           {"v", "contraction", {Value("norm1"), Param()}},
@@ -536,14 +539,16 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   // accumulation remains an operator property (norm/softmax/GEMM use f32),
   // but persistent buffers and parameters must agree so a buffer id has one
   // unambiguous element size.
+  // Inputs whose dtype is not the model's. Two are legitimate and the layer
+  // loop below names them: the token identifiers are indices, and the rotary
+  // frequency table is a phase table read at its own precision. Anything else
+  // still has to agree, so the check is deferred rather than dropped -- a
+  // buffer id must have one unambiguous element size.
+  std::set<std::string> foreign_dtype;
   for (auto const& input : inputs) {
-    // The identifiers are indices, not model storage; they are the one input
-    // whose dtype is deliberately not the model's.
     if (entry_embedding && input.name == hidden_input->name) continue;
     FxNodeRecord const& node = builder.Node(input.name);
-    if (StorageDtype(node) != builder.plan.dtype)
-      throw std::runtime_error("mixed model storage dtypes are unsupported: " +
-                               hidden_node.name + " vs " + node.name);
+    if (StorageDtype(node) != builder.plan.dtype) foreign_dtype.insert(input.name);
   }
   std::uint32_t hidden = StaticExtent(hidden_node, hidden_node.shape.size() - 1);
   std::uint32_t current_hidden;
@@ -666,6 +671,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     builder.plan.rope_fp32_phase = fp32_phase;
     std::uint32_t inv =
         builder.Weight(*inv_freq_sig->second, fp32_phase ? 2u : 1u);
+    foreign_dtype.erase(inv_freq_sig->first);
     std::uint32_t past_k = builder.Buffer(
         {past_k_name, 0, 0, kv_width, 0, PlanBuffer::Source::kFixture,
          "input_" + past_k_name + ".bin"});
@@ -753,6 +759,52 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     builder.plan.node_buffer[cat_k.name] = full_k;
     builder.plan.node_buffer[cat_v.name] = full_v;
     current_hidden = next_hidden;
+  }
+
+  if (!foreign_dtype.empty())
+    throw std::runtime_error("mixed model storage dtypes are unsupported: " +
+                             hidden_node.name + " vs " + *foreign_dtype.begin());
+
+  // The tail after the last layer: the model's final normalization, and the
+  // vocabulary projection that reads it. Neither belongs to the decoder-layer
+  // pattern -- there is exactly one of each in the whole graph -- so they are
+  // recognized here, by what reads the last residual, and emitted as stages of
+  // their own rather than folded into the last layer.
+  FxNodeRecord const& last_residual = *layers.back().at("resid2");
+  for (auto const& node : nodes) {
+    if (node.index <= last_residual.index) continue;
+    if (matcher.RoleOf(node) != "multiply") continue;
+    if (!matcher.DependsOn(node.name, last_residual.name)) continue;
+    bool weighted = false;
+    for (auto const& operand : node.inputs)
+      if (matcher.IsParameter(matcher.Value(operand))) weighted = true;
+    if (!weighted) continue;
+    std::uint32_t const output = builder.Scratch("final.norm", hidden);
+    builder.Epsilon(NormalizationEpsilon(matcher, node.name));
+    builder.Stage(PlanTaskKind::kRMSNorm, node.name, 0, 0, hidden, 1,
+                  {current_hidden, weight(matcher.NearestParameter(node.name)),
+                   output});
+    semantic_output[node.name] = output;
+    builder.plan.node_buffer[node.name] = output;
+    current_hidden = output;
+    break;
+  }
+  for (auto const& node : nodes) {
+    if (node.index <= last_residual.index) continue;
+    if (matcher.RoleOf(node) != "contraction" || node.inputs.size() < 2) continue;
+    if (!matcher.DependsOn(node.name, last_residual.name)) continue;
+    auto head = signature_by_name.find(matcher.Value(node.inputs[1]));
+    if (head == signature_by_name.end()) continue;
+    FxNodeRecord const& head_node = builder.Node(head->first);
+    std::uint32_t const vocab = StaticExtent(head_node, 0);
+    std::uint32_t const logits = builder.Scratch("final.logits", vocab);
+    builder.Stage(PlanTaskKind::kGemm, node.name,
+                  builder.Gemm(current_hidden, builder.Weight(*head->second),
+                               logits, logits, vocab, hidden, 0.0f),
+                  0, 0, 1);
+    semantic_output[node.name] = logits;
+    builder.plan.node_buffer[node.name] = logits;
+    break;
   }
 
   for (std::size_t index = 0; index < outputs.size(); ++index) {

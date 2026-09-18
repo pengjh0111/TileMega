@@ -14,6 +14,7 @@ namespace {
 std::unordered_set<std::string> const& LayoutOnly() {
   static std::unordered_set<std::string> const set = {
       "aten.view.default",       "aten.permute.default",
+      "aten.reshape.default",    "aten.slice.Tensor",
       "aten.transpose.int",      "aten.contiguous.default",
       "aten.clone.default",      "aten.expand.default",
       "aten.to.dtype",           "aten._assert_tensor_metadata.default",
