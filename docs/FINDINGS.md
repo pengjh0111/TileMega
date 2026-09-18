@@ -5946,3 +5946,36 @@ architectural facts, not accommodations: `DecoderLayerPattern`'s input
 normalization is now unordered, because the published modeling code writes
 `self.weight * hidden_states` while the archived reference graph scales then
 weights; and `aten.reshape.default` and `aten.slice.Tensor` are layout-only.
+
+## F-221 — R7 localizes the real-model solve cost to the outer bound pass
+
+✅ **Verified.** The full-width Llama-3.2-1B graph (1663 FX tasks, 2174
+couplings, 47 guards) did not finish solving. After 23 minutes of CPU the search
+evidence file `auto.cu.search.tsv` was still empty: the run had not reached the
+capacity-bounded search at all.
+
+✅ **Verified: the cost is in the outer bound pass, before the capacity gate.**
+`SolveExport` (`include/tilemega/Solver/CompilerSearch.h`) builds its candidate
+list by iterating the geometry domain crossed with `split ∈ {1,2,4,8,16,32}`,
+and for each pair it calls `TorchExportImporter::Import(path, ...)` on the `.pt2`
+again and then `PreparePlacementProblem` and `PreparePlanBounds`. Each iteration
+therefore re-parses the export and re-prepares the whole model; the per-iteration
+`IMPORT_DEGRADED` line is what makes this countable from the log. With this
+round's 5-geometry domain that is 30 full imports and 30 preparations before one
+candidate is evaluated, and `--search-capacity` bounds only what comes after.
+The log stalls at the sixth, so a single preparation on this graph is minutes,
+not the 178 ms R6 measured on the reference models.
+
+⚠️ **Inferred next implementation.** Two separable fixes, and the second is not
+the one R7 §6 names. (a) C1-b as written: keep relation intervals and shared
+successor regions through the bound computation instead of materializing every
+dense edge, which lowers the cost of one preparation. (b) Reuse across the outer
+enumeration: the loop varies only `ImportOptions::gemms`, which changes task
+instantiation granularity, not the exported graph, so the parse and everything
+upstream of granularity can be hoisted out of the loop. R6 implemented prepared
+state reuse for the inner evaluation (F-191); the outer bound pass does not have
+it. (b) is bounded work with a 30x ceiling on this domain and should be measured
+first, because it may make (a) unnecessary for this graph size.
+
+Evidence: `/root/r7_work/llama/solve.log` (not committed: the export and its
+fixture are 5.6 GB), `E2E_REAL/summary.md` §4 and §11.

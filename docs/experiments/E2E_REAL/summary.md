@@ -82,7 +82,7 @@ final message accompanying this report.
 |---|---|---|---|---|---|
 | **B0** SIMT-side exposed-wait measurement | B1 (and therefore B1-a…B1-e) | not implemented | round budget was consumed by Group A, whose three operator gaps each cost more change sites than R6 audited (F-217), and by two latent defects Group A uncovered (F-218, F-220) | extend the R5/R6 phase instrumentation in `PhaseTrace.cuh` to the five SIMT TaskBodies and emit the `FORK7` line | 1–2 days |
 | **B1** paging and cross-task pipelining | D1's pipeline decision | not implemented; blocked behind B0 by R7 §5.1 and §H4 | as above | B0 first, then the `Prefetch`/`Wait`/`Compute` ABI split, the §8.6 lifetime change, the occupancy check against F-40, and the σ dimension in `PlacementPlan`/`CostModel`/the joint objective | 1–2 weeks |
-| **C1-b** preparation-phase optimization | B2, B3 | the full-width Llama solve spent over 11 minutes of CPU in preparation without emitting a single search row | `VisitFiniteRelation → isl_set_foreach_point` dense edge enumeration, exactly the site R7 §6 names; at 1663 FX tasks / 2174 couplings it is no longer a 178 ms constant but the dominant term | keep relation intervals and shared successor regions through the bound computation instead of materializing every dense edge | 3–5 days |
+| **C1-b** preparation-phase optimization | B2, B3 | the full-width Llama solve ran 23 minutes of CPU without emitting a single search row | refined after the ledger was first written, see F-221: the dominant term is `SolveExport`'s **outer bound pass**, which re-imports the `.pt2` and re-prepares the whole model once per (geometry, split) pair — 30 times on this domain — before the capacity gate applies; each preparation is itself minutes, which is the dense-edge enumeration R7 §6 names | keep relation intervals and shared successor regions through the bound computation instead of materializing every dense edge | 3–5 days |
 | **B2** per-stage κ | — | not implemented; blocked behind C1-b by §H4 | as above | C1-b first | 2–3 days |
 | **B3** intra-interval geometry | — | not implemented; blocked behind C1-b by §H4 | as above | C1-b first | 3–5 days |
 | **D1** full-width real-model end to end | D-a…D-d | the solve did not finish | the same preparation-phase enumeration as C1-b; this is C1-b's downstream, which R7 §9.1 does not draw but the measurement shows | C1-b | with C1-b, hours |
@@ -250,14 +250,20 @@ stages, and also passes.
 ## 11. Causes and next steps for gates not met
 
 1. **B0, B1, B2, B3, C1-b, D-a…D-d, A-b.** One cause dominates and it is
-   located: `VisitFiniteRelation → isl_set_foreach_point` materializes every
-   dense edge, and on the full-width Llama graph (1663 FX tasks, 2174
-   couplings, 47 guards) that consumed more than 11 minutes of CPU without
-   emitting one search row. R7 §6 already names the site and the fix — keep
-   relation intervals and shared successor regions through the bound
-   computation. Doing C1-b first is not a scheduling preference; it is what
-   makes the real-model solve, and therefore D1, A-b, B2 and B3, finish at all.
-   **Next step:** implement C1-b, then re-run
+   located, and F-221 sharpens it beyond what R7 §6 assumes. The full-width
+   Llama graph (1663 FX tasks, 2174 couplings, 47 guards) ran 23 minutes of CPU
+   without emitting one search row. The dominant term is not inside the
+   capacity-bounded search: `SolveExport` builds its candidate list by iterating
+   the geometry domain crossed with `split ∈ {1,2,4,8,16,32}` and re-importing
+   the `.pt2` and re-preparing the whole model on every pair — 30 times on this
+   domain — before `--search-capacity` applies to anything.
+   **Next step, in this order:** (a) hoist the export parse and everything
+   upstream of task granularity out of that loop, since the loop varies only
+   `ImportOptions::gemms`; R6 already did the equivalent for the inner
+   evaluation (F-191) but not here, and the ceiling is 30x on this domain.
+   (b) then C1-b as written, keeping relation intervals through the bound
+   computation, to cut the cost of one preparation. Measure after (a): it may
+   make (b) unnecessary at this graph size. Then re-run
    `run_e2e.py --root <llama> --capacity 12`, which is already written and
    whose reduced-width path is verified.
 2. **A-c.** Re-run the SEQSCAN subset at seq∈{4,128}, 50 processes each, on the
