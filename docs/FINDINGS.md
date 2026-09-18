@@ -5969,16 +5969,25 @@ reference models. Thirty pairs is therefore roughly 90 minutes before the first
 candidate is evaluated, which is why the run shows no search row rather than a
 slow one.
 
-⚠️ **Inferred next implementation.** Two separable fixes, and the second is not
-the one R7 §6 names. (a) C1-b as written: keep relation intervals and shared
-successor regions through the bound computation instead of materializing every
-dense edge, which lowers the cost of one preparation. (b) Reuse across the outer
-enumeration: the loop varies only `ImportOptions::gemms`, which changes task
-instantiation granularity, not the exported graph, so the parse and everything
-upstream of granularity can be hoisted out of the loop. R6 implemented prepared
-state reuse for the inner evaluation (F-191); the outer bound pass does not have
-it. (b) is bounded work with a 30x ceiling on this domain and should be measured
-first, because it may make (a) unnecessary for this graph size.
+✅ **Verified: the per-pair cost is the import, and most of it is not
+hoistable.** `Import` is `ImportBridgePlan(ReadExportBridge(path), ...)`, whose
+stages split at granularity: `ReadExportBridge`, `BuildModelPlan` and
+`LiftSemantics` do not read `ImportOptions::gemms`, while `Instantiate` and
+`CouplingDerivation::Derive` do. Running `tilemega-import` alone on this graph
+took over 2.5 minutes against a per-pair cost of about 3, so the import
+dominates the outer iteration and the granularity-dependent derivation dominates
+the import.
+
+⚠️ **Inferred next implementation, in this order.** (a) C1-b as written: keep
+relation intervals and shared successor regions through the bound computation
+instead of materializing every dense edge. This is the fix for
+`CouplingDerivation::Derive`, which is where the cost actually is. (b) Hoisting
+the parse, the plan build and the lifting out of the outer loop is still correct
+and still worth doing -- R6 did the equivalent for the inner evaluation (F-191)
+and the outer bound pass has none of it -- but it saves only the prefix ahead of
+granularity, not the 30x the loop structure alone would suggest. An earlier
+revision of this entry had (b) first with a 30x ceiling; that ordering was wrong
+and is corrected here rather than silently dropped.
 
 Evidence: `/root/r7_work/llama/solve.log` (not committed: the export and its
 fixture are 5.6 GB), `E2E_REAL/summary.md` §4 and §11.

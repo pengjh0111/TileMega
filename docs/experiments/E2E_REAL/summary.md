@@ -257,13 +257,15 @@ stages, and also passes.
    the geometry domain crossed with `split ∈ {1,2,4,8,16,32}` and re-importing
    the `.pt2` and re-preparing the whole model on every pair — 30 times on this
    domain — before `--search-capacity` applies to anything.
-   **Next step, in this order:** (a) hoist the export parse and everything
-   upstream of task granularity out of that loop, since the loop varies only
-   `ImportOptions::gemms`; R6 already did the equivalent for the inner
-   evaluation (F-191) but not here, and the ceiling is 30x on this domain.
-   (b) then C1-b as written, keeping relation intervals through the bound
-   computation, to cut the cost of one preparation. Measure after (a): it may
-   make (b) unnecessary at this graph size. Then re-run
+   Timing the pieces settles which fix comes first: `tilemega-import` alone on
+   this graph takes over 2.5 minutes of a roughly 3-minute pair, and inside the
+   import it is `CouplingDerivation::Derive` -- granularity-dependent, so not
+   hoistable -- that dominates.
+   **Next step, in this order:** (a) C1-b as written, keeping relation intervals
+   and shared successor regions through the bound computation instead of
+   materializing every dense edge. (b) then hoist `ReadExportBridge`,
+   `BuildModelPlan` and `LiftSemantics` out of the outer loop, which is correct
+   and cheap but saves only the prefix ahead of granularity. Then re-run
    `run_e2e.py --root <llama> --capacity 12`, which is already written and
    whose reduced-width path is verified.
 2. **A-c.** Re-run the SEQSCAN subset at seq∈{4,128}, 50 processes each, on the
