@@ -1,0 +1,15 @@
+{
+  "sources": {
+    "docs/experiments/WRITEBACK/direct_host.cu": "2cb036d74a73dfbd13f29f5e6867d32fa38b237eaf2ed4712a05ae842e9d7e99",
+    "docs/experiments/WRITEBACK/full_roundtrip.py": "7bda0d6ef3d2115d6fd04066c6b86366157704238a4b252c7322156a3204b4bb",
+    "docs/experiments/WRITEBACK/interval_check.cpp": "718a4906ba17a25a4cb3ed0ab7a28410b1821151ff164ee2ebadf8d903b600fd",
+    "docs/experiments/WRITEBACK/interval_closure/gqa2.cu": "9994007369f1234adbfc506738201d29d20c6680fa25aae74ef9d5f4769e118d",
+    "docs/experiments/WRITEBACK/interval_closure/gqa2.mlir": "a8c3f0f2ab8d4caec3488b6575f46ce1e613a1b85b4a2d2b7d6cc2169399368d"
+  },
+  "binaries": {
+    "cg": "5a69667cfc1fa0e5da87a0004ebff88b984271aa0e409b722dd6ff9cac4cb0be",
+    "direct": "d45b3c34d0d9635647890c88b0fc4931035dd698659390eac2d07f00ab511c40",
+    "resolve": "8b2612f7ef68fe660c66207587292aedd40e71e031f06302554d042f80399fba"
+  },
+  "scope": "Five interval points; fixed geometry/past/grid/kappa. Full executable schedule, wait and event tables; not performance measurement."
+}

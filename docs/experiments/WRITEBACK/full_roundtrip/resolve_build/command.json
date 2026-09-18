@@ -1,0 +1,11 @@
+{
+  "command": [
+    "python3",
+    "/root/TileMega/docs/experiments/JOINT2/build_driver.py",
+    "/root/TileMega/docs/experiments/WRITEBACK/interval_check.cpp",
+    "/root/TileMega/docs/experiments/WRITEBACK/full_roundtrip/bin/resolve"
+  ],
+  "started_ns": 1789689336061670508,
+  "exit_code": 0,
+  "elapsed_ns": 7138232950
+}

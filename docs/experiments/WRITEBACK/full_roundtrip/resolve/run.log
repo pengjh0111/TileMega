@@ -1,0 +1,6 @@
+INTERVAL_POINT seq=1 nodes=546 diff_bytes=0
+INTERVAL_POINT seq=2 nodes=580 diff_bytes=0
+INTERVAL_POINT seq=3 nodes=614 diff_bytes=0
+INTERVAL_POINT seq=4 nodes=648 diff_bytes=0
+INTERVAL_POINT seq=5 nodes=682 diff_bytes=0
+INTERVAL_PASS points=5 serialization=byte_identical invalid_metadata_rejected=3 variants=1

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/WRITEBACK/full_roundtrip/bin/direct",
+    "/root/TileMega/docs/experiments/WRITEBACK/interval_closure/fixtures/s1",
+    "1",
+    "3",
+    "128",
+    "/root/TileMega/docs/experiments/WRITEBACK/full_roundtrip/direct_s1.tsv"
+  ],
+  "started_ns": 1789689484020937075,
+  "binary_sha256": "d45b3c34d0d9635647890c88b0fc4931035dd698659390eac2d07f00ab511c40",
+  "environment": {
+    "TILEMEGA_WARMUP": "0",
+    "TILEMEGA_REPEAT": "1",
+    "TILEMEGA_PLAN_DUMP": "/root/TileMega/docs/experiments/WRITEBACK/full_roundtrip/direct/s1"
+  },
+  "exit_code": 0,
+  "elapsed_ns": 316230619
+}
