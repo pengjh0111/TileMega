@@ -1,0 +1,25 @@
+{
+  "command": [
+    "/tmp/r6_bounded_fuse",
+    "docs/experiments/JOINT2/bounded_search/gqa2_s4/auto.cu.top3.mlir",
+    "docs/experiments/COSTMODEL/event_fit/target.json",
+    "4",
+    "docs/experiments/JOINT2/bounded_fuse/gqa2_s4_selected.tsv"
+  ],
+  "choice": {
+    "rank": "3",
+    "key": "32x16x64s2split16kappa4r4",
+    "placement": "wavefront",
+    "tile_m": "32",
+    "tile_n": "16",
+    "tile_k": "64",
+    "stages": "2",
+    "split_k": "16",
+    "kappa": "4",
+    "residency": "4",
+    "floor_ns": "57261.4",
+    "predicted_ns": "169405",
+    "source": "docs/experiments/JOINT2/bounded_search/gqa2_s4/auto.cu.top3.cu",
+    "cg": "docs/experiments/JOINT2/bounded_search/gqa2_s4/auto.cu.top3.mlir"
+  }
+}

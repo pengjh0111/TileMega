@@ -1,0 +1,26 @@
+{
+  "command": [
+    "/tmp/r6_audit_prepared",
+    "docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.top1.mlir",
+    "docs/experiments/COSTMODEL/event_fit/target.json",
+    "docs/experiments/COSTMODEL/bounded_prices/real_s128.tsv"
+  ],
+  "source_choice": {
+    "rank": "1",
+    "key": "64x128x16s2split4kappa1r2",
+    "placement": "eft",
+    "tile_m": "64",
+    "tile_n": "128",
+    "tile_k": "16",
+    "stages": "2",
+    "split_k": "4",
+    "kappa": "1",
+    "residency": "2",
+    "floor_ns": "4.4245e+06",
+    "predicted_ns": "4.9284e+06",
+    "source": "docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.top1.cu",
+    "cg": "docs/experiments/JOINT2/bounded_boxes/real_s128/auto.cu.top1.mlir"
+  },
+  "started_ns": 1789688882918366395,
+  "exit_code": 0
+}
