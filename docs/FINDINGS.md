@@ -5713,3 +5713,58 @@ time constructing unused symbolic wait counts and was replaced before
 collecting the complete accepted campaign. No production legality rule or
 winning placement changed. Evidence: `SYMBOLIC/queue_roundtrip/`; both
 supplemental obligations are required by `JOINT2/verify.py`.
+
+
+## F-212 — R6 corrected-search confirmation passes the real-width research gate
+
+✅ **Verified.** After access-derived combine pricing and nonzero outer-bound
+repairs, all six selections were independently frozen before confirmation.
+Each cell has 25 rotated five-arm fresh-process rounds and 50/50 numerical
+checks; the selected reference SEQSCAN subset adds 400/400. Real-width s4 and
+s128 selected/control ratios are 0.547671353 [0.539770996, 0.568571846] and
+0.944310839 [0.943726539, 0.981891257]. J-a passes both cells. Selected/R5
+champion ratios are 0.619535397 and 0.937299504, respectively.
+
+✅ **Verified failures retained.** Real-width queue/semantic-CP is now
+2.317659352 and 2.182635901, so J-b fails both cells despite lower latency.
+Their selected CP/queue floors are 979968/2271232 ns and 2618368/5714944 ns.
+The binding objective does not itself constrain that ratio. Reference
+selected/R5-champion ratios are 1.090909091, 1.330033937, 1.175841796 and
+1.309298156; every CI upper bound exceeds 1.02, so J-e fails four cells.
+Predicted-top1 measured ranks are 3/3, 1/3, 3/3, 2/3, 3/3, 3/3; J-d is
+2/6, below four. No post-confirmation reselection or gate change occurred.
+
+✅ **Verified price discrepancy; causal refinement inferred.** Joining every
+physical task coordinate with its prepared price gives normal Attention
+stage median measured/price ratios 2.5009, 3.8937, 2.5406, 4.2438, 2.9119
+and 2.3203 across the six cells. Normal GEMM stage medians are 1.4284,
+1.4296, 1.0713, 1.4296, 0.9205 and 0.8240. Real-width RMSNorm medians
+are 2.4127 in both cells. Whole-plan replay accuracy does not eliminate
+these geometry/resource-specific errors. Next: calibrate serial active-lane
+service in backend scalar traits and TaskInstanceNs, including the
+thread-zero softmax loop, and compiled-residency dilation; measure the
+latency tradeoff of an explicit queue/semantic-CP feasibility restriction.
+The current data establish the errors, not a causal percentage attributable
+to any one loop. Evidence: `JOINT2/bounded_search/`,
+`JOINT2/comparisons_gqa2_mha4_real.tsv`, `COSTMODEL/bounded_prices/`.
+
+## F-213 — R6 recomputes the supported fusion bound on corrected selections
+
+✅ **Verified calculation; model upper bound, not executed fusion.** The
+supported adjacent RoPE-to-KVAppend pairs remove 16/512/64/2048/128/4096
+physical nodes and 8192/262144/32768/1048576/65536/2097152 global bytes
+across the six selected cells. The fixed-plus-traffic bound divided by the
+measured binding floor is 0.015050/0.006267/0.015426/0.006421/0.001168/0.001999.
+Even deleting each supported pair's entire modeled envelope gives a maximum
+share of 0.041874. This is an optimistic bound under the model's wave
+assumptions and the prescribed 0.232 fixed-share extrapolation, not a proof
+about other fusion families. The existing fusion direction gate is unchanged.
+
+```text
+FUSE6 enter_r7=0 maximum_bound_share=0.015426 cells=6
+```
+
+The frozen 10% rule therefore does not place the currently supported family
+in R7's search outer loop. A broader fusion investment must first extend
+the legally supported ownership families and recompute their traffic and
+fixed-work envelope. Evidence: `JOINT2/bounded_fuse/`.
