@@ -1,0 +1,21 @@
+{
+  "joint": "docs/experiments/JOINT2/bounded_search/mha4_s128",
+  "choice": {
+    "arm": "top3",
+    "pilot_medians": {
+      "top1": 0.643072,
+      "top2": 0.628928,
+      "top3": 0.610304
+    },
+    "choice": {
+      "source": "/root/TileMega/docs/experiments/JOINT2/bounded_search/mha4_s128/auto.cu.top3.cu",
+      "kappa": "4",
+      "residency": "4",
+      "placement_macro": "0"
+    },
+    "frozen_ns": 1789677498184134989,
+    "excluded": {}
+  },
+  "placement": "eft",
+  "frozen_commit": "25ff9ae35172a1232327be657107b3c0b49b8981"
+}

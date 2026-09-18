@@ -1,0 +1,21 @@
+{
+  "joint": "docs/experiments/JOINT2/bounded_search/mha4_s4",
+  "choice": {
+    "arm": "top3",
+    "pilot_medians": {
+      "top1": 0.315392,
+      "top2": 0.305088,
+      "top3": 0.26688
+    },
+    "choice": {
+      "source": "/root/TileMega/docs/experiments/JOINT2/bounded_search/mha4_s4/auto.cu.top3.cu",
+      "kappa": "4",
+      "residency": "4",
+      "placement_macro": "0"
+    },
+    "frozen_ns": 1789676580503838360,
+    "excluded": {}
+  },
+  "placement": "wavefront",
+  "frozen_commit": "6a1e5b4dfd8a05965d45bea30a7ab8e5fca3b3ae"
+}

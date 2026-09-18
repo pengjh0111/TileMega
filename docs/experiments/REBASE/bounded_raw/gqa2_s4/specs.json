@@ -1,0 +1,496 @@
+{
+  "wavefront__full": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": []
+  },
+  "wavefront__nofence": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_NOTIFY_FENCE=1"
+    ]
+  },
+  "wavefront__nowait": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_EVENT_WAIT=1"
+    ]
+  },
+  "wavefront__neither": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_EVENT_WAIT=1",
+      "UNSAFE_NO_EVENT_NOTIFY=1"
+    ]
+  },
+  "wavefront__l1nosync": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_GRID_SYNC=1"
+    ]
+  },
+  "eft__full": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/eft.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": []
+  },
+  "eft__nofence": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/eft.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_NOTIFY_FENCE=1"
+    ]
+  },
+  "eft__nowait": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/eft.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_EVENT_WAIT=1"
+    ]
+  },
+  "eft__neither": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/eft.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_EVENT_WAIT=1",
+      "UNSAFE_NO_EVENT_NOTIFY=1"
+    ]
+  },
+  "eft__l1nosync": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/eft.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_GRID_SYNC=1"
+    ]
+  },
+  "rotate__full": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/rotate.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": []
+  },
+  "rotate__nofence": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/rotate.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_NOTIFY_FENCE=1"
+    ]
+  },
+  "rotate__nowait": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/rotate.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_EVENT_WAIT=1"
+    ]
+  },
+  "rotate__neither": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/rotate.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_EVENT_WAIT=1",
+      "UNSAFE_NO_EVENT_NOTIFY=1"
+    ]
+  },
+  "rotate__l1nosync": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/rotate.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_GRID_SYNC=1"
+    ]
+  },
+  "chain__full": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/chain.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": []
+  },
+  "chain__nofence": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/chain.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_NOTIFY_FENCE=1"
+    ]
+  },
+  "chain__nowait": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/chain.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_EVENT_WAIT=1"
+    ]
+  },
+  "chain__neither": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/chain.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_EVENT_WAIT=1",
+      "UNSAFE_NO_EVENT_NOTIFY=1"
+    ]
+  },
+  "chain__l1nosync": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/chain.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_GRID_SYNC=1"
+    ]
+  },
+  "legacy_grid_stride__full": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/legacy_grid_stride.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": []
+  },
+  "legacy_grid_stride__nofence": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/legacy_grid_stride.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_NOTIFY_FENCE=1"
+    ]
+  },
+  "legacy_grid_stride__nowait": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/legacy_grid_stride.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_EVENT_WAIT=1"
+    ]
+  },
+  "legacy_grid_stride__neither": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/legacy_grid_stride.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_EVENT_WAIT=1",
+      "UNSAFE_NO_EVENT_NOTIFY=1"
+    ]
+  },
+  "legacy_grid_stride__l1nosync": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/legacy_grid_stride.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_GRID_SYNC=1"
+    ]
+  },
+  "balanced__full": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/balanced.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": []
+  },
+  "balanced__nofence": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/balanced.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_NOTIFY_FENCE=1"
+    ]
+  },
+  "balanced__nowait": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/balanced.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_EVENT_WAIT=1"
+    ]
+  },
+  "balanced__neither": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/balanced.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_EVENT_WAIT=1",
+      "UNSAFE_NO_EVENT_NOTIFY=1"
+    ]
+  },
+  "balanced__l1nosync": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/balanced.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "UNSAFE_NO_GRID_SYNC=1"
+    ]
+  },
+  "protocol_off__full": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "BARRIER_V2=0",
+      "EVENT_SOLO=0",
+      "EVENT_RED_PUBLISH=0",
+      "WAIT_POLICY=0"
+    ]
+  },
+  "protocol_off__nofence": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "BARRIER_V2=0",
+      "EVENT_SOLO=0",
+      "EVENT_RED_PUBLISH=0",
+      "WAIT_POLICY=0",
+      "UNSAFE_NO_NOTIFY_FENCE=1"
+    ]
+  },
+  "protocol_off__nowait": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "BARRIER_V2=0",
+      "EVENT_SOLO=0",
+      "EVENT_RED_PUBLISH=0",
+      "WAIT_POLICY=0",
+      "UNSAFE_NO_EVENT_WAIT=1"
+    ]
+  },
+  "protocol_off__neither": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "BARRIER_V2=0",
+      "EVENT_SOLO=0",
+      "EVENT_RED_PUBLISH=0",
+      "WAIT_POLICY=0",
+      "UNSAFE_NO_EVENT_WAIT=1",
+      "UNSAFE_NO_EVENT_NOTIFY=1"
+    ]
+  },
+  "protocol_off__l1nosync": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "BARRIER_V2=0",
+      "EVENT_SOLO=0",
+      "EVENT_RED_PUBLISH=0",
+      "WAIT_POLICY=0",
+      "UNSAFE_NO_GRID_SYNC=1"
+    ]
+  },
+  "c1__full": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1"
+    ]
+  },
+  "c1__nofence": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1",
+      "UNSAFE_NO_NOTIFY_FENCE=1"
+    ]
+  },
+  "c1__nowait": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1",
+      "UNSAFE_NO_EVENT_WAIT=1"
+    ]
+  },
+  "c1__neither": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1",
+      "UNSAFE_NO_EVENT_WAIT=1",
+      "UNSAFE_NO_EVENT_NOTIFY=1"
+    ]
+  },
+  "c1__l1nosync": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1",
+      "UNSAFE_NO_GRID_SYNC=1"
+    ]
+  },
+  "c2__full": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1",
+      "ASYNC_PUBLISH=1"
+    ]
+  },
+  "c2__nofence": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1",
+      "ASYNC_PUBLISH=1",
+      "UNSAFE_NO_NOTIFY_FENCE=1"
+    ]
+  },
+  "c2__nowait": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1",
+      "ASYNC_PUBLISH=1",
+      "UNSAFE_NO_EVENT_WAIT=1"
+    ]
+  },
+  "c2__neither": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1",
+      "ASYNC_PUBLISH=1",
+      "UNSAFE_NO_EVENT_WAIT=1",
+      "UNSAFE_NO_EVENT_NOTIFY=1"
+    ]
+  },
+  "c2__l1nosync": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1",
+      "ASYNC_PUBLISH=1",
+      "UNSAFE_NO_GRID_SYNC=1"
+    ]
+  },
+  "c3__full": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1",
+      "ASYNC_PUBLISH=1",
+      "LOCAL_DEP_SMEM=1"
+    ]
+  },
+  "c3__nofence": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1",
+      "ASYNC_PUBLISH=1",
+      "LOCAL_DEP_SMEM=1",
+      "UNSAFE_NO_NOTIFY_FENCE=1"
+    ]
+  },
+  "c3__nowait": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1",
+      "ASYNC_PUBLISH=1",
+      "LOCAL_DEP_SMEM=1",
+      "UNSAFE_NO_EVENT_WAIT=1"
+    ]
+  },
+  "c3__neither": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1",
+      "ASYNC_PUBLISH=1",
+      "LOCAL_DEP_SMEM=1",
+      "UNSAFE_NO_EVENT_WAIT=1",
+      "UNSAFE_NO_EVENT_NOTIFY=1"
+    ]
+  },
+  "c3__l1nosync": {
+    "source": "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4/wavefront.cu",
+    "kappa": "4",
+    "residency": "4",
+    "placement_macro": "0",
+    "extra": [
+      "RELEASE_AFTER_BARRIER=1",
+      "ASYNC_PUBLISH=1",
+      "LOCAL_DEP_SMEM=1",
+      "UNSAFE_NO_GRID_SYNC=1"
+    ]
+  }
+}

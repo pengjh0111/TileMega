@@ -1,0 +1,9 @@
+{
+  "command": [
+    "/tmp/r6_rebase_bounded_generate",
+    "docs/experiments/JOINT2/bounded_search/gqa2_s4/auto.cu.top3.mlir",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/target.json",
+    "/root/TileMega/docs/experiments/REBASE/bounded_raw/gqa2_s4"
+  ],
+  "session": "1789675851113718752"
+}
