@@ -5963,8 +5963,11 @@ therefore re-parses the export and re-prepares the whole model; the per-iteratio
 `IMPORT_DEGRADED` line is what makes this countable from the log. With this
 round's 5-geometry domain that is 30 full imports and 30 preparations before one
 candidate is evaluated, and `--search-capacity` bounds only what comes after.
-The log stalls at the sixth, so a single preparation on this graph is minutes,
-not the 178 ms R6 measured on the reference models.
+Timed directly: the import counter advanced 6 -> 7 over 180 s, so one outer pair
+costs about three minutes on this graph, against the 178 ms R6 measured on the
+reference models. Thirty pairs is therefore roughly 90 minutes before the first
+candidate is evaluated, which is why the run shows no search row rather than a
+slow one.
 
 ⚠️ **Inferred next implementation.** Two separable fixes, and the second is not
 the one R7 §6 names. (a) C1-b as written: keep relation intervals and shared
