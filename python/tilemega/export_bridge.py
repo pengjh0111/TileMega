@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +52,28 @@ def _guards(program: torch.export.ExportedProgram) -> list[str]:
     return list(program._guards_code)
 
 
+def _scalar_args(node: Any) -> list[float]:
+    """Finite numeric literal arguments, in call order.
+
+    `all_input_nodes` drops everything that is not a Node, which hides the one
+    piece of model configuration that reaches the graph only as a literal --
+    the normalization epsilon of `add(variance, eps)`. Serializing the literals
+    is a transcription, not a classification: the importer still decides which
+    literal of which node means what.
+
+    Booleans, strings and non-finite fill values (the -inf of an attention
+    mask) are left out: JSON cannot carry a non-finite number, and none of
+    them is model configuration the importer reads.
+    """
+    out: list[float] = []
+    for argument in list(node.args) + [value for _, value in sorted(node.kwargs.items())]:
+        if isinstance(argument, bool) or not isinstance(argument, (int, float)):
+            continue
+        if math.isfinite(argument):
+            out.append(argument)
+    return out
+
+
 def serialize(program: torch.export.ExportedProgram) -> dict[str, Any]:
     nodes = []
     for index, node in enumerate(program.graph.nodes):
@@ -62,6 +85,7 @@ def serialize(program: torch.export.ExportedProgram) -> dict[str, Any]:
                 "op": node.op,
                 "target": str(node.target),
                 "inputs": [item.name for item in node.all_input_nodes],
+                "scalar_args": _scalar_args(node),
                 "shape": _shape(value),
                 "dtype": _dtype(value),
                 "nn_module_stack": [

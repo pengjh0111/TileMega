@@ -247,6 +247,8 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         builder.getNamedAttr("file", builder.getStringAttr(output.file))}));
   return dict(builder, {
       builder.getNamedAttr("dtype", builder.getStringAttr(plan.dtype)),
+      builder.getNamedAttr("norm_epsilon",
+                           builder.getF64FloatAttr(plan.norm_epsilon)),
       builder.getNamedAttr("buffers", builder.getArrayAttr(buffers)),
       builder.getNamedAttr("gemms", builder.getArrayAttr(gemms)),
       builder.getNamedAttr("stages", builder.getArrayAttr(stages)),
@@ -338,6 +340,11 @@ ExportBridge ReadExportBridge(std::string const& path) {
     node.op = object->getString("op")->str();
     node.target = object->getString("target")->str();
     node.inputs = readStrings(object->getArray("inputs"));
+    if (auto* scalars = object->getArray("scalar_args")) {
+      node.has_scalars = true;
+      for (auto const& scalar : *scalars)
+        if (auto number = scalar.getAsNumber()) node.scalars.push_back(*number);
+    }
     node.shape = readStrings(object->getArray("shape"));
     if (auto dtype = object->getString("dtype")) node.dtype = dtype->str();
     if (node.op == "call_function") {

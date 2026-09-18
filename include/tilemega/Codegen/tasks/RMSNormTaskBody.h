@@ -51,7 +51,7 @@ struct RMSNormTaskBody {
       __syncthreads();
     }
     TILEMEGA_PHASE_STAMP(3);
-    float scale = rsqrtf(rms[0] / hidden + 1.0e-6f);
+    float scale = rsqrtf(rms[0] / hidden + TILEMEGA_NORM_EPSILON);
     for (int d = threadIdx.x; d < hidden; d += blockDim.x)
       output[d] = ModelElement(
           static_cast<float>(ModelElement(

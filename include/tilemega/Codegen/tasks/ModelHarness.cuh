@@ -2814,6 +2814,16 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
     std::fprintf(stderr, "ModelSpec dtype does not match compiled TaskBodies\n");
     return 2;
   }
+  // The normalization bodies read the epsilon as an immediate, so a model
+  // generated with one epsilon and compiled against another would run
+  // silently with the wrong constant.
+  if (spec.norm_epsilon != TILEMEGA_NORM_EPSILON) {
+    std::fprintf(stderr,
+                 "ModelSpec norm_epsilon %.9g does not match the compiled %.9g\n",
+                 static_cast<double>(spec.norm_epsilon),
+                 static_cast<double>(TILEMEGA_NORM_EPSILON));
+    return 2;
+  }
   ModelDims dims = BindDims(spec.dims, fixture_dir);
   if (dims.seq <= 0 || static_cast<std::uint32_t>(dims.seq) >=
                            spec.seq_variant_count) {

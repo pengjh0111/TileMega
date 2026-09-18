@@ -136,11 +136,46 @@ struct PlanBuilder {
     plan.stages.push_back(std::move(stage));
   }
 
+  /// Every normalization of one model shares one epsilon; disagreement means
+  /// the structural match pulled in something that is not a normalization.
+  /// Zero is "the document does not state it" and leaves the runtime default
+  /// in place, which is the only thing an older bridge export supports.
+  void Epsilon(double value) {
+    if (value == 0.0) return;
+    if (plan.norm_epsilon != 0.0 && plan.norm_epsilon != value)
+      throw std::runtime_error("the model's normalizations disagree on epsilon");
+    plan.norm_epsilon = value;
+  }
+
   std::vector<FxNodeRecord> const& nodes;
   std::unordered_map<std::string, FxNodeRecord const*> by_name;
   std::unordered_map<std::string, std::uint32_t> buffer_id;
   ModelPlan plan;
 };
+
+/// The epsilon of the normalization behind `value`. An RMSNorm scale is
+/// `rsqrt(mean(x^2) + eps)`, so the epsilon is the literal operand of the
+/// `add` that the `rsqrt` reads. It is the one piece of model configuration
+/// that reaches FX as a literal rather than as a shape or a parameter, which
+/// is why it has to be read here instead of assumed downstream.
+double NormalizationEpsilon(PatternMatcher const& matcher,
+                            std::string const& value) {
+  std::string root = matcher.FirstOfRole(value, "rsqrt", "contraction");
+  if (root.empty())
+    throw std::runtime_error("no rsqrt behind the normalization at " + value);
+  FxNodeRecord const* rsqrt = matcher.Find(root);
+  bool stated = false;
+  for (auto const& operand : rsqrt->inputs) {
+    FxNodeRecord const* add = matcher.Find(matcher.Value(operand));
+    if (!add || matcher.RoleOf(*add) != "add") continue;
+    stated = stated || add->has_scalars;
+    if (!add->scalars.empty()) return add->scalars.front();
+  }
+  if (stated)
+    throw std::runtime_error("the normalization at " + value +
+                             " has no epsilon literal behind its rsqrt");
+  return 0.0;
+}
 
 /// The decoder layer, stated as use-def structure. Nothing here names a
 /// module, a parameter or a layer index: the anchor is the KV concat, and
@@ -543,6 +578,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
         {prefix + "full_v", 0, 0, 0, kv_width,
          PlanBuffer::Source::kZero, {}});
 
+    builder.Epsilon(NormalizationEpsilon(matcher, q_node.inputs[0]));
     builder.Stage(PlanTaskKind::kRMSNorm, q_node.inputs[0], 0, 0, hidden, 1,
                   {current_hidden, wn1, norm});
     builder.Stage(PlanTaskKind::kGemm, q_node.name,
@@ -569,6 +605,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                   builder.Gemm(context, wo, current_hidden, next_hidden,
                                hidden, q_width, 1.0f),
                   0, 0, 1);
+    builder.Epsilon(NormalizationEpsilon(matcher, gate_node.inputs[0]));
     builder.Stage(PlanTaskKind::kRMSNorm, gate_node.inputs[0], 0, 0, hidden, 1,
                   {next_hidden, wn2, norm});
     builder.Stage(PlanTaskKind::kGemm, gate_node.name,

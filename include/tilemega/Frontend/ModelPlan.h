@@ -20,6 +20,14 @@ struct FxNodeRecord {
   std::vector<std::string> inputs;
   std::vector<std::string> shape;
   std::string dtype;
+  /// Finite numeric literal arguments in call order. The normalization
+  /// epsilon is the one piece of model configuration that reaches FX only
+  /// this way.
+  std::vector<double> scalars;
+  /// Whether the bridge document carried the literals at all. A JSON exported
+  /// before `scalar_args` existed says nothing about the epsilon, which is a
+  /// different fact from a node that genuinely has no literal operand.
+  bool has_scalars = false;
 };
 
 struct SignatureInput {
@@ -77,6 +85,10 @@ struct PlanOutput {
 /// verified CG-side attribute, never this in-memory object.
 struct ModelPlan {
   std::string dtype = "f32";
+  /// The model's own `rms_norm_eps`, read off the `add(variance, eps)` inside
+  /// every matched normalization. Zero means no normalization was matched;
+  /// it is never defaulted to a dtype- or model-specific constant.
+  double norm_epsilon = 0.0;
   std::vector<PlanBuffer> buffers;
   std::vector<PlanGemm> gemms;
   std::vector<PlanStage> stages;

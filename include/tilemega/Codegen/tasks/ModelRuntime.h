@@ -26,6 +26,15 @@ enum class ScalarType : std::uint32_t { kF32 = 0, kBF16 = 1 };
 #define TILEMEGA_FP32_PARTIALS 1
 #endif
 
+// The model's own `rms_norm_eps`, generated from the imported config. The
+// default exists only so that a `.cu` generated before the epsilon became
+// model data keeps its previous behaviour; it is never a dtype- or
+// model-specific choice made here. `ModelSpec::norm_epsilon` carries the same
+// number and the harness refuses a model whose table disagrees with it.
+#ifndef TILEMEGA_NORM_EPSILON
+#define TILEMEGA_NORM_EPSILON 1.0e-6f
+#endif
+
 #if defined(TILEMEGA_MODEL_BF16) && TILEMEGA_MODEL_BF16
 using ModelElement = cutlass::bfloat16_t;
 inline constexpr ScalarType kCompiledScalarType = ScalarType::kBF16;
@@ -515,6 +524,9 @@ struct ModelSpec {
   /// selecting a conservative plan. Selection is therefore strict O(1).
   std::uint16_t const* seq_variant;
   std::uint32_t seq_variant_count;
+  /// Defaulted so that the fixed pre-generated sources used for the SASS
+  /// identity check keep compiling unchanged.
+  float norm_epsilon = TILEMEGA_NORM_EPSILON;
 };
 
 }  // namespace tilemega::codegen
