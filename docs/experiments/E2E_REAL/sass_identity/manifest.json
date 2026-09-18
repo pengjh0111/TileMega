@@ -1,8 +1,8 @@
 {
   "baseline": "4e0e7b119b30500456a59db719614d0abf7fa699",
-  "source_head": "62ec04e8acc93a43c0788f2c5a2bdbe8d7e2987d",
+  "source_head": "421f515ecd27051931229ab2795411d9e52be1dd",
   "provisional": false,
-  "started_utc": "2026-09-18T23:16:43.645280+00:00",
+  "started_utc": "2026-09-18T23:24:21.235605+00:00",
   "models": {
     "gqa2": {
       "sha256": "5f6c72bafd6a56bdb5cf095e624aa998817163cf2216f91f57896bba9f133412",
@@ -92,14 +92,14 @@
   "inputs": {
     "CMakeLists.txt": "fffd8ee51ab3898cc106d0ee265068b85933c363c37a8fc9b208a193dfb891ba",
     "TileMega_skeleton.md": "61235d6361a8dfe8c56a5de42bfec2b54140b1e85ce590ee8884a9748f412198",
-    "docs/FINDINGS.md": "67c1e8191eb80545a916b0d68580bf8ecb662a602daf279122e1fb1a7e3fb1c9",
+    "docs/FINDINGS.md": "b07d523c79215703890f620adf99886df503f475f4b5d0eedfa3f2942ebe660f",
     "docs/STATUS.md": "93500f81a0d9cde0b1f6677e90d42aad8dd827e40957a076eccd6d8f286cf36b",
     "docs/TODO.md": "2ab7b11cd8024a091fcf18b4a18746ad2ec96812f2b60db8ebf6db5186461e6a",
     "docs/experiments/E2E_REAL/extension_cost.tsv": "d1a62ec99cbc2531e0fafc3fc6a7971d428fb54db2b57e16dcefad1396f08a23",
     "docs/experiments/E2E_REAL/run_e2e.py": "e1bced36deb740e4f1b2ea64faeae36e1c6ac15b3dd315a9d33bf70c73243900",
     "docs/experiments/E2E_REAL/run_sm120.sh": "80fbc02f3b3767f8a95e8542c681771018f30af951bda8fd4fe8683a63720c0a",
     "docs/experiments/E2E_REAL/sass_identity.py": "9d73e70b45957f9980f6c6ca9bcdfacae6409f0654bcbfeab72c3e9a1b9a9634",
-    "docs/experiments/E2E_REAL/summary.md": "ea1dd799efe982ce303c5f52b1cf1ab4059011f54d27beecb1cb9f445469bc0a",
+    "docs/experiments/E2E_REAL/summary.md": "59a0834b92c389e5880f1d23a6ad107c3aaf043b25625e1ca4062dc427fae8a8",
     "docs/experiments/E2E_REAL/verify.py": "122f45850a81730e89f8448020fb9cce5e443b62d01856951549357d0cf0e515",
     "docs/experiments/MODELS2/ablate.py": "22eaf0806b9f0e4b1ba882565dbeedd4af3be951077ebf2b676a757076dde8f3",
     "docs/experiments/MODELS2/ablation/admitted2/a1/dump/buffer_0.bin": "a2d1f9b1f1e61a30edf1716f6367e2a48c525f7562db32a630a80809d6de5767",
@@ -458,5 +458,5 @@
   },
   "baseline_host_sha256": "6625bc29b380bd7948aa3f7da8f5dc1d6fe0c82e9c3e0fd9ce249463c42888c0",
   "head_host_sha256": "b1ea93a644b43f69ef1a4783142585326d45141c9864b52886e32ef078bacac4",
-  "finished_utc": "2026-09-18T23:18:33.411846+00:00"
+  "finished_utc": "2026-09-18T23:26:10.639461+00:00"
 }
