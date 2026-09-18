@@ -1,0 +1,8 @@
+{
+  "command": [
+    "/usr/local/cuda/bin/cuobjdump",
+    "--dump-sass",
+    "/root/TileMega/docs/experiments/REBASE/bounded_raw/real_s128/bin/c3__full"
+  ],
+  "binary_sha256": "0f44e0699701afd8370cbb552c45a29aafb069a32897b6ba88dab5d06454e02f"
+}

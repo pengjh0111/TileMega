@@ -5768,3 +5768,44 @@ The frozen 10% rule therefore does not place the currently supported family
 in R7's search outer loop. A broader fusion investment must first extend
 the legally supported ownership families and recompute their traffic and
 fixed-work envelope. Evidence: `JOINT2/bounded_fuse/`.
+
+
+## F-214 — R6 rebases attribution and bounds its causal interpretation
+
+✅ **Verified.** B1 contains 7500 fresh processes: six cells, ten
+placement/protocol configurations, five arms, 25 rotated rounds. All 1500
+full arms pass correctness; unsafe arms retain their timing records. All
+60 full-arm trace dumps are present. The R1-compatible pooled median of
+100 reference rotate/legacy pairs is 0.895931995 [0.870870871, 0.976366322],
+versus historical 0.6705. Real-width's separate 50-pair statistic is
+0.963573913 [0.963184743, 0.967151369]. No ratio is normalized or filtered.
+
+The six individual rotate/legacy medians are 0.756756757, 1.048076923,
+0.867256637, 0.980922393, 0.962977702 and 0.967801254. With geometry
+and selected placement fixed, R3-B on/off medians are 0.896026354,
+0.962955927, 0.895833333, 0.951038576, 0.975695806 and 0.977504432.
+These are conditional paired comparisons, not independent multiplicative
+contributions. The complete five-arm differences and binding floors are
+in `REBASE/bounded_analysis/`; signed differences, nonpositive barriers,
+and original hardware telemetry are retained.
+
+✅ **Verified control discrepancy; cause unresolved.** At the required W=1,
+all six C2/C3 kernel sets are byte-identical. Nevertheless the original
+mha4-s128 C3/C2 ratio is 1.098168734 [1.096054889, 1.099957100]. An
+independent 100-process diagnostic rotates four labels, two for each
+unchanged executable. C3/C2 becomes 1.000243380 [0.996597648, 1.002112713];
+C2's duplicate-label ratio is 1.000000000 [0.974068071, 1.002002833], and
+C3's is 0.998732449 [0.970772337, 1.001898457]. All 100 pass numerical
+checks. This repeat does not replace the original 7500 samples or their CIs.
+
+⚠️ **Unresolved causal attribution, stopped under §9.2.** The apparent
+original C2 gain/C3 penalty cannot be assigned to local-dependency behavior.
+No original sample is rejected. The next specific diagnostic controls CUDA
+module/instruction addresses and allocation/runtime context while retaining
+same-binary duplicate labels; clock/power association alone is insufficient.
+This limits mechanism interpretation, not the reported raw comparison or
+the independent J gate calculations. The real-s128 probe audit also checks
+unchanged L1 under nofence and unchanged L2 under l1nosync; all 250 barrier
+differences remain, including 25 nonpositive values. Evidence:
+`REBASE/bounded_raw/`, `bounded_w1_identity/`, `bounded_w1_repeat/`,
+`bounded_probe_audit/` and `bounded_analysis/`.

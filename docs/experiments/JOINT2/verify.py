@@ -341,6 +341,26 @@ def rebase():
   pool=module('r6_placement_pool',B/'placement_pool.py');pooled,_=pool.calculate(B/'bounded_raw')
   details.extend('placement_pool '+repr(r) for r in pooled)
  except Exception as e:ok=False;details.append('placement_pool: '+str(e))
+ try:
+  audit=module('r6_probe_identity',B/'probe_audit.py')
+  for name in ALL:
+   root=B/'bounded_w1_identity'/name
+   left=audit.functions((root/'c2.sass').read_text());right=audit.functions((root/'c3.sass').read_text())
+   check(left==right,'W1 C2/C3 disassembly differs '+name)
+  root=B/'bounded_w1_repeat';arms=['c2_a','c3_a','c2_b','c3_b'];starts=set();sessions=set()
+  for k,arm in enumerate(arms):
+   expected=json.loads((B/'bounded_raw/mha4_s128/measure'/(arm[:2]+'__full')/'r0.json').read_text())['binary_sha256']
+   for i in range(25):
+    log=root/'measure'/arm/f'r{i}.log';meta=json.loads(log.with_suffix('.json').read_text())
+    check(meta['exit_code']==0 and 'RESULT status=PASS' in log.read_text(),'W1 repeat correctness failed')
+    check(meta['binary_sha256']==expected and meta['round']==i and meta['order']==(k-i)%4,'W1 control identity/rotation differs')
+    starts.add(meta['started_ns']);sessions.add(meta['session'])
+  check(len(starts)==100 and len(sessions)==1,'W1 repeat process coverage')
+  for numerator,denominator in [('c3_a','c2_a'),('c2_b','c2_a'),('c3_b','c3_a')]:
+   ratios=[joint.timing(root/'measure'/numerator/f'r{i}.log')['l2_ms']/joint.timing(root/'measure'/denominator/f'r{i}.log')['l2_ms'] for i in range(25)]
+   details.append('supplemental_W1 '+numerator+'/'+denominator+'='+repr(joint.interval(ratios)))
+  details.append('six C2/C3 W1 kernel sets byte-identical; supplemental controls=100/100; original 7500 samples retained; causal timing-band origin unresolved')
+ except Exception as e:ok=False;details.append('W1 diagnostic: '+str(e))
  return ok,'; '.join(details)+'; REBASE/bounded_raw/*/measure'
 def models():
  root=EX/'MODELS';old_ok,old_detail=processes(root/'llama_mlp/correctness')

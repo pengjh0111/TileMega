@@ -1,0 +1,12 @@
+{
+  "original": "/root/TileMega/docs/experiments/REBASE/bounded_raw/mha4_s128",
+  "rounds": 25,
+  "arms": [
+    "c2_a",
+    "c3_a",
+    "c2_b",
+    "c3_b"
+  ],
+  "session": "1789717844050854566",
+  "purpose": "Supplemental identical-kernel control diagnostic, not replacement B1 data.\n\nFour labels (two per original executable), 25 rotated fresh-process rounds.\nThe original 7500 samples and their statistics remain unchanged. No compile,\nplan, protocol, timing, fixture, tolerance or sample-filter change is made.\n"
+}
