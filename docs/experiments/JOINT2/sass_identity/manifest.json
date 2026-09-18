@@ -1,8 +1,8 @@
 {
   "baseline": "bad8a0d9b17804b73afe00a6d545dcea72cc6cbb",
-  "source_head": "481d550dd28cbe2dedb3fbe37eb0e484ec202125",
+  "source_head": "be63e77da838429e33b4fadc365a2e3cbbce0c85",
   "provisional": false,
-  "started_utc": "2026-09-18T08:30:03.739635+00:00",
+  "started_utc": "2026-09-18T09:12:16.932575+00:00",
   "models": {
     "gqa2": {
       "sha256": "3a302f1123378cbd6ccc5bcbf88c4e4799d82147b7e45e829462b3513c03dde2",
@@ -93,7 +93,7 @@
     "TileMega_skeleton.md": "69072e65a2d67d98b70ec164f13dd228c638dcbcf68d04e741917eae12274cb3",
     "docs/FINDINGS.md": "0d80237cfada13811277d52dcca10d2f5c310875b74301b6f329feb6912d2cfc",
     "docs/STATUS.md": "62aa6671ab740f473cf8d5718cdf8c91de704e5343b9610afd58cd794b1a87db",
-    "docs/TODO.md": "5f2350840e2bad0d8e67704d94a9769d01ee863f0f2d22c05053b7cee480aeaa",
+    "docs/TODO.md": "e0df15c418134894ef5eada448f428cffb06e3ad622ad1af4f0539ccc0ec772b",
     "docs/experiments/COSTMODEL/analyze_kloop.py": "7c1f698931a1e7424a3e9b2cf9e8ca485d870b41beafd8d4c56138173894eb6f",
     "docs/experiments/COSTMODEL/audit_prepared.cpp": "e8225fb588acabae8ff0d8462ef3d6a3fcbf9ac87974e9066a56226791b27e4f",
     "docs/experiments/COSTMODEL/audit_prepared.py": "5cc5227f5d1ddf42c35536eda0c7ca55bb3d6dc377a3444e48ccfbe9ea96863b",
@@ -6446,6 +6446,7 @@
     "docs/experiments/JOINT2/closure/ctest_current.log": "bbd75c3c29313dcd0177cffe9d8ab74c5d4e619dc4b34f937f489d5fb63c1dd6",
     "docs/experiments/JOINT2/closure/ctest_final.log": "6953717cfdfaadee9436ed79111cd6f74663694ecdfc078faac2feaea426d7c0",
     "docs/experiments/JOINT2/closure/ctest_intervals.log": "46dbcb8788c7ec19417a4ba0219bf45bb0d8e48fad8624025a871d27a09cca79",
+    "docs/experiments/JOINT2/closure/documentation_audit.md": "f074e3076c0295c6edd1681fd668a5fccde90646d306066950e4e6acf1e5a625",
     "docs/experiments/JOINT2/closure/event_intervals.log": "88b6071f073b9156d3ec3cca0bc3df91a3b68516918b78e6e3539cf72ab67a85",
     "docs/experiments/JOINT2/closure/event_reuse.log": "88b6071f073b9156d3ec3cca0bc3df91a3b68516918b78e6e3539cf72ab67a85",
     "docs/experiments/JOINT2/closure/finite_relations/build.json": "f25a5218c93b8ed7578dfb8c459c66601ba86c10a9ef779e1efcdd786e9271ac",
@@ -9912,7 +9913,7 @@
     "docs/experiments/JOINT2/simulator_histogram_driver.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "docs/experiments/JOINT2/simulator_histogram_run.log": "8c1cf71ec99358c2f357875ff97f5c4fa4eace0dfe7ce228e880c174de568ccd",
     "docs/experiments/JOINT2/sm120_common.sh": "0ac2ad9725b5741ce956ff6f65ebaccca420806100897f02d39d98c32ca57400",
-    "docs/experiments/JOINT2/summary.md": "4fa9887224d913d620151bb36058f3b2ee3e72fe39c835df2bd2b3b9fa728bf2",
+    "docs/experiments/JOINT2/summary.md": "1f36dd5ad2c4aadad328acce10073075ac2ae155e242c4fc917fff9cd18607e6",
     "docs/experiments/JOINT2/target_pipeline.py": "bb0484fa6aef67ba1b4cb334514f98b6e42f7d6d54a620d7b36633e153d2e9e2",
     "docs/experiments/JOINT2/verify.py": "c6112b0892eea3cf26ae00d1915a1347d3bf57828013b4791889b6a12d570177",
     "docs/experiments/MODELS/audit.json": "59ce6896e40e545644dbcd8bc08c75f21646d91cf9b965696b1623368d3573d5",
@@ -55170,5 +55171,5 @@
   },
   "baseline_host_sha256": "5abd64cef322aac2dfce91c533ebccdaed79a3863e3de9263bbb5b608a493d3c",
   "head_host_sha256": "6625bc29b380bd7948aa3f7da8f5dc1d6fe0c82e9c3e0fd9ce249463c42888c0",
-  "finished_utc": "2026-09-18T08:32:07.754836+00:00"
+  "finished_utc": "2026-09-18T09:14:27.354937+00:00"
 }
