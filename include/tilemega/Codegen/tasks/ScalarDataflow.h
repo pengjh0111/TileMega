@@ -74,6 +74,14 @@ inline ScalarDataflow ScalarTaskDataflow(TaskKind kind) {
       flow.extra_flops_per_output=1; // Zero-seeded chunk summation.
       flow.Add(ScalarPhase::kStore,{flow.Add(ScalarPhase::kArithmetic,{input})});
       return flow;
+    case TaskKind::kEmbedding: {
+      // Two dependent global reads: the row address is the first load's value.
+      flow.nodes[input].read_operands={0};
+      int row=flow.Add(ScalarPhase::kLoad,{input});
+      flow.nodes[row].read_operands={1};
+      flow.Add(ScalarPhase::kStore,{row});
+      return flow;
+    }
     case TaskKind::kRoPE:
     case TaskKind::kKVAppend:
     case TaskKind::kElementwise:

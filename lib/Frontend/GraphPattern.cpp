@@ -42,6 +42,7 @@ std::vector<OperatorRole> const& CoreRoles() {
       {"contraction",
        {"aten.linear.default", "aten.matmul.default", "aten.mm.default",
         "aten.addmm.default", "aten.bmm.default", "aten.baddbmm.default"}},
+      {"embedding", {"aten.embedding.default", "aten.index_select.default"}},
       {"concat", {"aten.cat.default"}},
       {"add", {"aten.add.Tensor"}},
       {"multiply", {"aten.mul.Tensor"}},

@@ -24,6 +24,7 @@ namespace tilemega::frontend {
 /// buffer def-use graph, never from an operator or parameter name.
 enum class OpRole {
   kNorm,
+  kEmbedding,  ///< the vocabulary gather, whose table read is data dependent
   kQkvProjection,  ///< a projection whose result a RoPE or a KV append reads
   kProjection,
   kRoPE,

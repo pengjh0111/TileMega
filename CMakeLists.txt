@@ -632,6 +632,16 @@ if(TILEMEGA_BUILD_TESTS)
   endif()
   add_test(NAME semantic_lifting COMMAND semantic_lifting_test)
 
+  add_executable(embedding_plan_test test/unit/embedding_plan_test.cpp)
+  add_dependencies(embedding_plan_test TileMegaCGIncGen)
+  target_link_libraries(embedding_plan_test PRIVATE TileMega::tilemega MLIRIR)
+  target_compile_definitions(embedding_plan_test PRIVATE
+    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  if(NOT LLVM_ENABLE_RTTI)
+    target_compile_options(embedding_plan_test PRIVATE -fno-rtti)
+  endif()
+  add_test(NAME embedding_plan COMMAND embedding_plan_test)
+
   add_executable(wiring_coupling_test test/unit/wiring_coupling_test.cpp)
   target_link_libraries(wiring_coupling_test PRIVATE TileMega::tilemega)
   target_compile_definitions(wiring_coupling_test PRIVATE

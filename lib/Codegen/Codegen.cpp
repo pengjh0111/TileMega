@@ -209,6 +209,36 @@ std::string emitRoPEPrecision(mlir::DictionaryAttr plan) {
          "#define TILEMEGA_ROPE_FP32_PHASE 1\n#endif\n";
 }
 
+/// Turn on the TaskBody families this model actually reaches. A family the
+/// plan never names stays compiled out, so a model that predates it generates
+/// what it generated before -- which is what the default-build SASS identity
+/// checks. The switch is derived from the stage list, never configured.
+std::string emitTaskKindRuntime(mlir::DictionaryAttr plan) {
+  auto stages = llvm::dyn_cast_or_null<mlir::ArrayAttr>(plan.get("stages"));
+  if (!stages) return {};
+  bool embedding = false;
+  for (auto value : stages) {
+    auto item = llvm::dyn_cast<mlir::DictionaryAttr>(value);
+    if (!item) continue;
+    auto kind = llvm::dyn_cast_or_null<mlir::StringAttr>(item.get("kind"));
+    if (kind && kind.getValue() == "kEmbedding") embedding = true;
+  }
+  std::string out;
+  if (embedding)
+    out += "#ifndef TILEMEGA_EMBEDDING_RUNTIME\n"
+           "#define TILEMEGA_EMBEDDING_RUNTIME 1\n#endif\n";
+  return out;
+}
+
+/// The identifier width the importer read off the exported index tensor. A
+/// model that starts at hidden states emits nothing and keeps the default.
+std::string emitTokenIdBits(mlir::DictionaryAttr plan) {
+  auto value = llvm::dyn_cast_or_null<mlir::IntegerAttr>(plan.get("token_id_bits"));
+  if (!value || value.getInt() <= 0) return {};
+  return "#ifndef TILEMEGA_TOKEN_ID_BITS\n#define TILEMEGA_TOKEN_ID_BITS " +
+         std::to_string(value.getInt()) + "\n#endif\n";
+}
+
 std::string emitNormEpsilon(mlir::DictionaryAttr plan) {
   double epsilon = optionalFloatField(plan, "norm_epsilon");
   if (epsilon <= 0.0) return {};
@@ -1013,7 +1043,8 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
   out << "// SPDX-License-Identifier: BSD-3-Clause\n"
       << "// Generated from verified fused L-task phase and dependency projections.\n";
   if (stringField(original,"dtype")=="bf16") out << "#define TILEMEGA_MODEL_BF16 1\n";
-  out << emitNormEpsilon(original) << emitRoPEPrecision(original);
+  out << emitNormEpsilon(original) << emitRoPEPrecision(original)
+      << emitTokenIdBits(original) << emitTaskKindRuntime(original);
   auto feature=[&](char const* name,int value) {
     out << "#ifndef " << name << "\n#define " << name << ' ' << value << "\n#endif\n";
   };
@@ -1167,7 +1198,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
       << (stringField(emittedPlan, "dtype") == "bf16"
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
       << emitNormEpsilon(emittedPlan)
-      << emitRoPEPrecision(emittedPlan)
+      << emitRoPEPrecision(emittedPlan) << emitTokenIdBits(emittedPlan) << emitTaskKindRuntime(emittedPlan)
       << (clusterDim > 1 ? "#define TILEMEGA_GENERATED_CLUSTER_DIM " +
                                std::to_string(clusterDim) + "\n"
                           : std::string())
@@ -1259,7 +1290,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
       << (stringField(first_plan, "dtype") == "bf16"
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
       << emitNormEpsilon(first_plan)
-      << emitRoPEPrecision(first_plan)
+      << emitRoPEPrecision(first_plan) << emitTokenIdBits(first_plan) << emitTaskKindRuntime(first_plan)
       << emitSolvedLaunch(first)
       << EmitGemmInstantiations(shapes)
       << emitAttentionStorage(first, records)

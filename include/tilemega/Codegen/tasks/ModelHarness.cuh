@@ -18,6 +18,7 @@
 
 #include <tilemega/Codegen/tasks/AttentionChunkTaskBody.h>
 #include <tilemega/Codegen/tasks/ElementwiseTaskBody.h>
+#include <tilemega/Codegen/tasks/EmbeddingTaskBody.h>
 #include <tilemega/Codegen/tasks/AddTaskBody.h>
 #include <tilemega/Codegen/tasks/GemmCombineTaskBody.h>
 #include <tilemega/Codegen/tasks/GemmStageTaskBody.h>
@@ -163,6 +164,7 @@ using T_RoPE = RoPETaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_KV = KVAppendTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_Elementwise = ElementwiseTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_Add = AddTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
+using T_Embedding = EmbeddingTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_Attention = AttentionTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_GemmCombine = GemmCombineTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 #if TILEMEGA_FUSION_GEMM_RUNTIME
@@ -201,6 +203,9 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
     case TaskKind::kKVAppend: T_KV{}(p, stage, smem); break;
     case TaskKind::kElementwise: T_Elementwise{}(p, stage, smem); break;
     case TaskKind::kAdd: T_Add{}(p, stage, smem); break;
+#if TILEMEGA_EMBEDDING_RUNTIME
+    case TaskKind::kEmbedding: T_Embedding{}(p, stage, smem); break;
+#endif
     case TaskKind::kAttention: T_Attention{}(p, stage, smem); break;
     case TaskKind::kGemmCombine: T_GemmCombine{}(p, stage, smem); break;
     case TaskKind::kGemmAdd:
@@ -232,6 +237,11 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
       break;
     case TaskKind::kRMSNorm: T_Norm::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS); break;
     case TaskKind::kAdd: T_Add::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS); break;
+#if TILEMEGA_EMBEDDING_RUNTIME
+    case TaskKind::kEmbedding:
+      T_Embedding::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
+      break;
+#endif
     case TaskKind::kRoPE: T_RoPE::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS); break;
     case TaskKind::kKVAppend: T_KV::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS); break;
     case TaskKind::kElementwise:
@@ -349,6 +359,9 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
     case TaskKind::kGemm: return T_Gemm::Ownership(p, stage).count;
     case TaskKind::kRMSNorm: return T_Norm::Ownership(p, stage).count;
     case TaskKind::kAdd: return T_Add::Ownership(p, stage).count;
+#if TILEMEGA_EMBEDDING_RUNTIME
+    case TaskKind::kEmbedding: return T_Embedding::Ownership(p, stage).count;
+#endif
     case TaskKind::kRoPE: return T_RoPE::Ownership(p, stage).count;
     case TaskKind::kKVAppend: return T_KV::Ownership(p, stage).count;
     case TaskKind::kElementwise: return T_Elementwise::Ownership(p, stage).count;
@@ -1680,6 +1693,7 @@ inline DeviceModel Create(ModelSpec const& spec,
         return invocation.tiles_m * invocation.tiles_n;
       }
       case TaskKind::kRMSNorm:
+      case TaskKind::kEmbedding:
       case TaskKind::kGemmRMSNorm: return dims.seq;
       case TaskKind::kRoPE:
         if (model.params.ownership_flags & kRoPETileOwnership)

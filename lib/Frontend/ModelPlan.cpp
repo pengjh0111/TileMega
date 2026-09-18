@@ -418,6 +418,36 @@ ModelPlan BuildMlpRegions(std::vector<FxNodeRecord> const& nodes,
 
 }  // namespace
 
+/// The vocabulary gather whose result reaches `consumer`, if the exported
+/// graph starts at token identifiers rather than at hidden states. The index
+/// operand must be the model input itself: an embedding somewhere deeper in
+/// the graph is not the entry point and must not be lifted as one.
+FxNodeRecord const* EntryEmbedding(PatternMatcher const& matcher,
+                                   std::vector<FxNodeRecord> const& nodes,
+                                   std::string const& consumer,
+                                   std::string const& input) {
+  FxNodeRecord const* result = nullptr;
+  for (auto const& node : nodes) {
+    if (matcher.RoleOf(node) != "embedding" || node.inputs.size() < 2) continue;
+    if (matcher.Value(node.inputs[1]) != input) continue;
+    if (!matcher.DependsOn(consumer, node.name)) continue;
+    if (result)
+      throw std::runtime_error("two embeddings read the same model input");
+    result = &node;
+  }
+  return result;
+}
+
+/// Model elements per identifier. Buffers are arrays of model elements, so an
+/// identifier occupies as many of them as its own width needs and the fixture
+/// bytes are copied in unchanged.
+std::uint32_t TokenIdBits(FxNodeRecord const& node) {
+  if (node.dtype == "torch.int64") return 64;
+  if (node.dtype == "torch.int32") return 32;
+  throw std::runtime_error("token identifiers have an unsupported dtype: " +
+                           node.dtype);
+}
+
 ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                          std::vector<SignatureInput> const& inputs,
                          std::vector<std::string> const& outputs) {
@@ -462,22 +492,53 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     return builder.Weight(*found->second);
   };
 
-  FxNodeRecord const& hidden_node = builder.Node(hidden_input->name);
+  // With an embedding in front of the first layer the model input is a token
+  // identifier tensor, and the hidden state is that gather's result. Which of
+  // the two the graph starts at is read off the graph, not configured.
+  FxNodeRecord const* entry_embedding = EntryEmbedding(
+      matcher, nodes, layers.front().at("q")->name, hidden_input->name);
+  FxNodeRecord const& hidden_node = builder.Node(
+      entry_embedding ? entry_embedding->name : hidden_input->name);
   builder.plan.dtype = StorageDtype(hidden_node);
   // The current decoder ABI is one storage type per model. Mixed precision
   // accumulation remains an operator property (norm/softmax/GEMM use f32),
   // but persistent buffers and parameters must agree so a buffer id has one
   // unambiguous element size.
   for (auto const& input : inputs) {
+    // The identifiers are indices, not model storage; they are the one input
+    // whose dtype is deliberately not the model's.
+    if (entry_embedding && input.name == hidden_input->name) continue;
     FxNodeRecord const& node = builder.Node(input.name);
     if (StorageDtype(node) != builder.plan.dtype)
       throw std::runtime_error("mixed model storage dtypes are unsupported: " +
                                hidden_node.name + " vs " + node.name);
   }
   std::uint32_t hidden = StaticExtent(hidden_node, hidden_node.shape.size() - 1);
-  std::uint32_t current_hidden = builder.Buffer(
-      {hidden_input->name, 0, hidden, 0, 0, PlanBuffer::Source::kFixture,
-       "input_" + hidden_input->name + ".bin"});
+  std::uint32_t current_hidden;
+  if (entry_embedding) {
+    FxNodeRecord const& ids_node = builder.Node(hidden_input->name);
+    std::uint32_t const bits = TokenIdBits(ids_node);
+    builder.plan.token_id_bits = static_cast<int>(bits);
+    std::uint32_t ids = builder.Buffer(
+        {hidden_input->name, 0, bits / 16, 0, 0, PlanBuffer::Source::kFixture,
+         "input_" + hidden_input->name + ".bin"});
+    std::string const table_name = matcher.Value(entry_embedding->inputs[0]);
+    auto table_sig = signature_by_name.find(table_name);
+    if (table_sig == signature_by_name.end())
+      throw std::runtime_error("the embedding table is not a model parameter: " +
+                               table_name);
+    std::uint32_t table = builder.Weight(*table_sig->second);
+    FxNodeRecord const& table_node = builder.Node(table_name);
+    current_hidden = builder.Scratch("embed.hidden", hidden);
+    builder.Stage(PlanTaskKind::kEmbedding, entry_embedding->name, 0,
+                  StaticExtent(table_node, 0), hidden, 1,
+                  {ids, table, current_hidden});
+    builder.plan.node_buffer[entry_embedding->name] = current_hidden;
+  } else {
+    current_hidden = builder.Buffer(
+        {hidden_input->name, 0, hidden, 0, 0, PlanBuffer::Source::kFixture,
+         "input_" + hidden_input->name + ".bin"});
+  }
 
   std::unordered_map<std::string, std::uint32_t> semantic_output;
   for (std::size_t number = 0; number < layers.size(); ++number) {

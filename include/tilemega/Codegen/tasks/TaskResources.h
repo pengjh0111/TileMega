@@ -17,6 +17,7 @@ namespace tilemega::codegen {
 constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_extent) {
   switch (kind) {
     case TaskKind::kRMSNorm: return threads;
+    case TaskKind::kEmbedding: return 1;
     case TaskKind::kAttention: return attention_extent;
     case TaskKind::kRoPE:
     case TaskKind::kKVAppend:
@@ -55,6 +56,7 @@ template <int Threads>
 inline TaskResourceInfo ReadSimtTaskResources(TaskKind kind) {
   switch (kind) {
     case TaskKind::kRMSNorm: return ReadSimtTaskResources<TaskKind::kRMSNorm, Threads>();
+    case TaskKind::kEmbedding: return ReadSimtTaskResources<TaskKind::kEmbedding, Threads>();
     case TaskKind::kRoPE: return ReadSimtTaskResources<TaskKind::kRoPE, Threads>();
     case TaskKind::kKVAppend: return ReadSimtTaskResources<TaskKind::kKVAppend, Threads>();
     case TaskKind::kElementwise: return ReadSimtTaskResources<TaskKind::kElementwise, Threads>();

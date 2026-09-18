@@ -198,6 +198,7 @@ llvm::StringRef taskKindName(PlanTaskKind kind) {
     case PlanTaskKind::kElementwise: return "kElementwise";
     case PlanTaskKind::kAttention: return "kAttention";
     case PlanTaskKind::kAdd: return "kAdd";
+    case PlanTaskKind::kEmbedding: return "kEmbedding";
   }
   llvm_unreachable("unknown plan task kind");
 }
@@ -251,6 +252,8 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
                            builder.getF64FloatAttr(plan.norm_epsilon)),
       builder.getNamedAttr("rope_fp32_phase",
                            builder.getBoolAttr(plan.rope_fp32_phase)),
+      builder.getNamedAttr("token_id_bits",
+                           builder.getI64IntegerAttr(plan.token_id_bits)),
       builder.getNamedAttr("buffers", builder.getArrayAttr(buffers)),
       builder.getNamedAttr("gemms", builder.getArrayAttr(gemms)),
       builder.getNamedAttr("stages", builder.getArrayAttr(stages)),

@@ -106,6 +106,7 @@ std::unordered_set<std::uint32_t> RotatedOrCachedInputs(ModelPlan const& plan) {
 std::string ToString(OpRole role) {
   switch (role) {
     case OpRole::kNorm: return "norm";
+    case OpRole::kEmbedding: return "embedding";
     case OpRole::kQkvProjection: return "qkv_projection";
     case OpRole::kProjection: return "projection";
     case OpRole::kRoPE: return "rope";
@@ -167,6 +168,7 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
     op.dtype = dtype;
     switch (role) {
       case OpRole::kNorm: op.arithmetic = "rmsnorm"; break;
+      case OpRole::kEmbedding: op.arithmetic = "embedding"; break;
       case OpRole::kQkvProjection:
       case OpRole::kProjection: op.arithmetic = "gemm"; break;
       case OpRole::kRoPE: op.arithmetic = "rope"; break;
@@ -276,6 +278,26 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
                   {IndexResult::Dim("m"),IndexResult::Dim("n")})});
         record(std::move(op),OpRole::kResidualAdd,OwnershipKind::kTilePerBlock,
                i,layer,stage.operands[2]);
+        break;
+      }
+      case PlanTaskKind::kEmbedding: {
+        ClosedForm width = Fixed(stage.width), vocab = Fixed(stage.extent);
+        std::string name = StageName(layer, i, "embed");
+        // The row index is a value, not an index expression, so the table read
+        // is declared data dependent rather than given an exactness the
+        // frontend cannot check. The identifier read itself is affine.
+        SemanticOp op = Op(
+            name, OperatorKind::kPointwise,
+            {Par("m", S), Par("h", width)},
+            Space(name_of(stage.operands[2]), {Ax("m", S), Ax("h", width)}),
+            {Read(producer_of(stage.operands[0]),
+                  space_of(stage.operands[0], {Ax("m", S)}),
+                  {IndexResult::Dim("m")}),
+             Read(producer_of(stage.operands[1]),
+                  space_of(stage.operands[1], {Ax("v", vocab), Ax("h", width)}),
+                  {IndexResult::DataDependent(), IndexResult::Dim("h")})});
+        record(std::move(op), OpRole::kEmbedding, OwnershipKind::kTilePerBlock,
+               i, layer, stage.operands[2]);
         break;
       }
       case PlanTaskKind::kRoPE: {
@@ -444,7 +466,8 @@ analysis::Granularity LaunchGranularity(LiftedModel const& model) {
   for (auto const& op : model.ops) {
     switch (op.role) {
       case OpRole::kNorm:
-        // RMSNormTaskBody: one token per CTA.
+      case OpRole::kEmbedding:
+        // RMSNormTaskBody and EmbeddingTaskBody: one token per CTA.
         g.Tile(op.name, "m", one);
         break;
       case OpRole::kQkvProjection:
@@ -506,6 +529,7 @@ analysis::Granularity LaunchGranularity(
   for (auto const& op : model.ops) {
     switch (op.role) {
       case OpRole::kNorm:
+      case OpRole::kEmbedding:
         g.Tile(op.name, "m", one);
         break;
       case OpRole::kQkvProjection:
@@ -571,6 +595,7 @@ analysis::Granularity ReferenceGranularity(LiftedModel const& model) {
   for (auto const& op : model.ops) {
     switch (op.role) {
       case OpRole::kNorm:
+      case OpRole::kEmbedding:
         g.Tile(op.name, "m", Tm);
         break;
       case OpRole::kQkvProjection:

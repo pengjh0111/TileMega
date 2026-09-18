@@ -96,6 +96,7 @@ StageKind ParseKind(std::string const& text) {
   if (text == "TaskKind::kKVAppend") return StageKind::kKVAppend;
   if (text == "TaskKind::kElementwise") return StageKind::kElementwise;
   if (text == "TaskKind::kAdd") return StageKind::kAdd;
+  if (text == "TaskKind::kEmbedding") return StageKind::kEmbedding;
   if (text == "TaskKind::kAttention") return StageKind::kAttention;
   throw std::runtime_error("unmodelled stage kind: " + text);
 }

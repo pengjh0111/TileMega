@@ -84,6 +84,10 @@ enum class TaskKind : std::uint32_t {
   kGemmRMSNorm = 8,
   kRoPEKVAppend = 9,
   kAdd = 10,
+  /// The vocabulary gather in front of the first layer. Its own kind rather
+  /// than an elementwise stage: the read it performs is data dependent, so
+  /// its access relation is not a function of the task index alone.
+  kEmbedding = 11,
 };
 
 /// The ownership each TaskKind's TaskBody declares. Every TaskBody's
@@ -97,6 +101,7 @@ TILEMEGA_TASK_HD constexpr TaskOwnershipKind OwnershipOf(TaskKind kind) {
     case TaskKind::kGemmAdd:
     case TaskKind::kGemmRMSNorm:
     case TaskKind::kRMSNorm:
+    case TaskKind::kEmbedding:
     case TaskKind::kAttention:
       return TaskOwnershipKind::kTilePerBlock;
     case TaskKind::kRoPE:

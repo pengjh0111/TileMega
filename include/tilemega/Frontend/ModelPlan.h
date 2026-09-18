@@ -62,6 +62,7 @@ enum class PlanTaskKind {
   kElementwise,
   kAttention,
   kAdd,
+  kEmbedding,
 };
 
 struct PlanStage {
@@ -95,6 +96,11 @@ struct ModelPlan {
   /// model storage rounds the angle to that storage. Both exist, so neither
   /// can be assumed.
   bool rope_fp32_phase = false;
+  /// The width of one token identifier, read off the exported index tensor's
+  /// own dtype. Zero means the graph starts at hidden states, so there is no
+  /// identifier to read; it is never assumed, because an index tensor copied
+  /// into the buffer table at the wrong width silently aliases rows.
+  int token_id_bits = 0;
   std::vector<PlanBuffer> buffers;
   std::vector<PlanGemm> gemms;
   std::vector<PlanStage> stages;

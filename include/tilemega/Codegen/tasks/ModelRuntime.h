@@ -58,6 +58,20 @@ enum class ScalarType : std::uint32_t { kF32 = 0, kBF16 = 1 };
 #define TILEMEGA_MIDPOINT_GUARD 0.015625f
 #endif
 
+// Whether this model gathers a token embedding. Generated: a model that starts
+// at hidden states must compile to what it compiled to before the gather
+// existed, which is what the default-build SASS identity checks.
+#ifndef TILEMEGA_EMBEDDING_RUNTIME
+#define TILEMEGA_EMBEDDING_RUNTIME 0
+#endif
+
+// The width of one token identifier in the generated buffer table. Generated
+// from the imported model, because the exported index tensor decides it; the
+// default matters only for a model that never gathers an embedding.
+#ifndef TILEMEGA_TOKEN_ID_BITS
+#define TILEMEGA_TOKEN_ID_BITS 32
+#endif
+
 // Ablation only, never generated: keeps `cosf`/`sinf` in FP32 instead of
 // rounding them once to model storage. The reference implementations cast the
 // cosine and sine to the model dtype before multiplying, so the rounded form
