@@ -58,6 +58,13 @@ enum class ScalarType : std::uint32_t { kF32 = 0, kBF16 = 1 };
 #define TILEMEGA_MIDPOINT_GUARD 0.015625f
 #endif
 
+// Whether this model normalizes queries and keys per head. Generated for the
+// same reason as the gather below: a model without them must compile to what
+// it compiled to before the family existed.
+#ifndef TILEMEGA_QK_NORM_RUNTIME
+#define TILEMEGA_QK_NORM_RUNTIME 0
+#endif
+
 // Whether this model gathers a token embedding. Generated: a model that starts
 // at hidden states must compile to what it compiled to before the gather
 // existed, which is what the default-build SASS identity checks.

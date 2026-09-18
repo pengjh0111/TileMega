@@ -162,6 +162,9 @@ mlir::DictionaryAttr dict(mlir::Builder& builder,
 llvm::StringRef taskKindOf(OpRole role) {
   switch (role) {
     case OpRole::kNorm: return "rmsnorm";
+    // The per-head normalization is the same task kind; what distinguishes it
+    // is the granularity, which the task space carries beside this.
+    case OpRole::kQKNorm: return "rmsnorm";
     case OpRole::kEmbedding: return "embedding";
     case OpRole::kQkvProjection:
     case OpRole::kProjection: return "gemm";
@@ -200,6 +203,7 @@ llvm::StringRef taskKindName(PlanTaskKind kind) {
     case PlanTaskKind::kAttention: return "kAttention";
     case PlanTaskKind::kAdd: return "kAdd";
     case PlanTaskKind::kEmbedding: return "kEmbedding";
+    case PlanTaskKind::kQKNorm: return "kQKNorm";
   }
   llvm_unreachable("unknown plan task kind");
 }

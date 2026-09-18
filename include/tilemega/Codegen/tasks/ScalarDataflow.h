@@ -51,6 +51,7 @@ inline ScalarDataflow ScalarTaskDataflow(TaskKind kind) {
   ScalarDataflow flow;
   int input=flow.Add(ScalarPhase::kLoad);
   switch (kind) {
+    case TaskKind::kQKNorm:
     case TaskKind::kRMSNorm: {
       flow.nodes[input].read_operands={0};
       int sum=flow.Add(ScalarPhase::kBlockReduction,{input});

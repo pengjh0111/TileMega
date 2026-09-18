@@ -107,6 +107,7 @@ std::string ToString(OpRole role) {
   switch (role) {
     case OpRole::kNorm: return "norm";
     case OpRole::kEmbedding: return "embedding";
+    case OpRole::kQKNorm: return "qk_norm";
     case OpRole::kQkvProjection: return "qkv_projection";
     case OpRole::kProjection: return "projection";
     case OpRole::kRoPE: return "rope";
@@ -169,6 +170,7 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
     switch (role) {
       case OpRole::kNorm: op.arithmetic = "rmsnorm"; break;
       case OpRole::kEmbedding: op.arithmetic = "embedding"; break;
+      case OpRole::kQKNorm: op.arithmetic = "rmsnorm"; break;
       case OpRole::kQkvProjection:
       case OpRole::kProjection: op.arithmetic = "gemm"; break;
       case OpRole::kRoPE: op.arithmetic = "rope"; break;
@@ -278,6 +280,34 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
                   {IndexResult::Dim("m"),IndexResult::Dim("n")})});
         record(std::move(op),OpRole::kResidualAdd,OwnershipKind::kTilePerBlock,
                i,layer,stage.operands[2]);
+        break;
+      }
+      case PlanTaskKind::kQKNorm: {
+        // The result space is the whole projected tensor, as the row
+        // normalization's is; what differs is that the reduction runs inside
+        // one head, so the read index is `head_dim * floor(c / head_dim) + r`
+        // -- the same grouped term attention uses for its KV head.
+        ClosedForm head_dim = Fixed(stage.width);
+        ClosedForm cols = Fixed(stage.extent * stage.width);
+        model.head_dim = head_dim;
+        std::string name = StageName(layer, i, "qknorm");
+        SemanticOp op = Op(
+            name, OperatorKind::kReduction,
+            {Par("m", S), Par("c", cols), Red("r", head_dim)},
+            Space(name_of(stage.operands[2]), {Ax("m", S), Ax("c", cols)}),
+            {Read(producer_of(stage.operands[0]),
+                  space_of(stage.operands[0], {Ax("m", S), Ax("c", cols)}),
+                  {IndexResult::Dim("m"),
+                   IndexResult::Affine({{"c", head_dim, head_dim},
+                                        {"r", ClosedForm::Constant(1),
+                                         ClosedForm::Constant(1)}})})});
+#if TILEMEGA_COMPLETE_NORMALIZATION_READS
+        op.operands.push_back(Read("",
+            space_of(stage.operands[1],{Ax("d",head_dim)}),
+            {IndexResult::Dim("c",ClosedForm::Constant(1),head_dim)}));
+#endif
+        record(std::move(op), OpRole::kQKNorm, OwnershipKind::kTilePerBlock, i,
+               layer, stage.operands[2]);
         break;
       }
       case PlanTaskKind::kEmbedding: {
@@ -487,6 +517,10 @@ analysis::Granularity LaunchGranularity(LiftedModel const& model) {
         // RMSNormTaskBody and EmbeddingTaskBody: one token per CTA.
         g.Tile(op.name, "m", one);
         break;
+      case OpRole::kQKNorm:
+        // QKNormTaskBody: one (token, head) per CTA.
+        g.Tile(op.name, "m", one).Tile(op.name, "c", model.head_dim);
+        break;
       case OpRole::kQkvProjection:
       case OpRole::kProjection:
       case OpRole::kResidualAdd:
@@ -548,6 +582,9 @@ analysis::Granularity LaunchGranularity(
       case OpRole::kNorm:
       case OpRole::kEmbedding:
         g.Tile(op.name, "m", one);
+        break;
+      case OpRole::kQKNorm:
+        g.Tile(op.name, "m", one).Tile(op.name, "c", model.head_dim);
         break;
       case OpRole::kQkvProjection:
       case OpRole::kProjection: {
@@ -614,6 +651,9 @@ analysis::Granularity ReferenceGranularity(LiftedModel const& model) {
       case OpRole::kNorm:
       case OpRole::kEmbedding:
         g.Tile(op.name, "m", Tm);
+        break;
+      case OpRole::kQKNorm:
+        g.Tile(op.name, "m", Tm).Tile(op.name, "c", model.head_dim);
         break;
       case OpRole::kQkvProjection:
         g.Tile(op.name, "m", Tm).Tile(op.name, "n", model.head_dim);

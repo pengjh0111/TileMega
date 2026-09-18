@@ -438,6 +438,38 @@ FxNodeRecord const* EntryEmbedding(PatternMatcher const& matcher,
   return result;
 }
 
+/// The per-head normalization between a projection and its rotation, if the
+/// architecture has one. Structural in both directions: it must lie on the
+/// path from the projection to the rotation, and its parameter must be exactly
+/// one head wide -- a row normalization on the same path would carry the whole
+/// projected width and is not this.
+FxNodeRecord const* PerHeadNormalization(PatternMatcher const& matcher,
+                                         std::vector<FxNodeRecord> const& nodes,
+                                         std::string const& projection,
+                                         std::string const& rotated,
+                                         std::uint32_t head_dim) {
+  FxNodeRecord const* result = nullptr;
+  for (auto const& node : nodes) {
+    if (matcher.RoleOf(node) != "multiply") continue;
+    if (!matcher.DependsOn(rotated, node.name)) continue;
+    if (!matcher.DependsOn(node.name, projection)) continue;
+    bool weighted = false;
+    for (auto const& operand : node.inputs) {
+      std::string const value = matcher.Value(operand);
+      if (!matcher.IsParameter(value)) continue;
+      auto found = std::find_if(nodes.begin(), nodes.end(),
+                                [&](FxNodeRecord const& n) { return n.name == value; });
+      if (found != nodes.end() && NumericElements(*found) == head_dim)
+        weighted = true;
+    }
+    if (!weighted) continue;
+    if (result)
+      throw std::runtime_error("two per-head normalizations reach " + rotated);
+    result = &node;
+  }
+  return result;
+}
+
 /// Model elements per identifier. Buffers are arrays of model elements, so an
 /// identifier occupies as many of them as its own width needs and the fixture
 /// bytes are copied in unchanged.
@@ -650,19 +682,43 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     builder.Epsilon(NormalizationEpsilon(matcher, q_node.inputs[0]));
     builder.Stage(PlanTaskKind::kRMSNorm, q_node.inputs[0], 0, 0, hidden, 1,
                   {current_hidden, wn1, norm});
+    // A per-head normalization, where the architecture has one, sits between
+    // each projection and its rotation and is what the rotation then reads.
+    FxNodeRecord const* q_norm = PerHeadNormalization(
+        matcher, nodes, q_node.name, q_rot.name, head_dim);
+    FxNodeRecord const* k_norm = PerHeadNormalization(
+        matcher, nodes, k_node.name, matcher.Value(cat_k.inputs[1]), head_dim);
+    if (static_cast<bool>(q_norm) != static_cast<bool>(k_norm))
+      throw std::runtime_error("only one of the query and key is normalized "
+                               "per head in layer " + std::to_string(number));
+    std::uint32_t q_rotated = q, k_rotated = k;
     builder.Stage(PlanTaskKind::kGemm, q_node.name,
                   builder.Gemm(norm, wq, q, q, q_width, hidden, 0.0f),
                   0, 0, 1);
+    if (q_norm) {
+      builder.Epsilon(NormalizationEpsilon(matcher, q_norm->name));
+      q_rotated = builder.Scratch(prefix + "q_normed", q_width);
+      builder.Stage(PlanTaskKind::kQKNorm, q_norm->name, 0, heads, head_dim, 1,
+                    {q, weight(matcher.NearestParameter(q_norm->name)),
+                     q_rotated});
+    }
     builder.Stage(PlanTaskKind::kGemm, k_node.name,
                   builder.Gemm(norm, wk, k, k, kv_width, hidden, 0.0f),
                   0, 0, 1);
+    if (k_norm) {
+      builder.Epsilon(NormalizationEpsilon(matcher, k_norm->name));
+      k_rotated = builder.Scratch(prefix + "k_normed", kv_width);
+      builder.Stage(PlanTaskKind::kQKNorm, k_norm->name, 0, kv_heads, head_dim,
+                    1, {k, weight(matcher.NearestParameter(k_norm->name)),
+                        k_rotated});
+    }
     builder.Stage(PlanTaskKind::kGemm, v_node.name,
                   builder.Gemm(norm, wv, v, v, kv_width, hidden, 0.0f),
                   0, 0, 1);
     builder.Stage(PlanTaskKind::kRoPE, q_rot.name, 0, heads, head_dim, 1,
-                  {q, q_rot_buffer, inv});
+                  {q_rotated, q_rot_buffer, inv});
     builder.Stage(PlanTaskKind::kRoPE, cat_k.inputs[1], 0, kv_heads,
-                  head_dim, 1, {k, k_rot, inv});
+                  head_dim, 1, {k_rotated, k_rot, inv});
     builder.Stage(PlanTaskKind::kKVAppend, cat_k.name, 0, kv_heads, head_dim, 1,
                   {k_rot, past_k, full_k});
     builder.Stage(PlanTaskKind::kKVAppend, cat_v.name, 0, kv_heads, head_dim, 1,

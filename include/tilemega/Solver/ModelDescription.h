@@ -85,6 +85,7 @@ enum class StageKind {
   kAttention,
   kAdd = 10,
   kEmbedding = 11,
+  kQKNorm = 12,
 };
 
 struct ModelStage {

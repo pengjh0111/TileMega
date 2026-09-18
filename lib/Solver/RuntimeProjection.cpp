@@ -239,6 +239,8 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
       }
       case StageKind::kRMSNorm:
       case StageKind::kEmbedding: count = seq; break;
+      // One (token, head): the ownership the QK normalization declares.
+      case StageKind::kQKNorm: count = Mul(seq,stage.extent); break;
       case StageKind::kRoPE:
         count = plan.ownership_flags & codegen::kRoPETileOwnership ? Mul(seq,stage.extent) :
             Ceil(Mul(seq,stage.extent*(stage.width/2)),options.threads);

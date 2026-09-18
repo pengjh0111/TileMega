@@ -88,6 +88,11 @@ enum class TaskKind : std::uint32_t {
   /// than an elementwise stage: the read it performs is data dependent, so
   /// its access relation is not a function of the task index alone.
   kEmbedding = 11,
+  /// The per-head query and key normalization. Its own kind rather than a
+  /// second kRMSNorm stage: it owns one (token, head), not one token, and the
+  /// ownership a TaskBody declares is what decides whether a coupling into it
+  /// can be lowered to a per-CTA wait.
+  kQKNorm = 12,
 };
 
 /// The ownership each TaskKind's TaskBody declares. Every TaskBody's
@@ -101,6 +106,7 @@ TILEMEGA_TASK_HD constexpr TaskOwnershipKind OwnershipOf(TaskKind kind) {
     case TaskKind::kGemmAdd:
     case TaskKind::kGemmRMSNorm:
     case TaskKind::kRMSNorm:
+    case TaskKind::kQKNorm:
     case TaskKind::kEmbedding:
     case TaskKind::kAttention:
       return TaskOwnershipKind::kTilePerBlock;

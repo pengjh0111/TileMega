@@ -217,16 +217,21 @@ std::string emitTaskKindRuntime(mlir::DictionaryAttr plan) {
   auto stages = llvm::dyn_cast_or_null<mlir::ArrayAttr>(plan.get("stages"));
   if (!stages) return {};
   bool embedding = false;
+  bool qk_norm = false;
   for (auto value : stages) {
     auto item = llvm::dyn_cast<mlir::DictionaryAttr>(value);
     if (!item) continue;
     auto kind = llvm::dyn_cast_or_null<mlir::StringAttr>(item.get("kind"));
     if (kind && kind.getValue() == "kEmbedding") embedding = true;
+    if (kind && kind.getValue() == "kQKNorm") qk_norm = true;
   }
   std::string out;
   if (embedding)
     out += "#ifndef TILEMEGA_EMBEDDING_RUNTIME\n"
            "#define TILEMEGA_EMBEDDING_RUNTIME 1\n#endif\n";
+  if (qk_norm)
+    out += "#ifndef TILEMEGA_QK_NORM_RUNTIME\n"
+           "#define TILEMEGA_QK_NORM_RUNTIME 1\n#endif\n";
   return out;
 }
 

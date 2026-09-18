@@ -27,6 +27,7 @@
 #include <tilemega/Codegen/tasks/KVAppendTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
+#include <tilemega/Codegen/tasks/QKNormTaskBody.h>
 #include <tilemega/Codegen/tasks/RMSNormTaskBody.h>
 #include <tilemega/Codegen/tasks/ClusterSync.cuh>
 #include <tilemega/Codegen/tasks/RoPETaskBody.h>
@@ -165,6 +166,7 @@ using T_KV = KVAppendTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_Elementwise = ElementwiseTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_Add = AddTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_Embedding = EmbeddingTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
+using T_QKNorm = QKNormTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_Attention = AttentionTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_GemmCombine = GemmCombineTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 #if TILEMEGA_FUSION_GEMM_RUNTIME
@@ -206,6 +208,9 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 #if TILEMEGA_EMBEDDING_RUNTIME
     case TaskKind::kEmbedding: T_Embedding{}(p, stage, smem); break;
 #endif
+#if TILEMEGA_QK_NORM_RUNTIME
+    case TaskKind::kQKNorm: T_QKNorm{}(p, stage, smem); break;
+#endif
     case TaskKind::kAttention: T_Attention{}(p, stage, smem); break;
     case TaskKind::kGemmCombine: T_GemmCombine{}(p, stage, smem); break;
     case TaskKind::kGemmAdd:
@@ -240,6 +245,11 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
 #if TILEMEGA_EMBEDDING_RUNTIME
     case TaskKind::kEmbedding:
       T_Embedding::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
+      break;
+#endif
+#if TILEMEGA_QK_NORM_RUNTIME
+    case TaskKind::kQKNorm:
+      T_QKNorm::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
       break;
 #endif
     case TaskKind::kRoPE: T_RoPE::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS); break;
@@ -361,6 +371,9 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
     case TaskKind::kAdd: return T_Add::Ownership(p, stage).count;
 #if TILEMEGA_EMBEDDING_RUNTIME
     case TaskKind::kEmbedding: return T_Embedding::Ownership(p, stage).count;
+#endif
+#if TILEMEGA_QK_NORM_RUNTIME
+    case TaskKind::kQKNorm: return T_QKNorm::Ownership(p, stage).count;
 #endif
     case TaskKind::kRoPE: return T_RoPE::Ownership(p, stage).count;
     case TaskKind::kKVAppend: return T_KV::Ownership(p, stage).count;
@@ -1695,6 +1708,8 @@ inline DeviceModel Create(ModelSpec const& spec,
       case TaskKind::kRMSNorm:
       case TaskKind::kEmbedding:
       case TaskKind::kGemmRMSNorm: return dims.seq;
+      // One (token, head), which is the ownership the TaskBody declares.
+      case TaskKind::kQKNorm: return dims.seq * static_cast<int>(stage.extent);
       case TaskKind::kRoPE:
         if (model.params.ownership_flags & kRoPETileOwnership)
           return dims.seq * static_cast<int>(stage.extent);

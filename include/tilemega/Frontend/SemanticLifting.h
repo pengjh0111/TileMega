@@ -25,6 +25,7 @@ namespace tilemega::frontend {
 enum class OpRole {
   kNorm,
   kEmbedding,  ///< the vocabulary gather, whose table read is data dependent
+  kQKNorm,     ///< a normalization owning one (token, head), not one token
   kQkvProjection,  ///< a projection whose result a RoPE or a KV append reads
   kProjection,
   kRoPE,

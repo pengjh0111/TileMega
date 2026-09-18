@@ -63,6 +63,7 @@ enum class PlanTaskKind {
   kAttention,
   kAdd,
   kEmbedding,
+  kQKNorm,
 };
 
 struct PlanStage {
