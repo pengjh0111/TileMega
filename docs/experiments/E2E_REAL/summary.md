@@ -18,11 +18,17 @@ Written for: the TileMega maintainers reviewing this round against the R7 prompt
 | 6 | `4e0d0d770` analysis: count a gather by the row it reads | 4 (analysis) |
 | 7 | `35d8751fb` codegen: own query and key norms per head | 5 |
 | 8 | `66c6497a4` frontend: lift the final normalization stage | 6 |
+| 9 | `85c320e18` experiments: add the round seven runners and self-check | 16 |
+| 10 | `465737737` docs: record the round seven closure results | 15, 17 |
+| 11 | `bfd3102f3` experiments: stamp the sass identity at head | 18 |
+
+No push rights on `origin`; the series is at `/tmp/round7-patches/` (11
+patches, `git format-patch 4e0e7b119..HEAD`).
 
 Prompt §13 lists 18 steps as 18 commits; this round used two extra commits to
 keep a mechanism separate from the experiment that measures it and the analysis
 change separate from the operator that needs it, which `AGENTS.md` requires.
-Steps 7–14 and 16 are not present: see the stoppage ledger in §4.
+Steps 7–14 are not present: see the stoppage ledger in §4.
 
 **H4 ordering in git history.** A1 (`3ebbf77a4`) and A2 (`db9669a60`) both
 precede A3's acceptance measurement (`4586d8ce3`) — satisfied. B0 before B1 and
