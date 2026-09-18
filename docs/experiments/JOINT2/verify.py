@@ -188,7 +188,19 @@ def roundtrip():
    generated=re.search(r'kInterval'+name+f'0_{seq-1}'+r'\[\] = \{([^}]+)\}',source)
    check(generated is not None and values==[int(v) for v in generated[1].split(',')],f'generated {key} differs')
   counts.append(len(actual))
- return True,f'point + interval CG/direct solver/generated/host arrays identical; interval nodes={counts}; {evidence(interval)}'
+ full=W/'full_roundtrip';seen=set();table_pairs=0
+ resolve=json.loads((full/'resolve/command.json').read_text())
+ check(resolve['exit_code']==0,'independent point solve failed')
+ check('INTERVAL_PASS points=5' in (full/'resolve/run.log').read_text(),'independent solver coverage missing')
+ for seq in range(1,6):
+  for arm in ('cg','direct'):
+   folder=full/arm/f's{seq}';meta=json.loads((folder/'command.json').read_text())
+   check(meta['exit_code']==0 and 'RESULT status=PASS' in (folder/'run.log').read_text(),'full-carrier execution failed')
+   check(meta['started_ns'] not in seen,'full-carrier process reused');seen.add(meta['started_ns'])
+  for name in ('schedule.tsv','waits.tsv','events.tsv'):
+   check((full/'cg'/f's{seq}'/name).read_bytes()==(full/'direct'/f's{seq}'/name).read_bytes(),f'full table differs: s{seq}/{name}')
+   table_pairs+=1
+ return True,f'point + interval CG/direct solver/generated/host arrays identical; interval nodes={counts}; full direct-injection versus CG path={table_pairs}/15 schedule/waits/events byte comparisons, fresh executions={len(seen)}/10; {evidence(interval)}; {evidence(full)}'
 def interval_writeback():
  root=W/'interval_closure';ok,detail=collections([root/'correctness'/f's{s}' for s in range(1,6)])
  cg=(root/'gqa2.mlir').read_text();check('tilemega.solved_seq_begin = 1' in cg and 'tilemega.solved_seq_end = 5' in cg,'missing interval bounds')
@@ -222,7 +234,27 @@ def symbolic_samples():
   for g in (256,340):
    for s in (1,32,64,96,128):
     r=next(r for r in rows if r['family']==family and int(r['grid'])==g and int(r['seq'])==s);check((root/r['template']).read_bytes()==(root/r['native']).read_bytes(),str(r));n+=1
- return n==40,f'{n}/40 endpoint/interior complete plan byte comparisons; SYMBOLIC/complete/'
+ groups=[('original',[(family,g,s) for family in ('legacy_grid_stride','rotate','band','wavefront') for g in (256,340) for s in (1,32,64,96,128)])]
+ for name in ALL:
+  manifest=S/'bounded_certificates'/name/'manifest.json'
+  if not manifest.exists():continue
+  m=json.loads(manifest.read_text());groups.append((name,[(m['family'],m['grid'],s) for s in (1,32,64,96,128)]))
+ queues=0
+ for name,cases in groups:
+  folder=S/'queue_roundtrip'/name;command=json.loads((folder/'command.json').read_text())
+  check(command['exit_code']==0,'queue materialization process failed '+name)
+  for path,digest in command['inputs'].items():check(sha(Path(path))==digest,'queue test input changed '+path)
+  for family,g,s in cases:
+   prefix=f'{family}_g{g}_s{s}';a=(folder/(prefix+'.template.tsv')).read_bytes();b=(folder/(prefix+'.native.tsv')).read_bytes()
+   check(a==b,'queue bytes differ '+name+'/'+prefix)
+   lines=a.decode().splitlines();check(lines[0]==f'workers={g}','queue grid mismatch')
+   entries=list(csv.DictReader(lines[1:],delimiter='\t'));next_slot=[0]*g;tasks=set()
+   for entry in entries:
+    worker=int(entry['worker']);slot=int(entry['slot']);task=(int(entry['stage']),int(entry['logical_task']))
+    check(0<=worker<g and slot==next_slot[worker] and task not in tasks,'queue is not a dense task permutation')
+    next_slot[worker]+=1;tasks.add(task)
+   queues+=1
+ return n==40,f'{n}/40 endpoint/interior pi/sigma byte comparisons; actual queue-vector comparisons={queues}/{sum(len(c) for _,c in groups)} including fitted current winners; SYMBOLIC/complete/ and SYMBOLIC/queue_roundtrip/'
 def symbolic_champion():
  parts=[]
  for name in ALL:

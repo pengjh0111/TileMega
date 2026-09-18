@@ -5689,3 +5689,27 @@ budget gate. Event relations retain essentially the same route. Dense edge
 storage still remains after enumeration; retaining shared successor regions
 through preparation is the next concrete change if preparation dominates.
 Evidence: `JOINT2/closure/finite_slices/` and `finite_relation_audit.cpp`.
+
+
+## F-211 — R6 validates complete carriers and native queue vectors
+
+✅ **Verified.** The earlier W-d interval checks compared worker/slot arrays,
+which alone did not prove equality of every executable table. The supplemental
+`WRITEBACK/full_roundtrip/` campaign independently re-solves seq 1..5 and injects
+those placements into RuntimePlanDesc, bypassing CG-generated arrays and the
+interval carrier. All ten fresh CG/direct executions pass. All fifteen full
+`schedule.tsv`, `waits.tsv` and `events.tsv` pairs are byte-identical. The
+geometry, past length, grid and finite interval remain those of F-202; this
+is stronger carrier validation, not additional interval optimization.
+
+✅ **Verified.** S-b now also compares the actual MaterializedPlan.queue vectors
+against evaluation of the already proved symbolic expressions: forty original
+family/grid/seq cases and fifteen points for three fitted current winners.
+All 55 pairs match byte for byte, including worker count, dense slots, stage
+and logical-task identifiers. The existing forty pi/sigma comparisons and
+ISL certificates remain in place. Native projection binds theta first, as
+the host does; an initial test harness that projected unbound theta spent
+time constructing unused symbolic wait counts and was replaced before
+collecting the complete accepted campaign. No production legality rule or
+winning placement changed. Evidence: `SYMBOLIC/queue_roundtrip/`; both
+supplemental obligations are required by `JOINT2/verify.py`.
