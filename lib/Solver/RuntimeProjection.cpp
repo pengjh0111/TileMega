@@ -237,7 +237,8 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
         count = Mul(tiles[i],stage_chunks[i]);
         break;
       }
-      case StageKind::kRMSNorm: count = seq; break;
+      case StageKind::kRMSNorm:
+      case StageKind::kEmbedding: count = seq; break;
       case StageKind::kRoPE:
         count = plan.ownership_flags & codegen::kRoPETileOwnership ? Mul(seq,stage.extent) :
             Ceil(Mul(seq,stage.extent*(stage.width/2)),options.threads);

@@ -104,6 +104,7 @@ static analysis::ParamBinding combinedBinding(ModuleOp module) {
 LogicalResult TaskSpaceOp::verify() {
   static constexpr StringLiteral known[] = {
       "gemm", "rmsnorm", "rope", "kvappend", "elementwise", "attention",
+      "embedding",
       "view", "transpose", "broadcast", "reduction", "slice", "concat",
       // `generic` is the degraded classification: one conservative task space
       // for an operator no rule covers.

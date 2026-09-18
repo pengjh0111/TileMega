@@ -37,6 +37,8 @@ std::vector<ArithmeticDeclaration> const& ArithmeticDeclarations() {
      "implemented", "SiLU's three scalar ops followed by gate/up multiply; one exp"},
     {"kv_append", {0,0,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
      "pure_data_movement", "copy only, index arithmetic excluded from floating-point lanes"},
+    {"embedding", {0,0,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
+     "pure_data_movement", "one row copied per token; the row address is a table read, not arithmetic"},
     {"sum", {-1,1,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
      "combine_component", "R values require R-1 additions; zero-seeded implementation overhead is separate"},
     {"softmax", {-1,0,0,3,1,true}, {1,0,0,0,1,false}, false,true,false,

@@ -162,6 +162,7 @@ mlir::DictionaryAttr dict(mlir::Builder& builder,
 llvm::StringRef taskKindOf(OpRole role) {
   switch (role) {
     case OpRole::kNorm: return "rmsnorm";
+    case OpRole::kEmbedding: return "embedding";
     case OpRole::kQkvProjection:
     case OpRole::kProjection: return "gemm";
     case OpRole::kRoPE: return "rope";

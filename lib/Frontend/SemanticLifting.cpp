@@ -296,6 +296,23 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
              Read(producer_of(stage.operands[1]),
                   space_of(stage.operands[1], {Ax("v", vocab), Ax("h", width)}),
                   {IndexResult::DataDependent(), IndexResult::Dim("h")})});
+        // The coupling derivation keeps the data-dependent table read above --
+        // the whole table is the only sound rectangular cover for an index the
+        // frontend cannot evaluate, and that is what sends it to the I2
+        // relaxation. The work model needs a count rather than a region, and
+        // the count is exact and small: one row per token. Declaring it here
+        // states the count without claiming to know which row, which reading
+        // the cover as traffic would get wrong by the whole vocabulary.
+        op.element_reads = {
+            {op.operands[0].tensor, op.operands[0].map, {}},
+            {op.operands[1].tensor,
+             {{IndexResult::Affine({}), IndexResult::Dim("h")}},
+             {}}};
+        // The zero offset on the vocabulary axis is a placeholder for an index
+        // that is a runtime value: only this relation's cardinality is read,
+        // and that is exact -- one row of `h` elements per token. Where the row
+        // is remains the data-dependent operand map above, which is what the
+        // coupling derivation classifies and what sends this op to I2.
         record(std::move(op), OpRole::kEmbedding, OwnershipKind::kTilePerBlock,
                i, layer, stage.operands[2]);
         break;

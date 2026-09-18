@@ -177,8 +177,18 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
   work.nominal_write_elements = ElementAccess(task,write,known,AccessDomain::kNominalTile).Card();
   std::map<std::string, std::pair<CouplingRelation, CouplingRelation>> tensor_reads;
   std::map<std::string, std::string> layouts;
+  // Tensors the semantic states a complete element read for. The exact pass
+  // below replaces `read_elements` with those counts anyway; naming them here
+  // lets a read no rectangle can express -- a gather, whose index is a value --
+  // skip a projection that would only have to refuse it.
+  std::set<std::string> exact_read_tensors;
+  if (TILEMEGA_EXACT_ELEMENT_WORK)
+    for (auto const& read:semantic.element_reads)
+      exact_read_tensors.insert(read.tensor.name);
   for (std::size_t i=0;i<task.operands.size();++i) {
     auto read = BuildReadMap(task,i);
+    if (read.data_dependent && exact_read_tensors.count(read.tensor.name))
+      continue;
     auto nominal_read=read;
     if (!options.reduction_tiles.empty()) {
       if (semantic.operands.size()!=task.operands.size() ||
