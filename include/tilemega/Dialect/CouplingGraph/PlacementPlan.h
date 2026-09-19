@@ -54,6 +54,13 @@ inline constexpr char kPlacementTableAttr[] = "tilemega.placement_table";
 struct PlacementTable {
   std::vector<int> worker;
   std::vector<int> slot;
+  /// Which slots pipeline (§5.3.1): 1 where the node's Prefetch phase runs
+  /// under the body of the slot before it on the same worker, so the executor
+  /// may issue it early.  Empty for a plan solved without the mechanism, which
+  /// is every plan whose tasks have no read-only frontier.  It is part of
+  /// sigma, not a second schedule: the solver already priced the queue with
+  /// exactly these overlaps credited.
+  std::vector<unsigned char> pipeline;
   long long seq = 0;
   long long past = 0;
   long long grid = 0;
@@ -61,9 +68,11 @@ struct PlacementTable {
 
 /// False, with `*error` set, unless the table is a dense (pi, sigma) for the
 /// grid it names: equal non-empty lengths, a positive grid and theta, every pi
-/// inside the grid, and sigma a dense [0, n) per worker.  Callers treat that as
-/// fatal (H5) -- a table that fails here was computed for a different bound
-/// theta, and there is no cost model below L2 to recompute it with.
+/// inside the grid, and sigma a dense [0, n) per worker.  `pipeline`, when
+/// present, must match that length and be clear at every queue head, which has
+/// no predecessor to overlap with.  Callers treat a failure as fatal (H5) -- a
+/// table that fails here was computed for a different bound theta, and there
+/// is no cost model below L2 to recompute it with.
 bool ValidatePlacementTable(PlacementTable const& table, std::string* error);
 
 /// The attribute spelling, or nullptr for an out-of-range value.

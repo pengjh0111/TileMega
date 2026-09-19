@@ -379,6 +379,17 @@ static bool ReadPlacementFields(mlir::Attribute attr, PlacementTable* table,
     return fail(std::string(kPlacementTableAttr) +
                 " needs worker and slot as array<i64> and seq, past and grid as "
                 "integers");
+  // Optional: a plan whose tasks have no read-only frontier pipelines nothing,
+  // and its table is the one earlier rounds wrote.
+  if (fields.get("pipeline")) {
+    std::vector<int> flags;
+    if (!integers("pipeline", &flags))
+      return fail(std::string(kPlacementTableAttr) + " needs pipeline as array<i64>");
+    table->pipeline.assign(flags.begin(), flags.end());
+    for (std::size_t i = 0; i < flags.size(); ++i)
+      if (flags[i] < 0 || flags[i] > 1)
+        return fail(std::string(kPlacementTableAttr) + " pipeline flags are 0 or 1");
+  }
   std::string reason;
   if (!ValidatePlacementTable(*table, &reason)) return fail(reason);
   return true;

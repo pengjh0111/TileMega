@@ -80,6 +80,19 @@ bool ValidatePlacementTable(PlacementTable const& table, std::string* error) {
                   " uses slot " + std::to_string(slot) + " twice");
     worker_seen[static_cast<std::size_t>(slot)] = true;
   }
+  if (!table.pipeline.empty()) {
+    if (table.pipeline.size() != table.worker.size())
+      return fail("the placement table carries " + std::to_string(table.pipeline.size()) +
+                  " pipeline flags for " + std::to_string(table.worker.size()) + " nodes");
+    for (std::size_t node = 0; node < table.pipeline.size(); ++node) {
+      if (table.pipeline[node] > 1)
+        return fail("node " + std::to_string(node) + " carries pipeline flag " +
+                    std::to_string(table.pipeline[node]));
+      if (table.pipeline[node] && table.slot[node] == 0)
+        return fail("node " + std::to_string(node) + " heads its queue and cannot "
+                    "overlap a predecessor's body");
+    }
+  }
   return true;
 }
 

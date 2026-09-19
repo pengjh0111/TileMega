@@ -26,6 +26,9 @@ struct PlacementSolveOptions {
   int kappa=1;
   int verified_resident_limit=0;
   int requested_grid=0; // Zero uses the full compiled resident grid.
+  /// The executor's `TILEMEGA_PREFETCH_PAGE_BYTES`; a prefetch that does not
+  /// fit it is never issued, so it is never credited either.
+  int prefetch_page_bytes=1024;
   solver::HopCurve hop;
   std::shared_ptr<PlacementTaskPriceCache> task_price_cache;
 };
@@ -40,15 +43,21 @@ inline void WriteSolvedPlacement(mlir::ModuleOp module,
   int grid=int(selected.plan.queue.size());
   module->removeAttr(kPlacementTableAttr);
   if (selected.mode==PlacementMode::kEft) {
-    std::vector<std::int64_t> worker,slot;
+    std::vector<std::int64_t> worker,slot,pipeline;
     for (std::size_t s=0;s<selected.plan.owner.size();++s)
       for (std::size_t t=0;t<selected.plan.owner[s].size();++t) {
         worker.push_back(selected.plan.owner[s][t]);slot.push_back(selected.plan.slot[s][t]);
       }
-    module->setAttr(kPlacementTableAttr,b.getDictionaryAttr({
+    for (unsigned char flag:selected.pipeline) pipeline.push_back(flag);
+    std::vector<mlir::NamedAttribute> fields{
       b.getNamedAttr("worker",b.getDenseI64ArrayAttr(worker)),b.getNamedAttr("slot",b.getDenseI64ArrayAttr(slot)),
       b.getNamedAttr("seq",b.getI64IntegerAttr(options.dims.seq)),b.getNamedAttr("past",b.getI64IntegerAttr(options.dims.past)),
-      b.getNamedAttr("grid",b.getI64IntegerAttr(grid))}));
+      b.getNamedAttr("grid",b.getI64IntegerAttr(grid))};
+    // A plan that pipelines nothing writes no field at all, so a model without
+    // a read-only frontier keeps byte-identical CG (H2).
+    if (std::find(pipeline.begin(),pipeline.end(),1)!=pipeline.end())
+      fields.push_back(b.getNamedAttr("pipeline",b.getDenseI64ArrayAttr(pipeline)));
+    module->setAttr(kPlacementTableAttr,b.getDictionaryAttr(fields));
   }
   for (auto placement:module.getOps<PlacementOp>()) {
     placement->removeAttr("mapping_mode");placement->removeAttr("params_map");
@@ -81,7 +90,7 @@ struct PreparedPlacementProblem {
   solver::RuntimeProjection projection;
   std::vector<int> counts;
   codegen::RuntimeTaskGraph graph;
-  std::vector<double> task_ns;
+  std::vector<double> task_ns,prefetch_ns;
 };
 inline PreparedPlacementProblem PreparePlacementProblem(mlir::ModuleOp module,
     PlacementSolveOptions const& options) {
@@ -131,7 +140,7 @@ inline PreparedPlacementProblem PreparePlacementProblem(mlir::ModuleOp module,
   if (options.task_price_cache) {
     llvm::raw_string_ostream text(price_key);module.print(text);text.flush();
     price_key+=options.target.ToJson()+"|"+std::to_string(options.dims.seq)+"|"+
-        std::to_string(options.dims.past)+"|"+std::to_string(options.dims.total)+"|"+std::to_string(threads)+"|"+std::to_string(options.residency);
+        std::to_string(options.dims.past)+"|"+std::to_string(options.dims.total)+"|"+std::to_string(threads)+"|"+std::to_string(options.residency)+"|"+std::to_string(options.prefetch_page_bytes);
     for (int n:counts)price_key+="|"+std::to_string(n);
     auto found=options.task_price_cache->prices.find(price_key);
     if(found!=options.task_price_cache->prices.end())cached_prices=&found->second;
@@ -139,14 +148,19 @@ inline PreparedPlacementProblem PreparePlacementProblem(mlir::ModuleOp module,
   std::optional<analysis::OperatorGraph> semantic_graph;
   if(!cached_prices)semantic_graph=InstantiateModelTasks(model,result.geometry);
   SimulatorInput input;input.graph=&graph;input.task_ns.resize(graph.successors.size());
+  input.prefetch_ns.resize(graph.successors.size());
   CostModel cost(options.target,model.dtype);
   auto theta=model.MetricBindings();
   for (std::size_t s=0;s<counts.size();++s) {
     auto const& projected=projection.stages[s];auto const& stage=model.stages[projected.logical_stage];
     auto const& g=result.geometry.at(stage.IsCollective() ? stage.gemm : 0);
     if(cached_prices) {
+      auto const nodes=std::ptrdiff_t(input.task_ns.size());
       std::copy(cached_prices->begin()+graph.stage_offsets[s],cached_prices->begin()+graph.stage_offsets[s+1],
-                input.task_ns.begin()+graph.stage_offsets[s]);continue;
+                input.task_ns.begin()+graph.stage_offsets[s]);
+      std::copy(cached_prices->begin()+nodes+graph.stage_offsets[s],
+                cached_prices->begin()+nodes+graph.stage_offsets[s+1],
+                input.prefetch_ns.begin()+graph.stage_offsets[s]);continue;
     }
     if (projected.combine) {
       auto task=DeriveCombineTaskInput(model,projected.logical_stage,g,*semantic_graph,threads,
@@ -157,8 +171,10 @@ inline PreparedPlacementProblem PreparePlacementProblem(mlir::ModuleOp module,
       for (int t=0;t<counts[s];++t) coordinates[t].Bind("q",t);
       if(task.work.task_count.Eval(theta)!=counts[s])
         throw std::invalid_argument("combine access ownership disagrees with projected count");
-      auto prices=PriceTaskInstances(cost,task,traits,{options.residency},model,1,coordinates,options.residency);
+      std::vector<double> prefetch;PrefetchPricing pricing{options.prefetch_page_bytes,&prefetch};
+      auto prices=PriceTaskInstances(cost,task,traits,{options.residency},model,1,coordinates,options.residency,&pricing);
       std::copy(prices.begin(),prices.end(),input.task_ns.begin()+graph.stage_offsets[s]);
+      std::copy(prefetch.begin(),prefetch.end(),input.prefetch_ns.begin()+graph.stage_offsets[s]);
       continue;
     }
     auto found=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),[&](auto const& x) {
@@ -180,13 +196,19 @@ inline PreparedPlacementProblem PreparePlacementProblem(mlir::ModuleOp module,
         for (std::size_t i=0;i<names.size();++i) coordinates[physical[0]].Bind(names[i],logical[i]);
       }
     }
-    auto prices=PriceTaskInstances(cost,task,traits,{options.residency},model,chunks,coordinates,options.residency);
+    std::vector<double> prefetch;PrefetchPricing pricing{options.prefetch_page_bytes,&prefetch};
+    auto prices=PriceTaskInstances(cost,task,traits,{options.residency},model,chunks,coordinates,options.residency,&pricing);
     std::copy(prices.begin(),prices.end(),input.task_ns.begin()+graph.stage_offsets[s]);
+    std::copy(prefetch.begin(),prefetch.end(),input.prefetch_ns.begin()+graph.stage_offsets[s]);
   }
-  if(options.task_price_cache && !cached_prices)
-    options.task_price_cache->prices.emplace(std::move(price_key),input.task_ns);
+  if(options.task_price_cache && !cached_prices) {
+    auto entry=input.task_ns;
+    entry.insert(entry.end(),input.prefetch_ns.begin(),input.prefetch_ns.end());
+    options.task_price_cache->prices.emplace(std::move(price_key),std::move(entry));
+  }
   return {std::move(runtime),std::move(model),std::move(result.geometry),result.grid,threads,
-          std::move(projection),std::move(counts),std::move(graph),std::move(input.task_ns)};
+          std::move(projection),std::move(counts),std::move(graph),std::move(input.task_ns),
+          std::move(input.prefetch_ns)};
 }
 
 inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
@@ -198,6 +220,7 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
   auto& graph=prepared.graph;
   PlacementSolveResult result;result.grid=prepared.grid;result.geometry=prepared.geometry;
   SimulatorInput input;input.graph=&graph;input.task_ns=std::move(prepared.task_ns);
+  input.prefetch_ns=std::move(prepared.prefetch_ns);
   auto node=[&](long stage,long task) {
     if (stage<0 || stage>=long(counts.size()) || task<0 || task>=counts[stage])
       throw std::invalid_argument("projected relation outside task domain");
