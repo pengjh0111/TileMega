@@ -1,0 +1,5 @@
+cell	regs_shipped	regs_here	l2_ctas_shipped	l2_ctas_here	l1_ctas_shipped	l1_ctas_here	residency_used	ctas_per_sm_shipped	free_page_bytes	affordable_page_bytes
+gqa2_s4	96	94	5	5	5	5	1	1	3072	84992
+gqa2_s128	96	86	5	5	5	5	5	5	3072	3072
+mha4_s4	96	94	5	5	5	5	1	1	3072	84992
+mha4_s128	87	85	5	5	5	5	5	5	3072	3072
