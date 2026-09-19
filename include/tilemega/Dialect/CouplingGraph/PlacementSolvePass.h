@@ -25,6 +25,10 @@ struct PlacementSolveOptions {
   solver::ModelDims dims;
   int residency=1;
   int kappa=1;
+  /// Per-producer-stage coarsening over the projected stages (§6 B2). Empty
+  /// keeps every stage on `kappa` and writes no per-stage attribute, so a
+  /// solve that does not use the dimension emits what it always emitted.
+  std::vector<int> stage_kappa;
   int verified_resident_limit=0;
   int requested_grid=0; // Zero uses the full compiled resident grid.
   /// The executor's `TILEMEGA_PREFETCH_PAGE_BYTES`; a prefetch that does not
@@ -75,6 +79,9 @@ inline void WriteSolvedPlacement(mlir::ModuleOp module,
   }
   module->setAttr("tilemega.solved_placement",b.getStringAttr(selected.name));
   module->setAttr("tilemega.solved_kappa",b.getI64IntegerAttr(options.kappa));
+  if (!options.stage_kappa.empty())
+    module->setAttr("tilemega.solved_stage_kappa",b.getDenseI64ArrayAttr(
+        std::vector<std::int64_t>(options.stage_kappa.begin(),options.stage_kappa.end())));
   module->setAttr("tilemega.solved_residency",b.getI64IntegerAttr(options.residency));
   module->setAttr("tilemega.solved_seq",b.getI64IntegerAttr(options.dims.seq));
   module->setAttr("tilemega.solved_past",b.getI64IntegerAttr(options.dims.past));
@@ -124,6 +131,7 @@ inline PreparedPlacementProblem PreparePlacementProblem(mlir::ModuleOp module,
       max_shared>options.target.res.max_dynamic_smem_per_cta)
     throw std::invalid_argument("resident grid requires compiler-confirmed resource metadata");
   RuntimeProjectionOptions po{result.grid,threads,options.kappa};po.count_wait_entries=false;
+  po.stage_kappa=options.stage_kappa;
   auto projection=ProjectRuntimeQueues(model,runtime,po);
   std::vector<int> counts;
   for (auto const& stage:projection.stages) counts.push_back(int(stage.task_count.Eval({})));
@@ -269,8 +277,9 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
       if (kind==2 && plan.owner.at(ps).at(group)==plan.owner.at(e[0]).at(e[1])) return;
       publishing.insert(ps);
       if (!desired[cn].insert({ps,kind==0 ? -1 : group}).second) return;
-      int begin=kind==0 ? 0 : group*options.kappa;
-      int end=kind==0 ? counts[ps] : std::min(counts[ps],begin+options.kappa);
+      int const ek=solver::ProducerKappa(projection.options,ps);
+      int begin=kind==0 ? 0 : group*ek;
+      int end=kind==0 ? counts[ps] : std::min(counts[ps],begin+ek);
       for (int pt=begin;pt<end;++pt) {
         int producer=node(ps,pt);auto const& semantic=graph.successors[producer];
         bool contiguous=!semantic.empty() && semantic.back()-semantic.front()+1==int(semantic.size());
