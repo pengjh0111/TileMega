@@ -10,6 +10,8 @@
 #include <tilemega/Solver/ExecutionSimulator.h>
 #include <tilemega/Solver/TaskModel.h>
 #include <mlir/IR/MLIRContext.h>
+#include <algorithm>
+#include <map>
 #include <iostream>
 #include <stdexcept>
 
@@ -125,6 +127,51 @@ static void CheckPricing(mlir::MLIRContext& ctx) {
             << " mean_share=" << share / priced << " page512_priced=0\n";
 }
 
+/// EX-E4 asks that the benefit be judged at real width, because a reference
+/// model's weights may fit in L2 while a real model's do not. R6's covered
+/// Llama graph is this round's real-width case and it credits nothing at any
+/// page -- not because the rows are too wide, but because this graph has no
+/// body to prefetch for: its normalizations project as `elementwise` stages,
+/// and only the standalone norm bodies declare a `Prefetch`. The check reports
+/// both numbers so the reason is read off rather than argued.
+static void CheckRealWidth(mlir::MLIRContext& ctx) {
+  auto module = frontend::TorchExportImporter{}.Import(
+      std::string(TILEMEGA_SOURCE_DIR) +
+      "/docs/experiments/MODELS/covered_llama/auto.cu.export.json", ctx);
+  dialect::PlacementSolveOptions options;
+  options.target = TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR) + "/configs/targets/sm_89.json");
+  options.dims = {4, 3, 7};
+  options.residency = 3;
+  options.kappa = 1;
+  options.verified_resident_limit = 3;
+  options.requested_grid = 8;
+  std::map<int, int> kinds;
+  int stages = 0, bodies = 0;
+  std::cout << "PIPELINE_REALWIDTH";
+  for (int page : {1024, 4096, 8192}) {
+    options.prefetch_page_bytes = page;
+    auto prepared = dialect::PreparePlacementProblem(*module, options);
+    int priced = 0;
+    stages = int(prepared.projection.stages.size());
+    bodies = 0;
+    kinds.clear();
+    for (std::size_t s = 0; s + 1 < prepared.graph.stage_offsets.size(); ++s) {
+      auto const& stage = prepared.model.stages.at(prepared.projection.stages[s].logical_stage);
+      int const tasks = prepared.graph.stage_offsets[s + 1] - prepared.graph.stage_offsets[s];
+      kinds[int(stage.kind)] += 1;
+      if (codegen::ScalarPrefetchOperand(static_cast<codegen::TaskKind>(stage.kind)) >= 0)
+        bodies += tasks;
+      for (int n = prepared.graph.stage_offsets[s]; n < prepared.graph.stage_offsets[s + 1]; ++n)
+        priced += prepared.prefetch_ns[n] > 0;
+    }
+    Require(bodies > 0 || priced == 0, "credit without a body that declares a Prefetch");
+    std::cout << " page" << page << "=" << priced;
+  }
+  std::cout << " stages=" << stages << " prefetch_bodies=" << bodies << " stage_kinds=";
+  for (auto const& [kind, count] : kinds) std::cout << kind << ':' << count << ' ';
+  std::cout << '\n';
+}
+
 /// Location 3: the overlap a pipelinable adjacency buys, in both bounds and in
 /// the simulator, and the flags that travel to CG.
 static void CheckBounds() {
@@ -201,6 +248,7 @@ int main() try {
   ctx.getOrLoadDialect<dialect::CGDialect>();
   CheckReferenceModels(ctx);
   CheckPricing(ctx);
+  CheckRealWidth(ctx);
   CheckBounds();
   CheckPlacementTable();
   std::cout << "PIPELINE_SIGMA PASS frontier pricing bounds table\n";
