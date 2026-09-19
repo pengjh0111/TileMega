@@ -6070,3 +6070,44 @@ zero. FORK7 is architecture specific; the sm_89 line does not carry to sm_120
 
 Evidence: `PHASE2/summary.md`, `PHASE2/raw/fork7.txt`, `PHASE2/raw/cells.tsv`,
 `PHASE2/raw/analysis.tsv`, `PHASE2/raw/segments.tsv`.
+
+## F-223 — F-40's closed form needs a 1 KiB per-CTA term before it can budget shared memory
+
+✅ **Verified on RTX 4090 / sm_89.** F-40 predicts the driver exactly on 52 of
+the 56 (cell, page) pairs swept for R7 B1-b. The four it misses are the same row
+in every cell: an appended page of 4096 B, i.e. `smem=20480`, where
+`102400/20480 = 5` divides exactly. F-40 says 5 CTA/SM; the driver says 4.
+
+The driver reserves shared memory per CTA on top of the request. Adding one
+kibibyte makes the form exact on 56 of 56:
+
+```
+ctas_smem = floor(102400 / (smem + 1024))
+```
+
+Bisected on gqa2 s128: `dyn=19456` holds 5 CTA/SM and `dyn=19584` drops to 4,
+and `(19456 + 1024) * 5 = 102400` exactly.
+
+⚠️ **Why F-40 never saw it.** Its sm_89 fit was 605 register-bound, 150
+smem-bound and 322 tie, and the term only bites when the shared-memory limit is
+the binding one *and* the request lands on an exact boundary. That is precisely
+the regime a shared-memory prefetch page moves these kernels into. Quoting F-40
+unamended would have authorised a 4096 B page and cost 20% of residency
+silently — the grid is sized from this number
+(`ModelHarness.cuh:2931-2946`), and an unmeetable `RESIDENCY_CAP` is rejected
+rather than lowered.
+
+✅ **Verified: the four R7 cells are register bound at 5 CTA/SM with 128-thread
+CTAs**, so the free page is 3072 B on all of them, and 84992 B on the two s4
+cells, which run at `RESIDENCY_CAP=1`. Anchored at page 0 against the harness's
+own `E2E_RESOURCE` line on the runs that executed; the driver agrees for both
+the L1 and L2 kernels on all four cells. The instrumented build (B0's probe) and
+the production build differ by up to 10 registers and both give 5, so B0's probe
+cost no occupancy.
+
+⚠️ **Stated only for sm_89.** The opt-in cap, the reservation and the register
+file all differ on sm_120.
+
+Evidence: `PIPELINE/summary.md`, `PIPELINE/raw/occupancy.tsv`,
+`PIPELINE/raw/occupancy_cells.tsv`, `PIPELINE/occupancy.py`,
+`PIPELINE/occ_probe.cc`.
