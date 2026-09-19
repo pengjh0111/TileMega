@@ -803,5 +803,37 @@ rope/kvappend/elementwise 本就没有 barrier，其零值由构造而来不由�
 体量应以 head share 估算（SIMT body 占关键路径 35–45%，其 head 占 3.5–8%，GEMM
 head 占 21%，rope/kvappend 的 setup 占自身 38–55%），见 F-222 与 `PHASE2/summary.md`。
 
-按 H4，B0 先于 B1 的实现提交这一顺序已满足；B1 及 skeleton §8.6 TaskSmem union
-生命周期是否改动，仍待 B1 本身实施。）
+按 H4，B0 先于 B1 的实现提交这一顺序已满足。）
+
+（⚠️ v2.1 第七轮续做 B1：上面"EX-E4 / 新增 EX-P……本轮未实施"与"§8.6 未改动"
+两行已过期，在此更正而非删除。证据落在 `docs/experiments/PIPELINE/`（R7 §5.2
+指定的目录，不是本条原写的 `PREFETCH/`）。
+
+**机制**：`TaskSmem` 之后追加两页 `TILEMEGA_PREFETCH_PAGE_BYTES`，按 `slot & 1`
+轮换，TaskBody 按 skeleton §5.3.1 拆为 Prefetch/Wait/Compute；流水臂在 slot 的
+body 里为 slot+1 发 `cp.async` 并以 `wait_group 1` 等待，inline 臂发同样的拷贝
+但就地 `wait_group 0`——同存储、零重叠的对照臂。"无入边操作数"由分析层从 CG
+入边与每个操作数的读关系推出（`Frontend.cpp:227-229` 与 `TaskWork.cpp`），不接受
+手写标注，与本条的手工核对表在两个参考模型的**全部 102 个 stage** 上 102/102
+一致（F-225）。按 H3，skeleton §8.6 的 TaskSmem union 生命周期已加
+`（⚠️ v2.1：……）` 注解并保留原句，§5.3.1 同步更新。
+
+**测量**（全部新进程）：B1-a 六格双臂 600/600；SEQSCAN 子集 24 臂 1200/1200，
+12/12 个计划与 JOINT 跑过的计划逐字节一致（只剥掉受保护的 `no_producer` 字段）；
+Llama 最大连通图 100/100。B1-b occupancy 18 臂与 F-40 闭式逐臂一致、驻留全部
+保持，shared 16384→18432B（参考格）/32768B（真实格），寄存器 85–94→88–96
+（F-224）。B1-c 每个可发射 slot 的等待都下降，2640/2640，中位 1591–2937 cycles。
+B1-e 六格配对、不设阈值：五格变慢 2.3%–6.7%，`real_s4` 快 0.8%（F-226）。
+
+**负结果诊断（按 R7 §0 第 2 条）**：机制确实在发射（`declared == issued`），
+下降也确实发生；但两个 s4 参考格上前一个 slot 的 body 增长了等待降幅的 94–95%
+——拷贝被**搬移**而非消除；把每格最乐观的净收益乘以可发射 slot 数，对全部 body
+周期之和只占 0.004%–0.69%，而 inline/control 量到的固定代价是 2.1%–5.0%。代价由
+每个 slot 承担，可流水的 slot 只占 0.26%–8%。**这不是"该方向无价值"**：要先改的
+是可流水 slot 的总量（哪些操作数进入前沿、多少 body 声明预取），不是拷贝本身。
+
+**本轮没做的**：本条验收里的"decode seq∈{1,4} 上 L2 配对 25 轮，报告每跳延迟的
+变化"未做——SEQSCAN 的 `s1_p0` 只覆盖到正确性，没有配对计时。本条设计要点的
+第 1 步（不占 shared memory 的纯 L2 预取）也未单独做：R7 §5.2 直接要求第 2 步，
+本轮照做；B1-e 的负结果说明固定代价来自存储与 ABI 拆分本身，因此第 1 步是否仍
+有价值，本轮证据回答不了，留作后续。）

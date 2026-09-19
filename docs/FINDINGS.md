@@ -6111,3 +6111,319 @@ file all differ on sm_120.
 Evidence: `PIPELINE/summary.md`, `PIPELINE/raw/occupancy.tsv`,
 `PIPELINE/raw/occupancy_cells.tsv`, `PIPELINE/occupancy.py`,
 `PIPELINE/occ_probe.cc`.
+
+## F-224 — R7 lifts §8.6's union lifetime for two appended pages, and residency survives
+
+✅ **Verified on RTX 4090 / sm_89.** R7 B1 is the one round allowed to change
+the §8.6 invariant, and the change is narrower than "the union is gone". The
+union is untouched: one explicit union, capacity `max_i(sizeof(SharedStorage_i))`,
+lifetime the whole dispatch. What is new is **two pages appended after it** —
+`kSmemBytes = sizeof(TaskSmem) + 2 * TILEMEGA_PREFETCH_PAGE_BYTES`, alternating
+on `slot & 1`. The pages cannot join the union and cannot take a max: the
+earlier slot's epilogue and the later slot's operand fetch have to hold their
+own page at the same time, which is exactly the overlap. So what is lifted is
+the assumption that shared memory has one lifetime scale, the dispatch; a page's
+lifetime spans two adjacent slots.
+
+✅ **Verified: occupancy before and after, against F-223's amended closed form
+and against the driver.** Six cells × three arms = 18 rows, all built from the
+sources and macros the timed binaries use; the driver's
+`cuOccupancyMaxActiveBlocksPerMultiprocessor` and the closed form agree on
+18/18.
+
+| cell | smem before → after | appended | regs before → after | CTA/SM before → after | residency | keeps it |
+|---|---:|---:|---|---:|---:|:--:|
+| gqa2 s4 | 16384 → 18432 | 2048 | 94 → 96 | 5 → 5 | 1 | ✅ |
+| gqa2 s128 | 16384 → 18432 | 2048 | 86 → 96 | 5 → 5 | 5 | ✅ |
+| mha4 s4 | 16384 → 18432 | 2048 | 94 → 96 | 5 → 5 | 1 | ✅ |
+| mha4 s128 | 16384 → 18432 | 2048 | 85 → 88 | 5 → 5 | 5 | ✅ |
+| real s4 | 16384 → 32768 | 16384 | 85 → 88 | 5 → **3** | 2 | ✅ |
+| real s128 | 16384 → 32768 | 16384 | 144 → 146 | 3 → 3 | 2 | ✅ |
+
+The `Prefetch`/`Wait`/`Compute` split costs 2 registers on four cells, 3 on two,
+and 10 on `gqa2 s128`; no cell crosses a register-bound residency step.
+`keeps_residency` is 1 on 18/18: every arm still fields the residency its cell
+was selected at, which is what makes B1-e a comparison R6 would also have
+accepted. `real s4` is the instructive row — it gives up two driver CTAs and is
+still fine, because its `RESIDENCY_CAP` is 2; at a selected residency of 4 or 5
+the same page would have been rejected at launch rather than quietly lowered.
+
+✅ **Verified: the page has to hold a whole row, or the mechanism compiles and
+issues nothing.** `PrefetchBytes` refuses a copy wider than the page. The
+reference models' hidden 512 fills the 1024 B default exactly; the real model's
+4096 B scale row needs 8192, and at the default the real cells report
+`E2E_PREFETCH slots=12208 declared=32 issued=0 queue_heads=0 page_bytes=1024` in
+three fresh processes that still pass — the arm runs the instruction sequence
+with no copy in it (`PIPELINE/raw/real_s4/page_probe/`, built by
+`PIPELINE/page_probe.py`). This is the harness counter, not an inference:
+across the six cells at their correct pages, `declared == issued` on every one.
+
+⚠️ **Stated only for sm_89**, and only behind `TILEMEGA_PREFETCH_RUNTIME`, which
+defaults to 0; the default build appends no bytes and its SASS is stamped
+identical to the baseline tree (`E2E_REAL/sass_identity/`).
+
+Evidence: `TileMega_skeleton.md` §8.6, §5.3.1; `PIPELINE/summary.md` B1-b;
+`PIPELINE/raw/occupancy_arms.tsv`; `PIPELINE/occupancy.py`;
+`PIPELINE/raw/*/correctness_head/`.
+
+## F-225 — pipelining is a dimension of sigma, and its credit is a bandwidth share
+
+✅ **Verified (host unit test `pipeline_sigma`, `test/unit/pipeline_sigma_test.cpp`).**
+R7 §5.2(b) asks that pipelining be part of the placement decision rather than a
+post-pass. It is wired in three places, each with an example that fails if the
+wiring is removed:
+
+```
+PIPELINE_FRONTIER stages=102 with_frontier=68 rope_element_reads=12
+PIPELINE_PRICE tasks=232 priced=16 mean_share=0.016181 page512_priced=0
+PIPELINE_REALWIDTH page1024=0 page4096=0 page8192=0 stages=209 prefetch_bodies=0 stage_kinds=0:113 3:32 4:16 5:16 10:32 
+PIPELINE_BOUNDS queue_lb binding_path makespan flags
+PIPELINE_TABLE accepted rejected-head rejected-length
+PIPELINE_SIGMA PASS frontier pricing bounds table
+```
+
+1. **The cost model prices the derived frontier** (`TaskModel.cpp:58-105`). A
+   task is priced twice, reading its prefetch operand globally and locally, and
+   the difference is the credit — granted only where the executor would issue:
+   on the derived frontier, declared by the body, whole 16-byte lines, and
+   inside the page the binary was built with. On `gqa2`, 16 of 232 tasks are
+   credited at a mean 1.6% of their own time; re-prepared at a 512 B page —
+   which the 1 KiB scale row does not fit — **0** are.
+2. **The objective counts the overlap inside `max(CP, queue_lb)`**
+   (`ExecutionSimulator.cpp:272-286`, `:594-635`):
+   `pipeline_gain[next] = min(prefetch_ns[next], task_ns[n])` for each queue
+   adjacency, applied to the simulated makespan, the queue lower bound and the
+   binding path alike. R7's required distinction — same worker adjacent and
+   pipelinable, against same worker but not — is the `queue_next[n] >= 0` gate:
+   a queue head gets no credit, so splitting the same two tasks across two
+   workers makes the credit vanish. That is what makes it a property of sigma
+   and not of the task. The credit is clamped to the predecessor's body: a 4 ns
+   fetch under a 1 ns task is worth 1 ns, not 4.
+3. **The plan carries the flags back to CG** (`ExecutionSimulator.h:221`,
+   `PlacementPlan.h:57-63`, `PlacementSolvePass.h:46-59`,
+   `CGDialect.cpp:382-392`, `PlacementPlan.cpp:83-92`). The dialect verifier
+   rejects `pipeline={1,1}` (slot 0 is a queue head) and `{0}` (must cover every
+   node), so an inconsistent sigma fails verification rather than convention.
+
+`PIPELINE_REALWIDTH` runs the same pricing over R6's admitted Llama graph at
+1024, 4096 and 8192 bytes and credits **0** tasks at every page. That is not
+the page refusing a wide row: the graph carries no body that declares a
+`Prefetch` at all, so the gate closes one step earlier (F-228). The check
+asserts the implication it cares about — no credit without such a body — and
+prints the stage census so the reason is read off rather than argued.
+
+⚠️ **The credit is a bandwidth share, not a latency model.** It is the
+difference between pricing an operand globally and locally under the calibrated
+cost model: no L1-hit term, no queueing term. It is therefore an upper bound on
+what the overlap can be worth *in the cost model's own units*, and it is not a
+prediction of measured gain — F-226 measures that, and the two do not agree.
+
+✅ **Verified: the frontier is derived, never annotated.** `no_producer` is set
+from the plan's write set at CG construction (`Frontend.cpp:227-229`) and the
+read-only frontier is split out of each task's read work in `TaskWork.cpp`;
+`Codegen.cpp:436-442` only emits what the CG already carries. Checked against
+EX-E4's hand rule on **all 102 stages** of both reference models, 102/102
+agreeing, with the element-wise RoPE reads (12) counted separately because they
+read a phase table rather than a producer's output.
+
+Evidence: `PIPELINE/summary.md` B1-d; `PIPELINE/raw/pipeline_sigma.log`;
+`test/unit/pipeline_sigma_test.cpp`.
+
+## F-226 — The cross-task copy is overlapped on every eligible slot, and the eligible slots are too few to pay for it
+
+✅ **Verified (B0 phase trace, 900 fresh processes, 900 PASS; end-to-end, 900
+fresh processes, 900 PASS).** R7 §5.2's B1-c asks for direct evidence that
+adjacent slots on one worker overlap, and B1-e for the paired end-to-end ratios
+with no threshold. The two disagree about the mechanism's worth, and the reason
+is measured rather than argued.
+
+**The overlap happens.** `prefetch_wait_cycles` brackets the issue and the
+`cp.async.wait_group` in both timed arms, so they compare slot by slot. On the
+issuing slots the wait collapses:
+
+| cell | issuing slots | prefetch wait | inline wait | difference | net per issue |
+|---|---:|---:|---:|---:|---:|
+| gqa2_s4   | 16   | 430.8  | 2134.5 | 1682.5 | 96.0 |
+| gqa2_s128 | 512  | 483.0  | 2090.5 | 1591.5 | 682.5 |
+| mha4_s4   | 32   | 448.5  | 2196.5 | 1665.5 | 87.0 |
+| mha4_s128 | 1024 | 488.5  | 2236.5 | 1707.2 | 2298.2 |
+| real_s4   | 32   | 1179.5 | 3689.5 | 2578.5 | 2759.5 |
+| real_s128 | 1024 | 299.0  | 3347.0 | 2936.8 | 1527.8 |
+
+Cycles, not nanoseconds: `clock64()` is per-SM and the phase dump carries no
+worker column, so the schedule has no common time base. Every figure is a
+difference of two reads taken by one slot on one SM. The difference is positive
+on **2640 of 2640** eligible slots, and on the slots the rule refuses the two
+arms agree to within 5-9%, which is the instrument's floor with nothing in
+flight.
+
+⚠️ **On three cells the fetch is relocated, not removed.** The pipelined arm
+issues slot `s`'s copy inside slot `s-1`'s body, where the wait bracket cannot
+see it. Charged there, the predecessor's body grows by 1586.5 of the 1682.5
+cycles the wait lost on `gqa2_s4` (94%) and 1578.5 of 1665.5 on `mha4_s4`
+(95%), leaving 87-96 cycles net. `gqa2_s128` relocates 57%, `real_s128` 48%;
+on `mha4_s128` and `real_s4` the predecessor's body is *shorter* in the
+pipelined arm (-591, -181 cycles) and no relocation cost is visible. The two
+cells where relocation is near-total are exactly the two whose end-to-end
+`prefetch/inline` is furthest above 1 (1.0154, 1.0142), which is the direct
+answer to why overlapping was slower there than not overlapping at identical
+storage.
+
+**The ceiling is one to three orders of magnitude below the price.** Taking
+every cell at its best -- net recovery per issue, ignoring relocation where the
+delta is negative -- times the slots that issue, against every slot's body
+summed:
+
+| cell | recovered | all bodies summed | share |
+|---|---:|---:|---:|
+| gqa2_s4   | 1 536     | 8 908 861     | 0.017% |
+| gqa2_s128 | 349 440   | 151 397 291   | 0.231% |
+| mha4_s4   | 2 784     | 20 122 179    | 0.014% |
+| mha4_s128 | 2 353 357 | 342 350 643   | 0.687% |
+| real_s4   | 88 304    | 2 292 666 857 | 0.004% |
+| real_s128 | 1 564 467 | 2 552 256 443 | 0.061% |
+
+The denominator is aggregate work across all workers, not a makespan -- a
+per-SM clock cannot give one -- so with balanced workers this is a ceiling on
+what the overlap could move end to end, not a prediction.
+
+**End to end, paired, no threshold** (R6's `selected` as control, three arms
+rotated within each round, 20000-draw bootstrap of the median, seed 20260919):
+
+| cell | control median (ms) | prefetch/control | inline/control | prefetch/inline |
+|---|---:|---|---|---|
+| gqa2_s4   | 0.116736 | 1.0614 [1.0604, 1.0619] | 1.0442 | 1.0154 |
+| gqa2_s128 | 0.244736 | 1.0293 [1.0291, 1.0295] | 1.0286 | 1.0004 |
+| mha4_s4   | 0.228336 | 1.0673 [1.0640, 1.0678] | 1.0497 | 1.0142 |
+| mha4_s128 | 0.502864 | 1.0326 [1.0310, 1.0334] | 1.0284 | 1.0040 |
+| real_s4   | 3.879920 | 0.9918 [0.9913, 0.9923] | 0.9934 | 0.9981 |
+| real_s128 | 6.524448 | 1.0225 [1.0215, 1.0239] | 1.0211 | 1.0009 |
+
+Above 1 is slower: a **negative result on five of six cells**. `inline` pays
+the same two pages and issues the same copy but overlaps nothing, and it
+accounts for almost all of the regression (1.0286 of 1.0293, 1.0284 of 1.0326,
+1.0211 of 1.0225). The cost is the mechanism's fixed price -- 2-10 extra
+registers on every body and 2048-16384 appended bytes, F-224 -- paid by every
+slot, while only 0.26-8% of slots are eligible to overlap at all (F-225,
+`E2E_PREFETCH`). On `real_s4` that same fixed cost lands 0.7% on the other side
+of zero at a 3.88 ms cell, which is a storage effect and not an overlap gain.
+
+⚠️ Per R7 §0 item 2: this is a negative result under a mechanism that is
+present and firing on every eligible slot, and it is **not** evidence that
+cross-task pipelining is without value. What is measured is that *this*
+page-based frontier prefetch, over a population of 0.26-8% of slots, cannot
+repay the storage and the ABI split it charges to 100% of them. The quantity to
+change first is the population -- which operands reach the frontier and how
+many bodies declare one -- not the copy. The reference models' weights are
+small enough to sit in L2, which is why §5.2 makes the real-width cells primary;
+they are also the two cells with the smallest ceilings, 0.004% and 0.061%.
+
+Evidence: `PIPELINE/summary.md` B1-c and B1-e; `PIPELINE/raw/overlap_head.tsv`;
+`PIPELINE/raw/e2e_head.tsv`; `PIPELINE/raw/*/phase_head/`; `PIPELINE/overlap.py`.
+
+## F-227 — The solver's page and the executor's page are one number kept in two places
+
+✅ **Verified (host unit test `pipeline_sigma`; `E2E_PREFETCH` counters in the
+B1 runs).** The prefetch credit is gated on the same three tests twice, once
+where the objective is computed and once where the copy is issued:
+
+| | solver | executor |
+| --- | --- | --- |
+| frontier | `input.prefetch_operand>=0` over `no_producer` | `no_producer[operand.buffer]` |
+| alignment | `page[i]*bytes%16` | `width % 16u != 0u` |
+| capacity | `fetched>prefetch->page_bytes` | `width > TILEMEGA_PREFETCH_PAGE_BYTES` |
+| where | `lib/Solver/TaskModel.cpp:89` | `ModelHarness.cuh:1004-1015` |
+
+The capacity row is the one that can disagree, because the two numbers are set
+by different mechanisms: `--prefetch-page-bytes` on the solve
+(`PlacementSolvePass.h:31`, default 1024) and `TILEMEGA_PREFETCH_PAGE_BYTES` on
+the build (`ModelRuntime.h:36-37`, default 1024). Both directions were measured
+rather than argued:
+
+* **Solver page below the row.** Re-preparing `gqa2` at a 512 B page, which the
+  1 KiB RMSNorm scale row does not fit, credits **0** of 232 tasks where the
+  1024 B page credits 16 (`PIPELINE_PRICE … page512_priced=0`).
+* **Executor page below the row.** The real cells' hidden 4096 makes an 8192 B
+  scale row. Built at the default page, three fresh processes of `real_s4`
+  report `E2E_PREFETCH slots=12208 declared=32 issued=0 queue_heads=0
+  page_bytes=1024` and still pass: the ABI's `Prefetch` phase is present on 32
+  slots and every copy is refused. That measurement is why `run.py`'s
+  `PAGE` map lifts the real cells to 8192 and leaves the reference cells at the
+  default — the page is chosen to hold one row, not chosen to be large.
+
+The page is part of the solve's price-cache key
+(`PlacementSolvePass.h:143`), so a page-matched re-solve is a real second solve
+rather than a cache hit; F-228 relies on that.
+
+⚠️ **Stated: nothing enforces the agreement.** The flag and the macro are set
+independently, and today the only thing that reports a mismatch is
+`E2E_PREFETCH`'s `declared`/`issued` pair after the fact. A solve run at a
+larger page than the binary will count overlap the binary never performs, and
+the objective will be optimistic by exactly the credited share. R7 leaves this
+as a recorded gap: emitting the page into the generated source and checking it
+at load would close it, and belongs with the ABI rather than with B1.
+
+Evidence: `PIPELINE/raw/pipeline_sigma.log`; `PIPELINE/raw/real_s4/page_probe/`;
+`PIPELINE/raw/*/correctness*/*/r*.log`; `PIPELINE/summary.md` B1-b.
+
+## F-228 — The admitted Llama graph passes both arms 50/50 and cannot exercise the mechanism
+
+✅ **Verified (100 fresh processes, `PIPELINE/raw/llama/correctness/`).** B1-a's
+third population is the maximal connected Llama graph — R6's admitted geometry,
+fixture, seed and tolerance, the same artefact R7's A-a re-admits
+(`MODELS2/run_admission.py`). Replayed at HEAD and built with the mechanism at a
+4096-byte page, **50/50 PASS on `prefetch` and 50/50 on `inline`**, no
+mismatch. The gate is met.
+
+✅ **Verified: and the mechanism has no client on this graph.**
+
+```
+E2E_PREFETCH slots=15486 declared=0 issued=0 queue_heads=0 page_bytes=4096 inline=0
+PIPELINE_REALWIDTH page1024=0 page4096=0 page8192=0 stages=209 prefetch_bodies=0
+                   stage_kinds=0:113 3:32 4:16 5:16 10:32
+```
+
+`declared=0`, not `issued=0`: this is a step earlier than F-227's page refusal.
+`ScalarPrefetchOperand` returns an operand only for `kRMSNorm` and `kQKNorm`,
+and the census above — 113 `kGemm`, 32 `kKVAppend`, 16 `kElementwise`, 16
+`kAttention`, 32 `kAdd` — contains **no normalization stage of either kind**.
+R6 admitted this graph by passing both per-layer normalizations in as graph
+inputs, so they were never in it. The solver agrees for the same reason: the
+pricing credits 0 tasks at 1024, 4096 and 8192 bytes alike, and the unit test
+asserts the implication rather than the number (no credit without a body that
+declares a `Prefetch`).
+
+⚠️ **This is the round's real-width structural case, not its real-width timed
+case.** EX-E4 asks that the benefit be judged at real width because a reference
+model's weights may sit in L2. This graph is real width and credits nothing for
+a structural reason; the real-width *timed* evidence is `real_s4`/`real_s128`
+(F-226). A Llama graph that could exercise B1 is one whose norms are inside the
+export — which is what R7's A4/A5/A6 make importable and what `MODELS2`'s full
+export carries. Running B1 on that graph is not in R7's B1 scope and is left
+recorded rather than done.
+
+✅ **Verified: the replayed geometry moved, and R7's sigma is not why.** The
+replay selects `64x128x16s2split2kappa1r3` where R6 recorded `split4`
+(floor 2.22748e6 against 2.29662e6, predicted 2.37874e6 against 2.44849e6).
+Two controls, both re-solves rather than cache hits — the page is part of the
+price-cache key (F-227):
+
+| solve | `auto.cu` | `auto.cu.search.tsv` | winner |
+| --- | --- | --- | --- |
+| default page 1024 | `1a42e943…` | `0c47b65e…` | split2 |
+| `--prefetch-page-bytes 0` | `1a42e943…` | `0c47b65e…` | split2 |
+| `--prefetch-page-bytes 4096` | `1a42e943…` | `0c47b65e…` | split2 |
+| R6 `covered_llama_admitted2` | `dfbf24ad…` | `9974c571…` | split4 |
+
+The three R7 solves are byte-identical in the source and the search table, and
+their shortlists differ only in the output-path columns: every `floor_ns` and
+`predicted_ns` of all three ranked rows is the same with pipelining priced at
+zero as with it priced at the page the binary uses. That is exactly what
+`prefetch_bodies=0` predicts. **Stated:** what did move the geometry is the 65
+commits between R6's recorded source (`0039d4a9f`) and R7's baseline — 109 to
+the tree this replay ran at. Recorded as a difference, not chased: B1 does not
+need R6's geometry, it needs the same graph.
+
+Evidence: `PIPELINE/raw/llama/`, `llama_sigma0/`, `llama_sigma_page/`;
+`PIPELINE/raw/llama/regeneration.tsv`; `PIPELINE/raw/pipeline_sigma.log`;
+`PIPELINE/llama.py`.

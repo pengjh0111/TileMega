@@ -955,6 +955,17 @@ TaskBody 可选实现三段：
 
 sm_89 上的 Prefetch 先以 L2 预取实现：不占 shared memory，不改变 §8.6 的 union。若要把预取落到 shared memory，需要改变 §8.6 的生命周期约定（双缓冲或分页），并在采用前按 §8.6 的闭式与实测核对 occupancy。
 
+（⚠️ v2.1：R7 B1 把分页的那条路走完了，以生成开关 `TILEMEGA_PREFETCH_RUNTIME`
+承载，默认 0，默认构建的汇编不变。落地后三段的分工是：`Prefetch` 由 body 用
+`ScalarPrefetchOperand` 声明要取的操作数，执行器在 slot 的 Compute 之前替
+slot+1 发出 `cp.async`；`Wait` 仍在执行器，即 slot+1 的 Compute 之前一句
+`cp.async.wait_group 1`，把仍在飞行的那一页留在外面；`Compute` 不变。"没有入边
+的操作数"确由分析层推出——`no_producer` 在 CG 构建时按写集置位，read-only 前沿
+在任务读工作量里单独拆出——两个参考模型全部 102 个 stage 与 EX-E4 的人工规则
+逐 stage 相同，路径上没有任何手写标注。生命周期的改动见 §8.6；实测收益见
+`docs/experiments/PIPELINE/summary.md`，六个 cell 中五个变慢 2–7%、real_s4
+快 0.8%，代价主要是机制自身的固定开销而不是重叠失败。）
+
 承接项：`docs/TODO.md` EX-E4。
 
 ## 5.4 Megakernel 骨架
@@ -1379,6 +1390,20 @@ gqa2 s128 上 `dyn=19456` 保持 5 CTA/SM、`19584` 掉到 4，而 `(19456+1024)
 该闭式的 warp 数须按实际 CTA 宽度取，本轮四个 cell 都是 128 线程/CTA，写死 8 warp
 会把 5 CTA/SM 算成 2。（F-223））
 
+（⚠️ v2.1：R7 B1 按 H3 解除这一不变量，解除的范围只有一处，需要写清楚。union
+本身不变：各 task 类型的 `SharedStorage` 仍是单个显式 union，仍取 max，其生命
+周期仍覆盖整个 dispatch。本轮新增的是 union **之后追加的两页**预取缓冲，
+`kSmemBytes = sizeof(TaskSmem) + 2 × TILEMEGA_PREFETCH_PAGE_BYTES`，按 `slot & 1`
+交替。这两页不参与取 max，也不能参与：前一个 slot 的收尾与后一个 slot 的取数
+必须同时持有各自的页，重叠才存在——被解除的正是"smem 只在 dispatch 这一个尺度
+上有生命周期"这一条，页的生命周期跨相邻两个 slot。页要放得下一整行，否则执行器
+拒发而机制空转：hidden 512 的参考模型 1024B 够，hidden 4096 的真实模型要 8192B，
+在 1024B 上真实 cell 实测 `declared=32 issued=0`。occupancy 按上面含 1KiB 预留项
+的闭式与 `cuOccupancyMaxActiveBlocksPerMultiprocessor` 逐 arm 核对，6 cell × 3 arm
+共 18 行全部相等：参考 cell 16384→18432B、5 CTA/SM 不变；真实 cell 16384→32768B，
+real_s4 5→3 CTA/SM、real_s128 3→3，而两者选中的 `RESIDENCY_CAP` 都是 2，所选驻留
+一个都没丢。默认 0，默认构建不追加任何字节。（F-224、B1-b））
+
 ## 8.7 共存性
 
 资源容量公式为：
@@ -1583,4 +1608,4 @@ Codegen 与 host 只消费 Plan（§5.7.4），不得在其中新增调度决策
 | 2026-09 | v2.1 第四轮 | 按上述条件解封屏障后单发布者 release；补齐发布 warp 异步化、本地依赖与 cluster 作用域的可选协议形态 |
 | 2026-09 | v2.1 第五轮 | 引入默认关闭的 TaskBody 分相观测与按测量分叉的研究流程；保留 L1 ChainDP，将几何、split、κ、驻留与放置纳入 L2 配置求解 |
 | 2026-09 | v2.1 第六轮 | 统一访问推导到 TaskBody 代价的输入；明确绑定下界目标与分层求值；Place 参数允许 θ 函数，物化表由 CG 模块承载，生产写回经编译驱动接入 |
-| 2026-09 | v2.1 第七轮 | 归一化 epsilon 与旋转相位精度改为由导入的模型决定，不再是后端常量；任务族扩展为 token embedding、按头 Q/K 归一化与独立的最终归一化，并规定新族必须由生成开关承载以保持默认构建的汇编同一；§8.6 的 TaskSmem union 生命周期与 §5.3.1 的分相 ABI 本轮未变更 |
+| 2026-09 | v2.1 第七轮 | 归一化 epsilon 与旋转相位精度改为由导入的模型决定，不再是后端常量；任务族扩展为 token embedding、按头 Q/K 归一化与独立的最终归一化，并规定新族必须由生成开关承载以保持默认构建的汇编同一；§8.6 的 TaskSmem union 生命周期按 H3 解除一处——union 仍取 max，其后按开关追加两页预取缓冲，生命周期跨相邻 slot；§5.3.1 的分相 ABI 随之落地为可开关的实现 |
