@@ -53,10 +53,10 @@ inline CompilerSearchResult SolveExport(std::string const& path,
       auto coarse_module=frontend::TorchExportImporter{}.Import(path,context,nullptr,import);
       auto optimistic=options.placement;optimistic.residency=1;optimistic.verified_resident_limit=1;
       optimistic.requested_grid=0;optimistic.kappa=1;
-      auto problem=dialect::PreparePlacementProblem(*coarse_module,optimistic);
-      SimulatorInput input;input.graph=&problem.graph;input.task_ns=std::move(problem.task_ns);
-      PreparedPlanBounds bounds;std::string error;
-      if(!PreparePlanBounds(input,&bounds,&error))throw std::invalid_argument(error);
+      // Bounds only: this pass asks for work and the critical path and nothing
+      // else, so the dense edge set is never built (§6 C1-b).
+      RelationBounds bounds;
+      auto problem=dialect::PreparePlacementProblem(*coarse_module,optimistic,&bounds);
       // Before compiling occupancy, the hardware thread limit is an upper
       // bound on any legal grid. One-CTA task service is a lower bound on
       // every residency priced by this monotone resource model.
@@ -66,7 +66,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
       for(std::size_t stage=0;stage<problem.counts.size();++stage) {
         int begin=problem.graph.stage_offsets[stage],end=problem.graph.stage_offsets[stage+1];
         if(begin==end)continue;
-        double minimum=*std::min_element(input.task_ns.begin()+begin,input.task_ns.begin()+end);
+        double minimum=*std::min_element(problem.task_ns.begin()+begin,problem.task_ns.begin()+end);
         // Some worker must execute this many tasks of the stage, even if
         // all other stages can be placed arbitrarily.
         queue=std::max(queue,minimum*double((end-begin+grid_upper-1)/grid_upper));

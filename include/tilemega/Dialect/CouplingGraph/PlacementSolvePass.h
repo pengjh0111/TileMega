@@ -14,6 +14,7 @@
 #include <limits>
 #include <set>
 #include <tilemega/Analysis/VisitFiniteRelation.h>
+#include <tilemega/Solver/RelationBounds.h>
 
 namespace tilemega::dialect {
 // Scoped to one compile invocation. Keys include the complete immutable CG,
@@ -92,8 +93,12 @@ struct PreparedPlacementProblem {
   codegen::RuntimeTaskGraph graph;
   std::vector<double> task_ns,prefetch_ns;
 };
+/// With `bounds`, the caller wants only work and the semantic critical path,
+/// so the dense edge set is never materialized: the relation's own intervals
+/// carry the longest-path relaxation and `graph.successors` stays empty. Every
+/// other field is what the materializing path produces.
 inline PreparedPlacementProblem PreparePlacementProblem(mlir::ModuleOp module,
-    PlacementSolveOptions const& options) {
+    PlacementSolveOptions const& options,solver::RelationBounds* bounds=nullptr) {
   using namespace solver;
   if (!module || mlir::failed(mlir::verify(module)) || options.dims.seq<=0 ||
       options.dims.past<0 || options.residency<=0 || options.kappa<=0)
@@ -128,12 +133,14 @@ inline PreparedPlacementProblem PreparePlacementProblem(mlir::ModuleOp module,
       throw std::invalid_argument("projected relation outside task domain");
     return graph.stage_offsets[stage]+task;
   };
-  analysis::VisitFiniteRelation(analysis::SharedIslContext(),
-      projection.dependencies.ToString(),4,[&](long const* e) {
-        graph.successors[node(e[2],e[3])].push_back(node(e[0],e[1]));
-      });
-  for (auto& row:graph.successors) {
-    std::sort(row.begin(),row.end());row.erase(std::unique(row.begin(),row.end()),row.end());
+  if (!bounds) {
+    analysis::VisitFiniteRelation(analysis::SharedIslContext(),
+        projection.dependencies.ToString(),4,[&](long const* e) {
+          graph.successors[node(e[2],e[3])].push_back(node(e[0],e[1]));
+        });
+    for (auto& row:graph.successors) {
+      std::sort(row.begin(),row.end());row.erase(std::unique(row.begin(),row.end()),row.end());
+    }
   }
   std::string price_key;
   std::vector<double> const* cached_prices=nullptr;
@@ -205,6 +212,12 @@ inline PreparedPlacementProblem PreparePlacementProblem(mlir::ModuleOp module,
     auto entry=input.task_ns;
     entry.insert(entry.end(),input.prefetch_ns.begin(),input.prefetch_ns.end());
     options.task_price_cache->prices.emplace(std::move(price_key),std::move(entry));
+  }
+  if (bounds) {
+    std::string error;
+    if (!solver::PrepareRelationBounds(graph.stage_offsets,counts,input.task_ns,
+            projection.dependencies.ToString(),bounds,&error))
+      throw std::invalid_argument(error);
   }
   return {std::move(runtime),std::move(model),std::move(result.geometry),result.grid,threads,
           std::move(projection),std::move(counts),std::move(graph),std::move(input.task_ns),
