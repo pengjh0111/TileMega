@@ -45,6 +45,19 @@ struct ScalarDataflow {
   }
 };
 
+/// The operand a kind's TaskBody names in its §5.3.1 `Prefetch()`, or -1 for
+/// a kind that declares none.  `RMSNormTaskBody::Prefetch`,
+/// `QKNormTaskBody::Prefetch` and `ModelHarness.cuh`'s `PrefetchFor` are the
+/// device-side spelling of this same table: the solver credits only what the
+/// executor will issue, and the executor issues only what the frontier allows.
+inline int ScalarPrefetchOperand(TaskKind kind) {
+  switch (kind) {
+    case TaskKind::kRMSNorm:
+    case TaskKind::kQKNorm: return 1;
+    default: return -1;
+  }
+}
+
 // TaskBody control structure, not fitted per-kind latency constants. The
 // scalar expressions themselves remain in the single arithmetic schema.
 inline ScalarDataflow ScalarTaskDataflow(TaskKind kind) {

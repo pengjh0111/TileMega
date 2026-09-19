@@ -29,6 +29,19 @@ struct DerivedTaskInput {
   // Mixed-width storage (e.g. FP32 partials and BF16 residuals) retains
   // each access cardinality before converting elements to bytes.
   std::optional<analysis::QuasiPolynomial> physical_read_bytes;
+  /// The operand the kind's body prefetches (`ScalarPrefetchOperand`) when it
+  /// is on the read-only frontier, else -1.  Runtime-ownership tasks only.
+  int prefetch_operand=-1;
+};
+/// What `PriceTaskInstances` credits to §5.3.1's Prefetch, per instance: the
+/// prefetch operand priced as a local read (the model's own fused-input
+/// semantics) subtracted from the task priced reading it from global, and only
+/// where its footprint is whole 16-byte lines within the page the executor was
+/// built with (`TILEMEGA_PREFETCH_PAGE_BYTES`), which is the executor's own
+/// test.  Zero where the model's bottleneck is elsewhere.
+struct PrefetchPricing {
+  int page_bytes=1024;
+  std::vector<double>* ns=nullptr;
 };
 DerivedTaskInput DeriveCombineTaskInput(ModelDescription const& model, int stage,
     GemmConfig const& config, analysis::OperatorGraph const& graph,
@@ -44,7 +57,7 @@ std::vector<TaskMemoryTraffic> DeriveTaskMemoryTrafficBatch(DerivedTaskInput con
 std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput const& input,
     BackendTraits const& traits,Residency residency,ModelDescription const& model,int chunks,
     std::vector<analysis::ParamBinding> const& coordinates,double active_ctas_per_sm=1.0,
-    std::vector<double>* prefetch_ns=nullptr);
+    PrefetchPricing const* prefetch=nullptr);
 BackendTraits ModelTaskTraits(ModelDescription const& model, int stage,
                               GemmConfig const& config);
 analysis::TaskAccesses DeriveModelTaskAccesses(ModelTaskSemantics const& semantic,

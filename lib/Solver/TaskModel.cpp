@@ -55,27 +55,29 @@ std::vector<TaskMemoryTraffic> DeriveTaskMemoryTrafficBatch(DerivedTaskInput con
 std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput const& input,
     BackendTraits const& traits,Residency residency,ModelDescription const& model,int chunks,
     std::vector<analysis::ParamBinding> const& coordinates,double active_ctas_per_sm,
-    std::vector<double>* prefetch_ns) {
+    PrefetchPricing const* prefetch) {
   auto theta=model.MetricBindings();bool collective=traits.stages>0;
   int bytes=model.dtype==ScalarType::kBF16 ? 2 : 4;
   auto traffic=DeriveTaskMemoryTrafficBatch(input,theta,coordinates,bytes,bytes,
       collective ? analysis::AccessDomain::kNominalTile : analysis::AccessDomain::kPhysicalTensor);
   std::vector<long> reduction(coordinates.size(),0);
   if (collective) reduction=input.work.nominal_task_reduce_extent.EvalPoints(theta,coordinates);
-  // No GEMM TaskBody implements §5.3.1's Prefetch phase, and a mixed-width
-  // read is counted in bytes rather than elements, so neither can have the
-  // frontier's element count converted back into a share of its traffic.
-  bool prefetchable=prefetch_ns && !collective && !input.physical_read_bytes;
-  std::vector<long> frontier(coordinates.size(),0);
-  if (prefetchable)
-    frontier=input.work.frontier_read_elements.EvalPoints(theta,coordinates);
+  bool prefetchable=prefetch && prefetch->ns && !collective && input.scalar_access &&
+      input.prefetch_operand>=0;
+  std::vector<long> page(coordinates.size(),0);
+  if (prefetchable) {
+    auto found=input.scalar_access->reads.find(input.task.operands.at(input.prefetch_operand).tensor.name);
+    if (found==input.scalar_access->reads.end())
+      throw std::invalid_argument("prefetch operand has no runtime read relation");
+    page=found->second.Card().EvalPoints(theta,coordinates);
+  }
   // Within one immutable task signature these are every coordinate-dependent
   // quantity consumed by TaskCostImpl. Equal work classes have exactly equal
   // prices; no averaging, sampling, stage-kind rule or fitted shortcut occurs.
   std::map<std::tuple<double,double,long>,double> classes;
   std::map<std::tuple<double,double,long>,double> prefetch_classes;
   std::vector<double> result;result.reserve(coordinates.size());
-  if (prefetch_ns) prefetch_ns->assign(coordinates.size(),0.0);
+  if (prefetch && prefetch->ns) prefetch->ns->assign(coordinates.size(),0.0);
   for (std::size_t i=0;i<coordinates.size();++i) {
     auto key=std::make_tuple(traffic[i].global_read_bytes,traffic[i].global_write_bytes,reduction[i]);
     auto found=classes.find(key);
@@ -83,20 +85,24 @@ std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput co
         input,traits,residency,model,chunks,coordinates[i],active_ctas_per_sm,nullptr,
         collective ? nullptr : &traffic[i])).first;
     result.push_back(found->second);
-    if (!prefetchable || frontier[i]<=0) continue;
-    // The prefetchable share is what the calibrated model itself charges for
-    // those bytes -- the same task priced without them, subtracted -- so no
-    // coefficient is introduced for the mechanism. It is zero when the task's
-    // bottleneck is some other lane, which is the honest answer: overlapping a
-    // fetch nothing is waiting on buys nothing.
-    auto shed=traffic[i];
-    shed.global_read_bytes=std::max(0.0,shed.global_read_bytes-double(frontier[i])*bytes);
-    auto shed_key=std::make_tuple(shed.global_read_bytes,shed.global_write_bytes,reduction[i]);
-    auto cheaper=prefetch_classes.find(shed_key);
-    if (cheaper==prefetch_classes.end()) cheaper=prefetch_classes.emplace(shed_key,
+    double const fetched=double(page[i])*bytes;
+    if (!prefetchable || fetched<=0 || page[i]*bytes%16 || fetched>prefetch->page_bytes) continue;
+    // The same task with that operand served from shared memory, which is how
+    // the model already prices a fused input; no coefficient is introduced for
+    // the mechanism.  A load phase that still fetches another operand from
+    // global keeps its latency, so a body whose prefetched operand shares its
+    // phase with a re-read is credited nothing: that is the model's answer,
+    // recorded rather than adjusted (PIPELINE/summary.md).
+    auto local=traffic[i];
+    local.global_read_bytes=std::max(0.0,local.global_read_bytes-fetched);
+    local.local_read_bytes+=fetched;
+    local.local_read_operands.insert(input.prefetch_operand);
+    auto local_key=std::make_tuple(local.global_read_bytes,local.global_write_bytes,reduction[i]);
+    auto cheaper=prefetch_classes.find(local_key);
+    if (cheaper==prefetch_classes.end()) cheaper=prefetch_classes.emplace(local_key,
         cost.TaskInstanceNs(input,traits,residency,model,chunks,coordinates[i],
-                            active_ctas_per_sm,nullptr,&shed)).first;
-    (*prefetch_ns)[i]=std::max(0.0,found->second-cheaper->second);
+                            active_ctas_per_sm,&local,nullptr)).first;
+    (*prefetch->ns)[i]=std::max(0.0,found->second-cheaper->second);
   }
   return result;
 }
@@ -421,7 +427,13 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
     result.scalar_access.emplace();
     result.work=DeriveRuntimeScalarWork(model,semantic,*task,std::move(result.work),threads,&*result.scalar_access);
     result.cost_coordinates={"q"};
-    result.scalar_flow=codegen::ScalarTaskDataflow(static_cast<codegen::TaskKind>(model.stages.at(semantic.stage).kind));
+    auto kind=static_cast<codegen::TaskKind>(model.stages.at(semantic.stage).kind);
+    result.scalar_flow=codegen::ScalarTaskDataflow(kind);
+    // The body's declaration is honoured only on the derived frontier, exactly
+    // as the executor honours it (`PrefetchBytes` in ModelHarness.cuh).
+    int const declared=codegen::ScalarPrefetchOperand(kind);
+    if (declared>=0 && declared<int(task->operands.size()) && task->operands[declared].producer.empty())
+      result.prefetch_operand=declared;
   }
   if (!config && !runtime_ownership) {
     auto kind=static_cast<codegen::TaskKind>(model.stages.at(semantic.stage).kind);
