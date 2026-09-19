@@ -326,6 +326,19 @@ __host__ __device__ inline int CeilDiv(int numerator, int denominator) {
 #define TILEMEGA_EVENT_KAPPA 1
 #endif
 
+/// The coarsening of one producer stage (§6 B2). Every group computation below
+/// asks for its producer's kappa rather than the literal, so per-stage kappa is
+/// a table lookup and the default build folds against the same constant it
+/// always did -- which is what keeps its SASS byte-identical (H2).
+__device__ inline int StageKappa(Params const& p, std::uint32_t stage) {
+#if TILEMEGA_EVENT_KAPPA_PER_STAGE
+  return static_cast<int>(p.stage_kappa[stage]);
+#else
+  (void)p; (void)stage;
+  return TILEMEGA_EVENT_KAPPA;
+#endif
+}
+
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
 /// %globaltimer is one counter broadcast to every SM, so unlike clock64 it is
 /// directly comparable across workers.  It ticks in 1024 ns steps on sm_89
@@ -433,9 +446,9 @@ __device__ inline unsigned long long RawEventTriggers(Params const& p,
   int const produced = ActiveBlocks(p, p.stages[producer]);
 #if TILEMEGA_EVENT_KAPPA > 0
   if (group != kWholeStageEventGroup) {
-    int const rest = produced - static_cast<int>(group) * TILEMEGA_EVENT_KAPPA;
-    return static_cast<unsigned long long>(
-        rest < TILEMEGA_EVENT_KAPPA ? rest : TILEMEGA_EVENT_KAPPA);
+    int const k = StageKappa(p, producer);
+    int const rest = produced - static_cast<int>(group) * k;
+    return static_cast<unsigned long long>(rest < k ? rest : k);
   }
 #else
   (void)group;
@@ -557,8 +570,9 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
       int const grid = static_cast<int>(gridDim.x);
       int const produced = ActiveBlocks(p, p.stages[producer]);
       int const live = ActiveBlocksClamped(p, producer);
+      int const k = StageKappa(p, producer);
       if (dep.map == StageDependency::Map::kAll) {
-        for (int group = 0; group <= (live - 1) / TILEMEGA_EVENT_KAPPA; ++group)
+        for (int group = 0; group <= (live - 1) / k; ++group)
           poll(producer, group);
       } else {
 #if TILEMEGA_NEGATIVE_OLD_CLAMP
@@ -573,8 +587,8 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
         int const truncated = produced < grid ? produced : grid;
         int const past = at + static_cast<int>(dep.count);
         int const end = past < truncated ? past : truncated;
-        for (int group = begin / TILEMEGA_EVENT_KAPPA;
-             begin < end && group <= (end - 1) / TILEMEGA_EVENT_KAPPA;
+        for (int group = begin / k;
+             begin < end && group <= (end - 1) / k;
              ++group)
           poll(producer, group);
 #else
@@ -596,11 +610,11 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
           int first = begin % grid, last = (end - 1) % grid;
           if (end - begin >= grid) { first = 0; last = live - 1; }
           int const wrapped = first > last;
-          for (int group = first / TILEMEGA_EVENT_KAPPA;
-               group <= (wrapped ? live - 1 : last) / TILEMEGA_EVENT_KAPPA;
+          for (int group = first / k;
+               group <= (wrapped ? live - 1 : last) / k;
                ++group)
             poll(producer, group);
-          for (int group = 0; wrapped && group <= last / TILEMEGA_EVENT_KAPPA;
+          for (int group = 0; wrapped && group <= last / k;
                ++group)
             poll(producer, group);
         }
@@ -856,9 +870,10 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
       int members = produced;
 #if TILEMEGA_EVENT_KAPPA > 0
       if (fine) {
-        group = logical_task / TILEMEGA_EVENT_KAPPA;
-        int const remaining = produced - static_cast<int>(group) * TILEMEGA_EVENT_KAPPA;
-        members = remaining < TILEMEGA_EVENT_KAPPA ? remaining : TILEMEGA_EVENT_KAPPA;
+        int const k = StageKappa(p, producer);
+        group = logical_task / k;
+        int const remaining = produced - static_cast<int>(group) * k;
+        members = remaining < k ? remaining : k;
       }
 #endif
       ArriveEvent(p, events, EventIndex(p, producer, group), members, iteration);
@@ -874,12 +889,10 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
     int const produced = ActiveBlocks(p, p.stages[producer]);
 #if TILEMEGA_EVENT_KAPPA > 0
     if (event_flags & kNeedsFineEvents) {
-      int const group =
-          static_cast<int>(logical_task) / TILEMEGA_EVENT_KAPPA;
-      int const members = produced - group * TILEMEGA_EVENT_KAPPA
-                              < TILEMEGA_EVENT_KAPPA
-                          ? produced - group * TILEMEGA_EVENT_KAPPA
-                          : TILEMEGA_EVENT_KAPPA;
+      int const k = StageKappa(p, producer);
+      int const group = static_cast<int>(logical_task) / k;
+      int const members =
+          produced - group * k < k ? produced - group * k : k;
       ArriveEvent(p, events, EventIndex(p, producer, static_cast<std::uint32_t>(group)),
                   members, iteration);
     }
@@ -1289,6 +1302,13 @@ void tilemega_wait_profile_kernel(Params const* params, int seq) {
       int const grid = static_cast<int>(gridDim.x);
       int const produced = ActiveBlocks(p, p.stages[dep.producer]);
       int const producers = ActiveBlocksClamped(p, dep.producer);
+#if TILEMEGA_EVENT_KAPPA_PER_STAGE
+      // Deliberately shadows the uniform one: with per-stage kappa off this
+      // block preprocesses to exactly the text it always did, which is what
+      // keeps the default build's register allocation, and its SASS, the same
+      // (H2). Measured: without the guard nvcc reschedules this kernel.
+      int const per_group = kappa > 0 ? StageKappa(p, dep.producer) : 1;
+#endif
       int const groups = kappa > 0 ? CeilDiv(producers, per_group) : 1;
       // Counted exactly as WaitDependencies polls it, duplicates included:
       // the grid-stride union can name one group twice and the device pays
@@ -1382,6 +1402,12 @@ struct DeviceModel {
   std::uint32_t* device_event_offsets = nullptr;
   std::vector<std::uint32_t> event_flags;
   std::uint32_t* device_event_flags = nullptr;
+  /// Per-stage kappa. Always built so the host event tables and the offline
+  /// dumps read one source; only the device view of it is guarded.
+  std::vector<std::uint32_t> stage_kappa;
+#if TILEMEGA_EVENT_KAPPA_PER_STAGE
+  std::uint32_t* device_stage_kappa = nullptr;
+#endif
   std::vector<EventFanIn> event_fanin;
   std::vector<std::uint32_t> shard_targets;
   EventFanIn* device_event_fanin = nullptr;
@@ -2100,9 +2126,24 @@ inline DeviceModel Create(ModelSpec const& spec,
       stage_max_producer_worker[stage] = std::max(
           stage_max_producer_worker[stage], owner);
   }
-#if TILEMEGA_EVENT_KAPPA > 0
-  int const per_group = TILEMEGA_EVENT_KAPPA;
+#if TILEMEGA_EVENT_KAPPA_PER_STAGE
+  // The generator emits one entry per stage in CG stage order; a shorter table
+  // would silently coarsen the tail, so the length is checked, not clamped.
+  static std::uint32_t const kStageKappaTable[] = {TILEMEGA_EVENT_KAPPA_TABLE};
+  if (sizeof(kStageKappaTable) / sizeof(*kStageKappaTable) != model.stages.size()) {
+    std::fprintf(stderr, "per-stage kappa table has %zu entries for %zu stages\n",
+                 sizeof(kStageKappaTable) / sizeof(*kStageKappaTable),
+                 model.stages.size());
+    std::exit(2);
+  }
+  model.stage_kappa.assign(kStageKappaTable,
+                           kStageKappaTable + model.stages.size());
+#else
+  model.stage_kappa.assign(model.stages.size(), TILEMEGA_EVENT_KAPPA);
 #endif
+  auto stage_kappa = [&](std::uint32_t stage) {
+    return static_cast<int>(model.stage_kappa[stage]);
+  };
   model.event_offsets.resize(model.stages.size() + 1, 0);
   model.event_flags.resize(model.stages.size(), 0);
   for (StageDependency const& dep : dependencies) {
@@ -2125,7 +2166,7 @@ inline DeviceModel Create(ModelSpec const& spec,
     if (model.event_flags[stage] & kNeedsAggregateEvent) ++groups;
     if (model.event_flags[stage] & kNeedsFineEvents)
       groups += static_cast<std::uint32_t>(
-          (count + TILEMEGA_EVENT_KAPPA - 1) / TILEMEGA_EVENT_KAPPA);
+          (count + stage_kappa(stage) - 1) / stage_kappa(stage));
 #else
     std::uint32_t const groups =
         (model.event_flags[stage] & kNeedsAggregateEvent) ? 1u : 0u;
@@ -2190,8 +2231,8 @@ inline DeviceModel Create(ModelSpec const& spec,
     if (model.event_flags[stage] & kNeedsAggregateEvent) add(row++, 0, produced);
 #if TILEMEGA_EVENT_KAPPA > 0
     if (model.event_flags[stage] & kNeedsFineEvents)
-      for (int begin = 0; begin < produced; begin += TILEMEGA_EVENT_KAPPA)
-        add(row++, begin, std::min(produced, begin + TILEMEGA_EVENT_KAPPA));
+      for (int begin = 0; begin < produced; begin += stage_kappa(stage))
+        add(row++, begin, std::min(produced, begin + stage_kappa(stage)));
 #endif
   }
 #if TILEMEGA_EVENT_CLUSTER_FANIN
@@ -2269,6 +2310,7 @@ inline DeviceModel Create(ModelSpec const& spec,
                 at + static_cast<int>(dep.count), produced);
             auto require_task = [&](int producer_task) {
               int const owner = task_owner[dep.producer][producer_task];
+              int const per_group = stage_kappa(dep.producer);
               int const group = producer_task / per_group;
               int const group_end = std::min((group + 1) * per_group, produced);
               for (int member = group * per_group; member < group_end; ++member)
@@ -2283,7 +2325,7 @@ inline DeviceModel Create(ModelSpec const& spec,
               // wider window may start the two in either order, so only a
               // producer the window cannot reach is still discharged by FIFO.
               // The rest become local dependencies rather than global polls.
-              if (per_group == 1 && owner == worker) {
+              if (stage_kappa(dep.producer) == 1 && owner == worker) {
                 int const producer_slot =
                     plan.slot[dep.producer][producer_task];
                 int const consumer_slot = plan.slot[stage][logical];
@@ -2444,6 +2486,11 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.device_event_flags = static_cast<std::uint32_t*>(upload(
       model.event_flags.data(),
       model.event_flags.size() * sizeof(std::uint32_t)));
+#if TILEMEGA_EVENT_KAPPA_PER_STAGE
+  model.device_stage_kappa = static_cast<std::uint32_t*>(upload(
+      model.stage_kappa.data(),
+      model.stage_kappa.size() * sizeof(std::uint32_t)));
+#endif
 #if TILEMEGA_EVENT_SHARDED
   model.device_event_fanin = static_cast<EventFanIn*>(upload(
       model.event_fanin.data(), model.event_fanin.size() * sizeof(EventFanIn)));
@@ -2496,6 +2543,9 @@ inline DeviceModel Create(ModelSpec const& spec,
       static_cast<std::uint32_t>(model.task_waits.size());
   model.params.event_offsets = model.device_event_offsets;
   model.params.event_flags = model.device_event_flags;
+#if TILEMEGA_EVENT_KAPPA_PER_STAGE
+  model.params.stage_kappa = model.device_stage_kappa;
+#endif
   model.params.event_fanin = model.device_event_fanin;
   model.params.shard_arrivals = model.device_shard_arrivals;
   model.params.shard_targets = model.device_shard_targets;
@@ -2750,13 +2800,12 @@ inline void DumpTraceV2(DeviceModel const& model, char const* fixture_dir,
       ++row;
     }
 #if TILEMEGA_EVENT_KAPPA > 0
-    if (model.event_flags[stage] & kNeedsFineEvents)
-      for (std::uint32_t begin = 0; begin < produced;
-           begin += TILEMEGA_EVENT_KAPPA, ++row)
-        std::fprintf(f, "%u\t%u\t%u\t%u\t%llu\n", row, stage,
-                     begin / TILEMEGA_EVENT_KAPPA,
-                     std::min<std::uint32_t>(TILEMEGA_EVENT_KAPPA, produced - begin),
-                     publish[row]);
+    if (model.event_flags[stage] & kNeedsFineEvents) {
+      std::uint32_t const k = model.stage_kappa[stage];
+      for (std::uint32_t begin = 0; begin < produced; begin += k, ++row)
+        std::fprintf(f, "%u\t%u\t%u\t%u\t%llu\n", row, stage, begin / k,
+                     std::min<std::uint32_t>(k, produced - begin), publish[row]);
+    }
 #endif
   }
   std::fclose(f);
@@ -2774,6 +2823,12 @@ inline void DumpTraceV2(DeviceModel const& model, char const* fixture_dir,
   std::fprintf(f, "past\t%d\n", model.params.dims.past);
   std::fprintf(f, "grid\t%d\n", grid);
   std::fprintf(f, "kappa\t%d\n", TILEMEGA_EVENT_KAPPA);
+#if TILEMEGA_EVENT_KAPPA_PER_STAGE
+  std::fprintf(f, "stage_kappa\t");
+  for (std::size_t i = 0; i < model.stage_kappa.size(); ++i)
+    std::fprintf(f, "%s%u", i ? "," : "", model.stage_kappa[i]);
+  std::fprintf(f, "\n");
+#endif
   std::fprintf(f, "placement\t%d\n", TILEMEGA_PLACEMENT);
   std::fprintf(f, "schedule_policy\t%s\n",
                policy != nullptr ? policy : "critical_path");
@@ -3332,6 +3387,12 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
 #if TILEMEGA_EVENT_KAPPA > 0
   std::printf("E2E_KAPPA event_kappa=%d dependency_table=variant_exact\n",
               TILEMEGA_EVENT_KAPPA);
+#if TILEMEGA_EVENT_KAPPA_PER_STAGE
+  std::printf("E2E_KAPPA_PER_STAGE stages=%zu kappa=", model.stage_kappa.size());
+  for (std::size_t i = 0; i < model.stage_kappa.size(); ++i)
+    std::printf("%s%u", i ? "," : "", model.stage_kappa[i]);
+  std::printf("\n");
+#endif
 #endif
   std::printf("E2E_VARIANT index=%u seq_begin=%u seq_end=%u\n",
               runtime_variant_index, runtime_variant.seq_begin,

@@ -25,6 +25,12 @@ namespace tilemega::codegen {
 #ifndef TILEMEGA_PREFETCH_RUNTIME
 #define TILEMEGA_PREFETCH_RUNTIME 0
 #endif
+/// Per-producer-stage event coarsening (§6 B2). Off by default: with it off
+/// `Params` keeps the shape whose SASS H2 pins, and every group computation
+/// folds against the single `TILEMEGA_EVENT_KAPPA` literal as before.
+#ifndef TILEMEGA_EVENT_KAPPA_PER_STAGE
+#define TILEMEGA_EVENT_KAPPA_PER_STAGE 0
+#endif
 /// One page holds one task's read-only operand. Two of them follow the task
 /// union in shared memory, so the budget is twice this. B1-b measured 3072
 /// free bytes at every R7 cell before occupancy drops.
@@ -595,6 +601,12 @@ struct Params {
   /// Per-stage EventRowFlag mask. Producers publish only rows referenced by
   /// at least one consumer, avoiding an unconditional second atomic stream.
   std::uint32_t const* event_flags;
+#if TILEMEGA_EVENT_KAPPA_PER_STAGE
+  /// Per-stage kappa, indexed by producer stage. Guarded so a default build
+  /// keeps the layout, and therefore the constant bank offsets and the SASS,
+  /// it had before per-stage kappa existed (H2).
+  std::uint32_t const* stage_kappa;
+#endif
   TaskTrace* task_trace;                 ///< nullptr unless profiling
   unsigned long long* trace_sequence;    ///< nullptr unless profiling
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
