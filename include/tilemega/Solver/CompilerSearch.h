@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Dialect/CouplingGraph/PlacementSolvePass.h>
+#include <tilemega/Frontend/ExportBridge.h>
+#include <tilemega/Frontend/ModelPlan.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Solver/CandidateGenerator.h>
 #include <tilemega/Solver/JointSearch.h>
@@ -32,7 +34,12 @@ struct CompilerSearchResult {
 inline CompilerSearchResult SolveExport(std::string const& path,
     mlir::MLIRContext& context,CompilerSearchOptions const& options,
     frontend::ImportSummary* summary,std::ostream& evidence) {
-  auto seed=frontend::TorchExportImporter{}.Import(path,context);
+  // The plan is the pattern match over the exported graph and does not read
+  // ImportOptions, so it is the same object for every granularity below.
+  // Rebuilding it per candidate is the outer loop's dominant cost (F-229).
+  auto bridge=frontend::ReadExportBridge(path);
+  auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs);
+  auto seed=frontend::TorchExportImporter{}.ImportPlan(path,plan,context);
   auto model=ModelDescription::FromCouplingGraph(*seed,options.placement.dims,"compile-search");
   CandidateGenerator generator(options.placement.target,model.dtype,{256,64,5});
   CompilerSearchResult result;
@@ -50,7 +57,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
       import.gemms.assign(model.gemms.size(),{g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
       import.rope_tile_per_block=import.kv_tile_per_block=true;
       import.activation_tile_per_block=import.combiner_tile_per_block=true;
-      auto coarse_module=frontend::TorchExportImporter{}.Import(path,context,nullptr,import);
+      auto coarse_module=frontend::TorchExportImporter{}.ImportPlan(path,plan,context,nullptr,import);
       auto optimistic=options.placement;optimistic.residency=1;optimistic.verified_resident_limit=1;
       optimistic.requested_grid=0;optimistic.kappa=1;
       // Bounds only: this pass asks for work and the critical path and nothing
@@ -117,7 +124,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
       import.rope_tile_per_block=import.kv_tile_per_block=true;
       import.activation_tile_per_block=import.combiner_tile_per_block=true;
       frontend::ImportSummary candidate_summary;
-      auto module=frontend::TorchExportImporter{}.Import(path,context,&candidate_summary,import);
+      auto module=frontend::TorchExportImporter{}.ImportPlan(path,plan,context,&candidate_summary,import);
       int limit=options.query_residency ? options.query_residency(*module,candidate.kappa) : 1;
       if (limit<1) throw std::invalid_argument("compiled kernel has no resident CTA");
       for (int residency=1;residency<=limit;++residency) {
