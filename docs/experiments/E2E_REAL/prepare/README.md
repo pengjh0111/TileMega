@@ -51,3 +51,32 @@ present-and-empty: `tools/tilemega-compile` was relinked while gdb was attached
 to the still-running old image, after which every backtrace came back with no
 top frames.  The measured process kept its old image and is unaffected; only
 the sampler's view of it broke.
+
+# What the hoist bought
+
+`BuildModelPlan` is the pattern match the profile above spends 32 of 41 samples
+in, and it does not read `ImportOptions`, so the search builds it once and hands
+the same plan to every import.  Two whole searches of the llama export at seq 4,
+past 3, capacity 12, same target and search domain, both to completion:
+
+    control (02e1a2c81, plan rebuilt per import)  12982.1 s
+    hoisted (f6b00ac11, plan built once)           5167.2 s   2.51x
+
+The two `auto.cu.search.tsv` are byte-identical (361 rows, md5
+`d42b6bb8c2df1fc55d25950f535093b9`), so the hoist moved the cost and nothing
+else -- verified.  The two runs are not concurrent, so that ratio carries this
+machine's load as well as the change.
+
+`import_rate.tsv` is the contention-controlled half, written by `imports.sh`:
+one row every 30 s counting `IMPORT_DEGRADED` lines in the hoisted run and in a
+still-running pre-hoist process (the capacity-1 llama solve), while both shared
+the machine.  Over 4631 s the hoisted run completed 36 imports (128.6 s each)
+against the control's 18 (257.3 s each), a factor of 2.00 -- verified.  The
+control is at capacity 1 and the hoisted run at capacity 12; what makes the two
+comparable is that the outer enumeration imports one coarse module per
+(geometry, split) pair regardless of capacity, and both processes were inside
+that enumeration for the whole window.
+
+Neither number is a capacity verdict.  §6 C1-b is scored on the searchable
+space, and one import still costs minutes, so see `solve_profile.tsv` above and
+the C1-b row of `verify.py`.
