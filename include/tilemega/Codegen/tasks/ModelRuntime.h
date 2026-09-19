@@ -20,6 +20,29 @@
 
 namespace tilemega::codegen {
 
+/// §5.3.1's phase-split task ABI. Off by default: with it off the generated
+/// tables, `Params` and every task body keep the shape whose SASS H2 pins.
+#ifndef TILEMEGA_PREFETCH_RUNTIME
+#define TILEMEGA_PREFETCH_RUNTIME 0
+#endif
+/// One page holds one task's read-only operand. Two of them follow the task
+/// union in shared memory, so the budget is twice this. B1-b measured 3072
+/// free bytes at every R7 cell before occupancy drops.
+#ifndef TILEMEGA_PREFETCH_PAGE_BYTES
+#define TILEMEGA_PREFETCH_PAGE_BYTES 1024
+#endif
+
+/// Trailing and defaulted, like the phase argument, so the bodies that ignore
+/// the page and every existing caller keep their current call shape.
+#if TILEMEGA_PREFETCH_RUNTIME
+#define TILEMEGA_PREFETCH_ARG , ModelElement const* prefetched = nullptr
+#define TILEMEGA_PREFETCH_PASS , prefetched
+#else
+#define TILEMEGA_PREFETCH_ARG
+#define TILEMEGA_PREFETCH_PASS
+#endif
+
+
 enum class ScalarType : std::uint32_t { kF32 = 0, kBF16 = 1 };
 
 #ifndef TILEMEGA_FP32_PARTIALS
@@ -171,6 +194,16 @@ struct BufferDesc {
 /// The task families the generator can dispatch to.  A model that needs none
 /// of the attention families simply never emits those stage kinds.
 inline constexpr std::uint32_t kNoOperand = 0xffffffffu;
+
+#if TILEMEGA_PREFETCH_RUNTIME
+/// §5.3.1's Prefetch half: the operand a body would read that has no in-edge,
+/// named by the body itself. Whether it really has none is the frontier bit
+/// the frontend derived, checked by the executor rather than by the body.
+struct PrefetchOperand {
+  std::uint32_t buffer = kNoOperand;
+  std::uint32_t elements = 0;
+};
+#endif
 
 /// One generated stage. Geometry belongs to the stage rather than a model
 /// type: `extent` is the number of rows/heads/elements per token, `width` is
@@ -560,6 +593,14 @@ struct Params {
   unsigned long long* event_publish;     ///< length event_count
 #endif
   std::uint32_t ownership_flags;
+#if TILEMEGA_PREFETCH_RUNTIME
+  /// Buffer id -> 1 where no stage writes the buffer. Guarded for the same
+  /// reason the trace pointers are: a default build keeps this layout, and
+  /// with it the constant bank offsets and the SASS (H2).
+  std::uint8_t const* buffer_no_producer;
+  /// Byte offset of the first prefetch page inside the L2 dynamic extent.
+  std::uint32_t prefetch_page_offset;
+#endif
   EventFanIn const* event_fanin;
   ArrivalCounter* shard_arrivals;
   std::uint32_t const* shard_targets;

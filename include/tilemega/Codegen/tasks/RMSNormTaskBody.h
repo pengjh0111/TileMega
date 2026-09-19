@@ -24,10 +24,23 @@ struct RMSNormTaskBody {
     return {OwnershipOf(TaskKind::kRMSNorm), p.dims.seq};
   }
 
+#if TILEMEGA_PREFETCH_RUNTIME
+  /// §5.3.1 Prefetch: the scale row. It is the body's claim about what it will
+  /// read, not a claim that the row has no in-edge -- the executor checks the
+  /// derived frontier before honouring it.
+  __device__ static PrefetchOperand Prefetch(StageDesc const& stage) {
+    return {stage.operand[1], stage.width};
+  }
+#endif
+
   __device__ static void RunTask(Params const& p, StageDesc const& stage,
-                                 SmemUnion& smem, int token TILEMEGA_PHASE_ARG) {
+                                 SmemUnion& smem, int token TILEMEGA_PHASE_ARG
+                                 TILEMEGA_PREFETCH_ARG) {
     ModelElement const* input = p.buffers[stage.operand[0]];
     ModelElement const* weight = p.buffers[stage.operand[1]];
+#if TILEMEGA_PREFETCH_RUNTIME
+    if (prefetched != nullptr) weight = prefetched;
+#endif
     ModelElement* output = p.buffers[stage.operand[2]];
     int hidden = static_cast<int>(stage.width);
     TILEMEGA_PHASE_SIMT_SETUP();

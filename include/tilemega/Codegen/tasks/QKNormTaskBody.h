@@ -32,10 +32,21 @@ struct QKNormTaskBody {
             p.dims.seq * static_cast<int>(stage.extent)};
   }
 
+#if TILEMEGA_PREFETCH_RUNTIME
+  /// §5.3.1 Prefetch: the per-head scale row, read once per head.
+  __device__ static PrefetchOperand Prefetch(StageDesc const& stage) {
+    return {stage.operand[1], stage.width};
+  }
+#endif
+
   __device__ static void RunTask(Params const& p, StageDesc const& stage,
-                                 SmemUnion& smem, int task TILEMEGA_PHASE_ARG) {
+                                 SmemUnion& smem, int task TILEMEGA_PHASE_ARG
+                                 TILEMEGA_PREFETCH_ARG) {
     ModelElement const* input = p.buffers[stage.operand[0]];
     ModelElement const* weight = p.buffers[stage.operand[1]];
+#if TILEMEGA_PREFETCH_RUNTIME
+    if (prefetched != nullptr) weight = prefetched;
+#endif
     ModelElement* output = p.buffers[stage.operand[2]];
     int const head_dim = static_cast<int>(stage.width);
     TILEMEGA_PHASE_SIMT_SETUP();

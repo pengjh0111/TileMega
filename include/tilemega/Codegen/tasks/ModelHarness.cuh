@@ -232,15 +232,32 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 /// Dispatch exactly one logical task.  L0.5/L1 keep calling RunStage, whose
 /// grid-stride loops reuse these same single-task entries; L2 consumes them
 /// directly from the materialized worker queue.
+#if TILEMEGA_PREFETCH_RUNTIME
+/// The Prefetch half of §5.3.1 for a stage whose body declares one. Kinds that
+/// declare none return `kNoOperand` and the slot simply keeps reading global.
+__device__ inline PrefetchOperand PrefetchFor(StageDesc const& stage) {
+  switch (stage.kind) {
+    case TaskKind::kRMSNorm: return T_Norm::Prefetch(stage);
+#if TILEMEGA_QK_NORM_RUNTIME
+    case TaskKind::kQKNorm: return T_QKNorm::Prefetch(stage);
+#endif
+    default: return {};
+  }
+}
+#endif
+
 __device__ inline void RunTask(Params const& p, std::uint32_t index,
-                               std::uint32_t logical_task, TaskSmem& smem TILEMEGA_PHASE_ARG) {
+                               std::uint32_t logical_task, TaskSmem& smem TILEMEGA_PHASE_ARG
+                               TILEMEGA_PREFETCH_ARG) {
   StageDesc const& stage = p.stages[index];
   int const task = static_cast<int>(logical_task);
   switch (stage.kind) {
     case TaskKind::kGemm:
       T_Gemm::RunLogicalTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
       break;
-    case TaskKind::kRMSNorm: T_Norm::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS); break;
+    case TaskKind::kRMSNorm:
+      T_Norm::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS TILEMEGA_PREFETCH_PASS);
+      break;
     case TaskKind::kAdd: T_Add::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS); break;
 #if TILEMEGA_EMBEDDING_RUNTIME
     case TaskKind::kEmbedding:
@@ -249,7 +266,7 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
 #endif
 #if TILEMEGA_QK_NORM_RUNTIME
     case TaskKind::kQKNorm:
-      T_QKNorm::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
+      T_QKNorm::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS TILEMEGA_PREFETCH_PASS);
       break;
 #endif
     case TaskKind::kRoPE: T_RoPE::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS); break;
@@ -957,6 +974,46 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
 }
 
 /// L2 is worker-queue driven. Adjacent rows may name different stages; only
+#if TILEMEGA_PREFETCH_RUNTIME
+/// One 16-byte `cp.async` per thread per line. Below sm_80 the copy is an
+/// ordinary blocking move: the page still works, but nothing overlaps, and the
+/// experiment reports which architecture it measured.
+__device__ inline void PrefetchIssue(ModelElement const* source,
+                                     ModelElement* page, std::uint32_t bytes) {
+  for (std::uint32_t offset = threadIdx.x * 16u; offset < bytes;
+       offset += blockDim.x * 16u) {
+#if __CUDA_ARCH__ >= 800
+    unsigned const slot = static_cast<unsigned>(__cvta_generic_to_shared(
+        reinterpret_cast<char*>(page) + offset));
+    asm volatile("cp.async.cg.shared.global [%0], [%1], 16;\n" ::
+                 "r"(slot),
+                 "l"(reinterpret_cast<char const*>(source) + offset));
+#else
+    *reinterpret_cast<int4*>(reinterpret_cast<char*>(page) + offset) =
+        *reinterpret_cast<int4 const*>(
+            reinterpret_cast<char const*>(source) + offset);
+#endif
+  }
+}
+
+/// How much of a slot's declared Prefetch operand may actually be fetched
+/// early. A body's declaration is honoured only where the frontend-derived
+/// frontier says no stage writes the buffer, and only where the operand is a
+/// whole number of 16-byte lines that fits one page.
+__device__ inline std::uint32_t PrefetchBytes(Params const& p,
+                                              TaskRef const& task,
+                                              PrefetchOperand& operand) {
+  operand = PrefetchFor(p.stages[task.stage]);
+  if (operand.buffer == kNoOperand) return 0u;
+  if (!p.buffer_no_producer[operand.buffer]) return 0u;
+  std::uint32_t const width = operand.elements * sizeof(ModelElement);
+  if (width == 0u || width % 16u != 0u ||
+      width > TILEMEGA_PREFETCH_PAGE_BYTES)
+    return 0u;
+  return width;
+}
+#endif
+
 /// the concrete task's precomputed event slice constrains progress.
 __global__ __launch_bounds__(kHarnessThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
 void tilemega_l2_kernel(Params const* params, EventCounter* events,
@@ -1015,6 +1072,32 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
       params->task_trace_v2[slot].wait_begin = wait_stamp;
 #endif
 #else
+#if TILEMEGA_PREFETCH_RUNTIME
+  // §8.6 (v2.1): these two pages outlive the task union on purpose, so a
+  // slot's read-only operand can land while the slot before it still owns the
+  // union. Only the frontier buffers go here, so no page ever races a write.
+  ModelElement* const pages =
+      reinterpret_cast<ModelElement*>(bytes + params->prefetch_page_offset);
+  auto page_of = [&](std::uint32_t slot) {
+    return pages + (slot & 1u) *
+                       (TILEMEGA_PREFETCH_PAGE_BYTES / sizeof(ModelElement));
+  };
+  // Always commits, even with nothing to copy, so the group count the wait
+  // below reasons about does not depend on which slots had an operand.
+  auto issue = [&](std::uint32_t slot) {
+    if (slot < last) {
+      PrefetchOperand operand;
+      std::uint32_t const width =
+          PrefetchBytes(*params, params->schedule[slot], operand);
+      if (width)
+        PrefetchIssue(params->buffers[operand.buffer], page_of(slot), width);
+    }
+#if __CUDA_ARCH__ >= 800
+    asm volatile("cp.async.commit_group;\n" ::);
+#endif
+  };
+  issue(first);
+#endif
   for (std::uint32_t slot = first; slot < last; ++slot) {
     TaskRef const task = params->schedule[slot];
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
@@ -1066,7 +1149,23 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
 #endif
     }
 #endif
-    RunTask(*params, task.stage, task.logical_task, smem TILEMEGA_PHASE_PASS);
+#if TILEMEGA_PREFETCH_RUNTIME
+    // Issued before this slot's body rather than after it, so the copy runs
+    // against the whole body including its epilogue. The page it overwrites is
+    // the one slot-1 read, and between that read and here stands either
+    // `NotifyTask`'s barrier or, for a task that publishes nothing, this
+    // slot's wait barrier -- so the write needs no barrier of its own.
+    issue(slot + 1);
+#if __CUDA_ARCH__ >= 800
+    asm volatile("cp.async.wait_group 1;\n" ::);
+#endif
+    __syncthreads();
+    PrefetchOperand current;
+    ModelElement const* prefetched =
+        PrefetchBytes(*params, task, current) ? page_of(slot) : nullptr;
+#endif
+    RunTask(*params, task.stage, task.logical_task, smem TILEMEGA_PHASE_PASS
+            TILEMEGA_PREFETCH_PASS);
 #if !TILEMEGA_BARRIER_V2 || TILEMEGA_TRACE_V2
     // v2 drops this: `NotifyTask`'s release fence and barrier are strictly
     // stronger, and a task that publishes nothing is covered by the next
@@ -1380,6 +1479,11 @@ inline DeviceModel Create(ModelSpec const& spec,
   // Reserve the advertised per-CTA shared-memory budget before selecting
   // residency. Both the cluster treatment and its storage-matched control
   // use this reservation; occupancy is never computed using a smaller size.
+  model.l2_smem_bytes = l2_smem_bytes;
+#endif
+#if TILEMEGA_PREFETCH_RUNTIME
+  // The pages sit past the union, so the launch extent is the one the caller
+  // sized; the union default would put them on top of the union itself.
   model.l2_smem_bytes = l2_smem_bytes;
 #endif
   model.host_sources.resize(spec.buffer_count);
@@ -2270,6 +2374,15 @@ inline DeviceModel Create(ModelSpec const& spec,
   };
   model.device_buffers = static_cast<ModelElement**>(
       upload(model.buffers.data(), model.buffers.size() * sizeof(ModelElement*)));
+#if TILEMEGA_PREFETCH_RUNTIME
+  std::vector<std::uint8_t> frontier(spec.buffer_count);
+  for (std::uint32_t i = 0; i < spec.buffer_count; ++i)
+    frontier[i] = spec.buffers[i].no_producer ? 1u : 0u;
+  model.params.buffer_no_producer =
+      static_cast<std::uint8_t const*>(upload(frontier.data(), frontier.size()));
+  model.params.prefetch_page_offset = static_cast<std::uint32_t>(
+      model.l2_smem_bytes - 2u * TILEMEGA_PREFETCH_PAGE_BYTES);
+#endif
   model.device_gemms = static_cast<GemmInvocation*>(
       upload(gemms.data(), gemms.size() * sizeof(GemmInvocation)));
   model.device_stages = static_cast<StageDesc*>(upload(
@@ -2913,8 +3026,15 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   cudaFuncAttributes l1_attributes{}, l05_attributes{};
   TILEMEGA_CUDA_CHECK(cudaFuncGetAttributes(&l1_attributes, tilemega_l1_kernel));
   TILEMEGA_CUDA_CHECK(cudaFuncGetAttributes(&l05_attributes, tilemega_stage_kernel));
-  std::size_t const l2_smem_bytes = TILEMEGA_EVENT_CLUSTER_RESERVE
+  std::size_t l2_smem_bytes = TILEMEGA_EVENT_CLUSTER_RESERVE
       ? target.res.max_dynamic_smem_per_cta - l2_attributes.sharedSizeBytes : sizeof(TaskSmem);
+#if TILEMEGA_PREFETCH_RUNTIME
+  // The pages follow whatever the union and the cluster reservation already
+  // claim, so the reservation is visible to every occupancy number below
+  // rather than being taken out of slack the report would not show.
+  l2_smem_bytes = (l2_smem_bytes + 15u) & ~std::size_t(15u);
+  l2_smem_bytes += 2u * TILEMEGA_PREFETCH_PAGE_BYTES;
+#endif
   TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(
       tilemega_stage_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
       sizeof(TaskSmem)));
