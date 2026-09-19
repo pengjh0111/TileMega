@@ -197,7 +197,8 @@ int main(int argc, char** argv) {
   if (argc < 3 || argc % 2 == 0) {
     std::cerr << "usage: tilemega-compile {EXPORTED_PROGRAM.pt2|STABLE_EXPORT.json|CG.mlir} "
                  "{OUTPUT.cu|OUTPUT.so} [--variants PLAN.json] [--solve TARGET.json --seq N --past N\n"
-                 " --search-capacity N --dump-cg FILE.mlir --hop-curve FILE.tsv --seq-begin N]\n";
+                 " --search-capacity N --dump-cg FILE.mlir --hop-curve FILE.tsv --seq-begin N\n"
+                 " --prefetch-page-bytes N]\n";
     return 2;
   }
   try {
@@ -219,6 +220,10 @@ int main(int argc, char** argv) {
       else if (flag=="--seq") solve_options.placement.dims.seq=std::stoi(value);
       else if (flag=="--past") solve_options.placement.dims.past=std::stoi(value);
       else if (flag=="--search-capacity") solve_options.capacity=std::stoul(value);
+      // Zero prices no prefetch at all, which is the pipelining dimension of
+      // sigma switched off: every credit and every queue-edge discount is then
+      // exactly zero, so a solve can be repeated without it.
+      else if (flag=="--prefetch-page-bytes") solve_options.placement.prefetch_page_bytes=std::stoi(value);
       else if (flag=="--dump-cg") dump_cg=value;
       else if (flag=="--hop-curve") hop_path=value;
       else if (flag=="--resource-probes") resource_probes=std::stoi(value)!=0;
