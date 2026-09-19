@@ -21,16 +21,29 @@ Written for: the TileMega maintainers reviewing this round against the R7 prompt
 | 9 | `85c320e18` experiments: add the round seven runners and self-check | 16 |
 | 10 | `465737737` docs: record the round seven closure results | 15, 17 |
 | 11 | `bfd3102f3` experiments: stamp the sass identity at head | 18 |
-| 12 | `8165ad579` codegen: time the barriers the simt bodies already run | 7 (mechanism) |
-| 13 | `048782f89` experiments: add the b0 simt exposed wait probe | 7 (evidence) |
-| 14 | `dcdc52007` experiments: gate b0 in the round verifier | 7 (gate) |
-| 15 | this report's commit list | 17 |
-| 16 | `experiments: stamp the sass identity at head` | 18 |
+| 12 | `6cbd1491a` docs: list the round seven commits in the report | 17 |
+| 13 | `868ac438c` docs: note the final identity stamp in the report | 17 |
+| 14 | `c15430032` experiments: stamp the sass identity at head | 18 |
+| 15 | `602e9179b` docs: localize the real model solve cost | 17 (C1-b diagnosis) |
+| 16 | `35ad5019b` experiments: stamp the sass identity at head | 18 |
+| 17 | `62ec04e8a` docs: time one outer bound iteration | 17 (C1-b diagnosis) |
+| 18 | `897d2af63` experiments: stamp the sass identity at head | 18 |
+| 19 | `421f515ec` docs: correct which solve cost to fix first | 17 (C1-b diagnosis) |
+| 20 | `02e1a2c81` experiments: stamp the sass identity at head | 18 |
+| 21 | `8165ad579` codegen: time the barriers the simt bodies already run | 7 (mechanism) |
+| 22 | `048782f89` experiments: add the b0 simt exposed wait probe | 7 (evidence) |
+| 23 | `dcdc52007` experiments: gate b0 in the round verifier | 7 (gate) |
+| 24 | `51607c3ec` docs: record fork7 and the b0 segment partition | 17 |
+| 25 | `docs: complete the round seven commit list` — this commit | 17 |
+| 26 | `experiments: stamp the sass identity at head` | 18 |
+
+Rows 12 onward were added as the round was continued across sessions; the
+earlier revisions of this table stopped at row 11 and are superseded here.
 
 The last commit is the H2 stamp, regenerated so that it follows every source and
 document commit, as R4–R6 did; its `manifest.json` records `source_head` as its
-parent. The stamps committed earlier at commits 11 and 13 of the previous list
-are superseded by it and reported the same result.
+parent. Each earlier stamp (rows 11, 14, 16, 18, 20) was superseded by the next
+one and every one of them reported the same result.
 
 Step 7's suggested message `trace: measure exposed waits outside the K loop`
 was not used: `trace` is not one of the areas `CLAUDE.md` allows, and the step
@@ -40,9 +53,11 @@ uses it, and the gate that re-derives `FORK7` from the raw rows.
 No push rights on `origin`; the series is at `/tmp/round7-patches/`
 (`git format-patch 4e0e7b119..HEAD`).
 
-Prompt §13 lists 18 steps as 18 commits; this round used four extra commits to
-keep a mechanism separate from the experiment that measures it and the analysis
-change separate from the operator that needs it, which `AGENTS.md` requires.
+Prompt §13 lists 18 steps as 18 commits; this round used more, because
+`AGENTS.md` requires a mechanism to be separate from the experiment that
+measures it and an analysis change separate from the operator that needs it,
+and because the round was continued across sessions, each of which re-stamped
+the SASS identity and amended the report.
 Steps 8–14 are not present: see the stoppage ledger in §4.
 
 **H4 ordering in git history.** A1 (`3ebbf77a4`) and A2 (`db9669a60`) both
