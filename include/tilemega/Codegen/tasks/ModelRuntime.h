@@ -28,6 +28,11 @@ namespace tilemega::codegen {
 /// One page holds one task's read-only operand. Two of them follow the task
 /// union in shared memory, so the budget is twice this. B1-b measured 3072
 /// free bytes at every R7 cell before occupancy drops.
+/// B1-c's storage-matched control: keep the page and the copy, drop only the
+/// overlap by issuing and waiting inside the slot that reads it.
+#ifndef TILEMEGA_PREFETCH_INLINE
+#define TILEMEGA_PREFETCH_INLINE 0
+#endif
 #ifndef TILEMEGA_PREFETCH_PAGE_BYTES
 #define TILEMEGA_PREFETCH_PAGE_BYTES 1024
 #endif

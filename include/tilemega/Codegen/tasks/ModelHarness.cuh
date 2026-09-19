@@ -1096,7 +1096,9 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     asm volatile("cp.async.commit_group;\n" ::);
 #endif
   };
+#if !TILEMEGA_PREFETCH_INLINE
   issue(first);
+#endif
 #endif
   for (std::uint32_t slot = first; slot < last; ++slot) {
     TaskRef const task = params->schedule[slot];
@@ -1155,9 +1157,19 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     // the one slot-1 read, and between that read and here stands either
     // `NotifyTask`'s barrier or, for a task that publishes nothing, this
     // slot's wait barrier -- so the write needs no barrier of its own.
+#if TILEMEGA_PREFETCH_INLINE
+    // The storage-matched control for B1-c: the same page, the same bytes and
+    // the same instructions, issued for this slot and waited on immediately,
+    // so the only thing removed is the overlap.
+    issue(slot);
+#if __CUDA_ARCH__ >= 800
+    asm volatile("cp.async.wait_group 0;\n" ::);
+#endif
+#else
     issue(slot + 1);
 #if __CUDA_ARCH__ >= 800
     asm volatile("cp.async.wait_group 1;\n" ::);
+#endif
 #endif
     __syncthreads();
     PrefetchOperand current;
