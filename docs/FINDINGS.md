@@ -5991,3 +5991,82 @@ and is corrected here rather than silently dropped.
 
 Evidence: `/root/r7_work/llama/solve.log` (not committed: the export and its
 fixture are 5.6 GB), `E2E_REAL/summary.md` §4 and §11.
+
+## F-222 — R7 B0 completes the exposed-wait denominator; FORK7 clears 0.15 by 0.0005
+
+✅ **Verified.** The line the R7 prompt §5.1 requires, verbatim:
+
+```
+FORK7 rule=1 whole_pipeline_exposed_wait_share=0.151 gemm_share=0.149 simt_share=0.002 cells=4
+```
+
+FORK6's `cp_kloop_wait_share=0.278` was quoted against critical-path **GEMM
+mainloop** cycles: it excluded every SIMT body, and within a GEMM it excluded
+setup, the first-operand wait and the epilogue. B0 keeps FORK6's four cells and
+their frozen `selected` configurations verbatim and widens the denominator to
+the whole critical path — every task's `run` interval, all kinds. The two
+numbers are one measurement under two scopes, not a disagreement.
+
+✅ **Verified: the SIMT probe adds no synchronization.** `TILEMEGA_TRACE_SIMT`
+brackets barriers the bodies already executed — `RMSNormTaskBody::RunRow`'s
+reduction barriers, `AttentionChunkTaskBody::RunTask`'s two — with `clock64`
+reads on thread 0 only. No atomic, no new barrier, no store inside a polling
+loop; the instrumented body issues exactly the barriers it issued before.
+`QKNormTaskBody` delegates to `RunRow` and inherits the probe. The macro
+defaults to 0 and `#error`s without `TILEMEGA_TRACE_PHASE`; default-build SASS
+identity is stamped in `E2E_REAL/sass_identity/`. Correctness on the traced
+build: 200 fresh processes (50 per cell x 4 cells), 200/200
+`RESULT status=PASS`, all exit code 0, one recorded session.
+
+⚠️ **Verified but not robust: the margin over the gate is 0.0005.** The gate and
+the statistic were fixed before measurement (threshold 0.15; per-cell median over
+fresh processes, then median over cells — FORK6's aggregation). It clears:
+unrounded **0.15055** against 0.15, rule=1. The emitted line carries three
+decimals, so reading "0.151 against 0.150" as a 0.001 margin overstates it
+twofold. Per H6 and this file's rule the threshold is not moved and the margin is
+recorded. With four cells the median is the mean of the two middle ones, mha4 s4
+(0.1275) and gqa2 s128 (0.1736), whose own round-to-round ranges (0.1240–0.1322,
+0.1695–0.1767) are each roughly fifteen times the margin. Taking one round at a
+time, the four-cell median clears 0.15 in **6 of 9 rounds** (min 0.1485, max
+0.1521); the envelope from each cell's round extremes is [0.1468, 0.1544]. rule=1 is the honest reading of the pre-registered statistic,
+but the measurement does not separate this pipeline from the threshold, so B1
+must not be justified by this line alone.
+
+✅ **Verified: the verdict does not depend on which denominator was chosen.**
+"Whole pipeline" was fixed in advance as the critical path, because that is
+FORK6's denominator and keeping it is what makes the two lines comparable. The
+same numerator over **all** tasks rather than only the critical path gives 0.176
+(per cell 0.1302, 0.1715, 0.1796, 0.1842). The critical-path figure is the one
+the line reports; the alternative is disclosed rather than substituted, since
+choosing after seeing both is what H6 forbids. That the weaker of the two still
+clears is a better argument for rule=1 than the 0.0005 margin is.
+
+✅ **Verified: where the wait actually is.** Median over rounds, then over cells:
+0.116 of the path is GEMM wait **inside** the K-loop (a CTA on its own
+`cp.async` and its own rendezvous — intra-task, which cross-task pipelining does
+not reach), 0.033 is the GEMM first-operand wait (`setup_end ->
+first_operand_ready`, which is the head and is reachable), 0.002 is SIMT barrier
+wait. The head component is sequence dependent: 0.041/0.043 at s4 against
+0.011/0.025 at s128. So rule=1 does not say B1 recovers 15%.
+
+⚠️ **`simt_share=0.002` is a lower bound and must not be read as "the SIMT
+bodies are busy".** Two structural limits: thread 0's barrier time is a lower
+bound on CTA idle time, because a thread that arrives last waits for nobody; and
+a body with **no barrier at all** reports exactly zero by construction, not by
+measurement — `raw/segments.tsv` shows `barriers=0` for rope, kvappend and
+elementwise, whose loads still stall. A load-to-use bracketing was designed and
+rejected: it needs `memory`-clobbered stamps that serialize the load against its
+use and inflate the quantity being measured.
+
+⚠️ **Inferred: B1 is sized against the head share, not the wait share.** SIMT
+bodies occupy 35–45% of the critical path and their heads (`setup + wait`) are
+3.5–8% of it; GEMM heads are 21%. rope and kvappend spend 38–55% of their body
+in `setup` alone, and rmsnorm's epilogue is 27–31% of its body. That is the
+overlappable region — work that runs too late rather than idle time, a different
+claim and a different fix — and it is large where measured idle time is near
+zero. FORK7 is architecture specific; the sm_89 line does not carry to sm_120
+(`PHASE2/run_sm120.sh` is write-only per H7, self-checked here with
+`SELF_CHECK=1`).
+
+Evidence: `PHASE2/summary.md`, `PHASE2/raw/fork7.txt`, `PHASE2/raw/cells.tsv`,
+`PHASE2/raw/analysis.tsv`, `PHASE2/raw/segments.tsv`.

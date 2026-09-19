@@ -21,27 +21,35 @@ Written for: the TileMega maintainers reviewing this round against the R7 prompt
 | 9 | `85c320e18` experiments: add the round seven runners and self-check | 16 |
 | 10 | `465737737` docs: record the round seven closure results | 15, 17 |
 | 11 | `bfd3102f3` experiments: stamp the sass identity at head | 18 |
+| 12 | `8165ad579` codegen: time the barriers the simt bodies already run | 7 (mechanism) |
+| 13 | `048782f89` experiments: add the b0 simt exposed wait probe | 7 (evidence) |
+| 14 | `dcdc52007` experiments: gate b0 in the round verifier | 7 (gate) |
+| 15 | this report's commit list | 17 |
+| 16 | `experiments: stamp the sass identity at head` | 18 |
 
-| 12 | this report's commit list | — |
-| 13 | `experiments: stamp the sass identity at head` | 18 |
-
-Commit 13 is the H2 stamp, regenerated so that it follows every source and
+The last commit is the H2 stamp, regenerated so that it follows every source and
 document commit, as R4–R6 did; its `manifest.json` records `source_head` as its
-parent, commit 12. The stamp committed earlier at commit 11 is superseded by it
-and reported the same result.
+parent. The stamps committed earlier at commits 11 and 13 of the previous list
+are superseded by it and reported the same result.
+
+Step 7's suggested message `trace: measure exposed waits outside the K loop`
+was not used: `trace` is not one of the areas `CLAUDE.md` allows, and the step
+is three commits rather than one — the device-side probe, the experiment that
+uses it, and the gate that re-derives `FORK7` from the raw rows.
 
 No push rights on `origin`; the series is at `/tmp/round7-patches/`
 (`git format-patch 4e0e7b119..HEAD`).
 
-Prompt §13 lists 18 steps as 18 commits; this round used two extra commits to
+Prompt §13 lists 18 steps as 18 commits; this round used four extra commits to
 keep a mechanism separate from the experiment that measures it and the analysis
 change separate from the operator that needs it, which `AGENTS.md` requires.
-Steps 7–14 are not present: see the stoppage ledger in §4.
+Steps 8–14 are not present: see the stoppage ledger in §4.
 
 **H4 ordering in git history.** A1 (`3ebbf77a4`) and A2 (`db9669a60`) both
-precede A3's acceptance measurement (`4586d8ce3`) — satisfied. B0 before B1 and
-C1-b before B2/B3 are vacuously satisfied: none of B0, B1, B2, B3 or C1-b was
-implemented, so no ordering was violated, but neither is it evidence of
+precede A3's acceptance measurement (`4586d8ce3`) — satisfied. B0 is implemented
+and B1 is not, so B0-before-B1 is satisfied by construction rather than
+vacuously. C1-b before B2/B3 remains vacuously satisfied: none of B1, B2, B3 or
+C1-b was implemented, so no ordering was violated, but neither is it evidence of
 compliance.
 
 ## 2. Gate results
@@ -53,7 +61,7 @@ compliance.
 | A-c two reference models regression | hard | **PARTIAL** | 50/50 CTest at every commit and byte-identical default-build SASS for both models; the seq∈{4,128} × 50-process SEQSCAN subset was not re-run | `E2E_REAL/sass_identity/` |
 | A-d extension cost table | report | **PASS** | embedding 19 sites, QK-norm 16, final norm 2, against R6's audited 15; four site classes outside R6's table | `E2E_REAL/extension_cost.tsv`, F-217 |
 | A-e epsilon/RoPE ablation | report | **PASS** | A1, A2 and both leave `V[0,463]` at −0.44921875; refinement gives −0.451171875 | `MODELS2/ablation/admitted2/ablation.tsv` |
-| B0 `FORK7` | hard | **FAIL (not implemented)** | — | §4 |
+| B0 `FORK7` | hard | **PASS**, by 0.0005 | `FORK7 rule=1 whole_pipeline_exposed_wait_share=0.151 gemm_share=0.149 simt_share=0.002 cells=4`; unrounded 0.15055 against a 0.15 threshold fixed in advance and not moved; the four-cell median clears it in only 6 of 9 rounds | `PHASE2/summary.md`, `PHASE2/raw/fork7.txt`, F-222 |
 | B1-a…B1-e paging and pipelining | hard | **FAIL (not implemented)** | — | §4 |
 | B2 per-stage κ | hard | **FAIL (not implemented)** | — | §4 |
 | B3 intra-interval geometry | hard | **FAIL (not implemented)** | — | §4 |
@@ -80,8 +88,8 @@ final message accompanying this report.
 
 | item | downstream stopped | symptom | located cause | what unlocking needs | estimated effort |
 |---|---|---|---|---|---|
-| **B0** SIMT-side exposed-wait measurement | B1 (and therefore B1-a…B1-e) | not implemented | round budget was consumed by Group A, whose three operator gaps each cost more change sites than R6 audited (F-217), and by two latent defects Group A uncovered (F-218, F-220) | extend the R5/R6 phase instrumentation in `PhaseTrace.cuh` to the five SIMT TaskBodies and emit the `FORK7` line | 1–2 days |
-| **B1** paging and cross-task pipelining | D1's pipeline decision | not implemented; blocked behind B0 by R7 §5.1 and §H4 | as above | B0 first, then the `Prefetch`/`Wait`/`Compute` ABI split, the §8.6 lifetime change, the occupancy check against F-40, and the σ dimension in `PlacementPlan`/`CostModel`/the joint objective | 1–2 weeks |
+| **B0** SIMT-side exposed-wait measurement | — | **resolved after this ledger was first written.** Implemented and measured; see §2 and F-222. The original row said "not implemented", with the round budget consumed by Group A (F-217) and two latent defects it uncovered (F-218, F-220); that cause was real but is no longer the state | — | — | done |
+| **B1** paging and cross-task pipelining | D1's pipeline decision | not implemented | the round budget above; B0 is now done, so B1 is unblocked and is the next item, not a blocked one | the `Prefetch`/`Wait`/`Compute` ABI split, the §8.6 lifetime change, the occupancy check against F-40, and the σ dimension in `PlacementPlan`/`CostModel`/the joint objective. ⚠️ Size it against the head share (F-222), not against `FORK7`'s 0.151: 0.116 of that is intra-task K-loop wait, and the 0.0005 margin over the gate does not separate the pipeline from the threshold | 1–2 weeks |
 | **C1-b** preparation-phase optimization | B2, B3 | the full-width Llama solve ran 23 minutes of CPU without emitting a single search row | refined after the ledger was first written, see F-221: the dominant term is `SolveExport`'s **outer bound pass**, which re-imports the `.pt2` and re-prepares the whole model once per (geometry, split) pair — 30 times on this domain — before the capacity gate applies; one pair is timed at about three minutes (import counter 6 -> 7 over 180 s), so roughly 90 minutes precede the first candidate evaluation; the per-pair cost is itself the dense-edge enumeration R7 §6 names | keep relation intervals and shared successor regions through the bound computation instead of materializing every dense edge | 3–5 days |
 | **B2** per-stage κ | — | not implemented; blocked behind C1-b by §H4 | as above | C1-b first | 2–3 days |
 | **B3** intra-interval geometry | — | not implemented; blocked behind C1-b by §H4 | as above | C1-b first | 3–5 days |
@@ -249,7 +257,7 @@ stages, and also passes.
 
 ## 11. Causes and next steps for gates not met
 
-1. **B0, B1, B2, B3, C1-b, D-a…D-d, A-b.** One cause dominates and it is
+1. **B1, B2, B3, C1-b, D-a…D-d, A-b.** One cause dominates and it is
    located, and F-221 sharpens it beyond what R7 §6 assumes. The full-width
    Llama graph (1663 FX tasks, 2174 couplings, 47 guards) ran 23 minutes of CPU
    without emitting one search row. The dominant term is not inside the
@@ -271,8 +279,17 @@ stages, and also passes.
 2. **A-c.** Re-run the SEQSCAN subset at seq∈{4,128}, 50 processes each, on the
    current HEAD. The runner exists (`docs/experiments/SEQSCAN/run.sh`); this was
    a budget omission, not a blocked item.
-3. **B0 specifically** is not blocked by anything. It is the cheapest remaining
-   item with a gate attached and it unblocks the largest one.
+3. **B0 is done** (F-222), which is what the original ledger named as the
+   cheapest remaining item with a gate attached. It was not blocked by the solve
+   cost, and doing it removes B1's ordering constraint. What it did not do is
+   make B1 obviously worth building: `FORK7` clears its fixed 0.15 threshold by
+   0.0005 unrounded, the four-cell median clears it in only 6 of 9 rounds, and
+   0.116 of the 0.151 is intra-task K-loop wait that cross-task pipelining does
+   not reach.
+   **Next step for B1:** size it against the head share — SIMT bodies are 35–45%
+   of the critical path with heads at 3.5–8%, GEMM heads are 21%, and rope and
+   kvappend spend 38–55% of their body in `setup` — and treat a negative outcome
+   as a real result, which R7 §5.2 requires for B1-e.
 
 ## 12. Closing assessment
 

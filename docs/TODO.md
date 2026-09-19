@@ -85,6 +85,10 @@ real-width 研究门 2/2 不替代参考格不回退、粗排与预算硬门。E
 FORK6 在已插桩 GEMM 主循环范围内触发 shared-memory 流水设计，须先处理
 §8.6 生命周期契约；当前可融合族上界未触发 Fuse 进入搜索。EX-E5/S4→L5
 排在这些单次推理缺口之后。依据 F-190–F-197 与 JOINT2/summary.md。）
+（⚠️ v2.1 第七轮：FORK6 的 0.278 分母只到关键路径上的 GEMM 主循环。B0 已把
+分母补成整条关键路径（所有 kind 的 `run` 区间），FORK7 = 0.151，rule=1 但未舍入值
+0.15055 只高出固定门限 0.0005，逐轮只有 6/9 过线；其中 0.116 属 task 内的 K 循环等待。
+F-222 与 PHASE2/summary.md。）
 
 ### 1.2 条目台账
 
@@ -776,3 +780,28 @@ union 生命周期**未改动**——本轮没有取得修改它的资格，原�
 
 **EX-S3 / EX-S5 / EX-V1**：本轮未新增测量。真实模型的三档计时与 decode 扫描
 （R7 §7.2 D-c/D-d）未完成，见 `E2E_REAL/summary.md` 的停摆台账。）
+
+（⚠️ v2.1 第七轮续做 B0：上面"B0 … 未做"一行已过期，在此更正而非删除。B0 已
+实施并测量：`TILEMEGA_TRACE_SIMT` 只给 body 本来就执行的 barrier 计时，不加原子、
+不加屏障、不在轮询循环内写入，默认关闭且缺少 `TILEMEGA_TRACE_PHASE` 时 `#error`；
+插桩构建 200 次新进程（每格 50 次 × 4 格）200/200 `RESULT status=PASS`。
+
+```
+FORK7 rule=1 whole_pipeline_exposed_wait_share=0.151 gemm_share=0.149 simt_share=0.002 cells=4
+```
+
+⚠️ 门限 0.15 在测量前固定，不移动：未舍入值 0.15055，**只高出 0.0005**（发出的行只保留三位小数，按"0.151 对 0.150"读成 0.001 会夸大一倍）。四格取中位数时
+中位数由 mha4 s4(0.1275) 与 gqa2 s128(0.1736) 两格决定，而这两格自身的轮间区间
+（0.1240–0.1322、0.1695–0.1767）各约为该余量的十五倍；逐轮计算时四格中位数只有 **9 轮中
+的 6 轮**过线（0.1485–0.1521）。因此 rule=1 是预先约定统计量的诚实读数，但不足以
+把该流水与门限分开，**B1 不得仅以此行为依据**。
+
+分解（先轮内中位、再跨格中位）：0.116 在 GEMM K 循环**内部**，属 task 内等待，
+跨 task 流水覆盖不到；0.033 是 GEMM 首操作数等待，属 head，可被覆盖；0.002 是
+SIMT barrier 等待。`simt_share=0.002` 是下界：thread 0 若最后到达则等待为零，且
+rope/kvappend/elementwise 本就没有 barrier，其零值由构造而来不由测量而来。B1 的
+体量应以 head share 估算（SIMT body 占关键路径 35–45%，其 head 占 3.5–8%，GEMM
+head 占 21%，rope/kvappend 的 setup 占自身 38–55%），见 F-222 与 `PHASE2/summary.md`。
+
+按 H4，B0 先于 B1 的实现提交这一顺序已满足；B1 及 skeleton §8.6 TaskSmem union
+生命周期是否改动，仍待 B1 本身实施。）
