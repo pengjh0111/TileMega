@@ -151,6 +151,48 @@ int main() {
       assert(kv_projection.runtime_task_refs.Eval(theta) == 4*std::max(s,past));
       assert(kv_projection.runtime_wait_entries.Eval(theta) == 0);
     }
+    // §6 B2: a per-stage table that names the uniform kappa at every stage is
+    // that uniform kappa -- the same relations, not merely the same counts --
+    // so the dimension is inert until the search actually moves a stage.
+    for (int kappa : {1,2}) {
+      tilemega::solver::RuntimeProjectionOptions per_stage{2,2,kappa};
+      per_stage.stage_kappa.assign(3,kappa);
+      auto uniform = tilemega::solver::ProjectRuntimeQueues(model,plan,{2,2,kappa});
+      auto table = tilemega::solver::ProjectRuntimeQueues(model,plan,per_stage);
+      assert(table.requested_events.ToString()==uniform.requested_events.ToString());
+      assert(table.waits.ToString()==uniform.waits.ToString());
+      assert(table.dependencies.ToString()==uniform.dependencies.ToString());
+      tilemega::analysis::ParamBinding theta; theta.Bind("S",8);
+      assert(table.runtime_wait_entries.Eval(theta)==uniform.runtime_wait_entries.Eval(theta));
+    }
+    {
+      // Tile ownership and chunk-major order are the setting where the two
+      // uniform kappas disagree, so it is the setting where a mixed table can
+      // be shown to follow the stage it names rather than the global value.
+      auto owned=plan;
+      owned.ownership_flags = tilemega::codegen::kCombinerTileOwnership |
+                              tilemega::codegen::kActivationTileOwnership;
+      tilemega::solver::RuntimeProjectionOptions base{2,2,1,false,false};
+      auto one=tilemega::solver::ProjectRuntimeQueues(model,owned,base);
+      base.kappa=2;
+      auto two=tilemega::solver::ProjectRuntimeQueues(model,owned,base);
+      tilemega::analysis::ParamBinding theta; theta.Bind("S",8);
+      long const at_one=one.runtime_wait_entries.Eval(theta);
+      long const at_two=two.runtime_wait_entries.Eval(theta);
+      assert(at_one!=at_two);
+      for (std::size_t stage=0;stage<3;++stage) {
+        auto mixed=base;mixed.kappa=1;mixed.stage_kappa.assign(3,1);
+        mixed.stage_kappa[stage]=2;
+        long const at_mixed=tilemega::solver::ProjectRuntimeQueues(model,owned,mixed)
+            .runtime_wait_entries.Eval(theta);
+        // Every stage is either the one the coarsened edge produces for, in
+        // which case the mixed table reaches kappa 2's count, or it is not,
+        // in which case nothing moved.
+        assert(at_mixed==at_one || at_mixed==at_two);
+        std::cout << "PROJECTION_STAGE_KAPPA stage=" << stage << " mixed=" << at_mixed
+                  << " kappa1=" << at_one << " kappa2=" << at_two << '\n';
+      }
+    }
     int before = context.ReferenceCount();
     bool rejected = false;
     try { (void)tilemega::solver::ProjectRuntimeQueues(model,plan,{0,2,1}); }
