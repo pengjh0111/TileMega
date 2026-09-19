@@ -1155,6 +1155,9 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
 #if TILEMEGA_TRACE_SIMT
       phase->simt_wait_cycles=phase->simt_barriers=0;
 #endif
+#if TILEMEGA_PREFETCH_RUNTIME
+      phase->prefetch_wait_cycles=phase->prefetch_issued=0;
+#endif
     }
 #endif
 #if TILEMEGA_PREFETCH_RUNTIME
@@ -1163,6 +1166,9 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     // the one slot-1 read, and between that read and here stands either
     // `NotifyTask`'s barrier or, for a task that publishes nothing, this
     // slot's wait barrier -- so the write needs no barrier of its own.
+#if TILEMEGA_TRACE_PHASE
+    unsigned long long const prefetch_wait_begin = clock64();
+#endif
 #if TILEMEGA_PREFETCH_INLINE
     // The storage-matched control for B1-c: the same page, the same bytes and
     // the same instructions, issued for this slot and waited on immediately,
@@ -1176,6 +1182,13 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
 #if __CUDA_ARCH__ >= 800
     asm volatile("cp.async.wait_group 1;\n" ::);
 #endif
+#endif
+#if TILEMEGA_TRACE_PHASE
+    if (phase != nullptr && threadIdx.x == 0) {
+      PrefetchOperand waited;
+      phase->prefetch_wait_cycles = clock64() - prefetch_wait_begin;
+      phase->prefetch_issued = PrefetchBytes(*params, task, waited) ? 1u : 0u;
+    }
 #endif
     __syncthreads();
     PrefetchOperand current;
@@ -2646,6 +2659,9 @@ inline void DumpTraceV2(DeviceModel const& model, char const* fixture_dir,
 #if TILEMEGA_TRACE_SIMT
     std::fprintf(pf, "\tsimt_wait_cycles\tsimt_barriers");
 #endif
+#if TILEMEGA_PREFETCH_RUNTIME
+    std::fprintf(pf, "\tprefetch_wait_cycles\tprefetch_issued");
+#endif
     std::fprintf(pf, "\n");
     for (std::size_t i = 0; i < phases.size(); ++i) {
       auto const& stage = model.stages[model.schedule[i].stage];
@@ -2667,6 +2683,10 @@ inline void DumpTraceV2(DeviceModel const& model, char const* fixture_dir,
 #if TILEMEGA_TRACE_SIMT
       std::fprintf(pf, "\t%llu\t%llu", phases[i].simt_wait_cycles,
           phases[i].simt_barriers);
+#endif
+#if TILEMEGA_PREFETCH_RUNTIME
+      std::fprintf(pf, "\t%llu\t%llu", phases[i].prefetch_wait_cycles,
+          phases[i].prefetch_issued);
 #endif
       std::fprintf(pf, "\n");
     }

@@ -390,6 +390,16 @@ struct TaskPhase {
   /// for nobody, so this is a lower bound on the CTA's idle time.
   unsigned long long simt_wait_cycles, simt_barriers;
 #endif
+#if TILEMEGA_PREFETCH_RUNTIME
+  /// Cycles thread zero spent at the `cp.async.wait_group` guarding this
+  /// slot's page, and whether a copy was actually issued for it.  The window
+  /// brackets one issue and one wait in either arm -- the pipelined one waits
+  /// a slot after the copy was issued, the inline one immediately -- so the
+  /// difference between the arms is the overlap itself, not an end-to-end
+  /// inference.
+  /// In cycles, not the 1024 ns %globaltimer: the wait is far shorter.
+  unsigned long long prefetch_wait_cycles, prefetch_issued;
+#endif
 };
 
 /// Trace v2 (EX-D1).  Where TaskTrace orders task boundaries, this records
