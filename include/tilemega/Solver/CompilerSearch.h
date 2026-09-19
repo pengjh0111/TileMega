@@ -36,8 +36,15 @@ struct CompilerSearchResult {
   std::vector<JointEvaluation> ranking;
   std::vector<JointCandidate> outer_candidates;
   std::vector<ShortlistEntry> shortlist;
+  /// The configuration behind `module`, and the resident CTAs its kernel
+  /// compiled to. A segmented interval reuses both to keep the launch fixed.
+  JointCandidate winner;
+  int winner_resident_limit=0;
   /// Empty unless the per-stage refinement ran and improved on uniform kappa.
   std::vector<int> stage_kappa;
+  /// Projected stages on the winner, which is the length any pinned table must
+  /// have. It is not knowable before the search: split-K adds combine stages.
+  std::size_t stage_count=0;
   int stage_kappa_moves=0;
   double uniform_ns=0,per_stage_ns=0;
 };
@@ -215,6 +222,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
       if (keep) refined=std::move(trial);
       return {chosen.bounds.lower_bound_ns,chosen.predicted_ns};
     };
+    result.stage_count=counts.size();
     std::vector<int> table(counts.size(),winner.kappa);
     auto incumbent=evaluate(table,"-perstage-uniform",false);
     result.uniform_ns=incumbent.second;
@@ -251,6 +259,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
       }
     }
   }
+  result.winner=winner;result.winner_resident_limit=winner_limit;
   mlir::OpBuilder b(&context);
   result.module->getOperation()->setAttr("tilemega.search_deferred",b.getI64IntegerAttr(result.stats.capacity_deferred));
   result.module->getOperation()->setAttr("tilemega.search_restricted_geometry",b.getBoolAttr(!options.geometry_domain.empty()));

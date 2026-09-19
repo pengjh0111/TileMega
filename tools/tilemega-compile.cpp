@@ -6,6 +6,7 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Solver/CompilerSearch.h>
+#include <tilemega/Solver/IntervalSegments.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <mlir/IR/MLIRContext.h>
@@ -198,6 +199,7 @@ int main(int argc, char** argv) {
     std::cerr << "usage: tilemega-compile {EXPORTED_PROGRAM.pt2|STABLE_EXPORT.json|CG.mlir} "
                  "{OUTPUT.cu|OUTPUT.so} [--variants PLAN.json] [--solve TARGET.json --seq N --past N\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
+                 " --segments 1|2 --segment-candidates N\n"
                  " --dump-cg FILE.mlir\n"
                  " --hop-curve FILE.tsv --seq-begin N\n"
                  " --prefetch-page-bytes N]\n";
@@ -211,7 +213,8 @@ int main(int argc, char** argv) {
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path;
     bool resource_probes=true;
-    int interval_begin=0;
+    int interval_begin=0,segments=1,segment_candidates=3;
+    std::vector<mlir::OwningOpRef<mlir::ModuleOp>> variant_modules;
     tilemega::solver::CompilerSearchOptions solve_options;
     solve_options.placement.dims={4,3,7};
     for (int i=3;i<argc;i+=2) {
@@ -219,6 +222,8 @@ int main(int argc, char** argv) {
       if (flag=="--variants") variants_path=value;
       else if (flag=="--solve") solve_target=value;
       else if (flag=="--seq-begin") interval_begin=std::stoi(value);
+      else if (flag=="--segments") segments=std::stoi(value);
+      else if (flag=="--segment-candidates") segment_candidates=std::stoi(value);
       else if (flag=="--seq") solve_options.placement.dims.seq=std::stoi(value);
       else if (flag=="--past") solve_options.placement.dims.past=std::stoi(value);
       else if (flag=="--search-capacity") solve_options.capacity=std::stoul(value);
@@ -344,15 +349,51 @@ int main(int argc, char** argv) {
         std::ofstream interval_evidence(std::string(argv[2])+".interval.tsv");
         interval_evidence<<"seq\tplacement\tfloor_ns\tpredicted_ns\terror\n";
         tilemega::dialect::SolveAndWritePlacementInterval(*module,interval_options,interval_begin,dims.seq,&interval_evidence);
+        if (segments>1) {
+          // The fixed geometry the search chose is written beside the segmented
+          // build from the same solve, so the comparison is one invocation.
+          std::vector<tilemega::codegen::RuntimeVariantModule> fixed{{*module,
+              1u,static_cast<std::uint32_t>(dims.seq)}};
+          std::ofstream(std::string(argv[2])+".fixed.cu")
+              << tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(fixed);
+          std::ofstream segment_evidence(std::string(argv[2])+".segments.tsv");
+          auto cut=tilemega::solver::SolveIntervalSegments(input.string(),context,
+              solve_options,solved,*module,interval_begin,dims.seq,segments,
+              std::size_t(segment_candidates),segment_evidence);
+          for (auto const& [geometry,reason]:cut.refused)
+            std::cerr << "SEGMENT_REFUSED " << tilemega::solver::GeometryKey(geometry)
+                      << ' ' << reason << "\n";
+          std::cerr << "SEGMENT_SUMMARY candidates=" << cut.candidates.size()
+              << " points=" << dims.seq-interval_begin+1
+              << " winner=" << tilemega::solver::GeometryKey(solved.winner.config)
+              << " winner_ns=" << cut.winner_ns
+              << " fixed=" << tilemega::solver::GeometryKey(cut.fixed_config)
+              << " fixed_ns=" << cut.fixed_ns
+              << " segmented_ns=" << cut.segmented_ns << " cut=" << cut.cut
+              << " segments=" << cut.segments.size() << "\n";
+          module=std::move(cut.segments.front().module);
+          for (std::size_t s=1;s<cut.segments.size();++s)
+            variant_modules.push_back(std::move(cut.segments[s].module));
+          std::vector<tilemega::codegen::RuntimeVariantModule> pieces{{*module,1u,
+              static_cast<std::uint32_t>(cut.segments.front().end)}};
+          for (std::size_t s=1;s<cut.segments.size();++s)
+            pieces.push_back({*variant_modules[s-1],
+                static_cast<std::uint32_t>(cut.segments[s].begin),
+                static_cast<std::uint32_t>(cut.segments[s].end)});
+          source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(pieces);
+        }
       }
-      std::vector<tilemega::codegen::RuntimeVariantModule> inputs{{*module,
-          1u,static_cast<std::uint32_t>(dims.seq)}};
-      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(inputs);
+      if (source.empty()) {
+        std::vector<tilemega::codegen::RuntimeVariantModule> inputs{{*module,
+            1u,static_cast<std::uint32_t>(dims.seq)}};
+        source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(inputs);
+      }
       std::cerr << "SOLVE_SUMMARY evaluated=" << solved.stats.evaluated
           << " deferred=" << solved.stats.capacity_deferred
           << " residency_scope=" << (resource_probes ? "compiled" : "1_degraded") << " hop_calibrated=" << !hop_path.empty() << "\n";
       if (solve_options.per_stage_kappa || !solve_options.stage_kappa.empty()) {
-        std::cerr << "SOLVE_STAGE_KAPPA moves=" << solved.stage_kappa_moves
+        std::cerr << "SOLVE_STAGE_KAPPA stages=" << solved.stage_count
+                  << " moves=" << solved.stage_kappa_moves
             << " uniform_ns=" << solved.uniform_ns
             << " per_stage_ns=" << solved.per_stage_ns << " table=";
         for (std::size_t i=0;i<solved.stage_kappa.size();++i)
@@ -401,6 +442,13 @@ int main(int argc, char** argv) {
       std::error_code error;llvm::raw_fd_ostream dump(dump_cg,error);
       if (error) throw std::runtime_error("cannot write CG dump: "+error.message());
       module->print(dump);dump << "\n";
+      for (std::size_t v=0;v<variant_modules.size();++v) {
+        std::filesystem::path stem(dump_cg);stem.replace_extension();
+        std::string name=stem.string()+".segment"+std::to_string(v+1)+".mlir";
+        llvm::raw_fd_ostream piece(name,error);
+        if (error) throw std::runtime_error("cannot write segment CG: "+error.message());
+        (*variant_modules[v]).print(piece);piece << "\n";
+      }
     }
     std::filesystem::path requested(argv[2]);
     bool shared = requested.extension() == ".so";
