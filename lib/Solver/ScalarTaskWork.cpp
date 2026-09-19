@@ -19,6 +19,13 @@ analysis::TaskWork DeriveRuntimeScalarWork(ModelDescription const& model,
   auto ownership=ProjectScalarTaskOwnership(semantic,task,stage,threads);
   auto writes=ownership.ApplyRange(ElementAccess(task,BuildWriteMap(task),{},AccessDomain::kPhysicalTensor));
   std::map<std::string,CouplingRelation> reads;
+  // The frontier is re-derived over the same runtime coordinates as the
+  // reads, or the two could not be priced at one point (`PriceTaskInstances`).
+  // Membership is the operand producer relation, as in `DeriveTaskWork`; the
+  // KV prefix below is state this task also writes, never read-only.
+  std::set<std::string> produced;
+  for (auto const& operand:task.operands)
+    if (!operand.producer.empty()) produced.insert(operand.tensor.name);
   if (!semantic.op.element_reads.empty()) {
     for (auto const& read:semantic.op.element_reads)
       reads[read.tensor.name]=reads[read.tensor.name].Union(
@@ -47,6 +54,7 @@ analysis::TaskWork DeriveRuntimeScalarWork(ModelDescription const& model,
     auto prefix=CouplingRelation::FromIslText(parameters+"{ [q] -> [i] : 0 <= i < ("+
         past.ToIslText()+")*"+std::to_string(cols)+" and q=floord(i,"+std::to_string(threads)+") }");
     reads["cg_buffer_"+std::to_string(stage.operands[1])]=prefix;
+    produced.insert("cg_buffer_"+std::to_string(stage.operands[1]));
     // Literal head enumeration avoids a parameter-times-coordinate product:
     // the number of heads is a fixed structural CG dimension, not sampled theta.
     for (long head=0;head<cols/stage.width;++head) {
@@ -59,9 +67,13 @@ analysis::TaskWork DeriveRuntimeScalarWork(ModelDescription const& model,
       writes=writes.Union(map);
     }
   }
-  std::vector<QuasiPolynomial> counts;
-  for (auto const& [name,relation]:reads) counts.push_back(relation.Card());
+  std::vector<QuasiPolynomial> counts,frontier;
+  for (auto const& [name,relation]:reads) {
+    counts.push_back(relation.Card());
+    if (!produced.count(name)) frontier.push_back(relation.Card());
+  }
   work.read_elements=QuasiPolynomial::Sum(counts);
+  work.frontier_read_elements=QuasiPolynomial::Sum(frontier);
   work.write_elements=writes.Card();
   work.task_count=writes.Reverse().ImageCard();
   if (accesses) *accesses={std::move(ownership),std::move(writes),std::move(reads)};
