@@ -1,0 +1,73 @@
+/usr/local/lib/python3.10/dist-packages/torch/_subclasses/functional_tensor.py:368: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+{"tasks": 1663, "couplings": 2174, "guards": 47}
+EXPORT_BRIDGE source="/root/r7_work/llama_hoist/exported_program.pt2" output="/root/r7_work/llama_hoist/auto.cu.export.json"
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1431382
+RESOURCE_QUERY directory="/root/r7_work/llama_hoist/auto.cu.resources/1789832089257496823/0" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1431422
+RESOURCE_QUERY directory="/root/r7_work/llama_hoist/auto.cu.resources/1789832089257496823/1" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1431398
+RESOURCE_QUERY directory="/root/r7_work/llama_hoist/auto.cu.resources/1789832089257496823/2" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1431377
+RESOURCE_QUERY directory="/root/r7_work/llama_hoist/auto.cu.resources/1789832089257496823/3" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1431327
+RESOURCE_QUERY directory="/root/r7_work/llama_hoist/auto.cu.resources/1789832089257496823/4" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1431325
+RESOURCE_QUERY directory="/root/r7_work/llama_hoist/auto.cu.resources/1789832089257496823/5" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1431284
+RESOURCE_QUERY directory="/root/r7_work/llama_hoist/auto.cu.resources/1789832089257496823/6" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1431286
+RESOURCE_QUERY directory="/root/r7_work/llama_hoist/auto.cu.resources/1789832089257496823/7" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1431283
+RESOURCE_QUERY directory="/root/r7_work/llama_hoist/auto.cu.resources/1789832089257496823/8" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1431298
+RESOURCE_QUERY directory="/root/r7_work/llama_hoist/auto.cu.resources/1789832089257496823/9" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1431162
+RESOURCE_QUERY directory="/root/r7_work/llama_hoist/auto.cu.resources/1789832089257496823/10" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1431201
+RESOURCE_QUERY directory="/root/r7_work/llama_hoist/auto.cu.resources/1789832089257496823/11" resident=5
+SOLVE_SUMMARY evaluated=12 deferred=69 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=388 couplings=467 stages=243 symbolic_windows=467 fallback_windows=0 output=/root/r7_work/llama_hoist/auto.cu

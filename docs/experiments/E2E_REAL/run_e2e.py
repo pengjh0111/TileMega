@@ -20,6 +20,9 @@ def main():
  ap.add_argument('--capacity',type=int,default=12)
  ap.add_argument('--extra',default='MIDPOINT_REFINE=1')
  ap.add_argument('--solve-only',action='store_true')
+ # A failing round is itself a measurement: the rate over the whole 50 and the
+ # output hash of each are what a numerical difference has to be judged on.
+ ap.add_argument('--keep-going',action='store_true')
  a=ap.parse_args();root=a.root.resolve()
  free=shutil.disk_usage(root).free//2**20;print(f'DISK NEED_MIB=8192 FREE_MIB={free}',flush=True)
  if free<8192:raise RuntimeError('disk budget')
@@ -46,7 +49,7 @@ def main():
            extra=[x for x in a.extra.split(',') if x])
  if measure.build(root,'real','selected',spec,a.arch):raise RuntimeError('compile failed')
  binary=root/'bin/selected';folder=root/'correctness';folder.mkdir(exist_ok=True)
- session=str(time.time_ns());digest=sha(binary)
+ session=str(time.time_ns());digest=sha(binary);passing=0
  for i in range(a.rounds):
   log=folder/f'r{i}.log'
   if log.exists():raise RuntimeError('refusing overwrite '+str(log))
@@ -59,6 +62,9 @@ def main():
   log.write_text(r.stdout+r.stderr)
   log.with_suffix('.json').write_text(json.dumps(dict(command=command,round=i,session=session,
    started_ns=start,elapsed_ns=time.time_ns()-start,exit_code=r.returncode,binary_sha256=digest))+'\n')
-  if r.returncode or 'RESULT status=PASS' not in r.stdout:raise RuntimeError(str(log))
-  print('E2E',root.name,i+1,'/',a.rounds,flush=True)
+  ok='RESULT status=PASS' in r.stdout and r.returncode==0;passing+=ok
+  if not ok and not a.keep_going:raise RuntimeError(str(log))
+  print('E2E',root.name,i+1,'/',a.rounds,'passing',passing,flush=True)
+ print('E2E_RESULT',root.name,'rounds',a.rounds,'passing',passing,flush=True)
+ if passing<a.rounds and not a.keep_going:raise RuntimeError('correctness')
 if __name__=='__main__':main()

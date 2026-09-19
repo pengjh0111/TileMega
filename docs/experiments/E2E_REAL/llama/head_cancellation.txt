@@ -1,0 +1,9 @@
+HEAD_DIFF positions=4 vocab=128256 mismatch=146 max_abs=0.029296875
+HEAD_DIFF per_position=0,44,31,71
+HEAD_ELEM position=3 token=8875 gpu=-0.113769531 golden=-0.0844726562 recomputed_fp64=-0.113549534 sum_abs_terms=17.9314693 cancellation=157.918
+HEAD_ELEM position=3 token=51684 gpu=-0.153320312 golden=-0.126953125 recomputed_fp64=-0.152985806 sum_abs_terms=18.0805623 cancellation=118.185
+HEAD_ELEM position=2 token=31669 gpu=-0.30859375 golden=-0.283203125 recomputed_fp64=-0.308467581 sum_abs_terms=18.0946003 cancellation=58.6596
+HEAD_ELEM position=2 token=39393 gpu=0.341796875 golden=0.31640625 recomputed_fp64=0.341050711 sum_abs_terms=17.8070704 cancellation=52.2124
+HEAD_ELEM position=1 token=18840 gpu=0.265625 golden=0.2421875 recomputed_fp64=0.264772052 sum_abs_terms=17.6681458 cancellation=66.7296
+HEAD_CANCELLATION offending=146 min=48.5961 median=283.889 max=56353.7
+HEAD_CANCELLATION_SAMPLE tokens=64 position=0 median=42.9545 max=2208.85
