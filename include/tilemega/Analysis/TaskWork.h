@@ -23,6 +23,11 @@ struct TaskWork {
   QuasiPolynomial task_count;
   QuasiPolynomial read_elements, write_elements;
   QuasiPolynomial nominal_read_elements, nominal_write_elements;
+  /// The part of `read_elements` that comes from operands with no in-edge --
+  /// the read-only frontier §5.3.1's Prefetch phase may fetch before the task's
+  /// dependencies resolve.  It is `Operand::producer` being empty, i.e. the
+  /// same write relation the coupling edges come from, and never an annotation.
+  QuasiPolynomial frontier_read_elements;
   QuasiPolynomial reduce_extent, parallel_extent;
   // Local reduction span after L-task splitting; the semantic reduction
   // above still describes the complete operator, not one partial.

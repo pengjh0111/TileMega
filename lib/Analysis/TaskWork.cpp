@@ -182,6 +182,10 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
   // lets a read no rectangle can express -- a gather, whose index is a value --
   // skip a projection that would only have to refuse it.
   std::set<std::string> exact_read_tensors;
+  // A tensor is off the frontier as soon as any operand reading it names a
+  // producer; operands of one tensor are unioned below, so the exclusion has
+  // to be by tensor too.
+  std::set<std::string> produced_tensors;
   if (TILEMEGA_EXACT_ELEMENT_WORK)
     for (auto const& read:semantic.element_reads)
       exact_read_tensors.insert(read.tensor.name);
@@ -211,6 +215,8 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
     auto [layout, inserted] = layouts.emplace(read.tensor.name, read.tensor.layout_id);
     if (!inserted && layout->second != read.tensor.layout_id)
       throw std::invalid_argument("read union requires a common tensor layout");
+    if (!task.operands[i].producer.empty())
+      produced_tensors.insert(read.tensor.name);
     auto& relations = tensor_reads[read.tensor.name];
     relations.first = relations.first.Union(
         ElementAccess(task,read,known,AccessDomain::kPhysicalTensor));
@@ -222,13 +228,15 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
   }
   // Tensor identity tags disjoint address spaces; repeated reads of one tensor
   // are a set union, not a second copy of its physical footprint.
-  std::vector<QuasiPolynomial> reads, nominal_reads;
+  std::vector<QuasiPolynomial> reads, nominal_reads, frontier_reads;
   for (auto const& [name, relations] : tensor_reads) {
     reads.push_back(relations.first.Card());
     nominal_reads.push_back(relations.second.Card());
+    if (!produced_tensors.count(name)) frontier_reads.push_back(relations.first.Card());
   }
   work.read_elements = QuasiPolynomial::Sum(reads);
   work.nominal_read_elements = QuasiPolynomial::Sum(nominal_reads);
+  work.frontier_read_elements = QuasiPolynomial::Sum(frontier_reads);
   if (TILEMEGA_EXACT_ELEMENT_WORK && !semantic.element_reads.empty()) {
     std::map<std::string,CouplingRelation> exact;
     std::map<std::string,std::string> exact_layouts;
@@ -239,9 +247,13 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
         throw std::invalid_argument("exact read union has conflicting layouts");
       exact[read.tensor.name]=exact[read.tensor.name].Union(ExactElementRead(semantic,task,read,known));
     }
-    std::vector<QuasiPolynomial> counts;
-    for (auto const& [name,relation]:exact) counts.push_back(relation.Card());
+    std::vector<QuasiPolynomial> counts,frontier;
+    for (auto const& [name,relation]:exact) {
+      counts.push_back(relation.Card());
+      if (!produced_tensors.count(name)) frontier.push_back(relation.Card());
+    }
     work.read_elements=QuasiPolynomial::Sum(counts);
+    work.frontier_read_elements=QuasiPolynomial::Sum(frontier);
   }
   ClosedForm reduce=ClosedForm::Constant(1), parallel=ClosedForm::Constant(1);
   ClosedForm local_reduce=ClosedForm::Constant(1);
