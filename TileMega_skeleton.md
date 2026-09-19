@@ -1369,6 +1369,16 @@ smem 项单独决定 occupancy 的有 150 个、与寄存器项并列的有 322 
 ⌊threads_per_sm/threads⌋)` 在两个模型各 1077/1077 上与实测相等。（F-40，
 回答了 §9.2 的对应条目）
 
+（⚠️ v2.1：R7 B1-b 发现该闭式**只在 smem 项不是唯一约束时**与驱动一致。把 smem
+项改成 `⌊smem_per_cta/(smem + 1024)⌋` 后，在 4 个 cell × 14 个页大小共 56 行上与
+`cuOccupancyMaxActiveBlocksPerMultiprocessor` 完全相等；不加这 1 KiB 的原式错 4 行，
+且 4 行都是同一处——smem 恰好整除的边界。驱动在请求之外按 CTA 预留 shared memory：
+gqa2 s128 上 `dyn=19456` 保持 5 CTA/SM、`19584` 掉到 4，而 `(19456+1024)×5 = 102400`
+恰好相等。F-40 的 1077 个候选中 605 个由寄存器项决定、322 个并列，该项只在 smem
+项单独绑定且落在整除边界时才显形，正是分页预取把这些 kernel 推入的区间。另注：
+该闭式的 warp 数须按实际 CTA 宽度取，本轮四个 cell 都是 128 线程/CTA，写死 8 warp
+会把 5 CTA/SM 算成 2。（F-223））
+
 ## 8.7 共存性
 
 资源容量公式为：
