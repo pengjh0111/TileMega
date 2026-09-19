@@ -16,6 +16,10 @@ struct CompilerSearchOptions {
   // search. Split and kappa remain decisions of the solver.
   std::vector<GemmConfig> geometry_domain;
   std::vector<std::pair<GemmConfig,std::string>> numerical_rejections;
+  /// Refine the winning uniform kappa into a per-producer-stage table (§6 B2).
+  /// Off by default: with it off no per-stage attribute is written, so the
+  /// generated text, and therefore the SASS, is what it was (H2).
+  bool per_stage_kappa=false;
   std::function<int(mlir::ModuleOp,int)> query_residency;
 };
 struct CompilerSearchResult {
@@ -28,6 +32,10 @@ struct CompilerSearchResult {
   std::vector<JointEvaluation> ranking;
   std::vector<JointCandidate> outer_candidates;
   std::vector<ShortlistEntry> shortlist;
+  /// Empty unless the per-stage refinement ran and improved on uniform kappa.
+  std::vector<int> stage_kappa;
+  int stage_kappa_moves=0;
+  double uniform_ns=0,per_stage_ns=0;
 };
 /// The finite budget is disclosed as deferred work, never an optimality proof.
 /// Reimport each geometry so ownership and CG relations change together.
@@ -92,6 +100,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
     }
   }
   auto task_prices=std::make_shared<dialect::PlacementTaskPriceCache>();
+  JointCandidate winner;int winner_limit=0;
   result.outer_candidates=candidates;
   double best=std::numeric_limits<double>::infinity(),best_sim=best;
   evidence << "candidate\tplacement\tstatus\tfloor_ns\tcp_ns\tqueue_lb_ns\tpredicted_ns\tgrid\tkappa\n";
@@ -158,6 +167,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
         auto const& chosen=solved.candidates.front();
         if (std::tie(chosen.bounds.lower_bound_ns,chosen.predicted_ns)<std::tie(best,best_sim)) {
           best=chosen.bounds.lower_bound_ns;best_sim=chosen.predicted_ns;
+          winner=candidate;winner.ctas_per_sm=residency;winner_limit=limit;
           result.module=std::move(placed);if (summary) *summary=candidate_summary;
         }
       }
@@ -169,6 +179,65 @@ inline CompilerSearchResult SolveExport(std::string const& path,
     evidence.flush();return evaluations;
   },&result.stats);
   if (!result.module) throw std::runtime_error("no legal solver configuration; inspect search evidence");
+  // §6 B2: the uniform kappa the outer search selected is the start of a
+  // coordinate descent over producer stages. A stage with one task has one
+  // group at every kappa, so the sweep skips it; every trial is a full
+  // placement solve, which is what bounds the descent to two passes.
+  if (options.per_stage_kappa) {
+    frontend::ImportOptions import;
+    auto const& g=winner.config;
+    import.gemms.assign(model.gemms.size(),{g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
+    import.rope_tile_per_block=import.kv_tile_per_block=true;
+    import.activation_tile_per_block=import.combiner_tile_per_block=true;
+    auto base=frontend::TorchExportImporter{}.ImportPlan(path,plan,context,nullptr,import);
+    auto placement=options.placement;
+    placement.kappa=winner.kappa;placement.residency=winner.ctas_per_sm;
+    placement.verified_resident_limit=winner_limit;placement.task_price_cache=task_prices;
+    RelationBounds shape;
+    auto const counts=dialect::PreparePlacementProblem(*base,placement,&shape).counts;
+    mlir::OwningOpRef<mlir::ModuleOp> refined;
+    auto evaluate=[&](std::vector<int> const& table,std::string const& label,
+                      bool keep)->std::pair<double,double> {
+      auto trial=mlir::OwningOpRef<mlir::ModuleOp>(mlir::cast<mlir::ModuleOp>(base->clone()));
+      auto trial_options=placement;trial_options.stage_kappa=table;
+      auto solved=dialect::SolveAndWritePlacement(*trial,trial_options);
+      auto const& chosen=solved.candidates.front();
+      evidence << winner.key << label << '\t' << chosen.name << '\t'
+          << (chosen.error.empty() ? "ok" : chosen.error) << '\t'
+          << chosen.bounds.lower_bound_ns << '\t' << chosen.bounds.critical_path_ns
+          << '\t' << chosen.bounds.queue_lb_ns << '\t' << chosen.predicted_ns
+          << '\t' << solved.grid << '\t' << winner.kappa << '\n';
+      evidence.flush();
+      if (keep) refined=std::move(trial);
+      return {chosen.bounds.lower_bound_ns,chosen.predicted_ns};
+    };
+    std::vector<int> table(counts.size(),winner.kappa);
+    auto incumbent=evaluate(table,"-perstage-uniform",false);
+    result.uniform_ns=incumbent.second;
+    for (int pass=0;pass<2;++pass) {
+      bool moved=false;
+      for (std::size_t stage=0;stage<table.size();++stage) {
+        if (counts[stage]<2) continue;
+        for (int kappa:{1,2,4}) {
+          if (kappa==table[stage]) continue;
+          int const previous=table[stage];table[stage]=kappa;
+          auto trial=evaluate(table,"-s"+std::to_string(stage)+"k"+std::to_string(kappa),false);
+          if (trial<incumbent) {incumbent=trial;moved=true;++result.stage_kappa_moves;}
+          else table[stage]=previous;
+        }
+      }
+      if (!moved) break;
+    }
+    result.per_stage_ns=incumbent.second;
+    // A table the descent never moved off uniform is the global kappa, so it
+    // is not written back: B2's answer there is that global kappa sufficed.
+    if (result.stage_kappa_moves) {
+      evaluate(table,"-perstage-best",true);
+      // The refined module is the winner's geometry re-imported, so the
+      // summary the search already reported still describes it.
+      result.module=std::move(refined);result.stage_kappa=table;
+    }
+  }
   mlir::OpBuilder b(&context);
   result.module->getOperation()->setAttr("tilemega.search_deferred",b.getI64IntegerAttr(result.stats.capacity_deferred));
   result.module->getOperation()->setAttr("tilemega.search_restricted_geometry",b.getBoolAttr(!options.geometry_domain.empty()));
