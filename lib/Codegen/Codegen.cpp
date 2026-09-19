@@ -1092,6 +1092,19 @@ std::string emitSolvedLaunch(mlir::ModuleOp module) {
           << "#ifndef " << macro << "\n#define " << macro << ' ' << value.getInt() << "\n#endif\n";
     }
   }
+  // Per-stage kappa (§6 B2) is emitted only when the Plan carries it, so a
+  // solved module without it produces the text, and therefore the SASS, it
+  // produced before the dimension existed (H2).
+  if (auto table=module->getAttrOfType<mlir::DenseI64ArrayAttr>("tilemega.solved_stage_kappa")) {
+    out << "#define TILEMEGA_EVENT_KAPPA_PER_STAGE 1\n#define TILEMEGA_EVENT_KAPPA_TABLE";
+    char const* separator=" ";
+    for (std::int64_t kappa:table.asArrayRef()) {
+      if (kappa<1) throw std::invalid_argument("invalid solved per-stage kappa");
+      out << separator << kappa;
+      separator=", ";
+    }
+    out << "\n";
+  }
   return out.str();
 }
 
