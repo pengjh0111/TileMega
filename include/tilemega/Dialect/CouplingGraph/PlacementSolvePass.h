@@ -135,6 +135,11 @@ inline PreparedPlacementProblem PreparePlacementProblem(mlir::ModuleOp module,
   auto projection=ProjectRuntimeQueues(model,runtime,po);
   std::vector<int> counts;
   for (auto const& stage:projection.stages) counts.push_back(int(stage.task_count.Eval({})));
+  // The table is indexed by projected stage, and a gemm expands into more than
+  // one of those, so a table sized to the model's stages would coarsen the
+  // wrong producers and leave the tail at the global value. Refuse it.
+  if (!options.stage_kappa.empty() && options.stage_kappa.size()!=counts.size())
+    throw std::invalid_argument("per-stage kappa table does not cover the projected stages");
   auto graph=codegen::MaterializeRuntimeTaskGraph(counts,{},result.grid);
   auto node=[&](long stage,long task) {
     if (stage<0 || stage>=long(counts.size()) || task<0 || task>=counts[stage])
