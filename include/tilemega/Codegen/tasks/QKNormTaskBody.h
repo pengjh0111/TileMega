@@ -34,7 +34,7 @@ struct QKNormTaskBody {
 
 #if TILEMEGA_PREFETCH_RUNTIME
   /// §5.3.1 Prefetch: the per-head scale row, read once per head.
-  __device__ static PrefetchOperand Prefetch(StageDesc const& stage) {
+  __host__ __device__ static PrefetchOperand Prefetch(StageDesc const& stage) {
     return {stage.operand[1], stage.width};
   }
 #endif

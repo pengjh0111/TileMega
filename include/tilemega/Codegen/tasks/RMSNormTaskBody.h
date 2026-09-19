@@ -28,7 +28,7 @@ struct RMSNormTaskBody {
   /// §5.3.1 Prefetch: the scale row. It is the body's claim about what it will
   /// read, not a claim that the row has no in-edge -- the executor checks the
   /// derived frontier before honouring it.
-  __device__ static PrefetchOperand Prefetch(StageDesc const& stage) {
+  __host__ __device__ static PrefetchOperand Prefetch(StageDesc const& stage) {
     return {stage.operand[1], stage.width};
   }
 #endif

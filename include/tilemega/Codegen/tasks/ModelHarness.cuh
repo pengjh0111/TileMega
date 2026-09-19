@@ -235,7 +235,8 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 #if TILEMEGA_PREFETCH_RUNTIME
 /// The Prefetch half of §5.3.1 for a stage whose body declares one. Kinds that
 /// declare none return `kNoOperand` and the slot simply keeps reading global.
-__device__ inline PrefetchOperand PrefetchFor(StageDesc const& stage) {
+/// Host-callable so the report below counts exactly what the worker issues.
+__host__ __device__ inline PrefetchOperand PrefetchFor(StageDesc const& stage) {
   switch (stage.kind) {
     case TaskKind::kRMSNorm: return T_Norm::Prefetch(stage);
 #if TILEMEGA_QK_NORM_RUNTIME
@@ -1000,17 +1001,22 @@ __device__ inline void PrefetchIssue(ModelElement const* source,
 /// early. A body's declaration is honoured only where the frontend-derived
 /// frontier says no stage writes the buffer, and only where the operand is a
 /// whole number of 16-byte lines that fits one page.
-__device__ inline std::uint32_t PrefetchBytes(Params const& p,
-                                              TaskRef const& task,
-                                              PrefetchOperand& operand) {
-  operand = PrefetchFor(p.stages[task.stage]);
+__host__ __device__ inline std::uint32_t PrefetchWidth(
+    StageDesc const& stage, std::uint8_t const* no_producer,
+    PrefetchOperand& operand) {
+  operand = PrefetchFor(stage);
   if (operand.buffer == kNoOperand) return 0u;
-  if (!p.buffer_no_producer[operand.buffer]) return 0u;
+  if (!no_producer[operand.buffer]) return 0u;
   std::uint32_t const width = operand.elements * sizeof(ModelElement);
   if (width == 0u || width % 16u != 0u ||
       width > TILEMEGA_PREFETCH_PAGE_BYTES)
     return 0u;
   return width;
+}
+__device__ inline std::uint32_t PrefetchBytes(Params const& p,
+                                              TaskRef const& task,
+                                              PrefetchOperand& operand) {
+  return PrefetchWidth(p.stages[task.stage], p.buffer_no_producer, operand);
 }
 #endif
 
@@ -3234,6 +3240,30 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
               model.schedule_max_span, runtime_variant.max_dependency_span,
               model.schedule_max_worker_span, grid,
               model.schedule_has_global_fanin ? 1 : 0, max_worker_task_refs);
+#if TILEMEGA_PREFETCH_RUNTIME
+  {
+    // The same rule the worker applies per slot, over the whole schedule: a
+    // page the operand does not fit leaves the mechanism compiled but idle,
+    // and a run has to say so rather than let a timing pass for an overlap.
+    std::vector<std::uint8_t> no_producer(spec.buffer_count);
+    for (std::uint32_t i = 0; i < spec.buffer_count; ++i)
+      no_producer[i] = spec.buffers[i].no_producer ? 1u : 0u;
+    std::size_t issued = 0, declared = 0, heads = 0;
+    for (int worker = 0; worker < grid; ++worker)
+      for (std::uint32_t slot = model.schedule_offsets[worker];
+           slot < model.schedule_offsets[worker + 1]; ++slot) {
+        PrefetchOperand operand;
+        StageDesc const& stage = model.stages[model.schedule[slot].stage];
+        declared += PrefetchFor(stage).buffer != kNoOperand;
+        if (!PrefetchWidth(stage, no_producer.data(), operand)) continue;
+        ++issued;
+        heads += slot == model.schedule_offsets[worker];
+      }
+    std::printf("E2E_PREFETCH slots=%zu declared=%zu issued=%zu queue_heads=%zu "
+                "page_bytes=%d inline=%d\n", model.schedule.size(), declared,
+                issued, heads, TILEMEGA_PREFETCH_PAGE_BYTES, TILEMEGA_PREFETCH_INLINE);
+  }
+#endif
   std::printf("E2E_TIME l05_ms=%.6f l1_ms=%.6f ratio=%.6f l2_ms=%.6f "
               "l2_over_l1=%.6f\n", l05_ms, l1_ms, l1_ms / l05_ms, l2_ms,
               l2_ms / l1_ms);
