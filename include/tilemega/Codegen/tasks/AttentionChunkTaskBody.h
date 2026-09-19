@@ -66,7 +66,7 @@ struct AttentionTaskBody {
       }
       smem.attention[key_pos] = score;
     }
-    __syncthreads();
+    TILEMEGA_PHASE_SIMT_BARRIER();
     if (threadIdx.x == 0) {
       float maximum = -INFINITY;
       for (int j = 0; j < total; ++j)
@@ -81,7 +81,7 @@ struct AttentionTaskBody {
         smem.attention[j] = static_cast<float>(
             ModelElement(smem.attention[j] / sum));
     }
-    __syncthreads();
+    TILEMEGA_PHASE_SIMT_BARRIER();
     for (int d = threadIdx.x; d < dim; d += blockDim.x) {
       float value = 0.0f;
       for (int j = 0; j < total; ++j)

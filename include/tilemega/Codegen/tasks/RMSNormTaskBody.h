@@ -44,11 +44,11 @@ struct RMSNormTaskBody {
       local += value * value;
     }
     rms[threadIdx.x] = local;
-    __syncthreads();
+    TILEMEGA_PHASE_SIMT_BARRIER();
     for (int offset = blockDim.x / 2; offset; offset /= 2) {
       if (threadIdx.x < offset)
         rms[threadIdx.x] += rms[threadIdx.x + offset];
-      __syncthreads();
+      TILEMEGA_PHASE_SIMT_BARRIER();
     }
     TILEMEGA_PHASE_STAMP(3);
     float scale = rsqrtf(rms[0] / hidden + TILEMEGA_NORM_EPSILON);

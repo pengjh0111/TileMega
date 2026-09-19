@@ -311,6 +311,18 @@ struct TaskTrace {
 #error "TILEMEGA_TRACE_KLOOP requires TILEMEGA_TRACE_PHASE"
 #endif
 
+// SIMT-side exposed wait (B0).  `TILEMEGA_TRACE_KLOOP` accounts for the waits
+// inside an instrumented GEMM K-loop; this accounts for the waits inside the
+// SIMT bodies, so that a wait share can be quoted against the whole pipeline
+// instead of against the GEMM mainloops alone.  Only barriers the body already
+// executed are timed: no barrier, atomic or polling-loop store is added.
+#ifndef TILEMEGA_TRACE_SIMT
+#define TILEMEGA_TRACE_SIMT 0
+#endif
+#if TILEMEGA_TRACE_SIMT && !TILEMEGA_TRACE_PHASE
+#error "TILEMEGA_TRACE_SIMT requires TILEMEGA_TRACE_PHASE"
+#endif
+
 // Opt-in EX-S3 launch bound. Zero preserves occupancy-selected residency.
 #ifndef TILEMEGA_RESIDENCY_CAP
 #define TILEMEGA_RESIDENCY_CAP 0
@@ -327,6 +339,12 @@ struct TaskPhase {
 #if TILEMEGA_TRACE_KLOOP
   unsigned long long loop_begin_cycles, loop_end_cycles;
   unsigned long long operand_wait_cycles, iterations;
+#endif
+#if TILEMEGA_TRACE_SIMT
+  /// Cycles thread zero spent inside the body's own `__syncthreads()` calls,
+  /// and how many of them it passed through.  A thread that arrives last waits
+  /// for nobody, so this is a lower bound on the CTA's idle time.
+  unsigned long long simt_wait_cycles, simt_barriers;
 #endif
 };
 
