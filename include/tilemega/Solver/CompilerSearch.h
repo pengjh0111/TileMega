@@ -20,6 +20,10 @@ struct CompilerSearchOptions {
   /// Off by default: with it off no per-stage attribute is written, so the
   /// generated text, and therefore the SASS, is what it was (H2).
   bool per_stage_kappa=false;
+  /// A table pinned by the caller is solved on the winner in place of the
+  /// descent. It cannot ride the outer search: the projected stage count
+  /// changes with split-K, so no one table covers every candidate.
+  std::vector<int> stage_kappa;
   std::function<int(mlir::ModuleOp,int)> query_residency;
 };
 struct CompilerSearchResult {
@@ -183,7 +187,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
   // coordinate descent over producer stages. A stage with one task has one
   // group at every kappa, so the sweep skips it; every trial is a full
   // placement solve, which is what bounds the descent to two passes.
-  if (options.per_stage_kappa) {
+  if (options.per_stage_kappa || !options.stage_kappa.empty()) {
     frontend::ImportOptions import;
     auto const& g=winner.config;
     import.gemms.assign(model.gemms.size(),{g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
@@ -214,28 +218,37 @@ inline CompilerSearchResult SolveExport(std::string const& path,
     std::vector<int> table(counts.size(),winner.kappa);
     auto incumbent=evaluate(table,"-perstage-uniform",false);
     result.uniform_ns=incumbent.second;
-    for (int pass=0;pass<2;++pass) {
-      bool moved=false;
-      for (std::size_t stage=0;stage<table.size();++stage) {
-        if (counts[stage]<2) continue;
-        for (int kappa:{1,2,4}) {
-          if (kappa==table[stage]) continue;
-          int const previous=table[stage];table[stage]=kappa;
-          auto trial=evaluate(table,"-s"+std::to_string(stage)+"k"+std::to_string(kappa),false);
-          if (trial<incumbent) {incumbent=trial;moved=true;++result.stage_kappa_moves;}
-          else table[stage]=previous;
+    if (!options.stage_kappa.empty()) {
+      // The placement is re-solved under the pinned table rather than
+      // relabelled: a coarser event groups later producer tasks into the wait,
+      // and a slot order solved for uniform kappa could put a consumer ahead of
+      // one of them on its own worker.
+      result.per_stage_ns=evaluate(options.stage_kappa,"-pinned",true).second;
+      result.module=std::move(refined);result.stage_kappa=options.stage_kappa;
+    } else {
+      for (int pass=0;pass<2;++pass) {
+        bool moved=false;
+        for (std::size_t stage=0;stage<table.size();++stage) {
+          if (counts[stage]<2) continue;
+          for (int kappa:{1,2,4}) {
+            if (kappa==table[stage]) continue;
+            int const previous=table[stage];table[stage]=kappa;
+            auto trial=evaluate(table,"-s"+std::to_string(stage)+"k"+std::to_string(kappa),false);
+            if (trial<incumbent) {incumbent=trial;moved=true;++result.stage_kappa_moves;}
+            else table[stage]=previous;
+          }
         }
+        if (!moved) break;
       }
-      if (!moved) break;
-    }
-    result.per_stage_ns=incumbent.second;
-    // A table the descent never moved off uniform is the global kappa, so it
-    // is not written back: B2's answer there is that global kappa sufficed.
-    if (result.stage_kappa_moves) {
-      evaluate(table,"-perstage-best",true);
-      // The refined module is the winner's geometry re-imported, so the
-      // summary the search already reported still describes it.
-      result.module=std::move(refined);result.stage_kappa=table;
+      result.per_stage_ns=incumbent.second;
+      // A table the descent never moved off uniform is the global kappa, so it
+      // is not written back: B2's answer there is that global kappa sufficed.
+      if (result.stage_kappa_moves) {
+        evaluate(table,"-perstage-best",true);
+        // The refined module is the winner's geometry re-imported, so the
+        // summary the search already reported still describes it.
+        result.module=std::move(refined);result.stage_kappa=table;
+      }
     }
   }
   mlir::OpBuilder b(&context);

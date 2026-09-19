@@ -197,7 +197,8 @@ int main(int argc, char** argv) {
   if (argc < 3 || argc % 2 == 0) {
     std::cerr << "usage: tilemega-compile {EXPORTED_PROGRAM.pt2|STABLE_EXPORT.json|CG.mlir} "
                  "{OUTPUT.cu|OUTPUT.so} [--variants PLAN.json] [--solve TARGET.json --seq N --past N\n"
-                 " --search-capacity N --per-stage-kappa 0|1 --dump-cg FILE.mlir\n"
+                 " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
+                 " --dump-cg FILE.mlir\n"
                  " --hop-curve FILE.tsv --seq-begin N\n"
                  " --prefetch-page-bytes N]\n";
     return 2;
@@ -222,6 +223,16 @@ int main(int argc, char** argv) {
       else if (flag=="--past") solve_options.placement.dims.past=std::stoi(value);
       else if (flag=="--search-capacity") solve_options.capacity=std::stoul(value);
       else if (flag=="--per-stage-kappa") solve_options.per_stage_kappa=std::stoi(value)!=0;
+      // Pins the table instead of searching for it, so a chosen coarsening can
+      // be built and run as evidence even when the search prefers uniform.
+      else if (flag=="--stage-kappa") {
+        solve_options.stage_kappa.clear();
+        for (std::size_t at=0;at<value.size();) {
+          std::size_t const comma=value.find(',',at);
+          solve_options.stage_kappa.push_back(std::stoi(value.substr(at,comma-at)));
+          at=comma==std::string::npos ? value.size() : comma+1;
+        }
+      }
       // Zero prices no prefetch at all, which is the pipelining dimension of
       // sigma switched off: every credit and every queue-edge discount is then
       // exactly zero, so a solve can be repeated without it.
@@ -340,7 +351,7 @@ int main(int argc, char** argv) {
       std::cerr << "SOLVE_SUMMARY evaluated=" << solved.stats.evaluated
           << " deferred=" << solved.stats.capacity_deferred
           << " residency_scope=" << (resource_probes ? "compiled" : "1_degraded") << " hop_calibrated=" << !hop_path.empty() << "\n";
-      if (solve_options.per_stage_kappa) {
+      if (solve_options.per_stage_kappa || !solve_options.stage_kappa.empty()) {
         std::cerr << "SOLVE_STAGE_KAPPA moves=" << solved.stage_kappa_moves
             << " uniform_ns=" << solved.uniform_ns
             << " per_stage_ns=" << solved.per_stage_ns << " table=";
