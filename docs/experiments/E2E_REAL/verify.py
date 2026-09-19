@@ -5,7 +5,7 @@ Nothing here reads a summary or a conclusion: each gate re-derives its number
 from the process logs, the run manifests and the generated sources. Hard-gate
 failures set the exit status, but every gate is evaluated first.
 """
-import json,re,sys
+import json,re,subprocess,sys
 from pathlib import Path
 REPO=Path(__file__).resolve().parents[3];HERE=Path(__file__).resolve().parent
 MODELS2=REPO/'docs/experiments/MODELS2'
@@ -116,9 +116,100 @@ else:
     gate('B0 FORK7 whole-pipeline exposed wait',True,False,'no PHASE2 analysis',
          rowsfile)
 
-# --- B1 / B2 / B3 / C1-b: not implemented this round ------------------------
-for name in ('B1 paging and cross-task pipelining',
-             'B2 per-stage kappa','B3 intra-interval geometry',
+# --- B1: paging and cross-task pipelining -----------------------------------
+# Each gate below re-derives its number from PIPELINE's raw logs and tables.
+# The criteria are B1's own and were fixed before the runs: (a) every fresh
+# process passes, on all three populations; (b) the driver and F-40 agree on
+# the CTA count and no arm loses the residency its cell was selected at;
+# (c) the pipelined arm's per-slot wait is strictly below the inline arm's on
+# the slots that issue; (d) the three sigma locations each hold up under their
+# example; (e) reported without a threshold, as R7 5.2 asks.
+PIPELINE=REPO/'docs/experiments/PIPELINE/raw'
+CELLS=('gqa2_s4','gqa2_s128','mha4_s4','mha4_s128','real_s4','real_s128')
+def tsv(path):
+    lines=[l.split('\t') for l in path.read_text().strip().splitlines()]
+    return [dict(zip(lines[0],r)) for r in lines[1:]]
+
+populations={
+ 'six cells':[PIPELINE/c/'correctness_head'/a for c in CELLS for a in ('prefetch','inline')],
+ 'SEQSCAN subset':[PIPELINE/'seqscan'/c/'seqscan'/case/a
+                   for c in CELLS[:4] for case in ('s1_p0','s128_p512','s2048_p0')
+                   for a in ('prefetch','inline')],
+ 'Llama maximal connected graph':[PIPELINE/'llama/correctness'/a
+                                  for a in ('prefetch','inline')]}
+for label,folders in populations.items():
+    n=ok=bad=0;binaries=set();present=[f for f in folders if f.is_dir()]
+    for f in present:
+        c,o,b,e=processes(f);n+=c;ok+=o;binaries|=b;bad+=e
+    gate(f'B1-a correctness, {label}',True,
+         len(present)==len(folders) and n==ok and n>=50*len(folders) and bad==0,
+         f'arms={len(present)}/{len(folders)} rounds={n} passing={ok} '
+         f'failing_outputs={bad} binaries={len(binaries)}',PIPELINE)
+
+# The subset is R5's only if the replayed plans are the plans JOINT ran; the
+# guarded frontier field is stripped before the comparison, nothing else.
+regen=PIPELINE/'seqscan/regeneration.tsv'
+if regen.is_file():
+    got=tsv(regen);same=[r for r in got if r['identical_without_frontier']=='1']
+    gate('B1-a SEQSCAN plans are JOINT\'s plans',False,len(got)==12 and len(same)==12,
+         f'cases={len(got)} identical_without_the_guarded_field={len(same)}',regen)
+else:
+    gate('B1-a SEQSCAN plans are JOINT\'s plans',False,False,'not regenerated',regen)
+
+arms=PIPELINE/'occupancy_arms.tsv'
+if arms.is_file():
+    got=tsv(arms)
+    agree=[r for r in got if r['driver_ctas']==r['f40_reserved_ctas']]
+    kept=[r for r in got if r['keeps_residency']=='1']
+    base={r['cell']:r for r in got if r['arm']=='control'}
+    grew=', '.join(f"{r['cell']} {base[r['cell']]['smem_bytes']}->{r['smem_bytes']}B "
+                   f"{base[r['cell']]['regs']}->{r['regs']}r {r['driver_ctas']}cta"
+                   for r in got if r['arm']=='prefetch')
+    gate('B1-b occupancy before/after against F-40',True,
+         len(got)==3*len(CELLS) and len(agree)==len(got) and len(kept)==len(got),
+         f'arms={len(got)} f40_agrees={len(agree)} keeps_residency={len(kept)}; {grew}',arms)
+else:
+    gate('B1-b occupancy before/after against F-40',True,False,'no occupancy table',arms)
+
+overlap=PIPELINE/'overlap_head.tsv'
+if overlap.is_file():
+    got=tsv(overlap)
+    positive=[r for r in got if r['overlap_cycles_median'] and
+              float(r['overlap_cycles_median'])>0]
+    gate('B1-c overlap measured in the phase trace',True,
+         len(got)==len(CELLS) and len(positive)==len(got) and
+         all(int(r['rounds_prefetch'])>=50 and int(r['rounds_inline'])>=50 for r in got),
+         'per-slot wait, inline minus pipelined, on the issuing slots: '+
+         ', '.join(f"{r['cell']} {r['overlap_cycles_median']}cy "
+                   f"({r['overlap_slots_positive']}/{r['issued_slots']} slots)" for r in got),
+         overlap)
+else:
+    gate('B1-c overlap measured in the phase trace',True,False,'no phase analysis',overlap)
+
+log=PIPELINE/'pipeline_sigma.log'
+binary=REPO/'build-portable/pipeline_sigma_test'
+text=subprocess.run([str(binary)],capture_output=True,text=True).stdout if binary.exists() \
+     else (log.read_text() if log.is_file() else '')
+checks=('PIPELINE_FRONTIER','PIPELINE_PRICE','PIPELINE_BOUNDS','PIPELINE_TABLE')
+gate('B1-d pipelining wired into sigma',True,
+     'PIPELINE_SIGMA PASS' in text and all(c in text for c in checks),
+     ('rerun: ' if binary.exists() else 'recorded: ')+
+     '; '.join(l for l in text.splitlines() if l.startswith('PIPELINE_')),
+     binary if binary.exists() else log)
+
+e2e=PIPELINE/'e2e_head.tsv'
+if e2e.is_file():
+    got=[r for r in tsv(e2e) if r['arm']=='prefetch' and r['base']=='control']
+    faster=[r for r in got if float(r['ci_hi'])<1]
+    slower=[r for r in got if float(r['ci_lo'])>1]
+    gate('B1-e end to end, six cells, no threshold',False,len(got)==len(CELLS),
+         f'cells={len(got)} faster={len(faster)} slower={len(slower)} (95% CI clear of 1); '+
+         ', '.join(f"{r['cell']} {float(r['ratio']):.4f}" for r in got),e2e)
+else:
+    gate('B1-e end to end, six cells, no threshold',False,False,'no e2e table',e2e)
+
+# --- B2 / B3 / C1-b: not implemented this round -----------------------------
+for name in ('B2 per-stage kappa','B3 intra-interval geometry',
              'C1-b preparation-phase optimization'):
     gate(name,True,False,'not implemented this round; see the stoppage ledger',
          HERE/'summary.md')

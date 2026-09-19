@@ -1,0 +1,13 @@
+cell	case	placement	joint	regenerated	identical_without_frontier
+gqa2_s4	s1_p0	eft	/root/TileMega/docs/experiments/JOINT/raw/gqa2_s4/seqscan_plans/s1_p0/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/gqa2_s4/s1_p0/eft.cu	1
+gqa2_s4	s128_p512	eft	/root/TileMega/docs/experiments/JOINT/raw/gqa2_s4/seqscan_plans/s128_p512/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/gqa2_s4/s128_p512/eft.cu	1
+gqa2_s4	s2048_p0	eft	/root/TileMega/docs/experiments/JOINT/raw/gqa2_s4/seqscan_plans/s2048_p0/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/gqa2_s4/s2048_p0/eft.cu	1
+gqa2_s128	s1_p0	eft	/root/TileMega/docs/experiments/JOINT/raw/gqa2_s128/seqscan_plans/s1_p0/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/gqa2_s128/s1_p0/eft.cu	1
+gqa2_s128	s128_p512	eft	/root/TileMega/docs/experiments/JOINT/raw/gqa2_s128/seqscan_plans/s128_p512/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/gqa2_s128/s128_p512/eft.cu	1
+gqa2_s128	s2048_p0	eft	/root/TileMega/docs/experiments/JOINT/raw/gqa2_s128/seqscan_plans/s2048_p0/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/gqa2_s128/s2048_p0/eft.cu	1
+mha4_s4	s1_p0	eft	/root/TileMega/docs/experiments/JOINT/raw/mha4_s4/seqscan_plans/s1_p0/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/mha4_s4/s1_p0/eft.cu	1
+mha4_s4	s128_p512	eft	/root/TileMega/docs/experiments/JOINT/raw/mha4_s4/seqscan_plans/s128_p512/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/mha4_s4/s128_p512/eft.cu	1
+mha4_s4	s2048_p0	eft	/root/TileMega/docs/experiments/JOINT/raw/mha4_s4/seqscan_plans/s2048_p0/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/mha4_s4/s2048_p0/eft.cu	1
+mha4_s128	s1_p0	eft	/root/TileMega/docs/experiments/JOINT/raw/mha4_s128/seqscan_plans/s1_p0/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/mha4_s128/s1_p0/eft.cu	1
+mha4_s128	s128_p512	eft	/root/TileMega/docs/experiments/JOINT/raw/mha4_s128/seqscan_plans/s128_p512/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/mha4_s128/s128_p512/eft.cu	1
+mha4_s128	s2048_p0	eft	/root/TileMega/docs/experiments/JOINT/raw/mha4_s128/seqscan_plans/s2048_p0/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/mha4_s128/s2048_p0/eft.cu	1

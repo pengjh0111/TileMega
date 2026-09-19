@@ -1,0 +1,79 @@
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=16162816
+E2E_PLACE_STATS placement=0 max_queue=92 same_worker_edges=3128 cross_worker_edges=214668 base_rotation=0 plan=eft
+E2E_TIMING cold=0 warmup=0 repeat=1 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=157 smem=24576 task_smem=16384 occupancy_smem=24576 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=12288 variant_count=1 ctas_per_sm=3 num_sms=128 grid=384 l1_reg=148 l05_reg=147 l1_ctas=3 l2_ctas=3 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=384 variant_stages=209 task_refs=15486 task_ref_bytes=433608 waits=22344 wait_bytes=178752 raw_polls=23624 lifted_polls=1280 waiting_tasks=7458 normalization_dummies_lb=14886 max_span=208 generated_max_span=128 max_worker_span=348 resident_limit=384 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=92
+E2E_PREFETCH slots=15486 declared=0 issued=0 queue_heads=0 page_bytes=4096 inline=1
+E2E_TIME l05_ms=209.728409 l1_ms=166.791168 ratio=0.795272 l2_ms=51.036160 l2_over_l1=0.305988
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.0078125 max_rel=0.16666667 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=416 mismatch=0 max_abs=0.0078125 max_rel=0.16666667
+E2E_OUTPUT_DIFF index=1 buffer=419 mismatch=0 max_abs=0.00390625 max_rel=0.14685315
+E2E_OUTPUT_DIFF index=2 buffer=2 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=3 buffer=4 mismatch=0 max_abs=1.1920929e-07 max_rel=0.0054644807
+E2E_OUTPUT_DIFF index=4 buffer=9 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=5 buffer=11 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=6 buffer=29 mismatch=0 max_abs=0.00012207031 max_rel=0.022727273
+E2E_OUTPUT_DIFF index=7 buffer=31 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=8 buffer=36 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=9 buffer=38 mismatch=0 max_abs=0.00012207031 max_rel=0.004255319
+E2E_OUTPUT_DIFF index=10 buffer=55 mismatch=0 max_abs=0.00024414062 max_rel=0.0039215689
+E2E_OUTPUT_DIFF index=11 buffer=57 mismatch=0 max_abs=0.00390625 max_rel=0.006289308
+E2E_OUTPUT_DIFF index=12 buffer=62 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=13 buffer=64 mismatch=0 max_abs=9.5367432e-07 max_rel=0.0055555557
+E2E_OUTPUT_DIFF index=14 buffer=81 mismatch=0 max_abs=9.5367432e-07 max_rel=0.01764706
+E2E_OUTPUT_DIFF index=15 buffer=83 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=16 buffer=88 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=17 buffer=90 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=18 buffer=107 mismatch=0 max_abs=0.00012207031 max_rel=0.0052910051
+E2E_OUTPUT_DIFF index=19 buffer=109 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=20 buffer=114 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=21 buffer=116 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=22 buffer=133 mismatch=0 max_abs=3.8146973e-06 max_rel=0.0070921984
+E2E_OUTPUT_DIFF index=23 buffer=135 mismatch=0 max_abs=0.0009765625 max_rel=0.0040983604
+E2E_OUTPUT_DIFF index=24 buffer=140 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=25 buffer=142 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=26 buffer=159 mismatch=0 max_abs=0.001953125 max_rel=0.0046948357
+E2E_OUTPUT_DIFF index=27 buffer=161 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=28 buffer=166 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=29 buffer=168 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=30 buffer=185 mismatch=0 max_abs=0.00024414062 max_rel=0.0065789474
+E2E_OUTPUT_DIFF index=31 buffer=187 mismatch=0 max_abs=1.5258789e-05 max_rel=0.0042372881
+E2E_OUTPUT_DIFF index=32 buffer=192 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=33 buffer=194 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=34 buffer=211 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=35 buffer=213 mismatch=0 max_abs=2.3841858e-07 max_rel=0.0039840639
+E2E_OUTPUT_DIFF index=36 buffer=218 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=37 buffer=220 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=38 buffer=237 mismatch=0 max_abs=7.6293945e-06 max_rel=0.11764706
+E2E_OUTPUT_DIFF index=39 buffer=239 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=40 buffer=244 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=41 buffer=246 mismatch=0 max_abs=3.8146973e-06 max_rel=0.0040816325
+E2E_OUTPUT_DIFF index=42 buffer=263 mismatch=0 max_abs=3.8146973e-06 max_rel=0.048458152
+E2E_OUTPUT_DIFF index=43 buffer=265 mismatch=0 max_abs=0.00012207031 max_rel=0.0086206896
+E2E_OUTPUT_DIFF index=44 buffer=270 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=45 buffer=272 mismatch=0 max_abs=1.1920929e-07 max_rel=0.0043859649
+E2E_OUTPUT_DIFF index=46 buffer=289 mismatch=0 max_abs=1.9073486e-06 max_rel=0.026737968
+E2E_OUTPUT_DIFF index=47 buffer=291 mismatch=0 max_abs=3.8146973e-06 max_rel=0.0066225166
+E2E_OUTPUT_DIFF index=48 buffer=296 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=49 buffer=298 mismatch=0 max_abs=3.8146973e-06 max_rel=0.0043103448
+E2E_OUTPUT_DIFF index=50 buffer=315 mismatch=0 max_abs=9.5367432e-07 max_rel=0.0058823531
+E2E_OUTPUT_DIFF index=51 buffer=317 mismatch=0 max_abs=3.8146973e-06 max_rel=0.0039840639
+E2E_OUTPUT_DIFF index=52 buffer=322 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=53 buffer=324 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=54 buffer=341 mismatch=0 max_abs=3.8146973e-06 max_rel=0.0073529412
+E2E_OUTPUT_DIFF index=55 buffer=343 mismatch=0 max_abs=0.001953125 max_rel=0.0058139535
+E2E_OUTPUT_DIFF index=56 buffer=348 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=57 buffer=350 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=58 buffer=367 mismatch=0 max_abs=4.7683716e-07 max_rel=0.0054347827
+E2E_OUTPUT_DIFF index=59 buffer=369 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=60 buffer=374 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=61 buffer=376 mismatch=0 max_abs=2.3841858e-07 max_rel=0.0058479533
+E2E_OUTPUT_DIFF index=62 buffer=393 mismatch=0 max_abs=1.5258789e-05 max_rel=0.0060975607
+E2E_OUTPUT_DIFF index=63 buffer=395 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=64 buffer=400 mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=65 buffer=402 mismatch=0 max_abs=0.00390625 max_rel=0.10430813
+E2E_HASH l05=3d9e05a106a0cc18 l1=3d9e05a106a0cc18 l2=3d9e05a106a0cc18
+E2E_ITER l2_iter1_ms=52.967422 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=4
+RESULT status=PASS

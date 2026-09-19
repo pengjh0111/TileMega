@@ -1,0 +1,10 @@
+PROJECT imported real s4
+PROJECT projected; streaming dependencies
+PROJECT graph nodes=12208
+PROJECT placement=legacy_grid_stride
+PROJECT placement=rotate
+PROJECT placement=balanced
+PROJECT placement=eft
+PROJECT placement=wavefront
+PROJECT placement=chain
+JOINT_PROJECT PASS model=real seq=4 nodes=12208 plans=6

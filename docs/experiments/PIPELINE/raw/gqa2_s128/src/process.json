@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/tmp/r7-project",
+    "/root/TileMega",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+    "gqa2",
+    "128",
+    "32",
+    "16",
+    "32",
+    "2",
+    "1",
+    "1",
+    "5",
+    "/root/TileMega/docs/experiments/PIPELINE/raw/gqa2_s128/src",
+    "3"
+  ],
+  "exit_code": 0,
+  "started_ns": 1789802304450243104,
+  "elapsed_ns": 8092601651,
+  "fork6_source": "/root/TileMega/docs/experiments/JOINT/raw/gqa2_s128/plans/32x16x32s2k1_k1_r5/eft.cu",
+  "placement": "eft",
+  "head": "7d69529f94d98b43ece28c2c11c2804173de9787"
+}

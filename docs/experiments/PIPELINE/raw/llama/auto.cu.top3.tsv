@@ -1,0 +1,4 @@
+rank	key	placement	tile_m	tile_n	tile_k	stages	split_k	kappa	residency	floor_ns	predicted_ns	source	cg
+1	64x128x16s2split2kappa1r3	eft	64	128	16	2	2	1	3	2.22748e+06	2.37874e+06	/root/TileMega/docs/experiments/PIPELINE/raw/llama/auto.cu.top1.cu	/root/TileMega/docs/experiments/PIPELINE/raw/llama/auto.cu.top1.mlir
+2	64x128x16s2split2kappa2r3	eft	64	128	16	2	2	2	3	2.22748e+06	2.44488e+06	/root/TileMega/docs/experiments/PIPELINE/raw/llama/auto.cu.top2.cu	/root/TileMega/docs/experiments/PIPELINE/raw/llama/auto.cu.top2.mlir
+3	64x128x16s2split2kappa4r3	eft	64	128	16	2	2	4	3	2.22748e+06	2.44488e+06	/root/TileMega/docs/experiments/PIPELINE/raw/llama/auto.cu.top3.cu	/root/TileMega/docs/experiments/PIPELINE/raw/llama/auto.cu.top3.mlir

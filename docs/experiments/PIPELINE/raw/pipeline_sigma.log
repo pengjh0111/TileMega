@@ -1,0 +1,6 @@
+PIPELINE_FRONTIER stages=102 with_frontier=68 rope_element_reads=12
+PIPELINE_PRICE tasks=232 priced=16 mean_share=0.016181 page512_priced=0
+PIPELINE_REALWIDTH page1024=0 page4096=0 page8192=0 stages=209 prefetch_bodies=0 stage_kinds=0:113 3:32 4:16 5:16 10:32 
+PIPELINE_BOUNDS queue_lb binding_path makespan flags
+PIPELINE_TABLE accepted rejected-head rejected-length
+PIPELINE_SIGMA PASS frontier pricing bounds table

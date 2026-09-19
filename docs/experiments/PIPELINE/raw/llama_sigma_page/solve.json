@@ -1,0 +1,30 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-compile",
+    "/root/TileMega/docs/experiments/MODELS/covered_llama/exported_program.pt2",
+    "/root/TileMega/docs/experiments/PIPELINE/raw/llama_sigma_page/auto.cu",
+    "--solve",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/target.json",
+    "--seq",
+    "4",
+    "--past",
+    "3",
+    "--search-capacity",
+    "3",
+    "--search-domain",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/search_domain.json",
+    "--dump-cg",
+    "/root/TileMega/docs/experiments/PIPELINE/raw/llama_sigma_page/auto.mlir",
+    "--hop-curve",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv",
+    "--numerical-rejections",
+    "/root/TileMega/docs/experiments/MODELS/covered_llama/numerical_rejections.json",
+    "--prefetch-page-bytes",
+    "4096"
+  ],
+  "exit_code": 0,
+  "started_ns": 1789816222418975309,
+  "elapsed_ns": 2313160268180,
+  "r6_source": "/root/TileMega/docs/experiments/MODELS/covered_llama_admitted2/auto.cu",
+  "head": "5b54e5e88f73c3b19ddf25f3331966931ecf50aa"
+}

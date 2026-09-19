@@ -1,0 +1,7 @@
+cell	placement	fork6	regenerated	identical_without_frontier
+gqa2_s4	eft	/root/TileMega/docs/experiments/JOINT/raw/gqa2_s4/plans/32x16x64s2k1_k1_r1/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/gqa2_s4/src/eft.cu	1
+gqa2_s128	eft	/root/TileMega/docs/experiments/JOINT/raw/gqa2_s128/plans/32x16x32s2k1_k1_r5/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/gqa2_s128/src/eft.cu	1
+mha4_s4	eft	/root/TileMega/docs/experiments/JOINT/raw/mha4_s4/plans/32x16x64s2k1_k1_r1/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/mha4_s4/src/eft.cu	1
+mha4_s128	eft	/root/TileMega/docs/experiments/JOINT/raw/mha4_s128/plans/32x16x16s2k1_k2_r5/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/mha4_s128/src/eft.cu	1
+real_s4	eft	/root/TileMega/docs/experiments/JOINT/raw/real_s4/plans/32x16x16s2k1_k1_r2/eft.cu	/root/TileMega/docs/experiments/PIPELINE/raw/real_s4/src/eft.cu	1
+real_s128	wavefront	/root/TileMega/docs/experiments/JOINT/raw/real_s128/plans/64x128x16s2k1_k1_r2/wavefront.cu	/root/TileMega/docs/experiments/PIPELINE/raw/real_s128/src/wavefront.cu	1

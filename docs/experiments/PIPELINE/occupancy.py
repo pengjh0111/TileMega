@@ -13,7 +13,13 @@ produced for every cell and cross-checked:
 
 Where the two disagree the driver wins and the difference is recorded.  Page 0
 is validated against `ctas_per_sm`/`l2_ctas` as the harness itself printed them
-in `PHASE2/raw/<cell>/correctness/selected/r0.log`.
+in `PHASE2/raw/<cell>/correctness/selected/r0.log`, or -- for the real cells,
+which B0 never ran -- one fresh run of this cell's own `control` binary.
+
+Two answers per cell, not one: the sweep says how large a page the cell could
+afford, and the `arms` table is B1-b's before/after proper -- the control cubin
+against the prefetch cubin as `run.py` builds them, so the registers the
+mechanism costs are measured rather than assumed unchanged.
 """
 import json, pathlib, re, subprocess, sys
 
@@ -22,7 +28,7 @@ FORK6 = REPO / 'docs/experiments/COSTMODEL/raw_kloop'
 PHASE2 = REPO / 'docs/experiments/PHASE2/raw'
 OUT = REPO / 'docs/experiments/PIPELINE/raw'
 WORK = pathlib.Path('/tmp/pipeline_occ')
-CELLS = ['gqa2_s4', 'gqa2_s128', 'mha4_s4', 'mha4_s128']
+CELLS = ['gqa2_s4', 'gqa2_s128', 'mha4_s4', 'mha4_s128', 'real_s4', 'real_s128']
 ARCH = 'sm_89'
 THREADS = 128
 NVCC = '/usr/local/cuda/bin/nvcc'
@@ -58,21 +64,33 @@ def build_probe():
 
 
 def spec(cell):
-    return json.loads((FORK6 / cell / 'specs.json').read_text())['selected']
+    """`run.py`'s own arm specs, so the cubin here is the shipped compile: the
+    source is the one re-projected at HEAD (`raw/regeneration.tsv`), which is
+    the only one carrying the frontier field the mechanism reads."""
+    return json.loads((OUT / cell / 'specs.json').read_text())
 
 
 def shipped(cell):
     """What the harness printed for this cell on the runs that actually ran."""
-    log = (PHASE2 / cell / 'correctness/selected/r0.log').read_text()
-    line = next(l for l in log.splitlines() if l.startswith('E2E_RESOURCE'))
+    log = PHASE2 / cell / 'correctness/selected/r0.log'
+    if not log.exists():
+        log = OUT / cell / 'baseline/control/r0.log'
+        if not log.exists():
+            sys.path.insert(0, str(REPO / 'docs/experiments/JOINT'))
+            import measure
+            model, seq = cell.rsplit('_s', 1)
+            measure.run(OUT / cell, model, int(seq), 'control',
+                        OUT / cell / 'baseline/control', 0, 0, 'occupancy')
+    line = next(l for l in log.read_text().splitlines()
+                if l.startswith('E2E_RESOURCE'))
     return dict(kv.split('=', 1) for kv in line.split()[1:])
 
 
-def cubin(cell):
-    s = spec(cell)
-    out = WORK / f'{cell}.cubin'
+def cubin(cell, arm='control'):
+    s = spec(cell)[arm]
+    out = WORK / f'{cell}.{arm}.cubin'
     cmd = [NVCC, '-std=c++17', '-O2', f'-arch={ARCH}', '-cubin',
-           *['-DTILEMEGA_' + x for x in PROTOCOL],
+           *['-DTILEMEGA_' + x for x in PROTOCOL + s.get('extra', [])],
            f"-DTILEMEGA_EVENT_KAPPA={s['kappa']}",
            f"-DTILEMEGA_RESIDENCY_CAP={s['residency']}",
            f"-DTILEMEGA_PLACEMENT={s['placement_macro']}",
@@ -81,8 +99,18 @@ def cubin(cell):
            str(pathlib.Path(s['source']).resolve()), '-o', str(out)]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
-        raise RuntimeError(f'{cell} cubin failed:\n{r.stderr[-3000:]}')
+        raise RuntimeError(f'{cell} {arm} cubin failed:\n{r.stderr[-3000:]}')
     return out
+
+
+def macro_page(cell):
+    """The `TILEMEGA_PREFETCH_PAGE_BYTES` this cell's arms are built with; the
+    worker allocates two of them, so the appended bytes are twice this."""
+    extra = spec(cell)['prefetch'].get('extra', [])
+    for x in extra:
+        if x.startswith('PREFETCH_PAGE_BYTES='):
+            return int(x.split('=', 1)[1])
+    return 1024
 
 
 def probe(cub, kernel, pages, base):
@@ -114,14 +142,17 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     WORK.mkdir(parents=True, exist_ok=True)
     build_probe()
-    rows, notes = [], []
+    rows, notes, arms = [], [], []
     for cell in CELLS:
-        s, sh = spec(cell), shipped(cell)
+        s, sh = spec(cell)['control'], shipped(cell)
+        page = macro_page(cell)
         cub = cubin(cell)
         base = int(sh['task_smem'])
         regs, l2 = probe(cub, 'l2', PAGES, base)
         _, l1 = probe(cub, 'l1', [0], base)
-        # Largest page that keeps the residency this cell was actually run at.
+        # `page` here is the dynamic bytes appended after the union, which is
+        # twice the macro: the worker pages the copy so slot+1 can land while
+        # slot still reads its own page.
         cap = int(s['residency'])
         afford = max(p for p in PAGES if l2[p] >= cap)
         free = max(p for p in PAGES if l2[p] >= l2[0])
@@ -129,14 +160,27 @@ def main():
             cf, rl, sl = closed_form(regs, base + p)
             cfr, _, slr = closed_form(regs, base + p, reserve=1024)
             rows.append(dict(cell=cell, config=pathlib.Path(s['source']).parent.name,
-                             residency=cap, page=p, smem=base + p, regs=regs,
+                             residency=cap, appended=p, macro_page=p // 2,
+                             smem=base + p, regs=regs,
                              driver_ctas=l2[p], f40_ctas=cf, f40_reserved_ctas=cfr,
                              reg_lim=rl, smem_lim=sl, smem_lim_reserved=slr))
+        # B1-b before/after: the two cubins `run.py` ships, each probed at the
+        # shared memory its own harness would request.
+        for arm in ('control', 'prefetch', 'inline'):
+            appended = 0 if arm == 'control' else 2 * page
+            aregs, actas = probe(cubin(cell, arm), 'l2', [appended], base)
+            cf, rl, sl = closed_form(aregs, base + appended, reserve=1024)
+            arms.append(dict(cell=cell, arm=arm, macro_page=0 if arm == 'control' else page,
+                             smem_bytes=base + appended, appended=appended, regs=aregs,
+                             driver_ctas=actas[appended], f40_reserved_ctas=cf,
+                             reg_lim=rl, smem_lim_reserved=sl, residency=cap,
+                             keeps_residency=int(actas[appended] >= cap)))
         notes.append(dict(cell=cell, regs_shipped=int(sh['reg']), regs_here=regs,
                           l2_ctas_shipped=int(sh['l2_ctas']), l2_ctas_here=l2[0],
                           l1_ctas_shipped=int(sh['l1_ctas']), l1_ctas_here=l1[0],
                           residency_used=cap, ctas_per_sm_shipped=int(sh['ctas_per_sm']),
-                          free_page_bytes=free, affordable_page_bytes=afford))
+                          free_appended_bytes=free, affordable_appended_bytes=afford,
+                          macro_page_used=page, appended_used=2 * page))
     def write(name, recs):
         with (OUT / name).open('w') as f:
             f.write('\t'.join(recs[0]) + '\n')
@@ -144,11 +188,15 @@ def main():
                 f.write('\t'.join(str(v) for v in r.values()) + '\n')
     write('occupancy.tsv', rows)
     write('occupancy_cells.tsv', notes)
+    write('occupancy_arms.tsv', arms)
     for n in notes:
         print(n)
     bad = [n for n in notes if n['l2_ctas_here'] != n['l2_ctas_shipped']]
     print(('MISMATCH vs harness: ' + str(bad)) if bad
           else 'page-0 driver occupancy matches the harness on all cells')
+    lost = [a for a in arms if not a['keeps_residency']]
+    print(('RESIDENCY LOST: ' + str(lost)) if lost
+          else 'every arm keeps the residency its cell was selected at')
 
 
 if __name__ == '__main__':

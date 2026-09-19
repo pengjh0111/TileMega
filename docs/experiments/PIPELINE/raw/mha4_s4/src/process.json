@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/tmp/r7-project",
+    "/root/TileMega",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/export/mha4.json",
+    "mha4",
+    "4",
+    "32",
+    "16",
+    "64",
+    "2",
+    "1",
+    "1",
+    "1",
+    "/root/TileMega/docs/experiments/PIPELINE/raw/mha4_s4/src",
+    "3"
+  ],
+  "exit_code": 0,
+  "started_ns": 1789802312549057496,
+  "elapsed_ns": 8144865287,
+  "fork6_source": "/root/TileMega/docs/experiments/JOINT/raw/mha4_s4/plans/32x16x64s2k1_k1_r1/eft.cu",
+  "placement": "eft",
+  "head": "7d69529f94d98b43ece28c2c11c2804173de9787"
+}

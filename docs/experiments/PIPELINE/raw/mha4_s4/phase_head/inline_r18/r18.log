@@ -1,0 +1,23 @@
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=40 same_worker_edges=572 cross_worker_edges=17060 base_rotation=0 plan=eft
+E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median reset=outside_timing
+E2E_TRACE_V2 slots=1520 events=1056 traced_launch=l2_forward_last_timed_sample out=/root/TileMega/docs/experiments/PIPELINE/raw/mha4_s4/phase_head/inline_r18/dump
+E2E_RESOURCE block=128 reg=96 smem=18432 task_smem=16384 occupancy_smem=18432 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=12288 variant_count=1 ctas_per_sm=1 num_sms=128 grid=128 l1_reg=90 l05_reg=72 l1_ctas=5 l2_ctas=5 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=128 variant_stages=60 task_refs=1520 task_ref_bytes=42560 waits=9316 wait_bytes=74528 raw_polls=9316 lifted_polls=0 waiting_tasks=1452 normalization_dummies_lb=7864 max_span=10 generated_max_span=10 max_worker_span=127 resident_limit=128 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=40
+E2E_PREFETCH slots=1520 declared=32 issued=32 queue_heads=4 page_bytes=1024 inline=1
+E2E_TIME l05_ms=0.293888 l1_ms=0.269312 ratio=0.916376 l2_ms=0.238592 l2_over_l1=0.885932
+E2E_DIFF l05_vs_l0_mismatch=0 max_abs=0.03125 max_rel=4882.8125 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=73 mismatch=0 max_abs=0.03125 max_rel=4882.8125
+E2E_OUTPUT_DIFF index=1 buffer=23 mismatch=0 max_abs=0.00048828125 max_rel=0.028571429
+E2E_OUTPUT_DIFF index=2 buffer=24 mismatch=0 max_abs=0.0009765625 max_rel=0.0040650405
+E2E_OUTPUT_DIFF index=3 buffer=47 mismatch=0 max_abs=0.0078125 max_rel=244.14062
+E2E_OUTPUT_DIFF index=4 buffer=48 mismatch=0 max_abs=0.0078125 max_rel=1.6325758
+E2E_OUTPUT_DIFF index=5 buffer=71 mismatch=0 max_abs=0.0078125 max_rel=0.67839193
+E2E_OUTPUT_DIFF index=6 buffer=72 mismatch=0 max_abs=0.0078125 max_rel=3.7701149
+E2E_OUTPUT_DIFF index=7 buffer=95 mismatch=0 max_abs=0.01171875 max_rel=2.5
+E2E_OUTPUT_DIFF index=8 buffer=96 mismatch=0 max_abs=0.01171875 max_rel=6.2666669
+E2E_HASH l05=9f91d43bd2f0b35f l1=9f91d43bd2f0b35f l2=9f91d43bd2f0b35f
+E2E_ITER l2_iter1_ms=0.242752 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=2048
+RESULT status=PASS

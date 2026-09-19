@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/tmp/r7-project",
+    "/root/TileMega",
+    "/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s4/model.json",
+    "real",
+    "128",
+    "64",
+    "128",
+    "16",
+    "2",
+    "1",
+    "1",
+    "2",
+    "/root/TileMega/docs/experiments/PIPELINE/raw/real_s128/src",
+    "3"
+  ],
+  "exit_code": 0,
+  "started_ns": 1789802349141450286,
+  "elapsed_ns": 94376703353,
+  "fork6_source": "/root/TileMega/docs/experiments/JOINT/raw/real_s128/plans/64x128x16s2k1_k1_r2/wavefront.cu",
+  "placement": "wavefront",
+  "head": "7d69529f94d98b43ece28c2c11c2804173de9787"
+}
