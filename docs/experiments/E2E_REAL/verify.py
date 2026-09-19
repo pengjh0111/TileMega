@@ -82,8 +82,42 @@ if stamp.is_file():
 else:
     gate('H2 default-build SASS identity',True,False,'no stamp',stamp)
 
-# --- B0 / B1 / B2 / B3 / C1-b: not implemented this round -------------------
-for name in ('B0 FORK7 whole-pipeline exposed wait','B1 paging and cross-task pipelining',
+# --- B0: recompute FORK7's aggregation from the per-process rows ------------
+# The threshold and the statistic were fixed before measurement: median over
+# each cell's fresh processes, then median over the four cells. This recomputes
+# both from analysis.tsv rather than reading fork7.txt, and it reports how many
+# individual rounds clear the threshold, because the margin is 0.001.
+PHASE2=REPO/'docs/experiments/PHASE2/raw'
+rowsfile=PHASE2/'analysis.tsv'
+if rowsfile.is_file():
+    import csv,statistics
+    per={}
+    with rowsfile.open() as f:
+        for r in csv.DictReader(f,delimiter='\t'):
+            if r['arm']!='selected': continue
+            per.setdefault(f"{r['model']}_s{r['seq']}",{})[int(r['round'])]=\
+                float(r['cp_exposed_wait_share'])
+    cellmed=[statistics.median(v.values()) for v in per.values()]
+    whole=statistics.median(cellmed)
+    rounds=sorted(set.intersection(*(set(v) for v in per.values())))
+    byround=[statistics.median(per[c][i] for c in per) for i in rounds]
+    clears=sum(1 for v in byround if v>=0.15)
+    n=0;okc=0
+    for cell in sorted(per):
+        folder=PHASE2/cell/'correctness/selected'
+        if folder.is_dir():
+            c,o,_,_=processes(folder);n+=c;okc+=o
+    gate('B0 FORK7 whole-pipeline exposed wait',True,
+         len(per)==4 and whole>=0.15 and n>=200 and okc==n,
+         f'cells={len(per)} median={whole:.4f} threshold=0.15 '
+         f'margin={whole-0.15:+.4f} rounds_clearing={clears}/{len(byround)} '
+         f'correctness={okc}/{n}',rowsfile)
+else:
+    gate('B0 FORK7 whole-pipeline exposed wait',True,False,'no PHASE2 analysis',
+         rowsfile)
+
+# --- B1 / B2 / B3 / C1-b: not implemented this round ------------------------
+for name in ('B1 paging and cross-task pipelining',
              'B2 per-stage kappa','B3 intra-interval geometry',
              'C1-b preparation-phase optimization'):
     gate(name,True,False,'not implemented this round; see the stoppage ledger',

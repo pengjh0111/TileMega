@@ -13,7 +13,7 @@ HERE=Path(__file__).resolve().parent;REPO=HERE.parents[2]
 BASE='4e0e7b119b30500456a59db719614d0abf7fa699'
 SCOPE=['include','lib','tools','test','CMakeLists.txt','TileMega_skeleton.md',
        'docs/STATUS.md','docs/TODO.md','docs/FINDINGS.md',
-       *[f'docs/experiments/{n}' for n in ('MODELS2','E2E_REAL')]]
+       *[f'docs/experiments/{n}' for n in ('MODELS2','PHASE2','E2E_REAL')]]
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def main():
  ap=argparse.ArgumentParser(description=__doc__)
