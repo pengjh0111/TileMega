@@ -1,0 +1,27 @@
+DISK NEED_MIB=8192 FREE_MIB=1431184
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/auto.cu.resources/1789836484553355082/0" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1431268
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/auto.cu.resources/1789836484553355082/1" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1431226
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/auto.cu.resources/1789836484553355082/2" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1431182
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/auto.cu.resources/1789836484553355082/3" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1431245
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/auto.cu.resources/1789836484553355082/4" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1431206
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/auto.cu.resources/1789836484553355082/5" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1431073
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/auto.cu.resources/1789836484553355082/6" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1431184
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/auto.cu.resources/1789836484553355082/7" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1431175
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/auto.cu.resources/1789836484553355082/8" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1431204
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/auto.cu.resources/1789836484553355082/9" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1431202
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/auto.cu.resources/1789836484553355082/10" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1431161
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/auto.cu.resources/1789836484553355082/11" resident=5
+SOLVE_SUMMARY evaluated=12 deferred=27 residency_scope=compiled hop_calibrated=1
+SOLVE_STAGE_KAPPA stages=88 moves=0 uniform_ns=352991 per_stage_ns=352991 table=uniform
+CODEGEN_SUMMARY tasks=96 couplings=114 stages=60 symbolic_windows=114 fallback_windows=0 output=/root/TileMega/docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/auto.cu
