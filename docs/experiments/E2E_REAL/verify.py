@@ -208,11 +208,55 @@ if e2e.is_file():
 else:
     gate('B1-e end to end, six cells, no threshold',False,False,'no e2e table',e2e)
 
-# --- B2 / B3 / C1-b: not implemented this round -----------------------------
-for name in ('B2 per-stage kappa','B3 intra-interval geometry',
-             'C1-b preparation-phase optimization'):
-    gate(name,True,False,'not implemented this round; see the stoppage ledger',
-         HERE/'summary.md')
+# --- B2: per-producer-stage kappa, two arms per model -----------------------
+# The hard gate is the pass rate of both arms; the difference between the
+# per-stage optimum and the global one is reported from the solver's own line.
+kappa=HERE/'stage_kappa'
+if (kappa/'results.tsv').is_file():
+    got=tsv(kappa/'results.tsv');runs=[];detail=[]
+    for r in got:
+        cell=kappa/f"{r['model']}_s{r['seq']}"/r['arm']
+        n,ok,binaries,bad=processes(cell/'correctness')
+        text=(cell/'solve.log').read_text()
+        line=re.search(r'^SOLVE_STAGE_KAPPA (.*)$',text,re.M)
+        fields=dict(re.findall(r'(\w+)=(\S+)',line[1])) if line else {}
+        table=fields.get('table','')
+        # A forced arm must have run a mixed table, or the runtime path was
+        # never exercised; a searched arm reports how far the descent moved.
+        mixed=len(set(table.split(',')))>1
+        runs.append((n>=50 and ok==n and bad==0 and (r['arm']!='forced' or mixed),
+                     f"{r['model']}_s{r['seq']}/{r['arm']} {ok}/{n} failing_outputs={bad} "
+                     f"binaries={len(binaries)} stages={fields.get('stages','?')} "
+                     f"table={'mixed' if mixed else 'uniform'}"))
+        if r['arm']=='searched':
+            detail.append(f"{r['model']}: moves={fields.get('moves','?')} "
+                          f"uniform_ns={fields.get('uniform_ns','?')} "
+                          f"per_stage_ns={fields.get('per_stage_ns','?')}")
+    gate('B2 per-stage kappa 50/50, both arms',True,
+         len(got)==4 and all(ok for ok,_ in runs),'; '.join(d for _,d in runs),kappa)
+    gate('B2 per-stage versus global kappa',False,len(detail)==2,
+         'the descent never moved off uniform: '+'; '.join(detail),kappa/'results.tsv')
+else:
+    gate('B2 per-stage kappa 50/50, both arms',True,False,'no results',kappa)
+    gate('B2 per-stage versus global kappa',False,False,'no results',kappa)
+
+# --- B3: segmented geometry inside an interval -------------------------------
+gate('B3 intra-interval geometry',True,False,'campaign not finished; see the stoppage ledger',
+     HERE/'summary.md')
+
+# --- C1-b: scored on the searchable space only (§6) --------------------------
+# Degraded form under §9.3: the bound stage and the plan hoist are measured,
+# but capacity stays 12, so the gate as written is not met and says so.
+profile=HERE/'prepare/prepare_bounds.tsv'
+if profile.is_file():
+    got=tsv(profile);same=[r for r in got if r['identical']=='1']
+    speed=[float(r['speedup']) for r in got]
+    gate('C1-b preparation-phase optimization',True,False,
+         f'DEGRADED (§9.3): capacity stays 12; bound stage identical={len(same)}/{len(got)} '
+         f'speedup {min(speed):.2f}x-{max(speed):.2f}x; whole-search hoist 2.51x (F-230)',
+         HERE/'prepare')
+else:
+    gate('C1-b preparation-phase optimization',True,False,'no preparation evidence',HERE/'prepare')
 
 width=max(len(r['name']) for r in rows)
 failed=0

@@ -869,3 +869,18 @@ B3（区间内几何分段）的前置约束不再成立。
 F-229；F-221 的两处更正（"未完成求解"实为 exit 0、12982.1 s、
 `evaluated=12 deferred=69`；把代价归因于 `CouplingDerivation::Derive` 的推断与
 采样不符）以追加方式记录在 FINDINGS 内。）
+
+（⚠️ v2.1 第七轮四续做：上面"真正的杠杆是把 `ReadExportBridge` + `BuildModelPlan`
+提到 `SolveExport` 的循环之外"已经做了：Llama 整模型完整搜索 12982.1 s → 5167.2 s
+（2.51 倍，搜索证据逐字节相同），同机并发导入速率 2.00 倍；capacity 仍为 12，按
+§9.3 以降级形态记录，不声称 C1-b 门已过。F-230。
+
+**B2（按 stage κ）已完成**：机制进主干，两模型两臂 200/200，坐标下降在两个参考
+模型上一步未动（`uniform_ns=per_stage_ns`），原因推断为胜出家族 `wavefront` 的
+stage 主序。仍待做：一个胜出家族为逐 task 放置（`eft`/`chain`）的模型是首个可能
+出现非平凡表的地方；本轮证据里没有这样的格。F-231。
+
+**B3（区间内几何分段）进行中**：`IntervalSegments.h` 从搜索排名取候选几何，把
+发射（residency、κ、grid）钉在 winner 上，每段带自己的子区间而宏声明整个区间；
+`segment_proof`（S5 ISL 通路，每点一个证书）与 `segment_check`（端点与内点重
+求解位同）在本轮自己的产物上已各自通过烟测（gqa2 [1,8]，8/8 点物化一致）。）

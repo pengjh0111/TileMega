@@ -6523,3 +6523,82 @@ regress them, by 38% at `gqa2_s4`.
 
 Evidence: `E2E_REAL/prepare/`, `E2E_REAL/prepare_bounds.cpp`;
 `test/unit/relation_bounds_test.cpp`; commits `6500dab7e`, `1a72531b6`.
+
+## F-230 — Building the model plan once halves the outer search's import cost, and capacity still stays 12
+
+✅ **Verified: the plan does not depend on the import options.** `BuildModelPlan`
+is the pattern match over the exported graph that F-229's profile put 32 of 41
+samples in, and it reads neither the tile geometry nor the split. `SolveExport`
+(`include/tilemega/Solver/CompilerSearch.h`) now builds it once and hands the
+same plan to every import in the outer enumeration, the shortlist and the
+per-stage refinement (commit `9083dd187`). Default build unchanged (H2).
+
+✅ **Verified: 2.51x on the whole search, byte-identical evidence.** Two complete
+searches of the Llama export at seq 4, past 3, capacity 12, same target and
+domain: control `02e1a2c81` (plan rebuilt per import) 12982.1 s, hoisted
+`f6b00ac11` 5167.2 s. The two `auto.cu.search.tsv` are byte-identical (361
+rows, md5 `d42b6bb8c2df1fc55d25950f535093b9`), so the hoist moved the cost and
+nothing else. The runs were not concurrent, so the ratio carries the machine's
+load as well as the change.
+
+✅ **Verified: 2.00x on the contention-controlled import rate.**
+`E2E_REAL/prepare/import_rate.tsv` counts `IMPORT_DEGRADED` lines every 30 s in
+the hoisted run and in a still-running pre-hoist process while both shared the
+machine: over 4631 s, 36 imports (128.6 s each) against 18 (257.3 s each). The
+control is at capacity 1 and the hoisted run at capacity 12; the two are
+comparable because the outer enumeration imports one coarse module per
+(geometry, split) pair regardless of capacity, and both were inside that
+enumeration for the whole window. An earlier draft of this number, 3.44x, came
+from a short early window and is superseded.
+
+⚠️ **Verified negative, degraded form under §9.3: capacity stays 12.** §6 C1-b is
+scored on the searchable space alone. One import of the real model still costs
+minutes, and a capacity of 13 would add one more full solve of it to every
+compile, so the round records the two speedups and leaves the capacity where it
+was. `verify.py`'s C1-b row is `FAIL [hard]` marked `DEGRADED`; it is not
+claimed as passed.
+
+Evidence: `E2E_REAL/prepare/README.md`, `import_rate.tsv`, `imports.sh`;
+commit `9083dd187`.
+
+## F-231 — Per-stage kappa is wired end to end and moves nothing on the two reference models, because their winning family is stage-major
+
+✅ **Verified: the mechanism.** `κ` is a per-producer-stage runtime field:
+`PlacementSolveOptions::stage_kappa` projects each stage's events at its own
+coarsening, the solved plan carries `tilemega.solved_stage_kappa`, codegen emits
+`TILEMEGA_EVENT_KAPPA_TABLE` behind `TILEMEGA_EVENT_KAPPA_PER_STAGE`, and the
+runtime reads a wait's coarsening from the table. The table is indexed by
+*projected* stage, which split-K makes longer than the model's stage list
+(gqa2 s4 split16: 30 codegen stages, 44 projected), so `PreparePlacementProblem`
+refuses a table of the wrong length and the solver reports the length
+(`SOLVE_STAGE_KAPPA stages=`). A pinned table is re-solved on the winner rather
+than relabelled: a coarser event groups later producer tasks into the wait and a
+slot order solved for uniform `κ` could put a consumer ahead of one of them on
+its own worker. With the flag off nothing is written; default SASS identical
+(H2). Commits `0f3273484`, `b2c6b404e`, `da8560ba6`, `3eae93344`, `2bc51b6e6`,
+`6df89362f`, `be9f11dec`, `c51c838d3`, `c2a5a89c5`, `f6b00ac11`; ctest 52/52.
+
+✅ **Verified: 200/200 fresh processes.** Two arms per model at seq 4, past 3,
+capacity 12: the descent (`searched`) and a `1,2,4,...` table pinned over every
+projected stage (`forced`, 44 stages on gqa2 and 88 on mha4). gqa2 50/50 and
+50/50, mha4 50/50 and 50/50, the two arms of a model being different binaries.
+
+✅ **Verified: no difference between per-stage and global `κ`.** The coordinate
+descent (88 trials on gqa2, 176 on mha4, each a full placement solve) priced
+every trial exactly at the incumbent: `moves=0`, `uniform_ns=per_stage_ns`
+(169097 and 352991). §5.3 asked for exactly this to be recorded when it happens.
+
+⚠️ **Inferred: the invariance belongs to the family, not to the pricing.** In
+the same search the task-by-task families do move with global `κ` (`eft`
+166272→174419 on gqa2, 348652→352810 on mha4; `chain` and
+`legacy_grid_stride` likewise) while the stage-major ones do not (`wavefront`,
+the winner on both models, and `rotate`). In a stage-major slot order every
+producer of a consumer sits at a lower slot on every worker, so the wait is
+resolved before the consumer's slot at any grouping. The winner is chosen on
+`(floor, predicted)` and `wavefront` has the lower floor; `eft`'s smaller
+predicted makespan at `κ=1` is not what the R6 ordering selects, and that
+ordering is not changed here. A model whose winner is task-by-task is the first
+place a non-trivial table would show.
+
+Evidence: `E2E_REAL/stage_kappa/` (`README.md`, `results.tsv`, per-arm
+`solve.log`, `auto.cu.search.tsv`, `correctness/`), `E2E_REAL/stage_kappa.py`.
