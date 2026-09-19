@@ -54,18 +54,28 @@ std::vector<TaskMemoryTraffic> DeriveTaskMemoryTrafficBatch(DerivedTaskInput con
 
 std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput const& input,
     BackendTraits const& traits,Residency residency,ModelDescription const& model,int chunks,
-    std::vector<analysis::ParamBinding> const& coordinates,double active_ctas_per_sm) {
+    std::vector<analysis::ParamBinding> const& coordinates,double active_ctas_per_sm,
+    std::vector<double>* prefetch_ns) {
   auto theta=model.MetricBindings();bool collective=traits.stages>0;
   int bytes=model.dtype==ScalarType::kBF16 ? 2 : 4;
   auto traffic=DeriveTaskMemoryTrafficBatch(input,theta,coordinates,bytes,bytes,
       collective ? analysis::AccessDomain::kNominalTile : analysis::AccessDomain::kPhysicalTensor);
   std::vector<long> reduction(coordinates.size(),0);
   if (collective) reduction=input.work.nominal_task_reduce_extent.EvalPoints(theta,coordinates);
+  // No GEMM TaskBody implements §5.3.1's Prefetch phase, and a mixed-width
+  // read is counted in bytes rather than elements, so neither can have the
+  // frontier's element count converted back into a share of its traffic.
+  bool prefetchable=prefetch_ns && !collective && !input.physical_read_bytes;
+  std::vector<long> frontier(coordinates.size(),0);
+  if (prefetchable)
+    frontier=input.work.frontier_read_elements.EvalPoints(theta,coordinates);
   // Within one immutable task signature these are every coordinate-dependent
   // quantity consumed by TaskCostImpl. Equal work classes have exactly equal
   // prices; no averaging, sampling, stage-kind rule or fitted shortcut occurs.
   std::map<std::tuple<double,double,long>,double> classes;
+  std::map<std::tuple<double,double,long>,double> prefetch_classes;
   std::vector<double> result;result.reserve(coordinates.size());
+  if (prefetch_ns) prefetch_ns->assign(coordinates.size(),0.0);
   for (std::size_t i=0;i<coordinates.size();++i) {
     auto key=std::make_tuple(traffic[i].global_read_bytes,traffic[i].global_write_bytes,reduction[i]);
     auto found=classes.find(key);
@@ -73,6 +83,20 @@ std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput co
         input,traits,residency,model,chunks,coordinates[i],active_ctas_per_sm,nullptr,
         collective ? nullptr : &traffic[i])).first;
     result.push_back(found->second);
+    if (!prefetchable || frontier[i]<=0) continue;
+    // The prefetchable share is what the calibrated model itself charges for
+    // those bytes -- the same task priced without them, subtracted -- so no
+    // coefficient is introduced for the mechanism. It is zero when the task's
+    // bottleneck is some other lane, which is the honest answer: overlapping a
+    // fetch nothing is waiting on buys nothing.
+    auto shed=traffic[i];
+    shed.global_read_bytes=std::max(0.0,shed.global_read_bytes-double(frontier[i])*bytes);
+    auto shed_key=std::make_tuple(shed.global_read_bytes,shed.global_write_bytes,reduction[i]);
+    auto cheaper=prefetch_classes.find(shed_key);
+    if (cheaper==prefetch_classes.end()) cheaper=prefetch_classes.emplace(shed_key,
+        cost.TaskInstanceNs(input,traits,residency,model,chunks,coordinates[i],
+                            active_ctas_per_sm,nullptr,&shed)).first;
+    (*prefetch_ns)[i]=std::max(0.0,found->second-cheaper->second);
   }
   return result;
 }

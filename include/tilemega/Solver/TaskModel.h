@@ -43,7 +43,8 @@ std::vector<TaskMemoryTraffic> DeriveTaskMemoryTrafficBatch(DerivedTaskInput con
     analysis::AccessDomain domain = analysis::AccessDomain::kPhysicalTensor);
 std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput const& input,
     BackendTraits const& traits,Residency residency,ModelDescription const& model,int chunks,
-    std::vector<analysis::ParamBinding> const& coordinates,double active_ctas_per_sm=1.0);
+    std::vector<analysis::ParamBinding> const& coordinates,double active_ctas_per_sm=1.0,
+    std::vector<double>* prefetch_ns=nullptr);
 BackendTraits ModelTaskTraits(ModelDescription const& model, int stage,
                               GemmConfig const& config);
 analysis::TaskAccesses DeriveModelTaskAccesses(ModelTaskSemantics const& semantic,
