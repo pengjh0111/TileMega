@@ -446,6 +446,8 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
       }
     }
   }
+  model.written.assign(plan.buffers.size(), 0);
+  for (auto const& entry : last_writer) model.written[entry.first] = 1;
   return model;
 }
 

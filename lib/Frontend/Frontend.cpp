@@ -209,9 +209,11 @@ llvm::StringRef taskKindName(PlanTaskKind kind) {
 }
 
 mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
-                                   ModelPlan const& plan) {
+                                   ModelPlan const& plan,
+                                   std::vector<std::uint8_t> const& written) {
   llvm::SmallVector<mlir::Attribute> buffers, gemms, stages, outputs;
   for (auto const& buffer : plan.buffers) {
+    std::size_t index = buffers.size();
     llvm::StringRef source = "zero";
     if (buffer.source == PlanBuffer::Source::kFixture) source = "fixture";
     if (buffer.source == PlanBuffer::Source::kWeight) source = "weight";
@@ -222,7 +224,9 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         builder.getNamedAttr("per_past", builder.getI64IntegerAttr(buffer.per_past)),
         builder.getNamedAttr("per_total", builder.getI64IntegerAttr(buffer.per_total)),
         builder.getNamedAttr("source", builder.getStringAttr(source)),
-        builder.getNamedAttr("file", builder.getStringAttr(buffer.file))}));
+        builder.getNamedAttr("file", builder.getStringAttr(buffer.file)),
+        builder.getNamedAttr("no_producer", builder.getBoolAttr(
+            index >= written.size() || !written[index]))}));
   }
   for (auto const& gemm : plan.gemms)
     gemms.push_back(dict(builder, {
@@ -495,8 +499,6 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   module->setAttr("tilemega.guard_count", builder.getI64IntegerAttr(guards.size()));
   if (plan.stages.empty())
     llvm::errs() << "IMPORT_DEGRADED no decoder layer; one task space per operator\n";
-  else
-    module->setAttr("tilemega.model_plan", modelPlanAttr(builder, plan));
   builder.setInsertionPointToStart(module.getBody());
 
   LiftOptions liftOptions;
@@ -511,6 +513,11 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   LiftedModel lifted = plan.stages.empty()
                            ? LiftGenericSemantics(tasks, stages, liftOptions)
                            : LiftSemantics(plan, liftOptions);
+  // The plan attribute is written after lifting because the read-only
+  // frontier it carries is the lifting replay's own write relation.
+  if (!plan.stages.empty())
+    module->setAttr("tilemega.model_plan",
+                    modelPlanAttr(builder, plan, lifted.written));
   if (options.rope_tile_per_block)
     for (auto& op : lifted.ops)
       if (op.role == OpRole::kRoPE)

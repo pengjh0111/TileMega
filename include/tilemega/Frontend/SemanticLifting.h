@@ -11,6 +11,7 @@
 // PlanGemm field, or the buffer def-use chain.
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -65,6 +66,11 @@ struct LiftedModel {
   /// Operators lifted with GenericSemantics because no rule covered them.
   std::vector<std::string> degraded;
   bool has_plan = false;
+  /// Indexed by plan buffer: 1 where some lifted stage writes the buffer.
+  /// The complement is the read-only frontier -- operands with no in-edge,
+  /// which a task may fetch before its dependencies resolve. Derived from the
+  /// same `last_writer` replay the producer edges come from, never annotated.
+  std::vector<std::uint8_t> written;
 };
 
 /// Generator-selected implementation granularity for one ModelPlan GEMM.
