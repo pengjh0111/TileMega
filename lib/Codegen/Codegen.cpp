@@ -431,7 +431,15 @@ std::string emitModelPlan(mlir::ModuleOp module,
         << integerField(item, "per_past") << "u, "
         << integerField(item, "per_total") << "u, BufferSource::"
         << sourceEnum << ", "
-        << (file.empty() ? "nullptr" : quoteCString(file)) << "},\n";
+        << (file.empty() ? "nullptr" : quoteCString(file));
+    // Guarded so the table keeps its published shape under the default build
+    // and against headers that predate the field; a CG dumped before the
+    // frontier was derived omits the key and emits nothing here.
+    if (item.get("no_producer"))
+      out << "\n#if TILEMEGA_PREFETCH_RUNTIME\n   , "
+          << (optionalBoolField(item, "no_producer") ? "true" : "false")
+          << "\n#endif\n  ";
+    out << "},\n";
   }
   out << "};\n\nconstexpr GemmDesc kGemms[] = {\n";
   for (auto value : gemms) {

@@ -154,6 +154,12 @@ struct BufferDesc {
   std::uint32_t per_total;
   BufferSource source;
   char const* file;  ///< nullptr for scratch
+#if TILEMEGA_PREFETCH_RUNTIME
+  /// No stage writes this buffer, so a task may fetch it before its
+  /// dependencies resolve. Derived by the frontend from the write relation
+  /// the producer edges come from; the generator never annotates it.
+  bool no_producer;
+#endif
 
   std::size_t Elements(ModelDims const& dims) const {
     return constant + static_cast<std::size_t>(per_seq) * dims.seq +
