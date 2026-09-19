@@ -128,6 +128,9 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
 #if !TILEMEGA_SYMBOLIC_RUNTIME_PROJECTION
   throw std::runtime_error("symbolic runtime projection disabled");
 #endif
+  if (!options.stage_kappa.empty())
+    for (int kappa : options.stage_kappa)
+      if (kappa < 0) throw std::invalid_argument("negative per-stage kappa");
   if (options.grid <= 0 || options.threads <= 0 || options.kappa < 0 ||
       plan.gemms.size() != model.gemms.size() || model.stages.empty())
     throw std::invalid_argument("incomplete runtime projection configuration");
@@ -313,7 +316,8 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
     std::string base = "[cs="+std::to_string(edge.consumer)+",c] -> [w,pstage="+
         std::to_string(edge.producer)+",kind,g] : "+valid+" and 0 <= c < ("+
         counts[edge.consumer]+") and w = c % "+std::to_string(options.grid);
-    if (options.kappa == 0 || options.force_all_dependencies || !edge.window.narrowed) {
+    int const edge_kappa = ProducerKappa(options, edge.producer);
+    if (edge_kappa == 0 || options.force_all_dependencies || !edge.window.narrowed) {
       wait_pieces.push_back(base+" and kind=0 and g=0");
       requested_pieces.push_back(wait_pieces.back());
       event_pieces[{edge.producer,0}].push_back(wait_pieces.back());
@@ -324,12 +328,12 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
           std::to_string(window.scale)+"+("+edge.offset+")";
       auto fine = base+" and kind=1 and exists (p : 0 <= p < ("+
           counts[edge.producer]+") and ("+at+") <= p < ("+at+")+"+
-          std::to_string(window.count)+" and g=floord(p,"+std::to_string(options.kappa)+"))";
+          std::to_string(window.count)+" and g=floord(p,"+std::to_string(edge_kappa)+"))";
       event_pieces[{edge.producer,1}].push_back(fine);
-      requested_pieces.push_back(options.kappa==1 ?
+      requested_pieces.push_back(edge_kappa==1 ?
           base+" and kind=2 and exists (p : 0<=p<("+counts[edge.producer]+
           ") and ("+at+")<=p<("+at+")+"+std::to_string(window.count)+" and g=p)" : fine);
-      wait_pieces.push_back(fine+(options.kappa == 1 ?
+      wait_pieces.push_back(fine+(edge_kappa == 1 ?
           " and g % "+std::to_string(options.grid)+" != w" : ""));
     }
   }
@@ -365,7 +369,7 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
         return analysis::QuasiPolynomial::Sum(per_worker);
       };
       wait_counts.push_back(count_workers(map,"waits"));
-      if (key.second == 1 && options.kappa == 1) {
+      if (key.second == 1 && ProducerKappa(options, key.first) == 1) {
         // With singleton events, locality is a property of (worker,event),
         // independent of the consumer. Subtract that subset after the union.
         auto local = map.IntersectRange("{ [w,g] : w = g % "+

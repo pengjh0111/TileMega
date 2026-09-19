@@ -3,6 +3,8 @@
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Codegen/RuntimePlan.h>
 #include <tilemega/Solver/BalancedPlacement.h>
+#include <stdexcept>
+#include <vector>
 
 #ifndef TILEMEGA_PROJECTION_PARTITION_WORKERS
 #define TILEMEGA_PROJECTION_PARTITION_WORKERS 0
@@ -24,7 +26,21 @@ struct RuntimeProjectionOptions {
   // Graph-only clients can defer the expensive symbolic wait cardinality.
   // AttachProjectedEventMetrics rejects a projection with this disabled.
   bool count_wait_entries = true;
+  /// Per-producer-stage coarsening (§6 B2). Empty keeps every stage on
+  /// `kappa`, which is the shape every client had before the dimension
+  /// existed; a non-empty table must name every projected stage.
+  std::vector<int> stage_kappa;
 };
+
+/// The coarsening one producer stage publishes at. Kept a free function so the
+/// uniform case is the same expression it was and no caller has to know
+/// whether the table is populated.
+inline int ProducerKappa(RuntimeProjectionOptions const& options, int stage) {
+  if (options.stage_kappa.empty()) return options.kappa;
+  if (stage < 0 || stage >= int(options.stage_kappa.size()))
+    throw std::invalid_argument("per-stage kappa table does not cover the stage");
+  return options.stage_kappa[stage];
+}
 
 struct ProjectedStage {
   int logical_stage = -1;
