@@ -5989,8 +5989,30 @@ granularity, not the 30x the loop structure alone would suggest. An earlier
 revision of this entry had (b) first with a 30x ceiling; that ordering was wrong
 and is corrected here rather than silently dropped.
 
+⚠️ **Correction, recorded rather than rewritten, per CLAUDE.md
+(2026-09-19).** The first paragraph's "did not finish solving" was read off a
+run still in progress. That run completed: exit 0, `elapsed_ns 12982079965549`
+(3.606 h) in `/root/r7_work/llama/solve.json`, 361 rows in
+`auto.cu.search.tsv`, `SOLVE_SUMMARY evaluated=12 deferred=69`. The search was
+reached and bounded by capacity, not starved before it. Everything the
+paragraph infers from the empty file -- that the outer pass is where the cost
+is -- survives, because the 81 candidates and the three and a half hours say
+the same thing; only "did not finish" is wrong.
+
+⚠️ **Correction: the ordering in the inferred next step is backwards.**
+(a) attributes the cost to `CouplingDerivation::Derive` and expects C1-b to fix
+it. C1-b is now implemented and measured (F-229): the bound stage it removes is
+0.11% of preparing this graph, and of 41 profile samples **none** is in the
+enumeration it removes while 32 are in `BuildModelPlan`'s pattern matcher --
+which (b) names and (a) discounts. The attribution to `Derive` was inferred
+from the stage split, not sampled, and is not what the sampler sees. (b) is the
+lever; C1-b is kept on its own merits (exact, up to 3.91x on the bound stage,
+and it is what makes the bound pass stop building an edge set it never reads).
+
 Evidence: `/root/r7_work/llama/solve.log` (not committed: the export and its
 fixture are 5.6 GB), `E2E_REAL/summary.md` §4 and §11.
+Corrections' evidence: `/root/r7_work/llama/solve.json`;
+`E2E_REAL/prepare/solve_profile.tsv`; F-229.
 
 ## F-222 — R7 B0 completes the exposed-wait denominator; FORK7 clears 0.15 by 0.0005
 
@@ -6427,3 +6449,77 @@ need R6's geometry, it needs the same graph.
 Evidence: `PIPELINE/raw/llama/`, `llama_sigma0/`, `llama_sigma_page/`;
 `PIPELINE/raw/llama/regeneration.tsv`; `PIPELINE/raw/pipeline_sigma.log`;
 `PIPELINE/llama.py`.
+
+## F-229 — C1-b's interval bound is exact and up to 3.9x faster, and moves the real model's search capacity by nothing
+
+✅ **Verified: the bound never needs the edges.** A dense piece of the projected
+dependency relation `[consumer stage,task] -> [producer stage,task]` is a
+complete bipartite block, and the longest-path relaxation such a block induces
+is one maximum over its producers applied to each of its consumers. §6 C1-b is
+that observation: `VisitFiniteRegions` now hands a dense piece to a `region`
+callback as its two inclusive intervals, `PrepareRelationBounds`
+(`include/tilemega/Solver/RelationBounds.h`) walks the same DAG
+`PreparePlanBounds` walks but pays a block's side lengths instead of their
+product, and `PreparePlacementProblem(module, options, &bounds)` skips filling
+`graph.successors` altogether. Pieces with coupled coordinates or modular holes
+still arrive edge by edge, so the two callbacks together see the same relation.
+
+✅ **Verified: it answers the same two numbers.** `test/unit/relation_bounds_test.cpp`
+(52/52 ctest, `relation_bounds` new) asserts agreement on a complete bipartite
+block, wide dense slices, modular holes, overlapping pieces that repeat an edge,
+a three-stage chain with a diagonal, the empty relation and a cyclic
+self-reference, with per-node distinct costs so every longest path in the
+fixture has its own length. On the nine real cells of
+`E2E_REAL/prepare/prepare_bounds.tsv` the two arms agree on `work_ns` and
+`critical_path_ns` to under 1e-9, `identical=1` on every row.
+
+✅ **Verified: 1.03x-3.91x on the bound stage, no cell regressed.** Bound stage
+only; `share` is that stage's part of the whole preparation, which
+quasipolynomial task pricing dominates.
+
+| cell | seq | nodes | edges | dense ms | interval ms | speedup | share |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| gqa2_s4 | 4 | 5256 | 32784 | 21.9 | 21.3 | 1.03x | 0.88% |
+| gqa2_s128 | 128 | 14592 | 1529728 | 449.4 | 227.4 | 1.98x | 15.44% |
+| gqa2_s128 | 512 | 58368 | 21061120 | 2028.2 | 873.9 | 2.32x | 42.23% |
+| mha4_s4 | 4 | 11760 | 74976 | 32.1 | 30.9 | 1.04x | 0.83% |
+| mha4_s128 | 128 | 34816 | 4574080 | 1101.5 | 464.6 | 2.37x | 22.94% |
+| mha4_s128 | 512 | 139264 | 65482240 | 3565.4 | 1201.0 | 2.97x | 35.25% |
+| real_s4 | 4 | 24304 | 418016 | 52.1 | 47.9 | 1.09x | 0.37% |
+| real_s128 | 128 | 60032 | 39726016 | 1110.5 | 284.1 | 3.91x | 6.94% |
+| llama | 4 | 15486 | 217796 | 68.8 | 65.8 | 1.05x | 0.11% |
+
+The two 512 rows are the `_s128` coupling graph re-projected at 512, not solved
+cells of their own; they are here because the edge count is quadratic in seq.
+The gain tracks edges per node, which is what the block representation removes:
+2.2 edges per node at `gqa2_s4` buys 3%, 662 at `real_s128` buys 3.91x.
+
+⚠️ **Verified negative: the search capacity stays 12.** §6 C1-b's acceptance is
+whether the searchable space widens, and on the real model it does not, for a
+reason that is measured rather than argued. One `PreparePlacementProblem` of the
+full Llama graph at seq 4, past 3 costs **63.67 s**, of which the bound stage is
+**68.8 ms — 0.11%**. Removing all of it would shorten an outer pair by about a
+thousandth. The 41-sample profile `E2E_REAL/prepare/solve_profile.tsv` says
+where the rest is: 32 samples in `PatternMatcher::DependsOn` /
+`OperandConstraint` / `FxNodeRecord`, 9 in ISL quasipolynomial pricing, and
+**none** in `isl_set_foreach_point`. §9.3's fallback applies as written --
+capacity stays 12, recorded, and B2/B3 are not held.
+
+Sampling stopped at 41 rows because `tools/tilemega-compile` was relinked while
+gdb was attached to the still-running old image, after which every backtrace
+came back with no top frames. The measured process kept its old image; only the
+sampler's view of it broke. The discarded rows are not in the file.
+
+⚠️ **Stated: `VisitFiniteRelation`'s own decomposition is unchanged.**
+`VisitFiniteSliceRegions` now takes the slice-width threshold as a parameter;
+the point-expanding wrapper keeps R6's 255, so `VisitFiniteRelation` emits the
+same pieces in the same order and the default build stays bit-identical (H2).
+Only the bounds client sees the finer decomposition, at 16: measured on this
+machine an ISL slice query costs about 44 us against about 1.6 us per enumerated
+point, so a slice must be about 28 wide to repay a client that expands it, while
+a client that consumes the box profits at any width. 16 is the lowest threshold
+that does not regress the short cells and the fastest on the long ones — 1 does
+regress them, by 38% at `gqa2_s4`.
+
+Evidence: `E2E_REAL/prepare/`, `E2E_REAL/prepare_bounds.cpp`;
+`test/unit/relation_bounds_test.cpp`; commits `6500dab7e`, `1a72531b6`.

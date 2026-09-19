@@ -837,3 +837,35 @@ B1-e 六格配对、不设阈值：五格变慢 2.3%–6.7%，`real_s4` 快 0.8%
 第 1 步（不占 shared memory 的纯 L2 预取）也未单独做：R7 §5.2 直接要求第 2 步，
 本轮照做；B1-e 的负结果说明固定代价来自存储与 ABI 拆分本身，因此第 1 步是否仍
 有价值，本轮证据回答不了，留作后续。）
+
+（⚠️ v2.1 第七轮续做 C1-b：上面"**C1-b 准备阶段优化：本轮未实施。**"一段已过期，
+在此更正而非删除。C1-b 已实施并测量。
+
+**机制**：投影出的依赖关系 `[consumer stage,task] -> [producer stage,task]` 的
+稠密片段就是完整二部块，它引出的最长路松弛等于"对块内生产者取一次最大值、再施加
+到每个消费者"。`VisitFiniteRegions` 因此把稠密片段作为两个闭区间交给 `region`
+回调，`PrepareRelationBounds` 走同一张 DAG 却按块的边长而非边数付费；
+`PreparePlacementProblem(module, options, &bounds)` 整段跳过 `graph.successors`
+的填充。坐标耦合或带模空洞的片段仍逐边到达，两个回调合起来看到的是同一个关系。
+
+**等价性是实测的**：新增 `test/unit/relation_bounds_test.cpp`（完整二部块、宽稠密
+切片、模空洞、重复边的交叠片段、带对角线的三段链、空关系、自环）ctest 52/52；
+九个真实格两条路径的 `work_ns` 与 `critical_path_ns` 差 < 1e-9，`identical=1`。
+界计算阶段加速 1.03–3.91 倍（随每节点边数增长），**无一格退化**。
+`VisitFiniteRelation` 自身的分解未变（切片宽度门限参数化，点展开路径保持 R6 的
+255），默认构建 SASS 位同因此不受影响。
+
+⚠️ **可搜索空间未扩大，capacity 仍为 12**——这是按 §9.3 回退条款如实记录的负
+结果，诊断按 §0 第 2 条给出：整模型 Llama（seq 4、past 3）单次
+`PreparePlacementProblem` 为 63.67 s，其中界计算阶段 68.8 ms，**占 0.11%**；41 个
+栈采样中 32 个落在 `BuildModelPlan` 的 `PatternMatcher::DependsOn` /
+`OperandConstraint`，9 个落在 ISL 拟多项式定价，**0 个**落在 C1-b 移除的
+`isl_set_foreach_point`。真正的杠杆是把 `ReadExportBridge` + `BuildModelPlan`
+提到 `SolveExport` 的循环之外（F-221 的 (b) 项），与 C1-b 正交。
+
+**顺序约束解除**：C1-b 的准备阶段优化已落地，R7 §H4 对 B2（按 stage κ）与
+B3（区间内几何分段）的前置约束不再成立。
+
+F-229；F-221 的两处更正（"未完成求解"实为 exit 0、12982.1 s、
+`evaluated=12 deferred=69`；把代价归因于 `CouplingDerivation::Derive` 的推断与
+采样不符）以追加方式记录在 FINDINGS 内。）
