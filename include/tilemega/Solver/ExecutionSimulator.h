@@ -137,6 +137,12 @@ struct SimulatorInput {
   /// §4.4.1 demand of each node.  Empty, or an all-zero row, falls back to
   /// proportional sharing for that node.
   std::vector<ResourceVector> task_lanes;
+  /// Part of `task_ns` a node spends on its read-only frontier (§5.3.1's
+  /// Prefetch phase).  Empty means no node pipelines, which is what a build
+  /// without the mechanism reports.  A same-worker adjacency is pipelinable
+  /// only where this is positive; the rest of the queue edges cost the full
+  /// duration, which is the distinction §5.2's edge cost has to make.
+  std::vector<double> prefetch_ns;
   /// Physical worker -> SM.  Empty means `w % sms`.
   std::vector<int> worker_sm;
   /// Actual runtime publication requirement per task. Empty uses the minimal
@@ -189,7 +195,7 @@ namespace tilemega::solver {
 /// placement evaluation. Queue edges are deliberately not semantic edges.
 struct PreparedPlanBounds {
   std::vector<int> stage_offsets;
-  std::vector<double> task_ns;
+  std::vector<double> task_ns,prefetch_ns;
   double work_ns = 0;
   double critical_path_ns = 0;
   PreparedExecutionGraph graph;
@@ -207,6 +213,13 @@ struct RankedPlan {
   bool simulated = false;
   double makespan_ns = 0;
 };
+
+/// Which nodes of `plan` overlap their frontier fetch with the slot before them
+/// on the same worker: exactly the adjacencies the two bounds above discount,
+/// so the flags written back to CG cannot drift from the price the plan was
+/// chosen at.  All zero when `input.prefetch_ns` is empty.
+std::vector<unsigned char> PipelinedSlots(SimulatorInput const& input,
+                                          MaterializedPlan const& plan);
 
 bool PreparePlanBounds(SimulatorInput const& input, PreparedPlanBounds* out,
                        std::string* error);

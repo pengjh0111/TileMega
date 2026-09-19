@@ -269,6 +269,21 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
         ? cross_input[node] != 0 : input.consumer_wait_required[node] != 0;
     return needed ? options.consumer_wait_ns : 0.0;
   };
+  if (!input.prefetch_ns.empty() && input.prefetch_ns.size() != std::size_t(nodes))
+    return fail("prefetch cost must have one entry per task");
+  // §5.3.1's Prefetch runs under the body of the slot before it on the same
+  // worker, so a task hides its frontier only if it has a queue predecessor,
+  // and never more than that predecessor's duration.  The head of a queue, and
+  // a task whose frontier is empty, are the same-worker-but-not-pipelinable
+  // case and keep the full cost: that is the whole of the edge distinction.
+  std::vector<double> pipeline_gain(nodes, 0.0);
+  if (!input.prefetch_ns.empty())
+    for (int n = 0; n < nodes; ++n) {
+      int const next = readiness->queue_next[n];
+      if (next >= 0)
+        pipeline_gain[next] = std::min(input.prefetch_ns[next], input.task_ns[n]);
+    }
+  auto duration = [&](int node) { return input.task_ns[node] - pipeline_gain[node]; };
 
   // With observed durations and a context-independent hop, event times are
   // exactly the weighted DAG recurrence. No resource rate can change in flight.
@@ -296,17 +311,17 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
       double publish=publication_cost(n);
       auto& task=out->tasks[n];task.worker=w;
       task.start_ns=std::max(arrival[n],queue_end[w])+wait_cost(n);
-      task.end_ns=task.start_ns+input.task_ns[n];task.block_ns=task.start_ns-queue_end[w];
+      task.end_ns=task.start_ns+duration(n);task.block_ns=task.start_ns-queue_end[w];
       task.stretch=1;
       out->makespan_ns=std::max(out->makespan_ns,task.end_ns+publish);
-      out->solo_work_ns+=input.task_ns[n];out->total_block_ns+=task.block_ns;
-      worker_busy[w]+=input.task_ns[n];
+      out->solo_work_ns+=duration(n);out->total_block_ns+=task.block_ns;
+      worker_busy[w]+=duration(n);
       auto release=[&](int succ) {if (!readiness->forward_node_order && --unmet[succ]==0) ready_nodes.push_back(succ);};
       queue_end[w]=task.end_ns+publish;
       if (queue_next[n]>=0) release(queue_next[n]);
       auto& group=group_completion[prepared->group_of_node[n]];
       group.arrive(w,task.end_ns,task.end_ns+publish+hop.c0);
-      chain[n]+=input.task_ns[n];critical_path=std::max(critical_path,chain[n]);
+      chain[n]+=duration(n);critical_path=std::max(critical_path,chain[n]);
       group.chain=std::max(group.chain,chain[n]);
       if (--group.remaining==0) prepared->successors[prepared->group_of_node[n]].Visit([&](int succ) {
         arrival[succ]=std::max(arrival[succ],group.ready_at(owner_of[succ]));
@@ -396,7 +411,7 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
     task.worker = w;
     task.start_ns = start;
     task.block_ns = start - free_at[w];
-    remaining[node] = input.task_ns[node];
+    remaining[node] = duration(node);
     updated[node] = start;
     rate[node] = 0.0;
     ++head[w];
@@ -425,8 +440,8 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
     int const sm = worker_sm[w];
     SimulatedTask& task = out->tasks[node];
     task.end_ns = now;
-    task.stretch = input.task_ns[node] > 0.0
-        ? (task.end_ns - task.start_ns) / input.task_ns[node] : 1.0;
+    task.stretch = duration(node) > 0.0
+        ? (task.end_ns - task.start_ns) / duration(node) : 1.0;
     auto& set = in_flight[sm];
     set.erase(std::find(set.begin(), set.end(), node));
     --in_flight_total;
@@ -488,7 +503,7 @@ bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan
     SimulatedTask const& task = out->tasks[node];
     out->makespan_ns = std::max(out->makespan_ns, task.end_ns + publication[node]);
     out->total_work_ns += task.end_ns - task.start_ns;
-    out->solo_work_ns += input.task_ns[node];
+    out->solo_work_ns += duration(node);
     out->total_block_ns += task.block_ns;
     worker_busy[task.worker] += task.end_ns - task.start_ns;
   }
@@ -545,8 +560,27 @@ bool PreparePlanBounds(SimulatorInput const& input, PreparedPlanBounds* out,
     }
   }
   if (visited != std::size_t(nodes)) return fail("bounds task graph is cyclic");
-  *out = {graph.stage_offsets, input.task_ns, work, cp};
+  *out = {graph.stage_offsets, input.task_ns, input.prefetch_ns, work, cp};
   return PrepareExecutionGraph(graph,&out->graph,error);
+}
+
+std::vector<unsigned char> PipelinedSlots(SimulatorInput const& input,
+                                          MaterializedPlan const& plan) {
+  std::vector<unsigned char> out(input.task_ns.size(),0);
+  if (input.prefetch_ns.size()!=input.task_ns.size() || !input.graph) return out;
+  auto const& offsets=input.graph->stage_offsets;
+  for (auto const& worker:plan.queue) {
+    int prior=-1;
+    for (auto const& item:worker) {
+      if (item.stage+1>=offsets.size() || item.logical<0) return {};
+      int const node=offsets[item.stage]+item.logical;
+      if (node>=offsets[item.stage+1]) return {};
+      if (prior>=0 && std::min(input.prefetch_ns[node],input.task_ns[prior])>0)
+        out[node]=1;
+      prior=node;
+    }
+  }
+  return out;
 }
 
 bool EvaluatePlanBounds(PreparedPlanBounds const& input,
@@ -557,8 +591,14 @@ bool EvaluatePlanBounds(PreparedPlanBounds const& input,
     return false;
   };
   if (plan.queue.empty()) return fail("bounds plan has no workers");
+  if (!input.prefetch_ns.empty() && input.prefetch_ns.size() != input.task_ns.size())
+    return fail("bounds prefetch cost must have one entry per task");
   std::vector<unsigned char> seen(input.task_ns.size(), 0);
   std::vector<int> queue_next(input.task_ns.size(),-1),degree(input.task_ns.size(),0);
+  // The §5.3.1 overlap a pipelinable adjacency buys its successor; see
+  // `SimulateExecution`.  Both bounds below have to see it or the plan the
+  // solver ranks first would be one whose overlap it never counted.
+  std::vector<double> gain(input.task_ns.size(),0.0);
   double queue = 0;
   std::size_t count = 0;
   for (auto const& worker : plan.queue) {
@@ -570,9 +610,13 @@ bool EvaluatePlanBounds(PreparedPlanBounds const& input,
       int const node = input.stage_offsets[item.stage] + item.logical;
       if (node >= input.stage_offsets[item.stage + 1] || seen[node]++)
         return fail("bounds task outside stage or duplicated");
-      if (prior>=0) {queue_next[prior]=node;++degree[node];}
+      if (prior>=0) {
+        queue_next[prior]=node;++degree[node];
+        if (!input.prefetch_ns.empty())
+          gain[node]=std::min(input.prefetch_ns[node],input.task_ns[prior]);
+      }
       prior=node;
-      work += input.task_ns[node];
+      work += input.task_ns[node]-gain[node];
       ++count;
     }
     queue = std::max(queue, work);
@@ -588,7 +632,7 @@ bool EvaluatePlanBounds(PreparedPlanBounds const& input,
   double binding=0;
   std::size_t visited=0;
   while (visited<ready.size()) {
-    int n=ready[visited++];end[n]+=input.task_ns[n];binding=std::max(binding,end[n]);
+    int n=ready[visited++];end[n]+=input.task_ns[n]-gain[n];binding=std::max(binding,end[n]);
     auto arrive=[&](int succ,double time) {
       end[succ]=std::max(end[succ],time);
       if (--degree[succ]==0) ready.push_back(succ);

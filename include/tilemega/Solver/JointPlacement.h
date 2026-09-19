@@ -14,6 +14,9 @@ struct PlacementEvaluation {
   dialect::PlacementMode mode=dialect::PlacementMode::kLegacyGridStride;
   std::vector<std::int64_t> params;
   MaterializedPlan plan;
+  /// Per flat node id; see `PipelinedSlots`.  Part of sigma, carried here so
+  /// the writer does not re-derive it from a different input than the bound.
+  std::vector<unsigned char> pipeline;
   PlanBounds bounds;
   double predicted_ns=0;
 };
@@ -74,6 +77,7 @@ inline std::vector<PlacementEvaluation> SolvePlacementCatalog(
       }
     }
     if (!EvaluatePlanBounds(*candidate_bounds,result.plan,&result.bounds,&result.error)) continue;
+    result.pipeline=PipelinedSlots(candidate_input,result.plan);
     SimulatorResult sim;
     if (!SimulateExecution(candidate_input,result.plan,options,hop,&sim,&result.error)) continue;
     result.predicted_ns=sim.makespan_ns;
