@@ -6602,3 +6602,114 @@ place a non-trivial table would show.
 
 Evidence: `E2E_REAL/stage_kappa/` (`README.md`, `results.tsv`, per-arm
 `solve.log`, `auto.cu.search.tsv`, `correctness/`), `E2E_REAL/stage_kappa.py`.
+
+## F-232 — Segmented geometry inside an interval is legal and materializes byte-identically, and the cut lands where the curves cross
+
+✅ **Verified: one solve produces both arms.** `--seq-begin 1 --segments 2
+--segment-candidates 4` on the gqa2 SEQSCAN export prices 4 candidate geometries
+at all 16 integer points of `[1,16]` (`auto.cu.segments.tsv`, 64 rows) and emits
+the segmented build (`auto.cu`, two variants) beside the fixed one
+(`auto.cu.fixed.cu`, one variant) from the same invocation, exit 0 in 772.4 s.
+The 15 `#define TILEMEGA_*` lines are identical between the two sources: the
+difference is the plan table the runtime selects by `seq` (1487 against 920
+generated lines), not the launch geometry. Commit `1d7f2884b`.
+
+✅ **Verified: the cut is at the crossing, not at a midpoint.** `SEGMENT_SUMMARY`
+reports `winner=32x16x64s2split8 winner_ns=2.68866e+06` (what the point search
+picks at theta), `fixed=32x16x64s2split16 fixed_ns=2.67977e+06` (the best single
+geometry over the interval) and `segmented_ns=2.67944e+06 cut=14`. At `seq=13`
+`split16` prices 166892 ns against `split8`'s 166986; at `seq=14` it is 167552
+against 167544, so 14 is the first point where `split8` is the cheaper of the
+two and the segmenting search cuts exactly there.
+
+✅ **Verified: legality at every point, on the S5 ISL path.** `segment_proof`
+runs one fresh process per integer point: 16/16 `proved=1 failed=0`, each
+reporting `bijective=1 dense=1 acyclic=1 resident=1` for its own segment's
+geometry. The certificate is S5's, applied per segment rather than per interval.
+
+✅ **Verified: endpoints and interior materialize identically.** `segment_check`
+re-solves every point's table on the graph of the segment that owns it:
+`segments=2 points=16 endpoints=4 interior=12 interval=1..16 kappa=1
+residency=4 serialization=byte_identical`, with `diff=0` on all 16
+`SEGMENT_MATERIAL` lines (5084 to 5152 plan nodes per point).
+
+✅ **Verified: 500/500 fresh processes on gqa2.** Five seqs inside the interval
+(1, 4, 13 below the cut; 14, 16 above it, both endpoints included) times two
+arms times 50 rounds, one binary per arm across all five seqs (segmented
+`632ba5073543a6c4`, fixed `f254ff53eeef2c8c`).
+
+⚠️ **Inferred: the benefit is below what this cell can resolve, and that is
+what the prediction says too.** 20 paired rounds per seq give
+segmented/fixed 0.9926, 0.9986, 1.0147, 0.9997, 0.9999 at seq 1, 4, 13, 14, 16 --
+straddling 1.0 with a 1.5% spread between seqs -- against a predicted 0.34% gain
+over the point winner and 0.012% over the best single geometry. The candidate
+set is the reason: `split16` and `split32` price *identically* at all 16 points,
+the same exact `(floor, predicted)` tie the D-b counterfactual found along
+`kappa`, so four candidates carry three distinct curves and the two that cross
+do so shallowly. A model whose curves cross steeply inside the interval is where
+a gain would show; §5.4 asks for the number and sets no threshold.
+
+Evidence: `E2E_REAL/segments/` (`README.md`, `correctness.tsv`, `timing.tsv`,
+`gqa2_i1_16/` with `solve.json`, `auto.cu.segments.tsv`, `proof/p*/`,
+`check.log`, `correctness/`, `timing/`), `E2E_REAL/segments.py`,
+`E2E_REAL/segment_proof.cpp`, `E2E_REAL/segment_check.cpp`.
+
+## F-233 — The maximal connected Qwen3 graph runs and the megakernel matches the reference bit for bit; the CPU golden parts company with both at depth
+
+✅ **Verified: the refusal, localized to one operator and one constant.**
+Qwen3-1.7B's full decoder does not compile: `tilemega-compile: local reduction
+requires an exact unit indexing axis: l0.s03.qknorm semantic l0.s03.qknorm
+operand 0 axis 1 dim r index 128*floordiv(c, 128) + 1*r`.
+`lib/Analysis/TaskWork.cpp:279-283` requires a reduction axis to be indexed by
+exactly one unit term; the per-head Q/K RMSNorm reduces over `r` inside a head
+while the flattened channel axis carries `128*floordiv(c, 128)`, an offset that
+is invariant in `r` but not a unit term, with 128 being `head_dim`. The check
+throws, so it aborts the solve rather than skipping the candidate.
+
+✅ **Verified: hoisting only that operator does not produce a compilable
+graph.** `MODELS2/export_full.py --hoist-qk-norm` feeds Q and K in already
+normalized. The graph imports (`{"tasks": 2899, "couplings": 3738, "guards":
+307}`) and then fails at `lib/Frontend/Frontend.cpp:819`, `explicit plan
+requires stages and observable outputs`: `DecoderLayerPattern` does not match a
+layer whose Q and K arrive as graph inputs, so `BuildModelPlan` falls through to
+the covered-region path and returns no stages. Reproduced at 1, 2 and 28 layers.
+
+✅ **Verified: the A-a cut list carries over and gives the graph.** Cutting the
+token embedding, both per-layer RMSNorms, RoPE and the final RMSNorm -- exactly
+`MODELS/export_covered.py`'s cuts, reused as a module rather than restated --
+cuts the per-head normalization with RoPE, because it sits between the
+projection and the rotation. What remains connected is the residual chain, the
+V/cache/attention/O chain and the SwiGLU chain of all 28 layers plus the
+vocabulary projection: import `{"tasks": 1096, "couplings": 1233, "guards":
+196}`, `evaluated=12 deferred=75`, codegen `tasks=562 couplings=504 stages=365`,
+winner `64x128x16s2split2kappa1r3` on `chain`, 2235 s of solve.
+
+✅ **Verified: 50/50 fresh processes agree with the reference implementation
+bit for bit.** Every round prints `E2E_HASH l05=40f7e79310c4b01c
+l1=40f7e79310c4b01c l2=40f7e79310c4b01c` and `l1_vs_l05_mismatch=0
+l2_vs_l1_mismatch=0`: one distinct `E2E_DIFF` line over all 50 rounds, 113 of
+the 114 checked outputs exactly equal.
+
+❌ **Not met: §4.5 A-b is 50/50 against the CPU golden, and that is 0/50.** The
+one output that differs is the hidden state after 28 residual additions
+(`buffer=728`): 190 of 8192 elements outside `1.6e-2 + 1.6e-2*|expected|`,
+identically in all 50 rounds, `max_abs=0.09375`.
+
+⚠️ **Inferred: chained bf16 rounding, priced.** The largest absolute
+differences are 0.09375 on values of 2.5 to 4.4 -- 2.1% to 3.8% relative, five
+to ten bf16 ulps -- and the offending elements are the smaller ones (median
+`|expected|` 0.399 against 1.25 over all 8192). A depth sweep of the same
+export, solved and run the same way, gives 0, 2, 44 and 190 elements outside
+tolerance at 4, 8, 16 and 28 layers (5 fresh processes each, 50 at 28), with
+`max_abs` 0.031, 0.047, 0.063, 0.094: the graph passes at depth 4 and the
+divergence grows about as the square root of the depth. The tolerance is one
+relative constant, so it prices a 28-deep chain of bf16 roundings the same as a
+single layer. Both sides are legitimate bf16 evaluations with fp32 accumulation
+inside each GEMM; the expected values are not moved, and the difference is
+recorded instead. A-a's Llama graph at 16 layers passes 50/50 under the same
+formula and the same `MIDPOINT_REFINE=1`, so the sweep establishes the trend
+within one model rather than a universal depth limit.
+
+Evidence: `E2E_REAL/qwen3/` (`README.md`, `solve.json`, `solve.log`,
+`correctness/`, `depth.tsv`, `residual_cancellation.txt`, `dump_run.log`),
+`MODELS2/export_covered_qwen3.py`, `E2E_REAL/residual_cancellation.py`.

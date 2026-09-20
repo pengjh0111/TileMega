@@ -1,21 +1,24 @@
 # R7 closure report
 
 Written for: the TileMega maintainers reviewing this round against the R7 prompt.
+Every number below is recomputed from raw logs by
+`docs/experiments/E2E_REAL/verify.py`, whose full output is §3.
 
 ## 1. Baseline, prompt, commits
 
 - Baseline `git rev-parse HEAD`: `4e0e7b119b30500456a59db719614d0abf7fa699`
 - Prompt SHA256: `d4e36b87529eaee44c0d418ec6430d528e920254e135723e53d4fa90c0f18ecc`
 - Branch: `tilemega`
+- ctest at the last source commit: **53/53**
 
 | # | commit | step |
 |---|---|---|
 | 1 | `3ebbf77a4` runtime: take the normalization epsilon from the model | 1 |
 | 2 | `db9669a60` runtime: rotate with full precision angles | 2 |
-| 3 | `89c4e03b2` runtime: settle gemm elements near a rounding boundary | 3 (mechanism) |
-| 4 | `4586d8ce3` experiments: admit the covered llama graph | 3 (evidence) |
+| 3 | `89c4e03b2` runtime: settle gemm elements near a rounding boundary | 3 |
+| 4 | `4586d8ce3` experiments: admit the covered llama graph | 3 |
 | 5 | `ef71973ec` codegen: look up token embeddings as a task | 4 |
-| 6 | `4e0d0d770` analysis: count a gather by the row it reads | 4 (analysis) |
+| 6 | `4e0d0d770` analysis: count a gather by the row it reads | 4 |
 | 7 | `35d8751fb` codegen: own query and key norms per head | 5 |
 | 8 | `66c6497a4` frontend: lift the final normalization stage | 6 |
 | 9 | `85c320e18` experiments: add the round seven runners and self-check | 16 |
@@ -24,115 +27,276 @@ Written for: the TileMega maintainers reviewing this round against the R7 prompt
 | 12 | `6cbd1491a` docs: list the round seven commits in the report | 17 |
 | 13 | `868ac438c` docs: note the final identity stamp in the report | 17 |
 | 14 | `c15430032` experiments: stamp the sass identity at head | 18 |
-| 15 | `602e9179b` docs: localize the real model solve cost | 17 (C1-b diagnosis) |
+| 15 | `602e9179b` docs: localize the real model solve cost | 17 |
 | 16 | `35ad5019b` experiments: stamp the sass identity at head | 18 |
-| 17 | `62ec04e8a` docs: time one outer bound iteration | 17 (C1-b diagnosis) |
+| 17 | `62ec04e8a` docs: time one outer bound iteration | 17 |
 | 18 | `897d2af63` experiments: stamp the sass identity at head | 18 |
-| 19 | `421f515ec` docs: correct which solve cost to fix first | 17 (C1-b diagnosis) |
+| 19 | `421f515ec` docs: correct which solve cost to fix first | 17 |
 | 20 | `02e1a2c81` experiments: stamp the sass identity at head | 18 |
-| 21 | `8165ad579` codegen: time the barriers the simt bodies already run | 7 (mechanism) |
-| 22 | `048782f89` experiments: add the b0 simt exposed wait probe | 7 (evidence) |
-| 23 | `dcdc52007` experiments: gate b0 in the round verifier | 7 (gate) |
+| 21 | `8165ad579` codegen: time the barriers the simt bodies already run | 7 |
+| 22 | `048782f89` experiments: add the b0 simt exposed wait probe | 7 |
+| 23 | `dcdc52007` experiments: gate b0 in the round verifier | 7 |
 | 24 | `51607c3ec` docs: record fork7 and the b0 segment partition | 17 |
-| 25 | `docs: complete the round seven commit list` — this commit | 17 |
-| 26 | `experiments: stamp the sass identity at head` | 18 |
+| 25 | `9f51f3121` docs: complete the round seven commit list | 17 |
+| 26 | `fa6188bbe` experiments: stamp the sass identity at head | 18 |
+| 27 | `1abe7bab1` experiments: measure the b1 prefetch page occupancy budget | 8 |
+| 28 | `da9119853` docs: record f-223, the occupancy form's per-cta reserve | 17 |
+| 29 | `8f52f61e6` docs: correct the occupancy closed form in 8.6 | 17 (skeleton §8.6) |
+| 30 | `3ce3be93f` analysis: derive the read-only buffer frontier from writes | 8 |
+| 31 | `37ba0dd7b` codegen: emit the buffer frontier behind the prefetch runtime | 8 |
+| 32 | `b584cdac9` runtime: split off a prefetch phase onto paged shared memory | 8 |
+| 33 | `7d69529f9` runtime: add the no-overlap prefetch control arm | 8 |
+| 34 | `b4b1dac38` analysis: split the read-only frontier out of task read work | 9 |
+| 35 | `b97da3165` solver: price the frontier share of a task instance | 9 |
+| 36 | `e90c0ca81` solver: derive the runtime frontier over ownership coordinates | 9 |
+| 37 | `dd5865506` solver: credit only the prefetch operand the body declares | 9 |
+| 38 | `7a4dbb833` solver: discount pipelinable queue edges in bounds and simulator | 9 |
+| 39 | `68061e15d` dialect: carry the pipeline flags of sigma in the placement table | 9 |
+| 40 | `9dfbded00` test: check the frontier, its price and the pipelined bounds | 9 |
+| 41 | `44fbde48a` codegen: report the slots the executor actually prefetches | 8 |
+| 42 | `49098a425` codegen: time the prefetch wait in the phase trace | 8 |
+| 43 | `5b54e5e88` tools: solve with the pipelining dimension switched off | 9 |
+| 44 | `704be8061` test: price the prefetch credit at real width | 9 |
+| 45 | `8a75b030c` experiments: measure the cross task pipeline | 10 |
+| 46 | `943149a0f` docs: record the round seven closure results | 17 |
+| 47 | `6500dab7e` solver: keep relation intervals through the bound | 11 |
+| 48 | `1a72531b6` experiments: time the bound against the dense edge set | 11 |
+| 49 | `b703b30ff` docs: record the relation interval bound result | 17 |
+| 50 | `9083dd187` solver: build the model plan once for the search | 11 |
+| 51 | `da8560ba6` runtime: read event coarsening from a per-stage table | 12 |
+| 52 | `3eae93344` codegen: emit the solved per-stage kappa table | 12 |
+| 53 | `0f3273484` solver: project events at each producer stage's kappa | 12 |
+| 54 | `b2c6b404e` dialect: carry per-stage kappa into the solved plan | 12 |
+| 55 | `2bc51b6e6` solver: choose event coarsening per stage | 12 |
+| 56 | `6df89362f` tools: add the per-stage kappa flag to tilemega-compile | 12 |
+| 57 | `be9f11dec` test: cover per-stage kappa in the runtime projection | 12 |
+| 58 | `c51c838d3` dialect: refuse a kappa table that misses projected stages | 12 |
+| 59 | `c2a5a89c5` test: show the kappa table reaches the projection | 12 |
+| 60 | `f6b00ac11` solver: pin a per-stage kappa table on the search winner | 12 |
+| 61 | `1d7f2884b` solver: segment geometry inside an interval | 13 |
+| 62 | `f31f3bc90` experiments: add the per-stage kappa campaign | 12 |
+| 63 | `d6d5cb8ef` experiments: measure the model plan hoist | 11 |
+| 64 | `d02ce633f` docs: record the plan hoist and per-stage kappa results | 17 |
+| 65 | `f5ec03cd3` experiments: run the anchored model end to end | 14 |
+| 66 | `d86a4289e` solver: keep the best plan of every evaluated candidate | 14 |
+| 67 | `d1f2a254a` tools: dump every evaluated candidate's source | 14 |
+| 68 | `a8a857ddf` analysis: name the axis a local reduction refuses | 4.5 A-b |
+| 69 | `c5c6b5f99` experiments: measure segmented geometry inside an interval | 13 |
+| 70 | `60c98eb02` experiments: measure top-k quality and the three level timings | 14 |
+| 71 | `787ae7fcf` experiments: recheck the two reference models and the seqscan subset | 4.5 A-c |
+| 72 | `d759a909f` experiments: export and run the maximal connected qwen3 graph | 4.5 A-b |
+| 73 | `734df8a7f` docs: correct the queue ratio and ranking gates | 15 |
+| 74 | `a370d4606` experiments: add the sm_120 runners for round seven | 16 |
+| 75 | `docs: record the round seven closure results` — this commit | 17 |
+| 76 | `experiments: stamp the sass identity at head` | 18 |
 
-Rows 12 onward were added as the round was continued across sessions; the
-earlier revisions of this table stopped at row 11 and are superseded here.
-
-The last commit is the H2 stamp, regenerated so that it follows every source and
-document commit, as R4–R6 did; its `manifest.json` records `source_head` as its
-parent. Each earlier stamp (rows 11, 14, 16, 18, 20) was superseded by the next
-one and every one of them reported the same result.
+Prompt §13 lists 18 steps; this round used 76 commits. Three reasons, all
+recorded rather than argued: `AGENTS.md` requires a mechanism to be separate
+from the experiment that measures it and an analysis change separate from the
+operator that needs it; the round ran across many sessions, each of which
+re-stamped the SASS identity and amended this report; and three of this round's
+items (A-b's diagnosis, A-c's re-run, D-b's evaluated-candidate dump) have no
+step of their own in §13 and are listed above by the gate they serve.
 
 Step 7's suggested message `trace: measure exposed waits outside the K loop`
 was not used: `trace` is not one of the areas `CLAUDE.md` allows, and the step
-is three commits rather than one — the device-side probe, the experiment that
-uses it, and the gate that re-derives `FORK7` from the raw rows.
+is three commits — the device-side probe, the experiment that uses it, and the
+gate that re-derives `FORK7` from the raw rows.
 
-No push rights on `origin`; the series is at `/tmp/round7-patches/`
-(`git format-patch 4e0e7b119..HEAD`).
+The last commit is the H2 stamp, regenerated so that it follows every source and
+document commit, as R4–R6 did; its `manifest.json` records `source_head` as its
+parent. Every earlier stamp (steps marked 18 above) was superseded by the next
+one and all of them reported the same result: byte-identical default SASS for
+both reference models.
 
-Prompt §13 lists 18 steps as 18 commits; this round used more, because
-`AGENTS.md` requires a mechanism to be separate from the experiment that
-measures it and an analysis change separate from the operator that needs it,
-and because the round was continued across sessions, each of which re-stamped
-the SASS identity and amended the report.
-Steps 8–14 are not present: see the stoppage ledger in §4.
+No push rights on `origin`; the series is exported with
+`git format-patch 4e0e7b119..HEAD -o /tmp/round7-patches/`.
 
-**H4 ordering in git history.** A1 (`3ebbf77a4`) and A2 (`db9669a60`) both
-precede A3's acceptance measurement (`4586d8ce3`) — satisfied. B0 is implemented
-and B1 is not, so B0-before-B1 is satisfied by construction rather than
-vacuously. C1-b before B2/B3 remains vacuously satisfied: none of B1, B2, B3 or
-C1-b was implemented, so no ordering was violated, but neither is it evidence of
-compliance.
+**H4 ordering, in git history.**
+
+| required order | in this history | substantive? |
+|---|---|---|
+| A1, A2 before A3's acceptance | `3ebbf77a4`, `db9669a60` before `4586d8ce3` | yes |
+| B0 before B1 | `8165ad579`…`dcdc52007` before `b584cdac9`…`8a75b030c` | yes — B0's `FORK7` row is what B1's denominator needed |
+| C1-b before B2, B3 | `6500dab7e`, `9083dd187` before `2bc51b6e6`…`f6b00ac11` and `1d7f2884b` | yes — C1-b landed (degraded) first, and only then were B2 and B3 implemented |
 
 ## 2. Gate results
 
 | gate | kind | result | measured | evidence |
 |---|---|---|---|---|
-| A-a Llama maximal connected graph 50/50 | hard | **PASS** | 50/50 processes, 3300 `E2E_OUTPUT_DIFF` lines with no non-zero mismatch, one binary `fabb59f368bf…`, tolerance 0.0231875014 unchanged | `MODELS2/admission/admitted2/correctness/` |
-| A-b Qwen3 maximal connected graph 50/50 | hard | **FAIL (not run)** | the operator landed and a Qwen3-shaped whole model runs correct end to end at reduced width; the full-width 28-layer run was not done | `MODELS2/subset.md`, §4 |
-| A-c two reference models regression | hard | **PARTIAL** | 50/50 CTest at every commit and byte-identical default-build SASS for both models; the seq∈{4,128} × 50-process SEQSCAN subset was not re-run | `E2E_REAL/sass_identity/` |
-| A-d extension cost table | report | **PASS** | embedding 19 sites, QK-norm 16, final norm 2, against R6's audited 15; four site classes outside R6's table | `E2E_REAL/extension_cost.tsv`, F-217 |
+| A-a Llama maximal connected graph 50/50 | hard | **PASS** | 50/50 fresh processes, 66 outputs each, no non-zero mismatch, one binary | `MODELS2/admission/admitted2/correctness/` |
+| A-b Qwen3 maximal connected graph 50/50 | hard | **FAIL** | the graph compiles, builds and runs; 50/50 rounds are bit-identical across L0.5/L1/L2 and 113 of 114 outputs match the golden exactly; the 28-deep residual output has 190 of 8192 elements outside tolerance, so 0/50 | `E2E_REAL/qwen3/`, F-233 |
+| A-c two reference models regression | hard | **PASS** | seq∈{4,128}: 4 arms, 200/200; SEQSCAN subset: 12 arms, 600/600; 800 fresh processes, 16 binaries | `E2E_REAL/regression/` |
+| A-d extension cost table | report | **PASS** | audited 15 against measured 19 + 16 + 2 | `E2E_REAL/extension_cost.tsv`, F-217 |
 | A-e epsilon/RoPE ablation | report | **PASS** | A1, A2 and both leave `V[0,463]` at −0.44921875; refinement gives −0.451171875 | `MODELS2/ablation/admitted2/ablation.tsv` |
-| B0 `FORK7` | hard | **PASS**, by 0.0005 | `FORK7 rule=1 whole_pipeline_exposed_wait_share=0.151 gemm_share=0.149 simt_share=0.002 cells=4`; unrounded 0.15055 against a 0.15 threshold fixed in advance and not moved; the four-cell median clears it in only 6 of 9 rounds | `PHASE2/summary.md`, `PHASE2/raw/fork7.txt`, F-222 |
-| B1-a…B1-e paging and pipelining | hard | **FAIL (not implemented)** | — | §4 |
-| B2 per-stage κ | hard | **FAIL (not implemented)** | — | §4 |
-| B3 intra-interval geometry | hard | **FAIL (not implemented)** | — | §4 |
-| C1-a `J-b` demoted | — | **DONE** | recorded in `docs/TODO.md` as an R6 prompt gate-design error | `docs/TODO.md` |
-| C1-b preparation-phase optimization | hard | **FAIL (not implemented)** | — | §4 |
-| C1-c `J-d` replaced | — | **DONE (criterion only)** | the top-k quality criterion is written into `docs/TODO.md`; no cell was measured against it | `docs/TODO.md` |
-| D-a Llama-3.2-1B 50/50 | hard | **FAIL (not reached)** | the whole-decoder path works and is correct at reduced width; the full-width solve did not finish | §4, §8 |
-| D-b top-k quality, six cells | hard | **FAIL (not reached)** | — | §4 |
-| D-c three-tier timing | report | **NOT RUN** | — | §4 |
-| D-d comparison with the reference models | report | **NOT RUN** | — | §4 |
-| D-e solver-decided vs human-decided | report | **PASS** | §8 | §8 |
-| H2 default-build SASS identity | hard | **PASS** | `gqa2` and `mha4` byte-identical against the baseline tree's headers and host archive | `E2E_REAL/sass_identity/` |
+| B0 `FORK7` | hard | **PASS**, by 0.0005 | median 0.1505 against a 0.15 threshold fixed in advance; 6 of 9 rounds clear it; correctness 200/200 | `PHASE2/`, F-222 |
+| B1-a correctness | hard | **PASS** | six cells 600/600, SEQSCAN 1200/1200, Llama graph 100/100; 38 arms, 38 binaries | `PIPELINE/raw/`, F-224 |
+| B1-b occupancy against F-40 | hard | **PASS** | 18 arms, the closed form agrees on all 18, every arm keeps its residency | F-223, F-224 |
+| B1-c overlap in the phase trace | hard | **PASS** | per-slot inline-minus-pipelined wait measured on every issuing slot, 1591–2937 cycles | F-226 |
+| B1-d pipelining wired into σ | hard | **PASS** | 102 stages inventoried, 68 with a frontier, price re-derived at real width | F-225 |
+| B1-e end to end, six cells | report | **PASS** (no threshold) | 1 cell faster, 5 slower by 2.3–6.7%, intervals clear of 1 | F-226 |
+| B2 per-stage κ | hard | **PASS** | both arms of both models 50/50, 200 fresh processes; descent `moves=0`, `uniform_ns=per_stage_ns` | `E2E_REAL/stage_kappa/`, F-231 |
+| B3 intra-interval geometry | hard | **PASS** | gqa2 `[1,16]`: legality 16/16, materialization `byte_identical` on 16 points, correctness 500/500, benefit 0.9926–1.0147 | `E2E_REAL/segments/`, F-232 |
+| B3, second interval (mha4) | report | **UNMET (in flight)** | proof 10 of 16 points at the time of writing; roughly an hour per point | `E2E_REAL/segments/mha4_i1_16/` |
+| C1-a `J-b` demoted | — | **DONE** | six `queue_lb/CP` ratios reported, no line drawn; the R6 gate-design error recorded in `docs/TODO.md` | `docs/TODO.md`, §7 |
+| C1-b preparation-phase optimization | hard | **FAIL (DEGRADED, §9.3)** | the bound is exact (9/9 cells identical) and 1.03–3.91× faster, the whole search 2.51× faster, **and capacity is still 12** | F-229, F-230 |
+| C1-c `J-d` replaced and measured | hard (as D-b) | **PASS** | see D-b | `E2E_REAL/topk/` |
+| D-a Llama-3.2-1B 50/50 | hard | **FAIL** | 50 rounds, 33 checked outputs, 31 exactly equal, L0.5/L1/L2 bit-identical; 2 outputs differ from the CPU golden (146 and 1 elements) | `E2E_REAL/llama/`, §11 |
+| D-b top-k quality, six cells | hard | **PASS** | 1.0141 / 1.0000 / 1.0007 / 1.0000 / 1.0000 / 1.0000, all ≤ 1.05; coverage 12/12 in four cells, 6/12 and 9/12 in the two real cells | `E2E_REAL/topk/` |
+| D-c three-level timing | report | **PASS** (no threshold) | decode seq ∈ {1,4,16,64}, 25 paired rounds each | `E2E_REAL/timing/` |
+| D-d reference-model comparison | report | **PASS** (no threshold) | eight points at the same caliber | `E2E_REAL/timing_ref/` |
+| D-e solver vs human decisions | report | **PASS** | 10 items the solver decides, 12 a person still decides | `E2E_REAL/solver_decisions.md` |
+| H2 default-build SASS identity | hard | **PASS** | `gqa2` and `mha4` byte-identical against the baseline tree | `E2E_REAL/sass_identity/` |
+
+Score as `verify.py` counts it: **24 of 28 gates met, 3 hard gates failed, 1
+report gate unmet.** The three hard failures are A-b and D-a — one phenomenon,
+§11 — and C1-b, which is a degraded form declared as such under §9.3.
 
 ## 3. verify.py
 
-`docs/experiments/E2E_REAL/verify.py` recomputes each gate from raw logs, run
-manifests and generated sources; it evaluates every gate before exiting and
-exits non-zero on a hard-gate failure. Its output is reproduced in §3 of the
-final message accompanying this report.
+`docs/experiments/E2E_REAL/verify.py` recomputes every §4.5 / §5 / §7.2 gate from
+the process logs, the run manifests and the generated sources. It reads no
+summary and no conclusion: correctness rates come from `r*.log`, occupancy from
+the harness's own `E2E_RESOURCE` lines, ratios from `E2E_TIME`, the interval
+proofs from each point's own log. It evaluates every gate before exiting and
+exits non-zero when a hard gate fails.
+
+Full output at this commit:
+
+```
+PASS [hard] A-a maximal connected Llama graph 50/50             rounds=50 passing=50 failing_outputs=0 binaries=1
+       evidence: /root/TileMega/docs/experiments/MODELS2/admission/admitted2/correctness
+PASS [report] A-e epsilon/RoPE ablation reported                  A1, A2 and both leave V[0,463] at -0.44921875; refinement gives -0.451171875
+       evidence: /root/TileMega/docs/experiments/MODELS2/ablation/admitted2/ablation.tsv
+PASS [report] A-d extension cost table updated                    audited=15 measured=token_embedding:19, per_head_qk_norm:16, final_norm_and_head:2
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/extension_cost.tsv
+FAIL [hard] D-a llama whole model 50/50                         rounds=50 passing=0 failing_outputs=100 binaries=1 mismatching_outputs=0:146,25:1 max_abs=0.03125
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/llama/correctness
+FAIL [hard] A-b qwen3 maximal connected graph 50/50             rounds=50 passing=0 failing_outputs=50 binaries=1 mismatching_outputs=0:190 max_abs=0.09375
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/qwen3/correctness
+PASS [hard] H2 default-build SASS identity                      models=gqa2:same, mha4:same
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/sass_identity/manifest.json
+PASS [hard] B0 FORK7 whole-pipeline exposed wait                cells=4 median=0.1505 threshold=0.15 margin=+0.0005 rounds_clearing=6/9 correctness=200/200
+       evidence: /root/TileMega/docs/experiments/PHASE2/raw/analysis.tsv
+PASS [hard] B1-a correctness, six cells                         arms=12/12 rounds=600 passing=600 failing_outputs=0 binaries=12
+       evidence: /root/TileMega/docs/experiments/PIPELINE/raw
+PASS [hard] B1-a correctness, SEQSCAN subset                    arms=24/24 rounds=1200 passing=1200 failing_outputs=0 binaries=24
+       evidence: /root/TileMega/docs/experiments/PIPELINE/raw
+PASS [hard] B1-a correctness, Llama maximal connected graph     arms=2/2 rounds=100 passing=100 failing_outputs=0 binaries=2
+       evidence: /root/TileMega/docs/experiments/PIPELINE/raw
+PASS [report] B1-a SEQSCAN plans are JOINT's plans                cases=12 identical_without_the_guarded_field=12
+       evidence: /root/TileMega/docs/experiments/PIPELINE/raw/seqscan/regeneration.tsv
+PASS [hard] B1-b occupancy before/after against F-40            arms=18 f40_agrees=18 keeps_residency=18; gqa2_s4 16384->18432B 94->96r 5cta, gqa2_s128 16384->18432B 86->96r 5cta, mha4_s4 16384->18432B 94->96r 5cta, mha4_s128 16384->18432B 85->88r 5cta, real_s4 16384->32768B 85->88r 3cta, real_s128 16384->32768B 144->146r 3cta
+       evidence: /root/TileMega/docs/experiments/PIPELINE/raw/occupancy_arms.tsv
+PASS [hard] B1-c overlap measured in the phase trace            per-slot wait, inline minus pipelined, on the issuing slots: gqa2_s4 1682.5cy (16/16 slots), gqa2_s128 1591.5cy (512/512 slots), mha4_s4 1665.5cy (32/32 slots), mha4_s128 1707.2cy (1024/1024 slots), real_s4 2578.5cy (32/32 slots), real_s128 2936.8cy (1024/1024 slots)
+       evidence: /root/TileMega/docs/experiments/PIPELINE/raw/overlap_head.tsv
+PASS [hard] B1-d pipelining wired into sigma                    rerun: PIPELINE_FRONTIER stages=102 with_frontier=68 rope_element_reads=12; PIPELINE_PRICE tasks=232 priced=16 mean_share=0.016181 page512_priced=0; PIPELINE_REALWIDTH page1024=0 page4096=0 page8192=0 stages=209 prefetch_bodies=0 stage_kinds=0:113 3:32 4:16 5:16 10:32 ; PIPELINE_BOUNDS queue_lb binding_path makespan flags; PIPELINE_TABLE accepted rejected-head rejected-length; PIPELINE_SIGMA PASS frontier pricing bounds table
+       evidence: /root/TileMega/build-portable/pipeline_sigma_test
+PASS [report] B1-e end to end, six cells, no threshold            cells=6 faster=1 slower=5 (95% CI clear of 1); gqa2_s4 1.0614, gqa2_s128 1.0293, mha4_s4 1.0673, mha4_s128 1.0326, real_s4 0.9918, real_s128 1.0225
+       evidence: /root/TileMega/docs/experiments/PIPELINE/raw/e2e_head.tsv
+PASS [hard] B2 per-stage kappa 50/50, both arms                 gqa2_s4/searched 50/50 failing_outputs=0 binaries=1 stages=44 table=uniform; gqa2_s4/forced 50/50 failing_outputs=0 binaries=1 stages=44 table=mixed; mha4_s4/searched 50/50 failing_outputs=0 binaries=1 stages=88 table=uniform; mha4_s4/forced 50/50 failing_outputs=0 binaries=1 stages=88 table=mixed
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/stage_kappa
+PASS [report] B2 per-stage versus global kappa                    the descent never moved off uniform: gqa2: moves=0 uniform_ns=169097 per_stage_ns=169097; mha4: moves=0 uniform_ns=352991 per_stage_ns=352991
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/stage_kappa/results.tsv
+PASS [report] B3 intra-interval campaign, gqa2                    proof points=16/16 material=16/16 segments=2 points=16 endpoints=4 interior=12 interval=1..16 kappa=1 residency=4 serialization=byte_identical; arms=10/10 rounds=500 passing=500 failing_outputs=0; segmented/fixed L2 s1 0.9927, s4 0.9985, s13 1.0147, s14 0.9997, s16 1.0000
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/segments/gqa2_i1_16
+FAIL [report] B3 intra-interval campaign, mha4                    proof points=10/16 material=0/0 no check; arms=0/0 rounds=0 passing=0 failing_outputs=0; segmented/fixed L2 not timed
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16
+PASS [hard] B3 intra-interval geometry                          legality, materialization and benefit all recorded on gqa2
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/segments
+FAIL [hard] C1-b preparation-phase optimization                 DEGRADED (§9.3): capacity stays 12; bound stage identical=9/9 speedup 1.03x-3.91x; whole-search hoist 2.51x (F-230)
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/prepare
+PASS [hard] A-c reference cells seq 4 and 128                   arms=4/4 rounds=200 passing=200 failing_outputs=0 binaries=4
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/regression
+PASS [hard] A-c SEQSCAN subset                                  arms=12/12 rounds=600 passing=600 failing_outputs=0 binaries=12
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/regression
+PASS [report] C1-a J-b queue_lb/CP reported, not gated            winner queue_lb/CP: gqa2_s4 1.102346; gqa2_s128 1.321139; mha4_s4 1.212648; mha4_s128 1.494124; real_s4 3.227418; real_s128 2.145289
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/topk
+PASS [hard] D-b top-k quality, six cells                        gqa2_s4 1.0141 (12/12 clean, 25-25 rounds each, 0 dropped on output difference); gqa2_s128 1.0000 (12/12 clean, 25-25 rounds each, 0 dropped on output difference); mha4_s4 1.0007 (12/12 clean, 25-25 rounds each, 0 dropped on output difference); mha4_s128 1.0000 (12/12 clean, 25-25 rounds each, 0 dropped on output difference); real_s4 1.0000 (6/12 clean, 25-25 rounds each, 6 dropped on output difference); real_s128 1.0000 (9/12 clean, 25-25 rounds each, 3 dropped on output difference)
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/topk
+PASS [report] D-c three levels per decode seq, 25 paired rounds   seq 1 rounds 25 l05 49.804 l1 49.755 l2 36.487 l2/l1 0.7333 l2/floor 7.9087; seq 4 rounds 25 l05 49.465 l1 49.492 l2 41.122 l2/l1 0.8309 l2/floor 7.8605; seq 16 rounds 25 l05 157.749 l1 157.839 l2 130.978 l2/l1 0.8298 l2/floor 24.5126; seq 64 rounds 25 l05 380.202 l1 380.311 l2 423.982 l2/l1 1.1149 l2/floor 42.8205
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/timing
+PASS [report] D-d the two reference models at the same caliber    gqa2 seq 1 rounds 25 l05 0.206 l1 0.193 l2 0.137 l2/l1 0.7135 l2/floor 2.4961; gqa2 seq 4 rounds 25 l05 0.182 l1 0.197 l2 0.154 l2/l1 0.7850 l2/floor 2.6992; gqa2 seq 16 rounds 25 l05 0.209 l1 0.215 l2 0.213 l2/l1 0.9904 l2/floor 3.2938; gqa2 seq 128 rounds 25 l05 0.323 l1 0.337 l2 0.313 l2/l1 0.9301 l2/floor 2.8816; mha4 seq 1 rounds 25 l05 0.352 l1 0.378 l2 0.287 l2/l1 0.7582 l2/floor 2.3622; mha4 seq 4 rounds 25 l05 0.358 l1 0.388 l2 0.343 l2/l1 0.8841 l2/floor 2.7383; mha4 seq 16 rounds 25 l05 0.399 l1 0.421 l2 0.495 l2/l1 1.1741 l2/floor 3.6000; mha4 seq 128 rounds 25 l05 0.600 l1 0.621 l2 0.639 l2/l1 1.0278 l2/floor 2.7160
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/timing_ref
+PASS [report] D-e solver and human decisions listed item by item  solver decides 10 items; a person still decides 12
+       evidence: /root/TileMega/docs/experiments/E2E_REAL/solver_decisions.md
+
+24/28 gates met; 3 hard gate(s) failed, 1 report gate(s) unmet
+```
 
 ## 4. Stoppage ledger and degraded forms
 
 ### Stoppage ledger
 
-| item | downstream stopped | symptom | located cause | what unlocking needs | estimated effort |
-|---|---|---|---|---|---|
-| **B0** SIMT-side exposed-wait measurement | — | **resolved after this ledger was first written.** Implemented and measured; see §2 and F-222. The original row said "not implemented", with the round budget consumed by Group A (F-217) and two latent defects it uncovered (F-218, F-220); that cause was real but is no longer the state | — | — | done |
-| **B1** paging and cross-task pipelining | D1's pipeline decision | not implemented | the round budget above; B0 is now done, so B1 is unblocked and is the next item, not a blocked one | the `Prefetch`/`Wait`/`Compute` ABI split, the §8.6 lifetime change, the occupancy check against F-40, and the σ dimension in `PlacementPlan`/`CostModel`/the joint objective. ⚠️ Size it against the head share (F-222), not against `FORK7`'s 0.151: 0.116 of that is intra-task K-loop wait, and the 0.0005 margin over the gate does not separate the pipeline from the threshold | 1–2 weeks |
-| **C1-b** preparation-phase optimization | B2, B3 | the full-width Llama solve ran 23 minutes of CPU without emitting a single search row | refined after the ledger was first written, see F-221: the dominant term is `SolveExport`'s **outer bound pass**, which re-imports the `.pt2` and re-prepares the whole model once per (geometry, split) pair — 30 times on this domain — before the capacity gate applies; one pair is timed at about three minutes (import counter 6 -> 7 over 180 s), so roughly 90 minutes precede the first candidate evaluation; the per-pair cost is itself the dense-edge enumeration R7 §6 names | keep relation intervals and shared successor regions through the bound computation instead of materializing every dense edge | 3–5 days |
-| **B2** per-stage κ | — | not implemented; blocked behind C1-b by §H4 | as above | C1-b first | 2–3 days |
-| **B3** intra-interval geometry | — | not implemented; blocked behind C1-b by §H4 | as above | C1-b first | 3–5 days |
-| **D1** full-width real-model end to end | D-a…D-d | the solve did not finish | the same preparation-phase enumeration as C1-b; this is C1-b's downstream, which R7 §9.1 does not draw but the measurement shows | C1-b | with C1-b, hours |
-| **A-b** Qwen3-1.7B full-width admission | — | not run | downstream of the same solve cost: 28 layers is larger than the Llama graph that did not finish | C1-b | with C1-b, hours |
-| **PIPELINE/run_sm120.sh** | — | not written | there is no paging mechanism to ablate; a script for a mechanism that does not exist would be a fabricated deliverable | B1 | with B1, hours |
+Nothing in this round is stopped for want of a mechanism. What remains is one
+degraded form, one campaign still running, and one numerical gate that is not
+met and is understood.
+
+| item | state at closure | located cause | what unlocking needs | estimated effort |
+|---|---|---|---|---|
+| **C1-b** preparation-phase optimization | **degraded (§9.3)**: implemented, exact, faster, and capacity is still 12 | measured, not guessed: on the whole Llama model one `PreparePlacementProblem` is 63.67 s, of which the bound stage is 68.8 ms (0.11%); in 41 samples 32 land in `BuildModelPlan`'s pattern matching and **0** in the `isl_set_foreach_point` C1-b removed (F-229). Hoisting the plan build then bought 2.51× on the whole search (F-230) and still did not move capacity | the next term is the per-import `CouplingDerivation::Derive`, which is granularity-dependent and so not hoistable; capacity 12 will move only when a candidate's import is cheaper, not when the bound is | days, and it is a new item rather than a finish of this one |
+| **A-b / D-a** golden agreement on deep accumulations | **not met**, cause located (§11) | the megakernel is bit-identical to the reference at all three levels in every round; the disagreement is between two legitimate bf16 evaluations, and grows with accumulation depth (0, 2, 44, 190 elements at 4, 8, 16, 28 layers) | a comparison caliber that carries a depth-aware error budget instead of one relative constant — a gate design change, and §H6 forbids re-drawing a line inside the round it is measured in | R8 item; the tolerance was **not** moved here |
+| **B3 second interval (mha4)** | **in flight**: proof 10 of 16 points | the ISL certificate is one fresh process per integer point and mha4 carries 88 projected stages against gqa2's 44; about an hour per point on this host | wall-clock only; the campaign is running and resumable, `segments.py` skips points already recorded | hours |
+| **sm_120 execution** | **write-only, by H7** | no sm_120 device on this host | the target machine; both runners refuse to build unless `compute_cap` is 120, and `SELF_CHECK=1` was run here | hours on the target |
 
 ### Degraded forms
 
-- **A-c is partial, not passed.** Both reference models keep byte-identical
-  default-build SASS and the 50-test CTest suite passes at every commit, but the
-  seq∈{4,128} × 50-process SEQSCAN subset was not re-run this round. The SASS
-  identity is strong evidence that the default build is unchanged; it is not the
-  same statement as the correctness gate, and is not recorded as one.
-- **The whole-model end-to-end result is at reduced width.** A Llama-shaped and
-  a Qwen3-shaped model, each with the public config's structure but with
-  `hidden_size=128, intermediate_size=256, heads=4, kv=2, head_dim=32,
-  vocab=256, layers=1`, import, solve, generate, build and run correct against
-  their CPU golden with L0.5 = L1 = L2. This demonstrates the path, not the
-  model. It is not A-a, D-a, or D-c and is not counted as any of them.
-- **Weights are seeded random at the public config's dimensions**, which is
-  R6's established convention for these runs (`MODELS/export_covered.py`); the
-  architecture is what is under test, not a checkpoint. Stated so the timing
-  numbers, when they exist, are not read as checkpoint numbers.
+- **C1-b is a degraded form, not a pass.** The interval bound is exact —
+  `work_ns` and `critical_path_ns` agree with dense enumeration to < 1e-9 on all
+  nine real cells — and the bound stage is 1.03–3.91× faster with no cell
+  regressing, but **the searchable space did not grow: capacity stays 12**.
+  `verify.py` prints this gate as `FAIL [hard] DEGRADED`.
+- **B3's benefit is verified-correct and unmeasurable on this model.** The
+  mechanism is proved legal and materializes byte-identically; the predicted gain
+  over the interval is 0.34% and the measured ratios straddle 1.0. Recorded as a
+  number, not as a win.
+- **B1's mechanism landed and its benefit did not.** Five of six cells are
+  2.3–6.7% slower end to end. Per R7 §0 that is not read as "the direction is
+  worthless": the diagnosis is that only 0.26–8% of slots are pipelinable while
+  every slot pays the page (F-226).
+- **A-b's graph is the maximal connected admitted subgraph, not the whole
+  model.** Qwen3's per-head Q/K RMSNorm is still refused; the cut list is A-a's,
+  reused as code rather than restated, and the refusal is localized to one check
+  and one constant (§11).
+- **Weights are seeded random at the public config's dimensions**, R6's
+  convention for these runs. The architecture is under test, not a checkpoint;
+  the timing numbers are not checkpoint numbers.
 
 ## 5. Group A
 
-### Epsilon and RoPE ablation, and `V[0,463]`
+### A-a — the maximal connected Llama graph
+
+50/50 fresh processes, all 66 outputs, tolerance, seed, output set and residual
+edges unchanged from the run that failed in R6; one binary. F-216 settles the
+first element by selective FP64 recomputation near bf16 midpoints
+(`MIDPOINT_REFINE`), which is a device-side fix, not a moved expectation.
+
+### A-b — the maximal connected Qwen3 graph
+
+New this round, and the honest result is a localized failure. The full decoder
+is refused at `lib/Analysis/TaskWork.cpp:279-283`; hoisting only that operator
+fails at `lib/Frontend/Frontend.cpp:819`; the A-a cut list gives a graph that
+compiles, builds and runs. 50 fresh processes: 114 checked outputs, 113 exactly
+equal, L0.5 = L1 = L2 bit-identical (one `E2E_HASH` line, one `E2E_DIFF` line
+over all 50 rounds), and 190 of 8192 elements of the 28-deep residual output
+outside tolerance. Depth sweep of the same export: 0, 2, 44, 190 elements at 4,
+8, 16, 28 layers, with the 4-layer cut passing 5/5. F-233,
+`E2E_REAL/qwen3/README.md`.
+
+### A-c — the two reference models still pass with every switch off
+
+800 fresh processes this round, 16 binaries: `gqa2`/`mha4` at seq 4 and 128,
+50 rounds each (200/200), and the SEQSCAN subset `s1_p0`, `s128_p512`,
+`s2048_p0` for both models at both seqs, 50 rounds each (600/600). Default build,
+no switch on. This is the gate R6 left partial and it is now met outright.
+
+### A-d — extension cost against R6's audit
+
+R6 audited 15 change sites; the measured count is 19 for the token embedding, 16
+for the per-head Q/K norm and 2 for the final norm and head, with four site
+classes R6's table could not predict (F-217).
+
+### A-e — separating epsilon, RoPE and refinement
 
 | arm | switches | result | `V[0,463]` | failing outputs |
 |---|---|---|---|---|
@@ -143,97 +307,191 @@ final message accompanying this report.
 | refine | both + `MIDPOINT_REFINE=1` | **PASS** | **−0.451171875** | **0 / 66** |
 
 The prompt's §1(三) attributes R6's A1-subset failure to the epsilon and RoPE
-defects. That attribution does not hold for this graph, and the ablation is the
-evidence, not an opinion: R6's exporter cuts the embedding, both per-layer
-normalizations, the rotation and the final normalization out of the covered
-region, so the generated source contains no `kRMSNorm` and no `kRoPE` stage at
-all. Both defects are nevertheless real and both are fixed; F-220 records that
-this round is the first time either is exercised, because the FP32 rotary path
-was unreachable before it.
-
-The actual cause is accumulation: `V[0,463]` is `v_proj` of a graph input, one
-2048-term FP32 dot product whose FP64 value sits 1.69 FP32 ulp from a BF16
-midpoint. Selective FP64 recomputation near midpoints settles it, and the whole
-first-layer V then matches its FP64 rounding in every element.
-
-### The three operators
-
-| operator | new TaskKind | ownership | change sites | vs R6's 15 |
-|---|---|---|---|---|
-| token embedding | `kEmbedding` | one token row (`kTilePerBlock`) | 19 | +4 classes outside the table |
-| per-head Q/K norm | `kQKNorm` | **one (token, head)** | 16 | +4 classes |
-| final norm + head | none | reuses `kRMSNorm` / `kGemm` | 2 | — |
-
-The four site classes R6's table could not predict: `PlanTaskKind` is a separate
-enumeration from the plan role; the CG's known task kinds and the arithmetic
-signature table each need an entry; and a generated per-family runtime switch is
-required to keep the default build's SASS identical (F-218). `ScalarTaskWork.cpp`
-was not needed — both families reuse `kTilePerBlock`.
-
-### Maximal connected graph admission
-
-- **Llama:** 50/50, all 66 outputs, tolerance/seed/output set/residual edges
-  unchanged from the failing run. F-216.
-- **Qwen3:** not run at full width. F-217 records the operator; §4 records why.
+defects. For this graph that cannot hold — R6's exporter cuts both
+normalizations and the rotation out of the covered region, so the generated
+source contains no `kRMSNorm` and no `kRoPE` stage at all — and the ablation is
+the evidence. Both defects are real, both are fixed, and F-220 records that this
+round is the first time either is exercised.
 
 ## 6. Group B
 
-Nothing in Group B was implemented. `FORK7` was not emitted, no paging
-mechanism exists, the σ pipeline dimension is not in the solver, per-stage κ is
-not a runtime field, and the interval geometry is still fixed at the upper
-endpoint. **`TileMega_skeleton.md` §8.6's TaskSmem union lifetime is therefore
-unchanged**: this round did not earn the right to modify it, and the original
-sentence stands without annotation. §5.3.1 is likewise unchanged.
+All four items are implemented and measured. Two produced negative results,
+which R7 §0 and §5.2 require to be recorded as results.
+
+- **B0 — `FORK7`.** `FORK7 rule=1 whole_pipeline_exposed_wait_share=0.151
+  gemm_share=0.149 simt_share=0.002 cells=4`. ⚠️ Unrounded the median is
+  0.15055 against a 0.15 threshold fixed in advance: a margin of 0.0005, not
+  0.001, and the four-cell median clears the line in only 6 of 9 rounds. 0.116 of
+  the 0.151 is intra-task K-loop wait, which cross-task pipelining cannot reach.
+  Instrumented build, 200/200 fresh processes; default build unchanged. F-222.
+- **B1 — paging and cross-task pipelining.** Mechanism in the runtime
+  (`TaskSmem` plus two appended pages rotated by `slot & 1`), the TaskBody split
+  into Prefetch/Wait/Compute per skeleton §5.3.1, "operand with no in-edge"
+  derived by the analysis from CG in-edges rather than annotated (102/102 stages
+  agree with the hand audit), and σ carrying the pipeline flags. Correctness
+  600/600, 1200/1200 and 100/100; occupancy 18/18 against F-40's closed form
+  (which needed a 1 KiB per-CTA term added, F-223); overlap measured on every
+  issuing slot. End to end five of six cells are 2.3–6.7% **slower**: every slot
+  pays the page and only 0.26–8% of slots are pipelinable. F-224–F-228. This is
+  the one invariant the round unlocked: skeleton §8.6's union lifetime is
+  annotated under H3 with the original sentence kept.
+- **B2 — per-stage κ.** A runtime field indexed by *projected* stage
+  (`PlacementSolveOptions::stage_kappa` → `tilemega.solved_stage_kappa` →
+  `TILEMEGA_EVENT_KAPPA_TABLE`, guarded, byte-identical SASS when off). Both arms
+  of both models 50/50 (200 processes, different binaries per arm). The descent
+  never moved: `moves=0`, `uniform_ns == per_stage_ns` (169097, 352991), because
+  both winners are stage-major families. F-231.
+- **B3 — segmented geometry inside an interval.** One invocation emits both
+  arms. gqa2 `[1,16]`: 16/16 ISL certificates, `serialization=byte_identical`
+  with `diff=0` on all 16 materialization lines, 500/500 correctness, and 20
+  paired rounds per seq giving 0.9926 / 0.9986 / 1.0147 / 0.9997 / 0.9999. The
+  cut lands at 14, exactly where `split16` and `split8` cross. F-232.
 
 ## 7. Group C
 
-- **C1-a.** `J-b` is demoted to a report item, and `docs/TODO.md` records
-  whose problem it is: the R6 prompt set a gate (`queue_lb/CP ≤ 1`) that
-  contradicts the objective it was measuring (minimize `max(CP, queue_lb)`),
-  which mathematically permits a queue-bound optimum. R6's 2.3177 / 2.1826 are
-  therefore two known queue-bound selections, not two failures.
-- **C1-b.** Not implemented. The searchable-space capacity stays at 12. The
-  measurement that would have motivated it is in §4: on a 1663-task graph the
-  preparation phase is not a 178 ms constant but the dominant term.
-- **C1-c.** The top-k quality criterion (best-measured-of-top-3 within 1.05 of
-  best-measured-overall) replaces the rank criterion in `docs/TODO.md`. No cell
-  was measured against it this round, because D-b was not reached.
+### C1-a — `J-b` is a report line
 
+`queue_lb/CP` at each cell's winner: gqa2_s4 1.102346, gqa2_s128 1.321139,
+mha4_s4 1.212648, mha4_s128 1.494124, real_s4 3.227418, real_s128 2.145289. No
+line is drawn against them. **Whose problem it was:** the R6 prompt set
+`queue_lb/CP ≤ 1` while the same round's objective minimizes
+`max(CP, queue_lb)`, which is satisfied at a queue-bound point by construction —
+a gate-design error in the R6 prompt, not a solver defect, and R6's 2.317659352 /
+2.182635901 are two known queue-bound selections rather than two failures. §6
+C1-a asks for this to be recorded with its owner named, and `docs/TODO.md`
+records it.
+
+### C1-b — exact, faster, and capacity is still 12
+
+See §4. The negative half is the reportable half: **0** of 41 samples land in the
+code C1-b removed.
+
+### C1-c — top-k quality, six cells
+
+| cell | ratio | coverage | best measured candidate |
+|---|---|---|---|
+| gqa2_s4 | 1.0141 | 12/12 | `32x16x64s2split8kappa4r4` |
+| gqa2_s128 | 1.0000 | 12/12 | `32x16x64s2split4kappa1r4` |
+| mha4_s4 | 1.0007 | 12/12 | `32x16x64s2split32kappa4r4` |
+| mha4_s128 | 1.0000 | 12/12 | `32x16x64s2split4kappa1r4` |
+| real_s4 | 1.0000 | 6/12 | `64x128x16s2split16kappa4r2` |
+| real_s128 | 1.0000 | 9/12 | `64x128x16s2split4kappa4r2` |
+
+Coverage is stated because §6 requires it: nine arms across the two real cells
+stopped being timed when they disagreed with the golden output, and every one of
+them stopped on the *same* element of the same output (`index=0 buffer=73
+mismatch=1`, `max_rel` 3906–5371) — the language-model head cancellation D-a
+runs into, not a defect of a candidate. Which candidates it hits is
+geometry-correlated (at seq 4 exactly the `32x16x64` family, at seq 128 exactly
+the `64x128x16s2split8` triple) and never splits a κ triple, since κ changes no
+arithmetic. The shortlist's own arms were measurable in both cells.
+
+⚠️ **Inferred, reported and deliberately not implemented:** re-spending the three
+shortlist slots by breaking exact `(floor, predicted)` ties toward the larger κ
+gives 1.0000 in five of six cells. Candidates tie exactly along κ and the
+retention test at `include/tilemega/Solver/CompilerSearch.h:170-180` keeps
+whichever arrived first, so a shortlist can hold one geometry three times.
+Collapsing κ and taking three *distinct* geometries instead is worse in four
+cells (1.1060 on mha4_s4), so the rule worth changing is the tie-break, not the
+diversity. The gate is met as shipped and changing retention would move every
+published plan, so this round reports it.
 ## 8. Group D
 
-### The one command
+### The one command, and what it produced
+
+The anchored model is Llama-3.2-1B at the public config, seeded weights, seq 4,
+past 3. One invocation, verbatim from `E2E_REAL/llama/solve.json`:
 
 ```
-build-portable/tools/tilemega-compile <export>/exported_program.pt2 <out>/auto.cu \
+build-portable/tools/tilemega-compile \
+  /root/r7_work/llama_hoist/exported_program.pt2 \
+  /root/r7_work/llama_hoist/auto.cu \
   --solve docs/experiments/COSTMODEL/event_fit/target.json \
   --seq 4 --past 3 --search-capacity 12 \
   --search-domain docs/experiments/COSTMODEL/event_fit/search_domain.json \
-  --dump-cg <out>/auto.mlir \
+  --dump-cg /root/r7_work/llama_hoist/auto.mlir \
   --hop-curve docs/experiments/SIMULATOR/hop_ns.tsv
 ```
 
-`docs/experiments/E2E_REAL/run_e2e.py` wraps it, then builds and runs. At
-reduced width this produces, for a Llama-shaped model, a source carrying
-`TILEMEGA_NORM_EPSILON 1e-05f`, `TILEMEGA_ROPE_FP32_PHASE 1`,
-`TILEMEGA_TOKEN_ID_BITS 64`, `TILEMEGA_EMBEDDING_RUNTIME 1`, one `kEmbedding`,
-three `kRMSNorm`, two `kRoPE`, two `kKVAppend`, one `kAttention`, one
-`kElementwise` and eight `kGemm` stages — and `RESULT status=PASS` with
-L0.5 = L1 = L2. For a Qwen3-shaped model it produces `1e-06f` and two `kQKNorm`
-stages, and also passes.
+Exit 0 in 5167.2 s at `f6b00ac11`. Its products, read off the generated source:
+`TILEMEGA_NORM_EPSILON 1e-05f` and `TILEMEGA_ROPE_FP32_PHASE 1` (both from the
+model, not compiled in), `TILEMEGA_TOKEN_ID_BITS 64`,
+`TILEMEGA_EMBEDDING_RUNTIME 1`, geometry `32x16x64` with 2 stages,
+`TILEMEGA_EVENT_KAPPA 1`, `TILEMEGA_RESIDENCY_CAP 4`, `TILEMEGA_SOLVED_GRID 512`,
+and the whole decoder as tasks: 1 `kEmbedding`, 33 `kRMSNorm`, 32 `kRoPE`,
+32 `kKVAppend`, 16 `kAttention`, 16 `kElementwise`, 115 `kGemm`.
+`docs/experiments/E2E_REAL/run_e2e.py` wraps the invocation, builds, and runs.
 
-### What the solver decides and what a human still decides
+### D-a — correctness of the anchored model
 
-| decided by the solver | decided by a human |
-|---|---|
-| per-GEMM geometry (tile_m/n/k, stages) | the calibration target (`target.json`) and the search domain |
-| split-K contribution count | the search capacity (12) |
-| κ, as one global value per Plan | κ's candidate set {1,2,4}, and that it is global rather than per stage |
-| residency cap | the hop curve |
-| placement π and σ, over six placement families | the six families themselves, and the four symbolic templates |
-| slot order and slot window W | the protocol switches (`BARRIER_V2`, `EVENT_SOLO`, wait policy, backoff) |
-| which stages become split partial + combine | the numerical switches (`MIDPOINT_REFINE`, its 2^-6 guard) |
-| the epsilon, the rotary phase precision, the token-id width and which TaskBody families are compiled in — all read from the imported model | the export itself: seq/past ranges, dtype, and the decision to export at all |
-| — | **pipelining: not a decision at all this round; no σ pipeline dimension exists** |
+50 fresh processes, one binary, `TILEMEGA_WARMUP=0 TILEMEGA_REPEAT=1`.
+
+- **L0.5 = L1 = L2 in every round**: `E2E_HASH l05=735ddfc6d445292e
+  l1=735ddfc6d445292e l2=735ddfc6d445292e`, `l1_vs_l05_mismatch=0`,
+  `l2_vs_l1_mismatch=0`.
+- **31 of 33 checked outputs are exactly equal to the CPU golden.** The two that
+  are not: `index=0 buffer=374` (the logits) on 146 of 128256 elements,
+  `max_abs=0.03125`, `max_rel=1719`; and `index=25 buffer=301` on 1 element,
+  `max_abs=0.01715`, `max_rel=20.07`.
+- **The gate is 50/50 and the measured rate is 0/50.** Recorded, not adjusted.
+  ⚠️ §7.2 D-a says "66 outputs all pass"; this export has **33** checked
+  outputs, and the round does not claim 66.
+
+### D-c — three levels per decode seq, 25 paired rounds each
+
+| seq | L0.5 ms | L1 ms | L2 ms | L2/L1 | L2/floor |
+|---|---|---|---|---|---|
+| 1 | 49.804 | 49.755 | 36.487 | 0.7333 | 7.9087 |
+| 4 | 49.465 | 49.492 | 41.122 | 0.8309 | 7.8605 |
+| 16 | 157.749 | 157.839 | 130.978 | 0.8298 | 24.5126 |
+| 64 | 380.202 | 380.311 | 423.982 | 1.1149 | 42.8205 |
+
+Medians of 25 rounds. The three levels are measured inside one process
+(`E2E_TIMING cold=0 warmup=5 repeat=11 statistic=median
+reset=outside_timing`), so every round is a paired sample and the ratios are
+not two campaigns compared after the fact. §7.2 sets **no** performance threshold
+here, and none is implied: the megakernel is 27% faster than L1 at seq 1, 17%
+faster at 4 and 16, and 11% slower at 64, while `L2/floor` grows from 7.9 to
+42.8 — the floor is the cost model's own lower bound, so the growth is a
+statement about the model's optimism at long decode, not about the device.
+
+### D-d — the two reference models at the same caliber
+
+| model | seq | L0.5 ms | L1 ms | L2 ms | L2/L1 | L2/floor |
+|---|---|---|---|---|---|---|
+| gqa2 | 1 | 0.2058 | 0.1925 | 0.1372 | 0.7135 | 2.4961 |
+| gqa2 | 4 | 0.1823 | 0.1967 | 0.1537 | 0.7850 | 2.6992 |
+| gqa2 | 16 | 0.2089 | 0.2152 | 0.2130 | 0.9904 | 3.2938 |
+| gqa2 | 128 | 0.3226 | 0.3368 | 0.3133 | 0.9301 | 2.8816 |
+| mha4 | 1 | 0.3520 | 0.3779 | 0.2866 | 0.7582 | 2.3622 |
+| mha4 | 4 | 0.3584 | 0.3881 | 0.3430 | 0.8841 | 2.7383 |
+| mha4 | 16 | 0.3991 | 0.4210 | 0.4946 | 1.1741 | 3.6000 |
+| mha4 | 128 | 0.5998 | 0.6213 | 0.6390 | 1.0278 | 2.7160 |
+
+⚠️ **Inferred: the shape of `L2/L1` is the same on the real model and on the
+reference models, and the shape of `L2/floor` is not.** Both families win most at
+seq 1 (0.71–0.76) and lose at the long end (1.03–1.17), so the megakernel's
+advantage is a launch-and-wait advantage that dilutes as the work per launch
+grows. `L2/floor`, however, stays between 2.4 and 3.6 on the reference models and
+climbs to 42.8 on the real one: the floor is computed from the same cost model in
+both cases, so a 12× difference in how far the device sits above it is the
+clearest single statement this round makes about where the model's error lives —
+in the large graph, not in the mechanism.
+
+### D-e — what the solver decided, and what a person still decides
+
+`E2E_REAL/solver_decisions.md` is the item-by-item list, read off the invocation
+and the generated source: **10 decisions the solver made** (GEMM geometry,
+split-K, κ, residency, grid, placement family out of six, slot order, which
+candidates to price and in what order, per-stage κ refinement when enabled, the
+interval cut when enabled) and **12 a person still made** (which program, the θ
+point, the evaluation budget, the admitted geometry domain, numerical rejections,
+the machine description, the hop curve, segment counts, prefetch page size, the
+harness protocol macros, the target architecture and flags, and the comparison
+tolerance). Two of the twelve — capacity and the geometry domain — are budgets
+rather than answers, and both are disclosed in the generated module
+(`tilemega.search_deferred`, `tilemega.search_restricted_geometry`) so a reader
+can see the search was finite and reduced.
 
 ## 9. Deviations from the prompt
 
@@ -242,92 +500,155 @@ stages, and also passes.
    so the normalization epsilon — the one piece of model configuration that
    reaches FX only as a literal — could not be read without it.
 2. **A2's rounding is not "only once when writing back rotated Q/K".** Both the
-   archived reference probe and the published modeling code cast the cosine and
-   sine to the model dtype before multiplying, so matching the PyTorch golden
-   the hard gates are measured against requires that rounding. The faithful form
-   is implemented; `TILEMEGA_ROPE_FP32_TRIG` exists, ablation-only and never
-   generated, so the prompt's literal reading stays measurable. Per `CLAUDE.md`,
-   the expected value was not moved to match an implementation.
-3. **Two extra commits** (§1), to keep a mechanism apart from the experiment
-   that measures it, and the analysis change apart from the operator needing it.
+   archived reference probe and the published modeling code cast cosine and sine
+   to the model dtype before multiplying, so matching the PyTorch golden the hard
+   gates are measured against requires that rounding. The faithful form is
+   implemented; `TILEMEGA_ROPE_FP32_TRIG` exists, ablation-only and never
+   generated, so the prompt's literal reading stays measurable.
+3. **76 commits for 18 steps** (§1), for the three reasons given there.
 4. **`DecoderLayerPattern`'s input normalization is now unordered**, and
-   `aten.reshape.default` / `aten.slice.Tensor` joined the layout-only set.
-   Both are architectural facts about real exports, not accommodations: the
-   published modeling code writes `self.weight * hidden_states` while the
-   archived reference graph scales then weights.
+   `aten.reshape.default` / `aten.slice.Tensor` joined the layout-only set —
+   architectural facts about real exports, not accommodations.
 5. **The mixed-storage-dtype check is deferred rather than immediate**, so the
    FP32 rotary table A2 introduced can reach the layer loop that consumes it.
    Any disagreement other than the identifiers and the phase table still throws.
-6. **Most of the round was not delivered.** §4 is the ledger.
+6. **A-b's graph is a cut of the model, not the model** (§4, §11), and the cut
+   list is A-a's rather than a new one.
+7. **`docs/experiments/MODELS2/export_covered_qwen3.py` imports
+   `MODELS/export_covered.py` as a module.** H1 forbids *changing* files under
+   other `docs/experiments/` directories; reading one is not changing it, and
+   reusing the exact layer module is what makes the two graphs comparable.
+8. **Evidence trees are committed without their binaries, residency-probe
+   artifacts or per-candidate CG dumps** (`topk/README.md` says which and why).
+   All three regenerate from the recorded commands; the sources that were built
+   are kept.
+9. **B3's second interval is still running at closure** (§4).
 
 ## 10. Confirmation of the prompt's exclusions
 
-- **Fusion partitioning:** not entered. No `FUSE`/fusion partitioning work was
-  done and `FUSE6 enter_r7=0` stands.
+- **Fusion partitioning:** not entered. `FUSE6 enter_r7=0` stands; no fusion
+  decision was implemented or re-priced.
 - **Symbolic coverage of the three EFT champions:** not attempted. No placement
-  was substituted to buy coverage; S-c's honest record is untouched.
+  was substituted to buy coverage; S-c's record is untouched.
 - **Serving (EX-E5 / EX-S4 / L5):** not entered.
-- **Cost-model rank-by-rank predictive accuracy:** not pursued; C1-c's
-  replacement criterion is recorded instead.
+- **Cost-model rank-by-rank predictive accuracy:** not pursued. C1-c's
+  replacement criterion — measured top-k quality — is what was measured, and §8's
+  `L2/floor` spread is reported as a fact about the model rather than turned into
+  a ranking claim.
 
 ## 11. Causes and next steps for gates not met
 
-1. **B1, B2, B3, C1-b, D-a…D-d, A-b.** One cause dominates and it is
-   located, and F-221 sharpens it beyond what R7 §6 assumes. The full-width
-   Llama graph (1663 FX tasks, 2174 couplings, 47 guards) ran 23 minutes of CPU
-   without emitting one search row. The dominant term is not inside the
-   capacity-bounded search: `SolveExport` builds its candidate list by iterating
-   the geometry domain crossed with `split ∈ {1,2,4,8,16,32}` and re-importing
-   the `.pt2` and re-preparing the whole model on every pair — 30 times on this
-   domain — before `--search-capacity` applies to anything.
-   Timing the pieces settles which fix comes first: `tilemega-import` alone on
-   this graph takes over 2.5 minutes of a roughly 3-minute pair, and inside the
-   import it is `CouplingDerivation::Derive` -- granularity-dependent, so not
-   hoistable -- that dominates.
-   **Next step, in this order:** (a) C1-b as written, keeping relation intervals
-   and shared successor regions through the bound computation instead of
-   materializing every dense edge. (b) then hoist `ReadExportBridge`,
-   `BuildModelPlan` and `LiftSemantics` out of the outer loop, which is correct
-   and cheap but saves only the prefix ahead of granularity. Then re-run
-   `run_e2e.py --root <llama> --capacity 12`, which is already written and
-   whose reduced-width path is verified.
-2. **A-c.** Re-run the SEQSCAN subset at seq∈{4,128}, 50 processes each, on the
-   current HEAD. The runner exists (`docs/experiments/SEQSCAN/run.sh`); this was
-   a budget omission, not a blocked item.
-3. **B0 is done** (F-222), which is what the original ledger named as the
-   cheapest remaining item with a gate attached. It was not blocked by the solve
-   cost, and doing it removes B1's ordering constraint. What it did not do is
-   make B1 obviously worth building: `FORK7` clears its fixed 0.15 threshold by
-   0.0005 unrounded, the four-cell median clears it in only 6 of 9 rounds, and
-   0.116 of the 0.151 is intra-task K-loop wait that cross-task pipelining does
-   not reach.
-   **Next step for B1:** size it against the head share — SIMT bodies are 35–45%
-   of the critical path with heads at 3.5–8%, GEMM heads are 21%, and rope and
-   kvappend spend 38–55% of their body in `setup` — and treat a negative outcome
-   as a real result, which R7 §5.2 requires for B1-e.
+### A-b and D-a — two instances of one cause
+
+**What is verified.** In both models the megakernel reproduces the reference
+implementation bit for bit, in every one of 50 fresh processes: one `E2E_HASH`
+line with three equal hashes, `l1_vs_l05_mismatch=0`, `l2_vs_l1_mismatch=0`. The
+disagreement is between the device and the **CPU golden**, and only on outputs
+that carry a long accumulation.
+
+**Where it is, to the element.** D-a: the logits (`buffer=374`, 146 of 128256
+elements, `max_abs=0.03125`) and one element of `buffer=301`. A-b: the
+28-layer residual output (`buffer=728`, 190 of 8192 elements,
+`max_abs=0.09375`). `E2E_REAL/qwen3/residual_cancellation.txt` prices A-b's:
+the offending elements are the *small* ones (median `|expected|` 0.399 against
+1.25 over all 8192) and the largest absolute gaps are 0.09375 on values of 2.5
+to 4.4 — 2.1% to 3.8% relative, five to ten bf16 ulps.
+
+**Why the gate is not met, in one sentence with a constant in it.**
+`Compare()` in `include/tilemega/Codegen/tasks/ModelHarness.cuh:2939` uses one
+caliber for every output: `1.6e-2f + 1.6e-2f*fabs(expected)`. That is about four
+bf16 ulps of relative slack. A chain of 28 bf16 roundings accumulates more than
+four ulps of legitimate implementation difference, and the depth sweep shows
+exactly where the crossing is: 0 elements outside tolerance at 4 layers (5/5
+pass), 2 at 8 layers, 44 at 16, 190 at 28.
+
+**Next step, concretely.** Three options, in the order I would take them:
+
+1. **Give the comparison a depth-aware budget.** Derive the tolerance per output
+   from the accumulation depth the plan itself knows — the number of chained
+   rounding sites on the path to that buffer, which the CG already has — instead
+   of one constant in `ModelHarness.cuh:2939`. This is a *gate design* change:
+   §H6 forbids re-drawing a line inside the round that measures it, so it belongs
+   to R8's prompt, not to this round's tree.
+2. **Make the golden less arbitrary.** Compute the CPU reference in FP32 (or
+   FP64) and round once, so "correct" is a value rather than one particular
+   bf16 evaluation order. `MODELS/export_covered.py` and
+   `MODELS2/export_covered_qwen3.py` both already run the golden under
+   `torch.no_grad()` on CPU; the change is the dtype of that run plus a documented
+   rounding model. This weakens nothing: the device is still compared against an
+   independent computation.
+3. **Keep `MIDPOINT_REFINE`'s treatment and extend it.** F-216 settled A-a's
+   first element by recomputing near bf16 midpoints in FP64. The same idea
+   applied to the residual add — not just the GEMM epilogue — would remove the
+   part of the difference that is a rounding *choice* rather than an accumulated
+   error. Cost: one FP64 comparison per residual element, on the L0.5 path only.
+
+The one thing this round will not do is move the tolerance or the expected
+values, per `CLAUDE.md`.
+
+### C1-b — capacity is still 12
+
+**Located to a function.** On the whole Llama model one
+`PreparePlacementProblem` is 63.67 s, the bound stage is 68.8 ms of it (0.11%),
+and of 41 samples 32 land in `BuildModelPlan`'s pattern matching and **0** in the
+`isl_set_foreach_point` this item removed (F-229). Hoisting the plan build out of
+the outer loop then cut the whole search from 12982.1 s to 5167.2 s (2.51×,
+F-230) and capacity still did not move.
+
+**Next step.** The remaining term is `CouplingDerivation::Derive`, inside each
+candidate's import. It is granularity-dependent, so unlike `BuildModelPlan` it
+cannot be hoisted; it has to get cheaper. The concrete handle is that the outer
+loop re-derives the couplings for every (geometry, split) pair even though the
+*graph* is the same and only the tiling changes: deriving the granularity-free
+part once and re-tiling it per candidate is the shape of the fix. Capacity 12 is
+a consequence of that cost and should not be raised before it.
+
+### B3's second interval
+
+Wall clock only. `segments.py --models mha4` is running and resumes from the
+points already recorded; the gate is met on gqa2 and the second interval is a
+report line (§2).
+
+### sm_120
+
+Both runners exist, refuse to build unless `compute_cap` is 120, reject inherited
+`TILEMEGA_*`, `trap ERR` into `status.txt`, check disk hard, and were run here
+with `SELF_CHECK=1` (`E2E_REAL/sm120_selfcheck/`). H7 is satisfied by not
+running them on the 4090 and saying so in each header.
 
 ## 12. Closing assessment
 
-On the single-inference line, the decisions still outside solver control are:
-κ's granularity (global, not per stage), the geometry within a θ interval (fixed
-at the upper endpoint), whether two adjacent slots on a worker overlap (no such
-decision exists), the placement family set, and every protocol and numerical
-switch. Of these, per-stage κ and intra-interval geometry are blocked only by
-the preparation cost; cross-task pipelining is blocked by not having been built.
+**What moved.** Every item of Group B is implemented and measured, and the two
+that produced negative results say so with numbers: paging costs more than it
+saves at 0.26–8% pipelinable slots, and per-stage κ is exactly worthless on two
+stage-major winners. Intra-interval geometry is legal, materializes
+byte-identically, and cuts where the curves cross. The searchable space is
+provably unchanged in size, and that is written as a failed gate rather than a
+qualified pass. On the front of the line, the compiler now imports, solves,
+writes back, generates, builds and runs a whole decoder — including a 28-layer
+Qwen3 cut it could not touch at the start of the round — with the normalization
+epsilon and the rotary phase precision read from the model.
 
-What did change this round is the *front* of the line. Before it, the compiler
-could not import a whole decoder: the embedding, the per-head normalizations and
-the final normalization had to be cut out and passed in as tensors, and the FP32
-rotary path could not be reached by any real export. It can now import, solve,
-write back, generate and run a complete model from `torch.export` in one
-command, with the normalization epsilon and the rotary phase precision read from
-the model rather than compiled in. That is the prerequisite EX-V1 was waiting
-on; what EX-V1 still needs is the solve cost, which is C1-b.
+**What the round proves about decisions.** Of the choices that used to be human,
+the solver now makes ten, including two that are new this round: κ per producer
+stage, and the geometry inside a θ interval. Twelve remain human, two of them
+budgets rather than answers. The honest summary is that the *mechanism* side of
+single-inference scheduling is close to exhausted on these models: the last three
+mechanisms built each moved the measured time by less than the run-to-run spread,
+while the cost model's own floor sits 2.4–3.6× below the device on the reference
+models and 42.8× below it on the real one.
 
-For full EX-V1 and sm_120 execution: C1-b (3–5 days) unblocks the real-model
-solve; the three-tier timing and decode sweep then follow in hours, and
-`run_sm120.sh` is written, self-checked and ready for the target machine.
-Before serving (EX-E5 / EX-S4 / L5), the missing pieces are unchanged from R6 —
-a KV cache that grows across calls, batching across requests, and a scheduler
-above the Plan — plus, now visible, a solve cost low enough to re-solve per
-shape rather than per model.
+**Where the next round's leverage is.** Not in another σ dimension. In two
+places, both measured this round: the *comparison caliber* (§11's depth budget,
+which is what stands between a working 28-layer model and a green gate), and the
+*import cost per candidate* (`CouplingDerivation::Derive`, which is what stands
+between capacity 12 and a search wide enough for the `L2/floor` gap to be
+attacked). Both are named down to the function or the constant, and neither needs
+a new mechanism to start.
+
+**For sm_120 and EX-V1.** The runners are written, self-checked and refuse to run
+on the wrong device. EX-V1's prerequisite — a whole real model through one
+command — is met; what it still waits on is the solve cost above. Before serving
+(EX-E5 / EX-S4 / L5) the missing pieces are unchanged from R6: a KV cache that
+grows across calls, batching across requests, and a scheduler above the Plan —
+plus a solve cost low enough to re-solve per shape rather than per model.
