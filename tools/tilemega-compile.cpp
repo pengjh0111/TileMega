@@ -212,7 +212,7 @@ int main(int argc, char** argv) {
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path;
-    bool resource_probes=true;
+    bool resource_probes=true;bool dump_evaluated=false;
     int interval_begin=0,segments=1,segment_candidates=3;
     std::vector<mlir::OwningOpRef<mlir::ModuleOp>> variant_modules;
     tilemega::solver::CompilerSearchOptions solve_options;
@@ -245,6 +245,7 @@ int main(int argc, char** argv) {
       else if (flag=="--dump-cg") dump_cg=value;
       else if (flag=="--hop-curve") hop_path=value;
       else if (flag=="--resource-probes") resource_probes=std::stoi(value)!=0;
+      else if (flag=="--dump-evaluated") dump_evaluated=std::stoi(value)!=0;
       else if (flag=="--search-domain") domain_path=value;
       else if (flag=="--numerical-rejections") rejections_path=value;
       else throw std::runtime_error("unknown option: "+flag);
@@ -311,6 +312,7 @@ int main(int argc, char** argv) {
           std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
       auto library=std::filesystem::canonical(argv[0]).parent_path().parent_path()/"libtilemega.a";
       int probe_index=0;
+      solve_options.keep_evaluated=dump_evaluated;
       if (resource_probes) solve_options.query_residency=[&](mlir::ModuleOp m,int kappa) {
         return queryResidency(m,kappa,solve_options,resource_root/std::to_string(probe_index++),library);
       };
@@ -331,6 +333,28 @@ int main(int argc, char** argv) {
             << g.tile_m << '\t' << g.tile_n << '\t' << g.tile_k << '\t' << g.stages << '\t' << g.split_k << '\t'
             << e.candidate.kappa << '\t' << e.candidate.ctas_per_sm << '\t' << e.floor_ns << '\t' << e.makespan_ns
             << '\t' << stem << ".cu\t" << stem << ".mlir\n";
+      }
+      if (dump_evaluated) {
+        // §6 C1-c measures the search's choice against everything the search
+        // priced, so every evaluated candidate needs a buildable source, not
+        // just the three the shortlist keeps.
+        std::ofstream table(std::string(argv[2])+".evaluated.tsv");
+        table << "index\tkey\tplacement\ttile_m\ttile_n\ttile_k\tstages\tsplit_k\tkappa\tresidency\tfloor_ns\tpredicted_ns\tsource\tcg\n";
+        for (std::size_t i=0;i<solved.evaluated.size();++i) {
+          auto const& entry=solved.evaluated[i];auto const& e=entry.evaluation;
+          auto const& g=e.candidate.config;
+          std::string stem=std::string(argv[2])+".cand"+std::to_string(i);
+          std::vector<tilemega::codegen::RuntimeVariantModule> variants{{*entry.module,1u,
+              static_cast<std::uint32_t>(dims.seq)}};
+          std::ofstream(stem+".cu") << tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(variants);
+          std::error_code ec;llvm::raw_fd_ostream cg(stem+".mlir",ec);
+          if (ec) throw std::runtime_error("cannot write evaluated CG");
+          (*entry.module).print(cg);
+          table << i << '\t' << e.candidate.key << '\t' << e.placement << '\t'
+              << g.tile_m << '\t' << g.tile_n << '\t' << g.tile_k << '\t' << g.stages << '\t'
+              << g.split_k << '\t' << e.candidate.kappa << '\t' << e.candidate.ctas_per_sm << '\t'
+              << e.floor_ns << '\t' << e.makespan_ns << '\t' << stem << ".cu\t" << stem << ".mlir\n";
+        }
       }
       std::ofstream outer(std::string(argv[2])+".bounds.tsv");
       outer<<"candidate\twork_lb_ns\tcp_lb_ns\tqueue_lb_lb_ns\tpriority_ns\n";
