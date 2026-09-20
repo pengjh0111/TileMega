@@ -87,10 +87,12 @@ Every number below is recomputed from raw logs by
 | 72 | `d759a909f` experiments: export and run the maximal connected qwen3 graph | 4.5 A-b |
 | 73 | `734df8a7f` docs: correct the queue ratio and ranking gates | 15 |
 | 74 | `a370d4606` experiments: add the sm_120 runners for round seven | 16 |
-| 75 | `docs: record the round seven closure results` — this commit | 17 |
-| 76 | `experiments: stamp the sass identity at head` | 18 |
+| 75 | `d2d933fae` docs: record the round seven closure results | 17 |
+| 76 | `1277edd1f` experiments: stamp the sass identity at head | 18 |
+| 77 | `docs: record the cmake and skeleton scope deviations` — this commit | 17 (H1 audit) |
+| 78 | `experiments: stamp the sass identity at head` | 18 (re-stamped after row 77) |
 
-Prompt §13 lists 18 steps; this round used 76 commits. Three reasons, all
+Prompt §13 lists 18 steps; this round used 78 commits. Three reasons, all
 recorded rather than argued: `AGENTS.md` requires a mechanism to be separate
 from the experiment that measures it and an analysis change separate from the
 operator that needs it; the round ran across many sessions, each of which
@@ -523,6 +525,22 @@ can see the search was finite and reduced.
    All three regenerate from the recorded commands; the sources that were built
    are kept.
 9. **B3's second interval is still running at closure** (§4).
+10. **The root `CMakeLists.txt` was changed**, which H1 forbids by name: 22 lines
+    added, 0 removed, all inside `if(TILEMEGA_BUILD_TESTS)`, registering four
+    unit tests — `relation_bounds` (C1-b), `stage_kappa` (B2), `pipeline_sigma`
+    (B1-d) and `embedding_plan` (A4). H1 allows new files under `test/`, but this
+    project has no per-directory CMake: a test only runs under ctest if it is
+    registered in the root file, so "add a test" and "do not touch the root
+    `CMakeLists.txt`" cannot both be honoured. No existing target, flag or
+    default-build line is touched, which is why H2's byte-identity still holds —
+    verified at `d2d933fae`, both models' default SASS byte-identical to the
+    baseline. Found by auditing the series against H1 after the closure commit,
+    not noticed while it happened; recorded rather than reverted, because
+    reverting would unregister the four tests the steps that added them needed.
+11. **`TileMega_skeleton.md`'s change-record table gained this round's row**, a
+    third location beyond the §5.3.1 and §8.6 that H1 names. One table row, the
+    same per-round entry every earlier round appended; §8.2, §8.5, §5.7.2 and
+    §5.7.3 are untouched (H3).
 
 ## 10. Confirmation of the prompt's exclusions
 
