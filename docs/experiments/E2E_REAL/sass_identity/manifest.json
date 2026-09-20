@@ -1,8 +1,8 @@
 {
   "baseline": "4e0e7b119b30500456a59db719614d0abf7fa699",
-  "source_head": "6bb3685aacd746132c8da32e769d9c1b84d47f07",
+  "source_head": "d951897147a3de62cb0e22fead3c84eab2ace58d",
   "provisional": false,
-  "started_utc": "2026-09-20T12:53:34.000539+00:00",
+  "started_utc": "2026-09-20T12:59:09.987698+00:00",
   "models": {
     "gqa2": {
       "sha256": "5f6c72bafd6a56bdb5cf095e624aa998817163cf2216f91f57896bba9f133412",
@@ -5487,7 +5487,7 @@
     "docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/solve.json": "0c4555da89653250fbf34b90fd39e6c5109f0363703cad8aa18eaeee264edbcf",
     "docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/solve.log": "dbee450e71ed61879d0a8e96f0e3d1feae412e4357a266194230e6879d74b76e",
     "docs/experiments/E2E_REAL/stage_kappa/results.tsv": "506379b76b2f3a2cfb5f675fbd02959a7465eee2f90a65c9b482264b1d208648",
-    "docs/experiments/E2E_REAL/summary.md": "04ecbbaf11324516612d66974f72faf28364ef6f62d49775d9133171bd178b38",
+    "docs/experiments/E2E_REAL/summary.md": "0aecae38898c4f430ccc36ec9329e395b2601a46cf1b65fa762fd06159c4ee1e",
     "docs/experiments/E2E_REAL/timing.py": "293bc5e9b0339da98551fff16fb5a0594e1d14e8051926da4bf5fa73801f4690",
     "docs/experiments/E2E_REAL/timing/seq1/r0.json": "54e325aa266c3ec853beb66fc4838898a2f22b4c401742e70e039429035552c8",
     "docs/experiments/E2E_REAL/timing/seq1/r0.log": "623fc2ba038b647f60c59a6a34f9b4525902275cba0bd91b2b75fa0e40148488",
@@ -10718,5 +10718,5 @@
   },
   "baseline_host_sha256": "6625bc29b380bd7948aa3f7da8f5dc1d6fe0c82e9c3e0fd9ce249463c42888c0",
   "head_host_sha256": "e064336e8c4eb01135a4d75a7e3000eec70cc6928122d282f4afd0c0275b6ba1",
-  "finished_utc": "2026-09-20T12:55:23.697924+00:00"
+  "finished_utc": "2026-09-20T13:01:00.608834+00:00"
 }
