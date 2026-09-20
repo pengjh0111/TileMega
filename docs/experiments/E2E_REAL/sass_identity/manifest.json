@@ -1,18 +1,18 @@
 {
   "baseline": "4e0e7b119b30500456a59db719614d0abf7fa699",
-  "source_head": "64cc1e709f88e02ffacdf5371f11a64ff302011d",
+  "source_head": "6bb3685aacd746132c8da32e769d9c1b84d47f07",
   "provisional": false,
-  "started_utc": "2026-09-20T12:23:18.529210+00:00",
+  "started_utc": "2026-09-20T12:53:34.000539+00:00",
   "models": {
     "gqa2": {
-      "sha256": "883d6c58ff6e8d0169cde2f6d40f79c36b40edf61f75aaab3678e2eed9fb4616",
-      "bytes": 6802662,
-      "baseline_sha256": "883d6c58ff6e8d0169cde2f6d40f79c36b40edf61f75aaab3678e2eed9fb4616"
+      "sha256": "5f6c72bafd6a56bdb5cf095e624aa998817163cf2216f91f57896bba9f133412",
+      "bytes": 6802670,
+      "baseline_sha256": "5f6c72bafd6a56bdb5cf095e624aa998817163cf2216f91f57896bba9f133412"
     },
     "mha4": {
-      "sha256": "530b4b79b52ee14b09144dfc4a288f3d0149894f74a6724a610ab601427549b6",
-      "bytes": 6802662,
-      "baseline_sha256": "530b4b79b52ee14b09144dfc4a288f3d0149894f74a6724a610ab601427549b6"
+      "sha256": "0bdbeac9a0597d336aaa6527e1d7570c5cdcbebe4831030203e4519911fa6a50",
+      "bytes": 6802670,
+      "baseline_sha256": "0bdbeac9a0597d336aaa6527e1d7570c5cdcbebe4831030203e4519911fa6a50"
     }
   },
   "commands": [
@@ -24,15 +24,15 @@
       "-lineinfo",
       "-DTILEMEGA_EVENT_KAPPA=1",
       "-I/tmp/r7base/include",
-      "-I/tmp/r7stamp/third_party/cutlass/include",
-      "-I/tmp/r7stamp/third_party/cutlass/tools/util/include",
-      "-I/tmp/r7stamp/third_party/cutlass/test",
-      "/tmp/r7stamp/docs/experiments/SEQSCAN/raw/src/gqa2.cu",
-      "/tmp/r7stamp/docs/experiments/E2E_REAL/sass_identity/bin/libtilemega.a",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-I/root/TileMega/third_party/cutlass/tools/util/include",
+      "-I/root/TileMega/third_party/cutlass/test",
+      "/root/TileMega/docs/experiments/SEQSCAN/raw/src/gqa2.cu",
+      "/root/TileMega/docs/experiments/E2E_REAL/sass_identity/bin/libtilemega.a",
       "-L/usr/local/cuda/lib64",
       "-lcudart",
       "-o",
-      "/tmp/r7stamp/docs/experiments/E2E_REAL/sass_identity/bin/gqa2_base"
+      "/root/TileMega/docs/experiments/E2E_REAL/sass_identity/bin/gqa2_base"
     ],
     [
       "/usr/local/cuda/bin/nvcc",
@@ -41,16 +41,16 @@
       "-arch=sm_89",
       "-lineinfo",
       "-DTILEMEGA_EVENT_KAPPA=1",
-      "-I/tmp/r7stamp/include",
-      "-I/tmp/r7stamp/third_party/cutlass/include",
-      "-I/tmp/r7stamp/third_party/cutlass/tools/util/include",
-      "-I/tmp/r7stamp/third_party/cutlass/test",
-      "/tmp/r7stamp/docs/experiments/SEQSCAN/raw/src/gqa2.cu",
-      "/tmp/r7stamp/docs/experiments/E2E_REAL/sass_identity/bin/libtilemega.a",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-I/root/TileMega/third_party/cutlass/tools/util/include",
+      "-I/root/TileMega/third_party/cutlass/test",
+      "/root/TileMega/docs/experiments/SEQSCAN/raw/src/gqa2.cu",
+      "/root/TileMega/docs/experiments/E2E_REAL/sass_identity/bin/libtilemega.a",
       "-L/usr/local/cuda/lib64",
       "-lcudart",
       "-o",
-      "/tmp/r7stamp/docs/experiments/E2E_REAL/sass_identity/bin/gqa2_head"
+      "/root/TileMega/docs/experiments/E2E_REAL/sass_identity/bin/gqa2_head"
     ],
     [
       "/usr/local/cuda/bin/nvcc",
@@ -60,15 +60,15 @@
       "-lineinfo",
       "-DTILEMEGA_EVENT_KAPPA=1",
       "-I/tmp/r7base/include",
-      "-I/tmp/r7stamp/third_party/cutlass/include",
-      "-I/tmp/r7stamp/third_party/cutlass/tools/util/include",
-      "-I/tmp/r7stamp/third_party/cutlass/test",
-      "/tmp/r7stamp/docs/experiments/SEQSCAN/raw/src/mha4.cu",
-      "/tmp/r7stamp/docs/experiments/E2E_REAL/sass_identity/bin/libtilemega.a",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-I/root/TileMega/third_party/cutlass/tools/util/include",
+      "-I/root/TileMega/third_party/cutlass/test",
+      "/root/TileMega/docs/experiments/SEQSCAN/raw/src/mha4.cu",
+      "/root/TileMega/docs/experiments/E2E_REAL/sass_identity/bin/libtilemega.a",
       "-L/usr/local/cuda/lib64",
       "-lcudart",
       "-o",
-      "/tmp/r7stamp/docs/experiments/E2E_REAL/sass_identity/bin/mha4_base"
+      "/root/TileMega/docs/experiments/E2E_REAL/sass_identity/bin/mha4_base"
     ],
     [
       "/usr/local/cuda/bin/nvcc",
@@ -77,20 +77,20 @@
       "-arch=sm_89",
       "-lineinfo",
       "-DTILEMEGA_EVENT_KAPPA=1",
-      "-I/tmp/r7stamp/include",
-      "-I/tmp/r7stamp/third_party/cutlass/include",
-      "-I/tmp/r7stamp/third_party/cutlass/tools/util/include",
-      "-I/tmp/r7stamp/third_party/cutlass/test",
-      "/tmp/r7stamp/docs/experiments/SEQSCAN/raw/src/mha4.cu",
-      "/tmp/r7stamp/docs/experiments/E2E_REAL/sass_identity/bin/libtilemega.a",
+      "-I/root/TileMega/include",
+      "-I/root/TileMega/third_party/cutlass/include",
+      "-I/root/TileMega/third_party/cutlass/tools/util/include",
+      "-I/root/TileMega/third_party/cutlass/test",
+      "/root/TileMega/docs/experiments/SEQSCAN/raw/src/mha4.cu",
+      "/root/TileMega/docs/experiments/E2E_REAL/sass_identity/bin/libtilemega.a",
       "-L/usr/local/cuda/lib64",
       "-lcudart",
       "-o",
-      "/tmp/r7stamp/docs/experiments/E2E_REAL/sass_identity/bin/mha4_head"
+      "/root/TileMega/docs/experiments/E2E_REAL/sass_identity/bin/mha4_head"
     ]
   ],
   "inputs": {
-    "CMakeLists.txt": "618cf768397304a151659a89faf8e17475bba9e66ca732f3234d7d09f4b49ad4",
+    "CMakeLists.txt": "ba441860661fd4e37fafabd41619aeb0bf35355987c5e4407365649e706b98c6",
     "TileMega_skeleton.md": "06fc4103b325d76993bffa466b94b572b207f2ba4cf83bf9b77d9d3248736e3b",
     "docs/FINDINGS.md": "58a27cde233bf63b6a3fff4025326e73d527b307dcb7e637dd0db4565f6b3e77",
     "docs/STATUS.md": "b0427cff2d333ae4d2caa40b1e72e11f812eb2e90528ffd45027cdbdcc2d336d",
@@ -5487,7 +5487,7 @@
     "docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/solve.json": "0c4555da89653250fbf34b90fd39e6c5109f0363703cad8aa18eaeee264edbcf",
     "docs/experiments/E2E_REAL/stage_kappa/mha4_s4/searched/solve.log": "dbee450e71ed61879d0a8e96f0e3d1feae412e4357a266194230e6879d74b76e",
     "docs/experiments/E2E_REAL/stage_kappa/results.tsv": "506379b76b2f3a2cfb5f675fbd02959a7465eee2f90a65c9b482264b1d208648",
-    "docs/experiments/E2E_REAL/summary.md": "18a4593e2c08acbbca382b912a63ba9ec5a052b364fcd924c0673cc6c13c96e6",
+    "docs/experiments/E2E_REAL/summary.md": "04ecbbaf11324516612d66974f72faf28364ef6f62d49775d9133171bd178b38",
     "docs/experiments/E2E_REAL/timing.py": "293bc5e9b0339da98551fff16fb5a0594e1d14e8051926da4bf5fa73801f4690",
     "docs/experiments/E2E_REAL/timing/seq1/r0.json": "54e325aa266c3ec853beb66fc4838898a2f22b4c401742e70e039429035552c8",
     "docs/experiments/E2E_REAL/timing/seq1/r0.log": "623fc2ba038b647f60c59a6a34f9b4525902275cba0bd91b2b75fa0e40148488",
@@ -10517,7 +10517,7 @@
     "include/tilemega/Frontend/TorchExportImporter.h": "be98eac7c07767326b18498130f99fc110c2eafdd146ce30c3fb258d5a3827da",
     "include/tilemega/Runtime/EventBuffer.h": "5b3ec96930e4a6e3e54720040c9b2e2b463012eae44a3dfd5bd9bd168b01bdf5",
     "include/tilemega/Runtime/Launcher.h": "7e8f7f25fec6fd1d2f29e0f99f4fd8a70b14e4cc60710118e53a3e5c6a48fa83",
-    "include/tilemega/Runtime/MegakernelRuntime.h": "9048b815ff4d04ebd6a54a21f0ffbfceb2e37eac66c02a9b4f5340c3d333e8c1",
+    "include/tilemega/Runtime/MegakernelRuntime.h": "02aea7750ba62d2153ffd9a0d4fbb5006bbed8a4d28cfd4e29e092733fcc0f69",
     "include/tilemega/Solver/AlignmentPropagation.h": "ed1468e546bbd68bf9d37999fd5b01344e9ea6651a679e3e1a3a89c3309b5d7e",
     "include/tilemega/Solver/AttentionWork.h": "db906323c66654f5121f8c98b690b57a3ac9fa39137b7e87711ab14052abaa38",
     "include/tilemega/Solver/BackendCostQuery.h": "97ee08f58f07e499dee2b1ff8800d9248fcf7661d5d0f4b3d7279dc73fe63230",
@@ -10582,7 +10582,7 @@
     "lib/Frontend/ModelPlan.cpp": "8b81f53a4f432550b0ce0202066de8292abd78bb8a0a7d91ec2971bb16f69ad6",
     "lib/Frontend/SemanticLifting.cpp": "63d7373f0b4012c0ce453529adfcff9eb52743f38f8b9387d1b8ef6a7bc8ab57",
     "lib/Runtime/EventBuffer.cpp": "634eca2c9619d7943ac7a8b52105bf11f24b2b89fcf54c41aefcd9b8762c2f45",
-    "lib/Runtime/MegakernelRuntime.cpp": "5e95343b6714a47392b48c019fba0e22ddb1dd10c6b981636a0a11720137312a",
+    "lib/Runtime/MegakernelRuntime.cpp": "a57e2817c6c43d202de2a5292bc482e9d502a9480d000e5ab35229c0a0c50ef1",
     "lib/Solver/AlignmentPropagation.cpp": "778541e1dc97ce017a9c15bfeb4235c24281cc52370caff31f16e90695cfd7bd",
     "lib/Solver/AttentionWork.cpp": "0f6e80dd8a54a1ec68d4072beb9ba0668373896476f1d52ad9e31312b1a1ed26",
     "lib/Solver/BackendCostQuery.cpp": "0fca07dea581eed3b85ba13ad801e1c6490425589d82fcef57f5f0cb92abc530",
@@ -10717,6 +10717,6 @@
     "tools/tilemega-wiring.cpp": "9748f68068c264e22e5d3bf7f1f98890f223d1661917421aaa5361fa84fd8d30"
   },
   "baseline_host_sha256": "6625bc29b380bd7948aa3f7da8f5dc1d6fe0c82e9c3e0fd9ce249463c42888c0",
-  "head_host_sha256": "9a13bcb9de7ee23a4a102cd4eec3775f3502412d62b093fcef945ccf2fca5c83",
-  "finished_utc": "2026-09-20T12:25:11.255265+00:00"
+  "head_host_sha256": "e064336e8c4eb01135a4d75a7e3000eec70cc6928122d282f4afd0c0275b6ba1",
+  "finished_utc": "2026-09-20T12:55:23.697924+00:00"
 }

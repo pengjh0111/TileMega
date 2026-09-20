@@ -118,6 +118,21 @@ one run, which is what the `.diff` files carry. Every earlier stamp (steps marke
 one and all of them reported the same result: byte-identical default SASS for
 both reference models.
 
+**One commit after the round, and not part of it.** `6bb3685aa runtime:
+implement the cubin module loader` lands the `TODO(P2.4)` stub in
+`lib/Runtime/MegakernelRuntime.cpp` -- `cuModuleLoad` plus
+`cuModuleGetFunction` with retained handles, an unloading destructor, and
+`CUDA::cuda_driver` on the link line. It was written by a Codex session on the
+maintainer's instruction while this round was closing, not by R7, and it is
+listed here only because it sits in the same branch: no R7 gate depends on it,
+nothing in the repository calls the class, and it builds with 53/53 ctest. The
+H2 stamp was regenerated after it (`source_head 6bb3685aa`) and both reference
+models' SASS is still byte-identical to the baseline, so the round's identity
+claim survives the addition. Reviewed rather than rubber-stamped: the default
+`kernel_name = "l1_kernel"` was removed, because the generated kernels have C++
+linkage and no module exports that spelling; the caller now has to name the
+symbol.
+
 No push rights on `origin`; the series is exported with
 `git format-patch 4e0e7b119..HEAD -o /tmp/round7-patches/`.
 
