@@ -947,3 +947,210 @@ baseline 逐字节相同）。不回退的理由是回退会把这四个测试�
 **2. `TileMega_skeleton.md` 的变更记录表加了本轮一行**，这是 H1 点明的 §5.3.1 与
 §8.6 之外的第三处。只有一行表格，与此前各轮的惯例相同；§8.2 / §8.5 / §5.7.2 /
 §5.7.3 未被触碰（H3）。）
+
+# TileMega 第二阶段待办（BE / SB / TF）
+
+> 供粘贴进 `docs/TODO.md` 作为新的 `## 4. 主线二：后端与端到端`。
+> 第一阶段（EX 主线，R1–R7）收口的是**调度**；本阶段收口的是**后端质量**与**端到端能力**。
+
+---
+
+## 4.0 立项依据
+
+第一阶段结束时的实测状态（R7 报告 §12、D-c、D-d）：
+
+| 事实 | 数字 | 含义 |
+|---|---|---|
+| 调度已收口 | 求解器决定 10 项，人决定 12 项 | Plan 契约、写回、符号化区间证明全部落地 |
+| 机制收益耗尽 | 最后三个机制的变化都小于 run-to-run 波动 | 继续加 σ 维度是边际收益递减 |
+| **后端质量是瓶颈** | Llama-3.2-1B seq=64：L0.5 380 ms / L1 380 ms / L2 424 ms | 三档全慢两个数量级 |
+| **代价模型在大图上失真** | `L2/floor` 参考模型 2.4–3.6、真实模型 7.9→42.8 | 误差随图规模系统性增长 |
+| 后端接入率 | 18 个 TaskBody 中只有 2 个引用 CUTLASS/CuTe | `AttentionChunkTaskBody.h:70-82` 的 softmax 是 thread-0 串行三趟 |
+
+一句话立项理由：**前七轮优化的是一批本身差 1–2 个数量级的 kernel 的调度。调度做对了，底座没做。**
+
+---
+
+## 4.1 分组与依赖
+
+```
+BE（R8：后端重做 + IR 重构）
+  └─► SB（R9：静态 batch 端到端）
+  └─► TF（R10：tile 直传 + 判据 + 代价模型归一化）
+SB 与 TF 互不依赖，可并行或按资源排序
+```
+
+BE 必须先行：SB 的吞吐数字与 TF 的融合收益，都建立在后端不再差两个数量级的前提上。
+
+---
+
+## 4.2 条目台账
+
+状态词沿用既有词表：未开始／进行中／已验证／触发停止门槛／待外部条件／经用户批准取消。实现与验证分列。
+
+| ID | 范围与验收（不可删减，详见 4.3） | 依赖 | 实现状态 | 验证状态 | 证据、commit |
+|---|---|---|---|---|---|
+| BE-1 | TaskBody ABI 参数化在 arch tag 上，消费 `TargetSpec::Caps` | — | 未开始 | — | 待填 |
+| BE-2 | GEMM 族走 CUTLASS `CollectiveBuilder` | BE-1 | 未开始 | — | 待填 |
+| BE-3 | Attention 换在线 softmax，消除 thread-0 串行 | BE-1 | 未开始 | — | 待填 |
+| BE-4 | 其余 SIMT 算子做到 warp 级归约 | BE-1 | 未开始 | — | 待填 |
+| BE-5 | harness 屏障改为角色感知；§8.5 release 规则重定义并重做 litmus | BE-1 | 未开始 | — | 待填 |
+| BE-6 | occupancy 闭式按角色重算（F-40 / F-223 的继任） | BE-5 | 未开始 | — | 待填 |
+| BE-7 | dialect 拆为 `cg`（结构）与 `plan`（决策） | — | 未开始 | — | 待填 |
+| BE-8 | `task_space` → `tile_space` 等术语改名 | BE-7 | 未开始 | — | 待填 |
+| BE-9 | 两个锚定模型的算子全部走到 CUTLASS/CuTe 路径 | BE-2,3,4 | 未开始 | — | 待填 |
+| SB-1 | batch 作为 θ 参数进 tile space | BE-9 | 未开始 | — | 待填 |
+| SB-2 | KV cache 跨 decode 步增长（block table） | SB-1 | 未开始 | — | 待填 |
+| SB-3 | 离线批处理驱动与吞吐口径 | SB-2 | 未开始 | — | 待填 |
+| SB-4 | 对比 vLLM / SGLang 同口径数字 | SB-3 | 未开始 | — | 待填 |
+| TF-1 | fuse 改为放置后的 tile 直传 | BE-9 | 未开始 | — | 待填 |
+| TF-2 | 直传作为放置的收益项进代价模型与目标函数 | TF-1 | 未开始 | — | 待填 |
+| TF-3 | 代价模型输出改为无量纲分值；`L2/floor` 重新定义或废弃 | — | 未开始 | — | 待填 |
+| TF-4 | 判据改为深度感知 + FP32 golden | — | 未开始 | — | 待填 |
+
+---
+
+## 4.3 条目详述
+
+### BE-1 TaskBody ABI 参数化在 arch tag 上
+
+**目标**：一份 TaskBody 源码，按目标机器选择实现路径，迁移到 A/H/B 系列时不需要改结构。
+
+**现状**：`TargetSpec` 已经是能力驱动的（`arch_tag` 取 `"sm_80" | "sm_89" | "sm_90" | "sm_120"`，`caps` 含 `cluster`、`tma`、`warp_specialized`、`tcgen05`、`cp_async`、`mbarrier`，`Res` 含 `max_smem_per_sm`、`max_dynamic_smem_per_cta`、`regs_per_sm`），头注释已声明"业务代码永不比较架构版本号"。**缺的是 TaskBody 侧的消费**——目前实现与 sm_89 强绑定。
+
+**要点**：
+- TaskBody 增加 arch tag 模板参数，由 codegen 从 `TargetSpec` 传入；
+- 实现路径按 `caps` 选择而非比较版本号：`caps.tma` 选 TMA 路径、否则 cp.async；`caps.warp_specialized` 选角色化 collective、否则统一 warp；
+- `TaskTraits` 扩展为按角色声明线程数与 shared 字节，替代现有的单一 `<Threads, SharedBytes>`；
+- 生成表携带 arch tag，运行期断言与实际设备一致。
+
+### BE-2 GEMM 族走 CollectiveBuilder
+
+**现状**：只有 `GemmStageTaskBody.h`（6 处引用）与 `FusedGemmTaskBody.h`（3 处）用 CUTLASS，且是 SM80 的 `CollectiveMma`。`GemmTaskBody.h`、`GemmSplitKTaskBody.h`、`GemmCombineTaskBody.h` 引用数为 0。
+
+**要点**：
+- 统一走 `cutlass::gemm::collective::CollectiveBuilder<ArchTag, OpClass, ...>` 配 `KernelScheduleAuto`；
+- epilogue 先实例化，mainloop 用 `StageCountAutoCarveout<sizeof(EpilogueSharedStorage)>` 吃它的 shared 预算；
+- split-K 与 combine 走同一路径，不再手写；
+- tile 形状仍由求解器决定，builder 只负责按 arch 选 schedule。
+
+### BE-3 Attention 在线 softmax
+
+**现状**：`AttentionChunkTaskBody.h:70-82` 在 `if (threadIdx.x == 0)` 里串行扫三趟 key 序列求 max、exp-sum、归一化。128 线程里 127 个在等。这是真实模型 seq=64 上 424 ms 的主要来源。
+
+**要点**：
+- 改为 FlashAttention 式在线 softmax：running max 与 running sum，随 K/V 分块更新，全 warp 参与归约；
+- 分块结构与现有的 `AttentionChunkTaskBody` / `AttentionCombineTaskBody` 切分保持一致，不改 CG 侧的 task 划分；
+- 在 `caps.tma` 为真的目标上走 TMA 加载 K/V 块；
+- 内部累加一律 FP32（接口仍为 BF16）。
+
+### BE-4 SIMT 算子的 warp 级归约
+
+`RMSNormTaskBody`、`QKNormTaskBody`、`ElementwiseTaskBody`、`AddTaskBody`、`RoPETaskBody`、`KVAppendTaskBody`、`EmbeddingTaskBody`、`MoERouterTaskBody` 目前全部零 CUTLASS 引用。**不要求它们都上 CuTe**，要求是：
+- 所有跨线程归约用 warp shuffle 或 `cub`/`cute` 的归约原语，不得出现单线程串行扫描；
+- 访存走向量化加载，宽度按 `TargetSpec` 的对齐能力选择；
+- 内部累加 FP32，接口 BF16（§dtype 约定）。
+
+### BE-5 屏障角色化与 §8.5 重定义
+
+**这是本组唯一必须重验证的一项。**
+
+`cta_sync()` 就是 `__syncthreads()`，要求 CTA 全部线程到齐；放进 warpgroup 分支会让另一个 warpgroup 永远到不了。harness 现在在 wait/run/notify 之间用的全是 CTA 级屏障，一旦 TaskBody 角色化就会死锁。
+
+**要点**：
+- harness 的屏障改为角色感知：CTA 级屏障只在所有角色都参与的点使用，其余改 named barrier 或 warpgroup 级同步；
+- §8.5 的 release 规则（现为"CTA 屏障之后由 thread0 做一次 release fence"）需要重新定义"哪一级屏障、哪个线程"；
+- **重做 litmus**：按 F-1/F-3/F-10 的既有要求——地址复用、小 tile（含 ≤4096 元素）、协作写、grid 64/128/256、每格 ≥50 个全新进程，含"无 fence"与"无屏障"两个负对照（都必须失败）；
+- 通过后才更新 `TileMega_skeleton.md` §8.5，按 v2.1 约定保留原句。
+
+### BE-6 occupancy 闭式按角色重算
+
+角色化之后寄存器预算从"所有 TaskBody 取 max"变成"按角色分配"（Hopper 的 `setmaxnreg` 允许 producer 释放、consumer 取用），shared memory 也按角色划分。F-40 与 F-223 的闭式需要继任版本。
+
+**验收**：新闭式与驻动 `cuOccupancyMaxActiveBlocksPerMultiprocessor` 在所有测试格上一致。
+
+### BE-7 dialect 拆分
+
+现在是单一 `tilemega` dialect（`CGDialect.td:6`，`cppNamespace = "::tilemega::dialect"`），六个 op 平铺：`task_space`、`event_tensor`、`coupling`、`placement`、`implementation`、`fused_task_space`。
+
+**拆成两个**：
+- **`cg`**：`tile_space`、`event_tensor`、`coupling` —— 图的结构；
+- **`plan`**：`placement`、`implementation` —— 在图上的决策。
+
+`fused_task_space` 的归属随 TF-1 决定（tile 直传若不再需要独立 op，则删除）。
+
+**好处**："求解器只写 `plan.*`、Codegen 只读"变成可用 dialect 归属直接验证的性质，不再依赖约定。
+
+命名分工确定为：系统叫 **TileMega**，IR 抽象叫 **Coupling Graph（CG）**，dialect 叫 `cg` 与 `plan`。
+
+### BE-8 术语改名
+
+`task_space` → `tile_space`，以及相关的 `TaskSpaceOp` → `TileSpaceOp` 等。分层原则：**CG 阶段一切都是 tile，只有到 TaskBody 与执行器才出现 task**。
+
+**范围**：dialect、所有 pass、`lib/` 与 `include/`、测试、`TileMega_skeleton.md`、`docs/STATUS.md`、`docs/TODO.md`。
+
+**不改**：`docs/FINDINGS.md` 的历史条目（改了会破坏可回溯性），只在文件顶部加一条术语对照表。
+
+### BE-9 锚定模型的后端覆盖
+
+**目标**：Llama-3.2-1B 与 Qwen3-1.7B 用到的全部算子，都走到 CUTLASS/CuTe 或 warp 级归约路径，无一朴素实现残留。
+
+**验收**：给出覆盖表（算子 → 实现路径 → arch 分支），并逐算子与 PyTorch 做单算子数值比对。
+
+### SB-1 batch 进 tile space
+
+batch 作为 θ 的一个参数，与 seq 同等对待：tile space 多一个轴，符号化分析与区间证明原样适用。**不得硬编码任何具体 batch 值**，代码路径对任意正整数成立。
+
+### SB-2 KV cache 跨步增长
+
+block table 形式的分页 KV（借鉴 vLLM 的组织方式，但**不需要调度器**）。decode 步之间 cache 增长，块表由 host 维护并随 `ModelSpec` 传入。
+
+### SB-3 离线批处理驱动与吞吐口径
+
+按 Ada-MK 的评测口径：一批固定请求同时提交，跑完收集全部生成结果后计算吞吐。这种模式精确控制并发、消除在线调度器差异，适合以算子执行效率为中心的横向比较。
+
+实验取 BS ∈ {1, 2, 4, 8, 16}。
+
+### SB-4 外部基线
+
+vLLM 与 SGLang 在同样的离线批处理模式下的数字。注意 Ada-MK 的观察：megakernel 的优势在 BS=1–8 最明显，BS=16 时 vLLM 可能反超——这是预期中的，如实报告。
+
+### TF-1 tile 直传式 fuse
+
+**替换现有的区间 DP + L-task 写回 + exact C lowering 路径**（定价门从未通过，上界仅 1.54%）。
+
+新形式：在放置确定之后，识别 task A 的输出 tile 恰好等于 task B 的输入 tile 且两者同 worker 相邻，则直接在寄存器或 shared memory 中传递。一次消掉四项：全局写、全局读、事件发布、事件等待。
+
+**可判定性**：A 的写关系与 B 的读关系在 tile 粒度上相等，由 CG 的精确访问关系直接回答。
+
+### TF-2 直传作为放置的收益项
+
+**关键**：融合的价值取决于放置，所以不能先融合再放置。把"可直传对"作为收益进代价模型与 `max(CP, queue_lb)` 的目标函数，让 σ 自己决定在哪里融合。
+
+这与 R7 分页的区别在于：分页是被动等机会（只有 0.26–8% 的 slot 可流水），tile 直传是**主动的共置理由**——EFT 会因为能省掉一个 hop 加一次全局往返而愿意把两个 task 放到一起。
+
+### TF-3 代价模型归一化
+
+R7 的 `D-b` 证明排序能力已经够用（top-3 质量六格全部 ≤ 1.05），失真的是绝对时间（`L2/floor` 从 2.4 涨到 42.8）。
+
+**调整**：代价模型的输出契约从"纳秒"改为无量纲分值；验收口径从"预测误差"改为"top-k 质量"。`floor` 的物理下界语义随之失效，`L2/floor` 这个指标要么废弃、要么换成校准后的量。
+
+### TF-4 判据深度感知
+
+**现状**：`ModelHarness.cuh:2939` 的 `Compare()` 对所有输出用同一容差 `1.6e-2f + 1.6e-2f*|expected|`，约 4 个 BF16 ULP。深度扫描：4 层 0 个超差、8 层 2 个、16 层 44 个、28 层 190 个。
+
+**两处一起改**：
+1. golden 改为 FP32 计算、末尾舍入一次——现在的 golden 是 PyTorch 的 BF16 计算，"正确"被定义成了某一个特定的求值顺序；
+2. 容差按累加深度推导——深度是到该 buffer 的路径上链式舍入点的个数，**CG 本来就知道**。
+
+这一条的价值不只是过门：判据由图自己推出，比拍一个常数在论文里强得多。
+
+---
+
+## 4.4 本阶段的验收原则
+
+- **正确性门不放松**：50/50 全新进程、SEQSCAN、单算子比对一律保留。
+- **BE 组测试从简**：不做消融、不做四臂分解、不做配对 25 轮。BE 是实现工作，正确性与覆盖率是验收标准，不是性能显著性。
+- **唯一的重验证是 BE-5**：正确性规则不能靠"跑通了"来确认。
+- **TF 组回到重测量模式**：它要证明收益。
+- **SB 组按外部口径**：与 vLLM / SGLang 的对比必须同模式、同批次、同统计方式。
