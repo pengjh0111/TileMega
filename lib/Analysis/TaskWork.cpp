@@ -205,7 +205,8 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
           if (tile==options.reduction_tiles.end()) continue;
           if (index.kind!=IndexResult::Kind::kAffine || index.terms.size()!=1 ||
               !term.coefficient.IsLiteral(1) || !term.group.IsLiteral(1))
-            throw std::invalid_argument("inner tile requires an exact unit indexing axis");
+            throw std::invalid_argument("inner tile requires an exact unit indexing axis: "+
+                task.name+" operand "+std::to_string(i)+" axis "+std::to_string(axis)+" dim "+term.dim);
           auto extent=tile->second.Substitute(known);
           nominal_read.index[axis].span=read.index[axis].span.CeilDiv(extent)*extent;
         }
@@ -263,28 +264,33 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
     else {
       reduce=reduce*dim.extent;
       if (semantic.operands.size()!=task.operands.size())
-        throw std::invalid_argument("local reduction requires matching semantic operands");
+        throw std::invalid_argument("local reduction requires matching semantic operands: "+task.name);
       bool found=false;
       ClosedForm local;
       for (std::size_t operand=0;operand<semantic.operands.size();++operand) {
         auto access=BuildReadMap(task,operand);
         auto const& indices=semantic.operands[operand].map.results;
         if (indices.size()!=access.index.size())
-          throw std::invalid_argument("local reduction indexing rank mismatch");
+          throw std::invalid_argument("local reduction indexing rank mismatch: "+task.name+
+              " operand "+std::to_string(operand));
         for (std::size_t axis=0;axis<indices.size();++axis) {
           auto const& index=indices[axis];
           for (auto const& term:index.terms) if (term.dim==dim.name) {
             if (index.kind!=IndexResult::Kind::kAffine || index.terms.size()!=1 ||
                 !term.coefficient.IsLiteral(1) || !term.group.IsLiteral(1))
-              throw std::invalid_argument("local reduction requires an exact unit indexing axis");
+              throw std::invalid_argument("local reduction requires an exact unit indexing axis: "+
+                  task.name+" semantic "+semantic.name+" operand "+std::to_string(operand)+
+                  " axis "+std::to_string(axis)+" dim "+dim.name+" index "+index.Serialize());
             auto span=access.index[axis].span.Substitute(known);
             if (found && span.ToString()!=local.ToString())
-              throw std::invalid_argument("reduction operands disagree on the local span");
+              throw std::invalid_argument("reduction operands disagree on the local span: "+task.name+
+                  " dim "+dim.name+" "+local.ToString()+" vs "+span.ToString());
             local=span; found=true;
           }
         }
       }
-      if (!found) throw std::invalid_argument("reduction axis has no indexed read: "+dim.name);
+      if (!found) throw std::invalid_argument("reduction axis has no indexed read: "+dim.name+
+          " in "+task.name);
       local_reduce=local_reduce*local;
       auto tile=options.reduction_tiles.find(dim.name);
       if (tile!=options.reduction_tiles.end()) {
