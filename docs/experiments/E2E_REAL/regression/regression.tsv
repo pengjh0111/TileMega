@@ -1,0 +1,17 @@
+cell	arm	seq	past	rounds	passing	binaries	source	kappa	residency
+gqa2_s4	default	4	3	50	50	1	/root/TileMega/docs/experiments/E2E_REAL/topk/gqa2_s4/auto.cu	1	4
+gqa2_s4	seqscan_s1_p0	1	0	50	50	1	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/gqa2_s4/s1_p0/eft.cu	1	1
+gqa2_s4	seqscan_s128_p512	128	512	50	50	1	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/gqa2_s4/s128_p512/eft.cu	1	1
+gqa2_s4	seqscan_s2048_p0	2048	0	50	50	1	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/gqa2_s4/s2048_p0/eft.cu	1	1
+gqa2_s128	default	128	3	50	50	1	/root/TileMega/docs/experiments/E2E_REAL/topk/gqa2_s128/auto.cu	1	4
+gqa2_s128	seqscan_s1_p0	1	0	50	50	1	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/gqa2_s128/s1_p0/eft.cu	1	5
+gqa2_s128	seqscan_s128_p512	128	512	50	50	1	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/gqa2_s128/s128_p512/eft.cu	1	5
+gqa2_s128	seqscan_s2048_p0	2048	0	50	50	1	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/gqa2_s128/s2048_p0/eft.cu	1	5
+mha4_s4	default	4	3	50	50	1	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu	1	4
+mha4_s4	seqscan_s1_p0	1	0	50	50	1	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/mha4_s4/s1_p0/eft.cu	1	1
+mha4_s4	seqscan_s128_p512	128	512	50	50	1	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/mha4_s4/s128_p512/eft.cu	1	1
+mha4_s4	seqscan_s2048_p0	2048	0	50	50	1	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/mha4_s4/s2048_p0/eft.cu	1	1
+mha4_s128	default	128	3	50	50	1	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s128/auto.cu	1	4
+mha4_s128	seqscan_s1_p0	1	0	50	50	1	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/mha4_s128/s1_p0/eft.cu	2	5
+mha4_s128	seqscan_s128_p512	128	512	50	50	1	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/mha4_s128/s128_p512/eft.cu	2	5
+mha4_s128	seqscan_s2048_p0	2048	0	50	50	1	/root/TileMega/docs/experiments/PIPELINE/raw/seqscan/mha4_s128/s2048_p0/eft.cu	2	5
