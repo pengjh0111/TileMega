@@ -1,0 +1,5 @@
+layers	outputs	rounds	passing	l05_vs_l0_mismatch	max_abs	max_rel	levels_identical
+4	18	5	5	0	0.03125	14	1 (1 distinct diff line)
+8	34	5	0	2	0.046875	1953.125	1 (1 distinct diff line)
+16	66	5	0	44	0.0625	3906.25	1 (1 distinct diff line)
+28	114	50	0	190	0.09375	10	1 (1 distinct diff line)

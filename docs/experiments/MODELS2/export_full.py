@@ -67,15 +67,25 @@ class Layer(nn.Module):
   view=x.view(-1,seq,heads,self.dim)
   half=torch.cat((-view[...,self.dim//2:],view[...,:self.dim//2]),dim=-1)
   return (view*cos+half*sin).view(x.shape)
- def forward(self,x,inv,pk,pv):
+ def forward(self,x,inv,pk,pv,qhat=None,khat=None):
   batch,seq,_=x.shape;past=pk.shape[2]
   n1=self.input_norm(x)
   # Each projection is normalized before the next one is taken, as the
   # published modeling code does: the exported order is what the importer sees.
   q=self.q_proj(n1)
-  if self.per_head:q=self.q_norm(q.view(batch,seq,self.heads,self.dim)).view(q.shape)
   k=self.k_proj(n1)
-  if self.per_head:k=self.k_norm(k.view(batch,seq,self.kv,self.dim)).view(k.shape)
+  extra=()
+  if self.per_head and qhat is None:
+   q=self.q_norm(q.view(batch,seq,self.heads,self.dim)).view(q.shape)
+   k=self.k_norm(k.view(batch,seq,self.kv,self.dim)).view(k.shape)
+  elif self.per_head:
+   # The per-head normalization is the one operator the task-work derivation
+   # refuses: its reduction axis is indexed `head_dim*floordiv(c,head_dim)+r`,
+   # which is not the exact unit axis the local reduction asks for. Hoisting
+   # exactly that operator to a graph input leaves every other operator of the
+   # decoder in one connected graph; the projections stay and become outputs,
+   # so nothing admissible is dropped along with it.
+   extra=(q,k);q,k=qhat,khat
   v=self.v_proj(n1)
   qr=self.rotate(q,inv,past,seq,self.heads);kr=self.rotate(k,inv,past,seq,self.kv)
   fullk=torch.cat((pk,kr.view(batch,seq,self.kv,self.dim).transpose(1,2)),dim=2)
@@ -90,7 +100,7 @@ class Layer(nn.Module):
   x=x+self.o_proj(context)
   n2=self.post_norm(x)
   x=x+self.down_proj(torch.nn.functional.silu(self.gate_proj(n2))*self.up_proj(n2))
-  return x,fullk,fullv
+  return x,fullk,fullv,extra
 
 class Model(nn.Module):
  def __init__(self,c):
@@ -100,11 +110,13 @@ class Model(nn.Module):
   self.final_norm=RMSNorm(c['hidden_size'],c['rms_norm_eps'])
   self.lm_head=nn.Linear(c['hidden_size'],c['vocab_size'],bias=False)
   self.register_buffer('inv_freq',frequencies(c),persistent=True)
- def execute(self,ids,caches):
-  x=self.embed(ids);outputs=[]
+ def execute(self,ids,caches,hoisted=()):
+  x=self.embed(ids);outputs=[];kept=[]
   for j,layer in enumerate(self.layers):
-   x,fk,fv=layer(x,self.inv_freq,caches[2*j],caches[2*j+1]);outputs.extend((fk,fv))
-  return (self.lm_head(self.final_norm(x)),*outputs)
+   pair=(hoisted[2*j],hoisted[2*j+1]) if hoisted else (None,None)
+   x,fk,fv,extra=layer(x,self.inv_freq,caches[2*j],caches[2*j+1],*pair)
+   outputs.extend((fk,fv));kept.extend(extra)
+  return (self.lm_head(self.final_norm(x)),*outputs,*kept)
 
 def write(p,t):
  t=t.detach().cpu().contiguous()
@@ -118,6 +130,14 @@ def main():
  ap.add_argument('--seq',type=int,default=4);ap.add_argument('--past',type=int,default=3)
  ap.add_argument('--layers',type=int,default=0,help='override the layer count for a smoke export')
  ap.add_argument('--test-small',action='store_true')
+ # torch.export specializes a length-one sequence to a constant and then
+ # refuses the dynamic dim, so the seq=1 cell is exported with that one
+ # dimension pinned. The megakernel is solved at a fixed seq regardless.
+ ap.add_argument('--static-seq',action='store_true')
+ # The maximal connected graph the compiler admits, for a model whose per-head
+ # normalization it refuses: that one operator becomes a pair of inputs per
+ # layer and everything else is exported as it stands.
+ ap.add_argument('--hoist-qk-norm',action='store_true')
  a=ap.parse_args()
  torch.set_num_threads(4);torch.manual_seed(20260918)
  config=json.loads(a.config.read_text())
@@ -130,16 +150,26 @@ def main():
  model=Model(config).eval().to(torch.bfloat16)
  # The frequency table stays FP32: it is a phase table, not model storage.
  model.inv_freq=model.inv_freq.to(torch.float32)
+ heads=config['num_attention_heads']
+ if a.hoist_qk_norm and not config['architectures'][0].startswith('Qwen3'):
+  raise SystemExit('--hoist-qk-norm only applies to a per-head-normalized architecture')
  names=[f'past_{t}{j}' for j in range(layers) for t in 'kv']
+ hoisted=[f'{t}hat_{j}' for j in range(layers) for t in 'qk'] if a.hoist_qk_norm else []
  namespace={}
- exec('def forward(self,input_ids,'+', '.join(names)+'):\n return self.execute(input_ids,('+', '.join(names)+',))\n',namespace)
+ exec('def forward(self,input_ids,'+', '.join(names+hoisted)+'):\n return self.execute(input_ids,('+
+   ', '.join(names)+',),('+', '.join(hoisted)+(',)' if hoisted else ')')+')\n',namespace)
  object.__setattr__(model,'forward',namespace['forward'].__get__(model,type(model)))
  args=[torch.randint(0,config['vocab_size'],(1,a.seq),dtype=torch.int64)]
  for j in range(layers):
   args.extend((torch.randn(1,kv,a.past,dim,dtype=torch.bfloat16),
                torch.randn(1,kv,a.past,dim,dtype=torch.bfloat16)))
+ for j in range(layers):
+  if a.hoist_qk_norm:
+   args.append(torch.randn(1,a.seq,heads*dim,dtype=torch.bfloat16))
+   args.append(torch.randn(1,a.seq,kv*dim,dtype=torch.bfloat16))
  seq=torch.export.Dim('seq_len',min=1,max=128);past=torch.export.Dim('past_len',min=0,max=512)
- dynamic=[{1:seq}]+[{2:past} for _ in range(2*layers)]
+ dynamic=[{} if a.static_seq else {1:seq}]+[{2:past} for _ in range(2*layers)]
+ dynamic+=[{} if a.static_seq else {1:seq} for _ in range(2*layers if a.hoist_qk_norm else 0)]
  a.out.mkdir(parents=True,exist_ok=True);fixture=a.out/'fixture';fixture.mkdir(exist_ok=True)
  program=torch.export.export(model,tuple(args),dynamic_shapes=tuple(dynamic),strict=True)
  torch.export.save(program,a.out/'exported_program.pt2')
@@ -149,11 +179,12 @@ def main():
  for name,value in program.state_dict.items():write(fixture/('state_'+name.replace('.','_')+'.bin'),value)
  for name,value in program.constants.items():write(fixture/('state_'+name.replace('.','_')+'.bin'),value)
  for j,value in enumerate(outputs):write(fixture/f'reference_{j}.bin',value)
- manifest=dict(seq=a.seq,past=a.past,config=config,config_source=str(a.config),
+ manifest=dict(seq=a.seq,past=a.past,static_seq=a.static_seq,config=config,config_source=str(a.config),
    config_sha256=hashlib.sha256(a.config.read_bytes()).hexdigest(),scope=__doc__,
    small_test=a.test_small,outputs=len(outputs),inputs=len(args),golden_device='cpu',
    dtype='torch.bfloat16',token_id_dtype='torch.int64',torch_version=torch.__version__,
-   per_head_norm=config['architectures'][0].startswith('Qwen3'))
+   per_head_norm=config['architectures'][0].startswith('Qwen3'),
+   hoisted_qk_norm=a.hoist_qk_norm)
  (fixture/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
  print(json.dumps(manifest)[:400],flush=True)
 if __name__=='__main__':main()

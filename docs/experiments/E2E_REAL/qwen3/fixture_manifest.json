@@ -1,0 +1,43 @@
+{
+  "seq": 4,
+  "past": 3,
+  "config": {
+    "architectures": [
+      "Qwen3ForCausalLM"
+    ],
+    "attention_bias": false,
+    "attention_dropout": 0.0,
+    "bos_token_id": 151643,
+    "eos_token_id": 151645,
+    "head_dim": 128,
+    "hidden_act": "silu",
+    "hidden_size": 2048,
+    "initializer_range": 0.02,
+    "intermediate_size": 6144,
+    "max_position_embeddings": 40960,
+    "max_window_layers": 28,
+    "model_type": "qwen3",
+    "num_attention_heads": 16,
+    "num_hidden_layers": 28,
+    "num_key_value_heads": 8,
+    "rms_norm_eps": 1e-06,
+    "rope_scaling": null,
+    "rope_theta": 1000000,
+    "sliding_window": null,
+    "tie_word_embeddings": true,
+    "torch_dtype": "bfloat16",
+    "transformers_version": "4.51.0",
+    "use_cache": true,
+    "use_sliding_window": false,
+    "vocab_size": 151936
+  },
+  "config_source": "/root/TileMega/docs/experiments/MODELS/sources/qwen_config.json",
+  "config_sha256": "1ddb5b89ebc90dcb417a45c213d818577e65976454d29385c8f6140771d95197",
+  "scope": "Export the maximal connected Qwen3 graph, across the same cuts A-a uses.\n\nQwen3's decoder layer is Llama's plus a per-head RMSNorm on the Q and K\nprojections. That normalization is the one operator the task-work derivation\nrefuses (`lib/Analysis/TaskWork.cpp:279-283`: its reduction axis is indexed\n`128*floordiv(c, 128) + 1*r`, not the exact unit axis the local reduction\nasks for), and it sits between the projection and RoPE -- which R6 already\ncuts. So the A-a cut list carries over unchanged: cutting RoPE cuts the\nper-head normalization with it, and the connected remainder is the same\nresidual / V-cache-attention-O / SwiGLU chain that the Llama graph keeps.\n\nThe layer module itself is imported from `MODELS/export_covered.py` rather\nthan restated, so the two graphs are the same code on two configurations.\n",
+  "layer_module": "/root/TileMega/docs/experiments/MODELS/export_covered.py",
+  "outputs": 114,
+  "inputs": 170,
+  "golden_device": "cpu",
+  "dtype": "torch.bfloat16",
+  "torch_version": "2.13.0+cu126"
+}

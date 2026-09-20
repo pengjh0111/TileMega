@@ -1,0 +1,34 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-compile",
+    "/root/r7_work/qwen3_cov/exported_program.pt2",
+    "/root/r7_work/qwen3_cov/auto.cu",
+    "--solve",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/target.json",
+    "--seq",
+    "4",
+    "--past",
+    "3",
+    "--search-capacity",
+    "12",
+    "--search-domain",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/search_domain.json",
+    "--dump-cg",
+    "/root/r7_work/qwen3_cov/auto.mlir",
+    "--hop-curve",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv"
+  ],
+  "exit_code": 0,
+  "head": "f5ec03cd3e825d7145e3cb2773ad9412f77117dc",
+  "recorded": "post hoc: the solve ran from a shell, so the window below is the export bridge's file time to the last line of solve.log, not a clock the process itself took",
+  "window_start": "2026-09-20T02:03:04Z",
+  "window_end": "2026-09-20T02:40:19Z",
+  "elapsed_s": 2235,
+  "export": {
+    "script": "docs/experiments/MODELS2/export_covered_qwen3.py",
+    "root": "/root/r7_work/qwen3_cov",
+    "layers": 28,
+    "seq": 4,
+    "past": 3
+  }
+}

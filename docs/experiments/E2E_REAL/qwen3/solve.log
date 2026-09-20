@@ -1,0 +1,30 @@
+/usr/local/lib/python3.10/dist-packages/torch/_subclasses/functional_tensor.py:368: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+{"tasks": 1096, "couplings": 1233, "guards": 196}
+EXPORT_BRIDGE source="/root/r7_work/qwen3_cov/exported_program.pt2" output="/root/r7_work/qwen3_cov/auto.cu.export.json"
+DISK NEED_MIB=8192 FREE_MIB=1369552
+RESOURCE_QUERY directory="/root/r7_work/qwen3_cov/auto.cu.resources/1789869785714539069/0" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1369548
+RESOURCE_QUERY directory="/root/r7_work/qwen3_cov/auto.cu.resources/1789869785714539069/1" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1369545
+RESOURCE_QUERY directory="/root/r7_work/qwen3_cov/auto.cu.resources/1789869785714539069/2" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1369543
+RESOURCE_QUERY directory="/root/r7_work/qwen3_cov/auto.cu.resources/1789869785714539069/3" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1369541
+RESOURCE_QUERY directory="/root/r7_work/qwen3_cov/auto.cu.resources/1789869785714539069/4" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1369539
+RESOURCE_QUERY directory="/root/r7_work/qwen3_cov/auto.cu.resources/1789869785714539069/5" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1369536
+RESOURCE_QUERY directory="/root/r7_work/qwen3_cov/auto.cu.resources/1789869785714539069/6" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1369534
+RESOURCE_QUERY directory="/root/r7_work/qwen3_cov/auto.cu.resources/1789869785714539069/7" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1369532
+RESOURCE_QUERY directory="/root/r7_work/qwen3_cov/auto.cu.resources/1789869785714539069/8" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1369529
+RESOURCE_QUERY directory="/root/r7_work/qwen3_cov/auto.cu.resources/1789869785714539069/9" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1369527
+RESOURCE_QUERY directory="/root/r7_work/qwen3_cov/auto.cu.resources/1789869785714539069/10" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1369524
+RESOURCE_QUERY directory="/root/r7_work/qwen3_cov/auto.cu.resources/1789869785714539069/11" resident=3
+SOLVE_SUMMARY evaluated=12 deferred=75 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=562 couplings=504 stages=365 symbolic_windows=504 fallback_windows=0 output=/root/r7_work/qwen3_cov/auto.cu
