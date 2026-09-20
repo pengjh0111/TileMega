@@ -89,10 +89,11 @@ Every number below is recomputed from raw logs by
 | 74 | `a370d4606` experiments: add the sm_120 runners for round seven | 16 |
 | 75 | `d2d933fae` docs: record the round seven closure results | 17 |
 | 76 | `1277edd1f` experiments: stamp the sass identity at head | 18 |
-| 77 | `docs: record the cmake and skeleton scope deviations` — this commit | 17 (H1 audit) |
-| 78 | `experiments: stamp the sass identity at head` | 18 (re-stamped after row 77) |
+| 77 | `4be3856e3` docs: record the cmake and skeleton scope deviations | 17 (H1 audit) |
+| 78 | `64cc1e709` experiments: finish the second interval campaign | 13 (mha4 evidence) |
+| 79 | `experiments: stamp the sass identity at head` — the last commit | 18 |
 
-Prompt §13 lists 18 steps; this round used 78 commits. Three reasons, all
+Prompt §13 lists 18 steps; this round used 79 commits. Three reasons, all
 recorded rather than argued: `AGENTS.md` requires a mechanism to be separate
 from the experiment that measures it and an analysis change separate from the
 operator that needs it; the round ran across many sessions, each of which
@@ -107,7 +108,13 @@ gate that re-derives `FORK7` from the raw rows.
 
 The last commit is the H2 stamp, regenerated so that it follows every source and
 document commit, as R4–R6 did; its `manifest.json` records `source_head` as its
-parent. Every earlier stamp (steps marked 18 above) was superseded by the next
+parent, `64cc1e709`, and both models' SASS identical between the baseline build
+and the head build (`gqa2` `883d6c58ff6e8d01`, `mha4` `530b4b79b52ee14b`, each
+equal to its `baseline_sha256`, and both `.diff` files empty). ⚠️ The absolute
+SASS hashes differ from earlier stamps of the same identity because `nvcc`
+embeds the archive's *path* in its fatbin identifier and this stamp ran from a
+different directory (below); the claim is the base-versus-head equality inside
+one run, which is what the `.diff` files carry. Every earlier stamp (steps marked 18 above) was superseded by the next
 one and all of them reported the same result: byte-identical default SASS for
 both reference models.
 
@@ -551,6 +558,20 @@ can see the search was finite and reduced.
     third location beyond the §5.3.1 and §8.6 that H1 names. One table row, the
     same per-round entry every earlier round appended; §8.2, §8.5, §5.7.2 and
     §5.7.3 are untouched (H3).
+12. **The final H2 stamp was taken in a detached worktree of the closure commit,
+    not in the main working tree.** While this round was finishing, changes that
+    are not part of it appeared in the main tree — an implementation of
+    `MegakernelRuntime::Load` in `lib/Runtime/MegakernelRuntime.cpp` and
+    `include/tilemega/Runtime/MegakernelRuntime.h`, plus `CUDA::cuda_driver` on
+    the `tilemega` link line — uncommitted and authored outside this round.
+    `sass_identity.py` refuses to stamp an unclean tree, which is correct, and
+    stashing someone else's in-flight work to get past that check would be
+    worse than working around it. So the stamp ran against a clean checkout of
+    `64cc1e709` with this tree's `build-portable/libtilemega.a` (built before
+    those changes appeared and therefore the archive of the committed sources)
+    and the two submodules and the SEQSCAN reference sources symlinked in. The
+    manifest it produced is committed unchanged; `source_head` is the closure
+    commit and `inputs` covers 10625 files at that commit.
 
 ## 10. Confirmation of the prompt's exclusions
 
