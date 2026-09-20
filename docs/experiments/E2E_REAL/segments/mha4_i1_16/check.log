@@ -1,0 +1,17 @@
+SEGMENT_MATERIAL segment=0 seq=1 role=endpoint nodes=11484 diff=0
+SEGMENT_MATERIAL segment=0 seq=2 role=interior nodes=11576 diff=0
+SEGMENT_MATERIAL segment=0 seq=3 role=interior nodes=11668 diff=0
+SEGMENT_MATERIAL segment=0 seq=4 role=interior nodes=11760 diff=0
+SEGMENT_MATERIAL segment=0 seq=5 role=interior nodes=11852 diff=0
+SEGMENT_MATERIAL segment=0 seq=6 role=interior nodes=11944 diff=0
+SEGMENT_MATERIAL segment=0 seq=7 role=interior nodes=12036 diff=0
+SEGMENT_MATERIAL segment=0 seq=8 role=interior nodes=12128 diff=0
+SEGMENT_MATERIAL segment=0 seq=9 role=interior nodes=12220 diff=0
+SEGMENT_MATERIAL segment=0 seq=10 role=interior nodes=12312 diff=0
+SEGMENT_MATERIAL segment=0 seq=11 role=interior nodes=12404 diff=0
+SEGMENT_MATERIAL segment=0 seq=12 role=interior nodes=12496 diff=0
+SEGMENT_MATERIAL segment=0 seq=13 role=endpoint nodes=12588 diff=0
+SEGMENT_MATERIAL segment=1 seq=14 role=endpoint nodes=11656 diff=0
+SEGMENT_MATERIAL segment=1 seq=15 role=interior nodes=11748 diff=0
+SEGMENT_MATERIAL segment=1 seq=16 role=endpoint nodes=11840 diff=0
+SEGMENT_CHECK segments=2 points=16 endpoints=4 interior=12 interval=1..16 kappa=1 residency=4 serialization=byte_identical

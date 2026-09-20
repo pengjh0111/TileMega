@@ -114,6 +114,12 @@ both reference models.
 No push rights on `origin`; the series is exported with
 `git format-patch 4e0e7b119..HEAD -o /tmp/round7-patches/`.
 
+✅ **Verified: the exported series reproduces the round.** The patches were
+applied onto a detached worktree of the baseline with `git am` — all of them, no
+conflict, exit 0 — and the resulting tree hash equals this repository's
+(`8496aada3b55f5def9199eb5387d1ba7f63f3b1f` at the row-76 stamp). The handoff
+artifact is therefore the round, not an approximation of it.
+
 **H4 ordering, in git history.**
 
 | required order | in this history | substantive? |
@@ -139,7 +145,7 @@ No push rights on `origin`; the series is exported with
 | B1-e end to end, six cells | report | **PASS** (no threshold) | 1 cell faster, 5 slower by 2.3–6.7%, intervals clear of 1 | F-226 |
 | B2 per-stage κ | hard | **PASS** | both arms of both models 50/50, 200 fresh processes; descent `moves=0`, `uniform_ns=per_stage_ns` | `E2E_REAL/stage_kappa/`, F-231 |
 | B3 intra-interval geometry | hard | **PASS** | gqa2 `[1,16]`: legality 16/16, materialization `byte_identical` on 16 points, correctness 500/500, benefit 0.9926–1.0147 | `E2E_REAL/segments/`, F-232 |
-| B3, second interval (mha4) | report | **UNMET (in flight)** | proof 10 of 16 points at the time of writing; roughly an hour per point | `E2E_REAL/segments/mha4_i1_16/` |
+| B3, second interval (mha4) | report | **PASS** | the same interval on 88 projected stages: legality 16/16, materialization `byte_identical` on 16 points, correctness 500/500, benefit 0.9984–1.0063, and the same `cut=14` | `E2E_REAL/segments/mha4_i1_16/` |
 | C1-a `J-b` demoted | — | **DONE** | six `queue_lb/CP` ratios reported, no line drawn; the R6 gate-design error recorded in `docs/TODO.md` | `docs/TODO.md`, §7 |
 | C1-b preparation-phase optimization | hard | **FAIL (DEGRADED, §9.3)** | the bound is exact (9/9 cells identical) and 1.03–3.91× faster, the whole search 2.51× faster, **and capacity is still 12** | F-229, F-230 |
 | C1-c `J-d` replaced and measured | hard (as D-b) | **PASS** | see D-b | `E2E_REAL/topk/` |
@@ -150,8 +156,8 @@ No push rights on `origin`; the series is exported with
 | D-e solver vs human decisions | report | **PASS** | 10 items the solver decides, 12 a person still decides | `E2E_REAL/solver_decisions.md` |
 | H2 default-build SASS identity | hard | **PASS** | `gqa2` and `mha4` byte-identical against the baseline tree | `E2E_REAL/sass_identity/` |
 
-Score as `verify.py` counts it: **24 of 28 gates met, 3 hard gates failed, 1
-report gate unmet.** The three hard failures are A-b and D-a — one phenomenon,
+Score as `verify.py` counts it: **25 of 28 gates met, 3 hard gates failed, 0
+report gates unmet.** The three hard failures are A-b and D-a — one phenomenon,
 §11 — and C1-b, which is a degraded form declared as such under §9.3.
 
 ## 3. verify.py
@@ -202,9 +208,9 @@ PASS [report] B2 per-stage versus global kappa                    the descent ne
        evidence: /root/TileMega/docs/experiments/E2E_REAL/stage_kappa/results.tsv
 PASS [report] B3 intra-interval campaign, gqa2                    proof points=16/16 material=16/16 segments=2 points=16 endpoints=4 interior=12 interval=1..16 kappa=1 residency=4 serialization=byte_identical; arms=10/10 rounds=500 passing=500 failing_outputs=0; segmented/fixed L2 s1 0.9927, s4 0.9985, s13 1.0147, s14 0.9997, s16 1.0000
        evidence: /root/TileMega/docs/experiments/E2E_REAL/segments/gqa2_i1_16
-FAIL [report] B3 intra-interval campaign, mha4                    proof points=10/16 material=0/0 no check; arms=0/0 rounds=0 passing=0 failing_outputs=0; segmented/fixed L2 not timed
+PASS [report] B3 intra-interval campaign, mha4                    proof points=16/16 material=16/16 segments=2 points=16 endpoints=4 interior=12 interval=1..16 kappa=1 residency=4 serialization=byte_identical; arms=10/10 rounds=500 passing=500 failing_outputs=0; segmented/fixed L2 s1 0.9980, s4 0.9992, s13 1.0063, s14 1.0000, s16 1.0002
        evidence: /root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16
-PASS [hard] B3 intra-interval geometry                          legality, materialization and benefit all recorded on gqa2
+PASS [hard] B3 intra-interval geometry                          legality, materialization and benefit all recorded on gqa2, mha4
        evidence: /root/TileMega/docs/experiments/E2E_REAL/segments
 FAIL [hard] C1-b preparation-phase optimization                 DEGRADED (§9.3): capacity stays 12; bound stage identical=9/9 speedup 1.03x-3.91x; whole-search hoist 2.51x (F-230)
        evidence: /root/TileMega/docs/experiments/E2E_REAL/prepare
@@ -223,7 +229,7 @@ PASS [report] D-d the two reference models at the same caliber    gqa2 seq 1 rou
 PASS [report] D-e solver and human decisions listed item by item  solver decides 10 items; a person still decides 12
        evidence: /root/TileMega/docs/experiments/E2E_REAL/solver_decisions.md
 
-24/28 gates met; 3 hard gate(s) failed, 1 report gate(s) unmet
+25/28 gates met; 3 hard gate(s) failed, 0 report gate(s) unmet
 ```
 
 ## 4. Stoppage ledger and degraded forms
@@ -238,7 +244,7 @@ met and is understood.
 |---|---|---|---|---|
 | **C1-b** preparation-phase optimization | **degraded (§9.3)**: implemented, exact, faster, and capacity is still 12 | measured, not guessed: on the whole Llama model one `PreparePlacementProblem` is 63.67 s, of which the bound stage is 68.8 ms (0.11%); in 41 samples 32 land in `BuildModelPlan`'s pattern matching and **0** in the `isl_set_foreach_point` C1-b removed (F-229). Hoisting the plan build then bought 2.51× on the whole search (F-230) and still did not move capacity | the next term is the per-import `CouplingDerivation::Derive`, which is granularity-dependent and so not hoistable; capacity 12 will move only when a candidate's import is cheaper, not when the bound is | days, and it is a new item rather than a finish of this one |
 | **A-b / D-a** golden agreement on deep accumulations | **not met**, cause located (§11) | the megakernel is bit-identical to the reference at all three levels in every round; the disagreement is between two legitimate bf16 evaluations, and grows with accumulation depth (0, 2, 44, 190 elements at 4, 8, 16, 28 layers) | a comparison caliber that carries a depth-aware error budget instead of one relative constant — a gate design change, and §H6 forbids re-drawing a line inside the round it is measured in | R8 item; the tolerance was **not** moved here |
-| **B3 second interval (mha4)** | **in flight**: proof 10 of 16 points | the ISL certificate is one fresh process per integer point and mha4 carries 88 projected stages against gqa2's 44; about an hour per point on this host | wall-clock only; the campaign is running and resumable, `segments.py` skips points already recorded | hours |
+| **B3 second interval (mha4)** | **finished after the first closure commit**; every acceptance item repeats, and the gate row above is its result | — | — | done: 11 h of proof, the seq 12-16 points at more than 10 h of CPU each |
 | **sm_120 execution** | **write-only, by H7** | no sm_120 device on this host | the target machine; both runners refuse to build unless `compute_cap` is 120, and `SELF_CHECK=1` was run here | hours on the target |
 
 ### Degraded forms
@@ -346,8 +352,12 @@ which R7 §0 and §5.2 require to be recorded as results.
 - **B3 — segmented geometry inside an interval.** One invocation emits both
   arms. gqa2 `[1,16]`: 16/16 ISL certificates, `serialization=byte_identical`
   with `diff=0` on all 16 materialization lines, 500/500 correctness, and 20
-  paired rounds per seq giving 0.9926 / 0.9986 / 1.0147 / 0.9997 / 0.9999. The
-  cut lands at 14, exactly where `split16` and `split8` cross. F-232.
+  paired rounds per seq giving 0.9926 / 0.9986 / 1.0147 / 0.9997 / 0.9999. mha4,
+  the same interval on twice the projected stages: 16/16, `byte_identical`,
+  500/500, and 0.9984 / 0.9992 / 1.0063 / 1.0001 / 1.0002. Both cut at 14,
+  exactly where `split16` and `split8` cross, and both gain 0.012% over the best
+  single geometry — so the margin is a property of how close the split-K curves
+  run, not of the graph's size. F-232.
 
 ## 7. Group C
 

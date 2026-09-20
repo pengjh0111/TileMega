@@ -91,9 +91,39 @@ mechanism is verified correct and its benefit is below what this cell can
 resolve. A model whose candidate curves cross steeply inside the interval is
 where a gain would show; §5.4 asks for the number, not for a threshold.
 
-## mha4
+## mha4 — the same interval on the second model
 
-The same campaign on mha4 (88 projected stages against gqa2's 44) is the
-second interval in this directory. Its state is whatever `../verify.py`
-recomputes from `mha4_i1_16/` -- the proof is the long pole at roughly an hour
-per point.
+88 projected stages against gqa2's 44, same interval, same flags.
+
+| quantity | geometry | summed predicted ns |
+|---|---|---|
+| `winner` — the point search's pick | `32x16x64s2split8` | 5.64824e+06 |
+| `fixed` — best single geometry | `32x16x64s2split16` | 5.63044e+06 |
+| `segmented` — best cut, `cut=14` | `split16` on `[1,13]`, `split8` on `[14,16]` | 5.62978e+06 |
+
+✅ **Verified: every acceptance item repeats.** 16/16 proof points
+`proved=1 failed=0`; `segments=2 points=16 endpoints=4 interior=12
+interval=1..16 kappa=1 residency=4 serialization=byte_identical` with `diff=0`
+on all 16 materialization lines; 500/500 fresh processes (five seqs, two arms,
+50 rounds), one binary per arm (`14cb03bd16da7e16` segmented,
+`0e45849dc946412a` fixed).
+
+| seq | segment | segmented ms | fixed ms | segmented/fixed |
+|---|---|---|---|---|
+| 1 | 0 | 0.916400 | 0.917888 | 0.9984 |
+| 4 | 0 | 1.408928 | 1.410048 | 0.9992 |
+| 13 | 0 | 3.599360 | 3.576832 | 1.0063 |
+| 14 | 1 | 3.815424 | 3.814976 | 1.0001 |
+| 16 | 1 | 4.273152 | 4.272128 | 1.0002 |
+
+⚠️ **Inferred: the cut belongs to the geometry pair, not to the model.** mha4
+cuts at 14 like gqa2, with the same two geometries on the same sides, and the
+crossing is again exactly there (`split16` 352687 against `split8` 352876 at
+seq 13; 354007 against 353991 at seq 14). The margins agree to the digit: 0.012%
+over the best single geometry and 0.33% over the point winner, against 0.012%
+and 0.34% on gqa2.
+
+**Cost.** The proof dominates the campaign: 16 points in parallel for 11 hours,
+with the tail points at seq 12-16 each burning more than 10 hours of CPU and
+1.1-1.4 GiB resident. `segments.py` reads back a point that already has a log,
+so an interrupted campaign resumes rather than restarts.

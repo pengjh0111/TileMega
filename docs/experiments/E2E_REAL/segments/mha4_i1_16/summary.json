@@ -1,0 +1,25 @@
+{
+  "candidates": "4",
+  "points": "16",
+  "winner": "32x16x64s2split8",
+  "winner_ns": "5.64824e+06",
+  "fixed": "32x16x64s2split16",
+  "fixed_ns": "5.63044e+06",
+  "segmented_ns": "5.62978e+06",
+  "cut": "14",
+  "segments": "2",
+  "covered": [
+    1,
+    4,
+    13,
+    14,
+    16
+  ],
+  "generated_fixtures": [
+    1,
+    4,
+    13,
+    14,
+    16
+  ]
+}

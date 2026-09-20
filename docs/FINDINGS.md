@@ -6649,10 +6649,33 @@ the same exact `(floor, predicted)` tie the D-b counterfactual found along
 do so shallowly. A model whose curves cross steeply inside the interval is where
 a gain would show; §5.4 asks for the number and sets no threshold.
 
+✅ **Verified: the second model repeats every part of it.** mha4 (88 projected
+stages against gqa2's 44) over the same interval: `SEGMENT_SUMMARY
+candidates=4 points=16 winner=32x16x64s2split8 winner_ns=5.64824e+06
+fixed=32x16x64s2split16 fixed_ns=5.63044e+06 segmented_ns=5.62978e+06 cut=14`;
+16/16 proof points `proved=1 failed=0`; `segments=2 points=16 endpoints=4
+interior=12 serialization=byte_identical` with `diff=0` on all 16
+materialization lines; 500/500 fresh processes over the same five seqs and two
+arms (binaries `0e45849dc946412a`, `14cb03bd16da7e16`); and 20 paired rounds per
+seq giving 0.9984, 0.9992, 1.0063, 1.0001, 1.0002. The proof is the long pole:
+its 16 points ran in parallel for 11 hours, the tail points at seq 12-16 taking
+more than 10 hours of CPU each.
+
+⚠️ **Inferred: the cut is a property of the geometry pair, not of the model.**
+Both models cut at 14, both pick `split16` below the cut and `split8` above it,
+and on mha4 the crossing is again exactly there (`split16` 352687 against
+`split8` 352876 at seq 13; 354007 against 353991 at seq 14). The relative gains
+agree to the digit as well: 0.012% over the best single geometry and 0.33% over
+the point winner on mha4, against 0.012% and 0.34% on gqa2. Two models that
+differ by a factor of two in projected stages produce the same cut and the same
+margin, which says the margin belongs to how close the split-K curves run, not
+to the size of the graph.
+
 Evidence: `E2E_REAL/segments/` (`README.md`, `correctness.tsv`, `timing.tsv`,
-`gqa2_i1_16/` with `solve.json`, `auto.cu.segments.tsv`, `proof/p*/`,
-`check.log`, `correctness/`, `timing/`), `E2E_REAL/segments.py`,
-`E2E_REAL/segment_proof.cpp`, `E2E_REAL/segment_check.cpp`.
+`gqa2_i1_16/` and `mha4_i1_16/`, each with `solve.json`,
+`auto.cu.segments.tsv`, `proof/p*/`, `check.log`, `correctness/`, `timing/`),
+`E2E_REAL/segments.py`, `E2E_REAL/segment_proof.cpp`,
+`E2E_REAL/segment_check.cpp`.
 
 ## F-233 — The maximal connected Qwen3 graph runs and the megakernel matches the reference bit for bit; the CPU golden parts company with both at depth
 

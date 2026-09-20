@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/root/r7_work/b3/proof/segment_check",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/target.json",
+    "/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/check",
+    "/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.mlir",
+    "/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.segment1.mlir"
+  ],
+  "start_ns": 1789901304350575140,
+  "elapsed_ns": 112718972975,
+  "head": "4be3856e309271b6049c46eefaf827a3b0a068ce",
+  "exit_code": 0
+}

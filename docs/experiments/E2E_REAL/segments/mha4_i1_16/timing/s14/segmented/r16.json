@@ -1,0 +1,1 @@
+{"command": ["/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/bin/segmented", "/root/r7_work/b3/inputs/fixture/mha4_s14_p3"], "environment": {}, "exit_code": 0, "session": "1789901483308201433", "round": 16, "order": 16, "started_ns": 1789901739162909761, "elapsed_ns": 798155473, "binary_sha256": "14cb03bd16da7e16e39a4449e737d06f2d1170fe64dd376c690e448fa6fa5fca"}
