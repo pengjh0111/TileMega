@@ -1,0 +1,2 @@
+SEGMENT_POINT segment=0 seq=6 nodes=11944 status=PASS
+SEGMENT_PROOF segments=2 points=1 proved=1 failed=0 interval=1..16

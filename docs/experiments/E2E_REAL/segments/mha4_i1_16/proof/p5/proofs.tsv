@@ -1,0 +1,2 @@
+segment	geometry	seq	nodes	grid	total	bijective	dense	acyclic	resident	status
+0	32x16x64s2split16	5	11852	512	1	1	1	1	1	PASS

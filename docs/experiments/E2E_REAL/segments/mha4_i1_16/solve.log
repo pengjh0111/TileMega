@@ -1,0 +1,27 @@
+DISK NEED_MIB=8192 FREE_MIB=1430971
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.cu.resources/1789839336024532411/0" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1430974
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.cu.resources/1789839336024532411/1" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1430869
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.cu.resources/1789839336024532411/2" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1430918
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.cu.resources/1789839336024532411/3" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1430991
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.cu.resources/1789839336024532411/4" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1430908
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.cu.resources/1789839336024532411/5" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1430982
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.cu.resources/1789839336024532411/6" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1430943
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.cu.resources/1789839336024532411/7" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1430935
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.cu.resources/1789839336024532411/8" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1430974
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.cu.resources/1789839336024532411/9" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1430972
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.cu.resources/1789839336024532411/10" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1430970
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.cu.resources/1789839336024532411/11" resident=5
+SEGMENT_SUMMARY candidates=4 points=16 winner=32x16x64s2split8 winner_ns=5.64824e+06 fixed=32x16x64s2split16 fixed_ns=5.63044e+06 segmented_ns=5.62978e+06 cut=14 segments=2
+SOLVE_SUMMARY evaluated=12 deferred=33 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=96 couplings=114 stages=60 symbolic_windows=114 fallback_windows=0 output=/root/TileMega/docs/experiments/E2E_REAL/segments/mha4_i1_16/auto.cu

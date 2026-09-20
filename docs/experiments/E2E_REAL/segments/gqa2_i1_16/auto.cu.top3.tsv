@@ -1,0 +1,4 @@
+rank	key	placement	tile_m	tile_n	tile_k	stages	split_k	kappa	residency	floor_ns	predicted_ns	source	cg
+1	32x16x64s2split8kappa1r4	eft	32	16	64	2	8	1	4	64663.6	168660	/root/TileMega/docs/experiments/E2E_REAL/segments/gqa2_i1_16/auto.cu.top1.cu	/root/TileMega/docs/experiments/E2E_REAL/segments/gqa2_i1_16/auto.cu.top1.mlir
+2	32x16x64s2split8kappa1r4	wavefront	32	16	64	2	8	1	4	64663.6	176807	/root/TileMega/docs/experiments/E2E_REAL/segments/gqa2_i1_16/auto.cu.top2.cu	/root/TileMega/docs/experiments/E2E_REAL/segments/gqa2_i1_16/auto.cu.top2.mlir
+3	32x16x64s2split8kappa2r4	eft	32	16	64	2	8	2	4	64663.6	176807	/root/TileMega/docs/experiments/E2E_REAL/segments/gqa2_i1_16/auto.cu.top3.cu	/root/TileMega/docs/experiments/E2E_REAL/segments/gqa2_i1_16/auto.cu.top3.mlir
