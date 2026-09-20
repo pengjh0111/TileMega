@@ -181,7 +181,7 @@ target_include_directories(tilemega PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/tools/util/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/test>)
 add_dependencies(tilemega TileMegaCGIncGen)
-target_link_libraries(tilemega PUBLIC CUDA::cudart MLIRIR MLIRSupport MLIRPass
+target_link_libraries(tilemega PUBLIC CUDA::cudart CUDA::cuda_driver MLIRIR MLIRSupport MLIRPass
   tilemega::isl_stack)
 if(NOT LLVM_ENABLE_RTTI)
   target_compile_options(tilemega PRIVATE -fno-rtti)
