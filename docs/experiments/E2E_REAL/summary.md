@@ -133,8 +133,13 @@ claim survives the addition. Reviewed rather than rubber-stamped: the default
 linkage and no module exports that spelling; the caller now has to name the
 symbol.
 
-No push rights on `origin`; the series is exported with
-`git format-patch 4e0e7b119..HEAD -o /tmp/round7-patches/`.
+**Pushed.** `git push origin HEAD:tilemega` put the round on the remote
+(`refs/heads/tilemega` at `02c1be81a`). ⚠️ An earlier revision of this report
+said there were no push rights; that was my error, not the remote's — the first
+attempt was `git push tilemega HEAD`, which asks git for a *remote* named
+`tilemega` when `tilemega` is the branch and `origin` is the remote. The series
+is also exported with `git format-patch 4e0e7b119..HEAD -o
+/tmp/round7-patches/`, which stays useful as an offline copy.
 
 ✅ **Verified: the exported series reproduces the round.** The patches were
 applied onto a detached worktree of the baseline with `git am` — all of them, no
