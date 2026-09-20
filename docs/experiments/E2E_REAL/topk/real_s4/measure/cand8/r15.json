@@ -1,0 +1,1 @@
+{"command": ["/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/bin/cand8", "/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s4/export/fixture"], "round": 15, "order": 5, "session": "1789868432355520070", "started_ns": 1789869613354240856, "elapsed_ns": 12369737337, "exit_code": 0, "binary_sha256": "ffe980b21c59a717b80d11a660b784a7552d93cbfccb2929652d4cdf0bc21da3"}

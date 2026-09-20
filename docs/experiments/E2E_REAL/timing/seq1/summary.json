@@ -1,0 +1,23 @@
+{
+  "cell": "llama_s1",
+  "model": "llama",
+  "seq": 1,
+  "past": 3,
+  "rounds": 25,
+  "midpoint_refine": 1,
+  "floor_ns": 4613500.0,
+  "binary_sha256": "bc6d6e70f59883d15732296605800032091c2d059b78405d55e37c4cb9bda2a3",
+  "l05_ms_median": 49.804192,
+  "l05_ms_min": 49.795071,
+  "l05_ms_max": 49.813503,
+  "l1_ms_median": 49.755295,
+  "l1_ms_min": 49.745026,
+  "l1_ms_max": 49.767426,
+  "l2_ms_median": 36.486816,
+  "l2_ms_min": 36.477951,
+  "l2_ms_max": 37.984257,
+  "l2_over_l1_median": 0.7333122581763409,
+  "l1_over_l05_median": 0.9990367686703278,
+  "l2_over_l05_median": 0.7326040065568966,
+  "l2_over_floor_median": 7.908706188360247
+}

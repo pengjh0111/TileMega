@@ -1,0 +1,26 @@
+DISK NEED_MIB=8192 FREE_MIB=1410315
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/auto.cu.resources/1789845597629286844/0" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1410384
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/auto.cu.resources/1789845597629286844/1" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1410305
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/auto.cu.resources/1789845597629286844/2" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1410375
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/auto.cu.resources/1789845597629286844/3" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1410364
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/auto.cu.resources/1789845597629286844/4" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1410347
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/auto.cu.resources/1789845597629286844/5" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1410335
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/auto.cu.resources/1789845597629286844/6" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1410252
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/auto.cu.resources/1789845597629286844/7" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1410323
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/auto.cu.resources/1789845597629286844/8" resident=3
+DISK NEED_MIB=8192 FREE_MIB=1410321
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/auto.cu.resources/1789845597629286844/9" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1410274
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/auto.cu.resources/1789845597629286844/10" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1410234
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/auto.cu.resources/1789845597629286844/11" resident=5
+SOLVE_SUMMARY evaluated=12 deferred=72 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=96 couplings=114 stages=60 symbolic_windows=114 fallback_windows=0 output=/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/auto.cu

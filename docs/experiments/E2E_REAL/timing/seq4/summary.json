@@ -1,0 +1,21 @@
+{
+  "cell": "llama_hoist",
+  "seq": 4,
+  "past": 3,
+  "rounds": 25,
+  "floor_ns": 5231450.0,
+  "binary_sha256": "ffe49354732d2e926cbb48e4ec7de34546003b7b6493d8a9917ede50718da747",
+  "l05_ms_median": 49.464993,
+  "l05_ms_min": 49.228802,
+  "l05_ms_max": 49.480705,
+  "l1_ms_median": 49.492287,
+  "l1_ms_min": 49.253281,
+  "l1_ms_max": 49.510143,
+  "l2_ms_median": 41.121792,
+  "l2_ms_min": 40.926208,
+  "l2_ms_max": 41.146366,
+  "l2_over_l1_median": 0.830854768712113,
+  "l1_over_l05_median": 1.0005382709144222,
+  "l2_over_l05_median": 0.8313327869009303,
+  "l2_over_floor_median": 7.86049603838324
+}

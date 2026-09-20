@@ -1,0 +1,23 @@
+{
+  "cell": "gqa2_s4",
+  "model": "gqa2",
+  "seq": 4,
+  "past": 3,
+  "rounds": 25,
+  "midpoint_refine": 0,
+  "floor_ns": 56953.7,
+  "binary_sha256": "c2673ccef2a91c6286083b4e98dd1c845cf4b189cab47411ce963102d5ae0d6b",
+  "l05_ms_median": 0.182272,
+  "l05_ms_min": 0.165888,
+  "l05_ms_max": 0.271552,
+  "l1_ms_median": 0.196672,
+  "l1_ms_min": 0.1792,
+  "l1_ms_max": 0.200736,
+  "l2_ms_median": 0.153728,
+  "l2_ms_min": 0.14,
+  "l2_ms_max": 0.160768,
+  "l2_over_l1_median": 0.7849786931818181,
+  "l1_over_l05_median": 1.0793711656441716,
+  "l2_over_l05_median": 0.8439429012345679,
+  "l2_over_floor_median": 2.699174943857906
+}

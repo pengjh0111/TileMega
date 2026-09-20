@@ -1,0 +1,4 @@
+rank	key	placement	tile_m	tile_n	tile_k	stages	split_k	kappa	residency	floor_ns	predicted_ns	source	cg
+1	64x128x16s2split16kappa1r2	wavefront	64	128	16	2	16	1	2	2.07187e+06	2.36897e+06	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/auto.cu.top1.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/auto.cu.top1.mlir
+2	64x128x16s2split16kappa2r2	wavefront	64	128	16	2	16	2	2	2.07187e+06	2.36897e+06	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/auto.cu.top2.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/auto.cu.top2.mlir
+3	64x128x16s2split16kappa4r2	wavefront	64	128	16	2	16	4	2	2.07187e+06	2.36897e+06	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/auto.cu.top3.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/auto.cu.top3.mlir

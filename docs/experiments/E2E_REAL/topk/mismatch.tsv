@@ -1,0 +1,10 @@
+cell	arm	key	diff_line	log
+real_s4	cand10	32x16x64s2split8kappa2r4	E2E_OUTPUT_DIFF index=0 buffer=73 mismatch=1 max_abs=0.046875 max_rel=3906.25	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/measure/cand10/r0.log
+real_s4	cand11	32x16x64s2split8kappa4r4	E2E_OUTPUT_DIFF index=0 buffer=73 mismatch=1 max_abs=0.046875 max_rel=3906.25	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/measure/cand11/r0.log
+real_s4	cand3	32x16x64s2split4kappa1r4	E2E_OUTPUT_DIFF index=0 buffer=73 mismatch=1 max_abs=0.0390625 max_rel=5371.0938	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/measure/cand3/r0.log
+real_s4	cand4	32x16x64s2split4kappa2r4	E2E_OUTPUT_DIFF index=0 buffer=73 mismatch=1 max_abs=0.0390625 max_rel=5371.0938	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/measure/cand4/r0.log
+real_s4	cand5	32x16x64s2split4kappa4r4	E2E_OUTPUT_DIFF index=0 buffer=73 mismatch=1 max_abs=0.0390625 max_rel=5371.0938	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/measure/cand5/r0.log
+real_s4	cand9	32x16x64s2split8kappa1r4	E2E_OUTPUT_DIFF index=0 buffer=73 mismatch=1 max_abs=0.046875 max_rel=3906.25	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/measure/cand9/r0.log
+real_s128	cand0	64x128x16s2split8kappa1r2	E2E_OUTPUT_DIFF index=0 buffer=73 mismatch=1 max_abs=0.046875 max_rel=4882.8125	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/measure/cand0/r0.log
+real_s128	cand1	64x128x16s2split8kappa2r2	E2E_OUTPUT_DIFF index=0 buffer=73 mismatch=1 max_abs=0.046875 max_rel=4882.8125	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/measure/cand1/r0.log
+real_s128	cand2	64x128x16s2split8kappa4r2	E2E_OUTPUT_DIFF index=0 buffer=73 mismatch=1 max_abs=0.046875 max_rel=4882.8125	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/measure/cand2/r0.log

@@ -1,0 +1,26 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-compile",
+    "/root/TileMega/docs/experiments/REALMODEL/raw/work/r2sim_s4/model.json",
+    "/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/auto.cu",
+    "--solve",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/target.json",
+    "--seq",
+    "4",
+    "--past",
+    "3",
+    "--search-capacity",
+    "12",
+    "--search-domain",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/search_domain.json",
+    "--dump-cg",
+    "/root/TileMega/docs/experiments/E2E_REAL/topk/real_s4/auto.mlir",
+    "--hop-curve",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv",
+    "--dump-evaluated",
+    "1"
+  ],
+  "exit_code": 0,
+  "elapsed_ns": 3451369768371,
+  "head": "f5ec03cd3e825d7145e3cb2773ad9412f77117dc"
+}

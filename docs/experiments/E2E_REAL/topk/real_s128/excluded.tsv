@@ -1,0 +1,4 @@
+arm	first_mismatch_log
+cand0	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/measure/cand0/r0.log
+cand1	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/measure/cand1/r0.log
+cand2	/root/TileMega/docs/experiments/E2E_REAL/topk/real_s128/measure/cand2/r0.log

@@ -1,0 +1,1 @@
+{"command": ["/root/r7_work/llama_s1/bin/selected", "/root/r7_work/llama_s1/fixture"], "round": 20, "session": "1789849102361214629", "started_ns": 1789849763722439112, "elapsed_ns": 28948620552, "exit_code": 1, "binary_sha256": "bc6d6e70f59883d15732296605800032091c2d059b78405d55e37c4cb9bda2a3", "seq": 1, "past": 3}

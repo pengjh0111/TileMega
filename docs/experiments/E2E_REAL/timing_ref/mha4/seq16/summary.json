@@ -1,0 +1,23 @@
+{
+  "cell": "mha4_s16",
+  "model": "mha4",
+  "seq": 16,
+  "past": 3,
+  "rounds": 25,
+  "midpoint_refine": 0,
+  "floor_ns": 137387.0,
+  "binary_sha256": "55c019a75319907aeabe6753b113257ac6c7f4d87cb14111acb7725a612902a0",
+  "l05_ms_median": 0.399072,
+  "l05_ms_min": 0.36352,
+  "l05_ms_max": 0.402432,
+  "l1_ms_median": 0.420992,
+  "l1_ms_min": 0.382976,
+  "l1_ms_max": 0.42384,
+  "l2_ms_median": 0.494592,
+  "l2_ms_min": 0.436224,
+  "l2_ms_max": 0.497408,
+  "l2_over_l1_median": 1.174146673730417,
+  "l1_over_l05_median": 1.0543363764044946,
+  "l2_over_l05_median": 1.2360134271099743,
+  "l2_over_floor_median": 3.5999912655491424
+}

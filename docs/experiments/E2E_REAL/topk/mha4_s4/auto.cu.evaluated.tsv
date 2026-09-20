@@ -1,0 +1,13 @@
+index	key	placement	tile_m	tile_n	tile_k	stages	split_k	kappa	residency	floor_ns	predicted_ns	source	cg
+0	32x16x64s2split16kappa1r4	wavefront	32	16	64	2	16	1	4	125275	352991	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand0.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand0.mlir
+1	32x16x64s2split16kappa2r4	wavefront	32	16	64	2	16	2	4	125275	352991	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand1.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand1.mlir
+2	32x16x64s2split16kappa4r4	wavefront	32	16	64	2	16	4	4	125275	352991	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand2.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand2.mlir
+3	32x16x64s2split32kappa1r4	wavefront	32	16	64	2	32	1	4	125275	352991	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand3.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand3.mlir
+4	32x16x64s2split32kappa2r4	wavefront	32	16	64	2	32	2	4	125275	352991	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand4.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand4.mlir
+5	32x16x64s2split32kappa4r4	wavefront	32	16	64	2	32	4	4	125275	352991	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand5.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand5.mlir
+6	32x16x32s2split32kappa1r4	eft	32	16	32	2	32	1	4	162950	402911	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand6.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand6.mlir
+7	32x16x32s2split32kappa2r4	eft	32	16	32	2	32	2	4	162950	407853	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand7.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand7.mlir
+8	32x16x32s2split32kappa4r4	eft	32	16	32	2	32	4	4	162950	407853	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand8.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand8.mlir
+9	32x16x64s2split8kappa1r4	wavefront	32	16	64	2	8	1	4	127310	355027	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand9.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand9.mlir
+10	32x16x64s2split8kappa2r4	wavefront	32	16	64	2	8	2	4	127310	355027	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand10.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand10.mlir
+11	32x16x64s2split8kappa4r4	wavefront	32	16	64	2	8	4	4	127310	355027	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand11.cu	/root/TileMega/docs/experiments/E2E_REAL/topk/mha4_s4/auto.cu.cand11.mlir

@@ -1,0 +1,26 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-compile",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+    "/root/TileMega/docs/experiments/E2E_REAL/topk/gqa2_s128/auto.cu",
+    "--solve",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/target.json",
+    "--seq",
+    "128",
+    "--past",
+    "3",
+    "--search-capacity",
+    "12",
+    "--search-domain",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/search_domain.json",
+    "--dump-cg",
+    "/root/TileMega/docs/experiments/E2E_REAL/topk/gqa2_s128/auto.mlir",
+    "--hop-curve",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv",
+    "--dump-evaluated",
+    "1"
+  ],
+  "exit_code": 0,
+  "elapsed_ns": 2057972762155,
+  "head": "f5ec03cd3e825d7145e3cb2773ad9412f77117dc"
+}

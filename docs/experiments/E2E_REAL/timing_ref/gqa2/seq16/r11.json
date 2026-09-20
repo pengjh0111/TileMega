@@ -1,0 +1,1 @@
+{"command": ["/root/r7_work/ref/gqa2_s16/bin/selected", "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/gqa2_s16_p3"], "round": 11, "session": "1789844889190514418", "started_ns": 1789845094049063877, "elapsed_ns": 591370811, "exit_code": 0, "binary_sha256": "287a9f707c52d631745e1036fac93a168c8708d8cffce389ca04949b07bbc191", "seq": 16, "past": 3}

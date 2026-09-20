@@ -1,0 +1,1 @@
+{"command": ["/root/r7_work/llama_hoist/bin/selected", "/root/r7_work/llama_hoist/fixture"], "round": 14, "session": "1789841409233315989", "started_ns": 1789841766205243853, "elapsed_ns": 26525873079, "exit_code": 1, "binary_sha256": "ffe49354732d2e926cbb48e4ec7de34546003b7b6493d8a9917ede50718da747", "seq": 4, "past": 3}

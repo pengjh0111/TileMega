@@ -1,0 +1,1 @@
+{"command": ["/root/TileMega/docs/experiments/E2E_REAL/topk/gqa2_s4/bin/cand3", "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/gqa2_s4_p3"], "round": 9, "order": 6, "session": "1789844386880099706", "started_ns": 1789845973001622801, "elapsed_ns": 349077199, "exit_code": 0, "binary_sha256": "25c6c12609626b8f530541ee92541762c1ebb09dd0d206d4c141ef2557cac0a0"}
