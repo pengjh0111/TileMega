@@ -10,9 +10,11 @@ their own, and `prefetch/inline` is the overlap with the storage held fixed.
 
 No threshold: R7 §5.2 asks for the numbers and a diagnosis, not a verdict.
 """
-import argparse, csv, json, math, pathlib, random, re, statistics, sys
+import argparse, csv, json, math, os, pathlib, random, re, statistics, sys
 
 HERE = pathlib.Path(__file__).resolve().parent
+# The sm_120 runner keeps its rounds outside the repository.
+RAW = pathlib.Path(os.environ.get('PIPELINE_OUT', HERE / 'raw'))
 CELLS = ['gqa2_s4', 'gqa2_s128', 'mha4_s4', 'mha4_s128', 'real_s4', 'real_s128']
 PAIRS = (('prefetch', 'control'), ('inline', 'control'), ('prefetch', 'inline'))
 TIME = re.compile(r'^E2E_TIME .*?\bl2_ms=([0-9.]+)', re.M)
@@ -23,7 +25,7 @@ DECL = re.compile(r'^E2E_PREFETCH slots=(\d+) declared=(\d+) issued=(\d+)', re.M
 def samples(cell, arm, tag):
     """round -> l2_ms for one arm of one cell."""
     out, issued = {}, None
-    for log in (HERE / 'raw' / cell / ('e2e' + tag) / arm).glob('r*.log'):
+    for log in (RAW / cell / ('e2e' + tag) / arm).glob('r*.log'):
         text = log.read_text()
         m = TIME.search(text)
         if m:
@@ -95,7 +97,7 @@ def main():
     if not out:
         print('E2E no rounds; run `run.py e2e` first', file=sys.stderr)
         return 1
-    dest = HERE / 'raw' / ('e2e' + a.tag + '.tsv')
+    dest = RAW / ('e2e' + a.tag + '.tsv')
     with dest.open('w') as f:
         w = csv.DictWriter(f, fieldnames=list(out[0]), delimiter='\t', lineterminator='\n')
         w.writeheader()

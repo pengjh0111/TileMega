@@ -21,15 +21,15 @@ afford, and the `arms` table is B1-b's before/after proper -- the control cubin
 against the prefetch cubin as `run.py` builds them, so the registers the
 mechanism costs are measured rather than assumed unchanged.
 """
-import json, pathlib, re, subprocess, sys
+import json, os, pathlib, re, subprocess, sys
 
 REPO = pathlib.Path('/root/TileMega')
 FORK6 = REPO / 'docs/experiments/COSTMODEL/raw_kloop'
 PHASE2 = REPO / 'docs/experiments/PHASE2/raw'
-OUT = REPO / 'docs/experiments/PIPELINE/raw'
-WORK = pathlib.Path('/tmp/pipeline_occ')
+OUT = pathlib.Path(os.environ.get('PIPELINE_OUT', REPO / 'docs/experiments/PIPELINE/raw'))
+WORK = pathlib.Path(os.environ.get('PIPELINE_WORK', '/tmp/pipeline_occ'))
 CELLS = ['gqa2_s4', 'gqa2_s128', 'mha4_s4', 'mha4_s128', 'real_s4', 'real_s128']
-ARCH = 'sm_89'
+ARCH = os.environ.get('PIPELINE_ARCH', 'sm_89')
 THREADS = 128
 NVCC = '/usr/local/cuda/bin/nvcc'
 MANGLED = {
@@ -72,8 +72,10 @@ def spec(cell):
 
 def shipped(cell):
     """What the harness printed for this cell on the runs that actually ran."""
+    # On another architecture PHASE2's numbers belong to this machine's 4090,
+    # not to the device under test, so ask the harness here instead.
     log = PHASE2 / cell / 'correctness/selected/r0.log'
-    if not log.exists():
+    if ARCH != 'sm_89' or not log.exists():
         log = OUT / cell / 'baseline/control/r0.log'
         if not log.exists():
             sys.path.insert(0, str(REPO / 'docs/experiments/JOINT'))

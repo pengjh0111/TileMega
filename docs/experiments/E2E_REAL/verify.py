@@ -8,6 +8,9 @@ failures set the exit status, but every gate is evaluated first.
 import json,re,subprocess,sys
 from pathlib import Path
 REPO=Path(__file__).resolve().parents[3];HERE=Path(__file__).resolve().parent
+# Rounds and solves this round were run outside the repository, under H1's
+# rule that new fixtures and work trees stay out of the tree.
+WORK=Path('/root/r7_work')
 MODELS2=REPO/'docs/experiments/MODELS2'
 rows=[]
 def gate(name,hard,ok,detail,evidence):
@@ -61,15 +64,44 @@ if actual.is_file():
 else:
     gate('A-d extension cost table updated',False,False,'not recorded',actual)
 
-# --- D-a: the whole model, 50 fresh processes -------------------------------
-for name in ('llama','qwen3'):
+# --- D-a and A-b: the whole model, 50 fresh processes -----------------------
+# The two models carry different gates. Llama is D-a (§7.2); Qwen3's maximal
+# connected graph is the whole model once A4-A6 landed, so it is A-b (§4.5).
+def outputs_diff(folder):
+    """Distinct mismatching output indices and the largest absolute gap."""
+    indices={};worst=0.0
+    for log in folder.glob('r*.log'):
+        for line in re.findall(r'^E2E_OUTPUT_DIFF .*$',log.read_text(),re.M):
+            f=dict(kv.split('=',1) for kv in line.split()[1:])
+            if f['mismatch']=='0': continue
+            indices.setdefault(int(f['index']),0)
+            indices[int(f['index'])]=max(indices[int(f['index'])],int(f['mismatch']))
+            worst=max(worst,float(f['max_abs']))
+    return indices,worst
+for name,label in (('llama','D-a llama whole model 50/50'),
+                   ('qwen3','A-b qwen3 maximal connected graph 50/50')):
     folder=HERE/name/'correctness'
     if folder.is_dir():
         n,ok,binaries,bad=processes(folder)
-        gate(f'D-a {name} whole model 50/50',True,n>=50 and ok==n and bad==0,
-             f'rounds={n} passing={ok} failing_outputs={bad} binaries={len(binaries)}',folder)
+        detail=f'rounds={n} passing={ok} failing_outputs={bad} binaries={len(binaries)}'
+        if ok<n:
+            indices,worst=outputs_diff(folder)
+            detail+=' mismatching_outputs='+','.join(
+                f'{i}:{c}' for i,c in sorted(indices.items()))+f' max_abs={worst}'
+        gate(label,True,n>=50 and ok==n and bad==0,detail,folder)
     else:
-        gate(f'D-a {name} whole model 50/50',True,False,'not run this round',folder)
+        # A model whose solve never produced a plan has no rounds to count; say
+        # why, from the process record the run itself wrote, not from a summary.
+        record=WORK/name/'solve.json';log=WORK/name/'solve.log'
+        why='not run this round'
+        if record.is_file():
+            r=json.loads(record.read_text())
+            why=(f"solve exit={r.get('exit_code')} after {r.get('elapsed_ns',0)/1e9:.0f}s "
+                 f"at {str(r.get('head',''))[:9]}")
+            if r.get('exit_code') and log.is_file():
+                tail=[l for l in log.read_text().splitlines() if l.strip()]
+                if tail:why+='; '+tail[-1][:120]
+        gate(label,True,False,why,record if record.is_file() else folder)
 
 # --- H2: the default build's SASS, against the baseline tree ----------------
 stamp=HERE/'sass_identity/manifest.json'
@@ -241,8 +273,54 @@ else:
     gate('B2 per-stage versus global kappa',False,False,'no results',kappa)
 
 # --- B3: segmented geometry inside an interval -------------------------------
-gate('B3 intra-interval geometry',True,False,'campaign not finished; see the stoppage ledger',
-     HERE/'summary.md')
+segments=HERE/'segments'
+done=[]
+for folder in sorted(segments.glob('*_i*_*')):
+    model=folder.name.split('_')[0]
+    # Legality, recounted from the per-point proof logs rather than the run's
+    # own tally: one process per interior point, each reporting failed=0.
+    points=sorted(folder.glob('proof/p*/proof.log'))
+    proved=[p for p in points if re.search(r'proved=1 failed=0',p.read_text())]
+    # Materialization: every endpoint and interior point of both segments has
+    # to serialize to the macro geometry's own nodes, diff=0 on each line.
+    check=folder/'check.log'
+    lines=check.read_text().splitlines() if check.is_file() else []
+    material=[l for l in lines if l.startswith('SEGMENT_MATERIAL')]
+    agree=[l for l in material if ' diff=0' in l]
+    verdict=next((l for l in lines if l.startswith('SEGMENT_CHECK')),'')
+    # Correctness: 50 fresh processes per covered seq, for both arms.
+    arms=sorted(folder.glob('correctness/s*/*'))
+    counts=[processes(a) for a in arms]
+    rounds=sum(c[0] for c in counts);passing=sum(c[1] for c in counts)
+    bad=sum(c[3] for c in counts)
+    full=sum(c[0]>=50 and c[1]==c[0] and c[3]==0 for c in counts)
+    # §5.4 asks three things of an interval campaign -- legality at every point,
+    # endpoint and interior materialization, and the measured benefit -- of the
+    # campaign, not of each model. A second model in flight is reported, and the
+    # hard line is whether a campaign satisfies all three.
+    ok=(bool(points) and len(proved)==len(points) and bool(material) and
+        len(agree)==len(material) and 'serialization=byte_identical' in verdict and
+        bool(arms) and full==len(arms))
+    # The gain is a report line, not a threshold: median L2 of each arm over
+    # the paired rounds, recomputed here from the raw harness lines.
+    gains=[]
+    for seq in sorted(folder.glob('timing/s*'),key=lambda d:int(d.name[1:])):
+        medians={}
+        for arm in sorted(seq.iterdir()):
+            got=sorted(float(m) for log in arm.glob('r*.log')
+                       for m in re.findall(r'l2_ms=([0-9.]+)',log.read_text()))
+            if got:medians[arm.name]=got[len(got)//2]
+        if len(medians)==2 and medians.get('fixed'):
+            gains.append(f"s{seq.name[1:]} {medians['segmented']/medians['fixed']:.4f}")
+    gate(f'B3 intra-interval campaign, {model}',False,ok,
+         f'proof points={len(proved)}/{len(points)} material={len(agree)}/{len(material)} '
+         f'{verdict.split(" ",1)[1] if verdict else "no check"}; arms={full}/{len(arms)} '
+         f'rounds={rounds} passing={passing} failing_outputs={bad}; '
+         f'segmented/fixed L2 {", ".join(gains) if gains else "not timed"}',folder)
+    if ok:done.append(model)
+gate('B3 intra-interval geometry',True,bool(done),
+     ('legality, materialization and benefit all recorded on '+', '.join(done))
+     if done else 'no interval campaign satisfies all three',segments)
 
 # --- C1-b: scored on the searchable space only (§6) --------------------------
 # Degraded form under §9.3: the bound stage and the plan hoist are measured,
@@ -258,6 +336,146 @@ if profile.is_file():
 else:
     gate('C1-b preparation-phase optimization',True,False,'no preparation evidence',HERE/'prepare')
 
+# --- A-c: the two reference models still pass with every switch off ----------
+REF=('gqa2_s4','gqa2_s128','mha4_s4','mha4_s128')
+regression=HERE/'regression'
+for label,arms in (('reference cells seq 4 and 128',
+                    [(c,'default') for c in REF]),
+                   ('SEQSCAN subset',
+                    [(c,'seqscan_'+case) for c in REF
+                     for case in ('s1_p0','s128_p512','s2048_p0')])):
+    folders=[regression/c/'correctness'/a for c,a in arms]
+    live=[f for f in folders if f.is_dir()]
+    if len(live)==len(folders):
+        got=[processes(f) for f in live]
+        n=sum(g[0] for g in got);ok=sum(g[1] for g in got);bad=sum(g[3] for g in got)
+        full=sum(g[0]>=50 and g[1]==g[0] and g[3]==0 for g in got)
+        gate(f'A-c {label}',True,full==len(got),
+             f'arms={full}/{len(got)} rounds={n} passing={ok} failing_outputs={bad} '
+             f'binaries={len(set().union(*(g[2] for g in got)))}',regression)
+    else:
+        gate(f'A-c {label}',True,False,
+             f'{len(live)}/{len(folders)} arms run this round',regression)
+
+# --- C1-a: J-b is a report line now, not a gate (§6) -------------------------
+# The objective minimizes max(CP, queue_lb), which is allowed to land on a
+# queue-bound point, so the ratio is reported and never compared to a line.
+topk=HERE/'topk'
+ratios=[]
+for c in CELLS:
+    top3,search=topk/c/'auto.cu.top3.tsv',topk/c/'auto.cu.search.tsv'
+    if not (top3.is_file() and search.is_file()):continue
+    winner=tsv(top3)[0]
+    row=next((r for r in tsv(search)
+              if r['candidate']==winner['key'] and r['placement']==winner['placement']),None)
+    if row and float(row['cp_ns']):
+        ratios.append(f"{c} {float(row['queue_lb_ns'])/float(row['cp_ns']):.6f}")
+gate('C1-a J-b queue_lb/CP reported, not gated',False,bool(ratios),
+     ('winner queue_lb/CP: '+'; '.join(ratios)) if ratios else 'no search tables',topk)
+
+# --- D-b: top-k quality under C1-c's caliber, six cells ----------------------
+def medians(folder):
+    """Median l2_ms per arm, recomputed from the rounds themselves."""
+    import statistics
+    out={}
+    for arm in sorted(p.name for p in folder.iterdir() if p.is_dir()):
+        got=[]
+        for log in (folder/arm).glob('r*.log'):
+            m=re.search(r'^E2E_TIME .*?\bl2_ms=([0-9.eE+-]+)',log.read_text(),re.M)
+            if m:got.append(float(m[1]))
+        if got:out[arm]=statistics.median(got)
+    return out
+detail=[];passing=0;cells_seen=0
+for c in CELLS:
+    folder,evaluated=topk/c/'measure',topk/c/'auto.cu.evaluated.tsv'
+    if not (folder.is_dir() and evaluated.is_file()):continue
+    cells_seen+=1
+    rowsev={'cand'+r['index']:r for r in tsv(evaluated)}
+    keys3={r['key'] for r in tsv(topk/c/'auto.cu.top3.tsv')}
+    # A candidate that disagreed with the golden output stopped being timed the
+    # moment it did, so its single round is not a timing sample. Those arms come
+    # out of the ratio here too, and the coverage says how many are left.
+    record=topk/c/'excluded.tsv'
+    dropped={l.split('\t')[0] for l in record.read_text().splitlines()[1:]
+             if l.strip()} if record.is_file() else set()
+    med={a:v for a,v in medians(folder).items() if a not in dropped}
+    rounds=sorted(len(list((folder/a).glob('r*.log'))) for a in med)
+    short=[a for a in med if rowsev[a]['key'] in keys3]
+    if not short or len(med)<2:
+        detail.append(f'{c} not measurable ({len(med)}/{len(rowsev)} clean)');continue
+    ratio=med[min(short,key=med.get)]/med[min(med,key=med.get)]
+    passing+=ratio<=1.05
+    detail.append(f'{c} {ratio:.4f} ({len(med)}/{len(rowsev)} clean, '
+                  f'{rounds[0]}-{rounds[-1]} rounds each, '
+                  f'{len(dropped)} dropped on output difference)')
+gate('D-b top-k quality, six cells',True,cells_seen==len(CELLS) and passing==len(CELLS),
+     ('; '.join(detail) if detail else 'not measured this round'),topk)
+
+# --- D-c and D-d: the three levels, paired inside each round -----------------
+def levels(folder):
+    """Per-round l05/l1/l2 from the harness line, and the paired ratios."""
+    import statistics
+    got=[]
+    for log in sorted(folder.glob('r*.log'),key=lambda p:int(p.stem[1:])):
+        m=re.search(r'^E2E_TIME (.*)$',log.read_text(),re.M)
+        if m:got.append({k:float(v) for k,v in re.findall(r'(\w+)=([\d.eE+-]+)',m[1])})
+    if not got:return None
+    return dict(rounds=len(got),
+                l05=statistics.median(s['l05_ms'] for s in got),
+                l1=statistics.median(s['l1_ms'] for s in got),
+                l2=statistics.median(s['l2_ms'] for s in got),
+                l2_over_l1=statistics.median(s['l2_ms']/s['l1_ms'] for s in got))
+
+def floor_of(root):
+    table=root/'auto.cu.top3.tsv'
+    return float(tsv(table)[0]['floor_ns']) if table.is_file() else None
+
+def sweep(base,roots):
+    """(label, summary line) per decode point, or [] when nothing ran."""
+    out=[]
+    for seq,root in sorted(roots.items()):
+        got=levels(base/f'seq{seq}')
+        if not got:continue
+        fl=floor_of(root)
+        tail=''
+        if fl:
+            import statistics
+            logs=sorted((base/f'seq{seq}').glob('r*.log'),key=lambda p:int(p.stem[1:]))
+            vals=[re.search(r'\bl2_ms=([0-9.eE+-]+)',p.read_text()) for p in logs]
+            tail=' l2/floor %.4f'%statistics.median(
+                float(v[1])*1e6/fl for v in vals if v)
+        out.append(f"seq {seq} rounds {got['rounds']} l05 {got['l05']:.3f} l1 {got['l1']:.3f} "
+                   f"l2 {got['l2']:.3f} l2/l1 {got['l2_over_l1']:.4f}{tail}")
+    return out
+
+dc=sweep(HERE/'timing',{1:WORK/'llama_s1',4:WORK/'llama_hoist',
+                        16:WORK/'llama_s16',64:WORK/'llama_s64'})
+gate('D-c three levels per decode seq, 25 paired rounds',False,len(dc)==4,
+     ('; '.join(dc) if dc else 'not measured this round'),HERE/'timing')
+dd=[]
+for model in ('gqa2','mha4'):
+    roots={1:WORK/'ref'/f'{model}_s1',4:topk/f'{model}_s4',
+           16:WORK/'ref'/f'{model}_s16',128:topk/f'{model}_s128'}
+    dd+= [f'{model} '+line for line in sweep(HERE/'timing_ref'/model,roots)]
+gate('D-d the two reference models at the same caliber',False,bool(dd),
+     ('; '.join(dd) if dd else 'not measured this round'),HERE/'timing_ref')
+
+# --- D-e: which decisions the solver makes and which a person still makes ----
+decisions=HERE/'solver_decisions.md'
+if decisions.is_file():
+    text=decisions.read_text()
+    def items(heading):
+        body=text.split(heading,1)[1].split('\n## ',1)[0] if heading in text else ''
+        got=[l for l in body.splitlines()
+             if l.startswith('| ') and not set(l)<=set('|- ')]
+        return max(len(got)-1,0)  # the first row is the table's header
+    solver=items('## Decided by the solver')
+    human=items('## Still decided by a human')
+    gate('D-e solver and human decisions listed item by item',False,solver>0 and human>0,
+         f'solver decides {solver} items; a person still decides {human}',decisions)
+else:
+    gate('D-e solver and human decisions listed item by item',False,False,'not written',decisions)
+
 width=max(len(r['name']) for r in rows)
 failed=0
 for r in rows:
@@ -265,5 +483,7 @@ for r in rows:
     if not r['ok'] and r['hard']: failed+=1
     print(f"{mark} [{'hard' if r['hard'] else 'report'}] {r['name']:<{width}}  {r['detail']}")
     print(f"       evidence: {r['evidence']}")
-print(f"\n{len(rows)-failed}/{len(rows)} gates satisfied; {failed} hard gate(s) failed")
+met=sum(r['ok'] for r in rows)
+print(f"\n{met}/{len(rows)} gates met; {failed} hard gate(s) failed, "
+      f"{len(rows)-met-failed} report gate(s) unmet")
 sys.exit(1 if failed else 0)

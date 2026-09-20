@@ -1,0 +1,8 @@
+DISK NEED_MIB=65536 FREE_MIB=1383018
+COMPUTE_CAP sm_89
+SELF_CHECK=1: not compiling for sm_120 and not running
+EXPORT llama
+SELF_CHECK llama export only
+EXPORT qwen3
+SELF_CHECK qwen3 export only
+COMPLETE

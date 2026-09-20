@@ -1,0 +1,6 @@
+DISK NEED_MIB=32768 FREE_MIB=1383018
+COMPUTE_CAP sm_89
+SELF_CHECK=1: not compiling for sm_120 and not running
+SOURCES six projections present
+SELF_CHECK projections checked, nothing built
+COMPLETE
