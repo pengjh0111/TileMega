@@ -25,6 +25,10 @@ struct CompilerSearchOptions {
   /// changes with split-K, so no one table covers every candidate.
   std::vector<int> stage_kappa;
   std::function<int(mlir::ModuleOp,int)> query_residency;
+  /// Keep the best plan of every evaluated candidate, not just the top three
+  /// (§6 C1-c needs the measured set to cover what the search looked at).
+  /// Off by default: it holds one module per candidate alive to the end.
+  bool keep_evaluated=false;
 };
 struct CompilerSearchResult {
   struct ShortlistEntry {
@@ -40,6 +44,9 @@ struct CompilerSearchResult {
   /// compiled to. A segmented interval reuses both to keep the launch fixed.
   JointCandidate winner;
   int winner_resident_limit=0;
+  /// One entry per evaluated candidate, its own best plan, when the caller
+  /// asked for them. The shortlist above is the first three of these by key.
+  std::vector<ShortlistEntry> evaluated;
   /// Empty unless the per-stage refinement ran and improved on uniform kappa.
   std::vector<int> stage_kappa;
   /// Projected stages on the winner, which is the length any pinned table must
@@ -147,6 +154,8 @@ inline CompilerSearchResult SolveExport(std::string const& path,
       auto module=frontend::TorchExportImporter{}.ImportPlan(path,plan,context,&candidate_summary,import);
       int limit=options.query_residency ? options.query_residency(*module,candidate.kappa) : 1;
       if (limit<1) throw std::invalid_argument("compiled kernel has no resident CTA");
+      double candidate_floor=std::numeric_limits<double>::infinity(),candidate_sim=candidate_floor;
+      JointEvaluation candidate_best;mlir::OwningOpRef<mlir::ModuleOp> candidate_module;
       for (int residency=1;residency<=limit;++residency) {
         auto placed=mlir::OwningOpRef<mlir::ModuleOp>(mlir::cast<mlir::ModuleOp>(module->clone()));
         auto placement=options.placement;placement.kappa=candidate.kappa;placement.task_price_cache=task_prices;
@@ -170,6 +179,13 @@ inline CompilerSearchResult SolveExport(std::string const& path,
             });
             if (result.shortlist.size()>3) result.shortlist.pop_back();
           }
+          if (options.keep_evaluated && e.simulated &&
+              std::tie(e.floor_ns,e.makespan_ns)<std::tie(candidate_floor,candidate_sim)) {
+            candidate_floor=e.floor_ns;candidate_sim=e.makespan_ns;candidate_best=e;
+            auto copy=mlir::OwningOpRef<mlir::ModuleOp>(mlir::cast<mlir::ModuleOp>(placed->clone()));
+            dialect::WriteSolvedPlacement(*copy,plan,placement);
+            candidate_module=std::move(copy);
+          }
           evidence << e.candidate.key << '\t' << plan.name << '\t' << e.status << '\t'
               << e.floor_ns << '\t' << plan.bounds.critical_path_ns << '\t'
               << plan.bounds.queue_lb_ns << '\t' << e.makespan_ns << '\t'
@@ -182,6 +198,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
           result.module=std::move(placed);if (summary) *summary=candidate_summary;
         }
       }
+      if (candidate_module) result.evaluated.push_back({candidate_best,std::move(candidate_module)});
 
     } catch (std::exception const& e) {
       JointEvaluation failed;failed.status=e.what();evaluations.push_back(failed);
