@@ -6,6 +6,7 @@
 #include <tilemega/Codegen/tasks/Placement.cuh>
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <tilemega/Codegen/tasks/AttentionPhasedTaskBody.h>
+#include <tilemega/Codegen/tasks/WarpReduce.cuh>
 
 namespace tilemega::codegen {
 
@@ -67,20 +68,31 @@ struct AttentionTaskBody {
       smem.attention[key_pos] = score;
     }
     TILEMEGA_PHASE_SIMT_BARRIER();
-    if (threadIdx.x == 0) {
-      float maximum = -INFINITY;
-      for (int j = 0; j < total; ++j)
-        maximum = fmaxf(maximum, smem.attention[j]);
-      float sum = 0.0f;
-      for (int j = 0; j < total; ++j) {
-        float value = expf(smem.attention[j] - maximum);
-        smem.attention[j] = value;
-        sum += value;
-      }
-      for (int j = 0; j < total; ++j)
-        smem.attention[j] = static_cast<float>(
-            ModelElement(smem.attention[j] / sum));
+    // R8 BE-3: FlashAttention-style running statistics, computed by the whole
+    // CTA. Every thread folds the keys it owns into a running max and, once
+    // the max is known, into a running exponential sum; the two folds are
+    // shuffle reductions, so no lane ever walks the key sequence. What is
+    // *not* changed is where the values are rounded: the exported golden
+    // computes softmax in FP32 and casts the probabilities to the model dtype
+    // (`torch.softmax(...).to(dtype)`), so the probability is rounded here at
+    // the same point it was before. Keeping p in FP32 would be textbook Flash
+    // and would disagree with the reference by construction.
+    float* const reduce = &smem.attention[TILEMEGA_ATTENTION_SCRATCH_EXTENT];
+    float running_max = -INFINITY;
+    for (int j = threadIdx.x; j < total; j += blockDim.x)
+      running_max = fmaxf(running_max, smem.attention[j]);
+    float const maximum =
+        BlockReduce<MaxOp, Threads>(running_max, reduce);
+    float running_sum = 0.0f;
+    for (int j = threadIdx.x; j < total; j += blockDim.x) {
+      float const value = expf(smem.attention[j] - maximum);
+      smem.attention[j] = value;
+      running_sum += value;
     }
+    float const sum = BlockReduce<SumOp, Threads>(running_sum, reduce);
+    for (int j = threadIdx.x; j < total; j += blockDim.x)
+      smem.attention[j] =
+          static_cast<float>(ModelElement(smem.attention[j] / sum));
     TILEMEGA_PHASE_SIMT_BARRIER();
     for (int d = threadIdx.x; d < dim; d += blockDim.x) {
       float value = 0.0f;
