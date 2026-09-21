@@ -135,6 +135,42 @@ inline constexpr RuntimeCaps RuntimeCapsForTag(std::string_view tag) {
                            : RuntimeCapsFor<void>();
 }
 
+/// The arch tag codegen spells into the generated source, and the
+/// `major*100 + minor*10` identifier that travels with it. One numbering with
+/// `__CUDA_ARCH__` below, so a generated source and the device pass compare
+/// the same integer instead of two spellings of the same thing.
+template <class Arch>
+struct ArchId {
+  static constexpr int kValue = 0;
+  static constexpr char const* kTag = "unsupported";
+};
+template <> struct ArchId<Sm80>  { static constexpr int kValue = 800;  static constexpr char const* kTag = "sm_80"; };
+template <> struct ArchId<Sm89>  { static constexpr int kValue = 890;  static constexpr char const* kTag = "sm_89"; };
+template <> struct ArchId<Sm90>  { static constexpr int kValue = 900;  static constexpr char const* kTag = "sm_90"; };
+template <> struct ArchId<Sm100> { static constexpr int kValue = 1000; static constexpr char const* kTag = "sm_100"; };
+template <> struct ArchId<Sm120> { static constexpr int kValue = 1200; static constexpr char const* kTag = "sm_120"; };
+
+/// The inverse: the generated source carries the identifier, and the TaskBody
+/// instantiation needs the type back. `void` for an identifier no build of
+/// this compiler knows, which every caller turns into a hard failure rather
+/// than a silent fallback.
+template <int Id> struct ArchFromId { using type = void; };
+template <> struct ArchFromId<800>  { using type = Sm80; };
+template <> struct ArchFromId<890>  { using type = Sm89; };
+template <> struct ArchFromId<900>  { using type = Sm90; };
+template <> struct ArchFromId<1000> { using type = Sm100; };
+template <> struct ArchFromId<1200> { using type = Sm120; };
+
+/// Host-side tag -> identifier, for codegen and for the runtime check.
+inline int ArchIdForTag(std::string_view tag) {
+  return tag == "sm_80"  ? ArchId<Sm80>::kValue
+       : tag == "sm_89"  ? ArchId<Sm89>::kValue
+       : tag == "sm_90"  ? ArchId<Sm90>::kValue
+       : tag == "sm_100" ? ArchId<Sm100>::kValue
+       : tag == "sm_120" ? ArchId<Sm120>::kValue
+                         : 0;
+}
+
 // The only __CUDA_ARCH__ selection in include/ or lib/. Exact matches avoid
 // accidentally treating sm_120 as an sm_100 tcgen05 target.
 #if defined(__CUDA_ARCH__)

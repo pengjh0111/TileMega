@@ -121,11 +121,61 @@ TILEMEGA_TASK_HD constexpr TaskOwnershipKind OwnershipOf(TaskKind kind) {
 }
 
 /// Compile-time resource information consumed by candidate pruning (§5.3).
+///
+/// `Roles` is R8's addition. A body whose warps all run the same code declares
+/// one role, which is the whole CTA and is what every body declared before;
+/// a warp-specialized body declares one entry per role, and the sums have to
+/// come back to the CTA totals -- `TaskRoles` checks that below, so a split
+/// that does not add up is a compile error rather than a launch that hangs.
 template <int Threads, std::size_t SharedBytes>
 struct TaskTraits {
   static constexpr int kThreads = Threads;
   static constexpr std::size_t kSharedStorageBytes = SharedBytes;
+  static constexpr int kRoles = 1;
   static_assert(Threads > 0, "a TaskBody needs at least one thread");
+};
+
+/// One role's share of a CTA: the threads it runs on and the shared memory it
+/// owns. Occupancy (§8.6, R8 BE-6) is computed per role, so the split has to
+/// be declared rather than inferred from the body's code.
+template <int Threads, std::size_t SharedBytes>
+struct TaskRole {
+  static constexpr int kThreads = Threads;
+  static constexpr std::size_t kSharedStorageBytes = SharedBytes;
+  static_assert(Threads > 0, "a role needs at least one thread");
+};
+
+/// A per-role budget list, e.g. a producer and a consumer warpgroup:
+/// `TaskRoles<TaskRole<128,4096>, TaskRole<128,2048>>`. The sums are what the
+/// launch and the occupancy form see, so a split is by construction a
+/// partition of the same CTA rather than a second opinion about its size.
+template <class... Roles>
+struct TaskRoles {
+  static constexpr int kRoles = sizeof...(Roles);
+  static constexpr int kThreads = (Roles::kThreads + ... + 0);
+  static constexpr std::size_t kSharedStorageBytes =
+      (Roles::kSharedStorageBytes + ... + std::size_t{0});
+  static constexpr int kThreadsOf[] = {Roles::kThreads...};
+  static constexpr std::size_t kSharedBytesOf[] = {Roles::kSharedStorageBytes...};
+  static_assert(kRoles > 0, "a TaskBody needs at least one role");
+};
+
+/// Every body has a role list: one that declares none is one role covering
+/// the whole CTA, which is what each body meant before R8.
+template <class Body, class = void>
+struct TaskRolesOf {
+  static constexpr int kRoles = 1;
+  static constexpr int kThreadsOf[] = {Body::Traits::kThreads};
+  static constexpr std::size_t kSharedBytesOf[] = {
+      Body::Traits::kSharedStorageBytes};
+};
+
+template <class Body>
+struct TaskRolesOf<Body, std::void_t<typename Body::Roles>> {
+  static constexpr int kRoles = Body::Roles::kRoles;
+  static constexpr int const* kThreadsOf = Body::Roles::kThreadsOf;
+  static constexpr std::size_t const* kSharedBytesOf =
+      Body::Roles::kSharedBytesOf;
 };
 
 template <class Body>

@@ -18,6 +18,7 @@
 #include <mlir/IR/Verifier.h>
 
 #include <algorithm>
+#include <tilemega/Target/ArchDispatch.h>
 #include <iomanip>
 #include <limits>
 #include <map>
@@ -1091,6 +1092,20 @@ std::string emitSolvedLaunch(mlir::ModuleOp module) {
           << "\n#error \"compile option disagrees with solved Plan\"\n#endif\n"
           << "#ifndef " << macro << "\n#define " << macro << ' ' << value.getInt() << "\n#endif\n";
     }
+  }
+  // R8 BE-1: the Plan's architecture, as an identifier the device pass can
+  // compare against `__CUDA_ARCH__` and the harness against the device. A
+  // module solved before this attribute existed emits nothing and keeps the
+  // header's own default.
+  if (auto arch=module->getAttrOfType<mlir::StringAttr>("tilemega.solved_arch")) {
+    int const id=tilemega::arch::ArchIdForTag(arch.getValue().str());
+    if (!id) throw std::invalid_argument("solved Plan names an unknown architecture: "+
+                                         arch.getValue().str());
+    out << "#define TILEMEGA_ARCH_FROM_PLAN 1\n"
+        << "#if defined(TILEMEGA_ARCH_ID) && TILEMEGA_ARCH_ID != " << id
+        << "\n#error \"compile option disagrees with the solved architecture\"\n#endif\n"
+        << "#ifndef TILEMEGA_ARCH_ID\n#define TILEMEGA_ARCH_ID " << id << "\n#endif\n"
+        << "#define TILEMEGA_ARCH_TAG \"" << arch.getValue().str() << "\"\n";
   }
   // Per-stage kappa (§6 B2) is emitted only when the Plan carries it, so a
   // solved module without it produces the text, and therefore the SASS, it

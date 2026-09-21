@@ -1,0 +1,10 @@
+#endif
+#define TILEMEGA_ARCH_FROM_PLAN 1
+#if defined(TILEMEGA_ARCH_ID) && TILEMEGA_ARCH_ID != 890
+#error "compile option disagrees with the solved architecture"
+#endif
+#ifndef TILEMEGA_ARCH_ID
+#define TILEMEGA_ARCH_ID 890
+#endif
+#define TILEMEGA_ARCH_TAG "sm_89"
+#define TILEMEGA_GEMM_TILE_M 32

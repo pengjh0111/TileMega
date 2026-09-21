@@ -78,6 +78,10 @@ inline void WriteSolvedPlacement(mlir::ModuleOp module,
     placement->setAttr("resident_limit_map",CouplingMapAttr::get(module.getContext(),function));
   }
   module->setAttr("tilemega.solved_placement",b.getStringAttr(selected.name));
+  // R8 BE-1: the architecture the Plan was priced and compiled for travels
+  // with the Plan. Codegen turns it into the arch tag the TaskBodies are
+  // instantiated on, and the harness refuses a device that disagrees.
+  module->setAttr("tilemega.solved_arch",b.getStringAttr(options.target.arch_tag));
   module->setAttr("tilemega.solved_kappa",b.getI64IntegerAttr(options.kappa));
   if (!options.stage_kappa.empty())
     module->setAttr("tilemega.solved_stage_kappa",b.getDenseI64ArrayAttr(

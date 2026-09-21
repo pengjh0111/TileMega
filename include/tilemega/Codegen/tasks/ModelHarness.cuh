@@ -31,6 +31,7 @@
 #include <tilemega/Codegen/tasks/RMSNormTaskBody.h>
 #include <tilemega/Codegen/tasks/ClusterSync.cuh>
 #include <tilemega/Codegen/tasks/RoPETaskBody.h>
+#include <tilemega/Target/ArchDispatch.h>
 #include <tilemega/Target/TargetSpec.h>
 
 #include <algorithm>
@@ -158,7 +159,22 @@ inline constexpr std::size_t kExpectedTaskSmem =
 static_assert(sizeof(TaskSmem) == kExpectedTaskSmem,
               "one explicit union must equal max_i(TaskBody::SharedStorage)");
 
-using HarnessArch = cutlass::arch::Sm80;
+// R8 BE-1: the architecture is the Plan's, not a constant in this header.
+// Codegen writes `TILEMEGA_ARCH_ID` from the solved target; a source written
+// before that macro existed keeps the Sm80 semantics it was compiled with,
+// which is what every pre-generated reference source in docs/experiments is.
+#ifndef TILEMEGA_ARCH_ID
+#define TILEMEGA_ARCH_ID 800
+#endif
+using HarnessArch = typename tilemega::arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
+static_assert(!std::is_void<HarnessArch>::value,
+              "TILEMEGA_ARCH_ID names an architecture this compiler has no "
+              "capability table for");
+#if defined(__CUDA_ARCH__) && defined(TILEMEGA_ARCH_FROM_PLAN)
+// Only a generated source asserts this: it is the one that claims an arch.
+static_assert(TILEMEGA_ARCH_ID == __CUDA_ARCH__,
+              "the Plan's architecture and -arch= disagree");
+#endif
 using T_Gemm = GemmStageTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_Norm = RMSNormTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
 using T_RoPE = RoPETaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
@@ -3060,6 +3076,30 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
     std::fprintf(stderr, "ModelSpec dtype does not match compiled TaskBodies\n");
     return 2;
   }
+#ifdef TILEMEGA_ARCH_FROM_PLAN
+  // R8 BE-1: a generated source names the architecture its Plan was solved
+  // for. Running it on another device would pick a different capability set
+  // than the one the Plan was priced and compiled against, so this is a hard
+  // failure with no fallback.
+  {
+    int device = 0, major = 0, minor = 0;
+    TILEMEGA_CUDA_CHECK(cudaGetDevice(&device));
+    TILEMEGA_CUDA_CHECK(cudaDeviceGetAttribute(
+        &major, cudaDevAttrComputeCapabilityMajor, device));
+    TILEMEGA_CUDA_CHECK(cudaDeviceGetAttribute(
+        &minor, cudaDevAttrComputeCapabilityMinor, device));
+    int const device_id = major * 100 + minor * 10;
+    std::printf("E2E_ARCH plan=%s plan_id=%d device=sm_%d%d device_id=%d\n",
+                tilemega::arch::ArchId<HarnessArch>::kTag, TILEMEGA_ARCH_ID,
+                major, minor, device_id);
+    if (device_id != TILEMEGA_ARCH_ID) {
+      std::fprintf(stderr,
+                   "the Plan was solved for %s and this device is sm_%d%d\n",
+                   tilemega::arch::ArchId<HarnessArch>::kTag, major, minor);
+      return 2;
+    }
+  }
+#endif
   // The normalization bodies read the epsilon as an immediate, so a model
   // generated with one epsilon and compiled against another would run
   // silently with the wrong constant.
