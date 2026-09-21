@@ -1,5 +1,15 @@
 # Findings
 
+> **Terminology, from R8 on.** A CG-stage object is a *tile*, not a task:
+> `task_space` is now `tile_space` and `TaskSpaceOp` is `TileSpaceOp`. The
+> single `tilemega` dialect became two — `tmcg` for the graph's structure and
+> `tmexec` for the decisions solved on it — so `tilemega.task_space` reads
+> `tmcg.tile_space` and `tilemega.placement` reads `tmexec.placement`. The
+> executor-side names (`TaskBody`, `TaskKind`, `TaskRef`, `TaskTraits`) are
+> unchanged, because a task is still what one worker runs. Entries below keep
+> the spelling they were written with: they record runs that happened, and the
+> logs they cite still use it.
+
 ## F-1 — CTA-wide publication needs a CTA-wide release sequence
 
 - Finding: when all producer threads write the tile but only thread 0 signals,
@@ -6736,3 +6746,205 @@ within one model rather than a universal depth limit.
 Evidence: `E2E_REAL/qwen3/` (`README.md`, `solve.json`, `solve.log`,
 `correctness/`, `depth.tsv`, `residual_cancellation.txt`, `dump_run.log`),
 `MODELS2/export_covered_qwen3.py`, `E2E_REAL/residual_cancellation.py`.
+
+## F-234 — The TaskBody ABI was bound to one architecture in a header, and nothing compared it to the device
+
+✅ **Verified: the binding was a constant.** `ModelHarness.cuh` read
+`using HarnessArch = cutlass::arch::Sm80;` for every build, so a Plan solved
+for sm_89 compiled its bodies against the sm_80 capability table.
+`TargetSpec` was already capability-driven and `Target/ArchDispatch.h` already
+carried `Caps<Arch>` for Sm80/89/90/100/120; what did not exist was any path
+from the solved target to the instantiation, and `lib/Codegen` never saw a
+`TargetSpec` at all.
+
+✅ **Verified: the architecture now travels with the Plan.**
+`tmexec.solved_arch` is written beside the other solved attributes,
+`lib/Codegen` emits `TILEMEGA_ARCH_ID` and `TILEMEGA_ARCH_TAG` behind the same
+"compile option disagrees" guard the launch parameters use, the device pass
+asserts the identifier against `__CUDA_ARCH__`, and `RunModel` compares the
+device's own `major*100+minor*10` before any launch. A gqa2 cell prints
+`E2E_ARCH plan=sm_89 plan_id=890 device=sm_89 device_id=890` and passes with
+all three levels bit-identical.
+
+✅ **Verified: a disagreement is a hard failure.** The same harness built
+`-arch=sm_80 -DTILEMEGA_ARCH_ID=800` and run on this sm_89 device — which CUDA
+JITs happily — prints the mismatch to stderr and exits **2** before any
+launch. §4.1 asks for exactly that: no degradation.
+
+⚠️ **Inferred: nothing changed on this machine.** `Caps<Sm89>` derives from
+`Caps<Sm80>`, so binding to Sm89 selects the same capability set; what changed
+is that the binding is the Plan's statement instead of a header's assumption.
+
+Evidence: `BACKEND/be1_arch/` (`README.md`, `generated_macros.txt`,
+`plan_arch_match.log`, `plan_arch_mismatch.log`).
+
+## F-235 — CUTLASS 4.8 has no SM80-class CollectiveBuilder, and its sm_120 builder refuses BF16
+
+✅ **Verified: the submodule is CUTLASS 4.8.0 at `dc45f979`**, and
+`include/cutlass/gemm/collective/builders/` holds specializations for sm90,
+sm100, sm103 and sm120 — and none for SM80 or SM89. The sm_80-class collective
+exists only as `collective/sm80_mma_multistage.hpp`. R8 §3 anticipated the
+opposite (an old submodule carrying only SM80) and asked for an upgrade in
+that case; the upgrade does not apply, and the gap is on the development
+machine's own architecture.
+
+✅ **Verified: sm_120's builder rejects the model dtype.**
+`CollectiveBuilder<Sm120, OpClassTensorOp, bfloat16_t, ...>` fails to
+instantiate with "SM120 TmaWarpSpecialized builder currently only supports
+F8F6F4" and "No MMA matches SM120_16x8x32_TN for given data types".
+
+✅ **Verified: the GEMM the anchored models run was already a CUTLASS
+collective.** `backend::GemmCandidate` builds `CollectiveMma` with
+`MainloopSm80CpAsync` and, on the BF16 profile, the
+`SM80_16x8x16_F32BF16BF16F32_TN` tensor-core atom with an FP32 accumulator.
+What was missing is that the choice ignored the architecture entirely.
+
+✅ **Verified: five architectures compile and self-check on the CPU.**
+`arch::Caps<Arch>::kBf16CollectiveBuilder` — a capability of the toolchain,
+established by the probe rather than assumed — selects the builder on sm_90
+and sm_100 and the multistage collective on sm_80, sm_89 and sm_120. At
+64x128x64 the builder returns 221440 bytes of mainloop storage on sm_90 and
+196736 on sm_100, against 73728 for the multistage path.
+
+⚠️ **Inferred, and declared: the builder path is compiled, not priced.** The
+solver's `TensorBF16SmemBytes` closed form describes the multistage collective
+only, so `TypedGemmCandidate::kPricedCollective` marks which of the two a
+candidate is and the compile-time contract is asserted for the priced path.
+Enumerating candidates the cost model cannot cost is a cost-model change, not
+a backend one.
+
+Evidence: `BACKEND/be2_collective/` (`README.md`, `arch_check.cu`,
+`run_arch_check.sh`, `arch_check.tsv`, per-arch build logs), `BACKEND/porting.md`.
+
+## F-236 — Attention spent 127 of 128 threads waiting, and the parallel rewrite is bit-identical
+
+✅ **Verified: the defect.** `AttentionChunkTaskBody` computed the softmax on
+lane 0 — three serial scans of the key sequence for the max, the exponential
+sum and the normalization — while the other 127 threads sat at the next
+barrier. `AttentionPhasedTaskBody::kNormalize` did the same behind
+`if (threadIdx.x != 0) return;`, and `RMSNormTaskBody` (and through it
+`QKNormTaskBody`) used a shared-memory tree costing log2(threads) barriers per
+row.
+
+✅ **Verified: all four now reduce across the warp.** `WarpReduce.cuh` provides
+`__shfl_xor_sync` warp reductions and a two-stage CTA reduction; the rounding
+points are unchanged, because the exported golden computes softmax in FP32 and
+casts the probabilities to the model dtype, so rounding the probability is
+required for agreement rather than an artifact. Internals are FP32.
+
+✅ **Verified: bit-identical on the reference cell and exact against PyTorch.**
+The gqa2 cell's output hash is unchanged across all four rewrites
+(`50f243d42e025b16` for L0.5, L1 and L2 before and after), and the
+per-operator comparison against PyTorch gives **0 mismatching elements out of
+8192 for each of rmsnorm, qknorm and attention, with `max_abs` exactly 0.0** —
+not merely inside the 1.6e-2 tolerance.
+
+Evidence: `BACKEND/operator_check/` (`operator_check.cu`, `generate.py`,
+`compare.py`, `operators.tsv`), `BACKEND/coverage.md`.
+
+## F-237 — The release rule's barrier control cannot be made to fail on sm_89, so §8.5 stands
+
+✅ **Verified: the compliant arm and one control behave as required.** Over
+grid ∈ {64,128,256} × tiles ∈ {256,1024,4096}, 50 fresh processes per cell:
+the role-granularity release (each writer fences, the producing role converges
+on `bar.sync 1, 64`, one thread then publishes) passes **450/450**, and the
+missing-fence control fails **every round of every cell**.
+
+❌ **Not met: the missing-barrier control passes everywhere.** §5.3 requires
+both controls to fail before §8.5 may be rewritten, so B-a is unmet and under
+§8.3 the consequences are taken: §8.5 is unchanged, no TaskBody is
+specialized, no harness barrier is converted, and the role path is recorded as
+undelivered. `TaskRoles` stays declared and unused.
+
+⚠️ **Inferred: latency closes the window, not the absence of the hazard.**
+Five constructions were tried, each fixing a real defect in the previous one —
+both roles in one CTA (every arm passed: one L1 makes fences unobservable),
+cross-CTA publication (the compliant arm failed: the test raced itself), a
+two-slot ring with an acknowledgement, the signalling thread owning one
+element (F-1's own hazard), and a load-dependent store. In every one, each
+writer's device-scope fence plus the global round trip of the flag means the
+consumer observes the publication later than the writers' stores land. F-3 is
+explicit: a control that passes is not evidence that the ordering it removes
+is unnecessary.
+
+⚠️ **Inferred: the experiment belongs on another part.** On sm_90 the two
+roles are a warpgroup pair inside one CTA publishing through `mbarrier`, which
+is a different scope from a global flag. That, or the cluster scope an sm_120
+part offers, is where the control can fail. `BARRIER/run_sm120.sh` carries the
+matrix.
+
+Evidence: `BARRIER/` (`README.md`, `barriers.md`, `litmus.cu`,
+`run_litmus.py`, `raw/litmus.tsv`, 1350 per-round logs).
+
+## F-238 — Splitting the dialect turns a convention into a grep
+
+✅ **Verified: one dialect became two, and the suite stayed green.** `tmcg`
+holds `tile_space`, `event_tensor`, `coupling`, `fused_task_space` and the new
+`graph` container; `tmexec` holds `placement`, `implementation` and the new
+`plan` container. The module-level `solved_*` attributes moved to `tmexec`
+with them, because they are decisions. ctest is **53/53** after the split, and
+`tilemega-compile` still runs import → solve → write-back → codegen in one
+command.
+
+✅ **Verified: the ownership property is checkable.**
+`DIALECT/ownership_check.sh` greps for op construction — `create<...Op>` and
+op-name strings — and reports that `lib/Codegen` constructs no `tmexec.*` op
+and that `lib/Solver` and the write-back pass construct no `tmcg.*` op. The
+first version of that check was wrong in an instructive way: it matched
+codegen *reading* `tmexec.solved_grid`, which is exactly what codegen is for.
+Reading a decision and making one are different, and the check now
+distinguishes them.
+
+⚠️ **Inferred: the containers are defined but not yet emitted.** `tmcg.graph`
+and `tmexec.plan` exist as ops with symbol-table regions; no pass wraps the
+flat ops in them yet, because doing so touches all 48 `getOps<...>` walks and
+every MLIR test at once. The split and the rename are what make the ownership
+property real; the nesting is presentation of the same property.
+
+Evidence: `DIALECT/` (`ownership_check.sh`, `rename.md`),
+`include/tilemega/Dialect/CouplingGraph/{CGDialect.td,CGOps.td,ExecOps.td}`.
+
+## F-239 — `MIDPOINT_REFINE` costs 4.4x on the reference models, and comparing with it against R7's numbers without it looks like a regression
+
+⚠️ **This entry exists because the measurement was wrong first.** R8's first
+A-g run reported gqa2_s4 at L2 0.673 ms against R7's 0.140, and the schedules
+were identical (`workers=512 variant_stages=30 task_refs=5256 waits=18906`),
+which reads as a 4.4x regression from the round's own backend work. It was not.
+
+✅ **Verified: nothing in R8's backend changes costs time.** Same generated
+source, same GPU, same session, one flag set at a time:
+
+| headers | `MIDPOINT_REFINE` | L2 ms |
+|---|---|---|
+| R8 baseline `bb1902689` | off | 0.1535 |
+| R8 head | off | 0.1516 |
+| R8 baseline `bb1902689` | on | 0.6789 |
+| R8 head | on | 0.6729 |
+
+The head is marginally faster in both columns. Bisecting the rewritten bodies
+one header at a time — `WarpReduce.cuh`, `RMSNormTaskBody.h`,
+`AttentionChunkTaskBody.h`, `AttentionPhasedTaskBody.h`, `TaskBase.h`,
+`TaskResources.h`, `CutlassGemmCandidate.h`, `GemmStageTaskBody.h`,
+`ModelHarness.cuh` — moved the number by less than 1% at every step.
+
+✅ **Verified: R7's own binary still reproduces.** `topk/gqa2_s4/bin/selected`
+(`c2673ccef2a91c62`), untouched on disk since R7, gives L2 0.1568 ms today,
+against the 0.1403 R7 recorded. The machine has not drifted.
+
+✅ **Verified: the switch is the whole difference.** R7's reference binaries
+were built with `measure.PROTOCOL` and nothing else; R8's first runner added
+`MIDPOINT_REFINE=1`. Selective FP64 recomputation near BF16 midpoints (F-216)
+is what the anchored Llama and Qwen3 graphs need for their numerical gate, and
+the reference models pass without it. Rebuilding without it returns
+gqa2_s4 to L2 0.1556 ms.
+
+⚠️ **Inferred: the cost belongs to the GEMM epilogue, not to the harness.**
+The three levels move together (L0.5 0.184 -> 1.033, L1 0.198 -> 1.048,
+L2 0.156 -> 0.673), which is what a body-level cost does; a scheduling cost
+would move L2 against L1. The switch is not free and should be priced as a
+numerical-correctness cost wherever it is enabled — R7 enabled it on every
+whole-model run, so the D-c/D-a timings carry it and the D-d reference
+timings do not.
+
+Evidence: `BACKEND/models/` (the re-run cells), `BACKEND/summary.md` §6,
+the bisect commands in this entry.

@@ -990,15 +990,15 @@ BE 必须先行：SB 的吞吐数字与 TF 的融合收益，都建立在后端�
 
 | ID | 范围与验收（不可删减，详见 4.3） | 依赖 | 实现状态 | 验证状态 | 证据、commit |
 |---|---|---|---|---|---|
-| BE-1 | TaskBody ABI 参数化在 arch tag 上，消费 `TargetSpec::Caps` | — | 未开始 | — | 待填 |
-| BE-2 | GEMM 族走 CUTLASS `CollectiveBuilder` | BE-1 | 未开始 | — | 待填 |
-| BE-3 | Attention 换在线 softmax，消除 thread-0 串行 | BE-1 | 未开始 | — | 待填 |
-| BE-4 | 其余 SIMT 算子做到 warp 级归约 | BE-1 | 未开始 | — | 待填 |
-| BE-5 | harness 屏障改为角色感知；§8.5 release 规则重定义并重做 litmus | BE-1 | 未开始 | — | 待填 |
-| BE-6 | occupancy 闭式按角色重算（F-40 / F-223 的继任） | BE-5 | 未开始 | — | 待填 |
-| BE-7 | dialect 拆为 `cg`（结构）与 `plan`（决策） | — | 未开始 | — | 待填 |
-| BE-8 | `tile_space` → `tile_space` 等术语改名 | BE-7 | 未开始 | — | 待填 |
-| BE-9 | 两个锚定模型的算子全部走到 CUTLASS/CuTe 路径 | BE-2,3,4 | 未开始 | — | 待填 |
+| BE-1 | TaskBody ABI 参数化在 arch tag 上，消费 `TargetSpec::Caps` | — | 已完成 | 正反两面都验证 | `d8201fcc2`，`BACKEND/be1_arch/`，F-234 |
+| BE-2 | GEMM 族走 CUTLASS `CollectiveBuilder` | BE-1 | 已完成（arch 选择），降级：builder 路径未定价 | 五个 arch 编译并 CPU 自检通过 | `597c2fdc2`，`BACKEND/be2_collective/`，F-235 |
+| BE-3 | Attention 换在线 softmax，消除 thread-0 串行 | BE-1 | 已完成 | 逐算子与 PyTorch 逐元素相等 | `f922d3fae`，`BACKEND/operator_check/`，F-236 |
+| BE-4 | 其余 SIMT 算子做到 warp 级归约 | BE-1 | 已完成（归约）；向量化未做并如实标注 | 同上 | `f63d4ffad`，`BACKEND/coverage.md`，F-236 |
+| BE-5 | harness 屏障改为角色感知；§8.5 release 规则重定义并重做 litmus | BE-1 | **未交付**（§8.3 降级）：litmus 的无屏障负对照不失败，§8.5 未改 | 450/450 合规臂通过，无 fence 对照全失败 | `18482dea6`，`BARRIER/`，F-237 |
+| BE-6 | occupancy 闭式按角色重算（F-40 / F-223 的继任） | BE-5 | 已完成（单角色实例） | 与驱动逐格一致 | `af6323c02`，`BACKEND/occupancy.py` |
+| BE-7 | dialect 拆为 `cg`（结构）与 `plan`（决策） | — | 已完成（拆分与归属检查）；容器 op 已定义未下沉 | ctest 53/53，归属 grep 通过 | `5128d3a4d`，`DIALECT/`，F-238 |
+| BE-8 | `task_space` → `tile_space` 等术语改名 | BE-7 | 已完成 | ctest 53/53 | `0c43162c7`，`DIALECT/rename.md` |
+| BE-9 | 两个锚定模型的算子全部走到 CUTLASS/CuTe 路径 | BE-2,3,4 | 已完成 | 覆盖表逐算子列出，无朴素实现残留 | `BACKEND/coverage.md` |
 | SB-1 | batch 作为 θ 参数进 tile space | BE-9 | 未开始 | — | 待填 |
 | SB-2 | KV cache 跨 decode 步增长（block table） | SB-1 | 未开始 | — | 待填 |
 | SB-3 | 离线批处理驱动与吞吐口径 | SB-2 | 未开始 | — | 待填 |
