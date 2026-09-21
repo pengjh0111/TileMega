@@ -996,7 +996,7 @@ BE 必须先行：SB 的吞吐数字与 TF 的融合收益，都建立在后端�
 | BE-4 | 其余 SIMT 算子做到 warp 级归约 | BE-1 | 已完成（归约）；向量化未做并如实标注 | 同上 | `f63d4ffad`，`BACKEND/coverage.md`，F-236 |
 | BE-5 | harness 屏障改为角色感知；§8.5 release 规则重定义并重做 litmus | BE-1 | **未交付**（§8.3 降级）：litmus 的无屏障负对照不失败，§8.5 未改 | 450/450 合规臂通过，无 fence 对照全失败 | `18482dea6`，`BARRIER/`，F-237 |
 | BE-6 | occupancy 闭式按角色重算（F-40 / F-223 的继任） | BE-5 | 已完成（单角色实例） | 与驱动逐格一致 | `af6323c02`，`BACKEND/occupancy.py` |
-| BE-7 | dialect 拆为 `cg`（结构）与 `plan`（决策） | — | 已完成（拆分与归属检查）；容器 op 已定义未下沉 | ctest 53/53，归属 grep 通过 | `5128d3a4d`，`DIALECT/`，F-238 |
+| BE-7 | dialect 拆为 `tmcg`（结构）与 `tmexec`（决策），并引入 `tmcg.graph` / `tmexec.plan` 容器 | — | 已完成（拆分与归属检查）；容器 op 已定义未下沉 | ctest 53/53，归属 grep 通过 | `5128d3a4d`，`DIALECT/`，F-238 |
 | BE-8 | `task_space` → `tile_space` 等术语改名 | BE-7 | 已完成 | ctest 53/53 | `0c43162c7`，`DIALECT/rename.md` |
 | BE-9 | 两个锚定模型的算子全部走到 CUTLASS/CuTe 路径 | BE-2,3,4 | 已完成 | 覆盖表逐算子列出，无朴素实现残留 | `BACKEND/coverage.md` |
 | SB-1 | batch 作为 θ 参数进 tile space | BE-9 | 未开始 | — | 待填 |
@@ -1071,25 +1071,75 @@ BE 必须先行：SB 的吞吐数字与 TF 的融合收益，都建立在后端�
 
 ### BE-7 dialect 拆分
 
-现在是单一 `tilemega` dialect（`CGDialect.td:6`，`cppNamespace = "::tilemega::dialect"`），六个 op 平铺：`tile_space`、`event_tensor`、`coupling`、`placement`、`implementation`、`fused_task_space`。
+现在是单一 `tilemega` dialect（`CGDialect.td:6` 的 `let name = "tilemega"`，
+`cppNamespace = "::tilemega::dialect"`），六个 op 平铺：`task_space`、
+`event_tensor`、`coupling`、`placement`、`implementation`、`fused_task_space`。
 
 **拆成两个**：
-- **`cg`**：`tile_space`、`event_tensor`、`coupling` —— 图的结构；
-- **`plan`**：`placement`、`implementation` —— 在图上的决策。
 
-`fused_task_space` 的归属随 TF-1 决定（tile 直传若不再需要独立 op，则删除）。
+| dialect | op | 语义 |
+|---|---|---|
+| **`tmcg`** | `graph`、`tile_space`、`event_tensor`、`coupling`、`fused_task_space` | 参数化 Coupling Graph 的**结构** |
+| **`tmexec`** | `plan`、`placement`、`implementation` | 在 CG 上求解得到的**执行决策** |
 
-**好处**："求解器只写 `plan.*`、Codegen 只读"变成可用 dialect 归属直接验证的性质，不再依赖约定。
+新增 `tmcg.graph @model` 作为一个完整 Coupling Graph 的容器，`tile_space`、
+`event_tensor`、`coupling`、`fused_task_space` 均位于该 graph 内；新增
+`tmexec.plan for @model` 作为对应 graph 的执行方案容器，`placement` 与
+`implementation` 位于该 plan 内。整体结构固定为：
 
-命名分工确定为：系统叫 **TileMega**，IR 抽象叫 **Coupling Graph（CG）**，dialect 叫 `cg` 与 `plan`。
+```text
+TileMega IR
+├── tmcg.graph @model
+│   ├── tile_space
+│   ├── event_tensor
+│   ├── coupling
+│   └── fused_task_space
+│
+└── tmexec.plan for @model
+    ├── placement
+    └── implementation
+```
+
+`fused_task_space` 的归属：本轮**保持现状并迁入 `tmcg`**，其去留随 R10 的 TF-1
+决定。
+
+**好处与验收点**："求解器只写 `tmexec.*`、Codegen 只读"变成可用 dialect 归属直接
+验证的性质，不再依赖约定。要求给出一个 grep 级的检查：`lib/Codegen` 不得构造
+`tmexec.*` op，`lib/Solver` 与写回 pass 不得构造 `tmcg.*` op。
+
+命名分工固定为：系统叫 **TileMega**，整个 IR 统称 **TileMega IR**，逻辑图抽象叫
+**Coupling Graph（CG）**，dialect 叫 `tmcg` 与 `tmexec`。
 
 ### BE-8 术语改名
 
-`tile_space` → `tile_space`，以及相关的 `TileSpaceOp` → `TileSpaceOp` 等。分层原则：**CG 阶段一切都是 tile，只有到 TaskBody 与执行器才出现 task**。
+`task_space` → `tile_space`，`TaskSpaceOp` → `TileSpaceOp`，以及相关标识符。
+分层原则：**CG 阶段一切都是 tile，只有到 TaskBody 与执行器才出现 task**。所以
+`TaskBody`、`TaskKind`、`TaskRef`、`TaskTraits` 这些**保持不变**——它们本来就在
+执行器侧。要改的是 CG/分析/求解侧那些实际描述 tile 的名字。
 
-**范围**：dialect、所有 pass、`lib/` 与 `include/`、测试、`TileMega_skeleton.md`、`docs/STATUS.md`、`docs/TODO.md`。
+同时 textual IR 的 dialect 名称调整为：
 
-**不改**：`docs/FINDINGS.md` 的历史条目（改了会破坏可回溯性），只在文件顶部加一条术语对照表。
+| 原名称 | 新名称 |
+|---|---|
+| `tilemega.task_space` | `tmcg.tile_space` |
+| `tilemega.event_tensor` | `tmcg.event_tensor` |
+| `tilemega.coupling` | `tmcg.coupling` |
+| `tilemega.fused_task_space` | `tmcg.fused_task_space` |
+| `tilemega.placement` | `tmexec.placement` |
+| `tilemega.implementation` | `tmexec.implementation` |
+
+并新增 `tmcg.graph @model`（一个完整的 Coupling Graph）与
+`tmexec.plan for @model`（针对该 Coupling Graph 的 Execution Plan）。
+
+**范围**：dialect、所有 pass、`lib/`、`include/`、`test/`、
+`TileMega_skeleton.md`、`docs/STATUS.md`、`docs/TODO.md`。
+
+**不改**：`docs/FINDINGS.md` 的历史条目——改了会破坏可回溯性。只在文件顶部加一条
+术语对照表，说明 `task_space` 自 R8 起称 `tile_space`，原 `tilemega` dialect 自 R8
+起拆分为 `tmcg` 与 `tmexec`。
+
+**方法**：用脚本做机械替换，逐个确认不是误伤（例如 `TaskBody` 里的 `task` 不该
+动）。给出替换前后的标识符对照表。
 
 ### BE-9 锚定模型的后端覆盖
 
