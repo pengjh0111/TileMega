@@ -49,7 +49,7 @@ struct AttentionPhasedTaskBody {
       // followed by three serial scans of the key sequence. The early return
       // has to go with it: the reductions below are CTA-wide, so every thread
       // must reach their barriers. Rounding stays where it was.
-      float* const reduce = &smem.attention[TILEMEGA_ATTENTION_SCRATCH_EXTENT];
+      float* const reduce = &smem.attention[TILEMEGA_ATTENTION_SCRATCH_EXTENT - Threads / 32];
       float local_max = -INFINITY;
       for (int pos = threadIdx.x; pos < total; pos += blockDim.x)
         local_max = fmaxf(local_max, scores[pos]);

@@ -19,9 +19,7 @@ constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_exten
     case TaskKind::kRMSNorm:
     case TaskKind::kQKNorm: return threads;
     case TaskKind::kEmbedding: return 1;
-    // R8 BE-3: the score array plus one float per warp for the running
-    // max/sum reductions, which replaced the single-lane scan.
-    case TaskKind::kAttention: return attention_extent + threads / 32;
+    case TaskKind::kAttention: return attention_extent;
     case TaskKind::kRoPE:
     case TaskKind::kKVAppend:
     case TaskKind::kElementwise:

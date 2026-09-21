@@ -1,0 +1,26 @@
+DISK NEED_MIB=8192 FREE_MIB=1355655
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/BACKEND/models/gqa2_s128/auto.cu.resources/1789957259930084942/0" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1355653
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/BACKEND/models/gqa2_s128/auto.cu.resources/1789957259930084942/1" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1355652
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/BACKEND/models/gqa2_s128/auto.cu.resources/1789957259930084942/2" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1355654
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/BACKEND/models/gqa2_s128/auto.cu.resources/1789957259930084942/3" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1355559
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/BACKEND/models/gqa2_s128/auto.cu.resources/1789957259930084942/4" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1355622
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/BACKEND/models/gqa2_s128/auto.cu.resources/1789957259930084942/5" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1355618
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/BACKEND/models/gqa2_s128/auto.cu.resources/1789957259930084942/6" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1355614
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/BACKEND/models/gqa2_s128/auto.cu.resources/1789957259930084942/7" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1355597
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/BACKEND/models/gqa2_s128/auto.cu.resources/1789957259930084942/8" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1355596
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/BACKEND/models/gqa2_s128/auto.cu.resources/1789957259930084942/9" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1355594
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/BACKEND/models/gqa2_s128/auto.cu.resources/1789957259930084942/10" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1355591
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/BACKEND/models/gqa2_s128/auto.cu.resources/1789957259930084942/11" resident=5
+SOLVE_SUMMARY evaluated=12 deferred=36 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=48 couplings=56 stages=30 symbolic_windows=56 fallback_windows=0 output=/root/TileMega/docs/experiments/BACKEND/models/gqa2_s128/auto.cu

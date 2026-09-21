@@ -77,7 +77,14 @@ struct AttentionTaskBody {
     // (`torch.softmax(...).to(dtype)`), so the probability is rounded here at
     // the same point it was before. Keeping p in FP32 would be textbook Flash
     // and would disagree with the reference by construction.
-    float* const reduce = &smem.attention[TILEMEGA_ATTENTION_SCRATCH_EXTENT];
+    // The last warps' worth of the score array is the reduction scratch: the
+    // scores occupy `total` entries and the extent is sized for the largest
+    // key count the harness admits, so the two never overlap -- and keeping
+    // the union at 16 KiB matters, because asking for one byte more moves the
+    // driver's shared-memory carveout and cost this model 4.4x (F-239).
+    static_assert(TILEMEGA_ATTENTION_SCRATCH_EXTENT > Threads / 32,
+                  "the attention extent must hold the reduction scratch");
+    float* const reduce = &smem.attention[TILEMEGA_ATTENTION_SCRATCH_EXTENT - Threads / 32];
     float running_max = -INFINITY;
     for (int j = threadIdx.x; j < total; j += blockDim.x)
       running_max = fmaxf(running_max, smem.attention[j]);

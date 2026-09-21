@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-compile",
+    "/root/r8_work/llama/exported_program.pt2",
+    "/root/r8_work/llama/auto.cu",
+    "--solve",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/target.json",
+    "--seq",
+    "4",
+    "--past",
+    "3",
+    "--search-capacity",
+    "12",
+    "--search-domain",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/search_domain.json",
+    "--dump-cg",
+    "/root/r8_work/llama/auto.mlir",
+    "--hop-curve",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv"
+  ],
+  "exit_code": 0,
+  "elapsed_ns": 5290889348696,
+  "head": "af6323c02df97848aaf095901c2425ba893c0abb"
+}

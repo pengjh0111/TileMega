@@ -51,7 +51,11 @@ def main():
         field=resource(logs[0].read_text())
         if not field:continue
         threads=int(field['block']);regs=int(field['reg'])
-        smem=int(field['task_smem']);driver=int(field['ctas_per_sm'])
+        smem=int(field['task_smem'])
+        # `l2_ctas` is what `cudaOccupancyMaxActiveBlocksPerMultiprocessor`
+        # answered for the worker kernel. `ctas_per_sm` is the Plan's own
+        # residency cap, which is a decision, not the driver's occupancy.
+        driver=int(field['l2_ctas']);cap=int(field['ctas_per_sm'])
         # The reserve is the difference the driver charges beyond the union,
         # which F-223 measured and which the harness prints as occupancy_smem.
         reserve=int(field.get('occupancy_smem',smem))-smem
@@ -60,7 +64,7 @@ def main():
             int(field['threads_per_sm']),reserve)
         rows.append(dict(cell=cell.name,roles=1,threads=threads,regs=regs,smem=smem,
             reserve=reserve,closed_form=ctas,driver=driver,agree=int(ctas==driver),
-            reg_limit=reg_limit,smem_limit=smem_limit))
+            plan_cap=cap,reg_limit=reg_limit,smem_limit=smem_limit))
     # The multi-role instance the form exists for, checked against the sum it
     # must reduce to; no device on this machine runs it.
     split=closed_form([(128,64,4096),(128,96,8192)],65536,102400,1536)[0]

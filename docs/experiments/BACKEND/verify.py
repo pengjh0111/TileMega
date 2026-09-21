@@ -56,7 +56,7 @@ else:
     gate('A-b two reference models 50/50',True,False,'not run this round',models)
 
 # --- A-c: the anchored Llama graph -------------------------------------------
-llama=Path('/root/r8_work/llama/correctness')
+llama=HERE/'llama/correctness'
 if llama.is_dir():
     n,ok,bad=processes(llama)
     detail=f'rounds={n} passing={ok} failing_outputs={bad}'
@@ -64,6 +64,19 @@ if llama.is_dir():
     if first:
         diff=re.search(r'^E2E_DIFF (.*)$',first[0].read_text(),re.M)
         if diff:detail+='; '+diff[1][:110]
+    # §4.7 A-c: a failure whose elements match R7's is the known caliber
+    # problem pointing at R10; a new location or shape would have to be
+    # chased. The comparison is against R7's own recorded run, not prose.
+    r7=REPO/'docs/experiments/E2E_REAL/llama/correctness/r0.log'
+    if r7.is_file() and first:
+        mine=re.findall(r'^E2E_OUTPUT_DIFF .*mismatch=[1-9].*$',first[0].read_text(),re.M)
+        theirs=re.findall(r'^E2E_OUTPUT_DIFF .*mismatch=[1-9].*$',r7.read_text(),re.M)
+        hash_mine=re.search(r'^E2E_HASH (.*)$',first[0].read_text(),re.M)
+        hash_r7=re.search(r'^E2E_HASH (.*)$',r7.read_text(),re.M)
+        same=mine==theirs and bool(hash_mine) and hash_mine[1]==hash_r7[1]
+        detail+=('; signature identical to R7 D-a (same hash, same buffers, same counts): '
+                 'the known caliber problem, R10' if same else
+                 '; SIGNATURE DIFFERS FROM R7 -- new failure, must be chased')
     gate('A-c anchored Llama 50/50',True,n>=50 and ok==n and bad==0,detail,llama)
 else:
     gate('A-c anchored Llama 50/50',True,False,'not run this round',llama)
@@ -169,7 +182,7 @@ gate('B-d release rule updated, original kept',True,changed==litmus_passed,
      else 'section and litmus disagree',REPO/'TileMega_skeleton.md')
 
 # --- C-a: the suite ----------------------------------------------------------
-ctest=Path('/root/r8_work/ctest_dialect.log')
+ctest=HERE/'ctest.log'
 if ctest.is_file():
     text=ctest.read_text()
     m=re.search(r'(\d+)% tests passed, (\d+) tests failed out of (\d+)',text)
@@ -197,9 +210,9 @@ gate('C-c containers defined and rename recorded',False,
      f"rename table {'written' if rename.is_file() else 'missing'}",rename)
 
 # --- C-d: one command, import to generated source ----------------------------
-probe=Path('/root/r8_work/arch_probe/auto.cu')
+probe=HERE/'be1_arch/generated_macros.txt'
 gate('C-d end to end after the split',True,probe.is_file() and
-     'TILEMEGA_ARCH_TAG' in probe.read_text(),
+     'TILEMEGA_ARCH_TAG' in probe.read_text() and (HERE/'models/gqa2_s4/auto.cu').is_file(),
      'tilemega-compile ran import, solve, write-back and codegen after the split'
      if probe.is_file() else 'no generated source',probe)
 

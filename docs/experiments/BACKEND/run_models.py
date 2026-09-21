@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """R8 A-b / A-e / A-g: the reference models on the reworked backend.
 
+Built with `measure.PROTOCOL` and nothing else, which is exactly what R7's
+D-d binaries carried -- in particular **without** `MIDPOINT_REFINE`. That
+switch costs 4.4x on these models (0.156 ms against 0.673 ms of L2 on
+gqa2_s4) and R7 never enabled it for them, so enabling it here would compare
+two different things and call the difference a regression (F-239).
+
 One runner for three gates, because they want the same binaries:
 
   A-b  correctness, 50 fresh processes per cell, every switch off
@@ -75,10 +81,12 @@ def main():
     if a.action=='correctness':
         for model,seq in CELLS:
             cell=a.out/f'{model}_s{seq}'
+            if not (cell/'auto.cu').exists():
+                print('SKIP',model,seq,'not solved yet',flush=True);continue
             spec=dict(source=str(cell/'auto.cu'),
                       kappa=macro(cell/'auto.cu','TILEMEGA_EVENT_KAPPA','1'),
                       residency=macro(cell/'auto.cu','TILEMEGA_RESIDENCY_CAP','0'),
-                      placement_macro='0',extra=['MIDPOINT_REFINE=1'])
+                      placement_macro='0')
             if measure.build(cell,model,'default',spec,a.arch):
                 raise RuntimeError('compile failed '+str(cell))
             folder=cell/'correctness';folder.mkdir(exist_ok=True)
@@ -91,7 +99,10 @@ def main():
         return
     if a.action=='timing':
         for model,seq in CELLS:
-            cell=a.out/f'{model}_s{seq}';folder=cell/'timing';folder.mkdir(exist_ok=True)
+            cell=a.out/f'{model}_s{seq}'
+            if not (cell/'bin'/'default').exists():
+                print('SKIP',model,seq,'not built yet',flush=True);continue
+            folder=cell/'timing';folder.mkdir(exist_ok=True)
             for i in range(a.timing_rounds):
                 run(cell/'bin'/'default',measure.fixture(model,seq),
                     folder/f'r{i}.log',5,11,session,i)
