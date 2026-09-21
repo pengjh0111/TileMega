@@ -1,0 +1,1 @@
+{"command": ["/root/r8_work/litmus_bin", "256", "4096", "64", "nobarrier"], "round": 30, "session": "1789956218670905189", "started_ns": 1789956568266018474, "elapsed_ns": 264771858, "exit_code": 0}

@@ -1,0 +1,1 @@
+LITMUS arm=roles grid=128 elements=1024 iterations=64 role_threads=64 mismatches=0 status=no error

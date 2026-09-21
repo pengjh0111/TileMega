@@ -1,0 +1,1 @@
+LITMUS arm=nofence grid=64 elements=256 iterations=64 role_threads=64 mismatches=253952 status=no error
