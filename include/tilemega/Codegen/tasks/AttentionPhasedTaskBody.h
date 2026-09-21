@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Codegen/tasks/WarpReduce.cuh>
 #include <tilemega/Codegen/AttentionPlan.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/AttentionCombineTaskBody.h>
@@ -44,16 +45,23 @@ struct AttentionPhasedTaskBody {
       for (int pos = begin + threadIdx.x; pos < end; pos += blockDim.x)
         scores[pos] = smem.attention[pos - begin];
     } else if (phase == AttentionPhase::kNormalize) {
-      if (threadIdx.x != 0) return;
-      float maximum = -INFINITY;
-      for (int pos = 0; pos < total; ++pos) maximum = fmaxf(maximum, scores[pos]);
-      float sum = 0.0f;
-      for (int pos = 0; pos < total; ++pos) {
-        float value = expf(scores[pos] - maximum);
+      // R8 BE-4: this phase used to be `if (threadIdx.x != 0) return;`
+      // followed by three serial scans of the key sequence. The early return
+      // has to go with it: the reductions below are CTA-wide, so every thread
+      // must reach their barriers. Rounding stays where it was.
+      float* const reduce = &smem.attention[TILEMEGA_ATTENTION_SCRATCH_EXTENT];
+      float local_max = -INFINITY;
+      for (int pos = threadIdx.x; pos < total; pos += blockDim.x)
+        local_max = fmaxf(local_max, scores[pos]);
+      float const maximum = BlockReduce<MaxOp, Threads>(local_max, reduce);
+      float local_sum = 0.0f;
+      for (int pos = threadIdx.x; pos < total; pos += blockDim.x) {
+        float const value = expf(scores[pos] - maximum);
         scores[pos] = value;
-        sum += value;
+        local_sum += value;
       }
-      for (int pos = 0; pos < total; ++pos)
+      float const sum = BlockReduce<SumOp, Threads>(local_sum, reduce);
+      for (int pos = threadIdx.x; pos < total; pos += blockDim.x)
         scores[pos] = static_cast<float>(ModelElement(scores[pos] / sum));
     } else if (phase == AttentionPhase::kPartialValue) {
       auto* v = p.buffers[stage.operand[2]];

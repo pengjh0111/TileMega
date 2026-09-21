@@ -5,6 +5,7 @@
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
 #include <tilemega/Codegen/tasks/TaskResources.h>
+#include <tilemega/Codegen/tasks/WarpReduce.cuh>
 
 namespace tilemega::codegen {
 
@@ -56,15 +57,12 @@ struct RMSNormTaskBody {
       float value = static_cast<float>(input[d]);
       local += value * value;
     }
-    rms[threadIdx.x] = local;
-    TILEMEGA_PHASE_SIMT_BARRIER();
-    for (int offset = blockDim.x / 2; offset; offset /= 2) {
-      if (threadIdx.x < offset)
-        rms[threadIdx.x] += rms[threadIdx.x + offset];
-      TILEMEGA_PHASE_SIMT_BARRIER();
-    }
+    // R8 BE-4: the shared-memory tree this replaces cost log2(Threads)
+    // barriers per row -- seven at 128 threads, with half the CTA idle in each
+    // step. The shuffle reduction keeps the sum in FP32 and needs two.
+    float const total = BlockReduce<SumOp, Threads>(local, rms);
     TILEMEGA_PHASE_STAMP(3);
-    float scale = rsqrtf(rms[0] / hidden + TILEMEGA_NORM_EPSILON);
+    float scale = rsqrtf(total / hidden + TILEMEGA_NORM_EPSILON);
     for (int d = threadIdx.x; d < hidden; d += blockDim.x)
       output[d] = ModelElement(
           static_cast<float>(ModelElement(
