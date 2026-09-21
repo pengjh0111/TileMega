@@ -1,0 +1,1 @@
+{"command": ["/root/TileMega/docs/experiments/BACKEND/timing_sweep/gqa2_s1/bin/refine_off", "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/gqa2_s1_p3"], "round": 3, "session": "1789973741599880975", "started_ns": 1789973774083629859, "elapsed_ns": 388293579, "exit_code": 0}

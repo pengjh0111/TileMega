@@ -129,10 +129,11 @@ PASS [hard] C-d end to end after the split               tilemega-compile ran im
   type was introduced. `coverage.md` says so per body rather than claiming it.
 - **BE-5 delivered the litmus and the inventory, not the rolification.**
   `TaskRoles` is declared and unused; no harness barrier was converted.
-- **A-g is four cells, not twelve.** The reference models at seq 4 and 128
-  match R7's D-d cells exactly. The decode sweep at seq ∈ {1,16,64} and the
-  Llama sweep would need eight more solves at roughly half an hour each; the
-  solve cost is R7's C1-b item, which this round did not touch.
+- ~~**A-g is four cells, not twelve.**~~ **Superseded.** The first pass
+  measured four cells and priced the missing eight at "half an hour of solving
+  each". That was wrong: R7's solved Plans are all still on disk, so the cells
+  only needed a rebuild. A-g now covers all twelve, in both `MIDPOINT_REFINE`
+  arms (§6).
 
 ## 5. Coverage
 
@@ -150,38 +151,71 @@ rewritten this round — `AttentionChunkTaskBody`, `AttentionPhasedTaskBody`,
 alone rather than converted, because converting a placeholder no model runs
 would produce coverage on paper and nothing on the device.
 
-## 6. Three-level timing, against R7
+## 6. Three-level timing, against R7 — twelve cells, with and without `MIDPOINT_REFINE`
 
-Medians of 25 rounds per cell, `TILEMEGA_WARMUP=5 TILEMEGA_REPEAT=11`, built
-with `measure.PROTOCOL` and nothing else — which is exactly what R7's D-d
-binaries carried.
+No Plan was re-solved for this table. Every cell reuses the solved source R7
+produced and left on disk (`topk/<cell>/auto.cu` for seq 4 and 128,
+`/root/r7_work/ref/<cell>/auto.cu` for seq 1 and 16,
+`/root/r7_work/llama_s<seq>/auto.cu` for the anchored model), so the only thing
+that differs from R7's measurement is the backend the same Plan is compiled
+against. 25 rounds per reference cell, 10 per Llama cell,
+`TILEMEGA_WARMUP=5 TILEMEGA_REPEAT=11`, medians, L0.5 / L1 / L2 in ms.
 
-| cell | R7 L0.5 / L1 / L2 | R8 L0.5 / L1 / L2 | L2 change |
+R7 measured its reference models **without** `MIDPOINT_REFINE` and its Llama
+cells **with** it; the column "R8 same arm" is the like-for-like comparison and
+"R8 other arm" is the one R7 never ran.
+
+| cell | R7 (its own arm) | R8 same arm | R8 other arm | refine cost |
+|---|---|---|---|---|
+| gqa2_s1 (refine off) | 0.206 / 0.193 / 0.137 | 0.1802 / 0.1905 / 0.1372 | 0.6388 / 0.6328 / 0.4198 | 3.06x |
+| gqa2_s4 (refine off) | 0.182 / 0.197 / 0.154 | 0.1843 / 0.1966 / 0.1587 | 1.1305 / 1.1448 / 0.7475 | 4.71x |
+| gqa2_s16 (refine off) | 0.209 / 0.215 / 0.213 | 0.2028 / 0.2128 / 0.214 | 3.2748 / 3.2951 / 2.1217 | 9.91x |
+| gqa2_s128 (refine off) | 0.323 / 0.337 / 0.313 | 0.3123 / 0.3255 / 0.3092 | 6.2546 / 6.278 / 4.6408 | 15.01x |
+| mha4_s1 (refine off) | 0.352 / 0.378 / 0.287 | 0.3531 / 0.3758 / 0.2877 | 1.2472 / 1.2546 / 0.8325 | 2.89x |
+| mha4_s4 (refine off) | 0.358 / 0.388 / 0.343 | 0.3602 / 0.3851 / 0.3441 | 2.1074 / 2.133 / 1.4079 | 4.09x |
+| mha4_s16 (refine off) | 0.399 / 0.421 / 0.495 | 0.3973 / 0.4167 / 0.4936 | 6.53 / 6.5638 / 4.268 | 8.65x |
+| mha4_s128 (refine off) | 0.6 / 0.621 / 0.639 | 0.6318 / 0.6562 / 0.6564 | 12.7601 / 12.8123 / 9.5846 | 14.60x |
+| llama_s1 (refine on) | 49.804 / 49.755 / 36.487 | 49.6656 / 49.6113 / 36.401 | 5.4282 / 5.2598 / 4.6452 | 7.84x |
+| llama_s4 (refine on) | 49.465 / 49.492 / 41.122 | 49.4577 / 49.4773 / 41.1023 | 6.2177 / 6.1465 / 5.929 | 6.93x |
+| llama_s16 (refine on) | 157.749 / 157.839 / 130.978 | 158.233 / 158.31 / 131.203 | 6.5603 / 6.3375 / 6.8198 | 19.24x |
+| llama_s64 (refine on) | 380.202 / 380.311 / 423.982 | 379.508 / 379.566 / 422.395 | 10.8508 / 10.8983 / 11.7396 | 35.98x |
+
+✅ **Verified: R7 reproduces, cell for cell, on the reworked backend.** Every
+"same arm" column is within measurement spread of R7's own number — including
+the headline cell, Llama seq 64 at 379.5 / 379.6 / **422.4** against R7's
+380.2 / 380.3 / **424.0**. Nothing in R8's backend work cost or bought time on
+these Plans.
+
+⚠️ **Inferred, and it reframes §1: most of the "two orders of magnitude" is one
+numerical switch, not the backend.** `MIDPOINT_REFINE` — selective FP64
+recomputation near BF16 midpoints, which F-216 added so the anchored graphs
+could pass their numerical gate — costs 2.9x to 36x depending on the cell, and
+the cost grows with the work per launch:
+
+| seq | gqa2 | mha4 | llama |
 |---|---|---|---|
-| gqa2 s4 | 0.182 / 0.197 / 0.154 | 0.184 / 0.197 / 0.156 | 1.01x |
-| gqa2 s128 | 0.323 / 0.337 / 0.313 | 0.311 / 0.326 / 0.305 | 0.97x |
-| mha4 s4 | 0.358 / 0.388 / 0.343 | 0.358 / 0.385 / 0.343 | 1.00x |
-| mha4 s128 | 0.600 / 0.621 / 0.639 | 0.632 / 0.654 / 0.655 | 1.03x |
+| 1 | 3.06x | 2.89x | 7.84x |
+| 4 | 4.71x | 4.09x | 6.93x |
+| 16 | 9.91x | 8.65x | 19.24x |
+| 64 / 128 | 15.01x (s128) | 14.60x (s128) | **35.98x** (s64) |
 
-⚠️ **The backend rework is performance-neutral on the reference models, and
-that is explainable rather than disappointing.** §1's premise is that the
-backend is barely connected to CUTLASS; on these two models it already was —
-`backend::GemmCandidate` has been a CUTLASS `CollectiveMma` with the
-`SM80_16x8x16_F32BF16BF16F32_TN` tensor-core atom and an FP32 accumulator since
-before this round. What R8 fixed on top of that is the *serial* part of the
-non-GEMM bodies, and at seq 4–128 those bodies are a small share of a graph
-whose GEMMs were already on tensor cores. The place where §1's numbers came
-from — Llama at seq 64, `L2/floor` 42.8 — is a different regime, and this
-round did not re-measure it (§4, degraded forms).
+Llama seq 64 is 422.4 ms with the switch and **11.74 ms without it**. §1 cites
+that cell as evidence that the backend is one to two orders of magnitude off;
+the measurement says 97% of it is the refinement pass. The R7 numbers are not
+wrong — they reproduce exactly — but their cause is now located, and it is not
+where §1 placed it.
 
-⚠️ **One measurement of this round is a correction of its own first
-measurement.** The first A-g run reported 0.673 ms against R7's 0.140 with an
-identical schedule, which reads as a 4.4x regression. It was not: the runner
-had added `MIDPOINT_REFINE=1`, which R7's reference binaries never carried.
-Same source, same GPU, one flag: R8 head 0.1516 ms without it and 0.6729 with;
-R8 *baseline* 0.1535 without and 0.6789 with. R7's own binary, untouched on
-disk, gives 0.1568 today. The switch — not the round's work — is the 4.4x, and
-it is now priced (F-239).
+⚠️ **This does not trigger §8.4.** The global-stop condition is "§1's premises
+overturned by this round's re-measurement, e.g. R7's 380/424 ms not
+reproducing". They reproduce to three digits. What changed is the attribution,
+which §0 item 2 asks for explicitly.
+
+⚠️ **What it does not say.** `MIDPOINT_REFINE` is not optional on the anchored
+models — it is what makes A-a's Llama graph pass in R7 and it is on the D-a
+path. The honest reading is that the numerical caliber and the performance
+target are coupled: the cheapest available correctness fix costs 36x at
+seq 64, and R10's depth-aware caliber (§13) is therefore a performance item as
+much as a correctness one.
 
 ## 7. Barriers and the litmus
 

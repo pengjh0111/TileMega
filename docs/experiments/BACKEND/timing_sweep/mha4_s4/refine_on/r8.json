@@ -1,0 +1,1 @@
+{"command": ["/root/TileMega/docs/experiments/BACKEND/timing_sweep/mha4_s4/bin/refine_on", "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/mha4_s4_p3"], "round": 8, "session": "1789973741599880975", "started_ns": 1789974255416625965, "elapsed_ns": 608947814, "exit_code": 0}

@@ -121,15 +121,24 @@ if archs.is_file():
 else:
     gate('A-f multi-arch compile and CPU self-check',True,False,'not compiled',archs)
 
-# --- A-g: the three levels, reported without a threshold ---------------------
-table=HERE/'models/models.tsv'
-if table.is_file():
-    got=tsv(table)
-    gate('A-g three levels per cell, no threshold',False,bool(got),
-         '; '.join(f"{r['cell']} l05 {float(r['l05_ms']):.3f} l1 {float(r['l1_ms']):.3f} "
-                   f"l2 {float(r['l2_ms']):.3f}" for r in got),table)
+# --- A-g: the three levels over the decode sweep, both refine arms ----------
+sweep=HERE/'timing_sweep/timing_sweep.tsv'
+if sweep.is_file():
+    got=tsv(sweep)
+    by={}
+    for r in got:by.setdefault(r['cell'],{})[r['arm']]=r
+    paired=[c for c,arms in by.items() if len(arms)==2]
+    worst=max(((float(a['refine_on']['l2_ms'])/float(a['refine_off']['l2_ms']),c)
+               for c,a in by.items() if len(a)==2),default=(0,'-'))
+    gate('A-g three levels per cell, no threshold',False,
+         len(paired)==12,
+         f'{len(paired)}/12 cells measured in both arms; '
+         f'MIDPOINT_REFINE costs up to {worst[0]:.1f}x ({worst[1]}); '
+         + '; '.join(f"{c} l2 {float(by[c]['refine_off']['l2_ms']):.4f} off / "
+                     f"{float(by[c]['refine_on']['l2_ms']):.4f} on"
+                     for c in ('gqa2_s4','mha4_s4','llama_s64') if c in by),sweep)
 else:
-    gate('A-g three levels per cell, no threshold',False,False,'not measured',table)
+    gate('A-g three levels per cell, no threshold',False,False,'not measured',sweep)
 
 # --- B-a: the litmus, both controls must fail --------------------------------
 litmus=BARRIER/'raw/litmus.tsv'

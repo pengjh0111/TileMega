@@ -1,0 +1,1 @@
+{"command": ["/root/TileMega/docs/experiments/BACKEND/timing_sweep/llama_s4/bin/refine_off", "/root/r7_work/llama_hoist/fixture"], "round": 4, "session": "1789973741599880975", "started_ns": 1789975046463139989, "elapsed_ns": 18667835632, "exit_code": 1}

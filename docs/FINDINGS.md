@@ -6946,5 +6946,31 @@ numerical-correctness cost wherever it is enabled — R7 enabled it on every
 whole-model run, so the D-c/D-a timings carry it and the D-d reference
 timings do not.
 
-Evidence: `BACKEND/models/` (the re-run cells), `BACKEND/summary.md` §6,
-the bisect commands in this entry.
+✅ **Verified: the switch, priced over the whole decode sweep.** Twelve cells,
+both arms, every Plan reused from R7 rather than re-solved (`timing_sweep.py`).
+L2 median, refine off -> on:
+
+| seq | gqa2 | mha4 | llama |
+|---|---|---|---|
+| 1 | 0.137 -> 0.420 (3.06x) | 0.288 -> 0.833 (2.89x) | 4.645 -> 36.40 (7.84x) |
+| 4 | 0.159 -> 0.748 (4.71x) | 0.344 -> 1.408 (4.09x) | 5.929 -> 41.10 (6.93x) |
+| 16 | 0.214 -> 2.122 (9.91x) | 0.494 -> 4.268 (8.65x) | 6.820 -> 131.2 (19.24x) |
+| 128 / 64 | 0.309 -> 4.641 (15.01x) | 0.656 -> 9.585 (14.60x) | 11.74 -> **422.4** (35.98x) |
+
+The cost grows with the work per launch, which is what a per-GEMM-element
+recomputation does.
+
+⚠️ **Inferred: this relocates R8 §1's premise.** §1 cites Llama seq 64 at
+380.2 / 380.3 / 424.0 ms as evidence that the backend is one to two orders of
+magnitude off. Those numbers reproduce on the reworked backend to three digits
+(379.5 / 379.6 / 422.4), so §8.4's global-stop condition is not triggered — but
+the same cell without the refinement pass is **11.74 ms**, so roughly 97% of
+the headline figure is the numerical switch rather than the backend's quality.
+The switch is not optional on the anchored models: it is what makes A-a's
+Llama graph pass. The caliber and the performance target are therefore coupled,
+and R10's depth-aware comparison is a performance item as much as a
+correctness one.
+
+Evidence: `BACKEND/timing_sweep/` (`timing_sweep.tsv`, per-round logs for
+12 cells x 2 arms), `BACKEND/models/`, `BACKEND/summary.md` §6, the bisect
+commands in this entry.
