@@ -225,6 +225,14 @@ V-A 的局部环在 2×容量仍推进，而 V-J 的反向依赖在 `resident_li
 
 ## 2.3 CG 上的六种操作
 
+（⚠️ v2.1 第八轮：术语与 dialect 归属。CG 阶段的对象是 **tile**，不是 task——
+`task_space` 自本轮起称 `tile_space`，`TaskSpaceOp` 称 `TileSpaceOp`。单一
+`tilemega` dialect 拆为两个：`tmcg` 承载图的结构（`graph`、`tile_space`、
+`event_tensor`、`coupling`、`fused_task_space`），`tmexec` 承载在图上求解得到的执行
+决策（`plan`、`placement`、`implementation`，以及模块级的 `solved_*` 属性）。
+执行器一侧的名字不动：`TaskBody`、`TaskKind`、`TaskRef`、`TaskTraits` 描述的本来就是
+"一个 worker 跑的一件事"。对照表见 `docs/experiments/DIALECT/rename.md`。F-238。）
+
 系统的决策抽象是在 CG 上做以下六件事；抽象已定义不等于执行已接入：
 
 | 操作 | 定义 | 决策变量 |
@@ -887,6 +895,18 @@ TaskBody 模板的 tile 形状、cluster 形状、pipeline 级数全部是模板
 
 ## 5.3 TaskBody 模板
 
+（⚠️ v2.1 第八轮：上面的模板参数表保持原样，第一个模板参数 `Arch` 的**绑定方式**
+在本轮改变，原句不删。此前 `ModelHarness.cuh` 以 `using HarnessArch =
+cutlass::arch::Sm80;` 为每一次构建钉死架构，codegen 完全看不到 `TargetSpec`；现在
+架构随 Plan 走：求解器写 `tmexec.solved_arch`，codegen 发 `TILEMEGA_ARCH_ID` 与
+`TILEMEGA_ARCH_TAG`，TaskBody 实例化在 `arch::ArchFromId<TILEMEGA_ARCH_ID>::type`
+上，device pass 对 `__CUDA_ARCH__` 静态断言，`RunModel` 在任何 launch 之前把设备的
+`major*100+minor*10` 与 Plan 的比对，不一致即退出 2（不降级）。**实现路径一律按
+`arch::Caps<Arch>` 的具名能力选择，不得比较架构版本号**；本轮新增能力
+`kBf16CollectiveBuilder` 表示"该 CUTLASS 为此架构提供 BF16 tensor-op
+CollectiveBuilder"，它是工具链的属性，由 `docs/experiments/BACKEND/be2_collective/`
+的探针测得而非假定。F-234、F-235。）
+
 ```cpp
 // include/tilemega/tasks/GemmTaskBody.h
 template <class TileShape_MNK,     // ← Reparam
@@ -945,6 +965,14 @@ TaskBody 必须用 grid-stride 循环遍历自己的 task
 
 ### 5.3.1 分相 ABI（目标，v2.1，未实现）
 
+（⚠️ v2.1 第八轮：`TaskTraits<Threads, SharedBytes>` 的含义不变，新增按角色声明的
+形式，原句保留。一个不做 warp 专门化的 body 就是"一个角色占满整个 CTA"，这正是本轮
+之前每个 body 的含义；做专门化的 body 写
+`using Roles = TaskRoles<TaskRole<128,4096>, TaskRole<128,2048>>;`，线程数与 shared
+字节由各角色求和得出，因此一个不构成 CTA 划分的拆分是编译错误而不是挂死的 launch。
+⚠️ **本轮没有任何 body 声明多于一个角色**：BE-5 的 litmus 未能让"无屏障"负对照失败，
+按 §8.3 角色化路径记为未交付，该机制处于"已声明未使用"状态。F-237。）
+
 TaskBody 可选实现三段：
 
 - `Prefetch(p, stage, task, ctx)`：只读取在 CG 中没有入边的操作数（例如 GEMM 的权重）。可在等待依赖之前或上一 task 的收尾阶段发出。
@@ -969,6 +997,15 @@ slot+1 发出 `cp.async`；`Wait` 仍在执行器，即 slot+1 的 Compute 之�
 承接项：`docs/TODO.md` EX-E4。
 
 ## 5.4 Megakernel 骨架
+
+（⚠️ v2.1 第八轮：本轮清点了 harness 执行的全部 15 个 CTA 屏障，逐个记下它保护什么
+以及角色化之后由哪一级接替，见 `docs/experiments/BARRIER/barriers.md`。结构性结论：
+**这 15 个屏障没有一个在 TaskBody 内部**——它们都位于任务之间或 wait/notify 协议
+内部，那里无论 body 做了什么，CTA 的所有线程都在执行同一段代码，所以角色化不会让
+其中任何一个变得不可达。会坏的是 body *内部* 的屏障（归一化与 attention 的
+`TILEMEGA_PHASE_SIMT_BARRIER()`，以及本轮 `BlockReduce` 的两处
+`__syncthreads()`）。本轮**没有改动任何一处屏障**：litmus 未过，按 §8.3 不得先改。
+F-237。）
 
 ```cpp
 // (a) 求解器决定的实例化
@@ -1368,6 +1405,15 @@ norm/RoPE 一类小 tile。（F-1、F-3、F-10）
 
 ## 8.6 smem union 取 max
 
+（⚠️ v2.1 第八轮：union 取 max 的规则与第七轮的分页注记都保持原样。本轮 BE-6 把
+occupancy 闭式推广为按角色求和——
+`per_cta_regs = Σ_r warps_r · ceil(regs_r·32/256)·256`，shared 与线程同样按角色求和
+——单角色时逐项退化为 F-40/F-223，这正是"继任"的含义。四个测试格上新闭式与驱动的
+`cudaOccupancyMaxActiveBlocksPerMultiprocessor` 一致（均为 5）。⚠️ 由于本轮没有
+body 声明多角色，smem 仍是单角色划分，"按角色划分 union"这一步随角色化一同未交付。
+⚠️ 另记一条实测：驱动的答案是 harness 打印的 `l2_ctas`，`ctas_per_sm` 是 Plan 自己
+的驻留上限，两者不是一回事。）
+
 各 task 类型的 `SharedStorage` 必须组成**单个显式 union**，且该 union 的生命周期
 覆盖整个 dispatch，容量取 `max_i(sizeof(SharedStorage_i))`。不同 task 类型的 smem
 只有在此条件下不相加；分离对象的地址逃逸会使生命周期重叠，实测退化为 36864B，
@@ -1608,4 +1654,5 @@ Codegen 与 host 只消费 Plan（§5.7.4），不得在其中新增调度决策
 | 2026-09 | v2.1 第四轮 | 按上述条件解封屏障后单发布者 release；补齐发布 warp 异步化、本地依赖与 cluster 作用域的可选协议形态 |
 | 2026-09 | v2.1 第五轮 | 引入默认关闭的 TaskBody 分相观测与按测量分叉的研究流程；保留 L1 ChainDP，将几何、split、κ、驻留与放置纳入 L2 配置求解 |
 | 2026-09 | v2.1 第六轮 | 统一访问推导到 TaskBody 代价的输入；明确绑定下界目标与分层求值；Place 参数允许 θ 函数，物化表由 CG 模块承载，生产写回经编译驱动接入 |
+| 2026-09 | v2.1 第八轮 | TaskBody ABI 参数化在 arch tag 上，架构随 Plan 传递并在运行期与设备比对（不一致即硬失败）；GEMM 的 collective 按 `Caps` 具名能力选择，sm_90/sm_100 走 CollectiveBuilder，sm_80/sm_89/sm_120 走 cp.async multistage；attention 与归一化的跨线程归约改为 warp shuffle，消除单 lane 串行扫描；occupancy 闭式推广为按角色求和；单一 `tilemega` dialect 拆为 `tmcg`（结构）与 `tmexec`（决策），`task_space` 改名 `tile_space`。§8.5 未改动——角色粒度 litmus 的"无屏障"负对照在 sm_89 上不失败，按 §8.3 不取得改动资格 |
 | 2026-09 | v2.1 第七轮 | 归一化 epsilon 与旋转相位精度改为由导入的模型决定，不再是后端常量；任务族扩展为 token embedding、按头 Q/K 归一化与独立的最终归一化，并规定新族必须由生成开关承载以保持默认构建的汇编同一；§8.6 的 TaskSmem union 生命周期按 H3 解除一处——union 仍取 max，其后按开关追加两页预取缓冲，生命周期跨相邻 slot；§5.3.1 的分相 ABI 随之落地为可开关的实现 |
