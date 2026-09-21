@@ -284,7 +284,7 @@ trigger(e)     = C_κ(x) 的坐标映射        谁通知谁
 
 上表这一个数字同时回答了几个互不相干的问题，而这些答案各自独立地变化。
 推导实际观察到的是五项，Tier 由它们导出（`CouplingDerivation.h`，
-IR 中为 `#tilemega.coupling_attrs<...>`）：
+IR 中为 `#tmcg.coupling_attrs<...>`）：
 
 | 属性 | 取值 | 含义 |
 |---|---|---|
@@ -564,21 +564,21 @@ KV cache 管理、paged block table、continuous batching 调度不在 exported 
 
 ```mlir
 // 任务空间
-tilemega.task_space @gemm_tasks attributes {
+tmcg.tile_space @gemm_tasks attributes {
     kind        = #tilemega.task_kind<gemm>,
     granularity = !cute.layout<"(128,128,64):(...)">,   // g_op
     write_map   = !cute.layout<...>                     // W_op
 }
 
 // 事件张量：形状可含符号维
-tilemega.event_tensor @e0 : tensor<?xi32> attributes {
+tmcg.event_tensor @e0 : tensor<?xi32> attributes {
     extent = #tilemega.closed_form<"image_size(C_kappa)">
 }
 
 // 耦合：一条边
-tilemega.coupling @c1 from @norm_tasks to @gemm_tasks attributes {
+tmcg.coupling @c1 from @norm_tasks to @gemm_tasks attributes {
     read_map  = #tilemega.access_map<layout = !cute.layout<...>>,   // R_c
-    relation  = #tilemega.coupling_map<"(m,n) -> (m)">,             // C
+    relation  = #tmcg.coupling_map<"(m,n) -> (m)">,             // C
     wait      = #tilemega.closed_form<"1">,
     fanout    = #tilemega.closed_form<"ceil(Dq/Tn)">,
     volume    = #tilemega.closed_form<"Tm*H">,
@@ -589,10 +589,10 @@ tilemega.coupling @c1 from @norm_tasks to @gemm_tasks attributes {
 }
 
 // 放置
-tilemega.placement @gemm_tasks map = [...] cluster = 2
+tmexec.placement @gemm_tasks map = [...] cluster = 2
 
 // 实现契约：求解器选定的 (g, impl) 中的 impl 一侧（P4.9）
-tilemega.implementation @impl_qkv_17 for @gemm_tasks attributes {
+tmexec.implementation @impl_qkv_17 for @gemm_tasks attributes {
     backend    = "cutlass.sm80_cpasync.simt_f32",
     tile = array<i64: 128, 128, 16>, cluster = array<i64: 1, 1, 1>,
     stages = 3, threads = 256, smem_bytes = 49536,
@@ -612,7 +612,7 @@ tilemega.implementation @impl_qkv_17 for @gemm_tasks attributes {
 parameters/fiber/image 的结构化字典；Tier（可解析性）与 SyncKind（通信归属）分离。
 
 **verifier**：事件张量形状 = `image(C_κ)`；`wait` 的闭式在 `θ` 全部代入后与
-barvinok 计数一致；`tilemega.implementation` 的 threads/smem/alignment/arch
+barvinok 计数一致；`tmexec.implementation` 的 threads/smem/alignment/arch
 必须与后端对该 tile 的闭式相等（实现可以选形状，不能改写形状的代价），
 其 `access` 必须与 task space 的 `index_map` 逐轴一致（P4.9）。
 
@@ -1186,8 +1186,8 @@ Label 在 L2 执行下是 Place 的子决策：只有当相关生产者与消费
 ### 5.7.4 层间职责
 
 - **求解器**写入 CG：
-  - 每个 task space 的 `tilemega.placement`：mode、模板参数或物化策略与参数、W、policy；
-  - 每条 `tilemega.coupling` 的 `sync_kind`；
+  - 每个 task space 的 `tmexec.placement`：mode、模板参数或物化策略与参数、W、policy；
+  - 每条 `tmcg.coupling` 的 `sync_kind`；
   - 每个 producer 的 κ。
   - `map=[0]` 的占位写法仅保留为 legacy 模式。
 - **Codegen** 发出 `RuntimeVariantDesc` 中的 Plan 描述，作为唯一调度来源；只编码 stage 置换的 `ScheduleStageDesc` 仅作为 legacy 模式的输入保留。Codegen 不自行计算调度。

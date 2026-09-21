@@ -201,7 +201,7 @@ EX-S2c 的价格测试与队列放置修正已测，mha4 s128 保持 35 跳，�
 
 - **目标**：让任意合法的 (π, σ) 都能落地（G1、G2，以及 G14 中的 slot 部分），实现 skeleton §5.7.4。
 - **设计要点**：
-  - **CG**：`tilemega.placement` 承载求解输出，包括：
+  - **CG**：`tmexec.placement` 承载求解输出，包括：
     - `mode ∈ {legacy_grid_stride, rotate, balanced_legacy, template, host_list_schedule}`；
     - 模板参数或物化策略参数；
     - `window`（W）与 `policy`。
@@ -997,7 +997,7 @@ BE 必须先行：SB 的吞吐数字与 TF 的融合收益，都建立在后端�
 | BE-5 | harness 屏障改为角色感知；§8.5 release 规则重定义并重做 litmus | BE-1 | 未开始 | — | 待填 |
 | BE-6 | occupancy 闭式按角色重算（F-40 / F-223 的继任） | BE-5 | 未开始 | — | 待填 |
 | BE-7 | dialect 拆为 `cg`（结构）与 `plan`（决策） | — | 未开始 | — | 待填 |
-| BE-8 | `task_space` → `tile_space` 等术语改名 | BE-7 | 未开始 | — | 待填 |
+| BE-8 | `tile_space` → `tile_space` 等术语改名 | BE-7 | 未开始 | — | 待填 |
 | BE-9 | 两个锚定模型的算子全部走到 CUTLASS/CuTe 路径 | BE-2,3,4 | 未开始 | — | 待填 |
 | SB-1 | batch 作为 θ 参数进 tile space | BE-9 | 未开始 | — | 待填 |
 | SB-2 | KV cache 跨 decode 步增长（block table） | SB-1 | 未开始 | — | 待填 |
@@ -1071,7 +1071,7 @@ BE 必须先行：SB 的吞吐数字与 TF 的融合收益，都建立在后端�
 
 ### BE-7 dialect 拆分
 
-现在是单一 `tilemega` dialect（`CGDialect.td:6`，`cppNamespace = "::tilemega::dialect"`），六个 op 平铺：`task_space`、`event_tensor`、`coupling`、`placement`、`implementation`、`fused_task_space`。
+现在是单一 `tilemega` dialect（`CGDialect.td:6`，`cppNamespace = "::tilemega::dialect"`），六个 op 平铺：`tile_space`、`event_tensor`、`coupling`、`placement`、`implementation`、`fused_task_space`。
 
 **拆成两个**：
 - **`cg`**：`tile_space`、`event_tensor`、`coupling` —— 图的结构；
@@ -1085,7 +1085,7 @@ BE 必须先行：SB 的吞吐数字与 TF 的融合收益，都建立在后端�
 
 ### BE-8 术语改名
 
-`task_space` → `tile_space`，以及相关的 `TaskSpaceOp` → `TileSpaceOp` 等。分层原则：**CG 阶段一切都是 tile，只有到 TaskBody 与执行器才出现 task**。
+`tile_space` → `tile_space`，以及相关的 `TileSpaceOp` → `TileSpaceOp` 等。分层原则：**CG 阶段一切都是 tile，只有到 TaskBody 与执行器才出现 task**。
 
 **范围**：dialect、所有 pass、`lib/` 与 `include/`、测试、`TileMega_skeleton.md`、`docs/STATUS.md`、`docs/TODO.md`。
 
