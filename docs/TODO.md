@@ -992,7 +992,7 @@ BE 必须先行：SB 的吞吐数字与 TF 的融合收益，都建立在后端�
 |---|---|---|---|---|---|
 | BE-1 | TaskBody ABI 参数化在 arch tag 上，消费 `TargetSpec::Caps` | — | 已完成 | 正反两面都验证 | `d8201fcc2`，`BACKEND/be1_arch/`，F-234 |
 | BE-2 | GEMM 族走 CUTLASS `CollectiveBuilder` | BE-1 | 已完成（arch 选择），降级：builder 路径未定价 | 五个 arch 编译并 CPU 自检通过 | `597c2fdc2`，`BACKEND/be2_collective/`，F-235 |
-| BE-3 | Attention 换在线 softmax，消除 thread-0 串行 | BE-1 | 已完成 | 逐算子与 PyTorch 逐元素相等 | `f922d3fae`，`BACKEND/operator_check/`，F-236 |
+| BE-3 | Attention 换在线 softmax，消除 thread-0 串行 | BE-1 | 已完成在线 softmax；**`caps.tma` 的 K/V 加载分支未写** | 逐算子与 PyTorch 逐元素相等 | `f922d3fae`，`BACKEND/operator_check/`，F-236 |
 | BE-4 | 其余 SIMT 算子做到 warp 级归约 | BE-1 | 已完成（归约）；向量化未做并如实标注 | 同上 | `f63d4ffad`，`BACKEND/coverage.md`，F-236 |
 | BE-5 | harness 屏障改为角色感知；§8.5 release 规则重定义并重做 litmus | BE-1 | **未交付**（§8.3 降级）：litmus 的无屏障负对照不失败，§8.5 未改 | 450/450 合规臂通过，无 fence 对照全失败 | `18482dea6`，`BARRIER/`，F-237 |
 | BE-6 | occupancy 闭式按角色重算（F-40 / F-223 的继任） | BE-5 | 已完成（单角色实例） | 与驱动逐格一致 | `af6323c02`，`BACKEND/occupancy.py` |

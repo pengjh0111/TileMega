@@ -11,7 +11,7 @@ the Qwen3 cut adds `kQKNorm`).
 |---|---|---|---|---|
 | GEMM | `GemmStageTaskBody` | CUTLASS `CollectiveMma`, `MainloopSm80CpAsync`, `SM80_16x8x16_F32BF16BF16F32_TN` atom, FP32 accumulator | `caps.kBf16CollectiveBuilder` selects the TMA warp-specialized `CollectiveBuilder` on sm_90/sm_100; sm_80/sm_89/sm_120 take the cp.async multistage collective | no |
 | split-K combine | `GemmCombineTaskBody` | per-output-element accumulation in FP32, one thread per element over the peers | none needed | no — the loop is per thread over its own element, parallel across elements |
-| attention | `AttentionChunkTaskBody` | running max and running exponential sum over the key sequence, both CTA reductions on `__shfl_xor_sync` (`WarpReduce.cuh`), FP32 internals | `caps.tma` would select a TMA K/V load; not taken on sm_89 | **no — was three serial scans on lane 0 before R8** |
+| attention | `AttentionChunkTaskBody` | running max and running exponential sum over the key sequence, both CTA reductions on `__shfl_xor_sync` (`WarpReduce.cuh`), FP32 internals | **none — the `caps.tma` K/V load branch §4.3 asks for was not written** | **no — was three serial scans on lane 0 before R8** |
 | attention, chunked | `AttentionPhasedTaskBody` | same reductions in the `kNormalize` phase | as above | **no — was `if (threadIdx.x != 0) return;` plus three scans** |
 | attention combine | `AttentionCombineTaskBody` | per-element accumulation over chunks, parallel across the head dimension | none needed | no |
 | RMSNorm | `RMSNormTaskBody` | sum of squares as a CTA shuffle reduction, FP32, `rsqrtf` | none needed | **no — was a shared-memory tree costing log2(threads) barriers** |

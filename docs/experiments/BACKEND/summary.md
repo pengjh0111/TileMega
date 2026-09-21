@@ -123,6 +123,7 @@ PASS [hard] C-d end to end after the split               tilemega-compile ran im
 - **BE-2 selects by capability, and only one of the two paths is priced.**
   `kPricedCollective` marks which; assertions are scoped to the priced path and
   the other is reported. Declared, not silent.
+- **BE-3 delivered the softmax and not the TMA load** (§11, deviation 8).
 - **BE-4 rewrote the reductions and not the vectorization.** The elementwise
   bodies already stride by `blockDim.x` over contiguous rows; no wider vector
   type was introduced. `coverage.md` says so per body rather than claiming it.
@@ -295,6 +296,19 @@ only.
 6. **A-g covers four cells rather than twelve** (§4).
 7. **The `tmcg.graph` / `tmexec.plan` containers are defined but not yet
    emitted** (§4).
+8. **BE-3's TMA branch for the K/V load was not written.** §4.3 asks that
+   `caps.tma` select a TMA load of the K/V blocks; the attention body has no
+   such branch and reads `Caps<Arch>` nowhere. It is *partly* downstream of
+   BE-5 — the warp-specialized producer/consumer structure a TMA pipeline
+   usually wants is what the litmus blocked — but that is not a complete
+   excuse: a single-role `cp.async.bulk.tensor` with its own mbarrier is
+   possible without roles, and it was not written. The online-softmax half of
+   BE-3, which is the part §1 measured as the defect (127 of 128 threads
+   waiting), is delivered and verified exact.
+9. **The skeleton updates §11 asks for landed late.** The terminology rename
+   reached `TileMega_skeleton.md` with the BE-8 commit, but §5.3, §5.3.1, §5.4,
+   §8.6, §2.3 and the change record were only annotated afterwards, in
+   `c9568447a`. §8.5 is deliberately untouched (B-d).
 
 ## 12. Confirmation of the prompt's exclusions
 
