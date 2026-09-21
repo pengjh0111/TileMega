@@ -1,0 +1,4 @@
+operator	elements	mismatch	max_abs	at	expected	device
+rmsnorm	8192	0	0.0	8191	0.05908203125	0.05908203125
+qknorm	8192	0	0.0	8191	-0.435546875	-0.435546875
+attention	8192	0	0.0	8191	-0.4453125	-0.4453125
