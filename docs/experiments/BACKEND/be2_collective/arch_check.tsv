@@ -1,0 +1,6 @@
+arch	nvcc_arch	compiled	output
+sm_80	sm_80	1	ARCH_COLLECTIVE arch=sm_80 builder=0 path="cp.async multistage CollectiveMma" legal=1 threads=128 mainloop_smem=73728 priced=1
+sm_89	sm_89	1	ARCH_COLLECTIVE arch=sm_89 builder=0 path="cp.async multistage CollectiveMma" legal=1 threads=128 mainloop_smem=73728 priced=1
+sm_90	sm_90	1	ARCH_COLLECTIVE arch=sm_90 builder=1 path="TMA warp-specialized CollectiveBuilder" legal=1 threads=128 mainloop_smem=221440 priced=0
+sm_100	sm_100	1	ARCH_COLLECTIVE arch=sm_100 builder=1 path="TMA warp-specialized CollectiveBuilder" legal=1 threads=128 mainloop_smem=196736 priced=0
+sm_120	sm_120	1	ARCH_COLLECTIVE arch=sm_120 builder=0 path="cp.async multistage CollectiveMma" legal=1 threads=128 mainloop_smem=73728 priced=1

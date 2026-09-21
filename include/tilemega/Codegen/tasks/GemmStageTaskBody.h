@@ -165,13 +165,22 @@ namespace tilemega::codegen {
 #define TILEMEGA_GEMM_V15_STAGES TILEMEGA_GEMM_STAGES
 #endif
 
+// R8 BE-2: the variants are file scope, so they read the Plan's architecture
+// from the macro codegen emits rather than from a body's template parameter.
+// The default keeps a source written before that macro on the sm_80 path it
+// was compiled with.
+#ifndef TILEMEGA_ARCH_ID
+#define TILEMEGA_ARCH_ID 800
+#endif
+using GemmVariantArch = typename arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
+
 template <int Variant>
 struct GemmVariant;
 
 #define TILEMEGA_DEFINE_GEMM_VARIANT(index, M, N, K, S)                     \
   template <>                                                               \
   struct GemmVariant<index> {                                               \
-    using Impl = backend::GemmCandidate<M, N, K, S>;                        \
+    using Impl = backend::GemmCandidate<M, N, K, S, GemmVariantArch>;       \
     static_assert(Impl::kShapeLegal,                                        \
                   "the selected GEMM tile shape is not a legal candidate; " \
                   "query backend::GemmCandidate::kShapeLegal before "       \

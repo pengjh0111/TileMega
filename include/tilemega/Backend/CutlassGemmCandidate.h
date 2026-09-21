@@ -13,6 +13,8 @@
 #include <cute/tensor.hpp>
 #include <cutlass/gemm/collective/collective_mma.hpp>
 #include <cutlass/epilogue/collective/default_epilogue.hpp>
+#include <cutlass/gemm/collective/collective_builder.hpp>
+#include <cutlass/epilogue/collective/collective_builder.hpp>
 #include <cutlass/epilogue/thread/linear_combination.h>
 #include <cutlass/gemm/dispatch_policy.hpp>
 
@@ -250,9 +252,55 @@ struct TensorCollective<Info, true> {
 
 }  // namespace detail
 
+/// R8 BE-2: which collective a candidate is built from is a capability
+/// question, never a version comparison. CUTLASS 4.8 ships a BF16 tensor-op
+/// `CollectiveBuilder` for the TMA warp-specialized architectures that have
+/// one; sm_80 and sm_89 have no such specialization at all, and sm_120's
+/// builder refuses BF16 ("SM120 TmaWarpSpecialized builder currently only
+/// supports F8F6F4"). Both of those fall back to the cp.async multistage
+/// collective below, which is a CUTLASS collective either way -- the fallback
+/// is a schedule, not a hand-written mainloop.
+template <class Arch, class Info,
+          bool Builder = arch::Caps<Arch>::kBf16CollectiveBuilder>
+struct ArchTensorCollective;
+
+template <class Arch, class Info>
+struct ArchTensorCollective<Arch, Info, false> : detail::TensorCollective<Info> {
+  static constexpr char const* kPath = "cp.async multistage CollectiveMma";
+};
+
+template <class Arch, class Info>
+struct ArchTensorCollective<Arch, Info, true> {
+  using Element = typename Info::Element;
+  using TileShape =
+      cute::Shape<cute::Int<Info::kTileM>, cute::Int<Info::kTileN>, cute::Int<Info::kTileK>>;
+  using ClusterShape = cute::Shape<cute::_1, cute::_1, cute::_1>;
+  /// §4.2: the epilogue is instantiated first, because the mainloop builder
+  /// carves its stage count out of what the epilogue leaves.
+  using Epilogue = typename cutlass::epilogue::collective::CollectiveBuilder<
+      Arch, cutlass::arch::OpClassTensorOp, TileShape, ClusterShape,
+      cutlass::epilogue::collective::EpilogueTileAuto, float, float,
+      Element, cutlass::layout::RowMajor, 8,
+      Element, cutlass::layout::RowMajor, 8,
+      cutlass::epilogue::collective::EpilogueScheduleAuto>::CollectiveOp;
+  using Mainloop = typename cutlass::gemm::collective::CollectiveBuilder<
+      Arch, cutlass::arch::OpClassTensorOp,
+      Element, cutlass::layout::RowMajor, 8,
+      Element, cutlass::layout::ColumnMajor, 8,
+      float, TileShape, ClusterShape,
+      cutlass::gemm::collective::StageCountAutoCarveout<
+          static_cast<int>(sizeof(typename Epilogue::SharedStorage))>,
+      cutlass::gemm::collective::KernelScheduleAuto>::CollectiveOp;
+  static constexpr int kSmemBytes =
+      static_cast<int>(sizeof(typename Mainloop::SharedStorage));
+  static constexpr char const* kPath = "TMA warp-specialized CollectiveBuilder";
+};
+
+
 /// One point of the implementation search space (§5.1).  `Legal()` is the
 /// cheap tier-1 predicate; `Info()` is what the tier-2 ranker reads.
-template <bool BF16, int TileM, int TileN, int TileK, int Stages>
+template <bool BF16, int TileM, int TileN, int TileK, int Stages,
+          class Arch = arch::Sm80>
 struct TypedGemmCandidate {
   using BaseShape = std::conditional_t<
       BF16, TensorGemmBF16TN<TileM, TileN, TileK, Stages>,
@@ -263,7 +311,9 @@ struct TypedGemmCandidate {
     static constexpr int kTileK = TileK;
     static constexpr int kStages = Stages;
   };
-  using Collective = std::conditional_t<BF16, detail::TensorCollective<Shape_>,
+  /// The BF16 path picks its collective by the architecture's capability
+  /// (R8 BE-2); the FP32 SIMT path has one implementation on every target.
+  using Collective = std::conditional_t<BF16, ArchTensorCollective<Arch, Shape_>,
                                         detail::SimtCollective<Shape_>>;
   using Element = typename Shape_::Element;
   using Mainloop = typename Collective::Mainloop;
@@ -314,10 +364,23 @@ struct TypedGemmCandidate {
   static_assert(kShapeLegal ==
                 (BF16 ? solver::TensorBF16ShapeLegal(TileM, TileN, TileK, Stages)
                       : solver::SimtF32ShapeLegal(TileM, TileN, TileK, Stages)));
-  static_assert(!kShapeLegal ||
+  // R8 BE-2: the two closed forms below describe the cp.async multistage
+  // collective, which is the one the solver prices and the one every
+  // candidate it enumerates is built from. The TMA warp-specialized builder
+  // produces a different thread count and a different shared storage -- at
+  // 64x128x64 on sm_90, 221440 bytes against this path's 73728 -- so the
+  // contract is asserted for the priced path and *reported* for the other.
+  // Pricing the builder path is not done here: the solver would have to
+  // enumerate candidates it cannot cost, which is a cost-model change and
+  // belongs with the occupancy successor (BE-6) and R10, not with a silently
+  // relaxed assertion. `docs/experiments/BACKEND/be2_collective/` records
+  // both numbers per architecture.
+  static constexpr bool kPricedCollective =
+      !(BF16 && arch::Caps<Arch>::kBf16CollectiveBuilder);
+  static_assert(!kPricedCollective || !kShapeLegal ||
                 kThreads == (BF16 ? solver::kTensorBF16Threads
                                   : solver::kSimtF32Threads));
-  static_assert(!kShapeLegal ||
+  static_assert(!kPricedCollective || !kShapeLegal ||
                 kSmemBytes ==
                     (BF16 ? solver::TensorBF16SmemBytes(TileM, TileN, TileK,
                                                        Stages)
@@ -325,13 +388,13 @@ struct TypedGemmCandidate {
                                                     Stages)));
 };
 
-template <int TileM, int TileN, int TileK, int Stages>
+template <int TileM, int TileN, int TileK, int Stages, class Arch = arch::Sm80>
 using GemmCandidate = TypedGemmCandidate<
 #if defined(TILEMEGA_MODEL_BF16) && TILEMEGA_MODEL_BF16
     true,
 #else
     false,
 #endif
-    TileM, TileN, TileK, Stages>;
+    TileM, TileN, TileK, Stages, Arch>;
 
 }  // namespace tilemega::backend
