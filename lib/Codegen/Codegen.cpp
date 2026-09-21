@@ -89,13 +89,13 @@ PlacementPlanRecord readPlacementPlan(mlir::ModuleOp module) {
     dialect::PlacementMode parsed{};
     auto const name = mode.getValue();
     if (!dialect::ParsePlacementMode(name.data(), name.size(), &parsed))
-      throw std::invalid_argument("unknown placement mode on tilemega.placement");
+      throw std::invalid_argument("unknown placement mode on tmexec.placement");
     here.mode = static_cast<std::uint32_t>(parsed);
     if (auto const params = placement.getParams())
       here.params.assign(params->begin(), params->end());
     if (auto const param_map=placement.getParamsMapAttr()) {
       analysis::ParamBinding known;
-      if (auto bindings=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.placement_bindings"))
+      if (auto bindings=module->getAttrOfType<mlir::DictionaryAttr>("tmexec.placement_bindings"))
         for (auto binding:bindings) {
           auto integer=llvm::dyn_cast<mlir::IntegerAttr>(binding.getValue());
           if (!integer) throw std::invalid_argument("placement theta binding must be an integer");
@@ -110,7 +110,7 @@ PlacementPlanRecord readPlacementPlan(mlir::ModuleOp module) {
         dialect::kPlacementWindowImplemented));
     if (auto const policy = placement.getPolicyAttr())
       if (policy.getValue() != dialect::kPlacementPolicyAot)
-        throw std::invalid_argument("unknown placement policy on tilemega.placement");
+        throw std::invalid_argument("unknown placement policy on tmexec.placement");
     here.carried = true;
     if (carried == 1) plan = std::move(here);
     else if (plan.mode != here.mode || plan.params != here.params ||
@@ -785,7 +785,7 @@ struct VariantAnalysis {
 };
 
 VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
-  if (module && !module.getOps<dialect::FusedTaskSpaceOp>().empty())
+  if (module && !module.getOps<dialect::FusedTileSpaceOp>().empty())
     throw std::invalid_argument("fused L-task requires mixed-body runtime projection before CUDA lowering");
   if (!module || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument(
@@ -797,7 +797,7 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
   int max_stage = -1;
   std::unordered_map<std::string, std::uint32_t> task_stages;
   std::size_t tasks = 0;
-  for (auto task : module.getOps<dialect::TaskSpaceOp>()) {
+  for (auto task : module.getOps<dialect::TileSpaceOp>()) {
     ++tasks;
     max_stage = std::max(max_stage, static_cast<int>(task.getStage()));
     task_stages.emplace(task.getSymName().str(), task.getStage());
@@ -895,7 +895,7 @@ RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
 RuntimePlan ReadFusionSourcePlan(mlir::ModuleOp module) {
   analysis::IslReferenceAudit audit(__func__);
   if (!module || mlir::failed(mlir::verify(module)) ||
-      module.getOps<dialect::FusedTaskSpaceOp>().empty())
+      module.getOps<dialect::FusedTileSpaceOp>().empty())
     throw std::invalid_argument("fusion source plan requires verified replacement CG");
   auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   auto dependencies=module->getAttrOfType<mlir::ArrayAttr>("tilemega.fusion_source_dependencies");
@@ -917,9 +917,9 @@ RuntimePlan ReadFusionSourcePlan(mlir::ModuleOp module) {
     result.dependencies.push_back({static_cast<std::uint32_t>(p),
         static_cast<std::uint32_t>(c),analysis::ParseWaitWindow(stringField(entry,"window"))});
   }
-  for (auto task:module.getOps<dialect::TaskSpaceOp>())
+  for (auto task:module.getOps<dialect::TileSpaceOp>())
     result.task_stages.emplace(task.getSymName().str(),task.getStage());
-  for (auto task:module.getOps<dialect::FusedTaskSpaceOp>())
+  for (auto task:module.getOps<dialect::FusedTileSpaceOp>())
     result.task_stages.emplace(task.getSymName().str(),task.getPhaseStages().back());
   return result;
 }
@@ -1078,15 +1078,15 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
 std::string emitSolvedLaunch(mlir::ModuleOp module) {
   std::ostringstream out;
   for (auto const& [attr,macro]:std::vector<std::pair<char const*,char const*>>{
-      {"tilemega.solved_kappa","TILEMEGA_EVENT_KAPPA"},
-      { "tilemega.solved_residency","TILEMEGA_RESIDENCY_CAP"},
-      {"tilemega.solved_seq","TILEMEGA_SOLVED_SEQ"},
-      {"tilemega.solved_seq_begin","TILEMEGA_SOLVED_SEQ_BEGIN"},
-      {"tilemega.solved_seq_end","TILEMEGA_SOLVED_SEQ_END"},
-      {"tilemega.solved_past","TILEMEGA_SOLVED_PAST"},
-      {"tilemega.solved_grid","TILEMEGA_SOLVED_GRID"}}) {
+      {"tmexec.solved_kappa","TILEMEGA_EVENT_KAPPA"},
+      { "tmexec.solved_residency","TILEMEGA_RESIDENCY_CAP"},
+      {"tmexec.solved_seq","TILEMEGA_SOLVED_SEQ"},
+      {"tmexec.solved_seq_begin","TILEMEGA_SOLVED_SEQ_BEGIN"},
+      {"tmexec.solved_seq_end","TILEMEGA_SOLVED_SEQ_END"},
+      {"tmexec.solved_past","TILEMEGA_SOLVED_PAST"},
+      {"tmexec.solved_grid","TILEMEGA_SOLVED_GRID"}}) {
     if (auto value=module->getAttrOfType<mlir::IntegerAttr>(attr)) {
-      if (value.getInt()<0 || (value.getInt()==0 && std::string(attr)!="tilemega.solved_past"))
+      if (value.getInt()<0 || (value.getInt()==0 && std::string(attr)!="tmexec.solved_past"))
         throw std::invalid_argument("invalid solved launch parameter");
       out << "#if defined(" << macro << ") && " << macro << " != " << value.getInt()
           << "\n#error \"compile option disagrees with solved Plan\"\n#endif\n"
@@ -1097,7 +1097,7 @@ std::string emitSolvedLaunch(mlir::ModuleOp module) {
   // compare against `__CUDA_ARCH__` and the harness against the device. A
   // module solved before this attribute existed emits nothing and keeps the
   // header's own default.
-  if (auto arch=module->getAttrOfType<mlir::StringAttr>("tilemega.solved_arch")) {
+  if (auto arch=module->getAttrOfType<mlir::StringAttr>("tmexec.solved_arch")) {
     int const id=tilemega::arch::ArchIdForTag(arch.getValue().str());
     if (!id) throw std::invalid_argument("solved Plan names an unknown architecture: "+
                                          arch.getValue().str());
@@ -1110,7 +1110,7 @@ std::string emitSolvedLaunch(mlir::ModuleOp module) {
   // Per-stage kappa (§6 B2) is emitted only when the Plan carries it, so a
   // solved module without it produces the text, and therefore the SASS, it
   // produced before the dimension existed (H2).
-  if (auto table=module->getAttrOfType<mlir::DenseI64ArrayAttr>("tilemega.solved_stage_kappa")) {
+  if (auto table=module->getAttrOfType<mlir::DenseI64ArrayAttr>("tmexec.solved_stage_kappa")) {
     out << "#define TILEMEGA_EVENT_KAPPA_PER_STAGE 1\n#define TILEMEGA_EVENT_KAPPA_TABLE";
     char const* separator=" ";
     for (std::int64_t kappa:table.asArrayRef()) {
@@ -1128,7 +1128,7 @@ std::string emitSolvedLaunch(mlir::ModuleOp module) {
 std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   if (!module || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument("CouplingGraphToCUDA requires a verified CG ModuleOp");
-  if (!module.getOps<dialect::FusedTaskSpaceOp>().empty())
+  if (!module.getOps<dialect::FusedTileSpaceOp>().empty())
     return LowerFusedRuntime(module);
 
   std::size_t tasks = 0, couplings = 0, placements = 0;
@@ -1138,7 +1138,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   for (auto const& [name, value] : granularity.values) known.Bind(name, value);
   int maxStage = -1;
   std::unordered_map<std::string, std::uint32_t> taskStages;
-  for (auto task : module.getOps<dialect::TaskSpaceOp>()) {
+  for (auto task : module.getOps<dialect::TileSpaceOp>()) {
     ++tasks;
     maxStage = std::max(maxStage, static_cast<int>(task.getStage()));
     taskStages.emplace(task.getSymName().str(),
@@ -1146,7 +1146,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   }
   if (maxStage < 0) throw std::invalid_argument("CG has no task spaces");
   std::vector<std::size_t> stageCounts(maxStage + 1, 0);
-  for (auto task : module.getOps<dialect::TaskSpaceOp>())
+  for (auto task : module.getOps<dialect::TileSpaceOp>())
     ++stageCounts[task.getStage()];
   // Every producer-earlier/consumer-later stage pair needs a device-side
   // event dependency, carrying the narrowest wait set every coupling that

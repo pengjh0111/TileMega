@@ -16,6 +16,7 @@ int main() try {
   analysis::IslContext isl;
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
   auto target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/sm_89.json");
   int cases=0,errors=0;
   for (auto model:{"gqa2","mha4"}) for (auto pair:{std::make_pair("l0.s05.rope","l0.s06.append"),

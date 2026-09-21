@@ -77,20 +77,20 @@ inline void WriteSolvedPlacement(mlir::ModuleOp module,
     placement->setAttr("grid_map",CouplingMapAttr::get(module.getContext(),function));
     placement->setAttr("resident_limit_map",CouplingMapAttr::get(module.getContext(),function));
   }
-  module->setAttr("tilemega.solved_placement",b.getStringAttr(selected.name));
+  module->setAttr("tmexec.solved_placement",b.getStringAttr(selected.name));
   // R8 BE-1: the architecture the Plan was priced and compiled for travels
   // with the Plan. Codegen turns it into the arch tag the TaskBodies are
   // instantiated on, and the harness refuses a device that disagrees.
-  module->setAttr("tilemega.solved_arch",b.getStringAttr(options.target.arch_tag));
-  module->setAttr("tilemega.solved_kappa",b.getI64IntegerAttr(options.kappa));
+  module->setAttr("tmexec.solved_arch",b.getStringAttr(options.target.arch_tag));
+  module->setAttr("tmexec.solved_kappa",b.getI64IntegerAttr(options.kappa));
   if (!options.stage_kappa.empty())
-    module->setAttr("tilemega.solved_stage_kappa",b.getDenseI64ArrayAttr(
+    module->setAttr("tmexec.solved_stage_kappa",b.getDenseI64ArrayAttr(
         std::vector<std::int64_t>(options.stage_kappa.begin(),options.stage_kappa.end())));
-  module->setAttr("tilemega.solved_residency",b.getI64IntegerAttr(options.residency));
-  module->setAttr("tilemega.solved_seq",b.getI64IntegerAttr(options.dims.seq));
-  module->setAttr("tilemega.solved_past",b.getI64IntegerAttr(options.dims.past));
-  module->setAttr("tilemega.solved_grid",b.getI64IntegerAttr(grid));
-  module->setAttr("tilemega.solved_floor_ns",b.getF64FloatAttr(selected.bounds.lower_bound_ns));
+  module->setAttr("tmexec.solved_residency",b.getI64IntegerAttr(options.residency));
+  module->setAttr("tmexec.solved_seq",b.getI64IntegerAttr(options.dims.seq));
+  module->setAttr("tmexec.solved_past",b.getI64IntegerAttr(options.dims.past));
+  module->setAttr("tmexec.solved_grid",b.getI64IntegerAttr(grid));
+  module->setAttr("tmexec.solved_floor_ns",b.getF64FloatAttr(selected.bounds.lower_bound_ns));
   if (mlir::failed(mlir::verify(module))) throw std::invalid_argument("solved placement failed CG verification");
 }
 
@@ -364,10 +364,10 @@ inline void SolveAndWritePlacementInterval(mlir::ModuleOp module,
   mlir::NamedAttrList table(llvm::cast<mlir::DictionaryAttr>(entries.front()));
   table.set("interval",b.getArrayAttr(entries));
   module->setAttr(kPlacementTableAttr,table.getDictionary(module.getContext()));
-  module->removeAttr("tilemega.solved_seq");
-  module->setAttr("tilemega.solved_seq_begin",b.getI64IntegerAttr(begin));
-  module->setAttr("tilemega.solved_seq_end",b.getI64IntegerAttr(end));
-  module->setAttr("tilemega.solved_placement",b.getStringAttr("finite_theta_interval"));
+  module->removeAttr("tmexec.solved_seq");
+  module->setAttr("tmexec.solved_seq_begin",b.getI64IntegerAttr(begin));
+  module->setAttr("tmexec.solved_seq_end",b.getI64IntegerAttr(end));
+  module->setAttr("tmexec.solved_placement",b.getStringAttr("finite_theta_interval"));
   if(mlir::failed(mlir::verify(module)))throw std::invalid_argument("interval CG verification failed");
 }
 

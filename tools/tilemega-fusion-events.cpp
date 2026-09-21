@@ -17,6 +17,7 @@ int main(int argc,char** argv) try {
   analysis::IslContext isl;
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
   auto module=frontend::TorchExportImporter{}.Import(argv[1],context);
   int seq=std::stoi(argv[3]),past=std::stoi(argv[4]);
   auto model=ModelDescription::FromCouplingGraph(*module,{seq,past,seq+past},argv[1]);

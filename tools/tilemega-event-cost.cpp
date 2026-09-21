@@ -25,6 +25,7 @@ int main(int argc, char** argv) try {
   std::string root = argv[1];
   mlir::MLIRContext context;
   context.getOrLoadDialect<tilemega::dialect::CGDialect>();
+  context.getOrLoadDialect<tilemega::dialect::ExecDialect>();
   std::cout << "model\tseq\tpast\tproducer\tconsumer\twait_sum\tfanout_sum\tcount\tvolume\n"
             << std::setprecision(17);
   for (std::string name : {"gqa2", "mha4"}) {

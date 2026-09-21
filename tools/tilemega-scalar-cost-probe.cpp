@@ -90,6 +90,7 @@ int main(int argc,char** argv) try {
   auto target=TargetSpec::FromJson(root+"/configs/targets/sm_89.json");
   mlir::MLIRContext mlir;
   mlir.getOrLoadDialect<dialect::CGDialect>();
+  mlir.getOrLoadDialect<dialect::ExecDialect>();
   std::string source=dtype=="bf16" ? root+"/docs/experiments/SEQSCAN/raw/export/"+name+".json"
       : root+"/docs/experiments/"+(name=="gqa2" ? "E2E_GEN" : "P3_GENERALIZATION")+"/raw/export_bridge.json";
   std::cout << std::setprecision(17) << "dtype\tmodel\townership\tseq\tpast\tstage\top\ttasks\tread_elements\twrite_elements\tdepth\tbarriers\told_ns\tnew_ns\tratio\n";

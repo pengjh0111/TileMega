@@ -13,7 +13,7 @@
 
 namespace tilemega::dialect {
 
-/// One operand's indexing, as `#tilemega.access_map<{operand, coordinates,
+/// One operand's indexing, as `#tmcg.access_map<{operand, coordinates,
 /// spans}>`. The same encoding is used on both sides of the §5 check: the
 /// task space's derived `index_map` and the implementation's declared
 /// `access`, so the verifier compares like with like.

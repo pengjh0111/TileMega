@@ -17,6 +17,7 @@ int main() try {
   analysis::IslContext isl;
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
   int errors=0,identities=0,tasks=0;
   for (auto name:{"gqa2","mha4"}) {
     auto module=frontend::TorchExportImporter{}.Import(std::string(TILEMEGA_SOURCE_DIR)+

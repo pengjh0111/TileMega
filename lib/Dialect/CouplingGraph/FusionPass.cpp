@@ -20,8 +20,8 @@ namespace {
 void Rewrite(mlir::ModuleOp module,std::string const& producer,std::string const& consumer,
              solver::ModelFusionCandidate const& candidate) {
   using namespace mlir;
-  TaskSpaceOp p,c;
-  for (auto task:module.getOps<TaskSpaceOp>()) {
+  TileSpaceOp p,c;
+  for (auto task:module.getOps<TileSpaceOp>()) {
     if (task.getOperatorName()==producer) p=task;
     if (task.getOperatorName()==consumer) c=task;
   }
@@ -38,7 +38,7 @@ void Rewrite(mlir::ModuleOp module,std::string const& producer,std::string const
     for (auto const& [tensor,map]:accesses) attributes.set(tensor,CouplingMapAttr::get(module.getContext(),map));
     return attributes.getDictionary(module.getContext());
   };
-  OperationState fused(p.getLoc(),FusedTaskSpaceOp::getOperationName());
+  OperationState fused(p.getLoc(),FusedTileSpaceOp::getOperationName());
   fused.addAttribute("sym_name",builder.getStringAttr(name));
   fused.addAttribute("phase_semantics",builder.getArrayAttr({p.getSemanticAttr(),c.getSemanticAttr()}));
   fused.addAttribute("phase_granularities",builder.getArrayAttr({p.getGranularity(),c.getGranularity()}));

@@ -43,6 +43,7 @@ int main(int argc, char** argv) try {
       import.activation_tile_per_block = import.combiner_tile_per_block = ownership == "tile";
   mlir::MLIRContext context;
   context.getOrLoadDialect<tilemega::dialect::CGDialect>();
+  context.getOrLoadDialect<tilemega::dialect::ExecDialect>();
   auto module = tilemega::frontend::TorchExportImporter{}.Import(argv[1],context,nullptr,import);
   auto seed = tilemega::codegen::ReadRuntimePlan(*module);
   if (argc>=17) {

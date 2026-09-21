@@ -39,18 +39,18 @@ std::string ModuleText(std::string const& module_attrs,
   std::string text = "module";
   if (!module_attrs.empty()) text += " attributes {" + module_attrs + "}";
   text +=
-      " { tilemega.task_space @t {granularity = {}, "
-      "kind = #tilemega.task_kind<\"elementwise\">, stage = 0 : i64, "
-      "operator_name = \"test\", write_map = #tilemega.access_map<{}>, "
+      " { tmcg.tile_space @t {granularity = {}, "
+      "kind = #tmcg.task_kind<\"elementwise\">, stage = 0 : i64, "
+      "operator_name = \"test\", write_map = #tmcg.access_map<{}>, "
       "arithmetic = \"add\"}\n"
-      "  tilemega.placement @t map = [0] cluster = 1";
+      "  tmexec.placement @t map = [0] cluster = 1";
   if (!plan_attrs.empty()) text += " {" + plan_attrs + "}";
   text += " }";
   return text;
 }
 
 std::string Table(char const* worker, char const* slot, char const* tail) {
-  return std::string("tilemega.placement_table = {worker = array<i64: ") +
+  return std::string("tmexec.placement_table = {worker = array<i64: ") +
          worker + ">, slot = array<i64: " + slot + ">, " + tail + "}";
 }
 
@@ -64,6 +64,7 @@ char const* kTheta = "seq = 4 : i64, past = 3 : i64, grid = 2 : i64";
 int main() {
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
   // Most parses here are meant to fail, so the diagnostic is captured instead
   // of printed; `rejected` asserts on its text, which is what keeps a test from
   // passing on the wrong refusal.
@@ -122,12 +123,12 @@ int main() {
                                     "seq = 4 : i64, past = 3 : i64, grid = 0 : i64"),
                               kEftPlan),
                    "names grid 0"));
-  REQUIRE(rejected(ModuleText(std::string("tilemega.placement_table = {worker = "
+  REQUIRE(rejected(ModuleText(std::string("tmexec.placement_table = {worker = "
                                           "array<i64>, slot = array<i64>, ") +
                                   kTheta + "}",
                               kEftPlan),
                    "is empty; absent and empty are different"));
-  REQUIRE(rejected(ModuleText("tilemega.placement_table = {worker = array<i64: 0>}",
+  REQUIRE(rejected(ModuleText("tmexec.placement_table = {worker = array<i64: 0>}",
                               kEftPlan),
                    "needs worker and slot as array<i64>"));
 

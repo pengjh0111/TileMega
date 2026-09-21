@@ -112,7 +112,7 @@ inline IntervalSegmentation SolveIntervalSegments(std::string const& path,
   pinned.kappa=search.winner.kappa;pinned.stage_kappa=search.stage_kappa;
   pinned.residency=residency;
   pinned.requested_grid=int(solved->getAttrOfType<mlir::IntegerAttr>(
-      "tilemega.solved_grid").getInt());
+      "tmexec.solved_grid").getInt());
   pinned.task_price_cache=std::make_shared<dialect::PlacementTaskPriceCache>();
   int const past=options.placement.dims.past;
   std::vector<mlir::OwningOpRef<mlir::ModuleOp>> imported;
@@ -199,8 +199,8 @@ inline IntervalSegmentation SolveIntervalSegments(std::string const& path,
   // holds travels in its own runtime plan table.
   mlir::OpBuilder b(&context);
   for (auto& segment:result.segments) {
-    (*segment.module)->setAttr("tilemega.solved_seq_begin",b.getI64IntegerAttr(begin));
-    (*segment.module)->setAttr("tilemega.solved_seq_end",b.getI64IntegerAttr(end));
+    (*segment.module)->setAttr("tmexec.solved_seq_begin",b.getI64IntegerAttr(begin));
+    (*segment.module)->setAttr("tmexec.solved_seq_end",b.getI64IntegerAttr(end));
   }
   return result;
 }

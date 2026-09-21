@@ -208,6 +208,7 @@ int main(int argc, char** argv) {
   try {
     mlir::MLIRContext context;
     context.getOrLoadDialect<tilemega::dialect::CGDialect>();
+  context.getOrLoadDialect<tilemega::dialect::ExecDialect>();
     tilemega::frontend::ImportSummary summary;
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
@@ -366,10 +367,10 @@ int main(int argc, char** argv) {
       if(interval_begin) {
         auto interval_options=solve_options.placement;
         auto integer=[&](char const* key){return int((*module)->getAttrOfType<mlir::IntegerAttr>(key).getInt());};
-        interval_options.residency=integer("tilemega.solved_residency");
+        interval_options.residency=integer("tmexec.solved_residency");
         interval_options.verified_resident_limit=interval_options.residency;
-        interval_options.kappa=integer("tilemega.solved_kappa");
-        interval_options.requested_grid=integer("tilemega.solved_grid");
+        interval_options.kappa=integer("tmexec.solved_kappa");
+        interval_options.requested_grid=integer("tmexec.solved_grid");
         std::ofstream interval_evidence(std::string(argv[2])+".interval.tsv");
         interval_evidence<<"seq\tplacement\tfloor_ns\tpredicted_ns\terror\n";
         tilemega::dialect::SolveAndWritePlacementInterval(*module,interval_options,interval_begin,dims.seq,&interval_evidence);
@@ -429,7 +430,7 @@ int main(int argc, char** argv) {
         throw std::runtime_error("runtime variants require stable export JSON input");
       module = mlir::parseSourceFile<mlir::ModuleOp>(input.string(), &context);
       if (!module) throw std::runtime_error("cannot parse CG MLIR input");
-      for (auto task : module->getOps<tilemega::dialect::TaskSpaceOp>()) {
+      for (auto task : module->getOps<tilemega::dialect::TileSpaceOp>()) {
         ++summary.task_spaces;
         summary.stages = std::max(summary.stages,
             static_cast<std::size_t>(task.getStage() + 1));

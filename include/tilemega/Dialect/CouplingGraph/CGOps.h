@@ -11,6 +11,11 @@
 #define GET_OP_CLASSES
 #include "tilemega/Dialect/CouplingGraph/CGOps.h.inc"
 
+// The execution ops live in their own dialect (R8 BE-7) but in the same C++
+// namespace, so every existing includer keeps compiling while the IR itself
+// is split.
+#include <tilemega/Dialect/CouplingGraph/ExecOps.h>
+
 namespace tilemega::dialect {
 
 /// Read `kPlacementTableAttr` off a CG module, or leave `*table` empty when the

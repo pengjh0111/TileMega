@@ -404,6 +404,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     ExportBridge bridge, ModelPlan const* selected_plan, mlir::MLIRContext& context,
     ImportSummary* summary, ImportOptions const& options) {
   context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
   std::vector<FxNodeRecord>& allNodes = bridge.nodes;
   std::vector<FxNodeRecord>& tasks = bridge.tasks;
   std::vector<SignatureInput>& signatureInputs = bridge.inputs;
@@ -594,7 +595,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
         : origin.ownership;
     tiles.push_back(builder.getNamedAttr(
         "ownership", builder.getStringAttr(ToString(ownership))));
-    mlir::OperationState state(builder.getUnknownLoc(), "tilemega.task_space");
+    mlir::OperationState state(builder.getUnknownLoc(), "tmcg.tile_space");
     state.addAttribute(mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(symbol));
     state.addAttribute("kind", dialect::TaskKindAttr::get(
         &context, builder.getStringAttr(taskKindOf(origin.role))));
@@ -741,7 +742,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
       dims.push_back(dialect::MetricAttr::get(&context, metricOf(axis, granularityBinding)));
       product = product * axis;
     }
-    mlir::OperationState eventState(builder.getUnknownLoc(), "tilemega.event_tensor");
+    mlir::OperationState eventState(builder.getUnknownLoc(), "tmcg.event_tensor");
     eventState.addAttribute(mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(eventName));
     eventState.addAttribute("event_type", mlir::TypeAttr::get(
         mlir::RankedTensorType::get(shape, builder.getI32Type())));
@@ -751,7 +752,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     builder.create(eventState);
 
     LiftedOp const& consumer = liftedOf(item.dst.name);
-    mlir::OperationState state(builder.getUnknownLoc(), "tilemega.coupling");
+    mlir::OperationState state(builder.getUnknownLoc(), "tmcg.coupling");
     state.addAttribute(mlir::SymbolTable::getSymbolAttrName(),
                        builder.getStringAttr("c" + std::to_string(edge)));
     state.addAttribute("src", mlir::FlatSymbolRefAttr::get(&context, source->second));
@@ -780,7 +781,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     ++edge;
   }
   for (auto const& node : graph.nodes) {
-    mlir::OperationState state(builder.getUnknownLoc(), "tilemega.placement");
+    mlir::OperationState state(builder.getUnknownLoc(), "tmexec.placement");
     state.addAttribute("task", mlir::FlatSymbolRefAttr::get(&context, symbols.at(node.name)));
     state.addAttribute("map", builder.getDenseI64ArrayAttr({0}));
     state.addAttribute("cluster", builder.getI64IntegerAttr(1));

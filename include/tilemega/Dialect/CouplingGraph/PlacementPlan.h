@@ -3,7 +3,7 @@
 //                §8.11 (only the solver decides a schedule).
 //
 // The names and parameter arities of the placement plan carried by
-// `tilemega.placement`.  The dialect verifier, codegen and the host
+// `tmexec.placement`.  The dialect verifier, codegen and the host
 // materializer must agree on exactly this table, so it lives here rather than
 // as three copies of a string comparison.
 #pragma once
@@ -41,10 +41,10 @@ enum class PlacementTemplate {
 };
 
 /// The module attribute an `eft` Plan's materialized (pi, sigma) travels in.
-/// It is not on `tilemega.placement`: at a bound theta the table is one object
+/// It is not on `tmexec.placement`: at a bound theta the table is one object
 /// for the whole model, indexed by flat runtime node id, and every task space
 /// would otherwise have to carry a copy of all of it.
-inline constexpr char kPlacementTableAttr[] = "tilemega.placement_table";
+inline constexpr char kPlacementTableAttr[] = "tmexec.placement_table";
 
 /// The materialized form of a Plan (§5.7.1): pi as `worker` and sigma as
 /// `slot`, per runtime node in flat node-id order, plus the theta and grid the

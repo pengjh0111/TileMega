@@ -12,7 +12,8 @@ int main(int argc, char** argv) {
   tilemega::dialect::RegisterFusionPass();
   tilemega::dialect::RegisterPlacementSolvePass();
   mlir::DialectRegistry registry;
-  registry.insert<tilemega::dialect::CGDialect>();
+  registry.insert<tilemega::dialect::CGDialect,
+                  tilemega::dialect::ExecDialect>();
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "TileMega Coupling Graph optimizer\n", registry));
 }

@@ -28,6 +28,7 @@ using namespace mlir;
 using namespace tilemega::dialect;
 
 #include "tilemega/Dialect/CouplingGraph/CGDialect.cpp.inc"
+#include "tilemega/Dialect/CouplingGraph/ExecDialect.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
 #include "tilemega/Dialect/CouplingGraph/CGAttrs.cpp.inc"
@@ -42,6 +43,15 @@ void CGDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
 #include "tilemega/Dialect/CouplingGraph/CGOps.cpp.inc"
+      >();
+}
+
+// R8 BE-7: the execution dialect owns the solver's decisions and nothing
+// else, which is what makes the ownership check in C-b a grep.
+void ExecDialect::initialize() {
+  addOperations<
+#define GET_OP_LIST
+#include "tilemega/Dialect/CouplingGraph/ExecOps.cpp.inc"
       >();
 }
 
@@ -101,7 +111,7 @@ static analysis::ParamBinding combinedBinding(ModuleOp module) {
   return result;
 }
 
-LogicalResult TaskSpaceOp::verify() {
+LogicalResult TileSpaceOp::verify() {
   static constexpr StringLiteral known[] = {
       "gemm", "rmsnorm", "rope", "kvappend", "elementwise", "attention",
       "embedding",
@@ -133,7 +143,7 @@ LogicalResult TaskSpaceOp::verify() {
   return success();
 }
 
-LogicalResult FusedTaskSpaceOp::verify() {
+LogicalResult FusedTileSpaceOp::verify() {
   analysis::IslReferenceAudit audit(__func__);
   if (getPhaseSemantics().size()<2 || getPhaseSemantics().size()!=getPhaseMaps().size() ||
       getPhaseSemantics().size()!=getPhaseGranularities().size() ||
@@ -226,9 +236,9 @@ LogicalResult CouplingOp::verify() {
   if (!module) return emitOpError("must be nested in a module");
   auto source=SymbolTable::lookupNearestSymbolFrom(*this,getSrcAttr());
   auto destination=SymbolTable::lookupNearestSymbolFrom(*this,getDstAttr());
-  if (!source || !isa<TaskSpaceOp,FusedTaskSpaceOp>(source))
+  if (!source || !isa<TileSpaceOp,FusedTileSpaceOp>(source))
     return emitOpError() << "unknown source task " << getSrc();
-  if (!destination || !isa<TaskSpaceOp,FusedTaskSpaceOp>(destination))
+  if (!destination || !isa<TileSpaceOp,FusedTileSpaceOp>(destination))
     return emitOpError() << "unknown destination task " << getDst();
   auto event = SymbolTable::lookupNearestSymbolFrom<EventTensorOp>(*this, getEventAttr());
   if (!event) return emitOpError() << "unknown event tensor " << getEvent();
@@ -308,7 +318,7 @@ LogicalResult CouplingOp::verify() {
 }
 
 LogicalResult ImplementationOp::verify() {
-  auto task = SymbolTable::lookupNearestSymbolFrom<TaskSpaceOp>(*this, getTaskAttr());
+  auto task = SymbolTable::lookupNearestSymbolFrom<TileSpaceOp>(*this, getTaskAttr());
   if (!task) return emitOpError() << "unknown task space " << getTask();
   solver::ImplementationContract declared;
   std::string reason;
@@ -345,7 +355,7 @@ LogicalResult PlacementOp::verify() {
   if (failed(verifyPlan())) return failure();
   if (getCluster() < 1) return emitOpError("cluster must be positive");
   if (getMap().empty()) return emitOpError("placement map cannot be empty");
-  if (!SymbolTable::lookupNearestSymbolFrom<TaskSpaceOp>(*this, getTaskAttr()))
+  if (!SymbolTable::lookupNearestSymbolFrom<TileSpaceOp>(*this, getTaskAttr()))
     return emitOpError() << "unknown task space " << getTask();
   return success();
 }
@@ -525,3 +535,7 @@ LogicalResult PlacementOp::verifyPlan() {
 
 #define GET_OP_CLASSES
 #include "tilemega/Dialect/CouplingGraph/CGOps.cpp.inc"
+// The generated file undefines the macro it consumed, so the second one needs
+// it set again.
+#define GET_OP_CLASSES
+#include "tilemega/Dialect/CouplingGraph/ExecOps.cpp.inc"

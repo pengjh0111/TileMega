@@ -20,6 +20,7 @@ int main() try {
   analysis::IslContext isl;
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
   int checks=0,errors=0;
   auto print=[](mlir::ModuleOp module) {
     std::string text; llvm::raw_string_ostream out(text); module.print(out); return out.str();
@@ -42,13 +43,13 @@ int main() try {
     reject([&] { dialect::FuseTaskPair(*module,"l0.s00.norm","l0.s06.append"); });
     if (print(*module)!=before) throw std::runtime_error("failed fusion mutated original CG");
     auto count=[](auto range) { return std::distance(range.begin(),range.end()); };
-    auto tasks=count(module->getOps<dialect::TaskSpaceOp>());
+    auto tasks=count(module->getOps<dialect::TileSpaceOp>());
     auto edges=count(module->getOps<dialect::CouplingOp>());
     dialect::FuseTaskPair(*module,"l0.s05.rope","l0.s06.append");
-    if (mlir::failed(mlir::verify(*module)) || count(module->getOps<dialect::TaskSpaceOp>())!=tasks-2 ||
-        count(module->getOps<dialect::FusedTaskSpaceOp>())!=1 || count(module->getOps<dialect::CouplingOp>())!=edges-1)
+    if (mlir::failed(mlir::verify(*module)) || count(module->getOps<dialect::TileSpaceOp>())!=tasks-2 ||
+        count(module->getOps<dialect::FusedTileSpaceOp>())!=1 || count(module->getOps<dialect::CouplingOp>())!=edges-1)
       throw std::runtime_error("fusion did not replace task graph and remove exactly one internal edge");
-    auto task=*module->getOps<dialect::FusedTaskSpaceOp>().begin();
+    auto task=*module->getOps<dialect::FusedTileSpaceOp>().begin();
     mlir::Builder builder(&context);
     auto reject_attribute=[&](llvm::StringRef name,mlir::Attribute replacement) {
       int refs=isl.ReferenceCount();

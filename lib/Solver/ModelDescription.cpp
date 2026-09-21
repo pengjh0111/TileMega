@@ -157,7 +157,7 @@ ModelDescription ModelDescription::ReadCouplingGraph(
 #endif
   if (!module || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument("cost input requires a verified CG module");
-  if (!phase_context && !module.getOps<dialect::FusedTaskSpaceOp>().empty())
+  if (!phase_context && !module.getOps<dialect::FusedTileSpaceOp>().empty())
     throw std::invalid_argument("fused L-task cost input requires phase-aware model reconstruction");
   auto plan = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   if (!plan) throw std::invalid_argument("CG has no semantic model plan");
@@ -228,7 +228,7 @@ ModelDescription ModelDescription::ReadCouplingGraph(
   }
   std::map<std::string, int> task_stage;
   std::map<std::string, std::string> task_name;
-  for (auto task : module.getOps<dialect::TaskSpaceOp>()) {
+  for (auto task : module.getOps<dialect::TileSpaceOp>()) {
     task_stage.emplace(task.getSymName().str(), task.getStage());
     task_name.emplace(task.getSymName().str(),task.getOperatorName().str());
     if (auto payload=task.getSemantic()) {

@@ -313,6 +313,7 @@ int main(int argc, char** argv) {
   try {
     mlir::MLIRContext context;
     context.getOrLoadDialect<tilemega::dialect::CGDialect>();
+  context.getOrLoadDialect<tilemega::dialect::ExecDialect>();
     auto cg=tilemega::frontend::TorchExportImporter{}.Import(
         repo+"/docs/experiments/E2E_GEN/raw/export_bridge.json",context);
     probe_storage=ModelDescription::FromCouplingGraph(*cg,ModelDims{4,3,7},"gqa2");

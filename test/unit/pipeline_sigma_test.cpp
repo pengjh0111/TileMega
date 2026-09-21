@@ -246,6 +246,7 @@ int main() try {
   analysis::IslContext isl;
   mlir::MLIRContext ctx;
   ctx.getOrLoadDialect<dialect::CGDialect>();
+  ctx.getOrLoadDialect<dialect::ExecDialect>();
   CheckReferenceModels(ctx);
   CheckPricing(ctx);
   CheckRealWidth(ctx);

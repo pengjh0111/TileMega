@@ -19,6 +19,7 @@ int main(int argc, char** argv) {
   try {
     mlir::MLIRContext context;
     context.getOrLoadDialect<tilemega::dialect::CGDialect>();
+  context.getOrLoadDialect<tilemega::dialect::ExecDialect>();
     tilemega::frontend::ImportSummary summary;
     tilemega::frontend::ImportOptions options;
     options.separate_residual_tasks=argc==3;

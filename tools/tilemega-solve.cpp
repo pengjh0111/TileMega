@@ -222,6 +222,7 @@ int main(int argc, char** argv) try {
     if (unified || dtype==ScalarType::kBF16) {
       mlir::MLIRContext context;
       context.getOrLoadDialect<tilemega::dialect::CGDialect>();
+  context.getOrLoadDialect<tilemega::dialect::ExecDialect>();
       std::string input=dtype==ScalarType::kBF16
           ? repo+"/docs/experiments/SEQSCAN/raw/export/"+source.name+".json"
           : repo+"/docs/experiments/"+(std::string(source.name)=="gqa2" ? "E2E_GEN" : "P3_GENERALIZATION")+"/raw/export_bridge.json";

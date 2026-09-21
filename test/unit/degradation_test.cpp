@@ -26,7 +26,7 @@ int main() {
   assert(!module->getOperation()->getAttr("tilemega.model_plan"));
 
   int generic = 0, spaces = 0;
-  for (auto task : module->getOps<tilemega::dialect::TaskSpaceOp>()) {
+  for (auto task : module->getOps<tilemega::dialect::TileSpaceOp>()) {
     ++spaces;
     generic += task.getWriteMap().getFields().getAs<mlir::StringAttr>("kind")
                    .getValue() == "generic";

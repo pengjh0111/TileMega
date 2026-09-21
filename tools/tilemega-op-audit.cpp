@@ -17,6 +17,7 @@ int main(int argc,char** argv) try {
     if (argc!=2) throw std::invalid_argument("usage: tilemega-op-audit [fused.mlir]");
     mlir::MLIRContext mlir_context;
     mlir_context.getOrLoadDialect<tilemega::dialect::CGDialect>();
+  mlir_context.getOrLoadDialect<tilemega::dialect::ExecDialect>();
     auto module=mlir::parseSourceFile<mlir::ModuleOp>(argv[1],&mlir_context);
     if (!module) throw std::invalid_argument("cannot parse fusion arithmetic input");
     auto tasks=tilemega::solver::ReadFusedTaskInputs(*module);

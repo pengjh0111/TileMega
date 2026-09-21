@@ -36,10 +36,11 @@ int main() {
   tilemega::analysis::IslContext isl_context;
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
   for (auto const* signature : {"add", "missing_operator"}) {
-    std::string text = "module { tilemega.task_space @t {granularity = {}, "
-      "kind = #tilemega.task_kind<\"elementwise\">, stage = 0 : i64, "
-      "operator_name = \"test\", write_map = #tilemega.access_map<{}>, arithmetic = \"";
+    std::string text = "module { tmcg.tile_space @t {granularity = {}, "
+      "kind = #tmcg.task_kind<\"elementwise\">, stage = 0 : i64, "
+      "operator_name = \"test\", write_map = #tmcg.access_map<{}>, arithmetic = \"";
     text += signature;
     text += "\"} }";
     auto parsed = mlir::parseSourceString<mlir::ModuleOp>(text, &context);
@@ -86,32 +87,32 @@ int main() {
   auto module = [&](llvm::StringRef tier, llvm::StringRef extent) {
     std::string text =
         "module {\n"
-        "  tilemega.task_space @a {fx_name = \"a\", granularity = {t = 1 : i64},"
-        " kind = #tilemega.task_kind<\"elementwise\">,"
+        "  tmcg.tile_space @a {fx_name = \"a\", granularity = {t = 1 : i64},"
+        " kind = #tmcg.task_kind<\"elementwise\">,"
         " operator_name = \"aten.mul.Tensor\", stage = 0 : i64,"
-        " write_map = #tilemega.access_map<{kind = \"elementwise\"}>}\n"
-        "  tilemega.task_space @b {fx_name = \"b\", granularity = {t = 1 : i64},"
-        " kind = #tilemega.task_kind<\"elementwise\">,"
+        " write_map = #tmcg.access_map<{kind = \"elementwise\"}>}\n"
+        "  tmcg.tile_space @b {fx_name = \"b\", granularity = {t = 1 : i64},"
+        " kind = #tmcg.task_kind<\"elementwise\">,"
         " operator_name = \"aten.mul.Tensor\", stage = 0 : i64,"
-        " write_map = #tilemega.access_map<{kind = \"elementwise\"}>}\n"
-        "  tilemega.event_tensor @e : tensor<1xi32> "
-        "{extent = #tilemega.metric<\"{ 1 }\">}\n"
-        "  tilemega.coupling @c from @a to @b {count = #tilemega.metric<\"{ 1 }\">,"
-        " coupling_attrs = #tilemega.coupling_attrs<\"affine\", \"";
+        " write_map = #tmcg.access_map<{kind = \"elementwise\"}>}\n"
+        "  tmcg.event_tensor @e : tensor<1xi32> "
+        "{extent = #tmcg.metric<\"{ 1 }\">}\n"
+        "  tmcg.coupling @c from @a to @b {count = #tmcg.metric<\"{ 1 }\">,"
+        " coupling_attrs = #tmcg.coupling_attrs<\"affine\", \"";
     text += extent.str();
     text +=
         "\", \"exact\", \"";
     text += extent == "runtime_dynamic" ? "prefix_sum" : "none";
     text +=
         "\", \"constant\">,"
-        " event = @e, fanout = #tilemega.metric<\"{ 1 }\">,"
-        " read_map = #tilemega.access_map<{kind = \"identity\"}>,"
-        " relation = #tilemega.coupling_map<\"{ [0] -> [0] }\">,"
-        " sync_kind = #tilemega.sync<\"global\">, tier = #tilemega.tier<";
+        " event = @e, fanout = #tmcg.metric<\"{ 1 }\">,"
+        " read_map = #tmcg.access_map<{kind = \"identity\"}>,"
+        " relation = #tmcg.coupling_map<\"{ [0] -> [0] }\">,"
+        " sync_kind = #tmcg.sync<\"global\">, tier = #tmcg.tier<";
     text += tier.str();
     text +=
-        ">, volume = #tilemega.metric<\"{ 1 }\">,"
-        " wait = #tilemega.metric<\"{ 1 }\">}\n}\n";
+        ">, volume = #tmcg.metric<\"{ 1 }\">,"
+        " wait = #tmcg.metric<\"{ 1 }\">}\n}\n";
     return text;
   };
   assert(mlir::parseSourceString<mlir::ModuleOp>(

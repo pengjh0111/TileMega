@@ -26,6 +26,7 @@ int main(int argc,char** argv) try {
   analysis::IslContext isl;
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
   std::string input_path=argv[1];
   auto module=input_path.size()>=5 && input_path.substr(input_path.size()-5)==".mlir"
       ? mlir::parseSourceFile<mlir::ModuleOp>(input_path,&context)

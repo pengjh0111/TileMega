@@ -18,6 +18,7 @@ int main(int argc,char** argv) try {
   {
     mlir::MLIRContext mlir;
     mlir.getOrLoadDialect<dialect::CGDialect>();
+  mlir.getOrLoadDialect<dialect::ExecDialect>();
     auto cg=frontend::TorchExportImporter{}.Import(
         std::string(argv[1])+"/docs/experiments/SEQSCAN/raw/export/gqa2.json",mlir);
     auto model=ModelDescription::FromCouplingGraph(*cg,{4,3,7},"gqa2");

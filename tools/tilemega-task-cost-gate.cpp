@@ -31,6 +31,7 @@ int main(int argc,char** argv) try {
   auto target=TargetSpec::FromJson(root+"/configs/targets/sm_89.json");
   mlir::MLIRContext mlir;
   mlir.getOrLoadDialect<dialect::CGDialect>();
+  mlir.getOrLoadDialect<dialect::ExecDialect>();
   std::cout << "dtype\tmodel\tconfig\tgemm_stages\tseq_points\tprice_bit_checks\tstatus\n"
             << std::setprecision(17);
   for (std::string dtype:{"bf16","f32"}) for (std::string name:{"gqa2","mha4"}) {

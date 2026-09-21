@@ -95,20 +95,32 @@ include(ISL)
 set_source_files_properties(lib/Analysis/ISLContext.cpp PROPERTIES
   INCLUDE_DIRECTORIES "${_tilemega_isl_src};${TILEMEGA_ISL_BUILD_DIR}")
 
+# R8 BE-7: two dialects out of one -- `tmcg` for the graph's structure and
+# `tmexec` for the decisions solved on it. The attributes stay with `tmcg`,
+# which is where the structure they describe lives.
 set(LLVM_TARGET_DEFINITIONS include/tilemega/Dialect/CouplingGraph/CGDialect.td)
 mlir_tablegen(include/tilemega/Dialect/CouplingGraph/CGDialect.h.inc
-  -gen-dialect-decls -dialect=tilemega -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  -gen-dialect-decls -dialect=tmcg -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
 mlir_tablegen(include/tilemega/Dialect/CouplingGraph/CGDialect.cpp.inc
-  -gen-dialect-defs -dialect=tilemega -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  -gen-dialect-defs -dialect=tmcg -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
+mlir_tablegen(include/tilemega/Dialect/CouplingGraph/ExecDialect.h.inc
+  -gen-dialect-decls -dialect=tmexec -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
+mlir_tablegen(include/tilemega/Dialect/CouplingGraph/ExecDialect.cpp.inc
+  -gen-dialect-defs -dialect=tmexec -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(LLVM_TARGET_DEFINITIONS include/tilemega/Dialect/CouplingGraph/CGAttrs.td)
 mlir_tablegen(include/tilemega/Dialect/CouplingGraph/CGAttrs.h.inc
-  -gen-attrdef-decls -attrdefs-dialect=tilemega -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  -gen-attrdef-decls -attrdefs-dialect=tmcg -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
 mlir_tablegen(include/tilemega/Dialect/CouplingGraph/CGAttrs.cpp.inc
-  -gen-attrdef-defs -attrdefs-dialect=tilemega -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  -gen-attrdef-defs -attrdefs-dialect=tmcg -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(LLVM_TARGET_DEFINITIONS include/tilemega/Dialect/CouplingGraph/CGOps.td)
 mlir_tablegen(include/tilemega/Dialect/CouplingGraph/CGOps.h.inc
   -gen-op-decls -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
 mlir_tablegen(include/tilemega/Dialect/CouplingGraph/CGOps.cpp.inc
+  -gen-op-defs -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set(LLVM_TARGET_DEFINITIONS include/tilemega/Dialect/CouplingGraph/ExecOps.td)
+mlir_tablegen(include/tilemega/Dialect/CouplingGraph/ExecOps.h.inc
+  -gen-op-decls -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
+mlir_tablegen(include/tilemega/Dialect/CouplingGraph/ExecOps.cpp.inc
   -gen-op-defs -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_public_tablegen_target(TileMegaCGIncGen)
 

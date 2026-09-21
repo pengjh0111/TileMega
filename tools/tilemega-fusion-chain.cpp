@@ -52,6 +52,7 @@ int main(int argc,char** argv) try {
                            GemmGranularity{}.tile_k,GemmGranularity{}.stages,1});
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
   auto module=TorchExportImporter{}.ImportPlan(argv[1],plan,context,nullptr,options);
   auto description=solver::ModelDescription::FromCouplingGraph(*module,{4,3,7},argv[1]);
   if (description.task_semantics.size()!=2) throw std::runtime_error("calibration chain is not two tasks");

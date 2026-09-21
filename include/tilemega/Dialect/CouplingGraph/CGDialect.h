@@ -5,3 +5,4 @@
 #include <mlir/IR/Dialect.h>
 
 #include "tilemega/Dialect/CouplingGraph/CGDialect.h.inc"
+#include "tilemega/Dialect/CouplingGraph/ExecDialect.h.inc"

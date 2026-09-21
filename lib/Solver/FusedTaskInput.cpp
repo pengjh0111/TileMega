@@ -19,7 +19,7 @@ std::vector<FusedTaskInput> ReadFusedTaskInputs(mlir::ModuleOp module) {
   if (!module || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument("fused task input requires verified CG");
   std::vector<FusedTaskInput> result;
-  for (auto task:module.getOps<dialect::FusedTaskSpaceOp>()) {
+  for (auto task:module.getOps<dialect::FusedTileSpaceOp>()) {
     FusedTaskInput input;
     input.name=task.getSymName().str();
     input.task_count=task.getTaskCount().getValue();
@@ -92,9 +92,9 @@ std::vector<FusedTaskInput> ReadFusedTaskInputs(mlir::ModuleOp module) {
       for (auto const& read:op.element_reads)
         if (producer.writes.count(read.tensor.name)) retained.insert(read.tensor.name);
     };
-    for (auto other:module.getOps<dialect::TaskSpaceOp>())
+    for (auto other:module.getOps<dialect::TileSpaceOp>())
       if (auto text=other.getSemantic()) observe(analysis::DecodeSemanticOp(text->str()));
-    for (auto other:module.getOps<dialect::FusedTaskSpaceOp>())
+    for (auto other:module.getOps<dialect::FusedTileSpaceOp>())
       if (other!=task) for (auto text:other.getPhaseSemantics())
         observe(analysis::DecodeSemanticOp(llvm::cast<mlir::StringAttr>(text).getValue().str()));
     auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");

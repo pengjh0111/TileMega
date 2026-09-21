@@ -79,7 +79,7 @@ WrittenFusionProjection ProjectWrittenFusionQueues(mlir::ModuleOp module,
     endpoints.emplace(symbol,Endpoint{projected,ProjectTaskOwnership(semantic,node,
         context.stages.at(semantic.stage),options.threads).BindParams(known)});
   };
-  for (auto task:module.getOps<dialect::TaskSpaceOp>()) {
+  for (auto task:module.getOps<dialect::TileSpaceOp>()) {
     auto name=task.getOperatorName().str();
     auto semantic=std::find_if(context.task_semantics.begin(),context.task_semantics.end(),
         [&](auto const& entry) { return entry.op.name==name; });

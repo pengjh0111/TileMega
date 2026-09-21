@@ -43,6 +43,7 @@ int main(int argc, char** argv) try {
   CostModel partial_cost(target, scalar, partial_options);
   mlir::MLIRContext context;
   context.getOrLoadDialect<tilemega::dialect::CGDialect>();
+  context.getOrLoadDialect<tilemega::dialect::ExecDialect>();
   int total = 0;
   std::ofstream dp_output(root + "/docs/experiments/PARAMETRIC/finite_dp" +
                           (bf16 ? "_bf16.tsv" : ".tsv"));

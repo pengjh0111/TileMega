@@ -16,6 +16,7 @@ int main(int argc,char** argv) try {
   analysis::IslContext isl;
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
   std::string repo=argv[1],name=argv[2];
   int chunks=std::stoi(argv[3]),extent=std::stoi(argv[4]),registers=std::stoi(argv[5]);
   if (chunks<1 || extent<1 || registers<1) throw std::invalid_argument("missing measured attention candidate resources");

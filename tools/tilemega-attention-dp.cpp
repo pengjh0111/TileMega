@@ -17,6 +17,7 @@ int main(int argc,char** argv) try {
   analysis::IslContext isl;
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
   frontend::ImportOptions import;
   import.rope_tile_per_block=import.kv_tile_per_block=import.activation_tile_per_block=import.combiner_tile_per_block=false;
   auto module=frontend::TorchExportImporter{}.Import(std::string(argv[1])+

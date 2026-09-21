@@ -14,6 +14,7 @@ int main(int argc,char** argv) try {
   analysis::IslContext isl;
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
   long checks=0;
   int errors=0;
   auto target=TargetSpec::FromJson(std::string(argv[1])+"/configs/targets/sm_89.json");

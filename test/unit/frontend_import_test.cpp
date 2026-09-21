@@ -37,7 +37,7 @@ int main() {
   // none may have degraded to `generic` on a model the frontend claims to
   // cover.
   std::set<std::string> kinds;
-  for (auto task : module->getOps<tilemega::dialect::TaskSpaceOp>()) {
+  for (auto task : module->getOps<tilemega::dialect::TileSpaceOp>()) {
     auto kind = task.getWriteMap().getFields().getAs<mlir::StringAttr>("kind").getValue();
     assert(kind != "generic");
     kinds.insert(kind.str());

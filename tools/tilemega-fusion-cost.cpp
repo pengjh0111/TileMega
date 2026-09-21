@@ -16,6 +16,7 @@ int main(int argc,char** argv) try {
   analysis::IslContext isl;
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
   auto module=frontend::TorchExportImporter{}.Import(std::string(argv[1])+
       "/docs/experiments/SEQSCAN/raw/export/"+argv[2]+".json",context);
   auto model=ModelDescription::FromCouplingGraph(*module,{4,3,7},argv[2]);

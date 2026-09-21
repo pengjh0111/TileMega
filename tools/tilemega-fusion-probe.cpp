@@ -11,6 +11,7 @@ int main(int argc,char** argv) try {
   tilemega::analysis::IslContext isl;
   mlir::MLIRContext context;
   context.getOrLoadDialect<tilemega::dialect::CGDialect>();
+  context.getOrLoadDialect<tilemega::dialect::ExecDialect>();
   auto module=tilemega::frontend::TorchExportImporter{}.Import(argv[1],context);
   auto model=tilemega::solver::ModelDescription::FromCouplingGraph(*module,{4,3,7},argv[1]);
   std::vector<tilemega::solver::GemmConfig> configs(model.gemms.size(),{128,128,16,3,1});

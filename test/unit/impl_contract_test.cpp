@@ -184,6 +184,7 @@ int main() {
   // pass-mutated contract actually reaches the verifier.
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
   mlir::OpBuilder builder(&context);
   auto module = mlir::ModuleOp::create(builder.getUnknownLoc());
   builder.setInsertionPointToStart(module.getBody());
@@ -191,7 +192,7 @@ int main() {
   mlir::ArrayAttr index_map;
   REQUIRE(dialect::emitIndexMap(builder, derived, theta, table27, &index_map,
                                 &error));
-  mlir::OperationState space(builder.getUnknownLoc(), "tilemega.task_space");
+  mlir::OperationState space(builder.getUnknownLoc(), "tmcg.tile_space");
   space.addAttribute(mlir::SymbolTable::getSymbolAttrName(),
                      builder.getStringAttr("score"));
   space.addAttribute("kind", dialect::TaskKindAttr::get(
