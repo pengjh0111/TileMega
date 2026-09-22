@@ -108,7 +108,7 @@ F-222 与 PHASE2/summary.md。）
 | EX-S2 | EFT 放置与排序 + 闭式模板候选（研究门） | EX-S1、EX-E1、EX-E2 | 已验证 | S2-a 通过：34/34 arm-cell 各 50/50 新鲜进程，SEQSCAN 子集 12/12 各 50/50；**S2-b 研究门未达成（负结果）**：eft/模式 5 中位比 1.0096/1.0141/1.0022/1.0273，四格 95% CI 全部完全大于 1，0/4 通过；按 H7 不改门，也不退回「快于 L1」（eft/L1 为 0.7320/0.7276/0.8091/0.8537）；S2-c real-width 已报数：seq4 1.0273 [1.0269,1.0281]、seq128 1.0487 [1.0483,1.0493]，同样不过；S2-d 归因已报数（四臂分解显示模式 5 的无同步下界好 2.4–4.1×，eft 的同步项便宜 3.6–4.2×，两者抵消）；S2-e 逐格 Spearman +0.824/+0.794/+0.812/+0.928 | `docs/experiments/PLACE_EFT/`（`README.md`、`raw/summary.tsv`、`raw/samples.tsv`、`raw/place_stats.txt`、`raw/predicted.tsv`、`raw/correctness.tsv`、`verify.py`）；F-148、F-149、F-150；commit aa68bc19、a1516c62；⚠️ v2.1 第三轮：按 R3 §7 重测六候选 × 四配置（A 无标志 / B 协议 / C 协议+chain / D 全开 W=2），96 个 cell-arm-config 各 25 轮、配置与候选一起轮换。**研究门 S2r-b 0/4**：四参考格最优中位数 280.6/440.3/557.8/833.6 µs，目标 ≤218/328/362/528 µs，只收掉第二轮测量值到天花板距离的 8%/7%/5%/3%（门要求 50%），按 H7 不改门、不改口径。配置序 **B < A < D < W** 在 24 个（格，候选）对中成立 23 个，唯一例外是 gqa2 s128 的 chain 上 A 与 D 并列 519.2 µs；逐对看 B<A、B<D、D<W 各 24/24。四格最优全部是 B（协议单开），没有一格由 C 或 D 拿下——三个杠杆不叠加，窗口吐回的比协议赢到的多。chain 候选的符号随序列长度翻转：seq 4 两格领先（280.6 vs rotate 284.7、557.8 vs 563.1），seq 128 两格分别落后 11.3% 与 36.0%，原因按 F-154/F-155 定位在 fill 阶段而非容量上限。⚠️ 研究门未达成的原因本轮已定位为两类，需要不同的解法（F-164）：其一是算术性的——按 H8 各配置自算天花板，chain 自身的 `queue_lb`（241.7/342.0/485.4/603.1 µs）在四格全部高于 §7.3 目标（218/328/362/528 µs），rotate 在 gqa2 s4 的路径下界 242.7 µs 同样高于目标，即同步代价归零也够不到；按 F-131 的 trace 扰动上界 1.0167 折算后四格全部仍然成立，其中 gqa2 s128 只余 8.4 µs。门要求四格中过三格，而 gqa2 s4 对两个被 trace 的候选都不可达。其二是开销性的——在下界允许目标的三格里，rotate 的 B 配置距自身绑定下界 2.82×/2.29×/2.74×，而协议杠杆只收掉约 3%。⚠️ 仅 rotate 与 chain 被 trace（`TRACE_ARMS`），其余四个候选的下界未测。⚠️ 另记一处口径缺陷：`cp_lb_nosync` 对 chain 系统性偏低，因为 `TRACE_V2/analyze.py` 把同 worker 前驱判为队列边并在 `include_queue=False` 时整条跳过，而 chain 的整条脊正是被有意放在同一 worker 上——gqa2 s4 上 rotate 与 chain 的重建路径同为 20 节点、同为 242688 ns 任务时间，`cp_lb_nosync` 却是 242688 对 122880，被跳过的那段以 `queue_lb` 241664 重新出现（rotate 为 41984）。这与 F-159 记录的「随 W 膨胀」同源而方向相反，修法同为 `summary.md` §11 EX-E2 的第 1 步，即 `preds` 改由 Plan 的依赖结构与物化 σ 重建。⚠️ CHAIN 的 S2c-d 实测臂已补齐（六格 × 25 轮配对，正确性 18 个 arm-cell 各 50/50、共 900/900）：chain/rotate 中位比 1.0070/1.0114/1.1368/1.2581（gqa2 s4、mha4 s4、gqa2 s128、mha4 s128）、real-width 1.0235/1.1329，六格 95% CI 全部完全大于 1，**chain 在任何一格都没有跑赢 rotate**；legacy 对照同轮为 1.1932–1.5345，说明该比较足以分辨比 chain 目标效应大一个数量级的放置差异。预测与实测在四个 seq-128 类格一致（1.213→1.2581、1.135→1.1329、1.067→1.1368），在两个 seq 4 参考格符号相反——求解器预测领先 1.2%/1.1%，实测落后 0.70%/1.14%，偏差集中在这两个 Plan 放下的 2 条与 3 条同 worker 关键路径边上；成本模型把每条记为零代价的省去 hop，实际是一次串行化，这与 F-164 的下界侧记录同源。F-161、F-164、F-166；⚠️ sm_120 复测（2026-09-13，`raw_sm120_retry_20260913/`，F-149 交叉引用）：研究门再次 0/4 且幅度更大，eft/模式 5 为 1.0409/1.0528/1.0542/1.0468（pooled 1.0491 [1.0473,1.0510]），正确性 1200/1200、配对 600/600、S2-e 四格均 +0.812、预测方向 4/4 叫反；首次运行在门之前失败于 plan/grid 不匹配（grid 256 表 vs grid 340 设备），守卫正确、准备步骤有错，已由 `prepare_sm120.py` 改为在目标机器上重新求解（commit 2918f55b）；real-width 与完整 `verify.py` 未在 sm_120 复测 |
 | EX-S3 | g / split-K / κ / W / residency 与 Plan 联合搜索 | EX-S2、EX-D3 | 已实现（缩小候选集的降级搜索，W=1） | R5 参考四格研究门 4/4；所选配置四格各 50/50；全候选集 top-3% 尚无实测证明；SEQSCAN 12 格各 50/50（600/600）；real-width 两格各 50/50，配对比 0.873807 / 1.009736（后者 CI 跨 1） | F-184、F-185；`JOINT/summary.md` （⚠️ v2.1 第六轮：生产搜索改为 max(CP, queue_lb)，每个已求值几何内含六放置，真实 whole-kernel 驻留查询；有限容量搜索仍为降级，参考四格相对 R5 冠军均回退，J-e 未达。J-a real 两格均过，选中/control=0.556567/0.927802；六格各 50/50、选中 SEQSCAN 400/400。J-b、J-d、J-e 未达；F-197、JOINT2/cells.json、JOINT2/verify.py，不将实现完成写成全部性能门通过。）  （⚠️ v2.1 第六轮续审：外层 work/CP/queue bound 已真正填入并用于排序剪枝；六内层放置保持，容量 12 的降级搜索重新冻结与测量。最终证据 JOINT2/bounded_search；上段数值是续审前的历史结果。） （⚠️ v2.1 第六轮最终续审：最终 bounded_search 六格各 25 轮五臂、50/50，所选 SEQSCAN 400/400。J-a 两 real 格 0.547671353/0.944310839，CI 均低于 1；J-b 两格 queue/CP=2.317659352/2.182635901，J-d=2/6，J-e=0/4，均未达；容量 12 搜索维持降级，不宣称全部关闭。F-212。） |
 | EX-S4 | 发射策略作为 variant 级决策 | EX-E5 | 未开始 | — | 待填 |
-| EX-S5 | 参数化 Place：由 ISL 在 seq 区间上证明合法性 | EX-E1 | 未开始 | — | 待填 （⚠️ v2.1 第六轮：已实现四模板族与 ISL 证明；限定 gqa2 图、整数 seq=[1,128]、grid=256/340，40 个端点/内点完整表一致。冠军拟合另审，五个 EFT 计划落在当前四模板族之外，未替换冠军。跨 grid CG 读写证据见 SYMBOLIC/，跨架构仍待目标机。） （⚠️ v2.1 第六轮最终续审：收口：四族原区间证明保留；当前 3 个 wavefront 冠军在各自实际 grid 上逐个证明 seq=1..128，另 3 个 EFT 冠军如实保留为族外。40 个旧映射对照外，55 个完整实际队列位同。F-205、F-211。） |
+| EX-S5 | 参数化 Place：由 ISL 在 seq 区间上证明合法性 | EX-E1 | 已实现（非默认路径、事后延拓） | — | 待填 （⚠️ v2.1 第六轮：已实现四模板族与 ISL 证明；限定 gqa2 图、整数 seq=[1,128]、grid=256/340，40 个端点/内点完整表一致。冠军拟合另审，五个 EFT 计划落在当前四模板族之外，未替换冠军。跨 grid CG 读写证据见 SYMBOLIC/，跨架构仍待目标机。） （⚠️ v2.1 第六轮最终续审：收口：四族原区间证明保留；当前 3 个 wavefront 冠军在各自实际 grid 上逐个证明 seq=1..128，另 3 个 EFT 冠军如实保留为族外。40 个旧映射对照外，55 个完整实际队列位同。F-205、F-211。） （⚠️ v2.1 第九轮：代码存在且已接入编译驱动——`tools/tilemega-compile.cpp:376` 调用 `SolveAndWritePlacementInterval`、`:385` 调用 `SolveIntervalSegments`，实现位于 `ParametricPlacementIO.h`、`IntervalSegments.h`。但有两点限制：①仅当传入 `interval_begin` 参数时才运行，默认编译路径不走；②其输入 `solved.module` 已是显式 DAG 联合搜索的结果，`:369-372` 从已求解模块的属性读出 residency/κ/grid 后在 seq 区间上**事后延拓**。ISL 不参与放置决策本身。由 §5 的 SV 主线取代。） |
 | EX-V1 | real-width 作为 L2 主基准 + 逐机制消融 | — | 未开始 | ⚠️ 外部条件：sm_120 上 real-width seq=128 在 PyTorch 导出阶段 FAIL，运行后文件系统 100% 占满（推断为磁盘耗尽，未进一步隔离）；seq=4 PASS（F-142） | `docs/experiments/sm120_round_one_20260912.md`；F-142 （⚠️ v2.1 第六轮：REBASE/ 交付求解器选中几何上的参考/real-width 五臂协议与六放置重测；该配置未全过 J 门，故是诊断基线，非最优性证明。real-s128 五臂差分有 44/250 个负 barrier 配对，物理成本归因降级，下一步先定位共同控制臂波动（F-198）。真实架构全量主基准与 decode 扫描仍留 R7。） （⚠️ v2.1 第六轮最终续审：最终六格 B1=7500/7500、60 份 trace；real-width 主体已交付。参考 rotate/legacy 100 配对池中位 0.895931995（历史 0.6705）；real 独立池 0.963573913。W=1 同汇编控制存在不复现的原始时间分带，停止相应因果归因，保留全部数据和补充 100 次诊断；全量真实架构/seq 扫描仍属 R7。F-214。） |
 | EX-W | 求解器→PlacementOp→Codegen 的写回闭环 | EX-S1、EX-S3 | 具体点求解通路已验证 | 直接 .pt2 一条命令；2696 节点闭环表相同；legacy 12/12 文件位同；默认 SEQSCAN 600/600；49 CTest 通过。区间冠军自动拟合仍不完整 | F-192；WRITEBACK/、MODELS/llama_mlp/direct_pt2.command.json  （⚠️ v2.1 第六轮续审：区间生产写回已补齐，seq=[1,5] 的 5 点 × 50 次同 binary 正确性与直接/CG/生成/host 完整表相同；仍是有限表承载和固定几何，不是无界拟仿射拟合。F-202。） （⚠️ v2.1 第六轮最终续审：收口补验：直接 host 注入与 CG 承载的 10 次新进程均正确，15/15 完整 schedule/waits/events 文件位同；有限区间 250/250、legacy 12 表位同、默认 SEQSCAN 600/600 和 49 CTest 保持。F-211。） |
 | EX-A | 真实模型架构锚定与扩展成本审计 | EX-W | 覆盖审计完成；端到端降级为 MLP 子图 | Llama-3.2-1B / Qwen3-1.7B 公共配置归档；15 个条件性扩展位置；16 个独立 MLP 区域 50/50。并非最大完整覆盖子图或全模型 | MODELS/{dimensions,coverage,extension_sites}.tsv；MODELS/subset.md  （⚠️ v2.1 第六轮续审：最大覆盖子图已组装，含注意力、连接的 16 层残差和词表 head，98 输入/66 输出/209 stages；但五个几何均有一个最终残差元素数值失败。首层 V 的 BF16 中点舍入经 FP64 独立诊断定位。按 §9.2 停该图数值准入，旧 MLP 50/50 不能代替；后端精度补齐属审计暴露缺口。F-203。） （⚠️ v2.1 第六轮最终续审：最大覆盖图已经实现并尝试五个几何；均同一个最终残差元素失败，按 §9.2 停该图数值准入。不是仍停留在独立 MLP 子图，也不能以旧子图的 50/50 宣称锚定模型正确。F-203。） |
@@ -960,8 +960,8 @@ baseline 逐字节相同）。不回退的理由是回退会把这四个测试�
 |---|---|---|
 | 调度已收口 | 求解器决定 10 项，人决定 12 项 | Plan 契约、写回、符号化区间证明全部落地 |
 | 机制收益耗尽 | 最后三个机制的变化都小于 run-to-run 波动 | 继续加 σ 维度是边际收益递减 |
-| **后端质量是瓶颈** | Llama-3.2-1B seq=64：L0.5 380 ms / L1 380 ms / L2 424 ms | 三档全慢两个数量级 |
-| **代价模型在大图上失真** | `L2/floor` 参考模型 2.4–3.6、真实模型 7.9→42.8 | 误差随图规模系统性增长 |
+| **后端质量是瓶颈** | Llama-3.2-1B seq=64：L0.5 380 ms / L1 380 ms / L2 424 ms | 三档全慢两个数量级 （⚠️ v2.1 第九轮：该数字含 `MIDPOINT_REFINE` 开销。用户补充的 sweep（`docs/experiments/BACKEND/timing_sweep/timing_sweep.tsv`）显示 Llama seq=64 在关闭该开关时 L2 为 **11.74 ms**，开启时 422.4 ms，**开关本身贡献 36.0×**。此前"42.8× 来自朴素 TaskBody"的归因不成立。） |
+| **代价模型在大图上失真** | `L2/floor` 参考模型 2.4–3.6、真实模型 7.9→42.8 | 误差随图规模系统性增长 （⚠️ v2.1 第九轮：该数字含 `MIDPOINT_REFINE` 开销。用户补充的 sweep（`docs/experiments/BACKEND/timing_sweep/timing_sweep.tsv`）显示 Llama seq=64 在关闭该开关时 L2 为 **11.74 ms**，开启时 422.4 ms，**开关本身贡献 36.0×**。此前"42.8× 来自朴素 TaskBody"的归因不成立。） |
 | 后端接入率 | 18 个 TaskBody 中只有 2 个引用 CUTLASS/CuTe | `AttentionChunkTaskBody.h:70-82` 的 softmax 是 thread-0 串行三趟 |
 
 一句话立项理由：**前七轮优化的是一批本身差 1–2 个数量级的 kernel 的调度。调度做对了，底座没做。**
@@ -979,6 +979,8 @@ SB 与 TF 互不依赖，可并行或按资源排序
 
 BE 必须先行：SB 的吞吐数字与 TF 的融合收益，都建立在后端不再差两个数量级的前提上。
 
+（⚠️ v2.1 第九轮：以上是本阶段原顺序。R9 起以 §5.3 的 SV → AT/PG → SB → TF 优先级为准，原句保留作历史记录。）
+
 ---
 
 ## 4.2 条目台账
@@ -989,13 +991,13 @@ BE 必须先行：SB 的吞吐数字与 TF 的融合收益，都建立在后端�
 |---|---|---|---|---|---|
 | BE-1 | TaskBody ABI 参数化在 arch tag 上，消费 `TargetSpec::Caps` | — | 已完成 | 正反两面都验证 | `d8201fcc2`，`BACKEND/be1_arch/`，F-234 |
 | BE-2 | GEMM 族走 CUTLASS `CollectiveBuilder` | BE-1 | 已完成（arch 选择），降级：builder 路径未定价 | 五个 arch 编译并 CPU 自检通过 | `597c2fdc2`，`BACKEND/be2_collective/`，F-235 |
-| BE-3 | Attention 换在线 softmax，消除 thread-0 串行 | BE-1 | 已完成在线 softmax；**`caps.tma` 的 K/V 加载分支未写** | 逐算子与 PyTorch 逐元素相等 | `f922d3fae`，`BACKEND/operator_check/`，F-236 |
+| BE-3 | Attention 换在线 softmax，消除 thread-0 串行 | BE-1 | 已完成在线 softmax；**`caps.tma` 的 K/V 加载分支未写** | 逐算子与 PyTorch 逐元素相等 | `f922d3fae`，`BACKEND/operator_check/`，F-236 （⚠️ v2.1 第九轮：仅完成 softmax 段。`AttentionChunkTaskBody.h` 的 **QKᵀ**（每线程一个 key，`for d: score = fmaf(q_rot[qbase+d], full_k[kbase+d], score)`）与 **PV**（每线程一个 d，`for j: value = fmaf(smem.attention[j], full_v[...], value)`）仍是 CUDA core 上的标量 FMA 循环，**在内层循环中逐元素读全局内存**，无 tensor core、无 shared memory 分块。见 §5.5 的 AT-1。） |
 | BE-4 | 其余 SIMT 算子做到 warp 级归约 | BE-1 | 已完成（归约）；向量化未做并如实标注 | 同上 | `f63d4ffad`，`BACKEND/coverage.md`，F-236 |
 | BE-5 | harness 屏障改为角色感知；§8.5 release 规则重定义并重做 litmus | BE-1 | **未交付**（§8.3 降级）：litmus 的无屏障负对照不失败，§8.5 未改 | 450/450 合规臂通过，无 fence 对照全失败 | `18482dea6`，`BARRIER/`，F-237 |
 | BE-6 | occupancy 闭式按角色重算（F-40 / F-223 的继任） | BE-5 | 已完成（单角色实例） | 与驱动逐格一致 | `af6323c02`，`BACKEND/occupancy.py` |
 | BE-7 | dialect 拆为 `tmcg`（结构）与 `tmexec`（决策），并引入 `tmcg.graph` / `tmexec.plan` 容器 | — | 已完成（拆分与归属检查）；容器 op 已定义未下沉 | ctest 53/53，归属 grep 通过 | `5128d3a4d`，`DIALECT/`，F-238 |
 | BE-8 | `task_space` → `tile_space` 等术语改名 | BE-7 | 已完成 | ctest 53/53 | `0c43162c7`，`DIALECT/rename.md` |
-| BE-9 | 两个锚定模型的算子全部走到 CUTLASS/CuTe 路径 | BE-2,3,4 | 已完成 | 覆盖表逐算子列出，无朴素实现残留 | `BACKEND/coverage.md` |
+| BE-9 | 两个锚定模型的算子全部走到 CUTLASS/CuTe 路径 | BE-2,3,4 | 部分完成 | 覆盖表逐算子列出，无朴素实现残留 | `BACKEND/coverage.md` （⚠️ v2.1 第九轮：18 个 TaskBody 中实际引用 CUTLASS/CuTe 的只有 `GemmStageTaskBody.h`（10 处）与 `FusedGemmTaskBody.h`（3 处），其余 16 个为 0。attention 的两个矩阵乘仍为标量循环（见 A.2）。原目标"锚定模型的全部算子走到 CUTLASS/CuTe 路径"未达成。） |
 | SB-1 | batch 作为 θ 参数进 tile space | BE-9 | 未开始 | — | 待填 |
 | SB-2 | KV cache 跨 decode 步增长（block table） | SB-1 | 未开始 | — | 待填 |
 | SB-3 | 离线批处理驱动与吞吐口径 | SB-2 | 未开始 | — | 待填 |
@@ -1034,6 +1036,8 @@ BE 必须先行：SB 的吞吐数字与 TF 的融合收益，都建立在后端�
 ### BE-3 Attention 在线 softmax
 
 **现状**：`AttentionChunkTaskBody.h:70-82` 在 `if (threadIdx.x == 0)` 里串行扫三趟 key 序列求 max、exp-sum、归一化。128 线程里 127 个在等。这是真实模型 seq=64 上 424 ms 的主要来源。
+
+（⚠️ v2.1 第九轮：该数字含 `MIDPOINT_REFINE` 开销。用户补充的 sweep（`docs/experiments/BACKEND/timing_sweep/timing_sweep.tsv`）显示 Llama seq=64 在关闭该开关时 L2 为 **11.74 ms**，开启时 422.4 ms，**开关本身贡献 36.0×**。此前"42.8× 来自朴素 TaskBody"的归因不成立。）
 
 **要点**：
 - 改为 FlashAttention 式在线 softmax：running max 与 running sum，随 K/V 分块更新，全 warp 参与归约；
@@ -1180,6 +1184,8 @@ vLLM 与 SGLang 在同样的离线批处理模式下的数字。注意 Ada-MK �
 
 R7 的 `D-b` 证明排序能力已经够用（top-3 质量六格全部 ≤ 1.05），失真的是绝对时间（`L2/floor` 从 2.4 涨到 42.8）。
 
+（⚠️ v2.1 第九轮：该数字含 `MIDPOINT_REFINE` 开销。用户补充的 sweep（`docs/experiments/BACKEND/timing_sweep/timing_sweep.tsv`）显示 Llama seq=64 在关闭该开关时 L2 为 **11.74 ms**，开启时 422.4 ms，**开关本身贡献 36.0×**。此前"42.8× 来自朴素 TaskBody"的归因不成立。）
+
 **调整**：代价模型的输出契约从"纳秒"改为无量纲分值；验收口径从"预测误差"改为"top-k 质量"。`floor` 的物理下界语义随之失效，`L2/floor` 这个指标要么废弃、要么换成校准后的量。
 
 ### TF-4 判据深度感知
@@ -1201,3 +1207,107 @@ R7 的 `D-b` 证明排序能力已经够用（top-3 质量六格全部 ≤ 1.05�
 - **唯一的重验证是 BE-5**：正确性规则不能靠"跑通了"来确认。
 - **TF 组回到重测量模式**：它要证明收益。
 - **SB 组按外部口径**：与 vLLM / SGLang 的对比必须同模式、同批次、同统计方式。
+
+---
+
+## 5. 主线三——求解器重构（SV）
+
+### 5.0 立项依据（R8 验收的代码级核实）
+
+R8 验收时逐行读代码，发现求解器与 TileMega 的设计初衷存在结构性割裂：
+
+| 发现 | 代码位置 | 含义 |
+| --- | --- | --- |
+| 全模型所有 GEMM 共用一个 tile | `CompilerSearch.h:83`：`import.gemms.assign(model.gemms.size(), {...})` | 生成代码 `TILEMEGA_GEMM_VARIANT_COUNT 1`；K=2048 与 K=8192 的 GEMM 用同一个 32×16×64 |
+| 每个候选重新导入整张 CG | `CompilerSearch.h` 外层循环内调用 `ImportPlan(...)`，注释称其为"外层循环的主要开销" | uniform tile 是被这个开销逼出来的 |
+| 放置在扁平 DAG 上做 | `PlacementSolvePass.h:154-157` 用 `VisitFiniteRelation` 逐点展开 ISL 关系，建成 `graph.successors` | **ISL 的结构只用来生成边，生成后即被丢弃** |
+| 六种启发式在扁平图上枚举 | `JointPlacement.h:31-36`（legacy/rotate/balanced/eft/wavefront/chain） | 放置决策与 ISL 无关 |
+| EFT 遍历全部 worker | `EftPlacement.cpp:172`：`for (int w = 0; w < grid; ++w)` | 复杂度 `O(N·W)` |
+| EFT 的前驱来自扁平图 | `EftPlacement.cpp:62-65` 由 `graph.successors` 反建 `predecessors` | 同上 |
+
+同时核实到两个**已经就位**的底子：
+
+- `TaskInstantiation.h` 的 `Granularity` 是 `map<op, map<dim, ClosedForm>>`，**per-op tile 的数据结构早已存在**；`Semantics.h:37` 注明 L-sem 与粒度 g 无关。
+- `GemmStageTaskBody.h:613` 的 `switch (invocation.variant)` 表明**运行时早已支持按 GEMM 实例选择不同 tile**（上限 16）。
+
+### 5.0.1 一个数学约束
+
+ISL 实现的是 Presburger 算术，只允许乘以或除以**整数常数**。分块关系 `g·c ≤ e < g·(c+1)` 是 g 与 c 的双线性关系，故 **tile 尺寸不能作为 ISL 参数**（`Frontend.cpp:545` 的注释也写明 `isl_aff_div` 拒绝非字面量除数；islpy 实测 `g*c` 与 `floor(seq/g)` 均被拒绝）。
+
+**因此设计取：θ（seq、past、batch）为 ISL 符号参数，g（tile）为外层离散选择。** 给定一组 g，耦合关系对 θ 仍是参数化的，结构判定不需要展开任何 task。
+
+### 5.1 设计：四段管线
+
+```scss
+g ─► 资源探测 ─► R_max ─► residency ─► W ─► 符号 Oracle ─► Plan Skeleton ─► 就绪前沿放置 ─► 模拟器
+                                          (前驱/后继精确)   (候选集+亲和)   (ETF，Plan=(π,σ))  (top-K)
+```
+
+**资源探测先行**：给定一组 g，先估计完整 megakernel 的寄存器与 shared memory，得到驻留上限 `R_max`，从而 `W = SM 数 × residency`。Skeleton 的候选集公式依赖 W，**必须在 W 已知之后构造**。
+
+**Level 1（Plan Skeleton）**：利用 ISL 已知的参数化 tile 级依赖（1:1、1:N、N:1、M:N 及其随 θ 的变化），生成一个结构化的骨架——每个 tile 的候选 worker 集、tile 之间的亲和关系、每个 task space 的铺开程度。它把"任意 tile 可去任意 worker"的空间压缩成一个带依赖结构约束的子空间。**Level 1 不决定任何 tile 的最终 worker。**
+
+**Level 2（就绪前沿放置）**：只有前驱全部已放置的 tile 才进入就绪集合；就绪集合中**以最早开始时间 EST 为主键、秩只作平局裁决**，在候选集内用代价感知的完成时间选 worker，输出 `Plan = (π, σ)`。**Level 2 不重新调用 ISL 求放置，而是继承 Level 1 的结构约束。**
+
+### 5.1.1 七条设计要求（必须满足，不得替换）
+
+| 编号 | 要求 | 理由 |
+| --- | --- | --- |
+| **R-A** | 候选集**按 tile 定义、跨 task space 可重叠**。不得按 task space 把 worker 池划分成互不相交的块 | 划分会重新引入 stage 边界 |
+| **R-B** | 每个 task space 的"worker 数"是**软目标**，只控制候选集的铺开宽度 | 负载均衡交给 Level 2 |
+| **R-C** | `Candidates(t) = Affinity_critical(t) ∪ Spread(t)`。关键亲和**覆盖全部边类别（含 N:1 与 M:N）**，只取按 `finish(p) + hop` 排序的**前两个**前驱所在 worker，规模 ≤ 2；是否共置由完成时间决定，不另加奖励项 | 与最晚前驱共置省掉的恰是决定就绪时间的那一跳；F-93、F-154/155 表明亲和须有界且被定价 |
+| **R-D** | Level 2 不物化全局扁平 DAG。前驱与后继都经**符号 Oracle** 精确求得，分 `Unique` / `Rectangular`（须先由 `is_box()` 证明）/ `General`（按当前坐标即时查询）三类。**不得**以 `lexmin`/`lexmax` 当盒子，**不得**用未经证明的包围盒 | 多维下 lexmin/lexmax 不是盒子（`{P[0,5],P[1,0]}` 拼出 `b∈[5,0]`）；逐维包围盒会引入假依赖（步长集合 `{0,2,…,8}` → `[0,8]`） |
+| **R-E** | g 按**算子类**选择，算子类由**规范化语义签名 SemSig**（由 `SemanticOp::Serialize()` 派生，去名、保留索引映射与 `element_reads`）定义；缓存键为 `(SemSig_p, SemSig_c, 操作数序号, g_p, g_c)` | 同 kind 同形状但 `element_reads` 不同的算子（Q/K 的 RoPE、GQA、因果 attention）耦合不同 |
+| **R-F** | **资源探测先于 Skeleton**：`g → 资源探测 → R_max → residency → W → Skeleton → Level 2` | W 取决于 residency，residency 取决于该组 g 下完整 megakernel 的资源 |
+| **R-G** | Level 2 是**就绪前沿调度**，就绪集合的**主键是 EST，秩只作平局裁决**；不得对全部 tile 做静态全局排序 | 上游 space 的秩必然高于下游，以秩为主键会使放置次序仍按 stage 分组，重新形成隐式 stage 屏障 |
+
+**F-88 的教训必须遵守**：不得用 ISL 调度器的时间调度加循环分配来决定 worker——F-88 实测这样做使 slot 的 p95/max 从 677/772 恶化到 797/896。**worker 的选择只来自 Level 2 的代价感知 EFT。**
+
+### 5.2 条目台账
+
+| ID | 范围与验收（不可删减） | 依赖 | 实现状态 | 验证状态 | 证据、commit |
+| --- | --- | --- | --- | --- | --- |
+| SV-0 | 基线与测量协议：`MIDPOINT_REFINE=0`；真实模型以 L0.5/L1/L2 内部逐位一致为正确性门；记录现行求解器的求解耗时分解与三档计时 | — | 未开始 | — | 待填 |
+| SV-1 | 导入一次 + 以 SemSig 为键的耦合缓存；含碰撞测试 | SV-0 | 未开始 | — | 待填 |
+| SV-2 | 按算子类的 tile：撤除 uniform `assign`；codegen 按 `invocation.variant` 分派 | SV-1 | 未开始 | — | 待填 |
+| SV-3 | 资源探测：按变体缓存寄存器与 shared memory，闭式得 `R_max`；top-K 用真实 `queryResidency` 复核 | SV-2 | 未开始 | — | 待填 |
+| SV-4 | 符号 Oracle：前驱与后继，`Unique` / `Rectangular` / `General` 三类精确 | SV-1 | 未开始 | — | 待填 |
+| SV-5 | Level 1：Plan Skeleton（在 W 已知后构造），表达为 `tmexec` 一等 op | SV-3, SV-4 | 未开始 | — | 待填 |
+| SV-6 | Level 2：就绪前沿 + ETF 的代价感知放置，输出 `(π, σ)` | SV-5 | 未开始 | — | 待填 |
+| SV-7 | 外层坐标下降（嵌套 residency）+ 模拟器 top-K；现行求解器保留为对照臂 | SV-6 | 未开始 | — | 待填 |
+| SV-8 | 真实模型验证：Llama-3.2-1B 与 Qwen3-1.7B 上的效果与求解耗时 | SV-7 | 未开始 | — | 待填 |
+
+### 5.3 优先级（取代 §4.1 的原顺序）
+
+原 §4 的顺序是 BE → SB/TF。R8 验收后调整为：
+
+```text
+SV（求解器重构，本轮 R9）
+  └─► AT（attention 上 tensor core）
+  └─► PG（MPK 式真分页 + 按边选择交接方式）
+        └─► SB（静态 batch）
+              └─► TF（tile 直传 fuse、判据改造、移除 MIDPOINT_REFINE）
+```
+
+理由：求解器是 TileMega 的核心贡献所在，而当前实现中 ISL 并未参与放置决策；在一个不用 ISL 的求解器与一个 attention 仍为标量的后端之上叠加静态 batch，会把问题成倍放大。
+
+### 5.4 后置条目（R9 之后处理）
+
+| ID | 内容 | 依据 |
+| --- | --- | --- |
+| AT-1 | attention 的 QKᵀ 与 PV 改为 tensor core（CUTLASS FMHA collective 或在线 softmax 的分块矩阵乘），K/V 走 shared memory 分块，`caps.tma` 为真时走 TMA | A.2；s≥16 时 attention 主导关键路径，关闭 `MIDPOINT_REFINE` 后 L2/L1 在 s16 为 1.006/1.184/1.076、s64 为 1.077，即 L2 输给 L1 |
+| AT-2 | 其余零 CUTLASS 引用的算子视收益接入 | A.3 |
+| PG-1 | MPK 式真分页：把 `TaskSmem` 由单体 union 改为按页分配与释放，页直接喂给计算 | 现状：`ModelHarness.cuh:1111-1119` 只在 union 旁挂**两个固定页**（`slot & 1u`），且仅收一个无生产者的只读前沿操作数；任务仍独占整个 union |
+| PG-2 | 按边选择交接方式（同 SM 的 shared memory + mbarrier、全局计数器、数据即标志），**由放置决定** | Mirage issue #769 所述 MPK 的最新方向；与 TF-1 的 tile 直传同源 |
+| SB-1…4 | 静态 batch（原 §4 条目，不变） | — |
+| TF-1…4 | tile 直传 fuse、代价模型归一化、判据改造（原 §4 条目，不变）。**TF-4 落地后移除 `MIDPOINT_REFINE`** | — |
+
+### 5.5 AT-1：attention 的 QKᵀ 与 PV
+
+attention 的 QKᵀ 与 PV 改为 tensor core（CUTLASS FMHA collective 或在线 softmax 的分块矩阵乘），K/V 走 shared memory 分块，`caps.tma` 为真时走 TMA。该条目在 R9 之后处理；当前仅 softmax 段完成，见 §4.2 的 BE-3 第九轮注记。
+
+### 5.6 硬规则（自本轮起对全部轮次生效）
+
+1. **所有性能测量必须 `TILEMEGA_MIDPOINT_REFINE=0`。** 该开关是 R7 为通过数值门而加的补丁：对落在 BF16 舍入中点附近的 GEMM 输出元素，在 CUDA core 上用 FP64 从全局内存重算整条点积（`GemmStageTaskBody.h:442-486`）。它不使结果更正确，只使其与某一个特定的 BF16 求值顺序一致，代价最高达 36×。
+2. **真实模型的正确性门以 L0.5/L1/L2 内部逐位一致为准**（三档 `E2E_HASH` 相同），不以 CPU golden 为准——后者在深残差链上的失配是已知的判据问题（深度扫描 4/8/16/28 层分别为 0/2/44/190 个超差元素），属于 TF-4。
+3. **验收必须核实代码，不得只读文档。** 每轮的 `verify.py` 必须包含对关键结构性质的代码级检查（grep 或静态检查），而不只是重算实验数字。
