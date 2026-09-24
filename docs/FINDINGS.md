@@ -7136,3 +7136,24 @@ pending and must retain that work in its total.
 
 Evidence: `SOLVER_V2/cache_derive_{reference,llama,qwen3}.log`, the two anchored
 `*.command.json` files, and `test/unit/coupling_cache_test.cpp --benchmark`.
+
+## F-247 — Oracle acceptance follows the measured winner and its actual plan
+
+✅ **Verified.** The gqa2 seq=4 reference's fastest internally equal raw-log
+candidate is shortlist rank 2. `audit_winners.py` independently selects it from
+the ten-process logs and audits its CG, preserving the original rank-1 audit.
+The tool reads grid/residency/κ from that module (512/4/1), and all 330 sampled
+physical-fiber comparisons are exactly equal as sets. Its 56 separately
+reported `CG_EDGE` rows match the number of semantic coupling operations.
+
+The distinction matters because the original runner audited the simulator's
+rank-1 CG and the tool had used grid=SM count, residency=1, κ=1. Those checks
+do not identify the final measured plan. The completion runner now performs
+winner-aware audits for every real arm, and G-5 checks the selected CG name,
+its SHA256, its plan attributes, and the raw set comparisons. Semantic CG
+edge categories are reported separately from the physical graph extended with
+executor ordering. The complete anchored G-5 gate remains pending.
+
+Evidence: `SOLVER_V2/reference/gqa2_s4/winner_oracle_audit.{log,command.json}`,
+its three original per-process measurement directories, `winner_audit_test.log`,
+`tools/tilemega-skeleton-audit.cpp`, and `SOLVER_V2/verify.py`.
