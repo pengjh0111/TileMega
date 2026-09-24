@@ -3,8 +3,10 @@
     "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s64/selected.cu.measurement/kernel",
     "/root/r7_work/llama_s64/fixture"
   ],
-  "started_ns": 1790246947514143715,
-  "elapsed_ns": 21943371948,
+  "executable_sha256": "25ff23ebbe499e87b60f8d1a41863fb919acfbad349e682fe7802eadf5810f86",
+  "head": "7f5b8ca9f0f9487f779966fc8c88bc9280284f1e",
+  "started_ns": 1790271861630078825,
+  "elapsed_ns": 19398767538,
   "exit_code": 1,
   "environment": {
     "TILEMEGA_WARMUP": "2",

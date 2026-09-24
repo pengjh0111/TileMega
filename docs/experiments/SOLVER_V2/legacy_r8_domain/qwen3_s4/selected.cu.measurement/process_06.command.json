@@ -3,10 +3,10 @@
     "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s4/selected.cu.measurement/kernel",
     "/root/r7_work/qwen3/fixture"
   ],
-  "executable_sha256": "9baa943c13b2a23703ef46944dfea784ad10872364f5b45ed3491ad7d60ac1eb",
-  "head": "511cbc6ee88eaa6e6b4372989b7e6184eafbf4b3",
-  "started_ns": 1790262606426081807,
-  "elapsed_ns": 28436766582,
+  "executable_sha256": "1c8f277f03aa94f28e1d965645fa75da6f57ac58276234e3131189e6794d035c",
+  "head": "f64edfcacbbe35541f8609ab03d9f788e29df715",
+  "started_ns": 1790271593189486090,
+  "elapsed_ns": 21200406433,
   "exit_code": 1,
   "environment": {
     "TILEMEGA_WARMUP": "2",

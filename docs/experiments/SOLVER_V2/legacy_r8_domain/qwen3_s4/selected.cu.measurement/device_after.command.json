@@ -4,9 +4,9 @@
     "-q"
   ],
   "executable_sha256": "20f889e4468cd4d6fc6e79be1113b98ce4152d0da08fa709156cf870c1a9290d",
-  "head": "eda990df3568dfbcbc075f2451fcd2130dc28793",
-  "started_ns": 1790262705209756275,
-  "elapsed_ns": 177888519,
+  "head": "f64edfcacbbe35541f8609ab03d9f788e29df715",
+  "started_ns": 1790271697015381392,
+  "elapsed_ns": 165816326,
   "exit_code": 0,
   "environment": {
     "TILEMEGA_WARMUP": "2",

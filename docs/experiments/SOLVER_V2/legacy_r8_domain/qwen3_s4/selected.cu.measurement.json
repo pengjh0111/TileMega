@@ -5,10 +5,11 @@
       "source_sha256": "ce3f4e19156dff883d8952d0444f74cc6a7bf66409673c222b08ad7fe3f76f5c",
       "passed": 10,
       "samples": 10,
+      "resource_errors": 0,
       "status": "ok",
-      "l05_ms": 9.325584,
-      "l1_ms": 9.579264,
-      "l2_ms": 9.320143999999999
+      "l05_ms": 9.111864,
+      "l1_ms": 9.5751525,
+      "l2_ms": 8.949024
     }
   ],
   "winner": {
@@ -16,9 +17,10 @@
     "source_sha256": "ce3f4e19156dff883d8952d0444f74cc6a7bf66409673c222b08ad7fe3f76f5c",
     "passed": 10,
     "samples": 10,
+    "resource_errors": 0,
     "status": "ok",
-    "l05_ms": 9.325584,
-    "l1_ms": 9.579264,
-    "l2_ms": 9.320143999999999
+    "l05_ms": 9.111864,
+    "l1_ms": 9.5751525,
+    "l2_ms": 8.949024
   }
 }

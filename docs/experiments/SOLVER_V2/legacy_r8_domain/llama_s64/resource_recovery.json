@@ -1,0 +1,9 @@
+{
+  "source_sha256": "b42a0c6347ff4099c7ad907b1b41a8dca544480cbe18968649fd52479f64a2f0",
+  "reason": "contention",
+  "original_ooms": 0,
+  "initial_utilization_percent": 93,
+  "archive": "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s64/excluded_attempts/contention_1790271282332230993",
+  "recovery_started_ns": 1790271282332691031,
+  "policy": "all ten fresh processes; no numeric failure retry"
+}

@@ -1,0 +1,9 @@
+{
+  "source_sha256": "ce3f4e19156dff883d8952d0444f74cc6a7bf66409673c222b08ad7fe3f76f5c",
+  "reason": "contention",
+  "original_ooms": 0,
+  "initial_utilization_percent": 100,
+  "archive": "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s4/excluded_attempts/contention_1790271282358122341",
+  "recovery_started_ns": 1790271282364687576,
+  "policy": "all ten fresh processes; no numeric failure retry"
+}

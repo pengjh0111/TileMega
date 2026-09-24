@@ -1,7 +1,7 @@
 
 ==============NVSMI LOG==============
 
-Timestamp                                              : Thu Sep 24 15:07:37 2026
+Timestamp                                              : Thu Sep 24 17:35:10 2026
 Driver Version                                         : 610.43.02 [Deprecated; will be removed in CUDA 14.0. Use KMD Version instead]
 CUDA Version                                           : 13.3 [Deprecated; will be removed in CUDA 14.0. Use CUDA UMD Version instead]
 KMD Version                                            : 610.43.02
@@ -89,11 +89,11 @@ GPU 00000000:80:00.0
             Firmware                                   : N/A
         Replays Since Reset                            : 0
         Replay Number Rollovers                        : 0
-        Tx Throughput                                  : 7910 KB/s
-        Rx Throughput                                  : 22998 KB/s
+        Tx Throughput                                  : 6542 KB/s
+        Rx Throughput                                  : 8349 KB/s
         Atomic Caps Outbound                           : N/A
         Atomic Caps Inbound                            : N/A
-    Fan Speed                                          : 93 %
+    Fan Speed                                          : 54 %
     Performance State                                  : P0
     Clocks Event Reasons
         Idle                                           : Not Active
@@ -106,7 +106,7 @@ GPU 00000000:80:00.0
         SW Thermal Slowdown                            : Not Active
         Display Clock Setting                          : Not Active
     Clocks Event Reasons Counters
-        SW Power Capping                               : 1636489583 us
+        SW Power Capping                               : 1754262645 us
         Sync Boost                                     : 0 us
         SW Thermal Slowdown                            : 0 us
         HW Thermal Slowdown                            : 0 us
@@ -115,8 +115,8 @@ GPU 00000000:80:00.0
     FB Memory Usage
         Total                                          : 49140 MiB
         Reserved                                       : 604 MiB
-        Used                                           : 43962 MiB
-        Free                                           : 4576 MiB
+        Used                                           : 42772 MiB
+        Free                                           : 5766 MiB
     BAR1 Memory Usage
         Total                                          : 32768 MiB
         Used                                           : 4 MiB
@@ -128,7 +128,7 @@ GPU 00000000:80:00.0
     Compute Mode                                       : Default
     Utilization
         GPU                                            : 100 %
-        Memory                                         : 99 %
+        Memory                                         : 82 %
         Encoder                                        : 0 %
         Decoder                                        : 0 %
         JPEG                                           : 0 %
@@ -188,8 +188,8 @@ GPU 00000000:80:00.0
             Low                                        : 0 bank(s)
             None                                       : 0 bank(s)
     Temperature
-        GPU Current Temp                               : 66 C
-        GPU Current T.Limit Temp                       : 18 C
+        GPU Current Temp                               : 59 C
+        GPU Current T.Limit Temp                       : 24 C
         GPU Shutdown T.Limit Temp Specification        : -7 C
         GPU Slowdown T.Limit Temp Specification        : -2 C
         GPU Max Operating T.Limit Temp Specification   : 0 C
@@ -197,8 +197,8 @@ GPU 00000000:80:00.0
         Memory Current Temp                            : N/A
         Memory Max Operating T.Limit Temp Specification: N/A
     GPU Power Readings
-        Average Power Draw                             : 340.63 W
-        Instantaneous Power Draw                       : 340.65 W
+        Average Power Draw                             : 288.13 W
+        Instantaneous Power Draw                       : 288.83 W
         GPU Ceiling Power Limit
             Current Power Limit                        : 450.00 W
             Requested Power Limit                      : 450.00 W
@@ -226,10 +226,10 @@ GPU 00000000:80:00.0
         Enforced Profiles                              : N/A
     EDPp Multiplier                                    : N/A
     Clocks
-        Graphics                                       : 2745 MHz
-        SM                                             : 2745 MHz
+        Graphics                                       : 2760 MHz
+        SM                                             : 2760 MHz
         Memory                                         : 10501 MHz
-        Video                                          : 2115 MHz
+        Video                                          : 2130 MHz
     Applications Clocks
         Graphics                                       : Requested functionality has been deprecated
         Memory                                         : Requested functionality has been deprecated

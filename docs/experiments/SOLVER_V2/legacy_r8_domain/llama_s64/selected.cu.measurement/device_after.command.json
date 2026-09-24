@@ -3,8 +3,10 @@
     "nvidia-smi",
     "-q"
   ],
-  "started_ns": 1790247029467080135,
-  "elapsed_ns": 158764085,
+  "executable_sha256": "20f889e4468cd4d6fc6e79be1113b98ce4152d0da08fa709156cf870c1a9290d",
+  "head": "7f5b8ca9f0f9487f779966fc8c88bc9280284f1e",
+  "started_ns": 1790271958057525990,
+  "elapsed_ns": 170151754,
   "exit_code": 0,
   "environment": {
     "TILEMEGA_WARMUP": "2",
