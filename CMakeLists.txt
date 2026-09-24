@@ -163,6 +163,8 @@ add_library(tilemega STATIC
   lib/Solver/AttentionWork.cpp
   lib/Solver/ListScheduler.cpp
   lib/Solver/ExecutionSimulator.cpp
+  lib/Solver/SkeletonSearch.cpp
+  lib/Solver/SkeletonFinalize.cpp
   lib/Solver/SkeletonPlacement.cpp
   lib/Solver/PlanSkeleton.cpp
   lib/Solver/EftPlacement.cpp
@@ -220,6 +222,10 @@ if(NOT LLVM_ENABLE_RTTI)
 endif()
 set_target_properties(tilemega-import PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
+add_executable(tilemega-skeleton-audit tools/tilemega-skeleton-audit.cpp)
+target_link_libraries(tilemega-skeleton-audit PRIVATE TileMega::tilemega MLIRParser)
+set_target_properties(tilemega-skeleton-audit PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
 add_executable(tilemega-compile tools/tilemega-compile.cpp)
 add_dependencies(tilemega-compile TileMegaCGIncGen)

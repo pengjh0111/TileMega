@@ -18,7 +18,7 @@ class VariantResourceCache {
     if(!nongemm_)nongemm_=ProbeOne("nongemm",nullptr,dtype);
     ResourceEstimate result{nongemm_->registers,nongemm_->shared_bytes,nongemm_->threads,0};
     for(std::size_t i=0;i<classes.size();++i) {
-      auto key=std::make_pair(classes[i].signature,GeometryKey(config[i]));
+      auto key=std::make_pair(classes[i].signature,ClassGeometryKey(config[i]));
       auto it=variants_.find(key);
       if(it==variants_.end())it=variants_.emplace(key,ProbeOne(classes[i].signature,&config[i],dtype)).first;
       result.registers=std::max(result.registers,it->second.registers);

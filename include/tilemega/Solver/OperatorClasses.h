@@ -27,7 +27,7 @@ inline std::vector<OperatorClass> BuildOperatorClasses(frontend::ImportedSemanti
   }
   return classes;
 }
-inline auto GeometryKey(GemmConfig const& g) {return std::make_tuple(g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k);}
+inline auto ClassGeometryKey(GemmConfig const& g) {return std::make_tuple(g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k);}
 inline frontend::ImportOptions ClassGranularity(frontend::ImportedSemantics const& imported,
     std::vector<OperatorClass> const& classes,std::vector<GemmConfig> const& config) {
   if(classes.size()!=config.size())throw std::invalid_argument("one tile required per semantic class");

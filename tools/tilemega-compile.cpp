@@ -6,6 +6,7 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Solver/CompilerSearch.h>
+#include <tilemega/Solver/SkeletonSearch.h>
 #include <tilemega/Solver/IntervalSegments.h>
 #include <llvm/Support/raw_ostream.h>
 
@@ -194,10 +195,20 @@ std::vector<VariantRequest> readVariants(std::string const& path,
 }  // namespace
 
 int main(int argc, char** argv) {
+  std::vector<std::string> normalized;
+  for(int i=0;i<argc;++i) {
+    std::string value=argv[i];auto equals=value.find('=');
+    if(value.rfind("--",0)==0 && equals!=std::string::npos) { normalized.push_back(value.substr(0,equals));normalized.push_back(value.substr(equals+1)); }
+    else normalized.push_back(value);
+  }
+  std::vector<char*> pointers;for(auto& value:normalized)pointers.push_back(value.data());
+  argc=int(pointers.size());argv=pointers.data();
   tilemega::analysis::IslContext isl_context;
   if (argc < 3 || argc % 2 == 0) {
     std::cerr << "usage: tilemega-compile {EXPORTED_PROGRAM.pt2|STABLE_EXPORT.json|CG.mlir} "
                  "{OUTPUT.cu|OUTPUT.so} [--variants PLAN.json] [--solve TARGET.json --seq N --past N\n"
+                 " --solver legacy|skeleton --legacy-seed CG.mlir --k-base 4|8|16|W\n"
+                 " --search-passes 1..3 --variant-cache DIR\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
                  " --segments 1|2 --segment-candidates N\n"
                  " --dump-cg FILE.mlir\n"
@@ -214,7 +225,8 @@ int main(int argc, char** argv) {
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path;
     bool resource_probes=true;bool dump_evaluated=false;
-    std::string solver_mode="legacy";
+    std::string solver_mode="skeleton",legacy_seed,variant_cache;
+    int skeleton_k=8,search_passes=3;bool all_workers=false;
     tilemega::solver::SolverTiming solver_timing;
     int interval_begin=0,segments=1,segment_candidates=3;
     std::vector<mlir::OwningOpRef<mlir::ModuleOp>> variant_modules;
@@ -223,7 +235,11 @@ int main(int argc, char** argv) {
     for (int i=3;i<argc;i+=2) {
       std::string flag=argv[i],value=argv[i+1];
       if (flag=="--variants") variants_path=value;
-      else if (flag=="--solver") { solver_mode=value; if(value!="legacy") throw std::runtime_error("skeleton solver implementation pending"); }
+      else if (flag=="--solver") { solver_mode=value; if(value!="legacy" && value!="skeleton") throw std::runtime_error("unknown solver"); }
+      else if (flag=="--legacy-seed") legacy_seed=value;
+      else if (flag=="--variant-cache") variant_cache=value;
+      else if (flag=="--k-base") {all_workers=value=="W";if(!all_workers)skeleton_k=std::stoi(value);}
+      else if (flag=="--search-passes") search_passes=std::stoi(value);
       else if (flag=="--solve") solve_target=value;
       else if (flag=="--seq-begin") interval_begin=std::stoi(value);
       else if (flag=="--segments") segments=std::stoi(value);
@@ -321,7 +337,52 @@ int main(int argc, char** argv) {
         return queryResidency(m,kappa,solve_options,resource_root/std::to_string(probe_index++),library);
       };
       solve_options.timing=&solver_timing;
-      auto solved=tilemega::solver::SolveExport(input.string(),context,solve_options,&summary,evidence);
+      tilemega::solver::CompilerSearchResult solved;
+      if(solver_mode=="legacy")solved=tilemega::solver::SolveExport(input.string(),context,solve_options,&summary,evidence);
+      else {
+        mlir::OwningOpRef<mlir::ModuleOp> seed;
+        if(!legacy_seed.empty()) {
+          seed=mlir::parseSourceFile<mlir::ModuleOp>(legacy_seed,&context);
+          if(!seed)throw std::runtime_error("cannot read legacy seed CG");
+        } else {
+          tilemega::solver::SolverTiming seed_timing;auto seed_options=solve_options;seed_options.timing=&seed_timing;
+          std::ofstream seed_evidence(std::string(argv[2])+".seed.search.tsv");
+          auto legacy=tilemega::solver::SolveExport(input.string(),context,seed_options,&summary,seed_evidence);
+          seed=std::move(legacy.module);
+          std::ofstream seed_times(std::string(argv[2])+".seed.timing.tsv");
+          seed_timing.Write(seed_times,"legacy-seed",input.stem().string(),dims.seq);
+        }
+        auto runtime=tilemega::codegen::ReadRuntimePlan(*seed);
+        if(runtime.gemms.empty())throw std::runtime_error("legacy seed has no GEMM geometry");
+        auto const& g=runtime.gemms.front();
+        for(auto const& other:runtime.gemms)
+          if(std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k)!=std::tie(other.tile_m,other.tile_n,other.tile_k,other.stages,other.split_k))
+            throw std::runtime_error("coordinate descent needs a uniform legacy seed");
+        tilemega::solver::SkeletonSearchOptions skeleton;skeleton.common=solve_options;
+        skeleton.seed={g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k};
+        auto kappa=(*seed)->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_kappa");
+        skeleton.kappa=kappa ? int(kappa.getInt()):1;skeleton.k_base=skeleton_k;skeleton.all_workers=all_workers;skeleton.passes=search_passes;
+        skeleton.artifact_prefix=argv[2];
+        if(variant_cache.empty())variant_cache=(resource_root.parent_path()/"variant_cache").string();
+        int variant_index=0;
+        skeleton.variant_probe=[&](std::string const&,tilemega::solver::GemmConfig const* tile,tilemega::solver::ScalarType dtype) {
+          auto output=resource_root/("variant_"+std::to_string(variant_index++)+".json");
+          auto log=output;log.replace_extension("log");std::filesystem::create_directories(resource_root);
+          std::string command="python3 "+quote(std::string(TILEMEGA_SOURCE_DIR)+"/tools/probe_variant.py")+
+            " --cache "+quote(variant_cache)+" --output "+quote(output.string())+" --arch "+quote(solve_options.placement.target.NvccArch())+
+            " --dtype "+std::string(dtype==tilemega::solver::ScalarType::kBF16 ? "bf16":"f32");
+          if(tile)command+=" --tile "+quote(std::to_string(tile->tile_m)+","+std::to_string(tile->tile_n)+","+std::to_string(tile->tile_k)+","+std::to_string(tile->stages));
+          else command+=" --nongemm";
+          if(std::system((command+" >"+quote(log.string())+" 2>&1").c_str()))throw std::runtime_error("variant probe failed: "+log.string());
+          auto file=llvm::MemoryBuffer::getFile(output.string());if(!file)throw std::runtime_error("missing variant resource result");
+          auto value=llvm::json::parse(file.get()->getBuffer());auto* object=value?value->getAsObject():nullptr;
+          if(!object)throw std::runtime_error("invalid variant resource JSON");
+          return tilemega::solver::VariantResources{int(requiredInteger(*object,"registers")),int(requiredInteger(*object,"shared_bytes")),int(requiredInteger(*object,"threads")),object->getBoolean("compiled").value_or(false)};
+        };
+        auto result=tilemega::solver::SolveSkeletonExport(input.string(),context,skeleton,&summary,evidence);
+        solved=std::move(result.compiled);
+        std::ofstream events(std::string(argv[2])+".phases.tsv");solver_timing.WriteEvents(events);
+      }
       std::ofstream timing_file(std::string(argv[2])+".timing.tsv");
       solver_timing.Write(timing_file,solver_mode,input.stem().string(),dims.seq);
       std::ofstream shortlist(std::string(argv[2])+".top3.tsv");
