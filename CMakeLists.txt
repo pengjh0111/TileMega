@@ -143,6 +143,7 @@ add_library(tilemega STATIC
   lib/Analysis/CouplingRelation.cpp
   lib/Analysis/Analysis.cpp
   lib/Analysis/AccessRelation.cpp
+  lib/Analysis/SymbolicOracle.cpp
   lib/Analysis/CouplingCache.cpp
   lib/Analysis/Semantics.cpp
   lib/Analysis/TaskInstantiation.cpp
@@ -650,6 +651,9 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(variant_resource_test test/unit/variant_resource_test.cpp)
   target_link_libraries(variant_resource_test PRIVATE TileMega::tilemega)
   add_test(NAME variant_resource COMMAND variant_resource_test)
+  add_executable(symbolic_oracle_test test/unit/symbolic_oracle_test.cpp)
+  target_link_libraries(symbolic_oracle_test PRIVATE TileMega::tilemega)
+  add_test(NAME symbolic_oracle COMMAND symbolic_oracle_test)
   add_executable(operator_classes_test test/unit/operator_classes_test.cpp)
   target_link_libraries(operator_classes_test PRIVATE TileMega::tilemega)
   target_compile_definitions(operator_classes_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

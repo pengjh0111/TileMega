@@ -44,6 +44,11 @@ std::string geometry(OperatorNode const& node,SemanticOp const& op,Granularity c
   return out.str();
 }
 }
+std::shared_ptr<OraclePair> CouplingCache::OracleFor(std::string const& relation) {
+  auto it=oracle_entries.find(relation);
+  if(it==oracle_entries.end())it=oracle_entries.emplace(relation,std::make_shared<OraclePair>(relation)).first;
+  return it->second;
+}
 std::vector<CouplingEdge> CouplingCache::Derive(SemanticGraph const& semantics,
     OperatorGraph const& tasks,Granularity const& granularity,ParamBinding const& known) {
   std::vector<CouplingEdge> edges;
@@ -62,8 +67,9 @@ std::vector<CouplingEdge> CouplingCache::Derive(SemanticGraph const& semantics,
       auto derived=CouplingDerivation{}.Derive(pair,known);
       if(derived.size()!=1)throw std::logic_error("cached pair must derive exactly one coupling");
       auto value=std::move(derived.front());value.src.name.clear();value.dst.name.clear();
-      it=entries.emplace(std::move(key),Value{std::move(value),{},{},{}}).first;
+      it=entries.emplace(std::move(key),Value{std::move(value),{}}).first;
     } else ++hits;
+    if(!it->second.oracle)it->second.oracle=OracleFor(it->second.edge.C.Reverse().ToString());
     auto edge=it->second.edge;edge.src.name=producer->name;edge.dst.name=consumer.name;
     edges.push_back(std::move(edge));
   }

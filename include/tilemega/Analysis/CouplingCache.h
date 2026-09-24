@@ -2,6 +2,7 @@
 #pragma once
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
+#include <tilemega/Analysis/SymbolicOracle.h>
 #include <map>
 #include <tuple>
 
@@ -13,10 +14,12 @@ struct CouplingCache {
   struct Value {
     CouplingEdge edge;
     // Oracle descriptions are immutable symbolic text, never concrete tile edges.
-    std::string forward_oracle,reverse_oracle,structure;
+    std::shared_ptr<OraclePair> oracle;
   };
   std::map<Key,Value> entries;
   std::size_t hits=0,misses=0;
+  std::map<std::string,std::shared_ptr<OraclePair>> oracle_entries;
+  std::shared_ptr<OraclePair> OracleFor(std::string const& producer_to_consumer);
   std::vector<CouplingEdge> Derive(SemanticGraph const& semantics,
       OperatorGraph const& tasks,Granularity const& granularity,ParamBinding const& known);
 };
