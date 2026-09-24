@@ -57,6 +57,8 @@ struct SymbolicOracle::Impl {
   mutable std::vector<isl_pw_aff*> theta_lower,theta_upper;
   OracleProgram unique_program;
   mutable OracleProgram box_program;
+  mutable OracleProgram general_bounds;
+  mutable OracleExpression general_membership;
   std::vector<isl_pw_aff*> lower,upper;
   int input=0,output=0,parameters=0;
   mutable std::uint64_t queries=0;mutable double ms=0;
@@ -148,10 +150,22 @@ OracleImage SymbolicOracle::Query(std::vector<long> const& source,ParamBinding c
     auto const& lower=d.kind==OracleKind::Rectangular?d.lower:d.theta_lower;
     auto const& upper=d.kind==OracleKind::Rectangular?d.upper:d.theta_upper;
     d.box_program={};
+    d.general_bounds={};d.general_membership={};
     if(!lower.empty()) {
       std::vector<isl_pw_aff*> expressions;
       for(int i=0;i<d.output;++i){expressions.push_back(lower[i]);expressions.push_back(upper[i]);}
       d.box_program=OracleProgram::Build(isl_set_params(isl_set_copy(d.theta_image)),expressions);
+    } else if(d.kind==OracleKind::General) {
+      // Bounds delimit a local scan, never a predecessor set. Every emitted
+      // point must satisfy the original Presburger membership predicate.
+      std::vector<isl_pw_aff*> bounds;
+      for(int i=0;i<d.output;++i){bounds.push_back(isl_set_dim_min(isl_set_copy(d.theta_image),i));bounds.push_back(isl_set_dim_max(isl_set_copy(d.theta_image),i));}
+      d.general_bounds=OracleProgram::Build(isl_set_params(isl_set_copy(d.theta_image)),bounds);
+      for(auto* p:bounds)isl_pw_aff_free(p);
+      auto* membership=isl_set_copy(d.theta_image);
+      for(int i=0;i<d.output;++i)membership=isl_set_set_dim_name(membership,isl_dim_set,i,("__tilemega_image_"+std::to_string(i)).c_str());
+      membership=isl_set_move_dims(membership,isl_dim_param,d.parameters+d.input,isl_dim_set,0,d.output);
+      auto program=OracleProgram::Build(membership,{});d.general_membership=std::move(program.domain);
     }
   }
   auto const& lower=d.kind==OracleKind::Rectangular?d.lower:d.theta_lower;
@@ -177,6 +191,32 @@ OracleImage SymbolicOracle::Query(std::vector<long> const& source,ParamBinding c
       result.box.emplace_back(integer(lo),integer(hi));
     }
     isl_point_free(point);result.empty=false;return result;
+  }
+  if(d.general_bounds.domain.valid && d.general_membership.valid) {
+    auto arguments=values;arguments.insert(arguments.end(),source.begin(),source.end());
+    bool nonempty=false;std::vector<long> bounds;
+    if(d.general_bounds.Eval(arguments,nonempty,bounds)) {
+      OracleImage result;if(!nonempty)return result;
+      // Large sparse hulls stay on ISL's exact point enumerator.
+      __int128 volume=1;
+      for(int i=0;i<d.output && volume<=16384;++i)volume*=__int128(bounds[2*i+1])-bounds[2*i]+1;
+      if(volume>=0 && volume<=16384) {
+        arguments.resize(d.parameters+d.input+d.output);std::vector<long> coordinate(d.output);bool valid=true;
+        std::function<void(int)> visit=[&](int dim) {
+          if(!valid)return;
+          if(dim==d.output) {
+            long contains=0;valid=d.general_membership.Eval(arguments,contains);
+            if(valid && contains)result.points.push_back(coordinate);return;
+          }
+          for(long x=bounds[2*dim];; ++x) {
+            if(x>bounds[2*dim+1])break;
+            arguments[d.parameters+d.input+dim]=coordinate[dim]=x;visit(dim+1);
+            if(x==bounds[2*dim+1])break;
+          }
+        };visit(0);
+        if(valid){result.empty=result.points.empty();return result;}
+      }
+    }
   }
   auto* fiber=isl_set_copy(d.theta_image);
   for(int i=0;i<d.input;++i)fiber=isl_set_fix_val(fiber,isl_dim_param,d.parameters+i,isl_val_int_from_si(SharedIslContext().raw(),source[i]));

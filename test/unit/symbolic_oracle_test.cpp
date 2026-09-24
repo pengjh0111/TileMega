@@ -21,6 +21,7 @@ int main() {
     {"[N] -> { [q] -> [i,j] : 0<=q<N and ((i=0 and j=5) or (i=1 and j=0)) }",OracleKind::General},
     {"[N] -> { [q] -> [i] : 0<=q<N and 0<=i<=8 and i%2=0 }",OracleKind::General},
     {"[N] -> { [q] -> [i] : 0<=q<N and 0<=i<8 and (q=0 or i%2=0) }",OracleKind::General},
+    {"[N] -> { [q] -> [i] : 0<=q<N and (i=0 or i=1000000) }",OracleKind::General},
     {"[N] -> { [i,j] -> [p,q] : 0<=i<N and 0<=j<N and p=i and q=j }",OracleKind::Unique}};
   int comparisons=0;
   {
@@ -65,8 +66,8 @@ int main() {
     throw std::runtime_error("out-of-domain affine evaluation nonempty");
   SymbolicOracle mixed("[N] -> { [q] -> [i] : 0<=q<N and 0<=i<8 and (q=0 or i%2=0) }");
   ParamBinding theta;theta.Bind("N",3);
-  if(!mixed.Query({0},theta).rectangular || mixed.Query({1},theta).rectangular)
-    throw std::runtime_error("local box proof must preserve strided General fibers");
+  if(mixed.Query({0},theta).Count()!=8 || mixed.Query({1},theta).Count()!=4)
+    throw std::runtime_error("local enumeration must preserve strided General fibers");
   SymbolicOracle theta_box("[N] -> { [q] -> [i] : 0<=q<3 and 0<=i<8 and (N=1 or i%2=0) }");
   if(theta_box.kind()!=OracleKind::General)throw std::runtime_error("theta-dependent relation must remain General");
   for(int n:{1,3,1,3}) {
