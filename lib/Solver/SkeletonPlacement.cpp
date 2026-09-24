@@ -91,14 +91,20 @@ bool ScheduleBySkeleton(SkeletonRequest const& request,EftSchedule* out,
     arrival_ready[node]=true;return result;
   };
   try {
-    std::vector<int> candidates,members;
+    std::vector<std::vector<int>> candidate_sets(nodes);
+    std::vector<int> members;
     while(!ready.empty()) {
       Ready task=ready.top();ready.pop();auto const& a=arrival(task.stage,task.tile);
-      skeleton.Spread(task.stage,task.tile,candidates);
+      auto& candidates=candidate_sets[task.node];
       // Spread is injective: (k-1)*floor(W/k) < W. Only the two
       // affinity workers can duplicate it; worker ties are explicit below.
-      for(auto const& p:a.critical)if(p.node>=0 &&
-          std::find(candidates.begin(),candidates.end(),p.worker)==candidates.end())candidates.push_back(p.worker);
+      // Once a tile is ready its predecessors cannot move. Keep this exact
+      // set across lazy retries; only worker availability needs recomputing.
+      if(candidates.empty()) {
+        skeleton.Spread(task.stage,task.tile,candidates);
+        for(auto const& p:a.critical)if(p.node>=0 &&
+            std::find(candidates.begin(),candidates.end(),p.worker)==candidates.end())candidates.push_back(p.worker);
+      }
       double est=std::numeric_limits<double>::infinity(),chosen_start=0,chosen_end=est;int chosen=-1;
       for(int w:candidates) {
         double start=std::max(avail[w],w==a.owner?a.second:a.best);est=std::min(est,start);
@@ -118,6 +124,7 @@ bool ScheduleBySkeleton(SkeletonRequest const& request,EftSchedule* out,
       if(last[chosen]>=0){++stats.adjacent_slots;if(stage_of[last[chosen]]!=task.stage)++stats.transitions;}
       last[chosen]=node;avail[chosen]=chosen_end;placed[node]=true;++stats.placed;
       stats.candidate_sum+=candidates.size();
+      std::vector<int>().swap(candidates);
       int home=(skeleton.spaces[task.stage].base+task.tile)%grid;
       if(std::any_of(a.critical.begin(),a.critical.end(),[&](auto const& p){return p.node>=0 && p.worker==chosen;}))++stats.affinity;
       else if(chosen==home)++stats.home;else ++stats.spread_other;
