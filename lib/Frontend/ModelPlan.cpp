@@ -670,7 +670,8 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
         builder.Node(inv_freq_sig->first).dtype == "torch.float32";
     builder.plan.rope_fp32_phase = fp32_phase;
     std::uint32_t inv =
-        builder.Weight(*inv_freq_sig->second, fp32_phase ? 2u : 1u);
+        builder.Weight(*inv_freq_sig->second,
+                       fp32_phase && builder.plan.dtype == "bf16" ? 2u : 1u);
     foreign_dtype.erase(inv_freq_sig->first);
     std::uint32_t past_k = builder.Buffer(
         {past_k_name, 0, 0, kv_width, 0, PlanBuffer::Source::kFixture,
