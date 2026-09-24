@@ -1,0 +1,26 @@
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+error: 'tmcg.coupling' op wait { 999999 } does not match the relation's fiber cardinality [s10] -> { [m] -> 1 : 0 <= m < s10 }
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+error: 'tmcg.coupling' op wait { 999999 } does not match the relation's fiber cardinality [s10] -> { [m] -> 1 : 0 <= m < s10 }
+DERIVE_TIMING split=1 mode=uncached count=1 total_ms=1245.38 cache_hit=0 cache_miss=0 bytes_equal=1
+DERIVE_TIMING split=1 mode=cold count=1 total_ms=233.508 cache_hit=309 cache_miss=45 bytes_equal=1
+DERIVE_TIMING split=1 mode=warm count=1 total_ms=5.77378 cache_hit=354 cache_miss=0 bytes_equal=1
+EXACT_MEMO hit=19539 miss=444 mutation_rejected=PASS
+CACHE_EQ split=1 PASS
+DERIVE_TIMING split=2 mode=uncached count=1 total_ms=1148.18 cache_hit=0 cache_miss=0 bytes_equal=1
+DERIVE_TIMING split=2 mode=cold count=1 total_ms=219.15 cache_hit=411 cache_miss=56 bytes_equal=1
+DERIVE_TIMING split=2 mode=warm count=1 total_ms=5.28773 cache_hit=467 cache_miss=0 bytes_equal=1
+EXACT_MEMO hit=25746 miss=553 mutation_rejected=PASS
+CACHE_EQ split=2 PASS
+SEMSIG_COLLISIONS pairs=2 distinct_keys=2 PASS
+CACHE hit=1557 miss=85 PASS

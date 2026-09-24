@@ -7108,3 +7108,31 @@ Evidence: `SOLVER_V2/profiles/repeated_relation_parse.stack.txt`,
 `union_algebra_test.log`, `native_union_test.log`,
 `schedule_candidate_cache_test.log`, `search_native_cache_test.log`, and
 `protocol.json`.
+
+## F-246 — Semantic coupling reuse reduces warm derivation, with cold cost exposed
+
+✅ **Verified.** Separate fresh CPU processes import the Llama and Qwen anchored
+exports and compare uncached, cold-cache, and warm-cache derivation at fixed
+granularity (split 1 and 2). Every timed module prints byte-identically to the
+independent `ImportPlan` result. Expression memoization is disabled for this
+comparison, isolating the semantic coupling cache. Observed derive times (ms):
+
+| Model | Split | Uncached | Cold | Warm | Cold hits / misses | Warm hits / misses |
+|---|---:|---:|---:|---:|---:|---:|
+| Llama | 1 | 1245.38 | 233.508 | 5.77378 | 309 / 45 | 354 / 0 |
+| Llama | 2 | 1148.18 | 219.150 | 5.28773 | 411 / 56 | 467 / 0 |
+| Qwen3 | 1 | 2058.12 | 241.344 | 11.4686 | 627 / 47 | 674 / 0 |
+| Qwen3 | 2 | 2009.18 | 218.520 | 10.5149 | 813 / 58 | 871 / 0 |
+
+These are single diagnostic observations under concurrent CPU work, not
+median full-solver latency or GPU speedups. Cold cache also constructs the
+edge Oracle in `CouplingCache::Derive`; uncached import only derives the CG.
+On the small reference fixture this cold cost exceeds uncached derivation
+(194.285 vs 137.831 ms at split 1; 262.411 vs 136.316 ms at split 2).
+The next cold-path accounting step is to separate canonical-key construction,
+coupling derivation, and eager `OracleFor` proof preparation at that call site;
+the current timer includes all three. Real-model full-search timing remains
+pending and must retain that work in its total.
+
+Evidence: `SOLVER_V2/cache_derive_{reference,llama,qwen3}.log`, the two anchored
+`*.command.json` files, and `test/unit/coupling_cache_test.cpp --benchmark`.

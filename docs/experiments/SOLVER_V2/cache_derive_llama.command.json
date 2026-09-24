@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/coupling_cache_test",
+    "/root/r7_work/llama_hoist/auto.cu.export.json",
+    "--benchmark"
+  ],
+  "executable_sha256": "9443fb44291cfbf7aed723922f1a947201fdf5943fc81f0fa241a98719ce6bf3",
+  "head": "876ac0d5bee5c5e375e15933f580d06c9e9dc399",
+  "started_ns": 1790262801568449190,
+  "elapsed_ns": 55556793767,
+  "exit_code": 0,
+  "environment": {}
+}
