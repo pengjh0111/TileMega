@@ -10,6 +10,7 @@
 #include <chrono>
 #include <limits>
 #include <stdexcept>
+#include "OracleExpression.h"
 
 namespace tilemega::analysis {
 char const* ToString(OracleKind k) {switch(k){case OracleKind::Unique:return "Unique";case OracleKind::Rectangular:return "Rectangular";default:return "General";}}
@@ -54,6 +55,8 @@ struct SymbolicOracle::Impl {
   mutable isl_set* theta_image=nullptr;
   mutable std::vector<long> bound_theta;
   mutable std::vector<isl_pw_aff*> theta_lower,theta_upper;
+  OracleProgram unique_program;
+  mutable OracleProgram box_program;
   std::vector<isl_pw_aff*> lower,upper;
   int input=0,output=0,parameters=0;
   mutable std::uint64_t queries=0;mutable double ms=0;
@@ -66,11 +69,17 @@ SymbolicOracle::SymbolicOracle(std::string const& text):impl_(std::make_shared<I
   auto* parameterized=isl_map_copy(d.map);
   for(int i=0;i<d.input;++i)parameterized=isl_map_set_dim_name(parameterized,isl_dim_in,i,("__tilemega_oracle_"+std::to_string(i)).c_str());
   parameterized=isl_map_move_dims(parameterized,isl_dim_param,d.parameters,isl_dim_in,0,d.input);
+  auto* parameterized_unique=isl_map_copy(parameterized);
   d.image=isl_map_range(parameterized);
   if(isl_map_is_single_valued(d.map)==isl_bool_true) {
     d.unique=isl_pw_multi_aff_from_map(isl_map_copy(d.map));
     if(!d.unique)throw std::runtime_error("single-valued relation failed affine conversion");
     d.kind=OracleKind::Unique;
+    auto* affine=isl_pw_multi_aff_from_map(parameterized_unique);parameterized_unique=nullptr;
+    std::vector<isl_pw_aff*> expressions;
+    for(int i=0;i<d.output;++i)expressions.push_back(isl_pw_multi_aff_get_pw_aff(affine,i));
+    d.unique_program=OracleProgram::Build(isl_set_params(isl_set_copy(d.image)),expressions);
+    for(auto* p:expressions)isl_pw_aff_free(p);isl_pw_multi_aff_free(affine);
   } else if(isl_set_is_box(d.image)==isl_bool_true) {
     // The predicate sees symbolic source coordinates as parameters, proving
     // every fiber, including strided/nonrectangular counterexamples.
@@ -81,6 +90,7 @@ SymbolicOracle::SymbolicOracle(std::string const& text):impl_(std::make_shared<I
       if(!d.lower.back() || !d.upper.back())throw std::runtime_error("box bound construction failed");
     }
   }
+  isl_map_free(parameterized_unique);
 }
 OracleKind SymbolicOracle::kind() const{return impl_->kind;}
 std::string const& SymbolicOracle::relation() const{return impl_->text;}
@@ -98,6 +108,12 @@ OracleImage SymbolicOracle::Query(std::vector<long> const& source,ParamBinding c
     values.push_back(it->second);
   }
   if(d.kind==OracleKind::Unique) {
+    auto arguments=values;arguments.insert(arguments.end(),source.begin(),source.end());
+    bool nonempty=false;std::vector<long> coordinates;
+    if(d.unique_program.Eval(arguments,nonempty,coordinates)) {
+      OracleImage result;result.empty=!nonempty;
+      if(nonempty)result.points.push_back(std::move(coordinates));return result;
+    }
     auto* point=isl_point_zero(isl_pw_multi_aff_get_domain_space(d.unique));
     for(int i=0;i<d.parameters;++i)point=isl_point_set_coordinate_val(point,isl_dim_param,i,isl_val_int_from_si(SharedIslContext().raw(),values[i]));
     for(int i=0;i<d.input;++i)point=isl_point_set_coordinate_val(point,isl_dim_set,i,isl_val_int_from_si(SharedIslContext().raw(),source[i]));
@@ -129,10 +145,25 @@ OracleImage SymbolicOracle::Query(std::vector<long> const& source,ParamBinding c
         d.theta_upper.push_back(isl_set_dim_max(isl_set_copy(d.theta_image),i));
       }
     }
+    auto const& lower=d.kind==OracleKind::Rectangular?d.lower:d.theta_lower;
+    auto const& upper=d.kind==OracleKind::Rectangular?d.upper:d.theta_upper;
+    d.box_program={};
+    if(!lower.empty()) {
+      std::vector<isl_pw_aff*> expressions;
+      for(int i=0;i<d.output;++i){expressions.push_back(lower[i]);expressions.push_back(upper[i]);}
+      d.box_program=OracleProgram::Build(isl_set_params(isl_set_copy(d.theta_image)),expressions);
+    }
   }
   auto const& lower=d.kind==OracleKind::Rectangular?d.lower:d.theta_lower;
   auto const& upper=d.kind==OracleKind::Rectangular?d.upper:d.theta_upper;
   if(!lower.empty()) {
+    auto arguments=values;arguments.insert(arguments.end(),source.begin(),source.end());
+    bool nonempty=false;std::vector<long> coordinates;
+    if(d.box_program.Eval(arguments,nonempty,coordinates)) {
+      OracleImage result;result.empty=!nonempty;result.rectangular=true;
+      if(nonempty)for(int i=0;i<d.output;++i)result.box.emplace_back(coordinates[2*i],coordinates[2*i+1]);
+      return result;
+    }
     auto* point=isl_point_zero(isl_pw_aff_get_domain_space(lower.front()));
     for(int i=0;i<d.parameters;++i)point=isl_point_set_coordinate_val(point,isl_dim_param,i,isl_val_int_from_si(SharedIslContext().raw(),values[i]));
     for(int i=0;i<d.input;++i)point=isl_point_set_coordinate_val(point,isl_dim_param,d.parameters+i,isl_val_int_from_si(SharedIslContext().raw(),source[i]));

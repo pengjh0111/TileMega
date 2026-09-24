@@ -2,6 +2,7 @@
 #include <tilemega/Analysis/SymbolicOracle.h>
 #include <tilemega/Analysis/CouplingRelation.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include "../../lib/Analysis/OracleExpression.h"
 #include <iostream>
 #include <map>
 #include <set>
@@ -22,6 +23,20 @@ int main() {
     {"[N] -> { [q] -> [i] : 0<=q<N and 0<=i<8 and (q=0 or i%2=0) }",OracleKind::General},
     {"[N] -> { [i,j] -> [p,q] : 0<=i<N and 0<=j<N and p=i and q=j }",OracleKind::Unique}};
   int comparisons=0;
+  {
+    auto* f=isl_pw_aff_read_from_str(context.raw(),"[x] -> { [(floor(x/3))] : -20<=x<=20 and x%2=0 }");
+    auto program=OracleProgram::Build(isl_pw_aff_domain(isl_pw_aff_copy(f)),{f});
+    for(long x=-22;x<=22;++x) {
+      bool nonempty=false;std::vector<long> values;
+      if(!program.Eval({x},nonempty,values))throw std::runtime_error("integer expression was not compiled");
+      bool expected=x>=-20 && x<=20 && x%2==0;
+      long quotient=x/3-(x<0 && x%3!=0);
+      if(nonempty!=expected || (expected && values!=std::vector<long>{quotient}))
+        throw std::runtime_error("compiled expression lost floor division or domain holes");
+    }
+    isl_pw_aff_free(f);
+    std::cout<<"ORACLE_EXPRESSION signed_floor_domain_holes=45 PASS\n";
+  }
   for(auto const& c:cases) {
     OraclePair pair(c.text);
     if(pair.forward.kind()!=c.kind)throw std::runtime_error(std::string("wrong oracle kind: ")+c.text);
