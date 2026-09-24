@@ -1,0 +1,15 @@
+{
+  "command": [
+    "nvidia-smi",
+    "-q"
+  ],
+  "executable_sha256": "20f889e4468cd4d6fc6e79be1113b98ce4152d0da08fa709156cf870c1a9290d",
+  "head": "e4fd19a97aad3a2f56ff258d7b59db9840e2c577",
+  "started_ns": 1790261778920770287,
+  "elapsed_ns": 184220340,
+  "exit_code": 0,
+  "environment": {
+    "TILEMEGA_WARMUP": "2",
+    "TILEMEGA_REPEAT": "10"
+  }
+}

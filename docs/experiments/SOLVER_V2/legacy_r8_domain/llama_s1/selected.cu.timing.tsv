@@ -1,0 +1,7 @@
+solver	model	seq	phase	count	total_ms
+legacy	auto.cu.export	1	bridge_and_plan	1	192099
+legacy	auto.cu.export	1	import	43	192176
+legacy	auto.cu.export	1	placement_catalog	54	394201
+legacy	auto.cu.export	1	prepare_placement	54	1.50755e+06
+legacy	auto.cu.export	1	query_residency	12	362782
+legacy	auto.cu.export	1	total	1	4.71891e+06

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "python3",
+    "/root/TileMega/docs/experiments/SOLVER_V2/run_legacy.py",
+    "--bridge",
+    "/root/TileMega/docs/experiments/SOLVER_V2/admission/qwen3_s1_fxorder_failed/selected.cu.export.json",
+    "--fixture",
+    "/root/r9_work/qwen3_s1/fixture",
+    "--seq",
+    "1",
+    "--out",
+    "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1",
+    "--domain",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/search_domain.json",
+    "--capacity",
+    "12"
+  ],
+  "pid": 2625121,
+  "previous_failure": "/root/TileMega/docs/experiments/SOLVER_V2/admission/qwen3_s1_fxorder_failed"
+}

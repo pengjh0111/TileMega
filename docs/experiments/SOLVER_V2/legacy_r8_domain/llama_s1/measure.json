@@ -1,0 +1,13 @@
+{
+  "command": [
+    "python3",
+    "/root/TileMega/docs/experiments/SOLVER_V2/measure.py",
+    "--source",
+    "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s1/selected.cu",
+    "--fixture",
+    "/root/r7_work/llama_s1/fixture"
+  ],
+  "started_ns": 1790239975412684074,
+  "elapsed_ns": 197745060380,
+  "exit_code": 0
+}

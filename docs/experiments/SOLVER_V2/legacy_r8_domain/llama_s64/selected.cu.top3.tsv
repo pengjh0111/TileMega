@@ -1,0 +1,4 @@
+rank	key	placement	tile_m	tile_n	tile_k	stages	split_k	kappa	residency	floor_ns	predicted_ns	source	cg
+1	32x16x64s2split2kappa1r4	eft	32	16	64	2	2	1	4	9.90137e+06	1.13941e+07	/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s64/selected.cu.top1.cu	/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s64/selected.cu.top1.mlir
+2	32x16x64s2split2kappa2r4	eft	32	16	64	2	2	2	4	9.90137e+06	1.13989e+07	/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s64/selected.cu.top2.cu	/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s64/selected.cu.top2.mlir
+3	32x16x64s2split2kappa4r4	eft	32	16	64	2	2	4	4	9.90137e+06	1.13989e+07	/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s64/selected.cu.top3.cu	/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s64/selected.cu.top3.mlir

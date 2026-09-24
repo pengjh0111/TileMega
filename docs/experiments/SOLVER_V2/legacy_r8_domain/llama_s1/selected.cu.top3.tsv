@@ -1,0 +1,4 @@
+rank	key	placement	tile_m	tile_n	tile_k	stages	split_k	kappa	residency	floor_ns	predicted_ns	source	cg
+1	64x128x16s2split32kappa1r3	wavefront	64	128	16	2	32	1	3	4.6135e+06	5.85014e+06	/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s1/selected.cu.top1.cu	/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s1/selected.cu.top1.mlir
+2	64x128x16s2split32kappa2r3	wavefront	64	128	16	2	32	2	3	4.6135e+06	5.85191e+06	/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s1/selected.cu.top2.cu	/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s1/selected.cu.top2.mlir
+3	64x128x16s2split32kappa4r3	wavefront	64	128	16	2	32	4	3	4.6135e+06	5.85191e+06	/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s1/selected.cu.top3.cu	/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s1/selected.cu.top3.mlir
