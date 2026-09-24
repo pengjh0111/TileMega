@@ -1,0 +1,19 @@
+{
+  "command": [
+    "python3",
+    "/root/TileMega/docs/experiments/SOLVER_V2/run_legacy.py",
+    "--bridge",
+    "/root/r7_work/qwen3/auto.cu.export.json",
+    "--fixture",
+    "/root/r7_work/qwen3/fixture",
+    "--seq",
+    "4",
+    "--out",
+    "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s4",
+    "--domain",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/search_domain.json",
+    "--capacity",
+    "12"
+  ],
+  "pid": 2620641
+}

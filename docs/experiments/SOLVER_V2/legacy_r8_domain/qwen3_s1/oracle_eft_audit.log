@@ -4621,4 +4621,44 @@ producer	consumer	direction	oracle	coordinate	expected	actual	equal
 669	670	1	General	0	48	48	1
 664	671	0	Unique	0	1	1	1
 664	671	0	Unique	8	1	1	1
-664	671	0	Un
+664	671	0	Unique	15	1	1	1
+664	671	1	Unique	0	1	1	1
+664	671	1	Unique	256	0	0	1
+664	671	1	Unique	511	0	0	1
+670	671	0	General	0	512	512	1
+670	671	1	General	0	1	1	1
+670	671	1	General	256	1	1	1
+670	671	1	General	511	1	1	1
+664	672	0	Unique	0	1	1	1
+664	672	0	Unique	8	1	1	1
+664	672	0	Unique	15	1	1	1
+664	672	1	Unique	0	1	1	1
+664	672	1	Unique	8	1	1	1
+664	672	1	Unique	15	1	1	1
+671	672	0	Unique	0	1	1	1
+671	672	0	Unique	256	1	1	1
+671	672	0	Unique	511	1	1	1
+671	672	1	General	0	32	32	1
+671	672	1	General	8	32	32	1
+671	672	1	General	15	32	32	1
+672	673	0	General	0	1	1	1
+672	673	0	General	8	1	1	1
+672	673	0	General	15	1	1	1
+672	673	1	General	0	16	16	1
+673	674	0	General	0	37984	37984	1
+673	674	1	General	0	1	1	1
+673	674	1	General	18992	1	1	1
+673	674	1	General	37983	1	1	1
+674	675	0	Unique	0	1	1	1
+674	675	0	Unique	18992	1	1	1
+674	675	0	Unique	37983	1	1	1
+674	675	1	General	0	32	32	1
+674	675	1	General	593	32	32	1
+674	675	1	General	1186	32	32	1
+STRUCTURE 1:1 edges=223
+STRUCTURE M:N edges=451
+STRUCTURE N:1 edges=197
+ORACLE_KIND General directions=1099
+ORACLE_KIND Unique directions=643
+ORACLE_SET_EQUAL comparisons=4656 PASS
+CONTROL_EFT plan=/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1/eft_queue.tsv nodes=189337
