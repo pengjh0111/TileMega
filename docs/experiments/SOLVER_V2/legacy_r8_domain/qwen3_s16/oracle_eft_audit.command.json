@@ -1,0 +1,12 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-skeleton-audit",
+    "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s16/selected.mlir",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/target.json",
+    "16",
+    "3",
+    "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s16/eft_queue.tsv",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv"
+  ],
+  "pid": 2728290
+}
