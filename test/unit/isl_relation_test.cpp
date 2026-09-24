@@ -139,6 +139,21 @@ int main() {
   assert(triangular.Union(triangular).Card().SumDomain().Eval({}) == 28);
   assert(CouplingRelation().Union(triangular) == triangular);
   assert(triangular.Union(CouplingRelation()) == triangular);
+  {
+    int before=isl_context.ReferenceCount();
+    std::vector<CouplingRelation> pieces;
+    for(int stage=0;stage<33;++stage)
+      pieces.push_back(CouplingRelation::FromIslText("[N] -> { [s,i] -> [t,j] : s="+
+        std::to_string(stage)+" and t=s+1 and 0<=i<N and 0<=j<N and (i+j)%3=0 }"));
+    pieces.push_back(pieces.front());pieces.push_back({});
+    auto merged=CouplingRelation::UnionAll(pieces);
+    auto expected=CouplingRelation::FromIslText("[N] -> { [s,i] -> [t,j] : 0<=s<33 and t=s+1 and 0<=i<N and 0<=j<N and (i+j)%3=0 }");
+    assert(merged.IsSubset(expected) && expected.IsSubset(merged));
+    assert(CouplingRelation::UnionAll({}).empty());
+    assert(CouplingRelation::UnionAll({triangular})==triangular);
+    assert(isl_context.ReferenceCount()==before);
+    std::cout<<"UNION_ALL symbolic_equal=1 inputs=35 duplicate_and_empty=1 references_balanced=1 PASS\n";
+  }
   auto overlap = CouplingRelation::FromIslText(
       "{ [i] -> [j] : 0 <= i < 5 and j=i; [i] -> [j] : 2 <= i < 8 and j=i }");
   auto overlapping_points = overlap.Points();

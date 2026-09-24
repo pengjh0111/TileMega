@@ -62,6 +62,23 @@ CouplingRelation CouplingRelation::Union(CouplingRelation const& other) const {
   return CouplingRelation(isl_util::ToString(result.get()));
 }
 
+CouplingRelation CouplingRelation::UnionAll(std::vector<CouplingRelation> const& relations) {
+  IslReferenceAudit audit(__func__);
+  std::vector<isl_util::Map> maps;
+  for(auto const& relation:relations)if(!relation.empty())
+    maps.push_back(isl_util::ReadMap(Ctx(),relation.text_));
+  while(maps.size()>1) {
+    std::vector<isl_util::Map> next;next.reserve((maps.size()+1)/2);
+    for(std::size_t i=0;i<maps.size();i+=2) {
+      auto merged=i+1<maps.size()?isl_util::Map(isl_map_union(maps[i].release(),maps[i+1].release())):std::move(maps[i]);
+      if(!merged)throw std::invalid_argument("union requires matching task/tensor spaces");
+      next.push_back(std::move(merged));
+    }
+    maps=std::move(next);
+  }
+  return maps.empty()?CouplingRelation{}:CouplingRelation(isl_util::ToString(maps.front().get()));
+}
+
 CouplingRelation CouplingRelation::Subtract(CouplingRelation const& other) const {
   IslReferenceAudit audit(__func__);
   if (empty() || other.empty()) return *this;

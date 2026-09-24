@@ -69,7 +69,7 @@ analysis::CouplingRelation ExactRuntimeDependencies(ModelDescription const& mode
     auto map=ProjectTaskOwnership(declaration,node,model.stages[logical],threads);
     owners.emplace(node.name,Owner{physical,std::move(map)});
   }
-  analysis::CouplingRelation result=analysis::CouplingRelation::FromIslText("{ [cs,c] -> [ps,p] : false }");
+  std::vector<analysis::CouplingRelation> relations;
   for(auto const& edge:model.coupling_metrics.edges) {
     auto const& p=owners.at(edge.producer_task);auto const& c=owners.at(edge.consumer_task);
     auto relation=c.map.ApplyRange(edge.relation).ApplyRange(p.map.Reverse());
@@ -78,8 +78,12 @@ analysis::CouplingRelation ExactRuntimeDependencies(ModelDescription const& mode
     map=isl_map_insert_dims(map,isl_dim_out,0,1);map=isl_map_fix_si(map,isl_dim_out,0,p.stage);
     char* raw=isl_map_to_str(map);isl_map_free(map);
     if(!raw)throw std::runtime_error("CG ownership composition failed");
-    result=result.Union(analysis::CouplingRelation::FromIslText(raw));free(raw);
+    relations.push_back(analysis::CouplingRelation::FromIslText(raw));free(raw);
   }
+  // A left fold reparses every earlier edge for every later edge. Balanced
+  // exact unions keep the text processed at each level linear in graph size.
+  auto result=relations.empty()?analysis::CouplingRelation::FromIslText("{ [cs,c] -> [ps,p] : false }"):
+      analysis::CouplingRelation::UnionAll(relations);
   // A fused epilogue's semantic phases are one physical task, not a self wait.
   auto identity=analysis::CouplingRelation::FromIslText("{ [s,t] -> [s,t] }");
   return result.Subtract(identity);

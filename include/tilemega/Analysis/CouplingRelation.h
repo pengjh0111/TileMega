@@ -36,6 +36,9 @@ class CouplingRelation {
   /// print round trip.
   static CouplingRelation FromIslText(std::string const& text);
 
+  /// Exact balanced union; parse each input once and serialize only the result.
+  static CouplingRelation UnionAll(std::vector<CouplingRelation> const& relations);
+
   std::string const& ToString() const { return text_; }
   bool empty() const { return text_.empty(); }
 
