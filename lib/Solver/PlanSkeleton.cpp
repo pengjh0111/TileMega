@@ -136,10 +136,12 @@ SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& t
     std::move(counts),std::move(offsets),std::move(input.task_ns),std::move(input.prefetch_ns),threads};
 }
 std::vector<int> PlanSkeleton::Spread(int stage,int tile) const {
+  std::vector<int> result;Spread(stage,tile,result);return result;
+}
+void PlanSkeleton::Spread(int stage,int tile,std::vector<int>& result) const {
   auto const& space=spaces.at(stage);int home=(space.base+tile)%grid;
-  std::vector<int> result;result.reserve(space.width);
+  result.clear();result.reserve(space.width+2);
   for(int i=0;i<space.width;++i)result.push_back((home+i*(grid/space.width))%grid);
-  return result;
 }
 PlanSkeleton BuildPlanSkeleton(SymbolicProblem const& problem,int grid,int residency,
     int k_base,bool all_workers,analysis::CouplingCache& cache,SolverTiming* timing) {

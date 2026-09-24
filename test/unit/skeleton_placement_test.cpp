@@ -3,6 +3,7 @@
 #include <tilemega/Solver/SkeletonPlacement.h>
 #include <tilemega/Solver/PlanMaterialize.h>
 #include <iostream>
+#include <cstring>
 #include <numeric>
 #include <stdexcept>
 using namespace tilemega;
@@ -44,6 +45,13 @@ int main() {
       if(!(first_consumer<last_producer))throw std::runtime_error("ready consumers wait for the upstream stage");
     }
     if(stats.affinity+stats.home+stats.spread_other!=24 || stats.candidate_sum>24*4)throw std::runtime_error("candidate accounting mismatch");
+    std::uint64_t digest=1469598103934665603ull;
+    for(std::size_t n=0;n<schedule.worker.size();++n) {
+      for(auto value:{double(schedule.worker[n]),double(schedule.slot[n]),schedule.start_ns[n],schedule.end_ns[n]}) {
+        std::uint64_t bits;std::memcpy(&bits,&value,sizeof(bits));digest=(digest^bits)*1099511628211ull;
+      }
+    }
+    std::cout<<"SCHEDULE_DIGEST case="<<scenario<<" value="<<digest<<'\n';
     std::cout<<"READY_PLACEMENT case="<<scenario<<" makespan="<<schedule.makespan_ns<<" interleaving="<<stats.interleaving<<" requeues="<<stats.lazy_requeues<<" PASS\n";
   }
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}

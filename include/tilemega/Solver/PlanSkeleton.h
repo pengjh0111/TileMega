@@ -46,6 +46,7 @@ struct PlanSkeleton {
   std::vector<double> task_ns;
   analysis::ParamBinding theta;
   std::vector<int> Spread(int stage,int tile) const;
+  void Spread(int stage,int tile,std::vector<int>& into) const;
 };
 PlanSkeleton BuildPlanSkeleton(SymbolicProblem const& problem,int grid,int residency,
     int k_base,bool all_workers,analysis::CouplingCache& cache,SolverTiming* timing=nullptr);

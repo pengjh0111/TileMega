@@ -91,16 +91,23 @@ bool ScheduleBySkeleton(SkeletonRequest const& request,EftSchedule* out,
     arrival_ready[node]=true;return result;
   };
   try {
+    std::vector<int> candidates,members;
     while(!ready.empty()) {
       Ready task=ready.top();ready.pop();auto const& a=arrival(task.stage,task.tile);
-      auto candidates=skeleton.Spread(task.stage,task.tile);
-      std::vector<int> affinity;for(auto const& p:a.critical)if(p.node>=0){affinity.push_back(p.worker);candidates.push_back(p.worker);}
-      std::sort(candidates.begin(),candidates.end());candidates.erase(std::unique(candidates.begin(),candidates.end()),candidates.end());
+      skeleton.Spread(task.stage,task.tile,candidates);
+      // Spread is injective: (k-1)*floor(W/k) < W. Only the two
+      // affinity workers can duplicate it; worker ties are explicit below.
+      for(auto const& p:a.critical)if(p.node>=0 &&
+          std::find(candidates.begin(),candidates.end(),p.worker)==candidates.end())candidates.push_back(p.worker);
       double est=std::numeric_limits<double>::infinity(),chosen_start=0,chosen_end=est;int chosen=-1;
       for(int w:candidates) {
         double start=std::max(avail[w],w==a.owner?a.second:a.best);est=std::min(est,start);
-        std::vector<int> members{task.node};for(int sibling:siblings[sm[w]])if(sibling!=w && last[sibling]>=0 && out->end_ns[last[sibling]]>start)members.push_back(last[sibling]);
-        double stretch=members.size()==1?1:std::max(1.0,request.task_lanes.empty()?double(members.size()):LaneStretch(request.task_lanes,members));
+        double stretch=1;
+        if(siblings[sm[w]].size()>1) {
+          members.clear();members.push_back(task.node);
+          for(int sibling:siblings[sm[w]])if(sibling!=w && last[sibling]>=0 && out->end_ns[last[sibling]]>start)members.push_back(last[sibling]);
+          if(members.size()>1)stretch=std::max(1.0,request.task_lanes.empty()?double(members.size()):LaneStretch(request.task_lanes,members));
+        }
         double finish=start+skeleton.task_ns[task.node]*stretch;
         if(chosen<0 || finish<chosen_end || (finish==chosen_end && w<chosen)){chosen=w;chosen_start=start;chosen_end=finish;}
       }
@@ -112,7 +119,7 @@ bool ScheduleBySkeleton(SkeletonRequest const& request,EftSchedule* out,
       last[chosen]=node;avail[chosen]=chosen_end;placed[node]=true;++stats.placed;
       stats.candidate_sum+=candidates.size();
       int home=(skeleton.spaces[task.stage].base+task.tile)%grid;
-      if(std::find(affinity.begin(),affinity.end(),chosen)!=affinity.end())++stats.affinity;
+      if(std::any_of(a.critical.begin(),a.critical.end(),[&](auto const& p){return p.node>=0 && p.worker==chosen;}))++stats.affinity;
       else if(chosen==home)++stats.home;else ++stats.spread_other;
       out->makespan_ns=std::max(out->makespan_ns,chosen_end);
       long fanout=0;for(int index:skeleton.outgoing[task.stage]){auto const& edge=skeleton.edges[index];
