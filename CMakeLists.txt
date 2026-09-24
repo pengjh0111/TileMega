@@ -143,6 +143,7 @@ add_library(tilemega STATIC
   lib/Analysis/CouplingRelation.cpp
   lib/Analysis/Analysis.cpp
   lib/Analysis/AccessRelation.cpp
+  lib/Analysis/CouplingCache.cpp
   lib/Analysis/Semantics.cpp
   lib/Analysis/TaskInstantiation.cpp
   lib/Analysis/CouplingDerivation.cpp
@@ -646,6 +647,10 @@ if(TILEMEGA_BUILD_TESTS)
   endif()
   add_test(NAME frontend_import COMMAND frontend_import_test)
 
+  add_executable(coupling_cache_test test/unit/coupling_cache_test.cpp)
+  target_link_libraries(coupling_cache_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(coupling_cache_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  add_test(NAME coupling_cache COMMAND coupling_cache_test)
   add_executable(semantic_lifting_test test/unit/semantic_lifting_test.cpp)
   add_dependencies(semantic_lifting_test TileMegaCGIncGen)
   target_link_libraries(semantic_lifting_test PRIVATE TileMega::tilemega MLIRIR)

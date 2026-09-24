@@ -402,7 +402,9 @@ ExportBridge ReadExportBridge(std::string const& path) {
 
 static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     ExportBridge bridge, ModelPlan const* selected_plan, mlir::MLIRContext& context,
-    ImportSummary* summary, ImportOptions const& options) {
+    ImportSummary* summary, ImportOptions const& options,
+    ImportedSemantics const* prepared=nullptr,analysis::CouplingCache* cache=nullptr,
+    solver::SolverTiming* timing=nullptr) {
   context.getOrLoadDialect<dialect::CGDialect>();
   context.getOrLoadDialect<dialect::ExecDialect>();
   std::vector<FxNodeRecord>& allNodes = bridge.nodes;
@@ -429,7 +431,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   std::unordered_map<std::string, std::string> const& rangeTexts =
       bridge.range_texts;
   std::vector<std::string> const& guards = bridge.guards;
-  SymbolicShape symbolic = SymbolicShapeBridge{}.Parse(rangeTexts, guards, userShapes);
+  SymbolicShape symbolic = prepared ? prepared->symbolic : SymbolicShapeBridge{}.Parse(rangeTexts, guards, userShapes);
   ModelPlan plan = selected_plan ? *selected_plan : BuildModelPlan(allNodes, signatureInputs, signatureOutputs);
   if (options.separate_residual_tasks) {
     if (!options.attention.empty())
@@ -441,7 +443,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
         "runtime variant must provide exactly one entry per model GEMM");
   std::vector<GemmGranularity> runtimeGemms = options.gemms;
   if (runtimeGemms.empty()) runtimeGemms.resize(plan.gemms.size());
-  std::vector<int> stages = FormSemanticStages(tasks, plan);
+  std::vector<int> stages = prepared ? std::vector<int>{} : FormSemanticStages(tasks, plan);
 
   mlir::OpBuilder builder(&context);
   auto module = mlir::ModuleOp::create(builder.getUnknownLoc());
@@ -511,7 +513,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   module->setAttr("tilemega.dimension_roles", builder.getDictionaryAttr({
       builder.getNamedAttr("seq", builder.getStringAttr(liftOptions.seq_symbol)),
       builder.getNamedAttr("past", builder.getStringAttr(liftOptions.past_symbol))}));
-  LiftedModel lifted = plan.stages.empty()
+  LiftedModel lifted = prepared ? prepared->lifted : plan.stages.empty()
                            ? LiftGenericSemantics(tasks, stages, liftOptions)
                            : LiftSemantics(plan, liftOptions);
   // The plan attribute is written after lifting because the read-only
@@ -534,7 +536,8 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   analysis::Granularity g = plan.stages.empty()
       ? LaunchGranularity(lifted)
       : LaunchGranularity(lifted, plan, runtimeGemms);
-  analysis::OperatorGraph graph = analysis::Instantiate(lifted.sem, g);
+  analysis::OperatorGraph graph = [&] { solver::SolverPhase phase(timing,"instantiate");
+    return analysis::Instantiate(lifted.sem,g); }();
 
   analysis::ParamBinding granularityBinding;
   for (auto const& item :
@@ -626,8 +629,14 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   // The real C, from the analysis layer, on the production path.  There is no
   // fallback: an edge the derivation cannot produce is an import failure, not
   // a placeholder.
-  std::vector<analysis::CouplingEdge> derived =
-      analysis::CouplingDerivation{}.Derive(graph, known);
+  std::vector<analysis::CouplingEdge> derived = [&] {
+    solver::SolverPhase phase(timing,"derive");
+    if(!cache)return analysis::CouplingDerivation{}.Derive(graph,known);
+    auto hits=cache->hits,misses=cache->misses;
+    auto result=cache->Derive(lifted.sem,graph,g,known);
+    if(timing) { timing->Add("cache_hit",0,cache->hits-hits);timing->Add("cache_miss",0,cache->misses-misses); }
+    return result;
+  }();
 
   // Part 2: the wait window the generated kernel evaluates per CTA.  It is a
   // property of C at *every* sequence length.  Discover a candidate from one
@@ -805,6 +814,37 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     *summary = {graph.nodes.size(), edge, plan.stages.size(), guards.size(),
                 symbolicWindows, fallbackWindows, bridge.unsupported};
   return mlir::OwningOpRef<mlir::ModuleOp>(module);
+}
+
+
+ImportedSemantics TorchExportImporter::ImportSemantics(std::string const& path,
+    ModelPlan const& plan,mlir::MLIRContext& context) const {
+  context.getOrLoadDialect<dialect::CGDialect>();
+  context.getOrLoadDialect<dialect::ExecDialect>();
+  ImportedSemantics result;result.bridge=ReadExportBridge(path);result.plan=plan;
+  std::vector<std::vector<std::string>> shapes;
+  for(auto const& input:result.bridge.inputs)if(input.kind=="USER_INPUT") {
+    auto it=std::find_if(result.bridge.nodes.begin(),result.bridge.nodes.end(),[&](auto const& n){return n.name==input.name;});
+    if(it==result.bridge.nodes.end())throw std::invalid_argument("unknown semantic input");
+    shapes.push_back(it->shape);
+  }
+  result.symbolic=SymbolicShapeBridge{}.Parse(result.bridge.range_texts,result.bridge.guards,shapes);
+  result.lift_options.seq_symbol=result.symbolic.dimensions.empty() ? "" : result.symbolic.dimensions.front();
+  result.lift_options.past_symbol="";
+  for(auto const& symbol:result.symbolic.dimensions)
+    if(symbol!=result.lift_options.seq_symbol) {result.lift_options.past_symbol=symbol;break;}
+  result.lifted=plan.stages.empty()
+      ? LiftGenericSemantics(result.bridge.tasks,FormSemanticStages(result.bridge.tasks,plan),result.lift_options)
+      : LiftSemantics(plan,result.lift_options);
+  return result;
+}
+mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::InstantiateForGranularity(
+    ImportedSemantics const& imported,mlir::MLIRContext& context,
+    ImportOptions const& options,analysis::CouplingCache* cache,
+    ImportSummary* summary,solver::SolverTiming* timing) const {
+  if(options.separate_residual_tasks)
+    throw std::invalid_argument("separate residual tasks must be applied before importing semantics");
+  return ImportBridgePlan(imported.bridge,&imported.plan,context,summary,options,&imported,cache,timing);
 }
 
 mlir::OwningOpRef<mlir::ModuleOp> TorchExportImporter::Import(

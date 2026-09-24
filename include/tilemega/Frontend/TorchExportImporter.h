@@ -8,6 +8,10 @@
 #include <vector>
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <tilemega/Codegen/AttentionPlan.h>
+#include <tilemega/Frontend/ExportBridge.h>
+#include <tilemega/Frontend/SymbolicShapeBridge.h>
+#include <tilemega/Analysis/CouplingCache.h>
+#include <tilemega/Solver/SolverTiming.h>
 namespace tilemega::frontend {
 struct ImportSummary {
   std::size_t task_spaces = 0;
@@ -30,8 +34,22 @@ struct ImportOptions {
   bool balanced_placement = false;
   bool separate_residual_tasks = false;
 };
+struct ImportedSemantics {
+  ExportBridge bridge;
+  ModelPlan plan;
+  SymbolicShape symbolic;
+  LiftOptions lift_options;
+  LiftedModel lifted;
+};
+
 class TorchExportImporter {
  public:
+  ImportedSemantics ImportSemantics(std::string const& path,ModelPlan const& plan,
+      mlir::MLIRContext& context) const;
+  mlir::OwningOpRef<mlir::ModuleOp> InstantiateForGranularity(
+      ImportedSemantics const& imported,mlir::MLIRContext& context,
+      ImportOptions const& options,analysis::CouplingCache* cache=nullptr,
+      ImportSummary* summary=nullptr,solver::SolverTiming* timing=nullptr) const;
   mlir::OwningOpRef<mlir::ModuleOp> Import(
       std::string const& stable_json_path, mlir::MLIRContext& context,
       ImportSummary* summary = nullptr,
