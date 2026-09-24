@@ -29,6 +29,13 @@ int main(int argc,char** argv) {
   auto uncached_r2=solver::PrepareSymbolicProblem(*module,target,{4,3,7},16,2,1);
   auto cached_r2=solver::PrepareSymbolicProblem(*module,target,{4,3,7},16,2,1,&prices);
   if(uncached_r2.task_ns!=cached_r2.task_ns)throw std::runtime_error("work cache changed residency pricing");
+  if(uncached_r2.projection.dependencies.ToString()!=cached_r2.projection.dependencies.ToString() ||
+      uncached_r2.projection.requested_events.ToString()!=cached_r2.projection.requested_events.ToString())
+    throw std::runtime_error("prepared cache changed resident dependency or event relations");
+  auto uncached_s8=solver::PrepareSymbolicProblem(*module,target,{8,3,11},16,2,1);
+  auto cached_s8=solver::PrepareSymbolicProblem(*module,target,{8,3,11},16,2,1,&prices);
+  if(uncached_s8.task_ns!=cached_s8.task_ns || uncached_s8.counts!=cached_s8.counts)
+    throw std::runtime_error("prepared cache reused the wrong theta");
   std::cout<<"PRICE_CACHE exact=1 entries="<<prices.prices.size()<<'\n';
   solver::RuntimeProjectionOptions po{8,problem.threads,1};po.count_wait_entries=false;
   auto windows=solver::ProjectRuntimeQueues(problem.model,problem.runtime,po);

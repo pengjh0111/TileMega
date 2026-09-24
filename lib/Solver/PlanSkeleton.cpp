@@ -53,8 +53,17 @@ analysis::CouplingRelation ExactRuntimeDependencies(ModelDescription const& mode
 SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& target,
     ModelDims dims,int grid,int residency,int kappa,SymbolicPriceCache* cache) {
   if(grid<=0 || residency<=0 || dims.seq<=0 || kappa<=0)throw std::invalid_argument("invalid symbolic problem dimensions");
-  auto runtime=codegen::ReadRuntimePlan(module);
-  auto model=ModelDescription::FromCouplingGraph(module,dims,"skeleton");
+  std::string preparation_key;
+  if(cache) {
+    llvm::raw_string_ostream text(preparation_key);module.print(text);text.flush();
+    preparation_key+=target.ToJson()+"|"+std::to_string(dims.seq)+"|"+std::to_string(dims.past)+"|"+
+      std::to_string(dims.total)+"|"+dims.seq_parameter+"|"+dims.past_parameter+"|"+std::to_string(kappa);
+  }
+  bool prepared_hit=cache && cache->prepared && cache->preparation_key==preparation_key;
+  // Module text, target and theta form the key: changing a CG attribute must
+  // re-run verification. Residency changes only pricing and runtime queues.
+  auto runtime=prepared_hit ? cache->prepared->runtime : codegen::ReadRuntimePlan(module);
+  auto model=prepared_hit ? cache->prepared->model : ModelDescription::FromCouplingGraph(module,dims,"skeleton");
   std::vector<GemmConfig> geometry;
   for(auto const& g:runtime.gemms)geometry.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
   int threads=0;
@@ -70,8 +79,13 @@ SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& t
   std::vector<int> counts,offsets{0};
   for(auto const& stage:projection.stages){counts.push_back(int(stage.task_count.Eval(model.MetricBindings())));offsets.push_back(offsets.back()+counts.back());}
   std::optional<analysis::OperatorGraph> semantic_graph;
-  semantic_graph=InstantiateModelTasks(model,geometry);
-  projection.dependencies=ExactRuntimeDependencies(model,*semantic_graph,projection,threads);
+  semantic_graph=prepared_hit ? cache->semantic_graph : std::optional<analysis::OperatorGraph>(InstantiateModelTasks(model,geometry));
+  projection.dependencies=prepared_hit ? cache->prepared->projection.dependencies : ExactRuntimeDependencies(model,*semantic_graph,projection,threads);
+  if(cache && !prepared_hit) {
+    cache->preparation_key=preparation_key;
+    cache->prepared=SymbolicProblem{runtime,model,geometry,projection,counts,offsets,{},{},threads};
+    cache->semantic_graph=semantic_graph;
+  }
   struct Prices {std::vector<double> task_ns,prefetch_ns;} input;input.task_ns.resize(offsets.back());
   input.prefetch_ns.resize(offsets.back());
   CostModel cost(target,model.dtype);

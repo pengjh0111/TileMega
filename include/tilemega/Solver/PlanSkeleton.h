@@ -25,6 +25,9 @@ struct PreparedSymbolicWork {
 struct SymbolicPriceCache {
   std::map<std::string,std::vector<double>> prices;
   std::map<std::string,PreparedSymbolicWork> work;
+  std::string preparation_key;
+  std::optional<SymbolicProblem> prepared;
+  std::optional<analysis::OperatorGraph> semantic_graph;
 };
 SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& target,
     ModelDims dims,int grid,int residency,int kappa,SymbolicPriceCache* cache=nullptr);
