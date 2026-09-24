@@ -1,0 +1,46 @@
+ptxas info    : 34 bytes gmem, 88 bytes cmem[4]
+ptxas info    : Compiling entry function 'probe_GemmCombine' for 'sm_89'
+ptxas info    : Function properties for probe_GemmCombine
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 35 registers, used 0 barriers, 372 bytes cmem[0]
+ptxas info    : Compile time = 36.214 ms
+ptxas info    : Compiling entry function 'probe_Attention' for 'sm_89'
+ptxas info    : Function properties for probe_Attention
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 1 barriers, 372 bytes cmem[0]
+ptxas info    : Compile time = 83.118 ms
+ptxas info    : Compiling entry function 'probe_QKNorm' for 'sm_89'
+ptxas info    : Function properties for probe_QKNorm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 24 registers, used 1 barriers, 372 bytes cmem[0]
+ptxas info    : Compile time = 18.637 ms
+ptxas info    : Compiling entry function 'probe_Embedding' for 'sm_89'
+ptxas info    : Function properties for probe_Embedding
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 20 registers, used 0 barriers, 372 bytes cmem[0]
+ptxas info    : Compile time = 3.129 ms
+ptxas info    : Compiling entry function 'probe_Add' for 'sm_89'
+ptxas info    : Function properties for probe_Add
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 26 registers, used 0 barriers, 372 bytes cmem[0]
+ptxas info    : Compile time = 6.830 ms
+ptxas info    : Compiling entry function 'probe_Elementwise' for 'sm_89'
+ptxas info    : Function properties for probe_Elementwise
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 23 registers, used 0 barriers, 372 bytes cmem[0]
+ptxas info    : Compile time = 11.636 ms
+ptxas info    : Compiling entry function 'probe_KVAppend' for 'sm_89'
+ptxas info    : Function properties for probe_KVAppend
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 22 registers, used 0 barriers, 372 bytes cmem[0]
+ptxas info    : Compile time = 9.136 ms
+ptxas info    : Compiling entry function 'probe_RoPE' for 'sm_89'
+ptxas info    : Function properties for probe_RoPE
+    32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 34 registers, used 0 barriers, 32 bytes cumulative stack size, 372 bytes cmem[0], 8 bytes cmem[2]
+ptxas info    : Compile time = 24.826 ms
+ptxas info    : Compiling entry function 'probe_RMSNorm' for 'sm_89'
+ptxas info    : Function properties for probe_RMSNorm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 24 registers, used 1 barriers, 372 bytes cmem[0]
+ptxas info    : Compile time = 13.551 ms
