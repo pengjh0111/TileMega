@@ -1,0 +1,14 @@
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+error: 'tmcg.coupling' op wait { 999999 } does not match the relation's fiber cardinality [s10] -> { [m] -> 1 : 0 <= m < s10 }
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+error: 'tmcg.coupling' op wait { 999999 } does not match the relation's fiber cardinality [s10] -> { [m] -> 1 : 0 <= m < s10 }
+EXACT_MEMO hit=19054 miss=277 mutation_rejected=PASS
+CACHE_EQ split=1 PASS
+EXACT_MEMO hit=25225 miss=352 mutation_rejected=PASS
+CACHE_EQ split=2 PASS
+SEMSIG_COLLISIONS pairs=2 PASS
+CACHE hit=1557 miss=85 PASS

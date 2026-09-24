@@ -829,8 +829,9 @@ ImportedSemantics TorchExportImporter::ImportSemantics(std::string const& path,
     shapes.push_back(it->shape);
   }
   result.symbolic=SymbolicShapeBridge{}.Parse(result.bridge.range_texts,result.bridge.guards,shapes);
-  result.lift_options.seq_symbol=result.symbolic.dimensions.empty() ? "" : result.symbolic.dimensions.front();
-  result.lift_options.past_symbol="";
+  // Static exports retain the same dimension-role defaults as ImportPlan.
+  if(!result.symbolic.dimensions.empty())
+    result.lift_options.seq_symbol=result.symbolic.dimensions.front();
   for(auto const& symbol:result.symbolic.dimensions)
     if(symbol!=result.lift_options.seq_symbol) {result.lift_options.past_symbol=symbol;break;}
   result.lifted=plan.stages.empty()
