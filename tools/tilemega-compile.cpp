@@ -208,7 +208,7 @@ int main(int argc, char** argv) {
     std::cerr << "usage: tilemega-compile {EXPORTED_PROGRAM.pt2|STABLE_EXPORT.json|CG.mlir} "
                  "{OUTPUT.cu|OUTPUT.so} [--variants PLAN.json] [--solve TARGET.json --seq N --past N\n"
                  " --solver legacy|skeleton --legacy-seed CG.mlir --k-base 4|8|16|W\n"
-                 " --search-passes 1..3 --variant-cache DIR\n"
+                 " --search-passes 1..3 --search-jobs 1..64 --variant-cache DIR\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
                  " --segments 1|2 --segment-candidates N\n"
                  " --dump-cg FILE.mlir\n"
@@ -226,7 +226,7 @@ int main(int argc, char** argv) {
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path;
     bool resource_probes=true;bool dump_evaluated=false;
     std::string solver_mode="skeleton",legacy_seed,variant_cache;
-    int skeleton_k=8,search_passes=3;bool all_workers=false;
+    int skeleton_k=8,search_passes=3,search_jobs=1;bool all_workers=false;
     tilemega::solver::SolverTiming solver_timing;
     int interval_begin=0,segments=1,segment_candidates=3;
     std::vector<mlir::OwningOpRef<mlir::ModuleOp>> variant_modules;
@@ -240,6 +240,7 @@ int main(int argc, char** argv) {
       else if (flag=="--variant-cache") variant_cache=value;
       else if (flag=="--k-base") {all_workers=value=="W";if(!all_workers)skeleton_k=std::stoi(value);}
       else if (flag=="--search-passes") search_passes=std::stoi(value);
+      else if (flag=="--search-jobs") search_jobs=std::stoi(value);
       else if (flag=="--solve") solve_target=value;
       else if (flag=="--seq-begin") interval_begin=std::stoi(value);
       else if (flag=="--segments") segments=std::stoi(value);
@@ -361,7 +362,7 @@ int main(int argc, char** argv) {
         tilemega::solver::SkeletonSearchOptions skeleton;skeleton.common=solve_options;
         skeleton.seed={g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k};
         auto kappa=(*seed)->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_kappa");
-        skeleton.kappa=kappa ? int(kappa.getInt()):1;skeleton.k_base=skeleton_k;skeleton.all_workers=all_workers;skeleton.passes=search_passes;
+        skeleton.kappa=kappa ? int(kappa.getInt()):1;skeleton.k_base=skeleton_k;skeleton.all_workers=all_workers;skeleton.passes=search_passes;skeleton.jobs=search_jobs;
         skeleton.artifact_prefix=argv[2];
         if(variant_cache.empty())variant_cache=(resource_root.parent_path()/"variant_cache").string();
         int variant_index=0;

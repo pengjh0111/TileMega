@@ -7,6 +7,7 @@
 #include <numeric>
 #include <sstream>
 #include <iostream>
+#include "IsolatedEvaluation.h"
 
 namespace tilemega::solver {
 namespace {
@@ -35,14 +36,15 @@ struct SearchContext {
   analysis::CouplingCache cache;
   VariantResourceCache resources;
   mlir::MLIRContext& context;
-  SkeletonSearchOptions const& options;
+  SkeletonSearchOptions options;
   ScalarType dtype;
   SearchContext(frontend::ImportedSemantics input,mlir::MLIRContext& ctx,SkeletonSearchOptions const& opts)
       :imported(std::move(input)),classes(BuildOperatorClasses(imported)),resources(opts.variant_probe,opts.common.timing),context(ctx),options(opts),
        dtype(imported.lifted.sem.ops.front().dtype==analysis::ScalarType::kBF16?ScalarType::kBF16:ScalarType::kF32) {}
-  SkeletonSolvedPoint Evaluate(std::vector<GemmConfig> const& config,int fixed_limit=0) {
+  SkeletonSolvedPoint Evaluate(std::vector<GemmConfig> const& config,int fixed_limit=0,
+      std::optional<ResourceEstimate> resource=std::nullopt) {
     auto* timing=options.common.timing;std::string key=ConfigKey(config);if(timing)timing->candidate=key;
-    auto estimate=resources.Estimate(classes,config,options.common.placement.target,dtype);
+    auto estimate=resource?*resource:resources.Estimate(classes,config,options.common.placement.target,dtype);
     int limit=fixed_limit?fixed_limit:estimate.resident_limit;
     if(limit<1)throw std::invalid_argument("no resident CTA for geometry");
     auto module=importer.InstantiateForGranularity(imported,context,ClassGranularity(imported,classes,config),&cache,nullptr,timing);
@@ -74,17 +76,83 @@ struct SearchContext {
     best.module=std::move(module);return best;
   }
 };
+using OracleCensus=std::map<std::string,SolverTiming::Entry>;
+OracleCensus Census(analysis::CouplingCache const& cache) {
+  OracleCensus result;
+  for(auto const& [key,pair]:cache.oracle_entries)for(auto const* oracle:{&pair->forward,&pair->reverse}) {
+    std::string kind=analysis::ToString(oracle->kind());std::transform(kind.begin(),kind.end(),kind.begin(),::tolower);
+    for(auto const& name:{std::string("oracle"),"oracle_"+kind}) {
+      result[name].count+=oracle->queries();result[name].total_ms+=oracle->query_ms();
+    }
+  }
+  return result;
+}
+std::string EvaluateWorker(SearchContext& search,std::vector<GemmConfig> const& config,
+    ResourceEstimate resource) {
+  auto before=Census(search.cache);auto hits=search.cache.hits,misses=search.cache.misses;
+  auto* memo=analysis::active_exact_memo;auto mh=memo?memo->hits:0,mm=memo?memo->misses:0;
+  SolverTiming timing;search.options.common.timing=&timing;
+  SkeletonCandidate candidate;candidate.key=ConfigKey(config);candidate.config=config;
+  try {candidate=search.Evaluate(config,0,resource).candidate;}catch(std::exception const& e){candidate.error=e.what();}
+  timing.Add("cache_hit",0,search.cache.hits-hits);timing.Add("cache_miss",0,search.cache.misses-misses);
+  if(memo){timing.Add("analysis_cache_hit",0,memo->hits-mh);timing.Add("analysis_cache_miss",0,memo->misses-mm);}
+  for(auto const& [name,entry]:Census(search.cache))timing.Add(name,entry.total_ms-before[name].total_ms,entry.count-before[name].count);
+  auto const& s=candidate.placement;std::ostringstream out;out<<std::setprecision(17);
+  out<<(candidate.error.empty()?candidate.score:0)<<' '<<candidate.residency<<' '<<candidate.estimated_limit<<' '<<std::quoted(candidate.error)<<'\n'
+    <<s.placed<<' '<<s.affinity<<' '<<s.home<<' '<<s.spread_other<<' '<<s.candidate_sum<<' '<<s.lazy_requeues<<' '<<s.transitions<<' '<<s.adjacent_slots<<' '<<s.interleaving<<'\n';
+  out<<timing.phases.size()<<'\n';for(auto const& [name,e]:timing.phases)out<<std::quoted(name)<<' '<<e.count<<' '<<e.total_ms<<'\n';
+  out<<timing.events.size()<<'\n';for(auto const& e:timing.events)out<<std::quoted(e.candidate)<<' '<<std::quoted(e.phase)<<'\n';
+  return out.str();
+}
+void ReadWorker(std::string const& payload,SkeletonCandidate& candidate,SolverTiming* timing) {
+  std::istringstream input(payload);auto& s=candidate.placement;
+  input>>candidate.score>>candidate.residency>>candidate.estimated_limit>>std::quoted(candidate.error)
+    >>s.placed>>s.affinity>>s.home>>s.spread_other>>s.candidate_sum>>s.lazy_requeues>>s.transitions>>s.adjacent_slots>>s.interleaving;
+  if(!candidate.error.empty())candidate.score=std::numeric_limits<double>::infinity();
+  std::size_t n=0;input>>n;
+  for(std::size_t i=0;i<n;++i){std::string name;SolverTiming::Entry entry;input>>std::quoted(name)>>entry.count>>entry.total_ms;
+    if(timing){auto& total=timing->phases[name];total.count+=entry.count;total.total_ms+=entry.total_ms;}}
+  input>>n;for(std::size_t i=0;i<n;++i){SolverTiming::Event event;input>>std::quoted(event.candidate)>>std::quoted(event.phase);if(timing)timing->events.push_back(std::move(event));}
+  if(!input)throw std::runtime_error("truncated isolated evaluation result");
+}
 std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out) {
   auto const& options=search.options;
   if(options.passes<1 || options.passes>3)throw std::invalid_argument("coordinate descent supports P=1..3");
   std::vector<GemmConfig> current(search.classes.size(),options.seed);
   std::vector<SkeletonCandidate> evaluated;std::map<std::string,std::size_t> seen;
+  auto record=[&](SkeletonCandidate candidate)->std::size_t {
+    std::size_t index=evaluated.size();seen.emplace(candidate.key,index);evaluated.push_back(std::move(candidate));
+    auto const& c=evaluated.back();
+    out<<"EVALUATE\t"<<index<<'\t'<<c.key<<'\t'<<c.score<<'\t'<<c.residency<<'\t'<<c.estimated_limit<<'\t'<<c.error<<'\n';out.flush();return index;
+  };
   auto evaluate=[&](std::vector<GemmConfig> const& g)->std::size_t {
     auto key=ConfigKey(g);auto found=seen.find(key);if(found!=seen.end())return found->second;
     SkeletonCandidate candidate;candidate.key=key;candidate.config=g;
     try {candidate=search.Evaluate(g).candidate;}catch(std::exception const& e){candidate.error=e.what();}
-    std::size_t index=evaluated.size();seen.emplace(key,index);evaluated.push_back(candidate);
-    out<<"EVALUATE\t"<<index<<'\t'<<key<<'\t'<<candidate.score<<'\t'<<candidate.residency<<'\t'<<candidate.estimated_limit<<'\t'<<candidate.error<<'\n';out.flush();return index;
+    return record(std::move(candidate));
+  };
+  auto evaluate_batch=[&](std::vector<std::vector<GemmConfig>> const& batch,std::string const& label) {
+    std::vector<SkeletonCandidate> candidates(batch.size());std::vector<std::function<std::string()>> jobs;
+    std::vector<std::string> prefixes;std::vector<std::size_t> positions;
+    for(std::size_t i=0;i<batch.size();++i) {
+      auto& candidate=candidates[i];candidate.config=batch[i];candidate.key=ConfigKey(batch[i]);
+      if(seen.count(candidate.key))continue;
+      if(options.common.timing)options.common.timing->candidate=candidate.key;
+      try {
+        auto resource=search.resources.Estimate(search.classes,batch[i],options.common.placement.target,search.dtype);
+        jobs.push_back([&,i,resource]{return EvaluateWorker(search,batch[i],resource);});positions.push_back(i);
+        prefixes.push_back(options.artifact_prefix+".outer/"+label+"_"+std::to_string(i));
+      }catch(std::exception const& e){candidate.error=e.what();}
+    }
+    auto results=EvaluateIsolated(jobs,prefixes);
+    for(std::size_t j=0;j<results.size();++j) {
+      auto& candidate=candidates[positions[j]];
+      if(results[j].status)candidate.error="isolated evaluation exit="+std::to_string(results[j].status)+" log="+prefixes[j]+".log";
+      else ReadWorker(results[j].payload,candidate,options.common.timing);
+    }
+    std::vector<std::size_t> indices;
+    for(auto& candidate:candidates){auto found=seen.find(candidate.key);indices.push_back(found==seen.end()?record(std::move(candidate)):found->second);}
+    return indices;
   };
   std::size_t incumbent=evaluate(current);
   if(!evaluated[incumbent].error.empty())throw std::runtime_error("legacy seed rejected by skeleton: "+evaluated[incumbent].error);
@@ -108,8 +176,15 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       int improvements=0,aligned=0;
       // Keep all other classes fixed while sweeping this coordinate.
       auto fixed=current;
-      for(auto const& [alignment,g]:ordered){auto trial=fixed;trial[c]=g;auto index=evaluate(trial);
-        if(evaluated[index].score<evaluated[incumbent].score){incumbent=index;current=trial;moved=true;++improvements;aligned+=alignment>0;}}
+      for(std::size_t begin=0;begin<ordered.size();begin+=options.jobs) {
+        std::vector<std::vector<GemmConfig>> batch;
+        for(std::size_t j=begin;j<std::min(ordered.size(),begin+options.jobs);++j){auto trial=fixed;trial[c]=ordered[j].second;batch.push_back(std::move(trial));}
+        auto indices=options.jobs==1?std::vector<std::size_t>{evaluate(batch.front())}:
+          evaluate_batch(batch,"p"+std::to_string(pass)+"_c"+std::to_string(c)+"_i"+std::to_string(begin));
+        // Completion order never changes coordinate-descent ties or updates.
+        for(std::size_t j=0;j<indices.size();++j){auto index=indices[j];
+          if(evaluated[index].score<evaluated[incumbent].score){incumbent=index;current=batch[j];moved=true;++improvements;aligned+=ordered[begin+j].first>0;}}
+      }
       out<<"COORDINATE\t"<<pass<<'\t'<<c<<'\t'<<ordered.size()<<'\t'<<improvements<<'\t'<<aligned<<'\t'<<evaluated[incumbent].score<<'\n';out.flush();
     }
     if(!moved)break;
@@ -120,6 +195,8 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
 SkeletonSearchResult SolveSkeletonExport(std::string const& path,mlir::MLIRContext& context,
     SkeletonSearchOptions const& options,frontend::ImportSummary* summary,std::ostream& evidence) {
   SolverPhase total(options.common.timing,"total");analysis::ScopedExactAnalysisMemo exact_memo;frontend::TorchExportImporter importer;
+  if(options.jobs<1 || options.jobs>64)throw std::invalid_argument("candidate jobs must be in 1..64");
+  if(options.jobs>1)context.disableMultithreading();
   auto plan=[&]{SolverPhase phase(options.common.timing,"bridge_and_plan");auto b=frontend::ReadExportBridge(path);return frontend::BuildModelPlan(b.nodes,b.inputs,b.outputs);}();
   auto imported=[&]{SolverPhase phase(options.common.timing,"import");return importer.ImportSemantics(path,plan,context);}();
   SearchContext search(std::move(imported),context,options);SkeletonSearchResult result;result.classes=search.classes;
@@ -158,13 +235,14 @@ SkeletonSearchResult SolveSkeletonExport(std::string const& path,mlir::MLIRConte
     for(auto op:result.compiled.module->getOps<dialect::CouplingOp>())++summary->couplings;
   }
   write_classes(options.artifact_prefix+".classes.tsv",selected->config);
-  if(options.common.timing){auto* t=options.common.timing;t->phases["cache_hit"].count=search.cache.hits;t->phases["cache_miss"].count=search.cache.misses;
+  if(options.common.timing){auto* t=options.common.timing;t->phases["cache_hit"].count+=search.cache.hits;t->phases["cache_miss"].count+=search.cache.misses;
     for(auto const& [key,pair]:search.cache.oracle_entries)for(auto const* oracle:{&pair->forward,&pair->reverse}){
       std::string kind=analysis::ToString(oracle->kind());std::transform(kind.begin(),kind.end(),kind.begin(),::tolower);
       t->Add("oracle_"+kind,oracle->query_ms(),oracle->queries());
       t->Add("oracle",oracle->query_ms(),oracle->queries());}
     t->Add("analysis_cache_hit",0,exact_memo.memo.hits);t->Add("analysis_cache_miss",0,exact_memo.memo.misses);
     t->Add("search_evaluations",0,result.evaluated.size());t->Add("search_rounds",0,result.rounds);
+    t->Add("search_jobs",0,options.jobs);
   }
   return result;
 }

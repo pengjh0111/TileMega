@@ -8,7 +8,7 @@ namespace tilemega::solver {
 struct SkeletonSearchOptions {
   CompilerSearchOptions common;
   GemmConfig seed;
-  int kappa=1,k_base=8,passes=3;
+  int kappa=1,k_base=8,passes=3,jobs=1;
   bool all_workers=false;
   VariantResourceCache::Probe variant_probe;
   std::string artifact_prefix;

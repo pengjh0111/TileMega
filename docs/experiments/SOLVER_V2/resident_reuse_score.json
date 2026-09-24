@@ -1,0 +1,7 @@
+{
+  "left": "docs/experiments/SOLVER_V2/resident_profile/selected.cu.search.tsv",
+  "right": "docs/experiments/SOLVER_V2/matrix/llama_s4/skeleton-k8/selected.cu.search.tsv",
+  "left_record": "EVALUATE\t0\t32x16x64s2k4;32x16x64s2k4;32x16x64s2k4;32x16x64s2k4;32x16x64s2k4;32x16x64s2k4;\t5514820.9881833401\t4\t6\t",
+  "right_record": "EVALUATE\t0\t32x16x64s2k4;32x16x64s2k4;32x16x64s2k4;32x16x64s2k4;32x16x64s2k4;32x16x64s2k4;\t5514820.9881833401\t4\t6\t",
+  "equal": true
+}
