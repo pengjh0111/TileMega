@@ -16,7 +16,16 @@ struct SymbolicProblem {
   std::vector<double> task_ns,prefetch_ns;
   int threads=0;
 };
-struct SymbolicPriceCache { std::map<std::string,std::vector<double>> prices; };
+struct PreparedSymbolicWork {
+  DerivedTaskInput input;
+  BackendTraits traits;
+  int chunks=1;
+  std::vector<analysis::ParamBinding> coordinates;
+};
+struct SymbolicPriceCache {
+  std::map<std::string,std::vector<double>> prices;
+  std::map<std::string,PreparedSymbolicWork> work;
+};
 SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& target,
     ModelDims dims,int grid,int residency,int kappa,SymbolicPriceCache* cache=nullptr);
 struct SkeletonSpace {

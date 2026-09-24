@@ -26,7 +26,16 @@ int main(int argc,char** argv) {
   auto warm=solver::PrepareSymbolicProblem(*module,target,{4,3,7},8,1,1,&prices);
   if(cached.task_ns!=problem.task_ns || warm.task_ns!=problem.task_ns || warm.prefetch_ns!=problem.prefetch_ns)
     throw std::runtime_error("semantic price cache changed prices");
+  auto uncached_r2=solver::PrepareSymbolicProblem(*module,target,{4,3,7},16,2,1);
+  auto cached_r2=solver::PrepareSymbolicProblem(*module,target,{4,3,7},16,2,1,&prices);
+  if(uncached_r2.task_ns!=cached_r2.task_ns)throw std::runtime_error("work cache changed residency pricing");
   std::cout<<"PRICE_CACHE exact=1 entries="<<prices.prices.size()<<'\n';
+  solver::RuntimeProjectionOptions po{8,problem.threads,1};po.count_wait_entries=false;
+  auto windows=solver::ProjectRuntimeQueues(problem.model,problem.runtime,po);
+  auto exact=problem.projection.dependencies.BindParams(problem.model.MetricBindings());
+  if(!exact.IsSubset(windows.dependencies))throw std::runtime_error("exact CG dependencies escape runtime waits");
+  auto extra=windows.dependencies.Subtract(exact);
+  std::cout<<"DEPENDENCIES exact="<<exact.Points().size()<<" runtime_extra="<<extra.Points().size()<<'\n';
   auto skeleton=solver::BuildPlanSkeleton(problem,8,1,4,false,cache);
   int prefix=0;for(int s:skeleton.stage_order){auto const& space=skeleton.spaces[s];
     if(space.base!=prefix%8)throw std::runtime_error("incorrect continuous rotate base");prefix+=space.count;

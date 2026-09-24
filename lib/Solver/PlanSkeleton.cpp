@@ -77,7 +77,7 @@ SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& t
   CostModel cost(target,model.dtype);
   auto theta=model.MetricBindings();
   std::ostringstream environment;
-  environment<<target.ToJson()<<':'<<std::hexfloat<<model.LiveFootprintBytes()<<':'<<threads<<':'<<residency<<':'<<runtime.ownership_flags;
+  environment<<target.ToJson()<<':'<<std::hexfloat<<model.LiveFootprintBytes()<<':'<<threads<<':'<<runtime.ownership_flags;
   for(auto const& [name,value]:theta.values)environment<<':'<<name<<'='<<value;
   // Keep the entire granularity environment in the key. This cache merges
   // repeated semantic stages, never guesses independence from other tiles.
@@ -89,48 +89,45 @@ SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& t
     std::ostringstream signature;signature<<environment.str()<<':'<<projected.combine<<':'<<counts[s]<<':'<<stage.width<<':'<<stage.extent<<':'<<stage.group<<':'<<g.tile_m<<','<<g.tile_n<<','<<g.tile_k<<','<<g.stages<<','<<g.split_k;
     for(auto const& sem:model.task_semantics)if(sem.stage==projected.logical_stage)
       signature<<'\n'<<analysis::SemanticSignature(sem.op);
-    auto key=signature.str();
+    auto work_key=signature.str();auto key=work_key+"|residency="+std::to_string(residency);
     if(cache){auto found=cache->prices.find(key);if(found!=cache->prices.end()){
       if(found->second.size()!=std::size_t(counts[s]))throw std::logic_error("cached price count mismatch");
       std::copy(found->second.begin(),found->second.end(),input.task_ns.begin()+offsets[s]);continue;
     }}
-    if (projected.combine) {
-      auto task=DeriveCombineTaskInput(model,projected.logical_stage,g,*semantic_graph,threads,
-          runtime.ownership_flags & codegen::kCombinerTileOwnership,cost.options().fp32_partials);
-      auto resources=codegen::ReadSimtTaskResources(codegen::TaskKind::kGemmCombine,threads);
-      BackendTraits traits;traits.threads=resources.threads;traits.smem_bytes=resources.shared_bytes;traits.shape_legal=true;
-      std::vector<analysis::ParamBinding> coordinates(counts[s]);
-      for (int t=0;t<counts[s];++t) coordinates[t].Bind("q",t);
-      if(task.work.task_count.Eval(theta)!=counts[s])
-        throw std::invalid_argument("combine access ownership disagrees with projected count");
-      std::vector<double> prefetch;PrefetchPricing pricing{0,&prefetch};
-      auto prices=PriceTaskInstances(cost,task,traits,{residency},model,1,coordinates,residency,&pricing);
-      if(cache)cache->prices.emplace(key,prices);
-      std::copy(prices.begin(),prices.end(),input.task_ns.begin()+offsets[s]);
-      std::copy(prefetch.begin(),prefetch.end(),input.prefetch_ns.begin()+offsets[s]);
-      continue;
-    }
-    auto found=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),[&](auto const& x) {
-      return x.stage==projected.logical_stage && (!stage.IsCollective() || x.op.kind==analysis::OperatorKind::kMatmul);
-    });
-    if (found==model.task_semantics.end()) throw std::invalid_argument("stage lacks derived semantic task costs");
-    auto task=DeriveModelTaskInput(model,*found,*semantic_graph,stage.IsCollective() ? &g : nullptr);
-    auto traits=ModelTaskTraits(model,projected.logical_stage,g);
-    int chunks=stage.IsCollective() ? cost.Chunks(model.gemms.at(stage.gemm),g) : 1;
-    std::vector<analysis::ParamBinding> coordinates(counts[s]);
-    if (task.scalar_access) {
-      for (int t=0;t<counts[s];++t) coordinates[t].Bind("q",t);
-    } else {
-      auto ownership=ProjectTaskOwnership(*found,task.task,stage,threads).BindParams(theta);
-      auto names=ownership.RangeDimNames();
-      for (auto const& [physical,logical]:ownership.Points()) {
-        if (physical.size()!=1 || physical[0]<0 || physical[0]>=counts[s])
-          throw std::invalid_argument("task cost ownership disagrees with projected count");
-        for (std::size_t i=0;i<names.size();++i) coordinates[physical[0]].Bind(names[i],logical[i]);
+    PreparedSymbolicWork prepared;
+    auto cached_work=cache ? cache->work.find(work_key) : std::map<std::string,PreparedSymbolicWork>::iterator{};
+    if(cache && cached_work!=cache->work.end())prepared=cached_work->second;
+    else {
+      prepared.coordinates.resize(counts[s]);
+      if(projected.combine) {
+        prepared.input=DeriveCombineTaskInput(model,projected.logical_stage,g,*semantic_graph,threads,
+            runtime.ownership_flags & codegen::kCombinerTileOwnership,cost.options().fp32_partials);
+        auto resources=codegen::ReadSimtTaskResources(codegen::TaskKind::kGemmCombine,threads);
+        prepared.traits.threads=resources.threads;prepared.traits.smem_bytes=resources.shared_bytes;prepared.traits.shape_legal=true;
+        for(int t=0;t<counts[s];++t)prepared.coordinates[t].Bind("q",t);
+        if(prepared.input.work.task_count.Eval(theta)!=counts[s])throw std::invalid_argument("combine access ownership disagrees with projected count");
+      } else {
+        auto found=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),[&](auto const& x){
+          return x.stage==projected.logical_stage && (!stage.IsCollective() || x.op.kind==analysis::OperatorKind::kMatmul);
+        });
+        if(found==model.task_semantics.end())throw std::invalid_argument("stage lacks derived semantic task costs");
+        prepared.input=DeriveModelTaskInput(model,*found,*semantic_graph,stage.IsCollective()?&g:nullptr);
+        prepared.traits=ModelTaskTraits(model,projected.logical_stage,g);
+        prepared.chunks=stage.IsCollective()?cost.Chunks(model.gemms.at(stage.gemm),g):1;
+        if(prepared.input.scalar_access){for(int t=0;t<counts[s];++t)prepared.coordinates[t].Bind("q",t);}
+        else {
+          auto ownership=ProjectTaskOwnership(*found,prepared.input.task,stage,threads).BindParams(theta);
+          auto names=ownership.RangeDimNames();
+          for(auto const& [physical,logical]:ownership.Points()){
+            if(physical.size()!=1 || physical[0]<0 || physical[0]>=counts[s])throw std::invalid_argument("task cost ownership disagrees with projected count");
+            for(std::size_t i=0;i<names.size();++i)prepared.coordinates[physical[0]].Bind(names[i],logical[i]);
+          }
+        }
       }
+      if(cache)cache->work.emplace(work_key,prepared);
     }
     std::vector<double> prefetch;PrefetchPricing pricing{0,&prefetch};
-    auto prices=PriceTaskInstances(cost,task,traits,{residency},model,chunks,coordinates,residency,&pricing);
+    auto prices=PriceTaskInstances(cost,prepared.input,prepared.traits,{residency},model,prepared.chunks,prepared.coordinates,residency,&pricing);
     if(cache)cache->prices.emplace(key,prices);
     std::copy(prices.begin(),prices.end(),input.task_ns.begin()+offsets[s]);
     std::copy(prefetch.begin(),prefetch.end(),input.prefetch_ns.begin()+offsets[s]);
