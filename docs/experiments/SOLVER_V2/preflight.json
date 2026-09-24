@@ -1,0 +1,28 @@
+{
+  "gpu": {
+    "command": [
+      "nvidia-smi"
+    ],
+    "returncode": 9,
+    "stdout": "NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running.\n\n",
+    "stderr": ""
+  },
+  "compiler": {
+    "command": [
+      "/usr/local/cuda/bin/nvcc",
+      "--version"
+    ],
+    "returncode": 0,
+    "stdout": "nvcc: NVIDIA (R) Cuda compiler driver\nCopyright (c) 2005-2025 NVIDIA Corporation\nBuilt on Fri_Feb_21_20:23:50_PST_2025\nCuda compilation tools, release 12.8, V12.8.93\nBuild cuda_12.8.r12.8/compiler.35583870_0\n",
+    "stderr": ""
+  },
+  "driver": {
+    "command": [
+      "build-portable/tools/tilemega-compile",
+      "--help"
+    ],
+    "returncode": 2,
+    "stdout": "",
+    "stderr": "usage: tilemega-compile {EXPORTED_PROGRAM.pt2|STABLE_EXPORT.json|CG.mlir} {OUTPUT.cu|OUTPUT.so} [--variants PLAN.json] [--solve TARGET.json --seq N --past N\n --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n --segments 1|2 --segment-candidates N\n --dump-cg FILE.mlir\n --hop-curve FILE.tsv --seq-begin N\n --prefetch-page-bytes N]\n"
+  }
+}
