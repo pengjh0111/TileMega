@@ -1,0 +1,7 @@
+solver	model	seq	phase	count	total_ms
+legacy	selected.cu.export	16	bridge_and_plan	1	18346.6
+legacy	selected.cu.export	16	import	43	314577
+legacy	selected.cu.export	16	placement_catalog	60	4.63177e+06
+legacy	selected.cu.export	16	prepare_placement	60	1.90396e+06
+legacy	selected.cu.export	16	query_residency	12	381263
+legacy	selected.cu.export	16	total	1	8.96673e+06

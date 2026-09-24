@@ -1,0 +1,15 @@
+{
+  "candidates": [
+    {
+      "source": "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s16/selected.cu",
+      "source_sha256": "c1acc704d3cc49404178c14bc54e7698070ad618ff521f515ae9e7bed10f2094",
+      "passed": 6,
+      "samples": 6,
+      "status": "internal_failed",
+      "l05_ms": 9.6448485,
+      "l1_ms": 9.9011915,
+      "l2_ms": 10.1435605
+    }
+  ],
+  "winner": null
+}

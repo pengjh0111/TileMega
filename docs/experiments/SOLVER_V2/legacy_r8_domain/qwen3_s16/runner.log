@@ -1,0 +1,7 @@
+DISK NEED_MIB=8192 FREE_MIB=1308011
+Traceback (most recent call last):
+  File "/root/TileMega/docs/experiments/SOLVER_V2/run_legacy.py", line 29, in <module>
+    if __name__=='__main__':main()
+  File "/root/TileMega/docs/experiments/SOLVER_V2/run_legacy.py", line 28, in main
+    if run(cmd,a.out/'measure.log',env):raise RuntimeError('legacy measurement failed')
+RuntimeError: legacy measurement failed

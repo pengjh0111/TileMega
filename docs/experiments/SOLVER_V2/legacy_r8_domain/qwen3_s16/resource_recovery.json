@@ -1,0 +1,7 @@
+{
+  "source_sha256": "c1acc704d3cc49404178c14bc54e7698070ad618ff521f515ae9e7bed10f2094",
+  "original_ooms": 4,
+  "archive": "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s16/failed_attempts/oom_1790270552752920092",
+  "recovery_started_ns": 1790270552753439312,
+  "policy": "all ten fresh processes; no numeric failure retry"
+}

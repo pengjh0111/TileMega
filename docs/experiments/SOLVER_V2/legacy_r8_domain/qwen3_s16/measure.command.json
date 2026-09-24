@@ -1,0 +1,16 @@
+{
+  "command": [
+    "python3",
+    "/root/TileMega/docs/experiments/SOLVER_V2/measure.py",
+    "--source",
+    "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s16/selected.cu",
+    "--fixture",
+    "/root/r9_work/qwen3_s16/fixture"
+  ],
+  "executable_sha256": "94df6ff4b32aafdba90e38c0aed70880fe44ee4cf88ecdf411641158f120c1af",
+  "head": "601872c5669e3bde09a44bba84ab033fa803ebfc",
+  "started_ns": 1790270552753745805,
+  "elapsed_ns": 312755542622,
+  "exit_code": 0,
+  "environment": {}
+}

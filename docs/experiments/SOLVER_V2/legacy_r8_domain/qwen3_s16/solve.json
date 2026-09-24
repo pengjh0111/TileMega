@@ -1,0 +1,26 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-compile",
+    "/root/TileMega/docs/experiments/SOLVER_V2/admission/qwen3_s16_fxorder_failed/selected.cu.export.json",
+    "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s16/selected.cu",
+    "--solver",
+    "legacy",
+    "--solve",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/target.json",
+    "--seq",
+    "16",
+    "--past",
+    "3",
+    "--dump-cg",
+    "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s16/selected.mlir",
+    "--hop-curve",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv",
+    "--search-capacity",
+    "12",
+    "--search-domain",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/search_domain.json"
+  ],
+  "started_ns": 1790255835695981194,
+  "elapsed_ns": 9001574069519,
+  "exit_code": 0
+}

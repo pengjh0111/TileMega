@@ -1,0 +1,9 @@
+{
+  "command": [
+    "python3",
+    "/root/TileMega/docs/experiments/SOLVER_V2/continue_qwen.py",
+    "--seq",
+    "16"
+  ],
+  "pid": 2728285
+}

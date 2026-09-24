@@ -1,0 +1,70 @@
+E2E_ARCH plan=sm_89 plan_id=890 device=sm_89 device_id=890
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=185696256
+E2E_PLACE_STATS placement=0 max_queue=678 same_worker_edges=48527 cross_worker_edges=10175585 base_rotation=0 plan=eft
+E2E_TIMING cold=0 warmup=2 repeat=10 statistic=median reset=outside_timing
+E2E_RESOURCE block=128 reg=96 smem=16384 task_smem=16384 occupancy_smem=16384 static_smem=0 regs_per_sm=65536 smem_per_sm=102400 threads_per_sm=1536 gemm_union=12288 variant_count=1 ctas_per_sm=4 num_sms=128 grid=512 l1_reg=90 l05_reg=80 l1_ctas=5 l2_ctas=5 min_blocks=1 warp_size=32 resident_formula=ctas_per_sm*num_sms
+E2E_SCHEDULE workers=512 variant_stages=479 task_refs=263896 task_ref_bytes=7389088 waits=2510465 wait_bytes=20083720 raw_polls=4482401 lifted_polls=1971936 waiting_tasks=126040 normalization_dummies_lb=2384425 max_span=15 generated_max_span=12 max_worker_span=511 resident_limit=512 global_fanin=1 i3_current=pass i3_overresident=reject max_worker_task_refs=678
+E2E_TIME l05_ms=8.870337 l1_ms=9.112576 ratio=1.027309 l2_ms=9.382432 l2_over_l1=1.029614
+E2E_DIFF l05_vs_l0_mismatch=73672 max_abs=0.0703125 max_rel=33203.125 l1_vs_l05_mismatch=0 max_abs=0 max_rel=0 l2_vs_l1_mismatch=0 max_abs=0 max_rel=0
+E2E_OUTPUT_DIFF index=0 buffer=762 mismatch=53142 max_abs=0.046875 max_rel=15883.488
+E2E_OUTPUT_DIFF index=1 buffer=25 mismatch=0 max_abs=0.001953125 max_rel=0.015625
+E2E_OUTPUT_DIFF index=2 buffer=26 mismatch=0 max_abs=0.00048828125 max_rel=0.0074074073
+E2E_OUTPUT_DIFF index=3 buffer=52 mismatch=0 max_abs=0.03125 max_rel=4882.8125
+E2E_OUTPUT_DIFF index=4 buffer=53 mismatch=0 max_abs=0.0078125 max_rel=17.25532
+E2E_OUTPUT_DIFF index=5 buffer=79 mismatch=0 max_abs=0.03125 max_rel=55.400002
+E2E_OUTPUT_DIFF index=6 buffer=80 mismatch=0 max_abs=0.0078125 max_rel=132.28441
+E2E_OUTPUT_DIFF index=7 buffer=106 mismatch=0 max_abs=0.03125 max_rel=7812.5
+E2E_OUTPUT_DIFF index=8 buffer=107 mismatch=0 max_abs=0.015625 max_rel=41.64455
+E2E_OUTPUT_DIFF index=9 buffer=133 mismatch=4 max_abs=0.03125 max_rel=9765.625
+E2E_OUTPUT_DIFF index=10 buffer=134 mismatch=0 max_abs=0.015625 max_rel=38.367741
+E2E_OUTPUT_DIFF index=11 buffer=160 mismatch=18 max_abs=0.03125 max_rel=13671.875
+E2E_OUTPUT_DIFF index=12 buffer=161 mismatch=0 max_abs=0.015625 max_rel=995.57471
+E2E_OUTPUT_DIFF index=13 buffer=187 mismatch=56 max_abs=0.03125 max_rel=13671.875
+E2E_OUTPUT_DIFF index=14 buffer=188 mismatch=0 max_abs=0.01953125 max_rel=98.476921
+E2E_OUTPUT_DIFF index=15 buffer=214 mismatch=79 max_abs=0.046875 max_rel=5371.0938
+E2E_OUTPUT_DIFF index=16 buffer=215 mismatch=1 max_abs=0.01953125 max_rel=1204.5131
+E2E_OUTPUT_DIFF index=17 buffer=241 mismatch=130 max_abs=0.03125 max_rel=9765.625
+E2E_OUTPUT_DIFF index=18 buffer=242 mismatch=0 max_abs=0.017578125 max_rel=145.49484
+E2E_OUTPUT_DIFF index=19 buffer=268 mismatch=200 max_abs=0.0390625 max_rel=5859.375
+E2E_OUTPUT_DIFF index=20 buffer=269 mismatch=3 max_abs=0.0234375 max_rel=1017.6857
+E2E_OUTPUT_DIFF index=21 buffer=295 mismatch=240 max_abs=0.0390625 max_rel=14648.438
+E2E_OUTPUT_DIFF index=22 buffer=296 mismatch=3 max_abs=0.0234375 max_rel=118.937
+E2E_OUTPUT_DIFF index=23 buffer=322 mismatch=294 max_abs=0.046875 max_rel=15625
+E2E_OUTPUT_DIFF index=24 buffer=323 mismatch=9 max_abs=0.024414062 max_rel=133.89952
+E2E_OUTPUT_DIFF index=25 buffer=349 mismatch=391 max_abs=0.046875 max_rel=9033.2031
+E2E_OUTPUT_DIFF index=26 buffer=350 mismatch=21 max_abs=0.024902344 max_rel=82.877098
+E2E_OUTPUT_DIFF index=27 buffer=376 mismatch=504 max_abs=0.046875 max_rel=11718.75
+E2E_OUTPUT_DIFF index=28 buffer=377 mismatch=25 max_abs=0.0234375 max_rel=869.67377
+E2E_OUTPUT_DIFF index=29 buffer=403 mismatch=533 max_abs=0.046875 max_rel=11718.75
+E2E_OUTPUT_DIFF index=30 buffer=404 mismatch=40 max_abs=0.02734375 max_rel=3272.8103
+E2E_OUTPUT_DIFF index=31 buffer=430 mismatch=675 max_abs=0.05859375 max_rel=146.91112
+E2E_OUTPUT_DIFF index=32 buffer=431 mismatch=44 max_abs=0.02734375 max_rel=144.09171
+E2E_OUTPUT_DIFF index=33 buffer=457 mismatch=771 max_abs=0.0546875 max_rel=15625
+E2E_OUTPUT_DIFF index=34 buffer=458 mismatch=56 max_abs=0.03125 max_rel=1648.5531
+E2E_OUTPUT_DIFF index=35 buffer=484 mismatch=781 max_abs=0.0625 max_rel=7812.5
+E2E_OUTPUT_DIFF index=36 buffer=485 mismatch=97 max_abs=0.02734375 max_rel=118.64162
+E2E_OUTPUT_DIFF index=37 buffer=511 mismatch=949 max_abs=0.0546875 max_rel=7812.5
+E2E_OUTPUT_DIFF index=38 buffer=512 mismatch=83 max_abs=0.029296875 max_rel=3386.7358
+E2E_OUTPUT_DIFF index=39 buffer=538 mismatch=1087 max_abs=0.0625 max_rel=11718.75
+E2E_OUTPUT_DIFF index=40 buffer=539 mismatch=105 max_abs=0.03125 max_rel=1565.776
+E2E_OUTPUT_DIFF index=41 buffer=565 mismatch=1129 max_abs=0.0625 max_rel=5859.375
+E2E_OUTPUT_DIFF index=42 buffer=566 mismatch=130 max_abs=0.033203125 max_rel=265.73053
+E2E_OUTPUT_DIFF index=43 buffer=592 mismatch=1310 max_abs=0.0625 max_rel=23437.5
+E2E_OUTPUT_DIFF index=44 buffer=593 mismatch=150 max_abs=0.03515625 max_rel=16845.279
+E2E_OUTPUT_DIFF index=45 buffer=619 mismatch=1258 max_abs=0.0625 max_rel=7812.5
+E2E_OUTPUT_DIFF index=46 buffer=620 mismatch=190 max_abs=0.03125 max_rel=7741.0273
+E2E_OUTPUT_DIFF index=47 buffer=646 mismatch=1372 max_abs=0.0625 max_rel=23437.5
+E2E_OUTPUT_DIFF index=48 buffer=647 mismatch=199 max_abs=0.03515625 max_rel=101.73684
+E2E_OUTPUT_DIFF index=49 buffer=673 mismatch=1481 max_abs=0.0625 max_rel=3906.25
+E2E_OUTPUT_DIFF index=50 buffer=674 mismatch=226 max_abs=0.03515625 max_rel=1513.9369
+E2E_OUTPUT_DIFF index=51 buffer=700 mismatch=1555 max_abs=0.0703125 max_rel=33203.125
+E2E_OUTPUT_DIFF index=52 buffer=701 mismatch=253 max_abs=0.031982422 max_rel=109.82251
+E2E_OUTPUT_DIFF index=53 buffer=727 mismatch=1620 max_abs=0.0625 max_rel=23437.5
+E2E_OUTPUT_DIFF index=54 buffer=728 mismatch=294 max_abs=0.03515625 max_rel=3145.5959
+E2E_OUTPUT_DIFF index=55 buffer=754 mismatch=1837 max_abs=0.0703125 max_rel=9765.625
+E2E_OUTPUT_DIFF index=56 buffer=755 mismatch=327 max_abs=0.0390625 max_rel=179.48921
+E2E_HASH l05=64ec98ecb8e168aa l1=64ec98ecb8e168aa l2=64ec98ecb8e168aa
+E2E_ITER l2_iter1_ms=18.790400 l2_iter1_vs_iter0_mismatch=0 max_abs=0
+E2E_KAPPA event_kappa=1 dependency_table=variant_exact
+E2E_VARIANT index=0 seq_begin=1 seq_end=16
+RESULT status=MISMATCH

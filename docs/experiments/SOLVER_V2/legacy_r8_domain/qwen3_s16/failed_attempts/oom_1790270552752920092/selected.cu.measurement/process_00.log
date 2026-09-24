@@ -1,0 +1,4 @@
+/root/TileMega/include/tilemega/Codegen/tasks/ModelHarness.cuh:2585: out of memory
+E2E_ARCH plan=sm_89 plan_id=890 device=sm_89 device_id=890
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=185696256
+E2E_PLACE_STATS placement=0 max_queue=678 same_worker_edges=48527 cross_worker_edges=10175585 base_rotation=0 plan=eft
