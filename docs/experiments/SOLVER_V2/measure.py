@@ -8,6 +8,7 @@ with the smallest median L2 time; CPU golden is deliberately not this gate.
 GPU runs take an advisory lock shared by all R9 runners on this host.
 """
 import argparse,csv,fcntl,hashlib,json,os,pathlib,re,shutil,statistics,subprocess,time
+from gpu_admission import wait_for_device,resource_failure
 ROOT=pathlib.Path(__file__).resolve().parents[3]
 def run(cmd, log, env=None, timeout=None):
     cmd=list(map(str,cmd));start=time.time_ns()
@@ -43,17 +44,20 @@ def main():
         for sub in ['include','third_party/cutlass/include','third_party/cutlass/tools/util/include','third_party/cutlass/test']:cmd+=['-I'+str(ROOT/sub)]
         cmd += [source,ROOT/'build-portable/libtilemega.a','-L/usr/local/cuda/lib64','-lcudart','-o',binary]
         if run(cmd,out/'build.log',env):records.append(dict(source=str(source),status='build_failed'));continue
-        samples=[];passed=0
+        samples=[];passed=0;resource_errors=0
         with open('/tmp/tilemega-r9-gpu.lock','w') as lock:
             fcntl.flock(lock,fcntl.LOCK_EX)
             run(['nvidia-smi','-q'],out/'device_before.log',env)
             for i in range(10):
+                wait_for_device(a.fixture,out/'gpu_admission.jsonl')
                 log=out/f'process_{i:02}.log';code=run([binary,a.fixture],log,env,timeout=600)
-                good,timing=parse(log.read_text());passed+=good
+                raw=log.read_text();good,timing=parse(raw);passed+=good
+                resource_errors+=int(resource_failure(raw))
                 if timing:samples.append(timing)
                 print(f'PROCESS source={source} round={i} internal={int(good)} exit={code}',flush=True)
             run(['nvidia-smi','-q'],out/'device_after.log',env)
-        record=dict(source=str(source),source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),passed=passed,samples=len(samples),status='ok' if passed==10 and len(samples)==10 else 'internal_failed')
+        status='ok' if passed==10 and len(samples)==10 else ('resource_failed' if resource_errors else 'internal_failed')
+        record=dict(source=str(source),source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),passed=passed,samples=len(samples),resource_errors=resource_errors,status=status)
         if samples:
             record.update(zip(['l05_ms','l1_ms','l2_ms'],map(statistics.median,zip(*samples))))
         records.append(record)

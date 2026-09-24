@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Wait for each fresh Qwen control independently, then run its four arms."""
-import json,pathlib,subprocess,time
+import argparse,json,pathlib,subprocess,time
 R=pathlib.Path(__file__).resolve().parents[3];E=pathlib.Path(__file__).resolve().parent
-pending={1,4,16,64}
+ap=argparse.ArgumentParser(description=__doc__)
+ap.add_argument('--seq',type=int,choices=[1,4,16,64],action='append')
+args=ap.parse_args()
+pending=set(args.seq or [1,4,16,64])
 while pending:
     for seq in sorted(pending):
         control=E/'legacy_r8_domain'/f'qwen3_s{seq}'
@@ -25,7 +28,8 @@ while pending:
             (out/'launch.command.json').write_text(json.dumps(dict(command=cmd,pid=p.pid),indent=2))
             print('START',seq,k,p.pid,flush=True)
         cmd=[str(R/'build-portable/tools/tilemega-skeleton-audit'),str(control/'selected.mlir'),str(R/'docs/experiments/COSTMODEL/event_fit/target.json'),str(seq),'3',str(control/'eft_queue.tsv'),str(R/'docs/experiments/SIMULATOR/hop_ns.tsv')]
-        with (control/'oracle_eft_audit.log').open('w') as log:p=subprocess.Popen(cmd,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
-        (control/'oracle_eft_audit.command.json').write_text(json.dumps(dict(command=cmd,pid=p.pid),indent=2))
+        if not (control/'oracle_eft_audit.command.json').exists():
+            with (control/'oracle_eft_audit.log').open('w') as log:p=subprocess.Popen(cmd,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+            (control/'oracle_eft_audit.command.json').write_text(json.dumps(dict(command=cmd,pid=p.pid),indent=2))
         pending.remove(seq)
     if pending:time.sleep(15)

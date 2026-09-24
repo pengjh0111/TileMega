@@ -1,0 +1,6 @@
+.GPU_ADMISSION need_mib=100 free_mib=10 utilization=0 ready=0/3
+..
+----------------------------------------------------------------------
+Ran 3 tests in 0.012s
+
+OK

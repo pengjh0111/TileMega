@@ -67,3 +67,20 @@ that failed before code generation remain as debugging evidence. Invalid new
 shortlist candidates remain recorded and cannot become an arm's selected
 result; an entirely invalid shortlist fails that arm. A regression in an
 existing reference configuration remains the prompt's global-stop condition.
+
+
+## GPU resource admission and a rejected control attempt
+
+Verified: the first Qwen seq16 control attempt had four pre-output CUDA
+allocation failures at `ModelHarness.cuh:2585`, followed by six internally
+bit-exact runs. The ten-process gate failed; its six timings are not a control
+result. The entire attempt is retained under that cell's `failed_attempts/`.
+Recovery repeats all ten fresh processes, not just the failed four.
+
+The measurement runner now waits for three consecutive device observations
+with utilization at most 5% and available memory at least fixture bytes plus
+2048 MiB. This headroom is an admission estimate, not a measured peak-memory
+claim or a changed acceptance gate. Observations are saved in
+`gpu_admission.jsonl`. External GPU users can still race admission; any new
+failure remains in the raw logs. Numeric/hash failures and unexplained exits
+are not automatically retried. `gpu_admission_test.log` exercises these guards.
