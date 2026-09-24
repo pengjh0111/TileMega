@@ -1,0 +1,14 @@
+{
+  "refine": 0,
+  "correctness": "L0.5/L1/L2 E2E_HASH equality and both internal mismatch counters zero; CPU golden does not gate",
+  "processes": 10,
+  "repeat_per_process": 10,
+  "warmup": 2,
+  "control_domain": "R8 deployed five-shape domain: docs/experiments/COSTMODEL/event_fit/search_domain.json; capacity=12, algorithm unchanged",
+  "unrestricted_control_audit": "legacy/llama_s4, independently timed and retained",
+  "skeleton_domain": "CandidateGenerator full domain; no --search-domain for primary measurements",
+  "skeleton_passes": 3,
+  "top_k": 5,
+  "measured_shortlist": 3,
+  "gpu": "RTX 4090 available after execution permission profile restoration"
+}

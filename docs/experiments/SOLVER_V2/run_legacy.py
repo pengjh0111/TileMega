@@ -14,22 +14,16 @@ def main():
     ap.add_argument('--bridge',type=pathlib.Path,required=True);ap.add_argument('--fixture',type=pathlib.Path,required=True)
     ap.add_argument('--seq',type=int,required=True);ap.add_argument('--out',type=pathlib.Path,required=True)
     ap.add_argument('--compiler',type=pathlib.Path,default=ROOT/'build-portable/tools/tilemega-compile')
+    ap.add_argument('--domain',type=pathlib.Path);ap.add_argument('--capacity',type=int,default=8)
     a=ap.parse_args();a.out.mkdir(parents=True,exist_ok=True)
     source=a.out/'selected.cu'; need=8192;free=shutil.disk_usage(a.out).free//2**20
     print(f'DISK NEED_MIB={need} FREE_MIB={free}',flush=True)
     if free<need: raise RuntimeError('disk budget')
     env={k:v for k,v in os.environ.items() if not k.startswith('TILEMEGA_')}
     cmd=[a.compiler,a.bridge,source,'--solver','legacy','--solve',ROOT/'docs/experiments/COSTMODEL/event_fit/target.json','--seq',a.seq,'--past',3,'--dump-cg',a.out/'selected.mlir','--hop-curve',ROOT/'docs/experiments/SIMULATOR/hop_ns.tsv']
+    cmd+=['--search-capacity',a.capacity]
+    if a.domain:cmd+=['--search-domain',a.domain]
     if run(cmd,a.out/'solve.log',env): raise RuntimeError('legacy solve failed')
-    cmd=['/usr/local/cuda/bin/nvcc','-std=c++17','-O2','-arch=sm_89','-lineinfo','-Xptxas=-v','-DTILEMEGA_MIDPOINT_REFINE=0']
-    for sub in ['include','third_party/cutlass/include','third_party/cutlass/tools/util/include','third_party/cutlass/test']:cmd+=['-I'+str(ROOT/sub)]
-    cmd += [source,ROOT/'build-portable/libtilemega.a','-L/usr/local/cuda/lib64','-lcudart','-o',a.out/'selected']
-    if run(cmd,a.out/'build.log',env): raise RuntimeError('legacy build failed')
-    env.update(TILEMEGA_WARMUP='2',TILEMEGA_REPEAT='10')
-    for i in range(10):
-        log=a.out/f'process_{i:02}.log';run([a.out/'selected',a.fixture],log,env)
-        text=log.read_text();m=re.search(r'E2E_HASH l05=(\w+) l1=(\w+) l2=(\w+)',text)
-        ok=bool(m and len(set(m.groups()))==1 and 'l1_vs_l05_mismatch=0' in text and 'l2_vs_l1_mismatch=0' in text)
-        print(f'INTERNAL round={i} pass={ok}',flush=True)
-        if not ok:raise RuntimeError('internal equality failed')
+    cmd=['python3',ROOT/'docs/experiments/SOLVER_V2/measure.py','--source',source,'--fixture',a.fixture]
+    if run(cmd,a.out/'measure.log',env):raise RuntimeError('legacy measurement failed')
 if __name__=='__main__':main()
