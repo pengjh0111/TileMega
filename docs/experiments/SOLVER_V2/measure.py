@@ -11,10 +11,12 @@ import argparse,csv,fcntl,hashlib,json,os,pathlib,re,shutil,statistics,subproces
 ROOT=pathlib.Path(__file__).resolve().parents[3]
 def run(cmd, log, env=None, timeout=None):
     cmd=list(map(str,cmd));start=time.time_ns()
+    executable=shutil.which(cmd[0]);digest=hashlib.sha256(pathlib.Path(executable).read_bytes()).hexdigest() if executable else None
+    head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
     with log.open('w') as f:
         try:p=subprocess.run(cmd,cwd=ROOT,env=env,stdout=f,stderr=subprocess.STDOUT,timeout=timeout);code=p.returncode
         except subprocess.TimeoutExpired:code=124
-    log.with_suffix('.command.json').write_text(json.dumps(dict(command=cmd,started_ns=start,elapsed_ns=time.time_ns()-start,exit_code=code,environment={k:v for k,v in (env or {}).items() if k.startswith('TILEMEGA_')}),indent=2)+'\n')
+    log.with_suffix('.command.json').write_text(json.dumps(dict(command=cmd,executable_sha256=digest,head=head,started_ns=start,elapsed_ns=time.time_ns()-start,exit_code=code,environment={k:v for k,v in (env or {}).items() if k.startswith('TILEMEGA_')}),indent=2)+'\n')
     return code
 
 def parse(text):
@@ -26,8 +28,10 @@ def parse(text):
 def main():
     ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('--source',type=pathlib.Path,required=True);ap.add_argument('--fixture',type=pathlib.Path,required=True);ap.add_argument('--top3',action='store_true');a=ap.parse_args()
     env={k:v for k,v in os.environ.items() if not k.startswith('TILEMEGA_')};env.update(TILEMEGA_WARMUP='2',TILEMEGA_REPEAT='10')
-    sources=[a.source]
-    if a.top3:sources=[pathlib.Path(row['source']) for row in csv.DictReader(pathlib.Path(str(a.source)+'.top3.tsv').open(),delimiter='\t')]
+    sources=[a.source];shortlist=[]
+    if a.top3:
+        shortlist=list(csv.DictReader(pathlib.Path(str(a.source)+'.top3.tsv').open(),delimiter='\t'))
+        sources=[pathlib.Path(row['source']) for row in shortlist]
     records=[]
     for source in sources:
         out=pathlib.Path(str(source)+'.measurement');out.mkdir(parents=True,exist_ok=True)
@@ -54,6 +58,11 @@ def main():
             record.update(zip(['l05_ms','l1_ms','l2_ms'],map(statistics.median,zip(*samples))))
         records.append(record)
     valid=[r for r in records if r['status']=='ok'];winner=min(valid,key=lambda r:r['l2_ms']) if valid else None
+    if winner and a.top3:
+        chosen=next(row for row in shortlist if row['source']==winner['source'])
+        for field,extension in [('source','.cu'),('cg','.mlir')]:
+            shutil.copy2(chosen[field],str(a.source)+'.measured'+extension)
+        winner['key']=chosen['key']
     pathlib.Path(str(a.source)+'.measurement.json').write_text(json.dumps(dict(candidates=records,winner=winner),indent=2)+'\n')
-    if len(valid)!=len(sources):raise SystemExit(1)
+    if not valid:raise SystemExit(1)
 if __name__=='__main__':main()
