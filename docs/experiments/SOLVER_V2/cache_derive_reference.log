@@ -1,0 +1,14 @@
+error: 'tmcg.coupling' op wait { 999999 } does not match the relation's fiber cardinality [s11] -> { [m, n] -> 32 : m >= 0 and 32m <= -33 + s11 and 0 <= n <= 31; [m, n] -> (s11 - 32 * m) : m >= 0 and -32 + s11 <= 32m < s11 and 0 <= n <= 31 }
+error: 'tmcg.coupling' op wait { 999999 } does not match the relation's fiber cardinality [s11] -> { [m, n, j] -> 32 : m >= 0 and 32m <= -33 + s11 and 0 <= n <= 31 and 0 <= j <= 1; [m, n, j] -> (s11 - 32 * m) : m >= 0 and -32 + s11 <= 32m < s11 and 0 <= n <= 31 and 0 <= j <= 1 }
+DERIVE_TIMING split=1 mode=uncached count=1 total_ms=137.831 cache_hit=0 cache_miss=0 bytes_equal=1
+DERIVE_TIMING split=1 mode=cold count=1 total_ms=194.285 cache_hit=6 cache_miss=36 bytes_equal=1
+DERIVE_TIMING split=1 mode=warm count=1 total_ms=0.517806 cache_hit=42 cache_miss=0 bytes_equal=1
+EXACT_MEMO hit=2651 miss=354 mutation_rejected=PASS
+CACHE_EQ split=1 PASS
+DERIVE_TIMING split=2 mode=uncached count=1 total_ms=136.316 cache_hit=0 cache_miss=0 bytes_equal=1
+DERIVE_TIMING split=2 mode=cold count=1 total_ms=262.411 cache_hit=10 cache_miss=46 bytes_equal=1
+DERIVE_TIMING split=2 mode=warm count=1 total_ms=0.714498 cache_hit=56 cache_miss=0 bytes_equal=1
+EXACT_MEMO hit=3404 miss=404 mutation_rejected=PASS
+CACHE_EQ split=2 PASS
+SEMSIG_COLLISIONS pairs=2 distinct_keys=2 PASS
+CACHE hit=124 miss=72 PASS

@@ -1,0 +1,335 @@
+{
+  "equal": true,
+  "records": 4,
+  "control": "docs/experiments/SOLVER_V2/matrix/llama_s4/skeleton-k8",
+  "profile": "docs/experiments/SOLVER_V2/relation_memo_profile",
+  "control_phases": {
+    "0": {
+      "analysis_cache_hit": {
+        "count": 30642,
+        "ms": 0.0
+      },
+      "analysis_cache_miss": {
+        "count": 11,
+        "ms": 0.0
+      },
+      "cache_hit": {
+        "count": 902,
+        "ms": 0.0
+      },
+      "cache_miss": {
+        "count": 0,
+        "ms": 0.0
+      },
+      "derive": {
+        "count": 1,
+        "ms": 16.7579
+      },
+      "instantiate": {
+        "count": 1,
+        "ms": 2.861785
+      },
+      "level2": {
+        "count": 6,
+        "ms": 21865.943355
+      },
+      "oracle": {
+        "count": 2173788,
+        "ms": 556.1956220002713
+      },
+      "oracle_general": {
+        "count": 361980,
+        "ms": 96.1903899999746
+      },
+      "oracle_rectangular": {
+        "count": 0,
+        "ms": 0.0
+      },
+      "oracle_unique": {
+        "count": 1811808,
+        "ms": 460.0052320002969
+      },
+      "skeleton": {
+        "count": 6,
+        "ms": 2568.616692
+      },
+      "task_pricing": {
+        "count": 6,
+        "ms": 36974.137101
+      }
+    },
+    "1": {
+      "analysis_cache_hit": {
+        "count": 31731,
+        "ms": 0.0
+      },
+      "analysis_cache_miss": {
+        "count": 35,
+        "ms": 0.0
+      },
+      "cache_hit": {
+        "count": 934,
+        "ms": 0.0
+      },
+      "cache_miss": {
+        "count": 0,
+        "ms": 0.0
+      },
+      "derive": {
+        "count": 1,
+        "ms": 17.289472
+      },
+      "instantiate": {
+        "count": 1,
+        "ms": 2.999128
+      },
+      "level2": {
+        "count": 6,
+        "ms": 29106.978982999997
+      },
+      "oracle": {
+        "count": 2247516,
+        "ms": 769.3872230003966
+      },
+      "oracle_general": {
+        "count": 386556,
+        "ms": 138.85817600000595
+      },
+      "oracle_rectangular": {
+        "count": 0,
+        "ms": 0.0
+      },
+      "oracle_unique": {
+        "count": 1860960,
+        "ms": 630.5290470003906
+      },
+      "skeleton": {
+        "count": 6,
+        "ms": 2700.623236
+      },
+      "task_pricing": {
+        "count": 6,
+        "ms": 44204.252884999994
+      }
+    },
+    "2": {
+      "analysis_cache_hit": {
+        "count": 31753,
+        "ms": 0.0
+      },
+      "analysis_cache_miss": {
+        "count": 0,
+        "ms": 0.0
+      },
+      "cache_hit": {
+        "count": 934,
+        "ms": 0.0
+      },
+      "cache_miss": {
+        "count": 0,
+        "ms": 0.0
+      },
+      "derive": {
+        "count": 1,
+        "ms": 17.247712
+      },
+      "instantiate": {
+        "count": 1,
+        "ms": 2.975917
+      },
+      "level2": {
+        "count": 6,
+        "ms": 26930.436103
+      },
+      "oracle": {
+        "count": 2296668,
+        "ms": 721.7039720002484
+      },
+      "oracle_general": {
+        "count": 386556,
+        "ms": 127.810162000004
+      },
+      "oracle_rectangular": {
+        "count": 0,
+        "ms": 0.0
+      },
+      "oracle_unique": {
+        "count": 1910112,
+        "ms": 593.8938100002442
+      },
+      "skeleton": {
+        "count": 6,
+        "ms": 2656.22302
+      },
+      "task_pricing": {
+        "count": 6,
+        "ms": 42884.334051
+      }
+    }
+  },
+  "profile_phases": {
+    "0": {
+      "analysis_cache_hit": {
+        "count": 32881,
+        "ms": 0.0
+      },
+      "analysis_cache_miss": {
+        "count": 1112,
+        "ms": 0.0
+      },
+      "cache_hit": {
+        "count": 902,
+        "ms": 0.0
+      },
+      "cache_miss": {
+        "count": 0,
+        "ms": 0.0
+      },
+      "derive": {
+        "count": 1,
+        "ms": 17.529476
+      },
+      "instantiate": {
+        "count": 1,
+        "ms": 3.110187
+      },
+      "level2": {
+        "count": 6,
+        "ms": 29348.740957
+      },
+      "oracle": {
+        "count": 2173788,
+        "ms": 737.2483349996568
+      },
+      "oracle_general": {
+        "count": 361980,
+        "ms": 128.40702199996966
+      },
+      "oracle_rectangular": {
+        "count": 0,
+        "ms": 0.0
+      },
+      "oracle_unique": {
+        "count": 1811808,
+        "ms": 608.8413129996873
+      },
+      "skeleton": {
+        "count": 6,
+        "ms": 2555.2367630000003
+      },
+      "task_pricing": {
+        "count": 6,
+        "ms": 39216.933154
+      }
+    },
+    "1": {
+      "analysis_cache_hit": {
+        "count": 35107,
+        "ms": 0.0
+      },
+      "analysis_cache_miss": {
+        "count": 140,
+        "ms": 0.0
+      },
+      "cache_hit": {
+        "count": 934,
+        "ms": 0.0
+      },
+      "cache_miss": {
+        "count": 0,
+        "ms": 0.0
+      },
+      "derive": {
+        "count": 1,
+        "ms": 18.012954
+      },
+      "instantiate": {
+        "count": 1,
+        "ms": 3.008135
+      },
+      "level2": {
+        "count": 6,
+        "ms": 29795.362704
+      },
+      "oracle": {
+        "count": 2247516,
+        "ms": 765.344706999669
+      },
+      "oracle_general": {
+        "count": 386556,
+        "ms": 136.82644099996438
+      },
+      "oracle_rectangular": {
+        "count": 0,
+        "ms": 0.0
+      },
+      "oracle_unique": {
+        "count": 1860960,
+        "ms": 628.5182659997049
+      },
+      "skeleton": {
+        "count": 6,
+        "ms": 2569.2949720000006
+      },
+      "task_pricing": {
+        "count": 6,
+        "ms": 42590.706742999995
+      }
+    },
+    "2": {
+      "analysis_cache_hit": {
+        "count": 35216,
+        "ms": 0.0
+      },
+      "analysis_cache_miss": {
+        "count": 0,
+        "ms": 0.0
+      },
+      "cache_hit": {
+        "count": 934,
+        "ms": 0.0
+      },
+      "cache_miss": {
+        "count": 0,
+        "ms": 0.0
+      },
+      "derive": {
+        "count": 1,
+        "ms": 17.668416
+      },
+      "instantiate": {
+        "count": 1,
+        "ms": 2.98108
+      },
+      "level2": {
+        "count": 6,
+        "ms": 26340.208063
+      },
+      "oracle": {
+        "count": 2296668,
+        "ms": 702.1201849992748
+      },
+      "oracle_general": {
+        "count": 386556,
+        "ms": 122.37939199997075
+      },
+      "oracle_rectangular": {
+        "count": 0,
+        "ms": 0.0
+      },
+      "oracle_unique": {
+        "count": 1910112,
+        "ms": 579.740792999304
+      },
+      "skeleton": {
+        "count": 6,
+        "ms": 2510.951578
+      },
+      "task_pricing": {
+        "count": 6,
+        "ms": 24622.389435
+      }
+    }
+  },
+  "note": "CPU diagnostic under concurrent searches, not a paired GPU or total-solve timing"
+}

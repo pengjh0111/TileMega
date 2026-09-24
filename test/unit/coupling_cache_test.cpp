@@ -51,6 +51,22 @@ int main(int argc,char** argv) {
     for(std::size_t i=0;i<options.gemms.size();++i)options.gemms[i]={32,int(i%2 ? 32:16),32,2,split};
     options.rope_tile_per_block=options.kv_tile_per_block=options.activation_tile_per_block=options.combiner_tile_per_block=true;
     auto baseline=importer.ImportPlan(path,plan,context,nullptr,options);
+    if(argc>2 && std::string(argv[2])=="--benchmark") {
+      analysis::CouplingCache benchmark_cache;
+      // No expression memo in this comparison: isolate the semantic coupling
+      // cache, and verify every timed module against the independent importer.
+      for(auto mode:{"uncached","cold","warm"}) {
+        solver::SolverTiming timing;
+        auto before_hits=benchmark_cache.hits,before_misses=benchmark_cache.misses;
+        auto measured=importer.InstantiateForGranularity(imported,context,options,
+            std::string(mode)=="uncached"?nullptr:&benchmark_cache,nullptr,&timing);
+        require(dump(*measured)==dump(*baseline),"timed coupling cache CG differs");
+        auto const& derive=timing.phases.at("derive");
+        std::cout<<"DERIVE_TIMING split="<<split<<" mode="<<mode<<" count="<<derive.count
+          <<" total_ms="<<derive.total_ms<<" cache_hit="<<benchmark_cache.hits-before_hits
+          <<" cache_miss="<<benchmark_cache.misses-before_misses<<" bytes_equal=1\n";
+      }
+    }
     analysis::ScopedExactAnalysisMemo memo;
     auto cold=importer.InstantiateForGranularity(imported,context,options,&cache);
     auto warm=importer.InstantiateForGranularity(imported,context,options,&cache);
