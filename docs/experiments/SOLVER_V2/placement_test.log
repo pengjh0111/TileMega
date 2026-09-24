@@ -1,0 +1,3 @@
+READY_PLACEMENT case=0 makespan=104 interleaving=0.4 requeues=20 PASS
+READY_PLACEMENT case=1 makespan=108 interleaving=0.4 requeues=28 PASS
+READY_PLACEMENT case=2 makespan=108 interleaving=0.4 requeues=28 PASS
