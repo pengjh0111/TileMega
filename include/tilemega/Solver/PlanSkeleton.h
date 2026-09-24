@@ -42,6 +42,7 @@ struct SkeletonEdge {
   bool all_producer=false;
 };
 struct PlanSkeleton {
+  std::string relation_key;
   int grid=0,residency=0;
   std::vector<SkeletonSpace> spaces;
   std::vector<SkeletonEdge> edges;
@@ -53,6 +54,7 @@ struct PlanSkeleton {
   void Spread(int stage,int tile,std::vector<int>& into) const;
 };
 PlanSkeleton BuildPlanSkeleton(SymbolicProblem const& problem,int grid,int residency,
-    int k_base,bool all_workers,analysis::CouplingCache& cache,SolverTiming* timing=nullptr);
+    int k_base,bool all_workers,analysis::CouplingCache& cache,SolverTiming* timing=nullptr,
+    PlanSkeleton const* prepared=nullptr);
 void WritePlanSkeleton(mlir::ModuleOp module,PlanSkeleton const& skeleton);
 }

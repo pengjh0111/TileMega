@@ -47,12 +47,15 @@ struct SearchContext {
     if(limit<1)throw std::invalid_argument("no resident CTA for geometry");
     auto module=importer.InstantiateForGranularity(imported,context,ClassGranularity(imported,classes,config),&cache,nullptr,timing);
     SymbolicPriceCache prices;
+    std::optional<PlanSkeleton> prepared_skeleton;
     SkeletonSolvedPoint best;best.candidate.config=config;best.candidate.key=key;best.candidate.estimated_limit=estimate.resident_limit;best.candidate.actual_limit=fixed_limit;
     for(int residency=1;residency<=limit;++residency) {
       int grid=options.common.placement.target.res.num_sms*residency;
       auto problem=[&]{SolverPhase phase(timing,"task_pricing");return PrepareSymbolicProblem(*module,
         options.common.placement.target,options.common.placement.dims,grid,residency,options.kappa,&prices);}();
-      auto skeleton=BuildPlanSkeleton(problem,grid,residency,options.k_base,options.all_workers,cache,timing);
+      auto skeleton=BuildPlanSkeleton(problem,grid,residency,options.k_base,options.all_workers,cache,timing,
+          prepared_skeleton?&*prepared_skeleton:nullptr);
+      if(!prepared_skeleton)prepared_skeleton=skeleton;
       SkeletonRequest request;request.skeleton=&skeleton;request.hop=options.common.placement.hop;
       // Prices already include residency, exactly as the legacy catalog's
       // observed-task input does. Avoid charging co-residency twice.

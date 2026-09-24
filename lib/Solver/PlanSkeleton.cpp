@@ -15,6 +15,26 @@
 
 namespace tilemega::solver {
 namespace {
+RuntimeProjection RegridGraphProjection(RuntimeProjection const& base,int grid,
+    std::vector<int> const& counts) {
+  if(base.options.count_wait_entries)throw std::invalid_argument("regrid requires graph-only projection");
+  auto result=base;result.options.grid=grid;
+  auto* map=isl_map_read_from_str(analysis::SharedIslContext().raw(),base.requested_events.ToString().c_str());
+  map=isl_map_project_out(map,isl_dim_out,0,1);map=isl_map_insert_dims(map,isl_dim_out,0,1);
+  std::string ownership="{ [cs,c] -> [w,ps,kind,g] : w=c%"+std::to_string(grid)+" }";
+  map=isl_map_intersect(map,isl_map_read_from_str(analysis::SharedIslContext().raw(),ownership.c_str()));
+  char* raw=isl_map_to_str(map);isl_map_free(map);
+  if(!raw)throw std::runtime_error("cannot rebind projected worker ownership");
+  result.requested_events=analysis::CouplingRelation::FromIslText(raw);free(raw);
+  result.waits=result.requested_events.ApplyRange(analysis::CouplingRelation::FromIslText(
+      "{ [w,ps,kind,g] -> [v,pt,k,h] : v=w and pt=ps and h=g and "
+      "((kind<=1 and k=kind) or (kind=2 and k=1 and g%"+std::to_string(grid)+"!=w)) }"));
+  // This problem has a fixed theta. The unused legacy-queue bound is exact
+  // at that theta; symbolic task and event relations remain parameterized.
+  long longest=0;for(int count:counts)longest+=(count+grid-1)/grid;
+  result.max_worker_task_refs=analysis::QuasiPolynomial::Constant(longest);
+  return result;
+}
 analysis::CouplingRelation ExecutionOrdering(RuntimeProjection const& projection) {
   std::ostringstream text;text<<"{ ";
   for(std::size_t s=0;s<projection.stages.size();++s) {
@@ -91,7 +111,8 @@ SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& t
   auto symbolic_model=model;
   symbolic_model.dims.seq_parameter=model.seq_metric_parameter;
   symbolic_model.dims.past_parameter=model.past_metric_parameter;
-  auto projection=ProjectRuntimeQueues(symbolic_model,runtime,po);
+  auto projection=prepared_hit ? RegridGraphProjection(cache->prepared->projection,grid,cache->prepared->counts)
+      : ProjectRuntimeQueues(symbolic_model,runtime,po);
   std::vector<int> counts,offsets{0};
   for(auto const& stage:projection.stages){counts.push_back(int(stage.task_count.Eval(model.MetricBindings())));offsets.push_back(offsets.back()+counts.back());}
   std::optional<analysis::OperatorGraph> semantic_graph;
@@ -175,7 +196,8 @@ void PlanSkeleton::Spread(int stage,int tile,std::vector<int>& result) const {
   for(int i=0;i<space.width;++i)result.push_back((home+i*(grid/space.width))%grid);
 }
 PlanSkeleton BuildPlanSkeleton(SymbolicProblem const& problem,int grid,int residency,
-    int k_base,bool all_workers,analysis::CouplingCache& cache,SolverTiming* timing) {
+    int k_base,bool all_workers,analysis::CouplingCache& cache,SolverTiming* timing,
+    PlanSkeleton const* prepared) {
   SolverPhase phase(timing,"skeleton");
   if(grid<=0 || residency<=0 || k_base<=0)throw std::invalid_argument("Skeleton needs known resident worker count");
   PlanSkeleton result;result.grid=grid;result.residency=residency;result.task_ns=problem.task_ns;
@@ -200,6 +222,13 @@ PlanSkeleton BuildPlanSkeleton(SymbolicProblem const& problem,int grid,int resid
       space.order=result.stage_order.size();result.stage_order.push_back(int(s));
     }
   result.incoming.resize(result.spaces.size());result.outgoing.resize(result.spaces.size());
+  result.relation_key=problem.projection.dependencies.ToString()+"\n"+problem.execution_dependencies.ToString();
+  if(prepared && prepared->relation_key==result.relation_key && prepared->theta.values==result.theta.values) {
+    // Edges and their proofs are independent of residency; widths, bases,
+    // prices and the eventual placement above/below remain specific to W.
+    result.edges=prepared->edges;result.incoming=prepared->incoming;result.outgoing=prepared->outgoing;
+    return result;
+  }
   // The unchanged executor may wait on a wider window/group than exact CG
   // data dependence. Keep both relations explicit; legality needs their union.
   auto relation=problem.projection.dependencies.Union(problem.execution_dependencies);

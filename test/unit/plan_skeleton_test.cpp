@@ -30,10 +30,15 @@ int main(int argc,char** argv) {
   auto uncached_r2=solver::PrepareSymbolicProblem(*module,target,{4,3,7},16,2,1);
   auto cached_r2=solver::PrepareSymbolicProblem(*module,target,{4,3,7},16,2,1,&prices);
   if(uncached_r2.task_ns!=cached_r2.task_ns)throw std::runtime_error("work cache changed residency pricing");
+  auto same_relation=[](auto const& a,auto const& b){return a.IsSubset(b) && b.IsSubset(a);};
   if(uncached_r2.projection.dependencies.ToString()!=cached_r2.projection.dependencies.ToString() ||
-      uncached_r2.projection.requested_events.ToString()!=cached_r2.projection.requested_events.ToString() ||
+      !same_relation(uncached_r2.projection.requested_events,cached_r2.projection.requested_events) ||
+      !same_relation(uncached_r2.projection.waits,cached_r2.projection.waits) ||
       uncached_r2.execution_dependencies.ToString()!=cached_r2.execution_dependencies.ToString())
     throw std::runtime_error("prepared cache changed resident dependency or event relations");
+  if(uncached_r2.projection.max_worker_task_refs.Eval(uncached_r2.model.MetricBindings())!=
+      cached_r2.projection.max_worker_task_refs.Eval(cached_r2.model.MetricBindings()))
+    throw std::runtime_error("regridding changed the concrete legacy-queue bound");
   auto uncached_s8=solver::PrepareSymbolicProblem(*module,target,{8,3,11},16,2,1);
   auto cached_s8=solver::PrepareSymbolicProblem(*module,target,{8,3,11},16,2,1,&prices);
   if(uncached_s8.task_ns!=cached_s8.task_ns || uncached_s8.counts!=cached_s8.counts)
@@ -71,6 +76,17 @@ int main(int argc,char** argv) {
     std::cout<<"EXECUTION_ORDER kappa="<<k<<" pairs="<<actual.size()<<" exact=1 legal=1 PASS\n";
   }
   auto skeleton=solver::BuildPlanSkeleton(problem,8,1,4,false,cache);
+  auto res2=solver::BuildPlanSkeleton(cached_r2,16,2,4,false,cache);
+  auto reuse2=solver::BuildPlanSkeleton(cached_r2,16,2,4,false,cache,nullptr,&skeleton);
+  solver::SkeletonRequest full_request;full_request.skeleton=&res2;
+  solver::SkeletonRequest reuse_request;reuse_request.skeleton=&reuse2;
+  solver::EftSchedule full_schedule,reuse_schedule;std::string schedule_error;
+  if(!solver::ScheduleBySkeleton(full_request,&full_schedule,nullptr,&schedule_error) ||
+      !solver::ScheduleBySkeleton(reuse_request,&reuse_schedule,nullptr,&schedule_error))throw std::runtime_error(schedule_error);
+  if(full_schedule.worker!=reuse_schedule.worker || full_schedule.slot!=reuse_schedule.slot ||
+      full_schedule.start_ns!=reuse_schedule.start_ns || full_schedule.end_ns!=reuse_schedule.end_ns)
+    throw std::runtime_error("resident skeleton reuse changed the placement");
+  std::cout<<"RESIDENT_REUSE grid=8->16 exact_schedule=1 PASS\n";
   int prefix=0;for(int s:skeleton.stage_order){auto const& space=skeleton.spaces[s];
     if(space.base!=prefix%8)throw std::runtime_error("incorrect continuous rotate base");prefix+=space.count;
     auto spread=skeleton.Spread(s,0);if(spread.front()!=space.base || spread.size()!=std::size_t(space.width))throw std::runtime_error("spread definition mismatch");}
