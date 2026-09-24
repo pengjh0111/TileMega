@@ -1277,7 +1277,7 @@ g ─► 资源探测 ─► R_max ─► residency ─► W ─► 符号 Oracl
 | SV-5 | Level 1：Plan Skeleton（在 W 已知后构造），表达为 `tmexec` 一等 op | SV-3, SV-4 | 已实现 | IR、W 相关铺开规则、跨驻留复用单测通过；完整矩阵待完成 | 2f56d550d、fecae73f0；SOLVER_V2/resident_reuse_test.log |
 | SV-6 | Level 2：就绪前沿 + ETF 的代价感知放置，输出 `(π, σ)` | SV-5 | 已实现 | EST 就绪调度三类单测通过；真实模型交错率待完成 | b8362dff1；SOLVER_V2/schedule_membership_test.log |
 | SV-7 | 外层坐标下降（嵌套 residency）+ 模拟器 top-K；现行求解器保留为对照臂 | SV-6 | 已实现，测量中 | 完整域 P=3 搜索运行中；并行/串行 26 候选与 top-5 调度等价 | ff3f54c23、65c5fae46；SOLVER_V2/search_isolation_test.log |
-| SV-8 | 真实模型验证：Llama-3.2-1B 与 Qwen3-1.7B 上的效果与求解耗时 | SV-7 | 运行中 | 8 格 × 5 臂未齐；G-8 尚未判定，不宣称收尾 | SOLVER_V2/matrix、SOLVER_V2/verify.py |
+| SV-8 | 真实模型验证：Llama-3.2-1B 与 Qwen3-1.7B 上的效果与求解耗时 | SV-7 | 运行中 | G-3 参考四格三个候选共 120/120；真实 8 格 × 5 臂未齐，G-8 尚未判定，不宣称收尾 | SOLVER_V2/matrix、SOLVER_V2/verify.py |
 
 ### 5.3 优先级（取代 §4.1 的原顺序）
 

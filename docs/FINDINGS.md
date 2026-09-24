@@ -7062,3 +7062,49 @@ Evidence: `SOLVER_V2/search_isolation_test.log`,
 `isolated_evaluation_test.log`, `protocol.json`,
 `test/unit/skeleton_search_isolation_test.cpp`. No anchored-model speedup or
 G-8 pass is asserted by this fixture.
+
+## F-244 — The reference skeleton plans retain internal bitwise equality
+
+✅ **Verified.** gqa2 and mha4 at seq 4 and 128 each complete all three
+shortlisted candidates in ten fresh processes: 120/120 processes have equal
+L0.5/L1/L2 hashes and zero internal mismatch counters. All builds explicitly
+disable `TILEMEGA_MIDPOINT_REFINE`. CPU golden differences do not decide this
+gate. The current raw verifier reports G-3 PASS.
+
+These reference searches use the declared one-shape diagnostic domain and
+P=1. They establish G-3 correctness, not full-domain search quality or the
+anchored-model G-8 research gate. The latter remains pending. Raw edge dumps
+are preserved in deterministic gzip archives with decompressed SHA256 checks;
+the verifier reads the raw rows from those archives directly.
+
+Evidence: `SOLVER_V2/reference_correctness.tsv`, the per-process logs and build
+commands under `SOLVER_V2/reference/`, and `reference_archive.log`.
+
+## F-245 — Repeated symbolic parsing and ready-set construction are avoidable
+
+✅ **Verified.** A sampled candidate stack reaches `ExactRuntimeDependencies`
+through `CouplingRelation::Union` and `isl_map_read_from_str`: the former left
+fold repeatedly parses an increasingly large prefix of already composed
+edges. `UnionAll` instead parses each input once, combines live ISL maps in a
+balanced fold, and serializes the result once. A symbolic equality check covers
+35 inputs including duplicate and empty relations; ISL reference counts remain
+balanced. The complete preparation-test output matches the preceding version.
+
+✅ **Verified.** A ready tile's candidate set stays fixed because all predecessor
+placements are final. Keeping that set across lazy EST retries leaves worker
+availability dynamic. Three scheduler fixture digests, makespans, interleaving
+fractions and retry counts remain unchanged. With both optimizations, the
+26-candidate serial/three-worker search comparison again produces identical
+candidate records and all five final schedules.
+
+Primary experiments admit at most four simultaneous skeleton solves, each
+with three candidate workers. Admission queue time is recorded before compiler
+launch and is not included in solver total. Earlier unfinished, more heavily
+concurrent attempts are retained under `before_bulk_union/` and excluded from
+completed solver-latency and inference-performance tables. There is no claim
+that these source-level savings already establish an anchored speedup.
+
+Evidence: `SOLVER_V2/profiles/repeated_relation_parse.stack.txt`,
+`union_algebra_test.log`, `native_union_test.log`,
+`schedule_candidate_cache_test.log`, `search_native_cache_test.log`, and
+`protocol.json`.
