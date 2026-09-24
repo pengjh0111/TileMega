@@ -24,5 +24,12 @@
     "returncode": 2,
     "stdout": "",
     "stderr": "usage: tilemega-compile {EXPORTED_PROGRAM.pt2|STABLE_EXPORT.json|CG.mlir} {OUTPUT.cu|OUTPUT.so} [--variants PLAN.json] [--solve TARGET.json --seq N --past N\n --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n --segments 1|2 --segment-candidates N\n --dump-cg FILE.mlir\n --hop-curve FILE.tsv --seq-begin N\n --prefetch-page-bytes N]\n"
+  },
+  "gpu_restored": {
+    "utc": "2026-09-24T06:47:16.189388+00:00",
+    "cudaGetDeviceCount_status": 0,
+    "device_count": 1,
+    "nvidia_smi": "Thu Sep 24 06:47:16 2026       \n+-----------------------------------------------------------------------------------------+\n| NVIDIA-SMI 610.43.02              KMD Version: 610.43.02     CUDA UMD Version: 13.3     |\n+-----------------------------------------+------------------------+----------------------+\n| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |\n| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |\n|                                         |                        |               MIG M. |\n|=========================================+========================+======================|\n|   0  NVIDIA GeForce RTX 4090        On  |   00000000:80:00.0 Off |                  Off |\n| 47%   38C    P0             78W /  450W |    1074MiB /  49140MiB |      0%      Default |\n|                                         |                        |                  N/A |\n+-----------------------------------------+------------------------+----------------------+\n\n+-----------------------------------------------------------------------------------------+\n| Processes:                                                                              |\n|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |\n|        ID   ID                                                               Usage      |\n|=========================================================================================|\n|  No running processes found                                                             |\n+-----------------------------------------------------------------------------------------+\n",
+    "explanation": "GPU became visible after the execution permission profile changed from workspace-write to danger-full-access. Previous result applied only to the restricted tool environment."
   }
 }

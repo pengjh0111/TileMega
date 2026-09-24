@@ -12,6 +12,7 @@
 #include <mlir/Pass/Pass.h>
 #include <mlir/Pass/PassRegistry.h>
 #include <limits>
+#include <tilemega/Solver/SolverTiming.h>
 #include <set>
 #include <tilemega/Analysis/VisitFiniteRelation.h>
 #include <tilemega/Solver/RelationBounds.h>
@@ -22,6 +23,7 @@ namespace tilemega::dialect {
 struct PlacementTaskPriceCache { std::map<std::string,std::vector<double>> prices; };
 struct PlacementSolveOptions {
   TargetSpec target;
+  solver::SolverTiming* timing=nullptr;
   solver::ModelDims dims;
   int residency=1;
   int kappa=1;
@@ -244,7 +246,8 @@ inline PreparedPlacementProblem PreparePlacementProblem(mlir::ModuleOp module,
 inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
     PlacementSolveOptions const& options) {
   using namespace solver;
-  auto prepared=PreparePlacementProblem(module,options);
+  auto prepared=[&] { solver::SolverPhase phase(options.timing,"prepare_placement");
+    return PreparePlacementProblem(module,options); }();
   auto const& runtime=prepared.runtime;auto const& model=prepared.model;
   auto const& projection=prepared.projection;auto const& counts=prepared.counts;
   auto& graph=prepared.graph;
@@ -313,7 +316,8 @@ inline PlacementSolveResult SolveAndWritePlacement(mlir::ModuleOp module,
     }
   };
   result.kappa=options.kappa;
-  result.candidates=SolvePlacementCatalog(input,request,sim,options.hop,price_events);
+  { solver::SolverPhase phase(options.timing,"placement_catalog");
+    result.candidates=SolvePlacementCatalog(input,request,sim,options.hop,price_events); }
   WriteSolvedPlacement(module,result.candidates.front(),options);
   return result;
 }

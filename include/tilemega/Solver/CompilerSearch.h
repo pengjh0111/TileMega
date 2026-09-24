@@ -7,10 +7,12 @@
 #include <tilemega/Solver/CandidateGenerator.h>
 #include <tilemega/Solver/JointSearch.h>
 #include <ostream>
+#include <tilemega/Solver/SolverTiming.h>
 
 namespace tilemega::solver {
 struct CompilerSearchOptions {
   dialect::PlacementSolveOptions placement;
+  SolverTiming* timing=nullptr;
   std::size_t capacity=8;
   // Optional externally evidenced backend domain for a disclosed reduced
   // search. Split and kappa remain decisions of the solver.
@@ -63,9 +65,17 @@ inline CompilerSearchResult SolveExport(std::string const& path,
   // The plan is the pattern match over the exported graph and does not read
   // ImportOptions, so it is the same object for every granularity below.
   // Rebuilding it per candidate is the outer loop's dominant cost (F-229).
-  auto bridge=frontend::ReadExportBridge(path);
-  auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs);
-  auto seed=frontend::TorchExportImporter{}.ImportPlan(path,plan,context);
+  SolverPhase total(options.timing,"total");
+  auto plan=[&] {
+    SolverPhase phase(options.timing,"bridge_and_plan");
+    auto bridge=frontend::ReadExportBridge(path);
+    return frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs);
+  }();
+  auto import_plan=[&](frontend::ImportSummary* info,frontend::ImportOptions const& import) {
+    SolverPhase phase(options.timing,"import");
+    return frontend::TorchExportImporter{}.ImportPlan(path,plan,context,info,import);
+  };
+  auto seed=import_plan(nullptr,{});
   auto model=ModelDescription::FromCouplingGraph(*seed,options.placement.dims,"compile-search");
   CandidateGenerator generator(options.placement.target,model.dtype,{256,64,5});
   CompilerSearchResult result;
@@ -83,7 +93,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
       import.gemms.assign(model.gemms.size(),{g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
       import.rope_tile_per_block=import.kv_tile_per_block=true;
       import.activation_tile_per_block=import.combiner_tile_per_block=true;
-      auto coarse_module=frontend::TorchExportImporter{}.ImportPlan(path,plan,context,nullptr,import);
+      auto coarse_module=import_plan(nullptr,import);
       auto optimistic=options.placement;optimistic.residency=1;optimistic.verified_resident_limit=1;
       optimistic.requested_grid=0;optimistic.kappa=1;
       // Bounds only: this pass asks for work and the critical path and nothing
@@ -151,14 +161,15 @@ inline CompilerSearchResult SolveExport(std::string const& path,
       import.rope_tile_per_block=import.kv_tile_per_block=true;
       import.activation_tile_per_block=import.combiner_tile_per_block=true;
       frontend::ImportSummary candidate_summary;
-      auto module=frontend::TorchExportImporter{}.ImportPlan(path,plan,context,&candidate_summary,import);
-      int limit=options.query_residency ? options.query_residency(*module,candidate.kappa) : 1;
+      auto module=import_plan(&candidate_summary,import);
+      int limit=[&] { SolverPhase phase(options.timing,"query_residency");
+        return options.query_residency ? options.query_residency(*module,candidate.kappa) : 1; }();
       if (limit<1) throw std::invalid_argument("compiled kernel has no resident CTA");
       double candidate_floor=std::numeric_limits<double>::infinity(),candidate_sim=candidate_floor;
       JointEvaluation candidate_best;mlir::OwningOpRef<mlir::ModuleOp> candidate_module;
       for (int residency=1;residency<=limit;++residency) {
         auto placed=mlir::OwningOpRef<mlir::ModuleOp>(mlir::cast<mlir::ModuleOp>(module->clone()));
-        auto placement=options.placement;placement.kappa=candidate.kappa;placement.task_price_cache=task_prices;
+        auto placement=options.placement;placement.timing=options.timing;placement.kappa=candidate.kappa;placement.task_price_cache=task_prices;
         placement.residency=residency;placement.verified_resident_limit=limit;
         auto solved=dialect::SolveAndWritePlacement(*placed,placement);
         for (auto const& plan:solved.candidates) {
@@ -217,7 +228,7 @@ inline CompilerSearchResult SolveExport(std::string const& path,
     import.gemms.assign(model.gemms.size(),{g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
     import.rope_tile_per_block=import.kv_tile_per_block=true;
     import.activation_tile_per_block=import.combiner_tile_per_block=true;
-    auto base=frontend::TorchExportImporter{}.ImportPlan(path,plan,context,nullptr,import);
+    auto base=import_plan(nullptr,import);
     auto placement=options.placement;
     placement.kappa=winner.kappa;placement.residency=winner.ctas_per_sm;
     placement.verified_resident_limit=winner_limit;placement.task_price_cache=task_prices;

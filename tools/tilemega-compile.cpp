@@ -85,7 +85,7 @@ int queryResidency(mlir::ModuleOp module,int kappa,
   wrapper.close();
   std::string root=TILEMEGA_SOURCE_DIR;
   std::string nvcc=std::getenv("CUDACXX") ? std::getenv("CUDACXX") : "/usr/local/cuda/bin/nvcc";
-  std::string command=quote(nvcc)+" -std=c++17 -O2 -lineinfo -Xptxas=-v -arch="+
+  std::string command=quote(nvcc)+" -std=c++17 -O2 -lineinfo -Xptxas=-v -DTILEMEGA_MIDPOINT_REFINE=0 -arch="+
       quote(options.placement.target.NvccArch());
   for (char const* sub:{"include","third_party/cutlass/include","third_party/cutlass/tools/util/include","third_party/cutlass/test"})
     command+=" -I"+quote(root+"/"+sub);
@@ -214,6 +214,8 @@ int main(int argc, char** argv) {
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path;
     bool resource_probes=true;bool dump_evaluated=false;
+    std::string solver_mode="legacy";
+    tilemega::solver::SolverTiming solver_timing;
     int interval_begin=0,segments=1,segment_candidates=3;
     std::vector<mlir::OwningOpRef<mlir::ModuleOp>> variant_modules;
     tilemega::solver::CompilerSearchOptions solve_options;
@@ -221,6 +223,7 @@ int main(int argc, char** argv) {
     for (int i=3;i<argc;i+=2) {
       std::string flag=argv[i],value=argv[i+1];
       if (flag=="--variants") variants_path=value;
+      else if (flag=="--solver") { solver_mode=value; if(value!="legacy") throw std::runtime_error("skeleton solver implementation pending"); }
       else if (flag=="--solve") solve_target=value;
       else if (flag=="--seq-begin") interval_begin=std::stoi(value);
       else if (flag=="--segments") segments=std::stoi(value);
@@ -317,7 +320,10 @@ int main(int argc, char** argv) {
       if (resource_probes) solve_options.query_residency=[&](mlir::ModuleOp m,int kappa) {
         return queryResidency(m,kappa,solve_options,resource_root/std::to_string(probe_index++),library);
       };
+      solve_options.timing=&solver_timing;
       auto solved=tilemega::solver::SolveExport(input.string(),context,solve_options,&summary,evidence);
+      std::ofstream timing_file(std::string(argv[2])+".timing.tsv");
+      solver_timing.Write(timing_file,solver_mode,input.stem().string(),dims.seq);
       std::ofstream shortlist(std::string(argv[2])+".top3.tsv");
       shortlist << "rank\tkey\tplacement\ttile_m\ttile_n\ttile_k\tstages\tsplit_k\tkappa\tresidency\tfloor_ns\tpredicted_ns\tsource\tcg\n";
       for (std::size_t i=0;i<solved.shortlist.size();++i) {
