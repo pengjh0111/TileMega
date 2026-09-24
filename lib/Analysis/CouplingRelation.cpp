@@ -21,24 +21,30 @@ isl_ctx* Ctx() { return SharedIslContext().raw(); }
 }  // namespace
 
 CouplingRelation CouplingRelation::FromIslText(std::string const& text) {
-  isl_util::Map map = isl_util::ReadMap(Ctx(), text);
-  return CouplingRelation(isl_util::ToString(map.get()));
+  return MemoExact({"parse_relation",text},[&] {
+    isl_util::Map map = isl_util::ReadMap(Ctx(), text);
+    return CouplingRelation(isl_util::ToString(map.get()));
+  });
 }
 
 CouplingRelation CouplingRelation::Reverse() const {
   if (empty()) return {};
-  isl_util::Map map = isl_util::ReadMap(Ctx(), text_);
-  isl_util::Map reversed(isl_map_reverse(map.release()));
-  return CouplingRelation(isl_util::ToString(reversed.get()));
+  return MemoExact({"reverse_relation",text_},[&] {
+    isl_util::Map map = isl_util::ReadMap(Ctx(), text_);
+    isl_util::Map reversed(isl_map_reverse(map.release()));
+    return CouplingRelation(isl_util::ToString(reversed.get()));
+  });
 }
 
 CouplingRelation CouplingRelation::ApplyRange(
     CouplingRelation const& other) const {
   if (empty() || other.empty()) return {};
-  isl_util::Map lhs = isl_util::ReadMap(Ctx(), text_);
-  isl_util::Map rhs = isl_util::ReadMap(Ctx(), other.text_);
-  isl_util::Map composed(isl_map_apply_range(lhs.release(), rhs.release()));
-  return CouplingRelation(isl_util::ToString(composed.get()));
+  return MemoExact({"compose_relation",text_,other.text_},[&] {
+    isl_util::Map lhs = isl_util::ReadMap(Ctx(), text_);
+    isl_util::Map rhs = isl_util::ReadMap(Ctx(), other.text_);
+    isl_util::Map composed(isl_map_apply_range(lhs.release(), rhs.release()));
+    return CouplingRelation(isl_util::ToString(composed.get()));
+  });
 }
 
 CouplingRelation CouplingRelation::IntersectDomain(

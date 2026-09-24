@@ -1,0 +1,40 @@
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=648 level2_ms=3.58616 requeues=6080 score_ns=1.02626e+06
+SKELETON_RESIDENCY key=32x16x32s2k2;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=776 level2_ms=1.9811 requeues=8544 score_ns=1.07411e+06
+SKELETON_RESIDENCY key=32x16x32s2k4;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=904 level2_ms=2.76988 requeues=13600 score_ns=1.14303e+06
+SKELETON_RESIDENCY key=32x16x32s2k8;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=1160 level2_ms=4.90529 requeues=29824 score_ns=1.28088e+06
+SKELETON_RESIDENCY key=32x16x32s2k16;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=1672 level2_ms=12.0198 requeues=86848 score_ns=1.55656e+06
+SKELETON_RESIDENCY key=32x16x32s2k32;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=1672 level2_ms=11.7484 requeues=86848 score_ns=1.55656e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k2;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=776 level2_ms=2.20588 requeues=8576 score_ns=1.07411e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k4;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=904 level2_ms=2.91389 requeues=13600 score_ns=1.14303e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k8;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=1160 level2_ms=5.25919 requeues=29824 score_ns=1.28088e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k16;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=1672 level2_ms=13.0325 requeues=86848 score_ns=1.55656e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k32;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=1672 level2_ms=12.7126 requeues=86848 score_ns=1.55656e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k2;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=776 level2_ms=2.05698 requeues=7520 score_ns=1.07411e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k4;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=904 level2_ms=3.76541 requeues=11040 score_ns=1.14304e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k8;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=1160 level2_ms=4.42337 requeues=24192 score_ns=1.28088e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k16;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=1672 level2_ms=7.49186 requeues=75072 score_ns=1.55657e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k32;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=1672 level2_ms=7.21455 requeues=75072 score_ns=1.55657e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k2;32x16x32s2k1; residency=1 nodes=1160 level2_ms=3.53584 requeues=30272 score_ns=1.21768e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k4;32x16x32s2k1; residency=1 nodes=1672 level2_ms=9.25007 requeues=87360 score_ns=1.49336e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k8;32x16x32s2k1; residency=1 nodes=2696 level2_ms=28.4672 requeues=299712 score_ns=2.04474e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k16;32x16x32s2k1; residency=1 nodes=4744 level2_ms=105.776 requeues=1117632 score_ns=3.14748e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k32;32x16x32s2k1; residency=1 nodes=4744 level2_ms=109.055 requeues=1117632 score_ns=3.14748e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k2; residency=1 nodes=776 level2_ms=1.62337 requeues=7520 score_ns=1.07411e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k4; residency=1 nodes=904 level2_ms=1.57306 requeues=11040 score_ns=1.14304e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k8; residency=1 nodes=1160 level2_ms=2.84907 requeues=24192 score_ns=1.28088e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k16; residency=1 nodes=1672 level2_ms=7.26388 requeues=75072 score_ns=1.55657e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k32; residency=1 nodes=2696 level2_ms=24.6909 requeues=275136 score_ns=2.10794e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=648 level2_ms=0.750261 requeues=6080 score_ns=1.02626e+06
+SKELETON_RESIDENCY key=32x16x32s2k2;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=776 level2_ms=1.09812 requeues=8544 score_ns=1.07411e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k2;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=776 level2_ms=1.15141 requeues=8576 score_ns=1.07411e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k2; residency=1 nodes=776 level2_ms=1.12225 requeues=7520 score_ns=1.07411e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k2;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=776 level2_ms=1.07497 requeues=7520 score_ns=1.07411e+06
+SEARCH_ISOLATION jobs=1 evaluations=26 import_count=1 PASS
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=648 level2_ms=2.51683 requeues=6080 score_ns=1.02626e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=648 level2_ms=1.1388 requeues=6080 score_ns=1.02626e+06
+SKELETON_RESIDENCY key=32x16x32s2k2;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=776 level2_ms=1.99845 requeues=8544 score_ns=1.07411e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k2;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=776 level2_ms=2.20875 requeues=8576 score_ns=1.07411e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k1;32x16x32s2k2; residency=1 nodes=776 level2_ms=1.81562 requeues=7520 score_ns=1.07411e+06
+SKELETON_RESIDENCY key=32x16x32s2k1;32x16x32s2k1;32x16x32s2k2;32x16x32s2k1;32x16x32s2k1; residency=1 nodes=776 level2_ms=1.83485 requeues=7520 score_ns=1.07411e+06
+SEARCH_ISOLATION jobs=3 evaluations=26 import_count=1 PASS
+SEARCH_ISOLATION candidate_records_equal=1 top5_schedules_equal=1 PASS

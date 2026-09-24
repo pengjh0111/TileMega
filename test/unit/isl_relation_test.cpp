@@ -4,6 +4,7 @@
 // that replaced AffineRelation/ClosedForm as the solving authority (Part 3).
 #include <tilemega/Analysis/CouplingRelation.h>
 #include <tilemega/Analysis/QuasiPolynomial.h>
+#include <tilemega/Analysis/ExactMemo.h>
 
 #include <cassert>
 #include <iostream>
@@ -30,6 +31,22 @@ int main() {
       "ceild(S,128) }");
   CouplingRelation C = R.ApplyRange(W.Reverse());
   assert(!C.empty());
+  {
+    auto reverse=W.Reverse();
+    auto other=CouplingRelation::FromIslText("[S] -> { [row] -> [n] : n=row+1 and 0<=row<S }");
+    auto different=R.ApplyRange(other);
+    int before=isl_context.ReferenceCount();
+    ScopedExactAnalysisMemo memo;
+    for(int repeat=0;repeat<2;++repeat) {
+      assert(CouplingRelation::FromIslText(W.ToString()).ToString()==W.ToString());
+      assert(W.Reverse().ToString()==reverse.ToString());
+      assert(R.ApplyRange(reverse).ToString()==C.ToString());
+      assert(R.ApplyRange(other).ToString()==different.ToString());
+    }
+    assert(memo.memo.hits==4 && memo.memo.misses==4);
+    assert(isl_context.ReferenceCount()==before);
+    std::cout<<"RELATION_MEMO cached_uncached_bytes_equal=1 full_rhs_key=1 references_balanced=1 PASS\n";
+  }
   QuasiPolynomial wait = C.Card();
   ParamBinding known;
   known.Bind("S", 512);
