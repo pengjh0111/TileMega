@@ -1,0 +1,15 @@
+[
+  "/usr/local/cuda/bin/nvcc",
+  "-std=c++17",
+  "-O2",
+  "-Xptxas=-v",
+  "-arch=sm_89",
+  "-DTILEMEGA_MIDPOINT_REFINE=0",
+  "-I/root/TileMega/include",
+  "-I/root/TileMega/third_party/cutlass/include",
+  "-I/root/TileMega/third_party/cutlass/tools/util/include",
+  "-I/root/TileMega/third_party/cutlass/test",
+  "/root/r9_work/variant_resources/2d96c1aa0730c2d61ba03d9a32d9d60e69e7b63e71a41391120a466db9cc4401/probe.cu",
+  "-o",
+  "/root/r9_work/variant_resources/2d96c1aa0730c2d61ba03d9a32d9d60e69e7b63e71a41391120a466db9cc4401/probe"
+]
