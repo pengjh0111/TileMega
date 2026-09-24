@@ -1,0 +1,41 @@
+model	seq	arm	evidence	state	detail
+llama	1	legacy	legacy_r8_domain/llama_s1	measured	selected.cu.measurement
+llama	1	skeleton-k4	matrix/llama_s1/skeleton-k4	pending_or_failed	no complete internally equal shortlist
+llama	1	skeleton-k8	matrix/llama_s1/skeleton-k8	pending_or_failed	no complete internally equal shortlist
+llama	1	skeleton-k16	matrix/llama_s1/skeleton-k16	pending_or_failed	no complete internally equal shortlist
+llama	1	skeleton-kW	matrix/llama_s1/skeleton-kW	pending_or_failed	no complete internally equal shortlist
+llama	4	legacy	legacy_r8_domain/llama_s4	measured	selected.cu.measurement
+llama	4	skeleton-k4	matrix/llama_s4/skeleton-k4	pending_or_failed	no complete internally equal shortlist
+llama	4	skeleton-k8	matrix/llama_s4/skeleton-k8	pending_or_failed	no complete internally equal shortlist
+llama	4	skeleton-k16	matrix/llama_s4/skeleton-k16	pending_or_failed	no complete internally equal shortlist
+llama	4	skeleton-kW	matrix/llama_s4/skeleton-kW	pending_or_failed	no complete internally equal shortlist
+llama	16	legacy	legacy_r8_domain/llama_s16	measured	selected.cu.measurement
+llama	16	skeleton-k4	matrix/llama_s16/skeleton-k4	pending_or_failed	no complete internally equal shortlist
+llama	16	skeleton-k8	matrix/llama_s16/skeleton-k8	pending_or_failed	no complete internally equal shortlist
+llama	16	skeleton-k16	matrix/llama_s16/skeleton-k16	pending_or_failed	no complete internally equal shortlist
+llama	16	skeleton-kW	matrix/llama_s16/skeleton-kW	pending_or_failed	no complete internally equal shortlist
+llama	64	legacy	legacy_r8_domain/llama_s64	measured	selected.cu.measurement
+llama	64	skeleton-k4	matrix/llama_s64/skeleton-k4	pending_or_failed	no complete internally equal shortlist
+llama	64	skeleton-k8	matrix/llama_s64/skeleton-k8	pending_or_failed	no complete internally equal shortlist
+llama	64	skeleton-k16	matrix/llama_s64/skeleton-k16	pending_or_failed	no complete internally equal shortlist
+llama	64	skeleton-kW	matrix/llama_s64/skeleton-kW	pending_or_failed	no complete internally equal shortlist
+qwen3	1	legacy	legacy_r8_domain/qwen3_s1	measured	selected.cu.measurement
+qwen3	1	skeleton-k4	matrix/qwen3_s1/skeleton-k4	pending_or_failed	no complete internally equal shortlist
+qwen3	1	skeleton-k8	matrix/qwen3_s1/skeleton-k8	pending_or_failed	no complete internally equal shortlist
+qwen3	1	skeleton-k16	matrix/qwen3_s1/skeleton-k16	pending_or_failed	no complete internally equal shortlist
+qwen3	1	skeleton-kW	matrix/qwen3_s1/skeleton-kW	pending_or_failed	no complete internally equal shortlist
+qwen3	4	legacy	legacy_r8_domain/qwen3_s4	measured	selected.cu.measurement
+qwen3	4	skeleton-k4	matrix/qwen3_s4/skeleton-k4	pending_or_failed	no complete internally equal shortlist
+qwen3	4	skeleton-k8	matrix/qwen3_s4/skeleton-k8	pending_or_failed	no complete internally equal shortlist
+qwen3	4	skeleton-k16	matrix/qwen3_s4/skeleton-k16	pending_or_failed	no complete internally equal shortlist
+qwen3	4	skeleton-kW	matrix/qwen3_s4/skeleton-kW	pending_or_failed	no complete internally equal shortlist
+qwen3	16	legacy	legacy_r8_domain/qwen3_s16	measured	selected.cu.measurement
+qwen3	16	skeleton-k4	matrix/qwen3_s16/skeleton-k4	pending_or_failed	no complete internally equal shortlist
+qwen3	16	skeleton-k8	matrix/qwen3_s16/skeleton-k8	pending_or_failed	no complete internally equal shortlist
+qwen3	16	skeleton-k16	matrix/qwen3_s16/skeleton-k16	pending_or_failed	no complete internally equal shortlist
+qwen3	16	skeleton-kW	matrix/qwen3_s16/skeleton-kW	pending_or_failed	no complete internally equal shortlist
+qwen3	64	legacy	legacy_r8_domain/qwen3_s64	measured	selected.cu.measurement
+qwen3	64	skeleton-k4	matrix/qwen3_s64/skeleton-k4	pending_or_failed	no complete internally equal shortlist
+qwen3	64	skeleton-k8	matrix/qwen3_s64/skeleton-k8	pending_or_failed	no complete internally equal shortlist
+qwen3	64	skeleton-k16	matrix/qwen3_s64/skeleton-k16	pending_or_failed	no complete internally equal shortlist
+qwen3	64	skeleton-kW	matrix/qwen3_s64/skeleton-kW	pending_or_failed	no complete internally equal shortlist

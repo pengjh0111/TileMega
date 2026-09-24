@@ -106,3 +106,14 @@ internal-equality samples are retained under `excluded_attempts/`; complete
 fresh ten-process timings are remeasured with resource/idle admission. This
 is not selective removal of slow rounds, and numerical failures cannot be
 retried by this route.
+
+
+The fifth slot is now a dedicated continuation lane: after one promoted arm
+releases it, `promote_queued_arm.py --drain-queue` can promote another still
+unadmitted arm with the same 36-worker setting. A singleton supervisor lock
+and an explicit `--solver-slot=4` keep at most one such high-parallelism search
+admitted. Active searches are checked while their queue parent is frozen and
+are resumed rather than cancelled if admission raced the check. Original
+queued launch metadata is archived; search-domain and compiler bytes are
+unchanged. `dedicated_slot_test.log` checks exclusivity, release and range
+validation. This is CPU admission policy, not a new placement/search policy.

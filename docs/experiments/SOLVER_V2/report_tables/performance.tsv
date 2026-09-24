@@ -1,0 +1,9 @@
+model	seq	arm	evidence	candidate	l05_ms	l1_ms	l2_ms	l2_l1	l2_l05
+llama	1	legacy	legacy_r8_domain/llama_s1	selected.cu.measurement	5.627304	5.706632000000001	5.422352	0.9501842768203731	0.9635790069276514
+llama	4	legacy	legacy_r8_domain/llama_s4	selected.cu.measurement	6.3168	6.460928	6.451456	0.9985339567319123	1.0213171225937183
+llama	16	legacy	legacy_r8_domain/llama_s16	selected.cu.measurement	6.57912	6.6780159999999995	7.122888	1.0666173905543204	1.0826505672491153
+llama	64	legacy	legacy_r8_domain/llama_s64	selected.cu.measurement	11.785504	11.6687035	12.5220235	1.0731289470162646	1.062493678675091
+qwen3	1	legacy	legacy_r8_domain/qwen3_s1	selected.cu.measurement	8.801936	8.956728	8.266511999999999	0.922938823195256	0.9391697462921793
+qwen3	4	legacy	legacy_r8_domain/qwen3_s4	selected.cu.measurement	9.111864	9.5751525	8.949024	0.9346090310310985	0.9821287938450354
+qwen3	16	legacy	legacy_r8_domain/qwen3_s16	selected.cu.measurement	8.8882315	9.112672	9.394016	1.0308739302808223	1.0569049647277977
+qwen3	64	legacy	legacy_r8_domain/qwen3_s64	selected.cu.measurement	15.561152	15.725656	16.576512	1.0541062325158328	1.065249667890912

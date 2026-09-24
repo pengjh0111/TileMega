@@ -1,12 +1,12 @@
 # TileMega R9 — solver reconstruction
 
-**IN PROGRESS — 7/40 measured arms. This is not the final R9 delivery.**
+**IN PROGRESS — 8/40 measured arms. This is not the final R9 delivery.**
 
 ## 1. Provenance and commits
 
-Generated UTC: 2026-09-24T17:31:31.513235+00:00.
+Generated UTC: 2026-09-24T22:36:41.775453+00:00.
 
-Baseline: `197cd66da36c4fe8929698135d62dcb032b4e91f`. Report source HEAD: `037dd936d4b0f8e15e77d363d7ae3c2f202b2bb3`.
+Baseline: `197cd66da36c4fe8929698135d62dcb032b4e91f`. Report source HEAD: `c2cc952fa10c2b869779edac504fbbd3c7275d17`.
 
 Prompt: `/root/Prompt/TileMega_R9_prompt.md`; SHA256 `6779512fd12cde3dd13800a52a330d8843e457cdfa6e766a505296750eb5ece1`. TODO update was already applied in baseline commit `197cd66da36c4fe8929698135d62dcb032b4e91f`.
 
@@ -63,6 +63,16 @@ ddaa0eb42 experiments: audit the measured winner and semantic edge census
 601872c56 docs: track anchored cache evidence and winner auditing
 596e21c5f experiments: recover resource failures without masking numeric errors
 037dd936d experiments: report interleaving for every worker queue
+fda13924b experiments: preserve and remeasure the Qwen seq16 control
+30d26ad09 docs: record the recovered Qwen control measurement
+3a97410fe experiments: assemble the raw evidence report without hiding gaps
+f64edfcac experiments: recheck controls with recorded device contention
+7f5b8ca9f experiments: validate higher parallelism for queued solver arms
+d51097d28 experiments: retain idle-admitted control remeasurements
+e02d71ff1 docs: record concurrency and control measurement conditions
+9692f21dd experiments: complete the eight anchored legacy controls
+0340740c1 docs: close the anchored baseline measurement item
+c2cc952fa experiments: reuse a dedicated lane for queued full searches
 ````
 
 ## 2. Complete verifier output
@@ -88,10 +98,10 @@ C-15 FAIL ['include/tilemega/Dialect/CouplingGraph/ExecOps.td:96:def Exec_Skelet
 C-16 PASS unchanged control sources=['include/tilemega/Solver/JointPlacement.h', 'lib/Solver/EftPlacement.cpp', 'lib/Solver/ChainPlacement.cpp', 'lib/Solver/BalancedPlacement.cpp', 'lib/Solver/WavefrontPlacement.cpp', 'lib/Solver/PlanMaterialize.cpp']; changed intersection=set()
 C-17 FAIL []
 C-18 PASS ['lib/Solver/SkeletonSearch.cpp:118:std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out) {', 'lib/Solver/SkeletonSearch.cpp:203:evidence<<std::setprecision(17);result.evaluated=CoordinateDescent(search,result.rounds,evidence);', 'lib/Solver/SkeletonFinalize.cpp:45:{SolverPhase phase(options.common.timing,"simulate");if(!SimulateExecution(input,selected.plan,sim,options.common.placement.hop,&simulated,&error))throw std::runtime_error(error);}']
-C-19 PASS command files=842 forbidden=[] nvcc_missing_explicit_zero=[]
+C-19 PASS command files=894 forbidden=[] nvcc_missing_explicit_zero=[]
 C-20 PASS git diff 197cd66da36c4fe8929698135d62dcb032b4e91f --name-only: TaskBody changes=[]
 G-1 FAIL all twenty code and dynamic structure checks
-G-2 FAIL internal 10/10 and three timed shortlist candidates per skeleton arm; missing/failed=[('llama', 1, 'skeleton-k4', []), ('llama', 1, 'skeleton-k8', []), ('llama', 1, 'skeleton-k16', []), ('llama', 1, 'skeleton-kW', []), ('llama', 4, 'skeleton-k4', []), ('llama', 4, 'skeleton-k8', []), ('llama', 4, 'skeleton-k16', []), ('llama', 4, 'skeleton-kW', []), ('llama', 16, 'skeleton-k4', []), ('llama', 16, 'skeleton-k8', []), ('llama', 16, 'skeleton-k16', []), ('llama', 16, 'skeleton-kW', []), ('llama', 64, 'skeleton-k4', []), ('llama', 64, 'skeleton-k8', []), ('llama', 64, 'skeleton-k16', []), ('llama', 64, 'skeleton-kW', []), ('qwen3', 1, 'skeleton-k4', []), ('qwen3', 1, 'skeleton-k8', []), ('qwen3', 1, 'skeleton-k16', []), ('qwen3', 1, 'skeleton-kW', []), ('qwen3', 4, 'skeleton-k4', []), ('qwen3', 4, 'skeleton-k8', []), ('qwen3', 4, 'skeleton-k16', []), ('qwen3', 4, 'skeleton-kW', []), ('qwen3', 16, 'skeleton-k4', []), ('qwen3', 16, 'skeleton-k8', []), ('qwen3', 16, 'skeleton-k16', []), ('qwen3', 16, 'skeleton-kW', []), ('qwen3', 64, 'legacy', [('/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s64/selected.cu.measurement', False)]), ('qwen3', 64, 'skeleton-k4', []), ('qwen3', 64, 'skeleton-k8', []), ('qwen3', 64, 'skeleton-k16', []), ('qwen3', 64, 'skeleton-kW', [])]
+G-2 FAIL internal 10/10 and three timed shortlist candidates per skeleton arm; missing/failed=[('llama', 1, 'skeleton-k4', []), ('llama', 1, 'skeleton-k8', []), ('llama', 1, 'skeleton-k16', []), ('llama', 1, 'skeleton-kW', []), ('llama', 4, 'skeleton-k4', []), ('llama', 4, 'skeleton-k8', []), ('llama', 4, 'skeleton-k16', []), ('llama', 4, 'skeleton-kW', []), ('llama', 16, 'skeleton-k4', []), ('llama', 16, 'skeleton-k8', []), ('llama', 16, 'skeleton-k16', []), ('llama', 16, 'skeleton-kW', []), ('llama', 64, 'skeleton-k4', []), ('llama', 64, 'skeleton-k8', []), ('llama', 64, 'skeleton-k16', []), ('llama', 64, 'skeleton-kW', []), ('qwen3', 1, 'skeleton-k4', []), ('qwen3', 1, 'skeleton-k8', []), ('qwen3', 1, 'skeleton-k16', []), ('qwen3', 1, 'skeleton-kW', []), ('qwen3', 4, 'skeleton-k4', []), ('qwen3', 4, 'skeleton-k8', []), ('qwen3', 4, 'skeleton-k16', []), ('qwen3', 4, 'skeleton-kW', []), ('qwen3', 16, 'skeleton-k4', []), ('qwen3', 16, 'skeleton-k8', []), ('qwen3', 16, 'skeleton-k16', []), ('qwen3', 16, 'skeleton-kW', []), ('qwen3', 64, 'skeleton-k4', []), ('qwen3', 64, 'skeleton-k8', []), ('qwen3', 64, 'skeleton-k16', []), ('qwen3', 64, 'skeleton-kW', [])]
 G-3 PASS [('gqa2', 4, True, '/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s4'), ('gqa2', 128, True, '/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s128'), ('mha4', 4, True, '/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s4'), ('mha4', 128, True, '/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s128')]
 G-4 PASS /root/TileMega/docs/experiments/SOLVER_V2/cache_test.log error: 'tmcg.coupling' op wait { 999999 } does not match the relation's fiber cardinality [s11] -> { [m, n] -> 32 : m >= 0 and 32m <= -33 + s11 and 0 <= n <= 31; [m, n] -> (s11 - 32 * m) : m >= 0 and -32 + s11 <= 32m < s11 and 0 <= n <= 31 }
 error: 'tmcg.coupling' op wait { 999999 } does not match the relation's fiber cardinality [s11] -> { [m, n, j] -> 32 : m >= 0 and 32m <= -33 + s11 and 0 <= n <= 31 and 0 <= j <= 1; [m, n, j] -> (s11 - 32 * m) : m >= 0 and -32 + s11 <= 32m < s11 and 0 <= n <= 31 and 0 <= j <= 1 }
@@ -116,9 +126,9 @@ ORACLE_SET_EQUAL comparisons=384 PASS; anchored exact-set audits=[]; missing/fai
 G-6 PASS build command audit C-19; default header=['include/tilemega/Codegen/tasks/ModelRuntime.h:85:#define TILEMEGA_MIDPOINT_REFINE 0']
 G-7 FAIL completed=0/32 raw probe violations=[]
 G-8 FAIL wins=0/8; []
-G-9 FAIL phase ledgers=7/40; [('llama', 1, 'legacy', {'solver': 'legacy', 'model': 'auto.cu.export', 'seq': '1', 'phase': 'total', 'count': '1', 'total_ms': '4.71891e+06'}), ('llama', 4, 'legacy', {'solver': 'legacy', 'model': 'auto.cu.export', 'seq': '4', 'phase': 'total', 'count': '1', 'total_ms': '5.41758e+06'}), ('llama', 16, 'legacy', {'solver': 'legacy', 'model': 'auto.cu.export', 'seq': '16', 'phase': 'total', 'count': '1', 'total_ms': '6.75097e+06'}), ('llama', 64, 'legacy', {'solver': 'legacy', 'model': 'auto.cu.export', 'seq': '64', 'phase': 'total', 'count': '1', 'total_ms': '1.14952e+07'}), ('qwen3', 1, 'legacy', {'solver': 'legacy', 'model': 'selected.cu.export', 'seq': '1', 'phase': 'total', 'count': '1', 'total_ms': '5.59484e+06'}), ('qwen3', 4, 'legacy', {'solver': 'legacy', 'model': 'auto.cu.export', 'seq': '4', 'phase': 'total', 'count': '1', 'total_ms': '7.02465e+06'}), ('qwen3', 16, 'legacy', {'solver': 'legacy', 'model': 'selected.cu.export', 'seq': '16', 'phase': 'total', 'count': '1', 'total_ms': '8.96673e+06'})]
+G-9 FAIL phase ledgers=8/40; [('llama', 1, 'legacy', {'solver': 'legacy', 'model': 'auto.cu.export', 'seq': '1', 'phase': 'total', 'count': '1', 'total_ms': '4.71891e+06'}), ('llama', 4, 'legacy', {'solver': 'legacy', 'model': 'auto.cu.export', 'seq': '4', 'phase': 'total', 'count': '1', 'total_ms': '5.41758e+06'}), ('llama', 16, 'legacy', {'solver': 'legacy', 'model': 'auto.cu.export', 'seq': '16', 'phase': 'total', 'count': '1', 'total_ms': '6.75097e+06'}), ('llama', 64, 'legacy', {'solver': 'legacy', 'model': 'auto.cu.export', 'seq': '64', 'phase': 'total', 'count': '1', 'total_ms': '1.14952e+07'}), ('qwen3', 1, 'legacy', {'solver': 'legacy', 'model': 'selected.cu.export', 'seq': '1', 'phase': 'total', 'count': '1', 'total_ms': '5.59484e+06'}), ('qwen3', 4, 'legacy', {'solver': 'legacy', 'model': 'auto.cu.export', 'seq': '4', 'phase': 'total', 'count': '1', 'total_ms': '7.02465e+06'}), ('qwen3', 16, 'legacy', {'solver': 'legacy', 'model': 'selected.cu.export', 'seq': '16', 'phase': 'total', 'count': '1', 'total_ms': '8.96673e+06'}), ('qwen3', 64, 'legacy', {'solver': 'legacy', 'model': 'selected.cu.export', 'seq': '64', 'phase': 'total', 'count': '1', 'total_ms': '1.97511e+07'})]
 G-10 FAIL narrow/wide ratios=[]
-G-11 FAIL selected queue transitions versus control EFT=[]; missing/inconsistent=[('llama', 1, 'skeleton-k4'), ('llama', 1, 'skeleton-k8'), ('llama', 1, 'skeleton-k16'), ('llama', 1, 'skeleton-kW'), ('llama', 4, 'skeleton-k4'), ('llama', 4, 'skeleton-k8'), ('llama', 4, 'skeleton-k16'), ('llama', 4, 'skeleton-kW'), ('llama', 16, 'skeleton-k4'), ('llama', 16, 'skeleton-k8'), ('llama', 16, 'skeleton-k16'), ('llama', 16, 'skeleton-kW'), ('llama', 64, 'skeleton-k4'), ('llama', 64, 'skeleton-k8'), ('llama', 64, 'skeleton-k16'), ('llama', 64, 'skeleton-kW'), ('qwen3', 1, 'skeleton-k4'), ('qwen3', 1, 'skeleton-k8'), ('qwen3', 1, 'skeleton-k16'), ('qwen3', 1, 'skeleton-kW'), ('qwen3', 4, 'skeleton-k4'), ('qwen3', 4, 'skeleton-k8'), ('qwen3', 4, 'skeleton-k16'), ('qwen3', 4, 'skeleton-kW'), ('qwen3', 16, 'skeleton-k4'), ('qwen3', 16, 'skeleton-k8'), ('qwen3', 16, 'skeleton-k16'), ('qwen3', 16, 'skeleton-kW'), '/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s64/eft_queue.tsv']
+G-11 FAIL selected queue transitions versus control EFT=[]; missing/inconsistent=[('llama', 1, 'skeleton-k4'), ('llama', 1, 'skeleton-k8'), ('llama', 1, 'skeleton-k16'), ('llama', 1, 'skeleton-kW'), ('llama', 4, 'skeleton-k4'), ('llama', 4, 'skeleton-k8'), ('llama', 4, 'skeleton-k16'), ('llama', 4, 'skeleton-kW'), ('llama', 16, 'skeleton-k4'), ('llama', 16, 'skeleton-k8'), ('llama', 16, 'skeleton-k16'), ('llama', 16, 'skeleton-kW'), ('llama', 64, 'skeleton-k4'), ('llama', 64, 'skeleton-k8'), ('llama', 64, 'skeleton-k16'), ('llama', 64, 'skeleton-kW'), ('qwen3', 1, 'skeleton-k4'), ('qwen3', 1, 'skeleton-k8'), ('qwen3', 1, 'skeleton-k16'), ('qwen3', 1, 'skeleton-kW'), ('qwen3', 4, 'skeleton-k4'), ('qwen3', 4, 'skeleton-k8'), ('qwen3', 4, 'skeleton-k16'), ('qwen3', 4, 'skeleton-kW'), ('qwen3', 16, 'skeleton-k4'), ('qwen3', 16, 'skeleton-k8'), ('qwen3', 16, 'skeleton-k16'), ('qwen3', 16, 'skeleton-kW'), ('qwen3', 64, 'skeleton-k4'), ('qwen3', 64, 'skeleton-k8'), ('qwen3', 64, 'skeleton-k16'), ('qwen3', 64, 'skeleton-kW')]
 G-12 FAIL simulated dependency CP and raw timing ratios=[]; missing/inconsistent=[('llama', 16, 'skeleton-k4'), ('llama', 16, 'skeleton-k8'), ('llama', 16, 'skeleton-k16'), ('llama', 16, 'skeleton-kW'), ('llama', 64, 'skeleton-k4'), ('llama', 64, 'skeleton-k8'), ('llama', 64, 'skeleton-k16'), ('llama', 64, 'skeleton-kW'), ('qwen3', 16, 'skeleton-k4'), ('qwen3', 16, 'skeleton-k8'), ('qwen3', 16, 'skeleton-k16'), ('qwen3', 16, 'skeleton-kW'), ('qwen3', 64, 'skeleton-k4'), ('qwen3', 64, 'skeleton-k8'), ('qwen3', 64, 'skeleton-k16'), ('qwen3', 64, 'skeleton-kW')]
 G-13 FAIL measured winner classes and codegen mapping=[]; violations=[]
 VERIFY hard_failed=G-1,G-2,G-5,G-7 research_pass=0
@@ -179,7 +189,6 @@ Searches still running or awaiting admission are unfinished work, not stopped it
 | qwen3 | 16 | skeleton-k8 | pending_or_failed | matrix/qwen3_s16/skeleton-k8 |
 | qwen3 | 16 | skeleton-k16 | pending_or_failed | matrix/qwen3_s16/skeleton-k16 |
 | qwen3 | 16 | skeleton-kW | pending_or_failed | matrix/qwen3_s16/skeleton-kW |
-| qwen3 | 64 | legacy | pending_or_failed | legacy_r8_domain/qwen3_s64 |
 | qwen3 | 64 | skeleton-k4 | pending_or_failed | matrix/qwen3_s64/skeleton-k4 |
 | qwen3 | 64 | skeleton-k8 | pending_or_failed | matrix/qwen3_s64/skeleton-k8 |
 | qwen3 | 64 | skeleton-k16 | pending_or_failed | matrix/qwen3_s64/skeleton-k16 |
@@ -277,6 +286,39 @@ failure remains in the raw logs. Numeric/hash failures and unexplained exits
 are not automatically retried. `gpu_admission_test.log` exercises these guards.
 
 
+## Additional admission lane after concurrency equivalence
+
+Verified CPU fixture: serial and `--search-jobs=36` evaluation produced identical
+116 candidate records, top-five keys, and final worker/slot/start/end tables;
+each imported once (`search_isolation_36_test.log`). On 2026-09-24 the still
+queued Llama seq1/k8 arm was moved to a fifth admission slot with 36 workers.
+The four admitted seq4 arms were not interrupted and retain three workers.
+The compiler snapshot, full 1218-candidate class domains, P=3, residency
+sweeps and top-K procedure are unchanged. Original queued launch metadata is
+retained in that arm's `queued_launch_history/`. Compare wall times with the
+recorded per-arm concurrency and warm-cache state, not as equal-CPU budgets.
+No anchored speedup is asserted from the CPU fixture.
+
+The two control cells Llama seq64 and Qwen seq4 had busy-GPU pre-measurement
+snapshots (93%/100% utilization, 5157/43962 MiB used). These snapshots alone
+do not prove interference throughout the full sample. Their original valid
+internal-equality samples are retained under `excluded_attempts/`; complete
+fresh ten-process timings are remeasured with resource/idle admission. This
+is not selective removal of slow rounds, and numerical failures cannot be
+retried by this route.
+
+
+The fifth slot is now a dedicated continuation lane: after one promoted arm
+releases it, `promote_queued_arm.py --drain-queue` can promote another still
+unadmitted arm with the same 36-worker setting. A singleton supervisor lock
+and an explicit `--solver-slot=4` keep at most one such high-parallelism search
+admitted. Active searches are checked while their queue parent is frozen and
+are resumed rather than cancelled if admission raced the check. Original
+queued launch metadata is archived; search-domain and compiler bytes are
+unchanged. `dedicated_slot_test.log` checks exclusivity, release and range
+validation. This is CPU admission policy, not a new placement/search policy.
+
+
 ## 6. Solver latency and cache accounting
 
 The full phase decomposition is [phases.tsv](report_tables/phases.tsv). Parallel phase sums can exceed wall-clock total; admission queue time is separate. Legacy and skeleton search domains differ as declared above.
@@ -297,6 +339,8 @@ The full phase decomposition is [phases.tsv](report_tables/phases.tsv). Parallel
 | qwen3 | 4 | legacy | total | 1 | 7.02465e+06 |
 | qwen3 | 16 | legacy | import | 43 | 314577 |
 | qwen3 | 16 | legacy | total | 1 | 8.96673e+06 |
+| qwen3 | 64 | legacy | import | 43 | 302462 |
+| qwen3 | 64 | legacy | total | 1 | 1.97511e+07 |
 
 | model | split | mode | count | total_ms | cache_hit | cache_miss | bytes_equal |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -343,7 +387,7 @@ Full-search cache statistics:
 | llama | 16 | skeleton-k8 | pending_or_failed | pending | pending | pending | pending | pending | pending |
 | llama | 16 | skeleton-k16 | pending_or_failed | pending | pending | pending | pending | pending | pending |
 | llama | 16 | skeleton-kW | pending_or_failed | pending | pending | pending | pending | pending | pending |
-| llama | 64 | legacy | measured | 11.4708475 | 12.1209435 | 15.506999 | 1.2793557696230498 | 1.3518616649728803 | 1 |
+| llama | 64 | legacy | measured | 11.785504 | 11.6687035 | 12.5220235 | 1.0731289470162646 | 1.062493678675091 | 1 |
 | llama | 64 | skeleton-k4 | pending_or_failed | pending | pending | pending | pending | pending | pending |
 | llama | 64 | skeleton-k8 | pending_or_failed | pending | pending | pending | pending | pending | pending |
 | llama | 64 | skeleton-k16 | pending_or_failed | pending | pending | pending | pending | pending | pending |
@@ -353,7 +397,7 @@ Full-search cache statistics:
 | qwen3 | 1 | skeleton-k8 | pending_or_failed | pending | pending | pending | pending | pending | pending |
 | qwen3 | 1 | skeleton-k16 | pending_or_failed | pending | pending | pending | pending | pending | pending |
 | qwen3 | 1 | skeleton-kW | pending_or_failed | pending | pending | pending | pending | pending | pending |
-| qwen3 | 4 | legacy | measured | 9.325584 | 9.579264 | 9.320143999999999 | 0.9729499051284106 | 0.999416658517043 | 1 |
+| qwen3 | 4 | legacy | measured | 9.111864 | 9.5751525 | 8.949024 | 0.9346090310310985 | 0.9821287938450354 | 1 |
 | qwen3 | 4 | skeleton-k4 | pending_or_failed | pending | pending | pending | pending | pending | pending |
 | qwen3 | 4 | skeleton-k8 | pending_or_failed | pending | pending | pending | pending | pending | pending |
 | qwen3 | 4 | skeleton-k16 | pending_or_failed | pending | pending | pending | pending | pending | pending |
@@ -363,7 +407,7 @@ Full-search cache statistics:
 | qwen3 | 16 | skeleton-k8 | pending_or_failed | pending | pending | pending | pending | pending | pending |
 | qwen3 | 16 | skeleton-k16 | pending_or_failed | pending | pending | pending | pending | pending | pending |
 | qwen3 | 16 | skeleton-kW | pending_or_failed | pending | pending | pending | pending | pending | pending |
-| qwen3 | 64 | legacy | pending_or_failed | pending | pending | pending | pending | pending | pending |
+| qwen3 | 64 | legacy | measured | 15.561152 | 15.725656 | 16.576512 | 1.0541062325158328 | 1.065249667890912 | 1 |
 | qwen3 | 64 | skeleton-k4 | pending_or_failed | pending | pending | pending | pending | pending | pending |
 | qwen3 | 64 | skeleton-k8 | pending_or_failed | pending | pending | pending | pending | pending | pending |
 | qwen3 | 64 | skeleton-k16 | pending_or_failed | pending | pending | pending | pending | pending | pending |
@@ -439,7 +483,7 @@ Corresponding raw timing ratios:
 | llama | 16 | skeleton-k8 | pending | pending | pending |
 | llama | 16 | skeleton-k16 | pending | pending | pending |
 | llama | 16 | skeleton-kW | pending | pending | pending |
-| llama | 64 | legacy | 1.2793557696230498 | 1.3518616649728803 | 1 |
+| llama | 64 | legacy | 1.0731289470162646 | 1.062493678675091 | 1 |
 | llama | 64 | skeleton-k4 | pending | pending | pending |
 | llama | 64 | skeleton-k8 | pending | pending | pending |
 | llama | 64 | skeleton-k16 | pending | pending | pending |
@@ -449,7 +493,7 @@ Corresponding raw timing ratios:
 | qwen3 | 16 | skeleton-k8 | pending | pending | pending |
 | qwen3 | 16 | skeleton-k16 | pending | pending | pending |
 | qwen3 | 16 | skeleton-kW | pending | pending | pending |
-| qwen3 | 64 | legacy | pending | pending | pending |
+| qwen3 | 64 | legacy | 1.0541062325158328 | 1.065249667890912 | 1 |
 | qwen3 | 64 | skeleton-k4 | pending | pending | pending |
 | qwen3 | 64 | skeleton-k8 | pending | pending | pending |
 | qwen3 | 64 | skeleton-k16 | pending | pending | pending |

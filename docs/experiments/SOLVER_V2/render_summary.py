@@ -69,9 +69,13 @@ def main():
     perf, phase, status = table('performance'), table('phases'), table('status')
     resources, classes = table('resources'), table('classes')
     complete = len(perf) == 40
+    state_path=E/'matrix_progress.json'
+    state=json.loads(state_path.read_text()) if state_path.exists() else {}
+    terminal=bool(state) and not state.get('pending') and not state.get('reference_pending')
     pieces = ['# TileMega R9 — solver reconstruction\n',
               ('**Measurement matrix complete; gate results below remain authoritative. Final review and push are separate.**\n'
-               if complete else f'**IN PROGRESS — {len(perf)}/40 measured arms. This is not the final R9 delivery.**\n')]
+               if complete else f'**Matrix terminal with {len(perf)}/40 valid measured arms; failed items require review, not a PASS declaration.**\n'
+               if terminal else f'**IN PROGRESS — {len(perf)}/40 measured arms. This is not the final R9 delivery.**\n')]
     def section(number, title, text):
         pieces.append(f'## {number}. {title}\n\n{text}\n')
     section(1, 'Provenance and commits',
@@ -91,6 +95,12 @@ def main():
     for path in sorted((E / 'legacy_r8_domain').glob('*/downstream_blocked.json')):
         stops.append(dict(cell=path.parent.name, reason=json.loads(path.read_text()).get('reason'),
                           evidence=str(path.relative_to(E))))
+    for directory in sorted((E/'matrix').glob('*/*')):
+        if not directory.is_dir():continue
+        for name in ('solve.command.json','measure.command.json','oracle_audit.command.json'):
+            path=directory/name
+            if path.exists() and json.loads(path.read_text()).get('exit_code',0):
+                stops.append(dict(cell=str(directory.relative_to(E)),reason=f'{name}: nonzero exit; inspect raw log before diagnosing',evidence=str(path.relative_to(E))))
     section(4, 'Stopped items and degraded forms',
             (md_table(stops, ['cell', 'reason', 'evidence']) if stops else 'No active control downstream-block marker at render time.\n') +
             '\nSearches still running or awaiting admission are unfinished work, not stopped items. '

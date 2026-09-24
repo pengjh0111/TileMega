@@ -1,0 +1,9 @@
+model	seq	arm	evidence	candidate	processes	passed
+llama	1	legacy	legacy_r8_domain/llama_s1	selected.cu.measurement	10	10
+llama	4	legacy	legacy_r8_domain/llama_s4	selected.cu.measurement	10	10
+llama	16	legacy	legacy_r8_domain/llama_s16	selected.cu.measurement	10	10
+llama	64	legacy	legacy_r8_domain/llama_s64	selected.cu.measurement	10	10
+qwen3	1	legacy	legacy_r8_domain/qwen3_s1	selected.cu.measurement	10	10
+qwen3	4	legacy	legacy_r8_domain/qwen3_s4	selected.cu.measurement	10	10
+qwen3	16	legacy	legacy_r8_domain/qwen3_s16	selected.cu.measurement	10	10
+qwen3	64	legacy	legacy_r8_domain/qwen3_s64	selected.cu.measurement	10	10
