@@ -539,3 +539,18 @@ LogicalResult PlacementOp::verifyPlan() {
 // it set again.
 #define GET_OP_CLASSES
 #include "tilemega/Dialect/CouplingGraph/ExecOps.cpp.inc"
+
+mlir::LogicalResult tilemega::dialect::SkeletonOp::verify() {
+  if(getWorkers()<1 || getResidency()<1 || getAffinityLimit()!=2)
+    return emitOpError("requires positive resident workers and exactly two critical-affinity slots");
+  for(auto value:getSpaces()) {
+    auto entry=llvm::dyn_cast<mlir::DictionaryAttr>(value);
+    if(!entry)return emitOpError("space must be a dictionary");
+    auto base=entry.getAs<mlir::IntegerAttr>("base"),width=entry.getAs<mlir::IntegerAttr>("width");
+    auto count=entry.getAs<mlir::IntegerAttr>("count");auto load=entry.getAs<mlir::FloatAttr>("load_ns");
+    if(!base || !width || !count || !load || base.getInt()<0 || base.getInt()>=getWorkers() ||
+       width.getInt()<1 || width.getInt()>getWorkers() || count.getInt()<0 || load.getValueAsDouble()<0)
+      return emitOpError("invalid per-space candidate rule");
+  }
+  return mlir::success();
+}

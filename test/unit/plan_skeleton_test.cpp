@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Frontend/TorchExportImporter.h>
+#include <tilemega/Solver/PlanSkeleton.h>
+#include <tilemega/Dialect/CouplingGraph/CGOps.h>
+#include <mlir/IR/Verifier.h>
+#include <llvm/Support/raw_ostream.h>
+#include <fstream>
+#include <iostream>
+using namespace tilemega;
+int main(int argc,char** argv) {
+ try {
+  analysis::IslContext isl;mlir::MLIRContext context;
+  std::string root=TILEMEGA_SOURCE_DIR,path=root+"/docs/experiments/E2E_GEN/raw/export_bridge.json";
+  auto bridge=frontend::ReadExportBridge(path);auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs);
+  frontend::TorchExportImporter importer;auto imported=importer.ImportSemantics(path,plan,context);
+  frontend::ImportOptions options;options.gemms.resize(plan.gemms.size(),{32,16,32,2,1});
+  options.rope_tile_per_block=options.kv_tile_per_block=options.activation_tile_per_block=options.combiner_tile_per_block=true;
+  analysis::CouplingCache cache;auto module=importer.InstantiateForGranularity(imported,context,options,&cache);
+  auto target=TargetSpec::FromJson(root+"/docs/experiments/COSTMODEL/event_fit/target.json");
+  auto problem=solver::PrepareSymbolicProblem(*module,target,{4,3,7},8,1,1);
+  auto skeleton=solver::BuildPlanSkeleton(problem,8,1,4,false,cache);
+  int prefix=0;for(int s:skeleton.stage_order){auto const& space=skeleton.spaces[s];
+    if(space.base!=prefix%8)throw std::runtime_error("incorrect continuous rotate base");prefix+=space.count;
+    auto spread=skeleton.Spread(s,0);if(spread.front()!=space.base || spread.size()!=std::size_t(space.width))throw std::runtime_error("spread definition mismatch");}
+  solver::WritePlanSkeleton(*module,skeleton);
+  if(mlir::failed(mlir::verify(*module)))throw std::runtime_error("Skeleton IR invalid");
+  if(argc>1){std::string text;llvm::raw_string_ostream out(text);module->print(out);std::ofstream(argv[1])<<text;}
+  std::map<std::string,int> kinds,structures;for(auto const& e:skeleton.edges){++structures[analysis::ToString(e.oracle->structure)];++kinds[analysis::ToString(e.oracle->reverse.kind())];++kinds[analysis::ToString(e.oracle->forward.kind())];}
+  for(auto [k,n]:structures)std::cout<<"STRUCTURE "<<k<<" edges="<<n<<'\n';
+  for(auto [k,n]:kinds)std::cout<<"ORACLE_KIND "<<k<<" directions="<<n<<'\n';
+  std::cout<<"SKELETON spaces="<<skeleton.spaces.size()<<" edges="<<skeleton.edges.size()<<" workers=8 PASS\n";
+ }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+}

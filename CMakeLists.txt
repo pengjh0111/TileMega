@@ -163,6 +163,7 @@ add_library(tilemega STATIC
   lib/Solver/AttentionWork.cpp
   lib/Solver/ListScheduler.cpp
   lib/Solver/ExecutionSimulator.cpp
+  lib/Solver/PlanSkeleton.cpp
   lib/Solver/EftPlacement.cpp
   lib/Solver/ChainPlacement.cpp
   lib/Solver/PlanMaterialize.cpp
@@ -648,6 +649,10 @@ if(TILEMEGA_BUILD_TESTS)
   endif()
   add_test(NAME frontend_import COMMAND frontend_import_test)
 
+  add_executable(plan_skeleton_test test/unit/plan_skeleton_test.cpp)
+  target_link_libraries(plan_skeleton_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(plan_skeleton_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  add_test(NAME plan_skeleton COMMAND plan_skeleton_test)
   add_executable(variant_resource_test test/unit/variant_resource_test.cpp)
   target_link_libraries(variant_resource_test PRIVATE TileMega::tilemega)
   add_test(NAME variant_resource COMMAND variant_resource_test)

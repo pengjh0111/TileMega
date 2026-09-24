@@ -1,0 +1,5 @@
+STRUCTURE 1:1 edges=7
+STRUCTURE M:N edges=31
+ORACLE_KIND Rectangular directions=62
+ORACLE_KIND Unique directions=14
+SKELETON spaces=30 edges=38 workers=8 PASS

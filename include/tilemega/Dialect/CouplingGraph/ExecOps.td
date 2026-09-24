@@ -91,3 +91,12 @@ def Exec_PlanOp : Exec_Op<"plan", [Symbol, SymbolTable, NoTerminator,
   let regions = (region SizedRegion<1>:$body);
   let assemblyFormat = "$sym_name `for` $graph attr-dict-with-keyword $body";
 }
+
+// A constrained search space, preceding any final pi/sigma assignment.
+def Exec_SkeletonOp : Exec_Op<"skeleton", []> {
+  let summary = "per-tile candidate rules at a fixed resident worker count";
+  let arguments = (ins I64Attr:$workers, I64Attr:$residency,
+                       ArrayAttr:$spaces, ArrayAttr:$edges, I64Attr:$affinity_limit);
+  let assemblyFormat = "attr-dict";
+  let hasVerifier = 1;
+}
