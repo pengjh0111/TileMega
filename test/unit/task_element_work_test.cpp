@@ -26,6 +26,36 @@ int main(int argc, char** argv) {
   rope.operands={input};
   SetRotationElementReads(rope,{"frequency",{{"half",c(2)}}},c(4));
   int cells=0;
+  {
+    SemanticOp norm;
+    norm.name="grouped_norm";
+    norm.domain={{"m",S},{"c",c(32)},{"r",c(8),c(0),IteratorType::kReduction}};
+    norm.result={"out",{{"m",S},{"c",c(32)}}};
+    norm.result_map.results={IndexResult::Dim("m"),IndexResult::Dim("c")};
+    SemanticOperand input;
+    input.tensor={"in",norm.result.axes};
+    input.map.results={IndexResult::Dim("m"),IndexResult::Affine({{"c",c(8),c(8)},{"r",c(1),c(1)}})};
+    norm.operands={input};
+    for (int width:{1,4,16}) {
+      Granularity g;g.Tile(norm.name,"m",c(1)).Tile(norm.name,"c",c(width));
+      auto graph=Instantiate(SemanticGraph{{norm}},g);
+      auto work=DeriveTaskWork(norm,*graph.Find(norm.name),{});
+      ParamBinding theta;theta.Bind("S",4);
+      Require(work.task_reduce_extent.Eval(theta)==8);
+      Require(work.reduce_extent.Eval(theta)==8);
+      for (int col=0;col<32/width;++col) {
+        auto point=theta;point.Bind("m",2).Bind("c",col);
+        Require(work.write_elements.BindCoordinates(point).Eval(point)==width);
+        for (int output=col*width;output<(col+1)*width;++output) {
+          int first=8*(output/8), count=0;
+          for (int address=0;address<32;++address) count+=address>=first && address<first+8;
+          Require(work.task_reduce_extent.Eval(theta)==count);
+        }
+        ++cells;
+      }
+    }
+    std::cout << "TRANSLATED_REDUCTION per_output_extent_equals_enumeration=PASS\n";
+  }
   for (int tile:{1,4}) {
     Granularity g; g.Tile("rope","m",c(1)).Tile("rope","hh",c(tile));
     auto graph=Instantiate(SemanticGraph{{rope}},g);

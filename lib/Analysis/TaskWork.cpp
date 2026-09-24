@@ -276,12 +276,21 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
         for (std::size_t axis=0;axis<indices.size();++axis) {
           auto const& index=indices[axis];
           for (auto const& term:index.terms) if (term.dim==dim.name) {
-            if (index.kind!=IndexResult::Kind::kAffine || index.terms.size()!=1 ||
+            bool translated_unsplit = index.terms.size()>1 &&
+                !(semantic.reduction.splittable && semantic.reduction.dim==dim.name) &&
+                std::count_if(index.terms.begin(),index.terms.end(),
+                    [&](auto const& t){return t.dim==dim.name;})==1 &&
+                std::all_of(index.terms.begin(),index.terms.end(),
+                    [&](auto const& t){return t.dim==dim.name || output_axes.count(t.dim);});
+            if (index.kind!=IndexResult::Kind::kAffine ||
+                (index.terms.size()!=1 && !translated_unsplit) ||
                 !term.coefficient.IsLiteral(1) || !term.group.IsLiteral(1))
               throw std::invalid_argument("local reduction requires an exact unit indexing axis: "+
                   task.name+" semantic "+semantic.name+" operand "+std::to_string(operand)+
                   " axis "+std::to_string(axis)+" dim "+dim.name+" index "+index.Serialize());
-            auto span=access.index[axis].span.Substitute(known);
+            // Parallel coordinates translate an unsplit reduction's origin,
+            // not its per-output extent (e.g. a head-local normalization).
+            auto span=(translated_unsplit ? dim.extent : access.index[axis].span).Substitute(known);
             if (found && span.ToString()!=local.ToString())
               throw std::invalid_argument("reduction operands disagree on the local span: "+task.name+
                   " dim "+dim.name+" "+local.ToString()+" vs "+span.ToString());
