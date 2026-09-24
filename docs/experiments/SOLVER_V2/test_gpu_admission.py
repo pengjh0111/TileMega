@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 from gpu_admission import required_mib, resource_failure, wait_for_device
-from recover_resource_measurement import recoverable
+from recover_resource_measurement import recoverable,contention_attempt
 
 GOOD = ('E2E_HASH l05=abc l1=abc l2=abc\n'
         'l1_vs_l05_mismatch=0 l2_vs_l1_mismatch=0\n'
@@ -52,6 +52,19 @@ class AdmissionTest(unittest.TestCase):
                 else:
                     with self.assertRaises(ValueError):
                         recoverable(logs)
+
+    def test_contention_requires_raw_evidence_and_correctness(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=pathlib.Path(temp);logs=[]
+            for i in range(10):
+                p=root/f'process_{i}.log';p.write_text(GOOD);logs.append(p)
+            device=root/'device.log';device.write_text('Utilization\n    GPU : 93 %\n')
+            self.assertEqual(contention_attempt(logs,device),93)
+            device.write_text('Utilization\n    GPU : 0 %\n')
+            with self.assertRaises(ValueError):contention_attempt(logs,device)
+            device.write_text('Utilization\n    GPU : 93 %\n')
+            logs[0].write_text(GOOD.replace('l2=abc','l2=bad'))
+            with self.assertRaises(ValueError):contention_attempt(logs,device)
 
 
 if __name__ == '__main__':
