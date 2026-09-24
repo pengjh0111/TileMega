@@ -2,6 +2,7 @@
 #include <tilemega/Analysis/CouplingRelation.h>
 
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/ExactMemo.h>
 #include <tilemega/Analysis/QuasiPolynomial.h>
 
 #include "IslUtil.h"
@@ -285,12 +286,15 @@ CouplingRelation::Points() const {
 }
 
 QuasiPolynomial CouplingRelation::Card() const {
-  IslReferenceAudit audit(__func__);
-  if (empty()) return QuasiPolynomial::Constant(0);
-  isl_util::Map map = isl_util::ReadMap(Ctx(), text_);
-  isl_util::PwQPolynomial card(isl_map_card(map.release()));
-  if (!card) throw std::runtime_error("isl: relation cardinality failed");
-  return QuasiPolynomial::FromIslText(isl_util::ToString(card.get()));
+  return MemoExact({"relation_cardinality",text_},[&] {
+    IslReferenceAudit audit(__func__);
+    if (empty()) return QuasiPolynomial::Constant(0);
+    isl_util::Map map = isl_util::ReadMap(Ctx(), text_);
+    isl_util::PwQPolynomial card(isl_map_card(map.release()));
+    if (!card) throw std::runtime_error("isl: relation cardinality failed");
+    return QuasiPolynomial::FromIslText(isl_util::ToString(card.get()));
+
+  });
 }
 
 QuasiPolynomial CouplingRelation::ImageCard() const {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/SkeletonSearch.h>
 #include <tilemega/Frontend/ExportBridge.h>
+#include <tilemega/Analysis/ExactMemo.h>
 #include <fstream>
 #include <iomanip>
 #include <numeric>
@@ -91,6 +92,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     if(!options.common.geometry_domain.empty())domain.erase(std::remove_if(domain.begin(),domain.end(),[&](auto const& g){
       return std::none_of(options.common.geometry_domain.begin(),options.common.geometry_domain.end(),[&](auto const& allowed){
         return std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages)==std::tie(allowed.tile_m,allowed.tile_n,allowed.tile_k,allowed.stages);});}),domain.end());
+    out<<"DOMAIN\t"<<domains.size()<<'\t'<<domain.size()<<'\n';out.flush();
     domains.push_back(std::move(domain));}
   for(int pass=0;pass<options.passes;++pass){bool moved=false;++rounds;
     for(std::size_t c=0;c<search.classes.size();++c){
@@ -114,7 +116,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
 }
 SkeletonSearchResult SolveSkeletonExport(std::string const& path,mlir::MLIRContext& context,
     SkeletonSearchOptions const& options,frontend::ImportSummary* summary,std::ostream& evidence) {
-  SolverPhase total(options.common.timing,"total");frontend::TorchExportImporter importer;
+  SolverPhase total(options.common.timing,"total");analysis::ScopedExactAnalysisMemo exact_memo;frontend::TorchExportImporter importer;
   auto plan=[&]{SolverPhase phase(options.common.timing,"bridge_and_plan");auto b=frontend::ReadExportBridge(path);return frontend::BuildModelPlan(b.nodes,b.inputs,b.outputs);}();
   auto imported=[&]{SolverPhase phase(options.common.timing,"import");return importer.ImportSemantics(path,plan,context);}();
   SearchContext search(std::move(imported),context,options);SkeletonSearchResult result;result.classes=search.classes;
@@ -158,6 +160,7 @@ SkeletonSearchResult SolveSkeletonExport(std::string const& path,mlir::MLIRConte
       std::string kind=analysis::ToString(oracle->kind());std::transform(kind.begin(),kind.end(),kind.begin(),::tolower);
       t->Add("oracle_"+kind,oracle->query_ms(),oracle->queries());
       t->Add("oracle",oracle->query_ms(),oracle->queries());}
+    t->Add("analysis_cache_hit",0,exact_memo.memo.hits);t->Add("analysis_cache_miss",0,exact_memo.memo.misses);
     t->Add("search_evaluations",0,result.evaluated.size());t->Add("search_rounds",0,result.rounds);
   }
   return result;

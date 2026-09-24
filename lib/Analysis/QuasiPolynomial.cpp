@@ -3,6 +3,7 @@
 
 #include <tilemega/Analysis/CouplingRelation.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/ExactMemo.h>
 
 #include "IslUtil.h"
 #include <isl/ilp.h>
@@ -252,9 +253,12 @@ QuasiPolynomial QuasiPolynomial::Constant(long value) {
 }
 
 QuasiPolynomial QuasiPolynomial::FromIslText(std::string const& text) {
-  IslReferenceAudit audit(__func__);
-  isl_util::PwQPolynomial value = isl_util::ReadPwQPolynomial(Ctx(), text);
-  return QuasiPolynomial(isl_util::ToString(value.get()));
+  return MemoExact({"parse_polynomial",text},[&] {
+    IslReferenceAudit audit(__func__);
+    isl_util::PwQPolynomial value = isl_util::ReadPwQPolynomial(Ctx(), text);
+    return QuasiPolynomial(isl_util::ToString(value.get()));
+
+  });
 }
 
 QuasiPolynomial QuasiPolynomial::Card(CouplingRelation const& relation) {
@@ -455,12 +459,15 @@ std::vector<long> QuasiPolynomial::EvalPoints(ParamBinding const& known,
 }
 
 QuasiPolynomial QuasiPolynomial::SumDomain() const {
-  IslReferenceAudit audit(__func__);
-  auto value = isl_util::ReadPwQPolynomial(Ctx(), text_);
-  if (isl_pw_qpolynomial_dim(value.get(),isl_dim_in)==0) return *this;
-  isl_util::PwQPolynomial sum(isl_pw_qpolynomial_sum(value.release()));
-  if (!sum) throw std::runtime_error("isl: cannot sum quasi-polynomial domain");
-  return FromIslText(isl_util::ToString(sum.get()));
+  return MemoExact({"sum_domain",text_},[&] {
+    IslReferenceAudit audit(__func__);
+    auto value = isl_util::ReadPwQPolynomial(Ctx(), text_);
+    if (isl_pw_qpolynomial_dim(value.get(),isl_dim_in)==0) return *this;
+    isl_util::PwQPolynomial sum(isl_pw_qpolynomial_sum(value.release()));
+    if (!sum) throw std::runtime_error("isl: cannot sum quasi-polynomial domain");
+    return FromIslText(isl_util::ToString(sum.get()));
+
+  });
 }
 
 QuasiPolynomial QuasiPolynomial::SumAlong(CouplingRelation const& relation) const {
@@ -504,37 +511,41 @@ QuasiPolynomial QuasiPolynomial::SupportIndicator() const {
 
 bool QuasiPolynomial::SemanticallyEqual(QuasiPolynomial const& other,
                                         ParamBinding const& known) const {
-  // Try the constant-vs-constant shortcut first: if both sides reduce to a
-  // single scalar under `known` (Eval, regardless of how many "in"/task-
-  // coordinate dims either side has), compare the scalars directly. This
-  // sidesteps a real isl limitation: isl_pw_qpolynomial_sub requires
-  // matching spaces (same "in" dim count), but a stored placeholder
-  // constant (0 "in" dims, e.g. a not-yet-derived wait = 1) and a value
-  // computed from a domain-bound relation (N "in" dims, though constant
-  // across all of them, e.g. card() of a single-point relation) legitimately
-  // describe the same number with different dimensionality -- confirmed by
-  // a genuine isl error ("spaces don't match") when this path is skipped.
-  try {
-    return Eval(known) == other.Eval(known);
-  } catch (std::out_of_range const&) {
-    // At least one side is genuinely non-constant, or has a parameter
-    // `known` does not name: fall through to the exact structural check.
-    // That check's space-matching requirement is not a practical problem
-    // here, because a genuinely position-dependent wait/fanout pair is
-    // always derived from the same relation on both sides (once real
-    // coupling derivation feeds the dialect, not the Frontend placeholder
-    // this shortcut exists for), so their domain spaces already match.
-  }
-  isl_util::PwQPolynomial lhs = isl_util::ReadPwQPolynomial(Ctx(), text_);
-  isl_util::PwQPolynomial rhs = isl_util::ReadPwQPolynomial(Ctx(), other.text_);
-  lhs = FixParams(std::move(lhs), known);
-  rhs = FixParams(std::move(rhs), known);
-  isl_util::PwQPolynomial diff(
-      isl_pw_qpolynomial_sub(lhs.release(), rhs.release()));
-  isl_bool zero = isl_pw_qpolynomial_is_zero(diff.get());
-  if (zero == isl_bool_error)
-    throw std::runtime_error("isl: quasi-polynomial equality check failed");
-  return zero == isl_bool_true;
+  std::ostringstream binding;for(auto const& [name,value]:known.values)binding<<name.size()<<':'<<name<<'='<<value<<';';
+  return MemoExact({"polynomial_equal",text_,other.text_,binding.str()},[&] {
+    // Try the constant-vs-constant shortcut first: if both sides reduce to a
+    // single scalar under `known` (Eval, regardless of how many "in"/task-
+    // coordinate dims either side has), compare the scalars directly. This
+    // sidesteps a real isl limitation: isl_pw_qpolynomial_sub requires
+    // matching spaces (same "in" dim count), but a stored placeholder
+    // constant (0 "in" dims, e.g. a not-yet-derived wait = 1) and a value
+    // computed from a domain-bound relation (N "in" dims, though constant
+    // across all of them, e.g. card() of a single-point relation) legitimately
+    // describe the same number with different dimensionality -- confirmed by
+    // a genuine isl error ("spaces don't match") when this path is skipped.
+    try {
+      return Eval(known) == other.Eval(known);
+    } catch (std::out_of_range const&) {
+      // At least one side is genuinely non-constant, or has a parameter
+      // `known` does not name: fall through to the exact structural check.
+      // That check's space-matching requirement is not a practical problem
+      // here, because a genuinely position-dependent wait/fanout pair is
+      // always derived from the same relation on both sides (once real
+      // coupling derivation feeds the dialect, not the Frontend placeholder
+      // this shortcut exists for), so their domain spaces already match.
+    }
+    isl_util::PwQPolynomial lhs = isl_util::ReadPwQPolynomial(Ctx(), text_);
+    isl_util::PwQPolynomial rhs = isl_util::ReadPwQPolynomial(Ctx(), other.text_);
+    lhs = FixParams(std::move(lhs), known);
+    rhs = FixParams(std::move(rhs), known);
+    isl_util::PwQPolynomial diff(
+        isl_pw_qpolynomial_sub(lhs.release(), rhs.release()));
+    isl_bool zero = isl_pw_qpolynomial_is_zero(diff.get());
+    if (zero == isl_bool_error)
+      throw std::runtime_error("isl: quasi-polynomial equality check failed");
+    return zero == isl_bool_true;
+
+  });
 }
 
 bool QuasiPolynomial::IsZero() const {
