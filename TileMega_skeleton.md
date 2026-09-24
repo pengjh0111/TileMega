@@ -817,6 +817,12 @@ BF16 形状再拟合出负的每 CTA setup。钳位已删除，改由 `combine_f
 - **验收**：沿用 §4.4.1 的排序口径。
 - **承接项**：`docs/TODO.md` EX-S1–EX-S5。
 
+（⚠️ v2.1 第九轮：求解管线细化为 `g → 资源探测 → R_max → residency → W → 符号 Oracle → Plan Skeleton → 就绪前沿放置 → top-K 模拟`。θ 保持 ISL 参数，g 是按规范化语义签名 SemSig 分组的外层离散选择；L-sem 导入一次，耦合以 `(SemSig_p, SemSig_c, 操作数序号, g_p, g_c)` 缓存，保留索引映射与 `element_reads`。资源按变体探测并估计完整 kernel 的寄存器与 union shared memory；每组 g 遍历全部合法驻留度，最终 top-K 用真实 occupancy 复核，不符时重解。）
+
+（⚠️ v2.1 第九轮：Oracle 在两个方向精确回答当前 tile 的邻接集合，分为分段仿射的 Unique、经 `is_box` 证明的 Rectangular 与局部精确查询的 General。Level 1 以 `tmexec.skeleton` 承载 W、各 task space 的连续轮询 base、负载与软铺开宽度，以及边类别；它只定义可重叠的逐 tile 候选集，不决定最终 worker。候选集为 Spread 与按到达时间选出的至多两个关键前驱 worker 之并。Level 2 按 `(EST, −rank, stage 序, lin)` 的就绪优先队列惰性更新，在候选集中按完成时间选 worker；秩仅由 task-space 小图产生，作为平局裁决。不在搜索内物化 tile DAG，也不调用 ISL 调度器决定 worker 或次序。）
+
+（⚠️ v2.1 第九轮：外层以 Level 2 的 `makespan_ns` 为分数，执行最多三轮坐标下降，从 legacy uniform 解出发，优先评估 tile 对齐候选；模拟器只用于最终五组配置，随后实测 top-3。`--solver=legacy` 保留六启发式对照，默认 `skeleton`。现行执行器可能要求超出 CG 数据依赖的事件窗口顺序；这部分以独立符号执行顺序关系约束搜索，不把额外顺序宣称为数据依赖，也不改变 §5.7 的执行语义或合法性校验。）
+
 ## 4.5 Label：通信归属
 
 **问题**：把 CG 划分成大小 ≤ C（可移植 8，部分架构最多 16）的簇，
@@ -1656,3 +1662,4 @@ Codegen 与 host 只消费 Plan（§5.7.4），不得在其中新增调度决策
 | 2026-09 | v2.1 第六轮 | 统一访问推导到 TaskBody 代价的输入；明确绑定下界目标与分层求值；Place 参数允许 θ 函数，物化表由 CG 模块承载，生产写回经编译驱动接入 |
 | 2026-09 | v2.1 第八轮 | TaskBody ABI 参数化在 arch tag 上，架构随 Plan 传递并在运行期与设备比对（不一致即硬失败）；GEMM 的 collective 按 `Caps` 具名能力选择，sm_90/sm_100 走 CollectiveBuilder，sm_80/sm_89/sm_120 走 cp.async multistage；attention 与归一化的跨线程归约改为 warp shuffle，消除单 lane 串行扫描；occupancy 闭式推广为按角色求和；单一 `tilemega` dialect 拆为 `tmcg`（结构）与 `tmexec`（决策），`task_space` 改名 `tile_space`。§8.5 未改动——角色粒度 litmus 的"无屏障"负对照在 sm_89 上不失败，按 §8.3 不取得改动资格 |
 | 2026-09 | v2.1 第七轮 | 归一化 epsilon 与旋转相位精度改为由导入的模型决定，不再是后端常量；任务族扩展为 token embedding、按头 Q/K 归一化与独立的最终归一化，并规定新族必须由生成开关承载以保持默认构建的汇编同一；§8.6 的 TaskSmem union 生命周期按 H3 解除一处——union 仍取 max，其后按开关追加两页预取缓冲，生命周期跨相邻 slot；§5.3.1 的分相 ABI 随之落地为可开关的实现 |
+| 2026-09 | v2.1 第九轮 | 按 SemSig 缓存参数化耦合并按算子类选择 tile；资源探测先于驻留与 Skeleton；符号 Oracle 提供精确双向邻接，Level 1 定义重叠候选集、Level 2 按 EST 就绪前沿定价放置；外层坐标下降以放置 makespan 打分，仅最终 top-K 物化与模拟，保留 legacy 对照 |

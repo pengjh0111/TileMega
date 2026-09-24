@@ -6974,3 +6974,91 @@ correctness one.
 Evidence: `BACKEND/timing_sweep/` (`timing_sweep.tsv`, per-round logs for
 12 cells x 2 arms), `BACKEND/models/`, `BACKEND/summary.md` §6, the bisect
 commands in this entry.
+
+## F-240 — Semantic coupling keys preserve access differences across reuse
+
+✅ **Verified.** The R9 import split retains one immutable semantic model and
+instantiates each granularity through `CouplingCache`. At split 1 and split 2,
+`module.print` from the original importer, the cold cache and the warm cache
+matches byte for byte. Two adversarial pairs retain the same operator kind and
+shape but change indexing or `element_reads`; both the normalized signatures
+and complete coupling keys differ. Renaming alone leaves the signature equal.
+The fixture records 124 hits and 72 misses; these are unit-fixture counts, not
+an anchored-model hit-rate claim.
+
+✅ **Verified.** A deliberately incorrect wait cardinality of 999999 is rejected
+with exact-expression memoization enabled. Restoring the original attribute
+restores verification. Static Llama seq=1 also matches the original import at
+both splits after preserving the original dimension-role defaults.
+
+Evidence: `SOLVER_V2/cache_test.log`, `static_import_cache_test.log`,
+`test/unit/coupling_cache_test.cpp`; implementation `CouplingCache.cpp` and
+`TorchExportImporter.cpp`. Complete anchored solve timings remain pending.
+
+## F-241 — Exact symbolic fibers survive the Oracle fast paths
+
+✅ **Verified.** Independent enumeration agrees as sets on 384 predecessor and
+successor queries, covering Unique, Rectangular and General relations. Another
+45 cases check signed floor division and domain holes. The adversarial sets
+include a two-dimensional lexicographic counterexample, strided images and a
+million-wide sparse hull. The range cannot be replaced by its bounding box.
+
+The implementation derives Unique from `isl_pw_multi_aff_from_map` and permits
+Rectangular only after `is_box`. General may enumerate a bounded local scan,
+but every emitted point passes the original exact Presburger predicate. Large
+sparse scans use ISL point enumeration. Native evaluation of ISL-generated
+integer expressions retains domain guards; unsupported operations or overflow
+fall back to ISL. No ISL scheduling API determines placement.
+
+Evidence: `SOLVER_V2/oracle_membership_test.log`,
+`test/unit/symbolic_oracle_test.cpp`, `SymbolicOracle.cpp`,
+`OracleExpression.h`. Unit set equality does not replace the required audits
+on all anchored-model search outputs; those are still being collected.
+
+## F-242 — Existing executor windows add order beyond exact CG data edges
+
+✅ **Verified.** In the diagnostic projection, exact data dependencies contain
+5136 pairs, while executor wait windows add 1280 pairs. A gqa2 seq=128 top-K
+plan using only exact data dependencies was rejected by L-c before GPU
+execution: a required event producer followed its consumer on one worker.
+This was a plan-admission failure, not an observed numerical failure.
+
+The repaired search separately represents the symbolic execution-order
+relation obtained by composing requested events with exact event-group
+membership. Its union with the CG data relation supplies the Oracle. The
+extra pairs are not relabeled as data dependencies. Independent expansion at
+kappa 1/2/4 agrees on 13760/13952/14336 pairs and the resulting queues respect
+that order. Existing event and legality semantics are unchanged. This extends
+the predecessor set specified in R9 §4.4/§4.6 and is explicitly declared in
+`SOLVER_V2/implementation_notes.md`.
+
+✅ **Verified.** Reusing geometry and relation proofs across grids 8 and 16
+produces identical worker, slot, start and finish arrays to independent
+preparation. A real Llama seq=4 seed retains the exact Level 2 score
+5514820.9881833401 ns and residency 4 before and after that optimization.
+This is score equivalence, not measured inference latency.
+
+Evidence: `SOLVER_V2/resident_reuse_test.log`, `resident_reuse_score.json`,
+`test/unit/plan_skeleton_test.cpp`; implementation `PlanSkeleton.cpp`.
+
+## F-243 — Isolated coordinate evaluations preserve serial search decisions
+
+✅ **Verified.** On a CPU search fixture, jobs=1 and jobs=3 produce the same
+26 candidate records, top-five keys and all five final task schedules byte
+for byte. Each path records one semantic import. Four independent scheduler
+fixtures also preserve exact schedules under process isolation; child Oracle
+queries do not mutate parent state, and worker exceptions propagate.
+
+The optional process workers evaluate candidates with all other classes fixed.
+Results are consumed in the original order, preserving improvement and tie
+rules. Resource probes remain in the parent; real occupancy and full simulation
+remain at the final top-K boundary. The default is one job. Primary real-model
+runs use three jobs per coordinate sweep and retain the complete domain and
+P=3. Stage totals sum worker durations; elapsed total is wall time, so stage
+sums can exceed total. A serial legacy / parallel skeleton latency comparison
+must disclose this resource difference.
+
+Evidence: `SOLVER_V2/search_isolation_test.log`,
+`isolated_evaluation_test.log`, `protocol.json`,
+`test/unit/skeleton_search_isolation_test.cpp`. No anchored-model speedup or
+G-8 pass is asserted by this fixture.

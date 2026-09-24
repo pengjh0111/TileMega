@@ -1269,15 +1269,15 @@ g ─► 资源探测 ─► R_max ─► residency ─► W ─► 符号 Oracl
 
 | ID | 范围与验收（不可删减） | 依赖 | 实现状态 | 验证状态 | 证据、commit |
 | --- | --- | --- | --- | --- | --- |
-| SV-0 | 基线与测量协议：`MIDPOINT_REFINE=0`；真实模型以 L0.5/L1/L2 内部逐位一致为正确性门；记录现行求解器的求解耗时分解与三档计时 | — | 未开始 | — | 待填 |
-| SV-1 | 导入一次 + 以 SemSig 为键的耦合缓存；含碰撞测试 | SV-0 | 未开始 | — | 待填 |
-| SV-2 | 按算子类的 tile：撤除 uniform `assign`；codegen 按 `invocation.variant` 分派 | SV-1 | 未开始 | — | 待填 |
-| SV-3 | 资源探测：按变体缓存寄存器与 shared memory，闭式得 `R_max`；top-K 用真实 `queryResidency` 复核 | SV-2 | 未开始 | — | 待填 |
-| SV-4 | 符号 Oracle：前驱与后继，`Unique` / `Rectangular` / `General` 三类精确 | SV-1 | 未开始 | — | 待填 |
-| SV-5 | Level 1：Plan Skeleton（在 W 已知后构造），表达为 `tmexec` 一等 op | SV-3, SV-4 | 未开始 | — | 待填 |
-| SV-6 | Level 2：就绪前沿 + ETF 的代价感知放置，输出 `(π, σ)` | SV-5 | 未开始 | — | 待填 |
-| SV-7 | 外层坐标下降（嵌套 residency）+ 模拟器 top-K；现行求解器保留为对照臂 | SV-6 | 未开始 | — | 待填 |
-| SV-8 | 真实模型验证：Llama-3.2-1B 与 Qwen3-1.7B 上的效果与求解耗时 | SV-7 | 未开始 | — | 待填 |
+| SV-0 | 基线与测量协议：`MIDPOINT_REFINE=0`；真实模型以 L0.5/L1/L2 内部逐位一致为正确性门；记录现行求解器的求解耗时分解与三档计时 | — | 已实现，测量中 | Llama 对照四格各 10/10；Qwen 对照与完整矩阵待完成 | 92f07b2b3；SOLVER_V2/legacy_r8_domain |
+| SV-1 | 导入一次 + 以 SemSig 为键的耦合缓存；含碰撞测试 | SV-0 | 已实现 | 固定 g 的 CG 位同、两对 SemSig/键碰撞测试通过；真实模型缓存/耗时报告待完成 | b6d9a27fc；SOLVER_V2/cache_test.log |
+| SV-2 | 按算子类的 tile：撤除 uniform `assign`；codegen 按 `invocation.variant` 分派 | SV-1 | 已实现 | 单测 2 变体/14 GEMM 分派通过；锚定模型最终选中配置待核验 | b64d6a388；SOLVER_V2/classes_test.log |
+| SV-3 | 资源探测：按变体缓存寄存器与 shared memory，闭式得 `R_max`；top-K 用真实 `queryResidency` 复核 | SV-2 | 已实现 | 变体探测单测通过；全部真实模型 top-5 复核未完成 | 3f4a7a11c；SOLVER_V2/resource_test.log |
+| SV-4 | 符号 Oracle：前驱与后继，`Unique` / `Rectangular` / `General` 三类精确 | SV-1 | 已实现 | 384 集合等价与 45 表达式边界检查通过；32 个锚定搜索臂审计待完成 | 127a184d6、2e68767cf；SOLVER_V2/oracle_membership_test.log |
+| SV-5 | Level 1：Plan Skeleton（在 W 已知后构造），表达为 `tmexec` 一等 op | SV-3, SV-4 | 已实现 | IR、W 相关铺开规则、跨驻留复用单测通过；完整矩阵待完成 | 2f56d550d、fecae73f0；SOLVER_V2/resident_reuse_test.log |
+| SV-6 | Level 2：就绪前沿 + ETF 的代价感知放置，输出 `(π, σ)` | SV-5 | 已实现 | EST 就绪调度三类单测通过；真实模型交错率待完成 | b8362dff1；SOLVER_V2/schedule_membership_test.log |
+| SV-7 | 外层坐标下降（嵌套 residency）+ 模拟器 top-K；现行求解器保留为对照臂 | SV-6 | 已实现，测量中 | 完整域 P=3 搜索运行中；并行/串行 26 候选与 top-5 调度等价 | ff3f54c23、65c5fae46；SOLVER_V2/search_isolation_test.log |
+| SV-8 | 真实模型验证：Llama-3.2-1B 与 Qwen3-1.7B 上的效果与求解耗时 | SV-7 | 运行中 | 8 格 × 5 臂未齐；G-8 尚未判定，不宣称收尾 | SOLVER_V2/matrix、SOLVER_V2/verify.py |
 
 ### 5.3 优先级（取代 §4.1 的原顺序）
 
