@@ -14,7 +14,7 @@ import re
 import statistics
 
 from measure import parse
-from plan_statistics import attention_path, interleaving, rows
+from plan_statistics import attention_path, interleaving, worker_interleaving, rows
 
 HERE = pathlib.Path(__file__).resolve().parent
 ARMS = ('legacy', 'skeleton-k4', 'skeleton-k8', 'skeleton-k16', 'skeleton-kW')
@@ -49,6 +49,7 @@ def collect(root, output):
     output.mkdir(parents=True, exist_ok=True)
     performance, processes, phases, resources, classes, placements = [], [], [], [], [], []
     oracles, paths, searches, statuses = [], [], [], []
+    worker_queues=[]
     observed = {}
     for model in ('llama', 'qwen3'):
         for seq in (1, 4, 16, 64):
@@ -78,6 +79,12 @@ def collect(root, output):
                 observed[model, seq, arm] = times
                 statuses.append(dict(identity, state='measured', detail=winner.name))
                 if arm == 'legacy':
+                    queue_path=directory/'eft_queue.tsv'
+                    if queue_path.exists():
+                        cg=(directory/'selected.mlir').read_text()
+                        grid=re.search(r'tmexec\.solved_grid\s*=\s*(\d+)',cg)
+                        for row in worker_interleaving(queue_path,int(grid[1]) if grid else None):
+                            worker_queues.append(dict(identity,queue_kind='control_eft',**row))
                     continue
                 shortlist = table(directory / 'selected.cu.top3.tsv')
                 key = next(r['key'] for r in shortlist if pathlib.Path(r['source']).name == winner.name.removesuffix('.measurement'))
@@ -97,6 +104,8 @@ def collect(root, output):
                 for row in selected_classes:
                     classes.append(dict(identity, **row))
                 queue = interleaving(prefix+'.tasks.tsv')
+                for row in worker_interleaving(prefix+'.tasks.tsv',int(metric['grid'])):
+                    worker_queues.append(dict(identity,queue_kind='selected_skeleton',**row))
                 legacy_queue = root/'legacy_r8_domain'/f'{model}_s{seq}'/'eft_queue.tsv'
                 control = interleaving(legacy_queue) if legacy_queue.exists() else None
                 placed = int(metric['placed'])
@@ -153,6 +162,7 @@ def collect(root, output):
         ('resources', resources, ['rank', 'key', 'estimated', 'actual', 're_solved', 'residency', 'level2_ns', 'simulated_ns', 'level2_rank', 'simulated_rank']),
         ('classes', classes, ['class', 'gemm', 'op', 'tile_m', 'tile_n', 'tile_k', 'stages', 'split_k', 'seed_m', 'seed_n', 'seed_k', 'seed_stages', 'seed_split']),
         ('placements', placements, ['residency', 'grid', 'variants', 'affinity_share', 'home_share', 'spread_other_share', 'average_candidates', 'interleaving', 'legacy_eft_interleaving']),
+        ('worker_queues', worker_queues, ['queue_kind','worker','tasks','transitions','adjacent_slots','interleaving']),
         ('paths', paths, ['cp_ns', 'path_nodes', 'attention_ns', 'attention_share']),
         ('oracles', oracles, ['graph', 'field', 'category', 'count']),
         ('searches', searches, ['evaluations', 'coordinates', 'improvements', 'aligned_improvements', 'cache_hit', 'cache_miss', 'cache_hit_share', 'rounds', 'jobs']),

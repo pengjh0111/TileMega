@@ -1,0 +1,6 @@
+PASS llama_s1 workers 384 tasks 131676 interleaving 0.30163300124912407
+PASS llama_s16 workers 512 tasks 181168 interleaving 0.5117350101851031
+PASS llama_s4 workers 512 tasks 163672 interleaving 0.45937729835744057
+PASS llama_s64 workers 512 tasks 282720 interleaving 0.38575802245152513
+PASS qwen3_s1 workers 384 tasks 189337 interleaving 0.3984377067313036
+PASS qwen3_s4 workers 512 tasks 235984 interleaving 0.5591832574573622

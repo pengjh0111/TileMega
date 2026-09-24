@@ -12,20 +12,31 @@ def rows(path):
     with (gzip.open(compressed,'rt') if compressed.exists() else path.open()) as stream:
         yield from csv.DictReader(stream,delimiter='\t')
 
-def interleaving(path):
+def worker_interleaving(path,grid=None):
     workers=collections.defaultdict(list)
     for row in rows(path):
         workers[int(row['worker'])].append((int(row['slot']),int(row['stage'])))
-    changes=adjacent=0
-    for queue in workers.values():
+    if grid is not None:
+        if any(w<0 or w>=grid for w in workers):raise ValueError('worker outside grid: '+str(path))
+        for worker in range(grid):workers[worker]
+    output=[]
+    for worker,queue in sorted(workers.items()):
         queue.sort()
         if [slot for slot,_ in queue]!=list(range(len(queue))):
             raise ValueError('queue slots are not consecutive: '+str(path))
-        adjacent+=max(0,len(queue)-1)
-        changes+=sum(a[1]!=b[1] for a,b in zip(queue,queue[1:]))
+        adjacent=max(0,len(queue)-1)
+        changes=sum(a[1]!=b[1] for a,b in zip(queue,queue[1:]))
+        output.append(dict(worker=worker,tasks=len(queue),transitions=changes,
+                           adjacent_slots=adjacent,interleaving=changes/adjacent if adjacent else 0))
+    return output
+
+def interleaving(path):
+    workers=worker_interleaving(path)
+    changes=sum(w['transitions'] for w in workers)
+    adjacent=sum(w['adjacent_slots'] for w in workers)
     return dict(transitions=changes,adjacent_slots=adjacent,
                 interleaving=changes/adjacent if adjacent else 0,
-                tasks=sum(map(len,workers.values())))
+                tasks=sum(w['tasks'] for w in workers))
 
 def attention_path(task_path,edge_path):
     tasks={int(r['node']):r for r in rows(task_path)}
