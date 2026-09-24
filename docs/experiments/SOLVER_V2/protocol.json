@@ -5,10 +5,12 @@
   "repeat_per_process": 10,
   "warmup": 2,
   "control_domain": "R8 deployed five-shape domain: docs/experiments/COSTMODEL/event_fit/search_domain.json; capacity=12, algorithm unchanged",
-  "unrestricted_control_audit": "legacy/llama_s4, independently timed and retained",
+  "unrestricted_control_audit": "legacy/llama_s4: incomplete diagnostic, excluded from timing results",
   "skeleton_domain": "CandidateGenerator full domain; no --search-domain for primary measurements",
   "skeleton_passes": 3,
   "top_k": 5,
   "measured_shortlist": 3,
-  "gpu": "RTX 4090 available after execution permission profile restoration"
+  "gpu": "RTX 4090 available after execution permission profile restoration",
+  "skeleton_search_jobs": 3,
+  "solver_time_accounting": "total is elapsed wall time; other phase times sum candidate worker durations; legacy is serial and skeleton uses three isolated workers per coordinate sweep"
 }
