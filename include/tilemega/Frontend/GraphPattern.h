@@ -166,6 +166,8 @@ class PatternMatcher {
   std::unordered_map<std::string, std::string> role_of_;
   std::unordered_set<std::string> parameters_;
   std::unordered_set<std::string> user_inputs_;
+  // The exported use-def graph is immutable throughout pattern matching.
+  mutable std::unordered_map<std::string,std::unordered_set<std::string>> ancestors_;
 };
 
 }  // namespace tilemega::frontend

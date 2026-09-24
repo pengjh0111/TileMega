@@ -494,6 +494,9 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(relation_bounds_test PRIVATE TileMega::tilemega)
   add_test(NAME relation_bounds COMMAND relation_bounds_test)
   add_executable(task_element_work_test test/unit/task_element_work_test.cpp)
+  add_executable(graph_pattern_test test/unit/graph_pattern_test.cpp)
+  target_link_libraries(graph_pattern_test PRIVATE TileMega::tilemega)
+  add_test(NAME graph_pattern COMMAND graph_pattern_test)
   target_link_libraries(task_element_work_test PRIVATE TileMega::tilemega)
   add_test(NAME task_element_work COMMAND task_element_work_test
     ${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/gqa2.json

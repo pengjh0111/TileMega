@@ -114,18 +114,21 @@ std::string PatternMatcher::Value(std::string const& name) const {
 bool PatternMatcher::DependsOn(std::string const& value,
                                std::string const& ancestor) const {
   if (value == ancestor) return true;
+  if (auto cached=ancestors_.find(value); cached!=ancestors_.end())
+    return cached->second.count(ancestor)!=0;
   std::vector<std::string> work{value};
   std::unordered_set<std::string> seen;
   while (!work.empty()) {
     std::string current = std::move(work.back());
     work.pop_back();
     if (!seen.insert(current).second) continue;
-    if (current == ancestor) return true;
     FxNodeRecord const* node = Find(current);
     if (!node) continue;
     for (auto const& input : node->inputs) work.push_back(input);
   }
-  return false;
+  bool result=seen.count(ancestor)!=0;
+  ancestors_.emplace(value,std::move(seen));
+  return result;
 }
 
 bool PatternMatcher::OneOperandMatches(OperandConstraint const& constraint,
