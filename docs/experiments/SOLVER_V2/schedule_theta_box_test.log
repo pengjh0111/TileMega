@@ -1,0 +1,6 @@
+SCHEDULE_DIGEST case=0 value=1776063382670854147
+READY_PLACEMENT case=0 makespan=104 interleaving=0.4 requeues=20 PASS
+SCHEDULE_DIGEST case=1 value=2159995250904188931
+READY_PLACEMENT case=1 makespan=108 interleaving=0.4 requeues=28 PASS
+SCHEDULE_DIGEST case=2 value=9487633319612696579
+READY_PLACEMENT case=2 makespan=108 interleaving=0.4 requeues=28 PASS

@@ -52,6 +52,18 @@ int main() {
   ParamBinding theta;theta.Bind("N",3);
   if(!mixed.Query({0},theta).rectangular || mixed.Query({1},theta).rectangular)
     throw std::runtime_error("local box proof must preserve strided General fibers");
+  SymbolicOracle theta_box("[N] -> { [q] -> [i] : 0<=q<3 and 0<=i<8 and (N=1 or i%2=0) }");
+  if(theta_box.kind()!=OracleKind::General)throw std::runtime_error("theta-dependent relation must remain General");
+  for(int n:{1,3,1,3}) {
+    ParamBinding bound;bound.Bind("N",n);
+    for(int q:{0,1,2,3}) {
+      auto image=theta_box.Query({q},bound);std::set<std::vector<long>> actual,expected;
+      image.ForEach([&](auto const& p){actual.insert(p);});
+      if(q<3)for(int i=0;i<8;++i)if(n==1 || i%2==0)expected.insert({i});
+      if(actual!=expected)throw std::runtime_error("theta box cache reused stale bounds");
+      ++comparisons;
+    }
+  }
   std::cout<<"ORACLE_SET_EQUAL comparisons="<<comparisons<<" PASS\n";
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
 }

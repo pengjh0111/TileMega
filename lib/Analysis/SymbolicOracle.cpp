@@ -53,10 +53,11 @@ struct SymbolicOracle::Impl {
   isl_map* map=nullptr;isl_set* image=nullptr;isl_pw_multi_aff* unique=nullptr;
   mutable isl_set* theta_image=nullptr;
   mutable std::vector<long> bound_theta;
+  mutable std::vector<isl_pw_aff*> theta_lower,theta_upper;
   std::vector<isl_pw_aff*> lower,upper;
   int input=0,output=0,parameters=0;
   mutable std::uint64_t queries=0;mutable double ms=0;
-  ~Impl(){for(auto* p:lower)isl_pw_aff_free(p);for(auto* p:upper)isl_pw_aff_free(p);isl_pw_multi_aff_free(unique);isl_set_free(theta_image);isl_set_free(image);isl_map_free(map);}
+  ~Impl(){for(auto* p:lower)isl_pw_aff_free(p);for(auto* p:upper)isl_pw_aff_free(p);for(auto* p:theta_lower)isl_pw_aff_free(p);for(auto* p:theta_upper)isl_pw_aff_free(p);isl_pw_multi_aff_free(unique);isl_set_free(theta_image);isl_set_free(image);isl_map_free(map);}
 };
 SymbolicOracle::SymbolicOracle(std::string const& text):impl_(std::make_shared<Impl>()) {
   auto& d=*impl_;d.text=text;d.map=isl_map_read_from_str(SharedIslContext().raw(),text.c_str());
@@ -116,8 +117,35 @@ OracleImage SymbolicOracle::Query(std::vector<long> const& source,ParamBinding c
   }
   if(!d.theta_image || d.bound_theta!=values) {
     isl_set_free(d.theta_image);d.theta_image=isl_set_copy(d.image);d.bound_theta=values;
+    for(auto* p:d.theta_lower)isl_pw_aff_free(p);d.theta_lower.clear();
+    for(auto* p:d.theta_upper)isl_pw_aff_free(p);d.theta_upper.clear();
     for(int i=0;i<d.parameters;++i)d.theta_image=isl_set_fix_val(d.theta_image,isl_dim_param,i,isl_val_int_from_si(SharedIslContext().raw(),values[i]));
     d.theta_image=isl_set_coalesce(d.theta_image);
+    // A General symbolic relation can become rectangular for a bound theta.
+    // Prove every remaining source coordinate before caching these bounds.
+    if(d.kind==OracleKind::General && isl_set_is_box(d.theta_image)==isl_bool_true) {
+      for(int i=0;i<d.output;++i) {
+        d.theta_lower.push_back(isl_set_dim_min(isl_set_copy(d.theta_image),i));
+        d.theta_upper.push_back(isl_set_dim_max(isl_set_copy(d.theta_image),i));
+      }
+    }
+  }
+  auto const& lower=d.kind==OracleKind::Rectangular?d.lower:d.theta_lower;
+  auto const& upper=d.kind==OracleKind::Rectangular?d.upper:d.theta_upper;
+  if(!lower.empty()) {
+    auto* point=isl_point_zero(isl_pw_aff_get_domain_space(lower.front()));
+    for(int i=0;i<d.parameters;++i)point=isl_point_set_coordinate_val(point,isl_dim_param,i,isl_val_int_from_si(SharedIslContext().raw(),values[i]));
+    for(int i=0;i<d.input;++i)point=isl_point_set_coordinate_val(point,isl_dim_param,d.parameters+i,isl_val_int_from_si(SharedIslContext().raw(),source[i]));
+    OracleImage result;result.rectangular=true;
+    for(int i=0;i<d.output;++i) {
+      auto* lo=isl_pw_aff_eval(isl_pw_aff_copy(lower[i]),isl_point_copy(point));
+      auto* hi=isl_pw_aff_eval(isl_pw_aff_copy(upper[i]),isl_point_copy(point));
+      if(lo && hi && (isl_val_is_nan(lo)==isl_bool_true || isl_val_is_nan(hi)==isl_bool_true)) {
+        isl_val_free(lo);isl_val_free(hi);isl_point_free(point);return result;
+      }
+      result.box.emplace_back(integer(lo),integer(hi));
+    }
+    isl_point_free(point);result.empty=false;return result;
   }
   auto* fiber=isl_set_copy(d.theta_image);
   for(int i=0;i<d.input;++i)fiber=isl_set_fix_val(fiber,isl_dim_param,d.parameters+i,isl_val_int_from_si(SharedIslContext().raw(),source[i]));
