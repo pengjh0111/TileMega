@@ -5,7 +5,7 @@ The backend ABI receives dimensions and split at runtime. Identical generated
 wrapper text therefore shares a physical compile across semantic classes and
 split values; the solver still keeps a separate semantic resource-cache entry.
 """
-import argparse, hashlib, json, pathlib, re, shutil, subprocess
+import argparse, fcntl, hashlib, json, pathlib, re, shutil, subprocess
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
@@ -36,6 +36,7 @@ def main():
         for p in sorted(root.rglob('*')):
             if p.is_file():digest.update(str(p.relative_to(ROOT)).encode());digest.update(p.read_bytes())
     directory=a.cache/digest.hexdigest();directory.mkdir(parents=True,exist_ok=True)
+    lock=(directory/'compile.lock').open('w');fcntl.flock(lock,fcntl.LOCK_EX)
     result=directory/'resources.json';compiled=not result.exists()
     if compiled:
         free=shutil.disk_usage(directory).free//2**20;print(f'DISK NEED_MIB=1024 FREE_MIB={free}',flush=True)
