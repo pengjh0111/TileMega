@@ -39,6 +39,8 @@ def main():
         time.sleep(a.poll_seconds)
     complete=[p.parent for p in (E/'matrix').glob('*/*/selected.cu.timing.tsv')]
     if complete:subprocess.run(['python3',str(E/'archive_edges.py'),*map(str,complete)],check=True)
+    tables=subprocess.run(['python3',str(E/'report_tables.py')])
+    print('REPORT_TABLES exit='+str(tables.returncode),flush=True)
     with (E/'verify_after_matrix.log').open('w') as log:
         p=subprocess.run(['python3',str(E/'verify.py')],stdout=log,stderr=subprocess.STDOUT)
     print('VERIFY exit='+str(p.returncode)+' log='+str(E/'verify_after_matrix.log'),flush=True)
