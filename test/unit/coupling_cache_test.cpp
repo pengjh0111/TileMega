@@ -23,17 +23,24 @@ int main(int argc,char** argv) {
   renamed.name="another_layer";renamed.result.name="other_tensor";
   require(analysis::SemanticSignature(original)==analysis::SemanticSignature(renamed),"names changed SemSig");
   int collisions=0;
+  auto distinct_key=[&](analysis::SemanticOp const& left,analysis::SemanticOp const& right) {
+    analysis::CouplingCache::Key a{analysis::SemanticSignature(original),analysis::SemanticSignature(left),0,"g_p","g_c"};
+    analysis::CouplingCache::Key b{analysis::SemanticSignature(original),analysis::SemanticSignature(right),0,"g_p","g_c"};
+    require(a!=b,"different access semantics collided in coupling cache key");
+  };
   for(auto const& op:imported.lifted.sem.ops) {
     if(op.operands.empty())continue;
     if(collisions==0) {
       auto changed=op;
       changed.operands[0].map.results[0].offset=changed.operands[0].map.results[0].offset+analysis::ClosedForm::Constant(1);
       require(analysis::SemanticSignature(op)!=analysis::SemanticSignature(changed),"index mapping collision");
+      distinct_key(op,changed);
       ++collisions;
     }
     if(!op.element_reads.empty()) {
       auto changed=op;changed.element_reads.front().nonnegative.push_back(analysis::IndexResult::Dim(op.domain.front().name));
       require(analysis::SemanticSignature(op)!=analysis::SemanticSignature(changed),"element_reads collision");
+      distinct_key(op,changed);
       ++collisions;break;
     }
   }
@@ -65,6 +72,6 @@ int main(int argc,char** argv) {
     std::cout<<"CACHE_EQ split="<<split<<" PASS\n";
   }
   require(cache.hits>0,"cache never hit");
-  std::cout<<"SEMSIG_COLLISIONS pairs="<<collisions<<" PASS\nCACHE hit="<<cache.hits<<" miss="<<cache.misses<<" PASS\n";
+  std::cout<<"SEMSIG_COLLISIONS pairs="<<collisions<<" distinct_keys="<<collisions<<" PASS\nCACHE hit="<<cache.hits<<" miss="<<cache.misses<<" PASS\n";
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
 }

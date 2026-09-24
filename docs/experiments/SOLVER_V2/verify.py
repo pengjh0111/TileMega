@@ -45,7 +45,7 @@ sk=[entry for entry in completed if entry[2]!='legacy']
 check('C-1','import.gemms.assign(model.gemms.size(' not in new and 'ClassGranularity' in new,hits(SEARCH,'ClassGranularity'))
 check('C-2',len(sk)==32 and all(int(timing(d)['import']['count'])==1 for *_,d in sk),f'completed skeleton cells={len(sk)}/32; import counts='+str([(m,s,a,timing(d).get('import')) for m,s,a,d in sk]))
 forbidden=[]
-for path in [PLACE,'include/tilemega/Solver/SkeletonPlacement.h',ORACLE,'include/tilemega/Analysis/SymbolicOracle.h']:
+for path in [PLACE,'include/tilemega/Solver/SkeletonPlacement.h',ORACLE,'lib/Analysis/OracleExpression.h','include/tilemega/Analysis/SymbolicOracle.h']:
     forbidden+=hits(path,r'VisitFiniteRelation|\.successors')
 check('C-3',not forbidden,forbidden or 'no flat adjacency in placement/Oracle source or headers')
 check('C-4',not re.search(r'\bw\s*<\s*grid',body(placement,'ScheduleBySkeleton')) and 'for(int w:candidates)' in placement,hits(PLACE,r'for\(int w:candidates'))
@@ -66,7 +66,7 @@ def phase_order():
     check('C-12',len(sk)==32 and not invalid,f'cells={len(sk)}/32 invalid={invalid}')
 safe('C-12',phase_order)
 check('C-13',len(sk)==32 and all(int(timing(d).get('megakernel_compile',{}).get('count',99))<=5 for *_,d in sk),[(m,s,a,timing(d).get('megakernel_compile')) for m,s,a,d in sk])
-new_files=[SEARCH,PLACE,ORACLE,'lib/Solver/PlanSkeleton.cpp','include/tilemega/Solver/OperatorClasses.h']
+new_files=[SEARCH,PLACE,ORACLE,'lib/Analysis/OracleExpression.h','lib/Analysis/CouplingCache.cpp','lib/Solver/PlanSkeleton.cpp','include/tilemega/Solver/OperatorClasses.h']
 check('C-14',all(not re.search(r'isl_schedule_\w+\s*\(',source(p)) for p in new_files),'no ISL scheduler calls in skeleton search chain')
 check('C-15','SkeletonOp' in source('include/tilemega/Dialect/CouplingGraph/ExecOps.td') and bool(sk) and all('tmexec.skeleton' in read(d/'selected.mlir') for *_,d in sk),hits('include/tilemega/Dialect/CouplingGraph/ExecOps.td','SkeletonOp')+[str(d/'selected.mlir') for *_,d in sk])
 control=['include/tilemega/Solver/JointPlacement.h','lib/Solver/EftPlacement.cpp','lib/Solver/ChainPlacement.cpp','lib/Solver/BalancedPlacement.cpp','lib/Solver/WavefrontPlacement.cpp','lib/Solver/PlanMaterialize.cpp']
@@ -117,8 +117,23 @@ for m in ('gqa2','mha4'):
         d=HERE/'reference'/f'{m}_s{s}';samples=sorted(d.glob('selected.cu.top*.cu.measurement'))
         good=bool(samples) and all(measure_dir(p)[0] for p in samples);reference.append((m,s,good,str(d)))
 check('G-3',all(x[2] for x in reference),reference)
-cache_log=read(HERE/'cache_test.log');check('G-4',all(p in cache_log for p in ['CACHE_EQ split=1','CACHE_EQ split=2']) and 'COLLISION' in cache_log and 'PASS' in cache_log,str(HERE/'cache_test.log')+' '+cache_log.strip())
-oracle_log=read(HERE/'oracle_test.log');check('G-5','ORACLE_SET_EQUAL' in oracle_log and 'PASS' in oracle_log and all(k in oracle_log for k in ['Unique','Rectangular','General']),str(HERE/'oracle_test.log')+' '+oracle_log.strip())
+cache_log=read(HERE/'cache_test.log');check('G-4',all(p in cache_log for p in ['CACHE_EQ split=1','CACHE_EQ split=2','distinct_keys=2','mutation_rejected=PASS']),str(HERE/'cache_test.log')+' '+cache_log.strip())
+def oracle_checks():
+    unit=HERE/'oracle_membership_test.log';oracle_log=read(unit)
+    good='ORACLE_SET_EQUAL' in oracle_log and 'PASS' in oracle_log and all(k in oracle_log for k in ['Unique','Rectangular','General'])
+    failures=[];audits=[]
+    for m,s in real_cells:
+        for arm in arms[1:]:
+            path=arm_dir(m,s,arm)/'oracle_audit.log';text=read(path)
+            records=[line.split('\t') for line in text.splitlines() if re.match(r'^\d+\t',line)]
+            passed=bool(records) and 'ORACLE_SET_EQUAL' in text and 'PASS' in text and all(len(r)==8 and r[-1]=='1' and r[-2]==r[-3] for r in records)
+            if not passed:failures.append(str(path))
+            else:audits.append((str(path),len(records)))
+    # The executable compares actual point sets, not just cardinalities.
+    audit_code=source('tools/tilemega-skeleton-audit.cpp')
+    good=good and 'expected==actual' in audit_code and not failures
+    check('G-5',good,f'unit={unit}: {oracle_log.strip()}; anchored exact-set audits={audits}; missing/failed={failures}')
+safe('G-5',oracle_checks)
 check('G-6',results['C-19'] and bool(commands),'build command audit C-19; default header='+str(hits('include/tilemega/Codegen/tasks/ModelRuntime.h','define TILEMEGA_MIDPOINT_REFINE')))
 resource_bad=[]
 for m,s,a,d in sk:

@@ -1,4 +1,8 @@
+error: 'tmcg.coupling' op wait { 999999 } does not match the relation's fiber cardinality [s11] -> { [m, n] -> 32 : m >= 0 and 32m <= -33 + s11 and 0 <= n <= 31; [m, n] -> (s11 - 32 * m) : m >= 0 and -32 + s11 <= 32m < s11 and 0 <= n <= 31 }
+error: 'tmcg.coupling' op wait { 999999 } does not match the relation's fiber cardinality [s11] -> { [m, n, j] -> 32 : m >= 0 and 32m <= -33 + s11 and 0 <= n <= 31 and 0 <= j <= 1; [m, n, j] -> (s11 - 32 * m) : m >= 0 and -32 + s11 <= 32m < s11 and 0 <= n <= 31 and 0 <= j <= 1 }
+EXACT_MEMO hit=2270 miss=221 mutation_rejected=PASS
 CACHE_EQ split=1 PASS
+EXACT_MEMO hit=3016 miss=258 mutation_rejected=PASS
 CACHE_EQ split=2 PASS
-SEMSIG_COLLISIONS pairs=2 PASS
+SEMSIG_COLLISIONS pairs=2 distinct_keys=2 PASS
 CACHE hit=124 miss=72 PASS
