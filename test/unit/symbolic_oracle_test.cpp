@@ -15,6 +15,7 @@ int main() {
     {"[N] -> { [p] -> [q] : 0<=p<N and 2*p<=q<=2*p+1 }",OracleKind::Rectangular},
     {"[N] -> { [q] -> [p] : 0<=p<N and 2*p<=q<=2*p+1 }",OracleKind::Unique},
     {"[N] -> { [q] -> [p] : 0<=q<N and p=q+1 }",OracleKind::Unique},
+    {"[N] -> { [q] -> [] : 0<=q<N }",OracleKind::Unique},
     {"[N] -> { [q] -> [i,j] : 0<=q<N and q<=i<=q+1 and 0<=j<=2 }",OracleKind::Rectangular},
     {"[N] -> { [q] -> [i,j] : 0<=q<N and ((i=0 and j=5) or (i=1 and j=0)) }",OracleKind::General},
     {"[N] -> { [q] -> [i] : 0<=q<N and 0<=i<=8 and i%2=0 }",OracleKind::General},
@@ -43,6 +44,10 @@ int main() {
   SymbolicOracle all("{ [q] -> [p] : 0<=q<4 and 0<=p<8 }");
   if(!all.IsAllBox({{0,7}}) || all.IsAllBox({{0,8}}))throw std::runtime_error("kAll proof must be equality");
   if(all.Query({4}).Count()!=0)throw std::runtime_error("out-of-domain query nonempty");
+  SymbolicOracle unique("[N] -> { [p] -> [q] : 0<=p<N and q=p+1 }");
+  ParamBinding three;three.Bind("N",3);
+  if(unique.Query({-1},three).Count()!=0 || unique.Query({3},three).Count()!=0)
+    throw std::runtime_error("out-of-domain affine evaluation nonempty");
   SymbolicOracle mixed("[N] -> { [q] -> [i] : 0<=q<N and 0<=i<8 and (q=0 or i%2=0) }");
   ParamBinding theta;theta.Bind("N",3);
   if(!mixed.Query({0},theta).rectangular || mixed.Query({1},theta).rectangular)

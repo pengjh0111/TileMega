@@ -96,6 +96,24 @@ OracleImage SymbolicOracle::Query(std::vector<long> const& source,ParamBinding c
     if(it==theta.values.end())throw std::invalid_argument("Oracle theta is unbound");
     values.push_back(it->second);
   }
+  if(d.kind==OracleKind::Unique) {
+    auto* point=isl_point_zero(isl_pw_multi_aff_get_domain_space(d.unique));
+    for(int i=0;i<d.parameters;++i)point=isl_point_set_coordinate_val(point,isl_dim_param,i,isl_val_int_from_si(SharedIslContext().raw(),values[i]));
+    for(int i=0;i<d.input;++i)point=isl_point_set_coordinate_val(point,isl_dim_set,i,isl_val_int_from_si(SharedIslContext().raw(),source[i]));
+    OracleImage result;std::vector<long> coordinate;
+    if(d.output==0) {
+      auto* domain=isl_pw_multi_aff_domain(isl_pw_multi_aff_copy(d.unique));
+      auto* intersection=isl_set_intersect(domain,isl_set_from_point(isl_point_copy(point)));
+      bool empty=isl_set_is_empty(intersection)==isl_bool_true;isl_set_free(intersection);
+      if(empty){isl_point_free(point);return result;}
+    }
+    for(int i=0;i<d.output;++i) {
+      auto* value=isl_pw_aff_eval(isl_pw_multi_aff_get_pw_aff(d.unique,i),isl_point_copy(point));
+      if(value && isl_val_is_nan(value)==isl_bool_true){isl_val_free(value);isl_point_free(point);return result;}
+      coordinate.push_back(integer(value));
+    }
+    isl_point_free(point);result.empty=false;result.points.push_back(std::move(coordinate));return result;
+  }
   if(!d.theta_image || d.bound_theta!=values) {
     isl_set_free(d.theta_image);d.theta_image=isl_set_copy(d.image);d.bound_theta=values;
     for(int i=0;i<d.parameters;++i)d.theta_image=isl_set_fix_val(d.theta_image,isl_dim_param,i,isl_val_int_from_si(SharedIslContext().raw(),values[i]));
@@ -106,17 +124,7 @@ OracleImage SymbolicOracle::Query(std::vector<long> const& source,ParamBinding c
   OracleImage result;
   if(isl_set_is_empty(fiber)==isl_bool_true){isl_set_free(fiber);return result;}
   result.empty=false;
-  if(d.kind==OracleKind::Unique) {
-    auto* domain=isl_pw_multi_aff_domain(isl_pw_multi_aff_copy(d.unique));
-    for(int i=0;i<d.parameters;++i) {
-      auto* name=isl_map_get_dim_name(d.map,isl_dim_param,i);
-      domain=isl_set_fix_val(domain,isl_dim_param,i,isl_val_int_from_si(SharedIslContext().raw(),theta.values.at(name)));
-    }
-    for(int i=0;i<d.input;++i)domain=isl_set_fix_val(domain,isl_dim_set,i,isl_val_int_from_si(SharedIslContext().raw(),source[i]));
-    auto* point=isl_set_sample_point(domain);std::vector<long> coordinate;
-    for(int i=0;i<d.output;++i)coordinate.push_back(integer(isl_pw_aff_eval(isl_pw_multi_aff_get_pw_aff(d.unique,i),isl_point_copy(point))));
-    isl_point_free(point);result.points.push_back(std::move(coordinate));
-  } else if(d.kind==OracleKind::Rectangular) {
+  if(d.kind==OracleKind::Rectangular) {
     auto* point=isl_set_sample_point(isl_set_params(isl_set_copy(fiber)));result.rectangular=true;
     for(int i=0;i<d.output;++i)result.box.emplace_back(
       integer(isl_pw_aff_eval(isl_pw_aff_copy(d.lower[i]),isl_point_copy(point))),
