@@ -12,5 +12,7 @@
   "measured_shortlist": 3,
   "gpu": "RTX 4090 available after execution permission profile restoration",
   "skeleton_search_jobs": 3,
-  "solver_time_accounting": "total is elapsed wall time; other phase times sum candidate worker durations; legacy is serial and skeleton uses three isolated workers per coordinate sweep"
+  "solver_time_accounting": "total is elapsed wall time; other phase times sum candidate worker durations; legacy is serial and skeleton uses three isolated workers per coordinate sweep",
+  "max_concurrent_skeleton_solves": 4,
+  "solver_admission": "Four advisory CPU admission slots; queue time is recorded separately in solver_admission.json before compiler launch, and is excluded from solver total. GPU measurements retain their own serial lock."
 }

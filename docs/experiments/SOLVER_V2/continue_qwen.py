@@ -6,7 +6,8 @@ pending={1,4,16,64}
 while pending:
     for seq in sorted(pending):
         control=E/'legacy_r8_domain'/f'qwen3_s{seq}'
-        solve=control/'solve.command.json';measurement=control/'selected.cu.measurement.json'
+        solve=next((control/name for name in ('solve.command.json','solve.json') if (control/name).exists()),control/'solve.command.json')
+        measurement=control/'selected.cu.measurement.json'
         if solve.exists() and json.loads(solve.read_text())['exit_code']:
             (control/'downstream_blocked.json').write_text(json.dumps(dict(reason='legacy solve failed; inspect raw solve.log')))
             pending.remove(seq);continue
@@ -19,7 +20,7 @@ while pending:
         for k in ('4','8','16','W'):
             out=E/'matrix'/f'qwen3_s{seq}'/f'skeleton-k{k}';out.mkdir(parents=True,exist_ok=True)
             if (out/'launch.command.json').exists():continue
-            cmd=['python3',str(E/'run_matrix.py'),'--bridge',str(bridge),'--fixture',str(inp/'fixture'),'--seed',str(control/'selected.mlir'),'--seq',str(seq),'--k-base',k,'--search-jobs','3','--out',str(out),'--compiler','/root/r9_work/skeleton_parallel_tool/tools/tilemega-compile']
+            cmd=['python3',str(E/'run_matrix.py'),'--bridge',str(bridge),'--fixture',str(inp/'fixture'),'--seed',str(control/'selected.mlir'),'--seq',str(seq),'--k-base',k,'--search-jobs','3','--out',str(out),'--compiler','/root/r9_work/skeleton_bulk_tool/tools/tilemega-compile']
             with (out/'runner.log').open('w') as log:p=subprocess.Popen(cmd,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
             (out/'launch.command.json').write_text(json.dumps(dict(command=cmd,pid=p.pid),indent=2))
             print('START',seq,k,p.pid,flush=True)

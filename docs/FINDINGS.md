@@ -6993,7 +6993,7 @@ both splits after preserving the original dimension-role defaults.
 
 Evidence: `SOLVER_V2/cache_test.log`, `static_import_cache_test.log`,
 `test/unit/coupling_cache_test.cpp`; implementation `CouplingCache.cpp` and
-`TorchExportImporter.cpp`. Complete anchored solve timings remain pending.
+`lib/Frontend/Frontend.cpp`. Complete anchored solve timings remain pending.
 
 ## F-241 — Exact symbolic fibers survive the Oracle fast paths
 

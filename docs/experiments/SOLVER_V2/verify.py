@@ -78,7 +78,7 @@ for *_,d in sk:
         if match:variant_counts.append((str(p),int(match[1])))
 check('C-17',any(n>1 for p,n in variant_counts),variant_counts)
 check('C-18',bool(outer) and 'SimulateExecution' not in outer and 'SimulateExecution' not in new,hits(SEARCH,'CoordinateDescent')+hits('lib/Solver/SkeletonFinalize.cpp','SimulateExecution'))
-commands=list(HERE.rglob('*command*.json'))+list(HERE.rglob('build_command.txt'));bad_commands=[]
+commands=list(HERE.rglob('*command*.json'))+list(HERE.rglob('build_command.txt'))+list(HERE.rglob('solve.json'));bad_commands=[]
 missing_zero=[]
 for path in commands:
     text=read(path)
