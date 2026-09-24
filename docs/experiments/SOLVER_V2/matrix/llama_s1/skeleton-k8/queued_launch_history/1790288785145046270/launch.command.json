@@ -1,0 +1,26 @@
+{
+  "command": [
+    "python3",
+    "/root/TileMega/docs/experiments/SOLVER_V2/run_matrix.py",
+    "--bridge",
+    "/root/r7_work/llama_s1/auto.cu.export.json",
+    "--fixture",
+    "/root/r7_work/llama_s1/fixture",
+    "--seed",
+    "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s1/selected.mlir",
+    "--seq",
+    "1",
+    "--k-base",
+    "8",
+    "--out",
+    "/root/TileMega/docs/experiments/SOLVER_V2/matrix/llama_s1/skeleton-k8",
+    "--compiler",
+    "/root/r9_work/skeleton_bulk_tool/tools/tilemega-compile",
+    "--search-jobs",
+    "3",
+    "--solver-slots",
+    "4"
+  ],
+  "pid": 2659965,
+  "head": "5431e69724e7223e48d3e33832111129e9133df7"
+}

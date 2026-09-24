@@ -7186,3 +7186,51 @@ failures and unexplained exits are rejected by the recovery guard.
 Evidence: the cell's `resource_recovery.json`, original archived logs, new
 `selected.cu.measurement/process_*.{log,command.json}`, `gpu_admission.jsonl`,
 `measure.command.json`, and `SOLVER_V2/gpu_admission_test.log`.
+
+
+## F-249 — A larger isolated candidate batch preserves search decisions
+
+✅ **Verified.** The expanded CPU fixture in
+`skeleton_search_isolation_test.cpp` compares serial execution with
+`--search-jobs=36`: 116 candidate records, all five selected candidate keys,
+and all five final worker/slot/start/end tables are byte-identical. Both
+paths import once and record coupling-cache hits. This fixture uses stub
+resource limits and establishes process-isolation/selection equivalence,
+not GPU residency or anchored performance.
+
+The still queued Llama seq1/k8 arm now uses an additional admission slot and
+36 candidate workers. Its compiler bytes, full candidate domain, P=3 and
+selection procedure are unchanged; the four active seq4 arms retain their
+original three-worker runs. The queue-promotion script freezes and checks the
+queue-only parent before cancellation and refuses already admitted solvers.
+Original launch metadata is retained. Solve-time comparisons must disclose
+these different CPU budgets; anchored throughput remains to be measured.
+
+Evidence: `SOLVER_V2/search_isolation_36_test.log`,
+`SOLVER_V2/promote_guard_test.log`, and
+`SOLVER_V2/matrix/llama_s1/skeleton-k8/{launch.command.json,queued_launch_history/}`.
+
+
+## F-250 — Two busy-start control samples receive complete fresh timings
+
+✅ **Verified.** The original Llama seq64 and Qwen seq4 device-before logs
+recorded GPU utilization 93% and 100%, with 5157 and 43962 MiB of memory in use.
+Their ten processes were internally equal, but a single initial snapshot
+cannot establish the duration or cause of any interference. Both complete
+original attempts are preserved under their `excluded_attempts/` directories.
+
+The unchanged sources were rebuilt with MIDPOINT_REFINE=0 and remeasured as
+whole ten-process sets with memory/idle admission before each process. Both
+new sets pass 10/10 internal equality and have zero allocation failures.
+New median L0.5/L1/L2 times are **11.785504 / 11.6687035 / 12.5220235 ms**
+(Llama seq64) and **9.111864 / 9.5751525 / 8.949024 ms** (Qwen seq4).
+The old L2 medians were 15.506999 and 9.320144 ms respectively. This is a
+measurement-condition recheck, not a solver or kernel speedup; the difference
+is not assigned entirely to contention from the initial snapshots alone.
+No slow round was selectively dropped, no numeric failure was retried, and
+neither configuration nor an already running search was changed.
+
+Evidence: each cell's `resource_recovery.json`, archived `device_before.log`
+and ten-process logs, fresh `selected.cu.measurement/` logs and command
+metadata, and `gpu_admission.jsonl`. These fresh control samples replace the
+excluded sets in G-8; the full anchored skeleton matrix is still pending.

@@ -84,3 +84,25 @@ claim or a changed acceptance gate. Observations are saved in
 `gpu_admission.jsonl`. External GPU users can still race admission; any new
 failure remains in the raw logs. Numeric/hash failures and unexplained exits
 are not automatically retried. `gpu_admission_test.log` exercises these guards.
+
+
+## Additional admission lane after concurrency equivalence
+
+Verified CPU fixture: serial and `--search-jobs=36` evaluation produced identical
+116 candidate records, top-five keys, and final worker/slot/start/end tables;
+each imported once (`search_isolation_36_test.log`). On 2026-09-24 the still
+queued Llama seq1/k8 arm was moved to a fifth admission slot with 36 workers.
+The four admitted seq4 arms were not interrupted and retain three workers.
+The compiler snapshot, full 1218-candidate class domains, P=3, residency
+sweeps and top-K procedure are unchanged. Original queued launch metadata is
+retained in that arm's `queued_launch_history/`. Compare wall times with the
+recorded per-arm concurrency and warm-cache state, not as equal-CPU budgets.
+No anchored speedup is asserted from the CPU fixture.
+
+The two control cells Llama seq64 and Qwen seq4 had busy-GPU pre-measurement
+snapshots (93%/100% utilization, 5157/43962 MiB used). These snapshots alone
+do not prove interference throughout the full sample. Their original valid
+internal-equality samples are retained under `excluded_attempts/`; complete
+fresh ten-process timings are remeasured with resource/idle admission. This
+is not selective removal of slow rounds, and numerical failures cannot be
+retried by this route.
