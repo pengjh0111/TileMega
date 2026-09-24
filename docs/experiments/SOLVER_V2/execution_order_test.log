@@ -1,0 +1,10 @@
+PRICE_CACHE exact=1 entries=42
+DEPENDENCIES exact=5136 runtime_extra=1280
+EXECUTION_ORDER kappa=1 pairs=13760 exact=1 legal=1 PASS
+EXECUTION_ORDER kappa=2 pairs=13952 exact=1 legal=1 PASS
+EXECUTION_ORDER kappa=4 pairs=14336 exact=1 legal=1 PASS
+STRUCTURE 1:1 edges=7
+STRUCTURE M:N edges=31
+ORACLE_KIND General directions=62
+ORACLE_KIND Unique directions=14
+SKELETON spaces=30 edges=38 workers=8 PASS

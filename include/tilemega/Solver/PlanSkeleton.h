@@ -15,6 +15,7 @@ struct SymbolicProblem {
   std::vector<int> counts,offsets;
   std::vector<double> task_ns,prefetch_ns;
   int threads=0;
+  analysis::CouplingRelation execution_dependencies;
 };
 struct PreparedSymbolicWork {
   DerivedTaskInput input;

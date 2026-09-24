@@ -2,6 +2,7 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Solver/PlanSkeleton.h>
+#include <tilemega/Solver/SkeletonPlacement.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <mlir/IR/Verifier.h>
 #include <llvm/Support/raw_ostream.h>
@@ -30,7 +31,8 @@ int main(int argc,char** argv) {
   auto cached_r2=solver::PrepareSymbolicProblem(*module,target,{4,3,7},16,2,1,&prices);
   if(uncached_r2.task_ns!=cached_r2.task_ns)throw std::runtime_error("work cache changed residency pricing");
   if(uncached_r2.projection.dependencies.ToString()!=cached_r2.projection.dependencies.ToString() ||
-      uncached_r2.projection.requested_events.ToString()!=cached_r2.projection.requested_events.ToString())
+      uncached_r2.projection.requested_events.ToString()!=cached_r2.projection.requested_events.ToString() ||
+      uncached_r2.execution_dependencies.ToString()!=cached_r2.execution_dependencies.ToString())
     throw std::runtime_error("prepared cache changed resident dependency or event relations");
   auto uncached_s8=solver::PrepareSymbolicProblem(*module,target,{8,3,11},16,2,1);
   auto cached_s8=solver::PrepareSymbolicProblem(*module,target,{8,3,11},16,2,1,&prices);
@@ -43,6 +45,31 @@ int main(int argc,char** argv) {
   if(!exact.IsSubset(windows.dependencies))throw std::runtime_error("exact CG dependencies escape runtime waits");
   auto extra=windows.dependencies.Subtract(exact);
   std::cout<<"DEPENDENCIES exact="<<exact.Points().size()<<" runtime_extra="<<extra.Points().size()<<'\n';
+  for(int k:{1,2,4}) {
+    auto execution_problem=solver::PrepareSymbolicProblem(*module,target,{8,3,11},8,1,k);
+    auto theta=execution_problem.model.MetricBindings();
+    using Point=std::pair<std::vector<long>,std::vector<long>>;
+    std::set<Point> expected,actual;
+    for(auto const& [consumer,event]:execution_problem.projection.requested_events.BindParams(theta).Points()) {
+      int stage=event[1],kind=event[2],group=event[3];
+      int begin=kind==0?0:group*k,end=kind==0?execution_problem.counts[stage]:std::min(execution_problem.counts[stage],begin+k);
+      if(kind==2){begin=group;end=group+1;}
+      for(int p=begin;p<end;++p)expected.insert({consumer,{stage,p}});
+    }
+    for(auto const& edge:execution_problem.execution_dependencies.BindParams(theta).Points())actual.insert(edge);
+    if(actual!=expected)throw std::runtime_error("symbolic execution ordering differs from exact event expansion");
+    auto executable=solver::BuildPlanSkeleton(execution_problem,8,1,4,false,cache);
+    solver::SkeletonRequest request;request.skeleton=&executable;
+    solver::EftSchedule schedule;std::string error;
+    if(!solver::ScheduleBySkeleton(request,&schedule,nullptr,&error))throw std::runtime_error(error);
+    for(auto const& [c,p]:expected) {
+      int cn=execution_problem.offsets[c[0]]+c[1],pn=execution_problem.offsets[p[0]]+p[1];
+      if(schedule.worker[cn]==schedule.worker[pn] && schedule.slot[pn]>=schedule.slot[cn])
+        throw std::runtime_error("executor producer follows consumer on the same worker");
+      if(schedule.end_ns[pn]>schedule.start_ns[cn])throw std::runtime_error("executor predecessor not ready");
+    }
+    std::cout<<"EXECUTION_ORDER kappa="<<k<<" pairs="<<actual.size()<<" exact=1 legal=1 PASS\n";
+  }
   auto skeleton=solver::BuildPlanSkeleton(problem,8,1,4,false,cache);
   int prefix=0;for(int s:skeleton.stage_order){auto const& space=skeleton.spaces[s];
     if(space.base!=prefix%8)throw std::runtime_error("incorrect continuous rotate base");prefix+=space.count;

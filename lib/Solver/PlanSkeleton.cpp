@@ -5,6 +5,7 @@
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <mlir/IR/Builders.h>
 #include <isl/map.h>
+#include <isl/set.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <algorithm>
 #include <numeric>
@@ -14,6 +15,21 @@
 
 namespace tilemega::solver {
 namespace {
+analysis::CouplingRelation ExecutionOrdering(RuntimeProjection const& projection) {
+  std::ostringstream text;text<<"{ ";
+  for(std::size_t s=0;s<projection.stages.size();++s) {
+    int k=ProducerKappa(projection.options,s);
+    if(s)text<<"; ";
+    text<<"[w,ps,kind,g] -> [s,p] : ps=s and s="<<s<<" and (kind=0 or (kind=2 and p=g) or (kind=1 and "
+      <<k<<"*g<=p<"<<k<<"*g+"<<k<<"))";
+  }
+  text<<" }";
+  auto expanded=projection.requested_events.ApplyRange(analysis::CouplingRelation::FromIslText(text.str()));
+  auto* tasks=isl_map_read_from_str(analysis::SharedIslContext().raw(),projection.tasks.ToString().c_str());
+  auto* domain=isl_map_range(tasks);char* raw=isl_set_to_str(domain);isl_set_free(domain);
+  if(!raw)throw std::runtime_error("cannot project executor task domain");
+  auto result=expanded.IntersectRange(raw);free(raw);return result;
+}
 analysis::CouplingRelation ExactRuntimeDependencies(ModelDescription const& model,
     analysis::OperatorGraph const& graph,RuntimeProjection const& projection,int threads) {
   struct Owner {int stage;analysis::CouplingRelation map;};
@@ -81,9 +97,10 @@ SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& t
   std::optional<analysis::OperatorGraph> semantic_graph;
   semantic_graph=prepared_hit ? cache->semantic_graph : std::optional<analysis::OperatorGraph>(InstantiateModelTasks(model,geometry));
   projection.dependencies=prepared_hit ? cache->prepared->projection.dependencies : ExactRuntimeDependencies(model,*semantic_graph,projection,threads);
+  auto execution=prepared_hit ? cache->prepared->execution_dependencies : ExecutionOrdering(projection);
   if(cache && !prepared_hit) {
     cache->preparation_key=preparation_key;
-    cache->prepared=SymbolicProblem{runtime,model,geometry,projection,counts,offsets,{},{},threads};
+    cache->prepared=SymbolicProblem{runtime,model,geometry,projection,counts,offsets,{},{},threads,execution};
     cache->semantic_graph=semantic_graph;
   }
   struct Prices {std::vector<double> task_ns,prefetch_ns;} input;input.task_ns.resize(offsets.back());
@@ -147,7 +164,7 @@ SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& t
     std::copy(prefetch.begin(),prefetch.end(),input.prefetch_ns.begin()+offsets[s]);
   }
   return {std::move(runtime),std::move(model),std::move(geometry),std::move(projection),
-    std::move(counts),std::move(offsets),std::move(input.task_ns),std::move(input.prefetch_ns),threads};
+    std::move(counts),std::move(offsets),std::move(input.task_ns),std::move(input.prefetch_ns),threads,std::move(execution)};
 }
 std::vector<int> PlanSkeleton::Spread(int stage,int tile) const {
   std::vector<int> result;Spread(stage,tile,result);return result;
@@ -183,7 +200,9 @@ PlanSkeleton BuildPlanSkeleton(SymbolicProblem const& problem,int grid,int resid
       space.order=result.stage_order.size();result.stage_order.push_back(int(s));
     }
   result.incoming.resize(result.spaces.size());result.outgoing.resize(result.spaces.size());
-  auto const& relation=problem.projection.dependencies;
+  // The unchanged executor may wait on a wider window/group than exact CG
+  // data dependence. Keep both relations explicit; legality needs their union.
+  auto relation=problem.projection.dependencies.Union(problem.execution_dependencies);
   auto* raw=isl_map_read_from_str(analysis::SharedIslContext().raw(),relation.ToString().c_str());
   auto* stage_map=isl_map_project_out(isl_map_copy(raw),isl_dim_in,1,1);
   stage_map=isl_map_project_out(stage_map,isl_dim_out,1,1);
