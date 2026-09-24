@@ -7157,3 +7157,32 @@ executor ordering. The complete anchored G-5 gate remains pending.
 Evidence: `SOLVER_V2/reference/gqa2_s4/winner_oracle_audit.{log,command.json}`,
 its three original per-process measurement directories, `winner_audit_test.log`,
 `tools/tilemega-skeleton-audit.cpp`, and `SOLVER_V2/verify.py`.
+
+
+## F-248 — Qwen seq16 control recovers from pre-output allocation failures
+
+✅ **Verified.** The original ten-process attempt contained four CUDA
+`out of memory` exits at `ModelHarness.cuh:2585` before any `E2E_HASH` or
+`E2E_TIME`, and six internally equal completed runs. This was not a valid
+10/10 control measurement and is excluded as an entire attempt. Its complete
+raw logs remain under `SOLVER_V2/legacy_r8_domain/qwen3_s16/failed_attempts/`.
+
+After preserving that attempt, the unchanged generated source was rebuilt
+with explicit `TILEMEGA_MIDPOINT_REFINE=0`. All ten new processes have equal
+L0.5/L1/L2 hashes and zero internal mismatch counts. Median L0.5/L1/L2 times
+are 8.8882315 / 9.112672 / 9.394016 ms. Their exit code 1 reflects the CPU
+golden check, not R9's internal-equality gate. The four corresponding skeleton
+arms resumed admission after the successful control; their searches and the
+full anchored performance gates remain pending.
+
+The runner now records available memory and utilization before each process.
+It admits after three consecutive observations with utilization <=5% and
+free memory >= fixture bytes + 2048 MiB (5931 MiB for this fixture). The margin
+is a stated admission estimate, not a measured CUDA peak. Admission cannot
+exclude all external races, and any subsequent failures remain in raw logs.
+Only pre-output OOMs may be manually recovered as a whole attempt; numeric
+failures and unexplained exits are rejected by the recovery guard.
+
+Evidence: the cell's `resource_recovery.json`, original archived logs, new
+`selected.cu.measurement/process_*.{log,command.json}`, `gpu_admission.jsonl`,
+`measure.command.json`, and `SOLVER_V2/gpu_admission_test.log`.
