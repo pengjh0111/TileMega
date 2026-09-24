@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <numeric>
 #include <sstream>
+#include <iostream>
 
 namespace tilemega::solver {
 namespace {
@@ -56,7 +57,11 @@ struct SearchContext {
       // observed-task input does. Avoid charging co-residency twice.
       request.sms=grid;request.ctas_per_sm=1;
       EftSchedule schedule;SkeletonPlacementStats stats;std::string error;
+      auto started=std::chrono::steady_clock::now();
       {SolverPhase phase(timing,"level2");if(!ScheduleBySkeleton(request,&schedule,&stats,&error))throw std::runtime_error(error);}
+      std::cerr<<"SKELETON_RESIDENCY key="<<key<<" residency="<<residency<<" nodes="<<skeleton.task_ns.size()
+        <<" level2_ms="<<std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count()
+        <<" requeues="<<stats.lazy_requeues<<" score_ns="<<schedule.makespan_ns<<'\n';
       if(schedule.makespan_ns<best.candidate.score) {
         best.candidate.score=schedule.makespan_ns;best.candidate.residency=residency;best.candidate.placement=stats;
         best.problem=std::move(problem);best.skeleton=std::move(skeleton);best.schedule=std::move(schedule);

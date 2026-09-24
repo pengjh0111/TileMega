@@ -18,6 +18,7 @@ int main() {
     {"[N] -> { [q] -> [i,j] : 0<=q<N and q<=i<=q+1 and 0<=j<=2 }",OracleKind::Rectangular},
     {"[N] -> { [q] -> [i,j] : 0<=q<N and ((i=0 and j=5) or (i=1 and j=0)) }",OracleKind::General},
     {"[N] -> { [q] -> [i] : 0<=q<N and 0<=i<=8 and i%2=0 }",OracleKind::General},
+    {"[N] -> { [q] -> [i] : 0<=q<N and 0<=i<8 and (q=0 or i%2=0) }",OracleKind::General},
     {"[N] -> { [i,j] -> [p,q] : 0<=i<N and 0<=j<N and p=i and q=j }",OracleKind::Unique}};
   int comparisons=0;
   for(auto const& c:cases) {
@@ -42,6 +43,10 @@ int main() {
   SymbolicOracle all("{ [q] -> [p] : 0<=q<4 and 0<=p<8 }");
   if(!all.IsAllBox({{0,7}}) || all.IsAllBox({{0,8}}))throw std::runtime_error("kAll proof must be equality");
   if(all.Query({4}).Count()!=0)throw std::runtime_error("out-of-domain query nonempty");
+  SymbolicOracle mixed("[N] -> { [q] -> [i] : 0<=q<N and 0<=i<8 and (q=0 or i%2=0) }");
+  ParamBinding theta;theta.Bind("N",3);
+  if(!mixed.Query({0},theta).rectangular || mixed.Query({1},theta).rectangular)
+    throw std::runtime_error("local box proof must preserve strided General fibers");
   std::cout<<"ORACLE_SET_EQUAL comparisons="<<comparisons<<" PASS\n";
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
 }

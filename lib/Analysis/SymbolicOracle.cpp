@@ -51,10 +51,12 @@ EdgeStructure classify(std::string const& text) {
 struct SymbolicOracle::Impl {
   std::string text;OracleKind kind=OracleKind::General;
   isl_map* map=nullptr;isl_set* image=nullptr;isl_pw_multi_aff* unique=nullptr;
+  mutable isl_set* theta_image=nullptr;
+  mutable std::vector<long> bound_theta;
   std::vector<isl_pw_aff*> lower,upper;
   int input=0,output=0,parameters=0;
   mutable std::uint64_t queries=0;mutable double ms=0;
-  ~Impl(){for(auto* p:lower)isl_pw_aff_free(p);for(auto* p:upper)isl_pw_aff_free(p);isl_pw_multi_aff_free(unique);isl_set_free(image);isl_map_free(map);}
+  ~Impl(){for(auto* p:lower)isl_pw_aff_free(p);for(auto* p:upper)isl_pw_aff_free(p);isl_pw_multi_aff_free(unique);isl_set_free(theta_image);isl_set_free(image);isl_map_free(map);}
 };
 SymbolicOracle::SymbolicOracle(std::string const& text):impl_(std::make_shared<Impl>()) {
   auto& d=*impl_;d.text=text;d.map=isl_map_read_from_str(SharedIslContext().raw(),text.c_str());
@@ -87,13 +89,19 @@ OracleImage SymbolicOracle::Query(std::vector<long> const& source,ParamBinding c
   auto& d=*impl_;auto start=std::chrono::steady_clock::now();++d.queries;
   struct Timer{Impl& d;std::chrono::steady_clock::time_point start;~Timer(){d.ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();}} timer{d,start};
   if(int(source.size())!=d.input)throw std::invalid_argument("Oracle source dimensionality");
-  auto* fiber=isl_set_copy(d.image);
+  std::vector<long> values;
   for(int i=0;i<d.parameters;++i) {
     char const* name=isl_map_get_dim_name(d.map,isl_dim_param,i);
     auto it=theta.values.find(name ? name : "");
-    if(it==theta.values.end()) {isl_set_free(fiber);throw std::invalid_argument("Oracle theta is unbound");}
-    fiber=isl_set_fix_val(fiber,isl_dim_param,i,isl_val_int_from_si(SharedIslContext().raw(),it->second));
+    if(it==theta.values.end())throw std::invalid_argument("Oracle theta is unbound");
+    values.push_back(it->second);
   }
+  if(!d.theta_image || d.bound_theta!=values) {
+    isl_set_free(d.theta_image);d.theta_image=isl_set_copy(d.image);d.bound_theta=values;
+    for(int i=0;i<d.parameters;++i)d.theta_image=isl_set_fix_val(d.theta_image,isl_dim_param,i,isl_val_int_from_si(SharedIslContext().raw(),values[i]));
+    d.theta_image=isl_set_coalesce(d.theta_image);
+  }
+  auto* fiber=isl_set_copy(d.theta_image);
   for(int i=0;i<d.input;++i)fiber=isl_set_fix_val(fiber,isl_dim_param,d.parameters+i,isl_val_int_from_si(SharedIslContext().raw(),source[i]));
   OracleImage result;
   if(isl_set_is_empty(fiber)==isl_bool_true){isl_set_free(fiber);return result;}
@@ -115,6 +123,17 @@ OracleImage SymbolicOracle::Query(std::vector<long> const& source,ParamBinding c
       integer(isl_pw_aff_eval(isl_pw_aff_copy(d.upper[i]),isl_point_copy(point))));
     isl_point_free(point);
   } else {
+    // General remains General: this proves only the current concrete fiber,
+    // not every symbolic source. Enumerating its proven box avoids an ISL LP
+    // scan per point; strided/disconnected fibers still use exact point scans.
+    fiber=isl_set_coalesce(fiber);
+    if(isl_set_is_box(fiber)==isl_bool_true) {
+      auto* point=isl_set_sample_point(isl_set_params(isl_set_copy(fiber)));result.rectangular=true;
+      for(int i=0;i<d.output;++i)result.box.emplace_back(
+        integer(isl_pw_aff_eval(isl_set_dim_min(isl_set_copy(fiber),i),isl_point_copy(point))),
+        integer(isl_pw_aff_eval(isl_set_dim_max(isl_set_copy(fiber),i),isl_point_copy(point))));
+      isl_point_free(point);isl_set_free(fiber);return result;
+    }
     struct State {OracleImage* result;int dimensions;} state{&result,d.output};
     auto status=isl_set_foreach_point(fiber,[](isl_point* point,void* opaque)->isl_stat {
       auto& state=*static_cast<State*>(opaque);std::vector<long> coordinate;
