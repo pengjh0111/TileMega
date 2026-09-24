@@ -7234,3 +7234,37 @@ Evidence: each cell's `resource_recovery.json`, archived `device_before.log`
 and ten-process logs, fresh `selected.cu.measurement/` logs and command
 metadata, and `gpu_admission.jsonl`. These fresh control samples replace the
 excluded sets in G-8; the full anchored skeleton matrix is still pending.
+
+
+## F-251 — All eight fresh legacy control cells are complete
+
+✅ **Verified.** Llama-3.2-1B and Qwen3-1.7B at seq 1/4/16/64 each have ten
+fresh internally equal L0.5/L1/L2 processes. Every retained build explicitly
+disables MIDPOINT_REFINE. The OOM attempt and two busy-start timing attempts
+are archived separately as described in F-248/F-250. No CPU-golden PASS is
+claimed or required by this R9 gate.
+
+| Model | seq | L0.5 ms | L1 ms | L2 ms | legacy total ms |
+|---|---:|---:|---:|---:|---:|
+| llama | 1 | 5.6273040 | 5.7066320 | 5.4223520 | 4.71891e+06 |
+| llama | 4 | 6.3168000 | 6.4609280 | 6.4514560 | 5.41758e+06 |
+| llama | 16 | 6.5791200 | 6.6780160 | 7.1228880 | 6.75097e+06 |
+| llama | 64 | 11.7855040 | 11.6687035 | 12.5220235 | 1.14952e+07 |
+| qwen3 | 1 | 8.8019360 | 8.9567280 | 8.2665120 | 5.59484e+06 |
+| qwen3 | 4 | 9.1118640 | 9.5751525 | 8.9490240 | 7.02465e+06 |
+| qwen3 | 16 | 8.8882315 | 9.1126720 | 9.3940160 | 8.96673e+06 |
+| qwen3 | 64 | 15.5611520 | 15.7256560 | 16.5765120 | 1.97511e+07 |
+
+Each control records 43 import calls and 12 full-kernel residency queries.
+These counts include bound preparation and admitted candidate evaluation;
+they are not asserted to be the number of unique geometry configurations.
+The control retains the declared R8 five-shape domain/capacity12 and the old
+six placement heuristics. The new solver's larger domain and concurrent
+execution must remain explicit in the eventual latency comparison.
+
+SV-0 is complete; SV-8 and G-8 are not. At this snapshot, the full skeleton
+matrix still lacks completed anchored arms. The four seq4 arms have completed
+the first coordinate sweep and continue the next; the added seq1/k8 arm uses
+36 isolated workers. No timing or score from an unfinished solve is a G-8
+measurement. Source/command/device logs, generated code and CG, phase ledgers,
+and control EFT queues are retained in `SOLVER_V2/legacy_r8_domain/`.

@@ -1269,7 +1269,7 @@ g ─► 资源探测 ─► R_max ─► residency ─► W ─► 符号 Oracl
 
 | ID | 范围与验收（不可删减） | 依赖 | 实现状态 | 验证状态 | 证据、commit |
 | --- | --- | --- | --- | --- | --- |
-| SV-0 | 基线与测量协议：`MIDPOINT_REFINE=0`；真实模型以 L0.5/L1/L2 内部逐位一致为正确性门；记录现行求解器的求解耗时分解与三档计时 | — | 已实现，测量中 | Llama 对照四格、Qwen 对照 seq=1/4/16 各 10/10；seq=16 显存不足旧样本已归档并完整重测（F-248）；Qwen seq=64 与完整矩阵待完成 | 92f07b2b3；SOLVER_V2/legacy_r8_domain |
+| SV-0 | 基线与测量协议：`MIDPOINT_REFINE=0`；真实模型以 L0.5/L1/L2 内部逐位一致为正确性门；记录现行求解器的求解耗时分解与三档计时 | — | 已完成 | 两锚定模型 × seq=1/4/16/64 对照八格各 10/10，三档计时与求解阶段计时齐备；两格忙碌启动计时已完整复测（F-248/F-250/F-251）；完整 skeleton 矩阵仍在运行 | 92f07b2b3；SOLVER_V2/legacy_r8_domain |
 | SV-1 | 导入一次 + 以 SemSig 为键的耦合缓存；含碰撞测试 | SV-0 | 已实现 | 固定 g 的 CG 位同、两对 SemSig/键碰撞测试通过；两锚定模型 uncached/cold/warm derive 与 CG 位同已测（F-246）；完整搜索耗时待完成 | b6d9a27fc；SOLVER_V2/cache_test.log |
 | SV-2 | 按算子类的 tile：撤除 uniform `assign`；codegen 按 `invocation.variant` 分派 | SV-1 | 已实现 | 单测 2 变体/14 GEMM 分派通过；锚定模型最终选中配置待核验 | b64d6a388；SOLVER_V2/classes_test.log |
 | SV-3 | 资源探测：按变体缓存寄存器与 shared memory，闭式得 `R_max`；top-K 用真实 `queryResidency` 复核 | SV-2 | 已实现 | 变体探测单测通过；全部真实模型 top-5 复核未完成 | 3f4a7a11c；SOLVER_V2/resource_test.log |
