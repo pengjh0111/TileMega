@@ -13,12 +13,20 @@ int main(int argc,char** argv) {
   analysis::IslContext isl;mlir::MLIRContext context;
   std::string root=TILEMEGA_SOURCE_DIR,path=root+"/docs/experiments/E2E_GEN/raw/export_bridge.json";
   auto bridge=frontend::ReadExportBridge(path);auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs);
+  for(auto const& buffer:plan.buffers)if(buffer.name.find("inv_freq")!=std::string::npos && buffer.constant!=64)
+    throw std::runtime_error("F32 frequency storage was counted as BF16 words");
   frontend::TorchExportImporter importer;auto imported=importer.ImportSemantics(path,plan,context);
   frontend::ImportOptions options;options.gemms.resize(plan.gemms.size(),{32,16,32,2,1});
   options.rope_tile_per_block=options.kv_tile_per_block=options.activation_tile_per_block=options.combiner_tile_per_block=true;
   analysis::CouplingCache cache;auto module=importer.InstantiateForGranularity(imported,context,options,&cache);
   auto target=TargetSpec::FromJson(root+"/docs/experiments/COSTMODEL/event_fit/target.json");
   auto problem=solver::PrepareSymbolicProblem(*module,target,{4,3,7},8,1,1);
+  solver::SymbolicPriceCache prices;
+  auto cached=solver::PrepareSymbolicProblem(*module,target,{4,3,7},8,1,1,&prices);
+  auto warm=solver::PrepareSymbolicProblem(*module,target,{4,3,7},8,1,1,&prices);
+  if(cached.task_ns!=problem.task_ns || warm.task_ns!=problem.task_ns || warm.prefetch_ns!=problem.prefetch_ns)
+    throw std::runtime_error("semantic price cache changed prices");
+  std::cout<<"PRICE_CACHE exact=1 entries="<<prices.prices.size()<<'\n';
   auto skeleton=solver::BuildPlanSkeleton(problem,8,1,4,false,cache);
   int prefix=0;for(int s:skeleton.stage_order){auto const& space=skeleton.spaces[s];
     if(space.base!=prefix%8)throw std::runtime_error("incorrect continuous rotate base");prefix+=space.count;

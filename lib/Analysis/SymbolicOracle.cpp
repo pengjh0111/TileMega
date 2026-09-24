@@ -125,12 +125,17 @@ OracleImage SymbolicOracle::Query(std::vector<long> const& source,ParamBinding c
   }
   isl_set_free(fiber);return result;
 }
-bool SymbolicOracle::IsAllBox(std::vector<std::pair<long,long>> const& box) const {
+bool SymbolicOracle::IsAllBox(std::vector<std::pair<long,long>> const& box,ParamBinding const& theta) const {
   auto& d=*impl_;if(int(box.size())!=d.output)return false;
-  auto* expected=isl_set_universe(isl_space_range(isl_map_get_space(d.map)));
+  auto* map=isl_map_copy(d.map);
+  for(int i=0;i<d.parameters;++i){auto* name=isl_map_get_dim_name(map,isl_dim_param,i);
+    auto found=theta.values.find(name?name:"");
+    if(found!=theta.values.end())map=isl_map_fix_val(map,isl_dim_param,i,isl_val_int_from_si(SharedIslContext().raw(),found->second));
+  }
+  auto* expected=isl_set_universe(isl_space_range(isl_map_get_space(map)));
   for(int i=0;i<d.output;++i){expected=isl_set_lower_bound_si(expected,isl_dim_set,i,box[i].first);expected=isl_set_upper_bound_si(expected,isl_dim_set,i,box[i].second);}
-  auto* product=isl_map_from_domain_and_range(isl_map_domain(isl_map_copy(d.map)),expected);
-  auto eq=isl_map_is_equal(product,d.map);isl_map_free(product);return eq==isl_bool_true;
+  auto* product=isl_map_from_domain_and_range(isl_map_domain(isl_map_copy(map)),expected);
+  auto eq=isl_map_is_equal(product,map);isl_map_free(product);isl_map_free(map);return eq==isl_bool_true;
 }
 OraclePair::OraclePair(std::string const& relation):structure(classify(relation)),forward(relation),reverse(reverseText(relation)) {}
 }

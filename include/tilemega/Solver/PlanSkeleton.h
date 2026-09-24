@@ -16,8 +16,9 @@ struct SymbolicProblem {
   std::vector<double> task_ns,prefetch_ns;
   int threads=0;
 };
+struct SymbolicPriceCache { std::map<std::string,std::vector<double>> prices; };
 SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& target,
-    ModelDims dims,int grid,int residency,int kappa);
+    ModelDims dims,int grid,int residency,int kappa,SymbolicPriceCache* cache=nullptr);
 struct SkeletonSpace {
   int count=0,offset=0,base=0,width=0,order=0;
   double task_ns=0,load_ns=0;

@@ -9,10 +9,49 @@
 #include <algorithm>
 #include <numeric>
 #include <cmath>
+#include <sstream>
+#include <iomanip>
 
 namespace tilemega::solver {
+namespace {
+analysis::CouplingRelation ExactRuntimeDependencies(ModelDescription const& model,
+    analysis::OperatorGraph const& graph,RuntimeProjection const& projection,int threads) {
+  struct Owner {int stage;analysis::CouplingRelation map;};
+  std::map<std::string,Owner> owners;
+  std::vector<int> entry(model.stages.size(),-1),done(entry);
+  for(std::size_t s=0;s<projection.stages.size();++s){int logical=projection.stages[s].logical_stage;
+    if(entry[logical]<0)entry[logical]=s;done[logical]=s;}
+  for(auto const& node:graph.nodes) {
+    auto semantic=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),[&](auto const& s){
+      return s.op.name==node.name || s.op.reduction.combiner==node.name;});
+    if(semantic==model.task_semantics.end())throw std::invalid_argument("CG task lacks physical ownership: "+node.name);
+    bool combine=semantic->op.reduction.combiner==node.name;
+    bool gemm=semantic->op.kind==analysis::OperatorKind::kMatmul && !combine;
+    int logical=semantic->stage,physical=gemm?entry[logical]:done[logical];
+    auto declaration=*semantic;
+    if(combine)declaration.element_chunk=!model.combiner_tile_ownership;
+    auto map=ProjectTaskOwnership(declaration,node,model.stages[logical],threads);
+    owners.emplace(node.name,Owner{physical,std::move(map)});
+  }
+  analysis::CouplingRelation result=analysis::CouplingRelation::FromIslText("{ [cs,c] -> [ps,p] : false }");
+  for(auto const& edge:model.coupling_metrics.edges) {
+    auto const& p=owners.at(edge.producer_task);auto const& c=owners.at(edge.consumer_task);
+    auto relation=c.map.ApplyRange(edge.relation).ApplyRange(p.map.Reverse());
+    auto* map=isl_map_read_from_str(analysis::SharedIslContext().raw(),relation.ToString().c_str());
+    map=isl_map_insert_dims(map,isl_dim_in,0,1);map=isl_map_fix_si(map,isl_dim_in,0,c.stage);
+    map=isl_map_insert_dims(map,isl_dim_out,0,1);map=isl_map_fix_si(map,isl_dim_out,0,p.stage);
+    char* raw=isl_map_to_str(map);isl_map_free(map);
+    if(!raw)throw std::runtime_error("CG ownership composition failed");
+    result=result.Union(analysis::CouplingRelation::FromIslText(raw));free(raw);
+  }
+  // A fused epilogue's semantic phases are one physical task, not a self wait.
+  auto identity=analysis::CouplingRelation::FromIslText("{ [s,t] -> [s,t] }");
+  return result.Subtract(identity);
+}
+}
+
 SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& target,
-    ModelDims dims,int grid,int residency,int kappa) {
+    ModelDims dims,int grid,int residency,int kappa,SymbolicPriceCache* cache) {
   if(grid<=0 || residency<=0 || dims.seq<=0 || kappa<=0)throw std::invalid_argument("invalid symbolic problem dimensions");
   auto runtime=codegen::ReadRuntimePlan(module);
   auto model=ModelDescription::FromCouplingGraph(module,dims,"skeleton");
@@ -24,18 +63,37 @@ SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& t
     threads=std::max(threads,ModelTaskTraits(model,int(s),g).threads);
   }
   RuntimeProjectionOptions po{grid,threads,kappa};po.count_wait_entries=false;
-  auto projection=ProjectRuntimeQueues(model,runtime,po);
+  auto symbolic_model=model;
+  symbolic_model.dims.seq_parameter=model.seq_metric_parameter;
+  symbolic_model.dims.past_parameter=model.past_metric_parameter;
+  auto projection=ProjectRuntimeQueues(symbolic_model,runtime,po);
   std::vector<int> counts,offsets{0};
-  for(auto const& stage:projection.stages){counts.push_back(int(stage.task_count.Eval({})));offsets.push_back(offsets.back()+counts.back());}
+  for(auto const& stage:projection.stages){counts.push_back(int(stage.task_count.Eval(model.MetricBindings())));offsets.push_back(offsets.back()+counts.back());}
   std::optional<analysis::OperatorGraph> semantic_graph;
   semantic_graph=InstantiateModelTasks(model,geometry);
+  projection.dependencies=ExactRuntimeDependencies(model,*semantic_graph,projection,threads);
   struct Prices {std::vector<double> task_ns,prefetch_ns;} input;input.task_ns.resize(offsets.back());
   input.prefetch_ns.resize(offsets.back());
   CostModel cost(target,model.dtype);
   auto theta=model.MetricBindings();
+  std::ostringstream environment;
+  environment<<target.ToJson()<<':'<<std::hexfloat<<model.LiveFootprintBytes()<<':'<<threads<<':'<<residency<<':'<<runtime.ownership_flags;
+  for(auto const& [name,value]:theta.values)environment<<':'<<name<<'='<<value;
+  // Keep the entire granularity environment in the key. This cache merges
+  // repeated semantic stages, never guesses independence from other tiles.
+  for(auto const& g:geometry)environment<<':'<<g.tile_m<<','<<g.tile_n<<','<<g.tile_k<<','<<g.stages<<','<<g.split_k;
+
   for (std::size_t s=0;s<counts.size();++s) {
     auto const& projected=projection.stages[s];auto const& stage=model.stages[projected.logical_stage];
     auto const& g=geometry.at(stage.IsCollective() ? stage.gemm : 0);
+    std::ostringstream signature;signature<<environment.str()<<':'<<projected.combine<<':'<<counts[s]<<':'<<stage.width<<':'<<stage.extent<<':'<<stage.group<<':'<<g.tile_m<<','<<g.tile_n<<','<<g.tile_k<<','<<g.stages<<','<<g.split_k;
+    for(auto const& sem:model.task_semantics)if(sem.stage==projected.logical_stage)
+      signature<<'\n'<<analysis::SemanticSignature(sem.op);
+    auto key=signature.str();
+    if(cache){auto found=cache->prices.find(key);if(found!=cache->prices.end()){
+      if(found->second.size()!=std::size_t(counts[s]))throw std::logic_error("cached price count mismatch");
+      std::copy(found->second.begin(),found->second.end(),input.task_ns.begin()+offsets[s]);continue;
+    }}
     if (projected.combine) {
       auto task=DeriveCombineTaskInput(model,projected.logical_stage,g,*semantic_graph,threads,
           runtime.ownership_flags & codegen::kCombinerTileOwnership,cost.options().fp32_partials);
@@ -47,6 +105,7 @@ SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& t
         throw std::invalid_argument("combine access ownership disagrees with projected count");
       std::vector<double> prefetch;PrefetchPricing pricing{0,&prefetch};
       auto prices=PriceTaskInstances(cost,task,traits,{residency},model,1,coordinates,residency,&pricing);
+      if(cache)cache->prices.emplace(key,prices);
       std::copy(prices.begin(),prices.end(),input.task_ns.begin()+offsets[s]);
       std::copy(prefetch.begin(),prefetch.end(),input.prefetch_ns.begin()+offsets[s]);
       continue;
@@ -72,6 +131,7 @@ SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& t
     }
     std::vector<double> prefetch;PrefetchPricing pricing{0,&prefetch};
     auto prices=PriceTaskInstances(cost,task,traits,{residency},model,chunks,coordinates,residency,&pricing);
+    if(cache)cache->prices.emplace(key,prices);
     std::copy(prices.begin(),prices.end(),input.task_ns.begin()+offsets[s]);
     std::copy(prefetch.begin(),prefetch.end(),input.prefetch_ns.begin()+offsets[s]);
   }
@@ -125,8 +185,8 @@ PlanSkeleton BuildPlanSkeleton(SymbolicProblem const& problem,int grid,int resid
     edge=isl_map_reverse(edge);text=isl_map_to_str(edge);
     if(!text){isl_map_free(edge);isl_map_free(raw);throw std::runtime_error("stage-pair Oracle failed");}
     auto oracle=cache.OracleFor(text);free(text);isl_map_free(edge);
-    bool all=oracle->reverse.IsAllBox({{0,result.spaces[p].count-1}}) &&
-             oracle->forward.IsAllBox({{0,result.spaces[c].count-1}});
+    bool all=oracle->reverse.IsAllBox({{0,result.spaces[p].count-1}},result.theta) &&
+             oracle->forward.IsAllBox({{0,result.spaces[c].count-1}},result.theta);
     int index=result.edges.size();result.edges.push_back({p,c,std::move(oracle),all});
     result.incoming[c].push_back(index);result.outgoing[p].push_back(index);
   }
