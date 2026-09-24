@@ -1,0 +1,69 @@
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1307733
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1/selected.cu.resources/1790255835703282286/0" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1307410
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1/selected.cu.resources/1790255835703282286/1" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1302437
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1/selected.cu.resources/1790255835703282286/2" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1299474
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1/selected.cu.resources/1790255835703282286/3" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1298970
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1/selected.cu.resources/1790255835703282286/4" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1298948
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1/selected.cu.resources/1790255835703282286/5" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1298814
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1/selected.cu.resources/1790255835703282286/6" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1298611
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1/selected.cu.resources/1790255835703282286/7" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1298387
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1/selected.cu.resources/1790255835703282286/8" resident=5
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1298241
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1/selected.cu.resources/1790255835703282286/9" resident=3
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1298405
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1/selected.cu.resources/1790255835703282286/10" resident=3
+IMPORT_DEGRADED aten.embedding.default
+DISK NEED_MIB=8192 FREE_MIB=1298313
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1/selected.cu.resources/1790255835703282286/11" resident=3
+SOLVE_SUMMARY evaluated=12 deferred=66 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=732 couplings=871 stages=479 symbolic_windows=871 fallback_windows=0 output=/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s1/selected.cu
