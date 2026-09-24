@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s128/legacy/selected.cu.measurement/kernel",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/gqa2_s128_p3"
+  ],
+  "started_ns": 1790255716905161189,
+  "elapsed_ns": 467044788,
+  "exit_code": 0,
+  "environment": {
+    "TILEMEGA_WARMUP": "2",
+    "TILEMEGA_REPEAT": "10"
+  }
+}

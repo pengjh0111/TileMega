@@ -1,0 +1,42 @@
+[
+  {
+    "original": "selected.cu.final1.edges.tsv",
+    "archive": "selected.cu.final1.edges.tsv.gz",
+    "sha256": "7aa5c533300cb3444d759c65fdaf1c7a0e1d3841cf713fc7e339e4a67fddb622",
+    "archive_sha256": "d72f6c10feda7b7dee7bd06a78417c7d2fa3b39fa060b98e460f8e0df061dc87",
+    "bytes": 774575,
+    "archive_bytes": 110303
+  },
+  {
+    "original": "selected.cu.final2.edges.tsv",
+    "archive": "selected.cu.final2.edges.tsv.gz",
+    "sha256": "cb81a483f48a5a05752ffcf4e7b9276d5330bee3db75b934dae6d12999fb3683",
+    "archive_sha256": "96e327851ea151ce2548a9d34c2b90ba790906537aad62ceb27641979632eaee",
+    "bytes": 834587,
+    "archive_bytes": 118191
+  },
+  {
+    "original": "selected.cu.final3.edges.tsv",
+    "archive": "selected.cu.final3.edges.tsv.gz",
+    "sha256": "f42021b88992fc3c276009942fde3d3e7d8fb4fcc09d8d92a9edb58070735ddb",
+    "archive_sha256": "d69b22f214c441aa5541df7bbe99d380a9836abccfaaf1c6f3313e35aab9ee98",
+    "bytes": 743599,
+    "archive_bytes": 105008
+  },
+  {
+    "original": "selected.cu.final4.edges.tsv",
+    "archive": "selected.cu.final4.edges.tsv.gz",
+    "sha256": "5a3fec814c5c278ef79003320285918c02f23cefe0ce5064a48e3f9fd4634fd4",
+    "archive_sha256": "f0be2a46edd67dd5ce2f227f73df4d226aa3421e7a33dc96db81f04f18a1c92b",
+    "bytes": 734127,
+    "archive_bytes": 101767
+  },
+  {
+    "original": "selected.cu.final5.edges.tsv",
+    "archive": "selected.cu.final5.edges.tsv.gz",
+    "sha256": "57dceaaa7d32b84e72982ea43949d349436e628550468b2322ad99c6a865fff0",
+    "archive_sha256": "543782ae1be835dbee3704924ea43273015033cb368a83869bbc087493d40aab",
+    "bytes": 772651,
+    "archive_bytes": 110164
+  }
+]

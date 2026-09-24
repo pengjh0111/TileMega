@@ -1,0 +1,7 @@
+solver	model	seq	phase	count	total_ms
+legacy	gqa2	4	bridge_and_plan	1	18.3611
+legacy	gqa2	4	import	11	7692.83
+legacy	gqa2	4	placement_catalog	20	16570.9
+legacy	gqa2	4	prepare_placement	20	37394.8
+legacy	gqa2	4	query_residency	4	109065
+legacy	gqa2	4	total	1	196583

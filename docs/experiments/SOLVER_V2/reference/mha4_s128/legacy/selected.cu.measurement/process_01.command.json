@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s128/legacy/selected.cu.measurement/kernel",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/mha4_s128_p3"
+  ],
+  "executable_sha256": "226aff6bbbf53329f023f952a523db7717d70e884cb613d2c37ebf91ebcffacb",
+  "head": "9fdbeddc285529ca53cdff5a77f78ef451c66ed7",
+  "started_ns": 1790255958858158271,
+  "elapsed_ns": 727920103,
+  "exit_code": 0,
+  "environment": {
+    "TILEMEGA_WARMUP": "2",
+    "TILEMEGA_REPEAT": "10"
+  }
+}

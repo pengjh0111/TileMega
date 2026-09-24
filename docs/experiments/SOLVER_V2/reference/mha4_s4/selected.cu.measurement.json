@@ -1,0 +1,46 @@
+{
+  "candidates": [
+    {
+      "source": "/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s4/selected.cu.top1.cu",
+      "source_sha256": "45b7575f77d93fa41308e93a01f23a0017cd048970ebfdea813a2eea181784b4",
+      "passed": 10,
+      "samples": 10,
+      "status": "ok",
+      "l05_ms": 0.32900799999999997,
+      "l1_ms": 0.348472,
+      "l2_ms": 0.273856,
+      "key": "32x16x32s2k4;32x16x32s2k8;32x16x32s2k4;32x16x32s2k16;"
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s4/selected.cu.top2.cu",
+      "source_sha256": "dfc027aee5aaae192908667fce1dd325381096dfbe9ef02c6e8a925bf56688df",
+      "passed": 10,
+      "samples": 10,
+      "status": "ok",
+      "l05_ms": 0.401664,
+      "l1_ms": 0.383224,
+      "l2_ms": 0.28159999999999996
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s4/selected.cu.top3.cu",
+      "source_sha256": "603ece53446df230b81d1aa26f35c55fb6695d521dcac507a672c6bb917ecd99",
+      "passed": 10,
+      "samples": 10,
+      "status": "ok",
+      "l05_ms": 0.395968,
+      "l1_ms": 0.40212000000000003,
+      "l2_ms": 0.28672
+    }
+  ],
+  "winner": {
+    "source": "/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s4/selected.cu.top1.cu",
+    "source_sha256": "45b7575f77d93fa41308e93a01f23a0017cd048970ebfdea813a2eea181784b4",
+    "passed": 10,
+    "samples": 10,
+    "status": "ok",
+    "l05_ms": 0.32900799999999997,
+    "l1_ms": 0.348472,
+    "l2_ms": 0.273856,
+    "key": "32x16x32s2k4;32x16x32s2k8;32x16x32s2k4;32x16x32s2k16;"
+  }
+}

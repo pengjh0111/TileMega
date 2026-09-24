@@ -1,0 +1,4 @@
+rank	key	placement	tile_m	tile_n	tile_k	stages	split_k	kappa	residency	floor_ns	predicted_ns	source	cg
+1	32x16x32s2split16kappa1r4	eft	32	16	32	2	16	1	4	152695	388359	/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s4/legacy/selected.cu.top1.cu	/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s4/legacy/selected.cu.top1.mlir
+2	32x16x32s2split16kappa1r4	wavefront	32	16	32	2	16	1	4	152695	393301	/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s4/legacy/selected.cu.top2.cu	/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s4/legacy/selected.cu.top2.mlir
+3	32x16x32s2split16kappa1r5	eft	32	16	32	2	16	1	5	155374	384626	/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s4/legacy/selected.cu.top3.cu	/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s4/legacy/selected.cu.top3.mlir

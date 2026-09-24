@@ -1,0 +1,17 @@
+{
+  "command": [
+    "python3",
+    "/root/TileMega/docs/experiments/SOLVER_V2/measure.py",
+    "--source",
+    "/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s4/selected.cu",
+    "--fixture",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/gqa2_s4_p3",
+    "--top3"
+  ],
+  "executable_sha256": "94df6ff4b32aafdba90e38c0aed70880fe44ee4cf88ecdf411641158f120c1af",
+  "head": "10ba48b47b42ac8dd50d3c3c04f4d359a042da45",
+  "started_ns": 1790260246206894314,
+  "elapsed_ns": 374670390308,
+  "exit_code": 0,
+  "environment": {}
+}

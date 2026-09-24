@@ -1,0 +1,24 @@
+{
+  "candidates": [
+    {
+      "source": "/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s128/legacy/selected.cu",
+      "source_sha256": "77345ce36c15f06ddeeb8dfb094455ab65c67f7532b96836c731b5542252d420",
+      "passed": 10,
+      "samples": 10,
+      "status": "ok",
+      "l05_ms": 0.57344,
+      "l1_ms": 0.615864,
+      "l2_ms": 0.626944
+    }
+  ],
+  "winner": {
+    "source": "/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s128/legacy/selected.cu",
+    "source_sha256": "77345ce36c15f06ddeeb8dfb094455ab65c67f7532b96836c731b5542252d420",
+    "passed": 10,
+    "samples": 10,
+    "status": "ok",
+    "l05_ms": 0.57344,
+    "l1_ms": 0.615864,
+    "l2_ms": 0.626944
+  }
+}

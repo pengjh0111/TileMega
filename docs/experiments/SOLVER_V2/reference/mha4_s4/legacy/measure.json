@@ -1,0 +1,13 @@
+{
+  "command": [
+    "python3",
+    "/root/TileMega/docs/experiments/SOLVER_V2/measure.py",
+    "--source",
+    "/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s4/legacy/selected.cu",
+    "--fixture",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/mha4_s4_p3"
+  ],
+  "started_ns": 1790255606012017477,
+  "elapsed_ns": 30677898783,
+  "exit_code": 0
+}

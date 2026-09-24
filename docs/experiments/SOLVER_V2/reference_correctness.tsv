@@ -1,0 +1,13 @@
+model	seq	candidate	passed	processes	evidence
+gqa2	4	1	10	10	docs/experiments/SOLVER_V2/reference/gqa2_s4/selected.cu.top1.cu.measurement
+gqa2	4	2	10	10	docs/experiments/SOLVER_V2/reference/gqa2_s4/selected.cu.top2.cu.measurement
+gqa2	4	3	10	10	docs/experiments/SOLVER_V2/reference/gqa2_s4/selected.cu.top3.cu.measurement
+gqa2	128	1	10	10	docs/experiments/SOLVER_V2/reference/gqa2_s128/selected.cu.top1.cu.measurement
+gqa2	128	2	10	10	docs/experiments/SOLVER_V2/reference/gqa2_s128/selected.cu.top2.cu.measurement
+gqa2	128	3	10	10	docs/experiments/SOLVER_V2/reference/gqa2_s128/selected.cu.top3.cu.measurement
+mha4	4	1	10	10	docs/experiments/SOLVER_V2/reference/mha4_s4/selected.cu.top1.cu.measurement
+mha4	4	2	10	10	docs/experiments/SOLVER_V2/reference/mha4_s4/selected.cu.top2.cu.measurement
+mha4	4	3	10	10	docs/experiments/SOLVER_V2/reference/mha4_s4/selected.cu.top3.cu.measurement
+mha4	128	1	10	10	docs/experiments/SOLVER_V2/reference/mha4_s128/selected.cu.top1.cu.measurement
+mha4	128	2	10	10	docs/experiments/SOLVER_V2/reference/mha4_s128/selected.cu.top2.cu.measurement
+mha4	128	3	10	10	docs/experiments/SOLVER_V2/reference/mha4_s128/selected.cu.top3.cu.measurement

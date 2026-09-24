@@ -1,0 +1,10 @@
+PROCESS source=/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s4/legacy/selected.cu round=0 internal=1 exit=0
+PROCESS source=/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s4/legacy/selected.cu round=1 internal=1 exit=0
+PROCESS source=/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s4/legacy/selected.cu round=2 internal=1 exit=0
+PROCESS source=/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s4/legacy/selected.cu round=3 internal=1 exit=0
+PROCESS source=/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s4/legacy/selected.cu round=4 internal=1 exit=0
+PROCESS source=/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s4/legacy/selected.cu round=5 internal=1 exit=0
+PROCESS source=/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s4/legacy/selected.cu round=6 internal=1 exit=0
+PROCESS source=/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s4/legacy/selected.cu round=7 internal=1 exit=0
+PROCESS source=/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s4/legacy/selected.cu round=8 internal=1 exit=0
+PROCESS source=/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s4/legacy/selected.cu round=9 internal=1 exit=0

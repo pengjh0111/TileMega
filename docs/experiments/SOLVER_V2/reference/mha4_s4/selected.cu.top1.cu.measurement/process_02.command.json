@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s4/selected.cu.top1.cu.measurement/kernel",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/mha4_s4_p3"
+  ],
+  "executable_sha256": "607522e5aede9781460105eddccf8fb979759aae05b0aafb8578cd446fe0809b",
+  "head": "6304fff5d304d311dba6bc704e6b41f6b2c74794",
+  "started_ns": 1790259857273536060,
+  "elapsed_ns": 7353531813,
+  "exit_code": 0,
+  "environment": {
+    "TILEMEGA_WARMUP": "2",
+    "TILEMEGA_REPEAT": "10"
+  }
+}

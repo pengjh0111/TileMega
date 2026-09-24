@@ -1,0 +1,42 @@
+[
+  {
+    "original": "selected.cu.final1.edges.tsv",
+    "archive": "selected.cu.final1.edges.tsv.gz",
+    "sha256": "bb8cf8f882fbf3ea4b72334b22336450e49543bd303f31051ede8adbe1da00bd",
+    "archive_sha256": "1f8e274e442013bbb9c128466bd9148e3e2e52af5b6fdf39fda3726fc9a8e956",
+    "bytes": 70832761,
+    "archive_bytes": 7860511
+  },
+  {
+    "original": "selected.cu.final2.edges.tsv",
+    "archive": "selected.cu.final2.edges.tsv.gz",
+    "sha256": "9c70bb7fbeea9393007d1268384881c3901e927831016e8a92054ee4f06635c9",
+    "archive_sha256": "d5889c1fea67815d78dde481c2db6dbc40cc1809223d101decf63bfb15cc57a4",
+    "bytes": 72623745,
+    "archive_bytes": 8052308
+  },
+  {
+    "original": "selected.cu.final3.edges.tsv",
+    "archive": "selected.cu.final3.edges.tsv.gz",
+    "sha256": "7709df91325e36c6f680692c932f4ceac016a39dfebfed69cadd842cacb49f6b",
+    "archive_sha256": "42743aa841d189f8733e2838b55bde895d208b44078bc02b817466e6da74e689",
+    "bytes": 69419521,
+    "archive_bytes": 7721420
+  },
+  {
+    "original": "selected.cu.final4.edges.tsv",
+    "archive": "selected.cu.final4.edges.tsv.gz",
+    "sha256": "39583b93a4cae68110519c7fcedcebe56926e48111c20ea608a29f8655fc0a3a",
+    "archive_sha256": "f5444256e1bd3bcd9486790670663a7faefd9350e3cf1b82443d7fe22400b87e",
+    "bytes": 72770043,
+    "archive_bytes": 8030731
+  },
+  {
+    "original": "selected.cu.final5.edges.tsv",
+    "archive": "selected.cu.final5.edges.tsv.gz",
+    "sha256": "19aba769eb2b5cbc9780475769936986649b08d569a497fa775ee09dc9929194",
+    "archive_sha256": "783a8f76f84919819a6b6424cae07088e5b2a41a903c0297fe327088806b3caf",
+    "bytes": 70004857,
+    "archive_bytes": 7878266
+  }
+]

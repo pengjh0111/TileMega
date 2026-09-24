@@ -1,0 +1,23 @@
+{
+  "command": [
+    "python3",
+    "/root/TileMega/docs/experiments/SOLVER_V2/run_matrix.py",
+    "--bridge",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/export/mha4.json",
+    "--fixture",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/mha4_s128_p3",
+    "--seed",
+    "/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s128/legacy/selected.mlir",
+    "--seq",
+    "128",
+    "--out",
+    "/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s128",
+    "--domain",
+    "/root/r9_work/smoke_domain.json",
+    "--passes",
+    "1",
+    "--compiler",
+    "/root/r9_work/skeleton_execution_tool/tools/tilemega-compile"
+  ],
+  "pid": 2639342
+}

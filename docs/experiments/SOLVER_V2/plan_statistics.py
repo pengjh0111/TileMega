@@ -5,10 +5,11 @@ The simulator's critical_path_ns is its node-duration path along dependency
 edges; it does not add FIFO edges or publication/wait overhead to this field.
 We report the corresponding attention share, not an arithmetic saturation claim.
 """
-import csv,heapq,pathlib,collections
+import csv,heapq,pathlib,collections,gzip
 
 def rows(path):
-    with pathlib.Path(path).open() as stream:
+    path=pathlib.Path(path);compressed=pathlib.Path(str(path)+'.gz')
+    with (gzip.open(compressed,'rt') if compressed.exists() else path.open()) as stream:
         yield from csv.DictReader(stream,delimiter='\t')
 
 def interleaving(path):

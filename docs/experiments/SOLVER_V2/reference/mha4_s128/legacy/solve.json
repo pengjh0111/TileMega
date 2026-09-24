@@ -1,0 +1,26 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-compile",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/export/mha4.json",
+    "/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s128/legacy/selected.cu",
+    "--solver",
+    "legacy",
+    "--solve",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/target.json",
+    "--seq",
+    "128",
+    "--past",
+    "3",
+    "--dump-cg",
+    "/root/TileMega/docs/experiments/SOLVER_V2/reference/mha4_s128/legacy/selected.mlir",
+    "--hop-curve",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv",
+    "--search-capacity",
+    "4",
+    "--search-domain",
+    "/root/r9_work/smoke_domain.json"
+  ],
+  "started_ns": 1790255325893545340,
+  "elapsed_ns": 596143812037,
+  "exit_code": 0
+}

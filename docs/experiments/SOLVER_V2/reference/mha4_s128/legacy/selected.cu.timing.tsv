@@ -1,0 +1,7 @@
+solver	model	seq	phase	count	total_ms
+legacy	mha4	128	bridge_and_plan	1	46.2958
+legacy	mha4	128	import	11	10564.3
+legacy	mha4	128	placement_catalog	20	339625
+legacy	mha4	128	prepare_placement	20	74851.9
+legacy	mha4	128	query_residency	4	115604
+legacy	mha4	128	total	1	592056
