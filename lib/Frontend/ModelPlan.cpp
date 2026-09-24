@@ -699,29 +699,35 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
       throw std::runtime_error("only one of the query and key is normalized "
                                "per head in layer " + std::to_string(number));
     std::uint32_t q_rotated = q, k_rotated = k;
-    builder.Stage(PlanTaskKind::kGemm, q_node.name,
-                  builder.Gemm(norm, wq, q, q, q_width, hidden, 0.0f),
-                  0, 0, 1);
-    if (q_norm) {
-      builder.Epsilon(NormalizationEpsilon(matcher, q_norm->name));
-      q_rotated = builder.Scratch(prefix + "q_normed", q_width);
-      builder.Stage(PlanTaskKind::kQKNorm, q_norm->name, 0, heads, head_dim, 1,
-                    {q, weight(matcher.NearestParameter(q_norm->name)),
-                     q_rotated});
-    }
-    builder.Stage(PlanTaskKind::kGemm, k_node.name,
-                  builder.Gemm(norm, wk, k, k, kv_width, hidden, 0.0f),
-                  0, 0, 1);
-    if (k_norm) {
-      builder.Epsilon(NormalizationEpsilon(matcher, k_norm->name));
-      k_rotated = builder.Scratch(prefix + "k_normed", kv_width);
-      builder.Stage(PlanTaskKind::kQKNorm, k_norm->name, 0, kv_heads, head_dim,
-                    1, {k, weight(matcher.NearestParameter(k_norm->name)),
-                        k_rotated});
-    }
-    builder.Stage(PlanTaskKind::kGemm, v_node.name,
-                  builder.Gemm(norm, wv, v, v, kv_width, hidden, 0.0f),
-                  0, 0, 1);
+    // Independent projections may precede either normalization in FX. Keep
+    // the exported topological order while retaining the same buffer edges.
+    std::vector<std::pair<std::size_t,std::function<void()>>> projections;
+    projections.emplace_back(q_node.index,[&]{
+      builder.Stage(PlanTaskKind::kGemm,q_node.name,
+          builder.Gemm(norm,wq,q,q,q_width,hidden,0.0f),0,0,1);
+    });
+    projections.emplace_back(k_node.index,[&]{
+      builder.Stage(PlanTaskKind::kGemm,k_node.name,
+          builder.Gemm(norm,wk,k,k,kv_width,hidden,0.0f),0,0,1);
+    });
+    projections.emplace_back(v_node.index,[&]{
+      builder.Stage(PlanTaskKind::kGemm,v_node.name,
+          builder.Gemm(norm,wv,v,v,kv_width,hidden,0.0f),0,0,1);
+    });
+    if(q_norm)projections.emplace_back(q_norm->index,[&]{
+      builder.Epsilon(NormalizationEpsilon(matcher,q_norm->name));
+      q_rotated=builder.Scratch(prefix+"q_normed",q_width);
+      builder.Stage(PlanTaskKind::kQKNorm,q_norm->name,0,heads,head_dim,1,
+          {q,weight(matcher.NearestParameter(q_norm->name)),q_rotated});
+    });
+    if(k_norm)projections.emplace_back(k_norm->index,[&]{
+      builder.Epsilon(NormalizationEpsilon(matcher,k_norm->name));
+      k_rotated=builder.Scratch(prefix+"k_normed",kv_width);
+      builder.Stage(PlanTaskKind::kQKNorm,k_norm->name,0,kv_heads,head_dim,1,
+          {k,weight(matcher.NearestParameter(k_norm->name)),k_rotated});
+    });
+    std::sort(projections.begin(),projections.end(),[](auto const& a,auto const& b){return a.first<b.first;});
+    for(auto const& [index,emit]:projections)emit();
     builder.Stage(PlanTaskKind::kRoPE, q_rot.name, 0, heads, head_dim, 1,
                   {q_rotated, q_rot_buffer, inv});
     builder.Stage(PlanTaskKind::kRoPE, cat_k.inputs[1], 0, kv_heads,
