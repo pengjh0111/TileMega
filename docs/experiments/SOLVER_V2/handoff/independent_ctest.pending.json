@@ -1,0 +1,27 @@
+{
+  "observed_ns": 1790290267980264383,
+  "exec_session": 99139,
+  "processes": [
+    {
+      "pid": 2838042,
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build-portable",
+        "--output-on-failure",
+        "-j",
+        "2",
+        "-R",
+        "^(coupling_cache|operator_classes|variant_resource|symbolic_oracle|plan_skeleton|skeleton_placement|isolated_evaluation|skeleton_search_isolation)$"
+      ]
+    },
+    {
+      "pid": 2838219,
+      "command": [
+        "/root/TileMega/build-portable/skeleton_search_isolation_test"
+      ]
+    }
+  ],
+  "completion_metadata": "independent_ctest.command.json",
+  "note": "Pending snapshot; completion command metadata supersedes it."
+}

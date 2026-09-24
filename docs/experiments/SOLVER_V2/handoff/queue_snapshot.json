@@ -1,0 +1,258 @@
+{
+  "arms": [
+    {
+      "arm": "matrix/llama_s1/skeleton-k4",
+      "runner_pids": [
+        2659964
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/llama_s1/skeleton-k8",
+      "runner_pids": [
+        2829258
+      ],
+      "state": "admitted"
+    },
+    {
+      "arm": "matrix/llama_s1/skeleton-k16",
+      "runner_pids": [
+        2659963
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/llama_s1/skeleton-kW",
+      "runner_pids": [
+        2659966
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/llama_s4/skeleton-k4",
+      "runner_pids": [
+        2659960
+      ],
+      "state": "admitted"
+    },
+    {
+      "arm": "matrix/llama_s4/skeleton-k8",
+      "runner_pids": [
+        2659961
+      ],
+      "state": "admitted"
+    },
+    {
+      "arm": "matrix/llama_s4/skeleton-k16",
+      "runner_pids": [
+        2659959
+      ],
+      "state": "admitted"
+    },
+    {
+      "arm": "matrix/llama_s4/skeleton-kW",
+      "runner_pids": [
+        2659962
+      ],
+      "state": "admitted"
+    },
+    {
+      "arm": "matrix/llama_s16/skeleton-k4",
+      "runner_pids": [
+        2659968
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/llama_s16/skeleton-k8",
+      "runner_pids": [
+        2659969
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/llama_s16/skeleton-k16",
+      "runner_pids": [
+        2659967
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/llama_s16/skeleton-kW",
+      "runner_pids": [
+        2659970
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/llama_s64/skeleton-k4",
+      "runner_pids": [
+        2659972
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/llama_s64/skeleton-k8",
+      "runner_pids": [
+        2659973
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/llama_s64/skeleton-k16",
+      "runner_pids": [
+        2659971
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/llama_s64/skeleton-kW",
+      "runner_pids": [
+        2659974
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s1/skeleton-k4",
+      "runner_pids": [
+        2663334
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s1/skeleton-k8",
+      "runner_pids": [
+        2663335
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s1/skeleton-k16",
+      "runner_pids": [
+        2663336
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s1/skeleton-kW",
+      "runner_pids": [
+        2663337
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s4/skeleton-k4",
+      "runner_pids": [
+        2669485
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s4/skeleton-k8",
+      "runner_pids": [
+        2669486
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s4/skeleton-k16",
+      "runner_pids": [
+        2669487
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s4/skeleton-kW",
+      "runner_pids": [
+        2669488
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s16/skeleton-k4",
+      "runner_pids": [
+        2728286
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s16/skeleton-k8",
+      "runner_pids": [
+        2728287
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s16/skeleton-k16",
+      "runner_pids": [
+        2728288
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s16/skeleton-kW",
+      "runner_pids": [
+        2728289
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s64/skeleton-k4",
+      "runner_pids": [
+        2758608
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s64/skeleton-k8",
+      "runner_pids": [
+        2758609
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s64/skeleton-k16",
+      "runner_pids": [
+        2758610
+      ],
+      "state": "queued"
+    },
+    {
+      "arm": "matrix/qwen3_s64/skeleton-kW",
+      "runner_pids": [
+        2758611
+      ],
+      "state": "queued"
+    }
+  ],
+  "supervisors": [
+    {
+      "pid": 2673334,
+      "command": [
+        "python3",
+        "/root/TileMega/docs/experiments/SOLVER_V2/finish_matrix.py"
+      ]
+    },
+    {
+      "pid": 2730558,
+      "command": [
+        "python3",
+        "docs/experiments/SOLVER_V2/render_summary.py",
+        "--wait-for-matrix"
+      ]
+    },
+    {
+      "pid": 2833216,
+      "command": [
+        "python3",
+        "docs/experiments/SOLVER_V2/promote_queued_arm.py",
+        "--jobs",
+        "36",
+        "--slots",
+        "5",
+        "--drain-queue"
+      ]
+    }
+  ],
+  "recorded_ns": 1790290221577472663
+}

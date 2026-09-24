@@ -1,0 +1,10 @@
+{
+  "command": [
+    "python3",
+    "docs/experiments/SOLVER_V2/verify.py"
+  ],
+  "started_ns": 1790290101960975914,
+  "source_head": "bbbbae896f4593a6a72fc8f2f1a102de7067911a",
+  "exit_code": 1,
+  "finished_ns": 1790290126293792527
+}
