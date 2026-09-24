@@ -112,7 +112,13 @@ def collect(root, output):
                 census = table(pathlib.Path(prefix+'.oracles.tsv'))
                 for field in ('structure', 'predecessor', 'successor'):
                     for category, count in sorted(collections.Counter(row[field] for row in census).items()):
-                        oracles.append(dict(identity, field=field, category=category, count=count))
+                        oracles.append(dict(identity, graph='physical_executor_order', field=field, category=category, count=count))
+                semantic_log = directory/'winner_oracle_audit.log'
+                if semantic_log.exists():
+                    semantic_edges = [line.split('\t') for line in semantic_log.read_text().splitlines() if line.startswith('CG_EDGE\t')]
+                    for column, field in ((3, 'structure'), (4, 'predecessor'), (5, 'successor')):
+                        for category, count in sorted(collections.Counter(row[column] for row in semantic_edges).items()):
+                            oracles.append(dict(identity, graph='semantic_cg', field=field, category=category, count=count))
                 evaluated = coordinates = improvements = aligned = 0
                 search_path = directory/'selected.cu.search.tsv'
                 for line in search_path.read_text().splitlines():
@@ -148,12 +154,22 @@ def collect(root, output):
         ('classes', classes, ['class', 'gemm', 'op', 'tile_m', 'tile_n', 'tile_k', 'stages', 'split_k', 'seed_m', 'seed_n', 'seed_k', 'seed_stages', 'seed_split']),
         ('placements', placements, ['residency', 'grid', 'variants', 'affinity_share', 'home_share', 'spread_other_share', 'average_candidates', 'interleaving', 'legacy_eft_interleaving']),
         ('paths', paths, ['cp_ns', 'path_nodes', 'attention_ns', 'attention_share']),
-        ('oracles', oracles, ['field', 'category', 'count']),
+        ('oracles', oracles, ['graph', 'field', 'category', 'count']),
         ('searches', searches, ['evaluations', 'coordinates', 'improvements', 'aligned_improvements', 'cache_hit', 'cache_miss', 'cache_hit_share', 'rounds', 'jobs']),
     ]
     for name, records, fields in schemas:
         write(output/(name+'.tsv'), identity_fields+fields, records)
     write(output/'comparisons.tsv', ['model', 'seq', 'arm', 'l2_legacy', 'l2_kW'], comparisons)
+    derivation = []
+    for model in ('reference', 'llama', 'qwen3'):
+        log = root/f'cache_derive_{model}.log'
+        if not log.exists(): continue
+        for line in log.read_text().splitlines():
+            if line.startswith('DERIVE_TIMING '):
+                fields = dict(item.split('=', 1) for item in line.split()[1:])
+                derivation.append(dict(model=model, evidence=str(log.relative_to(root)), **fields))
+    write(output/'derive_comparison.tsv', ['model', 'evidence', 'split', 'mode', 'count', 'total_ms',
+          'cache_hit', 'cache_miss', 'bytes_equal'], derivation)
     print(f'REPORT measured={len(performance)}/40 pending_or_failed={40-len(performance)} output={output}')
 
 

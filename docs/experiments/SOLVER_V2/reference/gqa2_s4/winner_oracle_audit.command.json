@@ -1,0 +1,16 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-skeleton-audit",
+    "/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s4/selected.cu.top2.mlir",
+    "/root/TileMega/docs/experiments/COSTMODEL/event_fit/target.json",
+    "4",
+    "3"
+  ],
+  "executable_sha256": "0dc2c16c73ca68b4a19b211677ef76fa98c9f753c1e6fc376f4aed5dade2e007",
+  "head": "876ac0d5bee5c5e375e15933f580d06c9e9dc399",
+  "started_ns": 1790263164818919737,
+  "elapsed_ns": 6801671341,
+  "exit_code": 0,
+  "environment": {},
+  "cg_sha256": "0a923a099ee72aefcefdfebe6bd5c8156523a59a00664db88260654836905cf3"
+}

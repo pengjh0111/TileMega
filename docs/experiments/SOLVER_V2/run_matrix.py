@@ -44,5 +44,5 @@ def main():
     with solver_slot(a.out,a.solver_slots):
         if run(cmd,a.out/'solve.log',env):raise RuntimeError('skeleton solve failed')
     if run(['python3',ROOT/'docs/experiments/SOLVER_V2/measure.py','--source',source,'--fixture',a.fixture,'--top3'],a.out/'measure.log',env):raise RuntimeError('top-3 build/internal gate failed')
-    if run([ROOT/'build-portable/tools/tilemega-skeleton-audit',a.out/'selected.mlir',ROOT/'docs/experiments/COSTMODEL/event_fit/target.json',a.seq,a.past],a.out/'oracle_audit.log',env):raise RuntimeError('anchored Oracle set equality failed')
+    if run([ROOT/'build-portable/tools/tilemega-skeleton-audit',pathlib.Path(str(source)+'.measured.mlir'),ROOT/'docs/experiments/COSTMODEL/event_fit/target.json',a.seq,a.past],a.out/'oracle_audit.log',env):raise RuntimeError('anchored Oracle set equality failed')
 if __name__=='__main__':main()

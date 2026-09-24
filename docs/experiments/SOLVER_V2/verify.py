@@ -124,9 +124,20 @@ def oracle_checks():
     failures=[];audits=[]
     for m,s in real_cells:
         for arm in arms[1:]:
-            path=arm_dir(m,s,arm)/'oracle_audit.log';text=read(path)
+            directory=arm_dir(m,s,arm);path=directory/'winner_oracle_audit.log';text=read(path)
             records=[line.split('\t') for line in text.splitlines() if re.match(r'^\d+\t',line)]
-            passed=bool(records) and 'ORACLE_SET_EQUAL' in text and 'PASS' in text and all(len(r)==8 and r[-1]=='1' and r[-2]==r[-3] for r in records)
+            selected=measurements.get((m,s,arm));metadata=path.with_suffix('.command.json')
+            identity=False
+            if selected and metadata.exists():
+                cg=next(r['cg'] for r in rows(directory/'selected.cu.top3.tsv') if pathlib.Path(r['source']).name==selected[0].name.removesuffix('.measurement'))
+                command=json.loads(metadata.read_text())
+                identity=command.get('exit_code')==0 and pathlib.Path(command['command'][1]).name==pathlib.Path(cg).name
+                module=read(directory/pathlib.Path(cg).name)
+                identity=identity and command.get('cg_sha256')==hashlib.sha256((directory/pathlib.Path(cg).name).read_bytes()).hexdigest()
+                plan=re.search(r'AUDIT_PLAN grid=(\d+) residency=(\d+) kappa=(\d+)',text)
+                attrs=[re.search(r'tmexec\.solved_'+key+r'\s*=\s*(\d+)',module) for key in ('grid','residency','kappa')]
+                identity=identity and bool(plan) and all(attrs) and tuple(a[1] for a in attrs)==plan.groups()
+            passed=identity and bool(records) and 'CG_EDGE\t' in text and 'ORACLE_SET_EQUAL' in text and 'PASS' in text and all(len(r)==8 and r[-1]=='1' and r[-2]==r[-3] for r in records)
             if not passed:failures.append(str(path))
             else:audits.append((str(path),len(records)))
     # The executable compares actual point sets, not just cardinalities.

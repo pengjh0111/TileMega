@@ -18,8 +18,20 @@ int main(int argc,char** argv) {
   auto module=mlir::parseSourceFile<mlir::ModuleOp>(argv[1],&context);
   if(!module)throw std::invalid_argument("cannot parse CG");
   int seq=std::stoi(argv[3]),past=std::stoi(argv[4]);auto target=TargetSpec::FromJson(argv[2]);
-  auto problem=solver::PrepareSymbolicProblem(*module,target,{seq,past,seq+past},target.res.num_sms,1,1);
-  analysis::CouplingCache cache;auto skeleton=solver::BuildPlanSkeleton(problem,target.res.num_sms,1,8,false,cache);
+  auto integer=[&](char const* name,int fallback){auto a=(*module)->getAttrOfType<mlir::IntegerAttr>(name);return a?int(a.getInt()):fallback;};
+  int residency=integer("tmexec.solved_residency",1),grid=integer("tmexec.solved_grid",target.res.num_sms*residency);
+  int kappa=integer("tmexec.solved_kappa",1);
+  auto problem=solver::PrepareSymbolicProblem(*module,target,{seq,past,seq+past},grid,residency,kappa);
+  analysis::CouplingCache cache;auto skeleton=solver::BuildPlanSkeleton(problem,grid,residency,8,false,cache);
+  std::cout<<"AUDIT_PLAN grid="<<grid<<" residency="<<residency<<" kappa="<<kappa<<'\n';
+  // Report semantic couplings separately from their physical executor-order
+  // extension. The latter is the relation used by the scheduling Oracle.
+  for(auto const& edge:problem.model.coupling_metrics.edges) {
+    auto pair=cache.OracleFor(edge.relation.Reverse().ToString());
+    std::cout<<"CG_EDGE\t"<<edge.producer_task<<'\t'<<edge.consumer_task<<'\t'
+      <<analysis::ToString(pair->structure)<<'\t'<<analysis::ToString(pair->reverse.kind())
+      <<'\t'<<analysis::ToString(pair->forward.kind())<<'\n';
+  }
   std::map<std::string,int> structures,kinds;int comparisons=0;
   std::cout<<"producer\tconsumer\tdirection\toracle\tcoordinate\texpected\tactual\tequal\n";
   for(auto const& edge:skeleton.edges){++structures[analysis::ToString(edge.oracle->structure)];
@@ -45,7 +57,6 @@ int main(int argc,char** argv) {
   if(argc==7) {
     dialect::PlacementSolveOptions options;options.target=target;
     options.dims={seq,past,seq+past};
-    auto integer=[&](char const* name,int fallback){auto a=(*module)->getAttrOfType<mlir::IntegerAttr>(name);return a?int(a.getInt()):fallback;};
     options.residency=integer("tmexec.solved_residency",1);
     options.verified_resident_limit=options.residency;
     options.requested_grid=integer("tmexec.solved_grid",0);

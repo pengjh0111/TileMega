@@ -55,6 +55,8 @@ def main():
         print('EDGE_ARCHIVE exit='+str(edges.returncode),flush=True)
     resources=subprocess.run(['python3',str(E/'archive_resources.py')])
     print('RESOURCE_ARCHIVE exit='+str(resources.returncode),flush=True)
+    winners=subprocess.run(['python3',str(E/'audit_winners.py')])
+    print('WINNER_ORACLE exit='+str(winners.returncode),flush=True)
     tables=subprocess.run(['python3',str(E/'report_tables.py')])
     print('REPORT_TABLES exit='+str(tables.returncode),flush=True)
     with (E/'verify_after_matrix.log').open('w') as log:
