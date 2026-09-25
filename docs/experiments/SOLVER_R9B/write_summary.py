@@ -102,6 +102,7 @@ GB 级无生产者权重流量从 SDCM 约 0.5 的 DRAM 比例改为实测服务
     table('replay.tsv',['arm','model','n','spearman','MAPE','best_actual_rank_in_predicted_top1','best_actual_rank_in_predicted_top3','best_actual_rank_in_predicted_top10']))
 parts.append('## 8. Level 1 与逐 tile 模拟\n\n预热速度原始证据 `flow_final/`、`flow_arena/`；完整矩阵的求解阶段见 §11。随机样本只有完成 100 组且进程正常结束才标 complete。关闭流体模式的参考 24 计划对照共 102,312 行 binary64 输出与基线逐字节一致，见 `simulator_identity/`。\n\n'+
     table('consistency.tsv',['family','model','n','complete','spearman','ratio_p10','ratio_p50','ratio_p90','flow_ms_max','fluid_ms_max','nonprefix_edges_max','varying_spaces_max'])+
+    '\nV3 的完整 top-3 对照（模型相等的预测保留平均秩，不把名单顺序解释为模型分辨力）：\n\n'+table('shortlist_predictions.tsv',['cell','shortlist_rank','l2_ms','L2_over_floor','flow_over_measured','fluid_over_measured','flow_rank','fluid_rank','actual_rank'])+
     table('legacy_flow.tsv',['cell','interpretation','T','T_floor','actual_legacy_ms','flow_over_actual_legacy']))
 parts.append('## 9. 所选配置\n\n算子名到类的完整映射见表的 operators 字段。原始 `top3.tsv` 与 `metrics.tsv` 的 `floor_ns` 是历史放置下界字段，**不是**本轮物理 T_floor；本报告仅使用 `tmexec.dram_floor`/`*.flow.tsv` 的物理下界。\n\n'+table('configurations.tsv',['cell','operator_class','tile_m','tile_n','tile_k','stages','split_k','kappa','residency','distinct_variants','legacy_uniform']))
 parts.append('## 10. 放置、消融与同步检验\n\n原有 affinity/home/spread_other 是互斥分类，affinity 与真实 home 可重叠。离开 home 的比例用独立计数，旧产物用同配置的纯模板 A worker 表逐 tile 重算；不能使用 1−home/placed。\n\n'+

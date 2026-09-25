@@ -87,6 +87,16 @@ def selected(cell):
     return min(measured, key=lambda pair: pair[0]['l2_ms'])
 
 
+def precise_fluid(directory, candidate):
+    choices = [(float(r['simulated_ns']), p) for p in directory.glob('*.metrics.tsv')
+               for r in rows(p) if r['key'] == candidate['key']]
+    value, path = min(choices)
+    # Compiler shortlist fields historically used six significant figures.
+    if not math.isclose(value, float(candidate['predicted_ns']), rel_tol=5e-6):
+        raise ValueError('shortlist prediction differs from A/B simulation records')
+    return value, str(path.relative_to(E))
+
+
 def displacement(metric_path):
     metric=rows(metric_path)[0]
     if 'moved_from_home' in metric:
@@ -142,7 +152,7 @@ def performance():
                 protocol_on_chain_ns=protocol, attention_chain_ns=attention,
                 attention_over_flow=attention / x['T'], chain_depth=x['chain_depth'],
                 flow_over_measured=x['T'] / (measured['l2_ms'] * 1e6),
-                fluid_over_measured=float(candidate['predicted_ns']) / (measured['l2_ms'] * 1e6),
+                fluid_over_measured=precise_fluid(directory,candidate)[0] / (measured['l2_ms'] * 1e6),
                 colocated_edges=x['colocated_edges'], sync_omitted_edges=x['sync_omitted_edges'], evidence=str(path.relative_to(E))))
             for category in sorted({link['category'] for link in links}):
                 group = [link for link in links if link['category'] == category]
@@ -245,6 +255,38 @@ def materializations():
     write('materializations.tsv', result)
 
 
+def shortlist_predictions():
+    result = []
+    for model, seq in CELLS:
+        cell = f'{model}_s{seq}'
+        directory = E / 'matrix' / cell
+        group = []
+        try:
+            candidates = rows(directory / 'selected.cu.top3.tsv')
+            if len(candidates) != 3:
+                raise ValueError('top-3 list incomplete')
+            for candidate in candidates:
+                measured = measurements(pathlib.Path(candidate['source'] + '.measurement'))
+                flow = next(r for p in directory.glob('*.flow.tsv') for r in rows(p)
+                            if r['key'] == candidate['key'])
+                fluid, proof = precise_fluid(directory, candidate)
+                group.append(dict(cell=cell, shortlist_rank=int(candidate['rank']), key=candidate['key'],
+                    l2_ms=measured['l2_ms'], flow_ns=float(flow['T']), fluid_ns=fluid,
+                    L2_over_floor=measured['l2_ms']*1e6/floor(cell)['floor_ns'],
+                    flow_over_measured=float(flow['T'])/(measured['l2_ms']*1e6),
+                    fluid_over_measured=fluid/(measured['l2_ms']*1e6), simulation_evidence=proof,
+                    evidence=str(pathlib.Path(candidate['source'] + '.measurement').relative_to(E))))
+            for key, name in [('l2_ms', 'actual_rank'), ('flow_ns', 'flow_rank'), ('fluid_ns', 'fluid_rank')]:
+                # Average ranks expose ties; a stable top-3 list index is not
+                # evidence that the model distinguishes equal predictions.
+                for row, rank in zip(group, ranks([r[key] for r in group])):
+                    row[name] = rank + 1
+            result.extend(group)
+        except (OSError, ValueError, KeyError, StopIteration) as error:
+            missing.append(f'{cell}: shortlist prediction comparison incomplete: {error}')
+    write('shortlist_predictions.tsv', result)
+
+
 def replays():
     result = []
     for arm in ('baseline_bf16', 'physical_bf16', 'stages_bf16', 'fixed_bf16', 'all_complete_bf16', 'selected_bf16', 'historical_target_bf16'):
@@ -328,6 +370,16 @@ def additional_measurements():
                 row = rows(metrics)[0]
                 record.update(flow_ns=row['flow_ns'], simulated_ns=row['simulated_ns'], residency=row['residency'],
                               moved_fraction=displacement(metrics)[0] / int(row['placed']))
+            if arm == 'early_R9':
+                directory = E/'early_flow'/f'{model}_s{seq}'
+                if json.loads((directory/'exit.json').read_text())['exit'] != 0:
+                    raise ValueError('early geometry flow replay failed')
+                record['flow_ns'] = float(re.search(r'FLOW ns=([\d.eE+-]+)',(directory/'run.log').read_text())[1])
+                record['prediction_scope'] = 'R9 snapshot geometry; uncolocated global pool, not original R9 placement'
+            if 'flow_ns' in record:
+                record['flow_over_measured'] = float(record['flow_ns'])/(measured['l2_ms']*1e6)
+            if 'simulated_ns' in record:
+                record['fluid_over_measured'] = float(record['simulated_ns'])/(measured['l2_ms']*1e6)
             occupancy = path / 'occupancy/query.log'
             if occupancy.exists():
                 record['actual_limit'] = json.loads(occupancy.read_text())['resident']
@@ -390,8 +442,10 @@ def model_traffic():
 
 
 def main():
+    from restore_trace import restore
+    restore()
     OUT.mkdir(exist_ok=True)
-    for operation in (performance, consistency, materializations, replays, theta, fits_and_traffic, additional_measurements, model_traffic, trace_comparison):
+    for operation in (performance, consistency, materializations, shortlist_predictions, replays, theta, fits_and_traffic, additional_measurements, model_traffic, trace_comparison):
         operation()
     (OUT / 'incomplete.json').write_text(json.dumps(missing, indent=2) + '\n')
     print(f'R9B_REPORT tables={OUT} incomplete_items={len(missing)}')

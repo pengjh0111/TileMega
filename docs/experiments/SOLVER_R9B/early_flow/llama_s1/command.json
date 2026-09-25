@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/root/r9b_work/early-flow-audit",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/early_resident/llama_s1.mlir",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/fit/target.json",
+    "1",
+    "/root/r7_work/llama_s1/fixture",
+    "3",
+    "1"
+  ],
+  "binary_sha256": "f7404db7db1d29fc9a355162bf5cc95538ac385281b124994f4c543480c94ed0",
+  "cg_sha256": "e8ede8bcee7b70953567b232b3899be0fd975201ad7aa497b59d10562dd71be8"
+}
