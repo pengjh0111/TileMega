@@ -1,0 +1,4 @@
+[1/4] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/SkeletonSearch.cpp.o
+[2/4] Linking CXX static library libtilemega.a
+[3/4] Linking CXX executable skeleton_placement_test
+[4/4] Linking CXX executable tools/tilemega-compile

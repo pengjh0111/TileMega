@@ -7628,3 +7628,21 @@ preserves the existing scalar physical-domain convention. Its later batching
 optimization retains the completed 12-space seq16 prefix byte for byte.
 Evidence: `SOLVER_R9B/traffic/{legacy,skeleton}/<cell>/spaces.tsv`, raw CG
 checksums and commands alongside it; `traffic_scalar_loop_prefix/prefix_check.json`.
+
+## F-267 — Audit every top-M template/refinement pair with actual displacement
+
+✅ verified: the search materializations TSV still used the complement of its
+exclusive home bin, despite the independent displacement counter already being
+available in placement metrics. The writer now uses moved_from_home/placed.
+Reporting independently reconstructs old counts by comparing the pure template
+A and refined B worker assignment for every task at identical geometry/grid.
+The original TSV field remains in evidence under its historical name.
+
+The five completed solves (Llama seq1/4/16, Qwen3 seq1/4) contain 40 A/B pairs.
+All 40 old displacement fractions differ from the exact count. Refined/pure
+fluid-time ranges are 1.2903–1.4137, 1.2435, 1.1232, 0.999667–0.999673, and
+1.0000 respectively. These are simulation results, not measured end-to-end
+benefits. No placement, score or selected binary changes in this reporting fix.
+The existing independent displacement unit checks pass. Evidence:
+`SOLVER_R9B/report_tables/materializations.tsv`, each raw `matrix/*/*.tasks.tsv`
+and `*.metrics.tsv`, and `unit/displacement_writer.log`.

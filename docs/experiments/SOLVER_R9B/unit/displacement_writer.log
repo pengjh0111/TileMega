@@ -1,0 +1,8 @@
+Internal ctest changing into directory: /root/TileMega/build-portable
+Test project /root/TileMega/build-portable
+    Start 54: skeleton_placement
+1/1 Test #54: skeleton_placement ...............   Passed    0.03 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.03 sec

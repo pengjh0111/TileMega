@@ -137,3 +137,13 @@ specification and needs a new search/model-validation matrix; the latter touches
 R9b-excluded execution semantics. Evidence: `unit/runtime_release.log` and
 `test/unit/flow_runtime_release_test.cpp`. No numerical correctness regression
 or global-stop condition occurred.
+
+## SV-14(d): historical displacement field corrected from raw placement
+
+The early top-M materializations TSV emitted `1 - home/placed`, although the
+exclusive affinity bin can also contain a tile placed at its structural home.
+The scheduler's independent `moved_from_home` counter is the correct quantity;
+the search TSV writer now uses it too. Existing binary outputs are preserved.
+`report.py` reconstructs older counts from same-configuration A/B task worker
+tables, and records the original field beside the corrected value. This changes
+reporting only, not placement, scores, selection or GPU binaries.

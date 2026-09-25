@@ -211,6 +211,40 @@ def consistency():
     write('consistency.tsv', result)
 
 
+def materializations():
+    result = []
+    for model, seq in CELLS:
+        cell = f'{model}_s{seq}'
+        directory = E / 'matrix' / cell
+        path = directory / 'selected.cu.materializations.tsv'
+        if not path.exists():
+            missing.append(f'{cell}: missing top-M materializations')
+            continue
+        data = rows(path)
+        if len(data) != 8:
+            missing.append(f'{cell}: top-M materializations {len(data)}/8')
+        for row in data:
+            try:
+                prefix = directory / f'selected.cu.m{row["rank"]}'
+                pure_path = pathlib.Path(str(prefix) + 'A.metrics.tsv')
+                eft_path = pathlib.Path(str(prefix) + 'B.metrics.tsv')
+                pure, eft = rows(pure_path)[0], rows(eft_path)[0]
+                if pure['key'] != row['key'] or eft['key'] != row['key'] or pure['grid'] != eft['grid']:
+                    raise ValueError('A/B materialization geometry or grid differs')
+                moved, proof = displacement(eft_path)
+                fraction = moved / int(eft['placed'])
+                result.append(dict(cell=cell, rank=row['rank'], key=row['key'],
+                    pure_ns=pure['simulated_ns'], eft_ns=eft['simulated_ns'],
+                    eft_over_pure=float(eft['simulated_ns'])/float(pure['simulated_ns']),
+                    pure_selected=row['pure_selected'], placed=eft['placed'],
+                    moved_count=moved, moved_fraction=fraction,
+                    historical_reported_moved_fraction=row['moved_fraction'],
+                    evidence=proof))
+            except (OSError, ValueError, KeyError) as error:
+                missing.append(f'{cell} materialization {row["rank"]}: {error}')
+    write('materializations.tsv', result)
+
+
 def replays():
     result = []
     for arm in ('baseline_bf16', 'physical_bf16', 'stages_bf16', 'fixed_bf16', 'all_complete_bf16', 'selected_bf16', 'historical_target_bf16'):
@@ -357,7 +391,7 @@ def model_traffic():
 
 def main():
     OUT.mkdir(exist_ok=True)
-    for operation in (performance, consistency, replays, theta, fits_and_traffic, additional_measurements, model_traffic, trace_comparison):
+    for operation in (performance, consistency, materializations, replays, theta, fits_and_traffic, additional_measurements, model_traffic, trace_comparison):
         operation()
     (OUT / 'incomplete.json').write_text(json.dumps(missing, indent=2) + '\n')
     print(f'R9B_REPORT tables={OUT} incomplete_items={len(missing)}')

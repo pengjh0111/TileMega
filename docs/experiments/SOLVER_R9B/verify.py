@@ -487,6 +487,33 @@ def local_release_identity():
    except Exception as error:ok=False;detail.append(f'{cell}: {error}')
  return ok,'; '.join(detail)
 check('A-local-release-identity',local_release_identity)
+def materialization_displacement():
+ detail=[];ok=True
+ for model in ('llama','qwen3'):
+  for seq in (1,4,16,64):
+   directory=E/'matrix'/f'{model}_s{seq}'
+   try:
+    records=rows(directory/'selected.cu.materializations.tsv');cell_ok=len(records)==8
+    historical_differences=0
+    for record in records:
+     prefix=str(directory/f'selected.cu.m{record["rank"]}')
+     a,b=rows(pathlib.Path(prefix+'A.metrics.tsv'))[0],rows(pathlib.Path(prefix+'B.metrics.tsv'))[0]
+     def owners(suffix):return {(int(r['stage']),int(r['task'])):int(r['worker']) for r in rows(pathlib.Path(prefix+suffix+'.tasks.tsv'))}
+     home,actual=owners('A'),owners('B')
+     valid=a['key']==b['key']==record['key'] and a['grid']==b['grid'] and a['candidate_sum']==a['placed']
+     valid &= home.keys()==actual.keys() and len(home)==int(a['placed'])==int(b['placed'])
+     moved=sum(home[t]!=actual[t] for t in home)
+     if 'moved_from_home' in b:valid &= int(b['moved_from_home'])==moved
+     # Earlier executables emitted the disjoint destination-bin complement.
+     # Do not overwrite that raw field or use it as the corrected metric.
+     historical_differences += abs(float(record['moved_fraction'])-moved/int(b['placed']))>1e-5
+     valid &= bool(int(record['pure_selected']))==(float(a['simulated_ns'])<=float(b['simulated_ns']))
+     cell_ok &= valid
+    ok &= cell_ok
+    detail.append(f'{directory.relative_to(E)} pairs={len(records)}/8 exact_worker_checks={cell_ok} historical_fraction_differences={historical_differences}; exact A/B worker comparison')
+   except Exception as error:ok=False;detail.append(f'{directory.relative_to(E)}: {error}')
+ return ok,'; '.join(detail)
+check('A-materialization-displacement',materialization_displacement)
 failed=[k for k,v in results.items() if not v]
 print('R9B_VERIFY failures='+','.join(failed))
 sys.exit(bool(failed))

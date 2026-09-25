@@ -107,6 +107,7 @@ parts.append('## 9. 所选配置\n\n算子名到类的完整映射见表的 oper
 parts.append('## 10. 放置、消融与同步检验\n\n原有 affinity/home/spread_other 是互斥分类，affinity 与真实 home 可重叠。离开 home 的比例用独立计数，旧产物用同配置的纯模板 A worker 表逐 tile 重算；不能使用 1−home/placed。\n\n'+
     table('placements.tsv',['cell','grid','residency','flow_ns','simulated_ns','placed','moved_count','moved_fraction','interleaving','evidence'])+
     table('additional_measurements.tsv',['cell','arm','l05_ms','l1_ms','l2_ms','L2_over_floor','flow_ns','simulated_ns','residency','actual_limit','moved_fraction'])+
+    '\n全部 top-M 的 A/B 物化对照；旧表中移离 home 的字段保留为 historical_reported_moved_fraction，下面按独立计数或逐 task A/B worker 表重算：\n\n'+table('materializations.tsv',['cell','rank','pure_ns','eft_ns','eft_over_pure','pure_selected','moved_count','placed','moved_fraction'])+
     '每模型 ≥50 个新进程与实际事件等待省略计数由 G-2 核查；不能以结构共置边数代替执行器真正省去的等待数。\n'+table('resources.tsv',['cell','rank','estimated','actual','re_solved','residency','flow_ns','simulated_ns']))
 parts.append('## 11. 求解耗时\n\n阶段单位 ms；部分诊断计时嵌套，不能把所有行直接求和当作 total。每格 budget 按完整求解墙钟减最终 megakernel 编译核算；变体编译仍计入。R9 30–45 h 与旧 legacy 1.3–5.5 h 是历史对照，不是本轮重新求解时间。\n\n'+table('phases.tsv',['cell','phase','count','total_ms']))
 parts.append('## 12. θ 网格\n\n同一模型只导入一次，改变 θ 绑定；两起点、完整域。只展示有 completed.tsv 的点；不能把尚未结束的当前最小值记成最终最优。变化区间只由相邻已完成点限定，不宣称区间内的全局最优证明。\n\n'+table('theta.tsv',list(rows('theta.tsv')[0]) if rows('theta.tsv') else []))
