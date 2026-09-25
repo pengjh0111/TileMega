@@ -1,0 +1,33 @@
+{
+  "returncode": 0,
+  "seconds": 23.43007125891745,
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-compile",
+    "/root/r10_work/export/qwen3_decode/bridge.json",
+    "/root/r10_work/floor_qwen3_B1_p64.cu",
+    "--serving",
+    "decode",
+    "--batch",
+    "1",
+    "--past-range",
+    "64:64",
+    "--capacity",
+    "1088",
+    "--solver",
+    "skeleton",
+    "--solve",
+    "/root/r10_work/target_r10_inflight.json",
+    "--hop-curve",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv",
+    "--variant-cache",
+    "/root/r9_work/variant_resources",
+    "--emit",
+    "serving",
+    "--flow-search-only",
+    "1",
+    "--search-domain",
+    "/root/r10_work/floor_one_shape.json",
+    "--evaluate-configs",
+    "/root/r10_work/floor_qwen_case.json"
+  ]
+}
