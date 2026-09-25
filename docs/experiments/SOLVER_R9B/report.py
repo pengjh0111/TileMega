@@ -147,7 +147,7 @@ def performance():
             for category in sorted({link['category'] for link in links}):
                 group = [link for link in links if link['category'] == category]
                 fusion.append(dict(cell=cell, category=category, links=len(group),
-                    potentially_fusible=category in ('rmsnorm', 'combine', 'add', 'rope', 'append', 'silu', 'activation'),
+                    potentially_fusible=category in ('rmsnorm', 'combine', 'add', 'rope', 'append', 'kv_append', 'swiglu', 'silu', 'activation'),
                     **{k: sum(float(link[k]) for link in group) for k in ('wait_ns', 'publication_ns', 'hop_ns', 'fixed_ns')},
                     evidence=str(path.relative_to(E))))
             shapes = re.findall(r'(\d+)x(\d+)x(\d+)s(\d+)k(\d+)', candidate['key'])
@@ -220,6 +220,9 @@ def replays():
                 missing.append(str(path.relative_to(E)))
                 continue
             data = rows(path)
+            if len(data)!={'gqa2':770,'mha4':462}[model] or any(r.get('model_ms') is None or r.get('measured_ms') is None for r in data):
+                missing.append(str(path.relative_to(E))+': replay incomplete')
+                continue
             actual = [float(r['measured_ms']) for r in data]
             predicted = [float(r['model_ms']) for r in data]
             rank = ranks(actual)
