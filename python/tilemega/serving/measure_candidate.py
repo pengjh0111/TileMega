@@ -45,15 +45,14 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
     if reverse_modes:
         modes.reverse()
     measured = {}
-    for mode in modes:
-        # L1 stage barriers and L2 task events occupy the same event storage.
-        # Their trigger counts differ, so each mode needs a fresh plan instance
-        # and monotonic iterations within that instance.
-        instance = plan.create(batch, {name: tensor.data_ptr()
-                                       for name, tensor in buffers.items()},
-                               torch.cuda.current_device())
-        try:
-            instance.set_steps([past] * (warmup + timed))
+    # The two modes occupy disjoint event rows. Exercise both on one instance
+    # so the candidate timing also checks their independent ticket sequences.
+    instance = plan.create(batch, {name: tensor.data_ptr()
+                                   for name, tensor in buffers.items()},
+                           torch.cuda.current_device())
+    try:
+        instance.set_steps([past] * (warmup + timed))
+        for mode in modes:
             starts = [torch.cuda.Event(enable_timing=True)
                       for _ in range(timed)]
             ends = [torch.cuda.Event(enable_timing=True)
@@ -71,8 +70,8 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
                 "median_ms": statistics.median(values),
                 "samples_ms": values,
             }
-        finally:
-            instance.close()
+    finally:
+        instance.close()
     if not _exclusive(out / "guard.jsonl", "candidate-after", False):
         raise RuntimeError("candidate GPU timing was contaminated")
     report = {"plan": str(plan.path), "batch": batch, "past": past,

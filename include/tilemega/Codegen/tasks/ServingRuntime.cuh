@@ -30,8 +30,9 @@ struct Plan {
   Params* ring = nullptr;
   std::uint32_t steps = 0;
   int grid = 0;
-  std::uint64_t next_iteration = 0;
-  std::uint32_t selected_mode = 0;
+  // L1 grid-barrier rows and L2 task-event rows are disjoint. Ticket equality
+  // requires a gap-free sequence for each mode, even when launches alternate.
+  std::uint64_t next_iteration[2] = {0, 0};
 };
 
 inline int Count(ModelSpec const& spec, RuntimeVariantDesc const& variant,
@@ -241,9 +242,9 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step,
   using namespace tilemega::codegen;
   auto* plan = static_cast<serving::Plan*>(opaque);
   if (!plan || !plan->ring || step >= plan->steps ||
-      iteration != plan->next_iteration ||
       (mode != TM_SERVING_L1 && mode != TM_SERVING_L2)) return -1;
-  if (plan->selected_mode != 0 && plan->selected_mode != mode) return -2;
+  std::uint32_t mode_index = mode == TM_SERVING_L1 ? 0 : 1;
+  if (iteration != plan->next_iteration[mode_index]) return -2;
   auto* params = plan->ring + step;
   auto cuda_stream = static_cast<cudaStream_t>(stream);
   if (mode == TM_SERVING_L1)
@@ -256,8 +257,7 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step,
         params, plan->model.events, iteration);
   cudaError_t status = cudaGetLastError();
   if (status != cudaSuccess) return int(status);
-  plan->selected_mode = mode;
-  ++plan->next_iteration;
+  ++plan->next_iteration[mode_index];
   return 0;
 }
 

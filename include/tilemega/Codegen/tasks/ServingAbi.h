@@ -34,6 +34,8 @@ int tm_plan_query(tm_plan_info* out);
 int tm_plan_buffer(uint32_t index, tm_buffer_info* out);
 void* tm_plan_create(int batch, void* const* external, int device);
 int tm_plan_set_steps(void* plan, const int32_t* past, uint32_t count);
+// iteration is the number of previous launches of this mode on this plan.
+// L1 and L2 each advance independently; event counters are never reset.
 int tm_plan_launch(void* plan, uint32_t step, uint32_t mode,
                    uint64_t iteration, void* stream);
 void tm_plan_destroy(void* plan);

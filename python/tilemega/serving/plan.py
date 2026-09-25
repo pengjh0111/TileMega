@@ -92,7 +92,7 @@ class Plan:
     def __init__(self, library: PlanLibrary, handle: int):
         self.library = library
         self.handle = handle
-        self.iteration = 0
+        self.iteration = {1: 0, 2: 0}
 
     def set_steps(self, past: list[int]) -> None:
         if not past or any(not self.library.info.past_lo <= p <= self.library.info.past_hi
@@ -106,9 +106,9 @@ class Plan:
         if not self.library.info.modes & mode:
             raise ValueError("mode not present in this plan")
         if self.library.lib.tm_plan_launch(
-                self.handle, step, mode, self.iteration, stream) != 0:
+                self.handle, step, mode, self.iteration[mode], stream) != 0:
             raise RuntimeError("tm_plan_launch failed")
-        self.iteration += 1
+        self.iteration[mode] += 1
 
     def close(self) -> None:
         if self.handle:
