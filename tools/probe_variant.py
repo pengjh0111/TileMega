@@ -7,6 +7,25 @@ split values; the solver still keeps a separate semantic resource-cache entry.
 """
 import argparse, fcntl, hashlib, json, pathlib, re, shutil, subprocess
 ROOT=pathlib.Path(__file__).resolve().parents[1]
+
+def serving_headers(source):
+    """Hash only local headers reachable from this probe's translation unit."""
+    pending=[name.decode() for name in re.findall(
+        rb'^\s*#\s*include\s*[<"](tilemega/[^>"]+)[>"]',
+        source.encode(),re.MULTILINE)]
+    seen=set()
+    while pending:
+        name=pending.pop()
+        path=ROOT/'include'/name
+        if path in seen:continue
+        if not path.is_file():raise FileNotFoundError(path)
+        seen.add(path)
+        body=path.read_bytes()
+        pending.extend(item.decode() for item in re.findall(
+            rb'^\s*#\s*include\s*[<"](tilemega/[^>"]+)[>"]',
+            body,re.MULTILINE))
+    return sorted(seen)
+
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--cache',type=pathlib.Path,required=True);ap.add_argument('--output',type=pathlib.Path,required=True)
@@ -48,11 +67,25 @@ def main():
     text+=f'int main() {{ std::printf("%zu {threads}\\n",{size}); }}\n'
     compiler='/usr/local/cuda/bin/nvcc'
     version=subprocess.check_output([compiler,'--version'],text=True)
-    # TaskBody files are immutable in R9, but a cache must also survive later rounds safely.
+    # Serving probes depend on a small, exact local include closure.  Hashing
+    # every TaskBody made an unrelated RoPE or attention edit invalidate all
+    # GEMM resources, turning one coordinate scan into serial recompilation.
     digest=hashlib.sha256((text+a.arch+version).encode())
-    for root in [ROOT/'include/tilemega/Codegen/tasks',ROOT/'include/tilemega/Backend',ROOT/'include/tilemega/Target']:
-        for p in sorted(root.rglob('*')):
-            if p.is_file():digest.update(str(p.relative_to(ROOT)).encode());digest.update(p.read_bytes())
+    if a.serving:
+        files=serving_headers(text)
+        cutlass_revision=subprocess.check_output(
+            ['git','-C',str(ROOT/'third_party/cutlass'),'rev-parse','HEAD'],
+            text=True).strip()
+        digest.update(cutlass_revision.encode())
+    else:
+        files=[p for root in (ROOT/'include/tilemega/Codegen/tasks',
+                              ROOT/'include/tilemega/Backend',
+                              ROOT/'include/tilemega/Target')
+               for p in root.rglob('*') if p.is_file()]
+        files.sort()
+    for p in files:
+        digest.update(str(p.relative_to(ROOT)).encode())
+        digest.update(p.read_bytes())
     directory=a.cache/digest.hexdigest();directory.mkdir(parents=True,exist_ok=True)
     lock=(directory/'compile.lock').open('w');fcntl.flock(lock,fcntl.LOCK_EX)
     result=directory/'resources.json';compiled=not result.exists()
