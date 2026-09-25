@@ -1,0 +1,143 @@
+Internal ctest changing into directory: /root/TileMega/build-portable
+Test project /root/TileMega/build-portable
+      Start 48: impl_contract
+      Start 32: pipeline_sigma
+      Start 55: skeleton_search_isolation
+      Start 31: stage_kappa
+ 1/65 Test #48: impl_contract ....................Subprocess aborted***Exception:   0.01 sec
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  cudaGetDeviceProperties: OS call failed or operation not supported on this OS
+
+      Start 30: fusion_rewrite
+ 2/65 Test #55: skeleton_search_isolation ........   Passed   37.76 sec
+      Start  3: coupling_interface_mha4
+ 3/65 Test #31: stage_kappa ......................   Passed   56.85 sec
+      Start 38: attention_work
+ 4/65 Test  #3: coupling_interface_mha4 ..........   Passed   54.57 sec
+      Start  2: coupling_interface_gqa2
+ 5/65 Test #38: attention_work ...................   Passed   38.98 sec
+      Start 60: coupling_cache
+ 6/65 Test #60: coupling_cache ...................   Passed    3.68 sec
+      Start 33: fusion_written_price
+ 7/65 Test  #2: coupling_interface_gqa2 ..........   Passed   28.97 sec
+      Start 36: fusion_batch_rewrite
+ 8/65 Test #33: fusion_written_price .............   Passed   22.61 sec
+      Start 56: plan_skeleton
+ 9/65 Test #30: fusion_rewrite ...................   Passed  131.17 sec
+      Start 10: regime_a_price
+10/65 Test #10: regime_a_price ...................   Passed    3.38 sec
+      Start 59: operator_classes
+11/65 Test #59: operator_classes .................   Passed    0.85 sec
+      Start 13: incidence_identity
+12/65 Test #56: plan_skeleton ....................   Passed   15.86 sec
+      Start 14: imported_incidence_identity
+13/65 Test #36: fusion_batch_rewrite .............   Passed   18.49 sec
+      Start 20: task_element_work
+14/65 Test #13: incidence_identity ...............   Passed    5.08 sec
+      Start  6: target_audit
+15/65 Test #20: task_element_work ................   Passed    2.86 sec
+      Start 39: chain_dp
+16/65 Test #14: imported_incidence_identity ......   Passed    5.27 sec
+      Start 52: frontend_import
+17/65 Test  #6: target_audit .....................   Passed    4.00 sec
+      Start 17: runtime_projection
+18/65 Test #17: runtime_projection ...............   Passed    1.76 sec
+      Start  1: scalar_cost_errors
+19/65 Test #39: chain_dp .........................   Passed    4.27 sec
+      Start 22: task_work_domains
+20/65 Test  #1: scalar_cost_errors ...............   Passed    0.94 sec
+      Start 34: fused_runtime_projection
+21/65 Test #52: frontend_import ..................   Passed    4.37 sec
+      Start 62: embedding_plan
+22/65 Test #34: fused_runtime_projection .........   Passed    0.45 sec
+      Start 63: wiring_coupling
+23/65 Test #62: embedding_plan ...................   Passed    0.05 sec
+      Start 11: dram_floor
+24/65 Test #11: dram_floor .......................   Passed    0.06 sec
+      Start 58: symbolic_oracle
+25/65 Test #58: symbolic_oracle ..................   Passed    0.12 sec
+      Start 54: isolated_evaluation
+26/65 Test #22: task_work_domains ................   Passed    0.93 sec
+      Start 37: fiber_sum
+27/65 Test #54: isolated_evaluation ..............   Passed    0.03 sec
+      Start 12: semantics
+28/65 Test #37: fiber_sum ........................   Passed    0.11 sec
+      Start 53: skeleton_placement
+29/65 Test #53: skeleton_placement ...............   Passed    0.03 sec
+      Start 23: isl_relation
+30/65 Test #63: wiring_coupling ..................   Passed    0.40 sec
+      Start  4: cg_lit
+31/65 Test #12: semantics ........................   Passed    0.27 sec
+      Start 18: relation_bounds
+32/65 Test #18: relation_bounds ..................   Passed    0.03 sec
+      Start  8: table27
+33/65 Test  #4: cg_lit ...........................   Passed    0.25 sec
+      Start 35: exact_runtime_task_graph
+34/65 Test #23: isl_relation .....................   Passed    0.36 sec
+      Start 19: graph_pattern
+35/65 Test #35: exact_runtime_task_graph .........   Passed    0.08 sec
+      Start 29: lane_intersections
+36/65 Test #19: graph_pattern ....................   Passed    0.02 sec
+      Start 28: fusion_access
+37/65 Test #29: lane_intersections ...............   Passed    0.08 sec
+      Start  7: coupling_types
+38/65 Test #28: fusion_access ....................   Passed    0.08 sec
+      Start 15: containment
+39/65 Test  #8: table27 ..........................   Passed    0.29 sec
+      Start 16: event_synthesis
+40/65 Test  #7: coupling_types ...................   Passed    0.18 sec
+      Start 57: variant_resource
+41/65 Test #57: variant_resource .................   Passed    0.01 sec
+      Start  9: stage_flow
+42/65 Test  #9: stage_flow .......................   Passed    0.01 sec
+      Start 61: semantic_lifting
+43/65 Test #15: containment ......................   Passed    0.19 sec
+      Start 44: chain_placement
+44/65 Test #16: event_synthesis ..................   Passed    0.18 sec
+      Start 43: eft_placement
+45/65 Test #44: chain_placement ..................   Passed    0.01 sec
+      Start 42: execution_simulator
+46/65 Test #43: eft_placement ....................   Passed    0.01 sec
+      Start 27: cache_service_curve
+47/65 Test #27: cache_service_curve ..............   Passed    0.01 sec
+      Start 21: op_arithmetic_audit
+48/65 Test #61: semantic_lifting .................   Passed    0.03 sec
+      Start 41: plan_contract
+49/65 Test #21: op_arithmetic_audit ..............   Passed    0.01 sec
+      Start 24: layout_bridge
+50/65 Test #41: plan_contract ....................   Passed    0.01 sec
+      Start 51: fused_harness_compile
+51/65 Test #51: fused_harness_compile ............   Passed    0.01 sec
+      Start 25: cg_attr_roundtrip
+52/65 Test #24: layout_bridge ....................   Passed    0.02 sec
+      Start 45: plan_table
+53/65 Test #25: cg_attr_roundtrip ................   Passed    0.02 sec
+      Start 26: backend_query
+54/65 Test #45: plan_table .......................   Passed    0.01 sec
+      Start 40: list_scheduler
+55/65 Test #26: backend_query ....................   Passed    0.01 sec
+      Start 50: bf16_task_body_compile
+56/65 Test #40: list_scheduler ...................   Passed    0.01 sec
+      Start 47: alignment_propagation
+57/65 Test #50: bf16_task_body_compile ...........   Passed    0.01 sec
+      Start 64: frontend_degradation
+58/65 Test #47: alignment_propagation ............   Passed    0.01 sec
+      Start 46: cluster_labeling
+59/65 Test #64: frontend_degradation .............   Passed    0.01 sec
+      Start 65: isl_crosslink
+60/65 Test #46: cluster_labeling .................   Passed    0.01 sec
+      Start  5: target_spec
+61/65 Test #65: isl_crosslink ....................   Passed    0.01 sec
+      Start 49: task_body_contract
+62/65 Test  #5: target_spec ......................   Passed    0.01 sec
+63/65 Test #49: task_body_contract ...............   Passed    0.01 sec
+64/65 Test #42: execution_simulator ..............   Passed    0.09 sec
+65/65 Test #32: pipeline_sigma ...................   Passed  217.90 sec
+
+98% tests passed, 1 tests failed out of 65
+
+Total Test time (real) = 217.91 sec
+
+The following tests FAILED:
+	 48 - impl_contract (Subprocess aborted)
+Errors while running CTest

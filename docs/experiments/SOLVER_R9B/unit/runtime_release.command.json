@@ -1,0 +1,7 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/flow_runtime_release_test"
+  ],
+  "binary_sha256": "183b85232f0045bc4360e2e1a6e329f31b188cf8aacf834e61708dee519a0ad8",
+  "exit": 1
+}

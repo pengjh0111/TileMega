@@ -1,0 +1,31 @@
+[1/180] Building CXX object CMakeFiles/tilemega-import.dir/tools/tilemega-import.cpp.o
+[2/180] Linking CXX executable tools/tilemega-import
+[3/180] Building CXX object CMakeFiles/tilemega-flow-audit.dir/tools/tilemega-flow-audit.cpp.o
+[4/180] Building CXX object CMakeFiles/tilemega-skeleton-audit.dir/tools/tilemega-skeleton-audit.cpp.o
+[5/180] Linking CXX executable tools/tilemega-flow-audit
+[6/180] Linking CXX executable tools/tilemega-skeleton-audit
+[7/180] Linking CXX executable tools/tilemega-dram-floor
+[8/180] Building CXX object CMakeFiles/tilemega-opt.dir/tools/tilemega-opt.cpp.o
+[9/180] Linking CXX executable tools/tilemega-opt
+[10/180] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/Calibration.cu.o
+FAILED: CMakeFiles/tilemega_calibration.dir/lib/Target/Calibration.cu.o 
+/usr/local/cuda/bin/nvcc -forward-unknown-to-host-compiler  -I/root/TileMega/build-portable/include -I/root/TileMega/include -I/root/TileMega/third_party/cutlass/include -I/root/TileMega/third_party/cutlass/tools/util/include -I/root/TileMega/third_party/cutlass/test -isystem=/tmp/tilemega-vf-llvm-project/llvm/include -isystem=/tmp/tilemega-vf-build/llvm-project/include -isystem=/tmp/tilemega-vf-llvm-project/mlir/include -isystem=/tmp/tilemega-vf-build/llvm-project/tools/mlir/include -isystem=/usr/local/cuda/include -isystem=/root/TileMega/third_party/barvinok/isl/include -isystem=/root/TileMega/build-isl/include -isystem=/root/TileMega/third_party/barvinok/polylib/include -isystem=/root/TileMega/third_party/barvinok -isystem=/root/TileMega/third_party/barvinok/barvinok -isystem=/root/TileMega/build-barvinok -O3 -DNDEBUG --expt-relaxed-constexpr -arch=native -MD -MT CMakeFiles/tilemega_calibration.dir/lib/Target/Calibration.cu.o -MF CMakeFiles/tilemega_calibration.dir/lib/Target/Calibration.cu.o.d -x cu -c /root/TileMega/lib/Target/Calibration.cu -o CMakeFiles/tilemega_calibration.dir/lib/Target/Calibration.cu.o
+nvcc warning : Cannot find valid GPU for '-arch=native', default arch is used
+nvcc warning : Support for offline compilation for architectures prior to '<compute/sm/lto>_75' will be removed in a future release (Use -Wno-deprecated-gpu-targets to suppress warning).
+/root/TileMega/lib/Target/Calibration.cu(392): error: identifier "__nanosleep" is undefined
+          while (atomicAdd(&events[i].epoch, 0ull) < 1ull) __nanosleep(64);
+                                                           ^
+
+1 error detected in the compilation of "/root/TileMega/lib/Target/Calibration.cu".
+[11/180] Building CXX object CMakeFiles/tilemega-calibrate.dir/tools/tilemega-calibrate.cpp.o
+[12/180] Building CXX object CMakeFiles/tilemega-r9-early.dir/docs/experiments/SOLVER_R9B/early_signal.cpp.o
+[13/180] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/GemmCalibration.cu.o
+nvcc warning : Cannot find valid GPU for '-arch=native', default arch is used
+nvcc warning : Support for offline compilation for architectures prior to '<compute/sm/lto>_75' will be removed in a future release (Use -Wno-deprecated-gpu-targets to suppress warning).
+/root/TileMega/lib/Target/GemmCalibration.cu(263): warning #177-D: function "tilemega::calib::<unnamed>::FillKernel" was declared but never referenced
+            void FillKernel(float* v, std::size_t elements) {
+                 ^
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+ninja: build stopped: subcommand failed.

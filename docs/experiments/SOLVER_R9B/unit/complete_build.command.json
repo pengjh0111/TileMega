@@ -1,0 +1,13 @@
+{
+  "command": [
+    "cmake",
+    "--build",
+    "build-portable",
+    "-j",
+    "4"
+  ],
+  "NEED_MIB": 8192,
+  "FREE_MIB": 1255506,
+  "host_required": "Calibration.cu uses -arch=native; sandbox has no GPU device visibility",
+  "gpu_measurement": false
+}

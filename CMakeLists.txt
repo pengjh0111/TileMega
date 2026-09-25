@@ -504,6 +504,10 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(stage_flow_test test/unit/stage_flow_test.cpp)
   target_link_libraries(stage_flow_test PRIVATE TileMega::tilemega)
   add_test(NAME stage_flow COMMAND stage_flow_test)
+  add_executable(flow_runtime_release_test test/unit/flow_runtime_release_test.cpp)
+  target_link_libraries(flow_runtime_release_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(flow_runtime_release_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  add_test(NAME flow_runtime_release COMMAND flow_runtime_release_test)
   target_link_libraries(regime_a_price_test PRIVATE TileMega::tilemega)
   add_test(NAME regime_a_price COMMAND regime_a_price_test
     ${CMAKE_CURRENT_SOURCE_DIR}
