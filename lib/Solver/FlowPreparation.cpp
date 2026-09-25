@@ -10,6 +10,7 @@
 #include <isl/point.h>
 #include <isl/val.h>
 #include <algorithm>
+#include <chrono>
 #include <numeric>
 #include <sstream>
 #include <iomanip>
@@ -157,6 +158,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   if(problem.model.dtype!=ScalarType::kBF16)throw std::invalid_argument("flow preparation requires BF16");
   auto target_key=target.ToJson();if(cache.target_key!=target_key){cache={};cache.target_key=std::move(target_key);}
   PreparedFlow result;auto& flow=result.flow;auto model=problem.model;model.metric_bindings.values.erase("Tm");model.metric_bindings.values.erase("Tn");auto theta=model.MetricBindings();
+  auto const profile_start=std::chrono::steady_clock::now();
   flow.workers=target.res.num_sms*residency;
   auto const& cal=target.CalibrationFor("bf16");
   // Serving refuses to silently invent a bandwidth curve once the measured
@@ -167,6 +169,9 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   flow.all_external_miss=CacheServiceCurve(cal.l2_curve_bytes,cal.l2_curve_gbps).HitFraction(bound.read_bytes,cal.l2_gbps,cal.dram_gbps)==0;
   auto graph=InstantiateModelTasks(model,problem.geometry);
   CostModelOptions options;options.regime_a=true;
+  // The calibrated device in-flight server owns the DRAM latency constraint;
+  // charging the R9b per-CTA stage-latency term as well would count it twice.
+  if(flow.inflight_dram)options.stage_latency=false;
   // R9b §7.3 fallback: the physical fixed fit worsens median error and replay rank.
   options.physical_fixed=false;
   CostModel cost(target,model.dtype,options);
@@ -174,6 +179,17 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     auto found=cache.signatures.find(op.name);
     if(found==cache.signatures.end())found=cache.signatures.emplace(op.name,analysis::SemanticSignature(op)).first;
     return found->second;
+  };
+  auto tensor_key=[&](std::string const& name)->std::string const& {
+    auto found=cache.floor_tensor_keys.find(name);
+    if(found!=cache.floor_tensor_keys.end())return found->second;
+    auto tensor=floor.tensors.find(name);
+    if(tensor==floor.tensors.end())
+      return cache.floor_tensor_keys.emplace(name,std::string()).first->second;
+    auto const& f=tensor->second;
+    std::string key=f.no_producer.ToString()+":"+f.writes.ToString()+":"+
+        f.external_writes.ToString()+":"+std::to_string(f.element_bytes);
+    return cache.floor_tensor_keys.emplace(name,std::move(key)).first->second;
   };
   std::ostringstream binding_text;
   for(auto const& [name,value]:std::map<std::string,long>(theta.values.begin(),theta.values.end()))binding_text<<':'<<name<<'='<<value;
@@ -191,9 +207,10 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     std::ostringstream space_key;space_key<<signature<<':'<<projected.combine<<':'<<residency<<':'<<problem.threads<<':'<<std::hexfloat<<bound.read_bytes;
     if(stage.IsCollective())space_key<<':'<<g.tile_m<<':'<<g.tile_n<<':'<<g.tile_k<<':'<<g.stages<<':'<<g.split_k;
     else for(auto const& [axis,tile]:semantic.tiles)space_key<<':'<<axis<<'='<<tile.ToIslText();
-    space_key<<":kernel_shared:"<<kernel_shared_bytes<<theta_key;
-    for(auto const& operand:semantic.op.operands){auto f=floor.tensors.find(operand.tensor.name);if(f!=floor.tensors.end())space_key<<':'<<f->second.no_producer.ToString()<<':'<<f->second.writes.ToString()<<':'<<f->second.element_bytes;}
-    auto output=floor.tensors.find(semantic.op.result.name);if(output!=floor.tensors.end())space_key<<":"<<output->second.external_writes.ToString();
+    if(!model.serving)space_key<<":kernel_shared:"<<kernel_shared_bytes;
+    space_key<<theta_key;
+    for(auto const& operand:semantic.op.operands)space_key<<':'<<tensor_key(operand.tensor.name);
+    space_key<<':'<<tensor_key(semantic.op.result.name);
 
     auto hit=cache.spaces.find(space_key.str());
     if(hit!=cache.spaces.end()) {
@@ -272,6 +289,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     result.prices.push_back(std::move(prices));flow.spaces.push_back(std::move(space));
   }
   result.colocated_producer.assign(flow.spaces.size(),-1);
+  auto const edge_start=std::chrono::steady_clock::now();
   auto data_edges=problem.data_edges;
   if(data_edges.empty()) {
     auto* raw=isl_map_read_from_str(analysis::SharedIslContext().raw(),problem.projection.dependencies.ToString().c_str());
@@ -284,19 +302,30 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     isl_map_free(raw);
   }
   for(auto const& data:data_edges) {
-    int p=data.producer,c=data.consumer;auto const& relation=data.relation;auto oracle=coupling.OracleFor(relation.ToString());
-    bool one=oracle->structure==analysis::EdgeStructure::OneToOne && oracle->forward.kind()==analysis::OracleKind::Unique && oracle->reverse.kind()==analysis::OracleKind::Unique;
-    int previous=result.colocated_producer[c];if(colocate && one && (previous<0 || order[p]>order[previous]))result.colocated_producer[c]=p;
+    int p=data.producer,c=data.consumer;auto const& relation=data.relation;
+    auto relation_text=relation.ToString();
     int kappa=ProducerKappa(problem.projection.options,p);
-    auto all_key=relation.ToString()+theta_key+':'+std::to_string(problem.counts[p]);
-    auto all_found=cache.all_producer.find(all_key);
-    if(all_found==cache.all_producer.end())all_found=cache.all_producer.emplace(std::move(all_key),oracle->reverse.IsAllBox({{0,problem.counts[p]-1}},theta)).first;
-    bool all=all_found->second;
-    std::string key=signatures[p]+"\n"+signatures[c]+"\n"+geometry_keys[p]+"|"+geometry_keys[c]+"|"+std::to_string(kappa)+"|"+relation.ToString();
+    auto metadata_key=relation_text+theta_key+':'+std::to_string(problem.counts[p]);
+    auto meta=cache.edge_metadata.find(metadata_key);
+    std::shared_ptr<analysis::OraclePair> oracle;
+    if(meta==cache.edge_metadata.end()) {
+      oracle=coupling.OracleFor(relation_text);
+      bool one=oracle->structure==analysis::EdgeStructure::OneToOne &&
+          oracle->forward.kind()==analysis::OracleKind::Unique &&
+          oracle->reverse.kind()==analysis::OracleKind::Unique;
+      bool all=oracle->reverse.IsAllBox({{0,problem.counts[p]-1}},theta);
+      meta=cache.edge_metadata.emplace(std::move(metadata_key),std::make_pair(one,all)).first;
+    }
+    int previous=result.colocated_producer[c];
+    if(colocate && meta->second.first &&
+        (previous<0 || order[p]>order[previous]))result.colocated_producer[c]=p;
+    bool all=meta->second.second;
+    std::string key=signatures[p]+"\n"+signatures[c]+"\n"+geometry_keys[p]+"|"+geometry_keys[c]+"|"+std::to_string(kappa)+"|"+relation_text;
     key+=theta_key;
     auto it=cache.releases.find(key);
     std::shared_ptr<std::vector<std::pair<int,int>> const> sorted;
     if(it!=cache.releases.end()){++cache.release_hits;sorted=it->second;}else {
+      if(!oracle)oracle=coupling.OracleFor(relation_text);
       ++cache.release_misses;auto values=std::make_shared<std::vector<std::pair<int,int>>>();bool nonprefix=false;
       auto bound_windows=BindRuntimeWindows(problem.projection,p,c,theta);
       for(int j=0;j<problem.counts[c];++j) {
@@ -317,6 +346,9 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   std::vector<int> stages(flow.spaces.size());std::iota(stages.begin(),stages.end(),0);
   std::sort(stages.begin(),stages.end(),[&](int a,int b){return order[a]>order[b];});
   for(int s:stages){double tail=0;for(auto const& edge:flow.edges)if(edge.producer==s)tail=std::max(tail,flow.spaces[edge.consumer].rank_ns+flow.hop_ns);flow.spaces[s].rank_ns+=tail;}
+  auto const profile_end=std::chrono::steady_clock::now();
+  cache.spaces_ms+=std::chrono::duration<double,std::milli>(edge_start-profile_start).count();
+  cache.edges_ms+=std::chrono::duration<double,std::milli>(profile_end-edge_start).count();
   return result;
 }
 std::vector<TaskPriceParts> ExpandFlowPrices(PreparedFlow const& prepared) {

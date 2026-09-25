@@ -41,7 +41,16 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
     double transc=input.arithmetic.transcendental_per_output_element.Eval(theta)*writes;
     double structural=depth*calib_->l2_latency_ns+barriers*calib_->syncthreads_ns+traffic.global_write_bytes/l2_bytes_per_ns_per_sm_;
     result.fixed_ns=(fit.samples>0?fit.scalar_fixed_ns:0)+structural;
-    result.compute_ns=ScalarInstanceNs(bytes,traffic.global_write_bytes,flops,transc,o,0,input.arithmetic.smem_staged,depth,barriers)-structural;
+    // A fused attention task has a scalar control flow but executes its QK/PV
+    // arithmetic on tensor cores. Keep its vector loads and online exp2 in
+    // the scalar resource vector, and put the declared MMA work on the tensor
+    // core lane. The arithmetic declaration, not StageKind, selects the lane.
+    double scalar_flops=input.arithmetic.flops_use_mma?0:flops;
+    double scalar_ns=ScalarInstanceNs(bytes,traffic.global_write_bytes,
+        scalar_flops,transc,o,0,input.arithmetic.smem_staged,depth,barriers)-structural;
+    double mma_ns=input.arithmetic.flops_use_mma
+        ? o*flops/tc_flops_per_ns_per_sm_:0;
+    result.compute_ns=std::max(scalar_ns,mma_ns);
   } else {
     if(traits.stages<2 || traits.tile_k<=0)throw std::invalid_argument("regime-A collective needs at least two pipeline stages");
     double iters=eval(input.work.nominal_task_reduce_extent)/traits.tile_k;

@@ -12,7 +12,11 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
   auto theta=model.MetricBindings();auto const& cal=cost.target().CalibrationFor("bf16");
   std::ostringstream key;key<<analysis::SemanticSignature(semantic.op)<<std::hexfloat;
   key<<':'<<traits.tile_m<<':'<<traits.tile_n<<':'<<traits.tile_k<<':'<<traits.stages<<':'<<chunks<<':'<<residency.ctas_per_sm<<':'<<traits.threads<<':'<<traits.smem_bytes;
-  key<<":kernel_shared:"<<kernel_shared_bytes;
+  // Serving's resource probe has already fixed residency. At fixed residency
+  // the union size does not enter PriceParts, so changing another class must
+  // not invalidate this class's price. Preserve the old cache identity for
+  // single-forward models and their replay evidence.
+  if(!model.serving)key<<":kernel_shared:"<<kernel_shared_bytes;
   // Scalar combiners have no collective BackendTraits geometry. Their
   // local reduction extent and ownership still change with their own split.
   key<<':'<<input.work.task_reduce_extent.ToString()<<':'<<input.work.task_count.ToString();

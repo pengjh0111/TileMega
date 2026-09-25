@@ -11,6 +11,7 @@ struct FlowPreparationCache {
   std::map<std::string,long> task_counts;
   std::map<std::string,analysis::CouplingRelation> projected;
   std::map<std::string,std::string> signatures;
+  std::map<std::string,std::string> floor_tensor_keys;
   PiecePriceCache prices;
   struct SpaceEntry {FlowSpace space;PiecePrices prices;std::string geometry_key;};
   std::map<std::string,SpaceEntry> spaces;
@@ -18,7 +19,11 @@ struct FlowPreparationCache {
   std::map<std::string,std::shared_ptr<std::vector<std::pair<int,int>> const>> releases;
   std::map<std::string,bool> nonprefix;
   std::map<std::string,bool> all_producer;
+  // Oracle classifications are geometry-local; most edges are unchanged when
+  // coordinate descent moves one operator class.
+  std::map<std::string,std::pair<bool,bool>> edge_metadata; // one-to-one, all-producer
   std::uint64_t release_hits=0,release_misses=0;
+  double spaces_ms=0,edges_ms=0;
 };
 struct PreparedFlow {
   FlowProblem flow;

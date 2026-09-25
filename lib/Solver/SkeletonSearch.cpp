@@ -30,7 +30,7 @@ struct SearchContext {
   SearchContext(frontend::ImportedSemantics input,mlir::MLIRContext& ctx,SkeletonSearchOptions const& opts)
       :imported(std::move(input)),classes(BuildOperatorClasses(imported)),resources(opts.variant_probe,opts.common.timing),context(ctx),options(opts),
        dtype(imported.lifted.sem.ops.front().dtype==analysis::ScalarType::kBF16?ScalarType::kBF16:ScalarType::kF32) {}
-  SkeletonSolvedPoint Prepare(std::vector<GemmConfig> const& config,int kappa,int residency,int actual=0,bool materialize=false) {
+  SkeletonSolvedPoint Prepare(std::vector<GemmConfig> const& config,int kappa,int residency,int actual=0,bool materialize=false,int past_override=-1) {
     auto* timing=options.common.timing;auto const& target=options.common.placement.target;
     if(timing)timing->candidate=ConfigKey(config,kappa,residency);
     auto estimate=resources.Estimate(classes,config,target,dtype);
@@ -47,9 +47,17 @@ struct SearchContext {
       else (*point.module)->setAttr("tmexec.dram_floor",floor_attribute);
     } else {
       std::vector<GemmConfig> geometry;for(auto const& g:granularity.gemms)geometry.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
-      SolverPhase phase(timing,"instantiate_and_derive");auto geometry_key=ConfigKey(config,0,0);
+      SolverPhase phase(timing,"instantiate_and_derive");auto geometry_key=ConfigKey(config,0,0)+":"+std::to_string(past_override);
       if(last_structure && last_geometry==geometry_key){point.problem=*last_structure;point.problem.projection.options.grid=target.res.num_sms*residency;point.problem.projection.options.kappa=kappa;}
-      else{point.problem=PrepareFlowStructure(*base,geometry,target.res.num_sms*residency,kappa,cache,&flow_cache);last_structure=point.problem;last_geometry=std::move(geometry_key);}
+      else{
+        auto source=*base;
+        if(past_override>=0) {
+          source.model.dims.past=past_override;
+          source.model.dims.total=source.model.dims.seq+past_override;
+        }
+        point.problem=PrepareFlowStructure(source,geometry,target.res.num_sms*residency,kappa,cache,&flow_cache);
+        last_structure=point.problem;last_geometry=std::move(geometry_key);
+      }
     }
     {SolverPhase phase(timing,"piece_pricing_and_release");point.flow=PrepareFlow(point.problem,*floor,target,residency,options.common.placement.hop,cache,flow_cache,true,estimate.shared_bytes);}
     return point;
@@ -57,6 +65,13 @@ struct SearchContext {
   SkeletonCandidate Evaluate(std::vector<GemmConfig> const& config,int kappa,int residency,int actual=0) {
     auto point=Prepare(config,kappa,residency,actual);
     {SolverPhase phase(options.common.timing,"flow");point.candidate.score=EvaluateFlow(point.flow->flow).makespan_ns;}
+    if(options.serving_past_lo>=0 && options.serving_past_hi>=options.serving_past_lo) {
+      auto low=Prepare(config,kappa,residency,actual,false,options.serving_past_lo);
+      auto high=Prepare(config,kappa,residency,actual,false,options.serving_past_hi);
+      SolverPhase phase(options.common.timing,"flow");
+      point.candidate.score=(EvaluateFlow(low.flow->flow).makespan_ns+
+          4*point.candidate.score+EvaluateFlow(high.flow->flow).makespan_ns)/6;
+    }
     return point.candidate;
   }
   SkeletonSolvedPoint Materialize(SkeletonCandidate const& candidate,bool pure,int actual=0) {
@@ -83,24 +98,48 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
   };
   std::vector<std::vector<GemmConfig>> domains;
   for(auto const& cls:search.classes) {
-    auto domain=ClassCandidates(cls,search.imported,options.common.placement.target,search.dtype);
+    std::vector<GemmConfig> domain;
+    if(search.imported.plan.serving) {
+      auto pruned=ServingClassCandidates(cls,search.imported,
+          options.common.placement.target,options.common.placement.dims.batch,
+          options.common.placement.dims.seq);
+      domain=std::move(pruned.candidates);
+      out<<"PRUNING\t"<<domains.size()<<'\t'<<pruned.raw<<'\t'
+         <<pruned.removed_r1<<'\t'<<pruned.removed_r2<<'\t'
+         <<pruned.removed_r3<<'\t'<<domain.size()<<'\n';
+    }else domain=ClassCandidates(cls,search.imported,options.common.placement.target,search.dtype);
     if(!options.common.geometry_domain.empty())domain.erase(std::remove_if(domain.begin(),domain.end(),[&](auto const& g){return std::none_of(options.common.geometry_domain.begin(),options.common.geometry_domain.end(),[&](auto const& a){return std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages)==std::tie(a.tile_m,a.tile_n,a.tile_k,a.stages);});}),domain.end());
     out<<"DOMAIN\t"<<domains.size()<<'\t'<<domain.size()<<'\n';domains.push_back(std::move(domain));
   }
   std::vector<GemmConfig> seed(search.classes.size(),options.seed);
-  auto legacy=evaluate(seed,options.kappa,options.seed_residency);std::size_t uniform=legacy;
+  int seed_residency=options.seed_residency;
+  if(search.imported.plan.serving)seed_residency=std::max(1,
+      search.resources.Estimate(search.classes,seed,
+          options.common.placement.target,search.dtype).resident_limit);
+  auto legacy=evaluate(seed,options.kappa,seed_residency);std::size_t uniform=legacy;
   // A uniform configuration must be legal for every operator class.
-  for(auto const& g:domains.front()) {
+  if(!search.imported.plan.serving)for(auto const& g:domains.front()) {
     bool legal=true;for(auto const& domain:domains)legal &= std::any_of(domain.begin(),domain.end(),[&](auto const& other){return ClassGeometryKey(g)==ClassGeometryKey(other);});
     if(!legal)continue;std::vector<GemmConfig> config(search.classes.size(),g);
     auto limit=search.resources.Estimate(search.classes,config,options.common.placement.target,search.dtype).resident_limit;
     for(int k:{1,2,4})for(int r=1;r<=limit;++r){auto i=evaluate(config,k,r);if(evaluated[i].score<evaluated[uniform].score)uniform=i;}
   }
-  for(std::size_t start:{legacy,uniform}) {
+  std::vector<std::size_t> starts{legacy};
+  if(uniform!=legacy)starts.push_back(uniform);
+  for(std::size_t start:starts) {
     auto incumbent=start;if(!std::isfinite(evaluated[incumbent].score))throw std::runtime_error("flow seed has no valid score: "+evaluated[incumbent].error);
     for(int pass=0;pass<options.passes;++pass){bool moved=false;++rounds;
       for(std::size_t c=0;c<search.classes.size();++c){auto fixed=evaluated[incumbent];int improvements=0;
-        for(auto const& g:domains[c]){auto config=fixed.config;config[c]=g;auto i=evaluate(config,fixed.kappa,fixed.residency);if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;++improvements;}}
+        for(auto const& g:domains[c]){auto config=fixed.config;config[c]=g;
+          int residency=fixed.residency;
+          if(search.imported.plan.serving) {
+            auto limit=search.resources.Estimate(search.classes,config,
+                options.common.placement.target,search.dtype).resident_limit;
+            if(limit<1)continue;
+            residency=limit;
+          }
+          auto i=evaluate(config,fixed.kappa,residency);
+          if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;++improvements;}}
         out<<"COORDINATE\t"<<start<<'\t'<<pass<<'\t'<<c<<'\t'<<domains[c].size()<<'\t'<<improvements<<'\t'<<evaluated[incumbent].score<<'\n';out.flush();
       }
       auto fixed=evaluated[incumbent];for(int k:{1,2,4}){auto i=evaluate(fixed.config,k,fixed.residency);if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;}}
@@ -131,7 +170,17 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     auto value=search.floor->Evaluate(search.base->model.MetricBindings());
     floor<<std::setprecision(17)<<"dram_ns\tcompute_ns\tfloor_ns\n"
          <<value.dram_ns<<'\t'<<value.compute_ns<<'\t'<<value.floor_ns<<'\n';
-    if(auto* t=options.common.timing){t->Add("cache_hit",0,search.cache.hits);t->Add("cache_miss",0,search.cache.misses);t->Add("search_evaluations",0,result.evaluated.size());t->Add("search_rounds",0,result.rounds);}
+    if(auto* t=options.common.timing){
+      t->Add("cache_hit",0,search.cache.hits);t->Add("cache_miss",0,search.cache.misses);
+      t->Add("space_cache_hit",0,search.flow_cache.space_hits);
+      t->Add("space_cache_miss",0,search.flow_cache.space_misses);
+      t->Add("price_cache_hit",0,search.flow_cache.prices.hits);
+      t->Add("price_cache_miss",0,search.flow_cache.prices.misses);
+      t->Add("release_cache_hit",0,search.flow_cache.release_hits);
+      t->Add("prepare_spaces",search.flow_cache.spaces_ms,0);
+      t->Add("prepare_edges",search.flow_cache.edges_ms,0);
+      t->Add("search_evaluations",0,result.evaluated.size());t->Add("search_rounds",0,result.rounds);
+    }
     return result;
   }
   struct Materialized {CompilerSearchResult::ShortlistEntry entry;SkeletonCandidate candidate;bool pure;};std::vector<Materialized> materialized;
@@ -143,7 +192,10 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     auto ea=FinalizeSkeletonPoint(std::move(a),opts,options.artifact_prefix+".m"+std::to_string(rank)+"A");
     auto b=search.Materialize(candidate,false);auto b_stats=b.candidate.placement;
     auto eb=FinalizeSkeletonPoint(std::move(b),opts,options.artifact_prefix+".m"+std::to_string(rank)+"B");
-    bool pure=options.pure_template || ea.evaluation.makespan_ns<=eb.evaluation.makespan_ns;
+    bool pure=options.pure_template ||
+        (search.imported.plan.serving
+          ? eb.evaluation.makespan_ns>0.98*ea.evaluation.makespan_ns
+          : ea.evaluation.makespan_ns<=eb.evaluation.makespan_ns);
     table<<rank<<'\t'<<candidate.key<<'\t'<<ea.evaluation.makespan_ns<<'\t'<<eb.evaluation.makespan_ns<<'\t'<<pure<<'\t'<<(b_stats.placed?double(b_stats.moved_from_home)/b_stats.placed:0)<<'\n';table.flush();
     auto c=candidate;c.placement=pure?a_stats:b_stats;
     materialized.push_back({pure?std::move(ea):std::move(eb),c,pure});
@@ -169,7 +221,10 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
       auto astats=a.candidate.placement,bstats=b.candidate.placement;
       auto ea=FinalizeSkeletonPoint(std::move(a),opts,options.artifact_prefix+".verified"+std::to_string(rank)+"A");
       auto eb=FinalizeSkeletonPoint(std::move(b),opts,options.artifact_prefix+".verified"+std::to_string(rank)+"B");
-      item.pure=options.pure_template || ea.evaluation.makespan_ns<=eb.evaluation.makespan_ns;
+      item.pure=options.pure_template ||
+          (search.imported.plan.serving
+            ? eb.evaluation.makespan_ns>0.98*ea.evaluation.makespan_ns
+            : ea.evaluation.makespan_ns<=eb.evaluation.makespan_ns);
       c.placement=item.pure?astats:bstats;item.entry=item.pure?std::move(ea):std::move(eb);
     }
     c.actual_limit=actual;resources<<++rank<<'\t'<<c.key<<'\t'<<c.estimated_limit<<'\t'<<actual<<'\t'<<changed<<'\t'<<c.residency<<'\t'<<c.score<<'\t'<<item.entry.evaluation.makespan_ns<<'\n';resources.flush();
