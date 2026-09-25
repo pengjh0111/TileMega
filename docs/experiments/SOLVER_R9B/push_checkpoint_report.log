@@ -1,0 +1,2 @@
+R9B_REPORT tables=/root/TileMega/docs/experiments/SOLVER_R9B/report_tables incomplete_items=35
+R9B_SUMMARY final=False pending=40 verifier_exit=1 path=/root/TileMega/docs/experiments/SOLVER_R9B/summary.md

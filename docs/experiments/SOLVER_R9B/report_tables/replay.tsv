@@ -1,0 +1,15 @@
+arm	model	n	spearman	MAPE	best_actual_rank_in_predicted_top1	best_actual_rank_in_predicted_top3	best_actual_rank_in_predicted_top10	evidence
+baseline_bf16	gqa2	770	0.800355137266185	0.2854756741835966	79.5	79.5	45.0	replay/baseline_bf16/predictions_gqa2.tsv
+baseline_bf16	mha4	462	0.8069800810547082	0.2611139075104817	62.5	62.5	29.0	replay/baseline_bf16/predictions_mha4.tsv
+physical_bf16	gqa2	770	0.803298791326618	0.28773321328932605	79.5	79.5	42.5	replay/physical_bf16/predictions_gqa2.tsv
+physical_bf16	mha4	462	0.8085892377948739	0.2632736964960625	29.0	29.0	29.0	replay/physical_bf16/predictions_mha4.tsv
+stages_bf16	gqa2	770	0.8348456873721267	0.31536842123708686	79.5	79.5	42.5	replay/stages_bf16/predictions_gqa2.tsv
+stages_bf16	mha4	462	0.8405346468928387	0.2889471990895171	29.0	29.0	29.0	replay/stages_bf16/predictions_mha4.tsv
+fixed_bf16	gqa2	770	0.6340460611364834	0.29202756851199363	45.0	45.0	45.0	replay/fixed_bf16/predictions_gqa2.tsv
+fixed_bf16	mha4	462	0.6910868272670898	0.2669332603011519	30.0	30.0	30.0	replay/fixed_bf16/predictions_mha4.tsv
+all_complete_bf16	gqa2	770	0.6771204620211302	0.32188836186637454	45.0	45.0	45.0	replay/all_complete_bf16/predictions_gqa2.tsv
+all_complete_bf16	mha4	462	0.7333178664086605	0.2937858429793229	30.0	30.0	29.0	replay/all_complete_bf16/predictions_mha4.tsv
+selected_bf16	gqa2	770	0.8375621276326141	0.31849478134255255	79.5	79.5	42.5	replay/selected_bf16/predictions_gqa2.tsv
+selected_bf16	mha4	462	0.8426154543574906	0.2920654190583574	29.0	29.0	29.0	replay/selected_bf16/predictions_mha4.tsv
+historical_target_bf16	gqa2	770	0.8976355428661792	0.48530581886906854	232.0	60.0	45.0	replay/historical_target_bf16/predictions_gqa2.tsv
+historical_target_bf16	mha4	462	0.8833541771307403	0.46868214780521245	145.0	33.5	29.0	replay/historical_target_bf16/predictions_mha4.tsv

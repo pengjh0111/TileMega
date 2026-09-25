@@ -1,0 +1,7 @@
+cell	population	nominal_operand_bytes	physical_operand_bytes	physical_over_nominal	nominal_write_elements	physical_write_elements
+gqa2_s128	490 phase observations, weighted by raw sample count	358612992.0	358612992.0	1.0	4194304.0	4194304.0
+gqa2_s4	490 phase observations, weighted by raw sample count	132120576.0	56918016.0	0.43080357142857145	2097152.0	163840.0
+mha4_s128	490 phase observations, weighted by raw sample count	796917760.0	796917760.0	1.0	9437184.0	9437184.0
+mha4_s4	490 phase observations, weighted by raw sample count	293601280.0	126484480.0	0.43080357142857145	4718592.0	368640.0
+real_s128	490 phase observations, weighted by raw sample count	8724152320.0	8724152320.0	1.0	44040192.0	44040192.0
+real_s4	490 phase observations, weighted by raw sample count	8724152320.0	3980394496.0	0.45625	27525120.0	1376256.0
