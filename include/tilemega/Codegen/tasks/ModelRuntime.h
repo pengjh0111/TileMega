@@ -144,6 +144,10 @@ struct ModelDims {
   int past = 0;
   int total = 0;
   int batch = 1;
+  int capacity = 0;  ///< serving state extent, fixed for the whole plan
+#if defined(__CUDACC__)
+  __host__ __device__
+#endif
   int tokens() const { return batch * seq; }
 };
 

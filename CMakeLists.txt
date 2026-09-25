@@ -710,6 +710,13 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME serving_token_sets COMMAND serving_token_sets_test)
   add_executable(serving_import_test test/unit/serving_import_test.cpp)
   target_link_libraries(serving_import_test PRIVATE TileMega::tilemega)
+  add_executable(serving_harness_compile_test
+    test/unit/serving_harness_compile_test.cu)
+  target_link_libraries(serving_harness_compile_test PRIVATE TileMega::tilemega)
+  target_compile_options(serving_harness_compile_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  set_property(TARGET serving_harness_compile_test PROPERTY CUDA_ARCHITECTURES 89)
+  add_test(NAME serving_harness_compile COMMAND serving_harness_compile_test)
   # Run explicitly: this numerical probe needs a CUDA device, unlike the
   # compile-only TaskBody contracts in the default CTest suite.
   add_executable(attention_phase_test test/unit/attention_phase_test.cu)

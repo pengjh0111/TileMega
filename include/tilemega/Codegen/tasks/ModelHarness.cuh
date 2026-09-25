@@ -32,6 +32,9 @@
 #include <tilemega/Codegen/tasks/RMSNormTaskBody.h>
 #include <tilemega/Codegen/tasks/ClusterSync.cuh>
 #include <tilemega/Codegen/tasks/RoPETaskBody.h>
+#include <tilemega/Codegen/tasks/ServingArgmaxReduceTaskBody.h>
+#include <tilemega/Codegen/tasks/ServingEmbeddingTaskBody.h>
+#include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>
 #include <tilemega/Target/ArchDispatch.h>
 #include <tilemega/Target/TargetSpec.h>
 
@@ -122,6 +125,9 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 #ifndef TILEMEGA_FUSION_RUNTIME
 #define TILEMEGA_FUSION_RUNTIME 0
 #endif
+#ifndef TILEMEGA_SERVING_RUNTIME
+#define TILEMEGA_SERVING_RUNTIME 0
+#endif
 #ifndef TILEMEGA_FUSION_GEMM_RUNTIME
 #define TILEMEGA_FUSION_GEMM_RUNTIME TILEMEGA_FUSION_RUNTIME
 #endif
@@ -138,6 +144,9 @@ union TaskSmem {
   SimtTaskResources<TaskKind::kAttention,kHarnessThreads>::SharedStorage attention;
   SimtTaskResources<TaskKind::kElementwise,kHarnessThreads>::SharedStorage pointwise;
   GemmVariantSmem gemm;
+#if TILEMEGA_SERVING_RUNTIME
+  ServingArgmaxReduceTaskBody::SharedStorage argmax;
+#endif
 #if TILEMEGA_FUSION_GEMM_RUNTIME
   alignas(16) unsigned char fused_gemm[
       FusedGemmStorageBytes<arch::CurrentArch,kHarnessThreads>()];
@@ -150,6 +159,9 @@ inline constexpr std::size_t kNonGemmTaskSmem =
     std::max({sizeof(TaskSmem::rms), sizeof(TaskSmem::attention), sizeof(TaskSmem::pointwise)});
 inline constexpr std::size_t kExpectedTaskSmem =
     std::max({sizeof(GemmVariantSmem),kNonGemmTaskSmem
+#if TILEMEGA_SERVING_RUNTIME
+        ,sizeof(TaskSmem::argmax)
+#endif
 #if TILEMEGA_FUSION_GEMM_RUNTIME
         ,sizeof(TaskSmem::fused_gemm)
 #endif
@@ -171,9 +183,10 @@ using HarnessArch = typename tilemega::arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
 static_assert(!std::is_void<HarnessArch>::value,
               "TILEMEGA_ARCH_ID names an architecture this compiler has no "
               "capability table for");
-#if defined(__CUDA_ARCH__) && defined(TILEMEGA_ARCH_FROM_PLAN)
+#if defined(TILEMEGA_ARCH_FROM_PLAN)
 // Only a generated source asserts this: it is the one that claims an arch.
-static_assert(TILEMEGA_ARCH_ID == __CUDA_ARCH__,
+static_assert(!arch::kDevicePass ||
+                  TILEMEGA_ARCH_ID == arch::ArchId<arch::CurrentArch>::kValue,
               "the Plan's architecture and -arch= disagree");
 #endif
 using T_Gemm = GemmStageTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
@@ -209,6 +222,43 @@ static_assert(DeclaresOwnership<T_Gemm>::value &&
               "ownership (§5.3); L2 skips a stage's waits for CTAs at or "
               "above the declared count");
 
+#if TILEMEGA_SERVING_RUNTIME
+__device__ inline void RunServingScalarTask(Params const& p,
+                                            StageDesc const& stage,
+                                            TaskSmem& smem, int row) {
+  using BF16 = cutlass::bfloat16_t;
+  auto buffer = [&](std::uint32_t id) { return p.buffers[id]; };
+  switch (stage.kind) {
+    case TaskKind::kEmbedding:
+      ServingEmbeddingTaskBody::RunRow(
+          reinterpret_cast<int32_t const*>(buffer(stage.operand[0])),
+          reinterpret_cast<BF16 const*>(buffer(stage.operand[1])),
+          reinterpret_cast<BF16*>(buffer(stage.operand[2])), row,
+          p.dims.seq, p.dims.past, p.dims.capacity,
+          int(stage.width), int(stage.extent));
+      return;
+    case TaskKind::kRMSNorm:
+      ServingRMSNormTaskBody::RunRow(
+          reinterpret_cast<BF16 const*>(buffer(stage.operand[0])),
+          reinterpret_cast<BF16 const*>(buffer(stage.operand[1])),
+          reinterpret_cast<BF16*>(buffer(stage.operand[2])), row,
+          stage.row_stride, stage.row_offset, int(stage.width),
+          TILEMEGA_NORM_EPSILON,
+          reinterpret_cast<float*>(&smem.argmax));
+      return;
+    case TaskKind::kArgmaxReduce:
+      ServingArgmaxReduceTaskBody::RunRow(
+          reinterpret_cast<float const*>(buffer(stage.operand[0])),
+          reinterpret_cast<int const*>(buffer(stage.operand[1])),
+          reinterpret_cast<int32_t*>(buffer(stage.operand[2])), row,
+          int(stage.width), p.dims.capacity, p.dims.past + p.dims.seq,
+          &smem.argmax);
+      return;
+    default: asm volatile("trap;"); return;
+  }
+}
+#endif
+
 /// The dispatch is over the TaskBody families, which are a property of the
 /// library, not of any model.  A model that needs no attention simply never
 /// emits those stage kinds.
@@ -217,14 +267,36 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
   StageDesc const& stage = p.stages[index];
   switch (stage.kind) {
     case TaskKind::kGemm: T_Gemm{}(p, stage, smem); break;
-    case TaskKind::kRMSNorm: T_Norm{}(p, stage, smem); break;
+    case TaskKind::kRMSNorm:
+#if TILEMEGA_SERVING_RUNTIME
+      for (int row = int(blockIdx.x); row < (stage.batch_rows ? p.dims.batch : p.dims.tokens());
+           row += int(gridDim.x)) RunServingScalarTask(p, stage, smem, row);
+#else
+      T_Norm{}(p, stage, smem);
+#endif
+      break;
     case TaskKind::kRoPE: T_RoPE{}(p, stage, smem); break;
     case TaskKind::kKVAppend: T_KV{}(p, stage, smem); break;
     case TaskKind::kElementwise: T_Elementwise{}(p, stage, smem); break;
     case TaskKind::kAdd: T_Add{}(p, stage, smem); break;
 #if TILEMEGA_EMBEDDING_RUNTIME
-    case TaskKind::kEmbedding: T_Embedding{}(p, stage, smem); break;
+    case TaskKind::kEmbedding:
+#if TILEMEGA_SERVING_RUNTIME
+      for (int row = int(blockIdx.x); row < p.dims.tokens();
+           row += int(gridDim.x)) RunServingScalarTask(p, stage, smem, row);
+#else
+      T_Embedding{}(p, stage, smem);
 #endif
+      break;
+#endif
+    case TaskKind::kArgmaxReduce:
+#if TILEMEGA_SERVING_RUNTIME
+      for (int row = int(blockIdx.x); row < p.dims.batch;
+           row += int(gridDim.x)) RunServingScalarTask(p, stage, smem, row);
+#else
+      asm volatile("trap;");
+#endif
+      break;
 #if TILEMEGA_QK_NORM_RUNTIME
     case TaskKind::kQKNorm: T_QKNorm{}(p, stage, smem); break;
 #endif
@@ -274,14 +346,29 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
       T_Gemm::RunLogicalTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
       break;
     case TaskKind::kRMSNorm:
+#if TILEMEGA_SERVING_RUNTIME
+      RunServingScalarTask(p, stage, smem, task);
+#else
       T_Norm::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS TILEMEGA_PREFETCH_PASS);
+#endif
       break;
     case TaskKind::kAdd: T_Add::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS); break;
 #if TILEMEGA_EMBEDDING_RUNTIME
     case TaskKind::kEmbedding:
+#if TILEMEGA_SERVING_RUNTIME
+      RunServingScalarTask(p, stage, smem, task);
+#else
       T_Embedding::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
+#endif
       break;
 #endif
+    case TaskKind::kArgmaxReduce:
+#if TILEMEGA_SERVING_RUNTIME
+      RunServingScalarTask(p, stage, smem, task);
+#else
+      asm volatile("trap;");
+#endif
+      break;
 #if TILEMEGA_QK_NORM_RUNTIME
     case TaskKind::kQKNorm:
       T_QKNorm::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS TILEMEGA_PREFETCH_PASS);
@@ -415,11 +502,22 @@ __device__ inline int ActiveBlocksClamped(Params const& p, std::uint32_t stage);
 __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
   switch (stage.kind) {
     case TaskKind::kGemm: return T_Gemm::Ownership(p, stage).count;
-    case TaskKind::kRMSNorm: return T_Norm::Ownership(p, stage).count;
+    case TaskKind::kRMSNorm:
+#if TILEMEGA_SERVING_RUNTIME
+      return stage.batch_rows ? p.dims.batch : p.dims.tokens();
+#else
+      return T_Norm::Ownership(p, stage).count;
+#endif
     case TaskKind::kAdd: return T_Add::Ownership(p, stage).count;
 #if TILEMEGA_EMBEDDING_RUNTIME
-    case TaskKind::kEmbedding: return T_Embedding::Ownership(p, stage).count;
+    case TaskKind::kEmbedding:
+#if TILEMEGA_SERVING_RUNTIME
+      return p.dims.tokens();
+#else
+      return T_Embedding::Ownership(p, stage).count;
 #endif
+#endif
+    case TaskKind::kArgmaxReduce: return p.dims.batch;
 #if TILEMEGA_QK_NORM_RUNTIME
     case TaskKind::kQKNorm: return T_QKNorm::Ownership(p, stage).count;
 #endif
@@ -1011,17 +1109,17 @@ __device__ inline void PrefetchIssue(ModelElement const* source,
                                      ModelElement* page, std::uint32_t bytes) {
   for (std::uint32_t offset = threadIdx.x * 16u; offset < bytes;
        offset += blockDim.x * 16u) {
-#if __CUDA_ARCH__ >= 800
-    unsigned const slot = static_cast<unsigned>(__cvta_generic_to_shared(
-        reinterpret_cast<char*>(page) + offset));
-    asm volatile("cp.async.cg.shared.global [%0], [%1], 16;\n" ::
-                 "r"(slot),
-                 "l"(reinterpret_cast<char const*>(source) + offset));
-#else
-    *reinterpret_cast<int4*>(reinterpret_cast<char*>(page) + offset) =
-        *reinterpret_cast<int4 const*>(
-            reinterpret_cast<char const*>(source) + offset);
-#endif
+    if constexpr (arch::Caps<arch::CurrentArch>::kCpAsync) {
+      unsigned const slot = static_cast<unsigned>(__cvta_generic_to_shared(
+          reinterpret_cast<char*>(page) + offset));
+      asm volatile("cp.async.cg.shared.global [%0], [%1], 16;\n" ::
+                   "r"(slot),
+                   "l"(reinterpret_cast<char const*>(source) + offset));
+    } else {
+      *reinterpret_cast<int4*>(reinterpret_cast<char*>(page) + offset) =
+          *reinterpret_cast<int4 const*>(
+              reinterpret_cast<char const*>(source) + offset);
+    }
   }
 }
 
@@ -1126,9 +1224,8 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
       if (width)
         PrefetchIssue(params->buffers[operand.buffer], page_of(slot), width);
     }
-#if __CUDA_ARCH__ >= 800
-    asm volatile("cp.async.commit_group;\n" ::);
-#endif
+    if constexpr (arch::Caps<arch::CurrentArch>::kCpAsync)
+      asm volatile("cp.async.commit_group;\n" ::);
   };
 #if !TILEMEGA_PREFETCH_INLINE
   issue(first);
@@ -1202,14 +1299,12 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     // the same instructions, issued for this slot and waited on immediately,
     // so the only thing removed is the overlap.
     issue(slot);
-#if __CUDA_ARCH__ >= 800
-    asm volatile("cp.async.wait_group 0;\n" ::);
-#endif
+    if constexpr (arch::Caps<arch::CurrentArch>::kCpAsync)
+      asm volatile("cp.async.wait_group 0;\n" ::);
 #else
     issue(slot + 1);
-#if __CUDA_ARCH__ >= 800
-    asm volatile("cp.async.wait_group 1;\n" ::);
-#endif
+    if constexpr (arch::Caps<arch::CurrentArch>::kCpAsync)
+      asm volatile("cp.async.wait_group 1;\n" ::);
 #endif
 #if TILEMEGA_TRACE_PHASE
     if (phase != nullptr && threadIdx.x == 0) {
@@ -1887,6 +1982,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       case TaskKind::kRMSNorm:
       case TaskKind::kEmbedding:
       case TaskKind::kGemmRMSNorm: return stage.batch_rows ? dims.batch : dims.tokens();
+      case TaskKind::kArgmaxReduce: return dims.batch;
       // One (token, head), which is the ownership the TaskBody declares.
       case TaskKind::kQKNorm: return dims.tokens() * static_cast<int>(stage.extent);
       case TaskKind::kRoPE:

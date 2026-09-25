@@ -1093,6 +1093,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   argmax.kind = PlanTaskKind::kArgmaxReduce;
   argmax.batch_rows = true;
   argmax.extent = vocab;
+  argmax.width = partial_tiles;
   argmax.operands.fill(kNoOperand);
   argmax.operands[0] = ap_value;
   argmax.operands[1] = ap_index;
