@@ -1,5 +1,7 @@
 # TileMega R9 — solver reconstruction
 
+> **R9 已冻结，由 R9b 取代外层打分路径。** 按用户要求，全部 R9 skeleton 搜索、排队与自动接续已停止，原始证据保留。被取代并在 R9b 新管线下重新判定的门：G-2 的 skeleton 臂，C-2/C-12/C-13/C-15/C-17 的动态部分，以及 G-8。下文的“运行中”描述均为冻结前的历史快照，不代表仍在执行。停止记录：`stopped_by_user/stop.json`；后续见 `../SOLVER_R9B/`。
+
 **IN PROGRESS — 8/40 measured arms. This is not the final R9 delivery.**
 
 **2026-09-25 阶段性代码审查推送：完整测试中。** 当前实现导览、已完成验证、排队情况及配置数定义见 [review_status.md](review_status.md)。本次推送不代表 R9 最终验收；所有现有测试进程保持不变。
