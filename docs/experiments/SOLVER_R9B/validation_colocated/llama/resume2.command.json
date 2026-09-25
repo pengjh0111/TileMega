@@ -1,0 +1,18 @@
+{
+  "command": [
+    "/root/r9b_work/resume2-validation_colocated-llama",
+    "/root/r7_work/llama_hoist/auto.cu.export.json",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/fit/target.json",
+    "/root/r7_work/llama_hoist/fixture",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/resources",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/validation_colocated/llama",
+    "100",
+    "90109",
+    "1",
+    "--resume"
+  ],
+  "binary_sha256": "f83d9b0a49052d3ef10fc0cd544384744687b4861e10544c1cd97ab8c975f74c",
+  "prior_samples": 47,
+  "prior_bytes": 5844,
+  "prior_sha256": "38c33645b47731e97425c775ae58011ac12986d0b60dc957836bed24bcae41cb"
+}
