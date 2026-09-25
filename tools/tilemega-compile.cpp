@@ -212,6 +212,7 @@ int main(int argc, char** argv) {
                  "{OUTPUT.cu|OUTPUT.so} [--variants PLAN.json] [--solve TARGET.json --seq N --past N\n"
                  " --solver legacy|skeleton --legacy-seed CG.mlir --k-base 4|8|16|W\n"
                  " --search-passes 1..3 --search-jobs 1 --variant-cache DIR --flow-fixture DIR --flow-search-only 0|1\n"
+                 " --serving-pruning 0|1 --incremental-prepare 0|1\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
                  " --segments 1|2 --segment-candidates N\n"
                  " --dump-cg FILE.mlir\n"
@@ -234,7 +235,8 @@ int main(int argc, char** argv) {
     bool resource_probes=true;bool dump_evaluated=false;
     std::string solver_mode="skeleton",legacy_seed,variant_cache,flow_fixture;
     int skeleton_k=8,search_passes=3,search_jobs=1,search_top_m=8;
-    bool all_workers=false,flow_search_only=false,incremental_prepare=true;
+    bool all_workers=false,flow_search_only=false,incremental_prepare=true,
+         serving_pruning=true;
     tilemega::solver::SolverTiming solver_timing;
     int interval_begin=0,segments=1,segment_candidates=3;
     std::vector<mlir::OwningOpRef<mlir::ModuleOp>> variant_modules;
@@ -250,6 +252,7 @@ int main(int argc, char** argv) {
       else if (flag=="--k-base") {all_workers=value=="W";if(!all_workers)skeleton_k=std::stoi(value);}
       else if (flag=="--flow-search-only") flow_search_only=std::stoi(value)!=0;
       else if (flag=="--incremental-prepare") incremental_prepare=std::stoi(value)!=0;
+      else if (flag=="--serving-pruning") serving_pruning=std::stoi(value)!=0;
       else if (flag=="--search-passes") search_passes=std::stoi(value);
       else if (flag=="--top-m") search_top_m=std::stoi(value);
       else if (flag=="--search-jobs") search_jobs=std::stoi(value);
@@ -430,6 +433,7 @@ int main(int argc, char** argv) {
         skeleton.artifact_prefix=argv[2];skeleton.fixture=flow_fixture;
         skeleton.search_only=flow_search_only;
         skeleton.incremental_prepare=incremental_prepare;
+        skeleton.serving_pruning=serving_pruning;
         skeleton.top_m=search_top_m;
         if(!evaluation_cases_path.empty()) {
           if(!flow_search_only)throw std::runtime_error("--evaluate-configs requires --flow-search-only 1");

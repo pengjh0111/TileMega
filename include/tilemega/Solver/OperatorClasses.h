@@ -70,7 +70,8 @@ struct ServingClassDomain {
 
 inline ServingClassDomain ServingClassCandidates(
     OperatorClass const& cls,frontend::ImportedSemantics const& imported,
-    TargetSpec const& target,int batch,int seq,bool enable_r3=false) {
+    TargetSpec const& target,int batch,int seq,
+    bool enable_r2=true,bool enable_r3=false) {
   if(!imported.plan.serving || batch<1 || seq<1 || cls.gemms.empty())
     throw std::invalid_argument("serving domain requires a serving model and bound batch");
   auto id=cls.gemms.front();auto const& gemm=imported.plan.gemms.at(id);
@@ -91,8 +92,7 @@ inline ServingClassDomain ServingClassCandidates(
   ServingClassDomain domain;
   for(int m:{16,32,64,128})for(int n:{32,64,128,256})for(int k:{64,128}) {
     int const per_stage=2*k*(m+n);
-    int const stage_limit=std::min((int(gemm.k)+k-1)/k,
-        target.res.max_dynamic_smem_per_cta/per_stage);
+    int const stage_limit=target.res.max_dynamic_smem_per_cta/per_stage;
     for(int stages=2;stages<=stage_limit;++stages)
       for(int split:{1,2,4,8,16,32}) {
         if(gemm.epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial && split!=1)
@@ -101,7 +101,7 @@ inline ServingClassDomain ServingClassCandidates(
         GemmConfig candidate{m,n,k,stages,split};
         if(group_width && group_width%n) {++domain.removed_r1;continue;}
         if(PruneServingR1(candidate,pruning)) {++domain.removed_r1;continue;}
-        if(PruneServingR2(candidate,pruning)) {++domain.removed_r2;continue;}
+        if(enable_r2 && PruneServingR2(candidate,pruning)) {++domain.removed_r2;continue;}
         if(PruneServingR3(candidate,pruning,enable_r3)) {++domain.removed_r3;continue;}
         domain.candidates.push_back(candidate);
       }

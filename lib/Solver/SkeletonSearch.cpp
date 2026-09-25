@@ -177,7 +177,8 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     if(search.imported.plan.serving) {
       auto pruned=ServingClassCandidates(cls,search.imported,
           options.common.placement.target,options.common.placement.dims.batch,
-          options.common.placement.dims.seq);
+          options.common.placement.dims.seq,options.serving_pruning,
+          false);
       domain=std::move(pruned.candidates);
       out<<"PRUNING\t"<<domains.size()<<'\t'<<pruned.raw<<'\t'
          <<pruned.removed_r1<<'\t'<<pruned.removed_r2<<'\t'
@@ -199,6 +200,11 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
           options.common.placement.target,search.dtype).resident_limit);
   auto legacy=evaluate(seed,search.imported.plan.serving?1:options.kappa,
       seed_residency);std::size_t uniform=legacy;
+  if(search.imported.plan.serving && !options.serving_pruning)
+    for(int k:{1,2,4})for(int r=1;r<=seed_residency;++r) {
+      auto i=evaluate(seed,k,r);
+      if(evaluated[i].score<evaluated[legacy].score)legacy=i;
+    }
   // A uniform configuration must be legal for every operator class.
   if(!search.imported.plan.serving)for(auto const& g:domains.front()) {
     bool legal=true;for(auto const& domain:domains)legal &= std::any_of(domain.begin(),domain.end(),[&](auto const& other){return ClassGeometryKey(g)==ClassGeometryKey(other);});
@@ -219,6 +225,15 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
             auto limit=search.resources.Estimate(search.classes,config,
                 options.common.placement.target,search.dtype).resident_limit;
             if(limit<1)continue;
+            if(!options.serving_pruning) {
+              for(int k:{1,2,4})for(int r=1;r<=limit;++r) {
+                auto i=evaluate(config,k,r);
+                if(evaluated[i].score<evaluated[incumbent].score) {
+                  incumbent=i;moved=true;++improvements;
+                }
+              }
+              continue;
+            }
             residency=limit;
             kappa=1;
           }
@@ -226,12 +241,14 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
           if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;++improvements;}}
         out<<"COORDINATE\t"<<start<<'\t'<<pass<<'\t'<<c<<'\t'<<domains[c].size()<<'\t'<<improvements<<'\t'<<evaluated[incumbent].score<<'\n';out.flush();
       }
-      auto fixed=evaluated[incumbent];
-      auto serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
-      for(int k:serving_order.kappa_scan){auto i=evaluate(fixed.config,k,fixed.residency);if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;}}
-      fixed=evaluated[incumbent];
-      serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
-      for(int r:serving_order.residency_scan){auto i=evaluate(fixed.config,fixed.kappa,r);if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;}}
+      if(!search.imported.plan.serving || options.serving_pruning) {
+        auto fixed=evaluated[incumbent];
+        auto serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
+        for(int k:serving_order.kappa_scan){auto i=evaluate(fixed.config,k,fixed.residency);if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;}}
+        fixed=evaluated[incumbent];
+        serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
+        for(int r:serving_order.residency_scan){auto i=evaluate(fixed.config,fixed.kappa,r);if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;}}
+      }
       if(!moved)break;
     }
   }

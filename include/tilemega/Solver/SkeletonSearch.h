@@ -21,6 +21,8 @@ struct SkeletonSearchOptions {
   // Serving decode uses one physical plan throughout this closed past range.
   int serving_past_lo=-1,serving_past_hi=-1;
   bool pure_template=false,search_only=false,incremental_prepare=true;
+  // Verification arm: keep only the R-1 legality filter.
+  bool serving_pruning=true;
   std::vector<SkeletonEvaluationCase> evaluation_cases;
 };
 struct SkeletonCandidate {
