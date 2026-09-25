@@ -15,7 +15,7 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
     throw std::invalid_argument("PriceParts requires the BF16 regime-A path");
   if(!(o>=1 && o<=residency.ctas_per_sm))throw std::invalid_argument("invalid price occupancy");
   auto theta=model.MetricBindings();auto eval=[&](auto const& q){return double(q.BindCoordinates(point).Eval(theta));};
-  auto domain=options_.physical_traffic?analysis::AccessDomain::kPhysicalTensor:analysis::AccessDomain::kNominalTile;
+  auto domain=traits.stages<=0 || options_.physical_traffic?analysis::AccessDomain::kPhysicalTensor:analysis::AccessDomain::kNominalTile;
   auto traffic=DeriveTaskMemoryTraffic(input,theta,point,2,options_.fp32_partials && chunks>1 && traits.stages>0?4:2,domain);
   if(memory)traffic=*memory;
   double stream=input.no_producer_read_bytes?input.stream_bytes:model.LiveFootprintBytes();

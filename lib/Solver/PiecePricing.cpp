@@ -12,6 +12,10 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
   auto theta=model.MetricBindings();auto const& cal=cost.target().CalibrationFor("bf16");
   std::ostringstream key;key<<analysis::SemanticSignature(semantic.op)<<std::hexfloat;
   key<<':'<<traits.tile_m<<':'<<traits.tile_n<<':'<<traits.tile_k<<':'<<traits.stages<<':'<<chunks<<':'<<residency.ctas_per_sm<<':'<<traits.threads<<':'<<traits.smem_bytes;
+  // Scalar combiners have no collective BackendTraits geometry. Their
+  // local reduction extent and ownership still change with their own split.
+  key<<':'<<input.work.task_reduce_extent.ToString()<<':'<<input.work.task_count.ToString();
+  for(auto const& tile:input.task.tile)key<<':'<<tile.ToIslText();
   for(auto const& [name,value]:std::map<std::string,long>(theta.values.begin(),theta.values.end()))key<<':'<<name<<'='<<value;
   key<<":regime_a:"<<cost.options().physical_traffic<<cost.options().stage_latency<<cost.options().physical_fixed<<cost.options().sdcm_above_knee;
   double stream=input.no_producer_read_bytes?input.stream_bytes:model.LiveFootprintBytes();
@@ -36,8 +40,8 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
   };
   auto partition=[&]{
     auto domain=make_domain();analysis::ParamBinding point;for(std::size_t i=0;i<axes.size();++i)point.Bind(axes[i].name,bounds[i].first);
-    std::vector<analysis::QuasiPolynomial const*> quantities{&input.work.read_elements,&input.work.write_elements,&input.work.nominal_read_elements,&input.work.nominal_write_elements};
-    if(traits.stages>0)quantities.push_back(&input.work.nominal_task_reduce_extent);
+    std::vector<analysis::QuasiPolynomial const*> quantities{&input.work.read_elements,&input.work.write_elements};
+    if(traits.stages>0){quantities.push_back(&input.work.nominal_read_elements);quantities.push_back(&input.work.nominal_write_elements);quantities.push_back(&input.work.nominal_task_reduce_extent);}
     if(input.physical_read_bytes)quantities.push_back(&*input.physical_read_bytes);
     if(input.no_producer_read_bytes)quantities.push_back(&*input.no_producer_read_bytes);
     if(input.external_write_bytes)quantities.push_back(&*input.external_write_bytes);

@@ -534,13 +534,24 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
     if(input.scalar_access)axes.push_back({"q",count});
     else for(std::size_t a=0;a<input.task.output.axes.size();++a)if(input.task.IsTiled(a))
       axes.push_back({input.task.output.axes[a].name,input.task.CoordinateExtent(a).Eval(known,known)});
+    std::vector<analysis::ParamBinding> points(count);
+    for(long linear=0;linear<count;++linear){long rest=linear;for(auto axis=axes.rbegin();axis!=axes.rend();++axis){points[linear].Bind(axis->first,rest%axis->second);rest/=axis->second;}}
+    auto domain=traits.stages<=0 || options_.physical_traffic ? analysis::AccessDomain::kPhysicalTensor : analysis::AccessDomain::kNominalTile;
+    auto traffic=DeriveTaskMemoryTrafficBatch(input,known,points,2,options_.fp32_partials && chunks>1 && traits.stages>0?4:2,domain);
+    std::vector<long> nominal_read(count),nominal_write(count),reduction(count),physical_write(count);
+    physical_write=input.work.write_elements.EvalPoints(known,points);
+    if(traits.stages>0){nominal_read=input.work.nominal_read_elements.EvalPoints(known,points);nominal_write=input.work.nominal_write_elements.EvalPoints(known,points);reduction=input.work.nominal_task_reduce_extent.EvalPoints(known,points);}
+    std::map<std::array<double,10>,double> price_classes;
     double sum=0;for(long first=0;first<count;first+=grid) {
       long active=std::min(grid,count-first);
       double o=options_.wave_tail?std::max(1.,double(active)/target_->res.num_sms):residency.ctas_per_sm;
       double wave=0;for(long linear=first;linear<first+active;++linear) {
-        auto rest=linear;analysis::ParamBinding p;
-        for(auto a=axes.rbegin();a!=axes.rend();++a){p.Bind(a->first,rest%a->second);rest/=a->second;}
-        wave=std::max(wave,IsolatedNs(PriceParts(input,traits,residency,model,chunks,p,o,memory),calib_->dram_gbps/(target_->res.num_sms*o)));
+        auto const& t=traffic[linear];std::array<double,10> key{o,t.global_read_bytes,t.global_write_bytes,t.no_producer_read_bytes,t.external_write_bytes,
+          double(nominal_read[linear]),double(nominal_write[linear]),double(reduction[linear]),double(physical_write[linear]),t.produced_read_bytes};
+        auto found=price_classes.find(key);double price;
+        if(found!=price_classes.end())price=found->second;
+        else {price=IsolatedNs(PriceParts(input,traits,residency,model,chunks,points[linear],o,memory),calib_->dram_gbps/(target_->res.num_sms*o));price_classes.emplace(key,price);}
+        wave=std::max(wave,price);
       }sum+=wave;
     }return sum;
   }

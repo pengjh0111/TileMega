@@ -30,6 +30,11 @@ int main(int argc,char** argv) try {
       for(long q=0;q<count;++q){long rest=q;analysis::ParamBinding at;for(auto a=axes.rbegin();a!=axes.rend();++a){at.Bind(a->first,rest%a->second);rest/=a->second;}
         enumerated+=cost.TaskInstanceNs(input,solver::TensorBF16Traits(32,16,k,2),{1},model,1,at,1);}
       Require(std::abs(pieces.total_isolated_ns/enumerated-1)<=1e-9,"boundary pieces differ from enumeration");
+      double wave_sum=0;long grid=target.res.num_sms;
+      for(long first=0;first<count;first+=grid){double wave=0;for(long q=first;q<std::min(first+grid,count);++q){long rest=q;analysis::ParamBinding at;for(auto a=axes.rbegin();a!=axes.rend();++a){at.Bind(a->first,rest%a->second);rest/=a->second;}wave=std::max(wave,cost.TaskInstanceNs(input,solver::TensorBF16Traits(32,16,k,2),{1},model,1,at,1));}wave_sum+=wave;}
+      double stage_price=cost.TaskCostNs(input,solver::TensorBF16Traits(32,16,k,2),{1},model,1);
+      Require(std::memcmp(&wave_sum,&stage_price,sizeof(double))==0,"wave price class memo changed stage result");
+
       std::cout<<"PIECE_PRICE model="<<name<<" tile_k="<<k<<" tasks="<<count<<" pieces="<<pieces.pieces.size()<<" relative_error="<<std::abs(pieces.total_isolated_ns/enumerated-1)<<'\n';
       analysis::ParamBinding p;for(auto const& n:input.cost_coordinates)p.Bind(n,0);
       double last=1e300;

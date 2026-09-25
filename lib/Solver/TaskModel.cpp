@@ -14,14 +14,20 @@ void BindTaskDramProvenance(DerivedTaskInput& input,
     ModelTaskSemantics const& semantic,analysis::DramFloor const& floor,
     analysis::ParamBinding const& theta) {
   auto accesses=DeriveModelTaskAccesses(semantic,input);
-  std::vector<analysis::QuasiPolynomial> external_reads,external_writes;
+  std::vector<analysis::QuasiPolynomial> external_reads,external_writes,typed_reads;
+  bool mixed_width=false;
   input.stream_bytes=floor.no_producer_bytes.Eval(theta);input.produced_live_bytes=0;
   for(auto const& [name,read]:accesses.reads) {
     auto found=floor.tensors.find(name);
-    if(found==floor.tensors.end())continue; // Split partials have a producer.
+    if(found==floor.tensors.end()){typed_reads.push_back(read.Card().Scale(2));continue;} // Split partials have a producer.
     auto const& tensor=found->second;
-    external_reads.push_back(read.ApplyRange(tensor.no_producer.ImageIdentity()).Card().Scale(tensor.element_bytes));
-    auto produced=read.Subtract(read.ApplyRange(tensor.no_producer.ImageIdentity()));
+    typed_reads.push_back(read.Card().Scale(tensor.element_bytes));mixed_width|=tensor.element_bytes!=2;
+    // Gather work uses a row-zero cardinality placeholder. For an entirely
+    // read-only tensor every physical read is external, independent of the
+    // actual index values bound to the unique-image floor.
+    auto external=tensor.writes.ImageCard().Eval(theta)==0 ? read : read.ApplyRange(tensor.no_producer.ImageIdentity());
+    external_reads.push_back(external.Card().Scale(tensor.element_bytes));
+    auto produced=read.Subtract(external);
     if(produced.ImageCard().Eval(theta)>0)
       input.produced_live_bytes+=tensor.writes.ImageCard().Eval(theta)*tensor.element_bytes;
   }
@@ -30,6 +36,7 @@ void BindTaskDramProvenance(DerivedTaskInput& input,
     auto const& tensor=found->second;
     external_writes.push_back(write.ApplyRange(tensor.external_writes.ImageIdentity()).Card().Scale(tensor.element_bytes));
   }
+  if(mixed_width && !input.physical_read_bytes)input.physical_read_bytes=analysis::QuasiPolynomial::Sum(typed_reads);
   input.no_producer_read_bytes=analysis::QuasiPolynomial::Sum(external_reads);
   input.external_write_bytes=analysis::QuasiPolynomial::Sum(external_writes);
 }
