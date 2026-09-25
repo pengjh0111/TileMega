@@ -131,6 +131,9 @@ struct TargetSpec {
     std::vector<double> loop_body;   // [1, tile multiply-accumulate elements]
     std::vector<double> loop_wait;   // [1, operand elements]
     std::vector<double> loop_fixed;  // [1, output elements]
+    // Optional regime-A fits; legacy coefficients above retain their meaning.
+    double latency_scale=0, stage_rate_bytes_per_ns=0;
+    std::vector<double> fixed_physical;
     double scalar_fixed_ns=0;
     int samples=0;
     std::string source;

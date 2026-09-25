@@ -121,6 +121,11 @@ void ParseCalibration(json::Value const& cal, TargetSpec::Calib& out) {
     fit.loop_body=NumberArray(body->At("loop_body"),"loop_body");
     fit.loop_wait=NumberArray(body->At("loop_wait"),"loop_wait");
     fit.loop_fixed=NumberArray(body->At("loop_fixed"),"loop_fixed");
+    if(auto p=body->Find("latency_scale"))fit.latency_scale=p->AsNumber("latency_scale");
+    if(auto p=body->Find("stage_rate_bytes_per_ns"))fit.stage_rate_bytes_per_ns=p->AsNumber("stage_rate_bytes_per_ns");
+    if(auto p=body->Find("fixed_physical"))fit.fixed_physical=NumberArray(*p,"fixed_physical");
+    if(fit.latency_scale<0 || !std::isfinite(fit.latency_scale) || fit.stage_rate_bytes_per_ns<0 || !std::isfinite(fit.stage_rate_bytes_per_ns) || (!fit.fixed_physical.empty() && fit.fixed_physical.size()!=3))
+      throw std::invalid_argument("invalid regime-A TaskBody fit");
     fit.scalar_fixed_ns=body->At("scalar_fixed_ns").AsNumber("scalar_fixed_ns");
     fit.samples=int(body->At("samples").AsNumber("samples"));
     fit.source=body->At("source").AsString("source");
@@ -128,7 +133,7 @@ void ParseCalibration(json::Value const& cal, TargetSpec::Calib& out) {
         fit.loop_fixed.size()!=2 || fit.samples<=0 || fit.source.empty())
       throw std::invalid_argument("incomplete TaskBody calibration");
     std::vector<double> values{fit.scalar_fixed_ns};
-    for (auto const* coefficients:{&fit.fixed,&fit.loop_body,&fit.loop_wait,&fit.loop_fixed})
+    for (auto const* coefficients:{&fit.fixed,&fit.loop_body,&fit.loop_wait,&fit.loop_fixed,&fit.fixed_physical})
       values.insert(values.end(),coefficients->begin(),coefficients->end());
     for (double value:values) if (!std::isfinite(value) || value<0)
       throw std::invalid_argument("TaskBody calibration must be finite and nonnegative");
@@ -253,10 +258,16 @@ json::Value CalibrationJson(TargetSpec::Calib const& calib) {
       { "measurements", json::Value(measurements)}};
   if (calib.task_body.samples>0) {
     auto const& fit=calib.task_body;
-    result.emplace_back("task_body",json::Object{
+    json::Object body{
       {"fixed",json::Numbers(fit.fixed)},{"loop_body",json::Numbers(fit.loop_body)},
       {"loop_wait",json::Numbers(fit.loop_wait)},{"loop_fixed",json::Numbers(fit.loop_fixed)},
-      {"scalar_fixed_ns",fit.scalar_fixed_ns},{"samples",fit.samples},{"source",fit.source}});
+      {"scalar_fixed_ns",fit.scalar_fixed_ns},{"samples",fit.samples},{"source",fit.source}};
+    if(fit.stage_rate_bytes_per_ns>0) {
+      body.emplace_back("latency_scale",fit.latency_scale);
+      body.emplace_back("stage_rate_bytes_per_ns",fit.stage_rate_bytes_per_ns);
+    }
+    if(!fit.fixed_physical.empty())body.emplace_back("fixed_physical",json::Numbers(fit.fixed_physical));
+    result.emplace_back("task_body",std::move(body));
   }
   return json::Value(std::move(result));
 }
