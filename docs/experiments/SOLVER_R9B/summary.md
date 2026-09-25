@@ -45,6 +45,8 @@
 - reference/mha4_s4 incomplete
 - reference/mha4_s128 incomplete
 
+发布说明：为满足 GitHub 100 MiB 限制，一份原始 trace 无损压缩；未发布提交的原哈希到发布哈希见 [publication_commit_map.tsv](publication_commit_map.tsv)。源码内容与提交信息保持不变，运行中测试保留原始文件。以下为报告生成时的提交身份，基线不变。
+
 ## 1. 基线、规格与提交
 
 基线 `ce6296f0d6e7fa14d7d0dc3800caed184adf9c72`；报告所见 HEAD `333723932ccc4311b6b4e152fd5bb81c98a20f9a`。规格 `/root/Prompt/TileMega_R9b_prompt.md`，SHA256 `fec7aae202feb7864a9011aa70edc8091988d9259a15c5e578834cf905d4a616`。TODO 更新与冻结来自 `ce6296f0d`、`ed12491fe`。
