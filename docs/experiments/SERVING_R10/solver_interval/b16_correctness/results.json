@@ -1,0 +1,21 @@
+{
+  "scope": "exploratory restricted-domain Llama B=16; seed prefill plus restricted solved decode, not EV-1",
+  "same_session_pair": false,
+  "gpu_guard": false,
+  "hf_gap_le_0_5_ratio": 1.0,
+  "hf_max_gap": 0.25,
+  "hf_pass": true,
+  "l1_l2_token_equal": true,
+  "positions": 16384,
+  "prefill_kv_before_fix_l1_l2_mismatch": 314803,
+  "prefill_kv_before_fix_l2_repeat_mismatch": 827691,
+  "prefill_kv_after_fix_l1_l2_mismatch": 0,
+  "prefill_kv_after_fix_l2_repeat_mismatch": 0,
+  "fp64_instruction_count": 0,
+  "l1_e2e_ms_single_run": 5942.362042958848,
+  "l2_e2e_ms_single_run": 7241.758121992461,
+  "diagnosis": "Serving attention body decoded (batch,group,query_block,cache_block), while CG and qkv runtime window used (batch,query_block,group,cache_block). GEMM combine also used seq instead of batch*seq, leaving rows 1..15 uncombined.",
+  "l1_tokens.json_sha256": "3f2bb24c550b28d0feea4862ab720b6ea6042f864c4de86c24c053ce8da41f41",
+  "l2_tokens.json_sha256": "3f2bb24c550b28d0feea4862ab720b6ea6042f864c4de86c24c053ce8da41f41",
+  "hf_check.json_sha256": "25811b36a1552f7e12a56dac742bab30f1aa6dc5313e644ef43363e9bb472459"
+}

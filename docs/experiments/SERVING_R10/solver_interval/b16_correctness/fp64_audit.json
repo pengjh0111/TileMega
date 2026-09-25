@@ -1,0 +1,12 @@
+{
+  "prefill": {
+    "binary": "/root/r10_work/llama_prefill_B16_order_fixed.so",
+    "fp64_instruction_count": 0,
+    "by_function": {}
+  },
+  "decode": {
+    "binary": "/root/r10_work/serve_b16_interval_integrated.so",
+    "fp64_instruction_count": 0,
+    "by_function": {}
+  }
+}
