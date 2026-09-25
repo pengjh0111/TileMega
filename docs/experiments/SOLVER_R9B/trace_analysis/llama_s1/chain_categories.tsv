@@ -1,0 +1,6 @@
+category	links	wall_ns	task_fixed_plus_mainloop_ns	publish_ns	wait_hop_ns	barrier_ns	idle_ns
+combine	1.0	179200.0	8192.0	3072.0	1024.0	0.0	166912.0
+embed	1.0	5120.0	5120.0	0.0	0.0	0.0	0.0
+lm_head	72.0	741376.0	400384.0	217088.0	95232.0	7168.0	21504.0
+norm	1.0	7168.0	5120.0	1024.0	1024.0	0.0	0.0
+proj	239.0	4629504.0	1843200.0	546816.0	2139136.0	23552.0	76800.0

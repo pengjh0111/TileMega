@@ -1,0 +1,7 @@
+{
+  "source": "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s64/selected.cu",
+  "source_sha256": "d53dcaeceabb9a05cf51883139f9fabc8e016a2e270f5b65bacfd6714b1016cb",
+  "binary": "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s64/selected.cu.measurement/kernel",
+  "binary_sha256": "8522b4a6d2bf793acfd954f9cecc38bb4cd8ca4f2496eb7530957eab1ebdb328",
+  "fixture": "/root/r9_work/qwen3_s64/fixture"
+}

@@ -1,0 +1,27 @@
+{
+  "command": [
+    "/usr/local/cuda/bin/nvcc",
+    "-std=c++17",
+    "-O2",
+    "-arch=sm_89",
+    "-lineinfo",
+    "-Xptxas=-v",
+    "-DTILEMEGA_MIDPOINT_REFINE=0",
+    "-I/root/TileMega/include",
+    "-I/root/TileMega/third_party/cutlass/include",
+    "-I/root/TileMega/third_party/cutlass/tools/util/include",
+    "-I/root/TileMega/third_party/cutlass/test",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/early_corrected/llama_s1.cu",
+    "/root/TileMega/build-portable/libtilemega.a",
+    "-L/usr/local/cuda/lib64",
+    "-lcudart",
+    "-o",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/early_corrected/llama_s1.measurement/kernel"
+  ],
+  "executable_sha256": "59e4e55f9a38b78c590df1e28a69dad91052958f18a03868ca4a547c043fbba7",
+  "head": "e827cd628c2f078f2d61a8a6029a5ca672a13749",
+  "started_ns": 1790323983236489825,
+  "elapsed_ns": 45278973925,
+  "exit_code": 0,
+  "environment": {}
+}

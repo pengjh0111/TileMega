@@ -1,0 +1,15 @@
+{
+  "time_ns": 1790327861258756234,
+  "stopped": [
+    {
+      "pid": 2921134,
+      "command": "build-portable/tools/tilemega-costmodel --repo /root/TileMega --out docs/experiments/SOLVER_R9B/replay/all_bf16 --target docs/experiments/SOLVER_R9B/fit/target.json --dtype bf16 --screen-dir docs/experiments/ORACLE/raw_bf16 --register-dir docs/experiments/ORACLE/raw_bf16/cost --full-only --regime-a all ",
+      "reason": "superseded by completed optimized replay or flow_final audit"
+    },
+    {
+      "pid": 2962749,
+      "command": "/root/r9b_work/flow-audit-flow_cap_groups /root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s64/selected.mlir /root/TileMega/docs/experiments/SOLVER_R9B/fit/target.json 64 /root/r7_work/llama_s64/fixture 4 1 /root/TileMega/docs/experiments/SOLVER_R9B/flow_cap_groups/llama_s64/home ",
+      "reason": "superseded by completed optimized replay or flow_final audit"
+    }
+  ]
+}

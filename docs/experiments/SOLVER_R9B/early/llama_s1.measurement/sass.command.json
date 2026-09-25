@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/usr/local/cuda/bin/cuobjdump",
+    "-sass",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/early/llama_s1.measurement/kernel"
+  ],
+  "executable_sha256": "9d515ac6f60c246ef63fe87b0a95d209b00ff3e25b716f8f263520010760e8f8",
+  "head": "4efed9c312ef257700bd8f64e7b4aa7e8a9edf62",
+  "started_ns": 1790318868514895178,
+  "elapsed_ns": 1049366370,
+  "exit_code": 0,
+  "environment": {}
+}

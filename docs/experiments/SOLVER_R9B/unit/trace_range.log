@@ -1,0 +1,5 @@
+docs/experiments/PLACE_EFT2/raw/final/trace_a_gqa2_s4_chain cp_exact 242688 realized 292864 legacy_ms None
+docs/experiments/PLACE_EFT2/raw/final/trace_a_gqa2_s4_rotate cp_exact 242688 realized 286720 legacy_ms None
+docs/experiments/PLACE_EFT2/raw/final/trace_a_mha4_s4_chain cp_exact 488448 realized 588800 legacy_ms None
+docs/experiments/PLACE_EFT2/raw/final/trace_a_mha4_s4_rotate cp_exact 488448 realized 572416 legacy_ms None
+RANGE_TRACE PASS

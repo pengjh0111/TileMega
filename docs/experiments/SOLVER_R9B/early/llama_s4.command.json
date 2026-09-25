@@ -1,0 +1,26 @@
+{
+  "command": [
+    "/root/r9b_work/early-r9",
+    "/root/r7_work/llama_hoist/auto.cu.export.json",
+    "docs/experiments/COSTMODEL/event_fit/target.json",
+    "4",
+    "3",
+    "1",
+    "4",
+    "W",
+    "32x64x64s2k8;32x32x32s2k16;32x16x64s2k4;32x16x64s2k4;32x16x64s2k4;32x16x64s2k4;",
+    "docs/experiments/SOLVER_R9B/early/llama_s4",
+    "docs/experiments/SIMULATOR/hop_ns.tsv"
+  ],
+  "selected_row": [
+    "EVALUATE",
+    "1317",
+    "32x64x64s2k8;32x32x32s2k16;32x16x64s2k4;32x16x64s2k4;32x16x64s2k4;32x16x64s2k4;",
+    "5231762.5910980469",
+    "4",
+    "4",
+    ""
+  ],
+  "snapshot": "docs/experiments/SOLVER_V2/review_snapshot/matrix_llama_s4_skeleton-kW.search.tsv",
+  "binary_sha256": "6f2effd0555a03a4a46e43b7cec55fbe5fbdcb8e5832165ffcb36cfc2b961fc6"
+}

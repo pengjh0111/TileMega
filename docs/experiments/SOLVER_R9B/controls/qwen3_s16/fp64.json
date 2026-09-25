@@ -1,0 +1,252 @@
+{
+  "binary": "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s16/selected.cu.measurement/kernel",
+  "binary_sha256": "53fed34cdd1a1f05bdfe14604c11d84096c27605a68f2e25518ae0eba54538cd",
+  "functions": {
+    "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 12,
+    "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 24,
+    "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": 24
+  },
+  "fp64_count": 60,
+  "instructions": [
+    [
+      "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*12f0*/                   I2F.F64.S64 R10, R36 ;                                         /* 0x00000024000a7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*1320*/                   DMUL R10, R10, c[0x2][0x70] ;                                  /* 0x00801c000a0a7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*1330*/                   F2F.F32.F64 R6, R10 ;                                          /* 0x0000000a00067310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*1870*/                   I2F.F64.S64 R36, R48 ;                                         /* 0x0000003000247312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*18a0*/                   DMUL R36, R36, c[0x2][0x70] ;                                  /* 0x00801c0024247a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*18b0*/                   F2F.F32.F64 R13, R36 ;                                         /* 0x00000024000d7310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*2430*/                   I2F.F64.S64 R10, R10 ;                                         /* 0x0000000a000a7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*2460*/                   DMUL R10, R10, c[0x2][0x70] ;                                  /* 0x00801c000a0a7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*2470*/                   F2F.F32.F64 R2, R10 ;                                          /* 0x0000000a00027310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*29a0*/                   I2F.F64.S64 R10, R10 ;                                         /* 0x0000000a000a7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*29d0*/                   DMUL R10, R10, c[0x2][0x70] ;                                  /* 0x00801c000a0a7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*29e0*/                   F2F.F32.F64 R9, R10 ;                                          /* 0x0000000a00097310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*0c90*/                   I2F.F64.S64 R12, R44 ;                                         /* 0x0000002c000c7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*0cc0*/                   DMUL R12, R12, c[0x2][0x38] ;                                  /* 0x00800e000c0c7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*0cd0*/                   F2F.F32.F64 R8, R12 ;                                          /* 0x0000000c00087310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*1210*/                   I2F.F64.S64 R44, R46 ;                                         /* 0x0000002e002c7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*1240*/                   DMUL R44, R44, c[0x2][0x38] ;                                  /* 0x00800e002c2c7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*1250*/                   F2F.F32.F64 R15, R44 ;                                         /* 0x0000002c000f7310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*1dc0*/                   I2F.F64.S64 R12, R12 ;                                         /* 0x0000000c000c7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*1df0*/                   DMUL R12, R12, c[0x2][0x38] ;                                  /* 0x00800e000c0c7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*1e00*/                   F2F.F32.F64 R4, R12 ;                                          /* 0x0000000c00047310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*2320*/                   I2F.F64.S64 R12, R12 ;                                         /* 0x0000000c000c7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*2350*/                   DMUL R12, R12, c[0x2][0x38] ;                                  /* 0x00800e000c0c7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*2360*/                   F2F.F32.F64 R6, R12 ;                                          /* 0x0000000c00067310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*2f60*/                   I2F.F64.S64 R10, R10 ;                                         /* 0x0000000a000a7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*2f90*/                   DMUL R10, R10, c[0x2][0x38] ;                                  /* 0x00800e000a0a7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*2fa0*/                   F2F.F32.F64 R16, R10 ;                                         /* 0x0000000a00107310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*34e0*/                   I2F.F64.S64 R44, R46 ;                                         /* 0x0000002e002c7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*3510*/                   DMUL R44, R44, c[0x2][0x38] ;                                  /* 0x00800e002c2c7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*3520*/                   F2F.F32.F64 R15, R44 ;                                         /* 0x0000002c000f7310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*40a0*/                   I2F.F64.S64 R12, R12 ;                                         /* 0x0000000c000c7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*40d0*/                   DMUL R12, R12, c[0x2][0x38] ;                                  /* 0x00800e000c0c7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*40e0*/                   F2F.F32.F64 R4, R12 ;                                          /* 0x0000000c00047310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*4600*/                   I2F.F64.S64 R12, R12 ;                                         /* 0x0000000c000c7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*4630*/                   DMUL R12, R12, c[0x2][0x38] ;                                  /* 0x00800e000c0c7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "/*4640*/                   F2F.F32.F64 R6, R12 ;                                          /* 0x0000000c00067310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*09c0*/                   I2F.F64.S64 R12, R26 ;                                         /* 0x0000001a000c7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*09f0*/                   DMUL R12, R12, c[0x2][0x18] ;                                  /* 0x008006000c0c7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*0a00*/                   F2F.F32.F64 R9, R12 ;                                          /* 0x0000000c00097310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*0f30*/                   I2F.F64.S64 R14, R14 ;                                         /* 0x0000000e000e7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*0f60*/                   DMUL R14, R14, c[0x2][0x18] ;                                  /* 0x008006000e0e7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*0f70*/                   F2F.F32.F64 R17, R14 ;                                         /* 0x0000000e00117310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*1b00*/                   I2F.F64.S64 R18, R20 ;                                         /* 0x0000001400127312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*1b30*/                   DMUL R18, R18, c[0x2][0x18] ;                                  /* 0x0080060012127a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*1b40*/                   F2F.F32.F64 R16, R18 ;                                         /* 0x0000001200107310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*2070*/                   I2F.F64.S64 R14, R14 ;                                         /* 0x0000000e000e7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*20a0*/                   DMUL R14, R14, c[0x2][0x18] ;                                  /* 0x008006000e0e7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*20b0*/                   F2F.F32.F64 R11, R14 ;                                         /* 0x0000000e000b7310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*2cc0*/                   I2F.F64.S64 R12, R26 ;                                         /* 0x0000001a000c7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*2cf0*/                   DMUL R12, R12, c[0x2][0x18] ;                                  /* 0x008006000c0c7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*2d00*/                   F2F.F32.F64 R16, R12 ;                                         /* 0x0000000c00107310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*3230*/                   I2F.F64.S64 R14, R14 ;                                         /* 0x0000000e000e7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*3260*/                   DMUL R14, R14, c[0x2][0x18] ;                                  /* 0x008006000e0e7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*3270*/                   F2F.F32.F64 R17, R14 ;                                         /* 0x0000000e00117310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*3e10*/                   I2F.F64.S64 R20, R26 ;                                         /* 0x0000001a00147312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*3e40*/                   DMUL R20, R20, c[0x2][0x18] ;                                  /* 0x0080060014147a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*3e50*/                   F2F.F32.F64 R16, R20 ;                                         /* 0x0000001400107310 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*4380*/                   I2F.F64.S64 R14, R14 ;                                         /* 0x0000000e000e7312 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*43b0*/                   DMUL R14, R14, c[0x2][0x18] ;                                  /* 0x008006000e0e7a28 */"
+    ],
+    [
+      "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj",
+      "/*43c0*/                   F2F.F32.F64 R11, R14 ;                                         /* 0x0000000e000b7310 */"
+    ]
+  ]
+}

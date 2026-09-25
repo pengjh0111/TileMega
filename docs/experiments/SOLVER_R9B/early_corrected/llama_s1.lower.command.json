@@ -1,0 +1,10 @@
+{
+  "command": [
+    "/root/r9b_work/baseline_build/r9b-lower-frozen",
+    "docs/experiments/SOLVER_R9B/early/llama_s1.mlir",
+    "1",
+    "docs/experiments/SOLVER_R9B/early_corrected/llama_s1.cu"
+  ],
+  "binary_sha256": "4a4ccb9433e3d893fd287da63b17fcb30a42f348e7d78299a6b7a88939b4331b",
+  "library_baseline": "ce6296f0d6e7fa14d7d0dc3800caed184adf9c72"
+}

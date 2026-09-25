@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s1/selected.cu.measurement/kernel",
+    "/root/r7_work/llama_s1/fixture"
+  ],
+  "executable_sha256": "1c0c826c92e1c467d2a1bcd4dc2c19215ff91db5a3f230e8b8034cc9bcd41e9f",
+  "head": "eb40eec151141649cf430cd58cbd995d43b406ff",
+  "started_ns": 1790317293789669239,
+  "elapsed_ns": 14574448105,
+  "exit_code": 1,
+  "environment": {
+    "TILEMEGA_WARMUP": "2",
+    "TILEMEGA_REPEAT": "10"
+  }
+}

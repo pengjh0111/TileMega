@@ -1,0 +1,4 @@
+{"observed_ns": 1790328534396528094, "need_mib": 5950, "consecutive_ready": 0, "free_mib": 48536, "utilization_percent": 14, "command": ["nvidia-smi", "--id=0", "--query-gpu=memory.free,utilization.gpu", "--format=csv,noheader,nounits"]}
+{"observed_ns": 1790328536432517054, "need_mib": 5950, "consecutive_ready": 1, "free_mib": 48536, "utilization_percent": 0, "command": ["nvidia-smi", "--id=0", "--query-gpu=memory.free,utilization.gpu", "--format=csv,noheader,nounits"]}
+{"observed_ns": 1790328538469814817, "need_mib": 5950, "consecutive_ready": 2, "free_mib": 48536, "utilization_percent": 0, "command": ["nvidia-smi", "--id=0", "--query-gpu=memory.free,utilization.gpu", "--format=csv,noheader,nounits"]}
+{"observed_ns": 1790328540508954597, "need_mib": 5950, "consecutive_ready": 3, "free_mib": 48536, "utilization_percent": 0, "command": ["nvidia-smi", "--id=0", "--query-gpu=memory.free,utilization.gpu", "--format=csv,noheader,nounits"]}

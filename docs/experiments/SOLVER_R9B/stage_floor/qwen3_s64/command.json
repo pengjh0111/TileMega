@@ -1,0 +1,14 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-dram-floor",
+    "docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s64/selected.mlir",
+    "docs/experiments/COSTMODEL/event_fit/target.json",
+    "64",
+    "3",
+    "/root/r9_work/qwen3_s64/fixture",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/stage_floor/qwen3_s64/floor.mlir",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/stage_floor/qwen3_s64/tensors.tsv",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/stage_floor/qwen3_s64/stages.tsv"
+  ],
+  "binary_sha256": "f28708595f4aa5d1297b24f8285d2cd6308e8badf4cfa1ebba8cdaf7ec6c2ad5"
+}

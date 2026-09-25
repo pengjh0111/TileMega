@@ -1,0 +1,32 @@
+PTX lines 365..379
+setp.ne.s32 %p217, %r1117, 0;
+xor.b32 %r1121, %r1113, -2147483648;
+selp.b32 %r1122, %r1121, %r1113, %p217;
+selp.b32 %r1123, -1, 0, %p217;
+xor.b32 %r1124, %r1116, %r1123;
+shl.b32 %r1125, %r2770, 2;
+xor.b32 %r1126, %r1125, %r1123;
+cvt.u64.u32 %rd507, %r1124;
+cvt.u64.u32 %rd508, %r1126;
+bfi.b64 %rd509, %rd507, %rd508, 32, 32;
+cvt.rn.f64.s64 %fd9, %rd509;
+mul.f64 %fd10, %fd9, 0d3BF921FB54442D19;
+cvt.rn.f32.f64 %f774, %fd10;
+setp.eq.s32 %p218, %r1122, 0;
+neg.f32 %f775, %f774;
+selp.f32 %f1966, %f774, %f775, %p218;
+.file	1 "/root/TileMega/include/tilemega/Codegen/tasks/ModelHarness.cuh"
+.file	2 "/root/TileMega/include/tilemega/Codegen/tasks/RoPETaskBody.h"
+.file	3 "/root/TileMega/include/tilemega/Codegen/tasks/Placement.cuh"
+.file	4 "/root/TileMega/third_party/cutlass/include/cutlass/bfloat16.h"
+.file	5 "/root/TileMega/include/tilemega/Codegen/tasks/AttentionChunkTaskBody.h"
+.file	6 "/root/TileMega/include/tilemega/Codegen/AttentionPlan.h"
+.file	7 "/root/TileMega/include/tilemega/Codegen/tasks/WarpReduce.cuh"
+.file	8 "/usr/local/cuda/bin/../targets/x86_64-linux/include/sm_30_intrinsics.hpp"
+.file	9 "/root/TileMega/include/tilemega/Codegen/tasks/EmbeddingTaskBody.h"
+.file	10 "/root/TileMega/include/tilemega/Codegen/tasks/GemmCombineTaskBody.h"
+.file	11 "/root/TileMega/include/tilemega/Codegen/tasks/GemmStageTaskBody.h"
+.file	12 "/root/TileMega/include/tilemega/Codegen/RuntimeOwnership.h"
+.file	13 "/root/TileMega/third_party/cutlass/include/cute/tensor_impl.hpp"
+.file	14 "/root/TileMega/third_party/cutlass/include/cute/layout.hpp"
+.file	15 "/root/TileMega/third_party/cutlass/include/cute/int_tuple.hpp"

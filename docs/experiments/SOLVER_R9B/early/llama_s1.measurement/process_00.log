@@ -1,0 +1,2 @@
+ModelSpec/template mismatch in runtime variant 0 GEMM 0
+E2E_ARCH plan=sm_89 plan_id=890 device=sm_89 device_id=890

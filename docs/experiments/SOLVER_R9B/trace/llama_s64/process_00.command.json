@@ -1,0 +1,16 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SOLVER_R9B/trace/llama_s64/kernel",
+    "/root/r7_work/llama_s64/fixture"
+  ],
+  "executable_sha256": "b0206d5cc8256f2c8fc194963b3c27776835d2825f3afd2b03fad1b47a24aeea",
+  "head": "aace1bf5d817175cec01cb504059ed7c060c4d77",
+  "started_ns": 1790325015231544749,
+  "elapsed_ns": 11625327741,
+  "exit_code": 1,
+  "environment": {
+    "TILEMEGA_WARMUP": "1",
+    "TILEMEGA_REPEAT": "1",
+    "TILEMEGA_TRACE_V2_OUT": "/root/TileMega/docs/experiments/SOLVER_R9B/trace/llama_s64/dump"
+  }
+}

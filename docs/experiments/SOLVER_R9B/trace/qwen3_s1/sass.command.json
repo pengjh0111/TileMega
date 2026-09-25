@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/usr/local/cuda/bin/cuobjdump",
+    "-sass",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/trace/qwen3_s1/kernel"
+  ],
+  "executable_sha256": "9d515ac6f60c246ef63fe87b0a95d209b00ff3e25b716f8f263520010760e8f8",
+  "head": "aace1bf5d817175cec01cb504059ed7c060c4d77",
+  "started_ns": 1790325057220675493,
+  "elapsed_ns": 1234051095,
+  "exit_code": 0,
+  "environment": {}
+}

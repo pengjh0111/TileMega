@@ -1,0 +1,7 @@
+{
+  "source": "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s64/selected.cu",
+  "source_sha256": "b42a0c6347ff4099c7ad907b1b41a8dca544480cbe18968649fd52479f64a2f0",
+  "binary": "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s64/selected.cu.measurement/kernel",
+  "binary_sha256": "25ff23ebbe499e87b60f8d1a41863fb919acfbad349e682fe7802eadf5810f86",
+  "fixture": "/root/r7_work/llama_s64/fixture"
+}

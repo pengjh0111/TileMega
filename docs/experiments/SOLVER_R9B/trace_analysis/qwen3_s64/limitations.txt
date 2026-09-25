@@ -1,0 +1,1 @@
+Trace v2 combines TaskBody fixed and mainloop. Space wall spans overlap and are not additive. Chain categories partition the realized path. Streaming bytes are exact unique logical-stage read images; split combiners receive only external writes.
