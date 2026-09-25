@@ -59,9 +59,16 @@ struct DerivedTaskInput;
 struct AttentionPhaseWork;
 struct TaskMemoryTraffic {
   double global_read_bytes=0, global_write_bytes=0;
+  double no_producer_read_bytes=0, produced_read_bytes=0;
+  double external_write_bytes=0;
   double local_read_bytes=0, local_write_bytes=0;
   std::set<int> local_read_operands;
 };
+struct TaskPriceParts {
+  double fixed_ns=0, compute_ns=0, dram_bytes=0, dram_rate_cap=0;
+  double no_producer_dram_bytes=0;
+};
+double IsolatedNs(TaskPriceParts const& parts,double fair_rate);
 
 /// Why a lane of `ResourceVector` carries zero.  A zero lane is never bare:
 /// it is either live, or the target has no such pipe, or the pipe exists and
@@ -137,6 +144,11 @@ struct CostBreakdown {
 /// Ablation switches, one per layer of §2.2.  The default is every layer on;
 /// the validation tool walks them to produce §2.4's ladder.
 struct CostModelOptions {
+  bool regime_a = false;
+  bool sdcm_above_knee = false;
+  bool physical_traffic = true;
+  bool stage_latency = true;
+  bool physical_fixed = true;
   bool resource_lanes = true;     ///< §2.2(a): all lanes, not the smem lane alone
   /// §2.2(b)'s fill depth `d = stages * resident_tiles_per_SM - 1`.  Off by
   /// default: `d` is not identifiable from the calibration on this target --
@@ -216,6 +228,10 @@ class CostModel {
                         double active_ctas_per_sm,
                         TaskMemoryTraffic const* memory=nullptr,
                         TaskMemoryTraffic const* derived_scalar_traffic=nullptr) const;
+  TaskPriceParts PriceParts(DerivedTaskInput const& input,BackendTraits const& traits,
+      Residency residency,ModelDescription const& model,int chunks,
+      analysis::ParamBinding const& coordinates,double active_ctas_per_sm,
+      TaskMemoryTraffic const* memory=nullptr) const;
   double CombineTaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,
                             Residency residency) const;
   double TaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,

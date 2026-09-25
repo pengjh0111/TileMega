@@ -10,6 +10,29 @@
 #include <stdexcept>
 
 namespace tilemega::solver {
+void BindTaskDramProvenance(DerivedTaskInput& input,
+    ModelTaskSemantics const& semantic,analysis::DramFloor const& floor,
+    analysis::ParamBinding const& theta) {
+  auto accesses=DeriveModelTaskAccesses(semantic,input);
+  std::vector<analysis::QuasiPolynomial> external_reads,external_writes;
+  input.stream_bytes=floor.no_producer_bytes.Eval(theta);input.produced_live_bytes=0;
+  for(auto const& [name,read]:accesses.reads) {
+    auto found=floor.tensors.find(name);
+    if(found==floor.tensors.end())continue; // Split partials have a producer.
+    auto const& tensor=found->second;
+    external_reads.push_back(read.ApplyRange(tensor.no_producer.ImageIdentity()).Card().Scale(tensor.element_bytes));
+    auto produced=read.Subtract(read.ApplyRange(tensor.no_producer.ImageIdentity()));
+    if(produced.ImageCard().Eval(theta)>0)
+      input.produced_live_bytes+=tensor.writes.ImageCard().Eval(theta)*tensor.element_bytes;
+  }
+  for(auto const& [name,write]:accesses.writes) {
+    auto found=floor.tensors.find(name);if(found==floor.tensors.end())continue;
+    auto const& tensor=found->second;
+    external_writes.push_back(write.ApplyRange(tensor.external_writes.ImageIdentity()).Card().Scale(tensor.element_bytes));
+  }
+  input.no_producer_read_bytes=analysis::QuasiPolynomial::Sum(external_reads);
+  input.external_write_bytes=analysis::QuasiPolynomial::Sum(external_writes);
+}
 TaskMemoryTraffic DeriveTaskMemoryTraffic(DerivedTaskInput const& input,
     analysis::ParamBinding const& theta, analysis::ParamBinding const& coordinates,
     int read_element_bytes, int write_element_bytes, analysis::AccessDomain domain) {
@@ -28,6 +51,12 @@ TaskMemoryTraffic DeriveTaskMemoryTraffic(DerivedTaskInput const& input,
     traffic.global_read_bytes = count(*input.physical_read_bytes);
   traffic.global_write_bytes = write_element_bytes * count(physical
       ? input.work.write_elements : input.work.nominal_write_elements);
+  if(physical && input.no_producer_read_bytes) {
+    traffic.no_producer_read_bytes=count(*input.no_producer_read_bytes);
+    traffic.external_write_bytes=count(*input.external_write_bytes);
+  }
+  traffic.produced_read_bytes=traffic.global_read_bytes-traffic.no_producer_read_bytes;
+  if(traffic.produced_read_bytes<0)throw std::runtime_error("external reads exceed physical traffic");
   return traffic;
 }
 
@@ -43,11 +72,19 @@ std::vector<TaskMemoryTraffic> DeriveTaskMemoryTrafficBatch(DerivedTaskInput con
     read_element_bytes=1;
   }
   auto writes=(physical ? input.work.write_elements : input.work.nominal_write_elements).EvalPoints(theta,coordinates);
+  std::vector<long> np(coordinates.size(),0),ew(coordinates.size(),0);
+  if(physical && input.no_producer_read_bytes) {
+    np=input.no_producer_read_bytes->EvalPoints(theta,coordinates);
+    ew=input.external_write_bytes->EvalPoints(theta,coordinates);
+  }
   std::vector<TaskMemoryTraffic> result(coordinates.size());
   for (std::size_t i=0;i<result.size();++i) {
     if (reads[i]<0 || writes[i]<0) throw std::invalid_argument("negative access-derived task footprint");
     result[i].global_read_bytes=double(reads[i])*read_element_bytes;
     result[i].global_write_bytes=double(writes[i])*write_element_bytes;
+    result[i].no_producer_read_bytes=np[i];result[i].external_write_bytes=ew[i];
+    result[i].produced_read_bytes=result[i].global_read_bytes-np[i];
+    if(result[i].produced_read_bytes<0)throw std::runtime_error("external reads exceed physical batch traffic");
   }
   return result;
 }
@@ -57,9 +94,10 @@ std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput co
     std::vector<analysis::ParamBinding> const& coordinates,double active_ctas_per_sm,
     PrefetchPricing const* prefetch) {
   auto theta=model.MetricBindings();bool collective=traits.stages>0;
+  bool regime_a=cost.options().regime_a && model.dtype==ScalarType::kBF16;
   int bytes=model.dtype==ScalarType::kBF16 ? 2 : 4;
   auto traffic=DeriveTaskMemoryTrafficBatch(input,theta,coordinates,bytes,bytes,
-      collective ? analysis::AccessDomain::kNominalTile : analysis::AccessDomain::kPhysicalTensor);
+      collective && !(regime_a && cost.options().physical_traffic) ? analysis::AccessDomain::kNominalTile : analysis::AccessDomain::kPhysicalTensor);
   std::vector<long> reduction(coordinates.size(),0);
   if (collective) reduction=input.work.nominal_task_reduce_extent.EvalPoints(theta,coordinates);
   bool prefetchable=prefetch && prefetch->ns && !collective && input.scalar_access &&
@@ -74,12 +112,13 @@ std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput co
   // Within one immutable task signature these are every coordinate-dependent
   // quantity consumed by TaskCostImpl. Equal work classes have exactly equal
   // prices; no averaging, sampling, stage-kind rule or fitted shortcut occurs.
-  std::map<std::tuple<double,double,long>,double> classes;
+  std::map<std::tuple<double,double,long,double,double>,double> classes;
   std::map<std::tuple<double,double,long>,double> prefetch_classes;
   std::vector<double> result;result.reserve(coordinates.size());
   if (prefetch && prefetch->ns) prefetch->ns->assign(coordinates.size(),0.0);
   for (std::size_t i=0;i<coordinates.size();++i) {
-    auto key=std::make_tuple(traffic[i].global_read_bytes,traffic[i].global_write_bytes,reduction[i]);
+    auto key=std::make_tuple(traffic[i].global_read_bytes,traffic[i].global_write_bytes,reduction[i],
+        regime_a?traffic[i].no_producer_read_bytes:0.0,regime_a?traffic[i].external_write_bytes:0.0);
     auto found=classes.find(key);
     if (found==classes.end()) found=classes.emplace(key,cost.TaskInstanceNs(
         input,traits,residency,model,chunks,coordinates[i],active_ctas_per_sm,nullptr,

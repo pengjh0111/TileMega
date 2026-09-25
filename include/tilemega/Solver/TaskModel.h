@@ -4,6 +4,7 @@
 #include <tilemega/Analysis/TaskWork.h>
 #include <tilemega/Analysis/OpArithmetic.h>
 #include <tilemega/Analysis/FusionAccess.h>
+#include <tilemega/Analysis/DramFloor.h>
 #include <tilemega/Codegen/tasks/ScalarDataflow.h>
 
 namespace tilemega::solver {
@@ -29,10 +30,17 @@ struct DerivedTaskInput {
   // Mixed-width storage (e.g. FP32 partials and BF16 residuals) retains
   // each access cardinality before converting elements to bytes.
   std::optional<analysis::QuasiPolynomial> physical_read_bytes;
+  // Populated only by the regime-A preparer, using element-level write images.
+  std::optional<analysis::QuasiPolynomial> no_producer_read_bytes;
+  std::optional<analysis::QuasiPolynomial> external_write_bytes;
+  double stream_bytes=0, produced_live_bytes=0;
   /// The operand the kind's body prefetches (`ScalarPrefetchOperand`) when it
   /// is on the read-only frontier, else -1.  Runtime-ownership tasks only.
   int prefetch_operand=-1;
 };
+void BindTaskDramProvenance(DerivedTaskInput& input,
+    ModelTaskSemantics const& semantic,analysis::DramFloor const& floor,
+    analysis::ParamBinding const& theta);
 /// What `PriceTaskInstances` credits to §5.3.1's Prefetch, per instance: the
 /// prefetch operand priced as a local read (the model's own fused-input
 /// semantics) subtracted from the task priced reading it from global, and only
