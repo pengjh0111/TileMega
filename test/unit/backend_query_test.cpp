@@ -102,6 +102,16 @@ int main() {
     REQUIRE(candidate.isLegal(sm89));
   }
 
+  // R10 serving admits the 16-row decode tile while retaining target-driven
+  // shared-memory pruning.  Legacy TensorBF16ShapeLegal remains unchanged.
+  REQUIRE(ServingBF16ShapeLegal(16, 128, 64, 2));
+  REQUIRE(!TensorBF16ShapeLegal(16, 128, 64, 2));
+  REQUIRE(!ServingBF16ShapeLegal(128, 256, 64, 2));
+  BackendCandidate serving(ServingBF16Traits(16, 128, 64, 2));
+  REQUIRE(serving.threads() == 128);
+  REQUIRE(serving.smemBytes() == 36864);
+  REQUIRE(serving.isLegal(sm89));
+
   // The six queries on the candidate the fixed-`g` control uses. 49536 bytes
   // is what `sizeof(Mainloop::SharedStorage)` reports for this shape.
   BackendCandidate control(SimtF32Traits(128, 128, 16, 3));

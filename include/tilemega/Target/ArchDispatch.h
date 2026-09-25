@@ -10,6 +10,7 @@
 namespace tilemega::arch {
 
 using Sm80 = cutlass::arch::Sm80;
+using Sm86 = cutlass::arch::Sm86;
 using Sm89 = cutlass::arch::Sm89;
 using Sm90 = cutlass::arch::Sm90;
 using Sm100 = cutlass::arch::Sm100;
@@ -53,6 +54,9 @@ struct Caps<Sm80> {
   static constexpr int kMaxClusterSize = 1;
   static constexpr char const* kCollective = "cp.async multistage";
 };
+
+template <>
+struct Caps<Sm86> : Caps<Sm80> {};
 
 template <>
 struct Caps<Sm89> : Caps<Sm80> {};
@@ -138,6 +142,7 @@ constexpr RuntimeCaps RuntimeCapsFor() {
 
 inline constexpr RuntimeCaps RuntimeCapsForTag(std::string_view tag) {
   return tag == "sm_80"  ? RuntimeCapsFor<Sm80>()
+       : tag == "sm_86"  ? RuntimeCapsFor<Sm86>()
        : tag == "sm_89"  ? RuntimeCapsFor<Sm89>()
        : tag == "sm_90"  ? RuntimeCapsFor<Sm90>()
        : tag == "sm_100" ? RuntimeCapsFor<Sm100>()
@@ -155,6 +160,7 @@ struct ArchId {
   static constexpr char const* kTag = "unsupported";
 };
 template <> struct ArchId<Sm80>  { static constexpr int kValue = 800;  static constexpr char const* kTag = "sm_80"; };
+template <> struct ArchId<Sm86>  { static constexpr int kValue = 860;  static constexpr char const* kTag = "sm_86"; };
 template <> struct ArchId<Sm89>  { static constexpr int kValue = 890;  static constexpr char const* kTag = "sm_89"; };
 template <> struct ArchId<Sm90>  { static constexpr int kValue = 900;  static constexpr char const* kTag = "sm_90"; };
 template <> struct ArchId<Sm100> { static constexpr int kValue = 1000; static constexpr char const* kTag = "sm_100"; };
@@ -166,6 +172,7 @@ template <> struct ArchId<Sm120> { static constexpr int kValue = 1200; static co
 /// than a silent fallback.
 template <int Id> struct ArchFromId { using type = void; };
 template <> struct ArchFromId<800>  { using type = Sm80; };
+template <> struct ArchFromId<860>  { using type = Sm86; };
 template <> struct ArchFromId<890>  { using type = Sm89; };
 template <> struct ArchFromId<900>  { using type = Sm90; };
 template <> struct ArchFromId<1000> { using type = Sm100; };
@@ -174,6 +181,7 @@ template <> struct ArchFromId<1200> { using type = Sm120; };
 /// Host-side tag -> identifier, for codegen and for the runtime check.
 inline int ArchIdForTag(std::string_view tag) {
   return tag == "sm_80"  ? ArchId<Sm80>::kValue
+       : tag == "sm_86"  ? ArchId<Sm86>::kValue
        : tag == "sm_89"  ? ArchId<Sm89>::kValue
        : tag == "sm_90"  ? ArchId<Sm90>::kValue
        : tag == "sm_100" ? ArchId<Sm100>::kValue
@@ -192,6 +200,8 @@ using CurrentArch = Sm100;
 using CurrentArch = Sm90;
 #  elif __CUDA_ARCH__ == 890
 using CurrentArch = Sm89;
+#  elif __CUDA_ARCH__ == 860
+using CurrentArch = Sm86;
 #  elif __CUDA_ARCH__ == 800
 using CurrentArch = Sm80;
 #  endif
