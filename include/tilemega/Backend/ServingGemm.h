@@ -45,6 +45,11 @@ struct ServingGemmConfig {
                    cute::Stride<cute::_8, cute::_1>>{},
       cute::Layout<cute::Shape<cute::_1, cute::_8>>{}));
   using SmemCopyAtom = cute::Copy_Atom<cute::SM75_U32x4_LDSM_N, Element>;
+  // A 32-column tile spread across four N warps gives each warp only two
+  // 32-bit B registers. ldmatrix.x4 would request four and fail CuTe's
+  // copy-layout divisibility check; x2 is the matching SM80 instruction.
+  using SmemCopyAtomB = std::conditional_t<TileM == 16 && TileN == 32,
+      cute::Copy_Atom<cute::SM75_U32x2_LDSM_N, Element>, SmemCopyAtom>;
   using WarpLayout = std::conditional_t<
       TileM == 16,
       cute::Layout<cute::Shape<cute::_1, cute::_4, cute::_1>>,
@@ -58,7 +63,7 @@ struct ServingGemmConfig {
       Element, cutlass::gemm::TagToStrideA_t<cutlass::layout::RowMajor>,
       Element, cutlass::gemm::TagToStrideB_t<cutlass::layout::ColumnMajor>,
       TiledMma, GmemTiledCopy, SmemLayoutAtom, SmemCopyAtom,
-      cute::identity, GmemTiledCopy, SmemLayoutAtom, SmemCopyAtom,
+      cute::identity, GmemTiledCopy, SmemLayoutAtom, SmemCopyAtomB,
       cute::identity>;
   using Epilogue = cutlass::epilogue::collective::DefaultEpilogue<
       Element, cutlass::gemm::TagToStrideC_t<cutlass::layout::RowMajor>,

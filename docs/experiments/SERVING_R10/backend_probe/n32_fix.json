@@ -1,0 +1,11 @@
+{
+  "scope": "backend compile and focused numerical tests, not full BE-10 matrix",
+  "before": "CuTe TiledCopy uses too few vals for SM75_U32x4_LDSM_N on TileM16 TileN32",
+  "after": "TileM16 TileN32 selects SM75_U32x2_LDSM_N for B while A and all other shapes retain x4",
+  "probed_shapes": [
+    "16x32x64s2",
+    "32x32x64s2",
+    "16x32x128s2"
+  ],
+  "focused_ctest": "serving_gemm_config and serving_gemm_task_body: 2/2 PASS"
+}

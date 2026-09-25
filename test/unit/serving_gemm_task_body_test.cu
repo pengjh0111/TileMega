@@ -10,13 +10,17 @@
 
 using Body = tilemega::codegen::ServingGemmTaskBody<
     tilemega::arch::Sm89, 16, 128, 64, 2>;
+using NarrowBody = tilemega::codegen::ServingGemmTaskBody<
+    tilemega::arch::Sm89, 16, 32, 64, 2>;
 using Element = cutlass::bfloat16_t;
 
+template <class KernelBody>
 __global__ void Run(tilemega::codegen::ServingGemmOperands operands) {
   extern __shared__ char storage[];
-  Body::Run(operands, int(blockIdx.x), 0, storage);
+  KernelBody::Run(operands, int(blockIdx.x), 0, storage);
 }
 
+template <class KernelBody>
 void Check(int rows, int columns, int reduction) {
   int const pitch = (reduction + 7) & ~7;
   Element *a = nullptr, *b = nullptr, *out = nullptr;
@@ -42,7 +46,7 @@ void Check(int rows, int columns, int reduction) {
   operands.a_row_stride = pitch;
   operands.b_row_stride = pitch;
   operands.output_stride = columns;
-  Run<<<(rows + 15) / 16, 128, Body::kSharedBytes>>>(operands);
+  Run<KernelBody><<<(rows + 15) / 16, 128, KernelBody::kSharedBytes>>>(operands);
   auto status = cudaDeviceSynchronize();
   if (status != cudaSuccess) {
     std::fprintf(stderr, "serving GEMM failed: %s\n", cudaGetErrorString(status));
@@ -67,7 +71,10 @@ void Check(int rows, int columns, int reduction) {
 int main() {
   for (int rows : {1, 3, 17})
     for (int columns : {64, 73})
-      for (int reduction : {2001, 2048}) Check(rows, columns, reduction);
+      for (int reduction : {2001, 2048}) Check<Body>(rows, columns, reduction);
+  for (int rows : {1, 3, 17})
+    for (int columns : {31, 32})
+      for (int reduction : {2001, 2048}) Check<NarrowBody>(rows, columns, reduction);
   std::puts("serving GEMM mainloop: pass");
   return 0;
 }
