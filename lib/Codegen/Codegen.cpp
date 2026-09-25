@@ -236,6 +236,37 @@ std::string emitTaskKindRuntime(mlir::DictionaryAttr plan) {
   return out;
 }
 
+mlir::ArrayAttr arrayField(mlir::DictionaryAttr dictionary,
+                           llvm::StringRef name);
+mlir::DictionaryAttr dictionaryEntry(mlir::Attribute value,
+                                     llvm::StringRef collection);
+
+std::string emitServingAttentionConfig(mlir::DictionaryAttr plan,
+                                       mlir::ModuleOp module) {
+  auto serving = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
+  if (!serving) return {};
+  auto stages = arrayField(plan, "stages");
+  for (auto value : stages) {
+    auto item = dictionaryEntry(value, "stages");
+    if (stringField(item, "kind") != "kFusedAttention") continue;
+    auto operands = llvm::dyn_cast<mlir::DenseI64ArrayAttr>(
+        requireField(item, "operands"));
+    if (!operands || operands.size() < 7)
+      throw std::invalid_argument("serving attention has no operand table");
+    std::ostringstream out;
+    out << "#define TILEMEGA_SERVING_SEQ " << integerField(serving, "seq") << '\n'
+        << "#define TILEMEGA_SERVING_HEAD_DIM " << integerField(item, "width") << '\n'
+        << "#define TILEMEGA_SERVING_QPERKV " << integerField(item, "group") << '\n'
+        << "#define TILEMEGA_SERVING_QROWS "
+        << integerField(item, "attention_query_rows") << '\n'
+        << "#define TILEMEGA_SERVING_QK_NORM "
+        << (operands[5] == std::numeric_limits<std::uint32_t>::max() ? 0 : 1)
+        << '\n';
+    return out.str();
+  }
+  throw std::invalid_argument("serving plan has no fused attention stage");
+}
+
 /// The identifier width the importer read off the exported index tensor. A
 /// model that starts at hidden states emits nothing and keeps the default.
 std::string emitTokenIdBits(mlir::DictionaryAttr plan) {
@@ -1271,6 +1302,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
       << emitNormEpsilon(emittedPlan)
       << emitRoPEPrecision(emittedPlan) << emitTokenIdBits(emittedPlan) << emitTaskKindRuntime(emittedPlan)
+      << emitServingAttentionConfig(emittedPlan, module)
       << (clusterDim > 1 ? "#define TILEMEGA_GENERATED_CLUSTER_DIM " +
                                std::to_string(clusterDim) + "\n"
                           : std::string())

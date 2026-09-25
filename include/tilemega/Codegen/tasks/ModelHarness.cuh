@@ -33,6 +33,8 @@
 #include <tilemega/Codegen/tasks/ClusterSync.cuh>
 #include <tilemega/Codegen/tasks/RoPETaskBody.h>
 #include <tilemega/Codegen/tasks/ServingArgmaxReduceTaskBody.h>
+#include <tilemega/Codegen/tasks/AttentionMergeTaskBody.h>
+#include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>
 #include <tilemega/Codegen/tasks/ServingEmbeddingTaskBody.h>
 #include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>
 #include <tilemega/Target/ArchDispatch.h>
@@ -128,6 +130,30 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 #ifndef TILEMEGA_SERVING_RUNTIME
 #define TILEMEGA_SERVING_RUNTIME 0
 #endif
+#if TILEMEGA_SERVING_RUNTIME
+#ifndef TILEMEGA_SERVING_SEQ
+#define TILEMEGA_SERVING_SEQ 1
+#endif
+#ifndef TILEMEGA_SERVING_HEAD_DIM
+#define TILEMEGA_SERVING_HEAD_DIM 64
+#endif
+#ifndef TILEMEGA_SERVING_QPERKV
+#define TILEMEGA_SERVING_QPERKV 4
+#endif
+#ifndef TILEMEGA_SERVING_QROWS
+#define TILEMEGA_SERVING_QROWS 4
+#endif
+#ifndef TILEMEGA_SERVING_QK_NORM
+#define TILEMEGA_SERVING_QK_NORM 0
+#endif
+using T_ServingAttention = FusedAttentionTaskBody<
+    GemmVariantArch, TILEMEGA_SERVING_HEAD_DIM, TILEMEGA_SERVING_QPERKV,
+    TILEMEGA_SERVING_SEQ, TILEMEGA_SERVING_QROWS, 64,
+    TILEMEGA_SERVING_QK_NORM != 0>;
+using T_ServingMerge = AttentionMergeTaskBody<
+    TILEMEGA_SERVING_HEAD_DIM, TILEMEGA_SERVING_QPERKV,
+    TILEMEGA_SERVING_SEQ>;
+#endif
 #ifndef TILEMEGA_FUSION_GEMM_RUNTIME
 #define TILEMEGA_FUSION_GEMM_RUNTIME TILEMEGA_FUSION_RUNTIME
 #endif
@@ -146,6 +172,7 @@ union TaskSmem {
   GemmVariantSmem gemm;
 #if TILEMEGA_SERVING_RUNTIME
   ServingArgmaxReduceTaskBody::SharedStorage argmax;
+  T_ServingAttention::SharedStorage serving_attention;
 #endif
 #if TILEMEGA_FUSION_GEMM_RUNTIME
   alignas(16) unsigned char fused_gemm[
@@ -160,7 +187,7 @@ inline constexpr std::size_t kNonGemmTaskSmem =
 inline constexpr std::size_t kExpectedTaskSmem =
     std::max({sizeof(GemmVariantSmem),kNonGemmTaskSmem
 #if TILEMEGA_SERVING_RUNTIME
-        ,sizeof(TaskSmem::argmax)
+        ,sizeof(TaskSmem::argmax),sizeof(TaskSmem::serving_attention)
 #endif
 #if TILEMEGA_FUSION_GEMM_RUNTIME
         ,sizeof(TaskSmem::fused_gemm)
@@ -223,6 +250,7 @@ static_assert(DeclaresOwnership<T_Gemm>::value &&
               "above the declared count");
 
 #if TILEMEGA_SERVING_RUNTIME
+__host__ __device__ inline int CeilDiv(int numerator, int denominator);
 __device__ inline void RunServingScalarTask(Params const& p,
                                             StageDesc const& stage,
                                             TaskSmem& smem, int row) {
@@ -256,6 +284,58 @@ __device__ inline void RunServingScalarTask(Params const& p,
       return;
     default: asm volatile("trap;"); return;
   }
+}
+
+__device__ inline int ServingAttentionTaskCount(Params const& p,
+                                                 StageDesc const& stage) {
+  int query_blocks = CeilDiv(int(stage.group) * p.dims.seq,
+                             stage.attention_query_rows);
+  int cache_blocks = CeilDiv(p.dims.capacity, stage.attention_kv_block);
+  return p.dims.batch * int(stage.extent) * query_blocks * cache_blocks;
+}
+
+__device__ inline void RunServingAttentionTask(Params const& p,
+                                                StageDesc const& stage,
+                                                TaskSmem& smem, int task) {
+  int cache_blocks = CeilDiv(p.dims.capacity, stage.attention_kv_block);
+  int query_blocks = CeilDiv(int(stage.group) * p.dims.seq,
+                             stage.attention_query_rows);
+  int cache_block = task % cache_blocks;
+  task /= cache_blocks;
+  int query_block = task % query_blocks;
+  task /= query_blocks;
+  int group = task % int(stage.extent);
+  int batch = task / int(stage.extent);
+  auto buffer = [&](std::uint32_t id) { return p.buffers[id]; };
+  ServingAttentionOperands inputs{
+      reinterpret_cast<cutlass::bfloat16_t const*>(buffer(stage.operand[0])),
+      reinterpret_cast<cutlass::bfloat16_t*>(buffer(stage.operand[1])),
+      reinterpret_cast<cutlass::bfloat16_t*>(buffer(stage.operand[2])),
+      reinterpret_cast<cutlass::bfloat16_t const*>(buffer(stage.operand[3])),
+      reinterpret_cast<cutlass::bfloat16_t const*>(buffer(stage.operand[4])),
+      stage.operand[5] == kNoOperand ? nullptr :
+          reinterpret_cast<cutlass::bfloat16_t const*>(buffer(stage.operand[5])),
+      stage.operand[6] == kNoOperand ? nullptr :
+          reinterpret_cast<cutlass::bfloat16_t const*>(buffer(stage.operand[6])),
+      reinterpret_cast<cutlass::bfloat16_t*>(buffer(stage.operand[7])),
+      reinterpret_cast<float*>(buffer(stage.operand[8])),
+      reinterpret_cast<float*>(buffer(stage.operand[9])),
+      p.dims.batch, int(stage.extent), p.dims.capacity, p.dims.past,
+      stage.attention_kv_block, TILEMEGA_NORM_EPSILON};
+  T_ServingAttention::Run(inputs, smem.serving_attention, batch, group,
+                          query_block, cache_block);
+}
+
+__device__ inline void RunServingMergeTask(Params const& p,
+                                            StageDesc const& stage, int task) {
+  int group = task % int(stage.extent);
+  int batch = task / int(stage.extent);
+  T_ServingMerge::Run(
+      reinterpret_cast<float const*>(p.buffers[stage.operand[0]]),
+      reinterpret_cast<float const*>(p.buffers[stage.operand[1]]),
+      reinterpret_cast<cutlass::bfloat16_t*>(p.buffers[stage.operand[2]]),
+      batch, group, int(stage.extent), p.dims.capacity,
+      stage.attention_kv_block, p.dims.past);
 }
 #endif
 
@@ -293,6 +373,23 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 #if TILEMEGA_SERVING_RUNTIME
       for (int row = int(blockIdx.x); row < p.dims.batch;
            row += int(gridDim.x)) RunServingScalarTask(p, stage, smem, row);
+#else
+      asm volatile("trap;");
+#endif
+      break;
+    case TaskKind::kFusedAttention:
+#if TILEMEGA_SERVING_RUNTIME
+      for (int task = int(blockIdx.x); task < ServingAttentionTaskCount(p, stage);
+           task += int(gridDim.x))
+        RunServingAttentionTask(p, stage, smem, task);
+#else
+      asm volatile("trap;");
+#endif
+      break;
+    case TaskKind::kAttentionMerge:
+#if TILEMEGA_SERVING_RUNTIME
+      for (int task = int(blockIdx.x); task < p.dims.batch * int(stage.extent);
+           task += int(gridDim.x)) RunServingMergeTask(p, stage, task);
 #else
       asm volatile("trap;");
 #endif
@@ -365,6 +462,20 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
     case TaskKind::kArgmaxReduce:
 #if TILEMEGA_SERVING_RUNTIME
       RunServingScalarTask(p, stage, smem, task);
+#else
+      asm volatile("trap;");
+#endif
+      break;
+    case TaskKind::kFusedAttention:
+#if TILEMEGA_SERVING_RUNTIME
+      RunServingAttentionTask(p, stage, smem, task);
+#else
+      asm volatile("trap;");
+#endif
+      break;
+    case TaskKind::kAttentionMerge:
+#if TILEMEGA_SERVING_RUNTIME
+      RunServingMergeTask(p, stage, task);
 #else
       asm volatile("trap;");
 #endif
@@ -518,6 +629,14 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
 #endif
 #endif
     case TaskKind::kArgmaxReduce: return p.dims.batch;
+    case TaskKind::kFusedAttention:
+#if TILEMEGA_SERVING_RUNTIME
+      return ServingAttentionTaskCount(p, stage);
+#else
+      return 0;
+#endif
+    case TaskKind::kAttentionMerge:
+      return p.dims.batch * int(stage.extent);
 #if TILEMEGA_QK_NORM_RUNTIME
     case TaskKind::kQKNorm: return T_QKNorm::Ownership(p, stage).count;
 #endif
@@ -1983,6 +2102,12 @@ inline DeviceModel Create(ModelSpec const& spec,
       case TaskKind::kEmbedding:
       case TaskKind::kGemmRMSNorm: return stage.batch_rows ? dims.batch : dims.tokens();
       case TaskKind::kArgmaxReduce: return dims.batch;
+      case TaskKind::kFusedAttention:
+        return dims.batch * int(stage.extent) *
+            CeilDiv(int(stage.group) * dims.seq, stage.attention_query_rows) *
+            CeilDiv(dims.capacity, stage.attention_kv_block);
+      case TaskKind::kAttentionMerge:
+        return dims.batch * int(stage.extent);
       // One (token, head), which is the ownership the TaskBody declares.
       case TaskKind::kQKNorm: return dims.tokens() * static_cast<int>(stage.extent);
       case TaskKind::kRoPE:

@@ -723,6 +723,12 @@ if(TILEMEGA_BUILD_TESTS)
   target_compile_options(serving_attention_mma_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   set_property(TARGET serving_attention_mma_test PROPERTY CUDA_ARCHITECTURES 89)
+  add_executable(serving_fused_attention_test
+    test/unit/serving_fused_attention_test.cu)
+  target_link_libraries(serving_fused_attention_test PRIVATE TileMega::tilemega)
+  target_compile_options(serving_fused_attention_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  set_property(TARGET serving_fused_attention_test PROPERTY CUDA_ARCHITECTURES 89)
   # Run explicitly: this numerical probe needs a CUDA device, unlike the
   # compile-only TaskBody contracts in the default CTest suite.
   add_executable(attention_phase_test test/unit/attention_phase_test.cu)
