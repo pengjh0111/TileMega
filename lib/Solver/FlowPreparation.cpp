@@ -286,7 +286,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
       }else if(stage.kind==StageKind::kFusedAttention) {
         p.inflight_bytes=std::max(16.,std::min(p.dram_bytes,
             4.*stage.width*std::min(stage.attention_kv_block,64)));
-      }else p.inflight_bytes=std::max(16.,std::min(p.dram_bytes,65536.));
+      }else p.inflight_bytes=std::max(16.,p.dram_bytes);
     }
     FlowSpace space;space.name=input.task.name;space.category=projected.combine?"combine":semantic.op.arithmetic;
     if(!projected.combine && semantic.op.kind==analysis::OperatorKind::kMatmul && model.exported_tensors.count(semantic.op.result.name))space.category="lm_head";
