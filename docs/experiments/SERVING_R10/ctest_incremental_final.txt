@@ -1,0 +1,164 @@
+Internal ctest changing into directory: /root/TileMega/build-portable
+Test project /root/TileMega/build-portable
+      Start 33: pipeline_sigma
+      Start 10: flow_runtime_release
+      Start 32: stage_kappa
+      Start 31: fusion_rewrite
+ 1/79 Test #32: stage_kappa ......................   Passed   55.00 sec
+      Start 70: plan_skeleton
+ 2/79 Test #70: plan_skeleton ....................   Passed   15.82 sec
+      Start 69: skeleton_search_isolation
+ 3/79 Test #69: skeleton_search_isolation ........   Passed    9.55 sec
+      Start  3: coupling_interface_mha4
+ 4/79 Test #10: flow_runtime_release .............   Passed   87.01 sec
+      Start 39: attention_work
+ 5/79 Test #39: attention_work ...................   Passed   38.15 sec
+      Start  2: coupling_interface_gqa2
+ 6/79 Test #31: fusion_rewrite ...................   Passed  129.80 sec
+      Start 11: regime_a_price
+ 7/79 Test #11: regime_a_price ...................   Passed    3.34 sec
+      Start 34: fusion_written_price
+ 8/79 Test  #3: coupling_interface_mha4 ..........   Passed   53.44 sec
+      Start 37: fusion_batch_rewrite
+ 9/79 Test #37: fusion_batch_rewrite .............   Passed   17.77 sec
+      Start 74: coupling_cache
+10/79 Test #74: coupling_cache ...................   Passed    2.33 sec
+      Start 73: operator_classes
+11/79 Test  #2: coupling_interface_gqa2 ..........   Passed   28.98 sec
+      Start 62: serving_attention_mma
+12/79 Test #34: fusion_written_price .............   Passed   21.07 sec
+      Start 55: serving_epilogue
+13/79 Test #62: serving_attention_mma ............   Passed    0.27 sec
+      Start 57: serving_rmsnorm
+14/79 Test #55: serving_epilogue .................   Passed    0.34 sec
+      Start 14: incidence_identity
+15/79 Test #57: serving_rmsnorm ..................   Passed    0.26 sec
+      Start 15: imported_incidence_identity
+16/79 Test #73: operator_classes .................   Passed    0.86 sec
+      Start 58: serving_state_tasks
+17/79 Test #58: serving_state_tasks ..............   Passed    0.19 sec
+      Start 63: serving_fused_attention
+18/79 Test #63: serving_fused_attention ..........   Passed    0.19 sec
+      Start 59: serving_combine
+19/79 Test #59: serving_combine ..................   Passed    0.19 sec
+      Start  6: target_audit
+20/79 Test  #6: target_audit .....................   Passed    3.81 sec
+      Start 64: serving_attention_cases
+21/79 Test #64: serving_attention_cases ..........   Passed    0.21 sec
+      Start 21: task_element_work
+22/79 Test #14: incidence_identity ...............   Passed    5.15 sec
+      Start 40: chain_dp
+23/79 Test #15: imported_incidence_identity ......   Passed    5.08 sec
+      Start 66: frontend_import
+24/79 Test #21: task_element_work ................   Passed    2.66 sec
+      Start 18: runtime_projection
+25/79 Test #40: chain_dp .........................   Passed    3.10 sec
+      Start 56: serving_gemm_task_body
+26/79 Test #56: serving_gemm_task_body ...........   Passed    0.47 sec
+      Start  1: scalar_cost_errors
+27/79 Test #18: runtime_projection ...............   Passed    1.66 sec
+      Start 23: task_work_domains
+28/79 Test  #1: scalar_cost_errors ...............   Passed    0.73 sec
+      Start 72: symbolic_oracle
+29/79 Test #66: frontend_import ..................   Passed    4.34 sec
+      Start 35: fused_runtime_projection
+30/79 Test #72: symbolic_oracle ..................   Passed    0.13 sec
+      Start 12: dram_floor
+31/79 Test #12: dram_floor .......................   Passed    0.06 sec
+      Start 77: wiring_coupling
+32/79 Test #23: task_work_domains ................   Passed    0.82 sec
+      Start 68: isolated_evaluation
+33/79 Test #35: fused_runtime_projection .........   Passed    0.43 sec
+      Start 60: serving_token_sets
+34/79 Test #60: serving_token_sets ...............   Passed    0.01 sec
+      Start 20: graph_pattern
+35/79 Test #68: isolated_evaluation ..............   Passed    0.03 sec
+      Start 24: isl_relation
+36/79 Test #20: graph_pattern ....................   Passed    0.01 sec
+      Start 13: semantics
+37/79 Test #77: wiring_coupling ..................   Passed    0.38 sec
+      Start  4: cg_lit
+38/79 Test #13: semantics ........................   Passed    0.27 sec
+      Start 38: fiber_sum
+39/79 Test  #4: cg_lit ...........................   Passed    0.25 sec
+      Start 76: embedding_plan
+40/79 Test #76: embedding_plan ...................   Passed    0.05 sec
+      Start 49: impl_contract
+41/79 Test #24: isl_relation .....................   Passed    0.33 sec
+      Start 67: skeleton_placement
+42/79 Test #67: skeleton_placement ...............   Passed    0.02 sec
+      Start 43: execution_simulator
+43/79 Test #38: fiber_sum ........................   Passed    0.10 sec
+      Start  8: table27
+44/79 Test #49: impl_contract ....................   Passed    0.05 sec
+      Start 19: relation_bounds
+45/79 Test #19: relation_bounds ..................   Passed    0.04 sec
+      Start 30: lane_intersections
+46/79 Test #43: execution_simulator ..............   Passed    0.10 sec
+      Start 36: exact_runtime_task_graph
+47/79 Test #30: lane_intersections ...............   Passed    0.08 sec
+      Start 29: fusion_access
+48/79 Test #36: exact_runtime_task_graph .........   Passed    0.07 sec
+      Start  7: coupling_types
+49/79 Test #29: fusion_access ....................   Passed    0.08 sec
+      Start 16: containment
+50/79 Test  #8: table27 ..........................   Passed    0.24 sec
+      Start 17: event_synthesis
+51/79 Test  #7: coupling_types ...................   Passed    0.18 sec
+      Start 71: variant_resource
+52/79 Test #71: variant_resource .................   Passed    0.01 sec
+      Start 54: serving_task_index
+53/79 Test #54: serving_task_index ...............   Passed    0.00 sec
+      Start  9: stage_flow
+54/79 Test  #9: stage_flow .......................   Passed    0.01 sec
+      Start 53: serving_pruning
+55/79 Test #53: serving_pruning ..................   Passed    0.00 sec
+      Start 52: serving_gemm_config
+56/79 Test #52: serving_gemm_config ..............   Passed    0.01 sec
+      Start 61: serving_harness_compile
+57/79 Test #61: serving_harness_compile ..........   Passed    0.01 sec
+      Start 75: semantic_lifting
+58/79 Test #16: containment ......................   Passed    0.19 sec
+      Start 45: chain_placement
+59/79 Test #45: chain_placement ..................   Passed    0.01 sec
+      Start 46: plan_table
+60/79 Test #17: event_synthesis ..................   Passed    0.17 sec
+      Start 28: cache_service_curve
+61/79 Test #75: semantic_lifting .................   Passed    0.03 sec
+      Start 44: eft_placement
+62/79 Test #46: plan_table .......................   Passed    0.01 sec
+      Start 22: op_arithmetic_audit
+63/79 Test #28: cache_service_curve ..............   Passed    0.01 sec
+      Start 25: layout_bridge
+64/79 Test #44: eft_placement ....................   Passed    0.01 sec
+      Start 42: plan_contract
+65/79 Test #22: op_arithmetic_audit ..............   Passed    0.01 sec
+      Start 26: cg_attr_roundtrip
+66/79 Test #42: plan_contract ....................   Passed    0.01 sec
+      Start 65: fused_harness_compile
+67/79 Test #65: fused_harness_compile ............   Passed    0.01 sec
+      Start 78: frontend_degradation
+68/79 Test #25: layout_bridge ....................   Passed    0.02 sec
+      Start 27: backend_query
+69/79 Test #26: cg_attr_roundtrip ................   Passed    0.02 sec
+      Start 48: alignment_propagation
+70/79 Test #78: frontend_degradation .............   Passed    0.01 sec
+      Start 41: list_scheduler
+71/79 Test #27: backend_query ....................   Passed    0.01 sec
+      Start 47: cluster_labeling
+72/79 Test #48: alignment_propagation ............   Passed    0.01 sec
+      Start 79: isl_crosslink
+73/79 Test #41: list_scheduler ...................   Passed    0.01 sec
+      Start  5: target_spec
+74/79 Test #47: cluster_labeling .................   Passed    0.01 sec
+      Start 51: bf16_task_body_compile
+75/79 Test #79: isl_crosslink ....................   Passed    0.01 sec
+      Start 50: task_body_contract
+76/79 Test  #5: target_spec ......................   Passed    0.01 sec
+77/79 Test #51: bf16_task_body_compile ...........   Passed    0.01 sec
+78/79 Test #50: task_body_contract ...............   Passed    0.01 sec
+79/79 Test #33: pipeline_sigma ...................   Passed  239.96 sec
+
+100% tests passed, 0 tests failed out of 79
+
+Total Test time (real) = 239.96 sec

@@ -25,12 +25,14 @@ struct FlowPreparationCache {
   // coordinate descent moves one operator class.
   std::map<std::string,std::pair<bool,bool>> edge_metadata; // one-to-one, all-producer
   std::uint64_t release_hits=0,release_misses=0;
+  std::uint64_t incremental_space_hits=0;
   double spaces_ms=0,edges_ms=0,graph_ms=0;
   double derive_ms=0,price_ms=0,piece_map_ms=0;
 };
 struct PreparedFlow {
   FlowProblem flow;
   std::vector<PiecePrices> prices;
+  std::vector<std::string> space_signatures,space_geometry_keys;
   std::vector<int> colocated_producer;
   std::vector<std::string> varying_spaces;
   int nonprefix_edges=0;
@@ -48,7 +50,8 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     int workers,int kappa,analysis::CouplingCache& cache,FlowPreparationCache* prepared=nullptr);
 PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor const& floor,
     TargetSpec const& target,int residency,HopCurve const& hop,
-    analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate=true,int kernel_shared_bytes=0);
+    analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate=true,int kernel_shared_bytes=0,
+    PreparedFlow const* prior=nullptr,std::vector<bool> const* reusable_stages=nullptr);
 void ApplyFlowPrices(SymbolicProblem& problem,PreparedFlow const& flow,TargetSpec const& target,int residency);
 std::vector<TaskPriceParts> ExpandFlowPrices(PreparedFlow const& flow);
 }

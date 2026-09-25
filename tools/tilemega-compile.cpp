@@ -226,7 +226,7 @@ int main(int argc, char** argv) {
     tilemega::frontend::ImportSummary summary;
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
-    std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path;
+    std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string serving_phase, emit_mode,measure_command;
     int serving_capacity=1088,serving_batch=1,serving_past_lo=64,
         serving_past_hi=1086,serving_kv_block=256,
@@ -234,7 +234,7 @@ int main(int argc, char** argv) {
     bool resource_probes=true;bool dump_evaluated=false;
     std::string solver_mode="skeleton",legacy_seed,variant_cache,flow_fixture;
     int skeleton_k=8,search_passes=3,search_jobs=1,search_top_m=8;
-    bool all_workers=false,flow_search_only=false;
+    bool all_workers=false,flow_search_only=false,incremental_prepare=true;
     tilemega::solver::SolverTiming solver_timing;
     int interval_begin=0,segments=1,segment_candidates=3;
     std::vector<mlir::OwningOpRef<mlir::ModuleOp>> variant_modules;
@@ -249,6 +249,7 @@ int main(int argc, char** argv) {
       else if (flag=="--variant-cache") variant_cache=value;
       else if (flag=="--k-base") {all_workers=value=="W";if(!all_workers)skeleton_k=std::stoi(value);}
       else if (flag=="--flow-search-only") flow_search_only=std::stoi(value)!=0;
+      else if (flag=="--incremental-prepare") incremental_prepare=std::stoi(value)!=0;
       else if (flag=="--search-passes") search_passes=std::stoi(value);
       else if (flag=="--top-m") search_top_m=std::stoi(value);
       else if (flag=="--search-jobs") search_jobs=std::stoi(value);
@@ -293,6 +294,7 @@ int main(int argc, char** argv) {
       else if (flag=="--resource-probes") resource_probes=std::stoi(value)!=0;
       else if (flag=="--dump-evaluated") dump_evaluated=std::stoi(value)!=0;
       else if (flag=="--search-domain") domain_path=value;
+      else if (flag=="--evaluate-configs") evaluation_cases_path=value;
       else if (flag=="--numerical-rejections") rejections_path=value;
       else throw std::runtime_error("unknown option: "+flag);
     }
@@ -427,7 +429,33 @@ int main(int argc, char** argv) {
         skeleton.passes=search_passes;skeleton.jobs=search_jobs;
         skeleton.artifact_prefix=argv[2];skeleton.fixture=flow_fixture;
         skeleton.search_only=flow_search_only;
+        skeleton.incremental_prepare=incremental_prepare;
         skeleton.top_m=search_top_m;
+        if(!evaluation_cases_path.empty()) {
+          if(!flow_search_only)throw std::runtime_error("--evaluate-configs requires --flow-search-only 1");
+          auto file=llvm::MemoryBuffer::getFile(evaluation_cases_path);
+          if(!file)throw std::runtime_error("cannot read evaluation cases");
+          auto parsed=llvm::json::parse(file.get()->getBuffer());
+          auto* object=parsed?parsed->getAsObject():nullptr;
+          auto* cases=object?object->getArray("cases"):nullptr;
+          if(!cases || cases->empty())throw std::runtime_error("evaluation cases must be nonempty");
+          for(auto const& item:*cases) {
+            auto* entry=item.getAsObject();
+            auto* geometry=entry?entry->getArray("geometries"):nullptr;
+            if(!geometry || geometry->empty())throw std::runtime_error("evaluation case needs geometries");
+            tilemega::solver::SkeletonEvaluationCase test;
+            test.kappa=int(requiredInteger(*entry,"kappa"));
+            test.residency=int(requiredInteger(*entry,"residency"));
+            for(auto const& value:*geometry) {
+              auto* g=value.getAsObject();
+              if(!g)throw std::runtime_error("invalid evaluation geometry");
+              test.config.push_back({int(requiredInteger(*g,"tile_m")),
+                  int(requiredInteger(*g,"tile_n")),int(requiredInteger(*g,"tile_k")),
+                  int(requiredInteger(*g,"stages")),int(requiredInteger(*g,"split_k"))});
+            }
+            skeleton.evaluation_cases.push_back(std::move(test));
+          }
+        }
         if(serving && serving_phase=="decode") {
           skeleton.serving_past_lo=serving_past_lo;
           skeleton.serving_past_hi=serving_past_hi;

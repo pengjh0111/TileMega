@@ -1,0 +1,26 @@
+[
+  {
+    "model": "llama",
+    "enabled": 0,
+    "returncode": 0,
+    "seconds": 67.15598287503235
+  },
+  {
+    "model": "llama",
+    "enabled": 1,
+    "returncode": 0,
+    "seconds": 67.34927579702344
+  },
+  {
+    "model": "qwen",
+    "enabled": 0,
+    "returncode": 0,
+    "seconds": 68.46523193002213
+  },
+  {
+    "model": "qwen",
+    "enabled": 1,
+    "returncode": 0,
+    "seconds": 69.57163863896858
+  }
+]

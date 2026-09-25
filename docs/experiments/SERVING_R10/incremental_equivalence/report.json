@@ -1,0 +1,18 @@
+{
+  "llama": {
+    "cases": 20,
+    "full_rows": 20,
+    "incremental_rows": 20,
+    "valid": 20,
+    "max_relative_error": 0.0,
+    "pass": true
+  },
+  "qwen": {
+    "cases": 20,
+    "full_rows": 20,
+    "incremental_rows": 20,
+    "valid": 20,
+    "max_relative_error": 0.0,
+    "pass": true
+  }
+}

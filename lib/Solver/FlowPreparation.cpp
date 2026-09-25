@@ -164,7 +164,8 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
 }
 PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor const& floor,
     TargetSpec const& target,int residency,HopCurve const& hop,
-    analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate,int kernel_shared_bytes) {
+    analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate,int kernel_shared_bytes,
+    PreparedFlow const* prior,std::vector<bool> const* reusable_stages) {
   if(problem.model.dtype!=ScalarType::kBF16)throw std::invalid_argument("flow preparation requires BF16");
   auto target_key=target.ToJson();if(cache.target_key!=target_key){cache={};cache.target_key=std::move(target_key);}
   PreparedFlow result;auto& flow=result.flow;auto model=problem.model;model.metric_bindings.values.erase("Tm");model.metric_bindings.values.erase("Tn");auto theta=model.MetricBindings();
@@ -223,6 +224,12 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   bool const stream_saturated=model.serving && !cal.l2_curve_bytes.empty() &&
       bound.read_bytes>=cal.l2_curve_bytes.back();
   std::vector<std::string> signatures,geometry_keys;
+  std::map<std::string,std::size_t> prior_spaces;
+  if(prior && reusable_stages &&
+     prior->space_signatures.size()==prior->flow.spaces.size() &&
+     prior->space_geometry_keys.size()==prior->flow.spaces.size())
+    for(std::size_t i=0;i<prior->flow.spaces.size();++i)
+      prior_spaces.emplace(prior->flow.spaces[i].name,i);
   std::vector<int> order(problem.counts.size());int ordinal=0;
   for(auto const& logical:BuildVariantStageSchedule(problem.runtime.dependencies,model.stages.size()).schedule)
     for(std::size_t s=0;s<problem.counts.size();++s)if(problem.projection.stages[s].logical_stage==int(logical.stage))order[s]=ordinal++;
@@ -231,6 +238,24 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     auto found=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),[&](auto const& sem){return sem.stage==projected.logical_stage && (!stage.IsCollective() || sem.op.kind==analysis::OperatorKind::kMatmul);});
     if(found==model.task_semantics.end())throw std::runtime_error("flow task has no semantics");
     auto semantic=*found;auto g=stage.IsCollective()?problem.geometry.at(stage.gemm):GemmConfig{};
+    if(reusable_stages && projected.logical_stage<int(reusable_stages->size()) &&
+       (*reusable_stages)[projected.logical_stage]) {
+      auto old=prior_spaces.find(semantic.op.name+(projected.combine?".combine":""));
+      if(old!=prior_spaces.end() &&
+         prior->flow.spaces[old->second].count==problem.counts[s]) {
+        auto space=prior->flow.spaces[old->second];
+        auto prices=prior->prices[old->second];
+        space.order=order[s];
+        space.rank_ns=space.count?prices.total_isolated_ns/space.count:0;
+        if(prices.coordinate_varying)result.varying_spaces.push_back(space.name);
+        signatures.push_back(prior->space_signatures[old->second]);
+        geometry_keys.push_back(prior->space_geometry_keys[old->second]);
+        result.prices.push_back(std::move(prices));
+        flow.spaces.push_back(std::move(space));
+        ++cache.incremental_space_hits;
+        continue;
+      }
+    }
     auto const& signature=signature_for(semantic.op);
     bool past_independent=stream_saturated && !projected.combine &&
         semantic.op.kind==analysis::OperatorKind::kMatmul;
@@ -389,6 +414,8 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   cache.spaces_ms+=std::chrono::duration<double,std::milli>(edge_start-profile_start).count();
   cache.graph_ms+=std::chrono::duration<double,std::milli>(graph_end-profile_start).count();
   cache.edges_ms+=std::chrono::duration<double,std::milli>(profile_end-edge_start).count();
+  result.space_signatures=std::move(signatures);
+  result.space_geometry_keys=std::move(geometry_keys);
   return result;
 }
 std::vector<TaskPriceParts> ExpandFlowPrices(PreparedFlow const& prepared) {

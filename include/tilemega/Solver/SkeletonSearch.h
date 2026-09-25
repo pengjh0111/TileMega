@@ -6,6 +6,10 @@
 #include <tilemega/Solver/FlowPreparation.h>
 
 namespace tilemega::solver {
+struct SkeletonEvaluationCase {
+  std::vector<GemmConfig> config;
+  int kappa=1,residency=1;
+};
 struct SkeletonSearchOptions {
   CompilerSearchOptions common;
   GemmConfig seed;
@@ -16,7 +20,8 @@ struct SkeletonSearchOptions {
   int seed_residency=1,top_m=8;
   // Serving decode uses one physical plan throughout this closed past range.
   int serving_past_lo=-1,serving_past_hi=-1;
-  bool pure_template=false,search_only=false;
+  bool pure_template=false,search_only=false,incremental_prepare=true;
+  std::vector<SkeletonEvaluationCase> evaluation_cases;
 };
 struct SkeletonCandidate {
   std::string key,error;

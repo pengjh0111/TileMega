@@ -25,6 +25,12 @@ struct SearchContext {
   std::optional<analysis::DramFloor> floor;
   std::optional<SymbolicProblem> base,last_structure;
   std::string last_geometry;
+  struct FlowSnapshot {
+    std::vector<GemmConfig> config;
+    int residency=0;
+    PreparedFlow prepared;
+  };
+  std::map<int,FlowSnapshot> recent_flows;
   mlir::Attribute floor_attribute;
   ScalarType dtype;
   SearchContext(frontend::ImportedSemantics input,mlir::MLIRContext& ctx,SkeletonSearchOptions const& opts)
@@ -59,7 +65,32 @@ struct SearchContext {
         last_structure=point.problem;last_geometry=std::move(geometry_key);
       }
     }
-    {SolverPhase phase(timing,"piece_pricing_and_release");point.flow=PrepareFlow(point.problem,*floor,target,residency,options.common.placement.hop,cache,flow_cache,true,estimate.shared_bytes);}
+    PreparedFlow const* prior=nullptr;
+    std::vector<bool> reusable(imported.plan.stages.size(),false);
+    int const past_key=past_override>=0?past_override:-1;
+    {
+      SolverPhase phase(timing,"incremental_prepare");
+      auto previous=recent_flows.find(past_key);
+      if(options.incremental_prepare && !materialize &&
+         previous!=recent_flows.end() &&
+         previous->second.residency==residency &&
+         previous->second.config.size()==config.size()) {
+        prior=&previous->second.prepared;
+        std::fill(reusable.begin(),reusable.end(),true);
+        for(std::size_t c=0;c<classes.size();++c)
+          if(ClassGeometryKey(previous->second.config[c])!=ClassGeometryKey(config[c]))
+            for(std::size_t s=0;s<imported.plan.stages.size();++s) {
+              int gemm=imported.plan.stages[s].gemm;
+              if(gemm>=0 && std::find(classes[c].gemms.begin(),classes[c].gemms.end(),
+                  std::size_t(gemm))!=classes[c].gemms.end())reusable[s]=false;
+            }
+      }
+    }
+    {SolverPhase phase(timing,"piece_pricing_and_release");point.flow=PrepareFlow(
+        point.problem,*floor,target,residency,options.common.placement.hop,
+        cache,flow_cache,true,estimate.shared_bytes,prior,prior?&reusable:nullptr);}
+    if(options.incremental_prepare && !materialize)
+      recent_flows[past_key]={config,residency,*point.flow};
     return point;
   }
   SkeletonCandidate Evaluate(std::vector<GemmConfig> const& config,int kappa,int residency,int actual=0) {
@@ -221,7 +252,29 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
   analysis::ScopedExactAnalysisMemo memo;
   if(options.jobs!=1)throw std::invalid_argument("flow search is single-threaded");
   SearchContext search(imported,context,options);SkeletonSearchResult result;result.classes=search.classes;
-  evidence<<std::setprecision(17);result.evaluated=CoordinateDescent(search,result.rounds,evidence);
+  evidence<<std::setprecision(17);
+  if(!options.evaluation_cases.empty()) {
+    // A fixed baseline creates the symbolic ModelDescription once.  Random
+    // cases then change only their explicit class coordinates, just as the
+    // production coordinate-descent path does after its seed evaluation.
+    std::vector<GemmConfig> seed(search.classes.size(),options.seed);
+    search.Evaluate(seed,options.kappa,options.seed_residency);
+  }
+  if(options.evaluation_cases.empty())
+    result.evaluated=CoordinateDescent(search,result.rounds,evidence);
+  else for(std::size_t i=0;i<options.evaluation_cases.size();++i) {
+    auto const& test=options.evaluation_cases[i];
+    try {result.evaluated.push_back(search.Evaluate(test.config,test.kappa,test.residency));}
+    catch(std::exception const& e) {
+      SkeletonCandidate failed;failed.config=test.config;failed.kappa=test.kappa;
+      failed.residency=test.residency;failed.error=e.what();result.evaluated.push_back(std::move(failed));
+    }
+    auto const& candidate=result.evaluated.back();
+    evidence<<"EVALUATE\t"<<i<<'\t'<<candidate.key<<'\t'
+            <<candidate.score<<'\t'<<candidate.residency<<'\t'
+            <<candidate.estimated_limit<<'\t'<<candidate.error<<'\n';
+    evidence.flush();
+  }
   if(options.search_only) {
     std::ofstream floor(options.artifact_prefix+".floor.tsv");
     auto value=search.floor->Evaluate(search.base->model.MetricBindings());
