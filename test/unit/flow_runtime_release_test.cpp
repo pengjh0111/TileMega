@@ -3,6 +3,7 @@
 // requested by the unchanged runtime projection before local poll omission.
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Solver/PlanSkeleton.h>
+#include <tilemega/Solver/FlowPreparation.h>
 #include <tilemega/Solver/StageFlowModel.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
@@ -17,6 +18,14 @@ int main() try {
   for(auto model:{"gqa2","mha4"})for(int seq:{4,128})for(int kappa:{1,2,4}) {
     auto module=frontend::TorchExportImporter{}.Import(std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SEQSCAN/raw/export/"+model+".json",context);
     auto problem=solver::PrepareSymbolicProblem(*module,target,{seq,3,seq+3},128,1,kappa,nullptr,false);
+    if(std::string(model)=="gqa2" && seq==4 && kappa==1) {
+      analysis::CouplingCache cache;
+      auto flow=solver::PrepareFlowStructure(problem,problem.geometry,128,kappa,cache);
+      if(flow.projection.runtime_windows.empty())
+        throw std::runtime_error("flow structure lost runtime wait windows");
+      std::cout<<"FLOW_RUNTIME_WINDOWS count="
+               <<flow.projection.runtime_windows.size()<<'\n';
+    }
     auto theta=problem.model.MetricBindings();
     auto dependencies=problem.projection.dependencies.BindParams(theta);
     auto requested=problem.projection.requested_events.BindParams(theta);
@@ -34,7 +43,11 @@ int main() try {
           events[producer]=std::max(events.count(producer)?events[producer]:-1,end);
         }
         for(auto const& [producer,last]:maximum) {
-          int flow=solver::CoarsenRelease(last,problem.counts[producer],kappa);++checks;
+          auto windows=solver::BindRuntimeWindows(problem.projection,producer,stage,theta);
+          int endpoint=solver::RuntimeReleaseEndpoint(last,task,
+              problem.counts[producer],windows,
+              problem.projection.options.force_all_dependencies);
+          int flow=solver::CoarsenRelease(endpoint,problem.counts[producer],kappa);++checks;
           if(!events.count(producer) || flow!=events[producer]) {
             ++mismatches;std::cout<<"RELEASE_DIFFERENCE model="<<model<<" seq="<<seq<<" kappa="<<kappa<<" consumer="<<stage<<','<<task<<" producer="<<producer<<" flow="<<flow<<" runtime="<<(events.count(producer)?events[producer]:-1)<<'\n';
           }

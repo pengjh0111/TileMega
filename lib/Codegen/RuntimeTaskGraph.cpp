@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/RuntimeTaskGraph.h>
+#include <tilemega/Codegen/RuntimeWindow.h>
 #include <algorithm>
 #include <limits>
 #include <stdexcept>
@@ -26,11 +27,9 @@ RuntimeTaskGraph MaterializeRuntimeTaskGraph(std::vector<int> const& counts,
         edge.consumer>=static_cast<int>(counts.size()) || edge.div<=0 || edge.count<0)
       throw std::invalid_argument("invalid projected dependency window");
     for (int c=0;c<counts[edge.consumer];++c) {
-      long long at=(c/edge.div)*static_cast<long long>(edge.scale)+edge.offset;
-      auto begin=edge.all ? 0LL : std::max(0LL,at);
-      auto end=edge.all ? static_cast<long long>(counts[edge.producer]) :
-          std::min(static_cast<long long>(counts[edge.producer]),at+edge.count);
-      for (long long p=begin;p<end;++p)
+      auto bounds=RuntimeDependencyBounds(c,counts[edge.producer],edge.all,
+          edge.div,edge.scale,edge.offset,edge.count);
+      for (int p=bounds.first;p<bounds.past;++p)
         graph.successors[graph.stage_offsets[edge.producer]+p].push_back(
             graph.stage_offsets[edge.consumer]+c);
     }

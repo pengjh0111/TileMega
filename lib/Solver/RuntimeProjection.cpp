@@ -300,6 +300,9 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
           edges.push_back({entry[i],done[i],{true,1,1,0,1},Mul(tiles[i],chunk)});
     } else edges.push_back({entry[i],done[i],{},"0"});
   }
+  for (auto const& edge : edges)
+    result.runtime_windows.push_back({edge.producer, edge.consumer,
+                                      edge.window, edge.offset});
   std::vector<std::string> wait_pieces, dependency_pieces, requested_pieces;
   std::map<std::pair<int,int>,std::vector<std::string>> event_pieces;
   for (auto const& edge : edges) {

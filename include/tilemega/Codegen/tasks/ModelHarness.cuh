@@ -12,6 +12,7 @@
 #include <tilemega/Codegen/tasks/Benchmark.cuh>
 #include <tilemega/Codegen/ResidentSchedule.h>
 #include <tilemega/Codegen/RuntimeTaskGraph.h>
+#include <tilemega/Codegen/RuntimeWindow.h>
 #include <tilemega/Solver/BalancedPlacement.h>
 #include <tilemega/Solver/ListScheduler.h>
 #include <tilemega/Solver/PlanMaterialize.h>
@@ -597,12 +598,11 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
         // truncates producer tasks to the resident grid.  This is incorrect
         // whenever either stage is grid-strided.
         int const task = PlacedBlock();
-        int const at =
-            (task / static_cast<int>(dep.div)) * dep.scale + dep.offset;
-        int const begin = at < 0 ? 0 : at;
         int const truncated = produced < grid ? produced : grid;
-        int const past = at + static_cast<int>(dep.count);
-        int const end = past < truncated ? past : truncated;
+        auto const bounds = RuntimeDependencyBounds(task, truncated, false,
+            dep.div, dep.scale, dep.offset, dep.count);
+        int const begin = bounds.first;
+        int const end = bounds.past;
         for (int group = begin / k;
              begin < end && group <= (end - 1) / k;
              ++group)
@@ -617,11 +617,10 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
         // fitted consumer index.
         int const owned = ActiveBlocks(p, p.stages[consumer]);
         for (int task = PlacedBlock(); task < owned; task += grid) {
-          int const at =
-              (task / static_cast<int>(dep.div)) * dep.scale + dep.offset;
-          int const begin = at < 0 ? 0 : at;
-          int const past = at + static_cast<int>(dep.count);
-          int const end = past < produced ? past : produced;
+          auto const bounds = RuntimeDependencyBounds(task, produced, false,
+              dep.div, dep.scale, dep.offset, dep.count);
+          int const begin = bounds.first;
+          int const end = bounds.past;
           if (begin >= end) continue;
           int first = begin % grid, last = (end - 1) % grid;
           if (end - begin >= grid) { first = 0; last = live - 1; }
@@ -1338,10 +1337,10 @@ void tilemega_wait_profile_kernel(Params const* params, int seq) {
           continue;
         }
         for (int task = c; task < owned; task += grid) {
-          int const at = (task / static_cast<int>(dep.div)) * dep.scale + dep.offset;
-          int const begin = at < 0 ? 0 : at;
-          int const past = at + static_cast<int>(dep.count);
-          int const end = past < produced ? past : produced;
+          auto const bounds = RuntimeDependencyBounds(task, produced, false,
+              dep.div, dep.scale, dep.offset, dep.count);
+          int const begin = bounds.first;
+          int const end = bounds.past;
           if (begin >= end) continue;
           int first = begin % grid, last = (end - 1) % grid;
           if (end - begin >= grid) { first = 0; last = producers - 1; }
@@ -1588,7 +1587,7 @@ inline DeviceModel Create(ModelSpec const& spec,
   std::size_t partial_bytes = 0;
   for (std::uint32_t i = 0; i < spec.gemm_count; ++i) {
     GemmDesc const& desc = spec.gemms[i];
-    int m = dims.seq;
+    int m = dims.tokens();
     GemmRuntimeDesc const& runtime = runtime_variant.gemms[i];
     int variant = runtime.compiled_variant;
     if (variant < 0 || variant >= kGemmVariantCount) {
@@ -1731,7 +1730,7 @@ inline DeviceModel Create(ModelSpec const& spec,
         model.host_sources.emplace_back();
         return id;
       };
-      std::size_t queries = static_cast<std::size_t>(dims.seq)*stage.extent;
+      std::size_t queries = static_cast<std::size_t>(dims.tokens())*stage.extent;
       stage.operand[4] = allocate_float(queries*dims.total);
       stage.operand[5] = allocate_float(queries*attention_chunks[i]*stage.width);
       stage.operand[6] = attention_chunks[i];
@@ -1887,39 +1886,39 @@ inline DeviceModel Create(ModelSpec const& spec,
       }
       case TaskKind::kRMSNorm:
       case TaskKind::kEmbedding:
-      case TaskKind::kGemmRMSNorm: return dims.seq;
+      case TaskKind::kGemmRMSNorm: return stage.batch_rows ? dims.batch : dims.tokens();
       // One (token, head), which is the ownership the TaskBody declares.
-      case TaskKind::kQKNorm: return dims.seq * static_cast<int>(stage.extent);
+      case TaskKind::kQKNorm: return dims.tokens() * static_cast<int>(stage.extent);
       case TaskKind::kRoPE:
         if (model.params.ownership_flags & kRoPETileOwnership)
-          return dims.seq * static_cast<int>(stage.extent);
-        return CeilDiv(dims.seq * static_cast<int>(stage.extent) *
+          return dims.tokens() * static_cast<int>(stage.extent);
+        return CeilDiv(dims.tokens() * static_cast<int>(stage.extent) *
                            (static_cast<int>(stage.width) / 2),
                        kHarnessThreads);
       case TaskKind::kKVAppend:
       case TaskKind::kRoPEKVAppend:
         if (model.params.ownership_flags & kKVTileOwnership)
-          return dims.seq * static_cast<int>(stage.extent);
-        return CeilDiv(std::max(dims.seq, dims.past) *
+          return dims.tokens() * static_cast<int>(stage.extent);
+        return CeilDiv(std::max(dims.tokens(), dims.past) *
                            static_cast<int>(stage.extent) *
                            static_cast<int>(stage.width),
                        kHarnessThreads);
       case TaskKind::kElementwise:
         if (model.params.ownership_flags & kActivationTileOwnership)
-          return dims.seq;
-        return CeilDiv(dims.seq * static_cast<int>(stage.extent),
+          return dims.tokens();
+        return CeilDiv(dims.tokens() * static_cast<int>(stage.extent),
                        kHarnessThreads);
       case TaskKind::kAttention:
         return stage.operand[7] == kNoOperand || stage.operand[7] == 0
-            ? dims.seq * static_cast<int>(stage.extent)
+            ? dims.tokens() * static_cast<int>(stage.extent)
             : AttentionPhaseTasks(static_cast<AttentionPhase>(stage.operand[7]),
-                dims.seq * static_cast<int>(stage.extent),stage.operand[6]);
+                dims.tokens() * static_cast<int>(stage.extent),stage.operand[6]);
       case TaskKind::kGemmCombine:
         if (model.params.ownership_flags & kCombinerTileOwnership) {
           GemmInvocation const& invocation = gemms[stage.gemm];
           return invocation.tiles_m * invocation.tiles_n;
         }
-        return CeilDiv(dims.seq * static_cast<int>(stage.width),
+        return CeilDiv(dims.tokens() * static_cast<int>(stage.width),
                        kHarnessThreads);
     }
     return 0;
@@ -2319,11 +2318,10 @@ inline DeviceModel Create(ModelSpec const& spec,
                   model.schedule_max_worker_span,
                   static_cast<std::uint32_t>(latest - worker));
           } else {
-            int const at =
-                (logical / static_cast<int>(dep.div)) * dep.scale + dep.offset;
-            int const begin = std::max(at, 0);
-            int const end = std::min(
-                at + static_cast<int>(dep.count), produced);
+            auto const bounds = RuntimeDependencyBounds(logical, produced, false,
+                dep.div, dep.scale, dep.offset, dep.count);
+            int const begin = bounds.first;
+            int const end = bounds.past;
             auto require_task = [&](int producer_task) {
               int const owner = task_owner[dep.producer][producer_task];
               int const per_group = stage_kappa(dep.producer);

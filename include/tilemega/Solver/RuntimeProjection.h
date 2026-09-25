@@ -49,9 +49,19 @@ struct ProjectedStage {
   codegen::AttentionPhase attention_phase = codegen::AttentionPhase::kDirect;
 };
 
+struct ProjectedRuntimeWindow {
+  int producer = -1;
+  int consumer = -1;
+  analysis::WaitWindow window;
+  // Split-stage offsets can depend on theta even when the fitted window does
+  // not.  The same expression is used when codegen builds StageDependency.
+  std::string offset_expression = "0";
+};
+
 struct RuntimeProjection {
   RuntimeProjectionOptions options;
   std::vector<ProjectedStage> stages;
+  std::vector<ProjectedRuntimeWindow> runtime_windows;
   analysis::CouplingRelation tasks;
   analysis::CouplingRelation dependencies;  ///< consumer [stage,task] -> producer
   analysis::CouplingRelation requested_events;  ///< before local-owner poll elision

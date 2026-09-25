@@ -27,6 +27,15 @@ struct PreparedFlow {
   std::vector<std::string> varying_spaces;
   int nonprefix_edges=0;
 };
+struct BoundRuntimeWindow {
+  analysis::WaitWindow window;
+  long offset = 0;
+};
+std::vector<BoundRuntimeWindow> BindRuntimeWindows(
+    RuntimeProjection const& projection, int producer, int consumer,
+    analysis::ParamBinding const& theta);
+int RuntimeReleaseEndpoint(int cg_last, int consumer_task, int producer_count,
+    std::vector<BoundRuntimeWindow> const& windows, bool force_all);
 SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<GemmConfig> const& geometry,
     int workers,int kappa,analysis::CouplingCache& cache,FlowPreparationCache* prepared=nullptr);
 PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor const& floor,

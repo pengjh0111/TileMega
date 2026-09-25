@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/FlowPreparation.h>
+#include <tilemega/Codegen/RuntimeWindow.h>
 #include <tilemega/Solver/CacheServiceCurve.h>
 #include <tilemega/Solver/VariantSchedule.h>
 #include <tilemega/Codegen/tasks/TaskResources.h>
@@ -22,6 +23,35 @@ analysis::CouplingRelation ReadMap(isl_map* map) {
 std::string GeometryKey(BackendTraits const& t,int chunks) {
   return std::to_string(t.tile_m)+","+std::to_string(t.tile_n)+","+std::to_string(t.tile_k)+","+std::to_string(t.stages)+","+std::to_string(chunks);
 }
+long BoundWindowOffset(std::string text, analysis::ParamBinding const& theta) {
+  auto replace=[&](char const* from,char const* to) {
+    std::string needle=from;
+    for(std::size_t at=0;(at=text.find(needle,at))!=std::string::npos;at+=std::char_traits<char>::length(to))
+      text.replace(at,needle.size(),to);
+  };
+  replace("ceild(","ceildiv(");replace("floord(","floordiv(");
+  return analysis::ClosedForm::Parse(text).Eval(theta,{});
+}
+}
+std::vector<BoundRuntimeWindow> BindRuntimeWindows(
+    RuntimeProjection const& projection,int producer,int consumer,
+    analysis::ParamBinding const& theta) {
+  std::vector<BoundRuntimeWindow> result;
+  for(auto const& item:projection.runtime_windows)
+    if(item.producer==producer && item.consumer==consumer)
+      result.push_back({item.window,BoundWindowOffset(item.offset_expression,theta)});
+  return result;
+}
+int RuntimeReleaseEndpoint(int cg_last,int consumer_task,int producer_count,
+    std::vector<BoundRuntimeWindow> const& windows,bool force_all) {
+  int last=cg_last;
+  for(auto const& item:windows) {
+    auto const& w=item.window;
+    auto bounds=codegen::RuntimeDependencyBounds(consumer_task,producer_count,
+        force_all || !w.narrowed,w.div,w.scale,item.offset,w.count);
+    last=std::max(last,bounds.last());
+  }
+  return last;
 }
 SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<GemmConfig> const& geometry,
     int workers,int kappa,analysis::CouplingCache& cache,FlowPreparationCache* prepared) {
@@ -65,6 +95,36 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     if(sem==result.model.task_semantics.end())throw std::runtime_error("missing flow stage semantic");
     auto* node=graph.Find(sem->op.name);entry[stage]=result.counts.size();append(stage,false,ownership(*sem,*node,result.model.stages[stage]));done[stage]=entry[stage];
     if(auto* combine=graph.Find(sem->op.reduction.combiner)){auto owner=*sem;owner.element_chunk=!result.model.combiner_tile_ownership;done[stage]=result.counts.size();append(stage,true,ownership(owner,*combine,result.model.stages[stage]));}
+  }
+  for(auto const& edge:result.runtime.dependencies) {
+    auto window=edge.window;
+    if(edge.producer>=entry.size() || edge.consumer>=entry.size())
+      throw std::invalid_argument("flow runtime dependency outside stage range");
+    if(done[edge.producer]!=entry[edge.producer] &&
+       result.model.stages[edge.producer].kind==StageKind::kGemm &&
+       !result.model.combiner_tile_ownership)
+      window={};
+    result.projection.runtime_windows.push_back({done[edge.producer],
+        entry[edge.consumer],window,std::to_string(window.offset)});
+  }
+  for(std::size_t i=0;i<entry.size();++i)if(done[i]!=entry[i]) {
+    if(!result.model.combiner_tile_ownership) {
+      result.projection.runtime_windows.push_back({entry[i],done[i],{},"0"});
+      continue;
+    }
+    auto const& stage=result.model.stages[i];
+    auto const& g=geometry.at(stage.gemm);
+    int chunks=std::max(1,std::min(g.split_k,
+        (result.model.gemms.at(stage.gemm).k+g.tile_k-1)/g.tile_k));
+    if(result.projection.options.cg_split_task_order) {
+      result.projection.runtime_windows.push_back({entry[i],done[i],
+          {true,1,chunks,0,chunks},"0"});
+    } else {
+      int tiles=result.counts[entry[i]]/chunks;
+      for(int chunk=0;chunk<chunks;++chunk)
+        result.projection.runtime_windows.push_back({entry[i],done[i],
+            {true,1,1,0,1},std::to_string(tiles*chunk)});
+    }
   }
   struct Owner{int stage;analysis::CouplingRelation map;};std::map<std::string,Owner> owners;
   for(auto const& node:graph.nodes){int stage=logical.at(node.name);auto sem=std::find_if(result.model.task_semantics.begin(),result.model.task_semantics.end(),[&](auto const& s){return s.op.name==node.name || s.op.reduction.combiner==node.name;});
@@ -202,11 +262,14 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     std::shared_ptr<std::vector<std::pair<int,int>> const> sorted;
     if(it!=cache.releases.end()){++cache.release_hits;sorted=it->second;}else {
       ++cache.release_misses;auto values=std::make_shared<std::vector<std::pair<int,int>>>();bool nonprefix=false;
+      auto bound_windows=BindRuntimeWindows(problem.projection,p,c,theta);
       for(int j=0;j<problem.counts[c];++j) {
         auto release=oracle->reverse.LinearRelease({j},theta);
-        if(release.maximum<0)continue;
+        int last=RuntimeReleaseEndpoint(release.maximum,j,problem.counts[p],
+            bound_windows,problem.projection.options.force_all_dependencies);
+        if(last<0)continue;
         nonprefix|=!release.prefix;
-        values->emplace_back(CoarsenRelease(release.maximum,problem.counts[p],kappa),j);
+        values->emplace_back(CoarsenRelease(last,problem.counts[p],kappa),j);
       }
       cache.nonprefix.emplace(key,nonprefix);
       std::sort(values->begin(),values->end());sorted=values;cache.releases.emplace(key,sorted);
