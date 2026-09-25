@@ -27,6 +27,9 @@
 #include <iostream>
 #include <chrono>
 #include <iomanip>
+#include <optional>
+#include <cmath>
+#include <limits>
 
 namespace {
 std::string quote(std::string const& value) {
@@ -224,13 +227,14 @@ int main(int argc, char** argv) {
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path;
-    std::string serving_phase, emit_mode;
+    std::string serving_phase, emit_mode,measure_command;
     int serving_capacity=1088,serving_batch=1,serving_past_lo=64,
         serving_past_hi=1086,serving_kv_block=256,
         serving_query_rows=64,serving_argmax_tile_n=128;
     bool resource_probes=true;bool dump_evaluated=false;
     std::string solver_mode="skeleton",legacy_seed,variant_cache,flow_fixture;
-    int skeleton_k=8,search_passes=3,search_jobs=1;bool all_workers=false,flow_search_only=false;
+    int skeleton_k=8,search_passes=3,search_jobs=1,search_top_m=8;
+    bool all_workers=false,flow_search_only=false;
     tilemega::solver::SolverTiming solver_timing;
     int interval_begin=0,segments=1,segment_candidates=3;
     std::vector<mlir::OwningOpRef<mlir::ModuleOp>> variant_modules;
@@ -246,10 +250,12 @@ int main(int argc, char** argv) {
       else if (flag=="--k-base") {all_workers=value=="W";if(!all_workers)skeleton_k=std::stoi(value);}
       else if (flag=="--flow-search-only") flow_search_only=std::stoi(value)!=0;
       else if (flag=="--search-passes") search_passes=std::stoi(value);
+      else if (flag=="--top-m") search_top_m=std::stoi(value);
       else if (flag=="--search-jobs") search_jobs=std::stoi(value);
       else if (flag=="--solve") solve_target=value;
       else if (flag=="--serving") serving_phase=value;
       else if (flag=="--emit") emit_mode=value;
+      else if (flag=="--measure-cmd") measure_command=value;
       else if (flag=="--capacity") serving_capacity=std::stoi(value);
       else if (flag=="--batch") serving_batch=std::stoi(value);
       else if (flag=="--past-range") {
@@ -311,12 +317,24 @@ int main(int argc, char** argv) {
     if(serving && (serving_batch<1 || serving_batch>64 ||
                    serving_past_lo<0 || serving_past_hi<serving_past_lo))
       throw std::runtime_error("invalid serving batch or past range");
+    if(search_top_m<1 || search_top_m>8)
+      throw std::runtime_error("--top-m must be in 1..8");
+    if(serving && !solve_target.empty() && !flow_search_only &&
+       measure_command.empty())
+      throw std::runtime_error("serving solve requires --measure-cmd for the top-3 decision");
     if (!solve_target.empty() && has_variants)
       throw std::runtime_error("--solve chooses variants; cannot combine with --variants");
-    std::string source;
+    std::string source,selected_serving_mode;
     if(serving && solve_target.empty()) {
-      if(input.extension()==".mlir" || has_variants)
-        throw std::runtime_error("serving seed needs one exported model");
+      if(has_variants)throw std::runtime_error("serving needs one exported model or solved CG");
+      if(input.extension()==".mlir") {
+        module=mlir::parseSourceFile<mlir::ModuleOp>(input.string(),&context);
+        if(!module || !(*module)->hasAttr("tilemega.serving"))
+          throw std::runtime_error("serving CG is missing its serving schema");
+        source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
+            {{*module,static_cast<std::uint32_t>(serving_phase=="decode"?1:64),
+                       static_cast<std::uint32_t>(serving_phase=="decode"?1:64)}});
+      }else {
       auto bridge=tilemega::frontend::ReadExportBridge(input.string());
       tilemega::frontend::ServingOptions options;
       options.phase=serving_phase=="decode"
@@ -339,12 +357,19 @@ int main(int argc, char** argv) {
       std::cerr<<"SERVING_SEED phase="<<serving_phase<<" batch="<<serving_batch
                <<" past="<<serving_past_lo<<':'<<serving_past_hi
                <<" stages="<<summary.stages<<'\n';
+      }
     } else if (!solve_target.empty()) {
-      if(serving)
-        throw std::runtime_error("serving search has not been connected to --solve");
+      if(serving && solver_mode!="skeleton")
+        throw std::runtime_error("serving plans require the skeleton solver");
       if (input.extension()==".mlir")
         throw std::runtime_error("automatic geometry search requires export JSON; use tilemega-opt for placement-only CG solving");
       solve_options.placement.target=tilemega::TargetSpec::FromJson(solve_target);
+      if(serving) {
+        auto& d=solve_options.placement.dims;
+        d.batch=serving_batch;d.seq=serving_phase=="decode"?1:64;
+        d.past=serving_phase=="decode"?(serving_past_lo+serving_past_hi)/2:0;
+        d.total=d.seq+d.past;
+      }
       if (!domain_path.empty()) {
         auto file=llvm::MemoryBuffer::getFile(domain_path);
         if (!file) throw std::runtime_error("cannot read calibration search domain");
@@ -397,30 +422,56 @@ int main(int argc, char** argv) {
       tilemega::solver::CompilerSearchResult solved;
       if(solver_mode=="legacy")solved=tilemega::solver::SolveExport(input.string(),context,solve_options,&summary,evidence);
       else {
-        mlir::OwningOpRef<mlir::ModuleOp> seed;
-        if(!legacy_seed.empty()) {
-          seed=mlir::parseSourceFile<mlir::ModuleOp>(legacy_seed,&context);
-          if(!seed)throw std::runtime_error("cannot read legacy seed CG");
-        } else {
-          tilemega::solver::SolverTiming seed_timing;auto seed_options=solve_options;seed_options.timing=&seed_timing;
-          std::ofstream seed_evidence(std::string(argv[2])+".seed.search.tsv");
-          auto legacy=tilemega::solver::SolveExport(input.string(),context,seed_options,&summary,seed_evidence);
-          seed=std::move(legacy.module);
-          std::ofstream seed_times(std::string(argv[2])+".seed.timing.tsv");
-          seed_timing.Write(seed_times,"legacy-seed",input.stem().string(),dims.seq);
-        }
-        auto runtime=tilemega::codegen::ReadRuntimePlan(*seed);
-        if(runtime.gemms.empty())throw std::runtime_error("legacy seed has no GEMM geometry");
-        auto const& g=runtime.gemms.front();
-        for(auto const& other:runtime.gemms)
-          if(std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k)!=std::tie(other.tile_m,other.tile_n,other.tile_k,other.stages,other.split_k))
-            throw std::runtime_error("coordinate descent needs a uniform legacy seed");
         tilemega::solver::SkeletonSearchOptions skeleton;skeleton.common=solve_options;
-        skeleton.seed={g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k};
-        auto kappa=(*seed)->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_kappa");
-        skeleton.kappa=kappa ? int(kappa.getInt()):1;skeleton.k_base=skeleton_k;skeleton.all_workers=all_workers;skeleton.passes=search_passes;skeleton.jobs=search_jobs;
-        skeleton.artifact_prefix=argv[2];skeleton.fixture=flow_fixture;skeleton.search_only=flow_search_only;
-        if(auto r=(*seed)->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_residency"))skeleton.seed_residency=r.getInt();
+        skeleton.k_base=skeleton_k;skeleton.all_workers=all_workers;
+        skeleton.passes=search_passes;skeleton.jobs=search_jobs;
+        skeleton.artifact_prefix=argv[2];skeleton.fixture=flow_fixture;
+        skeleton.search_only=flow_search_only;
+        skeleton.top_m=search_top_m;
+        if(serving && serving_phase=="decode") {
+          skeleton.serving_past_lo=serving_past_lo;
+          skeleton.serving_past_hi=serving_past_hi;
+        }
+        std::optional<tilemega::frontend::ImportedSemantics> serving_imported;
+        mlir::OwningOpRef<mlir::ModuleOp> seed;
+        if(serving) {
+          if(!legacy_seed.empty())throw std::runtime_error("serving search does not use a legacy seed");
+          auto bridge=tilemega::frontend::ReadExportBridge(input.string());
+          tilemega::frontend::ServingOptions options;
+          options.phase=serving_phase=="decode"
+              ? tilemega::frontend::ServingOptions::Phase::kDecode
+              : tilemega::frontend::ServingOptions::Phase::kPrefill;
+          options.seq=dims.seq;options.capacity=serving_capacity;
+          options.kv_block=serving_kv_block;options.query_rows=serving_query_rows;
+          options.argmax_tile_n=serving_argmax_tile_n;
+          auto plan=tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,
+              bridge.outputs,options);
+          serving_imported.emplace(tilemega::frontend::TorchExportImporter{}.
+              ImportSemantics(input.string(),plan,context));
+          skeleton.seed={16,128,128,2,1};skeleton.kappa=1;
+        }else {
+          if(!legacy_seed.empty()) {
+            seed=mlir::parseSourceFile<mlir::ModuleOp>(legacy_seed,&context);
+            if(!seed)throw std::runtime_error("cannot read legacy seed CG");
+          } else {
+            tilemega::solver::SolverTiming seed_timing;auto seed_options=solve_options;seed_options.timing=&seed_timing;
+            std::ofstream seed_evidence(std::string(argv[2])+".seed.search.tsv");
+            auto legacy=tilemega::solver::SolveExport(input.string(),context,seed_options,&summary,seed_evidence);
+            seed=std::move(legacy.module);
+            std::ofstream seed_times(std::string(argv[2])+".seed.timing.tsv");
+            seed_timing.Write(seed_times,"legacy-seed",input.stem().string(),dims.seq);
+          }
+          auto runtime=tilemega::codegen::ReadRuntimePlan(*seed);
+          if(runtime.gemms.empty())throw std::runtime_error("legacy seed has no GEMM geometry");
+          auto const& g=runtime.gemms.front();
+          for(auto const& other:runtime.gemms)
+            if(std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k)!=std::tie(other.tile_m,other.tile_n,other.tile_k,other.stages,other.split_k))
+              throw std::runtime_error("coordinate descent needs a uniform legacy seed");
+          skeleton.seed={g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k};
+          auto kappa=(*seed)->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_kappa");
+          skeleton.kappa=kappa ? int(kappa.getInt()):1;
+          if(auto r=(*seed)->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_residency"))skeleton.seed_residency=r.getInt();
+        }
         if(variant_cache.empty())variant_cache=(resource_root.parent_path()/"variant_cache").string();
         int variant_index=0;
         std::map<std::tuple<int,int,int,int,int>,tilemega::solver::VariantResources> probed_bodies;
@@ -437,6 +488,18 @@ int main(int argc, char** argv) {
           std::string command="python3 "+quote(std::string(TILEMEGA_SOURCE_DIR)+"/tools/probe_variant.py")+
             " --cache "+quote(variant_cache)+" --output "+quote(output.string())+" --arch "+quote(solve_options.placement.target.NvccArch())+
             " --dtype "+std::string(dtype==tilemega::solver::ScalarType::kBF16 ? "bf16":"f32");
+          if(serving) {
+            command+=" --serving";
+            if(!tile) {
+              auto found=std::find_if(serving_imported->plan.stages.begin(),
+                  serving_imported->plan.stages.end(),[](auto const& stage){
+                    return stage.kind==tilemega::frontend::PlanTaskKind::kFusedAttention;});
+              if(found==serving_imported->plan.stages.end())
+                throw std::runtime_error("serving resource probe lacks attention stage");
+              command+=" --head-dim "+std::to_string(found->width)+
+                  " --qperkv "+std::to_string(found->group);
+            }
+          }
           if(tile)command+=" --tile "+quote(std::to_string(tile->tile_m)+","+std::to_string(tile->tile_n)+","+std::to_string(tile->tile_k)+","+std::to_string(tile->stages));
           else command+=" --nongemm";
           if(std::system((command+" >"+quote(log.string())+" 2>&1").c_str()))throw std::runtime_error("variant probe failed: "+log.string());
@@ -446,7 +509,9 @@ int main(int argc, char** argv) {
           auto resource=tilemega::solver::VariantResources{int(requiredInteger(*object,"registers")),int(requiredInteger(*object,"shared_bytes")),int(requiredInteger(*object,"threads")),object->getBoolean("compiled").value_or(false)};
           probed_bodies.emplace(body,resource);return resource;
         };
-        auto result=tilemega::solver::SolveSkeletonExport(input.string(),context,skeleton,&summary,evidence);
+        auto result=serving
+            ? tilemega::solver::SolveSkeletonImported(*serving_imported,context,skeleton,&summary,evidence)
+            : tilemega::solver::SolveSkeletonExport(input.string(),context,skeleton,&summary,evidence);
         if(flow_search_only) {
           std::ofstream events(std::string(argv[2])+".phases.tsv");solver_timing.WriteEvents(events);
           std::ofstream times(std::string(argv[2])+".timing.tsv");solver_timing.Write(times,solver_mode,input.stem().string(),dims.seq);
@@ -475,6 +540,52 @@ int main(int argc, char** argv) {
             << g.tile_m << '\t' << g.tile_n << '\t' << g.tile_k << '\t' << g.stages << '\t' << g.split_k << '\t'
             << e.candidate.kappa << '\t' << e.candidate.ctas_per_sm << '\t' << e.floor_ns << '\t' << e.makespan_ns
             << '\t' << stem << ".cu\t" << stem << ".mlir\n";
+      }
+      if(serving && !measure_command.empty()) {
+        double fastest=std::numeric_limits<double>::infinity();
+        std::size_t fastest_index=0;
+        std::ofstream selected(std::string(argv[2])+".top3_measured.tsv");
+        selected<<"rank\tmode\tmean_ms\tso\n";
+        for(std::size_t i=0;i<solved.shortlist.size();++i) {
+          std::string stem=std::string(argv[2])+".top"+std::to_string(i+1);
+          std::string candidate_so=stem+".candidate.so";
+          std::string compile=quote(std::filesystem::canonical(argv[0]).string())+
+              " "+quote(stem+".mlir")+" "+quote(candidate_so)+
+              " --serving "+quote(serving_phase)+" --emit serving"+
+              " --batch "+std::to_string(serving_batch)+
+              " --past-range "+quote(std::to_string(serving_past_lo)+":"+
+                                    std::to_string(serving_past_hi))+
+              " --capacity "+std::to_string(serving_capacity);
+          if(std::system((compile+" >"+quote(stem+".build.stdout")+
+              " 2>"+quote(stem+".build.stderr")).c_str()))
+            throw std::runtime_error("top-3 serving candidate compilation failed: "+stem);
+          std::string measure=measure_command+" --so "+quote(candidate_so)+
+              " --batch "+std::to_string(serving_batch)+
+              " --past-mid "+std::to_string(dims.past)+
+              " --out "+quote(stem+".measurement");
+          if(std::system((measure+" >"+quote(stem+".measurement.json")+
+              " 2>"+quote(stem+".measurement.stderr")).c_str()))
+            throw std::runtime_error("top-3 serving candidate measurement failed: "+stem);
+          // The generated runtime may print placement diagnostics to stdout.
+          // Read the structured artifact written by the measurement driver.
+          auto measured_file=llvm::MemoryBuffer::getFile(stem+".measurement/measurements.json");
+          if(!measured_file)throw std::runtime_error("missing top-3 measurement output");
+          auto measured=llvm::json::parse(measured_file.get()->getBuffer());
+          auto* object=measured?measured->getAsObject():nullptr;
+          if(!object)throw std::runtime_error("invalid top-3 measurement JSON");
+          auto* modes=object->getObject("modes");
+          if(!modes)throw std::runtime_error("top-3 measurement has no mode table");
+          for(auto const& mode:{"L1","L2"})if(auto* item=modes->getObject(mode))if(auto mean=item->getNumber("mean_ms")) {
+            selected<<i+1<<'\t'<<mode<<'\t'<<*mean<<'\t'<<candidate_so<<'\n';
+            if(*mean<fastest){fastest=*mean;fastest_index=i;selected_serving_mode=mode;}
+          }
+        }
+        if(!std::isfinite(fastest))throw std::runtime_error("top-3 measurements contain no timing");
+        solved.module=mlir::OwningOpRef<mlir::ModuleOp>(
+            mlir::cast<mlir::ModuleOp>(solved.shortlist[fastest_index].module->clone()));
+        solved.winner=solved.shortlist[fastest_index].evaluation.candidate;
+        std::cerr<<"SERVING_TOP3_WINNER rank="<<fastest_index+1<<" mode="
+                 <<selected_serving_mode<<" mean_ms="<<fastest<<'\n';
       }
       if (dump_evaluated) {
         // §6 C1-c measures the search's choice against everything the search
@@ -661,6 +772,36 @@ int main(int argc, char** argv) {
       int status = std::system((command+" >"+quote(requested.string()+".ptxas.log")+
           " 2>&1").c_str());
       if (status != 0) throw std::runtime_error("nvcc failed while building shared object");
+    }
+    if(serving && module) {
+      auto runtime=tilemega::codegen::ReadRuntimePlan(*module);
+      auto integer=[&](char const* key,int fallback) {
+        if(auto value=(*module)->getAttrOfType<mlir::IntegerAttr>(key))
+          return int(value.getInt());
+        return fallback;
+      };
+      std::ofstream manifest(requested.string()+".plan.json");
+      manifest<<"{\n  \"model\": "<<std::quoted(input.stem().string())
+              <<",\n  \"phase\": "<<std::quoted(serving_phase)
+              <<",\n  \"batch_lo\": "<<serving_batch
+              <<",\n  \"batch_hi\": "<<serving_batch
+              <<",\n  \"past_lo\": "<<serving_past_lo
+              <<",\n  \"past_hi\": "<<serving_past_hi
+              <<",\n  \"seq\": "<<(serving_phase=="decode"?1:64)
+              <<",\n  \"capacity\": "<<serving_capacity
+              <<",\n  \"mode\": "<<std::quoted(selected_serving_mode.empty()?"unmeasured":selected_serving_mode)
+              <<",\n  \"grid\": "<<integer("tmexec.solved_grid",0)
+              <<",\n  \"residency\": "<<integer("tmexec.solved_residency",0)
+              <<",\n  \"kappa\": "<<integer("tmexec.solved_kappa",1)
+              <<",\n  \"gemms\": [\n";
+      for(std::size_t i=0;i<runtime.gemms.size();++i) {
+        auto const& g=runtime.gemms[i];
+        manifest<<"    {\"index\": "<<i<<", \"tile_m\": "<<g.tile_m
+                <<", \"tile_n\": "<<g.tile_n<<", \"tile_k\": "<<g.tile_k
+                <<", \"stages\": "<<g.stages<<", \"split_k\": "<<g.split_k<<"}"
+                <<(i+1==runtime.gemms.size()?"\n":",\n");
+      }
+      manifest<<"  ]\n}\n";
     }
     std::cerr << "CODEGEN_SUMMARY tasks=" << summary.task_spaces
               << " couplings=" << summary.couplings
