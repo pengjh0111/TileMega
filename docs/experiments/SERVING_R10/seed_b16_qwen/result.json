@@ -1,0 +1,9 @@
+{
+  "scope": "exploratory seed plan, not EV-1",
+  "l1_l2_token_equal": true,
+  "positions": 16384,
+  "l1_e2e_ms_single_run": 8654.641707078554,
+  "l2_e2e_ms_single_run": 9987.136604031548,
+  "l1_ttft_ms_single_run": 61.69776153564453,
+  "l2_ttft_ms_single_run": 156.0412139892578
+}

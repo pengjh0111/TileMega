@@ -1,0 +1,29 @@
+ptxas info    : 184 bytes gmem, 96 bytes cmem[4]
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi
+    72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 62 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]
+ptxas info    : Compile time = 43.742 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    48 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 198 registers, used 1 barriers, 48 bytes cumulative stack size, 376 bytes cmem[0], 184 bytes cmem[2]
+ptxas info    : Compile time = 1403.638 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    48 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 208 registers, used 1 barriers, 48 bytes cumulative stack size, 376 bytes cmem[0], 116 bytes cmem[2]
+ptxas info    : Compile time = 2777.765 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj
+    48 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 206 registers, used 1 barriers, 48 bytes cumulative stack size, 364 bytes cmem[0], 60 bytes cmem[2]
+ptxas info    : Compile time = 2460.174 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+/usr/local/cuda/bin/nvcc -std=c++17 -O3 -DTILEMEGA_MIDPOINT_REFINE=0 -arch=sm_89 --expt-relaxed-constexpr -shared -Xcompiler=-fPIC -cudart shared -Xptxas=-v -x cu -I/root/TileMega/include -I/root/TileMega/third_party/cutlass/include -I/root/TileMega/third_party/cutlass/tools/util/include -I/root/TileMega/third_party/cutlass/test /root/r10_work/qwen3_prefill_B16_seed.so.cu -x cu /root/TileMega/lib/Target/TargetSpec.cpp /root/TileMega/lib/Support/Json.cpp /root/TileMega/lib/Codegen/RuntimeTaskGraph.cpp /root/TileMega/lib/Solver/PlanMaterialize.cpp /root/TileMega/lib/Dialect/CouplingGraph/PlacementPlan.cpp /root/TileMega/lib/Solver/BalancedPlacement.cpp /root/TileMega/lib/Solver/ListScheduler.cpp -L/usr/local/cuda/lib64 -lcudart -o /root/r10_work/qwen3_prefill_B16_order_fixed.so
