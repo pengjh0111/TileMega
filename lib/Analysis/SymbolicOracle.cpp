@@ -59,6 +59,7 @@ struct SymbolicOracle::Impl {
   mutable OracleProgram box_program;
   mutable OracleProgram general_bounds;
   mutable OracleExpression general_membership;
+  mutable std::unique_ptr<SymbolicOracle> linear_maximum;
   std::vector<isl_pw_aff*> lower,upper;
   int input=0,output=0,parameters=0;
   mutable std::uint64_t queries=0;mutable double ms=0;
@@ -100,6 +101,21 @@ std::string SymbolicOracle::UniqueMapText() const {
   if(kind()!=OracleKind::Unique)throw std::invalid_argument("Oracle is not a Unique affine map");
   char* raw=isl_pw_multi_aff_to_str(impl_->unique);if(!raw)throw std::runtime_error("cannot print Unique mapping");
   std::string result(raw);free(raw);return result;
+}
+long SymbolicOracle::MaximumLinear(std::vector<long> const& source,ParamBinding const& theta) const {
+  auto& d=*impl_;if(d.output!=1)throw std::invalid_argument("release maximum requires row-major linear coordinates");
+  if(d.kind!=OracleKind::General) {
+    auto image=Query(source,theta);if(image.empty)return -1;
+    return image.rectangular?image.box.front().second:image.points.front().front();
+  }
+  if(!d.linear_maximum) {
+    // Lexmax is a scalar sequence bound here, never a box approximation.
+    auto* maximum=isl_map_lexmax(isl_map_copy(d.map));char* raw=isl_map_to_str(maximum);isl_map_free(maximum);
+    if(!raw)throw std::runtime_error("cannot derive release maximum");
+    std::string text(raw);free(raw);d.linear_maximum=std::make_unique<SymbolicOracle>(text);
+  }
+  auto image=d.linear_maximum->Query(source,theta);
+  return image.empty?-1:image.points.front().front();
 }
 std::uint64_t SymbolicOracle::queries() const{return impl_->queries;}
 double SymbolicOracle::query_ms() const{return impl_->ms;}

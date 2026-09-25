@@ -9,8 +9,14 @@
 #include <stdexcept>
 using namespace tilemega::analysis;
 int main() {
- try {
   IslContext context;
+  {
+    SymbolicOracle release("{ [q] -> [p] : 0<=q<4 and 0<=p<=2*q and p%2=0 }");
+    for(long q=0;q<4;++q)if(release.MaximumLinear({q})!=2*q)
+      throw std::runtime_error("General scalar release maximum changed a strided fiber");
+    if(release.MaximumLinear({5})!=-1)throw std::runtime_error("empty release fiber acquired a predecessor");
+  }
+ try {
   struct Case {char const* text;OracleKind kind;};
   std::vector<Case> cases={
     {"[N] -> { [p] -> [q] : 0<=p<N and 2*p<=q<=2*p+1 }",OracleKind::Rectangular},

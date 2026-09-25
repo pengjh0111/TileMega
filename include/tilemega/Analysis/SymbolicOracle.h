@@ -28,6 +28,9 @@ class SymbolicOracle {
   bool IsAllBox(std::vector<std::pair<long,long>> const& box,ParamBinding const& theta={}) const;
   std::string const& relation() const;
   std::string UniqueMapText() const;
+  /// Maximum of a one-dimensional linearized fiber, or -1 for an empty fiber.
+  /// This scalar release bound is never used to construct a dependency box.
+  long MaximumLinear(std::vector<long> const& source,ParamBinding const& theta={}) const;
   std::uint64_t queries() const;
   double query_ms() const;
  private:
