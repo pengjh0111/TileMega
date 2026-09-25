@@ -67,6 +67,7 @@ struct TaskMemoryTraffic {
 struct TaskPriceParts {
   double fixed_ns=0, compute_ns=0, dram_bytes=0, dram_rate_cap=0;
   double no_producer_dram_bytes=0;
+  double inflight_bytes=0; // serving: per-task outstanding DRAM bytes
 };
 double IsolatedNs(TaskPriceParts const& parts,double fair_rate);
 

@@ -44,6 +44,9 @@ namespace tilemega::solver {
 struct SimulatorOptions {
   bool dram_fluid = false;
   double dram_gbps = 0;
+  bool inflight_dram = false;
+  std::vector<double> inflight_curve_bytes,inflight_curve_gbps;
+  std::vector<double> cta_stream_curve_bytes,cta_stream_curve_gbps;
   double dram_floor_ns = 0;
   bool all_external_miss = false;
   bool no_external_dram = false;

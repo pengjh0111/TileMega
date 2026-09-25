@@ -23,6 +23,7 @@ int main(int argc, char** argv) {
   std::string dtype = "f32";
   bool quiet = false;
   bool partial_combine_only = false;
+  bool inflight_only = false;
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
     if (arg == "--device" && i + 1 < argc) options.device = std::stoi(argv[++i]);
@@ -30,6 +31,7 @@ int main(int argc, char** argv) {
     else if (arg == "--combine-graph-batch" && i + 1 < argc) options.combine_graph_batch = std::stoi(argv[++i]);
     else if (arg == "--skip-streamk") options.skip_streamk = true;
     else if (arg == "--fp32-partial-combine-only") partial_combine_only = true;
+    else if (arg == "--inflight") inflight_only = true;
     else if (arg == "--dtype" && i + 1 < argc) dtype = argv[++i];
     else if (arg == "--base" && i + 1 < argc) base = argv[++i];
     else if (arg == "--quiet") quiet = true;
@@ -40,6 +42,7 @@ int main(int argc, char** argv) {
           "                          [--dtype f32|bf16] [--base FILE]\n"
           "                          [--skip-streamk] [--quiet] [--out FILE]\n"
           "                          [--fp32-partial-combine-only]\n"
+          "                          [--inflight]  # BF16, requires --base\n"
           "                          [--combine-graph-batch N]\n"
           "\n"
           "Measures the §4.4 cost-model constants on the GPU at --device and\n"
@@ -68,6 +71,10 @@ int main(int argc, char** argv) {
     std::cerr << "--fp32-partial-combine-only requires --base and excludes --skip-streamk\n";
     return 2;
   }
+  if(inflight_only && (base.empty() || dtype!="bf16" || partial_combine_only)) {
+    std::cerr << "--inflight requires --dtype bf16 and --base, excludes partial combine\n";
+    return 2;
+  }
 
   try {
     auto const probed = tilemega::TargetSpec::Probe(options.device);
@@ -80,7 +87,11 @@ int main(int argc, char** argv) {
     std::ostream& log =
         quiet ? static_cast<std::ostream&>(discard) : std::cerr;
     log << target.Summary() << '\n';
-    if (partial_combine_only) {
+    if(inflight_only) {
+      if(!target.CalibrationFor("bf16").calibrated)
+        throw std::runtime_error("in-flight sweep requires the calibrated BF16 target");
+      tilemega::calib::MeasureInflight(target,options,log);
+    } else if (partial_combine_only) {
       if (!target.CalibrationFor(dtype).calibrated || target.res.num_sms!=probed.res.num_sms)
         throw std::runtime_error("partial-only calibration requires the matching calibrated device profile");
       if (options.bf16 && !tilemega::arch::RuntimeCapsForTag(target.arch_tag).bf16_tensor_core)

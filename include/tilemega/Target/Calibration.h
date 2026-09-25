@@ -68,6 +68,9 @@ void MeasureStreamK(TargetSpec& spec, Options const& options, std::ostream& log)
 /// Measure only float-partial -> selected-output reduction; keep existing
 /// GEMM/pipeline fits intact. A12's rate is not extrapolated from BF16 reads.
 void MeasureFP32PartialCombine(TargetSpec& spec, Options const& options, std::ostream& log);
+/// Serving-only 16-byte cp.async ring sweep. Updates the BF16 in-flight and
+/// per-CTA stream curves while preserving every existing target coefficient.
+void MeasureInflight(TargetSpec& spec, Options const& options, std::ostream& log);
 
 /// Run every group, stamp provenance, and set `calibrated`.
 void Run(TargetSpec& spec, Options const& options, std::ostream& log);

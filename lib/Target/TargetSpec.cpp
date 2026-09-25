@@ -64,6 +64,14 @@ void ParseCalibration(json::Value const& cal, TargetSpec::Calib& out) {
   out.l2_gbps = pipe("l2_gbps");
   out.l2_knee_bytes = pipe("l2_knee_bytes");
   out.dram_gbps = pipe("dram_gbps");
+  if(auto* curve=cal.Find("inflight_curve")) {
+    out.inflight_curve_bytes=NumberArray(curve->At("bytes"),"inflight_curve.bytes");
+    out.inflight_curve_gbps=NumberArray(curve->At("gbps"),"inflight_curve.gbps");
+  }
+  if(auto* curve=cal.Find("cta_stream_curve")) {
+    out.cta_stream_curve_bytes=NumberArray(curve->At("bytes"),"cta_stream_curve.bytes");
+    out.cta_stream_curve_gbps=NumberArray(curve->At("gbps"),"cta_stream_curve.gbps");
+  }
   out.l2_curve_bytes = NumberArray(pipes.At("l2_curve_bytes"), "l2_curve_bytes");
   out.l2_curve_gbps = NumberArray(pipes.At("l2_curve_gbps"), "l2_curve_gbps");
   out.smem_occupancy_ctas =
@@ -256,6 +264,14 @@ json::Value CalibrationJson(TargetSpec::Calib const& calib) {
       {"fp32_partial_combine", partial_combine},
       {"interference_ratio", calib.interference_ratio},
       { "measurements", json::Value(measurements)}};
+  if(!calib.inflight_curve_bytes.empty())
+    result.emplace_back("inflight_curve",json::Object{
+        {"bytes",json::Numbers(calib.inflight_curve_bytes)},
+        {"gbps",json::Numbers(calib.inflight_curve_gbps)}});
+  if(!calib.cta_stream_curve_bytes.empty())
+    result.emplace_back("cta_stream_curve",json::Object{
+        {"bytes",json::Numbers(calib.cta_stream_curve_bytes)},
+        {"gbps",json::Numbers(calib.cta_stream_curve_gbps)}});
   if (calib.task_body.samples>0) {
     auto const& fit=calib.task_body;
     json::Object body{

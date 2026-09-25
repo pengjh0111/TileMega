@@ -273,6 +273,7 @@ set_target_properties(tilemega-compile PROPERTIES
 # make every build of the core library pay for it.
 add_library(tilemega_calibration STATIC
   lib/Target/Calibration.cu
+  lib/Target/InflightCalibration.cu
   lib/Target/GemmCalibration.cu)
 target_link_libraries(tilemega_calibration PUBLIC TileMega::tilemega)
 set_target_properties(tilemega_calibration PROPERTIES CUDA_SEPARABLE_COMPILATION OFF)

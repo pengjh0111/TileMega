@@ -21,6 +21,9 @@ struct FlowProblem {
   int workers=0;
   double dram_gbps=0,publication_ns=0,consumer_wait_ns=0,hop_ns=0,dram_floor_ns=0,floor_ns=0;
   bool all_external_miss=false;
+  bool inflight_dram=false;
+  std::vector<double> inflight_curve_bytes,inflight_curve_gbps;
+  std::vector<double> cta_stream_curve_bytes,cta_stream_curve_gbps;
 };
 struct FlowOptions {bool no_sync=false,no_fixed=false,infinite_workers=false,no_external=false;};
 struct FlowSpaceResult {double first_start=-1,last_end=0,wait_ns=0,fixed_ns=0,mainloop_ns=0,publication_ns=0;int last_edge=-1;};

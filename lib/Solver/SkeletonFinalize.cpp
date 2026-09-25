@@ -42,6 +42,11 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
   if(point.flow) {
     input.task_price_parts=ExpandFlowPrices(*point.flow);
     sim.dram_fluid=true;sim.dram_gbps=point.flow->flow.dram_gbps;
+    sim.inflight_dram=point.flow->flow.inflight_dram;
+    sim.inflight_curve_bytes=point.flow->flow.inflight_curve_bytes;
+    sim.inflight_curve_gbps=point.flow->flow.inflight_curve_gbps;
+    sim.cta_stream_curve_bytes=point.flow->flow.cta_stream_curve_bytes;
+    sim.cta_stream_curve_gbps=point.flow->flow.cta_stream_curve_gbps;
     sim.dram_floor_ns=point.flow->flow.dram_floor_ns;sim.all_external_miss=point.flow->flow.all_external_miss;
   }
   auto const& rates=options.common.placement.target.EventCalibrationFor(problem.model.dtype==ScalarType::kBF16?"bf16":"f32");

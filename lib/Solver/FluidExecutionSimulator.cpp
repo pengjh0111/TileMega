@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <queue>
+#include <optional>
 #include <stdexcept>
 namespace tilemega::solver {
 bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& plan,
@@ -28,22 +29,30 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
   std::vector<Group> arrivals(remaining.size());
   enum Kind{Start,Main,Computed,End};struct Event{double at;Kind kind;int node;};
   struct Later{bool operator()(Event const& a,Event const& b)const{return std::tie(a.at,a.kind,a.node)>std::tie(b.at,b.kind,b.node);}};
-  std::priority_queue<Event,std::vector<Event>,Later> events;DramFluidServer fluid(options.dram_gbps);double now=0;int completed=0,running=0;
+  std::priority_queue<Event,std::vector<Event>,Later> events;DramFluidServer fluid(options.dram_gbps);
+  std::optional<InflightDramServer> inflight;
+  if(options.inflight_dram)inflight.emplace(options.dram_gbps,options.inflight_curve_bytes,
+      options.inflight_curve_gbps,options.cta_stream_curve_bytes,options.cta_stream_curve_gbps);
+  auto fluid_next=[&](){return inflight?inflight->Next():fluid.Next();};
+  auto fluid_advance=[&](double dt){return inflight?inflight->Advance(dt):fluid.Advance(dt);};
+  double now=0;int completed=0,running=0;
   *out={};out->tasks.resize(nodes);out->cross_worker_edges=prepared->cross_edges;out->same_worker_edges=prepared->same_edges;
   auto enqueue=[&](int w){auto const& queue=prepared->queue[w];if(head[w]>=int(queue.size()))return;int n=queue[head[w]];if(pending[n] || state[n])return;state[n]=1;events.push({std::max(available[w],ready[n]),Start,n});};
   auto finish=[&](int n){if(compute[n] && bytes[n] && !closing[n]){closing[n]=1;bool publish=input.publication_required.empty()?prepared->cross_fanout[n]>0:input.publication_required[n]!=0;events.push({now+(publish?options.publication_ns:0),End,n});}};
   for(int w=0;w<workers;++w)enqueue(w);
   while(completed<nodes) {
-    double next=std::min(events.empty()?std::numeric_limits<double>::infinity():events.top().at,now+fluid.Next());
+    double next=std::min(events.empty()?std::numeric_limits<double>::infinity():events.top().at,now+fluid_next());
     if(!std::isfinite(next))throw std::runtime_error("fluid FIFO deadlock");
-    auto delivered=fluid.Advance(next-now);now=next;for(int id:delivered){int n=fluid_owner[id];bytes[n]=1;finish(n);}
+    auto delivered=fluid_advance(next-now);now=next;for(int id:delivered){int n=fluid_owner[id];bytes[n]=1;finish(n);}
     while(!events.empty() && events.top().at<=now){auto e=events.top();events.pop();int n=e.node,w=prepared->owner[n];auto const& parts=input.task_price_parts[n];auto& task=out->tasks[n];
       if(e.kind==Start){++running;task.worker=w;task.start_ns=now;task.block_ns=std::max(0.,now-available[w]);out->total_block_ns+=task.block_ns;
         bool wait=input.consumer_wait_required.empty()?prepared->cross_input[n]!=0:input.consumer_wait_required[n]!=0;
         events.push({now+(wait?options.consumer_wait_ns:0)+parts.fixed_ns,Main,n});
       }else if(e.kind==Main){double demand=parts.dram_bytes-(options.no_external_dram?parts.no_producer_dram_bytes:0);
         if(demand<0)throw std::invalid_argument("negative fluid demand");
-        if(demand>0){int id=fluid.Add(demand,parts.dram_rate_cap);if(id!=int(fluid_owner.size()))throw std::runtime_error("fluid id discontinuity");fluid_owner.push_back(n);}else bytes[n]=1;
+        if(demand>0){int id=inflight?inflight->Add(demand,parts.dram_rate_cap,
+            parts.inflight_bytes):fluid.Add(demand,parts.dram_rate_cap);
+          if(id!=int(fluid_owner.size()))throw std::runtime_error("fluid id discontinuity");fluid_owner.push_back(n);}else bytes[n]=1;
         events.push({now+parts.compute_ns,Computed,n});
       }else if(e.kind==Computed){compute[n]=1;finish(n);}
       else{--running;++completed;task.end_ns=now;work[w]+=now-task.start_ns;out->total_work_ns+=now-task.start_ns;available[w]=now;++head[w];

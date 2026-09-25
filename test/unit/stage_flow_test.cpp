@@ -33,6 +33,35 @@ static void CheckFluidClock() {
 }
 int main() try {
   CheckFluidClock();
+  InflightDramServer in_flight(10,{10,20},{4,8},{10,20},{10,10});
+  in_flight.Add(100,10,10);Near(in_flight.DeviceRate(),4,"one CTA in-flight rate");
+  in_flight.Add(100,10,10);Near(in_flight.DeviceRate(),8,"two CTA in-flight rate");
+  Near(in_flight.Next(),25,"weighted in-flight completion");
+  if(in_flight.Advance(25)!=std::vector<int>({0,1}))throw std::runtime_error("in-flight completion set");
+  Near(in_flight.Delivered(),200,"in-flight byte conservation");
+  FlowProblem streamed;streamed.workers=2;streamed.dram_gbps=10;
+  streamed.inflight_dram=true;streamed.inflight_curve_bytes={10,20};
+  streamed.inflight_curve_gbps={4,8};streamed.cta_stream_curve_bytes={10,20};
+  streamed.cta_stream_curve_gbps={10,10};
+  streamed.spaces={Space(2,{0,0,100,10,100,10})};
+  streamed.dram_floor_ns=streamed.floor_ns=20;streamed.all_external_miss=true;
+  Near(EvaluateFlow(streamed).makespan_ns,25,"Level 1 measured in-flight model");
+  tilemega::codegen::RuntimeTaskGraph streamed_graph;
+  streamed_graph.stage_offsets={0,2};streamed_graph.successors={{},{}};
+  MaterializedPlan streamed_plan;streamed_plan.queue={{{0,0}},{{0,1}}};
+  SimulatorInput streamed_input;streamed_input.graph=&streamed_graph;
+  streamed_input.task_price_parts.assign(2,{0,0,100,10,100,10});
+  SimulatorOptions streamed_options;streamed_options.dram_fluid=true;
+  streamed_options.dram_gbps=10;streamed_options.inflight_dram=true;
+  streamed_options.inflight_curve_bytes=streamed.inflight_curve_bytes;
+  streamed_options.inflight_curve_gbps=streamed.inflight_curve_gbps;
+  streamed_options.cta_stream_curve_bytes=streamed.cta_stream_curve_bytes;
+  streamed_options.cta_stream_curve_gbps=streamed.cta_stream_curve_gbps;
+  streamed_options.all_external_miss=true;streamed_options.dram_floor_ns=20;
+  SimulatorResult streamed_result;std::string streamed_error;
+  if(!SimulateExecution(streamed_input,streamed_plan,streamed_options,{},
+      &streamed_result,&streamed_error))throw std::runtime_error(streamed_error);
+  Near(streamed_result.makespan_ns,25,"Level 1 and tile simulator share the in-flight physics");
   DramFluidServer server(10);server.Add(10,2);server.Add(80,20);Near(server.Next(),5,"capped water filling");auto done=server.Advance(5);if(done!=std::vector<int>{0})throw std::runtime_error("wrong fluid completion");Near(server.Next(),4,"redistribution after release");server.Advance(4);Near(server.Delivered(),90,"byte conservation");
   FlowProblem p;p.workers=2;p.dram_gbps=10;p.spaces={Space(2,{0,0,100,100})};p.dram_floor_ns=p.floor_ns=20;p.all_external_miss=true;
   Near(EvaluateFlow(p).makespan_ns,20,"shared bandwidth must not double");

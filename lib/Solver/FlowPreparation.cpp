@@ -157,9 +157,13 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   if(problem.model.dtype!=ScalarType::kBF16)throw std::invalid_argument("flow preparation requires BF16");
   auto target_key=target.ToJson();if(cache.target_key!=target_key){cache={};cache.target_key=std::move(target_key);}
   PreparedFlow result;auto& flow=result.flow;auto model=problem.model;model.metric_bindings.values.erase("Tm");model.metric_bindings.values.erase("Tn");auto theta=model.MetricBindings();
-  flow.workers=target.res.num_sms*residency;SetFlowCalibration(flow,target,model.dtype,hop);
-  auto bound=floor.Evaluate(theta);flow.dram_floor_ns=bound.dram_ns;flow.floor_ns=bound.floor_ns;
+  flow.workers=target.res.num_sms*residency;
   auto const& cal=target.CalibrationFor("bf16");
+  // Serving refuses to silently invent a bandwidth curve once the measured
+  // profile is selected. Older target files retain the R9b control physics.
+  flow.inflight_dram=model.serving && !cal.inflight_curve_bytes.empty();
+  SetFlowCalibration(flow,target,model.dtype,hop);
+  auto bound=floor.Evaluate(theta);flow.dram_floor_ns=bound.dram_ns;flow.floor_ns=bound.floor_ns;
   flow.all_external_miss=CacheServiceCurve(cal.l2_curve_bytes,cal.l2_curve_gbps).HitFraction(bound.read_bytes,cal.l2_gbps,cal.dram_gbps)==0;
   auto graph=InstantiateModelTasks(model,problem.geometry);
   CostModelOptions options;options.regime_a=true;
@@ -217,6 +221,18 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     try {BindTaskDramProvenance(input,semantic,floor,theta,model.serving);
       prices=PriceBoundaryPieces(cost,input,semantic,traits,{residency},model,chunks,&cache.prices,kernel_shared_bytes);
     }catch(std::exception const& e){throw std::runtime_error(input.task.name+": "+e.what());}
+    if(flow.inflight_dram)for(auto& piece:prices.pieces) {
+      auto& p=piece.parts;
+      p.dram_rate_cap=p.compute_ns>0 ? p.dram_bytes/p.compute_ns : cal.dram_gbps;
+      if(stage.kind==StageKind::kGemm && !projected.combine) {
+        int iterations=std::max(1,(int(model.gemms.at(stage.gemm).k)+g.tile_k*chunks-1)/(g.tile_k*chunks));
+        p.inflight_bytes=std::max(16.,std::min(p.dram_bytes,
+            (g.stages-1)*p.no_producer_dram_bytes/iterations));
+      }else if(stage.kind==StageKind::kFusedAttention) {
+        p.inflight_bytes=std::max(16.,std::min(p.dram_bytes,
+            4.*stage.width*std::min(stage.attention_kv_block,64)));
+      }else p.inflight_bytes=std::max(16.,std::min(p.dram_bytes,65536.));
+    }
     FlowSpace space;space.name=input.task.name;space.category=projected.combine?"combine":semantic.op.arithmetic;
     if(!projected.combine && semantic.op.kind==analysis::OperatorKind::kMatmul && model.exported_tensors.count(semantic.op.result.name))space.category="lm_head";
     space.count=problem.counts[s];space.order=order[s];space.piece_of_task.assign(space.count,-1);

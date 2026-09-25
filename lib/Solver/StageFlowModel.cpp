@@ -5,6 +5,7 @@
 #include <cmath>
 #include <deque>
 #include <limits>
+#include <optional>
 #include <queue>
 #include <stdexcept>
 namespace tilemega::solver {
@@ -13,6 +14,13 @@ void SetFlowCalibration(FlowProblem& p,TargetSpec const& target,ScalarType dtype
   auto name=dtype==ScalarType::kBF16?"bf16":"f32";auto const& event=target.EventCalibrationFor(name);
   if(!event.task_publication.ns || !event.task_wait.ns)throw std::invalid_argument("flow synchronization calibration missing");
   p.dram_gbps=target.CalibrationFor(name).dram_gbps;p.publication_ns=*event.task_publication.ns;p.consumer_wait_ns=*event.task_wait.ns;p.hop_ns=hop.c0;
+  auto const& cal=target.CalibrationFor(name);
+  if(p.inflight_dram) {
+    p.inflight_curve_bytes=cal.inflight_curve_bytes;
+    p.inflight_curve_gbps=cal.inflight_curve_gbps;
+    p.cta_stream_curve_bytes=cal.cta_stream_curve_bytes;
+    p.cta_stream_curve_gbps=cal.cta_stream_curve_gbps;
+  }
 }
 FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   if(p.workers<=0 || !(p.dram_gbps>0))throw std::invalid_argument("invalid flow resources");
@@ -49,7 +57,13 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   struct Cohort {int space,piece,cause=-1,edge=-1;std::size_t begin=0,count=0;double start=0,main=0,wait=0,fixed=0,end=0,publication=0;bool compute=false,bytes=false,closing=false;};
   static thread_local std::vector<Cohort> cohorts;cohorts.clear();
   static thread_local std::vector<int> cohort_tasks;cohort_tasks.clear();cohort_tasks.reserve(total);
-  std::vector<int> fluid_owner;DramFluidServer fluid(p.dram_gbps);double now=0;
+  std::vector<int> fluid_owner;DramFluidServer fluid(p.dram_gbps);
+  std::optional<InflightDramServer> inflight;
+  if(p.inflight_dram)inflight.emplace(p.dram_gbps,p.inflight_curve_bytes,
+      p.inflight_curve_gbps,p.cta_stream_curve_bytes,p.cta_stream_curve_gbps);
+  auto fluid_next=[&](){return inflight?inflight->Next():fluid.Next();};
+  auto fluid_advance=[&](double dt){return inflight?inflight->Advance(dt):fluid.Advance(dt);};
+  double now=0;
   FlowResult result;result.spaces.resize(n);int last_completed=-1;
   auto close=[&](int id){auto& c=cohorts[id];if(c.compute && c.bytes && !c.closing){c.closing=true;auto& s=result.spaces[c.space];s.mainloop_ns+=(now-c.main)*c.count;push(now+(!options.no_sync && publishes[c.space]?p.publication_ns:0),PublishEnd,id);}};
   while(finished<total) {
@@ -63,7 +77,9 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
         if(event.kind==MainStart) {
           c.main=now;double bytes=parts.dram_bytes-(options.no_external?parts.no_producer_dram_bytes:0);
           if(bytes<0)throw std::runtime_error("negative counterfactual traffic");
-          if(bytes>0){int id=fluid.Add(bytes,parts.dram_rate_cap,c.count);if(id!=int(fluid_owner.size()))throw std::runtime_error("fluid id discontinuity");fluid_owner.push_back(event.id);}else c.bytes=true;
+          if(bytes>0){int id=inflight?inflight->Add(bytes,parts.dram_rate_cap,
+              parts.inflight_bytes,c.count):fluid.Add(bytes,parts.dram_rate_cap,c.count);
+            if(id!=int(fluid_owner.size()))throw std::runtime_error("fluid id discontinuity");fluid_owner.push_back(event.id);}else c.bytes=true;
           push(now+parts.compute_ns,ComputeEnd,event.id);
         }else if(event.kind==ComputeEnd){c.compute=true;close(event.id);}
         else {
@@ -91,11 +107,11 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
     }
     if(!events.empty() && events.top().time<=now)continue;
     if(finished==total)break;
-    double next=std::min(events.empty()?std::numeric_limits<double>::infinity():events.top().time,now+fluid.Next());
+    double next=std::min(events.empty()?std::numeric_limits<double>::infinity():events.top().time,now+fluid_next());
     if(!std::isfinite(next))throw std::runtime_error("flow deadlock: incomplete release coverage or cycle");
-    auto done=fluid.Advance(next-now);now=next;for(int id:done){auto c=fluid_owner[id];cohorts[c].bytes=true;close(c);}
+    auto done=fluid_advance(next-now);now=next;for(int id:done){auto c=fluid_owner[id];cohorts[c].bytes=true;close(c);}
   }
-  result.makespan_ns=now;result.delivered_bytes=fluid.Delivered();
+  result.makespan_ns=now;result.delivered_bytes=inflight?inflight->Delivered():fluid.Delivered();
   if(p.all_external_miss && !options.no_external && now+1e-6<p.dram_floor_ns)throw std::runtime_error("T >= T_dram assertion failed in StageFlowModel");
   std::vector<bool> seen(cohorts.size());
   while(last_completed>=0) {

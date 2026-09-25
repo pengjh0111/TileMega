@@ -175,6 +175,12 @@ struct TargetSpec {
     double l2_gbps          = 0.0;  ///< plateau below the capacity knee
     double l2_knee_bytes    = 0.0;  ///< measured working-set knee
     double dram_gbps        = 0.0;  ///< achieved above the knee, not peak
+    // R10 serving: achieved device and per-CTA DRAM rates against bytes in
+    // flight.  Absent in older targets; the legacy pricing path ignores them.
+    std::vector<double> inflight_curve_bytes;
+    std::vector<double> inflight_curve_gbps;
+    std::vector<double> cta_stream_curve_bytes;
+    std::vector<double> cta_stream_curve_gbps;
     std::vector<double> l2_curve_bytes;  ///< working-set sweep, x axis
     std::vector<double> l2_curve_gbps;   ///< working-set sweep, y axis
 
