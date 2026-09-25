@@ -1,0 +1,5 @@
+{
+  "baseline": "ce6296f0d6e7fa14d7d0dc3800caed184adf9c72",
+  "output_instrumentation": "docs/experiments/SOLVER_R9B/replay/baseline_instrumentation.patch",
+  "binary_sha256": "b872deab1d1d475157e5721e4f1c50d27adcc52f18a58b08b538349ff449716c"
+}

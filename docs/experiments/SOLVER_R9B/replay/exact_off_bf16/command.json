@@ -1,0 +1,20 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-costmodel",
+    "--repo",
+    "/root/TileMega",
+    "--out",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/replay/exact_off_bf16",
+    "--target",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/fit/target.json",
+    "--dtype",
+    "bf16",
+    "--screen-dir",
+    "/root/TileMega/docs/experiments/ORACLE/raw_bf16",
+    "--register-dir",
+    "/root/TileMega/docs/experiments/ORACLE/raw_bf16/cost",
+    "--full-only"
+  ],
+  "binary_sha256": "c2f25d8c9a66b5654a2550be5dde451b39f1ce0ac338eca9e31682c873f4e342",
+  "source_head": "e827cd628c2f078f2d61a8a6029a5ca672a13749"
+}
