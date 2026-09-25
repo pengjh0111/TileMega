@@ -1,0 +1,72 @@
+FP64_AUDIT /root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top1.cu.measurement/kernel count=60 gate=FAIL
+GPU_ADMISSION need_mib=2058 free_mib=44110 utilization=79 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top1.cu process=0 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=46470 utilization=25 ready=0/3
+GPU_ADMISSION need_mib=2058 free_mib=44110 utilization=94 ready=0/3
+GPU_ADMISSION need_mib=2058 free_mib=44134 utilization=74 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top1.cu process=1 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=48534 utilization=20 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top1.cu process=2 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=48534 utilization=16 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top1.cu process=3 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=48534 utilization=23 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top1.cu process=4 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=48534 utilization=19 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top1.cu process=5 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=48534 utilization=32 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top1.cu process=6 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=45640 utilization=30 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top1.cu process=7 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=44702 utilization=94 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top1.cu process=8 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=44704 utilization=98 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top1.cu process=9 internal=True
+R9B_RESULT {"status": "ok", "source": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top1.cu", "directory": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top1.cu.measurement", "processes": 10, "l05_ms": 0.266192, "l1_ms": 0.280984, "l2_ms": 0.21856799999999998, "floor_ns": 10159.06834393858, "l2_over_floor": 21.514571277631855}
+FP64_AUDIT /root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top2.cu.measurement/kernel count=60 gate=FAIL
+GPU_ADMISSION need_mib=2058 free_mib=44682 utilization=98 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top2.cu process=0 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=46630 utilization=97 ready=0/3
+GPU_ADMISSION need_mib=2058 free_mib=45854 utilization=93 ready=0/3
+GPU_ADMISSION need_mib=2058 free_mib=45064 utilization=97 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top2.cu process=1 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=48534 utilization=19 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top2.cu process=2 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=46690 utilization=95 ready=0/3
+GPU_ADMISSION need_mib=2058 free_mib=45854 utilization=92 ready=0/3
+GPU_ADMISSION need_mib=2058 free_mib=45064 utilization=93 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top2.cu process=3 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=48534 utilization=48 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top2.cu process=4 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=46282 utilization=95 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top2.cu process=5 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=48534 utilization=23 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top2.cu process=6 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=45214 utilization=22 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top2.cu process=7 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=32232 utilization=20 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top2.cu process=8 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=48534 utilization=32 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top2.cu process=9 internal=True
+R9B_RESULT {"status": "ok", "source": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top2.cu", "directory": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top2.cu.measurement", "processes": 10, "l05_ms": 0.267528, "l1_ms": 0.28456, "l2_ms": 0.21964, "floor_ns": 10159.06834393858, "l2_over_floor": 21.620092764810316}
+FP64_AUDIT /root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top3.cu.measurement/kernel count=60 gate=FAIL
+GPU_ADMISSION need_mib=2058 free_mib=34592 utilization=19 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top3.cu process=0 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=38030 utilization=33 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top3.cu process=1 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=40022 utilization=13 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top3.cu process=2 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=48534 utilization=27 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top3.cu process=3 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=48534 utilization=22 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top3.cu process=4 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=47818 utilization=25 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top3.cu process=5 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=46236 utilization=42 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top3.cu process=6 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=44652 utilization=85 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top3.cu process=7 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=48534 utilization=56 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top3.cu process=8 internal=True
+GPU_ADMISSION need_mib=2058 free_mib=47870 utilization=95 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top3.cu process=9 internal=True
+R9B_RESULT {"status": "ok", "source": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top3.cu", "directory": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top3.cu.measurement", "processes": 10, "l05_ms": 0.268336, "l1_ms": 0.28456800000000004, "l2_ms": 0.219832, "floor_ns": 10159.06834393858, "l2_over_floor": 21.638992135648248}

@@ -1,0 +1,104 @@
+{
+  "candidates": [
+    {
+      "status": "ok",
+      "source": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top1.cu",
+      "directory": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top1.cu.measurement",
+      "processes": 10,
+      "l05_ms": 0.16004000000000002,
+      "l1_ms": 0.157024,
+      "l2_ms": 0.12742399999999998,
+      "candidate": {
+        "rank": "1",
+        "key": "32x16x64s2k1;32x16x64s2k1;32x16x64s2k1;32x16x64s2k1;32x16x64s2k1;kappa=1;residency=1",
+        "placement": "skeleton",
+        "tile_m": "32",
+        "tile_n": "16",
+        "tile_k": "64",
+        "stages": "2",
+        "split_k": "1",
+        "kappa": "1",
+        "residency": "1",
+        "floor_ns": "53343.5",
+        "predicted_ns": "122559",
+        "source": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top1.cu",
+        "cg": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top1.mlir"
+      }
+    },
+    {
+      "status": "ok",
+      "source": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top2.cu",
+      "directory": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top2.cu.measurement",
+      "processes": 10,
+      "l05_ms": 0.156952,
+      "l1_ms": 0.15265600000000001,
+      "l2_ms": 0.124928,
+      "candidate": {
+        "rank": "2",
+        "key": "32x16x64s3k1;32x16x64s3k1;32x16x64s3k1;32x16x64s3k1;32x16x64s3k1;kappa=1;residency=1",
+        "placement": "skeleton",
+        "tile_m": "32",
+        "tile_n": "16",
+        "tile_k": "64",
+        "stages": "3",
+        "split_k": "1",
+        "kappa": "1",
+        "residency": "1",
+        "floor_ns": "53343.5",
+        "predicted_ns": "122559",
+        "source": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top2.cu",
+        "cg": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top2.mlir"
+      }
+    },
+    {
+      "status": "ok",
+      "source": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top3.cu",
+      "directory": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top3.cu.measurement",
+      "processes": 10,
+      "l05_ms": 0.15768,
+      "l1_ms": 0.15288000000000002,
+      "l2_ms": 0.12616,
+      "candidate": {
+        "rank": "3",
+        "key": "32x16x64s4k1;32x16x64s4k1;32x16x64s4k1;32x16x64s4k1;32x16x64s4k1;kappa=1;residency=1",
+        "placement": "skeleton",
+        "tile_m": "32",
+        "tile_n": "16",
+        "tile_k": "64",
+        "stages": "4",
+        "split_k": "1",
+        "kappa": "1",
+        "residency": "1",
+        "floor_ns": "53343.5",
+        "predicted_ns": "122559",
+        "source": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top3.cu",
+        "cg": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top3.mlir"
+      }
+    }
+  ],
+  "winner": {
+    "status": "ok",
+    "source": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top2.cu",
+    "directory": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top2.cu.measurement",
+    "processes": 10,
+    "l05_ms": 0.156952,
+    "l1_ms": 0.15265600000000001,
+    "l2_ms": 0.124928,
+    "candidate": {
+      "rank": "2",
+      "key": "32x16x64s3k1;32x16x64s3k1;32x16x64s3k1;32x16x64s3k1;32x16x64s3k1;kappa=1;residency=1",
+      "placement": "skeleton",
+      "tile_m": "32",
+      "tile_n": "16",
+      "tile_k": "64",
+      "stages": "3",
+      "split_k": "1",
+      "kappa": "1",
+      "residency": "1",
+      "floor_ns": "53343.5",
+      "predicted_ns": "122559",
+      "source": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top2.cu",
+      "cg": "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s4/selected.cu.top2.mlir"
+    }
+  }
+}

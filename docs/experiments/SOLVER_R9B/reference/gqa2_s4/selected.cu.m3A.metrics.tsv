@@ -1,0 +1,2 @@
+key	grid	residency	flow_ns	simulated_ns	floor_ns	cp_ns	queue_ns	placed	affinity	home	spread_other	candidate_sum	transitions	adjacent_slots	interleaving
+32x16x64s4k1;32x16x64s4k1;32x16x64s4k1;32x16x64s4k1;32x16x64s4k1;kappa=1;residency=1	128	1	122558.80040439068	122558.80040439068	53343.481957358032	53343.481957358032	36275.584179767568	648	24	624	0	648	520	520	1

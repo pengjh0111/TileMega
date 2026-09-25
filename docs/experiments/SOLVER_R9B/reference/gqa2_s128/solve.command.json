@@ -1,0 +1,32 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-compile",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu",
+    "--solver",
+    "skeleton",
+    "--solve",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/fit/target.json",
+    "--legacy-seed",
+    "/root/TileMega/docs/experiments/SOLVER_V2/reference/gqa2_s128/legacy/selected.mlir",
+    "--seq",
+    "128",
+    "--past",
+    "3",
+    "--hop-curve",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv",
+    "--variant-cache",
+    "/root/r9_work/variant_resources",
+    "--flow-fixture",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/gqa2_s128_p3",
+    "--search-jobs",
+    "1",
+    "--search-passes",
+    "3",
+    "--k-base",
+    "8",
+    "--dump-cg",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.mlir"
+  ],
+  "binary_sha256": "25ae5baceabb1f2c8a59b9b7614ee6237b31b46f8e5b01bbe646e611562c9083"
+}

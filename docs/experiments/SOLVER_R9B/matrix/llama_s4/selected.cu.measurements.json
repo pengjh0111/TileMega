@@ -1,0 +1,112 @@
+{
+  "candidates": [
+    {
+      "status": "ok",
+      "source": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top1.cu",
+      "directory": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top1.cu.measurement",
+      "processes": 10,
+      "l05_ms": 5.32204,
+      "l1_ms": 5.166352,
+      "l2_ms": 4.4468879999999995,
+      "floor_ns": 2519298.8244356406,
+      "l2_over_floor": 1.7651292323355752,
+      "candidate": {
+        "rank": "1",
+        "key": "32x32x64s3k1;32x16x64s3k1;32x16x64s3k1;32x128x64s3k1;32x16x64s3k1;32x256x16s2k1;kappa=1;residency=1",
+        "placement": "skeleton",
+        "tile_m": "32",
+        "tile_n": "32",
+        "tile_k": "64",
+        "stages": "3",
+        "split_k": "1",
+        "kappa": "1",
+        "residency": "1",
+        "floor_ns": "2.95527e+06",
+        "predicted_ns": "3.45175e+06",
+        "source": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top1.cu",
+        "cg": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top1.mlir"
+      }
+    },
+    {
+      "status": "ok",
+      "source": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top2.cu",
+      "directory": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top2.cu.measurement",
+      "processes": 10,
+      "l05_ms": 5.410264,
+      "l1_ms": 5.180912,
+      "l2_ms": 4.470472,
+      "floor_ns": 2519298.8244356406,
+      "l2_over_floor": 1.774490567232115,
+      "candidate": {
+        "rank": "2",
+        "key": "32x32x64s3k1;32x16x64s3k1;32x16x64s3k1;32x128x64s4k1;32x16x64s3k1;32x256x16s2k1;kappa=1;residency=1",
+        "placement": "skeleton",
+        "tile_m": "32",
+        "tile_n": "32",
+        "tile_k": "64",
+        "stages": "3",
+        "split_k": "1",
+        "kappa": "1",
+        "residency": "1",
+        "floor_ns": "2.95527e+06",
+        "predicted_ns": "3.45175e+06",
+        "source": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top2.cu",
+        "cg": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top2.mlir"
+      }
+    },
+    {
+      "status": "ok",
+      "source": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top3.cu",
+      "directory": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top3.cu.measurement",
+      "processes": 10,
+      "l05_ms": 5.5358160000000005,
+      "l1_ms": 5.262584,
+      "l2_ms": 4.9241600000000005,
+      "floor_ns": 2519298.8244356406,
+      "l2_over_floor": 1.9545755954945456,
+      "candidate": {
+        "rank": "3",
+        "key": "32x32x64s3k1;32x16x64s3k1;32x16x64s3k1;32x128x64s3k1;32x16x64s4k1;32x256x16s2k1;kappa=1;residency=1",
+        "placement": "skeleton",
+        "tile_m": "32",
+        "tile_n": "32",
+        "tile_k": "64",
+        "stages": "3",
+        "split_k": "1",
+        "kappa": "1",
+        "residency": "1",
+        "floor_ns": "2.95527e+06",
+        "predicted_ns": "3.45175e+06",
+        "source": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top3.cu",
+        "cg": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top3.mlir"
+      }
+    }
+  ],
+  "winner": {
+    "status": "ok",
+    "source": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top1.cu",
+    "directory": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top1.cu.measurement",
+    "processes": 10,
+    "l05_ms": 5.32204,
+    "l1_ms": 5.166352,
+    "l2_ms": 4.4468879999999995,
+    "floor_ns": 2519298.8244356406,
+    "l2_over_floor": 1.7651292323355752,
+    "candidate": {
+      "rank": "1",
+      "key": "32x32x64s3k1;32x16x64s3k1;32x16x64s3k1;32x128x64s3k1;32x16x64s3k1;32x256x16s2k1;kappa=1;residency=1",
+      "placement": "skeleton",
+      "tile_m": "32",
+      "tile_n": "32",
+      "tile_k": "64",
+      "stages": "3",
+      "split_k": "1",
+      "kappa": "1",
+      "residency": "1",
+      "floor_ns": "2.95527e+06",
+      "predicted_ns": "3.45175e+06",
+      "source": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top1.cu",
+      "cg": "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s4/selected.cu.top1.mlir"
+    }
+  }
+}

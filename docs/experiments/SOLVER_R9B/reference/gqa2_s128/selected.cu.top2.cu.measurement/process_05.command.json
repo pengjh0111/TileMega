@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.top2.cu.measurement/kernel",
+    "/root/TileMega/docs/experiments/SEQSCAN/raw/fixture/gqa2_s128_p3"
+  ],
+  "executable_sha256": "2f03b0db3f55ae51094d5d530cd4b4b0f642d48ab2fa05c73ff0f61b6a5e3ff7",
+  "head": "2e18080cd06087cea8534acbd8f71e1098de32d9",
+  "started_ns": 1790333890155465732,
+  "elapsed_ns": 375894636,
+  "exit_code": 0,
+  "environment": {
+    "TILEMEGA_WARMUP": "2",
+    "TILEMEGA_REPEAT": "10"
+  }
+}

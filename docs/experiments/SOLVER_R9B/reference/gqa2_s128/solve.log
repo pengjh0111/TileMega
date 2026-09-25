@@ -1,0 +1,8 @@
+DISK NEED_MIB=8192 FREE_MIB=1246198
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.resources/1790330766753281915/0" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1246253
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.resources/1790330766753281915/1" resident=5
+DISK NEED_MIB=8192 FREE_MIB=1246267
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu.resources/1790330766753281915/2" resident=5
+SOLVE_SUMMARY evaluated=28318 deferred=0 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=38 couplings=46 stages=30 symbolic_windows=0 fallback_windows=0 output=/root/TileMega/docs/experiments/SOLVER_R9B/reference/gqa2_s128/selected.cu
