@@ -183,13 +183,15 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       for(std::size_t c=0;c<search.classes.size();++c){auto fixed=evaluated[incumbent];int improvements=0;
         for(auto const& g:domains[c]){auto config=fixed.config;config[c]=g;
           int residency=fixed.residency;
+          int kappa=fixed.kappa;
           if(search.imported.plan.serving) {
             auto limit=search.resources.Estimate(search.classes,config,
                 options.common.placement.target,search.dtype).resident_limit;
             if(limit<1)continue;
             residency=limit;
+            kappa=1;
           }
-          auto i=evaluate(config,fixed.kappa,residency);
+          auto i=evaluate(config,kappa,residency);
           if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;++improvements;}}
         out<<"COORDINATE\t"<<start<<'\t'<<pass<<'\t'<<c<<'\t'<<domains[c].size()<<'\t'<<improvements<<'\t'<<evaluated[incumbent].score<<'\n';out.flush();
       }
