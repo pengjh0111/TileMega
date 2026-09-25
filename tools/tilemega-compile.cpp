@@ -208,7 +208,7 @@ int main(int argc, char** argv) {
     std::cerr << "usage: tilemega-compile {EXPORTED_PROGRAM.pt2|STABLE_EXPORT.json|CG.mlir} "
                  "{OUTPUT.cu|OUTPUT.so} [--variants PLAN.json] [--solve TARGET.json --seq N --past N\n"
                  " --solver legacy|skeleton --legacy-seed CG.mlir --k-base 4|8|16|W\n"
-                 " --search-passes 1..3 --search-jobs 1..64 --variant-cache DIR\n"
+                 " --search-passes 1..3 --search-jobs 1 --variant-cache DIR --flow-fixture DIR --flow-search-only 0|1\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
                  " --segments 1|2 --segment-candidates N\n"
                  " --dump-cg FILE.mlir\n"
@@ -225,8 +225,8 @@ int main(int argc, char** argv) {
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path;
     bool resource_probes=true;bool dump_evaluated=false;
-    std::string solver_mode="skeleton",legacy_seed,variant_cache;
-    int skeleton_k=8,search_passes=3,search_jobs=1;bool all_workers=false;
+    std::string solver_mode="skeleton",legacy_seed,variant_cache,flow_fixture;
+    int skeleton_k=8,search_passes=3,search_jobs=1;bool all_workers=false,flow_search_only=false;
     tilemega::solver::SolverTiming solver_timing;
     int interval_begin=0,segments=1,segment_candidates=3;
     std::vector<mlir::OwningOpRef<mlir::ModuleOp>> variant_modules;
@@ -237,8 +237,10 @@ int main(int argc, char** argv) {
       if (flag=="--variants") variants_path=value;
       else if (flag=="--solver") { solver_mode=value; if(value!="legacy" && value!="skeleton") throw std::runtime_error("unknown solver"); }
       else if (flag=="--legacy-seed") legacy_seed=value;
+      else if (flag=="--flow-fixture") flow_fixture=value;
       else if (flag=="--variant-cache") variant_cache=value;
       else if (flag=="--k-base") {all_workers=value=="W";if(!all_workers)skeleton_k=std::stoi(value);}
+      else if (flag=="--flow-search-only") flow_search_only=std::stoi(value)!=0;
       else if (flag=="--search-passes") search_passes=std::stoi(value);
       else if (flag=="--search-jobs") search_jobs=std::stoi(value);
       else if (flag=="--solve") solve_target=value;
@@ -363,7 +365,8 @@ int main(int argc, char** argv) {
         skeleton.seed={g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k};
         auto kappa=(*seed)->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_kappa");
         skeleton.kappa=kappa ? int(kappa.getInt()):1;skeleton.k_base=skeleton_k;skeleton.all_workers=all_workers;skeleton.passes=search_passes;skeleton.jobs=search_jobs;
-        skeleton.artifact_prefix=argv[2];
+        skeleton.artifact_prefix=argv[2];skeleton.fixture=flow_fixture;skeleton.search_only=flow_search_only;
+        if(auto r=(*seed)->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_residency"))skeleton.seed_residency=r.getInt();
         if(variant_cache.empty())variant_cache=(resource_root.parent_path()/"variant_cache").string();
         int variant_index=0;
         skeleton.variant_probe=[&](std::string const&,tilemega::solver::GemmConfig const* tile,tilemega::solver::ScalarType dtype) {
@@ -381,6 +384,13 @@ int main(int argc, char** argv) {
           return tilemega::solver::VariantResources{int(requiredInteger(*object,"registers")),int(requiredInteger(*object,"shared_bytes")),int(requiredInteger(*object,"threads")),object->getBoolean("compiled").value_or(false)};
         };
         auto result=tilemega::solver::SolveSkeletonExport(input.string(),context,skeleton,&summary,evidence);
+        if(flow_search_only) {
+          std::ofstream events(std::string(argv[2])+".phases.tsv");solver_timing.WriteEvents(events);
+          std::ofstream times(std::string(argv[2])+".timing.tsv");solver_timing.Write(times,solver_mode,input.stem().string(),dims.seq);
+          std::ofstream ranked(std::string(argv[2])+".flow_ranked.tsv");ranked<<std::setprecision(17)<<"rank\tkey\tflow_ns\tresidency\tkappa\terror\n";
+          for(std::size_t i=0;i<result.evaluated.size();++i){auto const& c=result.evaluated[i];ranked<<i+1<<'\t'<<c.key<<'\t'<<c.score<<'\t'<<c.residency<<'\t'<<c.kappa<<'\t'<<c.error<<'\n';}
+          return 0;
+        }
         solved=std::move(result.compiled);
         std::ofstream events(std::string(argv[2])+".phases.tsv");solver_timing.WriteEvents(events);
       }

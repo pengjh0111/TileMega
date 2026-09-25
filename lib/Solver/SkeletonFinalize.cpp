@@ -59,7 +59,7 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
   entry.evaluation.placement="skeleton";entry.evaluation.status="ok";entry.evaluation.simulated=true;
   entry.evaluation.floor_ns=selected.bounds.lower_bound_ns;entry.evaluation.makespan_ns=simulated.makespan_ns;
   auto const& st=point.candidate.placement;
-  std::ofstream metrics(prefix+".metrics.tsv");metrics<<std::setprecision(17)<<"key\tgrid\tresidency\tlevel2_ns\tsimulated_ns\tfloor_ns\tcp_ns\tqueue_ns\tplaced\taffinity\thome\tspread_other\tcandidate_sum\ttransitions\tadjacent_slots\tinterleaving\n";
+  std::ofstream metrics(prefix+".metrics.tsv");metrics<<std::setprecision(17)<<"key\tgrid\tresidency\tflow_ns\tsimulated_ns\tfloor_ns\tcp_ns\tqueue_ns\tplaced\taffinity\thome\tspread_other\tcandidate_sum\ttransitions\tadjacent_slots\tinterleaving\n";
   metrics<<point.candidate.key<<'\t'<<sk.grid<<'\t'<<sk.residency<<'\t'<<point.candidate.score<<'\t'<<simulated.makespan_ns<<'\t'<<selected.bounds.lower_bound_ns<<'\t'<<selected.bounds.critical_path_ns<<'\t'<<selected.bounds.queue_lb_ns<<'\t'<<st.placed<<'\t'<<st.affinity<<'\t'<<st.home<<'\t'<<st.spread_other<<'\t'<<st.candidate_sum<<'\t'<<st.transitions<<'\t'<<st.adjacent_slots<<'\t'<<st.interleaving<<'\n';
   std::ofstream oracle(prefix+".oracles.tsv");oracle<<"producer\tconsumer\tstructure\tpredecessor\tsuccessor\tall_producer\n";
   for(auto const& e:sk.edges)oracle<<e.producer<<'\t'<<e.consumer<<'\t'<<analysis::ToString(e.oracle->structure)<<'\t'<<analysis::ToString(e.oracle->reverse.kind())<<'\t'<<analysis::ToString(e.oracle->forward.kind())<<'\t'<<e.all_producer<<'\n';

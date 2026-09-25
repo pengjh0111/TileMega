@@ -1,0 +1,13 @@
+solver	model	seq	phase	count	total_ms
+skeleton	auto.cu.export	1	bridge_and_plan	1	1265.81
+skeleton	auto.cu.export	1	cache_hit	433	0
+skeleton	auto.cu.export	1	cache_miss	34	0
+skeleton	auto.cu.export	1	derive	1	239.099
+skeleton	auto.cu.export	1	flow	271	1052.41
+skeleton	auto.cu.export	1	import	1	28.1824
+skeleton	auto.cu.export	1	instantiate	1	2.2563
+skeleton	auto.cu.export	1	instantiate_and_derive	270	4937.5
+skeleton	auto.cu.export	1	piece_pricing_and_release	271	78555.2
+skeleton	auto.cu.export	1	prepare_relations	1	17761.3
+skeleton	auto.cu.export	1	resource_probe	277	4248.43
+skeleton	auto.cu.export	1	total	1	110359
