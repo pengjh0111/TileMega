@@ -1,0 +1,2 @@
+INDIRECT tensor=p_embed_weight tokens=64 unique_rows=64 width=2048
+DRAM_FLOOR weight_bytes=3441412224 read_bytes=3441756800 write_bytes=26787840 flops=220217737216 dram_ns=3533623.65901714 compute_ns=1223520.9844947245 floor_ns=3533623.65901714

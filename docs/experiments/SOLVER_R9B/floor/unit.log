@@ -1,0 +1,1 @@
+DRAM_FLOOR symbolic_batch_seq=PASS weight_dedup=PASS partial_KV=PASS indirect_image=PASS
