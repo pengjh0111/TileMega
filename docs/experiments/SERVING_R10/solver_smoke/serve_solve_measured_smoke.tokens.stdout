@@ -1,0 +1,5 @@
+{"matches_seed_32": true, "ttft_ms": 6.8054399490356445, "e2e_ms": 140.38253400940448, "decode_mode": 1, "tokens": [[13, 578, 31657, 315, 264, 2363, 11, 439, 315, 264, 5333, 11, 374, 539, 4461, 311, 387, 264, 893, 315, 279, 1917, 11, 323, 374, 539, 4461, 311, 387, 264, 893, 315]]}
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=171 same_worker_edges=6688 cross_worker_edges=326596 base_rotation=0 plan=legacy_grid_stride
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=1048576
+E2E_PLACE_STATS placement=0 max_queue=55 same_worker_edges=1086 cross_worker_edges=162199 base_rotation=0 plan=eft

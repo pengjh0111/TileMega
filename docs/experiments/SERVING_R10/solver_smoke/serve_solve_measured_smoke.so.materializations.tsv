@@ -1,0 +1,2 @@
+rank	key	pure_ns	eft_ns	pure_selected	moved_fraction
+1	16x128x128s2k1;16x128x128s2k4;16x128x128s2k1;16x128x128s2k4;16x128x128s2k4;16x128x128s2k1;kappa=1;residency=1	9.04747e+06	9.35862e+06	1	0.875975

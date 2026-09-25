@@ -1,0 +1,2 @@
+rank	key	estimated	actual	re_solved	residency	flow_ns	simulated_ns
+1	16x128x128s2k1;16x128x128s2k4;16x128x128s2k1;16x128x128s2k4;16x128x128s2k4;16x128x128s2k1;kappa=1;residency=1	1	1	0	1	9.04747e+06	9.04747e+06
