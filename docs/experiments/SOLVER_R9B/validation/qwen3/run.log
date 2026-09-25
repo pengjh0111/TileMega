@@ -1,0 +1,150 @@
+IMPORT_DEGRADED aten.embedding.default
+INDIRECT tensor=p_embed_weight tokens=4 unique_rows=4 width=2048
+SAMPLE 0 flow=1.17497e+07 fluid=1.16537e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 1 flow=9.35285e+06 fluid=9.22153e+06
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 2 flow=1.46771e+07 fluid=1.45315e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 3 flow=7.55109e+06 fluid=7.55573e+06
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 4 flow=1.08641e+07 fluid=1.13994e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 5 flow=1.4565e+07 fluid=1.44043e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 6 flow=1.58183e+07 fluid=1.58489e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 7 flow=3.00147e+07 fluid=2.94909e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 8 flow=1.27283e+07 fluid=1.25833e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 9 flow=2.78811e+07 fluid=2.70447e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 10 flow=7.95438e+06 fluid=8.28037e+06
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 11 flow=1.19646e+07 fluid=1.15694e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 12 flow=9.5042e+06 fluid=9.46366e+06
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 13 flow=1.43683e+07 fluid=1.50179e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 14 flow=1.32807e+07 fluid=1.30735e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 15 flow=1.13632e+07 fluid=1.16516e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 16 flow=1.66081e+07 fluid=1.59059e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 17 flow=2.00638e+07 fluid=2.00206e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 18 flow=1.50892e+07 fluid=1.42e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 19 flow=1.06083e+07 fluid=1.04949e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 20 flow=2.59784e+07 fluid=2.63364e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 21 flow=1.307e+07 fluid=1.31817e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 22 flow=1.49418e+07 fluid=1.49709e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 23 flow=9.52485e+06 fluid=9.44597e+06
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 24 flow=1.69166e+07 fluid=1.67695e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 25 flow=2.0777e+07 fluid=1.9217e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 26 flow=1.47324e+07 fluid=1.46336e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 27 flow=2.92915e+07 fluid=2.91267e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 28 flow=1.08103e+07 fluid=1.14515e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 29 flow=2.22568e+07 fluid=2.21947e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 30 flow=1.18963e+07 fluid=1.17353e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 31 flow=9.68677e+06 fluid=9.15829e+06
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 32 flow=1.46898e+07 fluid=1.45194e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 33 flow=1.2378e+07 fluid=1.21129e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 34 flow=8.49076e+06 fluid=8.37669e+06
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 35 flow=1.1335e+07 fluid=1.15477e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 36 flow=2.03582e+07 fluid=2.02107e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 37 flow=1.49144e+07 fluid=1.47494e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 38 flow=1.97076e+07 fluid=1.9581e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 39 flow=1.64701e+07 fluid=1.62334e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 40 flow=1.47446e+07 fluid=1.51856e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 41 flow=1.09814e+07 fluid=1.10777e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 42 flow=2.38621e+07 fluid=2.29728e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 43 flow=8.80891e+06 fluid=9.21558e+06
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 44 flow=1.49559e+07 fluid=1.46677e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 45 flow=1.43767e+07 fluid=1.5315e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 46 flow=1.09758e+07 fluid=1.12571e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 47 flow=7.64027e+06 fluid=7.34898e+06
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 48 flow=1.17239e+07 fluid=1.14114e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 49 flow=3.22981e+07 fluid=3.26351e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 50 flow=1.78735e+07 fluid=1.72704e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 51 flow=2.0961e+07 fluid=2.09894e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 52 flow=1.32548e+07 fluid=1.31066e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 53 flow=1.22876e+07 fluid=1.2499e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 54 flow=1.68437e+07 fluid=1.75606e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 55 flow=8.4859e+06 fluid=8.62179e+06
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 56 flow=1.21506e+07 fluid=1.27171e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 57 flow=1.1796e+07 fluid=1.37473e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 58 flow=2.30351e+07 fluid=2.28223e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 59 flow=1.54089e+07 fluid=1.53773e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 60 flow=1.26017e+07 fluid=1.24617e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 61 flow=1.5247e+07 fluid=1.51855e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 62 flow=1.07284e+07 fluid=1.11994e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 63 flow=1.60025e+07 fluid=1.6117e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 64 flow=1.37911e+07 fluid=1.34688e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 65 flow=1.11643e+07 fluid=1.21189e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 66 flow=1.61285e+07 fluid=1.5718e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 67 flow=1.38227e+07 fluid=1.34274e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 68 flow=7.36307e+06 fluid=8.81142e+06
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 69 flow=1.21408e+07 fluid=1.26612e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 70 flow=1.24006e+07 fluid=1.24094e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 71 flow=1.12845e+07 fluid=1.16563e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 72 flow=1.3918e+07 fluid=1.43022e+07
+IMPORT_DEGRADED aten.embedding.default
+SAMPLE 73 flow=1.01273e+07 fluid=9.63458e+06
+IMPORT_DEGRADED aten.embedding.default

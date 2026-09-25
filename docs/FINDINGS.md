@@ -7552,3 +7552,27 @@ unexplained term to synchronization or attention.
 Evidence: `SOLVER_R9B/matrix/{llama_s1,qwen3_s1}/selected.cu.top3.tsv`, each
 candidate's `*.measurement/process_*.log`, and matching `*.flow.tsv` and
 `*.flow_chain.tsv`; `SOLVER_R9B/controls/*_s1/process_*.log`.
+
+## F-264 — Flow/FIFO ordering passes the complete random-config gate
+
+✅ verified: pure-home validation completed 100 independently sampled legal
+configurations per model, with original RNG order and completed prefixes
+preserved across the diagnostic restarts. Spearman is 0.994287429 for Llama
+and 0.990735074 for Qwen3, above G-8's unchanged 0.85 threshold. T_flow/T_FIFO
+p10/median/p90 is 0.957792/1.002760/1.023416 and
+0.955829/1.006608/1.031249. Pure simulation-phase maxima are 530.139 and
+665.420 ms; these exclude relation preparation and plan finalization, whose
+separate raw timers remain available. This does not make G-7 pass: cold
+preparation, arbitrary-config flow evaluation, and full searches retain their
+recorded budget failures.
+
+✅ verified: Llama's additional colocated 100-config audit also completed,
+Spearman 0.994671467, median ratio 1.002708753. Qwen3's colocated audit is
+still running at this record. Nonprefix predecessor domains occur in
+161–273 / 281–477 edges, and coordinate-varying spaces reach 16 / 29 in the
+pure-home samples. F-260's runtime-horizon mismatch remains an additional
+approximation. High internal model concordance cannot remove F-263's large
+prediction-to-device discrepancy.
+
+Evidence: `SOLVER_R9B/validation/{llama,qwen3}/{samples.tsv,configs.tsv,exit.json}`,
+per-sample `*.timing.tsv`, and `validation_colocated/llama/`.
