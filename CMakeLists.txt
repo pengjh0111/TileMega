@@ -689,21 +689,26 @@ if(TILEMEGA_BUILD_TESTS)
   target_compile_options(serving_epilogue_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   set_property(TARGET serving_epilogue_test PROPERTY CUDA_ARCHITECTURES 89)
+  add_test(NAME serving_epilogue COMMAND serving_epilogue_test)
   add_executable(serving_gemm_task_body_test
     test/unit/serving_gemm_task_body_test.cu)
   target_link_libraries(serving_gemm_task_body_test PRIVATE TileMega::tilemega)
   target_compile_options(serving_gemm_task_body_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   set_property(TARGET serving_gemm_task_body_test PROPERTY CUDA_ARCHITECTURES 89)
+  add_test(NAME serving_gemm_task_body COMMAND serving_gemm_task_body_test)
   add_executable(serving_rmsnorm_test test/unit/serving_rmsnorm_test.cu)
   target_link_libraries(serving_rmsnorm_test PRIVATE TileMega::tilemega)
   set_property(TARGET serving_rmsnorm_test PROPERTY CUDA_ARCHITECTURES 89)
+  add_test(NAME serving_rmsnorm COMMAND serving_rmsnorm_test)
   add_executable(serving_state_tasks_test test/unit/serving_state_tasks_test.cu)
   target_link_libraries(serving_state_tasks_test PRIVATE TileMega::tilemega)
   set_property(TARGET serving_state_tasks_test PROPERTY CUDA_ARCHITECTURES 89)
+  add_test(NAME serving_state_tasks COMMAND serving_state_tasks_test)
   add_executable(serving_combine_test test/unit/serving_combine_test.cu)
   target_link_libraries(serving_combine_test PRIVATE TileMega::tilemega)
   set_property(TARGET serving_combine_test PROPERTY CUDA_ARCHITECTURES 89)
+  add_test(NAME serving_combine COMMAND serving_combine_test)
   add_executable(serving_model_plan_test test/unit/serving_model_plan_test.cpp)
   target_link_libraries(serving_model_plan_test PRIVATE TileMega::tilemega)
   add_executable(serving_token_sets_test test/unit/serving_token_sets_test.cpp)
@@ -724,12 +729,14 @@ if(TILEMEGA_BUILD_TESTS)
   target_compile_options(serving_attention_mma_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   set_property(TARGET serving_attention_mma_test PROPERTY CUDA_ARCHITECTURES 89)
+  add_test(NAME serving_attention_mma COMMAND serving_attention_mma_test)
   add_executable(serving_fused_attention_test
     test/unit/serving_fused_attention_test.cu)
   target_link_libraries(serving_fused_attention_test PRIVATE TileMega::tilemega)
   target_compile_options(serving_fused_attention_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   set_property(TARGET serving_fused_attention_test PROPERTY CUDA_ARCHITECTURES 89)
+  add_test(NAME serving_fused_attention COMMAND serving_fused_attention_test)
   # Run explicitly: this numerical probe needs a CUDA device, unlike the
   # compile-only TaskBody contracts in the default CTest suite.
   add_executable(attention_phase_test test/unit/attention_phase_test.cu)
