@@ -286,7 +286,20 @@ check('G-7',budgets)
 def concordance():
  ok=True;detail=[]
  for m in ('llama','qwen3'):
-  directory=E/'validation'/m;r=rows(directory/'samples.tsv');complete=(directory/'exit.json').exists() and json.loads((directory/'exit.json').read_text())['exit']==0;a=[float(x['flow_ns']) for x in r];b=[float(x['fluid_ns']) for x in r];score=rho(a,b);ok &= complete and len(r)>=100 and score>=.85;detail.append(f'{m} n={len(r)} completed={complete} rho={score} ratio_p50={statistics.median(x/y for x,y in zip(a,b))}')
+  directory=E/'validation'/m;r=rows(directory/'samples.tsv')
+  complete=(directory/'exit.json').exists() and json.loads((directory/'exit.json').read_text())['exit']==0
+  configs=rows(directory/'configs.tsv');classes={int(x['class']) for x in configs}
+  sample_ids=[int(x['sample']) for x in r]
+  coverage=sample_ids==list(range(len(r))) and bool(classes) and len(configs)==len(r)*len(classes)
+  coverage &= all({int(x['class']) for x in configs if int(x['sample'])==sample}==classes for sample in sample_ids)
+  legal=all(1<=int(x['residency'])<=int(x['limit']) and int(x['kappa']) in (1,2,4) for x in r)
+  prefix=True;raw=(directory/'samples.tsv').read_bytes()
+  for path in directory.glob('resume*.json'):
+   record=json.loads(path.read_text())
+   if 'prior_sha256' in record:prefix &= hashlib.sha256(raw[:record['prior_bytes']]).hexdigest()==record['prior_sha256']
+  a=[float(x['flow_ns']) for x in r];b=[float(x['fluid_ns']) for x in r];score=rho(a,b)
+  ok &= complete and coverage and legal and prefix and len(r)>=100 and score>=.85
+  detail.append(f'{m} n={len(r)} completed={complete} configuration_coverage={coverage} legal_residency_kappa={legal} resume_prefix_intact={prefix} rho={score} ratio_p50={statistics.median(x/y for x,y in zip(a,b))}')
  return ok,'; '.join(detail)
 check('G-8',concordance)
 check('A-runtime-release',lambda:require(str((E/'unit/runtime_release.log').relative_to(ROOT)),r'RUNTIME_RELEASE checks=2064 mismatches=0(?:\s|$)'))

@@ -1,0 +1,1 @@
+G-8 PASS llama n=100 completed=True configuration_coverage=True legal_residency_kappa=True resume_prefix_intact=True rho=0.9942874287428742 ratio_p50=1.0027600020115222; qwen3 n=100 completed=True configuration_coverage=True legal_residency_kappa=True resume_prefix_intact=True rho=0.9907350735073507 ratio_p50=1.0066082294575116
