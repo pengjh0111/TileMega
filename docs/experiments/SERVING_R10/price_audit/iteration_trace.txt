@@ -1,0 +1,2 @@
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+PRICE_TRACE serving.s130 iters=2048 nominal_reads_per_iter=128272 nominal_writes=16 smem_ns=0 tc_ns=2.91292 l2_ns=7.21154 body_ns=187.813 physical_read_bytes=589824

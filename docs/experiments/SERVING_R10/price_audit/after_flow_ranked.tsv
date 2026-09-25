@@ -1,0 +1,2 @@
+rank	key	flow_ns	residency	kappa	error
+1	16x128x128s2k1;16x128x128s2k1;16x128x128s2k1;16x128x128s2k1;16x128x128s2k1;16x128x128s2k1;kappa=1;residency=1	10194804.500113582	1	1	
