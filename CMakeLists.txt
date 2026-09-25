@@ -737,6 +737,13 @@ if(TILEMEGA_BUILD_TESTS)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   set_property(TARGET serving_fused_attention_test PROPERTY CUDA_ARCHITECTURES 89)
   add_test(NAME serving_fused_attention COMMAND serving_fused_attention_test)
+  add_executable(serving_attention_cases_test
+    test/unit/serving_attention_cases_test.cu)
+  target_link_libraries(serving_attention_cases_test PRIVATE TileMega::tilemega)
+  target_compile_options(serving_attention_cases_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  set_property(TARGET serving_attention_cases_test PROPERTY CUDA_ARCHITECTURES 89)
+  add_test(NAME serving_attention_cases COMMAND serving_attention_cases_test)
   # Run explicitly: this numerical probe needs a CUDA device, unlike the
   # compile-only TaskBody contracts in the default CTest suite.
   add_executable(attention_phase_test test/unit/attention_phase_test.cu)
