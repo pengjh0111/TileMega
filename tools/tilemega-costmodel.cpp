@@ -23,6 +23,8 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
+#include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -474,6 +476,7 @@ int main(int argc, char** argv) try {
                   "\tmeasured_ms\tmodel_ms\tgemm_ms\tcombine_ms\tother_ms"
                   "\tbarrier_ms\tstages_after_split";
         if (unified_task_cost) detail << "\ttask_ns_sum";
+        detail << "\ttotal_ns_bits\tgemm_ns_bits\tcombine_ns_bits\tother_ns_bits\tbarrier_ns_bits\ttask_ns_sum_bits";
         detail << '\n';
         for (std::size_t i = 0; i < points.size(); ++i) {
           CostBreakdown const b = cost.Evaluate(
@@ -486,6 +489,9 @@ int main(int argc, char** argv) try {
                  << b.combine_ns / 1e6 << '\t' << b.other_ns / 1e6 << '\t'
                  << b.barrier_ns / 1e6 << '\t' << b.stage_count;
           if (unified_task_cost) detail << '\t' << b.task_ns_sum;
+          for(double value : {b.total_ns,b.gemm_ns,b.combine_ns,b.other_ns,b.barrier_ns,b.task_ns_sum}) {
+            std::uint64_t bits;std::memcpy(&bits,&value,sizeof(bits));detail << '\t' << std::hex << bits << std::dec;
+          }
           detail << '\n';
         }
       }

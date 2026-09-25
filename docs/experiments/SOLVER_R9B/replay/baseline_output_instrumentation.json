@@ -1,0 +1,6 @@
+{
+  "base": "ce6296f0d6e7fa14d7d0dc3800caed184adf9c72",
+  "source_sha256": "7a177a3125b9679302340986da4fd2c57f3a6a14a229ec7885421255a5630d1e",
+  "binary_sha256": "15d8355c10b9e9f2685f1ba8444c67307ccae0722049ac36bc7222f2904b406f",
+  "purpose": "17-digit display and unscaled IEEE binary64 bits only; no prediction arithmetic changes"
+}
