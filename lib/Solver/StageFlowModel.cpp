@@ -46,10 +46,12 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   struct Later {bool operator()(Event const& a,Event const& b) const{return std::tie(a.time,a.serial)>std::tie(b.time,b.serial);}};
   std::priority_queue<Event,std::vector<Event>,Later> events;std::uint64_t serial=0;
   auto push=[&](double time,Kind kind,int id,std::size_t begin=0,std::size_t end=0,int cause=-1){events.push({time,kind,id,begin,end,serial++,cause});};
-  struct Cohort {int space,piece,cause=-1,edge=-1;std::vector<int> tasks;double start=0,main=0,wait=0,fixed=0,end=0,publication=0;bool compute=false,bytes=false,closing=false;};
-  std::vector<Cohort> cohorts;std::vector<int> fluid_owner;DramFluidServer fluid(p.dram_gbps);double now=0;
+  struct Cohort {int space,piece,cause=-1,edge=-1;std::size_t begin=0,count=0;double start=0,main=0,wait=0,fixed=0,end=0,publication=0;bool compute=false,bytes=false,closing=false;};
+  static thread_local std::vector<Cohort> cohorts;cohorts.clear();
+  static thread_local std::vector<int> cohort_tasks;cohort_tasks.clear();cohort_tasks.reserve(total);
+  std::vector<int> fluid_owner;DramFluidServer fluid(p.dram_gbps);double now=0;
   FlowResult result;result.spaces.resize(n);int last_completed=-1;
-  auto close=[&](int id){auto& c=cohorts[id];if(c.compute && c.bytes && !c.closing){c.closing=true;auto& s=result.spaces[c.space];s.mainloop_ns+=(now-c.main)*c.tasks.size();push(now+(!options.no_sync && publishes[c.space]?p.publication_ns:0),PublishEnd,id);}};
+  auto close=[&](int id){auto& c=cohorts[id];if(c.compute && c.bytes && !c.closing){c.closing=true;auto& s=result.spaces[c.space];s.mainloop_ns+=(now-c.main)*c.count;push(now+(!options.no_sync && publishes[c.space]?p.publication_ns:0),PublishEnd,id);}};
   while(finished<total) {
     while(!events.empty() && events.top().time<=now) {
       auto event=events.top();events.pop();
@@ -61,12 +63,12 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
         if(event.kind==MainStart) {
           c.main=now;double bytes=parts.dram_bytes-(options.no_external?parts.no_producer_dram_bytes:0);
           if(bytes<0)throw std::runtime_error("negative counterfactual traffic");
-          if(bytes>0){int id=fluid.Add(bytes,parts.dram_rate_cap,c.tasks.size());if(id!=int(fluid_owner.size()))throw std::runtime_error("fluid id discontinuity");fluid_owner.push_back(event.id);}else c.bytes=true;
+          if(bytes>0){int id=fluid.Add(bytes,parts.dram_rate_cap,c.count);if(id!=int(fluid_owner.size()))throw std::runtime_error("fluid id discontinuity");fluid_owner.push_back(event.id);}else c.bytes=true;
           push(now+parts.compute_ns,ComputeEnd,event.id);
         }else if(event.kind==ComputeEnd){c.compute=true;close(event.id);}
         else {
-          int s=c.space;c.end=now;c.publication=!options.no_sync && publishes[s]?p.publication_ns:0;last_completed=event.id;free+=c.tasks.size();finished+=c.tasks.size();for(int j:c.tasks)completed[s][j]=1;
-          auto& stats=result.spaces[s];stats.last_end=now;stats.last_edge=last_edge[s][c.tasks.back()];stats.publication_ns+=(!options.no_sync && publishes[s]?p.publication_ns:0)*c.tasks.size();
+          int s=c.space;c.end=now;c.publication=!options.no_sync && publishes[s]?p.publication_ns:0;last_completed=event.id;free+=c.count;finished+=c.count;for(std::size_t i=c.begin;i<c.begin+c.count;++i)completed[s][cohort_tasks[i]]=1;
+          auto& stats=result.spaces[s];stats.last_end=now;stats.last_edge=last_edge[s][cohort_tasks[c.begin+c.count-1]];stats.publication_ns+=(!options.no_sync && publishes[s]?p.publication_ns:0)*c.count;
           int before=prefix[s];while(prefix[s]+1<p.spaces[s].count && completed[s][prefix[s]+1])++prefix[s];
           if(prefix[s]!=before)for(int e:outgoing[s]){auto const& edge=p.edges[e];auto begin=edge_cursor[e];while(edge_cursor[e]<edge.sorted->size() && edge.sorted->at(edge_cursor[e]).first<=prefix[s])++edge_cursor[e];
             if(begin!=edge_cursor[e])push(now+(options.no_sync || (edge.colocated && edge.kappa==1)?0:p.hop_ns),Arrival,e,begin,edge_cursor[e],event.id);}
@@ -78,13 +80,13 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
       int s=std::get<3>(ready_spaces.top());ready_spaces.pop();
       int pi=p.spaces[s].piece_of_task.at(ready[s].front().task);auto const& parts=p.spaces[s].pieces.at(pi).parts;
       bool wait=!options.no_sync && (waits[s] || (all_waits[s] && launched[s]<std::min<long>(p.spaces[s].count,workers)));
-      Cohort cohort;cohort.space=s;cohort.piece=pi;cohort.start=now;cohort.wait=wait?p.consumer_wait_ns:0;cohort.fixed=options.no_fixed?0:parts.fixed_ns;
+      Cohort cohort;cohort.begin=cohort_tasks.size();cohort.space=s;cohort.piece=pi;cohort.start=now;cohort.wait=wait?p.consumer_wait_ns:0;cohort.fixed=options.no_fixed?0:parts.fixed_ns;
       while(free>0 && !ready[s].empty() && p.spaces[s].piece_of_task[ready[s].front().task]==pi) {
         bool next_wait=!options.no_sync && (waits[s] || (all_waits[s] && launched[s]<std::min<long>(p.spaces[s].count,workers)));
-        if(next_wait!=wait)break;cohort.cause=last_cause[s][ready[s].front().task];cohort.edge=last_edge[s][ready[s].front().task];cohort.tasks.push_back(ready[s].front().task);ready[s].pop_front();--free;++launched[s];
+        if(next_wait!=wait)break;cohort.cause=last_cause[s][ready[s].front().task];cohort.edge=last_edge[s][ready[s].front().task];cohort_tasks.push_back(ready[s].front().task);++cohort.count;ready[s].pop_front();--free;++launched[s];
       }
       if(!ready[s].empty())queue_space(s);
-      auto& stats=result.spaces[s];if(stats.first_start<0)stats.first_start=now;stats.wait_ns+=cohort.wait*cohort.tasks.size();stats.fixed_ns+=cohort.fixed*cohort.tasks.size();
+      auto& stats=result.spaces[s];if(stats.first_start<0)stats.first_start=now;stats.wait_ns+=cohort.wait*cohort.count;stats.fixed_ns+=cohort.fixed*cohort.count;
       int id=cohorts.size();cohorts.push_back(std::move(cohort));push(now+cohorts[id].wait+cohorts[id].fixed,MainStart,id);
     }
     if(!events.empty() && events.top().time<=now)continue;
@@ -101,7 +103,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
     auto const& c=cohorts[last_completed];double hop=0;
     if(c.edge>=0){auto const& e=p.edges[c.edge];if(!options.no_sync && !(e.colocated && e.kappa==1))hop=p.hop_ns;}
     result.critical_chain.push_back(c.space);
-    result.critical_links.push_back({c.space,c.tasks.back(),c.edge,c.start,c.end,c.wait,c.fixed,std::max(0.,c.end-c.publication-c.main),c.publication,hop});
+    result.critical_links.push_back({c.space,cohort_tasks[c.begin+c.count-1],c.edge,c.start,c.end,c.wait,c.fixed,std::max(0.,c.end-c.publication-c.main),c.publication,hop});
     last_completed=c.cause;
   }
   std::reverse(result.critical_chain.begin(),result.critical_chain.end());
