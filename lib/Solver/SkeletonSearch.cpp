@@ -95,6 +95,39 @@ struct SearchContext {
     return point;
   }
 };
+GemmConfig ServingSeed(OperatorClass const& cls,
+    frontend::ImportedSemantics const& imported,
+    TargetSpec const& target,int batch,int seq,
+    std::vector<GemmConfig> const& domain) {
+  if(domain.empty())throw std::invalid_argument("serving class has no legal geometry");
+  auto id=cls.gemms.front();
+  auto stage=std::find_if(imported.plan.stages.begin(),imported.plan.stages.end(),
+      [&](auto const& s){return s.kind==frontend::PlanTaskKind::kGemm && s.gemm==id;});
+  if(stage==imported.plan.stages.end())throw std::invalid_argument("serving seed has no GEMM stage");
+  int rows=stage->batch_rows?batch:batch*seq;
+  int columns=int(imported.plan.gemms.at(id).n);
+  int worker_limit=target.res.num_sms*
+      std::max(1,target.res.max_threads_per_sm/kServingBF16Threads);
+  int const output_tiles=((rows+15)/16)*((columns+127)/128);
+  for(int tile_k:{128,64}) {
+    int chosen_split=0;
+    for(auto const& g:domain)
+      if(g.tile_m==16 && g.tile_n==128 && g.tile_k==tile_k &&
+         output_tiles*g.split_k*2>=worker_limit &&
+         (chosen_split==0 || g.split_k<chosen_split))chosen_split=g.split_k;
+    if(!chosen_split)for(auto const& g:domain)
+      if(g.tile_m==16 && g.tile_n==128 && g.tile_k==tile_k)
+        chosen_split=std::max(chosen_split,g.split_k);
+    if(!chosen_split)continue;
+    auto best=domain.end();
+    for(auto it=domain.begin();it!=domain.end();++it)
+      if(it->tile_m==16 && it->tile_n==128 && it->tile_k==tile_k &&
+         it->split_k==chosen_split &&
+         (best==domain.end() || it->stages>best->stages))best=it;
+    if(best!=domain.end())return *best;
+  }
+  return domain.front();
+}
 std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out) {
   auto const& options=search.options;
   if(options.passes<1 || options.passes>3)throw std::invalid_argument("coordinate descent supports P=1..3");
@@ -123,11 +156,18 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     out<<"DOMAIN\t"<<domains.size()<<'\t'<<domain.size()<<'\n';domains.push_back(std::move(domain));
   }
   std::vector<GemmConfig> seed(search.classes.size(),options.seed);
+  if(search.imported.plan.serving)
+    for(std::size_t c=0;c<seed.size();++c)
+      seed[c]=ServingSeed(search.classes[c],search.imported,
+          options.common.placement.target,
+          options.common.placement.dims.batch,
+          options.common.placement.dims.seq,domains[c]);
   int seed_residency=options.seed_residency;
   if(search.imported.plan.serving)seed_residency=std::max(1,
       search.resources.Estimate(search.classes,seed,
           options.common.placement.target,search.dtype).resident_limit);
-  auto legacy=evaluate(seed,options.kappa,seed_residency);std::size_t uniform=legacy;
+  auto legacy=evaluate(seed,search.imported.plan.serving?1:options.kappa,
+      seed_residency);std::size_t uniform=legacy;
   // A uniform configuration must be legal for every operator class.
   if(!search.imported.plan.serving)for(auto const& g:domains.front()) {
     bool legal=true;for(auto const& domain:domains)legal &= std::any_of(domain.begin(),domain.end(),[&](auto const& other){return ClassGeometryKey(g)==ClassGeometryKey(other);});
@@ -153,8 +193,12 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
           if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;++improvements;}}
         out<<"COORDINATE\t"<<start<<'\t'<<pass<<'\t'<<c<<'\t'<<domains[c].size()<<'\t'<<improvements<<'\t'<<evaluated[incumbent].score<<'\n';out.flush();
       }
-      auto fixed=evaluated[incumbent];for(int k:{1,2,4}){auto i=evaluate(fixed.config,k,fixed.residency);if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;}}
-      fixed=evaluated[incumbent];for(int r=1;r<=fixed.estimated_limit;++r){auto i=evaluate(fixed.config,fixed.kappa,r);if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;}}
+      auto fixed=evaluated[incumbent];
+      auto serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
+      for(int k:serving_order.kappa_scan){auto i=evaluate(fixed.config,k,fixed.residency);if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;}}
+      fixed=evaluated[incumbent];
+      serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
+      for(int r:serving_order.residency_scan){auto i=evaluate(fixed.config,fixed.kappa,r);if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;}}
       if(!moved)break;
     }
   }

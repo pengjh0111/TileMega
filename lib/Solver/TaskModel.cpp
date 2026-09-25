@@ -170,10 +170,11 @@ DerivedTaskInput DeriveCombineTaskInput(ModelDescription const& model,int stage,
   if (semantic==model.task_semantics.end() || threads<=0)
     throw std::invalid_argument("combine lacks split semantics or launch width");
   auto const* declared=graph.Find(semantic->op.reduction.combiner);
-  if (!declared || declared->output.axes.size()!=2 || declared->operands.size()!=1)
+  if (!declared || declared->output.axes.size()<2 || declared->operands.size()!=1)
     throw std::invalid_argument("combine requires the instantiated partial tensor");
   auto task=*declared;
-  if (!tile_ownership) task.tile={ClosedForm::Constant(1),ClosedForm::Constant(1)};
+  if (!tile_ownership)
+    task.tile.assign(task.output.axes.size(),ClosedForm::Constant(1));
   SemanticOp reduction;
   reduction.name=task.name;reduction.kind=OperatorKind::kReduction;
   reduction.dtype=semantic->op.dtype;reduction.result=task.output;
@@ -199,7 +200,8 @@ DerivedTaskInput DeriveCombineTaskInput(ModelDescription const& model,int stage,
       if (operand.tensor.axes.size()!=task.output.axes.size())
         throw std::invalid_argument("combine residual rank mismatch");
       Operand r;r.tensor=operand.tensor;r.producer=operand.producer;
-      for (int axis=0;axis<2;++axis) r.axes.push_back(OperandAxisMap::Indexed(axis));
+      for (std::size_t axis=0;axis<task.output.axes.size();++axis)
+        r.axes.push_back(OperandAxisMap::Indexed(axis));
       task.operands.push_back(r);
       auto mapped=operand;mapped.map=reduction.result_map;reduction.operands.push_back(mapped);
     }

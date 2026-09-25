@@ -1,0 +1,8 @@
+{
+  "scope": "restricted-domain search-only pricing integration, not G-6 or EV-1",
+  "old_seed_error": "combine requires the instantiated partial tensor",
+  "new_seed_score_ns": 12512551.14179398,
+  "new_seed_error": "",
+  "evaluations": 20,
+  "qkv_split_candidates_finite": true
+}
