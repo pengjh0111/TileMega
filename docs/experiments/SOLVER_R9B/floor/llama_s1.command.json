@@ -1,0 +1,10 @@
+[
+  "build-portable/tools/tilemega-dram-floor",
+  "docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s1/selected.mlir",
+  "docs/experiments/COSTMODEL/event_fit/target.json",
+  "1",
+  "3",
+  "/root/r7_work/llama_s1/fixture",
+  "docs/experiments/SOLVER_R9B/floor/llama_s1.mlir",
+  "docs/experiments/SOLVER_R9B/floor/llama_s1.tsv"
+]

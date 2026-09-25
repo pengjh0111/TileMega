@@ -1,0 +1,765 @@
+tensor	source	read_bytes	write_bytes	read_polynomial	write_polynomial
+b_inv_freq	weight	128	0	[s10] -> { 128 : s10 > 0 }	{ 0 }
+embed.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+final.logits	zero	0	4861952	{ 0 }	[s10] -> { 303872 * s10 : s10 > 0 }
+final.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+input_ids	fixture	128	0	[s10] -> { 8 * s10 : s10 > 0 }	{ 0 }
+l0.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l0.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l0.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l0.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l0.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l0.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l0.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l0.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l0.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l0.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l0.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l0.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l0.s102.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s114.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s119.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s12.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s131.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s136.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s148.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s153.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s165.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s17.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s170.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s182.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s187.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s199.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s204.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s216.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s221.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s233.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s238.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s250.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s255.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s267.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s272.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s284.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s289.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s29.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s301.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s306.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s318.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s323.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s335.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s34.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s340.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s352.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s357.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s369.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s374.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s386.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s391.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s403.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s408.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s420.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s425.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s437.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s442.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s454.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s459.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s46.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s471.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s476.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s51.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s63.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s68.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s80.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s85.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.s97.proj		0	0	[s10] -> { 0 }	{ 0 }
+l0.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l0.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l1.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l1.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l1.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l1.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l1.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l1.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l1.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l1.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l1.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l1.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l1.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l1.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l1.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l1.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l10.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l10.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l10.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l10.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l10.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l10.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l10.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l10.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l10.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l10.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l10.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l10.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l10.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l10.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l11.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l11.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l11.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l11.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l11.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l11.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l11.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l11.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l11.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l11.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l11.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l11.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l11.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l11.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l12.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l12.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l12.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l12.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l12.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l12.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l12.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l12.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l12.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l12.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l12.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l12.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l12.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l12.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l13.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l13.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l13.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l13.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l13.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l13.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l13.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l13.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l13.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l13.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l13.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l13.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l13.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l13.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l14.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l14.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l14.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l14.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l14.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l14.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l14.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l14.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l14.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l14.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l14.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l14.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l14.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l14.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l15.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l15.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l15.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l15.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l15.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l15.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l15.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l15.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l15.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l15.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l15.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l15.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l15.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l15.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l16.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l16.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l16.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l16.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l16.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l16.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l16.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l16.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l16.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l16.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l16.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l16.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l16.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l16.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l17.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l17.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l17.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l17.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l17.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l17.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l17.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l17.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l17.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l17.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l17.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l17.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l17.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l17.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l18.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l18.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l18.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l18.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l18.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l18.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l18.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l18.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l18.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l18.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l18.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l18.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l18.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l18.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l19.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l19.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l19.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l19.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l19.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l19.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l19.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l19.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l19.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l19.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l19.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l19.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l19.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l19.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l2.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l2.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l2.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l2.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l2.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l2.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l2.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l2.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l2.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l2.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l2.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l2.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l2.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l2.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l20.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l20.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l20.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l20.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l20.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l20.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l20.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l20.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l20.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l20.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l20.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l20.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l20.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l20.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l21.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l21.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l21.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l21.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l21.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l21.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l21.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l21.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l21.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l21.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l21.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l21.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l21.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l21.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l22.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l22.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l22.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l22.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l22.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l22.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l22.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l22.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l22.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l22.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l22.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l22.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l22.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l22.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l23.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l23.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l23.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l23.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l23.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l23.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l23.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l23.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l23.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l23.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l23.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l23.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l23.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l23.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l24.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l24.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l24.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l24.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l24.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l24.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l24.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l24.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l24.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l24.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l24.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l24.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l24.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l24.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l25.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l25.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l25.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l25.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l25.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l25.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l25.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l25.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l25.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l25.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l25.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l25.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l25.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l25.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l26.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l26.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l26.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l26.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l26.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l26.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l26.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l26.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l26.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l26.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l26.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l26.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l26.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l26.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l27.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l27.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l27.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l27.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l27.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l27.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l27.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l27.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l27.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l27.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l27.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l27.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l27.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l27.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l3.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l3.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l3.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l3.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l3.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l3.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l3.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l3.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l3.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l3.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l3.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l3.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l3.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l3.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l4.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l4.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l4.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l4.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l4.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l4.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l4.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l4.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l4.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l4.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l4.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l4.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l4.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l4.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l5.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l5.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l5.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l5.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l5.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l5.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l5.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l5.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l5.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l5.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l5.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l5.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l5.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l5.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l6.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l6.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l6.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l6.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l6.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l6.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l6.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l6.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l6.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l6.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l6.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l6.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l6.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l6.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l7.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l7.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l7.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l7.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l7.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l7.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l7.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l7.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l7.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l7.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l7.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l7.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l7.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l7.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l8.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l8.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l8.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l8.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l8.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l8.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l8.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l8.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l8.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l8.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l8.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l8.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l8.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l8.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+l9.context	zero	0	0	[s10] -> { 0 }	{ 0 }
+l9.full_k	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l9.full_v	zero	6144	32768	[s10, s11] -> { 2048 * s11 : s10 > 0 and s11 > 0 }	[s10, s11] -> { 2048 * s10 : s10 > 0 }
+l9.gate	zero	0	0	[s10] -> { 0 }	{ 0 }
+l9.hidden	zero	0	0	[s10] -> { 0 }	{ 0 }
+l9.k	zero	0	0	[s10] -> { 0 }	{ 0 }
+l9.k_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l9.k_rot	zero	0	0	[s10] -> { 0 }	{ 0 }
+l9.norm	zero	0	0	[s10] -> { 0 }	{ 0 }
+l9.q	zero	0	0	[s10] -> { 0 }	{ 0 }
+l9.q_normed	zero	0	0	[s10] -> { 0 }	{ 0 }
+l9.q_rot	zero	0	0	[s10, s11] -> { 0 }	{ 0 }
+l9.up	zero	0	0	[s10] -> { 0 }	{ 0 }
+l9.v	zero	0	0	[s10] -> { 0 }	{ 0 }
+p_embed_weight	weight	65536	0	{ 65536 }	{ 0 }
+p_final_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_0_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_0_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_0_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_0_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_0_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_0_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_0_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_0_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_0_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_0_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_0_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_10_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_10_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_10_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_10_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_10_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_10_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_10_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_10_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_10_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_10_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_10_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_11_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_11_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_11_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_11_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_11_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_11_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_11_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_11_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_11_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_11_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_11_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_12_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_12_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_12_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_12_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_12_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_12_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_12_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_12_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_12_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_12_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_12_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_13_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_13_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_13_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_13_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_13_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_13_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_13_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_13_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_13_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_13_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_13_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_14_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_14_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_14_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_14_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_14_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_14_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_14_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_14_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_14_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_14_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_14_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_15_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_15_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_15_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_15_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_15_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_15_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_15_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_15_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_15_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_15_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_15_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_16_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_16_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_16_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_16_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_16_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_16_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_16_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_16_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_16_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_16_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_16_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_17_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_17_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_17_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_17_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_17_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_17_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_17_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_17_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_17_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_17_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_17_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_18_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_18_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_18_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_18_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_18_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_18_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_18_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_18_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_18_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_18_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_18_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_19_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_19_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_19_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_19_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_19_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_19_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_19_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_19_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_19_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_19_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_19_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_1_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_1_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_1_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_1_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_1_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_1_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_1_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_1_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_1_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_1_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_1_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_20_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_20_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_20_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_20_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_20_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_20_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_20_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_20_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_20_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_20_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_20_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_21_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_21_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_21_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_21_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_21_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_21_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_21_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_21_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_21_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_21_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_21_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_22_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_22_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_22_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_22_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_22_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_22_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_22_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_22_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_22_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_22_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_22_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_23_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_23_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_23_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_23_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_23_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_23_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_23_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_23_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_23_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_23_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_23_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_24_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_24_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_24_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_24_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_24_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_24_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_24_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_24_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_24_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_24_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_24_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_25_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_25_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_25_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_25_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_25_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_25_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_25_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_25_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_25_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_25_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_25_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_26_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_26_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_26_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_26_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_26_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_26_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_26_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_26_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_26_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_26_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_26_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_27_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_27_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_27_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_27_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_27_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_27_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_27_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_27_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_27_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_27_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_27_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_2_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_2_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_2_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_2_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_2_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_2_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_2_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_2_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_2_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_2_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_2_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_3_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_3_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_3_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_3_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_3_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_3_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_3_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_3_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_3_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_3_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_3_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_4_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_4_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_4_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_4_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_4_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_4_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_4_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_4_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_4_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_4_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_4_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_5_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_5_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_5_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_5_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_5_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_5_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_5_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_5_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_5_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_5_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_5_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_6_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_6_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_6_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_6_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_6_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_6_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_6_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_6_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_6_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_6_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_6_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_7_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_7_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_7_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_7_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_7_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_7_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_7_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_7_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_7_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_7_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_7_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_8_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_8_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_8_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_8_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_8_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_8_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_8_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_8_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_8_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_8_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_8_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_9_down_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_9_gate_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_9_input_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_9_k_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_9_k_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_layers_9_o_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_9_post_norm_weight	weight	4096	0	{ 4096 }	{ 0 }
+p_layers_9_q_norm_weight	weight	256	0	{ 256 }	{ 0 }
+p_layers_9_q_proj_weight	weight	8388608	0	{ 8388608 }	{ 0 }
+p_layers_9_up_proj_weight	weight	25165824	0	{ 25165824 }	{ 0 }
+p_layers_9_v_proj_weight	weight	4194304	0	{ 4194304 }	{ 0 }
+p_lm_head_weight	weight	622329856	0	{ 622329856 }	{ 0 }

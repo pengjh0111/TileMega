@@ -1,0 +1,10 @@
+[
+  "build-portable/tools/tilemega-dram-floor",
+  "docs/experiments/SOLVER_V2/legacy_r8_domain/qwen3_s64/selected.mlir",
+  "docs/experiments/COSTMODEL/event_fit/target.json",
+  "64",
+  "3",
+  "/root/r9_work/qwen3_s64/fixture",
+  "docs/experiments/SOLVER_R9B/floor/qwen3_s64.mlir",
+  "docs/experiments/SOLVER_R9B/floor/qwen3_s64.tsv"
+]
