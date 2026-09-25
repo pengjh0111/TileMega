@@ -127,6 +127,7 @@ bool ScheduleBySkeleton(SkeletonRequest const& request,EftSchedule* out,
       stats.candidate_sum+=candidates.size();
       std::vector<int>().swap(candidates);
       int home=skeleton.Home(task.stage,task.tile);
+      stats.moved_from_home+=chosen!=home;
       if(std::any_of(a.critical.begin(),a.critical.end(),[&](auto const& p){return p.node>=0 && p.worker==chosen;}))++stats.affinity;
       else if(chosen==home)++stats.home;else ++stats.spread_other;
       out->makespan_ns=std::max(out->makespan_ns,chosen_end);

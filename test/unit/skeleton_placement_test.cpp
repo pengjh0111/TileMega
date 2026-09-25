@@ -45,6 +45,9 @@ int main() {
       if(!(first_consumer<last_producer))throw std::runtime_error("ready consumers wait for the upstream stage");
     }
     if(stats.affinity+stats.home+stats.spread_other!=24 || stats.candidate_sum>24*4)throw std::runtime_error("candidate accounting mismatch");
+    std::uint64_t moved=0;
+    for(int s=0;s<3;++s)for(int t=0;t<8;++t)moved+=schedule.worker[s*8+t]!=sk.Home(s,t);
+    if(moved!=stats.moved_from_home)throw std::runtime_error("home displacement mismatch");
     std::uint64_t digest=1469598103934665603ull;
     for(std::size_t n=0;n<schedule.worker.size();++n) {
       for(auto value:{double(schedule.worker[n]),double(schedule.slot[n]),schedule.start_ns[n],schedule.end_ns[n]}) {
@@ -53,6 +56,10 @@ int main() {
     }
     std::cout<<"SCHEDULE_DIGEST case="<<scenario<<" value="<<digest<<'\n';
     std::cout<<"READY_PLACEMENT case="<<scenario<<" makespan="<<schedule.makespan_ns<<" interleaving="<<stats.interleaving<<" requeues="<<stats.lazy_requeues<<" PASS\n";
+    request.pure_template=true;
+    if(!solver::ScheduleBySkeleton(request,&schedule,&stats,&error) || stats.moved_from_home!=0)
+      throw std::runtime_error("pure template moved a task from home");
+    std::cout<<"TEMPLATE_DISPLACEMENT case="<<scenario<<" moved="<<stats.moved_from_home<<" affinity="<<stats.affinity<<" PASS\n";
   }
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
 }

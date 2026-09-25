@@ -87,6 +87,26 @@ def selected(cell):
     return min(measured, key=lambda pair: pair[0]['l2_ms'])
 
 
+def displacement(metric_path):
+    metric=rows(metric_path)[0]
+    if 'moved_from_home' in metric:
+        return int(metric['moved_from_home']), str(metric_path.relative_to(E))
+    # Old destination bins assigned the overlap to affinity. Reconstruct the
+    # exact count using A's pure-home assignment, never `placed - home`.
+    template=metric_path.with_name(re.sub(r'm(\d+)[AB]\.metrics',r'm\1A.metrics',metric_path.name))
+    if template==metric_path and not re.search(r'm\d+A\.metrics',metric_path.name):
+        raise ValueError('missing independent home count: '+str(metric_path))
+    pure=rows(template)[0]
+    if pure['key']!=metric['key'] or pure['grid']!=metric['grid'] or pure['candidate_sum']!=pure['placed']:
+        raise ValueError('home replay differs in geometry/grid or is not pure template')
+    def owners(path):
+        return {(int(r['stage']),int(r['task'])):int(r['worker']) for r in rows(path.with_name(path.name.replace('.metrics.tsv','.tasks.tsv')))}
+    home,actual=owners(template),owners(metric_path)
+    if home.keys()!=actual.keys() or len(home)!=int(metric['placed']):
+        raise ValueError('incomplete home/actual assignment')
+    return sum(home[t]!=actual[t] for t in home),str(template.relative_to(E))+' + '+str(metric_path.relative_to(E))
+
+
 def performance():
     result, configs, decompositions, fusion, placements, resources, phases = [], [], [], [], [], [], []
     for model, seq in CELLS:
@@ -135,14 +155,19 @@ def performance():
             runtime = re.search(r'tilemega.gemm_runtime = \[(.*?)\]', old, re.S)[1]
             first = re.search(r'\{(.*?)\}', runtime)[1]
             legacy = dict(re.findall(r'(tile_m|tile_n|tile_k|stages|split_k) = (\d+)', first))
+            memberships = rows(directory / 'selected.cu.classes.tsv')
             for index, shape in enumerate(shapes):
                 configs.append(dict(cell=cell, operator_class=index, **dict(zip(('tile_m', 'tile_n', 'tile_k', 'stages', 'split_k'), shape)),
+                    operators=','.join(r['op'] for r in memberships if int(r['class']) == index),
                     legacy_uniform=json.dumps(legacy, sort_keys=True), kappa=candidate['kappa'], residency=candidate['residency'],
                     distinct_variants=len({s[:4] for s in shapes}), key=candidate['key']))
             for p, r in matching:
                 metric_path = p.with_name(p.name.replace('.flow.tsv', '.metrics.tsv'))
                 metric = rows(metric_path)[0]
-                placements.append(dict(cell=cell, **metric, evidence=str(metric_path.relative_to(E))))
+                moved,proof=displacement(metric_path)
+                placements.append(dict(cell=cell, **metric, moved_count=moved,
+                    moved_fraction=moved/int(metric['placed']), home_evidence=proof,
+                    evidence=str(metric_path.relative_to(E))))
         except (OSError, ValueError, KeyError, IndexError) as error:
             missing.append(str(error))
         for arm, measured, depth, candidate in arms:
@@ -174,7 +199,9 @@ def consistency():
             ratios = [x / y for x, y in zip(a, b)]
             phase_values = [float(r['total_ms']) for p in path.parent.glob('sample_*.timing.tsv')
                             for r in rows(p) if r['phase'] == 'simulate']
-            result.append(dict(family=family, model=model, n=len(data), complete=(path.parent / 'exit.json').exists(),
+            exit_file=path.parent/'exit.json'
+            complete=exit_file.exists() and json.loads(exit_file.read_text()).get('exit')==0 and len(data)>=100
+            result.append(dict(family=family, model=model, n=len(data), complete=complete,
                 spearman=statistics.correlation(ranks(a), ranks(b)),
                 **{f'ratio_p{q}': quantile(ratios, q / 100) for q in (0, 10, 50, 90, 100)},
                 flow_ms_max=max(float(r['flow_ms']) for r in data), fluid_ms_max=max(phase_values, default=math.nan),
@@ -186,7 +213,7 @@ def consistency():
 
 def replays():
     result = []
-    for arm in ('baseline_bf16', 'physical_bf16', 'stages_bf16', 'fixed_bf16', 'all_bf16', 'selected_bf16', 'historical_target_bf16'):
+    for arm in ('baseline_bf16', 'physical_bf16', 'stages_bf16', 'fixed_bf16', 'all_complete_bf16', 'selected_bf16', 'historical_target_bf16'):
         for model in ('gqa2', 'mha4'):
             path = E / 'replay' / arm / f'predictions_{model}.tsv'
             if not path.exists():
@@ -263,7 +290,7 @@ def additional_measurements():
             if metrics.exists():
                 row = rows(metrics)[0]
                 record.update(flow_ns=row['flow_ns'], simulated_ns=row['simulated_ns'], residency=row['residency'],
-                              moved_fraction=1 - float(row['home']) / float(row['placed']))
+                              moved_fraction=displacement(metrics)[0] / int(row['placed']))
             occupancy = path / 'occupancy/query.log'
             if occupancy.exists():
                 record['actual_limit'] = json.loads(occupancy.read_text())['resident']

@@ -75,12 +75,17 @@ def no_schedule():
    if re.search(r'\bisl_schedule_\w+\s*\(',line):bad.append(f'{p}:{i}:{line.strip()}')
  return not bad,f'{scanned} changed implementation files; '+'; '.join(bad)
 def command_audit():
- paths=sorted(set(E.rglob('*command.json'))|set(E.rglob('build_command.txt')));bad=[]
+ paths=sorted(set(E.rglob('*command.json'))|set(E.rglob('build_command.txt')));bad=[];nozero=[]
  for p in paths:
   if re.search(r'MIDPOINT_REFINE(?:=|\s+)1\b',p.read_text()):bad.append(str(p.relative_to(ROOT)))
- return bool(paths) and not bad,f'{len(paths)} raw command files (including occupancy build_command.txt); refine1={bad}; examples={[str(p.relative_to(ROOT)) for p in paths[:3]]}'
+  if 'nvcc' in p.read_text() and 'MIDPOINT_REFINE=0' not in p.read_text():nozero.append(str(p.relative_to(ROOT)))
+ return bool(paths) and not bad and not nozero,f'{len(paths)} raw command files (including occupancy build_command.txt); refine1={bad}; nvcc_without_explicit_zero={nozero}; examples={[str(p.relative_to(ROOT)) for p in paths[:3]]}'
 def sass():
- found=sorted(E.rglob('sass.log'));bad=[];kernels=0
+ found=sorted(E.rglob('sass.log'));bad=[];kernels=0;missing=[]
+ measured={p.parent for p in E.rglob('process_*.log') if 'E2E_TIME ' in p.read_text()}
+ for directory in sorted(measured):
+  p=directory/'sass.log'
+  if not p.exists() or 'tilemega_l2_kernel' not in p.read_text():missing.append(str(p.relative_to(ROOT)))
  for p in found:
   current=None
   for line in p.read_text().splitlines():
@@ -89,7 +94,7 @@ def sass():
     current=m[1] if any(t in m[1] for t in ('tilemega_l1_kernel','tilemega_l2_kernel')) else None
     kernels+=bool(current)
    if current and re.search(r'\b(?:DADD|DMUL|DFMA|DSETP)\b|\bF64\b|\b(?:F2D|D2F|I2D|D2I)\b',line):bad.append((str(p.relative_to(ROOT)),line.strip()))
- return kernels>0 and not bad,f'kernel_functions={kernels} FP64={len(bad)} first={bad[:2]}'
+ return kernels>0 and not bad and not missing,f'measured_binaries={len(measured)} missing_sass={missing} kernel_functions={kernels} FP64={len(bad)} first={bad[:2]}'
 def variant_check():
  checked=0;bad=[];proof=[]
  commands=list(E.rglob('build.command.json'))+list(E.rglob('original_build.command.json'))
@@ -379,6 +384,25 @@ def ablations():
  for out in expected:
   logs=sorted(out.glob('process_*.log'));data=[parse_measure(p) for p in logs];valid=[t for good,t in data if good and t]
   ok &= len(valid)==10 and len(logs)==10;detail.append(f'{out.relative_to(E)} n={len(valid)} L2={statistics.median(t[2] for t in valid) if valid else float("nan")}')
+  try:
+   metric=rows(out/'materialized/selected.metrics.tsv')[0]
+   query=json.loads((out/'occupancy/query.log').read_text())
+   limit=min(query['l1'],query['l2']);r=int(metric['residency'])
+   resident_ok=0<r<=limit and query['resident']==limit
+   ok &= resident_ok
+   placed=int(metric['placed']);moved=int(metric['moved_from_home'])
+   detail.append(f'{out.relative_to(E)} grid={metric["grid"]} residency={r} measured_limit={limit} occupancy_ok={resident_ok} moved={moved}/{placed} flow_ns={metric["flow_ns"]} fluid_ns={metric["simulated_ns"]}')
+   ok &= 0<=moved<=placed
+   if out.name=='template':ok &= moved==0 and int(metric['candidate_sum'])==placed
+   if out.name=='wide':ok &= int(metric['candidate_sum'])==placed*int(metric['grid'])
+   if out.name=='eft':ok &= int(metric['candidate_sum'])<=10*placed
+   if out.parent.name=='stages':
+    requested=int(out.name[-1]);shapes=re.findall(r'(\d+)x(\d+)x(\d+)s(\d+)k(\d+)',metric['key'])
+    original=selected_measurement(E/'matrix/llama_s4')
+    selected=next(x for x in rows(E/'matrix/llama_s4/selected.cu.top3.tsv') if pathlib.Path(x['source']+'.measurement')==original)
+    old=re.findall(r'(\d+)x(\d+)x(\d+)s(\d+)k(\d+)',selected['key'])
+    ok &= len(old)==len(shapes) and all(a[:3]+a[4:]==b[:3]+b[4:] and int(a[3])==requested for a,b in zip(shapes,old))
+  except Exception as error:ok=False;detail.append(f'{out.relative_to(E)}: {error}')
  return ok,'; '.join(detail)
 check('G-13',ablations);check('G-14',early)
 def fits():
