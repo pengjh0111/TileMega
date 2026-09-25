@@ -7551,4 +7551,4 @@ unexplained term to synchronization or attention.
 
 Evidence: `SOLVER_R9B/matrix/{llama_s1,qwen3_s1}/selected.cu.top3.tsv`, each
 candidate's `*.measurement/process_*.log`, and matching `*.flow.tsv` and
-`*.chain.tsv`; `SOLVER_R9B/controls/*_s1/process_*.log`.
+`*.flow_chain.tsv`; `SOLVER_R9B/controls/*_s1/process_*.log`.

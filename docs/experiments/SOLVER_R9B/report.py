@@ -311,6 +311,29 @@ def additional_measurements():
     write('legacy_flow.tsv', legacy_flow)
 
 
+def trace_comparison():
+    result = []
+    for model in ('llama', 'qwen3'):
+        for seq in (1,64):
+            cell=f'{model}_s{seq}'
+            observed=rows(E/'trace_analysis'/cell/'chain_links.tsv')
+            flow=rows(E/'flow_final'/cell/'home.flow.tsv')[0]
+            chain=rows(E/'flow_final'/cell/'home.flow_chain.tsv')
+            result.append(dict(cell=cell, actual_legacy_ms=measurements(E/'controls'/cell)['l2_ms'],
+                trace_chain_ns=sum(float(r['wall_ns']) for r in observed),
+                trace_wait_hop_ns=sum(float(r['wait_hop_ns']) for r in observed),
+                trace_task_combined_ns=sum(float(r['task_fixed_plus_mainloop_ns']) for r in observed),
+                trace_publication_ns=sum(float(r['publish_ns']) for r in observed),
+                trace_idle_ns=sum(float(r['idle_ns']) for r in observed),
+                flow_ns=flow['T'], flow_synchronization_ns=flow['synchronization'], flow_fixed_ns=flow['fixed'],
+                flow_contention_ns=flow['contention'], flow_chain_delay_ns=flow['chain_delay'],
+                flow_chain_wait_hop_ns=sum(float(r['wait_ns'])+float(r['hop_ns']) for r in chain),
+                flow_chain_task_combined_ns=sum(float(r['fixed_ns'])+float(r['mainloop_ns']) for r in chain),
+                flow_chain_publication_ns=sum(float(r['publication_ns']) for r in chain),
+                interpretation='same legacy geometry; modeled global pool/pure home versus measured legacy placement; counterfactual components are not trace intervals'))
+    write('trace_vs_flow.tsv',result)
+
+
 def model_traffic():
     result = []
     for model, seq in CELLS:
@@ -334,7 +357,7 @@ def model_traffic():
 
 def main():
     OUT.mkdir(exist_ok=True)
-    for operation in (performance, consistency, replays, theta, fits_and_traffic, additional_measurements, model_traffic):
+    for operation in (performance, consistency, replays, theta, fits_and_traffic, additional_measurements, model_traffic, trace_comparison):
         operation()
     (OUT / 'incomplete.json').write_text(json.dumps(missing, indent=2) + '\n')
     print(f'R9B_REPORT tables={OUT} incomplete_items={len(missing)}')

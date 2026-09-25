@@ -33,12 +33,15 @@ void AuditTraffic(solver::SymbolicProblem const& problem,solver::PreparedFlow co
     solver::BindTaskDramProvenance(input,semantic,floor,theta);
     bool partial=!projected.combine && graph.Find(semantic.op.reduction.combiner);
     double sums[7]={};long count=0;
-    for(auto const& piece:flow.prices[s].pieces) {
-      auto n=piece.count.Eval(theta);count+=n;
-      // Scalar task traffic already used the physical q-domain before R9b.
-      auto prior_domain=stage.IsCollective() && !projected.combine ? analysis::AccessDomain::kNominalTile : analysis::AccessDomain::kPhysicalTensor;
-      auto nominal=solver::DeriveTaskMemoryTraffic(input,theta,piece.representative,2,partial?4:2,prior_domain);
-      auto physical=solver::DeriveTaskMemoryTraffic(input,theta,piece.representative,2,partial?4:2,analysis::AccessDomain::kPhysicalTensor);
+    std::vector<analysis::ParamBinding> points;
+    for(auto const& piece:flow.prices[s].pieces)points.push_back(piece.representative);
+    // Scalar task traffic already used the physical q-domain before R9b.
+    auto prior_domain=stage.IsCollective() && !projected.combine ? analysis::AccessDomain::kNominalTile : analysis::AccessDomain::kPhysicalTensor;
+    auto nominal_values=solver::DeriveTaskMemoryTrafficBatch(input,theta,points,2,partial?4:2,prior_domain);
+    auto physical_values=solver::DeriveTaskMemoryTrafficBatch(input,theta,points,2,partial?4:2,analysis::AccessDomain::kPhysicalTensor);
+    for(std::size_t i=0;i<points.size();++i) {
+      auto n=flow.prices[s].pieces[i].count.Eval(theta);count+=n;
+      auto const& nominal=nominal_values[i];auto const& physical=physical_values[i];
       double values[]={nominal.global_read_bytes,nominal.global_write_bytes,physical.global_read_bytes,physical.global_write_bytes,physical.no_producer_read_bytes,physical.produced_read_bytes,physical.external_write_bytes};
       for(int j=0;j<7;++j)sums[j]+=n*values[j];
     }

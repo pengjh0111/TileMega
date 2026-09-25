@@ -81,6 +81,7 @@ parts.append('''## 6. 缺口分解与 trace
 以下四项来自同一物理模型的反事实求值，和为 **预测 T − T_floor**，并非实测 L2 − T_floor 的直接测量分解。`flow_over_measured` 显示仍未被模型解释的部分，不能把它藏入某个已测相位。负争用项原样保留。
 
 '''+table('decomposition.tsv',['cell','sync_ns','fixed_ns','contention_ns','chain_ns','closure_ns','flow_over_measured','fluid_over_measured']))
+parts.append('同一 legacy 几何的并列诊断如下；模型采用全局池/纯 home，trace 来自实际 legacy 放置，不能把两列差值直接归因于某一个物理项。反事实分解与已实现路径区间也不是同一量。\n\n'+table('trace_vs_flow.tsv',['cell','actual_legacy_ms','trace_chain_ns','trace_wait_hop_ns','trace_task_combined_ns','trace_publication_ns','flow_ns','flow_synchronization_ns','flow_fixed_ns','flow_contention_ns','flow_chain_delay_ns']))
 parts.append('四格 trace 的固定段与主循环合并报告；等待/hop、发布、屏障、空闲保持独立。逐节非重叠墙钟路径可求和；各 space 跨度相互重叠，不可相加当作关键路径。\n')
 for cell in ('llama_s1','llama_s64','qwen3_s1','qwen3_s64'):
     path=E/'trace_analysis'/cell/'chain_categories.tsv'

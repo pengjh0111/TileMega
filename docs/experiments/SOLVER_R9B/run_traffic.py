@@ -7,7 +7,7 @@ counted exactly from boundary pieces or its coordinate-varying pieces.
 """
 import hashlib,json,pathlib,re,shutil,subprocess,time
 E=pathlib.Path(__file__).resolve().parent;ROOT=E.parents[2]
-binary=pathlib.Path('/root/r9b_work/flow-traffic-audit-v2')
+binary=pathlib.Path('/root/r9b_work/flow-traffic-audit-v3')
 if not binary.exists():shutil.copy2(ROOT/'build-portable/tools/tilemega-flow-audit',binary)
 pending={(arm,f'{model}_s{seq}') for arm in ('legacy','skeleton') for model in ('llama','qwen3') for seq in (1,4,16,64)}
 failed=[]
