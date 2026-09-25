@@ -12,7 +12,7 @@ namespace tilemega::codegen {
 
 /// operand = {partials, out}; `width` is N, `group` is the chunk count.
 /// The partials are laid out chunk-major, so chunk `c` of element `i` is at
-/// `c * seq * width + i`. Summation runs in chunk order, which keeps the
+/// `c * (batch * seq) * width + i`. Summation runs in chunk order, which keeps the
 /// result bitwise reproducible across runs (it is not bitwise equal to the
 /// unsplit GEMM: a different association of the same sum).
 template <class Arch, class SmemUnion, int Threads>
