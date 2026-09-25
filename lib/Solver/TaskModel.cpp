@@ -12,29 +12,36 @@
 namespace tilemega::solver {
 void BindTaskDramProvenance(DerivedTaskInput& input,
     ModelTaskSemantics const& semantic,analysis::DramFloor const& floor,
-    analysis::ParamBinding const& theta) {
+    analysis::ParamBinding const& theta,bool serving) {
   auto accesses=DeriveModelTaskAccesses(semantic,input);
   std::vector<analysis::QuasiPolynomial> external_reads,external_writes,typed_reads;
   bool mixed_width=false;
   input.stream_bytes=floor.no_producer_bytes.Eval(theta);input.produced_live_bytes=0;
   for(auto const& [name,read]:accesses.reads) {
+    // Serving plans are priced at a bound (B, past) point. Eliminating those
+    // parameters before Barvinok cardinality avoids a very large parametric
+    // polyhedron for indirect tokens and split vocabulary reductions.
+    auto concrete=serving ? read.BindParams(theta) : read;
     auto found=floor.tensors.find(name);
-    if(found==floor.tensors.end()){typed_reads.push_back(read.Card().Scale(2));continue;} // Split partials have a producer.
+    if(found==floor.tensors.end()){typed_reads.push_back(concrete.Card().Scale(2));continue;} // Split partials have a producer.
     auto const& tensor=found->second;
-    typed_reads.push_back(read.Card().Scale(tensor.element_bytes));mixed_width|=tensor.element_bytes!=2;
+    typed_reads.push_back(concrete.Card().Scale(tensor.element_bytes));mixed_width|=tensor.element_bytes!=2;
     // Gather work uses a row-zero cardinality placeholder. For an entirely
     // read-only tensor every physical read is external, independent of the
     // actual index values bound to the unique-image floor.
-    auto external=tensor.writes.ImageCard().Eval(theta)==0 ? read : read.ApplyRange(tensor.no_producer.ImageIdentity());
+    auto no_producer=serving ? tensor.no_producer.BindParams(theta) : tensor.no_producer;
+    auto external=tensor.writes.ImageCard().Eval(theta)==0 ? concrete : concrete.ApplyRange(no_producer.ImageIdentity());
     external_reads.push_back(external.Card().Scale(tensor.element_bytes));
-    auto produced=read.Subtract(external);
+    auto produced=concrete.Subtract(external);
     if(produced.ImageCard().Eval(theta)>0)
       input.produced_live_bytes+=tensor.writes.ImageCard().Eval(theta)*tensor.element_bytes;
   }
   for(auto const& [name,write]:accesses.writes) {
     auto found=floor.tensors.find(name);if(found==floor.tensors.end())continue;
     auto const& tensor=found->second;
-    external_writes.push_back(write.ApplyRange(tensor.external_writes.ImageIdentity()).Card().Scale(tensor.element_bytes));
+    auto concrete=serving ? write.BindParams(theta) : write;
+    auto external=serving ? tensor.external_writes.BindParams(theta) : tensor.external_writes;
+    external_writes.push_back(concrete.ApplyRange(external.ImageIdentity()).Card().Scale(tensor.element_bytes));
   }
   if(mixed_width && !input.physical_read_bytes)input.physical_read_bytes=analysis::QuasiPolynomial::Sum(typed_reads);
   input.no_producer_read_bytes=analysis::QuasiPolynomial::Sum(external_reads);
@@ -228,7 +235,11 @@ DerivedTaskInput DeriveCombineTaskInput(ModelDescription const& model,int stage,
 BackendTraits ModelTaskTraits(ModelDescription const& model, int index,
                               GemmConfig const& config) {
   auto collective = model.dtype == ScalarType::kBF16
-      ? TensorBF16Traits(config.tile_m, config.tile_n, config.tile_k, config.stages)
+      ? (model.serving
+             ? ServingBF16Traits(config.tile_m, config.tile_n, config.tile_k,
+                                 config.stages)
+             : TensorBF16Traits(config.tile_m, config.tile_n, config.tile_k,
+                                config.stages))
       : SimtF32Traits(config.tile_m, config.tile_n, config.tile_k, config.stages);
   auto const& stage = model.stages.at(index);
   bool uses_collective = false;
@@ -236,6 +247,13 @@ BackendTraits ModelTaskTraits(ModelDescription const& model, int index,
     if (semantic.stage == index)
       uses_collective |= semantic.op.kind == analysis::OperatorKind::kMatmul;
   if (uses_collective) return collective;
+  if (stage.kind == StageKind::kFusedAttention) {
+    BackendTraits traits;
+    traits.threads = 128;
+    traits.smem_bytes = codegen::ServingAttentionSharedBytes(stage.width);
+    traits.shape_legal = stage.width == 64 || stage.width == 128;
+    return traits;
+  }
   auto resources = codegen::ReadSimtTaskResources(
       static_cast<codegen::TaskKind>(stage.kind), collective.threads);
   BackendTraits traits;
@@ -258,20 +276,41 @@ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
     if (!names.insert(op.name).second) throw std::invalid_argument("duplicate semantic cost task");
     auto const& stage=model.stages.at(input.stage);
     semantics.ops.push_back(op);
-    for (auto const& [dim,tile]:input.tiles) granularity.Tile(op.name,dim,tile);
+    if (!model.serving) {
+      for(auto const& [dim,tile]:input.tiles)granularity.Tile(op.name,dim,tile);
+    } else for (std::size_t axis=0;axis<op.result.axes.size();++axis) {
+      auto found=input.tiles.find(op.result.axes[axis].name);
+      if(found==input.tiles.end())continue;
+      auto const& index=op.result_map.results.at(axis);
+      if(index.kind==analysis::IndexResult::Kind::kAffine &&
+         index.terms.size()==1 && index.terms[0].coefficient.IsLiteral(1) &&
+         index.terms[0].group.IsLiteral(1))
+        granularity.Tile(op.name,index.terms[0].dim,found->second);
+    }
     if (stage.gemm<0) continue;
     auto const& config=configs.at(stage.gemm);
     if (config.tile_m<=0 || config.tile_n<=0 || config.tile_k<=0 || config.split_k<=0)
       throw std::invalid_argument("invalid candidate task granularity");
-    if (op.result.axes.size()!=2 || op.result_map.results.size()!=2)
-      throw std::invalid_argument("collective output rank is not implemented");
-    int tiles[]={config.tile_m,config.tile_n};
-    for (int axis=0;axis<2;++axis) {
+    bool grouped = model.serving && op.result.axes.size()==3 &&
+                   op.result.axes[1].name=="g" &&
+                   op.result.axes[2].name=="u";
+    if ((!grouped && op.result.axes.size()!=2) ||
+        op.result_map.results.size()!=op.result.axes.size())
+      throw std::invalid_argument("collective output rank is not implemented: "+op.name);
+    if (grouped && op.result.axes[2].extent.Eval({}, {}) % config.tile_n)
+      throw std::invalid_argument("packed group width must divide the serving N tile: "+op.name);
+    for (int axis=0;axis<int(op.result.axes.size());++axis) {
       auto const& index=op.result_map.results[axis];
       if (index.kind!=analysis::IndexResult::Kind::kAffine || index.terms.size()!=1 ||
           !index.terms[0].coefficient.IsLiteral(1) || !index.terms[0].group.IsLiteral(1))
         throw std::invalid_argument("collective output requires unit iteration indexing");
-      granularity.Tile(op.name,index.terms[0].dim,analysis::ClosedForm::Constant(tiles[axis]));
+      int tile = axis==0 ? config.tile_m :
+                 ((grouped && axis==1) ||
+                  (model.serving && op.result.axes[axis].name=="tile")
+                     ? 1 : (model.serving && op.result.axes[axis].name=="i"
+                                ? config.tile_n/2 : config.tile_n));
+      granularity.Tile(op.name,index.terms[0].dim,
+                       analysis::ClosedForm::Constant(tile));
     }
     if (!op.reduction.splittable) continue;
     auto const* reduction=op.Dim(op.reduction.dim);

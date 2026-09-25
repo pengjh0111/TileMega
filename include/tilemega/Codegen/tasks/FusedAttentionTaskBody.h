@@ -2,6 +2,7 @@
 #pragma once
 
 #include <tilemega/Backend/ServingAttentionMma.h>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 
 #include <cuda_runtime.h>
 #include <cmath>
@@ -48,6 +49,7 @@ struct FusedAttentionTaskBody {
     alignas(16) float accumulated[16 * kHeadDim];
     float row_max[16], row_sum[16];
   };
+  static_assert(sizeof(SharedStorage) == ServingAttentionSharedBytes(kHeadDim));
 
   // The cache path uses one 16-byte cp.async.cg per lane and never issues an
   // out-of-bounds transaction. New positions are formed directly from QKV.

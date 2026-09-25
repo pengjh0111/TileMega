@@ -7,11 +7,17 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Solver/ModelDramFloor.h>
+#include <tilemega/Solver/PlanSkeleton.h>
+#include <tilemega/Solver/FlowPreparation.h>
+#include <tilemega/Solver/StageFlowModel.h>
 #include <tilemega/Target/TargetSpec.h>
 #include <mlir/IR/MLIRContext.h>
 
 #include <iostream>
 #include <stdexcept>
+#include <cmath>
+#include <algorithm>
+#include <functional>
 
 int main(int argc, char** argv) {
   if (argc != 3 && argc != 4) {
@@ -30,6 +36,7 @@ int main(int argc, char** argv) {
       : tilemega::frontend::ServingOptions::Phase::kDecode;
   serving.seq = serving.phase ==
       tilemega::frontend::ServingOptions::Phase::kDecode ? 1 : 64;
+  serving.argmax_tile_n = 128;
   auto plan = tilemega::frontend::BuildModelPlan(
       bridge.nodes, bridge.inputs, bridge.outputs, serving);
   std::cerr << "SERVING_IMPORT_STEP plan=" << plan.stages.size() << '\n';
@@ -69,5 +76,30 @@ int main(int argc, char** argv) {
     std::cout << "SERVING_FLOOR batch=2 past=" << dims.past
               << " dram_bytes=" << value.read_bytes + value.write_bytes
               << " floor_ns=" << value.floor_ns << '\n';
+    auto problem = tilemega::solver::PrepareSymbolicProblem(
+        *module, target, dims, target.res.num_sms, 1, 1, nullptr, false);
+    if (problem.counts.size() < plan.stages.size())
+      throw std::runtime_error("serving symbolic problem omitted a stage");
+    std::cout << "SERVING_SYMBOLIC stages=" << problem.counts.size()
+              << " tiles=" << problem.offsets.back() << '\n';
+    tilemega::solver::FlowPreparationCache prepared;
+    tilemega::solver::HopCurve hop;
+    auto flow = tilemega::solver::PrepareFlow(
+        problem, floor, target, 1, hop, cache, prepared, true);
+    if (flow.flow.spaces.size() != problem.counts.size())
+      throw std::runtime_error("serving flow omitted a task space");
+    std::cout << "SERVING_FLOW spaces=" << flow.flow.spaces.size()
+              << " edges=" << flow.flow.edges.size() << '\n';
+    auto predicted=tilemega::solver::EvaluateFlow(flow.flow);
+    if (!std::isfinite(predicted.makespan_ns) ||
+        predicted.makespan_ns < value.dram_ns)
+      throw std::runtime_error("serving flow prediction violates the DRAM floor");
+    std::cout << "SERVING_PREDICTION ns=" << predicted.makespan_ns << '\n';
+    std::vector<std::pair<double,std::string>> costs;
+    for (auto const& space : flow.flow.spaces)
+      costs.push_back({space.rank_ns * space.count, space.name});
+    std::sort(costs.begin(), costs.end(), std::greater<>{});
+    for (std::size_t i = 0; i < std::min<std::size_t>(8, costs.size()); ++i)
+      std::cout << "SERVING_COST " << costs[i].second << " ns=" << costs[i].first << '\n';
   }
 }

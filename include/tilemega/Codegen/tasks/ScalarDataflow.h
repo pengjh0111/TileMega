@@ -84,6 +84,17 @@ inline ScalarDataflow ScalarTaskDataflow(TaskKind kind) {
       flow.Add(ScalarPhase::kStore,{pv});
       return flow;
     }
+    case TaskKind::kFusedAttention: {
+      int qk=flow.Add(ScalarPhase::kArithmetic,{input});
+      int softmax=flow.Add(ScalarPhase::kArithmetic,{qk});
+      int values=flow.Add(ScalarPhase::kLoad,{softmax});
+      flow.Add(ScalarPhase::kStore,{flow.Add(ScalarPhase::kArithmetic,{values})});
+      return flow;
+    }
+    case TaskKind::kAttentionMerge:
+    case TaskKind::kArgmaxReduce:
+      flow.Add(ScalarPhase::kStore,{flow.Add(ScalarPhase::kBlockReduction,{input})});
+      return flow;
     case TaskKind::kGemmCombine:
       flow.extra_flops_per_output=1; // Zero-seeded chunk summation.
       flow.Add(ScalarPhase::kStore,{flow.Add(ScalarPhase::kArithmetic,{input})});

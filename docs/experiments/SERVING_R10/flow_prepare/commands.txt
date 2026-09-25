@@ -1,0 +1,8 @@
+Target: docs/experiments/SOLVER_R9B/fit/target.json
+Build: cmake --build build-portable --target serving_import_test -j4
+Run (each in a fresh process):
+  ./build-portable/serving_import_test /root/r10_work/llama_decode_seed.so.export.json decode docs/experiments/SOLVER_R9B/fit/target.json
+  ./build-portable/serving_import_test /root/r10_work/llama_prefill_seed.so.export.json prefill docs/experiments/SOLVER_R9B/fit/target.json
+  ./build-portable/serving_import_test /root/r10_work/qwen3_decode_B16_seed.so.export.json decode docs/experiments/SOLVER_R9B/fit/target.json
+  ./build-portable/serving_import_test /root/r10_work/qwen3_prefill_B16_seed.so.export.json prefill docs/experiments/SOLVER_R9B/fit/target.json
+These logs validate symbolic import, the absolute floor, flow preparation and a finite flow evaluation above T_dram at B=2. They are development checks, not the EV-1 serving matrix or calibrated SV-16 model.

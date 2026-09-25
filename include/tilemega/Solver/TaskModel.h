@@ -40,7 +40,7 @@ struct DerivedTaskInput {
 };
 void BindTaskDramProvenance(DerivedTaskInput& input,
     ModelTaskSemantics const& semantic,analysis::DramFloor const& floor,
-    analysis::ParamBinding const& theta);
+    analysis::ParamBinding const& theta,bool serving=false);
 /// What `PriceTaskInstances` credits to §5.3.1's Prefetch, per instance: the
 /// prefetch operand priced as a local read (the model's own fused-input
 /// semantics) subtracted from the task priced reading it from global, and only

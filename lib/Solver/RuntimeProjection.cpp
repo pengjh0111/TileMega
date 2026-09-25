@@ -74,7 +74,7 @@ ProjectedPlacement BalanceProjectedQueues(RuntimeProjection const& projection,
 
 analysis::CouplingRelation ProjectScalarTaskOwnership(ModelTaskSemantics const& semantic,
     analysis::OperatorNode const& task,ModelStage const& stage,int threads) {
-  if (stage.kind==StageKind::kGemm || task.output.axes.size()!=2)
+  if (stage.kind==StageKind::kGemm || task.output.axes.empty())
     throw std::invalid_argument("unsupported scalar ownership domain");
   return ProjectTaskOwnership(semantic,task,stage,threads);
 }
@@ -141,8 +141,11 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
   };
   std::string seq = dimension(model.dims.seq_parameter, model.dims.seq);
   std::string past = dimension(model.dims.past_parameter, model.dims.past);
+  std::string batch = dimension(model.batch_metric_parameter, model.dims.batch);
+  std::string tokens = model.serving ? Mul(batch, model.dims.seq) : seq;
   std::vector<std::string> parameters;
-  for (auto const& p : {model.dims.seq_parameter, model.dims.past_parameter})
+  for (auto const& p : {model.dims.seq_parameter, model.dims.past_parameter,
+                        model.serving ? model.batch_metric_parameter : std::string{}})
     if (!p.empty() && std::find(parameters.begin(), parameters.end(), p) == parameters.end())
       parameters.push_back(p);
   std::string prefix;
@@ -167,6 +170,9 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
   };
   restrict_dimension(model.seq_metric_parameter,seq,model.dims.seq_parameter,model.dims.seq);
   restrict_dimension(model.past_metric_parameter,past,model.dims.past_parameter,model.dims.past);
+  if (model.serving)
+    restrict_dimension(model.batch_metric_parameter,batch,
+                       model.batch_metric_parameter,model.dims.batch);
   auto relation = [&](std::vector<std::string> const& pieces) {
     return analysis::CouplingRelation::FromIslText(prefix+"{ "+Join(pieces)+" }");
   };
@@ -235,13 +241,30 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
           throw std::invalid_argument("stage GEMM index outside projection plan");
         auto const& g = plan.gemms[stage.gemm];
         int ntiles = (model.gemms[stage.gemm].n+g.tile_n-1)/g.tile_n;
-        tiles[i] = Mul(Ceil(seq,g.tile_m),ntiles);
+        tiles[i] = Mul(Ceil(stage.batch_rows ? batch : tokens,g.tile_m),ntiles);
         stage_chunks[i] = stage.kind==StageKind::kAdd ? 1 : chunks[stage.gemm];
         count = Mul(tiles[i],stage_chunks[i]);
         break;
       }
       case StageKind::kRMSNorm:
-      case StageKind::kEmbedding: count = seq; break;
+      case StageKind::kEmbedding:
+        count = stage.batch_rows ? batch : tokens; break;
+      case StageKind::kFusedAttention: {
+        if (stage.attention_kv_block <= 0 || stage.attention_query_rows <= 0 ||
+            stage.extent <= 0 || stage.group <= 0)
+          throw std::invalid_argument("incomplete serving attention geometry");
+        int qblocks = (model.dims.seq * stage.group +
+                       stage.attention_query_rows - 1) /
+                      stage.attention_query_rows;
+        int cblocks = (model.serving_capacity + stage.attention_kv_block - 1) /
+                      stage.attention_kv_block;
+        count = Mul(batch, stage.extent * qblocks * cblocks);
+        break;
+      }
+      case StageKind::kAttentionMerge:
+        count = Mul(batch, stage.extent); break;
+      case StageKind::kArgmaxReduce:
+        count = batch; break;
       // One (token, head): the ownership the QK normalization declares.
       case StageKind::kQKNorm: count = Mul(seq,stage.extent); break;
       case StageKind::kRoPE:

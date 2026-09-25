@@ -104,6 +104,9 @@ struct ModelStage {
   int group = 0;
   /// Buffer ids the stage touches, in the generated order (inputs first).
   std::vector<int> operands;
+  bool batch_rows = false;
+  int attention_kv_block = 0;
+  int attention_query_rows = 0;
 
   /// How many contiguous elements of a read buffer one task of this stage
   /// covers.  This is the `Tr` of §P4.3's wait inflation, and it is read off
@@ -143,6 +146,8 @@ struct ModelDescription {
   std::vector<std::pair<std::string, std::string>> metric_aliases;
   bool fusion_phase_context = false;
   bool combiner_tile_ownership = false;
+  bool serving = false;
+  int serving_capacity = 0;
 
   /// Parse the `kGemms` and `kStages` tables out of a generated .cu.  Throws
   /// std::runtime_error when either table is missing or malformed -- a silent

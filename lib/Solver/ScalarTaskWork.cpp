@@ -67,6 +67,15 @@ analysis::TaskWork DeriveRuntimeScalarWork(ModelDescription const& model,
       writes=writes.Union(map);
     }
   }
+  if(model.serving) {
+    // Flow pricing binds one (B, past) point. Keep task coordinates symbolic,
+    // but eliminate theta before the expensive Barvinok cardinality of the
+    // serving attention and argmax access relations.
+    auto theta=model.MetricBindings();
+    ownership=ownership.BindParams(theta);
+    writes=writes.BindParams(theta);
+    for(auto& [name,relation]:reads)relation=relation.BindParams(theta);
+  }
   std::vector<QuasiPolynomial> counts,frontier;
   for (auto const& [name,relation]:reads) {
     counts.push_back(relation.Card());

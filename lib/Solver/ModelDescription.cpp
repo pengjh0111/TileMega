@@ -178,6 +178,10 @@ ModelDescription ModelDescription::ReadCouplingGraph(
   };
   ModelDescription model;
   model.fusion_phase_context = phase_context;
+  model.serving = module->hasAttr("tilemega.serving");
+  if (auto info = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving"))
+    if (auto cap = info.getAs<mlir::IntegerAttr>("capacity"))
+      model.serving_capacity = cap.getInt();
   if (auto attr=module->getAttrOfType<mlir::BoolAttr>("tilemega.combiner_tile_per_block"))
     model.combiner_tile_ownership=attr.getValue();
   model.name = std::move(name); model.dims = std::move(dims);
@@ -231,6 +235,12 @@ ModelDescription ModelDescription::ReadCouplingGraph(
         ? integer(dict, "gemm") : -1;
     stage.extent = integer(dict, "extent"); stage.width = integer(dict, "width");
     stage.group = integer(dict, "group");
+    if (auto rows = dict.getAs<mlir::BoolAttr>("batch_rows"))
+      stage.batch_rows = rows.getValue();
+    if (auto block = dict.getAs<mlir::IntegerAttr>("attention_kv_block"))
+      stage.attention_kv_block = block.getInt();
+    if (auto rows = dict.getAs<mlir::IntegerAttr>("attention_query_rows"))
+      stage.attention_query_rows = rows.getInt();
     for (auto operand : operands.asArrayRef())
       if (operand != std::numeric_limits<std::uint32_t>::max())
         stage.operands.push_back(static_cast<int>(operand));

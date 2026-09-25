@@ -588,7 +588,11 @@ analysis::Granularity LaunchGranularity(
       switch (op.role) {
         case OpRole::kNorm:
         case OpRole::kEmbedding:
+          g.Tile(op.name, "m", one);
+          break;
         case OpRole::kServingArgmax:
+          // The output axis is named b, while the parallel iteration that
+          // maps to it is m. Granularity is keyed by iteration dimension.
           g.Tile(op.name, "m", one);
           break;
         case OpRole::kServingFusedAttention:

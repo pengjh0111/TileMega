@@ -64,7 +64,17 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
   std::map<std::string,int> logical;
   for(auto const& sem:result.model.task_semantics){semantics.ops.push_back(sem.op);logical[sem.op.name]=sem.stage;if(!sem.op.reduction.combiner.empty())logical[sem.op.reduction.combiner]=sem.stage;
     auto const* node=graph.Find(sem.op.name);if(!node)throw std::runtime_error("missing flow task");
-    for(std::size_t a=0;a<sem.op.result.axes.size();++a)granularity.Tile(sem.op.name,sem.op.result.axes[a].name,node->tile[a]);
+    for(std::size_t a=0;a<sem.op.result.axes.size();++a) {
+      if(!result.model.serving) {
+        granularity.Tile(sem.op.name,sem.op.result.axes[a].name,node->tile[a]);
+        continue;
+      }
+      auto const& index=sem.op.result_map.results.at(a);
+      if(index.kind==analysis::IndexResult::Kind::kAffine &&
+         index.terms.size()==1 && index.terms[0].coefficient.IsLiteral(1) &&
+         index.terms[0].group.IsLiteral(1))
+        granularity.Tile(sem.op.name,index.terms[0].dim,node->tile[a]);
+    }
     auto const& stage=result.model.stages[sem.stage];
     if(sem.op.reduction.splittable && stage.gemm>=0){auto const& g=geometry[stage.gemm];auto const* reduction=sem.op.Dim(sem.op.reduction.dim);long extent=reduction->extent.Eval({},{});long chunks=std::min<long>(g.split_k,(extent+g.tile_k-1)/g.tile_k);if(chunks>1)granularity.Split(sem.op.name,reduction->extent.CeilDiv(analysis::ClosedForm::Constant(chunks)));}
   }
@@ -204,7 +214,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
       chunks=stage.IsCollective()?cost.Chunks(model.gemms.at(stage.gemm),g):1;
     }
     PiecePrices prices;
-    try {BindTaskDramProvenance(input,semantic,floor,theta);
+    try {BindTaskDramProvenance(input,semantic,floor,theta,model.serving);
       prices=PriceBoundaryPieces(cost,input,semantic,traits,{residency},model,chunks,&cache.prices,kernel_shared_bytes);
     }catch(std::exception const& e){throw std::runtime_error(input.task.name+": "+e.what());}
     FlowSpace space;space.name=input.task.name;space.category=projected.combine?"combine":semantic.op.arithmetic;
@@ -228,7 +238,17 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
         (*f->into)[t]=f->piece;return isl_stat_ok;
       },&fill);isl_set_free(set);
     }
-    if(std::find(space.piece_of_task.begin(),space.piece_of_task.end(),-1)!=space.piece_of_task.end())throw std::runtime_error("flow pieces do not cover runtime ownership: "+space.name);
+    if(std::find(space.piece_of_task.begin(),space.piece_of_task.end(),-1)!=space.piece_of_task.end()) {
+      std::ostringstream error;
+      error<<"flow pieces do not cover runtime ownership: "<<space.name
+           <<" count="<<space.count<<" priced="<<input.work.task_count.Eval(theta)
+           <<" ownership="<<ownership.ToString();
+      if(input.scalar_access) error<<" writes="<<input.scalar_access->writes.ToString()
+          <<" task_count="<<input.work.task_count.ToString();
+      for(auto const& piece:prices.pieces)
+        error<<" piece="<<piece.domain.ToString();
+      throw std::runtime_error(error.str());
+    }
     if(prices.coordinate_varying)result.varying_spaces.push_back(space.name);
     space.rank_ns=space.count?prices.total_isolated_ns/space.count:0;
     signatures.push_back(signature+(projected.combine?".combine":""));geometry_keys.push_back(GeometryKey(traits,chunks));

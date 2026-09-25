@@ -25,9 +25,17 @@ constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_exten
     case TaskKind::kElementwise:
     case TaskKind::kAdd:
     case TaskKind::kGemmCombine: return 1;
+    case TaskKind::kAttentionMerge:
+    case TaskKind::kArgmaxReduce: return 4;
     case TaskKind::kGemm: return 0;
   }
   return 0;
+}
+
+// SharedStorage in FusedAttentionTaskBody: five BF16 tiles, three FP32
+// accumulators, and row statistics. The dimensions are fixed by the TaskBody.
+constexpr int ServingAttentionSharedBytes(int head_dim) {
+  return 544 * head_dim + 6272;
 }
 
 template <TaskKind Kind, int Threads, int AttentionExtent = TILEMEGA_ATTENTION_SCRATCH_EXTENT>
@@ -65,6 +73,8 @@ inline TaskResourceInfo ReadSimtTaskResources(TaskKind kind) {
     case TaskKind::kAttention: return ReadSimtTaskResources<TaskKind::kAttention, Threads>();
     case TaskKind::kAdd: return ReadSimtTaskResources<TaskKind::kAdd, Threads>();
     case TaskKind::kGemmCombine: return ReadSimtTaskResources<TaskKind::kGemmCombine, Threads>();
+    case TaskKind::kAttentionMerge: return ReadSimtTaskResources<TaskKind::kAttentionMerge, Threads>();
+    case TaskKind::kArgmaxReduce: return ReadSimtTaskResources<TaskKind::kArgmaxReduce, Threads>();
     default: throw std::invalid_argument("TaskBody has no scalar resource declaration");
   }
 }

@@ -241,6 +241,18 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
       }
       auto op = Output(op_name, OperatorKind::kMatmul, std::move(domain),
                        std::move(dst), std::move(dst_map), std::move(reads));
+      // The packed QKV/SwiGLU and vocabulary-partial maps couple output
+      // tiles to specific weight rows. Rectangular operand projection would
+      // forget those affine expressions and charge every task the full
+      // weight tensor. Preserve the physical element reads for pricing and
+      // the DRAM floor.
+      bool affine_reads=true;
+      for(auto const& operand:op.operands)
+        for(auto const& index:operand.map.results)
+          affine_reads &= index.kind==IndexResult::Kind::kAffine;
+      if(affine_reads)
+        for(auto const& operand:op.operands)
+          op.element_reads.push_back({operand.tensor,operand.map,{}});
       if (role != OpRole::kServingArgmaxPartial) {
         op.reduction = {"k", "add", op.name + ".partial",
                         op.name + ".combine", true, {}};

@@ -1,0 +1,21 @@
+SERVING_IMPORT_STEP bridge=3127
+SERVING_IMPORT_STEP plan=200
+SERVING_IMPORT_STEP semantics
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+SERVING_IMPORT_STEP instantiate
+SERVING_IMPORT phase=prefill stages=200 tasks=200 edges=255 cache_hit=184 cache_miss=71
+SERVING_IMPORT_STEP model
+INDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=64 batch=s1
+SERVING_IMPORT_STEP floor
+SERVING_FLOOR batch=2 past=0 dram_bytes=3.45587e+09 floor_ns=3.52071e+06
+SERVING_SYMBOLIC stages=200 tiles=45223
+SERVING_FLOW spaces=200 edges=255
+SERVING_PREDICTION ns=8.93276e+07
+SERVING_COST serving.s6 ns=4.95522e+10
+SERVING_COST serving.s13 ns=4.77561e+10
+SERVING_COST serving.s20 ns=4.596e+10
+SERVING_COST serving.s27 ns=4.41639e+10
+SERVING_COST serving.s34 ns=4.23678e+10
+SERVING_COST serving.s41 ns=4.05717e+10
+SERVING_COST serving.s48 ns=3.87755e+10
+SERVING_COST serving.s55 ns=3.69794e+10
