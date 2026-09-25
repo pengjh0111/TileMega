@@ -45,7 +45,11 @@ def measure(source,fixture,out,processes=10):
     code=old.run([binary,fixture],log,env,timeout=600)
   good,times=old.parse(log.read_text())
   print(f'R9B_MEASURE source={source} process={i} internal={good}',flush=True)
-  if not good or not times:return dict(status='internal_or_preflight_failed',source=str(source),log=str(log))
+  if not good or not times:
+   if 'E2E_HASH ' in log.read_text():
+    (E/'global_stop.json').write_text(json.dumps(dict(reason='internal bitwise correctness failure after execution',source=str(source),log=str(log)),indent=2)+'\n')
+    raise RuntimeError('R9b §7.4 internal correctness regression; inspect global_stop.json')
+   return dict(status='internal_or_preflight_failed',source=str(source),log=str(log))
   cg=source.with_suffix('.mlir')
   if cg.exists():
    floor=re.search(r'floor_value_ns = ([0-9.eE+-]+)',cg.read_text())
@@ -56,8 +60,14 @@ def measure(source,fixture,out,processes=10):
      (E/'global_stop.json').write_text(json.dumps(dict(reason='measured L2 below DRAM floor minus maximum L2 residue',source=str(source),log=str(log),l2_ns=times[2]*1e6,threshold_ns=threshold),indent=2)+'\n')
      raise RuntimeError('R9b §7.4 floor violation; all dependent measurements must stop')
   samples.append(times)
- return dict(status='ok',source=str(source),directory=str(out),processes=processes,
+ result=dict(status='ok',source=str(source),directory=str(out),processes=processes,
              **dict(zip(['l05_ms','l1_ms','l2_ms'],map(statistics.median,zip(*samples)))))
+ cg=source.with_suffix('.mlir')
+ bound=re.search(r'floor_value_ns = ([0-9.eE+-]+)',cg.read_text()) if cg.exists() else None
+ if bound:
+  result['floor_ns']=float(bound[1]);result['l2_over_floor']=result['l2_ms']*1e6/result['floor_ns']
+ print('R9B_RESULT '+json.dumps(result),flush=True)
+ return result
 
 def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('--source',type=pathlib.Path,required=True);p.add_argument('--fixture',type=pathlib.Path,required=True)
