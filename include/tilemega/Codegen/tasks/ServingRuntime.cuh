@@ -135,12 +135,15 @@ inline void Destroy(Plan* plan) {
 extern "C" int tm_plan_query(tm_plan_info* output) {
   if (!output) return -1;
   auto target = tilemega::TargetSpec::Probe();
+  int grid=kModel.runtime_variants[0].plan.eft_grid
+      ? int(kModel.runtime_variants[0].plan.eft_grid):target.res.num_sms;
   *output = {TM_SERVING_ABI_VERSION,
              TILEMEGA_SERVING_SEQ == 1 ? TM_SERVING_DECODE : TM_SERVING_PREFILL,
              TILEMEGA_SERVING_BATCH_LO, TILEMEGA_SERVING_BATCH_HI,
              TILEMEGA_SERVING_SEQ, TILEMEGA_SERVING_PAST_LO,
              TILEMEGA_SERVING_PAST_HI, kModel.dims.capacity,
-             target.res.num_sms, 1, TM_SERVING_L1 | TM_SERVING_L2,
+             grid, (grid+target.res.num_sms-1)/target.res.num_sms,
+             TM_SERVING_L1 | TM_SERVING_L2,
              kModel.buffer_count};
   return 0;
 }
@@ -177,7 +180,8 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
       return nullptr;
     std::unique_ptr<serving::Plan, void (*)(serving::Plan*)> plan(
         new serving::Plan, serving::Destroy);
-    int const grid = target.res.num_sms;
+    int const grid = kModel.runtime_variants[0].plan.eft_grid
+        ? int(kModel.runtime_variants[0].plan.eft_grid):target.res.num_sms;
     std::size_t const smem = sizeof(TaskSmem);
     if (smem > target.res.max_dynamic_smem_per_cta) return nullptr;
     if (smem > 48 * 1024) {

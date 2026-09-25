@@ -131,6 +131,12 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 #define TILEMEGA_SERVING_RUNTIME 0
 #endif
 #if TILEMEGA_SERVING_RUNTIME
+#ifndef TILEMEGA_SERVING_PAST_LO
+#define TILEMEGA_SERVING_PAST_LO TILEMEGA_SOLVED_PAST
+#endif
+#ifndef TILEMEGA_SERVING_PAST_HI
+#define TILEMEGA_SERVING_PAST_HI TILEMEGA_SOLVED_PAST
+#endif
 #ifndef TILEMEGA_SERVING_SEQ
 #define TILEMEGA_SERVING_SEQ 1
 #endif
@@ -1764,7 +1770,13 @@ inline DeviceModel Create(ModelSpec const& spec,
 #if defined(TILEMEGA_SOLVED_SEQ)
   // A concrete solve proves this point and resident grid. Interval templates
   // carry a separate proof; a variant table alone does not make it portable.
-  if (dims.seq!=TILEMEGA_SOLVED_SEQ || dims.past!=TILEMEGA_SOLVED_PAST ||
+#if defined(TILEMEGA_SERVING_SEQ)
+  bool const past_matches=dims.past>=TILEMEGA_SERVING_PAST_LO &&
+      dims.past<=TILEMEGA_SERVING_PAST_HI;
+#else
+  bool const past_matches=dims.past==TILEMEGA_SOLVED_PAST;
+#endif
+  if (dims.seq!=TILEMEGA_SOLVED_SEQ || !past_matches ||
       grid!=TILEMEGA_SOLVED_GRID) {
     std::fprintf(stderr,"workload or resident grid differs from solved Plan\n");
     std::exit(2);
@@ -2349,10 +2361,17 @@ inline DeviceModel Create(ModelSpec const& spec,
     // The table is (pi, sigma) for one bound theta on one grid, and there is no
     // cost model here to recompute it with, so a mismatch is a wrong schedule
     // and not a reason to fall back to a closed form (H5).
+    bool const past_valid=plan_table.eft_past_hi>=plan_table.eft_past_lo &&
+        dims.past>=int(plan_table.eft_past_lo) &&
+        dims.past<=int(plan_table.eft_past_hi);
     if (plan_table.eft_worker==nullptr || plan_table.eft_slot==nullptr ||
         plan_table.eft_nodes!=static_cast<std::uint32_t>(plan_nodes) ||
         plan_table.eft_seq!=static_cast<std::uint32_t>(dims.seq) ||
+#if defined(TILEMEGA_SERVING_SEQ)
+        !past_valid ||
+#else
         plan_table.eft_past!=static_cast<std::uint32_t>(dims.past) ||
+#endif
         plan_table.eft_grid!=static_cast<std::uint32_t>(grid)) {
       std::fprintf(stderr,"the eft plan table is pinned to nodes=%u seq=%u past=%u "
                    "grid=%u, not nodes=%d seq=%d past=%d grid=%d\n",

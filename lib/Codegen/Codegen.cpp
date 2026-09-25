@@ -693,6 +693,8 @@ std::string emitModelPlan(mlir::ModuleOp module,
       init << ", kPlanWorker" << v << ", kPlanSlot" << v << ", "
            << plan.table.worker.size() << "u, " << plan.table.seq << "u, "
            << plan.table.past << "u, " << plan.table.grid << "u";
+    if (!plan.table.worker.empty() && serving)
+      init << ", nullptr, 0u, 0u, TILEMEGA_SERVING_PAST_LO, TILEMEGA_SERVING_PAST_HI";
     if(!plan.interval.empty())
       init << ", kPlanInterval" << v << ", " << plan.interval.size() << "u, " << plan.interval.front().seq << "u";
     init << "}";

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import json
 import time
 
 import torch
@@ -56,8 +57,14 @@ class ServingEngine:
         self.decode.set_steps(list(range(prompt_len,
                                          prompt_len + max_new_tokens - 1)))
         if mode == "auto":
-            self.prefill_mode = (2 if self.prefill_lib.info.modes & 2 else 1)
-            self.decode_mode = (2 if self.decode_lib.info.modes & 2 else 1)
+            def winner(path: str | Path, available: int) -> int:
+                manifest = Path(str(path) + ".plan.json")
+                selected = (json.loads(manifest.read_text()).get("mode")
+                            if manifest.exists() else None)
+                return {"L1": 1, "L2": 2}.get(
+                    selected, 2 if available & 2 else 1)
+            self.prefill_mode = winner(prefill_so, self.prefill_lib.info.modes)
+            self.decode_mode = winner(decode_so, self.decode_lib.info.modes)
         elif mode == "L1":
             self.prefill_mode = self.decode_mode = 1
         elif mode == "L2":
