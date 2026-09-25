@@ -1,0 +1,68 @@
+{
+  "model": "/root/models/qwen3_1_7b",
+  "batch": 4,
+  "vllm_version": "0.30.0",
+  "max_tokens": 1024,
+  "e2e_seconds": 5.248572611017153,
+  "ttft_seconds": 0.06014536297880113,
+  "tpot_seconds": 0.0050717763910443315,
+  "output_tokens_per_second": 780.4026548860513,
+  "generation_runs": [
+    {
+      "N": 1024,
+      "run": 0,
+      "warmup": true,
+      "wall_seconds": 5.246082391007803,
+      "tokens_file": "tokens_N1024_run0.json"
+    },
+    {
+      "N": 1024,
+      "run": 1,
+      "warmup": false,
+      "wall_seconds": 5.248572611017153,
+      "tokens_file": "tokens_N1024_run1.json"
+    },
+    {
+      "N": 1024,
+      "run": 2,
+      "warmup": false,
+      "wall_seconds": 5.245786163955927,
+      "tokens_file": "tokens_N1024_run2.json"
+    },
+    {
+      "N": 1024,
+      "run": 3,
+      "warmup": false,
+      "wall_seconds": 5.259388086036779,
+      "tokens_file": "tokens_N1024_run3.json"
+    },
+    {
+      "N": 1,
+      "run": 0,
+      "warmup": true,
+      "wall_seconds": 0.06269232602789998,
+      "tokens_file": "tokens_N1_run0.json"
+    },
+    {
+      "N": 1,
+      "run": 1,
+      "warmup": false,
+      "wall_seconds": 0.06014536297880113,
+      "tokens_file": "tokens_N1_run1.json"
+    },
+    {
+      "N": 1,
+      "run": 2,
+      "warmup": false,
+      "wall_seconds": 0.06095287995412946,
+      "tokens_file": "tokens_N1_run2.json"
+    },
+    {
+      "N": 1,
+      "run": 3,
+      "warmup": false,
+      "wall_seconds": 0.03641478007193655,
+      "tokens_file": "tokens_N1_run3.json"
+    }
+  ]
+}

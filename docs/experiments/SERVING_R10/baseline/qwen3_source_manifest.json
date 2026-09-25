@@ -1,0 +1,24 @@
+{
+  "model": "qwen3",
+  "source": "Qwen/Qwen3-1.7B",
+  "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+  "destination": "/root/models/qwen3_1_7b",
+  "config_differences": {},
+  "safetensors_sha256": {
+    "model-00001-of-00002.safetensors": "169ad53ec313c3a34b06c0809216e4fc072cce444a5d4ff2b59690d064130ed5",
+    "model-00002-of-00002.safetensors": "912becff8d60672aa8628ef08c05898d9adf17c2ad4ae3caf99b065622fdeff9"
+  },
+  "dimensions": {
+    "hidden_size": 2048,
+    "intermediate_size": 6144,
+    "num_hidden_layers": 28,
+    "num_attention_heads": 16,
+    "num_key_value_heads": 8,
+    "head_dim": 128,
+    "vocab_size": 151936,
+    "rope_theta": 1000000,
+    "rope_scaling": null,
+    "tie_word_embeddings": true
+  },
+  "fallback_errors": []
+}

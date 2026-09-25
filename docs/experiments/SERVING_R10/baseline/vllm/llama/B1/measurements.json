@@ -1,0 +1,68 @@
+{
+  "model": "/root/models/llama3_2_1b",
+  "batch": 1,
+  "vllm_version": "0.30.0",
+  "max_tokens": 1024,
+  "e2e_seconds": 3.97274966200348,
+  "ttft_seconds": 0.024175202939659357,
+  "tpot_seconds": 0.0038597990802187883,
+  "output_tokens_per_second": 257.75598442404527,
+  "generation_runs": [
+    {
+      "N": 1024,
+      "run": 0,
+      "warmup": true,
+      "wall_seconds": 3.9082118419464678,
+      "tokens_file": "tokens_N1024_run0.json"
+    },
+    {
+      "N": 1024,
+      "run": 1,
+      "warmup": false,
+      "wall_seconds": 3.871047286898829,
+      "tokens_file": "tokens_N1024_run1.json"
+    },
+    {
+      "N": 1024,
+      "run": 2,
+      "warmup": false,
+      "wall_seconds": 3.97274966200348,
+      "tokens_file": "tokens_N1024_run2.json"
+    },
+    {
+      "N": 1024,
+      "run": 3,
+      "warmup": false,
+      "wall_seconds": 4.135910672950558,
+      "tokens_file": "tokens_N1024_run3.json"
+    },
+    {
+      "N": 1,
+      "run": 0,
+      "warmup": true,
+      "wall_seconds": 0.03130140691064298,
+      "tokens_file": "tokens_N1_run0.json"
+    },
+    {
+      "N": 1,
+      "run": 1,
+      "warmup": false,
+      "wall_seconds": 0.024432601989246905,
+      "tokens_file": "tokens_N1_run1.json"
+    },
+    {
+      "N": 1,
+      "run": 2,
+      "warmup": false,
+      "wall_seconds": 0.024175202939659357,
+      "tokens_file": "tokens_N1_run2.json"
+    },
+    {
+      "N": 1,
+      "run": 3,
+      "warmup": false,
+      "wall_seconds": 0.02335931407287717,
+      "tokens_file": "tokens_N1_run3.json"
+    }
+  ]
+}

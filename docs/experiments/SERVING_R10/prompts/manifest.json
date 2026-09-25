@@ -1,0 +1,98 @@
+{
+  "sources": [
+    {
+      "book_id": 1342,
+      "title": "Pride and Prejudice",
+      "source": "https://www.gutenberg.org/cache/epub/1342/pg1342.txt"
+    },
+    {
+      "book_id": 84,
+      "title": "Frankenstein",
+      "source": "https://www.gutenberg.org/cache/epub/84/pg84.txt"
+    },
+    {
+      "book_id": 11,
+      "title": "Alice's Adventures in Wonderland",
+      "source": "https://www.gutenberg.org/cache/epub/11/pg11.txt"
+    },
+    {
+      "book_id": 1661,
+      "title": "The Adventures of Sherlock Holmes",
+      "source": "https://www.gutenberg.org/cache/epub/1661/pg1661.txt"
+    },
+    {
+      "book_id": 98,
+      "title": "A Tale of Two Cities",
+      "source": "https://www.gutenberg.org/cache/epub/98/pg98.txt"
+    },
+    {
+      "book_id": 2701,
+      "title": "Moby Dick",
+      "source": "https://www.gutenberg.org/cache/epub/2701/pg2701.txt"
+    },
+    {
+      "book_id": 174,
+      "title": "The Picture of Dorian Gray",
+      "source": "https://www.gutenberg.org/cache/epub/174/pg174.txt"
+    },
+    {
+      "book_id": 345,
+      "title": "Dracula",
+      "source": "https://www.gutenberg.org/cache/epub/345/pg345.txt"
+    },
+    {
+      "book_id": 76,
+      "title": "Adventures of Huckleberry Finn",
+      "source": "https://www.gutenberg.org/cache/epub/76/pg76.txt"
+    },
+    {
+      "book_id": 1260,
+      "title": "Jane Eyre",
+      "source": "https://www.gutenberg.org/cache/epub/1260/pg1260.txt"
+    },
+    {
+      "book_id": 2600,
+      "title": "War and Peace",
+      "source": "https://www.gutenberg.org/cache/epub/2600/pg2600.txt"
+    },
+    {
+      "book_id": 43,
+      "title": "Strange Case of Dr Jekyll and Mr Hyde",
+      "source": "https://www.gutenberg.org/cache/epub/43/pg43.txt"
+    },
+    {
+      "book_id": 768,
+      "title": "Wuthering Heights",
+      "source": "https://www.gutenberg.org/cache/epub/768/pg768.txt"
+    },
+    {
+      "book_id": 120,
+      "title": "Treasure Island",
+      "source": "https://www.gutenberg.org/cache/epub/120/pg120.txt"
+    },
+    {
+      "book_id": 514,
+      "title": "Little Women",
+      "source": "https://www.gutenberg.org/cache/epub/514/pg514.txt"
+    },
+    {
+      "book_id": 996,
+      "title": "Don Quixote",
+      "source": "https://www.gutenberg.org/cache/epub/996/pg996.txt"
+    }
+  ],
+  "files": {
+    "passages.jsonl": {
+      "sha256": "47bbe9aafa83f02cdafdf3b843e179115f04ca26633a4555d93f3afc311802be",
+      "bytes": 19600
+    },
+    "qwen3_ids.json": {
+      "sha256": "fde7f712b970a3fb56e22ace96a5f3d7ff33dc430abccb191041c31749e427d1",
+      "bytes": 4784
+    },
+    "llama_ids.json": {
+      "sha256": "6d793e3b3aaf472939d4f483bf094f17b26d2346ed179e2b921ae57bec1d8e34",
+      "bytes": 4854
+    }
+  }
+}

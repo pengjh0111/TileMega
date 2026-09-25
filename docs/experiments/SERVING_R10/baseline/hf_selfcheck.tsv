@@ -1,0 +1,5 @@
+model	batch	positions	gap_le_0_5_ratio	max_gap	pass	source
+llama	1	1024	1.0	0.0	True	llama_B1_hf_check.json
+llama	16	16384	1.0	0.25	True	llama_B16_hf_check.json
+qwen3	1	1024	1.0	0.125	True	qwen3_B1_hf_check.json
+qwen3	16	16384	1.0	0.5	True	qwen3_B16_hf_check.json
