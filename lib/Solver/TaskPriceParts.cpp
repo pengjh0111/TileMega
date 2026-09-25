@@ -88,6 +88,23 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
     }
     result.compute_ns=(options_.pipeline_envelope?std::max(iters-(traits.stages-1),0.):iters)*iteration;
   }
+  if(input.serving_attention) {
+    auto const& a=*input.serving_attention;
+    if(a.block_count<=0 || a.block_extent<=0 || a.kv_tile<=0 ||
+       !point.Contains("q"))throw std::invalid_argument("invalid serving attention price coordinate");
+    int block=int(point.At("q")%a.block_count);
+    int active=std::clamp(a.total-block*a.block_extent,0,a.block_extent);
+    if(active==0) {
+      // The TaskBody returns before loading any operand for an empty KV block.
+      result.fixed_ns=fit.scalar_fixed_ns;
+      result.compute_ns=0;
+      result.dram_bytes=0;
+      result.no_producer_dram_bytes=0;
+    } else {
+      int executed=((active+a.kv_tile-1)/a.kv_tile)*a.kv_tile;
+      result.compute_ns*=double(executed)/a.block_extent;
+    }
+  }
   result.dram_rate_cap=std::min(l2_bytes_per_ns_per_sm_,result.compute_ns>0?result.dram_bytes/result.compute_ns:l2_bytes_per_ns_per_sm_);
   for(double v:{result.fixed_ns,result.compute_ns,result.dram_bytes,result.dram_rate_cap})
     if(v<0 || !std::isfinite(v))throw std::runtime_error("invalid task price component");

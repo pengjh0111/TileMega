@@ -34,6 +34,13 @@ struct DerivedTaskInput {
   std::optional<analysis::QuasiPolynomial> no_producer_read_bytes;
   std::optional<analysis::QuasiPolynomial> external_write_bytes;
   double stream_bytes=0, produced_live_bytes=0;
+  struct ServingAttention {
+    int block_count=0;
+    int block_extent=0;
+    int total=0;
+    int kv_tile=64;
+  };
+  std::optional<ServingAttention> serving_attention;
   /// The operand the kind's body prefetches (`ScalarPrefetchOperand`) when it
   /// is on the read-only frontier, else -1.  Runtime-ownership tasks only.
   int prefetch_operand=-1;

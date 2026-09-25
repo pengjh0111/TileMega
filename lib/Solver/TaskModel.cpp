@@ -507,6 +507,13 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
   auto signature=analysis::InstantiateArithmetic(semantic.op.arithmetic,arithmetic);
   analysis::RequireArithmeticImplementation(signature);
   DerivedTaskInput result{*task,std::move(work),std::move(signature),task->Coordinates(),std::nullopt,std::nullopt};
+  auto const& stage=model.stages.at(semantic.stage);
+  if(model.serving && stage.kind==StageKind::kFusedAttention &&
+     model.dims.seq==1 && stage.attention_kv_block>0) {
+    result.serving_attention=DerivedTaskInput::ServingAttention{
+        (model.serving_capacity+stage.attention_kv_block-1)/stage.attention_kv_block,
+        stage.attention_kv_block,model.dims.total,64};
+  }
   if (!config && runtime_ownership) {
     int threads=ModelTaskTraits(model,semantic.stage,{}).threads;
     result.scalar_access.emplace();

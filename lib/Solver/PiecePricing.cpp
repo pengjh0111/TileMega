@@ -56,7 +56,11 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
   };
   auto partition=[&]{
     auto domain=make_domain();analysis::ParamBinding point;for(std::size_t i=0;i<axes.size();++i)point.Bind(axes[i].name,bounds[i].first);
-    bool constant=true;for(auto q:quantities) {
+    // The serving attention access count is a piecewise causal expression.
+    // Barvinok's symbolic SumAlong can abort on its boundary guards (for
+    // example B=16, past=64); singleton pricing is exact for that space.
+    bool constant=semantic.op.arithmetic!="fused_attention";
+    if(constant)for(auto q:quantities) {
       auto value=q->BindCoordinates(point).Eval(theta);
       if(!q->SumAlong(domain).SemanticallyEqual(domain.Card().Scale(value),theta)){constant=false;break;}
     }
