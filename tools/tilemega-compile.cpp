@@ -329,7 +329,7 @@ int main(int argc, char** argv) {
       throw std::runtime_error("serving solve requires --measure-cmd for the top-3 decision");
     if (!solve_target.empty() && has_variants)
       throw std::runtime_error("--solve chooses variants; cannot combine with --variants");
-    std::string source,selected_serving_mode;
+    std::string source,selected_serving_mode,selected_serving_binary;
     if(serving && solve_target.empty()) {
       if(has_variants)throw std::runtime_error("serving needs one exported model or solved CG");
       if(input.extension()==".mlir") {
@@ -598,6 +598,7 @@ int main(int argc, char** argv) {
         std::size_t fastest_index=0;
         std::ofstream selected(std::string(argv[2])+".top3_measured.tsv");
         selected<<"rank\tmode\tmean_ms\tso\n";
+        std::vector<std::string> candidate_sos;
         for(std::size_t i=0;i<solved.shortlist.size();++i) {
           std::string stem=std::string(argv[2])+".top"+std::to_string(i+1);
           std::string candidate_so=stem+".candidate.so";
@@ -611,31 +612,58 @@ int main(int argc, char** argv) {
           if(std::system((compile+" >"+quote(stem+".build.stdout")+
               " 2>"+quote(stem+".build.stderr")).c_str()))
             throw std::runtime_error("top-3 serving candidate compilation failed: "+stem);
-          std::string measure=measure_command+" --so "+quote(candidate_so)+
+          candidate_sos.push_back(candidate_so);
+        }
+        // Compile every candidate before timing any of them.  Each round
+        // rotates the order, so a warm/cool device does not systematically
+        // favor a particular rank.  Keep all 32-step raw CUDA-event samples.
+        std::map<std::pair<std::size_t,std::string>,std::vector<double>> samples;
+        std::ofstream rounds(std::string(argv[2])+".top3_measure_rounds.tsv");
+        rounds<<"round\trank\tmode\tmean_ms\tartifact\n";
+        for(int round=0;round<3;++round)for(std::size_t position=0;
+            position<candidate_sos.size();++position) {
+          std::size_t i=(position+std::size_t(round))%candidate_sos.size();
+          std::string stem=std::string(argv[2])+".top"+std::to_string(i+1);
+          std::string artifact=stem+".measurement.r"+std::to_string(round);
+          std::string measure=measure_command+" --so "+quote(candidate_sos[i])+
               " --batch "+std::to_string(serving_batch)+
               " --past-mid "+std::to_string(dims.past)+
-              " --out "+quote(stem+".measurement");
-          if(std::system((measure+" >"+quote(stem+".measurement.json")+
-              " 2>"+quote(stem+".measurement.stderr")).c_str()))
-            throw std::runtime_error("top-3 serving candidate measurement failed: "+stem);
-          // The generated runtime may print placement diagnostics to stdout.
-          // Read the structured artifact written by the measurement driver.
-          auto measured_file=llvm::MemoryBuffer::getFile(stem+".measurement/measurements.json");
+              " --out "+quote(artifact);
+          if(round&1)measure+=" --reverse-modes";
+          if(std::system((measure+" >"+quote(artifact+".stdout")+
+              " 2>"+quote(artifact+".stderr")).c_str()))
+            throw std::runtime_error("top-3 serving candidate measurement failed: "+artifact);
+          auto measured_file=llvm::MemoryBuffer::getFile(artifact+"/measurements.json");
           if(!measured_file)throw std::runtime_error("missing top-3 measurement output");
           auto measured=llvm::json::parse(measured_file.get()->getBuffer());
           auto* object=measured?measured->getAsObject():nullptr;
-          if(!object)throw std::runtime_error("invalid top-3 measurement JSON");
-          auto* modes=object->getObject("modes");
+          auto* modes=object?object->getObject("modes"):nullptr;
           if(!modes)throw std::runtime_error("top-3 measurement has no mode table");
-          for(auto const& mode:{"L1","L2"})if(auto* item=modes->getObject(mode))if(auto mean=item->getNumber("mean_ms")) {
-            selected<<i+1<<'\t'<<mode<<'\t'<<*mean<<'\t'<<candidate_so<<'\n';
-            if(*mean<fastest){fastest=*mean;fastest_index=i;selected_serving_mode=mode;}
+          for(auto const& mode:{"L1","L2"})
+            if(auto* item=modes->getObject(mode))if(auto mean=item->getNumber("mean_ms")) {
+              samples[{i,mode}].push_back(*mean);
+              rounds<<round<<'\t'<<i+1<<'\t'<<mode<<'\t'<<*mean<<'\t'
+                    <<artifact<<"/measurements.json\n";
+            }
+          rounds.flush();
+        }
+        for(auto& [key,values]:samples) {
+          if(values.size()!=3)throw std::runtime_error("top-3 mode lacks three measurement rounds");
+          std::sort(values.begin(),values.end());
+          double median=values[1];
+          selected<<key.first+1<<'\t'<<key.second<<'\t'<<median<<'\t'
+                  <<candidate_sos[key.first]<<'\n';
+          if(median<fastest) {
+            fastest=median;fastest_index=key.first;
+            selected_serving_mode=key.second;
           }
         }
         if(!std::isfinite(fastest))throw std::runtime_error("top-3 measurements contain no timing");
         solved.module=mlir::OwningOpRef<mlir::ModuleOp>(
             mlir::cast<mlir::ModuleOp>(solved.shortlist[fastest_index].module->clone()));
         solved.winner=solved.shortlist[fastest_index].evaluation.candidate;
+        selected_serving_binary=std::string(argv[2])+".top"+
+            std::to_string(fastest_index+1)+".candidate.so";
         std::cerr<<"SERVING_TOP3_WINNER rank="<<fastest_index+1<<" mode="
                  <<selected_serving_mode<<" mean_ms="<<fastest<<'\n';
       }
@@ -800,6 +828,31 @@ int main(int argc, char** argv) {
     output << source;
     output.close();
     if (shared) {
+      // The winner was already compiled for the GPU timing gate.  Reuse that
+      // exact binary only when the final generated CUDA is byte-identical.
+      // This saves the otherwise redundant full megakernel nvcc invocation.
+      bool reused=false;
+      if(!selected_serving_binary.empty() &&
+         std::filesystem::exists(selected_serving_binary) &&
+         std::filesystem::exists(selected_serving_binary+".cu")) {
+        std::ifstream built(selected_serving_binary+".cu",std::ios::binary);
+        std::string compiled_source((std::istreambuf_iterator<char>(built)),
+                                    std::istreambuf_iterator<char>());
+        if(compiled_source==source) {
+          std::filesystem::copy_file(selected_serving_binary,requested,
+              std::filesystem::copy_options::overwrite_existing);
+          for(auto const& suffix:{".ptxas.log",".build_command.txt"})
+            if(std::filesystem::exists(selected_serving_binary+suffix))
+              std::filesystem::copy_file(selected_serving_binary+suffix,
+                  requested.string()+suffix,
+                  std::filesystem::copy_options::overwrite_existing);
+          std::ofstream(requested.string()+".binary_reuse.txt")
+              <<"source_byte_identical="<<selected_serving_binary
+              <<".cu\ncompiled_binary="<<selected_serving_binary<<'\n';
+          reused=true;
+        }
+      }
+      if(!reused) {
       std::string root = TILEMEGA_SOURCE_DIR;
       std::string nvcc = std::getenv("CUDACXX") ? std::getenv("CUDACXX") :
                                                  "/usr/local/cuda/bin/nvcc";
@@ -824,6 +877,7 @@ int main(int argc, char** argv) {
       int status = std::system((command+" >"+quote(requested.string()+".ptxas.log")+
           " 2>&1").c_str());
       if (status != 0) throw std::runtime_error("nvcc failed while building shared object");
+      }
     }
     if(serving && module) {
       auto runtime=tilemega::codegen::ReadRuntimePlan(*module);

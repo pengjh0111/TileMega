@@ -32,7 +32,7 @@ def _external_buffers(plan: PlanLibrary, batch: int,
 
 
 def measure_one(plan: PlanLibrary, batch: int, vocab: int,
-                past_mid: int, out: Path) -> dict:
+                past_mid: int, out: Path, reverse_modes: bool = False) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     if not _exclusive(out / "guard.jsonl", "candidate-before", True):
         raise RuntimeError("GPU remained occupied for 30 minutes")
@@ -42,6 +42,8 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
     stream = torch.cuda.current_stream()
     clocks_before = _clocks()
     modes = [mode for mode in (1, 2) if plan.info.modes & mode]
+    if reverse_modes:
+        modes.reverse()
     measured = {}
     for mode in modes:
         # L1 stage barriers and L2 task events occupy the same event storage.
@@ -88,11 +90,13 @@ def main() -> None:
     parser.add_argument("--batch", type=int, required=True)
     parser.add_argument("--past-mid", type=int, default=575)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--reverse-modes", action="store_true")
     args = parser.parse_args()
     torch.cuda.init()
     config = json.loads((args.model / "config.json").read_text())
     report = measure_one(PlanLibrary(args.so), args.batch,
-                         config["vocab_size"], args.past_mid, args.out)
+                         config["vocab_size"], args.past_mid, args.out,
+                         args.reverse_modes)
     print(json.dumps({mode: data["mean_ms"]
                       for mode, data in report["modes"].items()}))
 
