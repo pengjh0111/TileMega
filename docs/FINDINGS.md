@@ -7604,3 +7604,27 @@ wall time; their over-budget results are not replaced with inferred faster
 numbers. The separate EvaluateFlow event-loop budget remains an open problem.
 Evidence: `SOLVER_R9B/unit/{llama64_oracle_stack*,local_release*}.log`,
 `SOLVER_R9B/local_release_identity/*/{command.json,run.log}`.
+
+## F-266 — Complete task-access totals quantify the nominal-domain excess
+
+✅ verified: a separate CG audit sums each boundary piece's exact task count
+and representative traffic, retaining per-coordinate pieces where needed.
+All eight legacy geometries are complete. Physical/nominal total read-plus-write
+ratios at seq 1/4/16/64 are 0.33153/0.41042/0.66988/1.00000 for Llama and
+0.32678/0.41094/0.67171/1.00000 for Qwen3. Llama seq1 nominal traffic totals
+7.912839688 GB versus physical 2.623371784 GB. Scalar paths already used the
+physical domain; only GEMM uses nominal accounting in the prior-domain column.
+The selected seq1 geometries have ratios 0.56967 and 0.51802, respectively.
+
+These are summed task accesses, including repeated reads across tasks, not
+unique DRAM bytes, cache misses, or measured device traffic. T_floor continues
+to use the separate unique-image calculation. The read provenance columns
+sum exactly to total physical reads in every space. This audit does not change
+model prices, generated code, or the measured binaries.
+
+The reporting tool initially requested GEMM-style nominal coordinates for a
+scalar q-domain and failed before producing accepted totals; the correction
+preserves the existing scalar physical-domain convention. Its later batching
+optimization retains the completed 12-space seq16 prefix byte for byte.
+Evidence: `SOLVER_R9B/traffic/{legacy,skeleton}/<cell>/spaces.tsv`, raw CG
+checksums and commands alongside it; `traffic_scalar_loop_prefix/prefix_check.json`.

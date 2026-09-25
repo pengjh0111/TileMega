@@ -1,0 +1,4 @@
+RELATIONS ms=17041.1
+INDIRECT tensor=p_embed_weight tokens=16 unique_rows=16 width=2048
+FLOOR ms=17376
+PREPARE ms=38928.866997999998 spaces=356 edges=435 price_hits=0 price_misses=21 varying=16
