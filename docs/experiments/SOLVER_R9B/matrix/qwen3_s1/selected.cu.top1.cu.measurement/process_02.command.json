@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/qwen3_s1/selected.cu.top1.cu.measurement/kernel",
+    "/root/r9_work/qwen3_s1/fixture"
+  ],
+  "executable_sha256": "a5331e1805fc65230e523cffb3a38c8cbed97421060e0697d652cfe938fdf45b",
+  "head": "f82857765acf7aee37d511346b33f13a767446f5",
+  "started_ns": 1790331365154395777,
+  "elapsed_ns": 16988984260,
+  "exit_code": 1,
+  "environment": {
+    "TILEMEGA_WARMUP": "2",
+    "TILEMEGA_REPEAT": "10"
+  }
+}

@@ -7526,3 +7526,29 @@ resume from their completed row prefixes with the original RNG draws; neither
 completed observations nor configuration selection is changed. Evidence:
 `SOLVER_R9B/wait_window_identity/`, `unit/wait_window_hotspot.log`,
 `unit/window_hoist.log`, and the per-audit `resume*.command.json` records.
+
+## F-263 — R9b seq1 shortlist results and the remaining absolute error
+
+✅ verified: both seq1 shortlists now have three candidates with ten fresh
+processes each and equal L0.5/L1/L2 hashes. Llama selects predicted rank 1:
+L2 4.446912 ms, versus the same-session legacy 5.422432 ms (ratio
+0.820095485); L2/T_floor is 1.765767229. Qwen3 selects predicted rank 2:
+L2 8.041976 ms, versus legacy 8.245760 ms (0.975286208); L2/T_floor is
+2.293450641. Qwen3's selected L2/L1 is 1.072107940, so its small legacy-relative
+improvement does not establish an advantage over its own L1. These are two
+completed cells, not a verdict on the eight-cell or six-cell research gates.
+
+✅ verified: selected graph chain depths are 163 and 311, versus the controls'
+228 and 424. The per-link measured excesses remain 11.831 and 14.584 us,
+respectively. The flow predictions explain only 76.683% and 63.742% of actual
+L2. The four counterfactual components sum to predicted excess, not measured
+excess; the remaining 1.037 ms and 2.916 ms are unexplained by that model.
+Agreement between flow and FIFO fluid prediction cannot validate absolute
+prices. The next checks are the actual requested-event horizon in
+FlowPreparation/SkeletonFinalize (F-260) and fixed/mainloop prices on the
+selected geometries; this result does not justify attributing the entire
+unexplained term to synchronization or attention.
+
+Evidence: `SOLVER_R9B/matrix/{llama_s1,qwen3_s1}/selected.cu.top3.tsv`, each
+candidate's `*.measurement/process_*.log`, and matching `*.flow.tsv` and
+`*.chain.tsv`; `SOLVER_R9B/controls/*_s1/process_*.log`.
