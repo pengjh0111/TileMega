@@ -510,6 +510,9 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
   analysis::RequireArithmeticImplementation(signature);
   DerivedTaskInput result{*task,std::move(work),std::move(signature),task->Coordinates(),std::nullopt,std::nullopt};
   auto const& stage=model.stages.at(semantic.stage);
+  if(config && model.serving && stage.kind==StageKind::kGemm &&
+     semantic.op.arithmetic=="argmax_gemm")
+    result.collective_k_extent=model.gemms.at(stage.gemm).k;
   if(model.serving && stage.kind==StageKind::kFusedAttention &&
      model.dims.seq==1 && stage.attention_kv_block>0) {
     result.serving_attention=DerivedTaskInput::ServingAttention{

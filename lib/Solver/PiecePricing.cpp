@@ -20,6 +20,7 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
   // Scalar combiners have no collective BackendTraits geometry. Their
   // local reduction extent and ownership still change with their own split.
   key<<':'<<input.work.task_reduce_extent.ToString()<<':'<<input.work.task_count.ToString();
+  key<<":collective_k:"<<input.collective_k_extent;
   for(auto const& tile:input.task.tile)key<<':'<<tile.ToIslText();
   for(auto const& [name,value]:std::map<std::string,long>(theta.values.begin(),theta.values.end()))key<<':'<<name<<'='<<value;
   key<<":regime_a:"<<cost.options().physical_traffic<<cost.options().stage_latency<<cost.options().physical_fixed<<cost.options().sdcm_above_knee;

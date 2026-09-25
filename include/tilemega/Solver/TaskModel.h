@@ -30,6 +30,10 @@ struct DerivedTaskInput {
   // Mixed-width storage (e.g. FP32 partials and BF16 residuals) retains
   // each access cardinality before converting elements to bytes.
   std::optional<analysis::QuasiPolynomial> physical_read_bytes;
+  // Some collective epilogues reduce the output tile (e.g. vocabulary
+  // argmax). Their semantic reduction includes that output dimension, but
+  // the mainloop iterates only over GEMM K.
+  int collective_k_extent=0;
   // Populated only by the regime-A preparer, using element-level write images.
   std::optional<analysis::QuasiPolynomial> no_producer_read_bytes;
   std::optional<analysis::QuasiPolynomial> external_write_bytes;

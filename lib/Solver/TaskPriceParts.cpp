@@ -53,7 +53,9 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
     result.compute_ns=std::max(scalar_ns,mma_ns);
   } else {
     if(traits.stages<2 || traits.tile_k<=0)throw std::invalid_argument("regime-A collective needs at least two pipeline stages");
-    double iters=eval(input.work.nominal_task_reduce_extent)/traits.tile_k;
+    double iters=input.collective_k_extent>0
+        ? std::ceil(double(input.collective_k_extent)/traits.tile_k)
+        : eval(input.work.nominal_task_reduce_extent)/traits.tile_k;
     if(!(iters>0))throw std::invalid_argument("invalid reduction iterations");
     double reads=eval(input.work.nominal_read_elements)/iters,writes=eval(input.work.nominal_write_elements);
     double nominal_bytes=2*reads,bytes=traffic.global_read_bytes/iters;
