@@ -136,6 +136,8 @@ bool PrepareExecutionPlan(PreparedExecutionGraph const& graph,MaterializedPlan c
 
 struct SimulatorInput {
   std::vector<TaskPriceParts> task_price_parts;
+  // Group events retain their visibility hop even with a common owner.
+  std::vector<std::pair<int,int>> fluid_forced_local_hops;
   codegen::RuntimeTaskGraph const* graph = nullptr;
   /// Solo duration of each runtime node, one resident CTA per SM.  Indexed by
   /// the graph's flat node id, i.e. `stage_offsets[stage] + task`.

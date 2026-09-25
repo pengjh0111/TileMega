@@ -1,0 +1,8 @@
+RELATIONS ms=14446.9
+INDIRECT tensor=p_embed_weight tokens=1 unique_rows=1 width=2048
+FLOOR ms=14778.1
+PREPARE ms=31455.031888000001 spaces=356 edges=435 price_hits=0 price_misses=21 varying=0
+STRUCTURE ms=231.81972999999999 counts_exact=1 releases_exact=1 makespan_exact=1
+PREPARE_WARM ms=28.780138000000001 space_hits=1047 space_misses=21
+FLOW ns=7402794.0436939979 floor_ns=2518402.1584694986 delivered=2472356359.9999995 mean_ms=2.5034036 max_ms=2.551202
+DECOMPOSE sync=2075281.9487626972 fixed=2748881.4587238948 contention=2681.7499890015461 chain=57546.727748905774 pg=636922.04192217812

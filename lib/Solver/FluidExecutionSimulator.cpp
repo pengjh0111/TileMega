@@ -16,6 +16,8 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
   if(!graph){if(!PrepareExecutionGraph(*input.graph,&local_graph,error))return false;graph=&local_graph;}
   PreparedExecutionPlan local_plan;auto prepared=input.prepared_plan;
   if(!prepared){if(!PrepareExecutionPlan(*graph,plan,&local_plan,error))return false;prepared=&local_plan;}
+  std::vector<std::vector<int>> forced(nodes);
+  for(auto [p,s]:input.fluid_forced_local_hops){if(p<0 || p>=nodes || s<0 || s>=nodes || prepared->owner[p]!=prepared->owner[s])throw std::invalid_argument("invalid forced local hop");forced[p].push_back(s);}
   auto pending=prepared->unmet;std::vector<int> remaining=graph->producer_count,head(workers),fluid_owner;
   std::vector<double> ready(nodes),available(workers),work(workers);
   std::vector<unsigned char> state(nodes),compute(nodes),bytes(nodes),closing(nodes);
@@ -47,6 +49,7 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
       else{--running;++completed;task.end_ns=now;work[w]+=now-task.start_ns;out->total_work_ns+=now-task.start_ns;available[w]=now;++head[w];
         int g=graph->group_of_node[n];double edge=options.flat_hop?hop.c0:hop.Ns(prepared->cross_fanout[n],std::max(1,running));
         arrivals[g].Add(w,now,now+edge);
+        for(int s:forced[n])ready[s]=std::max(ready[s],now+edge);
         if(--remaining[g]==0)graph->successors[g].Visit([&](int s){ready[s]=std::max(ready[s],arrivals[g].Ready(prepared->owner[s]));if(--pending[s]==0)enqueue(prepared->owner[s]);});
         enqueue(w);
       }

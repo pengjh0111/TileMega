@@ -29,7 +29,9 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
     if(kind==2 && selected.plan.owner.at(ps).at(group)==selected.plan.owner.at(e[0]).at(e[1]))return;
     publishing.insert(ps);if(!desired[cn].insert({ps,kind==0?-1:group}).second)return;
     int k=ProducerKappa(problem.projection.options,ps),begin=kind==0?0:group*k,end=kind==0?problem.counts[ps]:std::min(problem.counts[ps],begin+k);
-    for(int t=begin;t<end;++t)graph.successors[node(ps,t)].push_back(cn);
+    for(int t=begin;t<end;++t){int pn=node(ps,t);graph.successors[pn].push_back(cn);
+      if(point.flow && kind!=2 && selected.plan.owner[ps][t]==selected.plan.owner[e[0]][e[1]])input.fluid_forced_local_hops.emplace_back(pn,cn);
+    }
   });
   for(auto& row:graph.successors){std::sort(row.begin(),row.end());row.erase(std::unique(row.begin(),row.end()),row.end());}
   if(!CheckPlanLegality(graph,selected.plan,&error))throw std::runtime_error("event-group legality: "+error);
@@ -37,6 +39,11 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
   for(auto const& queue:selected.plan.queue){std::set<std::pair<int,int>> seen;for(auto task:queue)for(auto event:desired[node(task.stage,task.logical)])
     if(seen.insert(event).second)input.consumer_wait_required[node(task.stage,task.logical)]=1;}
   SimulatorOptions sim;sim.observed_task_times=true;sim.flat_hop=true;
+  if(point.flow) {
+    input.task_price_parts=ExpandFlowPrices(*point.flow);
+    sim.dram_fluid=true;sim.dram_gbps=point.flow->flow.dram_gbps;
+    sim.dram_floor_ns=point.flow->flow.dram_floor_ns;sim.all_external_miss=point.flow->flow.all_external_miss;
+  }
   auto const& rates=options.common.placement.target.EventCalibrationFor(problem.model.dtype==ScalarType::kBF16?"bf16":"f32");
   sim.publication_ns=rates.task_publication.ns.value_or(0);sim.consumer_wait_ns=rates.task_wait.ns.value_or(0);
   PreparedPlanBounds bounds;
@@ -44,7 +51,7 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
   SimulatorResult simulated;
   {SolverPhase phase(options.common.timing,"simulate");if(!SimulateExecution(input,selected.plan,sim,options.common.placement.hop,&simulated,&error))throw std::runtime_error(error);}
   selected.predicted_ns=simulated.makespan_ns;
-  auto placement=options.common.placement;placement.residency=point.candidate.residency;placement.verified_resident_limit=point.candidate.actual_limit;placement.kappa=options.kappa;
+  auto placement=options.common.placement;placement.residency=point.candidate.residency;placement.verified_resident_limit=point.candidate.actual_limit?point.candidate.actual_limit:point.candidate.estimated_limit;placement.kappa=options.kappa;
   WritePlanSkeleton(*point.module,sk);dialect::WriteSolvedPlacement(*point.module,selected,placement);
   CompilerSearchResult::ShortlistEntry entry;
   entry.evaluation.candidate.config=point.candidate.config.front();entry.evaluation.candidate.key=point.candidate.key;

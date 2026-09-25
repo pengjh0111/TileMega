@@ -7,6 +7,7 @@
 #include <mlir/IR/BuiltinOps.h>
 
 namespace tilemega::solver {
+struct SymbolicDataEdge {int producer=0,consumer=0;analysis::CouplingRelation relation;};
 struct SymbolicProblem {
   codegen::RuntimePlan runtime;
   ModelDescription model;
@@ -16,6 +17,7 @@ struct SymbolicProblem {
   std::vector<double> task_ns,prefetch_ns;
   int threads=0;
   analysis::CouplingRelation execution_dependencies;
+  std::vector<SymbolicDataEdge> data_edges;
 };
 struct PreparedSymbolicWork {
   DerivedTaskInput input;

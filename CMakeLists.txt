@@ -190,6 +190,8 @@ add_library(tilemega STATIC
   lib/Solver/TaskPriceParts.cpp
   lib/Solver/PiecePricing.cpp
   lib/Solver/DramFluid.cpp
+  lib/Solver/ModelDramFloor.cpp
+  lib/Solver/FlowPreparation.cpp
   lib/Solver/StageFlowModel.cpp
   lib/Solver/FluidExecutionSimulator.cpp
   lib/Analysis/FusionAccess.cpp
@@ -230,6 +232,10 @@ set_target_properties(tilemega-import PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
 add_executable(tilemega-skeleton-audit tools/tilemega-skeleton-audit.cpp)
+add_executable(tilemega-flow-audit tools/tilemega-flow-audit.cpp)
+target_link_libraries(tilemega-flow-audit PRIVATE TileMega::tilemega MLIRParser)
+target_compile_definitions(tilemega-flow-audit PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+set_target_properties(tilemega-flow-audit PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 add_executable(tilemega-dram-floor tools/tilemega-dram-floor.cpp)
 add_executable(tilemega-r9-early docs/experiments/SOLVER_R9B/early_signal.cpp)
 target_link_libraries(tilemega-r9-early PRIVATE TileMega::tilemega)
