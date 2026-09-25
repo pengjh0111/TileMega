@@ -1,0 +1,22 @@
+Internal ctest changing into directory: /root/TileMega/build-portable
+Test project /root/TileMega/build-portable
+    Start 53: plan_skeleton
+    Start 57: coupling_cache
+1/8 Test #57: coupling_cache ...................   Passed   19.47 sec
+    Start 56: operator_classes
+2/8 Test #56: operator_classes .................   Passed    3.83 sec
+    Start 55: symbolic_oracle
+3/8 Test #55: symbolic_oracle ..................   Passed    0.28 sec
+    Start 50: skeleton_placement
+4/8 Test #50: skeleton_placement ...............   Passed    0.03 sec
+    Start 54: variant_resource
+5/8 Test #54: variant_resource .................   Passed    0.05 sec
+    Start 51: isolated_evaluation
+6/8 Test #51: isolated_evaluation ..............   Passed    0.03 sec
+    Start 52: skeleton_search_isolation
+7/8 Test #53: plan_skeleton ....................   Passed   75.61 sec
+8/8 Test #52: skeleton_search_isolation ........   Passed  251.03 sec
+
+100% tests passed, 0 tests failed out of 8
+
+Total Test time (real) = 274.72 sec

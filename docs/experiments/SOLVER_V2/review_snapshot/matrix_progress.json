@@ -1,0 +1,110 @@
+{
+  "observed_ns": 1790309453481733409,
+  "terminal": [
+    "legacy_r8_domain/llama_s1",
+    "legacy_r8_domain/llama_s4",
+    "legacy_r8_domain/llama_s16",
+    "legacy_r8_domain/llama_s64",
+    "legacy_r8_domain/qwen3_s1",
+    "legacy_r8_domain/qwen3_s4",
+    "legacy_r8_domain/qwen3_s16",
+    "legacy_r8_domain/qwen3_s64"
+  ],
+  "pending": [
+    "matrix/llama_s1/skeleton-k4",
+    "matrix/llama_s1/skeleton-k8",
+    "matrix/llama_s1/skeleton-k16",
+    "matrix/llama_s1/skeleton-kW",
+    "matrix/llama_s4/skeleton-k4",
+    "matrix/llama_s4/skeleton-k8",
+    "matrix/llama_s4/skeleton-k16",
+    "matrix/llama_s4/skeleton-kW",
+    "matrix/llama_s16/skeleton-k4",
+    "matrix/llama_s16/skeleton-k8",
+    "matrix/llama_s16/skeleton-k16",
+    "matrix/llama_s16/skeleton-kW",
+    "matrix/llama_s64/skeleton-k4",
+    "matrix/llama_s64/skeleton-k8",
+    "matrix/llama_s64/skeleton-k16",
+    "matrix/llama_s64/skeleton-kW",
+    "matrix/qwen3_s1/skeleton-k4",
+    "matrix/qwen3_s1/skeleton-k8",
+    "matrix/qwen3_s1/skeleton-k16",
+    "matrix/qwen3_s1/skeleton-kW",
+    "matrix/qwen3_s4/skeleton-k4",
+    "matrix/qwen3_s4/skeleton-k8",
+    "matrix/qwen3_s4/skeleton-k16",
+    "matrix/qwen3_s4/skeleton-kW",
+    "matrix/qwen3_s16/skeleton-k4",
+    "matrix/qwen3_s16/skeleton-k8",
+    "matrix/qwen3_s16/skeleton-k16",
+    "matrix/qwen3_s16/skeleton-kW",
+    "matrix/qwen3_s64/skeleton-k4",
+    "matrix/qwen3_s64/skeleton-k8",
+    "matrix/qwen3_s64/skeleton-k16",
+    "matrix/qwen3_s64/skeleton-kW"
+  ],
+  "reference_pending": [],
+  "searches": {
+    "matrix/llama_s1/skeleton-k8": {
+      "evaluated": 2903,
+      "completed_coordinates": 2,
+      "domains": [
+        1218,
+        1218,
+        1218,
+        1218,
+        1218,
+        1218
+      ]
+    },
+    "matrix/llama_s4/skeleton-k4": {
+      "evaluated": 1706,
+      "completed_coordinates": 1,
+      "domains": [
+        1218,
+        1218,
+        1218,
+        1218,
+        1218,
+        1218
+      ]
+    },
+    "matrix/llama_s4/skeleton-k8": {
+      "evaluated": 1649,
+      "completed_coordinates": 1,
+      "domains": [
+        1218,
+        1218,
+        1218,
+        1218,
+        1218,
+        1218
+      ]
+    },
+    "matrix/llama_s4/skeleton-k16": {
+      "evaluated": 1649,
+      "completed_coordinates": 1,
+      "domains": [
+        1218,
+        1218,
+        1218,
+        1218,
+        1218,
+        1218
+      ]
+    },
+    "matrix/llama_s4/skeleton-kW": {
+      "evaluated": 1646,
+      "completed_coordinates": 1,
+      "domains": [
+        1218,
+        1218,
+        1218,
+        1218,
+        1218,
+        1218
+      ]
+    }
+  }
+}

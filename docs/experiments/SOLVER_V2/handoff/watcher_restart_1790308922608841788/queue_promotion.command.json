@@ -1,0 +1,15 @@
+{
+  "command": [
+    "python3",
+    "docs/experiments/SOLVER_V2/promote_queued_arm.py",
+    "--jobs",
+    "36",
+    "--slots",
+    "5",
+    "--drain-queue"
+  ],
+  "pid": 2833216,
+  "exec_session": 47556,
+  "observed_ns": 1790289408298762693,
+  "scope": "one dedicated CPU admission lane; no active solver restart"
+}

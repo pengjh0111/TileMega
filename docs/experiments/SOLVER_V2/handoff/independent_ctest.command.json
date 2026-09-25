@@ -1,0 +1,16 @@
+{
+  "command": [
+    "ctest",
+    "--test-dir",
+    "build-portable",
+    "--output-on-failure",
+    "-j",
+    "2",
+    "-R",
+    "^(coupling_cache|operator_classes|variant_resource|symbolic_oracle|plan_skeleton|skeleton_placement|isolated_evaluation|skeleton_search_isolation)$"
+  ],
+  "started_ns": 1790290101957599492,
+  "source_head": "bbbbae896f4593a6a72fc8f2f1a102de7067911a",
+  "exit_code": 0,
+  "finished_ns": 1790290376755331988
+}

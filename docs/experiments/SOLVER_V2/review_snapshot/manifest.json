@@ -1,0 +1,37 @@
+{
+  "captured_utc": "2026-09-25T04:11:10.700740+00:00",
+  "source_head": "e376b5edacbeebcd30f1980d9840fce4b9d39e86",
+  "scope": "Partial CPU search evidence; no anchored skeleton performance result is complete.",
+  "files": [
+    {
+      "source": "docs/experiments/SOLVER_V2/matrix/llama_s1/skeleton-k8/selected.cu.search.tsv",
+      "snapshot": "matrix_llama_s1_skeleton-k8.search.tsv",
+      "sha256": "e3b3a22902fab91560de69f3cc103f7c853ed8c3cc9079a54fb807600a496182",
+      "bytes": 368852
+    },
+    {
+      "source": "docs/experiments/SOLVER_V2/matrix/llama_s4/skeleton-k4/selected.cu.search.tsv",
+      "snapshot": "matrix_llama_s4_skeleton-k4.search.tsv",
+      "sha256": "9d88bfcbb3618e7198eed049d876820e0ef828d183405e3d1689cd3eeec03716",
+      "bytes": 200111
+    },
+    {
+      "source": "docs/experiments/SOLVER_V2/matrix/llama_s4/skeleton-k8/selected.cu.search.tsv",
+      "snapshot": "matrix_llama_s4_skeleton-k8.search.tsv",
+      "sha256": "2b778b8343b6887c373ee71b7ddb11f14201064cef5fa7550a3512845ad401ad",
+      "bytes": 193748
+    },
+    {
+      "source": "docs/experiments/SOLVER_V2/matrix/llama_s4/skeleton-k16/selected.cu.search.tsv",
+      "snapshot": "matrix_llama_s4_skeleton-k16.search.tsv",
+      "sha256": "2de4af62e9637bb6271cb0657632f4d29c6500f027b3090d5abfa02146d549d3",
+      "bytes": 193379
+    },
+    {
+      "source": "docs/experiments/SOLVER_V2/matrix/llama_s4/skeleton-kW/selected.cu.search.tsv",
+      "snapshot": "matrix_llama_s4_skeleton-kW.search.tsv",
+      "sha256": "5087fa2afde865c95eb68b30956dc8d801a3f908b17d4b38092c90bb5fb27396",
+      "bytes": 193080
+    }
+  ]
+}

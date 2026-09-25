@@ -1,11 +1,11 @@
 {
   "command": [
     "python3",
-    "docs/experiments/SOLVER_V2/render_summary.py",
+    "/root/TileMega/docs/experiments/SOLVER_V2/render_summary.py",
     "--wait-for-matrix"
   ],
-  "pid": 2730558,
-  "exec_session": 87578,
-  "started_ns": 1790271191956277929,
-  "note": "foreground exec session preserves sandbox lifetime; initial detached sandbox spawn did not survive"
+  "pid": 2905220,
+  "started_ns": 1790308922655845785,
+  "previous_metadata": "/root/TileMega/docs/experiments/SOLVER_V2/handoff/watcher_restart_1790308922653412752/summary_waiter.command.json",
+  "note": "Detached host process; prior helper absent, active searches untouched."
 }

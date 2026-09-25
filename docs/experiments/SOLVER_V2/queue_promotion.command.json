@@ -1,15 +1,15 @@
 {
   "command": [
     "python3",
-    "docs/experiments/SOLVER_V2/promote_queued_arm.py",
+    "/root/TileMega/docs/experiments/SOLVER_V2/promote_queued_arm.py",
     "--jobs",
     "36",
     "--slots",
     "5",
     "--drain-queue"
   ],
-  "pid": 2833216,
-  "exec_session": 47556,
-  "observed_ns": 1790289408298762693,
-  "scope": "one dedicated CPU admission lane; no active solver restart"
+  "pid": 2905219,
+  "started_ns": 1790308922610594861,
+  "previous_metadata": "/root/TileMega/docs/experiments/SOLVER_V2/handoff/watcher_restart_1790308922608841788/queue_promotion.command.json",
+  "note": "Detached host process; prior helper absent, active searches untouched."
 }

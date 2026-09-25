@@ -1,0 +1,11 @@
+{
+  "command": [
+    "python3",
+    "docs/experiments/SOLVER_V2/render_summary.py",
+    "--wait-for-matrix"
+  ],
+  "pid": 2730558,
+  "exec_session": 87578,
+  "started_ns": 1790271191956277929,
+  "note": "foreground exec session preserves sandbox lifetime; initial detached sandbox spawn did not survive"
+}
