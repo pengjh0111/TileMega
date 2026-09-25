@@ -1,0 +1,4 @@
+arch	exit_code	seconds	object_bytes	log
+sm_80	0	45.578	1223488	/root/TileMega/docs/experiments/SERVING_R10/arch_compile/sm_80.log
+sm_90	0	53.937	1234496	/root/TileMega/docs/experiments/SERVING_R10/arch_compile/sm_90.log
+sm_120	0	51.028	1283264	/root/TileMega/docs/experiments/SERVING_R10/arch_compile/sm_120.log

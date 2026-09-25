@@ -1,0 +1,1 @@
+/usr/local/cuda/bin/nvcc -std=c++17 -O3 -DTILEMEGA_MIDPOINT_REFINE=0 --expt-relaxed-constexpr -Xptxas=-v -c -x cu -I/root/TileMega/include -I/root/TileMega/third_party/cutlass/include -I/root/TileMega/third_party/cutlass/tools/util/include -I/root/TileMega/third_party/cutlass/test -arch=sm_120 /root/r10_work/llama_prefill_B16_seed.so.cu -o /root/r10_work/arch_compile/sm_120.o
