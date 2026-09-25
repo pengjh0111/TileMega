@@ -7646,3 +7646,29 @@ benefits. No placement, score or selected binary changes in this reporting fix.
 The existing independent displacement unit checks pass. Evidence:
 `SOLVER_R9B/report_tables/materializations.tsv`, each raw `matrix/*/*.tasks.tsv`
 and `*.metrics.tsv`, and `unit/displacement_writer.log`.
+
+## F-268 — Archive completed R9b tests without filling missing cells
+
+✅ verified: when the user stopped the remaining R9b tests, no search or
+validation process remained. The checker had finished, but the real-model
+matrix had winners in only three of eight cells. Their L2 medians were
+4.446912 ms (Llama s1), 4.446888 ms (Llama s4), and 8.041976 ms (Qwen3 s1),
+or 0.820095, 0.686812, and 0.975286 times the fresh legacy controls.
+`L2/T_floor` was 1.765767, 1.765129, and 2.293451, respectively.
+The other five cells do not support the G-9 count or G-10 six-cell geometric
+mean. Llama s16 and Qwen3 s4 were solved but lacked complete top-3 GPU
+measurements; three other solves remained incomplete.
+
+The newly completed Qwen3 colocated-flow validation reached 100 configurations
+and Spearman 0.991023; both models' pure-home and colocated sets now have
+100 samples each and pass G-8. New completed theta points were Llama s16 and
+Qwen3 s4, bringing that grid to 8/14. Llama s4's pure-template ablation
+passed 10/10 at 4.444592 ms, with no tile moved from home. Other ablations,
+the remaining reference cells, and both 50-process colocation checks remain
+unmeasured or partial, rather than failed correctness observations.
+
+⚠️ stated: the user directed that unrun tests not be resumed. The partial
+closure and exact missing paths are in `SOLVER_R9B/test_closure.md` and
+`SOLVER_R9B/report_tables/incomplete.json`; the raw checker output is
+`SOLVER_R9B/verify_report.log`. Independent numerical failures remain:
+static FP64, BF16 replay ranking, and the 10 ms flow/30 min solve budgets.
