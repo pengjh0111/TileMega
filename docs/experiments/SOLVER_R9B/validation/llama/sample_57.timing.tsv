@@ -1,0 +1,2 @@
+solver	model	seq	phase	count	total_ms
+fluid-validation	/root/r7_work/llama_hoist/auto.cu.export.json	4	simulate	1	29.2846

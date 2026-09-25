@@ -1,0 +1,2 @@
+key	grid	residency	flow_ns	simulated_ns	floor_ns	cp_ns	queue_ns	placed	affinity	home	spread_other	candidate_sum	transitions	adjacent_slots	interleaving
+71	128	1	inf	7563717.7936590873	5715473.3372576172	977098.62963305239	5471715.0720474636	134896	2042	132854	0	134896	23880	134768	0.17719339902647513
