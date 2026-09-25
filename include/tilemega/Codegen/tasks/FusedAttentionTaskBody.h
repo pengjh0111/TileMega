@@ -182,14 +182,13 @@ struct FusedAttentionTaskBody {
         // Old cache rows are fetched with 16-byte cp.async.cg transactions.
         // Each source row is contiguous; the swizzled MMA layout is populated
         // after the asynchronous copy completes.
-        for (int row = 0; row < kKvTile; ++row) {
-          int position = key_begin + row;
-          if (position >= min(block_limit, p.past)) break;
+        int cached_rows = max(0, min(kKvTile, min(block_limit, p.past) - key_begin));
+        if (cached_rows) {
           CopyCached(p.key_cache +
-              ((batch * p.heads_kv + group) * p.capacity + position) * kHeadDim,
-              smem.raw, kHeadDim);
-          for (int d = int(threadIdx.x); d < kHeadDim; d += 128)
-            key(row, d) = smem.raw[d];
+              ((batch * p.heads_kv + group) * p.capacity + key_begin) * kHeadDim,
+              smem.raw, cached_rows * kHeadDim);
+          for (int i = int(threadIdx.x); i < cached_rows * kHeadDim; i += 128)
+            key(i / kHeadDim, i % kHeadDim) = smem.raw[i];
           __syncthreads();
         }
         QkMma::Run(smem.query, smem.key, smem.score, 64);
@@ -229,37 +228,35 @@ struct FusedAttentionTaskBody {
         __syncthreads();
         auto value = cute::make_tensor(cute::make_smem_ptr(smem.value),
                                        typename PvMma::LayoutB{});
-        for (int row = 0; row < kKvTile; ++row) {
-          int position = key_begin + row;
-          if (position >= block_limit) break;
-          if (position < p.past) {
-            CopyCached(p.value_cache +
-                ((batch * p.heads_kv + group) * p.capacity + position) * kHeadDim,
-                smem.raw, kHeadDim);
-          } else {
-            int token = position - p.past;
-            int group_width = (kQPerKV + 2) * kHeadDim;
-            Element const* source = p.qkv +
-                (batch * kTokens + token) * p.heads_kv * group_width +
-                group * group_width + (kQPerKV + 1) * kHeadDim;
-            for (int d = int(threadIdx.x); d < kHeadDim; d += 128) {
-              smem.raw[d] = source[d];
-              bool owns_write = query_begin == q_begin &&
-                                token * kQPerKV >= q_begin &&
-                                token * kQPerKV < q_begin + kQRows;
-              if (owns_write)
-                p.value_cache[((batch * p.heads_kv + group) * p.capacity +
-                               position) * kHeadDim + d] = source[d];
-            }
-            __syncthreads();
-          }
-          for (int d = int(threadIdx.x); d < kHeadDim; d += 128)
-            value(d, row) = smem.raw[d];
-          __syncthreads();
+        if (cached_rows) {
+          CopyCached(p.value_cache +
+              ((batch * p.heads_kv + group) * p.capacity + key_begin) * kHeadDim,
+              smem.raw, cached_rows * kHeadDim);
         }
-        for (int i = int(threadIdx.x); i < 64 * kHeadDim; i += 128)
-          if (i / kHeadDim >= kKvTile || key_begin + i / kHeadDim >= block_limit)
-            value(i % kHeadDim, i / kHeadDim) = Element(0.0f);
+        int valid_rows = min(kKvTile, block_limit - key_begin);
+        for (int i = int(threadIdx.x); i < (valid_rows - cached_rows) * kHeadDim;
+             i += 128) {
+          int row = cached_rows + i / kHeadDim;
+          int d = i % kHeadDim;
+          int position = key_begin + row;
+          int token = position - p.past;
+          int group_width = (kQPerKV + 2) * kHeadDim;
+          Element const* source = p.qkv +
+              (batch * kTokens + token) * p.heads_kv * group_width +
+              group * group_width + (kQPerKV + 1) * kHeadDim;
+          smem.raw[row * kHeadDim + d] = source[d];
+          bool owns_write = query_begin == q_begin &&
+                            token * kQPerKV >= q_begin &&
+                            token * kQPerKV < q_begin + kQRows;
+          if (owns_write)
+            p.value_cache[((batch * p.heads_kv + group) * p.capacity +
+                           position) * kHeadDim + d] = source[d];
+        }
+        __syncthreads();
+        for (int i = int(threadIdx.x); i < 64 * kHeadDim; i += 128) {
+          int row = i / kHeadDim, d = i % kHeadDim;
+          value(d, row) = row < valid_rows ? smem.raw[i] : Element(0.0f);
+        }
         __syncthreads();
         PvMma::Run(smem.probability, smem.value, smem.product, kHeadDim);
         __syncthreads();
