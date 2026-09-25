@@ -355,7 +355,13 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
       T_Norm{}(p, stage, smem);
 #endif
       break;
-    case TaskKind::kRoPE: T_RoPE{}(p, stage, smem); break;
+    case TaskKind::kRoPE:
+#if TILEMEGA_SERVING_RUNTIME
+      asm volatile("trap;");
+#else
+      T_RoPE{}(p, stage, smem);
+#endif
+      break;
     case TaskKind::kKVAppend: T_KV{}(p, stage, smem); break;
     case TaskKind::kElementwise: T_Elementwise{}(p, stage, smem); break;
     case TaskKind::kAdd: T_Add{}(p, stage, smem); break;
@@ -407,7 +413,9 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
       asm volatile("trap;"); break;
 #endif
     case TaskKind::kRoPEKVAppend:
-#if TILEMEGA_FUSION_ROPE_RUNTIME
+#if TILEMEGA_SERVING_RUNTIME
+      asm volatile("trap;"); break;
+#elif TILEMEGA_FUSION_ROPE_RUNTIME
       T_FusedRoPE{}(p,stage,smem); break;
 #else
       asm volatile("trap;"); break;
@@ -485,7 +493,13 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
       T_QKNorm::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS TILEMEGA_PREFETCH_PASS);
       break;
 #endif
-    case TaskKind::kRoPE: T_RoPE::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS); break;
+    case TaskKind::kRoPE:
+#if TILEMEGA_SERVING_RUNTIME
+      asm volatile("trap;");
+#else
+      T_RoPE::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
+#endif
+      break;
     case TaskKind::kKVAppend: T_KV::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS); break;
     case TaskKind::kElementwise:
       T_Elementwise::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
@@ -504,7 +518,9 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
       asm volatile("trap;"); break;
 #endif
     case TaskKind::kRoPEKVAppend:
-#if TILEMEGA_FUSION_ROPE_RUNTIME
+#if TILEMEGA_SERVING_RUNTIME
+      asm volatile("trap;"); break;
+#elif TILEMEGA_FUSION_ROPE_RUNTIME
       T_FusedRoPE::RunTask(p,stage,smem,task); break;
 #else
       asm volatile("trap;"); break;
