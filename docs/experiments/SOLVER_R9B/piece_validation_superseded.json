@@ -1,0 +1,9 @@
+{
+  "pid": 2956080,
+  "command": "/root/TileMega/build-portable/tools/tilemega-flow-validation /root/r7_work/llama_hoist/auto.cu.export.json /root/TileMega/docs/experiments/SOLVER_R9B/fit/target.json /root/r7_work/llama_hoist/fixture /root/TileMega/docs/experiments/SOLVER_R9B/resources /root/TileMega/docs/experiments/SOLVER_R9B/piece_validation/llama 3 90109 0 --prices-only ",
+  "completed_replacement": "docs/experiments/SOLVER_R9B/piece_validation_boundary_identity/llama",
+  "matching_prefix_spaces": 252,
+  "reason": "Complete identical task-sum audit supersedes the old run; repeated PriceParts identity evaluation is sampled at piece boundaries and midpoint plus unit construction checks",
+  "time_ns": 1790330105450278848,
+  "termination_confirmed": true
+}

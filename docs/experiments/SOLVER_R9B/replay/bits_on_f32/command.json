@@ -1,0 +1,22 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-costmodel",
+    "--repo",
+    "/root/TileMega",
+    "--out",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/replay/bits_on_f32",
+    "--target",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/fit/target.json",
+    "--dtype",
+    "f32",
+    "--screen-dir",
+    "/root/TileMega/docs/experiments/ORACLE/raw",
+    "--register-dir",
+    "/root/TileMega/docs/experiments/COST_MODEL/raw",
+    "--full-only",
+    "--regime-a",
+    "all"
+  ],
+  "binary_sha256": "19440775828ad4fe4aa450d41b2daf21d338ed13a8beb1a4116f06394313d70a",
+  "source_head": "3c4e80734af09f6d0f641e8370badc0714532e0a"
+}

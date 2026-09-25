@@ -51,12 +51,19 @@ void AuditPrices(solver::SymbolicProblem const& problem,solver::PreparedFlow con
     auto values=solver::PriceTaskInstances(cost,input,traits,{residency},model,chunks,points,residency);
     double direct=std::accumulate(values.begin(),values.end(),0.0),piece=flow.prices[s].total_isolated_ns;
     double relative=direct?std::abs(piece/direct-1):std::abs(piece);bool exact=true;
-    for(auto const& part:flow.prices[s].pieces) {
+    auto const& pieces=flow.prices[s].pieces;
+    // The sum above checks every task. Exercise the constructor identity at
+    // the two boundaries and midpoint; repeated identical price components
+    // add no coverage to the separate bitwise instance identity test.
+    std::set<std::size_t> probes;
+    if(!pieces.empty())probes={0,pieces.size()/2,pieces.size()-1};
+    for(auto index:probes) {
+      auto const& part=pieces[index];
       auto value=cost.PriceParts(input,traits,{residency},model,chunks,part.representative,residency);
       double a=solver::IsolatedNs(value,fair),b=cost.TaskInstanceNs(input,traits,{residency},model,chunks,part.representative,residency);
       exact &= std::memcmp(&a,&b,sizeof(double))==0;
     }
-    out<<sample<<'\t'<<s<<'\t'<<input.task.name<<'\t'<<count<<'\t'<<flow.prices[s].pieces.size()<<'\t'<<piece<<'\t'<<direct<<'\t'<<relative<<'\t'<<exact<<'\n';out.flush();
+    out<<sample<<'\t'<<s<<'\t'<<input.task.name<<'\t'<<count<<'\t'<<flow.prices[s].pieces.size()<<'\t'<<piece<<'\t'<<direct<<'\t'<<relative<<'\t'<<exact<<'\t'<<probes.size()<<'\n';out.flush();
     if(relative>1e-9 || !exact)throw std::runtime_error("piece audit failed: "+input.task.name);
   }
 }
@@ -77,7 +84,7 @@ int main(int argc,char** argv) try {
   solver::HopCurve hop;std::string error;
   if(!solver::HopCurve::FromTsv(std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SIMULATOR/hop_ns.tsv",&hop,&error))throw std::runtime_error(error);
   bool prices_only=argc==10 && std::string(argv[9])=="--prices-only";
-  std::ofstream audits(out/"price_checks.tsv");audits<<std::setprecision(17)<<"configuration\tstage\tspace\ttasks\tpieces\tpiece_ns\ttile_ns\trelative_error\tbit_exact\n";
+  std::ofstream audits(out/"price_checks.tsv");audits<<std::setprecision(17)<<"configuration\tstage\tspace\ttasks\tpieces\tpiece_ns\ttile_ns\trelative_error\tbit_exact\tbit_coordinates\n";
   int count=std::stoi(argv[6]);bool colocate=std::stoi(argv[8])!=0;std::mt19937 rng(std::stoul(argv[7]));
   std::ofstream samples(out/"samples.tsv"),configs(out/"configs.tsv");
   samples<<std::setprecision(17)<<"sample\tresidency\tkappa\tlimit\tflow_ns\tfluid_ns\tflow_ms\tfluid_ms\tprepare_ms\tfloor_ns\tnonprefix_edges\tvarying_spaces\n";

@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-flow-validation",
+    "/root/r7_work/llama_hoist/auto.cu.export.json",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/fit/target.json",
+    "/root/r7_work/llama_hoist/fixture",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/resources",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/piece_validation_boundary_identity/llama",
+    "3",
+    "90109",
+    "0",
+    "--prices-only"
+  ],
+  "binary_sha256": "bc21850e89c1c8163b6af5d7088b083936898db08fdec3c27d2b700694794048"
+}

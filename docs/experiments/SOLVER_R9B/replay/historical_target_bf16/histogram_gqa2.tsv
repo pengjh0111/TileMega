@@ -1,0 +1,10 @@
+dtype	model	lane	status	count	total	percent
+bf16	gqa2	tc	live	290	770	37.6623377
+bf16	gqa2	cuda	live	0	770	0
+bf16	gqa2	sfu	live	0	770	0
+bf16	gqa2	tmem	capability_absent	0	770	0
+bf16	gqa2	smem	not_calibrated	0	770	0
+bf16	gqa2	l1_5	capability_absent	0	770	0
+bf16	gqa2	l2	live	480	770	62.3376623
+bf16	gqa2	ddr	live	0	770	0
+bf16	gqa2	net	capability_absent	0	770	0
