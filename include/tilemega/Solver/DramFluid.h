@@ -2,6 +2,7 @@
 #pragma once
 #include <vector>
 #include <map>
+#include <queue>
 namespace tilemega::solver {
 // One group contains identical consumers. Bytes and cap are per consumer;
 // water filling accounts for multiplicity, never multiplies device bandwidth.
@@ -14,11 +15,16 @@ class DramFluidServer {
   bool Empty() const;
   double Delivered() const { return delivered_; }
  private:
-  struct Group {double left=0,cap=0,rate=0;int count=0;};
+  struct Group {int count=0;};
+  struct Cap {
+    double service=0,rate=0;
+    long count=0;
+    std::priority_queue<std::pair<double,int>,std::vector<std::pair<double,int>>,
+        std::greater<std::pair<double,int>>> completions;
+  };
   double bandwidth_,delivered_=0;
   std::vector<Group> groups_;
-  std::vector<int> active_;
-  std::map<double,long> cap_counts_;
+  std::map<double,Cap> caps_;
   bool rates_dirty_=false;
   void Allocate();
 };

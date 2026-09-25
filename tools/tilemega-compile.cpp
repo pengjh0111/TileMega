@@ -369,7 +369,15 @@ int main(int argc, char** argv) {
         if(auto r=(*seed)->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_residency"))skeleton.seed_residency=r.getInt();
         if(variant_cache.empty())variant_cache=(resource_root.parent_path()/"variant_cache").string();
         int variant_index=0;
+        std::map<std::tuple<int,int,int,int,int>,tilemega::solver::VariantResources> probed_bodies;
         skeleton.variant_probe=[&](std::string const&,tilemega::solver::GemmConfig const* tile,tilemega::solver::ScalarType dtype) {
+          // The compiled TaskBody template has no class or split-K parameter.
+          // Keep logical variant keys above, but reuse its identical probe.
+          auto body=std::make_tuple(tile?tile->tile_m:0,tile?tile->tile_n:0,
+              tile?tile->tile_k:0,tile?tile->stages:0,int(dtype));
+          if(auto found=probed_bodies.find(body);found!=probed_bodies.end()) {
+            auto reused=found->second;reused.compiled=false;return reused;
+          }
           auto output=resource_root/("variant_"+std::to_string(variant_index++)+".json");
           auto log=output;log.replace_extension("log");std::filesystem::create_directories(resource_root);
           std::string command="python3 "+quote(std::string(TILEMEGA_SOURCE_DIR)+"/tools/probe_variant.py")+
@@ -381,7 +389,8 @@ int main(int argc, char** argv) {
           auto file=llvm::MemoryBuffer::getFile(output.string());if(!file)throw std::runtime_error("missing variant resource result");
           auto value=llvm::json::parse(file.get()->getBuffer());auto* object=value?value->getAsObject():nullptr;
           if(!object)throw std::runtime_error("invalid variant resource JSON");
-          return tilemega::solver::VariantResources{int(requiredInteger(*object,"registers")),int(requiredInteger(*object,"shared_bytes")),int(requiredInteger(*object,"threads")),object->getBoolean("compiled").value_or(false)};
+          auto resource=tilemega::solver::VariantResources{int(requiredInteger(*object,"registers")),int(requiredInteger(*object,"shared_bytes")),int(requiredInteger(*object,"threads")),object->getBoolean("compiled").value_or(false)};
+          probed_bodies.emplace(body,resource);return resource;
         };
         auto result=tilemega::solver::SolveSkeletonExport(input.string(),context,skeleton,&summary,evidence);
         if(flow_search_only) {

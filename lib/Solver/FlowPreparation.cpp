@@ -86,6 +86,14 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   // R9b §7.3 fallback: the physical fixed fit worsens median error and replay rank.
   options.physical_fixed=false;
   CostModel cost(target,model.dtype,options);
+  auto signature_for=[&](analysis::SemanticOp const& op)->std::string const& {
+    auto found=cache.signatures.find(op.name);
+    if(found==cache.signatures.end())found=cache.signatures.emplace(op.name,analysis::SemanticSignature(op)).first;
+    return found->second;
+  };
+  std::ostringstream binding_text;
+  for(auto const& [name,value]:std::map<std::string,long>(theta.values.begin(),theta.values.end()))binding_text<<':'<<name<<'='<<value;
+  auto const theta_key=binding_text.str();
   std::vector<std::string> signatures,geometry_keys;
   std::vector<int> order(problem.counts.size());int ordinal=0;
   for(auto const& logical:BuildVariantStageSchedule(problem.runtime.dependencies,model.stages.size()).schedule)
@@ -94,11 +102,12 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     auto const& projected=problem.projection.stages[s];auto const& stage=model.stages[projected.logical_stage];
     auto found=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),[&](auto const& sem){return sem.stage==projected.logical_stage && (!stage.IsCollective() || sem.op.kind==analysis::OperatorKind::kMatmul);});
     if(found==model.task_semantics.end())throw std::runtime_error("flow task has no semantics");
-    auto semantic=*found;auto const& g=problem.geometry.at(stage.IsCollective()?stage.gemm:0);
-    std::ostringstream space_key;space_key<<analysis::SemanticSignature(semantic.op)<<':'<<projected.combine<<':'<<residency<<':'<<problem.threads<<':'<<std::hexfloat<<bound.read_bytes;
+    auto semantic=*found;auto g=stage.IsCollective()?problem.geometry.at(stage.gemm):GemmConfig{};
+    auto const& signature=signature_for(semantic.op);
+    std::ostringstream space_key;space_key<<signature<<':'<<projected.combine<<':'<<residency<<':'<<problem.threads<<':'<<std::hexfloat<<bound.read_bytes;
     if(stage.IsCollective())space_key<<':'<<g.tile_m<<':'<<g.tile_n<<':'<<g.tile_k<<':'<<g.stages<<':'<<g.split_k;
     else for(auto const& [axis,tile]:semantic.tiles)space_key<<':'<<axis<<'='<<tile.ToIslText();
-    for(auto const& [name,value]:std::map<std::string,long>(theta.values.begin(),theta.values.end()))space_key<<':'<<name<<'='<<value;
+    space_key<<theta_key;
     for(auto const& operand:semantic.op.operands){auto f=floor.tensors.find(operand.tensor.name);if(f!=floor.tensors.end())space_key<<':'<<f->second.no_producer.ToString()<<':'<<f->second.writes.ToString()<<':'<<f->second.element_bytes;}
     auto output=floor.tensors.find(semantic.op.result.name);if(output!=floor.tensors.end())space_key<<":"<<output->second.external_writes.ToString();
 
@@ -107,7 +116,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
       ++cache.space_hits;auto space=hit->second.space;space.name=semantic.op.name+(projected.combine?".combine":"");space.order=order[s];
       if(space.count!=problem.counts[s])throw std::runtime_error("cached space count changed");
       if(hit->second.prices.coordinate_varying)result.varying_spaces.push_back(space.name);
-      signatures.push_back(analysis::SemanticSignature(semantic.op)+(projected.combine?".combine":""));geometry_keys.push_back(hit->second.geometry_key);
+      signatures.push_back(signature+(projected.combine?".combine":""));geometry_keys.push_back(hit->second.geometry_key);
       result.prices.push_back(hit->second.prices);flow.spaces.push_back(std::move(space));continue;
     }
     ++cache.space_misses;
@@ -152,7 +161,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     if(std::find(space.piece_of_task.begin(),space.piece_of_task.end(),-1)!=space.piece_of_task.end())throw std::runtime_error("flow pieces do not cover runtime ownership: "+space.name);
     if(prices.coordinate_varying)result.varying_spaces.push_back(space.name);
     space.rank_ns=space.count?prices.total_isolated_ns/space.count:0;
-    signatures.push_back(analysis::SemanticSignature(found->op)+(projected.combine?".combine":""));geometry_keys.push_back(GeometryKey(traits,chunks));
+    signatures.push_back(signature+(projected.combine?".combine":""));geometry_keys.push_back(GeometryKey(traits,chunks));
     cache.spaces.emplace(space_key.str(),FlowPreparationCache::SpaceEntry{space,prices,geometry_keys.back()});
     result.prices.push_back(std::move(prices));flow.spaces.push_back(std::move(space));
   }
@@ -172,9 +181,13 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     int p=data.producer,c=data.consumer;auto const& relation=data.relation;auto oracle=coupling.OracleFor(relation.ToString());
     bool one=oracle->structure==analysis::EdgeStructure::OneToOne && oracle->forward.kind()==analysis::OracleKind::Unique && oracle->reverse.kind()==analysis::OracleKind::Unique;
     int previous=result.colocated_producer[c];if(colocate && one && (previous<0 || order[p]>order[previous]))result.colocated_producer[c]=p;
-    int kappa=ProducerKappa(problem.projection.options,p);bool all=oracle->reverse.IsAllBox({{0,problem.counts[p]-1}},theta);
+    int kappa=ProducerKappa(problem.projection.options,p);
+    auto all_key=relation.ToString()+theta_key+':'+std::to_string(problem.counts[p]);
+    auto all_found=cache.all_producer.find(all_key);
+    if(all_found==cache.all_producer.end())all_found=cache.all_producer.emplace(std::move(all_key),oracle->reverse.IsAllBox({{0,problem.counts[p]-1}},theta)).first;
+    bool all=all_found->second;
     std::string key=signatures[p]+"\n"+signatures[c]+"\n"+geometry_keys[p]+"|"+geometry_keys[c]+"|"+std::to_string(kappa)+"|"+relation.ToString();
-    for(auto const& [name,value]:std::map<std::string,long>(theta.values.begin(),theta.values.end()))key+='|'+name+'='+std::to_string(value);
+    key+=theta_key;
     auto it=cache.releases.find(key);
     std::shared_ptr<std::vector<std::pair<int,int>> const> sorted;
     if(it!=cache.releases.end()){++cache.release_hits;sorted=it->second;}else {

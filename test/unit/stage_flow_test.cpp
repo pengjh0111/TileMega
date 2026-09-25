@@ -4,11 +4,35 @@
 #include <tilemega/Solver/ExecutionSimulator.h>
 #include <cmath>
 #include <iostream>
+#include <algorithm>
+#include <limits>
+#include <random>
 #include <stdexcept>
 using namespace tilemega::solver;
 static void Near(double a,double b,char const* why){if(std::abs(a-b)>1e-7)throw std::runtime_error(std::string(why)+": "+std::to_string(a)+" != "+std::to_string(b));}
 static FlowSpace Space(int n,TaskPriceParts parts){FlowSpace s;s.count=n;s.pieces={{n,parts}};s.piece_of_task.assign(n,0);return s;}
+static void CheckFluidClock() {
+  struct Item {double left,cap,rate;int count;};std::vector<Item> dense;
+  DramFluidServer shared(100);std::mt19937 random(90109);double delivered=0;
+  for(int step=0;step<1000;++step) {
+    if(step<100 || step%3==0){double bytes=1+random()%1000,cap=1+random()%7;int count=1+random()%8;dense.push_back({bytes,cap,0,count});shared.Add(bytes,cap,count);}
+    std::vector<int> active;long count=0;
+    for(int i=0;i<int(dense.size());++i)if(dense[i].count){active.push_back(i);count+=dense[i].count;}
+    if(active.empty())break;
+    std::sort(active.begin(),active.end(),[&](int a,int b){return dense[a].cap<dense[b].cap;});
+    double bandwidth=100,next=std::numeric_limits<double>::infinity();
+    for(int i:active){auto& x=dense[i];x.rate=std::min(x.cap,bandwidth/count);bandwidth-=x.rate*x.count;count-=x.count;next=std::min(next,x.left/x.rate);}
+    Near(shared.Next(),next,"cap clock versus independent dense water filling");
+    double dt=next*(step%4==0?.25:1);std::vector<int> expected;
+    for(int i:active){auto& x=dense[i];double sent=std::min(x.left,x.rate*dt);x.left-=sent;delivered+=sent*x.count;
+      if(x.left<=1e-6){delivered+=x.left*x.count;x.left=0;x.count=0;expected.push_back(i);}}
+    std::sort(expected.begin(),expected.end());
+    if(shared.Advance(dt)!=expected)throw std::runtime_error("fluid completion set differs from dense reference");
+    Near(shared.Delivered(),delivered,"cap clock conserves staggered cohort bytes");
+  }
+}
 int main() try {
+  CheckFluidClock();
   DramFluidServer server(10);server.Add(10,2);server.Add(80,20);Near(server.Next(),5,"capped water filling");auto done=server.Advance(5);if(done!=std::vector<int>{0})throw std::runtime_error("wrong fluid completion");Near(server.Next(),4,"redistribution after release");server.Advance(4);Near(server.Delivered(),90,"byte conservation");
   FlowProblem p;p.workers=2;p.dram_gbps=10;p.spaces={Space(2,{0,0,100,100})};p.dram_floor_ns=p.floor_ns=20;p.all_external_miss=true;
   Near(EvaluateFlow(p).makespan_ns,20,"shared bandwidth must not double");

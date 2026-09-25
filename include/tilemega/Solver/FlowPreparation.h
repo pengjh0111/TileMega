@@ -16,6 +16,7 @@ struct FlowPreparationCache {
   std::uint64_t space_hits=0,space_misses=0;
   std::map<std::string,std::shared_ptr<std::vector<std::pair<int,int>> const>> releases;
   std::map<std::string,bool> nonprefix;
+  std::map<std::string,bool> all_producer;
   std::uint64_t release_hits=0,release_misses=0;
 };
 struct PreparedFlow {
