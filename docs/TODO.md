@@ -1276,10 +1276,10 @@ g ─► 资源探测 ─► R_max ─► residency ─► W ─► 符号 Oracl
 | SV-2 | 按算子类的 tile：撤除 uniform `assign`；codegen 按 `invocation.variant` 分派 | SV-1 | 已实现 | 测试中（完整验收未完成）；单测 2 变体/14 GEMM 分派通过；锚定模型最终选中配置待核验 | b64d6a388；SOLVER_V2/classes_test.log |
 | SV-3 | 资源探测：按变体缓存寄存器与 shared memory，闭式得 `R_max`；top-K 用真实 `queryResidency` 复核 | SV-2 | 已实现 | 测试中（完整验收未完成）；变体探测单测通过；全部真实模型 top-5 复核未完成 | 3f4a7a11c；SOLVER_V2/resource_test.log |
 | SV-4 | 符号 Oracle：前驱与后继，`Unique` / `Rectangular` / `General` 三类精确 | SV-1 | 已实现 | 测试中（完整验收未完成）；384 集合等价与 45 表达式边界检查通过；32 个锚定搜索臂审计待完成 | 127a184d6、2e68767cf；SOLVER_V2/oracle_membership_test.log |
-| SV-5 | Level 1：Plan Skeleton（在 W 已知后构造），表达为 `tmexec` 一等 op | SV-3, SV-4 | 已实现 | 测试中（完整验收未完成）；IR、W 相关铺开规则、跨驻留复用单测通过；完整矩阵待完成 | 2f56d550d、fecae73f0；SOLVER_V2/resident_reuse_test.log |
+| SV-5 | Level 1：Plan Skeleton（在 W 已知后构造），表达为 `tmexec` 一等 op | SV-3, SV-4 | 已实现 | 测试中（完整验收未完成）；IR、W 相关铺开规则、跨驻留复用单测通过；完整矩阵待完成 （⚠️ v2.1 第九轮补充：铺开宽度公式 `k_S = clamp(⌈k_base·L_S/L_median⌉, 2, W)`（`PlanSkeleton.cpp:225`）使重负载 space 取到 W，Llama s4 平均候选集 409/512；k4 相对 kW 中位差 1.1% 且从未更好，四个 k 臂速度相同——Level 1 没有起到收窄作用。该公式是 R9 规格的设计错误，由 SV-14 的常数宽度与沿 1:1 边的共置取代。） | 2f56d550d、fecae73f0；SOLVER_V2/resident_reuse_test.log |
 | SV-6 | Level 2：就绪前沿 + ETF 的代价感知放置，输出 `(π, σ)` | SV-5 | 已实现 | 测试中（完整验收未完成）；EST 就绪调度三类单测通过；真实模型交错率待完成 | b8362dff1；SOLVER_V2/schedule_membership_test.log |
-| SV-7 | 外层坐标下降（嵌套 residency）+ 模拟器 top-K；现行求解器保留为对照臂 | SV-6 | 已实现，测量中 | 测试中（完整验收未完成）；完整域 P=3 搜索运行中；并行/串行 26 候选与 top-5 调度等价 | ff3f54c23、65c5fae46；SOLVER_V2/search_isolation_test.log |
-| SV-8 | 真实模型验证：Llama-3.2-1B 与 Qwen3-1.7B 上的效果与求解耗时 | SV-7 | 运行中 | 测试中（完整验收未完成）；G-3 参考四格三个候选共 120/120；真实 8 格 × 5 臂未齐，G-8 尚未判定，不宣称收尾 | SOLVER_V2/matrix、SOLVER_V2/verify.py |
+| SV-7 | 外层坐标下降（嵌套 residency）+ 模拟器 top-K；现行求解器保留为对照臂 | SV-6 | 已实现，测量中 | 测试中（完整验收未完成）；完整域 P=3 搜索运行中；并行/串行 26 候选与 top-5 调度等价 （⚠️ v2.1 第九轮补充：外层以 Level 2 的逐 tile 放置打分，一次全模型评估 `task_pricing` 37–44 s、`level2` 22–29 s，Llama s1-k8 在 5.74 小时内只完成 2,903 次评估；按此速率一个臂约 30–45 小时。该打分方式是 R9 规格 §4.7(d) 的设计错误，由 SV-12/SV-13 的 Level 1 流模型取代；`fork` 隔离与 `AlignedEdges` 排序一并移除。） | ff3f54c23、65c5fae46；SOLVER_V2/search_isolation_test.log |
+| SV-8 | 真实模型验证：Llama-3.2-1B 与 Qwen3-1.7B 上的效果与求解耗时 | SV-7 | 运行中 | 测试中（完整验收未完成）；G-3 参考四格三个候选共 120/120；真实 8 格 × 5 臂未齐，G-8 尚未判定，不宣称收尾 （⚠️ v2.1 第九轮补充：R9 矩阵于 R9b 开工时停止，已完成的 8 个 legacy 对照与部分搜索快照保留为证据；skeleton 臂在 R9b 的新管线下由 SV-15 重新测量。G-8 在新管线下重新判定。） | SOLVER_V2/matrix、SOLVER_V2/verify.py |
 
 ### 5.3 优先级（取代 §4.1 的原顺序）
 
@@ -1294,6 +1294,8 @@ SV（求解器重构，本轮 R9）
 ```
 
 理由：求解器是 TileMega 的核心贡献所在，而当前实现中 ISL 并未参与放置决策；在一个不用 ISL 的求解器与一个 attention 仍为标量的后端之上叠加静态 batch，会把问题成倍放大。
+
+（⚠️ v2.1 第九轮补充：R9 之后先做 R9b（SV-9…SV-15），再进入 R10。R10 的范围为：静态多 batch（batch 作为 θ 的一维，SB）、一次完整请求的推理（参照 MPK 的 serving 实现，结合 TileMega 的执行器）、以及 CUTLASS/CuTe 后端对接的完善（含 AT-1）；完成后做端到端测试。PG、TF 与同步原语改造的先后，由 R9b 的 G-11 决定：PG 的收益上界是 `T − max(T_floor, T_np0)`；TF 的收益上界是关键链上可融合链节的同步段与固定段之和；同步原语改造的收益上界是同步项中属于协议常数（发布、等待、hop）的部分。）
 
 ### 5.4 后置条目（R9 之后处理）
 
@@ -1315,3 +1317,55 @@ attention 的 QKᵀ 与 PV 改为 tensor core（CUTLASS FMHA collective 或在�
 1. **所有性能测量必须 `TILEMEGA_MIDPOINT_REFINE=0`。** 该开关是 R7 为通过数值门而加的补丁：对落在 BF16 舍入中点附近的 GEMM 输出元素，在 CUDA core 上用 FP64 从全局内存重算整条点积（`GemmStageTaskBody.h:442-486`）。它不使结果更正确，只使其与某一个特定的 BF16 求值顺序一致，代价最高达 36×。
 2. **真实模型的正确性门以 L0.5/L1/L2 内部逐位一致为准**（三档 `E2E_HASH` 相同），不以 CPU golden 为准——后者在深残差链上的失配是已知的判据问题（深度扫描 4/8/16/28 层分别为 0/2/44/190 个超差元素），属于 TF-4。
 3. **验收必须核实代码，不得只读文档。** 每轮的 `verify.py` 必须包含对关键结构性质的代码级检查（grep 或静态检查），而不只是重算实验数字。
+4. **每个性能结果都报告 `L2 / T_floor`。** `T_floor(θ)` 由 CG 推出（SV-10），它是本项目的绝对目标；只报告相对 legacy 的改进不足以判断方案是否合理。
+
+### 5.7 R9b——以绝对下界为目标的求解器补充
+
+#### 5.7.0 立项依据（R9 代码审查与实测）
+
+**一、第一次有了物理目标。** decode 步的主要字节是权重，每步读一次。以目标文件的 `dram_gbps = 981.58 GB/s` 计：
+
+| 模型 | 权重（含 lm_head） | `T_floor` | legacy L2 / `T_floor`（seq 1 / 4 / 16 / 64） |
+|---|---|---|---|
+| Llama-3.2-1B | 2.471 GB | 2.518 ms | 2.15 / 2.56 / 2.83 / 4.97 |
+| Qwen3-1.7B | 3.441 GB | 3.506 ms | 2.36 / 2.55 / 2.68 / 4.73 |
+
+seq ≤ 16 六格的几何平均为 **2.51×**。
+
+**二、decode 是一条长依赖链，每节超额以固定开销为主。** Llama 的 388 个 task space 中最长依赖链深 **260**（65 个 proj、65 个 split-K combine、33 个 norm、32 个 add、rope/append/attn/act 各 16），Qwen3 的 732 个中链深 **480**。seq=1 时每节超额 `(L2 − T_floor)/D` 在两个模型上都约 **10–11 µs**。已标定的每节常数：hop 1235 ns、发布 1074 ns、等待 1764 ns、TaskBody 固定段 1.5–11 µs（随 tile 与有效行数变化）——数据流动之前每节已有约 6–9 µs。（⚠️ inferred：seq=1 的超额主要来自同步与 task 固定开销；由 SV-9(d) 的 trace 核实。）decode 时间近似 `T_floor + D·b`，对应 §4.4.1 分 regime 表中 decode 的目标"最小化权重预取管道气泡"——此前从未实现。
+
+**三、代价模型在 regime A 的四处失真。**
+- **SDCM**（`CostModel.cpp:278-295`）对任何大于 L2 的工作集都预测约 50% 命中（0.1 GB 至 64 GB 均为 0.4990–0.4995），DRAM 道被减半；生产路径默认使用它（`TILEMEGA_MEASURED_CACHE_CURVE 0`），`target.json` 中已标定的 18 节点实测服务曲线未被使用。
+- **DRAM 不是设备级共享资源**：每个 task 按 `active_ctas_per_sm = residency` 定价（`PlanSkeleton.cpp:186`；legacy 同），模拟器也只按 task 计 DRAM（`ExecutionSimulator.h:25-27`）。task 少于 W 的 stage 被高估最多 W/N 倍，模型偏向 split-K 与更多链节；DRAM 空闲不可见。
+- **stages 没有收益项**：BF16 标定分支中 stages 系数为 0、暴露等待为常数 98.55 ns（`CostModel.cpp:652-657`）；实测 S=2 暴露等待中位数 123 ns、S=3 为 6 ns。
+- **名义 tile 计账**：流量按 `kNominalTile` 推导，TaskBody 固定段按名义写出量回归；decode 中 M ≪ tile_m，名义量最多高估 tile_m/M 倍；实测固定段随有效行数变化。
+
+**四、R9 求解器的结构问题**：外层打分过重（SV-7 注记）、Level 1 不收窄（SV-5 注记）、价格缓存键含全几何向量、`fork` 丢失子进程缓存、结构感知排序不剪枝。
+
+#### 5.7.1 设计
+
+```
+ 一次            每组配置（毫秒级，外层搜索的全部候选）                                  仅 top-M                    仅 top-3
+导入 L-sem → 实例化+耦合缓存 → 资源探测 R_max → 分片价格分量 → 释放律(Oracle+Coarsen) → Level 1 流模型 → Level 2 物化 → 逐 tile 流体模拟 → GPU 实测
+```
+
+- **单 task 价格**：拆成固定段、计算（含 stages 延迟项 `(λ·ℓ + o·b_stage/r_sm)/(S−1)`）、DRAM 字节（按操作数来源，大工作集取实测曲线，物理域计账）、DRAM 速率上限四个分量；全部修正在 `regime_a` 选项之后，只作用于 BF16，选项关闭时逐位不变。
+- **Level 1 流模型**：task space 粒度的事件驱动计算，worker 池全局共享，DRAM 是设备级流体服务器（注水分配），同步常数、hop、释放律都在其中；外层对全部候选用它打分。结果满足 `T ≥ T_dram`。
+- **逐 tile 模拟器的流体模式**（默认关闭）：与 Level 1 同一物理，按每 worker FIFO 执行；用于 top-M 的物化择优与排序。
+- **Level 1 Skeleton**：跨 stage 连续轮询的 home，加上沿 1:1 边以 Unique 分段仿射映射做的共置（共置省去同步只在生产者 κ = 1 时成立，`RuntimeProjection.cpp:333-337`）；逐 tile 候选宽度为常数。
+- **Level 2**：只对 top-M 物化；纯模板与"模板 + 有界 EFT"两种，由流体模拟择优。
+- **目标与分解**：`T_floor(θ) = max(T_dram, T_compute)` 由 CG 的读关系像与 barvinok 计数推出；所有结果报告为 `L2 / T_floor`，并给出同步、task 固定、争用、链延迟四项反事实分解与 R10 指标（PG 上界、可融合链节、attention 占比）。
+
+原则 P-1…P-9 见 R9b prompt §2.2；R9 的 R-A、R-D、R-G、F-88 继续有效。
+
+#### 5.7.2 条目台账
+
+| ID | 范围与验收（不可删减） | 依赖 | 实现状态 | 验证状态 | 证据、commit |
+|---|---|---|---|---|---|
+| SV-9 | 冻结 R9 矩阵；R9 部分搜索最佳配置的早期信号；同会话复测 legacy 8 格；四格 trace 缺口归因（核实每节固定开销的推断）；FP64 审计（实测 megakernel 的 FP64 指令数为 0） | — | 未开始 | — | 待填 |
+| SV-10 | `T_floor(θ) = max(T_dram, T_compute)`：无生产者操作数的唯一读字节 + 输出与状态写字节（读关系像 + barvinok 计数），matmul 物理 flop；写入 `tmexec.dram_floor`；权重部分与 config 推算相差 ≤ 0.5% | — | 未开始 | — | 待填 |
+| SV-11 | 单 task 价格的 regime-A 修正（`regime_a`，仅 BF16）：(a) DRAM 按操作数来源、大工作集取实测曲线；(b) DRAM/L2 字节取物理域；(c) stages 延迟项，λ 与 r_sm 在 490 条 phase 观测上拟合；(d) TaskBody 固定段按物理写出量重拟合；(e) 按边界分片定价，缓存键只含本算子的 g；(f) 价格分量与 `IsolatedNs`；回放（FP32 2154 点、BF16 1540 点）：选项关闭逐位不变，打开时 FP32 逐位不变、BF16 Spearman 不低于 F-116 的 0.9039 / 0.8911 | SV-10 | 未开始 | — | 待填 |
+| SV-12 | Level 1 流模型（设备级 DRAM 流体服务器、同步常数、释放律经 Coarsen(κ)）与四项反事实分解、R10 指标；逐 tile 模拟器的流体模式（默认关闭，既有路径逐位不变）；单次求值 ≤ 10 ms；与流体模拟 Spearman ≥ 0.85 | SV-11 | 未开始 | — | 待填 |
+| SV-13 | 外层搜索改由 Level 1 打分：各类 tile/stages/split + κ + residency 的坐标下降，两个起点；去 `fork`；删 `AlignedEdges` 与代表 tile；top-M = 8；θ 网格区间划分（报告）；每格 ≤ 30 min | SV-12、SV-14 | 未开始 | — | 待填 |
+| SV-14 | Skeleton 模板：轮转 home + 沿 1:1 Unique 映射的共置（同步省略仅在 κ = 1 时）+ 常数宽度 k = 8；纯模板与模板 + EFT 两种物化，流体模拟择优；`tmexec.skeleton` 携带共置与释放律类别 | SV-12 | 未开始 | — | 待填 |
+| SV-15 | 真实模型验证：两模型 × seq 1/4/16/64，legacy 与 skeleton 两臂；参考模型 gqa2/mha4 × seq 4/128 的正确性；共置省去同步的二进制每模型 ≥ 50 个新进程；s4 两格消融（纯模板 / 模板 + EFT / k = W）；stages 小检验；研究门：≥ 6/8 格不劣于 legacy，seq ≤ 16 的 `L2/T_floor` 几何平均 ≤ 2.0 | SV-13 | 未开始 | — | 待填 |
