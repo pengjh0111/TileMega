@@ -1,0 +1,2 @@
+source_byte_identical=/root/r10_work/mixed_top1_rotated_B16.so.top1.candidate.so.cu
+compiled_binary=/root/r10_work/mixed_top1_rotated_B16.so.top1.candidate.so

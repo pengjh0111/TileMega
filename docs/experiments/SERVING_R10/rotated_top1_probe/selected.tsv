@@ -1,0 +1,3 @@
+rank	mode	mean_ms	so
+1	L1	5.33927	/root/r10_work/mixed_top1_rotated_B16.so.top1.candidate.so
+1	L2	5.63508	/root/r10_work/mixed_top1_rotated_B16.so.top1.candidate.so

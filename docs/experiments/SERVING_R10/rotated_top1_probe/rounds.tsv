@@ -1,0 +1,7 @@
+round	rank	mode	mean_ms	artifact
+0	1	L1	4.27745	/root/r10_work/mixed_top1_rotated_B16.so.top1.measurement.r0/measurements.json
+0	1	L2	4.40901	/root/r10_work/mixed_top1_rotated_B16.so.top1.measurement.r0/measurements.json
+1	1	L1	5.33927	/root/r10_work/mixed_top1_rotated_B16.so.top1.measurement.r1/measurements.json
+1	1	L2	5.63508	/root/r10_work/mixed_top1_rotated_B16.so.top1.measurement.r1/measurements.json
+2	1	L1	5.88883	/root/r10_work/mixed_top1_rotated_B16.so.top1.measurement.r2/measurements.json
+2	1	L2	6.24865	/root/r10_work/mixed_top1_rotated_B16.so.top1.measurement.r2/measurements.json
