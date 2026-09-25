@@ -51,7 +51,7 @@ struct SearchContext {
       if(last_structure && last_geometry==geometry_key){point.problem=*last_structure;point.problem.projection.options.grid=target.res.num_sms*residency;point.problem.projection.options.kappa=kappa;}
       else{point.problem=PrepareFlowStructure(*base,geometry,target.res.num_sms*residency,kappa,cache,&flow_cache);last_structure=point.problem;last_geometry=std::move(geometry_key);}
     }
-    {SolverPhase phase(timing,"piece_pricing_and_release");point.flow=PrepareFlow(point.problem,*floor,target,residency,options.common.placement.hop,cache,flow_cache);}
+    {SolverPhase phase(timing,"piece_pricing_and_release");point.flow=PrepareFlow(point.problem,*floor,target,residency,options.common.placement.hop,cache,flow_cache,true,estimate.shared_bytes);}
     return point;
   }
   SkeletonCandidate Evaluate(std::vector<GemmConfig> const& config,int kappa,int residency,int actual=0) {

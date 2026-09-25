@@ -19,5 +19,5 @@ struct PiecePriceCache {
 };
 PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& input,
     ModelTaskSemantics const& semantic,BackendTraits const& traits,Residency residency,
-    ModelDescription const& model,int chunks,PiecePriceCache* cache=nullptr);
+    ModelDescription const& model,int chunks,PiecePriceCache* cache=nullptr,int kernel_shared_bytes=0);
 } // namespace tilemega::solver

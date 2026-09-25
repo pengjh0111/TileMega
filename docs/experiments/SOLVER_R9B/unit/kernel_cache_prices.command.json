@@ -1,0 +1,8 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/regime_a_price_test",
+    "/root/TileMega",
+    "docs/experiments/SOLVER_R9B/fit/target.json"
+  ],
+  "binary_sha256": "684384de859170b2c78e2f8167ce48ec0c2ce8ca92c3e238d789c8f0a64a1306"
+}

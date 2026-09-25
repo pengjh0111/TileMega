@@ -1,0 +1,7 @@
+PIECE_PRICE model=gqa2 tile_k=16 tasks=32 pieces=1 relative_error=4.44089e-16
+PIECE_PRICE model=gqa2 tile_k=32 tasks=32 pieces=1 relative_error=2.22045e-16
+PIECE_PRICE model=gqa2 tile_k=64 tasks=32 pieces=1 relative_error=0
+PIECE_PRICE model=mha4 tile_k=16 tasks=32 pieces=1 relative_error=4.44089e-16
+PIECE_PRICE model=mha4 tile_k=32 tasks=32 pieces=1 relative_error=2.22045e-16
+PIECE_PRICE model=mha4 tile_k=64 tasks=32 pieces=1 relative_error=0
+REGIME_A_PRICE bit_exact=18 stage_monotonic=PASS kernel_union_cache=PASS external_df_2GiB=1

@@ -83,7 +83,7 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
 }
 PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor const& floor,
     TargetSpec const& target,int residency,HopCurve const& hop,
-    analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate) {
+    analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate,int kernel_shared_bytes) {
   if(problem.model.dtype!=ScalarType::kBF16)throw std::invalid_argument("flow preparation requires BF16");
   auto target_key=target.ToJson();if(cache.target_key!=target_key){cache={};cache.target_key=std::move(target_key);}
   PreparedFlow result;auto& flow=result.flow;auto model=problem.model;model.metric_bindings.values.erase("Tm");model.metric_bindings.values.erase("Tn");auto theta=model.MetricBindings();
@@ -117,7 +117,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     std::ostringstream space_key;space_key<<signature<<':'<<projected.combine<<':'<<residency<<':'<<problem.threads<<':'<<std::hexfloat<<bound.read_bytes;
     if(stage.IsCollective())space_key<<':'<<g.tile_m<<':'<<g.tile_n<<':'<<g.tile_k<<':'<<g.stages<<':'<<g.split_k;
     else for(auto const& [axis,tile]:semantic.tiles)space_key<<':'<<axis<<'='<<tile.ToIslText();
-    space_key<<theta_key;
+    space_key<<":kernel_shared:"<<kernel_shared_bytes<<theta_key;
     for(auto const& operand:semantic.op.operands){auto f=floor.tensors.find(operand.tensor.name);if(f!=floor.tensors.end())space_key<<':'<<f->second.no_producer.ToString()<<':'<<f->second.writes.ToString()<<':'<<f->second.element_bytes;}
     auto output=floor.tensors.find(semantic.op.result.name);if(output!=floor.tensors.end())space_key<<":"<<output->second.external_writes.ToString();
 
@@ -145,7 +145,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     }
     PiecePrices prices;
     try {BindTaskDramProvenance(input,semantic,floor,theta);
-      prices=PriceBoundaryPieces(cost,input,semantic,traits,{residency},model,chunks,&cache.prices);
+      prices=PriceBoundaryPieces(cost,input,semantic,traits,{residency},model,chunks,&cache.prices,kernel_shared_bytes);
     }catch(std::exception const& e){throw std::runtime_error(input.task.name+": "+e.what());}
     FlowSpace space;space.name=input.task.name;space.category=projected.combine?"combine":semantic.op.arithmetic;
     if(!projected.combine && semantic.op.kind==analysis::OperatorKind::kMatmul && model.exported_tensors.count(semantic.op.result.name))space.category="lm_head";

@@ -26,6 +26,12 @@ int main(int argc,char** argv) try {
       auto semantic=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),[](auto const& s){return s.op.kind==analysis::OperatorKind::kMatmul;});
       auto input=solver::DeriveModelTaskInput(model,*semantic,graph,&config);
       auto pieces=solver::PriceBoundaryPieces(cost,input,*semantic,solver::TensorBF16Traits(32,16,k,2),{1},model,1);
+      solver::PiecePriceCache memo;
+      auto cached=solver::PriceBoundaryPieces(cost,input,*semantic,solver::TensorBF16Traits(32,16,k,2),{1},model,1,&memo,16384);
+      auto reused=solver::PriceBoundaryPieces(cost,input,*semantic,solver::TensorBF16Traits(32,16,k,2),{1},model,1,&memo,16384);
+      auto different_union=solver::PriceBoundaryPieces(cost,input,*semantic,solver::TensorBF16Traits(32,16,k,2),{1},model,1,&memo,32768);
+      Require(memo.hits==1 && memo.misses==2,"kernel union resource cache identity missing");
+      Require(cached.total_isolated_ns==pieces.total_isolated_ns && reused.total_isolated_ns==different_union.total_isolated_ns,"cache context changes prices at fixed residency");
       auto theta=model.MetricBindings();long count=input.work.task_count.Eval(theta);double enumerated=0;
       std::vector<std::pair<std::string,long>> axes;for(std::size_t a=0;a<input.task.output.axes.size();++a)if(input.task.IsTiled(a))axes.push_back({input.task.output.axes[a].name,input.task.CoordinateExtent(a).Eval(theta,theta)});
       for(long q=0;q<count;++q){long rest=q;analysis::ParamBinding at;for(auto a=axes.rbegin();a!=axes.rend();++a){at.Bind(a->first,rest%a->second);rest/=a->second;}
@@ -53,5 +59,5 @@ int main(int argc,char** argv) try {
       Require(parts.dram_bytes==traffic.global_read_bytes,"large external task lost DRAM bytes");
     }
   }
-  std::cout<<"REGIME_A_PRICE bit_exact="<<checks<<" stage_monotonic=PASS external_df_2GiB=1\n";
+  std::cout<<"REGIME_A_PRICE bit_exact="<<checks<<" stage_monotonic=PASS kernel_union_cache=PASS external_df_2GiB=1\n";
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
