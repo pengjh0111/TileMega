@@ -1,0 +1,12 @@
+ORACLE_EXPRESSION signed_floor_domain_holes=45 PASS
+ORACLE Rectangular reverse=Unique structure=1:N PASS
+ORACLE Unique reverse=Rectangular structure=N:1 PASS
+ORACLE Unique reverse=Unique structure=1:1 PASS
+ORACLE Unique reverse=Rectangular structure=N:1 PASS
+ORACLE Rectangular reverse=Rectangular structure=M:N PASS
+ORACLE General reverse=General structure=M:N PASS
+ORACLE General reverse=General structure=M:N PASS
+ORACLE General reverse=General structure=M:N PASS
+ORACLE General reverse=General structure=M:N PASS
+ORACLE Unique reverse=Unique structure=1:1 PASS
+ORACLE_SET_EQUAL comparisons=384 PASS

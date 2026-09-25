@@ -1,0 +1,51 @@
+Error while mapping shared library sections:
+Could not open `target:/usr/local/cuda/lib64/libcudart.so.12' as an executable file: Operation not permitted
+Error while mapping shared library sections:
+Could not open `target:/lib/x86_64-linux-gnu/libntl.so.44' as an executable file: Operation not permitted
+Error while mapping shared library sections:
+Could not open `target:/lib/x86_64-linux-gnu/libgmp.so.10' as an executable file: Operation not permitted
+Error while mapping shared library sections:
+Could not open `target:/lib/x86_64-linux-gnu/libstdc++.so.6' as an executable file: Operation not permitted
+Error while mapping shared library sections:
+Could not open `target:/lib/x86_64-linux-gnu/libm.so.6' as an executable file: Operation not permitted
+Error while mapping shared library sections:
+Could not open `target:/lib/x86_64-linux-gnu/libgcc_s.so.1' as an executable file: Operation not permitted
+Error while mapping shared library sections:
+Could not open `target:/lib/x86_64-linux-gnu/libc.so.6' as an executable file: Operation not permitted
+Error while mapping shared library sections:
+Could not open `target:/lib64/ld-linux-x86-64.so.2' as an executable file: Operation not permitted
+Error while mapping shared library sections:
+Could not open `target:/lib/x86_64-linux-gnu/libdl.so.2' as an executable file: Operation not permitted
+Error while mapping shared library sections:
+Could not open `target:/lib/x86_64-linux-gnu/libpthread.so.0' as an executable file: Operation not permitted
+Error while mapping shared library sections:
+Could not open `target:/lib/x86_64-linux-gnu/librt.so.1' as an executable file: Operation not permitted
+Error while mapping shared library sections:
+Could not open `target:/lib/x86_64-linux-gnu/libgf2x.so.3' as an executable file: Operation not permitted
+
+warning: Unable to find dynamic linker breakpoint function.
+GDB will be unable to debug shared library initializers
+and track explicitly loaded dynamic code.
+
+warning: Target and debugger are in different PID namespaces; thread lists and other data are likely unreliable.  Connect to gdbserver inside the container.
+0x00005647cbe33b7d in isl_basic_map_alloc_div ()
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+
+Thread 1 (Thread 0x7f4f7dac3000 (LWP 2985900) "tilemega-flow-v"):
+#0  0x00005647cbe33b7d in isl_basic_map_alloc_div ()
+#1  0x00005647cbed1779 in isl_basic_map_add_constraints_dim_map ()
+#2  0x00005647cbe33f9d in isl_basic_map_extend ()
+#3  0x00005647cbe4ff9a in eliminate_unit_div ()
+#4  0x00005647cbe56153 in isl_basic_map_simplify ()
+#5  0x00005647cbe5a66a in basic_map_collect_diff.part ()
+#6  0x00005647cbe5b407 in isl_map_subtract ()
+#7  0x00005647cbdda6c2 in isl_pw_multi_aff_union_opt_cmp_split ()
+#8  0x00005647cbded9bb in isl_pw_multi_aff_union_opt_cmp ()
+#9  0x00005647cbdedeb3 in isl_pw_multi_aff_union_lexmax ()
+#10 0x00005647cbe45b8c in isl_map_partial_lexopt_aligned_pw_multi_aff ()
+#11 0x00005647cbe45fc6 in isl_map_lexopt ()
+#12 0x00005647cbd33651 in tilemega::analysis::SymbolicOracle::MaximumLinear(std::vector<long, std::allocator<long> > const&, tilemega::analysis::ParamBinding const&) const ()
+#13 0x00005647cbcefe0e in tilemega::solver::PrepareFlow(tilemega::solver::SymbolicProblem const&, tilemega::analysis::DramFloor const&, tilemega::TargetSpec const&, int, tilemega::solver::HopCurve const&, tilemega::analysis::CouplingCache&, tilemega::solver::FlowPreparationCache&, bool) ()
+#14 0x00005647cbae116b in main ()
+[Inferior 1 (process 2985900) detached]

@@ -206,7 +206,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
         auto image=oracle->reverse.Query({j},theta);if(!image.Count())continue;
         int maximum=-1;
         if(image.rectangular){maximum=image.box.at(0).second;nonprefix|=image.box.at(0).first!=0;}
-        else maximum=oracle->reverse.MaximumLinear({j},theta);
+        else maximum=image.MaximumLinear();
         nonprefix|=image.Count()!=maximum+1;
         values->emplace_back(CoarsenRelease(maximum,problem.counts[p],kappa),j);
       }

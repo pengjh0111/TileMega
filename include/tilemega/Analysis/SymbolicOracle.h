@@ -16,6 +16,7 @@ struct OracleImage {
   std::vector<std::pair<long,long>> box;
   bool rectangular=false,empty=true;
   long Count() const;
+  long MaximumLinear() const;
   void ForEach(std::function<void(std::vector<long> const&)> const& visitor) const;
 };
 /// Immutable per-edge symbolic fiber, with source coordinates moved to parameters.

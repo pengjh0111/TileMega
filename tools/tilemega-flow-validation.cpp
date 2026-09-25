@@ -71,7 +71,13 @@ void AuditPrices(solver::SymbolicProblem const& problem,solver::PreparedFlow con
 int main(int argc,char** argv) try {
   if(argc!=9 && argc!=10)throw std::invalid_argument("usage: tilemega-flow-validation export.json target.json fixture resources out count seed colocate");
   std::filesystem::path out=argv[5];std::filesystem::create_directories(out);
-  if(std::filesystem::exists(out/"samples.tsv"))throw std::runtime_error("refusing to overwrite samples");
+  bool resume=argc==10 && std::string(argv[9])=="--resume";
+  int completed=0;
+  if(std::filesystem::exists(out/"samples.tsv")) {
+    if(!resume)throw std::runtime_error("refusing to overwrite samples");
+    std::ifstream prior(out/"samples.tsv");std::string line;std::getline(prior,line);
+    while(std::getline(prior,line))if(!line.empty()){int index=std::stoi(line.substr(0,line.find('\t')));if(index!=completed++)throw std::runtime_error("noncontiguous resume samples");}
+  } else if(resume)throw std::runtime_error("no samples to resume");
   analysis::IslContext isl;analysis::ScopedExactAnalysisMemo memo;mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();context.getOrLoadDialect<dialect::ExecDialect>();
   auto target=TargetSpec::FromJson(argv[2]);auto bridge=frontend::ReadExportBridge(argv[1]);
@@ -84,11 +90,12 @@ int main(int argc,char** argv) try {
   solver::HopCurve hop;std::string error;
   if(!solver::HopCurve::FromTsv(std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SIMULATOR/hop_ns.tsv",&hop,&error))throw std::runtime_error(error);
   bool prices_only=argc==10 && std::string(argv[9])=="--prices-only";
-  std::ofstream audits(out/"price_checks.tsv");audits<<std::setprecision(17)<<"configuration\tstage\tspace\ttasks\tpieces\tpiece_ns\ttile_ns\trelative_error\tbit_exact\tbit_coordinates\n";
+  auto mode=resume?std::ios::app:std::ios::out;
+  std::ofstream audits(out/"price_checks.tsv",mode);if(!resume)audits<<std::setprecision(17)<<"configuration\tstage\tspace\ttasks\tpieces\tpiece_ns\ttile_ns\trelative_error\tbit_exact\tbit_coordinates\n";
   int count=std::stoi(argv[6]);bool colocate=std::stoi(argv[8])!=0;std::mt19937 rng(std::stoul(argv[7]));
-  std::ofstream samples(out/"samples.tsv"),configs(out/"configs.tsv");
-  samples<<std::setprecision(17)<<"sample\tresidency\tkappa\tlimit\tflow_ns\tfluid_ns\tflow_ms\tfluid_ms\tprepare_ms\tfloor_ns\tnonprefix_edges\tvarying_spaces\n";
-  configs<<"sample\tclass\tm\tn\tk\tstages\tsplit\n";
+  std::ofstream samples(out/"samples.tsv",mode),configs(out/"configs.tsv",mode);
+  samples<<std::setprecision(17);if(!resume)samples<<"sample\tresidency\tkappa\tlimit\tflow_ns\tfluid_ns\tflow_ms\tfluid_ms\tprepare_ms\tfloor_ns\tnonprefix_edges\tvarying_spaces\n";
+  if(!resume)configs<<"sample\tclass\tm\tn\tk\tstages\tsplit\n";
   std::optional<analysis::DramFloor> floor;
   for(int sample=0;sample<count;) {
     std::vector<solver::GemmConfig> config;
@@ -96,6 +103,7 @@ int main(int argc,char** argv) try {
     auto estimate=resources.Estimate(classes,config,target,solver::ScalarType::kBF16);
     if(estimate.resident_limit<1){std::cout<<"REJECT resource_limit=0\n";continue;}
     int residency=std::uniform_int_distribution<int>(1,estimate.resident_limit)(rng),kappa=1<<std::uniform_int_distribution<int>(0,2)(rng);
+    if(sample<completed){++sample;continue;}
     auto start=Clock::now();auto module=importer.InstantiateForGranularity(imported,context,solver::ClassGranularity(imported,classes,config),&couplings);
     auto problem=solver::PrepareSymbolicProblem(*module,target,{4,3,7},target.res.num_sms*residency,residency,kappa,nullptr,false);
     if(!floor)floor=solver::DeriveModelDramFloor(*module,problem.model,target,argv[3]);

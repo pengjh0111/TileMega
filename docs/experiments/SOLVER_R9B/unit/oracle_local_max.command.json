@@ -1,0 +1,6 @@
+{
+  "command": [
+    "build-portable/symbolic_oracle_test"
+  ],
+  "binary_sha256": "56d0b812876a688fcb4441656cccf7a1ae9c2c5ce601a6a89f84e70e3008edfb"
+}
