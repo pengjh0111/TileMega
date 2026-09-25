@@ -118,6 +118,38 @@ constexpr bool TensorBF16ShapeLegal(int m, int n, int k, int stages) {
 
 BackendTraits TensorBF16Traits(int m, int n, int k, int stages);
 
+/// Serving's SM80-class BF16 collective has a 16-row MMA specialization and
+/// reuses its mainloop storage for the FP32 epilogue tile.  The target's shared
+/// memory budget is checked by BackendCandidate::isLegal, not baked in here.
+constexpr int kServingBF16Threads = 128;
+
+constexpr int ServingBF16SmemBytes(int m, int n, int k, int stages) {
+  int const mainloop = 2 * stages * k * (m + n);
+  int const epilogue = 4 * m * n;
+  return mainloop > epilogue ? mainloop : epilogue;
+}
+
+constexpr bool ServingBF16ShapeLegal(int m, int n, int k, int stages) {
+  bool const legal_m = m == 16 || m == 32 || m == 64 || m == 128;
+  bool const legal_n = n == 32 || n == 64 || n == 128 || n == 256;
+  bool const legal_k = k == 64 || k == 128;
+  return legal_m && legal_n && legal_k && m * n <= 16384 && stages >= 2;
+}
+
+inline BackendTraits ServingBF16Traits(int m, int n, int k, int stages) {
+  BackendTraits result;
+  result.tile_m = m;
+  result.tile_n = n;
+  result.tile_k = k;
+  result.stages = stages;
+  result.threads = kServingBF16Threads;
+  result.smem_bytes = ServingBF16SmemBytes(m, n, k, stages);
+  result.alignment = {8, 8};  // 16 B of BF16 per cp.async instruction.
+  result.arch_sm = 80;
+  result.shape_legal = ServingBF16ShapeLegal(m, n, k, stages);
+  return result;
+}
+
 /// `entry -> registers` for every entry point in a `-Xptxas=-v` log.
 std::vector<std::pair<std::string, int>> ParsePtxasRegisters(std::string_view log);
 
