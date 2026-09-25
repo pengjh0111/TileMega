@@ -3,6 +3,7 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Solver/PiecePricing.h>
 #include <mlir/IR/MLIRContext.h>
 #include <cstring>
 #include <iostream>
@@ -23,6 +24,13 @@ int main(int argc,char** argv) try {
       solver::GemmConfig config{32,16,k,2,1};auto graph=solver::InstantiateModelTasks(model,std::vector<solver::GemmConfig>(model.gemms.size(),config));
       auto semantic=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),[](auto const& s){return s.op.kind==analysis::OperatorKind::kMatmul;});
       auto input=solver::DeriveModelTaskInput(model,*semantic,graph,&config);
+      auto pieces=solver::PriceBoundaryPieces(cost,input,*semantic,solver::TensorBF16Traits(32,16,k,2),{1},model,1);
+      auto theta=model.MetricBindings();long count=input.work.task_count.Eval(theta);double enumerated=0;
+      std::vector<std::pair<std::string,long>> axes;for(std::size_t a=0;a<input.task.output.axes.size();++a)if(input.task.IsTiled(a))axes.push_back({input.task.output.axes[a].name,input.task.CoordinateExtent(a).Eval(theta,theta)});
+      for(long q=0;q<count;++q){long rest=q;analysis::ParamBinding at;for(auto a=axes.rbegin();a!=axes.rend();++a){at.Bind(a->first,rest%a->second);rest/=a->second;}
+        enumerated+=cost.TaskInstanceNs(input,solver::TensorBF16Traits(32,16,k,2),{1},model,1,at,1);}
+      Require(std::abs(pieces.total_isolated_ns/enumerated-1)<=1e-9,"boundary pieces differ from enumeration");
+      std::cout<<"PIECE_PRICE model="<<name<<" tile_k="<<k<<" tasks="<<count<<" pieces="<<pieces.pieces.size()<<" relative_error="<<std::abs(pieces.total_isolated_ns/enumerated-1)<<'\n';
       analysis::ParamBinding p;for(auto const& n:input.cost_coordinates)p.Bind(n,0);
       double last=1e300;
       for(int stages:{2,3,4}) {

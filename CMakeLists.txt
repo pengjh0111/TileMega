@@ -188,6 +188,7 @@ add_library(tilemega STATIC
   lib/Analysis/TaskWork.cpp
   lib/Analysis/DramFloor.cpp
   lib/Solver/TaskPriceParts.cpp
+  lib/Solver/PiecePricing.cpp
   lib/Analysis/FusionAccess.cpp
   lib/Codegen/Codegen.cpp
   lib/Runtime/EventBuffer.cpp
