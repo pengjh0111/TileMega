@@ -69,6 +69,19 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
     tasks<<n<<'\t'<<s<<'\t'<<t<<'\t'<<selected.plan.owner[s][t]<<'\t'<<selected.plan.slot[s][t]<<'\t'<<measured.start_ns<<'\t'<<measured.end_ns<<'\t'<<attention<<'\n';
     for(int next:graph.successors[n])edges<<n<<'\t'<<next<<"\tdependency\n";}
   for(auto const& queue:selected.plan.queue)for(std::size_t i=1;i<queue.size();++i)edges<<node(queue[i-1].stage,queue[i-1].logical)<<'\t'<<node(queue[i].stage,queue[i].logical)<<"\tqueue\n";
+  if(point.flow) {
+    auto const& flow=point.flow->flow;FlowDecomposition d;
+    {SolverPhase phase(options.common.timing,"flow_report");d=DecomposeFlow(flow);}
+    std::vector<int> depth(flow.spaces.size(),1);int chain_depth=0;
+    for(int stage:sk.stage_order){for(auto const& edge:flow.edges)if(edge.consumer==stage)depth[stage]=std::max(depth[stage],depth[edge.producer]+1);chain_depth=std::max(chain_depth,depth[stage]);}
+    int colocated=0,omitted=0;for(auto const& edge:flow.edges){colocated+=edge.colocated;omitted+=edge.colocated && edge.kappa==1;}
+    std::ofstream values(prefix+".flow.tsv");values<<std::setprecision(17)<<"key\tT\tT_floor\tT_dram\tT_s\tT_sf\tT_sf_infinite\tT_np0\tsynchronization\tfixed\tcontention\tchain_delay\tpg_upper_bound\tchain_depth\tbubble_ns\tcolocated_edges\tsync_omitted_edges\n";
+    values<<point.candidate.key<<'\t'<<d.original.makespan_ns<<'\t'<<flow.floor_ns<<'\t'<<flow.dram_floor_ns<<'\t'<<d.no_sync<<'\t'<<d.no_fixed<<'\t'<<d.infinite<<'\t'<<d.no_external<<'\t'<<d.synchronization<<'\t'<<d.fixed<<'\t'<<d.contention<<'\t'<<d.chain<<'\t'<<d.pg_upper_bound<<'\t'<<chain_depth<<'\t'<<(d.original.makespan_ns-flow.floor_ns)/chain_depth<<'\t'<<colocated<<'\t'<<omitted<<'\n';
+    std::ofstream links(prefix+".flow_chain.tsv");links<<std::setprecision(17)<<"stage\ttask\tcategory\tstart_ns\tend_ns\twait_ns\tfixed_ns\tmainloop_ns\tpublication_ns\thop_ns\n";
+    for(auto const& link:d.original.critical_links)links<<link.space<<'\t'<<link.task<<'\t'<<flow.spaces[link.space].category<<'\t'<<link.start_ns<<'\t'<<link.end_ns<<'\t'<<link.wait_ns<<'\t'<<link.fixed_ns<<'\t'<<link.mainloop_ns<<'\t'<<link.publication_ns<<'\t'<<link.hop_ns<<'\n';
+    std::ofstream spaces(prefix+".flow_spaces.tsv");spaces<<std::setprecision(17)<<"stage\tname\tcategory\ttasks\tfirst_start\tlast_end\twait_sum\tfixed_sum\tmainloop_sum\tpublication_sum\n";
+    for(std::size_t i=0;i<flow.spaces.size();++i){auto const& s=flow.spaces[i];auto const& r=d.original.spaces[i];spaces<<i<<'\t'<<s.name<<'\t'<<s.category<<'\t'<<s.count<<'\t'<<r.first_start<<'\t'<<r.last_end<<'\t'<<r.wait_ns<<'\t'<<r.fixed_ns<<'\t'<<r.mainloop_ns<<'\t'<<r.publication_ns<<'\n';}
+  }
   entry.module=std::move(point.module);return entry;
 }
 }

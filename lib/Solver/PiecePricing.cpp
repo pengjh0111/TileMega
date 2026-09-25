@@ -41,11 +41,11 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
   // PriceParts depends on coordinates only through these access quantities.
   // Causal rows in different heads remain separate pieces but share arithmetic.
   std::map<std::vector<long>,TaskPriceParts> equal_prices;
-  auto append=[&](analysis::CouplingRelation const& domain,analysis::ParamBinding const& point){
+  auto append=[&](analysis::CouplingRelation const& domain,analysis::ParamBinding const& point,std::vector<long> const* batch_values=nullptr,TaskMemoryTraffic const* memory=nullptr){
     PricePiece p;p.domain=domain;p.count=domain.ImageCard();p.representative=point;
-    std::vector<long> values;for(auto q:quantities)values.push_back(q->BindCoordinates(point).Eval(theta));
+    std::vector<long> values;if(batch_values)values=*batch_values;else for(auto q:quantities)values.push_back(q->BindCoordinates(point).Eval(theta));
     auto found=equal_prices.find(values);
-    if(found==equal_prices.end())found=equal_prices.emplace(std::move(values),cost.PriceParts(input,traits,residency,model,chunks,point,residency.ctas_per_sm)).first;
+    if(found==equal_prices.end())found=equal_prices.emplace(std::move(values),cost.PriceParts(input,traits,residency,model,chunks,point,residency.ctas_per_sm,memory)).first;
     p.parts=found->second;
     result.total_isolated_ns+=p.count.Eval(theta)*IsolatedNs(p.parts,cal.dram_gbps/(cost.target().res.num_sms*residency.ctas_per_sm));result.pieces.push_back(std::move(p));
   };
@@ -59,8 +59,17 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
     // Causal fibers (and scalar edge chunks) are exact singleton pieces;
     // this fallback is reported, never hidden behind a representative price.
     result.coordinate_varying=true;auto original=bounds;
-    std::function<void(std::size_t)> singles=[&](std::size_t a){if(a==axes.size()){analysis::ParamBinding p;for(std::size_t i=0;i<axes.size();++i)p.Bind(axes[i].name,bounds[i].first);append(make_domain(),p);return;}for(long q=original[a].first;q<original[a].second;++q){bounds[a]={q,q+1};singles(a+1);}};
-    singles(0);bounds=std::move(original);
+    std::vector<analysis::ParamBinding> points;
+    std::function<void(std::size_t)> collect=[&](std::size_t a){if(a==axes.size()){analysis::ParamBinding p;for(std::size_t i=0;i<axes.size();++i)p.Bind(axes[i].name,bounds[i].first);points.push_back(std::move(p));return;}for(long q=original[a].first;q<original[a].second;++q){bounds[a]={q,q+1};collect(a+1);}};
+    collect(0);
+    // Parse each Presburger polynomial once. BindCoordinates reparses a large
+    // causal expression at every row; EvalPoints preserves exactly the values.
+    std::vector<std::vector<long>> values(points.size());
+    for(auto q:quantities){auto column=q->EvalPoints(theta,points);for(std::size_t i=0;i<points.size();++i)values[i].push_back(column[i]);}
+    auto traffic=DeriveTaskMemoryTrafficBatch(input,theta,points,2,cost.options().fp32_partials && chunks>1 && traits.stages>0?4:2,
+        traits.stages<=0 || cost.options().physical_traffic?analysis::AccessDomain::kPhysicalTensor:analysis::AccessDomain::kNominalTile);
+    for(std::size_t i=0;i<points.size();++i){for(std::size_t a=0;a<axes.size();++a){long q=points[i].values.at(axes[a].name);bounds[a]={q,q+1};}append(make_domain(),points[i],&values[i],&traffic[i]);}
+    bounds=std::move(original);
   };
   std::function<void(std::size_t)> split=[&](std::size_t a){if(a==axes.size()){partition();return;}for(auto b:axes[a].parts){bounds[a]=b;split(a+1);}};
   if(tasks>0)split(0);long covered=0;for(auto const& p:result.pieces)covered+=p.count.Eval(theta);

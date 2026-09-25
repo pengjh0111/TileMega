@@ -24,10 +24,12 @@ struct FlowProblem {
 };
 struct FlowOptions {bool no_sync=false,no_fixed=false,infinite_workers=false,no_external=false;};
 struct FlowSpaceResult {double first_start=-1,last_end=0,wait_ns=0,fixed_ns=0,mainloop_ns=0,publication_ns=0;int last_edge=-1;};
+struct FlowChainLink {int space=-1,task=-1,edge=-1;double start_ns=0,end_ns=0,wait_ns=0,fixed_ns=0,mainloop_ns=0,publication_ns=0,hop_ns=0;};
 struct FlowResult {
   double makespan_ns=0,delivered_bytes=0;
   std::vector<FlowSpaceResult> spaces;
   std::vector<int> critical_chain;
+  std::vector<FlowChainLink> critical_links;
 };
 struct FlowDecomposition {
   FlowResult original;
