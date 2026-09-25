@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/occupancy/query"
+  ],
+  "executable_sha256": "02e78bd618c9c877598bf0bc52e21b17cd989f48b3d0f3f164044589c8055f00",
+  "head": "333723932ccc4311b6b4e152fd5bb81c98a20f9a",
+  "started_ns": 1790336881136895777,
+  "elapsed_ns": 494036993,
+  "exit_code": 0,
+  "environment": {}
+}

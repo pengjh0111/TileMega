@@ -1,0 +1,14 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-flow-validation",
+    "/root/r7_work/qwen3/auto.cu.export.json",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/fit/target.json",
+    "/root/r7_work/qwen3/fixture",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/resources",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/validation_colocated/qwen3",
+    "100",
+    "90109",
+    "1"
+  ],
+  "binary_sha256": "1e1550088a0fe1547c736564a30549a909b3178b557c897a52072e75ab00475e"
+}

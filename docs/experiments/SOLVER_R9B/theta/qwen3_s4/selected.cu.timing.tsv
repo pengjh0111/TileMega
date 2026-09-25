@@ -1,0 +1,12 @@
+solver	model	seq	phase	count	total_ms
+theta-grid	qwen3	4	cache_hit	25131532	0
+theta-grid	qwen3	4	cache_miss	2828	0
+theta-grid	qwen3	4	derive	1	120.915
+theta-grid	qwen3	4	flow	43724	147462
+theta-grid	qwen3	4	instantiate	1	1.00322
+theta-grid	qwen3	4	instantiate_and_derive	43723	1.38802e+06
+theta-grid	qwen3	4	piece_pricing_and_release	43724	2.07376e+06
+theta-grid	qwen3	4	prepare_relations	1	28775
+theta-grid	qwen3	4	resource_probe	44942	1758.46
+theta-grid	qwen3	4	search_evaluations	43724	0
+theta-grid	qwen3	4	search_rounds	5	0

@@ -1,0 +1,23 @@
+FP64_AUDIT /root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/kernel count=60 gate=FAIL
+GPU_ADMISSION need_mib=4908 free_mib=36124 utilization=9 ready=0/3
+GPU_ADMISSION need_mib=4908 free_mib=43978 utilization=0 ready=2/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/materialized/selected.cu process=0 internal=True
+GPU_ADMISSION need_mib=4908 free_mib=44962 utilization=8 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/materialized/selected.cu process=1 internal=True
+GPU_ADMISSION need_mib=4908 free_mib=44100 utilization=47 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/materialized/selected.cu process=2 internal=True
+GPU_ADMISSION need_mib=4908 free_mib=46470 utilization=31 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/materialized/selected.cu process=3 internal=True
+GPU_ADMISSION need_mib=4908 free_mib=48534 utilization=24 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/materialized/selected.cu process=4 internal=True
+GPU_ADMISSION need_mib=4908 free_mib=48534 utilization=17 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/materialized/selected.cu process=5 internal=True
+GPU_ADMISSION need_mib=4908 free_mib=48534 utilization=26 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/materialized/selected.cu process=6 internal=True
+GPU_ADMISSION need_mib=4908 free_mib=47210 utilization=27 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/materialized/selected.cu process=7 internal=True
+GPU_ADMISSION need_mib=4908 free_mib=43232 utilization=12 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/materialized/selected.cu process=8 internal=True
+GPU_ADMISSION need_mib=4908 free_mib=46286 utilization=26 ready=0/3
+R9B_MEASURE source=/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/materialized/selected.cu process=9 internal=True
+R9B_RESULT {"status": "ok", "source": "/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/materialized/selected.cu", "directory": "/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template", "processes": 10, "l05_ms": 5.31696, "l1_ms": 5.2625519999999995, "l2_ms": 4.444592, "floor_ns": 2519298.8244356406, "l2_over_floor": 1.7642178676424591}

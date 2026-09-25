@@ -1,0 +1,12 @@
+solver	model	seq	phase	count	total_ms
+theta-grid	llama	16	cache_hit	10855371	0
+theta-grid	llama	16	cache_miss	2824	0
+theta-grid	llama	16	derive	1	113.096
+theta-grid	llama	16	flow	37637	160499
+theta-grid	llama	16	instantiate	1	0.583794
+theta-grid	llama	16	instantiate_and_derive	37636	579784
+theta-grid	llama	16	piece_pricing_and_release	37637	1.21113e+06
+theta-grid	llama	16	prepare_relations	1	10529.7
+theta-grid	llama	16	resource_probe	38855	1212.85
+theta-grid	llama	16	search_evaluations	37637	0
+theta-grid	llama	16	search_rounds	4	0

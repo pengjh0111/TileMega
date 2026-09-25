@@ -1,0 +1,8 @@
+{
+  "registers": 255,
+  "shared_bytes": 69632,
+  "threads": 128,
+  "source_sha256": "6362da1bb9d07da9854f77dacae8e83101283bce8841a10cd05ee99f4b3b1d9a",
+  "artifact": "/root/r9_work/variant_resources/6362da1bb9d07da9854f77dacae8e83101283bce8841a10cd05ee99f4b3b1d9a",
+  "compiled": false
+}

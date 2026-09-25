@@ -1,0 +1,21 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-flow-point",
+    "/root/r7_work/llama_hoist/auto.cu.export.json",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/fit/target.json",
+    "4",
+    "3",
+    "1",
+    "1",
+    "8",
+    "32x32x64s3k1;32x16x64s3k1;32x16x64s3k1;32x128x64s3k1;32x16x64s3k1;32x256x16s2k1;kappa=1;residency=1",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/materialized/selected",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv",
+    "/root/r7_work/llama_hoist/fixture",
+    "1",
+    "1"
+  ],
+  "binary_sha256": "2193bd758bc3e99f55be3b36e0f86b04f5fe343676b91a25cc544e9010e66a3d",
+  "exit": 0,
+  "wall_seconds": 40.4212977749994
+}

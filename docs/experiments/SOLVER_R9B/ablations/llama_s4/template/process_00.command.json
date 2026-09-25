@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/kernel",
+    "/root/r7_work/llama/fixture"
+  ],
+  "executable_sha256": "169763e64606c3be3a776ea6589c1456c2a5a64a050e7bd42dacd6dacd8eb792",
+  "head": "333723932ccc4311b6b4e152fd5bb81c98a20f9a",
+  "started_ns": 1790337033064018110,
+  "elapsed_ns": 15391918662,
+  "exit_code": 1,
+  "environment": {
+    "TILEMEGA_WARMUP": "2",
+    "TILEMEGA_REPEAT": "10"
+  }
+}

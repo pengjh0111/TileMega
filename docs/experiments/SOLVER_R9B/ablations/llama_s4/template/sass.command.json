@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/usr/local/cuda/bin/cuobjdump",
+    "-sass",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/ablations/llama_s4/template/kernel"
+  ],
+  "executable_sha256": "9d515ac6f60c246ef63fe87b0a95d209b00ff3e25b716f8f263520010760e8f8",
+  "head": "333723932ccc4311b6b4e152fd5bb81c98a20f9a",
+  "started_ns": 1790336970333870900,
+  "elapsed_ns": 1570043035,
+  "exit_code": 0,
+  "environment": {}
+}

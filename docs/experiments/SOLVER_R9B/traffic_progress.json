@@ -1,0 +1,25 @@
+{
+  "pending": [
+    [
+      "skeleton",
+      "llama_s16"
+    ],
+    [
+      "skeleton",
+      "llama_s64"
+    ],
+    [
+      "skeleton",
+      "qwen3_s16"
+    ],
+    [
+      "skeleton",
+      "qwen3_s4"
+    ],
+    [
+      "skeleton",
+      "qwen3_s64"
+    ]
+  ],
+  "failed": []
+}

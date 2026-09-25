@@ -1,0 +1,3 @@
+solver	model	seq	phase	count	total_ms
+fluid-validation	/root/r7_work/qwen3/auto.cu.export.json	4	flow_report	1	24.0845
+fluid-validation	/root/r7_work/qwen3/auto.cu.export.json	4	simulate	1	61.1644

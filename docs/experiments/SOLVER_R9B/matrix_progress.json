@@ -1,0 +1,32 @@
+[
+  {
+    "model": "llama",
+    "seq": 1,
+    "stage": "solved",
+    "exit": 0
+  },
+  {
+    "model": "qwen3",
+    "seq": 1,
+    "stage": "solved",
+    "exit": 0
+  },
+  {
+    "model": "llama",
+    "seq": 4,
+    "stage": "solved",
+    "exit": 0
+  },
+  {
+    "model": "llama",
+    "seq": 16,
+    "stage": "solved",
+    "exit": 0
+  },
+  {
+    "model": "qwen3",
+    "seq": 4,
+    "stage": "solved",
+    "exit": 0
+  }
+]

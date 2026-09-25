@@ -1,0 +1,2 @@
+seq	seed_seq	evaluations	rounds	wall_seconds	flow_ns	key
+4	4	43724	5	3743.8571082990002	5129238.2002693322	32x32x64s4k1;32x16x32s3k1;32x16x64s3k1;32x64x64s3k1;32x16x64s3k1;32x256x16s2k1;kappa=1;residency=2
