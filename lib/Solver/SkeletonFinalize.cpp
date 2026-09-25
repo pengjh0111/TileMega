@@ -55,14 +55,46 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
   if(!PreparePlanBounds(input,&bounds,&error) || !EvaluatePlanBounds(bounds,selected.plan,&selected.bounds,&error))throw std::runtime_error(error);
   SimulatorResult simulated;
   {SolverPhase phase(options.common.timing,"simulate");if(!SimulateExecution(input,selected.plan,sim,options.common.placement.hop,&simulated,&error))throw std::runtime_error(error);}
-  selected.predicted_ns=simulated.makespan_ns;
+  double interval_makespan=simulated.makespan_ns;
+  if(!point.interval_flows.empty()) {
+    if(point.interval_flows.size()!=2)
+      throw std::runtime_error("decode Simpson simulation needs two endpoints");
+    std::ofstream interval(prefix+".interval_sim.tsv");
+    interval<<std::setprecision(17)<<"past\tmakespan_ns\tfloor_ns\tdram_bytes\n";
+    auto bytes=[](PreparedFlow const& prepared) {
+      double total=0;
+      for(auto const& space:prepared.flow.spaces)
+        for(auto const& piece:space.pieces)
+          total+=piece.count*piece.parts.dram_bytes;
+      return total;
+    };
+    interval<<options.common.placement.dims.past<<'\t'<<simulated.makespan_ns
+        <<'\t'<<point.flow->flow.floor_ns<<'\t'<<bytes(*point.flow)<<'\n';
+    double endpoints=0;
+    for(auto const& [past,prepared]:point.interval_flows) {
+      if(prepared.flow.spaces.size()!=point.flow->flow.spaces.size())
+        throw std::runtime_error("serving interval changes the stage count");
+      input.task_price_parts=ExpandFlowPrices(prepared);
+      sim.dram_floor_ns=prepared.flow.dram_floor_ns;
+      sim.all_external_miss=prepared.flow.all_external_miss;
+      SimulatorResult at;
+      {SolverPhase phase(options.common.timing,"simulate");
+        if(!SimulateExecution(input,selected.plan,sim,options.common.placement.hop,&at,&error))
+          throw std::runtime_error(error);}
+      interval<<past<<'\t'<<at.makespan_ns<<'\t'<<prepared.flow.floor_ns
+          <<'\t'<<bytes(prepared)<<'\n';
+      endpoints+=at.makespan_ns;
+    }
+    interval_makespan=(endpoints+4*simulated.makespan_ns)/6;
+  }
+  selected.predicted_ns=interval_makespan;
   auto placement=options.common.placement;placement.residency=point.candidate.residency;placement.verified_resident_limit=point.candidate.actual_limit?point.candidate.actual_limit:point.candidate.estimated_limit;placement.kappa=options.kappa;
   WritePlanSkeleton(*point.module,sk);dialect::WriteSolvedPlacement(*point.module,selected,placement);
   CompilerSearchResult::ShortlistEntry entry;
   entry.evaluation.candidate.config=point.candidate.config.front();entry.evaluation.candidate.key=point.candidate.key;
   entry.evaluation.candidate.kappa=options.kappa;entry.evaluation.candidate.ctas_per_sm=point.candidate.residency;
   entry.evaluation.placement="skeleton";entry.evaluation.status="ok";entry.evaluation.simulated=true;
-  entry.evaluation.floor_ns=selected.bounds.lower_bound_ns;entry.evaluation.makespan_ns=simulated.makespan_ns;
+  entry.evaluation.floor_ns=selected.bounds.lower_bound_ns;entry.evaluation.makespan_ns=interval_makespan;
   (*point.module)->setAttr("tmexec.sync_omitted_event_waits",mlir::IntegerAttr::get(mlir::IntegerType::get(point.module->getContext(),64),omitted_local_events));
   std::ofstream omissions(prefix+".omissions.tsv");
   omissions<<"key\tlocal_event_waits_omitted\n"<<point.candidate.key<<'\t'<<omitted_local_events<<'\n';

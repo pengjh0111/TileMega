@@ -76,6 +76,17 @@ struct SearchContext {
   }
   SkeletonSolvedPoint Materialize(SkeletonCandidate const& candidate,bool pure,int actual=0) {
     auto point=Prepare(candidate.config,candidate.kappa,candidate.residency,actual,true);point.candidate.score=candidate.score;
+    if(options.serving_past_lo>=0 &&
+       options.serving_past_hi>=options.serving_past_lo) {
+      for(int past:{options.serving_past_lo,options.serving_past_hi}) {
+        auto endpoint=Prepare(candidate.config,candidate.kappa,
+            candidate.residency,actual,false,past);
+        for(std::size_t s=0;s<point.problem.counts.size();++s)
+          if(point.problem.counts[s]!=endpoint.problem.counts[s])
+            throw std::runtime_error("serving interval changes a task-space count");
+        point.interval_flows.emplace_back(past,std::move(*endpoint.flow));
+      }
+    }
     auto const& target=options.common.placement.target;
     ApplyFlowPrices(point.problem,*point.flow,target,point.candidate.residency);
     point.skeleton=BuildPlanSkeleton(point.problem,target.res.num_sms*point.candidate.residency,point.candidate.residency,options.k_base,options.all_workers,cache,options.common.timing);
@@ -178,6 +189,10 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
       t->Add("price_cache_miss",0,search.flow_cache.prices.misses);
       t->Add("release_cache_hit",0,search.flow_cache.release_hits);
       t->Add("prepare_spaces",search.flow_cache.spaces_ms,0);
+      t->Add("prepare_graph",search.flow_cache.graph_ms,0);
+      t->Add("prepare_derive",search.flow_cache.derive_ms,0);
+      t->Add("prepare_price",search.flow_cache.price_ms,0);
+      t->Add("prepare_piece_map",search.flow_cache.piece_map_ms,0);
       t->Add("prepare_edges",search.flow_cache.edges_ms,0);
       t->Add("search_evaluations",0,result.evaluated.size());t->Add("search_rounds",0,result.rounds);
     }

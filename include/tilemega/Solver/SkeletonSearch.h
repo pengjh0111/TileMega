@@ -38,6 +38,7 @@ struct SkeletonSolvedPoint {
   EftSchedule schedule;
   SkeletonCandidate candidate;
   std::optional<PreparedFlow> flow;
+  std::vector<std::pair<int,PreparedFlow>> interval_flows;
 };
 // This is the sole bridge to the explicit graph. Called only after top-K.
 CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&& point,

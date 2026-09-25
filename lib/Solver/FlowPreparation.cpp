@@ -11,9 +11,11 @@
 #include <isl/val.h>
 #include <algorithm>
 #include <chrono>
+#include <cctype>
 #include <numeric>
 #include <sstream>
 #include <iomanip>
+#include <set>
 namespace tilemega::solver {
 namespace {
 analysis::CouplingRelation ReadMap(isl_map* map) {
@@ -32,6 +34,14 @@ long BoundWindowOffset(std::string text, analysis::ParamBinding const& theta) {
   };
   replace("ceild(","ceildiv(");replace("floord(","floordiv(");
   return analysis::ClosedForm::Parse(text).Eval(theta,{});
+}
+bool MentionsIdentifier(std::string const& text,std::string const& name) {
+  if(name.empty())return false;
+  auto word=[](unsigned char c){return std::isalnum(c) || c=='_';};
+  for(std::size_t at=0;(at=text.find(name,at))!=std::string::npos;++at)
+    if((at==0 || !word(text[at-1])) &&
+       (at+name.size()==text.size() || !word(text[at+name.size()])))return true;
+  return false;
 }
 }
 std::vector<BoundRuntimeWindow> BindRuntimeWindows(
@@ -167,7 +177,16 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   SetFlowCalibration(flow,target,model.dtype,hop);
   auto bound=floor.Evaluate(theta);flow.dram_floor_ns=bound.dram_ns;flow.floor_ns=bound.floor_ns;
   flow.all_external_miss=CacheServiceCurve(cal.l2_curve_bytes,cal.l2_curve_gbps).HitFraction(bound.read_bytes,cal.l2_gbps,cal.dram_gbps)==0;
-  auto graph=InstantiateModelTasks(model,problem.geometry);
+  std::ostringstream graph_key;
+  for(auto const& g:problem.geometry)graph_key<<GeometryKey(
+      BackendTraits{g.tile_m,g.tile_n,g.tile_k,g.stages},g.split_k)<<';';
+  if(!cache.graph || cache.graph_geometry!=graph_key.str()) {
+    cache.graph=std::make_shared<analysis::OperatorGraph const>(
+        InstantiateModelTasks(model,problem.geometry));
+    cache.graph_geometry=graph_key.str();
+  }
+  auto const& graph=*cache.graph;
+  auto const graph_end=std::chrono::steady_clock::now();
   CostModelOptions options;options.regime_a=true;
   // The calibrated device in-flight server owns the DRAM latency constraint;
   // charging the R9b per-CTA stage-latency term as well would count it twice.
@@ -194,6 +213,15 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   std::ostringstream binding_text;
   for(auto const& [name,value]:std::map<std::string,long>(theta.values.begin(),theta.values.end()))binding_text<<':'<<name<<'='<<value;
   auto const theta_key=binding_text.str();
+  std::set<std::string> past_names{"past","P","L_s",model.past_metric_parameter};
+  for(auto const& [alias,canonical]:model.metric_aliases)
+    if(canonical==model.past_metric_parameter)past_names.insert(alias);
+  std::ostringstream without_past;
+  for(auto const& [name,value]:std::map<std::string,long>(theta.values.begin(),theta.values.end()))
+    if(!past_names.count(name))without_past<<':'<<name<<'='<<value;
+  auto const past_free_key=without_past.str();
+  bool const stream_saturated=model.serving && !cal.l2_curve_bytes.empty() &&
+      bound.read_bytes>=cal.l2_curve_bytes.back();
   std::vector<std::string> signatures,geometry_keys;
   std::vector<int> order(problem.counts.size());int ordinal=0;
   for(auto const& logical:BuildVariantStageSchedule(problem.runtime.dependencies,model.stages.size()).schedule)
@@ -204,11 +232,16 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     if(found==model.task_semantics.end())throw std::runtime_error("flow task has no semantics");
     auto semantic=*found;auto g=stage.IsCollective()?problem.geometry.at(stage.gemm):GemmConfig{};
     auto const& signature=signature_for(semantic.op);
-    std::ostringstream space_key;space_key<<signature<<':'<<projected.combine<<':'<<residency<<':'<<problem.threads<<':'<<std::hexfloat<<bound.read_bytes;
+    bool past_independent=stream_saturated && !projected.combine &&
+        semantic.op.kind==analysis::OperatorKind::kMatmul;
+    if(past_independent)for(auto const& name:past_names)
+      past_independent &= !MentionsIdentifier(signature,name);
+    std::ostringstream space_key;space_key<<signature<<':'<<projected.combine<<':'<<residency<<':'<<problem.threads<<':'<<std::hexfloat
+        <<(stream_saturated?cal.l2_curve_bytes.back():bound.read_bytes);
     if(stage.IsCollective())space_key<<':'<<g.tile_m<<':'<<g.tile_n<<':'<<g.tile_k<<':'<<g.stages<<':'<<g.split_k;
     else for(auto const& [axis,tile]:semantic.tiles)space_key<<':'<<axis<<'='<<tile.ToIslText();
     if(!model.serving)space_key<<":kernel_shared:"<<kernel_shared_bytes;
-    space_key<<theta_key;
+    space_key<<(past_independent?past_free_key:theta_key);
     for(auto const& operand:semantic.op.operands)space_key<<':'<<tensor_key(operand.tensor.name);
     space_key<<':'<<tensor_key(semantic.op.result.name);
 
@@ -221,6 +254,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
       result.prices.push_back(hit->second.prices);flow.spaces.push_back(std::move(space));continue;
     }
     ++cache.space_misses;
+    auto const derive_start=std::chrono::steady_clock::now();
     DerivedTaskInput input;BackendTraits traits;int chunks=1;
     if(projected.combine) {
       input=DeriveCombineTaskInput(model,projected.logical_stage,g,graph,problem.threads,problem.runtime.ownership_flags & codegen::kCombinerTileOwnership,cost.options().fp32_partials);
@@ -234,10 +268,14 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
       traits=ModelTaskTraits(model,projected.logical_stage,g);
       chunks=stage.IsCollective()?cost.Chunks(model.gemms.at(stage.gemm),g):1;
     }
+    auto const price_start=std::chrono::steady_clock::now();
+    cache.derive_ms+=std::chrono::duration<double,std::milli>(price_start-derive_start).count();
     PiecePrices prices;
     try {BindTaskDramProvenance(input,semantic,floor,theta,model.serving);
       prices=PriceBoundaryPieces(cost,input,semantic,traits,{residency},model,chunks,&cache.prices,kernel_shared_bytes);
     }catch(std::exception const& e){throw std::runtime_error(input.task.name+": "+e.what());}
+    auto const map_start=std::chrono::steady_clock::now();
+    cache.price_ms+=std::chrono::duration<double,std::milli>(map_start-price_start).count();
     if(flow.inflight_dram)for(auto& piece:prices.pieces) {
       auto& p=piece.parts;
       p.dram_rate_cap=p.compute_ns>0 ? p.dram_bytes/p.compute_ns : cal.dram_gbps;
@@ -287,6 +325,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     signatures.push_back(signature+(projected.combine?".combine":""));geometry_keys.push_back(GeometryKey(traits,chunks));
     cache.spaces.emplace(space_key.str(),FlowPreparationCache::SpaceEntry{space,prices,geometry_keys.back()});
     result.prices.push_back(std::move(prices));flow.spaces.push_back(std::move(space));
+    cache.piece_map_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-map_start).count();
   }
   result.colocated_producer.assign(flow.spaces.size(),-1);
   auto const edge_start=std::chrono::steady_clock::now();
@@ -348,6 +387,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   for(int s:stages){double tail=0;for(auto const& edge:flow.edges)if(edge.producer==s)tail=std::max(tail,flow.spaces[edge.consumer].rank_ns+flow.hop_ns);flow.spaces[s].rank_ns+=tail;}
   auto const profile_end=std::chrono::steady_clock::now();
   cache.spaces_ms+=std::chrono::duration<double,std::milli>(edge_start-profile_start).count();
+  cache.graph_ms+=std::chrono::duration<double,std::milli>(graph_end-profile_start).count();
   cache.edges_ms+=std::chrono::duration<double,std::milli>(profile_end-edge_start).count();
   return result;
 }

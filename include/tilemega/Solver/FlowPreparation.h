@@ -11,6 +11,8 @@ struct FlowPreparationCache {
   std::map<std::string,long> task_counts;
   std::map<std::string,analysis::CouplingRelation> projected;
   std::map<std::string,std::string> signatures;
+  std::string graph_geometry;
+  std::shared_ptr<analysis::OperatorGraph const> graph;
   std::map<std::string,std::string> floor_tensor_keys;
   PiecePriceCache prices;
   struct SpaceEntry {FlowSpace space;PiecePrices prices;std::string geometry_key;};
@@ -23,7 +25,8 @@ struct FlowPreparationCache {
   // coordinate descent moves one operator class.
   std::map<std::string,std::pair<bool,bool>> edge_metadata; // one-to-one, all-producer
   std::uint64_t release_hits=0,release_misses=0;
-  double spaces_ms=0,edges_ms=0;
+  double spaces_ms=0,edges_ms=0,graph_ms=0;
+  double derive_ms=0,price_ms=0,piece_map_ms=0;
 };
 struct PreparedFlow {
   FlowProblem flow;
