@@ -4,6 +4,7 @@
 #include <tilemega/Codegen/tasks/PhaseTrace.cuh>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/GemmStageTaskBody.h>
+#include <tilemega/Codegen/tasks/ServingGemmCombineTaskBody.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
 #include <tilemega/Codegen/tasks/TaskResources.h>
 
@@ -22,6 +23,63 @@ struct GemmCombineTaskBody {
   static constexpr int kNumThreads = Threads;
   static constexpr int kStages = ResourceTraits::kStages;
   static constexpr bool kLegal = true;
+
+#if TILEMEGA_SERVING_RUNTIME
+  template <int Variant, backend::ServingEpilogueOp Op>
+  __device__ static void RunServingOp(Params const& p,
+                                      StageDesc const& stage,
+                                      SmemUnion& smem, int task) {
+    using V = GemmVariant<Variant>;
+    auto const& invocation =
+        static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+    int rows = stage.batch_rows ? p.dims.batch : p.dims.tokens();
+    int columns = static_cast<int>(stage.width);
+    ServingGemmCombineTaskBody<V::kTileM, V::kTileN, Op>::Run(
+        reinterpret_cast<float const*>(p.buffers[stage.operand[0]]),
+        invocation.chunks, task / invocation.tiles_n,
+        task % invocation.tiles_n, rows, columns, columns,
+        invocation.serving_output_stride,
+        reinterpret_cast<cutlass::bfloat16_t*>(p.buffers[stage.operand[1]]),
+        reinterpret_cast<cutlass::bfloat16_t const*>(invocation.residual),
+        reinterpret_cast<float*>(p.buffers[stage.operand[1]]),
+        invocation.serving_argmax_index,
+        reinterpret_cast<float*>(&smem.gemm));
+  }
+
+  template <int Variant>
+  __device__ static void RunServingVariant(Params const& p,
+                                           StageDesc const& stage,
+                                           SmemUnion& smem, int task) {
+    auto const& invocation =
+        static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+    switch (invocation.serving_op) {
+      case backend::ServingEpilogueOp::kStore:
+        RunServingOp<Variant, backend::ServingEpilogueOp::kStore>(p, stage, smem, task); break;
+      case backend::ServingEpilogueOp::kResidual:
+        RunServingOp<Variant, backend::ServingEpilogueOp::kResidual>(p, stage, smem, task); break;
+      case backend::ServingEpilogueOp::kSwiGLU:
+        RunServingOp<Variant, backend::ServingEpilogueOp::kSwiGLU>(p, stage, smem, task); break;
+      case backend::ServingEpilogueOp::kArgmaxPartial:
+        RunServingOp<Variant, backend::ServingEpilogueOp::kArgmaxPartial>(p, stage, smem, task); break;
+      default: asm volatile("trap;"); break;
+    }
+  }
+
+  template <int Variant = 0>
+  __device__ static void DispatchServing(Params const& p,
+                                          StageDesc const& stage,
+                                          SmemUnion& smem, int task) {
+    auto const& invocation =
+        static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+    if (invocation.variant == Variant) {
+      RunServingVariant<Variant>(p, stage, smem, task);
+    } else if constexpr (Variant + 1 < TILEMEGA_GEMM_VARIANT_COUNT) {
+      DispatchServing<Variant + 1>(p, stage, smem, task);
+    } else {
+      asm volatile("trap;");
+    }
+  }
+#endif
 
   /// The combined sum, with an element near a BF16 rounding boundary settled
   /// against the whole dot product rather than against the split association.
@@ -60,16 +118,20 @@ struct GemmCombineTaskBody {
       return {TaskOwnershipKind::kTilePerBlock,
               invocation.tiles_m * invocation.tiles_n};
     }
-    int count = p.dims.seq * static_cast<int>(stage.width);
+    int count = p.dims.tokens() * static_cast<int>(stage.width);
     return {OwnershipOf(TaskKind::kGemmCombine),
             (count + Threads - 1) / Threads};
   }
 
   __device__ static void RunTask(Params const& p, StageDesc const& stage,
-                                 SmemUnion&, int task TILEMEGA_PHASE_ARG) {
+                                 SmemUnion& smem, int task TILEMEGA_PHASE_ARG) {
+#if TILEMEGA_SERVING_RUNTIME
+    DispatchServing(p, stage, smem, task);
+    return;
+#endif
     auto const* partials = reinterpret_cast<ModelPartialElement const*>(p.buffers[stage.operand[0]]);
     ModelElement* out = p.buffers[stage.operand[1]];
-    int count = p.dims.seq * static_cast<int>(stage.width);
+    int count = p.dims.tokens() * static_cast<int>(stage.width);
     int chunks = static_cast<int>(stage.group);
     TILEMEGA_PHASE_SIMT_SETUP();
     if (p.ownership_flags & kCombinerTileOwnership) {
@@ -82,7 +144,7 @@ struct GemmCombineTaskBody {
            local += blockDim.x) {
         int row = tile_m * invocation.tile_m + local / invocation.tile_n;
         int col = tile_n * invocation.tile_n + local % invocation.tile_n;
-        if (row >= p.dims.seq || col >= static_cast<int>(stage.width))
+        if (row >= p.dims.tokens() || col >= static_cast<int>(stage.width))
           continue;
         int i = row * static_cast<int>(stage.width) + col;
         float sum = 0.0f;
@@ -104,7 +166,7 @@ struct GemmCombineTaskBody {
 
   __device__ void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion& smem) const {
-    int count = p.dims.seq * static_cast<int>(stage.width);
+    int count = p.dims.tokens() * static_cast<int>(stage.width);
     if (p.ownership_flags & kCombinerTileOwnership) {
       auto const& invocation =
           static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
