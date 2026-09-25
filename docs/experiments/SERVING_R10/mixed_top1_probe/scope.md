@@ -1,0 +1,1 @@
+Exploratory Llama decode B16 mixed-tile top-1 probe. The search domain is restricted to four geometries, with one pass and top-M=1. It is not the R10 full-domain top-3 result or a 20-plan EV-1 measurement. The candidate used real residency verification and an exclusive GPU guard; `result.json` holds the complete command.

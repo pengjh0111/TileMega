@@ -1,0 +1,8 @@
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+DISK NEED_MIB=8192 FREE_MIB=1200985
+RESOURCE_QUERY directory="/root/r10_work/mixed_top1_solve_B16.so.resources/1790371094136486476/0" resident=1
+SERVING_TOP3_WINNER rank=1 mode=L1 mean_ms=5.24276
+SOLVE_SUMMARY evaluated=69 deferred=0 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=132 couplings=163 stages=132 symbolic_windows=0 fallback_windows=0 output=/root/r10_work/mixed_top1_solve_B16.so
