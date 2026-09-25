@@ -36,6 +36,7 @@
 #include <tilemega/Codegen/tasks/AttentionMergeTaskBody.h>
 #include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>
 #include <tilemega/Codegen/tasks/ServingEmbeddingTaskBody.h>
+#include <tilemega/Codegen/tasks/ServingTaskIndex.h>
 #include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>
 #include <tilemega/Target/ArchDispatch.h>
 #include <tilemega/Target/TargetSpec.h>
@@ -306,12 +307,12 @@ __device__ inline void RunServingAttentionTask(Params const& p,
   int cache_blocks = CeilDiv(p.dims.capacity, stage.attention_kv_block);
   int query_blocks = CeilDiv(int(stage.group) * p.dims.seq,
                              stage.attention_query_rows);
-  int cache_block = task % cache_blocks;
-  task /= cache_blocks;
-  int query_block = task % query_blocks;
-  task /= query_blocks;
-  int group = task % int(stage.extent);
-  int batch = task / int(stage.extent);
+  auto coordinate = DecodeServingAttentionTask(
+      task, query_blocks, int(stage.extent), cache_blocks);
+  int cache_block = coordinate.cache_block;
+  int group = coordinate.group;
+  int query_block = coordinate.query_block;
+  int batch = coordinate.batch;
   auto buffer = [&](std::uint32_t id) { return p.buffers[id]; };
   ServingAttentionOperands inputs{
       reinterpret_cast<cutlass::bfloat16_t const*>(buffer(stage.operand[0])),

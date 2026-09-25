@@ -683,6 +683,10 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(serving_pruning_test test/unit/serving_pruning_test.cpp)
   target_link_libraries(serving_pruning_test PRIVATE TileMega::tilemega)
   add_test(NAME serving_pruning COMMAND serving_pruning_test)
+
+  add_executable(serving_task_index_test test/unit/serving_task_index_test.cpp)
+  target_link_libraries(serving_task_index_test PRIVATE TileMega::tilemega)
+  add_test(NAME serving_task_index COMMAND serving_task_index_test)
   # CUDA numerical probe, run explicitly on a device just like attention_phase.
   add_executable(serving_epilogue_test test/unit/serving_epilogue_test.cu)
   target_link_libraries(serving_epilogue_test PRIVATE TileMega::tilemega)
