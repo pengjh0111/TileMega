@@ -1,0 +1,83 @@
+K-1 PASS
+  PASS include/tilemega/Backend/ServingGemm.h:40: cute::Copy_Atom<cute::SM80_CP_ASYNC_CACHEGLOBAL<cute::uint128_t>,
+  PASS include/tilemega/Backend/ServingGemm.h:36: cute::Swizzle<3, 3, 3>{},
+  PASS include/tilemega/Backend/ServingGemm.h:47: using SmemCopyAtom = cute::Copy_Atom<cute::SM75_U32x4_LDSM_N, Element>;
+  PASS include/tilemega/Backend/ServingGemm.h: no /SM80_CP_ASYNC_CACHEALWAYS<std::uint32_t>|DefaultCopy/
+K-2 PASS
+  PASS include/tilemega/Solver/BackendCostQuery.h:132: constexpr bool ServingBF16ShapeLegal(int m, int n, int k, int stages) {
+  PASS include/tilemega/Solver/BackendCostQuery.h:92: return m > 0 && n > 0 && k > 0 && stages > 1 && m % 16 == 0 && n % 16 == 0 &&
+  PASS include/tilemega/Solver/BackendCostQuery.h: no /ServingBF16ShapeLegal[^\n]*m\s*%\s*32/
+  PASS include/tilemega/Backend/ServingGemm.h:72: solver::ServingBF16SmemBytes(TileM, TileN, TileK, Stages);
+  PASS include/tilemega/Backend/ServingGemm.h:73: static_assert(sizeof(typename Mainloop::SharedStorage) <= kSharedBytes,
+K-3 PASS
+  PASS git diff f6c270ce0: 80 source files, no arch comparison outside ArchDispatch
+  PASS no serving SM/smem literal from the forbidden list
+K-4 PASS
+  PASS include/tilemega/Backend/ServingAttentionMma.h:33: cute::SM80_16x8x16_F32BF16BF16F32_TN{},
+  PASS include/tilemega/Backend/ServingAttentionMma.h:36: using LoadA = cute::Copy_Atom<cute::SM75_U32x4_LDSM_N, Element>;
+  PASS include/tilemega/Backend/ServingAttentionMma.h:38: cute::Copy_Atom<cute::SM75_U16x8_LDSM_T, Element>,
+  PASS include/tilemega/Codegen/tasks/FusedAttentionTaskBody.h:53: // The cache path uses one 16-byte cp.async.cg per lane and never issues an
+  PASS include/tilemega/Codegen/tasks/AttentionMergeTaskBody.h:41: float weight = exp2f(lse[base] - maximum);
+  PASS serving TaskBody headers: no trig or double
+K-5 PASS
+  PASS include/tilemega/Codegen/tasks/ServingRuntime.cuh: no /ResetBuffersOnly/
+  PASS python/tilemega/serving/engine.py: no /ResetBuffersOnly/
+  PASS include/tilemega/Codegen/tasks/ServingRuntime.cuh: tm_plan_launch has no copy/sync
+  PASS python/tilemega/serving/engine.py: decode loop has no sync/host read
+K-6 PASS
+  PASS include/tilemega/Codegen/tasks/ModelRuntime.h:146: int batch = 1;
+  PASS include/tilemega/Codegen/tasks/ModelRuntime.h:209: std::uint32_t per_batch = 0;
+  PASS lib/Frontend/Frontend.cpp:631: "batch", builder.getStringAttr(liftOptions.batch_symbol)));
+  PASS lib/Frontend/Frontend.cpp: no /batch\s*==\s*(?:1|16)/
+K-7 PASS
+  PASS lib/Frontend/ServingSemanticLifting.cpp:265: const auto Ec = C(stage.attention_kv_block);
+  PASS docs/experiments/SERVING_R10/frontend_import/llama_decode_B16_seed.mlir: serving CG dump present
+K-8 FAIL
+  PASS include/tilemega/Solver/ServingPruning.h:28: inline bool PruneServingR1(GemmConfig const& g,
+  PASS include/tilemega/Solver/ServingPruning.h:42: inline bool PruneServingR2(GemmConfig const& g,
+  PASS include/tilemega/Solver/ServingPruning.h:53: inline bool PruneServingR3(GemmConfig const& g,
+  PASS include/tilemega/Solver/ServingPruning.h:74: inline ServingSearchOrderR4 MakeServingSearchOrderR4(int resident_limit) {
+  PASS include/tilemega/Solver/OperatorClasses.h:103: if(PruneServingR1(candidate,pruning)) {++domain.removed_r1;continue;}
+  PASS include/tilemega/Solver/OperatorClasses.h:104: if(PruneServingR2(candidate,pruning)) {++domain.removed_r2;continue;}
+  PASS lib/Solver/SkeletonSearch.cpp:199: auto serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
+  FAIL lib/Solver/SkeletonSearch.cpp: missing /incremental_prepare/
+  PASS lib/Solver/SkeletonSearch.cpp:72: point.candidate.score=(EvaluateFlow(low.flow->flow).makespan_ns+
+  PASS lib/Solver/SkeletonSearch.cpp:73: 4*point.candidate.score+EvaluateFlow(high.flow->flow).makespan_ns)/6;
+K-9 PASS
+  PASS lib/Solver/FlowPreparation.cpp:56: int RuntimeReleaseEndpoint(int cg_last,int consumer_task,int producer_count,
+  PASS lib/Solver/FlowPreparation.cpp:61: auto bounds=codegen::RuntimeDependencyBounds(consumer_task,producer_count,
+  PASS lib/Solver/FlowPreparation.cpp:63: last=std::max(last,bounds.last());
+  PASS include/tilemega/Codegen/tasks/ServingRuntime.cuh:88: auto lower = RuntimeDependencyBounds(
+K-10 PASS
+  PASS include/tilemega/Target/TargetSpec.h:180: std::vector<double> inflight_curve_bytes;
+  PASS include/tilemega/Target/TargetSpec.h:182: std::vector<double> cta_stream_curve_bytes;
+  PASS lib/Solver/StageFlowModel.cpp:61: std::optional<InflightDramServer> inflight;
+  PASS lib/Solver/FluidExecutionSimulator.cpp:33: std::optional<InflightDramServer> inflight;
+K-11 PASS
+  PASS lib/Solver/SkeletonSearch.cpp:258: ? eb.evaluation.makespan_ns>0.98*ea.evaluation.makespan_ns
+K-12 FAIL
+  PASS docs/experiments/SERVING_R10/seed_split_price/command.txt: no /MIDPOINT_REFINE=1/
+  FAIL 0/20 solved-plan SASS audits, counts=[]
+K-13 PASS
+  PASS include/tilemega/Codegen/tasks/ModelRuntime.h:332: std::uint32_t eft_past_lo = 0;
+  PASS include/tilemega/Codegen/tasks/ModelRuntime.h:333: std::uint32_t eft_past_hi = 0;
+  PASS include/tilemega/Codegen/tasks/ServingRuntime.cuh:88: auto lower = RuntimeDependencyBounds(
+K-14 PASS
+  PASS python/tilemega/serving/vllm_baseline.py:41: temperature=0.0, max_tokens=count, ignore_eos=True,
+  PASS python/tilemega/serving/vllm_baseline.py:41: temperature=0.0, max_tokens=count, ignore_eos=True,
+  PASS python/tilemega/serving/vllm_baseline.py:42: detokenize=False,
+  PASS python/tilemega/serving/vllm_baseline.py:22: from vllm.inputs import TokensPrompt
+  PASS python/tilemega/serving/vllm_baseline.py: no /enforce_eager=True/
+  PASS python/tilemega/serving/vllm_baseline.py:24: ids = json.loads(args.prompt_ids.read_text())
+K-15 PASS
+  PASS lib/Frontend/ModelPlan.cpp:962: std::string qkv_recipe = "{\"kind\":\"qkv_group_interleave\",\"sources\":" +
+  PASS lib/Frontend/ModelPlan.cpp:1037: std::string gu_recipe = "{\"kind\":\"gate_up_interleave\",\"sources\":" +
+  PASS python/tilemega/serving/weights.py:47: if kind == "qkv_group_interleave":
+  PASS python/tilemega/serving/weights.py:61: if kind == "gate_up_interleave":
+  PASS python/tilemega/serving/weights.py: no /if\s+.*(?:llama|qwen)/
+K-16 PASS
+  PASS include/tilemega/Codegen/tasks/ServingEmbeddingTaskBody.h:20: int token_row, int seq, int past,
+  PASS include/tilemega/Codegen/tasks/ServingArgmaxReduceTaskBody.h:25: int output_position, SharedStorage* shared) {
+  PASS include/tilemega/Codegen/tasks/ModelHarness.cuh:289: int(stage.width), p.dims.capacity, p.dims.past + p.dims.seq,
+  PASS docs/experiments/SERVING_R10/token_sets.log: TOKENS_DISJOINT batch=2 past=64 seq=64 read_bytes=8 write_bytes=8
+G-1 FAIL: 14/16 structural checks
