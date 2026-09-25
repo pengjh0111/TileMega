@@ -143,6 +143,8 @@ struct ModelDims {
   int seq = 0;
   int past = 0;
   int total = 0;
+  int batch = 1;
+  int tokens() const { return batch * seq; }
 };
 
 /// A GEMM instance as the generator describes it: M is the token count, which
@@ -194,11 +196,19 @@ struct BufferDesc {
   /// the producer edges come from; the generator never annotates it.
   bool no_producer;
 #endif
+  // Serving fields are unconditional and appended: host and device must see
+  // the same descriptor layout regardless of optional feature macros.
+  std::uint32_t per_batch = 0;
+  std::uint32_t dtype = 0;  ///< 0 BF16, 1 FP32, 2 int32
+  std::uint32_t role = 0;   ///< 0 internal, 1 external
+  char const* external_name = nullptr;
+  char const* pack_json = nullptr;
 
   std::size_t Elements(ModelDims const& dims) const {
     return constant + static_cast<std::size_t>(per_seq) * dims.seq +
            static_cast<std::size_t>(per_past) * dims.past +
-           static_cast<std::size_t>(per_total) * dims.total;
+           static_cast<std::size_t>(per_total) * dims.total +
+           static_cast<std::size_t>(per_batch) * dims.batch;
   }
 };
 
@@ -226,7 +236,12 @@ struct StageDesc {
   std::uint32_t extent;
   std::uint32_t width;
   std::uint32_t group;
-  std::uint32_t operand[8];
+  std::uint32_t operand[16];
+  bool batch_rows = false;
+  int row_stride = 1;
+  int row_offset = 0;
+  int attention_kv_block = 256;
+  int attention_query_rows = 64;
 };
 
 /// A synchronization requirement synthesized from CG couplings: consumer
@@ -304,6 +319,10 @@ struct RuntimePlanDesc {
   RuntimePlanDesc const* interval = nullptr;
   std::uint32_t interval_count = 0;
   std::uint32_t interval_begin = 0;
+  // A serving queue may be reused over this entire verified past interval.
+  // Zeroes preserve the legacy point-plan interpretation.
+  std::uint32_t eft_past_lo = 0;
+  std::uint32_t eft_past_hi = 0;
 };
 
 /// One unique event a concrete task still has to observe.  The host removes

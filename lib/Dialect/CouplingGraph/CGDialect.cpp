@@ -114,7 +114,7 @@ static analysis::ParamBinding combinedBinding(ModuleOp module) {
 LogicalResult TileSpaceOp::verify() {
   static constexpr StringLiteral known[] = {
       "gemm", "rmsnorm", "rope", "kvappend", "elementwise", "attention",
-      "embedding",
+      "embedding", "fused_attention", "attention_merge", "argmax_reduce",
       "view", "transpose", "broadcast", "reduction", "slice", "concat",
       // `generic` is the degraded classification: one conservative task space
       // for an operator no rule covers.

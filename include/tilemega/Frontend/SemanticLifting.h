@@ -32,6 +32,12 @@ enum class OpRole {
   kRoPE,
   kKVAppend,
   kAttention,
+  kServingQkv,
+  kServingSwiGlu,
+  kServingArgmaxPartial,
+  kServingFusedAttention,
+  kServingMerge,
+  kServingArgmax,
   kActivation,
   kResidualAdd,  ///< the `beta * C` half of a fused GEMM epilogue
   kGeneric,
@@ -90,11 +96,15 @@ struct GemmGranularity {
 struct LiftOptions {
   std::string seq_symbol = "S";
   std::string past_symbol = "past";
+  std::string batch_symbol;
+  int static_seq = 0;
+  bool serving = false;
 };
 
 /// Lift the recognized decoder stages. One sem op per stage, except a GEMM
 /// with `beta != 0`, whose epilogue residual is its own pointwise op.
 LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options);
+LiftedModel LiftServingSemantics(ModelPlan const& plan, LiftOptions const& options);
 
 /// §0.1 degradation: one conservative task space per FX call_function, used
 /// when no decoder layer was recognized. Never a placeholder -- the read set

@@ -46,12 +46,21 @@ struct PlanBuffer {
   std::uint32_t per_total = 0;
   Source source = Source::kZero;
   std::string file;
+  std::uint32_t per_batch = 0;
+  std::string dtype = "bf16";
+  std::string role = "internal";
+  std::string external_name;
+  std::string pack_json;
 };
 
 struct PlanGemm {
+  enum class Epilogue { kStore, kResidual, kSwiGLU, kArgmaxPartial };
   std::uint32_t n = 0, k = 0;
   std::uint32_t a = 0, b = 0, c = 0, d = 0;
   float beta = 0.0f;
+  Epilogue epilogue = Epilogue::kStore;
+  std::uint32_t interleave_u = 16;
+  std::uint32_t partial_tile_n = 0;
 };
 
 enum class PlanTaskKind {
@@ -64,6 +73,9 @@ enum class PlanTaskKind {
   kAdd,
   kEmbedding,
   kQKNorm,
+  kFusedAttention,
+  kAttentionMerge,
+  kArgmaxReduce,
 };
 
 struct PlanStage {
@@ -72,9 +84,14 @@ struct PlanStage {
   std::uint32_t extent = 0;
   std::uint32_t width = 0;
   std::uint32_t group = 1;
-  std::array<std::uint32_t, 8> operands{};
+  std::array<std::uint32_t, 16> operands{};
   std::string representative;
   int representative_index = -1;
+  bool batch_rows = false;
+  int row_stride = 1;
+  int row_offset = 0;
+  int attention_kv_block = 256;
+  int attention_query_rows = 64;
 };
 
 struct PlanOutput {
@@ -107,11 +124,28 @@ struct ModelPlan {
   std::vector<PlanStage> stages;
   std::vector<PlanOutput> outputs;
   std::unordered_map<std::string, std::uint32_t> node_buffer;
+  bool serving = false;
+  int serving_seq = 0;
+  int serving_capacity = 0;
+};
+
+struct ServingOptions {
+  enum class Phase { kPrefill, kDecode } phase = Phase::kDecode;
+  int seq = 1;
+  int capacity = 1088;
+  int interleave_u = 16;
+  int kv_block = 256;
+  int query_rows = 64;
+  int argmax_tile_n = 32;
 };
 
 ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                          std::vector<SignatureInput> const& inputs,
                          std::vector<std::string> const& outputs);
+ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
+                         std::vector<SignatureInput> const& inputs,
+                         std::vector<std::string> const& outputs,
+                         ServingOptions const& serving);
 void SeparateResidualTasks(ModelPlan& plan);
 
 /// Assign every call_function to the first semantic stage whose representative

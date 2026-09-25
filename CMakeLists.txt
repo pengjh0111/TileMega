@@ -131,6 +131,7 @@ add_library(tilemega STATIC
   lib/Frontend/GraphPattern.cpp
   lib/Frontend/ModelPlan.cpp
   lib/Frontend/SemanticLifting.cpp
+  lib/Frontend/ServingSemanticLifting.cpp
   lib/Analysis/SemanticCodec.cpp
   lib/Dialect/CouplingGraph/CGDialect.cpp
   lib/Dialect/CouplingGraph/PlacementPlan.cpp

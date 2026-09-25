@@ -41,7 +41,12 @@ struct ModelDims {
   // symbolic dimensions must be substituted before entering FP64 evaluation.
   std::string seq_parameter;
   std::string past_parameter;
-  bool IsSymbolic() const { return !seq_parameter.empty() || !past_parameter.empty(); }
+  int batch = 1;
+  std::string batch_parameter;
+  bool IsSymbolic() const {
+    return !seq_parameter.empty() || !past_parameter.empty() ||
+           !batch_parameter.empty();
+  }
   static ModelDims Symbolic(std::string seq_name, int concrete_past);
 };
 
@@ -86,6 +91,9 @@ enum class StageKind {
   kAdd = 10,
   kEmbedding = 11,
   kQKNorm = 12,
+  kFusedAttention = 13,
+  kAttentionMerge = 14,
+  kArgmaxReduce = 15,
 };
 
 struct ModelStage {
@@ -130,7 +138,8 @@ struct ModelDescription {
   std::vector<std::vector<int>> stage_successors;
   ModelCouplingAnalysis coupling_metrics;
   analysis::ParamBinding metric_bindings;
-  std::string seq_metric_parameter, past_metric_parameter;
+  std::string seq_metric_parameter, past_metric_parameter,
+      batch_metric_parameter;
   std::vector<std::pair<std::string, std::string>> metric_aliases;
   bool fusion_phase_context = false;
   bool combiner_tile_ownership = false;

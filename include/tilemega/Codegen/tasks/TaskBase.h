@@ -93,6 +93,10 @@ enum class TaskKind : std::uint32_t {
   /// ownership a TaskBody declares is what decides whether a coupling into it
   /// can be lowered to a per-CTA wait.
   kQKNorm = 12,
+  /// Serving-only fused cached attention, its LSE merge, and token selection.
+  kFusedAttention = 13,
+  kAttentionMerge = 14,
+  kArgmaxReduce = 15,
 };
 
 /// The ownership each TaskKind's TaskBody declares. Every TaskBody's
@@ -109,6 +113,9 @@ TILEMEGA_TASK_HD constexpr TaskOwnershipKind OwnershipOf(TaskKind kind) {
     case TaskKind::kQKNorm:
     case TaskKind::kEmbedding:
     case TaskKind::kAttention:
+    case TaskKind::kFusedAttention:
+    case TaskKind::kAttentionMerge:
+    case TaskKind::kArgmaxReduce:
       return TaskOwnershipKind::kTilePerBlock;
     case TaskKind::kRoPE:
     case TaskKind::kKVAppend:

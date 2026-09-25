@@ -99,6 +99,9 @@ StageKind ParseKind(std::string const& text) {
   if (text == "TaskKind::kEmbedding") return StageKind::kEmbedding;
   if (text == "TaskKind::kQKNorm") return StageKind::kQKNorm;
   if (text == "TaskKind::kAttention") return StageKind::kAttention;
+  if (text == "TaskKind::kFusedAttention") return StageKind::kFusedAttention;
+  if (text == "TaskKind::kAttentionMerge") return StageKind::kAttentionMerge;
+  if (text == "TaskKind::kArgmaxReduce") return StageKind::kArgmaxReduce;
   throw std::runtime_error("unmodelled stage kind: " + text);
 }
 
@@ -183,6 +186,13 @@ ModelDescription ModelDescription::ReadCouplingGraph(
     throw std::invalid_argument("CG has no semantic dimension roles; re-import the original export");
   model.seq_metric_parameter = roles.getAs<mlir::StringAttr>("seq").getValue().str();
   model.past_metric_parameter = roles.getAs<mlir::StringAttr>("past").getValue().str();
+  if (auto batch = roles.getAs<mlir::StringAttr>("batch"))
+    model.batch_metric_parameter = batch.getValue().str();
+  if (module->hasAttr("tilemega.serving")) {
+    // S is a plan constant; it is not an ISL parameter or a substitute for B.
+    model.seq_metric_parameter.clear();
+    model.dims.seq_parameter.clear();
+  }
   if (auto aliases = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.symbol_aliases"))
     for (auto item : aliases)
       model.metric_aliases.emplace_back(item.getName().str(),
@@ -298,6 +308,7 @@ ModelDescription ModelDescription::SubstituteParams(analysis::ParamBinding const
   };
   bool const symbolic = out.dims.IsSymbolic();
   bind(out.dims.seq_parameter, out.dims.seq); bind(out.dims.past_parameter, out.dims.past);
+  bind(out.dims.batch_parameter, out.dims.batch);
   if (out.dims.seq < 0 || out.dims.past < 0 ||
       out.dims.seq > std::numeric_limits<int>::max() - out.dims.past)
     throw std::out_of_range("model total dimension outside int range");
@@ -323,9 +334,11 @@ analysis::ParamBinding ModelDescription::MetricBindings(analysis::ParamBinding c
   if (dims.IsSymbolic()) throw std::invalid_argument("bind dimensions before resolving metric aliases");
   auto known = metric_bindings;
   for (auto const& [name, value] : bindings.values) known.Bind(name, value);
-  known.Bind("S", dims.seq).Bind("past", dims.past).Bind("P",dims.past).Bind("L_s", dims.total);
+  known.Bind("S", dims.seq).Bind("past", dims.past).Bind("P",dims.past)
+       .Bind("L_s", dims.total).Bind("B", dims.batch);
   if (!seq_metric_parameter.empty()) known.Bind(seq_metric_parameter, dims.seq);
   if (!past_metric_parameter.empty()) known.Bind(past_metric_parameter, dims.past);
+  if (!batch_metric_parameter.empty()) known.Bind(batch_metric_parameter, dims.batch);
   for (auto const& [alias, canonical] : metric_aliases)
     if (known.Contains(canonical)) known.Bind(alias, known.At(canonical));
   return known;

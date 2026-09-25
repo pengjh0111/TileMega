@@ -48,6 +48,13 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
     auto& dst=tensor(op.result.name,op.dtype);
     auto writes=ElementAccess(*task,BuildWriteMap(*task),fixed,AccessDomain::kPhysicalTensor).Image();
     dst.writes=dst.writes.Union(writes);dst.state|=!op.result_effect.state_object.empty();
+    for (auto const& write:op.additional_writes) {
+      ElementRead indexed{write.tensor,write.map,write.nonnegative};
+      auto& extra=tensor(write.tensor.name,op.dtype);
+      extra.writes=extra.writes.Union(
+          ExactElementRead(op,*task,indexed,fixed).Image());
+      extra.state|=!write.effect.state_object.empty();
+    }
     for(auto const& operand:op.operands)consumers.insert(operand.tensor.name);
     auto append=[&](std::string const& name,CouplingRelation const& relation){
       auto& src=tensor(name,op.dtype);src.reads=src.reads.Union(relation.Image());
@@ -68,7 +75,11 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
         append(task->operands[i].tensor.name,ElementAccess(*task,BuildReadMap(*task,i),fixed,AccessDomain::kPhysicalTensor));
     }
     if(op.kind==OperatorKind::kMatmul) {
-      ClosedForm work=ClosedForm::Constant(2);
+      // The interleaved gate/up epilogue computes two independent dots for
+      // each logical activation element.  Its result has half the packed
+      // projection width, so multiply the physical MMA work by two here.
+      ClosedForm work=ClosedForm::Constant(
+          op.arithmetic=="swiglu_gemm" ? 4 : 2);
       for(auto const& axis:op.domain)work=work*axis.extent;
       result.matmul_flops=result.matmul_flops.Add(Polynomial(work,fixed));
     }

@@ -440,6 +440,23 @@ std::string emitModelPlan(mlir::ModuleOp module,
       out << "\n#if TILEMEGA_PREFETCH_RUNTIME\n   , "
           << (optionalBoolField(item, "no_producer") ? "true" : "false")
           << "\n#endif\n  ";
+    if (item.get("per_batch")) {
+      std::string buffer_dtype = stringField(item, "dtype");
+      std::string buffer_role = stringField(item, "role");
+      int dtype_code = buffer_dtype == "bf16" ? 0 : buffer_dtype == "f32" ? 1
+                     : buffer_dtype == "i32" ? 2 : -1;
+      int role_code = buffer_role == "internal" ? 0
+                    : buffer_role == "external" ? 1 : -1;
+      if (dtype_code < 0 || role_code < 0)
+        throw std::invalid_argument("invalid serving buffer dtype or role");
+      std::string external_name = stringField(item, "external_name");
+      std::string pack_json = stringField(item, "pack_json");
+      out << ", " << integerField(item, "per_batch") << "u, "
+          << dtype_code << "u, " << role_code << "u, "
+          << (external_name.empty() ? "nullptr" : quoteCString(external_name))
+          << ", "
+          << (pack_json.empty() ? "nullptr" : quoteCString(pack_json));
+    }
     out << "},\n";
   }
   out << "};\n\nconstexpr GemmDesc kGemms[] = {\n";
@@ -459,8 +476,8 @@ std::string emitModelPlan(mlir::ModuleOp module,
     auto item = dictionaryEntry(value, "stages");
     auto operands = llvm::dyn_cast<mlir::DenseI64ArrayAttr>(
         requireField(item, "operands"));
-    if (!operands || operands.size() != 8)
-      throw std::invalid_argument("model stage must have exactly eight operands");
+    if (!operands || (operands.size() != 8 && operands.size() != 16))
+      throw std::invalid_argument("model stage must have eight or sixteen operands");
     out << "  {TaskKind::" << stringField(item, "kind") << ", "
         << integerField(item, "gemm") << "u, "
         << integerField(item, "extent") << "u, "
@@ -473,7 +490,16 @@ std::string emitModelPlan(mlir::ModuleOp module,
                   ? "kNoOperand"
                   : std::to_string(operand) + "u");
     }
-    out << "}},\n";
+    out << "}";
+    if (auto batch_rows = llvm::dyn_cast_or_null<mlir::BoolAttr>(
+            item.get("batch_rows"))) {
+      out << ", " << (batch_rows.getValue() ? "true" : "false")
+          << ", " << integerField(item, "row_stride")
+          << ", " << integerField(item, "row_offset")
+          << ", " << integerField(item, "attention_kv_block")
+          << ", " << integerField(item, "attention_query_rows");
+    }
+    out << "},\n";
   }
   out << "};\n\nconstexpr OutputDesc kOutputs[] = {\n";
   for (auto value : outputs) {

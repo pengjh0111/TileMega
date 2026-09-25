@@ -113,6 +113,12 @@ std::string ToString(OpRole role) {
     case OpRole::kRoPE: return "rope";
     case OpRole::kKVAppend: return "kv_append";
     case OpRole::kAttention: return "attention";
+    case OpRole::kServingQkv: return "qkv_projection";
+    case OpRole::kServingSwiGlu: return "swiglu_projection";
+    case OpRole::kServingArgmaxPartial: return "argmax_partial";
+    case OpRole::kServingFusedAttention: return "fused_attention";
+    case OpRole::kServingMerge: return "attention_merge";
+    case OpRole::kServingArgmax: return "argmax_reduce";
     case OpRole::kActivation: return "activation";
     case OpRole::kResidualAdd: return "residual_add";
     case OpRole::kGeneric: return "generic";
@@ -126,14 +132,20 @@ std::string ToString(OwnershipKind kind) {
 }
 
 LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
+  if (plan.serving) return LiftServingSemantics(plan, options);
   LiftedModel model;
   if (plan.stages.empty()) return model;
   model.has_plan = true;
   analysis::ScalarType const dtype = plan.dtype == "bf16"
       ? analysis::ScalarType::kBF16 : analysis::ScalarType::kF32;
 
-  ClosedForm const S = ClosedForm::Symbol(options.seq_symbol);
-  ClosedForm const past = ClosedForm::Symbol(options.past_symbol);
+  ClosedForm const S = options.serving
+      ? ClosedForm::Symbol(options.batch_symbol) *
+            ClosedForm::Constant(options.static_seq)
+      : ClosedForm::Symbol(options.seq_symbol);
+  ClosedForm const past = options.serving && options.past_symbol.empty()
+      ? ClosedForm::Constant(0)
+      : ClosedForm::Symbol(options.past_symbol);
   ClosedForm const total = S + past;
 
   // Layers are uniform, so the stage count per layer is the total over the
@@ -570,6 +582,59 @@ analysis::Granularity LaunchGranularity(
         "runtime variant must provide one granularity per ModelPlan GEMM");
   analysis::Granularity g;
   ClosedForm const one = ClosedForm::Constant(1);
+  if (plan.serving) {
+    for (auto const& op : model.ops) {
+      auto const& stage = plan.stages.at(op.stage);
+      switch (op.role) {
+        case OpRole::kNorm:
+        case OpRole::kEmbedding:
+        case OpRole::kServingArgmax:
+          g.Tile(op.name, "m", one);
+          break;
+        case OpRole::kServingFusedAttention:
+          if (stage.attention_query_rows <= 0)
+            throw std::invalid_argument("serving attention query rows must be positive");
+          if (plan.serving_seq == 1)
+            g.Tile(op.name, "b", one).Tile(op.name, "g", one)
+                .Tile(op.name, "c", one)
+                .Tile(op.name, "q", ClosedForm::Constant(stage.attention_query_rows));
+          else
+            g.Tile(op.name, "m", ClosedForm::Constant(
+                       std::max(1, stage.attention_query_rows /
+                           static_cast<int>(stage.group))))
+                .Tile(op.name, "g", one);
+          break;
+        case OpRole::kServingMerge:
+          g.Tile(op.name, "m", one).Tile(op.name, "g", one);
+          break;
+        case OpRole::kServingQkv:
+        case OpRole::kServingSwiGlu:
+        case OpRole::kServingArgmaxPartial:
+        case OpRole::kProjection: {
+          auto const& impl = gemms.empty() ? GemmGranularity{} :
+              gemms.at(stage.gemm);
+          g.Tile(op.name, "m", ClosedForm::Constant(impl.tile_m));
+          if (op.role == OpRole::kServingQkv)
+            g.Tile(op.name, "g", one)
+                .Tile(op.name, "u", ClosedForm::Constant(impl.tile_n));
+          else if (op.role == OpRole::kServingSwiGlu)
+            g.Tile(op.name, "i", ClosedForm::Constant(impl.tile_n / 2));
+          else if (op.role == OpRole::kServingArgmaxPartial)
+            g.Tile(op.name, "tile", one);
+          else
+            g.Tile(op.name, "n", ClosedForm::Constant(impl.tile_n));
+          if (impl.split_k > 1 && op.role != OpRole::kServingArgmaxPartial) {
+            int k = static_cast<int>(plan.gemms.at(stage.gemm).k);
+            int chunks = std::min(impl.split_k, (k + impl.tile_k - 1) / impl.tile_k);
+            g.Split(op.name, ClosedForm::Constant((k + chunks - 1) / chunks));
+          }
+          break;
+        }
+        default: break;
+      }
+    }
+    return g;
+  }
   auto selected = [&](LiftedOp const& op) -> GemmGranularity {
     if (op.stage < 0 || static_cast<std::size_t>(op.stage) >= plan.stages.size())
       throw std::invalid_argument("lifted GEMM has no ModelPlan stage");

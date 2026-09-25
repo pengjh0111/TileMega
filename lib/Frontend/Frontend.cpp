@@ -171,6 +171,12 @@ llvm::StringRef taskKindOf(OpRole role) {
     case OpRole::kRoPE: return "rope";
     case OpRole::kKVAppend: return "kvappend";
     case OpRole::kAttention: return "attention";
+    case OpRole::kServingQkv:
+    case OpRole::kServingSwiGlu:
+    case OpRole::kServingArgmaxPartial: return "gemm";
+    case OpRole::kServingFusedAttention: return "fused_attention";
+    case OpRole::kServingMerge: return "attention_merge";
+    case OpRole::kServingArgmax: return "argmax_reduce";
     case OpRole::kActivation:
     case OpRole::kResidualAdd: return "elementwise";
     case OpRole::kGeneric: return "generic";
@@ -204,6 +210,9 @@ llvm::StringRef taskKindName(PlanTaskKind kind) {
     case PlanTaskKind::kAdd: return "kAdd";
     case PlanTaskKind::kEmbedding: return "kEmbedding";
     case PlanTaskKind::kQKNorm: return "kQKNorm";
+    case PlanTaskKind::kFusedAttention: return "kFusedAttention";
+    case PlanTaskKind::kAttentionMerge: return "kAttentionMerge";
+    case PlanTaskKind::kArgmaxReduce: return "kArgmaxReduce";
   }
   llvm_unreachable("unknown plan task kind");
 }
@@ -217,7 +226,7 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
     llvm::StringRef source = "zero";
     if (buffer.source == PlanBuffer::Source::kFixture) source = "fixture";
     if (buffer.source == PlanBuffer::Source::kWeight) source = "weight";
-    buffers.push_back(dict(builder, {
+    llvm::SmallVector<mlir::NamedAttribute> fields = {
         builder.getNamedAttr("name", builder.getStringAttr(buffer.name)),
         builder.getNamedAttr("constant", builder.getI64IntegerAttr(buffer.constant)),
         builder.getNamedAttr("per_seq", builder.getI64IntegerAttr(buffer.per_seq)),
@@ -226,21 +235,51 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         builder.getNamedAttr("source", builder.getStringAttr(source)),
         builder.getNamedAttr("file", builder.getStringAttr(buffer.file)),
         builder.getNamedAttr("no_producer", builder.getBoolAttr(
-            index >= written.size() || !written[index]))}));
+            index >= written.size() || !written[index]))};
+    if (buffer.per_batch || buffer.role != "internal" ||
+        !buffer.external_name.empty() || !buffer.pack_json.empty()) {
+      fields.push_back(builder.getNamedAttr(
+          "per_batch", builder.getI64IntegerAttr(buffer.per_batch)));
+      fields.push_back(builder.getNamedAttr(
+          "dtype", builder.getStringAttr(buffer.dtype)));
+      fields.push_back(builder.getNamedAttr(
+          "role", builder.getStringAttr(buffer.role)));
+      fields.push_back(builder.getNamedAttr(
+          "external_name", builder.getStringAttr(buffer.external_name)));
+      fields.push_back(builder.getNamedAttr(
+          "pack_json", builder.getStringAttr(buffer.pack_json)));
+    }
+    buffers.push_back(builder.getDictionaryAttr(fields));
   }
-  for (auto const& gemm : plan.gemms)
-    gemms.push_back(dict(builder, {
+  for (auto const& gemm : plan.gemms) {
+    llvm::SmallVector<mlir::NamedAttribute> fields = {
         builder.getNamedAttr("n", builder.getI64IntegerAttr(gemm.n)),
         builder.getNamedAttr("k", builder.getI64IntegerAttr(gemm.k)),
         builder.getNamedAttr("a", builder.getI64IntegerAttr(gemm.a)),
         builder.getNamedAttr("b", builder.getI64IntegerAttr(gemm.b)),
         builder.getNamedAttr("c", builder.getI64IntegerAttr(gemm.c)),
         builder.getNamedAttr("d", builder.getI64IntegerAttr(gemm.d)),
-        builder.getNamedAttr("beta", builder.getF32FloatAttr(gemm.beta))}));
+        builder.getNamedAttr("beta", builder.getF32FloatAttr(gemm.beta))};
+    if (gemm.epilogue != PlanGemm::Epilogue::kStore) {
+      llvm::StringRef epilogue = "store";
+      if (gemm.epilogue == PlanGemm::Epilogue::kResidual) epilogue = "residual";
+      if (gemm.epilogue == PlanGemm::Epilogue::kSwiGLU) epilogue = "swiglu";
+      if (gemm.epilogue == PlanGemm::Epilogue::kArgmaxPartial)
+        epilogue = "argmax_partial";
+      fields.push_back(builder.getNamedAttr(
+          "epilogue", builder.getStringAttr(epilogue)));
+      fields.push_back(builder.getNamedAttr(
+          "interleave_u", builder.getI64IntegerAttr(gemm.interleave_u)));
+      if (gemm.partial_tile_n)
+        fields.push_back(builder.getNamedAttr(
+            "partial_tile_n", builder.getI64IntegerAttr(gemm.partial_tile_n)));
+    }
+    gemms.push_back(builder.getDictionaryAttr(fields));
+  }
   for (auto const& stage : plan.stages) {
     llvm::SmallVector<std::int64_t> operands;
     for (auto operand : stage.operands) operands.push_back(operand);
-    stages.push_back(dict(builder, {
+    llvm::SmallVector<mlir::NamedAttribute> fields = {
         builder.getNamedAttr("kind", builder.getStringAttr(taskKindName(stage.kind))),
         builder.getNamedAttr("gemm", builder.getI64IntegerAttr(stage.gemm)),
         builder.getNamedAttr("extent", builder.getI64IntegerAttr(stage.extent)),
@@ -249,7 +288,22 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         builder.getNamedAttr("operands", builder.getDenseI64ArrayAttr(operands)),
         builder.getNamedAttr("representative", builder.getStringAttr(stage.representative)),
         builder.getNamedAttr("representative_index",
-                             builder.getI64IntegerAttr(stage.representative_index))}));
+                             builder.getI64IntegerAttr(stage.representative_index))};
+    if (plan.serving) {
+      fields.push_back(builder.getNamedAttr(
+          "batch_rows", builder.getBoolAttr(stage.batch_rows)));
+      fields.push_back(builder.getNamedAttr(
+          "row_stride", builder.getI64IntegerAttr(stage.row_stride)));
+      fields.push_back(builder.getNamedAttr(
+          "row_offset", builder.getI64IntegerAttr(stage.row_offset)));
+      fields.push_back(builder.getNamedAttr(
+          "attention_kv_block", builder.getI64IntegerAttr(
+              stage.attention_kv_block)));
+      fields.push_back(builder.getNamedAttr(
+          "attention_query_rows", builder.getI64IntegerAttr(
+              stage.attention_query_rows)));
+    }
+    stages.push_back(builder.getDictionaryAttr(fields));
   }
   for (auto const& output : plan.outputs)
     outputs.push_back(dict(builder, {
@@ -400,6 +454,57 @@ ExportBridge ReadExportBridge(std::string const& path) {
   return bridge;
 }
 
+static LiftOptions ServingDimensionRoles(ExportBridge const& bridge,
+                                         ModelPlan const& plan,
+                                         SymbolicShape const& symbolic) {
+  LiftOptions roles;
+  roles.serving = true;
+  roles.static_seq = plan.serving_seq;
+  roles.seq_symbol = std::to_string(plan.serving_seq);
+  roles.past_symbol.clear();
+  for (auto const& input : bridge.inputs) {
+    if (input.kind != "USER_INPUT") continue;
+    auto found = std::find_if(bridge.nodes.begin(), bridge.nodes.end(),
+                              [&](FxNodeRecord const& node) {
+                                return node.name == input.name;
+                              });
+    if (found == bridge.nodes.end())
+      throw std::invalid_argument("serving signature names an unknown input");
+    // The token-id tensor structurally identifies batch and fixed seq.  Its
+    // symbol role does not depend on order in the export's range dictionary.
+    if (found->shape.size() == 2 &&
+        (found->dtype == "torch.int64" || found->dtype == "torch.int32")) {
+      if (!roles.batch_symbol.empty())
+        throw std::invalid_argument("serving export has multiple token-id inputs");
+      roles.batch_symbol = found->shape[0];
+      if (found->shape[1] != std::to_string(plan.serving_seq))
+        throw std::invalid_argument("serving seq is not the plan constant");
+    }
+  }
+  if (roles.batch_symbol.empty() || !symbolic.ranges.count(roles.batch_symbol))
+    throw std::invalid_argument("serving batch is not a symbolic token axis");
+  for (auto const& input : bridge.inputs) {
+    if (input.kind != "USER_INPUT") continue;
+    auto found = std::find_if(bridge.nodes.begin(), bridge.nodes.end(),
+                              [&](FxNodeRecord const& node) {
+                                return node.name == input.name;
+                              });
+    if (found->shape.size() != 4 ||
+        found->shape[0] != roles.batch_symbol) continue;
+    // The cache layout is [B,Hkv,past,D].  All caches must agree on axis 2.
+    if (symbolic.ranges.count(found->shape[2])) {
+      if (!roles.past_symbol.empty() && roles.past_symbol != found->shape[2])
+        throw std::invalid_argument("serving caches disagree on past axis");
+      roles.past_symbol = found->shape[2];
+    } else if (found->shape[2] != "0") {
+      throw std::invalid_argument("serving cache past axis is not symbolic or zero");
+    }
+  }
+  if (roles.past_symbol.empty() && plan.serving_seq == 1)
+    throw std::invalid_argument("decode requires a symbolic past axis");
+  return roles;
+}
+
 static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     ExportBridge bridge, ModelPlan const* selected_plan, mlir::MLIRContext& context,
     ImportSummary* summary, ImportOptions const& options,
@@ -505,14 +610,27 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   builder.setInsertionPointToStart(module.getBody());
 
   LiftOptions liftOptions;
-  if (symbolic.dimensions.size() > 0) liftOptions.seq_symbol = symbolic.dimensions.front();
-  for (auto const& symbol : symbolic.dimensions)
-    if (symbol != liftOptions.seq_symbol) { liftOptions.past_symbol = symbol; break; }
+  if (plan.serving) {
+    liftOptions = ServingDimensionRoles(bridge, plan, symbolic);
+  } else {
+    if (!symbolic.dimensions.empty())
+      liftOptions.seq_symbol = symbolic.dimensions.front();
+    for (auto const& symbol : symbolic.dimensions)
+      if (symbol != liftOptions.seq_symbol) {
+        liftOptions.past_symbol = symbol;
+        break;
+      }
+  }
   // Preserve semantic dimension roles for consumers of symbolic CG metrics.
   // Import witness values are not runtime dimensions and must not be reused.
-  module->setAttr("tilemega.dimension_roles", builder.getDictionaryAttr({
+  llvm::SmallVector<mlir::NamedAttribute> dimension_roles = {
       builder.getNamedAttr("seq", builder.getStringAttr(liftOptions.seq_symbol)),
-      builder.getNamedAttr("past", builder.getStringAttr(liftOptions.past_symbol))}));
+      builder.getNamedAttr("past", builder.getStringAttr(liftOptions.past_symbol))};
+  if (plan.serving)
+    dimension_roles.push_back(builder.getNamedAttr(
+        "batch", builder.getStringAttr(liftOptions.batch_symbol)));
+  module->setAttr("tilemega.dimension_roles",
+                  builder.getDictionaryAttr(dimension_roles));
   LiftedModel lifted = prepared ? prepared->lifted : plan.stages.empty()
                            ? LiftGenericSemantics(tasks, stages, liftOptions)
                            : LiftSemantics(plan, liftOptions);
@@ -521,6 +639,11 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   if (!plan.stages.empty())
     module->setAttr("tilemega.model_plan",
                     modelPlanAttr(builder, plan, lifted.written));
+  if (plan.serving)
+    module->setAttr("tilemega.serving", dict(builder, {
+        builder.getNamedAttr("seq", builder.getI64IntegerAttr(plan.serving_seq)),
+        builder.getNamedAttr("capacity", builder.getI64IntegerAttr(
+            plan.serving_capacity))}));
   if (options.rope_tile_per_block)
     for (auto& op : lifted.ops)
       if (op.role == OpRole::kRoPE)
@@ -687,6 +810,11 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
       }
 
       analysis::ParamBinding witness = known;
+      if (!liftOptions.batch_symbol.empty())
+        witness.Bind(liftOptions.batch_symbol, 2L);
+      if (std::getenv("TILEMEGA_WINDOW_TRACE"))
+        llvm::errs() << "WINDOW_FIT src=" << derived[i].src.name
+                     << " dst=" << derived[i].dst.name << "\n";
       if (!liftOptions.seq_symbol.empty())
         witness.Bind(liftOptions.seq_symbol, 1L);
       if (!liftOptions.past_symbol.empty())
@@ -717,6 +845,8 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
       bool first_round = true;
       for (long sequence : {256L, 384L, 512L}) {
         analysis::ParamBinding probe = known;
+        if (!liftOptions.batch_symbol.empty())
+          probe.Bind(liftOptions.batch_symbol, 2L);
         if (!liftOptions.seq_symbol.empty())
           probe.Bind(liftOptions.seq_symbol, sequence);
         if (!liftOptions.past_symbol.empty())
@@ -829,11 +959,19 @@ ImportedSemantics TorchExportImporter::ImportSemantics(std::string const& path,
     shapes.push_back(it->shape);
   }
   result.symbolic=SymbolicShapeBridge{}.Parse(result.bridge.range_texts,result.bridge.guards,shapes);
-  // Static exports retain the same dimension-role defaults as ImportPlan.
-  if(!result.symbolic.dimensions.empty())
-    result.lift_options.seq_symbol=result.symbolic.dimensions.front();
-  for(auto const& symbol:result.symbolic.dimensions)
-    if(symbol!=result.lift_options.seq_symbol) {result.lift_options.past_symbol=symbol;break;}
+  if (plan.serving) {
+    result.lift_options = ServingDimensionRoles(
+        result.bridge, plan, result.symbolic);
+  } else {
+    // Static exports retain the same dimension-role defaults as ImportPlan.
+    if (!result.symbolic.dimensions.empty())
+      result.lift_options.seq_symbol=result.symbolic.dimensions.front();
+    for (auto const& symbol:result.symbolic.dimensions)
+      if(symbol!=result.lift_options.seq_symbol) {
+        result.lift_options.past_symbol=symbol;
+        break;
+      }
+  }
   result.lifted=plan.stages.empty()
       ? LiftGenericSemantics(result.bridge.tasks,FormSemanticStages(result.bridge.tasks,plan),result.lift_options)
       : LiftSemantics(plan,result.lift_options);

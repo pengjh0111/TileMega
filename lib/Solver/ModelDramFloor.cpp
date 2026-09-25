@@ -19,6 +19,18 @@ analysis::DramFloor DeriveModelDramFloor(mlir::ModuleOp module,ModelDescription 
   options.dram_gbps=cal.dram_gbps;options.tc_gflops=model.dtype==solver::ScalarType::kBF16?cal.tc_bf16_gflops:cal.cuda_fp32_gflops;
   options.outputs=model.exported_tensors;
   analysis::SemanticGraph semantics;std::set<std::string> names;
+  bool const serving = static_cast<bool>(module->getAttr("tilemega.serving"));
+  std::string batch_symbol;
+  long serving_seq = 0;
+  if (serving) {
+    auto roles = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.dimension_roles");
+    auto info = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
+    if (!roles || !info || !roles.getAs<mlir::StringAttr>("batch") ||
+        !info.getAs<mlir::IntegerAttr>("seq"))
+      throw std::runtime_error("serving floor requires batch and fixed seq");
+    batch_symbol = roles.getAs<mlir::StringAttr>("batch").getValue().str();
+    serving_seq = info.getAs<mlir::IntegerAttr>("seq").getInt();
+  }
   for(auto const& task:model.task_semantics)if(names.insert(task.op.name).second)semantics.ops.push_back(task.op);
   for(auto const& op:semantics.ops)for(auto const& operand:op.operands) {
     bool indirect=false;for(auto const& index:operand.map.results)indirect|=index.kind==analysis::IndexResult::Kind::kDataDependent;
@@ -30,6 +42,21 @@ analysis::DramFloor DeriveModelDramFloor(mlir::ModuleOp module,ModelDescription 
     auto const& ids=op.operands.front().tensor;int bits=64;
     if(auto b=plan.getAs<mlir::IntegerAttr>("token_id_bits"))bits=b.getInt();
     options.element_bytes[ids.name]=bits/8;
+    if (serving) {
+      // A data-dependent gather reads no more than one embedding row per
+      // input token.  The abstract rows below deliberately make that an
+      // upper bound without loading a fixture; tied lm_head reads the entire
+      // table and makes the union exact for the anchored serving models.
+      long width = operand.tensor.axes[1].extent.Eval(theta,{});
+      std::string relation = "[" + batch_symbol + "] -> { [] -> [row,col] : "
+          "0 <= row < " + std::to_string(serving_seq) + "*" + batch_symbol +
+          " and 0 <= col < " + std::to_string(width) + " }";
+      options.indirect_read_images[operand.tensor.name] =
+          analysis::CouplingRelation::FromIslText(relation);
+      std::cout << "INDIRECT_UPPER_BOUND tensor=" << operand.tensor.name
+                << " seq=" << serving_seq << " batch=" << batch_symbol << '\n';
+      continue;
+    }
     std::ifstream input(std::filesystem::path(fixture)/files.at(ids.name),std::ios::binary);
     if(!input)throw std::runtime_error("cannot bind indirect input "+ids.name);
     long n=1;for(auto const& axis:ids.axes)n*=axis.extent.Eval(theta,{});long width=operand.tensor.axes[1].extent.Eval(theta,{}),vocab=operand.tensor.axes[0].extent.Eval(theta,{});

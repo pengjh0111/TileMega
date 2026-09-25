@@ -122,6 +122,17 @@ struct ElementRead {
   std::vector<IndexResult> nonnegative;
 };
 
+/// A side effect of a fused task that writes another tensor without creating
+/// another scheduled task space.  The map is over the same semantic domain as
+/// the primary result.  DramFloor counts this write and excludes its elements
+/// from the current step's no-producer read set.
+struct ElementWrite {
+  TensorSpace tensor;
+  IndexingMap map;
+  std::vector<IndexResult> nonnegative;
+  MemoryEffect effect;
+};
+
 /// §2.4 split-K semantics, declared rather than hidden in a TaskBody. An op
 /// whose reduction dimension can be partitioned says so here; splitting it is
 /// then an L-task transform (SplitReduction) that materializes a partial
@@ -152,6 +163,7 @@ struct SemanticOp {
   /// When nonempty this is the complete physical read set, not an increment
   /// to operands. Coupling projection and issued nominal work stay separate.
   std::vector<ElementRead> element_reads;
+  std::vector<ElementWrite> additional_writes;
   ReductionSemantics reduction;
   /// Set when the op fell through every declarative pattern and was given the
   /// conservative generic semantics (identity result map, full-range reads).

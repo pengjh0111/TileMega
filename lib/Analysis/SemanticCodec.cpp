@@ -69,7 +69,7 @@ MemoryEffect DecodeEffect(Value const& value) {
   return {Enum(value,"kind",EffectKind::kReadWrite),String(value,"alias"),String(value,"state")};
 }
 Value Encode(SemanticOp const& op) {
-  return Object{{"version",1},{"name",op.name},{"kind",int(op.kind)},{"dtype",int(op.dtype)},
+  Object encoded{{"version",1},{"name",op.name},{"kind",int(op.kind)},{"dtype",int(op.dtype)},
     {"arithmetic",op.arithmetic},{"generic",op.generic},
     {"domain",EncodeArray(op.domain,[](auto const& dim) {
       return Value(Object{{"name",dim.name},{"extent",dim.extent.ToString()},
@@ -86,6 +86,15 @@ Value Encode(SemanticOp const& op) {
         {"partial",op.reduction.partial_tensor},{"combiner",op.reduction.combiner},
         {"splittable",op.reduction.splittable},
         {"ownership",EncodeArray(op.reduction.ownership,[](auto const& name){return Value(name);})}}}};
+  if (!op.additional_writes.empty())
+    encoded.emplace_back("additional_writes",
+        EncodeArray(op.additional_writes,[](auto const& write) {
+          return Value(Object{{"tensor",EncodeTensor(write.tensor)},
+              {"map",EncodeMap(write.map)},
+              {"nonnegative",EncodeArray(write.nonnegative,EncodeIndex)},
+              {"effect",EncodeEffect(write.effect)}});
+        }));
+  return encoded;
 }
 }  // namespace
 
@@ -118,6 +127,14 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
       element.nonnegative.push_back(DecodeIndex(predicate));
     op.element_reads.push_back(std::move(element));
   }
+  if (auto const* writes=value.Find("additional_writes"))
+    for (auto const& write:writes->AsArray("additional_writes")) {
+      ElementWrite element{DecodeTensor(write.At("tensor")),
+          DecodeMap(write.At("map")),{},DecodeEffect(write.At("effect"))};
+      for (auto const& predicate:write.At("nonnegative").AsArray("nonnegative"))
+        element.nonnegative.push_back(DecodeIndex(predicate));
+      op.additional_writes.push_back(std::move(element));
+    }
   auto const& reduction=value.At("reduction");
   op.reduction={String(reduction,"dim"),String(reduction,"operator"),String(reduction,"partial"),
                 String(reduction,"combiner"),Boolean(reduction,"splittable"),{}};
@@ -134,6 +151,13 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
     check(read.map,read.tensor);
     for (auto const& predicate:read.nonnegative) for (auto const& term:predicate.terms)
       if (!names.count(term.dim)) throw std::invalid_argument("semantic predicate names an unknown axis");
+  }
+  for (auto const& write:op.additional_writes) {
+    check(write.map,write.tensor);
+    for (auto const& predicate:write.nonnegative)
+      for (auto const& term:predicate.terms)
+        if (!names.count(term.dim))
+          throw std::invalid_argument("semantic write predicate names an unknown axis");
   }
   if (op.reduction.splittable && !names.count(op.reduction.dim))
     throw std::invalid_argument("semantic reduction names an unknown axis");

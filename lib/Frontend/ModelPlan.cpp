@@ -824,6 +824,289 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   return std::move(builder.plan);
 }
 
+ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
+                         std::vector<SignatureInput> const& inputs,
+                         std::vector<std::string> const& outputs,
+                         ServingOptions const& serving) {
+  if (serving.seq != 1 && serving.seq != 64)
+    throw std::invalid_argument("serving plan requires a fixed decode or prefill seq");
+  if (serving.capacity <= serving.seq || serving.interleave_u != 16)
+    throw std::invalid_argument("serving capacity or gate/up interleave is invalid");
+  PatternMatcher matcher(nodes, inputs);
+  auto layers = matcher.FindAll(DecoderLayerPattern());
+  std::sort(layers.begin(), layers.end(), [](auto const& a, auto const& b) {
+    return a.at("resid2")->index < b.at("resid2")->index;
+  });
+  if (layers.empty())
+    throw std::invalid_argument("serving export has no complete decoder layer");
+  PlanBuilder builder(nodes);
+  builder.plan.serving = true;
+  builder.plan.serving_seq = serving.seq;
+  builder.plan.serving_capacity = serving.capacity;
+  std::unordered_map<std::string, SignatureInput const*> signatures;
+  for (auto const& input : inputs) signatures.emplace(input.name, &input);
+  auto parameter = [&](std::string const& operand) -> SignatureInput const& {
+    auto found = signatures.find(matcher.Value(operand));
+    if (found == signatures.end() || found->second->kind == "USER_INPUT")
+      throw std::invalid_argument("serving parameter is not an FX parameter: " + operand);
+    return *found->second;
+  };
+  auto external = [&](std::string name, std::uint32_t constant,
+                      std::uint32_t per_batch, std::string dtype,
+                      std::string pack) {
+    PlanBuffer buffer;
+    buffer.name = std::move(name);
+    buffer.constant = constant;
+    buffer.per_batch = per_batch;
+    buffer.dtype = std::move(dtype);
+    buffer.role = "external";
+    buffer.external_name = buffer.name;
+    buffer.pack_json = std::move(pack);
+    return builder.Buffer(std::move(buffer));
+  };
+  auto scratch = [&](std::string name, std::uint32_t per_batch,
+                     std::string dtype = "bf16") {
+    PlanBuffer buffer;
+    buffer.name = std::move(name);
+    buffer.per_batch = per_batch;
+    buffer.dtype = std::move(dtype);
+    return builder.Buffer(std::move(buffer));
+  };
+  auto alias = [&](std::string const& operand) {
+    auto const& input = parameter(operand);
+    return external(input.target, NumericElements(builder.Node(input.name)),
+                    0, "bf16", "{\"kind\":\"alias\",\"source\":\"" +
+                    input.target + "\"}");
+  };
+  auto packed = [&](std::string name, std::uint32_t elements,
+                    std::string recipe) {
+    return external(std::move(name), elements, 0, "bf16", std::move(recipe));
+  };
+  auto json_sources = [](std::initializer_list<std::string> sources) {
+    std::string result = "[";
+    bool first = true;
+    for (auto const& source : sources) {
+      if (!first) result += ',';
+      first = false;
+      result += '"' + source + '"';
+    }
+    return result + ']';
+  };
+  auto user_input = [&](std::string const& name) -> SignatureInput const& {
+    auto found = signatures.find(name);
+    if (found == signatures.end() || found->second->kind != "USER_INPUT")
+      throw std::invalid_argument("serving export is missing input " + name);
+    return *found->second;
+  };
+  auto const& ids_input = user_input("input_ids");
+  auto const& ids_node = builder.Node(ids_input.name);
+  if (ids_node.shape.size() != 2 ||
+      StaticExtent(ids_node, 1) != std::uint32_t(serving.seq))
+    throw std::invalid_argument("serving token IDs do not have the plan's seq");
+  builder.plan.dtype = "bf16";
+  builder.plan.token_id_bits = 32;
+  std::uint32_t tokens = external("serving.tokens", 0, serving.capacity,
+                                  "i32", "");
+  std::uint32_t cos = external("serving.rope_cos", 0, 0, "bf16", "");
+  std::uint32_t sin = external("serving.rope_sin", 0, 0, "bf16", "");
+  // The position tables' size is fixed by cap and the attention head axis.
+  std::uint32_t hidden = StaticExtent(builder.Node(parameter(
+      layers.front().at("q")->inputs.at(1)).name), 1);
+  FxNodeRecord const* embedding = EntryEmbedding(
+      matcher, nodes, layers.front().at("q")->name, ids_input.name);
+  if (!embedding)
+    throw std::invalid_argument("serving export has no token embedding");
+  auto const& embedding_param = parameter(embedding->inputs.at(0));
+  std::uint32_t vocab = StaticExtent(builder.Node(embedding_param.name), 0);
+  std::uint32_t table = alias(embedding->inputs.at(0));
+  std::uint32_t x = scratch("serving.hidden", serving.seq * hidden);
+  std::uint32_t xn = scratch("serving.normalized", serving.seq * hidden);
+  builder.Stage(PlanTaskKind::kEmbedding, embedding->name, 0, vocab, hidden, 1,
+                {tokens, table, x});
+  for (std::size_t number = 0; number < layers.size(); ++number) {
+    auto const& match = layers[number];
+    auto const& q = *match.at("q");
+    auto const& k = *match.at("k");
+    auto const& v = *match.at("v");
+    auto const& o = *match.at("o");
+    auto const& gate = *match.at("gate");
+    auto const& up = *match.at("up");
+    auto const& down = *match.at("down");
+    auto const& score = *match.at("score");
+    auto const& cat_k = *match.at("cat_k");
+    auto const& cat_v = *match.at("cat_v");
+    int qwidth = StaticExtent(builder.Node(parameter(q.inputs.at(1)).name), 0);
+    int kvwidth = StaticExtent(builder.Node(parameter(k.inputs.at(1)).name), 0);
+    auto const& qrot = builder.Node(matcher.Value(score.inputs.at(0)));
+    int head_dim = StaticExtent(qrot, qrot.shape.size() - 1);
+    if (!head_dim || qwidth % head_dim || kvwidth % head_dim)
+      throw std::invalid_argument("serving QKV widths do not share head_dim");
+    if (number == 0) {
+      builder.plan.buffers[cos].constant = serving.capacity * head_dim;
+      builder.plan.buffers[sin].constant = serving.capacity * head_dim;
+    } else if (builder.plan.buffers[cos].constant !=
+               std::uint32_t(serving.capacity * head_dim)) {
+      throw std::invalid_argument("serving layers disagree on RoPE head_dim");
+    }
+    int hkv = kvwidth / head_dim;
+    int qperkv = qwidth / kvwidth;
+    int intermediate = StaticExtent(builder.Node(parameter(up.inputs.at(1)).name), 0);
+    std::string prefix = "l" + std::to_string(number) + ".";
+    builder.Epsilon(NormalizationEpsilon(matcher, q.inputs.at(0)));
+    builder.Stage(PlanTaskKind::kRMSNorm, q.inputs.at(0), 0, 0, hidden, 1,
+                  {x, alias(matcher.NearestParameter(q.inputs.at(0))), xn});
+    auto const& qw = parameter(q.inputs.at(1));
+    auto const& kw = parameter(k.inputs.at(1));
+    auto const& vw = parameter(v.inputs.at(1));
+    int packed_width = qwidth + 2 * kvwidth;
+    std::string qkv_recipe = "{\"kind\":\"qkv_group_interleave\",\"sources\":" +
+        json_sources({qw.target, kw.target, vw.target}) +
+        ",\"hkv\":" + std::to_string(hkv) +
+        ",\"qperkv\":" + std::to_string(qperkv) +
+        ",\"head_dim\":" + std::to_string(head_dim) + '}';
+    std::uint32_t qkv_weight = packed(prefix + "qkv.weight",
+                                      packed_width * hidden, qkv_recipe);
+    std::uint32_t qkv = scratch(prefix + "qkv", serving.seq * packed_width);
+    auto const* latest_qkv = &q;
+    for (auto const* node : {&k, &v})
+      if (node->index > latest_qkv->index) latest_qkv = node;
+    auto qkv_gemm = builder.Gemm(xn, qkv_weight, qkv, qkv,
+                                 packed_width, hidden, 0.0f);
+    builder.Stage(PlanTaskKind::kGemm, latest_qkv->name, qkv_gemm, 0, 0, 1);
+
+    auto cache_input = [&](FxNodeRecord const& cat) {
+      for (auto const& input : cat.inputs) {
+        auto found = signatures.find(matcher.Value(input));
+        if (found != signatures.end() && found->second->kind == "USER_INPUT")
+          return found->second;
+      }
+      throw std::invalid_argument("serving attention has no cache input");
+    };
+    (void)cache_input(cat_k);
+    (void)cache_input(cat_v);
+    int cache_elements = hkv * serving.capacity * head_dim;
+    std::uint32_t kc = external("kv_cache.k." + std::to_string(number), 0,
+                                cache_elements, "bf16", "");
+    std::uint32_t vc = external("kv_cache.v." + std::to_string(number), 0,
+                                cache_elements, "bf16", "");
+    auto const* q_norm = PerHeadNormalization(
+        matcher, nodes, q.name, qrot.name, head_dim);
+    auto const* k_norm = PerHeadNormalization(
+        matcher, nodes, k.name, matcher.Value(cat_k.inputs.at(1)), head_dim);
+    if (bool(q_norm) != bool(k_norm))
+      throw std::invalid_argument("serving Q/K normalization is asymmetric");
+    std::uint32_t q_norm_weight = kNoOperand, k_norm_weight = kNoOperand;
+    if (q_norm) {
+      q_norm_weight = alias(matcher.NearestParameter(q_norm->name));
+      k_norm_weight = alias(matcher.NearestParameter(k_norm->name));
+    }
+    std::uint32_t context = scratch(prefix + "context", serving.seq * qwidth);
+    // The selected block extent is a compile-time coordinate of this plan.
+    if (serving.kv_block <= 0 || serving.query_rows <= 0)
+      throw std::invalid_argument("serving KV and query blocks must be positive");
+    int block_extent = serving.kv_block;
+    int blocks = (serving.capacity + block_extent - 1) / block_extent;
+    std::uint32_t po = scratch(prefix + "attn.partial", serving.seq * qwidth * blocks, "f32");
+    std::uint32_t lse = scratch(prefix + "attn.lse", serving.seq * qwidth / head_dim * blocks, "f32");
+    builder.Stage(PlanTaskKind::kFusedAttention, match.at("ctx")->name,
+                  0, hkv, head_dim, qperkv,
+                  {qkv, kc, vc, cos, sin, q_norm_weight, k_norm_weight,
+                   context, po, lse});
+    builder.plan.stages.back().attention_kv_block = block_extent;
+    builder.plan.stages.back().attention_query_rows =
+        serving.seq == 1 ? qperkv : serving.query_rows;
+    if (serving.phase == ServingOptions::Phase::kDecode && blocks > 1) {
+      std::string merge_rep = o.inputs.at(0);
+      builder.Stage(PlanTaskKind::kAttentionMerge, merge_rep,
+                    0, hkv, head_dim, qperkv, {po, lse, context});
+      builder.plan.stages.back().attention_kv_block = block_extent;
+    }
+    auto o_gemm = builder.Gemm(context, alias(o.inputs.at(1)), x, x,
+                               hidden, qwidth, 1.0f);
+    builder.plan.gemms[o_gemm].epilogue = PlanGemm::Epilogue::kResidual;
+    builder.Stage(PlanTaskKind::kGemm, match.at("resid1")->name,
+                  o_gemm, 0, 0, 1);
+    builder.Epsilon(NormalizationEpsilon(matcher, gate.inputs.at(0)));
+    builder.Stage(PlanTaskKind::kRMSNorm, gate.inputs.at(0), 0, 0, hidden, 1,
+                  {x, alias(matcher.NearestParameter(gate.inputs.at(0))), xn});
+    auto const& gw = parameter(gate.inputs.at(1));
+    auto const& uw = parameter(up.inputs.at(1));
+    std::string gu_recipe = "{\"kind\":\"gate_up_interleave\",\"sources\":" +
+        json_sources({gw.target, uw.target}) +
+        ",\"u\":" + std::to_string(serving.interleave_u) + '}';
+    std::uint32_t gu_weight = packed(prefix + "gate_up.weight",
+                                     2 * intermediate * hidden, gu_recipe);
+    std::uint32_t act = scratch(prefix + "act", serving.seq * intermediate);
+    auto gu_gemm = builder.Gemm(xn, gu_weight, act, act,
+                                2 * intermediate, hidden, 0.0f);
+    builder.plan.gemms[gu_gemm].epilogue = PlanGemm::Epilogue::kSwiGLU;
+    builder.plan.gemms[gu_gemm].interleave_u = serving.interleave_u;
+    builder.Stage(PlanTaskKind::kGemm,
+                  gate.index > up.index ? gate.name : up.name,
+                  gu_gemm, 0, 0, 1);
+    auto down_gemm = builder.Gemm(act, alias(down.inputs.at(1)), x, x,
+                                  hidden, intermediate, 1.0f);
+    builder.plan.gemms[down_gemm].epilogue = PlanGemm::Epilogue::kResidual;
+    builder.Stage(PlanTaskKind::kGemm, match.at("resid2")->name,
+                  down_gemm, 0, 0, 1);
+  }
+  auto const& last = *layers.back().at("resid2");
+  std::uint32_t xf = scratch("final.normalized", hidden);
+  for (auto const& node : nodes) {
+    if (node.index <= last.index || matcher.RoleOf(node) != "multiply" ||
+        !matcher.DependsOn(node.name, last.name)) continue;
+    bool weighted = false;
+    for (auto const& input : node.inputs)
+      weighted |= matcher.IsParameter(matcher.Value(input));
+    if (!weighted) continue;
+    builder.Stage(PlanTaskKind::kRMSNorm, node.name, 0, 0, hidden, 1,
+                  {x, alias(matcher.NearestParameter(node.name)), xf});
+    builder.plan.stages.back().batch_rows = true;
+    builder.plan.stages.back().row_stride = serving.seq;
+    builder.plan.stages.back().row_offset = serving.seq - 1;
+    break;
+  }
+  if (serving.argmax_tile_n < 32 || serving.argmax_tile_n % 32)
+    throw std::invalid_argument("argmax partial tile must be a legal serving N tile");
+  int const partial_tiles = (vocab + serving.argmax_tile_n - 1) /
+                            serving.argmax_tile_n;
+  std::uint32_t ap_value = scratch("serving.argmax.value", partial_tiles, "f32");
+  std::uint32_t ap_index = scratch("serving.argmax.index", partial_tiles, "i32");
+  bool head_found = false;
+  for (auto const& node : nodes) {
+    if (node.index <= last.index || matcher.RoleOf(node) != "contraction" ||
+        !matcher.DependsOn(node.name, last.name) || node.inputs.size() < 2)
+      continue;
+    auto const& weight = parameter(node.inputs.at(1));
+    auto head_gemm = builder.Gemm(xf, alias(weight.name), ap_value, ap_value,
+                                  vocab, hidden, 0.0f);
+    builder.plan.gemms[head_gemm].epilogue = PlanGemm::Epilogue::kArgmaxPartial;
+    builder.plan.gemms[head_gemm].partial_tile_n = serving.argmax_tile_n;
+    builder.Stage(PlanTaskKind::kGemm, node.name, head_gemm, 0, 0, 1);
+    builder.plan.stages.back().batch_rows = true;
+    head_found = true;
+    break;
+  }
+  if (!head_found)
+    throw std::invalid_argument("serving export has no vocabulary projection");
+  PlanStage argmax;
+  argmax.kind = PlanTaskKind::kArgmaxReduce;
+  argmax.batch_rows = true;
+  argmax.extent = vocab;
+  argmax.operands.fill(kNoOperand);
+  argmax.operands[0] = ap_value;
+  argmax.operands[1] = ap_index;
+  argmax.operands[2] = tokens;
+  argmax.representative = "serving.argmax";
+  argmax.representative_index = nodes.back().index + 1;
+  builder.plan.stages.push_back(std::move(argmax));
+  builder.plan.outputs.push_back({tokens, ""});
+  (void)outputs;  // The functional logits and cache are not materialized.
+  (void)cos;
+  (void)sin;
+  return std::move(builder.plan);
+}
+
 void SeparateResidualTasks(ModelPlan& plan) {
   std::vector<PlanStage> stages;
   for (auto stage:plan.stages) {

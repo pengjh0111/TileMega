@@ -197,6 +197,12 @@ std::string SemanticOp::Serialize() const {
     for (auto const& predicate:read.nonnegative)
       out << " where " << predicate.Serialize() << ">=0";
   }
+  for (auto const& write:additional_writes) {
+    out << "\n  element_write " << SerializeTensor(write.tensor) << ' '
+        << write.map.Serialize() << ' ' << write.effect.Serialize();
+    for (auto const& predicate:write.nonnegative)
+      out << " where " << predicate.Serialize() << ">=0";
+  }
   out << "\n  domain";
   for (auto const& dim : domain) {
     out << " " << dim.name << ":" << ToString(dim.type) << "["
