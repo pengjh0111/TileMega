@@ -1,0 +1,134 @@
+Internal ctest changing into directory: /root/TileMega/build-portable
+Test project /root/TileMega/build-portable
+      Start  1: scalar_cost_errors
+ 1/64 Test  #1: scalar_cost_errors ...............   Passed    0.95 sec
+      Start  2: coupling_interface_gqa2
+ 2/64 Test  #2: coupling_interface_gqa2 ..........   Passed   27.04 sec
+      Start  3: coupling_interface_mha4
+ 3/64 Test  #3: coupling_interface_mha4 ..........   Passed   49.86 sec
+      Start  4: cg_lit
+ 4/64 Test  #4: cg_lit ...........................   Passed    0.26 sec
+      Start  5: target_spec
+ 5/64 Test  #5: target_spec ......................   Passed    0.01 sec
+      Start  6: target_audit
+ 6/64 Test  #6: target_audit .....................   Passed    4.01 sec
+      Start  7: coupling_types
+ 7/64 Test  #7: coupling_types ...................   Passed    0.19 sec
+      Start  8: table27
+ 8/64 Test  #8: table27 ..........................   Passed    0.24 sec
+      Start  9: stage_flow
+ 9/64 Test  #9: stage_flow .......................   Passed    0.01 sec
+      Start 10: regime_a_price
+10/64 Test #10: regime_a_price ...................   Passed    3.54 sec
+      Start 11: dram_floor
+11/64 Test #11: dram_floor .......................   Passed    0.06 sec
+      Start 12: semantics
+12/64 Test #12: semantics ........................   Passed    0.27 sec
+      Start 13: incidence_identity
+13/64 Test #13: incidence_identity ...............   Passed    5.16 sec
+      Start 14: imported_incidence_identity
+14/64 Test #14: imported_incidence_identity ......   Passed    5.05 sec
+      Start 15: containment
+15/64 Test #15: containment ......................   Passed    0.19 sec
+      Start 16: event_synthesis
+16/64 Test #16: event_synthesis ..................   Passed    0.10 sec
+      Start 17: runtime_projection
+17/64 Test #17: runtime_projection ...............   Passed    1.65 sec
+      Start 18: relation_bounds
+18/64 Test #18: relation_bounds ..................   Passed    0.03 sec
+      Start 19: graph_pattern
+19/64 Test #19: graph_pattern ....................   Passed    0.02 sec
+      Start 20: task_element_work
+20/64 Test #20: task_element_work ................   Passed    2.66 sec
+      Start 21: op_arithmetic_audit
+21/64 Test #21: op_arithmetic_audit ..............   Passed    0.01 sec
+      Start 22: task_work_domains
+22/64 Test #22: task_work_domains ................   Passed    0.79 sec
+      Start 23: isl_relation
+23/64 Test #23: isl_relation .....................   Passed    0.29 sec
+      Start 24: layout_bridge
+24/64 Test #24: layout_bridge ....................   Passed    0.02 sec
+      Start 25: cg_attr_roundtrip
+25/64 Test #25: cg_attr_roundtrip ................   Passed    0.02 sec
+      Start 26: backend_query
+26/64 Test #26: backend_query ....................   Passed    0.01 sec
+      Start 27: cache_service_curve
+27/64 Test #27: cache_service_curve ..............   Passed    0.01 sec
+      Start 28: fusion_access
+28/64 Test #28: fusion_access ....................   Passed    0.08 sec
+      Start 29: lane_intersections
+29/64 Test #29: lane_intersections ...............   Passed    0.08 sec
+      Start 30: fusion_rewrite
+30/64 Test #30: fusion_rewrite ...................   Passed  141.09 sec
+      Start 31: stage_kappa
+31/64 Test #31: stage_kappa ......................   Passed   66.39 sec
+      Start 32: pipeline_sigma
+32/64 Test #32: pipeline_sigma ...................   Passed  231.90 sec
+      Start 33: fusion_written_price
+33/64 Test #33: fusion_written_price .............   Passed   15.28 sec
+      Start 34: fused_runtime_projection
+34/64 Test #34: fused_runtime_projection .........   Passed    0.44 sec
+      Start 35: exact_runtime_task_graph
+35/64 Test #35: exact_runtime_task_graph .........   Passed    0.09 sec
+      Start 36: fusion_batch_rewrite
+36/64 Test #36: fusion_batch_rewrite .............   Passed   17.97 sec
+      Start 37: fiber_sum
+37/64 Test #37: fiber_sum ........................   Passed    0.11 sec
+      Start 38: attention_work
+38/64 Test #38: attention_work ...................   Passed   38.75 sec
+      Start 39: chain_dp
+39/64 Test #39: chain_dp .........................   Passed    4.66 sec
+      Start 40: list_scheduler
+40/64 Test #40: list_scheduler ...................   Passed    0.01 sec
+      Start 41: plan_contract
+41/64 Test #41: plan_contract ....................   Passed    0.01 sec
+      Start 42: execution_simulator
+42/64 Test #42: execution_simulator ..............   Passed    0.11 sec
+      Start 43: eft_placement
+43/64 Test #43: eft_placement ....................   Passed    0.01 sec
+      Start 44: chain_placement
+44/64 Test #44: chain_placement ..................   Passed    0.01 sec
+      Start 45: plan_table
+45/64 Test #45: plan_table .......................   Passed    0.01 sec
+      Start 46: cluster_labeling
+46/64 Test #46: cluster_labeling .................   Passed    0.01 sec
+      Start 47: alignment_propagation
+47/64 Test #47: alignment_propagation ............   Passed    0.01 sec
+      Start 48: task_body_contract
+48/64 Test #48: task_body_contract ...............   Passed    0.01 sec
+      Start 49: bf16_task_body_compile
+49/64 Test #49: bf16_task_body_compile ...........   Passed    0.01 sec
+      Start 50: fused_harness_compile
+50/64 Test #50: fused_harness_compile ............   Passed    0.01 sec
+      Start 51: frontend_import
+51/64 Test #51: frontend_import ..................   Passed    4.46 sec
+      Start 52: skeleton_placement
+52/64 Test #52: skeleton_placement ...............   Passed    0.03 sec
+      Start 53: isolated_evaluation
+53/64 Test #53: isolated_evaluation ..............   Passed    0.03 sec
+      Start 54: skeleton_search_isolation
+54/64 Test #54: skeleton_search_isolation ........   Passed    8.40 sec
+      Start 55: plan_skeleton
+55/64 Test #55: plan_skeleton ....................   Passed   15.96 sec
+      Start 56: variant_resource
+56/64 Test #56: variant_resource .................   Passed    0.01 sec
+      Start 57: symbolic_oracle
+57/64 Test #57: symbolic_oracle ..................   Passed    0.12 sec
+      Start 58: operator_classes
+58/64 Test #58: operator_classes .................   Passed    0.85 sec
+      Start 59: coupling_cache
+59/64 Test #59: coupling_cache ...................   Passed    3.48 sec
+      Start 60: semantic_lifting
+60/64 Test #60: semantic_lifting .................   Passed    0.03 sec
+      Start 61: embedding_plan
+61/64 Test #61: embedding_plan ...................   Passed    0.05 sec
+      Start 62: wiring_coupling
+62/64 Test #62: wiring_coupling ..................   Passed    0.39 sec
+      Start 63: frontend_degradation
+63/64 Test #63: frontend_degradation .............   Passed    0.01 sec
+      Start 64: isl_crosslink
+64/64 Test #64: isl_crosslink ....................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 64
+
+Total Test time (real) = 653.31 sec

@@ -1,0 +1,17 @@
+{
+  "command": [
+    "/root/TileMega/docs/experiments/SOLVER_R9B/trace/qwen3_s1/kernel",
+    "/root/r9_work/qwen3_s1/fixture"
+  ],
+  "executable_sha256": "7fe5e310c443fa4c3ecc9bb9282cd6d0d74fd9be18d40affe4278c56b29318af",
+  "head": "f82857765acf7aee37d511346b33f13a767446f5",
+  "started_ns": 1790331194457595768,
+  "elapsed_ns": 6407386127,
+  "exit_code": 1,
+  "environment": {
+    "TILEMEGA_TRACE_V2": "1",
+    "TILEMEGA_TRACE_V2_OUT": "/root/TileMega/docs/experiments/SOLVER_R9B/trace/qwen3_s1/correctness_dump_08",
+    "TILEMEGA_WARMUP": "1",
+    "TILEMEGA_REPEAT": "1"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "command": [
+    "ctest",
+    "--test-dir",
+    "build-portable",
+    "--output-on-failure",
+    "-E",
+    "^(impl_contract|flow_runtime_release)$"
+  ],
+  "head": "101241bc9729ff96b42c7c1c34d115042c6e31a8",
+  "result": "64/64 passed",
+  "provenance": "Test started before the last full relink finished. Hoist-specific tests separately rebuilt and passed; this is not claimed to be one atomic HEAD build/test run. Excluded GPU property test has host evidence; excluded release audit is a documented FAIL."
+}

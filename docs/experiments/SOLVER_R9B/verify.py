@@ -43,7 +43,7 @@ def outer():
  return 'EvaluateFlow(' in b and not re.search(r'ScheduleBySkeleton|SimulateExecution',b),f'{p}:{s[:s.index("SkeletonCandidate Evaluate(")].count(chr(10))+1}: EvaluateFlow in Evaluate; CoordinateDescent checked; EvaluateFlow={b.count("EvaluateFlow(")}, forbidden={bool(re.search("ScheduleBySkeleton|SimulateExecution",b))}'
 def git(*args):return subprocess.check_output(['git',*args],cwd=ROOT,text=True)
 def immutable():
- paths=['include/tilemega/Codegen/tasks/*TaskBody*.h','include/tilemega/Codegen/tasks/EventSync.cuh','include/tilemega/Codegen/tasks/ClusterSync.cuh','include/tilemega/Codegen/tasks/ModelRuntime.h','include/tilemega/Runtime','lib/Solver/RuntimeProjection.cpp','lib/Solver/EftPlacement.cpp','include/tilemega/Solver/EftPlacement.h','include/tilemega/Solver/ChainPlacement.h','include/tilemega/Solver/JointPlacement.h','include/tilemega/Dialect/CouplingGraph/PlacementSolvePass.h']
+ paths=['include/tilemega/Codegen/tasks/*TaskBody*.h','include/tilemega/Codegen/tasks/EventSync.cuh','include/tilemega/Codegen/tasks/ClusterSync.cuh','include/tilemega/Codegen/tasks/ModelRuntime.h','include/tilemega/Codegen/tasks/ModelHarness.cuh','third_party/cutlass','include/tilemega/Runtime','lib/Solver/RuntimeProjection.cpp','lib/Solver/EftPlacement.cpp','include/tilemega/Solver/EftPlacement.h','include/tilemega/Solver/ChainPlacement.h','include/tilemega/Solver/JointPlacement.h','include/tilemega/Dialect/CouplingGraph/PlacementSolvePass.h']
  diff=git('diff','--name-only',BASE,'--',*paths)
  p='lib/Solver/ExecutionSimulator.cpp';old=git('show',BASE+':'+p);new=read(p)
  # Only the guarded dispatch and its include may differ in the existing evaluator.
