@@ -58,6 +58,7 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
   entry.evaluation.candidate.kappa=options.kappa;entry.evaluation.candidate.ctas_per_sm=point.candidate.residency;
   entry.evaluation.placement="skeleton";entry.evaluation.status="ok";entry.evaluation.simulated=true;
   entry.evaluation.floor_ns=selected.bounds.lower_bound_ns;entry.evaluation.makespan_ns=simulated.makespan_ns;
+  (*point.module)->setAttr("tmexec.sync_omitted_event_waits",mlir::IntegerAttr::get(mlir::IntegerType::get(point.module->getContext(),64),omitted_local_events));
   std::ofstream omissions(prefix+".omissions.tsv");
   omissions<<"key\tlocal_event_waits_omitted\n"<<point.candidate.key<<'\t'<<omitted_local_events<<'\n';
   auto const& st=point.candidate.placement;

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Run a recorded R9b search. --search-only skips top-M and GPU compilation."""
 import argparse,hashlib,json,pathlib,subprocess,time
-p=argparse.ArgumentParser();p.add_argument('model',choices=['llama','qwen3']);p.add_argument('seq',type=int);p.add_argument('--search-only',action='store_true');p.add_argument('--pilot',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('model',choices=['llama','qwen3']);p.add_argument('seq',type=int);p.add_argument('--search-only',action='store_true');p.add_argument('--pilot',action='store_true');p.add_argument('--label');a=p.parse_args()
 E=pathlib.Path(__file__).resolve().parent;root=E.parents[2];cell=f'{a.model}_s{a.seq}';old=E.parent/'SOLVER_V2/legacy_r8_domain'/cell
-out=E/('search_pilot' if a.pilot else 'search_cpu' if a.search_only else 'matrix')/cell;out.mkdir(parents=True,exist_ok=True)
+out=E/(a.label or ('search_pilot' if a.pilot else 'search_cpu' if a.search_only else 'matrix'))/cell;out.mkdir(parents=True,exist_ok=True)
 if (out/'solve.log').exists():raise RuntimeError('refusing overwrite')
 export=json.loads((old/'solve.json').read_text())['command'][1];fixture=json.loads((E/'floor'/f'{cell}.command.json').read_text())[5]
 binary=root/'build-portable/tools/tilemega-compile'

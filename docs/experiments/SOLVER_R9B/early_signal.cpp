@@ -30,6 +30,6 @@ int main(int argc,char** argv) try {
   point.candidate.config=configs;point.candidate.key=key;point.candidate.residency=residency;point.candidate.actual_limit=residency;point.candidate.score=point.schedule.makespan_ns;
   std::cout<<"EARLY_R9 level2_ns="<<point.candidate.score<<" grid="<<grid<<'\n';
   auto result=solver::FinalizeSkeletonPoint(std::move(point),opts,argv[9]);std::string prefix=argv[9];
-  std::ofstream source(prefix+".cu");source<<codegen::CouplingGraphToCUDA{}.Lower(*result.module);
+  std::ofstream source(prefix+".cu");source<<codegen::CouplingGraphToCUDA{}.LowerVariants({{*result.module,1u,static_cast<unsigned>(seq)}});
   std::error_code ec;llvm::raw_fd_ostream cg(prefix+".mlir",ec);result.module->print(cg);
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
