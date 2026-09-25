@@ -1,0 +1,26 @@
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+IMPORT_DEGRADED aten.embedding.default
+INDIRECT tensor=p_embed_weight tokens=1 unique_rows=1 width=2048
+DISK NEED_MIB=8192 FREE_MIB=1261116
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s1/selected.cu.resources/1790326032726964813/0" resident=1
+DISK NEED_MIB=8192 FREE_MIB=1260848
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s1/selected.cu.resources/1790326032726964813/1" resident=1
+DISK NEED_MIB=8192 FREE_MIB=1260648
+RESOURCE_QUERY directory="/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s1/selected.cu.resources/1790326032726964813/2" resident=1
+SOLVE_SUMMARY evaluated=48592 deferred=0 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=275 couplings=354 stages=243 symbolic_windows=0 fallback_windows=0 output=/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s1/selected.cu

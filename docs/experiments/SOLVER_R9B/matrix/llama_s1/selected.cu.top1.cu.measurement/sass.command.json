@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/usr/local/cuda/bin/cuobjdump",
+    "-sass",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/matrix/llama_s1/selected.cu.top1.cu.measurement/kernel"
+  ],
+  "executable_sha256": "9d515ac6f60c246ef63fe87b0a95d209b00ff3e25b716f8f263520010760e8f8",
+  "head": "0bfa0d4e0d1b89b5d1b5ddf01ce910be054a3174",
+  "started_ns": 1790328743349192964,
+  "elapsed_ns": 1437944874,
+  "exit_code": 0,
+  "environment": {}
+}
