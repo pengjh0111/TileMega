@@ -42,6 +42,11 @@
 namespace tilemega::solver {
 
 struct SimulatorOptions {
+  bool dram_fluid = false;
+  double dram_gbps = 0;
+  double dram_floor_ns = 0;
+  bool all_external_miss = false;
+  bool no_external_dram = false;
   int sms = 0;             ///< 0 maps every worker to its own SM
   int ctas_per_sm = 1;     ///< resident CTAs per SM, so `sms * ctas_per_sm >= grid`
   int window = 1;          ///< §5.7.2 W; anything but 1 is rejected (EX-E2)
@@ -130,6 +135,7 @@ bool PrepareExecutionPlan(PreparedExecutionGraph const& graph,MaterializedPlan c
     PreparedExecutionPlan* out,std::string* error);
 
 struct SimulatorInput {
+  std::vector<TaskPriceParts> task_price_parts;
   codegen::RuntimeTaskGraph const* graph = nullptr;
   /// Solo duration of each runtime node, one resident CTA per SM.  Indexed by
   /// the graph's flat node id, i.e. `stage_offsets[stage] + task`.
@@ -177,6 +183,8 @@ struct SimulatorResult {
   long same_worker_edges = 0;
   std::vector<SimulatedTask> tasks;
 };
+bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& plan,
+    SimulatorOptions const& options,HopCurve const& hop,SimulatorResult* out,std::string* error);
 
 /// False, with `*error` set, on a malformed plan, a window other than 1, or a
 /// queue order that deadlocks.  A deadlock is a real finding, not a simulator

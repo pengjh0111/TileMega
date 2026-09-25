@@ -191,6 +191,7 @@ add_library(tilemega STATIC
   lib/Solver/PiecePricing.cpp
   lib/Solver/DramFluid.cpp
   lib/Solver/StageFlowModel.cpp
+  lib/Solver/FluidExecutionSimulator.cpp
   lib/Analysis/FusionAccess.cpp
   lib/Codegen/Codegen.cpp
   lib/Runtime/EventBuffer.cpp
@@ -483,6 +484,9 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(semantics_test test/unit/semantics_test.cpp)
   add_executable(dram_floor_test test/unit/dram_floor_test.cpp)
   add_executable(regime_a_price_test test/unit/regime_a_price_test.cpp)
+  add_executable(stage_flow_test test/unit/stage_flow_test.cpp)
+  target_link_libraries(stage_flow_test PRIVATE TileMega::tilemega)
+  add_test(NAME stage_flow COMMAND stage_flow_test)
   target_link_libraries(regime_a_price_test PRIVATE TileMega::tilemega)
   target_link_libraries(dram_floor_test PRIVATE TileMega::tilemega)
   add_test(NAME dram_floor COMMAND dram_floor_test)

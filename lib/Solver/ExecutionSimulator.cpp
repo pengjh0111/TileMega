@@ -167,6 +167,7 @@ bool PrepareExecutionPlan(PreparedExecutionGraph const& prepared,MaterializedPla
 bool SimulateExecution(SimulatorInput const& input, MaterializedPlan const& plan,
                        SimulatorOptions const& options, HopCurve const& hop,
                        SimulatorResult* out, std::string* error) {
+  if(options.dram_fluid)return SimulateFluidExecution(input,plan,options,hop,out,error);
   auto fail = [&](std::string message) {
     if (error) *error = std::move(message);
     return false;
