@@ -4,6 +4,7 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Solver/CandidateGenerator.h>
 #include <tilemega/Solver/CostModel.h>
+#include <tilemega/Solver/ServingPruning.h>
 #include <set>
 
 namespace tilemega::solver {
@@ -60,5 +61,51 @@ inline std::vector<GemmConfig> ClassCandidates(OperatorClass const& cls,
     for(int split:{1,2,4,8,16,32})result.push_back({t.tile_m,t.tile_n,t.tile_k,t.stages,split});
   }
   return result;
+}
+
+struct ServingClassDomain {
+  std::vector<GemmConfig> candidates;
+  std::size_t raw=0,removed_r1=0,removed_r2=0,removed_r3=0;
+};
+
+inline ServingClassDomain ServingClassCandidates(
+    OperatorClass const& cls,frontend::ImportedSemantics const& imported,
+    TargetSpec const& target,int batch,int seq,bool enable_r3=false) {
+  if(!imported.plan.serving || batch<1 || seq<1 || cls.gemms.empty())
+    throw std::invalid_argument("serving domain requires a serving model and bound batch");
+  auto id=cls.gemms.front();auto const& gemm=imported.plan.gemms.at(id);
+  auto stage=std::find_if(imported.plan.stages.begin(),imported.plan.stages.end(),
+      [&](auto const& s){return s.kind==frontend::PlanTaskKind::kGemm && s.gemm==id;});
+  if(stage==imported.plan.stages.end())throw std::invalid_argument("serving GEMM has no stage");
+  int const rows=stage->batch_rows ? batch : batch*seq;
+  ServingPruneContext pruning{rows,int(gemm.n),int(gemm.k),
+      gemm.epilogue==frontend::PlanGemm::Epilogue::kSwiGLU ? int(gemm.interleave_u):0,
+      target.res.num_sms*std::max(1,target.res.max_threads_per_sm/128),&target};
+  int group_width=0;
+  if(imported.plan.buffers.at(gemm.b).pack_json.find("qkv_group_interleave")!=std::string::npos)
+    for(auto const& attention:imported.plan.stages)
+      if(attention.kind==frontend::PlanTaskKind::kFusedAttention &&
+         attention.operands[0]==gemm.d && attention.extent>0) {
+        group_width=int(gemm.n/attention.extent);break;
+      }
+  ServingClassDomain domain;
+  for(int m:{16,32,64,128})for(int n:{32,64,128,256})for(int k:{64,128}) {
+    int const per_stage=2*k*(m+n);
+    int const stage_limit=std::min((int(gemm.k)+k-1)/k,
+        target.res.max_dynamic_smem_per_cta/per_stage);
+    for(int stages=2;stages<=stage_limit;++stages)
+      for(int split:{1,2,4,8,16,32}) {
+        if(gemm.epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial && split!=1)
+          continue;
+        ++domain.raw;
+        GemmConfig candidate{m,n,k,stages,split};
+        if(group_width && group_width%n) {++domain.removed_r1;continue;}
+        if(PruneServingR1(candidate,pruning)) {++domain.removed_r1;continue;}
+        if(PruneServingR2(candidate,pruning)) {++domain.removed_r2;continue;}
+        if(PruneServingR3(candidate,pruning,enable_r3)) {++domain.removed_r3;continue;}
+        domain.candidates.push_back(candidate);
+      }
+  }
+  return domain;
 }
 }

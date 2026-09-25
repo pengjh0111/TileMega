@@ -1,0 +1,4 @@
+Target: sm_89, NVIDIA CUDA 12.8 nvcc; full build artifacts are outside the repository under /root/r10_work/variant_resources.
+python3 tools/probe_variant.py --serving --tile 16,128,64,2 --arch sm_89 --cache /root/r10_work/variant_resources --output /root/r10_work/serving_variant_probe.json
+python3 tools/probe_variant.py --serving --nongemm --head-dim 64 --qperkv 4 --arch sm_89 --cache /root/r10_work/variant_resources --output /root/r10_work/serving_nongemm_probe.json
+The reported registers belong to isolated task bodies, not a complete megakernel; top candidates still require queryResidency on the compiled plan.

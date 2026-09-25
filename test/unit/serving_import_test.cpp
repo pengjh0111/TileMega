@@ -10,6 +10,7 @@
 #include <tilemega/Solver/PlanSkeleton.h>
 #include <tilemega/Solver/FlowPreparation.h>
 #include <tilemega/Solver/StageFlowModel.h>
+#include <tilemega/Solver/OperatorClasses.h>
 #include <tilemega/Target/TargetSpec.h>
 #include <mlir/IR/MLIRContext.h>
 
@@ -68,6 +69,15 @@ int main(int argc, char** argv) {
         *module, dims, "serving_test");
     std::cerr << "SERVING_IMPORT_STEP model\n";
     auto target = tilemega::TargetSpec::FromJson(argv[3]);
+    auto classes=tilemega::solver::BuildOperatorClasses(imported);
+    for(std::size_t index=0;index<classes.size();++index) {
+      auto domain=tilemega::solver::ServingClassCandidates(
+          classes[index],imported,target,dims.batch,dims.seq);
+      if(domain.candidates.empty())throw std::runtime_error("empty serving class domain");
+      std::cout<<"SERVING_DOMAIN class="<<index<<" raw="<<domain.raw
+               <<" r1="<<domain.removed_r1<<" r2="<<domain.removed_r2
+               <<" kept="<<domain.candidates.size()<<'\n';
+    }
     auto floor = tilemega::solver::DeriveModelDramFloor(
         *module, model, target, "");
     std::cerr << "SERVING_IMPORT_STEP floor\n";

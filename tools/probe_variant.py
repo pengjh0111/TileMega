@@ -12,10 +12,28 @@ def main():
     ap.add_argument('--cache',type=pathlib.Path,required=True);ap.add_argument('--output',type=pathlib.Path,required=True)
     ap.add_argument('--arch',default='sm_89');ap.add_argument('--dtype',choices=['bf16','f32'],default='bf16')
     ap.add_argument('--tile',default='32,16,16,2');ap.add_argument('--nongemm',action='store_true')
+    ap.add_argument('--serving',action='store_true')
+    ap.add_argument('--head-dim',type=int,choices=(64,128),default=64)
+    ap.add_argument('--qperkv',type=int,choices=(2,4),default=4)
     a=ap.parse_args();m,n,k,s=map(int,a.tile.split(','));threads=128 if a.dtype=='bf16' else 256
+    if a.serving and a.dtype!='bf16':raise ValueError('serving resources require BF16')
+    arch_id=int(a.arch.removeprefix('sm_'))*10
     pre=f'#define TILEMEGA_MODEL_BF16 {int(a.dtype=="bf16")}\n#define TILEMEGA_MIDPOINT_REFINE 0\n#define TILEMEGA_GEMM_TILE_M {m}\n#define TILEMEGA_GEMM_TILE_N {n}\n#define TILEMEGA_GEMM_TILE_K {k}\n#define TILEMEGA_GEMM_STAGES {s}\n'
-    text=pre+'#include <tilemega/Codegen/tasks/GemmStageTaskBody.h>\n#include <tilemega/Target/ArchDispatch.h>\n#include <cstdio>\n'
-    if a.nongemm:
+    if a.serving:
+        text=pre+'#include <tilemega/Target/ArchDispatch.h>\n#include <cstdio>\n'
+        if a.nongemm:
+            text+='#include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>\n'
+            text+=f'using ProbeArch=tilemega::arch::ArchFromId<{arch_id}>::type;\nusing Body=tilemega::codegen::FusedAttentionTaskBody<ProbeArch,{a.head_dim},{a.qperkv},64,64,64,{str(a.head_dim==128).lower()}>;\n'
+            text+='extern "C" __global__ __launch_bounds__(128) void probe_nongemm(tilemega::codegen::ServingAttentionOperands const* p) { extern __shared__ char bytes[]; Body::Run(*p,*reinterpret_cast<Body::SharedStorage*>(bytes),0,0,0,0); }\n'
+            size='sizeof(Body::SharedStorage)'
+        else:
+            text+='#include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>\n'
+            text+=f'using ProbeArch=tilemega::arch::ArchFromId<{arch_id}>::type;\nusing Body=tilemega::codegen::ServingGemmTaskBody<ProbeArch,{m},{n},{k},{s}>;\n'
+            text+='extern "C" __global__ __launch_bounds__(128) void probe_gemm(tilemega::codegen::ServingGemmOperands const* p) { extern __shared__ char bytes[]; Body::Run(*p,0,0,bytes); }\n'
+            size='Body::kSharedBytes'
+    else:
+        text=pre+'#include <tilemega/Codegen/tasks/GemmStageTaskBody.h>\n#include <tilemega/Target/ArchDispatch.h>\n#include <cstdio>\n'
+    if not a.serving and a.nongemm:
         headers=['RMSNorm','RoPE','KVAppend','Elementwise','Add','Embedding','QKNorm','AttentionChunk','GemmCombine']
         for body in headers:text+=f'#include <tilemega/Codegen/tasks/{body}TaskBody.h>\n'
         text+='using namespace tilemega::codegen;\nunion ProbeSmem { float rms[256]; float attention[TILEMEGA_ATTENTION_SCRATCH_EXTENT]; float pointwise[1]; };\n'
@@ -23,7 +41,7 @@ def main():
             cls='Attention' if body=='AttentionChunk' else body
             text+=f'extern "C" __global__ __launch_bounds__({threads}) void probe_{cls}(Params const* p,StageDesc const* stage,int task) {{ extern __shared__ char bytes[]; {cls}TaskBody<tilemega::arch::CurrentArch,ProbeSmem,{threads}>::RunTask(*p,*stage,*reinterpret_cast<ProbeSmem*>(bytes),task); }}\n'
         size='sizeof(ProbeSmem)'
-    else:
+    elif not a.serving:
         text+='using namespace tilemega::codegen;\n'
         text+=f'extern "C" __global__ __launch_bounds__({threads}) void probe_gemm(GemmInvocation const* g,int task) {{ extern __shared__ char bytes[]; GemmStageTaskBody<tilemega::arch::CurrentArch,GemmVariantSmem,{threads}>::RunTask<0>(*g,task,bytes,nullptr); }}\n'
         size='sizeof(GemmVariantSmem)'
