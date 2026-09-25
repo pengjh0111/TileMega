@@ -442,6 +442,11 @@ def simulator_identity():
  intact=all(hashlib.sha256((ROOT/p).read_bytes()).hexdigest()==h for p,h in inputs.items())
  return baseline==current and len(summaries)==24 and intact and all(c['exit']==0 for c in commands),f'{directory.relative_to(ROOT)}: four cells x three placements x two sync settings; summaries={len(summaries)} rows={len(baseline.splitlines())} bitwise_equal={baseline==current} inputs_intact={intact} sha256={hashlib.sha256(current).hexdigest()}; historical trace durations are fixed replay inputs, not GPU timing claims'
 check('A-simulator-legacy-identity',simulator_identity)
+def wait_window_identity():
+ directory=E/'wait_window_identity';old=(directory/'baseline.tsv').read_bytes();new=(directory/'current.tsv').read_bytes()
+ commands=json.loads((directory/'commands.json').read_text())
+ return old==new and len(new.splitlines())==252 and all(r.get('exit')==0 for r in commands),f'{directory.relative_to(ROOT)}: cases={len(new.splitlines())} byte_equal={old==new} sha256={hashlib.sha256(new).hexdigest()}; loop-invariant extent hoisting preserves fitted event windows'
+check('A-wait-window-identity',wait_window_identity)
 failed=[k for k,v in results.items() if not v]
 print('R9B_VERIFY failures='+','.join(failed))
 sys.exit(bool(failed))

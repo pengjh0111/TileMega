@@ -16,16 +16,17 @@ namespace {
 
 /// Row-major over the node's tiled axes: the last coordinate varies fastest,
 /// which is the order `blockIdx.x` walks a `kTilePerBlock` task space in.
-long LinearId(OperatorNode const& node, ParamBinding const& known,
-              std::vector<long> const& point) {
+std::vector<long> LinearExtents(OperatorNode const& node, ParamBinding const& known) {
+  std::vector<long> extents;
+  for (std::size_t axis = 0; axis < node.tile.size(); ++axis)
+    if (node.IsTiled(axis)) extents.push_back(node.CoordinateExtent(axis).Eval(known, {}));
+  return extents;
+}
+
+long LinearId(std::vector<long> const& extents, std::vector<long> const& point) {
   long id = 0;
-  std::size_t at = 0;
-  for (std::size_t axis = 0; axis < node.tile.size(); ++axis) {
-    if (!node.IsTiled(axis)) continue;
-    long const extent = node.CoordinateExtent(axis).Eval(known, {});
-    id = id * extent + (at < point.size() ? point[at] : 0);
-    ++at;
-  }
+  for (std::size_t at = 0; at < extents.size(); ++at)
+    id = id * extents[at] + (at < point.size() ? point[at] : 0);
   return id;
 }
 
@@ -159,9 +160,12 @@ WaitWindow FitWaitWindow(CouplingEdge const& edge, OperatorNode const& producer,
 
   std::map<long, std::vector<long>> wait;
   try {
+    // Nodes and bindings are immutable during this traversal. Re-evaluating
+    // their symbolic extents for each relation point dominates large fibers.
+    auto consumer_extents = LinearExtents(consumer, known);
+    auto producer_extents = LinearExtents(producer, known);
     for (auto const& [to, from] : clamped.Points())
-      wait[LinearId(consumer, known, to)].push_back(
-          LinearId(producer, known, from));
+      wait[LinearId(consumer_extents, to)].push_back(LinearId(producer_extents, from));
   } catch (std::exception const&) {
     return Relaxed();
   }
