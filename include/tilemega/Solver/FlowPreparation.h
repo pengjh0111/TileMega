@@ -8,6 +8,7 @@ struct FlowPreparationCache {
   std::string target_key;
   struct OwnershipEntry {analysis::CouplingRelation map;analysis::QuasiPolynomial count;};
   std::map<std::string,OwnershipEntry> ownership;
+  std::map<std::string,long> task_counts;
   std::map<std::string,analysis::CouplingRelation> projected;
   std::map<std::string,std::string> signatures;
   PiecePriceCache prices;

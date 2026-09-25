@@ -48,8 +48,18 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     auto map=ProjectTaskOwnership(sem,node,stage,result.threads);FlowPreparationCache::OwnershipEntry out{map,map.Reverse().ImageCard()};
     if(prepared)prepared->ownership.emplace(key.str(),out);return out;
   };
+  std::ostringstream bindings;
+  for(auto const& [name,value]:std::map<std::string,long>(theta.values.begin(),theta.values.end()))bindings<<name.size()<<':'<<name<<'='<<value<<';';
+  auto binding_key=bindings.str();
+  auto evaluate_count=[&](analysis::QuasiPolynomial const& count) {
+    if(!prepared)return count.Eval(theta);
+    auto key=count.ToString()+"\n"+binding_key;
+    auto found=prepared->task_counts.find(key);
+    if(found!=prepared->task_counts.end())return found->second;
+    auto value=count.Eval(theta);prepared->task_counts.emplace(std::move(key),value);return value;
+  };
   std::vector<int> entry(result.model.stages.size()),done(entry);result.offsets={0};
-  auto append=[&](int stage,bool combine,FlowPreparationCache::OwnershipEntry const& ownership){auto count=ownership.count;result.projection.stages.push_back({stage,combine,count});result.counts.push_back(count.Eval(theta));result.offsets.push_back(result.offsets.back()+result.counts.back());};
+  auto append=[&](int stage,bool combine,FlowPreparationCache::OwnershipEntry const& ownership){auto count=ownership.count;result.projection.stages.push_back({stage,combine,count});result.counts.push_back(evaluate_count(count));result.offsets.push_back(result.offsets.back()+result.counts.back());};
   for(std::size_t stage=0;stage<result.model.stages.size();++stage) {
     auto sem=std::find_if(result.model.task_semantics.begin(),result.model.task_semantics.end(),[&](auto const& s){return s.stage==int(stage) && (!result.model.stages[stage].IsCollective() || s.op.kind==analysis::OperatorKind::kMatmul);});
     if(sem==result.model.task_semantics.end())throw std::runtime_error("missing flow stage semantic");
