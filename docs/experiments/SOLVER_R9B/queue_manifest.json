@@ -1,0 +1,81 @@
+{
+  "observed_utc": "2026-09-25T11:52:15.587545+00:00",
+  "jobs": [
+    {
+      "pid": 2969705,
+      "start_ticks": "95823069",
+      "name": "docs/experiments/SOLVER_R9B/run_matrix.py",
+      "command": [
+        "python3",
+        "docs/experiments/SOLVER_R9B/run_matrix.py"
+      ]
+    },
+    {
+      "pid": 2982207,
+      "start_ticks": "95905545",
+      "name": "docs/experiments/SOLVER_R9B/run_reference.py",
+      "command": [
+        "python3",
+        "docs/experiments/SOLVER_R9B/run_reference.py"
+      ]
+    },
+    {
+      "pid": 2985775,
+      "start_ticks": "95979549",
+      "name": "docs/experiments/SOLVER_R9B/run_postmatrix.py",
+      "command": [
+        "python3",
+        "docs/experiments/SOLVER_R9B/run_postmatrix.py"
+      ]
+    },
+    {
+      "pid": 2986075,
+      "start_ticks": "95984982",
+      "name": "docs/experiments/SOLVER_R9B/run_theta.py llama",
+      "command": [
+        "python3",
+        "docs/experiments/SOLVER_R9B/run_theta.py",
+        "llama"
+      ]
+    },
+    {
+      "pid": 2986093,
+      "start_ticks": "95985101",
+      "name": "docs/experiments/SOLVER_R9B/run_theta.py qwen3",
+      "command": [
+        "python3",
+        "docs/experiments/SOLVER_R9B/run_theta.py",
+        "qwen3"
+      ]
+    },
+    {
+      "pid": 3011032,
+      "start_ticks": "96464229",
+      "name": "docs/experiments/SOLVER_R9B/resume_validation.py qwen3 --colocate",
+      "command": [
+        "python3",
+        "docs/experiments/SOLVER_R9B/resume_validation.py",
+        "qwen3",
+        "--colocate"
+      ]
+    },
+    {
+      "pid": 3020257,
+      "start_ticks": "96660076",
+      "name": "docs/experiments/SOLVER_R9B/promote_matrix.py",
+      "command": [
+        "python3",
+        "docs/experiments/SOLVER_R9B/promote_matrix.py"
+      ]
+    },
+    {
+      "pid": 3021358,
+      "start_ticks": "96680991",
+      "name": "docs/experiments/SOLVER_R9B/run_traffic.py",
+      "command": [
+        "python3",
+        "docs/experiments/SOLVER_R9B/run_traffic.py"
+      ]
+    }
+  ]
+}

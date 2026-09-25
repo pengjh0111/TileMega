@@ -1,0 +1,8 @@
+[
+  {
+    "raw": "trace/qwen3_s64/dump/waits.tsv",
+    "archive": "trace/qwen3_s64/dump/waits.tsv.gz",
+    "sha256": "7fba9646b1007883e4b5e52c826a5721a045a7060963fa4bfda649b496fb9205",
+    "bytes": 189446761
+  }
+]

@@ -5,6 +5,8 @@ Missing evidence fails its gate. All checks run before the final nonzero exit.
 No summary.md, summary.tsv, status.json or precomputed gate verdict is read.
 """
 import csv,hashlib,json,math,pathlib,re,statistics,subprocess,sys,struct
+from restore_trace import restore
+restore()
 E=pathlib.Path(__file__).resolve().parent;ROOT=E.parents[2]
 BASE=json.loads((E/'baseline.json').read_text())['baseline']
 results={}
