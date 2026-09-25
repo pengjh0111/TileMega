@@ -7295,3 +7295,234 @@ final three receive GPU measurements. `SkeletonSearch.cpp::ConfigKey`,
 implement these separate stages. The review push leaves all active search
 processes, candidate domains, queue assignments and measurement commands
 unchanged. Full conformance and performance acceptance remain under test.
+
+
+## F-253 — The R9b absolute floor is derived from element access images
+
+✅ **Verified.** `DramFloor` unions physical read and write images per tensor,
+subtracts same-step writes from reads, and counts the resulting sets with
+Barvinok. External output/state writes and physical matmul FLOPs are separate
+terms; the reported floor is their DRAM/compute maximum. Across both anchored
+models at seq 1/4/16/64, the weight-byte discrepancy against the prompt's
+rounded config totals is at most 0.0361%, within the 0.5% gate. Seq1 floors
+are 2.518402 ms (Llama) and 3.506496 ms (Qwen3). Raw per-tensor counts,
+polynomials, binding commands and CG attributes: `SOLVER_R9B/floor/`.
+
+⚠️ **Stated limitation.** An exact indirect embedding image also depends on
+token IDs. This implementation binds the fixture's unique token rows; it does
+not pretend their number is determined by theta alone. Other access counts
+remain parameterized. The precise contract limitation is recorded in
+`SOLVER_R9B/deviations.md`.
+
+## F-254 — Fresh R9b legacy controls pass internal equality in all eight cells
+
+✅ **Verified.** Eight cells each completed ten new processes with identical
+L0.5/L1/L2 hashes and zero internal mismatches. All reused build commands
+explicitly disable MIDPOINT_REFINE. CPU-golden mismatches are retained and
+are not the R9b acceptance criterion. GPU admission logs are retained because
+the device is shared with other workloads; these are fresh observations, not
+an assertion of a dedicated-device run.
+
+| Cell | L2 ms | T_floor ms | L2 / T_floor | Internal equality |
+|---|---:|---:|---:|---:|
+| llama_s1 | 5.4224320 | 2.5184022 | 2.15312 | 10/10 |
+| llama_s4 | 6.4746800 | 2.5192988 | 2.57003 | 10/10 |
+| llama_s16 | 7.1162400 | 2.5228855 | 2.82067 | 10/10 |
+| llama_s64 | 12.6773520 | 2.5372321 | 4.99653 | 10/10 |
+| qwen3_s1 | 8.2457600 | 3.5064962 | 2.35157 | 10/10 |
+| qwen3_s4 | 9.3148240 | 3.5077880 | 2.65547 | 10/10 |
+| qwen3_s16 | 10.6798090 | 3.5129551 | 3.04012 | 10/10 |
+| qwen3_s64 | 17.0185035 | 3.5336237 | 4.81616 | 10/10 |
+
+The seq≤16 geometric mean is 2.582013. Evidence:
+`SOLVER_R9B/controls/*/process_*.log`, command manifests, admission records,
+and the independent floor dumps. These controls do not establish G-9/G-10;
+new skeleton measurements remain pending.
+
+## F-255 — New price components preserve the old path but miss the BF16 rank gate
+
+✅ **Verified.** Rebuilding the R9b baseline with only 17-digit output
+instrumentation permits exact binary64 round trips. The current regime-A-off
+replay matches every prediction field in FP32 (1077+1077 points) and the
+accepted BF16 subset (770+462 points). Enabling regime A leaves FP32 unchanged.
+The standalone instance decomposition matches `IsolatedNs(PriceParts)` by
+construction and in the unit checks. Full anchored-space coverage is still
+being tested; it is not inferred from these reference tests.
+
+The 490-observation latency fit gives lambda=1.1593900607537728 and
+stage_rate_bytes_per_ns=42.488827019004475. Loop median/mean relative error
+changes from 0.213401/0.228719 to 0.092347/0.169767. The physical fixed-term
+fit improves mean error (0.317941→0.278472) but worsens median error
+(0.215559→0.234919), and its independent replay harms ordering.
+
+| BF16 path | gqa2 Spearman | mha4 Spearman |
+|---|---:|---:|
+| Fresh pre-R9b baseline | 0.8004 | 0.8069 |
+| Physical traffic only | 0.8033 | 0.8086 |
+| Stage latency only | 0.8348 | 0.8404 |
+| Physical fixed term only | 0.6340 | 0.6911 |
+| Physical traffic + stage latency; old fixed term | 0.8377 | 0.8426 |
+
+Production retains the old fixed term under the explicitly permitted §7.3
+fallback. G-5 still fails the unmodified 0.9039/0.8911 thresholds: even the
+fresh baseline no longer reproduces F-116's historical ordering. The remaining
+model-version/target mismatch and calibration error require investigation;
+no threshold is weakened. Evidence: `SOLVER_R9B/replay/`, `fit/observations.tsv`,
+`fit/target.json`, and `unit/prices_memo.log`.
+
+## F-256 — Static FP64 remains in an unchanged RoPE library path
+
+✅ **Verified.** MIDPOINT_REFINE=0 control binaries retain 12 static FP64
+instructions in L2 and 24 in L1, from sinf/cosf argument reduction (PTX locations
+RoPETaskBody.h:52–53, `__cudart_i2opi_f`). This is static presence; execution of
+the slow branch is not asserted. It is independent of the GEMM refinement
+patch. G-3 remains FAIL. Removing this path would require a numerically
+validated math change outside R9b's TaskBody/synchronization scope. Evidence:
+`SOLVER_R9B/controls/*/sass.log` and `fp64_rope_ptx_excerpt.txt`.
+
+## F-257 — Four fresh anchored traces separate exposed waiting from task time
+
+✅ **Verified.** All four activated trace-v2 processes retain identical internal
+hashes. Exact dependency-range queries reconstruct each realized path without
+materializing the dense all-producer DAG. The corrected zero-sync bounds match
+four historical seq4 dense reconstructions exactly; the old analyzer and its
+columns remain available. Evidence: `SOLVER_R9B/trace/*/dump/`,
+`trace_analysis/*/{chain_links,task_spaces,chain_categories}.tsv`, and
+`unit/trace_range.log`.
+
+| Cell | Realized path ms | Task fixed + mainloop ms | Exposed wait/hop ms | Publication ms | Idle ms |
+|---|---:|---:|---:|---:|---:|
+| llama_s1 | 5.562368 | 2.262016 | 2.236416 | 0.768000 | 0.265216 |
+| llama_s64 | 12.939264 | 9.062400 | 2.300928 | 1.087488 | 0.385024 |
+| qwen3_s1 | 8.472576 | 3.644416 | 3.514368 | 1.074176 | 0.199680 |
+| qwen3_s64 | 16.784384 | 10.545152 | 2.850816 | 1.375232 | 1.832960 |
+
+Barrier intervals are recorded separately in the raw partition and explain the
+remainder in this shortened table. The seq1 waiting/publication exposure is
+large, but a wait includes producer progress and resource availability, not
+just protocol instructions. Trace v2 cannot separate TaskBody fixed work from
+mainloop. Consequently the prompt's stronger inference that fixed/protocol
+constants alone explain the seq1 excess is not established by this trace.
+The next discriminating measurement is the existing phase ABI on the same
+solved geometry, together with the flow counterfactuals; no synchronization
+change is made in this round.
+
+⚠️ **Inferred limitation.** A realized timestamp path need not be unique:
+queue edges can bypass an attention node while its influence remains inside a
+wait interval. The measured direct attention-path share (about 3.8%/4.1% at
+seq64) therefore must not be used as an upper bound on attention's causal
+contribution. Complete per-space spans and the independently modeled chain
+are reported alongside it.
+
+The measured CGs have 356/676 spaces and dependency depths 228/424 for
+Llama/Qwen3. No separate residual-add tasks are emitted; these plans already
+fold residuals into existing stages. The prompt's depths 260/480 count two
+additional add links per layer. Bubble denominators use the measured graph,
+not the historical statement.
+
+## F-258 — The frozen R9 geometry vectors do not close the decode gap
+
+✅ **Verified.** The archived best partial R9 vectors for Llama seq1 and seq4
+were materialized with the frozen R9 library at the compiled resident limit,
+then run in ten fresh processes each. Both pass internal equality 10/10.
+Seq1 L2 is 6.065152 ms (L2/floor 2.408333; fresh legacy ratio 1.118530);
+seq4 L2 is 7.341056 ms (L2/floor 2.913928; legacy ratio 1.133810).
+These are early-signal measurements, not R9b's searched configurations.
+Evidence: `SOLVER_R9B/early_resident/`, retained preflight failures under
+`early/` and `early_corrected/`, and `controls/`.
+
+⚠️ **Inferred next step.** Per-class geometry alone does not establish a
+performance improvement for these two archived vectors. R9 priced every
+candidate through isolated task lanes and tile placement; its score does not
+represent the shared DRAM server or the actual repaired grid. The replacement
+search must be assessed using its own matched geometry, occupancy and fresh
+GPU measurements; no rollback or negative early signal is treated as closure.
+
+## F-259 — Regime-A isolation is bit exact; the historical ranking gate remains open
+
+✅ **Verified.** Full-precision replay output records the binary64 bit patterns
+of total, GEMM, combine, other, barrier and summed task prices before display
+scaling. The R9b-off and baseline files are byte-identical for both reference
+models in BF16 (770/462 accepted points) and FP32 (1,077/1,077). FP32 with
+regime A enabled is also byte-identical. The BF16 input catalog retains its
+original correctness filtering; the 770/462 ranking subset is unchanged.
+Evidence: `SOLVER_R9B/replay/bits_{baseline,off}_{bf16,f32}/` and
+`bits_on_f32/`. The baseline output-only instrumentation patch is archived.
+
+✅ **Verified failure.** Tie-aware Spearman for the production physical-byte
+plus stages-latency path is 0.837562128 / 0.842615454, below the unchanged
+0.9039 / 0.8911 gates. Bit preservation therefore does not make G-5 pass.
+The historical-target diagnostic and independent component arms are retained
+in `replay/`; the fixed-physical component remains disabled under the explicit
+fallback. The next calibration work must separate the inherited whole-stage
+cost mismatch from the added latency term, rather than change the gate or
+attribute all residual error to the new DRAM model.
+
+The per-space price cache now includes the probed megakernel union shared-byte
+value as well as the local geometry, theta and residency. The unit test verifies
+that changing this resource context causes a cache miss while retaining exactly
+the same price at fixed residency (`unit/kernel_cache_prices.log`). Earlier
+running experiments used the same arithmetic with a less restrictive cache key;
+their source/binary provenance is retained.
+
+## F-260 — Runtime event windows add a second release approximation
+
+✅ **Verified.** The independent reference-model release audit samples both
+models at seq 4/128 and kappa 1/2/4. Exact CG predecessor maxima followed by
+Coarsen disagree with requested runtime event endpoints in 472/2,064 fibers.
+The runtime endpoints are more conservative; e.g. gqa2 seq4 kappa1 consumer
+(4,0) waits through producer-1 task 3 although its exact data endpoint is 1.
+`PlanSkeleton.cpp::PrepareSymbolicProblem` deliberately carries both the exact
+CG dependencies and the original requested-event relation. `FlowPreparation`
+uses the former; `SkeletonFinalize` expands the latter for real legality and
+FIFO simulation. Evidence: `SOLVER_R9B/unit/runtime_release.log`.
+
+⚠️ **Stated limitation.** R9b's literal release specification and its assertion
+that only aggregation/FIFO differ cannot both hold with these existing execution
+windows. The endpoint-equivalence audit remains FAIL. V2 measures the combined
+approximation, and final plans still undergo the actual event-expanded check.
+The specification is not silently replaced by a different release rule. A next
+solver revision can add the requested-event horizon and masks to Level 1;
+changing executor windows is outside this round. See `deviations.md` for the
+exact constraint and the consequent degraded claim.
+
+## F-261 — Legacy simulator identity and independent home displacement
+
+✅ verified: the same audit source compiled separately against the R9b baseline
+and current library replays gqa2/mha4 seq4/128, three placements, and two
+synchronization settings. All 102,312 rows (per-task start/end/block/stretch
+and aggregate binary64 fields) are byte-identical. The SHA256 is
+`552b95655ba9dcfeacafaa393b36d091ace3db0e300863aa8b542db805589c0c`.
+Historical trace durations are immutable replay inputs, not fresh GPU timing
+claims. Evidence: `SOLVER_R9B/simulator_identity/`.
+
+✅ verified: the exclusive affinity/home/spread counters cannot measure how
+many tasks left home, because affinity and home overlap. A separate
+`moved_from_home` count now records actual displacement without changing the
+schedule. Three pure-template unit cases have zero displacement despite
+8–16 affinity hits. Earlier artifacts are recomputed by comparing each B
+assignment with its same-key, same-grid pure A assignment. For the measured
+Llama seq1 winner, A moves 0/10,151 tasks and B moves 9,464/10,151 (93.2322%).
+Their FIFO predictions are 3.424876 and 4.419060 ms respectively; the selected
+plan is A. Evidence: `matrix/llama_s1/selected.cu.m1{A,B}.{tasks,metrics}.tsv`,
+`unit/home_displacement.log`. These are placement diagnostics, not an
+unmeasured GPU A/B performance claim.
+
+## F-262 — Hoist invariant row-major extents in wait-window fitting
+
+✅ verified: a long-running random configuration spent its preparation time
+in `FitWaitWindow -> LinearId -> OperatorNode::IsTiled -> ClosedForm::ToString`.
+The fitting loop now evaluates each endpoint's immutable tiled extents once,
+then computes every linear ID using the same integer recurrence. It does not
+change the relation, window fitting rule, relaxation budget, or executor.
+
+The identical audit source compiled against baseline and current libraries
+produces byte-identical fitted windows for all 252 edges across 12 parameter
+configurations (seq 1/4/16/64, tile M 32/64/128). Fresh-process audit wall times
+are 19,912.8 versus 10,774.7 ms; these are preparation diagnostics, not the
+10-ms EvaluateFlow or 30-minute complete-search gate. Table27, coupling-cache
+byte-equivalence, and skeleton-placement tests pass. Interrupted random audits
+resume from their completed row prefixes with the original RNG draws; neither
+completed observations nor configuration selection is changed. Evidence:
+`SOLVER_R9B/wait_window_identity/`, `unit/wait_window_hotspot.log`,
+`unit/window_hoist.log`, and the per-audit `resume*.command.json` records.

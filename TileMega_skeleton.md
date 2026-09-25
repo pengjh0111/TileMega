@@ -647,6 +647,8 @@ barvinok 计数一致；`tmexec.implementation` 的 threads/smem/alignment/arch
 **代价函数**。原来这里写的是 roofline 加若干附加项。标定和 2154 个实测点推翻了
 它的三条，现在的形式是**资源向量 + 流水包络**——每一项仍然是 CG 派生量的函数：
 
+（⚠️ v2.1 第九轮补充：regime A 的新路径将 DRAM 从单 task 资源道中分离为设备级共享流体服务器。task 价格拆为固定段、非 DRAM 计算时间、按物理访问域与操作数来源推导的 DRAM 字节、单 task 速率上限；Level 1 与逐 tile 流体模拟共用注水分配与同步常数。`regime_a` 默认关闭且只对 BF16 生效，既有资源道路径保留。）
+
 ```
 稳态    u(o) = ⟨t_TC, t_CUDA, t_SFU, t_TMEM, t_SMEM, t_L1.5, t_L2, t_DDR, t_NET⟩
         T_steady(o) = max( u(o) )                          取 max，不是取和
@@ -719,6 +721,8 @@ lane 而非 TC。物理读写域由访问关系计数；TaskBody traits 提供�
 | B. prefill / 大 batch | 计算 | makespan + wave quantization |
 | C. 混合 batch（chunked prefill） | 异构 | 资源互补性最大化 |
 
+（⚠️ v2.1 第九轮补充：regime A 的绝对目标为 `T_floor(θ)=max(T_dram,T_compute)`，由 CG 物理读关系像减去同一步写像、唯一输出/状态写像与物理 matmul 工作量计数得到。气泡以 `(T−T_floor)/D` 衡量；优化仍比较同一 θ 下的完整执行时间，不能仅优化链深或单 task 指令数。间接 embedding 的精确唯一读像还依赖 token 值，需绑定输入读像或扩展语义参数，不能声称仅由 seq/past/batch 唯一决定。）
+
 **输出形态**：参数化的最优解区间划分（「`S ∈ [0,512)` 用 `g₁`；`S ∈ [512,∞)` 用 `g₂`」），
 区间边界来自分段拟多项式的交点。运行时 `O(1)` 查表选变体。
 
@@ -741,6 +745,7 @@ lane 而非 TC。物理读写域由访问关系计数；TaskBody traits 提供�
   **恰好 0**——两个参考模型的活跃工作集都远在 L2 拐点的同一侧，命中率是常数，
   于是它只是一个乘在所有配置上的相同因子，不改排序也不改误差。保留是因为它对
   更大的模型不再是常数；但**不许把它算进本轮的收益**。
+  （⚠️ v2.1 第九轮补充：上述 SDCM 在工作集大于 L2 时，容量与均值抵消可使预测命中率停留在约一半，不能据此给流式权重打折。regime A 大工作集按无生产者读与有生产者读分别使用实测 CacheServiceCurve；小工作集保留既有缓存规则，`sdcm_above_knee` 仅作为审计对照。）
 - **九道里在 sm_89 上真正起作用的只有 SMEM 道。** `full − lanes(smem only)` 与
   完整模型的差是 **0.02 个 MAPE 点、0.0006 ρ**（gqa2 26.24/0.9450 对
   26.25/0.9444，mha4 25.15/0.9435 对 25.17/0.9429）。
@@ -822,6 +827,8 @@ BF16 形状再拟合出负的每 CTA setup。钳位已删除，改由 `combine_f
 （⚠️ v2.1 第九轮：Oracle 在两个方向精确回答当前 tile 的邻接集合，分为分段仿射的 Unique、经 `is_box` 证明的 Rectangular 与局部精确查询的 General。Level 1 以 `tmexec.skeleton` 承载 W、各 task space 的连续轮询 base、负载与软铺开宽度，以及边类别；它只定义可重叠的逐 tile 候选集，不决定最终 worker。候选集为 Spread 与按到达时间选出的至多两个关键前驱 worker 之并。Level 2 按 `(EST, −rank, stage 序, lin)` 的就绪优先队列惰性更新，在候选集中按完成时间选 worker；秩仅由 task-space 小图产生，作为平局裁决。不在搜索内物化 tile DAG，也不调用 ISL 调度器决定 worker 或次序。）
 
 （⚠️ v2.1 第九轮：外层以 Level 2 的 `makespan_ns` 为分数，执行最多三轮坐标下降，从 legacy uniform 解出发，优先评估 tile 对齐候选；模拟器只用于最终五组配置，随后实测 top-3。`--solver=legacy` 保留六启发式对照，默认 `skeleton`。现行执行器可能要求超出 CG 数据依赖的事件窗口顺序；这部分以独立符号执行顺序关系约束搜索，不把额外顺序宣称为数据依赖，也不改变 §5.7 的执行语义或合法性校验。）
+
+（⚠️ v2.1 第九轮补充：R9 的外层逐 tile 放置打分被 task-space Level 1 流模型取代；全部配置只用 `EvaluateFlow` 打分，释放律由双向 Oracle 推出并经 Coarsen(κ) 变换，cohort 共用全局 worker 池与 DRAM 流体服务器。最多三轮、两个起点的坐标下降联合搜索各算子类 tile/stages/split、全局 κ 与 residency。仅最终 top-M 物化，比较纯模板与有界 EFT 的流体模拟，再对 top-3 复核真实驻留并实测。模板沿跨 stage 轮询 home 与 1:1 Unique 映射共置，EFT 候选宽度取常数；只有生产者 κ=1 的共置边可省去对应同步。Level 2 的 EST 前沿、精确 Oracle、执行契约与合法性硬校验均保留。（⚠️ v2.1 第九轮补充：精确数据依赖的释放端点可能早于既有执行器保守事件窗口；当前 Level 1 按精确 CG 估计，而最终流体模拟保留真实事件窗口，因此两层还有释放约束近似，不能只归因于 cohort 与 FIFO。收紧执行窗口不在 R9b 范围内。）反事实关闭同步、固定段、有限 worker 数与无生产者 DRAM 字节，用于区分求解器与后端/执行器尚未消除的成本。）
 
 ## 4.5 Label：通信归属
 
@@ -1663,3 +1670,4 @@ Codegen 与 host 只消费 Plan（§5.7.4），不得在其中新增调度决策
 | 2026-09 | v2.1 第八轮 | TaskBody ABI 参数化在 arch tag 上，架构随 Plan 传递并在运行期与设备比对（不一致即硬失败）；GEMM 的 collective 按 `Caps` 具名能力选择，sm_90/sm_100 走 CollectiveBuilder，sm_80/sm_89/sm_120 走 cp.async multistage；attention 与归一化的跨线程归约改为 warp shuffle，消除单 lane 串行扫描；occupancy 闭式推广为按角色求和；单一 `tilemega` dialect 拆为 `tmcg`（结构）与 `tmexec`（决策），`task_space` 改名 `tile_space`。§8.5 未改动——角色粒度 litmus 的"无屏障"负对照在 sm_89 上不失败，按 §8.3 不取得改动资格 |
 | 2026-09 | v2.1 第七轮 | 归一化 epsilon 与旋转相位精度改为由导入的模型决定，不再是后端常量；任务族扩展为 token embedding、按头 Q/K 归一化与独立的最终归一化，并规定新族必须由生成开关承载以保持默认构建的汇编同一；§8.6 的 TaskSmem union 生命周期按 H3 解除一处——union 仍取 max，其后按开关追加两页预取缓冲，生命周期跨相邻 slot；§5.3.1 的分相 ABI 随之落地为可开关的实现 |
 | 2026-09 | v2.1 第九轮 | 按 SemSig 缓存参数化耦合并按算子类选择 tile；资源探测先于驻留与 Skeleton；符号 Oracle 提供精确双向邻接，Level 1 定义重叠候选集、Level 2 按 EST 就绪前沿定价放置；外层坐标下降以放置 makespan 打分，仅最终 top-K 物化与模拟，保留 legacy 对照 |
+| 2026-09 | v2.1 第九轮补充 | 以访问像计数的绝对下界锚定 regime A；引入默认关闭的 BF16 物理价格分量与设备级 DRAM 流体服务器；外层改用 task-space 释放律模型、仅 top-M 作模板/有界 EFT 物化与流体复核；保留旧路径及执行语义 |
