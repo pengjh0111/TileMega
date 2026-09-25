@@ -14,6 +14,7 @@ int main(int argc,char** argv) try {
   analysis::IslContext isl;mlir::MLIRContext context;context.getOrLoadDialect<dialect::CGDialect>();context.getOrLoadDialect<dialect::ExecDialect>();
   auto target=TargetSpec::FromJson(argv[2]);auto const& cal=target.CalibrationFor("bf16");
   solver::CacheServiceCurve curve(cal.l2_curve_bytes,cal.l2_curve_gbps);
+  Require(curve.HitFraction(2.e9,cal.l2_gbps,cal.dram_gbps)==0,"2 GB external stream must miss L2");
   Require(curve.HitFraction(2.*1024*1024*1024,cal.l2_gbps,cal.dram_gbps)==0,"2 GiB external stream must miss L2");
   int checks=0;
   for(std::string name:{"gqa2","mha4"}) {

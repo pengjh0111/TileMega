@@ -22,11 +22,11 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
   if(!MaterializePlanPlacement(request,&selected.plan,&error) || !CheckPlanLegality(graph,selected.plan,&error))throw std::runtime_error(error);
   SimulatorInput input;input.graph=&graph;input.task_ns=problem.task_ns;
   input.publication_required.resize(problem.task_ns.size());input.consumer_wait_required.resize(problem.task_ns.size());
-  std::vector<std::set<std::pair<int,int>>> desired(problem.task_ns.size());std::set<int> publishing;
+  std::vector<std::set<std::pair<int,int>>> desired(problem.task_ns.size());std::set<int> publishing;std::size_t omitted_local_events=0;
   auto node=[&](int s,int t){if(s<0 || s>=int(problem.counts.size()) || t<0 || t>=problem.counts[s])throw std::runtime_error("event outside projected tasks");return problem.offsets[s]+t;};
   analysis::VisitFiniteRelation(analysis::SharedIslContext(),problem.projection.requested_events.BindParams(sk.theta).ToString(),6,[&](long const* e){
     int cn=node(e[0],e[1]),ps=e[3],kind=e[4],group=e[5];
-    if(kind==2 && selected.plan.owner.at(ps).at(group)==selected.plan.owner.at(e[0]).at(e[1]))return;
+    if(kind==2 && selected.plan.owner.at(ps).at(group)==selected.plan.owner.at(e[0]).at(e[1])){++omitted_local_events;return;}
     publishing.insert(ps);if(!desired[cn].insert({ps,kind==0?-1:group}).second)return;
     int k=ProducerKappa(problem.projection.options,ps),begin=kind==0?0:group*k,end=kind==0?problem.counts[ps]:std::min(problem.counts[ps],begin+k);
     for(int t=begin;t<end;++t){int pn=node(ps,t);graph.successors[pn].push_back(cn);
@@ -58,6 +58,8 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
   entry.evaluation.candidate.kappa=options.kappa;entry.evaluation.candidate.ctas_per_sm=point.candidate.residency;
   entry.evaluation.placement="skeleton";entry.evaluation.status="ok";entry.evaluation.simulated=true;
   entry.evaluation.floor_ns=selected.bounds.lower_bound_ns;entry.evaluation.makespan_ns=simulated.makespan_ns;
+  std::ofstream omissions(prefix+".omissions.tsv");
+  omissions<<"key\tlocal_event_waits_omitted\n"<<point.candidate.key<<'\t'<<omitted_local_events<<'\n';
   auto const& st=point.candidate.placement;
   std::ofstream metrics(prefix+".metrics.tsv");metrics<<std::setprecision(17)<<"key\tgrid\tresidency\tflow_ns\tsimulated_ns\tfloor_ns\tcp_ns\tqueue_ns\tplaced\taffinity\thome\tspread_other\tcandidate_sum\ttransitions\tadjacent_slots\tinterleaving\n";
   metrics<<point.candidate.key<<'\t'<<sk.grid<<'\t'<<sk.residency<<'\t'<<point.candidate.score<<'\t'<<simulated.makespan_ns<<'\t'<<selected.bounds.lower_bound_ns<<'\t'<<selected.bounds.critical_path_ns<<'\t'<<selected.bounds.queue_lb_ns<<'\t'<<st.placed<<'\t'<<st.affinity<<'\t'<<st.home<<'\t'<<st.spread_other<<'\t'<<st.candidate_sum<<'\t'<<st.transitions<<'\t'<<st.adjacent_slots<<'\t'<<st.interleaving<<'\n';

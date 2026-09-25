@@ -34,6 +34,7 @@ int main(int argc,char** argv) try {
   if(solver::EvaluateFlow(quick_flow.flow).makespan_ns!=solver::EvaluateFlow(prepared.flow).makespan_ns)throw std::runtime_error("semantic flow differs from projected flow");
   std::cout<<"STRUCTURE ms="<<std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-structure_start).count()<<" counts_exact=1 releases_exact=1 makespan_exact=1"<<std::endl;
   auto warm_begin=std::chrono::steady_clock::now();
+  quick=solver::PrepareFlowStructure(problem,problem.geometry,target.res.num_sms*residency,kappa,coupling,&cache);
   auto warm=solver::PrepareFlow(quick,floor,target,residency,hop,coupling,cache,false);
   std::cout<<"PREPARE_WARM ms="<<std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-warm_begin).count()<<" space_hits="<<cache.space_hits<<" space_misses="<<cache.space_misses<<std::endl;
   auto first=solver::EvaluateFlow(prepared.flow);double sum=0,max=0;
