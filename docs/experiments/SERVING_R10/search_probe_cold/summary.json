@@ -1,0 +1,16 @@
+{
+  "full_domain": true,
+  "elapsed_seconds": 600.0152723350329,
+  "timeout_seconds": 600,
+  "completed_evaluations": 56,
+  "domain_sizes": [
+    116,
+    121,
+    121,
+    195,
+    121,
+    39
+  ],
+  "reached_coordinate_complete": false,
+  "cause": "serial ptxas resource probes on cold serving GEMM shapes"
+}

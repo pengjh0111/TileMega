@@ -473,6 +473,26 @@ int main(int argc, char** argv) {
           if(auto r=(*seed)->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_residency"))skeleton.seed_residency=r.getInt();
         }
         if(variant_cache.empty())variant_cache=(resource_root.parent_path()/"variant_cache").string();
+        if(serving && solve_options.geometry_domain.empty()) {
+          // Exact per-variant ptxas resources remain part of the search.  A
+          // cold serial first class scan otherwise spends its entire budget
+          // compiling wrappers; populate the shared cache concurrently first.
+          int max_m=16;
+          while(max_m<dims.batch*dims.seq && max_m<128)max_m*=2;
+          auto prewarm_dir=resource_root/"prewarm";
+          std::filesystem::create_directories(resource_root);
+          std::string command="python3 "+quote(std::string(TILEMEGA_SOURCE_DIR)+
+              "/tools/prewarm_serving_variants.py")+
+              " --target "+quote(solve_target)+
+              " --cache "+quote(variant_cache)+
+              " --output "+quote(prewarm_dir.string())+
+              " --max-m "+std::to_string(max_m)+" --jobs 8";
+          std::ofstream(resource_root/"prewarm.command.txt")<<command<<'\n';
+          if(std::system((command+" >"+quote((resource_root/"prewarm.log").string())+
+              " 2>&1").c_str()))
+            throw std::runtime_error("serving variant prewarm failed: "+
+                (resource_root/"prewarm.log").string());
+        }
         int variant_index=0;
         std::map<std::tuple<int,int,int,int,int>,tilemega::solver::VariantResources> probed_bodies;
         skeleton.variant_probe=[&](std::string const&,tilemega::solver::GemmConfig const* tile,tilemega::solver::ScalarType dtype) {

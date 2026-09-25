@@ -1,0 +1,9 @@
+{
+  "target": "/root/r10_work/target_r10_inflight.json",
+  "arch": "sm_89",
+  "max_m": 16,
+  "jobs": 8,
+  "shape_count": 39,
+  "seconds": 125.66682732000481,
+  "failed": 0
+}
