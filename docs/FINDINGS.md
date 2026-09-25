@@ -7576,3 +7576,31 @@ prediction-to-device discrepancy.
 
 Evidence: `SOLVER_R9B/validation/{llama,qwen3}/{samples.tsv,configs.tsv,exit.json}`,
 per-sample `*.timing.tsv`, and `validation_colocated/llama/`.
+
+## F-265 — Optimize exact local release fibers without enumerating their images
+
+✅ verified: a live seq64 search stack reached both ISL AST construction and
+OracleExpression membership evaluation inside PrepareFlow. A scalar release
+needs only the largest predecessor index, not every point in that image.
+SymbolicOracle::LinearRelease now binds theta and the current source first,
+projects out the singleton parameters, and uses ISL integer maximization on
+that exact constant fiber. Unique/Rectangular directions retain their compiled
+query path. The prefix diagnostic is separately proved with is_box and dim_min;
+no inferred bounding interval becomes a dependency set. This avoids the global
+parametric-maximum explosion and the General membership scan.
+
+✅ verified: 233 scalar release/prefix comparisons agree with explicit fibers,
+including holes, strided sets, sparse million-wide sets, empty fibers, and
+changes in theta; all 384 predecessor/successor set comparisons still pass.
+Eight archived legacy geometries at seq 1/4/16/64 reproduce all six recorded
+makespan/counterfactual quantities bit for bit. The initial prefix test caught
+that fixed parameters must be projected out before the box proof; the failing
+log and subsequent fix are retained. This was a diagnostic unit failure, not a
+numerical regression in an executed GPU configuration.
+
+This is a CPU preparation optimization, not new GPU performance evidence.
+Previously launched searches retain their original executable hash and recorded
+wall time; their over-budget results are not replaced with inferred faster
+numbers. The separate EvaluateFlow event-loop budget remains an open problem.
+Evidence: `SOLVER_R9B/unit/{llama64_oracle_stack*,local_release*}.log`,
+`SOLVER_R9B/local_release_identity/*/{command.json,run.log}`.

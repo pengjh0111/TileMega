@@ -474,6 +474,19 @@ def model_traffic():
     except Exception as error:ok=False;detail.append(f'{directory.relative_to(E)}: {error}')
  return ok,'; '.join(detail)
 check('A-model-traffic',model_traffic)
+def local_release_identity():
+ detail=[];ok=True
+ fields={'T':r'FLOW ns=([\d.eE+-]+)','synchronization':r'DECOMPOSE sync=([\d.eE+-]+)','fixed':r'DECOMPOSE.* fixed=([\d.eE+-]+)','contention':r'DECOMPOSE.* contention=([\d.eE+-]+)','chain_delay':r'DECOMPOSE.* chain=([\d.eE+-]+)','pg_upper_bound':r'DECOMPOSE.* pg=([\d.eE+-]+)'}
+ for model in ('llama','qwen3'):
+  for seq in (1,4,16,64):
+   cell=f'{model}_s{seq}'
+   try:
+    text=(E/'local_release_identity'/cell/'run.log').read_text();old=rows(E/'flow_final'/cell/'home.flow.tsv')[0]
+    equal=all(float(re.search(pattern,text)[1]).hex()==float(old[name]).hex() for name,pattern in fields.items())
+    ok &= equal;detail.append(f'{cell} six_predictions_bit_equal={equal}')
+   except Exception as error:ok=False;detail.append(f'{cell}: {error}')
+ return ok,'; '.join(detail)
+check('A-local-release-identity',local_release_identity)
 failed=[k for k,v in results.items() if not v]
 print('R9B_VERIFY failures='+','.join(failed))
 sys.exit(bool(failed))

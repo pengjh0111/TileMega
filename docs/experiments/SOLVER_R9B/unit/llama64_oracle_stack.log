@@ -1,0 +1,24 @@
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x00007fab165413f4 in ?? () from /lib/x86_64-linux-gnu/libgmp.so.10
+
+Thread 1 (Thread 0x7fab164e7000 (LWP 3020267) "tilemega-compil"):
+#0  0x00007fab165413f4 in ?? () from /lib/x86_64-linux-gnu/libgmp.so.10
+#1  0x0000559feaa3e59b in isl_tab_pivot ()
+#2  0x0000559feaa3ebb8 in to_col ()
+#3  0x0000559feaa405be in isl_tab_add_valid_eq ()
+#4  0x0000559feaa62978 in add_lp_row.constprop ()
+#5  0x0000559feaa62f4c in isl_tab_compute_reduced_basis ()
+#6  0x0000559feaa1d421 in isl_tab_sample ()
+#7  0x0000559fea988979 in outside_point ()
+#8  0x0000559fea989447 in extend_affine_hull ()
+#9  0x0000559fea9895ad in uset_affine_hull_bounded.part ()
+#10 0x0000559fea989d3d in isl_basic_map_detect_equalities ()
+#11 0x0000559fea98a39d in isl_basic_map_affine_hull ()
+#12 0x0000559fea98a411 in isl_map_local_affine_hull ()
+#13 0x0000559fea98a8bb in isl_map_affine_hull ()
+#14 0x0000559fea9a7d1f in map_simple_hull.part ()
+#15 0x0000559fea99b0d3 in extract_modulos ()
+#16 0x0000559fea999dd6 in isl_ast_expr_from_aff ()
+#17 0x0000559fea99c2bf in isl_ast_build_expr_from_pw_aff_internal ()
+[Inferior 1 (process 3020267) detached]

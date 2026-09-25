@@ -29,7 +29,7 @@ int main() {
     {"[N] -> { [q] -> [i] : 0<=q<N and 0<=i<8 and (q=0 or i%2=0) }",OracleKind::General},
     {"[N] -> { [q] -> [i] : 0<=q<N and (i=0 or i=1000000) }",OracleKind::General},
     {"[N] -> { [i,j] -> [p,q] : 0<=i<N and 0<=j<N and p=i and q=j }",OracleKind::Unique}};
-  int comparisons=0;
+  int comparisons=0,releases=0;
   {
     auto* f=isl_pw_aff_read_from_str(context.raw(),"[x] -> { [(floor(x/3))] : -20<=x<=20 and x%2=0 }");
     auto program=OracleProgram::Build(isl_pw_aff_domain(isl_pw_aff_copy(f)),{f});
@@ -57,6 +57,13 @@ int main() {
           auto image=oracle.Query(source,theta);std::set<std::vector<long>> actual;
           image.ForEach([&](auto const& p){actual.insert(p);});
           if(actual!=points || image.Count()!=long(points.size()))throw std::runtime_error("oracle differs from exact expanded set");
+          if(!points.empty() && points.begin()->size()==1) {
+            auto release=oracle.LinearRelease(source,theta);
+            long maximum=points.rbegin()->front();
+            bool prefix=points.begin()->front()==0 && long(points.size())==maximum+1;
+            if(release.maximum!=maximum || release.prefix!=prefix)throw std::runtime_error("scalar release differs from exact expanded fiber");
+            ++releases;
+          }
           ++comparisons;
         }
       };check(pair.forward,forward);check(pair.reverse,reverse);
@@ -83,9 +90,14 @@ int main() {
       image.ForEach([&](auto const& p){actual.insert(p);});
       if(q<3)for(int i=0;i<8;++i)if(n==1 || i%2==0)expected.insert({i});
       if(actual!=expected)throw std::runtime_error("theta box cache reused stale bounds");
-      ++comparisons;
+      auto release=theta_box.LinearRelease({q},bound);
+      long maximum=expected.empty()?-1:expected.rbegin()->front();
+      bool prefix=expected.empty() || (expected.begin()->front()==0 && long(expected.size())==maximum+1);
+      if(release.maximum!=maximum || release.prefix!=prefix)throw std::runtime_error("theta-bound scalar release changed");
+      ++releases;++comparisons;
     }
   }
+  std::cout<<"ORACLE_RELEASE_EQUAL comparisons="<<releases<<" PASS\n";
   std::cout<<"ORACLE_SET_EQUAL comparisons="<<comparisons<<" PASS\n";
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
 }

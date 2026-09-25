@@ -1,0 +1,71 @@
+Start testing: Sep 25 11:24 UTC
+----------------------------------------------------------
+9/66 Testing: stage_flow
+9/66 Test: stage_flow
+Command: "/root/TileMega/build-portable/stage_flow_test"
+Directory: /root/TileMega/build-portable
+"stage_flow" start time: Sep 25 11:24 UTC
+Output:
+----------------------------------------------------------
+STAGE_FLOW waterfill=PASS byte_conservation=PASS overlap=PASS coarsen=PASS kappa_sync=PASS counterfactuals=PASS floor_assertion=PASS
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"stage_flow" end time: Sep 25 11:24 UTC
+"stage_flow" time elapsed: 00:00:00
+----------------------------------------------------------
+
+54/66 Testing: skeleton_placement
+54/66 Test: skeleton_placement
+Command: "/root/TileMega/build-portable/skeleton_placement_test"
+Directory: /root/TileMega/build-portable
+"skeleton_placement" start time: Sep 25 11:24 UTC
+Output:
+----------------------------------------------------------
+SCHEDULE_DIGEST case=0 value=1776063382670854147
+READY_PLACEMENT case=0 makespan=104 interleaving=0.4 requeues=20 PASS
+TEMPLATE_DISPLACEMENT case=0 moved=0 affinity=16 PASS
+SCHEDULE_DIGEST case=1 value=2159995250904188931
+READY_PLACEMENT case=1 makespan=108 interleaving=0.4 requeues=28 PASS
+TEMPLATE_DISPLACEMENT case=1 moved=0 affinity=8 PASS
+SCHEDULE_DIGEST case=2 value=9487633319612696579
+READY_PLACEMENT case=2 makespan=108 interleaving=0.4 requeues=28 PASS
+TEMPLATE_DISPLACEMENT case=2 moved=0 affinity=16 PASS
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Passed.
+"skeleton_placement" end time: Sep 25 11:24 UTC
+"skeleton_placement" time elapsed: 00:00:00
+----------------------------------------------------------
+
+59/66 Testing: symbolic_oracle
+59/66 Test: symbolic_oracle
+Command: "/root/TileMega/build-portable/symbolic_oracle_test"
+Directory: /root/TileMega/build-portable
+"symbolic_oracle" start time: Sep 25 11:24 UTC
+Output:
+----------------------------------------------------------
+ORACLE_EXPRESSION signed_floor_domain_holes=45 PASS
+ORACLE Rectangular reverse=Unique structure=1:N PASS
+ORACLE Unique reverse=Rectangular structure=N:1 PASS
+ORACLE Unique reverse=Unique structure=1:1 PASS
+ORACLE Unique reverse=Rectangular structure=N:1 PASS
+ORACLE Rectangular reverse=Rectangular structure=M:N PASS
+ORACLE General reverse=General structure=M:N PASS
+ORACLE General reverse=General structure=M:N PASS
+ORACLE General reverse=General structure=M:N PASS
+ORACLE General reverse=General structure=M:N PASS
+ORACLE Unique reverse=Unique structure=1:1 PASS
+ORACLE_RELEASE_EQUAL comparisons=233 PASS
+ORACLE_SET_EQUAL comparisons=384 PASS
+<end of output>
+Test time =   0.13 sec
+----------------------------------------------------------
+Test Passed.
+"symbolic_oracle" end time: Sep 25 11:24 UTC
+"symbolic_oracle" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Sep 25 11:24 UTC

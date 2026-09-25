@@ -203,12 +203,10 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     if(it!=cache.releases.end()){++cache.release_hits;sorted=it->second;}else {
       ++cache.release_misses;auto values=std::make_shared<std::vector<std::pair<int,int>>>();bool nonprefix=false;
       for(int j=0;j<problem.counts[c];++j) {
-        auto image=oracle->reverse.Query({j},theta);if(!image.Count())continue;
-        int maximum=-1;
-        if(image.rectangular){maximum=image.box.at(0).second;nonprefix|=image.box.at(0).first!=0;}
-        else maximum=image.MaximumLinear();
-        nonprefix|=image.Count()!=maximum+1;
-        values->emplace_back(CoarsenRelease(maximum,problem.counts[p],kappa),j);
+        auto release=oracle->reverse.LinearRelease({j},theta);
+        if(release.maximum<0)continue;
+        nonprefix|=!release.prefix;
+        values->emplace_back(CoarsenRelease(release.maximum,problem.counts[p],kappa),j);
       }
       cache.nonprefix.emplace(key,nonprefix);
       std::sort(values->begin(),values->end());sorted=values;cache.releases.emplace(key,sorted);

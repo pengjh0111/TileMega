@@ -1,0 +1,24 @@
+RELATIONS ms=17173.4
+INDIRECT tensor=p_embed_weight tokens=16 unique_rows=16 width=2048
+FLOOR ms=17507.5
+PREPARE ms=40518.443097000003 spaces=356 edges=435 price_hits=0 price_misses=21 varying=16
+STRUCTURE ms=1402.8977910000001 counts_exact=1 releases_exact=1 makespan_exact=1
+PREPARE_WARM ms=22.305653 space_hits=1047 space_misses=21
+FLOW ns=4624556.5679461621 floor_ns=2522885.4883002075 delivered=2485297280.0000687 mean_ms=6.748555399999999 max_ms=7.0759749999999997
+DECOMPOSE sync=1169506.9274695418 fixed=756399.87193601299 contention=15739.294545215555 chain=160024.98569518421 pg=1117573.4383051838
+VARYING l0.s09.attn
+VARYING l0.s24.attn
+VARYING l0.s39.attn
+VARYING l0.s54.attn
+VARYING l0.s69.attn
+VARYING l0.s84.attn
+VARYING l0.s99.attn
+VARYING l0.s114.attn
+VARYING l0.s129.attn
+VARYING l0.s144.attn
+VARYING l0.s159.attn
+VARYING l0.s174.attn
+VARYING l0.s189.attn
+VARYING l0.s204.attn
+VARYING l0.s219.attn
+VARYING l0.s234.attn

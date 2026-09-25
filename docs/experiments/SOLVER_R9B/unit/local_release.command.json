@@ -1,0 +1,17 @@
+{
+  "command": [
+    "ctest",
+    "--test-dir",
+    "build-portable",
+    "--output-on-failure",
+    "-R",
+    "^(symbolic_oracle|skeleton_placement|stage_flow)$"
+  ],
+  "sources": {
+    "lib/Analysis/SymbolicOracle.cpp": "2e33a5a3989edff6af43af0afd3239dd59655c8c2a80386610639a652193f904",
+    "include/tilemega/Analysis/SymbolicOracle.h": "15386c514bc9262d85c09fc5918ae00e7c98f3f5fdccfd23cdd1ba0b67740d42",
+    "lib/Solver/FlowPreparation.cpp": "ea3afebd61e18cf911040bb169c3afa582018ca62f47a50293f6139e2783d9b3",
+    "test/unit/symbolic_oracle_test.cpp": "9200dcb1caf5a49286db27c7633c6cc080ba6b8196ae0549c567a415676f22be"
+  },
+  "initial_failure": "General fiber prefix test exposed retained bound parameters; projecting singleton-bound parameters out before is_box fixes the exact prefix proof."
+}

@@ -1,0 +1,12 @@
+{
+  "command": [
+    "/root/r9b_work/local-release-audit",
+    "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s64/selected.mlir",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/fit/target.json",
+    "64",
+    "/root/r7_work/llama_s64/fixture",
+    "4",
+    "1"
+  ],
+  "binary_sha256": "f7404db7db1d29fc9a355162bf5cc95538ac385281b124994f4c543480c94ed0"
+}

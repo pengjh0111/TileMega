@@ -7,6 +7,7 @@
 #include <isl/space.h>
 #include <isl/point.h>
 #include <isl/val.h>
+#include <isl/ilp.h>
 #include <chrono>
 #include <limits>
 #include <stdexcept>
@@ -113,8 +114,39 @@ long OracleImage::MaximumLinear() const {
   return result;
 }
 long SymbolicOracle::MaximumLinear(std::vector<long> const& source,ParamBinding const& theta) const {
-  if(impl_->output!=1)throw std::invalid_argument("release maximum requires row-major linear coordinates");
-  return Query(source,theta).MaximumLinear();
+  return LinearRelease(source,theta).maximum;
+}
+OracleLinearRelease SymbolicOracle::LinearRelease(std::vector<long> const& source,ParamBinding const& theta) const {
+  auto& d=*impl_;
+  if(d.output!=1 || int(source.size())!=d.input)throw std::invalid_argument("release maximum requires linear fiber and matching source");
+  if(d.kind!=OracleKind::General) {
+    auto image=Query(source,theta);auto maximum=image.MaximumLinear();
+    return {maximum,image.Count()==maximum+1};
+  }
+  auto start=std::chrono::steady_clock::now();++d.queries;
+  struct Timer{Impl& d;std::chrono::steady_clock::time_point start;~Timer(){d.ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();}} timer{d,start};
+  // Bind one exact Presburger fiber before optimizing. No global symbolic AST
+  // or membership scan over a potentially million-element bounding interval.
+  auto* fiber=isl_set_copy(d.image);
+  for(int i=0;i<d.parameters;++i) {
+    char const* name=isl_map_get_dim_name(d.map,isl_dim_param,i);
+    auto value=theta.values.find(name?name:"");
+    if(value==theta.values.end()){isl_set_free(fiber);throw std::invalid_argument("Oracle theta is unbound");}
+    fiber=isl_set_fix_val(fiber,isl_dim_param,i,isl_val_int_from_si(SharedIslContext().raw(),value->second));
+  }
+  for(int i=0;i<d.input;++i)fiber=isl_set_fix_val(fiber,isl_dim_param,d.parameters+i,isl_val_int_from_si(SharedIslContext().raw(),source[i]));
+  // All parameters are now singleton-bound; projecting them out exposes the
+  // exact constant fiber to ISL's box predicate (and avoids parametric hulls).
+  fiber=isl_set_project_out(fiber,isl_dim_param,0,d.parameters+d.input);
+  fiber=isl_set_coalesce(fiber);
+  auto empty=isl_set_is_empty(fiber);
+  if(empty==isl_bool_error){isl_set_free(fiber);throw std::runtime_error("release fiber emptiness failed");}
+  if(empty){isl_set_free(fiber);return {};}
+  long maximum=integer(isl_set_dim_max_val(isl_set_copy(fiber),0));
+  auto box=isl_set_is_box(fiber);
+  if(box==isl_bool_error){isl_set_free(fiber);throw std::runtime_error("release prefix proof failed");}
+  bool prefix=box==isl_bool_true && integer(isl_set_dim_min_val(isl_set_copy(fiber),0))==0;
+  isl_set_free(fiber);return {maximum,prefix};
 }
 std::uint64_t SymbolicOracle::queries() const{return impl_->queries;}
 double SymbolicOracle::query_ms() const{return impl_->ms;}

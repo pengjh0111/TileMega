@@ -19,6 +19,7 @@ struct OracleImage {
   long MaximumLinear() const;
   void ForEach(std::function<void(std::vector<long> const&)> const& visitor) const;
 };
+struct OracleLinearRelease {long maximum=-1;bool prefix=true;};
 /// Immutable per-edge symbolic fiber, with source coordinates moved to parameters.
 class SymbolicOracle {
  public:
@@ -32,6 +33,10 @@ class SymbolicOracle {
   /// Maximum of a one-dimensional linearized fiber, or -1 for an empty fiber.
   /// This scalar release bound is never used to construct a dependency box.
   long MaximumLinear(std::vector<long> const& source,ParamBinding const& theta={}) const;
+  /// Exact local scalar optimization; prefix means the image is [0, maximum].
+  /// General fibers are optimized after theta/source binding, without scanning
+  /// a bounding interval or constructing a symbolic all-coordinate maximum.
+  OracleLinearRelease LinearRelease(std::vector<long> const& source,ParamBinding const& theta={}) const;
   std::uint64_t queries() const;
   double query_ms() const;
  private:

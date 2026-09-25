@@ -1,0 +1,36 @@
+RELATIONS ms=31405.9
+INDIRECT tensor=p_embed_weight tokens=16 unique_rows=16 width=2048
+FLOOR ms=31821
+PREPARE ms=38012.613566 spaces=676 edges=815 price_hits=0 price_misses=23 varying=28
+STRUCTURE ms=1039.4002909999999 counts_exact=1 releases_exact=1 makespan_exact=1
+PREPARE_WARM ms=28.751773 space_hits=2005 space_misses=23
+FLOW ns=7114441.1003619963 floor_ns=3512955.1331854211 delivered=3466539136.0001388 mean_ms=5.6246038 max_ms=5.6984640000000004
+DECOMPOSE sync=2122158.1341688903 fixed=1193447.6613646154 contention=16059.834739639424 chain=269820.33690343006 pg=1600825.559359991
+VARYING l0.s11.attn
+VARYING l0.s28.attn
+VARYING l0.s45.attn
+VARYING l0.s62.attn
+VARYING l0.s79.attn
+VARYING l0.s96.attn
+VARYING l0.s113.attn
+VARYING l0.s130.attn
+VARYING l0.s147.attn
+VARYING l0.s164.attn
+VARYING l0.s181.attn
+VARYING l0.s198.attn
+VARYING l0.s215.attn
+VARYING l0.s232.attn
+VARYING l0.s249.attn
+VARYING l0.s266.attn
+VARYING l0.s283.attn
+VARYING l0.s300.attn
+VARYING l0.s317.attn
+VARYING l0.s334.attn
+VARYING l0.s351.attn
+VARYING l0.s368.attn
+VARYING l0.s385.attn
+VARYING l0.s402.attn
+VARYING l0.s419.attn
+VARYING l0.s436.attn
+VARYING l0.s453.attn
+VARYING l0.s470.attn
