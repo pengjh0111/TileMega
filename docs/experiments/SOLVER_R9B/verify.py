@@ -447,6 +447,20 @@ def wait_window_identity():
  commands=json.loads((directory/'commands.json').read_text())
  return old==new and len(new.splitlines())==252 and all(r.get('exit')==0 for r in commands),f'{directory.relative_to(ROOT)}: cases={len(new.splitlines())} byte_equal={old==new} sha256={hashlib.sha256(new).hexdigest()}; loop-invariant extent hoisting preserves fitted event windows'
 check('A-wait-window-identity',wait_window_identity)
+def model_traffic():
+ ok=True;detail=[]
+ for model in ('llama','qwen3'):
+  for seq in (1,4,16,64):
+   for arm in ('legacy','skeleton'):
+    directory=E/'traffic'/arm/f'{model}_s{seq}'
+    try:
+     data=rows(directory/'spaces.tsv');status=json.loads((directory/'exit.json').read_text());command=json.loads((directory/'command.json').read_text())
+     intact=hashlib.sha256(pathlib.Path(command['command'][1]).read_bytes()).hexdigest()==command['cg_sha256']
+     valid=status['exit']==0 and intact and bool(data) and all(float(r['no_producer_read_bytes'])+float(r['produced_read_bytes'])==float(r['physical_read_bytes']) and int(r['tasks'])>0 for r in data)
+     ok &= valid;detail.append(f'{arm}/{model}_s{seq} spaces={len(data)} provenance_exact={valid}')
+    except Exception as error:ok=False;detail.append(f'{directory.relative_to(E)}: {error}')
+ return ok,'; '.join(detail)
+check('A-model-traffic',model_traffic)
 failed=[k for k,v in results.items() if not v]
 print('R9B_VERIFY failures='+','.join(failed))
 sys.exit(bool(failed))

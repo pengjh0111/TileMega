@@ -97,6 +97,7 @@ GB 级无生产者权重流量从 SDCM 约 0.5 的 DRAM 比例改为实测服务
 
 '''+table('fit_errors.tsv',list(rows('fit_errors.tsv')[0]) if rows('fit_errors.tsv') else [])+
     table('observed_traffic.tsv',['cell','population','nominal_operand_bytes','physical_operand_bytes','physical_over_nominal'])+
+    '\n整图 task 访存量（按分片计数，包含 task 间重复读取；不是唯一 DRAM 字节或设备实测流量；标量路径原先已用物理域，两列保持相同）：\n\n'+table('model_traffic.tsv',['cell','arm','spaces','tasks','nominal_read_bytes','nominal_write_bytes','physical_read_bytes','physical_write_bytes','physical_over_nominal'])+
     table('replay.tsv',['arm','model','n','spearman','MAPE','best_actual_rank_in_predicted_top1','best_actual_rank_in_predicted_top3','best_actual_rank_in_predicted_top10']))
 parts.append('## 8. Level 1 与逐 tile 模拟\n\n预热速度原始证据 `flow_final/`、`flow_arena/`；完整矩阵的求解阶段见 §11。随机样本只有完成 100 组且进程正常结束才标 complete。关闭流体模式的参考 24 计划对照共 102,312 行 binary64 输出与基线逐字节一致，见 `simulator_identity/`。\n\n'+
     table('consistency.tsv',['family','model','n','complete','spearman','ratio_p10','ratio_p50','ratio_p90','flow_ms_max','fluid_ms_max','nonprefix_edges_max','varying_spaces_max'])+

@@ -9,9 +9,46 @@
 #include <chrono>
 #include <iomanip>
 #include <iostream>
+#include <fstream>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 using namespace tilemega;
+namespace {
+// Diagnostic only: sum semantic task traffic, not unique device-DRAM bytes.
+// Boundary pieces are exact price classes; coordinate-varying spaces retain
+// one piece per coordinate. No task placement or executor state is changed.
+void AuditTraffic(solver::SymbolicProblem const& problem,solver::PreparedFlow const& flow,
+    analysis::DramFloor const& floor,std::ostream& out) {
+  auto model=problem.model;model.metric_bindings.values.erase("Tm");model.metric_bindings.values.erase("Tn");
+  auto theta=model.MetricBindings();auto graph=solver::InstantiateModelTasks(model,problem.geometry);
+  out<<std::setprecision(17)<<"space\ttasks\tnominal_read_bytes\tnominal_write_bytes\tphysical_read_bytes\tphysical_write_bytes\tno_producer_read_bytes\tproduced_read_bytes\texternal_write_bytes\n";
+  for(std::size_t s=0;s<problem.counts.size();++s) {
+    auto const& projected=problem.projection.stages[s];auto const& stage=model.stages[projected.logical_stage];
+    auto semantic=*std::find_if(model.task_semantics.begin(),model.task_semantics.end(),[&](auto const& sem){return sem.stage==projected.logical_stage && (!stage.IsCollective() || sem.op.kind==analysis::OperatorKind::kMatmul);});
+    auto g=stage.IsCollective()?problem.geometry.at(stage.gemm):solver::GemmConfig{};
+    solver::DerivedTaskInput input;
+    if(projected.combine) {
+      input=solver::DeriveCombineTaskInput(model,projected.logical_stage,g,graph,problem.threads,problem.runtime.ownership_flags & codegen::kCombinerTileOwnership,true);
+      semantic.op.name=input.task.name;semantic.op.kind=analysis::OperatorKind::kReduction;semantic.op.element_reads.clear();
+    } else input=solver::DeriveModelTaskInput(model,semantic,graph,stage.IsCollective()?&g:nullptr);
+    solver::BindTaskDramProvenance(input,semantic,floor,theta);
+    bool partial=!projected.combine && graph.Find(semantic.op.reduction.combiner);
+    double sums[7]={};long count=0;
+    for(auto const& piece:flow.prices[s].pieces) {
+      auto n=piece.count.Eval(theta);count+=n;
+      // Scalar task traffic already used the physical q-domain before R9b.
+      auto prior_domain=stage.IsCollective() && !projected.combine ? analysis::AccessDomain::kNominalTile : analysis::AccessDomain::kPhysicalTensor;
+      auto nominal=solver::DeriveTaskMemoryTraffic(input,theta,piece.representative,2,partial?4:2,prior_domain);
+      auto physical=solver::DeriveTaskMemoryTraffic(input,theta,piece.representative,2,partial?4:2,analysis::AccessDomain::kPhysicalTensor);
+      double values[]={nominal.global_read_bytes,nominal.global_write_bytes,physical.global_read_bytes,physical.global_write_bytes,physical.no_producer_read_bytes,physical.produced_read_bytes,physical.external_write_bytes};
+      for(int j=0;j<7;++j)sums[j]+=n*values[j];
+    }
+    if(count!=problem.counts[s] || sums[4]+sums[5]!=sums[2])throw std::runtime_error("traffic piece/provenance mismatch");
+    out<<input.task.name<<'\t'<<count;for(double value:sums)out<<'\t'<<value;out<<'\n';out.flush();
+  }
+}
+}
 int main(int argc,char** argv) try {
-  if(argc!=7 && argc!=8)throw std::invalid_argument("usage: tilemega-flow-audit CG target seq fixture residency kappa [materialization_prefix]");
+  if(argc!=7 && argc!=8 && !(argc==9 && std::string(argv[7])=="--traffic"))throw std::invalid_argument("usage: tilemega-flow-audit CG target seq fixture residency kappa [materialization_prefix | --traffic output.tsv]");
   analysis::IslContext isl;analysis::ScopedExactAnalysisMemo memo;mlir::MLIRContext ctx;ctx.getOrLoadDialect<dialect::CGDialect>();ctx.getOrLoadDialect<dialect::ExecDialect>();
   auto module=mlir::parseSourceFile<mlir::ModuleOp>(argv[1],&ctx);if(!module)throw std::runtime_error("cannot parse CG");
   auto target=TargetSpec::FromJson(argv[2]);int seq=std::stoi(argv[3]),residency=std::stoi(argv[5]),kappa=std::stoi(argv[6]);
@@ -23,6 +60,7 @@ int main(int argc,char** argv) try {
   analysis::CouplingCache coupling;solver::FlowPreparationCache cache;solver::HopCurve hop;std::string error;if(!solver::HopCurve::FromTsv(std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SIMULATOR/hop_ns.tsv",&hop,&error))throw std::runtime_error(error);
   auto prepared=solver::PrepareFlow(problem,floor,target,residency,hop,coupling,cache,false);
   std::cout<<std::setprecision(17)<<"PREPARE ms="<<std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begin).count()<<" spaces="<<prepared.flow.spaces.size()<<" edges="<<prepared.flow.edges.size()<<" price_hits="<<cache.prices.hits<<" price_misses="<<cache.prices.misses<<" varying="<<prepared.varying_spaces.size()<<std::endl;
+  if(argc==9){std::ofstream traffic(argv[8]);if(!traffic)throw std::runtime_error("cannot open traffic output");AuditTraffic(problem,prepared,floor,traffic);return 0;}
   auto structure_start=std::chrono::steady_clock::now();
   auto quick=solver::PrepareFlowStructure(problem,problem.geometry,target.res.num_sms*residency,kappa,coupling,&cache);
   if(quick.counts!=problem.counts)throw std::runtime_error("semantic stage counts differ from runtime projection");

@@ -311,9 +311,30 @@ def additional_measurements():
     write('legacy_flow.tsv', legacy_flow)
 
 
+def model_traffic():
+    result = []
+    for model, seq in CELLS:
+        cell = f'{model}_s{seq}'
+        for arm in ('legacy', 'skeleton'):
+            directory = E / 'traffic' / arm / cell
+            try:
+                if json.loads((directory / 'exit.json').read_text())['exit'] != 0:
+                    raise ValueError('traffic audit failed: ' + str(directory))
+                data = rows(directory / 'spaces.tsv')
+                fields = ['nominal_read_bytes', 'nominal_write_bytes', 'physical_read_bytes', 'physical_write_bytes',
+                          'no_producer_read_bytes', 'produced_read_bytes', 'external_write_bytes']
+                totals = {name: sum(float(r[name]) for r in data) for name in fields}
+                result.append(dict(cell=cell, arm=arm, spaces=len(data), tasks=sum(int(r['tasks']) for r in data),
+                    **totals, physical_over_nominal=(totals['physical_read_bytes'] + totals['physical_write_bytes']) /
+                    (totals['nominal_read_bytes'] + totals['nominal_write_bytes']), evidence=str(directory.relative_to(E))))
+            except (OSError, ValueError, KeyError) as error:
+                missing.append(f'traffic/{arm}/{cell}: {error}')
+    write('model_traffic.tsv', result)
+
+
 def main():
     OUT.mkdir(exist_ok=True)
-    for operation in (performance, consistency, replays, theta, fits_and_traffic, additional_measurements):
+    for operation in (performance, consistency, replays, theta, fits_and_traffic, additional_measurements, model_traffic):
         operation()
     (OUT / 'incomplete.json').write_text(json.dumps(missing, indent=2) + '\n')
     print(f'R9B_REPORT tables={OUT} incomplete_items={len(missing)}')

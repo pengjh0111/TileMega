@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/root/r9b_work/flow-traffic-audit-v2",
+    "/root/TileMega/docs/experiments/SOLVER_V2/legacy_r8_domain/llama_s1/selected.mlir",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/fit/target.json",
+    "1",
+    "/root/r7_work/llama_s1/fixture",
+    "3",
+    "1",
+    "--traffic",
+    "/root/TileMega/docs/experiments/SOLVER_R9B/traffic/legacy/llama_s1/spaces.tsv"
+  ],
+  "binary_sha256": "e4dc3fff42b36c5fb0370ff72423c7f4c5e9e4700dbee7a61dca9754aff76f77",
+  "cg_sha256": "cdea2e17d9f9cee68618236ceef79071919b09511a5d650e339933876a8c85c1"
+}
