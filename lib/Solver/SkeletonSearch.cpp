@@ -144,7 +144,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     auto b=search.Materialize(candidate,false);auto b_stats=b.candidate.placement;
     auto eb=FinalizeSkeletonPoint(std::move(b),opts,options.artifact_prefix+".m"+std::to_string(rank)+"B");
     bool pure=options.pure_template || ea.evaluation.makespan_ns<=eb.evaluation.makespan_ns;
-    table<<rank<<'\t'<<candidate.key<<'\t'<<ea.evaluation.makespan_ns<<'\t'<<eb.evaluation.makespan_ns<<'\t'<<pure<<'\t'<<(b_stats.placed?1.-double(b_stats.home)/b_stats.placed:0)<<'\n';table.flush();
+    table<<rank<<'\t'<<candidate.key<<'\t'<<ea.evaluation.makespan_ns<<'\t'<<eb.evaluation.makespan_ns<<'\t'<<pure<<'\t'<<(b_stats.placed?double(b_stats.moved_from_home)/b_stats.placed:0)<<'\n';table.flush();
     auto c=candidate;c.placement=pure?a_stats:b_stats;
     materialized.push_back({pure?std::move(ea):std::move(eb),c,pure});
   }
