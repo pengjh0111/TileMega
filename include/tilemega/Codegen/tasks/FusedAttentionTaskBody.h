@@ -43,7 +43,6 @@ struct FusedAttentionTaskBody {
     alignas(16) Element key[QkMma::kBElements];
     alignas(16) Element probability[PvMma::kAElements];
     alignas(16) Element value[PvMma::kBElements];
-    alignas(16) Element raw[64 * kHeadDim];
     alignas(16) float score[16 * 64];
     alignas(16) float product[16 * kHeadDim];
     alignas(16) float accumulated[16 * kHeadDim];
@@ -183,12 +182,15 @@ struct FusedAttentionTaskBody {
         // Each source row is contiguous; the swizzled MMA layout is populated
         // after the asynchronous copy completes.
         int cached_rows = max(0, min(kKvTile, min(block_limit, p.past) - key_begin));
+        // Before PV, its tile is free to stage contiguous K for the swizzled
+        // QK layout. QK finishes before the K tile stages contiguous V.
+        Element* raw_key = smem.value;
         if (cached_rows) {
           CopyCached(p.key_cache +
               ((batch * p.heads_kv + group) * p.capacity + key_begin) * kHeadDim,
-              smem.raw, cached_rows * kHeadDim);
+              raw_key, cached_rows * kHeadDim);
           for (int i = int(threadIdx.x); i < cached_rows * kHeadDim; i += 128)
-            key(i / kHeadDim, i % kHeadDim) = smem.raw[i];
+            key(i / kHeadDim, i % kHeadDim) = raw_key[i];
           __syncthreads();
         }
         QkMma::Run(smem.query, smem.key, smem.score, 64);
@@ -228,10 +230,11 @@ struct FusedAttentionTaskBody {
         __syncthreads();
         auto value = cute::make_tensor(cute::make_smem_ptr(smem.value),
                                        typename PvMma::LayoutB{});
+        Element* raw_value = smem.key;
         if (cached_rows) {
           CopyCached(p.value_cache +
               ((batch * p.heads_kv + group) * p.capacity + key_begin) * kHeadDim,
-              smem.raw, cached_rows * kHeadDim);
+              raw_value, cached_rows * kHeadDim);
         }
         int valid_rows = min(kKvTile, block_limit - key_begin);
         for (int i = int(threadIdx.x); i < (valid_rows - cached_rows) * kHeadDim;
@@ -244,7 +247,7 @@ struct FusedAttentionTaskBody {
           Element const* source = p.qkv +
               (batch * kTokens + token) * p.heads_kv * group_width +
               group * group_width + (kQPerKV + 1) * kHeadDim;
-          smem.raw[row * kHeadDim + d] = source[d];
+          raw_value[row * kHeadDim + d] = source[d];
           bool owns_write = query_begin == q_begin &&
                             token * kQPerKV >= q_begin &&
                             token * kQPerKV < q_begin + kQRows;
@@ -255,7 +258,7 @@ struct FusedAttentionTaskBody {
         __syncthreads();
         for (int i = int(threadIdx.x); i < 64 * kHeadDim; i += 128) {
           int row = i / kHeadDim, d = i % kHeadDim;
-          value(d, row) = row < valid_rows ? smem.raw[i] : Element(0.0f);
+          value(d, row) = row < valid_rows ? raw_value[i] : Element(0.0f);
         }
         __syncthreads();
         PvMma::Run(smem.probability, smem.value, smem.product, kHeadDim);

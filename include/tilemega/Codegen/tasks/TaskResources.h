@@ -32,10 +32,10 @@ constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_exten
   return 0;
 }
 
-// SharedStorage in FusedAttentionTaskBody: five BF16 tiles, three FP32
-// accumulators, and row statistics. The dimensions are fixed by the TaskBody.
+// The K tile is reused as the raw V staging area after QK; the V tile is
+// reused as the raw K staging area before PV.
 constexpr int ServingAttentionSharedBytes(int head_dim) {
-  return 544 * head_dim + 6272;
+  return 416 * head_dim + 6272;
 }
 
 template <TaskKind Kind, int Threads, int AttentionExtent = TILEMEGA_ATTENTION_SCRATCH_EXTENT>
