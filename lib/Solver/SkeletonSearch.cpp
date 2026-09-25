@@ -117,9 +117,23 @@ SkeletonSearchResult SolveSkeletonExport(std::string const& path,mlir::MLIRConte
   if(options.jobs!=1)throw std::invalid_argument("flow search is single-threaded; ISL and price caches belong to its thread");
   auto plan=[&]{SolverPhase phase(options.common.timing,"bridge_and_plan");auto b=frontend::ReadExportBridge(path);return frontend::BuildModelPlan(b.nodes,b.inputs,b.outputs);}();
   auto imported=[&]{SolverPhase phase(options.common.timing,"import");return importer.ImportSemantics(path,plan,context);}();
-  SearchContext search(std::move(imported),context,options);SkeletonSearchResult result;result.classes=search.classes;
+  return SolveSkeletonImported(imported,context,options,summary,evidence);
+}
+SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& imported,
+    mlir::MLIRContext& context,SkeletonSearchOptions const& options,
+    frontend::ImportSummary* summary,std::ostream& evidence) {
+  analysis::ScopedExactAnalysisMemo memo;
+  if(options.jobs!=1)throw std::invalid_argument("flow search is single-threaded");
+  SearchContext search(imported,context,options);SkeletonSearchResult result;result.classes=search.classes;
   evidence<<std::setprecision(17);result.evaluated=CoordinateDescent(search,result.rounds,evidence);
-  if(options.search_only)return result;
+  if(options.search_only) {
+    std::ofstream floor(options.artifact_prefix+".floor.tsv");
+    auto value=search.floor->Evaluate(search.base->model.MetricBindings());
+    floor<<std::setprecision(17)<<"dram_ns\tcompute_ns\tfloor_ns\n"
+         <<value.dram_ns<<'\t'<<value.compute_ns<<'\t'<<value.floor_ns<<'\n';
+    if(auto* t=options.common.timing){t->Add("cache_hit",0,search.cache.hits);t->Add("cache_miss",0,search.cache.misses);t->Add("search_evaluations",0,result.evaluated.size());t->Add("search_rounds",0,result.rounds);}
+    return result;
+  }
   struct Materialized {CompilerSearchResult::ShortlistEntry entry;SkeletonCandidate candidate;bool pure;};std::vector<Materialized> materialized;
   std::ofstream table(options.artifact_prefix+".materializations.tsv");table<<"rank\tkey\tpure_ns\teft_ns\tpure_selected\tmoved_fraction\n";
   int rank=0;for(auto const& candidate:result.evaluated) {

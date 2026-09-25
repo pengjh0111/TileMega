@@ -40,6 +40,10 @@ struct SkeletonSolvedPoint {
 // This is the sole bridge to the explicit graph. Called only after top-K.
 CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&& point,
     SkeletonSearchOptions const& options,std::string const& prefix);
+// Reuse the same imported semantics while changing theta bindings.
+SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& imported,
+    mlir::MLIRContext& context,SkeletonSearchOptions const& options,
+    frontend::ImportSummary* summary,std::ostream& evidence);
 SkeletonSearchResult SolveSkeletonExport(std::string const& path,mlir::MLIRContext& context,
     SkeletonSearchOptions const& options,frontend::ImportSummary* summary,std::ostream& evidence);
 }
