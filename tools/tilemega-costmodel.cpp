@@ -347,10 +347,10 @@ int main(int argc, char** argv) try {
   full_options.unified_task_cost = unified_task_cost;
   full_options.measured_cache_curve = measured_cache_curve;
   if(!regime_a.empty()) {
-    if(regime_a!="all" && regime_a!="physical" && regime_a!="stages" && regime_a!="fixed")throw std::invalid_argument("unknown regime-A ablation");
+    if(regime_a!="all" && regime_a!="physical" && regime_a!="stages" && regime_a!="fixed" && regime_a!="physical-stages")throw std::invalid_argument("unknown regime-A ablation");
     full_options.regime_a=true;
-    full_options.physical_traffic=regime_a=="all" || regime_a=="physical";
-    full_options.stage_latency=regime_a=="all" || regime_a=="stages";
+    full_options.physical_traffic=regime_a=="all" || regime_a=="physical" || regime_a=="physical-stages";
+    full_options.stage_latency=regime_a=="all" || regime_a=="stages" || regime_a=="physical-stages";
     full_options.physical_fixed=regime_a=="all" || regime_a=="fixed";
   }
   CostModel const full(target, dtype, full_options);
@@ -469,6 +469,7 @@ int main(int argc, char** argv) try {
 
       if (std::string(layer.name) == "+nongemm(full)") {
         std::ofstream detail(out_dir + "/predictions_" + source.name + ".tsv");
+        detail << std::setprecision(17);
         detail << "tile_m\ttile_n\ttile_k\tstages\tsplit_k\tctas_per_sm"
                   "\tmeasured_ms\tmodel_ms\tgemm_ms\tcombine_ms\tother_ms"
                   "\tbarrier_ms\tstages_after_split";

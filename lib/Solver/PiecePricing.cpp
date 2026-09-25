@@ -33,18 +33,24 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
   }
   PiecePrices result;std::vector<std::pair<long,long>> bounds(axes.size());
   auto make_domain=[&]{std::string tuple,where;for(std::size_t i=0;i<axes.size();++i){if(i){tuple+=",";where+=" and ";}tuple+=axes[i].name;where+=std::to_string(bounds[i].first)+"<="+axes[i].name+"<"+std::to_string(bounds[i].second);}return analysis::CouplingRelation::FromIslText("{ ["+tuple+"] -> ["+tuple+"]"+(where.empty()?"":" : "+where)+" }");};
+  std::vector<analysis::QuasiPolynomial const*> quantities{&input.work.read_elements,&input.work.write_elements};
+  if(traits.stages>0){quantities.push_back(&input.work.nominal_read_elements);quantities.push_back(&input.work.nominal_write_elements);quantities.push_back(&input.work.nominal_task_reduce_extent);}
+  if(input.physical_read_bytes)quantities.push_back(&*input.physical_read_bytes);
+  if(input.no_producer_read_bytes)quantities.push_back(&*input.no_producer_read_bytes);
+  if(input.external_write_bytes)quantities.push_back(&*input.external_write_bytes);
+  // PriceParts depends on coordinates only through these access quantities.
+  // Causal rows in different heads remain separate pieces but share arithmetic.
+  std::map<std::vector<long>,TaskPriceParts> equal_prices;
   auto append=[&](analysis::CouplingRelation const& domain,analysis::ParamBinding const& point){
     PricePiece p;p.domain=domain;p.count=domain.ImageCard();p.representative=point;
-    p.parts=cost.PriceParts(input,traits,residency,model,chunks,point,residency.ctas_per_sm);
+    std::vector<long> values;for(auto q:quantities)values.push_back(q->BindCoordinates(point).Eval(theta));
+    auto found=equal_prices.find(values);
+    if(found==equal_prices.end())found=equal_prices.emplace(std::move(values),cost.PriceParts(input,traits,residency,model,chunks,point,residency.ctas_per_sm)).first;
+    p.parts=found->second;
     result.total_isolated_ns+=p.count.Eval(theta)*IsolatedNs(p.parts,cal.dram_gbps/(cost.target().res.num_sms*residency.ctas_per_sm));result.pieces.push_back(std::move(p));
   };
   auto partition=[&]{
     auto domain=make_domain();analysis::ParamBinding point;for(std::size_t i=0;i<axes.size();++i)point.Bind(axes[i].name,bounds[i].first);
-    std::vector<analysis::QuasiPolynomial const*> quantities{&input.work.read_elements,&input.work.write_elements};
-    if(traits.stages>0){quantities.push_back(&input.work.nominal_read_elements);quantities.push_back(&input.work.nominal_write_elements);quantities.push_back(&input.work.nominal_task_reduce_extent);}
-    if(input.physical_read_bytes)quantities.push_back(&*input.physical_read_bytes);
-    if(input.no_producer_read_bytes)quantities.push_back(&*input.no_producer_read_bytes);
-    if(input.external_write_bytes)quantities.push_back(&*input.external_write_bytes);
     bool constant=true;for(auto q:quantities) {
       auto value=q->BindCoordinates(point).Eval(theta);
       if(!q->SumAlong(domain).SemanticallyEqual(domain.Card().Scale(value),theta)){constant=false;break;}

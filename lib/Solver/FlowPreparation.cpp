@@ -82,7 +82,10 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   auto const& cal=target.CalibrationFor("bf16");
   flow.all_external_miss=CacheServiceCurve(cal.l2_curve_bytes,cal.l2_curve_gbps).HitFraction(bound.read_bytes,cal.l2_gbps,cal.dram_gbps)==0;
   auto graph=InstantiateModelTasks(model,problem.geometry);
-  CostModelOptions options;options.regime_a=true;CostModel cost(target,model.dtype,options);
+  CostModelOptions options;options.regime_a=true;
+  // R9b §7.3 fallback: the physical fixed fit worsens median error and replay rank.
+  options.physical_fixed=false;
+  CostModel cost(target,model.dtype,options);
   std::vector<std::string> signatures,geometry_keys;
   std::vector<int> order(problem.counts.size());int ordinal=0;
   for(auto const& logical:BuildVariantStageSchedule(problem.runtime.dependencies,model.stages.size()).schedule)
@@ -184,9 +187,10 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
         nonprefix|=image.Count()!=maximum+1;
         values->emplace_back(CoarsenRelease(maximum,problem.counts[p],kappa),j);
       }
-      if(nonprefix)++result.nonprefix_edges;
+      cache.nonprefix.emplace(key,nonprefix);
       std::sort(values->begin(),values->end());sorted=values;cache.releases.emplace(key,sorted);
     }
+    if(cache.nonprefix.at(key))++result.nonprefix_edges;
     flow.edges.push_back({p,c,kappa,all,false,std::move(sorted)});
   }
   for(auto& e:flow.edges)e.colocated=result.colocated_producer[e.consumer]==e.producer;
