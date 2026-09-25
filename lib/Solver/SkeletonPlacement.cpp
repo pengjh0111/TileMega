@@ -101,8 +101,9 @@ bool ScheduleBySkeleton(SkeletonRequest const& request,EftSchedule* out,
       // Once a tile is ready its predecessors cannot move. Keep this exact
       // set across lazy retries; only worker availability needs recomputing.
       if(candidates.empty()) {
-        skeleton.Spread(task.stage,task.tile,candidates);
-        for(auto const& p:a.critical)if(p.node>=0 &&
+        if(request.pure_template)candidates.push_back(skeleton.Home(task.stage,task.tile));
+        else skeleton.Spread(task.stage,task.tile,candidates);
+        for(auto const& p:a.critical)if(!request.pure_template && p.node>=0 &&
             std::find(candidates.begin(),candidates.end(),p.worker)==candidates.end())candidates.push_back(p.worker);
       }
       double est=std::numeric_limits<double>::infinity(),chosen_start=0,chosen_end=est;int chosen=-1;
@@ -125,7 +126,7 @@ bool ScheduleBySkeleton(SkeletonRequest const& request,EftSchedule* out,
       last[chosen]=node;avail[chosen]=chosen_end;placed[node]=true;++stats.placed;
       stats.candidate_sum+=candidates.size();
       std::vector<int>().swap(candidates);
-      int home=(skeleton.spaces[task.stage].base+task.tile)%grid;
+      int home=skeleton.Home(task.stage,task.tile);
       if(std::any_of(a.critical.begin(),a.critical.end(),[&](auto const& p){return p.node>=0 && p.worker==chosen;}))++stats.affinity;
       else if(chosen==home)++stats.home;else ++stats.spread_other;
       out->makespan_ns=std::max(out->makespan_ns,chosen_end);

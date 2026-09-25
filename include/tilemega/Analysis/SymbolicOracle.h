@@ -27,6 +27,7 @@ class SymbolicOracle {
   /// Establishes that every source in the relation domain reaches the same box.
   bool IsAllBox(std::vector<std::pair<long,long>> const& box,ParamBinding const& theta={}) const;
   std::string const& relation() const;
+  std::string UniqueMapText() const;
   std::uint64_t queries() const;
   double query_ms() const;
  private:

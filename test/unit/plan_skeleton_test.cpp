@@ -89,7 +89,24 @@ int main(int argc,char** argv) {
   std::cout<<"RESIDENT_REUSE grid=8->16 exact_schedule=1 PASS\n";
   int prefix=0;for(int s:skeleton.stage_order){auto const& space=skeleton.spaces[s];
     if(space.base!=prefix%8)throw std::runtime_error("incorrect continuous rotate base");prefix+=space.count;
-    auto spread=skeleton.Spread(s,0);if(spread.front()!=space.base || spread.size()!=std::size_t(space.width))throw std::runtime_error("spread definition mismatch");}
+    auto spread=skeleton.Spread(s,0);if(spread.front()!=skeleton.Home(s,0) || spread.size()!=std::size_t(space.width))throw std::runtime_error("spread definition mismatch");}
+  int colocated=0;
+  solver::SkeletonRequest pure;pure.skeleton=&skeleton;pure.pure_template=true;
+  solver::EftSchedule template_schedule;
+  if(!solver::ScheduleBySkeleton(pure,&template_schedule,nullptr,&schedule_error))throw std::runtime_error(schedule_error);
+  for(std::size_t s=0;s<skeleton.spaces.size();++s) {
+    auto const& space=skeleton.spaces[s];
+    if(space.width!=4)throw std::runtime_error("candidate width is not constant");
+    if(space.colocation){++colocated;if(space.colocation->reverse.UniqueMapText().empty())throw std::runtime_error("missing Unique map text");}
+    for(int t=0;t<space.count;++t) {
+      int home=skeleton.Home(s,t);
+      if(template_schedule.worker[space.offset+t]!=home)throw std::runtime_error("pure template moved a task from home");
+      if(space.colocation)space.colocation->reverse.Query({t},skeleton.theta).ForEach([&](auto const& p){
+        if(home!=skeleton.Home(space.colocated_producer,p[0]))throw std::runtime_error("Unique colocation mismatch");});
+    }
+  }
+  if(!colocated)throw std::runtime_error("fixture lacks a tested colocation edge");
+  std::cout<<"TEMPLATE constant_width=4 colocated="<<colocated<<" pure_home=1 PASS\n";
   solver::WritePlanSkeleton(*module,skeleton);
   if(mlir::failed(mlir::verify(*module)))throw std::runtime_error("Skeleton IR invalid");
   if(argc>1){std::string text;llvm::raw_string_ostream out(text);module->print(out);std::ofstream(argv[1])<<text;}

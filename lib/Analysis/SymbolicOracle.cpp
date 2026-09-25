@@ -96,6 +96,11 @@ SymbolicOracle::SymbolicOracle(std::string const& text):impl_(std::make_shared<I
 }
 OracleKind SymbolicOracle::kind() const{return impl_->kind;}
 std::string const& SymbolicOracle::relation() const{return impl_->text;}
+std::string SymbolicOracle::UniqueMapText() const {
+  if(kind()!=OracleKind::Unique)throw std::invalid_argument("Oracle is not a Unique affine map");
+  char* raw=isl_pw_multi_aff_to_str(impl_->unique);if(!raw)throw std::runtime_error("cannot print Unique mapping");
+  std::string result(raw);free(raw);return result;
+}
 std::uint64_t SymbolicOracle::queries() const{return impl_->queries;}
 double SymbolicOracle::query_ms() const{return impl_->ms;}
 OracleImage SymbolicOracle::Query(std::vector<long> const& source,ParamBinding const& theta) const {

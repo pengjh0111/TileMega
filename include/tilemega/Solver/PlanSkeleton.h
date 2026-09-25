@@ -31,10 +31,12 @@ struct SymbolicPriceCache {
   std::optional<analysis::OperatorGraph> semantic_graph;
 };
 SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& target,
-    ModelDims dims,int grid,int residency,int kappa,SymbolicPriceCache* cache=nullptr);
+    ModelDims dims,int grid,int residency,int kappa,SymbolicPriceCache* cache=nullptr,bool price_tasks=true);
 struct SkeletonSpace {
   int count=0,offset=0,base=0,width=0,order=0;
   double task_ns=0,load_ns=0;
+  int colocated_producer=-1;
+  std::shared_ptr<analysis::OraclePair> colocation;
 };
 struct SkeletonEdge {
   int producer=0,consumer=0;
@@ -44,12 +46,14 @@ struct SkeletonEdge {
 struct PlanSkeleton {
   std::string relation_key;
   int grid=0,residency=0;
+  int kappa=1;
   std::vector<SkeletonSpace> spaces;
   std::vector<SkeletonEdge> edges;
   std::vector<std::vector<int>> incoming,outgoing;
   std::vector<int> stage_order;
   std::vector<double> task_ns;
   analysis::ParamBinding theta;
+  int Home(int stage,int tile) const;
   std::vector<int> Spread(int stage,int tile) const;
   void Spread(int stage,int tile,std::vector<int>& into) const;
 };

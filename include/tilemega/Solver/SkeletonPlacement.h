@@ -10,6 +10,7 @@ struct SkeletonRequest {
   int sms=0,ctas_per_sm=1;
   std::vector<int> worker_sm;
   std::vector<ResourceVector> task_lanes;
+  bool pure_template=false;
 };
 struct SkeletonPlacementStats {
   std::uint64_t placed=0,affinity=0,home=0,spread_other=0,candidate_sum=0;
