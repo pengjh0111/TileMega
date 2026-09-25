@@ -545,6 +545,188 @@ def analyze_phases(dump, source, window=1, variant=0):
     return result, rows
 
 
+def analyze_task_spaces(dump, reconstruction):
+    """R9b observations; fixed/mainloop stay combined without phase stamps.
+
+    A stage's wait sum is an aggregate, not an additive path component. Link
+    intervals below partition the realized path so concurrent waits cannot
+    be counted more than once.
+    """
+    _, slots, _, _ = load(dump)
+    grouped = defaultdict(list)
+    by_task = {}
+    for row in slots:
+        grouped[row['stage']].append(row)
+        by_task[(row['stage'], row['logical_task'])] = row
+    spaces = []
+    for stage, rows in sorted(grouped.items()):
+        spaces.append(dict(stage=stage, tasks=len(rows),
+            first_ready_ns=min(r['ready'] for r in rows),
+            first_start_ns=min(r['run_begin'] for r in rows),
+            last_end_ns=max(r['publish_end'] for r in rows),
+            run_total_ns=sum(r['run_end']-r['run_begin'] for r in rows),
+            wait_total_ns=sum(r['ready']-r['wait_begin'] for r in rows)))
+    path = reconstruction.get('cp_realized_path', '')
+    links = []
+    previous = None
+    for index, pair in enumerate(path.split(',') if path else []):
+        row = by_task[tuple(map(int, pair.split(':')))]
+        begin = previous['run_end'] if previous else row['run_begin']
+        cursor = begin
+        parts = dict(publish_ns=0, wait_hop_ns=0, barrier_ns=0, idle_ns=0)
+        intervals = []
+        if previous:
+            intervals.append(('publish_ns', begin, previous['publish_end']))
+        intervals += [('wait_hop_ns', row['wait_begin'], row['ready']),
+                      ('barrier_ns', row['ready'], row['run_begin'])]
+        for name, lo, hi in intervals:
+            left, right = max(cursor, lo), min(row['run_begin'], hi)
+            if right > left:
+                parts['idle_ns'] += left-cursor
+                parts[name] += right-left
+                cursor = right
+        parts['idle_ns'] += row['run_begin']-cursor
+        task = row['run_end']-row['run_begin']
+        wall = row['run_end']-begin
+        if min(parts.values()) < 0 or sum(parts.values())+task != wall:
+            raise ValueError('R9b link partition is not closed')
+        links.append(dict(index=index, stage=row['stage'], logical_task=row['logical_task'],
+                          begin_ns=begin, end_ns=row['run_end'], wall_ns=wall,
+                          task_fixed_plus_mainloop_ns=task, **parts))
+        previous = row
+    if links:
+        tail = previous['publish_end']-previous['run_end']
+        links[-1]['publish_ns'] += tail
+        links[-1]['end_ns'] += tail
+        links[-1]['wall_ns'] += tail
+    return spaces, links
+
+
+def analyze_task_space_trace(dump, source=None):
+    """Exact range maxima for large runtime DAGs, without expanding kAll edges.
+
+    The existing detailed analyzer and its historical columns remain unchanged.
+    This entry point supplies R9b's task-space/realized-chain report when a
+    dense predecessor representation would exceed memory on anchored models.
+    """
+    meta, slots, _, _ = load(dump)
+    runtime = Path(dump) / 'runtime_dependencies.cuh'
+    text = (runtime if runtime.exists() else Path(source)).read_text()
+    table = re.search(r'constexpr StageDependency kDependencies0\[\] = \{(.*?)\n\};', text, re.S)
+    if not table:
+        raise ValueError('runtime dependency table missing')
+    text = table[1]
+    pattern = re.compile(r'\{(\d+)u,\s*(\d+)u,\s*StageDependency::Map::'
+                         r'(kAll|kWindow|kIdentity),\s*(\d+)u,\s*(-?\d+),'
+                         r'\s*(-?\d+),\s*(\d+)u\}')
+    dependencies = [(int(p), int(c), mode, int(div), int(scale), int(offset), int(count))
+                    for p, c, mode, div, scale, offset, count in pattern.findall(text)]
+    if not dependencies:
+        raise ValueError('large trace requires dumped runtime dependency descriptors')
+    counts = defaultdict(int)
+    by_slot = {r['slot']: r for r in slots}
+    for r in slots:
+        counts[r['stage']] = max(counts[r['stage']], r['logical_task'] + 1)
+    if sum(counts.values()) != len(slots):
+        raise ValueError('task identities do not form contiguous spaces')
+
+    class RangeMax:
+        def __init__(self, size):
+            self.n = 1 << (size - 1).bit_length()
+            self.values = [(float('-inf'), -1)] * (2 * self.n)
+            self.populated = [0] * (2 * self.n)
+        def put(self, index, value):
+            at = index + self.n
+            self.values[at] = value
+            self.populated[at] = 1
+            while at > 1:
+                at //= 2
+                self.values[at] = max(self.values[2*at], self.values[2*at+1])
+                self.populated[at] = self.populated[2*at] + self.populated[2*at+1]
+        def count(self, lo, hi):
+            lo += self.n; hi += self.n; total = 0
+            while lo < hi:
+                if lo & 1:
+                    total += self.populated[lo]; lo += 1
+                if hi & 1:
+                    hi -= 1; total += self.populated[hi]
+                lo //= 2; hi //= 2
+            return total
+        def maximum(self, lo, hi):
+            lo += self.n; hi += self.n
+            best = (float('-inf'), -1)
+            while lo < hi:
+                if lo & 1:
+                    best = max(best, self.values[lo]); lo += 1
+                if hi & 1:
+                    hi -= 1; best = max(best, self.values[hi])
+                lo //= 2; hi //= 2
+            return best
+
+    cp = {s: RangeMax(n) for s, n in counts.items()}
+    origin = {s: RangeMax(n) for s, n in counts.items()}
+    ends = {s: RangeMax(n) for s, n in counts.items()}
+    seen = defaultdict(int)
+    worker_last, parent, elapsed = {}, {}, {}
+    best_cp = (0, -1); terminal = (0, -1)
+    expected = defaultdict(list)
+    for dep in dependencies:
+        expected[dep[1]].append(dep)
+    for row in sorted(slots, key=lambda r: (r['run_begin'], r['run_end'], r['slot'])):
+        slot, stage, task = row['slot'], row['stage'], row['logical_task']
+        begin, end = row['run_begin'], row['run_end']
+        incoming = dependencies[row['dependency_begin']:row['dependency_begin']+row['dependency_count']]
+        if incoming != expected[stage]:
+            raise ValueError('trace dependency slice differs from its runtime descriptors')
+        weight = end - begin
+        bound = (0, -1); root = (-begin, -1)
+        for producer, consumer, mode, div, scale, offset, count in incoming:
+            at = (task // div) * scale + offset
+            lo = 0 if mode == 'kAll' else max(0, at)
+            hi = counts[producer] if mode == 'kAll' else min(counts[producer], at + count)
+            if hi <= lo:
+                continue
+            if ends[producer].maximum(lo, hi)[0] > begin:
+                raise ValueError('a task starts before its runtime dependency finishes')
+            # All producers precede their consumers in runtime stage order;
+            # missing entries indicate an invalid trace or dependency source.
+            if seen[producer] != counts[producer] and ends[producer].count(lo, hi) != hi-lo:
+                raise ValueError('dependency has unobserved producers')
+            bound = max(bound, cp[producer].maximum(lo, hi))
+            root = max(root, origin[producer].maximum(lo, hi))
+        previous = worker_last.get(row['worker'])
+        if previous is not None:
+            if by_slot[previous]['run_end'] > begin:
+                raise ValueError('overlapping tasks on one worker')
+            root = max(root, (elapsed[previous]-by_slot[previous]['run_end'], previous))
+        parent[slot] = root[1]; elapsed[slot] = end + root[0]
+        cp[stage].put(task, (bound[0] + weight, slot))
+        origin[stage].put(task, (root[0], slot)); ends[stage].put(task, (end, slot))
+        seen[stage] += 1; worker_last[row['worker']] = slot
+        best_cp = max(best_cp, (bound[0]+weight, slot))
+        terminal = max(terminal, (elapsed[slot]+row['publish_end']-end, slot))
+    path = []; cursor = terminal[1]
+    while cursor != -1:
+        path.append(cursor); cursor = parent[cursor]
+    path.reverse()
+    reconstructed = dict(cp_corrected_ns=best_cp[0], cp_reconstructed_with_publish_ns=terminal[0],
+                         measured_l2_ms=float(meta['l2_ms']),
+                         cp_realized_path=','.join(f'{by_slot[s]["stage"]}:{by_slot[s]["logical_task"]}' for s in path))
+    spaces, links = analyze_task_spaces(dump, reconstructed)
+    if sum(r['wall_ns'] for r in links) != terminal[0]:
+        raise ValueError('compressed reconstruction and chain partition disagree')
+    return reconstructed, spaces, links
+
+
+def write_rows(path, rows):
+    import csv
+    with open(path, 'w') as stream:
+        if rows:
+            writer = csv.DictWriter(stream, fieldnames=list(rows[0]), delimiter='\t')
+            writer.writeheader()
+            writer.writerows(rows)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("dumps", nargs="+", help="trace v2 dump directories")
@@ -558,6 +740,14 @@ def main():
     rows = [analyze_phases(d, args.source, args.window, args.variant)[0]
             if args.source and (Path(d) / 'phases.tsv').exists()
             else analyze(d, args.source, args.window, args.variant) for d in args.dumps]
+    for dump, row in zip(args.dumps, rows):
+        spaces, links = analyze_task_spaces(dump, row)
+        stem = os.path.basename(os.path.normpath(dump))
+        write_rows(os.path.join(args.out, stem + '.task_spaces.tsv'), spaces)
+        write_rows(os.path.join(args.out, stem + '.chain_links.tsv'), links)
+        row['r9b_task_spaces'] = len(spaces)
+        row['r9b_chain_links'] = len(links)
+        row['r9b_fixed_mainloop_separable'] = False
     keys = list(rows[0].keys())
     with open(os.path.join(args.out, "analysis.tsv"), "w") as f:
         f.write("cell\t" + "\t".join(keys) + "\n")

@@ -15,7 +15,7 @@
 using namespace tilemega;
 int main(int argc,char** argv) {
  try {
-  if(argc!=8)throw std::invalid_argument("usage: tilemega-dram-floor CG target seq past fixture output.mlir tensors.tsv");
+  if(argc!=8 && argc!=9)throw std::invalid_argument("usage: tilemega-dram-floor CG target seq past fixture output.mlir tensors.tsv [stage_bytes.tsv]");
   analysis::IslContext isl;mlir::MLIRContext context;context.getOrLoadDialect<dialect::CGDialect>();context.getOrLoadDialect<dialect::ExecDialect>();
   auto module=mlir::parseSourceFile<mlir::ModuleOp>(argv[1],&context);if(!module)throw std::runtime_error("cannot parse CG");
   int seq=std::stoi(argv[3]),past=std::stoi(argv[4]);auto target=TargetSpec::FromJson(argv[2]);
@@ -61,6 +61,19 @@ int main(int argc,char** argv) {
   std::ofstream detail(argv[7]);detail<<"tensor\tsource\tread_bytes\twrite_bytes\tread_polynomial\twrite_polynomial\n";
   double weights=0;for(auto const& [name,t]:floor.tensors){auto reads=t.read_bytes.Eval(theta),writes=t.write_bytes.Eval(theta);if(sources[name]=="weight")weights+=reads;
     detail<<name<<'\t'<<sources[name]<<'\t'<<reads<<'\t'<<writes<<'\t'<<t.read_bytes.ToString()<<'\t'<<t.write_bytes.ToString()<<'\n';}
+  if(argc==9) {
+    std::ofstream stages(argv[8]);stages<<"logical_stage\top\ttensor\tno_producer_read_bytes\texternal_write_bytes\n";
+    for(auto const& semantic:model.task_semantics) {
+      analysis::SemanticGraph single;single.ops={semantic.op};auto local=analysis::DeriveDramFloor(single,options);
+      for(auto const& [name,tensor]:local.tensors) {
+        auto const& global=floor.tensors.at(name);
+        auto intersect=[](auto const& a,auto const& b){return a.Subtract(a.Subtract(b));};
+        auto reads=intersect(tensor.reads,global.no_producer),writes=intersect(tensor.writes,global.external_writes);
+        auto count=[&](auto const& image){return image.empty()?0L:image.ImageCard().Eval(theta)*global.element_bytes;};
+        stages<<semantic.stage<<'\t'<<semantic.op.name<<'\t'<<name<<'\t'<<count(reads)<<'\t'<<count(writes)<<'\n';
+      }
+    }
+  }
   std::cout<<std::setprecision(17)<<"DRAM_FLOOR weight_bytes="<<weights<<" read_bytes="<<value.read_bytes<<" write_bytes="<<value.write_bytes<<" flops="<<value.flops<<" dram_ns="<<value.dram_ns<<" compute_ns="<<value.compute_ns<<" floor_ns="<<value.floor_ns<<'\n';
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
 }
