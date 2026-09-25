@@ -1004,7 +1004,10 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     // The selected block extent is a compile-time coordinate of this plan.
     if (serving.kv_block <= 0 || serving.query_rows <= 0)
       throw std::invalid_argument("serving KV and query blocks must be positive");
-    int block_extent = serving.kv_block;
+    // Prefill is one causal attention task per query block and KV group.
+    // Decode alone splits the persistent cache into independent KV blocks.
+    int block_extent = serving.phase == ServingOptions::Phase::kPrefill
+        ? serving.capacity : serving.kv_block;
     int blocks = (serving.capacity + block_extent - 1) / block_extent;
     std::uint32_t po = scratch(prefix + "attn.partial", serving.seq * qwidth * blocks, "f32");
     std::uint32_t lse = scratch(prefix + "attn.lse", serving.seq * qwidth / head_dim * blocks, "f32");

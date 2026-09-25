@@ -9,8 +9,7 @@
 #include <cstdlib>
 
 using Body = tilemega::codegen::ServingGemmTaskBody<
-    tilemega::arch::Sm89, 16, 128, 64, 2,
-    tilemega::backend::ServingEpilogueOp::kStore>;
+    tilemega::arch::Sm89, 16, 128, 64, 2>;
 using Element = cutlass::bfloat16_t;
 
 __global__ void Run(tilemega::codegen::ServingGemmOperands operands) {

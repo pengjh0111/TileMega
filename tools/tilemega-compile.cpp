@@ -224,6 +224,10 @@ int main(int argc, char** argv) {
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path;
+    std::string serving_phase, emit_mode;
+    int serving_capacity=1088,serving_batch=1,serving_past_lo=64,
+        serving_past_hi=1086,serving_kv_block=256,
+        serving_query_rows=64,serving_argmax_tile_n=128;
     bool resource_probes=true;bool dump_evaluated=false;
     std::string solver_mode="skeleton",legacy_seed,variant_cache,flow_fixture;
     int skeleton_k=8,search_passes=3,search_jobs=1;bool all_workers=false,flow_search_only=false;
@@ -244,6 +248,19 @@ int main(int argc, char** argv) {
       else if (flag=="--search-passes") search_passes=std::stoi(value);
       else if (flag=="--search-jobs") search_jobs=std::stoi(value);
       else if (flag=="--solve") solve_target=value;
+      else if (flag=="--serving") serving_phase=value;
+      else if (flag=="--emit") emit_mode=value;
+      else if (flag=="--capacity") serving_capacity=std::stoi(value);
+      else if (flag=="--batch") serving_batch=std::stoi(value);
+      else if (flag=="--past-range") {
+        auto colon=value.find(':');
+        if(colon==std::string::npos)throw std::runtime_error("past range needs lo:hi");
+        serving_past_lo=std::stoi(value.substr(0,colon));
+        serving_past_hi=std::stoi(value.substr(colon+1));
+      }
+      else if (flag=="--serve-kv-block") serving_kv_block=std::stoi(value);
+      else if (flag=="--serve-query-rows") serving_query_rows=std::stoi(value);
+      else if (flag=="--serve-argmax-tile-n") serving_argmax_tile_n=std::stoi(value);
       else if (flag=="--seq-begin") interval_begin=std::stoi(value);
       else if (flag=="--segments") segments=std::stoi(value);
       else if (flag=="--segment-candidates") segment_candidates=std::stoi(value);
@@ -284,10 +301,47 @@ int main(int argc, char** argv) {
       std::cerr<<"EXPORT_BRIDGE source="<<std::quoted(argv[1])<<" output="<<std::quoted(input.string())<<'\n';
     }
     bool has_variants=!variants_path.empty();
+    bool serving=!serving_phase.empty();
+    if(serving && serving_phase!="decode" && serving_phase!="prefill")
+      throw std::runtime_error("--serving expects decode or prefill");
+    if(!emit_mode.empty() && emit_mode!="serving")
+      throw std::runtime_error("--emit expects serving");
+    if(serving != (emit_mode=="serving"))
+      throw std::runtime_error("--serving and --emit serving must be paired");
+    if(serving && (serving_batch<1 || serving_batch>64 ||
+                   serving_past_lo<0 || serving_past_hi<serving_past_lo))
+      throw std::runtime_error("invalid serving batch or past range");
     if (!solve_target.empty() && has_variants)
       throw std::runtime_error("--solve chooses variants; cannot combine with --variants");
     std::string source;
-    if (!solve_target.empty()) {
+    if(serving && solve_target.empty()) {
+      if(input.extension()==".mlir" || has_variants)
+        throw std::runtime_error("serving seed needs one exported model");
+      auto bridge=tilemega::frontend::ReadExportBridge(input.string());
+      tilemega::frontend::ServingOptions options;
+      options.phase=serving_phase=="decode"
+          ? tilemega::frontend::ServingOptions::Phase::kDecode
+          : tilemega::frontend::ServingOptions::Phase::kPrefill;
+      options.seq=serving_phase=="decode" ? 1 : 64;
+      options.capacity=serving_capacity;
+      options.kv_block=serving_kv_block;
+      options.query_rows=serving_query_rows;
+      options.argmax_tile_n=serving_argmax_tile_n;
+      auto plan=tilemega::frontend::BuildModelPlan(
+          bridge.nodes,bridge.inputs,bridge.outputs,options);
+      tilemega::frontend::ImportOptions import;
+      import.gemms.assign(plan.gemms.size(),{16,128,128,2,1});
+      module=tilemega::frontend::TorchExportImporter{}.ImportPlan(
+          input.string(),plan,context,&summary,import);
+      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
+          {{*module,static_cast<std::uint32_t>(options.seq),
+                     static_cast<std::uint32_t>(options.seq)}});
+      std::cerr<<"SERVING_SEED phase="<<serving_phase<<" batch="<<serving_batch
+               <<" past="<<serving_past_lo<<':'<<serving_past_hi
+               <<" stages="<<summary.stages<<'\n';
+    } else if (!solve_target.empty()) {
+      if(serving)
+        throw std::runtime_error("serving search has not been connected to --solve");
       if (input.extension()==".mlir")
         throw std::runtime_error("automatic geometry search requires export JSON; use tilemega-opt for placement-only CG solving");
       solve_options.placement.target=tilemega::TargetSpec::FromJson(solve_target);
@@ -562,6 +616,18 @@ int main(int argc, char** argv) {
         (*variant_modules[v]).print(piece);piece << "\n";
       }
     }
+    if (serving) {
+      if (serving_phase == "prefill")
+        serving_past_lo = serving_past_hi = 0;
+      source = "#define TILEMEGA_SERVING_BATCH_LO " +
+          std::to_string(serving_batch) + "\n" +
+          "#define TILEMEGA_SERVING_BATCH_HI " +
+          std::to_string(serving_batch) + "\n" +
+          "#define TILEMEGA_SERVING_PAST_LO " +
+          std::to_string(serving_past_lo) + "\n" +
+          "#define TILEMEGA_SERVING_PAST_HI " +
+          std::to_string(serving_past_hi) + "\n" + source;
+    }
     std::filesystem::path requested(argv[2]);
     bool shared = requested.extension() == ".so";
     std::filesystem::path cuda = shared
@@ -574,16 +640,26 @@ int main(int argc, char** argv) {
       std::string root = TILEMEGA_SOURCE_DIR;
       std::string nvcc = std::getenv("CUDACXX") ? std::getenv("CUDACXX") :
                                                  "/usr/local/cuda/bin/nvcc";
+      std::string arch = tilemega::TargetSpec::Probe().NvccArch();
       std::string command = quote(nvcc) +
-          " -std=c++17 -O2 -arch=native -shared -Xcompiler=-fPIC -x cu" +
+          " -std=c++17 -O3 -DTILEMEGA_MIDPOINT_REFINE=0 -arch="+
+          quote(arch)+" --expt-relaxed-constexpr -shared -Xcompiler=-fPIC -cudart shared -Xptxas=-v -x cu" +
           " -I" + quote(root + "/include") +
           " -I" + quote(root + "/third_party/cutlass/include") +
           " -I" + quote(root + "/third_party/cutlass/tools/util/include") +
           " -I" + quote(root + "/third_party/cutlass/test") + " " +
           quote(cuda.string()) + " -x cu " +
           quote(root + "/lib/Target/TargetSpec.cpp") +
+          " -x cu " + quote(root + "/lib/Support/Json.cpp") +
+          " -x cu " + quote(root + "/lib/Codegen/RuntimeTaskGraph.cpp") +
+          " -x cu " + quote(root + "/lib/Solver/PlanMaterialize.cpp") +
+          " -x cu " + quote(root + "/lib/Dialect/CouplingGraph/PlacementPlan.cpp") +
+          " -x cu " + quote(root + "/lib/Solver/BalancedPlacement.cpp") +
+          " -x cu " + quote(root + "/lib/Solver/ListScheduler.cpp") +
           " -L/usr/local/cuda/lib64 -lcudart -o " + quote(requested.string());
-      int status = std::system(command.c_str());
+      std::ofstream(requested.string()+".build_command.txt") << command << '\n';
+      int status = std::system((command+" >"+quote(requested.string()+".ptxas.log")+
+          " 2>&1").c_str());
       if (status != 0) throw std::runtime_error("nvcc failed while building shared object");
     }
     std::cerr << "CODEGEN_SUMMARY tasks=" << summary.task_spaces

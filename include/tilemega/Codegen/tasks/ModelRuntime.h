@@ -157,6 +157,10 @@ struct GemmDesc {
   int n, k;
   std::uint32_t a, b, c, d;
   float beta;
+  // Serving-only epilogue: 0 store, 1 residual, 2 SwiGLU,
+  // 3 argmax partial. Legacy initializers keep the store default.
+  std::uint32_t serving_epilogue = 0;
+  std::uint32_t serving_argmax_index = 0xffffffffu;
 };
 
 /// One GEMM implementation selected by a runtime model variant.  The tile

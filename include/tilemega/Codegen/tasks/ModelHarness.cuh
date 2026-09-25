@@ -1607,6 +1607,7 @@ struct DeviceModel {
   /// plus its combiner.
   std::vector<StageDesc> stages;
   std::vector<ModelElement*> buffers;
+  std::vector<bool> owned_buffers;
   std::vector<std::vector<ModelElement>> host_sources;
   ModelElement** device_buffers = nullptr;
   GemmInvocation* device_gemms = nullptr;
@@ -1727,7 +1728,8 @@ inline DeviceModel Create(ModelSpec const& spec,
                           std::uint32_t runtime_variant_index,
                           ModelDims const& dims, std::string const& dir,
                           int grid, int blocks_per_sm, TargetSpec const& target,
-                          std::size_t l2_smem_bytes) {
+                          std::size_t l2_smem_bytes,
+                          void* const* external_buffers = nullptr) {
   RuntimePlanDesc const* selected_plan=&runtime_variant.plan;
   if(selected_plan->interval_count) {
     if(!selected_plan->interval || dims.seq<int(selected_plan->interval_begin) ||
@@ -1777,15 +1779,29 @@ inline DeviceModel Create(ModelSpec const& spec,
     BufferDesc const& desc = spec.buffers[i];
     std::size_t elements = desc.Elements(dims);
     ModelElement* pointer = nullptr;
-    TILEMEGA_CUDA_CHECK(cudaMalloc(&pointer, elements * sizeof(ModelElement)));
-    if (desc.file != nullptr) {
+    std::size_t element_bytes = desc.dtype == 0 ? sizeof(ModelElement) : 4;
+    if (external_buffers && desc.role == 1) {
+      if (!external_buffers[i])
+        throw std::invalid_argument("serving external buffer is null");
+      pointer = reinterpret_cast<ModelElement*>(external_buffers[i]);
+      model.owned_buffers.push_back(false);
+    } else {
+      if (desc.role == 1)
+        throw std::invalid_argument("serving external buffer is not bound");
+      TILEMEGA_CUDA_CHECK(cudaMalloc(&pointer, elements * element_bytes));
+      model.owned_buffers.push_back(true);
+    }
+    if (external_buffers && desc.role == 1) {
+      // State and packed weights were uploaded once by the serving driver.
+    } else if (desc.file != nullptr) {
+      if (desc.dtype != 0)
+        throw std::invalid_argument("legacy fixture is not a model scalar");
       model.host_sources[i] = Load(dir + "/" + desc.file, elements);
       TILEMEGA_CUDA_CHECK(cudaMemcpy(pointer, model.host_sources[i].data(),
                                      elements * sizeof(ModelElement),
                                      cudaMemcpyHostToDevice));
     } else {
-      TILEMEGA_CUDA_CHECK(cudaMemset(pointer, 0,
-                                     elements * sizeof(ModelElement)));
+      TILEMEGA_CUDA_CHECK(cudaMemset(pointer, 0, elements * element_bytes));
     }
     model.buffers.push_back(pointer);
   }
@@ -1802,6 +1818,12 @@ inline DeviceModel Create(ModelSpec const& spec,
   for (std::uint32_t i = 0; i < spec.gemm_count; ++i) {
     GemmDesc const& desc = spec.gemms[i];
     int m = dims.tokens();
+#if TILEMEGA_SERVING_RUNTIME
+    for (std::uint32_t s = 0; s < spec.stage_count; ++s)
+      if (spec.stages[s].kind == TaskKind::kGemm &&
+          spec.stages[s].gemm == i && spec.stages[s].batch_rows)
+        m = dims.batch;
+#endif
     GemmRuntimeDesc const& runtime = runtime_variant.gemms[i];
     int variant = runtime.compiled_variant;
     if (variant < 0 || variant >= kGemmVariantCount) {
@@ -1834,6 +1856,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       // This table carries addresses; only the combiner interprets a partial
       // entry, explicitly as ModelPartialElement, never as model storage.
       model.buffers.push_back(reinterpret_cast<ModelElement*>(partial));
+      model.owned_buffers.push_back(true);
       model.host_sources.emplace_back();
     }
     for (int chunk = 0; chunk < chunks; ++chunk) {
@@ -1892,6 +1915,22 @@ inline DeviceModel Create(ModelSpec const& spec,
       invocation.chunks = chunks;
       invocation.variant = variant;
       invocation.k_total = desc.k;
+#if TILEMEGA_SERVING_RUNTIME
+      if (desc.serving_epilogue > 3)
+        throw std::invalid_argument("unknown serving GEMM epilogue");
+      invocation.serving_op = static_cast<backend::ServingEpilogueOp>(
+          desc.serving_epilogue);
+      invocation.serving_argmax_index =
+          desc.serving_argmax_index == kNoOperand ? nullptr :
+          reinterpret_cast<int*>(model.buffers.at(desc.serving_argmax_index));
+      invocation.serving_output_stride = desc.serving_epilogue == 2
+          ? desc.n / 2 : desc.serving_epilogue == 3 ?
+              CeilDiv(desc.n, tiling.tile_n) : desc.n;
+      if (chunks > 1)
+        invocation.serving_partial = reinterpret_cast<float*>(
+            model.buffers[gemm_partial[i]]) +
+            static_cast<std::size_t>(chunk) * m * desc.n;
+#endif
       gemms.push_back(invocation);
     }
   }
@@ -1941,6 +1980,7 @@ inline DeviceModel Create(ModelSpec const& spec,
         TILEMEGA_CUDA_CHECK(cudaMalloc(&buffer,elements*sizeof(float)));
         auto id = static_cast<std::uint32_t>(model.buffers.size());
         model.buffers.push_back(reinterpret_cast<ModelElement*>(buffer));
+        model.owned_buffers.push_back(true);
         model.host_sources.emplace_back();
         return id;
       };

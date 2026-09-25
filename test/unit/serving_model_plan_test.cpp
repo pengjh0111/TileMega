@@ -45,7 +45,9 @@ int main(int argc, char** argv) {
   }
   for (auto const& stage : plan.stages) {
     if (stage.kind == tilemega::frontend::PlanTaskKind::kFusedAttention)
-      { ++attention; assert(stage.attention_kv_block == 64); }
+      { ++attention;
+        assert(stage.attention_kv_block ==
+            (options.seq == 64 ? options.capacity : 64)); }
     if (stage.kind == tilemega::frontend::PlanTaskKind::kRMSNorm &&
         stage.batch_rows && stage.row_stride == options.seq &&
         stage.row_offset == options.seq - 1)

@@ -6,6 +6,8 @@
 
 #include <cute/tensor.hpp>
 #include <cutlass/gemm/collective/collective_mma.hpp>
+#include <cutlass/epilogue/collective/default_epilogue.hpp>
+#include <cutlass/epilogue/thread/linear_combination.h>
 #include <cutlass/gemm/dispatch_policy.hpp>
 #include <cutlass/layout/matrix.h>
 #include <type_traits>
@@ -26,6 +28,8 @@ struct ServingGemmConfig {
 
   using Element = cutlass::bfloat16_t;
   static constexpr int kThreads = solver::kServingBF16Threads;
+  static constexpr bool kShapeLegal =
+      solver::ServingBF16ShapeLegal(TileM, TileN, TileK, Stages);
   using TileShape = cute::Shape<cute::Int<TileM>, cute::Int<TileN>,
                                 cute::Int<TileK>>;
   using SmemLayoutAtom = decltype(cute::composition(
@@ -56,6 +60,11 @@ struct ServingGemmConfig {
       TiledMma, GmemTiledCopy, SmemLayoutAtom, SmemCopyAtom,
       cute::identity, GmemTiledCopy, SmemLayoutAtom, SmemCopyAtom,
       cute::identity>;
+  using Epilogue = cutlass::epilogue::collective::DefaultEpilogue<
+      Element, cutlass::gemm::TagToStrideC_t<cutlass::layout::RowMajor>,
+      cutlass::gemm::TagToStrideC_t<cutlass::layout::RowMajor>,
+      cutlass::epilogue::thread::LinearCombination<Element, 8, float, float>,
+      cutlass::gemm::EpilogueDefault>;
 
   // Mainloop and epilogue use the same allocation.  The swizzle's atom is
   // already 16-byte aligned; no additional padding is required for this family.

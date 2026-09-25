@@ -5,6 +5,7 @@
 #include <tilemega/Backend/ServingGemm.h>
 
 #include <cute/tensor.hpp>
+#include <type_traits>
 
 namespace tilemega::codegen {
 
@@ -22,10 +23,10 @@ struct ServingGemmOperands {
   // Physical row pitches include zero-filled vector-alignment padding when
   // logical K has a residue.  Serving weights are packed once with this pitch.
   int a_row_stride = 0, b_row_stride = 0;
+  backend::ServingEpilogueOp epilogue = backend::ServingEpilogueOp::kStore;
 };
 
-template <class Arch, int TileM, int TileN, int TileK, int Stages,
-          backend::ServingEpilogueOp Op>
+template <class Arch, int TileM, int TileN, int TileK, int Stages>
 struct ServingGemmTaskBody {
   using Config = backend::ServingGemmConfig<Arch, TileM, TileN, TileK, Stages>;
   using Mainloop = typename Config::Mainloop;
@@ -73,10 +74,29 @@ struct ServingGemmTaskBody {
     auto k_iter = make_coord_iterator(shape<2>(gA));
     Mainloop{}(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
                int(threadIdx.x), shared);
-    backend::ServingEpilogue<Op, TileM, TileN>::Run(
-        accum, mma, shared, tile_m, tile_n, p.m, p.n,
-        p.output_stride, p.output, p.residual, p.partial,
-        p.argmax_value, p.argmax_index);
+    auto finish = [&](auto op) {
+      backend::ServingEpilogue<decltype(op)::value, TileM, TileN>::Run(
+          accum, mma, shared, tile_m, tile_n, p.m, p.n,
+          p.output_stride, p.output, p.residual, p.partial,
+          p.argmax_value, p.argmax_index);
+    };
+    switch (p.epilogue) {
+      case backend::ServingEpilogueOp::kStore:
+        finish(std::integral_constant<backend::ServingEpilogueOp,
+               backend::ServingEpilogueOp::kStore>{}); break;
+      case backend::ServingEpilogueOp::kResidual:
+        finish(std::integral_constant<backend::ServingEpilogueOp,
+               backend::ServingEpilogueOp::kResidual>{}); break;
+      case backend::ServingEpilogueOp::kSwiGLU:
+        finish(std::integral_constant<backend::ServingEpilogueOp,
+               backend::ServingEpilogueOp::kSwiGLU>{}); break;
+      case backend::ServingEpilogueOp::kArgmaxPartial:
+        finish(std::integral_constant<backend::ServingEpilogueOp,
+               backend::ServingEpilogueOp::kArgmaxPartial>{}); break;
+      case backend::ServingEpilogueOp::kPartial:
+        finish(std::integral_constant<backend::ServingEpilogueOp,
+               backend::ServingEpilogueOp::kPartial>{}); break;
+    }
   }
 };
 

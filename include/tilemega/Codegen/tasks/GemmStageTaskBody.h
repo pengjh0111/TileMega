@@ -4,6 +4,8 @@
 #pragma once
 
 #include <tilemega/Backend/CutlassGemmCandidate.h>
+#include <tilemega/Backend/ServingGemm.h>
+#include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
 
@@ -11,6 +13,10 @@
 #include <cutlass/util/packed_stride.hpp>
 
 #include <type_traits>
+
+#ifndef TILEMEGA_SERVING_RUNTIME
+#define TILEMEGA_SERVING_RUNTIME 0
+#endif
 #include <tilemega/Codegen/tasks/PhaseTrace.cuh>
 #if TILEMEGA_TRACE_PHASE
 #include <tilemega/Codegen/tasks/PhaseGemmMainloop.cuh>
@@ -177,16 +183,31 @@ using GemmVariantArch = typename arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
 template <int Variant>
 struct GemmVariant;
 
+template <bool Serving, class Mainloop, int M, int N, int K, int S>
+struct GemmVariantStorage {
+  using type = typename Mainloop::SharedStorage;
+};
+template <class Mainloop, int M, int N, int K, int S>
+struct GemmVariantStorage<true, Mainloop, M, N, K, S> {
+  struct alignas(16) type {
+    unsigned char bytes[solver::ServingBF16SmemBytes(M, N, K, S)];
+  };
+};
+
 #define TILEMEGA_DEFINE_GEMM_VARIANT(index, M, N, K, S)                     \
   template <>                                                               \
   struct GemmVariant<index> {                                               \
-    using Impl = backend::GemmCandidate<M, N, K, S, GemmVariantArch>;       \
+    using Impl = std::conditional_t<TILEMEGA_SERVING_RUNTIME != 0,           \
+        backend::ServingGemmConfig<GemmVariantArch, M, N, K, S>,            \
+        backend::GemmCandidate<M, N, K, S, GemmVariantArch>>;               \
     static_assert(Impl::kShapeLegal,                                        \
                   "the selected GEMM tile shape is not a legal candidate; " \
                   "query backend::GemmCandidate::kShapeLegal before "       \
                   "compiling");                                             \
     using Mainloop = typename Impl::Mainloop;                               \
     using Epilogue = typename Impl::Epilogue;                               \
+    using SharedStorage = typename GemmVariantStorage<                     \
+        TILEMEGA_SERVING_RUNTIME != 0, Mainloop, M, N, K, S>::type;         \
     static constexpr int kTileM = M;                                        \
     static constexpr int kTileN = N;                                        \
     static constexpr int kTileK = K;                                        \
@@ -289,7 +310,7 @@ inline constexpr GemmVariantInfo MakeGemmVariantInfo() {
                                    typename GemmMainloop::StrideB>,
                 "GemmInvocation holds one operand set for every variant");
   return {V::kTileM, V::kTileN, V::kTileK, V::kStages,
-          sizeof(typename V::Mainloop::SharedStorage)};
+          sizeof(typename V::SharedStorage)};
 }
 
 inline constexpr GemmVariantInfo kGemmVariantInfo[] = {
@@ -345,51 +366,51 @@ inline constexpr GemmVariantInfo kGemmVariantInfo[] = {
 /// tile shape costs every other operator the same SM slot.  Spelling that as a
 /// union rather than a byte count keeps the alignment of the widest variant.
 union GemmVariantSmem {
-  typename GemmVariant<0>::Mainloop::SharedStorage v0;
+  typename GemmVariant<0>::SharedStorage v0;
 #if TILEMEGA_GEMM_VARIANT_COUNT > 1
-  typename GemmVariant<1>::Mainloop::SharedStorage v1;
+  typename GemmVariant<1>::SharedStorage v1;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 2
-  typename GemmVariant<2>::Mainloop::SharedStorage v2;
+  typename GemmVariant<2>::SharedStorage v2;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 3
-  typename GemmVariant<3>::Mainloop::SharedStorage v3;
+  typename GemmVariant<3>::SharedStorage v3;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 4
-  typename GemmVariant<4>::Mainloop::SharedStorage v4;
+  typename GemmVariant<4>::SharedStorage v4;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 5
-  typename GemmVariant<5>::Mainloop::SharedStorage v5;
+  typename GemmVariant<5>::SharedStorage v5;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 6
-  typename GemmVariant<6>::Mainloop::SharedStorage v6;
+  typename GemmVariant<6>::SharedStorage v6;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 7
-  typename GemmVariant<7>::Mainloop::SharedStorage v7;
+  typename GemmVariant<7>::SharedStorage v7;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 8
-  typename GemmVariant<8>::Mainloop::SharedStorage v8;
+  typename GemmVariant<8>::SharedStorage v8;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 9
-  typename GemmVariant<9>::Mainloop::SharedStorage v9;
+  typename GemmVariant<9>::SharedStorage v9;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 10
-  typename GemmVariant<10>::Mainloop::SharedStorage v10;
+  typename GemmVariant<10>::SharedStorage v10;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 11
-  typename GemmVariant<11>::Mainloop::SharedStorage v11;
+  typename GemmVariant<11>::SharedStorage v11;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 12
-  typename GemmVariant<12>::Mainloop::SharedStorage v12;
+  typename GemmVariant<12>::SharedStorage v12;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 13
-  typename GemmVariant<13>::Mainloop::SharedStorage v13;
+  typename GemmVariant<13>::SharedStorage v13;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 14
-  typename GemmVariant<14>::Mainloop::SharedStorage v14;
+  typename GemmVariant<14>::SharedStorage v14;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 15
-  typename GemmVariant<15>::Mainloop::SharedStorage v15;
+  typename GemmVariant<15>::SharedStorage v15;
 #endif
 };
 
@@ -434,6 +455,10 @@ struct GemmInvocation {
   /// that has to reproduce the whole dot product -- the combiner refining an
   /// element -- cannot recover it from the chunk alone.
   int k_total = 0;
+  backend::ServingEpilogueOp serving_op = backend::ServingEpilogueOp::kStore;
+  int* serving_argmax_index = nullptr;
+  int serving_output_stride = 0;
+  float* serving_partial = nullptr;
 };
 
 /// The exact dot product behind one output element. A BF16 product is exact in
@@ -507,6 +532,34 @@ struct GemmStageTaskBody {
   template <int Variant, bool SharedOutput = false>
   __device__ static void RunTask(GemmInvocation const& invocation, int local,
                                  char* shared, ModelElement* tile_output = nullptr TILEMEGA_PHASE_ARG) {
+#if TILEMEGA_SERVING_RUNTIME
+    (void)tile_output;
+    using V = GemmVariant<Variant>;
+    using Body = ServingGemmTaskBody<Arch, V::kTileM, V::kTileN,
+                                     V::kTileK, V::kStages>;
+    auto [m, n, k, batch] = invocation.problem;
+    (void)batch;
+    ServingGemmOperands operands;
+    operands.a = invocation.mainloop.ptr_A;
+    operands.b = invocation.mainloop.ptr_B;
+    operands.residual = invocation.epilogue.ptr_C;
+    operands.output = invocation.epilogue.ptr_D;
+    operands.partial = invocation.serving_partial;
+    operands.argmax_value = reinterpret_cast<float*>(invocation.epilogue.ptr_D);
+    operands.argmax_index = invocation.serving_argmax_index;
+    operands.m = m;
+    operands.n = n;
+    operands.k_total = k;
+    operands.k_count = k;
+    operands.output_stride = invocation.serving_output_stride;
+    operands.a_row_stride = invocation.k_total;
+    operands.b_row_stride = invocation.k_total;
+    operands.epilogue = invocation.chunks > 1
+        ? backend::ServingEpilogueOp::kPartial : invocation.serving_op;
+    Body::Run(operands, local / invocation.tiles_n,
+              local % invocation.tiles_n, shared);
+    return;
+#else
     using namespace cute;
     using Mainloop = typename GemmVariant<Variant>::Mainloop;
     using Epilogue = typename GemmVariant<Variant>::Epilogue;
@@ -595,6 +648,7 @@ struct GemmStageTaskBody {
     Epilogue epilogue(invocation.epilogue);
     epilogue(invocation.problem, tile_shape, make_coord(tile_m, tile_n, 0, 0),
              accum, tiled_mma, residue, static_cast<int>(threadIdx.x), shared);
+#endif
   }
 
   __device__ static void RunLogicalTask(Params const& p,

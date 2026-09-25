@@ -494,6 +494,11 @@ std::string emitModelPlan(mlir::ModuleOp module,
     out << "},\n";
   }
   out << "};\n\nconstexpr GemmDesc kGemms[] = {\n";
+  std::int64_t argmax_index = -1;
+  if (serving)
+    for (std::size_t i = 0; i < buffers.size(); ++i)
+      if (stringField(dictionaryEntry(buffers[i], "buffers"), "name") ==
+          "serving.argmax.index") argmax_index = i;
   for (auto value : gemms) {
     auto item = dictionaryEntry(value, "gemms");
     auto beta = llvm::dyn_cast<mlir::FloatAttr>(requireField(item, "beta"));
@@ -503,7 +508,18 @@ std::string emitModelPlan(mlir::ModuleOp module,
         << "u, " << integerField(item, "b") << "u, "
         << integerField(item, "c") << "u, " << integerField(item, "d")
         << "u, " << std::showpoint << std::setprecision(9)
-        << beta.getValueAsDouble() << std::noshowpoint << "f},\n";
+        << beta.getValueAsDouble() << std::noshowpoint << "f";
+    if (serving) {
+      std::string op = item.get("epilogue") ? stringField(item, "epilogue") : "store";
+      int code = op == "store" ? 0 : op == "residual" ? 1
+               : op == "swiglu" ? 2 : op == "argmax_partial" ? 3 : -1;
+      if (code < 0 || (code == 3 && argmax_index < 0))
+        throw std::invalid_argument("invalid serving GEMM epilogue or argmax index");
+      out << ", " << code << "u, "
+          << (code == 3 ? std::to_string(argmax_index) + "u" :
+                          std::string("kNoOperand"));
+    }
+    out << "},\n";
   }
   out << "};\n\nconstexpr StageDesc kStages[] = {\n";
   for (auto value : stages) {
@@ -547,12 +563,13 @@ std::string emitModelPlan(mlir::ModuleOp module,
   std::sort(variants.begin(), variants.end(), [](auto const& a, auto const& b) {
     return a.seq_begin < b.seq_begin;
   });
-  std::uint32_t cursor_seq = 1;
+  std::uint32_t cursor_seq = serving ? variants.front().seq_begin : 1;
   for (std::size_t v = 0; v < variants.size(); ++v) {
     auto& variant = variants[v];
     if (variant.seq_begin != cursor_seq || variant.seq_end < variant.seq_begin)
       throw std::invalid_argument(
-          "runtime variant intervals must be contiguous, disjoint, and start at seq=1");
+          "runtime variant intervals must be contiguous and disjoint"
+          " (legacy variants start at seq=1)");
     cursor_seq = variant.seq_end + 1;
     if (variant.gemms.size() != gemms.size())
       throw std::invalid_argument("runtime variant GEMM table has wrong length");
@@ -729,10 +746,13 @@ std::string emitModelPlan(mlir::ModuleOp module,
       << outputs.size() << "u, kRuntimeVariants, " << variants.size()
       << "u, kSeqVariant.data(), " << seq_count << "u"
       << (epsilon > 0.0 ? ", " + formatFloat(epsilon) + "f" : std::string())
-      << "};\n\n}  // namespace\n\n"
-      << "int main(int argc, char** argv) {\n"
-      << "  if (argc != 2) { std::fprintf(stderr, \"usage: e2e FIXTURE_DIR\\n\"); return 2; }\n"
-      << "  return tilemega::codegen::RunModel(kModel, argv[1]);\n}\n";
+      << "};\n\n}  // namespace\n\n";
+  if (serving)
+    out << "#include <tilemega/Codegen/tasks/ServingRuntime.cuh>\n";
+  else
+    out << "int main(int argc, char** argv) {\n"
+        << "  if (argc != 2) { std::fprintf(stderr, \"usage: e2e FIXTURE_DIR\\n\"); return 2; }\n"
+        << "  return tilemega::codegen::RunModel(kModel, argv[1]);\n}\n";
   return out.str();
 }
 
@@ -1397,6 +1417,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
       << emitNormEpsilon(first_plan)
       << emitRoPEPrecision(first_plan) << emitTokenIdBits(first_plan) << emitTaskKindRuntime(first_plan)
+      << emitServingAttentionConfig(first_plan, first)
       << emitSolvedLaunch(first)
       << EmitGemmInstantiations(shapes)
       << emitAttentionStorage(first, records)
