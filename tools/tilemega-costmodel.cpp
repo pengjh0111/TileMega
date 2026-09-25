@@ -281,6 +281,7 @@ int main(int argc, char** argv) try {
   bool unified_task_cost = TILEMEGA_UNIFIED_TASK_COST;
   bool measured_cache_curve = TILEMEGA_MEASURED_CACHE_CURVE;
   bool full_only = false;
+  std::string regime_a;
   std::string target_file;
   std::string gqa_cu;
   std::string mha_cu;
@@ -300,6 +301,7 @@ int main(int argc, char** argv) try {
     else if (arg == "--unified-task-cost") unified_task_cost = true;
     else if (arg == "--legacy-task-cost") unified_task_cost = false;
     else if (arg == "--full-only") full_only = true;
+    else if (arg == "--regime-a" && i+1<argc) regime_a=argv[++i];
     else if (arg == "--measured-cache-curve") measured_cache_curve = true;
     else if (arg == "--sdcm-cache") measured_cache_curve = false;
     else if (arg == "--target" && i + 1 < argc) target_file = argv[++i];
@@ -318,6 +320,7 @@ int main(int argc, char** argv) try {
                          " [--measured-partial-combine|--analytic-partial-combine] [--target FILE]"
                          " [--unified-task-cost|--legacy-task-cost] [--full-only]"
                          " [--measured-cache-curve|--sdcm-cache]"
+                         " [--regime-a all|physical|stages|fixed]"
                          " [--gqa-cu FILE] [--mha-cu FILE]\n"; return 2; }
   }
   if (screen_dir.empty()) screen_dir = repo + "/docs/experiments/ORACLE/raw";
@@ -343,6 +346,13 @@ int main(int argc, char** argv) try {
   full_options.measured_partial_combine = measured_partial_combine;
   full_options.unified_task_cost = unified_task_cost;
   full_options.measured_cache_curve = measured_cache_curve;
+  if(!regime_a.empty()) {
+    if(regime_a!="all" && regime_a!="physical" && regime_a!="stages" && regime_a!="fixed")throw std::invalid_argument("unknown regime-A ablation");
+    full_options.regime_a=true;
+    full_options.physical_traffic=regime_a=="all" || regime_a=="physical";
+    full_options.stage_latency=regime_a=="all" || regime_a=="stages";
+    full_options.physical_fixed=regime_a=="all" || regime_a=="fixed";
+  }
   CostModel const full(target, dtype, full_options);
   std::cout << "fit: lds=" << full.fit().lds_ns << " ns/instr (rel rms "
             << 100 * full.fit().lds_rel_rms << "%), setup=" << full.fit().setup_ns
@@ -372,6 +382,10 @@ int main(int argc, char** argv) try {
   plus_cache.cache_model = true;
   CostModelOptions plus_nongemm = plus_cache;
   plus_nongemm.non_gemm = true;
+  plus_nongemm.regime_a=full_options.regime_a;
+  plus_nongemm.physical_traffic=full_options.physical_traffic;
+  plus_nongemm.stage_latency=full_options.stage_latency;
+  plus_nongemm.physical_fixed=full_options.physical_fixed;
   // Two probes off the full model rather than further rungs: the envelope's
   // fill depth and the non-smem lanes are each measured against it.
   CostModelOptions with_envelope = plus_nongemm;

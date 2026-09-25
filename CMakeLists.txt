@@ -187,6 +187,7 @@ add_library(tilemega STATIC
   lib/Analysis/OpArithmetic.cpp
   lib/Analysis/TaskWork.cpp
   lib/Analysis/DramFloor.cpp
+  lib/Solver/TaskPriceParts.cpp
   lib/Analysis/FusionAccess.cpp
   lib/Codegen/Codegen.cpp
   lib/Runtime/EventBuffer.cpp
@@ -226,6 +227,9 @@ set_target_properties(tilemega-import PROPERTIES
 
 add_executable(tilemega-skeleton-audit tools/tilemega-skeleton-audit.cpp)
 add_executable(tilemega-dram-floor tools/tilemega-dram-floor.cpp)
+add_executable(tilemega-r9-early docs/experiments/SOLVER_R9B/early_signal.cpp)
+target_link_libraries(tilemega-r9-early PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-r9-early PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 target_link_libraries(tilemega-dram-floor PRIVATE TileMega::tilemega MLIRParser)
 set_target_properties(tilemega-dram-floor PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 target_link_libraries(tilemega-skeleton-audit PRIVATE TileMega::tilemega MLIRParser)
@@ -475,6 +479,8 @@ if(TILEMEGA_BUILD_TESTS)
 
   add_executable(semantics_test test/unit/semantics_test.cpp)
   add_executable(dram_floor_test test/unit/dram_floor_test.cpp)
+  add_executable(regime_a_price_test test/unit/regime_a_price_test.cpp)
+  target_link_libraries(regime_a_price_test PRIVATE TileMega::tilemega)
   target_link_libraries(dram_floor_test PRIVATE TileMega::tilemega)
   add_test(NAME dram_floor COMMAND dram_floor_test)
   target_link_libraries(semantics_test PRIVATE TileMega::tilemega)

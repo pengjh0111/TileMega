@@ -526,6 +526,24 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
 #endif
   if (model.dims.IsSymbolic()) throw std::invalid_argument("bind theta before FP64 task evaluation");
   auto known=model.MetricBindings();
+  if(options_.regime_a && dtype_==ScalarType::kBF16) {
+    if(coordinates)return IsolatedNs(PriceParts(input,traits,residency,model,chunks,
+        *coordinates,active_ctas_per_sm,memory),calib_->dram_gbps/(target_->res.num_sms*active_ctas_per_sm));
+    long count=input.work.task_count.Eval(known),grid=long(target_->res.num_sms)*residency.ctas_per_sm;
+    std::vector<std::pair<std::string,long>> axes;
+    if(input.scalar_access)axes.push_back({"q",count});
+    else for(std::size_t a=0;a<input.task.output.axes.size();++a)if(input.task.IsTiled(a))
+      axes.push_back({input.task.output.axes[a].name,input.task.CoordinateExtent(a).Eval(known,known)});
+    double sum=0;for(long first=0;first<count;first+=grid) {
+      long active=std::min(grid,count-first);
+      double o=options_.wave_tail?std::max(1.,double(active)/target_->res.num_sms):residency.ctas_per_sm;
+      double wave=0;for(long linear=first;linear<first+active;++linear) {
+        auto rest=linear;analysis::ParamBinding p;
+        for(auto a=axes.rbegin();a!=axes.rend();++a){p.Bind(a->first,rest%a->second);rest/=a->second;}
+        wave=std::max(wave,IsolatedNs(PriceParts(input,traits,residency,model,chunks,p,o,memory),calib_->dram_gbps/(target_->res.num_sms*o)));
+      }sum+=wave;
+    }return sum;
+  }
   if (traits.stages<=0) {
     if (!input.scalar_flow || (!coordinates && input.cost_coordinates!=std::vector<std::string>{"q"}))
       throw std::invalid_argument("scalar task latency DAG/ownership has not been supplied");
