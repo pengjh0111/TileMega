@@ -292,6 +292,16 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
             <<candidate.estimated_limit<<'\t'<<candidate.error<<'\n';
     evidence.flush();
   }
+  if(search.floor && search.base) {
+    auto theta=search.base->model.MetricBindings();
+    std::ofstream detail(options.artifact_prefix+".floor_tensors.tsv");
+    detail<<"tensor\telement_bytes\tno_producer_read_bytes\texternal_write_bytes\tstate\toutput\n";
+    for(auto const& [name,tensor]:search.floor->tensors)
+      detail<<name<<'\t'<<tensor.element_bytes<<'\t'
+            <<tensor.read_bytes.Eval(theta)<<'\t'
+            <<tensor.write_bytes.Eval(theta)<<'\t'
+            <<tensor.state<<'\t'<<tensor.output<<'\n';
+  }
   if(options.search_only) {
     std::ofstream floor(options.artifact_prefix+".floor.tsv");
     auto value=search.floor->Evaluate(search.base->model.MetricBindings());
@@ -301,6 +311,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
       t->Add("cache_hit",0,search.cache.hits);t->Add("cache_miss",0,search.cache.misses);
       t->Add("space_cache_hit",0,search.flow_cache.space_hits);
       t->Add("space_cache_miss",0,search.flow_cache.space_misses);
+      t->Add("incremental_space_hit",0,search.flow_cache.incremental_space_hits);
       t->Add("price_cache_hit",0,search.flow_cache.prices.hits);
       t->Add("price_cache_miss",0,search.flow_cache.prices.misses);
       t->Add("release_cache_hit",0,search.flow_cache.release_hits);
@@ -368,7 +379,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
   std::ofstream classes(options.artifact_prefix+".classes.tsv");classes<<"class\tgemm\top\ttile_m\ttile_n\ttile_k\tstages\tsplit_k\n";
   for(std::size_t c=0;c<search.classes.size();++c)for(std::size_t j=0;j<search.classes[c].gemms.size();++j){auto const& g=selected->config[c];classes<<c<<'\t'<<search.classes[c].gemms[j]<<'\t'<<search.classes[c].operators[j]<<'\t'<<g.tile_m<<'\t'<<g.tile_n<<'\t'<<g.tile_k<<'\t'<<g.stages<<'\t'<<g.split_k<<'\n';}
   if(summary){*summary={};summary->stages=search.imported.plan.stages.size();for(auto op:result.compiled.module->getOps<dialect::TileSpaceOp>())++summary->task_spaces;for(auto op:result.compiled.module->getOps<dialect::CouplingOp>())++summary->couplings;}
-  if(auto* t=options.common.timing){t->Add("cache_hit",0,search.cache.hits);t->Add("cache_miss",0,search.cache.misses);t->Add("price_cache_hit",0,search.flow_cache.prices.hits);t->Add("release_cache_hit",0,search.flow_cache.release_hits);t->Add("search_evaluations",0,result.evaluated.size());t->Add("search_rounds",0,result.rounds);}
+  if(auto* t=options.common.timing){t->Add("cache_hit",0,search.cache.hits);t->Add("cache_miss",0,search.cache.misses);t->Add("incremental_space_hit",0,search.flow_cache.incremental_space_hits);t->Add("price_cache_hit",0,search.flow_cache.prices.hits);t->Add("release_cache_hit",0,search.flow_cache.release_hits);t->Add("search_evaluations",0,result.evaluated.size());t->Add("search_rounds",0,result.rounds);}
   return result;
 }
 }

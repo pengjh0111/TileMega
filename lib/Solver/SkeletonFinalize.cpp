@@ -121,6 +121,18 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
     for(auto const& link:d.original.critical_links)links<<link.space<<'\t'<<link.task<<'\t'<<flow.spaces[link.space].category<<'\t'<<link.start_ns<<'\t'<<link.end_ns<<'\t'<<link.wait_ns<<'\t'<<link.fixed_ns<<'\t'<<link.mainloop_ns<<'\t'<<link.publication_ns<<'\t'<<link.hop_ns<<'\n';
     std::ofstream spaces(prefix+".flow_spaces.tsv");spaces<<std::setprecision(17)<<"stage\tname\tcategory\ttasks\tfirst_start\tlast_end\twait_sum\tfixed_sum\tmainloop_sum\tpublication_sum\n";
     for(std::size_t i=0;i<flow.spaces.size();++i){auto const& s=flow.spaces[i];auto const& r=d.original.spaces[i];spaces<<i<<'\t'<<s.name<<'\t'<<s.category<<'\t'<<s.count<<'\t'<<r.first_start<<'\t'<<r.last_end<<'\t'<<r.wait_ns<<'\t'<<r.fixed_ns<<'\t'<<r.mainloop_ns<<'\t'<<r.publication_ns<<'\n';}
+    std::ofstream parts(prefix+".flow_parts.tsv");
+    parts<<std::setprecision(17)<<"stage\tname\tcategory\tpiece\ttasks\tfixed_ns\tcompute_ns\tdram_bytes_per_task\tno_producer_dram_bytes_per_task\tdram_rate_cap_gbps\tinflight_bytes_per_task\n";
+    for(std::size_t i=0;i<flow.spaces.size();++i) {
+      auto const& space=flow.spaces[i];
+      for(std::size_t p=0;p<space.pieces.size();++p) {
+        auto const& piece=space.pieces[p];auto const& price=piece.parts;
+        parts<<i<<'\t'<<space.name<<'\t'<<space.category<<'\t'<<p<<'\t'
+             <<piece.count<<'\t'<<price.fixed_ns<<'\t'<<price.compute_ns<<'\t'
+             <<price.dram_bytes<<'\t'<<price.no_producer_dram_bytes<<'\t'
+             <<price.dram_rate_cap<<'\t'<<price.inflight_bytes<<'\n';
+      }
+    }
   }
   entry.module=std::move(point.module);return entry;
 }
