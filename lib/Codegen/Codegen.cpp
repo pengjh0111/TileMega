@@ -1055,11 +1055,12 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
     auto pk=stringField(producer,"kind"),ck=stringField(consumer,"kind");
     auto po=llvm::cast<mlir::DenseI64ArrayAttr>(requireField(producer,"operands"));
     auto co=llvm::cast<mlir::DenseI64ArrayAttr>(requireField(consumer,"operands"));
-    if (po.size()!=8 || co.size()!=8) throw std::invalid_argument("fused phase operands are incomplete");
+    if (po.size()<8 || po.size()!=co.size())
+      throw std::invalid_argument("fused phase operands are incomplete");
     if (input.accesses.writes.count(input.semantics[0].op.result.name))
       throw std::invalid_argument("selected shared body cannot discard an externally read intermediate");
     mlir::NamedAttrList replacement(consumer);
-    std::vector<int64_t> operands(8,std::numeric_limits<std::uint32_t>::max());
+    std::vector<int64_t> operands(co.size(),std::numeric_limits<std::uint32_t>::max());
     if (pk=="kRoPE" && ck=="kKVAppend") {
       if (po[1]!=co[0] || integerField(producer,"width")!=integerField(consumer,"width") ||
           integerField(producer,"extent")!=integerField(consumer,"extent"))
