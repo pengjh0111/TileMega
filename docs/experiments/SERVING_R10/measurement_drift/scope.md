@@ -1,0 +1,1 @@
+Four fresh-process measurements of the same Llama decode B16 mixed-tile source exposed a bimodal timing regime. The observed temperature/power association is a correlation, not a proven cause. These exploratory measurements are not an EV-1 result. Top-three selection now compiles candidates first and uses three rotated measurement rounds.
