@@ -2,11 +2,13 @@
 
 **IN PROGRESS — 8/40 measured arms. This is not the final R9 delivery.**
 
+**2026-09-25 阶段性代码审查推送：完整测试中。** 当前实现导览、已完成验证、排队情况及配置数定义见 [review_status.md](review_status.md)。本次推送不代表 R9 最终验收；所有现有测试进程保持不变。
+
 ## 1. Provenance and commits
 
-Generated UTC: 2026-09-24T22:36:41.775453+00:00.
+Generated UTC: 2026-09-25T04:13:03.185984+00:00.
 
-Baseline: `197cd66da36c4fe8929698135d62dcb032b4e91f`. Report source HEAD: `c2cc952fa10c2b869779edac504fbbd3c7275d17`.
+Baseline: `197cd66da36c4fe8929698135d62dcb032b4e91f`. Report source HEAD: `c5b62e5364d0f94f1b3b1298d0891187a9902a51`.
 
 Prompt: `/root/Prompt/TileMega_R9_prompt.md`; SHA256 `6779512fd12cde3dd13800a52a330d8843e457cdfa6e766a505296750eb5ece1`. TODO update was already applied in baseline commit `197cd66da36c4fe8929698135d62dcb032b4e91f`.
 
@@ -73,6 +75,9 @@ e02d71ff1 docs: record concurrency and control measurement conditions
 9692f21dd experiments: complete the eight anchored legacy controls
 0340740c1 docs: close the anchored baseline measurement item
 c2cc952fa experiments: reuse a dedicated lane for queued full searches
+bbbbae896 docs: preserve the complete baseline and remaining solver gates
+e376b5eda experiments: hand off the queued round nine validation
+c5b62e536 experiments: snapshot ongoing solver validation for review
 ````
 
 ## 2. Complete verifier output
@@ -98,7 +103,7 @@ C-15 FAIL ['include/tilemega/Dialect/CouplingGraph/ExecOps.td:96:def Exec_Skelet
 C-16 PASS unchanged control sources=['include/tilemega/Solver/JointPlacement.h', 'lib/Solver/EftPlacement.cpp', 'lib/Solver/ChainPlacement.cpp', 'lib/Solver/BalancedPlacement.cpp', 'lib/Solver/WavefrontPlacement.cpp', 'lib/Solver/PlanMaterialize.cpp']; changed intersection=set()
 C-17 FAIL []
 C-18 PASS ['lib/Solver/SkeletonSearch.cpp:118:std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out) {', 'lib/Solver/SkeletonSearch.cpp:203:evidence<<std::setprecision(17);result.evaluated=CoordinateDescent(search,result.rounds,evidence);', 'lib/Solver/SkeletonFinalize.cpp:45:{SolverPhase phase(options.common.timing,"simulate");if(!SimulateExecution(input,selected.plan,sim,options.common.placement.hop,&simulated,&error))throw std::runtime_error(error);}']
-C-19 PASS command files=894 forbidden=[] nvcc_missing_explicit_zero=[]
+C-19 PASS command files=900 forbidden=[] nvcc_missing_explicit_zero=[]
 C-20 PASS git diff 197cd66da36c4fe8929698135d62dcb032b4e91f --name-only: TaskBody changes=[]
 G-1 FAIL all twenty code and dynamic structure checks
 G-2 FAIL internal 10/10 and three timed shortlist candidates per skeleton arm; missing/failed=[('llama', 1, 'skeleton-k4', []), ('llama', 1, 'skeleton-k8', []), ('llama', 1, 'skeleton-k16', []), ('llama', 1, 'skeleton-kW', []), ('llama', 4, 'skeleton-k4', []), ('llama', 4, 'skeleton-k8', []), ('llama', 4, 'skeleton-k16', []), ('llama', 4, 'skeleton-kW', []), ('llama', 16, 'skeleton-k4', []), ('llama', 16, 'skeleton-k8', []), ('llama', 16, 'skeleton-k16', []), ('llama', 16, 'skeleton-kW', []), ('llama', 64, 'skeleton-k4', []), ('llama', 64, 'skeleton-k8', []), ('llama', 64, 'skeleton-k16', []), ('llama', 64, 'skeleton-kW', []), ('qwen3', 1, 'skeleton-k4', []), ('qwen3', 1, 'skeleton-k8', []), ('qwen3', 1, 'skeleton-k16', []), ('qwen3', 1, 'skeleton-kW', []), ('qwen3', 4, 'skeleton-k4', []), ('qwen3', 4, 'skeleton-k8', []), ('qwen3', 4, 'skeleton-k16', []), ('qwen3', 4, 'skeleton-kW', []), ('qwen3', 16, 'skeleton-k4', []), ('qwen3', 16, 'skeleton-k8', []), ('qwen3', 16, 'skeleton-k16', []), ('qwen3', 16, 'skeleton-kW', []), ('qwen3', 64, 'skeleton-k4', []), ('qwen3', 64, 'skeleton-k8', []), ('qwen3', 64, 'skeleton-k16', []), ('qwen3', 64, 'skeleton-kW', [])]

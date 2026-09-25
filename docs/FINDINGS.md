@@ -7268,3 +7268,30 @@ the first coordinate sweep and continue the next; the added seq1/k8 arm uses
 36 isolated workers. No timing or score from an unfinished solve is a G-8
 measurement. Source/command/device logs, generated code and CG, phase ledgers,
 and control EFT queues are retained in `SOLVER_V2/legacy_r8_domain/`.
+
+
+## F-252 — Review push preserves incomplete anchored validation
+
+✅ **Verified.** The independent R9 CPU suite completed 8/8 (including the
+serial/parallel search equivalence case), with exit zero. Fourteen independent
+source/build-command checks and four GPU admission guards also pass. Evidence:
+`SOLVER_V2/handoff/independent_ctest.{log,command.json}`,
+`independent_structure.log`, and `gpu_admission.{log,command.json}`.
+
+The timestamped `SOLVER_V2/review_snapshot/` contains partial raw search TSVs
+and hashes. Eight legacy control arms are complete; none of the 32 anchored
+skeleton arms has completed its full search-to-measurement pipeline at this
+snapshot. Five are searching and 27 are queued. No G-8 win, final resource
+validation, or selected multi-variant result is inferred from partial scores.
+
+An EVALUATE row counts one distinct whole-model vector of per-SemSig GEMM
+configurations `(M,N,K,stages,split_K)`, including rejected vectors if any.
+For Llama seq1 the vector has six entries. The index is zero-based, so row
+2830 is the 2,831st evaluation, not 2,831 kernels or timing trials. Each
+accepted vector is scored over resident levels using Level 2 makespan; only
+the final five receive actual residency checks and full simulation, and the
+final three receive GPU measurements. `SkeletonSearch.cpp::ConfigKey`,
+`CoordinateDescent`, `SearchContext::Evaluate`, and `SolveSkeletonExport`
+implement these separate stages. The review push leaves all active search
+processes, candidate domains, queue assignments and measurement commands
+unchanged. Full conformance and performance acceptance remain under test.
