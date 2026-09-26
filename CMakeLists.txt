@@ -742,6 +742,10 @@ if(TILEMEGA_BUILD_TESTS)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   set_property(TARGET serving_fused_attention_test PROPERTY CUDA_ARCHITECTURES 89)
   add_test(NAME serving_fused_attention COMMAND serving_fused_attention_test)
+  add_executable(serving_attention_merge_test test/unit/serving_attention_merge_test.cu)
+  target_link_libraries(serving_attention_merge_test PRIVATE TileMega::tilemega)
+  add_test(NAME serving_attention_merge COMMAND serving_attention_merge_test)
+
   add_executable(serving_attention_cases_test
     test/unit/serving_attention_cases_test.cu)
   target_link_libraries(serving_attention_cases_test PRIVATE TileMega::tilemega)

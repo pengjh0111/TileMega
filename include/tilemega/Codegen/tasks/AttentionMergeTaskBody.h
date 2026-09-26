@@ -23,10 +23,12 @@ struct AttentionMergeTaskBody {
     int blocks_max = (capacity + block_extent - 1) / block_extent;
     int blocks_live = (past + Tokens + block_extent - 1) / block_extent;
     constexpr int rows = QPerKV * Tokens;
-    for (int index = int(threadIdx.x); index < rows * HeadDim;
-         index += int(blockDim.x)) {
-      int row = index / HeadDim;
-      int dim = index % HeadDim;
+    // Each thread owns eight adjacent BF16 outputs. Both FP32 inputs are
+    // aligned 16-byte vectors because every row has HeadDim % 8 == 0.
+    for (int vector = int(threadIdx.x); vector < rows * HeadDim / 8;
+         vector += int(blockDim.x)) {
+      int row = vector / (HeadDim / 8);
+      int dim = (vector % (HeadDim / 8)) * 8;
       float maximum = -INFINITY;
       for (int c = 0; c < blocks_live; ++c) {
         std::size_t base = (((std::size_t(batch) * heads_kv + group) *
@@ -34,20 +36,31 @@ struct AttentionMergeTaskBody {
         maximum = fmaxf(maximum, lse[base]);
       }
       float normalizer = 0.0f;
-      float numerator = 0.0f;
+      float numerator[8] = {};
       for (int c = 0; c < blocks_live; ++c) {
         std::size_t base = (((std::size_t(batch) * heads_kv + group) *
                              blocks_max + c) * rows + row);
         float weight = exp2f(lse[base] - maximum);
         normalizer += weight;
-        numerator += weight * partial[base * HeadDim + dim];
+        float4 first = *reinterpret_cast<float4 const*>(partial + base * HeadDim + dim);
+        float4 second = *reinterpret_cast<float4 const*>(partial + base * HeadDim + dim + 4);
+        float values[8] = {first.x, first.y, first.z, first.w,
+                           second.x, second.y, second.z, second.w};
+        #pragma unroll
+        for (int lane = 0; lane < 8; ++lane)
+          numerator[lane] += weight * values[lane];
       }
       int token = row / QPerKV;
       int head = row % QPerKV;
       std::size_t output = (std::size_t(batch) * Tokens + token) *
           heads_kv * QPerKV * HeadDim + (group * QPerKV + head) * HeadDim + dim;
-      context[output] = cutlass::bfloat16_t(
-          normalizer > 0.0f ? numerator / normalizer : 0.0f);
+      alignas(16) cutlass::bfloat16_t result[8];
+      #pragma unroll
+      for (int lane = 0; lane < 8; ++lane)
+        result[lane] = cutlass::bfloat16_t(
+            normalizer > 0.0f ? numerator[lane] / normalizer : 0.0f);
+      *reinterpret_cast<uint4*>(context + output) =
+          *reinterpret_cast<uint4 const*>(result);
     }
   }
 };
