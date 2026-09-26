@@ -8028,3 +8028,32 @@ cycles. Each median uses 31 samples after eviction. PG-0 therefore uses the
 measured 128-byte coverage stored in the target, with a 128-byte negative
 control. This measures cache coverage, not an end-to-end performance gain.
 See `SERVING_R11/calibration/l2_prefetch.tsv`.
+
+## F-289: Portable page-plan compilation and the measured-chain diagnostic (R11)
+
+✅ verified: the same generated paged Llama B1 serving plan compiled for
+sm_80, sm_89, sm_90, sm_100, and sm_120 with this nvcc. All five SASS files
+have zero FP64 instructions. The sm_90 and sm_120 SASS contains the expected
+TMA/bulk and mbarrier-related instructions, whereas the sm_80/sm_89 SASS
+contains only the SM80-class load path. This is compilation and static
+inspection, not execution validation on hardware other than sm_89. Evidence:
+`SERVING_R11/arch_primitives/full_plan_compile.json`.
+
+✅ verified: a focused CPU check passed 9/9 CTest cases, including handoff
+access/projection, page ring, paged GEMM and flow/runtime release agreement;
+the CG lit suite passed. The built `tilemega version` source fingerprint
+matched `tilemega.fingerprint`. Evidence: `SERVING_R11/ops/targeted_ctest.log`,
+`lit_ctest.log`, and `fingerprint_check.json`. These checks do not constitute
+the complete R11 gate; the current code-contract audit reports 13/18 checks
+passing, with missing handoff runtime, Level 1 PG pricing, and EV-2 evidence.
+
+Stated user scope change (2026-09-26): batch-dependent sweeps now use only
+B=1 and B=16. The original ten-cell throughput gate is therefore unmeasured;
+the four-cell geometric mean is reported separately. The PG-1 diagnostic
+records the realized chain length and span beside the exact per-step CG DRAM
+floor, residual wall-clock bubble per chain link, aggregate CTA time when
+the page ring is full while a consumer waits on a dependency, and the
+device-visible gap between consecutive decode launches. Diagnostic binaries
+have separate trace flags; no numeric conclusion is made before their queued
+measurements finish. See `SERVING_R11/scope_amendment.md` and
+`SERVING_R11/analyze_page_chain.py`.
