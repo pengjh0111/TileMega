@@ -102,6 +102,7 @@
   "resources_provenance": "stated-unverified: CUDA C Programming Guide compute-capability table for 10.0 and the Blackwell architecture whitepaper.  No sm_100 device has ever been probed by TileMega; nothing in `calibration` is measured and `calibrated` is false, which is what stops the cost model from using any of it.",
   "resources": {
     "num_sms": 148,
+    "l2_bytes": 0,
     "max_smem_per_sm": 233472,
     "max_dynamic_smem_per_cta": 232448,
     "regs_per_sm": 65536,
@@ -111,6 +112,7 @@
   },
   "calibration": {
     "calibrated": false,
+    "l2_prefetch_bytes": 0,
     "device": "",
     "measured_at": "",
     "wall_seconds": 0,

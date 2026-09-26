@@ -101,6 +101,7 @@
   },
   "resources": {
     "num_sms": 132,
+    "l2_bytes": 0,
     "max_smem_per_sm": 233472,
     "max_dynamic_smem_per_cta": 232448,
     "regs_per_sm": 65536,
@@ -110,6 +111,7 @@
   },
   "calibration": {
     "calibrated": false,
+    "l2_prefetch_bytes": 0,
     "device": "",
     "measured_at": "",
     "wall_seconds": 0,

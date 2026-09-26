@@ -101,6 +101,7 @@
   },
   "resources": {
     "num_sms": 128,
+    "l2_bytes": 75497472,
     "max_smem_per_sm": 102400,
     "max_dynamic_smem_per_cta": 101376,
     "regs_per_sm": 65536,
@@ -110,6 +111,7 @@
   },
   "calibration": {
     "calibrated": true,
+    "l2_prefetch_bytes": 0,
     "device": "NVIDIA GeForce RTX 4090",
     "measured_at": "2026-09-06T00:21:47Z",
     "wall_seconds": 7.738293474,
@@ -835,6 +837,7 @@
   "calibration_by_dtype": {
     "bf16": {
       "calibrated": true,
+      "l2_prefetch_bytes": 0,
       "device": "NVIDIA GeForce RTX 4090",
       "measured_at": "2026-09-06T00:19:22Z",
       "wall_seconds": 6.572790348,
