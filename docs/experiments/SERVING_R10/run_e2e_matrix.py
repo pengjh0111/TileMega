@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -25,10 +26,14 @@ def command(argv: list[str], out: Path, *, pythonpath: bool = True,
     if pythonpath:
         env["PYTHONPATH"] = str(ROOT / "python")
     start = time.perf_counter()
-    with (out / "stdout.txt").open("w") as stdout, \
-         (out / "stderr.txt").open("w") as stderr:
-        result = subprocess.run(argv, cwd=ROOT, env=env,
-                                stdout=stdout, stderr=stderr)
+    lock_path = Path("/root/r10_work/serving_gpu.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        with (out / "stdout.txt").open("w") as stdout, \
+             (out / "stderr.txt").open("w") as stderr:
+            result = subprocess.run(argv, cwd=ROOT, env=env,
+                                    stdout=stdout, stderr=stderr)
     (out / "command.json").write_text(json.dumps({
         "argv": argv, "seconds": time.perf_counter() - start,
         "returncode": result.returncode,
