@@ -1,0 +1,16 @@
+{"label": "N1024-run0-before", "pids": [3236625], "visible_mib": 4016, "used_mib": 6925, "hidden_mib": 2909, "exclusive": true, "time": 1790393068.0453372}
+{"label": "N1024-run0-after", "pids": [3236625], "visible_mib": 4016, "used_mib": 6925, "hidden_mib": 2909, "exclusive": true, "time": 1790393074.6978748}
+{"label": "N1024-run1-before", "pids": [3236625], "visible_mib": 4016, "used_mib": 14821, "hidden_mib": 10805, "exclusive": true, "time": 1790393074.7692883}
+{"label": "N1024-run1-after", "pids": [3236625], "visible_mib": 4016, "used_mib": 15685, "hidden_mib": 11669, "exclusive": true, "time": 1790393081.6604173}
+{"label": "N1024-run2-before", "pids": [3236625], "visible_mib": 4016, "used_mib": 6925, "hidden_mib": 2909, "exclusive": true, "time": 1790393081.7615166}
+{"label": "N1024-run2-after", "pids": [3236625], "visible_mib": 4016, "used_mib": 7713, "hidden_mib": 3697, "exclusive": true, "time": 1790393088.9815218}
+{"label": "N1024-run3-before", "pids": [3236625], "visible_mib": 4016, "used_mib": 7713, "hidden_mib": 3697, "exclusive": true, "time": 1790393089.0729003}
+{"label": "N1024-run3-after", "pids": [3236625], "visible_mib": 4016, "used_mib": 7713, "hidden_mib": 3697, "exclusive": true, "time": 1790393096.7441645}
+{"label": "N1-run0-before", "pids": [3236625], "visible_mib": 4016, "used_mib": 7713, "hidden_mib": 3697, "exclusive": true, "time": 1790393096.8128722}
+{"label": "N1-run0-after", "pids": [3236625], "visible_mib": 4016, "used_mib": 7713, "hidden_mib": 3697, "exclusive": true, "time": 1790393096.9982412}
+{"label": "N1-run1-before", "pids": [3236625], "visible_mib": 4016, "used_mib": 7713, "hidden_mib": 3697, "exclusive": true, "time": 1790393097.0680747}
+{"label": "N1-run1-after", "pids": [3236625], "visible_mib": 4016, "used_mib": 7713, "hidden_mib": 3697, "exclusive": true, "time": 1790393097.2408285}
+{"label": "N1-run2-before", "pids": [3236625], "visible_mib": 4016, "used_mib": 10145, "hidden_mib": 6129, "exclusive": true, "time": 1790393097.310804}
+{"label": "N1-run2-after", "pids": [3236625], "visible_mib": 4016, "used_mib": 7713, "hidden_mib": 3697, "exclusive": true, "time": 1790393097.4804893}
+{"label": "N1-run3-before", "pids": [3236625], "visible_mib": 4016, "used_mib": 7713, "hidden_mib": 3697, "exclusive": true, "time": 1790393097.550391}
+{"label": "N1-run3-after", "pids": [3236625], "visible_mib": 4016, "used_mib": 7713, "hidden_mib": 3697, "exclusive": true, "time": 1790393097.7176964}

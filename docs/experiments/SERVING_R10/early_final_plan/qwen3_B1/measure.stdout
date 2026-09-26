@@ -1,0 +1,5 @@
+{"batch": 1, "max_tokens": 1024, "e2e_seconds": 6.986311249085702, "ttft_seconds": 0.0077542660292238, "tpot_seconds": 0.006821658829967232, "output_tokens_per_second": 146.5723417538849}
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=29360128
+E2E_PLACE_STATS placement=0 max_queue=153 same_worker_edges=12454 cross_worker_edges=1316670 base_rotation=0 plan=eft
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=144 same_worker_edges=7075 cross_worker_edges=683362 base_rotation=0 plan=eft
