@@ -1,0 +1,47 @@
+{
+  "pid": 3349711,
+  "case": {
+    "model": "/root/models/llama3_2_1b",
+    "batch": 1,
+    "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+    "prefill": "/root/r11_work/r10_control/plans/llama_prefill_B1/plan.so",
+    "decode": "/root/r11_work/paged_smoke/native.so",
+    "reference_prefill": "/root/r11_work/r10_control/plans/llama_prefill_B1/plan.so",
+    "reference_decode": "/root/r11_work/r10_control/plans/llama_decode_B1/plan.so",
+    "steps": 64
+  },
+  "records": [
+    {
+      "arm": "reference",
+      "mode": "L1",
+      "mismatches": 0,
+      "token_sha256": "f7f7489fdbd052b107a6db8f30181201be31d35b049c259b175cba0dd927417b"
+    },
+    {
+      "arm": "candidate",
+      "mode": "L1",
+      "mismatches": 0,
+      "token_sha256": "f7f7489fdbd052b107a6db8f30181201be31d35b049c259b175cba0dd927417b"
+    },
+    {
+      "arm": "candidate",
+      "mode": "L2",
+      "mismatches": 0,
+      "token_sha256": "f7f7489fdbd052b107a6db8f30181201be31d35b049c259b175cba0dd927417b"
+    },
+    {
+      "arm": "candidate",
+      "mode": "L1",
+      "mismatches": 0,
+      "token_sha256": "f7f7489fdbd052b107a6db8f30181201be31d35b049c259b175cba0dd927417b"
+    },
+    {
+      "arm": "candidate",
+      "mode": "L2",
+      "mismatches": 0,
+      "token_sha256": "f7f7489fdbd052b107a6db8f30181201be31d35b049c259b175cba0dd927417b"
+    }
+  ],
+  "passed": true,
+  "performance_measurement": false
+}

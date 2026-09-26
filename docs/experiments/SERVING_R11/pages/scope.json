@@ -1,0 +1,20 @@
+{
+  "implementation": "97b28dcf9",
+  "status": "development checks, not full G-2/G-6 acceptance",
+  "gemm": "192 torch cases; 36 nonzero-padded residue/cross-task cases",
+  "attention": "60 torch cases and cache checks",
+  "protocol": "one fresh process, 64 tokens, reference L1 versus pages L1/L2/L1/L2; fifty-process run pending; three other cells pending",
+  "arch": "native async paths implemented; cross-arch checks in progress; only sm_89 executed",
+  "implementation_details": [
+    {
+      "spec": "page ring sequence advances modulo P",
+      "implementation": "multi-page GEMM stages consume empty padding slots at physical wrap",
+      "reason": "CuTe ldmatrix views require contiguous pages within one B stage; both roles consume the same deterministic padding"
+    },
+    {
+      "spec": "本轮 PG-1 必须覆盖 decode plan；prefill plan 可以只用 PG-0，保留 R10 的 per-task 主循环（声明）。",
+      "implementation": "PG-1 decode only; prefill retains the R10 collective",
+      "reason": "explicitly permitted by R11 section 4.5(h)"
+    }
+  ]
+}

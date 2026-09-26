@@ -1,0 +1,487 @@
+{
+  "cases": 60,
+  "passed": 60,
+  "rows": [
+    {
+      "case": "D128_Q2_N0_P1086_E1088",
+      "max_abs_error": 8.802569936960936e-06,
+      "tolerance": 0.003914039904884703,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N0_P1086_E256",
+      "max_abs_error": 1.0065850801765919e-05,
+      "tolerance": 0.003914039904884703,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N0_P1086_E64",
+      "max_abs_error": 8.802569936960936e-06,
+      "tolerance": 0.003914039904884703,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N0_P1_E1088",
+      "max_abs_error": 0.00044086575508117676,
+      "tolerance": 0.005098202149383724,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N0_P1_E256",
+      "max_abs_error": 0.00044086575508117676,
+      "tolerance": 0.005098202149383724,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N0_P1_E64",
+      "max_abs_error": 0.00044086575508117676,
+      "tolerance": 0.005098202149383724,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N0_P63_E1088",
+      "max_abs_error": 3.8763973861932755e-05,
+      "tolerance": 0.003981748435762711,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N0_P63_E256",
+      "max_abs_error": 3.8763973861932755e-05,
+      "tolerance": 0.003981748435762711,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N0_P63_E64",
+      "max_abs_error": 3.8763973861932755e-05,
+      "tolerance": 0.003981748435762711,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N0_P64_E1088",
+      "max_abs_error": 3.3058226108551025e-05,
+      "tolerance": 0.004000192668172531,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N0_P64_E256",
+      "max_abs_error": 3.3058226108551025e-05,
+      "tolerance": 0.004000192668172531,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N0_P64_E64",
+      "max_abs_error": 5.2235089242458344e-05,
+      "tolerance": 0.004000192668172531,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N0_P65_E1088",
+      "max_abs_error": 4.17809933423996e-05,
+      "tolerance": 0.004018052211904433,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N0_P65_E256",
+      "max_abs_error": 4.17809933423996e-05,
+      "tolerance": 0.004018052211904433,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N0_P65_E64",
+      "max_abs_error": 5.665421485900879e-05,
+      "tolerance": 0.004018052211904433,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P1086_E1088",
+      "max_abs_error": 0.00024406611919403076,
+      "tolerance": 0.004478163493331522,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P1086_E256",
+      "max_abs_error": 0.00024406611919403076,
+      "tolerance": 0.004478163493331522,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P1086_E64",
+      "max_abs_error": 0.00024406611919403076,
+      "tolerance": 0.004478163493331522,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P1_E1088",
+      "max_abs_error": 0.00047910213470458984,
+      "tolerance": 0.005126634147018194,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P1_E256",
+      "max_abs_error": 0.00047910213470458984,
+      "tolerance": 0.005126634147018194,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P1_E64",
+      "max_abs_error": 0.00047910213470458984,
+      "tolerance": 0.005126634147018194,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P63_E1088",
+      "max_abs_error": 0.00040628015995025635,
+      "tolerance": 0.004961560829542577,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P63_E256",
+      "max_abs_error": 0.00040628015995025635,
+      "tolerance": 0.004961560829542577,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P63_E64",
+      "max_abs_error": 0.00040628015995025635,
+      "tolerance": 0.004961560829542577,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P64_E1088",
+      "max_abs_error": 0.0004840046167373657,
+      "tolerance": 0.0050112910103052855,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P64_E256",
+      "max_abs_error": 0.0004840046167373657,
+      "tolerance": 0.0050112910103052855,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P64_E64",
+      "max_abs_error": 0.0004840046167373657,
+      "tolerance": 0.0050112910103052855,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P65_E1088",
+      "max_abs_error": 0.0004741400480270386,
+      "tolerance": 0.0050380288157612085,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P65_E256",
+      "max_abs_error": 0.0004741400480270386,
+      "tolerance": 0.0050380288157612085,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D128_Q2_N1_P65_E64",
+      "max_abs_error": 0.0004741400480270386,
+      "tolerance": 0.0050380288157612085,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P1086_E1088",
+      "max_abs_error": 1.1988549886154942e-05,
+      "tolerance": 0.003914511603397841,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P1086_E256",
+      "max_abs_error": 1.475232420489192e-05,
+      "tolerance": 0.003914511603397841,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P1086_E64",
+      "max_abs_error": 1.3304001186043024e-05,
+      "tolerance": 0.003914511603397841,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P1_E1088",
+      "max_abs_error": 0.00046244263648986816,
+      "tolerance": 0.005067385151050985,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P1_E256",
+      "max_abs_error": 0.00046244263648986816,
+      "tolerance": 0.005067385151050985,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P1_E64",
+      "max_abs_error": 0.00046244263648986816,
+      "tolerance": 0.005067385151050985,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P63_E1088",
+      "max_abs_error": 6.0440972447395325e-05,
+      "tolerance": 0.003975629588239826,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P63_E256",
+      "max_abs_error": 6.0440972447395325e-05,
+      "tolerance": 0.003975629588239826,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P63_E64",
+      "max_abs_error": 6.0440972447395325e-05,
+      "tolerance": 0.003975629588239826,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P64_E1088",
+      "max_abs_error": 5.3073279559612274e-05,
+      "tolerance": 0.003992922494944651,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P64_E256",
+      "max_abs_error": 5.3073279559612274e-05,
+      "tolerance": 0.003992922494944651,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P64_E64",
+      "max_abs_error": 6.031990051269531e-05,
+      "tolerance": 0.003992922494944651,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P65_E1088",
+      "max_abs_error": 5.9810467064380646e-05,
+      "tolerance": 0.004009675394627266,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P65_E256",
+      "max_abs_error": 5.9810467064380646e-05,
+      "tolerance": 0.004009675394627266,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N0_P65_E64",
+      "max_abs_error": 5.9810467064380646e-05,
+      "tolerance": 0.004009675394627266,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P1086_E1088",
+      "max_abs_error": 7.15106725692749e-05,
+      "tolerance": 0.004046204121550545,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P1086_E256",
+      "max_abs_error": 7.15106725692749e-05,
+      "tolerance": 0.004046204121550545,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P1086_E64",
+      "max_abs_error": 7.15106725692749e-05,
+      "tolerance": 0.004046204121550545,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P1_E1088",
+      "max_abs_error": 0.0004795342683792114,
+      "tolerance": 0.005281254998408258,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P1_E256",
+      "max_abs_error": 0.0004795342683792114,
+      "tolerance": 0.005281254998408258,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P1_E64",
+      "max_abs_error": 0.0004795342683792114,
+      "tolerance": 0.005281254998408258,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P63_E1088",
+      "max_abs_error": 0.0002480745315551758,
+      "tolerance": 0.004495532251894474,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P63_E256",
+      "max_abs_error": 0.0002480745315551758,
+      "tolerance": 0.004495532251894474,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P63_E64",
+      "max_abs_error": 0.0002480745315551758,
+      "tolerance": 0.004495532251894474,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P64_E1088",
+      "max_abs_error": 0.00023597478866577148,
+      "tolerance": 0.004615681245923042,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P64_E256",
+      "max_abs_error": 0.00023597478866577148,
+      "tolerance": 0.004615681245923042,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P64_E64",
+      "max_abs_error": 0.00023597478866577148,
+      "tolerance": 0.004615681245923042,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P65_E1088",
+      "max_abs_error": 0.00024375319480895996,
+      "tolerance": 0.004697415221016854,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P65_E256",
+      "max_abs_error": 0.00024375319480895996,
+      "tolerance": 0.004697415221016854,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    },
+    {
+      "case": "D64_Q4_N1_P65_E64",
+      "max_abs_error": 0.00024452805519104004,
+      "tolerance": 0.004697415221016854,
+      "cache_max_ulp": 0,
+      "cache_value_equal": true,
+      "passed": true
+    }
+  ],
+  "reference": "torch FP32 matmul; BF16 norm/RoPE and unnormalized P; <=1 BF16 ULP cache K"
+}

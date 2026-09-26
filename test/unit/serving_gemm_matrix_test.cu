@@ -2,6 +2,9 @@
 // Emit one complete serving GEMM case for comparison with torch.bfloat16.
 #include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
 #include <tilemega/Codegen/tasks/ServingGemmCombineTaskBody.h>
+#if TILEMEGA_TEST_PAGED
+#include <tilemega/Codegen/tasks/PagedGemmTaskBody.h>
+#endif
 
 #include <cuda_runtime.h>
 
@@ -14,9 +17,28 @@
 using Element = cutlass::bfloat16_t;
 using Op = tilemega::backend::ServingEpilogueOp;
 
+#if TILEMEGA_TEST_PAGED
+template<int M,int N,int K>
+struct PagedMatrixBody : tilemega::codegen::PagedGemmTaskBody<tilemega::arch::Sm80,M,N,K,16384,2> {
+  using Base=tilemega::codegen::PagedGemmTaskBody<tilemega::arch::Sm80,M,N,K,16384,2>;
+  using Ring=typename Base::Ring;
+  static constexpr int kPool=(1024+std::max(Base::kActivationBytes,Base::kScratchBytes)+1023)/1024*1024;
+  static constexpr int kSharedBytes=kPool+2*16384;
+  __device__ static void Run(tilemega::codegen::ServingGemmOperands p,int m,int n,char* storage) {
+    Ring ring{reinterpret_cast<typename Ring::Slot*>(storage),storage+kPool};
+    ring.Initialize();std::uint64_t sequence=0;
+    if(tilemega::codegen::executor::IsCompute())Base::Run(p,m,n,ring,sequence,storage+1024);
+    else Base::Load(p,n,ring,sequence);
+  }
+};
+constexpr int GemmThreads=160;
+#else
+constexpr int GemmThreads=128;
+#endif
+
 template <class Body>
 __global__ void RunGemm(tilemega::codegen::ServingGemmOperands operands) {
-  extern __shared__ char storage[];
+  extern __shared__ __align__(1024) char storage[];
   Body::Run(operands, int(blockIdx.x), int(blockIdx.y), storage);
 }
 
@@ -83,8 +105,12 @@ void DispatchCombine(int operation, float const* partial, int split,
 template <int TileM, int TileN, int TileK, int Stages>
 void RunCase(int rows, int columns, int reduction, int split, int operation,
              char const* destination) {
+#if TILEMEGA_TEST_PAGED
+  using Body=PagedMatrixBody<TileM,TileN,TileK>;
+#else
   using Body = tilemega::codegen::ServingGemmTaskBody<
       tilemega::arch::Sm89, TileM, TileN, TileK, Stages>;
+#endif
   if (rows < 1 || columns < 1 || reduction < 1 ||
       (split != 1 && split != 4) || reduction % split)
     throw std::invalid_argument("invalid GEMM matrix case");
@@ -136,7 +162,7 @@ void RunCase(int rows, int columns, int reduction, int split, int operation,
     }
     kernel<<<dim3((rows + TileM - 1) / TileM,
                     (columns + TileN - 1) / TileN),
-              128, Body::kSharedBytes>>>(operands);
+              GemmThreads, Body::kSharedBytes>>>(operands);
     CheckCuda(cudaGetLastError(), "GEMM launch");
   }
   if (split != 1)

@@ -1,0 +1,192 @@
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 32, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 1, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 32, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 1, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 32, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 1, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 32, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 64, "k": 2048, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 1, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 32, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 1, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 32, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 1, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 32, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 1, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 64, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 32, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 64, "k": 2048, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 1, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 128, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 2, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 128, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 2, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 128, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 2, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 128, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 256, "k": 6144, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 4, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 128, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 2, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 128, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 2, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 128, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 2, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 256, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 128, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 1, "n": 256, "k": 6144, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 4, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 96, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 3, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 96, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 3, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 96, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 3, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 96, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 64, "k": 2048, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 3, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 96, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 3, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 96, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 3, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 96, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 3, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 192, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 96, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 64, "k": 2048, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 3, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 384, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 6, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 384, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 6, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 384, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 6, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 384, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 256, "k": 6144, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 12, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 384, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 6, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 384, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 6, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 384, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 6, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 768, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 384, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 3, "n": 256, "k": 6144, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 12, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 544, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 17, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 544, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 17, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 544, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 17, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 544, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 64, "k": 2048, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 17, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 544, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 17, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 544, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 17, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 544, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 17, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 1088, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 544, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 64, "k": 2048, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 17, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 2176, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 34, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 2176, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 34, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 2176, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 34, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 2176, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 256, "k": 6144, "split": 1, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 68, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 2176, "pass": true}
+{"config": 0, "tile": [16, 128, 64, 2], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 34, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 2176, "pass": true}
+{"config": 1, "tile": [16, 128, 64, 4], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 34, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 2176, "pass": true}
+{"config": 2, "tile": [16, 128, 128, 2], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 34, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "store", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "residual", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 4352, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "swiglu", "returncode": 0, "max_ulp": 0, "violations": 0, "elements": 2176, "pass": true}
+{"config": 3, "tile": [16, 64, 128, 3], "m": 17, "n": 256, "k": 6144, "split": 4, "op": "argmax_partial", "returncode": 0, "max_value_error": 0.0, "index_mismatches": 0, "violations": 0, "elements": 68, "pass": true}

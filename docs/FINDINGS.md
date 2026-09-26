@@ -7969,3 +7969,35 @@ acceptance. See `SERVING_R10/summary.md` and the exact process/stop ledger.
 control before comparing any R11 performance change. Profile serving Prepare
 and top-3 compilation costs; the implemented structure-cache fix cannot by
 itself establish the 600 s budget. No synchronization or race claim is added.
+
+
+## F-287: Page consumers and the first serving integration checks (R11)
+
+✅ verified (development checks, not full acceptance): the page-ring copy
+check passed three configurations with 103 iterations each; page-fed GEMM
+passed 36 residue/cross-task cases and 192 PyTorch epilogue/split cases. The
+independent-warp decode attention consumer passed 60 cases against PyTorch,
+including the specified cache-write comparison. See
+`SERVING_R11/pages/{ctest.log,gemm_torch.json,attention_torch.json}`.
+The K-tail cases fill padding with nonzero values: `Copy16Bytes` transfers
+only the valid source bytes and zero-fills the rest.
+
+✅ verified observation: one fresh-process Llama B1 check produced identical
+64-token sequences for a PG-off L1 reference and four alternating page-fed
+L1/L2 launches of complete generations. The corresponding serving binary's
+L1/L2 SASS has zero FP64 instructions. This one process establishes neither
+the full protocol gate nor a race-free claim. The required fifty-process
+runs and the other three model/batch cells remain outstanding here.
+
+✅ verified debugging evidence: parity alone accepted an old page completion
+when an independent attention warp requested a slot multiple generations
+ahead. The page ring now checks a monotonically increasing slot generation
+before waiting on the full-barrier parity. This is an implementation change
+under test, not a synchronization conclusion. Multi-page GEMM stages consume
+deterministic empty padding slots at the physical wrap so their ldmatrix
+views remain contiguous; both roles consume that same sequence.
+
+Stated implementation scope: decode uses 160 threads and a target-derived
+page pool; prefill still uses the R10 per-task collective, as permitted by
+R11 §4.5(h). The full G-2 also requires the handoff consumers, which are not
+yet integrated. No page-pipeline performance result is claimed.
