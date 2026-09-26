@@ -1,0 +1,24 @@
+{
+  "cases": [
+    {
+      "model": "/root/models/llama3_2_1b",
+      "batch": 1,
+      "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+      "steps": 64,
+      "prefill": "/root/r11_work/r10_control/plans/llama_prefill_B1/plan.so",
+      "reference_prefill": "/root/r11_work/r10_control/plans/llama_prefill_B1/plan.so",
+      "decode": "/root/r11_work/page_vector_once/llama_B1_pages16/plan.so",
+      "reference_decode": "/root/r11_work/protocol/page_v2/llama_B1_off/plan.so",
+      "binary_sha256": {
+        "prefill": "ecc79d859b9393be139310a31d65e06537fec616b6577f76c82926461dfa905c",
+        "reference_prefill": "ecc79d859b9393be139310a31d65e06537fec616b6577f76c82926461dfa905c",
+        "decode": "a28e920583fe9fd592a9f8f6276a478d8ae74a598d36b3a6475ae32485c1312f",
+        "reference_decode": "2c0083a443c58f68b69a083331f146ecb90571c2acae08b5303655b08e10d03e"
+      }
+    }
+  ],
+  "processes_per_case": 50,
+  "passed": 50,
+  "failed": 0,
+  "complete": true
+}

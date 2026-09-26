@@ -1,0 +1,22 @@
+[
+  {
+    "name": "original",
+    "binary": "/root/r11_work/page_size_control/llama_B1_pages16/plan.so",
+    "sha256": "2c3f9b50c1457a44beecf70c978f2f2fa6043fb51c6dc6742a7a9d01edeb70b9",
+    "exit_code": 0,
+    "seconds": 122.39991965610534,
+    "e2e_seconds": 4.749245248036459,
+    "tpot_seconds": 0.0046383600958776845,
+    "timed_tokens_identical": true
+  },
+  {
+    "name": "vector_once",
+    "binary": "/root/r11_work/page_vector_once/llama_B1_pages16/plan.so",
+    "sha256": "a28e920583fe9fd592a9f8f6276a478d8ae74a598d36b3a6475ae32485c1312f",
+    "exit_code": 0,
+    "seconds": 118.2389953720849,
+    "e2e_seconds": 4.485077017918229,
+    "tpot_seconds": 0.004380144565097646,
+    "timed_tokens_identical": true
+  }
+]

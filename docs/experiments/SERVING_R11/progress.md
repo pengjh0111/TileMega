@@ -56,6 +56,17 @@ class controls measured paged/standard GEMM stage ratios of 1.29/1.50/1.99/
 2.93 ms/token full-request regression. This localizes the immediate fix to
 `PagedGemmTaskBody` and the page-ring transfer protocol.
 
+A corrected multi-page B loader now routes each vector by the CuTe physical
+page in one pass. The initial logical-range shortcut failed a numerical test
+and was discarded. The corrected version passed 49 small-shape cases, 50
+fresh-process Llama B1 protocol checks, and one 1024-token L1/L2 plus HF
+teacher-forced check. On unchanged 16 KiB geometry its lm_head stage fell
+from 1.1203 to 0.7235 ms, and same-session E2E from 4.7492 to 4.4851 s.
+This is still 1.34× the separate PG-off control. Five arch compile/SASS
+checks passed for this source, with FP64 count zero; only sm_89 ran here.
+See `page_vector_once/`. The other three endpoint cells and final solver
+plans have not been regenerated with this improvement.
+
 Supplemental fixed-geometry full-request checks now cover both models at
 B=1/16: L1/L2 token mismatch count is zero across 34,816 positions and all
 four HF teacher-forced C-1 cells pass. This does not complete EV-2, whose

@@ -8305,3 +8305,18 @@ versus 0.055 ms old. Thus 16 KiB pages recover much of gate/up and lm_head,
 but leave down and lm_head as concrete bottlenecks. The transport benchmark
 does not assert output correctness; paged GEMM correctness is checked
 separately. See `SERVING_R11/paged_class_bench/page16.tsv` and F-302.
+
+## F-307: Routing each vector to its physical page removes repeated GEMM scans
+
+✅ verified: the first logical-interval optimization was rejected by a
+multi-page numerical test because the CuTe swizzle changes the physical page.
+The corrected loader visits each 16 B vector once and routes it by the
+swizzled address. It passed 49 paged GEMM cases and 50 independent-process
+64-step protocol checks (250 generated sequences, zero token mismatches).
+The optimized plan also passed a full 1024-token L1/L2 comparison on one
+instance and had zero HF teacher-forced gap at every generated position.
+On the same Llama B1 geometry and 16 KiB layout, the corrected lm_head stage
+took 0.7235 ms versus 1.1203 ms before; the whole 1024-token request took
+4.4851 s versus 4.7492 s, a 5.56% reduction. This remains 1.34× the
+separate PG-off control. These are fixed-geometry controls, not solver-selected
+EV-2 results. See `SERVING_R11/page_vector_once/`.

@@ -1,0 +1,126 @@
+{
+  "architectures": [
+    {
+      "arch": "sm_80",
+      "status": "PASS",
+      "command": "'/usr/local/cuda/bin/nvcc' -std=c++17 -O3 -c -Xptxas=-v --expt-relaxed-constexpr -arch='sm_80' -I'/root/TileMega/include' -I'/root/TileMega/third_party/cutlass/include' -I'/root/TileMega/third_party/cutlass/tools/util/include' -I'/root/TileMega/third_party/cutlass/test' '/root/r11_work/page_vector_once/llama_B1_pages16/plan.so.cu' -o '/root/r11_work/page_vector_once/arch_compile/sm_80.o'",
+      "sass": {
+        "binary": "/root/r11_work/page_vector_once/arch_compile/sm_80.o",
+        "fp64_total": 0,
+        "fp64_by_kernel": {
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 0,
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 0
+        },
+        "instructions": {
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": [],
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": []
+        },
+        "async_instructions": {
+          "LDGSTS": 72
+        }
+      }
+    },
+    {
+      "arch": "sm_89",
+      "status": "PASS",
+      "command": "'/usr/local/cuda/bin/nvcc' -std=c++17 -O3 -c -Xptxas=-v --expt-relaxed-constexpr -arch='sm_89' -I'/root/TileMega/include' -I'/root/TileMega/third_party/cutlass/include' -I'/root/TileMega/third_party/cutlass/tools/util/include' -I'/root/TileMega/third_party/cutlass/test' '/root/r11_work/page_vector_once/llama_B1_pages16/plan.so.cu' -o '/root/r11_work/page_vector_once/arch_compile/sm_89.o'",
+      "sass": {
+        "binary": "/root/r11_work/page_vector_once/arch_compile/sm_89.o",
+        "fp64_total": 0,
+        "fp64_by_kernel": {
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 0,
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 0
+        },
+        "instructions": {
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": [],
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": []
+        },
+        "async_instructions": {
+          "LDGSTS": 72
+        }
+      }
+    },
+    {
+      "arch": "sm_90",
+      "status": "PASS",
+      "command": "'/usr/local/cuda/bin/nvcc' -std=c++17 -O3 -c -Xptxas=-v --expt-relaxed-constexpr -arch='sm_90' -I'/root/TileMega/include' -I'/root/TileMega/third_party/cutlass/include' -I'/root/TileMega/third_party/cutlass/tools/util/include' -I'/root/TileMega/third_party/cutlass/test' '/root/r11_work/page_vector_once/llama_B1_pages16/plan.so.cu' -o '/root/r11_work/page_vector_once/arch_compile/sm_90.o'",
+      "sass": {
+        "binary": "/root/r11_work/page_vector_once/arch_compile/sm_90.o",
+        "fp64_total": 0,
+        "fp64_by_kernel": {
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 0,
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 0
+        },
+        "instructions": {
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": [],
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": []
+        },
+        "async_instructions": {
+          "ACQBULK": 4,
+          "LDGSTS": 90,
+          "PREEXIT": 2,
+          "SYNCS.ARRIVE.TRANS64": 14,
+          "SYNCS.ARRIVE.TRANS64.A1T0": 46,
+          "SYNCS.EXCH.64": 20,
+          "SYNCS.PHASECHK.TRANS64.TRYWAIT": 64,
+          "UTMALDG": 52
+        }
+      }
+    },
+    {
+      "arch": "sm_100",
+      "status": "PASS",
+      "command": "'/usr/local/cuda/bin/nvcc' -std=c++17 -O3 -c -Xptxas=-v --expt-relaxed-constexpr -arch='sm_100' -I'/root/TileMega/include' -I'/root/TileMega/third_party/cutlass/include' -I'/root/TileMega/third_party/cutlass/tools/util/include' -I'/root/TileMega/third_party/cutlass/test' '/root/r11_work/page_vector_once/llama_B1_pages16/plan.so.cu' -o '/root/r11_work/page_vector_once/arch_compile/sm_100.o'",
+      "sass": {
+        "binary": "/root/r11_work/page_vector_once/arch_compile/sm_100.o",
+        "fp64_total": 0,
+        "fp64_by_kernel": {
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 0,
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 0
+        },
+        "instructions": {
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": [],
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": []
+        },
+        "async_instructions": {
+          "ACQBULK": 4,
+          "LDGSTS": 82,
+          "PREEXIT": 2,
+          "SYNCS.ARRIVE.TRANS64": 12,
+          "SYNCS.ARRIVE.TRANS64.A1T0": 44,
+          "SYNCS.EXCH.64": 20,
+          "SYNCS.PHASECHK.TRANS64.TRYWAIT": 64,
+          "UTMALDG": 32
+        }
+      }
+    },
+    {
+      "arch": "sm_120",
+      "status": "PASS",
+      "command": "'/usr/local/cuda/bin/nvcc' -std=c++17 -O3 -c -Xptxas=-v --expt-relaxed-constexpr -arch='sm_120' -I'/root/TileMega/include' -I'/root/TileMega/third_party/cutlass/include' -I'/root/TileMega/third_party/cutlass/tools/util/include' -I'/root/TileMega/third_party/cutlass/test' '/root/r11_work/page_vector_once/llama_B1_pages16/plan.so.cu' -o '/root/r11_work/page_vector_once/arch_compile/sm_120.o'",
+      "sass": {
+        "binary": "/root/r11_work/page_vector_once/arch_compile/sm_120.o",
+        "fp64_total": 0,
+        "fp64_by_kernel": {
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 0,
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 0
+        },
+        "instructions": {
+          "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": [],
+          "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": []
+        },
+        "async_instructions": {
+          "ACQBULK": 4,
+          "LDGSTS": 82,
+          "PREEXIT": 2,
+          "SYNCS.ARRIVE.TRANS64": 12,
+          "SYNCS.ARRIVE.TRANS64.A1T0": 44,
+          "SYNCS.EXCH.64": 20,
+          "SYNCS.PHASECHK.TRANS64.TRYWAIT": 64,
+          "UTMALDG": 32
+        }
+      }
+    }
+  ]
+}
+
