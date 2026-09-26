@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 from pathlib import Path
 import statistics
@@ -91,11 +92,15 @@ def main() -> None:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--reverse-modes", action="store_true")
     args = parser.parse_args()
-    torch.cuda.init()
-    config = json.loads((args.model / "config.json").read_text())
-    report = measure_one(PlanLibrary(args.so), args.batch,
-                         config["vocab_size"], args.past_mid, args.out,
-                         args.reverse_modes)
+    lock_path = Path("/root/r10_work/serving_gpu.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        torch.cuda.init()
+        config = json.loads((args.model / "config.json").read_text())
+        report = measure_one(PlanLibrary(args.so), args.batch,
+                             config["vocab_size"], args.past_mid, args.out,
+                             args.reverse_modes)
     print(json.dumps({mode: data["mean_ms"]
                       for mode, data in report["modes"].items()}))
 
