@@ -67,6 +67,9 @@ def main() -> int:
         ids = HERE / "prompts" / f"{model}_ids.json"
         greedy_cache = out_root / model / "hf_free_cache"
         greedy_cache.mkdir(parents=True, exist_ok=True)
+        # Measure every TileMega batch first, then keep a single vLLM LLM
+        # instance alive while it measures all five batches for this model.
+        # This is the baseline-session contract from §4.1(c).
         for batch in args.batches:
             cell = out_root / model / f"B{batch}"
             prefill = PLANS / f"{model}_prefill_B{batch}" / "plan.so"
@@ -88,16 +91,40 @@ def main() -> int:
                 if not (mode / "mode_check.json").exists():
                     command([TORCH, "-m", "tilemega.serving.check_modes", *common,
                              "--out", str(mode)], cell / "mode_command")
+            except Exception as error:
+                print(f"{model} B{batch}: {error}", flush=True)
+                failed = True
+        vllm_session = out_root / model / "vllm_session"
+        if not all((vllm_session / f"B{batch}" /
+                    "measurements.json").exists() for batch in args.batches):
+            try:
+                command([VLLM, "-m", "tilemega.serving.vllm_baseline",
+                         "--model", str(checkpoint), "--prompt-ids", str(ids),
+                         "--batch", "all", "--out", str(vllm_session)],
+                        out_root / model / "vllm_command")
+            except Exception as error:
+                print(f"{model} vLLM session: {error}", flush=True)
+                failed = True
+                continue
+        for batch in args.batches:
+            cell = out_root / model / f"B{batch}"
+            prefill = PLANS / f"{model}_prefill_B{batch}" / "plan.so"
+            decode = PLANS / f"{model}_decode_B{batch}" / "plan.so"
+            if not all(path.exists() and Path(str(path) + ".plan.json").exists()
+                       for path in (prefill, decode)):
+                print(f"{model} B{batch}: plans not complete", flush=True)
+                failed = True
+                continue
+            try:
+                tilemega = cell / "tilemega"
+                mode = cell / "mode_check"
+                if not (tilemega / "measurements.json").exists() or not (
+                        mode / "mode_check.json").exists():
+                    raise RuntimeError("TileMega measurement or mode check missing")
                 repeated = [json.loads((tilemega /
                     f"tokens_N1024_run{i}.json").read_text()) for i in (1, 2, 3)]
                 timed_equal = repeated[0] == repeated[1] == repeated[2]
-                baseline = cell / "vllm"
-                if not (baseline / f"B{batch}" / "measurements.json").exists():
-                    command([VLLM, "-m", "tilemega.serving.vllm_baseline",
-                             "--model", str(checkpoint), "--prompt-ids", str(ids),
-                             "--batch", str(batch), "--out", str(baseline)],
-                            cell / "vllm_command")
-                baseline = baseline / f"B{batch}"
+                baseline = vllm_session / f"B{batch}"
                 vllm_hf = cell / "vllm_hf"
                 copy_greedy(greedy_cache, vllm_hf)
                 if not (vllm_hf / "check.json").exists():

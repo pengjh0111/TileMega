@@ -99,7 +99,8 @@ def request_table() -> list[dict[str, object]]:
         for batch in (1, 2, 4, 8, 16):
             directory = HERE / "ev1" / model / f"B{batch}"
             measured = directory / "tilemega" / "measurements.json"
-            baseline_path = directory / "vllm" / f"B{batch}" / "measurements.json"
+            baseline_path = HERE / "ev1" / model / "vllm_session" / f"B{batch}" / \
+                "measurements.json"
             hf_path = directory / "tilemega_hf" / "check.json"
             mode_path = directory / "mode_check" / "mode_check.json"
             report: dict[str, object] = {"model": model, "batch": batch,
