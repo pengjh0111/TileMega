@@ -532,10 +532,13 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
      semantic.op.arithmetic=="argmax_gemm")
     result.collective_k_extent=model.gemms.at(stage.gemm).k;
   if(model.serving && stage.kind==StageKind::kFusedAttention &&
-     model.dims.seq==1 && stage.attention_kv_block>0) {
+     stage.attention_kv_block>0) {
+    bool prefill=model.dims.seq>1;
     result.serving_attention=DerivedTaskInput::ServingAttention{
-        (model.serving_capacity+stage.attention_kv_block-1)/stage.attention_kv_block,
-        stage.attention_kv_block,model.dims.total,64};
+        prefill?1:(model.serving_capacity+stage.attention_kv_block-1)/stage.attention_kv_block,
+        prefill?model.dims.seq:stage.attention_kv_block,model.dims.total,64,
+        int(stage.width),prefill?int(stage.attention_query_rows):int(stage.group),
+        prefill};
   }
   if (!config && runtime_ownership) {
     int threads=ModelTaskTraits(model,semantic.stage,{}).threads;

@@ -31,10 +31,12 @@ def _exclusive(path: Path, label: str, wait: bool) -> bool:
     deadline = time.monotonic() + (30 * 60 if wait else 0)
     while True:
         observed, visible_mib, used_mib = _gpu_owners()
-        # Container PID namespaces can hide another user's GPU process while
-        # NVML still reports its allocation in device-wide memory.used.
+        # Keep the device-wide accounting difference for diagnosis. NVML can
+        # attribute the current process's CUDA allocations to memory.used
+        # before they appear in the per-process table, so it is not an
+        # exclusivity criterion. The required guard is the process list.
         hidden_mib = max(0, used_mib - visible_mib)
-        good = observed == {os.getpid()} and hidden_mib <= 256
+        good = observed == {os.getpid()}
         with path.open("a") as output:
             output.write(json.dumps({"label": label, "pids": sorted(observed),
                                      "visible_mib": visible_mib,

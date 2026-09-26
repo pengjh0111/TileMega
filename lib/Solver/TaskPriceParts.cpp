@@ -34,6 +34,7 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
   double read_dram=input.no_producer_read_bytes?traffic.no_producer_read_bytes*df_np+traffic.produced_read_bytes*df_p:traffic.global_read_bytes*df_np;
   auto const& fit=calib_->task_body;
   double serving_flops=0;
+  double serving_body_bytes=-1;
   if(traits.stages<=0) {
     if(!input.scalar_flow)throw std::invalid_argument("scalar flow not supplied");
     auto [depth,barriers]=input.scalar_flow->MemoryDepthAndBarriers(traits.threads);
@@ -96,7 +97,8 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
   if(input.serving_attention) {
     auto const& a=*input.serving_attention;
     if(a.block_count<=0 || a.block_extent<=0 || a.kv_tile<=0 ||
-       !point.Contains("q"))throw std::invalid_argument("invalid serving attention price coordinate");
+       a.head_dim<=0 || a.queries<=0 || !point.Contains("q"))
+      throw std::invalid_argument("invalid serving attention price coordinate");
     int block=int(point.At("q")%a.block_count);
     int active=std::clamp(a.total-block*a.block_extent,0,a.block_extent);
     if(active==0) {
@@ -106,8 +108,27 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
       result.dram_bytes=0;
       result.no_producer_dram_bytes=0;
     } else {
-      int executed=((active+a.kv_tile-1)/a.kv_tile)*a.kv_tile;
-      result.compute_ns*=double(executed)/a.block_extent;
+      // The fitted serving body uses one task's actual KV block: 4D bytes
+      // per key/value position and one Q/K/position-table setup.  The generic
+      // semantic work also counts replicated tensor-core lanes and is not in
+      // the same units as this microbenchmark's flop coefficient.  Feeding
+      // that expanded count to the fit inflated one Qwen decode block from
+      // ~27 us to 6.7 ms.  Price the executed block in the fit's units.
+      if(a.prefill) {
+        // K/V rows are shared by this task's query block; each query row is
+        // loaded once.  The calibration's full-S query sample is reduced to
+        // the actual R_q rows selected by the symbolic task geometry.
+        serving_body_bytes=4.0*a.head_dim*active+
+            2.0*a.queries*a.head_dim;
+        serving_flops=4.0*a.queries*a.head_dim*active;
+      } else {
+        serving_body_bytes=4.0*a.head_dim*active+
+            2.0*a.queries*a.head_dim+4.0*a.head_dim;
+        serving_flops=4.0*a.queries*a.head_dim*(active+1);
+      }
+      double mma=o*serving_flops/tc_flops_per_ns_per_sm_;
+      double exp2=o*a.queries*active/sfu_ops_per_ns_per_sm_;
+      result.compute_ns=std::max(mma,exp2);
     }
   }
   if(!input.serving_body_kind.empty() &&
@@ -115,7 +136,8 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
     auto calibrated=fit.serving.find(input.serving_body_kind);
     if(calibrated!=fit.serving.end()) {
       auto const& body=calibrated->second;
-      double bytes=traffic.global_read_bytes+traffic.global_write_bytes;
+      double bytes=serving_body_bytes>=0?serving_body_bytes:
+          traffic.global_read_bytes+traffic.global_write_bytes;
       result.fixed_ns=body.fixed_ns;
       result.compute_ns=std::max(result.compute_ns,
           body.byte_ns*bytes+body.flop_ns*serving_flops);

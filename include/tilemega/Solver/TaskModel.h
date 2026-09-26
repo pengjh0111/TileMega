@@ -43,6 +43,9 @@ struct DerivedTaskInput {
     int block_extent=0;
     int total=0;
     int kv_tile=64;
+    int head_dim=0;
+    int queries=0;
+    bool prefill=false;
   };
   std::optional<ServingAttention> serving_attention;
   // BF16 serving microbenchmark fit key; empty outside serving plans.
