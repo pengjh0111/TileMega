@@ -7,6 +7,7 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import time
 
@@ -15,8 +16,9 @@ from measure_pg_ablation import LOCK, ROOT
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument('--plan', type=Path,
-                        default=Path('/root/r11_work/protocol/page_v2/llama_B1_pages/plan.so'))
+    parser.add_argument('--plan', type=Path, required=True)
+    parser.add_argument('--model-config', type=Path, required=True,
+                        help='HF config.json that defines the physical GEMM dimensions')
     parser.add_argument('--out', type=Path,
                         default=Path('/root/r11_work/paged_class_bench'))
     parser.add_argument('--classes', nargs='+',
@@ -25,16 +27,21 @@ def main() -> None:
     args = parser.parse_args()
     plan = args.plan
     spec = json.loads(Path(str(plan) + '.plan.json').read_text())
+    model = json.loads(args.model_config.read_text())
     page = spec['pages']
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
-    # Each tuple is (name, variant id, physical output N, reduction K).
-    # The dimensions come from the Llama 3.2 1B checkpoint, while tile shapes
-    # and all shared-memory parameters are read from the generated plan.
-    stages = [('qkv', 0, 3072, 2048),
-              ('gate_up', 2, 16384, 2048),
-              ('down', 3, 2048, 8192),
-              ('lm_head', len(spec['gemms']) - 1, 128256, 2048)]
+    # Each tuple is (name, representative GEMM index, physical N, reduction K).
+    # The config supplies physical dimensions; the plan supplies tiles and
+    # shared memory. The standard and paged arms therefore use one geometry.
+    hidden = model['hidden_size']
+    intermediate = model['intermediate_size']
+    head_dim = model['head_dim']
+    qkv_width = (model['num_attention_heads'] + 2 * model['num_key_value_heads']) * head_dim
+    stages = [('qkv', 0, qkv_width, hidden),
+              ('gate_up', 2, 2 * intermediate, hidden),
+              ('down', 3, hidden, intermediate),
+              ('lm_head', len(spec['gemms']) - 1, model['vocab_size'], hidden)]
     results = []
     for name, variant, n, k in stages:
         if name not in args.classes:
@@ -47,8 +54,13 @@ def main() -> None:
                        'WORKSPACE_OFFSET': page['workspace_offset'],
                        'POOL_OFFSET': page['pool_offset'],
                        'SHARED_BYTES': page['shared_bytes']}
-        command = ['/usr/local/cuda/bin/nvcc', '-std=c++17', '-O3',
-                   '--expt-relaxed-constexpr', '-arch=sm_89',
+        target = json.loads(Path(spec['runtime_target']).read_text())
+        arch = f"sm_{target['sm_major']}{target['sm_minor']}"
+        compiler = os.getenv('CUDACXX') or shutil.which('nvcc')
+        if not compiler:
+            raise RuntimeError('nvcc not found; set CUDACXX')
+        command = [compiler, '-std=c++17', '-O3',
+                   '--expt-relaxed-constexpr', f'-arch={arch}',
                    '-I' + str(ROOT / 'include'),
                    '-I' + str(ROOT / 'third_party/cutlass/include')]
         command += [f'-DBENCH_{key}={value}' for key, value in definitions.items()]
@@ -63,7 +75,7 @@ def main() -> None:
             subprocess.run([str(executable), str(n), str(k)], stdout=log,
                            stderr=subprocess.STDOUT, check=True, cwd=ROOT)
         result = {'name': name, 'variant': variant, 'n': n, 'k': k,
-                  'geometry': geometry, 'page': page,
+                  'geometry': geometry, 'page': page, 'model_config': str(args.model_config),
                   'build_command': command, 'runtime_seconds': time.monotonic() - started,
                   'measurement': (out / f'{name}.run.log').read_text().strip()}
         results.append(result)
