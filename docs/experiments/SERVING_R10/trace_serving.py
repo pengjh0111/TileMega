@@ -144,6 +144,17 @@ def trace_one(model: str, batch: int) -> dict:
         if result.returncode:
             raise RuntimeError(f"trace nvcc failed for {name}: {result.returncode}")
     (output / "build_command.json").write_text(json.dumps(command, indent=2) + "\n")
+    audit = output / "fp64_audit.json"
+    if not audit.exists():
+        with (output / "fp64_audit.log").open("w") as log:
+            result = subprocess.run([
+                sys.executable, str(HERE / "audit_sass.py"), str(binary),
+                "--out", str(audit)], cwd=ROOT, stdout=log,
+                stderr=subprocess.STDOUT)
+        if result.returncode:
+            raise RuntimeError(f"trace FP64 audit failed for {name}")
+    if json.loads(audit.read_text())["fp64_total"] != 0:
+        raise RuntimeError(f"trace build contains FP64 instructions: {name}")
     checkpoint = WORK.parent / "models" / (
         "llama3_2_1b" if model == "llama" else "qwen3_1_7b")
     env = {**os.environ, "PYTHONPATH": str(ROOT / "python")}
