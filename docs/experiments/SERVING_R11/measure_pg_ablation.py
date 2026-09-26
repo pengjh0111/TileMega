@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import statistics
 import subprocess
 import sys
 import time
@@ -15,6 +16,33 @@ import time
 ROOT = Path(__file__).resolve().parents[3]
 PYTHON = '/root/venvs/tilemega-torch213-cu126/bin/python'
 LOCK = Path('/root/r10_work/serving_gpu.lock')
+
+
+def power_policy(out: Path) -> Path:
+    """Declare one idle+30 W rule before any arm is timed."""
+    policy = out / 'measurement_policy.json'
+    if policy.is_file():
+        return policy
+    # The previous fresh-process check may leave the board warm.  No CUDA
+    # context remains when the queue reaches this point; allow it to cool
+    # before estimating idle power, then keep that estimate fixed for all arms.
+    time.sleep(30)
+    owners = subprocess.check_output(['nvidia-smi', '--query-compute-apps=pid',
+        '--format=csv,noheader'], text=True).strip()
+    if owners:
+        raise RuntimeError(f'cannot predeclare idle power while GPU has owners: {owners}')
+    samples = []
+    for _ in range(5):
+        raw = subprocess.check_output(['nvidia-smi',
+            '--query-gpu=power.draw', '--format=csv,noheader,nounits'], text=True)
+        samples.append(float(raw.splitlines()[0].strip()))
+        time.sleep(2)
+    if max(samples) - min(samples) > 10:
+        raise RuntimeError(f'idle power did not settle: {samples}')
+    policy.write_text(json.dumps(dict(guard=True,
+        idle_power_w=statistics.median(samples), power_margin_w=30,
+        cooldown_seconds=30, retries=3, idle_samples_w=samples), indent=2)+'\n')
+    return policy
 
 
 def sha(path: Path) -> str:
@@ -44,6 +72,7 @@ def main():
     protocols = json.loads((ROOT / 'docs/experiments/SERVING_R11/protocol_results.json').read_text())
     if not protocols.get('complete'):
         raise RuntimeError('page protocol results are incomplete')
+    policy=power_policy(args.out)
     selected = [('llama', 1), ('qwen3', 16)]
     records = []
     for index, (model, batch) in enumerate(selected):
@@ -74,7 +103,8 @@ def main():
             argv = [PYTHON, '-m', 'tilemega.serving.measure', '--model', str(model_dir),
                     '--prefill-so', str(prefill), '--decode-so', str(binary),
                     '--prompt-ids', str(prompts), '--batch', str(batch), '--mode', 'L2',
-                    '--warmup', '1', '--repeats', '3', '--out', str(dest)]
+                    '--warmup', '1', '--repeats', '3', '--policy', str(policy),
+                    '--out', str(dest)]
             started = time.monotonic()
             with LOCK.open('a') as lock, (dest / 'command.log').open('w') as output:
                 fcntl.flock(lock, fcntl.LOCK_EX)

@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 
-from measure_pg_ablation import LOCK, PYTHON, ROOT, cell_sources, manifest, sha
+from measure_pg_ablation import LOCK, PYTHON, ROOT, cell_sources, manifest, power_policy, sha
 
 
 def main() -> None:
@@ -20,6 +20,7 @@ def main() -> None:
         raise RuntimeError('SOLO+RED+BARRIER_V2 fresh-process check has not passed')
     output = Path('/root/r11_work/sync_ablation')
     output.mkdir(parents=True, exist_ok=True)
+    policy=power_policy(output)
     rows = []
     for model, batch in (('llama', 1), ('qwen3', 16)):
         plans, prefill = cell_sources(model, batch)
@@ -40,7 +41,8 @@ def main() -> None:
             command = [PYTHON, '-m', 'tilemega.serving.measure', '--model', str(checkpoint),
                        '--prefill-so', str(prefill), '--decode-so', str(binary),
                        '--prompt-ids', str(prompts), '--batch', str(batch), '--mode', 'L2',
-                       '--warmup', '1', '--repeats', '3', '--out', str(dest)]
+                       '--warmup', '1', '--repeats', '3', '--policy', str(policy),
+                       '--out', str(dest)]
             start = time.monotonic()
             with LOCK.open('a') as lock, (dest / 'command.log').open('w') as log:
                 fcntl.flock(lock, fcntl.LOCK_EX)
