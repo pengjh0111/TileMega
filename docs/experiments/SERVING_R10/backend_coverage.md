@@ -24,5 +24,11 @@ chunk. Counts are from the generated `kStages` arrays, before split expansion.
 No serving GEMM or attention matrix product uses the legacy scalar QK/PV
 loop. The LSE merge retains a serial loop over live KV blocks per output
 thread; it is a reduction over split blocks, not a scalar matrix product.
-The current focused tests cover representative shapes; the full PyTorch
-cross-product in R10 §4.2(d), §4.3(e) and §4.4 remains a separate G-2 gate.
+The serving GEMM matrix passes 1,344/1,344 PyTorch comparisons over the
+specified M, N/K, tile, split-K and epilogue cases
+(`task_body_tests/gemm_matrix/summary.json`). The attention tests pass 60/60
+decode boundary cases (`task_body_tests/attention_decode_matrix.log`) and
+8/8 prefill cases (`task_body_tests/prefill_attention/torch_comparison.json`).
+The scalar serving bodies and combine are covered by the named CTest cases
+above; all 80 registered tests passed in the disjoint groups recorded in
+`ctest_partial_reason.md`.
