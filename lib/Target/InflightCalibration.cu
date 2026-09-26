@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Target/Calibration.h>
 #include <tilemega/Target/ArchDispatch.h>
+#include <tilemega/Solver/BackendCostQuery.h>
 #include <cuda_runtime.h>
 #include <algorithm>
 #include <cmath>
@@ -16,6 +17,21 @@ namespace tilemega::calib {
 namespace {
 void Check(cudaError_t code,char const* what) {
   if(code!=cudaSuccess)throw std::runtime_error(std::string(what)+": "+cudaGetErrorString(code));
+}
+__device__ inline void WaitCommittedGroups(int outstanding) {
+  // PTX requires a literal threshold. More than eight software stages can
+  // still be measured: hardware retains at most seven younger groups while
+  // the oldest group is consumed, so additional commits expose any stalls.
+  switch(outstanding<7 ? outstanding : 7) {
+    case 0:asm volatile("cp.async.wait_group 0;");break;
+    case 1:asm volatile("cp.async.wait_group 1;");break;
+    case 2:asm volatile("cp.async.wait_group 2;");break;
+    case 3:asm volatile("cp.async.wait_group 3;");break;
+    case 4:asm volatile("cp.async.wait_group 4;");break;
+    case 5:asm volatile("cp.async.wait_group 5;");break;
+    case 6:asm volatile("cp.async.wait_group 6;");break;
+    default:asm volatile("cp.async.wait_group 7;");break;
+  }
 }
 
 // Every CTA owns a disjoint slice of a buffer larger than four L2 knees.
@@ -43,9 +59,7 @@ __global__ void InflightRead(char const* source,std::size_t segment_bytes,
     if(i+stages-1<rounds)issue(i+stages-1);
     // At the tail there may be fewer groups than the steady-state wait
     // threshold. Drain them before consuming the last shared-memory slots.
-    if(i+stages-1>=rounds || stages==2)asm volatile("cp.async.wait_group 0;");
-    else if(stages==3)asm volatile("cp.async.wait_group 1;");
-    else asm volatile("cp.async.wait_group 2;");
+    WaitCommittedGroups(i+stages-1>=rounds ? 0 : stages-2);
     __syncthreads();
     auto* word=reinterpret_cast<volatile unsigned*>(shared+
         std::size_t(i%stages)*bytes_per_stage);
@@ -119,16 +133,20 @@ void MeasureInflight(TargetSpec& target,Options const& options,std::ostream& log
   Check(cudaMemset(sink,0,sizeof(unsigned)),"initialize checksum");
   std::vector<Point> device,cta;
   int const maximum=target.res.num_sms*std::max(1,target.res.max_threads_per_sm/128);
+  int maximum_stages=2;
+  while(solver::ServingBF16ShapeLegal(16,32,64,maximum_stages+1) &&
+        solver::ServingBF16SmemBytes(16,32,64,maximum_stages+1)<=
+            target.res.max_dynamic_smem_per_cta)++maximum_stages;
   log<<"groups\tq_bytes\tstages\tdevice_inflight_bytes\tcta_inflight_bytes\tgbps\n";
   try {
     for(int groups=1;groups<=maximum;groups*=2)for(int kib:{2,4,8,16,32,64})
-      for(int stages:{2,3,4}) {
+      for(int stages=2;stages<=maximum_stages;++stages) {
         int q=kib*1024;
         if(q*stages>target.res.max_dynamic_smem_per_cta ||
            q*stages>target.res.max_smem_per_sm ||
            groups>target.res.num_sms*std::max(1,target.res.max_smem_per_sm/(q*stages)))continue;
         std::size_t segment=(buffer/groups/2048)*2048;
-        if(segment<std::size_t(q*2))continue;
+        if(segment<std::size_t(q*stages))continue;
         double rate=TimePoint(data,segment,groups,q,stages,sink,
             std::min(3,std::max(1,options.repeats)));
         double outstanding=double(groups)*(stages-1)*q;
