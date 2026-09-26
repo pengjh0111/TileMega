@@ -21,3 +21,14 @@ Both trace modes add substantial instrumentation and perturb the measured
 kernel time. The chain span and per-step bubbles here characterize trace-mode
 execution. Production PG-1 performance must use the non-instrumented binary
 and is reported separately in the controlled PG ablation.
+
+`pg_chain_classes.tsv` joins each realized-chain stage to the emitted
+`kStages` table of the matching page binary. It is wall time on one critical
+chain at `past=575`, not the sum of all task work. For Llama B=1 the 16
+gate/up links contribute 1.909 ms, 16 down links 1.698 ms, and four lm_head
+links 1.799 ms; together they account for 5.405/6.383 ms of the instrumented
+chain. QKV contributes 0.246 ms. The immediate performance investigation is
+the paged GEMM loader and page handshakes for long or wide GEMMs
+(`PagedGemmTaskBody::Load` and `PageRing::AcquireEmpty/AwaitFull`). A
+fixed-geometry page-size comparison is needed to separate loader throughput
+from page protocol overhead; the trace alone does not establish causality.
