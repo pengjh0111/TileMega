@@ -1,0 +1,1 @@
+NormPrologueGemm: 24 bit-identical standalone norm plus page GEMM cases
