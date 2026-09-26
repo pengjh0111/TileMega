@@ -1,0 +1,2 @@
+stage	name	category	piece	tasks	fixed_ns	compute_ns	dram_bytes_per_task	no_producer_dram_bytes_per_task	dram_rate_cap_gbps	inflight_bytes_per_task
+3	serving.s3	fused_attention	0	1	13668.33473	6735205.8805616638	33792	33792	0.0050172185675164561	32768

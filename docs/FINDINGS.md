@@ -7745,3 +7745,39 @@ this is a model score, not a GPU timing. Evidence:
 `SERVING_R10/single_block_dependency/repaired_full_generation/`,
 `SERVING_R10/single_block_dependency/fresh_processes.jsonl`,
 `SERVING_R10/search_pathology/{diagnosis.md,qwen3_b16_zero_progress.stderr,qwen3_b16_ulp.search.tsv}`.
+
+## F-274 — NVML memory accounting cannot serve as the process guard
+
+✅ verified: during a Llama decode B=2 candidate, the compute-app table listed
+only the current PID before and after timing, while `memory.used` minus the
+visible process allocation rose from 136 to 615 MiB as its own CUDA buffers
+were allocated. The 256 MiB threshold in F-272 rejected that run even though
+no other PID was visible. The R10 guard now uses the specified process-list
+criterion (`observed == {own PID}`) and records the device-wide difference
+only as a diagnostic. F-272's statement that the 256 MiB limit remains a
+measurement gate is superseded. Evidence:
+`SERVING_R10/price_audit/attention_units.md` and
+`SERVING_R10/price_audit/llama_b2_rejected_guard.jsonl`.
+
+## F-275 — Correct the serving attention fit's work units before search
+
+✅ verified: Qwen3 decode B=1 previously sent expanded semantic work into a
+body fit calibrated on one attention task's physical QK/PV operations. The
+first D=128 attention block was priced at 6.735 ms against a 27.194 µs raw
+microbenchmark. On the identical explicit six-class seed, correcting the
+fit's bytes/flops units changed the Level 1 score from 762.058 ms to
+9.011 ms. The old matrix was stopped and archived; none of its candidate
+rankings are R10 performance results. The current full search uses the
+corrected path. Evidence: `SERVING_R10/price_audit/attention_units.md` and
+its old/new seed and attention-piece TSVs.
+
+## F-276 — The serving GEMM arithmetic passes the full specified shape matrix
+
+✅ verified: all 1,344 cases in the serving GEMM matrix passed comparison to
+the same BF16 inputs evaluated with Torch FP32 matmul and the specified BF16
+materialization boundaries. The matrix crosses seven tile/stages settings,
+six M residues including 1/3/17/1024, four N/K shapes, split-K 1/4 and
+store/residual/SwiGLU/argmax-partial epilogues. BF16 outputs differ by at
+most one ULP, and argmax partial values/indices match exactly. This closes
+the GEMM portion of G-2; attention and remaining TaskBody tests are tracked
+separately. Evidence: `SERVING_R10/task_body_tests/gemm_matrix/{cases.jsonl,summary.json}`.
