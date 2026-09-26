@@ -37,7 +37,6 @@ struct SearchContext {
     frontend::ModelPlan plan;
     decltype(frontend::ImportedSemantics::lifted) lifted;
     std::vector<OperatorClass> classes;
-    FlowPreparationCache flow_cache;
     std::optional<analysis::DramFloor> floor;
     std::optional<SymbolicProblem> base,last_structure;
     std::string last_geometry;
@@ -80,13 +79,21 @@ struct SearchContext {
     auto old_key=std::make_tuple(attention_kv_block,attention_query_rows,argmax_tile_n);
     auto next_key=std::make_tuple(kv_block,query_rows,partial_tile_n);
     serving_structures[old_key]={std::move(imported.plan),std::move(imported.lifted),
-        std::move(classes),std::move(flow_cache),std::move(floor),std::move(base),
+        std::move(classes),std::move(floor),std::move(base),
         std::move(last_structure),std::move(last_geometry),std::move(recent_flows),floor_attribute};
+    // Price pieces, ownership and releases are keyed by semantic signature,
+    // local geometry, theta and access relation. Preserve those exact caches
+    // when Ec/Rq changes in the incremental arm. The full-control arm must
+    // rebuild them, so it remains an independent score-equivalence check.
+    if(options.incremental_prepare) {
+      flow_cache.graph.reset();flow_cache.graph_geometry.clear();
+      flow_cache.signatures.clear();flow_cache.floor_tensor_keys.clear();
+    } else flow_cache={};
     auto hit=serving_structures.find(next_key);
     if(options.incremental_prepare && hit!=serving_structures.end()) {
       auto state=std::move(hit->second);serving_structures.erase(hit);
       imported.plan=std::move(state.plan);imported.lifted=std::move(state.lifted);
-      classes=std::move(state.classes);flow_cache=std::move(state.flow_cache);
+      classes=std::move(state.classes);
       floor=std::move(state.floor);base=std::move(state.base);
       last_structure=std::move(state.last_structure);last_geometry=std::move(state.last_geometry);
       recent_flows=std::move(state.recent_flows);floor_attribute=state.floor_attribute;
@@ -122,7 +129,7 @@ struct SearchContext {
     attention_kv_block=kv_block;attention_query_rows=query_rows;
     argmax_tile_n=partial_tile_n;
     base.reset();last_structure.reset();last_geometry.clear();floor.reset();
-    floor_attribute={};recent_flows.clear();flow_cache={};
+    floor_attribute={};recent_flows.clear();
   }
   std::string Key(std::vector<GemmConfig> const& config,int kappa,int residency) const {
     auto key=ConfigKey(config,kappa,residency);

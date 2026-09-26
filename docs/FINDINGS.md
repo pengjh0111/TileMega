@@ -8383,3 +8383,86 @@ error, and the `handoff_ir` test checks both paths. This prevents a plan from
 claiming a handoff while silently running the old stages. It is not TF-1
 completion: runtime stage replanning, last-arriver execution and direct-page
 handoff remain to be implemented before the handoff gate can pass.
+
+## F-312: The optimized 16 KiB page executor still loses to PG-off at both batch endpoints
+
+✅ verified fixed-geometry control, not EV-2: after the physical-page routing
+fix, three timed 1024-token requests per arm under one predeclared GPU guard
+gave PG-off / PG-1 E2E times of 3.3445 / 4.4792 s (Llama B1), 3.6781 /
+4.7836 s (Llama B16), 5.0258 / 7.2065 s (Qwen3 B1), and 6.0992 /
+8.3270 s (Qwen3 B16). PG-1/off ratios are 1.339, 1.301, 1.434 and
+1.365. Each pair uses the same selected CG, GEMM geometry, grid, κ,
+attention coordinates and synchronization settings; the executable page
+mainloop uses two stages independently of the original GEMM `stages` field.
+All timed repetitions generated identical tokens. A SASS scan of the four
+PG-1 megakernels found zero FP64 instructions. These results show that the
+trace improvement in F-310 has not translated into whole-request speed.
+The predeclared power policy and every accepted/rejected observation, binary
+hashes, and raw per-step times are retained in
+`SERVING_R11/page_vector_e2e/`.
+
+## F-313: Qwen3's full-domain PG-1 CPU search already exceeds the plan budget
+
+✅ verified CPU-only: Qwen3 decode B16 evaluated 355 legal configurations in
+688 s over two passes, using a 16 KiB page and the stage-2 equivalence
+filter. Its best Level 1 score was 6.7554 ms at `Ec=1088`, κ=1. This
+exceeds the R11 600 s per-plan limit before top-M materialization, final
+megakernel compilation or GPU selection. The accumulated timing names
+`piece_pricing_and_release` as the largest phase (418 s over 1065 calls at
+three past points), followed by relation preparation (76 s over 11 calls).
+The selected stage search uses a separate flow cache for each structural
+attention coordinate; the R11 source now preserves exact keyed price and
+release entries across those coordinates while invalidating name-only
+lookups. The exact-score comparison and Llama timing benefit are reported in F-316.
+See `SERVING_R11/solver/full_stage2_qwen_B16/` and
+`SERVING_R11/solver/shared_structure_cache/`.
+
+## F-314: Paged down projection loses throughput beyond the page-handshake floor
+
+✅ verified isolated transport microbenchmarks at selected geometry: with
+Llama B1, paged/standard per-stage times were 1.30× QKV, 1.01× gate/up,
+**1.90× down**, and 1.17× lm_head. With Qwen3 B16 they were 1.11×,
+1.22×, **1.86×**, and 1.40×, respectively. The down class delivers only
+320.1 GB/s (Llama) or 315.1 GB/s (Qwen3) through pages versus 606.8 or
+585.1 GB/s through the old collective. Both down tiles use 32×128 BF16 B
+stages of 8 KiB, so a 16 KiB page holds two stages. Llama's 64 K iterations
+therefore cycle 32 pages; Qwen3's 48 iterations cycle 24. F-305 measured a
+241 ns empty/full handshake floor per page, giving only 7.7/5.8 µs of
+the observed 49.5/36.9 µs differences. The rest remains in the one-warp
+loader, the per-K `cp_async_wait<0>()`/`ComputeSync()` in
+`PagedGemmTaskBody::Run`, or their interaction; this benchmark does not
+separate them. Qwen3's
+paged L1 megakernel also spills 168 bytes per thread in `ptxas`, versus 112
+bytes in its matched PG-off build; the isolated class benchmark does not
+separate spill costs from the handshake. This narrows the next backend work
+to amortizing page cycles and reducing register pressure, while preserving
+the 16 B loader and correctness protocol. The eight class measurements,
+build commands, executable hashes and raw output are in
+`SERVING_R11/page_vector_classes/`.
+
+## F-315: Removing paged attention from the inlined megakernel does not recover Qwen3 throughput
+
+✅ verified isolated compile/timing diagnostic: an overlay that only marks
+`PagedAttentionTaskBody::Run` `__noinline__` reduced Qwen3 B16 paged L1
+`ptxas` spill stores/loads from 168/332 to 104/32 bytes per thread, while
+increasing its stack frame from 208 to 320 bytes. In matched-order synthetic
+candidate runs at past 575, baseline versus overlay times were 8.407/8.554
+ms (L1 first) and 8.031/8.121 ms (L2 first); the overlay was slower in both.
+L2 showed the same direction. Fewer reported spills alone therefore do not
+explain the PG-1 end-to-end deficit. The production source was not changed;
+the exact one-line overlay, `ptxas` logs, binary hashes, raw timings and
+guard observations are in `SERVING_R11/noinline_attention/`.
+
+## F-316: Exact-key flow caches can survive changes in serving attention structure
+
+✅ verified CPU-only score check: the search now retains semantic ownership,
+boundary price, and release caches across serving attention-coordinate
+changes, while invalidating the structure-specific graph, signature lookup,
+and floor tensor-name lookup. Llama B1 produced exactly the same Level 1
+scores for 20 configurations with full versus shared-cache preparation;
+elapsed times were 85.18 versus 51.50 s. Qwen3 B16 produced exactly the
+same seven scores, covering lm_head tile-N 32/64/128. Its full-control
+process was stopped after seven completed evaluations, so only the shared
+run's 90.79 s is a precisely recorded time. This validates the local cache
+change, not the complete ≤600 s plan budget. Commands, cases, scores and
+timing are in `SERVING_R11/solver/shared_structure_cache/`.

@@ -1,0 +1,11 @@
+--- PagedAttentionTaskBody.h
++++ overlay/PagedAttentionTaskBody.h
+@@ -86,7 +86,7 @@
+     }
+   }
+   template<class PageSource>
+-  __device__ static void Run(ServingAttentionOperands const& p,int b,int g,int c,
++  __device__ __noinline__ static void Run(ServingAttentionOperands const& p,int b,int g,int c,
+       PageSource const& ring,std::uint64_t& sequence,SharedStorage& s) {
+     using namespace cute;
+     int begin=Begin(p,c),end=End(p,c);if(begin>=end)return;

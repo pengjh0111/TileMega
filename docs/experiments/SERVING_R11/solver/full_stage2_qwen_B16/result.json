@@ -1,0 +1,16 @@
+{
+  "scope": "CPU-only full-domain decode search; no top-M, GPU selection, or E2E claim",
+  "source_baseline": "388babea4 tool binary (before handoff fail-closed and shared-structure-cache edits)",
+  "model": "qwen3",
+  "phase": "decode",
+  "batch": 16,
+  "page_bytes": 16384,
+  "search_passes": 2,
+  "evaluations": 355,
+  "valid_evaluations": 355,
+  "best_score_ns": 6755434.909780174,
+  "best_key": "16x64x128s2k1;16x128x128s2k8;16x128x64s2k1;16x64x128s2k4;16x64x128s2k4;16x256x64s2k1;kappa=1;residency=1;Ec=1088;Rq=2;page_bytes=16384",
+  "search_wall_seconds": 688,
+  "raw_search_sha256": "8fb508dd21f0587812a60bd6318e1ddc9f6e8322ba8ed983927dcbb4db1a6abb",
+  "raw_phases_archive_sha256": "91dbeccc1163bf64665bac022287e621a82a03b313954ded207900e2560a89c7"
+}

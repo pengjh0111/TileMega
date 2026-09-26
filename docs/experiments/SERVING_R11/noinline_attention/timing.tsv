@@ -1,0 +1,5 @@
+variant	mode_order	L1_mean_ms	L2_mean_ms	guard_rows
+baseline	normal	8.407318011	7.990194976	2
+noinline	normal	8.554424018	8.191406012	2
+baseline	reverse	8.030871034	8.287816003	2
+noinline	reverse	8.121122092	8.426962018	2

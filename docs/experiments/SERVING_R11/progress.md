@@ -3,6 +3,10 @@
 Baseline: `4bf26fb85ada63fccea101b323f3d7a09351eca2`. Prompt SHA256:
 `b4b13f18596924eac17624de218735bcf8196878862dd7a6d8f00d67db71e62a`.
 
+This ledger retains earlier queue snapshots for provenance. The latest state
+is at the end; earlier statements that a queue is running are superseded by
+its later completed-result entry.
+
 The user reduced batch-dependent performance sweeps to B=1 and B=16 for both
 models. This is four end-to-end cells and eight plans, not the original ten
 cells and twenty plans. The original ten-cell G-9 cannot be inferred from the
@@ -134,3 +138,32 @@ its marked graph would otherwise produce a falsely fused binary. The host
 `handoff_ir` test covers both rejection paths. TF-1 and K-6/K-11 remain open;
 the next implementation step is runtime stage replanning and execution of the
 last-arriver/direct handoff choices, not merely removing this guard. See F-311.
+
+The non-instrumented, matched-geometry PG-off/PG-1 endpoint comparison has
+completed across Llama/Qwen3 × B=1/16. PG-1/off E2E ratios are
+1.339/1.301/1.434/1.365, respectively; PG-1 remains slower in every
+cell. Three timed 1024-token runs and TTFT runs per arm, round-level guard
+decisions, binary hashes and SASS FP64=0 for the page arms are archived in
+`page_vector_e2e/`. This is a controlled fixed-geometry diagnostic, not
+solver-selected EV-2. See F-312.
+
+The CPU-only Qwen3 B16 PG-1 search finished 355 valid evaluations in
+688 s; best Level 1 score 6.7554 ms. Search alone exceeds the 600 s
+per-plan budget. The largest logged phase is piece pricing/release (418 s
+over 1065 calls). Raw search and timing are in
+`solver/full_stage2_qwen_B16/`. A shared keyed cache across structural
+attention coordinates is built; 20 Llama and seven Qwen scores match full
+preparation exactly, with Llama time 85.18→51.50 s. See F-313/F-316.
+
+Isolated, same-geometry class microbenchmarks pinpoint the paged down
+projection: 1.90×/1.86× the standard collective for Llama B1/Qwen3 B16,
+at roughly 320/315 GB/s versus 607/585 GB/s. Qwen3's paged L1 kernel also
+spills 168 bytes per thread. Evidence is in `page_vector_classes/`; this
+transport test does not replace full-request correctness or performance.
+See F-314.
+
+An isolated Qwen3 B16 `__noinline__` overlay on paged attention lowered
+reported L1 spill loads from 332 to 32 bytes/thread, but was slower than the
+unchanged binary in both candidate timing orders. The production TaskBody
+remains unchanged; see F-315 and `noinline_attention/`. This rules out a
+simple out-of-line change as the PG-1 repair.
