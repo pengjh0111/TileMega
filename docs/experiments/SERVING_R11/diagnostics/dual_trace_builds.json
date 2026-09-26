@@ -1,0 +1,38 @@
+[
+  {
+    "cell": "llama_B1",
+    "compiled": true,
+    "binary_sha256": "cc98da1ef1997c841b338d7182153d39987861d479abc72fa3667e011a21d0b0",
+    "page_trace": true,
+    "trace_v2": true,
+    "midpoint_refine": false,
+    "build_log": "/root/r11_work/page_diagnostics/llama_B1/build.log"
+  },
+  {
+    "cell": "llama_B16",
+    "compiled": true,
+    "binary_sha256": "58ff12993ac9152017a01c822a4a3a2b9d7a4a7b5fb798aa18529d0604966368",
+    "page_trace": true,
+    "trace_v2": true,
+    "midpoint_refine": false,
+    "build_log": "/root/r11_work/page_diagnostics/llama_B16/build.log"
+  },
+  {
+    "cell": "qwen3_B1",
+    "compiled": true,
+    "binary_sha256": "f1abe9f805d8222cdc9cb488c6e54b21f6120289915ad79e1479d26e6c53446e",
+    "page_trace": true,
+    "trace_v2": true,
+    "midpoint_refine": false,
+    "build_log": "/root/r11_work/page_diagnostics/qwen3_B1/build.log"
+  },
+  {
+    "cell": "qwen3_B16",
+    "compiled": true,
+    "binary_sha256": "035db346d8bae929c2c07053b05b7f0b0e8eedcc2e19b6f6ce6b8da0bb19586a",
+    "page_trace": true,
+    "trace_v2": true,
+    "midpoint_refine": false,
+    "build_log": "/root/r11_work/page_diagnostics/qwen3_B16/build.log"
+  }
+]

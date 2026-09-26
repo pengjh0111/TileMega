@@ -14,7 +14,12 @@ def rows(path: Path):
 
 
 def floor_at(points: Path, model: str, batch: int, past: int) -> float:
-    pair=sorted((int(r['past']),float(r['floor_ms'])) for r in rows(points)
+    source=rows(points)
+    if 'floor_ns' in source[0]:
+        exact={int(row['past']):float(row['floor_ns'])/1e6 for row in source}
+        if past not in exact:raise ValueError('CG floor table lacks the requested step')
+        return exact[past]
+    pair=sorted((int(r['past']),float(r['floor_ms'])) for r in source
                 if r['model']==model and int(r['batch'])==batch)
     if len(pair)!=3 or not pair[0][0]<=past<=pair[-1][0]:
         raise ValueError('CG floor table does not cover this step')
@@ -33,10 +38,12 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
         by_step.setdefault(step,[]).append(row)
     if not by_step:raise ValueError('page trace has no launched steps')
     measured_chain=None
+    measured_chain_span=None
     if chain_analysis:
         chain=rows(chain_analysis)
         if len(chain)!=1:raise ValueError('expected one realized-chain trace')
         measured_chain=int(chain[0]['cp_nodes'])
+        measured_chain_span=int(chain[0]['cp_chain_span_ns'])
         if measured_chain<=0:raise ValueError('empty realized chain')
     output=[];previous_end=None
     for step,ctas in sorted(by_step.items()):
@@ -56,6 +63,9 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
             ctas=len(ctas),kernel_span_ns=span_ns,floor_ns=round(floor_ms*1e6),
             kernel_over_floor=span_ns/(floor_ms*1e6),
             realized_chain_links=measured_chain,
+            measured_chain_span_ns=measured_chain_span,
+            measured_chain_over_floor=(measured_chain_span/(floor_ms*1e6)
+                if measured_chain_span is not None else None),
             residual_bubble_ns_per_link=((span_ns-floor_ms*1e6)/measured_chain
                 if measured_chain else None),
             dependency_wait_cta_ns=dependency,page_full_cta_ns=full,
@@ -68,6 +78,7 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
         chain_source=str(chain_analysis) if chain_analysis else None,
         floor_source=str(floor_points),page_source=str(page_trace),
         measured_chain_links=measured_chain,
+        measured_chain_span_ns=measured_chain_span,
         launch_gap_mean_ns=statistics.mean(gaps) if gaps else None,
         launch_gap_p50_ns=statistics.median(gaps) if gaps else None,
         page_full_and_dependency_wait_cta_ns=sum(r['page_full_and_dependency_wait_cta_ns'] for r in output),
@@ -83,11 +94,13 @@ def main():
     ap.add_argument('--batch',type=int,required=True)
     ap.add_argument('--prompt-len',type=int,default=64)
     ap.add_argument('--floor-points',type=Path,default=Path('docs/experiments/SERVING_R10/report_tables/floor_points.tsv'))
+    ap.add_argument('--floor-steps',type=Path,
+                    help='exact per-step CG floor from tilemega inspect request-floor')
     ap.add_argument('--chain-analysis',type=Path)
     ap.add_argument('--out',type=Path,required=True)
     args=ap.parse_args();args.out.mkdir(parents=True,exist_ok=True)
     samples,summary=analyze(args.page_trace,model=args.model,batch=args.batch,
-        prompt_len=args.prompt_len,floor_points=args.floor_points,
+        prompt_len=args.prompt_len,floor_points=args.floor_steps or args.floor_points,
         chain_analysis=args.chain_analysis)
     with (args.out/'page_chain.tsv').open('w') as stream:
         out=csv.DictWriter(stream,fieldnames=samples[0].keys(),delimiter='\t');out.writeheader();out.writerows(samples)

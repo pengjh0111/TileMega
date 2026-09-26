@@ -227,8 +227,12 @@ void tilemega_l1_kernel(Params const* p,EventCounter* events,unsigned long long 
   if(executor::IsCompute())paged::Execute<false,false>(*p,events,iteration,ring,page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET);
   else paged::Execute<true,false>(*p,events,iteration,ring,page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET);
 #if TILEMEGA_PAGE_TRACE
-  if(threadIdx.x==0 && p->serving_page_trace)
-    p->serving_page_trace[blockIdx.x].kernel_end_ns=executor::PageTraceNow();
+  // The compute group can finish before the loader warp, or vice versa.
+  // Record the later completion so adjacent-launch gaps use the full CTA span.
+  if(executor::IsCompute())executor::ComputeSync();
+  else __syncwarp();
+  if((threadIdx.x==0 || executor::LoaderLane()==0) && p->serving_page_trace)
+    atomicMax(&p->serving_page_trace[blockIdx.x].kernel_end_ns,executor::PageTraceNow());
 #endif
 }
 __global__ __launch_bounds__(160,1)
@@ -243,7 +247,9 @@ void tilemega_l2_kernel(Params const* p,EventCounter* events,unsigned long long 
   if(executor::IsCompute())paged::Execute<false,true>(*p,events,iteration,ring,page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET);
   else paged::Execute<true,true>(*p,events,iteration,ring,page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET);
 #if TILEMEGA_PAGE_TRACE
-  if(threadIdx.x==0 && p->serving_page_trace)
-    p->serving_page_trace[blockIdx.x].kernel_end_ns=executor::PageTraceNow();
+  if(executor::IsCompute())executor::ComputeSync();
+  else __syncwarp();
+  if((threadIdx.x==0 || executor::LoaderLane()==0) && p->serving_page_trace)
+    atomicMax(&p->serving_page_trace[blockIdx.x].kernel_end_ns,executor::PageTraceNow());
 #endif
 }
