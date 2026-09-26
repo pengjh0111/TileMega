@@ -673,6 +673,8 @@ struct Params {
   /// TILEMEGA_SLOT_WINDOW, which only bounds what this build can implement.
   std::uint32_t window;
 #endif
+  // Descriptor storage is allocated once per plan, outside the Params ring.
+  void const* serving_tensor_maps = nullptr;
 };
 
 /// Everything the generator emits about one model.  The harness reads only

@@ -2,6 +2,8 @@
 #pragma once
 
 #include <tilemega/Codegen/tasks/ServingAbi.h>
+#include <tilemega/Codegen/executor/ServingLaunch.cuh>
+#include <tilemega/Codegen/executor/TensorMap.h>
 
 #include <cuda_runtime.h>
 
@@ -30,6 +32,8 @@ struct Plan {
   Params* ring = nullptr;
   std::uint32_t steps = 0;
   int grid = 0;
+  bool pdl = false;
+  executor::TensorMap* tensor_maps = nullptr;
   // L1 grid-barrier rows and L2 task-event rows are disjoint. Ticket equality
   // requires a gap-free sequence for each mode, even when launches alternate.
   std::uint64_t next_iteration[2] = {0, 0};
@@ -101,9 +105,39 @@ inline bool StructureInvariant(ModelSpec const& spec,
   return true;
 }
 
+inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& target) {
+#if TILEMEGA_PAGED
+  if(!target.caps.tma || TILEMEGA_ARCH_PATH_SM80)return;
+  std::vector<executor::TensorMap> maps(spec.buffer_count);
+  std::vector<bool> encoded(spec.buffer_count,false);
+  auto encode=[&](unsigned id,executor::TensorMapShape shape) {
+    if(encoded.at(id))return;
+    auto code=executor::EncodeTensorMap(maps[id],plan.model.buffers.at(id),shape);
+    if(code!=CUDA_SUCCESS)throw std::runtime_error("serving tensor map encoding failed: "+std::to_string(int(code)));
+    encoded[id]=true;
+  };
+  for(unsigned i=0;i<spec.gemm_count;++i) {
+    auto const& g=spec.gemms[i];auto const& tile=spec.runtime_variants[0].gemms[i];
+    encode(g.b,{std::uint64_t(g.k),std::uint64_t(g.n),std::uint64_t(g.k)*2,
+        64,std::uint32_t(std::min(int(tile.tile_n),TILEMEGA_PAGE_BYTES/128))});
+  }
+  for(unsigned i=0;i<spec.stage_count;++i) {
+    auto const& s=spec.stages[i];if(s.kind!=TaskKind::kFusedAttention)continue;
+    auto dims=plan.model.params.dims;
+    executor::TensorMapShape shape{std::uint64_t(s.width),
+        std::uint64_t(dims.batch)*s.extent*dims.capacity,std::uint64_t(s.width)*2,64,16};
+    encode(s.operand[1],shape);encode(s.operand[2],shape);
+  }
+  TILEMEGA_CUDA_CHECK(cudaMalloc(&plan.tensor_maps,maps.size()*sizeof(maps[0])));
+  TILEMEGA_CUDA_CHECK(cudaMemcpy(plan.tensor_maps,maps.data(),maps.size()*sizeof(maps[0]),cudaMemcpyHostToDevice));
+  plan.model.params.serving_tensor_maps=plan.tensor_maps;
+#endif
+}
+
 inline void Destroy(Plan* plan) {
   if (!plan) return;
   if (plan->ring) cudaFree(plan->ring);
+  if (plan->tensor_maps) cudaFree(plan->tensor_maps);
   auto& model = plan->model;
 #if TILEMEGA_TRACE_V2
   if (model.device_task_trace_v2) cudaFree(model.device_task_trace_v2);
@@ -187,7 +221,7 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
         new serving::Plan, serving::Destroy);
     int const grid = kModel.runtime_variants[0].plan.eft_grid
         ? int(kModel.runtime_variants[0].plan.eft_grid):target.res.num_sms;
-    std::size_t const smem = sizeof(TaskSmem);
+    std::size_t const smem = kServingSharedBytes;
     if (smem > target.res.max_dynamic_smem_per_cta) return nullptr;
     if (smem > 48 * 1024) {
       if (cudaFuncSetAttribute(tilemega_l1_kernel,
@@ -198,19 +232,25 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     }
     int l1 = target.ActiveBlocksPerSM(
         reinterpret_cast<void const*>(tilemega_l1_kernel),
-        kHarnessThreads, smem);
+        kServingThreads, smem);
     int l2 = target.ActiveBlocksPerSM(
         reinterpret_cast<void const*>(tilemega_l2_kernel),
-        kHarnessThreads, smem);
+        kServingThreads, smem);
     if (grid > target.res.num_sms * std::min(l1, l2)) return nullptr;
+#if TILEMEGA_PAGED
+    if(grid>target.res.num_sms)return nullptr;
+#endif
     plan->model = harness::Create(
         kModel, kModel.runtime_variants[0], 0, dims, "", grid,
         std::min(l1, l2), target, smem, external);
+    serving::CreateTensorMaps(*plan,kModel,target);
     harness::PrepareEvents(plan->model, grid);
     if (cudaMemset(plan->model.events, 0,
                    plan->model.event_count * sizeof(EventCounter)) != cudaSuccess)
       return nullptr;
     plan->grid = grid;
+    plan->pdl = TILEMEGA_PAGED && TILEMEGA_SERVING_SEQ==1 && TILEMEGA_PDL &&
+        !TILEMEGA_ARCH_PATH_SM80 && target.caps.pdl;
     return plan.release();
   } catch (std::exception const& error) {
     std::fprintf(stderr, "tm_plan_create: %s\n", error.what());
@@ -251,15 +291,13 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step,
   if (iteration != plan->next_iteration[mode_index]) return -2;
   auto* params = plan->ring + step;
   auto cuda_stream = static_cast<cudaStream_t>(stream);
+  cudaError_t status;
   if (mode == TM_SERVING_L1)
-    tilemega_l1_kernel<<<plan->grid, kHarnessThreads,
-                         sizeof(TaskSmem), cuda_stream>>>(
-        params, plan->model.events, iteration);
+    status=executor::LaunchServing(tilemega_l1_kernel,plan->grid,kServingThreads,
+        kServingSharedBytes,cuda_stream,plan->pdl,params,plan->model.events,iteration);
   else
-    tilemega_l2_kernel<<<plan->grid, kHarnessThreads,
-                         plan->model.l2_smem_bytes, cuda_stream>>>(
-        params, plan->model.events, iteration);
-  cudaError_t status = cudaGetLastError();
+    status=executor::LaunchServing(tilemega_l2_kernel,plan->grid,kServingThreads,
+        plan->model.l2_smem_bytes,cuda_stream,plan->pdl,params,plan->model.events,iteration);
   if (status != cudaSuccess) return int(status);
   ++plan->next_iteration[mode_index];
   return 0;

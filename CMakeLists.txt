@@ -205,6 +205,7 @@ add_library(tilemega_core STATIC
   lib/Solver/FluidExecutionSimulator.cpp
   lib/Analysis/FusionAccess.cpp
   lib/Codegen/Codegen.cpp
+  lib/Codegen/ServingPages.cpp
   lib/Runtime/EventBuffer.cpp
   lib/Runtime/MegakernelRuntime.cpp)
 add_library(TileMega::tilemega ALIAS tilemega_core)
@@ -545,6 +546,20 @@ if(TILEMEGA_BUILD_TESTS)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   tilemega_configure_cuda_target(serving_attention_cases_test)
   add_test(NAME serving_attention_cases COMMAND serving_attention_cases_test)
+  foreach(test IN ITEMS page_ring paged_gemm)
+    add_executable(${test}_test test/unit/${test}_test.cu)
+    target_link_libraries(${test}_test PRIVATE TileMega::tilemega)
+    target_compile_options(${test}_test PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+    tilemega_configure_cuda_target(${test}_test)
+    add_test(NAME ${test} COMMAND ${test}_test)
+  endforeach()
+  add_executable(paged_attention_test test/unit/serving_attention_cases_test.cu)
+  target_link_libraries(paged_attention_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(paged_attention_test PRIVATE TILEMEGA_TEST_PAGED=1)
+  target_compile_options(paged_attention_test PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(paged_attention_test)
+  add_test(NAME paged_attention COMMAND paged_attention_test)
+
   add_executable(serving_prefill_attention_test
     test/unit/serving_prefill_attention_test.cu)
   target_link_libraries(serving_prefill_attention_test PRIVATE TileMega::tilemega)

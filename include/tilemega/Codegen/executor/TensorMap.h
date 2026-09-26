@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <cuda.h>
-#include <cudaTypedefs.h>
 #include <cuda_runtime_api.h>
 #include <cstdint>
 #include <stdexcept>
@@ -28,7 +27,7 @@ inline CUresult EncodeTensorMap(TensorMap& out,void* address,TensorMapShape cons
   auto status=cudaGetDriverEntryPoint("cuTensorMapEncodeTiled",&entry,cudaEnableDefault,&query);
   if(status!=cudaSuccess || query!=cudaDriverEntryPointSuccess || !entry)
     return CUDA_ERROR_NOT_SUPPORTED;
-  auto encode=reinterpret_cast<PFN_cuTensorMapEncodeTiled>(entry);
+  auto encode=reinterpret_cast<decltype(&cuTensorMapEncodeTiled)>(entry);
   cuuint64_t dimensions[]={shape.columns,shape.rows};
   cuuint64_t strides[]={shape.stride_bytes};
   cuuint32_t box[]={shape.box_columns,shape.box_rows},elements[]={1,1};

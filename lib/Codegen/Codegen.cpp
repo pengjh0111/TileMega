@@ -1172,6 +1172,13 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
 // Unsolved legacy modules emit no extra text or preprocessor definitions.
 std::string emitSolvedLaunch(mlir::ModuleOp module) {
   std::ostringstream out;
+  if(auto pages=module->getAttrOfType<mlir::DictionaryAttr>("tmexec.pages")) {
+    out<<"#define TILEMEGA_PAGED 1\n";
+    for(auto const& [field,macro]:std::vector<std::pair<char const*,char const*>>{
+        {"page_bytes","TILEMEGA_PAGE_BYTES"},{"pages","TILEMEGA_PAGE_COUNT"},
+        {"workspace_offset","TILEMEGA_PAGE_WORKSPACE_OFFSET"},{"pool_offset","TILEMEGA_PAGE_POOL_OFFSET"}})
+      out<<"#define "<<macro<<' '<<integerField(pages,field)<<'\n';
+  }
   for (auto const& [attr,macro]:std::vector<std::pair<char const*,char const*>>{
       {"tmexec.solved_kappa","TILEMEGA_EVENT_KAPPA"},
       { "tmexec.solved_residency","TILEMEGA_RESIDENCY_CAP"},

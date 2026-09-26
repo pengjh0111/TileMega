@@ -1,3 +1,4 @@
+#include <tilemega/Codegen/ServingPages.h>
 #include "Toolchain.h"
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
@@ -85,11 +86,11 @@ int queryResidency(mlir::ModuleOp module,int kappa,
       << "cudaFuncAttributes a{},b{};\n"
       << "TILEMEGA_CUDA_CHECK(cudaFuncGetAttributes(&a,tilemega_l1_kernel));\n"
       << "TILEMEGA_CUDA_CHECK(cudaFuncGetAttributes(&b,tilemega_l2_kernel));\n"
-      << "TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(tilemega_l1_kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(TaskSmem)));\n"
-      << "TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(tilemega_l2_kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(TaskSmem)));\n"
-      << "int l1=target.ActiveBlocksPerSM(reinterpret_cast<void const*>(tilemega_l1_kernel),kHarnessThreads,sizeof(TaskSmem));\n"
-      << "int l2=target.ActiveBlocksPerSM(reinterpret_cast<void const*>(tilemega_l2_kernel),kHarnessThreads,sizeof(TaskSmem));\n"
-      << "std::printf(\"{\\\"resident\\\":%d,\\\"l1\\\":%d,\\\"l2\\\":%d,\\\"registers_l1\\\":%d,\\\"registers_l2\\\":%d,\\\"dynamic_shared\\\":%zu,\\\"threads\\\":%d}\\n\",std::min(l1,l2),l1,l2,a.numRegs,b.numRegs,sizeof(TaskSmem),kHarnessThreads);\n}\n";
+      << "TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(tilemega_l1_kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,kServingSharedBytes));\n"
+      << "TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(tilemega_l2_kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,kServingSharedBytes));\n"
+      << "int l1=target.ActiveBlocksPerSM(reinterpret_cast<void const*>(tilemega_l1_kernel),kServingThreads,kServingSharedBytes);\n"
+      << "int l2=target.ActiveBlocksPerSM(reinterpret_cast<void const*>(tilemega_l2_kernel),kServingThreads,kServingSharedBytes);\n"
+      << "std::printf(\"{\\\"resident\\\":%d,\\\"l1\\\":%d,\\\"l2\\\":%d,\\\"registers_l1\\\":%d,\\\"registers_l2\\\":%d,\\\"dynamic_shared\\\":%zu,\\\"threads\\\":%d}\\n\",std::min(l1,l2),l1,l2,a.numRegs,b.numRegs,kServingSharedBytes,kServingThreads);\n}\n";
   wrapper.close();
   std::string root=TILEMEGA_SOURCE_DIR;
   std::string nvcc=tilemega::commands::NvccPath();
@@ -233,7 +234,9 @@ int RunCompile(int argc, char** argv) {
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,artifact_cache;
-    std::string sync_policy="calibrated",runtime_target,runtime_flags;
+    std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
+    std::string arch_paths="auto",pdl="auto";
+    int page_bytes=8192;
     bool event_solo=false,event_red=false,barrier_v2=false;
     if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
     int serving_capacity=1088,serving_batch=1,serving_past_lo=64,
@@ -269,6 +272,10 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--measure-cmd") measure_command=value;
       else if (flag=="--serving-warm-start") serving_warm_start=value;
       else if (flag=="--sync") sync_policy=value;
+      else if (flag=="--arch-paths") arch_paths=value;
+      else if (flag=="--pdl") pdl=value;
+      else if (flag=="--pg") pg_mode=value;
+      else if (flag=="--page-bytes") page_bytes=std::stoi(value);
       else if (flag=="--runtime-target") runtime_target=value;
       else if (flag=="--event-solo") event_solo=std::stoi(value)!=0;
       else if (flag=="--event-red-publish") event_red=std::stoi(value)!=0;
@@ -343,6 +350,12 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("serving solve requires --measure-cmd for the top-3 decision");
     if (!solve_target.empty() && has_variants)
       throw std::runtime_error("--solve chooses variants; cannot combine with --variants");
+    if(arch_paths!="auto" && arch_paths!="sm80")throw std::runtime_error("--arch-paths must be auto or sm80");
+    if(pdl!="auto" && pdl!="off")throw std::runtime_error("--pdl must be auto or off");
+    if(pg_mode!="off" && pg_mode!="pages" && pg_mode!="l2" && pg_mode!="auto")
+      throw std::runtime_error("--pg must be off, l2, pages or auto");
+    bool use_pages=serving && serving_phase=="decode" && (pg_mode=="pages" || pg_mode=="auto");
+    if(pg_mode=="pages" && !use_pages)throw std::runtime_error("paged execution requires serving decode");
     if(sync_policy!="legacy" && sync_policy!="calibrated")
       throw std::runtime_error("--sync must be calibrated or legacy");
     if(serving) {
@@ -357,6 +370,8 @@ int RunCompile(int argc, char** argv) {
             " -DTILEMEGA_WAIT_BACKOFF_GROW="+std::to_string(c.wait_backoff_grow)+
             " -DTILEMEGA_WAIT_BACKOFF_CAP_NS="+std::to_string(c.wait_backoff_cap_ns);
       }
+      runtime_flags+=" -DTILEMEGA_PDL="+std::to_string(pdl=="auto" && use_pages)+
+          " -DTILEMEGA_ARCH_PATH_SM80="+std::to_string(arch_paths=="sm80");
       runtime_flags+=" -DTILEMEGA_EVENT_SOLO="+std::to_string(event_solo)+
           " -DTILEMEGA_EVENT_RED_PUBLISH="+std::to_string(event_red)+
           " -DTILEMEGA_BARRIER_V2="+std::to_string(barrier_v2);
@@ -681,6 +696,8 @@ int RunCompile(int argc, char** argv) {
                                     std::to_string(serving_past_hi))+
               " --capacity "+std::to_string(serving_capacity)+
               " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
+              " --arch-paths "+quote(arch_paths)+" --pdl "+quote(pdl)+
+              " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(page_bytes)+
               " --event-solo "+std::to_string(event_solo)+" --event-red-publish "+std::to_string(event_red)+
               " --barrier-v2 "+std::to_string(barrier_v2)+
               (artifact_cache.empty()?"":" --artifact-cache "+quote(artifact_cache));
@@ -869,6 +886,11 @@ int RunCompile(int argc, char** argv) {
       }
       source = tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(inputs);
     }
+    if(use_pages) {
+      auto target=tilemega::TargetSpec::FromJson(runtime_target);
+      tilemega::codegen::ConfigureServingPages(*module,target,page_bytes);
+      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
+    }
     if (!dump_cg.empty()) {
       if (!module) throw std::runtime_error("--dump-cg requires a single module");
       std::error_code error;llvm::raw_fd_ostream dump(dump_cg,error);
@@ -885,7 +907,9 @@ int RunCompile(int argc, char** argv) {
     if (serving) {
       if (serving_phase == "prefill")
         serving_past_lo = serving_past_hi = 0;
-      source = "#define TILEMEGA_SERVING_BATCH_LO " +
+      source = "#define TILEMEGA_PDL " +std::to_string(pdl=="auto" && use_pages)+"\n"+
+          "#define TILEMEGA_ARCH_PATH_SM80 "+std::to_string(arch_paths=="sm80")+"\n"+
+          "#define TILEMEGA_SERVING_BATCH_LO " +
           std::to_string(serving_batch) + "\n" +
           "#define TILEMEGA_SERVING_BATCH_HI " +
           std::to_string(serving_batch) + "\n" +
@@ -992,6 +1016,13 @@ int RunCompile(int argc, char** argv) {
       }
       if(model_name.empty())model_name=input.stem().string();
       std::ofstream manifest(requested.string()+".plan.json");
+      std::string pages_json="null";
+      if(auto pages=(*module)->getAttrOfType<mlir::DictionaryAttr>("tmexec.pages")) {
+        std::ostringstream json;json<<'{';bool comma=false;
+        for(auto field:pages) {if(comma)json<<',';comma=true;
+          json<<std::quoted(field.getName().str())<<':'<<mlir::cast<mlir::IntegerAttr>(field.getValue()).getInt();}
+        json<<'}';pages_json=json.str();
+      }
       manifest<<"{\n  \"model\": "<<std::quoted(model_name)
               <<",\n  \"phase\": "<<std::quoted(serving_phase)
               <<",\n  \"batch_lo\": "<<serving_batch
@@ -1001,6 +1032,10 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"seq\": "<<(serving_phase=="decode"?1:64)
               <<",\n  \"capacity\": "<<serving_capacity
               <<",\n  \"sync\": "<<std::quoted(sync_policy)
+              <<",\n  \"pg\": "<<std::quoted(use_pages?"pages":pg_mode)
+              <<",\n  \"pages\": "<<pages_json
+              <<",\n  \"arch_paths\": "<<std::quoted(arch_paths)
+              <<",\n  \"pdl\": "<<std::quoted(pdl)
               <<",\n  \"runtime_target\": "<<std::quoted(runtime_target)
               <<",\n  \"event_solo\": "<<(event_solo?"true":"false")
               <<",\n  \"event_red_publish\": "<<(event_red?"true":"false")

@@ -40,6 +40,12 @@
 #include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>
 #include <tilemega/Target/ArchDispatch.h>
 #include <tilemega/Target/TargetSpec.h>
+#if TILEMEGA_PAGED
+#include <tilemega/Codegen/tasks/PagedGemmTaskBody.h>
+#include <tilemega/Codegen/executor/ServingLaunch.cuh>
+#include <tilemega/Codegen/executor/TensorMap.h>
+#include <tilemega/Codegen/tasks/PagedAttentionTaskBody.h>
+#endif
 
 #include <algorithm>
 #include <array>
@@ -209,6 +215,14 @@ inline constexpr std::size_t kExpectedTaskSmem =
 static_assert(sizeof(TaskSmem) == kExpectedTaskSmem,
               "one explicit union must equal max_i(TaskBody::SharedStorage)");
 
+#if TILEMEGA_PAGED
+inline constexpr int kServingThreads=executor::kComputeThreads+executor::kLoaderThreads;
+inline constexpr std::size_t kServingSharedBytes=TILEMEGA_PAGE_POOL_OFFSET+TILEMEGA_PAGE_BYTES*TILEMEGA_PAGE_COUNT;
+#else
+inline constexpr int kServingThreads=kHarnessThreads;
+inline constexpr std::size_t kServingSharedBytes=sizeof(TaskSmem);
+#endif
+
 // R8 BE-1: the architecture is the Plan's, not a constant in this header.
 // Codegen writes `TILEMEGA_ARCH_ID` from the solved target; a source written
 // before that macro existed keeps the Sm80 semantics it was compiled with,
@@ -220,8 +234,10 @@ using HarnessArch = typename tilemega::arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
 static_assert(!std::is_void<HarnessArch>::value,
               "TILEMEGA_ARCH_ID names an architecture this compiler has no "
               "capability table for");
-#if defined(TILEMEGA_ARCH_FROM_PLAN)
-// Only a generated source asserts this: it is the one that claims an arch.
+#if defined(TILEMEGA_ARCH_FROM_PLAN) && !TILEMEGA_SERVING_RUNTIME
+// Legacy plans bind their backend to the solver architecture. Serving uses
+// the SM80 compute subset and native Caps for async paths; creation checks
+// actual-device smem and residency before allowing a launch.
 static_assert(!arch::kDevicePass ||
                   TILEMEGA_ARCH_ID == arch::ArchId<arch::CurrentArch>::kValue,
               "the Plan's architecture and -arch= disagree");
@@ -1232,6 +1248,7 @@ void tilemega_stage_kernel(Params const* params, std::uint32_t stage) {
   RunStage(*params, stage, *reinterpret_cast<TaskSmem*>(bytes));
 }
 
+#if !TILEMEGA_PAGED
 /// The L1 megakernel.  The stage loop is a run-time loop over the generated
 /// table: its trip count is data, so one compiled kernel serves every model.
 __global__ __launch_bounds__(kHarnessThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
@@ -1529,6 +1546,10 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
   }
 }
 
+#else
+#include <tilemega/Codegen/executor/ServingPages.cuh>
+#endif
+
 /// How wide each edge's wait set actually is, in the same units the device
 /// pays for: one line per dependency, `polls` summed over the consumer's own
 /// CTAs.  `relaxed` is what the same edge would cost as kAll, so the pair is
@@ -1673,7 +1694,7 @@ struct DeviceModel {
   std::uint32_t* device_shard_local_offsets = nullptr;
   std::uint32_t* device_cluster_shard_offsets = nullptr;
   std::uint32_t* device_cluster_shard_indices = nullptr;
-  std::size_t l2_smem_bytes = sizeof(TaskSmem);
+  std::size_t l2_smem_bytes = kServingSharedBytes;
   TaskTrace* device_task_trace = nullptr;
   unsigned long long* device_trace_sequence = nullptr;
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
@@ -1950,6 +1971,8 @@ inline DeviceModel Create(ModelSpec const& spec,
 #if TILEMEGA_SERVING_RUNTIME
       if (desc.serving_epilogue > 3)
         throw std::invalid_argument("unknown serving GEMM epilogue");
+      invocation.serving_weight_buffer=desc.b;
+      invocation.serving_k_begin=k_begin;
       invocation.serving_op = static_cast<backend::ServingEpilogueOp>(
           desc.serving_epilogue);
       invocation.serving_argmax_index =
