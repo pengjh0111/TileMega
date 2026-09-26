@@ -1,0 +1,185 @@
+Test project /root/r11_work/build
+      Start 36: pipeline_sigma
+      Start 34: fusion_rewrite
+      Start 10: flow_runtime_release
+      Start  3: coupling_interface_mha4
+      Start 35: stage_kappa
+      Start 42: attention_work
+      Start  2: coupling_interface_gqa2
+      Start 37: fusion_written_price
+ 1/90 Test #37: fusion_written_price .............   Passed   21.33 sec
+      Start 40: fusion_batch_rewrite
+ 2/90 Test  #2: coupling_interface_gqa2 ..........   Passed   27.94 sec
+      Start 81: plan_skeleton
+ 3/90 Test #42: attention_work ...................   Passed   38.20 sec
+      Start 80: skeleton_search_isolation
+ 4/90 Test #40: fusion_batch_rewrite .............   Passed   18.35 sec
+      Start 14: incidence_identity
+ 5/90 Test #81: plan_skeleton ....................   Passed   15.93 sec
+      Start 15: imported_incidence_identity
+ 6/90 Test #14: incidence_identity ...............   Passed    5.10 sec
+      Start 77: frontend_import
+ 7/90 Test #80: skeleton_search_isolation ........   Passed    9.38 sec
+      Start 43: chain_dp
+ 8/90 Test #15: imported_incidence_identity ......   Passed    4.71 sec
+      Start  6: target_audit
+ 9/90 Test #77: frontend_import ..................   Passed    4.45 sec
+      Start 85: coupling_cache
+10/90 Test #43: chain_dp .........................   Passed    4.30 sec
+      Start 11: regime_a_price
+11/90 Test  #6: target_audit .....................   Passed    3.94 sec
+      Start 21: task_element_work
+12/90 Test #85: coupling_cache ...................   Passed    3.38 sec
+      Start 31: handoff_ir
+13/90 Test #31: handoff_ir .......................   Passed    2.11 sec
+      Start 18: runtime_projection
+14/90 Test #11: regime_a_price ...................   Passed    3.37 sec
+      Start 67: serving_attention_merge
+15/90 Test #21: task_element_work ................   Passed    2.77 sec
+      Start  1: scalar_cost_errors
+16/90 Test #67: serving_attention_merge ..........   Passed    0.28 sec
+      Start 84: operator_classes
+17/90 Test  #1: scalar_cost_errors ...............   Passed    0.94 sec
+      Start 23: task_work_domains
+18/90 Test #18: runtime_projection ...............   Passed    1.65 sec
+      Start 72: last_arriver
+19/90 Test #84: operator_classes .................   Passed    0.89 sec
+      Start 68: serving_attention_cases
+20/90 Test #72: last_arriver .....................   Passed    0.32 sec
+      Start 73: independent_attention
+21/90 Test #68: serving_attention_cases ..........   Passed    0.42 sec
+      Start 75: serving_prefill_attention
+22/90 Test  #3: coupling_interface_mha4 ..........   Passed   56.97 sec
+      Start 59: serving_gemm_task_body
+23/90 Test #73: independent_attention ............   Passed    0.32 sec
+      Start 70: paged_gemm
+24/90 Test #23: task_work_domains ................   Passed    0.81 sec
+      Start 69: page_ring
+25/90 Test #75: serving_prefill_attention ........   Passed    0.43 sec
+      Start 74: paged_attention
+26/90 Test #59: serving_gemm_task_body ...........   Passed    0.56 sec
+      Start 58: serving_epilogue
+27/90 Test #69: page_ring ........................   Passed    0.56 sec
+      Start 71: norm_prologue_gemm
+28/90 Test #70: paged_gemm .......................   Passed    0.68 sec
+      Start 61: serving_state_tasks
+29/90 Test #74: paged_attention ..................   Passed    0.53 sec
+      Start 60: serving_rmsnorm
+30/90 Test #58: serving_epilogue .................   Passed    0.62 sec
+      Start 62: serving_combine
+31/90 Test #61: serving_state_tasks ..............   Passed    0.54 sec
+      Start 66: serving_fused_attention
+32/90 Test #71: norm_prologue_gemm ...............   Passed    0.70 sec
+      Start 38: fused_runtime_projection
+33/90 Test #60: serving_rmsnorm ..................   Passed    0.58 sec
+      Start 65: serving_attention_mma
+34/90 Test #62: serving_combine ..................   Passed    0.51 sec
+      Start 88: wiring_coupling
+35/90 Test #66: serving_fused_attention ..........   Passed    0.50 sec
+      Start 24: isl_relation
+36/90 Test #38: fused_runtime_projection .........   Passed    0.44 sec
+      Start 13: semantics
+37/90 Test #65: serving_attention_mma ............   Passed    0.42 sec
+      Start  8: table27
+38/90 Test #13: semantics ........................   Passed    0.26 sec
+      Start 16: containment
+39/90 Test  #8: table27 ..........................   Passed    0.24 sec
+      Start  7: coupling_types
+40/90 Test #88: wiring_coupling ..................   Passed    0.40 sec
+      Start 17: event_synthesis
+41/90 Test #24: isl_relation .....................   Passed    0.34 sec
+      Start  4: cg_lit
+42/90 Test #16: containment ......................   Passed    0.19 sec
+      Start 32: handoff_access
+43/90 Test  #7: coupling_types ...................   Passed    0.18 sec
+      Start 30: handoff_runtime_projection
+44/90 Test #17: event_synthesis ..................   Passed    0.17 sec
+      Start 41: fiber_sum
+45/90 Test #30: handoff_runtime_projection .......   Passed    0.05 sec
+      Start 83: symbolic_oracle
+46/90 Test #32: handoff_access ...................   Passed    0.13 sec
+      Start 46: execution_simulator
+47/90 Test  #4: cg_lit ...........................   Passed    0.26 sec
+      Start 29: fusion_access
+48/90 Test #41: fiber_sum ........................   Passed    0.11 sec
+      Start 33: lane_intersections
+49/90 Test #29: fusion_access ....................   Passed    0.08 sec
+      Start 12: dram_floor
+50/90 Test #46: execution_simulator ..............   Passed    0.09 sec
+      Start 39: exact_runtime_task_graph
+51/90 Test #83: symbolic_oracle ..................   Passed    0.13 sec
+      Start 87: embedding_plan
+52/90 Test #33: lane_intersections ...............   Passed    0.08 sec
+      Start 52: impl_contract
+53/90 Test #12: dram_floor .......................   Passed    0.05 sec
+      Start 19: relation_bounds
+54/90 Test #87: embedding_plan ...................   Passed    0.05 sec
+      Start 86: semantic_lifting
+55/90 Test #39: exact_runtime_task_graph .........   Passed    0.07 sec
+      Start 79: isolated_evaluation
+56/90 Test #19: relation_bounds ..................   Passed    0.03 sec
+      Start 78: skeleton_placement
+57/90 Test #86: semantic_lifting .................   Passed    0.03 sec
+      Start 20: graph_pattern
+58/90 Test #52: impl_contract ....................   Passed    0.09 sec
+      Start 25: layout_bridge
+59/90 Test #79: isolated_evaluation ..............   Passed    0.03 sec
+      Start 63: serving_token_sets
+60/90 Test #78: skeleton_placement ...............   Passed    0.03 sec
+      Start 26: cg_attr_roundtrip
+61/90 Test #20: graph_pattern ....................   Passed    0.03 sec
+      Start 22: op_arithmetic_audit
+62/90 Test #25: layout_bridge ....................   Passed    0.02 sec
+      Start 89: frontend_degradation
+63/90 Test #63: serving_token_sets ...............   Passed    0.02 sec
+      Start 27: backend_query
+64/90 Test #26: cg_attr_roundtrip ................   Passed    0.02 sec
+      Start 90: isl_crosslink
+65/90 Test #22: op_arithmetic_audit ..............   Passed    0.02 sec
+      Start 28: cache_service_curve
+66/90 Test #89: frontend_degradation .............   Passed    0.01 sec
+      Start 49: plan_table
+67/90 Test #90: isl_crosslink ....................   Passed    0.01 sec
+      Start 51: alignment_propagation
+68/90 Test #27: backend_query ....................   Passed    0.02 sec
+      Start 50: cluster_labeling
+69/90 Test #28: cache_service_curve ..............   Passed    0.01 sec
+      Start 57: serving_task_index
+70/90 Test #49: plan_table .......................   Passed    0.01 sec
+      Start 53: task_body_contract
+71/90 Test #51: alignment_propagation ............   Passed    0.01 sec
+      Start 48: chain_placement
+72/90 Test #50: cluster_labeling .................   Passed    0.01 sec
+      Start 45: plan_contract
+73/90 Test #57: serving_task_index ...............   Passed    0.01 sec
+      Start 82: variant_resource
+74/90 Test #53: task_body_contract ...............   Passed    0.01 sec
+      Start 76: fused_harness_compile
+75/90 Test #48: chain_placement ..................   Passed    0.01 sec
+      Start 55: serving_gemm_config
+76/90 Test #45: plan_contract ....................   Passed    0.01 sec
+      Start 64: serving_harness_compile
+77/90 Test #82: variant_resource .................   Passed    0.01 sec
+      Start 54: bf16_task_body_compile
+78/90 Test #76: fused_harness_compile ............   Passed    0.01 sec
+      Start 44: list_scheduler
+79/90 Test #55: serving_gemm_config ..............   Passed    0.01 sec
+      Start 47: eft_placement
+80/90 Test #64: serving_harness_compile ..........   Passed    0.01 sec
+      Start  5: target_spec
+81/90 Test #54: bf16_task_body_compile ...........   Passed    0.01 sec
+      Start  9: stage_flow
+82/90 Test #44: list_scheduler ...................   Passed    0.01 sec
+      Start 56: serving_pruning
+83/90 Test #47: eft_placement ....................   Passed    0.01 sec
+84/90 Test  #9: stage_flow .......................   Passed    0.01 sec
+85/90 Test  #5: target_spec ......................   Passed    0.01 sec
+86/90 Test #56: serving_pruning ..................   Passed    0.01 sec
+87/90 Test #35: stage_kappa ......................   Passed   60.98 sec
+88/90 Test #10: flow_runtime_release .............   Passed   95.18 sec
+89/90 Test #34: fusion_rewrite ...................   Passed  168.85 sec
+90/90 Test #36: pipeline_sigma ...................   Passed  245.72 sec
+
+100% tests passed, 0 tests failed out of 90
+
+Total Test time (real) = 245.73 sec
