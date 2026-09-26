@@ -1,0 +1,5 @@
+# R10 attention-coordinate smoke test
+
+These raw `search.tsv` and `timing.tsv` files come from fresh Llama B=1 processes using the **one-shape** domain in `/root/r10_work/floor_one_shape.json`, one coordinate-descent pass, and `--flow-search-only 1`. They verify that the search varies every specified decode `E_c` value and prefill `R_q` value, including decode `E_c=cap`, which removes the merge stage. They do not establish the full-domain winner or an EV-1 result.
+
+The prefill run originally stalled in `FitWaitWindowSymbolic` while computing `LexMin` for the `serving.s6.combine -> serving.s7` relation. Its first predecessor is a sawtooth in row-major consumer order (`tc=0,1,16` map to `tp=0,8,0`). A window whose first two values differ must have divisor one and a linear first predecessor. The local-fiber counterexample therefore proves no exact `WaitWindow` exists; the established `kAll` relaxation is returned without whole-relation lexicographic optimization. `table27_test` covers this case and the existing exact-window cases.

@@ -3,6 +3,7 @@
 
 #include <tilemega/Solver/BackendCostQuery.h>
 #include <tilemega/Solver/CostModel.h>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -36,6 +37,22 @@ inline bool PruneServingR1(GemmConfig const& g,
       g.tile_n % (2 * context.gate_interleave_u)) return true;
   // Each split must have at least one full K tile, including the shortest.
   return context.k / g.split_k < g.tile_k;
+}
+
+// R-1 for the attention coordinate. The current body loops over 16 query
+// rows inside a task, so changing R_q changes task count but not its storage.
+// A plan is illegal if attention would enlarge the GEMM SharedStorage union.
+inline bool PruneServingAttentionSmemR1(
+    int head_dim,int query_rows,std::vector<GemmConfig> const& gemms,
+    TargetSpec const& target) {
+  if(query_rows<=0 || gemms.empty())return true;
+  int gemm_max=0;
+  for(auto const& g:gemms)
+    gemm_max=std::max(gemm_max,ServingBF16SmemBytes(
+        g.tile_m,g.tile_n,g.tile_k,g.stages));
+  int attention=codegen::ServingAttentionSharedBytes(head_dim);
+  return attention>gemm_max ||
+         attention>target.res.max_dynamic_smem_per_cta;
 }
 
 // R-2: larger tiles or pipeline depth can only add inactive padding.

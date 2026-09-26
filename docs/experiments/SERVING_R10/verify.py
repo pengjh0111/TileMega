@@ -101,6 +101,10 @@ def main() -> int:
     decode_body = decode[1].split("final.record", 1)[0] if len(decode) > 1 else ""
     outcomes.append(show(5, [forbidden(runtime, r"ResetBuffersOnly"),
         forbidden(engine, r"ResetBuffersOnly"),
+        required(runtime, r"next_iteration\[2\]"),
+        required(runtime, r"next_iteration\[mode_index\]"),
+        forbidden(runtime, r"selected_mode"),
+        required("python/tilemega/serving/plan.py", r"self\.iteration = \{1: 0, 2: 0\}"),
         (bool(launch_body) and not re.search(r"cudaMemcpy|cudaDeviceSynchronize|cudaStreamSynchronize", launch_body),
          f"{runtime}: tm_plan_launch has no copy/sync" if launch_body else "tm_plan_launch missing"),
         (bool(decode_body) and not re.search(r"synchronize|\.item\(|\.cpu\(", decode_body),
@@ -109,6 +113,8 @@ def main() -> int:
     outcomes.append(show(6, [required("include/tilemega/Codegen/tasks/ModelRuntime.h", r"int batch = 1"),
         required("include/tilemega/Codegen/tasks/ModelRuntime.h", r"per_batch"),
         required("lib/Frontend/Frontend.cpp", r'"batch", builder\.getStringAttr'),
+        required("python/tilemega/serving/export.py", r"dtype=torch\.int32"),
+        required("lib/Frontend/ModelPlan.cpp", r"id_bits = TokenIdBits\(ids_node\)"),
         forbidden("lib/Frontend/Frontend.cpp", r"batch\s*==\s*(?:1|16)")]))
 
     dumps = list(EVIDENCE.glob("**/*.mlir"))
@@ -124,6 +130,8 @@ def main() -> int:
         required("include/tilemega/Solver/OperatorClasses.h", r"PruneServingR1\("),
         required("include/tilemega/Solver/OperatorClasses.h", r"PruneServingR2\("),
         required(search, r"MakeServingSearchOrderR4\("),
+        required(search, r"PruneServingAttentionSmemR1\("),
+        required(search, r"ATTENTION_COORDINATE"),
         required(search, r"incremental_prepare"),
         required(search, r"EvaluateFlow\(low\.flow->flow\)"),
         required(search, r"4\*point\.candidate\.score")]))

@@ -3,6 +3,7 @@
 #include <tilemega/Solver/ModelDramFloor.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Analysis/ExactMemo.h>
+#include <tilemega/Solver/ServingPruning.h>
 #include <fstream>
 #include <iomanip>
 #include <numeric>
@@ -33,17 +34,77 @@ struct SearchContext {
   std::map<int,FlowSnapshot> recent_flows;
   mlir::Attribute floor_attribute;
   ScalarType dtype;
+  int attention_kv_block=0,attention_query_rows=0;
   SearchContext(frontend::ImportedSemantics input,mlir::MLIRContext& ctx,SkeletonSearchOptions const& opts)
       :imported(std::move(input)),classes(BuildOperatorClasses(imported)),resources(opts.variant_probe,opts.common.timing),context(ctx),options(opts),
-       dtype(imported.lifted.sem.ops.front().dtype==analysis::ScalarType::kBF16?ScalarType::kBF16:ScalarType::kF32) {}
+       dtype(imported.lifted.sem.ops.front().dtype==analysis::ScalarType::kBF16?ScalarType::kBF16:ScalarType::kF32) {
+    if(imported.plan.serving)for(auto const& stage:imported.plan.stages)
+      if(stage.kind==frontend::PlanTaskKind::kFusedAttention) {
+        attention_kv_block=stage.attention_kv_block;
+        attention_query_rows=stage.attention_query_rows;
+        break;
+      }
+  }
+  void SetAttention(int kv_block,int query_rows) {
+    if(!imported.plan.serving ||
+       (kv_block==attention_kv_block && query_rows==attention_query_rows))return;
+    frontend::ServingOptions requested;
+    requested.phase=imported.plan.serving_seq==1
+        ?frontend::ServingOptions::Phase::kDecode
+        :frontend::ServingOptions::Phase::kPrefill;
+    requested.seq=imported.plan.serving_seq;
+    requested.capacity=imported.plan.serving_capacity;
+    requested.kv_block=kv_block;
+    requested.query_rows=query_rows;
+    for(auto const& gemm:imported.plan.gemms)
+      if(gemm.epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial) {
+        requested.argmax_tile_n=gemm.partial_tile_n;
+        break;
+      }
+    auto plan=frontend::BuildModelPlan(imported.bridge.nodes,imported.bridge.inputs,
+        imported.bridge.outputs,requested);
+    imported.lifted=frontend::LiftSemantics(plan,imported.lift_options);
+    imported.plan=std::move(plan);
+    auto next_classes=BuildOperatorClasses(imported);
+    if(next_classes.size()!=classes.size())
+      throw std::runtime_error("attention coordinate changed GEMM class count");
+    // Removing the decode merge at Ec=capacity changes the consumers of the
+    // O projection and therefore its semantic signature. Class identity is
+    // its GEMM membership, not a signature frozen at another attention shape.
+    for(std::size_t i=0;i<classes.size();++i)
+      if(next_classes[i].gemms!=classes[i].gemms)
+        throw std::runtime_error("attention coordinate changed GEMM class order");
+    classes=std::move(next_classes);
+    attention_kv_block=kv_block;attention_query_rows=query_rows;
+    base.reset();last_structure.reset();last_geometry.clear();floor.reset();
+    floor_attribute={};recent_flows.clear();flow_cache={};
+  }
+  std::string Key(std::vector<GemmConfig> const& config,int kappa,int residency) const {
+    auto key=ConfigKey(config,kappa,residency);
+    if(imported.plan.serving)key+=";Ec="+std::to_string(attention_kv_block)+
+        ";Rq="+std::to_string(attention_query_rows);
+    return key;
+  }
   SkeletonSolvedPoint Prepare(std::vector<GemmConfig> const& config,int kappa,int residency,int actual=0,bool materialize=false,int past_override=-1) {
     auto* timing=options.common.timing;auto const& target=options.common.placement.target;
-    if(timing)timing->candidate=ConfigKey(config,kappa,residency);
+    if(timing)timing->candidate=Key(config,kappa,residency);
     auto estimate=resources.Estimate(classes,config,target,dtype);
+    if(imported.plan.serving) {
+      auto attention=std::find_if(imported.plan.stages.begin(),
+          imported.plan.stages.end(),[](auto const& stage){
+            return stage.kind==frontend::PlanTaskKind::kFusedAttention;
+          });
+      if(attention==imported.plan.stages.end() ||
+         PruneServingAttentionSmemR1(attention->width,
+             attention->attention_query_rows,config,target))
+        throw std::invalid_argument("R-1 attention exceeds GEMM shared-memory union");
+    }
     int limit=actual?actual:estimate.resident_limit;if(limit<1)throw std::invalid_argument("no resident CTA for geometry");
     residency=std::min(residency,limit);
     SkeletonSolvedPoint point;point.candidate.config=config;point.candidate.kappa=kappa;point.candidate.residency=residency;
-    point.candidate.key=ConfigKey(config,kappa,residency);point.candidate.estimated_limit=estimate.resident_limit;point.candidate.actual_limit=actual;
+    point.candidate.key=Key(config,kappa,residency);point.candidate.estimated_limit=estimate.resident_limit;point.candidate.actual_limit=actual;
+    point.candidate.attention_kv_block=attention_kv_block;
+    point.candidate.attention_query_rows=attention_query_rows;
     auto granularity=ClassGranularity(imported,classes,config);
     if(!base || materialize) {
       point.module=importer.InstantiateForGranularity(imported,context,granularity,&cache,nullptr,timing);
@@ -106,6 +167,7 @@ struct SearchContext {
     return point.candidate;
   }
   SkeletonSolvedPoint Materialize(SkeletonCandidate const& candidate,bool pure,int actual=0) {
+    SetAttention(candidate.attention_kv_block,candidate.attention_query_rows);
     auto point=Prepare(candidate.config,candidate.kappa,candidate.residency,actual,true);point.candidate.score=candidate.score;
     if(options.serving_past_lo>=0 &&
        options.serving_past_hi>=options.serving_past_lo) {
@@ -164,8 +226,10 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
   if(options.passes<1 || options.passes>3)throw std::invalid_argument("coordinate descent supports P=1..3");
   std::vector<SkeletonCandidate> evaluated;std::map<std::string,std::size_t> seen;
   auto evaluate=[&](std::vector<GemmConfig> const& config,int kappa,int residency)->std::size_t {
-    auto key=ConfigKey(config,kappa,residency);auto old=seen.find(key);if(old!=seen.end())return old->second;
+    auto key=search.Key(config,kappa,residency);auto old=seen.find(key);if(old!=seen.end())return old->second;
     SkeletonCandidate candidate;candidate.config=config;candidate.key=key;candidate.kappa=kappa;candidate.residency=residency;
+    candidate.attention_kv_block=search.attention_kv_block;
+    candidate.attention_query_rows=search.attention_query_rows;
     try{candidate=search.Evaluate(config,kappa,residency);}catch(std::exception const& e){candidate.error=e.what();}
     auto canonical=seen.find(candidate.key);if(canonical!=seen.end()){seen.emplace(key,canonical->second);return canonical->second;}
     std::size_t index=evaluated.size();seen.emplace(key,index);seen.emplace(candidate.key,index);evaluated.push_back(std::move(candidate));
@@ -218,6 +282,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     auto incumbent=start;if(!std::isfinite(evaluated[incumbent].score))throw std::runtime_error("flow seed has no valid score: "+evaluated[incumbent].error);
     for(int pass=0;pass<options.passes;++pass){bool moved=false;++rounds;
       for(std::size_t c=0;c<search.classes.size();++c){auto fixed=evaluated[incumbent];int improvements=0;
+        search.SetAttention(fixed.attention_kv_block,fixed.attention_query_rows);
         for(auto const& g:domains[c]){auto config=fixed.config;config[c]=g;
           int residency=fixed.residency;
           int kappa=fixed.kappa;
@@ -240,6 +305,37 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
           auto i=evaluate(config,kappa,residency);
           if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;++improvements;}}
         out<<"COORDINATE\t"<<start<<'\t'<<pass<<'\t'<<c<<'\t'<<domains[c].size()<<'\t'<<improvements<<'\t'<<evaluated[incumbent].score<<'\n';out.flush();
+      }
+      if(search.imported.plan.serving) {
+        auto fixed=evaluated[incumbent];
+        std::vector<int> attention_domain;
+        bool decode=search.imported.plan.serving_seq==1;
+        if(decode)attention_domain={64,128,256,512,search.imported.plan.serving_capacity};
+        else {
+          auto attention=std::find_if(search.imported.plan.stages.begin(),
+              search.imported.plan.stages.end(),[](auto const& stage){
+                return stage.kind==frontend::PlanTaskKind::kFusedAttention;
+              });
+          if(attention==search.imported.plan.stages.end())
+            throw std::runtime_error("serving plan has no attention coordinate");
+          for(int rows:{16,32,64,128})
+            if(rows<=int(attention->group)*search.imported.plan.serving_seq)
+              attention_domain.push_back(rows);
+        }
+        std::sort(attention_domain.begin(),attention_domain.end());
+        attention_domain.erase(std::unique(attention_domain.begin(),attention_domain.end()),attention_domain.end());
+        for(int value:attention_domain) {
+          int ec=decode?value:fixed.attention_kv_block;
+          int rq=decode?fixed.attention_query_rows:value;
+          search.SetAttention(ec,rq);
+          auto i=evaluate(fixed.config,fixed.kappa,fixed.residency);
+          if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;}
+        }
+        out<<"ATTENTION_COORDINATE\t"<<start<<'\t'<<pass<<'\t'
+           <<(decode?"Ec":"Rq")<<'\t'<<attention_domain.size()<<'\t'
+           <<evaluated[incumbent].score<<'\n';out.flush();
+        search.SetAttention(evaluated[incumbent].attention_kv_block,
+                            evaluated[incumbent].attention_query_rows);
       }
       if(!search.imported.plan.serving || options.serving_pruning) {
         auto fixed=evaluated[incumbent];
