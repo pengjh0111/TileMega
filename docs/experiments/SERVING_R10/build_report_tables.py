@@ -29,6 +29,20 @@ def emit(name: str, data: list[dict[str, object]], columns: list[str]) -> None:
             writer.writerow({key: row.get(key, "") for key in columns})
 
 
+def tpot_stats(measurement: dict, elapsed_key: str,
+               runs_key: str) -> tuple[float, float, float]:
+    samples = measurement[runs_key]
+    full = {row["run"]: row[elapsed_key] for row in samples
+            if row["N"] == 1024 and not row["warmup"]}
+    first = {row["run"]: row[elapsed_key] for row in samples
+             if row["N"] == 1 and not row["warmup"]}
+    if sorted(full) != [1, 2, 3] or sorted(first) != [1, 2, 3]:
+        raise AssertionError("expected three timed full and first-token runs")
+    values = sorted((full[run] - first[run]) * 1000 / 1023
+                    for run in (1, 2, 3))
+    return statistics.mean(values), statistics.median(values), values[2]
+
+
 def plan_table() -> list[dict[str, object]]:
     result = []
     for model in ("llama", "qwen3"):
@@ -113,6 +127,8 @@ def request_table() -> list[dict[str, object]]:
             baseline = json.loads(baseline_path.read_text())
             hf = json.loads(hf_path.read_text())
             mode = json.loads(mode_path.read_text())
+            tm_tpot = tpot_stats(tm, "e2e_seconds", "runs")
+            vl_tpot = tpot_stats(baseline, "wall_seconds", "generation_runs")
             values = [float(row["gpu_ms"]) for row in rows(
                 directory / "tilemega" / "step_times.tsv") if int(row["step"]) > 0]
             values.sort()
@@ -123,6 +139,12 @@ def request_table() -> list[dict[str, object]]:
                 "vllm_e2e_s": baseline["e2e_seconds"],
                 "tilemega_tpot_ms": tm["tpot_seconds"] * 1000,
                 "vllm_tpot_ms": baseline["tpot_seconds"] * 1000,
+                "tilemega_tpot_mean_ms": tm_tpot[0],
+                "tilemega_tpot_p50_ms": tm_tpot[1],
+                "tilemega_tpot_p90_ms": tm_tpot[2],
+                "vllm_tpot_mean_ms": vl_tpot[0],
+                "vllm_tpot_p50_ms": vl_tpot[1],
+                "vllm_tpot_p90_ms": vl_tpot[2],
                 "device_step_mean_ms": statistics.mean(values),
                 "device_step_p50_ms": statistics.median(values),
                 "device_step_p90_ms": values[math.ceil(.9 * len(values)) - 1],
@@ -159,6 +181,9 @@ def main() -> None:
     request_columns = ["model", "batch", "status", "tilemega_ttft_s",
                        "vllm_ttft_s", "tilemega_e2e_s", "vllm_e2e_s",
                        "tilemega_tpot_ms", "vllm_tpot_ms", "device_step_mean_ms",
+                       "tilemega_tpot_mean_ms", "tilemega_tpot_p50_ms",
+                       "tilemega_tpot_p90_ms", "vllm_tpot_mean_ms",
+                       "vllm_tpot_p50_ms", "vllm_tpot_p90_ms",
                        "device_step_p50_ms", "device_step_p90_ms",
                        "tilemega_tokens_per_s", "vllm_tokens_per_s",
                        "throughput_ratio", "c1_pass", "gap_le_half", "max_gap",
