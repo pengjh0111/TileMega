@@ -79,11 +79,11 @@ __global__ void TimeGemm(ServingGemmOperands operands,unsigned long long* cycles
 }
 template<int D,int Q,int S,bool Norm>
 __global__ void TimeAttention(ServingAttentionOperands operands,
-    unsigned long long* cycles) {
+    unsigned long long* cycles,int query_block=0) {
   using Body=FusedAttentionTaskBody<arch::Sm80,D,Q,S,16,64,Norm>;
   extern __shared__ __align__(16) unsigned char bytes[];
   auto& storage=*reinterpret_cast<typename Body::SharedStorage*>(bytes);
-  auto start=Begin(cycles);Body::Run(operands,storage,0,0,0,0);End(start,cycles);
+  auto start=Begin(cycles);Body::Run(operands,storage,0,0,query_block,0);End(start,cycles);
 }
 
 template<class Launch>
@@ -218,25 +218,30 @@ void MeasureServingTaskBodies(TargetSpec& target,Options const& options,std::ost
     // per-head Q/K normalization. All samples time the real fused TaskBody.
     for(int past:{1,64,128})for(int d:{64,128})for(int phase:{1,64}) {
       int q=d==64?4:2;
+      // Prefill has past=0. Vary qb instead of timing an impossible cached
+      // prefill, and fit the same per-task work units consumed by PriceParts.
+      int qb=phase==1?0:(past==1?0:past==64?1:3);
+      int active=phase==1?past+1:(qb+1)*16/q;
+      int queries=phase==1?q:16;
       ServingAttentionOperands p{element,element,element,element,element,
-          element,element,output,numbers,lse,1,1,1088,past,256,1e-6f};
-      double bytes=2.*past*d*2+(q+2.)*phase*d*2;
-      double flops=4.*q*phase*(past+phase)*d;
+          element,element,output,numbers,lse,1,1,1088,phase==1?past:0,256,1e-6f};
+      double bytes=4.*d*active+2.*queries*d+(phase==1?4.*d:0.);
+      double flops=4.*queries*d*(active+(phase==1?1:0));
       if(d==64 && phase==1)
         record("fused_attention_decode_d64",bytes,flops,[&]{
           TimeAttention<64,4,1,false><<<1,128,
-              sizeof(FusedAttentionTaskBody<arch::Sm80,64,4,1,16,64,false>::SharedStorage)>>>(p,cycles);});
+              sizeof(FusedAttentionTaskBody<arch::Sm80,64,4,1,16,64,false>::SharedStorage)>>>(p,cycles,qb);});
       else if(d==128 && phase==1)
         record("fused_attention_decode_d128",bytes,flops,[&]{
           TimeAttention<128,2,1,true><<<1,128,
-              sizeof(FusedAttentionTaskBody<arch::Sm80,128,2,1,16,64,true>::SharedStorage)>>>(p,cycles);});
+              sizeof(FusedAttentionTaskBody<arch::Sm80,128,2,1,16,64,true>::SharedStorage)>>>(p,cycles,qb);});
       else if(d==64)
         record("fused_attention_prefill_d64",bytes,flops,[&]{
           TimeAttention<64,4,64,false><<<1,128,
-              sizeof(FusedAttentionTaskBody<arch::Sm80,64,4,64,16,64,false>::SharedStorage)>>>(p,cycles);});
+              sizeof(FusedAttentionTaskBody<arch::Sm80,64,4,64,16,64,false>::SharedStorage)>>>(p,cycles,qb);});
       else record("fused_attention_prefill_d128",bytes,flops,[&]{
           TimeAttention<128,2,64,true><<<1,128,
-              sizeof(FusedAttentionTaskBody<arch::Sm80,128,2,64,16,64,true>::SharedStorage)>>>(p,cycles);});
+              sizeof(FusedAttentionTaskBody<arch::Sm80,128,2,64,16,64,true>::SharedStorage)>>>(p,cycles,qb);});
     }
     auto& serving=target.CalibrationFor("bf16").task_body.serving;
     serving.clear();for(auto const& [name,samples]:observations) {

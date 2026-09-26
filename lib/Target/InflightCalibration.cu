@@ -41,7 +41,9 @@ __global__ void InflightRead(char const* source,std::size_t segment_bytes,
   for(int i=0;i<stages-1 && i<rounds;++i)issue(i);
   for(int i=0;i<rounds;++i) {
     if(i+stages-1<rounds)issue(i+stages-1);
-    if(stages==2)asm volatile("cp.async.wait_group 0;");
+    // At the tail there may be fewer groups than the steady-state wait
+    // threshold. Drain them before consuming the last shared-memory slots.
+    if(i+stages-1>=rounds || stages==2)asm volatile("cp.async.wait_group 0;");
     else if(stages==3)asm volatile("cp.async.wait_group 1;");
     else asm volatile("cp.async.wait_group 2;");
     __syncthreads();
