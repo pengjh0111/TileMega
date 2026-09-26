@@ -231,7 +231,8 @@ int RunCompile(int argc, char** argv) {
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
-    std::string serving_phase, emit_mode,measure_command,serving_warm_start;
+    std::string serving_phase, emit_mode,measure_command,serving_warm_start,artifact_cache;
+    if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
     int serving_capacity=1088,serving_batch=1,serving_past_lo=64,
         serving_past_hi=1086,serving_kv_block=256,
         serving_query_rows=64,serving_argmax_tile_n=128;
@@ -264,6 +265,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--emit") emit_mode=value;
       else if (flag=="--measure-cmd") measure_command=value;
       else if (flag=="--serving-warm-start") serving_warm_start=value;
+      else if (flag=="--artifact-cache") artifact_cache=value;
       else if (flag=="--capacity") serving_capacity=std::stoi(value);
       else if (flag=="--batch") serving_batch=std::stoi(value);
       else if (flag=="--past-range") {
@@ -642,7 +644,8 @@ int RunCompile(int argc, char** argv) {
               " --batch "+std::to_string(serving_batch)+
               " --past-range "+quote(std::to_string(serving_past_lo)+":"+
                                     std::to_string(serving_past_hi))+
-              " --capacity "+std::to_string(serving_capacity);
+              " --capacity "+std::to_string(serving_capacity)+
+              (artifact_cache.empty()?"":" --artifact-cache "+quote(artifact_cache));
           if(std::system((compile+" >"+quote(stem+".build.stdout")+
               " 2>"+quote(stem+".build.stderr")).c_str()))
             throw std::runtime_error("top-3 serving candidate compilation failed: "+stem);
@@ -907,8 +910,16 @@ int RunCompile(int argc, char** argv) {
           " -x cu " + quote(root + "/lib/Solver/ListScheduler.cpp") +
           " -L"+quote(tilemega::commands::CudaLibraryDirectory())+" -lcudart -o " + quote(requested.string());
       std::ofstream(requested.string()+".build_command.txt") << command << '\n';
-      int status = std::system((command+" >"+quote(requested.string()+".ptxas.log")+
-          " 2>&1").c_str());
+      std::string invocation=command+" >"+quote(requested.string()+".ptxas.log")+" 2>&1";
+      if(!artifact_cache.empty()) {
+        std::string python_path=root+"/python";
+        if(auto* inherited=std::getenv("PYTHONPATH"))python_path+=":"+std::string(inherited);
+        invocation="PYTHONPATH="+quote(python_path)+
+            " python3 -m tilemega.build.artifacts --command "+quote(command)+
+            " --cache "+quote(artifact_cache)+" --log "+quote(requested.string()+".ptxas.log")+
+            " >"+quote(requested.string()+".cache.stdout")+" 2>"+quote(requested.string()+".cache.stderr");
+      }
+      int status = std::system(invocation.c_str());
       if (status != 0) throw std::runtime_error("nvcc failed while building shared object");
       }
     }
