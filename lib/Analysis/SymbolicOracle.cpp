@@ -75,14 +75,16 @@ SymbolicOracle::SymbolicOracle(std::string const& text):impl_(std::make_shared<I
   auto* parameterized_unique=isl_map_copy(parameterized);
   d.image=isl_map_range(parameterized);
   if(isl_map_is_single_valued(d.map)==isl_bool_true) {
-    d.unique=isl_pw_multi_aff_from_map(isl_map_copy(d.map));
-    if(!d.unique)throw std::runtime_error("single-valued relation failed affine conversion");
     d.kind=OracleKind::Unique;
-    auto* affine=isl_pw_multi_aff_from_map(parameterized_unique);parameterized_unique=nullptr;
-    std::vector<isl_pw_aff*> expressions;
-    for(int i=0;i<d.output;++i)expressions.push_back(isl_pw_multi_aff_get_pw_aff(affine,i));
-    d.unique_program=OracleProgram::Build(isl_set_params(isl_set_copy(d.image)),expressions);
-    for(auto* p:expressions)isl_pw_aff_free(p);isl_pw_multi_aff_free(affine);
+    if(isl_map_is_bijective(d.map)==isl_bool_true) {
+      d.unique=isl_pw_multi_aff_from_map(isl_map_copy(d.map));
+      if(!d.unique)throw std::runtime_error("bijective relation failed affine conversion");
+      auto* affine=isl_pw_multi_aff_from_map(parameterized_unique);parameterized_unique=nullptr;
+      std::vector<isl_pw_aff*> expressions;
+      for(int i=0;i<d.output;++i)expressions.push_back(isl_pw_multi_aff_get_pw_aff(affine,i));
+      d.unique_program=OracleProgram::Build(isl_set_params(isl_set_copy(d.image)),expressions);
+      for(auto* p:expressions)isl_pw_aff_free(p);isl_pw_multi_aff_free(affine);
+    }
   } else if(isl_set_is_box(d.image)==isl_bool_true) {
     // The predicate sees symbolic source coordinates as parameters, proving
     // every fiber, including strided/nonrectangular counterexamples.
@@ -99,7 +101,10 @@ OracleKind SymbolicOracle::kind() const{return impl_->kind;}
 std::string const& SymbolicOracle::relation() const{return impl_->text;}
 std::string SymbolicOracle::UniqueMapText() const {
   if(kind()!=OracleKind::Unique)throw std::invalid_argument("Oracle is not a Unique affine map");
-  char* raw=isl_pw_multi_aff_to_str(impl_->unique);if(!raw)throw std::runtime_error("cannot print Unique mapping");
+  auto* mapping=impl_->unique?isl_pw_multi_aff_copy(impl_->unique):
+      isl_pw_multi_aff_from_map(isl_map_copy(impl_->map));
+  char* raw=isl_pw_multi_aff_to_str(mapping);isl_pw_multi_aff_free(mapping);
+  if(!raw)throw std::runtime_error("cannot print Unique mapping");
   std::string result(raw);free(raw);return result;
 }
 long OracleImage::MaximumLinear() const {
@@ -162,6 +167,30 @@ OracleImage SymbolicOracle::Query(std::vector<long> const& source,ParamBinding c
     values.push_back(it->second);
   }
   if(d.kind==OracleKind::Unique) {
+    if(!d.unique) {
+      // A single-valued many-to-one map is queried only at the current tile.
+      // Converting the whole parametric map to a pw_multi_aff may trigger an
+      // exponential ISL div search for split-K floor divisions. Binding first
+      // retains exact Presburger semantics without materializing any DAG.
+      auto* fiber=isl_map_copy(d.map);
+      for(int i=0;i<d.parameters;++i)
+        fiber=isl_map_fix_val(fiber,isl_dim_param,i,
+            isl_val_int_from_si(SharedIslContext().raw(),values[i]));
+      for(int i=0;i<d.input;++i)
+        fiber=isl_map_fix_val(fiber,isl_dim_in,i,
+            isl_val_int_from_si(SharedIslContext().raw(),source[i]));
+      auto* image=isl_map_range(fiber);
+      auto empty=isl_set_is_empty(image);
+      if(empty==isl_bool_error){isl_set_free(image);throw std::runtime_error("Unique Oracle fiber query failed");}
+      OracleImage result;
+      if(empty==isl_bool_true){isl_set_free(image);return result;}
+      auto* point=isl_set_sample_point(image);
+      std::vector<long> coordinate;
+      for(int i=0;i<d.output;++i)
+        coordinate.push_back(integer(isl_point_get_coordinate_val(point,isl_dim_set,i)));
+      isl_point_free(point);result.empty=false;
+      result.points.push_back(std::move(coordinate));return result;
+    }
     auto arguments=values;arguments.insert(arguments.end(),source.begin(),source.end());
     bool nonempty=false;std::vector<long> coordinates;
     if(d.unique_program.Eval(arguments,nonempty,coordinates)) {

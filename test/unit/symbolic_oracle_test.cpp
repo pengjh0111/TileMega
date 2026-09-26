@@ -77,6 +77,14 @@ int main() {
   ParamBinding three;three.Bind("N",3);
   if(unique.Query({-1},three).Count()!=0 || unique.Query({3},three).Count()!=0)
     throw std::runtime_error("out-of-domain affine evaluation nonempty");
+  SymbolicOracle folded("[N] -> { [q] -> [p] : 0<=p<N and 2*p<=q<=2*p+1 }");
+  for(long q=-1;q<=6;++q) {
+    auto image=folded.Query({q},three);
+    bool valid=q>=0 && q<6;
+    if(image.Count()!=int(valid) ||
+       (valid && image.points.front()!=std::vector<long>{q/2}))
+      throw std::runtime_error("bound many-to-one fiber lost its exact domain");
+  }
   SymbolicOracle mixed("[N] -> { [q] -> [i] : 0<=q<N and 0<=i<8 and (q=0 or i%2=0) }");
   ParamBinding theta;theta.Bind("N",3);
   if(mixed.Query({0},theta).Count()!=8 || mixed.Query({1},theta).Count()!=4)
