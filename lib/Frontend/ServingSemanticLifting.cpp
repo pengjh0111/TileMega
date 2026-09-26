@@ -267,21 +267,37 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
       const auto blocks = C((plan.serving_capacity + stage.attention_kv_block - 1) /
                             stage.attention_kv_block);
       const bool decode = plan.serving_seq == 1;
+      const bool split_kv = decode &&
+          plan.serving_capacity > stage.attention_kv_block;
       std::vector<IterationDim> domain;
       TensorSpace output;
       std::vector<IndexResult> out_map;
       IndexResult bidx, gidx, qidx, didx, posidx, qkv_row;
       if (decode) {
-        domain = {Parallel("b", B), Parallel("g", G), Parallel("c", blocks),
-                  Parallel("q", Q), Parallel("d", D),
-                  Reduce("z", Ec), Reduce("u", Wg)};
-        output = Tensor(name(stage.operands[8]),
-            {Axis("b", B), Axis("g", G), Axis("c", blocks),
-             Axis("q", Q), Axis("d", D)});
-        out_map = {Id("b"), Id("g"), Id("c"), Id("q"), Id("d")};
+        domain = {Parallel("b", B), Parallel("g", G)};
+        if (split_kv) domain.push_back(Parallel("c", blocks));
+        domain.push_back(Parallel("q", Q));
+        domain.push_back(Parallel("d", D));
+        domain.push_back(Reduce("z", Ec));
+        domain.push_back(Reduce("u", Wg));
+        // A single KV block writes context directly; only split-KV writes
+        // partial/LSE.  Naming the wrong result drops the attention -> o_proj
+        // edge and lets L2 consume unwritten context.
+        if (!split_kv) {
+          output = Tensor(name(stage.operands[7]),
+              {Axis("m", B), Axis("g", G), Axis("q", Q), Axis("d", D)});
+          out_map = {Id("b"), Id("g"), Id("q"), Id("d")};
+        } else {
+          output = Tensor(name(stage.operands[8]),
+              {Axis("b", B), Axis("g", G), Axis("c", blocks),
+               Axis("q", Q), Axis("d", D)});
+          out_map = {Id("b"), Id("g"), Id("c"), Id("q"), Id("d")};
+        }
         bidx = Id("b"); gidx = Id("g"); qidx = Id("q"); didx = Id("d");
         qkv_row = Aff({{"b", S, C(1)}, {"q", C(1), Q}});
-        posidx = Aff({{"c", Ec, C(1)}, {"z", C(1), C(1)}});
+        posidx = split_kv
+            ? Aff({{"c", Ec, C(1)}, {"z", C(1), C(1)}})
+            : Id("z");
       } else {
         domain = {Parallel("m", M), Parallel("g", G), Parallel("q", Q),
                   Parallel("d", D), Reduce("z", S), Reduce("u", Wg)};
@@ -308,8 +324,10 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
                  {"m", C(-plan.serving_seq), S}}, past);
       auto rope_pos = token_pos;
       auto kv_bound = decode
-          ? Aff({{"c", C(-stage.attention_kv_block), C(1)},
-                 {"z", C(-1), C(1)}}, past + S + C(-1))
+          ? (split_kv
+              ? Aff({{"c", C(-stage.attention_kv_block), C(1)},
+                     {"z", C(-1), C(1)}}, past + S + C(-1))
+              : Aff({{"z", C(-1), C(1)}}, past + S + C(-1)))
           : Aff({{"m", C(1), C(1)},
                  {"m", C(-plan.serving_seq), S},
                  {"z", C(-1), C(1)}}, past);
@@ -345,7 +363,7 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
       // On decode only the block containing `past` is its writer.
       auto new_pos = token_pos;
       std::vector<IndexResult> writer_predicates;
-      if (decode) {
+      if (split_kv) {
         writer_predicates.push_back(Aff({{"c", C(-stage.attention_kv_block), C(1)}}, past));
         writer_predicates.push_back(Aff({{"c", Ec, C(1)}},
                                          Ec + C(-1) + past * C(-1)));
@@ -360,7 +378,7 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
         op.additional_writes.push_back(std::move(write));
         result.written[id] = 1;
       }
-      if (decode) {
+      if (split_kv) {
         ElementWrite lse;
         lse.tensor = Tensor(name(stage.operands[9]),
             {Axis("b", B), Axis("g", G), Axis("c", blocks), Axis("q", Q)});
@@ -371,7 +389,7 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
         result.written[stage.operands[9]] = 1;
       }
       record(i, std::move(op), OpRole::kServingFusedAttention,
-             decode ? stage.operands[8] : stage.operands[7], "fused_attention");
+             split_kv ? stage.operands[8] : stage.operands[7], "fused_attention");
       continue;
     }
     if (stage.kind == PlanTaskKind::kAttentionMerge) {

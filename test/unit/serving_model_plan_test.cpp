@@ -110,6 +110,31 @@ int main(int argc, char** argv) {
       }
   auto edges = tilemega::analysis::CouplingDerivation{}.Derive(instances, {});
   assert(!edges.empty());
+  if (options.seq == 1) {
+    auto single = options;
+    single.kv_block = single.capacity;
+    auto one_block = tilemega::frontend::BuildModelPlan(
+        bridge.nodes, bridge.inputs, bridge.outputs, single);
+    auto one_lifted = tilemega::frontend::LiftSemantics(one_block, dims);
+    auto one_geometry = tilemega::frontend::LaunchGranularity(
+        one_lifted, one_block, {});
+    auto one_instances = tilemega::analysis::Instantiate(
+        one_lifted.sem, one_geometry);
+    auto one_edges = tilemega::analysis::CouplingDerivation{}.Derive(
+        one_instances, {});
+    for (std::size_t i = 0; i + 1 < one_block.stages.size(); ++i) {
+      if (one_block.stages[i].kind !=
+          tilemega::frontend::PlanTaskKind::kFusedAttention) continue;
+      assert(one_block.stages[i + 1].kind ==
+             tilemega::frontend::PlanTaskKind::kGemm);
+      std::string from = "serving.s" + std::to_string(i);
+      std::string to = "serving.s" + std::to_string(i + 1);
+      assert(std::any_of(one_edges.begin(), one_edges.end(),
+          [&](auto const& edge) {
+            return edge.src.name == from && edge.dst.name == to;
+          }));
+    }
+  }
   tilemega::analysis::DramFloorOptions floor_options;
   floor_options.dram_gbps = 981.582923;
   floor_options.tc_gflops = 179997;
