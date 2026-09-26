@@ -238,6 +238,7 @@ int RunCompile(int argc, char** argv) {
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto";
     int page_bytes=8192,prefetch_depth=1,prefetch_stride=0;
+    bool page_bytes_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
     if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
     int serving_capacity=1088,serving_batch=1,serving_past_lo=64,
@@ -276,7 +277,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--arch-paths") arch_paths=value;
       else if (flag=="--pdl") pdl=value;
       else if (flag=="--pg") pg_mode=value;
-      else if (flag=="--page-bytes") page_bytes=std::stoi(value);
+      else if (flag=="--page-bytes") {page_bytes=std::stoi(value);page_bytes_pinned=true;}
       else if (flag=="--l2-prefetch-depth") prefetch_depth=std::stoi(value);
       else if (flag=="--l2-prefetch-stride") prefetch_stride=std::stoi(value);
       else if (flag=="--runtime-target") runtime_target=value;
@@ -496,6 +497,10 @@ int RunCompile(int argc, char** argv) {
         skeleton.incremental_prepare=incremental_prepare;
         skeleton.serving_pruning=serving_pruning;
         skeleton.top_m=search_top_m;
+        skeleton.pg_pages=use_pages;
+        skeleton.page_bytes=page_bytes;
+        if(use_pages)skeleton.page_choices=page_bytes_pinned
+            ?std::vector<int>{page_bytes}:std::vector<int>{8192,16384};
         if(!serving_warm_start.empty()) {
           if(!serving)throw std::runtime_error("warm start needs a serving plan");
           auto file=llvm::MemoryBuffer::getFile(serving_warm_start);
@@ -694,6 +699,12 @@ int RunCompile(int argc, char** argv) {
         for(std::size_t i=0;i<solved.shortlist.size();++i) {
           std::string stem=std::string(argv[2])+".top"+std::to_string(i+1);
           std::string candidate_so=stem+".candidate.so";
+          int candidate_page_bytes=page_bytes;
+          if(use_pages) {
+            auto pages=(*solved.shortlist[i].module)->getAttrOfType<mlir::DictionaryAttr>("tmexec.pages");
+            if(!pages)throw std::runtime_error("paged shortlist lacks its selected page layout");
+            candidate_page_bytes=int(mlir::cast<mlir::IntegerAttr>(pages.get("page_bytes")).getInt());
+          }
           std::string compile=quote(std::filesystem::canonical(argv[0]).string())+" compile"+
               " "+quote(stem+".mlir")+" "+quote(candidate_so)+
               " --serving "+quote(serving_phase)+" --emit serving"+
@@ -703,7 +714,7 @@ int RunCompile(int argc, char** argv) {
               " --capacity "+std::to_string(serving_capacity)+
               " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
               " --arch-paths "+quote(arch_paths)+" --pdl "+quote(pdl)+
-              " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(page_bytes)+
+              " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(candidate_page_bytes)+
               " --l2-prefetch-depth "+std::to_string(prefetch_depth)+" --l2-prefetch-stride "+std::to_string(prefetch_stride)+
               " --event-solo "+std::to_string(event_solo)+" --event-red-publish "+std::to_string(event_red)+
               " --barrier-v2 "+std::to_string(barrier_v2)+
@@ -808,6 +819,11 @@ int RunCompile(int argc, char** argv) {
         outer<<candidate.key<<'\t'<<candidate.work_lb_ns<<'\t'<<candidate.cp_lb_ns
              <<'\t'<<candidate.queue_lb_lb_ns<<'\t'<<candidate.priority_ns<<'\n';
       module=std::move(solved.module);
+      if(use_pages) {
+        auto pages=(*module)->getAttrOfType<mlir::DictionaryAttr>("tmexec.pages");
+        if(!pages)throw std::runtime_error("paged winner lacks its selected page layout");
+        page_bytes=int(mlir::cast<mlir::IntegerAttr>(pages.get("page_bytes")).getInt());
+      }
       if(interval_begin) {
         auto interval_options=solve_options.placement;
         auto integer=[&](char const* key){return int((*module)->getAttrOfType<mlir::IntegerAttr>(key).getInt());};

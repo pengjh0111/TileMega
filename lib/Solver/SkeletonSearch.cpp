@@ -4,6 +4,7 @@
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Analysis/ExactMemo.h>
 #include <tilemega/Solver/ServingPruning.h>
+#include <tilemega/Solver/PageLayout.h>
 #include <fstream>
 #include <iomanip>
 #include <numeric>
@@ -47,9 +48,11 @@ struct SearchContext {
   mlir::Attribute floor_attribute;
   ScalarType dtype;
   int attention_kv_block=0,attention_query_rows=0,argmax_tile_n=0;
+  int current_page_bytes=0;
   SearchContext(frontend::ImportedSemantics input,mlir::MLIRContext& ctx,SkeletonSearchOptions const& opts)
       :imported(std::move(input)),classes(BuildOperatorClasses(imported)),resources(opts.variant_probe,opts.common.timing),context(ctx),options(opts),
        dtype(imported.lifted.sem.ops.front().dtype==analysis::ScalarType::kBF16?ScalarType::kBF16:ScalarType::kF32) {
+    current_page_bytes=options.page_bytes;
     if(imported.plan.serving)for(auto const& stage:imported.plan.stages)
       if(stage.kind==frontend::PlanTaskKind::kFusedAttention) {
         attention_kv_block=stage.attention_kv_block;
@@ -125,6 +128,7 @@ struct SearchContext {
     auto key=ConfigKey(config,kappa,residency);
     if(imported.plan.serving)key+=";Ec="+std::to_string(attention_kv_block)+
         ";Rq="+std::to_string(attention_query_rows);
+    if(options.pg_pages)key+=";page_bytes="+std::to_string(current_page_bytes);
     return key;
   }
   ResourceEstimate EstimateResources(std::vector<GemmConfig> const& config) {
@@ -135,7 +139,7 @@ struct SearchContext {
       for(auto const& g:config)gemm_shared=std::max(gemm_shared,
           ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
       estimate.shared_bytes=gemm_shared;
-      estimate.resident_limit=VariantResourceCache::ResidentLimit(estimate,target);
+      estimate.resident_limit=options.pg_pages?1:VariantResourceCache::ResidentLimit(estimate,target);
     }
     return estimate;
   }
@@ -146,6 +150,27 @@ struct SearchContext {
     auto* timing=options.common.timing;auto const& target=options.common.placement.target;
     if(timing)timing->candidate=Key(config,kappa,residency);
     auto estimate=EstimateResources(config);
+    auto granularity=ClassGranularity(imported,classes,config);
+    std::optional<PageLayout> pages;
+    if(options.pg_pages) {
+      std::vector<std::array<int,3>> shapes;
+      for(auto const& g:granularity.gemms) {
+        if(!PageLayout::StageFits(current_page_bytes,g.tile_n,g.tile_k))
+          throw std::invalid_argument("paged B stage cannot occupy complete page slots");
+        shapes.push_back({g.tile_m,g.tile_n,g.tile_k});
+      }
+      std::vector<int> attention_widths;
+      for(auto const& stage:imported.plan.stages)
+        if(stage.kind==frontend::PlanTaskKind::kFusedAttention)
+          attention_widths.push_back(stage.width);
+      auto [activation,scratch]=PageLayout::ServingWorkspace(shapes,attention_widths);
+      pages=PageLayout::Build(target,current_page_bytes,activation,scratch);
+      for(auto const& g:granularity.gemms)
+        if(g.tile_n*g.tile_k*2>current_page_bytes*pages->pages)
+          throw std::invalid_argument("paged B stage exceeds the page ring");
+      estimate.shared_bytes=pages->shared_bytes;
+      estimate.resident_limit=1; // PG-1 launches exactly one 160-thread CTA per SM.
+    }
     if(imported.plan.serving) {
       auto attention=std::find_if(imported.plan.stages.begin(),
           imported.plan.stages.end(),[](auto const& stage){
@@ -156,14 +181,15 @@ struct SearchContext {
              attention->attention_query_rows,config,target))
         throw std::invalid_argument("R-1 attention exceeds GEMM shared-memory union");
     }
-    int limit=actual?actual:estimate.resident_limit;if(limit<1)throw std::invalid_argument("no resident CTA for geometry");
+    int limit=options.pg_pages?1:(actual?actual:estimate.resident_limit);
+    if(limit<1)throw std::invalid_argument("no resident CTA for geometry");
     residency=std::min(residency,limit);
     SkeletonSolvedPoint point;point.candidate.config=config;point.candidate.kappa=kappa;point.candidate.residency=residency;
     point.candidate.key=Key(config,kappa,residency);point.candidate.estimated_limit=estimate.resident_limit;point.candidate.actual_limit=actual;
     point.candidate.shared_bytes=estimate.shared_bytes;
     point.candidate.attention_kv_block=attention_kv_block;
     point.candidate.attention_query_rows=attention_query_rows;
-    auto granularity=ClassGranularity(imported,classes,config);
+    point.candidate.page_bytes=options.pg_pages?current_page_bytes:0;
     if(!base || materialize) {
       point.module=importer.InstantiateForGranularity(imported,context,granularity,&cache,nullptr,timing);
       {SolverPhase phase(timing,"prepare_relations");point.problem=PrepareSymbolicProblem(*point.module,target,options.common.placement.dims,target.res.num_sms*residency,residency,kappa,nullptr,false);}
@@ -208,6 +234,10 @@ struct SearchContext {
     {SolverPhase phase(timing,"piece_pricing_and_release");point.flow=PrepareFlow(
         point.problem,*floor,target,residency,options.common.placement.hop,
         cache,flow_cache,true,estimate.shared_bytes,prior,prior?&reusable:nullptr);}
+    if(pages) {
+      point.flow->flow.page_bytes=pages->page_bytes;
+      point.flow->flow.pages_per_worker=pages->pages;
+    }
     point.candidate.task_count=std::accumulate(point.problem.counts.begin(),point.problem.counts.end(),std::uint64_t(0));
     if(options.incremental_prepare && !materialize)
       recent_flows[past_key]={config,residency,*point.flow};
@@ -226,6 +256,7 @@ struct SearchContext {
     return point.candidate;
   }
   SkeletonSolvedPoint Materialize(SkeletonCandidate const& candidate,bool pure,int actual=0) {
+    if(options.pg_pages)current_page_bytes=candidate.page_bytes;
     SetServingStructure(candidate.attention_kv_block,
                         candidate.attention_query_rows,
                         ArgmaxTileN(candidate.config));
@@ -385,6 +416,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     auto incumbent=start;if(!std::isfinite(evaluated[incumbent].score))throw std::runtime_error("flow seed has no valid score: "+evaluated[incumbent].error);
     for(int pass=0;pass<options.passes;++pass){bool moved=false;++rounds;
       for(std::size_t c=0;c<search.classes.size();++c){auto fixed=evaluated[incumbent];int improvements=0;
+        if(options.pg_pages)search.current_page_bytes=fixed.page_bytes;
         if(search.imported.plan.serving)
           search.SetServingStructure(fixed.attention_kv_block,
               fixed.attention_query_rows,search.ArgmaxTileN(fixed.config));
@@ -412,6 +444,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       }
       if(search.imported.plan.serving) {
         auto fixed=evaluated[incumbent];
+        if(options.pg_pages)search.current_page_bytes=fixed.page_bytes;
         std::vector<int> attention_domain;
         bool decode=search.imported.plan.serving_seq==1;
         if(decode)attention_domain={64,128,256,512,search.imported.plan.serving_capacity};
@@ -444,11 +477,27 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       }
       if(!search.imported.plan.serving || options.serving_pruning) {
         auto fixed=evaluated[incumbent];
+        if(options.pg_pages)search.current_page_bytes=fixed.page_bytes;
         auto serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
         for(int k:serving_order.kappa_scan){auto i=evaluate(fixed.config,k,fixed.residency);if(BetterCandidate(evaluated[i],evaluated[incumbent],search.imported.plan.serving)){incumbent=i;moved=true;}}
         fixed=evaluated[incumbent];
+        if(options.pg_pages)search.current_page_bytes=fixed.page_bytes;
         serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
         for(int r:serving_order.residency_scan){auto i=evaluate(fixed.config,fixed.kappa,r);if(BetterCandidate(evaluated[i],evaluated[incumbent],search.imported.plan.serving)){incumbent=i;moved=true;}}
+      }
+      if(options.pg_pages) {
+        auto fixed=evaluated[incumbent];
+        for(int bytes:options.page_choices) {
+          search.current_page_bytes=bytes;
+          auto i=evaluate(fixed.config,fixed.kappa,fixed.residency);
+          if(BetterCandidate(evaluated[i],evaluated[incumbent],true)) {
+            incumbent=i;moved=true;
+          }
+        }
+        out<<"PAGE_COORDINATE\t"<<start<<'\t'<<pass<<'\t'
+           <<options.page_choices.size()<<'\t'
+           <<evaluated[incumbent].page_bytes<<'\t'
+           <<evaluated[incumbent].score<<'\n';out.flush();
       }
       if(!moved)break;
     }
@@ -518,6 +567,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
   if(search.imported.plan.serving && !result.evaluated.empty() &&
      result.evaluated.front().error.empty()) {
     auto const& best=result.evaluated.front();
+    if(options.pg_pages)search.current_page_bytes=best.page_bytes;
     search.SetServingStructure(best.attention_kv_block,
         best.attention_query_rows,search.ArgmaxTileN(best.config));
     if(!search.base || !search.floor)
@@ -583,9 +633,10 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     if(!options.common.query_residency)throw std::invalid_argument("top-3 requires real queryResidency");
     {SolverPhase phase(options.common.timing,"megakernel_compile");actual=options.common.query_residency(*item.entry.module,c.kappa);}
     if(actual<1)throw std::runtime_error("top-3 compiled with zero residency");
-    bool changed=actual!=c.estimated_limit;
+    bool changed=options.pg_pages?actual<1:actual!=c.estimated_limit;
     if(changed) {
       // Correct occupancy can expose a better residency as well as invalidate one.
+      if(options.pg_pages)search.current_page_bytes=c.page_bytes;
       auto best=search.Evaluate(c.config,c.kappa,1,actual);
       for(int r=2;r<=actual;++r) {
         auto trial=search.Evaluate(c.config,c.kappa,r,actual);

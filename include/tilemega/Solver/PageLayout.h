@@ -2,8 +2,11 @@
 #pragma once
 #include <tilemega/Target/TargetSpec.h>
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <stdexcept>
+#include <utility>
+#include <vector>
 
 namespace tilemega::solver {
 struct PageLayout {
@@ -15,6 +18,20 @@ struct PageLayout {
   static constexpr bool StageFits(int page,int n,int k) {
     int b=n*k*2;
     return page>0 && b>0 && (page%b==0 || b%page==0);
+  }
+  // The solver and codegen use one calculation for the workspace outside the
+  // static page ring. Each GEMM shape is (M,N,K); attention widths are D.
+  static std::pair<int,int> ServingWorkspace(
+      std::vector<std::array<int,3>> const& gemms,
+      std::vector<int> const& attention_widths) {
+    int activation=0,scratch=0;
+    for(auto const& g:gemms) {
+      activation=std::max(activation,4*g[0]*g[2]);
+      scratch=std::max(scratch,4*g[0]*g[1]);
+    }
+    for(int d:attention_widths)
+      scratch=std::max(scratch,16*d*2+4*16*d*4+4*16*4);
+    return {activation,scratch};
   }
   static PageLayout Build(TargetSpec const& target,int page,int activation_bytes,
                           int scratch_bytes,int task_control_bytes=0) {

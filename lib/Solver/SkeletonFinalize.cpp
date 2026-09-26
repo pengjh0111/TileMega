@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/SkeletonSearch.h>
 #include <tilemega/Analysis/VisitFiniteRelation.h>
+#include <tilemega/Codegen/ServingPages.h>
 #include <fstream>
 #include <iomanip>
 #include <queue>
@@ -47,6 +48,8 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
     sim.inflight_curve_gbps=point.flow->flow.inflight_curve_gbps;
     sim.cta_stream_curve_bytes=point.flow->flow.cta_stream_curve_bytes;
     sim.cta_stream_curve_gbps=point.flow->flow.cta_stream_curve_gbps;
+    sim.page_bytes=point.flow->flow.page_bytes;
+    sim.pages_per_worker=point.flow->flow.pages_per_worker;
     sim.dram_floor_ns=point.flow->flow.dram_floor_ns;sim.all_external_miss=point.flow->flow.all_external_miss;
   }
   auto const& rates=options.common.placement.target.EventCalibrationFor(problem.model.dtype==ScalarType::kBF16?"bf16":"f32");
@@ -90,6 +93,9 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
   selected.predicted_ns=interval_makespan;
   auto placement=options.common.placement;placement.residency=point.candidate.residency;placement.verified_resident_limit=point.candidate.actual_limit?point.candidate.actual_limit:point.candidate.estimated_limit;placement.kappa=options.kappa;
   WritePlanSkeleton(*point.module,sk);dialect::WriteSolvedPlacement(*point.module,selected,placement);
+  if(options.pg_pages)
+    codegen::ConfigureServingPages(*point.module,
+        options.common.placement.target,point.candidate.page_bytes);
   CompilerSearchResult::ShortlistEntry entry;
   entry.evaluation.candidate.config=point.candidate.config.front();entry.evaluation.candidate.key=point.candidate.key;
   entry.evaluation.candidate.kappa=options.kappa;entry.evaluation.candidate.ctas_per_sm=point.candidate.residency;

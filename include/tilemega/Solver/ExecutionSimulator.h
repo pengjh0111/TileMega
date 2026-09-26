@@ -50,6 +50,8 @@ struct SimulatorOptions {
   double dram_floor_ns = 0;
   bool all_external_miss = false;
   bool no_external_dram = false;
+  // Default-off PG-1 fluid arm; each FIFO worker owns its own static ring.
+  int page_bytes = 0, pages_per_worker = 0;
   int sms = 0;             ///< 0 maps every worker to its own SM
   int ctas_per_sm = 1;     ///< resident CTAs per SM, so `sms * ctas_per_sm >= grid`
   int window = 1;          ///< §5.7.2 W; anything but 1 is rejected (EX-E2)

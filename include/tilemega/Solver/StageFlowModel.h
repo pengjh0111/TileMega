@@ -22,6 +22,9 @@ struct FlowProblem {
   double dram_gbps=0,publication_ns=0,consumer_wait_ns=0,hop_ns=0,dram_floor_ns=0,floor_ns=0;
   bool all_external_miss=false;
   bool inflight_dram=false;
+  // Decode PG-1: one static page ring per worker. A task may prefetch at
+  // most this ring's capacity before its dependencies become ready.
+  int page_bytes=0,pages_per_worker=0;
   std::vector<double> inflight_curve_bytes,inflight_curve_gbps;
   std::vector<double> cta_stream_curve_bytes,cta_stream_curve_gbps;
 };

@@ -10,6 +10,9 @@ namespace tilemega::solver {
 bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& plan,
     SimulatorOptions const& options,HopCurve const& hop,SimulatorResult* out,std::string* error) try {
   if(!input.graph || !out || options.window!=1 || !(options.dram_gbps>0) || !input.prefetch_ns.empty())throw std::invalid_argument("fluid simulation requires FIFO W=1, positive DRAM rate, and no prefetch credit");
+  bool const paged=options.page_bytes>0 || options.pages_per_worker>0;
+  if(paged && (options.page_bytes<=0 || options.pages_per_worker<=0))
+    throw std::invalid_argument("paged fluid simulation needs a positive page ring");
   int nodes=input.graph->successors.size(),workers=plan.queue.size();
   if(input.task_price_parts.size()!=std::size_t(nodes))throw std::invalid_argument("missing per-task fluid prices");
   for(auto const* mask:{&input.publication_required,&input.consumer_wait_required})if(!mask->empty() && mask->size()!=std::size_t(nodes))throw std::invalid_argument("invalid fluid synchronization mask");
@@ -20,7 +23,10 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
   std::vector<std::vector<int>> forced(nodes);
   for(auto [p,s]:input.fluid_forced_local_hops){if(p<0 || p>=nodes || s<0 || s>=nodes || prepared->owner[p]!=prepared->owner[s])throw std::invalid_argument("invalid forced local hop");forced[p].push_back(s);}
   auto pending=prepared->unmet;std::vector<int> remaining=graph->producer_count,head(workers),fluid_owner;
+  std::vector<int> prefetch_head(workers);
   std::vector<double> ready(nodes),available(workers),work(workers);
+  std::vector<double> page_hold(workers),reserved(nodes),prefetch_bytes(nodes);
+  std::vector<unsigned char> prefetch_ready(nodes,!paged);
   std::vector<unsigned char> state(nodes),compute(nodes),bytes(nodes),closing(nodes);
   struct Group {double end=0,best=0,second=0;int owner=-1;
     void Add(int w,double finish,double arrival){end=std::max(end,finish);if(w==owner){best=std::max(best,arrival);return;}if(arrival>=best){second=best;best=arrival;owner=w;}else second=std::max(second,arrival);}
@@ -36,19 +42,44 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
   auto fluid_next=[&](){return inflight?inflight->Next():fluid.Next();};
   auto fluid_advance=[&](double dt){return inflight?inflight->Advance(dt):fluid.Advance(dt);};
   double now=0;int completed=0,running=0;
+  double const page_capacity=double(options.page_bytes)*options.pages_per_worker;
   *out={};out->tasks.resize(nodes);out->cross_worker_edges=prepared->cross_edges;out->same_worker_edges=prepared->same_edges;
-  auto enqueue=[&](int w){auto const& queue=prepared->queue[w];if(head[w]>=int(queue.size()))return;int n=queue[head[w]];if(pending[n] || state[n])return;state[n]=1;events.push({std::max(available[w],ready[n]),Start,n});};
+  auto enqueue=[&](int w){auto const& queue=prepared->queue[w];if(head[w]>=int(queue.size()))return;int n=queue[head[w]];if(pending[n] || state[n] || !prefetch_ready[n])return;state[n]=1;events.push({std::max({available[w],ready[n],paged?now:0.}),Start,n});};
+  auto launch_prefetch=[&](int w){
+    if(!paged)return;
+    auto const& queue=prepared->queue[w];
+    while(prefetch_head[w]<int(queue.size())) {
+      int n=queue[prefetch_head[w]];
+      auto const& parts=input.task_price_parts[n];
+      double bytes=options.no_external_dram?0:std::min(parts.no_producer_dram_bytes,page_capacity);
+      if(bytes<0)throw std::invalid_argument("negative prefetch bytes");
+      double hold=bytes>0?std::ceil(bytes/options.page_bytes)*options.page_bytes:0;
+      if(page_hold[w]+hold>page_capacity+1e-6)break;
+      page_hold[w]+=hold;reserved[n]=hold;prefetch_bytes[n]=bytes;++prefetch_head[w];
+      if(bytes==0){prefetch_ready[n]=1;enqueue(w);continue;}
+      int id=inflight?inflight->Add(bytes,parts.dram_rate_cap,
+          std::max(16.,std::min(parts.inflight_bytes,page_capacity)))
+          :fluid.Add(bytes,parts.dram_rate_cap);
+      if(id!=int(fluid_owner.size()))throw std::runtime_error("prefetch fluid id discontinuity");
+      fluid_owner.push_back(-n-1);
+    }
+  };
   auto finish=[&](int n){if(compute[n] && bytes[n] && !closing[n]){closing[n]=1;bool publish=input.publication_required.empty()?prepared->cross_fanout[n]>0:input.publication_required[n]!=0;events.push({now+(publish?options.publication_ns:0),End,n});}};
-  for(int w=0;w<workers;++w)enqueue(w);
+  for(int w=0;w<workers;++w){launch_prefetch(w);enqueue(w);}
   while(completed<nodes) {
     double next=std::min(events.empty()?std::numeric_limits<double>::infinity():events.top().at,now+fluid_next());
     if(!std::isfinite(next))throw std::runtime_error("fluid FIFO deadlock");
-    auto delivered=fluid_advance(next-now);now=next;for(int id:delivered){int n=fluid_owner[id];bytes[n]=1;finish(n);}
+    auto delivered=fluid_advance(next-now);now=next;for(int id:delivered){int owner=fluid_owner[id];
+      if(owner<0){int n=-owner-1;prefetch_ready[n]=1;enqueue(prepared->owner[n]);}
+      else {bytes[owner]=1;finish(owner);}}
     while(!events.empty() && events.top().at<=now){auto e=events.top();events.pop();int n=e.node,w=prepared->owner[n];auto const& parts=input.task_price_parts[n];auto& task=out->tasks[n];
       if(e.kind==Start){++running;task.worker=w;task.start_ns=now;task.block_ns=std::max(0.,now-available[w]);out->total_block_ns+=task.block_ns;
         bool wait=input.consumer_wait_required.empty()?prepared->cross_input[n]!=0:input.consumer_wait_required[n]!=0;
         events.push({now+(wait?options.consumer_wait_ns:0)+parts.fixed_ns,Main,n});
-      }else if(e.kind==Main){double demand=parts.dram_bytes-(options.no_external_dram?parts.no_producer_dram_bytes:0);
+      }else if(e.kind==Main){
+        if(paged){page_hold[w]-=reserved[n];reserved[n]=0;launch_prefetch(w);}
+        double demand=parts.dram_bytes-(options.no_external_dram?parts.no_producer_dram_bytes:0)
+            -(paged?prefetch_bytes[n]:0);
         if(demand<0)throw std::invalid_argument("negative fluid demand");
         if(demand>0){int id=inflight?inflight->Add(demand,parts.dram_rate_cap,
             parts.inflight_bytes):fluid.Add(demand,parts.dram_rate_cap);

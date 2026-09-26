@@ -5,6 +5,7 @@
 #include <cmath>
 #include <deque>
 #include <limits>
+#include <numeric>
 #include <optional>
 #include <queue>
 #include <stdexcept>
@@ -24,6 +25,9 @@ void SetFlowCalibration(FlowProblem& p,TargetSpec const& target,ScalarType dtype
 }
 FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   if(p.workers<=0 || !(p.dram_gbps>0))throw std::invalid_argument("invalid flow resources");
+  bool const paged=p.page_bytes>0 || p.pages_per_worker>0;
+  if(paged && (p.page_bytes<=0 || p.pages_per_worker<=0))
+    throw std::invalid_argument("paged flow needs a positive page size and ring capacity");
   int n=p.spaces.size();long total=0;for(auto const& s:p.spaces){if(s.count<0 || s.piece_of_task.size()!=std::size_t(s.count))throw std::invalid_argument("flow piece coverage");total+=s.count;}
   long workers=options.infinite_workers?total:p.workers,free=workers,finished=0;
   std::vector<std::vector<int>> incoming(n),outgoing(n);
@@ -39,12 +43,21 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
     waits[r.consumer]=waits[r.consumer] || (sync && !r.all_producer);all_waits[r.consumer]=all_waits[r.consumer] || (sync && r.all_producer);
   }
   struct Ready {int task;double time;};std::vector<std::deque<Ready>> ready(n);
+  std::vector<std::vector<unsigned char>> prefetched(n);
+  std::vector<std::vector<double>> dependency_ready(n),page_hold(n),prefetch_bytes(n);
   for(int s=0;s<n;++s){pending[s].assign(p.spaces[s].count,0);last_edge[s].assign(p.spaces[s].count,-1);last_cause[s].assign(p.spaces[s].count,-1);completed[s].assign(p.spaces[s].count,0);}
   for(auto const& edge:p.edges)for(auto const& [h,j]:*edge.sorted) {
     if(h<0 || h>=p.spaces[edge.producer].count || j<0 || j>=p.spaces[edge.consumer].count)throw std::invalid_argument("release coordinate outside task domain");
     ++pending[edge.consumer][j];
   }
-  for(int s=0;s<n;++s)for(int j=0;j<p.spaces[s].count;++j)if(pending[s][j]==0)ready[s].push_back({j,0});
+  for(int s=0;s<n;++s) {
+    prefetched[s].assign(p.spaces[s].count,!paged);
+    dependency_ready[s].assign(p.spaces[s].count,0);
+    page_hold[s].assign(p.spaces[s].count,0);
+    prefetch_bytes[s].assign(p.spaces[s].count,0);
+    for(int j=0;j<p.spaces[s].count;++j)
+      if(pending[s][j]==0 && !paged)ready[s].push_back({j,0});
+  }
   using SpaceKey=std::tuple<double,double,int,int>;
   std::priority_queue<SpaceKey,std::vector<SpaceKey>,std::greater<SpaceKey>> ready_spaces;
   auto queue_space=[&](int s){ready_spaces.emplace(ready[s].front().time,-p.spaces[s].rank_ns,p.spaces[s].order,s);};
@@ -58,6 +71,15 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   static thread_local std::vector<Cohort> cohorts;cohorts.clear();
   static thread_local std::vector<int> cohort_tasks;cohort_tasks.clear();cohort_tasks.reserve(total);
   std::vector<int> fluid_owner;DramFluidServer fluid(p.dram_gbps);
+  struct PrefetchCohort {int space,first,count;double bytes,reserved;};
+  std::vector<PrefetchCohort> prefetch_cohorts;
+  std::vector<int> prefetch_spaces(n);std::iota(prefetch_spaces.begin(),prefetch_spaces.end(),0);
+  std::stable_sort(prefetch_spaces.begin(),prefetch_spaces.end(),[&](int a,int b){
+    return p.spaces[a].order<p.spaces[b].order;});
+  std::size_t prefetch_space=0;int prefetch_task=0;
+  double held_pages=0;
+  double const per_worker_capacity=double(p.page_bytes)*p.pages_per_worker;
+  double const total_page_capacity=per_worker_capacity*workers;
   std::optional<InflightDramServer> inflight;
   if(p.inflight_dram)inflight.emplace(p.dram_gbps,p.inflight_curve_bytes,
       p.inflight_curve_gbps,p.cta_stream_curve_bytes,p.cta_stream_curve_gbps);
@@ -65,17 +87,69 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   auto fluid_advance=[&](double dt){return inflight?inflight->Advance(dt):fluid.Advance(dt);};
   double now=0;
   FlowResult result;result.spaces.resize(n);int last_completed=-1;
+  auto mark_prefetched=[&](int s,int j,double at){
+    prefetched[s][j]=1;
+    if(pending[s][j]==0) {
+      bool empty=ready[s].empty();
+      ready[s].push_back({j,std::max(at,dependency_ready[s][j])});
+      if(empty)queue_space(s);
+    }
+  };
+  auto launch_prefetch=[&](){
+    if(!paged)return;
+    while(prefetch_space<prefetch_spaces.size()) {
+      int s=prefetch_spaces[prefetch_space];
+      if(prefetch_task>=p.spaces[s].count){++prefetch_space;prefetch_task=0;continue;}
+      int j=prefetch_task,pi=p.spaces[s].piece_of_task[j];
+      auto const& parts=p.spaces[s].pieces[pi].parts;
+      double bytes=options.no_external?0:std::min(parts.no_producer_dram_bytes,per_worker_capacity);
+      if(bytes<0)throw std::runtime_error("negative no-producer prefetch bytes");
+      double reserve=bytes>0?std::ceil(bytes/p.page_bytes)*p.page_bytes:0;
+      if(reserve>per_worker_capacity)throw std::runtime_error("prefetch exceeds a worker page ring");
+      int count=0;
+      if(reserve>0) {
+        count=std::min<long>(p.spaces[s].count-j,
+            static_cast<long>((total_page_capacity-held_pages+1e-6)/reserve));
+        int contiguous=1;
+        while(j+contiguous<p.spaces[s].count &&
+              p.spaces[s].piece_of_task[j+contiguous]==pi)++contiguous;
+        count=std::min(count,contiguous);
+        if(count==0)break;
+      }else {
+        count=1;
+        while(j+count<p.spaces[s].count && p.spaces[s].piece_of_task[j+count]==pi)++count;
+      }
+      for(int at=j;at<j+count;++at){page_hold[s][at]=reserve;prefetch_bytes[s][at]=bytes;}
+      held_pages+=reserve*count;prefetch_task+=count;
+      if(bytes==0)for(int at=j;at<j+count;++at)mark_prefetched(s,at,now);
+      else {
+        int id=inflight?inflight->Add(bytes,parts.dram_rate_cap,
+            std::max(16.,std::min(parts.inflight_bytes,per_worker_capacity)),count)
+            :fluid.Add(bytes,parts.dram_rate_cap,count);
+        if(id!=int(fluid_owner.size()))throw std::runtime_error("prefetch fluid id discontinuity");
+        int index=prefetch_cohorts.size();prefetch_cohorts.push_back({s,j,count,bytes,reserve});
+        fluid_owner.push_back(-index-1);
+      }
+    }
+  };
   auto close=[&](int id){auto& c=cohorts[id];if(c.compute && c.bytes && !c.closing){c.closing=true;auto& s=result.spaces[c.space];s.mainloop_ns+=(now-c.main)*c.count;push(now+(!options.no_sync && publishes[c.space]?p.publication_ns:0),PublishEnd,id);}};
   while(finished<total) {
     while(!events.empty() && events.top().time<=now) {
       auto event=events.top();events.pop();
       if(event.kind==Arrival) {
         auto const& edge=p.edges[event.id];for(auto i=event.begin;i<event.end;++i){int j=edge.sorted->at(i).second;if(j<0 || j>=p.spaces[edge.consumer].count)throw std::runtime_error("release consumer out of bounds");
-          last_edge[edge.consumer][j]=event.id;last_cause[edge.consumer][j]=event.cause;if(--pending[edge.consumer][j]==0){bool empty=ready[edge.consumer].empty();ready[edge.consumer].push_back({j,now});if(empty)queue_space(edge.consumer);}}
+          last_edge[edge.consumer][j]=event.id;last_cause[edge.consumer][j]=event.cause;if(--pending[edge.consumer][j]==0){
+            dependency_ready[edge.consumer][j]=now;
+            if(prefetched[edge.consumer][j]){bool empty=ready[edge.consumer].empty();ready[edge.consumer].push_back({j,now});if(empty)queue_space(edge.consumer);}}}
       } else {
         auto& c=cohorts[event.id];auto const& parts=p.spaces[c.space].pieces[c.piece].parts;
         if(event.kind==MainStart) {
-          c.main=now;double bytes=parts.dram_bytes-(options.no_external?parts.no_producer_dram_bytes:0);
+          c.main=now;double prefetched_total=0;
+          if(paged)for(std::size_t i=c.begin;i<c.begin+c.count;++i){int task=cohort_tasks[i];
+            held_pages-=page_hold[c.space][task];page_hold[c.space][task]=0;
+            prefetched_total+=prefetch_bytes[c.space][task];}
+          double bytes=parts.dram_bytes-(options.no_external?parts.no_producer_dram_bytes:0)
+              -(paged?prefetched_total/c.count:0);
           if(bytes<0)throw std::runtime_error("negative counterfactual traffic");
           if(bytes>0){int id=inflight?inflight->Add(bytes,parts.dram_rate_cap,
               parts.inflight_bytes,c.count):fluid.Add(bytes,parts.dram_rate_cap,c.count);
@@ -91,6 +165,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
         }
       }
     }
+    launch_prefetch();
     while(free>0) {
       if(ready_spaces.empty())break;
       int s=std::get<3>(ready_spaces.top());ready_spaces.pop();
@@ -109,7 +184,11 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
     if(finished==total)break;
     double next=std::min(events.empty()?std::numeric_limits<double>::infinity():events.top().time,now+fluid_next());
     if(!std::isfinite(next))throw std::runtime_error("flow deadlock: incomplete release coverage or cycle");
-    auto done=fluid_advance(next-now);now=next;for(int id:done){auto c=fluid_owner[id];cohorts[c].bytes=true;close(c);}
+    auto done=fluid_advance(next-now);now=next;for(int id:done){auto owner=fluid_owner[id];
+      if(owner<0){auto const& prefetch=prefetch_cohorts[-owner-1];
+        for(int j=prefetch.first;j<prefetch.first+prefetch.count;++j)
+          mark_prefetched(prefetch.space,j,now);
+      }else {cohorts[owner].bytes=true;close(owner);}}
   }
   result.makespan_ns=now;result.delivered_bytes=inflight?inflight->Delivered():fluid.Delivered();
   if(p.all_external_miss && !options.no_external && now+1e-6<p.dram_floor_ns)throw std::runtime_error("T >= T_dram assertion failed in StageFlowModel");

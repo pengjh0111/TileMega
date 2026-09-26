@@ -118,6 +118,36 @@ int TestStageFlow(int argc, char** argv) try {
   if(CoarsenRelease(4,7,4)!=6 || CoarsenRelease(0,7,4)!=3)throw std::runtime_error("coarsening tail mismatch");
   bool rejected=false;p.dram_floor_ns=100;try{EvaluateFlow(p);}catch(std::runtime_error const&){rejected=true;}if(!rejected)throw std::runtime_error("physical floor not enforced");
   FlowOptions no_external;no_external.no_external=true;EvaluateFlow(p,no_external);
+  // A loader may fetch the consumer's no-producer bytes while the producer
+  // holds the only compute worker. The consumer still cannot start until its
+  // exact release arrives, and its prefetched bytes are charged only once.
+  FlowProblem paged;paged.workers=1;paged.dram_gbps=10;
+  paged.spaces={Space(1,{20,0,0,10}),Space(1,{0,1,100,10,100})};
+  paged.spaces[1].order=1;
+  paged.edges={{0,1,1,false,false,
+      std::make_shared<std::vector<std::pair<int,int>> const>(
+          std::vector<std::pair<int,int>>{{0,0}})}};
+  Near(EvaluateFlow(paged).makespan_ns,30,"unprefetched dependent read");
+  paged.page_bytes=16;paged.pages_per_worker=8;
+  auto paged_result=EvaluateFlow(paged);
+  Near(paged_result.makespan_ns,21,"paged prefetch overlaps the dependency stall");
+  Near(paged_result.delivered_bytes,100,"paged prefetch conserves no-producer bytes");
+  paged.pages_per_worker=1;
+  if(EvaluateFlow(paged).makespan_ns<=paged_result.makespan_ns)
+    throw std::runtime_error("one-page ring illegally prefetched a seven-page operand");
+  tilemega::codegen::RuntimeTaskGraph paged_graph;
+  paged_graph.stage_offsets={0,1,2};paged_graph.successors={{1},{}};
+  MaterializedPlan paged_plan;paged_plan.queue={{{0,0},{1,0}}};
+  SimulatorInput paged_input;paged_input.graph=&paged_graph;
+  paged_input.task_price_parts={{20,0,0,10},{0,1,100,10,100}};
+  SimulatorOptions paged_options;paged_options.dram_fluid=true;
+  paged_options.dram_gbps=10;paged_options.page_bytes=16;
+  paged_options.pages_per_worker=8;
+  SimulatorResult paged_simulation;std::string paged_error;
+  if(!SimulateExecution(paged_input,paged_plan,paged_options,{},
+      &paged_simulation,&paged_error))throw std::runtime_error(paged_error);
+  Near(paged_simulation.makespan_ns,paged_result.makespan_ns,
+      "Level 1 and FIFO share the paged prefetch physics");
   tilemega::codegen::RuntimeTaskGraph graph;graph.stage_offsets={0,2,4};graph.successors={{2},{3},{},{}};
   MaterializedPlan plan;plan.queue={{{0,0},{1,0}},{{0,1},{1,1}}};
   SimulatorInput input;input.graph=&graph;input.task_price_parts.assign(4,TaskPriceParts{2,3,20,4});

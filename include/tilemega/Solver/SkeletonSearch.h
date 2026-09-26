@@ -23,6 +23,9 @@ struct SkeletonSearchOptions {
   bool pure_template=false,search_only=false,incremental_prepare=true;
   // Verification arm: keep only the R-1 legality filter.
   bool serving_pruning=true;
+  bool pg_pages=false;
+  int page_bytes=8192;
+  std::vector<int> page_choices;
   // A previous batch's winning serving plan is the second coordinate-descent
   // start. Entries are indexed by GEMM instance, then folded by SemSig class.
   std::vector<GemmConfig> serving_warm_gemms;
@@ -40,6 +43,7 @@ struct SkeletonCandidate {
   // Serving attention coordinates. Decode searches KV extent; prefill
   // searches the query-row block. Both are literal in the ISL map.
   int attention_kv_block=0,attention_query_rows=0;
+  int page_bytes=0;
   SkeletonPlacementStats placement;
 };
 struct SkeletonSearchResult {
