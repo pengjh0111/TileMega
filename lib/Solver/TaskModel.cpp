@@ -538,7 +538,7 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
         prefill?1:(model.serving_capacity+stage.attention_kv_block-1)/stage.attention_kv_block,
         prefill?model.dims.seq:stage.attention_kv_block,model.dims.total,64,
         int(stage.width),prefill?int(stage.attention_query_rows):int(stage.group),
-        prefill};
+        prefill,int(stage.group)*model.dims.seq,int(stage.group)};
   }
   if (!config && runtime_ownership) {
     int threads=ModelTaskTraits(model,semantic.stage,{}).threads;

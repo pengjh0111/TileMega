@@ -105,7 +105,8 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
   for(auto const& e:sk.edges)oracle<<e.producer<<'\t'<<e.consumer<<'\t'<<analysis::ToString(e.oracle->structure)<<'\t'<<analysis::ToString(e.oracle->reverse.kind())<<'\t'<<analysis::ToString(e.oracle->forward.kind())<<'\t'<<e.all_producer<<'\n';
   std::ofstream tasks(prefix+".tasks.tsv"),edges(prefix+".edges.tsv");tasks<<"node\tstage\ttask\tworker\tslot\tstart_ns\tend_ns\tattention\n";tasks<<std::setprecision(17);edges<<"producer\tconsumer\tkind\n";
   for(std::size_t s=0;s<problem.counts.size();++s)for(int t=0;t<problem.counts[s];++t){int n=node(s,t);auto const& measured=simulated.tasks[n];
-    bool attention=problem.model.stages[problem.projection.stages[s].logical_stage].kind==StageKind::kAttention;
+    auto kind=problem.model.stages[problem.projection.stages[s].logical_stage].kind;
+    bool attention=kind==StageKind::kAttention || kind==StageKind::kFusedAttention;
     tasks<<n<<'\t'<<s<<'\t'<<t<<'\t'<<selected.plan.owner[s][t]<<'\t'<<selected.plan.slot[s][t]<<'\t'<<measured.start_ns<<'\t'<<measured.end_ns<<'\t'<<attention<<'\n';
     for(int next:graph.successors[n])edges<<n<<'\t'<<next<<"\tdependency\n";}
   for(auto const& queue:selected.plan.queue)for(std::size_t i=1;i<queue.size();++i)edges<<node(queue[i-1].stage,queue[i-1].logical)<<'\t'<<node(queue[i].stage,queue[i].logical)<<"\tqueue\n";

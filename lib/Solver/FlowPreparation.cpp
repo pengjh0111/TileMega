@@ -172,6 +172,10 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   auto const profile_start=std::chrono::steady_clock::now();
   flow.workers=target.res.num_sms*residency;
   auto const& cal=target.CalibrationFor("bf16");
+  int serving_gemm_shared=0;
+  if(model.serving)for(auto const& g:problem.geometry)
+    serving_gemm_shared=std::max(serving_gemm_shared,
+        ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
   // Serving refuses to silently invent a bandwidth curve once the measured
   // profile is selected. Older target files retain the R9b control physics.
   flow.inflight_dram=model.serving && !cal.inflight_curve_bytes.empty();
@@ -238,7 +242,8 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     auto found=std::find_if(model.task_semantics.begin(),model.task_semantics.end(),[&](auto const& sem){return sem.stage==projected.logical_stage && (!stage.IsCollective() || sem.op.kind==analysis::OperatorKind::kMatmul);});
     if(found==model.task_semantics.end())throw std::runtime_error("flow task has no semantics");
     auto semantic=*found;auto g=stage.IsCollective()?problem.geometry.at(stage.gemm):GemmConfig{};
-    if(reusable_stages && projected.logical_stage<int(reusable_stages->size()) &&
+    if(stage.kind!=StageKind::kFusedAttention &&
+       reusable_stages && projected.logical_stage<int(reusable_stages->size()) &&
        (*reusable_stages)[projected.logical_stage]) {
       auto old=prior_spaces.find(semantic.op.name+(projected.combine?".combine":""));
       if(old!=prior_spaces.end() &&
@@ -266,6 +271,8 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     if(stage.IsCollective())space_key<<':'<<g.tile_m<<':'<<g.tile_n<<':'<<g.tile_k<<':'<<g.stages<<':'<<g.split_k;
     else for(auto const& [axis,tile]:semantic.tiles)space_key<<':'<<axis<<'='<<tile.ToIslText();
     if(!model.serving)space_key<<":kernel_shared:"<<kernel_shared_bytes;
+    if(stage.kind==StageKind::kFusedAttention)
+      space_key<<":kv_tile:"<<codegen::ServingAttentionKvTile(stage.width,serving_gemm_shared);
     space_key<<(past_independent?past_free_key:theta_key);
     for(auto const& operand:semantic.op.operands)space_key<<':'<<tensor_key(operand.tensor.name);
     space_key<<':'<<tensor_key(semantic.op.result.name);
@@ -291,6 +298,10 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     } else {
       input=DeriveModelTaskInput(model,semantic,graph,stage.IsCollective()?&g:nullptr);
       traits=ModelTaskTraits(model,projected.logical_stage,g);
+      if(input.serving_attention) {
+        input.serving_attention->kv_tile=codegen::ServingAttentionKvTile(stage.width,serving_gemm_shared);
+        traits.smem_bytes=codegen::ServingAttentionSharedBytes(stage.width,input.serving_attention->kv_tile);
+      }
       chunks=stage.IsCollective()?cost.Chunks(model.gemms.at(stage.gemm),g):1;
     }
     auto const price_start=std::chrono::steady_clock::now();
@@ -310,7 +321,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
             (g.stages-1)*p.no_producer_dram_bytes/iterations));
       }else if(stage.kind==StageKind::kFusedAttention) {
         p.inflight_bytes=std::max(16.,std::min(p.dram_bytes,
-            4.*stage.width*std::min(stage.attention_kv_block,64)));
+            4.*stage.width*std::min(stage.attention_kv_block,input.serving_attention->kv_tile)));
       }else p.inflight_bytes=std::max(16.,p.dram_bytes);
     }
     FlowSpace space;space.name=input.task.name;space.category=projected.combine?"combine":semantic.op.arithmetic;

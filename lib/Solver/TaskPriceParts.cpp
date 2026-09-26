@@ -101,6 +101,12 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
       throw std::invalid_argument("invalid serving attention price coordinate");
     int block=int(point.At("q")%a.block_count);
     int active=std::clamp(a.total-block*a.block_extent,0,a.block_extent);
+    if(a.prefill && a.query_extent>0 && a.query_heads>0) {
+      int query_blocks=(a.query_extent+a.queries-1)/a.queries;
+      int qb=int(point.At("q")/a.block_count)%query_blocks;
+      int last_query=std::min((qb+1)*a.queries,a.query_extent)-1;
+      active=std::min(active,last_query/a.query_heads+1);
+    }
     if(active==0) {
       // The TaskBody returns before loading any operand for an empty KV block.
       result.fixed_ns=fit.scalar_fixed_ns;
@@ -126,7 +132,9 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
             2.0*a.queries*a.head_dim+4.0*a.head_dim;
         serving_flops=4.0*a.queries*a.head_dim*(active+1);
       }
-      double mma=o*serving_flops/tc_flops_per_ns_per_sm_;
+      double padded_flops=4.0*((a.queries+15)/16*16)*a.head_dim*
+          ((active+a.kv_tile-1)/a.kv_tile*a.kv_tile);
+      double mma=o*padded_flops/tc_flops_per_ns_per_sm_;
       double exp2=o*a.queries*active/sfu_ops_per_ns_per_sm_;
       result.compute_ns=std::max(mma,exp2);
     }

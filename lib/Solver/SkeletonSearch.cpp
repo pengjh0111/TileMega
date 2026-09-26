@@ -32,6 +32,18 @@ struct SearchContext {
     PreparedFlow prepared;
   };
   std::map<int,FlowSnapshot> recent_flows;
+  struct StructureState {
+    frontend::ModelPlan plan;
+    decltype(frontend::ImportedSemantics::lifted) lifted;
+    std::vector<OperatorClass> classes;
+    FlowPreparationCache flow_cache;
+    std::optional<analysis::DramFloor> floor;
+    std::optional<SymbolicProblem> base,last_structure;
+    std::string last_geometry;
+    std::map<int,FlowSnapshot> recent_flows;
+    mlir::Attribute floor_attribute;
+  };
+  std::map<std::tuple<int,int,int>,StructureState> serving_structures;
   mlir::Attribute floor_attribute;
   ScalarType dtype;
   int attention_kv_block=0,attention_query_rows=0,argmax_tile_n=0;
@@ -62,12 +74,31 @@ struct SearchContext {
     if(!imported.plan.serving ||
        (kv_block==attention_kv_block && query_rows==attention_query_rows &&
         partial_tile_n==argmax_tile_n))return;
+    auto old_key=std::make_tuple(attention_kv_block,attention_query_rows,argmax_tile_n);
+    auto next_key=std::make_tuple(kv_block,query_rows,partial_tile_n);
+    serving_structures[old_key]={std::move(imported.plan),std::move(imported.lifted),
+        std::move(classes),std::move(flow_cache),std::move(floor),std::move(base),
+        std::move(last_structure),std::move(last_geometry),std::move(recent_flows),floor_attribute};
+    auto hit=serving_structures.find(next_key);
+    if(options.incremental_prepare && hit!=serving_structures.end()) {
+      auto state=std::move(hit->second);serving_structures.erase(hit);
+      imported.plan=std::move(state.plan);imported.lifted=std::move(state.lifted);
+      classes=std::move(state.classes);flow_cache=std::move(state.flow_cache);
+      floor=std::move(state.floor);base=std::move(state.base);
+      last_structure=std::move(state.last_structure);last_geometry=std::move(state.last_geometry);
+      recent_flows=std::move(state.recent_flows);floor_attribute=state.floor_attribute;
+      attention_kv_block=kv_block;attention_query_rows=query_rows;argmax_tile_n=partial_tile_n;
+      if(options.common.timing)options.common.timing->Add("serving_structure_cache_hit");
+      return;
+    }
+    auto const& previous=serving_structures.at(old_key);
+    if(options.common.timing)options.common.timing->Add("serving_structure_cache_miss");
     frontend::ServingOptions requested;
-    requested.phase=imported.plan.serving_seq==1
+    requested.phase=previous.plan.serving_seq==1
         ?frontend::ServingOptions::Phase::kDecode
         :frontend::ServingOptions::Phase::kPrefill;
-    requested.seq=imported.plan.serving_seq;
-    requested.capacity=imported.plan.serving_capacity;
+    requested.seq=previous.plan.serving_seq;
+    requested.capacity=previous.plan.serving_capacity;
     requested.kv_block=kv_block;
     requested.query_rows=query_rows;
     requested.argmax_tile_n=partial_tile_n;
@@ -76,13 +107,13 @@ struct SearchContext {
     imported.lifted=frontend::LiftSemantics(plan,imported.lift_options);
     imported.plan=std::move(plan);
     auto next_classes=BuildOperatorClasses(imported);
-    if(next_classes.size()!=classes.size())
+    if(next_classes.size()!=previous.classes.size())
       throw std::runtime_error("attention coordinate changed GEMM class count");
     // Removing the decode merge at Ec=capacity changes the consumers of the
     // O projection and therefore its semantic signature. Class identity is
     // its GEMM membership, not a signature frozen at another attention shape.
-    for(std::size_t i=0;i<classes.size();++i)
-      if(next_classes[i].gemms!=classes[i].gemms)
+    for(std::size_t i=0;i<previous.classes.size();++i)
+      if(next_classes[i].gemms!=previous.classes[i].gemms)
         throw std::runtime_error("attention coordinate changed GEMM class order");
     classes=std::move(next_classes);
     attention_kv_block=kv_block;attention_query_rows=query_rows;
@@ -96,13 +127,25 @@ struct SearchContext {
         ";Rq="+std::to_string(attention_query_rows);
     return key;
   }
+  ResourceEstimate EstimateResources(std::vector<GemmConfig> const& config) {
+    auto const& target=options.common.placement.target;
+    auto estimate=resources.Estimate(classes,config,target,dtype);
+    if(imported.plan.serving) {
+      int gemm_shared=0;
+      for(auto const& g:config)gemm_shared=std::max(gemm_shared,
+          ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
+      estimate.shared_bytes=gemm_shared;
+      estimate.resident_limit=VariantResourceCache::ResidentLimit(estimate,target);
+    }
+    return estimate;
+  }
   SkeletonSolvedPoint Prepare(std::vector<GemmConfig> const& config,int kappa,int residency,int actual=0,bool materialize=false,int past_override=-1) {
     if(imported.plan.serving)
       SetServingStructure(attention_kv_block,attention_query_rows,
                           ArgmaxTileN(config));
     auto* timing=options.common.timing;auto const& target=options.common.placement.target;
     if(timing)timing->candidate=Key(config,kappa,residency);
-    auto estimate=resources.Estimate(classes,config,target,dtype);
+    auto estimate=EstimateResources(config);
     if(imported.plan.serving) {
       auto attention=std::find_if(imported.plan.stages.begin(),
           imported.plan.stages.end(),[](auto const& stage){
@@ -280,8 +323,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
           options.common.placement.dims.seq,domains[c]);
   int seed_residency=options.seed_residency;
   if(search.imported.plan.serving)seed_residency=std::max(1,
-      search.resources.Estimate(search.classes,seed,
-          options.common.placement.target,search.dtype).resident_limit);
+      search.EstimateResources(seed).resident_limit);
   auto legacy=evaluate(seed,search.imported.plan.serving?1:options.kappa,
       seed_residency);std::size_t uniform=legacy;
   if(search.imported.plan.serving && !options.serving_pruning)
@@ -293,7 +335,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
   if(!search.imported.plan.serving)for(auto const& g:domains.front()) {
     bool legal=true;for(auto const& domain:domains)legal &= std::any_of(domain.begin(),domain.end(),[&](auto const& other){return ClassGeometryKey(g)==ClassGeometryKey(other);});
     if(!legal)continue;std::vector<GemmConfig> config(search.classes.size(),g);
-    auto limit=search.resources.Estimate(search.classes,config,options.common.placement.target,search.dtype).resident_limit;
+    auto limit=search.EstimateResources(config).resident_limit;
     for(int k:{1,2,4})for(int r=1;r<=limit;++r){auto i=evaluate(config,k,r);if(evaluated[i].score<evaluated[uniform].score)uniform=i;}
   }
   std::vector<std::size_t> starts{legacy};
@@ -337,8 +379,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
           int residency=fixed.residency;
           int kappa=fixed.kappa;
           if(search.imported.plan.serving) {
-            auto limit=search.resources.Estimate(search.classes,config,
-                options.common.placement.target,search.dtype).resident_limit;
+            auto limit=search.EstimateResources(config).resident_limit;
             if(limit<1)continue;
             if(!options.serving_pruning) {
               for(int k:{1,2,4})for(int r=1;r<=limit;++r) {
