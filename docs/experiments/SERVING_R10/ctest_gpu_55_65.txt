@@ -1,0 +1,28 @@
+Internal ctest changing into directory: /root/TileMega/build-portable
+Test project /root/TileMega/build-portable
+      Start 55: serving_epilogue
+ 1/11 Test #55: serving_epilogue .................   Passed    0.24 sec
+      Start 56: serving_gemm_task_body
+ 2/11 Test #56: serving_gemm_task_body ...........   Passed    0.21 sec
+      Start 57: serving_rmsnorm
+ 3/11 Test #57: serving_rmsnorm ..................   Passed    0.18 sec
+      Start 58: serving_state_tasks
+ 4/11 Test #58: serving_state_tasks ..............   Passed    0.18 sec
+      Start 59: serving_combine
+ 5/11 Test #59: serving_combine ..................   Passed    0.15 sec
+      Start 60: serving_token_sets
+ 6/11 Test #60: serving_token_sets ...............   Passed    0.02 sec
+      Start 61: serving_harness_compile
+ 7/11 Test #61: serving_harness_compile ..........   Passed    0.01 sec
+      Start 62: serving_attention_mma
+ 8/11 Test #62: serving_attention_mma ............   Passed    0.19 sec
+      Start 63: serving_fused_attention
+ 9/11 Test #63: serving_fused_attention ..........   Passed    0.14 sec
+      Start 64: serving_attention_cases
+10/11 Test #64: serving_attention_cases ..........   Passed    0.30 sec
+      Start 65: serving_prefill_attention
+11/11 Test #65: serving_prefill_attention ........   Passed    0.26 sec
+
+100% tests passed, 0 tests failed out of 11
+
+Total Test time (real) =   1.89 sec

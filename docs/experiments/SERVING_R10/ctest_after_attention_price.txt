@@ -1,7 +1,0 @@
-Internal ctest changing into directory: /root/TileMega/build-portable
-Test project /root/TileMega/build-portable
-      Start  1: scalar_cost_errors
- 1/80 Test  #1: scalar_cost_errors ...............   Passed    0.94 sec
-      Start  2: coupling_interface_gqa2
- 2/80 Test  #2: coupling_interface_gqa2 ..........   Passed   28.90 sec
-      Start  3: coupling_interface_mha4

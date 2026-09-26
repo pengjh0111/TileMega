@@ -1,0 +1,33 @@
+{
+  "command": [
+    "/root/TileMega/build-portable/tools/tilemega-compile",
+    "/root/r10_work/export/llama_decode/bridge.json",
+    "/root/r10_work/incremental_serving/llama_reuse.cu",
+    "--serving",
+    "decode",
+    "--batch",
+    "1",
+    "--past-range",
+    "64:1086",
+    "--capacity",
+    "1088",
+    "--solver",
+    "skeleton",
+    "--solve",
+    "/root/TileMega/docs/experiments/SERVING_R10/calibration/target_serving.json",
+    "--hop-curve",
+    "/root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv",
+    "--variant-cache",
+    "/root/r9_work/variant_resources",
+    "--emit",
+    "serving",
+    "--flow-search-only",
+    "1",
+    "--evaluate-configs",
+    "/root/TileMega/docs/experiments/SERVING_R10/incremental_equivalence/llama_cases.json",
+    "--incremental-prepare",
+    "1"
+  ],
+  "seconds": 110.54865398397669,
+  "returncode": 0
+}

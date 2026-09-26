@@ -1,0 +1,1 @@
+/usr/local/cuda/bin/nvcc -std=c++17 -O2 --expt-relaxed-constexpr -arch=sm_89 -Iinclude -Ithird_party/cutlass/include -Ithird_party/cutlass/tools/util/include -Ithird_party/cutlass/test test/unit/serving_attention_cases_test.cu -o /root/r10_work/serving_attention_cases_matrix_test

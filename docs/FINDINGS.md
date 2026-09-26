@@ -7781,3 +7781,23 @@ store/residual/SwiGLU/argmax-partial epilogues. BF16 outputs differ by at
 most one ULP, and argmax partial values/indices match exactly. This closes
 the GEMM portion of G-2; attention and remaining TaskBody tests are tracked
 separately. Evidence: `SERVING_R10/task_body_tests/gemm_matrix/{cases.jsonl,summary.json}`.
+
+## F-277 — Decode attention covers both head dimensions and normalization modes
+
+✅ verified: the fused decode attention test now crosses D=64/QPerKV=4 and
+D=128/QPerKV=2, each with Q/K normalization off and on, past positions
+1/63/64/65/1086, and KV extents 64/256/1088: all 60 cases pass the FP32
+attention reference tolerance and cache-write comparison. The eight prefill
+Torch comparisons from F-271 remain separate. Evidence:
+`SERVING_R10/task_body_tests/attention_decode_matrix.log`,
+`SERVING_R10/ctest_attention_decode_matrix.txt`, and
+`SERVING_R10/task_body_tests/prefill_attention/torch_comparison.json`.
+
+## F-278 — Incremental serving preparation remains score-equivalent after repricing
+
+✅ verified: after correcting serving attention's body-fit units, the fixed
+set of 20 random configurations per model gives identical Level 1 scores in
+full and incremental preparation. All 40 comparisons have relative error
+zero. This checks the G-6 preparation condition under the price path used by
+the new matrix; pruning-domain equivalence remains a separate test. Evidence:
+`SERVING_R10/incremental_serving/report.json` and its four raw search TSVs.
