@@ -466,7 +466,8 @@ int main(int argc, char** argv) {
               .value_or(serving_query_rows));
         }
         if(!evaluation_cases_path.empty()) {
-          if(!flow_search_only)throw std::runtime_error("--evaluate-configs requires --flow-search-only 1");
+          // A single explicit case also provides a reproducible way to
+          // materialize and validate a previously selected serving plan.
           auto file=llvm::MemoryBuffer::getFile(evaluation_cases_path);
           if(!file)throw std::runtime_error("cannot read evaluation cases");
           auto parsed=llvm::json::parse(file.get()->getBuffer());
