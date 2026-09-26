@@ -55,6 +55,12 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
             raise ValueError('incomplete CTA stamps')
         if len({int(x['worker']) for x in ctas})!=len(ctas):
             raise ValueError(f'duplicate CTA stamp at step {step}')
+        for cta in ctas:
+            span=int(cta['kernel_end_ns'])-int(cta['kernel_begin_ns'])
+            waits=[int(cta[key]) for key in ('dependency_wait_ns','page_full_ns',
+                                            'full_and_wait_ns')]
+            if any(value<0 or value>span for value in waits) or waits[2]>min(waits[:2]):
+                raise ValueError(f'page-wait counters exceed CTA time at step {step}')
         start=min(int(x['kernel_begin_ns']) for x in ctas)
         end=max(int(x['kernel_end_ns']) for x in ctas)
         gap_ns=start-previous_end if previous_end is not None else None

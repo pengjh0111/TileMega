@@ -44,4 +44,15 @@ with tempfile.TemporaryDirectory() as temporary:
     assert report['measured_chain_residual_bubble_ns_per_link'] == 50
     assert report['page_full_and_dependency_wait_cta_ns'] == 100
     assert report['page_full_and_dependency_wait_mean_cta_ns_per_step'] == 25
+    with trace.open() as stream:
+        invalid = list(csv.DictReader(stream, delimiter='\t'))
+    invalid[0]['full_and_wait_ns'] = '31'  # Exceeds that CTA's 30 ns page-full marginal.
+    write(trace, invalid)
+    try:
+        analyze(trace, model='llama', batch=1, prompt_len=64,
+                floor_points=floor, chain_analysis=chain, chain_past=64)
+    except ValueError as error:
+        assert 'page-wait counters exceed CTA time' in str(error)
+    else:
+        raise AssertionError('invalid CTA-local overlap was accepted')
     print('PASS page-chain exact floors, realized bubbles, CTA overlap and launch gap')
