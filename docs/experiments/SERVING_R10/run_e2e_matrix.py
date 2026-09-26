@@ -138,7 +138,8 @@ def main() -> int:
                 failed = True
                 continue
     for script in ("floor_report.py", "collect_flow_evidence.py",
-                   "step_ratio_report.py", "build_report_tables.py"):
+                   "step_ratio_report.py", "build_report_tables.py",
+                   "gate_report.py"):
         try:
             subprocess.run([sys.executable, str(HERE / script)], cwd=ROOT,
                            check=True)
