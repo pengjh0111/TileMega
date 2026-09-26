@@ -273,6 +273,25 @@ std::optional<WaitWindow> FitWaitWindowSymbolic(
     // C itself is proportional to fan-in (hundreds of thousands of points on
     // the real-width model); lexmin/lexmax keep at most two rows per consumer.
     CouplingRelation const concrete = linear.BindParams(witness);
+    // A fitted window groups consecutive consumer ids into equal-size
+    // blocks. If ids 0 and 1 have different first predecessors, its divisor
+    // must be 1; the first predecessor must then be affine in the id. A
+    // single counterexample rules out every window shape without running
+    // lexicographic optimization over the whole prefill relation (which can
+    // contain tens of thousands of consumers even at a small witness).
+    auto localFirst = [&](long id) -> std::optional<long> {
+      auto fiber = concrete.IntersectDomain(
+          "{ [tc] : tc = " + std::to_string(id) + " }").LexMin().Points();
+      if (fiber.size() != 1 || fiber.front().second.size() != 1)
+        return std::nullopt;
+      return fiber.front().second.front();
+    };
+    auto first0 = localFirst(0);
+    auto first1 = localFirst(1);
+    auto first16 = localFirst(16);
+    if (first0 && first1 && first16 && *first0 != *first1 &&
+        *first16 != *first0 + 16 * (*first1 - *first0))
+      return Relaxed();
     std::map<long, long> first, last;
     for (auto const& [from, to] : concrete.LexMin().Points()) {
       if (from.size() != 1 || to.size() != 1) return std::nullopt;

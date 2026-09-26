@@ -113,6 +113,32 @@ class Table {
 
 int main() {
   tilemega::analysis::IslContext isl_context;
+  // A prefill combine -> down edge has a sawtooth first predecessor in
+  // row-major consumer order: tc=0,1,16 start at tp=0,8,0. No single
+  // WaitWindow can represent it, and endpoint fitting must reject it without
+  // optimizing the complete high-fanout relation.
+  auto axis = [](char const* name, long extent) {
+    TensorAxis a;
+    a.name = name;
+    a.extent = ClosedForm::Constant(extent);
+    return a;
+  };
+  OperatorNode saw_producer, saw_consumer;
+  saw_producer.name = "combine";
+  saw_producer.output.axes = {axis("p0", 4), axis("p1", 128)};
+  saw_producer.tile = {ClosedForm::Constant(1), ClosedForm::Constant(1)};
+  saw_consumer.name = "down";
+  saw_consumer.output.axes = {axis("m", 4), axis("n", 16), axis("j", 16)};
+  saw_consumer.tile = {ClosedForm::Constant(1), ClosedForm::Constant(1),
+                       ClosedForm::Constant(1)};
+  CouplingEdge saw_edge;
+  saw_edge.C = CouplingRelation::FromIslText(
+      "{ [m,n,j] -> [p0=m,p1] : 0<=m<4 and 0<=n<16 and 0<=j<16 "
+      "and 8j<=p1<8j+8 }");
+  auto saw_window = FitWaitWindowSymbolic(
+      saw_edge, saw_producer, saw_consumer, ParamBinding{}, ParamBinding{});
+  REQUIRE(saw_window.has_value());
+  REQUIRE(!saw_window->narrowed);
   DecoderShape shape;
   OperatorGraph const graph = LlamaDecoderLayer(shape);
   Table t(graph, KnownBinding(), Theta());
