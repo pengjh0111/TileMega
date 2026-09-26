@@ -9,12 +9,19 @@
 #include <mlir/IR/SymbolTable.h>
 #include <stdexcept>
 #include <algorithm>
+#include <llvm/Support/raw_ostream.h>
+#include <unordered_map>
 namespace tilemega::dialect {
 namespace {
 using analysis::CouplingRelation;
 using analysis::TaskAccesses;
 TaskAccesses Access(TileSpaceOp space,bool elements=false) {
   if(!space.getSemantic())throw std::invalid_argument("handoff requires L-sem on both tasks");
+  std::string key=space.getSemantic()->str();
+  llvm::raw_string_ostream key_stream(key);space.getGranularity().print(key_stream);key_stream.flush();
+  key+=elements?";elements":";tiles";
+  static thread_local std::unordered_map<std::string,TaskAccesses> cache;
+  if(auto found=cache.find(key);found!=cache.end())return found->second;
   auto op=analysis::DecodeSemanticOp(space.getSemantic()->str());
   analysis::Granularity g;
   for(auto const& axis:op.result.axes) {
@@ -35,6 +42,8 @@ TaskAccesses Access(TileSpaceOp space,bool elements=false) {
     auto r=analysis::BuildReadMap(task,i);
     out.reads[r.tensor.name]=out.reads[r.tensor.name].Union(analysis::ElementAccess(task,r,{},analysis::AccessDomain::kPhysicalTensor));
   }
+  if(cache.size()>=2048)cache.clear();
+  cache.emplace(std::move(key),out);
   return out;
 }
 }
@@ -50,6 +59,9 @@ analysis::HandoffAccessProof VerifyHandoffAccess(HandoffOp handoff) {
   auto p=mlir::dyn_cast_or_null<TileSpaceOp>(mlir::SymbolTable::lookupSymbolIn(graph,edge.getSrc()));
   auto c=mlir::dyn_cast_or_null<TileSpaceOp>(mlir::SymbolTable::lookupSymbolIn(graph,edge.getDst()));
   if(!p || !c)throw std::invalid_argument("handoff needs unfused source and destination tasks");
+  std::map<std::string,std::vector<CouplingOp>> incoming_edges;
+  for(auto incoming:graph.getBody().front().getOps<CouplingOp>())
+    incoming_edges[incoming.getDst().str()].push_back(incoming);
   auto kind=handoff.getKind();
   if(kind=="event")return {};
   std::map<std::string,TaskAccesses> accesses;
@@ -79,8 +91,7 @@ analysis::HandoffAccessProof VerifyHandoffAccess(HandoffOp handoff) {
       for(auto dst:ordered) {
         auto reached=ancestors.find(dst.getSymName().str());
         if(reached==ancestors.end())continue;
-        for(auto incoming:graph.getBody().front().getOps<CouplingOp>()) {
-          if(incoming.getDst()!=dst.getSymName())continue;
+        for(auto incoming:incoming_edges[dst.getSymName().str()]) {
           auto src=accesses.find(incoming.getSrc().str());
           if(src==accesses.end())continue;
           auto mapping=reached->second.ApplyRange(incoming.getRelation().getMap());

@@ -176,9 +176,12 @@ LogicalResult FusedTileSpaceOp::verify() {
       if (!relation.getMap().IsSingleValued() && !(*this)->hasAttr("handoff_kind"))
         return emitOpError("fusion phase map must be single-valued");
       auto current=relation.getMap().Reverse().Image();
-      if (!domain.empty() && (!current.IsSubset(domain) || !domain.IsSubset(current)))
+      bool conditional=(*this)->getAttrOfType<StringAttr>("handoff_kind")=="last_arriver";
+      if (!domain.empty() && (!current.IsSubset(domain) || (!conditional && !domain.IsSubset(current))))
         return emitOpError("fusion phase domains differ");
-      domain=current;
+      // Empty KV blocks execute no reduction phase; the source proof above
+      // fixes this restricted phase map and the last-arrival ticket condition.
+      if (domain.empty() || !conditional) domain=current;
     }
     if (!domain.ImageCard().Add(getTaskCount().getValue().Scale(-1)).IsZero())
       return emitOpError("fusion task count differs from consumer domain");

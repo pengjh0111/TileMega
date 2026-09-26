@@ -1,0 +1,1 @@
+HANDOFF_IR kind=last_arriver proofs=1 unsupported=0 invalid_kind_rejected=1
