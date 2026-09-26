@@ -7858,3 +7858,20 @@ accounted for only 3.3 s and 5.7 s. The next solver change must cut the
 per-candidate price/release work and reuse compiled variants across related
 plans; decreasing Level 1's own event-loop cost cannot close this budget gap.
 Evidence: `SERVING_R10/plans/*_B1/{result.json,plan.so.timing.tsv}`.
+
+## F-283 — The first serving trace separates a slow QKV class from bandwidth-fed GEMMs
+
+✅ verified for one diagnostic point: a separate trace-enabled build of the
+selected Llama decode B=1 plan ran 32 L2 launches at past=575, yielding
+8,472 slot stamps and 3,384 event rows. CG-derived no-producer bytes divided
+by measured task-space span give effective rates of 254 GB/s for QKV,
+676 GB/s for output, 864 GB/s for gate/up, 831 GB/s for down, and
+929 GB/s for lm_head; fused attention reaches 86 GB/s. The measured
+critical-chain wall shares are 20.1% QKV, 30.3% gate/up, 16.9% down,
+14.1% lm_head, and 5.9% attention. These are effective rates, not hardware
+counter readings. The instrumented L2 build averaged 4.316 ms per step and
+the analyzer reconstructed a 3.978 ms span (7.84% short); the ordinary
+selected plan uses L1, so this trace does not replace EV-1 or close a timing
+gate. The remaining three requested trace cells are queued after EV-1.
+Evidence: `SERVING_R10/trace_probe.md` and
+`/root/r10_work/serving_trace/llama_decode_B1/`.
