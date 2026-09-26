@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cute/tensor.hpp>
+#include <tilemega/Backend/ServingVectorIO.h>
 #include <cutlass/bfloat16.h>
 #include <cuda_runtime.h>
 
@@ -46,6 +47,17 @@ struct ServingEpilogue {
   static_assert(TileN % (2 * U) == 0 || Op != ServingEpilogueOp::kSwiGLU,
                 "SwiGLU interleave must end on a gate/up pair");
 
+  // XOR 8-column groups by row: preserve aligned vectors while distributing
+  // the MMA accumulator's row groups across shared-memory banks.
+  __host__ __device__ static constexpr int SharedIndex(int row, int col) {
+    return row * TileN + (col ^ ((row & 3) * 8));
+  }
+
+  template <bool Swizzled>
+  __device__ static int Index(int row, int col) {
+    return Swizzled ? SharedIndex(row, col) : row * TileN + col;
+  }
+
   template <class Accumulator, class TiledMma>
   __device__ static void Run(Accumulator const& accum, TiledMma const& mma,
                              char* shared, int tile_m, int tile_n,
@@ -64,16 +76,20 @@ struct ServingEpilogue {
         cute::Shape<cute::Int<TileM>, cute::Int<TileN>>{});
     auto owned = mma.get_thread_slice(int(threadIdx.x)).partition_C(coordinates);
     CUTE_STATIC_ASSERT_V(cute::size(owned) == cute::size(accum));
-    for (int i = 0; i < cute::size(accum); ++i) {
+    for (int i = 0; i < cute::size(accum); i += 2) {
       int row = cute::get<0>(owned(i));
       int column = cute::get<1>(owned(i));
-      tile[row * TileN + column] = accum(i);
+      // m16n8k16 C fragments pair adjacent columns. A 64-bit store splits
+      // each warp into two bank-disjoint 128-byte transactions.
+      *reinterpret_cast<float2*>(tile + SharedIndex(row, column)) =
+          make_float2(accum(i), accum(i + 1));
     }
     __syncthreads();
-    RunFromTile(tile, tile_m, tile_n, M, N, output_stride, output,
+    RunFromTile<true>(tile, tile_m, tile_n, M, N, output_stride, output,
                 residual, partial, argmax_value, argmax_index);
   }
 
+  template <bool Swizzled = false>
   __device__ static void RunFromTile(
       float* tile, int tile_m, int tile_n, int M, int N, int output_stride,
       cutlass::bfloat16_t* output,
@@ -94,7 +110,7 @@ struct ServingEpilogue {
         for (int column = int(threadIdx.x); column < TileN; column += 128) {
           int global_column = tile_n * TileN + column;
           if (global_column >= N) continue;
-          float value = float(cutlass::bfloat16_t(tile[row * TileN + column]));
+          float value = float(cutlass::bfloat16_t(tile[Index<Swizzled>(row, column)]));
           if (value > best || (value == best && global_column < best_index)) {
             best = value;
             best_index = global_column;
@@ -131,12 +147,19 @@ struct ServingEpilogue {
         __syncthreads();
       }
     } else if constexpr (Op == ServingEpilogueOp::kPartial) {
-      for (int index = int(threadIdx.x); index < TileM * TileN; index += 128) {
+      for (int index = int(threadIdx.x) * 4; index < TileM * TileN; index += 128 * 4) {
         int row = index / TileN, col = index % TileN;
         int global_row = tile_m * TileM + row;
         int global_col = tile_n * TileN + col;
-        if (global_row < M && global_col < N)
-          partial[global_row * output_stride + global_col] = tile[index];
+        if (global_row >= M || global_col >= N) continue;
+        float4 values = *reinterpret_cast<float4 const*>(tile + Index<Swizzled>(row, col));
+        float* dst = partial + global_row * output_stride + global_col;
+        if (global_col + 4 <= N && (reinterpret_cast<std::uintptr_t>(dst) & 15) == 0)
+          *reinterpret_cast<float4*>(dst) = values;
+        else {
+          float lane[4] = {values.x, values.y, values.z, values.w};
+          for (int i = 0; i < 4 && global_col + i < N; ++i) dst[i] = lane[i];
+        }
       }
     } else {
       constexpr int kOutputColumns =
@@ -149,31 +172,43 @@ struct ServingEpilogue {
         int global_col = tile_n * (Op == ServingEpilogueOp::kSwiGLU ? TileN / 2 : TileN)
                          + out_col;
         if (global_row >= M) continue;
-        alignas(16) cutlass::bfloat16_t values[8];
+        alignas(16) cutlass::bfloat16_t values[8], residual_values[8] = {};
+        bool vector_residual = residual && global_col + 8 <= N &&
+            (reinterpret_cast<std::uintptr_t>(residual + global_row * output_stride + global_col) & 15) == 0;
+        if constexpr (Op == ServingEpilogueOp::kResidual)
+          if (vector_residual)
+            *reinterpret_cast<uint4*>(residual_values) =
+                LoadGlobal16(residual + global_row * output_stride + global_col);
+        alignas(16) float acc[8], up_acc[8];
+        int input_col = out_col;
+        if constexpr (Op == ServingEpilogueOp::kSwiGLU)
+          input_col = 2 * U * (out_col / U) + out_col % U;
+        *reinterpret_cast<float4*>(acc) = *reinterpret_cast<float4 const*>(tile + Index<Swizzled>(row, input_col));
+        *reinterpret_cast<float4*>(acc + 4) = *reinterpret_cast<float4 const*>(tile + Index<Swizzled>(row, input_col + 4));
+        if constexpr (Op == ServingEpilogueOp::kSwiGLU) {
+          *reinterpret_cast<float4*>(up_acc) = *reinterpret_cast<float4 const*>(tile + Index<Swizzled>(row, input_col + U));
+          *reinterpret_cast<float4*>(up_acc + 4) = *reinterpret_cast<float4 const*>(tile + Index<Swizzled>(row, input_col + U + 4));
+        }
+        #pragma unroll
         for (int element = 0; element < 8; ++element) {
           int local_col = out_col + element;
           int col = tile_n * TileN + local_col;
           if constexpr (Op == ServingEpilogueOp::kSwiGLU) {
-            int pair = local_col / U;
-            int offset = local_col % U;
-            int gate = 2 * U * pair + offset;
-            int up = gate + U;
-            values[element] = ServingEpilogueValue<Op>::Apply(
-                tile[row * TileN + gate], tile[row * TileN + up]);
+            values[element] = ServingEpilogueValue<Op>::Apply(acc[element], up_acc[element]);
           } else {
             auto r = residual && col < N
-                         ? residual[global_row * output_stride + col]
+                         ? (vector_residual ? residual_values[element] : residual[global_row * output_stride + col])
                          : cutlass::bfloat16_t{};
             values[element] = ServingEpilogueValue<Op>::Apply(
-                tile[row * TileN + local_col], r);
+                acc[element], r);
           }
         }
         int output_n = Op == ServingEpilogueOp::kSwiGLU ? N / 2 : N;
         if (global_col + 8 <= output_n &&
             (reinterpret_cast<std::uintptr_t>(output + global_row * output_stride + global_col) & 15) == 0) {
           // A full vector is one coalesced 16-byte global store.
-          *reinterpret_cast<uint4*>(output + global_row * output_stride + global_col) =
-              *reinterpret_cast<uint4 const*>(values);
+          StoreGlobal16(output + global_row * output_stride + global_col,
+                        *reinterpret_cast<uint4 const*>(values));
         } else {
           for (int element = 0; element < 8; ++element)
             if (global_col + element < output_n)

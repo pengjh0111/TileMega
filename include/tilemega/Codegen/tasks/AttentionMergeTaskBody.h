@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cutlass/bfloat16.h>
+#include <tilemega/Backend/ServingVectorIO.h>
 
 #include <cuda_runtime.h>
 #include <cmath>
@@ -59,8 +60,7 @@ struct AttentionMergeTaskBody {
       for (int lane = 0; lane < 8; ++lane)
         result[lane] = cutlass::bfloat16_t(
             normalizer > 0.0f ? numerator[lane] / normalizer : 0.0f);
-      *reinterpret_cast<uint4*>(context + output) =
-          *reinterpret_cast<uint4 const*>(result);
+      backend::StoreGlobal16(context + output,*reinterpret_cast<uint4 const*>(result));
     }
   }
 };

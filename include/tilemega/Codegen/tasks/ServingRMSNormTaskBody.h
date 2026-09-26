@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cutlass/bfloat16.h>
+#include <tilemega/Backend/ServingVectorIO.h>
 #include <cuda_runtime.h>
 
 #include <cstdint>
@@ -29,7 +30,7 @@ struct ServingRMSNormTaskBody {
           (reinterpret_cast<std::uintptr_t>(src + base) & 15) == 0) {
         alignas(16) cutlass::bfloat16_t values[8];
         *reinterpret_cast<uint4*>(values) =
-            *reinterpret_cast<uint4 const*>(src + base);
+            backend::LoadGlobal16(src + base);
         for (int j = 0; j < 8; ++j) {
           float x = float(values[j]);
           sum += x * x;
@@ -65,9 +66,9 @@ struct ServingRMSNormTaskBody {
                           (reinterpret_cast<std::uintptr_t>(weight + base) & 15) == 0;
       if (vector_input) {
         *reinterpret_cast<uint4*>(source) =
-            *reinterpret_cast<uint4 const*>(src + base);
+            backend::LoadGlobal16(src + base);
         *reinterpret_cast<uint4*>(scales) =
-            *reinterpret_cast<uint4 const*>(weight + base);
+            backend::LoadGlobal16(weight + base);
       }
       for (int j = 0; j < count; ++j) {
         float x = float(vector_input ? source[j] : src[base + j]);
@@ -78,8 +79,7 @@ struct ServingRMSNormTaskBody {
       }
       if (count == 8 &&
           (reinterpret_cast<std::uintptr_t>(dst + base) & 15) == 0)
-        *reinterpret_cast<uint4*>(dst + base) =
-            *reinterpret_cast<uint4 const*>(values);
+        backend::StoreGlobal16(dst + base,*reinterpret_cast<uint4 const*>(values));
       else
         for (int j = 0; j < count; ++j) dst[base + j] = values[j];
     }

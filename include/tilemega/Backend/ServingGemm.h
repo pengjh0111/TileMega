@@ -19,7 +19,7 @@ namespace tilemega::backend {
 /// they intentionally inherit this implementation until the task ABI supports
 /// warp-specialized collectives.
 template <class Arch, int TileM, int TileN, int TileK, int Stages>
-struct ServingGemmConfig {
+struct ServingGemmSm80 {
   static_assert(arch::Caps<Arch>::kCpAsync &&
                     arch::Caps<Arch>::kBf16TensorCore,
                 "serving GEMM needs cp.async and BF16 tensor cores");
@@ -77,6 +77,21 @@ struct ServingGemmConfig {
       solver::ServingBF16SmemBytes(TileM, TileN, TileK, Stages);
   static_assert(sizeof(typename Mainloop::SharedStorage) <= kSharedBytes,
                 "serving shared-memory closed form underestimates CUTLASS");
+  union alignas(16) SharedStorage {
+    typename Mainloop::SharedStorage mainloop;
+    float epilogue[TileM * TileN];
+  };
+  static_assert(sizeof(SharedStorage) == kSharedBytes,
+                "serving mainloop/epilogue union must match the closed form exactly");
 };
+
+template<class Arch,int M,int N,int K,int S>
+struct ServingGemmConfig : ServingGemmSm80<Arch,M,N,K,S> {};
+// Extension points: future TMA + WGMMA (SM90) and tcgen05 (SM100) task ABIs.
+// Until those exist both explicitly inherit the common SM80-class collective.
+template<int M,int N,int K,int S>
+struct ServingGemmConfig<arch::Sm90,M,N,K,S> : ServingGemmSm80<arch::Sm90,M,N,K,S> {};
+template<int M,int N,int K,int S>
+struct ServingGemmConfig<arch::Sm100,M,N,K,S> : ServingGemmSm80<arch::Sm100,M,N,K,S> {};
 
 }  // namespace tilemega::backend

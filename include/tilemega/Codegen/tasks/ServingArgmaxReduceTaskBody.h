@@ -25,15 +25,31 @@ struct ServingArgmaxReduceTaskBody {
                                 int output_position, SharedStorage* shared) {
     float best = -INFINITY;
     int index = INT_MAX;
-    for (int part = int(threadIdx.x); part < partial_count;
-         part += int(blockDim.x)) {
-      int offset = batch * partial_count + part;
-      float other = partial_value[offset];
-      int other_index = partial_index[offset];
-      if (other > best || (other == best && other_index < index)) {
-        best = other;
-        index = other_index;
+    // Align by the physical row address, including rows whose partial count
+    // is not divisible by four. Only the two edge vectors use scalar loads.
+    for (int part = int(threadIdx.x) * 4 - (batch * partial_count % 4);
+         part < partial_count; part += int(blockDim.x) * 4) {
+      float values[4]; int indices[4];
+      if (part >= 0 && part + 4 <= partial_count) {
+        int offset = batch * partial_count + part;
+        float4 v = *reinterpret_cast<float4 const*>(partial_value + offset);
+        int4 i = *reinterpret_cast<int4 const*>(partial_index + offset);
+        values[0]=v.x;values[1]=v.y;values[2]=v.z;values[3]=v.w;
+        indices[0]=i.x;indices[1]=i.y;indices[2]=i.z;indices[3]=i.w;
+      } else {
+        #pragma unroll
+        for (int lane=0;lane<4;++lane) {
+          bool valid=part+lane>=0 && part+lane<partial_count;
+          int offset=batch*partial_count+part+lane;
+          values[lane]=valid?partial_value[offset]:-INFINITY;
+          indices[lane]=valid?partial_index[offset]:INT_MAX;
+        }
       }
+      #pragma unroll
+      for(int lane=0;lane<4;++lane)
+        if(values[lane]>best || (values[lane]==best && indices[lane]<index)) {
+          best=values[lane];index=indices[lane];
+        }
     }
     for (int delta = 16; delta > 0; delta >>= 1) {
       float other = __shfl_down_sync(0xffffffff, best, delta);
