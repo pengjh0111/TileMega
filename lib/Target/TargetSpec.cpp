@@ -78,6 +78,7 @@ void ParseCalibration(json::Value const& cal, TargetSpec::Calib& out) {
     out.cta_stream_curve_bytes=NumberArray(curve->At("bytes"),"cta_stream_curve.bytes");
     out.cta_stream_curve_gbps=NumberArray(curve->At("gbps"),"cta_stream_curve.gbps");
   }
+  if(auto* v=cal.Find("l2_prefetch_bytes"))out.l2_prefetch_bytes=int(v->AsNumber("l2_prefetch_bytes"));
   out.l2_curve_bytes = NumberArray(pipes.At("l2_curve_bytes"), "l2_curve_bytes");
   out.l2_curve_gbps = NumberArray(pipes.At("l2_curve_gbps"), "l2_curve_gbps");
   out.smem_occupancy_ctas =
@@ -281,6 +282,7 @@ json::Value CalibrationJson(TargetSpec::Calib const& calib) {
       {"fp32_partial_combine", partial_combine},
       {"interference_ratio", calib.interference_ratio},
       { "measurements", json::Value(measurements)}};
+  result.emplace_back("l2_prefetch_bytes",calib.l2_prefetch_bytes);
   if(!calib.inflight_curve_bytes.empty())
     result.emplace_back("inflight_curve",json::Object{
         {"bytes",json::Numbers(calib.inflight_curve_bytes)},
@@ -328,6 +330,7 @@ TargetSpec TargetSpec::Probe(int device_ordinal) {
                   std::to_string(spec.sm_minor);
   ApplyKnownCaps(spec);
   spec.res.num_sms = properties.multiProcessorCount;
+  CheckCuda(cudaDeviceGetAttribute(&spec.res.l2_bytes,cudaDevAttrL2CacheSize,device_ordinal),"L2 size");
   spec.res.max_smem_per_sm =
       static_cast<int>(properties.sharedMemPerMultiprocessor);
   spec.res.max_dynamic_smem_per_cta =
@@ -412,6 +415,7 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
     return static_cast<int>(res_json.At(key).AsNumber(key));
   };
   spec.res.num_sms = res_int("num_sms");
+  spec.res.l2_bytes = res_json.Find("l2_bytes") ? res_int("l2_bytes") : 0;
   spec.res.max_smem_per_sm = res_int("max_smem_per_sm");
   spec.res.max_dynamic_smem_per_cta = res_int("max_dynamic_smem_per_cta");
   spec.res.regs_per_sm = res_int("regs_per_sm");
@@ -487,6 +491,7 @@ std::string TargetSpec::ToJson() const {
                                 {"pdl", caps.pdl}});
   root.Set("resources",
            json::Object{{"num_sms", res.num_sms},
+                        {"l2_bytes", res.l2_bytes},
                         {"max_smem_per_sm", res.max_smem_per_sm},
                         {"max_dynamic_smem_per_cta", res.max_dynamic_smem_per_cta},
                         {"regs_per_sm", res.regs_per_sm},

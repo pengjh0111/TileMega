@@ -2,6 +2,7 @@
 #pragma once
 
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
+#include <tilemega/Codegen/executor/Prefetch.cuh>
 #include <tilemega/Backend/ServingAttentionWarp.h>
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <tilemega/Codegen/tasks/TaskResources.h>
@@ -38,6 +39,17 @@ struct FusedAttentionTaskBody {
   static_assert(kTokens==1 || kTokens==64);
   static_assert((kQRows>0 && kQRows%16==0) || kTokens==1);
   static_assert(kKvTile==32 || kKvTile==64);
+  template<class Emit>
+  __device__ static void PrefetchRanges(ServingAttentionOperands const& p,int batch,int group,
+                                      int block,unsigned history_mask,Emit emit) {
+    int begin=block*p.block_extent,end=min(p.past,(block+1)*p.block_extent);
+    if(begin>=end)return;
+    auto offset=(static_cast<long long>(batch)*p.heads_kv+group)*p.capacity*kHeadDim+
+                static_cast<long long>(begin)*kHeadDim;
+    unsigned bytes=2u*(end-begin)*kHeadDim;
+    if(history_mask&1)emit(executor::PrefetchRange{p.key_cache+offset,bytes});
+    if(history_mask&2)emit(executor::PrefetchRange{p.value_cache+offset,bytes});
+  }
   using Element=cutlass::bfloat16_t;
   using QK=backend::ServingAttentionWarp<Arch,16,kHeadDim>;
   using PV=backend::ServingAttentionWarp<Arch,kHeadDim,16,true>;

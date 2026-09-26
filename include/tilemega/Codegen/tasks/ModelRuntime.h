@@ -250,6 +250,7 @@ struct StageDesc {
   int row_offset = 0;
   int attention_kv_block = 256;
   int attention_query_rows = 64;
+  unsigned prefetch_history_mask = 0;
 };
 
 /// A synchronization requirement synthesized from CG couplings: consumer
@@ -675,6 +676,7 @@ struct Params {
 #endif
   // Descriptor storage is allocated once per plan, outside the Params ring.
   void const* serving_tensor_maps = nullptr;
+  std::uint8_t const* serving_no_producer = nullptr;
 };
 
 /// Everything the generator emits about one model.  The harness reads only

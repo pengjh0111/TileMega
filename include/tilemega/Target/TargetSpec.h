@@ -85,6 +85,7 @@ struct TargetSpec {
   /// bounds TaskBody `Stages` (skeleton §5.3).
   struct Res {
     int num_sms                  = 0;
+    int l2_bytes                 = 0;
     int max_smem_per_sm          = 0;  ///< bytes
     int max_dynamic_smem_per_cta = 0;  ///< bytes, after opt-in
     int regs_per_sm              = 0;
@@ -193,6 +194,7 @@ struct TargetSpec {
     double l2_latency_ns    = 0.0;  ///< inside the L2, past L1
     double dram_latency_ns  = 0.0;  ///< past the L2 knee
     double l2_gbps          = 0.0;  ///< plateau below the capacity knee
+    int l2_prefetch_bytes = 0;  ///< measured footprint of prefetch.global.L2
     double l2_knee_bytes    = 0.0;  ///< measured working-set knee
     double dram_gbps        = 0.0;  ///< achieved above the knee, not peak
     // R10 serving: achieved device and per-CTA DRAM rates against bytes in

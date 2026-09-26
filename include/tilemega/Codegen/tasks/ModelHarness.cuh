@@ -11,6 +11,9 @@
 #ifndef TILEMEGA_PAGED
 #define TILEMEGA_PAGED 0
 #endif
+#ifndef TILEMEGA_L2_PREFETCH
+#define TILEMEGA_L2_PREFETCH 0
+#endif
 #include <tilemega/Codegen/tasks/EventSync.cuh>
 #include <tilemega/Codegen/tasks/Benchmark.cuh>
 #include <tilemega/Codegen/ResidentSchedule.h>
@@ -1214,6 +1217,10 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
 #define TILEMEGA_UNSAFE_NO_GRID_SYNC 0
 #endif
 
+#if TILEMEGA_L2_PREFETCH
+#include <tilemega/Codegen/executor/ServingPrefetch.cuh>
+#endif
+
 __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
                                    unsigned long long iteration) {
 #if TILEMEGA_UNSAFE_NO_GRID_SYNC
@@ -1264,7 +1271,14 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
     RunStage(*params, stage, smem);
+#if TILEMEGA_L2_PREFETCH
+    static_assert(TILEMEGA_GENERATED_CLUSTER_DIM==1,"split grid barrier requires the flat grid protocol");
+    prefetch::Arrive(events,stage,iteration);
+    prefetch::NextStage(*params,stage+1);
+    prefetch::Wait(events,stage,iteration);
+#else
     GridBarrier(events, stage, iteration);
+#endif
   }
 }
 
@@ -1406,6 +1420,9 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     // atomic, no added barrier, and nothing written inside a polling loop.
     if (params->task_trace_v2 != nullptr && threadIdx.x == 0)
       params->task_trace_v2[slot].wait_begin = TraceNow();
+#endif
+#if TILEMEGA_L2_PREFETCH
+    prefetch::Upcoming(*params,slot,last);
 #endif
     WaitTaskDependencies(*params, events, task, iteration);
 #endif

@@ -37,6 +37,7 @@ def calibration_stamps(root: Path = ROOT) -> dict[str, str]:
         'events': ['lib/Target/ServingSyncCalibration.cu', 'include/tilemega/Codegen/tasks/EventSync.cuh'],
         'hop': ['lib/Target/ServingSyncCalibration.cu', 'include/tilemega/Codegen/tasks/EventSync.cuh'],
         'inflight': ['lib/Target/InflightCalibration.cu'],
+        'l2_prefetch': ['lib/Target/PrefetchCalibration.cu', 'include/tilemega/Codegen/executor/Async.cuh'],
         'task_bodies': ['lib/Target/ServingTaskCalibration.cu',
                         'include/tilemega/Backend/Serving*.h',
                         'include/tilemega/Codegen/tasks/Serving*.h',

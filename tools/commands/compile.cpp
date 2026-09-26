@@ -236,7 +236,7 @@ int RunCompile(int argc, char** argv) {
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,artifact_cache;
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto";
-    int page_bytes=8192;
+    int page_bytes=8192,prefetch_depth=1,prefetch_stride=0;
     bool event_solo=false,event_red=false,barrier_v2=false;
     if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
     int serving_capacity=1088,serving_batch=1,serving_past_lo=64,
@@ -276,6 +276,8 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--pdl") pdl=value;
       else if (flag=="--pg") pg_mode=value;
       else if (flag=="--page-bytes") page_bytes=std::stoi(value);
+      else if (flag=="--l2-prefetch-depth") prefetch_depth=std::stoi(value);
+      else if (flag=="--l2-prefetch-stride") prefetch_stride=std::stoi(value);
       else if (flag=="--runtime-target") runtime_target=value;
       else if (flag=="--event-solo") event_solo=std::stoi(value)!=0;
       else if (flag=="--event-red-publish") event_red=std::stoi(value)!=0;
@@ -698,6 +700,7 @@ int RunCompile(int argc, char** argv) {
               " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
               " --arch-paths "+quote(arch_paths)+" --pdl "+quote(pdl)+
               " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(page_bytes)+
+              " --l2-prefetch-depth "+std::to_string(prefetch_depth)+" --l2-prefetch-stride "+std::to_string(prefetch_stride)+
               " --event-solo "+std::to_string(event_solo)+" --event-red-publish "+std::to_string(event_red)+
               " --barrier-v2 "+std::to_string(barrier_v2)+
               (artifact_cache.empty()?"":" --artifact-cache "+quote(artifact_cache));
@@ -886,6 +889,12 @@ int RunCompile(int argc, char** argv) {
       }
       source = tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(inputs);
     }
+    bool use_l2=serving && (pg_mode=="l2" || (pg_mode=="auto" && !use_pages));
+    if(use_l2) {
+      auto target=tilemega::TargetSpec::FromJson(runtime_target);
+      tilemega::codegen::ConfigureServingPrefetch(*module,target,prefetch_depth,prefetch_stride);
+      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
+    }
     if(use_pages) {
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
       tilemega::codegen::ConfigureServingPages(*module,target,page_bytes);
@@ -1023,6 +1032,16 @@ int RunCompile(int argc, char** argv) {
           json<<std::quoted(field.getName().str())<<':'<<mlir::cast<mlir::IntegerAttr>(field.getValue()).getInt();}
         json<<'}';pages_json=json.str();
       }
+      std::string prefetch_json="null";
+      if(auto prefetch=(*module)->getAttrOfType<mlir::DictionaryAttr>("tmexec.prefetch")) {
+        std::ostringstream json;json<<'{';bool comma=false;
+        for(auto key:{"depth","stride","worker_bytes"}) {
+          if(comma)json<<',';comma=true;
+          json<<std::quoted(key)<<':'<<prefetch.getAs<mlir::IntegerAttr>(key).getInt();
+        }
+        json<<",\"history_proofs\":"<<prefetch.getAs<mlir::ArrayAttr>("history_proofs").size()<<'}';
+        prefetch_json=json.str();
+      }
       manifest<<"{\n  \"model\": "<<std::quoted(model_name)
               <<",\n  \"phase\": "<<std::quoted(serving_phase)
               <<",\n  \"batch_lo\": "<<serving_batch
@@ -1034,6 +1053,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"sync\": "<<std::quoted(sync_policy)
               <<",\n  \"pg\": "<<std::quoted(use_pages?"pages":pg_mode)
               <<",\n  \"pages\": "<<pages_json
+              <<",\n  \"prefetch\": "<<prefetch_json
               <<",\n  \"arch_paths\": "<<std::quoted(arch_paths)
               <<",\n  \"pdl\": "<<std::quoted(pdl)
               <<",\n  \"runtime_target\": "<<std::quoted(runtime_target)

@@ -240,6 +240,7 @@ set_target_properties(tilemega-opt PROPERTIES
 add_library(tilemega_calibration STATIC
   lib/Target/Calibration.cu
   lib/Target/InflightCalibration.cu
+  lib/Target/PrefetchCalibration.cu
   lib/Target/ServingTaskCalibration.cu
   lib/Target/ServingSyncCalibration.cu
   lib/Target/GemmCalibration.cu)

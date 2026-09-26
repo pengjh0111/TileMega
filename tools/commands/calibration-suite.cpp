@@ -30,7 +30,7 @@ int RunSuite(int argc,char** argv) {
     if(arg=="--stamps"){std::cout<<stamps.Dump()<<'\n';return 0;}
     if(arg=="--help") {
       std::cout<<"tilemega calibrate --suite serving --out TARGET [--base TARGET] "
-          "[--device N] [--repeats N] [--sections base,bf16,wait,events,hop,inflight,task_bodies]\n";
+          "[--device N] [--repeats N] [--sections base,bf16,wait,events,hop,inflight,l2_prefetch,task_bodies]\n";
       return 0;
     }
     if(i+1==argc)throw std::runtime_error("missing calibration suite option value");
@@ -59,7 +59,7 @@ int RunSuite(int argc,char** argv) {
   target.res=probed.res;target.caps=probed.caps;
   auto directory=std::filesystem::path(output+".sections");
   std::filesystem::create_directories(directory);
-  for(auto const* name:{"base","bf16","wait","events","hop","inflight","task_bodies"}) {
+  for(auto const* name:{"base","bf16","wait","events","hop","inflight","l2_prefetch","task_bodies"}) {
     if(!requested.empty() && !requested.count(name))continue;
     std::string current=name;auto raw_path=directory/(current+".tsv");std::ofstream raw(raw_path);
     if(!raw)throw std::runtime_error("cannot open calibration evidence");
@@ -76,6 +76,7 @@ int RunSuite(int argc,char** argv) {
         target.calibration_stamps.erase("hop");target.calibration_stamps.erase("events");
       }else if(current=="events")calib::MeasureServingEvents(target,options,raw);
       else if(current=="hop")calib::MeasureServingHop(target,options,raw);
+      else if(current=="l2_prefetch")calib::MeasureL2Prefetch(target,options,raw);
       else if(current=="inflight")calib::MeasureInflight(target,options,raw);
       else if(current=="task_bodies")calib::MeasureServingTaskBodies(target,options,raw);
     }

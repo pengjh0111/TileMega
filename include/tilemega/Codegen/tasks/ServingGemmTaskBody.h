@@ -2,6 +2,7 @@
 #pragma once
 
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
+#include <tilemega/Codegen/executor/Prefetch.cuh>
 
 #include <tilemega/Backend/ServingEpilogue.h>
 #include <tilemega/Backend/ServingGemm.h>
@@ -41,6 +42,13 @@ struct ServingGemmTaskBody {
   static constexpr int kThreads = Config::kThreads;
   static constexpr int kSharedBytes = Config::kSharedBytes;
 
+  template<class Emit>
+  __device__ static void PrefetchRanges(ServingGemmOperands const& p,int tile_n,Emit emit) {
+    int pitch=p.b_row_stride?p.b_row_stride:p.k_total;
+    for(int n=tile_n*TileN;n<min(p.n,(tile_n+1)*TileN);++n)
+      emit(executor::PrefetchRange{p.b+static_cast<long long>(n)*pitch+p.k_begin,
+                                  static_cast<unsigned>(2*p.k_count)});
+  }
   __device__ static void Run(ServingGemmOperands const& p, int tile_m,
                              int tile_n, char* shared) {
     using namespace cute;

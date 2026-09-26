@@ -505,7 +505,13 @@ std::string emitModelPlan(mlir::ModuleOp module,
     }
     out << "},\n";
   }
-  out << "};\n\nconstexpr GemmDesc kGemms[] = {\n";
+  out << "};\n";
+  if(module->getAttr("tmexec.prefetch")) {
+    out<<"constexpr std::uint8_t kServingFrontier[] = {";
+    for(auto value:buffers)out<<(optionalBoolField(dictionaryEntry(value,"buffers"),"no_producer")?1:0)<<',';
+    out<<"};\n";
+  }
+  out << "\nconstexpr GemmDesc kGemms[] = {\n";
   std::int64_t argmax_index = -1;
   if (serving)
     for (std::size_t i = 0; i < buffers.size(); ++i)
@@ -560,6 +566,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
           << ", " << integerField(item, "row_offset")
           << ", " << integerField(item, "attention_kv_block")
           << ", " << integerField(item, "attention_query_rows");
+      if(item.get("prefetch_history_mask"))out<<", "<<integerField(item,"prefetch_history_mask");
     }
     out << "},\n";
   }
@@ -1172,6 +1179,13 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
 // Unsolved legacy modules emit no extra text or preprocessor definitions.
 std::string emitSolvedLaunch(mlir::ModuleOp module) {
   std::ostringstream out;
+  if(auto prefetch=module->getAttrOfType<mlir::DictionaryAttr>("tmexec.prefetch")) {
+    out<<"#define TILEMEGA_L2_PREFETCH 1\n";
+    for(auto const& [field,macro]:std::vector<std::pair<char const*,char const*>>{
+        {"depth","TILEMEGA_L2_PREFETCH_DEPTH"},{"stride","TILEMEGA_L2_PREFETCH_STRIDE"},
+        {"worker_bytes","TILEMEGA_L2_PREFETCH_BYTES"}})
+      out<<"#define "<<macro<<' '<<integerField(prefetch,field)<<'\n';
+  }
   if(auto pages=module->getAttrOfType<mlir::DictionaryAttr>("tmexec.pages")) {
     out<<"#define TILEMEGA_PAGED 1\n";
     for(auto const& [field,macro]:std::vector<std::pair<char const*,char const*>>{

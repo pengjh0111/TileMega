@@ -139,6 +139,7 @@ inline void Destroy(Plan* plan) {
   if (plan->ring) cudaFree(plan->ring);
   if (plan->tensor_maps) cudaFree(plan->tensor_maps);
   auto& model = plan->model;
+  if(model.params.serving_no_producer)cudaFree(const_cast<std::uint8_t*>(model.params.serving_no_producer));
 #if TILEMEGA_TRACE_V2
   if (model.device_task_trace_v2) cudaFree(model.device_task_trace_v2);
   if (model.device_event_publish) cudaFree(model.device_event_publish);
@@ -244,6 +245,12 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
         kModel, kModel.runtime_variants[0], 0, dims, "", grid,
         std::min(l1, l2), target, smem, external);
     serving::CreateTensorMaps(*plan,kModel,target);
+#if TILEMEGA_L2_PREFETCH
+    std::uint8_t* frontier=nullptr;
+    TILEMEGA_CUDA_CHECK(cudaMalloc(&frontier,sizeof(kServingFrontier)));
+    TILEMEGA_CUDA_CHECK(cudaMemcpy(frontier,kServingFrontier,sizeof(kServingFrontier),cudaMemcpyHostToDevice));
+    plan->model.params.serving_no_producer=frontier;
+#endif
     harness::PrepareEvents(plan->model, grid);
     if (cudaMemset(plan->model.events, 0,
                    plan->model.event_count * sizeof(EventCounter)) != cudaSuccess)
