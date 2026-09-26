@@ -92,7 +92,12 @@
     "l1_5": false,
     "net": false,
     "cp_async": true,
-    "mbarrier": true
+    "mbarrier": true,
+    "mbarrier_try_wait": true,
+    "mbarrier_tx": true,
+    "bulk_copy": true,
+    "bulk_prefetch": true,
+    "pdl": true
   },
   "resources": {
     "num_sms": 132,

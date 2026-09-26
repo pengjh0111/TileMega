@@ -1,0 +1,10 @@
+{
+  "scope": "Host descriptor parameter validation; no TMA execution",
+  "device": "sm_89",
+  "valid_shapes": 12,
+  "driver_encoded": 0,
+  "driver_not_supported": 12,
+  "invalid_stride_rejected": true,
+  "degradation": "cuTensorMapEncodeTiled returns CUDA_ERROR_NOT_SUPPORTED on this driver/device; parameter validation only.",
+  "source": "test/unit/tensor_map_check.cpp"
+}

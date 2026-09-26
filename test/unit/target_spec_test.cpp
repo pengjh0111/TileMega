@@ -18,6 +18,9 @@ int TestTargetSpec(int argc, char** argv) {
       std::string(TILEMEGA_SOURCE_DIR) + "/configs/targets/sm_120.json");
   assert(sm80.caps.cp_async && !sm80.caps.cluster);
   assert(sm120.caps.cluster && sm120.caps.tma && !sm120.caps.tcgen05);
+  assert(!sm80.caps.mbarrier_try_wait && !sm80.caps.mbarrier_tx && !sm80.caps.pdl);
+  assert(sm120.caps.mbarrier_try_wait && sm120.caps.mbarrier_tx && sm120.caps.bulk_copy);
+  assert(sm120.caps.bulk_prefetch && sm120.caps.pdl);
   assert(TargetSpec::ComputeStages(100, 30, 10, 16) == 3);
   assert(TargetSpec::ComputeStages(8, 16, 0, 16) == 0);
   assert(sm120.ToJson().find("\"tcgen05\": false") != std::string::npos);

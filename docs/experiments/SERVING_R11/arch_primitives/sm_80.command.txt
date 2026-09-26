@@ -1,0 +1,1 @@
+'/usr/local/cuda/bin/nvcc' -std=c++17 -O3 -c -Xptxas=-v --expt-relaxed-constexpr -arch='sm_80' -I'/root/TileMega/include' -I'/root/TileMega/third_party/cutlass/include' -I'/root/TileMega/third_party/cutlass/tools/util/include' -I'/root/TileMega/third_party/cutlass/test' 'test/unit/async_compile_probe.cu' -o 'docs/experiments/SERVING_R11/arch_primitives/sm_80.o'

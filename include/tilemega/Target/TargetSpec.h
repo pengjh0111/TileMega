@@ -72,6 +72,11 @@ struct TargetSpec {
     bool net              = false;  ///< inter-GPU fabric in the execution domain
     bool cp_async         = false;  ///< cp.async (sm_80+)
     bool mbarrier         = false;  ///< PTX mbarrier primitives
+    bool mbarrier_try_wait = false;
+    bool mbarrier_tx = false;
+    bool bulk_copy = false;
+    bool bulk_prefetch = false;
+    bool pdl = false;
   } caps;
 
   /// Resource budgets.  All of these differ between consumer and datacenter

@@ -41,6 +41,12 @@ void ApplyKnownCaps(TargetSpec& spec) {
   spec.caps.net = caps.net;
   spec.caps.cp_async = caps.cp_async;
   spec.caps.mbarrier = caps.mbarrier;
+  spec.caps.mbarrier_try_wait = caps.mbarrier_try_wait;
+  spec.caps.mbarrier_tx = caps.mbarrier_tx;
+  spec.caps.bulk_copy = caps.bulk_copy;
+  spec.caps.bulk_prefetch = caps.bulk_prefetch;
+  spec.caps.pdl = caps.pdl;
+
   spec.res.max_cluster_size = caps.max_cluster_size;
 }
 
@@ -391,6 +397,13 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
   spec.caps.net = caps.At("net").AsBool("caps.net");
   spec.caps.cp_async = caps.At("cp_async").AsBool("caps.cp_async");
   spec.caps.mbarrier = caps.At("mbarrier").AsBool("caps.mbarrier");
+  auto defaults=arch::RuntimeCapsForTag(spec.arch_tag);
+  spec.caps.mbarrier_try_wait = caps.Find("mbarrier_try_wait") ? caps.At("mbarrier_try_wait").AsBool("caps.mbarrier_try_wait") : defaults.mbarrier_try_wait;
+  spec.caps.mbarrier_tx = caps.Find("mbarrier_tx") ? caps.At("mbarrier_tx").AsBool("caps.mbarrier_tx") : defaults.mbarrier_tx;
+  spec.caps.bulk_copy = caps.Find("bulk_copy") ? caps.At("bulk_copy").AsBool("caps.bulk_copy") : defaults.bulk_copy;
+  spec.caps.bulk_prefetch = caps.Find("bulk_prefetch") ? caps.At("bulk_prefetch").AsBool("caps.bulk_prefetch") : defaults.bulk_prefetch;
+  spec.caps.pdl = caps.Find("pdl") ? caps.At("pdl").AsBool("caps.pdl") : defaults.pdl;
+
 
   json::Value const& res_json = root.At("resources");
   auto res_int = [&](char const* key) {
@@ -462,7 +475,12 @@ std::string TargetSpec::ToJson() const {
                                 {"l1_5", caps.l1_5},
                                 {"net", caps.net},
                                 {"cp_async", caps.cp_async},
-                                {"mbarrier", caps.mbarrier}});
+                                {"mbarrier", caps.mbarrier},
+                                {"mbarrier_try_wait", caps.mbarrier_try_wait},
+                                {"mbarrier_tx", caps.mbarrier_tx},
+                                {"bulk_copy", caps.bulk_copy},
+                                {"bulk_prefetch", caps.bulk_prefetch},
+                                {"pdl", caps.pdl}});
   root.Set("resources",
            json::Object{{"num_sms", res.num_sms},
                         {"max_smem_per_sm", res.max_smem_per_sm},

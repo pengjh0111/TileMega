@@ -29,6 +29,11 @@ struct Caps {
   static constexpr bool kNet = false;
   static constexpr bool kCpAsync = false;
   static constexpr bool kMbarrier = false;
+  static constexpr bool kMbarrierTryWait = false;
+  static constexpr bool kMbarrierTx = false;
+  static constexpr bool kBulkCopy = false;
+  static constexpr bool kBulkPrefetch = false;
+  static constexpr bool kPdl = false;
   /// R8 BE-2: CUTLASS ships a BF16 tensor-op `CollectiveBuilder` for this
   /// architecture. A capability of the *toolchain*, measured rather than
   /// assumed -- `docs/experiments/BACKEND/be2_collective/` records the probe
@@ -50,6 +55,11 @@ struct Caps<Sm80> {
   static constexpr bool kNet = false;
   static constexpr bool kCpAsync = true;
   static constexpr bool kMbarrier = true;
+  static constexpr bool kMbarrierTryWait = false;
+  static constexpr bool kMbarrierTx = false;
+  static constexpr bool kBulkCopy = false;
+  static constexpr bool kBulkPrefetch = false;
+  static constexpr bool kPdl = false;
   static constexpr bool kBf16CollectiveBuilder = false;
   static constexpr int kMaxClusterSize = 1;
   static constexpr char const* kCollective = "cp.async multistage";
@@ -72,6 +82,11 @@ struct Caps<Sm90> {
   static constexpr bool kNet = false;
   static constexpr bool kCpAsync = true;
   static constexpr bool kMbarrier = true;
+  static constexpr bool kMbarrierTryWait = true;
+  static constexpr bool kMbarrierTx = true;
+  static constexpr bool kBulkCopy = true;
+  static constexpr bool kBulkPrefetch = true;
+  static constexpr bool kPdl = true;
   static constexpr bool kBf16CollectiveBuilder = true;
   static constexpr int kMaxClusterSize = 8;
   static constexpr char const* kCollective = "TMA warp-specialized";
@@ -92,6 +107,11 @@ struct Caps<Sm100> {
   static constexpr bool kNet = false;
   static constexpr bool kCpAsync = true;
   static constexpr bool kMbarrier = true;
+  static constexpr bool kMbarrierTryWait = true;
+  static constexpr bool kMbarrierTx = true;
+  static constexpr bool kBulkCopy = true;
+  static constexpr bool kBulkPrefetch = true;
+  static constexpr bool kPdl = true;
   static constexpr bool kBf16CollectiveBuilder = true;
   static constexpr int kMaxClusterSize = 8;
   static constexpr char const* kCollective = "TMA warp-specialized (tcgen05)";
@@ -110,6 +130,11 @@ struct Caps<Sm120> {
   static constexpr bool kNet = false;
   static constexpr bool kCpAsync = true;
   static constexpr bool kMbarrier = true;
+  static constexpr bool kMbarrierTryWait = true;
+  static constexpr bool kMbarrierTx = true;
+  static constexpr bool kBulkCopy = true;
+  static constexpr bool kBulkPrefetch = true;
+  static constexpr bool kPdl = true;
   static constexpr bool kBf16CollectiveBuilder = false;
   static constexpr int kMaxClusterSize = 8;
   static constexpr char const* kCollective = "TMA warp-specialized (SM120 MMA)";
@@ -129,6 +154,12 @@ struct RuntimeCaps {
   bool mbarrier;
   int max_cluster_size;
   char const* collective;
+  bool mbarrier_try_wait;
+  bool mbarrier_tx;
+  bool bulk_copy;
+  bool bulk_prefetch;
+  bool pdl;
+
 };
 
 template <class Arch>
@@ -137,7 +168,8 @@ constexpr RuntimeCaps RuntimeCapsFor() {
           Caps<Arch>::kWarpSpecialized, Caps<Arch>::kTcgen05,
           Caps<Arch>::kL15, Caps<Arch>::kNet,
           Caps<Arch>::kCpAsync, Caps<Arch>::kMbarrier,
-          Caps<Arch>::kMaxClusterSize, Caps<Arch>::kCollective};
+          Caps<Arch>::kMaxClusterSize, Caps<Arch>::kCollective,
+          Caps<Arch>::kMbarrierTryWait, Caps<Arch>::kMbarrierTx, Caps<Arch>::kBulkCopy, Caps<Arch>::kBulkPrefetch, Caps<Arch>::kPdl};
 }
 
 inline constexpr RuntimeCaps RuntimeCapsForTag(std::string_view tag) {

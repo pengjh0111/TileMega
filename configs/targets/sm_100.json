@@ -92,7 +92,12 @@
     "l1_5": true,
     "net": false,
     "cp_async": true,
-    "mbarrier": true
+    "mbarrier": true,
+    "mbarrier_try_wait": true,
+    "mbarrier_tx": true,
+    "bulk_copy": true,
+    "bulk_prefetch": true,
+    "pdl": true
   },
   "resources_provenance": "stated-unverified: CUDA C Programming Guide compute-capability table for 10.0 and the Blackwell architecture whitepaper.  No sm_100 device has ever been probed by TileMega; nothing in `calibration` is measured and `calibrated` is false, which is what stops the cost model from using any of it.",
   "resources": {

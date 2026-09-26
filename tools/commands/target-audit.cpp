@@ -173,6 +173,12 @@ void CheckCaps(std::string const& tag, TargetSpec const& spec) {
       {"net", spec.caps.net, table.net},
       {"cp_async", spec.caps.cp_async, table.cp_async},
       {"mbarrier", spec.caps.mbarrier, table.mbarrier},
+      {"mbarrier_try_wait", spec.caps.mbarrier_try_wait, table.mbarrier_try_wait},
+      {"mbarrier_tx", spec.caps.mbarrier_tx, table.mbarrier_tx},
+      {"bulk_copy", spec.caps.bulk_copy, table.bulk_copy},
+      {"bulk_prefetch", spec.caps.bulk_prefetch, table.bulk_prefetch},
+      {"pdl", spec.caps.pdl, table.pdl},
+
   };
   int disagree = 0;
   for (auto const& pair : pairs) {
