@@ -49,7 +49,8 @@ def main() -> None:
             dest = HERE / "plans" / name
             dest.mkdir(parents=True, exist_ok=True)
             for suffix in ("flow.tsv", "flow_chain.tsv", "flow_parts.tsv",
-                           "flow_spaces.tsv", "metrics.tsv", "omissions.tsv"):
+                           "flow_spaces.tsv", "interval_sim.tsv",
+                           "metrics.tsv", "omissions.tsv"):
                 source = Path(str(prefix) + "." + suffix)
                 if source.exists():
                     shutil.copyfile(source, dest / f"winner.{suffix}")
