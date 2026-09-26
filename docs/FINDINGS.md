@@ -8337,3 +8337,16 @@ error; the six class domains shrank from 116/121/121/195/121/39 to
 score was 3.739 ms. This is a model correction, not yet a measured improvement
 in selected-plan performance. See `lib/Solver/SkeletonSearch.cpp` and
 `SERVING_R11/solver/stage_equivalence/`.
+
+## F-309: PG-1 resource prewarming must follow the executed stage depth
+
+✅ verified in code: the serving prewarm enumerator compiled every legal
+stages value even after the paged decode search had removed all but stage 2.
+At `max_m=16` on the current target this meant 39 variant wrappers instead
+of the seven the PG-1 search can use. The prewarm command now passes
+`--stages 2` only for paged decode; the enumeration check confirms 39 → 7,
+the unified tool rebuilds, its source fingerprint matches Python, and the
+serving pruning/search-isolation host tests pass. This removes unnecessary
+variant compilations from cold PG-1 solves; a full-plan wall-time result has
+not yet been measured. See `python/tilemega/build/variants/prewarm.py` and
+`tools/commands/compile.cpp`.

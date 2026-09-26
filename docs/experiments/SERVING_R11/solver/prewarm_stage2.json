@@ -1,0 +1,58 @@
+{
+  "scope": "CPU-only resource enumeration; no GPU timing claim",
+  "target": "docs/experiments/SERVING_R11/r10_control/calibration/target_serving.json",
+  "max_m": 16,
+  "smem_limit_bytes": 101376,
+  "old_shapes": 39,
+  "paged_stage2_shapes": 7,
+  "legal_stage2_shapes": [
+    [
+      16,
+      32,
+      64,
+      2
+    ],
+    [
+      16,
+      32,
+      128,
+      2
+    ],
+    [
+      16,
+      64,
+      64,
+      2
+    ],
+    [
+      16,
+      64,
+      128,
+      2
+    ],
+    [
+      16,
+      128,
+      64,
+      2
+    ],
+    [
+      16,
+      128,
+      128,
+      2
+    ],
+    [
+      16,
+      256,
+      64,
+      2
+    ]
+  ],
+  "build_fingerprint": "c90b95c0b5a9614febb2bf9ab3e198da379de179aa8d0a02f2bf74d7c98bd4f7",
+  "checks": [
+    "python3 -m py_compile python/tilemega/build/variants/prewarm.py",
+    "ctest --test-dir /root/r11_work/build --output-on-failure -R ^(serving_pruning|skeleton_search_isolation)$: 2/2 PASS",
+    "python3 -m tilemega.fingerprint --check /root/r11_work/build/tools/tilemega: PASS"
+  ]
+}

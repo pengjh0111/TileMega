@@ -18,7 +18,7 @@ import time
 ROOT = Path(__file__).resolve().parents[4]
 
 
-def shapes(max_m: int, max_smem: int):
+def shapes(max_m: int, max_smem: int, stages_filter: int | None = None):
     for m in (16, 32, 64, 128):
         if m > max_m:
             continue
@@ -28,7 +28,8 @@ def shapes(max_m: int, max_smem: int):
             for k in (64, 128):
                 per_stage = 2 * k * (m + n)
                 for stages in range(2, max_smem // per_stage + 1):
-                    yield m, n, k, stages
+                    if stages_filter is None or stages == stages_filter:
+                        yield m, n, k, stages
 
 
 def main():
@@ -39,11 +40,15 @@ def main():
     parser.add_argument("--max-m", type=int, choices=(16, 32, 64, 128),
                         default=128)
     parser.add_argument("--jobs", type=int, default=8)
+    parser.add_argument("--stages", type=int,
+                        help="probe only this executed pipeline depth")
     args = parser.parse_args()
     target = json.loads(args.target.read_text())
     arch = f"sm_{target['sm_major']}{target['sm_minor']}"
     limit = target["resources"]["max_dynamic_smem_per_cta"]
-    configurations = list(shapes(args.max_m, limit))
+    configurations = list(shapes(args.max_m, limit, args.stages))
+    if not configurations:
+        parser.error("no legal variant at the requested pipeline depth")
     args.output.mkdir(parents=True, exist_ok=True)
     start = time.monotonic()
 
@@ -68,6 +73,7 @@ def main():
                             "resource": str(path) if returncode == 0 else None})
             print(f"{label}: {'PASS' if returncode == 0 else 'FAIL'}", flush=True)
     summary = {"target": str(args.target), "arch": arch, "max_m": args.max_m,
+               "stages_filter": args.stages,
                "jobs": args.jobs, "shape_count": len(configurations),
                "seconds": time.monotonic() - start,
                "failed": sum(item["returncode"] != 0 for item in records),

@@ -103,3 +103,10 @@ requires 200/200 fresh-process checks, all 1023 decode steps per cell, and a
 realized chain at past 575; it retains raw traces and binary hashes. K-15's
 code checker now validates per-round pollution decisions against the declared
 power threshold instead of accepting a policy file by its keys alone.
+
+The cold resource prewarmer also enumerated pipeline depths 3–16 after PG-1
+had removed them from the search. PG-1 now requests stage-2 probes only:
+at `max_m=16` this reduces the compiled wrapper set from 39 to 7. The source
+fingerprint and two related host tests pass. This is an exact search-cost
+reduction; the full-plan wall-time budget is still open. See F-309 and
+`solver/prewarm_stage2.json`.

@@ -615,6 +615,9 @@ int RunCompile(int argc, char** argv) {
               " --cache "+quote(variant_cache)+
               " --output "+quote(prewarm_dir.string())+
               " --max-m "+std::to_string(max_m)+" --jobs 8";
+          // Paged decode uses the fixed two-stage local MMA mainloop;
+          // additional stage templates cannot occur in its search domain.
+          if(use_pages)command+=" --stages 2";
           std::ofstream(resource_root/"prewarm.command.txt")<<command<<'\n';
           if(std::system((command+" >"+quote((resource_root/"prewarm.log").string())+
               " 2>&1").c_str()))
