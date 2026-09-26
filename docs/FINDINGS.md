@@ -8346,7 +8346,28 @@ At `max_m=16` on the current target this meant 39 variant wrappers instead
 of the seven the PG-1 search can use. The prewarm command now passes
 `--stages 2` only for paged decode; the enumeration check confirms 39 → 7,
 the unified tool rebuilds, its source fingerprint matches Python, and the
-serving pruning/search-isolation host tests pass. This removes unnecessary
-variant compilations from cold PG-1 solves; a full-plan wall-time result has
-not yet been measured. See `python/tilemega/build/variants/prewarm.py` and
-`tools/commands/compile.cpp`.
+serving pruning/search-isolation host tests pass. In cold CPU-only resource
+prewarms on this host, the old 39-shape set took 94.44 s and the seven
+stage-2 shapes took 30.97 s, with zero probe failures. A two-pass, full-domain
+Llama decode B1 search evaluated 345 configurations in 316 s with the old
+prewarm; its best Level 1 score was 3.7298 ms. The new prewarm saves the
+observed 63.46 s of unnecessary wrappers, but top-M materialization, final
+compilation and GPU selection remain outside this timing. See
+`python/tilemega/build/variants/prewarm.py`, `tools/commands/compile.cpp`,
+and `SERVING_R11/solver/full_stage2_llama_B1/`.
+
+## F-310: Physical-page routing cuts the traced PG-1 chain bubble, but pages still stall on dependencies
+
+✅ verified on four B endpoints: the current 16 KiB physical-page loader
+passed 200/200 fresh-process 64-step protocol checks. At past 575, the
+realized dependency chains contain 135/119 links for Llama B1/B16 and
+232/204 for Qwen3 B1/B16. Their instrumented spans are 4.847/5.088/
+7.268/8.209 ms against exact CG DRAM floors of 2.537/2.826/3.573/
+4.583 ms, leaving 17.1/19.0/15.9/17.8 µs per link. The page-ring-full
+while consumer-waiting-on-dependencies intersection still averages
+2.711/2.702/4.972/4.705 ms per CTA per decode step; adjacent-launch gaps
+have medians 4.096/4.096/3.072/3.072 µs. Relative to the earlier 8 KiB
+page trace, the chain-span ratios are 0.759/0.763/0.728/0.751; page size
+and loader routing changed together, so this is not a single-factor effect.
+These are trace-mode timings, not production E2E performance. The exact
+1023-step floors and raw traces are in `SERVING_R11/page_vector_diagnostics/`.

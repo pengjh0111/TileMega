@@ -110,3 +110,20 @@ at `max_m=16` this reduces the compiled wrapper set from 39 to 7. The source
 fingerprint and two related host tests pass. This is an exact search-cost
 reduction; the full-plan wall-time budget is still open. See F-309 and
 `solver/prewarm_stage2.json`.
+
+The current-source four-cell trace queue and its 200/200 fresh-process gate
+have completed. At past 575 the realized chain lengths are 135/119/232/204;
+their spans are 4.847/5.088/7.268/8.209 ms versus exact CG DRAM floors
+2.537/2.826/3.573/4.583 ms. Residual bubbles are 17.1/19.0/15.9/17.8
+µs per link. The full-page-and-dependency-wait intersection remains
+2.711/2.702/4.972/4.705 ms per CTA per step, while median adjacent-launch
+gaps are 4.096/4.096/3.072/3.072 µs. Raw evidence and all 1023 exact
+per-step floor comparisons are archived in `page_vector_diagnostics/`.
+The four-cell non-instrumented PG-off/PG-1 queue is now running separately.
+
+The full-domain CPU-only Llama decode B1 PG-1 search evaluated 345
+configurations in 316 s, with best Level 1 score 3.7298 ms; this excludes
+top-M materialization, final compilation and GPU selection. Its old resource
+prewarm compiled 39 shapes in 94.44 s, while a cold run with the new
+stage-2-only filter compiled seven in 30.97 s. See F-309 and
+`solver/full_stage2_llama_B1/`.

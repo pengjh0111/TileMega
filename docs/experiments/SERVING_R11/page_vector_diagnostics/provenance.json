@@ -1,0 +1,42 @@
+[
+  {
+    "cell": "llama_B1",
+    "page_binary_sha256": "a28e920583fe9fd592a9f8f6276a478d8ae74a598d36b3a6475ae32485c1312f",
+    "trace_binary_sha256": "740c631e0719949e48bfc5dc41a556a9b23aa73219f4fb937886df536ecf46dd",
+    "floor_source": {
+      "cg": "/root/r11_work/r10_control/plans/llama_decode_B1/plan.so.top1.mlir",
+      "sha256": "6f21cff3a110acd17e4cdcc9d64fbf3b9342d9ddf7e9ab908797728ed3733730",
+      "target": "/root/TileMega/docs/experiments/SERVING_R11/r10_control/calibration/target_serving.json"
+    }
+  },
+  {
+    "cell": "llama_B16",
+    "page_binary_sha256": "fe9e12497712ba97527b027f2d813b4c9b8893d98bbe305783e177bc843b124f",
+    "trace_binary_sha256": "4dc3e85da19e6d3a9e080408276b60dda7a0df9f9750102246da8a0a3925537c",
+    "floor_source": {
+      "cg": "/root/r11_work/r10_control/plans/llama_decode_B16/plan.so.top1.mlir",
+      "sha256": "dbc88e97a0dde979481d2176145bb64db70dab244df5b6d43401ae72aac6589e",
+      "target": "/root/TileMega/docs/experiments/SERVING_R11/r10_control/calibration/target_serving.json"
+    }
+  },
+  {
+    "cell": "qwen3_B1",
+    "page_binary_sha256": "04bc5d93bdb4e0570ebf29defa4d61303a63cbc2434912cd0a1537dadc12907b",
+    "trace_binary_sha256": "f7cca7967542b6309aa74e4755c1ac2d24db3b8e45ae4fd00e1dee98485ee60b",
+    "floor_source": {
+      "cg": "/root/r11_work/r10_control/plans/qwen3_decode_B1/plan.so.top3.mlir",
+      "sha256": "3c76eebb846830cf2ddd0c0f14baa22eb6deb499ee816ac2903d8af71bdb4673",
+      "target": "/root/TileMega/docs/experiments/SERVING_R11/r10_control/calibration/target_serving.json"
+    }
+  },
+  {
+    "cell": "qwen3_B16",
+    "page_binary_sha256": "7c50f4fc8481d1bfca9c1c0b3cf2f5379bb97967f5d0d41493d36f68eb62542a",
+    "trace_binary_sha256": "4f8f95c2619a6fa9da72247f35fdf5f01b1b034c091d82d868acb807f8d84274",
+    "floor_source": {
+      "cg": "/root/r11_work/r10_control/plans/qwen3_decode_B16/plan.so.top1.mlir",
+      "sha256": "e62b66033f871ab3b75e5bb386851d7a147321b62044c28878c80aa16337e1a7",
+      "target": "/root/TileMega/docs/experiments/SERVING_R11/r10_control/calibration/target_serving.json"
+    }
+  }
+]

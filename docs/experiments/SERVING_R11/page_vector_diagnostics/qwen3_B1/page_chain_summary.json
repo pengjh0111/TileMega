@@ -1,0 +1,22 @@
+{
+  "model": "qwen3",
+  "batch": 1,
+  "steps": 1023,
+  "chain_source": "/root/r11_work/page_vector_once/diagnostic_results/qwen3_B1/chain/analysis.tsv",
+  "floor_source": "/root/r11_work/page_vector_once/diagnostic_results/qwen3_B1/floor_steps.tsv",
+  "page_source": "/root/r11_work/page_vector_once/diagnostic_results/qwen3_B1/request/page_trace.tsv",
+  "measured_chain_links": 232,
+  "measured_chain_span_ns": 7268352,
+  "measured_chain_past": 575,
+  "measured_chain_floor_ns": 3573016,
+  "measured_chain_over_floor": 2.0342343835012215,
+  "measured_chain_residual_bubble_ns_per_link": 15928.172413793103,
+  "residual_bubble_chain_count_assumption": "chain measured at one past and reused at every step",
+  "launch_gap_mean_ns": 3483.8043052837575,
+  "launch_gap_p50_ns": 3072.0,
+  "page_full_and_dependency_wait_cta_ns": 651042605056,
+  "page_full_and_dependency_wait_mean_cta_ns_per_step": 4971916.277614858,
+  "dependency_wait_mean_cta_ns_per_step": 5980579.698924731,
+  "page_full_mean_cta_ns_per_step": 7040425.81427175,
+  "residual_bubble_p50_ns_per_link": 53227.852825327485
+}

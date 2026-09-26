@@ -1,0 +1,19 @@
+{
+  "scope": "CPU-only search; no GPU plan materialization or end-to-end claim",
+  "source_baseline": "d61d9e710 (before prewarm-only commit 388babea4)",
+  "model": "llama",
+  "phase": "decode",
+  "batch": 1,
+  "page_bytes": 16384,
+  "search_passes": 2,
+  "evaluations": 345,
+  "best_score_ns": 3729821.8456056663,
+  "best_key": "16x32x128s2k1;16x32x64s2k2;16x128x64s2k1;16x128x128s2k8;16x32x64s2k2;16x256x64s2k1;kappa=2;residency=1;Ec=128;Rq=4;page_bytes=16384",
+  "search_wall_seconds": 316,
+  "prewarm_old_shapes": 39,
+  "prewarm_old_seconds": 94.43685509893112,
+  "prewarm_stage2_shapes": 7,
+  "prewarm_stage2_cold_seconds": 30.97357758996077,
+  "prewarm_stage2_failed": 0,
+  "raw_search_sha256": "2b75088d158cfb01f2f195bde1bff0ca4b15db594b3adababd93913b2dc3a7d5"
+}
