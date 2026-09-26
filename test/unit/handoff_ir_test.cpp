@@ -33,26 +33,31 @@ int TestHandoffIr(int argc,char** argv) try {
   for(auto op:decisions)op->moveBefore(&plan.getBody().front(),plan.getBody().front().end());
   b.setInsertionPointToEnd(&plan.getBody().front());
   std::string choice=argc>2?argv[2]:"recompute";
-  int proofs=0,rejected=0;bool runtime_wired=false;
+  bool const multiple=choice=="recompute_multi";
+  int proofs=0,rejected=0;bool runtime_wired=false,applied=false;
   for(auto edge:graph.getBody().front().getOps<dialect::CouplingOp>()) {
     auto p=mlir::dyn_cast_or_null<dialect::TileSpaceOp>(mlir::SymbolTable::lookupSymbolIn(graph,edge.getSrc()));
     auto c=mlir::dyn_cast_or_null<dialect::TileSpaceOp>(mlir::SymbolTable::lookupSymbolIn(graph,edge.getDst()));
     // Select normalization edges as test cases; the verifier has no kind matcher.
     if(!p || !c)continue;
-    if(choice=="recompute" && (p.getArithmetic().value_or("")!="rmsnorm" || c.getKind().getValue().getValue()!="gemm"))continue;
+    if((choice=="recompute" || multiple) && (p.getArithmetic().value_or("")!="rmsnorm" || c.getKind().getValue().getValue()!="gemm"))continue;
     if(choice=="last_arriver" && c.getKind().getValue().getValue()!="attention_merge")continue;
     mlir::OperationState hs(edge.getLoc(),dialect::HandoffOp::getOperationName());
-    hs.addAttribute("coupling",mlir::FlatSymbolRefAttr::get(&context,edge.getSymName()));hs.addAttribute("kind",b.getStringAttr(choice));
+    hs.addAttribute("coupling",mlir::FlatSymbolRefAttr::get(&context,edge.getSymName()));hs.addAttribute("kind",b.getStringAttr(multiple?"recompute":choice));
     auto handoff=mlir::cast<dialect::HandoffOp>(b.create(hs));
-    try {auto proof=dialect::VerifyHandoffAccess(handoff);assert(!proof.composed.reads.empty());++proofs;}
+    bool valid=false;
+    try {auto proof=dialect::VerifyHandoffAccess(handoff);assert(!proof.composed.reads.empty());++proofs;valid=true;}
     catch(std::invalid_argument const& e){std::cerr<<edge.getSymName().str()<<": "<<e.what()<<'\n';++rejected;}
+    if(multiple && !valid){handoff.erase();continue;}
     handoff.setKindAttr(b.getStringAttr("invalid"));bool caught=false;
     try {dialect::VerifyHandoffAccess(handoff);}catch(std::invalid_argument const&){caught=true;}assert(caught);
     if(proofs>=1) {
-      handoff.setKindAttr(b.getStringAttr(choice));
+      handoff.setKindAttr(b.getStringAttr(multiple?"recompute":choice));
+      if(multiple && proofs<4)continue;
       dialect::ApplyHandoffs(*module);
+      applied=true;
       assert(mlir::succeeded(mlir::verify(*module)));
-      if(argc>1 && choice=="recompute") {
+      if(argc>1 && (choice=="recompute" || multiple)) {
         auto model=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
         assert(model && "serving handoff must retain its runtime model");
         bool wired=false;
@@ -80,11 +85,11 @@ int TestHandoffIr(int argc,char** argv) try {
           ticket->setAttr("triggers",triggers);
         }
       }
-      assert(fused==1);break;
+      assert(fused==proofs);break;
     }
     handoff.erase();
   }
-  assert(proofs>0);
+  assert(proofs>0 && applied);
   std::cout<<"HANDOFF_IR kind="<<choice<<" proofs="<<proofs<<" unsupported="<<rejected
            <<" invalid_kind_rejected=1 norm_runtime_wired="<<runtime_wired<<"\n";
   return 0;
