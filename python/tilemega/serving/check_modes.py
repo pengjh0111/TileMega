@@ -19,6 +19,7 @@ def main() -> None:
     parser.add_argument("--prompt-ids", type=Path, required=True)
     parser.add_argument("--batch", type=int, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--steps", type=int, default=1024)
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     rows = json.loads(args.prompt_ids.read_text())
@@ -30,14 +31,14 @@ def main() -> None:
             if not _exclusive(args.out / "guard.jsonl", mode + "-before", True):
                 raise RuntimeError("GPU was occupied before the mode check")
             engine.prefill_mode = engine.decode_mode = {"L1": 1, "L2": 2}[mode]
-            generation = engine.generate(prompts, 1024)
+            generation = engine.generate(prompts, args.steps)
             if not _exclusive(args.out / "guard.jsonl", mode + "-after", False):
                 raise RuntimeError("GPU was occupied during the mode check")
             results[mode] = generation.tokens
             (args.out / f"tokens_{mode}.json").write_text(
                 json.dumps(generation.tokens.tolist(), separators=(",", ":")) + "\n")
         mismatch = int((results["L1"] != results["L2"]).sum().item())
-    report = {"batch": args.batch, "tokens": args.batch * 1024,
+    report = {"batch": args.batch, "tokens": args.batch * args.steps,
               "mismatches": mismatch, "pass": mismatch == 0,
               "same_plan_instances": True}
     (args.out / "mode_check.json").write_text(json.dumps(report, indent=2) + "\n")

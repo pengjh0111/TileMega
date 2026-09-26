@@ -7,6 +7,7 @@ import os
 import statistics
 import subprocess
 import time
+import sys
 from pathlib import Path
 
 
@@ -17,7 +18,15 @@ def main() -> None:
     parser.add_argument("--batch", choices=("1", "2", "4", "8", "16", "all"), default="all")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--max-tokens", type=int, default=1024)
+    parser.add_argument("--policy", type=Path)
+    parser.add_argument("--warmup", type=int, default=1)
+    parser.add_argument("--repeats", type=int, default=3)
     args = parser.parse_args()
+    # This helper imports only the standard library; the vLLM environment
+    # never imports tilemega or its torch-dependent serving engine.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from measurement_policy import TimingPolicy
+    policy = TimingPolicy(args.policy)
     from vllm import LLM, SamplingParams, __version__ as vllm_version
     from vllm.inputs import TokensPrompt
 
@@ -41,17 +50,20 @@ def main() -> None:
                 temperature=0.0, max_tokens=count, ignore_eos=True,
                 detokenize=False,
             )
-            for run in range(4):
+            for run in range(args.warmup + args.repeats):
                 for attempt in range(3):
-                    if not _wait_for_exclusive_gpu(
+                    if policy.options.get("guard", True) and not _wait_for_exclusive_gpu(
                             guard_path, f"N{count}-run{run}-before"):
                         raise RuntimeError("GPU remained occupied for 30 minutes")
+                    if not policy.observe(guard_path, f"N{count}-run{run}-attempt{attempt}-before"):
+                        continue
                     start = time.perf_counter()
                     result = llm.generate(prompts, sampling, use_tqdm=False)
                     elapsed = time.perf_counter() - start
-                    exclusive = _wait_for_exclusive_gpu(
+                    exclusive = not policy.options.get("guard", True) or _wait_for_exclusive_gpu(
                         guard_path, f"N{count}-run{run}-after", fail_fast=True)
-                    if exclusive:
+                    power_ok = policy.observe(guard_path, f"N{count}-run{run}-attempt{attempt}-after")
+                    if exclusive and power_ok:
                         break
                 else:
                     raise RuntimeError("GPU was contaminated in all three attempts")
@@ -61,7 +73,7 @@ def main() -> None:
                 if len(tokens) != batch or any(len(row) != count for row in tokens):
                     raise AssertionError("vLLM did not generate the requested tokens")
                 token_file = f"tokens_N{count}_run{run}.json"
-                row = {"N": count, "run": run, "warmup": run == 0,
+                row = {"N": count, "run": run, "warmup": run < args.warmup,
                        "wall_seconds": elapsed, "tokens_file": token_file}
                 rows.append(row)
                 (out / token_file).write_text(
@@ -76,6 +88,7 @@ def main() -> None:
             "tpot_seconds": (e2e - ttft) / (args.max_tokens - 1),
             "output_tokens_per_second": batch * args.max_tokens / e2e,
             "generation_runs": rows,
+            "measurement_policy": policy.options,
         }
         (out / "measurements.json").write_text(json.dumps(summary, indent=2) + "\n")
         print(json.dumps({k: v for k, v in summary.items() if k != "generation_runs"}))
@@ -85,13 +98,13 @@ def _wait_for_exclusive_gpu(path: Path, label: str, fail_fast: bool = False) -> 
     deadline = time.monotonic() if fail_fast else time.monotonic() + 30 * 60
     while True:
         output = subprocess.check_output(
-            ["nvidia-smi", "--query-compute-apps=pid,process_name,used_memory",
+            ["nvidia-smi", "-i", os.environ.get("TILEMEGA_DEVICE_INDEX", "0"), "--query-compute-apps=pid,process_name,used_memory",
              "--format=csv,noheader,nounits"], text=True)
         rows = [line.split(",") for line in output.splitlines() if line.strip()]
         pids = {int(row[0].strip()) for row in rows}
         visible_mib = sum(int(row[-1].strip()) for row in rows)
         used_mib = int(subprocess.check_output(
-            ["nvidia-smi", "--query-gpu=memory.used",
+            ["nvidia-smi", "-i", os.environ.get("TILEMEGA_DEVICE_INDEX", "0"), "--query-gpu=memory.used",
              "--format=csv,noheader,nounits"], text=True).splitlines()[0].strip())
         hidden_mib = max(0, used_mib - visible_mib)
         # vLLM runs its GPU engine in a child process; that process is part of

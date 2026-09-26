@@ -16,15 +16,18 @@ def child(case, output):
     from tilemega.serving.engine import ServingEngine
     from tilemega.serving.measure import _exclusive
     output.mkdir(parents=True, exist_ok=True)
-    torch.cuda.set_device(0)
-    torch.cuda.init()
-    context_probe = torch.empty(1,device="cuda")
     prompts = torch.tensor(json.loads(Path(case['prompt_ids']).read_text())[:case['batch']], dtype=torch.int32)
     common = dict(model_dir=case['model'], batch=case['batch'])
     records = []
     reference = None
     with open(os.environ.get('TILEMEGA_GPU_LOCK', '/root/r10_work/serving_gpu.lock'), 'a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
+        torch.cuda.set_device(0)
+        torch.cuda.init()
+        context_probe = torch.empty(1,device="cuda")
+        for name, expected in case.get('binary_sha256', {}).items():
+            if hashlib.sha256(Path(case[name]).read_bytes()).hexdigest() != expected:
+                raise RuntimeError('protocol binary changed: ' + name)
         if not _exclusive(output/'guard.jsonl', 'before', True):
             raise RuntimeError('GPU guard rejected protocol check')
         for label, prefill, decode, modes in [
@@ -59,6 +62,7 @@ def main():
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--processes',type=int,default=50)
     parser.add_argument('--child',type=int)
+    parser.add_argument('--resume',action='store_true')
     a=parser.parse_args();cases=json.loads(a.cases.read_text())
     if a.child is not None:
         return child(cases[a.child],a.out)
@@ -67,6 +71,14 @@ def main():
     for index,case in enumerate(cases):
         for run in range(a.processes):
             output=a.out/f"{index}_{run:03d}";output.mkdir(exist_ok=True)
+            result_file=output/'result.json'
+            if a.resume and result_file.exists():
+                prior=json.loads(result_file.read_text())
+                if prior.get('passed') and prior.get('case')==case:
+                    rows.append(dict(case=index,run=run,exit_code=0,
+                                     seconds=0,resumed=True,pid=prior['pid']))
+                    (a.out/'processes.json').write_text(json.dumps(rows,indent=2)+'\n')
+                    continue
             command=[sys.executable,__file__,'--cases',str(a.cases.resolve()),'--child',str(index),'--out',str(output)]
             started=time.monotonic()
             with (output/'run.log').open('w') as log:
@@ -74,7 +86,8 @@ def main():
                     status=subprocess.run(command,stdout=log,stderr=subprocess.STDOUT,timeout=600).returncode
                 except subprocess.TimeoutExpired:
                     status=124
-            rows.append(dict(case=index,run=run,exit_code=status,seconds=time.monotonic()-started))
+            rows.append(dict(case=index,run=run,exit_code=status,seconds=time.monotonic()-started,
+                             resumed=False))
             (a.out/'processes.json').write_text(json.dumps(rows,indent=2)+'\n')
             if status:
                 return status

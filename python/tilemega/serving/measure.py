@@ -12,17 +12,18 @@ import time
 import torch
 
 from .engine import ServingEngine
+from .measurement_policy import TimingPolicy
 
 
 def _gpu_owners() -> tuple[set[int], int, int]:
     output = subprocess.check_output(
-        ["nvidia-smi", "--query-compute-apps=pid,process_name,used_memory",
+        ["nvidia-smi", "-i", os.environ.get("TILEMEGA_DEVICE_INDEX", "0"), "--query-compute-apps=pid,process_name,used_memory",
          "--format=csv,noheader,nounits"], text=True)
     rows = [line.split(",") for line in output.splitlines() if line.strip()]
     pids = {int(row[0].strip()) for row in rows}
     visible_mib = sum(int(row[-1].strip()) for row in rows)
     used_mib = int(subprocess.check_output(
-        ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+        ["nvidia-smi", "-i", os.environ.get("TILEMEGA_DEVICE_INDEX", "0"), "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
         text=True).splitlines()[0].strip())
     return pids, visible_mib, used_mib
 
@@ -50,29 +51,33 @@ def _exclusive(path: Path, label: str, wait: bool) -> bool:
 
 def _clocks() -> str:
     return subprocess.check_output(
-        ["nvidia-smi", "--query-gpu=clocks.sm,clocks.mem,temperature.gpu,power.draw",
+        ["nvidia-smi", "-i", os.environ.get("TILEMEGA_DEVICE_INDEX", "0"), "--query-gpu=clocks.sm,clocks.mem,temperature.gpu,power.draw",
          "--format=csv,noheader,nounits"], text=True).strip()
 
 
 def measure(engine: ServingEngine, prompts: torch.Tensor,
-            out: Path) -> dict:
+            out: Path, *, warmup: int = 1, repeats: int = 3, policy_path=None) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     guard = out / "guard.jsonl"
     rows: list[dict] = []
+    policy = TimingPolicy(policy_path)
     for count in (engine.max_new_tokens, 1):
-        for run in range(4):
+        for run in range(warmup + repeats):
             for attempt in range(3):
-                if not _exclusive(guard, f"N{count}-run{run}-before", True):
+                if policy.options.get("guard", True) and not _exclusive(guard, f"N{count}-run{run}-before", True):
                     raise RuntimeError("GPU remained occupied for 30 minutes")
+                if not policy.observe(guard, f"N{count}-run{run}-attempt{attempt}-before"):
+                    continue
                 clocks_before = _clocks()
                 result = engine.generate(prompts, count)
                 clocks_after = _clocks()
-                if _exclusive(guard, f"N{count}-run{run}-after", False):
+                power_ok = policy.observe(guard, f"N{count}-run{run}-attempt{attempt}-after")
+                if (not policy.options.get("guard", True) or _exclusive(guard, f"N{count}-run{run}-after", False)) and power_ok:
                     break
             else:
                 raise RuntimeError("GPU was contaminated on all three attempts")
             tokens = result.tokens.tolist()
-            row = {"N": count, "run": run, "warmup": run == 0,
+            row = {"N": count, "run": run, "warmup": run < warmup,
                    "e2e_seconds": result.e2e_ms / 1e3,
                    "gpu_step_ms": result.step_ms,
                    "clocks_before": clocks_before, "clocks_after": clocks_after,
@@ -86,7 +91,20 @@ def measure(engine: ServingEngine, prompts: torch.Tensor,
     first = timed(1)
     e2e = statistics.median(full)
     ttft = statistics.median(first)
-    summary = {"batch": engine.batch, "max_tokens": engine.max_new_tokens,
+    timed_rows = [r for r in rows if r['N'] == engine.max_new_tokens and not r['warmup']]
+    same_tokens = all(r['tokens'] == timed_rows[0]['tokens'] for r in timed_rows)
+    if not same_tokens:
+        raise AssertionError('C-2: timed generations produced different tokens')
+    decode = sorted(ms / 1000 for r in timed_rows for ms in r['gpu_step_ms'][1:])
+    def quantile(q):
+        if not decode: return 0.0
+        at = q * (len(decode) - 1); low = int(at); high = min(low + 1, len(decode) - 1)
+        return decode[low] + (decode[high] - decode[low]) * (at - low)
+    summary = {"timed_tokens_identical": same_tokens,
+               "tpot_mean_seconds": statistics.mean(decode) if decode else 0.0,
+               "tpot_p50_seconds": quantile(.5), "tpot_p90_seconds": quantile(.9),
+               "measurement_policy": policy.options,
+               "batch": engine.batch, "max_tokens": engine.max_new_tokens,
                "e2e_seconds": e2e, "ttft_seconds": ttft,
                "tpot_seconds": (e2e - ttft) / (engine.max_new_tokens - 1),
                "output_tokens_per_second": engine.batch * engine.max_new_tokens / e2e,
@@ -111,6 +129,9 @@ def main() -> None:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--mode", choices=("auto", "L1", "L2"), default="auto")
     parser.add_argument("--max-new-tokens", type=int, default=1024)
+    parser.add_argument("--warmup", type=int, default=1)
+    parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument("--policy", type=Path)
     args = parser.parse_args()
     ids = json.loads(args.prompt_ids.read_text())
     if len(ids) != 16 or any(len(row) != 64 for row in ids):
@@ -119,7 +140,7 @@ def main() -> None:
     with ServingEngine(args.model, args.prefill_so, args.decode_so,
                        args.batch, max_new_tokens=args.max_new_tokens,
                        mode=args.mode) as engine:
-        result = measure(engine, prompts, args.out)
+        result = measure(engine, prompts, args.out, warmup=args.warmup, repeats=args.repeats, policy_path=args.policy)
     print(json.dumps({key: value for key, value in result.items()
                       if key != "runs"}))
 
