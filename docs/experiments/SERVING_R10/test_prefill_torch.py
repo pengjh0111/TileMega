@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import subprocess
@@ -12,9 +13,13 @@ import torch
 
 
 ROOT = Path(__file__).resolve().parents[3]
-OUT = ROOT / "docs/experiments/SERVING_R10/task_body_tests/prefill_attention"
+parser = argparse.ArgumentParser()
+parser.add_argument("--out", type=Path, default=ROOT / "docs/experiments/SERVING_R10/task_body_tests/prefill_attention")
+parser.add_argument("--binary", type=Path, default=ROOT / "build-portable/serving_prefill_attention_test")
+args = parser.parse_args()
+OUT = args.out
 OUT.mkdir(parents=True, exist_ok=True)
-binary = ROOT / "build-portable/serving_prefill_attention_test"
+binary = args.binary
 run = subprocess.run([str(binary), "--dump-dir", str(OUT)], capture_output=True,
                      text=True)
 (OUT / "cuda_stdout.txt").write_text(run.stdout)

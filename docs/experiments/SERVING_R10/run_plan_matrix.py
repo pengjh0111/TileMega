@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+from source_fingerprint import source_fingerprint
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -24,6 +25,7 @@ ARTIFACTS = (
 
 
 def main() -> int:
+    global WORK, EVIDENCE
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--models", nargs="+", choices=("llama", "qwen3"),
                         default=["llama", "qwen3"])
@@ -32,7 +34,12 @@ def main() -> int:
     parser.add_argument("--batches", nargs="+", type=int,
                         default=[1, 2, 4, 8, 16])
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--work",type=Path,default=WORK)
+    parser.add_argument("--evidence",type=Path,default=EVIDENCE)
+    parser.add_argument("--compiler",type=Path,default=ROOT / "build-portable/tools/tilemega-compile")
     args = parser.parse_args()
+    WORK,EVIDENCE=args.work,args.evidence
+    fingerprint=source_fingerprint()
     EVIDENCE.mkdir(parents=True, exist_ok=True)
     WORK.mkdir(parents=True, exist_ok=True)
     failed = False
@@ -45,9 +52,13 @@ def main() -> int:
                 evidence = EVIDENCE / cell
                 library = work / "plan.so"
                 manifest = Path(str(library) + ".plan.json")
+                stamp=Path(str(library)+".source.json")
                 if library.exists() and manifest.exists():
+                    if not stamp.exists() or json.loads(stamp.read_text()).get("source_sha256")!=fingerprint:
+                        raise RuntimeError(f"{cell}: existing binary belongs to unverified/older sources; use a new --work and --evidence directory")
                     print(f"{cell}: reuse completed plan", flush=True)
                     evidence.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(stamp, evidence / stamp.name)
                     for suffix in ARTIFACTS + (".recovery.json",):
                         path = Path(str(library) + suffix)
                         if path.exists():
@@ -93,7 +104,7 @@ def main() -> int:
                 evidence.mkdir(parents=True, exist_ok=True)
                 bridge = Path(f"/root/r10_work/export/{model}_{phase}/bridge.json")
                 command = [
-                    str(ROOT / "build-portable/tools/tilemega-compile"),
+                    str(args.compiler),
                     str(bridge), str(library), "--serving", phase,
                     "--batch", str(batch), "--past-range",
                     "64:1086" if phase == "decode" else "0:0",
@@ -121,9 +132,12 @@ def main() -> int:
                     process = subprocess.run(command, cwd=ROOT,
                                              stdout=stdout, stderr=stderr)
                 seconds = time.perf_counter() - start
+                if source_fingerprint()!=fingerprint:
+                    raise RuntimeError("sources changed during plan construction; retain artifacts but do not accept this run")
                 result = {"cell": cell, "command": command,
                           "seconds": seconds, "returncode": process.returncode,
-                          "library": str(library), "manifest": str(manifest)}
+                          "library": str(library), "manifest": str(manifest),
+                          "source_sha256": fingerprint}
                 (evidence / "result.json").write_text(
                     json.dumps(result, indent=2) + "\n")
                 for name in ("stdout.txt", "stderr.txt"):
@@ -137,6 +151,8 @@ def main() -> int:
                           flush=True)
                     failed = True
                     break
+                stamp.write_text(json.dumps({"source_sha256":fingerprint},indent=2)+"\n")
+                shutil.copyfile(stamp,evidence / stamp.name)
                 with (evidence / "fp64_audit.stdout").open("w") as stream:
                     check = subprocess.run(["python3", str(HERE / "audit_sass.py"),
                         str(library), "--out", str(evidence / "fp64_audit.json")],

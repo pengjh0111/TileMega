@@ -7,6 +7,7 @@ import json
 import re
 import subprocess
 from pathlib import Path
+from source_fingerprint import source_fingerprint
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -79,7 +80,7 @@ def main() -> int:
     outcomes: list[bool] = []
     gemm = "include/tilemega/Backend/ServingGemm.h"
     legal = "include/tilemega/Solver/BackendCostQuery.h"
-    attention = "include/tilemega/Backend/ServingAttentionMma.h"
+    attention = "include/tilemega/Backend/ServingAttentionWarp.h"
     body = "include/tilemega/Codegen/tasks/FusedAttentionTaskBody.h"
     runtime = "include/tilemega/Codegen/tasks/ServingRuntime.cuh"
     engine = "python/tilemega/serving/engine.py"
@@ -125,6 +126,12 @@ def main() -> int:
         required(attention, r"SM75_U32x4_LDSM_N"),required(attention, r"SM75_U16x8_LDSM_T"),
         required(body, r"cp\.async|CpAsync|cp_async"),
         required("include/tilemega/Codegen/tasks/AttentionMergeTaskBody.h", r"exp2"),
+        required("include/tilemega/Codegen/tasks/AttentionMergeTaskBody.h", r"reinterpret_cast<float4 const"),
+        required(body, r"Element key\[2\]"),
+        required(body, r"Element value\[2\]"),
+        required(body, r"PV::PV\(score,score_coords"),
+        forbidden(body, r"Element probability\[|float score\["),
+        required("lib/Codegen/Codegen.cpp", r"ServingAttentionKvTile"),
         (not bad_math,bad_math[0] if bad_math else "serving TaskBody headers: no trig or double")]))
 
     launch = source(runtime).split('extern "C" int tm_plan_launch', 1)
@@ -167,6 +174,7 @@ def main() -> int:
         required(search, r"PruneServingAttentionSmemR1\("),
         required(search, r"ATTENTION_COORDINATE"),
         required(search, r"incremental_prepare"),
+        required(search, r"serving_structures.find"),
         required(search, r"EvaluateFlow\(low\.flow->flow\)"),
         required(search, r"4\*point\.candidate\.score")]))
 
@@ -185,10 +193,16 @@ def main() -> int:
     for path in audits:
         data = json.loads(path.read_text())
         audit_counts.append((path, data.get("fp64_total")))
+    fingerprint = source_fingerprint()
+    current_audits = []
+    for path, count in audit_counts:
+        stamp = path.parent / "plan.so.source.json"
+        if stamp.exists() and json.loads(stamp.read_text()).get("source_sha256") == fingerprint:
+            current_audits.append((path, count))
     outcomes.append(show(12, [
         forbidden("docs/experiments/SERVING_R10/seed_split_price/command.txt", r"MIDPOINT_REFINE=1"),
-        (len(audit_counts) >= 20 and all(n == 0 for _, n in audit_counts),
-         f"{len(audit_counts)}/20 solved-plan SASS audits, counts={audit_counts[:2]}")]))
+        (len(current_audits) >= 20 and all(n == 0 for _, n in current_audits),
+         f"{len(current_audits)}/20 current-source SASS audits; {len(audit_counts)} historical audits, source={fingerprint}")]))
     outcomes.append(show(13, [required("include/tilemega/Codegen/tasks/ModelRuntime.h", r"eft_past_lo"),
         required("include/tilemega/Codegen/tasks/ModelRuntime.h", r"eft_past_hi"),
         required(runtime, r"RuntimeDependencyBounds\(")]))

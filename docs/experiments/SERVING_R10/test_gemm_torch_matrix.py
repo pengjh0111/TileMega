@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import fcntl
 import json
 from pathlib import Path
@@ -63,12 +64,18 @@ def expected_values(acc: torch.Tensor, operation: str,
 
 
 def main() -> int:
+    global OUT, WORK, BINARY
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--out", type=Path, default=OUT)
+    parser.add_argument("--work", type=Path, default=WORK)
+    parser.add_argument("--binary", type=Path, default=BINARY)
+    args = parser.parse_args()
+    OUT, WORK, BINARY = args.out, args.work, args.binary
     OUT.mkdir(parents=True, exist_ok=True)
     WORK.mkdir(parents=True, exist_ok=True)
     if not BINARY.exists():
         raise RuntimeError(f"compile test/unit/serving_gemm_matrix_test.cu first: {BINARY}")
     torch.backends.cuda.matmul.allow_tf32 = False
-    torch.cuda.set_device(0)
     # Candidate measurements use this lock; the full matrix must never
     # contaminate top-three timing or mix with another benchmark process.
     lock = Path("/root/r10_work/serving_gpu.lock")
@@ -77,6 +84,7 @@ def main() -> int:
     started = time.perf_counter()
     with lock.open("w") as handle, (OUT / "cases.jsonl").open("w") as log:
         fcntl.flock(handle, fcntl.LOCK_EX)
+        torch.cuda.set_device(0)
         for rows in ROWS:
             for columns, reduction in SHAPES:
                 a_rows = torch.arange(rows, device="cuda")[:, None]

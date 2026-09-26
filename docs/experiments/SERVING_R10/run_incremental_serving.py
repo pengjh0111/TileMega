@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import shutil
@@ -29,6 +30,13 @@ def evaluations(path: Path) -> list[tuple[str, float, str]]:
 
 
 def main() -> int:
+    global OUT, WORK
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--compiler",type=Path,default=ROOT / "build-portable/tools/tilemega-compile")
+    parser.add_argument("--out",type=Path,default=OUT)
+    parser.add_argument("--work",type=Path,default=WORK)
+    args=parser.parse_args()
+    OUT,WORK=args.out,args.work
     OUT.mkdir(parents=True, exist_ok=True)
     WORK.mkdir(parents=True, exist_ok=True)
     report = {}
@@ -41,7 +49,7 @@ def main() -> int:
         for enabled, arm in ((0, "full"), (1, "reuse")):
             prefix = WORK / f"{model}_{arm}.cu"
             command = [
-                str(ROOT / "build-portable/tools/tilemega-compile"),
+                str(args.compiler),
                 f"/root/r10_work/export/{model}_decode/bridge.json",
                 str(prefix), "--serving", "decode", "--batch", str(batch),
                 "--past-range", "64:1086", "--capacity", "1088",
