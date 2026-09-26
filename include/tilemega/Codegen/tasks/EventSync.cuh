@@ -77,7 +77,11 @@ struct WaitBackoff {
 /// expands to once the switch is on.
 __device__ inline void GradedWait(unsigned long long* event,
                                   unsigned long long need) {
+#if TILEMEGA_WAIT_POLICY
   WaitBackoff backoff;
   while (EventPoll(event) < need) backoff.Pause();
+#else
+  while (EventPoll(event) < need) __nanosleep(64);
+#endif
 }
 }  // namespace tilemega::codegen

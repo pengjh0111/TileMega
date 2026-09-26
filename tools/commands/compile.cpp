@@ -65,7 +65,8 @@ std::string modelFingerprint(std::string const& path) {
 
 int queryResidency(mlir::ModuleOp module,int kappa,
     tilemega::solver::CompilerSearchOptions const& options,
-    std::filesystem::path const& directory,std::filesystem::path const& library) {
+    std::filesystem::path const& directory,std::filesystem::path const& library,
+    std::string const& runtime_flags) {
   std::filesystem::create_directories(directory);
   auto const free_mib=std::filesystem::space(directory).available/(1024*1024);
   std::cerr << "DISK NEED_MIB=8192 FREE_MIB=" << free_mib << '\n';
@@ -93,7 +94,7 @@ int queryResidency(mlir::ModuleOp module,int kappa,
   std::string root=TILEMEGA_SOURCE_DIR;
   std::string nvcc=tilemega::commands::NvccPath();
   std::string command=quote(nvcc)+" -std=c++17 -O2 -lineinfo -Xptxas=-v -DTILEMEGA_MIDPOINT_REFINE=0 -arch="+
-      quote(options.placement.target.NvccArch());
+      quote(options.placement.target.NvccArch())+runtime_flags;
   for (char const* sub:{"include","third_party/cutlass/include","third_party/cutlass/tools/util/include","third_party/cutlass/test"})
     command+=" -I"+quote(root+"/"+sub);
   command+=" "+quote(probe.string())+" "+quote(library.string())+
@@ -232,6 +233,8 @@ int RunCompile(int argc, char** argv) {
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,artifact_cache;
+    std::string sync_policy="calibrated",runtime_target,runtime_flags;
+    bool event_solo=false,event_red=false,barrier_v2=false;
     if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
     int serving_capacity=1088,serving_batch=1,serving_past_lo=64,
         serving_past_hi=1086,serving_kv_block=256,
@@ -265,6 +268,11 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--emit") emit_mode=value;
       else if (flag=="--measure-cmd") measure_command=value;
       else if (flag=="--serving-warm-start") serving_warm_start=value;
+      else if (flag=="--sync") sync_policy=value;
+      else if (flag=="--runtime-target") runtime_target=value;
+      else if (flag=="--event-solo") event_solo=std::stoi(value)!=0;
+      else if (flag=="--event-red-publish") event_red=std::stoi(value)!=0;
+      else if (flag=="--barrier-v2") barrier_v2=std::stoi(value)!=0;
       else if (flag=="--artifact-cache") artifact_cache=value;
       else if (flag=="--capacity") serving_capacity=std::stoi(value);
       else if (flag=="--batch") serving_batch=std::stoi(value);
@@ -335,6 +343,24 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("serving solve requires --measure-cmd for the top-3 decision");
     if (!solve_target.empty() && has_variants)
       throw std::runtime_error("--solve chooses variants; cannot combine with --variants");
+    if(sync_policy!="legacy" && sync_policy!="calibrated")
+      throw std::runtime_error("--sync must be calibrated or legacy");
+    if(serving) {
+      if(runtime_target.empty())runtime_target=solve_target;
+      if(runtime_target.empty())runtime_target=std::string(TILEMEGA_SOURCE_DIR)+
+          "/configs/targets/"+tilemega::TargetSpec::Probe().arch_tag+".json";
+      auto target=tilemega::TargetSpec::FromJson(runtime_target);
+      if(sync_policy=="calibrated") {
+        auto const& c=target.CalibrationFor("bf16");
+        runtime_flags=" -DTILEMEGA_WAIT_POLICY=1 -DTILEMEGA_WAIT_SPIN_ITERS="+std::to_string(c.wait_spin_iters)+
+            " -DTILEMEGA_WAIT_BACKOFF_NS="+std::to_string(c.wait_backoff_ns)+
+            " -DTILEMEGA_WAIT_BACKOFF_GROW="+std::to_string(c.wait_backoff_grow)+
+            " -DTILEMEGA_WAIT_BACKOFF_CAP_NS="+std::to_string(c.wait_backoff_cap_ns);
+      }
+      runtime_flags+=" -DTILEMEGA_EVENT_SOLO="+std::to_string(event_solo)+
+          " -DTILEMEGA_EVENT_RED_PUBLISH="+std::to_string(event_red)+
+          " -DTILEMEGA_BARRIER_V2="+std::to_string(barrier_v2);
+    }
     std::string source,selected_serving_mode,selected_serving_binary;
     if(serving && solve_target.empty()) {
       if(has_variants)throw std::runtime_error("serving needs one exported model or solved CG");
@@ -427,8 +453,17 @@ int RunCompile(int argc, char** argv) {
       int probe_index=0;
       solve_options.keep_evaluated=dump_evaluated;
       if (resource_probes) solve_options.query_residency=[&](mlir::ModuleOp m,int kappa) {
-        return queryResidency(m,kappa,solve_options,resource_root/std::to_string(probe_index++),library);
+        return queryResidency(m,kappa,solve_options,resource_root/std::to_string(probe_index++),library,runtime_flags);
       };
+      if(serving) {
+        auto const& coefficients=sync_policy=="calibrated"
+            ? solve_options.placement.target.serving_hop_coefficients
+            : solve_options.placement.target.serving_legacy_hop_coefficients;
+        if(coefficients.size()==3)
+          solve_options.placement.hop={coefficients[0],coefficients[1],coefficients[2]};
+        else if(sync_policy=="calibrated" || hop_path.empty())
+          throw std::runtime_error("serving search requires the selected sync policy's hop calibration");
+      }
       solve_options.timing=&solver_timing;
       tilemega::solver::CompilerSearchResult solved;
       if(solver_mode=="legacy")solved=tilemega::solver::SolveExport(input.string(),context,solve_options,&summary,evidence);
@@ -645,6 +680,9 @@ int RunCompile(int argc, char** argv) {
               " --past-range "+quote(std::to_string(serving_past_lo)+":"+
                                     std::to_string(serving_past_hi))+
               " --capacity "+std::to_string(serving_capacity)+
+              " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
+              " --event-solo "+std::to_string(event_solo)+" --event-red-publish "+std::to_string(event_red)+
+              " --barrier-v2 "+std::to_string(barrier_v2)+
               (artifact_cache.empty()?"":" --artifact-cache "+quote(artifact_cache));
           if(std::system((compile+" >"+quote(stem+".build.stdout")+
               " 2>"+quote(stem+".build.stderr")).c_str()))
@@ -895,7 +933,7 @@ int RunCompile(int argc, char** argv) {
       std::string arch = tilemega::TargetSpec::Probe().NvccArch();
       std::string command = quote(nvcc) +
           " -std=c++17 -O3 -DTILEMEGA_MIDPOINT_REFINE=0 -arch="+
-          quote(arch)+" --expt-relaxed-constexpr -shared -Xcompiler=-fPIC -cudart shared -Xptxas=-v -x cu" +
+          quote(arch)+runtime_flags+" --expt-relaxed-constexpr -shared -Xcompiler=-fPIC -cudart shared -Xptxas=-v -x cu" +
           " -I" + quote(root + "/include") +
           " -I" + quote(root + "/third_party/cutlass/include") +
           " -I" + quote(root + "/third_party/cutlass/tools/util/include") +
@@ -962,6 +1000,11 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"past_hi\": "<<serving_past_hi
               <<",\n  \"seq\": "<<(serving_phase=="decode"?1:64)
               <<",\n  \"capacity\": "<<serving_capacity
+              <<",\n  \"sync\": "<<std::quoted(sync_policy)
+              <<",\n  \"runtime_target\": "<<std::quoted(runtime_target)
+              <<",\n  \"event_solo\": "<<(event_solo?"true":"false")
+              <<",\n  \"event_red_publish\": "<<(event_red?"true":"false")
+              <<",\n  \"barrier_v2\": "<<(barrier_v2?"true":"false")
               <<",\n  \"mode\": "<<std::quoted(selected_serving_mode.empty()?"unmeasured":selected_serving_mode)
               <<",\n  \"grid\": "<<integer("tmexec.solved_grid",0)
               <<",\n  \"residency\": "<<integer("tmexec.solved_residency",0)

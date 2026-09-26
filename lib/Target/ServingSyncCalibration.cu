@@ -182,7 +182,7 @@ void MeasureServingWaitPolicy(TargetSpec& target,Options const&,std::ostream& ra
   target.calib_bf16.wait_backoff_grow=1;target.calib_bf16.wait_backoff_cap_ns=backoff;
 }
 void MeasureServingHop(TargetSpec& target,Options const&,std::ostream& raw) {
-  auto points=SelectedSweep(target,raw,true);
+  auto fit=[](auto const& points) {
   double a[3][4]{};
   for(auto const& point:points) {
     double x[]={1,std::log2(1+point.consumers/point.rows),std::log2(point.rows)};
@@ -195,7 +195,10 @@ void MeasureServingHop(TargetSpec& target,Options const&,std::ostream& raw) {
     double d=a[i][i];for(int j=i;j<4;++j)a[i][j]/=d;
     for(int k=0;k<3;++k)if(k!=i){double f=a[k][i];for(int j=i;j<4;++j)a[k][j]-=f*a[i][j];}
   }
-  target.serving_hop_coefficients={a[0][3],a[1][3],a[2][3]};
+  return std::vector<double>{a[0][3],a[1][3],a[2][3]};
+  };
+  target.serving_hop_coefficients=fit(SelectedSweep(target,raw,true));
+  target.serving_legacy_hop_coefficients=fit(Sweep<0,64>(target,raw,true));
 }
 void MeasureServingEvents(TargetSpec& target,Options const& options,std::ostream& raw) {
   int const rounds=4096;auto* event=Allocate<unsigned long long>(2);
