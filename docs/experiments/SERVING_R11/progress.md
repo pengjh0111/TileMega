@@ -167,3 +167,14 @@ reported L1 spill loads from 332 to 32 bytes/thread, but was slower than the
 unchanged binary in both candidate timing orders. The production TaskBody
 remains unchanged; see F-315 and `noinline_attention/`. This rules out a
 simple out-of-line change as the PG-1 repair.
+
+The shared-cache full-domain Qwen3 decode B16 CPU search has now completed:
+355 valid evaluations, unchanged best key/score (6.7554 ms Level 1), and
+approximately 494 s versus 688 s before the cache fix. Pricing/release
+fell from 418 to 266 s. Top-M, final nvcc builds and GPU selection were
+excluded, so the 600 s **plan** budget is still unverified. A sampled stack
+during a slow attention structure transition reached ISL cardinality from
+`DeriveModelDramFloor`, but a one-case phase probe measured floor counting at
+only 1.07 s versus 31.73 s in pricing/release and 12.30 s in relation
+preparation. Floor counting now has a separate `dram_floor` timing phase.
+See F-317 and `solver/shared_cache_full_qwen_B16/`.

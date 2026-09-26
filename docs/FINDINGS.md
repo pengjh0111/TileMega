@@ -8470,3 +8470,21 @@ process was stopped after seven completed evaluations, so only the shared
 run's 90.79 s is a precisely recorded time. This validates the local cache
 change, not the complete ≤600 s plan budget. Commands, cases, scores and
 timing are in `SERVING_R11/solver/shared_structure_cache/`.
+
+## F-317: Shared structure caches shorten Qwen3's full-domain CPU search, but the plan budget remains open
+
+✅ verified on the same 355 legal Qwen3 decode B16 PG-1 configurations:
+the shared-cache search returned the **identical** best key and Level 1
+score (6.755434910 ms) in about 494 s, versus about 688 s before the cache
+change. Logged `piece_pricing_and_release` time fell from 418 s to 266 s.
+The ~194 s search saving still leaves only ~106 s of the 600 s plan budget
+for top-M materialization, three final megakernel builds and GPU selection;
+those steps were not run here. A sampled CPU stack during a slow structural
+transition happened to be in `DeriveModelDramFloor` via ISL cardinality.
+Separate instrumentation on one Qwen3 B16 configuration measured this phase
+at 1.07 s over two structure derivations, versus 31.73 s for six
+pricing/release calls and 12.30 s for two relation preparations; the sampled
+stack was **not** evidence that floor counting dominates. `SkeletonSearch.cpp::Prepare`
+now records `dram_floor` explicitly. Raw search,
+phase data, command and fingerprint are in
+`SERVING_R11/solver/shared_cache_full_qwen_B16/`.

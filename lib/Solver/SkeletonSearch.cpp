@@ -201,7 +201,11 @@ struct SearchContext {
       point.module=importer.InstantiateForGranularity(imported,context,granularity,&cache,nullptr,timing);
       {SolverPhase phase(timing,"prepare_relations");point.problem=PrepareSymbolicProblem(*point.module,target,options.common.placement.dims,target.res.num_sms*residency,residency,kappa,nullptr,false);}
       if(!base)base=point.problem;
-      if(!floor){floor=DeriveModelDramFloor(*point.module,point.problem.model,target,options.fixture);floor_attribute=(*point.module)->getAttr("tmexec.dram_floor");}
+      if(!floor){
+        SolverPhase floor_phase(timing,"dram_floor");
+        floor=DeriveModelDramFloor(*point.module,point.problem.model,target,options.fixture);
+        floor_attribute=(*point.module)->getAttr("tmexec.dram_floor");
+      }
       else (*point.module)->setAttr("tmexec.dram_floor",floor_attribute);
     } else {
       std::vector<GemmConfig> geometry;for(auto const& g:granularity.gemms)geometry.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
