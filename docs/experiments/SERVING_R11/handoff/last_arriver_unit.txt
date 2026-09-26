@@ -1,0 +1,1 @@
+last-arriver development check: 144 exact standalone-reduction comparisons; tickets reset; one reducer per output
