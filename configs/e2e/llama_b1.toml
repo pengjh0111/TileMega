@@ -23,7 +23,7 @@ time_budget_s = 600
 
 [features]
 pg = "auto"
-handoff = "auto"
+handoff = "off"
 sync = "calibrated"
 arch_paths = "auto"
 pdl = "auto"

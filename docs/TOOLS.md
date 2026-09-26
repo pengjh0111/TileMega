@@ -47,9 +47,9 @@ newer and equivalent JSON on Python 3.10. The full parameter surface is in
 in `exports/`, solved plans in `plans/`, and compiled libraries in
 `artifacts/`. Keys include source and calibration fingerprints, options, and
 compiler dependencies. During R11 integration, handoff and tiled weight
-lowering are unfinished; the driver rejects those modes explicitly. Set
-`features.handoff="off"` and `features.weight_layout="row"` for current
-executor diagnostics.
+lowering are unfinished; the driver rejects those modes explicitly. Both
+checked-in examples set `features.handoff="off"` and
+`features.weight_layout="row"` for current executor diagnostics.
 
 On a new accelerator, `PYTHONPATH=python python -m tilemega doctor --hwcheck`
 builds and runs the native page tests, calibrates and builds a Llama B=1 plan,
