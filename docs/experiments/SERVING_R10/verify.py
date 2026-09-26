@@ -43,6 +43,38 @@ def forbidden(path: str, expression: str) -> tuple[bool, str]:
     return found is None, found or f"{path}: no /{expression}/"
 
 
+def attention_dump_affine(path: Path) -> tuple[bool, str]:
+    checked = 0
+    for number, line in enumerate(path.read_text().splitlines(), 1):
+        if 'kind = #tmcg.task_kind<"fused_attention">' not in line:
+            continue
+        try:
+            encoded = line.split('semantic = "', 1)[1].split('", stage =', 1)[0]
+            semantic = json.loads(encoded.replace('\\22', '"')
+                                  .replace('\\0A', '\n').replace('\\5C', '\\'))
+        except (IndexError, ValueError) as error:
+            return False, f"{path.relative_to(ROOT)}:{number}: semantic parse: {error}"
+        for operand in semantic["operands"]:
+            if not operand["tensor"]["name"].startswith("kv_cache."):
+                continue
+            axes = [axis["name"] for axis in operand["tensor"]["axes"]]
+            position = operand["map"][axes.index("pos")]
+            terms = position["terms"]
+            # E_c is a literal coefficient; past may constrain the domain or
+            # enter an affine offset, but cannot multiply a tile coordinate.
+            valid = (position["kind"] == 0 and
+                     all(term["dim"] in {"c", "z"} and
+                         re.fullmatch(r"-?\d+", term["coefficient"]) and
+                         term["group"] == "1" for term in terms) and
+                     any(term["dim"] == "c" for term in terms))
+            if not valid:
+                return False, (f"{path.relative_to(ROOT)}:{number}: "
+                               f"nonaffine KV position {position}")
+            checked += 1
+    return checked > 0, (f"{path.relative_to(ROOT)}: {checked} KV position "
+                          "maps use literal E_c and affine c/z terms")
+
+
 def main() -> int:
     outcomes: list[bool] = []
     gemm = "include/tilemega/Backend/ServingGemm.h"
@@ -120,9 +152,11 @@ def main() -> int:
     dumps = list(EVIDENCE.glob("**/*.mlir"))
     affine = [p for p in dumps if "kFusedAttention" in p.read_text(errors="replace") or
               "attention_kv_block" in p.read_text(errors="replace")]
+    affine_check = attention_dump_affine(affine[0]) if affine else (False, "no attention CG dump")
     outcomes.append(show(7, [required("lib/Frontend/ServingSemanticLifting.cpp", r"const auto Ec = C\(stage\.attention_kv_block\)"),
         (bool(affine), f"{affine[0].relative_to(ROOT)}: serving CG dump present" if affine
-         else "SERVING_R10: no raw serving CG dump for affine relation check")]))
+         else "SERVING_R10: no raw serving CG dump for affine relation check"),
+        affine_check]))
 
     pruning = "include/tilemega/Solver/ServingPruning.h"
     outcomes.append(show(8, [*[required(pruning, rf"PruneServingR{i}") for i in range(1,4)],
