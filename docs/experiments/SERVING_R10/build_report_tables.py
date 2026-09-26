@@ -198,10 +198,35 @@ def hf_table() -> list[dict[str, object]]:
     return result
 
 
+def pruning_table() -> list[dict[str, object]]:
+    result = []
+    for model in ("llama", "qwen3"):
+        for phase in ("prefill", "decode"):
+            for batch in (1, 2, 4, 8, 16):
+                cell = f"{model}_{phase}_B{batch}"
+                directory = HERE / "plans" / cell
+                if not (directory / "plan.so.plan.json").exists():
+                    continue
+                path = directory / "plan.so.search.tsv"
+                for line in path.read_text().splitlines():
+                    fields = line.split("\t")
+                    if len(fields) != 7 or fields[0] != "PRUNING":
+                        continue
+                    result.append({
+                        "cell": cell, "class": int(fields[1]),
+                        "before": int(fields[2]), "r1_rejected": int(fields[3]),
+                        "r2_rejected": int(fields[4]),
+                        "r3_rejected": int(fields[5]), "after": int(fields[6]),
+                        "evidence": str(path.relative_to(HERE)),
+                    })
+    return result
+
+
 def main() -> None:
     plans = plan_table()
     requests = request_table()
     hf = hf_table()
+    pruning = pruning_table()
     plan_columns = ["cell", "status", "solve_seconds", "mode", "measured_mode",
                     "measured_ms", "grid", "residency", "kappa", "ec", "rq",
                     "variant_count", "qkv", "o", "gate_up", "down", "lm_head",
@@ -226,12 +251,16 @@ def main() -> None:
                         "positions", "gap_le_half", "gap_zero", "gap_p99",
                         "gap_p999", "max_gap", "mean_nll",
                         "first_hf_greedy_divergence", "buckets", "evidence"])
+    emit("pruning_domains.tsv", pruning,
+         ["cell", "class", "before", "r1_rejected", "r2_rejected",
+          "r3_rejected", "after", "evidence"])
     complete = [float(row["throughput_ratio"]) for row in requests
                 if row["status"] == "complete"]
     (OUT / "status.json").write_text(json.dumps({
         "plans_complete": sum(row["status"] == "complete" for row in plans),
         "requests_complete": len(complete),
         "hf_checks_complete": sum(row["status"] == "complete" for row in hf),
+        "pruning_classes_reported": len(pruning),
         "throughput_geomean": (math.exp(sum(map(math.log, complete)) / len(complete))
                                if len(complete) == 10 else None),
     }, indent=2) + "\n")

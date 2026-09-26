@@ -2,5 +2,6 @@
   "plans_complete": 9,
   "requests_complete": 0,
   "hf_checks_complete": 0,
+  "pruning_classes_reported": 54,
   "throughput_geomean": null
 }

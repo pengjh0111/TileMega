@@ -1,11 +1,11 @@
-model	batch	status	tilemega_ttft_s	vllm_ttft_s	tilemega_e2e_s	vllm_e2e_s	tilemega_tpot_ms	vllm_tpot_ms	device_step_mean_ms	device_step_p50_ms	device_step_p90_ms	tilemega_tokens_per_s	vllm_tokens_per_s	throughput_ratio	c1_pass	gap_le_half	max_gap	c2_pass	prefill_floor_s	decode_floor_s	request_floor_s	tilemega_e2e_over_floor	vllm_e2e_over_floor	evidence
-llama	1	pending																						
-llama	2	pending																						
-llama	4	pending																						
-llama	8	pending																						
-llama	16	pending																						
-qwen3	1	pending																						
-qwen3	2	pending																						
-qwen3	4	pending																						
-qwen3	8	pending																						
-qwen3	16	pending																						
+model	batch	status	tilemega_ttft_s	vllm_ttft_s	tilemega_e2e_s	vllm_e2e_s	tilemega_tpot_ms	vllm_tpot_ms	device_step_mean_ms	tilemega_tpot_mean_ms	tilemega_tpot_p50_ms	tilemega_tpot_p90_ms	vllm_tpot_mean_ms	vllm_tpot_p50_ms	vllm_tpot_p90_ms	device_step_p50_ms	device_step_p90_ms	tilemega_tokens_per_s	vllm_tokens_per_s	throughput_ratio	c1_pass	gap_le_half	max_gap	c2_pass	prefill_floor_s	decode_floor_s	request_floor_s	tilemega_e2e_over_floor	vllm_e2e_over_floor	evidence
+llama	1	pending																												
+llama	2	pending																												
+llama	4	pending																												
+llama	8	pending																												
+llama	16	pending																												
+qwen3	1	pending																												
+qwen3	2	pending																												
+qwen3	4	pending																												
+qwen3	8	pending																												
+qwen3	16	pending																												
