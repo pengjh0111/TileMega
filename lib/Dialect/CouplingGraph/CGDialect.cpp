@@ -6,6 +6,7 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/OpArithmetic.h>
 #include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Dialect/CouplingGraph/HandoffPass.h>
 #include <tilemega/Dialect/CouplingGraph/CGContract.h>
 #include <tilemega/Dialect/CouplingGraph/PlacementPlan.h>
 
@@ -150,6 +151,7 @@ LogicalResult FusedTileSpaceOp::verify() {
       getPhaseSemantics().size()!=getPhaseStages().size() || getWrites().empty())
     return emitOpError("fusion needs ordered semantics, phase maps and an external write");
   try {
+    if ((*this)->hasAttr("handoff_kind")) VerifyWrittenHandoff(*this);
     std::set<std::string> identities;
     analysis::CouplingRelation domain;
     for (auto [semantic,map,granularity,stage]:llvm::zip(getPhaseSemantics(),getPhaseMaps(),getPhaseGranularities(),getPhaseStages())) {
@@ -171,7 +173,8 @@ LogicalResult FusedTileSpaceOp::verify() {
       auto found=llvm::find_if(declarations,[&](auto const& d) { return op.arithmetic==d.name; });
       if (found==declarations.end()) return emitOpError("fusion phase lacks arithmetic signature");
       analysis::ValidateArithmeticDeclaration(*found);
-      if (!relation.getMap().IsSingleValued()) return emitOpError("fusion phase map must be single-valued");
+      if (!relation.getMap().IsSingleValued() && !(*this)->hasAttr("handoff_kind"))
+        return emitOpError("fusion phase map must be single-valued");
       auto current=relation.getMap().Reverse().Image();
       if (!domain.empty() && (!current.IsSubset(domain) || !domain.IsSubset(current)))
         return emitOpError("fusion phase domains differ");
@@ -317,8 +320,16 @@ LogicalResult CouplingOp::verify() {
   return success();
 }
 
+static TileSpaceOp LookupPlanTask(Operation* op,FlatSymbolRefAttr reference) {
+  if(auto task=SymbolTable::lookupNearestSymbolFrom<TileSpaceOp>(op,reference))return task;
+  if(auto plan=op->getParentOfType<PlanOp>())
+    if(auto graph=SymbolTable::lookupNearestSymbolFrom<GraphOp>(plan->getParentOp(),plan.getGraphAttr()))
+      return dyn_cast_or_null<TileSpaceOp>(SymbolTable::lookupSymbolIn(graph,reference.getValue()));
+  return {};
+}
+
 LogicalResult ImplementationOp::verify() {
-  auto task = SymbolTable::lookupNearestSymbolFrom<TileSpaceOp>(*this, getTaskAttr());
+  auto task = LookupPlanTask(*this, getTaskAttr());
   if (!task) return emitOpError() << "unknown task space " << getTask();
   solver::ImplementationContract declared;
   std::string reason;
@@ -355,7 +366,7 @@ LogicalResult PlacementOp::verify() {
   if (failed(verifyPlan())) return failure();
   if (getCluster() < 1) return emitOpError("cluster must be positive");
   if (getMap().empty()) return emitOpError("placement map cannot be empty");
-  if (!SymbolTable::lookupNearestSymbolFrom<TileSpaceOp>(*this, getTaskAttr()))
+  if (!LookupPlanTask(*this, getTaskAttr()))
     return emitOpError() << "unknown task space " << getTask();
   return success();
 }

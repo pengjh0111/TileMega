@@ -143,6 +143,8 @@ add_library(tilemega_core STATIC
   lib/Analysis/SemanticCodec.cpp
   lib/Dialect/CouplingGraph/CGDialect.cpp
   lib/Dialect/CouplingGraph/PlacementPlan.cpp
+  lib/Dialect/CouplingGraph/HandoffAccess.cpp
+  lib/Dialect/CouplingGraph/HandoffPass.cpp
   lib/Dialect/CouplingGraph/FusionPass.cpp
   lib/Dialect/CouplingGraph/CGContract.cpp
   lib/Analysis/ClosedForm.cpp
@@ -296,6 +298,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/chain_dp_test.cpp
     test/unit/cache_service_curve_test.cpp
     test/unit/fusion_access_test.cpp
+    test/unit/handoff_ir_test.cpp
     test/unit/handoff_access_test.cpp
     test/unit/lane_intersections_test.cpp
     test/unit/fusion_rewrite_test.cpp
@@ -426,6 +429,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME cache_service_curve COMMAND tilemega-unit cache_service_curve)
 
   add_test(NAME fusion_access COMMAND tilemega-unit fusion_access)
+  add_test(NAME handoff_ir COMMAND tilemega-unit handoff_ir)
   add_test(NAME handoff_access COMMAND tilemega-unit handoff_access)
 
   add_test(NAME lane_intersections COMMAND tilemega-unit lane_intersections)

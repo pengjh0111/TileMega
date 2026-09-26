@@ -100,3 +100,12 @@ def Exec_SkeletonOp : Exec_Op<"skeleton", []> {
   let assemblyFormat = "attr-dict";
   let hasVerifier = 1;
 }
+
+// An edge decision, separate from placement and the graph's data semantics.
+def Exec_HandoffOp : Exec_Op<"handoff", []> {
+  let summary = "access-proved edge handoff selected by the solver";
+  let arguments = (ins FlatSymbolRefAttr:$coupling, StrAttr:$kind,
+                       OptionalAttr<DictionaryAttr>:$params);
+  let assemblyFormat = "$coupling `kind` `=` $kind attr-dict";
+  let hasVerifier = 1;
+}
