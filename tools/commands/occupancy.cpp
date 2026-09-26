@@ -7,6 +7,8 @@
 #include <iostream>
 #include <string>
 
+namespace tilemega::commands::occupancy {
+
 static void check(CUresult result, char const* call) {
   if (result == CUDA_SUCCESS) return;
   char const* message = nullptr;
@@ -17,7 +19,7 @@ static void check(CUresult result, char const* call) {
 
 #define CU_CHECK(call) check((call), #call)
 
-int main(int argc, char** argv) {
+int RunOccupancy(int argc, char** argv) {
   std::string cubin;
   std::string kernel;
   int dynamic_smem = 0;
@@ -75,4 +77,8 @@ int main(int argc, char** argv) {
   CU_CHECK(cuModuleUnload(module));
   CU_CHECK(cuDevicePrimaryCtxRelease(device));
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::commands::occupancy

@@ -10,6 +10,8 @@
 #include <vector>
 #include <iostream>
 
+namespace tilemega::tests::stage_kappa_test {
+
 using namespace tilemega;
 
 static std::string Shape(dialect::PreparedPlacementProblem const& p) {
@@ -17,7 +19,7 @@ static std::string Shape(dialect::PreparedPlacementProblem const& p) {
          "\n"+p.projection.dependencies.ToString();
 }
 
-int main() try {
+int TestStageKappa(int argc, char** argv) try {
   analysis::IslContext isl;
   mlir::MLIRContext ctx;
   auto module=frontend::TorchExportImporter{}.Import(
@@ -61,7 +63,11 @@ int main() try {
   std::cout << "STAGE_KAPPA stages=" << stages << " moved_by_table=" << moved
             << " uniform_table_matches_global=1 refused=" << refused << "\n";
   return 0;
+
+  return 0;
 } catch (std::exception const& e) {
   std::cerr << "stage kappa test failed: " << e.what() << "\n";
   return 1;
 }
+
+}  // namespace tilemega::tests::stage_kappa_test

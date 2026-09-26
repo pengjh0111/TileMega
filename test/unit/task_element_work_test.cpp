@@ -10,10 +10,12 @@
 #include <iostream>
 #include <stdexcept>
 
+namespace tilemega::tests::task_element_work_test {
+
 using namespace tilemega::analysis;
 void Require(bool value) { if (!value) throw std::runtime_error("element work assertion"); }
 
-int main(int argc, char** argv) {
+int TestTaskElementWork(int argc, char** argv) {
   IslContext context;
   auto c=[](long value){return ClosedForm::Constant(value);};
   auto S=ClosedForm::Symbol("S"),P=ClosedForm::Symbol("past");
@@ -314,4 +316,8 @@ int main(int argc, char** argv) {
               << " semantic_roundtrips=" << roundtrips
               << " exact_key_sets=PASS remaining=" << context.ReferenceCount() << '\n';
   }
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::task_element_work_test

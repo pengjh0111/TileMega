@@ -5,7 +5,9 @@
 #include <set>
 #include <stdexcept>
 
-int main() try {
+namespace tilemega::tests::fused_runtime_projection_test {
+
+int TestFusedRuntimeProjection(int argc, char** argv) try {
   using namespace tilemega;
   using namespace tilemega::solver;
   using R=analysis::CouplingRelation;
@@ -75,4 +77,8 @@ int main() try {
   }
   if (isl.ReferenceCount()) throw std::runtime_error("fusion projection retained references");
   std::cout << "FUSED_RUNTIME checks=" << checks << " errors=" << errors << " remaining=0\n";
+
+  return 0;
 } catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
+
+}  // namespace tilemega::tests::fused_runtime_projection_test

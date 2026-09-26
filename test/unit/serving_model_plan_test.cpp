@@ -12,7 +12,9 @@
 #include <stdexcept>
 #include <string>
 
-int main(int argc, char** argv) {
+namespace tilemega::tests::serving_model_plan_test {
+
+int TestServingModelPlan(int argc, char** argv) {
   tilemega::analysis::IslContext isl;
   if (argc != 3) {
     std::cerr << "usage: serving_model_plan_test BRIDGE.json prefill|decode\n";
@@ -161,4 +163,8 @@ int main(int argc, char** argv) {
   std::cout << "serving floor B=16 past=1086 dram_bytes="
             << floor_at_endpoint.read_bytes + floor_at_endpoint.write_bytes
             << " floor_ns=" << floor_at_endpoint.floor_ns << '\n';
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::serving_model_plan_test

@@ -15,7 +15,9 @@
 #include <sstream>
 #include <string>
 
-int main(int argc, char** argv) {
+namespace tilemega::commands::calibrate {
+
+int RunCalibrate(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   tilemega::calib::Options options;
   std::string output;
@@ -135,4 +137,8 @@ int main(int argc, char** argv) {
     std::cerr << "tilemega-calibrate: " << error.what() << '\n';
     return 1;
   }
+
+  return 0;
 }
+
+}  // namespace tilemega::commands::calibrate

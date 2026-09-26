@@ -7,7 +7,9 @@
 #include <cassert>
 #include <iostream>
 
-int main() {
+namespace tilemega::tests::runtime_projection_test {
+
+int TestRuntimeProjection(int argc, char** argv) {
   tilemega::analysis::IslContext context;
   {
     for (auto const& text:{"{ [i] -> [j] : -3<=i<=4 and 2<=j<=7 }",
@@ -202,4 +204,8 @@ int main() {
               << " after=" << context.ReferenceCount() << '\n';
   }
   assert(context.ReferenceCount() == 0);
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::runtime_projection_test

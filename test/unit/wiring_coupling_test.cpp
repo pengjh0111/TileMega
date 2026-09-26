@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+namespace tilemega::tests::wiring_coupling_test {
+
 using namespace tilemega;
 
 namespace {
@@ -100,7 +102,7 @@ std::string RenameI(std::string text) {
 
 }  // namespace
 
-int main() {
+int TestWiringCoupling(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   std::vector<analysis::CouplingEdge> lifted = Lifted();
   std::vector<analysis::CouplingEdge> reference = Reference();
@@ -145,4 +147,8 @@ int main() {
   std::printf("WIRING edges=%zu differences=%zu (all naming)\n", lifted.size(),
               differences.size());
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::wiring_coupling_test

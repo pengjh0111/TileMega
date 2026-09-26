@@ -12,7 +12,9 @@
 #include <iostream>
 #include <stdexcept>
 
-int main() try {
+namespace tilemega::tests::fusion_batch_rewrite_test {
+
+int TestFusionBatchRewrite(int argc, char** argv) try {
   using namespace tilemega;
   analysis::IslContext isl;
   mlir::MLIRContext context;
@@ -83,4 +85,8 @@ int main() try {
   }
   if (isl.ReferenceCount()) throw std::runtime_error("batch fusion leaked references");
   std::cout << "FUSION_BATCH tasks=" << tasks << " identities=" << identities << " errors=" << errors << " remaining=0\n";
+
+  return 0;
 } catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
+
+}  // namespace tilemega::tests::fusion_batch_rewrite_test

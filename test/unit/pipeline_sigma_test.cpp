@@ -15,6 +15,8 @@
 #include <iostream>
 #include <stdexcept>
 
+namespace tilemega::tests::pipeline_sigma_test {
+
 using namespace tilemega;
 using namespace tilemega::solver;
 
@@ -242,7 +244,7 @@ static void CheckPlacementTable() {
   std::cout << "PIPELINE_TABLE accepted rejected-head rejected-length\n";
 }
 
-int main() try {
+int TestPipelineSigma(int argc, char** argv) try {
   analysis::IslContext isl;
   mlir::MLIRContext ctx;
   ctx.getOrLoadDialect<dialect::CGDialect>();
@@ -254,7 +256,11 @@ int main() try {
   CheckPlacementTable();
   std::cout << "PIPELINE_SIGMA PASS frontier pricing bounds table\n";
   return 0;
+
+  return 0;
 } catch (std::exception const& e) {
   std::cerr << "pipeline sigma: " << e.what() << '\n';
   return 1;
 }
+
+}  // namespace tilemega::tests::pipeline_sigma_test

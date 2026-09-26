@@ -10,6 +10,8 @@
 #include <cstdlib>
 #include <iostream>
 
+namespace tilemega::tests::containment_test {
+
 using namespace tilemega::analysis;
 
 namespace {
@@ -42,7 +44,7 @@ CouplingEdge Only(OperatorGraph const& graph, ParamBinding const& known) {
 
 }  // namespace
 
-int main() {
+int TestContainment(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   DecoderShape shape;
   ParamBinding known = KnownBinding();
@@ -97,4 +99,8 @@ int main() {
     return 1;
   }
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::containment_test

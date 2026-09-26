@@ -13,6 +13,8 @@
 #include <sstream>
 #include <string>
 
+namespace tilemega::tests::backend_query_test {
+
 using namespace tilemega::solver;
 using tilemega::TargetSpec;
 
@@ -56,7 +58,7 @@ std::vector<GemmProblem> GqaProblems() {
 
 }  // namespace
 
-int main() {
+int TestBackendQuery(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   TargetSpec sm89 = Load("sm_89");
   TargetSpec sm90 = Load("sm_90");
@@ -184,4 +186,8 @@ int main() {
             << " of " << candidates.size() << '\n';
   REQUIRE(measured_best > 0);
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::backend_query_test

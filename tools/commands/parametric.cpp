@@ -15,6 +15,8 @@
 #include <sstream>
 #include <stdexcept>
 
+namespace tilemega::commands::parametric {
+
 using namespace tilemega::solver;
 std::vector<std::string> Fields(std::string const& line) {
   std::istringstream input(line); std::string field;
@@ -23,7 +25,7 @@ std::vector<std::string> Fields(std::string const& line) {
   return result;
 }
 bool Bits(double a, double b) { return std::memcmp(&a, &b, sizeof(double)) == 0; }
-int main(int argc, char** argv) try {
+int RunParametric(int argc, char** argv) try {
   tilemega::analysis::IslContext isl_context;
   if (argc < 2 || argc > 3) throw std::runtime_error("usage: tilemega-parametric REPO [f32|bf16]");
   std::string root = argv[1];
@@ -165,6 +167,10 @@ int main(int argc, char** argv) try {
             << " expected=" << (bf16 ? 1540 : 2154) << '\n';
   if (!bf16) std::cerr << "FP32_PARTIAL_COST_GATE matched=" << total << " expected=2154\n";
   return 0;
+
+  return 0;
 } catch (std::exception const& error) {
   std::cerr << "tilemega-parametric: " << error.what() << '\n'; return 2;
 }
+
+}  // namespace tilemega::commands::parametric

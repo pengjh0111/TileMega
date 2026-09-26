@@ -9,8 +9,10 @@
 #include <fstream>
 #include <iostream>
 #include <set>
+
+namespace tilemega::commands::skeleton_audit {
 using namespace tilemega;
-int main(int argc,char** argv) {
+int RunSkeletonAudit(int argc, char** argv) {
  try {
   if(argc!=5 && argc!=7)throw std::invalid_argument("usage: tilemega-skeleton-audit CG.mlir target.json seq past [EFT.tsv hop.tsv]");
   analysis::IslContext isl;mlir::MLIRContext context;context.getOrLoadDialect<dialect::CGDialect>();
@@ -75,4 +77,8 @@ int main(int argc,char** argv) {
     std::cout<<"CONTROL_EFT plan="<<argv[5]<<" nodes="<<schedule.worker.size()<<'\n';
   }
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+
+  return 0;
 }
+
+}  // namespace tilemega::commands::skeleton_audit

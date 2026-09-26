@@ -4,7 +4,9 @@
 #include <cassert>
 #include <iostream>
 
-int main() {
+namespace tilemega::tests::serving_pruning_test {
+
+int TestServingPruning(int argc, char** argv) {
   using namespace tilemega::solver;
   tilemega::TargetSpec target;
   GemmConfig g{16, 128, 64, 2, 1};
@@ -51,4 +53,8 @@ int main() {
   assert((order.kappa_scan == std::vector<int>{1, 2, 4}));
   assert((order.residency_scan == std::vector<int>{1, 2, 3}));
   std::cout << "SERVING_PRUNING_R1_R4 PASS\n";
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::serving_pruning_test

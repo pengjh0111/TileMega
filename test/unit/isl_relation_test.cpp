@@ -11,9 +11,11 @@
 #include <set>
 #include <sstream>
 
+namespace tilemega::tests::isl_relation_test {
+
 using namespace tilemega::analysis;
 
-int main() {
+int TestIslRelation(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   // C = W^-1 o R, matching §2.7 edge 1's shape: a producer tiled by Tm rows
   // (W), a consumer that reads the whole matching row tile (R, an identity
@@ -207,4 +209,8 @@ int main() {
   assert(!a.SemanticallyEqual(c, {}));
 
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::isl_relation_test

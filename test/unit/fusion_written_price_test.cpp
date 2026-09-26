@@ -10,7 +10,9 @@
 #include <cstring>
 #include <iostream>
 
-int main() try {
+namespace tilemega::tests::fusion_written_price_test {
+
+int TestFusionWrittenPrice(int argc, char** argv) try {
   using namespace tilemega;
   using namespace tilemega::solver;
   analysis::IslContext isl;
@@ -75,4 +77,8 @@ int main() try {
   }
   if (isl.ReferenceCount()) throw std::runtime_error("fused price reader leaked ISL references");
   std::cout << "FUSION_WRITTEN cases=" << cases << " errors=" << errors << " remaining=0\n";
+
+  return 0;
 } catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
+
+}  // namespace tilemega::tests::fusion_written_price_test

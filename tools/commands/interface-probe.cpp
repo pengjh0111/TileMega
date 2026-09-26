@@ -13,7 +13,9 @@
 #include <limits>
 #include <cstring>
 
-int main(int argc,char** argv) try {
+namespace tilemega::commands::interface_probe {
+
+int RunInterfaceProbe(int argc, char** argv) try {
   using namespace tilemega;
   using namespace tilemega::solver;
   if (argc<3 || argc>5) throw std::invalid_argument("usage: tilemega-interface-probe REPO MODEL [--unified] [SEQ]");
@@ -137,6 +139,10 @@ int main(int argc,char** argv) try {
   std::cerr << "INTERFACE_ERRORS branches=" << errors << " reference_delta=0\n";
   if (context.ReferenceCount()) throw std::runtime_error("interface probe retained isl objects");
   std::cerr << "ISL_CONTEXT remaining=0\n";
+
+  return 0;
 } catch (std::exception const& error) {
   std::cerr << "tilemega-interface-probe: " << error.what() << '\n'; return 2;
 }
+
+}  // namespace tilemega::commands::interface_probe

@@ -12,8 +12,10 @@
 #include <fstream>
 #include <iostream>
 #include <iomanip>
+
+namespace tilemega::commands::dram_floor {
 using namespace tilemega;
-int main(int argc,char** argv) {
+int RunDramFloor(int argc, char** argv) {
  try {
   if(argc!=8 && argc!=9)throw std::invalid_argument("usage: tilemega-dram-floor CG target seq past fixture output.mlir tensors.tsv [stage_bytes.tsv]");
   analysis::IslContext isl;mlir::MLIRContext context;context.getOrLoadDialect<dialect::CGDialect>();context.getOrLoadDialect<dialect::ExecDialect>();
@@ -76,4 +78,8 @@ int main(int argc,char** argv) {
   }
   std::cout<<std::setprecision(17)<<"DRAM_FLOOR weight_bytes="<<weights<<" read_bytes="<<value.read_bytes<<" write_bytes="<<value.write_bytes<<" flops="<<value.flops<<" dram_ns="<<value.dram_ns<<" compute_ns="<<value.compute_ns<<" floor_ns="<<value.floor_ns<<'\n';
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+
+  return 0;
 }
+
+}  // namespace tilemega::commands::dram_floor

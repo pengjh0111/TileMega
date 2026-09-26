@@ -19,6 +19,8 @@
 #include <string>
 #include <vector>
 
+namespace tilemega::tests::plan_table_test {
+
 using namespace tilemega;
 
 #define REQUIRE(condition)                                                 \
@@ -61,7 +63,7 @@ char const* kTheta = "seq = 4 : i64, past = 3 : i64, grid = 2 : i64";
 
 }  // namespace
 
-int main() {
+int TestPlanTable(int argc, char** argv) {
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
   context.getOrLoadDialect<dialect::ExecDialect>();
@@ -146,4 +148,8 @@ int main() {
 
   std::printf("ok\n");
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::plan_table_test

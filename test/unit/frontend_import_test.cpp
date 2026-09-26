@@ -12,7 +12,9 @@
 #include <stdexcept>
 #include <string>
 
-int main() {
+namespace tilemega::tests::frontend_import_test {
+
+int TestFrontendImport(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   mlir::MLIRContext context;
   tilemega::frontend::ImportSummary summary;
@@ -174,4 +176,8 @@ int main() {
   assert(domain.constraints[1].predicate ==
          tilemega::frontend::ShapeConstraint::Predicate::kLessEqual);
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::frontend_import_test

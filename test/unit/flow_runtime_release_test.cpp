@@ -9,8 +9,10 @@
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <iostream>
 #include <set>
+
+namespace tilemega::tests::flow_runtime_release_test {
 using namespace tilemega;
-int main() try {
+int TestFlowRuntimeRelease(int argc, char** argv) try {
   analysis::IslContext isl;mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();context.getOrLoadDialect<dialect::ExecDialect>();
   auto target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SOLVER_R9B/fit/target.json");
@@ -57,4 +59,8 @@ int main() try {
   }
   std::cout<<"RUNTIME_RELEASE checks="<<checks<<" mismatches="<<mismatches<<'\n';
   return mismatches?1:0;
+
+  return 0;
 }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+
+}  // namespace tilemega::tests::flow_runtime_release_test

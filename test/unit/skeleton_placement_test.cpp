@@ -6,6 +6,8 @@
 #include <cstring>
 #include <numeric>
 #include <stdexcept>
+
+namespace tilemega::tests::skeleton_placement_test {
 using namespace tilemega;
 solver::MaterializedPlan materialize(solver::PlanSkeleton const& sk,solver::EftSchedule const& schedule,
     codegen::RuntimeTaskGraph const& graph) {
@@ -17,7 +19,7 @@ solver::MaterializedPlan materialize(solver::PlanSkeleton const& sk,solver::EftS
   if(!solver::MaterializePlanPlacement(r,&p,&error) || !solver::CheckPlanLegality(graph,p,&error))throw std::runtime_error(error);
   return p;
 }
-int main() {
+int TestSkeletonPlacement(int argc, char** argv) {
  try {
   analysis::IslContext isl;analysis::CouplingCache cache;
   for(int scenario=0;scenario<3;++scenario) {
@@ -62,4 +64,8 @@ int main() {
     std::cout<<"TEMPLATE_DISPLACEMENT case="<<scenario<<" moved="<<stats.moved_from_home<<" affinity="<<stats.affinity<<" PASS\n";
   }
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::skeleton_placement_test

@@ -12,6 +12,8 @@
 #include <string>
 #include <vector>
 
+namespace tilemega::tests::relation_bounds_test {
+
 namespace {
 using tilemega::solver::PrepareRelationBounds;
 using tilemega::solver::RelationBounds;
@@ -56,7 +58,7 @@ void Agrees(std::vector<int> const& counts,std::string const& relation) {
 }
 }  // namespace
 
-int main() {
+int TestRelationBounds(int argc, char** argv) {
   tilemega::analysis::IslContext context;
   // A complete bipartite block, the case the intervals exist for.
   Agrees({4,4},"{ [s,i] -> [t,j] : s=1 and t=0 and 0<=i<4 and 0<=j<4 }");
@@ -86,4 +88,8 @@ int main() {
 
   std::cout<<"relation bounds ok\n";
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::relation_bounds_test

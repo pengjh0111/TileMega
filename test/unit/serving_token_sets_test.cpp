@@ -5,9 +5,11 @@
 #include <cassert>
 #include <iostream>
 
+namespace tilemega::tests::serving_token_sets_test {
+
 using namespace tilemega::analysis;
 
-int main() {
+int TestServingTokenSets(int argc, char** argv) {
   IslContext isl;
   auto B = ClosedForm::Symbol("B");
   auto past = ClosedForm::Symbol("past");
@@ -61,4 +63,8 @@ int main() {
       footprint.reads.Subtract(footprint.writes)));
   std::cout << "TOKENS_DISJOINT batch=2 past=64 seq=64 read_bytes="
             << value.read_bytes << " write_bytes=" << value.write_bytes << '\n';
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::serving_token_sets_test

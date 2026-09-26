@@ -124,7 +124,7 @@ mlir_tablegen(include/tilemega/Dialect/CouplingGraph/ExecOps.cpp.inc
   -gen-op-defs -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_public_tablegen_target(TileMegaCGIncGen)
 
-add_library(tilemega STATIC
+add_library(tilemega_core STATIC
   lib/Support/Json.cpp
   lib/Target/TargetSpec.cpp
   lib/Frontend/Frontend.cpp
@@ -199,19 +199,20 @@ add_library(tilemega STATIC
   lib/Codegen/Codegen.cpp
   lib/Runtime/EventBuffer.cpp
   lib/Runtime/MegakernelRuntime.cpp)
-add_library(TileMega::tilemega ALIAS tilemega)
-target_compile_features(tilemega PUBLIC cxx_std_17)
-target_include_directories(tilemega PUBLIC
+add_library(TileMega::tilemega ALIAS tilemega_core)
+set_target_properties(tilemega_core PROPERTIES OUTPUT_NAME tilemega)
+target_compile_features(tilemega_core PUBLIC cxx_std_17)
+target_include_directories(tilemega_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/tools/util/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/test>)
-add_dependencies(tilemega TileMegaCGIncGen)
-target_link_libraries(tilemega PUBLIC CUDA::cudart CUDA::cuda_driver MLIRIR MLIRSupport MLIRPass
+add_dependencies(tilemega_core TileMegaCGIncGen)
+target_link_libraries(tilemega_core PUBLIC CUDA::cudart CUDA::cuda_driver MLIRIR MLIRSupport MLIRPass
   tilemega::isl_stack)
 if(NOT LLVM_ENABLE_RTTI)
-  target_compile_options(tilemega PRIVATE -fno-rtti)
+  target_compile_options(tilemega_core PRIVATE -fno-rtti)
 endif()
 
 add_executable(tilemega-opt tools/tilemega-opt.cpp)
@@ -221,51 +222,6 @@ if(NOT LLVM_ENABLE_RTTI)
   target_compile_options(tilemega-opt PRIVATE -fno-rtti)
 endif()
 set_target_properties(tilemega-opt PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-
-add_executable(tilemega-import tools/tilemega-import.cpp)
-add_dependencies(tilemega-import TileMegaCGIncGen)
-target_link_libraries(tilemega-import PRIVATE TileMega::tilemega MLIRIR MLIRSupport)
-if(NOT LLVM_ENABLE_RTTI)
-  target_compile_options(tilemega-import PRIVATE -fno-rtti)
-endif()
-set_target_properties(tilemega-import PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-
-add_executable(tilemega-skeleton-audit tools/tilemega-skeleton-audit.cpp)
-add_executable(tilemega-flow-audit tools/tilemega-flow-audit.cpp)
-target_link_libraries(tilemega-flow-audit PRIVATE TileMega::tilemega MLIRParser)
-target_compile_definitions(tilemega-flow-audit PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-set_target_properties(tilemega-flow-audit PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-add_executable(tilemega-flow-validation tools/tilemega-flow-validation.cpp)
-target_link_libraries(tilemega-flow-validation PRIVATE TileMega::tilemega MLIRParser)
-target_compile_definitions(tilemega-flow-validation PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-set_target_properties(tilemega-flow-validation PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-add_executable(tilemega-flow-grid tools/tilemega-flow-grid.cpp)
-target_link_libraries(tilemega-flow-grid PRIVATE TileMega::tilemega MLIRParser)
-target_compile_definitions(tilemega-flow-grid PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-set_target_properties(tilemega-flow-grid PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-add_executable(tilemega-flow-point tools/tilemega-flow-point.cpp)
-target_link_libraries(tilemega-flow-point PRIVATE TileMega::tilemega MLIRParser)
-set_target_properties(tilemega-flow-point PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-add_executable(tilemega-dram-floor tools/tilemega-dram-floor.cpp)
-add_executable(tilemega-r9-early docs/experiments/SOLVER_R9B/early_signal.cpp)
-target_link_libraries(tilemega-r9-early PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-r9-early PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-dram-floor PRIVATE TileMega::tilemega MLIRParser)
-set_target_properties(tilemega-dram-floor PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-skeleton-audit PRIVATE TileMega::tilemega MLIRParser)
-set_target_properties(tilemega-skeleton-audit PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-
-add_executable(tilemega-compile tools/tilemega-compile.cpp)
-add_dependencies(tilemega-compile TileMegaCGIncGen)
-target_link_libraries(tilemega-compile PRIVATE TileMega::tilemega MLIRIR MLIRParser MLIRSupport)
-target_compile_definitions(tilemega-compile PRIVATE
-  TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-if(NOT LLVM_ENABLE_RTTI)
-  target_compile_options(tilemega-compile PRIVATE -fno-rtti)
-endif()
-set_target_properties(tilemega-compile PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
 # The microbenchmarks live in their own library: GemmCalibration.cu
@@ -288,165 +244,14 @@ if(TILEMEGA_TARGET_ARCH STREQUAL "auto")
     $<$<COMPILE_LANGUAGE:CUDA>:-arch=native>)
 endif()
 
-add_executable(tilemega-calibrate tools/tilemega-calibrate.cpp)
-target_link_libraries(tilemega-calibrate PRIVATE tilemega_calibration)
-set_target_properties(tilemega-calibrate PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+add_test(NAME scalar_cost_errors COMMAND tilemega probe scalar-error-probe "${CMAKE_SOURCE_DIR}")
 
-add_executable(tilemega-derive tools/tilemega-derive.cpp)
-target_link_libraries(tilemega-derive PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-derive PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+add_test(NAME coupling_interface_gqa2 COMMAND tilemega probe interface-probe "${CMAKE_SOURCE_DIR}" gqa2)
+add_test(NAME coupling_interface_mha4 COMMAND tilemega probe interface-probe "${CMAKE_SOURCE_DIR}" mha4)
 
-add_executable(tilemega-shape-probe tools/tilemega-shape-probe.cpp)
-target_link_libraries(tilemega-shape-probe PRIVATE TileMega::tilemega)
-target_compile_definitions(tilemega-shape-probe PRIVATE
-  TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-set_target_properties(tilemega-shape-probe PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-
-add_executable(tilemega-wiring tools/tilemega-wiring.cpp)
-target_link_libraries(tilemega-wiring PRIVATE TileMega::tilemega)
-target_compile_definitions(tilemega-wiring PRIVATE
-  TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-set_target_properties(tilemega-wiring PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-
-add_executable(tilemega-identity-probe tools/tilemega-identity-probe.cpp)
-target_link_libraries(tilemega-identity-probe PRIVATE TileMega::tilemega)
-target_compile_definitions(tilemega-identity-probe PRIVATE
-  TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-set_target_properties(tilemega-identity-probe PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-
-add_executable(tilemega-symbolic-probe tools/tilemega-symbolic-probe.cpp)
-target_link_libraries(tilemega-symbolic-probe PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-symbolic-probe PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-
-add_executable(tilemega-affine-probe tools/tilemega-affine-probe.cpp)
-target_link_libraries(tilemega-affine-probe PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-affine-probe PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-
-add_executable(tilemega-parametric tools/tilemega-parametric.cpp)
-add_executable(tilemega-event-cost tools/tilemega-event-cost.cpp)
-add_executable(tilemega-event-price tools/tilemega-event-price.cpp)
-target_link_libraries(tilemega-event-price PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-event-price PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-add_executable(tilemega-op-audit tools/tilemega-op-audit.cpp)
-add_executable(tilemega-fusion-events tools/tilemega-fusion-events.cpp)
-add_executable(tilemega-fusion-dp tools/tilemega-fusion-dp.cpp)
-target_link_libraries(tilemega-fusion-dp PRIVATE TileMega::tilemega MLIRParser)
-set_target_properties(tilemega-fusion-dp PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-add_executable(tilemega-fusion-chain tools/tilemega-fusion-chain.cpp)
-target_link_libraries(tilemega-fusion-chain PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-fusion-chain PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-fusion-events PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-fusion-events PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-add_executable(tilemega-task-work-probe tools/tilemega-task-work-probe.cpp)
-add_executable(tilemega-task-work-gate tools/tilemega-task-work-gate.cpp)
-add_executable(tilemega-task-cost-gate tools/tilemega-task-cost-gate.cpp)
-add_executable(tilemega-interface-probe tools/tilemega-interface-probe.cpp)
-add_executable(tilemega-scalar-cost-probe tools/tilemega-scalar-cost-probe.cpp)
-add_executable(tilemega-scalar-error-probe tools/tilemega-scalar-error-probe.cpp)
-target_link_libraries(tilemega-scalar-error-probe PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-scalar-error-probe PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-add_test(NAME scalar_cost_errors COMMAND tilemega-scalar-error-probe "${CMAKE_SOURCE_DIR}")
-target_link_libraries(tilemega-scalar-cost-probe PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-scalar-cost-probe PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-interface-probe PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-interface-probe PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-add_test(NAME coupling_interface_gqa2 COMMAND tilemega-interface-probe "${CMAKE_SOURCE_DIR}" gqa2)
-add_test(NAME coupling_interface_mha4 COMMAND tilemega-interface-probe "${CMAKE_SOURCE_DIR}" mha4)
-target_link_libraries(tilemega-task-cost-gate PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-task-cost-gate PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 # EX-S1's driver lives with its experiment rather than in tools/, which R2's
 # scope fence excludes; it needs the frontend to price tasks, so it is a target
 # here instead of an nvcc one-off inside the runner.
-add_executable(tilemega-simulate docs/experiments/SIMULATOR/simulate.cpp)
-target_link_libraries(tilemega-simulate PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-simulate PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-add_executable(tilemega-place-eft docs/experiments/PLACE_EFT/place_eft.cpp)
-target_link_libraries(tilemega-place-eft PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-place-eft PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-add_executable(tilemega-place-chain docs/experiments/CHAIN/place_chain.cpp)
-target_link_libraries(tilemega-place-chain PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-place-chain PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-task-work-gate PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-task-work-gate PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-task-work-probe PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-task-work-probe PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-op-audit PRIVATE TileMega::tilemega MLIRParser)
-set_target_properties(tilemega-op-audit PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-add_executable(tilemega-runtime-projection tools/tilemega-runtime-projection.cpp)
-add_executable(tilemega-fusion-probe tools/tilemega-fusion-probe.cpp)
-add_executable(tilemega-fusion-cost tools/tilemega-fusion-cost.cpp)
-add_executable(tilemega-symbolic-task-price tools/tilemega-symbolic-task-price.cpp)
-target_link_libraries(tilemega-symbolic-task-price PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-symbolic-task-price PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-fusion-cost PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-fusion-cost PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-add_executable(tilemega-attention-work tools/tilemega-attention-work.cpp)
-add_executable(tilemega-attention-plan-price tools/tilemega-attention-plan-price.cpp)
-add_executable(tilemega-attention-dp tools/tilemega-attention-dp.cpp)
-target_link_libraries(tilemega-attention-dp PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-attention-dp PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-attention-plan-price PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-attention-plan-price PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-attention-work PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-attention-work PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-fusion-probe PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-fusion-probe PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-runtime-projection PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-runtime-projection PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-event-cost PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-event-cost PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-target_link_libraries(tilemega-parametric PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-parametric PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-
-add_executable(tilemega-costmodel tools/tilemega-costmodel.cpp)
-target_link_libraries(tilemega-costmodel PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-costmodel PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-
-add_executable(tilemega-migrate tools/tilemega-migrate.cpp)
-target_link_libraries(tilemega-migrate PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-migrate PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-
-add_executable(tilemega-target-audit tools/tilemega-target-audit.cpp)
-target_link_libraries(tilemega-target-audit PRIVATE TileMega::tilemega)
-target_compile_definitions(tilemega-target-audit PRIVATE
-  TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-set_target_properties(tilemega-target-audit PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-
-add_executable(tilemega-wait-policy tools/tilemega-wait-policy.cpp)
-target_link_libraries(tilemega-wait-policy PRIVATE TileMega::tilemega)
-target_compile_definitions(tilemega-wait-policy PRIVATE
-  TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-set_target_properties(tilemega-wait-policy PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-
-add_executable(tilemega-solve tools/tilemega-solve.cpp)
-target_link_libraries(tilemega-solve PRIVATE TileMega::tilemega)
-set_target_properties(tilemega-solve PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
 add_custom_target(check-policy
   COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckPolicy.cmake
@@ -455,6 +260,75 @@ add_custom_target(check-policy
 
 if(TILEMEGA_BUILD_TESTS)
   enable_testing()
+  add_executable(tilemega-unit test/unit/runner.cpp
+    test/unit/target_spec_test.cpp
+    test/unit/coupling_types_test.cpp
+    test/unit/table27_test.cpp
+    test/unit/semantics_test.cpp
+    test/unit/dram_floor_test.cpp
+    test/unit/regime_a_price_test.cpp
+    test/unit/stage_flow_test.cpp
+    test/unit/flow_runtime_release_test.cpp
+    test/unit/incidence_test.cpp
+    test/unit/containment_test.cpp
+    test/unit/event_synthesis_test.cpp
+    test/unit/isl_relation_test.cpp
+    test/unit/runtime_projection_test.cpp
+    test/unit/relation_bounds_test.cpp
+    test/unit/task_element_work_test.cpp
+    test/unit/graph_pattern_test.cpp
+    test/unit/model_plan_order_test.cpp
+    test/unit/layout_bridge_test.cpp
+    test/unit/cg_attr_test.cpp
+    test/unit/backend_query_test.cpp
+    test/unit/chain_dp_test.cpp
+    test/unit/cache_service_curve_test.cpp
+    test/unit/fusion_access_test.cpp
+    test/unit/lane_intersections_test.cpp
+    test/unit/fusion_rewrite_test.cpp
+    test/unit/stage_kappa_test.cpp
+    test/unit/pipeline_sigma_test.cpp
+    test/unit/fusion_written_price_test.cpp
+    test/unit/fused_runtime_projection_test.cpp
+    test/unit/exact_runtime_task_graph_test.cpp
+    test/unit/fusion_batch_rewrite_test.cpp
+    test/unit/fiber_sum_test.cpp
+    test/unit/list_scheduler_test.cpp
+    test/unit/plan_contract_test.cpp
+    test/unit/execution_simulator_test.cpp
+    test/unit/eft_placement_test.cpp
+    test/unit/chain_placement_test.cpp
+    test/unit/plan_table_test.cpp
+    test/unit/cluster_labeling_test.cpp
+    test/unit/alignment_propagation_test.cpp
+    test/unit/impl_contract_test.cpp
+    test/unit/serving_pruning_test.cpp
+    test/unit/serving_task_index_test.cpp
+    test/unit/serving_model_plan_test.cpp
+    test/unit/serving_token_sets_test.cpp
+    test/unit/serving_import_test.cpp
+    test/unit/frontend_import_test.cpp
+    test/unit/skeleton_placement_test.cpp
+    test/unit/isolated_evaluation_test.cpp
+    test/unit/skeleton_search_isolation_test.cpp
+    test/unit/plan_skeleton_test.cpp
+    test/unit/variant_resource_test.cpp
+    test/unit/symbolic_oracle_test.cpp
+    test/unit/operator_classes_test.cpp
+    test/unit/coupling_cache_test.cpp
+    test/unit/semantic_lifting_test.cpp
+    test/unit/embedding_plan_test.cpp
+    test/unit/wiring_coupling_test.cpp
+    test/unit/degradation_test.cpp
+)
+  target_link_libraries(tilemega-unit PRIVATE TileMega::tilemega MLIRParser)
+  add_dependencies(tilemega-unit TileMegaCGIncGen)
+  target_compile_definitions(tilemega-unit PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  target_compile_options(tilemega-unit PRIVATE -UNDEBUG)
+  if(NOT LLVM_ENABLE_RTTI)
+    target_compile_options(tilemega-unit PRIVATE -fno-rtti)
+  endif()
+
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
   # The lit driver must never be located through a path inside a third_party
   # submodule: such a path is not part of the submodule's tracked content, so it
@@ -486,182 +360,98 @@ if(TILEMEGA_BUILD_TESTS)
     COMMAND ${Python3_EXECUTABLE} ${TILEMEGA_LIT_DRIVER}
       -sv ${CMAKE_CURRENT_BINARY_DIR}/test
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-  add_executable(target_spec_test test/unit/target_spec_test.cpp)
-  target_link_libraries(target_spec_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(target_spec_test PRIVATE
-    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  add_test(NAME target_spec COMMAND target_spec_test)
-  add_test(NAME target_audit COMMAND tilemega-target-audit)
 
-  add_executable(coupling_types_test test/unit/coupling_types_test.cpp)
-  target_link_libraries(coupling_types_test PRIVATE TileMega::tilemega)
-  add_test(NAME coupling_types COMMAND coupling_types_test)
+  add_test(NAME target_spec COMMAND tilemega-unit target_spec)
+  add_test(NAME target_audit COMMAND tilemega audit target)
 
-  add_executable(table27_test test/unit/table27_test.cpp)
-  target_link_libraries(table27_test PRIVATE TileMega::tilemega)
-  add_test(NAME table27 COMMAND table27_test)
+  add_test(NAME coupling_types COMMAND tilemega-unit coupling_types)
 
-  add_executable(semantics_test test/unit/semantics_test.cpp)
-  add_executable(dram_floor_test test/unit/dram_floor_test.cpp)
-  add_executable(regime_a_price_test test/unit/regime_a_price_test.cpp)
-  add_executable(stage_flow_test test/unit/stage_flow_test.cpp)
-  target_link_libraries(stage_flow_test PRIVATE TileMega::tilemega)
-  add_test(NAME stage_flow COMMAND stage_flow_test)
-  add_executable(flow_runtime_release_test test/unit/flow_runtime_release_test.cpp)
-  target_link_libraries(flow_runtime_release_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(flow_runtime_release_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  add_test(NAME flow_runtime_release COMMAND flow_runtime_release_test)
-  target_link_libraries(regime_a_price_test PRIVATE TileMega::tilemega)
-  add_test(NAME regime_a_price COMMAND regime_a_price_test
+  add_test(NAME table27 COMMAND tilemega-unit table27)
+
+  add_test(NAME stage_flow COMMAND tilemega-unit stage_flow)
+
+  add_test(NAME flow_runtime_release COMMAND tilemega-unit flow_runtime_release)
+
+  add_test(NAME regime_a_price COMMAND tilemega-unit regime_a_price
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/docs/experiments/SOLVER_R9B/fit/target.json)
-  target_link_libraries(dram_floor_test PRIVATE TileMega::tilemega)
-  add_test(NAME dram_floor COMMAND dram_floor_test)
-  target_link_libraries(semantics_test PRIVATE TileMega::tilemega)
-  add_test(NAME semantics COMMAND semantics_test)
-  add_executable(incidence_test test/unit/incidence_test.cpp)
-  target_link_libraries(incidence_test PRIVATE TileMega::tilemega)
-  add_test(NAME incidence_identity COMMAND incidence_test)
+
+  add_test(NAME dram_floor COMMAND tilemega-unit dram_floor)
+
+  add_test(NAME semantics COMMAND tilemega-unit semantics)
+
+  add_test(NAME incidence_identity COMMAND tilemega-unit incidence_identity)
   add_test(NAME imported_incidence_identity
-    COMMAND tilemega-event-cost ${CMAKE_CURRENT_SOURCE_DIR})
+    COMMAND tilemega probe event-cost ${CMAKE_CURRENT_SOURCE_DIR})
 
-  add_executable(containment_test test/unit/containment_test.cpp)
-  target_link_libraries(containment_test PRIVATE TileMega::tilemega)
-  add_test(NAME containment COMMAND containment_test)
+  add_test(NAME containment COMMAND tilemega-unit containment)
 
-  add_executable(event_synthesis_test test/unit/event_synthesis_test.cpp)
-  target_link_libraries(event_synthesis_test PRIVATE TileMega::tilemega)
-  add_test(NAME event_synthesis COMMAND event_synthesis_test)
+  add_test(NAME event_synthesis COMMAND tilemega-unit event_synthesis)
 
-  add_executable(isl_relation_test test/unit/isl_relation_test.cpp)
-  add_executable(runtime_projection_test test/unit/runtime_projection_test.cpp)
-  target_link_libraries(runtime_projection_test PRIVATE TileMega::tilemega)
-  add_test(NAME runtime_projection COMMAND runtime_projection_test)
-  add_executable(relation_bounds_test test/unit/relation_bounds_test.cpp)
-  target_link_libraries(relation_bounds_test PRIVATE TileMega::tilemega)
-  add_test(NAME relation_bounds COMMAND relation_bounds_test)
-  add_executable(task_element_work_test test/unit/task_element_work_test.cpp)
-  add_executable(graph_pattern_test test/unit/graph_pattern_test.cpp)
-  add_executable(model_plan_order_test test/unit/model_plan_order_test.cpp)
-  target_link_libraries(model_plan_order_test PRIVATE TileMega::tilemega)
-  target_link_libraries(graph_pattern_test PRIVATE TileMega::tilemega)
-  add_test(NAME graph_pattern COMMAND graph_pattern_test)
-  target_link_libraries(task_element_work_test PRIVATE TileMega::tilemega)
-  add_test(NAME task_element_work COMMAND task_element_work_test
+  add_test(NAME runtime_projection COMMAND tilemega-unit runtime_projection)
+
+  add_test(NAME relation_bounds COMMAND tilemega-unit relation_bounds)
+
+  add_test(NAME graph_pattern COMMAND tilemega-unit graph_pattern)
+
+  add_test(NAME task_element_work COMMAND tilemega-unit task_element_work
     ${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/gqa2.json
     ${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/mha4.json)
-  add_test(NAME op_arithmetic_audit COMMAND tilemega-op-audit)
-  add_test(NAME task_work_domains COMMAND tilemega-task-work-probe
+  add_test(NAME op_arithmetic_audit COMMAND tilemega audit op)
+  add_test(NAME task_work_domains COMMAND tilemega probe task-work-probe
     "${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/gqa2.json"
     "${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/mha4.json")
-  target_link_libraries(isl_relation_test PRIVATE TileMega::tilemega)
-  add_test(NAME isl_relation COMMAND isl_relation_test)
 
-  add_executable(layout_bridge_test test/unit/layout_bridge_test.cpp)
-  target_link_libraries(layout_bridge_test PRIVATE TileMega::tilemega)
-  add_test(NAME layout_bridge COMMAND layout_bridge_test)
+  add_test(NAME isl_relation COMMAND tilemega-unit isl_relation)
 
-  add_executable(cg_attr_test test/unit/cg_attr_test.cpp)
-  add_dependencies(cg_attr_test TileMegaCGIncGen)
-  target_link_libraries(cg_attr_test PRIVATE TileMega::tilemega MLIRIR MLIRParser)
-  if(NOT LLVM_ENABLE_RTTI)
-    target_compile_options(cg_attr_test PRIVATE -fno-rtti)
-  endif()
-  add_test(NAME cg_attr_roundtrip COMMAND cg_attr_test)
+  add_test(NAME layout_bridge COMMAND tilemega-unit layout_bridge)
 
-  add_executable(backend_query_test test/unit/backend_query_test.cpp)
-  target_link_libraries(backend_query_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(backend_query_test PRIVATE
-    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  add_test(NAME backend_query COMMAND backend_query_test)
+  add_test(NAME cg_attr_roundtrip COMMAND tilemega-unit cg_attr_roundtrip)
 
-  add_executable(chain_dp_test test/unit/chain_dp_test.cpp)
-  add_executable(cache_service_curve_test test/unit/cache_service_curve_test.cpp)
-  target_link_libraries(cache_service_curve_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(cache_service_curve_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-  add_test(NAME cache_service_curve COMMAND cache_service_curve_test)
-  add_executable(fusion_access_test test/unit/fusion_access_test.cpp)
-  target_link_libraries(fusion_access_test PRIVATE TileMega::tilemega)
-  add_test(NAME fusion_access COMMAND fusion_access_test)
-  add_executable(lane_intersections_test test/unit/lane_intersections_test.cpp)
-  target_link_libraries(lane_intersections_test PRIVATE TileMega::tilemega)
-  add_test(NAME lane_intersections COMMAND lane_intersections_test)
-  add_executable(fusion_rewrite_test test/unit/fusion_rewrite_test.cpp)
-  target_link_libraries(fusion_rewrite_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(fusion_rewrite_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  add_test(NAME fusion_rewrite COMMAND fusion_rewrite_test)
-  add_executable(stage_kappa_test test/unit/stage_kappa_test.cpp)
-  target_link_libraries(stage_kappa_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(stage_kappa_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  add_test(NAME stage_kappa COMMAND stage_kappa_test)
-  add_executable(pipeline_sigma_test test/unit/pipeline_sigma_test.cpp)
-  target_link_libraries(pipeline_sigma_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(pipeline_sigma_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  add_test(NAME pipeline_sigma COMMAND pipeline_sigma_test)
+  add_test(NAME backend_query COMMAND tilemega-unit backend_query)
 
-  add_executable(fusion_written_price_test test/unit/fusion_written_price_test.cpp)
-  target_link_libraries(fusion_written_price_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(fusion_written_price_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  add_test(NAME fusion_written_price COMMAND fusion_written_price_test)
-  add_executable(fused_runtime_projection_test test/unit/fused_runtime_projection_test.cpp)
-  target_link_libraries(fused_runtime_projection_test PRIVATE TileMega::tilemega)
-  add_test(NAME fused_runtime_projection COMMAND fused_runtime_projection_test)
-  add_executable(exact_runtime_task_graph_test test/unit/exact_runtime_task_graph_test.cpp)
-  target_link_libraries(exact_runtime_task_graph_test PRIVATE TileMega::tilemega)
-  add_test(NAME exact_runtime_task_graph COMMAND exact_runtime_task_graph_test)
-  add_executable(fusion_batch_rewrite_test test/unit/fusion_batch_rewrite_test.cpp)
-  target_link_libraries(fusion_batch_rewrite_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(fusion_batch_rewrite_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  add_test(NAME fusion_batch_rewrite COMMAND fusion_batch_rewrite_test)
-  add_executable(fiber_sum_test test/unit/fiber_sum_test.cpp)
-  target_link_libraries(fiber_sum_test PRIVATE TileMega::tilemega)
-  add_test(NAME fiber_sum COMMAND fiber_sum_test)
-  add_test(NAME attention_work COMMAND tilemega-attention-work "${CMAKE_CURRENT_SOURCE_DIR}")
-  target_link_libraries(chain_dp_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(chain_dp_test PRIVATE
-    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  add_test(NAME chain_dp COMMAND chain_dp_test)
+  add_test(NAME cache_service_curve COMMAND tilemega-unit cache_service_curve)
 
-  add_executable(list_scheduler_test test/unit/list_scheduler_test.cpp)
-  target_link_libraries(list_scheduler_test PRIVATE TileMega::tilemega)
-  add_test(NAME list_scheduler COMMAND list_scheduler_test)
+  add_test(NAME fusion_access COMMAND tilemega-unit fusion_access)
 
-  add_executable(plan_contract_test test/unit/plan_contract_test.cpp)
-  target_link_libraries(plan_contract_test PRIVATE TileMega::tilemega)
-  add_test(NAME plan_contract COMMAND plan_contract_test)
+  add_test(NAME lane_intersections COMMAND tilemega-unit lane_intersections)
 
-  add_executable(execution_simulator_test test/unit/execution_simulator_test.cpp)
-  target_link_libraries(execution_simulator_test PRIVATE TileMega::tilemega)
-  add_test(NAME execution_simulator COMMAND execution_simulator_test)
+  add_test(NAME fusion_rewrite COMMAND tilemega-unit fusion_rewrite)
 
-  add_executable(eft_placement_test test/unit/eft_placement_test.cpp)
-  target_link_libraries(eft_placement_test PRIVATE TileMega::tilemega)
-  add_test(NAME eft_placement COMMAND eft_placement_test)
+  add_test(NAME stage_kappa COMMAND tilemega-unit stage_kappa)
 
-  add_executable(chain_placement_test test/unit/chain_placement_test.cpp)
-  target_link_libraries(chain_placement_test PRIVATE TileMega::tilemega)
-  add_test(NAME chain_placement COMMAND chain_placement_test)
+  add_test(NAME pipeline_sigma COMMAND tilemega-unit pipeline_sigma)
 
-  add_executable(plan_table_test test/unit/plan_table_test.cpp)
-  add_dependencies(plan_table_test TileMegaCGIncGen)
-  target_link_libraries(plan_table_test PRIVATE TileMega::tilemega MLIRIR MLIRParser)
-  if(NOT LLVM_ENABLE_RTTI)
-    target_compile_options(plan_table_test PRIVATE -fno-rtti)
-  endif()
-  add_test(NAME plan_table COMMAND plan_table_test)
+  add_test(NAME fusion_written_price COMMAND tilemega-unit fusion_written_price)
 
-  add_executable(cluster_labeling_test test/unit/cluster_labeling_test.cpp)
-  target_link_libraries(cluster_labeling_test PRIVATE TileMega::tilemega)
-  add_test(NAME cluster_labeling COMMAND cluster_labeling_test)
+  add_test(NAME fused_runtime_projection COMMAND tilemega-unit fused_runtime_projection)
 
-  add_executable(alignment_propagation_test
-    test/unit/alignment_propagation_test.cpp)
-  target_link_libraries(alignment_propagation_test PRIVATE TileMega::tilemega)
-  add_test(NAME alignment_propagation COMMAND alignment_propagation_test)
+  add_test(NAME exact_runtime_task_graph COMMAND tilemega-unit exact_runtime_task_graph)
 
-  add_executable(impl_contract_test test/unit/impl_contract_test.cpp)
-  target_link_libraries(impl_contract_test PRIVATE TileMega::tilemega)
-  add_test(NAME impl_contract COMMAND impl_contract_test)
+  add_test(NAME fusion_batch_rewrite COMMAND tilemega-unit fusion_batch_rewrite)
+
+  add_test(NAME fiber_sum COMMAND tilemega-unit fiber_sum)
+  add_test(NAME attention_work COMMAND tilemega probe attention-work "${CMAKE_CURRENT_SOURCE_DIR}")
+
+  add_test(NAME chain_dp COMMAND tilemega-unit chain_dp)
+
+  add_test(NAME list_scheduler COMMAND tilemega-unit list_scheduler)
+
+  add_test(NAME plan_contract COMMAND tilemega-unit plan_contract)
+
+  add_test(NAME execution_simulator COMMAND tilemega-unit execution_simulator)
+
+  add_test(NAME eft_placement COMMAND tilemega-unit eft_placement)
+
+  add_test(NAME chain_placement COMMAND tilemega-unit chain_placement)
+
+  add_test(NAME plan_table COMMAND tilemega-unit plan_table)
+
+  add_test(NAME cluster_labeling COMMAND tilemega-unit cluster_labeling)
+
+  add_test(NAME alignment_propagation COMMAND tilemega-unit alignment_propagation)
+
+  add_test(NAME impl_contract COMMAND tilemega-unit impl_contract)
 
   add_executable(task_body_contract_test test/unit/task_body_contract_test.cu)
   target_link_libraries(task_body_contract_test PRIVATE TileMega::tilemega)
@@ -681,13 +471,10 @@ if(TILEMEGA_BUILD_TESTS)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   set_property(TARGET serving_gemm_config_test PROPERTY CUDA_ARCHITECTURES 89)
   add_test(NAME serving_gemm_config COMMAND serving_gemm_config_test)
-  add_executable(serving_pruning_test test/unit/serving_pruning_test.cpp)
-  target_link_libraries(serving_pruning_test PRIVATE TileMega::tilemega)
-  add_test(NAME serving_pruning COMMAND serving_pruning_test)
 
-  add_executable(serving_task_index_test test/unit/serving_task_index_test.cpp)
-  target_link_libraries(serving_task_index_test PRIVATE TileMega::tilemega)
-  add_test(NAME serving_task_index COMMAND serving_task_index_test)
+  add_test(NAME serving_pruning COMMAND tilemega-unit serving_pruning)
+
+  add_test(NAME serving_task_index COMMAND tilemega-unit serving_task_index)
   # CUDA numerical probe, run explicitly on a device just like attention_phase.
   add_executable(serving_epilogue_test test/unit/serving_epilogue_test.cu)
   target_link_libraries(serving_epilogue_test PRIVATE TileMega::tilemega)
@@ -714,13 +501,9 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(serving_combine_test PRIVATE TileMega::tilemega)
   set_property(TARGET serving_combine_test PROPERTY CUDA_ARCHITECTURES 89)
   add_test(NAME serving_combine COMMAND serving_combine_test)
-  add_executable(serving_model_plan_test test/unit/serving_model_plan_test.cpp)
-  target_link_libraries(serving_model_plan_test PRIVATE TileMega::tilemega)
-  add_executable(serving_token_sets_test test/unit/serving_token_sets_test.cpp)
-  target_link_libraries(serving_token_sets_test PRIVATE TileMega::tilemega)
-  add_test(NAME serving_token_sets COMMAND serving_token_sets_test)
-  add_executable(serving_import_test test/unit/serving_import_test.cpp)
-  target_link_libraries(serving_import_test PRIVATE TileMega::tilemega)
+
+  add_test(NAME serving_token_sets COMMAND tilemega-unit serving_token_sets)
+
   add_executable(serving_harness_compile_test
     test/unit/serving_harness_compile_test.cu)
   target_link_libraries(serving_harness_compile_test PRIVATE TileMega::tilemega)
@@ -784,79 +567,31 @@ if(TILEMEGA_BUILD_TESTS)
   set_property(TARGET fused_harness_compile_test PROPERTY CUDA_ARCHITECTURES 89)
   add_test(NAME fused_harness_compile COMMAND fused_harness_compile_test)
 
-  add_executable(frontend_import_test test/unit/frontend_import_test.cpp)
-  add_dependencies(frontend_import_test TileMegaCGIncGen)
-  target_link_libraries(frontend_import_test PRIVATE TileMega::tilemega MLIRIR)
-  target_compile_definitions(frontend_import_test PRIVATE
-    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  if(NOT LLVM_ENABLE_RTTI)
-    target_compile_options(frontend_import_test PRIVATE -fno-rtti)
-  endif()
-  add_test(NAME frontend_import COMMAND frontend_import_test)
+  add_test(NAME frontend_import COMMAND tilemega-unit frontend_import)
 
-  add_executable(skeleton_placement_test test/unit/skeleton_placement_test.cpp)
-  target_link_libraries(skeleton_placement_test PRIVATE TileMega::tilemega)
-  add_test(NAME skeleton_placement COMMAND skeleton_placement_test)
-  add_executable(isolated_evaluation_test test/unit/isolated_evaluation_test.cpp)
-  target_link_libraries(isolated_evaluation_test PRIVATE TileMega::tilemega)
-  add_test(NAME isolated_evaluation COMMAND isolated_evaluation_test)
-  add_executable(skeleton_search_isolation_test test/unit/skeleton_search_isolation_test.cpp)
-  target_link_libraries(skeleton_search_isolation_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(skeleton_search_isolation_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  add_test(NAME skeleton_search_isolation COMMAND skeleton_search_isolation_test)
-  add_executable(plan_skeleton_test test/unit/plan_skeleton_test.cpp)
-  target_link_libraries(plan_skeleton_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(plan_skeleton_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  add_test(NAME plan_skeleton COMMAND plan_skeleton_test)
-  add_executable(variant_resource_test test/unit/variant_resource_test.cpp)
-  target_link_libraries(variant_resource_test PRIVATE TileMega::tilemega)
-  add_test(NAME variant_resource COMMAND variant_resource_test)
-  add_executable(symbolic_oracle_test test/unit/symbolic_oracle_test.cpp)
-  target_link_libraries(symbolic_oracle_test PRIVATE TileMega::tilemega)
-  add_test(NAME symbolic_oracle COMMAND symbolic_oracle_test)
-  add_executable(operator_classes_test test/unit/operator_classes_test.cpp)
-  target_link_libraries(operator_classes_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(operator_classes_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  add_test(NAME operator_classes COMMAND operator_classes_test)
-  add_executable(coupling_cache_test test/unit/coupling_cache_test.cpp)
-  target_link_libraries(coupling_cache_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(coupling_cache_test PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  add_test(NAME coupling_cache COMMAND coupling_cache_test)
-  add_executable(semantic_lifting_test test/unit/semantic_lifting_test.cpp)
-  add_dependencies(semantic_lifting_test TileMegaCGIncGen)
-  target_link_libraries(semantic_lifting_test PRIVATE TileMega::tilemega MLIRIR)
-  target_compile_definitions(semantic_lifting_test PRIVATE
-    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  if(NOT LLVM_ENABLE_RTTI)
-    target_compile_options(semantic_lifting_test PRIVATE -fno-rtti)
-  endif()
-  add_test(NAME semantic_lifting COMMAND semantic_lifting_test)
+  add_test(NAME skeleton_placement COMMAND tilemega-unit skeleton_placement)
 
-  add_executable(embedding_plan_test test/unit/embedding_plan_test.cpp)
-  add_dependencies(embedding_plan_test TileMegaCGIncGen)
-  target_link_libraries(embedding_plan_test PRIVATE TileMega::tilemega MLIRIR)
-  target_compile_definitions(embedding_plan_test PRIVATE
-    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  if(NOT LLVM_ENABLE_RTTI)
-    target_compile_options(embedding_plan_test PRIVATE -fno-rtti)
-  endif()
-  add_test(NAME embedding_plan COMMAND embedding_plan_test)
+  add_test(NAME isolated_evaluation COMMAND tilemega-unit isolated_evaluation)
 
-  add_executable(wiring_coupling_test test/unit/wiring_coupling_test.cpp)
-  target_link_libraries(wiring_coupling_test PRIVATE TileMega::tilemega)
-  target_compile_definitions(wiring_coupling_test PRIVATE
-    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  add_test(NAME wiring_coupling COMMAND wiring_coupling_test)
+  add_test(NAME skeleton_search_isolation COMMAND tilemega-unit skeleton_search_isolation)
 
-  add_executable(degradation_test test/unit/degradation_test.cpp)
-  add_dependencies(degradation_test TileMegaCGIncGen)
-  target_link_libraries(degradation_test PRIVATE TileMega::tilemega MLIRIR)
-  target_compile_definitions(degradation_test PRIVATE
-    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  if(NOT LLVM_ENABLE_RTTI)
-    target_compile_options(degradation_test PRIVATE -fno-rtti)
-  endif()
-  add_test(NAME frontend_degradation COMMAND degradation_test)
+  add_test(NAME plan_skeleton COMMAND tilemega-unit plan_skeleton)
+
+  add_test(NAME variant_resource COMMAND tilemega-unit variant_resource)
+
+  add_test(NAME symbolic_oracle COMMAND tilemega-unit symbolic_oracle)
+
+  add_test(NAME operator_classes COMMAND tilemega-unit operator_classes)
+
+  add_test(NAME coupling_cache COMMAND tilemega-unit coupling_cache)
+
+  add_test(NAME semantic_lifting COMMAND tilemega-unit semantic_lifting)
+
+  add_test(NAME embedding_plan COMMAND tilemega-unit embedding_plan)
+
+  add_test(NAME wiring_coupling COMMAND tilemega-unit wiring_coupling)
+
+  add_test(NAME frontend_degradation COMMAND tilemega-unit frontend_degradation)
 
   # Part 1 dependency probe (docs/DEPENDENCIES.md): MLIR's own Presburger
   # implementation and isl/barvinok in one binary, so a regression that
@@ -908,3 +643,140 @@ endif()
 if(TARGET coupling_types_test)
   add_dependencies(check-tilemega coupling_types_test)
 endif()
+
+if(TARGET tilemega-unit)
+  add_dependencies(check-tilemega tilemega-unit)
+endif()
+
+option(TILEMEGA_BUILD_EXPERIMENTAL "Build historical experiment tools" OFF)
+if(TILEMEGA_BUILD_EXPERIMENTAL)
+  add_executable(tilemega-flow-validation tools/experimental/tilemega-flow-validation.cpp)
+  target_link_libraries(tilemega-flow-validation PRIVATE TileMega::tilemega MLIRParser)
+  target_compile_definitions(tilemega-flow-validation PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  set_target_properties(tilemega-flow-validation PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-flow-grid tools/experimental/tilemega-flow-grid.cpp)
+  target_link_libraries(tilemega-flow-grid PRIVATE TileMega::tilemega MLIRParser)
+  target_compile_definitions(tilemega-flow-grid PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  set_target_properties(tilemega-flow-grid PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-flow-point tools/experimental/tilemega-flow-point.cpp)
+  target_link_libraries(tilemega-flow-point PRIVATE TileMega::tilemega MLIRParser)
+  set_target_properties(tilemega-flow-point PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-r9-early docs/experiments/SOLVER_R9B/early_signal.cpp)
+  target_link_libraries(tilemega-r9-early PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-r9-early PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-shape-probe tools/experimental/tilemega-shape-probe.cpp)
+  target_link_libraries(tilemega-shape-probe PRIVATE TileMega::tilemega)
+  target_compile_definitions(tilemega-shape-probe PRIVATE
+    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  set_target_properties(tilemega-shape-probe PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-identity-probe tools/experimental/tilemega-identity-probe.cpp)
+  target_link_libraries(tilemega-identity-probe PRIVATE TileMega::tilemega)
+  target_compile_definitions(tilemega-identity-probe PRIVATE
+    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  set_target_properties(tilemega-identity-probe PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-symbolic-probe tools/experimental/tilemega-symbolic-probe.cpp)
+  target_link_libraries(tilemega-symbolic-probe PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-symbolic-probe PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-affine-probe tools/experimental/tilemega-affine-probe.cpp)
+  target_link_libraries(tilemega-affine-probe PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-affine-probe PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-event-price tools/experimental/tilemega-event-price.cpp)
+  target_link_libraries(tilemega-event-price PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-event-price PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-fusion-events tools/experimental/tilemega-fusion-events.cpp)
+  add_executable(tilemega-fusion-dp tools/experimental/tilemega-fusion-dp.cpp)
+  target_link_libraries(tilemega-fusion-dp PRIVATE TileMega::tilemega MLIRParser)
+  set_target_properties(tilemega-fusion-dp PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-fusion-chain tools/experimental/tilemega-fusion-chain.cpp)
+  target_link_libraries(tilemega-fusion-chain PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-fusion-chain PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  target_link_libraries(tilemega-fusion-events PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-fusion-events PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-task-work-gate tools/experimental/tilemega-task-work-gate.cpp)
+  add_executable(tilemega-task-cost-gate tools/experimental/tilemega-task-cost-gate.cpp)
+  add_executable(tilemega-scalar-cost-probe tools/experimental/tilemega-scalar-cost-probe.cpp)
+  target_link_libraries(tilemega-scalar-cost-probe PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-scalar-cost-probe PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  target_link_libraries(tilemega-task-cost-gate PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-task-cost-gate PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-simulate docs/experiments/SIMULATOR/simulate.cpp)
+  target_link_libraries(tilemega-simulate PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-simulate PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-place-eft docs/experiments/PLACE_EFT/place_eft.cpp)
+  target_link_libraries(tilemega-place-eft PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-place-eft PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-place-chain docs/experiments/CHAIN/place_chain.cpp)
+  target_link_libraries(tilemega-place-chain PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-place-chain PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  target_link_libraries(tilemega-task-work-gate PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-task-work-gate PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-fusion-probe tools/experimental/tilemega-fusion-probe.cpp)
+  add_executable(tilemega-fusion-cost tools/experimental/tilemega-fusion-cost.cpp)
+  add_executable(tilemega-symbolic-task-price tools/experimental/tilemega-symbolic-task-price.cpp)
+  target_link_libraries(tilemega-symbolic-task-price PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-symbolic-task-price PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  target_link_libraries(tilemega-fusion-cost PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-fusion-cost PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-attention-plan-price tools/experimental/tilemega-attention-plan-price.cpp)
+  add_executable(tilemega-attention-dp tools/experimental/tilemega-attention-dp.cpp)
+  target_link_libraries(tilemega-attention-dp PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-attention-dp PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  target_link_libraries(tilemega-attention-plan-price PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-attention-plan-price PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  target_link_libraries(tilemega-fusion-probe PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-fusion-probe PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-costmodel tools/experimental/tilemega-costmodel.cpp)
+  target_link_libraries(tilemega-costmodel PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-costmodel PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-migrate tools/experimental/tilemega-migrate.cpp)
+  target_link_libraries(tilemega-migrate PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-migrate PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+  add_executable(tilemega-solve tools/experimental/tilemega-solve.cpp)
+  target_link_libraries(tilemega-solve PRIVATE TileMega::tilemega)
+  set_target_properties(tilemega-solve PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+endif()
+
+add_library(tilemega_commands OBJECT
+  tools/commands/attention-work.cpp
+  tools/commands/calibrate.cpp
+  tools/commands/compile.cpp
+  tools/commands/derive.cpp
+  tools/commands/dram-floor.cpp
+  tools/commands/event-cost.cpp
+  tools/commands/flow-audit.cpp
+  tools/commands/import.cpp
+  tools/commands/interface-probe.cpp
+  tools/commands/occupancy.cpp
+  tools/commands/op-audit.cpp
+  tools/commands/parametric.cpp
+  tools/commands/runtime-projection.cpp
+  tools/commands/scalar-error-probe.cpp
+  tools/commands/skeleton-audit.cpp
+  tools/commands/target-audit.cpp
+  tools/commands/task-work-probe.cpp
+  tools/commands/wait-policy.cpp
+  tools/commands/wiring.cpp
+)
+add_dependencies(tilemega_commands TileMegaCGIncGen)
+target_link_libraries(tilemega_commands PRIVATE TileMega::tilemega tilemega_calibration MLIRParser)
+target_compile_definitions(tilemega_commands PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+if(NOT LLVM_ENABLE_RTTI)
+  target_compile_options(tilemega_commands PRIVATE -fno-rtti)
+endif()
+add_executable(tilemega tools/tilemega.cpp $<TARGET_OBJECTS:tilemega_commands>)
+target_link_libraries(tilemega PRIVATE TileMega::tilemega tilemega_calibration MLIRParser)
+set_target_properties(tilemega PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")

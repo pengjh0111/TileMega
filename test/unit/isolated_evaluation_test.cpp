@@ -3,8 +3,10 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Solver/SkeletonPlacement.h>
 #include <iomanip>
+
+namespace tilemega::tests::isolated_evaluation_test {
 using namespace tilemega;
-int main() {
+int TestIsolatedEvaluation(int argc, char** argv) {
  try {
   analysis::IslContext isl;analysis::CouplingCache cache;
   solver::PlanSkeleton sk;sk.grid=4;sk.residency=1;sk.stage_order={0,1};
@@ -36,4 +38,8 @@ int main() {
   std::filesystem::remove_all(prefix);
   std::cout<<"ISOLATED_EVALUATION exact_schedules=4 parent_state_unchanged=1 exception_propagated=1 PASS\n";
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::isolated_evaluation_test

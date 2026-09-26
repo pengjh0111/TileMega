@@ -12,7 +12,9 @@
 #include <cstdio>
 #include <string>
 
-int main() {
+namespace tilemega::tests::degradation_test {
+
+int TestDegradation(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   mlir::MLIRContext context;
   tilemega::frontend::ImportSummary summary;
@@ -52,4 +54,8 @@ int main() {
   std::printf("DEGRADED ops=%zu task_spaces=%d generic=%d\n",
               summary.degraded.size(), spaces, generic);
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::degradation_test

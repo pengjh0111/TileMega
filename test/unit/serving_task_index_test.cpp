@@ -3,7 +3,9 @@
 
 #include <cassert>
 
-int main() {
+namespace tilemega::tests::serving_task_index_test {
+
+int TestServingTaskIndex(int argc, char** argv) {
   // Prefill: B=16, QPerKV*S/Rq=4, eight KV groups, one cache block.
   for (int b = 0; b < 16; ++b)
     for (int qb = 0; qb < 4; ++qb)
@@ -25,4 +27,8 @@ int main() {
         assert(x.batch == b && x.query_block == 0 && x.group == g &&
                x.cache_block == c);
       }
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::serving_task_index_test

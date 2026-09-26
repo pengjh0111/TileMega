@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+namespace tilemega::tests::cluster_labeling_test {
+
 using namespace tilemega::solver;
 
 #define REQUIRE(condition)                                                 \
@@ -31,7 +33,7 @@ std::vector<ClusterNode> Chain(int n, double smem) {
 
 }  // namespace
 
-int main() {
+int TestClusterLabeling(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   ClusterLabeling labeling;
 
@@ -116,4 +118,8 @@ int main() {
 
   std::printf("cluster labeling ok\n");
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::cluster_labeling_test

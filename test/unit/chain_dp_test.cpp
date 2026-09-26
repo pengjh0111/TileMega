@@ -15,6 +15,8 @@
 #include <string>
 #include <vector>
 
+namespace tilemega::tests::chain_dp_test {
+
 using namespace tilemega;
 using namespace tilemega::solver;
 
@@ -118,7 +120,7 @@ std::vector<DpCandidate> Candidates() {
 
 }  // namespace
 
-int main() {
+int TestChainDp(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   TargetSpec const target =
       TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR) +
@@ -339,4 +341,8 @@ int main() {
 
   std::printf("chain_dp: ok\n");
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::chain_dp_test

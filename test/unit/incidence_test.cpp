@@ -8,9 +8,11 @@
 #include <utility>
 #include <vector>
 
+namespace tilemega::tests::incidence_test {
+
 using namespace tilemega::analysis;
 
-int main() try {
+int TestIncidence(int argc, char** argv) try {
   IslContext context;
   DecoderShape shape;
   ParamBinding known = DecoderShape::Table27Theta();
@@ -70,7 +72,11 @@ int main() try {
   std::cerr << "ISL_ERROR_BRANCH function=ComputeMetrics rejected=1 before=" << before
             << " after=" << context.ReferenceCount() << '\n';
   return 0;
+
+  return 0;
 } catch (std::exception const& error) {
   std::cerr << "incidence: " << error.what() << '\n';
   return 1;
 }
+
+}  // namespace tilemega::tests::incidence_test

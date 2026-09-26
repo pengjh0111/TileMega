@@ -3,7 +3,9 @@
 #include <iostream>
 #include <stdexcept>
 
-int main() {
+namespace tilemega::tests::graph_pattern_test {
+
+int TestGraphPattern(int argc, char** argv) {
   using namespace tilemega::frontend;
   std::vector<FxNodeRecord> graph(80);
   for (int i=0;i<80;++i) {
@@ -34,4 +36,8 @@ int main() {
   if (!matcher.DependsOn("unknown","unknown") || matcher.DependsOn("unknown","n0"))
     throw std::runtime_error("unknown-node identity changed");
   std::cout << "PATTERN_REACHABILITY checks=" << checks << " cached_equals_traversal=PASS\n";
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::graph_pattern_test

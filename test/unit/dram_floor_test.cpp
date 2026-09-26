@@ -3,9 +3,11 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <iostream>
 #include <stdexcept>
+
+namespace tilemega::tests::dram_floor_test {
 using namespace tilemega::analysis;
 static void Check(bool v, char const* why) { if(!v)throw std::runtime_error(why); }
-int main() {
+int TestDramFloor(int argc, char** argv) {
   IslContext context;
   auto c=[](long n){return ClosedForm::Constant(n);};
   auto S=ClosedForm::Symbol("seq"),P=ClosedForm::Symbol("past"),B=ClosedForm::Symbol("batch");
@@ -50,4 +52,8 @@ int main() {
   floor=DeriveDramFloor({{gather}},opts);ParamBinding theta;theta.Bind("seq",4).Bind("past",0);
   Check(floor.tensors.at("table").read_bytes.Eval(theta)==32,"duplicate gather indices count once");
   std::cout<<"DRAM_FLOOR symbolic_batch_seq=PASS weight_dedup=PASS partial_KV=PASS indirect_image=PASS\n";
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::dram_floor_test

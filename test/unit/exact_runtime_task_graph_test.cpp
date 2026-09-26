@@ -4,7 +4,9 @@
 #include <iostream>
 #include <stdexcept>
 
-int main() try {
+namespace tilemega::tests::exact_runtime_task_graph_test {
+
+int TestExactRuntimeTaskGraph(int argc, char** argv) try {
   using namespace tilemega;
   analysis::IslContext context;
   codegen::RuntimeExactDependencyDesc descriptor{
@@ -38,4 +40,8 @@ int main() try {
   reject(unbound,{4,8},4,3);
   if (context.ReferenceCount()) throw std::runtime_error("exact runtime adapter retained references");
   std::cout << "EXACT_RUNTIME_GRAPH cases=" << cases << " errors=" << errors << " remaining=0\n";
+
+  return 0;
 } catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
+
+}  // namespace tilemega::tests::exact_runtime_task_graph_test

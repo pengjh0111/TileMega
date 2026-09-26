@@ -8,6 +8,8 @@
 #include <iostream>
 #include <string>
 
+namespace tilemega::commands::derive {
+
 using namespace tilemega::analysis;
 
 namespace {
@@ -50,7 +52,7 @@ void Dump(std::string const& title, OperatorGraph const& graph) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int RunDerive(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   std::string which = argc > 1 ? argv[1] : "llama";
   DecoderShape shape;
@@ -74,4 +76,8 @@ int main(int argc, char** argv) {
     return 2;
   }
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::commands::derive

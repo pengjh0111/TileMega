@@ -13,6 +13,8 @@
 #include <iostream>
 #include <string>
 
+namespace tilemega::tests::coupling_types_test {
+
 using namespace tilemega::analysis;
 
 namespace {
@@ -43,7 +45,7 @@ CouplingEdge Find(std::vector<CouplingEdge> const& edges, std::string const& src
 
 }  // namespace
 
-int main() {
+int TestCouplingTypes(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   DecoderShape shape;
   ParamBinding known = KnownBinding();
@@ -150,4 +152,8 @@ int main() {
   REQUIRE(alignedEdges.front().metrics.wait.Eval(misaligned) == 2);
 
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::coupling_types_test

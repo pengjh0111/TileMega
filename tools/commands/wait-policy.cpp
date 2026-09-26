@@ -19,11 +19,13 @@
 #include <exception>
 #include <string>
 
+namespace tilemega::commands::wait_policy {
+
 #ifndef TILEMEGA_SOURCE_DIR
 #define TILEMEGA_SOURCE_DIR "."
 #endif
 
-int main(int argc, char** argv) {
+int RunWaitPolicy(int argc, char** argv) {
   std::string const tag = argc > 1 ? argv[1] : "sm_89";
   std::string const dtype = argc > 2 ? argv[2] : "bf16";
   std::string const root = argc > 3 ? argv[3] : TILEMEGA_SOURCE_DIR;
@@ -43,4 +45,8 @@ int main(int argc, char** argv) {
     return 2;
   }
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::commands::wait_policy

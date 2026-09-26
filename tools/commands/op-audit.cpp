@@ -10,7 +10,9 @@
 #include <set>
 #include <stdexcept>
 
-int main(int argc,char** argv) try {
+namespace tilemega::commands::op_audit {
+
+int RunOpAudit(int argc, char** argv) try {
   using namespace tilemega::analysis;
   IslContext context;
   if (argc>1) {
@@ -111,6 +113,10 @@ int main(int argc,char** argv) try {
             << " after=" << context.ReferenceCount() << '\n';
   std::cout << "OP_AUDIT declarations=" << names.size() << " schema_failures=0 unavailable_implementations="
             << unavailable << " price_integration=not_implemented\n";
+
+  return 0;
 } catch (std::exception const& e) {
   std::cerr << "op-audit: " << e.what() << '\n'; return 2;
 }
+
+}  // namespace tilemega::commands::op_audit

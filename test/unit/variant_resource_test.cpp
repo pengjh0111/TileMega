@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/VariantResourceCache.h>
 #include <iostream>
+
+namespace tilemega::tests::variant_resource_test {
 using namespace tilemega;
-int main(){
+int TestVariantResource(int argc, char** argv){
  solver::SolverTiming timing;int calls=0;
  solver::VariantResourceCache cache([&](std::string const&,solver::GemmConfig const* g,solver::ScalarType){
    ++calls;return g ? solver::VariantResources{38,3072,128,true}:solver::VariantResources{40,16384,128,true};
@@ -17,4 +19,8 @@ int main(){
  if(solver::VariantResourceCache::ResidentLimit({256,16384,128,0},target)!=2)return 2;
  if(solver::VariantResourceCache::ResidentLimit({40,102400,128,0},target)!=0)return 3;
  std::cout<<"RESOURCE_CACHE calls="<<calls<<" repeat=0 resident=6 register_limited=2 oversized=0 PASS\n";
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::variant_resource_test

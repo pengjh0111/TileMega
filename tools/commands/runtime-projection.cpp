@@ -8,7 +8,9 @@
 #include <iostream>
 #include <stdexcept>
 
-int main(int argc, char** argv) try {
+namespace tilemega::commands::runtime_projection {
+
+int RunRuntimeProjection(int argc, char** argv) try {
   tilemega::analysis::IslContext isl_context;
   if (argc < 12 || argc > 18 || argc==16)
     throw std::invalid_argument("usage: tilemega-runtime-projection EXPORT.json "
@@ -112,6 +114,10 @@ int main(int argc, char** argv) try {
               << '\t' << eval(projection.runtime_wait_entries)
               << '\t' << eval(projection.max_worker_task_refs) << '\n';
   }
+
+  return 0;
 } catch (std::exception const& e) {
   std::cerr << "runtime-projection: " << e.what() << '\n'; return 2;
 }
+
+}  // namespace tilemega::commands::runtime_projection

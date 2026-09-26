@@ -31,6 +31,8 @@
 #include <cmath>
 #include <limits>
 
+namespace tilemega::commands::compile {
+
 namespace {
 std::string quote(std::string const& value) {
   std::string result = "'";
@@ -197,7 +199,7 @@ std::vector<VariantRequest> readVariants(std::string const& path,
 }
 }  // namespace
 
-int main(int argc, char** argv) {
+int RunCompile(int argc, char** argv) {
   std::vector<std::string> normalized;
   for(int i=0;i<argc;++i) {
     std::string value=argv[i];auto equals=value.find('=');
@@ -976,4 +978,8 @@ int main(int argc, char** argv) {
     std::cerr << "tilemega-compile: " << error.what() << "\n";
     return 1;
   }
+
+  return 0;
 }
+
+}  // namespace tilemega::commands::compile

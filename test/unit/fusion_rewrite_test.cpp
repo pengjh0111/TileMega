@@ -15,7 +15,9 @@
 #include <iostream>
 #include <stdexcept>
 
-int main() try {
+namespace tilemega::tests::fusion_rewrite_test {
+
+int TestFusionRewrite(int argc, char** argv) try {
   using namespace tilemega;
   analysis::IslContext isl;
   mlir::MLIRContext context;
@@ -111,4 +113,8 @@ int main() try {
   }
   if (isl.ReferenceCount()) throw std::runtime_error("fusion rewrite retained ISL references");
   std::cout << "FUSION_REWRITE edge_identities=" << checks << " errors=" << errors << " remaining=0\n";
+
+  return 0;
 } catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
+
+}  // namespace tilemega::tests::fusion_rewrite_test

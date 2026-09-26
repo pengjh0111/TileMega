@@ -15,6 +15,8 @@
 #include <string>
 #include <vector>
 
+namespace tilemega::tests::chain_placement_test {
+
 using namespace tilemega;
 using solver::ChainRequest;
 using solver::ChainSchedule;
@@ -68,7 +70,7 @@ void CheckQueues(codegen::RuntimeTaskGraph const& graph, ChainSchedule const& sc
 
 }  // namespace
 
-int main() {
+int TestChainPlacement(int argc, char** argv) {
   std::string error;
 
   {
@@ -229,4 +231,8 @@ int main() {
 
   std::printf("chain_placement_test: ok\n");
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::chain_placement_test

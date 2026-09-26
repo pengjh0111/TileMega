@@ -9,6 +9,8 @@
 #include <cassert>
 #include <string>
 
+namespace tilemega::tests::layout_bridge_test {
+
 using namespace tilemega::analysis;
 
 namespace {
@@ -36,7 +38,7 @@ void RoundTrips(CuteLayoutBridge const& bridge, LayoutDescriptor const& layout) 
 
 }  // namespace
 
-int main() {
+int TestLayoutBridge(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   CuteLayoutBridge bridge;
 
@@ -137,4 +139,8 @@ int main() {
   assert(back.strides.front().ToString() == "16");
 
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::layout_bridge_test

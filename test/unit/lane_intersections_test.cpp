@@ -6,7 +6,9 @@
 #include <limits>
 #include <stdexcept>
 
-int main() try {
+namespace tilemega::tests::lane_intersections_test {
+
+int TestLaneIntersections(int argc, char** argv) try {
   using namespace tilemega::analysis;
   using tilemega::solver::OrderQuadraticLanes;
   IslContext context;
@@ -122,4 +124,8 @@ int main() try {
   }
   std::cout << "LANE_INTERSECTIONS integer_checks=" << checked << " errors=" << errors
             << " envelope_checks=" << envelope_checks << " reference_delta=" << context.ReferenceCount() << '\n';
+
+  return 0;
 } catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
+
+}  // namespace tilemega::tests::lane_intersections_test

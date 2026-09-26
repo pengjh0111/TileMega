@@ -13,6 +13,8 @@
 #include <stdexcept>
 #include <vector>
 
+namespace tilemega::tests::list_scheduler_test {
+
 using namespace tilemega::solver;
 
 #define REQUIRE(condition)                                                 \
@@ -23,7 +25,7 @@ using namespace tilemega::solver;
     }                                                                      \
   } while (0)
 
-int main() {
+int TestListScheduler(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   ListScheduler scheduler;
   {
@@ -150,4 +152,8 @@ int main() {
 
   std::printf("list_scheduler_test PASS\n");
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::list_scheduler_test

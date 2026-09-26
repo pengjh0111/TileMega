@@ -12,6 +12,8 @@
 #include <cassert>
 #include <sstream>
 
+namespace tilemega::tests::cg_attr_test {
+
 using namespace tilemega;
 
 namespace {
@@ -32,7 +34,7 @@ AttrT RoundTripThroughMlirText(mlir::MLIRContext& context, AttrT attr) {
 }
 }  // namespace
 
-int main() {
+int TestCgAttr(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();
@@ -130,4 +132,8 @@ int main() {
          "a runtime extent cannot be relabelled Tier 0");
 
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::cg_attr_test

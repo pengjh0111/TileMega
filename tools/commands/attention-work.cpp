@@ -7,7 +7,9 @@
 #include <iostream>
 #include <iomanip>
 
-int main(int argc,char** argv) try {
+namespace tilemega::commands::attention_work {
+
+int RunAttentionWork(int argc, char** argv) try {
   using namespace tilemega;
   using namespace tilemega::solver;
   if (argc!=2) throw std::invalid_argument("usage: tilemega-attention-work REPO");
@@ -91,4 +93,8 @@ int main(int argc,char** argv) try {
   }
   if (checks==0 || isl.ReferenceCount()!=0) throw std::runtime_error("incomplete attention work audit");
   std::cerr << "ATTENTION_WORK per_task_checks=" << checks << " errors=" << errors << " reference_delta=0\n";
+
+  return 0;
 } catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 2; }
+
+}  // namespace tilemega::commands::attention_work

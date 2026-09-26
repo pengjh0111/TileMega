@@ -14,6 +14,8 @@
 #include <iostream>
 #include <string>
 
+namespace tilemega::tests::semantics_test {
+
 using namespace tilemega::analysis;
 
 namespace {
@@ -50,7 +52,7 @@ OperatorNode const* Node(OperatorGraph const& graph, std::string const& name) {
 
 }  // namespace
 
-int main() {
+int TestSemantics(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   // --- I1: L-sem is byte-identical under two different g -------------------
   DecoderShape symbolic;
@@ -150,4 +152,8 @@ int main() {
     return 1;
   }
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::semantics_test

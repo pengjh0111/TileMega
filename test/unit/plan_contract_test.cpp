@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+namespace tilemega::tests::plan_contract_test {
+
 using namespace tilemega;
 using solver::MaterializedPlan;
 
@@ -54,7 +56,7 @@ MaterializedPlan MakePlan(int per_stage, std::vector<int> const& owner,
 
 }  // namespace
 
-int main() {
+int TestPlanContract(int argc, char** argv) {
   std::string error;
 
   {
@@ -195,4 +197,8 @@ int main() {
 
   std::printf("plan_contract_test: ok\n");
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::plan_contract_test

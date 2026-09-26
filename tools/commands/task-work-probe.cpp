@@ -7,7 +7,9 @@
 #include <iostream>
 #include <stdexcept>
 
-int main(int argc, char** argv) try {
+namespace tilemega::commands::task_work_probe {
+
+int RunTaskWorkProbe(int argc, char** argv) try {
   using namespace tilemega::analysis;
   IslContext context;
   auto fixed=[](long n){return ClosedForm::Constant(n);};
@@ -176,4 +178,8 @@ int main(int argc, char** argv) try {
     std::cerr << "A3_NORMALIZATION_EXPORT file=" << argv[input] << " cells=" << norms
               << " status=PASS scale_read=present\n";
   }
+
+  return 0;
 } catch(std::exception const& e) { std::cerr<<e.what()<<'\n'; return 2; }
+
+}  // namespace tilemega::commands::task_work_probe

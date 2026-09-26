@@ -10,7 +10,9 @@
 #include <exception>
 #include <iostream>
 
-int main(int argc, char** argv) {
+namespace tilemega::commands::import {
+
+int RunImport(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   if (argc != 2 && !(argc==3 && std::string(argv[2])=="--separate-residual-tasks")) {
     std::cerr << "usage: tilemega-import STABLE_EXPORT.json [--separate-residual-tasks]\n";
@@ -35,4 +37,8 @@ int main(int argc, char** argv) {
     std::cerr << "tilemega-import: " << error.what() << "\n";
     return 1;
   }
+
+  return 0;
 }
+
+}  // namespace tilemega::commands::import

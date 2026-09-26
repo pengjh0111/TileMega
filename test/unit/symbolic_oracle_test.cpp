@@ -7,8 +7,10 @@
 #include <map>
 #include <set>
 #include <stdexcept>
+
+namespace tilemega::tests::symbolic_oracle_test {
 using namespace tilemega::analysis;
-int main() {
+int TestSymbolicOracle(int argc, char** argv) {
   IslContext context;
   {
     SymbolicOracle release("{ [q] -> [p] : 0<=q<4 and 0<=p<=2*q and p%2=0 }");
@@ -108,4 +110,8 @@ int main() {
   std::cout<<"ORACLE_RELEASE_EQUAL comparisons="<<releases<<" PASS\n";
   std::cout<<"ORACLE_SET_EQUAL comparisons="<<comparisons<<" PASS\n";
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::symbolic_oracle_test

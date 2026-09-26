@@ -12,6 +12,8 @@
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Frontend/ModelPlan.h>
 
+namespace tilemega::tests::embedding_plan_test {
+
 using namespace tilemega;
 
 namespace {
@@ -68,7 +70,7 @@ frontend::ExportBridge WithEmbedding(frontend::ExportBridge bridge,
 
 }  // namespace
 
-int main() {
+int TestEmbeddingPlan(int argc, char** argv) {
   std::string const path = std::string(TILEMEGA_SOURCE_DIR) +
                            "/docs/experiments/E2E_GEN/raw/export_bridge.json";
   auto reference = frontend::ReadExportBridge(path);
@@ -107,4 +109,8 @@ int main() {
 
   std::cout << "embedding_plan_test PASS\n";
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::embedding_plan_test

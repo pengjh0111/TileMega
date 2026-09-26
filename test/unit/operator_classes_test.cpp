@@ -5,8 +5,10 @@
 #include <iostream>
 #include <regex>
 #include <fstream>
+
+namespace tilemega::tests::operator_classes_test {
 using namespace tilemega;
-int main(int argc,char** argv) {
+int TestOperatorClasses(int argc, char** argv) {
  try {
   analysis::IslContext isl;mlir::MLIRContext context;
   std::string path=std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/E2E_GEN/raw/export_bridge.json";
@@ -36,4 +38,8 @@ int main(int argc,char** argv) {
   if(argc>1)std::ofstream(argv[1])<<source;
   std::cout<<"VARIANTS count=2 classes="<<classes.size()<<" invocations="<<i<<" PASS\n";
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::operator_classes_test

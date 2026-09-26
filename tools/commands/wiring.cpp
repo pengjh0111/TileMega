@@ -14,6 +14,8 @@
 #include <string>
 #include <unordered_map>
 
+namespace tilemega::commands::wiring {
+
 using namespace tilemega;
 
 namespace {
@@ -31,7 +33,7 @@ analysis::ParamBinding TileBinding() {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int RunWiring(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   std::string path = argc > 1 ? argv[1]
                               : std::string(TILEMEGA_SOURCE_DIR) +
@@ -93,4 +95,8 @@ int main(int argc, char** argv) {
               << (edge.relaxation.empty() ? "-" : edge.relaxation) << " |\n";
   }
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::commands::wiring

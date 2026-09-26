@@ -42,6 +42,8 @@
 #include <string>
 #include <vector>
 
+namespace tilemega::commands::target_audit {
+
 namespace {
 
 using tilemega::TargetSpec;
@@ -304,7 +306,7 @@ void CheckCross(std::string const& tag, TargetSpec const& spec,
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int RunTargetAudit(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   std::string const repo = argc > 1 ? argv[1] : TILEMEGA_SOURCE_DIR;
 
@@ -354,4 +356,8 @@ int main(int argc, char** argv) {
   std::printf("SUMMARY targets=%zu failures=%d\n",
               sizeof(kTags) / sizeof(kTags[0]), failures);
   return failures == 0 ? 0 : 1;
+
+  return 0;
 }
+
+}  // namespace tilemega::commands::target_audit

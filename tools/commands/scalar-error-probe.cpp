@@ -9,7 +9,9 @@
 #include <iostream>
 #include <stdexcept>
 
-int main(int argc,char** argv) try {
+namespace tilemega::commands::scalar_error_probe {
+
+int RunScalarErrorProbe(int argc, char** argv) try {
   using namespace tilemega;
   using namespace tilemega::solver;
   if (argc!=2) throw std::invalid_argument("usage: tilemega-scalar-error-probe REPO");
@@ -97,4 +99,8 @@ int main(int argc,char** argv) try {
   }
   if (branches!=27 || context.ReferenceCount()) throw std::runtime_error("incomplete scalar rejection audit");
   std::cout << "SCALAR_ERRORS branches=" << branches << " reference_delta=0\nISL_CONTEXT remaining=0\n";
+
+  return 0;
 } catch (std::exception const& e) { std::cerr << e.what() << '\n'; return 2; }
+
+}  // namespace tilemega::commands::scalar_error_probe

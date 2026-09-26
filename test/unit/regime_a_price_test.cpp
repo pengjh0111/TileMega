@@ -7,9 +7,11 @@
 #include <mlir/IR/MLIRContext.h>
 #include <cstring>
 #include <iostream>
+
+namespace tilemega::tests::regime_a_price_test {
 using namespace tilemega;
 static void Require(bool ok,char const* why){if(!ok)throw std::runtime_error(why);}
-int main(int argc,char** argv) try {
+int TestRegimeAPrice(int argc, char** argv) try {
   if(argc!=3)throw std::invalid_argument("regime_a_price_test repo target");
   analysis::IslContext isl;mlir::MLIRContext context;context.getOrLoadDialect<dialect::CGDialect>();context.getOrLoadDialect<dialect::ExecDialect>();
   auto target=TargetSpec::FromJson(argv[2]);auto const& cal=target.CalibrationFor("bf16");
@@ -60,4 +62,8 @@ int main(int argc,char** argv) try {
     }
   }
   std::cout<<"REGIME_A_PRICE bit_exact="<<checks<<" stage_monotonic=PASS kernel_union_cache=PASS external_df_2GiB=1\n";
- }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+ 
+  return 0;
+}catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+
+}  // namespace tilemega::tests::regime_a_price_test

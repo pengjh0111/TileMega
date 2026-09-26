@@ -16,6 +16,8 @@
 #include <string>
 #include <vector>
 
+namespace tilemega::tests::impl_contract_test {
+
 using namespace tilemega;
 using analysis::ClosedForm;
 
@@ -89,7 +91,7 @@ void Report(char const* label, bool ok, std::string const& error) {
 
 }  // namespace
 
-int main() {
+int TestImplContract(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   analysis::OperatorNode node = ScoreMatmul();
   std::vector<analysis::AccessRelation> derived = ReadMaps(node);
@@ -233,4 +235,8 @@ int main() {
 
   std::printf("impl_contract: all checks behaved as required\n");
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::impl_contract_test

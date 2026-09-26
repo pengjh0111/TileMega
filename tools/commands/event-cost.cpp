@@ -8,11 +8,13 @@
 #include <iostream>
 #include <stdexcept>
 
+namespace tilemega::commands::event_cost {
+
 #ifndef TILEMEGA_EVENT_COST_DIAGNOSTICS
 #define TILEMEGA_EVENT_COST_DIAGNOSTICS 1
 #endif
 
-int main(int argc, char** argv) try {
+int RunEventCost(int argc, char** argv) try {
   tilemega::analysis::IslContext isl_context;
 #if !TILEMEGA_EVENT_COST_DIAGNOSTICS
   throw std::runtime_error("event metric audit disabled at compile time");
@@ -67,6 +69,10 @@ int main(int argc, char** argv) try {
             << " mismatches=" << mismatches << '\n';
   if (mismatches) throw std::runtime_error("historical mismatches recorded; gate FAILED");
   std::cerr << "METRIC_AUDIT_ONLY: no event price or symbolic DP acceptance claimed\n";
+
+  return 0;
 } catch (std::exception const& e) {
   std::cerr << "event-cost: " << e.what() << '\n'; return 2;
 }
+
+}  // namespace tilemega::commands::event_cost

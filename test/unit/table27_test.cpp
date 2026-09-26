@@ -36,6 +36,8 @@
 #include <string>
 #include <vector>
 
+namespace tilemega::tests::table27_test {
+
 using namespace tilemega::analysis;
 
 namespace {
@@ -111,7 +113,7 @@ class Table {
 
 }  // namespace
 
-int main() {
+int TestTable27(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   // A prefill combine -> down edge has a sawtooth first predecessor in
   // row-major consumer order: tc=0,1,16 start at tp=0,8,0. No single
@@ -356,4 +358,8 @@ int main() {
     return 1;
   }
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::table27_test

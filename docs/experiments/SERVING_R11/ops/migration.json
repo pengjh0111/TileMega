@@ -1,0 +1,351 @@
+{
+  "commands": {
+    "compile": "compile",
+    "calibrate": "calibrate",
+    "occupancy": "occupancy",
+    "wait-policy": "calibrate wait-policy",
+    "import": "inspect import",
+    "derive": "inspect derive",
+    "wiring": "inspect wiring",
+    "dram-floor": "inspect dram-floor",
+    "runtime-projection": "inspect runtime-projection",
+    "parametric": "inspect parametric",
+    "target-audit": "audit target",
+    "op-audit": "audit op",
+    "skeleton-audit": "audit skeleton",
+    "flow-audit": "audit flow",
+    "attention-work": "probe attention-work",
+    "event-cost": "probe event-cost",
+    "interface-probe": "probe interface-probe",
+    "scalar-error-probe": "probe scalar-error-probe",
+    "task-work-probe": "probe task-work-probe"
+  },
+  "host_test_targets": {
+    "target_spec_test": "test/unit/target_spec_test.cpp",
+    "coupling_types_test": "test/unit/coupling_types_test.cpp",
+    "table27_test": "test/unit/table27_test.cpp",
+    "semantics_test": "test/unit/semantics_test.cpp",
+    "dram_floor_test": "test/unit/dram_floor_test.cpp",
+    "regime_a_price_test": "test/unit/regime_a_price_test.cpp",
+    "stage_flow_test": "test/unit/stage_flow_test.cpp",
+    "flow_runtime_release_test": "test/unit/flow_runtime_release_test.cpp",
+    "incidence_test": "test/unit/incidence_test.cpp",
+    "containment_test": "test/unit/containment_test.cpp",
+    "event_synthesis_test": "test/unit/event_synthesis_test.cpp",
+    "isl_relation_test": "test/unit/isl_relation_test.cpp",
+    "runtime_projection_test": "test/unit/runtime_projection_test.cpp",
+    "relation_bounds_test": "test/unit/relation_bounds_test.cpp",
+    "task_element_work_test": "test/unit/task_element_work_test.cpp",
+    "graph_pattern_test": "test/unit/graph_pattern_test.cpp",
+    "model_plan_order_test": "test/unit/model_plan_order_test.cpp",
+    "layout_bridge_test": "test/unit/layout_bridge_test.cpp",
+    "cg_attr_test": "test/unit/cg_attr_test.cpp",
+    "backend_query_test": "test/unit/backend_query_test.cpp",
+    "chain_dp_test": "test/unit/chain_dp_test.cpp",
+    "cache_service_curve_test": "test/unit/cache_service_curve_test.cpp",
+    "fusion_access_test": "test/unit/fusion_access_test.cpp",
+    "lane_intersections_test": "test/unit/lane_intersections_test.cpp",
+    "fusion_rewrite_test": "test/unit/fusion_rewrite_test.cpp",
+    "stage_kappa_test": "test/unit/stage_kappa_test.cpp",
+    "pipeline_sigma_test": "test/unit/pipeline_sigma_test.cpp",
+    "fusion_written_price_test": "test/unit/fusion_written_price_test.cpp",
+    "fused_runtime_projection_test": "test/unit/fused_runtime_projection_test.cpp",
+    "exact_runtime_task_graph_test": "test/unit/exact_runtime_task_graph_test.cpp",
+    "fusion_batch_rewrite_test": "test/unit/fusion_batch_rewrite_test.cpp",
+    "fiber_sum_test": "test/unit/fiber_sum_test.cpp",
+    "list_scheduler_test": "test/unit/list_scheduler_test.cpp",
+    "plan_contract_test": "test/unit/plan_contract_test.cpp",
+    "execution_simulator_test": "test/unit/execution_simulator_test.cpp",
+    "eft_placement_test": "test/unit/eft_placement_test.cpp",
+    "chain_placement_test": "test/unit/chain_placement_test.cpp",
+    "plan_table_test": "test/unit/plan_table_test.cpp",
+    "cluster_labeling_test": "test/unit/cluster_labeling_test.cpp",
+    "alignment_propagation_test": "test/unit/alignment_propagation_test.cpp",
+    "impl_contract_test": "test/unit/impl_contract_test.cpp",
+    "serving_pruning_test": "test/unit/serving_pruning_test.cpp",
+    "serving_task_index_test": "test/unit/serving_task_index_test.cpp",
+    "serving_model_plan_test": "test/unit/serving_model_plan_test.cpp",
+    "serving_token_sets_test": "test/unit/serving_token_sets_test.cpp",
+    "serving_import_test": "test/unit/serving_import_test.cpp",
+    "frontend_import_test": "test/unit/frontend_import_test.cpp",
+    "skeleton_placement_test": "test/unit/skeleton_placement_test.cpp",
+    "isolated_evaluation_test": "test/unit/isolated_evaluation_test.cpp",
+    "skeleton_search_isolation_test": "test/unit/skeleton_search_isolation_test.cpp",
+    "plan_skeleton_test": "test/unit/plan_skeleton_test.cpp",
+    "variant_resource_test": "test/unit/variant_resource_test.cpp",
+    "symbolic_oracle_test": "test/unit/symbolic_oracle_test.cpp",
+    "operator_classes_test": "test/unit/operator_classes_test.cpp",
+    "coupling_cache_test": "test/unit/coupling_cache_test.cpp",
+    "semantic_lifting_test": "test/unit/semantic_lifting_test.cpp",
+    "embedding_plan_test": "test/unit/embedding_plan_test.cpp",
+    "wiring_coupling_test": "test/unit/wiring_coupling_test.cpp",
+    "degradation_test": "test/unit/degradation_test.cpp"
+  },
+  "test_routes": [
+    [
+      "target_spec",
+      "target_spec_test"
+    ],
+    [
+      "coupling_types",
+      "coupling_types_test"
+    ],
+    [
+      "table27",
+      "table27_test"
+    ],
+    [
+      "stage_flow",
+      "stage_flow_test"
+    ],
+    [
+      "flow_runtime_release",
+      "flow_runtime_release_test"
+    ],
+    [
+      "regime_a_price",
+      "regime_a_price_test"
+    ],
+    [
+      "dram_floor",
+      "dram_floor_test"
+    ],
+    [
+      "semantics",
+      "semantics_test"
+    ],
+    [
+      "incidence_identity",
+      "incidence_test"
+    ],
+    [
+      "containment",
+      "containment_test"
+    ],
+    [
+      "event_synthesis",
+      "event_synthesis_test"
+    ],
+    [
+      "runtime_projection",
+      "runtime_projection_test"
+    ],
+    [
+      "relation_bounds",
+      "relation_bounds_test"
+    ],
+    [
+      "graph_pattern",
+      "graph_pattern_test"
+    ],
+    [
+      "task_element_work",
+      "task_element_work_test"
+    ],
+    [
+      "isl_relation",
+      "isl_relation_test"
+    ],
+    [
+      "layout_bridge",
+      "layout_bridge_test"
+    ],
+    [
+      "cg_attr_roundtrip",
+      "cg_attr_test"
+    ],
+    [
+      "backend_query",
+      "backend_query_test"
+    ],
+    [
+      "cache_service_curve",
+      "cache_service_curve_test"
+    ],
+    [
+      "fusion_access",
+      "fusion_access_test"
+    ],
+    [
+      "lane_intersections",
+      "lane_intersections_test"
+    ],
+    [
+      "fusion_rewrite",
+      "fusion_rewrite_test"
+    ],
+    [
+      "stage_kappa",
+      "stage_kappa_test"
+    ],
+    [
+      "pipeline_sigma",
+      "pipeline_sigma_test"
+    ],
+    [
+      "fusion_written_price",
+      "fusion_written_price_test"
+    ],
+    [
+      "fused_runtime_projection",
+      "fused_runtime_projection_test"
+    ],
+    [
+      "exact_runtime_task_graph",
+      "exact_runtime_task_graph_test"
+    ],
+    [
+      "fusion_batch_rewrite",
+      "fusion_batch_rewrite_test"
+    ],
+    [
+      "fiber_sum",
+      "fiber_sum_test"
+    ],
+    [
+      "chain_dp",
+      "chain_dp_test"
+    ],
+    [
+      "list_scheduler",
+      "list_scheduler_test"
+    ],
+    [
+      "plan_contract",
+      "plan_contract_test"
+    ],
+    [
+      "execution_simulator",
+      "execution_simulator_test"
+    ],
+    [
+      "eft_placement",
+      "eft_placement_test"
+    ],
+    [
+      "chain_placement",
+      "chain_placement_test"
+    ],
+    [
+      "plan_table",
+      "plan_table_test"
+    ],
+    [
+      "cluster_labeling",
+      "cluster_labeling_test"
+    ],
+    [
+      "alignment_propagation",
+      "alignment_propagation_test"
+    ],
+    [
+      "impl_contract",
+      "impl_contract_test"
+    ],
+    [
+      "serving_pruning",
+      "serving_pruning_test"
+    ],
+    [
+      "serving_task_index",
+      "serving_task_index_test"
+    ],
+    [
+      "serving_token_sets",
+      "serving_token_sets_test"
+    ],
+    [
+      "frontend_import",
+      "frontend_import_test"
+    ],
+    [
+      "skeleton_placement",
+      "skeleton_placement_test"
+    ],
+    [
+      "isolated_evaluation",
+      "isolated_evaluation_test"
+    ],
+    [
+      "skeleton_search_isolation",
+      "skeleton_search_isolation_test"
+    ],
+    [
+      "plan_skeleton",
+      "plan_skeleton_test"
+    ],
+    [
+      "variant_resource",
+      "variant_resource_test"
+    ],
+    [
+      "symbolic_oracle",
+      "symbolic_oracle_test"
+    ],
+    [
+      "operator_classes",
+      "operator_classes_test"
+    ],
+    [
+      "coupling_cache",
+      "coupling_cache_test"
+    ],
+    [
+      "semantic_lifting",
+      "semantic_lifting_test"
+    ],
+    [
+      "embedding_plan",
+      "embedding_plan_test"
+    ],
+    [
+      "wiring_coupling",
+      "wiring_coupling_test"
+    ],
+    [
+      "frontend_degradation",
+      "degradation_test"
+    ],
+    [
+      "model_plan_order_test",
+      "model_plan_order_test"
+    ],
+    [
+      "serving_model_plan_test",
+      "serving_model_plan_test"
+    ],
+    [
+      "serving_import_test",
+      "serving_import_test"
+    ]
+  ],
+  "experimental_targets": [
+    "tilemega-affine-probe",
+    "tilemega-attention-dp",
+    "tilemega-attention-plan-price",
+    "tilemega-costmodel",
+    "tilemega-event-price",
+    "tilemega-flow-grid",
+    "tilemega-flow-point",
+    "tilemega-flow-validation",
+    "tilemega-fusion-chain",
+    "tilemega-fusion-cost",
+    "tilemega-fusion-dp",
+    "tilemega-fusion-events",
+    "tilemega-fusion-probe",
+    "tilemega-identity-probe",
+    "tilemega-migrate",
+    "tilemega-place-chain",
+    "tilemega-place-eft",
+    "tilemega-r9-early",
+    "tilemega-scalar-cost-probe",
+    "tilemega-shape-probe",
+    "tilemega-simulate",
+    "tilemega-solve",
+    "tilemega-symbolic-probe",
+    "tilemega-symbolic-task-price",
+    "tilemega-task-cost-gate",
+    "tilemega-task-work-gate"
+  ],
+  "baseline_add_executable_count": 122
+}

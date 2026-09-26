@@ -6,8 +6,10 @@
 #include <iostream>
 #include <stdexcept>
 
+namespace tilemega::tests::fusion_access_test {
+
 using namespace tilemega::analysis;
-int main() try {
+int TestFusionAccess(int argc, char** argv) try {
   IslContext context;
   using tilemega::codegen::ResidentScheduleLegal;
   if (!ResidentScheduleLegal(true,16,256) || !ResidentScheduleLegal(true,256,256) ||
@@ -88,4 +90,8 @@ int main() try {
   if (!retained.task.writes.count("mid") || !retained.recompute_tasks.IsZero())
     throw std::runtime_error("external output was dropped or unique producer recomputed");
   std::cout << "FUSION_ACCESS symbolic_composition=1 external_retention=1 errors=" << errors << '\n';
+
+  return 0;
 } catch (std::exception const& e) { std::cerr << e.what() << '\n'; return 1; }
+
+}  // namespace tilemega::tests::fusion_access_test

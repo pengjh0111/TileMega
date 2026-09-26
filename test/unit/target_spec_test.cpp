@@ -5,7 +5,9 @@
 #include <cassert>
 #include <string>
 
-int main() {
+namespace tilemega::tests::target_spec_test {
+
+int TestTargetSpec(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   using tilemega::TargetSpec;
   auto sm80 = TargetSpec::FromJson(
@@ -37,4 +39,8 @@ int main() {
   assert(sm80.ToJson().find("wait_backoff_cap_ns") != std::string::npos);
   static_assert(!tilemega::arch::Caps<tilemega::arch::Sm120>::kTcgen05);
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::target_spec_test

@@ -16,6 +16,8 @@
 #include <string>
 #include <vector>
 
+namespace tilemega::tests::execution_simulator_test {
+
 using namespace tilemega;
 using solver::HopCurve;
 using solver::MaterializedPlan;
@@ -85,7 +87,7 @@ SimulatorInput MakeInput(codegen::RuntimeTaskGraph const& graph,
 
 }  // namespace
 
-int main() {
+int TestExecutionSimulator(int argc, char** argv) {
   {
     // Long runs, holes, reversed numbering and duplicates must retain the
     // exact original traversal order; sparse fallback never expands storage.
@@ -389,4 +391,8 @@ int main() {
 
   std::printf("execution_simulator_test: PASS\n");
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::execution_simulator_test

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Compatibility entry point; CMake builds the unified driver.
+set -euo pipefail
+repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+exec "${TILEMEGA_BUILD_DIR:-${repo_dir}/build}/tools/tilemega" calibrate "$@"

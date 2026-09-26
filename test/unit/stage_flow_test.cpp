@@ -8,6 +8,8 @@
 #include <limits>
 #include <random>
 #include <stdexcept>
+
+namespace tilemega::tests::stage_flow_test {
 using namespace tilemega::solver;
 static void Near(double a,double b,char const* why){if(std::abs(a-b)>1e-7)throw std::runtime_error(std::string(why)+": "+std::to_string(a)+" != "+std::to_string(b));}
 static FlowSpace Space(int n,TaskPriceParts parts){FlowSpace s;s.count=n;s.pieces={{n,parts}};s.piece_of_task.assign(n,0);return s;}
@@ -68,7 +70,7 @@ static void CheckInflightClock() {
     Near(shared.Delivered(),delivered,"in-flight class clock conserves bytes");
   }
 }
-int main() try {
+int TestStageFlow(int argc, char** argv) try {
   CheckFluidClock();
   CheckInflightClock();
   InflightDramServer in_flight(10,{10,20},{4,8},{10,20},{10,10});
@@ -129,4 +131,8 @@ int main() try {
   if(!SimulateExecution(input,plan,opts,local_event,&simulated,&error))throw std::runtime_error(error);
   Near(simulated.makespan_ns,19,"group event retains same-worker visibility hop");
   std::cout<<"STAGE_FLOW waterfill=PASS byte_conservation=PASS overlap=PASS coarsen=PASS kappa_sync=PASS counterfactuals=PASS floor_assertion=PASS\n";
- }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+ 
+  return 0;
+}catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+
+}  // namespace tilemega::tests::stage_flow_test

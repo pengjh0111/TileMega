@@ -20,7 +20,9 @@
 #include <algorithm>
 #include <functional>
 
-int main(int argc, char** argv) {
+namespace tilemega::tests::serving_import_test {
+
+int TestServingImport(int argc, char** argv) {
   if (argc != 3 && argc != 4) {
     std::cerr << "usage: serving_import_test BRIDGE.json decode|prefill [TARGET.json]\n";
     return 2;
@@ -112,4 +114,8 @@ int main(int argc, char** argv) {
     for (std::size_t i = 0; i < std::min<std::size_t>(8, costs.size()); ++i)
       std::cout << "SERVING_COST " << costs[i].second << " ns=" << costs[i].first << '\n';
   }
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::serving_import_test

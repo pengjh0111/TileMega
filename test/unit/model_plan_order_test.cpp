@@ -6,7 +6,9 @@
 #include <sstream>
 #include <stdexcept>
 
-int main(int argc,char** argv) {
+namespace tilemega::tests::model_plan_order_test {
+
+int TestModelPlanOrder(int argc, char** argv) {
   using namespace tilemega::frontend;
   if(argc!=3)throw std::invalid_argument("two semantically equivalent export bridges required");
   auto load=[](char const* path){auto bridge=ReadExportBridge(path);return BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs);};
@@ -31,4 +33,8 @@ int main(int argc,char** argv) {
   if(canonical(a)!=canonical(b))throw std::runtime_error("reordered projections changed semantic buffer edges");
   std::cout<<"PROJECTION_ORDER stages="<<a.stages.size()<<" gemms="<<a.gemms.size()
            <<" topological=PASS semantic_buffer_edges_equal=PASS\n";
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::model_plan_order_test

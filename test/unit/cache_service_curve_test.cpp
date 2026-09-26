@@ -8,7 +8,9 @@
 #include <limits>
 #include <stdexcept>
 
-int main() try {
+namespace tilemega::tests::cache_service_curve_test {
+
+int TestCacheServiceCurve(int argc, char** argv) try {
   using namespace tilemega::solver;
   tilemega::analysis::IslContext context;
   CacheServiceCurve synthetic({8,16},{8,2});
@@ -72,4 +74,8 @@ int main() try {
   }
   std::cout << "CACHE_SERVICE knots=" << knots << " bits_equal=1 errors=" << rejects
             << " symbolic_checks=" << symbolic_checks << " reference_delta=" << context.ReferenceCount() << '\n';
+
+  return 0;
 } catch (std::exception const& e) { std::cerr << e.what() << '\n'; return 1; }
+
+}  // namespace tilemega::tests::cache_service_curve_test

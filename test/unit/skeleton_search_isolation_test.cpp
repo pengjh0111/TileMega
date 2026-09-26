@@ -6,8 +6,10 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+
+namespace tilemega::tests::skeleton_search_isolation_test {
 using namespace tilemega;
-int main() try {
+int TestSkeletonSearchIsolation(int argc, char** argv) try {
   analysis::IslContext isl;std::string root=TILEMEGA_SOURCE_DIR;
   auto dir=std::filesystem::temp_directory_path()/"tilemega-flow-search-contract";
   std::filesystem::create_directories(dir);
@@ -40,4 +42,8 @@ int main() try {
   std::filesystem::remove_all(dir);
   std::cout<<"FLOW_SEARCH deterministic=1 parallel_rejected=1 PASS\n";
   return 0;
+
+  return 0;
 }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+
+}  // namespace tilemega::tests::skeleton_search_isolation_test

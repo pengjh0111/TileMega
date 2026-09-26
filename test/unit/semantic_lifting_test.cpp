@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 
+namespace tilemega::tests::semantic_lifting_test {
+
 using namespace tilemega;
 using analysis::ClosedForm;
 
@@ -299,7 +301,7 @@ char const* const kExpectedDifferences[] = {
 
 }  // namespace
 
-int main() {
+int TestSemanticLifting(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   auto bridge = frontend::ReadExportBridge(
       std::string(TILEMEGA_SOURCE_DIR) +
@@ -353,4 +355,8 @@ int main() {
   assert(generic.degraded.size() == bridge.tasks.size());
   for (auto const& op : generic.sem.ops) assert(op.generic);
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::semantic_lifting_test

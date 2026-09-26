@@ -10,6 +10,8 @@
 #include <stdexcept>
 #include <vector>
 
+namespace tilemega::tests::alignment_propagation_test {
+
 using namespace tilemega::solver;
 
 #define REQUIRE(condition)                                                 \
@@ -61,7 +63,7 @@ bool Kept(std::vector<int> const& kept, std::vector<TileAxes> const& axes,
 
 }  // namespace
 
-int main() {
+int TestAlignmentPropagation(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   // The closed form itself, on the two cases that decide everything else.
   REQUIRE(WaitInflation(128, 64, 512) == 0);
@@ -122,4 +124,8 @@ int main() {
 
   std::printf("alignment_propagation: ok\n");
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::alignment_propagation_test

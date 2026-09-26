@@ -8,10 +8,12 @@
 #include <llvm/Support/raw_ostream.h>
 #include <iostream>
 #include <stdexcept>
+
+namespace tilemega::tests::coupling_cache_test {
 using namespace tilemega;
 void require(bool ok,char const* why) {if(!ok)throw std::runtime_error(why);}
 std::string dump(mlir::ModuleOp m) {std::string s;llvm::raw_string_ostream o(s);m.print(o);return s;}
-int main(int argc,char** argv) {
+int TestCouplingCache(int argc, char** argv) {
  try {
   analysis::IslContext isl;mlir::MLIRContext context;
   std::string path=argc>1 ? argv[1] : std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/E2E_GEN/raw/export_bridge.json";
@@ -90,4 +92,8 @@ int main(int argc,char** argv) {
   require(cache.hits>0,"cache never hit");
   std::cout<<"SEMSIG_COLLISIONS pairs="<<collisions<<" distinct_keys="<<collisions<<" PASS\nCACHE hit="<<cache.hits<<" miss="<<cache.misses<<" PASS\n";
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::coupling_cache_test

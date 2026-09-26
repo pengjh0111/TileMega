@@ -11,6 +11,8 @@
 #include <iostream>
 #include <fstream>
 #include <tilemega/Codegen/tasks/TaskResources.h>
+
+namespace tilemega::commands::flow_audit {
 using namespace tilemega;
 namespace {
 // Diagnostic only: sum semantic task traffic, not unique device-DRAM bytes.
@@ -50,7 +52,7 @@ void AuditTraffic(solver::SymbolicProblem const& problem,solver::PreparedFlow co
   }
 }
 }
-int main(int argc,char** argv) try {
+int RunFlowAudit(int argc, char** argv) try {
   if(argc!=7 && argc!=8 && !(argc==9 && std::string(argv[7])=="--traffic"))throw std::invalid_argument("usage: tilemega-flow-audit CG target seq fixture residency kappa [materialization_prefix | --traffic output.tsv]");
   analysis::IslContext isl;analysis::ScopedExactAnalysisMemo memo;mlir::MLIRContext ctx;ctx.getOrLoadDialect<dialect::CGDialect>();ctx.getOrLoadDialect<dialect::ExecDialect>();
   auto module=mlir::parseSourceFile<mlir::ModuleOp>(argv[1],&ctx);if(!module)throw std::runtime_error("cannot parse CG");
@@ -98,4 +100,8 @@ int main(int argc,char** argv) try {
   }
   for(auto const& s:prepared.varying_spaces)std::cout<<"VARYING "<<s<<'\n';
   return 0;
+
+  return 0;
 }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+
+}  // namespace tilemega::commands::flow_audit

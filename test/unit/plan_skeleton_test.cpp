@@ -8,8 +8,10 @@
 #include <llvm/Support/raw_ostream.h>
 #include <fstream>
 #include <iostream>
+
+namespace tilemega::tests::plan_skeleton_test {
 using namespace tilemega;
-int main(int argc,char** argv) {
+int TestPlanSkeleton(int argc, char** argv) {
  try {
   analysis::IslContext isl;mlir::MLIRContext context;
   std::string root=TILEMEGA_SOURCE_DIR,path=root+"/docs/experiments/E2E_GEN/raw/export_bridge.json";
@@ -115,4 +117,8 @@ int main(int argc,char** argv) {
   for(auto [k,n]:kinds)std::cout<<"ORACLE_KIND "<<k<<" directions="<<n<<'\n';
   std::cout<<"SKELETON spaces="<<skeleton.spaces.size()<<" edges="<<skeleton.edges.size()<<" workers=8 PASS\n";
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::plan_skeleton_test

@@ -5,7 +5,9 @@
 
 #include <cassert>
 
-int main() {
+namespace tilemega::tests::event_synthesis_test {
+
+int TestEventSynthesis(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   using namespace tilemega::analysis;
   DecoderShape shape;
@@ -30,4 +32,8 @@ int main() {
   assert(!relaxed[0].exact);
   assert(!relaxed[0].shape.empty());
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::event_synthesis_test

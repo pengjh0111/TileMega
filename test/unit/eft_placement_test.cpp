@@ -15,6 +15,8 @@
 #include <string>
 #include <vector>
 
+namespace tilemega::tests::eft_placement_test {
+
 using namespace tilemega;
 using solver::EftRequest;
 using solver::EftSchedule;
@@ -59,7 +61,7 @@ PlanRequest MakeRequest(codegen::RuntimeTaskGraph const& graph,
 
 }  // namespace
 
-int main() {
+int TestEftPlacement(int argc, char** argv) {
   std::string error;
 
   {
@@ -278,4 +280,8 @@ int main() {
 
   std::printf("eft_placement_test: ok\n");
   return 0;
+
+  return 0;
 }
+
+}  // namespace tilemega::tests::eft_placement_test

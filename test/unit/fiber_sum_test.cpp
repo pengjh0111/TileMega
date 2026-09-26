@@ -5,7 +5,9 @@
 #include <iostream>
 #include <stdexcept>
 
-int main() try {
+namespace tilemega::tests::fiber_sum_test {
+
+int TestFiberSum(int argc, char** argv) try {
   using namespace tilemega::analysis;
   IslContext isl;
   int checks=0;
@@ -34,4 +36,8 @@ int main() try {
   }
   if (isl.ReferenceCount()) throw std::runtime_error("fiber sums retained references");
   std::cout << "FIBER_SUM checks=" << checks << " errors=" << errors << " remaining=0\n";
+
+  return 0;
 } catch (std::exception const& error) { std::cerr << error.what() << '\n'; return 1; }
+
+}  // namespace tilemega::tests::fiber_sum_test
