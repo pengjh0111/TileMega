@@ -1,0 +1,11 @@
+{
+  "baseline": "4bf26fb85ada63fccea101b323f3d7a09351eca2",
+  "prompt": "/root/Prompt/TileMega_R11_prompt.md",
+  "prompt_sha256": "b4b13f18596924eac17624de218735bcf8196878862dd7a6d8f00d67db71e62a",
+  "last_existing_finding": "F-286",
+  "next_finding": "F-287",
+  "prior_queue": "stopped by user before R11; see SERVING_R10/closure_r11/stopped_processes.json",
+  "prior_completed_plans": 18,
+  "prior_current_calibration": "completed at aac391c3a; R10-C will independently recalibrate",
+  "formal_old_EV1_cells": 0
+}

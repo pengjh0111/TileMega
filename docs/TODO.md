@@ -1002,8 +1002,8 @@ BE 必须先行：SB 的吞吐数字与 TF 的融合收益，都建立在后端�
 | SB-2 | KV cache 跨 decode 步增长（block table） | SB-1 | 未开始 | — （⚠️ v2.1 第十轮补充：静态 batch 且各请求等长时，改用每请求连续的 HND cache `[B][Hkv][cap][D]`（MPK demo 中 page_size ≥ max_seq 的配置即此形态）。block table 使 KV 访问成为数据相关的间接访问，访问关系不再仿射，留给连续批处理的轮次。由 §5.8.2 的 SB-2 承接。） | 待填 |
 | SB-3 | 离线批处理驱动与吞吐口径 | SB-2 | 未开始 | — （⚠️ v2.1 第十轮补充：口径定为 BF16、每请求 64 个 prompt token、greedy 生成 1024 个 token、B ∈ {1, 2, 4, 8, 16}；由 §5.8.2 的 SB-3 承接。） | 待填 |
 | SB-4 | 对比 vLLM / SGLang 同口径数字 | SB-3 | 未开始 | — （⚠️ v2.1 第十轮补充：按用户指示只对比一个开箱即用的基线 vLLM；当前 sm_89 不是最终实验平台，后续在 sm_120 与 A100/H100/B200 上复测。由 §5.8.2 的 SB-4 承接。） | 待填 |
-| TF-1 | fuse 改为放置后的 tile 直传 | BE-9 | 未开始 | — | 待填 |
-| TF-2 | 直传作为放置的收益项进代价模型与目标函数 | TF-1 | 未开始 | — | 待填 |
+| TF-1 | fuse 改为放置后的 tile 直传 | BE-9 | 未开始 | — （⚠️ v2.1 第十一轮补充：R11 将 tile 直传推广为边级交接 `tmexec.handoff ∈ {event, recompute, last_arriver, smem_direct}`。R10 已把元素级后继并入 epilogue，decode 中剩余的链边以扇入为主：同形 1:N 的直传以消费者内重算实现（RMSNorm → GEMM） | 待填 |
+| TF-2 | 直传作为放置的收益项进代价模型与目标函数 | TF-1 | 未开始 | — （⚠️ v2.1 第十一轮补充：交接方式作为求解坐标，由 Level 1 定价，见 §5.9.2 的 SV-18。） | 待填 |
 | TF-3 | 代价模型输出改为无量纲分值；`L2/floor` 重新定义或废弃 | — | 未开始 | — | 待填 |
 | TF-4 | 判据改为深度感知 + FP32 golden | — | 未开始 | — | 待填 |
 
@@ -1299,14 +1299,16 @@ SV（求解器重构，本轮 R9）
 
 （⚠️ v2.1 第十轮补充：R10 的范围为端到端静态批推理——batch 进 θ（SB-1）、持久 KV 与生成状态（SB-2）、离线驱动（SB-3）、vLLM 基线（SB-4）、arch 通用的 CuTe 后端（BE-10、AT-1、BE-11）、求解器的定价物理与剪枝（SV-16、SV-17）、端到端验收（EV-1）。PG、TF、同步原语改造与 RMSNorm 前序融合的先后，由 R10 最终报告第 10 条的四个上界决定。）
 
+（⚠️ v2.1 第十一轮补充：R11 的顺序为 R10 收尾 → 工具统一与端到端工具 → 同步优化启用 → PG-0 → PG-1 与 attention 重写 → 边级交接 → 架构路径 → 求解器更新 → 端到端验收。WGMMA/tcgen05 计算路径、DSMEM 交接与设备侧多步循环的先后，由 R11 最终报告第 14 条的上界决定。）
+
 ### 5.4 后置条目（R9 之后处理）
 
 | ID | 内容 | 依据 |
 | --- | --- | --- |
 | AT-1 | attention 的 QKᵀ 与 PV 改为 tensor core（CUTLASS FMHA collective 或在线 softmax 的分块矩阵乘），K/V 走 shared memory 分块，`caps.tma` 为真时走 TMA | A.2；s≥16 时 attention 主导关键路径，关闭 `MIDPOINT_REFINE` 后 L2/L1 在 s16 为 1.006/1.184/1.076、s64 为 1.077，即 L2 输给 L1 （⚠️ v2.1 第十轮补充：由 §5.8.2 的 AT-1 承接：融合 q/k 归一化、RoPE、KV 追加、tensor core 的 QKᵀ 与 PV、固定块长的 split-KV 与 LSE 合并；TMA 分支只留扩展点。） |
 | AT-2 | 其余零 CUTLASS 引用的算子视收益接入 | A.3 |
-| PG-1 | MPK 式真分页：把 `TaskSmem` 由单体 union 改为按页分配与释放，页直接喂给计算 | 现状：`ModelHarness.cuh:1111-1119` 只在 union 旁挂**两个固定页**（`slot & 1u`），且仅收一个无生产者的只读前沿操作数；任务仍独占整个 union |
-| PG-2 | 按边选择交接方式（同 SM 的 shared memory + mbarrier、全局计数器、数据即标志），**由放置决定** | Mirage issue #769 所述 MPK 的最新方向；与 TF-1 的 tile 直传同源 |
+| PG-1 | MPK 式真分页：把 `TaskSmem` 由单体 union 改为按页分配与释放，页直接喂给计算 | 现状：`ModelHarness.cuh:1111-1119` 只在 union 旁挂**两个固定页**（`slot & 1u`），且仅收一个无生产者的只读前沿操作数；任务仍独占整个 union （⚠️ v2.1 第十一轮补充：MPK 论文（arXiv 2512.22219 §5.3） |
+| PG-2 | 按边选择交接方式（同 SM 的 shared memory + mbarrier、全局计数器、数据即标志），**由放置决定** | Mirage issue #769 所述 MPK 的最新方向；与 TF-1 的 tile 直传同源 （⚠️ v2.1 第十一轮补充：按边选择交接方式并入 §5.9.2 的 TF-1。） |
 | SB-1…4 | 静态 batch（原 §4 条目，不变） | — |
 | TF-1…4 | tile 直传 fuse、代价模型归一化、判据改造（原 §4 条目，不变）。**TF-4 落地后移除 `MIDPOINT_REFINE`** | — |
 
@@ -1322,6 +1324,8 @@ attention 的 QKᵀ 与 PV 改为 tensor core（CUTLASS FMHA collective 或在�
 4. **每个性能结果都报告 `L2 / T_floor`。** `T_floor(θ)` 由 CG 推出（SV-10），它是本项目的绝对目标；只报告相对 legacy 的改进不足以判断方案是否合理。
 
 5. **端到端结果报告 `E2E / ΣT_floor` 与每步 `T / T_floor`，并与同口径的外部基线并列。** 所有形状、stages 与资源上限取自 `TargetSpec`，不得针对某一架构写字面量或分支。
+
+6. **新的同步或页流水协议，在进入任何性能对比之前，先通过 ≥ 50 个新进程的 token 逐位一致检验。** 未在目标硬件上执行过的架构路径，只宣称"已实现、已编译"。
 
 ### 5.7 R9b——以绝对下界为目标的求解器补充
 
@@ -1405,5 +1409,39 @@ seq ≤ 16 六格的几何平均为 **2.51×**。
 | SB-2 | serving C ABI 与 `ServingRuntime`：外部缓冲、只物化一次队列、结构不变性检查、每步 Params 环、放置表的 past 区间、无 reset/重传/同步 | SB-1、BE-10、AT-1、BE-11 | 已实现 | L1/L2 各自 iteration 的 50 新进程短序列与 Llama 单次 1024 步通过；完整 10 格 C-2 待测 （⚠️ v2.1 第十轮补充：两模型 B=1/16 在同一实例上跑 L1/L2，34,816 个生成位置各模式一致；这不是正式十格 C-2 或三次计时确定性验收。） | `SERVING_R10/errata_mode/`、`single_block_dependency/` |
 | SB-3 | Python `ServingEngine`、权重按配方打包、KV/tokens/cos-sin、测量口径与前台进程守卫；M1、M2 | SB-2、SB-4 | 已实现 | Llama 种子全序列及 Qwen3 B=16 探索性全序列通过内部 token 门；M2 与 EV-1 矩阵待测 （⚠️ v2.1 第十轮补充：2026-09-26 04:44 UTC 检查点：正式 EV-1 为 0/10，现有 pilot 不替代 C-1/C-2；用户要求暂停 agent 处理，后台测量队列继续。） （⚠️ v2.1 第十轮补充：当前头文件重编译旧种子几何后，四格 HF gap≤0.5 比例均为 1、最大 gap≤0.125；HF 自由贪心诊断未跑。正式 EV-1 0/10；全部后台测试和队列已按用户要求终止。） | `SERVING_R10/single_block_dependency/`、`seed_b16_qwen/`、`gpu_guard/` |
 | SV-16 | 新算子定价；在途字节带宽标定与模型（Level 1 与流体模拟同一物理）；按运行时窗口释放（codegen 与 Level 1 共用一个函数）；新 TaskBody 标定 | SB-1 | 已实现 | 在途与 body 标定已记录；运行时窗口释放修正及流体数值前进修复后需复验完整矩阵 （⚠️ v2.1 第十轮补充：修正 attention 的补齐 MMA 行、KV tile 在途字节、prefill qb 定价以及标定样本口径；修复在途标定尾组等待。新系数须重新测量，旧拟合不是新后端证据。） （⚠️ v2.1 第十轮补充：修正后重新完成在途与 66 点/12 类 TaskBody 标定，新旧系数和原始日志已保留；选中计划的预测/实测校验未完成。） | `SERVING_R10/calibration/`、`search_pathology/` |
-| SV-17 | 剪枝 R-1…R-4、增量准备、跨 B 热启动、Simpson 区间目标、E_c/R_q 坐标、A/B 的 2% 门槛、top-3 实测选择 L1/L2；增量一致性与剪枝等价检查；每 plan ≤ 10 min | SV-16、SB-3 | 已实现 | Llama decode B=1 已完成 top-3 恢复实测；其余 plan 与 G-6 正在测；该格已超过 10 min，G-7 不可宣称通过 （⚠️ v2.1 第十轮补充：旧 Llama B=1 结果与 Qwen 搜索使用了 attention 标定的错误工作量单位，已归档为诊断证据，不用于最终性能；修正后 20 plan 矩阵与 G-6 重新运行中，见 `SERVING_R10/price_audit/`。） （⚠️ v2.1 第十轮补充：检查点已完成 12/20 plan：Llama decode 五档、Llama prefill B=1/2、Qwen3 decode B=1/2/4、Qwen3 prefill B=1/2。12 个求解均超 600 s，G-7 FAIL；增量等价 40/40，Llama 剪枝等价通过，Qwen3 未剪枝控制运行中，完整 G-6 尚未通过。） （⚠️ v2.1 第十轮补充：按 (Ec,Rq,argmax tile-N) 保存/恢复结构与准备缓存，KV tile 选择进入价格缓存键；冻结的当前编译器增量/全量等价重测 40/40、最大相对差 0。已有 G-7 FAIL 不因代码修改自动关闭。） （⚠️ v2.1 第十轮补充：旧 b22 版最终完成 18/20，全部超 600 s；两模型 prefill B16 已停止。当前源码 4 条搜索链已停止，0/20 定稿。增量等价 40/40；Qwen 未剪枝控制 5400 s 超时，G-6 未关闭。） | `SERVING_R10/plans/llama_decode_B1/`、`incremental_equivalence/`、`pruning_equivalence/` |
+| SV-17 | 剪枝 R-1…R-4、增量准备、跨 B 热启动、Simpson 区间目标、E_c/R_q 坐标、A/B 的 2% 门槛、top-3 实测选择 L1/L2；增量一致性与剪枝等价检查；每 plan ≤ 10 min | SV-16、SB-3 | 已实现 | Llama decode B=1 已完成 top-3 恢复实测；其余 plan 与 G-6 正在测；该格已超过 10 min，G-7 不可宣称通过 （⚠️ v2.1 第十轮补充：旧 Llama B=1 结果与 Qwen 搜索使用了 attention 标定的错误工作量单位，已归档为诊断证据，不用于最终性能；修正后 20 plan 矩阵与 G-6 重新运行中，见 `SERVING_R10/price_audit/`。） （⚠️ v2.1 第十轮补充：检查点已完成 12/20 plan：Llama decode 五档、Llama prefill B=1/2、Qwen3 decode B=1/2/4、Qwen3 prefill B=1/2。12 个求解均超 600 s，G-7 FAIL；增量等价 40/40，Llama 剪枝等价通过，Qwen3 未剪枝控制运行中，完整 G-6 尚未通过。） （⚠️ v2.1 第十轮补充：按 (Ec,Rq,argmax tile-N) 保存/恢复结构与准备缓存，KV tile 选择进入价格缓存键；冻结的当前编译器增量/全量等价重测 40/40、最大相对差 0。已有 G-7 FAIL 不因代码修改自动关闭。） （⚠️ v2.1 第十轮补充：旧 b22 版最终完成 18/20，全部超 600 s；两模型 prefill B16 已停止。当前源码 4 条搜索链已停止，0/20 定稿。增量等价 40/40；Qwen 未剪枝控制 5400 s 超时，G-6 未关闭。） （⚠️ v2.1 第十一轮补充：R10 的 G-7 未达；R11 以产物复用、B 区间合并与标定域修正继续处理，见 §5.9.2 的 SV-18。） | `SERVING_R10/plans/llama_decode_B1/`、`incremental_equivalence/`、`pruning_equivalence/` |
 | EV-1 | 2 模型 × B ∈ {1,2,4,8,16}：TileMega 与 vLLM 同口径；C-1、C-2；FP64 = 0；`E2E/ΣT_floor`；缺口分解与 R11 输入；研究门：吞吐比几何平均 ≥ 1.0 | SV-17 | 测量脚本已实现 | 待 20 个 plan 完成后运行同会话矩阵；现有单格 smoke 与种子结果不替代 EV-1 （⚠️ v2.1 第十轮补充：12/20 最终 plan 的 FP64 审计均为 0；EV-1 队列等待其余计划，之后自动执行十格生成、HF/C-2 与报告诊断。G-3/G-4/G-9 尚无正式完整结果；本次暂停不停止后台进程。快照见 SERVING_R10/checkpoints/20260926T044401Z/。） （⚠️ v2.1 第十轮补充：原后台队列与工作树保持 b22 版本不变；新增源码与 target/hop 指纹拒绝复用旧 .so。新版本的标定、20 plan/SASS、M1/M2 与最终 EV-1 仍须重新验证，旧实验只作旧版本证据。） （⚠️ v2.1 第十轮补充：用户要求直接终止未完成测试，已停止 14 个相关进程及所有 R10 排队；正式十格 0/10，当前源码最终 SASS 0/20。K-12/G-1 FAIL，G-3/G-4/G-5/G-9 未验收，不能宣称 R10 全部门通过。汇总见 SERVING_R10/summary.md 与 closure_r11。） | `SERVING_R10/run_e2e_matrix.py` |
+
+### 5.9 R11——页式 smem、边级交接与工程整理
+
+#### 5.9.0 立项依据
+
+R10 的端到端试跑中，TileMega 在 B=1 的吞吐为 vLLM 的 0.87×（Llama）与 0.65×（Qwen3）。Level 1 分解显示：每节链的气泡约 10 µs（vLLM 每个 kernel 边界约 3 µs）；PG 上界为 1.30 ms / 2.14 ms；attention 在大 B 时成为主因。此外：
+- 已验证的等待策略没有进入 serving 构建（sync hop 1235 ns 对 325 ns）；
+- `TaskSmem` union 使 residency 固定为 1；
+- 12 个 plan 中 9 个选 L1，放置未被使用；
+- CMake 中有 122 个 `add_executable`（41 个工具、4 个实验二进制、77 个测试），端到端依赖实验脚本。
+
+#### 5.9.1 设计
+
+- 页为 smem 的分配单位，loader 沿 σ 跨 task 预取无生产者操作数，页环分配是静态的；
+- 边级交接由求解器决定并写回 IR；
+- target 驱动的同步策略；
+- 按 Caps 分派的 TMA/bulk/mbarrier/PDL/cluster 路径；
+- 单一 `tilemega` 驱动与带缓存的端到端工具。
+
+#### 5.9.2 条目台账
+
+| ID | 范围与验收（不可删减） | 依赖 | 实现状态 | 验证状态 | 证据、commit |
+|---|---|---|---|---|---|
+| R10-C | b22 队列结果归档；当前源码重标定、8 个 plan、4 格同会话对比；R10 G-6 Qwen3；R10 文档定稿 | — | 未开始 | — | 待填 |
+| OPS-1 | 单一 `tilemega` 驱动（compile/calibrate/occupancy/inspect/audit/probe/version）+ `tilemega-opt`；历史工具移入可选构建；host 测试合并为 `tilemega-unit`（ctest 名不变）；Python 包整理；产物逐字节一致抽查；ctest/lit 通过 | — | 未开始 | — | 待填 |
+| OPS-2 | `python -m tilemega`（doctor/calibrate/build/run），TOML 配置暴露外部参数；标定、导出、plan、编译产物四级缓存，键含指纹与选项；一次跑通、二次全命中、局部重建 | OPS-1 | 未开始 | — | 待填 |
+| SY-1 | target 驱动的等待策略进入 serving 构建与 EmitWait；EX-E3 发布协议作为选项并做 ≥ 50 新进程检验；新策略下的 hop 与事件常数 | OPS-1 | 未开始 | — | 待填 |
+| PG-0 | TaskBody 的 PrefetchRanges；L2 前瞻预取（L2 模式）；分相网格屏障（L1 模式） | AR-1 | 未开始 | — | 待填 |
+| PG-1 | 页池执行器：loader warp + 4 个计算 warp，静态页环，mbarrier 协议，取消 union，GEMM/attention 页消费者，L1/L2 都支持；（可选）权重按 tile 预排布；≥ 50 新进程协议检验 | AR-1 | 未开始 | — | 待填 |
+| AT-3 | decode attention：warp 独立 KV 子区间、块循环内无 CTA 屏障、KV 块由页供给；B=16 时有效带宽 ≥ 60% | PG-1 | 未开始 | — | 待填 |
+| TF-1 | `tmexec.handoff` 与验证器；ApplyHandoffs pass；recompute（NormPrologueGemm）、last_arriver（split-K、merge）、smem_direct；fused/unfused token 逐位一致 | PG-1（仅 smem_direct） | 未开始 | — | 待填 |
+| AR-1 | Caps 能力位；mbarrier、TMA/bulk 页装载、L2 bulk 预取、PDL、cluster 屏障（可选），按 Caps 分派；五个 arch 的编译检查与 SASS 核对；主机侧张量映射检查；硬件验证命令；构建与 ctest 工具中的 arch 硬编码清理 | — | 未开始 | — | 待填 |
+| SV-18 | Level 1 两段 task 与页容量；handoff 定价；同步策略常数；标定域覆盖与单类微基准校正；并列打破；放置对照；产物复用与 B 区间；每 plan ≤ 10 min | PG-1、TF-1、SY-1 | 未开始 | — | 待填 |
+| EV-2 | 20 个 plan、10 格与 vLLM 同会话交替；C-1/C-2；两格消融（PG、handoff、sync、放置、权重布局）；trace；研究门：吞吐比几何平均 ≥ 1.0 | 全部 | 未开始 | — | 待填 |
