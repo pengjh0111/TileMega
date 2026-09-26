@@ -7824,7 +7824,8 @@ and `SERVING_R10/early_final_plan/{llama,qwen3}_B1/`.
 ## F-280 — Wider cp.async improves isolated GEMM feed before DRAM saturation
 
 ✅ verified: on the sm_89 development GPU, an isolated BF16 mainloop
-comparison with non-compressible rotating weight buffers found that the
+comparison with pseudo-random rotating weight buffers whose union exceeds L2
+found that the
 serving collective moved 27.1–32.0 GB/s per single CTA over the requested
 weight bytes for M ∈ {1,16}, K ∈ {2048,8192}, versus 17.7–20.7 GB/s for the
 legacy collective. With one CTA per SM (128 CTAs), the medians narrowed to
