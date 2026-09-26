@@ -193,6 +193,7 @@ add_library(tilemega_core STATIC
   lib/Solver/TaskModel.cpp
   lib/Solver/FusedTaskInput.cpp
   lib/Solver/RuntimeProjection.cpp
+  lib/Solver/HandoffRuntimeProjection.cpp
   lib/Solver/FusedRuntimeProjection.cpp
   lib/Codegen/ExactRuntimeTaskGraph.cpp
   lib/Analysis/OpArithmetic.cpp
@@ -298,6 +299,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/chain_dp_test.cpp
     test/unit/cache_service_curve_test.cpp
     test/unit/fusion_access_test.cpp
+    test/unit/handoff_runtime_projection_test.cpp
     test/unit/handoff_ir_test.cpp
     test/unit/handoff_access_test.cpp
     test/unit/lane_intersections_test.cpp
@@ -429,6 +431,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME cache_service_curve COMMAND tilemega-unit cache_service_curve)
 
   add_test(NAME fusion_access COMMAND tilemega-unit fusion_access)
+  add_test(NAME handoff_runtime_projection COMMAND tilemega-unit handoff_runtime_projection)
   add_test(NAME handoff_ir COMMAND tilemega-unit handoff_ir)
   add_test(NAME handoff_access COMMAND tilemega-unit handoff_access)
 

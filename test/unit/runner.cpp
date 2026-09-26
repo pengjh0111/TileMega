@@ -23,6 +23,7 @@ namespace tilemega::tests::cg_attr_test { int TestCgAttr(int, char**); }
 namespace tilemega::tests::backend_query_test { int TestBackendQuery(int, char**); }
 namespace tilemega::tests::chain_dp_test { int TestChainDp(int, char**); }
 namespace tilemega::tests::cache_service_curve_test { int TestCacheServiceCurve(int, char**); }
+namespace tilemega::tests::handoff_runtime_projection_test { int TestHandoffRuntimeProjection(int, char**); }
 namespace tilemega::tests::handoff_ir_test { int TestHandoffIr(int, char**); }
 namespace tilemega::tests::handoff_access_test { int TestHandoffAccess(int, char**); }
 namespace tilemega::tests::fusion_access_test { int TestFusionAccess(int, char**); }
@@ -85,6 +86,7 @@ int main(int argc, char** argv) {
     {"cg_attr_roundtrip", tilemega::tests::cg_attr_test::TestCgAttr},
     {"backend_query", tilemega::tests::backend_query_test::TestBackendQuery},
     {"cache_service_curve", tilemega::tests::cache_service_curve_test::TestCacheServiceCurve},
+    {"handoff_runtime_projection", tilemega::tests::handoff_runtime_projection_test::TestHandoffRuntimeProjection},
     {"handoff_ir", tilemega::tests::handoff_ir_test::TestHandoffIr},
     {"handoff_access", tilemega::tests::handoff_access_test::TestHandoffAccess},
     {"fusion_access", tilemega::tests::fusion_access_test::TestFusionAccess},
