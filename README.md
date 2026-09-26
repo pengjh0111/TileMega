@@ -2,6 +2,22 @@
 
 **TileMega** is a compiler framework for automatically constructing tile-level execution graphs and generating persistent megakernels for LLM inference. At its core is a **parameterized Coupling Graph (CG)** that captures task spaces, inter-operator dependencies, synchronization requirements, and execution placement while preserving their dependence on model shapes and task granularity. TileMega uses **ISL-based symbolic** dependence analysis over parameterized task spaces and tensor access relations to derive coupling properties, combines hardware-aware models and search to explore execution configurations, and uses CuTe/CUTLASS to realize high-performance task implementations, ultimately lowering the scheduled CG to a CUDA persistent megakernel.
 
+## Serving quick start
+
+After building `tilemega` and installing the Python serving dependencies,
+place the HF checkpoint at the path in the configuration, then run:
+
+```bash
+PYTHONPATH=python python -m tilemega doctor --config configs/e2e/llama_b1.toml
+PYTHONPATH=python python -m tilemega run --config configs/e2e/llama_b1.toml
+```
+
+Python 3.11 or newer reads TOML; Python 3.10 can use the equivalent
+`configs/e2e/llama_b1.json`. R11's handoff codegen is still under integration,
+so `features.handoff=auto` currently fails explicitly; set it to `off` for
+executor diagnostics. [`docs/TOOLS.md`](docs/TOOLS.md) describes the unified
+binary commands and cache layout.
+
 ## Architecture
 
 <p align="center">
@@ -116,7 +132,7 @@ CMake options:
 | `TILEMEGA_BUILD_VERIFY` | `ON` | verification experiments, including `crosscompile-matrix` |
 | `TILEMEGA_ENABLE_MLIR` | `ON` | required; `OFF` is rejected with an error |
 | `TILEMEGA_ENABLE_ISL` | `ON` | required; `OFF` is rejected with an error |
-| `TILEMEGA_TARGET_ARCH` | `auto` | `auto`, `sm_80`, `sm_89`, `sm_90`, `sm_120` |
+| `TILEMEGA_TARGET_ARCH` | `auto` | `auto`, `sm_80`, `sm_89`, `sm_90`, `sm_100`, `sm_120` |
 | `TILEMEGA_TARGET_CONFIG` | — | path to a target JSON, overriding `TILEMEGA_TARGET_ARCH` |
 | `TILEMEGA_LIT_DRIVER` | derived | path to `lit.py`; needed only when `LLVMConfig` does not export `LLVM_BUILD_MAIN_SRC_DIR` |
 

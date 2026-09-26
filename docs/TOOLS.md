@@ -32,3 +32,21 @@ driver; they no longer compile an unmanaged binary or choose a CUDA directory.
 R11 implementation is in progress. The serving calibration suite, fingerprint
 command, architecture/SASS audits and cached Python end-to-end entry point are
 tracked in TODO §5.9.2; this initial migration does not claim their completion.
+
+`tilemega audit sass` counts FP64 instructions in a compiled serving library.
+`tilemega audit arch` cross-compiles generated CUDA for requested architectures;
+it does not claim execution on an unavailable device. `tilemega inspect
+request-floor` evaluates the CG-derived DRAM and compute floor at each past
+position of a request.
+
+The Python entry point is `PYTHONPATH=python python -m tilemega`. Its
+`doctor`, `calibrate`, `build`, and `run` commands read TOML on Python 3.11 or
+newer and equivalent JSON on Python 3.10. The full parameter surface is in
+[`configs/e2e/llama_b1.toml`](../configs/e2e/llama_b1.toml). The configured
+`[device].cache_dir` stores stamped calibration in `targets/`, export graphs
+in `exports/`, solved plans in `plans/`, and compiled libraries in
+`artifacts/`. Keys include source and calibration fingerprints, options, and
+compiler dependencies. During R11 integration, handoff and tiled weight
+lowering are unfinished; the driver rejects those modes explicitly. Set
+`features.handoff="off"` and `features.weight_layout="row"` for current
+executor diagnostics.
