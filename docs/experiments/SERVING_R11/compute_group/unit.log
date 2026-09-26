@@ -1,0 +1,8 @@
+serving RMSNorm: pass
+serving RMSNorm: pass
+serving state tasks: pass
+serving state tasks: pass
+serving combine: pass
+serving GEMM mainloop: pass
+serving decode attention matrix: 60/60 pass
+serving prefill attention matrix: pass

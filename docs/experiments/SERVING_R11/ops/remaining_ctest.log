@@ -1,0 +1,54 @@
+Internal ctest changing into directory: /root/r11_work/build
+Test project /root/r11_work/build
+      Start  1: scalar_cost_errors
+ 1/24 Test  #1: scalar_cost_errors ...............   Passed    0.96 sec
+      Start  2: coupling_interface_gqa2
+ 2/24 Test  #2: coupling_interface_gqa2 ..........   Passed   24.40 sec
+      Start  3: coupling_interface_mha4
+ 3/24 Test  #3: coupling_interface_mha4 ..........   Passed   56.16 sec
+      Start  6: target_audit
+ 4/24 Test  #6: target_audit .....................   Passed    4.07 sec
+      Start 15: imported_incidence_identity
+ 5/24 Test #15: imported_incidence_identity ......   Passed    5.04 sec
+      Start 22: op_arithmetic_audit
+ 6/24 Test #22: op_arithmetic_audit ..............   Passed    0.01 sec
+      Start 23: task_work_domains
+ 7/24 Test #23: task_work_domains ................   Passed    0.79 sec
+      Start 39: attention_work
+ 8/24 Test #39: attention_work ...................   Passed   38.29 sec
+      Start 50: task_body_contract
+ 9/24 Test #50: task_body_contract ...............   Passed    0.01 sec
+      Start 51: bf16_task_body_compile
+10/24 Test #51: bf16_task_body_compile ...........   Passed    0.00 sec
+      Start 52: serving_gemm_config
+11/24 Test #52: serving_gemm_config ..............   Passed    0.01 sec
+      Start 55: serving_epilogue
+12/24 Test #55: serving_epilogue .................   Passed    0.46 sec
+      Start 56: serving_gemm_task_body
+13/24 Test #56: serving_gemm_task_body ...........   Passed    0.54 sec
+      Start 57: serving_rmsnorm
+14/24 Test #57: serving_rmsnorm ..................   Passed    0.45 sec
+      Start 58: serving_state_tasks
+15/24 Test #58: serving_state_tasks ..............   Passed    0.44 sec
+      Start 59: serving_combine
+16/24 Test #59: serving_combine ..................   Passed    0.45 sec
+      Start 61: serving_harness_compile
+17/24 Test #61: serving_harness_compile ..........   Passed    0.01 sec
+      Start 62: serving_attention_mma
+18/24 Test #62: serving_attention_mma ............   Passed    0.40 sec
+      Start 63: serving_fused_attention
+19/24 Test #63: serving_fused_attention ..........   Passed    0.44 sec
+      Start 64: serving_attention_merge
+20/24 Test #64: serving_attention_merge ..........   Passed    0.62 sec
+      Start 65: serving_attention_cases
+21/24 Test #65: serving_attention_cases ..........   Passed    0.69 sec
+      Start 66: serving_prefill_attention
+22/24 Test #66: serving_prefill_attention ........   Passed    0.46 sec
+      Start 67: fused_harness_compile
+23/24 Test #67: fused_harness_compile ............   Passed    0.01 sec
+      Start 81: isl_crosslink
+24/24 Test #81: isl_crosslink ....................   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 24
+
+Total Test time (real) = 134.73 sec

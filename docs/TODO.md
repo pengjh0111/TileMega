@@ -1434,14 +1434,14 @@ R10 的端到端试跑中，TileMega 在 B=1 的吞吐为 vLLM 的 0.87×（Llam
 
 | ID | 范围与验收（不可删减） | 依赖 | 实现状态 | 验证状态 | 证据、commit |
 |---|---|---|---|---|---|
-| R10-C | b22 队列结果归档；当前源码重标定、8 个 plan、4 格同会话对比；R10 G-6 Qwen3；R10 文档定稿 | — | 未开始 | — | 待填 |
-| OPS-1 | 单一 `tilemega` 驱动（compile/calibrate/occupancy/inspect/audit/probe/version）+ `tilemega-opt`；历史工具移入可选构建；host 测试合并为 `tilemega-unit`（ctest 名不变）；Python 包整理；产物逐字节一致抽查；ctest/lit 通过 | — | 未开始 | — | 待填 |
-| OPS-2 | `python -m tilemega`（doctor/calibrate/build/run），TOML 配置暴露外部参数；标定、导出、plan、编译产物四级缓存，键含指纹与选项；一次跑通、二次全命中、局部重建 | OPS-1 | 未开始 | — | 待填 |
-| SY-1 | target 驱动的等待策略进入 serving 构建与 EmitWait；EX-E3 发布协议作为选项并做 ≥ 50 新进程检验；新策略下的 hop 与事件常数 | OPS-1 | 未开始 | — | 待填 |
+| R10-C | b22 队列结果归档；当前源码重标定、8 个 plan、4 格同会话对比；R10 G-6 Qwen3；R10 文档定稿 | — | 进行中：独立基线 worktree 重标定、8 plan 与 G-6 队列已启动 | 旧队列已按此前用户要求停止；当前 4 格尚未完成 | SERVING_R11/r10_control；基线 4bf26fb85 |
+| OPS-1 | 单一 `tilemega` 驱动（compile/calibrate/occupancy/inspect/audit/probe/version）+ `tilemega-opt`；历史工具移入可选构建；host 测试合并为 `tilemega-unit`（ctest 名不变）；Python 包整理；产物逐字节一致抽查；ctest/lit 通过 | — | 工具与 host runner 合并已实现；完整构建计时待做 | 81 个既有 ctest（含 lit）通过；名集合不变；两类 .cu 字节一致 | SERVING_R11/ops；e44488321、67238193d |
+| OPS-2 | `python -m tilemega`（doctor/calibrate/build/run），TOML 配置暴露外部参数；标定、导出、plan、编译产物四级缓存，键含指纹与选项；一次跑通、二次全命中、局部重建 | OPS-1 | 编排与四级缓存已实现初稿；feature 与 hwcheck 接入进行中 | 编译缓存 miss/hit/依赖失效通过；完整 run 未验证 | SERVING_R11/ops/artifact_cache_check.json；0666e38b9 |
+| SY-1 | target 驱动的等待策略进入 serving 构建与 EmitWait；EX-E3 发布协议作为选项并做 ≥ 50 新进程检验；新策略下的 hop 与事件常数 | OPS-1 | target 等待策略与 EX-E3 开关已接入；EX-E3 默认关闭 | 同步微标定已执行；启用组合的 ≥50 新进程检验未做 | SERVING_R11/calibration；6b2ad76c2 |
 | PG-0 | TaskBody 的 PrefetchRanges；L2 前瞻预取（L2 模式）；分相网格屏障（L1 模式） | AR-1 | 未开始 | — | 待填 |
-| PG-1 | 页池执行器：loader warp + 4 个计算 warp，静态页环，mbarrier 协议，取消 union，GEMM/attention 页消费者，L1/L2 都支持；（可选）权重按 tile 预排布；≥ 50 新进程协议检验 | AR-1 | 未开始 | — | 待填 |
-| AT-3 | decode attention：warp 独立 KV 子区间、块循环内无 CTA 屏障、KV 块由页供给；B=16 时有效带宽 ≥ 60% | PG-1 | 未开始 | — | 待填 |
-| TF-1 | `tmexec.handoff` 与验证器；ApplyHandoffs pass；recompute（NormPrologueGemm）、last_arriver（split-K、merge）、smem_direct；fused/unfused token 逐位一致 | PG-1（仅 smem_direct） | 未开始 | — | 待填 |
-| AR-1 | Caps 能力位；mbarrier、TMA/bulk 页装载、L2 bulk 预取、PDL、cluster 屏障（可选），按 Caps 分派；五个 arch 的编译检查与 SASS 核对；主机侧张量映射检查；硬件验证命令；构建与 ctest 工具中的 arch 硬编码清理 | — | 未开始 | — | 待填 |
+| PG-1 | 页池执行器：loader warp + 4 个计算 warp，静态页环，mbarrier 协议，取消 union，GEMM/attention 页消费者，L1/L2 都支持；（可选）权重按 tile 预排布；≥ 50 新进程协议检验 | AR-1 | 页环与 GEMM/attention 页消费者开发中；未接入 serving | GEMM 36 个小形状用例通过；attention 页代际问题修复验证中；协议门未验 | SERVING_R11/compute_group；1e757a330 |
+| AT-3 | decode attention：warp 独立 KV 子区间、块循环内无 CTA 屏障、KV 块由页供给；B=16 时有效带宽 ≥ 60% | PG-1 | warp 独立 KV 循环已编写；页环代际修复后重测中 | 尚未通过 G-2；未做带宽测量 | 进行中，尚无验收结论 |
+| TF-1 | `tmexec.handoff` 与验证器；ApplyHandoffs pass；recompute（NormPrologueGemm）、last_arriver（split-K、merge）、smem_direct；fused/unfused token 逐位一致 | PG-1（仅 smem_direct） | 共享 RowInvRms 与逐元素变换已拆分；IR/pass 与交接接入未做 | 独立 norm 在 128/160 线程小测试通过；fused token 对照未做 | 1e757a330 |
+| AR-1 | Caps 能力位；mbarrier、TMA/bulk 页装载、L2 bulk 预取、PDL、cluster 屏障（可选），按 Caps 分派；五个 arch 的编译检查与 SASS 核对；主机侧张量映射检查；硬件验证命令；构建与 ctest 工具中的 arch 硬编码清理 | — | Caps、mbarrier、TMA/bulk/PDL 原语已实现；运行时接入进行中 | 5 arch 原语编译通过；SASS 命中预期指令；sm_89 张量映射仅参数校验；非最终 plan 门 | SERVING_R11/arch_primitives；0e6a27db2 |
 | SV-18 | Level 1 两段 task 与页容量；handoff 定价；同步策略常数；标定域覆盖与单类微基准校正；并列打破；放置对照；产物复用与 B 区间；每 plan ≤ 10 min | PG-1、TF-1、SY-1 | 未开始 | — | 待填 |
 | EV-2 | 20 个 plan、10 格与 vLLM 同会话交替；C-1/C-2；两格消融（PG、handoff、sync、放置、权重布局）；trace；研究门：吞吐比几何平均 ≥ 1.0 | 全部 | 未开始 | — | 待填 |
