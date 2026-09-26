@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>
+#include <tilemega/Codegen/tasks/IndependentAttentionTaskBody.h>
 #if TILEMEGA_TEST_PAGED
 #include <tilemega/Codegen/tasks/PagedAttentionTaskBody.h>
 #endif
@@ -40,13 +41,18 @@ __global__ void Run(tilemega::codegen::ServingAttentionOperands operands) {
 }
 constexpr int LaunchThreads=160;
 #else
+#if TILEMEGA_TEST_INDEPENDENT
+template <int D,int Q,bool Norm>
+using Body=tilemega::codegen::IndependentAttentionTaskBody<tilemega::arch::Sm80,D,Q,Norm>;
+#else
 template <int D, int Q, bool Norm>
 using Body = tilemega::codegen::FusedAttentionTaskBody<
     tilemega::arch::Sm89, D, Q, 1, 16, TILEMEGA_TEST_KV_TILE, Norm>;
+#endif
 
 template <int D, int Q, bool Norm>
 __global__ void Run(tilemega::codegen::ServingAttentionOperands operands) {
-  extern __shared__ __align__(16) unsigned char bytes[];
+  extern __shared__ __align__(1024) unsigned char bytes[];
   auto& storage = *reinterpret_cast<typename Body<D, Q, Norm>::SharedStorage*>(bytes);
   Body<D, Q, Norm>::Run(operands, storage, 0, 0, 0, int(blockIdx.x));
 }

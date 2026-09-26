@@ -1,0 +1,242 @@
+[
+  {
+    "case": "D128_Q2_N0_P1086_E1088",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N0_P1086_E256",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N0_P1086_E64",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N0_P1_E1088",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N0_P1_E256",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N0_P1_E64",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N0_P63_E1088",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N0_P63_E256",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N0_P63_E64",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N0_P64_E1088",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N0_P64_E256",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N0_P64_E64",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N0_P65_E1088",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N0_P65_E256",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N0_P65_E64",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P1086_E1088",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P1086_E256",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P1086_E64",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P1_E1088",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P1_E256",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P1_E64",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P63_E1088",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P63_E256",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P63_E64",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P64_E1088",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P64_E256",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P64_E64",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P65_E1088",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P65_E256",
+    "identical": true
+  },
+  {
+    "case": "D128_Q2_N1_P65_E64",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P1086_E1088",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P1086_E256",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P1086_E64",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P1_E1088",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P1_E256",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P1_E64",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P63_E1088",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P63_E256",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P63_E64",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P64_E1088",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P64_E256",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P64_E64",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P65_E1088",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P65_E256",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N0_P65_E64",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P1086_E1088",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P1086_E256",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P1086_E64",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P1_E1088",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P1_E256",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P1_E64",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P63_E1088",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P63_E256",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P63_E64",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P64_E1088",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P64_E256",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P64_E64",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P65_E1088",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P65_E256",
+    "identical": true
+  },
+  {
+    "case": "D64_Q4_N1_P65_E64",
+    "identical": true
+  }
+]

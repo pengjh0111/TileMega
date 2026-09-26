@@ -8,6 +8,9 @@
 #pragma once
 
 #include <cuda_runtime.h>
+#ifndef TILEMEGA_PAGED
+#define TILEMEGA_PAGED 0
+#endif
 #include <tilemega/Codegen/tasks/EventSync.cuh>
 #include <tilemega/Codegen/tasks/Benchmark.cuh>
 #include <tilemega/Codegen/ResidentSchedule.h>
@@ -35,6 +38,7 @@
 #include <tilemega/Codegen/tasks/ServingArgmaxReduceTaskBody.h>
 #include <tilemega/Codegen/tasks/AttentionMergeTaskBody.h>
 #include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>
+#include <tilemega/Codegen/tasks/IndependentAttentionTaskBody.h>
 #include <tilemega/Codegen/tasks/ServingEmbeddingTaskBody.h>
 #include <tilemega/Codegen/tasks/ServingTaskIndex.h>
 #include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>
@@ -162,10 +166,12 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 #ifndef TILEMEGA_SERVING_KV_TILE
 #define TILEMEGA_SERVING_KV_TILE 64
 #endif
-using T_ServingAttention = FusedAttentionTaskBody<
+using T_ServingAttention = std::conditional_t<TILEMEGA_SERVING_SEQ==1,
+    IndependentAttentionTaskBody<GemmVariantArch,TILEMEGA_SERVING_HEAD_DIM,TILEMEGA_SERVING_QPERKV,TILEMEGA_SERVING_QK_NORM!=0>,
+    FusedAttentionTaskBody<
     GemmVariantArch, TILEMEGA_SERVING_HEAD_DIM, TILEMEGA_SERVING_QPERKV,
     TILEMEGA_SERVING_SEQ, TILEMEGA_SERVING_QROWS, TILEMEGA_SERVING_KV_TILE,
-    TILEMEGA_SERVING_QK_NORM != 0>;
+    TILEMEGA_SERVING_QK_NORM != 0>>;
 using T_ServingMerge = AttentionMergeTaskBody<
     TILEMEGA_SERVING_HEAD_DIM, TILEMEGA_SERVING_QPERKV,
     TILEMEGA_SERVING_SEQ>;

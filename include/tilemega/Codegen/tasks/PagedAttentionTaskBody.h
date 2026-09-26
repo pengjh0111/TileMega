@@ -3,7 +3,7 @@
 #include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>
 #include <tilemega/Codegen/executor/PageRing.cuh>
 namespace tilemega::codegen {
-template<class Arch,int D,int Q,bool QkNorm,int PageBytes,int Pages,bool ForceSm80=false>
+template<class Arch,int D,int Q,bool QkNorm,int PageBytes,int Pages,bool ForceSm80=false,int PartialRows=16>
 struct PagedAttentionTaskBody {
   using Element=cutlass::bfloat16_t;
   using Base=FusedAttentionTaskBody<Arch,D,Q,1,16,32,QkNorm>;
@@ -20,8 +20,8 @@ struct PagedAttentionTaskBody {
   static_assert(kPageRows%16==0);
   struct SharedStorage {
     alignas(16) Element query[16*D];
-    alignas(16) float partial[4*16*D];
-    float lse[4][16];
+    alignas(16) float partial[4*PartialRows*D];
+    float lse[4][PartialRows];
   };
   __device__ static int Begin(ServingAttentionOperands const& p,int c){return c*p.block_extent;}
   __device__ static int End(ServingAttentionOperands const& p,int c){return min((c+1)*p.block_extent,p.past+1);}
@@ -85,8 +85,9 @@ struct PagedAttentionTaskBody {
       backend::StoreGlobal16(p.value_cache+((std::size_t(b)*p.heads_kv+g)*p.capacity+p.past)*D+d,v);
     }
   }
+  template<class PageSource>
   __device__ static void Run(ServingAttentionOperands const& p,int b,int g,int c,
-      Ring const& ring,std::uint64_t& sequence,SharedStorage& s) {
+      PageSource const& ring,std::uint64_t& sequence,SharedStorage& s) {
     using namespace cute;
     int begin=Begin(p,c),end=End(p,c);if(begin>=end)return;
     int extent=WarpExtent(end-begin),waves=(extent+kPageRows-1)/kPageRows;
@@ -145,10 +146,10 @@ struct PagedAttentionTaskBody {
     #pragma unroll
     for(int i=0;i<size(output);++i) {
       int row=get<0>(out_coords(i)),d=get<1>(out_coords(i));
-      s.partial[(warp*16+row)*D+d]=sum[row/8]>0?output(i)/sum[row/8]:0;
+      if(row<PartialRows)s.partial[(warp*PartialRows+row)*D+d]=sum[row/8]>0?output(i)/sum[row/8]:0;
     }
     if((lane&3)==0)for(int r=0;r<2;++r)
-      s.lse[warp][lane/4+8*r]=sum[r]>0?maximum[r]+log2f(sum[r]):-INFINITY;
+      if(lane/4+8*r<PartialRows)s.lse[warp][lane/4+8*r]=sum[r]>0?maximum[r]+log2f(sum[r]):-INFINITY;
     ComputeSync();
     int cmax=(p.capacity+p.block_extent-1)/p.block_extent;
     for(int vector=ComputeThread();vector<Q*D/8;vector+=kComputeThreads) {
@@ -158,8 +159,8 @@ struct PagedAttentionTaskBody {
       for(int w=0;w<4;++w) {
         float weight=isfinite(s.lse[w][row])?exp2f(s.lse[w][row]-m):0;
         normalizer+=weight;
-        float4 a=*reinterpret_cast<float4 const*>(s.partial+(w*16+row)*D+d);
-        float4 v=*reinterpret_cast<float4 const*>(s.partial+(w*16+row)*D+d+4);
+        float4 a=*reinterpret_cast<float4 const*>(s.partial+(w*PartialRows+row)*D+d);
+        float4 v=*reinterpret_cast<float4 const*>(s.partial+(w*PartialRows+row)*D+d+4);
         float incoming[8]={a.x,a.y,a.z,a.w,v.x,v.y,v.z,v.w};
         for(int i=0;i<8;++i)values[i]+=weight*incoming[i];
       }

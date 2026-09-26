@@ -1,0 +1,53 @@
+{
+  "pid": 3369255,
+  "case": {
+    "model": "/root/models/llama3_2_1b",
+    "batch": 16,
+    "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+    "prefill": "/root/r11_work/protocol/page_v1/remaining/0_current_prefill.so",
+    "decode": "/root/r11_work/protocol/page_v1/remaining/0_decode.so",
+    "reference_prefill": "/root/r11_work/protocol/page_v1/remaining/0_current_reference_prefill.so",
+    "reference_decode": "/root/r11_work/protocol/page_v1/remaining/0_reference_decode.so",
+    "steps": 64,
+    "binary_sha256": {
+      "prefill": "bc53f9470aa095421deb1df86a36640584aa95956617db8f1870b9547a6d9b07",
+      "decode": "23593573a18393b59e66a8c8b2509903b0532cf135c6286eb4c98d8c5f5b2669",
+      "reference_prefill": "bc53f9470aa095421deb1df86a36640584aa95956617db8f1870b9547a6d9b07",
+      "reference_decode": "2a6828757f9ee5d6c23e55a8974c53359c2e2220b98cd4779f57c384e07f4287"
+    }
+  },
+  "records": [
+    {
+      "arm": "reference",
+      "mode": "L1",
+      "mismatches": 0,
+      "token_sha256": "e13abe546c835a9c80480cb389a9b3035c685f6358790c8acc22caf2a2ee3ed9"
+    },
+    {
+      "arm": "candidate",
+      "mode": "L1",
+      "mismatches": 131,
+      "token_sha256": "1a90c3bfbbe80a1a28a0e4d7a9d96a4ed16357cc095ce49941d39ab255250ef6"
+    },
+    {
+      "arm": "candidate",
+      "mode": "L2",
+      "mismatches": 131,
+      "token_sha256": "1a90c3bfbbe80a1a28a0e4d7a9d96a4ed16357cc095ce49941d39ab255250ef6"
+    },
+    {
+      "arm": "candidate",
+      "mode": "L1",
+      "mismatches": 131,
+      "token_sha256": "1a90c3bfbbe80a1a28a0e4d7a9d96a4ed16357cc095ce49941d39ab255250ef6"
+    },
+    {
+      "arm": "candidate",
+      "mode": "L2",
+      "mismatches": 131,
+      "token_sha256": "1a90c3bfbbe80a1a28a0e4d7a9d96a4ed16357cc095ce49941d39ab255250ef6"
+    }
+  ],
+  "passed": false,
+  "performance_measurement": false
+}
