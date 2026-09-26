@@ -27,6 +27,8 @@ struct ServingAttentionOperands {
   float* lse;
   int batch, heads_kv, capacity, past, block_extent;
   float epsilon;
+  void const* key_tensor_map = nullptr;
+  void const* value_tensor_map = nullptr;
 };
 template<class Arch,int kHeadDim,int kQPerKV,int kTokens,
          int kQRows,int kKvTile,bool kQkNorm>

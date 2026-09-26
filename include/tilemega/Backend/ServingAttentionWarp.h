@@ -13,7 +13,7 @@ using codegen::executor::ComputeSync;
 using codegen::executor::kComputeThreads;
 // Each warp owns a disjoint 16-key slice. QK's accumulator coordinates equal
 // PV's A coordinates within that warp, so probabilities never leave registers.
-template<class Arch, int N, int K, bool TransposeB = false>
+template<class Arch, int N, int K, bool TransposeB = false, class PageLayoutB = void>
 struct ServingAttentionWarp {
   static_assert(arch::Caps<Arch>::kCpAsync && arch::Caps<Arch>::kBf16TensorCore);
   using Element = cutlass::bfloat16_t;
@@ -24,13 +24,14 @@ struct ServingAttentionWarp {
   using LayoutA = decltype(cute::composition(cute::Swizzle<3,3,3>{},
       cute::Layout<cute::Shape<cute::_16,cute::Int<K>>,
                    cute::Stride<cute::Int<K>,cute::_1>>{}));
-  using LayoutB = std::conditional_t<TransposeB,
+  using DefaultLayoutB = std::conditional_t<TransposeB,
       decltype(cute::composition(cute::Swizzle<3,3,3>{},
           cute::Layout<cute::Shape<cute::Int<N>,cute::Int<K>>,
                        cute::Stride<cute::_1,cute::Int<N>>>{})),
       decltype(cute::composition(cute::Swizzle<3,3,3>{},
           cute::Layout<cute::Shape<cute::Int<N>,cute::Int<K>>,
                        cute::Stride<cute::Int<K>,cute::_1>>{}))>;
+  using LayoutB = std::conditional_t<std::is_void_v<PageLayoutB>,DefaultLayoutB,PageLayoutB>;
   using LoadA = cute::Copy_Atom<cute::SM75_U32x4_LDSM_N,Element>;
   using LoadB = std::conditional_t<TransposeB,
       cute::Copy_Atom<cute::SM75_U16x8_LDSM_T,Element>,

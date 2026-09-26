@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>
+#if TILEMEGA_TEST_PAGED
+#include <tilemega/Codegen/tasks/PagedAttentionTaskBody.h>
+#endif
 #include <tilemega/Codegen/tasks/AttentionMergeTaskBody.h>
 
 #include <cuda_runtime.h>
@@ -10,6 +13,9 @@
 #include <cstdint>
 #include <cstring>
 #include <vector>
+#include <filesystem>
+#include <fstream>
+#include <cstdlib>
 
 #ifndef TILEMEGA_TEST_KV_TILE
 #define TILEMEGA_TEST_KV_TILE 64
@@ -17,6 +23,23 @@
 namespace {
 using Element = cutlass::bfloat16_t;
 constexpr int Cap = 1088;
+#if TILEMEGA_TEST_PAGED
+template <int D,int Q,bool Norm>
+using Body=tilemega::codegen::PagedAttentionTaskBody<tilemega::arch::Sm80,D,Q,Norm,8192,3>;
+template <int D,int Q,bool Norm>
+constexpr int SharedBytes() {return (1024+sizeof(typename Body<D,Q,Norm>::SharedStorage)+1023)/1024*1024+3*8192;}
+template <int D,int Q,bool Norm>
+__global__ void Run(tilemega::codegen::ServingAttentionOperands operands) {
+  using Task=Body<D,Q,Norm>;using Ring=typename Task::Ring;
+  extern __shared__ __align__(1024) unsigned char bytes[];
+  auto& storage=*reinterpret_cast<typename Task::SharedStorage*>(bytes+1024);
+  Ring ring{reinterpret_cast<typename Ring::Slot*>(bytes),reinterpret_cast<char*>(bytes)+SharedBytes<D,Q,Norm>()-3*8192};
+  ring.Initialize();std::uint64_t sequence=0;
+  if(tilemega::codegen::executor::IsCompute())Task::Run(operands,0,0,int(blockIdx.x),ring,sequence,storage);
+  else Task::Load(operands,0,0,int(blockIdx.x),ring,sequence);
+}
+constexpr int LaunchThreads=160;
+#else
 template <int D, int Q, bool Norm>
 using Body = tilemega::codegen::FusedAttentionTaskBody<
     tilemega::arch::Sm89, D, Q, 1, 16, TILEMEGA_TEST_KV_TILE, Norm>;
@@ -27,6 +50,11 @@ __global__ void Run(tilemega::codegen::ServingAttentionOperands operands) {
   auto& storage = *reinterpret_cast<typename Body<D, Q, Norm>::SharedStorage*>(bytes);
   Body<D, Q, Norm>::Run(operands, storage, 0, 0, 0, int(blockIdx.x));
 }
+
+template <int D,int Q,bool Norm>
+constexpr int SharedBytes(){return sizeof(typename Body<D,Q,Norm>::SharedStorage);}
+constexpr int LaunchThreads=128;
+#endif
 
 template <int D, int Q>
 __global__ void Merge(float const* partial, float const* lse,
@@ -75,12 +103,25 @@ bool Check(int past, int extent, Element* qkv, Element* key, Element* value,
   auto operands = tilemega::codegen::ServingAttentionOperands{
       qkv, key, value, cosine, sine, qnorm, knorm,
       context, partial, lse, 1, 1, Cap, past, extent, 1e-6f};
-  Run<D, Q, Norm><<<blocks, 128,
-      sizeof(typename Body<D, Q, Norm>::SharedStorage)>>>(operands);
+  Run<D, Q, Norm><<<blocks, LaunchThreads,
+      SharedBytes<D,Q,Norm>()>>>(operands);
   if (cudaDeviceSynchronize() != cudaSuccess) return false;
   if (blocks > 1) {
     Merge<D, Q><<<1, 128>>>(partial, lse, context, extent, past);
     if (cudaDeviceSynchronize() != cudaSuccess) return false;
+  }
+  if(auto* directory=std::getenv("TILEMEGA_TEST_DUMP")) {
+    std::filesystem::create_directories(directory);
+    auto path=std::filesystem::path(directory)/("D"+std::to_string(D)+"_Q"+std::to_string(Q)+
+        "_N"+std::to_string(int(Norm))+"_P"+std::to_string(past)+"_E"+std::to_string(extent)+".bin");
+    std::ofstream dump(path,std::ios::binary);
+    int header[]={D,Q,int(Norm),past,extent,Cap};dump.write(reinterpret_cast<char*>(header),sizeof(header));
+    auto write=[&](Element const* data,int count){dump.write(reinterpret_cast<char const*>(data),count*sizeof(Element));};
+    write(qkv,(Q+2)*D);write(key,Cap*D);write(value,Cap*D);
+    write(cosine+past*D,D);write(sine+past*D,D);
+    std::vector<Element> ones(D,Element(1));
+    write(Norm?qnorm:ones.data(),D);write(Norm?knorm:ones.data(),D);write(context,Q*D);
+    if(!dump)throw std::runtime_error("cannot write attention reference inputs");
   }
   std::vector<Element> query(Q * D), newest(D);
   for (int h = 0; h < Q; ++h)
@@ -147,7 +188,7 @@ bool RunSuite() {
   assert(cudaMallocManaged(&lse, 17 * Q * sizeof(float)) == cudaSuccess);
   assert(cudaFuncSetAttribute(Run<D, Q, Norm>,
                               cudaFuncAttributeMaxDynamicSharedMemorySize,
-                              sizeof(typename Body<D, Q, Norm>::SharedStorage)) == cudaSuccess);
+                              SharedBytes<D,Q,Norm>()) == cudaSuccess);
   for (int i = 0; i < GroupWidth; ++i)
     qkv[i] = Element(float((i * 17 % 41) - 20) / 128);
   for (int d = 0; d < D; ++d) {
