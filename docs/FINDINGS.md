@@ -7875,3 +7875,24 @@ selected plan uses L1, so this trace does not replace EV-1 or close a timing
 gate. The remaining three requested trace cells are queued after EV-1.
 Evidence: `SERVING_R10/trace_probe.md` and
 `/root/r10_work/serving_trace/llama_decode_B1/`.
+
+## F-284 — R10 checkpoint separates implemented paths from unfinished acceptance
+
+✅ verified at 2026-09-26 04:44 UTC: twelve of twenty corrected-price serving
+plans completed, and all twelve selected libraries have zero static FP64
+instructions. All twelve solve times exceed 600 s, so G-7 remains FAIL.
+The 40 incremental/full preparation checks agree exactly; the Llama pruning
+control has equal flow score 3,889,647.611 ns and admits the unpruned winner.
+The Qwen3 unpruned control and eight plans are unfinished; formal EV-1 is
+0/10, so no complete C-1/C-2 or vLLM performance claim follows. The user
+requested an agent pause with all background chains and the EV-1 queue left
+running. Evidence: `SERVING_R10/checkpoints/20260926T044401Z/` and
+`SERVING_R10/summary.md`.
+
+✅ verified by code inspection: `AttentionMergeTaskBody.h:27-48` parallelizes
+output dimensions but reads each FP32 partial scalarly, so the 16-byte vector
+read required by R10 §4.3(c) is still an implementation gap. Passing attention
+unit tests does not establish that structural requirement. The next change
+needs vector partial loads and shared LSE normalization, followed by affected
+TaskBody and full-request validation; the current matrix measures the existing
+scalar-load merge.

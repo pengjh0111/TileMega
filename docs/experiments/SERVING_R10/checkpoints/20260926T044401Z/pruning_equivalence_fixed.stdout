@@ -1,0 +1,3 @@
+llama pruned: 3889647.611 ns after 331.6s
+llama unpruned: 3889647.611 ns after 3376.2s
+qwen3 pruned: 8812234.392 ns after 912.6s

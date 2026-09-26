@@ -1,0 +1,10 @@
+llama_decode_B1: solve started
+llama_decode_B1: PASS in 1146.0s
+llama_decode_B2: solve started
+llama_decode_B2: PASS in 1445.4s
+llama_decode_B4: solve started
+llama_decode_B4: PASS in 1572.9s
+llama_decode_B8: solve started
+llama_decode_B8: PASS in 1419.8s
+llama_decode_B16: solve started
+llama_decode_B16: PASS in 1417.6s

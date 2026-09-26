@@ -1,0 +1,45 @@
+{
+  "captured_at_utc": "2026-09-26T04:44:01.317825+00:00",
+  "source_head": "0a1abb3620d73b242a6ba7aca3677e5921641dc3",
+  "baseline": "f6c270ce09988f600a667dc2fc63f3527909c759",
+  "prompt_path": "/root/Prompt/TileMega_R10_prompt.md",
+  "prompt_sha256": "655fe479331d1cf771de6ecbe6b1bfdc9957847544b7b21752692d60ec3a0367",
+  "completed_plans": [
+    "llama_prefill_B1",
+    "llama_prefill_B2",
+    "llama_decode_B1",
+    "llama_decode_B2",
+    "llama_decode_B4",
+    "llama_decode_B8",
+    "llama_decode_B16",
+    "qwen3_prefill_B1",
+    "qwen3_prefill_B2",
+    "qwen3_decode_B1",
+    "qwen3_decode_B2",
+    "qwen3_decode_B4"
+  ],
+  "processes_left_running": [
+    {
+      "pid": 3206167,
+      "command": "python3 docs/experiments/SERVING_R10/run_plan_matrix.py --models llama --phases prefill"
+    },
+    {
+      "pid": 3206186,
+      "command": "python3 docs/experiments/SERVING_R10/run_plan_matrix.py --models qwen3 --phases prefill"
+    },
+    {
+      "pid": 3206197,
+      "command": "python3 docs/experiments/SERVING_R10/run_plan_matrix.py --models qwen3 --phases decode"
+    },
+    {
+      "pid": 3213651,
+      "command": "python3 docs/experiments/SERVING_R10/run_pruning_equivalence.py"
+    },
+    {
+      "pid": 3237780,
+      "command": "python3 /root/r10_work/ev1_queue.py"
+    }
+  ],
+  "agent_processing": "paused at user request after committing this checkpoint; experiments continue",
+  "formal_ev1_cells_complete": 0
+}

@@ -24,6 +24,9 @@ chunk. Counts are from the generated `kStages` arrays, before split expansion.
 No serving GEMM or attention matrix product uses the legacy scalar QK/PV
 loop. The LSE merge retains a serial loop over live KV blocks per output
 thread; it is a reduction over split blocks, not a scalar matrix product.
+Its FP32 partial reads are scalar: the 16-byte vector-read requirement in
+R10 §4.3(c) is not implemented. This is an open implementation gap despite
+the passing numerical tests below; it is also declared in `summary.md`.
 The serving GEMM matrix passes 1,344/1,344 PyTorch comparisons over the
 specified M, N/K, tile, split-K and epilogue cases
 (`task_body_tests/gemm_matrix/summary.json`). The attention tests pass 60/60

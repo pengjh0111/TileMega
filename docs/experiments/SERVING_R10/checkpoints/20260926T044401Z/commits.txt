@@ -1,0 +1,124 @@
+4dc32b793 docs: open the round ten serving plan
+f1708f70b experiments: measure the vllm serving baseline
+f774607d3 backend: stream bf16 gemm tiles through swizzled ldmatrix
+49398fbc4 frontend: lift serving plans with batch in theta
+e5a068cde test: check serving task bodies and candidate primitives
+2e9e7d21c solver: align flow release with runtime event windows
+abef329b5 backend: recognize sm_86 as an sm80 class target
+68af947d3 backend: dispatch serving state tasks in the persistent kernel
+3c60036cb backend: build tensor core tiles for serving attention
+7f158fec1 backend: fuse cached attention on tensor cores
+f57eb70c4 runtime: launch serving plans without resets
+6373be1ac runtime: drive static batch generation from python
+521c07eb0 backend: exclude legacy rope math from serving kernels
+c54aed6d5 codegen: preserve extended stage operands in fusion
+1b5699b4f solver: price batch-aware serving access relations
+64c953ed0 solver: enumerate target-legal serving GEMM candidates
+8aabe1a21 tools: calibrate bandwidth against bytes in flight
+af49bfa2e solver: score serving decode over its past interval
+dc7f43f50 runtime: reuse solved placement across serving steps
+36bbe983a tools: measure and select serving shortlist plans
+ef9695665 experiments: validate a restricted serving solve
+1ff01c071 solver: price active serving attention blocks
+70d746fa2 solver: reuse flow prices and simulate decode endpoints
+b4f0b79d1 test: register serving device checks with ctest
+89e87f559 experiments: check serving prices across the decode interval
+eb33c698a backend: transfer cached KV rows as a block
+fae23b9eb test: cover serving attention block boundaries and qk norm
+2ad986b97 backend: reuse attention tiles as KV staging storage
+0fbbba036 backend: dispatch serving split reductions through the shared epilogue
+5ba078cd6 runtime: decode attention tasks in the CG tile order
+83bc49b6c experiments: verify batch sixteen serving token consistency
+0dc304e74 experiments: compile the serving plan for three SM targets
+87a0c1fc1 experiments: retain the cross-arch nvcc logs
+b968b87a3 docs: record serving task body coverage
+3e03a5da5 experiments: check qwen batch sixteen serving tokens
+0792910c8 solver: admit grouped serving split prices and legal seeds
+36623e2d6 solver: size scalar inflight demand from physical bytes
+a26530b65 experiments: audit the serving source contract
+0d0dde0ca backend: support narrow serving n tiles with ldmatrix x2
+b6733c282 test: cover multi tile serving gemm residues
+5d5e44de3 tools: prewarm serving resource variants in parallel
+813eb31cc solver: parallelize serving resource cache warmup
+60930ef51 solver: reuse unchanged spaces during coordinate descent
+bbefed125 solver: expose an unpruned serving search control
+b1183079f experiments: measure a mixed tile serving candidate
+8f27877c2 experiments: retain the mixed tile ptxas log
+222ddb9cf experiments: check mixed tile generation against hf
+51ddb84fd experiments: compare incremental and full search rankings
+c8118c8a0 experiments: retain the serving timing drift evidence
+00821b752 tools: rotate serving candidate timing and reuse binaries
+8f4c6a102 solver: dump floor traffic and priced flow pieces
+65fe012ac experiments: audit the serving dram floor against model configs
+4184ebcc1 experiments: retain rotated serving candidate measurements
+0215b9369 solver: price argmax gemm iterations from the K extent
+00792be65 experiments: retain the vocabulary gemm price correction evidence
+ff442900f runtime: count serving event tickets separately by mode
+447605c96 frontend: export serving token ids as int32
+7dd956092 experiments: retain the int32 serving import checks
+b8e436d31 analysis: reject sawtooth wait windows from local fibers
+c9f0bd9e2 solver: search attention block and query row coordinates
+65cdb613d solver: align serving partitions and warm starts with class tiles
+b07af9dda frontend: preserve single-block attention context dependencies
+b50adc5cf tools: materialize explicit serving cases for validation
+ec4e17df4 experiments: serialize serving candidate measurements
+dee957194 experiments: validate the repaired single-block dependency
+3ab638623 tools: calibrate serving task bodies on the device
+ab7a3c14f experiments: record serving body fits for search
+daf5ff51e experiments: check actual domains during pruning control
+de474b330 solver: keep serving structure changes out of legacy search
+d37dc0469 test: compare serving prefill attention with torch
+379c0b6ab solver: restore the selected attention shape after search
+4fb8954f1 analysis: bind many-to-one oracle fibers before evaluation
+6d1fb9589 experiments: preserve the serving search failure and repair evidence
+bdcedfbf7 experiments: retain the search crash backtrace
+e97971fd9 experiments: orchestrate complete serving requests and mode checks
+c19b027f0 solver: group identical in-flight streams by rate class
+261b1f0ff experiments: retain the grouped in-flight replay evidence
+9238749c6 experiments: reject hidden GPU users during serving timing
+016874c86 solver: settle sub-ulp flow completions without spinning
+77e8b6399 experiments: resume measured top-three plans after guard interruption
+c9dcc0720 experiments: preserve the interrupted and recovered plan records
+698759126 docs: record verified round ten baselines and solver repairs
+0e8d69db3 experiments: smoke test both event modes on the selected decode plan
+245aa92fc experiments: check the selected decode sequence against hf
+aab5b83d1 experiments: pin serving checkpoint revisions and hashes
+2ada339e0 docs: record the serving implementation before matrix closure
+d757c586c test: compare the serving gemm matrix with torch
+40c9647d9 solver: correct serving attention calibration units
+4baf2bb05 experiments: verify affine serving maps and gemm cases
+39548c3b9 docs: record the corrected serving price and task body tests
+e700c70b8 test: cover the serving attention boundary matrix
+f23776e06 test: tighten serving attention cache write tolerance
+621efc0d1 experiments: serialize full requests with candidate timings
+840bc062e experiments: account for all serving ctest groups
+eda4ec733 experiments: refresh serving verification during plan matrix
+2b5226317 docs: align serving coverage with completed torch matrix
+f0bd61964 runtime: isolate serving gemm tables across plan libraries
+014a31b0f experiments: retain the first four solved serving plans
+52aa03e85 experiments: retain the first full-request timing pilot
+f31434245 experiments: derive serving tables from raw plan logs
+18aea036f experiments: evaluate serving floors across requests
+68229e62e experiments: calculate request floors after serving matrix
+407a7d743 experiments: retain winner flow decompositions
+693b1d628 experiments: compare old and serving gemm streams
+e448d8578 docs: record early serving floor and budget evidence
+46618d7b9 docs: distinguish serving unit closure from e2e testing
+04779e8c5 experiments: compare per-step serving time with floor
+4ecbdc59b experiments: recompute serving gates from raw evidence
+9160b13e0 experiments: smoke test both modes at batch two
+6f66d42e1 experiments: keep one vllm instance across batch sizes
+a662c0a46 experiments: retain the next five serving plans
+6c6ae8be5 docs: qualify the serving stream probe input
+b78c2d910 experiments: report tpot distributions from timed requests
+32a2d14b1 experiments: retain teacher forced correctness details
+9d53d153d experiments: report serving search pruning domains
+c5f9b991b experiments: extract serving kernel resources and top ranks
+e2e501f08 experiments: bound norm fusion from selected flow chains
+869764855 experiments: trace serving decode task chains
+11018d942 experiments: summarize serving trace bandwidth by class
+d8253e4e4 experiments: audit diagnostic serving builds for fp64
+8adea71cc docs: record the first serving chain trace
+2096243ab experiments: break down serving solver time by phase
+8e7abf10f experiments: isolate the vllm baseline process
+0a1abb362 experiments: normalize serving report table newlines
