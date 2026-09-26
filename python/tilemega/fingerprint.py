@@ -41,6 +41,8 @@ def calibration_stamps(root: Path = ROOT) -> dict[str, str]:
         'task_bodies': ['lib/Target/ServingTaskCalibration.cu',
                         'include/tilemega/Backend/Serving*.h',
                         'include/tilemega/Codegen/tasks/Serving*.h',
+                        'include/tilemega/Codegen/tasks/PagedGemmTaskBody.h',
+                        'include/tilemega/Codegen/tasks/LastArriverTaskBody.h',
                         'include/tilemega/Codegen/tasks/*AttentionTaskBody.h',
                         'include/tilemega/Codegen/tasks/AttentionMergeTaskBody.h',
                         'include/tilemega/Codegen/executor/*.cuh'],
