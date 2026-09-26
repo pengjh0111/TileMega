@@ -204,6 +204,7 @@ add_library(tilemega_core STATIC
   lib/Solver/StageFlowModel.cpp
   lib/Solver/FluidExecutionSimulator.cpp
   lib/Analysis/FusionAccess.cpp
+  lib/Analysis/HandoffAccess.cpp
   lib/Codegen/Codegen.cpp
   lib/Codegen/ServingPages.cpp
   lib/Runtime/EventBuffer.cpp
@@ -294,6 +295,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/chain_dp_test.cpp
     test/unit/cache_service_curve_test.cpp
     test/unit/fusion_access_test.cpp
+    test/unit/handoff_access_test.cpp
     test/unit/lane_intersections_test.cpp
     test/unit/fusion_rewrite_test.cpp
     test/unit/stage_kappa_test.cpp
@@ -423,6 +425,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME cache_service_curve COMMAND tilemega-unit cache_service_curve)
 
   add_test(NAME fusion_access COMMAND tilemega-unit fusion_access)
+  add_test(NAME handoff_access COMMAND tilemega-unit handoff_access)
 
   add_test(NAME lane_intersections COMMAND tilemega-unit lane_intersections)
 
