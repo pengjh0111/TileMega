@@ -1,0 +1,148 @@
+Start testing: Sep 26 17:49 UTC
+----------------------------------------------------------
+9/90 Testing: stage_flow
+9/90 Test: stage_flow
+Command: "/root/r11_work/build/tilemega-unit" "stage_flow"
+Directory: /root/r11_work/build
+"stage_flow" start time: Sep 26 17:49 UTC
+Output:
+----------------------------------------------------------
+STAGE_FLOW waterfill=PASS byte_conservation=PASS overlap=PASS coarsen=PASS kappa_sync=PASS counterfactuals=PASS floor_assertion=PASS
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"stage_flow" end time: Sep 26 17:49 UTC
+"stage_flow" time elapsed: 00:00:00
+----------------------------------------------------------
+
+56/90 Testing: serving_pruning
+56/90 Test: serving_pruning
+Command: "/root/r11_work/build/tilemega-unit" "serving_pruning"
+Directory: /root/r11_work/build
+"serving_pruning" start time: Sep 26 17:49 UTC
+Output:
+----------------------------------------------------------
+SERVING_PRUNING_R1_R4 PASS
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"serving_pruning" end time: Sep 26 17:49 UTC
+"serving_pruning" time elapsed: 00:00:00
+----------------------------------------------------------
+
+30/90 Testing: handoff_runtime_projection
+30/90 Test: handoff_runtime_projection
+Command: "/root/r11_work/build/tilemega-unit" "handoff_runtime_projection"
+Directory: /root/r11_work/build
+"handoff_runtime_projection" start time: Sep 26 17:49 UTC
+Output:
+----------------------------------------------------------
+HANDOFF_RUNTIME multirow_recompute=PASS complete_fanin=PASS negative=3 remaining=0
+<end of output>
+Test time =   0.12 sec
+----------------------------------------------------------
+Test Passed.
+"handoff_runtime_projection" end time: Sep 26 17:49 UTC
+"handoff_runtime_projection" time elapsed: 00:00:00
+----------------------------------------------------------
+
+32/90 Testing: handoff_access
+32/90 Test: handoff_access
+Command: "/root/r11_work/build/tilemega-unit" "handoff_access"
+Directory: /root/r11_work/build
+"handoff_access" start time: Sep 26 17:49 UTC
+Output:
+----------------------------------------------------------
+PASS handoff access proofs: multirow recompute, complete reduction fibre, same-worker adjacency; six negative controls
+<end of output>
+Test time =   0.12 sec
+----------------------------------------------------------
+Test Passed.
+"handoff_access" end time: Sep 26 17:49 UTC
+"handoff_access" time elapsed: 00:00:00
+----------------------------------------------------------
+
+69/90 Testing: page_ring
+69/90 Test: page_ring
+Command: "/root/r11_work/build/page_ring_test"
+Directory: /root/r11_work/build
+"page_ring" start time: Sep 26 17:49 UTC
+Output:
+----------------------------------------------------------
+page ring cp.async: 3 cases / 103 wraps pass
+<end of output>
+Test time =   0.93 sec
+----------------------------------------------------------
+Test Passed.
+"page_ring" end time: Sep 26 17:49 UTC
+"page_ring" time elapsed: 00:00:00
+----------------------------------------------------------
+
+74/90 Testing: paged_attention
+74/90 Test: paged_attention
+Command: "/root/r11_work/build/paged_attention_test"
+Directory: /root/r11_work/build
+"paged_attention" start time: Sep 26 17:49 UTC
+Output:
+----------------------------------------------------------
+serving decode attention matrix: 60/60 pass
+<end of output>
+Test time =   1.14 sec
+----------------------------------------------------------
+Test Passed.
+"paged_attention" end time: Sep 26 17:49 UTC
+"paged_attention" time elapsed: 00:00:01
+----------------------------------------------------------
+
+70/90 Testing: paged_gemm
+70/90 Test: paged_gemm
+Command: "/root/r11_work/build/paged_gemm_test"
+Directory: /root/r11_work/build
+"paged_gemm" start time: Sep 26 17:49 UTC
+Output:
+----------------------------------------------------------
+paged GEMM: 36 residue/cross-task/grouped-page cases pass
+<end of output>
+Test time =   1.24 sec
+----------------------------------------------------------
+Test Passed.
+"paged_gemm" end time: Sep 26 17:49 UTC
+"paged_gemm" time elapsed: 00:00:01
+----------------------------------------------------------
+
+31/90 Testing: handoff_ir
+31/90 Test: handoff_ir
+Command: "/root/r11_work/build/tilemega-unit" "handoff_ir"
+Directory: /root/r11_work/build
+"handoff_ir" start time: Sep 26 17:49 UTC
+Output:
+----------------------------------------------------------
+HANDOFF_IR kind=recompute proofs=1 unsupported=0 invalid_kind_rejected=1
+<end of output>
+Test time =   2.20 sec
+----------------------------------------------------------
+Test Passed.
+"handoff_ir" end time: Sep 26 17:49 UTC
+"handoff_ir" time elapsed: 00:00:02
+----------------------------------------------------------
+
+10/90 Testing: flow_runtime_release
+10/90 Test: flow_runtime_release
+Command: "/root/r11_work/build/tilemega-unit" "flow_runtime_release"
+Directory: /root/r11_work/build
+"flow_runtime_release" start time: Sep 26 17:49 UTC
+Output:
+----------------------------------------------------------
+FLOW_RUNTIME_WINDOWS count=38
+RUNTIME_RELEASE checks=2064 mismatches=0
+<end of output>
+Test time = 126.11 sec
+----------------------------------------------------------
+Test Passed.
+"flow_runtime_release" end time: Sep 26 17:52 UTC
+"flow_runtime_release" time elapsed: 00:02:06
+----------------------------------------------------------
+
+End testing: Sep 26 17:52 UTC

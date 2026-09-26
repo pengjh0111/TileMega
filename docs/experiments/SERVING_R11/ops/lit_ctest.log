@@ -1,0 +1,25 @@
+Start testing: Sep 26 17:54 UTC
+----------------------------------------------------------
+4/90 Testing: cg_lit
+4/90 Test: cg_lit
+Command: "/usr/bin/python3.10" "/tmp/tilemega-vf-llvm-project/llvm/utils/lit/lit.py" "-sv" "/root/r11_work/build/test"
+Directory: /root/r11_work/build
+"cg_lit" start time: Sep 26 17:54 UTC
+Output:
+----------------------------------------------------------
+-- Testing: 8 tests, 8 workers --
+Testing:  0.. 10.. 20.. 30.. 40.. 50.. 60.. 70.. 80.. 90.. 
+
+Testing Time: 0.17s
+
+Total Discovered Tests: 8
+  Passed: 8 (100.00%)
+<end of output>
+Test time =   0.53 sec
+----------------------------------------------------------
+Test Passed.
+"cg_lit" end time: Sep 26 17:54 UTC
+"cg_lit" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Sep 26 17:54 UTC
