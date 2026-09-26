@@ -649,6 +649,8 @@ barvinok 计数一致；`tmexec.implementation` 的 threads/smem/alignment/arch
 
 （⚠️ v2.1 第九轮补充：regime A 的新路径将 DRAM 从单 task 资源道中分离为设备级共享流体服务器。task 价格拆为固定段、非 DRAM 计算时间、按物理访问域与操作数来源推导的 DRAM 字节、单 task 速率上限；Level 1 与逐 tile 流体模拟共用注水分配与同步常数。`regime_a` 默认关闭且只对 BF16 生效，既有资源道路径保留。）
 
+（⚠️ v2.1 第十轮补充：serving BF16 的 regime A 以正在流式读取的 CTA 在途字节总量决定设备 DRAM 服务率；各 CTA 的可持续速率取自目标架构标定曲线，再由同一注水服务器分配。该资源模型同时用于 task-space Level 1 与逐 tile 流体模拟，stages、tile 与驻留度通过在途量共同影响带宽。）
+
 ```
 稳态    u(o) = ⟨t_TC, t_CUDA, t_SFU, t_TMEM, t_SMEM, t_L1.5, t_L2, t_DDR, t_NET⟩
         T_steady(o) = max( u(o) )                          取 max，不是取和
@@ -722,6 +724,8 @@ lane 而非 TC。物理读写域由访问关系计数；TaskBody traits 提供�
 | C. 混合 batch（chunked prefill） | 异构 | 资源互补性最大化 |
 
 （⚠️ v2.1 第九轮补充：regime A 的绝对目标为 `T_floor(θ)=max(T_dram,T_compute)`，由 CG 物理读关系像减去同一步写像、唯一输出/状态写像与物理 matmul 工作量计数得到。气泡以 `(T−T_floor)/D` 衡量；优化仍比较同一 θ 下的完整执行时间，不能仅优化链深或单 task 指令数。间接 embedding 的精确唯一读像还依赖 token 值，需绑定输入读像或扩展语义参数，不能声称仅由 seq/past/batch 唯一决定。）
+
+（⚠️ v2.1 第十轮补充：离线静态批 serving 把 batch 与 past 作为 θ，decode 的 token 数在 plan 内固定为一；区间计划用 past 两端与中点的 Simpson 积分评估每步时间，并以生成请求的 `E2E/ΣT_floor` 检查权重带宽气泡。KV 的历史读进入下界，位置块长与 cache 容量在建仿射关系前固定。）
 
 **输出形态**：参数化的最优解区间划分（「`S ∈ [0,512)` 用 `g₁`；`S ∈ [512,∞)` 用 `g₂`」），
 区间边界来自分段拟多项式的交点。运行时 `O(1)` 查表选变体。
@@ -830,6 +834,8 @@ BF16 形状再拟合出负的每 CTA setup。钳位已删除，改由 `combine_f
 
 （⚠️ v2.1 第九轮补充：R9 的外层逐 tile 放置打分被 task-space Level 1 流模型取代；全部配置只用 `EvaluateFlow` 打分，释放律由双向 Oracle 推出并经 Coarsen(κ) 变换，cohort 共用全局 worker 池与 DRAM 流体服务器。最多三轮、两个起点的坐标下降联合搜索各算子类 tile/stages/split、全局 κ 与 residency。仅最终 top-M 物化，比较纯模板与有界 EFT 的流体模拟，再对 top-3 复核真实驻留并实测。模板沿跨 stage 轮询 home 与 1:1 Unique 映射共置，EFT 候选宽度取常数；只有生产者 κ=1 的共置边可省去对应同步。Level 2 的 EST 前沿、精确 Oracle、执行契约与合法性硬校验均保留。（⚠️ v2.1 第九轮补充：精确数据依赖的释放端点可能早于既有执行器保守事件窗口；当前 Level 1 按精确 CG 估计，而最终流体模拟保留真实事件窗口，因此两层还有释放约束近似，不能只归因于 cohort 与 FIFO。收紧执行窗口不在 R9b 范围内。）反事实关闭同步、固定段、有限 worker 数与无生产者 DRAM 字节，用于区分求解器与后端/执行器尚未消除的成本。）
 
+（⚠️ v2.1 第十轮补充：serving 搜索按合法性和支配关系剪枝，复用未变化算子类的分片价格与耦合释放律，并从相邻 batch 的赢家热启动；decode 的 Level 1 分数是 past 区间上三个采样点的 Simpson 积分。释放端点取 CG 与实际事件窗口的较晚者。逐 tile 物化和流体模拟仅用于 top-M，纯结构模板与有界 EFT 通过模拟比较，最终 top-3 在 serving harness 上实测选择模式。旧求解器与执行契约保持为独立路径。）
+
 ## 4.5 Label：通信归属
 
 **问题**：把 CG 划分成大小 ≤ C（可移植 8，部分架构最多 16）的簇，
@@ -871,6 +877,8 @@ BF16 形状再拟合出负的每 CTA setup。钳位已删除，改由 `combine_f
 | Continuous batching | 请求准入 / 完成剔除 / KV 元数据更新做成 kernel 内的一个 task |
 | Chunked prefill | Tier 2，per-request token 数用 indptr 参数化（regime C 的载体） |
 | MoE 路由 | Tier 3 的一般化：统一的 indptr 机制承载 topk 结果与 expert 计数 |
+
+（⚠️ v2.1 第十轮补充：R10 先实现离线静态等长 batch，θ=(batch,past)，每个 plan 的 seq 为常数；每请求连续 HND KV cache 与设备 tokens 状态由外部缓冲 C ABI 绑定。prefill 启动一次，decode 每步一次异步 launch，整个生成期复用结构不变的放置表并且不重传权重。连续批处理、block table 与设备侧多步循环仍属后续设计；它们不影响本阶段对静态批端到端结果的判定。）
 
 ---
 
@@ -1347,6 +1355,8 @@ tilemega/
 
 v2.0 的 §7 原文（含全部已完成条目的证据叙述）逐字归档于 [`docs/archive/TODO_v2.0.md`](docs/archive/TODO_v2.0.md)。P0.1–P6.3 的条目号在上述文件中保持不变，代码注释中的"§7 P0.3""P4.8"等引用据此查找。
 
+（⚠️ v2.1 第十轮补充：归档的 P6.1 serving 由 `docs/TODO.md` §5.8 的离线静态批路径先行承接；其每步静态 Plan 与参数化模型状态由 TileMega CG 和求解器生成。归档中的连续批处理及设备侧请求准入/剔除不属于 R10。）
+
 ---
 
 # 8. Codegen 规则
@@ -1671,3 +1681,4 @@ Codegen 与 host 只消费 Plan（§5.7.4），不得在其中新增调度决策
 | 2026-09 | v2.1 第七轮 | 归一化 epsilon 与旋转相位精度改为由导入的模型决定，不再是后端常量；任务族扩展为 token embedding、按头 Q/K 归一化与独立的最终归一化，并规定新族必须由生成开关承载以保持默认构建的汇编同一；§8.6 的 TaskSmem union 生命周期按 H3 解除一处——union 仍取 max，其后按开关追加两页预取缓冲，生命周期跨相邻 slot；§5.3.1 的分相 ABI 随之落地为可开关的实现 |
 | 2026-09 | v2.1 第九轮 | 按 SemSig 缓存参数化耦合并按算子类选择 tile；资源探测先于驻留与 Skeleton；符号 Oracle 提供精确双向邻接，Level 1 定义重叠候选集、Level 2 按 EST 就绪前沿定价放置；外层坐标下降以放置 makespan 打分，仅最终 top-K 物化与模拟，保留 legacy 对照 |
 | 2026-09 | v2.1 第九轮补充 | 以访问像计数的绝对下界锚定 regime A；引入默认关闭的 BF16 物理价格分量与设备级 DRAM 流体服务器；外层改用 task-space 释放律模型、仅 top-M 作模板/有界 EFT 物化与流体复核；保留旧路径及执行语义 |
+| 2026-09 | v2.1 第十轮补充 | 以 θ=(batch,past) 的离线静态批 serving 计划承载完整生成请求；BF16 后端按目标能力选择通用 SM80 类 CuTe collective；regime A 用在途字节曲线定价 DRAM，搜索增量准备并在 past 区间优化；外部状态 C ABI 复用结构不变的计划，每模式维持独立单调事件迭代 |
