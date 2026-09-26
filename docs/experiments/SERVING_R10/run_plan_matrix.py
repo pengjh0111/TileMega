@@ -53,6 +53,19 @@ def main() -> int:
                         if path.exists():
                             shutil.copyfile(path, evidence / path.name)
                     if Path(str(library) + ".recovery.json").exists():
+                        result_file = evidence / "result.json"
+                        if result_file.exists():
+                            earlier = json.loads(result_file.read_text())
+                            if earlier.get("returncode"):
+                                initial = evidence / "initial_result.json"
+                                if not initial.exists():
+                                    shutil.copyfile(result_file, initial)
+                        result_file.write_text(json.dumps({
+                            "cell": cell, "state": "recovered_after_measurement_interruption",
+                            "library": str(library), "manifest": str(manifest),
+                            "recovery": str(evidence / "plan.so.recovery.json"),
+                            "returncode": 0,
+                        }, indent=2) + "\n")
                         for rank in (1, 2, 3):
                             for round_number in range(3):
                                 raw = Path(str(library) +
