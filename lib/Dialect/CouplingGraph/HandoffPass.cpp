@@ -200,7 +200,8 @@ void VerifyWrittenHandoff(FusedTileSpaceOp task) {
        conditions[1]!=mlir::StringAttr::get(module.getContext(),"last_arriver") || !ticket)
       throw std::invalid_argument("last-arriver phase lacks its ticket condition");
     auto triggers=ticket->getAttrOfType<MetricAttr>("triggers");
-    if(ticket->getAttrOfType<mlir::StringAttr>("protocol")!="last_arriver" || !triggers || !triggers.getValue().Add(proof.consumer_to_producer.Card().Scale(-1)).IsZero() ||
+    auto protocol=ticket->getAttrOfType<mlir::StringAttr>("protocol");
+    if(!protocol || protocol.getValue()!="last_arriver" || !triggers || !triggers.getValue().Add(proof.consumer_to_producer.Card().Scale(-1)).IsZero() ||
        !ticket.getExtent().getValue().Add(proof.consumer_to_producer.Reverse().ImageCard().Scale(-1)).IsZero())
       throw std::invalid_argument("last-arriver ticket differs from the complete reduction fibre");
   }else {

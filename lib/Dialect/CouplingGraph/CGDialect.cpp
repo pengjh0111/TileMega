@@ -176,7 +176,8 @@ LogicalResult FusedTileSpaceOp::verify() {
       if (!relation.getMap().IsSingleValued() && !(*this)->hasAttr("handoff_kind"))
         return emitOpError("fusion phase map must be single-valued");
       auto current=relation.getMap().Reverse().Image();
-      bool conditional=(*this)->getAttrOfType<StringAttr>("handoff_kind")=="last_arriver";
+      auto handoff_kind=(*this)->getAttrOfType<StringAttr>("handoff_kind");
+      bool conditional=handoff_kind && handoff_kind.getValue()=="last_arriver";
       if (!domain.empty() && (!current.IsSubset(domain) || (!conditional && !domain.IsSubset(current))))
         return emitOpError("fusion phase domains differ");
       // Empty KV blocks execute no reduction phase; the source proof above
