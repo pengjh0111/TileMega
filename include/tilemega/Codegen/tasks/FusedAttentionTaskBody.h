@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+
+#include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Backend/ServingAttentionWarp.h>
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <tilemega/Codegen/tasks/TaskResources.h>
@@ -8,6 +10,10 @@
 #include <cstdint>
 
 namespace tilemega::codegen {
+
+using codegen::executor::ComputeThread;
+using codegen::executor::ComputeSync;
+using codegen::executor::kComputeThreads;
 struct ServingAttentionOperands {
   cutlass::bfloat16_t const* qkv;
   cutlass::bfloat16_t* key_cache;
@@ -57,7 +63,7 @@ struct FusedAttentionTaskBody {
   template<class Store>
   __device__ static void RotateRow(Element const* x,Element const* norm,
       Element const* cosine,Element const* sine,float epsilon,Store store) {
-    int lane=int(threadIdx.x)&31,d=lane*8;
+    int lane=ComputeThread()&31,d=lane*8;
     alignas(16) Element a[8],b[8],w[8],partner_w[8],cos[8],sin[8];
     float square=0;
     if(d<kHeadDim) {
@@ -91,7 +97,7 @@ struct FusedAttentionTaskBody {
   }
   __device__ static void Query(ServingAttentionOperands const& p,SharedStorage& s,
                                int b,int g,int begin) {
-    int warp=int(threadIdx.x)>>5,lane=int(threadIdx.x)&31;
+    int warp=ComputeThread()>>5,lane=ComputeThread()&31;
     constexpr int width=(kQPerKV+2)*kHeadDim;
     for(int row=warp;row<16;row+=4) {
       int r=begin+row,token=r/kQPerKV,head=r%kQPerKV;
@@ -110,7 +116,7 @@ struct FusedAttentionTaskBody {
     constexpr int width=(kQPerKV+2)*kHeadDim;
     auto* key=s.storage.pipeline.key[slot];
     auto* value=s.storage.pipeline.value[slot];
-    for(int i=int(threadIdx.x)*8;i<kKvTile*kHeadDim;i+=128*8) {
+    for(int i=ComputeThread()*8;i<kKvTile*kHeadDim;i+=kComputeThreads*8) {
       int row=i/kHeadDim,d=i%kHeadDim,position=begin+row;
       auto* k=key+(row/16)*16*kHeadDim+typename QK::LayoutB{}(row%16,d);
       auto* v=value+(row/16)*16*kHeadDim+typename PV::LayoutB{}(d,row%16);
@@ -124,7 +130,7 @@ struct FusedAttentionTaskBody {
         *reinterpret_cast<uint4*>(v)=make_uint4(0,0,0,0);
       }
     }
-    int warp=int(threadIdx.x)>>5,lane=int(threadIdx.x)&31;
+    int warp=ComputeThread()>>5,lane=ComputeThread()&31;
     for(int row=warp;row<kKvTile;row+=4) {
       int position=begin+row;
       if(position<p.past || position>=limit)continue;
@@ -151,7 +157,7 @@ struct FusedAttentionTaskBody {
                              int b,int g,int qb,int c) {
     using namespace cute;
     int block_begin=c*p.block_extent,limit=min((c+1)*p.block_extent,p.past+kTokens);
-    int q_begin=qb*kQRows,warp=int(threadIdx.x)>>5,lane=int(threadIdx.x)&31;
+    int q_begin=qb*kQRows,warp=ComputeThread()>>5,lane=ComputeThread()&31;
     if constexpr(kTokens>1)
       limit=min(limit,p.past+(min(q_begin+kQRows,kQueryExtent)-1)/kQPerKV+1);
     if(block_begin>=limit)return;
@@ -162,13 +168,13 @@ struct FusedAttentionTaskBody {
         make_identity_tensor(Shape<_16,Int<kHeadDim>>{}));
     for(int query_begin=q_begin;query_begin<min(q_begin+kQRows,kQueryExtent);query_begin+=16) {
       Query(p,s,b,g,query_begin);
-      if(threadIdx.x<16){s.row_max[threadIdx.x]=-INFINITY;s.row_sum[threadIdx.x]=0;}
+      if(ComputeThread()<16){s.row_max[ComputeThread()]=-INFINITY;s.row_sum[ComputeThread()]=0;}
       auto output=PV::Accumulator();
       LoadKV(p,s,0,b,g,block_begin,limit,query_begin,q_begin);
       for(int begin=block_begin,step=0;begin<limit;begin+=kKvTile,++step) {
         int slot=step&1;
         asm volatile("cp.async.wait_group 0;");
-        __syncthreads();
+        ComputeSync();
         // Next K/V writes target the other buffer while this buffer feeds MMA.
         if(begin+kKvTile<limit)
           LoadKV(p,s,slot^1,b,g,begin+kKvTile,limit,query_begin,q_begin);
@@ -191,14 +197,14 @@ struct FusedAttentionTaskBody {
           maximum[r]=fmaxf(maximum[r],__shfl_xor_sync(0xffffffffu,maximum[r],2));
           if((lane&3)==0)s.maxima[warp][lane/4+8*r]=maximum[r];
         }
-        __syncthreads();
-        if(threadIdx.x<16) {
-          int row=threadIdx.x;float m=s.row_max[row];
+        ComputeSync();
+        if(ComputeThread()<16) {
+          int row=ComputeThread();float m=s.row_max[row];
           for(int w=0;w<4;++w)m=fmaxf(m,s.maxima[w][row]);
           s.alpha[row]=isfinite(s.row_max[row])?exp2f(s.row_max[row]-m):0;
           s.row_max[row]=m;
         }
-        __syncthreads();
+        ComputeSync();
         float sum[2]={0,0};
         #pragma unroll
         for(int i=0;i<size(score);++i) {
@@ -212,9 +218,9 @@ struct FusedAttentionTaskBody {
           sum[r]+=__shfl_xor_sync(0xffffffffu,sum[r],2);
           if((lane&3)==0)s.sums[warp][lane/4+8*r]=sum[r];
         }
-        __syncthreads();
-        if(threadIdx.x<16) {
-          int row=threadIdx.x;float total=s.row_sum[row]*s.alpha[row];
+        ComputeSync();
+        if(ComputeThread()<16) {
+          int row=ComputeThread();float total=s.row_sum[row]*s.alpha[row];
           for(int w=0;w<4;++w)total+=s.sums[w][row];
           s.row_sum[row]=total;
         }
@@ -222,16 +228,16 @@ struct FusedAttentionTaskBody {
         for(int i=0;i<size(output);++i)output(i)*=s.alpha[int(get<0>(out_coords(i)))];
         if(warp*16<kKvTile)
           PV::PV(score,score_coords,s.storage.pipeline.value[slot]+warp*16*kHeadDim,output);
-        __syncthreads();
+        ComputeSync();
       }
       asm volatile("cp.async.wait_group 0;");
-      __syncthreads();
+      ComputeSync();
       // Reuse the finished K/V pipeline allocation for the warp partial sum.
       #pragma unroll
       for(int i=0;i<size(output);++i)
         s.storage.partial[(warp*16+int(get<0>(out_coords(i))))*kHeadDim+int(get<1>(out_coords(i)))]=output(i);
-      __syncthreads();
-      for(int index=int(threadIdx.x)*8;index<16*kHeadDim;index+=128*8) {
+      ComputeSync();
+      for(int index=ComputeThread()*8;index<16*kHeadDim;index+=kComputeThreads*8) {
         int local=index/kHeadDim,row=query_begin+local,d=index%kHeadDim;
         if(row>=kQueryExtent)continue;
         alignas(16) float values[8]={};
@@ -257,7 +263,7 @@ struct FusedAttentionTaskBody {
           if(d==0)p.lse[base]=s.row_max[local]+log2f(s.row_sum[local]);
         }
       }
-      __syncthreads();
+      ComputeSync();
     }
   }
 };

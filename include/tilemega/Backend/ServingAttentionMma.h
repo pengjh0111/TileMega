@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
+#include <tilemega/Codegen/executor/ComputeGroup.cuh>
+
 #include <tilemega/Target/ArchDispatch.h>
 
 #include <cute/tensor.hpp>
 #include <cutlass/bfloat16.h>
 
 namespace tilemega::backend {
+
+using codegen::executor::ComputeThread;
+using codegen::executor::ComputeSync;
+using codegen::executor::kComputeThreads;
 
 // A single swizzled BF16 MMA tile used by QK and PV. The caller owns the
 // shared-memory lifetime and may refill the same tile between contractions.
@@ -48,17 +54,17 @@ struct ServingAttentionMma {
     auto sA = make_tensor(make_smem_ptr(storage_a), LayoutA{});
     auto sB = make_tensor(make_smem_ptr(storage_b), LayoutB{});
     Mma mma;
-    auto thr = mma.get_slice(int(threadIdx.x));
+    auto thr = mma.get_slice(ComputeThread());
     auto rA = thr.partition_fragment_A(sA);
     auto rB = thr.partition_fragment_B(sB);
     auto rC = partition_fragment_C(mma, Shape<Int<M>, Int<N>>{});
     clear(rC);
     auto copy_a = make_tiled_copy_A(LoadA{}, mma);
     auto copy_b = make_tiled_copy_B(LoadB{}, mma);
-    auto src_a = copy_a.get_slice(int(threadIdx.x)).partition_S(sA);
-    auto src_b = copy_b.get_slice(int(threadIdx.x)).partition_S(sB);
-    auto dst_a = copy_a.get_slice(int(threadIdx.x)).retile_D(rA);
-    auto dst_b = copy_b.get_slice(int(threadIdx.x)).retile_D(rB);
+    auto src_a = copy_a.get_slice(ComputeThread()).partition_S(sA);
+    auto src_b = copy_b.get_slice(ComputeThread()).partition_S(sB);
+    auto dst_a = copy_a.get_slice(ComputeThread()).retile_D(rA);
+    auto dst_b = copy_b.get_slice(ComputeThread()).retile_D(rB);
     CUTE_STATIC_ASSERT_V(size<2>(rA) == size<2>(rB));
     for (int block = 0; block < size<2>(rA); ++block) {
       copy(LoadA{}, src_a(_, _, block), dst_a(_, _, block));

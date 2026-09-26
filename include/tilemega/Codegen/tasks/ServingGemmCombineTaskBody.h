@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
+#include <tilemega/Codegen/executor/ComputeGroup.cuh>
+
 #include <tilemega/Backend/ServingEpilogue.h>
 
 #include <cuda_runtime.h>
@@ -8,6 +10,10 @@
 #include <cstdint>
 
 namespace tilemega::codegen {
+
+using codegen::executor::ComputeThread;
+using codegen::executor::ComputeSync;
+using codegen::executor::kComputeThreads;
 
 /// The reduction order is the split index order for every output element.
 /// The final operation is exactly the same ServingEpilogue used by an unsplit
@@ -29,8 +35,8 @@ struct ServingGemmCombineTaskBody {
       return;
     }
     std::int64_t split_stride = std::int64_t(M) * partial_row_stride;
-    for (int base = int(threadIdx.x) * 4; base < TileM * TileN;
-         base += int(blockDim.x) * 4) {
+    for (int base = ComputeThread() * 4; base < TileM * TileN;
+         base += kComputeThreads * 4) {
       int row = tile_m * TileM + base / TileN;
       int col = tile_n * TileN + base % TileN;
       float value[4] = {0, 0, 0, 0};
@@ -55,7 +61,7 @@ struct ServingGemmCombineTaskBody {
       *reinterpret_cast<float4*>(shared + backend::ServingEpilogue<Op, TileM, TileN>::SharedIndex(base / TileN, base % TileN)) =
           make_float4(value[0], value[1], value[2], value[3]);
     }
-    __syncthreads();
+    ComputeSync();
     backend::ServingEpilogue<Op, TileM, TileN>::template RunFromTile<true>(
         shared, tile_m, tile_n, M, N, output_stride, output, residual,
         nullptr, argmax_value, argmax_index);

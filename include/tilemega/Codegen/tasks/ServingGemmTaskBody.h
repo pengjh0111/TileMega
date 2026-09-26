@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
+#include <tilemega/Codegen/executor/ComputeGroup.cuh>
+
 #include <tilemega/Backend/ServingEpilogue.h>
 #include <tilemega/Backend/ServingGemm.h>
 
@@ -8,6 +10,10 @@
 #include <type_traits>
 
 namespace tilemega::codegen {
+
+using codegen::executor::ComputeThread;
+using codegen::executor::ComputeSync;
+using codegen::executor::kComputeThreads;
 
 struct ServingGemmOperands {
   cutlass::bfloat16_t const* a = nullptr;  // logical [M,K_total]
@@ -73,7 +79,7 @@ struct ServingGemmTaskBody {
     clear(accum);
     auto k_iter = make_coord_iterator(shape<2>(gA));
     Mainloop{}(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
-               int(threadIdx.x), shared);
+               ComputeThread(), shared);
     auto finish = [&](auto op) {
       backend::ServingEpilogue<decltype(op)::value, TileM, TileN>::Run(
           accum, mma, shared, tile_m, tile_n, p.m, p.n,

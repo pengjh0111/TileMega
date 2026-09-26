@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
+#include <tilemega/Codegen/executor/ComputeGroup.cuh>
+
 #include <cute/tensor.hpp>
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <cutlass/bfloat16.h>
@@ -11,6 +13,10 @@
 #include <cstdint>
 
 namespace tilemega::backend {
+
+using codegen::executor::ComputeThread;
+using codegen::executor::ComputeSync;
+using codegen::executor::kComputeThreads;
 
 enum class ServingEpilogueOp {
   kStore, kResidual, kSwiGLU, kArgmaxPartial, kPartial
@@ -70,11 +76,11 @@ struct ServingEpilogue {
     // The cp.async mainloop has vacated this storage.  The 4-byte accumulator
     // tile fits in the same union as the (possibly larger) staged operands.
     cute::cp_async_wait<0>();
-    __syncthreads();
+    ComputeSync();
     float* tile = reinterpret_cast<float*>(shared);
     auto coordinates = cute::make_identity_tensor(
         cute::Shape<cute::Int<TileM>, cute::Int<TileN>>{});
-    auto owned = mma.get_thread_slice(int(threadIdx.x)).partition_C(coordinates);
+    auto owned = mma.get_thread_slice(ComputeThread()).partition_C(coordinates);
     CUTE_STATIC_ASSERT_V(cute::size(owned) == cute::size(accum));
     for (int i = 0; i < cute::size(accum); i += 2) {
       int row = cute::get<0>(owned(i));
@@ -84,7 +90,7 @@ struct ServingEpilogue {
       *reinterpret_cast<float2*>(tile + SharedIndex(row, column)) =
           make_float2(accum(i), accum(i + 1));
     }
-    __syncthreads();
+    ComputeSync();
     RunFromTile<true>(tile, tile_m, tile_n, M, N, output_stride, output,
                 residual, partial, argmax_value, argmax_index);
   }
@@ -107,7 +113,7 @@ struct ServingEpilogue {
         if (global_row >= M) continue;
         float best = -INFINITY;
         int best_index = INT32_MAX;
-        for (int column = int(threadIdx.x); column < TileN; column += 128) {
+        for (int column = ComputeThread(); column < TileN; column += kComputeThreads) {
           int global_column = tile_n * TileN + column;
           if (global_column >= N) continue;
           float value = float(cutlass::bfloat16_t(tile[Index<Swizzled>(row, column)]));
@@ -124,13 +130,13 @@ struct ServingEpilogue {
             best_index = other_index;
           }
         }
-        __syncthreads();
-        if ((threadIdx.x & 31) == 0) {
-          scratch_values[threadIdx.x >> 5] = best;
-          scratch_indices[threadIdx.x >> 5] = best_index;
+        ComputeSync();
+        if ((ComputeThread() & 31) == 0) {
+          scratch_values[ComputeThread() >> 5] = best;
+          scratch_indices[ComputeThread() >> 5] = best_index;
         }
-        __syncthreads();
-        if (threadIdx.x == 0) {
+        ComputeSync();
+        if (ComputeThread() == 0) {
           best = scratch_values[0];
           best_index = scratch_indices[0];
           for (int warp = 1; warp < 4; ++warp) {
@@ -144,10 +150,10 @@ struct ServingEpilogue {
           argmax_value[global_row * output_stride + tile_n] = best;
           argmax_index[global_row * output_stride + tile_n] = best_index;
         }
-        __syncthreads();
+        ComputeSync();
       }
     } else if constexpr (Op == ServingEpilogueOp::kPartial) {
-      for (int index = int(threadIdx.x) * 4; index < TileM * TileN; index += 128 * 4) {
+      for (int index = ComputeThread() * 4; index < TileM * TileN; index += kComputeThreads * 4) {
         int row = index / TileN, col = index % TileN;
         int global_row = tile_m * TileM + row;
         int global_col = tile_n * TileN + col;
@@ -164,8 +170,8 @@ struct ServingEpilogue {
     } else {
       constexpr int kOutputColumns =
           Op == ServingEpilogueOp::kSwiGLU ? TileN / 2 : TileN;
-      for (int vector = int(threadIdx.x); vector < TileM * kOutputColumns / 8;
-           vector += 128) {
+      for (int vector = ComputeThread(); vector < TileM * kOutputColumns / 8;
+           vector += kComputeThreads) {
         int row = vector / (kOutputColumns / 8);
         int out_col = (vector % (kOutputColumns / 8)) * 8;
         int global_row = tile_m * TileM + row;

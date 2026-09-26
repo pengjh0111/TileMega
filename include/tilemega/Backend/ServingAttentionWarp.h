@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+
+#include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Target/ArchDispatch.h>
 #include <cute/tensor.hpp>
 #include <cutlass/bfloat16.h>
 
 namespace tilemega::backend {
+
+using codegen::executor::ComputeThread;
+using codegen::executor::ComputeSync;
+using codegen::executor::kComputeThreads;
 // Each warp owns a disjoint 16-key slice. QK's accumulator coordinates equal
 // PV's A coordinates within that warp, so probabilities never leave registers.
 template<class Arch, int N, int K, bool TransposeB = false>
@@ -36,15 +42,15 @@ struct ServingAttentionWarp {
   template<class Acc>
   __device__ static void QK(Element* a,Element* b,Acc& out) {
     using namespace cute;
-    Mma mma;auto thr=mma.get_slice(int(threadIdx.x)&31);
+    Mma mma;auto thr=mma.get_slice(ComputeThread()&31);
     auto sA=make_tensor(make_smem_ptr(a),LayoutA{});
     auto sB=make_tensor(make_smem_ptr(b),LayoutB{});
     auto rA=thr.partition_fragment_A(sA);auto rB=thr.partition_fragment_B(sB);
     auto ca=make_tiled_copy_A(LoadA{},mma);auto cb=make_tiled_copy_B(LoadB{},mma);
-    auto as=ca.get_slice(int(threadIdx.x)&31).partition_S(sA);
-    auto bs=cb.get_slice(int(threadIdx.x)&31).partition_S(sB);
-    auto ad=ca.get_slice(int(threadIdx.x)&31).retile_D(rA);
-    auto bd=cb.get_slice(int(threadIdx.x)&31).retile_D(rB);
+    auto as=ca.get_slice(ComputeThread()&31).partition_S(sA);
+    auto bs=cb.get_slice(ComputeThread()&31).partition_S(sB);
+    auto ad=ca.get_slice(ComputeThread()&31).retile_D(rA);
+    auto bd=cb.get_slice(ComputeThread()&31).retile_D(rB);
     #pragma unroll
     for(int k=0;k<size<2>(rA);++k) {
       copy(LoadA{},as(_,_,k),ad(_,_,k));
@@ -56,7 +62,7 @@ struct ServingAttentionWarp {
   __device__ static void PV(Prob const& probability,Coords const& source_coords,
                             Element* b,Acc& out) {
     using namespace cute;
-    Mma mma;auto thr=mma.get_slice(int(threadIdx.x)&31);
+    Mma mma;auto thr=mma.get_slice(ComputeThread()&31);
     auto id=make_identity_tensor(Shape<_16,Int<K>>{});
     auto coords=thr.partition_A(id);
     auto rA=make_fragment_like<Element>(coords);
@@ -71,8 +77,8 @@ struct ServingAttentionWarp {
     auto sB=make_tensor(make_smem_ptr(b),LayoutB{});
     auto rB=thr.partition_fragment_B(sB);
     auto cb=make_tiled_copy_B(LoadB{},mma);
-    auto bs=cb.get_slice(int(threadIdx.x)&31).partition_S(sB);
-    auto bd=cb.get_slice(int(threadIdx.x)&31).retile_D(rB);
+    auto bs=cb.get_slice(ComputeThread()&31).partition_S(sB);
+    auto bd=cb.get_slice(ComputeThread()&31).retile_D(rB);
     copy(LoadB{},bs(_,_,0),bd(_,_,0));
     gemm(mma,rA(_,_,0),rB(_,_,0),out);
   }

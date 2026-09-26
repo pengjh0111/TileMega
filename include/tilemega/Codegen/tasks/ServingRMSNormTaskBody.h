@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
+#include <tilemega/Codegen/executor/ComputeGroup.cuh>
+
 #include <cutlass/bfloat16.h>
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <cuda_runtime.h>
@@ -9,23 +11,27 @@
 
 namespace tilemega::codegen {
 
+using codegen::executor::ComputeThread;
+using codegen::executor::ComputeSync;
+using codegen::executor::kComputeThreads;
+
 /// One selected row per CTA.  `row_stride` and `row_offset` describe the
 /// source row, so the final normalization can select b*S+S-1 without a copy.
 struct ServingRMSNormTaskBody {
   static constexpr int kThreads = 128;
   static constexpr int kSharedBytes = 4 * sizeof(float);
 
-  __device__ static void RunRow(cutlass::bfloat16_t const* input,
-                                 cutlass::bfloat16_t const* weight,
-                                 cutlass::bfloat16_t* output,
-                                 int row, int row_stride, int row_offset,
-                                 int width, float epsilon, float* shared) {
-    int source_row = row * row_stride + row_offset;
-    auto const* src = input + source_row * width;
-    auto* dst = output + row * width;
+  __device__ static cutlass::bfloat16_t Transform(
+      float x, float inverse_rms, float weight) {
+    return cutlass::bfloat16_t(
+        float(cutlass::bfloat16_t(x * inverse_rms)) * weight);
+  }
+
+  __device__ static float RowInvRms(cutlass::bfloat16_t const* src,
+                                    int width, float epsilon, float* shared) {
     float sum = 0.0f;
-    for (int base = int(threadIdx.x) * 8; base < width;
-         base += int(blockDim.x) * 8) {
+    for (int base = ComputeThread() * 8; base < width;
+         base += kComputeThreads * 8) {
       if (base + 8 <= width &&
           (reinterpret_cast<std::uintptr_t>(src + base) & 15) == 0) {
         alignas(16) cutlass::bfloat16_t values[8];
@@ -45,18 +51,29 @@ struct ServingRMSNormTaskBody {
     }
     for (int delta = 16; delta > 0; delta >>= 1)
       sum += __shfl_down_sync(0xffffffff, sum, delta);
-    if ((threadIdx.x & 31) == 0) shared[threadIdx.x >> 5] = sum;
-    __syncthreads();
-    if (threadIdx.x < 4) {
-      float value = shared[threadIdx.x];
+    if ((ComputeThread() & 31) == 0) shared[ComputeThread() >> 5] = sum;
+    ComputeSync();
+    if (ComputeThread() < 4) {
+      float value = shared[ComputeThread()];
       for (int delta = 2; delta > 0; delta >>= 1)
         value += __shfl_down_sync(0xf, value, delta, 4);
-      if (threadIdx.x == 0) shared[0] = rsqrtf(value / width + epsilon);
+      if (ComputeThread() == 0) shared[0] = rsqrtf(value / width + epsilon);
     }
-    __syncthreads();
-    float scale = shared[0];
-    for (int base = int(threadIdx.x) * 8; base < width;
-         base += int(blockDim.x) * 8) {
+    ComputeSync();
+    return shared[0];
+  }
+
+  __device__ static void RunRow(cutlass::bfloat16_t const* input,
+                                cutlass::bfloat16_t const* weight,
+                                cutlass::bfloat16_t* output,
+                                int row, int row_stride, int row_offset,
+                                int width, float epsilon, float* shared) {
+    int source_row = row * row_stride + row_offset;
+    auto const* src = input + source_row * width;
+    auto* dst = output + row * width;
+    float scale = RowInvRms(src, width, epsilon, shared);
+    for (int base = ComputeThread() * 8; base < width;
+         base += kComputeThreads * 8) {
       alignas(16) cutlass::bfloat16_t values[8];
       alignas(16) cutlass::bfloat16_t source[8];
       alignas(16) cutlass::bfloat16_t scales[8];
@@ -73,9 +90,7 @@ struct ServingRMSNormTaskBody {
       for (int j = 0; j < count; ++j) {
         float x = float(vector_input ? source[j] : src[base + j]);
         float w = float(vector_input ? scales[j] : weight[base + j]);
-        auto normalized = cutlass::bfloat16_t(x * scale);
-        values[j] = cutlass::bfloat16_t(
-            float(normalized) * w);
+        values[j] = Transform(x, scale, w);
       }
       if (count == 8 &&
           (reinterpret_cast<std::uintptr_t>(dst + base) & 15) == 0)

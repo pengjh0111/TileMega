@@ -11,13 +11,15 @@ using Element = cutlass::bfloat16_t;
 
 __global__ void Run(Element const* input, Element const* weight,
                     Element* output, int width) {
+  if (!tilemega::codegen::executor::IsCompute()) return;
   __shared__ float warp_sums[4];
   tilemega::codegen::ServingRMSNormTaskBody::RunRow(
       input, weight, output, int(blockIdx.x), 2, 1, width, 1e-6f,
       warp_sums);
 }
 
-int main() {
+int main(int argc, char**) {
+  int threads = argc > 1 ? 160 : 128;
   constexpr int kWidth = 2048, kRows = 3;
   Element *input = nullptr, *weight = nullptr, *output = nullptr;
   cudaMallocManaged(&input, 2 * kRows * kWidth * sizeof(Element));
@@ -28,7 +30,7 @@ int main() {
       input[row * kWidth + col] = Element(0.01f * ((row * 17 + col) % 101) - 0.5f);
   for (int col = 0; col < kWidth; ++col)
     weight[col] = Element(1.0f + 0.001f * (col % 11));
-  Run<<<kRows, 128>>>(input, weight, output, kWidth);
+  Run<<<kRows, threads>>>(input, weight, output, kWidth);
   auto status = cudaDeviceSynchronize();
   if (status != cudaSuccess) {
     std::fprintf(stderr, "%s\n", cudaGetErrorString(status));

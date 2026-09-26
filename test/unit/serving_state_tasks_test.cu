@@ -12,18 +12,21 @@ using Element = cutlass::bfloat16_t;
 
 __global__ void Embed(int const* tokens, Element const* table, Element* output,
                       int seq, int past, int cap, int width, int vocab) {
+  if (!tilemega::codegen::executor::IsCompute()) return;
   tilemega::codegen::ServingEmbeddingTaskBody::RunRow(
       tokens, table, output, int(blockIdx.x), seq, past, cap, width, vocab);
 }
 
 __global__ void Reduce(float const* values, int const* indices, int* tokens,
                        int count, int cap, int position) {
+  if (!tilemega::codegen::executor::IsCompute()) return;
   __shared__ tilemega::codegen::ServingArgmaxReduceTaskBody::SharedStorage shared;
   tilemega::codegen::ServingArgmaxReduceTaskBody::RunRow(
       values, indices, tokens, int(blockIdx.x), count, cap, position, &shared);
 }
 
-int main() {
+int main(int argc, char**) {
+  int threads = argc > 1 ? 160 : 128;
   constexpr int kBatch = 3, kSeq = 2, kCap = 17, kWidth = 2051;
   constexpr int kVocab = 9, kParts = 137;
   int *tokens = nullptr, *indices = nullptr;
@@ -40,7 +43,7 @@ int main() {
       tokens[b * kCap + 7 + s] = (b * 3 + s) % kVocab;
   for (int i = 0; i < kVocab * kWidth; ++i)
     table[i] = Element(float(i % 127) * 0.015625f);
-  Embed<<<kBatch * kSeq, 128>>>(tokens, table, output, kSeq, 7, kCap,
+  Embed<<<kBatch * kSeq, threads>>>(tokens, table, output, kSeq, 7, kCap,
                                  kWidth, kVocab);
   assert(cudaDeviceSynchronize() == cudaSuccess);
   for (int b = 0; b < kBatch; ++b)
@@ -54,7 +57,7 @@ int main() {
       values[b * kParts + p] = p == 50 || p == 90 ? 3.0f : float(p % 19);
       indices[b * kParts + p] = 1000 - p;
     }
-  Reduce<<<kBatch, 128>>>(values, indices, tokens, kParts, kCap, 9);
+  Reduce<<<kBatch, threads>>>(values, indices, tokens, kParts, kCap, 9);
   assert(cudaDeviceSynchronize() == cudaSuccess);
   for (int b = 0; b < kBatch; ++b) {
     float best = -INFINITY;

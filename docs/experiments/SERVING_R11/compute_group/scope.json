@@ -1,0 +1,9 @@
+{
+  "scope": "TaskBody compute-group refactor; not the page-ring protocol acceptance",
+  "launch_threads": [
+    128,
+    160
+  ],
+  "loader_role": "returns immediately in 160-thread scalar/state unit tests",
+  "protocol_50_processes": "pending integrated plans"
+}

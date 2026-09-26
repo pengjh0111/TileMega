@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
+#include <tilemega/Codegen/executor/ComputeGroup.cuh>
+
 #include <cuda_runtime.h>
 
 #include <climits>
@@ -8,6 +10,10 @@
 #include <cstdint>
 
 namespace tilemega::codegen {
+
+using codegen::executor::ComputeThread;
+using codegen::executor::ComputeSync;
+using codegen::executor::kComputeThreads;
 
 /// One request per CTA; the partials are produced by the lm_head epilogue.
 /// The tie rule matches torch.argmax: choose the smallest vocabulary index.
@@ -27,8 +33,8 @@ struct ServingArgmaxReduceTaskBody {
     int index = INT_MAX;
     // Align by the physical row address, including rows whose partial count
     // is not divisible by four. Only the two edge vectors use scalar loads.
-    for (int part = int(threadIdx.x) * 4 - (batch * partial_count % 4);
-         part < partial_count; part += int(blockDim.x) * 4) {
+    for (int part = ComputeThread() * 4 - (batch * partial_count % 4);
+         part < partial_count; part += kComputeThreads * 4) {
       float values[4]; int indices[4];
       if (part >= 0 && part + 4 <= partial_count) {
         int offset = batch * partial_count + part;
@@ -59,12 +65,12 @@ struct ServingArgmaxReduceTaskBody {
         index = other_index;
       }
     }
-    if ((threadIdx.x & 31) == 0) {
-      shared->value[threadIdx.x >> 5] = best;
-      shared->index[threadIdx.x >> 5] = index;
+    if ((ComputeThread() & 31) == 0) {
+      shared->value[ComputeThread() >> 5] = best;
+      shared->index[ComputeThread() >> 5] = index;
     }
-    __syncthreads();
-    if (threadIdx.x == 0) {
+    ComputeSync();
+    if (ComputeThread() == 0) {
       best = shared->value[0];
       index = shared->index[0];
       for (int warp = 1; warp < 4; ++warp) {

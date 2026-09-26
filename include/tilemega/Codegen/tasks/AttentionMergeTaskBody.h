@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
+#include <tilemega/Codegen/executor/ComputeGroup.cuh>
+
 #include <cutlass/bfloat16.h>
 #include <tilemega/Backend/ServingVectorIO.h>
 
@@ -9,6 +11,10 @@
 #include <cstddef>
 
 namespace tilemega::codegen {
+
+using codegen::executor::ComputeThread;
+using codegen::executor::ComputeSync;
+using codegen::executor::kComputeThreads;
 
 template <int HeadDim, int QPerKV, int Tokens>
 struct AttentionMergeTaskBody {
@@ -26,8 +32,8 @@ struct AttentionMergeTaskBody {
     constexpr int rows = QPerKV * Tokens;
     // Each thread owns eight adjacent BF16 outputs. Both FP32 inputs are
     // aligned 16-byte vectors because every row has HeadDim % 8 == 0.
-    for (int vector = int(threadIdx.x); vector < rows * HeadDim / 8;
-         vector += int(blockDim.x)) {
+    for (int vector = ComputeThread(); vector < rows * HeadDim / 8;
+         vector += kComputeThreads) {
       int row = vector / (HeadDim / 8);
       int dim = (vector % (HeadDim / 8)) * 8;
       float maximum = -INFINITY;
