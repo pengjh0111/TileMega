@@ -1,0 +1,13 @@
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+ORACLE_DIAG unique relation_bytes=45 params=1 input=1 output=1 pieces=1 relation=[s1] -> { [p0] -> [m = p0] : 0 <= p0 < 64s1 }
+ORACLE_DIAG unique relation_bytes=43 params=1 input=1 output=1 pieces=1 relation=[s1] -> { [m] -> [p0 = m] : 0 <= m < 64s1 }
+ORACLE_DIAG unique relation_bytes=94 params=1 input=3 output=2 pieces=1 relation=[s1] -> { [p0, p1, p2] -> [m = p0, g = p1] : 0 <= p0 < 4s1 and 0 <= p1 <= 7 and 0 <= p2 <= 2 }
+ORACLE_DIAG unique relation_bytes=74 params=1 input=2 output=2 pieces=1 relation=[s1] -> { [p0, p1] -> [m = p0, n = p1] : 0 <= p0 < 4s1 and 0 <= p1 <= 15 }
+ORACLE_DIAG unique relation_bytes=70 params=1 input=2 output=2 pieces=1 relation=[s1] -> { [m, n] -> [p0 = m, p1 = n] : 0 <= m < 4s1 and 0 <= n <= 15 }
+ORACLE_DIAG unique relation_bytes=43 params=1 input=1 output=1 pieces=1 relation=[s1] -> { [q] -> [q' = q] : 0 <= q < 64s1 }
+ORACLE_DIAG unique relation_bytes=43 params=1 input=1 output=1 pieces=1 relation=[s1] -> { [q] -> [q' = q] : 0 <= q < 64s1 }
+ORACLE_DIAG unique relation_bytes=63 params=1 input=1 output=1 pieces=1 relation=[s1] -> { [q] -> [q'] : 0 <= q' < 32s1 and -2 + q <= 3q' <= q }
+ORACLE_DIAG unique relation_bytes=94 params=1 input=3 output=2 pieces=1 relation=[s1] -> { [p0, p1, p2] -> [m = p0, n = p1] : 0 <= p0 < s1 and 0 <= p1 <= 63 and 0 <= p2 <= 1 }
+ORACLE_DIAG unique relation_bytes=108 params=1 input=3 output=2 pieces=1 relation=[s1] -> { [m, n, j] -> [p0, p1 = n] : 0 <= n <= 63 and 0 <= j <= 1 and 0 <= p0 < s1 and -3 + m <= 4p0 <= m }
+ORACLE_DIAG unique relation_bytes=95 params=1 input=3 output=2 pieces=1 relation=[s1] -> { [p0, p1, p2] -> [m = p0, n = p1] : 0 <= p0 < 4s1 and 0 <= p1 <= 63 and 0 <= p2 <= 1 }
+ORACLE_DIAG unique relation_bytes=63 params=1 input=1 output=1 pieces=1 relation=[s1] -> { [q] -> [q'] : 0 <= q' < 64s1 and -1 + q <= 2q' <= q }
