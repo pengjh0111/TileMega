@@ -1,0 +1,10 @@
+Internal ctest changing into directory: /root/r11_work/build
+Test project /root/r11_work/build
+    Start  9: stage_flow
+1/2 Test  #9: stage_flow .......................   Passed    0.01 sec
+    Start 80: skeleton_search_isolation
+2/2 Test #80: skeleton_search_isolation ........   Passed    9.60 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   9.62 sec

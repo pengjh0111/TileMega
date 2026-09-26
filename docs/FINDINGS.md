@@ -8174,3 +8174,16 @@ adding the `ModelRuntime.h` dependency it completed with exit code 0.
 Build timing is a single observation, not a claim of statistical speedup.
 See `SERVING_R11/ops/build_times.json`, `executable_counts.json`,
 `ctest_names.json`, and `ctest_full_90.log`.
+
+## F-297: Page size now participates in the Level 1 search
+
+✅ verified: the paged Level 1 model and the per-worker fluid simulator charge
+no-producer bytes in a prefetch segment before dependency release, and limit
+outstanding prefetches by the page ring. A restricted Llama decode B1 CPU
+search scored 86 configurations, including both 8 KiB and 16 KiB page sizes;
+its best configuration used 16 KiB and scored 3.113389 ms, versus 3.115474
+ms for identical geometry and 8 KiB. A separate fixed-geometry probe gave
+3.319340 versus 3.321905 ms, respectively. These are predictions, not GPU
+measurements. The stage-flow, runtime-release, and search-isolation tests
+passed after the change. See `SERVING_R11/solver/page_coordinate_ranked.tsv`,
+`page_size_smoke.tsv`, and `stage_flow_unit.log`.
