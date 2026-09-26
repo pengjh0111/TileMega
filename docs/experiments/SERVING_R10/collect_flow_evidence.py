@@ -76,6 +76,11 @@ def main() -> None:
                                by_category.items() if "attention" in category)
             protocol_ns = sum(float(row[key]) for row in chain
                               for key in ("wait_ns", "publication_ns", "hop_ns"))
+            norm_rows = [row for row in chain if row["category"] == "rmsnorm"]
+            norm_protocol_fixed_ns = sum(float(row[key]) for row in norm_rows
+                for key in ("wait_ns", "fixed_ns", "publication_ns", "hop_ns"))
+            norm_wall_ns = sum(float(row["end_ns"]) - float(row["start_ns"])
+                               for row in norm_rows)
             # The chain category total is a diagnostic, while the four
             # counterfactuals below are the model's exact additive partition.
             gaps.append({
@@ -92,7 +97,9 @@ def main() -> None:
                 "attention_chain_share": attention_ns / float(flow["T"]),
                 "chain_protocol_constants_ms": protocol_ns / 1e6,
                 "rmsnorm_links": by_category.get("rmsnorm", (0, 0.0))[0],
-                "rmsnorm_chain_wall_ms": by_category.get("rmsnorm", (0, 0.0))[1] / 1e6,
+                "rmsnorm_chain_wall_ms": norm_wall_ns / 1e6,
+                "rmsnorm_protocol_fixed_bound_ms": norm_protocol_fixed_ns / 1e6,
+                "attention_chain_wall_ms": attention_ns / 1e6,
                 "evidence": str((dest / "winner.flow.tsv").relative_to(HERE)),
             })
     write("gaps.tsv", gaps)
