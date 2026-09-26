@@ -313,7 +313,11 @@ inline constexpr GemmVariantInfo MakeGemmVariantInfo() {
           sizeof(typename V::SharedStorage)};
 }
 
-inline constexpr GemmVariantInfo kGemmVariantInfo[] = {
+// Each generated serving plan may instantiate a different set of GEMM tiles.
+// Give the host table internal linkage: an externally linked inline variable
+// becomes GNU-unique in a shared object and is then coalesced across the
+// prefill and decode libraries even when both are opened with RTLD_LOCAL.
+static inline constexpr GemmVariantInfo kGemmVariantInfo[] = {
     MakeGemmVariantInfo<0>(),
 #if TILEMEGA_GEMM_VARIANT_COUNT > 1
     MakeGemmVariantInfo<1>(),

@@ -7801,3 +7801,22 @@ full and incremental preparation. All 40 comparisons have relative error
 zero. This checks the G-6 preparation condition under the price path used by
 the new matrix; pruning-domain equivalence remains a separate test. Evidence:
 `SERVING_R10/incremental_serving/report.json` and its four raw search TSVs.
+
+## F-279 — Generated prefill and decode libraries must keep tile tables local
+
+✅ verified: the first corrected Llama B1 prefill and decode plans each built
+and passed their individual candidate timing, but loading both `.so` files in
+one Python process failed with `ModelSpec/template mismatch in runtime variant
+0 GEMM 0`. The plans used different variant 0 tiles. `nm -D` showed the
+header-defined `kGemmVariantInfo` as a GNU-unique symbol (`u`), which the
+loader coalesced across the two libraries despite `RTLD_LOCAL`. Giving the
+table internal linkage (`static inline constexpr` in
+`GemmStageTaskBody.h`) removes it from the dynamic symbol table while retaining
+a library-local read-only table (`nm -a` type `r`). Rebuilding both B1 plan
+pairs from their recorded CUDA sources then passed a 1,024-token generation
+using L1 and L2 on the same plan instances: zero token mismatches for both
+models. The HF teacher-forced check passed for both, with all positions at
+gap zero. This is a host linkage defect; no tile or device arithmetic changed.
+Evidence: `SERVING_R10/symbol_isolation/`,
+`SERVING_R10/plans/{llama,qwen3}_{prefill,decode}_B1/symbol_isolation.json`,
+and `SERVING_R10/early_final_plan/{llama,qwen3}_B1/`.

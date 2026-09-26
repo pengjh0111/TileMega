@@ -1,0 +1,5 @@
+{"batch": 1, "tokens": 1024, "mismatches": 0, "pass": true, "same_plan_instances": true}
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=16777216
+E2E_PLACE_STATS placement=0 max_queue=98 same_worker_edges=7765 cross_worker_edges=948693 base_rotation=0 plan=eft
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=84 same_worker_edges=3626 cross_worker_edges=354369 base_rotation=0 plan=eft
