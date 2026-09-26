@@ -160,6 +160,7 @@ struct SearchContext {
     residency=std::min(residency,limit);
     SkeletonSolvedPoint point;point.candidate.config=config;point.candidate.kappa=kappa;point.candidate.residency=residency;
     point.candidate.key=Key(config,kappa,residency);point.candidate.estimated_limit=estimate.resident_limit;point.candidate.actual_limit=actual;
+    point.candidate.shared_bytes=estimate.shared_bytes;
     point.candidate.attention_kv_block=attention_kv_block;
     point.candidate.attention_query_rows=attention_query_rows;
     auto granularity=ClassGranularity(imported,classes,config);
@@ -207,6 +208,7 @@ struct SearchContext {
     {SolverPhase phase(timing,"piece_pricing_and_release");point.flow=PrepareFlow(
         point.problem,*floor,target,residency,options.common.placement.hop,
         cache,flow_cache,true,estimate.shared_bytes,prior,prior?&reusable:nullptr);}
+    point.candidate.task_count=std::accumulate(point.problem.counts.begin(),point.problem.counts.end(),std::uint64_t(0));
     if(options.incremental_prepare && !materialize)
       recent_flows[past_key]={config,residency,*point.flow};
     return point;
@@ -280,6 +282,17 @@ GemmConfig ServingSeed(OperatorClass const& cls,
   }
   return domain.front();
 }
+bool BetterCandidate(SkeletonCandidate const& candidate,
+                     SkeletonCandidate const& current,bool serving) {
+  if(!serving)return candidate.score<current.score;
+  if(!std::isfinite(candidate.score))return false;
+  if(!std::isfinite(current.score))return true;
+  double const tolerance=1e-6*std::max({1.0,std::abs(candidate.score),std::abs(current.score)});
+  if(candidate.score<current.score-tolerance)return true;
+  if(current.score<candidate.score-tolerance)return false;
+  return std::tie(candidate.shared_bytes,candidate.task_count,candidate.key)<
+      std::tie(current.shared_bytes,current.task_count,current.key);
+}
 std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out) {
   auto const& options=search.options;
   if(options.passes<1 || options.passes>3)throw std::invalid_argument("coordinate descent supports P=1..3");
@@ -329,7 +342,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
   if(search.imported.plan.serving && !options.serving_pruning)
     for(int k:{1,2,4})for(int r=1;r<=seed_residency;++r) {
       auto i=evaluate(seed,k,r);
-      if(evaluated[i].score<evaluated[legacy].score)legacy=i;
+      if(BetterCandidate(evaluated[i],evaluated[legacy],true))legacy=i;
     }
   // A uniform configuration must be legal for every operator class.
   if(!search.imported.plan.serving)for(auto const& g:domains.front()) {
@@ -384,7 +397,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
             if(!options.serving_pruning) {
               for(int k:{1,2,4})for(int r=1;r<=limit;++r) {
                 auto i=evaluate(config,k,r);
-                if(evaluated[i].score<evaluated[incumbent].score) {
+                if(BetterCandidate(evaluated[i],evaluated[incumbent],true)) {
                   incumbent=i;moved=true;++improvements;
                 }
               }
@@ -394,7 +407,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
             kappa=1;
           }
           auto i=evaluate(config,kappa,residency);
-          if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;++improvements;}}
+          if(BetterCandidate(evaluated[i],evaluated[incumbent],search.imported.plan.serving)){incumbent=i;moved=true;++improvements;}}
         out<<"COORDINATE\t"<<start<<'\t'<<pass<<'\t'<<c<<'\t'<<domains[c].size()<<'\t'<<improvements<<'\t'<<evaluated[incumbent].score<<'\n';out.flush();
       }
       if(search.imported.plan.serving) {
@@ -420,7 +433,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
           int rq=decode?fixed.attention_query_rows:value;
           search.SetServingStructure(ec,rq,search.ArgmaxTileN(fixed.config));
           auto i=evaluate(fixed.config,fixed.kappa,fixed.residency);
-          if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;}
+          if(BetterCandidate(evaluated[i],evaluated[incumbent],true)){incumbent=i;moved=true;}
         }
         out<<"ATTENTION_COORDINATE\t"<<start<<'\t'<<pass<<'\t'
            <<(decode?"Ec":"Rq")<<'\t'<<attention_domain.size()<<'\t'
@@ -432,15 +445,30 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       if(!search.imported.plan.serving || options.serving_pruning) {
         auto fixed=evaluated[incumbent];
         auto serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
-        for(int k:serving_order.kappa_scan){auto i=evaluate(fixed.config,k,fixed.residency);if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;}}
+        for(int k:serving_order.kappa_scan){auto i=evaluate(fixed.config,k,fixed.residency);if(BetterCandidate(evaluated[i],evaluated[incumbent],search.imported.plan.serving)){incumbent=i;moved=true;}}
         fixed=evaluated[incumbent];
         serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
-        for(int r:serving_order.residency_scan){auto i=evaluate(fixed.config,fixed.kappa,r);if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;}}
+        for(int r:serving_order.residency_scan){auto i=evaluate(fixed.config,fixed.kappa,r);if(BetterCandidate(evaluated[i],evaluated[incumbent],search.imported.plan.serving)){incumbent=i;moved=true;}}
       }
       if(!moved)break;
     }
   }
-  std::stable_sort(evaluated.begin(),evaluated.end(),[](auto const& a,auto const& b){return a.score<b.score;});return evaluated;
+  std::stable_sort(evaluated.begin(),evaluated.end(),[](auto const& a,auto const& b){return a.score<b.score;});
+  if(search.imported.plan.serving)for(std::size_t begin=0;begin<evaluated.size();) {
+    std::size_t end=begin+1;
+    auto const score=evaluated[begin].score;
+    if(std::isfinite(score))while(end<evaluated.size() && std::isfinite(evaluated[end].score) &&
+        std::abs(evaluated[end].score-score)<1e-6*std::max({1.0,std::abs(score),std::abs(evaluated[end].score)}))++end;
+    if(end-begin>1) {
+      std::stable_sort(evaluated.begin()+begin,evaluated.begin()+end,
+          [](auto const& a,auto const& b){return std::tie(a.shared_bytes,a.task_count,a.key)<
+              std::tie(b.shared_bytes,b.task_count,b.key);});
+      out<<"TIE_GROUP\t"<<begin<<'\t'<<end-begin<<'\t'<<score<<'\t'
+         <<evaluated[begin].shared_bytes<<'\t'<<evaluated[begin].task_count<<'\n';
+    }
+    begin=end;
+  }
+  return evaluated;
 }
 }
 SkeletonSearchResult SolveSkeletonExport(std::string const& path,mlir::MLIRContext& context,

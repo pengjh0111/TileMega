@@ -35,6 +35,8 @@ struct SkeletonCandidate {
   std::vector<GemmConfig> config;
   double score=std::numeric_limits<double>::infinity();
   int residency=0,estimated_limit=0,actual_limit=0,kappa=1;
+  int shared_bytes=0;
+  std::uint64_t task_count=0;
   // Serving attention coordinates. Decode searches KV extent; prefill
   // searches the query-row block. Both are literal in the ISL map.
   int attention_kv_block=0,attention_query_rows=0;
