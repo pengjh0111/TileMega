@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Codegen/tasks/ModelRuntime.h>
 #ifndef TILEMEGA_PAGE_TRACE
 #define TILEMEGA_PAGE_TRACE 0
 #endif

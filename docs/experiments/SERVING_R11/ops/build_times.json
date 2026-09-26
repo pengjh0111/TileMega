@@ -1,0 +1,9 @@
+{
+  "method": "cmake --build <build> --clean-first -j 16 on the same sm_89 host, Release",
+  "baseline_hash": "4bf26fb85ada63fccea101b323f3d7a09351eca2",
+  "baseline_seconds": 142.20620208303444,
+  "r11_seconds": 140.94115425087512,
+  "baseline_exit_code": 0,
+  "r11_exit_code": 0,
+  "ratio_r11_to_baseline": 0.9911041303851104
+}

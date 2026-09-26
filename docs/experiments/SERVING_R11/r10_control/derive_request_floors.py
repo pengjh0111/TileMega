@@ -20,6 +20,12 @@ def selected_cg(cell: Path, ranks: dict[str, int]) -> Path:
     cg = cell / f'plan.so.top{rank}.mlir'
     if not cg.is_file():
         raise FileNotFoundError(cg)
+    selected = json.loads((cell / 'plan.so.plan.json').read_text())
+    candidate = json.loads((cell / f'plan.so.top{rank}.candidate.so.plan.json').read_text())
+    for key in ('gemms', 'grid', 'residency', 'kappa',
+                'attention_kv_block', 'attention_query_rows'):
+        if selected[key] != candidate[key]:
+            raise RuntimeError(f'{cell.name}: top-{rank} differs on {key}')
     return cg
 
 

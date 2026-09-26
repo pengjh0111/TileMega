@@ -15,6 +15,17 @@ results are below; raw logs and token checks are preserved in
 | Qwen3 | 1 | 4.798 | 4.510 | 0.940 | pass / pass |
 | Qwen3 | 16 | 5.873 | 6.154 | 1.048 | pass / pass |
 
+The selected plans' exact CG request floors (prefill plus 1023 decode steps)
+are recorded in `../SERVING_R11/r10_control/request_floors.tsv`; the matching
+E2E ratios are in `../SERVING_R11/r10_control/paired_floor_ratios.tsv`:
+
+| Model | B | ΣT_floor (s) | TileMega E2E/ΣT_floor | vLLM E2E/ΣT_floor |
+| --- | ---: | ---: | ---: | ---: |
+| Llama | 1 | 2.598 | 1.242 | 1.189 |
+| Llama | 16 | 2.902 | 1.218 | 1.312 |
+| Qwen3 | 1 | 3.659 | 1.311 | 1.233 |
+| Qwen3 | 16 | 4.704 | 1.248 | 1.308 |
+
 The four-cell geometric mean is **1.0038×**. It is not the original R10
 ten-cell G-9 result. All eight plans exceeded the 600 s solve budget; Qwen3
 unpruned pruning control timed out at 5400 s, so G-6 remains unproved. The

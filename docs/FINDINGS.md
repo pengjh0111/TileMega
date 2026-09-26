@@ -8150,3 +8150,27 @@ section stamp, so a stale earlier fit cannot silently masquerade as this one.
 See `SERVING_R11/calibration/inflight_extended.tsv` and
 `target_inflight_extended.json`. This closes calibration *coverage* only;
 the selected GEMM classes still need the specified ±20% single-class checks.
+
+## F-295: Exact CG floors place the paired R10 controls near 1.2–1.3×
+
+✅ verified: the selected eight CGs imply complete-request floors (one
+prefill plus 1023 decode steps) of 2.598/2.902 s for Llama B1/B16 and
+3.659/4.704 s for Qwen3 B1/B16. The paired current-source TileMega runs
+are 1.242/1.218/1.311/1.248× these floors; vLLM is
+1.189/1.312/1.233/1.308×. The calculation uses the selected top-three
+rank recorded for each control plan, checks its geometry and resource
+manifest against the final binary, and evaluates the exact CG floor at each
+past value. See `SERVING_R11/r10_control/derive_request_floors.py`,
+`request_floors.tsv`, and `paired_floor_ratios.tsv`.
+
+## F-296: Unified tools cut executable count without increasing clean build time
+
+✅ verified: on the same sm_89 host, Release clean builds with `-j 16` took
+142.21 s for the immutable R10 baseline and 140.94 s for the R11 worktree.
+Default executable targets fell from 122 to 27 while ctest retained all
+90 test names and passed 90/90 in the earlier complete run. The clean R11
+build initially exposed a standalone page-header include omission; after
+adding the `ModelRuntime.h` dependency it completed with exit code 0.
+Build timing is a single observation, not a claim of statistical speedup.
+See `SERVING_R11/ops/build_times.json`, `executable_counts.json`,
+`ctest_names.json`, and `ctest_full_90.log`.
