@@ -1,0 +1,12 @@
+[
+  "/usr/local/cuda/bin/nvcc",
+  "-std=c++17",
+  "-O2",
+  "-arch=sm_89",
+  "-DTILEMEGA_BENCH_ARCH_ID=890",
+  "-Iinclude",
+  "-Ithird_party/cutlass/include",
+  "/root/TileMega/docs/experiments/SERVING_R10/bench_collective.cu",
+  "-o",
+  "/root/TileMega/docs/experiments/SERVING_R10/collective_bench/bench_collective"
+]

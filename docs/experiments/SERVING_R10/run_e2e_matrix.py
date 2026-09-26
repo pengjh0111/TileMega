@@ -145,6 +145,13 @@ def main() -> int:
         except subprocess.CalledProcessError as error:
             print(f"report generation failed: {script}: {error}", flush=True)
             failed = True
+    try:
+        subprocess.run([sys.executable, str(HERE / "bench_collective.py")],
+                       cwd=ROOT, check=True)
+    except subprocess.CalledProcessError as error:
+        # This auxiliary mainloop comparison is a report item, not an EV-1
+        # correctness gate; keep the ten-cell result status independent.
+        print(f"collective microbenchmark failed: {error}", flush=True)
     return int(failed)
 
 
