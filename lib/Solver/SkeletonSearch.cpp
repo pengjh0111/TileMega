@@ -330,8 +330,9 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     auto incumbent=start;if(!std::isfinite(evaluated[incumbent].score))throw std::runtime_error("flow seed has no valid score: "+evaluated[incumbent].error);
     for(int pass=0;pass<options.passes;++pass){bool moved=false;++rounds;
       for(std::size_t c=0;c<search.classes.size();++c){auto fixed=evaluated[incumbent];int improvements=0;
-        search.SetServingStructure(fixed.attention_kv_block,
-            fixed.attention_query_rows,search.ArgmaxTileN(fixed.config));
+        if(search.imported.plan.serving)
+          search.SetServingStructure(fixed.attention_kv_block,
+              fixed.attention_query_rows,search.ArgmaxTileN(fixed.config));
         for(auto const& g:domains[c]){auto config=fixed.config;config[c]=g;
           int residency=fixed.residency;
           int kappa=fixed.kappa;
