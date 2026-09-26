@@ -203,3 +203,14 @@ the standard collective. The changed source passed `paged_gemm` and
 `page_ring` ctests. Four fixed-geometry serving libraries are being rebuilt
 and will receive new 50-process checks before any full-request timing is
 attributed to this revision. See F-320 and `single_page_loader/`.
+
+Those four serving libraries are now built and their SASS audits report zero
+FP64 instructions. The same generated Llama decode plan compiles for sm_80,
+sm_89, sm_90, sm_100 and sm_120; only sm_89 is executable on this machine.
+Four trace-enabled libraries from the changed header are built. The fresh
+50-process protocol checks are still running and have not yet gated an E2E
+claim. A queued follow-up checks for 200/200 passes, then measures matched
+PG-off/PG-1 complete requests and collects trace chain/page/launch metrics.
+The trace-report contract test passes exact-floor, residual-bubble, CTA-local
+overlap and adjacent-launch calculations. The final selected-plan EV-2 and
+the four failing structural checks remain open.

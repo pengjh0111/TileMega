@@ -31,13 +31,17 @@ def main() -> None:
     parser.add_argument("--work", type=Path, default=Path("/root/r11_work/page_vector_once"))
     parser.add_argument("--out", type=Path,
                         default=ROOT / "docs/experiments/SERVING_R11/page_vector_diagnostics")
+    parser.add_argument("--cases", type=Path)
+    parser.add_argument("--protocol", type=Path, action="append")
+    parser.add_argument("--results", type=Path)
     args = parser.parse_args()
     work, out = args.work, args.out
-    cases = json.loads((work / "all_cases.json").read_text())
+    cases = json.loads((args.cases or work / "all_cases.json").read_text())
     if len(cases) != len(CELLS):
         raise ValueError("the four endpoint case table is incomplete")
-    protocol = [json.loads((work / name / "summary.json").read_text())
-                for name in ("fresh50", "endpoint_fresh50")]
+    protocol_paths = args.protocol or [work / name / "summary.json"
+                                       for name in ("fresh50", "endpoint_fresh50")]
+    protocol = [json.loads(path.read_text()) for path in protocol_paths]
     if not all(item.get("complete") and item.get("failed") == 0 for item in protocol):
         raise ValueError("the current-source page protocol did not pass")
     if sum(item["passed"] for item in protocol) != 200:
@@ -47,12 +51,13 @@ def main() -> None:
     summaries = []
     provenance = []
     raw = []
+    results = args.results or work / "diagnostic_results"
     for index, (model, batch) in enumerate(CELLS):
         name = f"{model}_B{batch}"
         case = cases[index]
         if case["batch"] != batch or model not in case["model"]:
             raise ValueError(f"case order changed at {name}")
-        source = work / "diagnostic_results" / name
+        source = results / name
         report = source / "report"
         summary = json.loads((report / "page_chain_summary.json").read_text())
         if summary["model"] != model or summary["batch"] != batch or summary["steps"] != 1023:

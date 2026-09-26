@@ -24,13 +24,24 @@ def main() -> None:
     parser.add_argument("--work", type=Path, default=Path("/root/r11_work/page_vector_once"))
     parser.add_argument("--out", type=Path,
                         default=ROOT / "docs/experiments/SERVING_R11/page_vector_e2e")
+    parser.add_argument("--results", type=Path)
+    parser.add_argument("--policy", type=Path)
+    parser.add_argument("--cases", type=Path)
     args = parser.parse_args()
     work, out = args.work, args.out
-    rows = json.loads((work / "endpoint_e2e/results.json").read_text())
+    results = args.results or work / "endpoint_e2e"
+    rows = json.loads((results / "results.json").read_text())
     if len(rows) != 2 * len(CELLS) or any(row["exit_code"] for row in rows):
         raise ValueError("all eight full-request controls have not completed")
+    checked = {}
+    if args.cases:
+        for case in json.loads(args.cases.read_text()):
+            model = 'llama' if 'llama' in case['model'] else 'qwen3'
+            checked[(model, case['batch'])] = case['binary_sha256']['decode']
+        if set(checked) != set(CELLS):
+            raise ValueError('fresh-process cases do not cover all endpoint cells')
     out.mkdir(parents=True, exist_ok=True)
-    policy = Path("/root/r11_work/pg_ablation/measurement_policy.json")
+    policy = args.policy or Path("/root/r11_work/pg_ablation/measurement_policy.json")
     shutil.copy2(policy, out / "measurement_policy.json")
     summary = []
     raw = []
@@ -39,6 +50,8 @@ def main() -> None:
         if {row["label"] for row in pair} != {"off", "pages"}:
             raise ValueError(f"missing PG-off/page pair for {model} B{batch}")
         by_label = {row["label"]: row for row in pair}
+        if checked and by_label['pages']['sha256'] != checked[(model, batch)]:
+            raise ValueError(f'page binary differs from fresh-process check: {model} B{batch}')
         off, pages = (Path(by_label[name]["binary"]) for name in ("off", "pages"))
         a, b = manifest(off), manifest(pages)
         if any(a[field] != b[field] for field in FIELDS):
@@ -49,7 +62,7 @@ def main() -> None:
             binary = Path(row["binary"])
             if sha(binary) != row["sha256"] or not row["timed_tokens_identical"]:
                 raise ValueError(f"changed binary or timed tokens for {model} B{batch}")
-            source = work / "endpoint_e2e" / f"{model}_B{batch}" / row["label"]
+            source = results / f"{model}_B{batch}" / row["label"]
             data = json.loads((source / "measurements.json").read_text())
             if data["measurement_policy"] != json.loads(policy.read_text()):
                 raise ValueError(f"measurement policy changed for {model} B{batch}")
@@ -83,7 +96,7 @@ def main() -> None:
     (out / "README.md").write_text(
         "# Fixed-geometry PG-1 endpoint controls\n\n"
         "Each model uses B=1 and B=16, as requested. Within each cell, the\n"
-        "PG-off and optimized 16 KiB PG-1 arms share GEMM geometry, grid,\n"
+        "PG-off and PG-1 arms share GEMM geometry, grid,\n"
         "residency, κ, attention coordinates and sync settings. The two arms\n"
         "were timed in one session under the same predeclared contamination\n"
         "policy. Three full-request timings and three TTFT timings per arm\n"

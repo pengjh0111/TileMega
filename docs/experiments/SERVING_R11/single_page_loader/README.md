@@ -41,3 +41,19 @@ the microbenchmark source is `docs/experiments/SERVING_R11/paged_class_bench.cu`
 process checks and matched end-to-end controls for the newly compiled serving
 binaries are separate evidence and are required before attributing a request
 speedup to this change.
+
+The four fixed-geometry serving libraries rebuilt from the changed header
+have zero FP64 instructions in both serving kernels, as recorded in
+`sass_audit.json`. This diagnostic audit does not replace the final EV-2
+selected-plan SASS gate.
+
+The changed header also compiles from the same generated decode plan for
+sm_80, sm_89, sm_90, sm_100 and sm_120 (`arch_compile.json`). The sm_89
+binary uses the SM80-class asynchronous-copy path; the newer-target SASS
+includes TMA and barrier instructions. This is compilation evidence only for
+architectures other than the native sm_89 GPU.
+
+The new full-request and trace evidence is queued behind 200 fresh-process
+token checks. `run_single_page_followup.py` checks that gate before timing
+the four endpoint cells, then collects the requested chain, page-stall and
+launch-gap diagnostics from trace builds of the same generated plans.
