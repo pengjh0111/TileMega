@@ -25,7 +25,7 @@ R11 implementation with direct evidence:
 | OPS-1 | Unified tool and host runner implemented; clean build 142.21→140.94 s, default executable targets 122→27, ctest 90/90 | `ops/` |
 | PG-0 / PG-1 | L2 prefetch and paged decode executor implemented; four 50-process protocol cells each passed for each mode (200/200 per mode) | `protocol_results.json`, `pages/` |
 | AT-3 | Independent-warp decode attention and 60 small-shape cases implemented | `pages/attention_torch.json` |
-| AR-1 | Five target-architecture compile checks and SASS branches recorded; native sm_89 only executed | `arch_primitives/` |
+| AR-1 | Capability-dispatched paths, five target-architecture compile/SASS checks, host tensor-map checks and native sm_89 hwcheck complete; other targets remain compile-only by P-21 | `arch_primitives/`, `single_page_loader/arch_compile.json` |
 | SV-18 | Two-phase paged Level 1/individual fluid modes and 8/16 KiB page-coordinate scan implemented; restricted Llama B1 CPU search ranked 16 KiB first in 86 evaluations | `solver/` |
 | TF-1 | Access proofs and IR pass implemented; real-model norm→GEMM decisions carry original input/weight buffers into the paged GEMM activation loader. Four disjoint norm handoffs now pass one IR rewrite on each real model. Stage removal/replanning, last-arriver/direct execution, and solver pricing remain open | `handoff/` |
 | OPS-2 / SY-1 | End-to-end CLI and calibrated waits implemented; full cache/run acceptance remains open. SOLO+RED+BARRIER_V2 completed 200/200 fresh-process token comparisons; fixed-geometry performance changed by less than 0.4% in the two selected cells | `ops/`, `calibration/`, `sync/`, `sync_ablation/` |
