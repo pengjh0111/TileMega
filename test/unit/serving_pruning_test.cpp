@@ -17,6 +17,20 @@ int main() {
   assert(PruneServingAttentionSmemR1(128,16,{g},target));
   assert(PruneServingAttentionSmemR1(64,16,
       {GemmConfig{16,32,64,2,1}},target));
+  using tilemega::codegen::ServingAttentionKvTile;
+  using tilemega::codegen::ServingAttentionSharedBytes;
+  int small=ServingAttentionSharedBytes(128,32);
+  int large=ServingAttentionSharedBytes(128,64);
+  assert(small<large);
+  assert(ServingAttentionKvTile(128,small)==32);
+  assert(ServingAttentionKvTile(128,large)==64);
+  GemmConfig medium{16,128,64,3,1};
+  auto saved_limit=target.res.max_dynamic_smem_per_cta;
+  target.res.max_dynamic_smem_per_cta=ServingBF16SmemBytes(16,128,64,3);
+  assert(target.res.max_dynamic_smem_per_cta>=small);
+  assert(target.res.max_dynamic_smem_per_cta<large);
+  assert(!PruneServingAttentionSmemR1(128,16,{medium},target));
+  target.res.max_dynamic_smem_per_cta=saved_limit;
   assert(!PruneServingR2(g, decode));
   assert(PruneServingR2(GemmConfig{32, 128, 64, 2, 1}, decode));
   assert(PruneServingR2(GemmConfig{16, 128, 64, 33, 1}, decode));

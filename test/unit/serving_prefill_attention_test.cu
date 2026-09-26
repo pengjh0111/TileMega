@@ -12,6 +12,9 @@
 #include <string>
 #include <vector>
 
+#ifndef TILEMEGA_TEST_KV_TILE
+#define TILEMEGA_TEST_KV_TILE 64
+#endif
 namespace {
 using Element=cutlass::bfloat16_t;
 constexpr int S=64;
@@ -23,7 +26,7 @@ template<class T> T* Managed(std::size_t count) {
 template<int D,int Q,int R,bool Norm>
 __global__ void Run(tilemega::codegen::ServingAttentionOperands p) {
   using Body=tilemega::codegen::FusedAttentionTaskBody<
-      tilemega::arch::Sm89,D,Q,S,R,64,Norm>;
+      tilemega::arch::Sm89,D,Q,S,R,TILEMEGA_TEST_KV_TILE,Norm>;
   extern __shared__ __align__(16) unsigned char memory[];
   auto& smem=*reinterpret_cast<typename Body::SharedStorage*>(memory);
   Body::Run(p,smem,0,0,int(blockIdx.x),0);
@@ -31,7 +34,7 @@ __global__ void Run(tilemega::codegen::ServingAttentionOperands p) {
 template<int D,int Q,int R,bool Norm>
 bool Check() {
   using Body=tilemega::codegen::FusedAttentionTaskBody<
-      tilemega::arch::Sm89,D,Q,S,R,64,Norm>;
+      tilemega::arch::Sm89,D,Q,S,R,TILEMEGA_TEST_KV_TILE,Norm>;
   constexpr int group_width=(Q+2)*D;
   auto* qkv=Managed<Element>(S*group_width);
   auto* key=Managed<Element>(S*D),*value=Managed<Element>(S*D);

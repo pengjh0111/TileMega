@@ -50,7 +50,8 @@ inline bool PruneServingAttentionSmemR1(
   for(auto const& g:gemms)
     gemm_max=std::max(gemm_max,ServingBF16SmemBytes(
         g.tile_m,g.tile_n,g.tile_k,g.stages));
-  int attention=codegen::ServingAttentionSharedBytes(head_dim);
+  int attention=codegen::ServingAttentionSharedBytes(head_dim,
+      codegen::ServingAttentionKvTile(head_dim,gemm_max));
   return attention>gemm_max ||
          attention>target.res.max_dynamic_smem_per_cta;
 }

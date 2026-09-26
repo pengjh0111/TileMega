@@ -11,12 +11,15 @@
 #include <cstring>
 #include <vector>
 
+#ifndef TILEMEGA_TEST_KV_TILE
+#define TILEMEGA_TEST_KV_TILE 64
+#endif
 namespace {
 using Element = cutlass::bfloat16_t;
 constexpr int Cap = 1088;
 template <int D, int Q, bool Norm>
 using Body = tilemega::codegen::FusedAttentionTaskBody<
-    tilemega::arch::Sm89, D, Q, 1, 16, 64, Norm>;
+    tilemega::arch::Sm89, D, Q, 1, 16, TILEMEGA_TEST_KV_TILE, Norm>;
 
 template <int D, int Q, bool Norm>
 __global__ void Run(tilemega::codegen::ServingAttentionOperands operands) {

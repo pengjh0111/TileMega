@@ -3,6 +3,7 @@
 #include <tilemega/Codegen/RuntimePlan.h>
 #include <tilemega/Solver/RuntimeProjection.h>
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 #include <mlir/IR/Builders.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Frontend/SymbolicShapeBridge.h>
@@ -253,8 +254,19 @@ std::string emitServingAttentionConfig(mlir::DictionaryAttr plan,
         requireField(item, "operands"));
     if (!operands || operands.size() < 7)
       throw std::invalid_argument("serving attention has no operand table");
+    int gemm_shared = 0;
+    auto gemms = module->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
+    if (!gemms) throw std::invalid_argument("serving attention needs selected GEMM resources");
+    for (auto value : gemms) {
+      auto g = dictionaryEntry(value, "gemm_runtime");
+      gemm_shared = std::max(gemm_shared, solver::ServingBF16SmemBytes(
+          integerField(g, "tile_m"), integerField(g, "tile_n"),
+          integerField(g, "tile_k"), integerField(g, "stages")));
+    }
+    int kv_tile = ServingAttentionKvTile(integerField(item, "width"), gemm_shared);
     std::ostringstream out;
-    out << "#define TILEMEGA_SERVING_SEQ " << integerField(serving, "seq") << '\n'
+    out << "#define TILEMEGA_SERVING_KV_TILE " << kv_tile << '\n'
+        << "#define TILEMEGA_SERVING_SEQ " << integerField(serving, "seq") << '\n'
         << "#define TILEMEGA_SERVING_HEAD_DIM " << integerField(item, "width") << '\n'
         << "#define TILEMEGA_SERVING_QPERKV " << integerField(item, "group") << '\n'
         << "#define TILEMEGA_SERVING_QROWS "

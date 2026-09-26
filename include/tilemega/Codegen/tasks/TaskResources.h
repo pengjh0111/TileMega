@@ -32,10 +32,12 @@ constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_exten
   return 0;
 }
 
-// The K tile is reused as the raw V staging area after QK; the V tile is
-// reused as the raw K staging area before PV.
-constexpr int ServingAttentionSharedBytes(int head_dim) {
-  return 416 * head_dim + 6272;
+// Double-buffered K/V and the final four-warp output reduction share storage.
+constexpr int ServingAttentionSharedBytes(int head_dim, int kv_tile = 64) {
+  return (32 + (8 * kv_tile > 256 ? 8 * kv_tile : 256)) * head_dim + 704;
+}
+constexpr int ServingAttentionKvTile(int head_dim, int gemm_shared_bytes) {
+  return ServingAttentionSharedBytes(head_dim, 64) <= gemm_shared_bytes ? 64 : 32;
 }
 
 template <TaskKind Kind, int Threads, int AttentionExtent = TILEMEGA_ATTENTION_SCRATCH_EXTENT>
