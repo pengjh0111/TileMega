@@ -39,6 +39,15 @@ def main() -> int:
     parser.add_argument("--compiler",type=Path,default=ROOT / "build-portable/tools/tilemega-compile")
     args = parser.parse_args()
     WORK,EVIDENCE=args.work,args.evidence
+    if not args.dry_run:
+        build=args.compiler.resolve().parent.parent
+        cache=(build / "CMakeCache.txt").read_text()
+        home=next((line.split("=",1)[1] for line in cache.splitlines()
+                   if line.startswith("CMAKE_HOME_DIRECTORY:INTERNAL=")), "")
+        if Path(home).resolve()!=ROOT:
+            raise RuntimeError("compiler build belongs to another source worktree")
+        subprocess.run(["cmake", "--build", str(build), "--target",
+                        "tilemega-compile", "-j", "2"], cwd=ROOT, check=True)
     fingerprint=source_fingerprint()
     EVIDENCE.mkdir(parents=True, exist_ok=True)
     WORK.mkdir(parents=True, exist_ok=True)
