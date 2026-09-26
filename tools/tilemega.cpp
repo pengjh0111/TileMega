@@ -10,6 +10,9 @@
 int main(int argc, char** argv) try {
   struct Command { char const* name; int (*run)(int, char**); };
   Command const commands[] = {
+    {"audit sass", tilemega::commands::audit_binary::RunSass},
+    {"audit arch", tilemega::commands::audit_binary::RunArch},
+    {"probe device", tilemega::commands::device::RunDevice},
     {"probe attention-work", tilemega::commands::attention_work::RunAttentionWork},
     {"calibrate", tilemega::commands::calibrate::RunCalibrate},
     {"compile", tilemega::commands::compile::RunCompile},
@@ -53,7 +56,7 @@ int main(int argc, char** argv) try {
     route += " " + std::string(argv[2]); first = 3;
   }
   for (auto const& c : commands) if (route == c.name) {
-    std::vector<std::string> args{ "tilemega " + route };
+    std::vector<std::string> args{ argv[0] };
     for (int i = first; i < argc; ++i) {
       if (route == "compile" && std::string(argv[i]) == "--options") {
         if (++i == argc) throw std::runtime_error("--options requires a JSON file");

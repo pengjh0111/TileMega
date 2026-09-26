@@ -1,0 +1,1 @@
+CODEGEN_SUMMARY tasks=34 couplings=42 stages=30 symbolic_windows=0 fallback_windows=0 output=/root/r11_work/identity/legacy_new.cu

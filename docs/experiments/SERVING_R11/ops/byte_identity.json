@@ -1,0 +1,64 @@
+[
+  {
+    "case": "serving",
+    "tool": "old",
+    "argv": [
+      "/root/r11_work/r10_build/tools/tilemega-compile",
+      "/root/r10_work/export/llama_decode/bridge.json",
+      "/root/r11_work/identity/serving_old.cu",
+      "--serving",
+      "decode",
+      "--batch",
+      "1",
+      "--past-range",
+      "64:1086",
+      "--emit",
+      "serving"
+    ],
+    "returncode": 0,
+    "sha256": "64d71fa386c30095200b49859cee78d924f0659410de744124ed4f186acc43a3"
+  },
+  {
+    "case": "serving",
+    "tool": "new",
+    "argv": [
+      "/root/r11_work/build/tools/tilemega",
+      "compile",
+      "/root/r10_work/export/llama_decode/bridge.json",
+      "/root/r11_work/identity/serving_new.cu",
+      "--serving",
+      "decode",
+      "--batch",
+      "1",
+      "--past-range",
+      "64:1086",
+      "--emit",
+      "serving"
+    ],
+    "returncode": 0,
+    "sha256": "64d71fa386c30095200b49859cee78d924f0659410de744124ed4f186acc43a3"
+  },
+  {
+    "case": "legacy",
+    "tool": "old",
+    "argv": [
+      "/root/r11_work/r10_build/tools/tilemega-compile",
+      "/root/r9_work/exact_reference.mlir",
+      "/root/r11_work/identity/legacy_old.cu"
+    ],
+    "returncode": 0,
+    "sha256": "24844c1862c21302427d406eb992ec9c298aa4e4d8ec66aed3060ba6e427d1c4"
+  },
+  {
+    "case": "legacy",
+    "tool": "new",
+    "argv": [
+      "/root/r11_work/build/tools/tilemega",
+      "compile",
+      "/root/r9_work/exact_reference.mlir",
+      "/root/r11_work/identity/legacy_new.cu"
+    ],
+    "returncode": 0,
+    "sha256": "24844c1862c21302427d406eb992ec9c298aa4e4d8ec66aed3060ba6e427d1c4"
+  }
+]

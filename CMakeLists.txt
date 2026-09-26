@@ -770,6 +770,8 @@ if(TILEMEGA_BUILD_EXPERIMENTAL)
 endif()
 
 add_library(tilemega_commands OBJECT
+  tools/commands/audit-binary.cpp
+  tools/commands/device.cpp
   tools/commands/attention-work.cpp
   tools/commands/calibrate.cpp
   tools/commands/compile.cpp

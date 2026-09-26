@@ -636,7 +636,7 @@ int RunCompile(int argc, char** argv) {
         for(std::size_t i=0;i<solved.shortlist.size();++i) {
           std::string stem=std::string(argv[2])+".top"+std::to_string(i+1);
           std::string candidate_so=stem+".candidate.so";
-          std::string compile=quote(std::filesystem::canonical(argv[0]).string())+
+          std::string compile=quote(std::filesystem::canonical(argv[0]).string())+" compile"+
               " "+quote(stem+".mlir")+" "+quote(candidate_so)+
               " --serving "+quote(serving_phase)+" --emit serving"+
               " --batch "+std::to_string(serving_batch)+

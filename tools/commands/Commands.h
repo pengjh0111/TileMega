@@ -19,3 +19,5 @@ namespace tilemega::commands::target_audit { int RunTargetAudit(int, char**); }
 namespace tilemega::commands::task_work_probe { int RunTaskWorkProbe(int, char**); }
 namespace tilemega::commands::wait_policy { int RunWaitPolicy(int, char**); }
 namespace tilemega::commands::wiring { int RunWiring(int, char**); }
+namespace tilemega::commands::audit_binary { int RunSass(int, char**); int RunArch(int, char**); }
+namespace tilemega::commands::device { int RunDevice(int, char**); }
