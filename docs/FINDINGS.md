@@ -8320,3 +8320,20 @@ took 0.7235 ms versus 1.1203 ms before; the whole 1024-token request took
 4.4851 s versus 4.7492 s, a 5.56% reduction. This remains 1.34× the
 separate PG-off control. These are fixed-geometry controls, not solver-selected
 EV-2 results. See `SERVING_R11/page_vector_once/`.
+
+## F-308: The paged GEMM mainloop makes the old stages coordinate inert
+
+✅ verified in code: `PagedGemmTaskBody` instantiates
+`ServingGemmConfig<Arch, TileM, TileN, TileK, 2>` and uses the page ring for
+cross-task depth; it never reads the searched `GemmConfig::stages`. Before
+the R11 correction, `SkeletonSearch` still passed stages 3–16 into the
+R10 pricing path, letting Level 1 credit a deeper pipeline than the page
+kernel executes. The PG-1 search now prices this geometry at stage 2 and
+removes equivalent higher-stage candidates, recording counts as
+`PG_STAGE_EQUIVALENCE`. The unified tool builds and the related host tests
+pass. A restricted-domain CPU search then priced 100 configurations without
+error; the six class domains shrank from 116/121/121/195/121/39 to
+27/32/32/42/32/7 after the exact stage-equivalence filter. Its best Level 1
+score was 3.739 ms. This is a model correction, not yet a measured improvement
+in selected-plan performance. See `lib/Solver/SkeletonSearch.cpp` and
+`SERVING_R11/solver/stage_equivalence/`.

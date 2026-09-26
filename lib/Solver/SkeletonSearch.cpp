@@ -244,11 +244,17 @@ struct SearchContext {
     return point;
   }
   SkeletonCandidate Evaluate(std::vector<GemmConfig> const& config,int kappa,int residency,int actual=0) {
-    auto point=Prepare(config,kappa,residency,actual);
+    // PG-1's PagedGemmTaskBody builds its MMA mainloop with Stages=2 and
+    // obtains prefetch depth from the page ring. The legacy stages coordinate
+    // has no effect on that kernel, so charging its R10 latency benefit here
+    // would rank a different program from the one we execute.
+    auto priced=config;
+    if(options.pg_pages)for(auto& g:priced)g.stages=2;
+    auto point=Prepare(priced,kappa,residency,actual);
     {SolverPhase phase(options.common.timing,"flow");point.candidate.score=EvaluateFlow(point.flow->flow).makespan_ns;}
     if(options.serving_past_lo>=0 && options.serving_past_hi>=options.serving_past_lo) {
-      auto low=Prepare(config,kappa,residency,actual,false,options.serving_past_lo);
-      auto high=Prepare(config,kappa,residency,actual,false,options.serving_past_hi);
+      auto low=Prepare(priced,kappa,residency,actual,false,options.serving_past_lo);
+      auto high=Prepare(priced,kappa,residency,actual,false,options.serving_past_hi);
       SolverPhase phase(options.common.timing,"flow");
       point.candidate.score=(EvaluateFlow(low.flow->flow).makespan_ns+
           4*point.candidate.score+EvaluateFlow(high.flow->flow).makespan_ns)/6;
@@ -351,6 +357,14 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
          <<pruned.removed_r1<<'\t'<<pruned.removed_r2<<'\t'
          <<pruned.removed_r3<<'\t'<<domain.size()<<'\n';
     }else domain=ClassCandidates(cls,search.imported,options.common.placement.target,search.dtype);
+    if(options.pg_pages) {
+      auto before=domain.size();
+      domain.erase(std::remove_if(domain.begin(),domain.end(),[](auto const& g){
+        return g.stages!=2;
+      }),domain.end());
+      out<<"PG_STAGE_EQUIVALENCE\t"<<domains.size()<<'\t'<<before<<'\t'
+         <<domain.size()<<"\tmainloop_stages=2\n";
+    }
     if(!options.common.geometry_domain.empty())domain.erase(std::remove_if(domain.begin(),domain.end(),[&](auto const& g){return std::none_of(options.common.geometry_domain.begin(),options.common.geometry_domain.end(),[&](auto const& a){return std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages)==std::tie(a.tile_m,a.tile_n,a.tile_k,a.stages);});}),domain.end());
     out<<"DOMAIN\t"<<domains.size()<<'\t'<<domain.size()<<'\n';
     if(search.imported.plan.serving)for(auto const& g:domain)
@@ -396,10 +410,12 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
            return ClassGeometryKey(options.serving_warm_gemms.at(id))!=
                   ClassGeometryKey(first);
          }))throw std::invalid_argument("warm start disagrees within a SemSig class");
+      auto canonical=first;
+      if(options.pg_pages)canonical.stages=2;
       if(std::none_of(domains[c].begin(),domains[c].end(),[&](auto const& g){
-           return ClassGeometryKey(g)==ClassGeometryKey(first);
+           return ClassGeometryKey(g)==ClassGeometryKey(canonical);
          }))throw std::invalid_argument("warm start is outside the next batch's legal domain");
-      warm.push_back(first);
+      warm.push_back(canonical);
     }
     search.SetServingStructure(options.serving_warm_kv_block,
         options.serving_warm_query_rows,search.ArgmaxTileN(warm));

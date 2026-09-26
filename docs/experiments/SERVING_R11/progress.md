@@ -74,3 +74,24 @@ solver-selected plans, fused/unfused check, and timed repeats remain open.
 The isolated page-ring handshake probe measures about 241 ns per page cycle
 for both page sizes with 512 B copied; it is a lower bound on full-page cost.
 See `fixed_page_correctness/` and `page_handshake.md`.
+
+For the current physical-page routing source, three additional B-endpoint
+50-process checks are running (Llama B16, Qwen3 B1/B16). The four trace-enabled
+binaries are built. `run_page_vector_diagnostics.py` is queued behind all four
+fresh-process checks and will recompute the requested chain/page-full/launch-gap
+metrics on this source. A subsequent fixed-geometry queue compares optimized
+PG-1 with PG off in the other three endpoint cells, with both arms held under
+the same predeclared contamination policy. These queues do not constitute
+final solver-selected EV-2 evidence.
+
+One CPU-side search correction is now in source: PG-1's paged GEMM body fixes
+its internal mainloop to two stages, so the R10 `stages` coordinate cannot
+change that kernel. The serving PG-1 search domain is reduced to stage 2 and
+explicit evaluations are priced at stage 2. This prevents the old latency
+term from assigning an unrealized benefit to 3–16 stages, and logs the domain
+reduction as `PG_STAGE_EQUIVALENCE`. It does not alter the already compiled
+fixed-geometry protocol binaries. The unified tool builds and two related
+host tests pass. A restricted CPU-only search priced 100 configurations
+without error and reduced the six candidate domains by 74–83%; the best
+Level 1 score was 3.739 ms. See `solver/stage_equivalence/`. The code contract
+remains 14/18, and real plan selection remains to be measured.

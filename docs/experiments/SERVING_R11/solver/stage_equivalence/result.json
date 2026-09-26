@@ -1,0 +1,83 @@
+{
+  "scope": "restricted-domain CPU-only search, no materialization or GPU performance claim",
+  "argv": [
+    "/root/r11_work/build/tools/tilemega",
+    "compile",
+    "/root/r10_work/export/llama_decode/bridge.json",
+    "/root/r11_work/pg_stage_equivalence.cu",
+    "--serving",
+    "decode",
+    "--batch",
+    "1",
+    "--past-range",
+    "64:1086",
+    "--capacity",
+    "1088",
+    "--solver",
+    "skeleton",
+    "--solve",
+    "docs/experiments/SERVING_R11/r10_control/calibration/target_serving.json",
+    "--hop-curve",
+    "docs/experiments/SIMULATOR/hop_ns.tsv",
+    "--sync",
+    "legacy",
+    "--variant-cache",
+    "/root/r9_work/variant_resources",
+    "--emit",
+    "serving",
+    "--pg",
+    "pages",
+    "--page-bytes",
+    "16384",
+    "--flow-search-only",
+    "1",
+    "--search-passes",
+    "1",
+    "--top-m",
+    "1",
+    "--search-domain",
+    "/root/r11_work/pg_stage_equivalence_domain.json"
+  ],
+  "env": {
+    "CUDA_VISIBLE_DEVICES": ""
+  },
+  "exit_code": 0,
+  "evaluations": 100,
+  "valid": 100,
+  "best_key": "16x32x128s2k1;16x32x64s2k2;16x256x64s2k1;16x256x64s2k16;16x32x64s2k2;16x256x64s2k1;kappa=2;residency=1;Ec=128;Rq=4;page_bytes=16384",
+  "best_flow_ns": 3738971.119070986,
+  "stage_domain_reductions": [
+    {
+      "operator_class": 0,
+      "before": 116,
+      "after": 27
+    },
+    {
+      "operator_class": 1,
+      "before": 121,
+      "after": 32
+    },
+    {
+      "operator_class": 2,
+      "before": 121,
+      "after": 32
+    },
+    {
+      "operator_class": 3,
+      "before": 195,
+      "after": 42
+    },
+    {
+      "operator_class": 4,
+      "before": 121,
+      "after": 32
+    },
+    {
+      "operator_class": 5,
+      "before": 39,
+      "after": 7
+    }
+  ],
+  "binary_sha256": "881875937732aab69adc6e0a8983b3dd9e2e3e1b682b1afba092abd69099d620",
+  "skeleton_search_sha256": "f77719cb309a7f3cae81602b8d0fe8e6d9ce7796fc8269e5a8f780e996235370"
+}
