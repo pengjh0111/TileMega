@@ -21,7 +21,7 @@ int TestSkeletonSearchIsolation(int argc, char** argv) try {
     options.common.placement.dims={4,3,7};options.common.timing=&timing;
     options.seed={32,16,32,2,1};options.common.geometry_domain={options.seed};
     options.variant_probe=[](auto const&,auto const*,auto){return solver::VariantResources{32,65536,128,false};};
-    options.jobs=1;options.passes=1;options.search_only=true;
+    options.jobs=repeat?3:1;options.passes=1;options.search_only=true;
     options.artifact_prefix=(dir/std::to_string(repeat)).string();
     std::ostringstream evidence;
     auto result=solver::SolveSkeletonExport(root+"/docs/experiments/SEQSCAN/raw/export/gqa2.json",context,options,nullptr,evidence);
@@ -34,13 +34,13 @@ int TestSkeletonSearchIsolation(int argc, char** argv) try {
     if(repeat==0)expected=evidence.str();
     else if(expected!=evidence.str())throw std::runtime_error("repeated coordinate search changed scores or ordering");
     std::cout<<"FLOW_SEARCH repeat="<<repeat<<" evaluations="<<result.evaluated.size()<<" imports=1 outer_materialize=0 outer_simulate=0 PASS\n";
-    options.jobs=2;bool rejected=false;
+    options.jobs=0;bool rejected=false;
     try {solver::SolveSkeletonExport("not-read.json",context,options,nullptr,evidence);}
-    catch(std::invalid_argument const& e){rejected=std::string(e.what()).find("single-threaded")!=std::string::npos;}
-    if(!rejected)throw std::runtime_error("parallel ISL search was not rejected before import");
+    catch(std::invalid_argument const& e){rejected=std::string(e.what()).find("positive")!=std::string::npos;}
+    if(!rejected)throw std::runtime_error("invalid compilation jobs were not rejected before import");
   }
   std::filesystem::remove_all(dir);
-  std::cout<<"FLOW_SEARCH deterministic=1 parallel_rejected=1 PASS\n";
+  std::cout<<"FLOW_SEARCH deterministic=1 compile_jobs_3_equivalent=1 invalid_jobs_rejected=1 PASS\n";
   return 0;
 
   return 0;
