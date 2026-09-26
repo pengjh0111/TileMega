@@ -195,3 +195,11 @@ The command fixes its wrapped-device lookup and quoted `-arch` parsing.
 This advances AR-1's native check and validates the smoke cache; it does
 not complete OPS-2's full `run` acceptance, TF-1 or EV-2. PDL remains
 unexecuted on sm_89. See F-319 and `arch_primitives/hwcheck_sm89/`.
+
+The single-page paged-GEMM loader no longer computes an impossible
+per-vector cross-page branch. Isolated down-stage medians improved by 27.5%
+(Llama B1) and 27.3% (Qwen3 B16), while the paged stages remain slower than
+the standard collective. The changed source passed `paged_gemm` and
+`page_ring` ctests. Four fixed-geometry serving libraries are being rebuilt
+and will receive new 50-process checks before any full-request timing is
+attributed to this revision. See F-320 and `single_page_loader/`.

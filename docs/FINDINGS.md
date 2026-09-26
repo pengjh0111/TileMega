@@ -8520,3 +8520,20 @@ replaced only for this hardware smoke path. The run also found and fixed an
 incorrect `doctor()` result lookup and a quoted-`-arch` comparison. PDL is
 not applicable on sm_89; higher-architecture paths remain compile-checked
 but unexecuted here. See `SERVING_R11/arch_primitives/hwcheck_sm89/`.
+
+## F-320: A redundant per-vector page test accounts for a substantial part of paged GEMM's down-stage loss
+
+✅ verified in an isolated, same-geometry down-stage benchmark at Llama B1
+and Qwen3 B16: when the page group contains one physical page, the loader's
+`byte / PageBytes != page` check is provably false but had been executed for
+every 16-byte vector. Compiling it out reduced paged stage medians from
+0.104544 to 0.075776 ms (−27.52%) and from 0.079872 to 0.058056 ms
+(−27.31%), respectively. A one-launch profiler sample found 1.93 million
+to 1.28 million branch instructions, with hardware DRAM read bytes unchanged
+at 33.61 MB. The paged stage remains 1.37×/1.35× slower than the standard
+collective. Two plausible alternatives—pre-zeroing invalid rows and having
+only one thread poll the page barrier—made both cases slightly slower and
+were not merged. `paged_gemm` and `page_ring` unit tests pass on the changed
+source. These are isolated stage results; fresh-process and full-request
+checks of the newly built serving binaries are tracked separately in
+`SERVING_R11/single_page_loader/`.

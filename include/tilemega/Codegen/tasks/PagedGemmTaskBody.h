@@ -101,7 +101,12 @@ struct PagedGemmTaskBody {
           for(int v=executor::LoaderLane()*8;v<TileN*TileK;v+=executor::kLoaderThreads*8) {
             int n=v/TileK,k=v%TileK;
             int byte=stage*kBBytes+LayoutB{}(n,k)*sizeof(Element);
-            if(byte/PageBytes!=page)continue;
+            // A single-page group covers every vector of every stage.
+            // Keeping the runtime page test here adds a divide and branch to
+            // each 16 B copy despite StageFits proving the page is always 0.
+            if constexpr(kGroupPages>1) {
+              if(byte/PageBytes!=page)continue;
+            }
             int global_n=tile_n*TileN+n,local_k=(first+stage)*TileK+k;
             bool valid=first+stage<iterations && global_n<p.n && local_k<p.k_count;
             auto* src=valid?p.b+std::int64_t(global_n)*pitch+p.k_begin+local_k:p.b;

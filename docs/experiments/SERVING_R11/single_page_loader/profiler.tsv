@@ -1,0 +1,4 @@
+cell	arm	inst_executed	branch_inst	dram_read_mbyte	active_cycles_avg
+llama_B1	standard	1647296	21248	33.60	41586.18
+llama_B1	previous_paged	11322728	1928336	33.61	129598.28
+llama_B1	single_page_paged	9599756	1275192	33.61	93322.54

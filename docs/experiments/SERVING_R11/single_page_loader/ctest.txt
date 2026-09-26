@@ -1,0 +1,10 @@
+Internal ctest changing into directory: /root/r11_work/build
+Test project /root/r11_work/build
+    Start 69: page_ring
+1/2 Test #69: page_ring ........................   Passed    0.30 sec
+    Start 70: paged_gemm
+2/2 Test #70: paged_gemm .......................   Passed    0.36 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.67 sec
