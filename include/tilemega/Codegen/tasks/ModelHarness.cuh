@@ -1996,6 +1996,13 @@ inline DeviceModel Create(ModelSpec const& spec,
         throw std::invalid_argument("unknown serving GEMM epilogue");
       invocation.serving_weight_buffer=desc.b;
       invocation.serving_k_begin=k_begin;
+      if ((desc.serving_norm_input == kNoOperand) !=
+          (desc.serving_norm_weight == kNoOperand))
+        throw std::invalid_argument("recompute handoff needs both normalization operands");
+      if (desc.serving_norm_input != kNoOperand) {
+        invocation.serving_norm_input=model.buffers.at(desc.serving_norm_input);
+        invocation.serving_norm_weight=model.buffers.at(desc.serving_norm_weight);
+      }
       invocation.serving_op = static_cast<backend::ServingEpilogueOp>(
           desc.serving_epilogue);
       invocation.serving_argmax_index =

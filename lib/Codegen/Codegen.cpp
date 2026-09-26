@@ -536,6 +536,21 @@ std::string emitModelPlan(mlir::ModuleOp module,
       out << ", " << code << "u, "
           << (code == 3 ? std::to_string(argmax_index) + "u" :
                           std::string("kNoOperand"));
+      auto optional_buffer=[&](char const* name)->std::int64_t {
+        if(auto value=llvm::dyn_cast_or_null<mlir::IntegerAttr>(item.get(name)))
+          return value.getInt();
+        return -1;
+      };
+      auto norm_input=optional_buffer("norm_input");
+      auto norm_weight=optional_buffer("norm_weight");
+      if((norm_input<0)!=(norm_weight<0))
+        throw std::invalid_argument("recompute GEMM needs both normalization operands");
+      if(norm_input>=int64_t(buffers.size()) || norm_weight>=int64_t(buffers.size()))
+        throw std::invalid_argument("recompute GEMM normalization buffer outside model");
+      out << ", " << (norm_input<0?std::string("kNoOperand"):
+                          std::to_string(norm_input)+"u")
+          << ", " << (norm_weight<0?std::string("kNoOperand"):
+                          std::to_string(norm_weight)+"u");
     }
     out << "},\n";
   }

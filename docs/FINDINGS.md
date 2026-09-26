@@ -8187,3 +8187,27 @@ ms for identical geometry and 8 KiB. A separate fixed-geometry probe gave
 measurements. The stage-flow, runtime-release, and search-isolation tests
 passed after the change. See `SERVING_R11/solver/page_coordinate_ranked.tsv`,
 `page_size_smoke.tsv`, and `stage_flow_unit.log`.
+
+## F-298: A proved normalization handoff reaches the paged GEMM operands
+
+✅ verified: on each selected Llama/Qwen3 B16 serving CG, the ISL access proof
+accepted one RMSNorm→GEMM recompute edge. `ApplyHandoffs` now records the
+producer's original input and normalization-weight buffer ids on the
+consumer GEMM descriptor. The paged GEMM activation loader reads these ids
+and calls the same `RowInvRms` and `Transform` device functions as the
+standalone RMSNorm. Both real-CG IR tests assert that the model descriptor
+contains both buffer ids. See `SERVING_R11/handoff/llama_norm_runtime.txt`
+and `qwen_norm_runtime.txt`. This is an operand path, not a completed fused
+plan: removing the independent stage, rebuilding placement, and comparing
+full generated tokens are still open.
+
+## F-299: The optional publication combination passes fresh-process checks
+
+✅ verified: `EVENT_SOLO + EVENT_RED_PUBLISH + BARRIER_V2` was tested in
+50 new processes for each of Llama/Qwen3 at B=1/16, each generating 64 steps
+in both L1 and L2 against its PG-off reference. All 200 processes exited
+successfully with token equality; none failed. This closes the separate
+SOLO+RED monotonicity/visibility check required before enabling the pair.
+The selected serving default still awaits its controlled performance
+comparison. See `SERVING_R11/sync/combo_fresh50_summary.json` and the
+complete raw process archive.

@@ -1,0 +1,72 @@
+{
+  "cases": [
+    {
+      "model": "/root/models/llama3_2_1b",
+      "batch": 1,
+      "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+      "steps": 64,
+      "prefill": "/root/r11_work/r10_control/plans/llama_prefill_B1/plan.so",
+      "reference_prefill": "/root/r11_work/r10_control/plans/llama_prefill_B1/plan.so",
+      "decode": "/root/r11_work/sync_combo/llama_B1/plan.so",
+      "reference_decode": "/root/r11_work/protocol/page_v2/llama_B1_off/plan.so",
+      "binary_sha256": {
+        "prefill": "ecc79d859b9393be139310a31d65e06537fec616b6577f76c82926461dfa905c",
+        "reference_prefill": "ecc79d859b9393be139310a31d65e06537fec616b6577f76c82926461dfa905c",
+        "decode": "5288909fdc35e4fe8f6a9c53051ff76de28753960863d046d600b152893a15c4",
+        "reference_decode": "2c0083a443c58f68b69a083331f146ecb90571c2acae08b5303655b08e10d03e"
+      }
+    },
+    {
+      "model": "/root/models/llama3_2_1b",
+      "batch": 16,
+      "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+      "steps": 64,
+      "prefill": "/root/r11_work/paged_cells/llama_B16/prefill.so",
+      "reference_prefill": "/root/r11_work/paged_cells/llama_B16/prefill.so",
+      "decode": "/root/r11_work/sync_combo/llama_B16/plan.so",
+      "reference_decode": "/root/r11_work/protocol/page_v2/llama_B16_off/plan.so",
+      "binary_sha256": {
+        "prefill": "bc53f9470aa095421deb1df86a36640584aa95956617db8f1870b9547a6d9b07",
+        "reference_prefill": "bc53f9470aa095421deb1df86a36640584aa95956617db8f1870b9547a6d9b07",
+        "decode": "633ee660da2bb0bd8e4179867bdecfd0d4e4ce1359c552839f0007af1d45482b",
+        "reference_decode": "96c9f17350c54bc32c1d5483316979d9b21ebfbccec8f52a452c30ea2ae07ad0"
+      }
+    },
+    {
+      "model": "/root/models/qwen3_1_7b",
+      "batch": 1,
+      "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/qwen3_ids.json",
+      "steps": 64,
+      "prefill": "/root/r11_work/r10_control/plans/qwen3_prefill_B1/plan.so",
+      "reference_prefill": "/root/r11_work/r10_control/plans/qwen3_prefill_B1/plan.so",
+      "decode": "/root/r11_work/sync_combo/qwen3_B1/plan.so",
+      "reference_decode": "/root/r11_work/protocol/page_v2/qwen3_B1_off/plan.so",
+      "binary_sha256": {
+        "prefill": "703d23c5f46a04a80f5115b3ed3736abe6566b03235c156d4e060ca741352510",
+        "reference_prefill": "703d23c5f46a04a80f5115b3ed3736abe6566b03235c156d4e060ca741352510",
+        "decode": "a51f82810cd2d8da6e48eb7e3d8c89d21f1f2a1133e224b6f8e9cd4a1a64a495",
+        "reference_decode": "0ec575a7a20daab6058352cfd925e2c470fe79f04fda97ec6f0dc85c976c9539"
+      }
+    },
+    {
+      "model": "/root/models/qwen3_1_7b",
+      "batch": 16,
+      "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/qwen3_ids.json",
+      "steps": 64,
+      "prefill": "/root/r11_work/paged_cells/qwen3_B16/prefill.so",
+      "reference_prefill": "/root/r11_work/paged_cells/qwen3_B16/prefill.so",
+      "decode": "/root/r11_work/sync_combo/qwen3_B16/plan.so",
+      "reference_decode": "/root/r11_work/protocol/page_v2/qwen3_B16_off/plan.so",
+      "binary_sha256": {
+        "prefill": "324967e541e89ed2cf7d1fd3c91a38fe9d2a3062975540b542ce4abeb53caa91",
+        "reference_prefill": "324967e541e89ed2cf7d1fd3c91a38fe9d2a3062975540b542ce4abeb53caa91",
+        "decode": "6e4c035b16a21c8cc6ca11e8cb71e8b0c4b6417a02b0cce88a76d0abdc2b1102",
+        "reference_decode": "447acddd89ab36a2dd9f42a53f8b3e8332fdd48be2c7c001e52a5a82903ac1c8"
+      }
+    }
+  ],
+  "processes_per_case": 50,
+  "passed": 200,
+  "failed": 0,
+  "complete": true
+}

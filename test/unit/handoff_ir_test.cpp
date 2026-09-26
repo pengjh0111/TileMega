@@ -33,7 +33,7 @@ int TestHandoffIr(int argc,char** argv) try {
   for(auto op:decisions)op->moveBefore(&plan.getBody().front(),plan.getBody().front().end());
   b.setInsertionPointToEnd(&plan.getBody().front());
   std::string choice=argc>2?argv[2]:"recompute";
-  int proofs=0,rejected=0;
+  int proofs=0,rejected=0;bool runtime_wired=false;
   for(auto edge:graph.getBody().front().getOps<dialect::CouplingOp>()) {
     auto p=mlir::dyn_cast_or_null<dialect::TileSpaceOp>(mlir::SymbolTable::lookupSymbolIn(graph,edge.getSrc()));
     auto c=mlir::dyn_cast_or_null<dialect::TileSpaceOp>(mlir::SymbolTable::lookupSymbolIn(graph,edge.getDst()));
@@ -52,6 +52,20 @@ int TestHandoffIr(int argc,char** argv) try {
       handoff.setKindAttr(b.getStringAttr(choice));
       dialect::ApplyHandoffs(*module);
       assert(mlir::succeeded(mlir::verify(*module)));
+      if(argc>1 && choice=="recompute") {
+        auto model=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+        assert(model && "serving handoff must retain its runtime model");
+        bool wired=false;
+        for(auto entry:mlir::cast<mlir::ArrayAttr>(model.get("gemms"))) {
+          auto gemm=mlir::cast<mlir::DictionaryAttr>(entry);
+          if(gemm.get("norm_input") || gemm.get("norm_weight")) {
+            assert(gemm.get("norm_input") && gemm.get("norm_weight"));
+            wired=true;
+          }
+        }
+        assert(wired && "norm recompute must reach serving GEMM operands");
+        runtime_wired=wired;
+      }
       auto active=module->getOperation()->getAttrOfType<mlir::FlatSymbolRefAttr>("tmexec.active_graph");assert(active);
       auto result=mlir::cast<dialect::GraphOp>(mlir::SymbolTable::lookupSymbolIn(*module,active.getValue()));
       int fused=0;for(auto f:result.getBody().front().getOps<dialect::FusedTileSpaceOp>()) {
@@ -71,7 +85,8 @@ int TestHandoffIr(int argc,char** argv) try {
     handoff.erase();
   }
   assert(proofs>0);
-  std::cout<<"HANDOFF_IR kind="<<choice<<" proofs="<<proofs<<" unsupported="<<rejected<<" invalid_kind_rejected=1\n";
+  std::cout<<"HANDOFF_IR kind="<<choice<<" proofs="<<proofs<<" unsupported="<<rejected
+           <<" invalid_kind_rejected=1 norm_runtime_wired="<<runtime_wired<<"\n";
   return 0;
 }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
 }

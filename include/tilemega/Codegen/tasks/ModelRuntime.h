@@ -161,6 +161,10 @@ struct GemmDesc {
   // 3 argmax partial. Legacy initializers keep the store default.
   std::uint32_t serving_epilogue = 0;
   std::uint32_t serving_argmax_index = 0xffffffffu;
+  // Optional recompute handoff: read the producer's original row and scale
+  // directly in the paged GEMM activation loader.
+  std::uint32_t serving_norm_input = 0xffffffffu;
+  std::uint32_t serving_norm_weight = 0xffffffffu;
 };
 
 /// One GEMM implementation selected by a runtime model variant.  The tile

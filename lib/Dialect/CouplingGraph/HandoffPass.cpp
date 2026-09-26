@@ -9,6 +9,7 @@
 #include <mlir/Pass/Pass.h>
 #include <mlir/Pass/PassRegistry.h>
 #include <stdexcept>
+#include <vector>
 namespace tilemega::dialect {
 namespace {
 using namespace mlir;
@@ -26,11 +27,43 @@ DictionaryAttr Maps(OpBuilder& b,std::map<std::string,CouplingRelation> const& m
   NamedAttrList out;for(auto const& [name,map]:maps)out.set(name,CouplingMapAttr::get(b.getContext(),map));
   return out.getDictionary(b.getContext());
 }
+void BindNormPrologue(GraphOp graph,TileSpaceOp producer,TileSpaceOp consumer) {
+  auto module=graph->getParentOfType<ModuleOp>();
+  auto model=module->getAttrOfType<DictionaryAttr>("tilemega.model_plan");
+  if(!model)return; // Minimal access-proof fixtures have no runtime model.
+  auto stages=dyn_cast_or_null<ArrayAttr>(model.get("stages"));
+  auto gemms=dyn_cast_or_null<ArrayAttr>(model.get("gemms"));
+  if(!stages || !gemms || producer.getStage()>=stages.size() ||
+     consumer.getStage()>=stages.size())
+    throw std::invalid_argument("recompute handoff lacks serving stage descriptors");
+  auto p=cast<DictionaryAttr>(stages[producer.getStage()]);
+  auto c=cast<DictionaryAttr>(stages[consumer.getStage()]);
+  auto pk=cast<StringAttr>(p.get("kind")).getValue();
+  auto ck=cast<StringAttr>(c.get("kind")).getValue();
+  if(pk!="kRMSNorm" || ck!="kGemm")return;
+  auto operands=cast<DenseI64ArrayAttr>(p.get("operands"));
+  auto gemm=cast<IntegerAttr>(c.get("gemm")).getInt();
+  if(gemm<0 || gemm>=int64_t(gemms.size()))
+    throw std::invalid_argument("norm prologue GEMM index outside model");
+  auto selected=cast<DictionaryAttr>(gemms[gemm]);
+  if(operands.size()<3 || operands[0]<0 || operands[1]<0 ||
+     operands[2]!=cast<IntegerAttr>(selected.get("a")).getInt())
+    throw std::invalid_argument("norm prologue does not feed the GEMM A operand");
+  OpBuilder b(graph.getContext());
+  NamedAttrList updated(selected);
+  updated.set("norm_input",b.getI64IntegerAttr(operands[0]));
+  updated.set("norm_weight",b.getI64IntegerAttr(operands[1]));
+  std::vector<Attribute> changed(gemms.begin(),gemms.end());
+  changed[gemm]=updated.getDictionary(graph.getContext());
+  NamedAttrList plan(model);plan.set("gemms",b.getArrayAttr(changed));
+  module->setAttr("tilemega.model_plan",plan.getDictionary(graph.getContext()));
+}
 void RewriteForward(GraphOp graph,PlanOp plan,HandoffOp decision,analysis::HandoffAccessProof const& proof) {
   auto edge=Symbol<CouplingOp>(graph,decision.getCoupling());
   if(!edge)throw std::invalid_argument("overlapping handoffs require a new solve after the first rewrite");
   auto p=Symbol<TileSpaceOp>(graph,edge.getSrc()),c=Symbol<TileSpaceOp>(graph,edge.getDst());
   if(!p || !c)throw std::invalid_argument("handoff phase was already rewritten");
+  if(decision.getKind()=="recompute")BindNormPrologue(graph,p,c);
   auto pa=HandoffTaskAccesses(p),ca=HandoffTaskAccesses(c);
   auto identity=ca.writes.begin()->second.Reverse().Image().ImageIdentity();
   auto name=p.getSymName().str()+"__"+c.getSymName().str();

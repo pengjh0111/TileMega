@@ -1,0 +1,3 @@
+Manual CG attribute probe on the first Llama B16 RMSNorm→QKV edge. This checks codegen serialization only; it does not establish fused execution or remove the independent RMSNorm stage.
+1199: constexpr GemmDesc kGemms[] = {
+1200:   {3072, 2048, 5u, 7u, 8u, 8u, 0.00000000f, 0u, kNoOperand, 4u, 6u},

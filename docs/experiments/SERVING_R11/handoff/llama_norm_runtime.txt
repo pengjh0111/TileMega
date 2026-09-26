@@ -1,0 +1,1 @@
+HANDOFF_IR kind=recompute proofs=1 unsupported=0 invalid_kind_rejected=1 norm_runtime_wired=1
