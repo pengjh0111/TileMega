@@ -98,10 +98,12 @@ def main() -> int:
         if not all((vllm_session / f"B{batch}" /
                     "measurements.json").exists() for batch in args.batches):
             try:
-                command([VLLM, "-m", "tilemega.serving.vllm_baseline",
+                # Execute the independent baseline as a file so Python does
+                # not import tilemega/__init__.py before the baseline starts.
+                command([VLLM, str(ROOT / "python/tilemega/serving/vllm_baseline.py"),
                          "--model", str(checkpoint), "--prompt-ids", str(ids),
                          "--batch", "all", "--out", str(vllm_session)],
-                        out_root / model / "vllm_command")
+                        out_root / model / "vllm_command", pythonpath=False)
             except Exception as error:
                 print(f"{model} vLLM session: {error}", flush=True)
                 failed = True
