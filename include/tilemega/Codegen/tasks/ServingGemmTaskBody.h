@@ -30,6 +30,8 @@ struct ServingGemmOperands {
   // logical K has a residue.  Serving weights are packed once with this pitch.
   int a_row_stride = 0, b_row_stride = 0;
   backend::ServingEpilogueOp epilogue = backend::ServingEpilogueOp::kStore;
+  void const* tensor_map = nullptr;
+  int tensor_k_begin = 0;
 };
 
 template <class Arch, int TileM, int TileN, int TileK, int Stages>

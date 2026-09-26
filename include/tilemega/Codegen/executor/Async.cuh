@@ -41,10 +41,13 @@ struct Async {
   __device__ static void Wait(std::uint64_t* barrier,unsigned phase) {
     while(!Ready(barrier,phase)) {}
   }
-  __device__ static void Copy16(void* destination,void const* source,bool valid=true) {
+  __device__ static void Copy16Bytes(void* destination,void const* source,unsigned bytes) {
     if constexpr(Caps::kCpAsync)
       asm volatile("cp.async.cg.shared.global [%0], [%1], 16, %2;" ::
-          "r"(Shared(destination)),"l"(source),"r"(valid?16:0):"memory");
+          "r"(Shared(destination)),"l"(source),"r"(bytes):"memory");
+  }
+  __device__ static void Copy16(void* destination,void const* source,bool valid=true) {
+    Copy16Bytes(destination,source,valid?16:0);
   }
   __device__ static void CompleteCopies(std::uint64_t* barrier) {
     if constexpr(Caps::kCpAsync && Caps::kMbarrier)
