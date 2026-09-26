@@ -48,6 +48,23 @@ def main() -> int:
                 if library.exists() and manifest.exists():
                     print(f"{cell}: reuse completed plan", flush=True)
                     evidence.mkdir(parents=True, exist_ok=True)
+                    for suffix in ARTIFACTS + (".recovery.json",):
+                        path = Path(str(library) + suffix)
+                        if path.exists():
+                            shutil.copyfile(path, evidence / path.name)
+                    if Path(str(library) + ".recovery.json").exists():
+                        for rank in (1, 2, 3):
+                            for round_number in range(3):
+                                raw = Path(str(library) +
+                                    f".top{rank}.recovery.r{round_number}")
+                                for name in ("measurements.json", "guard.jsonl",
+                                             "command.json"):
+                                    path = raw / name
+                                    if path.exists():
+                                        dest = (evidence / "recovery" /
+                                                f"top{rank}_r{round_number}")
+                                        dest.mkdir(parents=True, exist_ok=True)
+                                        shutil.copyfile(path, dest / name)
                     audit = evidence / "fp64_audit.json"
                     if not audit.exists():
                         with (evidence / "fp64_audit.stdout").open("w") as stream:

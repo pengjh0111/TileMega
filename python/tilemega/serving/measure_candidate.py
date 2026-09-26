@@ -96,11 +96,15 @@ def main() -> None:
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        torch.cuda.init()
+        # cuda.init alone does not necessarily register this PID with NVML.
+        # Keep a tiny allocation alive so the exclusivity guard can require
+        # our own process to appear in the visible compute-app table.
+        guard_allocation = torch.empty(1, device="cuda")
         config = json.loads((args.model / "config.json").read_text())
         report = measure_one(PlanLibrary(args.so), args.batch,
                              config["vocab_size"], args.past_mid, args.out,
                              args.reverse_modes)
+        del guard_allocation
     print(json.dumps({mode: data["mean_ms"]
                       for mode, data in report["modes"].items()}))
 
