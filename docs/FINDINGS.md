@@ -8254,3 +8254,20 @@ geometry scores differed by only about 0.07%, so its page model misses a
 large implementation cost. The page-size comparison does not separately
 measure barrier cost; the isolated per-class GEMM benchmark is the next
 control. See `SERVING_R11/page_size_control/`.
+
+## F-303: The page regression concentrates in GEMM page transport
+
+✅ verified: an isolated full-SM-grid probe with the same selected Llama B=1
+tile geometry measured standard-collective versus 8 KiB paged stage times:
+QKV 0.0236/0.0303 ms, gate/up 0.1026/0.1540 ms, down
+0.0546/0.1085 ms, and lm_head 0.6200/1.9563 ms. Effective weight
+throughput in GB/s was respectively 534/416, 654/436, 614/309, and
+847/269. Gate/up and down occur 16 times each; their isolated gaps plus the
+single lm_head gap total about 3.02 ms per decode step, close to the
+fixed-geometry PG-off→PG-1 complete-request gap of about 2.93 ms/token.
+This is a strong localization, not an additive causal decomposition: full
+execution overlaps tasks and shares memory bandwidth. The concrete hot path
+is `PagedGemmTaskBody::Load/Run` through `PageRing::AcquireEmpty`,
+`AwaitFull`, and `Release`; a larger page halves many stage-to-page
+transactions and already recovers 25% of E2E. See
+`SERVING_R11/paged_class_bench/` and F-302.

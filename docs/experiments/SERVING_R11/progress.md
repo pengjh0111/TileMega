@@ -49,5 +49,9 @@ currently 1.90×/1.79× slower than off. Instrumented chain attribution puts
 5.405 of Llama B1's 6.383 ms in gate/up, down and lm_head. A targeted
 8/16 KiB control then reduced Llama B1 E2E from 6.3300 to 4.7511 s with
 the same 101376 B shared allocation, leaving 1.42× over PG off. This is a
-larger page-layout effect than the Level 1 prediction; isolated class
-throughput measurements are running to separate transport from computation.
+larger page-layout effect than the Level 1 prediction. Isolated full-grid
+class controls measured paged/standard GEMM stage ratios of 1.29/1.50/1.99/
+3.15 for QKV/gate-up/down/lm_head; the latter three class gaps sum to about
+3.02 ms per decode step under an additive approximation, near the observed
+2.93 ms/token full-request regression. This localizes the immediate fix to
+`PagedGemmTaskBody` and the page-ring transfer protocol.
