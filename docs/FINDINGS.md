@@ -7820,3 +7820,40 @@ gap zero. This is a host linkage defect; no tile or device arithmetic changed.
 Evidence: `SERVING_R10/symbol_isolation/`,
 `SERVING_R10/plans/{llama,qwen3}_{prefill,decode}_B1/symbol_isolation.json`,
 and `SERVING_R10/early_final_plan/{llama,qwen3}_B1/`.
+
+## F-280 — Wider cp.async improves isolated GEMM feed before DRAM saturation
+
+✅ verified: on the sm_89 development GPU, an isolated BF16 mainloop
+comparison with non-compressible rotating weight buffers found that the
+serving collective moved 27.1–32.0 GB/s per single CTA over the requested
+weight bytes for M ∈ {1,16}, K ∈ {2048,8192}, versus 17.7–20.7 GB/s for the
+legacy collective. With one CTA per SM (128 CTAs), the medians narrowed to
+819–846 GB/s versus 771–819 GB/s. These are three fresh process medians for
+each point, with no other compute process before or after the run. The probe
+isolates the GEMM mainloop and does not claim an end-to-end speedup. Evidence:
+`SERVING_R10/collective_bench/{result.tsv,run0.tsv,run1.tsv,run2.tsv,guard.json}`;
+the source is `SERVING_R10/bench_collective.cu`.
+
+## F-281 — The selected serving CGs yield a request-level absolute floor
+
+✅ verified for the first complete plan pairs: evaluating the selected CG's
+`tmexec.dram_floor` quasi-polynomial at prefill and at every decode past
+position gives Llama B1 a 2.598109 s request floor and Qwen3 B1 a 3.658709 s
+request floor. In each pair the expression agrees with the CG's stored value
+at the compiled point for both plans. The final `E2E/ΣT_floor` requires the
+same-session ten-cell EV-1 measurement; these two numbers are floor values,
+not performance measurements. Evidence:
+`SERVING_R10/report_tables/{request_floors.tsv,floor_points.tsv}` and
+`SERVING_R10/floor_report.py`.
+
+## F-282 — The first complete serving plans exceed the ten-minute solve budget
+
+✅ verified: the corrected-price B1 full-plan solves took 1146 s (Llama
+decode), 1664 s (Llama prefill), 1452 s (Qwen3 decode), and 1692 s (Qwen3
+prefill). They therefore fail G-7's ≤ 600 s limit. Llama decode alone spent
+303 s compiling the top candidates and 218 s on piece pricing and release;
+Llama prefill spent 337 s and 512 s respectively. The Level 1 flow calls
+accounted for only 3.3 s and 5.7 s. The next solver change must cut the
+per-candidate price/release work and reuse compiled variants across related
+plans; decreasing Level 1's own event-loop cost cannot close this budget gap.
+Evidence: `SERVING_R10/plans/*_B1/{result.json,plan.so.timing.tsv}`.
