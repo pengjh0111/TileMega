@@ -56,6 +56,25 @@ struct PagedGemmTaskBody {
     for(int first=0;first<iterations;first+=kGroupStages) {
       AlignLoader(ring,sequence);
       for(int page=0;page<kGroupPages;++page)ring.AcquireEmpty(sequence+page);
+      if constexpr(kGroupPages>1 && !Async::Caps::kTma) {
+        // A CuTe swizzle changes which logical vectors land on each page.
+        // Route each vector by its physical address, visiting it only once.
+        // Every page is acquired before any copy and every full barrier is
+        // published after all copies, so each barrier covers the whole group.
+        for(int v=executor::LoaderLane()*8;v<TileN*TileK;v+=executor::kLoaderThreads*8) {
+          int n=v/TileK,k=v%TileK;
+          int byte=LayoutB{}(n,k)*sizeof(Element);
+          int page=byte/PageBytes;
+          int global_n=tile_n*TileN+n,local_k=first*TileK+k;
+          bool valid=global_n<p.n && local_k<p.k_count;
+          auto* src=valid?p.b+std::int64_t(global_n)*pitch+p.k_begin+local_k:p.b;
+          Async::Copy16Bytes(ring.Page(sequence+page)+byte%PageBytes,src,
+              valid?min(8,p.k_count-local_k)*sizeof(Element):0);
+        }
+        for(int page=0;page<kGroupPages;++page)ring.PublishCopies(sequence+page);
+        sequence+=kGroupPages;
+        continue;
+      }
       for(int page=0;page<kGroupPages;++page) {
         if constexpr(Async::Caps::kTma) {
           if(p.tensor_map && p.k_count%TileK==0) {

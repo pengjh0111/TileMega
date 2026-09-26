@@ -48,6 +48,9 @@ int main(){
     Check<32,64,8192,3>(m,n,k);
     Check<128,64,8192,3>(m,n,k);
     Check<128,128,16384,3>(m,n,k);
+    Check<256,64,16384,3>(m,n,k);
   }
-  std::puts("paged GEMM: 36 residue/cross-task/grouped-page cases pass");
+  // This crosses the physical page boundary with valid output columns.
+  Check<256,64,16384,3>(3,193,2048);
+  std::puts("paged GEMM: 49 residue/cross-task/grouped-page/multi-page cases pass");
 }
