@@ -6,7 +6,7 @@ wrapper text therefore shares a physical compile across semantic classes and
 split values; the solver still keeps a separate semantic resource-cache entry.
 """
 import argparse, fcntl, hashlib, json, pathlib, re, shutil, subprocess, os
-ROOT=pathlib.Path(__file__).resolve().parents[1]
+ROOT=pathlib.Path(__file__).resolve().parents[4]
 
 def serving_headers(source):
     """Hash only local headers reachable from this probe's translation unit."""

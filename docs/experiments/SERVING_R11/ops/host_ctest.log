@@ -1,0 +1,120 @@
+Internal ctest changing into directory: /root/r11_work/build
+Test project /root/r11_work/build
+      Start 11: regime_a_price
+      Start 21: task_element_work
+      Start  4: cg_lit
+      Start  5: target_spec
+ 1/57 Test  #5: target_spec ......................   Passed    0.01 sec
+      Start  7: coupling_types
+ 2/57 Test  #7: coupling_types ...................   Passed    0.18 sec
+      Start  8: table27
+ 3/57 Test  #4: cg_lit ...........................   Passed    0.26 sec
+      Start  9: stage_flow
+ 4/57 Test  #9: stage_flow .......................   Passed    0.01 sec
+      Start 10: flow_runtime_release
+ 5/57 Test  #8: table27 ..........................   Passed    0.25 sec
+      Start 12: dram_floor
+ 6/57 Test #12: dram_floor .......................   Passed    0.06 sec
+      Start 13: semantics
+ 7/57 Test #13: semantics ........................   Passed    0.27 sec
+      Start 14: incidence_identity
+ 8/57 Test #21: task_element_work ................   Passed    2.64 sec
+      Start 16: containment
+ 9/57 Test #16: containment ......................   Passed    0.19 sec
+      Start 17: event_synthesis
+10/57 Test #17: event_synthesis ..................   Passed    0.17 sec
+      Start 18: runtime_projection
+11/57 Test #11: regime_a_price ...................   Passed    3.38 sec
+      Start 19: relation_bounds
+12/57 Test #19: relation_bounds ..................   Passed    0.03 sec
+      Start 20: graph_pattern
+13/57 Test #20: graph_pattern ....................   Passed    0.02 sec
+      Start 24: isl_relation
+14/57 Test #24: isl_relation .....................   Passed    0.34 sec
+      Start 25: layout_bridge
+15/57 Test #25: layout_bridge ....................   Passed    0.02 sec
+      Start 26: cg_attr_roundtrip
+16/57 Test #26: cg_attr_roundtrip ................   Passed    0.02 sec
+      Start 27: backend_query
+17/57 Test #27: backend_query ....................   Passed    0.01 sec
+      Start 28: cache_service_curve
+18/57 Test #28: cache_service_curve ..............   Passed    0.01 sec
+      Start 29: fusion_access
+19/57 Test #29: fusion_access ....................   Passed    0.08 sec
+      Start 30: lane_intersections
+20/57 Test #30: lane_intersections ...............   Passed    0.06 sec
+      Start 31: fusion_rewrite
+21/57 Test #18: runtime_projection ...............   Passed    1.59 sec
+      Start 32: stage_kappa
+22/57 Test #14: incidence_identity ...............   Passed    5.10 sec
+      Start 33: pipeline_sigma
+23/57 Test #32: stage_kappa ......................   Passed   58.25 sec
+      Start 34: fusion_written_price
+24/57 Test #10: flow_runtime_release .............   Passed   83.53 sec
+      Start 35: fused_runtime_projection
+25/57 Test #35: fused_runtime_projection .........   Passed    0.44 sec
+      Start 36: exact_runtime_task_graph
+26/57 Test #36: exact_runtime_task_graph .........   Passed    0.03 sec
+      Start 37: fusion_batch_rewrite
+27/57 Test #34: fusion_written_price .............   Passed   21.72 sec
+      Start 38: fiber_sum
+28/57 Test #38: fiber_sum ........................   Passed    0.11 sec
+      Start 40: chain_dp
+29/57 Test #40: chain_dp .........................   Passed    4.24 sec
+      Start 41: list_scheduler
+30/57 Test #41: list_scheduler ...................   Passed    0.00 sec
+      Start 42: plan_contract
+31/57 Test #42: plan_contract ....................   Passed    0.01 sec
+      Start 43: execution_simulator
+32/57 Test #43: execution_simulator ..............   Passed    0.10 sec
+      Start 44: eft_placement
+33/57 Test #44: eft_placement ....................   Passed    0.01 sec
+      Start 45: chain_placement
+34/57 Test #45: chain_placement ..................   Passed    0.01 sec
+      Start 46: plan_table
+35/57 Test #46: plan_table .......................   Passed    0.01 sec
+      Start 47: cluster_labeling
+36/57 Test #47: cluster_labeling .................   Passed    0.01 sec
+      Start 48: alignment_propagation
+37/57 Test #48: alignment_propagation ............   Passed    0.01 sec
+      Start 49: impl_contract
+38/57 Test #49: impl_contract ....................   Passed    0.05 sec
+      Start 53: serving_pruning
+39/57 Test #53: serving_pruning ..................   Passed    0.01 sec
+      Start 54: serving_task_index
+40/57 Test #54: serving_task_index ...............   Passed    0.01 sec
+      Start 60: serving_token_sets
+41/57 Test #60: serving_token_sets ...............   Passed    0.02 sec
+      Start 68: frontend_import
+42/57 Test #68: frontend_import ..................   Passed    4.64 sec
+      Start 69: skeleton_placement
+43/57 Test #69: skeleton_placement ...............   Passed    0.03 sec
+      Start 70: isolated_evaluation
+44/57 Test #70: isolated_evaluation ..............   Passed    0.03 sec
+      Start 71: skeleton_search_isolation
+45/57 Test #37: fusion_batch_rewrite .............   Passed   16.17 sec
+      Start 72: plan_skeleton
+46/57 Test #71: skeleton_search_isolation ........   Passed   10.16 sec
+      Start 73: variant_resource
+47/57 Test #73: variant_resource .................   Passed    0.01 sec
+      Start 74: symbolic_oracle
+48/57 Test #74: symbolic_oracle ..................   Passed    0.14 sec
+      Start 75: operator_classes
+49/57 Test #75: operator_classes .................   Passed    0.84 sec
+      Start 76: coupling_cache
+50/57 Test #76: coupling_cache ...................   Passed    3.61 sec
+      Start 77: semantic_lifting
+51/57 Test #77: semantic_lifting .................   Passed    0.03 sec
+      Start 78: embedding_plan
+52/57 Test #78: embedding_plan ...................   Passed    0.05 sec
+      Start 79: wiring_coupling
+53/57 Test #79: wiring_coupling ..................   Passed    0.42 sec
+      Start 80: frontend_degradation
+54/57 Test #80: frontend_degradation .............   Passed    0.01 sec
+55/57 Test #72: plan_skeleton ....................   Passed   10.91 sec
+56/57 Test #31: fusion_rewrite ...................   Passed  128.89 sec
+57/57 Test #33: pipeline_sigma ...................   Passed  219.30 sec
+
+100% tests passed, 0 tests failed out of 57
+
+Total Test time (real) = 225.19 sec

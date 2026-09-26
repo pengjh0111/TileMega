@@ -547,8 +547,8 @@ int RunCompile(int argc, char** argv) {
           while(max_m<dims.batch*dims.seq && max_m<128)max_m*=2;
           auto prewarm_dir=resource_root/"prewarm";
           std::filesystem::create_directories(resource_root);
-          std::string command="python3 "+quote(std::string(TILEMEGA_SOURCE_DIR)+
-              "/tools/prewarm_serving_variants.py")+
+          std::string command="CUDACXX="+quote(tilemega::commands::NvccPath())+" python3 "+quote(std::string(TILEMEGA_SOURCE_DIR)+
+              "/python/tilemega/build/variants/prewarm.py")+
               " --target "+quote(solve_target)+
               " --cache "+quote(variant_cache)+
               " --output "+quote(prewarm_dir.string())+
@@ -571,7 +571,7 @@ int RunCompile(int argc, char** argv) {
           }
           auto output=resource_root/("variant_"+std::to_string(variant_index++)+".json");
           auto log=output;log.replace_extension("log");std::filesystem::create_directories(resource_root);
-          std::string command="python3 "+quote(std::string(TILEMEGA_SOURCE_DIR)+"/tools/probe_variant.py")+
+          std::string command="CUDACXX="+quote(tilemega::commands::NvccPath())+" python3 "+quote(std::string(TILEMEGA_SOURCE_DIR)+"/python/tilemega/build/variants/probe.py")+
             " --cache "+quote(variant_cache)+" --output "+quote(output.string())+" --arch "+quote(solve_options.placement.target.NvccArch())+
             " --dtype "+std::string(dtype==tilemega::solver::ScalarType::kBF16 ? "bf16":"f32");
           if(serving) {

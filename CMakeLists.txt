@@ -799,3 +799,12 @@ endif()
 add_executable(tilemega tools/tilemega.cpp $<TARGET_OBJECTS:tilemega_commands>)
 target_link_libraries(tilemega PRIVATE TileMega::tilemega tilemega_calibration MLIRParser)
 set_target_properties(tilemega PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_custom_target(tilemega_fingerprint
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/python/tilemega/fingerprint.py
+    --root ${CMAKE_CURRENT_SOURCE_DIR}
+    --header ${CMAKE_CURRENT_BINARY_DIR}/include/tilemega/Support/BuildFingerprint.h
+  BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/include/tilemega/Support/BuildFingerprint.h
+  VERBATIM)
+add_dependencies(tilemega tilemega_fingerprint)

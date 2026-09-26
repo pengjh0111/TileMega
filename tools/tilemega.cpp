@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "commands/Commands.h"
+#include "commands/Toolchain.h"
+#include <tilemega/Support/BuildFingerprint.h>
 #include <tilemega/Support/Json.h>
 #include <iostream>
 #include <string>
@@ -30,8 +32,18 @@ int main(int argc, char** argv) try {
   };
   if (argc < 2 || std::string(argv[1]) == "--help") {
     std::cout << "usage: tilemega <command> [options]\n";
+    std::cout << "  version [--json]\n";
     for (auto const& c : commands) std::cout << "  " << c.name << "\n";
     return argc < 2 ? 2 : 0;
+  }
+  if (std::string(argv[1]) == "version") {
+    tilemega::json::Value info(tilemega::json::Object{});
+    info.Set("source_sha256", TILEMEGA_SOURCE_SHA256);
+    info.Set("supported_arches", tilemega::json::Array{"sm_80", "sm_89", "sm_90", "sm_100", "sm_120"});
+    info.Set("nvcc", tilemega::commands::NvccPath());
+    info.Set("cuda_library_dir", tilemega::commands::CudaLibraryDirectory());
+    std::cout << info.Dump() << "\n";
+    return 0;
   }
   std::string route = argv[1];
   int first = 2;

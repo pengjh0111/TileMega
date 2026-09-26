@@ -15,7 +15,7 @@ import sys
 import time
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[4]
 
 
 def shapes(max_m: int, max_smem: int):
@@ -51,7 +51,7 @@ def main():
         label = "x".join(map(str, shape))
         result = args.output / f"{label}.json"
         log = args.output / f"{label}.log"
-        command = [sys.executable, str(ROOT / "tools/probe_variant.py"),
+        command = [sys.executable, str(Path(__file__).with_name("probe.py")),
                    "--cache", str(args.cache), "--output", str(result),
                    "--arch", arch, "--dtype", "bf16", "--serving",
                    "--tile", ",".join(map(str, shape))]
