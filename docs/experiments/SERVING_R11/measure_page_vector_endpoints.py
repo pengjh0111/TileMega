@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure the three remaining fixed-geometry page controls after protocol checks."""
+"""Measure all four fixed-geometry B endpoints after protocol checks."""
 from __future__ import annotations
 
 import fcntl
@@ -13,7 +13,7 @@ from measure_pg_ablation import LOCK, PYTHON, ROOT, cell_sources, manifest, sha
 
 
 WORK = Path('/root/r11_work/page_vector_once')
-CELLS = (('llama', 16), ('qwen3', 1), ('qwen3', 16))
+CELLS = (('llama', 1), ('llama', 16), ('qwen3', 1), ('qwen3', 16))
 FIELDS = ('gemms', 'grid', 'residency', 'kappa', 'attention_kv_block',
           'attention_query_rows', 'sync', 'event_solo', 'event_red_publish',
           'barrier_v2')
@@ -85,10 +85,12 @@ def run_measure(model: str, batch: int, label: str, decode: Path,
 
 
 def main() -> None:
-    protocol = json.loads((WORK / 'endpoint_fresh50/summary.json').read_text())
-    if not protocol.get('complete') or protocol.get('passed') != 150 or protocol.get('failed'):
-        raise RuntimeError('all three 50-process protocol checks must pass first')
-    cases = json.loads((WORK / 'endpoint_cases.json').read_text())
+    protocol = [json.loads((WORK / name / 'summary.json').read_text())
+                for name in ('fresh50', 'endpoint_fresh50')]
+    if not all(row.get('complete') and row.get('failed') == 0 for row in protocol) or \
+            sum(row['passed'] for row in protocol) != 200:
+        raise RuntimeError('all four 50-process protocol checks must pass first')
+    cases = json.loads((WORK / 'all_cases.json').read_text())
     if len(cases) != len(CELLS):
         raise RuntimeError('the endpoint case table is incomplete')
     policy = Path('/root/r11_work/pg_ablation/measurement_policy.json')

@@ -56,6 +56,50 @@ def evidence_json(path: str, predicate, description: str):
                    description + (' satisfied' if good else ' failed'))]
 
 
+def ev2_contamination_policy():
+    """K-15 checks the decisions, not just the existence of a policy file."""
+    path = EVIDENCE / 'ev2/measurement_policy.json'
+    label = str(path.relative_to(ROOT))
+    if not path.is_file():
+        return False, [(label, 0, 'missing predeclared EV-2 policy and round decisions')]
+    try:
+        data = json.loads(path.read_text())
+        idle = float(data['idle_power_w'])
+        margin = float(data['power_margin_w'])
+        rounds = data['rounds']
+        if idle <= 0 or margin <= 0 or not isinstance(rounds, list):
+            raise ValueError('invalid idle power, margin, or rounds')
+        expected = {(model, batch, arm) for model in ('llama', 'qwen3')
+                    for batch in (1, 16) for arm in ('tilemega', 'vllm')}
+        seen = set()
+        for row in rounds:
+            cell = (row['model'], int(row['batch']), row['arm'])
+            if cell not in expected or cell in seen:
+                raise ValueError(f'duplicate or unexpected EV-2 arm {cell}')
+            seen.add(cell)
+            observations = row['observations']
+            if len(observations) < 3:
+                raise ValueError(f'no per-round contamination decisions for {cell}')
+            for observation in observations:
+                power = float(observation['power_w'])
+                threshold = float(observation['threshold_w'])
+                if abs(threshold - (idle + margin)) > 1e-6:
+                    raise ValueError(f'changed power threshold for {cell}')
+                if not isinstance(observation['exclusive'], bool) or \
+                        not isinstance(observation['accepted'], bool):
+                    raise ValueError(f'missing exclusivity decision for {cell}')
+                if observation['accepted'] and not (observation['exclusive'] and power <= threshold):
+                    raise ValueError(f'accepted a contaminated round for {cell}')
+            if sum(bool(x['accepted']) for x in observations) < 3:
+                raise ValueError(f'fewer than three accepted timed runs for {cell}')
+        if seen != expected:
+            raise ValueError(f'missing EV-2 arms: {expected - seen}')
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        return False, [(label, 1, f'EV-2 contamination evidence invalid: {error}')]
+    return True, [(label, 1,
+                   f'idle={idle} W margin={margin} W; {len(rounds)} arms with logged round decisions')]
+
+
 def changed_sources():
     result = subprocess.run(['git', 'diff', '--name-only', BASELINE, '--', 'include', 'lib', 'tools', 'python'],
                             cwd=ROOT, text=True, check=True, capture_output=True)
@@ -143,9 +187,7 @@ def checks():
                          fingerprints_equal())
     ck['K-14'] = combine(require('python/tilemega/cli.py', 'calibration_sections', 'source_sha256',
                                 'features', 'plan_key', 'tilemega.serving'))
-    ck['K-15'] = evidence_json('ev2/measurement_policy.json',
-                               lambda d: 'idle_power_w' in d and 'power_margin_w' in d and 'rounds' in d,
-                               'predeclared contamination policy and all round decisions')
+    ck['K-15'] = ev2_contamination_policy()
     ck['K-16'] = combine(absent('tools/commands/compile.cpp', r'TILEMEGA_MIDPOINT_REFINE=1'),
                          evidence_json('ev2/sass_audit.json', lambda d: d.get('all_fp64_zero') is True,
                                        'all serving SASS FP64 counts zero'))
