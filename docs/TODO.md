@@ -1002,7 +1002,7 @@ BE 必须先行：SB 的吞吐数字与 TF 的融合收益，都建立在后端�
 | SB-2 | KV cache 跨 decode 步增长（block table） | SB-1 | 未开始 | — （⚠️ v2.1 第十轮补充：静态 batch 且各请求等长时，改用每请求连续的 HND cache `[B][Hkv][cap][D]`（MPK demo 中 page_size ≥ max_seq 的配置即此形态）。block table 使 KV 访问成为数据相关的间接访问，访问关系不再仿射，留给连续批处理的轮次。由 §5.8.2 的 SB-2 承接。） | 待填 |
 | SB-3 | 离线批处理驱动与吞吐口径 | SB-2 | 未开始 | — （⚠️ v2.1 第十轮补充：口径定为 BF16、每请求 64 个 prompt token、greedy 生成 1024 个 token、B ∈ {1, 2, 4, 8, 16}；由 §5.8.2 的 SB-3 承接。） | 待填 |
 | SB-4 | 对比 vLLM / SGLang 同口径数字 | SB-3 | 未开始 | — （⚠️ v2.1 第十轮补充：按用户指示只对比一个开箱即用的基线 vLLM；当前 sm_89 不是最终实验平台，后续在 sm_120 与 A100/H100/B200 上复测。由 §5.8.2 的 SB-4 承接。） | 待填 |
-| TF-1 | fuse 改为放置后的 tile 直传 | BE-9 | 未开始 | — （⚠️ v2.1 第十一轮补充：R11 将 tile 直传推广为边级交接 `tmexec.handoff ∈ {event, recompute, last_arriver, smem_direct}`。R10 已把元素级后继并入 epilogue，decode 中剩余的链边以扇入为主：同形 1:N 的直传以消费者内重算实现（RMSNorm → GEMM） | 待填 |
+| TF-1 | fuse 改为放置后的 tile 直传 | BE-9 | 未开始 | — （⚠️ v2.1 第十一轮补充：R11 将 tile 直传推广为边级交接 `tmexec.handoff ∈ {event, recompute, last_arriver, smem_direct}`。R10 已把元素级后继并入 epilogue，decode 中剩余的链边以扇入为主：同形 1:N 的直传以消费者内重算实现（RMSNorm → GEMM），同 tile 扇入以最后到达者归约实现（split-K combine、attention merge），1:1 同 worker 相邻直传走页。范围与验收见 §5.9.2 的 TF-1。） | 待填 |
 | TF-2 | 直传作为放置的收益项进代价模型与目标函数 | TF-1 | 未开始 | — （⚠️ v2.1 第十一轮补充：交接方式作为求解坐标，由 Level 1 定价，见 §5.9.2 的 SV-18。） | 待填 |
 | TF-3 | 代价模型输出改为无量纲分值；`L2/floor` 重新定义或废弃 | — | 未开始 | — | 待填 |
 | TF-4 | 判据改为深度感知 + FP32 golden | — | 未开始 | — | 待填 |

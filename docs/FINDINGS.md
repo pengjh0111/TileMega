@@ -8001,3 +8001,30 @@ Stated implementation scope: decode uses 160 threads and a target-derived
 page pool; prefill still uses the R10 per-task collective, as permitted by
 R11 §4.5(h). The full G-2 also requires the handoff consumers, which are not
 yet integrated. No page-pipeline performance result is claimed.
+
+### F-288 — Decode attention transport control and L2 prefetch footprint
+
+✅ verified (development checks): the warp-independent AT-3 calculation is
+shared by the page provider and a local double-buffer provider. All 60
+specified small-shape cases have byte-identical context and cache dumps
+between these providers. The local provider also passes all 60 PyTorch
+comparisons. Evidence: `SERVING_R11/pages/attention_transport.json` and
+`independent_attention_torch.json`.
+
+✅ verified failure retained: the first Llama B16 page-protocol probe, using
+R10's CTA-reduced attention as its reference, differed at 131 of 1024 output
+tokens across 16 requests and 64 steps. The page candidate's four alternating
+L1/L2 runs agreed with each other. This is not a passing protocol result;
+see `SERVING_R11/pages/llama_B16_v1_mismatch.json`. AT-3 changes softmax
+partitioning and reduction order. The controlled transport comparison keeps
+that arithmetic identical and tests PG off versus pages; it does not change
+expected outputs. The four model/batch smoke probes pass, while the required
+fifty-process-per-cell runs are still in progress. Final C-1 remains required.
+
+✅ verified microbenchmark: on this sm_89 device, prefetching offset zero
+reduced median dependent-load latency at offsets 0/32/64/96 bytes from
+631/630/630/625 cycles to 317/316/316/317 cycles; offset 128 remained 633
+cycles. Each median uses 31 samples after eviction. PG-0 therefore uses the
+measured 128-byte coverage stored in the target, with a 128-byte negative
+control. This measures cache coverage, not an end-to-end performance gain.
+See `SERVING_R11/calibration/l2_prefetch.tsv`.
