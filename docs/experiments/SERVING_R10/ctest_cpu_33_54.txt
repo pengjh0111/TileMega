@@ -1,0 +1,50 @@
+Internal ctest changing into directory: /root/TileMega/build-portable
+Test project /root/TileMega/build-portable
+      Start 33: pipeline_sigma
+      Start 39: attention_work
+      Start 34: fusion_written_price
+      Start 37: fusion_batch_rewrite
+      Start 40: chain_dp
+      Start 35: fused_runtime_projection
+      Start 38: fiber_sum
+      Start 43: execution_simulator
+ 1/22 Test #43: execution_simulator ..............   Passed    0.13 sec
+      Start 49: impl_contract
+ 2/22 Test #38: fiber_sum ........................   Passed    0.14 sec
+      Start 36: exact_runtime_task_graph
+ 3/22 Test #49: impl_contract ....................   Passed    0.03 sec
+      Start 54: serving_task_index
+ 4/22 Test #54: serving_task_index ...............   Passed    0.00 sec
+      Start 52: serving_gemm_config
+ 5/22 Test #52: serving_gemm_config ..............   Passed    0.01 sec
+      Start 46: plan_table
+ 6/22 Test #46: plan_table .......................   Passed    0.01 sec
+      Start 45: chain_placement
+ 7/22 Test #45: chain_placement ..................   Passed    0.01 sec
+      Start 44: eft_placement
+ 8/22 Test #44: eft_placement ....................   Passed    0.01 sec
+      Start 53: serving_pruning
+ 9/22 Test #53: serving_pruning ..................   Passed    0.01 sec
+      Start 42: plan_contract
+10/22 Test #42: plan_contract ....................   Passed    0.01 sec
+      Start 48: alignment_propagation
+11/22 Test #36: exact_runtime_task_graph .........   Passed    0.07 sec
+      Start 41: list_scheduler
+12/22 Test #48: alignment_propagation ............   Passed    0.01 sec
+      Start 47: cluster_labeling
+13/22 Test #41: list_scheduler ...................   Passed    0.01 sec
+      Start 51: bf16_task_body_compile
+14/22 Test #47: cluster_labeling .................   Passed    0.01 sec
+      Start 50: task_body_contract
+15/22 Test #51: bf16_task_body_compile ...........   Passed    0.01 sec
+16/22 Test #50: task_body_contract ...............   Passed    0.01 sec
+17/22 Test #35: fused_runtime_projection .........   Passed    0.50 sec
+18/22 Test #40: chain_dp .........................   Passed    4.65 sec
+19/22 Test #37: fusion_batch_rewrite .............   Passed   17.96 sec
+20/22 Test #34: fusion_written_price .............   Passed   22.70 sec
+21/22 Test #39: attention_work ...................   Passed   38.45 sec
+22/22 Test #33: pipeline_sigma ...................   Passed  219.79 sec
+
+100% tests passed, 0 tests failed out of 22
+
+Total Test time (real) = 219.80 sec

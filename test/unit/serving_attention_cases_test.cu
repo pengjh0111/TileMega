@@ -7,6 +7,8 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
+#include <cstring>
 #include <vector>
 
 namespace {
@@ -48,6 +50,17 @@ Element Rotate(Element const* x, Element const* norm, Element const* cos,
   return Element(float(first) + float(second));
 }
 
+int BF16Ulp(Element actual, Element expected) {
+  std::uint16_t a = 0, b = 0;
+  static_assert(sizeof(Element) == sizeof(a));
+  std::memcpy(&a, &actual, sizeof(a));
+  std::memcpy(&b, &expected, sizeof(b));
+  auto ordered = [](std::uint16_t bits) {
+    return int(bits & 0x8000 ? 0xffffu - bits : 0x8000u + bits);
+  };
+  return std::abs(ordered(a) - ordered(b));
+}
+
 template <int D, int Q, bool Norm>
 bool Check(int past, int extent, Element* qkv, Element* key, Element* value,
            Element* cosine, Element* sine, Element* qnorm, Element* knorm,
@@ -75,7 +88,7 @@ bool Check(int past, int extent, Element* qkv, Element* key, Element* value,
     newest[d] = Rotate<D, Norm>(qkv + Q * D, knorm,
                        cosine + past * D, sine + past * D, d);
   for (int d = 0; d < D; ++d) {
-    if (std::abs(float(key[past * D + d]) - float(newest[d])) > 0.008f ||
+    if (BF16Ulp(key[past * D + d], newest[d]) > 1 ||
         value[past * D + d] != qkv[(Q + 1) * D + d]) return false;
   }
   for (int h = 0; h < Q; ++h) {
