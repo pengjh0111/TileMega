@@ -24,3 +24,15 @@ the new path. The full CTest suite passed 80/80 after this change.
 
 The interrupted search logs are preserved here. They are diagnostic data,
 not completed plan results or evidence for G-6/G-7.
+
+Qwen3 decode B=1 subsequently spent minutes in `InflightDramServer::Advance`
+for configurations with many identical streams. The original server advanced
+each active task on every event. Commit `c19b027f0` groups streams with the
+same rate cap and in-flight-byte class behind one service clock; the per-task
+remaining bytes still determine each task's completion event. A 400-case
+staggered-stream reference test compares the grouped server with the dense
+implementation. For the stalled candidate, the old search row 611 and the
+replayed grouped run both report `760352559.42175853 ns`; the grouped two-case
+replay completed in 28.4 s, including flow preparation. The interrupted Qwen3
+matrix log and replay inputs/outputs are retained here. This repairs a CPU
+evaluation stall; it is not a completed Qwen3 plan or GPU performance result.
