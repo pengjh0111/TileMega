@@ -265,7 +265,11 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
          <<pruned.removed_r3<<'\t'<<domain.size()<<'\n';
     }else domain=ClassCandidates(cls,search.imported,options.common.placement.target,search.dtype);
     if(!options.common.geometry_domain.empty())domain.erase(std::remove_if(domain.begin(),domain.end(),[&](auto const& g){return std::none_of(options.common.geometry_domain.begin(),options.common.geometry_domain.end(),[&](auto const& a){return std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages)==std::tie(a.tile_m,a.tile_n,a.tile_k,a.stages);});}),domain.end());
-    out<<"DOMAIN\t"<<domains.size()<<'\t'<<domain.size()<<'\n';domains.push_back(std::move(domain));
+    out<<"DOMAIN\t"<<domains.size()<<'\t'<<domain.size()<<'\n';
+    if(search.imported.plan.serving)for(auto const& g:domain)
+      out<<"DOMAIN_MEMBER\t"<<domains.size()<<'\t'<<g.tile_m<<'x'
+         <<g.tile_n<<'x'<<g.tile_k<<'s'<<g.stages<<'k'<<g.split_k<<'\n';
+    domains.push_back(std::move(domain));
   }
   std::vector<GemmConfig> seed(search.classes.size(),options.seed);
   if(search.imported.plan.serving)

@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[3]
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "incremental_serving"
 WORK = Path("/root/r10_work/incremental_serving")
-TARGET = Path("/root/r10_work/target_r10_inflight.json")
+TARGET = HERE / "calibration/target_serving.json"
 
 
 def evaluations(path: Path) -> list[tuple[str, float, str]]:
