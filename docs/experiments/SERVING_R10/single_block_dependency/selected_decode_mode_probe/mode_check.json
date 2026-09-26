@@ -1,0 +1,7 @@
+{
+  "batch": 1,
+  "tokens": 1024,
+  "mismatches": 0,
+  "pass": true,
+  "same_plan_instances": true
+}
