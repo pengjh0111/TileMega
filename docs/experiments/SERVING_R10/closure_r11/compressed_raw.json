@@ -1,0 +1,254 @@
+[
+  {
+    "original_path": "current_plans/partial/llama_decode_B1/plan.so.m1A.edges.tsv",
+    "archived_path": "current_plans/partial/llama_decode_B1/plan.so.m1A.edges.tsv.gz",
+    "bytes": 5485420,
+    "sha256": "0e81ba634d2bbb35447f6e7725f2e15aa05daac04441af9c9a11c98ce1d47a88",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/current_plans/partial/llama_decode_B1/plan.so.m1A.edges.tsv"
+  },
+  {
+    "original_path": "current_plans/partial/llama_decode_B1/plan.so.m1B.edges.tsv",
+    "archived_path": "current_plans/partial/llama_decode_B1/plan.so.m1B.edges.tsv.gz",
+    "bytes": 5485416,
+    "sha256": "baa8fff36806b088d3e9761062b99c84e4101cd8e3a6cd0a37f28f0a7f0be9cb",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/current_plans/partial/llama_decode_B1/plan.so.m1B.edges.tsv"
+  },
+  {
+    "original_path": "current_plans/partial/llama_decode_B1/plan.so.m2A.edges.tsv",
+    "archived_path": "current_plans/partial/llama_decode_B1/plan.so.m2A.edges.tsv.gz",
+    "bytes": 5485420,
+    "sha256": "0e81ba634d2bbb35447f6e7725f2e15aa05daac04441af9c9a11c98ce1d47a88",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/current_plans/partial/llama_decode_B1/plan.so.m2A.edges.tsv"
+  },
+  {
+    "original_path": "current_plans/partial/llama_decode_B1/plan.so.m2B.edges.tsv",
+    "archived_path": "current_plans/partial/llama_decode_B1/plan.so.m2B.edges.tsv.gz",
+    "bytes": 5485416,
+    "sha256": "baa8fff36806b088d3e9761062b99c84e4101cd8e3a6cd0a37f28f0a7f0be9cb",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/current_plans/partial/llama_decode_B1/plan.so.m2B.edges.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/llama_decode_B1/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/llama_decode_B1/plan.so.phases.tsv.gz",
+    "bytes": 3057455,
+    "sha256": "288042fad1dfa825fd79075e381a6cdcbb5101240188ae6aa1dc2760134768a8",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/llama_decode_B1/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/llama_decode_B16/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/llama_decode_B16/plan.so.phases.tsv.gz",
+    "bytes": 4355714,
+    "sha256": "a8282c0783b30ddc5b04486204a4196609fc1856ef1f0b886f8cbeeb27c81bcb",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/llama_decode_B16/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/llama_decode_B2/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/llama_decode_B2/plan.so.phases.tsv.gz",
+    "bytes": 5812695,
+    "sha256": "8af6a7ae8646f52237e24862558ccfdad9412614e734af08f02bc0ac5e9823f1",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/llama_decode_B2/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/llama_decode_B4/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/llama_decode_B4/plan.so.phases.tsv.gz",
+    "bytes": 5747150,
+    "sha256": "5a71f0bcab8e49a26af55fc4661930559d3beab7081a82b37feaab05250ab927",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/llama_decode_B4/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/llama_decode_B8/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/llama_decode_B8/plan.so.phases.tsv.gz",
+    "bytes": 4590719,
+    "sha256": "30c8962f2b03c75d01d213ceb873aea408c2f6e2090ee87a034bb1872a3ae4fd",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/llama_decode_B8/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/llama_prefill_B1/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/llama_prefill_B1/plan.so.phases.tsv.gz",
+    "bytes": 4456178,
+    "sha256": "9cdea854293fc2fd453dff1db654e07edb76c1d5fa2969e2f7de96392667013c",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/llama_prefill_B1/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/llama_prefill_B1/plan.so.search.tsv",
+    "archived_path": "historical_b22/plans/llama_prefill_B1/plan.so.search.tsv.gz",
+    "bytes": 864869,
+    "sha256": "b728cd236fcefe2a2e8a971153896f5472f6864ab1d2df6f3e8dd023a3754d0d",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/llama_prefill_B1/plan.so.search.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/llama_prefill_B16/plan.so.search.tsv",
+    "archived_path": "historical_b22/plans/llama_prefill_B16/plan.so.search.tsv.gz",
+    "bytes": 687433,
+    "sha256": "93fa5fadd33b4f1f2bfa8f959b14d2206aa320295d20e6232b9378832219bc56",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/llama_prefill_B16/plan.so.search.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/llama_prefill_B2/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/llama_prefill_B2/plan.so.phases.tsv.gz",
+    "bytes": 7258565,
+    "sha256": "0a20e1eb4b6274d6dadc2a6d104fb95c12c78a3e92f8f111a5d6a044767b22be",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/llama_prefill_B2/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/llama_prefill_B2/plan.so.search.tsv",
+    "archived_path": "historical_b22/plans/llama_prefill_B2/plan.so.search.tsv.gz",
+    "bytes": 1344780,
+    "sha256": "2d21aa79a2b5f5388bc2802c2ee99b0c18cd2d97528e803713ab2aee58f89f5f",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/llama_prefill_B2/plan.so.search.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/llama_prefill_B4/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/llama_prefill_B4/plan.so.phases.tsv.gz",
+    "bytes": 5699493,
+    "sha256": "fc96285b9fad11599154dffe7101b78d14309d1ac4aaff6aa6110ab4fc19bf89",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/llama_prefill_B4/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/llama_prefill_B4/plan.so.search.tsv",
+    "archived_path": "historical_b22/plans/llama_prefill_B4/plan.so.search.tsv.gz",
+    "bytes": 995685,
+    "sha256": "d045a70830512d8c2dd8d204eeb940c8ae93e76ea926dfcb4aa8b87348ae9bd1",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/llama_prefill_B4/plan.so.search.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/llama_prefill_B8/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/llama_prefill_B8/plan.so.phases.tsv.gz",
+    "bytes": 8249833,
+    "sha256": "32dde1797ed13f64312d7258dd1c11ae5e1bb9d9815ea6ceef38edbb3a9771ef",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/llama_prefill_B8/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/llama_prefill_B8/plan.so.search.tsv",
+    "archived_path": "historical_b22/plans/llama_prefill_B8/plan.so.search.tsv.gz",
+    "bytes": 1556480,
+    "sha256": "3568bfe8b0be7e0a521e6873828b001721f7cdfc4d7a4b7dda8e03aa1436a97a",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/llama_prefill_B8/plan.so.search.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_decode_B1/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/qwen3_decode_B1/plan.so.phases.tsv.gz",
+    "bytes": 3015405,
+    "sha256": "d0177f7139aea86be7bd79edd064c50e4cd0b33a019f748ccad9f5f35e4307c9",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_decode_B1/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_decode_B16/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/qwen3_decode_B16/plan.so.phases.tsv.gz",
+    "bytes": 3135409,
+    "sha256": "686f2a9e119ce9e9b6e02248a47784e9cc2e81523c0500f481503a18b92d05c3",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_decode_B16/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_decode_B2/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/qwen3_decode_B2/plan.so.phases.tsv.gz",
+    "bytes": 4580518,
+    "sha256": "aa0ec2032d4f083df3eaa70e04c751ccb80b207fe77b3af5e5f409c1a533ab84",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_decode_B2/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_decode_B4/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/qwen3_decode_B4/plan.so.phases.tsv.gz",
+    "bytes": 5662750,
+    "sha256": "1d07d3a281d25e771a95ca3ed51c75b17feb00541f398b183cd445003ad08009",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_decode_B4/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_decode_B4/winner.flow_parts.tsv",
+    "archived_path": "historical_b22/plans/qwen3_decode_B4/winner.flow_parts.tsv.gz",
+    "bytes": 511865,
+    "sha256": "a41ef1ebb164d23ea42e4fc7728d3382fc5588ce65afdbe9b4cbbd4685ffed43",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_decode_B4/winner.flow_parts.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_decode_B8/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/qwen3_decode_B8/plan.so.phases.tsv.gz",
+    "bytes": 4525889,
+    "sha256": "bb6b2f87fa73478fc9d4b9a9abff52f61e6f1628cc520604f8f73d77052d94b6",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_decode_B8/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_prefill_B1/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/qwen3_prefill_B1/plan.so.phases.tsv.gz",
+    "bytes": 2939105,
+    "sha256": "620113e380bbc13e84e8476d0964b09184121ed717ec4a6d6f1b38bb397b307e",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_prefill_B1/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_prefill_B1/plan.so.search.tsv",
+    "archived_path": "historical_b22/plans/qwen3_prefill_B1/plan.so.search.tsv.gz",
+    "bytes": 586496,
+    "sha256": "ac6bb403e3b86595fec63ec372b3480eaab7d934d47a9979025527ee1f79005f",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_prefill_B1/plan.so.search.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_prefill_B16/plan.so.search.tsv",
+    "archived_path": "historical_b22/plans/qwen3_prefill_B16/plan.so.search.tsv.gz",
+    "bytes": 653384,
+    "sha256": "4e5945132adc3b1d7bd1a2b33c7c6813e125750da41c249f01e2b2db110b36da",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_prefill_B16/plan.so.search.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_prefill_B2/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/qwen3_prefill_B2/plan.so.phases.tsv.gz",
+    "bytes": 5014964,
+    "sha256": "39cf58f5b806b36dbd50b91d76624a1431e039a1324fe7bddeab85aa160ddd1d",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_prefill_B2/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_prefill_B2/plan.so.search.tsv",
+    "archived_path": "historical_b22/plans/qwen3_prefill_B2/plan.so.search.tsv.gz",
+    "bytes": 913741,
+    "sha256": "24d73452ad11df25abdb9a845e9942bb42364652d512ca6d390e7432e2130928",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_prefill_B2/plan.so.search.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_prefill_B4/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/qwen3_prefill_B4/plan.so.phases.tsv.gz",
+    "bytes": 5342386,
+    "sha256": "719203a4b3dc8fab1787f4558fc6cae40403692890c17ddaba40cf09719f9a93",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_prefill_B4/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_prefill_B4/plan.so.search.tsv",
+    "archived_path": "historical_b22/plans/qwen3_prefill_B4/plan.so.search.tsv.gz",
+    "bytes": 982390,
+    "sha256": "242bec0de0607dbc34160b08381b0aa9da55a6877049c2ec46856b8559560f9c",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_prefill_B4/plan.so.search.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_prefill_B8/plan.so.phases.tsv",
+    "archived_path": "historical_b22/plans/qwen3_prefill_B8/plan.so.phases.tsv.gz",
+    "bytes": 6460258,
+    "sha256": "e1fdfd4025e3f481fb595cd63c53e107098235afe1298fc2ee1eb40043c54b45",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_prefill_B8/plan.so.phases.tsv"
+  },
+  {
+    "original_path": "historical_b22/plans/qwen3_prefill_B8/plan.so.search.tsv",
+    "archived_path": "historical_b22/plans/qwen3_prefill_B8/plan.so.search.tsv.gz",
+    "bytes": 1228432,
+    "sha256": "21d925b2bc4c6658181eb189821cdd98eb42fa748a105efac17b94b193fb1d8d",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/plans/qwen3_prefill_B8/plan.so.search.tsv"
+  },
+  {
+    "original_path": "historical_b22/pruning_equivalence/llama_unpruned.flow_ranked.tsv",
+    "archived_path": "historical_b22/pruning_equivalence/llama_unpruned.flow_ranked.tsv.gz",
+    "bytes": 2668213,
+    "sha256": "b992ebfd14e7b4bc5547daee2ac3694bef21ae61df7b4ae50a4131a7e4dd3b4f",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/pruning_equivalence/llama_unpruned.flow_ranked.tsv"
+  },
+  {
+    "original_path": "historical_b22/pruning_equivalence/llama_unpruned.search.tsv",
+    "archived_path": "historical_b22/pruning_equivalence/llama_unpruned.search.tsv.gz",
+    "bytes": 2923211,
+    "sha256": "b9dee8883c9626b6f44b7b7a692f0835f33e038c30d38b643e3e062d007a3526",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/pruning_equivalence/llama_unpruned.search.tsv"
+  },
+  {
+    "original_path": "historical_b22/pruning_equivalence/qwen3_unpruned.search.tsv",
+    "archived_path": "historical_b22/pruning_equivalence/qwen3_unpruned.search.tsv.gz",
+    "bytes": 2491498,
+    "sha256": "18adda593fcfda10a8f8600d071774c5cf5ae05d63e2b0d14f1ada615f8615d3",
+    "local_raw_copy": "/root/r10_work/r10_closure_raw/historical_b22/pruning_equivalence/qwen3_unpruned.search.tsv"
+  }
+]

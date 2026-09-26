@@ -1,7 +1,12 @@
 {
-  "plans_complete": 12,
+  "status": "user_directed_partial_closure",
+  "plans_complete": 18,
+  "plans_source": "b22f9c3427cc5233f6c27139d26650896cf03285",
+  "current_source_plans_complete": 0,
   "requests_complete": 0,
   "hf_checks_complete": 0,
-  "pruning_classes_reported": 72,
-  "throughput_geomean": null
+  "seed_hf_checks_complete": 4,
+  "throughput_geomean": null,
+  "remaining_tests": "cancelled_by_user",
+  "authoritative_report": "../summary.md"
 }

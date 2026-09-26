@@ -1,0 +1,74 @@
+[
+  {
+    "gate": "G-1",
+    "status": "FAIL",
+    "value": "15/16 structural checks; K-12 lacks current selected-plan SASS",
+    "evidence": "closure_r11/verify.txt"
+  },
+  {
+    "gate": "G-2",
+    "status": "PASS (focused backend evidence)",
+    "value": "Current serving CTest 15/15; GEMM 1344/1344; prefill KV32 and KV64 each 8/8; decode checks retained",
+    "evidence": "implementation_completion/audit.md"
+  },
+  {
+    "gate": "G-3",
+    "status": "NOT CHECKED",
+    "value": "Formal EV-1 0/10; four seed HF checks do not replace it",
+    "evidence": "closure_r11/seed_checks/"
+  },
+  {
+    "gate": "G-4",
+    "status": "NOT CHECKED",
+    "value": "Formal mode/timed-run matrix 0/10; four seed mode checks pass",
+    "evidence": "closure_r11/seed_checks/"
+  },
+  {
+    "gate": "G-5",
+    "status": "NOT CHECKED",
+    "value": "Current final plans 0/20; historical b22 audits 18/20, all zero FP64",
+    "evidence": "closure_r11/historical_b22/plans/*/fp64_audit.json"
+  },
+  {
+    "gate": "G-6",
+    "status": "INCOMPLETE",
+    "value": "Current code incremental/full 40/40, max relative error 0 (before fresh fit); historical Llama pruning ratio 1.0, Qwen unpruned timeout 5400 s",
+    "evidence": "implementation_completion/incremental_final/report.json; closure_r11/historical_b22/pruning_equivalence/"
+  },
+  {
+    "gate": "G-7",
+    "status": "FAIL (historical); NOT CHECKED (current)",
+    "value": "18/18 completed b22 plans exceed 600 s; range 1145.983\u20135932.311 s; current final plans 0/20",
+    "evidence": "closure_r11/historical_b22/plans/*/result.json"
+  },
+  {
+    "gate": "G-8",
+    "status": "PASS (existing CG audit)",
+    "value": "4/4 prescribed model/batch/past endpoints; no new final-plan audit",
+    "evidence": "floor_audit/verify_output.tsv"
+  },
+  {
+    "gate": "G-9",
+    "status": "NOT CHECKED",
+    "value": "0/10 same-session final comparisons; geometric mean unavailable",
+    "evidence": "closure_r11/status.json"
+  },
+  {
+    "gate": "G-10",
+    "status": "PARTIAL",
+    "value": "8 historical prefill/decode floor pairs; no final E2E/floor or measured three-point ratios",
+    "evidence": "closure_r11/historical_b22/report_tables/request_floors.tsv"
+  },
+  {
+    "gate": "G-11",
+    "status": "PARTIAL",
+    "value": "Historical model estimates and one diagnostic trace; no complete measured ten-cell decomposition",
+    "evidence": "checkpoints/20260926T044401Z/gaps.tsv; trace_probe.md"
+  },
+  {
+    "gate": "G-12",
+    "status": "PASS (compile only)",
+    "value": "sm_80, sm_90, sm_120 compile; no execution on those target architectures",
+    "evidence": "implementation_completion/arch_compile.json"
+  }
+]

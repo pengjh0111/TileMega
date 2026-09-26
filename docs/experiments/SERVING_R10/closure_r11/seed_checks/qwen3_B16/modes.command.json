@@ -1,0 +1,21 @@
+{
+  "command": [
+    "/root/venvs/tilemega-torch213-cu126/bin/python",
+    "-m",
+    "tilemega.serving.check_modes",
+    "--model",
+    "/root/models/qwen3_1_7b",
+    "--prefill-so",
+    "/root/r10_work/completion_seeds/qwen3_prefill_B16.so",
+    "--decode-so",
+    "/root/r10_work/completion_seeds/qwen3_decode_B16.so",
+    "--prompt-ids",
+    "/root/r10_work/implementation_completion/docs/experiments/SERVING_R10/prompts/qwen3_ids.json",
+    "--batch",
+    "16",
+    "--out",
+    "/root/r10_work/implementation_completion/docs/experiments/SERVING_R10/closure_r11/seed_checks/qwen3_B16"
+  ],
+  "returncode": 1,
+  "seconds": 6.58439620397985
+}

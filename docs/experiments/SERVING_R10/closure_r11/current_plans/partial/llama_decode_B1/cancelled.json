@@ -1,0 +1,5 @@
+{
+  "status": "cancelled_by_user",
+  "source_work_directory": "/root/r10_work/current_plans/llama_decode_B1",
+  "reason": "Stop unfinished R10 tests and queues; preserve partial evidence. No final selected plan claimed."
+}

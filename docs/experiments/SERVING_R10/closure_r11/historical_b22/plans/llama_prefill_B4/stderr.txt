@@ -1,0 +1,48 @@
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+DISK NEED_MIB=8192 FREE_MIB=1190668
+RESOURCE_QUERY directory="/root/r10_work/plans/llama_prefill_B4/plan.so.resources/1790394952216920231/0" resident=1
+DISK NEED_MIB=8192 FREE_MIB=1190644
+RESOURCE_QUERY directory="/root/r10_work/plans/llama_prefill_B4/plan.so.resources/1790394952216920231/1" resident=1
+DISK NEED_MIB=8192 FREE_MIB=1190637
+RESOURCE_QUERY directory="/root/r10_work/plans/llama_prefill_B4/plan.so.resources/1790394952216920231/2" resident=1
+SERVING_TOP3_WINNER rank=2 mode=L1 mean_ms=8.482
+SOLVE_SUMMARY evaluated=5897 deferred=0 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=132 couplings=163 stages=116 symbolic_windows=0 fallback_windows=0 output=/root/r10_work/plans/llama_prefill_B4/plan.so

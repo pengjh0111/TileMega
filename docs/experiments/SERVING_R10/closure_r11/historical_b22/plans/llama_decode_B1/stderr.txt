@@ -1,0 +1,39 @@
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+DISK NEED_MIB=8192 FREE_MIB=1196421
+RESOURCE_QUERY directory="/root/r10_work/plans/llama_decode_B1/plan.so.resources/1790390284493312016/0" resident=1
+DISK NEED_MIB=8192 FREE_MIB=1196409
+RESOURCE_QUERY directory="/root/r10_work/plans/llama_decode_B1/plan.so.resources/1790390284493312016/1" resident=1
+DISK NEED_MIB=8192 FREE_MIB=1196392
+RESOURCE_QUERY directory="/root/r10_work/plans/llama_decode_B1/plan.so.resources/1790390284493312016/2" resident=1
+SERVING_TOP3_WINNER rank=3 mode=L1 mean_ms=3.25978
+SOLVE_SUMMARY evaluated=1421 deferred=0 residency_scope=compiled hop_calibrated=1
+CODEGEN_SUMMARY tasks=132 couplings=163 stages=132 symbolic_windows=0 fallback_windows=0 output=/root/r10_work/plans/llama_decode_B1/plan.so

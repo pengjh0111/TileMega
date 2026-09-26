@@ -1,0 +1,7 @@
+rank	mode	mean_ms	so
+1	L1	6.34922	/root/r10_work/plans/qwen3_decode_B1/plan.so.top1.candidate.so
+1	L2	6.70655	/root/r10_work/plans/qwen3_decode_B1/plan.so.top1.candidate.so
+2	L1	6.52801	/root/r10_work/plans/qwen3_decode_B1/plan.so.top2.candidate.so
+2	L2	6.70269	/root/r10_work/plans/qwen3_decode_B1/plan.so.top2.candidate.so
+3	L1	6.47319	/root/r10_work/plans/qwen3_decode_B1/plan.so.top3.candidate.so
+3	L2	6.83015	/root/r10_work/plans/qwen3_decode_B1/plan.so.top3.candidate.so

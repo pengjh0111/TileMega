@@ -1,0 +1,17 @@
+{
+  "binaries": [
+    {
+      "binary": "/root/r10_work/plans/llama_decode_B2/plan.so",
+      "fp64_total": 0,
+      "fp64_by_kernel": {
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 0,
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 0
+      },
+      "instructions": {
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": [],
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": []
+      }
+    }
+  ],
+  "fp64_total": 0
+}

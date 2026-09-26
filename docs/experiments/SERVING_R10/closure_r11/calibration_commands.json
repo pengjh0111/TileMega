@@ -1,0 +1,31 @@
+{
+  "compiler_source": "aac391c3a",
+  "commands": [
+    [
+      "/root/r10_work/completion_build/tools/tilemega-calibrate",
+      "--inflight",
+      "--dtype",
+      "bf16",
+      "--base",
+      "docs/experiments/SOLVER_R9B/fit/target.json",
+      "--out",
+      "/root/r10_work/target_r10_completion_inflight.json",
+      "--repeats",
+      "3"
+    ],
+    [
+      "/root/r10_work/completion_build/tools/tilemega-calibrate",
+      "--dtype",
+      "bf16",
+      "--task-bodies",
+      "serving",
+      "--base",
+      "/root/r10_work/target_r10_completion_inflight.json",
+      "--out",
+      "/root/r10_work/target_r10_completion_serving.json",
+      "--repeats",
+      "9"
+    ]
+  ],
+  "gpu_lock": "/root/r10_work/serving_gpu.lock"
+}

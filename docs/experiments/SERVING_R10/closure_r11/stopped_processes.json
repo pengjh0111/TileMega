@@ -1,0 +1,112 @@
+{
+  "time_utc": "2026-09-26T07:21:38.999737+00:00",
+  "reason": "User explicitly requested termination of all unfinished R10 tests and queues, preservation of evidence and partial closure/push.",
+  "roots": {
+    "3206167": "run_plan_matrix.py",
+    "3206186": "run_plan_matrix.py",
+    "3237780": "ev1_queue.py",
+    "3307971": "run_completion_plan_matrix.py"
+  },
+  "terminated": [
+    {
+      "pid": 3206167,
+      "ppid": 3206160,
+      "start": "102248249",
+      "state": "S",
+      "command": "python3 docs/experiments/SERVING_R10/run_plan_matrix.py --models llama --phases prefill "
+    },
+    {
+      "pid": 3206186,
+      "ppid": 3206176,
+      "start": "102248260",
+      "state": "S",
+      "command": "python3 docs/experiments/SERVING_R10/run_plan_matrix.py --models qwen3 --phases prefill "
+    },
+    {
+      "pid": 3237780,
+      "ppid": 3237773,
+      "start": "102549808",
+      "state": "S",
+      "command": "python3 /root/r10_work/ev1_queue.py "
+    },
+    {
+      "pid": 3300564,
+      "ppid": 3206186,
+      "start": "103630870",
+      "state": "R",
+      "command": "/root/TileMega/build-portable/tools/tilemega-compile /root/r10_work/export/qwen3_prefill/bridge.json /root/r10_work/plans/qwen3_prefill_B16/plan.so --serving prefill --batch 16 --past-range 0:0 --capacity 1088 --solver skeleton --solve /root/TileMega/docs/experiments/SERVING_R10/calibration/target_serving.json --hop-curve /root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv --variant-cache /root/r9_work/variant_resources --emit serving --search-passes 3 --top-m 8 --incremental-prepare 1 --measure-cmd PYTHONPATH=/root/TileMega/python /root/venvs/tilemega-torch213-cu126/bin/python -m tilemega.serving.measure_candidate --model /root/models/qwen3_1_7b --serving-warm-start /root/r10_work/plans/qwen3_prefill_B8/plan.so.plan.json "
+    },
+    {
+      "pid": 3301657,
+      "ppid": 3206167,
+      "start": "103646291",
+      "state": "R",
+      "command": "/root/TileMega/build-portable/tools/tilemega-compile /root/r10_work/export/llama_prefill/bridge.json /root/r10_work/plans/llama_prefill_B16/plan.so --serving prefill --batch 16 --past-range 0:0 --capacity 1088 --solver skeleton --solve /root/TileMega/docs/experiments/SERVING_R10/calibration/target_serving.json --hop-curve /root/TileMega/docs/experiments/SIMULATOR/hop_ns.tsv --variant-cache /root/r9_work/variant_resources --emit serving --search-passes 3 --top-m 8 --incremental-prepare 1 --measure-cmd PYTHONPATH=/root/TileMega/python /root/venvs/tilemega-torch213-cu126/bin/python -m tilemega.serving.measure_candidate --model /root/models/llama3_2_1b --serving-warm-start /root/r10_work/plans/llama_prefill_B8/plan.so.plan.json "
+    },
+    {
+      "pid": 3307971,
+      "ppid": 3307960,
+      "start": "103901615",
+      "state": "S",
+      "command": "python3 /root/r10_work/run_completion_plan_matrix.py "
+    },
+    {
+      "pid": 3308648,
+      "ppid": 3307971,
+      "start": "103918139",
+      "state": "S",
+      "command": "python3 /root/r10_work/implementation_completion/docs/experiments/SERVING_R10/run_plan_matrix.py --models llama --phases prefill --work /root/r10_work/current_plans --evidence /root/r10_work/implementation_completion/docs/experiments/SERVING_R10/closure_r11/current_plans --compiler /root/r10_work/completion_build/tools/tilemega-compile "
+    },
+    {
+      "pid": 3308649,
+      "ppid": 3307971,
+      "start": "103918139",
+      "state": "S",
+      "command": "python3 /root/r10_work/implementation_completion/docs/experiments/SERVING_R10/run_plan_matrix.py --models llama --phases decode --work /root/r10_work/current_plans --evidence /root/r10_work/implementation_completion/docs/experiments/SERVING_R10/closure_r11/current_plans --compiler /root/r10_work/completion_build/tools/tilemega-compile "
+    },
+    {
+      "pid": 3308652,
+      "ppid": 3307971,
+      "start": "103918139",
+      "state": "S",
+      "command": "python3 /root/r10_work/implementation_completion/docs/experiments/SERVING_R10/run_plan_matrix.py --models qwen3 --phases prefill --work /root/r10_work/current_plans --evidence /root/r10_work/implementation_completion/docs/experiments/SERVING_R10/closure_r11/current_plans --compiler /root/r10_work/completion_build/tools/tilemega-compile "
+    },
+    {
+      "pid": 3308653,
+      "ppid": 3307971,
+      "start": "103918140",
+      "state": "S",
+      "command": "python3 /root/r10_work/implementation_completion/docs/experiments/SERVING_R10/run_plan_matrix.py --models qwen3 --phases decode --work /root/r10_work/current_plans --evidence /root/r10_work/implementation_completion/docs/experiments/SERVING_R10/closure_r11/current_plans --compiler /root/r10_work/completion_build/tools/tilemega-compile "
+    },
+    {
+      "pid": 3308662,
+      "ppid": 3308648,
+      "start": "103918156",
+      "state": "R",
+      "command": "/root/r10_work/completion_build/tools/tilemega-compile /root/r10_work/export/llama_prefill/bridge.json /root/r10_work/current_plans/llama_prefill_B1/plan.so --serving prefill --batch 1 --past-range 0:0 --capacity 1088 --solver skeleton --solve /root/r10_work/implementation_completion/docs/experiments/SERVING_R10/calibration/target_serving.json --hop-curve /root/r10_work/implementation_completion/docs/experiments/SIMULATOR/hop_ns.tsv --variant-cache /root/r9_work/variant_resources --emit serving --search-passes 3 --top-m 8 --incremental-prepare 1 --measure-cmd PYTHONPATH=/root/r10_work/implementation_completion/python /root/venvs/tilemega-torch213-cu126/bin/python -m tilemega.serving.measure_candidate --model /root/models/llama3_2_1b "
+    },
+    {
+      "pid": 3308663,
+      "ppid": 3308649,
+      "start": "103918157",
+      "state": "R",
+      "command": "/root/r10_work/completion_build/tools/tilemega-compile /root/r10_work/export/llama_decode/bridge.json /root/r10_work/current_plans/llama_decode_B1/plan.so --serving decode --batch 1 --past-range 64:1086 --capacity 1088 --solver skeleton --solve /root/r10_work/implementation_completion/docs/experiments/SERVING_R10/calibration/target_serving.json --hop-curve /root/r10_work/implementation_completion/docs/experiments/SIMULATOR/hop_ns.tsv --variant-cache /root/r9_work/variant_resources --emit serving --search-passes 3 --top-m 8 --incremental-prepare 1 --measure-cmd PYTHONPATH=/root/r10_work/implementation_completion/python /root/venvs/tilemega-torch213-cu126/bin/python -m tilemega.serving.measure_candidate --model /root/models/llama3_2_1b "
+    },
+    {
+      "pid": 3308664,
+      "ppid": 3308652,
+      "start": "103918157",
+      "state": "R",
+      "command": "/root/r10_work/completion_build/tools/tilemega-compile /root/r10_work/export/qwen3_prefill/bridge.json /root/r10_work/current_plans/qwen3_prefill_B1/plan.so --serving prefill --batch 1 --past-range 0:0 --capacity 1088 --solver skeleton --solve /root/r10_work/implementation_completion/docs/experiments/SERVING_R10/calibration/target_serving.json --hop-curve /root/r10_work/implementation_completion/docs/experiments/SIMULATOR/hop_ns.tsv --variant-cache /root/r9_work/variant_resources --emit serving --search-passes 3 --top-m 8 --incremental-prepare 1 --measure-cmd PYTHONPATH=/root/r10_work/implementation_completion/python /root/venvs/tilemega-torch213-cu126/bin/python -m tilemega.serving.measure_candidate --model /root/models/qwen3_1_7b "
+    },
+    {
+      "pid": 3308665,
+      "ppid": 3308653,
+      "start": "103918157",
+      "state": "R",
+      "command": "/root/r10_work/completion_build/tools/tilemega-compile /root/r10_work/export/qwen3_decode/bridge.json /root/r10_work/current_plans/qwen3_decode_B1/plan.so --serving decode --batch 1 --past-range 64:1086 --capacity 1088 --solver skeleton --solve /root/r10_work/implementation_completion/docs/experiments/SERVING_R10/calibration/target_serving.json --hop-curve /root/r10_work/implementation_completion/docs/experiments/SIMULATOR/hop_ns.tsv --variant-cache /root/r9_work/variant_resources --emit serving --search-passes 3 --top-m 8 --incremental-prepare 1 --measure-cmd PYTHONPATH=/root/r10_work/implementation_completion/python /root/venvs/tilemega-torch213-cu126/bin/python -m tilemega.serving.measure_candidate --model /root/models/qwen3_1_7b "
+    }
+  ],
+  "sigkill": [],
+  "survivors": []
+}

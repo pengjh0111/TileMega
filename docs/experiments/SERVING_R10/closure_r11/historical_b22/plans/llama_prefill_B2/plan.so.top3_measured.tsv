@@ -1,0 +1,7 @@
+rank	mode	mean_ms	so
+1	L1	4.69347	/root/r10_work/plans/llama_prefill_B2/plan.so.top1.candidate.so
+1	L2	4.80447	/root/r10_work/plans/llama_prefill_B2/plan.so.top1.candidate.so
+2	L1	4.71842	/root/r10_work/plans/llama_prefill_B2/plan.so.top2.candidate.so
+2	L2	4.76897	/root/r10_work/plans/llama_prefill_B2/plan.so.top2.candidate.so
+3	L1	4.73618	/root/r10_work/plans/llama_prefill_B2/plan.so.top3.candidate.so
+3	L2	4.78556	/root/r10_work/plans/llama_prefill_B2/plan.so.top3.candidate.so

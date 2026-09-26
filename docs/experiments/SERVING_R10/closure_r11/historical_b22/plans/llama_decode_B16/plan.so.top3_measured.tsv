@@ -1,0 +1,7 @@
+rank	mode	mean_ms	so
+1	L1	4.16642	/root/r10_work/plans/llama_decode_B16/plan.so.top1.candidate.so
+1	L2	4.22063	/root/r10_work/plans/llama_decode_B16/plan.so.top1.candidate.so
+2	L1	4.15188	/root/r10_work/plans/llama_decode_B16/plan.so.top2.candidate.so
+2	L2	4.16257	/root/r10_work/plans/llama_decode_B16/plan.so.top2.candidate.so
+3	L1	4.19172	/root/r10_work/plans/llama_decode_B16/plan.so.top3.candidate.so
+3	L2	4.20974	/root/r10_work/plans/llama_decode_B16/plan.so.top3.candidate.so

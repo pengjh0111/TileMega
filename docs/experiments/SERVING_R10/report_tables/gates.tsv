@@ -1,13 +1,13 @@
 gate	status	value	evidence
-G-1	FAIL	15/16 code checks	report_tables/verify_output.txt
-G-2	PASS	GEMM 1344; attention 60+8; CTest 80/80	task_body_tests/; ctest_partial_interrupted.txt; ctest_cpu_*.txt
-G-3	PENDING	0/10	ev1/*/B*/tilemega_hf/check.json
-G-4	PENDING	mode 0/10; timed 0/10	ev1/*/B*/mode_check/mode_check.json; ev1/*/B*/result.json
-G-5	PENDING	12/20 audits; max FP64=0	plans/*/fp64_audit.json
-G-6	PENDING	incremental=True; pruning=False	incremental_equivalence/report.json; pruning_equivalence/report.json
-G-7	FAIL	12/20 plans; 12 over 600 s; max 2991.0 s	plans/*/result.json; report_tables/plans.tsv
-G-8	PASS	4/4 endpoints	floor_audit/verify_output.tsv
-G-9	PENDING	0/10; geomean=?	report_tables/requests.tsv
-G-10	PENDING	request floors 4/10; points 0/30	report_tables/request_floors.tsv; report_tables/step_ratios.tsv
-G-11	PENDING	counterfactual gaps 8/10	report_tables/gaps.tsv
-G-12	PASS	sm_80=0, sm_90=0, sm_120=0	arch_compile/results.tsv
+G-1	FAIL	15/16 structural checks; K-12 lacks current selected-plan SASS	closure_r11/verify.txt
+G-2	PASS (focused backend evidence)	Current serving CTest 15/15; GEMM 1344/1344; prefill KV32 and KV64 each 8/8; decode checks retained	implementation_completion/audit.md
+G-3	NOT CHECKED	Formal EV-1 0/10; four seed HF checks do not replace it	closure_r11/seed_checks/
+G-4	NOT CHECKED	Formal mode/timed-run matrix 0/10; four seed mode checks pass	closure_r11/seed_checks/
+G-5	NOT CHECKED	Current final plans 0/20; historical b22 audits 18/20, all zero FP64	closure_r11/historical_b22/plans/*/fp64_audit.json
+G-6	INCOMPLETE	Current code incremental/full 40/40, max relative error 0 (before fresh fit); historical Llama pruning ratio 1.0, Qwen unpruned timeout 5400 s	implementation_completion/incremental_final/report.json; closure_r11/historical_b22/pruning_equivalence/
+G-7	FAIL (historical); NOT CHECKED (current)	18/18 completed b22 plans exceed 600 s; range 1145.983–5932.311 s; current final plans 0/20	closure_r11/historical_b22/plans/*/result.json
+G-8	PASS (existing CG audit)	4/4 prescribed model/batch/past endpoints; no new final-plan audit	floor_audit/verify_output.tsv
+G-9	NOT CHECKED	0/10 same-session final comparisons; geometric mean unavailable	closure_r11/status.json
+G-10	PARTIAL	8 historical prefill/decode floor pairs; no final E2E/floor or measured three-point ratios	closure_r11/historical_b22/report_tables/request_floors.tsv
+G-11	PARTIAL	Historical model estimates and one diagnostic trace; no complete measured ten-cell decomposition	checkpoints/20260926T044401Z/gaps.tsv; trace_probe.md
+G-12	PASS (compile only)	sm_80, sm_90, sm_120 compile; no execution on those target architectures	implementation_completion/arch_compile.json

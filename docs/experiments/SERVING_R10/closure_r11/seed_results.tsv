@@ -1,0 +1,5 @@
+cell	positions	gap_le_0_5_ratio	max_gap	gap_zero_ratio	gap_p99	gap_p999	mean_nll	mode_mismatches	hf_pass	mode_pass
+llama_B1	1024	1.0	0.0	1.0	0.0	0.0	0.08093190938234329	0	True	True
+llama_B16	16384	1.0	0.125	0.99957275390625	0.0	0.0	0.06294780969619751	0	True	True
+qwen3_B1	1024	1.0	0.0	1.0	0.0	0.0	0.09046763181686401	0	True	True
+qwen3_B16	16384	1.0	0.125	0.99945068359375	0.0	0.0	0.061585210263729095	0	True	True

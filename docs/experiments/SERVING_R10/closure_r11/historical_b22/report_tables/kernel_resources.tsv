@@ -1,0 +1,1 @@
+cell	task_smem_bytes	l1_registers	l2_registers	l1_spill_store_bytes	l1_spill_load_bytes	l2_spill_store_bytes	l2_spill_load_bytes	residency	evidence

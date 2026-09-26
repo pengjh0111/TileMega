@@ -1,1 +1,2 @@
-./build-portable/tools/tilemega-calibrate --inflight --dtype bf16 --base docs/experiments/SOLVER_R9B/fit/target.json --out /root/r10_work/target_r10_inflight.json --repeats 3
+# Source aac391c3a; fresh completion calibration; serialized by serving_gpu.lock
+/root/r10_work/completion_build/tools/tilemega-calibrate --inflight --dtype bf16 --base docs/experiments/SOLVER_R9B/fit/target.json --out /root/r10_work/target_r10_completion_inflight.json --repeats 3

@@ -1,8 +1,2 @@
-build-portable/tools/tilemega-calibrate --dtype bf16 --task-bodies serving --base /root/r10_work/target_r10_inflight.json --out /root/r10_work/target_r10_serving.json --repeats 9 > /root/r10_work/serving_task_bodies.stdout 2> docs/experiments/SERVING_R10/calibration/serving_task_bodies.stderr
-awk 'BEGIN{copy=0} /^kind\t/{copy=1} /^dtype=/{copy=0} copy{print}' docs/experiments/SERVING_R10/calibration/serving_task_bodies.stderr > docs/experiments/SERVING_R10/calibration/serving_task_bodies.tsv
-cp /root/r10_work/target_r10_serving.json docs/experiments/SERVING_R10/calibration/target_serving.json
-python3 docs/experiments/SERVING_R10/calibration/analyze_task_bodies.py > docs/experiments/SERVING_R10/calibration/serving_task_bodies_errors.tsv
-
-The program writes measured samples to stderr and the fitted BF16
-task_body.serving map to the target JSON. The same target is copied to
-docs/experiments/SERVING_R10/calibration/target_serving.json.
+# Source aac391c3a; fresh completion calibration; serialized by serving_gpu.lock
+/root/r10_work/completion_build/tools/tilemega-calibrate --dtype bf16 --task-bodies serving --base /root/r10_work/target_r10_completion_inflight.json --out /root/r10_work/target_r10_completion_serving.json --repeats 9

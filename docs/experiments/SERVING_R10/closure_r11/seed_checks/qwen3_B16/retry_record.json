@@ -1,0 +1,27 @@
+{
+  "reason": "First attempt failed allocation before generation; initial logs retained in attempt1_oom. Fresh process retry completed.",
+  "mode_stdout": "modes_retry.stdout",
+  "mode_stderr": "modes_retry.stderr",
+  "hf_stdout": "hf_retry.stdout",
+  "hf_stderr": "hf_retry.stderr",
+  "mode_result": "mode_check.json",
+  "hf_result": "hf_check.json",
+  "source": "aac391c3a",
+  "elapsed_seconds": null,
+  "note": "Retry wall time was not recorded; no timing claim is made.",
+  "mode_command_reference": "modes.command.json (same arguments, fresh process retry)",
+  "hf_command": [
+    "/root/venvs/tilemega-torch213-cu126/bin/python",
+    "-m",
+    "tilemega.serving.hf_check",
+    "--model",
+    "/root/models/qwen3_1_7b",
+    "--prompt-ids",
+    "docs/experiments/SERVING_R10/prompts/qwen3_ids.json",
+    "--generated",
+    "docs/experiments/SERVING_R10/closure_r11/seed_checks/qwen3_B16/tokens_L2.json",
+    "--out",
+    "docs/experiments/SERVING_R10/closure_r11/seed_checks/qwen3_B16/hf_check.json",
+    "--skip-free-greedy"
+  ]
+}

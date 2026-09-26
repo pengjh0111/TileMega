@@ -1,0 +1,82 @@
+[
+  {
+    "path": "/root/r10_work/completion_seeds/llama_decode.so",
+    "bytes": 1541584,
+    "sha256": "a509c54b3865db0cccf97f536e938c8465f7fdb4a703d6bd3868a1969acd6bb5"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/llama_decode.so.cu",
+    "bytes": 100116,
+    "sha256": "da33c76318c3d420400d9a370d0dde88cb56dede5c9b8dfca8832e8d1f288a4a"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/llama_decode_B16.so",
+    "bytes": 1541640,
+    "sha256": "3456f3430186fedbc245fec8208b16600ffcdcbcb027310fdd991ce383e6004e"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/llama_decode_B16.so.cu",
+    "bytes": 100118,
+    "sha256": "8dd7323475d42bc3f301273d2393ace5e0756da0e8efb8c3d13900f59234edb1"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/llama_prefill.so",
+    "bytes": 1537504,
+    "sha256": "028caab227852b1fd09007b2bd996b66ea2de681687af45da72c028a8b74fca0"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/llama_prefill.so.cu",
+    "bytes": 96591,
+    "sha256": "6d12b9b9e8137f15a409f7398481ab5e3548b2447c883732a5832618bf7619d9"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/llama_prefill_B16.so",
+    "bytes": 1537560,
+    "sha256": "a7d49e8464ed9d5addd045214aba2a22118efde2eb1a154d5144b6dabf72719e"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/llama_prefill_B16.so.cu",
+    "bytes": 96593,
+    "sha256": "13e77aaf9dedca29e6f6b028fc8b4e8ec17952ed0623b73b76564b36a7bd0554"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/qwen3_decode.so",
+    "bytes": 1705424,
+    "sha256": "9319022808cc51fb1d14d88ffd8397d1caf3a88bb6ca850da2d448bec5a01e7e"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/qwen3_decode.so.cu",
+    "bytes": 187085,
+    "sha256": "645d6ba68b6c791f169044ee827c7d09422178ac254b8a2f873d1ea10887d968"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/qwen3_decode_B16.so",
+    "bytes": 1705480,
+    "sha256": "d9123279090977a4191c7104e8f73de8b2d27da19adfa29582caa7fe2e98d5b7"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/qwen3_decode_B16.so.cu",
+    "bytes": 187087,
+    "sha256": "6bbf514e8f72ae47d0c98ef54a3a02d5d5d7078477ab9ea986869ee5380d7fca"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/qwen3_prefill.so",
+    "bytes": 1684960,
+    "sha256": "c8e0f4eb7aef10b0ccfd7e002a270499304cfa40b2b3eb5d6931139d39006058"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/qwen3_prefill.so.cu",
+    "bytes": 180725,
+    "sha256": "70c8ffe7fba53de759c37a3409f720d68c1f7ebca8185ebe511291c891fa8ac1"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/qwen3_prefill_B16.so",
+    "bytes": 1685016,
+    "sha256": "ae654a388a78e55e3bf584954d2f6b3acf058e41d8084ede94c743660704580b"
+  },
+  {
+    "path": "/root/r10_work/completion_seeds/qwen3_prefill_B16.so.cu",
+    "bytes": 180727,
+    "sha256": "0cea07b2e6c0e5f5049033feab53e509dbeacf88ccfb1ff51193a9625d136a4c"
+  }
+]

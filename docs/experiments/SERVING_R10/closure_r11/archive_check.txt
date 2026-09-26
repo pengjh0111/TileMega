@@ -1,0 +1,48 @@
+SHA256 current_plans/partial/llama_decode_B1/plan.so.m1A.edges.tsv PASS: 0e81ba634d2bbb35447f6e7725f2e15aa05daac04441af9c9a11c98ce1d47a88
+SHA256 current_plans/partial/llama_decode_B1/plan.so.m1B.edges.tsv PASS: baa8fff36806b088d3e9761062b99c84e4101cd8e3a6cd0a37f28f0a7f0be9cb
+SHA256 current_plans/partial/llama_decode_B1/plan.so.m2A.edges.tsv PASS: 0e81ba634d2bbb35447f6e7725f2e15aa05daac04441af9c9a11c98ce1d47a88
+SHA256 current_plans/partial/llama_decode_B1/plan.so.m2B.edges.tsv PASS: baa8fff36806b088d3e9761062b99c84e4101cd8e3a6cd0a37f28f0a7f0be9cb
+SHA256 historical_b22/plans/llama_decode_B1/plan.so.phases.tsv PASS: 288042fad1dfa825fd79075e381a6cdcbb5101240188ae6aa1dc2760134768a8
+SHA256 historical_b22/plans/llama_decode_B16/plan.so.phases.tsv PASS: a8282c0783b30ddc5b04486204a4196609fc1856ef1f0b886f8cbeeb27c81bcb
+SHA256 historical_b22/plans/llama_decode_B2/plan.so.phases.tsv PASS: 8af6a7ae8646f52237e24862558ccfdad9412614e734af08f02bc0ac5e9823f1
+SHA256 historical_b22/plans/llama_decode_B4/plan.so.phases.tsv PASS: 5a71f0bcab8e49a26af55fc4661930559d3beab7081a82b37feaab05250ab927
+SHA256 historical_b22/plans/llama_decode_B8/plan.so.phases.tsv PASS: 30c8962f2b03c75d01d213ceb873aea408c2f6e2090ee87a034bb1872a3ae4fd
+SHA256 historical_b22/plans/llama_prefill_B1/plan.so.phases.tsv PASS: 9cdea854293fc2fd453dff1db654e07edb76c1d5fa2969e2f7de96392667013c
+SHA256 historical_b22/plans/llama_prefill_B1/plan.so.search.tsv PASS: b728cd236fcefe2a2e8a971153896f5472f6864ab1d2df6f3e8dd023a3754d0d
+SHA256 historical_b22/plans/llama_prefill_B16/plan.so.search.tsv PASS: 93fa5fadd33b4f1f2bfa8f959b14d2206aa320295d20e6232b9378832219bc56
+SHA256 historical_b22/plans/llama_prefill_B2/plan.so.phases.tsv PASS: 0a20e1eb4b6274d6dadc2a6d104fb95c12c78a3e92f8f111a5d6a044767b22be
+SHA256 historical_b22/plans/llama_prefill_B2/plan.so.search.tsv PASS: 2d21aa79a2b5f5388bc2802c2ee99b0c18cd2d97528e803713ab2aee58f89f5f
+SHA256 historical_b22/plans/llama_prefill_B4/plan.so.phases.tsv PASS: fc96285b9fad11599154dffe7101b78d14309d1ac4aaff6aa6110ab4fc19bf89
+SHA256 historical_b22/plans/llama_prefill_B4/plan.so.search.tsv PASS: d045a70830512d8c2dd8d204eeb940c8ae93e76ea926dfcb4aa8b87348ae9bd1
+SHA256 historical_b22/plans/llama_prefill_B8/plan.so.phases.tsv PASS: 32dde1797ed13f64312d7258dd1c11ae5e1bb9d9815ea6ceef38edbb3a9771ef
+SHA256 historical_b22/plans/llama_prefill_B8/plan.so.search.tsv PASS: 3568bfe8b0be7e0a521e6873828b001721f7cdfc4d7a4b7dda8e03aa1436a97a
+SHA256 historical_b22/plans/qwen3_decode_B1/plan.so.phases.tsv PASS: d0177f7139aea86be7bd79edd064c50e4cd0b33a019f748ccad9f5f35e4307c9
+SHA256 historical_b22/plans/qwen3_decode_B16/plan.so.phases.tsv PASS: 686f2a9e119ce9e9b6e02248a47784e9cc2e81523c0500f481503a18b92d05c3
+SHA256 historical_b22/plans/qwen3_decode_B2/plan.so.phases.tsv PASS: aa0ec2032d4f083df3eaa70e04c751ccb80b207fe77b3af5e5f409c1a533ab84
+SHA256 historical_b22/plans/qwen3_decode_B4/plan.so.phases.tsv PASS: 1d07d3a281d25e771a95ca3ed51c75b17feb00541f398b183cd445003ad08009
+SHA256 historical_b22/plans/qwen3_decode_B4/winner.flow_parts.tsv PASS: a41ef1ebb164d23ea42e4fc7728d3382fc5588ce65afdbe9b4cbbd4685ffed43
+SHA256 historical_b22/plans/qwen3_decode_B8/plan.so.phases.tsv PASS: bb6b2f87fa73478fc9d4b9a9abff52f61e6f1628cc520604f8f73d77052d94b6
+SHA256 historical_b22/plans/qwen3_prefill_B1/plan.so.phases.tsv PASS: 620113e380bbc13e84e8476d0964b09184121ed717ec4a6d6f1b38bb397b307e
+SHA256 historical_b22/plans/qwen3_prefill_B1/plan.so.search.tsv PASS: ac6bb403e3b86595fec63ec372b3480eaab7d934d47a9979025527ee1f79005f
+SHA256 historical_b22/plans/qwen3_prefill_B16/plan.so.search.tsv PASS: 4e5945132adc3b1d7bd1a2b33c7c6813e125750da41c249f01e2b2db110b36da
+SHA256 historical_b22/plans/qwen3_prefill_B2/plan.so.phases.tsv PASS: 39cf58f5b806b36dbd50b91d76624a1431e039a1324fe7bddeab85aa160ddd1d
+SHA256 historical_b22/plans/qwen3_prefill_B2/plan.so.search.tsv PASS: 24d73452ad11df25abdb9a845e9942bb42364652d512ca6d390e7432e2130928
+SHA256 historical_b22/plans/qwen3_prefill_B4/plan.so.phases.tsv PASS: 719203a4b3dc8fab1787f4558fc6cae40403692890c17ddaba40cf09719f9a93
+SHA256 historical_b22/plans/qwen3_prefill_B4/plan.so.search.tsv PASS: 242bec0de0607dbc34160b08381b0aa9da55a6877049c2ec46856b8559560f9c
+SHA256 historical_b22/plans/qwen3_prefill_B8/plan.so.phases.tsv PASS: e1fdfd4025e3f481fb595cd63c53e107098235afe1298fc2ee1eb40043c54b45
+SHA256 historical_b22/plans/qwen3_prefill_B8/plan.so.search.tsv PASS: 21d925b2bc4c6658181eb189821cdd98eb42fa748a105efac17b94b193fb1d8d
+SHA256 historical_b22/pruning_equivalence/llama_unpruned.flow_ranked.tsv PASS: b992ebfd14e7b4bc5547daee2ac3694bef21ae61df7b4ae50a4131a7e4dd3b4f
+SHA256 historical_b22/pruning_equivalence/llama_unpruned.search.tsv PASS: b9dee8883c9626b6f44b7b7a692f0835f33e038c30d38b643e3e062d007a3526
+SHA256 historical_b22/pruning_equivalence/qwen3_unpruned.search.tsv PASS: 18adda593fcfda10a8f8600d071774c5cf5ae05d63e2b0d14f1ada615f8615d3
+historical plans PASS: 18/20 completed (b22)
+historical budget failure recorded PASS: 18/18 over 600 s
+llama_B1 mode archive PASS: 1024
+qwen3_B1 mode archive PASS: 1024
+qwen3_B16 mode archive PASS: 16384
+llama_B16 mode archive PASS: 16384
+llama_B1 HF archive PASS: positions=1024, max_gap=0.0
+qwen3_B1 HF archive PASS: positions=1024, max_gap=0.0
+qwen3_B16 HF archive PASS: positions=16384, max_gap=0.125
+llama_B16 HF archive PASS: positions=16384, max_gap=0.125
+recorded stop PASS: 14 terminated; 0 survivors at stop
+Archive integrity only; no missing R10 acceptance gate is promoted to PASS.

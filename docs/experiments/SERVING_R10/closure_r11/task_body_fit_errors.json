@@ -1,0 +1,158 @@
+{
+  "argmax_reduce": {
+    "samples": 6,
+    "median_relative_error": 0.05196161835456381,
+    "mean_relative_error": 0.06196454087673478,
+    "max_relative_error": 0.16174889645846732,
+    "fit": {
+      "fixed_ns": 539.5107794,
+      "byte_ns": 0.04892893103,
+      "flop_ns": 0,
+      "median_relative_error": 0.05365487714,
+      "samples": 6
+    }
+  },
+  "attention_merge": {
+    "samples": 4,
+    "median_relative_error": 0.019712425945137686,
+    "mean_relative_error": 0.02023135604922818,
+    "max_relative_error": 0.036826219863731365,
+    "fit": {
+      "fixed_ns": 1836.283644,
+      "byte_ns": 0,
+      "flop_ns": 0.2139945652,
+      "median_relative_error": 0.03048983497,
+      "samples": 4
+    }
+  },
+  "embedding": {
+    "samples": 4,
+    "median_relative_error": 0.06631311151635307,
+    "mean_relative_error": 0.06532353068960103,
+    "max_relative_error": 0.11282653048241488,
+    "fit": {
+      "fixed_ns": 452.5534852,
+      "byte_ns": 0.06782021006,
+      "flop_ns": 0,
+      "median_relative_error": 0.09356480405,
+      "samples": 4
+    }
+  },
+  "fused_attention_decode_d128": {
+    "samples": 3,
+    "median_relative_error": 0.007979413069879362,
+    "mean_relative_error": 0.00826628618063397,
+    "max_relative_error": 0.012110089517749004,
+    "fit": {
+      "fixed_ns": 5220.181493,
+      "byte_ns": 0,
+      "flop_ns": 0.02746446284,
+      "median_relative_error": 0.007979825416,
+      "samples": 3
+    }
+  },
+  "fused_attention_decode_d64": {
+    "samples": 3,
+    "median_relative_error": 0.00641136901953248,
+    "mean_relative_error": 0.0066883443300788685,
+    "max_relative_error": 0.009802922740927051,
+    "fit": {
+      "fixed_ns": 4037.736104,
+      "byte_ns": 0.08200943559,
+      "flop_ns": 0,
+      "median_relative_error": 0.006412428127,
+      "samples": 3
+    }
+  },
+  "fused_attention_prefill_d128": {
+    "samples": 3,
+    "median_relative_error": 0.0422927847470468,
+    "mean_relative_error": 0.03768521453724619,
+    "max_relative_error": 0.05376245996707648,
+    "fit": {
+      "fixed_ns": 8017.517007,
+      "byte_ns": 0.1624074923,
+      "flop_ns": 0,
+      "median_relative_error": 0.04229269249,
+      "samples": 3
+    }
+  },
+  "fused_attention_prefill_d64": {
+    "samples": 3,
+    "median_relative_error": 0.004424564310531645,
+    "mean_relative_error": 0.0039298784257238715,
+    "max_relative_error": 0.005792058400754765,
+    "fit": {
+      "fixed_ns": 4458.333333,
+      "byte_ns": 0,
+      "flop_ns": 0.04212256192,
+      "median_relative_error": 0.00442384897,
+      "samples": 3
+    }
+  },
+  "gemm_argmax_partial": {
+    "samples": 9,
+    "median_relative_error": 0.08303444405981678,
+    "mean_relative_error": 0.09535296252219345,
+    "max_relative_error": 0.21508422048742398,
+    "fit": {
+      "fixed_ns": 9408.74378,
+      "byte_ns": 0.01255589983,
+      "flop_ns": 0.001057965243,
+      "median_relative_error": 0.08303186687,
+      "samples": 9
+    }
+  },
+  "gemm_residual": {
+    "samples": 9,
+    "median_relative_error": 0.08623420873114292,
+    "mean_relative_error": 0.11219445045161959,
+    "max_relative_error": 0.2789781868250266,
+    "fit": {
+      "fixed_ns": 3335.339889,
+      "byte_ns": 0.02804410786,
+      "flop_ns": 0.0002021816245,
+      "median_relative_error": 0.08623373951,
+      "samples": 9
+    }
+  },
+  "gemm_store": {
+    "samples": 9,
+    "median_relative_error": 0.12570154343100662,
+    "mean_relative_error": 0.13068203444175142,
+    "max_relative_error": 0.29943071404860033,
+    "fit": {
+      "fixed_ns": 2802.477752,
+      "byte_ns": 0.02956543328,
+      "flop_ns": 9.097918539e-05,
+      "median_relative_error": 0.1257019515,
+      "samples": 9
+    }
+  },
+  "gemm_swiglu": {
+    "samples": 9,
+    "median_relative_error": 0.09761653716828078,
+    "mean_relative_error": 0.11005175428817876,
+    "max_relative_error": 0.27061130450758214,
+    "fit": {
+      "fixed_ns": 4161.697167,
+      "byte_ns": 0.02689361809,
+      "flop_ns": 0.0002541335271,
+      "median_relative_error": 0.09761670268,
+      "samples": 9
+    }
+  },
+  "rmsnorm": {
+    "samples": 4,
+    "median_relative_error": 0.07369467859378148,
+    "mean_relative_error": 0.07297466025124917,
+    "max_relative_error": 0.1284623896669409,
+    "fit": {
+      "fixed_ns": 835.1794341,
+      "byte_ns": 0.1075285847,
+      "flop_ns": 0,
+      "median_relative_error": 0.1067247058,
+      "samples": 4
+    }
+  }
+}

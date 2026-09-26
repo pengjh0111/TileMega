@@ -1,0 +1,5 @@
+{"batch": 16, "tokens": 16384, "mismatches": 0, "pass": true, "same_plan_instances": true}
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=2764 same_worker_edges=281671 cross_worker_edges=22064345 base_rotation=0 plan=legacy_grid_stride
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=0
+E2E_PLACE_STATS placement=0 max_queue=349 same_worker_edges=8176 cross_worker_edges=793904 base_rotation=0 plan=legacy_grid_stride
