@@ -8,6 +8,16 @@ from pathlib import Path
 import statistics
 
 
+def percentile(values: list[int], fraction: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    position = fraction * (len(ordered) - 1)
+    lower = int(position)
+    upper = min(lower + 1, len(ordered) - 1)
+    return ordered[lower] + (ordered[upper] - ordered[lower]) * (position - lower)
+
+
 def rows(path: Path):
     with path.open() as stream:
         return list(csv.DictReader(stream, delimiter='\t'))
@@ -88,6 +98,9 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
             launch_gap_ns=gap_ns))
         previous_end=end
     gaps=[r['launch_gap_ns'] for r in output if r['launch_gap_ns'] is not None]
+    decode_span_ns=(max(int(x['kernel_end_ns']) for x in by_step[max(by_step)]) -
+                    min(int(x['kernel_begin_ns']) for x in by_step[min(by_step)]))
+    if decode_span_ns<=0:raise ValueError('decode trace has no positive wall time')
     cta_observations=sum(r['ctas'] for r in output)
     summary=dict(model=model,batch=batch,steps=len(output),
         chain_source=str(chain_analysis) if chain_analysis else None,
@@ -98,6 +111,8 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
         measured_chain_floor_ns=chain_floor_ns,
         measured_chain_over_floor=(measured_chain_span/chain_floor_ns
             if measured_chain_span is not None else None),
+        measured_chain_excess_over_floor_ns=(measured_chain_span-chain_floor_ns
+            if measured_chain_span is not None else None),
         measured_chain_residual_bubble_ns_per_link=(
             (measured_chain_span-chain_floor_ns)/measured_chain
             if measured_chain_span is not None else None),
@@ -105,6 +120,10 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
             if chain_analysis else None,
         launch_gap_mean_ns=statistics.mean(gaps) if gaps else None,
         launch_gap_p50_ns=statistics.median(gaps) if gaps else None,
+        launch_gap_p90_ns=percentile(gaps,0.90),
+        launch_gap_p99_ns=percentile(gaps,0.99),
+        launch_gap_total_ns=sum(gaps),
+        launch_gap_fraction_of_decode_span=sum(gaps)/decode_span_ns,
         page_full_and_dependency_wait_cta_ns=sum(r['page_full_and_dependency_wait_cta_ns'] for r in output),
         page_full_and_dependency_wait_mean_cta_ns_per_step=(
             sum(r['page_full_and_dependency_wait_cta_ns'] for r in output)/cta_observations),

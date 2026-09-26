@@ -40,7 +40,11 @@ with tempfile.TemporaryDirectory() as temporary:
     assert [row['kernel_span_ns'] for row in samples] == [200, 240]
     assert [row['residual_bubble_ns_per_link'] for row in samples] == [50, 60]
     assert samples[1]['launch_gap_ns'] == report['launch_gap_p50_ns'] == 20
+    assert report['launch_gap_total_ns'] == 20
+    assert report['launch_gap_p90_ns'] == report['launch_gap_p99_ns'] == 20
+    assert report['launch_gap_fraction_of_decode_span'] == 20 / 460
     assert report['measured_chain_over_floor'] == 2
+    assert report['measured_chain_excess_over_floor_ns'] == 100
     assert report['measured_chain_residual_bubble_ns_per_link'] == 50
     assert report['page_full_and_dependency_wait_cta_ns'] == 100
     assert report['page_full_and_dependency_wait_mean_cta_ns_per_step'] == 25
