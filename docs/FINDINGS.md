@@ -8242,3 +8242,15 @@ outputs matched. This is a single controlled session, not a paired interval.
 The page regression in F-300 therefore remains localized to a different
 cost, with fixed-page-size and isolated class measurements pending. See
 `SERVING_R11/sync_ablation/`.
+
+## F-302: A larger page recovers part of the paged decode regression
+
+✅ verified: with identical Llama B=1 decode geometry, placement, 160-thread
+executor, 101376 B shared memory and synchronization policy, the 8 KiB page
+layout (ten pages) took 6.3300 s for a full 1024-token request; the 16 KiB
+layout (five pages) took 4.7511 s. The latter is 25% faster but still
+1.42× slower than the separate 3.3439 s PG-off control. The Level 1 fixed
+geometry scores differed by only about 0.07%, so its page model misses a
+large implementation cost. The page-size comparison does not separately
+measure barrier cost; the isolated per-class GEMM benchmark is the next
+control. See `SERVING_R11/page_size_control/`.

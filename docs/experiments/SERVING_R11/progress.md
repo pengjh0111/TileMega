@@ -47,5 +47,7 @@ Llama B1 off/L2/pages E2E is 3.3439/3.6652/6.3403 s; Qwen3 B16 is
 6.0990/6.4943/10.9151 s. The page protocol remains correct, but PG-1 is
 currently 1.90×/1.79× slower than off. Instrumented chain attribution puts
 5.405 of Llama B1's 6.383 ms in gate/up, down and lm_head. A targeted
-8/16 KiB control is queued after the sync ablation to distinguish page
-handshake frequency from loader throughput; the trace alone is not causal.
+8/16 KiB control then reduced Llama B1 E2E from 6.3300 to 4.7511 s with
+the same 101376 B shared allocation, leaving 1.42× over PG off. This is a
+larger page-layout effect than the Level 1 prediction; isolated class
+throughput measurements are running to separate transport from computation.
