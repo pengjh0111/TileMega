@@ -8075,3 +8075,22 @@ its unpruned counterpart hit the specified 5400-second limit without a
 winner. That control cannot establish R10 G-6 pruning equivalence. The four
 paired E2E controls are queued behind the R11 fresh-process protocol tests,
 so no R10-C throughput or teacher-forced conclusion is claimed here.
+
+## F-291: Fresh-process page protocols pass at both batch extremes
+
+✅ verified: PG-0 and PG-1 each passed 200/200 fresh-process comparisons:
+Llama and Qwen3 at B=1 and B=16, 50 independent processes per cell. Each
+process compared an unfetched reference with alternating L1/L2 candidate
+generations in one plan instance; all recorded token mismatches were zero.
+The runs used 64 generated steps, so this evidence establishes the required
+new-process page protocol check but does not substitute for EV-2's 1024-step
+generation and HF accuracy checks. Binary hashes and source summaries are in
+`SERVING_R11/protocol_results.json`.
+
+✅ verified: the four paged decode binaries partition dynamic shared memory
+into 8 KiB pages: 10 pages for Llama and 7 for Qwen3, each with a 160-thread,
+one-CTA-per-SM grid. Qwen3 ptxas reports 255 registers and 152 bytes of spill
+stores for its L1 kernel; this is a concrete risk to the predicted PG gain,
+not an observed throughput loss. The partition and compiler resource figures
+are in `SERVING_R11/page_layouts.tsv`. A controlled PG-0/PG-1 performance
+comparison and trace are still required to attribute any loss to those spills.
