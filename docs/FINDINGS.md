@@ -8271,3 +8271,24 @@ is `PagedGemmTaskBody::Load/Run` through `PageRing::AcquireEmpty`,
 `AwaitFull`, and `Release`; a larger page halves many stage-to-page
 transactions and already recovers 25% of E2E. See
 `SERVING_R11/paged_class_bench/` and F-302.
+
+## F-304: Fixed-geometry paged plans preserve full-request tokens at both batch endpoints
+
+✅ verified: using the R11 paged plans at B=1 and B=16 for both models,
+L1 and L2 produced identical tokens for all 34,816 generated positions
+across four 1024-token requests. HF teacher-forced checks passed the R10 C-1
+criterion in all four cells: the fraction with gap ≤ 0.5 was 1.0; maximum
+gaps were 0, 0.25, 0, and 0.125 for Llama B1/B16 and Qwen3 B1/B16.
+These are fixed-geometry correctness controls, not the solver-selected EV-2
+matrix; fused/unfused handoff and three timed repeats remain untested. See
+`SERVING_R11/fixed_page_correctness/`.
+
+## F-305: The page handshake has a measurable per-cycle floor
+
+✅ verified: an isolated 128-CTA, 160-thread probe using the R11 full/empty
+mbarrier cycle measured 241.45 ns per cycle with ten 8 KiB pages and
+241.97 ns with five 16 KiB pages, both at 101376 B shared memory.
+Only 512 B is copied per cycle, so these numbers are a lower bound on a
+full-page transfer and cannot alone explain the complete GEMM regression.
+They support counting page cycles explicitly in the price model. See
+`SERVING_R11/page_handshake.md` and F-303.

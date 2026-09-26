@@ -55,3 +55,11 @@ class controls measured paged/standard GEMM stage ratios of 1.29/1.50/1.99/
 3.02 ms per decode step under an additive approximation, near the observed
 2.93 ms/token full-request regression. This localizes the immediate fix to
 `PagedGemmTaskBody` and the page-ring transfer protocol.
+
+Supplemental fixed-geometry full-request checks now cover both models at
+B=1/16: L1/L2 token mismatch count is zero across 34,816 positions and all
+four HF teacher-forced C-1 cells pass. This does not complete EV-2, whose
+solver-selected plans, fused/unfused check, and timed repeats remain open.
+The isolated page-ring handshake probe measures about 241 ns per page cycle
+for both page sizes with 512 B copied; it is a lower bound on full-page cost.
+See `fixed_page_correctness/` and `page_handshake.md`.
