@@ -1,0 +1,49 @@
+/root/TileMega/include/tilemega/Codegen/tasks/PagedGemmTaskBody.h(78): warning #128-D: loop is not reachable
+        for(int page=0;page<kGroupPages;++page) {
+        ^
+          detected during:
+            instantiation of "void tilemega::codegen::PagedGemmTaskBody<Arch, TileM, TileN, TileK, PageBytes, Pages, ForceSm80>::Load(const tilemega::codegen::ServingGemmOperands &, int, const tilemega::codegen::PagedGemmTaskBody<Arch, TileM, TileN, TileK, PageBytes, Pages, ForceSm80>::Ring &, uint64_t &) [with Arch=tilemega::codegen::paged::PageArch, TileM=16, TileN=256, TileK=64, PageBytes=16384, Pages=3, ForceSm80=false]" at line 41 of /root/TileMega/include/tilemega/Codegen/executor/ServingPages.cuh
+            instantiation of "void tilemega::codegen::paged::Gemm<Loader,Variant>(const tilemega::codegen::Params &, const tilemega::codegen::GemmInvocation &, int, const tilemega::codegen::paged::Ring &, uint64_t &, char *) [with Loader=true, Variant=4]" at line 45 of /root/TileMega/include/tilemega/Codegen/executor/ServingPages.cuh
+            instantiation of "void tilemega::codegen::paged::Gemm<Loader,Variant>(const tilemega::codegen::Params &, const tilemega::codegen::GemmInvocation &, int, const tilemega::codegen::paged::Ring &, uint64_t &, char *) [with Loader=true, Variant=3]" at line 45 of /root/TileMega/include/tilemega/Codegen/executor/ServingPages.cuh
+            instantiation of "void tilemega::codegen::paged::Gemm<Loader,Variant>(const tilemega::codegen::Params &, const tilemega::codegen::GemmInvocation &, int, const tilemega::codegen::paged::Ring &, uint64_t &, char *) [with Loader=true, Variant=2]" at line 45 of /root/TileMega/include/tilemega/Codegen/executor/ServingPages.cuh
+            instantiation of "void tilemega::codegen::paged::Gemm<Loader,Variant>(const tilemega::codegen::Params &, const tilemega::codegen::GemmInvocation &, int, const tilemega::codegen::paged::Ring &, uint64_t &, char *) [with Loader=true, Variant=1]" at line 45 of /root/TileMega/include/tilemega/Codegen/executor/ServingPages.cuh
+            instantiation of "void tilemega::codegen::paged::Gemm<Loader,Variant>(const tilemega::codegen::Params &, const tilemega::codegen::GemmInvocation &, int, const tilemega::codegen::paged::Ring &, uint64_t &, char *) [with Loader=true, Variant=0]" at line 93 of /root/TileMega/include/tilemega/Codegen/executor/ServingPages.cuh
+            instantiation of "void tilemega::codegen::paged::Task<Loader>(const tilemega::codegen::Params &, unsigned int, int, const tilemega::codegen::paged::Ring &, uint64_t &, char *) [with Loader=true]" at line 213 of /root/TileMega/include/tilemega/Codegen/executor/ServingPages.cuh
+            instantiation of "void tilemega::codegen::paged::Execute<Loader,L2>(const tilemega::codegen::Params &, tilemega::codegen::EventCounter *, unsigned long long, const tilemega::codegen::paged::Ring &, char *) [with Loader=true, L2=false]" at line 230 of /root/TileMega/include/tilemega/Codegen/executor/ServingPages.cuh
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+ptxas info    : 184 bytes gmem, 96 bytes cmem[4]
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi
+    72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 62 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]
+ptxas info    : Compile time = 44.125 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    160 bytes stack frame, 28 bytes spill stores, 72 bytes spill loads
+ptxas info    : Used 255 registers, used 2 barriers, 160 bytes cumulative stack size, 376 bytes cmem[0], 368 bytes cmem[2]
+ptxas info    : Compile time = 4217.833 ms
+ptxas info    : Function properties for _ZN8tilemega7codegen5paged7CombineILi0EEEvRKNS0_6ParamsERKNS0_9StageDescEiPc
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    208 bytes stack frame, 168 bytes spill stores, 332 bytes spill loads
+ptxas info    : Used 255 registers, used 2 barriers, 208 bytes cumulative stack size, 376 bytes cmem[0], 312 bytes cmem[2]
+ptxas info    : Compile time = 4389.589 ms
+ptxas info    : Function properties for _ZN8tilemega7codegen5paged7CombineILi0EEEvRKNS0_6ParamsERKNS0_9StageDescEiPc
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj
+    112 bytes stack frame, 36 bytes spill stores, 48 bytes spill loads
+ptxas info    : Used 255 registers, used 2 barriers, 112 bytes cumulative stack size, 364 bytes cmem[0], 316 bytes cmem[2]
+ptxas info    : Compile time = 19754.295 ms
+ptxas info    : Function properties for _ZNK8tilemega7codegen19GemmCombineTaskBodyIN7cutlass4arch4Sm89ENS0_8TaskSmemELi128EEclERKNS0_6ParamsERKNS0_9StageDescERS5_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
