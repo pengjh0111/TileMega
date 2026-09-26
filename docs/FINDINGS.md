@@ -8395,8 +8395,12 @@ gave PG-off / PG-1 E2E times of 3.3445 / 4.4792 s (Llama B1), 3.6781 /
 attention coordinates and synchronization settings; the executable page
 mainloop uses two stages independently of the original GEMM `stages` field.
 All timed repetitions generated identical tokens. A SASS scan of the four
-PG-1 megakernels found zero FP64 instructions. These results show that the
-trace improvement in F-310 has not translated into whole-request speed.
+PG-1 megakernels found zero FP64 instructions. Off/PG-1 E2E values are
+1.287/1.724, 1.268/1.649, 1.374/1.970, and
+1.297/1.770 times the R10-C CG-derived floor for the same four workloads,
+respectively. This is a common workload reference; EV-2 still needs the
+selected plan's own floor derivation. The trace improvement in F-310 has
+not translated into whole-request speed.
 The predeclared power policy and every accepted/rejected observation, binary
 hashes, and raw per-step times are retained in
 `SERVING_R11/page_vector_e2e/`.
