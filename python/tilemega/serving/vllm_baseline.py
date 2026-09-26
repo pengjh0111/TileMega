@@ -86,8 +86,14 @@ def _wait_for_exclusive_gpu(path: Path, label: str, fail_fast: bool = False) -> 
     while True:
         output = subprocess.check_output(
             ["nvidia-smi", "--query-compute-apps=pid,process_name,used_memory",
-             "--format=csv,noheader"], text=True)
-        pids = {int(line.split(",", 1)[0].strip()) for line in output.splitlines() if line.strip()}
+             "--format=csv,noheader,nounits"], text=True)
+        rows = [line.split(",") for line in output.splitlines() if line.strip()]
+        pids = {int(row[0].strip()) for row in rows}
+        visible_mib = sum(int(row[-1].strip()) for row in rows)
+        used_mib = int(subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=memory.used",
+             "--format=csv,noheader,nounits"], text=True).splitlines()[0].strip())
+        hidden_mib = max(0, used_mib - visible_mib)
         # vLLM runs its GPU engine in a child process; that process is part of
         # this measurement, whereas another user's PID invalidates the run.
         own = {os.getpid()}
@@ -105,9 +111,12 @@ def _wait_for_exclusive_gpu(path: Path, label: str, fail_fast: bool = False) -> 
             if descendants <= own:
                 break
             own.update(descendants)
-        exclusive = pids <= own
+        exclusive = bool(pids) and pids <= own and hidden_mib <= 256
         with path.open("a") as stream:
             stream.write(json.dumps({"label": label, "pids": sorted(pids),
+                                     "visible_mib": visible_mib,
+                                     "used_mib": used_mib,
+                                     "hidden_mib": hidden_mib,
                                      "exclusive": exclusive, "time": time.time()}) + "\n")
         if exclusive or time.monotonic() >= deadline:
             return exclusive

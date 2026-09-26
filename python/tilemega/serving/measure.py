@@ -14,21 +14,32 @@ import torch
 from .engine import ServingEngine
 
 
-def _compute_pids() -> set[int]:
+def _gpu_owners() -> tuple[set[int], int, int]:
     output = subprocess.check_output(
         ["nvidia-smi", "--query-compute-apps=pid,process_name,used_memory",
-         "--format=csv,noheader"], text=True)
-    return {int(line.split(",", 1)[0].strip())
-            for line in output.splitlines() if line.strip()}
+         "--format=csv,noheader,nounits"], text=True)
+    rows = [line.split(",") for line in output.splitlines() if line.strip()]
+    pids = {int(row[0].strip()) for row in rows}
+    visible_mib = sum(int(row[-1].strip()) for row in rows)
+    used_mib = int(subprocess.check_output(
+        ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+        text=True).splitlines()[0].strip())
+    return pids, visible_mib, used_mib
 
 
 def _exclusive(path: Path, label: str, wait: bool) -> bool:
     deadline = time.monotonic() + (30 * 60 if wait else 0)
     while True:
-        observed = _compute_pids()
-        good = observed <= {os.getpid()}
+        observed, visible_mib, used_mib = _gpu_owners()
+        # Container PID namespaces can hide another user's GPU process while
+        # NVML still reports its allocation in device-wide memory.used.
+        hidden_mib = max(0, used_mib - visible_mib)
+        good = observed == {os.getpid()} and hidden_mib <= 256
         with path.open("a") as output:
             output.write(json.dumps({"label": label, "pids": sorted(observed),
+                                     "visible_mib": visible_mib,
+                                     "used_mib": used_mib,
+                                     "hidden_mib": hidden_mib,
                                      "exclusive": good, "time": time.time()}) + "\n")
         if good or time.monotonic() >= deadline:
             return good
