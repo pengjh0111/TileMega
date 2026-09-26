@@ -32,3 +32,8 @@ the paged GEMM loader and page handshakes for long or wide GEMMs
 (`PagedGemmTaskBody::Load` and `PageRing::AcquireEmpty/AwaitFull`). A
 fixed-geometry page-size comparison is needed to separate loader throughput
 from page protocol overhead; the trace alone does not establish causality.
+The derived `effective_weight_gbps` column divides each class's exact packed
+weight bytes by its critical-chain wall time. It is stage effective throughput,
+including waits and computation, and is not a direct DRAM transaction counter.
+For Llama B=1 it is 819 GB/s for QKV, 563 for gate/up, 316 for down and 292
+for lm_head. Dimensions come from the committed public model configs.

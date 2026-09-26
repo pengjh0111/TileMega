@@ -8222,7 +8222,10 @@ each arm matched, and the predeclared idle-power/ownership guard accepted
 the measurements. This is a paged-transport performance failure, separate
 from its 200/200 fresh-process protocol check. In the instrumented Llama
 B=1 realized chain, gate/up, down, and lm_head account for 5.405/6.383 ms;
-the exact kernel mechanism behind their cost is not yet isolated. The next
+packed-weight bytes divided by their chain wall time give stage effective
+throughput of 819 GB/s (QKV), 563 (gate/up), 316 (down), and 292 (lm_head).
+Those values include compute and waits; they are not direct DRAM counters.
+The exact kernel mechanism behind their cost is not yet isolated. The next
 control holds geometry fixed and changes only page size from 8 to 16 KiB;
 the code sites under investigation are `PagedGemmTaskBody::Load` and
 `PageRing::AcquireEmpty/AwaitFull`. See `SERVING_R11/pg_ablation/` and

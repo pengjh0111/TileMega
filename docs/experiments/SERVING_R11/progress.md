@@ -23,9 +23,9 @@ R11 implementation with direct evidence:
 | AT-3 | Independent-warp decode attention and 60 small-shape cases implemented | `pages/attention_torch.json` |
 | AR-1 | Five target-architecture compile checks and SASS branches recorded; native sm_89 only executed | `arch_primitives/` |
 | SV-18 | Two-phase paged Level 1/individual fluid modes and 8/16 KiB page-coordinate scan implemented; restricted Llama B1 CPU search ranked 16 KiB first in 86 evaluations | `solver/` |
-| TF-1 | Access proofs and IR pass implemented; real-model norm→GEMM decisions now carry the original input/weight buffers into the paged GEMM activation loader. Stage removal/replanning, last-arriver/direct execution, and solver pricing remain open | `handoff/` |
+| TF-1 | Access proofs and IR pass implemented; real-model norm→GEMM decisions carry original input/weight buffers into the paged GEMM activation loader. Four disjoint norm handoffs now pass one IR rewrite on each real model. Stage removal/replanning, last-arriver/direct execution, and solver pricing remain open | `handoff/` |
 | OPS-2 / SY-1 | End-to-end CLI and calibrated waits implemented; full cache/run acceptance remains open. SOLO+RED+BARRIER_V2 completed 200/200 fresh-process token comparisons; its performance ablation is queued | `ops/`, `calibration/`, `sync/` |
-| EV-2 | Not yet run | — |
+| EV-2 | Final solved-plan matrix not yet run; fixed-geometry PG ablation completed at Llama B1 and Qwen3 B16, and both PG modes regressed against off | `pg_ablation/` |
 
 The requested PG-1 diagnostics are available for all four B endpoints in
 `page_diagnostics/summary.tsv` with raw evidence archived. At past 575 the
@@ -37,7 +37,15 @@ per step are 3.552/3.744/7.229/7.372 ms. Median device-visible launch gaps
 are 3.072/4.096/3.072/3.072 µs. Trace instrumentation perturbs the kernel;
 non-instrumented performance is measured separately.
 
-`verify.py` currently reports 13/18 structural checks PASS. K-5/K-6 require
-the unfinished runtime handoffs, K-11 requires handoff search pricing,
+`verify.py` currently reports 14/18 structural checks PASS. K-6 requires
+the unfinished last-arriver runtime handoff, K-11 requires handoff search pricing,
 K-15 requires EV-2 measurement policy and rounds, and K-16 requires final
 serving SASS audit. These are open items, not waived checks.
+
+The first production-speed PG control holds geometry and L2 placement fixed.
+Llama B1 off/L2/pages E2E is 3.3439/3.6652/6.3403 s; Qwen3 B16 is
+6.0990/6.4943/10.9151 s. The page protocol remains correct, but PG-1 is
+currently 1.90×/1.79× slower than off. Instrumented chain attribution puts
+5.405 of Llama B1's 6.383 ms in gate/up, down and lm_head. A targeted
+8/16 KiB control is queued after the sync ablation to distinguish page
+handshake frequency from loader throughput; the trace alone is not causal.
