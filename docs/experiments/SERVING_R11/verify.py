@@ -116,9 +116,13 @@ def checks():
     ck['K-5'] = combine(require('include/tilemega/Dialect/CouplingGraph/ExecOps.td', 'HandoffOp'),
                         require('lib/Dialect/CouplingGraph/HandoffPass.cpp', 'VerifyHandoffAccess', 'ApplyHandoffs'),
                         require('include/tilemega/Codegen/tasks/ServingRMSNormTaskBody.h', 'RowInvRms', 'Transform'),
-                        require('include/tilemega/Codegen/tasks/ServingGemmTaskBody.h', 'RowInvRms', 'Transform'))
-    ck['K-6'] = combine(require(ex + 'LastArriver.cuh', 'for\\s*\\(', 'Ticket'),
-                        require('include/tilemega/Codegen/tasks/ServingGemmCombineTaskBody.h', 'ServingEpilogue'))
+                        require('include/tilemega/Codegen/tasks/PagedGemmTaskBody.h', 'RowInvRms', 'Transform'),
+                        require(ex + 'ServingPages.cuh', 'norm_input', 'norm_weight'))
+    ck['K-6'] = combine(require(ex + 'LastArriver.cuh', 'ticket', 'fetch_add'),
+                        require('include/tilemega/Codegen/tasks/LastArriverTaskBody.h',
+                                'ServingGemmCombineTaskBody', 'AttentionMergeTaskBody'),
+                        require(ex + 'ServingPages.cuh', 'LastArriverGemmTaskBody',
+                                'LastArriverAttentionTaskBody'))
     ck['K-7'] = combine(require('include/tilemega/Codegen/tasks/FusedAttentionTaskBody.h', 'warp'),
                         absent('include/tilemega/Codegen/tasks/FusedAttentionTaskBody.h', r'__syncthreads\s*\('))
     ck['K-8'] = combine(no_arch_comparisons(),
