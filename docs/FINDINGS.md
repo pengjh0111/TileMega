@@ -8505,3 +8505,18 @@ reads the actual past from `trace.log` rather than the compile-time value in
 `meta.tsv`, and retains empty-block work in the stage span. See
 `SERVING_R11/page_vector_diagnostics/attention_bandwidth.tsv` and its
 reproduction script.
+
+## F-319: The native architecture smoke command now completes without a full configuration search
+
+✅ verified on sm_89: `python -m tilemega doctor --hwcheck` passed five CUDA
+page/attention tests, built prefill and paged decode Llama B=1 plans through
+one explicit legal geometry, and generated 64/64 identical L1/L2 tokens on
+the same plan instances. Both smoke libraries' L1/L2 SASS had zero FP64
+instructions. The two plan builds took 88.0 and 94.7 s; an identical
+repeat hit calibration, export, and both smoke-plan caches, taking 30.3 s
+including repeated tests, SASS audit, and generation. The full-search
+version of the command had already exceeded ten minutes in prefill; it was
+replaced only for this hardware smoke path. The run also found and fixed an
+incorrect `doctor()` result lookup and a quoted-`-arch` comparison. PDL is
+not applicable on sm_89; higher-architecture paths remain compile-checked
+but unexecuted here. See `SERVING_R11/arch_primitives/hwcheck_sm89/`.

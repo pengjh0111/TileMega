@@ -1,0 +1,21 @@
+{
+  "pass": true,
+  "native_arch": "sm_89",
+  "compute_path": "SM80-class mma.sync",
+  "transport_path": "cp.async",
+  "unit_cases": [
+    "page_ring_test",
+    "paged_gemm_test",
+    "serving_attention_cases_test",
+    "independent_attention_test",
+    "paged_attention_test"
+  ],
+  "generation_steps": 64,
+  "plan_selection": "one explicit seed geometry, no coordinate descent",
+  "sass_fp64_total": 0,
+  "pdl": {
+    "applicable": false,
+    "pass": null
+  },
+  "decode_so": "/root/r11_work/hwcheck_sm89_seed/smoke/decode.so"
+}

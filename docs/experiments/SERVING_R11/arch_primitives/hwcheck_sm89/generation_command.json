@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "/root/venvs/tilemega-torch213-cu126/bin/python",
+    "-m",
+    "tilemega.serving.check_modes",
+    "--model",
+    "/root/models/llama3_2_1b",
+    "--prefill-so",
+    "/root/r11_work/hwcheck_sm89_seed/smoke/prefill.so",
+    "--decode-so",
+    "/root/r11_work/hwcheck_sm89_seed/smoke/decode.so",
+    "--prompt-ids",
+    "/root/r11_work/hwcheck_sm89_seed/prompt_ids.json",
+    "--batch",
+    "1",
+    "--steps",
+    "64",
+    "--out",
+    "/root/r11_work/hwcheck_sm89_seed/hwcheck-mode"
+  ],
+  "environment": {},
+  "returncode": 0,
+  "seconds": 8.361226562177762
+}

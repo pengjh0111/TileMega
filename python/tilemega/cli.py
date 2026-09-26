@@ -347,7 +347,7 @@ class Run:
 
     def hwcheck(self):
         """Exercise the native page path; higher-arch claims need that device."""
-        device = self.doctor()
+        device = self.doctor()['device']
         build_dir = Path(self.binary).parent.parent
         targets = ('page_ring_test', 'paged_gemm_test', 'serving_attention_cases_test',
                    'independent_attention_test', 'paged_attention_test')
@@ -355,13 +355,75 @@ class Run:
         self.command(['ctest', '--test-dir', build_dir, '--output-on-failure',
                       '-R', '^(page_ring|paged_gemm|serving_attention_cases|'
                             'independent_attention|paged_attention)$'], 'hwcheck-unit', gpu=True)
-        plans = self.build()
-        pair = plans['1']; prompts = self.prompts()
+        # Hardware validation is a smoke check, not a coordinate-descent
+        # benchmark. Materialize one explicit legal Llama geometry through the
+        # same solver and codegen path instead of searching thousands of
+        # candidates before testing 64 tokens on a new device.
+        if self.name != 'llama':
+            raise ValueError('native hwcheck currently uses the Llama B=1 smoke workload')
+        self.calibrate()
+        if self.version['source_sha256'] != source_fingerprint():
+            raise RuntimeError('native hwcheck requires a compiler built from the current sources')
+        shape = dict(tile_m=16, tile_n=128, tile_k=128, stages=2, split_k=1)
+        smoke = self.out / 'smoke'
+        smoke.mkdir(exist_ok=True)
+        domain = smoke / 'domain.json'
+        cases = smoke / 'cases.json'
+        atomic_json(domain, {'geometries': [shape]})
+        atomic_json(cases, {'cases': [dict(geometries=[shape] * 6, kappa=1, residency=1)]})
+        pair = {}
+        prompt_len = self.config['workload']['prompt_len']
+        capacity = prompt_len + self.config['workload']['max_new_tokens']
+        for phase in ('prefill', 'decode'):
+            export_digest, exported = self.export(phase)
+            interval = (0, 0) if phase == 'prefill' else (prompt_len, capacity - 2)
+            library = smoke / (phase + '.so')
+            smoke_key = key(dict(export=export_digest, target=file_sha(self.target),
+                                 source=self.version['source_sha256'], phase=phase,
+                                 geometry=shape, capacity=capacity, past_range=interval,
+                                 sync=self.config['features']['sync'],
+                                 arch_paths=self.config['features']['arch_paths'],
+                                 pdl=self.config['features']['pdl'],
+                                 device=self.device_key))
+            marker = smoke / (phase + '.' + smoke_key + '.record.json')
+            with locked(smoke / (phase + '.lock')):
+                hit = valid_record(marker)
+                self.event('hwcheck_plan', hit, 'native smoke outputs match' if hit else
+                           'missing or changed smoke input', phase=phase, key=smoke_key)
+                if not hit:
+                    self.command([self.binary, 'compile', exported / 'bridge.json', library,
+                                  '--serving', phase, '--batch', '1', '--past-range',
+                                  f'{interval[0]}:{interval[1]}', '--capacity', str(capacity),
+                                  '--solver', 'skeleton', '--solve', self.target,
+                                  '--emit', 'serving', '--search-passes', '1', '--top-m', '1',
+                                  '--dump-cg', str(library) + '.selected.mlir',
+                                  '--search-domain', domain, '--evaluate-configs', cases,
+                                  '--measure-cmd', shlex.join([sys.executable, '-m',
+                                      'tilemega.serving.measure_candidate', '--model', str(self.model)]),
+                                  '--runtime-target', self.target,
+                                  '--pg', 'pages' if phase == 'decode' else 'l2',
+                                  '--page-bytes', '16384', '--sync', self.config['features']['sync'],
+                                  '--arch-paths', self.config['features']['arch_paths'],
+                                  '--pdl', self.config['features']['pdl'],
+                                  '--artifact-cache', self.cache / 'artifacts',
+                                  '--variant-cache', self.cache / 'variants' / self.device_key],
+                                 f'hwcheck-{phase}-seed')
+                    record_outputs(marker, [library, Path(str(library) + '.plan.json'),
+                                           Path(str(library) + '.selected.mlir'),
+                                           Path(str(library) + '.build_command.txt')])
+            pair[phase] = str(library)
+        sass_file = smoke / 'sass.json'
+        self.command([self.binary, 'audit', 'sass', pair['prefill'], pair['decode'],
+                      '--out', sass_file], 'hwcheck-sass')
+        sass = json.loads(sass_file.read_text())
+        if sass['fp64_total'] != 0:
+            raise RuntimeError('native serving smoke plan contains FP64 instructions')
+        prompts = self.prompts()
         manifest = json.loads(Path(pair['decode'] + '.plan.json').read_text())
         command_file = Path(pair['decode'] + '.build_command.txt')
         native_arch = device['arch_tag']
         command = command_file.read_text() if command_file.exists() else ''
-        if f'-arch={native_arch}' not in command:
+        if f'-arch={native_arch}' not in shlex.split(command):
             raise RuntimeError(f'plan was not compiled for native {native_arch}')
         self.command([sys.executable, '-m', 'tilemega.serving.check_modes',
                       '--model', self.model, '--prefill-so', pair['prefill'],
@@ -374,9 +436,9 @@ class Run:
             page_bytes = manifest.get('pages', {}).get('page_bytes')
             if not page_bytes:
                 raise RuntimeError('PDL hardware check needs a paged decode plan')
-            self.command([self.binary, 'compile', Path(pair['decode']).parent / 'selected.mlir', plain,
+            self.command([self.binary, 'compile', pair['decode'] + '.selected.mlir', plain,
                           '--serving', 'decode', '--emit', 'serving', '--batch', '1',
-                          '--past-range', '64:1086', '--capacity', '1088',
+                          '--past-range', f'{prompt_len}:{capacity - 2}', '--capacity', str(capacity),
                           '--pg', 'pages', '--page-bytes', page_bytes,
                           '--pdl', 'off', '--sync', self.config['features']['sync'],
                           '--runtime-target', self.target], 'hwcheck-pdl-off-build')
@@ -389,7 +451,10 @@ class Run:
         report = {'pass': True, 'native_arch': native_arch,
                   'compute_path': 'SM80-class mma.sync', 'transport_path':
                   'TMA/bulk' if device['caps'].get('tma') else 'cp.async',
-                  'unit_cases': list(targets), 'generation_steps': 64, 'pdl': pdl,
+                  'unit_cases': list(targets), 'generation_steps': 64,
+                  'plan_selection': 'one explicit seed geometry, no coordinate descent',
+                  'sass_fp64_total': sass['fp64_total'],
+                  'pdl': pdl,
                   'decode_so': pair['decode']}
         atomic_json(self.out / 'hwcheck.json', report)
         print(json.dumps(report, indent=2))

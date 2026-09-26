@@ -185,3 +185,13 @@ B1/B16 = 141.2/783.6 GB/s at past 575. This counts logical historical K/V
 bytes and is not a hardware DRAM counter; instrumentation perturbs timing.
 The final selected-plan AT-3 throughput gate remains open. See F-318 and
 `page_vector_diagnostics/attention_bandwidth.tsv`.
+
+The native `doctor --hwcheck` command has now passed on sm_89 using one
+explicit seed geometry per phase instead of a full coordinate search. Five
+CUDA tests passed, prefill/decode `.so` SASS had FP64=0, and 64/64 L1/L2
+tokens matched on the same instances. Both plan builds took 88.0/94.7 s;
+the next fully cached run took 30.3 s including tests and generation.
+The command fixes its wrapped-device lookup and quoted `-arch` parsing.
+This advances AR-1's native check and validates the smoke cache; it does
+not complete OPS-2's full `run` acceptance, TF-1 or EV-2. PDL remains
+unexecuted on sm_89. See F-319 and `arch_primitives/hwcheck_sm89/`.

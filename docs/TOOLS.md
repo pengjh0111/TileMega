@@ -58,3 +58,7 @@ when the device supports PDL. The report prints the actual native `-arch`
 used; compiling a lower PTX target and relying on JIT would check the wrong
 transport path. The command uses row-major, handoff-off geometry because its
 purpose is to validate the architecture path; TF-1 has a separate gate.
+Hardware checking materializes one explicit legal 16×128×128×2 Llama seed
+configuration through the ordinary solver/codegen path. It does not run
+coordinate descent or establish a performance optimum; `build` and `run`
+perform the full search.

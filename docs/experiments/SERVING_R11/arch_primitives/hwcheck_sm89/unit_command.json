@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "ctest",
+    "--test-dir",
+    "/root/r11_work/build",
+    "--output-on-failure",
+    "-R",
+    "^(page_ring|paged_gemm|serving_attention_cases|independent_attention|paged_attention)$"
+  ],
+  "environment": {},
+  "returncode": 0,
+  "seconds": 1.7362393829971552
+}

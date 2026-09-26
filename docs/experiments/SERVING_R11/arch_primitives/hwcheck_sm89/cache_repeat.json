@@ -1,0 +1,36 @@
+[
+  {
+    "layer": "calibration",
+    "hit": true,
+    "reason": "all section stamps match",
+    "sections": []
+  },
+  {
+    "layer": "export",
+    "hit": true,
+    "reason": "content key and outputs match",
+    "phase": "prefill",
+    "key": "dafedd06c99f91fd12631558cee420aa472c20f4ef162b2941cdf83a507ca0d9"
+  },
+  {
+    "layer": "hwcheck_plan",
+    "hit": true,
+    "reason": "native smoke outputs match",
+    "phase": "prefill",
+    "key": "0269330077da0e01d69cf89d9df173b2d2ae8ba2621faeb510e5c418fc0be094"
+  },
+  {
+    "layer": "export",
+    "hit": true,
+    "reason": "content key and outputs match",
+    "phase": "decode",
+    "key": "96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80"
+  },
+  {
+    "layer": "hwcheck_plan",
+    "hit": true,
+    "reason": "native smoke outputs match",
+    "phase": "decode",
+    "key": "ed5fe3f2c403eedbccb38d9dc9d63892e910cbda77ee74f9f4b9be4ae7fdc8aa"
+  }
+]
