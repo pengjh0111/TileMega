@@ -180,6 +180,13 @@ def main() -> int:
         # This auxiliary mainloop comparison is a report item, not an EV-1
         # correctness gate; keep the ten-cell result status independent.
         print(f"collective microbenchmark failed: {error}", flush=True)
+    try:
+        subprocess.run([sys.executable, str(HERE / "trace_serving.py")],
+                       cwd=ROOT, check=True)
+    except subprocess.CalledProcessError as error:
+        # The four-cell trace is recommended by §4.10(c); it diagnoses the
+        # gap but does not alter the completed request's correctness result.
+        print(f"serving trace failed: {error}", flush=True)
     return int(failed)
 
 

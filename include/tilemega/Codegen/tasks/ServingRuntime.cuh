@@ -105,6 +105,10 @@ inline void Destroy(Plan* plan) {
   if (!plan) return;
   if (plan->ring) cudaFree(plan->ring);
   auto& model = plan->model;
+#if TILEMEGA_TRACE_V2
+  if (model.device_task_trace_v2) cudaFree(model.device_task_trace_v2);
+  if (model.device_event_publish) cudaFree(model.device_event_publish);
+#endif
   for (std::size_t i = 0; i < model.buffers.size(); ++i)
     if (i < model.owned_buffers.size() && model.owned_buffers[i])
       cudaFree(model.buffers[i]);
@@ -260,6 +264,20 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step,
   ++plan->next_iteration[mode_index];
   return 0;
 }
+
+#if TILEMEGA_TRACE_V2
+// Diagnostic-only entry point. A trace build is separate from the measured
+// serving library; dumping synchronizes only after its selected launch.
+extern "C" int tm_plan_dump_trace_v2(void* opaque, float step_ms) {
+  auto* plan = static_cast<tilemega::codegen::serving::Plan*>(opaque);
+  if (!plan || !plan->model.trace_v2_enabled) return -1;
+  if (cudaDeviceSynchronize() != cudaSuccess) return -2;
+  tilemega::codegen::harness::DumpTraceV2(
+      plan->model, "serving", plan->grid, 0.0f, step_ms,
+      "serving_decode_last_diagnostic_launch");
+  return 0;
+}
+#endif
 
 extern "C" void tm_plan_destroy(void* opaque) {
   tilemega::codegen::serving::Destroy(
