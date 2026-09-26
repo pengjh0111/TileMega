@@ -8094,3 +8094,22 @@ stores for its L1 kernel; this is a concrete risk to the predicted PG gain,
 not an observed throughput loss. The partition and compiler resource figures
 are in `SERVING_R11/page_layouts.tsv`. A controlled PG-0/PG-1 performance
 comparison and trace are still required to attribute any loss to those spills.
+
+## F-292: Four paired current-source R10 controls close the batch extremes
+
+✅ verified: the immutable `4bf26fb85` worktree completed a same-session
+TileMega/vLLM comparison at B=1 and B=16 for both anchored models. Full
+1024-token request E2E seconds were Llama B1 3.227/3.089, Llama B16
+3.534/3.806, Qwen3 B1 4.798/4.510, and Qwen3 B16 5.873/6.154
+(TileMega/vLLM). The corresponding TileMega/vLLM throughput ratios are
+0.957/1.077/0.940/1.048, with a four-cell geometric mean of 1.0038.
+All four cells passed the HF teacher-forced C-1 criterion and 1024-token
+L1/L2 C-2 check; all eight selected plan binaries contain zero SASS FP64
+instructions. See `SERVING_R11/r10_control/paired_final.tsv`, the raw archive
+`ev1_raw.tar.gz`, and `plans_summary.tsv`.
+
+⚠️ stated scope: this is the R11-directed four-cell R10-C control, not the
+original ten-cell R10 G-9. Every control plan missed the ten-minute solver
+budget, and Qwen3's unpruned G-6 comparison timed out at 5400 s. The earlier
+F-290 statement that paired E2E was queued described the state before these
+measurements and is superseded for the four selected cells.

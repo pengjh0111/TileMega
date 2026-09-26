@@ -1434,7 +1434,7 @@ R10 的端到端试跑中，TileMega 在 B=1 的吞吐为 vLLM 的 0.87×（Llam
 
 | ID | 范围与验收（不可删减） | 依赖 | 实现状态 | 验证状态 | 证据、commit |
 |---|---|---|---|---|---|
-| R10-C | b22 队列结果归档；当前源码重标定、8 个 plan、4 格同会话对比；R10 G-6 Qwen3；R10 文档定稿 | — | 进行中：独立基线 worktree 已重标定并完成 8 个 plan；4 格同会话复测已排队 | b22 旧队列已按此前用户要求停止；Qwen3 G-6 剪枝臂完成、未剪枝臂 90 min 超时，未过门；4 格待测 | SERVING_R11/r10_control；基线 4bf26fb85 |
+| R10-C | b22 队列结果归档；当前源码重标定、8 个 plan、4 格同会话对比；R10 G-6 Qwen3；R10 文档定稿 | — | 当前源码 8 个 plan 与 4 格同会话复测完成；b22 旧队列已按用户指示停止 | 四格吞吐比 0.957/1.077/0.940/1.048，几何平均 1.0038；C-1/C-2 四格通过，SASS 8/8 FP64=0。八个 plan 均超 600 s；Qwen3 未剪枝臂 5400 s 超时，G-6 未通过；原十格 G-9 未测 | SERVING_R11/r10_control/paired_final.tsv、ev1_raw.tar.gz、plans_summary.tsv；基线 4bf26fb85 |
 | OPS-1 | 单一 `tilemega` 驱动（compile/calibrate/occupancy/inspect/audit/probe/version）+ `tilemega-opt`；历史工具移入可选构建；host 测试合并为 `tilemega-unit`（ctest 名不变）；Python 包整理；产物逐字节一致抽查；ctest/lit 通过 | — | 工具与 host runner 合并已实现；完整构建计时待做 | 81 个既有 ctest（含 lit）通过；名集合不变；两类 .cu 字节一致；默认构建可执行目标从 122 降至 27 | SERVING_R11/ops/executable_counts.json；e44488321、67238193d |
 | OPS-2 | `python -m tilemega`（doctor/calibrate/build/run），TOML 配置暴露外部参数；标定、导出、plan、编译产物四级缓存，键含指纹与选项；一次跑通、二次全命中、局部重建 | OPS-1 | 编排与四级缓存初稿已写；handoff/权重预排布仍缺 codegen，当前对未实现模式显式报错；hwcheck 未完成 | 编译缓存 miss/hit/依赖失效通过，doctor 通过；完整 run 与局部重建尚未验收 | SERVING_R11/ops/artifact_cache_check.json；SERVING_R11/ops/fingerprint_check.json |
 | SY-1 | target 驱动的等待策略进入 serving 构建与 EmitWait；EX-E3 发布协议作为选项并做 ≥ 50 新进程检验；新策略下的 hop 与事件常数 | OPS-1 | target 等待策略与 EX-E3 开关已接入；EX-E3 默认关闭 | 同步微标定已执行；启用组合的 ≥50 新进程检验未做 | SERVING_R11/calibration；6b2ad76c2 |

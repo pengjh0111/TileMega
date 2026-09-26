@@ -1,0 +1,8 @@
+{
+  "source": "4bf26fb85ada63fccea101b323f3d7a09351eca2",
+  "cells": 4,
+  "geometric_mean_throughput_ratio": 1.0037925910245757,
+  "four_cell_research_gate": true,
+  "original_ten_cell_gate": "unmeasured: six cells not requested in R10-C",
+  "all_c1_c2": true
+}

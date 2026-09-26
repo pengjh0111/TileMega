@@ -1,5 +1,26 @@
 # R10 partial closure for the R11 handoff
 
+**R11 follow-up on the immutable current-source baseline `4bf26fb85` (2026-09-26).**
+After the user reopened R10-C within R11, the separate baseline worktree
+recalibrated serving, solved eight plans, and paired TileMega with vLLM 0.30.0
+in the same session for the requested B=1/16 extremes. The four full-request
+results are below; raw logs and token checks are preserved in
+`../SERVING_R11/r10_control/ev1_raw.tar.gz`, with derived numbers in
+`../SERVING_R11/r10_control/paired_final.tsv`.
+
+| Model | B | TileMega E2E (s) | vLLM E2E (s) | TileMega/vLLM throughput | C-1 / C-2 |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Llama | 1 | 3.227 | 3.089 | 0.957 | pass / pass |
+| Llama | 16 | 3.534 | 3.806 | 1.077 | pass / pass |
+| Qwen3 | 1 | 4.798 | 4.510 | 0.940 | pass / pass |
+| Qwen3 | 16 | 5.873 | 6.154 | 1.048 | pass / pass |
+
+The four-cell geometric mean is **1.0038×**. It is not the original R10
+ten-cell G-9 result. All eight plans exceeded the 600 s solve budget; Qwen3
+unpruned pruning control timed out at 5400 s, so G-6 remains unproved. The
+earlier closure below records the state *before* this R11 follow-up and must
+not be read as the final status of these four cells.
+
 **Closed by explicit user instruction on 2026-09-26; R10 acceptance is incomplete.**
 All unfinished R10 tests and queues were terminated, including both historical
 B16 prefill searches, the old EV-1 queue and the four new-source search chains.
