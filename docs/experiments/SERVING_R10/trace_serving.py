@@ -193,8 +193,11 @@ def main() -> int:
             results.append(row)
             if row.get("analyzed"):
                 output = WORK / "serving_trace" / row["cell"]
-                rates.extend(bandwidth_rows(model, batch, output))
-                chains.extend(chain_rows(model, batch, output))
+                try:
+                    rates.extend(bandwidth_rows(model, batch, output))
+                    chains.extend(chain_rows(model, batch, output))
+                except Exception as error:
+                    row["summary_error"] = str(error)
             print(json.dumps(row), flush=True)
     (HERE / "trace_status.json").write_text(json.dumps(results, indent=2) + "\n")
     if rates:
@@ -207,7 +210,7 @@ def main() -> int:
             writer = csv.DictWriter(stream, fieldnames=list(chains[0]), delimiter="\t")
             writer.writeheader()
             writer.writerows(chains)
-    return int(any("error" in row for row in results))
+    return int(any("error" in row or "summary_error" in row for row in results))
 
 
 if __name__ == "__main__":
