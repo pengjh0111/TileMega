@@ -65,6 +65,7 @@ class Run:
         self.model = Path(config['model']['path']).expanduser().resolve()
         self.name = config['model'].get('name', self.model.name)
         self.cache = Path(config['device']['cache_dir']).expanduser().resolve()
+        self.gpu_lock = Path(os.getenv('TILEMEGA_GPU_LOCK', str(self.cache / 'gpu.lock')))
         stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
         self.out = Path(config['output']['dir'].format(model=self.name, timestamp=stamp)).resolve()
         self.out.mkdir(parents=True, exist_ok=True)
@@ -74,8 +75,8 @@ class Run:
         self.binary = str(Path(candidate).resolve())
         self.env = dict(os.environ, PYTHONPATH=str(ROOT / 'python') + os.pathsep + os.getenv('PYTHONPATH', ''),
                         CUDA_VISIBLE_DEVICES=str(config['device']['index']),
-                        TILEMEGA_DEVICE_INDEX=str(config['device']['index']))
-        self.gpu_lock = Path(os.getenv('TILEMEGA_GPU_LOCK', '/tmp/tilemega-gpu.lock'))
+                        TILEMEGA_DEVICE_INDEX=str(config['device']['index']),
+                        TILEMEGA_GPU_LOCK=str(self.gpu_lock))
         self.events = []
         self.version = self.capture([self.binary, 'version', '--json'])
         self.device = None
@@ -87,7 +88,8 @@ class Run:
         folder = self.out / 'commands' / label
         folder.mkdir(parents=True, exist_ok=True)
         with (self.out / 'commands.sh').open('a') as script:
-            exported={name:environment[name] for name in ('TILEMEGA_DEVICE_INDEX','PYTHONPATH','CUDA_VISIBLE_DEVICES')}
+            exported={name:environment[name] for name in ('TILEMEGA_DEVICE_INDEX','PYTHONPATH',
+                                                           'CUDA_VISIBLE_DEVICES','TILEMEGA_GPU_LOCK')}
             exported.update(env_extra or {})
             script.write(' '.join(name+'='+shlex.quote(value) for name,value in exported.items())+
                          ' '+shlex.join(argv)+'\n')
