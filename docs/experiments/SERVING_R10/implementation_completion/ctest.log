@@ -1,0 +1,18 @@
+Internal ctest changing into directory: /root/r10_work/completion_build
+Test project /root/r10_work/completion_build
+    Start 52: serving_gemm_config
+1/6 Test #52: serving_gemm_config ..............   Passed    0.01 sec
+    Start 53: serving_pruning
+2/6 Test #53: serving_pruning ..................   Passed    0.00 sec
+    Start 55: serving_epilogue
+3/6 Test #55: serving_epilogue .................   Passed    0.46 sec
+    Start 58: serving_state_tasks
+4/6 Test #58: serving_state_tasks ..............   Passed    0.38 sec
+    Start 59: serving_combine
+5/6 Test #59: serving_combine ..................   Passed    0.50 sec
+    Start 64: serving_attention_merge
+6/6 Test #64: serving_attention_merge ..........   Passed    0.91 sec
+
+100% tests passed, 0 tests failed out of 6
+
+Total Test time (real) =   2.26 sec

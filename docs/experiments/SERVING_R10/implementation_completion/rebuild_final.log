@@ -1,0 +1,26 @@
+[1/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/FusionIntervalDP.cpp.o
+[2/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ChainDP.cpp.o
+[3/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/SymbolicChainDP.cpp.o
+[4/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ScalarTaskWork.cpp.o
+[5/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/CouplingInterfaceDP.cpp.o
+[6/26] Building CXX object CMakeFiles/tilemega.dir/lib/Dialect/CouplingGraph/FusionPass.cpp.o
+[7/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/AttentionWork.cpp.o
+[8/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/SkeletonPlacement.cpp.o
+[9/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/SkeletonFinalize.cpp.o
+[10/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/CostModel.cpp.o
+[11/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/FusionResources.cpp.o
+[12/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/SymbolicTaskCost.cpp.o
+[13/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/PlanSkeleton.cpp.o
+[14/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/TaskModel.cpp.o
+[15/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/SkeletonSearch.cpp.o
+[16/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/TaskPriceParts.cpp.o
+[17/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/FusedTaskInput.cpp.o
+[18/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ModelDescription.cpp.o
+[19/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/PiecePricing.cpp.o
+[20/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/FusedRuntimeProjection.cpp.o
+[21/26] Building CXX object CMakeFiles/tilemega.dir/lib/Codegen/Codegen.cpp.o
+[22/26] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/FlowPreparation.cpp.o
+[23/26] Linking CXX static library libtilemega.a
+[24/26] Linking CXX executable serving_pruning_test
+[25/26] Building CXX object CMakeFiles/tilemega-compile.dir/tools/tilemega-compile.cpp.o
+[26/26] Linking CXX executable tools/tilemega-compile

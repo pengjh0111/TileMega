@@ -1,0 +1,25 @@
+[1/19] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/InflightCalibration.cu.o
+[2/19] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/Calibration.cu.o
+[3/19] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/SkeletonFinalize.cpp.o
+[4/19] Linking CXX static library libtilemega.a
+[5/19] Linking CXX executable tools/tilemega-compile
+[6/19] Building CXX object CMakeFiles/tilemega-calibrate.dir/tools/tilemega-calibrate.cpp.o
+[7/19] Linking CXX executable serving_pruning_test
+[8/19] Building CUDA object CMakeFiles/serving_gemm_config_test.dir/test/unit/serving_gemm_config_test.cu.o
+[9/19] Linking CXX executable serving_gemm_config_test
+[10/19] Building CUDA object CMakeFiles/serving_epilogue_test.dir/test/unit/serving_epilogue_test.cu.o
+[11/19] Linking CXX executable serving_epilogue_test
+[12/19] Building CUDA object CMakeFiles/serving_state_tasks_test.dir/test/unit/serving_state_tasks_test.cu.o
+[13/19] Linking CXX executable serving_state_tasks_test
+[14/19] Building CUDA object CMakeFiles/serving_combine_test.dir/test/unit/serving_combine_test.cu.o
+[15/19] Linking CXX executable serving_combine_test
+[16/19] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/ServingTaskCalibration.cu.o
+[17/19] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/GemmCalibration.cu.o
+/root/r10_work/implementation_completion/lib/Target/GemmCalibration.cu(263): warning #177-D: function "tilemega::calib::<unnamed>::FillKernel" was declared but never referenced
+            void FillKernel(float* v, std::size_t elements) {
+                 ^
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+[18/19] Linking CXX static library libtilemega_calibration.a
+[19/19] Linking CXX executable tools/tilemega-calibrate

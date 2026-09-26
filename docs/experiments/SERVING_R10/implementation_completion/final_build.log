@@ -1,0 +1,20 @@
+[1/19] Building CUDA object CMakeFiles/serving_rmsnorm_test.dir/test/unit/serving_rmsnorm_test.cu.o
+[2/19] Building CUDA object CMakeFiles/serving_combine_test.dir/test/unit/serving_combine_test.cu.o
+[3/19] Building CUDA object CMakeFiles/serving_gemm_config_test.dir/test/unit/serving_gemm_config_test.cu.o
+[4/19] Building CUDA object CMakeFiles/serving_epilogue_test.dir/test/unit/serving_epilogue_test.cu.o
+[5/19] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/SkeletonSearch.cpp.o
+[6/19] Building CUDA object CMakeFiles/serving_attention_merge_test.dir/test/unit/serving_attention_merge_test.cu.o
+nvcc warning : Support for offline compilation for architectures prior to '<compute/sm/lto>_75' will be removed in a future release (Use -Wno-deprecated-gpu-targets to suppress warning).
+[7/19] Linking CXX static library libtilemega.a
+[8/19] Linking CXX executable serving_gemm_config_test
+[9/19] Linking CXX executable serving_pruning_test
+[10/19] Linking CXX executable serving_epilogue_test
+[11/19] Linking CXX executable serving_rmsnorm_test
+[12/19] Linking CXX executable tools/tilemega-compile
+[13/19] Linking CXX executable serving_state_tasks_test
+[14/19] Linking CXX executable serving_combine_test
+[15/19] Linking CXX executable serving_attention_merge_test
+[16/19] Building CUDA object CMakeFiles/serving_attention_cases_test.dir/test/unit/serving_attention_cases_test.cu.o
+[17/19] Linking CXX executable serving_attention_cases_test
+[18/19] Building CUDA object CMakeFiles/serving_prefill_attention_test.dir/test/unit/serving_prefill_attention_test.cu.o
+[19/19] Linking CXX executable serving_prefill_attention_test

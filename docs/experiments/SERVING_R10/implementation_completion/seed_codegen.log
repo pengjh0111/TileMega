@@ -1,0 +1,3 @@
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+SERVING_SEED phase=prefill batch=16 past=0:0 stages=116
+CODEGEN_SUMMARY tasks=116 couplings=147 stages=116 symbolic_windows=145 fallback_windows=2 output=/root/r10_work/completion_arch/seed.cu

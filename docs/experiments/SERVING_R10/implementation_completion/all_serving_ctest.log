@@ -1,0 +1,36 @@
+Internal ctest changing into directory: /root/r10_work/completion_build
+Test project /root/r10_work/completion_build
+      Start 52: serving_gemm_config
+ 1/15 Test #52: serving_gemm_config ..............   Passed    0.01 sec
+      Start 53: serving_pruning
+ 2/15 Test #53: serving_pruning ..................   Passed    0.00 sec
+      Start 54: serving_task_index
+ 3/15 Test #54: serving_task_index ...............   Passed    0.00 sec
+      Start 55: serving_epilogue
+ 4/15 Test #55: serving_epilogue .................   Passed    0.58 sec
+      Start 56: serving_gemm_task_body
+ 5/15 Test #56: serving_gemm_task_body ...........   Passed    0.61 sec
+      Start 57: serving_rmsnorm
+ 6/15 Test #57: serving_rmsnorm ..................   Passed    0.36 sec
+      Start 58: serving_state_tasks
+ 7/15 Test #58: serving_state_tasks ..............   Passed    0.40 sec
+      Start 59: serving_combine
+ 8/15 Test #59: serving_combine ..................   Passed    0.40 sec
+      Start 60: serving_token_sets
+ 9/15 Test #60: serving_token_sets ...............   Passed    0.02 sec
+      Start 61: serving_harness_compile
+10/15 Test #61: serving_harness_compile ..........   Passed    0.01 sec
+      Start 62: serving_attention_mma
+11/15 Test #62: serving_attention_mma ............   Passed    0.47 sec
+      Start 63: serving_fused_attention
+12/15 Test #63: serving_fused_attention ..........   Passed    0.38 sec
+      Start 64: serving_attention_merge
+13/15 Test #64: serving_attention_merge ..........   Passed    0.48 sec
+      Start 65: serving_attention_cases
+14/15 Test #65: serving_attention_cases ..........   Passed    0.61 sec
+      Start 66: serving_prefill_attention
+15/15 Test #66: serving_prefill_attention ........   Passed    0.46 sec
+
+100% tests passed, 0 tests failed out of 15
+
+Total Test time (real) =   4.82 sec

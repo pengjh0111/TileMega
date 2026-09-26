@@ -1,0 +1,92 @@
+[1/91] Building include/tilemega/Dialect/CouplingGraph/CGDialect.h.inc...
+[2/91] Building include/tilemega/Dialect/CouplingGraph/CGDialect.cpp.inc...
+[3/91] Building include/tilemega/Dialect/CouplingGraph/CGAttrs.cpp.inc...
+[4/91] Building include/tilemega/Dialect/CouplingGraph/CGAttrs.h.inc...
+[5/91] Building include/tilemega/Dialect/CouplingGraph/CGOps.cpp.inc...
+[6/91] Building include/tilemega/Dialect/CouplingGraph/ExecDialect.cpp.inc...
+[7/91] Building include/tilemega/Dialect/CouplingGraph/ExecDialect.h.inc...
+[8/91] Building include/tilemega/Dialect/CouplingGraph/CGOps.h.inc...
+[9/91] Building include/tilemega/Dialect/CouplingGraph/ExecOps.h.inc...
+[10/91] Building include/tilemega/Dialect/CouplingGraph/ExecOps.cpp.inc...
+[11/91] Building CXX object CMakeFiles/tilemega.dir/lib/Support/Json.cpp.o
+[12/91] Building CXX object CMakeFiles/tilemega.dir/lib/Frontend/GraphPattern.cpp.o
+[13/91] Building CXX object CMakeFiles/tilemega.dir/lib/Target/TargetSpec.cpp.o
+[14/91] Building CXX object CMakeFiles/tilemega.dir/lib/Frontend/SemanticLifting.cpp.o
+[15/91] Building CXX object CMakeFiles/tilemega.dir/lib/Frontend/ModelPlan.cpp.o
+[16/91] Building CXX object CMakeFiles/tilemega.dir/lib/Frontend/ServingSemanticLifting.cpp.o
+[17/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/SemanticCodec.cpp.o
+[18/91] Building CXX object CMakeFiles/tilemega.dir/lib/Dialect/CouplingGraph/PlacementPlan.cpp.o
+[19/91] Building CXX object CMakeFiles/tilemega.dir/lib/Frontend/Frontend.cpp.o
+[20/91] Building CXX object CMakeFiles/tilemega.dir/lib/Dialect/CouplingGraph/CGContract.cpp.o
+[21/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/ClosedForm.cpp.o
+[22/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/ISLContext.cpp.o
+[23/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/AffineRelation.cpp.o
+[24/91] Building CXX object CMakeFiles/tilemega.dir/lib/Dialect/CouplingGraph/FusionPass.cpp.o
+[25/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/QuasiPolynomial.cpp.o
+[26/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/CouplingRelation.cpp.o
+[27/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/Analysis.cpp.o
+[28/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/AccessRelation.cpp.o
+[29/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/SymbolicOracle.cpp.o
+[30/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/CouplingCache.cpp.o
+[31/91] Building CXX object CMakeFiles/tilemega.dir/lib/Dialect/CouplingGraph/CGDialect.cpp.o
+[32/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/Semantics.cpp.o
+[33/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/TaskInstantiation.cpp.o
+[34/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ClusterLabeling.cpp.o
+[35/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/CouplingDerivation.cpp.o
+[36/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/BackendCostQuery.cpp.o
+[37/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/DependencyForm.cpp.o
+[38/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/AlignmentPropagation.cpp.o
+[39/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/CandidateGenerator.cpp.o
+[40/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ImplementationContract.cpp.o
+[41/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/ReferenceModels.cpp.o
+[42/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/FusionIntervalDP.cpp.o
+[43/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ChainDP.cpp.o
+[44/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/SymbolicChainDP.cpp.o
+[45/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/CouplingInterfaceDP.cpp.o
+[46/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ScalarTaskWork.cpp.o
+[47/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ListScheduler.cpp.o
+[48/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/AttentionWork.cpp.o
+[49/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ExecutionSimulator.cpp.o
+[50/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/SkeletonPlacement.cpp.o
+[51/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/EftPlacement.cpp.o
+[52/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/SkeletonFinalize.cpp.o
+[53/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ChainPlacement.cpp.o
+[54/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/PlanMaterialize.cpp.o
+[55/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/VariantSchedule.cpp.o
+[56/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/PlanSkeleton.cpp.o
+[57/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/CostModel.cpp.o
+[58/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/BalancedPlacement.cpp.o
+[59/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/SkeletonSearch.cpp.o
+[60/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/SymbolicTaskCost.cpp.o
+[61/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/FusionResources.cpp.o
+[62/91] Building CXX object CMakeFiles/tilemega.dir/lib/Codegen/RuntimeTaskGraph.cpp.o
+[63/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/LaneIntersections.cpp.o
+[64/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/CacheServiceCurve.cpp.o
+[65/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/RuntimeProjection.cpp.o
+[66/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/TaskModel.cpp.o
+[67/91] Building CXX object CMakeFiles/tilemega.dir/lib/Codegen/ExactRuntimeTaskGraph.cpp.o
+[68/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/OpArithmetic.cpp.o
+[69/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/FusedTaskInput.cpp.o
+[70/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ModelDescription.cpp.o
+[71/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/TaskPriceParts.cpp.o
+[72/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/DramFloor.cpp.o
+[73/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/TaskWork.cpp.o
+[74/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/FusedRuntimeProjection.cpp.o
+[75/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/DramFluid.cpp.o
+[76/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/PiecePricing.cpp.o
+[77/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/FluidExecutionSimulator.cpp.o
+[78/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/StageFlowModel.cpp.o
+[79/91] Building CXX object CMakeFiles/tilemega.dir/lib/Analysis/FusionAccess.cpp.o
+[80/91] Building CXX object CMakeFiles/tilemega.dir/lib/Runtime/EventBuffer.cpp.o
+[81/91] Building CXX object CMakeFiles/tilemega.dir/lib/Runtime/MegakernelRuntime.cpp.o
+[82/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/ModelDramFloor.cpp.o
+[83/91] Building CXX object CMakeFiles/serving_pruning_test.dir/test/unit/serving_pruning_test.cpp.o
+[84/91] Building CXX object CMakeFiles/tilemega.dir/lib/Solver/FlowPreparation.cpp.o
+[85/91] Building CUDA object CMakeFiles/serving_attention_merge_test.dir/test/unit/serving_attention_merge_test.cu.o
+nvcc warning : Support for offline compilation for architectures prior to '<compute/sm/lto>_75' will be removed in a future release (Use -Wno-deprecated-gpu-targets to suppress warning).
+[86/91] Building CXX object CMakeFiles/tilemega.dir/lib/Codegen/Codegen.cpp.o
+[87/91] Linking CXX static library libtilemega.a
+[88/91] Linking CXX executable serving_pruning_test
+[89/91] Linking CXX executable serving_attention_merge_test
+[90/91] Building CXX object CMakeFiles/tilemega-compile.dir/tools/tilemega-compile.cpp.o
+[91/91] Linking CXX executable tools/tilemega-compile

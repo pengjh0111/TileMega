@@ -1,0 +1,10 @@
+Internal ctest changing into directory: /root/r10_work/completion_build
+Test project /root/r10_work/completion_build
+    Start 10: flow_runtime_release
+1/2 Test #10: flow_runtime_release .............   Passed   80.02 sec
+    Start 53: serving_pruning
+2/2 Test #53: serving_pruning ..................   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =  80.03 sec
