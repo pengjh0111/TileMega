@@ -7896,3 +7896,39 @@ unit tests does not establish that structural requirement. The next change
 needs vector partial loads and shared LSE normalization, followed by affected
 TaskBody and full-request validation; the current matrix measures the existing
 scalar-load merge.
+
+
+## F-285: Implementation omissions beyond the merge load (R10 correction)
+
+✅ verified by source inspection: the b22 checkpoint was not implementation-complete.
+Besides scalar LSE partial reads, attention staged scores/probabilities through
+shared memory and did not overlap KV loads with compute; KV tile selection was
+fixed at 64. Epilogue vector access and its full storage assertion were incomplete.
+The completion patch supplies warp-local register P→PV, alternating KV buffers,
+64/32 selection across codegen/resource/pricing paths, swizzled epilogue storage,
+vector global IO and aligned argmax input groups. Merge disassembly contains
+LDG.E.128 and STG.E.128; nine affected CTests pass. Numerical correctness does
+not establish throughput or complete-request correctness. Evidence:
+`SERVING_R10/implementation_completion/` (source audit, final CTest, SASS counts).
+
+✅ verified by source inspection: attention price now charges padded MMA work
+and the actual prefill query-block limit. The calibration tool now labels the
+same per-task work, rather than full-S work for a one-block launch, and uses
+past=0 for prefill. In-flight calibration drains outstanding tail groups before
+consumption. New fitted coefficients have not been measured for these kernels.
+
+⚠️ inferred: preserving preparation state across (Ec,Rq,argmax tile-N) changes
+can reduce repeated preparation. No solve-budget or speedup claim follows before
+new measurements. The incremental control disables restoration. Source/calibration
+fingerprints prevent old binaries from satisfying current-source SASS checks.
+Original background processes remain on b22; their results retain that provenance.
+Current-source 20-plan generation, recalibration and EV-1 remain open. See
+`SERVING_R10/implementation_completion/audit.md` for section coverage and limitations.
+
+✅ verified after freezing the changed backend: all 15 serving CTests and all
+1,344 GEMM/PyTorch cases pass; both KV=32 and KV=64 prefill suites pass 8/8.
+Incremental/full preparation agrees exactly in all 40 cases. Seed compile and
+FP64 audits pass for sm_80/sm_90/sm_120 (no target-device execution claimed).
+The full current structural verifier remains 15/16: K-12 lacks current-source
+20-plan SASS evidence, so G-1 is not passed. These focused checks do not close
+EV-1 or the existing solve-budget failure.

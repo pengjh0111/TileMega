@@ -24,9 +24,16 @@ chunk. Counts are from the generated `kStages` arrays, before split expansion.
 No serving GEMM or attention matrix product uses the legacy scalar QK/PV
 loop. The LSE merge retains a serial loop over live KV blocks per output
 thread; it is a reduction over split blocks, not a scalar matrix product.
-Its FP32 partial reads are scalar: the 16-byte vector-read requirement in
-R10 §4.3(c) is not implemented. This is an open implementation gap despite
-the passing numerical tests below; it is also declared in `summary.md`.
+The b22 checkpoint used scalar FP32 partial loads; that implementation gap is
+now corrected: two float4 partial loads and one explicit 16-byte BF16 store per
+eight outputs. Real SASS counts are in `implementation_completion/merge_vector_sass.json`.
+Attention now keeps P in registers, double-buffers cached KV, and selects KV=64
+or 32 according to the selected GEMM shared-storage budget. The GEMM epilogue
+uses swizzled shared spill and vector residual/output access; argmax uses aligned
+float4/int4 input groups. See `implementation_completion/audit.md` for exact
+changes, current focused evidence and the required final-source reruns.
+
+The following numerical results describe the earlier checkpoint:
 The serving GEMM matrix passes 1,344/1,344 PyTorch comparisons over the
 specified M, N/K, tile, split-K and epilogue cases
 (`task_body_tests/gemm_matrix/summary.json`). The attention tests pass 60/60

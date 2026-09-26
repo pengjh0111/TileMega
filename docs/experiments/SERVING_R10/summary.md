@@ -1,3 +1,25 @@
+## Implementation correction results (current source)
+
+The implementation omissions listed in [the audit](implementation_completion/audit.md)
+have been corrected. Focused results: serving CTest 15/15; GEMM/PyTorch 1,344/1,344;
+prefill/PyTorch 8/8 for each of KV=32 and KV=64; incremental/full equivalence
+40/40 with zero relative difference; sm_80/sm_90/sm_120 compile checks pass.
+Current structural verification is 15/16; K-12 awaits 20 current-source SASS
+artifacts, so G-1 remains FAIL. Full output: [verify.txt](implementation_completion/verify.txt).
+Original background jobs remain on b22. Recalibration and complete-request
+validation of the changed implementation remain outstanding. This is a patch
+completion report, not final R10 acceptance.
+
+> **Implementation correction, 2026-09-26:** the previous “implementation complete”
+> interpretation was incorrect. Merge vectorization and additional backend,
+> resource-selection, calibration and preparation-cache requirements were missing.
+> They are corrected in the isolated completion worktree. See
+> [the source audit](implementation_completion/audit.md) and
+> [current verifier output](implementation_completion/verify.txt).
+> The tables below remain the immutable **b22-era checkpoint**, not acceptance
+> of the changed kernels. Original background jobs continue unchanged. Current
+> source requires new calibration, plan binaries/SASS and integrated EV-1.
+
 # R10 implementation and experiment checkpoint
 
 **Partial checkpoint at 2026-09-26T04:44:01.317825+00:00; not final R10 acceptance.**
