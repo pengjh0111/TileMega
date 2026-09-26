@@ -8488,3 +8488,20 @@ stack was **not** evidence that floor counting dominates. `SkeletonSearch.cpp::P
 now records `dram_floor` explicitly. Raw search,
 phase data, command and fingerprint are in
 `SERVING_R11/solver/shared_cache_full_qwen_B16/`.
+
+## F-318: Paged attention has high effective historical-KV throughput at B=16, but B=1 remains latency-limited
+
+✅ verified from four archived, instrumented PG-1 traces at actual past 575:
+the effective historical-KV byte rates are **90.2/764.7 GB/s** for Llama
+B=1/16 and **141.2/783.6 GB/s** for Qwen3 B=1/16. The corresponding median
+attention-stage spans are 13.3/24.6 µs and 16.4/48.1 µs. At B=16 the
+effective rates exceed 60% of the 981.6 GB/s target DRAM calibration, but
+this is **not** a measured DRAM-bandwidth claim: the numerator counts
+historical K/V bytes once per query block, and some accesses may be served
+from L2. The traces were compiled with instrumentation and use a fixed
+diagnostic geometry; the final selected-plan AT-3 gate remains unmeasured.
+The calculation checks each plan's query-row and attention-block geometry,
+reads the actual past from `trace.log` rather than the compile-time value in
+`meta.tsv`, and retains empty-block work in the stage span. See
+`SERVING_R11/page_vector_diagnostics/attention_bandwidth.tsv` and its
+reproduction script.

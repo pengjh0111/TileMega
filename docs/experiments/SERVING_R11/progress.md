@@ -178,3 +178,10 @@ during a slow attention structure transition reached ISL cardinality from
 only 1.07 s versus 31.73 s in pricing/release and 12.30 s in relation
 preparation. Floor counting now has a separate `dram_floor` timing phase.
 See F-317 and `solver/shared_cache_full_qwen_B16/`.
+
+The archived PG-1 trace also yields a reproducible, **effective**
+historical-KV byte-rate check: Llama B1/B16 = 90.2/764.7 GB/s and Qwen3
+B1/B16 = 141.2/783.6 GB/s at past 575. This counts logical historical K/V
+bytes and is not a hardware DRAM counter; instrumentation perturbs timing.
+The final selected-plan AT-3 throughput gate remains open. See F-318 and
+`page_vector_diagnostics/attention_bandwidth.tsv`.
