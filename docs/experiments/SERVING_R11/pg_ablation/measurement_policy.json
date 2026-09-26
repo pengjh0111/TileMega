@@ -1,0 +1,14 @@
+{
+  "guard": true,
+  "idle_power_w": 21.81,
+  "power_margin_w": 30,
+  "cooldown_seconds": 30,
+  "retries": 3,
+  "idle_samples_w": [
+    21.81,
+    21.81,
+    21.77,
+    21.81,
+    21.76
+  ]
+}

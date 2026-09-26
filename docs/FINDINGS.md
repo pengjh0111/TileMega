@@ -8211,3 +8211,19 @@ SOLO+RED monotonicity/visibility check required before enabling the pair.
 The selected serving default still awaits its controlled performance
 comparison. See `SERVING_R11/sync/combo_fresh50_summary.json` and the
 complete raw process archive.
+
+## F-300: The first fixed-geometry PG control regresses despite passing the page protocol
+
+✅ verified: with identical L2 placement, geometry and prefill, Llama B=1
+completed a 1024-token request in 3.3439 s with PG off, 3.6652 s with L2
+prefetch, and 6.3403 s with 8 KiB pages. Qwen3 B=16 measured 6.0990,
+6.4943, and 10.9151 s in the same order. The three timed outputs within
+each arm matched, and the predeclared idle-power/ownership guard accepted
+the measurements. This is a paged-transport performance failure, separate
+from its 200/200 fresh-process protocol check. In the instrumented Llama
+B=1 realized chain, gate/up, down, and lm_head account for 5.405/6.383 ms;
+the exact kernel mechanism behind their cost is not yet isolated. The next
+control holds geometry fixed and changes only page size from 8 to 16 KiB;
+the code sites under investigation are `PagedGemmTaskBody::Load` and
+`PageRing::AcquireEmpty/AwaitFull`. See `SERVING_R11/pg_ablation/` and
+`SERVING_R11/page_diagnostics/pg_chain_classes.tsv`.
