@@ -1015,6 +1015,12 @@ slot+1 发出 `cp.async`；`Wait` 仍在执行器，即 slot+1 的 Compute 之�
 `docs/experiments/PIPELINE/summary.md`，六个 cell 中五个变慢 2–7%、real_s4
 快 0.8%，代价主要是机制自身的固定开销而不是重叠失败。）
 
+（⚠️ v2.1 第十一轮补充：R11 的 decode serving 将 `Prefetch` 分成两个层次：
+PG-0 沿计划 σ 在等待依赖前向 L2 发出无生产者读区间；PG-1 由独立 loader warp
+沿同一 σ 将无生产者字节写入静态 shared-memory 页环，计算 warp 在依赖满足后
+消费并释放页。页大小与页数由目标资源闭式决定并进入 Plan；prefill 可沿用
+PG-0。页环协议与实际收益分别验收，不能用协议正确代替性能判定。）
+
 承接项：`docs/TODO.md` EX-E4。
 
 ## 5.4 Megakernel 骨架
@@ -1207,6 +1213,13 @@ Plan = ( π, σ, W, policy, sync, κ )
   sync   : CG 边 → {local, fine(κ), aggregate, cluster}
   κ      : producer stage → 事件粒度
 ```
+
+（⚠️ v2.1 第十一轮补充：decode serving 的 Plan 另携带
+`pages=(page_bytes, P, workspace, pool)` 和逐耦合边的
+`handoff∈{event,recompute,last_arriver,smem_direct}`。前者限定沿 σ 的页流顺序和
+每 worker 的预取容量；后者在 ISL 访问关系证明合法后由求解器定价并写入
+`tmexec.handoff`。π、σ 与上述选择共同决定交接是否有益，Codegen 只消费
+决策，不以算子名称代替访问关系证明。原有六元组对未启用这些扩展的计划仍适用。）
 
 π 与 σ 有两种给出方式。两种方式都由 `lib/Solver` 中的同一实现计算，Codegen 与 host 只消费、不决定：
 
@@ -1682,3 +1695,4 @@ Codegen 与 host 只消费 Plan（§5.7.4），不得在其中新增调度决策
 | 2026-09 | v2.1 第九轮 | 按 SemSig 缓存参数化耦合并按算子类选择 tile；资源探测先于驻留与 Skeleton；符号 Oracle 提供精确双向邻接，Level 1 定义重叠候选集、Level 2 按 EST 就绪前沿定价放置；外层坐标下降以放置 makespan 打分，仅最终 top-K 物化与模拟，保留 legacy 对照 |
 | 2026-09 | v2.1 第九轮补充 | 以访问像计数的绝对下界锚定 regime A；引入默认关闭的 BF16 物理价格分量与设备级 DRAM 流体服务器；外层改用 task-space 释放律模型、仅 top-M 作模板/有界 EFT 物化与流体复核；保留旧路径及执行语义 |
 | 2026-09 | v2.1 第十轮补充 | 以 θ=(batch,past) 的离线静态批 serving 计划承载完整生成请求；BF16 后端按目标能力选择通用 SM80 类 CuTe collective；regime A 用在途字节曲线定价 DRAM，搜索增量准备并在 past 区间优化；外部状态 C ABI 复用结构不变的计划，每模式维持独立单调事件迭代 |
+| 2026-09 | v2.1 第十一轮补充 | decode serving 增加沿 σ 的 L2/页环预取、边级交接决策与按 Caps 选择的异步搬运/PDL 路径；目标驱动同步标定，工具统一为 `tilemega` 子命令与带分层缓存的端到端编排。原有 Plan 和单次前向执行语义保留；各路径的实现与验证状态由 `docs/STATUS.md`、`docs/TODO.md` 记录。 |
