@@ -1,0 +1,20 @@
+[
+  {
+    "arch": 80,
+    "compiled": true,
+    "object_sha256": "6c415b4f3c31f1b9b668f520fb0d7496f90e4618e2e39c6a66e0e98f8b0186c4",
+    "log": "final_sm_80.log"
+  },
+  {
+    "arch": 90,
+    "compiled": true,
+    "object_sha256": "0ae53dffb28caef7c3f201a0264a4b389a099d19eaae54dc0e94e742d9e57743",
+    "log": "final_sm_90.log"
+  },
+  {
+    "arch": 120,
+    "compiled": true,
+    "object_sha256": "ae8c7b65d2d8311b0b83c717e7e443665036aebc731e8c1a94ba8f07b4408109",
+    "log": "final_sm_120.log"
+  }
+]

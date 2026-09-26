@@ -1,0 +1,7 @@
+ef68bc52cc76b35788f7dac344ade25c8c1e3116 experiments: build the matching compiler before plan measurement
+b2f5ab4eb81f41a79a979799fdf298b884b2ec26 experiments: reject serving artifacts from mismatched sources
+c29632d238f00e671a202c3e50325416bb677804 tools: align serving calibration with executed query blocks
+bb088f5882e1ebce29461bc99f649e002e1566b5 solver: retain serving structures and price selected kv tiles
+d694040c857a6eb62564bd7c8e8776d8e2bf653d backend: pipeline attention with register probability fragments
+19bc835578a1bd60b03fc80d2b757166367b5e9b backend: vectorize serving epilogues and reduction inputs
+3ef9f754fb329ceb4135dcb0bb56fe41a556febe backend: vectorize split kv merge reads and writes

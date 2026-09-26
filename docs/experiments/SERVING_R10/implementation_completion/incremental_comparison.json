@@ -1,0 +1,30 @@
+{
+  "llama": {
+    "comparison": {
+      "cases": 20,
+      "full_rows": 20,
+      "reuse_rows": 20,
+      "valid": 20,
+      "max_relative_error": 0.0,
+      "pass": true
+    },
+    "wall_seconds": {
+      "full": 125.76799383899197,
+      "reuse": 67.77905874396674
+    }
+  },
+  "qwen3": {
+    "comparison": {
+      "cases": 20,
+      "full_rows": 20,
+      "reuse_rows": 20,
+      "valid": 20,
+      "max_relative_error": 0.0,
+      "pass": true
+    },
+    "wall_seconds": {
+      "full": 58.773736129980534,
+      "reuse": 59.15005705796648
+    }
+  }
+}

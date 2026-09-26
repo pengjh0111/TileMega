@@ -1,0 +1,12 @@
+{
+  "source_sha256": "859a77727477849dcbbecbd2e247f69de27c88e71e9c7aee2ebaa4f677e9182d",
+  "prompt_sha256": "655fe479331d1cf771de6ecbe6b1bfdc9957847544b7b21752692d60ec3a0367",
+  "binary_sha256": {
+    "/root/r10_work/completion_build/tools/tilemega-compile": "3df44a39d4f9f36f41d3a959fed407453917fdc168853ad49b39fddf3cc532ef",
+    "/root/r10_work/completion_build/serving_attention_merge_test": "118287841a492f2c4dcc121da29ba98f149e690343b082e490c9cff1261593d0",
+    "/root/r10_work/completion_build/serving_attention_cases_test": "63f1ffe3bf62634b6982ea06c4fd5fcccfc08074e09ab532554d12cd4b5e1d96",
+    "/root/r10_work/completion_build/serving_prefill_attention_test": "03438ef79b029eebf6ae4fa0160dd37068387cd11d1ff5cceaa6a78be53b47f0",
+    "/root/r10_work/completion_prefill32_final": "efefb9d08744635674e041d10c41ec2368cf6f8f80c3519d741331c2d1eda827",
+    "/root/r10_work/completion_gemm_final": "9018f2740da798b4f00b29a5a3bab34ec31483f774b56dd7d61d3296babe7c00"
+  }
+}

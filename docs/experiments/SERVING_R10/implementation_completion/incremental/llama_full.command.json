@@ -1,0 +1,33 @@
+{
+  "command": [
+    "/root/r10_work/completion_build/tools/tilemega-compile",
+    "/root/r10_work/export/llama_decode/bridge.json",
+    "/root/r10_work/completion_incremental/llama_full.cu",
+    "--serving",
+    "decode",
+    "--batch",
+    "1",
+    "--past-range",
+    "64:1086",
+    "--capacity",
+    "1088",
+    "--solver",
+    "skeleton",
+    "--solve",
+    "/root/r10_work/implementation_completion/docs/experiments/SERVING_R10/calibration/target_serving.json",
+    "--hop-curve",
+    "/root/r10_work/implementation_completion/docs/experiments/SIMULATOR/hop_ns.tsv",
+    "--variant-cache",
+    "/root/r9_work/variant_resources",
+    "--emit",
+    "serving",
+    "--flow-search-only",
+    "1",
+    "--evaluate-configs",
+    "/root/r10_work/implementation_completion/docs/experiments/SERVING_R10/incremental_equivalence/llama_cases.json",
+    "--incremental-prepare",
+    "0"
+  ],
+  "seconds": 205.4575445370283,
+  "returncode": 0
+}
