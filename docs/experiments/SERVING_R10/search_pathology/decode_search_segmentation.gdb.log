@@ -1,0 +1,68 @@
+warning: Error disabling address space randomization: Function not implemented
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+[Detaching after vfork from child process 3173183]
+[Detaching after vfork from child process 3173314]
+[Detaching after vfork from child process 3173318]
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+[Detaching after vfork from child process 3173343]
+[Detaching after vfork from child process 3173351]
+[Detaching after vfork from child process 3173359]
+[Detaching after vfork from child process 3173363]
+[Detaching after vfork from child process 3173367]
+[Detaching after vfork from child process 3173375]
+[Detaching after vfork from child process 3173379]
+[Detaching after vfork from child process 3173387]
+[Detaching after vfork from child process 3173391]
+[Detaching after vfork from child process 3173395]
+[Detaching after vfork from child process 3173399]
+[Detaching after vfork from child process 3173407]
+[Detaching after vfork from child process 3173411]
+[Detaching after vfork from child process 3173415]
+[Detaching after vfork from child process 3173420]
+[Detaching after vfork from child process 3173428]
+[Detaching after vfork from child process 3173432]
+[Detaching after vfork from child process 3173440]
+[Detaching after vfork from child process 3173444]
+[Detaching after vfork from child process 3173448]
+[Detaching after vfork from child process 3173456]
+[Detaching after vfork from child process 3173460]
+[Detaching after vfork from child process 3173464]
+[Detaching after vfork from child process 3173476]
+[Detaching after vfork from child process 3173480]
+[Detaching after vfork from child process 3173484]
+[Detaching after vfork from child process 3173488]
+[Detaching after vfork from child process 3173496]
+[Detaching after vfork from child process 3173500]
+[Detaching after vfork from child process 3173504]
+[Detaching after vfork from child process 3173512]
+[Detaching after vfork from child process 3173516]
+[Detaching after vfork from child process 3173522]
+[Detaching after vfork from child process 3173528]
+[Detaching after vfork from child process 3173540]
+[Detaching after vfork from child process 3173544]
+[Detaching after vfork from child process 3173550]
+[Detaching after vfork from child process 3173722]
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+
+Program received signal SIGSEGV, Segmentation fault.
+0x00007ff110615840 in std::_Hash_bytes(void const*, unsigned long, unsigned long) () from /lib/x86_64-linux-gnu/libstdc++.so.6
+
+Thread 1 (Thread 0x7ff110cba000 (LWP 3173180) "tilemega-compil"):
+#0  0x00007ff110615840 in std::_Hash_bytes(void const*, unsigned long, unsigned long) () from /lib/x86_64-linux-gnu/libstdc++.so.6
+#1  0x000055a3588f50b4 in std::_Hashtable<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, long>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, long> >, std::__detail::_Select1st, std::equal_to<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::hash<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >::find(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) const ()
+#2  0x000055a3588ee0cd in tilemega::analysis::ParamBinding::Contains(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) const ()
+#3  0x000055a3589e6440 in tilemega::solver::ModelDescription::MetricBindings(tilemega::analysis::ParamBinding const&) const ()
+#4  0x000055a35898851c in tilemega::solver::SolveSkeletonImported(tilemega::frontend::ImportedSemantics const&, mlir::MLIRContext&, tilemega::solver::SkeletonSearchOptions const&, tilemega::frontend::ImportSummary*, std::ostream&) ()
+#5  0x000055a358792c24 in main ()
