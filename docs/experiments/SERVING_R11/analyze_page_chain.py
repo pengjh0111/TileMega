@@ -38,6 +38,8 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
         if begin<=0 or end<begin:raise ValueError(f'invalid kernel stamps at step {step}')
         by_step.setdefault(step,[]).append(row)
     if not by_step:raise ValueError('page trace has no launched steps')
+    if sorted(by_step)!=list(range(min(by_step),max(by_step)+1)):
+        raise ValueError('page trace omits a decode launch')
     measured_chain=None
     measured_chain_span=None
     if chain_analysis:
@@ -51,6 +53,8 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
     for step,ctas in sorted(by_step.items()):
         if len(ctas)!=len(by_step[next(iter(by_step))]):
             raise ValueError('incomplete CTA stamps')
+        if len({int(x['worker']) for x in ctas})!=len(ctas):
+            raise ValueError(f'duplicate CTA stamp at step {step}')
         start=min(int(x['kernel_begin_ns']) for x in ctas)
         end=max(int(x['kernel_end_ns']) for x in ctas)
         gap_ns=start-previous_end if previous_end is not None else None
@@ -86,6 +90,9 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
         measured_chain_past=chain_past if chain_analysis else None,
         measured_chain_floor_ns=chain_floor_ns,
         measured_chain_over_floor=(measured_chain_span/chain_floor_ns
+            if measured_chain_span is not None else None),
+        measured_chain_residual_bubble_ns_per_link=(
+            (measured_chain_span-chain_floor_ns)/measured_chain
             if measured_chain_span is not None else None),
         residual_bubble_chain_count_assumption='chain measured at one past and reused at every step'
             if chain_analysis else None,
