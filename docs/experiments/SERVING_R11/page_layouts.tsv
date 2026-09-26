@@ -1,0 +1,5 @@
+model	batch	grid	residency	page_bytes	pages	activation_bytes	scratch_bytes	shared_bytes	threads	registers_max	spill_stores_max	binary
+llama	1	128	1	8192	10	8192	18688	101376	160	206	0	/root/r11_work/protocol/page_v2/llama_B1_pages/plan.so
+llama	16	128	1	8192	10	8192	18688	101376	160	206	0	/root/r11_work/protocol/page_v2/llama_B16_pages/plan.so
+qwen3	1	128	1	8192	7	8192	37120	95232	160	255	152	/root/r11_work/protocol/page_v2/qwen3_B1_pages/plan.so
+qwen3	16	128	1	8192	7	8192	37120	95232	160	255	152	/root/r11_work/protocol/page_v2/qwen3_B16_pages/plan.so
