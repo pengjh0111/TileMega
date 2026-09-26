@@ -1,0 +1,3 @@
+serving model plan: stages=132 gemms=65 attention=16
+serving floor B=2 past=64 dram_bytes=2.4759e+09 floor_ns=2.52236e+06
+serving floor B=16 past=1086 dram_bytes=3.04166e+09 floor_ns=3.09873e+06
