@@ -213,12 +213,14 @@ def main() -> int:
     (HERE / "trace_status.json").write_text(json.dumps(results, indent=2) + "\n")
     if rates:
         with (HERE / "trace_bandwidth.tsv").open("w") as stream:
-            writer = csv.DictWriter(stream, fieldnames=list(rates[0]), delimiter="\t")
+            writer = csv.DictWriter(stream, fieldnames=list(rates[0]),
+                                    delimiter="\t", lineterminator="\n")
             writer.writeheader()
             writer.writerows(rates)
     if chains:
         with (HERE / "trace_chain.tsv").open("w") as stream:
-            writer = csv.DictWriter(stream, fieldnames=list(chains[0]), delimiter="\t")
+            writer = csv.DictWriter(stream, fieldnames=list(chains[0]),
+                                    delimiter="\t", lineterminator="\n")
             writer.writeheader()
             writer.writerows(chains)
     return int(any("error" in row or "summary_error" in row for row in results))

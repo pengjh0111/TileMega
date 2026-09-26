@@ -102,7 +102,8 @@ def main() -> None:
                          ("floor_points.tsv", points),
                          ("floor_expressions.tsv", expressions)):
         with (OUT / name).open("w") as stream:
-            writer = csv.DictWriter(stream, fieldnames=list(values[0]), delimiter="\t")
+            writer = csv.DictWriter(stream, fieldnames=list(values[0]),
+                                    delimiter="\t", lineterminator="\n")
             writer.writeheader()
             writer.writerows(values)
     print(json.dumps({"requests": len(requests), "points": len(points),

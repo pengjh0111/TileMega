@@ -20,7 +20,8 @@ def read_tsv(path: Path) -> list[dict[str, str]]:
 def emit(name: str, data: list[dict], columns: list[str]) -> None:
     OUT.mkdir(exist_ok=True)
     with (OUT / name).open("w") as stream:
-        writer = csv.DictWriter(stream, fieldnames=columns, delimiter="\t")
+        writer = csv.DictWriter(stream, fieldnames=columns, delimiter="\t",
+                                lineterminator="\n")
         writer.writeheader()
         writer.writerows(data)
 

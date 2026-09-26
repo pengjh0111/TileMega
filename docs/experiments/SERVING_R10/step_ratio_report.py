@@ -51,7 +51,8 @@ def main() -> None:
         return
     OUT.mkdir(parents=True, exist_ok=True)
     with (OUT / "step_ratios.tsv").open("w") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(result[0]), delimiter="\t")
+        writer = csv.DictWriter(stream, fieldnames=list(result[0]),
+                                delimiter="\t", lineterminator="\n")
         writer.writeheader()
         writer.writerows(result)
     print(f"step ratios: {len(result)}/30")

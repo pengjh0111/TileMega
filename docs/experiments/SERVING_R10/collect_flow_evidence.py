@@ -23,7 +23,8 @@ def write(name: str, records: list[dict[str, object]]) -> None:
         return
     OUT.mkdir(parents=True, exist_ok=True)
     with (OUT / name).open("w") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(records[0]), delimiter="\t")
+        writer = csv.DictWriter(stream, fieldnames=list(records[0]),
+                                delimiter="\t", lineterminator="\n")
         writer.writeheader()
         writer.writerows(records)
 

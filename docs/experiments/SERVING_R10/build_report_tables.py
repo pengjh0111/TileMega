@@ -23,7 +23,8 @@ def rows(path: Path) -> list[dict[str, str]]:
 def emit(name: str, data: list[dict[str, object]], columns: list[str]) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     with (OUT / name).open("w") as stream:
-        writer = csv.DictWriter(stream, fieldnames=columns, delimiter="\t")
+        writer = csv.DictWriter(stream, fieldnames=columns, delimiter="\t",
+                                lineterminator="\n")
         writer.writeheader()
         for row in data:
             writer.writerow({key: row.get(key, "") for key in columns})

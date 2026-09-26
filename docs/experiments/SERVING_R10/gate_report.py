@@ -136,7 +136,8 @@ def main() -> None:
         "arch_compile/results.tsv"))
 
     with (OUT / "gates.tsv").open("w") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(result[0]), delimiter="\t")
+        writer = csv.DictWriter(stream, fieldnames=list(result[0]),
+                                delimiter="\t", lineterminator="\n")
         writer.writeheader()
         writer.writerows(result)
     for row in result:
