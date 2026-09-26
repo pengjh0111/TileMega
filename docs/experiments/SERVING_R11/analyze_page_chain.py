@@ -28,7 +28,8 @@ def floor_at(points: Path, model: str, batch: int, past: int) -> float:
 
 
 def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
-            floor_points: Path, chain_analysis: Path|None=None):
+            floor_points: Path, chain_analysis: Path|None=None,
+            chain_past: int=575):
     by_step={}
     for row in rows(page_trace):
         step=int(row['step'])
@@ -45,6 +46,7 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
         measured_chain=int(chain[0]['cp_nodes'])
         measured_chain_span=int(chain[0]['cp_chain_span_ns'])
         if measured_chain<=0:raise ValueError('empty realized chain')
+    chain_floor_ns=round(floor_at(floor_points,model,batch,chain_past)*1e6) if chain_analysis else None
     output=[];previous_end=None
     for step,ctas in sorted(by_step.items()):
         if len(ctas)!=len(by_step[next(iter(by_step))]):
@@ -64,7 +66,9 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
             kernel_over_floor=span_ns/(floor_ms*1e6),
             realized_chain_links=measured_chain,
             measured_chain_span_ns=measured_chain_span,
-            measured_chain_over_floor=(measured_chain_span/(floor_ms*1e6)
+            # The trace samples one fixed past. Do not compare that fixed
+            # chain span with a different step's moving DRAM floor.
+            measured_chain_over_floor_at_chain_past=(measured_chain_span/chain_floor_ns
                 if measured_chain_span is not None else None),
             residual_bubble_ns_per_link=((span_ns-floor_ms*1e6)/measured_chain
                 if measured_chain else None),
@@ -79,6 +83,12 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
         floor_source=str(floor_points),page_source=str(page_trace),
         measured_chain_links=measured_chain,
         measured_chain_span_ns=measured_chain_span,
+        measured_chain_past=chain_past if chain_analysis else None,
+        measured_chain_floor_ns=chain_floor_ns,
+        measured_chain_over_floor=(measured_chain_span/chain_floor_ns
+            if measured_chain_span is not None else None),
+        residual_bubble_chain_count_assumption='chain measured at one past and reused at every step'
+            if chain_analysis else None,
         launch_gap_mean_ns=statistics.mean(gaps) if gaps else None,
         launch_gap_p50_ns=statistics.median(gaps) if gaps else None,
         page_full_and_dependency_wait_cta_ns=sum(r['page_full_and_dependency_wait_cta_ns'] for r in output),
@@ -97,11 +107,12 @@ def main():
     ap.add_argument('--floor-steps',type=Path,
                     help='exact per-step CG floor from tilemega inspect request-floor')
     ap.add_argument('--chain-analysis',type=Path)
+    ap.add_argument('--chain-past',type=int,default=575)
     ap.add_argument('--out',type=Path,required=True)
     args=ap.parse_args();args.out.mkdir(parents=True,exist_ok=True)
     samples,summary=analyze(args.page_trace,model=args.model,batch=args.batch,
         prompt_len=args.prompt_len,floor_points=args.floor_steps or args.floor_points,
-        chain_analysis=args.chain_analysis)
+        chain_analysis=args.chain_analysis,chain_past=args.chain_past)
     with (args.out/'page_chain.tsv').open('w') as stream:
         out=csv.DictWriter(stream,fieldnames=samples[0].keys(),delimiter='\t');out.writeheader();out.writerows(samples)
     (args.out/'page_chain_summary.json').write_text(json.dumps(summary,indent=2)+'\n')
