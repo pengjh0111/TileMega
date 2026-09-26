@@ -1,76 +1,60 @@
-## Implementation correction results (current source)
+# R10 partial closure for the R11 handoff
 
-The implementation omissions listed in [the audit](implementation_completion/audit.md)
-have been corrected. Focused results: serving CTest 15/15; GEMM/PyTorch 1,344/1,344;
-prefill/PyTorch 8/8 for each of KV=32 and KV=64; incremental/full equivalence
-40/40 with zero relative difference; sm_80/sm_90/sm_120 compile checks pass.
-Current structural verification is 15/16; K-12 awaits 20 current-source SASS
-artifacts, so G-1 remains FAIL. Full output: [verify.txt](implementation_completion/verify.txt).
-Original background jobs remain on b22. Recalibration and complete-request
-validation of the changed implementation remain outstanding. This is a patch
-completion report, not final R10 acceptance.
+**Closed by explicit user instruction on 2026-09-26; R10 acceptance is incomplete.**
+All unfinished R10 tests and queues were terminated, including both historical
+B16 prefill searches, the old EV-1 queue and the four new-source search chains.
+The recorded 14 processes exited without SIGKILL; no selected process survived.
+No further GPU tests were started after the stop instruction. Read-only report
+and source-verifier regeneration followed. There is no background R10 queue to
+resume automatically.
 
-> **Implementation correction, 2026-09-26:** the previous “implementation complete”
-> interpretation was incorrect. Merge vectorization and additional backend,
-> resource-selection, calibration and preparation-cache requirements were missing.
-> They are corrected in the isolated completion worktree. See
-> [the source audit](implementation_completion/audit.md) and
-> [current verifier output](implementation_completion/verify.txt).
-> The tables below remain the immutable **b22-era checkpoint**, not acceptance
-> of the changed kernels. Original background jobs continue unchanged. Current
-> source requires new calibration, plan binaries/SASS and integrated EV-1.
+This report supersedes earlier statements that tests are still running.
+[The previous report](closure_r11/previous_summary.md) and
+[implementation correction audit](implementation_completion/audit.md) are
+historical records. Missing measurements remain missing; cancellation is not a
+PASS and is not a claim that the underlying mechanism has failed.
 
-# R10 implementation and experiment checkpoint
+## 1. Provenance and commits
 
-**Partial checkpoint at 2026-09-26T04:44:01.317825+00:00; not final R10 acceptance.**
-The user requested that completed work be recorded and pushed, then that the
-agent stop processing while the existing experiment processes continue.
-The final ten-cell EV-1 matrix has not started at this checkpoint. No process
-was stopped, restarted, or added for this checkpoint.
+- Baseline: `f6c270ce09988f600a667dc2fc63f3527909c759`.
+- Corrected implementation measured here: `aac391c3a960f080e52bc96034d6f34cd62bca2a`.
+- Historical selected plans: `b22f9c3427cc5233f6c27139d26650896cf03285`.
+- External prompt (including errata): `/root/Prompt/TileMega_R10_prompt.md`.
+- SHA256: `655fe479331d1cf771de6ecbe6b1bfdc9957847544b7b21752692d60ec3a0367`.
+- Complete implementation history: [commits.txt](closure_r11/commits.txt).
+  Evidence closure commit: `c117afb6a2ad1eb8b4f13f7bc059da32429bc8dc`.
+  The final documentation commit is identified by
+  `docs: close r10 with the unmeasured gates explicit`; its hash
+  are recoverable from `git log origin/tilemega`.
 
-## 1. Provenance and implementation status
+The new in-flight and TaskBody measurements are committed with their raw inputs
+and fitted target. They supersede the old target for subsequent work, but do
+not retroactively reprice or validate historical selected plans. Original
+fits/observations remain in `closure_r11/calibration_before_completion/` and
+`closure_r11/target_before_completion.json`. Source/fit provenance is separate
+from numerical pass/fail.
 
-Baseline: `f6c270ce09988f600a667dc2fc63f3527909c759`. Source HEAD before this evidence commit:
-`0a1abb3620d73b242a6ba7aca3677e5921641dc3`. Prompt: `/root/Prompt/TileMega_R10_prompt.md`; SHA256:
-`655fe479331d1cf771de6ecbe6b1bfdc9957847544b7b21752692d60ec3a0367` (including the user's R10 errata).
-The pre-checkpoint commit list is in [checkpoints/20260926T044401Z/commits.txt](checkpoints/20260926T044401Z/commits.txt);
-the checkpoint commit is identifiable by its message
-`docs: checkpoint the r10 implementation and running tests`.
+## 2. Gates and complete verifier output
 
-The serving frontend, batch/past semantics, real-weight packing, external-buffer
-C ABI, per-mode iteration counters, Python generation engine, GEMM collective,
-fused attention, in-flight pricing, pruning/search, measurement and reporting
-paths are implemented. This does **not** establish complete conformance:
-`AttentionMergeTaskBody.h` still reads scalar FP32 partials instead of the
-specified 16 B vectors, and the ten-cell acceptance is pending. Legacy tests
-remain separate from serving acceptance.
+NOT CHECKED/INCOMPLETE/PARTIAL explicitly mean the gate is **not passed**.
+Report-only gates retain partial evidence rather than inventing a binary result.
 
-## 2. Gates at this checkpoint
-
-PENDING means the required formal sample set is incomplete. The executable
-checker reports G-1 FAIL while K-12 lacks eight final plan SASS audits; no
-existing audit contains FP64. G-7 is an observed budget failure.
-
-| gate | status | value | evidence |
+| Gate | Status | Measured coverage / result | Evidence (relative to this directory) |
 | --- | --- | --- | --- |
-| G-1 | FAIL | 15/16 code checks | report_tables/verify_output.txt |
-| G-2 | PASS | GEMM 1344; attention 60+8; CTest 80/80 | task_body_tests/; ctest_partial_interrupted.txt; ctest_cpu_*.txt |
-| G-3 | PENDING | 0/10 | ev1/*/B*/tilemega_hf/check.json |
-| G-4 | PENDING | mode 0/10; timed 0/10 | ev1/*/B*/mode_check/mode_check.json; ev1/*/B*/result.json |
-| G-5 | PENDING | 12/20 audits; max FP64=0 | plans/*/fp64_audit.json |
-| G-6 | PENDING | incremental=True; pruning=False | incremental_equivalence/report.json; pruning_equivalence/report.json |
-| G-7 | FAIL | 12/20 plans; 12 over 600 s; max 2991.0 s | plans/*/result.json; report_tables/plans.tsv |
-| G-8 | PASS | 4/4 endpoints | floor_audit/verify_output.tsv |
-| G-9 | PENDING | 0/10; geomean=? | report_tables/requests.tsv |
-| G-10 | PENDING | request floors 4/10; points 0/30 | report_tables/request_floors.tsv; report_tables/step_ratios.tsv |
-| G-11 | PENDING | counterfactual gaps 8/10 | report_tables/gaps.tsv |
-| G-12 | PASS | sm_80=0, sm_90=0, sm_120=0 | arch_compile/results.tsv |
+| G-1 | FAIL | 15/16 structural checks; K-12 lacks current selected-plan SASS | closure_r11/verify.txt |
+| G-2 | PASS (focused backend evidence) | Current serving CTest 15/15; GEMM 1344/1344; prefill KV32 and KV64 each 8/8; decode checks retained | implementation_completion/audit.md |
+| G-3 | NOT CHECKED | Formal EV-1 0/10; four seed HF checks do not replace it | closure_r11/seed_checks/ |
+| G-4 | NOT CHECKED | Formal mode/timed-run matrix 0/10; four seed mode checks pass | closure_r11/seed_checks/ |
+| G-5 | NOT CHECKED | Current final plans 0/20; historical b22 audits 18/20, all zero FP64 | closure_r11/historical_b22/plans/*/fp64_audit.json |
+| G-6 | INCOMPLETE | Current code incremental/full 40/40, max relative error 0 (before fresh fit); historical Llama pruning ratio 1.0, Qwen unpruned timeout 5400 s | implementation_completion/incremental_final/report.json; closure_r11/historical_b22/pruning_equivalence/ |
+| G-7 | FAIL (historical); NOT CHECKED (current) | 18/18 completed b22 plans exceed 600 s; range 1145.983–5932.311 s; current final plans 0/20 | closure_r11/historical_b22/plans/*/result.json |
+| G-8 | PASS (existing CG audit) | 4/4 prescribed model/batch/past endpoints; no new final-plan audit | floor_audit/verify_output.tsv |
+| G-9 | NOT CHECKED | 0/10 same-session final comparisons; geometric mean unavailable | closure_r11/status.json |
+| G-10 | PARTIAL | 8 historical prefill/decode floor pairs; no final E2E/floor or measured three-point ratios | closure_r11/historical_b22/report_tables/request_floors.tsv |
+| G-11 | PARTIAL | Historical model estimates and one diagnostic trace; no complete measured ten-cell decomposition | checkpoints/20260926T044401Z/gaps.tsv; trace_probe.md |
+| G-12 | PASS (compile only) | sm_80, sm_90, sm_120 compile; no execution on those target architectures | implementation_completion/arch_compile.json |
 
-
-Gate evidence paths in the table are relative to this directory. The immutable
-checkpoint copies of report tables and full output are under [checkpoints/20260926T044401Z/](checkpoints/20260926T044401Z/).
-
-## 3. Complete verify.py output
+Complete `verify.py` output (exit code **1**, expected incomplete G-1):
 
 ```text
 K-1 PASS
@@ -85,14 +69,20 @@ K-2 PASS
   PASS include/tilemega/Backend/ServingGemm.h:77: solver::ServingBF16SmemBytes(TileM, TileN, TileK, Stages);
   PASS include/tilemega/Backend/ServingGemm.h:78: static_assert(sizeof(typename Mainloop::SharedStorage) <= kSharedBytes,
 K-3 PASS
-  PASS git diff f6c270ce0: 86 source files, no arch comparison outside ArchDispatch
+  PASS git diff f6c270ce0: 88 source files, no arch comparison outside ArchDispatch
   PASS no serving SM/smem literal from the forbidden list
 K-4 PASS
-  PASS include/tilemega/Backend/ServingAttentionMma.h:33: cute::SM80_16x8x16_F32BF16BF16F32_TN{},
-  PASS include/tilemega/Backend/ServingAttentionMma.h:36: using LoadA = cute::Copy_Atom<cute::SM75_U32x4_LDSM_N, Element>;
-  PASS include/tilemega/Backend/ServingAttentionMma.h:38: cute::Copy_Atom<cute::SM75_U16x8_LDSM_T, Element>,
-  PASS include/tilemega/Codegen/tasks/FusedAttentionTaskBody.h:53: // The cache path uses one 16-byte cp.async.cg per lane and never issues an
-  PASS include/tilemega/Codegen/tasks/AttentionMergeTaskBody.h:41: float weight = exp2f(lse[base] - maximum);
+  PASS include/tilemega/Backend/ServingAttentionWarp.h:15: cute::SM80_16x8x16_F32BF16BF16F32_TN{},
+  PASS include/tilemega/Backend/ServingAttentionWarp.h:28: using LoadA = cute::Copy_Atom<cute::SM75_U32x4_LDSM_N,Element>;
+  PASS include/tilemega/Backend/ServingAttentionWarp.h:30: cute::Copy_Atom<cute::SM75_U16x8_LDSM_T,Element>,
+  PASS include/tilemega/Codegen/tasks/FusedAttentionTaskBody.h:120: asm volatile("cp.async.cg.shared.global [%0], [%1], 16;"::"r"(ka),"l"(p.key_cache+offset));
+  PASS include/tilemega/Codegen/tasks/AttentionMergeTaskBody.h:44: float weight = exp2f(lse[base] - maximum);
+  PASS include/tilemega/Codegen/tasks/AttentionMergeTaskBody.h:46: float4 first = *reinterpret_cast<float4 const*>(partial + base * HeadDim + dim);
+  PASS include/tilemega/Codegen/tasks/FusedAttentionTaskBody.h:41: alignas(16) Element key[2][kKvTile*kHeadDim];
+  PASS include/tilemega/Codegen/tasks/FusedAttentionTaskBody.h:42: alignas(16) Element value[2][kKvTile*kHeadDim];
+  PASS include/tilemega/Codegen/tasks/FusedAttentionTaskBody.h:224: PV::PV(score,score_coords,s.storage.pipeline.value[slot]+warp*16*kHeadDim,output);
+  PASS include/tilemega/Codegen/tasks/FusedAttentionTaskBody.h: no /Element probability\[|float score\[/
+  PASS lib/Codegen/Codegen.cpp:266: int kv_tile = ServingAttentionKvTile(integerField(item, "width"), gemm_shared);
   PASS serving TaskBody headers: no trig or double
 K-5 PASS
   PASS include/tilemega/Codegen/tasks/ServingRuntime.cuh: no /ResetBuffersOnly/
@@ -116,17 +106,18 @@ K-7 PASS
   PASS docs/experiments/SERVING_R10/frontend_import/llama_decode_B16_seed.mlir: 32 KV position maps use literal E_c and affine c/z terms
 K-8 PASS
   PASS include/tilemega/Solver/ServingPruning.h:29: inline bool PruneServingR1(GemmConfig const& g,
-  PASS include/tilemega/Solver/ServingPruning.h:59: inline bool PruneServingR2(GemmConfig const& g,
-  PASS include/tilemega/Solver/ServingPruning.h:70: inline bool PruneServingR3(GemmConfig const& g,
-  PASS include/tilemega/Solver/ServingPruning.h:91: inline ServingSearchOrderR4 MakeServingSearchOrderR4(int resident_limit) {
+  PASS include/tilemega/Solver/ServingPruning.h:60: inline bool PruneServingR2(GemmConfig const& g,
+  PASS include/tilemega/Solver/ServingPruning.h:71: inline bool PruneServingR3(GemmConfig const& g,
+  PASS include/tilemega/Solver/ServingPruning.h:92: inline ServingSearchOrderR4 MakeServingSearchOrderR4(int resident_limit) {
   PASS include/tilemega/Solver/OperatorClasses.h:103: if(PruneServingR1(candidate,pruning)) {++domain.removed_r1;continue;}
   PASS include/tilemega/Solver/OperatorClasses.h:104: if(enable_r2 && PruneServingR2(candidate,pruning)) {++domain.removed_r2;continue;}
-  PASS lib/Solver/SkeletonSearch.cpp:393: auto serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
-  PASS lib/Solver/SkeletonSearch.cpp:112: PruneServingAttentionSmemR1(attention->width,
-  PASS lib/Solver/SkeletonSearch.cpp:384: out<<"ATTENTION_COORDINATE\t"<<start<<'\t'<<pass<<'\t'
-  PASS lib/Solver/SkeletonSearch.cpp:147: SolverPhase phase(timing,"incremental_prepare");
-  PASS lib/Solver/SkeletonSearch.cpp:178: point.candidate.score=(EvaluateFlow(low.flow->flow).makespan_ns+
-  PASS lib/Solver/SkeletonSearch.cpp:179: 4*point.candidate.score+EvaluateFlow(high.flow->flow).makespan_ns)/6;
+  PASS lib/Solver/SkeletonSearch.cpp:434: auto serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
+  PASS lib/Solver/SkeletonSearch.cpp:155: PruneServingAttentionSmemR1(attention->width,
+  PASS lib/Solver/SkeletonSearch.cpp:425: out<<"ATTENTION_COORDINATE\t"<<start<<'\t'<<pass<<'\t'
+  PASS lib/Solver/SkeletonSearch.cpp:83: if(options.incremental_prepare && hit!=serving_structures.end()) {
+  PASS lib/Solver/SkeletonSearch.cpp:82: auto hit=serving_structures.find(next_key);
+  PASS lib/Solver/SkeletonSearch.cpp:221: point.candidate.score=(EvaluateFlow(low.flow->flow).makespan_ns+
+  PASS lib/Solver/SkeletonSearch.cpp:222: 4*point.candidate.score+EvaluateFlow(high.flow->flow).makespan_ns)/6;
 K-9 PASS
   PASS lib/Solver/FlowPreparation.cpp:56: int RuntimeReleaseEndpoint(int cg_last,int consumer_task,int producer_count,
   PASS lib/Solver/FlowPreparation.cpp:61: auto bounds=codegen::RuntimeDependencyBounds(consumer_task,producer_count,
@@ -138,10 +129,10 @@ K-10 PASS
   PASS lib/Solver/StageFlowModel.cpp:61: std::optional<InflightDramServer> inflight;
   PASS lib/Solver/FluidExecutionSimulator.cpp:33: std::optional<InflightDramServer> inflight;
 K-11 PASS
-  PASS lib/Solver/SkeletonSearch.cpp:500: ? eb.evaluation.makespan_ns>0.98*ea.evaluation.makespan_ns
+  PASS lib/Solver/SkeletonSearch.cpp:541: ? eb.evaluation.makespan_ns>0.98*ea.evaluation.makespan_ns
 K-12 FAIL
   PASS docs/experiments/SERVING_R10/seed_split_price/command.txt: no /MIDPOINT_REFINE=1/
-  FAIL 12/20 solved-plan SASS audits, counts=[(PosixPath('/root/TileMega/docs/experiments/SERVING_R10/plans/qwen3_decode_B1/fp64_audit.json'), 0), (PosixPath('/root/TileMega/docs/experiments/SERVING_R10/plans/llama_decode_B8/fp64_audit.json'), 0)]
+  FAIL 0/20 current-source SASS audits; 12 historical audits, source=ce69b16de34b629183bea452a3a891ebca7b11ebdb76350f9b197ab87b6677ef
 K-13 PASS
   PASS include/tilemega/Codegen/tasks/ModelRuntime.h:332: std::uint32_t eft_past_lo = 0;
   PASS include/tilemega/Codegen/tasks/ModelRuntime.h:333: std::uint32_t eft_past_hi = 0;
@@ -162,161 +153,233 @@ K-15 PASS
 K-16 PASS
   PASS include/tilemega/Codegen/tasks/ServingEmbeddingTaskBody.h:20: int token_row, int seq, int past,
   PASS include/tilemega/Codegen/tasks/ServingArgmaxReduceTaskBody.h:25: int output_position, SharedStorage* shared) {
-  PASS include/tilemega/Codegen/tasks/ModelHarness.cuh:289: int(stage.width), p.dims.capacity, p.dims.past + p.dims.seq,
+  PASS include/tilemega/Codegen/tasks/ModelHarness.cuh:292: int(stage.width), p.dims.capacity, p.dims.past + p.dims.seq,
   PASS docs/experiments/SERVING_R10/token_sets.log: TOKENS_DISJOINT batch=2 past=64 seq=64 read_bytes=8 write_bytes=8
 G-1 FAIL: 15/16 structural checks
 ```
 
-## 4. Stops, degraded delivery, and deviations
+## 3. Stop ledger, degraded forms and deviations
 
-- **Agent pause:** requested by the user. Background experiment chains remain
-  active; process identities and exact commands are in
-  [checkpoints/20260926T044401Z/snapshot.json](checkpoints/20260926T044401Z/snapshot.json). The EV-1 queue waits for all 20
-  plans, relinks the plan tables, then runs full generation, HF/mode checks,
-  reports and the optional four-cell trace. It does not finalize repository
-  documentation or commit future results; that remains for the next resume.
-- **G-7 degradation:** all 12 completed plans exceed 600 s.
-  R10 §7.3 explicitly permits continuing while reporting G-7 FAIL.
-  No budget or search domain was relaxed for this checkpoint.
-- **Implementation gap / declared deviation:** §4.3(c) requests 16 B vector
-  reads for LSE merge. The actual implementation parallelizes output dimensions
-  but reads FP32 partials one scalar at a time and serially reduces live KV
-  blocks (`include/tilemega/Codegen/tasks/AttentionMergeTaskBody.h:27`). A
-  validated vectorized merge has not been implemented. The running plan matrix
-  measures this implementation. BE-11's full vectorization claim remains open;
-  implementing it later requires repeating affected TaskBody and plan/EV-1
-  validation. This is not a prompt-imposed exclusion.
-- The trace combines TaskBody fixed and mainloop time because trace v2 does
-  not distinguish these boundaries. It is a separate instrumented L2 diagnostic,
-  not a substitute for selected-mode uninstrumented timing.
-- No global-stop condition has been established. Qwen3's unpruned G-6 control
-  is still running; its possible timeout is not pre-labelled a pass or failure.
+| Item | Scope stopped | Reason / observed state | Unlock and estimated remaining effort |
+| --- | --- | --- | --- |
+| Historical plan matrix | Both models, prefill B16; downstream old EV-1 | User cancellation; 18/20 complete | Historical results are archived; prefer rebuilding current implementation, not accepting old kernels. |
+| Current-source matrix | Four active B1 chains plus 16 not-yet-started plans; downstream EV-1 | User cancellation; 0/20 finalized | Explicit future resumption; full solve/compile/measure matrix. Prior runtime suggests hours, not a validated current estimate. |
+| G-6 Qwen control | Unpruned equivalence result, hence complete pruning claim | 5400 s timeout (return code 124); no final winner | Profile preparation/search and complete the control; roughly 1–3 engineering days plus runs, inferred. |
+| Final EV-1 and diagnostics | Ten-cell C-1/C-2, repeat determinism, same-session vLLM, throughput/floor, remaining trace and prediction diagnostics | Queue cancelled before any formal cell completed | Resume only when final plan set exists; GPU runtime is not measured for this matrix. |
 
-## 5. End-to-end performance and absolute position
+[Process identities, commands and termination results](closure_r11/stopped_processes.json)
+and partial search logs are preserved. This is a user-directed partial closure,
+not one of the prompt's environment/global-stop conclusions.
 
-Formal EV-1: **0/10 complete**, so no R10 throughput geometric mean, C-1/C-2
-matrix result, or TileMega/vLLM end-to-end conclusion is claimed.
-SB-4's earlier vLLM ten-cell baseline and four HF self-check cells are recorded
-in `baseline/`; EV-1 will remeasure the baseline in the new session.
+Degraded forms: historical G-7 exceeds the allowed 600 s (continuation was
+permitted by §7.3); trace v2 combines fixed/mainloop work where not distinguished.
+Seed checks reuse existing generated **seed geometries** compiled against current
+headers, not final solved geometries; HF free-greedy diagnostics were skipped.
+Qwen B16 first ran out of memory before generation; that log is preserved and a
+fresh-process retry passed. No failed attempt was relabelled successful.
 
-CG-derived request floors currently cover four complete prefill/decode pairs:
+Deviation from the prescribed final matrix: it was not completed, at the user's
+explicit stop instruction. No gate threshold or sample set was relaxed. The
+prior scalar-merge omission and other backend omissions were corrected before
+this closure; see the source audit for exact implementation choices. No new
+algorithmic deviation or R11 implementation is introduced by this closure.
 
-| model | batch | prefill_floor_s | decode_floor_s | request_floor_s |
+## 4. End-to-end results (R10 §10.5)
+
+Formal EV-1 remains **0/10**. Therefore TileMega TTFT, TPOT mean/p50/p90, E2E,
+throughput, winner-mode full generation and the ten-cell throughput geometric
+mean are unavailable. The earlier SB-4 baseline below is real, but **not a
+same-session comparison with final TileMega**. Candidate single-forward times
+must not be interpreted as request latency.
+
+| Model | B | vLLM TTFT s | vLLM E2E s | vLLM TPOT s | vLLM token/s | Final TileMega / ratio |
+| --- | --- | --- | --- | --- | --- | --- |
+| llama | 1 | 0.024175202939659357 | 3.97274966200348 | 0.0038597990802187883 | 257.75598442404527 | not measured |
+| llama | 2 | 0.024665972916409373 | 4.863472284050658 | 0.004730015944412755 | 421.0983183180134 | not measured |
+| llama | 4 | 0.04198740795254707 | 4.382582632009871 | 0.004243006084122506 | 934.6087327785435 | not measured |
+| llama | 8 | 0.04437419504392892 | 4.438678314094432 | 0.004295507447752202 | 1845.5944360706194 | not measured |
+| llama | 16 | 0.05811895604711026 | 4.940374171012081 | 0.004772487991168105 | 3316.3479997393774 | not measured |
+| qwen3 | 1 | 0.0351656679995358 | 4.525899613043293 | 0.004389769252242187 | 226.25336122102908 | not measured |
+| qwen3 | 2 | 0.035793218994513154 | 5.093767000944354 | 0.004944255896334155 | 402.0600077742687 | not measured |
+| qwen3 | 4 | 0.06014536297880113 | 5.248572611017153 | 0.0050717763910443315 | 780.4026548860513 | not measured |
+| qwen3 | 8 | 0.063141203019768 | 5.551038968027569 | 0.005364513944289151 | 1475.7597716722269 | not measured |
+| qwen3 | 16 | 0.06565501797012985 | 6.171229843981564 | 0.005968303837743338 | 2654.9003058083063 | not measured |
+
+Sources: `baseline/vllm_summary.tsv` and per-run token/measurement records in
+`baseline/vllm/`. Full-generation per-step curves and final mode selection
+validation are not available for EV-1.
+
+## 5. Absolute position (R10 §10.6)
+
+These are **CG-derived historical plan floors**, not new measured request times.
+Both B16 prefill plans were cancelled, leaving eight paired request floors.
+Final `E2E / ΣT_floor` for both engines and measured p64/p575/p1086 `T/T_floor`
+comparisons are not claimed. In particular the new seed checks are correctness
+checks and provide no absolute-performance evidence.
+
+| Model | B | Prefill floor s | 1023-step decode floor s | Request floor s |
 | --- | --- | --- | --- | --- |
 | llama | 1 | 0.0025201575333437215 | 2.5955892021788984 | 2.598109359712242 |
 | llama | 2 | 0.0025222953191087662 | 2.6152610110923864 | 2.617783306411495 |
+| llama | 4 | 0.002779744412529583 | 2.6546046289193637 | 2.657384373331893 |
+| llama | 8 | 0.005559488825059166 | 2.733291864573319 | 2.738851353398378 |
 | qwen3 | 1 | 0.0035132275829130332 | 3.6551958461526737 | 3.6587090737355865 |
 | qwen3 | 2 | 0.0035207068083844403 | 3.724044739657721 | 3.7275654464661057 |
+| qwen3 | 4 | 0.004022770331201172 | 3.8617425266678156 | 3.8657652969990166 |
+| qwen3 | 8 | 0.008045540662402343 | 4.137138100688006 | 4.145183641350408 |
 
+Raw floor/point details: `closure_r11/historical_b22/report_tables/request_floors.tsv`,
+`floor_points.tsv` and CG checks in that directory. Existing weight/KV endpoint
+checks are `floor_audit/verify_output.tsv`.
 
-Final `E2E/ΣT_floor`, p64/p575/p1086 measured ratios, TTFT, TPOT mean/p50/p90,
-throughput and per-step curves remain pending EV-1. No pilot result replaces them.
+## 6. Correctness (R10 §10.7)
 
-## 6. Correctness evidence
+Current backend, existing seed geometries, 1024 generated tokens per request:
 
-G-2: GEMM **1,344/1,344** PyTorch cases; decode attention **60/60**;
-prefill attention **8/8**; all **80/80** registered CTest cases in disjoint
-logged groups. See `task_body_tests/` and `ctest_partial_reason.md`.
-G-8: weight/KV floor **4/4** endpoint checks. G-12: compilation succeeds for
-**sm_80, sm_90, sm_120** using the local nvcc; this is not execution on those GPUs.
-Incremental/full preparation agrees for **40/40** configurations with zero
-relative error (`incremental_equivalence/report.json`). Llama pruning and
-unpruned flow scores both equal **3,889,647.611 ns**, with the unpruned winner
-admitted by the pruned domain; Qwen3's matching control is pending.
+| Cell | Positions | HF gap ≤0.5 fraction | Max gap | L1/L2 mismatches | HF mean NLL |
+| --- | --- | --- | --- | --- | --- |
+| llama_B1 | 1024 | 1.0 | 0.0 | 0 | 0.08093190938234329 |
+| llama_B16 | 16384 | 1.0 | 0.125 | 0 | 0.06294780969619751 |
+| qwen3_B1 | 1024 | 1.0 | 0.0 | 0 | 0.09046763181686401 |
+| qwen3_B16 | 16384 | 1.0 | 0.125 | 0 | 0.061585210263729095 |
 
-Formal C-1 distributions, HF free-greedy divergence/NLL, C-2 mode equality and
-three-run token determinism are pending. Earlier B1 pilots and short sequence
-checks are diagnostic evidence only.
+All four integration checks pass their HF threshold and same-instance mode
+comparison: 34,816 generated positions per mode in total. `seed_checks/*` retain
+both token sequences, HF gap=0/p99/p99.9/max, position buckets, NLL, commands and
+stdout/stderr. Free-HF-greedy first-divergence positions were **not measured**
+(`--skip-free-greedy`); an empty list is not an assertion of no divergence.
+Three timed-run determinism is also not established by these checks. They do
+not close formal G-3/G-4. The four earlier vLLM HF self-checks remain in `baseline/`.
 
-## 7. Completed solver plans and resources
+Focused current-source backend results are 15/15 serving CTests, 1344/1344
+GEMM/PyTorch cases, prefill 8/8 for each KV width, and the recorded decode checks.
+Legacy CTest 80/80 coverage is historical, not newly rerun at closure.
 
-These 12/20 rows mean solving, top-3 candidate timing and selected
-plan audit completed; they do not mean full-request correctness passed.
+## 7. Solver configurations and time (R10 §10.8)
 
-| cell | solve_seconds | mode | grid | residency | kappa | ec | rq | variant_count | fp64_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| llama_prefill_B1 | 1663.6373534370214 | L1 | 128 | 1 | 1 | 1088 | 16 | 5 | 0 |
-| llama_prefill_B2 | 2990.9885147659807 | L1 | 128 | 1 | 1 | 1088 | 32 | 5 | 0 |
-| llama_decode_B1 | 1145.9828607119853 | L1 | 128 | 1 | 1 | 64 | 4 | 5 | 0 |
-| llama_decode_B2 | 1445.3676811960759 | L2 | 128 | 1 | 1 | 128 | 4 | 5 | 0 |
-| llama_decode_B4 | 1572.8573534750612 | L1 | 128 | 1 | 1 | 256 | 4 | 4 | 0 |
-| llama_decode_B8 | 1419.7960633350303 | L1 | 128 | 1 | 1 | 1088 | 4 | 5 | 0 |
-| llama_decode_B16 | 1417.5804216819815 | L1 | 128 | 1 | 1 | 1088 | 4 | 4 | 0 |
-| qwen3_prefill_B1 | 1691.533057575929 | L1 | 128 | 1 | 1 | 1088 | 16 | 4 | 0 |
-| qwen3_prefill_B2 | 2972.932516042958 | L1 | 128 | 1 | 1 | 1088 | 16 | 5 | 0 |
-| qwen3_decode_B1 | 1451.9026450649835 | L1 | 128 | 1 | 1 | 64 | 2 | 4 | 0 |
-| qwen3_decode_B2 | 1971.1001926590689 | L2 | 128 | 1 | 1 | 128 | 2 | 5 | 0 |
-| qwen3_decode_B4 | 2415.9502018699422 | L2 | 128 | 1 | 1 | 256 | 2 | 4 | 0 |
+18 completed **b22** plans include solve, top-3 candidate timing, selected plan
+and SASS audit. They do not establish full-request correctness or performance.
+All 18 exceed 600 seconds. Current-source plans have partial search/materialization
+files only; no final winner is claimed.
 
+| Historical cell | Solve s | Selected mode | Grid | Residency | κ | Ec | Rq | Variants |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| llama_prefill_B1 | 1663.6373534370214 | L1 | 128 | 1 | 1 | 1088 | 16 | 5 |
+| llama_prefill_B2 | 2990.9885147659807 | L1 | 128 | 1 | 1 | 1088 | 32 | 5 |
+| llama_prefill_B4 | 3367.3451718050055 | L1 | 128 | 1 | 1 | 1088 | 64 | 5 |
+| llama_prefill_B8 | 5932.310612546047 | L1 | 128 | 1 | 1 | 1088 | 128 | 4 |
+| llama_decode_B1 | 1145.9828607119853 | L1 | 128 | 1 | 1 | 64 | 4 | 5 |
+| llama_decode_B2 | 1445.3676811960759 | L2 | 128 | 1 | 1 | 128 | 4 | 5 |
+| llama_decode_B4 | 1572.8573534750612 | L1 | 128 | 1 | 1 | 256 | 4 | 4 |
+| llama_decode_B8 | 1419.7960633350303 | L1 | 128 | 1 | 1 | 1088 | 4 | 5 |
+| llama_decode_B16 | 1417.5804216819815 | L1 | 128 | 1 | 1 | 1088 | 4 | 4 |
+| qwen3_prefill_B1 | 1691.533057575929 | L1 | 128 | 1 | 1 | 1088 | 16 | 4 |
+| qwen3_prefill_B2 | 2972.932516042958 | L1 | 128 | 1 | 1 | 1088 | 16 | 5 |
+| qwen3_prefill_B4 | 3753.6718772719614 | L1 | 128 | 1 | 1 | 1088 | 32 | 3 |
+| qwen3_prefill_B8 | 5383.106440728996 | L2 | 128 | 1 | 1 | 1088 | 64 | 4 |
+| qwen3_decode_B1 | 1451.9026450649835 | L1 | 128 | 1 | 1 | 64 | 2 | 4 |
+| qwen3_decode_B2 | 1971.1001926590689 | L2 | 128 | 1 | 1 | 128 | 2 | 5 |
+| qwen3_decode_B4 | 2415.9502018699422 | L2 | 128 | 1 | 1 | 256 | 2 | 4 |
+| qwen3_decode_B8 | 1879.4846540309954 | L1 | 128 | 1 | 1 | 1088 | 2 | 4 |
+| qwen3_decode_B16 | 1973.134292148985 | L1 | 128 | 1 | 1 | 1088 | 2 | 5 |
 
-Full per-class tile/stages/split selections are in
-[checkpoints/20260926T044401Z/plans.tsv](checkpoints/20260926T044401Z/plans.tsv); raw plan manifests and command/results are
-in `plans/<cell>/`. Timing phases, pruning domain counts, top-3 predicted/actual
-rankings and selected L1/L2 register/shared/spill counts are in
-`solver_phases.tsv`, `pruning_domains.tsv`, `top3_rankings.tsv` and
-`kernel_resources.tsv` under the same immutable checkpoint directory.
+Per-class tile/stages/split configurations and measurements are in
+`closure_r11/historical_b22/report_tables/plans.tsv`; complete manifests,
+search rows, top-3 modes, materialization metrics and phase logs are archived
+under `closure_r11/historical_b22/plans/`. Domain counts and timings are in
+`pruning_domains.tsv` and `solver_phases.tsv`. Existing top-3 timings are
+single-forward candidate measurements, not EV-1. Current-source cache changes
+have an independent 40/40 incremental/full equality check with zero relative
+error (`implementation_completion/incremental_final/`), preceding the fresh fit.
+A full new-calibration pruning control was not run.
 
-## 8. Backend evidence
+## 8. Backend and resources (R10 §10.9)
 
-`backend_coverage.md` maps every serving operator to its implementation and
-tests, with the merge vectorization gap above. The separate GEMM mainloop
-microbenchmark (`collective_bench/result.tsv`, three fresh processes per point)
-measures about **27–32 GB/s per single CTA** for serving versus **18–21 GB/s**
-for legacy; at one CTA per SM, serving reaches **819–846 GB/s**, legacy
-**771–819 GB/s**. This is not end-to-end speedup evidence.
+[Coverage table](backend_coverage.md) and
+[implementation audit](implementation_completion/audit.md) enumerate the paths.
+The merge vectorization omission is fixed. New epilogue/attention implementation
+checks, seed architecture compilation and seed SASS records are in
+`implementation_completion/`. New seed build commands and ptxas logs are in
+`closure_r11/seeds/`; these eight seed libraries are not selected final plans.
+All 18 historical selected-plan audits show zero FP64, but none substitutes for
+the 20 missing current-source final audits. G-12 is compile-only for
+sm_80/sm_90/sm_120.
 
-The Llama B1 diagnostic trace at past575 gives effective QKV/output/gate-up/
-down/lm_head rates **254/676/864/831/929 GB/s** and attention **86 GB/s**.
-See `trace_probe.md`. Its instrumented L2 event mean is 4.316 ms, while the
-selected uninstrumented plan uses L1; the trace path reconstruction is 7.84%
-short of that instrumented mean. Three remaining trace cells are queued after
-EV-1. All 12 completed selected plans have FP64 count zero.
+The prior GEMM microbenchmark measured serving about 27–32 GB/s per CTA and
+819–846 GB/s at one CTA per SM, compared with legacy 18–21 and 771–819 GB/s
+(`collective_bench/result.tsv`). It predates the implementation correction and
+is explicitly **historical**, not a new backend throughput measurement.
+Likewise `trace_probe.md` is an old Llama B1 instrumented L2 diagnostic, not
+current final-plan bandwidth. Full final registers/smem/spill/residency and
+attention/GEMM bandwidth coverage remain incomplete.
 
-## 9. Gap decomposition and R11 inputs
+## 9. Gap decomposition and R11 inputs (R10 §10.10)
 
-Model counterfactuals currently cover eight completed decode plans in
-[checkpoints/20260926T044401Z/gaps.tsv](checkpoints/20260926T044401Z/gaps.tsv). They contain synchronization, fixed,
-contention and chain-delay terms; PG upper bounds; RMSNorm chain costs;
-attention shares; and protocol constants. They are model estimates, not
-measured decompositions. The complete ten-cell measured comparison and
-launch-gap ×1023 bounds await EV-1 and the remaining trace cells.
+Historical model counterfactuals cover eight decode plans in
+`checkpoints/20260926T044401Z/gaps.tsv`; they are model estimates. The single
+historical trace in `trace_probe.md` must not be generalized to ten new plans.
+No new complete measured decomposition is available. Consequently:
 
-## 10. Cost model
+1. RMSNorm→GEMM prelude fusion: per-layer measured two-link saving is unknown;
+   model-only chain costs are retained in the historical gaps table.
+2. PG: historical model-only `T − max(T_floor,T_np0)` is retained in that table;
+   no current ten-cell bound has been validated against measurement.
+3. Protocol constants: historical model publication/wait/hop contributions are
+   retained, with no new synchronization/race claim.
+4. Device multi-step loop: measured step-gap ×1023 is unavailable because
+   final event curves were not collected. No numerical saving is invented.
 
-The calibrated in-flight and serving TaskBody profiles and raw observations
-are in `calibration/`. `FlowPreparation.cpp` and the serving runtime use the
-shared runtime dependency-window helper. Selected-plan three-point predictions
-and flow pieces are retained in `plans/<cell>/winner.*`; post-measurement
-prediction errors and rankings will be recomputed from EV-1.
-The earlier attention workload-unit error and superseded search outputs remain
-marked in `price_audit/` and are not accepted as final performance evidence.
+These are R11 inputs with explicit missing evidence, not completed research
+conclusions. The unmeasured serving acceptance remains a prerequisite to
+comparing future optimizations against a trustworthy R10 performance baseline.
 
-## 11. Failed/open items: location and next action
+## 10. Cost model (R10 §10.11)
 
-- **G-7:** `SkeletonSearch.cpp:61-92` rebuilds the serving structure and clears
-  flow/price reuse when argmax tile-N or attention geometry changes;
-  `:99-179` prepares candidates at three past points.
-  `FlowPreparation.cpp:281-353` derives/prices uncached spaces and maps their
-  pieces; `PiecePricing.cpp:60-81` handles causal singleton fibers.
-  Top-3 full compilation adds about 300–390 s in completed plans. Preserve
-  separate structure caches for `(Ec,Rq,argmax_tile_n)`, reuse unaffected class
-  price/release data, and reuse compiled variants across related plans; validate
-  score equivalence before treating the budget as closed. Estimated work:
-  1–3 engineering days plus the required plan rerun; this is an estimate.
-- **Merge:** implement vector partial loads and shared LSE normalization while
-  keeping lowest-risk existing numerical semantics; rerun attention unit and
-  full-request checks. Estimated 0.5–1 engineering day plus experiments.
-- **Remaining gates:** no conclusions until queued samples finish. G-6 Qwen3,
-  remaining plans, full C-1/C-2, G-9, G-10 and G-11 remain explicitly open.
+Fresh current-source in-flight calibration (three repeats) and TaskBody
+calibration (nine repeats) completed before cancellation, under the shared GPU
+lock. There are **66 TaskBody observations over 12 kinds**, each at most 12
+shapes. Raw curves, target fields, exact commands and fit errors are in
+`closure_r11/` and the refreshed `calibration/`. New/old coefficient comparison:
+`closure_r11/calibration_comparison.tsv`. Fit errors are recomputed from raw
+observations (`calibration/analyze_task_bodies.py`), not inferred from a PASS flag.
 
-## 12. Scope and resume contract
+The calibrated in-flight and per-CTA curves remain measured inputs, not proof
+of final-plan prediction quality. `FlowPreparation.cpp` uses the shared runtime
+window helper; final before/after release prediction changes and measured
+p64/p575/p1086 errors were not collected. Current seed correctness checks do
+not validate cost-model ranking.
 
-No PG, tile-direct TF, synchronization primitive redesign, RMSNorm-to-GEMM
-fusion, TMA/WGMMA/tcgen05 implementation, sampling/continuous batching/block-table/tensor-parallel/quantization work, MPK scheduler/device multi-step loop,
-CUTLASS submodule change or MIDPOINT_REFINE enablement is claimed. Legacy
-continues to be checked by the existing CTest suite.
+## 11. Unmet gates: cause and next action (R10 §10.12)
 
-On resume: inspect running chain/queue outcomes, regenerate report tables,
-inspect every failed cell, finish the required final report and documentation,
-then commit and push the actual results. This checkpoint does not certify R10
-as fully completed.
+- **K-12/G-1/G-5:** the source-fingerprint guard correctly excludes old binaries.
+  `docs/experiments/SERVING_R10/verify.py` needs the complete current selected-plan
+  audit set. Rebuild/select/audit all plans when authorized; do not weaken the guard.
+- **G-6:** Qwen unpruned search timed out at 5400 s; no winning configuration
+  exists to compare. `lib/Solver/SkeletonSearch.cpp` serving search and
+  `Prepare`/`SetServingStructure` remain the profiling targets. The new
+  `(Ec,Rq,argmax tile-N)` cache fix is implemented, but complete pruning
+  equivalence with the fresh fit is not measured. Complete that control before
+  asserting pruning retains the optimum.
+- **G-7:** historical preparation dominates and top-3 full compilation adds
+  hundreds of seconds (`historical_b22/.../solver_phases.tsv`). Inspect
+  `SkeletonSearch.cpp:142` (`Prepare`), `:190` incremental preparation,
+  `FlowPreparation.cpp` and `PiecePricing.cpp`; measure cache hit/miss time and
+  compilation reuse. The existing fix does not retrospectively close the budget.
+- **G-3/G-4/G-9/G-10/G-11:** missing final plan/matrix evidence after user stop,
+  not an observed numerical or throughput failure. Resume the final protocol
+  without substituting seed checks. A budget/quality conclusion is unsupported
+  until that evidence exists.
+
+## 12. Exclusions and handoff
+
+No PG; no tile-direct TF or RMSNorm prelude fusion; no synchronization primitive
+or barrier redesign; no TMA/WGMMA/tcgen05 implementation; no sampling, speculative
+decode, continuous batching, block table, tensor parallel or quantization;
+no MPK scheduler or device multi-step loop; no CUTLASS submodule change; no
+MIDPOINT_REFINE enablement. Legacy solver/harness feature changes remain outside
+scope. Closure changes only evidence, calibration data and documentation.
+
+Raw evidence over 500 KB is losslessly gzip-compressed, with original SHA256
+in `closure_r11/compressed_raw.json`; uncompressed local copies remain under
+`/root/r10_work/r10_closure_raw/`. See `closure_r11/README.md` for reconstruction.
+The stop ledger is authoritative; all earlier running/queued wording is historical.

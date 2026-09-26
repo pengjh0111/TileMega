@@ -7932,3 +7932,40 @@ FP64 audits pass for sm_80/sm_90/sm_120 (no target-device execution claimed).
 The full current structural verifier remains 15/16: K-12 lacks current-source
 20-plan SASS evidence, so G-1 is not passed. These focused checks do not close
 EV-1 or the existing solve-budget failure.
+
+
+## F-286: User-directed partial R10 closure, with new backend integration evidence
+
+✅ verified: the corrected backend at `aac391c3a` was recalibrated with the
+in-flight benchmark and 66 serving TaskBody observations across 12 kinds.
+Raw inputs, old/new targets and independently recomputed fit errors are retained
+in `SERVING_R10/closure_r11/`; the public calibration target matches the new raw
+observations. Calibration alone does not validate selected-plan ranking.
+
+✅ verified: eight existing seed-geometry libraries were rebuilt against the
+corrected headers. Llama and Qwen3 at B=1 and B=16 each generated 1024 tokens per
+request in both modes on the same plan instances: zero mode mismatches over
+34,816 positions per mode. HF teacher-forced gap≤0.5 fraction is 1.0 in all four
+cells; max gaps are 0, 0.125, 0, 0.125 respectively. Free-greedy diagnostics were
+skipped. Qwen B16's first attempt failed allocation before generation; a fresh
+retry passed and both attempts are retained. These are seed integration checks,
+not the ten-cell final selected-plan matrix or timed-run determinism evidence.
+
+✅ verified: the b22-era selected-plan matrix reached 18/20 before termination.
+All 18 exceed 600 s (1145.983–5932.311 s); all 18 historical SASS audits report
+zero FP64. Qwen's unpruned equivalence control timed out at 5400 s and has no
+final winner. Current selected-plan SASS remains 0/20, so K-12/G-1 is not passed.
+The complete source verifier still reports 15/16 checks passing.
+
+Stated user instruction: terminate unfinished R10 tests and queues, archive
+completed work and push for the R11 handoff. ✅ verified: the 14 identified
+processes exited; no selected process survived. The two historical B16 prefill
+searches, old EV-1 queue and four current-source search chains were cancelled.
+Current plans finalized: 0/20. Formal EV-1: 0/10. No throughput geometric mean or
+new E2E/floor conclusion is available. This is a partial closure, not full R10
+acceptance. See `SERVING_R10/summary.md` and the exact process/stop ledger.
+
+⚠️ inferred next action: complete current-source plan selection and pruning
+control before comparing any R11 performance change. Profile serving Prepare
+and top-3 compilation costs; the implemented structure-cache fix cannot by
+itself establish the 600 s budget. No synchronization or race claim is added.
