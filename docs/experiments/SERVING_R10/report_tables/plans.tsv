@@ -1,0 +1,21 @@
+cell	status	solve_seconds	mode	measured_mode	measured_ms	grid	residency	kappa	ec	rq	variant_count	qkv	o	gate_up	down	lm_head	estimated_rmax	actual_rmax	flow_ns	simulated_ns	search_evaluations	price_ms	compile_ms	fp64_count	evidence
+llama_prefill_B1	complete	1663.6373534370214	L1	L1	3.6971	128	1	1	1088	16	5	(64, 32, 128, 3, 1)	(64, 32, 128, 2, 1)	(64, 128, 64, 4, 1)	(64, 32, 64, 4, 2)	(16, 256, 64, 2, 1)	1	1	4.04715e+06	4.04715e+06	5201	511847	336983	0	plans/llama_prefill_B1
+llama_prefill_B2	complete	2990.9885147659807	L1	L1	4.69347	128	1	1	1088	32	5	(128, 32, 128, 2, 1)	(64, 32, 64, 4, 1)	(128, 128, 64, 2, 1)	(128, 64, 64, 3, 4)	(16, 256, 64, 2, 1)	1	1	4.33478e+06	4.33478e+06	8198	1.47111e+06	386672	0	plans/llama_prefill_B2
+llama_prefill_B4	pending																								
+llama_prefill_B8	pending																								
+llama_prefill_B16	pending																								
+llama_decode_B1	complete	1145.9828607119853	L1	L1	3.25978	128	1	1	64	4	5	(16, 32, 64, 16, 1)	(16, 32, 128, 6, 1)	(16, 128, 64, 5, 1)	(16, 32, 128, 4, 1)	(16, 256, 64, 2, 1)	1	1	3.88965e+06	3.90785e+06	1421	218439	303380	0	plans/llama_decode_B1
+llama_decode_B2	complete	1445.3676811960759	L2	L2	5.19924	128	1	1	128	4	5	(16, 32, 64, 16, 1)	(16, 32, 128, 6, 1)	(16, 128, 64, 5, 1)	(16, 32, 128, 4, 1)	(16, 256, 64, 2, 1)	1	1	4.0407e+06	4.24425e+06	2720	435206	317134	0	plans/llama_decode_B2
+llama_decode_B4	complete	1572.8573534750612	L1	L1	4.56442	128	1	1	256	4	4	(16, 32, 64, 16, 1)	(16, 32, 128, 4, 1)	(16, 128, 64, 5, 1)	(16, 32, 128, 4, 1)	(16, 256, 64, 2, 1)	1	1	4.26361e+06	4.39124e+06	2682	601456	309643	0	plans/llama_decode_B4
+llama_decode_B8	pending																								
+llama_decode_B16	pending																								
+qwen3_prefill_B1	complete	1691.533057575929	L1	L1	6.0744	128	1	1	1088	16	4	(64, 32, 64, 4, 1)	(64, 32, 128, 2, 1)	(64, 128, 64, 4, 1)	(64, 32, 64, 4, 2)	(16, 256, 64, 2, 1)	1	1	7.09717e+06	7.09717e+06	3436	380371	313496	0	plans/qwen3_prefill_B1
+qwen3_prefill_B2	complete	2972.932516042958	L1	L1	7.20875	128	1	1	1088	16	5	(128, 32, 128, 2, 1)	(64, 32, 64, 4, 1)	(128, 128, 64, 2, 1)	(128, 64, 64, 3, 4)	(16, 256, 64, 2, 1)	1	1	7.44119e+06	7.44119e+06	5453	1.06456e+06	388673	0	plans/qwen3_prefill_B2
+qwen3_prefill_B4	pending																								
+qwen3_prefill_B8	pending																								
+qwen3_prefill_B16	pending																								
+qwen3_decode_B1	complete	1451.9026450649835	L1	L1	6.34922	128	1	1	64	2	4	(16, 32, 64, 16, 1)	(16, 32, 128, 4, 1)	(16, 128, 64, 5, 1)	(16, 32, 128, 4, 1)	(16, 256, 64, 2, 1)	1	1	6.20036e+06	6.23266e+06	1401	253141	307318	0	plans/qwen3_decode_B1
+qwen3_decode_B2	complete	1971.1001926590689	L2	L2	5.51888	128	1	1	128	2	5	(16, 32, 64, 16, 1)	(16, 32, 128, 6, 1)	(16, 128, 64, 5, 1)	(16, 32, 128, 4, 1)	(16, 256, 64, 2, 1)	1	1	6.63451e+06	6.88659e+06	2098	428120	314070	0	plans/qwen3_decode_B2
+qwen3_decode_B4	pending																								
+qwen3_decode_B8	pending																								
+qwen3_decode_B16	pending																								

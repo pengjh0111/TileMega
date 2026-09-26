@@ -34,10 +34,15 @@ def main() -> None:
         for batch in (1, 2, 4, 8, 16):
             name = f"{model}_decode_B{batch}"
             raw = WORK / name / "plan.so"
+            if not Path(str(raw) + ".plan.json").exists():
+                continue
             measured_path = Path(str(raw) + ".top3_measured.tsv")
             if not measured_path.exists():
                 continue
-            measured = min(tsv(measured_path), key=lambda row: float(row["mean_ms"]))
+            measured_rows = tsv(measured_path)
+            if not measured_rows:
+                continue  # the background search has not timed its top three yet
+            measured = min(measured_rows, key=lambda row: float(row["mean_ms"]))
             rank = int(measured["rank"])
             mode = measured["mode"]
             variant = "A" if mode == "L1" else "B"

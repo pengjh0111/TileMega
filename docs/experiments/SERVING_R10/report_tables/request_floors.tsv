@@ -1,3 +1,5 @@
 model	batch	prefill_floor_s	decode_floor_s	request_floor_s	prefill_cg	decode_cg
 llama	1	0.0025201575333437215	2.5955892021788984	2.598109359712242	/root/r10_work/plans/llama_prefill_B1/plan.so.top1.mlir	/root/r10_work/plans/llama_decode_B1/plan.so.top3.mlir
+llama	2	0.0025222953191087662	2.6152610110923864	2.617783306411495	/root/r10_work/plans/llama_prefill_B2/plan.so.top1.mlir	/root/r10_work/plans/llama_decode_B2/plan.so.top3.mlir
 qwen3	1	0.0035132275829130332	3.6551958461526737	3.6587090737355865	/root/r10_work/plans/qwen3_prefill_B1/plan.so.top1.mlir	/root/r10_work/plans/qwen3_decode_B1/plan.so.top1.mlir
+qwen3	2	0.0035207068083844403	3.724044739657721	3.7275654464661057	/root/r10_work/plans/qwen3_prefill_B2/plan.so.top1.mlir	/root/r10_work/plans/qwen3_decode_B2/plan.so.top3.mlir
