@@ -7672,3 +7672,76 @@ closure and exact missing paths are in `SOLVER_R9B/test_closure.md` and
 `SOLVER_R9B/report_tables/incomplete.json`; the raw checker output is
 `SOLVER_R9B/verify_report.log`. Independent numerical failures remain:
 static FP64, BF16 replay ranking, and the 10 ms flow/30 min solve budgets.
+
+## F-269 — Freeze the full-request baseline and its HF near-tie control
+
+✅ verified: the real-weight vLLM control uses the same frozen 64-token ID
+prefixes planned for TileMega, BF16, greedy sampling, EOS ignored, and 1024
+generated tokens. On sm_89 its 10 full-request E2E medians range from 3.973
+to 4.940 s for Llama and 4.526 to 6.171 s for Qwen3 across B=1/2/4/8/16.
+This is the initial control, not the same-session EV-1 rerun. HF teacher-forced
+checks of vLLM at B=1 and 16 pass C-1: all four cells have 100% of token gaps
+at most 0.5; their maximum gaps are 0/0.25/0.125/0.5 respectively. The
+remaining B values are measured but their HF self-check is still pending.
+Evidence: `SERVING_R10/baseline/vllm_summary.tsv`,
+`SERVING_R10/baseline/hf_selfcheck.tsv`, raw `vllm/*/measurements.json`.
+
+## F-270 — The serving CG floor counts tied weights and historical KV exactly
+
+✅ verified: CG read images give weight bytes 2,471,628,800 for Llama and
+3,441,149,952 for Qwen3, equal to the checkpoint-config calculation at
+(B,past)=(1,64) and (16,1086). Historical KV reads also match
+`B·past·kv_bytes_per_token` exactly: 2,097,152/569,376,768 bytes for Llama
+and 7,340,032/1,992,818,688 for Qwen3. At those endpoints the derived
+compute floors remain below DRAM floors (Llama 0.014/0.220 ms versus
+2.520/3.099 ms; Qwen3 0.019/0.306 ms versus 3.513/5.538 ms). This proves
+G-8 at the four specified points; the complete request floor integral remains
+to be reported with EV-1. Evidence: `SERVING_R10/floor_audit/verify_output.tsv`
+and its four raw floor dumps.
+
+## F-271 — Serving kernels use the requested SM80-class matrix path
+
+✅ verified: the new serving GEMM unit binary's SASS contains 16-byte
+`LDGSTS`, `LDSM`, and BF16 `HMMA.16816`, with zero FP64 instructions and no
+compute-sanitizer errors. The 16×128×64×2 and 16×32×64×2 mainloops cover
+predicate residues M=1/3/17 and K=2001/2048; additional mainloop shapes
+include M=64/1024. A separate Torch comparison covers prefill fused
+attention at D=64/128, with and without Q/K normalization, and R_q=16/64:
+all eight cases and 16,384 BF16 outputs per case pass the stated tolerance.
+These tests do not yet constitute the full G-2 cross-product in R10 §4.2(d).
+Evidence: `SERVING_R10/backend_probe/gemm_probe.json`,
+`SERVING_R10/task_body_tests/prefill_attention/`.
+
+## F-272 — Account for hidden GPU users before accepting timing
+
+✅ verified: NVML reported 45,991 MiB in use while the current PID namespace
+exposed only this process's 388 MiB allocation. A PID-only guard had accepted
+empty compute-app lists as exclusive. The serving and vLLM guards now require
+a visible own process and no more than 256 MiB of unaccounted device memory;
+each raw observation records visible, device, and hidden MiB. Candidate timing
+also keeps a one-element CUDA allocation alive before checking. This prevents
+the observed external GPU load from silently entering the top-3 ranking or
+EV-1 control. It may delay measurement while that load persists. Evidence:
+`SERVING_R10/gpu_guard/hidden_process_probe.jsonl` and per-candidate guards.
+
+## F-273 — Separate event iterations by mode and repair flow-time zero progress
+
+✅ verified: `tm_plan_launch` checks and increments one ticket per
+(plan instance, L1/L2 mode); both modes can run on the same instance without
+skipping an event-row ticket. Fifty new Llama subprocesses each executed an
+8-token L1/L2 pair after the single-block attention edge repair, all 50/50
+bitwise consistent. The repaired real-weight Llama B=1 seed generated 1024
+tokens with C-1 passing at gap zero, E2E median 5.068 s; the earlier 2.906 s
+number lacked the attention-to-O-projection dependency and is invalid.
+
+The Qwen3 B=16 Level 1 stall had a separate numeric cause: at absolute
+time 567,680,787.363556 ns, a remaining interval below one double ULP made
+the next due time equal the current time. A fixed 1e-6-byte completion
+tolerance could not release the task, yielding 100,000 zero-time events in
+the diagnostic run. The repaired in-flight server lazily settles unchanged
+rate classes and completes cohorts within two clock ULPs of service. The same
+single configuration now finishes with score 2,271,847,038.5698881 ns;
+this is a model score, not a GPU timing. Evidence:
+`SERVING_R10/single_block_dependency/repaired_full_generation/`,
+`SERVING_R10/single_block_dependency/fresh_processes.jsonl`,
+`SERVING_R10/search_pathology/{diagnosis.md,qwen3_b16_zero_progress.stderr,qwen3_b16_ulp.search.tsv}`.
