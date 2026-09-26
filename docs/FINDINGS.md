@@ -8138,3 +8138,15 @@ the kernel substantially. These chain spans and residual bubbles diagnose
 the instrumented schedule, not production E2E latency. The separately queued
 fixed-geometry PG ablation uses non-instrumented binaries to measure net
 performance; no PG speedup is inferred from these traces alone.
+
+## F-294: Serving in-flight calibration now covers legal pipeline depths
+
+✅ verified: the sm_89 BF16 in-flight suite sampled 442 points over stages
+2 through 16, rather than stopping at stage 4 while the selected QKV variant
+uses 16 stages. The target's monotone device curve has 83 nodes over 2 KiB
+to 11 MiB in flight, and the per-CTA curve has 27 nodes. Its top measured
+device rate is 950.2 GB/s. The target records an independent `inflight`
+section stamp, so a stale earlier fit cannot silently masquerade as this one.
+See `SERVING_R11/calibration/inflight_extended.tsv` and
+`target_inflight_extended.json`. This closes calibration *coverage* only;
+the selected GEMM classes still need the specified ±20% single-class checks.
