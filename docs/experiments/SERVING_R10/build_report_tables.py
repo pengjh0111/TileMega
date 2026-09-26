@@ -169,9 +169,39 @@ def request_table() -> list[dict[str, object]]:
     return result
 
 
+def hf_table() -> list[dict[str, object]]:
+    result = []
+    for model in ("llama", "qwen3"):
+        for batch in (1, 2, 4, 8, 16):
+            for engine, folder in (("tilemega", "tilemega_hf"),
+                                   ("vllm", "vllm_hf")):
+                path = HERE / "ev1" / model / f"B{batch}" / folder / "check.json"
+                row: dict[str, object] = {"model": model, "batch": batch,
+                                          "engine": engine, "status": "pending"}
+                if path.exists():
+                    report = json.loads(path.read_text())
+                    row.update({
+                        "status": "complete", "pass": report["pass"],
+                        "positions": report["positions"],
+                        "gap_le_half": report["gap_le_0_5_ratio"],
+                        "gap_zero": report["gap_zero_ratio"],
+                        "gap_p99": report["gap_p99"],
+                        "gap_p999": report["gap_p999"],
+                        "max_gap": report["max_gap"],
+                        "mean_nll": report["mean_nll"],
+                        "first_hf_greedy_divergence": json.dumps(
+                            report["first_hf_greedy_divergence"]),
+                        "buckets": json.dumps(report["bucket_stats"]),
+                        "evidence": str(path.relative_to(HERE)),
+                    })
+                result.append(row)
+    return result
+
+
 def main() -> None:
     plans = plan_table()
     requests = request_table()
+    hf = hf_table()
     plan_columns = ["cell", "status", "solve_seconds", "mode", "measured_mode",
                     "measured_ms", "grid", "residency", "kappa", "ec", "rq",
                     "variant_count", "qkv", "o", "gate_up", "down", "lm_head",
@@ -192,11 +222,16 @@ def main() -> None:
                        "vllm_e2e_over_floor", "evidence"]
     emit("plans.tsv", plans, plan_columns)
     emit("requests.tsv", requests, request_columns)
+    emit("hf.tsv", hf, ["model", "batch", "engine", "status", "pass",
+                        "positions", "gap_le_half", "gap_zero", "gap_p99",
+                        "gap_p999", "max_gap", "mean_nll",
+                        "first_hf_greedy_divergence", "buckets", "evidence"])
     complete = [float(row["throughput_ratio"]) for row in requests
                 if row["status"] == "complete"]
     (OUT / "status.json").write_text(json.dumps({
         "plans_complete": sum(row["status"] == "complete" for row in plans),
         "requests_complete": len(complete),
+        "hf_checks_complete": sum(row["status"] == "complete" for row in hf),
         "throughput_geomean": (math.exp(sum(map(math.log, complete)) / len(complete))
                                if len(complete) == 10 else None),
     }, indent=2) + "\n")
