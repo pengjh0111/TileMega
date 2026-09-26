@@ -9,6 +9,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'docs/experiments/SERVING_R11'))
 from analyze_page_chain import analyze
+from archive_page_vector_diagnostics import SUMMARY
 
 
 def write(path: Path, rows: list[dict]) -> None:
@@ -37,6 +38,7 @@ with tempfile.TemporaryDirectory() as temporary:
                               floor_points=floor, chain_analysis=chain,
                               chain_past=64)
     assert len(samples) == report['steps'] == 2
+    assert set(SUMMARY).issubset(report)
     assert [row['kernel_span_ns'] for row in samples] == [200, 240]
     assert [row['residual_bubble_ns_per_link'] for row in samples] == [50, 60]
     assert samples[1]['launch_gap_ns'] == report['launch_gap_p50_ns'] == 20

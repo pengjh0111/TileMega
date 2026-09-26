@@ -15,10 +15,12 @@ CELLS = (("llama", 1), ("llama", 16), ("qwen3", 1), ("qwen3", 16))
 SUMMARY = (
     "model", "batch", "steps", "measured_chain_past", "measured_chain_links",
     "measured_chain_span_ns", "measured_chain_floor_ns",
-    "measured_chain_over_floor", "measured_chain_residual_bubble_ns_per_link",
+    "measured_chain_over_floor", "measured_chain_excess_over_floor_ns",
+    "measured_chain_residual_bubble_ns_per_link",
     "page_full_and_dependency_wait_mean_cta_ns_per_step",
     "page_full_and_dependency_wait_cta_ns", "launch_gap_mean_ns",
-    "launch_gap_p50_ns",
+    "launch_gap_p50_ns", "launch_gap_p90_ns", "launch_gap_p99_ns",
+    "launch_gap_total_ns", "launch_gap_fraction_of_decode_span",
 )
 
 
@@ -96,7 +98,8 @@ def main() -> None:
         "The four cells use B=1/16 as requested. `summary.tsv` gives the realized\n"
         "chain at past=575 beside the exact CG-derived DRAM floor, the residual\n"
         "bubble per chain link, per-CTA time with a full page ring while waiting\n"
-        "for dependencies, and adjacent decode-launch gaps. Each cell's\n"
+        "for dependencies, and adjacent decode-launch gaps, including their\n"
+        "total, p90/p99, and fraction of the decode span. Each cell's\n"
         "`page_chain.tsv` retains all 1023 exact per-step floors and measurements.\n"
         "The chain length is observed at past=575 and reused as the denominator\n"
         "for other steps; it is not remeasured at every past value. Page stall\n"
