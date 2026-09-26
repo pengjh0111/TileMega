@@ -21,3 +21,4 @@ namespace tilemega::commands::wait_policy { int RunWaitPolicy(int, char**); }
 namespace tilemega::commands::wiring { int RunWiring(int, char**); }
 namespace tilemega::commands::audit_binary { int RunSass(int, char**); int RunArch(int, char**); }
 namespace tilemega::commands::device { int RunDevice(int, char**); }
+namespace tilemega::commands::calibration_suite { int RunSuite(int, char**); }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
+#include "Commands.h"
 // Phase-4 (P4.1) calibration entry point: probe the device, run the §4.4
 // microbenchmarks, and write configs/targets/<arch>.json.
 //
@@ -18,6 +19,9 @@
 namespace tilemega::commands::calibrate {
 
 int RunCalibrate(int argc, char** argv) {
+  for(int i=1;i<argc;++i)
+    if(std::string(argv[i])=="--suite" || std::string(argv[i])=="--stamps")
+      return tilemega::commands::calibration_suite::RunSuite(argc,argv);
   tilemega::analysis::IslContext isl_context;
   tilemega::calib::Options options;
   std::string output;

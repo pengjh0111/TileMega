@@ -52,6 +52,9 @@ struct TargetSpec {
     std::string source_sha256, method;
   };
   EventCalibration event_bf16, event_f32;
+  std::map<std::string, std::string> calibration_stamps;
+  std::vector<double> serving_hop_coefficients;
+
   EventCalibration const& EventCalibrationFor(std::string_view dtype) const;
   /// "sm_80" | "sm_89" | "sm_90" | "sm_120"
   std::string arch_tag;

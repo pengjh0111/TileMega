@@ -1,0 +1,17 @@
+[
+  {
+    "path": "docs/experiments/SERVING_R11/calibration/events.tsv.gz",
+    "raw_sha256": "0103f956c57872a2cb55c8f7483fe40665ddf94ee6d0fe10e5b792ae9bef6874",
+    "raw_bytes": 824034
+  },
+  {
+    "path": "docs/experiments/SERVING_R11/calibration/hop.tsv.gz",
+    "raw_sha256": "cbc85083719d05ee4e86ed6f67d25a78164ccabc92c26832d5adf943a00c70f3",
+    "raw_bytes": 711
+  },
+  {
+    "path": "docs/experiments/SERVING_R11/calibration/wait.tsv.gz",
+    "raw_sha256": "d89edce5aebc640bbb5788382f8d778576fd65ca00a644e7472d496b5a6dadf1",
+    "raw_bytes": 256
+  }
+]

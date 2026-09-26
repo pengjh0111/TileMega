@@ -76,6 +76,10 @@ void MeasureInflight(TargetSpec& spec, Options const& options, std::ostream& log
 void MeasureServingTaskBodies(TargetSpec& spec, Options const& options,
                               std::ostream& log);
 
+void MeasureServingWaitPolicy(TargetSpec&, Options const&, std::ostream&);
+void MeasureServingHop(TargetSpec&, Options const&, std::ostream&);
+void MeasureServingEvents(TargetSpec&, Options const&, std::ostream&);
+
 /// Run every group, stamp provenance, and set `calibrated`.
 void Run(TargetSpec& spec, Options const& options, std::ostream& log);
 

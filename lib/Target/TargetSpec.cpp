@@ -335,6 +335,11 @@ TargetSpec TargetSpec::Probe(int device_ordinal) {
 TargetSpec TargetSpec::FromJson(std::string const& path) {
   json::Value root = json::ParseFile(path);
   TargetSpec spec;
+  if(auto* sections=root.Find("calibration_sections"))
+    for(auto const& [name,value]:sections->AsObject("calibration_sections"))
+      spec.calibration_stamps[name]=value.At("stamp").AsString("stamp");
+  if(auto* hop=root.Find("serving_hop"))
+    spec.serving_hop_coefficients=NumberArray(*hop,"serving_hop");
   spec.arch_tag = root.At("arch_tag").AsString("arch_tag");
   spec.sm_major = static_cast<int>(root.At("sm_major").AsNumber("sm_major"));
   spec.sm_minor = static_cast<int>(root.At("sm_minor").AsNumber("sm_minor"));
@@ -439,6 +444,14 @@ TargetSpec::Calib& TargetSpec::CalibrationFor(std::string_view dtype) {
 
 std::string TargetSpec::ToJson() const {
   json::Value root(json::Object{});
+  if(!calibration_stamps.empty()) {
+    json::Value sections(json::Object{});
+    for(auto const& [name,stamp]:calibration_stamps)
+      sections.Set(name,json::Object{{"stamp",stamp}});
+    root.Set("calibration_sections",sections);
+  }
+  if(!serving_hop_coefficients.empty())
+    root.Set("serving_hop",json::Numbers(serving_hop_coefficients));
   root.Set("arch_tag", arch_tag);
   root.Set("sm_major", sm_major);
   root.Set("sm_minor", sm_minor);

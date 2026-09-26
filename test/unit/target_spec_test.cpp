@@ -4,6 +4,8 @@
 
 #include <cassert>
 #include <string>
+#include <filesystem>
+#include <unistd.h>
 
 namespace tilemega::tests::target_spec_test {
 
@@ -37,6 +39,14 @@ int TestTargetSpec(int argc, char** argv) {
   assert(sm80.CalibrationFor("bf16").wait_backoff_ns == 64);
   assert(sm80.CalibrationFor("bf16").wait_backoff_grow == 1);
   assert(sm80.ToJson().find("wait_backoff_cap_ns") != std::string::npos);
+  sm120.calibration_stamps["task_bodies"]="fixture-source-stamp";
+  sm120.serving_hop_coefficients={400.0,2.0,-1.0};
+  auto path=std::filesystem::temp_directory_path()/
+      ("tilemega-target-"+std::to_string(getpid())+".json");
+  sm120.ToJson(path.string());
+  auto restored=TargetSpec::FromJson(path.string());std::filesystem::remove(path);
+  assert(restored.calibration_stamps==sm120.calibration_stamps);
+  assert(restored.serving_hop_coefficients==sm120.serving_hop_coefficients);
   static_assert(!tilemega::arch::Caps<tilemega::arch::Sm120>::kTcgen05);
   return 0;
 

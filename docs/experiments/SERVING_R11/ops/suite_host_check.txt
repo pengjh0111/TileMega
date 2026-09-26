@@ -1,0 +1,8 @@
+Internal ctest changing into directory: /root/r11_work/build
+Test project /root/r11_work/build
+    Start 5: target_spec
+1/1 Test #5: target_spec ......................   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.02 sec

@@ -239,6 +239,7 @@ add_library(tilemega_calibration STATIC
   lib/Target/Calibration.cu
   lib/Target/InflightCalibration.cu
   lib/Target/ServingTaskCalibration.cu
+  lib/Target/ServingSyncCalibration.cu
   lib/Target/GemmCalibration.cu)
 target_link_libraries(tilemega_calibration PUBLIC TileMega::tilemega)
 set_target_properties(tilemega_calibration PROPERTIES CUDA_SEPARABLE_COMPILATION OFF)
@@ -774,6 +775,7 @@ add_library(tilemega_commands OBJECT
   tools/commands/device.cpp
   tools/commands/attention-work.cpp
   tools/commands/calibrate.cpp
+  tools/commands/calibration-suite.cpp
   tools/commands/compile.cpp
   tools/commands/derive.cpp
   tools/commands/dram-floor.cpp
@@ -810,3 +812,4 @@ add_custom_target(tilemega_fingerprint
   BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/include/tilemega/Support/BuildFingerprint.h
   VERBATIM)
 add_dependencies(tilemega tilemega_fingerprint)
+add_dependencies(tilemega_commands tilemega_fingerprint)

@@ -1,0 +1,19 @@
+{
+  "pid": 3334857,
+  "argv": [
+    "flock",
+    "/root/r10_work/serving_gpu.lock",
+    "/root/r11_work/build/tools/tilemega",
+    "calibrate",
+    "--suite",
+    "serving",
+    "--sections",
+    "wait,events,hop",
+    "--base",
+    "/root/TileMega/docs/experiments/SERVING_R11/r10_control/calibration/target_serving.json",
+    "--out",
+    "/root/r11_work/sync_target.json",
+    "--repeats",
+    "3"
+  ]
+}
