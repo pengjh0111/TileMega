@@ -8113,3 +8113,28 @@ original ten-cell R10 G-9. Every control plan missed the ten-minute solver
 budget, and Qwen3's unpruned G-6 comparison timed out at 5400 s. The earlier
 F-290 statement that paired E2E was queued described the state before these
 measurements and is superseded for the four selected cells.
+
+## F-293: PG-1 trace exposes chain bubbles, full-page stalls, and launch gaps
+
+✅ verified (instrumented execution): at decode `past=575`, the realized
+dependency chain has 135/119 links for Llama B1/B16 and 232/204 for Qwen3
+B1/B16. Its measured span versus the exact CG DRAM floor is 6.383/2.537,
+6.667/2.826, 9.985/3.573, and 10.928/4.583 ms respectively. Subtracting
+that floor and dividing by the observed link count gives 28.5/32.3/27.6/31.1
+µs per residual link. This fixed-past comparison is exact; the per-step TSV
+uses the `past=575` chain length as an explicitly labeled approximation.
+
+✅ verified (instrumented execution): across the 1023 decode launches, the
+simultaneous state "page ring full while consumer waits for dependencies"
+averages 3.552/3.744/7.229/7.372 ms per CTA per step in the same four
+cells. These durations are summed across concurrent CTAs and cannot be read
+as request wall time. The device-visible inter-launch gap has p50
+3.072/4.096/3.072/3.072 µs. See
+`SERVING_R11/page_diagnostics/summary.tsv`, four per-step TSV files, and the
+raw trace archive.
+
+⚠️ measurement limitation: trace-v2 and page-state instrumentation slow
+the kernel substantially. These chain spans and residual bubbles diagnose
+the instrumented schedule, not production E2E latency. The separately queued
+fixed-geometry PG ablation uses non-instrumented binaries to measure net
+performance; no PG speedup is inferred from these traces alone.
