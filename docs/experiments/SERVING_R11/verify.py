@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -59,6 +60,22 @@ def changed_sources():
     result = subprocess.run(['git', 'diff', '--name-only', BASELINE, '--', 'include', 'lib', 'tools', 'python'],
                             cwd=ROOT, text=True, check=True, capture_output=True)
     return [s for s in result.stdout.splitlines() if (ROOT / s).is_file()]
+
+
+def fingerprints_equal():
+    binary = Path(os.environ.get('TILEMEGA_BIN', '/root/r11_work/build/tools/tilemega'))
+    if not binary.is_file():
+        return False, [(str(binary), 0, 'missing built tilemega for fingerprint comparison')]
+    from sys import path as import_path
+    import_path.insert(0, str(ROOT / 'python'))
+    from tilemega.fingerprint import source_fingerprint
+    try:
+        version = json.loads(subprocess.check_output([str(binary), 'version', '--json'], text=True))
+        actual = source_fingerprint()
+        expected = version['source_sha256']
+    except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
+        return False, [(str(binary), 0, f'fingerprint check failed: {error}')]
+    return expected == actual, [(str(binary), 1, f'binary={expected} Python={actual}')]
 
 
 def no_arch_comparisons():
@@ -119,8 +136,7 @@ def checks():
                          absent('python/tilemega/serve.py', 'NotImplementedError'))
     ck['K-13'] = combine(require('tools/tilemega.cpp', 'source_sha256'),
                          require('python/tilemega/fingerprint.py', 'source_fingerprint'),
-                         evidence_json('ops/fingerprint_check.json', lambda d: d.get('match') is True,
-                                       'C++ and Python source fingerprints equal'))
+                         fingerprints_equal())
     ck['K-14'] = combine(require('python/tilemega/cli.py', 'calibration_sections', 'source_sha256',
                                 'features', 'plan_key', 'tilemega.serving'))
     ck['K-15'] = evidence_json('ev2/measurement_policy.json',
