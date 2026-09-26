@@ -34,7 +34,7 @@ struct SearchContext {
   std::map<int,FlowSnapshot> recent_flows;
   mlir::Attribute floor_attribute;
   ScalarType dtype;
-  int attention_kv_block=0,attention_query_rows=0;
+  int attention_kv_block=0,attention_query_rows=0,argmax_tile_n=0;
   SearchContext(frontend::ImportedSemantics input,mlir::MLIRContext& ctx,SkeletonSearchOptions const& opts)
       :imported(std::move(input)),classes(BuildOperatorClasses(imported)),resources(opts.variant_probe,opts.common.timing),context(ctx),options(opts),
        dtype(imported.lifted.sem.ops.front().dtype==analysis::ScalarType::kBF16?ScalarType::kBF16:ScalarType::kF32) {
@@ -44,10 +44,24 @@ struct SearchContext {
         attention_query_rows=stage.attention_query_rows;
         break;
       }
+    for(auto const& gemm:imported.plan.gemms)
+      if(gemm.epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial) {
+        argmax_tile_n=gemm.partial_tile_n;
+        break;
+      }
   }
-  void SetAttention(int kv_block,int query_rows) {
+  int ArgmaxTileN(std::vector<GemmConfig> const& config) const {
+    for(std::size_t c=0;c<classes.size();++c)
+      for(auto id:classes[c].gemms)
+        if(imported.plan.gemms.at(id).epilogue==
+           frontend::PlanGemm::Epilogue::kArgmaxPartial)
+          return config.at(c).tile_n;
+    throw std::runtime_error("serving plan has no argmax partial GEMM");
+  }
+  void SetServingStructure(int kv_block,int query_rows,int partial_tile_n) {
     if(!imported.plan.serving ||
-       (kv_block==attention_kv_block && query_rows==attention_query_rows))return;
+       (kv_block==attention_kv_block && query_rows==attention_query_rows &&
+        partial_tile_n==argmax_tile_n))return;
     frontend::ServingOptions requested;
     requested.phase=imported.plan.serving_seq==1
         ?frontend::ServingOptions::Phase::kDecode
@@ -56,11 +70,7 @@ struct SearchContext {
     requested.capacity=imported.plan.serving_capacity;
     requested.kv_block=kv_block;
     requested.query_rows=query_rows;
-    for(auto const& gemm:imported.plan.gemms)
-      if(gemm.epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial) {
-        requested.argmax_tile_n=gemm.partial_tile_n;
-        break;
-      }
+    requested.argmax_tile_n=partial_tile_n;
     auto plan=frontend::BuildModelPlan(imported.bridge.nodes,imported.bridge.inputs,
         imported.bridge.outputs,requested);
     imported.lifted=frontend::LiftSemantics(plan,imported.lift_options);
@@ -76,6 +86,7 @@ struct SearchContext {
         throw std::runtime_error("attention coordinate changed GEMM class order");
     classes=std::move(next_classes);
     attention_kv_block=kv_block;attention_query_rows=query_rows;
+    argmax_tile_n=partial_tile_n;
     base.reset();last_structure.reset();last_geometry.clear();floor.reset();
     floor_attribute={};recent_flows.clear();flow_cache={};
   }
@@ -86,6 +97,9 @@ struct SearchContext {
     return key;
   }
   SkeletonSolvedPoint Prepare(std::vector<GemmConfig> const& config,int kappa,int residency,int actual=0,bool materialize=false,int past_override=-1) {
+    if(imported.plan.serving)
+      SetServingStructure(attention_kv_block,attention_query_rows,
+                          ArgmaxTileN(config));
     auto* timing=options.common.timing;auto const& target=options.common.placement.target;
     if(timing)timing->candidate=Key(config,kappa,residency);
     auto estimate=resources.Estimate(classes,config,target,dtype);
@@ -167,7 +181,9 @@ struct SearchContext {
     return point.candidate;
   }
   SkeletonSolvedPoint Materialize(SkeletonCandidate const& candidate,bool pure,int actual=0) {
-    SetAttention(candidate.attention_kv_block,candidate.attention_query_rows);
+    SetServingStructure(candidate.attention_kv_block,
+                        candidate.attention_query_rows,
+                        ArgmaxTileN(candidate.config));
     auto point=Prepare(candidate.config,candidate.kappa,candidate.residency,actual,true);point.candidate.score=candidate.score;
     if(options.serving_past_lo>=0 &&
        options.serving_past_hi>=options.serving_past_lo) {
@@ -278,11 +294,40 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
   }
   std::vector<std::size_t> starts{legacy};
   if(uniform!=legacy)starts.push_back(uniform);
+  if(search.imported.plan.serving && !options.serving_warm_gemms.empty()) {
+    if(options.serving_warm_gemms.size()!=search.imported.plan.gemms.size())
+      throw std::invalid_argument("warm start GEMM count differs from imported serving plan");
+    std::vector<GemmConfig> warm;
+    warm.reserve(search.classes.size());
+    for(std::size_t c=0;c<search.classes.size();++c) {
+      auto const& members=search.classes[c].gemms;
+      auto const& first=options.serving_warm_gemms.at(members.front());
+      if(std::any_of(members.begin(),members.end(),[&](auto id){
+           return ClassGeometryKey(options.serving_warm_gemms.at(id))!=
+                  ClassGeometryKey(first);
+         }))throw std::invalid_argument("warm start disagrees within a SemSig class");
+      if(std::none_of(domains[c].begin(),domains[c].end(),[&](auto const& g){
+           return ClassGeometryKey(g)==ClassGeometryKey(first);
+         }))throw std::invalid_argument("warm start is outside the next batch's legal domain");
+      warm.push_back(first);
+    }
+    search.SetServingStructure(options.serving_warm_kv_block,
+        options.serving_warm_query_rows,search.ArgmaxTileN(warm));
+    auto index=evaluate(warm,options.serving_warm_kappa,
+                        options.serving_warm_residency);
+    if(!std::isfinite(evaluated[index].score))
+      throw std::runtime_error("warm start failed: "+evaluated[index].error);
+    if(std::find(starts.begin(),starts.end(),index)==starts.end())
+      starts.push_back(index);
+    out<<"WARM_START\taccepted\t"<<evaluated[index].key<<'\t'
+       <<evaluated[index].score<<'\n';out.flush();
+  }
   for(std::size_t start:starts) {
     auto incumbent=start;if(!std::isfinite(evaluated[incumbent].score))throw std::runtime_error("flow seed has no valid score: "+evaluated[incumbent].error);
     for(int pass=0;pass<options.passes;++pass){bool moved=false;++rounds;
       for(std::size_t c=0;c<search.classes.size();++c){auto fixed=evaluated[incumbent];int improvements=0;
-        search.SetAttention(fixed.attention_kv_block,fixed.attention_query_rows);
+        search.SetServingStructure(fixed.attention_kv_block,
+            fixed.attention_query_rows,search.ArgmaxTileN(fixed.config));
         for(auto const& g:domains[c]){auto config=fixed.config;config[c]=g;
           int residency=fixed.residency;
           int kappa=fixed.kappa;
@@ -327,15 +372,16 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
         for(int value:attention_domain) {
           int ec=decode?value:fixed.attention_kv_block;
           int rq=decode?fixed.attention_query_rows:value;
-          search.SetAttention(ec,rq);
+          search.SetServingStructure(ec,rq,search.ArgmaxTileN(fixed.config));
           auto i=evaluate(fixed.config,fixed.kappa,fixed.residency);
           if(evaluated[i].score<evaluated[incumbent].score){incumbent=i;moved=true;}
         }
         out<<"ATTENTION_COORDINATE\t"<<start<<'\t'<<pass<<'\t'
            <<(decode?"Ec":"Rq")<<'\t'<<attention_domain.size()<<'\t'
            <<evaluated[incumbent].score<<'\n';out.flush();
-        search.SetAttention(evaluated[incumbent].attention_kv_block,
-                            evaluated[incumbent].attention_query_rows);
+        search.SetServingStructure(evaluated[incumbent].attention_kv_block,
+            evaluated[incumbent].attention_query_rows,
+            search.ArgmaxTileN(evaluated[incumbent].config));
       }
       if(!search.imported.plan.serving || options.serving_pruning) {
         auto fixed=evaluated[incumbent];

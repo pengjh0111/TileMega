@@ -6,6 +6,7 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/DramFloor.h>
 
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
@@ -73,6 +74,19 @@ int main(int argc, char** argv) {
     if (gemm.epilogue == tilemega::frontend::PlanGemm::Epilogue::kArgmaxPartial)
       matched_argmax_tile = gemm.partial_tile_n == 64;
   assert(matched_argmax_tile);
+  for (int tile_n : {32, 128}) {
+    auto alternate = options;
+    alternate.argmax_tile_n = tile_n;
+    auto changed = tilemega::frontend::BuildModelPlan(
+        bridge.nodes, bridge.inputs, bridge.outputs, alternate);
+    auto head = std::find_if(changed.gemms.begin(), changed.gemms.end(),
+        [](auto const& gemm) { return gemm.epilogue ==
+            tilemega::frontend::PlanGemm::Epilogue::kArgmaxPartial; });
+    assert(head != changed.gemms.end());
+    assert(head->partial_tile_n == tile_n);
+    assert(changed.stages.back().width ==
+           (head->n + tile_n - 1) / tile_n);
+  }
   assert(attention > 0 && qkv == 4 * attention + 1);
   assert(packed_qkv && packed_gate_up && selected_final_row && tied_vocabulary);
   tilemega::frontend::LiftOptions dims;

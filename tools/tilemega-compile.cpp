@@ -212,7 +212,7 @@ int main(int argc, char** argv) {
                  "{OUTPUT.cu|OUTPUT.so} [--variants PLAN.json] [--solve TARGET.json --seq N --past N\n"
                  " --solver legacy|skeleton --legacy-seed CG.mlir --k-base 4|8|16|W\n"
                  " --search-passes 1..3 --search-jobs 1 --variant-cache DIR --flow-fixture DIR --flow-search-only 0|1\n"
-                 " --serving-pruning 0|1 --incremental-prepare 0|1\n"
+                 " --serving-pruning 0|1 --incremental-prepare 0|1 --serving-warm-start PREVIOUS.plan.json\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
                  " --segments 1|2 --segment-candidates N\n"
                  " --dump-cg FILE.mlir\n"
@@ -228,7 +228,7 @@ int main(int argc, char** argv) {
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
-    std::string serving_phase, emit_mode,measure_command;
+    std::string serving_phase, emit_mode,measure_command,serving_warm_start;
     int serving_capacity=1088,serving_batch=1,serving_past_lo=64,
         serving_past_hi=1086,serving_kv_block=256,
         serving_query_rows=64,serving_argmax_tile_n=128;
@@ -260,6 +260,7 @@ int main(int argc, char** argv) {
       else if (flag=="--serving") serving_phase=value;
       else if (flag=="--emit") emit_mode=value;
       else if (flag=="--measure-cmd") measure_command=value;
+      else if (flag=="--serving-warm-start") serving_warm_start=value;
       else if (flag=="--capacity") serving_capacity=std::stoi(value);
       else if (flag=="--batch") serving_batch=std::stoi(value);
       else if (flag=="--past-range") {
@@ -435,6 +436,35 @@ int main(int argc, char** argv) {
         skeleton.incremental_prepare=incremental_prepare;
         skeleton.serving_pruning=serving_pruning;
         skeleton.top_m=search_top_m;
+        if(!serving_warm_start.empty()) {
+          if(!serving)throw std::runtime_error("warm start needs a serving plan");
+          auto file=llvm::MemoryBuffer::getFile(serving_warm_start);
+          if(!file)throw std::runtime_error("cannot read serving warm start");
+          auto parsed=llvm::json::parse(file.get()->getBuffer());
+          auto* object=parsed?parsed->getAsObject():nullptr;
+          auto* gemms=object?object->getArray("gemms"):nullptr;
+          if(!gemms || gemms->empty())
+            throw std::runtime_error("serving warm start has no GEMM table");
+          auto integer=[](llvm::json::Object const& item,char const* name)->int {
+            auto value=item.getInteger(name);
+            if(!value)throw std::runtime_error(std::string("warm start lacks ")+name);
+            return int(*value);
+          };
+          for(auto const& item:*gemms) {
+            auto* g=item.getAsObject();
+            if(!g)throw std::runtime_error("warm start GEMM entry is not an object");
+            skeleton.serving_warm_gemms.push_back({
+                integer(*g,"tile_m"),integer(*g,"tile_n"),
+                integer(*g,"tile_k"),integer(*g,"stages"),
+                integer(*g,"split_k")});
+          }
+          skeleton.serving_warm_kappa=integer(*object,"kappa");
+          skeleton.serving_warm_residency=integer(*object,"residency");
+          skeleton.serving_warm_kv_block=int(object->getInteger("attention_kv_block")
+              .value_or(serving_kv_block));
+          skeleton.serving_warm_query_rows=int(object->getInteger("attention_query_rows")
+              .value_or(serving_query_rows));
+        }
         if(!evaluation_cases_path.empty()) {
           if(!flow_search_only)throw std::runtime_error("--evaluate-configs requires --flow-search-only 1");
           auto file=llvm::MemoryBuffer::getFile(evaluation_cases_path);
@@ -886,8 +916,31 @@ int main(int argc, char** argv) {
           return int(value.getInt());
         return fallback;
       };
+      int attention_kv_block=0,attention_query_rows=0;
+      if(auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan"))
+        if(auto stages=llvm::dyn_cast_or_null<mlir::ArrayAttr>(plan.get("stages")))
+          for(auto entry:stages)
+            if(auto stage=llvm::dyn_cast<mlir::DictionaryAttr>(entry))
+              if(auto kind=stage.getAs<mlir::StringAttr>("kind");
+                 kind && kind.getValue()=="kFusedAttention") {
+                attention_kv_block=int(stage.getAs<mlir::IntegerAttr>(
+                    "attention_kv_block").getInt());
+                attention_query_rows=int(stage.getAs<mlir::IntegerAttr>(
+                    "attention_query_rows").getInt());
+                break;
+              }
+      std::string model_name=input.parent_path().filename().string();
+      if(auto file=llvm::MemoryBuffer::getFile(
+             (input.parent_path()/"manifest.json").string())) {
+        auto parsed=llvm::json::parse(file.get()->getBuffer());
+        if(auto* manifest_object=parsed?parsed->getAsObject():nullptr)
+          if(auto* config=manifest_object->getObject("config"))
+            if(auto type=config->getString("model_type"))
+              model_name=type->str();
+      }
+      if(model_name.empty())model_name=input.stem().string();
       std::ofstream manifest(requested.string()+".plan.json");
-      manifest<<"{\n  \"model\": "<<std::quoted(input.stem().string())
+      manifest<<"{\n  \"model\": "<<std::quoted(model_name)
               <<",\n  \"phase\": "<<std::quoted(serving_phase)
               <<",\n  \"batch_lo\": "<<serving_batch
               <<",\n  \"batch_hi\": "<<serving_batch
@@ -899,6 +952,8 @@ int main(int argc, char** argv) {
               <<",\n  \"grid\": "<<integer("tmexec.solved_grid",0)
               <<",\n  \"residency\": "<<integer("tmexec.solved_residency",0)
               <<",\n  \"kappa\": "<<integer("tmexec.solved_kappa",1)
+              <<",\n  \"attention_kv_block\": "<<attention_kv_block
+              <<",\n  \"attention_query_rows\": "<<attention_query_rows
               <<",\n  \"gemms\": [\n";
       for(std::size_t i=0;i<runtime.gemms.size();++i) {
         auto const& g=runtime.gemms[i];

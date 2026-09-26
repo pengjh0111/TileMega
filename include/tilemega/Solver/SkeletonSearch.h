@@ -23,6 +23,11 @@ struct SkeletonSearchOptions {
   bool pure_template=false,search_only=false,incremental_prepare=true;
   // Verification arm: keep only the R-1 legality filter.
   bool serving_pruning=true;
+  // A previous batch's winning serving plan is the second coordinate-descent
+  // start. Entries are indexed by GEMM instance, then folded by SemSig class.
+  std::vector<GemmConfig> serving_warm_gemms;
+  int serving_warm_kappa=1,serving_warm_residency=1;
+  int serving_warm_kv_block=0,serving_warm_query_rows=0;
   std::vector<SkeletonEvaluationCase> evaluation_cases;
 };
 struct SkeletonCandidate {
