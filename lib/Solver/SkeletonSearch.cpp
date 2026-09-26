@@ -439,6 +439,18 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
             <<candidate.estimated_limit<<'\t'<<candidate.error<<'\n';
     evidence.flush();
   }
+  // Coordinate descent can finish after switching back to an already scored
+  // attention shape.  In that case all remaining candidates are memo hits and
+  // SetServingStructure has cleared base/floor without another Prepare call.
+  // Restore the best shape before reporting its floor or materializing plans.
+  if(search.imported.plan.serving && !result.evaluated.empty() &&
+     result.evaluated.front().error.empty()) {
+    auto const& best=result.evaluated.front();
+    search.SetServingStructure(best.attention_kv_block,
+        best.attention_query_rows,search.ArgmaxTileN(best.config));
+    if(!search.base || !search.floor)
+      search.Prepare(best.config,best.kappa,best.residency);
+  }
   if(search.floor && search.base) {
     auto theta=search.base->model.MetricBindings();
     std::ofstream detail(options.artifact_prefix+".floor_tensors.tsv");
@@ -450,6 +462,8 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
             <<tensor.state<<'\t'<<tensor.output<<'\n';
   }
   if(options.search_only) {
+    if(!search.floor || !search.base)
+      throw std::runtime_error("flow search has no priced configuration");
     std::ofstream floor(options.artifact_prefix+".floor.tsv");
     auto value=search.floor->Evaluate(search.base->model.MetricBindings());
     floor<<std::setprecision(17)<<"dram_ns\tcompute_ns\tfloor_ns\n"
