@@ -34,7 +34,7 @@ int RunParametric(int argc, char** argv) try {
   bool const bf16 = dtype == "bf16";
   auto scalar = bf16 ? ScalarType::kBF16 : ScalarType::kF32;
   std::string const oracle = root + "/docs/experiments/ORACLE/" + (bf16 ? "raw_bf16/" : "raw/");
-  auto target = tilemega::TargetSpec::FromJson(root + "/configs/targets/sm_89.json");
+  auto target = tilemega::TargetSpec::FromJson(root + "/configs/targets/sm_89.json");  // Fixed target fixture: this host analysis does not benchmark the local GPU.
   CostModelOptions legacy_options;
   legacy_options.unified_task_cost = false;  // Historical .cu input/price anchor.
   legacy_options.fp32_partials = bf16;

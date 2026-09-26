@@ -47,12 +47,12 @@ set_source_files_properties(lib/Analysis/CouplingDerivation.cpp PROPERTIES
 option(TILEMEGA_ENABLE_MLIR "Build the required MLIR Coupling Graph contract" ON)
 option(TILEMEGA_ENABLE_ISL
   "Build the required isl/barvinok coupling-derivation solver (Phase 3)" ON)
-set(TILEMEGA_TARGET_ARCH "auto" CACHE STRING "sm_80|sm_89|sm_90|sm_120|auto")
-set_property(CACHE TILEMEGA_TARGET_ARCH PROPERTY STRINGS auto sm_80 sm_89 sm_90 sm_120)
+set(TILEMEGA_TARGET_ARCH "auto" CACHE STRING "sm_80|sm_89|sm_90|sm_100|sm_120|auto")
+set_property(CACHE TILEMEGA_TARGET_ARCH PROPERTY STRINGS auto sm_80 sm_89 sm_90 sm_100 sm_120)
 set(TILEMEGA_TARGET_CONFIG "" CACHE PATH "target json override")
 
 if(NOT TILEMEGA_TARGET_ARCH STREQUAL "auto")
-  if(NOT TILEMEGA_TARGET_ARCH MATCHES "^sm_(80|89|90|120)$")
+  if(NOT TILEMEGA_TARGET_ARCH MATCHES "^sm_(80|89|90|100|120)$")
     message(FATAL_ERROR "Unsupported TILEMEGA_TARGET_ARCH=${TILEMEGA_TARGET_ARCH}")
   endif()
   string(REGEX REPLACE "^sm_" "" _tilemega_cuda_arch "${TILEMEGA_TARGET_ARCH}")
@@ -60,6 +60,14 @@ if(NOT TILEMEGA_TARGET_ARCH STREQUAL "auto")
 endif()
 
 find_package(CUDAToolkit REQUIRED)
+configure_file(cmake/BuildConfig.h.in include/tilemega/Support/BuildConfig.h @ONLY)
+
+function(tilemega_configure_cuda_target target)
+  if(TILEMEGA_TARGET_ARCH STREQUAL "auto")
+    set_property(TARGET ${target} PROPERTY CUDA_ARCHITECTURES OFF)
+    target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-arch=native>)
+  endif()
+endfunction()
 
 if(NOT TILEMEGA_ENABLE_MLIR)
   message(FATAL_ERROR
@@ -462,14 +470,14 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(bf16_task_body_compile_test PRIVATE TileMega::tilemega)
   target_compile_options(bf16_task_body_compile_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
-  set_property(TARGET bf16_task_body_compile_test PROPERTY CUDA_ARCHITECTURES 89)
+  tilemega_configure_cuda_target(bf16_task_body_compile_test)
   add_test(NAME bf16_task_body_compile COMMAND bf16_task_body_compile_test)
   add_executable(serving_gemm_config_test
     test/unit/serving_gemm_config_test.cu)
   target_link_libraries(serving_gemm_config_test PRIVATE TileMega::tilemega)
   target_compile_options(serving_gemm_config_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
-  set_property(TARGET serving_gemm_config_test PROPERTY CUDA_ARCHITECTURES 89)
+  tilemega_configure_cuda_target(serving_gemm_config_test)
   add_test(NAME serving_gemm_config COMMAND serving_gemm_config_test)
 
   add_test(NAME serving_pruning COMMAND tilemega-unit serving_pruning)
@@ -480,26 +488,26 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(serving_epilogue_test PRIVATE TileMega::tilemega)
   target_compile_options(serving_epilogue_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
-  set_property(TARGET serving_epilogue_test PROPERTY CUDA_ARCHITECTURES 89)
+  tilemega_configure_cuda_target(serving_epilogue_test)
   add_test(NAME serving_epilogue COMMAND serving_epilogue_test)
   add_executable(serving_gemm_task_body_test
     test/unit/serving_gemm_task_body_test.cu)
   target_link_libraries(serving_gemm_task_body_test PRIVATE TileMega::tilemega)
   target_compile_options(serving_gemm_task_body_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
-  set_property(TARGET serving_gemm_task_body_test PROPERTY CUDA_ARCHITECTURES 89)
+  tilemega_configure_cuda_target(serving_gemm_task_body_test)
   add_test(NAME serving_gemm_task_body COMMAND serving_gemm_task_body_test)
   add_executable(serving_rmsnorm_test test/unit/serving_rmsnorm_test.cu)
   target_link_libraries(serving_rmsnorm_test PRIVATE TileMega::tilemega)
-  set_property(TARGET serving_rmsnorm_test PROPERTY CUDA_ARCHITECTURES 89)
+  tilemega_configure_cuda_target(serving_rmsnorm_test)
   add_test(NAME serving_rmsnorm COMMAND serving_rmsnorm_test)
   add_executable(serving_state_tasks_test test/unit/serving_state_tasks_test.cu)
   target_link_libraries(serving_state_tasks_test PRIVATE TileMega::tilemega)
-  set_property(TARGET serving_state_tasks_test PROPERTY CUDA_ARCHITECTURES 89)
+  tilemega_configure_cuda_target(serving_state_tasks_test)
   add_test(NAME serving_state_tasks COMMAND serving_state_tasks_test)
   add_executable(serving_combine_test test/unit/serving_combine_test.cu)
   target_link_libraries(serving_combine_test PRIVATE TileMega::tilemega)
-  set_property(TARGET serving_combine_test PROPERTY CUDA_ARCHITECTURES 89)
+  tilemega_configure_cuda_target(serving_combine_test)
   add_test(NAME serving_combine COMMAND serving_combine_test)
 
   add_test(NAME serving_token_sets COMMAND tilemega-unit serving_token_sets)
@@ -509,21 +517,21 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(serving_harness_compile_test PRIVATE TileMega::tilemega)
   target_compile_options(serving_harness_compile_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
-  set_property(TARGET serving_harness_compile_test PROPERTY CUDA_ARCHITECTURES 89)
+  tilemega_configure_cuda_target(serving_harness_compile_test)
   add_test(NAME serving_harness_compile COMMAND serving_harness_compile_test)
   add_executable(serving_attention_mma_test
     test/unit/serving_attention_mma_test.cu)
   target_link_libraries(serving_attention_mma_test PRIVATE TileMega::tilemega)
   target_compile_options(serving_attention_mma_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
-  set_property(TARGET serving_attention_mma_test PROPERTY CUDA_ARCHITECTURES 89)
+  tilemega_configure_cuda_target(serving_attention_mma_test)
   add_test(NAME serving_attention_mma COMMAND serving_attention_mma_test)
   add_executable(serving_fused_attention_test
     test/unit/serving_fused_attention_test.cu)
   target_link_libraries(serving_fused_attention_test PRIVATE TileMega::tilemega)
   target_compile_options(serving_fused_attention_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
-  set_property(TARGET serving_fused_attention_test PROPERTY CUDA_ARCHITECTURES 89)
+  tilemega_configure_cuda_target(serving_fused_attention_test)
   add_test(NAME serving_fused_attention COMMAND serving_fused_attention_test)
   add_executable(serving_attention_merge_test test/unit/serving_attention_merge_test.cu)
   target_link_libraries(serving_attention_merge_test PRIVATE TileMega::tilemega)
@@ -534,14 +542,14 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(serving_attention_cases_test PRIVATE TileMega::tilemega)
   target_compile_options(serving_attention_cases_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
-  set_property(TARGET serving_attention_cases_test PROPERTY CUDA_ARCHITECTURES 89)
+  tilemega_configure_cuda_target(serving_attention_cases_test)
   add_test(NAME serving_attention_cases COMMAND serving_attention_cases_test)
   add_executable(serving_prefill_attention_test
     test/unit/serving_prefill_attention_test.cu)
   target_link_libraries(serving_prefill_attention_test PRIVATE TileMega::tilemega)
   target_compile_options(serving_prefill_attention_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
-  set_property(TARGET serving_prefill_attention_test PROPERTY CUDA_ARCHITECTURES 89)
+  tilemega_configure_cuda_target(serving_prefill_attention_test)
   add_test(NAME serving_prefill_attention COMMAND serving_prefill_attention_test)
   # Run explicitly: this numerical probe needs a CUDA device, unlike the
   # compile-only TaskBody contracts in the default CTest suite.
@@ -557,14 +565,14 @@ if(TILEMEGA_BUILD_TESTS)
     TILEMEGA_GEMM_TILE_K=16 TILEMEGA_GEMM_STAGES=3)
   target_compile_options(fused_gemm_task_body_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
-  set_property(TARGET fused_gemm_task_body_test PROPERTY CUDA_ARCHITECTURES 89)
+  tilemega_configure_cuda_target(fused_gemm_task_body_test)
 
   add_executable(fused_harness_compile_test test/unit/bf16_task_body_compile_test.cu)
   target_link_libraries(fused_harness_compile_test PRIVATE TileMega::tilemega)
   target_compile_definitions(fused_harness_compile_test PRIVATE TILEMEGA_FUSION_RUNTIME=1)
   target_compile_options(fused_harness_compile_test PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
-  set_property(TARGET fused_harness_compile_test PROPERTY CUDA_ARCHITECTURES 89)
+  tilemega_configure_cuda_target(fused_harness_compile_test)
   add_test(NAME fused_harness_compile COMMAND fused_harness_compile_test)
 
   add_test(NAME frontend_import COMMAND tilemega-unit frontend_import)
@@ -610,6 +618,17 @@ if(TILEMEGA_BUILD_TESTS)
   # Verified here -- semantic_lifting reported four unexpected differences and
   # still passed in build-portable (Release) before this loop existed.
   get_property(_tilemega_dir_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+  foreach(_tilemega_cuda_test IN LISTS _tilemega_dir_targets)
+    if(_tilemega_cuda_test MATCHES "_test$")
+      get_target_property(_tilemega_sources ${_tilemega_cuda_test} SOURCES)
+      foreach(_tilemega_source IN LISTS _tilemega_sources)
+        if(_tilemega_source MATCHES "\\.cu$")
+          tilemega_configure_cuda_target(${_tilemega_cuda_test})
+          break()
+        endif()
+      endforeach()
+    endif()
+  endforeach()
   foreach(_tilemega_target IN LISTS _tilemega_dir_targets)
     if(_tilemega_target MATCHES "_test$")
       target_compile_options(${_tilemega_target} PRIVATE -UNDEBUG)

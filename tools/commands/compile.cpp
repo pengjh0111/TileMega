@@ -1,3 +1,4 @@
+#include "Toolchain.h"
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
@@ -90,13 +91,13 @@ int queryResidency(mlir::ModuleOp module,int kappa,
       << "std::printf(\"{\\\"resident\\\":%d,\\\"l1\\\":%d,\\\"l2\\\":%d,\\\"registers_l1\\\":%d,\\\"registers_l2\\\":%d,\\\"dynamic_shared\\\":%zu,\\\"threads\\\":%d}\\n\",std::min(l1,l2),l1,l2,a.numRegs,b.numRegs,sizeof(TaskSmem),kHarnessThreads);\n}\n";
   wrapper.close();
   std::string root=TILEMEGA_SOURCE_DIR;
-  std::string nvcc=std::getenv("CUDACXX") ? std::getenv("CUDACXX") : "/usr/local/cuda/bin/nvcc";
+  std::string nvcc=tilemega::commands::NvccPath();
   std::string command=quote(nvcc)+" -std=c++17 -O2 -lineinfo -Xptxas=-v -DTILEMEGA_MIDPOINT_REFINE=0 -arch="+
       quote(options.placement.target.NvccArch());
   for (char const* sub:{"include","third_party/cutlass/include","third_party/cutlass/tools/util/include","third_party/cutlass/test"})
     command+=" -I"+quote(root+"/"+sub);
   command+=" "+quote(probe.string())+" "+quote(library.string())+
-      " -L/usr/local/cuda/lib64 -lcudart -o "+quote(binary.string());
+      " -L"+quote(tilemega::commands::CudaLibraryDirectory())+" -lcudart -o "+quote(binary.string());
   std::ofstream(directory/"build_command.txt") << command << '\n';
   if (std::system((command+" >"+quote((directory/"build.log").string())+" 2>&1").c_str()))
     throw std::runtime_error("resource probe compilation failed: "+directory.string());
@@ -887,8 +888,7 @@ int RunCompile(int argc, char** argv) {
       }
       if(!reused) {
       std::string root = TILEMEGA_SOURCE_DIR;
-      std::string nvcc = std::getenv("CUDACXX") ? std::getenv("CUDACXX") :
-                                                 "/usr/local/cuda/bin/nvcc";
+      std::string nvcc = tilemega::commands::NvccPath();
       std::string arch = tilemega::TargetSpec::Probe().NvccArch();
       std::string command = quote(nvcc) +
           " -std=c++17 -O3 -DTILEMEGA_MIDPOINT_REFINE=0 -arch="+
@@ -905,7 +905,7 @@ int RunCompile(int argc, char** argv) {
           " -x cu " + quote(root + "/lib/Dialect/CouplingGraph/PlacementPlan.cpp") +
           " -x cu " + quote(root + "/lib/Solver/BalancedPlacement.cpp") +
           " -x cu " + quote(root + "/lib/Solver/ListScheduler.cpp") +
-          " -L/usr/local/cuda/lib64 -lcudart -o " + quote(requested.string());
+          " -L"+quote(tilemega::commands::CudaLibraryDirectory())+" -lcudart -o " + quote(requested.string());
       std::ofstream(requested.string()+".build_command.txt") << command << '\n';
       int status = std::system((command+" >"+quote(requested.string()+".ptxas.log")+
           " 2>&1").c_str());

@@ -5,7 +5,7 @@ The backend ABI receives dimensions and split at runtime. Identical generated
 wrapper text therefore shares a physical compile across semantic classes and
 split values; the solver still keeps a separate semantic resource-cache entry.
 """
-import argparse, fcntl, hashlib, json, pathlib, re, shutil, subprocess
+import argparse, fcntl, hashlib, json, pathlib, re, shutil, subprocess, os
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 
 def serving_headers(source):
@@ -29,13 +29,17 @@ def serving_headers(source):
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--cache',type=pathlib.Path,required=True);ap.add_argument('--output',type=pathlib.Path,required=True)
-    ap.add_argument('--arch',default='sm_89');ap.add_argument('--dtype',choices=['bf16','f32'],default='bf16')
+    ap.add_argument('--arch');ap.add_argument('--target',type=pathlib.Path);ap.add_argument('--dtype',choices=['bf16','f32'],default='bf16')
     ap.add_argument('--tile',default='32,16,16,2');ap.add_argument('--nongemm',action='store_true')
     ap.add_argument('--serving',action='store_true')
     ap.add_argument('--head-dim',type=int,choices=(64,128),default=64)
     ap.add_argument('--qperkv',type=int,choices=(2,4),default=4)
     a=ap.parse_args();m,n,k,s=map(int,a.tile.split(','));threads=128 if a.dtype=='bf16' else 256
     if a.serving and a.dtype!='bf16':raise ValueError('serving resources require BF16')
+    if not a.arch:
+        if not a.target:ap.error('--arch or --target is required')
+        target=json.loads(a.target.read_text())
+        a.arch=f"sm_{target['sm_major']}{target['sm_minor']}"
     arch_id=int(a.arch.removeprefix('sm_'))*10
     pre=f'#define TILEMEGA_MODEL_BF16 {int(a.dtype=="bf16")}\n#define TILEMEGA_MIDPOINT_REFINE 0\n#define TILEMEGA_GEMM_TILE_M {m}\n#define TILEMEGA_GEMM_TILE_N {n}\n#define TILEMEGA_GEMM_TILE_K {k}\n#define TILEMEGA_GEMM_STAGES {s}\n'
     if a.serving:
@@ -65,7 +69,8 @@ def main():
         text+=f'extern "C" __global__ __launch_bounds__({threads}) void probe_gemm(GemmInvocation const* g,int task) {{ extern __shared__ char bytes[]; GemmStageTaskBody<tilemega::arch::CurrentArch,GemmVariantSmem,{threads}>::RunTask<0>(*g,task,bytes,nullptr); }}\n'
         size='sizeof(GemmVariantSmem)'
     text+=f'int main() {{ std::printf("%zu {threads}\\n",{size}); }}\n'
-    compiler='/usr/local/cuda/bin/nvcc'
+    compiler=os.environ.get('CUDACXX') or shutil.which('nvcc')
+    if not compiler:raise RuntimeError('nvcc not found; set CUDACXX to the configured toolkit')
     version=subprocess.check_output([compiler,'--version'],text=True)
     # Serving probes depend on a small, exact local include closure.  Hashing
     # every TaskBody made an unrelated RoPE or attention edit invalidate all

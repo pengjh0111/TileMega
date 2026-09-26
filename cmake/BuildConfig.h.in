@@ -1,0 +1,4 @@
+// Generated from the toolkit selected by CMake.
+#pragma once
+#define TILEMEGA_CONFIG_NVCC "@CUDAToolkit_NVCC_EXECUTABLE@"
+#define TILEMEGA_CONFIG_CUDA_LIBRARY_DIR "@CUDAToolkit_LIBRARY_DIR@"

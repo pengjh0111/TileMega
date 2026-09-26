@@ -25,7 +25,7 @@ int RunInterfaceProbe(int argc, char** argv) try {
   if (seq<=0) throw std::invalid_argument("sequence must be positive");
   analysis::IslContext context;
   std::string root=argv[1],name=argv[2];
-  auto target=TargetSpec::FromJson(root+"/configs/targets/sm_89.json");
+  auto target=TargetSpec::FromJson(root+"/configs/targets/sm_89.json");  // Fixed target fixture: this host analysis does not benchmark the local GPU.
   mlir::MLIRContext mlir;
   mlir.getOrLoadDialect<dialect::CGDialect>();
   mlir.getOrLoadDialect<dialect::ExecDialect>();

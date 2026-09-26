@@ -26,7 +26,7 @@ int RunScalarErrorProbe(int argc, char** argv) try {
     auto model=ModelDescription::FromCouplingGraph(*cg,{4,3,7},"gqa2");
     std::vector<GemmConfig> configs(model.gemms.size(),{128,128,16,3,1});
     auto graph=InstantiateModelTasks(model,configs);
-    auto target=TargetSpec::FromJson(std::string(argv[1])+"/configs/targets/sm_89.json");
+    auto target=TargetSpec::FromJson(std::string(argv[1])+"/configs/targets/sm_89.json");  // Fixed target fixture: this host analysis does not benchmark the local GPU.
     CostModel cost(target,model.dtype);
     if (model.exported_tensors.empty()) throw std::runtime_error("CG exported tensor visibility was lost");
     auto reject=[&](char const* name,auto&& action) {

@@ -1,3 +1,4 @@
+#include "Toolchain.h"
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
 //
@@ -267,7 +268,7 @@ void CheckTerms(std::string const& tag, TargetSpec const& spec,
 
 bool NvccPath(std::string* out) {
   char const* env = std::getenv("CUDACXX");
-  std::string const candidate = env ? env : "/usr/local/cuda/bin/nvcc";
+  std::string const candidate = tilemega::commands::NvccPath();
   std::ifstream probe(candidate);
   if (!probe.good()) return false;
   *out = candidate;

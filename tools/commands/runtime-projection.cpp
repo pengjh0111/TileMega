@@ -77,7 +77,7 @@ int RunRuntimeProjection(int argc, char** argv) try {
     auto placed=tilemega::solver::BalanceProjectedQueues(projection,theta,options.grid);
     auto concrete=model.SubstituteParams(theta);
     tilemega::solver::AttachRuntimeEventMetrics(concrete,plan,options);
-    auto target=tilemega::TargetSpec::FromJson("configs/targets/sm_89.json");
+    auto target=tilemega::TargetSpec::FromJson("configs/targets/sm_89.json");  // Fixed target fixture: this host analysis does not benchmark the local GPU.
     tilemega::solver::CostModelOptions prices;
     prices.l2_events=true; prices.kappa=options.kappa;
     tilemega::solver::CostModel cost(target,concrete.dtype,prices);

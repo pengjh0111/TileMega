@@ -19,7 +19,7 @@ int RunAttentionWork(int argc, char** argv) try {
   context.getOrLoadDialect<dialect::ExecDialect>();
   long checks=0;
   int errors=0;
-  auto target=TargetSpec::FromJson(std::string(argv[1])+"/configs/targets/sm_89.json");
+  auto target=TargetSpec::FromJson(std::string(argv[1])+"/configs/targets/sm_89.json");  // Fixed target fixture: this host analysis does not benchmark the local GPU.
   std::cout << std::setprecision(17) << "model\tseq\tpast\tchunks\tphase\ttasks\tshared_bytes\tprice_ns\n";
   for (std::string model_name:{"gqa2","mha4"}) {
     auto module=frontend::TorchExportImporter{}.Import(std::string(argv[1])+
