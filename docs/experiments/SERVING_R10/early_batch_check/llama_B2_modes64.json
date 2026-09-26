@@ -1,0 +1,19 @@
+{
+  "model": "llama",
+  "batch": 2,
+  "tokens_per_request": 64,
+  "compared_tokens": 128,
+  "mismatches": 0,
+  "first_row_prefix": [
+    13,
+    578,
+    31657,
+    315,
+    264,
+    2363,
+    11,
+    439
+  ],
+  "prefill": "/root/r10_work/plans/llama_prefill_B2/plan.so",
+  "decode": "/root/r10_work/plans/llama_decode_B2/plan.so"
+}

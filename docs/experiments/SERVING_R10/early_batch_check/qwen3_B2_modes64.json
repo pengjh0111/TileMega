@@ -1,0 +1,19 @@
+{
+  "model": "qwen3",
+  "batch": 2,
+  "tokens_per_request": 64,
+  "compared_tokens": 128,
+  "mismatches": 0,
+  "first_row_prefix": [
+    5091,
+    311,
+    279,
+    6467,
+    807,
+    3270,
+    13,
+    576
+  ],
+  "prefill": "/root/r10_work/plans/qwen3_prefill_B2/plan.so",
+  "decode": "/root/r10_work/plans/qwen3_decode_B2/plan.so"
+}
