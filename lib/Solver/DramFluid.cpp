@@ -79,50 +79,60 @@ InflightDramServer::InflightDramServer(double peak_gbps,
 int InflightDramServer::Add(double bytes,double cap,double q,int count) {
   if(!(bytes>0 && cap>0 && q>0 && count>0) || !std::isfinite(bytes) ||
      !std::isfinite(cap) || !std::isfinite(q))throw std::invalid_argument("invalid in-flight task");
-  int id=groups_.size();
-  groups_.push_back({bytes,std::min(cap,CurveAt(cta_bytes_,cta_gbps_,q)),q,0,count});
-  active_.push_back(id);rates_dirty_=true;return id;
+  Key key{std::min(cap,CurveAt(cta_bytes_,cta_gbps_,q)),q};
+  int id=groups_.size();groups_.push_back({key,count});
+  auto& state=classes_[key];
+  state.completions.emplace(state.service+bytes,id);
+  state.count+=count;active_count_+=count;rates_dirty_=true;return id;
 }
 double InflightDramServer::DeviceRate() const {
-  double sum=0;for(int id:active_)sum+=groups_[id].q*groups_[id].count;
-  return active_.empty()?0:std::min(peak_,CurveAt(inflight_bytes_,inflight_gbps_,sum));
+  double sum=0;for(auto const& [key,state]:classes_)sum+=key.second*state.count;
+  return classes_.empty()?0:std::min(peak_,CurveAt(inflight_bytes_,inflight_gbps_,sum));
 }
 void InflightDramServer::Allocate() {
   if(!rates_dirty_)return;
   double available=DeviceRate(),weight=0;
-  for(int id:active_)weight+=groups_[id].q*groups_[id].count;
-  auto sorted=active_;
-  std::sort(sorted.begin(),sorted.end(),[&](int a,int b){
-    auto const& x=groups_[a];auto const& y=groups_[b];
-    double lhs=x.cap/x.q,rhs=y.cap/y.q;
-    return lhs==rhs?a<b:lhs<rhs;
+  for(auto const& [key,state]:classes_)weight+=key.second*state.count;
+  std::vector<decltype(classes_)::iterator> sorted;
+  sorted.reserve(classes_.size());
+  for(auto it=classes_.begin();it!=classes_.end();++it)sorted.push_back(it);
+  std::sort(sorted.begin(),sorted.end(),[](auto a,auto b){
+    double lhs=a->first.first/a->first.second;
+    double rhs=b->first.first/b->first.second;
+    return lhs==rhs?a->first<b->first:lhs<rhs;
   });
-  for(int id:sorted) {
-    auto& g=groups_[id];
-    double proportional=weight>0?available*g.q/weight:0;
-    g.rate=std::min(g.cap,std::max(0.,proportional));
-    available-=g.rate*g.count;weight-=g.q*g.count;
+  for(auto it:sorted) {
+    auto const& key=it->first;auto& state=it->second;
+    double proportional=weight>0?available*key.second/weight:0;
+    state.rate=std::min(key.first,std::max(0.,proportional));
+    available-=state.rate*state.count;weight-=key.second*state.count;
   }
   rates_dirty_=false;
 }
 double InflightDramServer::Next() {
   Allocate();double next=std::numeric_limits<double>::infinity();
-  for(int id:active_)if(groups_[id].rate>0)
-    next=std::min(next,groups_[id].remaining/groups_[id].rate);
+  for(auto const& [key,state]:classes_)if(state.rate>0)
+    next=std::min(next,std::max(0.,state.completions.top().first-state.service)/state.rate);
   return next;
 }
 std::vector<int> InflightDramServer::Advance(double dt) {
   if(dt<0 || !std::isfinite(dt))throw std::invalid_argument("invalid in-flight time increment");
   Allocate();std::vector<int> done;
-  for(int id:active_) {
-    auto& g=groups_[id];double sent=std::min(g.remaining,g.rate*dt);
-    g.remaining-=sent;delivered_+=sent*g.count;
-    if(g.remaining<=1e-6) {delivered_+=g.remaining*g.count;g.remaining=0;done.push_back(id);}
+  // Identical (cap, q) groups share one service clock.  Event progression is
+  // proportional to distinct rate classes, not the active cohort count.
+  for(auto it=classes_.begin();it!=classes_.end();) {
+    auto& state=it->second;double service=state.rate*dt;
+    state.service+=service;delivered_+=service*state.count;
+    while(!state.completions.empty() &&
+          state.completions.top().first-state.service<=1e-6) {
+      auto [threshold,id]=state.completions.top();state.completions.pop();
+      delivered_+=(threshold-state.service)*groups_[id].count;
+      state.count-=groups_[id].count;active_count_-=groups_[id].count;
+      done.push_back(id);rates_dirty_=true;
+    }
+    if(state.count==0)it=classes_.erase(it);else ++it;
   }
-  if(!done.empty()) {
-    active_.erase(std::remove_if(active_.begin(),active_.end(),[&](int id){return groups_[id].remaining==0;}),active_.end());
-    rates_dirty_=true;
-  }
+  std::sort(done.begin(),done.end());
   return done;
 }
 } // namespace tilemega::solver

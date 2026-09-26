@@ -40,15 +40,24 @@ class InflightDramServer {
   int Add(double bytes,double cap,double q,int count=1);
   double Next();
   std::vector<int> Advance(double delta_ns);
-  bool Empty() const { return active_.empty(); }
+  bool Empty() const { return active_count_ == 0; }
   double Delivered() const { return delivered_; }
   double DeviceRate() const;
  private:
-  struct Group {double remaining=0,cap=0,q=0,rate=0;int count=0;};
+  using Key=std::pair<double,double>; // (per-task cap, in-flight bytes)
+  struct Group {Key key;int count=0;};
+  struct RateClass {
+    double service=0,rate=0;
+    long count=0;
+    std::priority_queue<std::pair<double,int>,
+        std::vector<std::pair<double,int>>,
+        std::greater<std::pair<double,int>>> completions;
+  };
   double peak_,delivered_=0;
   std::vector<double> inflight_bytes_,inflight_gbps_,cta_bytes_,cta_gbps_;
   std::vector<Group> groups_;
-  std::vector<int> active_;
+  std::map<Key,RateClass> classes_;
+  long active_count_=0;
   bool rates_dirty_=false;
   void Allocate();
 };

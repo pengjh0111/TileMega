@@ -31,8 +31,46 @@ static void CheckFluidClock() {
     Near(shared.Delivered(),delivered,"cap clock conserves staggered cohort bytes");
   }
 }
+static void CheckInflightClock() {
+  struct Item {double left,cap,q,rate;int count;};
+  std::vector<Item> dense;
+  InflightDramServer shared(10,{1,2},{10,10},{1,10},{20,20});
+  std::mt19937 random(1472026);double delivered=0;
+  for(int step=0;step<400;++step) {
+    if(step<20 || step%3==0) {
+      double bytes=1+random()%1000,cap=1+random()%7,q=1<<random()%3;
+      int count=1+random()%8;dense.push_back({bytes,cap,q,0,count});
+      shared.Add(bytes,cap,q,count);
+    }
+    std::vector<int> active;double weight=0;
+    for(int i=0;i<int(dense.size());++i)if(dense[i].count){active.push_back(i);weight+=dense[i].q*dense[i].count;}
+    if(active.empty())break;
+    std::sort(active.begin(),active.end(),[&](int a,int b){
+      double left=dense[a].cap/dense[a].q,right=dense[b].cap/dense[b].q;
+      return left==right?a<b:left<right;
+    });
+    double bandwidth=10,next=std::numeric_limits<double>::infinity();
+    for(int i:active) {
+      auto& x=dense[i];x.rate=std::min(x.cap,bandwidth*x.q/weight);
+      bandwidth-=x.rate*x.count;weight-=x.q*x.count;
+      next=std::min(next,x.left/x.rate);
+    }
+    Near(shared.Next(),next,"in-flight class clock versus dense weighted filling");
+    double dt=next*(step%4==0?.25:1);std::vector<int> expected;
+    for(int i:active) {
+      auto& x=dense[i];double sent=std::min(x.left,x.rate*dt);
+      x.left-=sent;delivered+=sent*x.count;
+      if(x.left<=1e-6){delivered+=x.left*x.count;x.left=0;x.count=0;expected.push_back(i);}
+    }
+    std::sort(expected.begin(),expected.end());
+    if(shared.Advance(dt)!=expected)
+      throw std::runtime_error("in-flight completion differs from dense reference");
+    Near(shared.Delivered(),delivered,"in-flight class clock conserves bytes");
+  }
+}
 int main() try {
   CheckFluidClock();
+  CheckInflightClock();
   InflightDramServer in_flight(10,{10,20},{4,8},{10,20},{10,10});
   in_flight.Add(100,10,10);Near(in_flight.DeviceRate(),4,"one CTA in-flight rate");
   in_flight.Add(100,10,10);Near(in_flight.DeviceRate(),8,"two CTA in-flight rate");
