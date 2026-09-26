@@ -8057,3 +8057,21 @@ device-visible gap between consecutive decode launches. Diagnostic binaries
 have separate trace flags; no numeric conclusion is made before their queued
 measurements finish. See `SERVING_R11/scope_amendment.md` and
 `SERVING_R11/analyze_page_chain.py`.
+
+## F-290: Eight current-source R10 controls expose the remaining solve cost
+
+✅ verified: the immutable `4bf26fb85` baseline worktree produced all eight
+Llama/Qwen3 × prefill/decode × B=1/16 control plans after recalibration. All
+eight selected L1 mode, and all eight final binaries have zero SASS FP64
+instructions. Solve wall times ranged from 1197 to 10480 seconds; both B=16
+prefill plans took over 2.7 hours. Thus the R10 600-second solve budget is
+missed in every control plan, and the plan/placement part of R11 remains
+material. The top-3 microbenchmark winner is recorded for each plan; those
+short measurements are not full-request E2E results. See
+`SERVING_R11/r10_control/plans_summary.tsv` and its source records.
+
+✅ verified limitation: Qwen3 decode B=16's pruned control completed, while
+its unpruned counterpart hit the specified 5400-second limit without a
+winner. That control cannot establish R10 G-6 pruning equivalence. The four
+paired E2E controls are queued behind the R11 fresh-process protocol tests,
+so no R10-C throughput or teacher-forced conclusion is claimed here.
