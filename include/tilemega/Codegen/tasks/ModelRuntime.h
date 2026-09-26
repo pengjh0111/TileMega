@@ -604,6 +604,22 @@ struct EventFanIn {
 /// device pointer (F-17b); nothing is passed by value into the kernel.
 /// The device-side view of a model.  Every table is reached through a device
 /// pointer (F-17b); nothing large is passed by value into the kernel.
+// Trace-only, cumulative per CTA. Times are GPU global-timer nanoseconds.
+// Transitions serialize the two relevant warp leaders, so the overlap is
+// measured as an intersection rather than inferred from separate totals.
+struct alignas(8) PageTraceRecord {
+  unsigned long long kernel_begin_ns = 0;
+  unsigned long long kernel_end_ns = 0;
+  unsigned long long last_ns = 0;
+  unsigned long long dependency_wait_ns = 0;
+  unsigned long long page_full_ns = 0;
+  unsigned long long full_and_wait_ns = 0;
+  unsigned long long dependency_episodes = 0;
+  unsigned long long page_full_episodes = 0;
+  unsigned lock = 0;
+  unsigned flags = 0;
+};
+
 struct Params {
   ModelDims dims;
   ModelElement** buffers;     ///< buffer id -> device pointer
@@ -677,6 +693,8 @@ struct Params {
   // Descriptor storage is allocated once per plan, outside the Params ring.
   void const* serving_tensor_maps = nullptr;
   std::uint8_t const* serving_no_producer = nullptr;
+  // Diagnostic-only page-ring timers. The pointer is null in normal serving.
+  PageTraceRecord* serving_page_trace = nullptr;
 };
 
 /// Everything the generator emits about one model.  The harness reads only

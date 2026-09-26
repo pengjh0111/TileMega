@@ -1,0 +1,2 @@
+sm_89 TILEMEGA_PAGE_TRACE=1: PASS
+Source: /root/r11_work/protocol/page_v2/llama_B1_pages/plan.so.cu

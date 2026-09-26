@@ -117,6 +117,7 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
 }
 __device__ inline void WaitDependencies(Params const& p,EventCounter* events,TaskRef const& task,
                                        unsigned long long iteration) {
+  if(task.wait_count && ComputeThread()==0)executor::PageTraceTransition(p.serving_page_trace ? p.serving_page_trace+blockIdx.x : nullptr,1u,true);
   for(unsigned i=ComputeThread();i<task.wait_count;i+=kComputeThreads) {
     auto const& w=p.task_waits[task.wait_begin+i];
 #if TILEMEGA_EVENT_RED_PUBLISH
@@ -127,6 +128,7 @@ __device__ inline void WaitDependencies(Params const& p,EventCounter* events,Tas
 #endif
   }
   ComputeSync();if(task.wait_count)__threadfence();
+  if(task.wait_count && ComputeThread()==0)executor::PageTraceTransition(p.serving_page_trace ? p.serving_page_trace+blockIdx.x : nullptr,1u,false);
 }
 __device__ inline void Publish(Params const& p,EventCounter* events,unsigned stage,unsigned task,
                                unsigned long long iteration) {
@@ -153,6 +155,7 @@ __device__ inline void Publish(Params const& p,EventCounter* events,unsigned sta
 __device__ inline void StageBarrier(EventCounter* events,unsigned stage,unsigned long long iteration) {
   __threadfence();ComputeSync();
   if(ComputeThread()==0) {
+
     auto ticket=atomicAdd(&events[stage].arrivals,1ull);
     if(ticket+1==static_cast<unsigned long long>(gridDim.x)*(iteration+1)) {
       __threadfence();TILEMEGA_GENERATED_NOTIFY_global(&events[stage].epoch,iteration+1);
@@ -214,15 +217,33 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
 } // namespace paged
 __global__ __launch_bounds__(160,1)
 void tilemega_l1_kernel(Params const* p,EventCounter* events,unsigned long long iteration) {
+#if TILEMEGA_PAGE_TRACE
+  if(threadIdx.x==0 && p->serving_page_trace)
+    p->serving_page_trace[blockIdx.x].kernel_begin_ns=executor::PageTraceNow();
+#endif
   extern __shared__ __align__(1024) char page_storage[];
-  paged::Ring ring{reinterpret_cast<paged::Ring::Slot*>(page_storage),page_storage+TILEMEGA_PAGE_POOL_OFFSET};ring.Initialize();
+  paged::Ring ring{reinterpret_cast<paged::Ring::Slot*>(page_storage),page_storage+TILEMEGA_PAGE_POOL_OFFSET,
+      p->serving_page_trace ? p->serving_page_trace+blockIdx.x : nullptr};ring.Initialize();
   if(executor::IsCompute())paged::Execute<false,false>(*p,events,iteration,ring,page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET);
   else paged::Execute<true,false>(*p,events,iteration,ring,page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET);
+#if TILEMEGA_PAGE_TRACE
+  if(threadIdx.x==0 && p->serving_page_trace)
+    p->serving_page_trace[blockIdx.x].kernel_end_ns=executor::PageTraceNow();
+#endif
 }
 __global__ __launch_bounds__(160,1)
 void tilemega_l2_kernel(Params const* p,EventCounter* events,unsigned long long iteration) {
+#if TILEMEGA_PAGE_TRACE
+  if(threadIdx.x==0 && p->serving_page_trace)
+    p->serving_page_trace[blockIdx.x].kernel_begin_ns=executor::PageTraceNow();
+#endif
   extern __shared__ __align__(1024) char page_storage[];
-  paged::Ring ring{reinterpret_cast<paged::Ring::Slot*>(page_storage),page_storage+TILEMEGA_PAGE_POOL_OFFSET};ring.Initialize();
+  paged::Ring ring{reinterpret_cast<paged::Ring::Slot*>(page_storage),page_storage+TILEMEGA_PAGE_POOL_OFFSET,
+      p->serving_page_trace ? p->serving_page_trace+blockIdx.x : nullptr};ring.Initialize();
   if(executor::IsCompute())paged::Execute<false,true>(*p,events,iteration,ring,page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET);
   else paged::Execute<true,true>(*p,events,iteration,ring,page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET);
+#if TILEMEGA_PAGE_TRACE
+  if(threadIdx.x==0 && p->serving_page_trace)
+    p->serving_page_trace[blockIdx.x].kernel_end_ns=executor::PageTraceNow();
+#endif
 }

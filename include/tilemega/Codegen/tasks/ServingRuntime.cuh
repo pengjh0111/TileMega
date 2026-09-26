@@ -8,6 +8,7 @@
 #include <cuda_runtime.h>
 
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <memory>
 #include <vector>
@@ -34,6 +35,7 @@ struct Plan {
   int grid = 0;
   bool pdl = false;
   executor::TensorMap* tensor_maps = nullptr;
+  PageTraceRecord* page_trace = nullptr;
   // L1 grid-barrier rows and L2 task-event rows are disjoint. Ticket equality
   // requires a gap-free sequence for each mode, even when launches alternate.
   std::uint64_t next_iteration[2] = {0, 0};
@@ -136,6 +138,24 @@ inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& 
 
 inline void Destroy(Plan* plan) {
   if (!plan) return;
+  if(plan->page_trace) {
+    if(auto path=std::getenv("TILEMEGA_PAGE_TRACE_OUT")) {
+      cudaDeviceSynchronize();
+      std::vector<PageTraceRecord> rows(std::size_t(plan->grid)*plan->steps);
+      if(cudaMemcpy(rows.data(),plan->page_trace,rows.size()*sizeof(rows[0]),
+                    cudaMemcpyDeviceToHost)==cudaSuccess)
+        if(auto* out=std::fopen(path,"w")) {
+          std::fprintf(out,"step\tworker\tkernel_begin_ns\tkernel_end_ns\tdependency_wait_ns\tpage_full_ns\tfull_and_wait_ns\tdependency_episodes\tpage_full_episodes\n");
+          for(std::size_t i=0;i<rows.size();++i)
+            std::fprintf(out,"%zu\t%zu\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\n",i/std::size_t(plan->grid),i%std::size_t(plan->grid),
+                rows[i].kernel_begin_ns,rows[i].kernel_end_ns,
+                rows[i].dependency_wait_ns,rows[i].page_full_ns,rows[i].full_and_wait_ns,
+                rows[i].dependency_episodes,rows[i].page_full_episodes);
+          std::fclose(out);
+        }
+    }
+    cudaFree(plan->page_trace);
+  }
   if (plan->ring) cudaFree(plan->ring);
   if (plan->tensor_maps) cudaFree(plan->tensor_maps);
   auto& model = plan->model;
@@ -272,6 +292,15 @@ extern "C" int tm_plan_set_steps(void* opaque,
   auto* plan = static_cast<serving::Plan*>(opaque);
   if (!plan || !past || !count || plan->ring) return -1;
   std::vector<Params> host(count, plan->model.params);
+#if TILEMEGA_PAGED && TILEMEGA_PAGE_TRACE
+  if(std::getenv("TILEMEGA_PAGE_TRACE_OUT")) {
+    std::size_t bytes=std::size_t(count)*plan->grid*sizeof(PageTraceRecord);
+    if(cudaMalloc(&plan->page_trace,bytes)!=cudaSuccess)return -5;
+    if(cudaMemset(plan->page_trace,0,bytes)!=cudaSuccess)return -6;
+    for(std::uint32_t i=0;i<count;++i)
+      host[i].serving_page_trace=plan->page_trace+std::size_t(i)*plan->grid;
+  }
+#endif
   for (std::uint32_t i = 0; i < count; ++i) {
     if (past[i] < TILEMEGA_SERVING_PAST_LO ||
         past[i] > TILEMEGA_SERVING_PAST_HI) return -2;

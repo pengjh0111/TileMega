@@ -2,6 +2,7 @@
 #pragma once
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
+#include <tilemega/Codegen/executor/PageTrace.cuh>
 
 namespace tilemega::codegen::executor {
 template<int PageBytes,int Pages,class Arch=arch::CurrentArch,bool ForceSm80=false>
@@ -12,6 +13,7 @@ struct PageRing {
   struct alignas(16) Slot { std::uint64_t full,empty,generation; };
   Slot* slots;
   char* data;
+  PageTraceRecord* trace = nullptr;
 
   __device__ void Initialize() const {
     if(ComputeThread()==0) {
@@ -31,7 +33,9 @@ struct PageRing {
   __device__ static unsigned Phase(std::uint64_t sequence) { return (sequence/Pages)&1; }
   __device__ char* Page(std::uint64_t sequence) const { return data+SlotIndex(sequence)*PageBytes; }
   __device__ void AcquireEmpty(std::uint64_t sequence) const {
+    if(LoaderLane()==0)PageTraceTransition(trace,2u,true);
     Copy::Wait(&slots[SlotIndex(sequence)].empty,Phase(sequence));
+    if(LoaderLane()==0)PageTraceTransition(trace,2u,false);
     if(LoaderLane()==0)
       *reinterpret_cast<volatile std::uint64_t*>(&slots[SlotIndex(sequence)].generation)=sequence;
   }
