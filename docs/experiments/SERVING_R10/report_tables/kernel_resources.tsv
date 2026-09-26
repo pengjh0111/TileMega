@@ -1,0 +1,11 @@
+cell	task_smem_bytes	l1_registers	l2_registers	l1_spill_store_bytes	l1_spill_load_bytes	l2_spill_store_bytes	l2_spill_load_bytes	residency	evidence
+llama_prefill_B1	98304	242	224	0	0	0	0	1	plans/llama_prefill_B1/plan.so.ptxas.log
+llama_prefill_B2	81920	255	255	124	384	156	488	1	plans/llama_prefill_B2/plan.so.ptxas.log
+llama_decode_B1	98304	202	186	0	0	0	0	1	plans/llama_decode_B1/plan.so.ptxas.log
+llama_decode_B2	98304	202	186	0	0	0	0	1	plans/llama_decode_B2/plan.so.ptxas.log
+llama_decode_B4	98304	204	186	0	0	0	0	1	plans/llama_decode_B4/plan.so.ptxas.log
+llama_decode_B8	98304	202	186	0	0	0	0	1	plans/llama_decode_B8/plan.so.ptxas.log
+qwen3_prefill_B1	98304	248	226	0	0	0	0	1	plans/qwen3_prefill_B1/plan.so.ptxas.log
+qwen3_prefill_B2	81920	255	255	124	344	228	360	1	plans/qwen3_prefill_B2/plan.so.ptxas.log
+qwen3_decode_B1	98304	210	192	0	0	0	0	1	plans/qwen3_decode_B1/plan.so.ptxas.log
+qwen3_decode_B2	98304	208	192	0	0	0	0	1	plans/qwen3_decode_B2/plan.so.ptxas.log
