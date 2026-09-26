@@ -1,0 +1,2 @@
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+tilemega-compile: inflight diagnostic: clock=567680787.363556 due=567680787.363556 classes=1 active=16

@@ -36,3 +36,16 @@ replayed grouped run both report `760352559.42175853 ns`; the grouped two-case
 replay completed in 28.4 s, including flow preparation. The interrupted Qwen3
 matrix log and replay inputs/outputs are retained here. This repairs a CPU
 evaluation stall; it is not a completed Qwen3 plan or GPU performance result.
+
+A second stall survived cohort grouping. The Qwen3 B=16 single-case diagnostic
+hit 100,000 in-flight `Next()` calls with one rate class and 16 active tasks:
+`clock=567680787.363556`, `due=567680787.363556`. At that absolute timestamp,
+the residual duration rounded below one double clock ULP. `Next()` returned
+zero; `Advance(0)` could not meet the old fixed 1e-6-byte completion tolerance,
+so the same event repeated indefinitely. The repaired server uses an absolute
+due clock, lazy class settlement, and a completion tolerance of at most two
+clock ULPs converted through that class's current rate. The identical B=16
+candidate now completes with score `2271847038.5698881 ns` in about 59 s.
+`stage_flow` retains 400 staggered-group comparisons with the dense reference;
+the numeric stall evidence is in `qwen3_b16_zero_progress.stderr` and the
+post-repair score is in `qwen3_b16_ulp.search.tsv`.

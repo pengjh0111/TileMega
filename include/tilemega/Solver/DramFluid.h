@@ -3,6 +3,7 @@
 #include <vector>
 #include <map>
 #include <queue>
+#include <limits>
 namespace tilemega::solver {
 // One group contains identical consumers. Bytes and cap are per consumer;
 // water filling accounts for multiplicity, never multiplies device bandwidth.
@@ -59,6 +60,10 @@ class InflightDramServer {
   std::map<Key,RateClass> classes_;
   long active_count_=0;
   bool rates_dirty_=false;
+  double clock_=0,synced_at_=0;
+  double next_due_=std::numeric_limits<double>::infinity();
+  double total_rate_=0;
+  void Sync();
   void Allocate();
 };
 } // namespace tilemega::solver
