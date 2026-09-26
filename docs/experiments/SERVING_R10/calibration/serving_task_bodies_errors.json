@@ -1,0 +1,110 @@
+{
+  "argmax_reduce": {
+    "byte_ns": 0.04475567175,
+    "fixed_ns": 635.6491353,
+    "flop_ns": 0,
+    "max_relative_error": 0.20794382486327312,
+    "mean_relative_error": 0.09491008104998391,
+    "median_relative_error": 0.05333045552209527,
+    "samples": 6
+  },
+  "attention_merge": {
+    "byte_ns": 0.1474666661,
+    "fixed_ns": 1586.404417,
+    "flop_ns": 0,
+    "max_relative_error": 0.15527068735494687,
+    "mean_relative_error": 0.09821313746380285,
+    "median_relative_error": 0.10562876150115948,
+    "samples": 4
+  },
+  "embedding": {
+    "byte_ns": 0.06667448456,
+    "fixed_ns": 440.320911,
+    "flop_ns": 0,
+    "max_relative_error": 0.10979010490654535,
+    "mean_relative_error": 0.0634944224143265,
+    "median_relative_error": 0.06399837985340898,
+    "samples": 4
+  },
+  "fused_attention_decode_d128": {
+    "byte_ns": 0,
+    "fixed_ns": 13668.33473,
+    "flop_ns": 0.200724777,
+    "max_relative_error": 0.0060831107185408025,
+    "mean_relative_error": 0.00469667085012483,
+    "median_relative_error": 0.005960208152043414,
+    "samples": 3
+  },
+  "fused_attention_decode_d64": {
+    "byte_ns": 0.434413861,
+    "fixed_ns": 7782.762944,
+    "flop_ns": 0,
+    "max_relative_error": 0.005427115807703503,
+    "mean_relative_error": 0.004087677897929476,
+    "median_relative_error": 0.005012336645201053,
+    "samples": 3
+  },
+  "fused_attention_prefill_d128": {
+    "byte_ns": 0.2037672488,
+    "fixed_ns": 53378.268,
+    "flop_ns": 0,
+    "max_relative_error": 0.0568845426109651,
+    "mean_relative_error": 0.03656725727099208,
+    "median_relative_error": 0.028928903019675274,
+    "samples": 3
+  },
+  "fused_attention_prefill_d64": {
+    "byte_ns": 0,
+    "fixed_ns": 24752.01993,
+    "flop_ns": 0.001125940876,
+    "max_relative_error": 0.06038830936887152,
+    "mean_relative_error": 0.038918944795966456,
+    "median_relative_error": 0.03214734746969057,
+    "samples": 3
+  },
+  "gemm_argmax_partial": {
+    "byte_ns": 0.01273879303,
+    "fixed_ns": 9351.210311,
+    "flop_ns": 0.001051349263,
+    "max_relative_error": 0.2176670740879225,
+    "mean_relative_error": 0.09661238493509627,
+    "median_relative_error": 0.08601293903046586,
+    "samples": 9
+  },
+  "gemm_residual": {
+    "byte_ns": 0.02901795896,
+    "fixed_ns": 3090.953496,
+    "flop_ns": 0.0001492050092,
+    "max_relative_error": 0.279489735154056,
+    "mean_relative_error": 0.12332296621563658,
+    "median_relative_error": 0.11183173097204956,
+    "samples": 9
+  },
+  "gemm_store": {
+    "byte_ns": 0.03014918613,
+    "fixed_ns": 2788.153388,
+    "flop_ns": 7.32252655e-05,
+    "max_relative_error": 0.29636315644270717,
+    "mean_relative_error": 0.13372301254955882,
+    "median_relative_error": 0.1348777967889271,
+    "samples": 9
+  },
+  "gemm_swiglu": {
+    "byte_ns": 0.02583030139,
+    "fixed_ns": 4569.348452,
+    "flop_ns": 0.0003109278785,
+    "max_relative_error": 0.26530359036479356,
+    "mean_relative_error": 0.10661233617782956,
+    "median_relative_error": 0.0939737868366117,
+    "samples": 9
+  },
+  "rmsnorm": {
+    "byte_ns": 0,
+    "fixed_ns": 843.6335404,
+    "flop_ns": 0.1307785003,
+    "max_relative_error": 0.1286276777473788,
+    "mean_relative_error": 0.07309125202453921,
+    "median_relative_error": 0.07368799323356984,
+    "samples": 4
+  }
+}
