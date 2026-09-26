@@ -38,7 +38,12 @@ def plan_table() -> list[dict[str, object]]:
                 directory = HERE / "plans" / cell
                 manifest = directory / "plan.so.plan.json"
                 report: dict[str, object] = {"cell": cell, "status": "pending"}
-                if not manifest.exists():
+                required = [manifest, directory / "result.json",
+                            directory / "plan.so.timing.tsv",
+                            directory / "plan.so.top3_measured.tsv",
+                            directory / "plan.so.resources.tsv",
+                            directory / "fp64_audit.json"]
+                if not all(path.exists() for path in required):
                     result.append(report)
                     continue
                 plan = json.loads(manifest.read_text())
@@ -88,6 +93,8 @@ def plan_table() -> list[dict[str, object]]:
 
 def request_table() -> list[dict[str, object]]:
     result = []
+    floors = {(row["model"], int(row["batch"])): row for row in
+              rows(OUT / "request_floors.tsv")}
     for model in ("llama", "qwen3"):
         for batch in (1, 2, 4, 8, 16):
             directory = HERE / "ev1" / model / f"B{batch}"
@@ -125,6 +132,16 @@ def request_table() -> list[dict[str, object]]:
                 "max_gap": hf["max_gap"], "c2_pass": mode["pass"],
                 "evidence": str(directory.relative_to(HERE)),
             })
+            floor = floors.get((model, batch))
+            if floor is not None:
+                floor_seconds = float(floor["request_floor_s"])
+                report.update({
+                    "prefill_floor_s": floor["prefill_floor_s"],
+                    "decode_floor_s": floor["decode_floor_s"],
+                    "request_floor_s": floor_seconds,
+                    "tilemega_e2e_over_floor": tm["e2e_seconds"] / floor_seconds,
+                    "vllm_e2e_over_floor": baseline["e2e_seconds"] / floor_seconds,
+                })
             result.append(report)
     return result
 
@@ -144,7 +161,9 @@ def main() -> None:
                        "device_step_p50_ms", "device_step_p90_ms",
                        "tilemega_tokens_per_s", "vllm_tokens_per_s",
                        "throughput_ratio", "c1_pass", "gap_le_half", "max_gap",
-                       "c2_pass", "evidence"]
+                       "c2_pass", "prefill_floor_s", "decode_floor_s",
+                       "request_floor_s", "tilemega_e2e_over_floor",
+                       "vllm_e2e_over_floor", "evidence"]
     emit("plans.tsv", plans, plan_columns)
     emit("requests.tsv", requests, request_columns)
     complete = [float(row["throughput_ratio"]) for row in requests
