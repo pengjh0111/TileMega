@@ -2,6 +2,7 @@
 """Isolate selected paged GEMM classes with the exact generated page layout."""
 from __future__ import annotations
 
+import argparse
 import fcntl
 import json
 import os
@@ -13,11 +14,20 @@ from measure_pg_ablation import LOCK, ROOT
 
 
 def main() -> None:
-    plan = Path('/root/r11_work/protocol/page_v2/llama_B1_pages/plan.so')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--plan', type=Path,
+                        default=Path('/root/r11_work/protocol/page_v2/llama_B1_pages/plan.so'))
+    parser.add_argument('--out', type=Path,
+                        default=Path('/root/r11_work/paged_class_bench'))
+    parser.add_argument('--classes', nargs='+',
+                        choices=['qkv', 'gate_up', 'down', 'lm_head'],
+                        default=['qkv', 'gate_up', 'down', 'lm_head'])
+    args = parser.parse_args()
+    plan = args.plan
     spec = json.loads(Path(str(plan) + '.plan.json').read_text())
     page = spec['pages']
-    out = Path('/root/r11_work/paged_class_bench')
-    out.mkdir(exist_ok=True)
+    out = args.out
+    out.mkdir(parents=True, exist_ok=True)
     # Each tuple is (name, variant id, physical output N, reduction K).
     # The dimensions come from the Llama 3.2 1B checkpoint, while tile shapes
     # and all shared-memory parameters are read from the generated plan.
@@ -27,6 +37,8 @@ def main() -> None:
               ('lm_head', len(spec['gemms']) - 1, 128256, 2048)]
     results = []
     for name, variant, n, k in stages:
+        if name not in args.classes:
+            continue
         geometry = spec['gemms'][variant]
         executable = out / name
         definitions = {'TILE_N': geometry['tile_n'], 'TILE_K': geometry['tile_k'],

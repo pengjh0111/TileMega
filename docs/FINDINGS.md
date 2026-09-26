@@ -8292,3 +8292,16 @@ Only 512 B is copied per cycle, so these numbers are a lower bound on a
 full-page transfer and cannot alone explain the complete GEMM regression.
 They support counting page cycles explicitly in the price model. See
 `SERVING_R11/page_handshake.md` and F-303.
+
+## F-306: The 16 KiB page helps large GEMM classes unevenly
+
+✅ verified: using the same selected Llama B1 geometry and 128-SM grid,
+changing only the page layout from ten 8 KiB pages to five 16 KiB pages
+(101376 B shared memory in both) reduced the isolated paged gate/up stage
+from 0.1540 to 0.1055 ms and lm_head from 1.9563 to 1.1203 ms. The
+corresponding old collective times were 0.1025 and 0.6200 ms. QKV remained
+about 0.030 ms paged versus 0.024 ms old, and down remained about 0.105 ms
+versus 0.055 ms old. Thus 16 KiB pages recover much of gate/up and lm_head,
+but leave down and lm_head as concrete bottlenecks. The transport benchmark
+does not assert output correctness; paged GEMM correctness is checked
+separately. See `SERVING_R11/paged_class_bench/page16.tsv` and F-302.
