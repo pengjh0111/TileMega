@@ -779,6 +779,7 @@ add_library(tilemega_commands OBJECT
   tools/commands/compile.cpp
   tools/commands/derive.cpp
   tools/commands/dram-floor.cpp
+  tools/commands/request-floor.cpp
   tools/commands/event-cost.cpp
   tools/commands/flow-audit.cpp
   tools/commands/import.cpp
