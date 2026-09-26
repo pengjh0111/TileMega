@@ -301,7 +301,9 @@ class Run:
             common = ['--model', self.model, '--prompt-ids', prompts, '--batch', batch]
             if self.config['test']['mode_check']:
                 self.command([sys.executable, '-m', 'tilemega.serving.check_modes', *common,
-                    '--prefill-so', pair['prefill'], '--decode-so', pair['decode'], '--steps', '64', '--out', cell / 'mode'], f'mode-B{batch}', gpu=True)
+                    '--prefill-so', pair['prefill'], '--decode-so', pair['decode'],
+                    '--steps', str(self.config['workload']['max_new_tokens']), '--out', cell / 'mode'],
+                    f'mode-B{batch}', gpu=True)
             if self.config['test']['hf_check']:
                 warmup = self.config['test']['warmup'];count = self.config['workload']['max_new_tokens']
                 extra = []
@@ -332,10 +334,13 @@ class Run:
                            vllm_e2e_over_floor=baseline['e2e_seconds'] / total)
             rows.append(row)
         atomic_json(self.out / 'report.json', dict(model=str(self.model), cells=rows, cache=self.events))
-        lines = ['| B | TTFT ms | E2E s | token/s | E2E/ΣT_floor | TM/vLLM |', '|---|---|---|---|---|---|']
+        lines = ['| B | TTFT ms | TPOT mean/p50/p90 ms | E2E s | token/s | E2E/ΣT_floor | TM/vLLM |',
+                 '|---|---:|---:|---:|---:|---:|---:|']
         for r in rows:
             t=r['tilemega'];ratio=r.get('throughput_ratio')
-            lines.append(f'| {r["batch"]} | {1000*t["ttft_seconds"]:.3f} | {t["e2e_seconds"]:.4f} | '
+            tpot='/'.join(f'{1000*t[name]:.3f}' for name in
+                          ('tpot_mean_seconds', 'tpot_p50_seconds', 'tpot_p90_seconds'))
+            lines.append(f'| {r["batch"]} | {1000*t["ttft_seconds"]:.3f} | {tpot} | {t["e2e_seconds"]:.4f} | '
                          f'{t["output_tokens_per_second"]:.2f} | {r["e2e_over_floor"]:.3f} | {ratio if ratio is not None else "not measured"} |')
         (self.out / 'report.md').write_text('\n'.join(lines)+'\n')
         print(self.out / 'report.md')
