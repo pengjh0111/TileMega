@@ -24,7 +24,7 @@ R11 implementation with direct evidence:
 | AR-1 | Five target-architecture compile checks and SASS branches recorded; native sm_89 only executed | `arch_primitives/` |
 | SV-18 | Two-phase paged Level 1/individual fluid modes and 8/16 KiB page-coordinate scan implemented; restricted Llama B1 CPU search ranked 16 KiB first in 86 evaluations | `solver/` |
 | TF-1 | Access proofs and IR pass implemented; real-model norm→GEMM decisions carry original input/weight buffers into the paged GEMM activation loader. Four disjoint norm handoffs now pass one IR rewrite on each real model. Stage removal/replanning, last-arriver/direct execution, and solver pricing remain open | `handoff/` |
-| OPS-2 / SY-1 | End-to-end CLI and calibrated waits implemented; full cache/run acceptance remains open. SOLO+RED+BARRIER_V2 completed 200/200 fresh-process token comparisons; its performance ablation is queued | `ops/`, `calibration/`, `sync/` |
+| OPS-2 / SY-1 | End-to-end CLI and calibrated waits implemented; full cache/run acceptance remains open. SOLO+RED+BARRIER_V2 completed 200/200 fresh-process token comparisons; fixed-geometry performance changed by less than 0.4% in the two selected cells | `ops/`, `calibration/`, `sync/`, `sync_ablation/` |
 | EV-2 | Final solved-plan matrix not yet run; fixed-geometry PG ablation completed at Llama B1 and Qwen3 B16, and both PG modes regressed against off | `pg_ablation/` |
 
 The requested PG-1 diagnostics are available for all four B endpoints in

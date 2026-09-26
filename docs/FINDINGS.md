@@ -8208,9 +8208,9 @@ full generated tokens are still open.
 in both L1 and L2 against its PG-off reference. All 200 processes exited
 successfully with token equality; none failed. This closes the separate
 SOLO+RED monotonicity/visibility check required before enabling the pair.
-The selected serving default still awaits its controlled performance
-comparison. See `SERVING_R11/sync/combo_fresh50_summary.json` and the
-complete raw process archive.
+The selected serving default was subsequently checked in F-301. See
+`SERVING_R11/sync/combo_fresh50_summary.json` and the complete raw process
+archive.
 
 ## F-300: The first fixed-geometry PG control regresses despite passing the page protocol
 
@@ -8230,3 +8230,15 @@ control holds geometry fixed and changes only page size from 8 to 16 KiB;
 the code sites under investigation are `PagedGemmTaskBody::Load` and
 `PageRing::AcquireEmpty/AwaitFull`. See `SERVING_R11/pg_ablation/` and
 `SERVING_R11/page_diagnostics/pg_chain_classes.tsv`.
+
+## F-301: The optional publication combination does not explain the page regression
+
+✅ verified: with fixed paged geometry and L2 placement, enabling
+`EVENT_SOLO + EVENT_RED_PUBLISH + BARRIER_V2` changed 1024-token E2E from
+6.3364 to 6.3170 s for Llama B=1 and from 10.9173 to 10.9083 s for Qwen3
+B=16. Both differences are below 0.4%. The predeclared ownership and
+idle-power guard accepted all four three-repeat runs, and all timed token
+outputs matched. This is a single controlled session, not a paired interval.
+The page regression in F-300 therefore remains localized to a different
+cost, with fixed-page-size and isolated class measurements pending. See
+`SERVING_R11/sync_ablation/`.
