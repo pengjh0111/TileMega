@@ -19,6 +19,7 @@
     "passes": 2,
     "top_m": 8,
     "measure_top": 3,
+    "jobs": 3,
     "mode": "auto",
     "pruning": true,
     "time_budget_s": 600

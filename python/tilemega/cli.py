@@ -21,7 +21,7 @@ DEFAULTS = {
     'workload': dict(batch=[1, 16], prompt_len=64, max_new_tokens=1024,
                      prompts='docs/experiments/SERVING_R10/prompts/passages.jsonl'),
     'device': dict(index=0, cache_dir='~/.cache/tilemega'),
-    'solver': dict(passes=2, top_m=8, measure_top=3, mode='auto', pruning=True, time_budget_s=600),
+    'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='auto', pruning=True, time_budget_s=600),
     'features': dict(pg='auto', handoff='auto', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='row'),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
                  vllm_python='/root/venv_vllm/bin/python'),
@@ -45,6 +45,8 @@ def read_config(path: Path) -> dict:
         raise ValueError('the serving exporter currently supports prompt_len=64')
     if config['solver']['measure_top'] != 3:
         raise ValueError('the serving compiler currently measures exactly top-3')
+    if config['solver']['jobs'] < 1:
+        raise ValueError('solver.jobs must be positive')
     if not config['workload']['batch'] or any(not 1 <= b <= 16 for b in config['workload']['batch']):
         raise ValueError('static serving batches must lie in [1,16]')
     for name, allowed in dict(pg=['off', 'l2', 'pages', 'auto'], handoff=['off', 'auto'],
@@ -215,6 +217,7 @@ class Run:
                             '--capacity', str(workload['prompt_len'] + workload['max_new_tokens']),
                             '--solver', 'skeleton', '--solve', str(self.target), '--emit', 'serving',
                             '--search-passes', str(settings['passes']), '--top-m', str(settings['top_m']),
+                            '--search-jobs', str(settings['jobs']),
                             '--serving-pruning', str(int(settings['pruning'])), '--incremental-prepare', '1',
                             '--variant-cache', str(self.cache / 'variants' / self.device_key),
                             '--artifact-cache', str(self.cache / 'artifacts'), '--dump-cg', str(plan / 'selected.mlir'),

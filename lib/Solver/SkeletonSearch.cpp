@@ -474,7 +474,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
 SkeletonSearchResult SolveSkeletonExport(std::string const& path,mlir::MLIRContext& context,
     SkeletonSearchOptions const& options,frontend::ImportSummary* summary,std::ostream& evidence) {
   SolverPhase total(options.common.timing,"total");analysis::ScopedExactAnalysisMemo memo;frontend::TorchExportImporter importer;
-  if(options.jobs!=1)throw std::invalid_argument("flow search is single-threaded; ISL and price caches belong to its thread");
+  if(options.jobs<1)throw std::invalid_argument("search jobs must be positive");
   auto plan=[&]{SolverPhase phase(options.common.timing,"bridge_and_plan");auto b=frontend::ReadExportBridge(path);return frontend::BuildModelPlan(b.nodes,b.inputs,b.outputs);}();
   auto imported=[&]{SolverPhase phase(options.common.timing,"import");return importer.ImportSemantics(path,plan,context);}();
   return SolveSkeletonImported(imported,context,options,summary,evidence);
@@ -483,7 +483,10 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     mlir::MLIRContext& context,SkeletonSearchOptions const& options,
     frontend::ImportSummary* summary,std::ostream& evidence) {
   analysis::ScopedExactAnalysisMemo memo;
-  if(options.jobs!=1)throw std::invalid_argument("flow search is single-threaded");
+  if(options.jobs<1)throw std::invalid_argument("search jobs must be positive");
+  // Candidate preparation remains single-threaded: ISL contexts and price
+  // caches belong to this thread. The compile driver uses jobs only after
+  // search, when independent top-3 CUDA sources can be compiled concurrently.
   SearchContext search(imported,context,options);SkeletonSearchResult result;result.classes=search.classes;
   evidence<<std::setprecision(17);
   if(!options.evaluation_cases.empty()) {

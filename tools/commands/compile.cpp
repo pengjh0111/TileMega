@@ -26,6 +26,7 @@
 #include <climits>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <iostream>
 #include <chrono>
 #include <iomanip>
@@ -347,6 +348,8 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("invalid serving batch or past range");
     if(search_top_m<1 || search_top_m>8)
       throw std::runtime_error("--top-m must be in 1..8");
+    if(search_jobs<1)
+      throw std::runtime_error("--search-jobs must be positive");
     if(serving && !solve_target.empty() && !flow_search_only &&
        measure_command.empty())
       throw std::runtime_error("serving solve requires --measure-cmd for the top-3 decision");
@@ -687,6 +690,7 @@ int RunCompile(int argc, char** argv) {
         std::ofstream selected(std::string(argv[2])+".top3_measured.tsv");
         selected<<"rank\tmode\tmean_ms\tso\n";
         std::vector<std::string> candidate_sos;
+        std::vector<std::pair<std::string,std::string>> compile_commands;
         for(std::size_t i=0;i<solved.shortlist.size();++i) {
           std::string stem=std::string(argv[2])+".top"+std::to_string(i+1);
           std::string candidate_so=stem+".candidate.so";
@@ -704,10 +708,23 @@ int RunCompile(int argc, char** argv) {
               " --event-solo "+std::to_string(event_solo)+" --event-red-publish "+std::to_string(event_red)+
               " --barrier-v2 "+std::to_string(barrier_v2)+
               (artifact_cache.empty()?"":" --artifact-cache "+quote(artifact_cache));
-          if(std::system((compile+" >"+quote(stem+".build.stdout")+
-              " 2>"+quote(stem+".build.stderr")).c_str()))
-            throw std::runtime_error("top-3 serving candidate compilation failed: "+stem);
+          compile_commands.emplace_back(stem,compile+" >"+quote(stem+".build.stdout")+
+              " 2>"+quote(stem+".build.stderr"));
           candidate_sos.push_back(candidate_so);
+        }
+        // Top-3 compilation is independent and does not touch the GPU timing
+        // session. Preserve the default serial build; --search-jobs explicitly
+        // allows at most that many concurrent nvcc processes.
+        for(std::size_t begin=0;begin<compile_commands.size();begin+=std::max(1,search_jobs)) {
+          std::vector<std::future<int>> jobs;
+          auto end=std::min(compile_commands.size(),begin+std::size_t(std::max(1,search_jobs)));
+          for(std::size_t i=begin;i<end;++i) {
+            auto command=compile_commands[i].second;
+            jobs.push_back(std::async(std::launch::async,[command]{return std::system(command.c_str());}));
+          }
+          bool failed=false;
+          for(auto& job:jobs)failed|=job.get()!=0;
+          if(failed)throw std::runtime_error("top-3 serving candidate compilation failed; see topN.build.stderr");
         }
         // Compile every candidate before timing any of them.  Each round
         // rotates the order, so a warm/cool device does not systematically
