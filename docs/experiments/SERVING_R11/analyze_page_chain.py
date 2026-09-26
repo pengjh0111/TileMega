@@ -82,6 +82,7 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
             launch_gap_ns=gap_ns))
         previous_end=end
     gaps=[r['launch_gap_ns'] for r in output if r['launch_gap_ns'] is not None]
+    cta_observations=sum(r['ctas'] for r in output)
     summary=dict(model=model,batch=batch,steps=len(output),
         chain_source=str(chain_analysis) if chain_analysis else None,
         floor_source=str(floor_points),page_source=str(page_trace),
@@ -99,6 +100,12 @@ def analyze(page_trace: Path, *, model: str, batch: int, prompt_len: int,
         launch_gap_mean_ns=statistics.mean(gaps) if gaps else None,
         launch_gap_p50_ns=statistics.median(gaps) if gaps else None,
         page_full_and_dependency_wait_cta_ns=sum(r['page_full_and_dependency_wait_cta_ns'] for r in output),
+        page_full_and_dependency_wait_mean_cta_ns_per_step=(
+            sum(r['page_full_and_dependency_wait_cta_ns'] for r in output)/cta_observations),
+        dependency_wait_mean_cta_ns_per_step=(
+            sum(r['dependency_wait_cta_ns'] for r in output)/cta_observations),
+        page_full_mean_cta_ns_per_step=(
+            sum(r['page_full_cta_ns'] for r in output)/cta_observations),
         residual_bubble_p50_ns_per_link=statistics.median(
             r['residual_bubble_ns_per_link'] for r in output) if measured_chain else None)
     return output,summary

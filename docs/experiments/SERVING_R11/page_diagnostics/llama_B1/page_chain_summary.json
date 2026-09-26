@@ -1,0 +1,22 @@
+{
+  "model": "llama",
+  "batch": 1,
+  "steps": 1023,
+  "chain_source": "/root/r11_work/page_diagnostics/results/llama_B1/chain/analysis.tsv",
+  "floor_source": "/root/r11_work/page_diagnostics/results/llama_B1/floor_steps.tsv",
+  "page_source": "/root/r11_work/page_diagnostics/results/llama_B1/request/page_trace.tsv",
+  "measured_chain_links": 135,
+  "measured_chain_span_ns": 6382592,
+  "measured_chain_past": 575,
+  "measured_chain_floor_ns": 2537233,
+  "measured_chain_over_floor": 2.515571884805219,
+  "measured_chain_residual_bubble_ns_per_link": 28484.140740740742,
+  "residual_bubble_chain_count_assumption": "chain measured at one past and reused at every step",
+  "launch_gap_mean_ns": 3382.606653620352,
+  "launch_gap_p50_ns": 3072.0,
+  "page_full_and_dependency_wait_cta_ns": 465063843840,
+  "page_full_and_dependency_wait_mean_cta_ns_per_step": 3551623.9296187684,
+  "dependency_wait_mean_cta_ns_per_step": 4557858.275659824,
+  "page_full_mean_cta_ns_per_step": 7336425.219941349,
+  "residual_bubble_p50_ns_per_link": 97905.3324419177
+}
