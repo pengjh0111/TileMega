@@ -1,0 +1,32 @@
+ptxas info    : 184 bytes gmem, 96 bytes cmem[4]
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi
+    72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 62 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]
+ptxas info    : Compile time = 43.982 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    48 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 224 registers, used 1 barriers, 48 bytes cumulative stack size, 376 bytes cmem[0], 368 bytes cmem[2]
+ptxas info    : Compile time = 7742.853 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    48 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 242 registers, used 1 barriers, 48 bytes cumulative stack size, 376 bytes cmem[0], 372 bytes cmem[2]
+ptxas info    : Compile time = 19354.660 ms
+ptxas info    : Function properties for _ZNK8tilemega7codegen19GemmCombineTaskBodyIN7cutlass4arch4Sm89ENS0_8TaskSmemELi128EEclERKNS0_6ParamsERKNS0_9StageDescERS5_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj' for 'sm_89'
+ptxas info    : Function properties for _ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj
+    48 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 196 registers, used 1 barriers, 48 bytes cumulative stack size, 364 bytes cmem[0], 316 bytes cmem[2]
+ptxas info    : Compile time = 18583.338 ms
+ptxas info    : Function properties for _ZNK8tilemega7codegen19GemmCombineTaskBodyIN7cutlass4arch4Sm89ENS0_8TaskSmemELi128EEclERKNS0_6ParamsERKNS0_9StageDescERS5_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
