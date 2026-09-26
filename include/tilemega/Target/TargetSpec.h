@@ -21,6 +21,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -125,6 +126,13 @@ struct TargetSpec {
   };
 
   struct TaskBodyCalibration {
+    struct ServingFit {
+      double fixed_ns=0;
+      double byte_ns=0;
+      double flop_ns=0;
+      double median_relative_error=0;
+      int samples=0;
+    };
     // Nonnegative fits to raw in-body phase measurements. Coefficients are
     // backend work features, never model/stage IDs or end-to-end latencies.
     std::vector<double> fixed;       // [1, output elements, staged operand elements]
@@ -137,6 +145,9 @@ struct TargetSpec {
     double scalar_fixed_ns=0;
     int samples=0;
     std::string source;
+    // Measured in-body cycles of serving TaskBodies. These fits are BF16-only
+    // and do not replace the legacy phase fit above.
+    std::map<std::string,ServingFit> serving;
   };
 
   /// Cost-model calibration, filled by tools/tilemega-calibrate (skeleton

@@ -510,6 +510,24 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
   analysis::RequireArithmeticImplementation(signature);
   DerivedTaskInput result{*task,std::move(work),std::move(signature),task->Coordinates(),std::nullopt,std::nullopt};
   auto const& stage=model.stages.at(semantic.stage);
+  if(model.serving) {
+    switch(stage.kind) {
+      case StageKind::kGemm:
+        if(semantic.op.arithmetic=="swiglu_gemm")result.serving_body_kind="gemm_swiglu";
+        else if(semantic.op.arithmetic=="argmax_gemm")result.serving_body_kind="gemm_argmax_partial";
+        else result.serving_body_kind=semantic.op.operands.size()>2?"gemm_residual":"gemm_store";
+        break;
+      case StageKind::kFusedAttention:
+        result.serving_body_kind=std::string("fused_attention_")+
+            (model.dims.seq==1?"decode_d":"prefill_d")+std::to_string(stage.width);
+        break;
+      case StageKind::kAttentionMerge: result.serving_body_kind="attention_merge";break;
+      case StageKind::kRMSNorm: result.serving_body_kind="rmsnorm";break;
+      case StageKind::kEmbedding: result.serving_body_kind="embedding";break;
+      case StageKind::kArgmaxReduce: result.serving_body_kind="argmax_reduce";break;
+      default: break;
+    }
+  }
   if(config && model.serving && stage.kind==StageKind::kGemm &&
      semantic.op.arithmetic=="argmax_gemm")
     result.collective_k_extent=model.gemms.at(stage.gemm).k;

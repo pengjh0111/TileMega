@@ -33,11 +33,13 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
   } else result.dram_bytes=traffic.global_read_bytes*df_np;
   double read_dram=input.no_producer_read_bytes?traffic.no_producer_read_bytes*df_np+traffic.produced_read_bytes*df_p:traffic.global_read_bytes*df_np;
   auto const& fit=calib_->task_body;
+  double serving_flops=0;
   if(traits.stages<=0) {
     if(!input.scalar_flow)throw std::invalid_argument("scalar flow not supplied");
     auto [depth,barriers]=input.scalar_flow->MemoryDepthAndBarriers(traits.threads);
     double writes=traffic.global_write_bytes/2,bytes=traffic.global_read_bytes+traffic.global_write_bytes;
     double flops=(input.arithmetic.flops_per_output_element.Eval(theta)+input.scalar_flow->extra_flops_per_output)*writes;
+    serving_flops=flops;
     double transc=input.arithmetic.transcendental_per_output_element.Eval(theta)*writes;
     double structural=depth*calib_->l2_latency_ns+barriers*calib_->syncthreads_ns+traffic.global_write_bytes/l2_bytes_per_ns_per_sm_;
     result.fixed_ns=(fit.samples>0?fit.scalar_fixed_ns:0)+structural;
@@ -58,6 +60,7 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
         : eval(input.work.nominal_task_reduce_extent)/traits.tile_k;
     if(!(iters>0))throw std::invalid_argument("invalid reduction iterations");
     double reads=eval(input.work.nominal_read_elements)/iters,writes=eval(input.work.nominal_write_elements);
+    serving_flops=input.arithmetic.flops_per_output_element.Eval(theta)*writes;
     double nominal_bytes=2*reads,bytes=traffic.global_read_bytes/iters;
     ResourceVector u;u.smem=o*nominal_bytes*fit_.lds_ns;
     if(options_.resource_lanes) {
@@ -105,6 +108,17 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
     } else {
       int executed=((active+a.kv_tile-1)/a.kv_tile)*a.kv_tile;
       result.compute_ns*=double(executed)/a.block_extent;
+    }
+  }
+  if(!input.serving_body_kind.empty() &&
+     !(input.serving_attention && result.compute_ns==0 && result.dram_bytes==0)) {
+    auto calibrated=fit.serving.find(input.serving_body_kind);
+    if(calibrated!=fit.serving.end()) {
+      auto const& body=calibrated->second;
+      double bytes=traffic.global_read_bytes+traffic.global_write_bytes;
+      result.fixed_ns=body.fixed_ns;
+      result.compute_ns=std::max(result.compute_ns,
+          body.byte_ns*bytes+body.flop_ns*serving_flops);
     }
   }
   result.dram_rate_cap=std::min(l2_bytes_per_ns_per_sm_,result.compute_ns>0?result.dram_bytes/result.compute_ns:l2_bytes_per_ns_per_sm_);

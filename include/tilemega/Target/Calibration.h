@@ -71,6 +71,10 @@ void MeasureFP32PartialCombine(TargetSpec& spec, Options const& options, std::os
 /// Serving-only 16-byte cp.async ring sweep. Updates the BF16 in-flight and
 /// per-CTA stream curves while preserving every existing target coefficient.
 void MeasureInflight(TargetSpec& spec, Options const& options, std::ostream& log);
+/// Measure actual serving TaskBody execution in a single CTA. The resulting
+/// nonnegative fixed/byte/flop fits are written under BF16 task_body.serving.
+void MeasureServingTaskBodies(TargetSpec& spec, Options const& options,
+                              std::ostream& log);
 
 /// Run every group, stamp provenance, and set `calibrated`.
 void Run(TargetSpec& spec, Options const& options, std::ostream& log);

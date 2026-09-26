@@ -132,6 +132,17 @@ void ParseCalibration(json::Value const& cal, TargetSpec::Calib& out) {
     if(auto p=body->Find("latency_scale"))fit.latency_scale=p->AsNumber("latency_scale");
     if(auto p=body->Find("stage_rate_bytes_per_ns"))fit.stage_rate_bytes_per_ns=p->AsNumber("stage_rate_bytes_per_ns");
     if(auto p=body->Find("fixed_physical"))fit.fixed_physical=NumberArray(*p,"fixed_physical");
+    if(auto p=body->Find("serving"))for(auto const& [name,entry]:p->AsObject("task_body.serving")) {
+      auto& sample=fit.serving[name];
+      sample.fixed_ns=entry.At("fixed_ns").AsNumber("fixed_ns");
+      sample.byte_ns=entry.At("byte_ns").AsNumber("byte_ns");
+      sample.flop_ns=entry.At("flop_ns").AsNumber("flop_ns");
+      sample.median_relative_error=entry.At("median_relative_error").AsNumber("median_relative_error");
+      sample.samples=int(entry.At("samples").AsNumber("samples"));
+      if(sample.samples<1 || sample.fixed_ns<0 || sample.byte_ns<0 || sample.flop_ns<0 ||
+         !std::isfinite(sample.fixed_ns) || !std::isfinite(sample.byte_ns) || !std::isfinite(sample.flop_ns))
+        throw std::invalid_argument("invalid serving TaskBody fit");
+    }
     if(fit.latency_scale<0 || !std::isfinite(fit.latency_scale) || fit.stage_rate_bytes_per_ns<0 || !std::isfinite(fit.stage_rate_bytes_per_ns) || (!fit.fixed_physical.empty() && fit.fixed_physical.size()!=3))
       throw std::invalid_argument("invalid regime-A TaskBody fit");
     fit.scalar_fixed_ns=body->At("scalar_fixed_ns").AsNumber("scalar_fixed_ns");
@@ -283,6 +294,15 @@ json::Value CalibrationJson(TargetSpec::Calib const& calib) {
       body.emplace_back("stage_rate_bytes_per_ns",fit.stage_rate_bytes_per_ns);
     }
     if(!fit.fixed_physical.empty())body.emplace_back("fixed_physical",json::Numbers(fit.fixed_physical));
+    if(!fit.serving.empty()) {
+      json::Object serving;
+      for(auto const& [name,sample]:fit.serving)
+        serving.emplace_back(name,json::Object{{"fixed_ns",sample.fixed_ns},
+            {"byte_ns",sample.byte_ns},{"flop_ns",sample.flop_ns},
+            {"median_relative_error",sample.median_relative_error},
+            {"samples",sample.samples}});
+      body.emplace_back("serving",std::move(serving));
+    }
     result.emplace_back("task_body",std::move(body));
   }
   return json::Value(std::move(result));
