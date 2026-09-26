@@ -1,0 +1,90 @@
+[
+  {
+    "cell": "llama_prefill_B1",
+    "source": "61507fd0e304d7fea419d1c52f8df471e963a0a5364977b62b5655840ae942c8",
+    "solve_seconds": 1429.7691320269369,
+    "mode": "L1",
+    "top3_fastest_ms": "7.94665",
+    "top3_rank": "1",
+    "top3_mode": "L1",
+    "fp64_instructions": 0,
+    "passed": true
+  },
+  {
+    "cell": "llama_prefill_B16",
+    "source": "61507fd0e304d7fea419d1c52f8df471e963a0a5364977b62b5655840ae942c8",
+    "solve_seconds": 9872.589848127915,
+    "mode": "L1",
+    "top3_fastest_ms": "22.8672",
+    "top3_rank": "3",
+    "top3_mode": "L1",
+    "fp64_instructions": 0,
+    "passed": true
+  },
+  {
+    "cell": "llama_decode_B1",
+    "source": "61507fd0e304d7fea419d1c52f8df471e963a0a5364977b62b5655840ae942c8",
+    "solve_seconds": 1197.3926901599625,
+    "mode": "L1",
+    "top3_fastest_ms": "3.1674",
+    "top3_rank": "1",
+    "top3_mode": "L1",
+    "fp64_instructions": 0,
+    "passed": true
+  },
+  {
+    "cell": "llama_decode_B16",
+    "source": "61507fd0e304d7fea419d1c52f8df471e963a0a5364977b62b5655840ae942c8",
+    "solve_seconds": 1565.6854030280374,
+    "mode": "L1",
+    "top3_fastest_ms": "3.4495",
+    "top3_rank": "1",
+    "top3_mode": "L1",
+    "fp64_instructions": 0,
+    "passed": true
+  },
+  {
+    "cell": "qwen3_prefill_B1",
+    "source": "61507fd0e304d7fea419d1c52f8df471e963a0a5364977b62b5655840ae942c8",
+    "solve_seconds": 1638.8702453030273,
+    "mode": "L1",
+    "top3_fastest_ms": "5.58803",
+    "top3_rank": "2",
+    "top3_mode": "L1",
+    "fp64_instructions": 0,
+    "passed": true
+  },
+  {
+    "cell": "qwen3_prefill_B16",
+    "source": "61507fd0e304d7fea419d1c52f8df471e963a0a5364977b62b5655840ae942c8",
+    "solve_seconds": 10480.04138505098,
+    "mode": "L1",
+    "top3_fastest_ms": "34.3908",
+    "top3_rank": "1",
+    "top3_mode": "L1",
+    "fp64_instructions": 0,
+    "passed": true
+  },
+  {
+    "cell": "qwen3_decode_B1",
+    "source": "61507fd0e304d7fea419d1c52f8df471e963a0a5364977b62b5655840ae942c8",
+    "solve_seconds": 1401.2820951460162,
+    "mode": "L1",
+    "top3_fastest_ms": "9.33568",
+    "top3_rank": "3",
+    "top3_mode": "L1",
+    "fp64_instructions": 0,
+    "passed": true
+  },
+  {
+    "cell": "qwen3_decode_B16",
+    "source": "61507fd0e304d7fea419d1c52f8df471e963a0a5364977b62b5655840ae942c8",
+    "solve_seconds": 2197.3854452760424,
+    "mode": "L1",
+    "top3_fastest_ms": "5.71287",
+    "top3_rank": "1",
+    "top3_mode": "L1",
+    "fp64_instructions": 0,
+    "passed": true
+  }
+]
