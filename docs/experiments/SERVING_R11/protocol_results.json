@@ -1,0 +1,77 @@
+{
+  "complete": true,
+  "rows": [
+    {
+      "mode": "pg1",
+      "model": "llama",
+      "batch": 1,
+      "fresh_processes": 50,
+      "mismatches": 0,
+      "decode_sha256": "cde39ce4470d21085d55f8f6200b699cc78fb0648e3d4e539d1b66e1ca0735c9",
+      "source": "/root/r11_work/protocol/page_v2/fresh50/summary.json"
+    },
+    {
+      "mode": "pg1",
+      "model": "llama",
+      "batch": 16,
+      "fresh_processes": 50,
+      "mismatches": 0,
+      "decode_sha256": "1f15471bed10e139a1be6e0538995d1fe5cfd435770b3570ce8b17909fb134ff",
+      "source": "/root/r11_work/protocol/page_v2/fresh50/summary.json"
+    },
+    {
+      "mode": "pg1",
+      "model": "qwen3",
+      "batch": 1,
+      "fresh_processes": 50,
+      "mismatches": 0,
+      "decode_sha256": "cc4e26a227a1cbad67c1a89ea4c46458abcc2fab3bebfb4a64350083b21b5cac",
+      "source": "/root/r11_work/protocol/page_v2/fresh50/summary.json"
+    },
+    {
+      "mode": "pg1",
+      "model": "qwen3",
+      "batch": 16,
+      "fresh_processes": 50,
+      "mismatches": 0,
+      "decode_sha256": "f35fff108d42a02f1444324d48018084f353f3b1b25e491e4c30a9a2e7923f6a",
+      "source": "/root/r11_work/protocol/page_v2/fresh50/summary.json"
+    },
+    {
+      "mode": "pg0",
+      "model": "llama",
+      "batch": 1,
+      "fresh_processes": 50,
+      "mismatches": 0,
+      "decode_sha256": "dc63bff0b797a31b3c8332a44a2cec6c7d1255e0cff9854a41b39aaaf0cc3af6",
+      "source": "/root/r11_work/pg0_smoke/protocol/summary.json"
+    },
+    {
+      "mode": "pg0",
+      "model": "llama",
+      "batch": 16,
+      "fresh_processes": 50,
+      "mismatches": 0,
+      "decode_sha256": "442156653249af5568f40208bbd033a6aa99785e0259965578bf9133a1bf426c",
+      "source": "/root/r11_work/protocol/pg0_cells/fresh50/summary.json"
+    },
+    {
+      "mode": "pg0",
+      "model": "qwen3",
+      "batch": 1,
+      "fresh_processes": 50,
+      "mismatches": 0,
+      "decode_sha256": "2bc6e7f058f346d4e0f90f2bbd8f2ee86074f8095a1c7b3fc579d16a47a755ea",
+      "source": "/root/r11_work/protocol/pg0_cells/fresh50/summary.json"
+    },
+    {
+      "mode": "pg0",
+      "model": "qwen3",
+      "batch": 16,
+      "fresh_processes": 50,
+      "mismatches": 0,
+      "decode_sha256": "baf36c12a472c6c06ca809acfaa2b4f0355f4ba5299781f2221be95bf402a9ec",
+      "source": "/root/r11_work/protocol/pg0_cells/fresh50/summary.json"
+    }
+  ]
+}
