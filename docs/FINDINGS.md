@@ -8371,3 +8371,15 @@ page trace, the chain-span ratios are 0.759/0.763/0.728/0.751; page size
 and loader routing changed together, so this is not a single-factor effect.
 These are trace-mode timings, not production E2E performance. The exact
 1023-step floors and raw traces are in `SERVING_R11/page_vector_diagnostics/`.
+
+## F-311: Rewritten handoff graphs cannot yet be emitted as serving kernels
+
+✅ verified in code and host tests: `ApplyHandoffs` clones and rewrites the
+coupling graph, then marks the module `tilemega.handoff_pending_lowering`.
+The serving CUDA lowerer still constructs its runtime stage table from the
+original model plan; it does not consume the rewritten graph. Both `Lower`
+and `LowerVariants` now reject this marker with an explicit stage-replanning
+error, and the `handoff_ir` test checks both paths. This prevents a plan from
+claiming a handoff while silently running the old stages. It is not TF-1
+completion: runtime stage replanning, last-arriver execution and direct-page
+handoff remain to be implemented before the handoff gate can pass.

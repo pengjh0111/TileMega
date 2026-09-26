@@ -31,6 +31,15 @@
 
 namespace tilemega::codegen {
 namespace {
+void RejectPendingHandoffLowering(mlir::ModuleOp module) {
+  // ApplyHandoffs writes a new CG, but the serving runtime stage table has not
+  // yet been rebuilt from that CG. Emitting the old stage table would silently
+  // run an unfused plan while claiming that the requested handoff is active.
+  if (module && module->hasAttr("tilemega.handoff_pending_lowering"))
+    throw std::invalid_argument(
+        "handoff CG requires runtime stage replanning before CUDA lowering");
+}
+
 bool readResidentConstraint(mlir::ModuleOp module) {
   std::size_t count=0, explicit_count=0;
   for (auto placement:module.getOps<dialect::PlacementOp>()) {
@@ -1257,6 +1266,7 @@ std::string emitSolvedLaunch(mlir::ModuleOp module) {
 }  // namespace
 
 std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
+  RejectPendingHandoffLowering(module);
   if (!module || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument("CouplingGraphToCUDA requires a verified CG ModuleOp");
   if (!module.getOps<dialect::FusedTileSpaceOp>().empty())
@@ -1405,6 +1415,8 @@ std::string CouplingGraphToCUDA::LowerVariants(
     std::vector<RuntimeVariantModule> const& variants) const {
   if (variants.empty())
     throw std::invalid_argument("LowerVariants requires at least one variant");
+  for (auto const& input : variants)
+    RejectPendingHandoffLowering(input.module);
   mlir::ModuleOp first = variants.front().module;
   auto first_plan = first->getAttrOfType<mlir::DictionaryAttr>(
       "tilemega.model_plan");

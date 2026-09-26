@@ -127,3 +127,10 @@ top-M materialization, final compilation and GPU selection. Its old resource
 prewarm compiled 39 shapes in 94.44 s, while a cold run with the new
 stage-2-only filter compiled seven in 30.97 s. See F-309 and
 `solver/full_stage2_llama_B1/`.
+
+The handoff rewrite now fails closed at both CUDA lowering entry points.
+`ApplyHandoffs` has not rebuilt the serving runtime stage table, so compiling
+its marked graph would otherwise produce a falsely fused binary. The host
+`handoff_ir` test covers both rejection paths. TF-1 and K-6/K-11 remain open;
+the next implementation step is runtime stage replanning and execution of the
+last-arriver/direct handoff choices, not merely removing this guard. See F-311.

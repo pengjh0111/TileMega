@@ -3,6 +3,7 @@
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Dialect/CouplingGraph/ExecOps.h>
 #include <tilemega/Dialect/CouplingGraph/HandoffPass.h>
+#include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <mlir/IR/Builders.h>
@@ -57,6 +58,18 @@ int TestHandoffIr(int argc,char** argv) try {
       dialect::ApplyHandoffs(*module);
       applied=true;
       assert(mlir::succeeded(mlir::verify(*module)));
+      bool lowering_rejected=false;
+      try { (void)codegen::CouplingGraphToCUDA{}.Lower(*module); }
+      catch(std::invalid_argument const& e) {
+        lowering_rejected=std::string(e.what()).find("runtime stage replanning")!=std::string::npos;
+      }
+      assert(lowering_rejected && "handoff CG must not silently use the old runtime stage table");
+      lowering_rejected=false;
+      try { (void)codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1u,4u}}); }
+      catch(std::invalid_argument const& e) {
+        lowering_rejected=std::string(e.what()).find("runtime stage replanning")!=std::string::npos;
+      }
+      assert(lowering_rejected && "variant lowering must reject pending handoff stage replanning");
       if(argc>1 && (choice=="recompute" || multiple)) {
         auto model=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
         assert(model && "serving handoff must retain its runtime model");
