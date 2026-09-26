@@ -137,7 +137,8 @@ def main() -> int:
                 print(f"{model} B{batch}: {error}", flush=True)
                 failed = True
                 continue
-    for script in ("floor_report.py", "build_report_tables.py"):
+    for script in ("floor_report.py", "collect_flow_evidence.py",
+                   "build_report_tables.py"):
         try:
             subprocess.run([sys.executable, str(HERE / script)], cwd=ROOT,
                            check=True)

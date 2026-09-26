@@ -1,0 +1,2 @@
+key	local_event_waits_omitted
+16x32x64s16k1;16x32x128s6k1;16x128x64s5k1;16x32x128s4k1;16x32x128s4k1;16x256x64s2k1;kappa=1;residency=1;Ec=128;Rq=2	1691
