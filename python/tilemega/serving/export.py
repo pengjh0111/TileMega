@@ -153,7 +153,8 @@ def export(config: dict, phase: str, capacity: int, out: Path) -> dict:
          f" return self.execute(input_ids, ({expression},), rope_cos, rope_sin)\n",
          namespace)
     object.__setattr__(model, "forward", namespace["forward"].__get__(model, Decoder))
-    inputs = [torch.randint(0, config["vocab_size"], (batch_example, seq), dtype=torch.int64)]
+    # Serving's persistent token state and argmax writer are both int32.
+    inputs = [torch.randint(0, config["vocab_size"], (batch_example, seq), dtype=torch.int32)]
     for _ in model.model.layers:
         for _ in range(2):
             inputs.append(torch.zeros((batch_example, kv_heads, past, dim), dtype=torch.bfloat16))

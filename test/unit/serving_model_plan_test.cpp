@@ -8,6 +8,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 
 int main(int argc, char** argv) {
@@ -29,6 +30,18 @@ int main(int argc, char** argv) {
   auto plan = tilemega::frontend::BuildModelPlan(
       bridge.nodes, bridge.inputs, bridge.outputs, options);
   assert(plan.serving);
+  assert(plan.token_id_bits == 32);
+  auto wrong_width = bridge.nodes;
+  for (auto& node : wrong_width)
+    if (node.name == "input_ids") node.dtype = "torch.int64";
+  bool rejected_int64 = false;
+  try {
+    (void)tilemega::frontend::BuildModelPlan(
+        wrong_width, bridge.inputs, bridge.outputs, options);
+  } catch (std::invalid_argument const&) {
+    rejected_int64 = true;
+  }
+  assert(rejected_int64);
   assert(plan.stages.front().kind == tilemega::frontend::PlanTaskKind::kEmbedding);
   assert(plan.stages.back().kind == tilemega::frontend::PlanTaskKind::kArgmaxReduce);
   int qkv = 0, attention = 0;

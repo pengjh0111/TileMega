@@ -1398,7 +1398,7 @@ seq ≤ 16 六格的几何平均为 **2.51×**。
 | ID | 范围与验收（不可删减） | 依赖 | 实现状态 | 验证状态 | 证据、commit |
 |---|---|---|---|---|---|
 | SB-4 | checkpoint 与 prompt id；vLLM 离线基线（同口径 TTFT/TPOT/E2E/吞吐）；HF teacher-forced 检查工具并在 vLLM 输出上自检 | — | 未开始 | — | 待填 |
-| BE-10 | arch 通用的 BF16 GEMM collective：16 B cp.async（ZFILL）、`Swizzle<3,3,3>`、ldmatrix、tile_m = 16 合法、epilogue 算子（store/residual/SwiGLU/argmax partial）与 combine 共用；合法性与 smem 闭式带 static_assert；单元测试 | — | 未开始 | — | 待填 |
+| BE-10 | arch 通用的 BF16 GEMM collective：16 B cp.async（越界零填充）、`Swizzle<3,3,3>`、ldmatrix、tile_m = 16 合法、epilogue 算子（store/residual/SwiGLU/argmax partial）与 combine 共用；合法性与 smem 闭式带 static_assert；单元测试 | — | 未开始 | — | 待填 |
 | AT-1 | 融合 attention（decode、prefill）与 LSE 合并：q/k 归一化、RoPE 表、原位 KV 追加、tensor core QKᵀ/PV、固定块长 split-KV；不抬高 smem union；单元测试 | — | 未开始 | — | 待填 |
 | BE-11 | RMSNorm（选行）、embedding、argmax reduce、combine 的向量化；serving 覆盖表，无标量循环残留 | BE-10 | 未开始 | — | 待填 |
 | SB-1 | serving 导出（HF 参数名、tied 词表、动态 batch/past、cos/sin 输入）；按结构位置确定符号角色；ModelPlan 的 serving 发射与打包配方；新算子的 L-sem 关系；`ModelDims.batch`、`BufferDesc.per_batch`；`T_floor(B, past)` 的权重与 KV 部分与推算相差 ≤ 0.5% | — | 未开始 | — | 待填 |

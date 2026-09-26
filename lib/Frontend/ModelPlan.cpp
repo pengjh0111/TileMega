@@ -903,8 +903,11 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   if (ids_node.shape.size() != 2 ||
       StaticExtent(ids_node, 1) != std::uint32_t(serving.seq))
     throw std::invalid_argument("serving token IDs do not have the plan's seq");
+  std::uint32_t const id_bits = TokenIdBits(ids_node);
+  if (id_bits != 32)
+    throw std::invalid_argument("serving token IDs must match int32 token state");
   builder.plan.dtype = "bf16";
-  builder.plan.token_id_bits = 32;
+  builder.plan.token_id_bits = static_cast<int>(id_bits);
   std::uint32_t tokens = external("serving.tokens", 0, serving.capacity,
                                   "i32", "");
   std::uint32_t cos = external("serving.rope_cos", 0, 0, "bf16", "");
