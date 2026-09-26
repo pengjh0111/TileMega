@@ -1,0 +1,26 @@
+[
+  {
+    "hit": false,
+    "key": "e7ad726b394d9131866c8f73ba05e1384a0148444a522054d4e7d226af8cff86",
+    "value": 7,
+    "libraries": {
+      "/root/r11_work/cache_libraries/libfixture.a": "41a38267f89f50e2aea513139a89650366bed1bde1d3ee09f780cec7f0811f70"
+    }
+  },
+  {
+    "hit": true,
+    "key": "e7ad726b394d9131866c8f73ba05e1384a0148444a522054d4e7d226af8cff86",
+    "value": 7,
+    "libraries": {
+      "/root/r11_work/cache_libraries/libfixture.a": "41a38267f89f50e2aea513139a89650366bed1bde1d3ee09f780cec7f0811f70"
+    }
+  },
+  {
+    "hit": false,
+    "key": "a549019d83a2c1d2219d386fdeb0acbb713ee2fd9d61c280c86eb253750369df",
+    "value": 9,
+    "libraries": {
+      "/root/r11_work/cache_libraries/libfixture.a": "635897c6afc819636bf574eda9bb1ef39b2b9718a20549831225ec05f133a6a0"
+    }
+  }
+]

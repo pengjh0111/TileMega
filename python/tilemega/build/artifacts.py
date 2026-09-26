@@ -67,7 +67,29 @@ def identity(command: list[str]) -> tuple[str, dict]:
     for i, token in enumerate(normalized):
         if not token.startswith('-') and Path(token).resolve() in names:
             normalized[i] = names[Path(token).resolve()]
-    inputs = dict(nvcc=nvcc, nvcc_version=version, argv=normalized,
+    # Generated serving libraries link the host runtime as well as including
+    # CUDA headers. An archive rebuild must invalidate the artifact too.
+    search = []
+    libraries = []
+    for i, token in enumerate(command):
+        if token == '-L':
+            search.append(Path(command[i + 1]))
+        elif token.startswith('-L'):
+            search.append(Path(token[2:]))
+        if token == '-l':
+            libraries.append(command[i + 1])
+        elif token.startswith('-l'):
+            libraries.append(token[2:])
+    linked = {str(Path(t).resolve()): file_sha(Path(t)) for t in command
+              if not t.startswith('-') and Path(t).suffix in ('.a', '.so') and Path(t).is_file()
+              and Path(t).resolve() != output}
+    for library in libraries:
+        choices = [directory / ('lib' + library + suffix) for directory in search
+                   for suffix in ('.so', '.a')]
+        found = next((p.resolve() for p in choices if p.is_file()), None)
+        if found:
+            linked[str(found)] = file_sha(found)
+    inputs = dict(nvcc=nvcc, nvcc_version=version, argv=normalized, linked_libraries=linked,
                   generated_sources=[file_sha(p) for p in sources], dependencies=closure)
     return key(inputs), inputs
 
@@ -88,6 +110,9 @@ def compile_artifact(command: list[str], cache: Path, log: Path) -> dict:
             try:
                 with (directory / 'ptxas.txt').open('w') as stream:
                     subprocess.run(argv, check=True, stdout=stream, stderr=subprocess.STDOUT)
+                after, _ = identity(command)
+                if after != digest:
+                    raise RuntimeError('source, dependency or linked library changed during compilation; artifact was not cached')
                 os.replace(temporary, directory / 'artifact.so')
                 record_outputs(marker, [directory / 'artifact.so', directory / 'ptxas.txt'], inputs=inputs)
             finally:
