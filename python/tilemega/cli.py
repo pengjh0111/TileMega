@@ -335,17 +335,81 @@ class Run:
         (self.out / 'report.md').write_text('\n'.join(lines)+'\n')
         print(self.out / 'report.md')
 
+    def hwcheck(self):
+        """Exercise the native page path; higher-arch claims need that device."""
+        device = self.doctor()
+        build_dir = Path(self.binary).parent.parent
+        targets = ('page_ring_test', 'paged_gemm_test', 'serving_attention_cases_test',
+                   'independent_attention_test', 'paged_attention_test')
+        self.command(['cmake', '--build', build_dir, '--target', *targets], 'hwcheck-build')
+        self.command(['ctest', '--test-dir', build_dir, '--output-on-failure',
+                      '-R', '^(page_ring|paged_gemm|serving_attention_cases|'
+                            'independent_attention|paged_attention)$'], 'hwcheck-unit', gpu=True)
+        plans = self.build()
+        pair = plans['1']; prompts = self.prompts()
+        manifest = json.loads(Path(pair['decode'] + '.plan.json').read_text())
+        command_file = Path(pair['decode'] + '.build_command.txt')
+        native_arch = device['arch_tag']
+        command = command_file.read_text() if command_file.exists() else ''
+        if f'-arch={native_arch}' not in command:
+            raise RuntimeError(f'plan was not compiled for native {native_arch}')
+        self.command([sys.executable, '-m', 'tilemega.serving.check_modes',
+                      '--model', self.model, '--prefill-so', pair['prefill'],
+                      '--decode-so', pair['decode'], '--prompt-ids', prompts,
+                      '--batch', '1', '--steps', '64', '--out', self.out / 'hwcheck-mode'],
+                     'hwcheck-generation', gpu=True)
+        pdl = {'applicable': bool(device['caps'].get('pdl')), 'pass': None}
+        if pdl['applicable']:
+            plain = self.out / 'hwcheck-no-pdl.so'
+            page_bytes = manifest.get('pages', {}).get('page_bytes')
+            if not page_bytes:
+                raise RuntimeError('PDL hardware check needs a paged decode plan')
+            self.command([self.binary, 'compile', Path(pair['decode']).parent / 'selected.mlir', plain,
+                          '--serving', 'decode', '--emit', 'serving', '--batch', '1',
+                          '--past-range', '64:1086', '--capacity', '1088',
+                          '--pg', 'pages', '--page-bytes', page_bytes,
+                          '--pdl', 'off', '--sync', self.config['features']['sync'],
+                          '--runtime-target', self.target], 'hwcheck-pdl-off-build')
+            self.command([sys.executable, '-m', 'tilemega.serving.compare_pdl',
+                          '--model', self.model, '--prefill-so', pair['prefill'],
+                          '--pdl-so', pair['decode'], '--plain-so', plain,
+                          '--prompt-ids', prompts, '--out', self.out / 'hwcheck-pdl.json'],
+                         'hwcheck-pdl-smoke', gpu=True)
+            pdl['pass'] = json.loads((self.out / 'hwcheck-pdl.json').read_text())['pass']
+        report = {'pass': True, 'native_arch': native_arch,
+                  'compute_path': 'SM80-class mma.sync', 'transport_path':
+                  'TMA/bulk' if device['caps'].get('tma') else 'cp.async',
+                  'unit_cases': list(targets), 'generation_steps': 64, 'pdl': pdl,
+                  'decode_so': pair['decode']}
+        atomic_json(self.out / 'hwcheck.json', report)
+        print(json.dumps(report, indent=2))
+
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=('doctor','calibrate','export','build','bench','check','report','run'))
-    parser.add_argument('--config', type=Path, required=True)
+    parser.add_argument('--config', type=Path)
     parser.add_argument('--tilemega')
     parser.add_argument('--run-dir', type=Path)
-    args=parser.parse_args();config=read_config(args.config)
+    parser.add_argument('--hwcheck', action='store_true', help='native page and PDL smoke checks')
+    args=parser.parse_args()
+    if args.hwcheck and args.command != 'doctor':
+        parser.error('--hwcheck is only valid with doctor')
+    if not args.config and not args.hwcheck:
+        parser.error('--config is required')
+    config=read_config(args.config or ROOT / 'configs/e2e/llama_b1.json')
+    if args.hwcheck:
+        # This checks transport and protocol on a known Llama workload. TF-1
+        # is separately tested by EV-2; do not disguise an unimplemented
+        # handoff as a checked architecture path.
+        config['features']['handoff']='off'
+        config['features']['weight_layout']='row'
+        config['workload']['batch']=[1]
     if args.run_dir:config['output']['dir']=str(args.run_dir)
     run=Run(config,args.tilemega)
-    if args.command=='doctor':run.doctor();return
+    if args.command=='doctor':
+        run.hwcheck() if args.hwcheck else run.doctor()
+        return
     if args.command=='calibrate':run.calibrate();return
     if args.command=='export':
         for phase in ('prefill','decode'):run.export(phase)

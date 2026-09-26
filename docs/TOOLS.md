@@ -50,3 +50,11 @@ compiler dependencies. During R11 integration, handoff and tiled weight
 lowering are unfinished; the driver rejects those modes explicitly. Set
 `features.handoff="off"` and `features.weight_layout="row"` for current
 executor diagnostics.
+
+On a new accelerator, `PYTHONPATH=python python -m tilemega doctor --hwcheck`
+builds and runs the native page tests, calibrates and builds a Llama B=1 plan,
+checks 64 generated steps in L1/L2, and compares two-step PDL on/off output
+when the device supports PDL. The report prints the actual native `-arch`
+used; compiling a lower PTX target and relying on JIT would check the wrong
+transport path. The command uses row-major, handoff-off geometry because its
+purpose is to validate the architecture path; TF-1 has a separate gate.
