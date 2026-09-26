@@ -27,13 +27,15 @@ def power_policy(out: Path) -> Path:
     # context remains when the queue reaches this point; allow it to cool
     # before estimating idle power, then keep that estimate fixed for all arms.
     time.sleep(30)
-    owners = subprocess.check_output(['nvidia-smi', '--query-compute-apps=pid',
+    device=os.environ.get('TILEMEGA_DEVICE_INDEX','0')
+    owners = subprocess.check_output(['nvidia-smi', '-i', device,
+        '--query-compute-apps=pid',
         '--format=csv,noheader'], text=True).strip()
     if owners:
         raise RuntimeError(f'cannot predeclare idle power while GPU has owners: {owners}')
     samples = []
     for _ in range(5):
-        raw = subprocess.check_output(['nvidia-smi',
+        raw = subprocess.check_output(['nvidia-smi', '-i', device,
             '--query-gpu=power.draw', '--format=csv,noheader,nounits'], text=True)
         samples.append(float(raw.splitlines()[0].strip()))
         time.sleep(2)
