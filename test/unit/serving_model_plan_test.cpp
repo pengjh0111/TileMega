@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <set>
 #include <stdexcept>
 #include <string>
 
@@ -51,6 +52,7 @@ int TestServingModelPlan(int argc, char** argv) {
   bool packed_qkv = false, packed_gate_up = false;
   bool selected_final_row = false;
   bool tied_vocabulary = false;
+  std::set<std::uint32_t> normalized_outputs;
   for (auto const& buffer : plan.buffers) {
     packed_qkv |= buffer.pack_json.find("qkv_group_interleave") != std::string::npos;
     packed_gate_up |= buffer.pack_json.find("gate_up_interleave") != std::string::npos;
@@ -60,6 +62,9 @@ int TestServingModelPlan(int argc, char** argv) {
              buffer.role == "external");
   }
   for (auto const& stage : plan.stages) {
+    if (stage.kind == tilemega::frontend::PlanTaskKind::kRMSNorm)
+      assert(normalized_outputs.insert(stage.operands[2]).second &&
+             "an interleaved serving schedule cannot reuse normalized scratch");
     if (stage.kind == tilemega::frontend::PlanTaskKind::kFusedAttention)
       { ++attention;
         assert(stage.attention_kv_block ==

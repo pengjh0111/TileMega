@@ -923,7 +923,6 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   std::uint32_t vocab = StaticExtent(builder.Node(embedding_param.name), 0);
   std::uint32_t table = alias(embedding->inputs.at(0));
   std::uint32_t x = scratch("serving.hidden", serving.seq * hidden);
-  std::uint32_t xn = scratch("serving.normalized", serving.seq * hidden);
   builder.Stage(PlanTaskKind::kEmbedding, embedding->name, 0, vocab, hidden, 1,
                 {tokens, table, x});
   for (std::size_t number = 0; number < layers.size(); ++number) {
@@ -955,9 +954,13 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     int qperkv = qwidth / kvwidth;
     int intermediate = StaticExtent(builder.Node(parameter(up.inputs.at(1)).name), 0);
     std::string prefix = "l" + std::to_string(number) + ".";
+    // L2 may interleave task spaces from several layers. A single reused
+    // normalized scratch buffer creates an unmodelled write-after-read hazard
+    // between otherwise legal tiles, so each normalization owns its output.
+    std::uint32_t norm1 = scratch(prefix + "norm1", serving.seq * hidden);
     builder.Epsilon(NormalizationEpsilon(matcher, q.inputs.at(0)));
     builder.Stage(PlanTaskKind::kRMSNorm, q.inputs.at(0), 0, 0, hidden, 1,
-                  {x, alias(matcher.NearestParameter(q.inputs.at(0))), xn});
+                  {x, alias(matcher.NearestParameter(q.inputs.at(0))), norm1});
     auto const& qw = parameter(q.inputs.at(1));
     auto const& kw = parameter(k.inputs.at(1));
     auto const& vw = parameter(v.inputs.at(1));
@@ -973,7 +976,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     auto const* latest_qkv = &q;
     for (auto const* node : {&k, &v})
       if (node->index > latest_qkv->index) latest_qkv = node;
-    auto qkv_gemm = builder.Gemm(xn, qkv_weight, qkv, qkv,
+    auto qkv_gemm = builder.Gemm(norm1, qkv_weight, qkv, qkv,
                                  packed_width, hidden, 0.0f);
     builder.Stage(PlanTaskKind::kGemm, latest_qkv->name, qkv_gemm, 0, 0, 1);
 
@@ -1032,9 +1035,10 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     builder.plan.gemms[o_gemm].epilogue = PlanGemm::Epilogue::kResidual;
     builder.Stage(PlanTaskKind::kGemm, match.at("resid1")->name,
                   o_gemm, 0, 0, 1);
+    std::uint32_t norm2 = scratch(prefix + "norm2", serving.seq * hidden);
     builder.Epsilon(NormalizationEpsilon(matcher, gate.inputs.at(0)));
     builder.Stage(PlanTaskKind::kRMSNorm, gate.inputs.at(0), 0, 0, hidden, 1,
-                  {x, alias(matcher.NearestParameter(gate.inputs.at(0))), xn});
+                  {x, alias(matcher.NearestParameter(gate.inputs.at(0))), norm2});
     auto const& gw = parameter(gate.inputs.at(1));
     auto const& uw = parameter(up.inputs.at(1));
     std::string gu_recipe = "{\"kind\":\"gate_up_interleave\",\"sources\":" +
@@ -1043,7 +1047,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     std::uint32_t gu_weight = packed(prefix + "gate_up.weight",
                                      2 * intermediate * hidden, gu_recipe);
     std::uint32_t act = scratch(prefix + "act", serving.seq * intermediate);
-    auto gu_gemm = builder.Gemm(xn, gu_weight, act, act,
+    auto gu_gemm = builder.Gemm(norm2, gu_weight, act, act,
                                 2 * intermediate, hidden, 0.0f);
     builder.plan.gemms[gu_gemm].epilogue = PlanGemm::Epilogue::kSwiGLU;
     builder.plan.gemms[gu_gemm].interleave_u = serving.interleave_u;
