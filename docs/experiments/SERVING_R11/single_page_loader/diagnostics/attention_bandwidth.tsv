@@ -1,0 +1,5 @@
+cell	past	layers	kv_blocks	historical_kv_gb	attention_stage_sum_ms	attention_stage_median_us	effective_historical_kv_gbps
+llama_B1	575	16	9	0.018842	0.181248	11.264	103.955
+llama_B16	575	16	1	0.301466	0.359424	22.528	838.746
+qwen3_B1	575	28	9	0.065946	0.441344	15.36	149.42
+qwen3_B16	575	28	1	1.05513	1.417216	51.2	744.509

@@ -289,6 +289,13 @@ CPU build/tests, so it is not an uncontended final budget result. Its partial
 trace is preserved at `solver/qwen_prefill_budget_probe/`. No final Qwen3
 B16 acceptance is claimed.
 
+The current single-page loader's archived past-575 traces give B16 attention
+effective historical-KV rates of 838.746 GB/s (Llama) and 744.509 GB/s
+(Qwen3), above 60% of the 981.583 GB/s target bandwidth. This is a
+trace-derived effective rate rather than a DRAM hardware-counter value, and
+it belongs to fixed-geometry diagnostics; selected-plan AT-3 attribution
+remains open. See `single_page_loader/diagnostics/attention_bandwidth.tsv`.
+
 EV-2's four-cell contamination threshold has been declared before running
 the matrix: five idle readings gave median 21.81 W, so the admission limit
 is 51.81 W. The CLI can now load one fixed `test.policy_file` for all

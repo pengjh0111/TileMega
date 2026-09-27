@@ -5,6 +5,7 @@ The numerator counts every historical K/V element once per query block. It is
 an effective byte rate, not a hardware DRAM counter: some bytes may hit L2.
 """
 
+import argparse
 import csv
 import io
 import json
@@ -28,24 +29,37 @@ def read_member(archive, name):
     return member.read().decode()
 
 
-def summarize(archive, cell):
+def summarize(archive, cell, trace):
     model, batch_text = cell.split("_B")
     batch = int(batch_text)
     config = json.loads(CONFIGS[model].read_text())
-    plan = json.loads((TRACE / "manifests" / f"{cell}.json").read_text())
+    manifest = trace / "manifests" / f"{cell}.json"
+    plan = json.loads(manifest.read_text()) if manifest.is_file() else None
     trace_header = json.loads(read_member(archive, f"{cell}/trace.log").splitlines()[0])
     assert trace_header["batch"] == batch and trace_header["past"] == 575
-    assert plan["batch_lo"] == plan["batch_hi"] == batch
-    assert plan["attention_query_rows"] == config["num_attention_heads"] // config["num_key_value_heads"]
-    assert plan["seq"] == 1
+    if plan:
+        assert plan["batch_lo"] == plan["batch_hi"] == batch
+        assert plan["attention_query_rows"] == config["num_attention_heads"] // config["num_key_value_heads"]
+        assert plan["seq"] == 1
     layers = config["num_hidden_layers"]
     heads = config["num_key_value_heads"]
     head_dim = config["head_dim"]
     past = trace_header["past"]
-    blocks = (plan["capacity"] + plan["attention_kv_block"] - 1) // plan["attention_kv_block"]
-    stages_per_layer = 8 if blocks > 1 else 7
     stages = list(csv.DictReader(io.StringIO(read_member(
         archive, f"{cell}/chain/trace_v2.task_spaces.tsv")), delimiter="\t"))
+    # Some later trace archives retain the exact stage table but omit the
+    # manifest. The merge stage's presence proves whether C_max exceeds one;
+    # task count at the attention stage then supplies the exact block count.
+    if plan:
+        blocks = (plan["capacity"] + plan["attention_kv_block"] - 1) // plan["attention_kv_block"]
+    else:
+        stages_per_layer = (len(stages) - 4) // layers
+        assert stages_per_layer in (7, 8) and len(stages) == layers * stages_per_layer + 4
+        attention_tasks = int(stages[3]["tasks"])
+        assert attention_tasks % (batch * heads) == 0
+        blocks = attention_tasks // (batch * heads)
+        assert (blocks > 1) == (stages_per_layer == 8)
+    stages_per_layer = 8 if blocks > 1 else 7
     assert len(stages) == layers * stages_per_layer + 4
     spans_ns = []
     for layer in range(layers):
@@ -69,10 +83,14 @@ def summarize(archive, cell):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--trace-dir', type=Path, default=TRACE)
+    args = parser.parse_args()
+    trace = args.trace_dir
     cells = ("llama_B1", "llama_B16", "qwen3_B1", "qwen3_B16")
-    with tarfile.open(TRACE / "raw.tar.xz", "r:xz") as archive:
-        rows = [summarize(archive, cell) for cell in cells]
-    output = TRACE / "attention_bandwidth.tsv"
+    with tarfile.open(trace / "raw.tar.xz", "r:xz") as archive:
+        rows = [summarize(archive, cell, trace) for cell in cells]
+    output = trace / "attention_bandwidth.tsv"
     with output.open("w", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]), delimiter="\t", lineterminator="\n")
         writer.writeheader()

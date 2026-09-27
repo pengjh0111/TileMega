@@ -8678,3 +8678,15 @@ relation and piece-price work, remains the bottleneck; the theta-bound Oracle
 cache of F-326 affects only a small part of that loop. The next step is to
 reuse class-local structure and prices more broadly, then time a full
 uncontended plan. Evidence: `SERVING_R11/solver/qwen_prefill_budget_probe/`.
+
+## F-328: Fixed-geometry B16 attention transport exceeds the 60% target
+
+✅ verified: Replaying the attention-bandwidth summarizer on the current
+single-page-loader traces leaves its earlier archive byte-for-byte unchanged
+and gives past-575 effective historical-KV rates of **838.746 GB/s** for
+Llama B16 and **744.509 GB/s** for Qwen3 B16. They are 85.4% and 75.9%
+of the target's 981.583 GB/s calibration, above AT-3's 60% target on
+these fixed geometries. The numerator counts historical KV bytes per query
+block and may include L2 hits, so this is not a hardware DRAM counter.
+Selected-plan trace attribution remains open. Evidence:
+`SERVING_R11/single_page_loader/diagnostics/attention_bandwidth.tsv`.
