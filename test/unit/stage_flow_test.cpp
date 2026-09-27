@@ -148,6 +148,27 @@ int TestStageFlow(int argc, char** argv) try {
       &paged_simulation,&paged_error))throw std::runtime_error(paged_error);
   Near(paged_simulation.makespan_ns,paged_result.makespan_ns,
       "Level 1 and FIFO share the paged prefetch physics");
+  // Two independent spaces both start at task index zero.  In L1 grid-stride
+  // ownership they use the same CTA's ring; the second cannot borrow an idle
+  // CTA's page while the first consumer is still computing.
+  FlowProblem local_pages;local_pages.workers=2;local_pages.dram_gbps=10;
+  local_pages.page_bytes=16;local_pages.pages_per_worker=8;
+  local_pages.spaces={Space(1,{0,20,100,10,100}),Space(1,{0,20,100,10,100})};
+  local_pages.spaces[1].order=1;
+  Near(EvaluateFlow(local_pages).makespan_ns,60,
+      "paged flow must hold each CTA's pages until its consumer finishes");
+  tilemega::codegen::RuntimeTaskGraph local_graph;
+  local_graph.stage_offsets={0,1,2};local_graph.successors={{},{}};
+  MaterializedPlan local_plan;local_plan.queue={{{0,0},{1,0}},{}};
+  SimulatorInput local_input;local_input.graph=&local_graph;
+  local_input.task_price_parts.assign(2,{0,20,100,10,100});
+  SimulatorOptions local_options;local_options.dram_fluid=true;
+  local_options.dram_gbps=10;local_options.page_bytes=16;
+  local_options.pages_per_worker=8;
+  SimulatorResult local_result;std::string local_error;
+  if(!SimulateExecution(local_input,local_plan,local_options,{},
+      &local_result,&local_error))throw std::runtime_error(local_error);
+  Near(local_result.makespan_ns,60,"FIFO page reservation is CTA-local");
   tilemega::codegen::RuntimeTaskGraph graph;graph.stage_offsets={0,2,4};graph.successors={{2},{3},{},{}};
   MaterializedPlan plan;plan.queue={{{0,0},{1,0}},{{0,1},{1,1}}};
   SimulatorInput input;input.graph=&graph;input.task_price_parts.assign(4,TaskPriceParts{2,3,20,4});

@@ -77,9 +77,12 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   std::stable_sort(prefetch_spaces.begin(),prefetch_spaces.end(),[&](int a,int b){
     return p.spaces[a].order<p.spaces[b].order;});
   std::size_t prefetch_space=0;int prefetch_task=0;
-  double held_pages=0;
+  // A page is owned by one CTA.  A device-wide sum of free pages lets an
+  // unrelated CTA prefetch into a full ring and made PG-1 look much faster
+  // than the executor.  The Level-1 home is the L1 grid-stride owner; Level-2
+  // materialization is checked separately by the FIFO fluid simulator.
+  std::vector<double> held_pages(workers,0);
   double const per_worker_capacity=double(p.page_bytes)*p.pages_per_worker;
-  double const total_page_capacity=per_worker_capacity*workers;
   std::optional<InflightDramServer> inflight;
   if(p.inflight_dram)inflight.emplace(p.dram_gbps,p.inflight_curve_bytes,
       p.inflight_curve_gbps,p.cta_stream_curve_bytes,p.cta_stream_curve_gbps);
@@ -108,19 +111,21 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
       if(reserve>per_worker_capacity)throw std::runtime_error("prefetch exceeds a worker page ring");
       int count=0;
       if(reserve>0) {
-        count=std::min<long>(p.spaces[s].count-j,
-            static_cast<long>((total_page_capacity-held_pages+1e-6)/reserve));
-        int contiguous=1;
-        while(j+contiguous<p.spaces[s].count &&
-              p.spaces[s].piece_of_task[j+contiguous]==pi)++contiguous;
-        count=std::min(count,contiguous);
+        while(j+count<p.spaces[s].count &&
+              p.spaces[s].piece_of_task[j+count]==pi &&
+              held_pages[(j+count)%workers]+
+                  (count/workers+1)*reserve<=per_worker_capacity+1e-6)
+          ++count;
         if(count==0)break;
       }else {
         count=1;
         while(j+count<p.spaces[s].count && p.spaces[s].piece_of_task[j+count]==pi)++count;
       }
-      for(int at=j;at<j+count;++at){page_hold[s][at]=reserve;prefetch_bytes[s][at]=bytes;}
-      held_pages+=reserve*count;prefetch_task+=count;
+      for(int at=j;at<j+count;++at){
+        page_hold[s][at]=reserve;prefetch_bytes[s][at]=bytes;
+        held_pages[at%workers]+=reserve;
+      }
+      prefetch_task+=count;
       if(bytes==0)for(int at=j;at<j+count;++at)mark_prefetched(s,at,now);
       else {
         int id=inflight?inflight->Add(bytes,parts.dram_rate_cap,
@@ -132,7 +137,18 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
       }
     }
   };
-  auto close=[&](int id){auto& c=cohorts[id];if(c.compute && c.bytes && !c.closing){c.closing=true;auto& s=result.spaces[c.space];s.mainloop_ns+=(now-c.main)*c.count;push(now+(!options.no_sync && publishes[c.space]?p.publication_ns:0),PublishEnd,id);}};
+  auto close=[&](int id){auto& c=cohorts[id];if(c.compute && c.bytes && !c.closing){
+    c.closing=true;
+    // A prefetched page is held until its consumer finishes its mainloop.
+    // Releasing the entire task at MainStart allowed arbitrarily many future
+    // tasks to refill a ring whose current task had not read a single page.
+    if(paged)for(std::size_t i=c.begin;i<c.begin+c.count;++i){
+      int task=cohort_tasks[i];held_pages[task%workers]-=page_hold[c.space][task];
+      page_hold[c.space][task]=0;
+    }
+    auto& s=result.spaces[c.space];s.mainloop_ns+=(now-c.main)*c.count;
+    push(now+(!options.no_sync && publishes[c.space]?p.publication_ns:0),PublishEnd,id);
+  }};
   while(finished<total) {
     while(!events.empty() && events.top().time<=now) {
       auto event=events.top();events.pop();
@@ -146,7 +162,6 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
         if(event.kind==MainStart) {
           c.main=now;double prefetched_total=0;
           if(paged)for(std::size_t i=c.begin;i<c.begin+c.count;++i){int task=cohort_tasks[i];
-            held_pages-=page_hold[c.space][task];page_hold[c.space][task]=0;
             prefetched_total+=prefetch_bytes[c.space][task];}
           double bytes=parts.dram_bytes-(options.no_external?parts.no_producer_dram_bytes:0)
               -(paged?prefetched_total/c.count:0);

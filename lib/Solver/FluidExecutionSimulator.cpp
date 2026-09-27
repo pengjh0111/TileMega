@@ -64,7 +64,12 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
       fluid_owner.push_back(-n-1);
     }
   };
-  auto finish=[&](int n){if(compute[n] && bytes[n] && !closing[n]){closing[n]=1;bool publish=input.publication_required.empty()?prepared->cross_fanout[n]>0:input.publication_required[n]!=0;events.push({now+(publish?options.publication_ns:0),End,n});}};
+  auto finish=[&](int n){if(compute[n] && bytes[n] && !closing[n]){
+    closing[n]=1;
+    if(paged){int w=prepared->owner[n];page_hold[w]-=reserved[n];reserved[n]=0;launch_prefetch(w);}
+    bool publish=input.publication_required.empty()?prepared->cross_fanout[n]>0:input.publication_required[n]!=0;
+    events.push({now+(publish?options.publication_ns:0),End,n});
+  }};
   for(int w=0;w<workers;++w){launch_prefetch(w);enqueue(w);}
   while(completed<nodes) {
     double next=std::min(events.empty()?std::numeric_limits<double>::infinity():events.top().at,now+fluid_next());
@@ -77,7 +82,6 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
         bool wait=input.consumer_wait_required.empty()?prepared->cross_input[n]!=0:input.consumer_wait_required[n]!=0;
         events.push({now+(wait?options.consumer_wait_ns:0)+parts.fixed_ns,Main,n});
       }else if(e.kind==Main){
-        if(paged){page_hold[w]-=reserved[n];reserved[n]=0;launch_prefetch(w);}
         double demand=parts.dram_bytes-(options.no_external_dram?parts.no_producer_dram_bytes:0)
             -(paged?prefetch_bytes[n]:0);
         if(demand<0)throw std::invalid_argument("negative fluid demand");
