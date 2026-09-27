@@ -1,0 +1,9 @@
+{
+  "case": "Llama prefill B=16, search-only, warm start",
+  "search_budget_ms": 1,
+  "evaluated": 2,
+  "marker": "SEARCH_BUDGET\t1\t2\tpartial_coordinate_scan",
+  "result": "valid seed and warm-start candidates retained; partial coordinate scan logged",
+  "source_log": "/root/r11_work/oracle_skip_eval/budget.so.search.tsv",
+  "limit": "smoke test only; no end-to-end plan or performance claim"
+}

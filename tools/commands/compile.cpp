@@ -295,7 +295,8 @@ int RunCompile(int argc, char** argv) {
         serving_query_rows=64,serving_argmax_tile_n=128;
     bool resource_probes=true;bool dump_evaluated=false;
     std::string solver_mode="skeleton",legacy_seed,variant_cache,flow_fixture;
-    int skeleton_k=8,search_passes=3,search_jobs=1,search_top_m=8;
+    int skeleton_k=8,search_passes=3,search_jobs=1,search_top_m=8,
+        search_budget_ms=0;
     bool all_workers=false,flow_search_only=false,incremental_prepare=true,
          serving_pruning=true;
     tilemega::solver::SolverTiming solver_timing;
@@ -317,6 +318,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--search-passes") search_passes=std::stoi(value);
       else if (flag=="--top-m") search_top_m=std::stoi(value);
       else if (flag=="--search-jobs") search_jobs=std::stoi(value);
+      else if (flag=="--search-budget-ms") search_budget_ms=std::stoi(value);
       else if (flag=="--solve") solve_target=value;
       else if (flag=="--serving") serving_phase=value;
       else if (flag=="--emit") emit_mode=value;
@@ -401,6 +403,8 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("--top-m must be in 1..8");
     if(search_jobs<1)
       throw std::runtime_error("--search-jobs must be positive");
+    if(search_budget_ms<0)
+      throw std::runtime_error("--search-budget-ms must be nonnegative");
     if(serving && !solve_target.empty() && !flow_search_only &&
        measure_command.empty())
       throw std::runtime_error("serving solve requires --measure-cmd for the top-3 decision");
@@ -552,6 +556,7 @@ int RunCompile(int argc, char** argv) {
         tilemega::solver::SkeletonSearchOptions skeleton;skeleton.common=solve_options;
         skeleton.k_base=skeleton_k;skeleton.all_workers=all_workers;
         skeleton.passes=search_passes;skeleton.jobs=search_jobs;
+        skeleton.search_budget_ms=search_budget_ms;
         skeleton.artifact_prefix=argv[2];skeleton.fixture=flow_fixture;
         skeleton.search_only=flow_search_only;
         skeleton.incremental_prepare=incremental_prepare;

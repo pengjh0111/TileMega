@@ -320,3 +320,15 @@ is 51.81 W. The CLI can now load one fixed `test.policy_file` for all
 TileMega/vLLM arms instead of resampling a threshold after each build.
 `ev2/measurement_policy.json` has no measurement rounds yet, and K-15
 correctly remains failed.
+
+The first full-scope Llama acceptance attempt was stopped after 80 minutes:
+B=1 prefill completed in 699.16 s, while B=16 prefill was still evaluating
+its second warm-start pass after more than an hour. The partial search TSVs
+were retained. An exact runtime-full-window shortcut now avoids the
+unnecessary General-Oracle fiber; a serving-only outer-scan deadline reserves
+200 s of each 600 s plan budget for materialization, compilation and GPU
+selection. A one-millisecond budget smoke run kept valid seed/warm-start
+candidates and recorded `SEARCH_BUDGET`. The shortened scan can miss a better
+configuration, so it is an explicit search-quality deviation. The narrowed
+Llama B=1/16 acceptance has been restarted on the newly built source; final
+paired runs and selected-plan diagnostics remain pending.

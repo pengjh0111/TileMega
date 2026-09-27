@@ -1,0 +1,17 @@
+{
+  "old": {
+    "score_ns": 29675702.130382843,
+    "prepare_edges_ms": 3141.97,
+    "piece_pricing_and_release_ms": 15262.5,
+    "elapsed_s": 38.565
+  },
+  "new": {
+    "score_ns": 29675702.130382843,
+    "prepare_edges_ms": 1596.77,
+    "piece_pricing_and_release_ms": 13975.6,
+    "elapsed_s": 37.8
+  },
+  "same_score": true,
+  "candidate": "Llama prefill B16 eval 5357 (Ec=1088, Rq=16)",
+  "note": "One process pair; elapsed wall time shares CPU with the main search and is not a clean speed benchmark. prepare_edges is cumulative over seed and case."
+}

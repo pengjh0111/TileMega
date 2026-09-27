@@ -215,6 +215,7 @@ class Run:
                             '--solver', 'skeleton', '--solve', str(self.target), '--emit', 'serving',
                             '--search-passes', str(settings['passes']), '--top-m', str(settings['top_m']),
                             '--search-jobs', str(settings['jobs']),
+                            '--search-budget-ms', str(max(1, int(1000 * settings['time_budget_s']) - 200000)),
                             '--serving-pruning', str(int(settings['pruning'])), '--incremental-prepare', '1',
                             '--variant-cache', str(self.cache / 'variants' / self.device_key),
                             '--artifact-cache', str(self.cache / 'artifacts'), '--dump-cg', str(plan / 'selected.mlir'),

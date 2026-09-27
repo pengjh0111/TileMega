@@ -406,6 +406,15 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
       ++cache.release_misses;auto values=std::make_shared<std::vector<std::pair<int,int>>>();bool nonprefix=false;
       auto bound_windows=BindRuntimeWindows(problem.projection,p,c,theta);
       for(int j=0;j<problem.counts[c];++j) {
+        // A runtime kAll window is already the latest possible release.
+        // No CG predecessor can move that endpoint further, so avoid an
+        // expensive General-Oracle fiber optimization for this consumer.
+        int runtime_last=RuntimeReleaseEndpoint(-1,j,problem.counts[p],
+            bound_windows,problem.projection.options.force_all_dependencies);
+        if(problem.counts[p]>0 && runtime_last==problem.counts[p]-1) {
+          values->emplace_back(CoarsenRelease(runtime_last,problem.counts[p],kappa),j);
+          continue;
+        }
         auto release=oracle->reverse.LinearRelease({j},theta);
         int last=RuntimeReleaseEndpoint(release.maximum,j,problem.counts[p],
             bound_windows,problem.projection.options.force_all_dependencies);

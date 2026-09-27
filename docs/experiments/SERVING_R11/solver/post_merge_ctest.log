@@ -1,0 +1,16 @@
+Internal ctest changing into directory: /root/r11_work/build
+Test project /root/r11_work/build
+    Start  9: stage_flow
+1/5 Test  #9: stage_flow .......................   Passed    0.01 sec
+    Start 10: flow_runtime_release
+2/5 Test #10: flow_runtime_release .............   Passed   86.69 sec
+    Start 73: direct_handoff
+3/5 Test #73: direct_handoff ...................   Passed    0.27 sec
+    Start 81: skeleton_search_isolation
+4/5 Test #81: skeleton_search_isolation ........   Passed    8.72 sec
+    Start 84: symbolic_oracle
+5/5 Test #84: symbolic_oracle ..................   Passed    0.13 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =  95.82 sec

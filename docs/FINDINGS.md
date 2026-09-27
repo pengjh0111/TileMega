@@ -8761,3 +8761,18 @@ specialize exact affine release fibers for unchanged edge geometry and
 compare scores against the current Oracle before replacing it. Evidence:
 `SERVING_R11/solver/llama_B16_prefill_oracle_stack.txt` and the same plan's
 `plan.so.search.tsv` in the R11 acceptance cache.
+
+## F-334: Full runtime windows admit an exact release shortcut
+
+✅ verified in an isolated R11 worktree and merged into the R11 source: when a bound runtime window already
+ends at `N_P−1`, taking `max(CG endpoint, runtime endpoint)` cannot change
+that value. Skipping the General Oracle fiber on those consumers preserved
+the Level 1 score exactly for one Llama B=16 prefill candidate
+(29,675,702.130382843 ns in both builds). Cumulative edge preparation fell
+from 3,141.97 to 1,596.77 ms, while the full candidate process changed
+from 38.565 to 37.800 s under concurrent CPU load. This is a local exact
+optimization, insufficient on its own to meet the 600 s plan budget.
+Evidence: `SERVING_R11/solver/full_window_shortcut_probe.json` and its
+old/new timing and search TSVs. The follow-up serving search adds a wall-clock
+scan budget and records `SEARCH_BUDGET` when it has to truncate a coordinate;
+that bound is a search-quality tradeoff, not an exact pruning rule.

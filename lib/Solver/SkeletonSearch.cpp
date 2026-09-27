@@ -466,6 +466,12 @@ bool BetterCandidate(SkeletonCandidate const& candidate,
 std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out) {
   auto const& options=search.options;
   if(options.passes<1 || options.passes>3)throw std::invalid_argument("coordinate descent supports P=1..3");
+  auto const scan_start=std::chrono::steady_clock::now();
+  auto budget_expired=[&] {
+    return search.imported.plan.serving && options.search_budget_ms>0 &&
+        std::chrono::steady_clock::now()-scan_start>=
+            std::chrono::milliseconds(options.search_budget_ms);
+  };
   std::vector<SkeletonCandidate> evaluated;std::map<std::string,std::size_t> seen;
   auto evaluate=[&](std::vector<GemmConfig> const& config,int kappa,int residency)->std::size_t {
     auto key=search.Key(config,kappa,residency);auto old=seen.find(key);if(old!=seen.end())return old->second;
@@ -570,7 +576,8 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
         if(search.imported.plan.serving)
           search.SetServingStructure(fixed.attention_kv_block,
               fixed.attention_query_rows,search.ArgmaxTileN(fixed.config));
-        for(auto const& g:domains[c]){auto config=fixed.config;config[c]=g;
+        for(auto const& g:domains[c]){if(budget_expired())goto search_complete;
+          auto config=fixed.config;config[c]=g;
           int residency=fixed.residency;
           int kappa=fixed.kappa;
           if(search.imported.plan.serving) {
@@ -612,7 +619,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
         }
         std::sort(attention_domain.begin(),attention_domain.end());
         attention_domain.erase(std::unique(attention_domain.begin(),attention_domain.end()),attention_domain.end());
-        for(int value:attention_domain) {
+        for(int value:attention_domain) {if(budget_expired())goto search_complete;
           int ec=decode?value:fixed.attention_kv_block;
           int rq=decode?fixed.attention_query_rows:value;
           search.SetServingStructure(ec,rq,search.ArgmaxTileN(fixed.config));
@@ -631,17 +638,19 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
         if(options.pg_pages)search.current_page_bytes=fixed.page_bytes;
         search.current_handoff_mask=fixed.handoff_mask;
         auto serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
-        for(int k:serving_order.kappa_scan){auto i=evaluate(fixed.config,k,fixed.residency);if(BetterCandidate(evaluated[i],evaluated[incumbent],search.imported.plan.serving)){incumbent=i;moved=true;}}
+        for(int k:serving_order.kappa_scan){if(budget_expired())goto search_complete;
+          auto i=evaluate(fixed.config,k,fixed.residency);if(BetterCandidate(evaluated[i],evaluated[incumbent],search.imported.plan.serving)){incumbent=i;moved=true;}}
         fixed=evaluated[incumbent];
         if(options.pg_pages)search.current_page_bytes=fixed.page_bytes;
         search.current_handoff_mask=fixed.handoff_mask;
         serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
-        for(int r:serving_order.residency_scan){auto i=evaluate(fixed.config,fixed.kappa,r);if(BetterCandidate(evaluated[i],evaluated[incumbent],search.imported.plan.serving)){incumbent=i;moved=true;}}
+        for(int r:serving_order.residency_scan){if(budget_expired())goto search_complete;
+          auto i=evaluate(fixed.config,fixed.kappa,r);if(BetterCandidate(evaluated[i],evaluated[incumbent],search.imported.plan.serving)){incumbent=i;moved=true;}}
       }
       if(options.pg_pages) {
         auto fixed=evaluated[incumbent];
         search.current_handoff_mask=fixed.handoff_mask;
-        for(int bytes:options.page_choices) {
+        for(int bytes:options.page_choices) {if(budget_expired())goto search_complete;
           search.current_page_bytes=bytes;
           auto i=evaluate(fixed.config,fixed.kappa,fixed.residency);
           if(BetterCandidate(evaluated[i],evaluated[incumbent],true)) {
@@ -656,7 +665,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       if(options.handoff_auto && search.imported.plan.serving) {
         auto fixed=evaluated[incumbent];
         if(options.pg_pages)search.current_page_bytes=fixed.page_bytes;
-        for(unsigned mask=0;mask<4;++mask) {
+        for(unsigned mask=0;mask<4;++mask) {if(budget_expired())goto search_complete;
           search.current_handoff_mask=mask;
           auto i=evaluate(fixed.config,fixed.kappa,fixed.residency);
           if(BetterCandidate(evaluated[i],evaluated[incumbent],true)) {
@@ -670,6 +679,9 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       if(!moved)break;
     }
   }
+search_complete:
+  if(budget_expired())out<<"SEARCH_BUDGET\t"<<options.search_budget_ms
+      <<"\t"<<evaluated.size()<<"\tpartial_coordinate_scan\n";
   std::stable_sort(evaluated.begin(),evaluated.end(),[](auto const& a,auto const& b){return a.score<b.score;});
   if(search.imported.plan.serving)for(std::size_t begin=0;begin<evaluated.size();) {
     std::size_t end=begin+1;

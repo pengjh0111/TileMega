@@ -7,6 +7,9 @@ namespace tilemega::codegen::executor {
 // global event or intermediate global buffer is needed for their shared edge.
 template<class Producer,class Consumer>
 __device__ void DirectHandoff(void* page,Producer produce,Consumer consume) {
+  // A paged decode CTA has an extra loader warp. Only its four compute
+  // warps may participate in this named barrier or touch the handoff page.
+  if(!IsCompute())return;
   produce(page);
   ComputeSync();
   consume(page);
