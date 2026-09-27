@@ -8690,3 +8690,43 @@ these fixed geometries. The numerator counts historical KV bytes per query
 block and may include L2 hits, so this is not a hardware DRAM counter.
 Selected-plan trace attribution remains open. Evidence:
 `SERVING_R11/single_page_loader/diagnostics/attention_bandwidth.tsv`.
+
+## F-329: The paged decode chain still has a measurable per-link bubble
+
+✅ verified on the separately instrumented sm_89 Llama decode binary:
+at past 575, the realized B=1 chain has 135 links and spans 4.665 ms,
+against a CG-derived DRAM floor of 2.537 ms. Its residual excess is
+2.128 ms, or 15.76 µs per realized link. At B=16, 119 links span
+4.902 ms against a 2.826 ms floor, leaving 17.45 µs per link. A CTA's
+page ring is full while its consumer is still waiting on dependencies for
+3.126/3.306 ms per step at B=1/16, respectively. The device-visible
+inter-launch gap averages 3.627/3.567 µs, with a 4.096/3.072 µs median.
+These are trace-build measurements; instrumentation changes absolute latency,
+so the normal binary supplies E2E performance comparisons. Evidence:
+`SERVING_R11/single_page_loader/diagnostics/summary.tsv` and its trace
+inputs in that directory.
+
+## F-330: A reused normalization scratch buffer corrupted prefill KV across layers
+
+✅ verified on Llama B=16: the serving ModelPlan formerly assigned one
+`serving.normalized` buffer to each layer's two RMSNorm outputs. With the
+new per-layer `lN.norm1` and `lN.norm2` buffers, twelve independent prefill
+runs produced identical L1/L2 KV state; a 1024-token L1/L2 request then
+matched at every token. The old buffer could be overwritten before an
+earlier consumer completed, which explains the intermittent mismatch and
+does not require a synchronization-protocol change. Evidence:
+`lib/Frontend/ModelPlan.cpp`, `test/unit/serving_model_plan_test.cpp`, and
+`SERVING_R11/handoff_closure/llama_b16_1024_tokens.json`.
+
+## F-331: Legal handoff can lose performance and needs measured selection
+
+✅ verified on one Llama B=16 decode geometry: a real access-proved
+normalization recompute plan produced the same 1024 tokens as its event-plan
+control in both placement modes. Across three paired 32-step runs at past
+575, the L1 median was 4.394 ms without handoff and 4.703 ms with handoff;
+the extra row reduction repeated across GEMM N tiles costs more than the
+removed stage on this geometry. The 2% final measured gate must reject it.
+Separately, split-K combine spaces generated after lifting have no L-sem;
+the edge verifier now ignores such unrelated spaces and conservatively
+rejects recompute if an unlifted space may produce an input. Evidence:
+`SERVING_R11/handoff_closure/` and `lib/Dialect/CouplingGraph/HandoffAccess.cpp`.

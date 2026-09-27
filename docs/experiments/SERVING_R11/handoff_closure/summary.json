@@ -1,0 +1,9 @@
+{
+  "source": "same geometry Llama decode B16, three paired 32-step mean measurements",
+  "medians_ms": {
+    "off_L1": 4.393573969602585,
+    "off_L2": 4.773380979895592,
+    "on_L1": 4.703530937433243,
+    "on_L2": 5.088512033224106
+  }
+}

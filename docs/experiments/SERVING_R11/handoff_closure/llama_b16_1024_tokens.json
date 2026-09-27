@@ -1,0 +1,30 @@
+[
+  {
+    "mode": "L1",
+    "handoff": "off",
+    "e2e_ms": 6577.116307104006,
+    "sha256": "bbde0f3ff3219feb936f748a6d2c457581ab2cc1332d3e5d66c490b1203e83bb",
+    "mismatch_vs_reference": 0
+  },
+  {
+    "mode": "L1",
+    "handoff": "handoff",
+    "e2e_ms": 4873.614935902879,
+    "sha256": "bbde0f3ff3219feb936f748a6d2c457581ab2cc1332d3e5d66c490b1203e83bb",
+    "mismatch_vs_reference": 0
+  },
+  {
+    "mode": "L2",
+    "handoff": "off",
+    "e2e_ms": 6626.356450840831,
+    "sha256": "694fe47729c41d84790837ba334b3a81bd2bad6de70fec7f28455bc8254c2ab1",
+    "mismatch_vs_reference": 2761
+  },
+  {
+    "mode": "L2",
+    "handoff": "handoff",
+    "e2e_ms": 4902.860566973686,
+    "sha256": "bbde0f3ff3219feb936f748a6d2c457581ab2cc1332d3e5d66c490b1203e83bb",
+    "mismatch_vs_reference": 0
+  }
+]

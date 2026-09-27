@@ -69,7 +69,9 @@ def ev2_contamination_policy():
         rounds = data['rounds']
         if idle <= 0 or margin <= 0 or not isinstance(rounds, list):
             raise ValueError('invalid idle power, margin, or rounds')
-        expected = {(model, batch, arm) for model in ('llama', 'qwen3')
+        # The user narrowed final EV-2 acceptance to Llama at B=1 and B=16.
+        # This does not retroactively satisfy the original ten-cell G-9.
+        expected = {(model, batch, arm) for model in ('llama',)
                     for batch in (1, 16) for arm in ('tilemega', 'vllm')}
         seen = set()
         for row in rounds:
