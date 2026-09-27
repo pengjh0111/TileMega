@@ -50,6 +50,37 @@ def main() -> None:
         raise ValueError("expected four cells with 50 fresh processes each")
     out.mkdir(parents=True, exist_ok=True)
     (out / "protocol_summary.json").write_text(json.dumps(protocol, indent=2) + "\n")
+    # Keep the per-process results rather than only the aggregate counters.
+    # Each PID must be distinct and all five token hashes (reference L1 and
+    # candidate L1/L2 twice) must agree within that fresh process.
+    protocol_archive = out / "protocol_raw.tar.xz"
+    seen_pids = set()
+    process_counts = {(model, batch): 0 for model, batch in CELLS}
+    with tarfile.open(protocol_archive, "w:xz") as target:
+        for summary_path, summary in zip(protocol_paths, protocol):
+            for path in sorted(summary_path.parent.glob("*_*/*")):
+                if path.name != "result.json":
+                    continue
+                result = json.loads(path.read_text())
+                model = "llama" if "llama" in result["case"]["model"] else "qwen3"
+                cell = (model, int(result["case"]["batch"]))
+                records = result["records"]
+                if cell not in process_counts or result["pid"] in seen_pids or \
+                        not result["passed"] or len(records) != 5 or \
+                        any(row["mismatches"] != 0 for row in records) or \
+                        len({row["token_sha256"] for row in records}) != 1:
+                    raise ValueError(f"invalid fresh-process token check: {path}")
+                seen_pids.add(result["pid"])
+                process_counts[cell] += 1
+                for file in sorted(path.parent.iterdir()):
+                    if file.is_file():
+                        name = f"{model}_B{cell[1]}/{path.parent.name}/{file.name}"
+                        info = target.gettarinfo(str(file), arcname=name)
+                        info.mtime = 0
+                        with file.open("rb") as stream:
+                            target.addfile(info, stream)
+    if len(seen_pids) != 200 or any(count != 50 for count in process_counts.values()):
+        raise ValueError(f"fresh-process coverage differs from 50 per cell: {process_counts}")
     summaries = []
     provenance = []
     raw = []
@@ -107,6 +138,9 @@ def main() -> None:
         "Trace instrumentation perturbs timing; non-instrumented performance\n"
         "is measured separately with the same geometry. `raw.tar.xz` preserves\n"
         "the raw page/chain traces, floor evaluation, commands, and guard logs.\n"
+        f"`protocol_raw.tar.xz` retains {len(seen_pids)} distinct process results,\n"
+        "each with five matching token hashes and its guard log.\n"
+        f"Protocol archive SHA256: `{sha(protocol_archive)}`.\n"
         f"Raw archive SHA256: `{sha(archive)}`.\n"
     )
     print(json.dumps(dict(cells=len(summaries), archive=str(archive),
