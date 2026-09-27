@@ -8537,3 +8537,15 @@ were not merged. `paged_gemm` and `page_ring` unit tests pass on the changed
 source. These are isolated stage results; fresh-process and full-request
 checks of the newly built serving binaries are tracked separately in
 `SERVING_R11/single_page_loader/`.
+
+## F-321: Access proofs expose many potential handoffs, but no direct page edge in two B1 candidates
+
+✅ verified for the R10 rank-1 decode B1 CGs: invoking the production
+`VerifyHandoffAccess` checker on every coupling finds 35 recompute and 49
+last-arriver candidate edges in Llama, and 59 and 85 respectively in Qwen3.
+Neither candidate CG has a legal `smem_direct` edge. The Qwen3 rank-1 CG is
+not its selected R10 winner, and neither result is a solved R11 handoff plan.
+The `ApplyHandoffs` pass still lacks serving runtime stage replanning, so
+these legal edges have not produced fused execution or a performance claim.
+See `SERVING_R11/handoff/eligibility.md` and the pinned CG hashes and edge
+lists in `eligibility_summary.json`.

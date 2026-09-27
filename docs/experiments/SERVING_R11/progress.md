@@ -214,3 +214,9 @@ PG-off/PG-1 complete requests and collects trace chain/page/launch metrics.
 The trace-report contract test passes exact-floor, residual-bubble, CTA-local
 overlap and adjacent-launch calculations. The final selected-plan EV-2 and
 the four failing structural checks remain open.
+
+An additional all-coupling access-proof audit of the rank-1 B1 decode CGs
+found 35/49/0 legal recompute/last-arriver/smem-direct edges for Llama and
+59/85/0 for Qwen3. These are candidates, not selected or executed handoffs;
+Qwen3 rank 1 is not its saved R10 winner. The existing `handoff_ir` test still
+passes. See F-321 and `handoff/eligibility_summary.json`.
