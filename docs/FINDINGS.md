@@ -8567,3 +8567,32 @@ must track per-worker page occupancy and stage-wise release, then repeat the
 Level 1 versus fluid/timed ranking check before using its score to select
 plans. The current controlled PG result remains a runtime comparison,
 independent of this model inference.
+
+## F-323: A single-page loader edit improves one class but PG-1 still loses four matched requests
+
+✅ verified on the native sm_89 device after 200/200 distinct-process
+L1/L2 token checks, 50 per model/batch endpoint. With the same geometry,
+placement, attention coordinates and sync settings, the PG-off/PG-1
+1024-token E2E medians are **3.346/4.211 s** and **3.678/4.511 s** for Llama
+B=1/16, and **5.006/7.231 s** and **6.106/8.246 s** for Qwen3 B=1/16.
+The corresponding PG-1/off ratios are 1.259, 1.227, 1.445 and 1.350.
+The isolated paged down stage improved by about 27% after removing an
+impossible per-vector branch (F-320), but complete requests still regress in
+all four cells. These are fixed-geometry controls, not final solver-selected
+EV-2 results. All timed token sequences within an arm matched, and the page
+binaries' SASS FP64 counts are zero. The predeclared power/exclusivity guard,
+timed rounds, binary hashes and raw step curves are in
+`SERVING_R11/single_page_loader/e2e/`.
+
+✅ verified in separate instrumented builds at past 575: realized dependency
+chains contain **135/119/232/204** links and span **4.665/4.902/7.343/8.330
+ms** versus exact CG DRAM floors of **2.537/2.826/3.573/4.583 ms**. The
+residual bubble is **15.8/17.4/16.3/18.4 µs per link**. Across the complete
+request, time with the page ring full while the compute group waits for
+dependencies averages **3.13/3.31/6.37/6.46 ms per CTA per step**. Median
+adjacent decode-launch gaps are **4.096/3.072/4.096/4.096 µs**; their totals
+are only 3.65–3.78 ms across 1022 gaps. The page-full/dependency overlap
+is CTA-local and cannot be summed into wall time. The trace changes execution
+time, so the noninstrumented E2E numbers above are the performance evidence.
+Each cell has 1023 exact per-step floor and launch-gap rows, plus raw traces,
+in `SERVING_R11/single_page_loader/diagnostics/`.

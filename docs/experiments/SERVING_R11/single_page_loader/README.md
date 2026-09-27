@@ -53,7 +53,25 @@ binary uses the SM80-class asynchronous-copy path; the newer-target SASS
 includes TMA and barrier instructions. This is compilation evidence only for
 architectures other than the native sm_89 GPU.
 
-The new full-request and trace evidence is queued behind 200 fresh-process
-token checks. `run_single_page_followup.py` checks that gate before timing
-the four endpoint cells, then collects the requested chain, page-stall and
-launch-gap diagnostics from trace builds of the same generated plans.
+The new source passed **200/200 distinct-process checks**: Llama and Qwen3
+at B=1/16, 50 fresh processes per cell, with reference L1 and candidate
+L1/L2 token hashes equal in every process. The per-process records, binary
+hashes and guard logs are retained in `diagnostics/protocol_raw.tar.xz`.
+
+The matched full-request control is in `e2e/summary.tsv`. The PG-off/PG-1
+E2E pairs are 3.346/4.211 s (Llama B1), 3.678/4.511 s (Llama B16),
+5.006/7.231 s (Qwen3 B1), and 6.106/8.246 s (Qwen3 B16). Thus PG-1 remains
+slower by 22.7–44.5% on the fixed geometry. The source edit improved the
+isolated down stage, but did not make paged execution competitive. These
+controls are not solver-selected EV-2 plans.
+
+The requested trace results are in `diagnostics/summary.tsv`; every cell
+also has 1023 per-step records and exact CG DRAM floors. At past 575 the
+realized chains contain 135/119/232/204 links (Llama B1/B16, Qwen3 B1/B16),
+and their measured spans exceed the DRAM floors by 2.128/2.076/3.770/3.748
+ms, or 15.8/17.4/16.3/18.4 µs per link. The page-full plus dependency-wait
+intersection averages 3.13/3.31/6.37/6.46 ms per CTA per step. Median
+adjacent-launch gaps are 4.096/3.072/4.096/4.096 µs, totaling only about
+3.65–3.78 ms per 1023-step decode request. Trace instrumentation perturbs
+timing; compare performance using `e2e/`, not trace wall times. CTA-local
+wait intervals cannot be summed to infer request wall time.

@@ -220,3 +220,25 @@ found 35/49/0 legal recompute/last-arriver/smem-direct edges for Llama and
 59/85/0 for Qwen3. These are candidates, not selected or executed handoffs;
 Qwen3 rank 1 is not its saved R10 winner. The existing `handoff_ir` test still
 passes. See F-321 and `handoff/eligibility_summary.json`.
+
+The current-source single-page follow-up has completed on all four batch
+endpoints. All 200 new-process protocol checks passed, with distinct PIDs and
+five matching token hashes per process. Under the predeclared guard, the
+same-geometry off/pages 1024-token E2E medians are 3.346/4.211 s and
+3.678/4.511 s for Llama B1/B16, and 5.006/7.231 s and 6.106/8.246 s for
+Qwen3 B1/B16. The page arm remains 1.259/1.227/1.445/1.350× slower.
+These are fixed-geometry diagnostics and cannot close EV-2 or G-9. The
+requested four-cell trace is also archived: past-575 chain lengths
+135/119/232/204, residual 15.8/17.4/16.3/18.4 µs per link over the exact
+CG DRAM floors, page-full∩dependency-wait 3.13/3.31/6.37/6.46 ms per CTA
+per step, and adjacent-launch-gap medians 4.096/3.072/4.096/4.096 µs.
+Trace instrumentation perturbs timing. Raw per-process results, 1023 exact
+per-step floors, binary hashes and guard decisions are in
+`single_page_loader/{e2e,diagnostics}/`. See F-323.
+
+Current workstream count: R10-C, OPS-1, SY-1, PG-0 and native AR-1 checks
+are complete to their applicable scope; OPS-2, PG-1, AT-3, TF-1 and SV-18
+are partial; solver-selected EV-2 has not started. In particular, the
+handoff runtime and search coordinate, the full cached `run` acceptance,
+the page-path performance repair and the final selected-plan matrix remain
+open. Structural `verify.py` remains 14/18 PASS (K-6/K-11/K-15/K-16 open).
