@@ -12,6 +12,9 @@
 #include <cstdio>
 #include <memory>
 #include <vector>
+#include <algorithm>
+#include <limits>
+#include <stdexcept>
 
 #ifndef TILEMEGA_SERVING_BATCH_LO
 #define TILEMEGA_SERVING_BATCH_LO 1
@@ -159,6 +162,7 @@ inline void Destroy(Plan* plan) {
   if (plan->ring) cudaFree(plan->ring);
   if (plan->tensor_maps) cudaFree(plan->tensor_maps);
   auto& model = plan->model;
+  if(model.params.serving_handoff_tickets)cudaFree(model.params.serving_handoff_tickets);
   if(model.params.serving_no_producer)cudaFree(const_cast<std::uint8_t*>(model.params.serving_no_producer));
 #if TILEMEGA_TRACE_V2
   if (model.device_task_trace_v2) cudaFree(model.device_task_trace_v2);
@@ -264,6 +268,43 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     plan->model = harness::Create(
         kModel, kModel.runtime_variants[0], 0, dims, "", grid,
         std::min(l1, l2), target, smem, external);
+    bool has_handoff=false;
+    std::vector<unsigned> reduce_users(plan->model.stages.size(),0);
+    for(std::size_t i=0;i<plan->model.stages.size();++i) {
+      auto const& stage=plan->model.stages[i];
+      if(stage.handoff_reduce_stage==kNoOperand)continue;
+      if(!TILEMEGA_PAGED || TILEMEGA_SERVING_SEQ!=1 ||
+         stage.handoff_reduce_stage<=i ||
+         stage.handoff_reduce_stage>=plan->model.stages.size())
+        throw std::invalid_argument("last-arriver requires a later decode reducer in a paged plan");
+      auto const& reduce=plan->model.stages[stage.handoff_reduce_stage];
+      if(!reduce.handoff_elided ||
+         !((stage.kind==TaskKind::kGemm && reduce.kind==TaskKind::kGemmCombine &&
+            stage.gemm==reduce.gemm) ||
+           (stage.kind==TaskKind::kFusedAttention && reduce.kind==TaskKind::kAttentionMerge)))
+        throw std::invalid_argument("last-arriver stage pair is not a complete GEMM or attention reduction");
+      ++reduce_users[stage.handoff_reduce_stage];
+      has_handoff=true;
+    }
+    for(std::size_t i=0;i<reduce_users.size();++i)
+      if(reduce_users[i]>1)
+        throw std::invalid_argument("a reducer cannot have multiple last-arriver owners");
+    if(has_handoff) {
+      std::uint32_t stride=1;
+      for(std::uint32_t i=0;i<kModel.stage_count;++i) {
+        auto const& stage=kModel.stages[i];
+        stride=std::max(stride,std::uint32_t(serving::Count(
+            kModel,kModel.runtime_variants[0],stage,dims)));
+      }
+      auto count=std::size_t(plan->model.stages.size())*stride;
+      if(count>std::numeric_limits<std::size_t>::max()/sizeof(unsigned))
+        throw std::overflow_error("handoff ticket allocation overflow");
+      TILEMEGA_CUDA_CHECK(cudaMalloc(&plan->model.params.serving_handoff_tickets,
+          count*sizeof(unsigned)));
+      TILEMEGA_CUDA_CHECK(cudaMemset(plan->model.params.serving_handoff_tickets,0,
+          count*sizeof(unsigned)));
+      plan->model.params.serving_handoff_ticket_stride=stride;
+    }
     serving::CreateTensorMaps(*plan,kModel,target);
 #if TILEMEGA_L2_PREFETCH
     std::uint8_t* frontier=nullptr;

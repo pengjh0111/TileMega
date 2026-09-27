@@ -590,7 +590,15 @@ std::string emitModelPlan(mlir::ModuleOp module,
           << ", " << integerField(item, "row_offset")
           << ", " << integerField(item, "attention_kv_block")
           << ", " << integerField(item, "attention_query_rows");
-      if(item.get("prefetch_history_mask"))out<<", "<<integerField(item,"prefetch_history_mask");
+      if (serving) {
+        out << ", " << (item.get("prefetch_history_mask")
+            ? integerField(item,"prefetch_history_mask") : 0);
+        out << ", " << (item.get("handoff_reduce_stage")
+            ? std::to_string(integerField(item,"handoff_reduce_stage"))+"u"
+            : std::string("kNoOperand"));
+        out << ", " << (optionalBoolField(item,"handoff_elided") ? "true" : "false");
+      } else if(item.get("prefetch_history_mask"))
+        out<<", "<<integerField(item,"prefetch_history_mask");
     }
     out << "},\n";
   }

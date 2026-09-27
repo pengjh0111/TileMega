@@ -255,7 +255,12 @@ struct StageDesc {
   int attention_kv_block = 256;
   int attention_query_rows = 64;
   unsigned prefetch_history_mask = 0;
+  // Edge handoff metadata is appended so legacy aggregate initializers and
+  // the host/device descriptor layout keep their existing fields unchanged.
+  std::uint32_t handoff_reduce_stage = kNoOperand;
+  bool handoff_elided = false;
 };
+inline constexpr std::uint32_t kHandoffAutoCombine = kNoOperand - 1u;
 
 /// A synchronization requirement synthesized from CG couplings: consumer
 /// stage `consumer` waits for stage `producer` to complete.
@@ -699,6 +704,10 @@ struct Params {
   std::uint8_t const* serving_no_producer = nullptr;
   // Diagnostic-only page-ring timers. The pointer is null in normal serving.
   PageTraceRecord* serving_page_trace = nullptr;
+  // One ticket row per producer stage, indexed by its output tile. Allocated
+  // once per serving plan and reset by the final arriving producer CTA.
+  unsigned* serving_handoff_tickets = nullptr;
+  std::uint32_t serving_handoff_ticket_stride = 0;
 };
 
 /// Everything the generator emits about one model.  The harness reads only

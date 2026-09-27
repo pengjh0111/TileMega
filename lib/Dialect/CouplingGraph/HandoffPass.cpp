@@ -3,6 +3,7 @@
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Dialect/CouplingGraph/ExecOps.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/SymbolTable.h>
 #include <mlir/IR/Verifier.h>
@@ -16,6 +17,13 @@ using namespace mlir;
 using analysis::CouplingRelation;
 template<class T>T Symbol(Operation* scope,llvm::StringRef name) {
   return dyn_cast_or_null<T>(SymbolTable::lookupSymbolIn(scope,name));
+}
+std::string UniqueSymbol(Operation* scope,std::string const& base) {
+  if(!SymbolTable::lookupSymbolIn(scope,base))return base;
+  for(unsigned suffix=1;;++suffix) {
+    auto next=base+"_"+std::to_string(suffix);
+    if(!SymbolTable::lookupSymbolIn(scope,next))return next;
+  }
 }
 bool Equal(CouplingRelation const& a,CouplingRelation const& b) {return a.IsSubset(b) && b.IsSubset(a);}
 CouplingRelation TaskIdentity(analysis::TaskAccesses const& accesses) {
@@ -92,7 +100,7 @@ void RewriteForward(GraphOp graph,PlanOp plan,HandoffOp decision,analysis::Hando
     e.setCountAttr(MetricAttr::get(b.getContext(),relation.Reverse().ImageCard()));
     e->removeAttr("wait_map");e->removeAttr("coupling_attrs");
     e.setSyncKindAttr(SyncKindAttr::get(b.getContext(),b.getStringAttr("global")));
-    auto event_name=e.getSymName().str()+"__handoff_event";
+    auto event_name=UniqueSymbol(graph,e.getSymName().str()+"__handoff_event");
     OperationState event(e.getLoc(),EventTensorOp::getOperationName());
     auto extent=MetricAttr::get(b.getContext(),relation.ImageCard());
     event.addAttribute("sym_name",b.getStringAttr(event_name));
@@ -104,7 +112,7 @@ void RewriteForward(GraphOp graph,PlanOp plan,HandoffOp decision,analysis::Hando
     if(e.getSrc()==p.getSymName() && e.getDst()==c.getSymName()) {old_events.insert(e.getEvent().str());e.erase();continue;}
     if(e.getDst()==p.getSymName()) {
       auto relation=proof.consumer_to_producer.ApplyRange(e.getRelation().getMap());
-      auto clone=cast<CouplingOp>(e->clone());clone.setSymNameAttr(b.getStringAttr(e.getSymName().str()+"__handoff"));
+      auto clone=cast<CouplingOp>(e->clone());clone.setSymNameAttr(b.getStringAttr(UniqueSymbol(graph,e.getSymName().str()+"__handoff")));
       clone.setVolumeAttr(MetricAttr::get(b.getContext(),e.getVolume().getValue().SumAlong(proof.consumer_to_producer)));
       graph.getBody().front().push_back(clone);rewrite(clone,relation,e.getSrc(),name);
       if(!retain){old_events.insert(e.getEvent().str());e.erase();}
@@ -183,7 +191,7 @@ void RewriteLastArriver(GraphOp graph,PlanOp plan,HandoffOp decision,analysis::H
     e.setCountAttr(MetricAttr::get(b.getContext(),relation.Reverse().ImageCard()));
     e->removeAttr("wait_map");e->removeAttr("coupling_attrs");
     e.setSyncKindAttr(SyncKindAttr::get(b.getContext(),b.getStringAttr("global")));
-    auto event_name=e.getSymName().str()+"__handoff_event";
+    auto event_name=UniqueSymbol(graph,e.getSymName().str()+"__handoff_event");
     OperationState event(e.getLoc(),EventTensorOp::getOperationName());auto size=MetricAttr::get(b.getContext(),relation.ImageCard());
     event.addAttribute("sym_name",b.getStringAttr(event_name));event.addAttribute("event_type",TypeAttr::get(RankedTensorType::get({ShapedType::kDynamic},b.getI32Type())));
     event.addAttribute("extent",size);event.addAttribute("dims",b.getArrayAttr({size}));b.setInsertionPoint(e);b.create(event);
@@ -276,6 +284,156 @@ void ApplyHandoffs(mlir::ModuleOp module) {
   }
   if(mlir::failed(mlir::verify(*copy)))throw std::invalid_argument("handoff result failed CG verification");
   module->setAttrs((*copy)->getAttrs());module.getBodyRegion().takeBody(copy->getBodyRegion());
+}
+void LowerServingHandoffStages(mlir::ModuleOp module) {
+  if(!module->hasAttr("tilemega.handoff_pending_lowering"))return;
+  auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  auto pages=module->getAttrOfType<mlir::DictionaryAttr>("tmexec.pages");
+  if(!model || !pages)
+    throw std::invalid_argument("serving handoff lowering requires a paged model and solved page layout");
+  auto source_stages=model.getAs<mlir::ArrayAttr>("stages");
+  if(!source_stages)throw std::invalid_argument("serving handoff lacks runtime stages");
+  std::vector<mlir::NamedAttrList> stages;
+  stages.reserve(source_stages.size());
+  for(auto attr:source_stages)
+    stages.emplace_back(mlir::cast<mlir::DictionaryAttr>(attr));
+  mlir::OpBuilder b(module.getContext());
+  auto stage_kind=[&](int s) {
+    if(s<0 || s>=int(stages.size()))
+      throw std::invalid_argument("handoff stage lies outside runtime model");
+    auto kind=stages[s].get("kind");
+    if(!kind)return std::string{};
+    return mlir::cast<mlir::StringAttr>(kind).getValue().str();
+  };
+  std::set<int> claimed;
+  int lowered=0;
+  for(auto plan:module.getOps<PlanOp>()) {
+    auto graph=Symbol<GraphOp>(module,plan.getGraph());
+    if(!graph)throw std::invalid_argument("handoff source graph is missing");
+    for(auto handoff:plan.getBody().front().getOps<HandoffOp>()) {
+      if(handoff.getKind()=="event")continue;
+      (void)VerifyHandoffAccess(handoff);
+      auto edge=Symbol<CouplingOp>(graph,handoff.getCoupling());
+      auto producer=edge?Symbol<TileSpaceOp>(graph,edge.getSrc()):TileSpaceOp{};
+      auto consumer=edge?Symbol<TileSpaceOp>(graph,edge.getDst()):TileSpaceOp{};
+      if(!producer || !consumer)
+        throw std::invalid_argument("handoff source task space is missing");
+      int p=producer.getStage(),c=consumer.getStage();
+      if(!claimed.insert(c).second)
+        throw std::invalid_argument("runtime reducer is claimed by multiple handoffs");
+      if(handoff.getKind()=="recompute") {
+        if(stage_kind(p)!="kRMSNorm" || stage_kind(c)!="kGemm")
+          throw std::invalid_argument("serving recompute currently requires RMSNorm to GEMM");
+        bool other_consumer=false;
+        for(auto outgoing:graph.getBody().front().getOps<CouplingOp>())
+          if(outgoing.getSrc()==producer.getSymName() &&
+             outgoing.getDst()!=consumer.getSymName())other_consumer=true;
+        if(!other_consumer)stages[p].set("handoff_elided",b.getBoolAttr(true));
+      }else if(handoff.getKind()=="last_arriver") {
+        if(stage_kind(p)=="kFusedAttention" && stage_kind(c)=="kAttentionMerge") {
+          stages[p].set("handoff_reduce_stage",b.getI64IntegerAttr(c));
+          stages[c].set("handoff_elided",b.getBoolAttr(true));
+        } else if(p==c && stage_kind(p)=="kGemm") {
+          // Split-K's combine is expanded after the logical stage table is
+          // read. The sentinel resolves to that generated reducer slot.
+          stages[p].set("handoff_reduce_stage",b.getI64IntegerAttr(
+              codegen::kHandoffAutoCombine));
+        } else throw std::invalid_argument(
+            "serving last-arriver requires attention merge or split-K combine");
+      }else
+        throw std::invalid_argument("serving smem_direct needs a distinct page handoff schedule");
+      ++lowered;
+    }
+  }
+  if(!lowered)throw std::invalid_argument("pending handoff marker has no runtime decision");
+  std::vector<mlir::Attribute> encoded;
+  encoded.reserve(stages.size());
+  for(auto& stage:stages)encoded.push_back(stage.getDictionary(module.getContext()));
+  mlir::NamedAttrList updated(model);
+  updated.set("stages",b.getArrayAttr(encoded));
+  module->setAttr("tilemega.model_plan",updated.getDictionary(module.getContext()));
+  module->removeAttr("tilemega.handoff_pending_lowering");
+  module->setAttr("tmexec.runtime_handoff_lowering",b.getStringAttr("conservative_stage_slots"));
+  if(mlir::failed(mlir::verify(module)))
+    throw std::invalid_argument("lowered handoff stage table failed IR verification");
+}
+ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
+    unsigned selected_classes) {
+  auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  if(!model || !module->hasAttr("tmexec.pages"))
+    throw std::invalid_argument("serving handoff selection requires a solved paged plan");
+  if(module->hasAttr("tmexec.runtime_handoff_lowering"))
+    throw std::invalid_argument("serving handoffs were already selected");
+  auto stages=model.getAs<mlir::ArrayAttr>("stages");
+  if(!stages)throw std::invalid_argument("serving handoff selection lacks stages");
+  auto kind=[&](int stage)->std::string {
+    if(stage<0 || stage>=int(stages.size()))return {};
+    auto value=mlir::cast<mlir::DictionaryAttr>(stages[stage]).getAs<mlir::StringAttr>("kind");
+    return value?value.getValue().str():std::string{};
+  };
+  mlir::OpBuilder b(module.getContext());
+  b.setInsertionPointToEnd(module.getBody());
+  mlir::OperationState graph_state(b.getUnknownLoc(),GraphOp::getOperationName());
+  graph_state.addAttribute("sym_name",b.getStringAttr("serving_handoff_source"));
+  graph_state.addRegion()->push_back(new mlir::Block);
+  auto graph=mlir::cast<GraphOp>(b.create(graph_state));
+  for(auto& op:*module.getBody())
+    if(mlir::isa<TileSpaceOp,CouplingOp,EventTensorOp>(op))
+      graph.getBody().front().push_back(op.clone());
+  mlir::OperationState plan_state(b.getUnknownLoc(),PlanOp::getOperationName());
+  plan_state.addAttribute("sym_name",b.getStringAttr("serving_handoff_plan"));
+  plan_state.addAttribute("graph",mlir::FlatSymbolRefAttr::get(module.getContext(),
+      graph.getSymName()));
+  plan_state.addRegion()->push_back(new mlir::Block);
+  b.setInsertionPointToEnd(module.getBody());
+  auto plan=mlir::cast<PlanOp>(b.create(plan_state));
+  b.setInsertionPointToEnd(&plan.getBody().front());
+  ServingHandoffSelection selected;
+  std::set<std::pair<int,int>> pairs;
+  std::set<int> claimed_consumers;
+  // Prefer row recompute when it and a split-K reducer would claim the same
+  // logical GEMM stage. A later solver phase can compose both handoffs.
+  for(int pass=0;pass<2;++pass)
+  for(auto edge:graph.getBody().front().getOps<CouplingOp>()) {
+    auto p=Symbol<TileSpaceOp>(graph,edge.getSrc());
+    auto c=Symbol<TileSpaceOp>(graph,edge.getDst());
+    if(!p || !c)continue;
+    auto pair=std::make_pair(int(p.getStage()),int(c.getStage()));
+    if(pairs.count(pair) || claimed_consumers.count(pair.second))continue;
+    std::string choice;
+    if((selected_classes&1) && kind(pair.first)=="kRMSNorm" &&
+       kind(pair.second)=="kGemm") {
+      bool shared=false;
+      for(auto other:graph.getBody().front().getOps<CouplingOp>())
+        if(other.getSrc()==p.getSymName() && other.getDst()!=c.getSymName())
+          shared=true;
+      if(!shared)choice="recompute";
+    }
+    else if((selected_classes&2) && kind(pair.first)=="kFusedAttention" &&
+            kind(pair.second)=="kAttentionMerge")
+      choice="last_arriver";
+    else if((selected_classes&2) && pair.first==pair.second &&
+            kind(pair.first)=="kGemm")
+      choice="last_arriver";
+    else continue;
+    if((pass==0)!=(choice=="recompute"))continue;
+    mlir::OperationState decision(edge.getLoc(),HandoffOp::getOperationName());
+    decision.addAttribute("coupling",mlir::FlatSymbolRefAttr::get(module.getContext(),
+        edge.getSymName()));
+    decision.addAttribute("kind",b.getStringAttr(choice));
+    auto handoff=mlir::cast<HandoffOp>(b.create(decision));
+    try {(void)VerifyHandoffAccess(handoff);}
+    catch(std::invalid_argument const&) {handoff.erase();continue;}
+    pairs.insert(pair);claimed_consumers.insert(pair.second);
+    if(choice=="recompute")++selected.recompute;
+    else ++selected.last_arriver;
+  }
+  if(!selected.recompute && !selected.last_arriver) {
+    plan.erase();graph.erase();return selected;
+  }
+  ApplyHandoffs(module);
+  LowerServingHandoffStages(module);
+  return selected;
 }
 void RegisterHandoffPass(){mlir::PassRegistration<ApplyPass>();}
 }

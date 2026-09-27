@@ -20,6 +20,18 @@ int TestHandoffIr(int argc,char** argv) try {
   auto module=argc>1?mlir::parseSourceFile<mlir::ModuleOp>(argv[1],&context):
     frontend::TorchExportImporter{}.Import(std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SEQSCAN/raw/export/gqa2.json",context);
   assert(module);
+  if(argc>2 && std::string(argv[2])=="select_serving") {
+    auto selected=dialect::SelectServingHandoffs(*module);
+    assert(selected.recompute+selected.last_arriver>0);
+    assert(!(*module)->hasAttr("tilemega.handoff_pending_lowering"));
+    assert((*module)->hasAttr("tmexec.runtime_handoff_lowering"));
+    auto source=codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1u,1u}});
+    assert(!source.empty());
+    std::cout<<"HANDOFF_SERVING recompute="<<selected.recompute
+             <<" last_arriver="<<selected.last_arriver
+             <<" cuda_bytes="<<source.size()<<'\n';
+    return 0;
+  }
   mlir::OpBuilder b(&context);b.setInsertionPointToEnd(module->getBody());
   mlir::OperationState gs(b.getUnknownLoc(),dialect::GraphOp::getOperationName());
   gs.addAttribute("sym_name",b.getStringAttr("graph"));gs.addRegion()->push_back(new mlir::Block);

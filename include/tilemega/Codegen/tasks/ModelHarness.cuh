@@ -45,6 +45,9 @@
 #include <tilemega/Codegen/tasks/ServingEmbeddingTaskBody.h>
 #include <tilemega/Codegen/tasks/ServingTaskIndex.h>
 #include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>
+#if TILEMEGA_PAGED
+#include <tilemega/Codegen/tasks/LastArriverTaskBody.h>
+#endif
 #include <tilemega/Target/ArchDispatch.h>
 #include <tilemega/Target/TargetSpec.h>
 #if TILEMEGA_PAGED
@@ -66,6 +69,7 @@
 #include <numeric>
 #include <map>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
@@ -2088,6 +2092,7 @@ inline DeviceModel Create(ModelSpec const& spec,
     if (chunks <= 1) continue;
     StageDesc combine = spec.stages[i];
     combine.kind = TaskKind::kGemmCombine;
+    combine.handoff_reduce_stage = kNoOperand;
     combine.gemm = gemm_base[spec.stages[i].gemm];
     combine.group = static_cast<std::uint32_t>(chunks);
     combine.width = spec.gemms[spec.stages[i].gemm].n;
@@ -2095,6 +2100,24 @@ inline DeviceModel Create(ModelSpec const& spec,
     combine.operand[1] = spec.gemms[spec.stages[i].gemm].d;
     done[i] = static_cast<std::uint32_t>(model.stages.size());
     model.stages.push_back(combine);
+  }
+  // The generated plan names original stages. Split-K combines are created
+  // above, so resolve handoff references only after entry[] is complete.
+  for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
+    auto target = spec.stages[i].handoff_reduce_stage;
+    if (target == kNoOperand) continue;
+    if (target == kHandoffAutoCombine) {
+      if (done[i] != entry[i] + 1 ||
+          model.stages[entry[i] + 1].kind != TaskKind::kGemmCombine)
+        throw std::invalid_argument("last-arriver GEMM has no split-K combine");
+      target = entry[i] + 1;
+    } else {
+      if (target >= spec.stage_count)
+        throw std::invalid_argument("last-arriver reducer stage outside plan");
+      target = entry[target];
+    }
+    model.stages[entry[i]].handoff_reduce_stage = target;
+    model.stages[target].handoff_elided = true;
   }
   std::vector<StageDependency> dependencies;
   for (std::uint32_t i = 0; i < spec.stage_count; ++i) {

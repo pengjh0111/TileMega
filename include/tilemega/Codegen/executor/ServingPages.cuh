@@ -45,19 +45,29 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
   }else if constexpr(Variant+1<TILEMEGA_GEMM_VARIANT_COUNT)Gemm<Loader,Variant+1>(params,inv,local,ring,sequence,work);
   else asm volatile("trap;");
 }
-template<int Variant=0>
-__device__ void Combine(Params const& p,StageDesc const& stage,int task,char* work) {
+template<bool Last=false,int Variant=0>
+__device__ void Combine(Params const& p,StageDesc const& stage,int task,char* work,
+                        unsigned* ticket=nullptr,unsigned* shared_last=nullptr) {
   auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
   if(inv.variant==Variant) {
     using V=GemmVariant<Variant>;
     auto run=[&](auto op){
-      ServingGemmCombineTaskBody<V::kTileM,V::kTileN,decltype(op)::value>::Run(
+      auto reduction=[&](auto body){
+        body(
           reinterpret_cast<float const*>(p.buffers[stage.operand[0]]),inv.chunks,
           task/inv.tiles_n,task%inv.tiles_n,stage.batch_rows?p.dims.batch:p.dims.tokens(),
           stage.width,stage.width,inv.serving_output_stride,
           reinterpret_cast<cutlass::bfloat16_t*>(p.buffers[stage.operand[1]]),
           reinterpret_cast<cutlass::bfloat16_t const*>(inv.residual),
           reinterpret_cast<float*>(p.buffers[stage.operand[1]]),inv.serving_argmax_index,reinterpret_cast<float*>(work));
+      };
+      if constexpr(Last)reduction([&](auto... args){
+        LastArriverGemmTaskBody<V::kTileM,V::kTileN,decltype(op)::value>::Run(
+            ticket,inv.chunks,shared_last,args...);
+      });
+      else reduction([&](auto... args){
+        ServingGemmCombineTaskBody<V::kTileM,V::kTileN,decltype(op)::value>::Run(args...);
+      });
     };
     switch(inv.serving_op) {
       case backend::ServingEpilogueOp::kStore:run(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kStore>{});break;
@@ -66,7 +76,8 @@ __device__ void Combine(Params const& p,StageDesc const& stage,int task,char* wo
       case backend::ServingEpilogueOp::kArgmaxPartial:run(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kArgmaxPartial>{});break;
       default:asm volatile("trap;");
     }
-  }else if constexpr(Variant+1<TILEMEGA_GEMM_VARIANT_COUNT)Combine<Variant+1>(p,stage,task,work);
+  }else if constexpr(Variant+1<TILEMEGA_GEMM_VARIANT_COUNT)
+    Combine<Last,Variant+1>(p,stage,task,work,ticket,shared_last);
   else asm volatile("trap;");
 }
 __device__ inline ServingAttentionOperands AttentionOperands(Params const& p,StageDesc const& s) {
@@ -87,16 +98,39 @@ template<bool Loader>
 __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& ring,
                      std::uint64_t& sequence,char* work) {
   auto const& s=p.stages[stage_index];using E=cutlass::bfloat16_t;
+  if(s.handoff_elided)return;
   if(s.kind==TaskKind::kGemm) {
     auto const* table=static_cast<GemmInvocation const*>(p.gemms);
     auto point=DecodeSplitTask(task,table[s.gemm].tiles_m*table[s.gemm].tiles_n,table[s.gemm].chunks);
-    Gemm<Loader>(p,table[s.gemm+point.chunk],point.tile,ring,sequence,work);return;
+    Gemm<Loader>(p,table[s.gemm+point.chunk],point.tile,ring,sequence,work);
+    if constexpr(!Loader)if(s.handoff_reduce_stage!=kNoOperand) {
+      auto* ticket=p.serving_handoff_tickets+
+          stage_index*p.serving_handoff_ticket_stride+point.tile;
+      auto const& reducer=p.stages[s.handoff_reduce_stage];
+      Combine<true>(p,reducer,point.tile,work,ticket,
+          reinterpret_cast<unsigned*>(work));
+    }
+    return;
   }
   if(s.kind==TaskKind::kFusedAttention) {
     auto point=DecodeServingAttentionTask(task,1,int(s.extent),CeilDiv(p.dims.capacity,s.attention_kv_block));
     if constexpr(Loader)Attention::Load(AttentionOperands(p,s),point.batch,point.group,point.cache_block,ring,sequence);
-    else Attention::Run(AttentionOperands(p,s),point.batch,point.group,point.cache_block,ring,sequence,
-                        *reinterpret_cast<Attention::SharedStorage*>(work));
+    else {
+      auto operands=AttentionOperands(p,s);
+      Attention::Run(operands,point.batch,point.group,point.cache_block,ring,sequence,
+                     *reinterpret_cast<Attention::SharedStorage*>(work));
+      if(s.handoff_reduce_stage!=kNoOperand) {
+        auto* ticket=p.serving_handoff_tickets+
+            stage_index*p.serving_handoff_ticket_stride+
+            point.batch*int(s.extent)+point.group;
+        LastArriverAttentionTaskBody<TILEMEGA_SERVING_HEAD_DIM,
+            TILEMEGA_SERVING_QPERKV,TILEMEGA_SERVING_SEQ>::Run(
+                ticket,reinterpret_cast<unsigned*>(work),point.cache_block,
+                operands.partial,operands.lse,operands.context,
+                point.batch,point.group,int(s.extent),p.dims.capacity,
+                s.attention_kv_block,p.dims.past);
+      }
+    }
     return;
   }
   if constexpr(!Loader) {

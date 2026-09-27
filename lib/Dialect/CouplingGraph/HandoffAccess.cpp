@@ -64,8 +64,13 @@ analysis::HandoffAccessProof VerifyHandoffAccess(HandoffOp handoff) {
     incoming_edges[incoming.getDst().str()].push_back(incoming);
   auto kind=handoff.getKind();
   if(kind=="event")return {};
+  // Split-K combine spaces are generated after semantic lifting and have no
+  // standalone L-sem. They must not invalidate proofs for unrelated edges.
   std::map<std::string,TaskAccesses> accesses;
-  for(auto s:graph.getBody().front().getOps<TileSpaceOp>())accesses.emplace(s.getSymName().str(),Access(s));
+  for(auto s:graph.getBody().front().getOps<TileSpaceOp>())
+    if(s.getSemantic())accesses.emplace(s.getSymName().str(),Access(s));
+  if(!accesses.count(p.getSymName().str()) || !accesses.count(c.getSymName().str()))
+    throw std::invalid_argument("handoff requires L-sem on both tasks");
   auto const& pa=accesses.at(p.getSymName().str());auto const& ca=accesses.at(c.getSymName().str());
   std::set<std::string> middle;CouplingRelation relation;
   for(auto const& [name,write]:pa.writes)if(auto r=ca.reads.find(name);r!=ca.reads.end()) {
@@ -73,6 +78,11 @@ analysis::HandoffAccessProof VerifyHandoffAccess(HandoffOp handoff) {
   }
   if(middle.empty())throw std::invalid_argument("handoff has no exact shared tensor access");
   if(kind=="recompute") {
+    // A missing predecessor semantic can hide an input producer. Reject this
+    // edge rather than treating that input as a graph source.
+    for(auto incoming:incoming_edges[p.getSymName().str()])
+      if(!accesses.count(incoming.getSrc().str()))
+        throw std::invalid_argument("recompute input producer has no L-sem");
     TaskAccesses available;
     for(auto const& [name,read]:pa.reads) {
       auto required=relation.ApplyRange(read);CouplingRelation all_writes;
