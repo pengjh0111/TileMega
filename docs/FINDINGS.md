@@ -8549,3 +8549,21 @@ The `ApplyHandoffs` pass still lacks serving runtime stage replanning, so
 these legal edges have not produced fused execution or a performance claim.
 See `SERVING_R11/handoff/eligibility.md` and the pinned CG hashes and edge
 lists in `eligibility_summary.json`.
+
+## F-322: The current paged Level 1 capacity model releases a whole task's pages too early
+
+✅ verified by code inspection: `StageFlowModel.cpp::launch_prefetch` limits
+reserved bytes against `page_bytes × pages_per_worker × workers`, a global
+sum. At `MainStart`, it subtracts every reserved page of the cohort from
+`held_pages` before the cohort's main loop completes. The actual
+`PageRing.cuh` protocol instead has a separate finite ring per CTA; the
+compute group releases each slot only after consuming that page. Thus Level 1
+can admit a prefetch sequence that does not fit any single CTA ring and can
+make the same pages available earlier than the executor does. ⚠️ inferred:
+these two approximations can contribute to an optimistic PG-1 score and a
+poor selected configuration. They do not, by themselves, establish how much
+of the observed fixed-geometry slowdown they explain. The next model change
+must track per-worker page occupancy and stage-wise release, then repeat the
+Level 1 versus fluid/timed ranking check before using its score to select
+plans. The current controlled PG result remains a runtime comparison,
+independent of this model inference.
