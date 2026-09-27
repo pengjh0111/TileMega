@@ -8637,5 +8637,16 @@ plan-time speedup. The complete check proceeded through top-3 measurement
 and selected rank 1 at **3.937 ms** on random BF16 data. The change keeps
 the exact compiled occupancy check and only parallelizes independent
 generated-source compilation. Four relevant host tests passed. The 600 s
-plan budget and EV-2 remain open. Evidence:
+plan budget for the other model/batch endpoints and EV-2 remain open.
+In the subsequent full Llama B=1 build, prefill/decode solved in
+**597.918/493.758 s**; their parallel resource phases were
+**99.670/86.758 s**, and both selected-plan records mark the 600 s budget
+as passed. Prefill has only 2.082 s of margin. Evidence:
 `SERVING_R11/parallel_resource_probes/`.
+
+The cached winners then generated a real Llama B=1 64+1024 request with
+**4.0844 s** E2E and `E2E/ΣT_floor = 1.573`; L1/L2 differed at **0/1024**
+tokens and the HF gap test passed (maximum gap **0.125**). Both selected
+serving binaries had zero audited FP64 instructions. This sample has no
+same-session vLLM arm and handoff was disabled, so it is diagnostic rather
+than EV-2 acceptance.

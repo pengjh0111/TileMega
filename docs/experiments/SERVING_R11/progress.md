@@ -263,4 +263,14 @@ speedup is claimed. Top-3 compiled occupancy probes are now prepared on the
 MLIR thread and compiled concurrently. A three-candidate decode smoke found
 resident=1 for all three, with `megakernel_compile` wall time 83.923 s;
 four host solver tests passed. Full plan-budget validation for this latest
-code remains open. See F-325 and `parallel_resource_probes/`.
+code was subsequently completed on Llama B1: prefill/decode solved in
+597.918/493.758 s, both within 600 s, with resource phases
+99.670/86.758 s. The remaining three endpoint cells and TF-1/EV-2 still
+have no complete budget or end-to-end acceptance. See F-325 and
+`parallel_resource_probes/`.
+
+The same two winners completed a real Llama B1 1024-token request at
+4.0844 s E2E (`E2E/ΣT_floor=1.573`), with 0/1024 L1/L2 token mismatches,
+C-1 passing at maximum HF gap 0.125, and FP64 SASS count zero for both
+selected binaries. This is diagnostic only: handoff was off and no vLLM arm
+ran in that session. Raw results are in `parallel_resource_probes/full_run/`.

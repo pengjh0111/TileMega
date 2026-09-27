@@ -27,5 +27,22 @@ An initial direct C++ invocation omitted `PYTHONPATH` and stopped after the
 successful resource queries when the Python measurement command could not
 import `tilemega`. The completed smoke reran with `PYTHONPATH` set. Both
 fail and success are retained in the work directory; the files here are
-from the successful invocation. The full 600 s plan budget remains unproven
-with the parallel path, and TF-1/EV-2 remain open.
+from the successful invocation.
+
+The full `python -m tilemega build` was then repeated with the parallel
+path. Llama B=1 prefill solved in **597.918 s** (`megakernel_compile`
+99.670 s), and decode in **493.758 s** (`megakernel_compile` 86.758 s).
+Both plan records mark the 600 s budget as passing. The 2.082 s prefill
+margin is narrow; these two plans do not establish G-7 across the reduced
+four-cell matrix. `prefill_parallel.*` and `decode_parallel.*` retain the
+full source's phase and occupancy evidence. TF-1/EV-2 remain open.
+
+The two cached winners also completed a real-weight 64+1024-token request:
+Llama B=1 E2E median **4.0844 s**, TTFT **4.106 ms**,
+`E2E/ΣT_floor = 1.573`. All three timed token sequences matched; L1 and
+L2 had **0/1024** mismatches. HF teacher-forced C-1 passed
+(1024/1024 gaps ≤ 0.5; maximum 0.125). Both selected `.so` SASS audits
+reported FP64 count zero. `full_run/` contains the 1,023-step curve, guard
+rounds, plan manifests, SASS audits, cache decisions and full check output.
+This is one diagnostic cell with `handoff=off`, without a same-session vLLM
+arm; it is not EV-2 or the four-cell performance comparison.

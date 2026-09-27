@@ -1,0 +1,38 @@
+[
+  {
+    "layer": "calibration",
+    "hit": true,
+    "reason": "all section stamps match",
+    "sections": []
+  },
+  {
+    "layer": "export",
+    "hit": true,
+    "reason": "content key and outputs match",
+    "phase": "prefill",
+    "key": "dafedd06c99f91fd12631558cee420aa472c20f4ef162b2941cdf83a507ca0d9"
+  },
+  {
+    "layer": "plan",
+    "hit": true,
+    "reason": "plan key and outputs match",
+    "phase": "prefill",
+    "batch": 1,
+    "key": "000f7bd8299a6bcf9ed3183160263be7721181d1d9a1faa024941bbfd993482a"
+  },
+  {
+    "layer": "export",
+    "hit": true,
+    "reason": "content key and outputs match",
+    "phase": "decode",
+    "key": "96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80"
+  },
+  {
+    "layer": "plan",
+    "hit": true,
+    "reason": "plan key and outputs match",
+    "phase": "decode",
+    "batch": 1,
+    "key": "ee86881d5b75743d05fec549b7d46424308f0e2d939d532c5e7c52be2edf2ec8"
+  }
+]

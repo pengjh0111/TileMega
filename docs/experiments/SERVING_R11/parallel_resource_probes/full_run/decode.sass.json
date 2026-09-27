@@ -1,0 +1,20 @@
+{
+  "binaries": [
+    {
+      "binary": "/root/.cache/tilemega/plans/ee86881d5b75743d05fec549b7d46424308f0e2d939d532c5e7c52be2edf2ec8/plan.so",
+      "fp64_total": 0,
+      "fp64_by_kernel": {
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 0,
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": 0
+      },
+      "instructions": {
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": [],
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": []
+      },
+      "async_instructions": {
+        "LDGSTS": 52
+      }
+    }
+  ],
+  "fp64_total": 0
+}
