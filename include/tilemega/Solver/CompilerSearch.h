@@ -27,6 +27,10 @@ struct CompilerSearchOptions {
   /// changes with split-K, so no one table covers every candidate.
   std::vector<int> stage_kappa;
   std::function<int(mlir::ModuleOp,int)> query_residency;
+  // Optional batched top-K probe. The caller must lower all modules on the
+  // owning MLIR thread before compiling independent generated sources.
+  std::function<std::vector<int>(std::vector<std::pair<mlir::ModuleOp,int>> const&)>
+      query_residencies;
   /// Keep the best plan of every evaluated candidate, not just the top three
   /// (§6 C1-c needs the measured set to cover what the search looked at).
   /// Off by default: it holds one module per candidate alive to the end.

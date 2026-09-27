@@ -65,7 +65,12 @@ std::string modelFingerprint(std::string const& path) {
 }
 
 
-int queryResidency(mlir::ModuleOp module,int kappa,
+struct PreparedResidencyProbe {
+  std::filesystem::path directory;
+  std::string command;
+};
+
+PreparedResidencyProbe prepareResidency(mlir::ModuleOp module,int kappa,
     tilemega::solver::CompilerSearchOptions const& options,
     std::filesystem::path const& directory,std::filesystem::path const& library,
     std::string const& runtime_flags) {
@@ -102,7 +107,13 @@ int queryResidency(mlir::ModuleOp module,int kappa,
   command+=" "+quote(probe.string())+" "+quote(library.string())+
       " -L"+quote(tilemega::commands::CudaLibraryDirectory())+" -lcudart -o "+quote(binary.string());
   std::ofstream(directory/"build_command.txt") << command << '\n';
-  if (std::system((command+" >"+quote((directory/"build.log").string())+" 2>&1").c_str()))
+  return {directory,std::move(command)};
+}
+
+int executeResidency(PreparedResidencyProbe const& prepared) {
+  auto const& directory=prepared.directory;
+  auto binary=directory/"query";
+  if (std::system((prepared.command+" >"+quote((directory/"build.log").string())+" 2>&1").c_str()))
     throw std::runtime_error("resource probe compilation failed: "+directory.string());
   if (std::system((quote(binary.string())+" >"+quote((directory/"resources.json").string())+
       " 2>"+quote((directory/"query.log").string())).c_str()))
@@ -115,6 +126,34 @@ int queryResidency(mlir::ModuleOp module,int kappa,
   if (!count || *count<=0) throw std::runtime_error("invalid resident limit from CUDA");
   std::cerr << "RESOURCE_QUERY directory=" << directory << " resident=" << *count << '\n';
   return int(*count);
+}
+
+int queryResidency(mlir::ModuleOp module,int kappa,
+    tilemega::solver::CompilerSearchOptions const& options,
+    std::filesystem::path const& directory,std::filesystem::path const& library,
+    std::string const& runtime_flags) {
+  return executeResidency(prepareResidency(module,kappa,options,directory,library,runtime_flags));
+}
+
+std::vector<int> queryResidencies(
+    std::vector<std::pair<mlir::ModuleOp,int>> const& probes,
+    tilemega::solver::CompilerSearchOptions const& options,
+    std::filesystem::path const& directory,std::filesystem::path const& library,
+    std::string const& runtime_flags) {
+  std::vector<PreparedResidencyProbe> prepared;
+  prepared.reserve(probes.size());
+  // LowerVariants uses MLIR and ISL state owned by the caller's thread.
+  for(std::size_t i=0;i<probes.size();++i)
+    prepared.push_back(prepareResidency(probes[i].first,probes[i].second,
+        options,directory/std::to_string(i),library,runtime_flags));
+  std::vector<std::future<int>> running;
+  running.reserve(prepared.size());
+  for(auto const& job:prepared)
+    running.push_back(std::async(std::launch::async,[job]{return executeResidency(job);}));
+  std::vector<int> result;
+  result.reserve(running.size());
+  for(auto& job:running)result.push_back(job.get());
+  return result;
 }
 
 struct VariantRequest {
@@ -476,6 +515,11 @@ int RunCompile(int argc, char** argv) {
       if (resource_probes) solve_options.query_residency=[&](mlir::ModuleOp m,int kappa) {
         return queryResidency(m,kappa,solve_options,resource_root/std::to_string(probe_index++),library,runtime_flags);
       };
+      if(resource_probes && serving && solver_mode=="skeleton")
+        solve_options.query_residencies=[&](std::vector<std::pair<mlir::ModuleOp,int>> const& probes) {
+          return queryResidencies(probes,solve_options,
+              resource_root/std::to_string(probe_index++),library,runtime_flags);
+        };
       if(serving) {
         auto const& coefficients=sync_policy=="calibrated"
             ? solve_options.placement.target.serving_hop_coefficients

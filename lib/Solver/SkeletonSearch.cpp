@@ -674,10 +674,25 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
   std::stable_sort(materialized.begin(),materialized.end(),[](auto const& a,auto const& b){return a.entry.evaluation.makespan_ns<b.entry.evaluation.makespan_ns;});
   if(materialized.size()>3)materialized.resize(3);
   std::ofstream resources(options.artifact_prefix+".resources.tsv");resources<<"rank\tkey\testimated\tactual\tre_solved\tresidency\tflow_ns\tsimulated_ns\n";
+  std::vector<int> actual_limits;
+  if(options.common.query_residencies && !materialized.empty()) {
+    std::vector<std::pair<mlir::ModuleOp,int>> probes;
+    probes.reserve(materialized.size());
+    for(auto const& item:materialized)
+      probes.emplace_back(*item.entry.module,item.candidate.kappa);
+    {SolverPhase phase(options.common.timing,"megakernel_compile");
+      actual_limits=options.common.query_residencies(probes);}
+    if(actual_limits.size()!=materialized.size())
+      throw std::runtime_error("top-3 resource probe count mismatch");
+  }
   rank=0;for(auto& item:materialized) {
     auto& c=item.candidate;int actual;
-    if(!options.common.query_residency)throw std::invalid_argument("top-3 requires real queryResidency");
-    {SolverPhase phase(options.common.timing,"megakernel_compile");actual=options.common.query_residency(*item.entry.module,c.kappa);}
+    if(!actual_limits.empty())actual=actual_limits[rank];
+    else {
+      if(!options.common.query_residency)throw std::invalid_argument("top-3 requires real queryResidency");
+      {SolverPhase phase(options.common.timing,"megakernel_compile");
+        actual=options.common.query_residency(*item.entry.module,c.kappa);}
+    }
     if(actual<1)throw std::runtime_error("top-3 compiled with zero residency");
     bool changed=options.pg_pages?actual<1:actual!=c.estimated_limit;
     if(changed) {
