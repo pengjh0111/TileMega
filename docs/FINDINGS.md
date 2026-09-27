@@ -8650,3 +8650,17 @@ tokens and the HF gap test passed (maximum gap **0.125**). Both selected
 serving binaries had zero audited FP64 instructions. This sample has no
 same-session vLLM arm and handoff was disabled, so it is diagnostic rather
 than EV-2 acceptance.
+
+## F-326: Exact theta-bound release caching preserves the flow score but only modestly reduces structure time
+
+✅ verified: The `General` Oracle can retain its exact ISL image after
+binding the serving theta values and fix only the current consumer coordinate
+for each release query. Three host checks pass, including repeated changes to
+both batch and past. On the same Qwen3 s1 selected CG, target, fixture and
+residency, old and new binaries returned exactly the same Level 1 score
+(5,627,316.8694249196 ns), floor and release-exactness flags. The measured
+`STRUCTURE` phase was 218.291 → 204.134 ms; the whole flow audit was
+33.109 → 33.132 s under concurrent CPU load. Thus the cache preserves
+semantics, but its observed local saving does not resolve the per-plan
+600-second budget. The larger relation-preparation and piece-pricing phases
+remain the next targets. Evidence: `SERVING_R11/solver/oracle_theta_cache/`.

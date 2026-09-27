@@ -274,3 +274,10 @@ The same two winners completed a real Llama B1 1024-token request at
 C-1 passing at maximum HF gap 0.125, and FP64 SASS count zero for both
 selected binaries. This is diagnostic only: handoff was off and no vLLM arm
 ran in that session. Raw results are in `parallel_resource_probes/full_run/`.
+
+An exact θ-bound cache was added to the `General` Oracle release path and
+passed three targeted host tests, including batch/past rebinding. A matched
+Qwen3 s1 CG flow-audit returned identical Level 1 scores and exactness;
+`STRUCTURE` took 218.291 → 204.134 ms while total audit wall time remained
+about 33.1 s. This is a small local optimization, not a fix for the plan
+budget. See `solver/oracle_theta_cache/` and commit `11b1fc347`.
