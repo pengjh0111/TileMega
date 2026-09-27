@@ -1,11 +1,142 @@
 {
   "scope": "Llama, B=1 and B=16, TileMega/vLLM alternating arms; user-directed two-cell final acceptance",
   "declared_utc": "2026-09-27",
-  "idle_samples_w": [21.81, 21.81, 21.82, 21.82, 21.78],
+  "idle_samples_w": [
+    21.81,
+    21.81,
+    21.82,
+    21.82,
+    21.78
+  ],
   "idle_power_w": 21.81,
   "power_margin_w": 30.0,
   "cooldown_seconds": 30,
   "retries": 3,
   "guard": true,
-  "rounds": []
+  "rounds": [
+    {
+      "model": "llama",
+      "batch": 1,
+      "arm": "tilemega",
+      "observations": [
+        {
+          "run": 1,
+          "attempt": "attempt0",
+          "power_w": 28.07,
+          "threshold_w": 51.81,
+          "exclusive": true,
+          "accepted": true
+        },
+        {
+          "run": 2,
+          "attempt": "attempt0",
+          "power_w": 39.96,
+          "threshold_w": 51.81,
+          "exclusive": true,
+          "accepted": true
+        },
+        {
+          "run": 3,
+          "attempt": "attempt0",
+          "power_w": 39.96,
+          "threshold_w": 51.81,
+          "exclusive": true,
+          "accepted": true
+        }
+      ]
+    },
+    {
+      "model": "llama",
+      "batch": 1,
+      "arm": "vllm",
+      "observations": [
+        {
+          "run": 1,
+          "attempt": "attempt0",
+          "power_w": 33.46,
+          "threshold_w": 51.81,
+          "exclusive": true,
+          "accepted": true
+        },
+        {
+          "run": 2,
+          "attempt": "attempt0",
+          "power_w": 33.46,
+          "threshold_w": 51.81,
+          "exclusive": true,
+          "accepted": true
+        },
+        {
+          "run": 3,
+          "attempt": "attempt0",
+          "power_w": 29.43,
+          "threshold_w": 51.81,
+          "exclusive": true,
+          "accepted": true
+        }
+      ]
+    },
+    {
+      "model": "llama",
+      "batch": 16,
+      "arm": "tilemega",
+      "observations": [
+        {
+          "run": 1,
+          "attempt": "attempt0",
+          "power_w": 46.03,
+          "threshold_w": 51.81,
+          "exclusive": true,
+          "accepted": true
+        },
+        {
+          "run": 2,
+          "attempt": "attempt0",
+          "power_w": 43.48,
+          "threshold_w": 51.81,
+          "exclusive": true,
+          "accepted": true
+        },
+        {
+          "run": 3,
+          "attempt": "attempt0",
+          "power_w": 49.63,
+          "threshold_w": 51.81,
+          "exclusive": true,
+          "accepted": true
+        }
+      ]
+    },
+    {
+      "model": "llama",
+      "batch": 16,
+      "arm": "vllm",
+      "observations": [
+        {
+          "run": 1,
+          "attempt": "attempt0",
+          "power_w": 44.99,
+          "threshold_w": 51.81,
+          "exclusive": true,
+          "accepted": true
+        },
+        {
+          "run": 2,
+          "attempt": "attempt0",
+          "power_w": 44.99,
+          "threshold_w": 51.81,
+          "exclusive": true,
+          "accepted": true
+        },
+        {
+          "run": 3,
+          "attempt": "attempt0",
+          "power_w": 37.35,
+          "threshold_w": 51.81,
+          "exclusive": true,
+          "accepted": true
+        }
+      ]
+    }
+  ]
 }

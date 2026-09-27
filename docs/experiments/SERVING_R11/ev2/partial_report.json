@@ -1,0 +1,430 @@
+{
+  "model": "/root/models/llama3_2_1b",
+  "acceptance_complete": false,
+  "stop_reason": "Llama B16 C-1 and C-2 failures",
+  "original_ten_cell_g9": "unmeasured",
+  "cells": [
+    {
+      "batch": 1,
+      "sum_floor_seconds": 2.596893291952,
+      "e2e_over_floor": 1.3409524287507826,
+      "throughput_ratio": 0.8892968016994688,
+      "vllm_e2e_over_floor": 1.1925047061192058,
+      "floors": {
+        "prefill": {
+          "batch": 1,
+          "seq": 64,
+          "past_lo": 0,
+          "past_hi": 0,
+          "sum_floor_seconds": 0.002518977952,
+          "dram_polynomial": "[s1] -> { 671764480000000/4910212883 : s1 <= 0; (9731543040000000/4910212883 + 11802790000000/4910212883 * s1) : s1 >= 2004; (12358225920000000/4910212883 + 10492070000000/4910212883 * s1) : 0 < s1 <= 2003 }",
+          "compute_polynomial": "[s1] -> { 1250793881600000/1797558809 * s1 }",
+          "points": [
+            {
+              "past": 0,
+              "dram_ns": 2518977.952,
+              "compute_ns": 695829.1853,
+              "floor_ns": 2518977.952
+            }
+          ],
+          "cg": "/root/.cache/tilemega/plans/9ef34a88d930eee65604483dbd9cc0ec862ec0830c4cbf1a523140bf75f69f68/selected.mlir"
+        },
+        "decode": {
+          "batch": 1,
+          "seq": 1,
+          "past_lo": 64,
+          "past_hi": 1086,
+          "sum_floor_seconds": 2.594374314,
+          "dram_polynomial": "[s1, s10] -> { 671764480000000/4910212883 : s1 <= 0; (9731461120000000/4910212883 + 25510000000/4910212883 * s1) : s1 >= 128256 and s10 < 0; (9731461120000000/4910212883 + 178283430000000/4910212883 * s1) : s1 >= 128256 and s10 >= 1088; (9731462400000000/4910212883 + 189370000000/4910212883 * s1) : s10 = 0 and s1 >= 128256; (12358144000000000/4910212883 + 5030000000/4910212883 * s1) : 0 < s1 <= 128255 and s10 < 0; (12358144000000000/4910212883 + 178262950000000/4910212883 * s1) : 0 < s1 <= 128255 and s10 >= 1088; (12358145280000000/4910212883 + 168890000000/4910212883 * s1) : s10 = 0 and 0 < s1 <= 128255; ((9731462400000000/4910212883 + 189370000000/4910212883 * s1) + 163840000000/4910212883 * s1 * s10) : s1 >= 128256 and 0 < s10 <= 1087; ((12358145280000000/4910212883 + 168890000000/4910212883 * s1) + 163840000000/4910212883 * s1 * s10) : 0 < s1 <= 128255 and 0 < s10 <= 1087 }",
+          "compute_polynomial": "[s1] -> { 24714936320000/1797558809 * s1 }",
+          "points": [
+            {
+              "past": 64,
+              "dram_ns": 2518994.639,
+              "compute_ns": 13749.16703,
+              "floor_ns": 2518994.639
+            },
+            {
+              "past": 575,
+              "dram_ns": 2536045.273,
+              "compute_ns": 13749.16703,
+              "floor_ns": 2536045.273
+            },
+            {
+              "past": 1086,
+              "dram_ns": 2553095.906,
+              "compute_ns": 13749.16703,
+              "floor_ns": 2553095.906
+            }
+          ],
+          "cg": "/root/.cache/tilemega/plans/04c4c1967a17cc1079be297a66f9c339d6655736b7c26e60394b869f5ad1e2a8/selected.mlir"
+        }
+      },
+      "tilemega": {
+        "batch": 1,
+        "max_tokens": 1024,
+        "e2e_seconds": 3.4823103670496494,
+        "ttft_seconds": 0.003931138897314668,
+        "tpot_seconds": 0.0034001751985848826,
+        "tpot_mean_seconds": 0.0033892154496280875,
+        "tpot_p50_seconds": 0.0033720319271087645,
+        "tpot_p90_seconds": 0.0033904640674591066,
+        "output_tokens_per_second": 294.0576491082767,
+        "timed_tokens_identical": true
+      },
+      "vllm": {
+        "batch": 1,
+        "max_tokens": 1024,
+        "e2e_seconds": 3.0968074719421566,
+        "ttft_seconds": 0.025599940912798047,
+        "tpot_seconds": 0.0030021578993444363,
+        "output_tokens_per_second": 330.66311331191685,
+        "vllm_version": "0.30.0"
+      },
+      "hf_tilemega": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 1,
+        "positions": 1024,
+        "gap_le_0_5_ratio": 1.0,
+        "max_gap": 0.0,
+        "required_ratio": 0.99,
+        "allowed_maximum": 3.0,
+        "pass": true,
+        "gap_zero_ratio": 1.0,
+        "gap_p99": 0.0,
+        "gap_p999": 0.0,
+        "mean_nll": 0.08093190938234329,
+        "bucket_stats": [
+          {
+            "range": [
+              0,
+              255
+            ],
+            "gap_le_0_5_ratio": 1.0,
+            "gap_p99": 0.0,
+            "max_gap": 0.0
+          },
+          {
+            "range": [
+              256,
+              511
+            ],
+            "gap_le_0_5_ratio": 1.0,
+            "gap_p99": 0.0,
+            "max_gap": 0.0
+          },
+          {
+            "range": [
+              512,
+              767
+            ],
+            "gap_le_0_5_ratio": 1.0,
+            "gap_p99": 0.0,
+            "max_gap": 0.0
+          },
+          {
+            "range": [
+              768,
+              1023
+            ],
+            "gap_le_0_5_ratio": 1.0,
+            "gap_p99": 0.0,
+            "max_gap": 0.0
+          }
+        ],
+        "first_hf_greedy_divergence": [
+          null
+        ]
+      },
+      "hf_vllm": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 1,
+        "positions": 1024,
+        "gap_le_0_5_ratio": 1.0,
+        "max_gap": 0.0,
+        "required_ratio": 0.99,
+        "allowed_maximum": 3.0,
+        "pass": true,
+        "gap_zero_ratio": 1.0,
+        "gap_p99": 0.0,
+        "gap_p999": 0.0,
+        "mean_nll": 0.07960967719554901,
+        "bucket_stats": [
+          {
+            "range": [
+              0,
+              255
+            ],
+            "gap_le_0_5_ratio": 1.0,
+            "gap_p99": 0.0,
+            "max_gap": 0.0
+          },
+          {
+            "range": [
+              256,
+              511
+            ],
+            "gap_le_0_5_ratio": 1.0,
+            "gap_p99": 0.0,
+            "max_gap": 0.0
+          },
+          {
+            "range": [
+              512,
+              767
+            ],
+            "gap_le_0_5_ratio": 1.0,
+            "gap_p99": 0.0,
+            "max_gap": 0.0
+          },
+          {
+            "range": [
+              768,
+              1023
+            ],
+            "gap_le_0_5_ratio": 1.0,
+            "gap_p99": 0.0,
+            "max_gap": 0.0
+          }
+        ],
+        "first_hf_greedy_divergence": [
+          38
+        ]
+      },
+      "c2": {
+        "batch": 1,
+        "tokens": 1024,
+        "mismatches": 0,
+        "pass": true,
+        "same_plan_instances": true
+      },
+      "raw_file_prefix": "raw/llama_B1_"
+    },
+    {
+      "batch": 16,
+      "sum_floor_seconds": 2.90044660096,
+      "e2e_over_floor": 1.359908717783029,
+      "throughput_ratio": 0.9568869100725507,
+      "vllm_e2e_over_floor": 1.3012788509401267,
+      "floors": {
+        "prefill": {
+          "batch": 16,
+          "seq": 64,
+          "past_lo": 0,
+          "past_hi": 0,
+          "sum_floor_seconds": 0.01113326696,
+          "dram_polynomial": "[s1] -> { 671764480000000/4910212883 : s1 <= 0; (9731543040000000/4910212883 + 11802790000000/4910212883 * s1) : s1 >= 2004; (12358225920000000/4910212883 + 10492070000000/4910212883 * s1) : 0 < s1 <= 2003 }",
+          "compute_polynomial": "[s1] -> { 1250793881600000/1797558809 * s1 }",
+          "points": [
+            {
+              "past": 0,
+              "dram_ns": 2551029.729,
+              "compute_ns": 11133266.96,
+              "floor_ns": 11133266.96
+            }
+          ],
+          "cg": "/root/.cache/tilemega/plans/fec0e35c17dc2ac19a082e88048f70831b06429780451ad1e3fac3b97b8cf45b/selected.mlir"
+        },
+        "decode": {
+          "batch": 16,
+          "seq": 1,
+          "past_lo": 64,
+          "past_hi": 1086,
+          "sum_floor_seconds": 2.889313334,
+          "dram_polynomial": "[s1, s10] -> { 671764480000000/4910212883 : s1 <= 0; (9731461120000000/4910212883 + 25510000000/4910212883 * s1) : s1 >= 128256 and s10 < 0; (9731461120000000/4910212883 + 178283430000000/4910212883 * s1) : s1 >= 128256 and s10 >= 1088; (9731462400000000/4910212883 + 189370000000/4910212883 * s1) : s10 = 0 and s1 >= 128256; (12358144000000000/4910212883 + 5030000000/4910212883 * s1) : 0 < s1 <= 128255 and s10 < 0; (12358144000000000/4910212883 + 178262950000000/4910212883 * s1) : 0 < s1 <= 128255 and s10 >= 1088; (12358145280000000/4910212883 + 168890000000/4910212883 * s1) : s10 = 0 and 0 < s1 <= 128255; ((9731462400000000/4910212883 + 189370000000/4910212883 * s1) + 163840000000/4910212883 * s1 * s10) : s1 >= 128256 and 0 < s10 <= 1087; ((12358145280000000/4910212883 + 168890000000/4910212883 * s1) + 163840000000/4910212883 * s1 * s10) : 0 < s1 <= 128255 and 0 < s10 <= 1087 }",
+          "compute_polynomial": "[s1] -> { 24714936320000/1797558809 * s1 }",
+          "points": [
+            {
+              "past": 64,
+              "dram_ns": 2551543.075,
+              "compute_ns": 219986.6726,
+              "floor_ns": 2551543.075
+            },
+            {
+              "past": 575,
+              "dram_ns": 2824353.21,
+              "compute_ns": 219986.6726,
+              "floor_ns": 2824353.21
+            },
+            {
+              "past": 1086,
+              "dram_ns": 3097163.346,
+              "compute_ns": 219986.6726,
+              "floor_ns": 3097163.346
+            }
+          ],
+          "cg": "/root/.cache/tilemega/plans/627e8bbf26a7f965a52fb55ae37156f27ec75405fef302dddb216e4e2a9eff60/selected.mlir"
+        }
+      },
+      "tilemega": {
+        "batch": 16,
+        "max_tokens": 1024,
+        "e2e_seconds": 3.9443426181096584,
+        "ttft_seconds": 0.02532556909136474,
+        "tpot_seconds": 0.0038309062062739916,
+        "tpot_mean_seconds": 0.0038197735815647953,
+        "tpot_p50_seconds": 0.0038387200832366943,
+        "tpot_p90_seconds": 0.004028416156768798,
+        "output_tokens_per_second": 4153.797371652287,
+        "timed_tokens_identical": true
+      },
+      "vllm": {
+        "batch": 16,
+        "max_tokens": 1024,
+        "e2e_seconds": 3.7742898201104254,
+        "ttft_seconds": 0.05097888293676078,
+        "tpot_seconds": 0.003639600134089604,
+        "output_tokens_per_second": 4340.9491005967975,
+        "vllm_version": "0.30.0"
+      },
+      "hf_tilemega": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 16,
+        "positions": 16384,
+        "gap_le_0_5_ratio": 0.9942626953125,
+        "max_gap": 30.552734375,
+        "required_ratio": 0.99,
+        "allowed_maximum": 3.0,
+        "pass": false,
+        "gap_zero_ratio": 0.9940185546875,
+        "gap_p99": 0.0,
+        "gap_p999": 17.2706298828125,
+        "mean_nll": 0.09425770491361618,
+        "bucket_stats": [
+          {
+            "range": [
+              0,
+              255
+            ],
+            "gap_le_0_5_ratio": 0.979736328125,
+            "gap_p99": 7.6281280517578125,
+            "max_gap": 30.552734375
+          },
+          {
+            "range": [
+              256,
+              511
+            ],
+            "gap_le_0_5_ratio": 0.998779296875,
+            "gap_p99": 0.0,
+            "max_gap": 23.34375
+          },
+          {
+            "range": [
+              512,
+              767
+            ],
+            "gap_le_0_5_ratio": 0.9990234375,
+            "gap_p99": 0.0,
+            "max_gap": 17.4375
+          },
+          {
+            "range": [
+              768,
+              1023
+            ],
+            "gap_le_0_5_ratio": 0.99951171875,
+            "gap_p99": 0.0,
+            "max_gap": 20.75
+          }
+        ],
+        "first_hf_greedy_divergence": [
+          38,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "hf_vllm": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 16,
+        "positions": 16384,
+        "gap_le_0_5_ratio": 1.0,
+        "max_gap": 0.25,
+        "required_ratio": 0.99,
+        "allowed_maximum": 3.0,
+        "pass": true,
+        "gap_zero_ratio": 0.9993896484375,
+        "gap_p99": 0.0,
+        "gap_p999": 0.0,
+        "mean_nll": 0.06575566530227661,
+        "bucket_stats": [
+          {
+            "range": [
+              0,
+              255
+            ],
+            "gap_le_0_5_ratio": 1.0,
+            "gap_p99": 0.0,
+            "max_gap": 0.25
+          },
+          {
+            "range": [
+              256,
+              511
+            ],
+            "gap_le_0_5_ratio": 1.0,
+            "gap_p99": 0.0,
+            "max_gap": 0.0
+          },
+          {
+            "range": [
+              512,
+              767
+            ],
+            "gap_le_0_5_ratio": 1.0,
+            "gap_p99": 0.0,
+            "max_gap": 0.0
+          },
+          {
+            "range": [
+              768,
+              1023
+            ],
+            "gap_le_0_5_ratio": 1.0,
+            "gap_p99": 0.0,
+            "max_gap": 0.0
+          }
+        ],
+        "first_hf_greedy_divergence": [
+          null,
+          null,
+          null,
+          64,
+          82,
+          40,
+          null,
+          null,
+          null,
+          null,
+          29,
+          36,
+          null,
+          null,
+          9,
+          40
+        ]
+      },
+      "c2": {
+        "batch": 16,
+        "tokens": 16384,
+        "mismatches": 4236,
+        "pass": false,
+        "same_plan_instances": true
+      },
+      "raw_file_prefix": "raw/llama_B16_"
+    }
+  ]
+}

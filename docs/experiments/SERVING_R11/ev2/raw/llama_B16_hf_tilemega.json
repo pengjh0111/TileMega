@@ -1,0 +1,70 @@
+{
+  "model": "/root/models/llama3_2_1b",
+  "batch": 16,
+  "positions": 16384,
+  "gap_le_0_5_ratio": 0.9942626953125,
+  "max_gap": 30.552734375,
+  "required_ratio": 0.99,
+  "allowed_maximum": 3.0,
+  "pass": false,
+  "gap_zero_ratio": 0.9940185546875,
+  "gap_p99": 0.0,
+  "gap_p999": 17.2706298828125,
+  "mean_nll": 0.09425770491361618,
+  "bucket_stats": [
+    {
+      "range": [
+        0,
+        255
+      ],
+      "gap_le_0_5_ratio": 0.979736328125,
+      "gap_p99": 7.6281280517578125,
+      "max_gap": 30.552734375
+    },
+    {
+      "range": [
+        256,
+        511
+      ],
+      "gap_le_0_5_ratio": 0.998779296875,
+      "gap_p99": 0.0,
+      "max_gap": 23.34375
+    },
+    {
+      "range": [
+        512,
+        767
+      ],
+      "gap_le_0_5_ratio": 0.9990234375,
+      "gap_p99": 0.0,
+      "max_gap": 17.4375
+    },
+    {
+      "range": [
+        768,
+        1023
+      ],
+      "gap_le_0_5_ratio": 0.99951171875,
+      "gap_p99": 0.0,
+      "max_gap": 20.75
+    }
+  ],
+  "first_hf_greedy_divergence": [
+    38,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+  ]
+}

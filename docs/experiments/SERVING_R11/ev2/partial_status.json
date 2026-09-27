@@ -1,0 +1,28 @@
+{
+  "complete": false,
+  "stop_reason": "B16 C-1 and C-2 failures",
+  "missing": [
+    "original ten-cell EV-2 matrix",
+    "selected-plan ablation",
+    "accepted full report"
+  ],
+  "c2": {
+    "B1_mismatches": 0,
+    "B16_mismatches": 4236,
+    "B16_positions": 16384,
+    "isolation": "L2 decode; L2 prefill plus L1 decode matched L1/L1 for 8 steps",
+    "force_all_dependencies_eight_steps": "all four L1/L2 prefill/decode combinations matched (0/128); diagnostic only"
+  },
+  "implementation_gaps": [
+    "smem_direct serving CUDA lowering",
+    "SV-18(d) measured/model class-rate correction and top-M rerank",
+    "SV-18(g) adjacent-B interval plan merge"
+  ],
+  "c1": {
+    "B1_pass": true,
+    "B16_tilemega_pass": false,
+    "B16_tilemega_max_gap": 30.552734375,
+    "B16_vllm_pass": true,
+    "B16_vllm_max_gap": 0.25
+  }
+}

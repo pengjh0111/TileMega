@@ -8784,8 +8784,39 @@ same-worker position maps lets `VerifyHandoffAccess` prove `smem_direct` and
 `ApplyHandoffs` produce a verified fused CG (`HANDOFF_DIRECT
 two_stage_access=PASS ir_rewrite=PASS`). A separate synthetic runtime
 projection test checks the removed dependency; the 160-thread page exchange
-test is queued after the active EV-2 run. This is still short of generated
+test passed in the final 91-case ctest run. This is still short of generated
 serving code for `smem_direct`: `LowerServingHandoffStages` currently rejects
 that kind, and neither real decode graph has an eligible edge. Evidence:
 `test/unit/handoff_ir_test.cpp`, `test/unit/handoff_runtime_projection_test.cpp`,
-`test/unit/direct_handoff_test.cu`, and the queued R11 check log.
+`test/unit/direct_handoff_test.cu`, and `SERVING_R11/ev2/ctest_91.log`.
+
+## F-336: Selected R11 L2 decode fails batch-16 token equivalence
+
+✅ verified: the narrowed final EV-2 run completed four Llama plans and clean
+TileMega/vLLM timing arms for B=1/16, but the B=16 L1/L2 comparison differed
+at 4,236 of 16,384 generated token positions. An eight-step crossover on the
+same plan instances matched L1/L1 for L2 prefill + L1 decode (0/128
+differences); both combinations using L2 decode differed (34/128 and 23/128).
+The first differences appeared in batch rows 1–6 at decode steps 1–2. This
+isolates the failing path to paged L2 decode; the exact cause remains
+unidentified. Forcing every declared runtime dependency to wait on the whole
+producer stage made all four eight-token prefill/decode mode combinations
+agree, so the normal fine-grained L2 wait path is insufficient on this plan;
+the exact window or wait-elision rule has not yet been isolated. B=1 passed HF
+teacher forcing with gap zero at all 1,024
+positions and passed L1/L2 equivalence. An independent HF check of the saved
+B=16 timed TileMega output also failed C-1: its maximum teacher-forced gap
+was 30.55, versus 0.25 for the vLLM output. The B=16 timing arm is
+descriptive, not an accepted performance result. Force-all is a diagnostic
+only; it does not fix the separate B16 L1-versus-HF failure. Evidence:
+`SERVING_R11/ev2/raw/`, `SERVING_R11/ev2/partial_report.json`,
+`SERVING_R11/ev2/b16_mode_isolation.json`, and `ev2/b16_force_all.json`.
+
+✅ verified: the four plan solve times were 559.5, 639.5, 1,568.6, and
+651.7 s; three exceeded the 600 s gate. All four generated serving binaries
+had zero FP64 SASS instructions. All 12 timed arm observations passed the
+predeclared 51.81 W and single-PID guard. The structural contract checker
+returned 18/18 PASS; that checker does not substitute for C-2. Evidence:
+`SERVING_R11/ev2/measurement_policy.json`, `ev2/sass_audit.json`, and
+`ev2/verify.txt`. The final ctest run passed 91/91, including the synthetic
+`direct_handoff` page-helper case (`ev2/ctest_91.log`).

@@ -32,6 +32,8 @@ def main():
     parser.add_argument('--run', type=Path, required=True)
     parser.add_argument('--evidence', type=Path,
                         default=Path(__file__).resolve().parent / 'ev2')
+    parser.add_argument('--partial', action='store_true',
+                        help='archive timed arms and SASS after a correctness gate stops the run')
     args = parser.parse_args()
     run, evidence = args.run.resolve(), args.evidence.resolve()
     policy_path = evidence / 'measurement_policy.json'
@@ -51,7 +53,8 @@ def main():
             records = [json.loads(line) for line in
                        (folder / 'guard.jsonl').read_text().splitlines()]
             observations = []
-            for item in measurements['runs']:
+            timed_runs = measurements['generation_runs'] if arm == 'vllm' else measurements['runs']
+            for item in timed_runs:
                 if item['N'] != 1024 or item['warmup']:
                     continue
                 n = item['run']
@@ -80,7 +83,11 @@ def main():
             shutil.copy2(folder / 'guard.jsonl', raw / f'llama_B{batch}_{arm}_guard.jsonl')
             shutil.copy2(folder / 'measurements.json', raw / f'llama_B{batch}_{arm}.json')
         for name in ('hf_tilemega.json', 'hf_vllm.json'):
-            shutil.copy2(run / f'B{batch}' / name, raw / f'llama_B{batch}_{name}')
+            source = run / f'B{batch}' / name
+            if source.is_file():
+                shutil.copy2(source, raw / f'llama_B{batch}_{name}')
+            elif not args.partial:
+                raise FileNotFoundError(source)
     plans = load(run / 'plans.json')
     sass = []
     for batch in (1, 16):
@@ -95,9 +102,22 @@ def main():
     if not all_zero:
         raise ValueError('a serving binary has FP64 SASS instructions')
     policy_path.write_text(json.dumps(policy, indent=2) + '\n')
-    shutil.copy2(run / 'report.json', evidence / 'report.json')
-    shutil.copy2(run / 'report.md', evidence / 'report.md')
-    shutil.copy2(run / 'commands.sh', evidence / 'commands.sh')
+    for name in ('report.json', 'report.md', 'commands.sh'):
+        source = run / name
+        if source.is_file():
+            shutil.copy2(source, evidence / name)
+        elif not args.partial:
+            raise FileNotFoundError(source)
+    if args.partial:
+        for batch in (1, 16):
+            source = run / f'B{batch}' / 'mode' / 'mode_check.json'
+            if source.is_file():
+                shutil.copy2(source, raw / f'llama_B{batch}_mode_check.json')
+        (evidence / 'partial_status.json').write_text(json.dumps({
+            'complete': False,
+            'stop_reason': 'B16 L1/L2 token mismatch during EV-2 check',
+            'missing': ['B16 HF teacher-forced check', 'full report'],
+        }, indent=2) + '\n')
     print(f'archived {len(policy["rounds"])} arms and {len(sass)} SASS audits')
 
 

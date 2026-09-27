@@ -1,0 +1,1 @@
+The selected paged L1 kernel does not stamp per-slot Trace V2 rows; a realized chain cannot be inferred from its zero-valued slot dump.

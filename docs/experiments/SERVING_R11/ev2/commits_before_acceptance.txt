@@ -1,0 +1,138 @@
+d421b9645 docs: open the round eleven plan
+e44488321 tools: merge the tool binaries into one driver
+75b1d2016 build: build cuda tests for the configured arch
+67238193d tools: consolidate python entry points and fingerprints
+9c2bde68f tools: audit serving binaries and query the local device
+0666e38b9 tools: cache cuda artifacts by their dependency closure
+545f45d9b tools: calibrate a serving target in one suite
+324756809 tools: evaluate request floors from the symbolic graph
+0e6a27db2 backend: add arch dispatched async copy primitives
+1e757a330 runtime: make serving compute warp roles explicit
+6b2ad76c2 runtime: build serving waits from the target policy
+919d7e211 docs: track round eleven implementation and validation gaps
+ca3388957 runtime: stream gemm operands through a static page ring
+e50da4999 backend: split paged attention across independent warps
+97b28dcf9 runtime: bind paged serving plans and native async paths
+79cbc88fb test: compare page consumers and serving tokens
+25be078a6 tools: invalidate cached artifacts when linked libraries change
+fc96fbfc4 analysis: prove edge handoffs from exact access relations
+c4193c0b6 backend: share decode attention across page and local buffers
+fb0af5c82 docs: record attention transport controls and prefetch coverage
+8db29c709 runtime: prefetch upcoming operands from the read frontier
+8624da0a4 dialect: verify handoff choices and rewrite recompute phases
+7d7cc2899 runtime: reduce partials in the last arriving producer
+877dd0b9e test: compare norm prologues with standalone normalization
+343538ddb dialect: write last arriver tickets into the replacement graph
+3cb95d504 runtime: project external dependencies through handoff phases
+ad9c01c71 runtime: measure page stalls and adjacent launch gaps
+b5eb89d4a solver: break serving flow ties by resources and task count
+f242dd9ca tools: calibrate serving inflight stages through the legal limit
+d2fb7a48a experiments: measure paged decode stalls and chain gaps
+dfd2ab5d8 experiments: audit paged plans across target architectures
+c981491c6 experiments: audit the round eleven code contract
+ae140af8d experiments: guard paired serving measurements and resume protocol checks
+14ad031b1 docs: track the round eleven implementation and validation gaps
+1eb0b52c7 tools: begin the cached end to end driver
+64cd2e2a4 experiments: compare built and source fingerprints live
+466fd9e61 docs: record portable page compilation and pending diagnostics
+17c960ae9 tools: add native hardware checks to doctor
+a8fe3e05a tools: share one gpu lock across the serving workflow
+3218e61c8 experiments: summarize eight current-source r10 plans
+444d8ce6f docs: record the r10 control plan costs
+70ddfd92c solver: compile top candidates in parallel
+9bb1592b8 experiments: compare measured chain against its own dram floor
+de02012a8 test: verify compile jobs preserve flow search scores
+7a9e2bc6d experiments: validate contiguous page traces and chain bubbles
+2f22257d9 experiments: build four synchronized serving controls
+e4483b8ce experiments: record fresh process checks for paged serving
+183b5f7a9 docs: mark page protocol checks complete
+2e83b3719 experiments: record paged plan resource partitions
+2e4307f4e experiments: require serving call sites for handoff checks
+e8d38870c experiments: count default build executables after tool consolidation
+2eda935fa docs: record the reduced default executable count
+6b08d871a docs: record fresh process page checks and register pressure
+ad8f074ab experiments: pair fixed geometry prefetch and page controls
+3d960712a experiments: pair serving publication protocols at fixed geometry
+920b430b0 target: expose l2 capacity and prefetch calibration in arch specs
+e10f74b33 dialect: handle missing handoff attributes during fusion verification
+ca88c161d experiments: record four paired current source r10 controls
+3be1feb18 test: record the complete round eleven ctest pass
+e9f3e94d5 experiments: report paged chain bubbles and launch gaps
+d2a3d703e docs: record measured page chain and full ctest results
+4d04e1f97 tools: calibrate serving inflight stages through the legal range
+b862094bb experiments: predeclare idle power for serving ablations
+4f88ddbb3 docs: record legal stage inflight calibration coverage
+64d852440 docs: keep serving quickstart runnable before handoff integration
+557df51e0 experiments: scope idle power guard to the selected device
+e54121079 experiments: derive exact request floors for r10 controls
+b1f654e6e experiments: close request floor and clean build evidence
+1ff0943c5 solver: price paged streams before dependency release
+a9ad1d2f0 experiments: record page coordinate search and full mode checks
+4078f79ec docs: record the paged flow search progress
+a3423f5fd runtime: carry norm recompute operands into paged gemm
+f000ce38f tools: invalidate task calibration when paged bodies change
+f768e22bf test: verify multiple norm handoffs in real serving graphs
+9df6df08a experiments: attribute paged chain time to emitted stages
+61e0ed1aa experiments: isolate the paged gemm page size cost
+1c3c1ae18 experiments: record the fixed geometry pg performance regression
+469572e8e experiments: quantify paged stage effective throughput
+4c255d722 experiments: isolate paged gemm class throughput
+c758fb9e3 experiments: measure the publication protocol on paged plans
+b3c443962 docs: record the initial pg and sync ablations
+0a75b73fa docs: annotate the paged serving design and current gaps
+5b70e342d experiments: check full request tokens on fixed page plans
+fb41bf819 experiments: measure page capacity against the paged regression
+e75e859d3 experiments: locate the pg regression in gemm page transport
+52d7e1b96 experiments: validate full requests and measure page handshake
+6667a1066 experiments: compare gemm transport at sixteen kilobyte pages
+fc5ac7332 runtime: route each gemm vector to its physical page
+8895b9090 experiments: validate physical page routing on full requests
+df7233a67 solver: price paged gemms at the executed pipeline depth
+894533abf experiments: queue current page diagnostics at batch endpoints
+d61d9e710 experiments: require matched endpoint controls and trace provenance
+388babea4 solver: prewarm only executable paged stage variants
+53f9399b3 experiments: measure paged chain bubbles at batch endpoints
+8c6645afe experiments: archive matched page controls and profile both models
+85945c064 codegen: reject handoff graphs without runtime replanning
+f168bcd73 solver: preserve exact flow caches across serving structures
+97895a7ed experiments: preserve paged attention register audit
+5bf2b019f experiments: relate paged controls to the request floor
+5f1cb5368 solver: time dram floor during serving search
+a8b03ca4d experiments: quantify paged attention from archived traces
+c1f922aca tools: validate native serving paths with a cached smoke plan
+4c2043c82 runtime: elide impossible single page routing in paged gemm
+b35e8e575 experiments: queue paged endpoint diagnostics after protocol checks
+7c079e4bf experiments: reject impossible page trace wait intervals
+7b7bc9573 docs: mark native architecture checks complete
+510195463 experiments: quantify adjacent launch gaps in page traces
+b9324a389 test: check selective serving artifact cache invalidation
+797188020 experiments: archive launch gap distribution with page traces
+a9d03ee8c experiments: audit access-proved serving handoff edges
+067592fa0 docs: record the handoff legality audit
+5f09c10e7 docs: record access-proved handoff candidates in the r11 ledger
+1db08dffa experiments: preserve fresh process page protocol evidence
+e1e5bef45 experiments: bind fresh process checks to measured binaries
+8d479e261 docs: identify the paged flow capacity approximation
+f6a55dd6a experiments: run page diagnostics in the serving environment
+96129ccae experiments: archive current source page controls and chain traces
+43f6b993a build: create dialect output directory in clean builds
+8b4f90fb5 solver: cache bound serving floor across candidate evaluations
+e04fd5d77 experiments: verify the cached serving tool on a full request
+85b0a358c solver: compile top three resource probes concurrently
+d1e037c25 experiments: measure parallel resource probes
+61d19ec59 experiments: verify full plan time with parallel probes
+11b1fc347 analysis: cache theta bound oracle release fibers
+79d87ba7e experiments: audit theta bound oracle release caching
+8fdee5e44 experiments: record the qwen prefill search overrun
+cd60a6320 tools: freeze one gpu admission threshold for ev2
+06179e63f experiments: measure current attention transport at batch endpoints
+10ff3aa43 docs: record endpoint attention and budget diagnostics
+8b8793907 solver: keep paged prefetch within each worker ring
+c1159e92e frontend: isolate serving normalization intermediates
+54320971f dialect: lower edge handoffs into serving stages
+6827246ec solver: price edge handoff coordinates
+184c24cc9 tools: measure serving handoffs before selecting them
+ee57a5505 docs: record handoff integration and narrowed acceptance scope
+032ca7608 experiments: prepare selected-plan diagnostics and direct handoff control
+0308f1748 solver: bound serving search and skip full runtime release fibers
+4e104011d test: extend synthetic page handoff coverage

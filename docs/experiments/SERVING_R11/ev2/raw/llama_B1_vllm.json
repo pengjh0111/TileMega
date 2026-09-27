@@ -1,0 +1,86 @@
+{
+  "model": "/root/models/llama3_2_1b",
+  "batch": 1,
+  "vllm_version": "0.30.0",
+  "max_tokens": 1024,
+  "e2e_seconds": 3.0968074719421566,
+  "ttft_seconds": 0.025599940912798047,
+  "tpot_seconds": 0.0030021578993444363,
+  "output_tokens_per_second": 330.66311331191685,
+  "generation_runs": [
+    {
+      "N": 1024,
+      "run": 0,
+      "warmup": true,
+      "wall_seconds": 3.1275325410533696,
+      "tokens_file": "tokens_N1024_run0.json"
+    },
+    {
+      "N": 1024,
+      "run": 1,
+      "warmup": false,
+      "wall_seconds": 3.0965743171982467,
+      "tokens_file": "tokens_N1024_run1.json"
+    },
+    {
+      "N": 1024,
+      "run": 2,
+      "warmup": false,
+      "wall_seconds": 3.13026159000583,
+      "tokens_file": "tokens_N1024_run2.json"
+    },
+    {
+      "N": 1024,
+      "run": 3,
+      "warmup": false,
+      "wall_seconds": 3.0968074719421566,
+      "tokens_file": "tokens_N1024_run3.json"
+    },
+    {
+      "N": 1,
+      "run": 0,
+      "warmup": true,
+      "wall_seconds": 0.03698646207340062,
+      "tokens_file": "tokens_N1_run0.json"
+    },
+    {
+      "N": 1,
+      "run": 1,
+      "warmup": false,
+      "wall_seconds": 0.025549931917339563,
+      "tokens_file": "tokens_N1_run1.json"
+    },
+    {
+      "N": 1,
+      "run": 2,
+      "warmup": false,
+      "wall_seconds": 0.025601902045309544,
+      "tokens_file": "tokens_N1_run2.json"
+    },
+    {
+      "N": 1,
+      "run": 3,
+      "warmup": false,
+      "wall_seconds": 0.025599940912798047,
+      "tokens_file": "tokens_N1_run3.json"
+    }
+  ],
+  "measurement_policy": {
+    "scope": "Llama, B=1 and B=16, TileMega/vLLM alternating arms; user-directed two-cell final acceptance",
+    "declared_utc": "2026-09-27",
+    "idle_samples_w": [
+      21.81,
+      21.81,
+      21.82,
+      21.82,
+      21.78
+    ],
+    "idle_power_w": 21.81,
+    "power_margin_w": 30.0,
+    "cooldown_seconds": 30,
+    "retries": 3,
+    "guard": true,
+    "rounds": [],
+    "source_file": "/root/TileMega/docs/experiments/SERVING_R11/ev2/measurement_policy.json"
+  }
+}

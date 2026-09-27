@@ -64,7 +64,11 @@ def main() -> None:
                 folder / "floor.log")
         common = ["--model", "/root/models/llama3_2_1b", "--prefill-so", str(prefill),
                   "--decode-so", str(trace_so), "--batch", str(batch)]
-        if not (folder / "chain/analysis.tsv").exists():
+        # The R11 paged L1 kernel is stage-major and does not write per-slot
+        # Trace V2 rows. Its dump contains zero stamps, so the older L2 chain
+        # analyzer cannot reconstruct a realized chain from it. Keep the
+        # selected-plan page/launch evidence and leave chain fields null.
+        if mode == "L2" and not (folder / "chain/analysis.tsv").exists():
             run([str(PYTHON), str(ROOT / "docs/experiments/SERVING_R11/trace_selected_mode.py"),
                  *common, "--past", "575", "--launches", "32", "--mode", mode,
                  "--out", str(folder / "trace_v2")],
@@ -78,11 +82,29 @@ def main() -> None:
                  str(ROOT / "docs/experiments/SERVING_R10/prompts/llama_ids.json"),
                  "--steps", "1024", "--mode", mode, "--out", str(folder / "request")],
                 folder / "request.log")
-        run([sys.executable, str(ROOT / "docs/experiments/SERVING_R11/analyze_page_chain.py"),
-             "--page-trace", str(folder / "request/page_trace.tsv"),
-             "--model", "llama", "--batch", str(batch), "--floor-steps", str(floor_steps),
-             "--chain-analysis", str(folder / "chain/analysis.tsv"),
-             "--out", str(folder / "report")], folder / "summarize.log")
+        if mode == "L1":
+            (folder / "chain_unavailable.txt").write_text(
+                "The selected paged L1 kernel does not stamp per-slot Trace V2 rows; "
+                "a realized chain cannot be inferred from its zero-valued slot dump.\n")
+        summarize = [sys.executable, str(ROOT / "docs/experiments/SERVING_R11/analyze_page_chain.py"),
+                     "--page-trace", str(folder / "request/page_trace.tsv"),
+                     "--model", "llama", "--batch", str(batch), "--floor-steps", str(floor_steps),
+                     "--out", str(folder / "report")]
+        if mode == "L2":
+            summarize.extend(["--chain-analysis", str(folder / "chain/analysis.tsv")])
+        run(summarize, folder / "summarize.log")
+        if mode == "L1":
+            report = folder / "report/page_chain_summary.json"
+            data = json.loads(report.read_text())
+            data['measurement_limit'] = (
+                'Paged L1 records page stalls and kernel stamps, but does not '
+                'stamp per-task dependency waits or per-slot chains; its zero '
+                'dependency-wait counter is not a measured absence of waiting.')
+            for key in ('page_full_and_dependency_wait_cta_ns',
+                        'page_full_and_dependency_wait_mean_cta_ns_per_step',
+                        'dependency_wait_mean_cta_ns_per_step'):
+                data[key] = None
+            report.write_text(json.dumps(data, indent=2) + "\n")
         print(batch, (folder / "report/page_chain_summary.json").read_text(), flush=True)
 
 

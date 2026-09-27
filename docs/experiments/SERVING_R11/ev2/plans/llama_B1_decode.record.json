@@ -1,0 +1,12 @@
+{
+  "solve_seconds": 639.4721282240935,
+  "budget_s": 600,
+  "budget_pass": false,
+  "outputs": {
+    "/root/.cache/tilemega/plans/04c4c1967a17cc1079be297a66f9c339d6655736b7c26e60394b869f5ad1e2a8/plan.so": "bafd06c0b8c59cba3479636008bd104a3378fcfea8b2cd7c76c73e6207948f3a",
+    "/root/.cache/tilemega/plans/04c4c1967a17cc1079be297a66f9c339d6655736b7c26e60394b869f5ad1e2a8/plan.so.plan.json": "42394cad7d756ddc3f11f3b3139bdecb46ed6ccabca1c8c0e0d7f18a1a0b2314",
+    "/root/.cache/tilemega/plans/04c4c1967a17cc1079be297a66f9c339d6655736b7c26e60394b869f5ad1e2a8/selected.mlir": "8381cc12cad7d7fb31a5002c27ffe3a3e0ce43c8f5cb0753a1f2737f223017d8",
+    "/root/.cache/tilemega/plans/04c4c1967a17cc1079be297a66f9c339d6655736b7c26e60394b869f5ad1e2a8/floor.json": "d549f90ff00e5d63e1735725073ca08a9a06cd13a98ef277cbd58d490fd75a2d",
+    "/root/.cache/tilemega/plans/04c4c1967a17cc1079be297a66f9c339d6655736b7c26e60394b869f5ad1e2a8/floor.tsv": "28715d6f00e84968e902b971574e05cc24956359a75230e9defe887b754428d3"
+  }
+}
