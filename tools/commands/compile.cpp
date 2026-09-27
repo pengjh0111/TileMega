@@ -5,6 +5,7 @@
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
+#include <tilemega/Dialect/CouplingGraph/HandoffPass.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Solver/CompilerSearch.h>
@@ -72,7 +73,7 @@ struct PreparedResidencyProbe {
 
 PreparedResidencyProbe prepareResidency(mlir::ModuleOp module,int kappa,
     tilemega::solver::CompilerSearchOptions const& options,
-    std::filesystem::path const& directory,std::filesystem::path const& library,
+    std::filesystem::path const& directory,std::filesystem::path const&,
     std::string const& runtime_flags) {
   std::filesystem::create_directories(directory);
   auto const free_mib=std::filesystem::space(directory).available/(1024*1024);
@@ -104,7 +105,16 @@ PreparedResidencyProbe prepareResidency(mlir::ModuleOp module,int kappa,
       quote(options.placement.target.NvccArch())+runtime_flags;
   for (char const* sub:{"include","third_party/cutlass/include","third_party/cutlass/tools/util/include","third_party/cutlass/test"})
     command+=" -I"+quote(root+"/"+sub);
-  command+=" "+quote(probe.string())+" "+quote(library.string())+
+  // The generated runtime uses a small host support set. Linking the whole
+  // analysis archive pulls in ISL and LLVM, which nvcc does not link here.
+  command+=" "+quote(probe.string())+
+      " -x cu "+quote(root+"/lib/Target/TargetSpec.cpp")+
+      " -x cu "+quote(root+"/lib/Support/Json.cpp")+
+      " -x cu "+quote(root+"/lib/Codegen/RuntimeTaskGraph.cpp")+
+      " -x cu "+quote(root+"/lib/Solver/PlanMaterialize.cpp")+
+      " -x cu "+quote(root+"/lib/Dialect/CouplingGraph/PlacementPlan.cpp")+
+      " -x cu "+quote(root+"/lib/Solver/BalancedPlacement.cpp")+
+      " -x cu "+quote(root+"/lib/Solver/ListScheduler.cpp")+
       " -L"+quote(tilemega::commands::CudaLibraryDirectory())+" -lcudart -o "+quote(binary.string());
   std::ofstream(directory/"build_command.txt") << command << '\n';
   return {directory,std::move(command)};
@@ -275,7 +285,7 @@ int RunCompile(int argc, char** argv) {
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,artifact_cache;
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
-    std::string arch_paths="auto",pdl="auto";
+    std::string arch_paths="auto",pdl="auto",handoff_mode="off";
     int page_bytes=8192,prefetch_depth=1,prefetch_stride=0;
     bool page_bytes_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
@@ -316,6 +326,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--arch-paths") arch_paths=value;
       else if (flag=="--pdl") pdl=value;
       else if (flag=="--pg") pg_mode=value;
+      else if (flag=="--handoff") handoff_mode=value;
       else if (flag=="--page-bytes") {page_bytes=std::stoi(value);page_bytes_pinned=true;}
       else if (flag=="--l2-prefetch-depth") prefetch_depth=std::stoi(value);
       else if (flag=="--l2-prefetch-stride") prefetch_stride=std::stoi(value);
@@ -399,8 +410,12 @@ int RunCompile(int argc, char** argv) {
     if(pdl!="auto" && pdl!="off")throw std::runtime_error("--pdl must be auto or off");
     if(pg_mode!="off" && pg_mode!="pages" && pg_mode!="l2" && pg_mode!="auto")
       throw std::runtime_error("--pg must be off, l2, pages or auto");
+    if(handoff_mode!="off" && handoff_mode!="auto")
+      throw std::runtime_error("--handoff must be off or auto");
     bool use_pages=serving && serving_phase=="decode" && (pg_mode=="pages" || pg_mode=="auto");
     if(pg_mode=="pages" && !use_pages)throw std::runtime_error("paged execution requires serving decode");
+    if(handoff_mode=="auto" && !use_pages)
+      throw std::runtime_error("handoff=auto currently requires paged decode");
     if(sync_policy!="legacy" && sync_policy!="calibrated")
       throw std::runtime_error("--sync must be calibrated or legacy");
     if(serving) {
@@ -422,6 +437,7 @@ int RunCompile(int argc, char** argv) {
           " -DTILEMEGA_BARRIER_V2="+std::to_string(barrier_v2);
     }
     std::string source,selected_serving_mode,selected_serving_binary;
+    double selected_serving_ms=std::numeric_limits<double>::infinity();
     if(serving && solve_target.empty()) {
       if(has_variants)throw std::runtime_error("serving needs one exported model or solved CG");
       if(input.extension()==".mlir") {
@@ -542,6 +558,7 @@ int RunCompile(int argc, char** argv) {
         skeleton.serving_pruning=serving_pruning;
         skeleton.top_m=search_top_m;
         skeleton.pg_pages=use_pages;
+        skeleton.handoff_auto=handoff_mode=="auto";
         skeleton.page_bytes=page_bytes;
         if(use_pages)skeleton.page_choices=page_bytes_pinned
             ?std::vector<int>{page_bytes}:std::vector<int>{8192,16384};
@@ -834,6 +851,7 @@ int RunCompile(int argc, char** argv) {
         solved.winner=solved.shortlist[fastest_index].evaluation.candidate;
         selected_serving_binary=std::string(argv[2])+".top"+
             std::to_string(fastest_index+1)+".candidate.so";
+        selected_serving_ms=fastest;
         std::cerr<<"SERVING_TOP3_WINNER rank="<<fastest_index+1<<" mode="
                  <<selected_serving_mode<<" mean_ms="<<fastest<<'\n';
       }
@@ -978,6 +996,93 @@ int RunCompile(int argc, char** argv) {
     if(use_pages) {
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
       tilemega::codegen::ConfigureServingPages(*module,target,page_bytes);
+      if(handoff_mode=="auto") {
+        auto unfused=mlir::OwningOpRef<mlir::ModuleOp>(
+            mlir::cast<mlir::ModuleOp>((*module)->clone()));
+        unsigned mask=3;
+        if(auto priced=(*module)->getAttrOfType<mlir::IntegerAttr>("tmexec.handoff_mask"))
+          mask=unsigned(priced.getInt());
+        auto selected=mask?tilemega::dialect::SelectServingHandoffs(*module,mask)
+                          :tilemega::dialect::ServingHandoffSelection{};
+        std::cerr<<"HANDOFF_SELECTION recompute="<<selected.recompute
+                 <<" last_arriver="<<selected.last_arriver
+                 <<" priced_mask="<<mask<<'\n';
+        if(!selected.recompute && !selected.last_arriver) {
+          handoff_mode="off";
+        } else if(std::isfinite(selected_serving_ms) && !measure_command.empty()) {
+          // The handoff is measured against the same geometry and placement
+          // that won the top-3 gate. Keep the ordinary event plan unless the
+          // complete handoff binary clears a 2% margin. In particular, a
+          // legal normalization recompute need not be profitable when the
+          // GEMM has many N tiles and repeats its row reduction.
+          std::string stem=std::string(argv[2])+".handoff_trial";
+          std::error_code ec;
+          llvm::raw_fd_ostream cg(stem+".mlir",ec);
+          if(ec)throw std::runtime_error("cannot write handoff trial CG");
+          (*module).print(cg);cg.flush();
+          std::string trial=stem+".so";
+          std::string compile=quote(std::filesystem::canonical(argv[0]).string())+
+              " compile "+quote(stem+".mlir")+" "+quote(trial)+
+              " --serving "+quote(serving_phase)+" --emit serving"+
+              " --batch "+std::to_string(serving_batch)+
+              " --past-range "+quote(std::to_string(serving_past_lo)+":"+
+                  std::to_string(serving_past_hi))+
+              " --capacity "+std::to_string(serving_capacity)+
+              " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
+              " --arch-paths "+quote(arch_paths)+" --pdl "+quote(pdl)+
+              " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(page_bytes)+
+              " --handoff off"+
+              " --l2-prefetch-depth "+std::to_string(prefetch_depth)+
+              " --l2-prefetch-stride "+std::to_string(prefetch_stride)+
+              " --event-solo "+std::to_string(event_solo)+
+              " --event-red-publish "+std::to_string(event_red)+
+              " --barrier-v2 "+std::to_string(barrier_v2)+
+              (artifact_cache.empty()?"":" --artifact-cache "+quote(artifact_cache));
+          if(std::system((compile+" >"+quote(stem+".build.stdout")+
+              " 2>"+quote(stem+".build.stderr")).c_str()))
+            throw std::runtime_error("handoff trial compilation failed");
+          std::map<std::string,std::vector<double>> samples;
+          for(int round=0;round<3;++round) {
+            auto artifact=stem+".measurement.r"+std::to_string(round);
+            auto measure=measure_command+" --so "+quote(trial)+
+                " --batch "+std::to_string(serving_batch)+
+                " --past-mid "+std::to_string((serving_past_lo+serving_past_hi)/2)+
+                " --out "+quote(artifact)+(round&1?" --reverse-modes":"");
+            if(std::system((measure+" >"+quote(artifact+".stdout")+
+                " 2>"+quote(artifact+".stderr")).c_str()))
+              throw std::runtime_error("handoff trial measurement failed");
+            auto file=llvm::MemoryBuffer::getFile(artifact+"/measurements.json");
+            if(!file)throw std::runtime_error("missing handoff measurement");
+            auto json=llvm::json::parse(file.get()->getBuffer());
+            auto* object=json?json->getAsObject():nullptr;
+            auto* modes=object?object->getObject("modes"):nullptr;
+            if(!modes)throw std::runtime_error("handoff trial lacks mode measurements");
+            for(auto const& mode:{"L1","L2"})
+              if(auto* item=modes->getObject(mode))
+                if(auto mean=item->getNumber("mean_ms"))samples[mode].push_back(*mean);
+          }
+          double handoff_ms=std::numeric_limits<double>::infinity();
+          std::string handoff_mode_winner;
+          for(auto& [mode,values]:samples) {
+            if(values.size()!=3)throw std::runtime_error("incomplete handoff timing");
+            std::sort(values.begin(),values.end());
+            if(values[1]<handoff_ms){handoff_ms=values[1];handoff_mode_winner=mode;}
+          }
+          bool accept=handoff_ms<=0.98*selected_serving_ms;
+          std::ofstream(stem+".decision.tsv")
+              <<"control_ms\thandoff_ms\taccepted\tmode\trecompute\tlast_arriver\n"
+              <<selected_serving_ms<<'\t'<<handoff_ms<<'\t'<<accept<<'\t'
+              <<handoff_mode_winner<<'\t'<<selected.recompute<<'\t'
+              <<selected.last_arriver<<'\n';
+          if(accept) {
+            selected_serving_binary=trial;
+            selected_serving_mode=handoff_mode_winner;
+          } else {
+            module=std::move(unfused);
+            handoff_mode="off";
+          }
+        }
+      }
       source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
     }
     if (!dump_cg.empty()) {
@@ -1132,6 +1237,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"capacity\": "<<serving_capacity
               <<",\n  \"sync\": "<<std::quoted(sync_policy)
               <<",\n  \"pg\": "<<std::quoted(use_pages?"pages":pg_mode)
+              <<",\n  \"handoff\": "<<std::quoted(handoff_mode)
               <<",\n  \"pages\": "<<pages_json
               <<",\n  \"prefetch\": "<<prefetch_json
               <<",\n  \"arch_paths\": "<<std::quoted(arch_paths)

@@ -188,11 +188,8 @@ class Run:
 
     def build(self):
         settings = self.config['solver']; features = self.config['features']; workload = self.config['workload']
-        # The compiler has no handoff or tiled-weight lowering yet. Refuse
-        # these modes before creating a plan record; silently dropping the
-        # options would mislabel an unfused row-major binary as optimized.
-        if features['handoff'] != 'off':
-            raise RuntimeError('features.handoff=auto requires TF-1 serving codegen')
+        # Weight prepacking is still optional research work. A decode handoff
+        # is selected by the compiler; prefill has no paged handoff path.
         if features['weight_layout'] != 'row':
             raise RuntimeError('features.weight_layout=tiled is not implemented')
         target = self.calibrate()
@@ -223,8 +220,12 @@ class Run:
                             '--artifact-cache', str(self.cache / 'artifacts'), '--dump-cg', str(plan / 'selected.mlir'),
                             '--measure-cmd', shlex.join([sys.executable, '-m', 'tilemega.serving.measure_candidate', '--model', str(self.model)])]
                         for name, value in features.items():
-                            if name in ('handoff', 'weight_layout'):
+                            if name == 'weight_layout':
                                 continue
+                            if name == 'handoff' and phase == 'prefill':
+                                value = 'off'
+                            if name == 'pg' and phase == 'prefill' and value == 'pages':
+                                value = 'l2'
                             options += ['--' + name.replace('_', '-'), str(value)]
                         if previous:
                             options += ['--serving-warm-start', str(previous)]
