@@ -24,7 +24,7 @@ DEFAULTS = {
     'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='auto', pruning=True, time_budget_s=600),
     'features': dict(pg='auto', handoff='auto', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='row'),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
-                 vllm_python='/root/venv_vllm/bin/python'),
+                 vllm_python='/root/venv_vllm/bin/python', policy_file=None),
     'output': dict(dir='runs/{model}-{timestamp}'),
 }
 
@@ -259,13 +259,25 @@ class Run:
 
     def bench(self, plans):
         prompts = self.prompts();settings = self.config['test']
-        # build() already captured the idle baseline before any calibration or
-        # top-3 measurement heated this device. Keep that predeclared value.
-        if self.device is None:self.doctor()
-        if settings['guard'] and self.idle_power is None:
-            raise RuntimeError('GPU is not idle; doctor could not establish the pollution threshold')
-        policy = dict(idle_power_w=self.idle_power, power_margin_w=30,
-                      cooldown_seconds=30, retries=3, guard=settings['guard'])
+        if settings['policy_file']:
+            # EV-2 uses one threshold frozen before the alternating model/B
+            # matrix. Do not let a later hot doctor sample change it.
+            source = Path(settings['policy_file']).expanduser().resolve()
+            policy = json.loads(source.read_text())
+            if bool(policy.get('guard')) != bool(settings['guard']):
+                raise ValueError('the predeclared guard and test.guard differ')
+            if settings['guard'] and (float(policy['idle_power_w']) <= 0 or
+                                      float(policy['power_margin_w']) <= 0):
+                raise ValueError('invalid predeclared GPU power threshold')
+            policy['source_file'] = str(source)
+        else:
+            # build() captured the idle baseline before calibration heated the
+            # device. Keep it fixed for all arms of this run.
+            if self.device is None:self.doctor()
+            if settings['guard'] and self.idle_power is None:
+                raise RuntimeError('GPU is not idle; doctor could not establish the pollution threshold')
+            policy = dict(idle_power_w=self.idle_power, power_margin_w=30,
+                          cooldown_seconds=30, retries=3, guard=settings['guard'])
         atomic_json(self.out / 'measurement_policy.json', policy)
         for index, batch in enumerate(sorted(self.config['workload']['batch'])):
             cell = self.out / f'B{batch}';cell.mkdir(exist_ok=True)

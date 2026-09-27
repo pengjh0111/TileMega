@@ -1,0 +1,11 @@
+{
+  "scope": "Llama and Qwen3, B=1 and B=16, TileMega/vLLM alternating arms",
+  "declared_utc": "2026-09-27",
+  "idle_samples_w": [21.81, 21.81, 21.82, 21.82, 21.78],
+  "idle_power_w": 21.81,
+  "power_margin_w": 30.0,
+  "cooldown_seconds": 30,
+  "retries": 3,
+  "guard": true,
+  "rounds": []
+}

@@ -288,3 +288,10 @@ GPU step. This is more than twice the 600 s per-plan limit; the run overlapped
 CPU build/tests, so it is not an uncontended final budget result. Its partial
 trace is preserved at `solver/qwen_prefill_budget_probe/`. No final Qwen3
 B16 acceptance is claimed.
+
+EV-2's four-cell contamination threshold has been declared before running
+the matrix: five idle readings gave median 21.81 W, so the admission limit
+is 51.81 W. The CLI can now load one fixed `test.policy_file` for all
+TileMega/vLLM arms instead of resampling a threshold after each build.
+`ev2/measurement_policy.json` has no measurement rounds yet, and K-15
+correctly remains failed.
