@@ -1,0 +1,7 @@
+{
+  "idle_power_w": 21.85,
+  "power_margin_w": 30,
+  "cooldown_seconds": 30,
+  "retries": 3,
+  "guard": true
+}

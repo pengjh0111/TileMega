@@ -239,6 +239,19 @@ per-step floors, binary hashes and guard decisions are in
 Current workstream count: R10-C, OPS-1, SY-1, PG-0 and native AR-1 checks
 are complete to their applicable scope; OPS-2, PG-1, AT-3, TF-1 and SV-18
 are partial; solver-selected EV-2 has not started. In particular, the
-handoff runtime and search coordinate, the full cached `run` acceptance,
+handoff runtime and search coordinate, multi-model cached `run` acceptance,
 the page-path performance repair and the final selected-plan matrix remain
 open. Structural `verify.py` remains 14/18 PASS (K-6/K-11/K-15/K-16 open).
+
+The first full OPS-2 `run` on source `96129ccae` completed Llama B=1 with
+real weights and 1024 generated tokens. E2E was 3.8909 s, `E2E/ΣT_floor`
+1.498, C-1 passed with 1024/1024 zero gaps, and C-2 had zero L1/L2
+mismatches. The same invocation repeated with all calibration, export and
+plan layers hitting cache and E2E 3.8896 s. Prefill and decode solves took
+867.372 and 776.872 s, so G-7 is still failed for this sample. Evidence is
+under `ops2_full_smoke/`; this is a one-cell tool smoke, not EV-2. A debugger
+sample exposed repeated `DramFloor::Evaluate` parsing on identical theta
+bindings. Commits `43f6b993a` and `8b4f90fb5` fix clean-build dialect output
+directory creation and cache the exact bound floor respectively; prefill and
+decode unit comparisons returned bitwise-identical Level 1 scores. The new
+source's per-plan wall time is being remeasured separately.

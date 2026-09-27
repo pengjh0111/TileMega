@@ -8596,3 +8596,29 @@ is CTA-local and cannot be summed into wall time. The trace changes execution
 time, so the noninstrumented E2E numbers above are the performance evidence.
 Each cell has 1023 exact per-step floor and launch-gap rows, plus raw traces,
 in `SERVING_R11/single_page_loader/diagnostics/`.
+
+## F-324: The unified end-to-end tool runs one real request but misses the plan-time budget
+
+✅ verified on sm_89 with source `96129ccae`: `python -m tilemega run`
+completed a real-weight Llama B=1 request with 64 prompt tokens and 1024
+generated tokens. The first run calibrated only the changed `task_bodies`
+section, reused both exports, solved two plans, measured three full requests,
+and performed mode and HF checks. Its E2E median was **3.8909 s**
+(`E2E/ΣT_floor = 1.498`); the repeated run was **3.8896 s**. Both runs had
+zero L1/L2 token mismatches across 1024 positions, and all 1024 HF
+teacher-forced gaps were zero. On the repeated invocation, every
+calibration/export/plan layer hit its cache; only bench and checks ran.
+
+⚠️ stated limitation: prefill and decode plan solves took **867.372 s** and
+**776.872 s**, respectively, exceeding the 600 s G-7 budget. The prefill
+solver's cumulative piece pricing/release time was 262.289 s and three
+megakernel compiles totaled 266.509 s; decode relation preparation took
+88.969 s and materialization 56.641 s. These are cumulative phases, not
+wall-clock partitions. A debugger sample of decode materialization reached
+`DramFloor::Evaluate` through `PrepareFlow`; that function reparsed the
+same bound quasipolynomials for repeated candidate configurations.
+Commit `8b4f90fb5` caches the exact floor value per θ binding and the
+prefill/decode unit comparisons found identical Level 1 scores. Its runtime
+effect requires a separate measurement. This tool smoke used `handoff=off`
+and no vLLM arm; it does not close the solver-selected EV-2 matrix or G-9.
+Evidence: `SERVING_R11/ops2_full_smoke/`.
