@@ -24,6 +24,9 @@ struct SkeletonSearchOptions {
   // Verification arm: keep only the R-1 legality filter.
   bool serving_pruning=true;
   bool pg_pages=false;
+  // An edge class is a coordinate: bit 0 selects access-proved normalization
+  // recompute, bit 1 selects access-proved attention last-arriver reduction.
+  bool handoff_auto=false;
   int page_bytes=8192;
   std::vector<int> page_choices;
   // A previous batch's winning serving plan is the second coordinate-descent
@@ -44,6 +47,7 @@ struct SkeletonCandidate {
   // searches the query-row block. Both are literal in the ISL map.
   int attention_kv_block=0,attention_query_rows=0;
   int page_bytes=0;
+  unsigned handoff_mask=0;
   SkeletonPlacementStats placement;
 };
 struct SkeletonSearchResult {

@@ -15,6 +15,101 @@ std::string ConfigKey(std::vector<GemmConfig> const& config,int kappa,int reside
   std::ostringstream out;for(auto const& g:config)out<<g.tile_m<<'x'<<g.tile_n<<'x'<<g.tile_k<<'s'<<g.stages<<'k'<<g.split_k<<';';
   out<<"kappa="<<kappa<<";residency="<<residency;return out.str();
 }
+// Price the runtime stage transformation at Level 1 before the expensive
+// materialization. Stage slots and event windows remain in the program, so an
+// elided producer/reducer has a zero-cost task instead of disappearing from
+// the release graph. Recompute charges the whole source row to each consumer
+// GEMM tile; last-arriver conservatively charges the entire reduction to each
+// block that could be last. Access legality is proved again on the selected
+// CG by SelectServingHandoffs before this choice is emitted.
+double PriceServingHandoffFlow(FlowProblem flow,SymbolicProblem const& problem,
+    frontend::ModelPlan const& plan,unsigned mask) {
+  if(!mask)return EvaluateFlow(flow).makespan_ns;
+  std::vector<int> entry(plan.stages.size(),-1);
+  for(std::size_t s=0;s<problem.projection.stages.size();++s)
+    if(!problem.projection.stages[s].combine)
+      entry.at(problem.projection.stages[s].logical_stage)=int(s);
+  auto linked=[&](int producer,int consumer) {
+    return std::any_of(problem.data_edges.begin(),problem.data_edges.end(),
+        [&](auto const& edge){return edge.producer==producer && edge.consumer==consumer;});
+  };
+  auto average=[](FlowSpace const& space) {
+    double fixed=0,compute=0,dram=0,external=0;
+    for(auto const& piece:space.pieces) {
+      fixed+=piece.count*piece.parts.fixed_ns;
+      compute+=piece.count*piece.parts.compute_ns;
+      dram+=piece.count*piece.parts.dram_bytes;
+      external+=piece.count*piece.parts.no_producer_dram_bytes;
+    }
+    double count=std::max(1,space.count);
+    return std::array<double,4>{fixed/count,compute/count,dram/count,external/count};
+  };
+  auto clear=[](FlowSpace& space) {
+    for(auto& piece:space.pieces) {
+      piece.parts.fixed_ns=piece.parts.compute_ns=0;
+      piece.parts.dram_bytes=piece.parts.no_producer_dram_bytes=0;
+      piece.parts.inflight_bytes=0;
+    }
+    space.rank_ns=0;
+  };
+  for(std::size_t logical=1;logical<plan.stages.size();++logical) {
+    auto const& source=plan.stages[logical-1];
+    auto const& sink=plan.stages[logical];
+    int p=entry[logical-1],c=entry[logical];
+    if(p<0 || c<0 || !linked(p,c))continue;
+    if((mask&1) && source.kind==frontend::PlanTaskKind::kRMSNorm &&
+       sink.kind==frontend::PlanTaskKind::kGemm) {
+      bool exclusive=std::none_of(problem.data_edges.begin(),problem.data_edges.end(),
+          [&](auto const& edge){return edge.producer==p && edge.consumer!=c;});
+      if(!exclusive)continue;
+      auto norm=average(flow.spaces[p]);
+      int tile_m=problem.geometry.at(sink.gemm).tile_m;
+      int rows=std::min(flow.spaces[p].count,tile_m);
+      for(auto& piece:flow.spaces[c].pieces) {
+        piece.parts.fixed_ns+=rows*norm[0];
+        piece.parts.compute_ns+=rows*norm[1];
+        piece.parts.dram_bytes+=rows*norm[2];
+        piece.parts.no_producer_dram_bytes+=rows*norm[3];
+      }
+      clear(flow.spaces[p]);
+    } else if((mask&2) && source.kind==frontend::PlanTaskKind::kFusedAttention &&
+               sink.kind==frontend::PlanTaskKind::kAttentionMerge) {
+      auto reduction=average(flow.spaces[c]);
+      // A block may be the final arrival for any output. Charging each block
+      // the full reducer is an upper envelope; top-3 real timing validates it.
+      for(auto& piece:flow.spaces[p].pieces) {
+        piece.parts.fixed_ns+=reduction[0];
+        piece.parts.compute_ns+=reduction[1];
+        piece.parts.dram_bytes+=reduction[2];
+        piece.parts.no_producer_dram_bytes+=reduction[3];
+      }
+      clear(flow.spaces[c]);
+    }
+  }
+  if(mask&2)for(std::size_t s=0;s<problem.projection.stages.size();++s) {
+    auto const& projection=problem.projection.stages[s];
+    if(!projection.combine)continue;
+    int logical=projection.logical_stage;
+    if(plan.stages[logical].kind!=frontend::PlanTaskKind::kGemm)continue;
+    // One runtime stage can carry one handoff in the conservative lowering.
+    // An earlier norm-to-GEMM recompute takes precedence over its split-K
+    // combine until phase composition supports two handoffs on one tile.
+    if((mask&1) && logical>0 &&
+       plan.stages[logical-1].kind==frontend::PlanTaskKind::kRMSNorm)
+      continue;
+    int p=entry[logical],c=int(s);
+    if(p<0 || !linked(p,c))continue;
+    auto reduction=average(flow.spaces[c]);
+    for(auto& piece:flow.spaces[p].pieces) {
+      piece.parts.fixed_ns+=reduction[0];
+      piece.parts.compute_ns+=reduction[1];
+      piece.parts.dram_bytes+=reduction[2];
+      piece.parts.no_producer_dram_bytes+=reduction[3];
+    }
+    clear(flow.spaces[c]);
+  }
+  return EvaluateFlow(flow).makespan_ns;
+}
 struct SearchContext {
   frontend::ImportedSemantics imported;
   frontend::TorchExportImporter importer;
@@ -50,6 +145,7 @@ struct SearchContext {
   ScalarType dtype;
   int attention_kv_block=0,attention_query_rows=0,argmax_tile_n=0;
   int current_page_bytes=0;
+  unsigned current_handoff_mask=0;
   SearchContext(frontend::ImportedSemantics input,mlir::MLIRContext& ctx,SkeletonSearchOptions const& opts)
       :imported(std::move(input)),classes(BuildOperatorClasses(imported)),resources(opts.variant_probe,opts.common.timing),context(ctx),options(opts),
        dtype(imported.lifted.sem.ops.front().dtype==analysis::ScalarType::kBF16?ScalarType::kBF16:ScalarType::kF32) {
@@ -140,6 +236,7 @@ struct SearchContext {
     if(imported.plan.serving)key+=";Ec="+std::to_string(attention_kv_block)+
         ";Rq="+std::to_string(attention_query_rows);
     if(options.pg_pages)key+=";page_bytes="+std::to_string(current_page_bytes);
+    if(options.handoff_auto)key+=";handoff="+std::to_string(current_handoff_mask);
     return key;
   }
   ResourceEstimate EstimateResources(std::vector<GemmConfig> const& config) {
@@ -201,6 +298,7 @@ struct SearchContext {
     point.candidate.attention_kv_block=attention_kv_block;
     point.candidate.attention_query_rows=attention_query_rows;
     point.candidate.page_bytes=options.pg_pages?current_page_bytes:0;
+    point.candidate.handoff_mask=options.handoff_auto?current_handoff_mask:0;
     if(!base || materialize) {
       point.module=importer.InstantiateForGranularity(imported,context,granularity,&cache,nullptr,timing);
       {SolverPhase phase(timing,"prepare_relations");point.problem=PrepareSymbolicProblem(*point.module,target,options.common.placement.dims,target.res.num_sms*residency,residency,kappa,nullptr,false);}
@@ -281,18 +379,23 @@ struct SearchContext {
     auto priced=config;
     if(options.pg_pages)for(auto& g:priced)g.stages=2;
     auto point=Prepare(priced,kappa,residency,actual);
-    {SolverPhase phase(options.common.timing,"flow");point.candidate.score=EvaluateFlow(point.flow->flow).makespan_ns;}
+    {SolverPhase phase(options.common.timing,"flow");
+      point.candidate.score=PriceServingHandoffFlow(point.flow->flow,point.problem,
+          imported.plan,point.candidate.handoff_mask);}
     if(options.serving_past_lo>=0 && options.serving_past_hi>=options.serving_past_lo) {
       auto low=Prepare(priced,kappa,residency,actual,false,options.serving_past_lo);
       auto high=Prepare(priced,kappa,residency,actual,false,options.serving_past_hi);
       SolverPhase phase(options.common.timing,"flow");
-      point.candidate.score=(EvaluateFlow(low.flow->flow).makespan_ns+
-          4*point.candidate.score+EvaluateFlow(high.flow->flow).makespan_ns)/6;
+      point.candidate.score=(PriceServingHandoffFlow(low.flow->flow,low.problem,
+          imported.plan,point.candidate.handoff_mask)+4*point.candidate.score+
+          PriceServingHandoffFlow(high.flow->flow,high.problem,imported.plan,
+              point.candidate.handoff_mask))/6;
     }
     return point.candidate;
   }
   SkeletonSolvedPoint Materialize(SkeletonCandidate const& candidate,bool pure,int actual=0) {
     if(options.pg_pages)current_page_bytes=candidate.page_bytes;
+    current_handoff_mask=candidate.handoff_mask;
     SetServingStructure(candidate.attention_kv_block,
                         candidate.attention_query_rows,
                         ArgmaxTileN(candidate.config));
@@ -463,6 +566,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     for(int pass=0;pass<options.passes;++pass){bool moved=false;++rounds;
       for(std::size_t c=0;c<search.classes.size();++c){auto fixed=evaluated[incumbent];int improvements=0;
         if(options.pg_pages)search.current_page_bytes=fixed.page_bytes;
+        search.current_handoff_mask=fixed.handoff_mask;
         if(search.imported.plan.serving)
           search.SetServingStructure(fixed.attention_kv_block,
               fixed.attention_query_rows,search.ArgmaxTileN(fixed.config));
@@ -491,6 +595,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       if(search.imported.plan.serving) {
         auto fixed=evaluated[incumbent];
         if(options.pg_pages)search.current_page_bytes=fixed.page_bytes;
+        search.current_handoff_mask=fixed.handoff_mask;
         std::vector<int> attention_domain;
         bool decode=search.imported.plan.serving_seq==1;
         if(decode)attention_domain={64,128,256,512,search.imported.plan.serving_capacity};
@@ -524,15 +629,18 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       if(!search.imported.plan.serving || options.serving_pruning) {
         auto fixed=evaluated[incumbent];
         if(options.pg_pages)search.current_page_bytes=fixed.page_bytes;
+        search.current_handoff_mask=fixed.handoff_mask;
         auto serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
         for(int k:serving_order.kappa_scan){auto i=evaluate(fixed.config,k,fixed.residency);if(BetterCandidate(evaluated[i],evaluated[incumbent],search.imported.plan.serving)){incumbent=i;moved=true;}}
         fixed=evaluated[incumbent];
         if(options.pg_pages)search.current_page_bytes=fixed.page_bytes;
+        search.current_handoff_mask=fixed.handoff_mask;
         serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
         for(int r:serving_order.residency_scan){auto i=evaluate(fixed.config,fixed.kappa,r);if(BetterCandidate(evaluated[i],evaluated[incumbent],search.imported.plan.serving)){incumbent=i;moved=true;}}
       }
       if(options.pg_pages) {
         auto fixed=evaluated[incumbent];
+        search.current_handoff_mask=fixed.handoff_mask;
         for(int bytes:options.page_choices) {
           search.current_page_bytes=bytes;
           auto i=evaluate(fixed.config,fixed.kappa,fixed.residency);
@@ -543,6 +651,20 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
         out<<"PAGE_COORDINATE\t"<<start<<'\t'<<pass<<'\t'
            <<options.page_choices.size()<<'\t'
            <<evaluated[incumbent].page_bytes<<'\t'
+           <<evaluated[incumbent].score<<'\n';out.flush();
+      }
+      if(options.handoff_auto && search.imported.plan.serving) {
+        auto fixed=evaluated[incumbent];
+        if(options.pg_pages)search.current_page_bytes=fixed.page_bytes;
+        for(unsigned mask=0;mask<4;++mask) {
+          search.current_handoff_mask=mask;
+          auto i=evaluate(fixed.config,fixed.kappa,fixed.residency);
+          if(BetterCandidate(evaluated[i],evaluated[incumbent],true)) {
+            incumbent=i;moved=true;
+          }
+        }
+        out<<"HANDOFF_COORDINATE\t"<<start<<'\t'<<pass<<'\t'
+           <<evaluated[incumbent].handoff_mask<<'\t'
            <<evaluated[incumbent].score<<'\n';out.flush();
       }
       if(!moved)break;
@@ -614,6 +736,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
      result.evaluated.front().error.empty()) {
     auto const& best=result.evaluated.front();
     if(options.pg_pages)search.current_page_bytes=best.page_bytes;
+    search.current_handoff_mask=best.handoff_mask;
     search.SetServingStructure(best.attention_kv_block,
         best.attention_query_rows,search.ArgmaxTileN(best.config));
     if(!search.base || !search.floor)
@@ -698,6 +821,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     if(changed) {
       // Correct occupancy can expose a better residency as well as invalidate one.
       if(options.pg_pages)search.current_page_bytes=c.page_bytes;
+      search.current_handoff_mask=c.handoff_mask;
       auto best=search.Evaluate(c.config,c.kappa,1,actual);
       for(int r=2;r<=actual;++r) {
         auto trial=search.Evaluate(c.config,c.kappa,r,actual);

@@ -96,6 +96,10 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
   if(options.pg_pages)
     codegen::ConfigureServingPages(*point.module,
         options.common.placement.target,point.candidate.page_bytes);
+  if(options.handoff_auto)
+    (*point.module)->setAttr("tmexec.handoff_mask",
+        mlir::IntegerAttr::get(mlir::IntegerType::get(point.module->getContext(),32),
+            point.candidate.handoff_mask));
   CompilerSearchResult::ShortlistEntry entry;
   entry.evaluation.candidate.config=point.candidate.config.front();entry.evaluation.candidate.key=point.candidate.key;
   entry.evaluation.candidate.kappa=options.kappa;entry.evaluation.candidate.ctas_per_sm=point.candidate.residency;
