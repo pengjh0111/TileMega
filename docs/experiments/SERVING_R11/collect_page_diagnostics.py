@@ -4,17 +4,23 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[3]
+RUNTIME_PYTHON = Path(os.environ.get(
+    'TILEMEGA_PYTHON', '/root/venvs/tilemega-torch213-cu126/bin/python'))
 
 
 def run(argv: list[str], log: Path) -> None:
     log.parent.mkdir(parents=True, exist_ok=True)
+    environment = dict(os.environ)
+    environment['PYTHONPATH'] = str(ROOT / 'python') + os.pathsep + environment.get('PYTHONPATH', '')
     with log.open('w') as stream:
-        status = subprocess.run(argv, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT).returncode
+        status = subprocess.run(argv, cwd=ROOT, env=environment,
+                                stdout=stream, stderr=subprocess.STDOUT).returncode
     if status:
         raise RuntimeError(f'{argv[0]} exited {status}; see {log}')
 
@@ -25,6 +31,8 @@ def main() -> None:
     parser.add_argument('--diagnostics', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     args=parser.parse_args()
+    if not RUNTIME_PYTHON.is_file():
+        raise FileNotFoundError(f'serving Python environment: {RUNTIME_PYTHON}')
     cases=json.loads(args.cases.read_text())
     args.out.mkdir(parents=True, exist_ok=True)
     for case in cases:
@@ -54,13 +62,13 @@ def main() -> None:
         common=['--model',case['model'],'--prefill-so',case['prefill'],
                 '--decode-so',str(library),'--batch',str(case['batch'])]
         if not (cell/'chain/analysis.tsv').exists():
-            run([sys.executable,'-m','tilemega.serving.trace',*common,
+            run([str(RUNTIME_PYTHON),'-m','tilemega.serving.trace',*common,
                  '--past','575','--launches','32','--out',str(cell/'trace_v2')],cell/'trace.log')
             run([sys.executable,str(ROOT/'docs/experiments/TRACE_V2/analyze.py'),
                  str(cell/'trace_v2'),'--source',str(Path(case['decode']).parent/'plan.so.cu'),
                  '--window','1','--out',str(cell/'chain')],cell/'analyze.log')
         if not (cell/'request/page_trace.tsv').exists():
-            run([sys.executable,str(ROOT/'docs/experiments/SERVING_R11/measure_page_chain.py'),
+            run([str(RUNTIME_PYTHON),str(ROOT/'docs/experiments/SERVING_R11/measure_page_chain.py'),
                  *common,'--prompt-ids',case['prompt_ids'],'--steps','1024',
                  '--mode','L2','--out',str(cell/'request')],cell/'request.log')
         run([sys.executable,str(ROOT/'docs/experiments/SERVING_R11/analyze_page_chain.py'),
