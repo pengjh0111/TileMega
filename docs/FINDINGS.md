@@ -8776,3 +8776,16 @@ Evidence: `SERVING_R11/solver/full_window_shortcut_probe.json` and its
 old/new timing and search TSVs. The follow-up serving search adds a wall-clock
 scan budget and records `SEARCH_BUDGET` when it has to truncate a coordinate;
 that bound is a search-quality tradeoff, not an exact pruning rule.
+
+## F-335: A synthetic adjacent edge reaches the handoff IR pass
+
+✅ verified: on a one-to-one edge in the reference graph, attaching adjacent
+same-worker position maps lets `VerifyHandoffAccess` prove `smem_direct` and
+`ApplyHandoffs` produce a verified fused CG (`HANDOFF_DIRECT
+two_stage_access=PASS ir_rewrite=PASS`). A separate synthetic runtime
+projection test checks the removed dependency; the 160-thread page exchange
+test is queued after the active EV-2 run. This is still short of generated
+serving code for `smem_direct`: `LowerServingHandoffStages` currently rejects
+that kind, and neither real decode graph has an eligible edge. Evidence:
+`test/unit/handoff_ir_test.cpp`, `test/unit/handoff_runtime_projection_test.cpp`,
+`test/unit/direct_handoff_test.cu`, and the queued R11 check log.

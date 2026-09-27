@@ -1,8 +1,8 @@
 # EV-2 measurement admission, predeclared before the matrix
 
-The user reduced batch endpoints to B=1 and B=16. The four cells are
-Llama/Qwen3 × those two batches; TileMega and vLLM are alternate arms.
-The original ten-cell G-9 remains unmeasured under this scope change.
+The user reduced final acceptance to Llama at B=1 and B=16; TileMega and
+vLLM are alternate arms in each of these two cells. The original ten-cell
+G-9 remains unmeasured under this scope change.
 
 At 2026-09-27, with `nvidia-smi --query-compute-apps` empty, five one-second
 idle-power observations were 21.81, 21.81, 21.82, 21.82 and 21.78 W. Their

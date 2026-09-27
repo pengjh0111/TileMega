@@ -17,7 +17,9 @@ namespace tilemega::tests::handoff_ir_test {
 int TestHandoffIr(int argc,char** argv) try {
   analysis::IslContext isl;mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();context.getOrLoadDialect<dialect::ExecDialect>();
-  auto module=argc>1?mlir::parseSourceFile<mlir::ModuleOp>(argv[1],&context):
+  auto const imported_case=argc<=1 || std::string(argv[1])=="audit" ||
+      std::string(argv[1])=="smem_direct";
+  auto module=!imported_case?mlir::parseSourceFile<mlir::ModuleOp>(argv[1],&context):
     frontend::TorchExportImporter{}.Import(std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SEQSCAN/raw/export/gqa2.json",context);
   assert(module);
   if(argc>2 && std::string(argv[2])=="select_serving") {
@@ -46,7 +48,42 @@ int TestHandoffIr(int argc,char** argv) try {
   for(auto& op:*module->getBody())if(mlir::isa<dialect::PlacementOp,dialect::ImplementationOp>(op))decisions.push_back(&op);
   for(auto op:decisions)op->moveBefore(&plan.getBody().front(),plan.getBody().front().end());
   b.setInsertionPointToEnd(&plan.getBody().front());
-  std::string choice=argc>2?argv[2]:"recompute";
+  std::string choice=argc>2?argv[2]:(argc>1 && imported_case?argv[1]:"recompute");
+  if(choice=="smem_direct") {
+    // c11 is a one-to-one relation in the reference fixture. Give its two
+    // task spaces adjacent positions on one worker, then ask the real access
+    // verifier and ApplyHandoffs pass to transform that two-stage edge.
+    auto edge=mlir::dyn_cast_or_null<dialect::CouplingOp>(
+        mlir::SymbolTable::lookupSymbolIn(graph,"c11"));
+    assert(edge && edge.getRelation().getMap().IsSingleValued() &&
+           edge.getRelation().getMap().Reverse().IsSingleValued());
+    auto position=[](int offset) {
+      return analysis::CouplingRelation::FromIslText(
+          "[s11] -> { [m,n] -> [worker,slot] : worker=0 and "
+          "slot=2*(4*m+n)+"+std::to_string(offset)+
+          " and m>=0 and 128*m<s11 and 0<=n<=3 }");
+    };
+    int positioned=0;
+    for(auto placement:plan.getBody().front().getOps<dialect::PlacementOp>()) {
+      int offset=placement.getTask()==edge.getSrc()?0:
+                 placement.getTask()==edge.getDst()?1:-1;
+      if(offset<0)continue;
+      placement->setAttr("position",dialect::CouplingMapAttr::get(&context,position(offset)));
+      ++positioned;
+    }
+    assert(positioned==2 && mlir::succeeded(mlir::verify(*module)));
+    mlir::OperationState hs(edge.getLoc(),dialect::HandoffOp::getOperationName());
+    hs.addAttribute("coupling",mlir::FlatSymbolRefAttr::get(&context,edge.getSymName()));
+    hs.addAttribute("kind",b.getStringAttr("smem_direct"));
+    auto handoff=mlir::cast<dialect::HandoffOp>(b.create(hs));
+    auto proof=dialect::VerifyHandoffAccess(handoff);
+    assert(proof.consumer_to_producer.IsSingleValued());
+    dialect::ApplyHandoffs(*module);
+    assert(mlir::succeeded(mlir::verify(*module)));
+    assert((*module)->hasAttr("tilemega.handoff_pending_lowering"));
+    std::cout<<"HANDOFF_DIRECT two_stage_access=PASS ir_rewrite=PASS\n";
+    return 0;
+  }
   if(choice=="audit") {
     std::map<std::string,int> counts;
     for(auto edge:graph.getBody().front().getOps<dialect::CouplingOp>()) {

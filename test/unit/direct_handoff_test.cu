@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/executor/DirectHandoff.cuh>
+#include <tilemega/Solver/HandoffRuntimeProjection.h>
+#include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/QuasiPolynomial.h>
 #include <cuda_runtime.h>
 #include <cassert>
 #include <iostream>
+#include <vector>
 using namespace tilemega::codegen::executor;
 __global__ void HandoffKernel(int const* input,int* output) {
   __shared__ alignas(16) int page[128];
@@ -15,6 +19,18 @@ __global__ void HandoffKernel(int const* input,int* output) {
   });
 }
 int main() {
+  // The same synthetic 1:1 CG is projected onto the fused runtime task
+  // before the device page handoff is exercised below. This catches a page
+  // exchange that works in isolation but was removed from the schedule.
+  tilemega::analysis::IslContext isl;
+  using Relation=tilemega::analysis::CouplingRelation;
+  auto tasks=Relation::FromIslText("{ [] -> [s,t] : 0<=s<2 and 0<=t<4 }");
+  auto dependencies=Relation::FromIslText("{ [1,t] -> [0,t] : 0<=t<4 }");
+  auto identity=Relation::FromIslText("{ [t] -> [u] : 0<=t<4 and u=t }");
+  auto projection=tilemega::solver::ProjectHandoffRuntime(
+      tasks,dependencies,2,{{0,1,"smem_direct",identity}});
+  assert((projection.surviving_stages==std::vector<int>{1}));
+  assert(projection.dependencies.Card().IsZero());
   int input[128],result[128];
   for(int i=0;i<128;++i)input[i]=i;
   int *device_input=nullptr,*device_output=nullptr;
@@ -27,5 +43,5 @@ int main() {
   for(int i=0;i<128;++i)assert(result[i]==i*2+1);
   assert(cudaFree(device_input)==cudaSuccess);
   assert(cudaFree(device_output)==cudaSuccess);
-  std::cout<<"PASS 128 direct page handoffs with an idle loader warp\n";
+  std::cout<<"PASS synthetic 1:1 projected page handoff with an idle loader warp\n";
 }
