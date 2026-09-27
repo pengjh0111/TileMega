@@ -2,7 +2,7 @@
 
 Baseline: `4bf26fb85ada63fccea101b323f3d7a09351eca2` (`origin/tilemega` at start). Prompt: `/root/Prompt/TileMega_R11_prompt.md`, SHA256 `b4b13f18596924eac17624de218735bcf8196878862dd7a6d8f00d67db71e62a`.
 
-The implementation commits through `4e104011d` are listed in [commit order](ev2/commits_before_acceptance.txt). The acceptance archive commit is recorded below after it is created.
+The implementation commits through `4e104011d` are listed in [commit order](ev2/commits_before_acceptance.txt). The partial-acceptance archive is `039cd319a`.
 
 The user narrowed the final EV-2 acceptance to **Llama B=1 and B=16**. The original ten-cell G-9 geometric mean is therefore **unmeasured**, irrespective of the two-cell result. The measured controls and the original R10-C four-cell result remain available in [R10 controls](../SERVING_R11/r10_control/paired_final.tsv). The precise scope change and its consequences are recorded in [scope_amendment.md](scope_amendment.md).
 
