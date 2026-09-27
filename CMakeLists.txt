@@ -106,6 +106,7 @@ set_source_files_properties(lib/Analysis/ISLContext.cpp PROPERTIES
 # R8 BE-7: two dialects out of one -- `tmcg` for the graph's structure and
 # `tmexec` for the decisions solved on it. The attributes stay with `tmcg`,
 # which is where the structure they describe lives.
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/include/tilemega/Dialect/CouplingGraph")
 set(LLVM_TARGET_DEFINITIONS include/tilemega/Dialect/CouplingGraph/CGDialect.td)
 mlir_tablegen(include/tilemega/Dialect/CouplingGraph/CGDialect.h.inc
   -gen-dialect-decls -dialect=tmcg -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
