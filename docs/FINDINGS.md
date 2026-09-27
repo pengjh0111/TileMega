@@ -8664,3 +8664,17 @@ residency, old and new binaries returned exactly the same Level 1 score
 semantics, but its observed local saving does not resolve the per-plan
 600-second budget. The larger relation-preparation and piece-pricing phases
 remain the next targets. Evidence: `SERVING_R11/solver/oracle_theta_cache/`.
+
+## F-327: Qwen3 B16 prefill search alone exceeds the per-plan budget
+
+✅ verified: A current-source Qwen3 B16 prefill diagnostic was interrupted
+after **22 min 14 s**, having logged **1,657** Level 1 evaluations but no
+selected plan. This is over twice the 600 s whole-plan budget before top-M
+materialization, final compilation or GPU selection. The process ran with
+concurrent CPU build/tests and used the pre-Oracle-cache binary, so its
+elapsed time is a contested diagnostic rather than an uncontended final gate
+measurement. Candidate preparation in `SkeletonSearch.cpp`, particularly
+relation and piece-price work, remains the bottleneck; the theta-bound Oracle
+cache of F-326 affects only a small part of that loop. The next step is to
+reuse class-local structure and prices more broadly, then time a full
+uncontended plan. Evidence: `SERVING_R11/solver/qwen_prefill_budget_probe/`.

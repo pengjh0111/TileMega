@@ -281,3 +281,10 @@ Qwen3 s1 CG flow-audit returned identical Level 1 scores and exactness;
 `STRUCTURE` took 218.291 → 204.134 ms while total audit wall time remained
 about 33.1 s. This is a small local optimization, not a fix for the plan
 budget. See `solver/oracle_theta_cache/` and commit `11b1fc347`.
+
+A Qwen3 B16 prefill `build` diagnostic on the pre-cache binary was stopped
+after 22 min 14 s and 1,657 Level 1 evaluations, before any selected plan or
+GPU step. This is more than twice the 600 s per-plan limit; the run overlapped
+CPU build/tests, so it is not an uncontended final budget result. Its partial
+trace is preserved at `solver/qwen_prefill_budget_probe/`. No final Qwen3
+B16 acceptance is claimed.
