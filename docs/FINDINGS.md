@@ -8622,3 +8622,20 @@ prefill/decode unit comparisons found identical Level 1 scores. Its runtime
 effect requires a separate measurement. This tool smoke used `handoff=off`
 and no vLLM arm; it does not close the solver-selected EV-2 matrix or G-9.
 Evidence: `SERVING_R11/ops2_full_smoke/`.
+
+## F-325: Parallel top-3 resource probes reduce their wall-clock phase without changing occupancy
+
+✅ verified on sm_89: the Llama B=1 cached-floor source still needed
+**788.426 s** for prefill and **641.505 s** for decode, both above the
+600 s plan budget. Their cumulative three-query `megakernel_compile`
+phases were **272.976/229.585 s**. A subsequent explicit three-candidate
+decode check lowered the three modules on the owning MLIR thread, then ran
+three independent nvcc resource probes concurrently. All reported
+`resident=1`; the batched phase wall time was **83.923 s**. The candidates
+are not identical to those in the full search, so this is not a paired
+plan-time speedup. The complete check proceeded through top-3 measurement
+and selected rank 1 at **3.937 ms** on random BF16 data. The change keeps
+the exact compiled occupancy check and only parallelizes independent
+generated-source compilation. Four relevant host tests passed. The 600 s
+plan budget and EV-2 remain open. Evidence:
+`SERVING_R11/parallel_resource_probes/`.

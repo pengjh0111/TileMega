@@ -1,0 +1,3 @@
+{"L1": 4.149388015270233, "L2": 3.9773190021514893}
+E2E_PARTIALS fp32=1 element_bytes=4 total_bytes=14712832
+E2E_PLACE_STATS placement=0 max_queue=525 same_worker_edges=33816 cross_worker_edges=4329523 base_rotation=0 plan=eft

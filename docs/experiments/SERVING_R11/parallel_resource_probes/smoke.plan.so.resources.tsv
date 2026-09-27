@@ -1,0 +1,4 @@
+rank	key	estimated	actual	re_solved	residency	flow_ns	simulated_ns
+1	16x64x128s2k8;16x32x128s2k4;16x64x128s2k8;16x64x128s2k32;16x32x128s2k4;16x256x64s2k1;kappa=1;residency=1;Ec=256;Rq=4;page_bytes=8192	1	1	0	1	2.82479e+06	2.89574e+06
+2	16x64x128s2k8;16x64x64s2k8;16x64x128s2k8;16x64x128s2k32;16x32x128s2k4;16x256x64s2k1;kappa=1;residency=1;Ec=256;Rq=4;page_bytes=8192	1	1	0	1	2.82506e+06	2.89601e+06
+3	16x64x128s2k8;16x32x128s2k4;16x64x128s2k8;16x64x128s2k32;16x128x128s2k8;16x256x64s2k1;kappa=1;residency=1;Ec=256;Rq=4;page_bytes=8192	1	1	0	1	2.85941e+06	2.93772e+06

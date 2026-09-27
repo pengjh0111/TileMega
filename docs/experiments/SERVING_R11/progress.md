@@ -255,3 +255,12 @@ bindings. Commits `43f6b993a` and `8b4f90fb5` fix clean-build dialect output
 directory creation and cache the exact bound floor respectively; prefill and
 decode unit comparisons returned bitwise-identical Level 1 scores. The new
 source's per-plan wall time is being remeasured separately.
+
+The cached-floor source's separate Llama B1 build took 788.426 s for prefill
+and 641.505 s for decode. Both remain over the 600 s budget, and the
+artifact cache also differed from the first run, so no isolated cache
+speedup is claimed. Top-3 compiled occupancy probes are now prepared on the
+MLIR thread and compiled concurrently. A three-candidate decode smoke found
+resident=1 for all three, with `megakernel_compile` wall time 83.923 s;
+four host solver tests passed. Full plan-budget validation for this latest
+code remains open. See F-325 and `parallel_resource_probes/`.
