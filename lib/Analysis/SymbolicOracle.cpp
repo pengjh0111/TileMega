@@ -55,6 +55,10 @@ struct SymbolicOracle::Impl {
   isl_map* map=nullptr;isl_set* image=nullptr;isl_pw_multi_aff* unique=nullptr;
   mutable isl_set* theta_image=nullptr;
   mutable std::vector<long> bound_theta;
+  // General release queries visit many source coordinates at one theta.
+  // Retain the exact theta-bound relation, then fix only the source fiber.
+  mutable isl_set* release_theta_image=nullptr;
+  mutable std::vector<long> release_bound_theta;
   mutable std::vector<isl_pw_aff*> theta_lower,theta_upper;
   OracleProgram unique_program;
   mutable OracleProgram box_program;
@@ -63,7 +67,7 @@ struct SymbolicOracle::Impl {
   std::vector<isl_pw_aff*> lower,upper;
   int input=0,output=0,parameters=0;
   mutable std::uint64_t queries=0;mutable double ms=0;
-  ~Impl(){for(auto* p:lower)isl_pw_aff_free(p);for(auto* p:upper)isl_pw_aff_free(p);for(auto* p:theta_lower)isl_pw_aff_free(p);for(auto* p:theta_upper)isl_pw_aff_free(p);isl_pw_multi_aff_free(unique);isl_set_free(theta_image);isl_set_free(image);isl_map_free(map);}
+  ~Impl(){for(auto* p:lower)isl_pw_aff_free(p);for(auto* p:upper)isl_pw_aff_free(p);for(auto* p:theta_lower)isl_pw_aff_free(p);for(auto* p:theta_upper)isl_pw_aff_free(p);isl_pw_multi_aff_free(unique);isl_set_free(theta_image);isl_set_free(release_theta_image);isl_set_free(image);isl_map_free(map);}
 };
 SymbolicOracle::SymbolicOracle(std::string const& text):impl_(std::make_shared<Impl>()) {
   auto& d=*impl_;d.text=text;d.map=isl_map_read_from_str(SharedIslContext().raw(),text.c_str());
@@ -132,17 +136,31 @@ OracleLinearRelease SymbolicOracle::LinearRelease(std::vector<long> const& sourc
   struct Timer{Impl& d;std::chrono::steady_clock::time_point start;~Timer(){d.ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();}} timer{d,start};
   // Bind one exact Presburger fiber before optimizing. No global symbolic AST
   // or membership scan over a potentially million-element bounding interval.
-  auto* fiber=isl_set_copy(d.image);
+  std::vector<long> values;
+  values.reserve(d.parameters);
   for(int i=0;i<d.parameters;++i) {
     char const* name=isl_map_get_dim_name(d.map,isl_dim_param,i);
     auto value=theta.values.find(name?name:"");
-    if(value==theta.values.end()){isl_set_free(fiber);throw std::invalid_argument("Oracle theta is unbound");}
-    fiber=isl_set_fix_val(fiber,isl_dim_param,i,isl_val_int_from_si(SharedIslContext().raw(),value->second));
+    if(value==theta.values.end())throw std::invalid_argument("Oracle theta is unbound");
+    values.push_back(value->second);
   }
-  for(int i=0;i<d.input;++i)fiber=isl_set_fix_val(fiber,isl_dim_param,d.parameters+i,isl_val_int_from_si(SharedIslContext().raw(),source[i]));
+  if(!d.release_theta_image || d.release_bound_theta!=values) {
+    isl_set_free(d.release_theta_image);
+    d.release_theta_image=isl_set_copy(d.image);
+    for(int i=0;i<d.parameters;++i)
+      d.release_theta_image=isl_set_fix_val(d.release_theta_image,isl_dim_param,i,
+          isl_val_int_from_si(SharedIslContext().raw(),values[i]));
+    d.release_theta_image=isl_set_project_out(d.release_theta_image,isl_dim_param,0,d.parameters);
+    d.release_theta_image=isl_set_coalesce(d.release_theta_image);
+    if(!d.release_theta_image)throw std::runtime_error("Oracle theta-bound release construction failed");
+    d.release_bound_theta=std::move(values);
+  }
+  auto* fiber=isl_set_copy(d.release_theta_image);
+  for(int i=0;i<d.input;++i)fiber=isl_set_fix_val(fiber,isl_dim_param,i,
+      isl_val_int_from_si(SharedIslContext().raw(),source[i]));
   // All parameters are now singleton-bound; projecting them out exposes the
   // exact constant fiber to ISL's box predicate (and avoids parametric hulls).
-  fiber=isl_set_project_out(fiber,isl_dim_param,0,d.parameters+d.input);
+  fiber=isl_set_project_out(fiber,isl_dim_param,0,d.input);
   fiber=isl_set_coalesce(fiber);
   auto empty=isl_set_is_empty(fiber);
   if(empty==isl_bool_error){isl_set_free(fiber);throw std::runtime_error("release fiber emptiness failed");}

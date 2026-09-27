@@ -107,6 +107,20 @@ int TestSymbolicOracle(int argc, char** argv) {
       ++releases;++comparisons;
     }
   }
+  // Serving binds both batch and past. Rebinding either parameter must
+  // invalidate the exact release fiber retained by a General oracle.
+  SymbolicOracle serving_release("[B,P] -> { [q] -> [i] : 0<=q<B and 0<=i<P and (q=0 or i%2=0) }");
+  for(auto const& [batch,past]:{std::pair<int,int>{2,5},{2,8},{1,8},{2,5}}) {
+    ParamBinding bound;bound.Bind("B",batch);bound.Bind("P",past);
+    for(int q=0;q<=2;++q) {
+      auto release=serving_release.LinearRelease({q},bound);
+      long maximum=q>=batch?-1:(q==0?past-1:(past-1)-(past-1)%2);
+      bool prefix=q>=batch || q==0;
+      if(release.maximum!=maximum || release.prefix!=prefix)
+        throw std::runtime_error("two-parameter General release cache changed exact fiber");
+      ++releases;
+    }
+  }
   std::cout<<"ORACLE_RELEASE_EQUAL comparisons="<<releases<<" PASS\n";
   std::cout<<"ORACLE_SET_EQUAL comparisons="<<comparisons<<" PASS\n";
  }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
