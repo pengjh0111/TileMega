@@ -13,10 +13,12 @@ PYTHONPATH=python python -m tilemega run --config configs/e2e/llama_b1.toml
 ```
 
 Python 3.11 or newer reads TOML; Python 3.10 can use the equivalent
-`configs/e2e/llama_b1.json`. The examples currently set `features.handoff=off`
-while R11's handoff codegen is under integration; the requested `auto` mode
-still fails explicitly. [`docs/TOOLS.md`](docs/TOOLS.md) describes the unified
-binary commands and cache layout.
+`configs/e2e/llama_b1.json`. For paged decode, the
+`configs/e2e/llama_r11_acceptance.json` example enables access-proved
+`features.handoff=auto`; the compiler measures a candidate handoff plan and
+keeps it only when it clears the 2% gain threshold.
+[`docs/TOOLS.md`](docs/TOOLS.md) describes the unified binary commands and
+cache layout.
 
 ## Architecture
 

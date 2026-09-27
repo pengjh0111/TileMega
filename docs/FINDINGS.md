@@ -8730,3 +8730,34 @@ Separately, split-K combine spaces generated after lifting have no L-sem;
 the edge verifier now ignores such unrelated spaces and conservatively
 rejects recompute if an unlifted space may produce an input. Evidence:
 `SERVING_R11/handoff_closure/` and `lib/Dialect/CouplingGraph/HandoffAccess.cpp`.
+
+## F-332: Direct page handoff has a positive runtime projection control but no complete serving lowering
+
+✅ verified: A synthetic one-to-one, same-tile `smem_direct` runtime projection
+removes the producer stage and preserves the consumer's outgoing dependency.
+The new `handoff_runtime_projection` case passes under ctest, alongside the
+existing negative many-to-one control; all five targeted handoff/last-arriver
+tests pass on the current source. The access proof and the
+`DirectHandoff` page helper are separately tested, but the generated serving
+runtime does not yet compose them into one executable CG-to-codegen path.
+No `smem_direct` edge was eligible in the two audited real decode graphs.
+Evidence: `SERVING_R11/handoff_closure/targeted_ctest.txt`,
+`test/unit/handoff_runtime_projection_test.cpp`, and
+`SERVING_R11/handoff/eligibility_summary.json`. The next validation is the
+R11-specified synthetic two-stage CG rewrite, code generation, and page
+exchange execution.
+
+## F-333: A General Oracle fiber dominates the B=16 prefill search
+
+✅ verified on the current Llama B=16 prefill search: a read-only debugger
+sample found the sole active search thread inside
+`SymbolicOracle::LinearRelease`, specifically ISL's `isl_map_fix_val` and
+constraint simplification while binding a General release fiber. At the
+sample, the compile process had run for over 46 minutes and was still in
+warm-start class-coordinate evaluation. This identifies a concrete cause of
+the failed 600 s plan budget; the sample does not establish what fraction of
+all evaluations is spent there. The next solver change should cache or
+specialize exact affine release fibers for unchanged edge geometry and
+compare scores against the current Oracle before replacing it. Evidence:
+`SERVING_R11/solver/llama_B16_prefill_oracle_stack.txt` and the same plan's
+`plan.so.search.tsv` in the R11 acceptance cache.

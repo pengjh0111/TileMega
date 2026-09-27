@@ -1,0 +1,18 @@
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x0000565202317a47 in copy_constraint_dim_map ()
+
+Thread 1 (Thread 0x7f818fd1b000 (LWP 3667625) "tilemega"):
+#0  0x0000565202317a47 in copy_constraint_dim_map ()
+#1  0x0000565202317def in isl_basic_map_add_constraints_dim_map ()
+#2  0x000056520227a67d in isl_basic_map_extend ()
+#3  0x000056520229667a in eliminate_unit_div ()
+#4  0x000056520229c833 in isl_basic_map_simplify ()
+#5  0x000056520227ad04 in isl_basic_map_fix_pos ()
+#6  0x000056520227ecbb in isl_basic_map_fix_val ()
+#7  0x0000565202283df1 in isl_map_fix_val ()
+#8  0x0000565201f1cd1a in tilemega::analysis::SymbolicOracle::LinearRelease(std::vector<long, std::allocator<long> > const&, tilemega::analysis::ParamBinding const&) const ()
+#9  0x000056520209c480 in tilemega::solver::PrepareFlow(tilemega::solver::SymbolicProblem const&, tilemega::analysis::DramFloor const&, tilemega::TargetSpec const&, int, tilemega::solver::HopCurve const&, tilemega::analysis::CouplingCache&, tilemega::solver::FlowPreparationCache&, bool, int, tilemega::solver::PreparedFlow const*, std::vector<bool, std::allocator<bool> > const*, tilemega::analysis::DramFloor::Value const*) ()
+#10 0x0000565201fcea16 in tilemega::solver::(anonymous namespace)::SearchContext::Prepare(std::vector<tilemega::solver::GemmConfig, std::allocator<tilemega::solver::GemmConfig> > const&, int, int, int, bool, int) ()
+#11 0x0000565201fcf95d in tilemega::solver::(anonymous namespace)::SearchContext::Evaluate(std::vector<tilemega::solver::GemmConfig, std::allocator<tilemega::solver::GemmConfig> > const&, int, int, int) ()
+[Inferior 1 (process 3667625) detached]

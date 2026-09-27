@@ -46,10 +46,12 @@ newer and equivalent JSON on Python 3.10. The full parameter surface is in
 `[device].cache_dir` stores stamped calibration in `targets/`, export graphs
 in `exports/`, solved plans in `plans/`, and compiled libraries in
 `artifacts/`. Keys include source and calibration fingerprints, options, and
-compiler dependencies. During R11 integration, handoff and tiled weight
-lowering are unfinished; the driver rejects those modes explicitly. Both
-checked-in examples set `features.handoff="off"` and
-`features.weight_layout="row"` for current executor diagnostics.
+compiler dependencies. Paged decode accepts `features.handoff="auto"` and
+measures the handoff binary against its event-plan control; prefill uses the
+event plan. Tiled weight lowering remains unavailable, so serving examples
+use `features.weight_layout="row"`. The narrowed Llama B=1/16 acceptance
+configuration is `configs/e2e/llama_r11_acceptance.json` on Python 3.10
+and the equivalent `.toml` on Python 3.11 or newer.
 
 On a new accelerator, `PYTHONPATH=python python -m tilemega doctor --hwcheck`
 builds and runs the native page tests, calibrates and builds a Llama B=1 plan,

@@ -21,12 +21,23 @@ int TestHandoffRuntimeProjection(int,char**) {
   result=solver::ProjectHandoffRuntime(tasks,deps,4,{{1,2,"last_arriver",map}});
   same(result.dependencies,read("{ [1,t] -> [0,t] : 0<=t<6; [2,t] -> [1,u] : 0<=t<2 and 3*t<=u<3*t+3 }"));
   assert((result.surviving_stages==std::vector<int>{0,1,3}));
+  // A bijective producer/consumer pair can share one page and remove the
+  // intermediate stage without changing the remaining release relation.
+  tasks=read("{ [] -> [s,t] : 0<=s<3 and 0<=t<4 }");
+  deps=read("{ [1,t] -> [0,t] : 0<=t<4; [2,t] -> [1,t] : 0<=t<4 }");
+  auto direct=read("{ [t] -> [u] : 0<=t<4 and u=t }");
+  result=solver::ProjectHandoffRuntime(tasks,deps,3,{{0,1,"smem_direct",direct}});
+  same(result.dependencies,read("{ [1,t] -> [0,t] : 0<=t<4 }"));
+  assert((result.surviving_stages==std::vector<int>{1,2}));
   auto reject=[&](auto action){bool bad=false;try{action();}catch(std::invalid_argument const&){bad=true;}assert(bad);};
+  tasks=read("{ [] -> [s,t] : (s=0 or s=1) and 0<=t<6; [] -> [s,t] : (s=2 or s=3) and 0<=t<2 }");
+  deps=read("{ [1,t] -> [0,t] : 0<=t<6; [2,t] -> [1,u] : 0<=t<2 and 3*t<=u<3*t+3; [3,t] -> [2,t] : 0<=t<2 }");
+  map=read("{ [t] -> [u] : 0<=t<2 and 3*t<=u<3*t+3 }");
   reject([&]{solver::ProjectHandoffRuntime(tasks,deps,4,{{1,2,"last_arriver",read("{ [t] -> [u] : 0<=t<2 and 0<=u<6 }")}});});
   reject([&]{solver::ProjectHandoffRuntime(tasks,deps,4,{{1,2,"smem_direct",map}});});
   reject([&]{solver::ProjectHandoffRuntime(tasks,deps,4,{{1,2,"unknown",map}});});
   assert(context.ReferenceCount()==0);
-  std::cout<<"HANDOFF_RUNTIME multirow_recompute=PASS complete_fanin=PASS negative=3 remaining=0\n";
+  std::cout<<"HANDOFF_RUNTIME multirow_recompute=PASS complete_fanin=PASS direct_page=PASS negative=3 remaining=0\n";
   return 0;
 }
 }

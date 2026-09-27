@@ -296,6 +296,24 @@ trace-derived effective rate rather than a DRAM hardware-counter value, and
 it belongs to fixed-geometry diagnostics; selected-plan AT-3 attribution
 remains open. See `single_page_loader/diagnostics/attention_bandwidth.tsv`.
 
+The user narrowed final EV-2 acceptance again on 2026-09-27 to Llama at
+B=1/16. A single end-to-end `python -m tilemega run` with the frozen
+`configs/e2e/llama_r11_acceptance.json` is in progress. The first plan,
+prefill B1, solved and compiled in 699.163 s, exceeding G-7's 600 s budget.
+At 04:50 UTC the B16 prefill solve was still on the first coordinate pass;
+this is active CPU candidate evaluation, not a hung GPU process. The pending
+`ev2/measurement_policy.json` permits only two Llama cells and four arms.
+The original ten-cell G-9 remains unmeasured. A selected-plan trace collector
+has been prepared in `collect_selected_diagnostics.py` for the requested
+residual bubble, page-full/dependency-wait and adjacent-launch-gap measures.
+
+Five current-source handoff/last-arriver tests pass. A positive synthetic
+`smem_direct` projection now preserves the post-handoff dependency, but the
+complete executable CG-to-codegen direct-page path remains open. See
+`handoff_closure/targeted_ctest.txt` and F-332. Current structural audit is
+16/18 PASS: K-15 and K-16 await the final paired measurements and SASS
+archive; no pass is claimed from an empty measurement policy.
+
 EV-2's four-cell contamination threshold has been declared before running
 the matrix: five idle readings gave median 21.81 W, so the admission limit
 is 51.81 W. The CLI can now load one fixed `test.policy_file` for all

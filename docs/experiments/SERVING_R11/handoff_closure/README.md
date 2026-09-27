@@ -28,3 +28,9 @@ is a norm→GEMM serving handoff. A Qwen3 B=1 selected graph passed a
 separate serving rewrite/codegen check with 57 norm recomputes and 28
 last-arriver reductions. This is structural evidence; it is not a
 full-request correctness or performance result for that Qwen3 plan.
+
+The synthetic one-to-one `smem_direct` runtime projection now has a positive
+test: it removes the producer stage and preserves the remaining dependency.
+`direct_projection_ctest.txt` records the passing host test. This does not
+establish end-to-end `smem_direct` code generation; the full CG-to-runtime
+lowering remains an implementation gap.
