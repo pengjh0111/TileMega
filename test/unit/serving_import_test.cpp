@@ -98,6 +98,16 @@ int TestServingImport(int argc, char** argv) {
     tilemega::solver::HopCurve hop;
     auto flow = tilemega::solver::PrepareFlow(
         problem, floor, target, 1, hop, cache, prepared, true);
+    auto cached_flow = tilemega::solver::PrepareFlow(
+        problem, floor, target, 1, hop, cache, prepared, true, 0,
+        nullptr, nullptr, &value);
+    if (cached_flow.flow.dram_floor_ns != flow.flow.dram_floor_ns ||
+        cached_flow.flow.floor_ns != flow.flow.floor_ns ||
+        cached_flow.flow.spaces.size() != flow.flow.spaces.size() ||
+        cached_flow.flow.edges.size() != flow.flow.edges.size() ||
+        tilemega::solver::EvaluateFlow(cached_flow.flow).makespan_ns !=
+            tilemega::solver::EvaluateFlow(flow.flow).makespan_ns)
+      throw std::runtime_error("bound floor changed the serving flow score");
     if (flow.flow.spaces.size() != problem.counts.size())
       throw std::runtime_error("serving flow omitted a task space");
     std::cout << "SERVING_FLOW spaces=" << flow.flow.spaces.size()

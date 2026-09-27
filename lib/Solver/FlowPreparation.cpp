@@ -165,7 +165,8 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
 PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor const& floor,
     TargetSpec const& target,int residency,HopCurve const& hop,
     analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate,int kernel_shared_bytes,
-    PreparedFlow const* prior,std::vector<bool> const* reusable_stages) {
+    PreparedFlow const* prior,std::vector<bool> const* reusable_stages,
+    analysis::DramFloor::Value const* bound_floor) {
   if(problem.model.dtype!=ScalarType::kBF16)throw std::invalid_argument("flow preparation requires BF16");
   auto target_key=target.ToJson();if(cache.target_key!=target_key){cache={};cache.target_key=std::move(target_key);}
   PreparedFlow result;auto& flow=result.flow;auto model=problem.model;model.metric_bindings.values.erase("Tm");model.metric_bindings.values.erase("Tn");auto theta=model.MetricBindings();
@@ -180,7 +181,8 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   // profile is selected. Older target files retain the R9b control physics.
   flow.inflight_dram=model.serving && !cal.inflight_curve_bytes.empty();
   SetFlowCalibration(flow,target,model.dtype,hop);
-  auto bound=floor.Evaluate(theta);flow.dram_floor_ns=bound.dram_ns;flow.floor_ns=bound.floor_ns;
+  auto bound=bound_floor?*bound_floor:floor.Evaluate(theta);
+  flow.dram_floor_ns=bound.dram_ns;flow.floor_ns=bound.floor_ns;
   flow.all_external_miss=CacheServiceCurve(cal.l2_curve_bytes,cal.l2_curve_gbps).HitFraction(bound.read_bytes,cal.l2_gbps,cal.dram_gbps)==0;
   std::ostringstream graph_key;
   for(auto const& g:problem.geometry)graph_key<<GeometryKey(

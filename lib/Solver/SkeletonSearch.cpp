@@ -25,6 +25,7 @@ struct SearchContext {
   mlir::MLIRContext& context;
   SkeletonSearchOptions options;
   std::optional<analysis::DramFloor> floor;
+  std::map<std::string,analysis::DramFloor::Value> floor_values;
   std::optional<SymbolicProblem> base,last_structure;
   std::string last_geometry;
   struct FlowSnapshot {
@@ -38,6 +39,7 @@ struct SearchContext {
     decltype(frontend::ImportedSemantics::lifted) lifted;
     std::vector<OperatorClass> classes;
     std::optional<analysis::DramFloor> floor;
+    std::map<std::string,analysis::DramFloor::Value> floor_values;
     std::optional<SymbolicProblem> base,last_structure;
     std::string last_geometry;
     std::map<int,FlowSnapshot> recent_flows;
@@ -79,7 +81,7 @@ struct SearchContext {
     auto old_key=std::make_tuple(attention_kv_block,attention_query_rows,argmax_tile_n);
     auto next_key=std::make_tuple(kv_block,query_rows,partial_tile_n);
     serving_structures[old_key]={std::move(imported.plan),std::move(imported.lifted),
-        std::move(classes),std::move(floor),std::move(base),
+        std::move(classes),std::move(floor),std::move(floor_values),std::move(base),
         std::move(last_structure),std::move(last_geometry),std::move(recent_flows),floor_attribute};
     // Price pieces, ownership and releases are keyed by semantic signature,
     // local geometry, theta and access relation. Preserve those exact caches
@@ -94,7 +96,8 @@ struct SearchContext {
       auto state=std::move(hit->second);serving_structures.erase(hit);
       imported.plan=std::move(state.plan);imported.lifted=std::move(state.lifted);
       classes=std::move(state.classes);
-      floor=std::move(state.floor);base=std::move(state.base);
+      floor=std::move(state.floor);floor_values=std::move(state.floor_values);
+      base=std::move(state.base);
       last_structure=std::move(state.last_structure);last_geometry=std::move(state.last_geometry);
       recent_flows=std::move(state.recent_flows);floor_attribute=state.floor_attribute;
       attention_kv_block=kv_block;attention_query_rows=query_rows;argmax_tile_n=partial_tile_n;
@@ -129,6 +132,7 @@ struct SearchContext {
     attention_kv_block=kv_block;attention_query_rows=query_rows;
     argmax_tile_n=partial_tile_n;
     base.reset();last_structure.reset();last_geometry.clear();floor.reset();
+    floor_values.clear();
     floor_attribute={};recent_flows.clear();
   }
   std::string Key(std::vector<GemmConfig> const& config,int kappa,int residency) const {
@@ -242,9 +246,24 @@ struct SearchContext {
             }
       }
     }
+    // A decode interval evaluates the same floor at three theta bindings for
+    // every candidate.  The quasipolynomial parser is expensive, while the
+    // floor is independent of g, kappa and residency within this structure.
+    auto floor_model=point.problem.model;
+    floor_model.metric_bindings.values.erase("Tm");
+    floor_model.metric_bindings.values.erase("Tn");
+    auto floor_theta=floor_model.MetricBindings();
+    std::ostringstream floor_key;
+    for(auto const& [name,value]:std::map<std::string,long>(
+            floor_theta.values.begin(),floor_theta.values.end()))
+      floor_key<<name.size()<<':'<<name<<'='<<value<<';';
+    auto bound=floor_values.find(floor_key.str());
+    if(bound==floor_values.end())
+      bound=floor_values.emplace(floor_key.str(),floor->Evaluate(floor_theta)).first;
     {SolverPhase phase(timing,"piece_pricing_and_release");point.flow=PrepareFlow(
         point.problem,*floor,target,residency,options.common.placement.hop,
-        cache,flow_cache,true,estimate.shared_bytes,prior,prior?&reusable:nullptr);}
+        cache,flow_cache,true,estimate.shared_bytes,prior,prior?&reusable:nullptr,
+        &bound->second);}
     if(pages) {
       point.flow->flow.page_bytes=pages->page_bytes;
       point.flow->flow.pages_per_worker=pages->pages;

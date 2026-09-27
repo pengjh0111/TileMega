@@ -51,7 +51,8 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
 PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor const& floor,
     TargetSpec const& target,int residency,HopCurve const& hop,
     analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate=true,int kernel_shared_bytes=0,
-    PreparedFlow const* prior=nullptr,std::vector<bool> const* reusable_stages=nullptr);
+    PreparedFlow const* prior=nullptr,std::vector<bool> const* reusable_stages=nullptr,
+    analysis::DramFloor::Value const* bound_floor=nullptr);
 void ApplyFlowPrices(SymbolicProblem& problem,PreparedFlow const& flow,TargetSpec const& target,int residency);
 std::vector<TaskPriceParts> ExpandFlowPrices(PreparedFlow const& flow);
 }
