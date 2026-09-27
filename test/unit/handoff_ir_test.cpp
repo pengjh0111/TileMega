@@ -12,6 +12,7 @@
 #include <mlir/IR/SymbolTable.h>
 #include <cassert>
 #include <iostream>
+#include <map>
 namespace tilemega::tests::handoff_ir_test {
 int TestHandoffIr(int argc,char** argv) try {
   analysis::IslContext isl;mlir::MLIRContext context;
@@ -34,6 +35,27 @@ int TestHandoffIr(int argc,char** argv) try {
   for(auto op:decisions)op->moveBefore(&plan.getBody().front(),plan.getBody().front().end());
   b.setInsertionPointToEnd(&plan.getBody().front());
   std::string choice=argc>2?argv[2]:"recompute";
+  if(choice=="audit") {
+    std::map<std::string,int> counts;
+    for(auto edge:graph.getBody().front().getOps<dialect::CouplingOp>()) {
+      for(char const* kind:{"recompute","last_arriver","smem_direct"}) {
+        mlir::OperationState hs(edge.getLoc(),dialect::HandoffOp::getOperationName());
+        hs.addAttribute("coupling",mlir::FlatSymbolRefAttr::get(&context,edge.getSymName()));
+        hs.addAttribute("kind",b.getStringAttr(kind));
+        auto handoff=mlir::cast<dialect::HandoffOp>(b.create(hs));
+        try {
+          (void)dialect::VerifyHandoffAccess(handoff);
+          ++counts[kind];
+          std::cout<<"HANDOFF_ELIGIBLE\t"<<kind<<'\t'<<edge.getSymName().str()
+                   <<'\t'<<edge.getSrc().str()<<'\t'<<edge.getDst().str()<<'\n';
+        }catch(std::invalid_argument const&) {}
+        handoff.erase();
+      }
+    }
+    std::cout<<"HANDOFF_AUDIT\t"<<counts["recompute"]<<'\t'
+             <<counts["last_arriver"]<<'\t'<<counts["smem_direct"]<<'\n';
+    return 0;
+  }
   bool const multiple=choice=="recompute_multi";
   int proofs=0,rejected=0;bool runtime_wired=false,applied=false;
   for(auto edge:graph.getBody().front().getOps<dialect::CouplingOp>()) {

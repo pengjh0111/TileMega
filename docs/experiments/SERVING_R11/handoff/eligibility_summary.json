@@ -1,0 +1,24 @@
+[
+  {
+    "model": "llama",
+    "batch": 1,
+    "candidate_rank": 1,
+    "cg_path": "/root/r11_work/r10_control/plans/llama_decode_B1/plan.so.top1.mlir",
+    "cg_sha256": "6f21cff3a110acd17e4cdcc9d64fbf3b9342d9ddf7e9ab908797728ed3733730",
+    "eligibility_path": "docs/experiments/SERVING_R11/handoff/llama_B1_top1_eligibility.tsv",
+    "recompute": 35,
+    "last_arriver": 49,
+    "smem_direct": 0
+  },
+  {
+    "model": "qwen3",
+    "batch": 1,
+    "candidate_rank": 1,
+    "cg_path": "/root/r11_work/r10_control/plans/qwen3_decode_B1/plan.so.top1.mlir",
+    "cg_sha256": "8da1bec2b6755d88dc1fa200f245a93c6d63f274ec49651c9c2db5016c00ea05",
+    "eligibility_path": "docs/experiments/SERVING_R11/handoff/qwen3_B1_top1_eligibility.tsv",
+    "recompute": 59,
+    "last_arriver": 85,
+    "smem_direct": 0
+  }
+]
