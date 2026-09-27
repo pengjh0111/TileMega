@@ -56,6 +56,12 @@ def main() -> None:
     protocol_archive = out / "protocol_raw.tar.xz"
     seen_pids = set()
     process_counts = {(model, batch): 0 for model, batch in CELLS}
+    expected_hashes = {}
+    for case in cases:
+        model = "llama" if "llama" in case["model"] else "qwen3"
+        expected_hashes[(model, int(case["batch"]))] = {
+            name: sha(Path(case[name])) for name in
+            ("prefill", "reference_prefill", "decode", "reference_decode")}
     with tarfile.open(protocol_archive, "w:xz") as target:
         for summary_path, summary in zip(protocol_paths, protocol):
             for path in sorted(summary_path.parent.glob("*_*/*")):
@@ -68,7 +74,8 @@ def main() -> None:
                 if cell not in process_counts or result["pid"] in seen_pids or \
                         not result["passed"] or len(records) != 5 or \
                         any(row["mismatches"] != 0 for row in records) or \
-                        len({row["token_sha256"] for row in records}) != 1:
+                        len({row["token_sha256"] for row in records}) != 1 or \
+                        result["case"]["binary_sha256"] != expected_hashes[cell]:
                     raise ValueError(f"invalid fresh-process token check: {path}")
                 seen_pids.add(result["pid"])
                 process_counts[cell] += 1
