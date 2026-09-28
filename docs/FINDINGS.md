@@ -8834,3 +8834,19 @@ arithmetic is the larger observed effect. The R12 default leaves
 `evict_first` off. Evidence: `/root/r12_work/e1/{row,tile,noevict}.run.log` and
 `/root/r12_work/paged_repeat.log`; these are development microbenchmarks, not
 accepted end-to-end performance results.
+
+## F-338: A second L2 launch stalls in the R12 Llama B16 paged candidate
+
+✅ verified in one-process diagnostics: one L1 and one L2 launch completed, and
+two L1 launches completed, but the second L2 launch timed out after 60 s.
+Temporarily bypassing the lag-one waits did not change that result. With K-phase
+disabled and a stream synchronization between launches, the first L2 launch
+completed and the second timed out after 120 s. After the first L2 launch,
+all non-elided aggregate event rows matched the scheduled task counts, no fine
+event row differed, and the elided argmax row had 16/16 arrivals. ⚠️ inferred:
+the repeated-execution failure is in the L2 kernel or persistent plan state;
+the exact blocking operation is still unknown. These checks do not establish
+protocol correctness and do not replace the required 50-process test. Evidence:
+`/root/r12_work/{one_launch,two_launch}/`, `/root/r12_work/skip_lag_run.*`,
+`/root/r12_work/two_sync_no_kphase.*`, and
+`/root/r12_work/debug_events2.run.stderr`. EV-3 remains pending.

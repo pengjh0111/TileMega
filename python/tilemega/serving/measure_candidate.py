@@ -35,7 +35,10 @@ def _external_buffers(plan: PlanLibrary, batch: int,
 
 
 def measure_one(plan: PlanLibrary, batch: int, vocab: int,
-                past_mid: int, out: Path, reverse_modes: bool = False) -> dict:
+                past_mid: int, out: Path, reverse_modes: bool = False,
+                warmup_override: int | None = None,
+                timed_override: int | None = None,
+                mode_only: str | None = None) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     if not _exclusive(out / "guard.jsonl", "candidate-before", True):
         raise RuntimeError("GPU remained occupied for 30 minutes")
@@ -57,10 +60,16 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
         time.sleep(10)
     buffers = _external_buffers(plan, batch, vocab)
     warmup, timed = (8, 32) if plan.info.phase == 1 else (2, 5)
+    if warmup_override is not None:
+        warmup = warmup_override
+    if timed_override is not None:
+        timed = timed_override
     past = past_mid if plan.info.phase == 1 else 0
     stream = torch.cuda.current_stream()
     clocks_before = _clocks()
     modes = [mode for mode in (1, 2) if plan.info.modes & mode]
+    if mode_only is not None:
+        modes = [mode for mode in modes if mode == {"L1": 1, "L2": 2}[mode_only]]
     if reverse_modes:
         modes.reverse()
     measured = {}
@@ -111,6 +120,9 @@ def main() -> None:
     parser.add_argument("--past-mid", type=int, default=575)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--reverse-modes", action="store_true")
+    parser.add_argument("--warmup", type=int, choices=range(0, 33))
+    parser.add_argument("--timed", type=int, choices=range(1, 33))
+    parser.add_argument("--mode", choices=("L1", "L2"))
     args = parser.parse_args()
     lock_path = Path(os.environ.get("TILEMEGA_GPU_LOCK", "/root/r10_work/serving_gpu.lock"))
     lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -123,7 +135,8 @@ def main() -> None:
         config = json.loads((args.model / "config.json").read_text())
         report = measure_one(PlanLibrary(args.so), args.batch,
                              config["vocab_size"], args.past_mid, args.out,
-                             args.reverse_modes)
+                             args.reverse_modes, args.warmup, args.timed,
+                             args.mode)
         del guard_allocation
     print(json.dumps({mode: data["mean_ms"]
                       for mode, data in report["modes"].items()}))
