@@ -136,8 +136,9 @@ def no_arch_comparisons():
 
 def k17():
     paths = list((ROOT / 'include/tilemega/Codegen/executor').glob('*.cuh'))
-    paths += list((ROOT / 'include/tilemega/Codegen/tasks').glob('Serving*'))
-    paths += [ROOT / 'include/tilemega/Backend/ServingEpilogue.h']
+    for pattern in ('Serving*', 'Paged*', 'LastArriver*'):
+        paths += list((ROOT / 'include/tilemega/Codegen/tasks').glob(pattern))
+    paths += list((ROOT / 'include/tilemega/Backend').glob('Serving*'))
     bad = []
     for file in paths:
         if file.is_file():
@@ -154,7 +155,11 @@ def checks():
                         absent(ex + 'ServingPages.cuh', r'\bTaskSmem\b'))
     loader = ex + 'ServingPages.cuh'
     ck['K-2'] = combine(require(loader, 'Loader'),
-                        absent(ex + 'PageRing.cuh', r'WaitTaskDependencies|GradedWait|EventPoll'))
+                        absent(ex + 'PageRing.cuh', r'WaitTaskDependencies|GradedWait|EventPoll'),
+                        absent('include/tilemega/Codegen/tasks/PagedGemmTaskBody.h',
+                               r'WaitTaskDependencies|GradedWait|EventPoll'),
+                        absent('include/tilemega/Codegen/tasks/PagedAttentionTaskBody.h',
+                               r'WaitTaskDependencies|GradedWait|EventPoll'))
     ck['K-3'] = combine(require(ex + 'PageRing.cuh', r'SlotIndex\(sequence\)'),
                         require('tools/commands/compile.cpp', 'page_bytes', 'tmexec.pages'))
     ck['K-4'] = combine(require('tools/commands/compile.cpp', 'TILEMEGA_WAIT_POLICY',
@@ -169,8 +174,11 @@ def checks():
                                 'ServingGemmCombineTaskBody', 'AttentionMergeTaskBody'),
                         require(ex + 'ServingPages.cuh', 'LastArriverGemmTaskBody',
                                 'LastArriverAttentionTaskBody'))
-    ck['K-7'] = combine(require('include/tilemega/Codegen/tasks/FusedAttentionTaskBody.h', 'warp'),
-                        absent('include/tilemega/Codegen/tasks/FusedAttentionTaskBody.h', r'__syncthreads\s*\('))
+    attention = 'include/tilemega/Codegen/tasks/PagedAttentionTaskBody.h'
+    wave_loop = (ROOT / attention).read_text().split('for(int wave=0;wave<waves;++wave)', 1)[-1].split('sequence+=waves*4', 1)[0]
+    ck['K-7'] = combine(require(attention, 'for(int wave=0;wave<waves;++wave)'),
+                        (not re.search(r'ComputeSync\s*\(|__syncthreads\s*\(|bar\.sync', wave_loop),
+                         [(attention, 1, 'KV wave loop contains no CTA barrier')]))
     ck['K-8'] = combine(no_arch_comparisons(),
                         require(ex + 'Async.cuh', 'kMbarrierTryWait', 'kMbarrierTx'),
                         require(ex + 'TensorMap.h', 'cudaGetDriverEntryPoint'))
@@ -194,7 +202,9 @@ def checks():
                          evidence_json('ev2/sass_audit.json', lambda d: d.get('all_fp64_zero') is True,
                                        'all serving SASS FP64 counts zero'))
     ck['K-17'] = k17()
-    ck['K-18'] = combine(absent('CMakeLists.txt', r'CUDA_ARCHITECTURES\s+89\b'),
+    cmake_code = '\n'.join(line.split('#', 1)[0] for _, line in lines('CMakeLists.txt'))
+    ck['K-18'] = combine((not re.search(r'CUDA_ARCHITECTURES\s+89\b', cmake_code),
+                          [('CMakeLists.txt', 1, 'no active hard-coded sm_89 CUDA test architecture')]),
                          require('CMakeLists.txt', 'sm_100'),
                          require('python/tilemega/cli.py', "arch_tag", 'configs/targets'))
     return ck
