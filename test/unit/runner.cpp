@@ -46,6 +46,7 @@ namespace tilemega::tests::cluster_labeling_test { int TestClusterLabeling(int, 
 namespace tilemega::tests::alignment_propagation_test { int TestAlignmentPropagation(int, char**); }
 namespace tilemega::tests::impl_contract_test { int TestImplContract(int, char**); }
 namespace tilemega::tests::serving_pruning_test { int TestServingPruning(int, char**); }
+namespace tilemega::tests::serving_lag_test { int TestServingLag(int, char**); }
 namespace tilemega::tests::serving_task_index_test { int TestServingTaskIndex(int, char**); }
 namespace tilemega::tests::serving_model_plan_test { int TestServingModelPlan(int, char**); }
 namespace tilemega::tests::serving_token_sets_test { int TestServingTokenSets(int, char**); }
@@ -110,6 +111,7 @@ int main(int argc, char** argv) {
     {"alignment_propagation", tilemega::tests::alignment_propagation_test::TestAlignmentPropagation},
     {"impl_contract", tilemega::tests::impl_contract_test::TestImplContract},
     {"serving_pruning", tilemega::tests::serving_pruning_test::TestServingPruning},
+    {"serving_lag", tilemega::tests::serving_lag_test::TestServingLag},
     {"serving_task_index", tilemega::tests::serving_task_index_test::TestServingTaskIndex},
     {"serving_token_sets", tilemega::tests::serving_token_sets_test::TestServingTokenSets},
     {"frontend_import", tilemega::tests::frontend_import_test::TestFrontendImport},

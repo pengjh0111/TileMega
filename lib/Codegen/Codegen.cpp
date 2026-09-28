@@ -791,31 +791,6 @@ std::string emitModelPlan(mlir::ModuleOp module,
         << variants[v].seq_end << "u; ++s) table[s] = " << v << "u;\n";
   out << "  return table;\n}\n"
       << "constexpr auto kSeqVariant = MakeSeqVariant();\n\n"
-      << "constexpr LagDependency kLagDependencies[] = {\n";
-  std::vector<std::string> lag_kinds;
-  lag_kinds.reserve(stages.size());
-  for(auto value:stages)
-    lag_kinds.push_back(stringField(dictionaryEntry(value,"stages"),"kind"));
-  std::size_t lag_count=0;
-  for(std::size_t i=0;i<lag_kinds.size();++i) {
-    if(lag_kinds[i]=="kFusedAttention") {
-      auto l2=i+1<lag_kinds.size() && lag_kinds[i+1]=="kAttentionMerge"?i+1:i;
-      out<<"  {"<<l2<<"u, "<<i<<"u, "<<i
-         <<"u, LagDependency::Kind::kHistoricalKv},\n";
-      ++lag_count;
-    }else if(lag_kinds[i]=="kArgmaxReduce") {
-      auto embed=std::find(lag_kinds.begin(),lag_kinds.end(),"kEmbedding");
-      if(embed!=lag_kinds.end()) {
-        out<<"  {"<<i<<"u, "<<i<<"u, "
-           <<std::distance(lag_kinds.begin(),embed)
-           <<"u, LagDependency::Kind::kToken},\n";
-        ++lag_count;
-      }
-    }
-  }
-  if(!lag_count)
-    out<<"  {0u,0u,0u,LagDependency::Kind::kToken},\n";
-  out<<"};\nconstexpr std::uint32_t kLagDependencyCount = "<<lag_count<<"u;\n\n"
       << "constexpr ModelSpec kModel = {kDims, ScalarType::"
       << (dtype == "bf16" ? "kBF16" : "kF32") << ", kBuffers, "
       << buffers.size() << "u, kGemms, " << gemms.size()

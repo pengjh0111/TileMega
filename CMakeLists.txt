@@ -323,6 +323,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/alignment_propagation_test.cpp
     test/unit/impl_contract_test.cpp
     test/unit/serving_pruning_test.cpp
+    test/unit/serving_lag_test.cpp
     test/unit/serving_task_index_test.cpp
     test/unit/serving_model_plan_test.cpp
     test/unit/serving_token_sets_test.cpp
@@ -496,6 +497,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME serving_gemm_config COMMAND serving_gemm_config_test)
 
   add_test(NAME serving_pruning COMMAND tilemega-unit serving_pruning)
+  add_test(NAME serving_lag COMMAND tilemega-unit serving_lag)
 
   add_test(NAME serving_task_index COMMAND tilemega-unit serving_task_index)
   # CUDA numerical probe, run explicitly on a device just like attention_phase.

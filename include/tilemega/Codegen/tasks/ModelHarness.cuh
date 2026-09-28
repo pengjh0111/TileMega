@@ -39,6 +39,7 @@
 #include <tilemega/Codegen/tasks/FusedRoPEKVTaskBody.h>
 #include <tilemega/Codegen/tasks/KVAppendTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#include <tilemega/Codegen/tasks/ServingLag.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
 #include <tilemega/Codegen/tasks/QKNormTaskBody.h>
 #include <tilemega/Codegen/tasks/RMSNormTaskBody.h>
@@ -1765,6 +1766,7 @@ struct DeviceModel {
   std::vector<std::uint32_t> event_offsets;
   std::uint32_t* device_event_offsets = nullptr;
   std::vector<std::uint32_t> event_flags;
+  std::vector<LagDependency> lag_dependencies;
   std::uint32_t* device_event_flags = nullptr;
   /// Per-stage kappa. Always built so the host event tables and the offline
   /// dumps read one source; only the device view of it is guarded.
@@ -2641,14 +2643,9 @@ inline DeviceModel Create(ModelSpec const& spec,
   // Lag-one safety rows: the next decode iteration reads the token and the
   // historical KV row produced by this one. These rows are deliberately not
   // ordinary forward task dependencies.
-  for(std::uint32_t stage=0;stage<model.stages.size();++stage) {
-    auto const& desc=model.stages[stage];
-    if(desc.kind==TaskKind::kArgmaxReduce ||
-       (desc.kind==TaskKind::kFusedAttention &&
-        desc.handoff_reduce_stage==kNoOperand) ||
-       (desc.kind==TaskKind::kAttentionMerge && desc.handoff_elided))
-      model.event_flags[stage]|=kNeedsAggregateEvent;
-  }
+  model.lag_dependencies=ServingLagDependencies(model.stages);
+  for(auto const& lag:model.lag_dependencies)
+    model.event_flags[lag.producer]|=kNeedsAggregateEvent;
 #endif
   for (std::uint32_t stage = 0; stage < model.stages.size(); ++stage) {
     int const count = active_tasks(stage);
@@ -2667,6 +2664,15 @@ inline DeviceModel Create(ModelSpec const& spec,
 #endif
     model.event_offsets[stage + 1] = model.event_offsets[stage] + groups;
   }
+#if TILEMEGA_SERVING_RUNTIME && TILEMEGA_PAGED
+  ValidateServingLagDependencies(model.stages,model.event_flags,
+      model.event_offsets,model.lag_dependencies);
+  for(auto const& lag:model.lag_dependencies)
+    std::fprintf(stderr,"E2E_LAG kind=%s consumer=%u:%u producer=%u:%u\n",
+        lag.kind==LagDependency::Kind::kToken?"token":"historical_kv",
+        lag.consumer,static_cast<unsigned>(model.stages[lag.consumer].kind),
+        lag.producer,static_cast<unsigned>(model.stages[lag.producer].kind));
+#endif
 #if TILEMEGA_EVENT_SHARDED
   static_assert(TILEMEGA_EVENT_SHARDS >= 0, "negative shard count");
   // Automatic choice: the largest power of two no greater than num_sms.

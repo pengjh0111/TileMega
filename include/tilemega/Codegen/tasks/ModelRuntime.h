@@ -305,7 +305,7 @@ struct PhaseGateDesc {
 // Cross-step edges are separate from the acyclic intra-step task graph.
 struct LagDependency {
   enum class Kind : std::uint32_t { kToken=0,kHistoricalKv=1 };
-  std::uint32_t producer_l2,producer_l1,consumer;
+  std::uint32_t producer,consumer;
   Kind kind;
 };
 

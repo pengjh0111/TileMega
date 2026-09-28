@@ -282,13 +282,13 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
         kModel, kModel.runtime_variants[0], 0, dims, "", grid,
         std::min(l1, l2), target, smem, external);
 #if TILEMEGA_PAGED
-    if(kLagDependencyCount) {
+    if(!plan->model.lag_dependencies.empty()) {
       TILEMEGA_CUDA_CHECK(cudaMalloc(&plan->lag_dependencies,
-          kLagDependencyCount*sizeof(LagDependency)));
-      TILEMEGA_CUDA_CHECK(cudaMemcpy(plan->lag_dependencies,kLagDependencies,
-          kLagDependencyCount*sizeof(LagDependency),cudaMemcpyHostToDevice));
+          plan->model.lag_dependencies.size()*sizeof(LagDependency)));
+      TILEMEGA_CUDA_CHECK(cudaMemcpy(plan->lag_dependencies,plan->model.lag_dependencies.data(),
+          plan->model.lag_dependencies.size()*sizeof(LagDependency),cudaMemcpyHostToDevice));
       plan->model.params.lag_dependencies=plan->lag_dependencies;
-      plan->model.params.lag_dependency_count=kLagDependencyCount;
+      plan->model.params.lag_dependency_count=plan->model.lag_dependencies.size();
     }
 #endif
     bool has_handoff=false;

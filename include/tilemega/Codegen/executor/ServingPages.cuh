@@ -284,7 +284,7 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
     if(ComputeThread()==0)for(unsigned edge=0;edge<p.lag_dependency_count;++edge) {
       auto const& lag=p.lag_dependencies[edge];
       if(lag.kind==LagDependency::Kind::kToken && lag.consumer==stage_index)
-        WaitAtLeast(&events[EventIndex(p,lag.producer_l2,
+        WaitAtLeast(&events[EventIndex(p,lag.producer,
                     kWholeStageEventGroup)].arrivals,
                     static_cast<unsigned long long>(p.dims.batch)*iteration);
     }
@@ -336,11 +336,10 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
           if(lag.kind!=LagDependency::Kind::kHistoricalKv ||
              lag.consumer!=stage_index)continue;
           if constexpr(L2) {
-            unsigned source=lag.producer_l2;
+            unsigned source=lag.producer;
             WaitAtLeast(&events[EventIndex(p,source,kWholeStageEventGroup)].arrivals,
                 static_cast<unsigned long long>(ActiveBlocks(p,p.stages[source]))*iteration);
-          }else WaitAtLeast(&events[lag.producer_l1].arrivals,
-                static_cast<unsigned long long>(gridDim.x)*iteration);
+          }
         }
         __syncwarp();
         Ring::Copy::ProxyAsyncGlobalFence();
