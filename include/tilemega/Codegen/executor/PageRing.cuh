@@ -15,6 +15,10 @@ struct PageRing {
   char* data;
   PageTraceRecord* trace = nullptr;
 
+  __device__ unsigned* SharedLastFlag() const {
+    return reinterpret_cast<unsigned*>(slots + Pages);
+  }
+
   __device__ void Initialize() const {
     if(ComputeThread()==0) {
       for(int p=0;p<Pages;++p) {

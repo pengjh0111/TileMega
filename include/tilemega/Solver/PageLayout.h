@@ -41,7 +41,9 @@ struct PageLayout {
     // Each 32-byte slot owns full/empty barriers and a generation tag. Scratch
     // aliases activation storage only after the compute mainloop has drained.
     for(int count=limit/page;count>0;--count) {
-      int operands=Align(count*4*sizeof(std::uint64_t)+task_control_bytes,128);
+      // Keep a dedicated 16-byte LA flag after the slot descriptors: the
+      // reducer may reuse work[0] before all warps have read the flag.
+      int operands=Align(count*4*sizeof(std::uint64_t)+16+task_control_bytes,128);
       int start=Align(operands+std::max(activation_bytes,scratch_bytes),1024);
       if(start+count*page<=limit)
         return {page,count,operands,operands,start,start+count*page};

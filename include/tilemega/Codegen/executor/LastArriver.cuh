@@ -19,6 +19,9 @@ struct LastArriver {
     }
     ComputeSync();
     bool last=*shared_last!=0;
+    // The reduction can overwrite its work area only after every warp has
+    // consumed the independent flag.
+    ComputeSync();
     if(last) {
       reduce();
       __threadfence();ComputeSync();

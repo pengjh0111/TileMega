@@ -107,7 +107,7 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
           stage_index*p.serving_handoff_ticket_stride+point.tile;
       auto const& reducer=p.stages[s.handoff_reduce_stage];
       Combine<true>(p,reducer,point.tile,work,ticket,
-          reinterpret_cast<unsigned*>(work));
+          ring.SharedLastFlag());
     }
     return;
   }
@@ -124,7 +124,7 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
             point.batch*int(s.extent)+point.group;
         LastArriverAttentionTaskBody<TILEMEGA_SERVING_HEAD_DIM,
             TILEMEGA_SERVING_QPERKV,TILEMEGA_SERVING_SEQ>::Run(
-                ticket,reinterpret_cast<unsigned*>(work),point.cache_block,
+                ticket,ring.SharedLastFlag(),point.cache_block,
                 operands.partial,operands.lse,operands.context,
                 point.batch,point.group,int(s.extent),p.dims.capacity,
                 s.attention_kv_block,p.dims.past);
