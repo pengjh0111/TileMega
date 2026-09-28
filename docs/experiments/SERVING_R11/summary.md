@@ -1,5 +1,7 @@
 # R11 serving report
 
+**Final evidence audit, 2026-09-28.** No R11 test process remains active. The frozen R11 acceptance commit is `039cd319a`; its recorded [code-contract run](ev2/verify.txt) passed 18/18 checks, and its [ctest run](ev2/ctest_91.log) passed 91/91 cases. This does **not** make R11 fully accepted: Llama B=16 failed C-1 (maximum HF gap 30.55) and C-2 (4,236/16,384 token mismatches), three of four plan solves exceeded 600 s, and the original ten-cell research gate was not measured. The gate table below is the final R11 verdict. A [2026-09-28 recheck](ev2/recheck_20260928.txt) on the frozen source passed 17/18 checks; K-13 compared it against a shared `tilemega` binary subsequently rebuilt from R12 source, so that recheck's fingerprint mismatch is an environment mismatch rather than a new R11 source failure. No R11 performance or correctness measurement was rerun for this audit.
+
 Baseline: `4bf26fb85ada63fccea101b323f3d7a09351eca2` (`origin/tilemega` at start). Prompt: `/root/Prompt/TileMega_R11_prompt.md`, SHA256 `b4b13f18596924eac17624de218735bcf8196878862dd7a6d8f00d67db71e62a`.
 
 The implementation commits through `4e104011d` are listed in [commit order](ev2/commits_before_acceptance.txt). The partial-acceptance archive is `039cd319a`.
