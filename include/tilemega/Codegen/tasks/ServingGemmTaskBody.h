@@ -31,6 +31,12 @@ struct ServingGemmOperands {
   // Physical row pitches include zero-filled vector-alignment padding when
   // logical K has a residue.  Serving weights are packed once with this pitch.
   int a_row_stride = 0, b_row_stride = 0;
+  cutlass::bfloat16_t const* weight_base = nullptr;
+  int k_total_full = 0;
+  float const* norm_ss = nullptr;
+  float* ss_out = nullptr;
+  int norm_k = 0;
+  float norm_eps = 0.0f;
   backend::ServingEpilogueOp epilogue = backend::ServingEpilogueOp::kStore;
   void const* tensor_map = nullptr;
   int tensor_k_begin = 0;
@@ -95,7 +101,7 @@ struct ServingGemmTaskBody {
       backend::ServingEpilogue<decltype(op)::value, TileM, TileN>::Run(
           accum, mma, shared, tile_m, tile_n, p.m, p.n,
           p.output_stride, p.partial_stride, p.output, p.residual, p.partial,
-          p.argmax_value, p.argmax_index);
+          p.argmax_value, p.argmax_index,p.norm_ss,p.ss_out,p.norm_k,p.norm_eps);
     };
     switch (p.epilogue) {
       case backend::ServingEpilogueOp::kStore:

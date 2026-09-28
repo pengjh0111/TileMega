@@ -61,6 +61,7 @@ struct PlanGemm {
   Epilogue epilogue = Epilogue::kStore;
   std::uint32_t interleave_u = 16;
   std::uint32_t partial_tile_n = 0;
+  std::uint32_t norm_ss = 0xffffffffu, ss_out = 0xffffffffu;
 };
 
 enum class PlanTaskKind {
@@ -137,6 +138,7 @@ struct ServingOptions {
   int kv_block = 256;
   int query_rows = 64;
   int argmax_tile_n = 32;
+  bool deferred_norm = true;
 };
 
 ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,

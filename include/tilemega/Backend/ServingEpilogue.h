@@ -73,7 +73,10 @@ struct ServingEpilogue {
                              cutlass::bfloat16_t const* residual = nullptr,
                              float* partial = nullptr,
                              float* argmax_value = nullptr,
-                             int* argmax_index = nullptr) {
+                             int* argmax_index = nullptr,
+                             float const* norm_ss = nullptr,
+                             float* ss_out = nullptr, int norm_k = 0,
+                             float norm_eps = 0.0f) {
     // The cp.async mainloop has vacated this storage.  The 4-byte accumulator
     // tile fits in the same union as the (possibly larger) staged operands.
     cute::cp_async_wait<0>();
@@ -94,7 +97,8 @@ struct ServingEpilogue {
     ComputeSync();
     RunFromTile<true>(tile, tile_m, tile_n, M, N, output_stride,
                 partial_stride, output,
-                residual, partial, argmax_value, argmax_index);
+                residual, partial, argmax_value, argmax_index,
+                norm_ss,ss_out,norm_k,norm_eps);
   }
 
   template <bool Swizzled = false>
@@ -104,7 +108,31 @@ struct ServingEpilogue {
       cutlass::bfloat16_t* output,
       cutlass::bfloat16_t const* residual = nullptr,
       float* partial = nullptr, float* argmax_value = nullptr,
-      int* argmax_index = nullptr) {
+      int* argmax_index = nullptr,float const* norm_ss = nullptr,
+      float* ss_out = nullptr,int norm_k = 0,float norm_eps = 0.0f) {
+
+    if constexpr(Op!=ServingEpilogueOp::kPartial) {
+      if(norm_ss) {
+        float* inv=tile+TileM*TileN;
+        for(int row=ComputeThread()/8;row<TileM;row+=16) {
+          int part=ComputeThread()%8;
+          int global_row=tile_m*TileM+row;
+          float sum=0.0f;
+          if(global_row<M)for(int j=part;j<norm_k/32;j+=8)
+            sum+=norm_ss[global_row*(norm_k/32)+j];
+          sum+=__shfl_xor_sync(0xffffffff,sum,1);
+          sum+=__shfl_xor_sync(0xffffffff,sum,2);
+          sum+=__shfl_xor_sync(0xffffffff,sum,4);
+          if(part==0)inv[row]=global_row<M?rsqrtf(sum/float(norm_k)+norm_eps):0.0f;
+        }
+        ComputeSync();
+        for(int i=ComputeThread();i<TileM*TileN;i+=kComputeThreads) {
+          int row=i/TileN,col=i%TileN;
+          tile[Index<Swizzled>(row,col)]*=inv[row];
+        }
+        ComputeSync();
+      }
+    }
 
     if constexpr (Op == ServingEpilogueOp::kArgmaxPartial) {
       // Descending rows leave the last row free as four-warp reduction scratch.
@@ -224,6 +252,26 @@ struct ServingEpilogue {
             if (global_col + element < output_n)
               output[global_row * output_stride + global_col + element] =
                   values[element];
+        }
+      }
+      if constexpr(Op==ServingEpilogueOp::kResidual) {
+        if(ss_out) {
+          ComputeSync();
+          for(int vector=ComputeThread();vector<TileM*TileN/8;
+              vector+=kComputeThreads) {
+            int row=vector/(TileN/8);
+            int col=(vector%(TileN/8))*8;
+            int gr=tile_m*TileM+row,gc=tile_n*TileN+col;
+            float square=0.0f;
+            if(gr<M)for(int lane=0;lane<8 && gc+lane<N;++lane) {
+              float x=float(output[gr*output_stride+gc+lane]);
+              square+=x*x;
+            }
+            square+=__shfl_xor_sync(0xffffffff,square,1);
+            square+=__shfl_xor_sync(0xffffffff,square,2);
+            if((ComputeThread()%4)==0 && gr<M && gc<N)
+              ss_out[gr*(N/32)+gc/32]=square;
+          }
         }
       }
     }

@@ -21,7 +21,7 @@ using codegen::executor::kComputeThreads;
 template <int TileM, int TileN, backend::ServingEpilogueOp Op>
 struct ServingGemmCombineTaskBody {
   static constexpr int kThreads = 128;
-  static constexpr int kSharedBytes = 4 * TileM * TileN;
+  static constexpr int kSharedBytes = 4 * TileM * TileN + 4 * TileM;
 
   __device__ static void Run(float const* partial, int split_count,
                              int tile_m, int tile_n, int M, int N,
@@ -29,7 +29,8 @@ struct ServingGemmCombineTaskBody {
                              cutlass::bfloat16_t* output,
                              cutlass::bfloat16_t const* residual,
                              float* argmax_value, int* argmax_index,
-                             float* shared) {
+                             float* shared,float const* norm_ss=nullptr,
+                             float* ss_out=nullptr,int norm_k=0,float norm_eps=0.0f) {
     if (split_count < 1 || partial_row_stride < N) {
       asm volatile("trap;");
       return;
@@ -65,7 +66,7 @@ struct ServingGemmCombineTaskBody {
     backend::ServingEpilogue<Op, TileM, TileN>::template RunFromTile<true>(
         shared, tile_m, tile_n, M, N, output_stride, partial_row_stride,
         output, residual,
-        nullptr, argmax_value, argmax_index);
+        nullptr, argmax_value, argmax_index,norm_ss,ss_out,norm_k,norm_eps);
   }
 };
 

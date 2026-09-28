@@ -24,7 +24,8 @@ struct ServingEmbeddingTaskBody {
                                 cutlass::bfloat16_t const* table,
                                 cutlass::bfloat16_t* output,
                                 int token_row, int seq, int past,
-                                int capacity, int width, int vocab) {
+                                int capacity, int width, int vocab,
+                                float* ss_out=nullptr) {
     int batch = token_row / seq;
     int position = past + token_row % seq;
     if (position < 0 || position >= capacity) {
@@ -51,6 +52,14 @@ struct ServingEmbeddingTaskBody {
         for (int lane = 0; lane < count; ++lane)
           target[column + lane] = source[column + lane];
       }
+    }
+    if(ss_out)for(int block=ComputeThread();block<width/32;block+=kComputeThreads) {
+      float sum=0.0f;
+      for(int j=0;j<32;++j) {
+        float value=float(source[block*32+j]);
+        sum+=value*value;
+      }
+      ss_out[token_row*(width/32)+block]=sum;
     }
   }
 };

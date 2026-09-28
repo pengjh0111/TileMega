@@ -35,7 +35,8 @@ __global__ void Probe(cutlass::bfloat16_t* output, float* partial,
   }
   ServingEpilogue<Op, 16, 128>::Run(
       fragment, mma, shared, int(blockIdx.x), 0, rows, columns,
-      output_stride, output, output, partial, argmax_value, argmax_index);
+      output_stride, columns, output, output, partial, argmax_value,
+      argmax_index);
 }
 
 template <class T>

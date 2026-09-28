@@ -466,6 +466,13 @@ struct GemmInvocation {
   float* serving_partial = nullptr;
   std::uint32_t serving_weight_buffer = 0xffffffffu;
   int serving_k_begin = 0;
+  ModelElement const* serving_weight_base = nullptr;
+  int serving_k_total_full = 0;
+  int serving_tile_k = 0;
+  float const* serving_norm_ss = nullptr;
+  float* serving_ss_out = nullptr;
+  PhaseGateDesc serving_phase_gate{};
+  std::uint8_t serving_phase_class = 0; // qkv, o, gate/up, down, lm_head
 };
 
 /// The exact dot product behind one output element. A BF16 product is exact in
@@ -564,6 +571,10 @@ struct GemmStageTaskBody {
     operands.b_row_stride = invocation.k_total;
     operands.epilogue = invocation.chunks > 1
         ? backend::ServingEpilogueOp::kPartial : invocation.serving_op;
+    operands.norm_ss=invocation.serving_norm_ss;
+    operands.ss_out=invocation.serving_ss_out;
+    operands.norm_k=invocation.k_total;
+    operands.norm_eps=TILEMEGA_NORM_EPSILON;
     Body::Run(operands, local / invocation.tiles_n,
               local % invocation.tiles_n, shared);
     return;
