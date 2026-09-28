@@ -318,7 +318,7 @@ class Run:
                             self.command([sys.executable,'-m','tilemega.serving.measure_candidate',
                                           '--so',built[pg],'--model',self.model,'--batch',batch,
                                           '--past-mid',(interval[0]+interval[1])//2,'--out',out],
-                                         f'pg-choice-{phase}-B{batch}-{pg}-{repeat}',gpu=True)
+                                         f'pg-choice-{phase}-B{batch}-{pg}-{repeat}')
                             reading=json.loads((out/'measurements.json').read_text())
                             chosen=json.loads(Path(str(built[pg])+'.plan.json').read_text()).get('mode','L2')
                             samples[pg].append(reading['modes'][chosen]['mean_ms'])

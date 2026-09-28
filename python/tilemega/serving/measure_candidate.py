@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import os
 from pathlib import Path
 import statistics
 
@@ -92,7 +93,7 @@ def main() -> None:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--reverse-modes", action="store_true")
     args = parser.parse_args()
-    lock_path = Path("/root/r10_work/serving_gpu.lock")
+    lock_path = Path(os.environ.get("TILEMEGA_GPU_LOCK", "/root/r10_work/serving_gpu.lock"))
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
