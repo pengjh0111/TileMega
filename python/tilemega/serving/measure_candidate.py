@@ -13,39 +13,25 @@ import torch
 
 from .measure import _clocks, _exclusive, _gpu_owners
 from .plan import PlanLibrary
+from .buffers import _external_buffers
+from .smoke import run as smoke_run
 
 
-def _external_buffers(plan: PlanLibrary, batch: int,
-                      vocab: int) -> dict[str, torch.Tensor]:
-    torch.manual_seed(20260925)
-    result = {}
-    dtypes = {0: torch.bfloat16, 1: torch.float32, 2: torch.int32}
-    for buffer in plan.buffers:
-        if buffer.role != 1:
-            continue
-        elements = buffer.elements_constant + batch * buffer.elements_per_batch
-        if buffer.dtype == 2:
-            tensor = torch.randint(0, vocab, (elements,), dtype=torch.int32,
-                                   device="cuda")
-        else:
-            tensor = torch.randn(elements, dtype=torch.float32,
-                                 device="cuda").mul_(0.02).to(dtypes[buffer.dtype])
-        result[buffer.name] = tensor
-    return result
 
 
 def measure_one(plan: PlanLibrary, batch: int, vocab: int,
                 past_mid: int, out: Path, reverse_modes: bool = False,
                 warmup_override: int | None = None,
                 timed_override: int | None = None,
-                mode_only: str | None = None) -> dict:
+                mode_only: str = "L2", guard_wait_s: int = 1800,
+                smoke_steps: int = 0) -> dict:
     out.mkdir(parents=True, exist_ok=True)
-    if not _exclusive(out / "guard.jsonl", "candidate-before", True):
-        raise RuntimeError("GPU remained occupied for 30 minutes")
+    if not _exclusive(out / "guard.jsonl", "candidate-before", True, guard_wait_s):
+        raise SystemExit(75)
     # This check runs before allocating the synthetic weights, when our own
     # context is tiny. It catches GPU users omitted from the compute-app PID
     # table, which otherwise turn the candidate measurement into CUDA OOM.
-    deadline = time.monotonic() + 30 * 60
+    deadline = time.monotonic() + guard_wait_s
     while True:
         _, visible_mib, used_mib = _gpu_owners()
         hidden_mib = max(0, used_mib - visible_mib)
@@ -56,7 +42,7 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
         if hidden_mib <= 1024:
             break
         if time.monotonic() >= deadline:
-            raise RuntimeError("GPU has more than 1 GiB of unattributed memory")
+            raise SystemExit(75)
         time.sleep(10)
     buffers = _external_buffers(plan, batch, vocab)
     warmup, timed = (8, 32) if plan.info.phase == 1 else (2, 5)
@@ -67,14 +53,18 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
     past = past_mid if plan.info.phase == 1 else 0
     stream = torch.cuda.current_stream()
     clocks_before = _clocks()
-    modes = [mode for mode in (1, 2) if plan.info.modes & mode]
-    if mode_only is not None:
-        modes = [mode for mode in modes if mode == {"L1": 1, "L2": 2}[mode_only]]
+    if smoke_steps:
+        smoke = smoke_run(plan, batch, smoke_steps, vocab, out / "smoke")
+        if not smoke["pass"]:
+            (out / "smoke.json").write_text(json.dumps(smoke, indent=2) + "\n")
+            raise SystemExit(3)
+    modes = [{"L1": 1, "L2": 2}[mode_only]]
     if reverse_modes:
         modes.reverse()
+    manifest_path = Path(str(plan.path) + ".plan.json")
+    paged = manifest_path.exists() and json.loads(manifest_path.read_text()).get("pg") == "pages"
     measured = {}
-    # The two modes occupy disjoint event rows. Exercise both on one instance
-    # so the candidate timing also checks their independent ticket sequences.
+    # Each candidate is timed on the L2 event executor. L1 is an explicit ablation.
     instance = plan.create(batch, {name: tensor.data_ptr()
                                    for name, tensor in buffers.items()},
                            torch.cuda.current_device())
@@ -86,15 +76,28 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
                       for _ in range(timed)]
             ends = [torch.cuda.Event(enable_timing=True)
                     for _ in range(timed)]
-            for step in range(warmup):
-                instance.launch(step, mode, stream.cuda_stream)
-            for step in range(timed):
-                starts[step].record(stream)
-                instance.launch(warmup + step, mode, stream.cuda_stream)
-                ends[step].record(stream)
-            stream.synchronize()
+            try:
+                if mode == 2 and plan.info.phase == 1 and paged:
+                    if warmup:
+                        instance.launch_steps(0, warmup, mode, stream.cuda_stream)
+                    starts[0].record(stream)
+                    instance.launch_steps(warmup, timed, mode, stream.cuda_stream)
+                    ends[0].record(stream)
+                    stream.synchronize()
+                    values = [starts[0].elapsed_time(ends[0]) / timed]
+                else:
+                    for step in range(warmup):
+                        instance.launch(step, mode, stream.cuda_stream)
+                    for step in range(timed):
+                        starts[step].record(stream)
+                        instance.launch(warmup + step, mode, stream.cuda_stream)
+                        ends[step].record(stream)
+                    stream.synchronize()
+                    values = [a.elapsed_time(b) for a, b in zip(starts, ends)]
+            except BaseException:
+                (out / "watchdog.json").write_text(json.dumps(instance.watchdog(), indent=2) + "\n")
+                raise
             print(f"candidate mode {mode}: synchronized", flush=True)
-            values = [a.elapsed_time(b) for a, b in zip(starts, ends)]
             measured["L1" if mode == 1 else "L2"] = {
                 "mean_ms": statistics.mean(values),
                 "median_ms": statistics.median(values),
@@ -103,7 +106,7 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
     finally:
         instance.close()
     if not _exclusive(out / "guard.jsonl", "candidate-after", False):
-        raise RuntimeError("candidate GPU timing was contaminated")
+        raise SystemExit(75)
     report = {"plan": str(plan.path), "batch": batch, "past": past,
               "warmup": warmup, "timed": timed,
               "clocks_before": clocks_before, "clocks_after": _clocks(),
@@ -123,6 +126,8 @@ def main() -> None:
     parser.add_argument("--warmup", type=int, choices=range(0, 33))
     parser.add_argument("--timed", type=int, choices=range(1, 33))
     parser.add_argument("--mode", choices=("L1", "L2"))
+    parser.add_argument("--guard-wait-s", type=int, default=1800)
+    parser.add_argument("--smoke-steps", type=int, default=0)
     args = parser.parse_args()
     lock_path = Path(os.environ.get("TILEMEGA_GPU_LOCK", "/root/r10_work/serving_gpu.lock"))
     lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -136,7 +141,7 @@ def main() -> None:
         report = measure_one(PlanLibrary(args.so), args.batch,
                              config["vocab_size"], args.past_mid, args.out,
                              args.reverse_modes, args.warmup, args.timed,
-                             args.mode)
+                             args.mode or "L2", args.guard_wait_s, args.smoke_steps)
         del guard_allocation
     print(json.dumps({mode: data["mean_ms"]
                       for mode, data in report["modes"].items()}))

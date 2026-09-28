@@ -28,8 +28,8 @@ def _gpu_owners() -> tuple[set[int], int, int]:
     return pids, visible_mib, used_mib
 
 
-def _exclusive(path: Path, label: str, wait: bool) -> bool:
-    deadline = time.monotonic() + (30 * 60 if wait else 0)
+def _exclusive(path: Path, label: str, wait: bool, wait_s: int = 1800) -> bool:
+    deadline = time.monotonic() + (wait_s if wait else 0)
     while True:
         observed, visible_mib, used_mib = _gpu_owners()
         # Keep the device-wide accounting difference for diagnosis. NVML can
@@ -65,17 +65,22 @@ def measure(engine: ServingEngine, prompts: torch.Tensor,
         for run in range(warmup + repeats):
             for attempt in range(3):
                 if policy.options.get("guard", True) and not _exclusive(guard, f"N{count}-run{run}-before", True):
-                    raise RuntimeError("GPU remained occupied for 30 minutes")
+                    raise SystemExit(75)
                 if not policy.observe(guard, f"N{count}-run{run}-attempt{attempt}-before"):
                     continue
                 clocks_before = _clocks()
-                result = engine.generate(prompts, count)
+                try:
+                    result = engine.generate(prompts, count)
+                except BaseException:
+                    (out / "watchdog.json").write_text(
+                        json.dumps(engine.decode.watchdog(), indent=2) + "\n")
+                    raise
                 clocks_after = _clocks()
                 power_ok = policy.observe(guard, f"N{count}-run{run}-attempt{attempt}-after")
                 if (not policy.options.get("guard", True) or _exclusive(guard, f"N{count}-run{run}-after", False)) and power_ok:
                     break
             else:
-                raise RuntimeError("GPU was contaminated on all three attempts")
+                raise SystemExit(75)
             tokens = result.tokens.tolist()
             row = {"N": count, "run": run, "warmup": run < warmup,
                    "e2e_seconds": result.e2e_ms / 1e3,
@@ -127,7 +132,7 @@ def main() -> None:
     parser.add_argument("--prompt-ids", type=Path, required=True)
     parser.add_argument("--batch", type=int, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--mode", choices=("auto", "L1", "L2"), default="auto")
+    parser.add_argument("--mode", choices=("auto", "L1", "L2"), default="L2")
     parser.add_argument("--decode-loop", type=int, choices=(0, 1), default=1)
     parser.add_argument("--max-new-tokens", type=int, default=1024)
     parser.add_argument("--warmup", type=int, default=1)

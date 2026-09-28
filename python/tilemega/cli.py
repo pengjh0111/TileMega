@@ -22,8 +22,8 @@ DEFAULTS = {
     'workload': dict(batch=[1, 16], prompt_len=64, max_new_tokens=1024,
                      prompts='docs/experiments/SERVING_R10/prompts/passages.jsonl'),
     'device': dict(index=0, cache_dir='~/.cache/tilemega'),
-    'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='auto', pruning=True, time_budget_s=600),
-    'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled'),
+    'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='L2', pruning=True, time_budget_s=600),
+    'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
                  vllm_python='/root/venv_vllm/bin/python', policy_file=None),
     'output': dict(dir='runs/{model}-{timestamp}'),
@@ -113,8 +113,16 @@ def read_config(path: Path) -> dict:
                               pdl=['auto', 'off'], weight_layout=['row', 'tiled']).items():
         if config['features'][name] not in allowed:
             raise ValueError(f'invalid features.{name}')
-    if config['solver']['mode'] not in ('auto', 'L1', 'L2'):
-        raise ValueError('solver.mode must be auto, L1 or L2')
+    if config['solver']['mode'] == 'auto':
+        config['solver']['mode'] = 'L2'
+    if config['solver']['mode'] not in ('L1', 'L2'):
+        raise ValueError('solver.mode must be L2 (or L1 for explicit ablation)')
+    if not 0 <= int(config['features']['kphase_mask']) <= 31:
+        raise ValueError('features.kphase_mask must be in [0,31]')
+    if int(config['features']['lookahead_bytes']) not in (-1, 0, 65536, 131072):
+        raise ValueError('invalid features.lookahead_bytes')
+    if int(config['features']['v3_poll_ns']) < 0:
+        raise ValueError('features.v3_poll_ns must be nonnegative')
     if config['test']['repeats'] < 1 or config['test']['warmup'] < 0:
         raise ValueError('invalid measurement repeat counts')
     return config
@@ -166,6 +174,8 @@ class Run:
         atomic_json(folder / 'command.json', dict(argv=argv, environment=env_extra or {},
                     returncode=status, seconds=time.monotonic() - start))
         if status:
+            if status == 75:
+                raise SystemExit(75)
             raise RuntimeError(f'{label} failed ({status}); see {folder / "stderr.txt"}')
         return folder
 
@@ -232,8 +242,17 @@ class Run:
             self.event('calibration', not missing, 'all section stamps match' if not missing else 'missing or changed sections', sections=sorted(missing))
             if missing:
                 base = self.target if self.target.exists() else ROOT / 'configs/targets' / (self.device['arch_tag'] + '.json')
-                self.command([self.binary, 'calibrate', '--suite', 'serving', '--base', base,
-                              '--out', self.target, '--sections', ','.join(sorted(missing))], 'calibrate', gpu=True)
+                try:
+                    self.command([self.binary, 'calibrate', '--suite', 'serving', '--base', base,
+                                  '--out', self.target, '--sections', ','.join(sorted(missing))], 'calibrate', gpu=True)
+                except RuntimeError:
+                    error=(self.out/'commands/calibrate/stderr.txt').read_text(errors='replace').lower()
+                    if 'out of memory' in error or 'memory allocation' in error:
+                        from .serving.measure import _gpu_owners
+                        owners, visible, used = _gpu_owners()
+                        if owners or used - visible > 1024:
+                            raise SystemExit(75)
+                    raise
                 refreshed=json.loads(self.target.read_text())
                 fit=refreshed.get('calibration_by_dtype',{}).get('bf16',{}).get('task_body',{})
                 prior=before.get('calibration_by_dtype',{}).get('bf16',{}).get('task_body',{})
@@ -307,6 +326,8 @@ class Run:
                             '--artifact-cache', str(self.cache / 'artifacts'), '--dump-cg', str(plan / 'selected.mlir'),
                             '--measure-cmd', shlex.join([sys.executable, '-m', 'tilemega.serving.measure_candidate', '--model', str(self.model)])]
                             for name, value in choice_features.items():
+                                if phase == 'prefill' and name in ('kphase_mask','lookahead_bytes','v3_poll_ns'):
+                                    continue
                                 if name == 'handoff' and phase == 'prefill':
                                     value = 'off'
                                 if name == 'pg' and phase == 'prefill' and value == 'pages':
@@ -333,11 +354,11 @@ class Run:
                             out=self.out/f'pg-choice-{phase}-B{batch}-{pg}-{repeat}'
                             self.command([sys.executable,'-m','tilemega.serving.measure_candidate',
                                           '--so',built[pg],'--model',self.model,'--batch',batch,
-                                          '--past-mid',(interval[0]+interval[1])//2,'--out',out],
+                                          '--past-mid',(interval[0]+interval[1])//2,'--out',out,
+                                          '--mode','L2'],
                                          f'pg-choice-{phase}-B{batch}-{pg}-{repeat}')
                             reading=json.loads((out/'measurements.json').read_text())
-                            chosen=json.loads(Path(str(built[pg])+'.plan.json').read_text()).get('mode','L2')
-                            samples[pg].append(reading['modes'][chosen]['mean_ms'])
+                            samples[pg].append(reading['modes']['L2']['mean_ms'])
                     medians={pg:statistics.median(values) for pg,values in samples.items()}
                     selected=min(medians,key=medians.get)
                     result.setdefault('decode_pg_choice',{})[str(batch)]=dict(

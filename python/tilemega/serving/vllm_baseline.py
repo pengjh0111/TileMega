@@ -54,7 +54,7 @@ def main() -> None:
                 for attempt in range(3):
                     if policy.options.get("guard", True) and not _wait_for_exclusive_gpu(
                             guard_path, f"N{count}-run{run}-before"):
-                        raise RuntimeError("GPU remained occupied for 30 minutes")
+                        raise SystemExit(75)
                     if not policy.observe(guard_path, f"N{count}-run{run}-attempt{attempt}-before"):
                         continue
                     start = time.perf_counter()
@@ -66,7 +66,7 @@ def main() -> None:
                     if exclusive and power_ok:
                         break
                 else:
-                    raise RuntimeError("GPU was contaminated in all three attempts")
+                    raise SystemExit(75)
                 if any(list(x.prompt_token_ids) != ids[i] for i, x in enumerate(result)):
                     raise AssertionError("vLLM output order does not match the frozen prompts")
                 tokens = [list(x.outputs[0].token_ids) for x in result]

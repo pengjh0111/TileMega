@@ -63,14 +63,7 @@ class ServingEngine:
         self.decode.set_steps(list(range(prompt_len,
                                          prompt_len + max_new_tokens - 1)))
         if mode == "auto":
-            def winner(path: str | Path, available: int) -> int:
-                manifest = Path(str(path) + ".plan.json")
-                selected = (json.loads(manifest.read_text()).get("mode")
-                            if manifest.exists() else None)
-                return {"L1": 1, "L2": 2}.get(
-                    selected, 2 if available & 2 else 1)
-            self.prefill_mode = winner(prefill_so, self.prefill_lib.info.modes)
-            self.decode_mode = winner(decode_so, self.decode_lib.info.modes)
+            self.prefill_mode = self.decode_mode = 2
         elif mode == "L1":
             self.prefill_mode = self.decode_mode = 1
         elif mode == "L2":
@@ -93,7 +86,7 @@ class ServingEngine:
             source = source.pin_memory()
         stream = torch.cuda.current_stream()
         start = torch.cuda.Event(enable_timing=True)
-        use_loop = self.decode_loop and count > 1 and bool(
+        use_loop = self.decode_mode == 2 and self.decode_loop and count > 1 and bool(
             getattr(self.decode_lib.lib, "tm_plan_launch_steps", None))
         boundaries = [torch.cuda.Event(enable_timing=True)
                       for _ in range(1 if use_loop else count)]
