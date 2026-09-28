@@ -829,7 +829,11 @@ int RunCompile(int argc, char** argv) {
               " --past-mid "+std::to_string(dims.past)+
               " --out "+quote(artifact);
           if(round&1)measure+=" --reverse-modes";
-          if(std::system((measure+" >"+quote(artifact+".stdout")+
+          // A deadlocked device kernel otherwise holds the GPU indefinitely.
+          // Normal candidate timing takes seconds; a timeout is a failed
+          // candidate measurement, never a performance observation.
+          if(std::system(("timeout --signal=TERM --kill-after=5s 600s "+measure+
+              " >"+quote(artifact+".stdout")+
               " 2>"+quote(artifact+".stderr")).c_str()))
             throw std::runtime_error("top-3 serving candidate measurement failed: "+artifact);
           auto measured_file=llvm::MemoryBuffer::getFile(artifact+"/measurements.json");
@@ -1071,7 +1075,8 @@ int RunCompile(int argc, char** argv) {
                 " --batch "+std::to_string(serving_batch)+
                 " --past-mid "+std::to_string((serving_past_lo+serving_past_hi)/2)+
                 " --out "+quote(artifact)+(round&1?" --reverse-modes":"");
-            if(std::system((measure+" >"+quote(artifact+".stdout")+
+            if(std::system(("timeout --signal=TERM --kill-after=5s 600s "+measure+
+                " >"+quote(artifact+".stdout")+
                 " 2>"+quote(artifact+".stderr")).c_str()))
               throw std::runtime_error("handoff trial measurement failed");
             auto file=llvm::MemoryBuffer::getFile(artifact+"/measurements.json");

@@ -72,6 +72,7 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
     try:
         instance.set_steps([past] * (warmup + timed))
         for mode in modes:
+            print(f"candidate mode {mode}: begin", flush=True)
             starts = [torch.cuda.Event(enable_timing=True)
                       for _ in range(timed)]
             ends = [torch.cuda.Event(enable_timing=True)
@@ -83,6 +84,7 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
                 instance.launch(warmup + step, mode, stream.cuda_stream)
                 ends[step].record(stream)
             stream.synchronize()
+            print(f"candidate mode {mode}: synchronized", flush=True)
             values = [a.elapsed_time(b) for a, b in zip(starts, ends)]
             measured["L1" if mode == 1 else "L2"] = {
                 "mean_ms": statistics.mean(values),
