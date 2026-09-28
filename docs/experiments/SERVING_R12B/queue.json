@@ -204,6 +204,20 @@
     "after_any": []
   },
   {
+    "name": "Q12",
+    "command": [
+      "bash",
+      "-lc",
+      "so=$(python3 -c 'import json; print(json.load(open(\"runs/r12b-llama/plans.json\"))[\"1\"][\"decode\"])'); build-phase12/tools/tilemega audit arch --cu \"${so}.cu\" --arch sm_80 --arch sm_89 --arch sm_90 --arch sm_100 --arch sm_120 --out docs/experiments/SERVING_R12B/arch_audit && python3 -c 'import json,subprocess; from pathlib import Path; d=json.load(open(\"runs/r12b-llama/plans.json\")); e=json.load(open(\"runs/r12b-qwen3/plans.json\")); sos=[d[b][p] for b in (\"1\",\"16\") for p in (\"prefill\",\"decode\")]+[e[b][p] for b in (\"1\",\"16\") for p in (\"prefill\",\"decode\")]; subprocess.run([\"build-phase12/tools/tilemega\",\"audit\",\"sass\",*sos,\"--out\",\"docs/experiments/SERVING_R12B/sass_audit.json\"],check=True)'"
+    ],
+    "timeout": 7200,
+    "after": [
+      "Q5",
+      "Q6"
+    ],
+    "after_any": []
+  },
+  {
     "name": "Q11",
     "command": [
       "bash",
@@ -216,7 +230,8 @@
       "Q8a",
       "Q8b",
       "Q9",
-      "Q10"
+      "Q10",
+      "Q12"
     ]
   }
 ]

@@ -8837,6 +8837,10 @@ accepted end-to-end performance results.
 
 ## F-338: A second L2 launch stalls in the R12 Llama B16 paged candidate
 
+R12b follow-up: see F-339 for the generated/runtime stage-index mismatch and its
+repair. The archived B16 stall is not attributed to that defect until S-0
+reproduces two launches with the repaired binary.
+
 ✅ verified in one-process diagnostics: one L1 and one L2 launch completed, and
 two L1 launches completed, but the second L2 launch timed out after 60 s.
 Temporarily bypassing the lag-one waits did not change that result. With K-phase
@@ -8850,3 +8854,17 @@ protocol correctness and do not replace the required 50-process test. Evidence:
 `/root/r12_work/{one_launch,two_launch}/`, `/root/r12_work/skip_lag_run.*`,
 `/root/r12_work/two_sync_no_kphase.*`, and
 `/root/r12_work/debug_events2.run.stderr`. EV-3 remains pending.
+
+## F-339: Generated lag indices can name different runtime stages after split-K
+
+✅ verified by static analysis of an archived Llama decode plan and a host unit
+test: the old lag table had 99 generated stages while the expanded runtime table
+had 163. Its first KV edge named runtime `kGemmCombine` as the consumer and
+`kFusedAttention` as the producer, instead of attention and merge. The plan's
+κ was 1, so this evidence isolates stage numbering from event coarsening.
+R12b now builds lag edges from the expanded runtime stages and rejects a
+producer without a nonempty aggregate event row. ⚠️ inferred: this defect
+could deadlock a later L2 launch or allow a KV read too early; the F-338 B16
+hang may also involve another wait. Evidence:
+`docs/experiments/SERVING_R12B/lag_index_evidence.txt`,
+`test/unit/serving_lag_test.cpp`, and commits `2685cccf9`/`41fd3c52a`.

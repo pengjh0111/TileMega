@@ -1,0 +1,18 @@
+spec 99 stages, runtime 163 stages
+kHistoricalKv consumer 2: runtime kGemmCombine | producer_l2 3: runtime kFusedAttention | correct 3/4  <-- reads another stage
+kHistoricalKv consumer 8: runtime kGemmCombine | producer_l2 9: runtime kGemm | correct 13/14  <-- reads another stage
+kHistoricalKv consumer 14: runtime kAttentionMerge | producer_l2 15: runtime kGemm | correct 23/24  <-- reads another stage
+kHistoricalKv consumer 20: runtime kGemmCombine | producer_l2 21: runtime kGemm | correct 33/34  <-- reads another stage
+kHistoricalKv consumer 26: runtime kGemmCombine | producer_l2 27: runtime kGemm | correct 43/44  <-- reads another stage
+kHistoricalKv consumer 32: runtime kGemmCombine | producer_l2 33: runtime kFusedAttention | correct 53/54  <-- reads another stage
+kHistoricalKv consumer 38: runtime kGemmCombine | producer_l2 39: runtime kGemm | correct 63/64  <-- reads another stage
+kHistoricalKv consumer 44: runtime kAttentionMerge | producer_l2 45: runtime kGemm | correct 73/74  <-- reads another stage
+kHistoricalKv consumer 50: runtime kGemmCombine | producer_l2 51: runtime kGemm | correct 83/84  <-- reads another stage
+kHistoricalKv consumer 56: runtime kGemmCombine | producer_l2 57: runtime kGemm | correct 93/94  <-- reads another stage
+kHistoricalKv consumer 62: runtime kGemmCombine | producer_l2 63: runtime kFusedAttention | correct 103/104  <-- reads another stage
+kHistoricalKv consumer 68: runtime kGemmCombine | producer_l2 69: runtime kGemm | correct 113/114  <-- reads another stage
+kHistoricalKv consumer 74: runtime kAttentionMerge | producer_l2 75: runtime kGemm | correct 123/124  <-- reads another stage
+kHistoricalKv consumer 80: runtime kGemmCombine | producer_l2 81: runtime kGemm | correct 133/134  <-- reads another stage
+kHistoricalKv consumer 86: runtime kGemmCombine | producer_l2 87: runtime kGemm | correct 143/144  <-- reads another stage
+kHistoricalKv consumer 92: runtime kGemmCombine | producer_l2 93: runtime kFusedAttention | correct 153/154  <-- reads another stage
+kToken        consumer 0: runtime kEmbedding | producer_l2 98: runtime kGemmCombine | correct 0/162  <-- reads another stage
