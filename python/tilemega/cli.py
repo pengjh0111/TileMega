@@ -216,8 +216,11 @@ class Run:
             # The microbenchmarks stamp each section before the suite can
             # validate that the device was idle. A stamped but uncalibrated
             # profile must never be served from cache on a later run.
+            # Serving prices BF16 only. Keep an F32 drift visible in the
+            # target, but do not repeatedly remeasure an unused profile.
             if before and not before.get('calibration', {}).get('calibrated'):
-                missing.append('base')
+                self.event('f32_base', False,
+                           'F32 base is uncalibrated; serving reads the separate BF16 profile')
             if before and not before.get('calibration_by_dtype', {}).get('bf16', {}).get('calibrated'):
                 missing.append('bf16')
             # Serving fits depend on the BF16 profile, not the independent
