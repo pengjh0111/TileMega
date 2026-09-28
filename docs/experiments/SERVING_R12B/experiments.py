@@ -52,13 +52,14 @@ def gpu_lock():
         fcntl.flock(f,fcntl.LOCK_EX)
         yield
 
-def timing(prefill,decode,batch,label,*,loop=True,mode='L2',env=None):
+def timing(prefill,decode,batch,label,*,loop=True,mode='L2',env=None,
+           warmup=1,repeats=3):
     out=WORK/label;out.mkdir(parents=True,exist_ok=True)
     args=[sys.executable,'-m','tilemega.serving.measure','--model',str(MODEL),
           '--prefill-so',str(prefill),'--decode-so',str(decode),
           '--prompt-ids',str(PROMPTS),'--batch',str(batch),'--out',str(out),
           '--mode',mode,'--decode-loop',str(int(loop)),'--max-new-tokens','256',
-          '--warmup','1','--repeats','3','--policy',str(POLICY)]
+          '--warmup',str(warmup),'--repeats',str(repeats),'--policy',str(POLICY)]
     with gpu_lock():subprocess.run(args,check=True,env=dict(os.environ,**(env or {})))
     result=json.loads((out/'measurements.json').read_text())
     return 1000*result['tpot_p50_seconds']
@@ -117,7 +118,8 @@ def s3():
         for round in range(3):
             for label,loop,mode,env in arms[round:]+arms[:round]:
                 ms=timing(pair['prefill'],pair['decode'],batch,
-                          f's3_B{batch}_r{round}_{label}',loop=loop,mode=mode,env=env)
+                          f's3_B{batch}_r{round}_{label}',loop=loop,mode=mode,env=env,
+                          warmup=0,repeats=1)
                 rows.append(dict(batch=batch,round=round,arm=label,p50_ms=ms))
     (HERE/'s3.json').write_text(json.dumps(rows,indent=2)+'\n')
     print(json.dumps(dict(rows=len(rows))))
