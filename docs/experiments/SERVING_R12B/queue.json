@@ -1,0 +1,222 @@
+[
+  {
+    "name": "Q0",
+    "command": [
+      "/usr/bin/python3",
+      "-m",
+      "tilemega",
+      "calibrate",
+      "--config",
+      "configs/e2e/llama_r12.json",
+      "--run-dir",
+      "runs/r12b-llama"
+    ],
+    "timeout": 7200,
+    "after": [],
+    "after_any": []
+  },
+  {
+    "name": "Q1",
+    "command": [
+      "bash",
+      "-lc",
+      "/usr/bin/python3 -m tilemega export --config configs/e2e/llama_r12.json --run-dir runs/r12b-llama && /usr/bin/python3 -m tilemega export --config configs/e2e/qwen3_r12.json --run-dir runs/r12b-qwen3"
+    ],
+    "timeout": 3600,
+    "after": [
+      "Q0"
+    ],
+    "after_any": []
+  },
+  {
+    "name": "Q2",
+    "command": [
+      "/usr/bin/python3",
+      "docs/experiments/SERVING_R12B/experiments.py",
+      "s1"
+    ],
+    "timeout": 10800,
+    "after": [
+      "Q1"
+    ],
+    "after_any": []
+  },
+  {
+    "name": "Q3",
+    "command": [
+      "/usr/bin/python3",
+      "docs/experiments/SERVING_R12B/experiments.py",
+      "s1b"
+    ],
+    "timeout": 10800,
+    "after": [
+      "Q2"
+    ],
+    "after_any": []
+  },
+  {
+    "name": "Q4",
+    "command": [
+      "/usr/bin/python3",
+      "docs/experiments/SERVING_R12B/choose_defaults.py",
+      "--s1b",
+      "docs/experiments/SERVING_R12B/s1b.json"
+    ],
+    "timeout": 600,
+    "after": [],
+    "after_any": [
+      "Q2",
+      "Q3"
+    ]
+  },
+  {
+    "name": "Q5",
+    "command": [
+      "/usr/bin/python3",
+      "-m",
+      "tilemega",
+      "build",
+      "--config",
+      "configs/e2e/llama_r12b.json",
+      "--run-dir",
+      "runs/r12b-llama"
+    ],
+    "timeout": 28800,
+    "after": [
+      "Q4"
+    ],
+    "after_any": []
+  },
+  {
+    "name": "Q6",
+    "command": [
+      "/usr/bin/python3",
+      "-m",
+      "tilemega",
+      "build",
+      "--config",
+      "configs/e2e/qwen3_r12b.json",
+      "--run-dir",
+      "runs/r12b-qwen3"
+    ],
+    "timeout": 28800,
+    "after": [
+      "Q4"
+    ],
+    "after_any": []
+  },
+  {
+    "name": "Q7a",
+    "command": [
+      "/usr/bin/python3",
+      "-m",
+      "tilemega",
+      "bench",
+      "--config",
+      "configs/e2e/llama_r12b.json",
+      "--run-dir",
+      "runs/r12b-llama"
+    ],
+    "timeout": 14400,
+    "after": [
+      "Q5"
+    ],
+    "after_any": []
+  },
+  {
+    "name": "Q7b",
+    "command": [
+      "/usr/bin/python3",
+      "-m",
+      "tilemega",
+      "bench",
+      "--config",
+      "configs/e2e/qwen3_r12b.json",
+      "--run-dir",
+      "runs/r12b-qwen3"
+    ],
+    "timeout": 14400,
+    "after": [
+      "Q6"
+    ],
+    "after_any": []
+  },
+  {
+    "name": "Q8a",
+    "command": [
+      "/usr/bin/python3",
+      "-m",
+      "tilemega",
+      "check",
+      "--config",
+      "configs/e2e/llama_r12b.json",
+      "--run-dir",
+      "runs/r12b-llama"
+    ],
+    "timeout": 10800,
+    "after": [
+      "Q7a"
+    ],
+    "after_any": []
+  },
+  {
+    "name": "Q8b",
+    "command": [
+      "/usr/bin/python3",
+      "-m",
+      "tilemega",
+      "check",
+      "--config",
+      "configs/e2e/qwen3_r12b.json",
+      "--run-dir",
+      "runs/r12b-qwen3"
+    ],
+    "timeout": 10800,
+    "after": [
+      "Q7b"
+    ],
+    "after_any": []
+  },
+  {
+    "name": "Q9",
+    "command": [
+      "bash",
+      "-lc",
+      "/usr/bin/python3 docs/experiments/SERVING_R12B/make_protocol_cases.py --run-dir runs/r12b-llama --config configs/e2e/llama_r12b.json --out docs/experiments/SERVING_R12B/protocol_cases.json && /usr/bin/python3 docs/experiments/SERVING_R11/check_protocol.py --cases docs/experiments/SERVING_R12B/protocol_cases.json --out docs/experiments/SERVING_R12B/protocol --processes 50"
+    ],
+    "timeout": 10800,
+    "after": [
+      "Q5"
+    ],
+    "after_any": []
+  },
+  {
+    "name": "Q10",
+    "command": [
+      "/usr/bin/python3",
+      "docs/experiments/SERVING_R12B/experiments.py",
+      "s3"
+    ],
+    "timeout": 7200,
+    "after": [
+      "Q5"
+    ],
+    "after_any": []
+  },
+  {
+    "name": "Q11",
+    "command": [
+      "bash",
+      "-lc",
+      "/usr/bin/python3 -m tilemega report --config configs/e2e/llama_r12b.json --run-dir runs/r12b-llama && /usr/bin/python3 -m tilemega report --config configs/e2e/qwen3_r12b.json --run-dir runs/r12b-qwen3 && /usr/bin/python3 docs/experiments/SERVING_R12B/fidelity.py --run-dir runs/r12b-llama --run-dir runs/r12b-qwen3 --out docs/experiments/SERVING_R12B/fidelity.json"
+    ],
+    "timeout": 1800,
+    "after": [],
+    "after_any": [
+      "Q8a",
+      "Q8b",
+      "Q9",
+      "Q10"
+    ]
+  }
+]
