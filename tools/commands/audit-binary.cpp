@@ -31,7 +31,7 @@ std::string Cuobjdump() {
   return (std::filesystem::path(NvccPath()).parent_path()/"cuobjdump").string();
 }
 json::Value Scan(std::string const& binary,std::string const& dump) {
-  std::regex kernel("tilemega_l[12]_kernel");
+  std::regex kernel("tilemega_(l[12]|loop)_kernel");
   std::regex fp64(R"(\b(DADD|DMUL|DFMA|DSETP|F2F\.F64|F2F\.F32\.F64|I2F\.F64|F64)\b)");
   std::regex async(R"(\b(UTMALDG|UBLKCP|SYNCS[^ ;]*|ACQBULK|PREEXIT|LDGSTS)\b)");
   std::map<std::string,int> counts,instructions;
