@@ -245,7 +245,10 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
       wait_previous(stage);
       int count=ActiveBlocks(p,p.stages[stage]);
       for(int task=blockIdx.x;task<count;task+=gridDim.x)
-        Task<Loader>(p,stage,task,ring,sequence,work);
+        {
+          Task<Loader>(p,stage,task,ring,sequence,work);
+          if constexpr(!Loader)ComputeSync();
+        }
       if constexpr(!Loader)StageBarrier(events,stage,iteration);
     }
   }
