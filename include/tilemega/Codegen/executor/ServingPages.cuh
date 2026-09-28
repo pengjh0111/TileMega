@@ -139,6 +139,7 @@ struct PhaseGate {
   int tile=0;
   unsigned* shared=nullptr;
   bool enabled=false;
+  Watch* watch=nullptr;
   __device__ bool Ready() const {
     if(!enabled)return true;
     if(ComputeThread()==0) {
@@ -160,8 +161,10 @@ struct PhaseGate {
       int end=begin+int(desc->count);
       int live=ActiveBlocks(*params,params->stages[desc->producer]);
       for(int producer=max(0,begin);producer<min(live,end);++producer)
-        WaitAtLeast(&events[EventIndex(*params,desc->producer,producer)].arrivals,
-                    iteration+1);
+        {Watch here=watch?*watch:Watch{};here.site=2;
+         here.producer_stage=desc->producer;here.group=producer;
+         here.row=EventIndex(*params,desc->producer,producer);
+         WaitAtLeast(&events[here.row].arrivals,iteration+1,here);}
     }
     ComputeSync();
   }
@@ -192,7 +195,7 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
       PhaseGate gate{&params,&inv.serving_phase_gate,events,iteration,
           local,ring.SharedLastFlag(),L2 && TILEMEGA_KPHASE &&
           (TILEMEGA_KPHASE_CLASS_MASK & (1u<<inv.serving_phase_class)) &&
-          inv.serving_phase_gate.enabled};
+          inv.serving_phase_gate.enabled,ring.watch};
       Body::Run(operands,local/inv.tiles_n,local%inv.tiles_n,ring,
           sequence,work,gate);
     }
@@ -284,9 +287,11 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
     if(ComputeThread()==0)for(unsigned edge=0;edge<p.lag_dependency_count;++edge) {
       auto const& lag=p.lag_dependencies[edge];
       if(lag.kind==LagDependency::Kind::kToken && lag.consumer==stage_index)
-        WaitAtLeast(&events[EventIndex(p,lag.producer,
-                    kWholeStageEventGroup)].arrivals,
-                    static_cast<unsigned long long>(p.dims.batch)*iteration);
+        {Watch here=ring.watch?*ring.watch:Watch{};here.site=3;
+         here.producer_stage=lag.producer;
+         here.row=EventIndex(p,lag.producer,kWholeStageEventGroup);
+         WaitAtLeast(&events[here.row].arrivals,
+                    static_cast<unsigned long long>(p.dims.batch)*iteration,here);}
     }
     ComputeSync();
   }
@@ -311,9 +316,11 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
               row<(tile_m+1)*int(table[s.gemm].tile_m) && row<p.dims.batch;++row)
             Publish(p,events,s.handoff_reduce_stage,row,iteration);
           if(step_ns && tile_m==0 && ComputeThread()==0) {
-            WaitAtLeast(&events[EventIndex(p,s.handoff_reduce_stage,
-                kWholeStageEventGroup)].arrivals,
-                static_cast<unsigned long long>(p.dims.batch)*(iteration+1));
+            {Watch here=ring.watch?*ring.watch:Watch{};here.site=5;
+             here.producer_stage=s.handoff_reduce_stage;
+             here.row=EventIndex(p,s.handoff_reduce_stage,kWholeStageEventGroup);
+             WaitAtLeast(&events[here.row].arrivals,
+                static_cast<unsigned long long>(p.dims.batch)*(iteration+1),here);}
             step_ns[step+1]=executor::PageTraceNow();
           }
         }
@@ -337,8 +344,11 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
              lag.consumer!=stage_index)continue;
           if constexpr(L2) {
             unsigned source=lag.producer;
-            WaitAtLeast(&events[EventIndex(p,source,kWholeStageEventGroup)].arrivals,
-                static_cast<unsigned long long>(ActiveBlocks(p,p.stages[source]))*iteration);
+            {Watch here=ring.watch?*ring.watch:Watch{};here.site=4;
+             here.producer_stage=source;
+             here.row=EventIndex(p,source,kWholeStageEventGroup);
+             WaitAtLeast(&events[here.row].arrivals,
+                static_cast<unsigned long long>(ActiveBlocks(p,p.stages[source]))*iteration,here);}
           }
         }
         __syncwarp();
@@ -392,7 +402,10 @@ __device__ inline void WaitDependencies(Params const& p,EventCounter* events,Tas
     auto const& w=p.task_waits[task.wait_begin+i];
 #if TILEMEGA_SYNC_V3
     WaitAtLeast(&events[EventIndex(p,w.producer,w.group)].arrivals,
-                EventTriggers(p,w.producer,w.group)*(iteration+1));
+                EventTriggers(p,w.producer,w.group)*(iteration+1),
+                Watch{p.serving_watchdog,p.serving_watchdog_ns,1,task.stage,
+                    task.logical_task,w.producer,w.group,
+                    EventIndex(p,w.producer,w.group),iteration});
 #elif TILEMEGA_EVENT_RED_PUBLISH
     GradedWait(&events[EventIndex(p,w.producer,w.group)].arrivals,
                EventTriggers(p,w.producer,w.group)*(iteration+1));
@@ -428,13 +441,15 @@ __device__ inline void Publish(Params const& p,EventCounter* events,unsigned sta
   ComputeSync();
 #endif
 }
-__device__ inline void StageBarrier(EventCounter* events,unsigned stage,unsigned long long iteration) {
+__device__ inline void StageBarrier(EventCounter* events,unsigned stage,unsigned long long iteration,
+                                    Watch const* watch=nullptr) {
 #if TILEMEGA_SYNC_V3
   ComputeSync();
   if(ComputeThread()==0) {
     RedRelease(&events[stage].arrivals,1ull);
+    Watch here=watch?*watch:Watch{};here.site=9;here.row=stage;
     WaitAtLeast(&events[stage].arrivals,
-                static_cast<unsigned long long>(gridDim.x)*(iteration+1));
+                static_cast<unsigned long long>(gridDim.x)*(iteration+1),here);
   }
   ComputeSync();
 #else
@@ -451,13 +466,16 @@ __device__ inline void StageBarrier(EventCounter* events,unsigned stage,unsigned
 }
 template<bool Loader,bool L2>
 __device__ void Execute(Params const& p,EventCounter* events,unsigned long long iteration,
-                        Ring const& ring,char* work,
+                        Ring const& source_ring,char* work,
                         std::uint64_t* persistent_sequence=nullptr,
                         unsigned long long* step_ns=nullptr,unsigned step=0,
                         bool first_step=true,bool final_step=true,
                         PageStream* persistent_ahead=nullptr,
                         unsigned long long* persistent_prefetched=nullptr,
                         unsigned long long* persistent_loaded=nullptr) {
+  Watch watch{p.serving_watchdog,p.serving_watchdog_ns};
+  watch.iteration=iteration;
+  Ring ring=source_ring;ring.watch=&watch;
   std::uint64_t local_sequence=0;
   std::uint64_t& sequence=persistent_sequence?*persistent_sequence:local_sequence;
   unsigned long long local_prefetched=0,local_loaded=0;
@@ -487,6 +505,7 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
   if constexpr(L2) {
     for(unsigned slot=p.schedule_offsets[blockIdx.x];slot<p.schedule_offsets[blockIdx.x+1];++slot) {
       auto const& task=p.schedule[slot];
+      watch.waiter_stage=task.stage;watch.waiter_task=task.logical_task;
       wait_previous(task.stage);
 #if TILEMEGA_TRACE_V2
       if constexpr(!Loader)if(ComputeThread()==0 && p.task_trace_v2)
@@ -519,10 +538,12 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
   }else {
     for(unsigned stage=0;stage<p.stage_count;++stage) {
       if(p.stages[stage].handoff_elided)continue;
+      watch.waiter_stage=stage;
       wait_previous(stage);
       int count=ActiveBlocks(p,p.stages[stage]);
       for(int task=blockIdx.x;task<count;task+=gridDim.x)
         {
+          watch.waiter_task=task;
           prefetch_ahead();
           auto before=sequence;
           Task<Loader,L2>(p,stage,task,ring,sequence,work,events,iteration,
@@ -531,11 +552,7 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
           if constexpr(!Loader)ComputeSync();
         }
       if constexpr(!Loader) {
-        StageBarrier(events,stage,iteration);
-        if(step_ns && blockIdx.x==0 && ComputeThread()==0 &&
-           p.stages[stage].kind==TaskKind::kGemm &&
-           stage+1<p.stage_count && p.stages[stage+1].kind==TaskKind::kArgmaxReduce)
-          step_ns[step+1]=executor::PageTraceNow();
+        StageBarrier(events,stage,iteration,&watch);
       }
     }
   }
@@ -580,7 +597,6 @@ void tilemega_l2_kernel(Params const* p,EventCounter* events,unsigned long long 
     atomicMax(&p->serving_page_trace[blockIdx.x].kernel_end_ns,executor::PageTraceNow());
 #endif
 }
-template<bool L2>
 __global__ __launch_bounds__(160,1)
 void tilemega_loop_kernel(Params const* params,unsigned steps,EventCounter* events,
                           unsigned long long base_iteration,
@@ -591,16 +607,16 @@ void tilemega_loop_kernel(Params const* params,unsigned steps,EventCounter* even
   ring.Initialize();
   std::uint64_t sequence=0;
   bool const compute=executor::IsCompute();
-  paged::PageStream ahead(params,steps,L2);
+  paged::PageStream ahead(params,steps,true);
   unsigned long long prefetched=0,loaded=0;
   for(unsigned step=0;step<steps;++step) {
     Params const& p=params[step];
     if(step==0 && blockIdx.x==0 && compute && paged::ComputeThread()==0 && step_ns)
       step_ns[0]=executor::PageTraceNow();
-    if(compute)paged::Execute<false,L2>(p,events,base_iteration+step,ring,
+    if(compute)paged::Execute<false,true>(p,events,base_iteration+step,ring,
         page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET,&sequence,step_ns,step,
         step==0,step+1==steps);
-    else paged::Execute<true,L2>(p,events,base_iteration+step,ring,
+    else paged::Execute<true,true>(p,events,base_iteration+step,ring,
         page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET,&sequence,step_ns,step,
         step==0,step+1==steps,&ahead,&prefetched,&loaded);
   }

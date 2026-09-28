@@ -308,6 +308,10 @@ struct LagDependency {
   std::uint32_t producer,consumer;
   Kind kind;
 };
+struct WatchdogRecord {
+  unsigned long long fired,site,block,thread,waiter_stage,waiter_task,
+      producer_stage,group,row,need,value,iteration;
+};
 
 /// One stage in the solver-produced order for a runtime variant.  Task counts
 /// remain symbolic until launch, so codegen emits this compact schedule
@@ -723,6 +727,8 @@ struct Params {
   std::uint32_t serving_handoff_ticket_stride = 0;
   LagDependency const* lag_dependencies = nullptr;
   std::uint32_t lag_dependency_count = 0;
+  WatchdogRecord* serving_watchdog = nullptr;
+  unsigned long long serving_watchdog_ns = 0;
 };
 
 /// Everything the generator emits about one model.  The harness reads only

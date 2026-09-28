@@ -14,6 +14,7 @@ struct PageRing {
   Slot* slots;
   char* data;
   PageTraceRecord* trace = nullptr;
+  Watch* watch = nullptr;
 
   __device__ unsigned* SharedLastFlag() const {
     return reinterpret_cast<unsigned*>(slots + Pages);
@@ -38,7 +39,7 @@ struct PageRing {
   __device__ char* Page(std::uint64_t sequence) const { return data+SlotIndex(sequence)*PageBytes; }
   __device__ void AcquireEmpty(std::uint64_t sequence) const {
     if(LoaderLane()==0)PageTraceTransition(trace,2u,true);
-    Copy::Wait(&slots[SlotIndex(sequence)].empty,Phase(sequence));
+    Copy::Wait(&slots[SlotIndex(sequence)].empty,Phase(sequence),watch,8,sequence);
     if(LoaderLane()==0)PageTraceTransition(trace,2u,false);
     if(LoaderLane()==0)
       *reinterpret_cast<volatile std::uint64_t*>(&slots[SlotIndex(sequence)].generation)=sequence;
@@ -68,8 +69,12 @@ struct PageRing {
     // Parity alone would accept an old completion; the sequence tag prevents
     // that ABA. The loader writes it only after acquiring the empty slot.
     auto* generation=reinterpret_cast<volatile std::uint64_t*>(&slots[SlotIndex(sequence)].generation);
-    while(*generation!=sequence) {}
-    Copy::Wait(&slots[SlotIndex(sequence)].full,Phase(sequence));
+    unsigned long long start=0,failures=0;
+    while(*generation!=sequence) {
+      if(watch){Watch here=*watch;here.site=6;here.row=sequence;
+        WatchExpired(&here,start,++failures,sequence,*generation);}
+    }
+    Copy::Wait(&slots[SlotIndex(sequence)].full,Phase(sequence),watch,7,sequence);
   }
   __device__ void Release(std::uint64_t sequence) const {
     Copy::Arrive(&slots[SlotIndex(sequence)].empty);

@@ -2255,6 +2255,14 @@ inline DeviceModel Create(ModelSpec const& spec,
   std::vector<std::uint32_t> offsets(model.stages.size() + 1, 0);
   for (auto const& edge : dependencies) ++offsets[edge.consumer + 1];
   for (std::size_t i = 1; i < offsets.size(); ++i) offsets[i] += offsets[i - 1];
+  unsigned runtime_kphase_mask=TILEMEGA_KPHASE_CLASS_MASK;
+  if(auto* value=std::getenv("TILEMEGA_KPHASE_MASK"))
+    runtime_kphase_mask&=static_cast<unsigned>(std::strtoul(value,nullptr,0));
+  auto phase_enabled=[&](std::uint32_t stage) {
+    return TILEMEGA_PAGED && TILEMEGA_KPHASE &&
+        (runtime_kphase_mask & (1u<<gemms[model.stages[stage].gemm].serving_phase_class));
+  };
+  std::vector<bool> phase_seen(gemms.size(),false);
   for(auto const& edge:dependencies)if(edge.map==StageDependency::Map::kPhase) {
     if(edge.phase_tiles<2 || model.stages[edge.consumer].kind!=TaskKind::kGemm ||
        edge.div==0 || edge.count==0)
@@ -2265,10 +2273,12 @@ inline DeviceModel Create(ModelSpec const& spec,
       throw std::invalid_argument("K-phase consumer has multiple M tiles");
     for(int chunk=0;chunk<first.chunks;++chunk) {
       auto& inv=gemms[stage.gemm+chunk];
-      if(inv.serving_phase_gate.enabled)
+      if(phase_seen[stage.gemm+chunk])
         throw std::invalid_argument("GEMM has multiple K-phase producers");
+      phase_seen[stage.gemm+chunk]=true;
       inv.serving_phase_gate={edge.producer,edge.div,edge.scale,edge.offset,
-                              edge.count,edge.phase_tiles,true};
+                              edge.count,edge.phase_tiles,
+                              bool(phase_enabled(edge.consumer))};
     }
   }
 
@@ -2488,6 +2498,17 @@ inline DeviceModel Create(ModelSpec const& spec,
       std::exit(2);
     }
   }
+#if defined(TILEMEGA_SERVING_SEQ)
+  if(TILEMEGA_PAGED && TILEMEGA_SERVING_SEQ==1)
+    if(auto* ablation=std::getenv("TILEMEGA_PLACEMENT_ABLATION")) {
+      std::string value(ablation);
+      if(value=="rotate")plan_mode=dialect::PlacementMode::kRotate;
+      else if(value=="grid_stride")plan_mode=dialect::PlacementMode::kLegacyGridStride;
+      else throw std::invalid_argument("unknown placement ablation");
+      plan_params.clear();
+      std::printf("E2E_PLACEMENT_ABLATION mode=%s\n",value.c_str());
+    }
+#endif
 
   // One runtime task DAG for the placement, the statistics and the legality
   // checks: three copies of the same projection used to be built per launch.
@@ -2811,9 +2832,7 @@ inline DeviceModel Create(ModelSpec const& spec,
           };
           // The K-phase ablation restores the proven full-edge wait. Merely
           // disabling the device gate would otherwise remove the dependency.
-          if(dep.map==StageDependency::Map::kPhase && TILEMEGA_PAGED && TILEMEGA_KPHASE &&
-             (TILEMEGA_KPHASE_CLASS_MASK &
-              (1u<<gemms[model.stages[stage].gemm].serving_phase_class)))continue;
+          if(dep.map==StageDependency::Map::kPhase && phase_enabled(stage))continue;
           if (force_all_dependencies || dep.map == StageDependency::Map::kAll ||
               dep.map == StageDependency::Map::kPhase) {
             model.schedule_has_global_fanin = true;

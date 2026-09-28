@@ -2,9 +2,13 @@
 #pragma once
 #include <cuda/atomic>
 #include <cuda_runtime.h>
+#include <tilemega/Codegen/executor/Watchdog.cuh>
 
 #ifndef TILEMEGA_SYNC_V3
 #define TILEMEGA_SYNC_V3 0
+#endif
+#ifndef TILEMEGA_V3_POLL_NS
+#define TILEMEGA_V3_POLL_NS 0
 #endif
 
 #ifndef TILEMEGA_EVENT_LOAD_POLL
@@ -50,7 +54,23 @@ __device__ inline void RedRelease(unsigned long long* event,unsigned long long v
 }
 __device__ inline void WaitAtLeast(unsigned long long const* event,
                                    unsigned long long need) {
-  while(LoadAcquire(event)<need) {}
+  while(LoadAcquire(event)<need) {
+#if TILEMEGA_V3_POLL_NS > 0
+    __nanosleep(TILEMEGA_V3_POLL_NS);
+#endif
+  }
+}
+__device__ inline void WaitAtLeast(unsigned long long const* event,
+                                   unsigned long long need,Watch const& watch) {
+  unsigned long long start=0,failures=0;
+  for(;;) {
+    auto value=LoadAcquire(event);
+    if(value>=need)return;
+    WatchExpired(&watch,start,++failures,need,value);
+#if TILEMEGA_V3_POLL_NS > 0
+    __nanosleep(TILEMEGA_V3_POLL_NS);
+#endif
+  }
 }
 // T1.1: the following acquire fence remains at the caller. A relaxed atomic
 // read participates in the fence synchronization without an RMW transaction.

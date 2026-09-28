@@ -55,6 +55,7 @@ class PlanLibrary:
         self.lib.tm_plan_launch.restype = C.c_int
         launch_steps = getattr(self.lib, "tm_plan_launch_steps", None)
         read_step_ns = getattr(self.lib, "tm_plan_read_step_ns", None)
+        watchdog = getattr(self.lib, "tm_plan_watchdog", None)
         if launch_steps is not None:
             launch_steps.argtypes = [C.c_void_p, C.c_uint32, C.c_uint32,
                                      C.c_uint32, C.c_uint64, C.c_void_p]
@@ -63,6 +64,9 @@ class PlanLibrary:
             read_step_ns.argtypes = [C.c_void_p, C.c_uint32, C.c_uint32,
                                      C.POINTER(C.c_uint64)]
             read_step_ns.restype = C.c_int
+        if watchdog is not None:
+            watchdog.argtypes = [C.c_void_p, C.POINTER(C.c_uint64)]
+            watchdog.restype = C.c_int
         self.lib.tm_plan_destroy.argtypes = [C.c_void_p]
         self.lib.tm_plan_destroy.restype = None
         info = PlanInfo()
@@ -134,6 +138,17 @@ class Plan:
                 values) != 0:
             raise RuntimeError("tm_plan_read_step_ns failed")
         return list(values)
+
+    def watchdog(self) -> dict[str, int] | None:
+        read = getattr(self.library.lib, "tm_plan_watchdog", None)
+        if read is None or not self.handle:
+            return None
+        values = (C.c_uint64 * 12)()
+        if read(self.handle, values) != 1:
+            return None
+        return dict(zip(("fired", "site", "block", "thread", "waiter_stage",
+                         "waiter_task", "producer_stage", "group", "row", "need",
+                         "value", "iteration"), map(int, values)))
 
     def close(self) -> None:
         if self.handle:

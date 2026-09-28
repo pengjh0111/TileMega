@@ -4,6 +4,7 @@
 #include <cuda_runtime.h>
 #include <cstdint>
 #include <type_traits>
+#include <tilemega/Codegen/executor/Watchdog.cuh>
 
 namespace tilemega::codegen::executor {
 // PTX target requirements: mbarrier/test_wait/cp.async start at SM80;
@@ -44,6 +45,16 @@ struct Async {
   }
   __device__ static void Wait(std::uint64_t* barrier,unsigned phase) {
     while(!Ready(barrier,phase)) {}
+  }
+  __device__ static void Wait(std::uint64_t* barrier,unsigned phase,
+                              Watch const* watch,unsigned site,unsigned long long row) {
+    unsigned long long start=0,failures=0;
+    while(!Ready(barrier,phase)) {
+      if(watch) {
+        Watch here=*watch;here.site=site;here.row=row;
+        WatchExpired(&here,start,++failures,phase,0);
+      }
+    }
   }
   __device__ static void Copy16Bytes(void* destination,void const* source,unsigned bytes) {
     if constexpr(Caps::kCpAsync)

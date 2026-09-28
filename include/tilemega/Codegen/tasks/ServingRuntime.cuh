@@ -41,6 +41,7 @@ struct Plan {
   executor::TensorMap* tensor_maps = nullptr;
   LagDependency* lag_dependencies = nullptr;
   PageTraceRecord* page_trace = nullptr;
+  WatchdogRecord* watchdog = nullptr;
   // L1 grid-barrier rows and L2 task-event rows are disjoint. Ticket equality
   // requires a gap-free sequence for each mode, even when launches alternate.
   std::uint64_t next_iteration[2] = {0, 0};
@@ -167,6 +168,7 @@ inline void Destroy(Plan* plan) {
   if (plan->step_ns) cudaFree(plan->step_ns);
   if (plan->tensor_maps) cudaFree(plan->tensor_maps);
   if (plan->lag_dependencies) cudaFree(plan->lag_dependencies);
+  if (plan->watchdog) cudaFreeHost(plan->watchdog);
   auto& model = plan->model;
   if(model.params.serving_handoff_tickets)cudaFree(model.params.serving_handoff_tickets);
   if(model.params.serving_no_producer)cudaFree(const_cast<std::uint8_t*>(model.params.serving_no_producer));
@@ -261,9 +263,7 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
             cudaFuncAttributeMaxDynamicSharedMemorySize, smem) != cudaSuccess)
         return nullptr;
 #if TILEMEGA_PAGED
-      if (cudaFuncSetAttribute(tilemega_loop_kernel<false>,
-            cudaFuncAttributeMaxDynamicSharedMemorySize, smem) != cudaSuccess ||
-          cudaFuncSetAttribute(tilemega_loop_kernel<true>,
+      if (cudaFuncSetAttribute(tilemega_loop_kernel,
             cudaFuncAttributeMaxDynamicSharedMemorySize, smem) != cudaSuccess)
         return nullptr;
 #endif
@@ -281,6 +281,18 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     plan->model = harness::Create(
         kModel, kModel.runtime_variants[0], 0, dims, "", grid,
         std::min(l1, l2), target, smem, external);
+    {
+      auto const env=std::getenv("TILEMEGA_WATCHDOG_MS");
+      unsigned long long ms=env?std::strtoull(env,nullptr,10):10000ull;
+      if(ms) {
+        TILEMEGA_CUDA_CHECK(cudaHostAlloc(&plan->watchdog,sizeof(WatchdogRecord),
+            cudaHostAllocMapped));
+        *plan->watchdog={};
+        TILEMEGA_CUDA_CHECK(cudaHostGetDevicePointer(
+            &plan->model.params.serving_watchdog,plan->watchdog,0));
+        plan->model.params.serving_watchdog_ns=ms*1000000ull;
+      }
+    }
 #if TILEMEGA_PAGED
     if(!plan->model.lag_dependencies.empty()) {
       TILEMEGA_CUDA_CHECK(cudaMalloc(&plan->lag_dependencies,
@@ -414,19 +426,12 @@ extern "C" int tm_plan_launch_steps(void* opaque, std::uint32_t first_step,
   auto* plan=static_cast<serving::Plan*>(opaque);
   if(!plan || !plan->ring || !steps || first_step>plan->steps ||
      steps>plan->steps-first_step ||
-     (mode!=TM_SERVING_L1 && mode!=TM_SERVING_L2))return -1;
-  unsigned index=mode==TM_SERVING_L1?0:1;
+     mode!=TM_SERVING_L2)return -1;
+  unsigned index=1;
   if(base_iteration!=plan->next_iteration[index])return -2;
   auto cuda_stream=static_cast<cudaStream_t>(stream);
   cudaError_t status;
-  if(mode==TM_SERVING_L1)
-    status=executor::LaunchServing(tilemega_loop_kernel<false>,plan->grid,
-        kServingThreads,kServingSharedBytes,cuda_stream,plan->pdl,
-        static_cast<Params const*>(plan->ring+first_step),steps,
-        plan->model.events,base_iteration,
-        reinterpret_cast<unsigned long long*>(plan->step_ns+first_step));
-  else
-    status=executor::LaunchServing(tilemega_loop_kernel<true>,plan->grid,
+  status=executor::LaunchServing(tilemega_loop_kernel,plan->grid,
         kServingThreads,plan->model.l2_smem_bytes,cuda_stream,plan->pdl,
         static_cast<Params const*>(plan->ring+first_step),steps,
         plan->model.events,base_iteration,
@@ -448,6 +453,14 @@ extern "C" int tm_plan_read_step_ns(void* opaque,std::uint32_t first,
      count>plan->steps-first+1)return -1;
   return int(cudaMemcpy(host,plan->step_ns+first,
       std::size_t(count)*sizeof(std::uint64_t),cudaMemcpyDeviceToHost));
+}
+
+extern "C" int tm_plan_watchdog(void* opaque,std::uint64_t out[12]) {
+  auto* plan=static_cast<tilemega::codegen::serving::Plan*>(opaque);
+  if(!plan || !out || !plan->watchdog || !plan->watchdog->fired)return 0;
+  auto const* words=reinterpret_cast<unsigned long long const*>(plan->watchdog);
+  for(int i=0;i<12;++i)out[i]=words[i];
+  return 1;
 }
 
 #if TILEMEGA_TRACE_V2
