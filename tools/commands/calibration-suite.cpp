@@ -67,8 +67,15 @@ int RunSuite(int argc,char** argv) {
     options.bf16=current!="base";
     if(current=="base") {target.calib={};calib::Run(target,options,raw);}
     else if(current=="bf16") {
+      // The base microbenchmarks do not fit the TaskBody fixed term. Retain
+      // the separately fitted coefficients when refreshing BF16 bandwidth;
+      // the serving and paged sections below replace only their own fits.
+      auto body=target.calib_bf16.task_body;
+      if(body.samples<=0)
+        throw std::runtime_error("BF16 refresh needs a prior TaskBody fixed fit");
       auto f32=target.calib;target.calib={};calib::Run(target,options,raw);
       target.calib_bf16=std::move(target.calib);target.calib=std::move(f32);
+      target.calib_bf16.task_body=std::move(body);
     }else {
       if(!target.calib_bf16.calibrated)throw std::runtime_error("section requires the BF16 base calibration");
       if(current=="wait") {

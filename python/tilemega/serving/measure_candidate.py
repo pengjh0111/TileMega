@@ -7,10 +7,11 @@ import json
 import os
 from pathlib import Path
 import statistics
+import time
 
 import torch
 
-from .measure import _clocks, _exclusive
+from .measure import _clocks, _exclusive, _gpu_owners
 from .plan import PlanLibrary
 
 
@@ -38,6 +39,22 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
     out.mkdir(parents=True, exist_ok=True)
     if not _exclusive(out / "guard.jsonl", "candidate-before", True):
         raise RuntimeError("GPU remained occupied for 30 minutes")
+    # This check runs before allocating the synthetic weights, when our own
+    # context is tiny. It catches GPU users omitted from the compute-app PID
+    # table, which otherwise turn the candidate measurement into CUDA OOM.
+    deadline = time.monotonic() + 30 * 60
+    while True:
+        _, visible_mib, used_mib = _gpu_owners()
+        hidden_mib = max(0, used_mib - visible_mib)
+        with (out / "guard.jsonl").open("a") as guard:
+            guard.write(json.dumps({"label": "candidate-hidden-before",
+                                    "hidden_mib": hidden_mib,
+                                    "accepted": hidden_mib <= 1024}) + "\n")
+        if hidden_mib <= 1024:
+            break
+        if time.monotonic() >= deadline:
+            raise RuntimeError("GPU has more than 1 GiB of unattributed memory")
+        time.sleep(10)
     buffers = _external_buffers(plan, batch, vocab)
     warmup, timed = (8, 32) if plan.info.phase == 1 else (2, 5)
     past = past_mid if plan.info.phase == 1 else 0
