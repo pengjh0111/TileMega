@@ -216,12 +216,14 @@ class Run:
             # The microbenchmarks stamp each section before the suite can
             # validate that the device was idle. A stamped but uncalibrated
             # profile must never be served from cache on a later run.
-            if before and (not before.get('calibration', {}).get('calibrated') or
-                           not before.get('calibration_by_dtype', {}).get('bf16', {}).get('calibrated')):
-                missing.extend(('base', 'bf16'))
-            # Replacing a pipeline profile also discards its dependent fits.
-            if 'base' in missing or 'bf16' in missing:
-                missing = list(expected)
+            if before and not before.get('calibration', {}).get('calibrated'):
+                missing.append('base')
+            if before and not before.get('calibration_by_dtype', {}).get('bf16', {}).get('calibrated'):
+                missing.append('bf16')
+            # Serving fits depend on the BF16 profile, not the independent
+            # F32 base. An F32 drift therefore remeasures only that section.
+            if 'bf16' in missing:
+                missing = list(set(missing) | (set(expected) - {'base'}))
             if 'wait' in missing:
                 missing = list(set(missing) | {'events', 'hop'})
             self.event('calibration', not missing, 'all section stamps match' if not missing else 'missing or changed sections', sections=sorted(missing))
