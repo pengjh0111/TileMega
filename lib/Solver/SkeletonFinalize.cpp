@@ -42,6 +42,9 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
   SimulatorOptions sim;sim.observed_task_times=true;sim.flat_hop=true;
   if(point.flow) {
     input.task_price_parts=ExpandFlowPrices(*point.flow);
+    for(auto const& space:point.flow->flow.spaces)
+      input.inline_reducer.insert(input.inline_reducer.end(),space.count,
+          space.fused_reducer ? 1 : 0);
     sim.dram_fluid=true;sim.dram_gbps=point.flow->flow.dram_gbps;
     sim.inflight_dram=point.flow->flow.inflight_dram;
     sim.inflight_curve_bytes=point.flow->flow.inflight_curve_bytes;

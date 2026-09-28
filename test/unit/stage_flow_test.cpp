@@ -185,6 +185,26 @@ int TestStageFlow(int argc, char** argv) try {
   if(!SimulateExecution(local_input,local_plan,local_options,{},
       &local_result,&local_error))throw std::runtime_error(local_error);
   Near(local_result.makespan_ns,60,"FIFO page reservation is CTA-local");
+  // The reducer is in the legality graph but absent from sigma: an unrelated
+  // task behind its old queue position may run while the final producer works.
+  tilemega::codegen::RuntimeTaskGraph inline_graph;
+  inline_graph.stage_offsets={0,2,3,4,5};
+  inline_graph.successors={{2},{2},{3},{},{}};
+  MaterializedPlan inline_plan;
+  inline_plan.queue={{{0,0},{1,0},{3,0},{2,0}},{{0,1}}};
+  SimulatorInput inline_input;inline_input.graph=&inline_graph;
+  inline_input.task_price_parts={{0,5,0,0},{0,20,0,0},
+                                 {0,3,0,0},{0,1,0,0},{0,4,0,0}};
+  inline_input.inline_reducer={0,0,1,0,0};
+  SimulatorOptions inline_options;inline_options.dram_fluid=true;
+  inline_options.dram_gbps=10;
+  SimulatorResult inline_result;std::string inline_error;
+  if(!SimulateExecution(inline_input,inline_plan,inline_options,{},
+      &inline_result,&inline_error))throw std::runtime_error(inline_error);
+  Near(inline_result.tasks[4].end_ns,9,"inline reducer leaves its queue slot free");
+  if(inline_result.tasks[2].worker!=1)
+    throw std::runtime_error("inline reducer did not run on the last producer");
+  Near(inline_result.makespan_ns,24,"inline reducer completes on last producer");
   tilemega::codegen::RuntimeTaskGraph graph;graph.stage_offsets={0,2,4};graph.successors={{2},{3},{},{}};
   MaterializedPlan plan;plan.queue={{{0,0},{1,0}},{{0,1},{1,1}}};
   SimulatorInput input;input.graph=&graph;input.task_price_parts.assign(4,TaskPriceParts{2,3,20,4});

@@ -141,6 +141,9 @@ bool PrepareExecutionPlan(PreparedExecutionGraph const& graph,MaterializedPlan c
 
 struct SimulatorInput {
   std::vector<TaskPriceParts> task_price_parts;
+  // A last-arriver reducer executes on the worker of its final producer and
+  // is absent from sigma. The complete edge remains in legality checks.
+  std::vector<unsigned char> inline_reducer;
   // Group events retain their visibility hop even with a common owner.
   std::vector<std::pair<int,int>> fluid_forced_local_hops;
   codegen::RuntimeTaskGraph const* graph = nullptr;
