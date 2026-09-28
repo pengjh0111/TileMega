@@ -454,10 +454,13 @@ GemmConfig ServingSeed(OperatorClass const& cls,
   int columns=int(imported.plan.gemms.at(id).n);
   int preferred_n=paged && page_bytes==8192 ? 64 : 128;
   (void)target;(void)rows;(void)columns;
+  auto fits_page=[&](GemmConfig const& g) {
+    return !paged || (page_bytes>0 && g.tile_n*g.tile_k*2<=page_bytes);
+  };
   for(int tile_k:{128,64}) {
     int chosen_split=0;
     for(auto const& g:domain)
-      if(g.tile_m==16 && g.tile_n==preferred_n && g.tile_k==tile_k &&
+      if(fits_page(g) && g.tile_m==16 && g.tile_n==preferred_n && g.tile_k==tile_k &&
          (chosen_split==0 || g.split_k<chosen_split))chosen_split=g.split_k;
     if(!chosen_split)continue;
     auto best=domain.end();
@@ -467,7 +470,9 @@ GemmConfig ServingSeed(OperatorClass const& cls,
          (best==domain.end() || it->stages>best->stages))best=it;
     if(best!=domain.end())return *best;
   }
-  return domain.front();
+  auto first=std::find_if(domain.begin(),domain.end(),fits_page);
+  if(first==domain.end())throw std::invalid_argument("serving class has no page-sized seed geometry");
+  return *first;
 }
 bool BetterCandidate(SkeletonCandidate const& candidate,
                      SkeletonCandidate const& current,bool serving) {
