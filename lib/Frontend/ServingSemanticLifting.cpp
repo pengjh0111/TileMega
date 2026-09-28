@@ -274,7 +274,7 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
       std::vector<IndexResult> out_map;
       IndexResult bidx, gidx, qidx, didx, posidx, qkv_row;
       if (decode) {
-        domain = {Parallel("b", B), Parallel("g", G)};
+        domain = {Parallel("g", G), Parallel("b", B)};
         if (split_kv) domain.push_back(Parallel("c", blocks));
         domain.push_back(Parallel("q", Q));
         domain.push_back(Parallel("d", D));
@@ -402,7 +402,7 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
       auto lse = space(stage.operands[1],
           {Axis("b", B), Axis("g", G), Axis("c", blocks), Axis("q", Q)});
       auto op = Output(op_name, OperatorKind::kReduction,
-          {Parallel("m", B), Parallel("g", G), Parallel("q", Q),
+          {Parallel("g", G), Parallel("m", B), Parallel("q", Q),
            Parallel("d", D), Reduce("c", blocks)},
           Tensor(name(stage.operands[2]),
               {Axis("m", B), Axis("g", G), Axis("q", Q), Axis("d", D)}),

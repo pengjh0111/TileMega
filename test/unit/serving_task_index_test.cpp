@@ -2,6 +2,7 @@
 #include <tilemega/Codegen/tasks/ServingTaskIndex.h>
 
 #include <cassert>
+#include <initializer_list>
 
 namespace tilemega::tests::serving_task_index_test {
 
@@ -18,15 +19,19 @@ int TestServingTaskIndex(int argc, char** argv) {
         int first_producer = (b * 4 + qb) * 24 + 3 * g;
         assert(first_producer == 3 * task);
       }
-  // Decode has one query block; its task order is unchanged.
-  for (int b = 0; b < 16; ++b)
-    for (int g = 0; g < 8; ++g)
-      for (int c = 0; c < 5; ++c) {
-        int task = (b * 8 + g) * 5 + c;
-        auto x = tilemega::codegen::DecodeServingAttentionTask(task, 1, 8, 5);
-        assert(x.batch == b && x.query_block == 0 && x.group == g &&
-               x.cache_block == c);
-      }
+  // Decode is group-major. The attention->merge fiber is C consecutive
+  // tasks, and each group's B requests form one contiguous interval.
+  for(int batch : {1,16})
+    for(int g=0;g<8;++g)
+      for(int b=0;b<batch;++b)
+        for(int c=0;c<5;++c) {
+          int task=(g*batch+b)*5+c;
+          auto x=tilemega::codegen::DecodeServingAttentionTaskGMajor(
+              task,batch,5);
+          assert(x.batch==b && x.group==g && x.cache_block==c);
+          assert(task/5==g*batch+b);
+          assert(task/(batch*5)==g);
+        }
 
   return 0;
 }

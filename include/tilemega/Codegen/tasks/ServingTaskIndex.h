@@ -28,4 +28,18 @@ constexpr ServingAttentionTaskIndex DecodeServingAttentionTask(
   return result;
 }
 
+#if defined(__CUDACC__)
+__host__ __device__
+#endif
+constexpr ServingAttentionTaskIndex DecodeServingAttentionTaskGMajor(
+    int task, int batch, int cache_blocks) {
+  ServingAttentionTaskIndex result{};
+  result.cache_block=task%cache_blocks;
+  task/=cache_blocks;
+  result.batch=task%batch;
+  result.group=task/batch;
+  result.query_block=0;
+  return result;
+}
+
 }  // namespace tilemega::codegen

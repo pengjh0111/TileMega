@@ -23,14 +23,16 @@ struct PageLayout {
   // static page ring. Each GEMM shape is (M,N,K); attention widths are D.
   static std::pair<int,int> ServingWorkspace(
       std::vector<std::array<int,3>> const& gemms,
-      std::vector<int> const& attention_widths) {
+      std::vector<std::array<int,2>> const& attention_shapes) {
     int activation=0,scratch=0;
     for(auto const& g:gemms) {
-      activation=std::max(activation,4*g[0]*g[2]);
-      scratch=std::max(scratch,4*g[0]*g[1]);
+      activation=std::max(activation,4*2*g[0]*g[2]);
+      scratch=std::max(scratch,4*g[0]*g[1]+4*g[0]);
     }
-    for(int d:attention_widths)
-      scratch=std::max(scratch,16*d*2+4*16*d*4+4*16*4);
+    for(auto const& shape:attention_shapes) {
+      int d=shape[0],q=shape[1];
+      scratch=std::max(scratch,16*d*2+4*q*d*4+4*q*4);
+    }
     return {activation,scratch};
   }
   static PageLayout Build(TargetSpec const& target,int page,int activation_bytes,
