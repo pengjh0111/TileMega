@@ -43,7 +43,8 @@ struct GemmCombineTaskBody {
         reinterpret_cast<cutlass::bfloat16_t const*>(invocation.residual),
         reinterpret_cast<float*>(p.buffers[stage.operand[1]]),
         invocation.serving_argmax_index,
-        reinterpret_cast<float*>(&smem.gemm));
+        reinterpret_cast<float*>(&smem.gemm),invocation.serving_norm_ss,
+        invocation.serving_ss_out,invocation.k_total,TILEMEGA_NORM_EPSILON);
   }
 
   template <int Variant>
