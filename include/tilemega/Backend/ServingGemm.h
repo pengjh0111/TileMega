@@ -79,7 +79,7 @@ struct ServingGemmSm80 {
                 "serving shared-memory closed form underestimates CUTLASS");
   union alignas(16) SharedStorage {
     typename Mainloop::SharedStorage mainloop;
-    float epilogue[TileM * TileN];
+    float epilogue[TileM * TileN + TileM];
   };
   static_assert(sizeof(SharedStorage) == kSharedBytes,
                 "serving mainloop/epilogue union must match the closed form exactly");

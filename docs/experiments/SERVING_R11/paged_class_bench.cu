@@ -74,19 +74,23 @@ int main(int argc,char** argv) try {
   int sms=0,l2=0;
   Check(cudaDeviceGetAttribute(&sms,cudaDevAttrMultiProcessorCount,0));
   Check(cudaDeviceGetAttribute(&l2,cudaDevAttrL2CacheSize,0));
-  Element *a=nullptr,*b=nullptr,*output=nullptr;
+  int tiles=(n+BENCH_TILE_N-1)/BENCH_TILE_N;
+  Element *a=nullptr,*b=nullptr,*tiled=nullptr,*output=nullptr;
   char* flush=nullptr;
   Check(cudaMalloc(&a,std::size_t(k)*sizeof(Element)));
   Check(cudaMalloc(&b,std::size_t(n)*k*sizeof(Element)));
+  int const kt=(k+BENCH_TILE_K-1)/BENCH_TILE_K;
+  Check(cudaMalloc(&tiled,std::size_t(tiles)*kt*BENCH_TILE_N*BENCH_TILE_K*sizeof(Element)));
   Check(cudaMalloc(&output,std::size_t(n)*sizeof(Element)));
   Check(cudaMalloc(&flush,std::size_t(l2)*3));
   Check(cudaMemset(a,0,std::size_t(k)*sizeof(Element)));
   Check(cudaMemset(b,0,std::size_t(n)*k*sizeof(Element)));
+  Check(cudaMemset(tiled,0,std::size_t(tiles)*kt*BENCH_TILE_N*BENCH_TILE_K*sizeof(Element)));
   tilemega::codegen::ServingGemmOperands operands;
   operands.a=a;operands.b=b;operands.output=output;
   operands.m=1;operands.n=n;operands.k_total=k;operands.k_count=k;
+  operands.weight_base=tiled;operands.k_total_full=k;
   operands.a_row_stride=operands.b_row_stride=k;operands.output_stride=n;
-  int tiles=(n+BENCH_TILE_N-1)/BENCH_TILE_N;
   Check(cudaFuncSetAttribute(Stage,cudaFuncAttributeMaxDynamicSharedMemorySize,
                              BENCH_SHARED_BYTES));
   Check(cudaFuncSetAttribute(StageStandard,cudaFuncAttributeMaxDynamicSharedMemorySize,
@@ -113,6 +117,6 @@ int main(int argc,char** argv) try {
       n,k,BENCH_TILE_N,BENCH_TILE_K,BENCH_PAGE_BYTES,BENCH_PAGE_COUNT,sms,
       standard_ms,bytes/(standard_ms*1e6),median_ms,bytes/(median_ms*1e6));
   Check(cudaEventDestroy(begin));Check(cudaEventDestroy(end));
-  Check(cudaFree(a));Check(cudaFree(b));Check(cudaFree(output));Check(cudaFree(flush));
+  Check(cudaFree(a));Check(cudaFree(b));Check(cudaFree(tiled));Check(cudaFree(output));Check(cudaFree(flush));
   return 0;
 }catch(std::exception const& error){std::fprintf(stderr,"%s\n",error.what());return 1;}

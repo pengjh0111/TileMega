@@ -24,6 +24,10 @@ struct Async {
     if constexpr(Caps::kMbarrierTx)
       asm volatile("fence.mbarrier_init.release.cluster;" ::: "memory");
   }
+  __device__ static void ProxyAsyncGlobalFence() {
+    if constexpr(Caps::kBulkCopy)
+      asm volatile("fence.proxy.async.global;" ::: "memory");
+  }
   __device__ static void Arrive(std::uint64_t* barrier) {
     if constexpr(Caps::kMbarrier)
       asm volatile("mbarrier.arrive.shared.b64 _, [%0];" ::"r"(Shared(barrier)):"memory");
@@ -49,6 +53,18 @@ struct Async {
   __device__ static void Copy16(void* destination,void const* source,bool valid=true) {
     Copy16Bytes(destination,source,valid?16:0);
   }
+  __device__ static std::uint64_t EvictFirst() {
+    std::uint64_t policy=0;
+    if constexpr(Caps::kCpAsync)
+      asm volatile("createpolicy.fractional.L2::evict_first.b64 %0, 1.0;" : "=l"(policy));
+    return policy;
+  }
+  __device__ static void Copy16Hint(void* destination,void const* source,
+                                    std::uint64_t policy) {
+    if constexpr(Caps::kCpAsync)
+      asm volatile("cp.async.cg.shared.global.L2::cache_hint [%0], [%1], 16, %2;" ::
+          "r"(Shared(destination)),"l"(source),"l"(policy):"memory");
+  }
   __device__ static void CompleteCopies(std::uint64_t* barrier) {
     if constexpr(Caps::kCpAsync && Caps::kMbarrier)
       asm volatile("cp.async.mbarrier.arrive.noinc.shared.b64 [%0];" ::"r"(Shared(barrier)):"memory");
@@ -63,6 +79,13 @@ struct Async {
       asm volatile("cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes [%0], [%1], %2, [%3];" ::
           "r"(Shared(destination)),"l"(source),"r"(bytes),"r"(Shared(barrier)):"memory");
   }
+  __device__ static void BulkHint(void* destination,void const* source,unsigned bytes,
+                                  std::uint64_t* barrier,std::uint64_t policy) {
+    if constexpr(Caps::kBulkCopy)
+      asm volatile("cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes.L2::cache_hint [%0], [%1], %2, [%3], %4;" ::
+          "r"(Shared(destination)),"l"(source),"r"(bytes),
+          "r"(Shared(barrier)),"l"(policy):"memory");
+  }
   __device__ static void Tensor2D(void* destination,void const* map,int x,int y,std::uint64_t* barrier) {
     if constexpr(Caps::kTma)
       asm volatile("cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes [%0], [%1, {%2, %3}], [%4];" ::
@@ -73,6 +96,15 @@ struct Async {
       asm volatile("cp.async.bulk.prefetch.L2.global [%0], %1;" ::"l"(source),"r"(bytes):"memory");
     else if constexpr(Caps::kCpAsync)
       asm volatile("prefetch.global.L2 [%0];" ::"l"(source):"memory");
+  }
+  __device__ static void PrefetchEvictLast(void const* source,unsigned bytes) {
+    if constexpr(Caps::kBulkPrefetch) {
+      asm volatile("cp.async.bulk.prefetch.L2.global [%0], %1;" ::
+          "l"(source),"r"(bytes):"memory");
+    } else if constexpr(Caps::kCpAsync) {
+      asm volatile("prefetch.global.L2::evict_last [%0];" ::
+          "l"(source):"memory");
+    }
   }
   __device__ static void WaitPreviousGrid() {
     if constexpr(Caps::kPdl)asm volatile("griddepcontrol.wait;" ::: "memory");

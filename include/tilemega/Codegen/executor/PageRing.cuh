@@ -55,6 +55,14 @@ struct PageRing {
       Copy::Bulk(Page(sequence),source,bytes,barrier);
     }else Copy::Arrive(barrier);
   }
+  __device__ void PublishBulkHint(std::uint64_t sequence,void const* source,
+                                  unsigned bytes,std::uint64_t policy) const {
+    auto* barrier=&slots[SlotIndex(sequence)].full;
+    if(LoaderLane()==0) {
+      Copy::ExpectTx(barrier,bytes);
+      Copy::BulkHint(Page(sequence),source,bytes,barrier,policy);
+    }else Copy::Arrive(barrier);
+  }
   __device__ void AwaitFull(std::uint64_t sequence) const {
     // Independent attention warps can request a slot two generations ahead.
     // Parity alone would accept an old completion; the sequence tag prevents
