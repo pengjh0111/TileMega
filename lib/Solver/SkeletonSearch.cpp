@@ -328,7 +328,8 @@ struct SearchContext {
           source.model.dims.past=past_override;
           source.model.dims.total=source.model.dims.seq+past_override;
         }
-        point.problem=PrepareFlowStructure(source,geometry,target.res.num_sms*residency,kappa,cache,&flow_cache);
+        point.problem=PrepareFlowStructure(source,geometry,target.res.num_sms*residency,kappa,
+            cache,&flow_cache,options.pg_pages);
         last_structure=point.problem;last_geometry=std::move(geometry_key);
       }
     }

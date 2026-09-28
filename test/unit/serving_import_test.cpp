@@ -112,6 +112,19 @@ int TestServingImport(int argc, char** argv) {
       throw std::runtime_error("serving flow omitted a task space");
     std::cout << "SERVING_FLOW spaces=" << flow.flow.spaces.size()
               << " edges=" << flow.flow.edges.size() << '\n';
+    if(serving.phase==tilemega::frontend::ServingOptions::Phase::kDecode) {
+      auto phased=tilemega::solver::PrepareFlowStructure(problem,problem.geometry,
+          target.res.num_sms,1,cache,&prepared,true);
+      int proved=0;
+      for(auto const& edge:phased.data_edges)proved+=edge.first_phase.has_value();
+      if(!proved)throw std::runtime_error("decode K-phase analysis proved no edge");
+      auto priced=tilemega::solver::PrepareFlow(phased,floor,target,1,hop,
+          cache,prepared,true,0,nullptr,nullptr,&value,true,16384);
+      int released=0;
+      for(auto const& edge:priced.flow.edges)released+=edge.phase;
+      if(!released)throw std::runtime_error("proved K-phase edge was not priced");
+      std::cout<<"SERVING_PHASE proved="<<proved<<" released="<<released<<'\n';
+    }
     auto predicted=tilemega::solver::EvaluateFlow(flow.flow);
     if (!std::isfinite(predicted.makespan_ns) ||
         predicted.makespan_ns < value.dram_ns)

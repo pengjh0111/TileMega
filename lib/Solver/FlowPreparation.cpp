@@ -65,7 +65,8 @@ int RuntimeReleaseEndpoint(int cg_last,int consumer_task,int producer_count,
   return last;
 }
 SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<GemmConfig> const& geometry,
-    int workers,int kappa,analysis::CouplingCache& cache,FlowPreparationCache* prepared) {
+    int workers,int kappa,analysis::CouplingCache& cache,FlowPreparationCache* prepared,
+    bool phase_analysis) {
   SymbolicProblem result;result.model=base.model;result.runtime=base.runtime;result.geometry=geometry;result.threads=base.threads;
   result.projection.options={workers,result.threads,kappa};result.projection.options.count_wait_entries=false;
   for(std::size_t i=0;i<geometry.size();++i){auto const& g=geometry[i];auto& r=result.runtime.gemms[i];r.tile_m=g.tile_m;r.tile_n=g.tile_n;r.tile_k=g.tile_k;r.stages=g.stages;r.split_k=g.split_k;}
@@ -153,13 +154,93 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     int physical=sem->op.kind==analysis::OperatorKind::kMatmul && !combine?entry[stage]:done[stage];owners.emplace(node.name,Owner{physical,ownership(declaration,node,result.model.stages[stage]).map});}
   auto edges=cache.Derive(semantics,graph,granularity,{});
   std::map<std::pair<int,int>,std::vector<analysis::CouplingRelation>> grouped;
+  std::map<std::pair<std::string,std::string>,analysis::CouplingRelation> exact_edges;
   for(auto const& edge:edges){auto const& p=owners.at(edge.src.name);auto const& c=owners.at(edge.dst.name);if(p.stage==c.stage)continue;
     std::string key=c.map.ToString()+"\n"+edge.C.ToString()+"\n"+p.map.ToString();
     analysis::CouplingRelation relation;auto found=prepared?prepared->projected.find(key):std::map<std::string,analysis::CouplingRelation>::iterator{};
     if(prepared && found!=prepared->projected.end())relation=found->second;
     else{relation=c.map.ApplyRange(edge.C).ApplyRange(p.map.Reverse()).Reverse();if(prepared)prepared->projected.emplace(std::move(key),relation);}
+    exact_edges.emplace(std::make_pair(edge.src.name,edge.dst.name),relation);
     grouped[{p.stage,c.stage}].push_back(std::move(relation));}
   for(auto const& [pair,relations]:grouped)result.data_edges.push_back({pair.first,pair.second,(relations.size()==1?relations.front():analysis::CouplingRelation::UnionAll(relations))});
+  if(phase_analysis && result.model.serving && result.model.dims.seq==1 && kappa==1) {
+    // Re-lift only the reduction granularity. This analysis graph is never
+    // materialized; exact equality with the executable graph's edge is the
+    // admissibility proof for releasing on the first K tile.
+    auto phased=granularity;
+    for(auto const& sem:result.model.task_semantics) {
+      auto const& stage=result.model.stages.at(sem.stage);
+      if(!sem.op.reduction.splittable || stage.gemm<0)continue;
+      int tk=geometry.at(stage.gemm).tile_k;
+      if(result.model.gemms.at(stage.gemm).k>tk)
+        phased.Split(sem.op.name,analysis::ClosedForm::Constant(tk));
+    }
+    auto phase_graph=analysis::Instantiate(semantics,phased);
+    auto phase_edges=cache.Derive(semantics,phase_graph,phased,{});
+    for(auto const& original:edges) {
+      auto semantic=semantics.Find(original.dst.name);
+      if(!semantic || semantic->kind!=analysis::OperatorKind::kMatmul)continue;
+      auto owner=owners.find(original.dst.name);
+      if(owner==owners.end())continue;
+      auto declaration=std::find_if(result.model.task_semantics.begin(),
+          result.model.task_semantics.end(),[&](auto const& item){
+            return item.op.name==original.dst.name;});
+      if(declaration==result.model.task_semantics.end())continue;
+      auto const& stage=result.model.stages.at(declaration->stage);
+      if(stage.kind!=StageKind::kGemm || stage.gemm<0)continue;
+      auto const& g=geometry.at(stage.gemm);
+      auto const& gemm=result.model.gemms.at(stage.gemm);
+      int kt=(gemm.k+g.tile_k-1)/g.tile_k;
+      int chunks=std::min(g.split_k,kt);
+      if(kt<2 || kt%chunks || result.model.dims.batch>g.tile_m)continue;
+      auto* original_source=graph.Find(original.src.name);
+      if(!original_source || semantic->operands.empty() ||
+         semantic->operands.front().producer!=original.src.name ||
+         original_source->output.name!=semantic->operands.front().tensor.name)
+        continue;
+      std::string phase_source=original.src.name;
+      for(auto const& source_sem:semantics.ops)
+        if((source_sem.name==phase_source ||
+            source_sem.reduction.combiner==phase_source) &&
+           phased.ChunkOf(source_sem.name,nullptr)) {
+          phase_source=source_sem.reduction.combiner;break;
+        }
+      auto candidate=std::find_if(phase_edges.begin(),phase_edges.end(),
+          [&](auto const& e){return e.src.name==phase_source &&
+              e.dst.name==original.dst.name;});
+      if(candidate==phase_edges.end())continue;
+      try {
+        auto* sink=phase_graph.Find(original.dst.name);
+        auto source_owner=owners.at(original.src.name).map;
+        auto phase_owner=ProjectTaskOwnership(*declaration,*sink,stage,result.threads);
+        auto phase_relation=phase_owner.ApplyRange(candidate->C)
+            .ApplyRange(source_owner.Reverse()).Reverse();
+        int group=kt/chunks;
+        std::string head="{ [q] -> [j] : exists (tile,kc,chunk : ";
+        std::string common="q = tile*"+std::to_string(kt)+" + kc and 0 <= kc < "+
+            std::to_string(kt)+" and chunk = floord(kc,"+
+            std::to_string(group)+") and j = tile*"+
+            std::to_string(chunks)+" + chunk";
+        auto all=analysis::CouplingRelation::FromIslText(head+common+") }");
+        auto first=analysis::CouplingRelation::FromIslText(head+common+
+            " and kc = chunk*"+std::to_string(group)+") }");
+        auto projected=phase_relation.ApplyRange(all);
+        auto original_relation=exact_edges.at({original.src.name,original.dst.name});
+        if(!projected.IsSubset(original_relation) ||
+           !original_relation.IsSubset(projected))continue;
+        for(auto& data:result.data_edges)
+          if(data.producer==owners.at(original.src.name).stage &&
+             data.consumer==owner->second.stage &&
+             data.relation.IsSubset(original_relation) &&
+             original_relation.IsSubset(data.relation)) {
+            data.first_phase=phase_relation.ApplyRange(first);
+            data.phase_iterations=group;
+          }
+      }catch(std::exception const&) {
+        // No approximate release is emitted if the symbolic proof fails.
+      }
+    }
+  }
   return result;
 }
 PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor const& floor,
@@ -428,7 +509,23 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
       std::sort(values->begin(),values->end());sorted=values;cache.releases.emplace(key,sorted);
     }
     if(cache.nonprefix.at(key))++result.nonprefix_edges;
-    flow.edges.push_back({p,c,kappa,all,false,std::move(sorted)});
+    std::shared_ptr<std::vector<std::pair<int,int>> const> first;
+    if(paged && data.first_phase && data.phase_iterations>1) {
+      auto phase_oracle=coupling.OracleFor(data.first_phase->ToString());
+      auto values=std::make_shared<std::vector<std::pair<int,int>>>();
+      bool complete=true;
+      for(int j=0;j<problem.counts[c];++j) {
+        int first_last=phase_oracle->reverse.LinearRelease({j},theta).maximum;
+        if(first_last<0) {complete=false;break;}
+        auto full=std::find_if(sorted->begin(),sorted->end(),
+            [&](auto const& item){return item.second==j;});
+        if(full==sorted->end() || first_last>full->first) {complete=false;break;}
+        values->emplace_back(CoarsenRelease(first_last,problem.counts[p],kappa),j);
+      }
+      if(complete) {std::sort(values->begin(),values->end());first=values;}
+    }
+    flow.edges.push_back({p,c,kappa,first?false:all,false,std::move(sorted),
+        bool(first),std::move(first),data.phase_iterations});
   }
   for(auto& e:flow.edges)e.colocated=result.colocated_producer[e.consumer]==e.producer;
   std::vector<int> stages(flow.spaces.size());std::iota(stages.begin(),stages.end(),0);

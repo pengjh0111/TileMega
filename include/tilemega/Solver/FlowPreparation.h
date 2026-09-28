@@ -47,7 +47,8 @@ std::vector<BoundRuntimeWindow> BindRuntimeWindows(
 int RuntimeReleaseEndpoint(int cg_last, int consumer_task, int producer_count,
     std::vector<BoundRuntimeWindow> const& windows, bool force_all);
 SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<GemmConfig> const& geometry,
-    int workers,int kappa,analysis::CouplingCache& cache,FlowPreparationCache* prepared=nullptr);
+    int workers,int kappa,analysis::CouplingCache& cache,FlowPreparationCache* prepared=nullptr,
+    bool phase_analysis=false);
 PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor const& floor,
     TargetSpec const& target,int residency,HopCurve const& hop,
     analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate=true,int kernel_shared_bytes=0,

@@ -5,9 +5,17 @@
 #include <tilemega/Solver/SolverTiming.h>
 #include <tilemega/Solver/TaskModel.h>
 #include <mlir/IR/BuiltinOps.h>
+#include <optional>
 
 namespace tilemega::solver {
-struct SymbolicDataEdge {int producer=0,consumer=0;analysis::CouplingRelation relation;};
+struct SymbolicDataEdge {
+  int producer=0,consumer=0;
+  analysis::CouplingRelation relation;
+  // Only present after an exact ISL projection/equality proof for the first
+  // K phase of this edge. Placement still uses relation in its entirety.
+  std::optional<analysis::CouplingRelation> first_phase;
+  int phase_iterations=1;
+};
 struct SymbolicProblem {
   codegen::RuntimePlan runtime;
   ModelDescription model;
