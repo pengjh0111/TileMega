@@ -8868,3 +8868,11 @@ could deadlock a later L2 launch or allow a KV read too early; the F-338 B16
 hang may also involve another wait. Evidence:
 `docs/experiments/SERVING_R12B/lag_index_evidence.txt`,
 `test/unit/serving_lag_test.cpp`, and commits `2685cccf9`/`41fd3c52a`.
+✅ verified in S-0: a rebuilt Llama B16 paged plan (κ=1) completed 64 L2
+separate launches, including synchronization between the first and second,
+and matched L2 step loop and L1 separate launches on every token and KV
+buffer; the watchdog did not fire. This demonstrates that the repaired
+diagnostic plan no longer hangs, without isolating which old defect caused
+F-338. Evidence: `/root/r12_work/r12b_s0/smoke64/smoke.json` and
+`/root/r12_work/r12b_s0/s0.done`. The required fresh-process protocol and
+end-to-end checks remain queued.
