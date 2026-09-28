@@ -29,7 +29,7 @@ def child(case, output):
             if hashlib.sha256(Path(case[name]).read_bytes()).hexdigest() != expected:
                 raise RuntimeError('protocol binary changed: ' + name)
         if not _exclusive(output/'guard.jsonl', 'before', True):
-            raise RuntimeError('GPU guard rejected protocol check')
+            raise SystemExit(75)
         arms = case.get('arms') or [
             dict(label='reference', prefill=case['reference_prefill'],
                  decode=case['reference_decode'], modes=['L1']),
@@ -39,25 +39,36 @@ def child(case, output):
         for arm in arms:
             label = arm['label']
             modes = arm['modes']
-            with ServingEngine(prefill_so=arm['prefill'], decode_so=arm['decode'],
-                               mode='L1', decode_loop=arm.get('decode_loop', True),
-                               **common) as engine:
-                for mode in modes:
-                    engine.prefill_mode = engine.decode_mode = {'L1':1, 'L2':2}[mode]
-                    print(label,mode,"begin",flush=True)
-                    tokens = engine.generate(prompts, case.get('steps',64)).tokens
-                    if reference is None:
-                        reference = tokens.clone()
-                    mismatches = int((tokens != reference).sum().item())
-                    values = tokens.tolist()
-                    records.append(dict(arm=label, mode=mode,
-                        decode_loop=arm.get('decode_loop', True), mismatches=mismatches,
-                        token_sha256=hashlib.sha256(json.dumps(values).encode()).hexdigest()))
-                    if mismatches:
-                        (output/'mismatch_tokens.json').write_text(json.dumps(values))
+            old_env={name:os.environ.get(name) for name in arm.get('env',{})}
+            os.environ.update(arm.get('env',{}))
+            try:
+                with ServingEngine(prefill_so=arm['prefill'], decode_so=arm['decode'],
+                                   mode='L1', decode_loop=arm.get('decode_loop', True),
+                                   **common) as engine:
+                    try:
+                        for mode in modes:
+                            engine.prefill_mode = engine.decode_mode = {'L1':1, 'L2':2}[mode]
+                            print(label,mode,"begin",flush=True)
+                            tokens = engine.generate(prompts, case.get('steps',64)).tokens
+                            if reference is None:
+                                reference = tokens.clone()
+                            mismatches = int((tokens != reference).sum().item())
+                            values = tokens.tolist()
+                            records.append(dict(arm=label, mode=mode,
+                                decode_loop=arm.get('decode_loop', True), mismatches=mismatches,
+                                token_sha256=hashlib.sha256(json.dumps(values).encode()).hexdigest()))
+                            if mismatches:
+                                (output/'mismatch_tokens.json').write_text(json.dumps(values))
+                    except BaseException:
+                        (output/'watchdog.json').write_text(json.dumps(engine.decode.watchdog(),indent=2)+'\n')
+                        raise
+            finally:
+                for name,value in old_env.items():
+                    if value is None:os.environ.pop(name,None)
+                    else:os.environ[name]=value
             torch.cuda.empty_cache()
         if not _exclusive(output/'guard.jsonl', 'after', False):
-            raise RuntimeError('GPU guard rejected completed protocol check')
+            raise SystemExit(75)
     result = dict(pid=os.getpid(), case=case, records=records,
                   passed=all(r['mismatches']==0 for r in records), performance_measurement=False)
     (output/'result.json').write_text(json.dumps(result,indent=2)+'\n')

@@ -1,51 +1,52 @@
-"""Check complete L1/L2 token equality on one plan instance."""
+"""Check four serving execution arms against the same real-weight prompts."""
 from __future__ import annotations
-
 import argparse
 import json
+import os
 from pathlib import Path
-
 import torch
-
 from .engine import ServingEngine
 from .measure import _exclusive
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=Path, required=True)
-    parser.add_argument("--prefill-so", type=Path, required=True)
-    parser.add_argument("--decode-so", type=Path, required=True)
-    parser.add_argument("--prompt-ids", type=Path, required=True)
-    parser.add_argument("--batch", type=int, required=True)
-    parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--steps", type=int, default=1024)
-    args = parser.parse_args()
-    args.out.mkdir(parents=True, exist_ok=True)
-    rows = json.loads(args.prompt_ids.read_text())
-    prompts = torch.tensor(rows[:args.batch], dtype=torch.int32)
-    with ServingEngine(args.model, args.prefill_so, args.decode_so,
-                       args.batch, mode="L1") as engine:
-        results = {}
-        for mode in ("L1", "L2"):
-            if not _exclusive(args.out / "guard.jsonl", mode + "-before", True):
-                raise RuntimeError("GPU was occupied before the mode check")
-            engine.prefill_mode = engine.decode_mode = {"L1": 1, "L2": 2}[mode]
-            generation = engine.generate(prompts, args.steps)
-            if not _exclusive(args.out / "guard.jsonl", mode + "-after", False):
-                raise RuntimeError("GPU was occupied during the mode check")
-            results[mode] = generation.tokens
-            (args.out / f"tokens_{mode}.json").write_text(
-                json.dumps(generation.tokens.tolist(), separators=(",", ":")) + "\n")
-        mismatch = int((results["L1"] != results["L2"]).sum().item())
-    report = {"batch": args.batch, "tokens": args.batch * args.steps,
-              "mismatches": mismatch, "pass": mismatch == 0,
-              "same_plan_instances": True}
-    (args.out / "mode_check.json").write_text(json.dumps(report, indent=2) + "\n")
+    p=argparse.ArgumentParser()
+    for name in ('model','prefill-so','decode-so','prompt-ids','out'):
+        p.add_argument('--'+name,type=Path,required=True)
+    p.add_argument('--batch',type=int,required=True)
+    p.add_argument('--steps',type=int,default=1024)
+    a=p.parse_args();a.out.mkdir(parents=True,exist_ok=True)
+    torch.cuda.init()
+    guard_allocation=torch.empty(1,device='cuda')
+    prompts=torch.tensor(json.loads(a.prompt_ids.read_text())[:a.batch],dtype=torch.int32)
+    arms=(('L1_separate','L1',False,None),('L2_separate','L2',False,None),
+          ('L2_loop','L2',True,None),('L2_loop_no_phase','L2',True,'0'))
+    results={};mismatches={}
+    for label,mode,loop,mask in arms:
+        if not _exclusive(a.out/'guard.jsonl',label+'-before',True):
+            raise SystemExit(75)
+        previous=os.environ.get('TILEMEGA_KPHASE_MASK')
+        if mask is not None:os.environ['TILEMEGA_KPHASE_MASK']=mask
+        try:
+            with ServingEngine(a.model,a.prefill_so,a.decode_so,a.batch,
+                               max_new_tokens=a.steps,mode=mode,decode_loop=loop) as engine:
+                try:tokens=engine.generate(prompts,a.steps).tokens
+                except BaseException:
+                    (a.out/f'watchdog_{label}.json').write_text(json.dumps(engine.decode.watchdog(),indent=2)+'\n')
+                    raise
+                results[label]=tokens
+                (a.out/f'tokens_{label}.json').write_text(json.dumps(tokens.tolist(),separators=(',',':'))+'\n')
+        finally:
+            if previous is None:os.environ.pop('TILEMEGA_KPHASE_MASK',None)
+            else:os.environ['TILEMEGA_KPHASE_MASK']=previous
+        if not _exclusive(a.out/'guard.jsonl',label+'-after',False):
+            raise SystemExit(75)
+        mismatches[label]=int((results[label]!=results[arms[0][0]]).sum().item())
+    report=dict(batch=a.batch,steps=a.steps,mismatches=mismatches,
+                **{'pass':all(n==0 for n in mismatches.values())})
+    (a.out/'mode_check.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report))
-    if mismatch:
-        raise SystemExit(1)
+    if not report['pass']:raise SystemExit(1)
+    del guard_allocation
 
-
-if __name__ == "__main__":
-    main()
+if __name__=='__main__':main()
