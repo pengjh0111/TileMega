@@ -12,7 +12,13 @@
 #include <stdexcept>
 namespace tilemega::codegen {
 void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int depth,int stride) {
-  if(stride==0)stride=target.CalibrationFor("bf16").l2_prefetch_bytes;
+  if(stride==0) {
+    stride=target.CalibrationFor("bf16").l2_prefetch_bytes;
+    // Targets without the optional L2 sector microbenchmark record zero.
+    // A 128-byte line is the conservative supported codegen fallback; the
+    // explicit CLI coordinate still overrides it for controlled experiments.
+    if(stride==0)stride=128;
+  }
   if(depth<1 || depth>2 || (stride!=32 && stride!=64 && stride!=128))
     throw std::invalid_argument("prefetch depth must be 1/2 and stride 32/64/128");
   auto model=solver::ModelDescription::FromCouplingGraph(module,{0,0,0},"prefetch-frontier");
@@ -85,17 +91,21 @@ void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int pa
   auto runtime=ReadRuntimePlan(module);
   std::vector<std::array<int,3>> gemm_shapes;
   for(auto const& g:runtime.gemms) {
+    if(g.tile_n*g.tile_k*2>page_bytes)
+      throw std::invalid_argument("decode page plan requires one-page GEMM stages");
     if(!solver::PageLayout::StageFits(page_bytes,g.tile_n,g.tile_k))
       throw std::invalid_argument("a GEMM B stage must divide a page or occupy whole pages");
     gemm_shapes.push_back({g.tile_m,g.tile_n,g.tile_k});
   }
-  std::vector<int> attention_widths;
+  std::vector<std::array<int,2>> attention_shapes;
   for(auto a:mlir::cast<mlir::ArrayAttr>(model.get("stages"))) {
     auto stage=mlir::cast<mlir::DictionaryAttr>(a);
     if(mlir::cast<mlir::StringAttr>(stage.get("kind")).getValue()=="kFusedAttention")
-      attention_widths.push_back(mlir::cast<mlir::IntegerAttr>(stage.get("width")).getInt());
+      attention_shapes.push_back({
+          int(mlir::cast<mlir::IntegerAttr>(stage.get("width")).getInt()),
+          int(mlir::cast<mlir::IntegerAttr>(stage.get("group")).getInt())});
   }
-  auto [activation,scratch]=solver::PageLayout::ServingWorkspace(gemm_shapes,attention_widths);
+  auto [activation,scratch]=solver::PageLayout::ServingWorkspace(gemm_shapes,attention_shapes);
   auto layout=solver::PageLayout::Build(target,page_bytes,activation,scratch);
   for(auto const& g:runtime.gemms)
     if(g.tile_n*g.tile_k*2>page_bytes*layout.pages)
@@ -109,6 +119,82 @@ void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int pa
       {"workspace_offset",layout.activation_offset},{"pool_offset",layout.pages_offset},
       {"shared_bytes",layout.shared_bytes},{"activation_bytes",activation},{"scratch_bytes",scratch},
       {"threads",160}})values.set(key,b.getI64IntegerAttr(value));
+  int lookahead=0;
+  if(auto choice=module->getAttrOfType<mlir::IntegerAttr>("tmexec.lookahead_bytes"))
+    lookahead=int(choice.getInt());
+  if(lookahead<0 || lookahead>target.res.l2_bytes/(4*target.res.num_sms))
+    throw std::invalid_argument("L2 lookahead exceeds the per-SM budget");
+  values.set("lookahead_bytes",b.getI64IntegerAttr(lookahead));
   module->setAttr("tmexec.pages",values.getDictionary(module.getContext()));
+}
+
+void ResolveServingWeightPacking(mlir::ModuleOp module) {
+  if (!module->getAttr("tmexec.pages")) return;
+  auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  if (!plan) throw std::invalid_argument("page plan lacks model buffers");
+  auto runtime=ReadRuntimePlan(module);
+  auto old_buffers=plan.getAs<mlir::ArrayAttr>("buffers");
+  auto old_gemms=plan.getAs<mlir::ArrayAttr>("gemms");
+  auto old_stages=plan.getAs<mlir::ArrayAttr>("stages");
+  if (runtime.gemms.size()!=old_gemms.size())
+    throw std::invalid_argument("page geometry does not cover each GEMM");
+  mlir::OpBuilder b(module.getContext());
+  std::vector<mlir::Attribute> buffers(old_buffers.begin(),old_buffers.end());
+  std::vector<mlir::Attribute> gemms(old_gemms.begin(),old_gemms.end());
+  std::vector<mlir::Attribute> stages(old_stages.begin(),old_stages.end());
+  std::map<std::tuple<int,int,int>,int> packed;
+  for (std::size_t i=0;i<gemms.size();++i) {
+    auto g=mlir::cast<mlir::DictionaryAttr>(gemms[i]);
+    int source=mlir::cast<mlir::IntegerAttr>(g.get("b")).getInt();
+    int n=mlir::cast<mlir::IntegerAttr>(g.get("n")).getInt();
+    int k=mlir::cast<mlir::IntegerAttr>(g.get("k")).getInt();
+    int tn=runtime.gemms[i].tile_n,tk=runtime.gemms[i].tile_k;
+    if(source<0 || source>=int(old_buffers.size()) || tn<=0 || tk<=0)
+      throw std::invalid_argument("invalid page weight source or tile");
+    auto original=mlir::cast<mlir::DictionaryAttr>(old_buffers[source]);
+    auto recipe=original.getAs<mlir::StringAttr>("pack_json");
+    if(!recipe || recipe.getValue().empty())
+      throw std::invalid_argument("page weight lacks a packing recipe");
+    if(recipe.getValue().starts_with("{\"kind\":\"tile_pages\"")) continue;
+    auto key=std::make_tuple(source,tn,tk);
+    int destination;
+    if(auto found=packed.find(key);found!=packed.end()) destination=found->second;
+    else {
+      destination=int(buffers.size());
+      auto name=original.getAs<mlir::StringAttr>("name").getValue().str()+
+          "@t"+std::to_string(tn)+"x"+std::to_string(tk);
+      auto nested="{\"kind\":\"tile_pages\",\"tile_n\":"+
+          std::to_string(tn)+",\"tile_k\":"+std::to_string(tk)+
+          ",\"source\":"+recipe.getValue().str()+"}";
+      mlir::NamedAttrList updated(original);
+      updated.set("name",b.getStringAttr(name));
+      updated.set("external_name",b.getStringAttr(name));
+      updated.set("constant",b.getI64IntegerAttr(
+          std::int64_t((n+tn-1)/tn)*((k+tk-1)/tk)*tn*tk));
+      updated.set("pack_json",b.getStringAttr(nested));
+      buffers.push_back(updated.getDictionary(module.getContext()));
+      packed.emplace(key,destination);
+    }
+    mlir::NamedAttrList rewritten(g);
+    rewritten.set("b",b.getI64IntegerAttr(destination));
+    gemms[i]=rewritten.getDictionary(module.getContext());
+    for(auto& attr:stages) {
+      auto stage=mlir::cast<mlir::DictionaryAttr>(attr);
+      if(stage.getAs<mlir::StringAttr>("kind").getValue()!="kGemm" ||
+         mlir::cast<mlir::IntegerAttr>(stage.get("gemm")).getInt()!=int(i)) continue;
+      auto ids=mlir::cast<mlir::DenseI64ArrayAttr>(stage.get("operands")).asArrayRef();
+      std::vector<std::int64_t> operands(ids.begin(),ids.end());
+      for(auto& id:operands) if(id==source) id=destination;
+      mlir::NamedAttrList changed(stage);
+      changed.set("operands",b.getDenseI64ArrayAttr(operands));
+      attr=changed.getDictionary(module.getContext());
+    }
+  }
+  mlir::NamedAttrList updated(plan);
+  updated.set("buffers",b.getArrayAttr(buffers));
+  updated.set("gemms",b.getArrayAttr(gemms));
+  updated.set("stages",b.getArrayAttr(stages));
+  module->setAttr("tilemega.model_plan",updated.getDictionary(module.getContext()));
+  module->setAttr("tmexec.weight_layout_tiled",b.getBoolAttr(true));
 }
 }

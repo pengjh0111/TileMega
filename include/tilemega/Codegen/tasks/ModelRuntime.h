@@ -161,10 +161,8 @@ struct GemmDesc {
   // 3 argmax partial. Legacy initializers keep the store default.
   std::uint32_t serving_epilogue = 0;
   std::uint32_t serving_argmax_index = 0xffffffffu;
-  // Optional recompute handoff: read the producer's original row and scale
-  // directly in the paged GEMM activation loader.
-  std::uint32_t serving_norm_input = 0xffffffffu;
-  std::uint32_t serving_norm_weight = 0xffffffffu;
+  std::uint32_t serving_norm_ss = 0xffffffffu;
+  std::uint32_t serving_ss_out = 0xffffffffu;
 };
 
 /// One GEMM implementation selected by a runtime model variant.  The tile
@@ -288,12 +286,27 @@ struct StageDependency {
   enum class Map : std::uint32_t {
     kIdentity = 0,
     kAll = 1,
-    kWindow = 2
+    kWindow = 2,
+    kPhase = 3
   } map;
   std::uint32_t div;
   std::int32_t scale;
   std::int32_t offset;
   std::uint32_t count;
+  std::uint32_t phase_tiles = 0;
+};
+struct PhaseGateDesc {
+  std::uint32_t producer = kNoOperand;
+  std::uint32_t div = 1;
+  std::int32_t scale = 0, offset = 0;
+  std::uint32_t count = 0, phase_tiles = 0;
+  bool enabled = false;
+};
+// Cross-step edges are separate from the acyclic intra-step task graph.
+struct LagDependency {
+  enum class Kind : std::uint32_t { kToken=0,kHistoricalKv=1 };
+  std::uint32_t producer_l2,producer_l1,consumer;
+  Kind kind;
 };
 
 /// One stage in the solver-produced order for a runtime variant.  Task counts
@@ -708,6 +721,8 @@ struct Params {
   // once per serving plan and reset by the final arriving producer CTA.
   unsigned* serving_handoff_tickets = nullptr;
   std::uint32_t serving_handoff_ticket_stride = 0;
+  LagDependency const* lag_dependencies = nullptr;
+  std::uint32_t lag_dependency_count = 0;
 };
 
 /// Everything the generator emits about one model.  The harness reads only

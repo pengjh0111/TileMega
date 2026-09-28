@@ -28,7 +28,9 @@ __device__ inline void Task(Params const& p,unsigned stage_index,int task,unsign
     using E=cutlass::bfloat16_t;
     int blocks=CeilDiv(p.dims.capacity,s.attention_kv_block);
     int qb=CeilDiv(int(s.group)*p.dims.seq,s.attention_query_rows);
-    auto point=DecodeServingAttentionTask(task,qb,s.extent,blocks);
+    auto point=p.dims.seq==1
+        ? DecodeServingAttentionTaskGMajor(task,p.dims.batch,blocks)
+        : DecodeServingAttentionTask(task,qb,s.extent,blocks);
     ServingAttentionOperands op{};op.key_cache=reinterpret_cast<E*>(p.buffers[s.operand[1]]);
     op.value_cache=reinterpret_cast<E*>(p.buffers[s.operand[2]]);op.past=p.dims.past;
     op.heads_kv=s.extent;op.capacity=p.dims.capacity;op.block_extent=s.attention_kv_block;
@@ -52,6 +54,11 @@ __device__ inline void NextStage(Params const& p,unsigned stage) {
 }
 // Same monotonically counted grid event; only its wait is delayed.
 __device__ inline void Arrive(EventCounter* events,unsigned stage,unsigned long long iteration) {
+#if TILEMEGA_SYNC_V3
+  (void)iteration;
+  executor::ComputeSync();
+  if(executor::ComputeThread()==0)RedRelease(&events[stage].arrivals,1ull);
+#else
   __threadfence();executor::ComputeSync();
   if(executor::ComputeThread()==0) {
     auto ticket=atomicAdd(&events[stage].arrivals,1ull);
@@ -59,9 +66,16 @@ __device__ inline void Arrive(EventCounter* events,unsigned stage,unsigned long 
       __threadfence();TILEMEGA_GENERATED_NOTIFY_global(&events[stage].epoch,iteration+1);
     }
   }
+#endif
 }
 __device__ inline void Wait(EventCounter* events,unsigned stage,unsigned long long iteration) {
+#if TILEMEGA_SYNC_V3
+  if(executor::ComputeThread()==0)WaitAtLeast(&events[stage].arrivals,
+      static_cast<unsigned long long>(gridDim.x)*(iteration+1));
+  executor::ComputeSync();
+#else
   if(executor::ComputeThread()==0)GradedWait(&events[stage].epoch,iteration+1);
   executor::ComputeSync();__threadfence();
+#endif
 }
 } // namespace prefetch

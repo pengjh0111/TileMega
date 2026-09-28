@@ -7,6 +7,7 @@
 #include <vector>
 #include <map>
 #include <string>
+#include <optional>
 
 namespace mlir { class ModuleOp; }
 namespace tilemega::codegen {
@@ -15,6 +16,8 @@ struct DependencyRecord {
   std::uint32_t producer;
   std::uint32_t consumer;
   analysis::WaitWindow window;
+  std::optional<analysis::WaitWindow> phase_window;
+  int phase_tiles = 0;
 };
 
 struct GemmRuntimeRecord {

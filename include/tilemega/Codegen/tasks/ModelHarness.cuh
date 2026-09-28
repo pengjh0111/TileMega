@@ -14,6 +14,12 @@
 #ifndef TILEMEGA_L2_PREFETCH
 #define TILEMEGA_L2_PREFETCH 0
 #endif
+#ifndef TILEMEGA_KPHASE
+#define TILEMEGA_KPHASE 1
+#endif
+#ifndef TILEMEGA_KPHASE_CLASS_MASK
+#define TILEMEGA_KPHASE_CLASS_MASK 31
+#endif
 #include <tilemega/Codegen/tasks/EventSync.cuh>
 #include <tilemega/Codegen/tasks/Benchmark.cuh>
 #include <tilemega/Codegen/ResidentSchedule.h>
@@ -302,7 +308,9 @@ __device__ inline void RunServingScalarTask(Params const& p,
           reinterpret_cast<BF16 const*>(buffer(stage.operand[1])),
           reinterpret_cast<BF16*>(buffer(stage.operand[2])), row,
           p.dims.seq, p.dims.past, p.dims.capacity,
-          int(stage.width), int(stage.extent));
+          int(stage.width), int(stage.extent),
+          stage.operand[3]==kNoOperand?nullptr:
+              reinterpret_cast<float*>(buffer(stage.operand[3])));
       return;
     case TaskKind::kRMSNorm:
       ServingRMSNormTaskBody::RunRow(
@@ -339,8 +347,9 @@ __device__ inline void RunServingAttentionTask(Params const& p,
   int cache_blocks = CeilDiv(p.dims.capacity, stage.attention_kv_block);
   int query_blocks = CeilDiv(int(stage.group) * p.dims.seq,
                              stage.attention_query_rows);
-  auto coordinate = DecodeServingAttentionTask(
-      task, query_blocks, int(stage.extent), cache_blocks);
+  auto coordinate = p.dims.seq==1
+      ? DecodeServingAttentionTaskGMajor(task,p.dims.batch,cache_blocks)
+      : DecodeServingAttentionTask(task,query_blocks,int(stage.extent),cache_blocks);
   int cache_block = coordinate.cache_block;
   int group = coordinate.group;
   int query_block = coordinate.query_block;
@@ -367,8 +376,8 @@ __device__ inline void RunServingAttentionTask(Params const& p,
 
 __device__ inline void RunServingMergeTask(Params const& p,
                                             StageDesc const& stage, int task) {
-  int group = task % int(stage.extent);
-  int batch = task / int(stage.extent);
+  int group = p.dims.seq==1 ? task/p.dims.batch : task%int(stage.extent);
+  int batch = p.dims.seq==1 ? task%p.dims.batch : task/int(stage.extent);
   T_ServingMerge::Run(
       reinterpret_cast<float const*>(p.buffers[stage.operand[0]]),
       reinterpret_cast<float const*>(p.buffers[stage.operand[1]]),
@@ -860,7 +869,8 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
       int const produced = ActiveBlocks(p, p.stages[producer]);
       int const live = ActiveBlocksClamped(p, producer);
       int const k = StageKappa(p, producer);
-      if (dep.map == StageDependency::Map::kAll) {
+      if (dep.map == StageDependency::Map::kAll ||
+          dep.map == StageDependency::Map::kPhase) {
         for (int group = 0; group <= (live - 1) / k; ++group)
           poll(producer, group);
       } else {
@@ -913,7 +923,9 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
     }
   }
   __syncthreads();
+#if !TILEMEGA_SYNC_V3
   __threadfence();
+#endif
 }
 
 /// Queue form of the wait: every row was already narrowed, converted to event
@@ -929,6 +941,16 @@ __device__ inline void WaitTaskDependencies(Params const& p,
   (void)events;
   (void)task;
   (void)iteration;
+  return;
+#endif
+#if TILEMEGA_SYNC_V3
+  for(std::uint32_t i=threadIdx.x;i<task.wait_count;i+=blockDim.x) {
+    TaskWait const& wait=p.task_waits[task.wait_begin+i];
+    WaitAtLeast(&events[EventIndex(p,wait.producer,wait.group)].arrivals,
+                EventTriggers(p,wait.producer,wait.group)*(iteration+1ull));
+  }
+  // Unconditional: this also separates adjacent tasks when there are no waits.
+  __syncthreads();
   return;
 #endif
   for (std::uint32_t i = threadIdx.x; i < task.wait_count;
@@ -978,7 +1000,11 @@ __device__ inline bool ProbeTaskDependencies(Params const& p,
   int mine = 1;
   for (std::uint32_t i = threadIdx.x; i < task.wait_count; i += blockDim.x) {
     TaskWait const& wait = p.task_waits[task.wait_begin + i];
-#if TILEMEGA_EVENT_RED_PUBLISH
+#if TILEMEGA_SYNC_V3
+    if (LoadAcquire(&events[EventIndex(p,wait.producer,wait.group)].arrivals) <
+        EventTriggers(p,wait.producer,wait.group)*(iteration+1ull))
+      mine=0;
+#elif TILEMEGA_EVENT_RED_PUBLISH
     if (EventPoll(&events[EventIndex(p, wait.producer, wait.group)].arrivals) <
         EventTriggers(p, wait.producer, wait.group) * (iteration + 1ull))
       mine = 0;
@@ -1013,7 +1039,9 @@ __device__ inline std::uint32_t WindowAcquireSlot(
     if (blocked) continue;
     TaskRef const candidate = p.schedule[head + k];
     if (ProbeTaskDependencies(p, events, candidate, iteration)) {
+#if !TILEMEGA_SYNC_V3
       if (candidate.wait_count != 0) __threadfence();
+#endif
       return head + k;
     }
   }
@@ -1028,6 +1056,11 @@ __device__ inline std::uint32_t WindowAcquireSlot(
 __device__ inline void ArriveEvent(Params const& p, EventCounter* events,
                                     std::uint32_t index, int members,
                                     unsigned long long iteration) {
+#if TILEMEGA_SYNC_V3
+  (void)p;(void)members;(void)iteration;
+  RedRelease(&events[index].arrivals,1ull);
+  return;
+#endif
   unsigned long long triggers = static_cast<unsigned long long>(members);
 #if TILEMEGA_EVENT_SHARDED
   // The one-member and S=1 cases are the exact one-level degeneracy. Avoid
@@ -1137,6 +1170,23 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
 #endif
     return;
   }
+#if TILEMEGA_SYNC_V3
+  // CTA writes precede the release reduction; the waiting CTA's acquire load
+  // and following CTA barrier order ordinary and cp.async proxy reads.
+  __syncthreads();
+  if(threadIdx.x==0) {
+    int produced=ActiveBlocks(p,p.stages[producer]);
+    if(event_flags&kNeedsFineEvents) {
+      int k=StageKappa(p,producer),group=logical_task/k;
+      ArriveEvent(p,events,EventIndex(p,producer,group),
+                  produced-group*k<k?produced-group*k:k,iteration);
+    }
+    if(event_flags&kNeedsAggregateEvent)
+      ArriveEvent(p,events,EventIndex(p,producer,kWholeStageEventGroup),
+                  produced,iteration);
+  }
+  return;
+#endif
 #if !TILEMEGA_RELEASE_AFTER_BARRIER && !TILEMEGA_UNSAFE_NO_NOTIFY_FENCE
   __threadfence();
 #endif
@@ -1227,7 +1277,16 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
 
 __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
                                    unsigned long long iteration) {
-#if TILEMEGA_UNSAFE_NO_GRID_SYNC
+#if TILEMEGA_SYNC_V3 && !TILEMEGA_UNSAFE_NO_GRID_SYNC
+  __syncthreads();
+  if(threadIdx.x==0) {
+    RedRelease(&events[stage].arrivals,1ull);
+    WaitAtLeast(&events[stage].arrivals,
+                static_cast<unsigned long long>(gridDim.x)*(iteration+1ull));
+  }
+  __syncthreads();
+  return;
+#elif TILEMEGA_UNSAFE_NO_GRID_SYNC
   (void)events; (void)stage; (void)iteration;
   __threadfence();
   __syncthreads();
@@ -1620,7 +1679,8 @@ void tilemega_wait_profile_kernel(Params const* params, int seq) {
       int const owned = ActiveBlocks(p, p.stages[consumer]);
       for (int c = 0; c < consumers; ++c) {
         if (kappa == 0) { polls += 1; continue; }
-        if (dep.map == StageDependency::Map::kAll) {
+        if (dep.map == StageDependency::Map::kAll ||
+            dep.map == StageDependency::Map::kPhase) {
           polls += groups;
           continue;
         }
@@ -2000,11 +2060,18 @@ inline DeviceModel Create(ModelSpec const& spec,
         throw std::invalid_argument("unknown serving GEMM epilogue");
       invocation.serving_weight_buffer=desc.b;
       invocation.serving_k_begin=k_begin;
-      if (desc.serving_norm_input != kNoOperand ||
-          desc.serving_norm_weight != kNoOperand)
-        throw std::invalid_argument("R12 decode does not use recompute handoffs");
+      invocation.serving_weight_base=model.buffers[desc.b];
+      invocation.serving_k_total_full=desc.k;
+      invocation.serving_tile_k=tiling.tile_k;
+      invocation.serving_norm_ss=desc.serving_norm_ss==kNoOperand?nullptr:
+          reinterpret_cast<float const*>(model.buffers.at(desc.serving_norm_ss));
+      invocation.serving_ss_out=desc.serving_ss_out==kNoOperand?nullptr:
+          reinterpret_cast<float*>(model.buffers.at(desc.serving_ss_out));
       invocation.serving_op = static_cast<backend::ServingEpilogueOp>(
           desc.serving_epilogue);
+      invocation.serving_phase_class = desc.serving_epilogue == 3 ? 4 :
+          desc.serving_epilogue == 2 ? 2 :
+          desc.serving_epilogue == 1 ? (desc.k > desc.n ? 3 : 1) : 0;
       invocation.serving_argmax_index =
           desc.serving_argmax_index == kNoOperand ? nullptr :
           reinterpret_cast<int*>(model.buffers.at(desc.serving_argmax_index));
@@ -2151,7 +2218,8 @@ inline DeviceModel Create(ModelSpec const& spec,
       std::uint32_t const producer = edge.producer;
       edge.producer = done[producer];
       edge.consumer = entry[i];
-      if (attention_chunks[i] > 1 && edge.map != StageDependency::Map::kAll) {
+      if (attention_chunks[i] > 1 && edge.map != StageDependency::Map::kAll &&
+          edge.map != StageDependency::Map::kPhase) {
         if (edge.div > std::numeric_limits<std::uint32_t>::max()/attention_chunks[i]) {
           std::fprintf(stderr,"attention dependency divisor overflow\n"); std::exit(2);
         }
@@ -2178,6 +2246,22 @@ inline DeviceModel Create(ModelSpec const& spec,
   std::vector<std::uint32_t> offsets(model.stages.size() + 1, 0);
   for (auto const& edge : dependencies) ++offsets[edge.consumer + 1];
   for (std::size_t i = 1; i < offsets.size(); ++i) offsets[i] += offsets[i - 1];
+  for(auto const& edge:dependencies)if(edge.map==StageDependency::Map::kPhase) {
+    if(edge.phase_tiles<2 || model.stages[edge.consumer].kind!=TaskKind::kGemm ||
+       edge.div==0 || edge.count==0)
+      throw std::invalid_argument("invalid K-phase gate");
+    auto& stage=model.stages[edge.consumer];
+    auto& first=gemms[stage.gemm];
+    if(first.tiles_m!=1)
+      throw std::invalid_argument("K-phase consumer has multiple M tiles");
+    for(int chunk=0;chunk<first.chunks;++chunk) {
+      auto& inv=gemms[stage.gemm+chunk];
+      if(inv.serving_phase_gate.enabled)
+        throw std::invalid_argument("GEMM has multiple K-phase producers");
+      inv.serving_phase_gate={edge.producer,edge.div,edge.scale,edge.offset,
+                              edge.count,edge.phase_tiles,true};
+    }
+  }
 
   // Expand the solver's variant schedule around host-inserted split-K
   // combiners, then prove the concrete stage order is acyclic before a kernel
@@ -2404,7 +2488,9 @@ inline DeviceModel Create(ModelSpec const& spec,
   std::vector<RuntimeDependencyWindow> plan_windows;
   for (auto const& edge:dependencies)
     plan_windows.push_back({static_cast<int>(edge.producer),static_cast<int>(edge.consumer),
-        edge.map==StageDependency::Map::kAll,edge.div,edge.scale,edge.offset,edge.count});
+        edge.map==StageDependency::Map::kAll ||
+          edge.map==StageDependency::Map::kPhase,
+        edge.div,edge.scale,edge.offset,edge.count});
   auto const runtime_graph=MaterializeRuntimeTaskGraph(plan_counts,plan_windows,grid);
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
   model.trace_runtime_dependencies = dependencies;
@@ -2534,8 +2620,15 @@ inline DeviceModel Create(ModelSpec const& spec,
   };
   model.event_offsets.resize(model.stages.size() + 1, 0);
   model.event_flags.resize(model.stages.size(), 0);
-  for (StageDependency const& dep : dependencies) {
+  for(std::uint32_t consumer=0;consumer<model.stages.size();++consumer)
+  for(std::uint32_t edge=offsets[consumer];edge<offsets[consumer+1];++edge) {
+    if(model.stages[consumer].handoff_elided)continue;
+    StageDependency const& dep=dependencies[edge];
 #if TILEMEGA_EVENT_KAPPA > 0
+    if(dep.map==StageDependency::Map::kPhase) {
+      model.event_flags[dep.producer]|=kNeedsFineEvents|kNeedsAggregateEvent;
+      continue;
+    }
     if (force_all_dependencies || dep.map == StageDependency::Map::kAll)
       model.event_flags[dep.producer] |= kNeedsAggregateEvent;
     else
@@ -2544,6 +2637,19 @@ inline DeviceModel Create(ModelSpec const& spec,
     model.event_flags[dep.producer] |= kNeedsAggregateEvent;
 #endif
   }
+#if TILEMEGA_SERVING_RUNTIME && TILEMEGA_PAGED
+  // Lag-one safety rows: the next decode iteration reads the token and the
+  // historical KV row produced by this one. These rows are deliberately not
+  // ordinary forward task dependencies.
+  for(std::uint32_t stage=0;stage<model.stages.size();++stage) {
+    auto const& desc=model.stages[stage];
+    if(desc.kind==TaskKind::kArgmaxReduce ||
+       (desc.kind==TaskKind::kFusedAttention &&
+        desc.handoff_reduce_stage==kNoOperand) ||
+       (desc.kind==TaskKind::kAttentionMerge && desc.handoff_elided))
+      model.event_flags[stage]|=kNeedsAggregateEvent;
+  }
+#endif
   for (std::uint32_t stage = 0; stage < model.stages.size(); ++stage) {
     int const count = active_tasks(stage);
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
@@ -2655,6 +2761,7 @@ inline DeviceModel Create(ModelSpec const& spec,
     // and `plan.queue[worker]` is already sorted by it (§5.7.2).
     for (auto const& item : plan.queue[worker]) {
       std::uint32_t const stage = item.stage;
+      if(model.stages[stage].handoff_elided)continue;
       int const logical = item.logical;
       {
         TaskRef task{};
@@ -2682,7 +2789,13 @@ inline DeviceModel Create(ModelSpec const& spec,
                   model.schedule_max_worker_span,
                   static_cast<std::uint32_t>(producer_worker - worker));
           };
-          if (force_all_dependencies || dep.map == StageDependency::Map::kAll) {
+          // The K-phase ablation restores the proven full-edge wait. Merely
+          // disabling the device gate would otherwise remove the dependency.
+          if(dep.map==StageDependency::Map::kPhase && TILEMEGA_PAGED && TILEMEGA_KPHASE &&
+             (TILEMEGA_KPHASE_CLASS_MASK &
+              (1u<<gemms[model.stages[stage].gemm].serving_phase_class)))continue;
+          if (force_all_dependencies || dep.map == StageDependency::Map::kAll ||
+              dep.map == StageDependency::Map::kPhase) {
             model.schedule_has_global_fanin = true;
             desired.emplace(dep.producer, kWholeStageEventGroup);
             int const latest = stage_max_producer_worker[dep.producer];
@@ -2712,7 +2825,8 @@ inline DeviceModel Create(ModelSpec const& spec,
               // wider window may start the two in either order, so only a
               // producer the window cannot reach is still discharged by FIFO.
               // The rest become local dependencies rather than global polls.
-              if (stage_kappa(dep.producer) == 1 && owner == worker) {
+              if (!model.stages[dep.producer].handoff_elided &&
+                  stage_kappa(dep.producer) == 1 && owner == worker) {
                 int const producer_slot =
                     plan.slot[dep.producer][producer_task];
                 int const consumer_slot = plan.slot[stage][logical];

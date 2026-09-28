@@ -550,16 +550,14 @@ std::string emitModelPlan(mlir::ModuleOp module,
           return value.getInt();
         return -1;
       };
-      auto norm_input=optional_buffer("norm_input");
-      auto norm_weight=optional_buffer("norm_weight");
-      if((norm_input<0)!=(norm_weight<0))
-        throw std::invalid_argument("recompute GEMM needs both normalization operands");
-      if(norm_input>=int64_t(buffers.size()) || norm_weight>=int64_t(buffers.size()))
-        throw std::invalid_argument("recompute GEMM normalization buffer outside model");
-      out << ", " << (norm_input<0?std::string("kNoOperand"):
-                          std::to_string(norm_input)+"u")
-          << ", " << (norm_weight<0?std::string("kNoOperand"):
-                          std::to_string(norm_weight)+"u");
+      auto norm_ss=optional_buffer("norm_ss");
+      auto ss_out=optional_buffer("ss_out");
+      if(norm_ss>=int64_t(buffers.size()) || ss_out>=int64_t(buffers.size()))
+        throw std::invalid_argument("deferred norm buffer outside model");
+      out << ", " << (norm_ss<0?std::string("kNoOperand"):
+                          std::to_string(norm_ss)+"u")
+          << ", " << (ss_out<0?std::string("kNoOperand"):
+                          std::to_string(ss_out)+"u");
     }
     out << "},\n";
   }
@@ -652,12 +650,13 @@ std::string emitModelPlan(mlir::ModuleOp module,
           << "u, " << impl.stages << "u},\n";
     out << "};\n\nconstexpr StageDependency kDependencies" << v << "[] = {\n";
     for (auto const& edge : variant.dependencies) {
-      analysis::WaitWindow const& w = edge.window;
-      char const* kind = !w.narrowed ? "kAll"
+      analysis::WaitWindow const& w = edge.phase_window?*edge.phase_window:edge.window;
+      char const* kind = edge.phase_window?"kPhase":!w.narrowed ? "kAll"
                          : w.IsIdentity() ? "kIdentity" : "kWindow";
       out << "  {" << edge.producer << "u, " << edge.consumer
           << "u, StageDependency::Map::" << kind << ", " << w.div << "u, "
-          << w.scale << ", " << w.offset << ", " << w.count << "u},\n";
+          << w.scale << ", " << w.offset << ", " << w.count << "u, "
+          << edge.phase_tiles << "u},\n";
     }
     if (variant.dependencies.empty())
       out << "  {0u, 0u, StageDependency::Map::kAll, 1u, 0, 0, 1u},\n";
@@ -792,6 +791,31 @@ std::string emitModelPlan(mlir::ModuleOp module,
         << variants[v].seq_end << "u; ++s) table[s] = " << v << "u;\n";
   out << "  return table;\n}\n"
       << "constexpr auto kSeqVariant = MakeSeqVariant();\n\n"
+      << "constexpr LagDependency kLagDependencies[] = {\n";
+  std::vector<std::string> lag_kinds;
+  lag_kinds.reserve(stages.size());
+  for(auto value:stages)
+    lag_kinds.push_back(stringField(dictionaryEntry(value,"stages"),"kind"));
+  std::size_t lag_count=0;
+  for(std::size_t i=0;i<lag_kinds.size();++i) {
+    if(lag_kinds[i]=="kFusedAttention") {
+      auto l2=i+1<lag_kinds.size() && lag_kinds[i+1]=="kAttentionMerge"?i+1:i;
+      out<<"  {"<<l2<<"u, "<<i<<"u, "<<i
+         <<"u, LagDependency::Kind::kHistoricalKv},\n";
+      ++lag_count;
+    }else if(lag_kinds[i]=="kArgmaxReduce") {
+      auto embed=std::find(lag_kinds.begin(),lag_kinds.end(),"kEmbedding");
+      if(embed!=lag_kinds.end()) {
+        out<<"  {"<<i<<"u, "<<i<<"u, "
+           <<std::distance(lag_kinds.begin(),embed)
+           <<"u, LagDependency::Kind::kToken},\n";
+        ++lag_count;
+      }
+    }
+  }
+  if(!lag_count)
+    out<<"  {0u,0u,0u,LagDependency::Kind::kToken},\n";
+  out<<"};\nconstexpr std::uint32_t kLagDependencyCount = "<<lag_count<<"u;\n\n"
       << "constexpr ModelSpec kModel = {kDims, ScalarType::"
       << (dtype == "bf16" ? "kBF16" : "kF32") << ", kBuffers, "
       << buffers.size() << "u, kGemms, " << gemms.size()
@@ -1220,10 +1244,14 @@ std::string emitSolvedLaunch(mlir::ModuleOp module) {
   }
   if(auto pages=module->getAttrOfType<mlir::DictionaryAttr>("tmexec.pages")) {
     out<<"#define TILEMEGA_PAGED 1\n";
+    if(module->getAttrOfType<mlir::BoolAttr>("tmexec.weight_layout_tiled"))
+      out<<"#define TILEMEGA_WEIGHT_LAYOUT_TILED 1\n";
     for(auto const& [field,macro]:std::vector<std::pair<char const*,char const*>>{
         {"page_bytes","TILEMEGA_PAGE_BYTES"},{"pages","TILEMEGA_PAGE_COUNT"},
-        {"workspace_offset","TILEMEGA_PAGE_WORKSPACE_OFFSET"},{"pool_offset","TILEMEGA_PAGE_POOL_OFFSET"}})
-      out<<"#define "<<macro<<' '<<integerField(pages,field)<<'\n';
+        {"workspace_offset","TILEMEGA_PAGE_WORKSPACE_OFFSET"},{"pool_offset","TILEMEGA_PAGE_POOL_OFFSET"},
+        {"lookahead_bytes","TILEMEGA_LOOKAHEAD_BYTES"}})
+      out<<"#define "<<macro<<' '
+         <<(pages.get(field)?integerField(pages,field):0)<<'\n';
   }
   for (auto const& [attr,macro]:std::vector<std::pair<char const*,char const*>>{
       {"tmexec.solved_kappa","TILEMEGA_EVENT_KAPPA"},
@@ -1456,6 +1484,20 @@ std::string CouplingGraphToCUDA::LowerVariants(
     record.balanced_placement = readBalancedPlacement(input.module);
     record.plan = readPlacementPlan(input.module);
     record.dependencies = std::move(runtime_plan.dependencies);
+    if(auto phase=input.module->getAttrOfType<mlir::ArrayAttr>("tmexec.phase_edges"))
+      for(auto item:phase) {
+        auto fields=mlir::cast<mlir::DictionaryAttr>(item);
+        int p=integerField(fields,"producer"),c=integerField(fields,"consumer");
+        auto window=analysis::ParseWaitWindow(stringField(fields,"window"));
+        int kt=integerField(fields,"phase_tiles");
+        if(!window.narrowed || kt<2)continue;
+        for(auto& edge:record.dependencies)
+          if(int(edge.producer)==p && int(edge.consumer)==c) {
+            if(edge.phase_window && (*edge.phase_window!=window || edge.phase_tiles!=kt)) {
+              edge.phase_window.reset();edge.phase_tiles=0;
+            }else {edge.phase_window=window;edge.phase_tiles=kt;}
+          }
+      }
     record.gemms = std::move(runtime_plan.gemms);
     record.attention = std::move(runtime_plan.attention);
     if (record.gemms.size() != gemm_count)

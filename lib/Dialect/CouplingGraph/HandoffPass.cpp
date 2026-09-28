@@ -9,6 +9,8 @@
 #include <mlir/IR/Verifier.h>
 #include <mlir/Pass/Pass.h>
 #include <mlir/Pass/PassRegistry.h>
+#include <llvm/Support/raw_ostream.h>
+#include <cstdlib>
 #include <stdexcept>
 #include <vector>
 namespace tilemega::dialect {
@@ -333,6 +335,9 @@ void LowerServingHandoffStages(mlir::ModuleOp module) {
         if(stage_kind(p)=="kFusedAttention" && stage_kind(c)=="kAttentionMerge") {
           stages[p].set("handoff_reduce_stage",b.getI64IntegerAttr(c));
           stages[c].set("handoff_elided",b.getBoolAttr(true));
+        } else if(stage_kind(p)=="kGemm" && stage_kind(c)=="kArgmaxReduce") {
+          stages[p].set("handoff_reduce_stage",b.getI64IntegerAttr(c));
+          stages[c].set("handoff_elided",b.getBoolAttr(true));
         } else if(p==c && stage_kind(p)=="kGemm") {
           // Split-K's combine is expanded after the logical stage table is
           // read. The sentinel resolves to that generated reducer slot.
@@ -415,6 +420,9 @@ ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
     else if((selected_classes&2) && pair.first==pair.second &&
             kind(pair.first)=="kGemm")
       choice="last_arriver";
+    else if((selected_classes&2) && kind(pair.first)=="kGemm" &&
+            kind(pair.second)=="kArgmaxReduce")
+      choice="last_arriver";
     else continue;
     if((pass==0)!=(choice=="recompute"))continue;
     mlir::OperationState decision(edge.getLoc(),HandoffOp::getOperationName());
@@ -423,7 +431,12 @@ ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
     decision.addAttribute("kind",b.getStringAttr(choice));
     auto handoff=mlir::cast<HandoffOp>(b.create(decision));
     try {(void)VerifyHandoffAccess(handoff);}
-    catch(std::invalid_argument const&) {handoff.erase();continue;}
+    catch(std::invalid_argument const& error) {
+      if(std::getenv("TILEMEGA_HANDOFF_TRACE"))
+        llvm::errs()<<"HANDOFF_REJECT producer="<<pair.first<<" consumer="
+                    <<pair.second<<" kind="<<choice<<" reason="<<error.what()<<"\n";
+      handoff.erase();continue;
+    }
     pairs.insert(pair);claimed_consumers.insert(pair.second);
     if(choice=="recompute")++selected.recompute;
     else ++selected.last_arriver;
