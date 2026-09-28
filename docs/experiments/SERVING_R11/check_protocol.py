@@ -30,11 +30,18 @@ def child(case, output):
                 raise RuntimeError('protocol binary changed: ' + name)
         if not _exclusive(output/'guard.jsonl', 'before', True):
             raise RuntimeError('GPU guard rejected protocol check')
-        for label, prefill, decode, modes in [
-            ('reference', case['reference_prefill'], case['reference_decode'], ['L1']),
-            ('candidate', case['prefill'], case['decode'], ['L1', 'L2', 'L1', 'L2']),
-        ]:
-            with ServingEngine(prefill_so=prefill, decode_so=decode, mode='L1', **common) as engine:
+        arms = case.get('arms') or [
+            dict(label='reference', prefill=case['reference_prefill'],
+                 decode=case['reference_decode'], modes=['L1']),
+            dict(label='candidate', prefill=case['prefill'], decode=case['decode'],
+                 modes=['L1', 'L2', 'L1', 'L2']),
+        ]
+        for arm in arms:
+            label = arm['label']
+            modes = arm['modes']
+            with ServingEngine(prefill_so=arm['prefill'], decode_so=arm['decode'],
+                               mode='L1', decode_loop=arm.get('decode_loop', True),
+                               **common) as engine:
                 for mode in modes:
                     engine.prefill_mode = engine.decode_mode = {'L1':1, 'L2':2}[mode]
                     print(label,mode,"begin",flush=True)
@@ -43,7 +50,8 @@ def child(case, output):
                         reference = tokens.clone()
                     mismatches = int((tokens != reference).sum().item())
                     values = tokens.tolist()
-                    records.append(dict(arm=label, mode=mode, mismatches=mismatches,
+                    records.append(dict(arm=label, mode=mode,
+                        decode_loop=arm.get('decode_loop', True), mismatches=mismatches,
                         token_sha256=hashlib.sha256(json.dumps(values).encode()).hexdigest()))
                     if mismatches:
                         (output/'mismatch_tokens.json').write_text(json.dumps(values))
