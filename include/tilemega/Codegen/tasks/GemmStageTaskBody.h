@@ -466,8 +466,6 @@ struct GemmInvocation {
   float* serving_partial = nullptr;
   std::uint32_t serving_weight_buffer = 0xffffffffu;
   int serving_k_begin = 0;
-  ModelElement const* serving_norm_input = nullptr;
-  ModelElement const* serving_norm_weight = nullptr;
 };
 
 /// The exact dot product behind one output element. A BF16 product is exact in

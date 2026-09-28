@@ -40,9 +40,7 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
       operands.tensor_k_begin=inv.serving_k_begin;
     }
     if constexpr(Loader)Body::Load(operands,local%inv.tiles_n,ring,sequence);
-    else Body::Run(operands,local/inv.tiles_n,local%inv.tiles_n,ring,sequence,work,
-                   inv.serving_norm_input,inv.serving_norm_weight,
-                   TILEMEGA_NORM_EPSILON);
+    else Body::Run(operands,local/inv.tiles_n,local%inv.tiles_n,ring,sequence,work);
   }else if constexpr(Variant+1<TILEMEGA_GEMM_VARIANT_COUNT)Gemm<Loader,Variant+1>(params,inv,local,ring,sequence,work);
   else asm volatile("trap;");
 }

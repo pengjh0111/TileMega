@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
-#include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>
 #include <tilemega/Codegen/executor/PageRing.cuh>
 #include <tilemega/Solver/PageLayout.h>
 
@@ -121,47 +120,28 @@ struct PagedGemmTaskBody {
   }
 
   __device__ static void LoadActivation(ServingGemmOperands const& p,int tile_m,
-      int iteration,Element* shared,Element const* norm_input=nullptr,
-      Element const* norm_weight=nullptr,float const* inverse_rms=nullptr) {
+      int iteration,Element* shared) {
     int pitch=p.a_row_stride?p.a_row_stride:p.k_total;
     for(int v=ComputeThread()*8;v<TileM*TileK;v+=kComputeThreads*8) {
       int m=v/TileK,k=v%TileK,global_m=tile_m*TileM+m;
       int local_k=iteration*TileK+k;
       bool valid=global_m<p.m && local_k<p.k_count;
       auto* dest=shared+LayoutA{}(m,k);
-      if(norm_input) {
-        // The reduction and BF16 boundaries are shared with standalone norm.
-        for(int e=0;e<8;++e)dest[e]=valid && local_k+e<p.k_count
-            ? ServingRMSNormTaskBody::Transform(
-                float(norm_input[std::int64_t(global_m)*pitch+p.k_begin+local_k+e]),
-                inverse_rms[m],float(norm_weight[p.k_begin+local_k+e])):Element(0);
-      }else {
-        auto* src=valid?p.a+std::int64_t(global_m)*pitch+p.k_begin+local_k:p.a;
-        Async::Copy16Bytes(dest,src,valid?min(8,p.k_count-local_k)*sizeof(Element):0);
-      }
+      auto* src=valid?p.a+std::int64_t(global_m)*pitch+p.k_begin+local_k:p.a;
+      Async::Copy16Bytes(dest,src,valid?min(8,p.k_count-local_k)*sizeof(Element):0);
     }
     cute::cp_async_fence();
   }
 
   __device__ static void Run(ServingGemmOperands const& p,int tile_m,int tile_n,
-      Ring const& ring,std::uint64_t& sequence,char* workspace,
-      Element const* norm_input=nullptr,Element const* norm_weight=nullptr,
-      float epsilon=0.0f) {
+      Ring const& ring,std::uint64_t& sequence,char* workspace) {
     using namespace cute;
     Mma mma;auto thread=mma.get_slice(ComputeThread());
     auto accum=partition_fragment_C(mma,Shape<Int<TileM>,Int<TileN>>{});clear(accum);
     auto* activation=reinterpret_cast<Element*>(workspace);
-    float inverses[TileM];
-    if(norm_input)for(int m=0;m<TileM;++m) {
-      int row=tile_m*TileM+m;
-      inverses[m]=row<p.m?ServingRMSNormTaskBody::RowInvRms(
-          norm_input+std::int64_t(row)*(p.a_row_stride?p.a_row_stride:p.k_total),p.k_total,epsilon,
-          reinterpret_cast<float*>(workspace)):0.0f;
-      ComputeSync();
-    }
     int iterations=(p.k_count+TileK-1)/TileK;
     if(iterations<=0)return;
-    LoadActivation(p,tile_m,0,activation,norm_input,norm_weight,inverses);
+    LoadActivation(p,tile_m,0,activation);
     auto copy_a=make_tiled_copy_A(typename Config::SmemCopyAtom{},mma);
     auto copy_b=make_tiled_copy_B(typename Config::SmemCopyAtomB{},mma);
     for(int first=0;first<iterations;first+=kGroupStages) {
@@ -178,7 +158,7 @@ struct PagedGemmTaskBody {
         auto dst_a=copy_a.get_slice(ComputeThread()).retile_D(rA);
         auto dst_b=copy_b.get_slice(ComputeThread()).retile_D(rB);
         if(it+1<iterations)LoadActivation(p,tile_m,it+1,
-            activation+((it+1)%kActivationSlots)*TileM*TileK,norm_input,norm_weight,inverses);
+            activation+((it+1)%kActivationSlots)*TileM*TileK);
         #pragma unroll
         for(int k=0;k<size<2>(rA);++k) {
           copy(typename Config::SmemCopyAtom{},src_a(_,_,k),dst_a(_,_,k));
