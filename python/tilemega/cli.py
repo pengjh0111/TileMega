@@ -234,6 +234,19 @@ class Run:
                 base = self.target if self.target.exists() else ROOT / 'configs/targets' / (self.device['arch_tag'] + '.json')
                 self.command([self.binary, 'calibrate', '--suite', 'serving', '--base', base,
                               '--out', self.target, '--sections', ','.join(sorted(missing))], 'calibrate', gpu=True)
+                refreshed=json.loads(self.target.read_text())
+                fit=refreshed.get('calibration_by_dtype',{}).get('bf16',{}).get('task_body',{})
+                prior=before.get('calibration_by_dtype',{}).get('bf16',{}).get('task_body',{})
+                if not fit.get('samples'):
+                    if not prior.get('samples'):
+                        raise RuntimeError('BF16 serving target has no TaskBody fixed fit')
+                    for field in ('fixed','fixed_physical','latency_scale','loop_body',
+                                  'loop_fixed','loop_wait','samples','scalar_fixed_ns',
+                                  'source','stage_rate_bytes_per_ns'):
+                        if field in prior:fit[field]=prior[field]
+                    atomic_json(self.target,refreshed)
+                    self.event('task_body_fit',True,
+                               'retained prior fixed fit after BF16 bandwidth refresh')
         return json.loads(self.target.read_text())
 
     def export(self, phase):
