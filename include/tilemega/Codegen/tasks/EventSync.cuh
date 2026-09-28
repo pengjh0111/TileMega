@@ -3,6 +3,10 @@
 #include <cuda/atomic>
 #include <cuda_runtime.h>
 
+#ifndef TILEMEGA_SYNC_V3
+#define TILEMEGA_SYNC_V3 0
+#endif
+
 #ifndef TILEMEGA_EVENT_LOAD_POLL
 #define TILEMEGA_EVENT_LOAD_POLL 0
 #endif
@@ -32,10 +36,28 @@
 #endif
 
 namespace tilemega::codegen {
+// CUTLASS GenericBarrier's release arrival/acquire wait shape: producers
+// converge before the release reduction; consumers converge after acquire.
+__device__ inline unsigned long long LoadAcquire(unsigned long long const* event) {
+  unsigned long long value;
+  asm volatile("ld.acquire.gpu.global.u64 %0, [%1];" : "=l"(value) :
+      "l"(__cvta_generic_to_global(event)) : "memory");
+  return value;
+}
+__device__ inline void RedRelease(unsigned long long* event,unsigned long long value) {
+  asm volatile("red.release.gpu.global.add.u64 [%0], %1;" ::
+      "l"(__cvta_generic_to_global(event)),"l"(value) : "memory");
+}
+__device__ inline void WaitAtLeast(unsigned long long const* event,
+                                   unsigned long long need) {
+  while(LoadAcquire(event)<need) {}
+}
 // T1.1: the following acquire fence remains at the caller. A relaxed atomic
 // read participates in the fence synchronization without an RMW transaction.
 __device__ inline unsigned long long EventPoll(unsigned long long* event) {
-#if TILEMEGA_EVENT_LOAD_POLL
+#if TILEMEGA_SYNC_V3
+  return LoadAcquire(event);
+#elif TILEMEGA_EVENT_LOAD_POLL
   return cuda::atomic_ref<unsigned long long, cuda::thread_scope_device>(*event)
       .load(cuda::memory_order_relaxed);
 #else
@@ -77,7 +99,9 @@ struct WaitBackoff {
 /// expands to once the switch is on.
 __device__ inline void GradedWait(unsigned long long* event,
                                   unsigned long long need) {
-#if TILEMEGA_WAIT_POLICY
+#if TILEMEGA_SYNC_V3
+  WaitAtLeast(event,need);
+#elif TILEMEGA_WAIT_POLICY
   WaitBackoff backoff;
   while (EventPoll(event) < need) backoff.Pause();
 #else

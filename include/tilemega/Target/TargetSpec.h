@@ -136,6 +136,9 @@ struct TargetSpec {
   };
 
   struct TaskBodyCalibration {
+    struct PagedFit {
+      double fixed_ns=0,iter_ns=0,median_relative_error=0;
+    };
     struct ServingFit {
       double fixed_ns=0;
       double byte_ns=0;
@@ -158,6 +161,9 @@ struct TargetSpec {
     // Measured in-body cycles of serving TaskBodies. These fits are BF16-only
     // and do not replace the legacy phase fit above.
     std::map<std::string,ServingFit> serving;
+    std::map<std::string,PagedFit> serving_paged;
+    double serving_paged_loader_gbps_per_sm=0;
+    double serving_paged_loader_gbps=0;
   };
 
   /// Cost-model calibration, filled by tools/tilemega-calibrate (skeleton
@@ -234,6 +240,7 @@ struct TargetSpec {
     int wait_backoff_ns = 64;
     int wait_backoff_grow = 1;
     int wait_backoff_cap_ns = 64;
+    std::string wait_protocol = "legacy";
 
     // (c) Stream-K coefficients, one entry per calibrated tile shape.
     std::vector<StreamKPoint> streamk;

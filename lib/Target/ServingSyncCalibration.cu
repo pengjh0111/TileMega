@@ -28,7 +28,7 @@ struct alignas(128) Row {
 
 /// CTAs [0, rows) publish, CTAs [rows, rows + consumers) poll.  Consumer c
 /// polls row c % rows, so `consumers / rows` CTAs share a line.
-template<int Spin, int Backoff>
+template<int Spin, int Backoff, bool V3=false>
 __global__ void Contend(Row* rows_data, unsigned long long* publish_ns,
                         unsigned long long* observe_ns, unsigned int* count,
                         unsigned int* sense, unsigned int participants,
@@ -71,14 +71,15 @@ __global__ void Contend(Row* rows_data, unsigned long long* publish_ns,
       long long const until = clock64() + guard_cycles + dither;
       while (clock64() < until) { /* let the consumers settle into the poll */ }
       publish_ns[static_cast<std::size_t>(r) * rows + row] = Now();
-      __threadfence();
-      atomicExch(&rows_data[row].epoch, need);
+      if constexpr(V3) ::tilemega::codegen::RedRelease(&rows_data[row].epoch,1ull);
+      else { __threadfence();atomicExch(&rows_data[row].epoch, need); }
     } else {
       // backoff_ns = 64 is the generated wait verbatim; 0 is the same loop with
       // the backoff removed, which is the only way to tell "contention is small"
       // apart from "the backoff hides it".  Neither arm changes the protocol.
       int spun=0;
-      while(::tilemega::codegen::EventPoll(&rows_data[row].epoch)<need) {
+      while((V3 ? ::tilemega::codegen::LoadAcquire(&rows_data[row].epoch)
+                : ::tilemega::codegen::EventPoll(&rows_data[row].epoch))<need) {
         if(spun<Spin)++spun;
         else if constexpr(Backoff>0)__nanosleep(Backoff);
       }
@@ -94,10 +95,10 @@ template<class T> T* Allocate(std::size_t n) {
   T* p=nullptr;Check(cudaMalloc(&p,n*sizeof(T)));Check(cudaMemset(p,0,n*sizeof(T)));return p;
 }
 struct HopPoint {double consumers,rows,ns;};
-template<int Spin,int Backoff>
+template<int Spin,int Backoff,bool V3=false>
 std::vector<HopPoint> Sweep(TargetSpec const& target,std::ostream& out,bool full) {
   int const rounds=4096,warmup=64,guard=20000;
-  int resident=0;Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&resident,Contend<Spin,Backoff>,32,0));
+  int resident=0;Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&resident,Contend<Spin,Backoff,V3>,32,0));
   resident*=target.res.num_sms;
   std::vector<HopPoint> result;
   out<<"spin\tbackoff\tconsumers\trows\tmean_ns\ttrim_mean_ns\tinversions\n";
@@ -109,7 +110,7 @@ std::vector<HopPoint> Sweep(TargetSpec const& target,std::ostream& out,bool full
       auto* data=Allocate<Row>(rows);auto* pub=Allocate<unsigned long long>(total*rows);
       auto* obs=Allocate<unsigned long long>(total*consumers);
       auto* count=Allocate<unsigned>(1);auto* sense=Allocate<unsigned>(1);
-      Contend<Spin,Backoff><<<participants,32>>>(data,pub,obs,count,sense,participants,
+      Contend<Spin,Backoff,V3><<<participants,32>>>(data,pub,obs,count,sense,participants,
           rows,consumers,rounds+warmup,guard,0);
       Check(cudaDeviceSynchronize());Check(cudaGetLastError());
       std::vector<unsigned long long> published(total*rows),observed(total*consumers);
@@ -132,6 +133,7 @@ std::vector<HopPoint> Sweep(TargetSpec const& target,std::ostream& out,bool full
 }
 std::vector<HopPoint> SelectedSweep(TargetSpec const& target,std::ostream& out,bool full) {
   auto const& c=target.CalibrationFor("bf16");
+  if(c.wait_protocol=="v3")return Sweep<0,0,true>(target,out,full);
   if(c.wait_backoff_grow!=1 || c.wait_backoff_cap_ns!=c.wait_backoff_ns)
     throw std::runtime_error("serving wait sweep requires a fixed backoff policy");
   if(c.wait_spin_iters==0 && c.wait_backoff_ns==0)return Sweep<0,0>(target,out,full);
@@ -168,18 +170,38 @@ __global__ void TaskEvents(unsigned long long* event,unsigned long long* samples
     __syncthreads();
   }
 }
+__global__ void TaskEventsV3(unsigned long long* event,unsigned long long* samples,
+                             int kind,int rounds) {
+  __shared__ unsigned long long start;
+  for(int r=0;r<rounds;++r) {
+    if(threadIdx.x==0){event[0]=1;start=Now();}
+    __syncthreads();
+    if(kind==1) {
+      if(threadIdx.x==0)::tilemega::codegen::WaitAtLeast(event,1ull);
+      __syncthreads();
+    } else if(kind==2) {
+      __syncthreads();
+      if(threadIdx.x==0)::tilemega::codegen::RedRelease(event,1ull);
+    } else if(kind==3 && threadIdx.x==0)
+      ::tilemega::codegen::RedRelease(event,1ull);
+    else if(kind==4 && threadIdx.x==0)
+      (void)::tilemega::codegen::LoadAcquire(event);
+    else if(kind==5) __threadfence();
+    __syncthreads();
+    if(threadIdx.x==0)samples[r]=Now()-start;
+    __syncthreads();
+  }
+}
 } // namespace
 
 void MeasureServingWaitPolicy(TargetSpec& target,Options const&,std::ostream& raw) {
-  double best=1e300;int spin=0,backoff=64;
-  for(int candidate=0;candidate<3;++candidate) {
-    auto points=candidate==0?Sweep<0,64>(target,raw,false):
-        candidate==1?Sweep<64,64>(target,raw,false):Sweep<0,0>(target,raw,false);
-    if(points.empty())throw std::runtime_error("no resident hop calibration cell");
-    if(points.front().ns<best){best=points.front().ns;spin=candidate==1?64:0;backoff=candidate==2?0:64;}
-  }
-  target.calib_bf16.wait_spin_iters=spin;target.calib_bf16.wait_backoff_ns=backoff;
-  target.calib_bf16.wait_backoff_grow=1;target.calib_bf16.wait_backoff_cap_ns=backoff;
+  target.calib_bf16.wait_protocol="v3";
+  target.calib_bf16.wait_spin_iters=0;
+  target.calib_bf16.wait_backoff_ns=0;
+  target.calib_bf16.wait_backoff_grow=1;
+  target.calib_bf16.wait_backoff_cap_ns=0;
+  auto points=Sweep<0,0,true>(target,raw,false);
+  if(points.empty())throw std::runtime_error("no resident V3 hop calibration cell");
 }
 void MeasureServingHop(TargetSpec& target,Options const&,std::ostream& raw) {
   auto fit=[](auto const& points) {
@@ -207,7 +229,10 @@ void MeasureServingEvents(TargetSpec& target,Options const& options,std::ostream
   for(int kind=0;kind<6;++kind) {
     std::vector<double> repeats;
     for(int repeat=0;repeat<options.repeats;++repeat) {
-      TaskEvents<<<1,128>>>(event,samples,kind,rounds);Check(cudaDeviceSynchronize());
+      if(target.CalibrationFor("bf16").wait_protocol=="v3")
+        TaskEventsV3<<<1,128>>>(event,samples,kind,rounds);
+      else TaskEvents<<<1,128>>>(event,samples,kind,rounds);
+      Check(cudaDeviceSynchronize());
       std::vector<unsigned long long> host(rounds);Check(cudaMemcpy(host.data(),samples,rounds*8,cudaMemcpyDeviceToHost));
       double sum=0;for(int r=64;r<rounds;++r){sum+=host[r];raw<<kind<<'\t'<<repeat<<'\t'<<r<<'\t'<<host[r]<<'\n';}
       repeats.push_back(sum/(rounds-64));

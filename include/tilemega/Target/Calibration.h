@@ -76,6 +76,8 @@ void MeasureInflight(TargetSpec& spec, Options const& options, std::ostream& log
 /// nonnegative fixed/byte/flop fits are written under BF16 task_body.serving.
 void MeasureServingTaskBodies(TargetSpec& spec, Options const& options,
                               std::ostream& log);
+void MeasureServingPagedBodies(TargetSpec& spec, Options const& options,
+                               std::ostream& log);
 
 void MeasureServingWaitPolicy(TargetSpec&, Options const&, std::ostream&);
 void MeasureServingHop(TargetSpec&, Options const&, std::ostream&);

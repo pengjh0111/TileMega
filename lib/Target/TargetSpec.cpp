@@ -112,6 +112,7 @@ void ParseCalibration(json::Value const& cal, TargetSpec::Calib& out) {
   sync_int("wait_backoff_ns", out.wait_backoff_ns);
   sync_int("wait_backoff_grow", out.wait_backoff_grow);
   sync_int("wait_backoff_cap_ns", out.wait_backoff_cap_ns);
+  if (auto const* v=sync.Find("wait_protocol")) out.wait_protocol=v->AsString("wait_protocol");
 
   for (auto const& item : cal.At("streamk").AsArray("streamk")) {
     TargetSpec::StreamKPoint point;
@@ -149,6 +150,23 @@ void ParseCalibration(json::Value const& cal, TargetSpec::Calib& out) {
       if(sample.samples<1 || sample.fixed_ns<0 || sample.byte_ns<0 || sample.flop_ns<0 ||
          !std::isfinite(sample.fixed_ns) || !std::isfinite(sample.byte_ns) || !std::isfinite(sample.flop_ns))
         throw std::invalid_argument("invalid serving TaskBody fit");
+    }
+    if(auto p=body->Find("serving_paged")) {
+      auto const& paged=p->AsObject("task_body.serving_paged");
+      for(auto const& [name,entry]:paged) {
+        if(name=="loader") {
+          fit.serving_paged_loader_gbps_per_sm=
+              entry.At("stream_gbps_per_sm").AsNumber("stream_gbps_per_sm");
+          fit.serving_paged_loader_gbps=
+              entry.At("aggregate_gbps").AsNumber("aggregate_gbps");
+          continue;
+        }
+        auto& sample=fit.serving_paged[name];
+        sample.fixed_ns=entry.At("fixed_ns").AsNumber("fixed_ns");
+        sample.iter_ns=entry.At("iter_ns").AsNumber("iter_ns");
+        sample.median_relative_error=
+            entry.At("median_relative_error").AsNumber("median_relative_error");
+      }
     }
     if(fit.latency_scale<0 || !std::isfinite(fit.latency_scale) || fit.stage_rate_bytes_per_ns<0 || !std::isfinite(fit.stage_rate_bytes_per_ns) || (!fit.fixed_physical.empty() && fit.fixed_physical.size()!=3))
       throw std::invalid_argument("invalid regime-A TaskBody fit");
@@ -251,7 +269,8 @@ json::Value CalibrationJson(TargetSpec::Calib const& calib) {
       {"wait_spin_iters", static_cast<double>(calib.wait_spin_iters)},
       {"wait_backoff_ns", static_cast<double>(calib.wait_backoff_ns)},
       {"wait_backoff_grow", static_cast<double>(calib.wait_backoff_grow)},
-      {"wait_backoff_cap_ns", static_cast<double>(calib.wait_backoff_cap_ns)}});
+      {"wait_backoff_cap_ns", static_cast<double>(calib.wait_backoff_cap_ns)},
+      {"wait_protocol", calib.wait_protocol}});
   json::Array streamk;
   for (auto const& point : calib.streamk) {
     streamk.emplace_back(json::Object{
@@ -291,7 +310,7 @@ json::Value CalibrationJson(TargetSpec::Calib const& calib) {
     result.emplace_back("cta_stream_curve",json::Object{
         {"bytes",json::Numbers(calib.cta_stream_curve_bytes)},
         {"gbps",json::Numbers(calib.cta_stream_curve_gbps)}});
-  if (calib.task_body.samples>0) {
+  if (calib.task_body.samples>0 || !calib.task_body.serving_paged.empty()) {
     auto const& fit=calib.task_body;
     json::Object body{
       {"fixed",json::Numbers(fit.fixed)},{"loop_body",json::Numbers(fit.loop_body)},
@@ -310,6 +329,17 @@ json::Value CalibrationJson(TargetSpec::Calib const& calib) {
             {"median_relative_error",sample.median_relative_error},
             {"samples",sample.samples}});
       body.emplace_back("serving",std::move(serving));
+    }
+    if(!fit.serving_paged.empty()) {
+      json::Object paged;
+      for(auto const& [name,sample]:fit.serving_paged)
+        paged.emplace_back(name,json::Object{{"fixed_ns",sample.fixed_ns},
+            {"iter_ns",sample.iter_ns},
+            {"median_relative_error",sample.median_relative_error}});
+      paged.emplace_back("loader",json::Object{
+          {"stream_gbps_per_sm",fit.serving_paged_loader_gbps_per_sm},
+          {"aggregate_gbps",fit.serving_paged_loader_gbps}});
+      body.emplace_back("serving_paged",std::move(paged));
     }
     result.emplace_back("task_body",std::move(body));
   }
