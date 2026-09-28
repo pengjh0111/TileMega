@@ -63,7 +63,8 @@ struct ServingGemmCombineTaskBody {
     }
     ComputeSync();
     backend::ServingEpilogue<Op, TileM, TileN>::template RunFromTile<true>(
-        shared, tile_m, tile_n, M, N, output_stride, output, residual,
+        shared, tile_m, tile_n, M, N, output_stride, partial_row_stride,
+        output, residual,
         nullptr, argmax_value, argmax_index);
   }
 };

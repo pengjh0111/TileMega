@@ -2015,6 +2015,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       invocation.serving_output_stride = desc.serving_epilogue == 2
           ? desc.n / 2 : desc.serving_epilogue == 3 ?
               CeilDiv(desc.n, tiling.tile_n) : desc.n;
+      invocation.serving_partial_stride = desc.n;
       if (chunks > 1)
         invocation.serving_partial = reinterpret_cast<float*>(
             model.buffers[gemm_partial[i]]) +

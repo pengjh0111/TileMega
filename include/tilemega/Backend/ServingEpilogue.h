@@ -68,6 +68,7 @@ struct ServingEpilogue {
   __device__ static void Run(Accumulator const& accum, TiledMma const& mma,
                              char* shared, int tile_m, int tile_n,
                              int M, int N, int output_stride,
+                             int partial_stride,
                              cutlass::bfloat16_t* output,
                              cutlass::bfloat16_t const* residual = nullptr,
                              float* partial = nullptr,
@@ -91,13 +92,15 @@ struct ServingEpilogue {
           make_float2(accum(i), accum(i + 1));
     }
     ComputeSync();
-    RunFromTile<true>(tile, tile_m, tile_n, M, N, output_stride, output,
+    RunFromTile<true>(tile, tile_m, tile_n, M, N, output_stride,
+                partial_stride, output,
                 residual, partial, argmax_value, argmax_index);
   }
 
   template <bool Swizzled = false>
   __device__ static void RunFromTile(
       float* tile, int tile_m, int tile_n, int M, int N, int output_stride,
+      int partial_stride,
       cutlass::bfloat16_t* output,
       cutlass::bfloat16_t const* residual = nullptr,
       float* partial = nullptr, float* argmax_value = nullptr,
@@ -153,13 +156,14 @@ struct ServingEpilogue {
         ComputeSync();
       }
     } else if constexpr (Op == ServingEpilogueOp::kPartial) {
+      if (partial_stride < N) { asm volatile("trap;"); return; }
       for (int index = ComputeThread() * 4; index < TileM * TileN; index += kComputeThreads * 4) {
         int row = index / TileN, col = index % TileN;
         int global_row = tile_m * TileM + row;
         int global_col = tile_n * TileN + col;
         if (global_row >= M || global_col >= N) continue;
         float4 values = *reinterpret_cast<float4 const*>(tile + Index<Swizzled>(row, col));
-        float* dst = partial + global_row * output_stride + global_col;
+        float* dst = partial + global_row * partial_stride + global_col;
         if (global_col + 4 <= N && (reinterpret_cast<std::uintptr_t>(dst) & 15) == 0)
           *reinterpret_cast<float4*>(dst) = values;
         else {

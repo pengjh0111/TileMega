@@ -20,6 +20,7 @@ __device__ inline ServingGemmOperands Operands(GemmInvocation const& inv) {
   p.residual=inv.epilogue.ptr_C;p.output=inv.epilogue.ptr_D;p.partial=inv.serving_partial;
   p.argmax_value=reinterpret_cast<float*>(inv.epilogue.ptr_D);p.argmax_index=inv.serving_argmax_index;
   p.m=m;p.n=n;p.k_total=k;p.k_count=k;p.output_stride=inv.serving_output_stride;
+  p.partial_stride=inv.serving_partial_stride;
   p.a_row_stride=p.b_row_stride=inv.k_total;
   p.epilogue=inv.chunks>1?backend::ServingEpilogueOp::kPartial:inv.serving_op;
   return p;

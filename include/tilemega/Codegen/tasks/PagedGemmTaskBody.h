@@ -192,6 +192,7 @@ struct PagedGemmTaskBody {
     auto finish=[&](auto op) {
       backend::ServingEpilogue<decltype(op)::value,TileM,TileN>::Run(
           accum,mma,workspace,tile_m,tile_n,p.m,p.n,p.output_stride,
+          p.partial_stride,
           p.output,p.residual,p.partial,p.argmax_value,p.argmax_index);
     };
     switch(p.epilogue) {

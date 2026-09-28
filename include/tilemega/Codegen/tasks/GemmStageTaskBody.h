@@ -462,6 +462,7 @@ struct GemmInvocation {
   backend::ServingEpilogueOp serving_op = backend::ServingEpilogueOp::kStore;
   int* serving_argmax_index = nullptr;
   int serving_output_stride = 0;
+  int serving_partial_stride = 0;
   float* serving_partial = nullptr;
   std::uint32_t serving_weight_buffer = 0xffffffffu;
   int serving_k_begin = 0;
@@ -560,6 +561,7 @@ struct GemmStageTaskBody {
     operands.k_total = k;
     operands.k_count = k;
     operands.output_stride = invocation.serving_output_stride;
+    operands.partial_stride = invocation.serving_partial_stride;
     operands.a_row_stride = invocation.k_total;
     operands.b_row_stride = invocation.k_total;
     operands.epilogue = invocation.chunks > 1

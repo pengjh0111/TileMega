@@ -27,6 +27,7 @@ struct ServingGemmOperands {
   int m = 0, n = 0, k_total = 0;
   int k_begin = 0, k_count = 0;
   int output_stride = 0;
+  int partial_stride = 0;
   // Physical row pitches include zero-filled vector-alignment padding when
   // logical K has a residue.  Serving weights are packed once with this pitch.
   int a_row_stride = 0, b_row_stride = 0;
@@ -93,7 +94,7 @@ struct ServingGemmTaskBody {
     auto finish = [&](auto op) {
       backend::ServingEpilogue<decltype(op)::value, TileM, TileN>::Run(
           accum, mma, shared, tile_m, tile_n, p.m, p.n,
-          p.output_stride, p.output, p.residual, p.partial,
+          p.output_stride, p.partial_stride, p.output, p.residual, p.partial,
           p.argmax_value, p.argmax_index);
     };
     switch (p.epilogue) {

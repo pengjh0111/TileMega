@@ -158,7 +158,7 @@ void RunCase(int rows, int columns, int reduction, int split, int operation,
     operands.k_count = reduction / split;
     if (split != 1) {
       operands.partial = partial + std::size_t(chunk) * rows * columns;
-      operands.output_stride = columns;
+      operands.partial_stride = columns;
     }
     kernel<<<dim3((rows + TileM - 1) / TileM,
                     (columns + TileN - 1) / TileN),
