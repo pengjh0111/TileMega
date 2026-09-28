@@ -371,6 +371,18 @@ ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
     throw std::invalid_argument("serving handoffs were already selected");
   auto stages=model.getAs<mlir::ArrayAttr>("stages");
   if(!stages)throw std::invalid_argument("serving handoff selection lacks stages");
+  auto runtime_gemms=module->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
+  auto gemm_has_split=[&](int stage) {
+    auto desc=mlir::cast<mlir::DictionaryAttr>(stages[stage]);
+    auto index=desc.getAs<mlir::IntegerAttr>("gemm");
+    if(!index || !runtime_gemms || index.getInt()<0 ||
+       index.getInt()>=static_cast<std::int64_t>(runtime_gemms.size()))
+      throw std::invalid_argument("argmax handoff lacks GEMM runtime geometry");
+    auto geometry=mlir::cast<mlir::DictionaryAttr>(runtime_gemms[index.getInt()]);
+    auto split=geometry.getAs<mlir::IntegerAttr>("split_k");
+    if(!split)throw std::invalid_argument("argmax handoff lacks split_k");
+    return split.getInt()>1;
+  };
   auto kind=[&](int stage)->std::string {
     if(stage<0 || stage>=int(stages.size()))return {};
     auto value=mlir::cast<mlir::DictionaryAttr>(stages[stage]).getAs<mlir::StringAttr>("kind");
@@ -421,7 +433,7 @@ ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
             kind(pair.first)=="kGemm")
       choice="last_arriver";
     else if((selected_classes&2) && kind(pair.first)=="kGemm" &&
-            kind(pair.second)=="kArgmaxReduce")
+            kind(pair.second)=="kArgmaxReduce" && !gemm_has_split(pair.first))
       choice="last_arriver";
     else continue;
     if((pass==0)!=(choice=="recompute"))continue;
