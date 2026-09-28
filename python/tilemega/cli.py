@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import time
+import statistics
 
 from .cache import atomic_json, export_key, file_sha, key, locked, plan_key, record_outputs, valid_record
 from .fingerprint import ROOT, calibration_stamps, source_fingerprint
@@ -22,7 +23,7 @@ DEFAULTS = {
                      prompts='docs/experiments/SERVING_R10/prompts/passages.jsonl'),
     'device': dict(index=0, cache_dir='~/.cache/tilemega'),
     'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='auto', pruning=True, time_budget_s=600),
-    'features': dict(pg='auto', handoff='auto', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='row'),
+    'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled'),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
                  vllm_python='/root/venv_vllm/bin/python', policy_file=None),
     'output': dict(dir='runs/{model}-{timestamp}'),
@@ -154,6 +155,12 @@ class Run:
             before = json.loads(self.target.read_text()) if self.target.exists() else {}
             actual = before.get('calibration_sections', {})
             missing = [name for name, stamp in expected.items() if actual.get(name, {}).get('stamp') != stamp]
+            # The microbenchmarks stamp each section before the suite can
+            # validate that the device was idle. A stamped but uncalibrated
+            # profile must never be served from cache on a later run.
+            if before and (not before.get('calibration', {}).get('calibrated') or
+                           not before.get('calibration_by_dtype', {}).get('bf16', {}).get('calibrated')):
+                missing.extend(('base', 'bf16'))
             # Replacing a pipeline profile also discards its dependent fits.
             if 'base' in missing or 'bf16' in missing:
                 missing = list(expected)
@@ -188,28 +195,31 @@ class Run:
 
     def build(self):
         settings = self.config['solver']; features = self.config['features']; workload = self.config['workload']
-        # Weight prepacking is still optional research work. A decode handoff
-        # is selected by the compiler; prefill has no paged handoff path.
-        if features['weight_layout'] != 'row':
-            raise RuntimeError('features.weight_layout=tiled is not implemented')
         target = self.calibrate()
         if self.version['source_sha256'] != source_fingerprint():
             raise RuntimeError('compiler fingerprint differs from sources; rebuild tilemega')
         result = {}
         for phase in ('prefill', 'decode'):
             export, directory = self.export(phase)
-            previous = None
+            previous_by_pg = {}
             for batch in sorted(workload['batch']):
                 interval = (0, 0) if phase == 'prefill' else (workload['prompt_len'], workload['prompt_len'] + workload['max_new_tokens'] - 2)
-                target_inputs = dict(target.get('calibration_sections', {}), target_sha256=file_sha(self.target))
-                digest = plan_key(export, target_inputs, self.version['source_sha256'], settings, features, batch, interval)
-                plan = self.cache / 'plans' / digest;plan.mkdir(parents=True, exist_ok=True)
-                marker = plan / 'record.json'; library = plan / 'plan.so'; manifest = Path(str(library) + '.plan.json')
-                with locked(plan / '.lock'):
-                    hit = valid_record(marker)
-                    self.event('plan', hit, 'plan key and outputs match' if hit else 'inputs changed or incomplete output', phase=phase, batch=batch, key=digest)
-                    if not hit:
-                        options = [str(directory / 'bridge.json'), str(library), '--serving', phase,
+                pg_choices = ('pages', 'l2') if phase == 'decode' and features['pg'] == 'auto' else (
+                    ('l2',) if phase == 'prefill' and features['pg'] in ('pages', 'auto') else (features['pg'],))
+                built = {}
+                for pg in pg_choices:
+                    choice_features = dict(features, pg=pg, handoff='off',
+                                           weight_layout=features['weight_layout'] if pg == 'pages' else 'row')
+                    target_inputs = dict(target.get('calibration_sections', {}), target_sha256=file_sha(self.target))
+                    digest = plan_key(export, target_inputs, self.version['source_sha256'], settings,
+                                      choice_features, batch, interval)
+                    plan = self.cache / 'plans' / digest;plan.mkdir(parents=True, exist_ok=True)
+                    marker = plan / 'record.json'; library = plan / 'plan.so'; manifest = Path(str(library) + '.plan.json')
+                    with locked(plan / '.lock'):
+                        hit = valid_record(marker)
+                        self.event('plan', hit, 'plan key and outputs match' if hit else 'inputs changed or incomplete output', phase=phase, batch=batch, pg=pg, key=digest)
+                        if not hit:
+                            options = [str(directory / 'bridge.json'), str(library), '--serving', phase,
                             '--batch', str(batch), '--past-range', f'{interval[0]}:{interval[1]}',
                             '--capacity', str(workload['prompt_len'] + workload['max_new_tokens']),
                             '--solver', 'skeleton', '--solve', str(self.target), '--emit', 'serving',
@@ -220,27 +230,44 @@ class Run:
                             '--variant-cache', str(self.cache / 'variants' / self.device_key),
                             '--artifact-cache', str(self.cache / 'artifacts'), '--dump-cg', str(plan / 'selected.mlir'),
                             '--measure-cmd', shlex.join([sys.executable, '-m', 'tilemega.serving.measure_candidate', '--model', str(self.model)])]
-                        for name, value in features.items():
-                            if name == 'weight_layout':
-                                continue
-                            if name == 'handoff' and phase == 'prefill':
-                                value = 'off'
-                            if name == 'pg' and phase == 'prefill' and value == 'pages':
-                                value = 'l2'
-                            options += ['--' + name.replace('_', '-'), str(value)]
-                        if previous:
-                            options += ['--serving-warm-start', str(previous)]
-                        atomic_json(plan / 'options.json', options)
-                        start = time.monotonic()
-                        self.command([self.binary, 'compile', '--options', plan / 'options.json'], f'build-{phase}-B{batch}')
-                        seconds = time.monotonic() - start
-                        self.command([self.binary, 'audit', 'sass', library, '--out', plan / 'sass.json'], f'sass-{phase}-B{batch}')
-                        self.command([self.binary, 'inspect', 'request-floor', plan / 'selected.mlir', self.target,
-                            batch, *interval, plan / 'floor.json', plan / 'floor.tsv'], f'floor-{phase}-B{batch}')
-                        record_outputs(marker, [library, manifest, plan / 'selected.mlir', plan / 'floor.json', plan / 'floor.tsv'],
-                            solve_seconds=seconds, budget_s=settings['time_budget_s'], budget_pass=seconds <= settings['time_budget_s'])
-                previous = manifest
-                result.setdefault(str(batch), {})[phase] = str(library)
+                            for name, value in choice_features.items():
+                                if name == 'handoff' and phase == 'prefill':
+                                    value = 'off'
+                                if name == 'pg' and phase == 'prefill' and value == 'pages':
+                                    value = 'l2'
+                                options += ['--' + name.replace('_', '-'), str(value)]
+                            previous=previous_by_pg.get(pg)
+                            if previous:
+                                options += ['--serving-warm-start', str(previous)]
+                            atomic_json(plan / 'options.json', options)
+                            start = time.monotonic()
+                            self.command([self.binary, 'compile', '--options', plan / 'options.json'], f'build-{phase}-{pg}-B{batch}')
+                            seconds = time.monotonic() - start
+                            self.command([self.binary, 'audit', 'sass', library, '--out', plan / 'sass.json'], f'sass-{phase}-{pg}-B{batch}')
+                            self.command([self.binary, 'inspect', 'request-floor', plan / 'selected.mlir', self.target,
+                                batch, *interval, plan / 'floor.json', plan / 'floor.tsv'], f'floor-{phase}-{pg}-B{batch}')
+                            record_outputs(marker, [library, manifest, plan / 'selected.mlir', plan / 'floor.json', plan / 'floor.tsv'],
+                                solve_seconds=seconds, budget_s=settings['time_budget_s'], budget_pass=seconds <= settings['time_budget_s'])
+                    previous_by_pg[pg] = manifest
+                    built[pg] = library
+                if len(built)==2:
+                    samples={pg:[] for pg in built}
+                    for repeat in range(3):
+                        for pg in (('pages','l2') if repeat%2==0 else ('l2','pages')):
+                            out=self.out/f'pg-choice-{phase}-B{batch}-{pg}-{repeat}'
+                            self.command([sys.executable,'-m','tilemega.serving.measure_candidate',
+                                          '--so',built[pg],'--model',self.model,'--batch',batch,
+                                          '--past-mid',(interval[0]+interval[1])//2,'--out',out],
+                                         f'pg-choice-{phase}-B{batch}-{pg}-{repeat}',gpu=True)
+                            reading=json.loads((out/'measurements.json').read_text())
+                            chosen=json.loads(Path(str(built[pg])+'.plan.json').read_text()).get('mode','L2')
+                            samples[pg].append(reading['modes'][chosen]['mean_ms'])
+                    medians={pg:statistics.median(values) for pg,values in samples.items()}
+                    selected=min(medians,key=medians.get)
+                    result.setdefault('decode_pg_choice',{})[str(batch)]=dict(
+                        selected=selected,median_ms=medians,samples_ms=samples)
+                else:selected=next(iter(built))
+                result.setdefault(str(batch), {})[phase] = str(built[selected])
         atomic_json(self.out / 'plans.json', result)
         return result
 

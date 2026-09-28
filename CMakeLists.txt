@@ -246,6 +246,7 @@ add_library(tilemega_calibration STATIC
   lib/Target/InflightCalibration.cu
   lib/Target/PrefetchCalibration.cu
   lib/Target/ServingTaskCalibration.cu
+  lib/Target/ServingPagedCalibration.cu
   lib/Target/ServingSyncCalibration.cu
   lib/Target/GemmCalibration.cu)
 target_link_libraries(tilemega_calibration PUBLIC TileMega::tilemega)

@@ -285,8 +285,8 @@ int RunCompile(int argc, char** argv) {
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,artifact_cache;
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
-    std::string arch_paths="auto",pdl="auto",handoff_mode="off";
-    int page_bytes=8192,prefetch_depth=1,prefetch_stride=0;
+    std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
+    int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     bool page_bytes_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
     if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
@@ -328,8 +328,10 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--arch-paths") arch_paths=value;
       else if (flag=="--pdl") pdl=value;
       else if (flag=="--pg") pg_mode=value;
+      else if (flag=="--weight-layout") weight_layout=value;
       else if (flag=="--handoff") handoff_mode=value;
       else if (flag=="--page-bytes") {page_bytes=std::stoi(value);page_bytes_pinned=true;}
+      else if (flag=="--lookahead-bytes") lookahead_bytes=std::stoi(value);
       else if (flag=="--l2-prefetch-depth") prefetch_depth=std::stoi(value);
       else if (flag=="--l2-prefetch-stride") prefetch_stride=std::stoi(value);
       else if (flag=="--runtime-target") runtime_target=value;
@@ -428,17 +430,14 @@ int RunCompile(int argc, char** argv) {
           "/configs/targets/"+tilemega::TargetSpec::Probe().arch_tag+".json";
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
       if(sync_policy=="calibrated") {
-        auto const& c=target.CalibrationFor("bf16");
-        runtime_flags=" -DTILEMEGA_WAIT_POLICY=1 -DTILEMEGA_WAIT_SPIN_ITERS="+std::to_string(c.wait_spin_iters)+
-            " -DTILEMEGA_WAIT_BACKOFF_NS="+std::to_string(c.wait_backoff_ns)+
-            " -DTILEMEGA_WAIT_BACKOFF_GROW="+std::to_string(c.wait_backoff_grow)+
-            " -DTILEMEGA_WAIT_BACKOFF_CAP_NS="+std::to_string(c.wait_backoff_cap_ns);
+        runtime_flags=" -DTILEMEGA_SYNC_V3=1 -DTILEMEGA_EVENT_RED_PUBLISH=1";
       }
       runtime_flags+=" -DTILEMEGA_PDL="+std::to_string(pdl=="auto" && use_pages)+
           " -DTILEMEGA_ARCH_PATH_SM80="+std::to_string(arch_paths=="sm80");
-      runtime_flags+=" -DTILEMEGA_EVENT_SOLO="+std::to_string(event_solo)+
-          " -DTILEMEGA_EVENT_RED_PUBLISH="+std::to_string(event_red)+
-          " -DTILEMEGA_BARRIER_V2="+std::to_string(barrier_v2);
+      if(sync_policy!="calibrated")
+        runtime_flags+=" -DTILEMEGA_EVENT_SOLO="+std::to_string(event_solo)+
+            " -DTILEMEGA_EVENT_RED_PUBLISH="+std::to_string(event_red)+
+            " -DTILEMEGA_BARRIER_V2="+std::to_string(barrier_v2);
     }
     std::string source,selected_serving_mode,selected_serving_binary;
     double selected_serving_ms=std::numeric_limits<double>::infinity();
@@ -567,6 +566,8 @@ int RunCompile(int argc, char** argv) {
         skeleton.page_bytes=page_bytes;
         if(use_pages)skeleton.page_choices=page_bytes_pinned
             ?std::vector<int>{page_bytes}:std::vector<int>{8192,16384};
+        if(use_pages && lookahead_bytes>=0)
+          skeleton.lookahead_choices={lookahead_bytes};
         if(!serving_warm_start.empty()) {
           if(!serving)throw std::runtime_error("warm start needs a serving plan");
           auto file=llvm::MemoryBuffer::getFile(serving_warm_start);
@@ -642,7 +643,12 @@ int RunCompile(int argc, char** argv) {
               bridge.outputs,options);
           serving_imported.emplace(tilemega::frontend::TorchExportImporter{}.
               ImportSemantics(input.string(),plan,context));
-          skeleton.seed={16,128,128,2,1};skeleton.kappa=1;
+          // A paged seed must satisfy the selected page's single-stage
+          // constraint before any fixed evaluation case or coordinate pass.
+          skeleton.seed=use_pages
+              ? tilemega::solver::GemmConfig{16,page_bytes>=16384?128:64,64,2,1}
+              : tilemega::solver::GemmConfig{16,128,128,2,1};
+          skeleton.kappa=1;
         }else {
           if(!legacy_seed.empty()) {
             seed=mlir::parseSourceFile<mlir::ModuleOp>(legacy_seed,&context);
@@ -784,6 +790,7 @@ int RunCompile(int argc, char** argv) {
               " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
               " --arch-paths "+quote(arch_paths)+" --pdl "+quote(pdl)+
               " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(candidate_page_bytes)+
+              " --weight-layout "+quote(weight_layout)+
               " --l2-prefetch-depth "+std::to_string(prefetch_depth)+" --l2-prefetch-stride "+std::to_string(prefetch_stride)+
               " --event-solo "+std::to_string(event_solo)+" --event-red-publish "+std::to_string(event_red)+
               " --barrier-v2 "+std::to_string(barrier_v2)+
@@ -1000,7 +1007,17 @@ int RunCompile(int argc, char** argv) {
     }
     if(use_pages) {
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
+      if(lookahead_bytes>=0)
+        (*module)->setAttr("tmexec.lookahead_bytes",
+            mlir::IntegerAttr::get(mlir::IntegerType::get(&context,64),lookahead_bytes));
       tilemega::codegen::ConfigureServingPages(*module,target,page_bytes);
+      if(weight_layout=="tiled")tilemega::codegen::ResolveServingWeightPacking(*module);
+      else if(weight_layout!="row")throw std::invalid_argument("weight layout must be row or tiled");
+      // Decode paging always lowers reduction handoffs. The selected IR owns
+      // the decision; there is no R11 recompute coordinate in this regime.
+      auto r12_reductions=tilemega::dialect::SelectServingHandoffs(*module,2);
+      std::cerr<<"R12_LAST_ARRIVER selected="<<r12_reductions.last_arriver<<'\n';
+      handoff_mode="last_arriver";
       if(handoff_mode=="auto") {
         auto unfused=mlir::OwningOpRef<mlir::ModuleOp>(
             mlir::cast<mlir::ModuleOp>((*module)->clone()));
@@ -1036,6 +1053,7 @@ int RunCompile(int argc, char** argv) {
               " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
               " --arch-paths "+quote(arch_paths)+" --pdl "+quote(pdl)+
               " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(page_bytes)+
+              " --weight-layout "+quote(weight_layout)+
               " --handoff off"+
               " --l2-prefetch-depth "+std::to_string(prefetch_depth)+
               " --l2-prefetch-stride "+std::to_string(prefetch_stride)+

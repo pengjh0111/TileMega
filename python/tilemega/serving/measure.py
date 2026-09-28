@@ -128,6 +128,7 @@ def main() -> None:
     parser.add_argument("--batch", type=int, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--mode", choices=("auto", "L1", "L2"), default="auto")
+    parser.add_argument("--decode-loop", type=int, choices=(0, 1), default=1)
     parser.add_argument("--max-new-tokens", type=int, default=1024)
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--repeats", type=int, default=3)
@@ -139,7 +140,7 @@ def main() -> None:
     prompts = torch.tensor(ids[:args.batch], dtype=torch.int32)
     with ServingEngine(args.model, args.prefill_so, args.decode_so,
                        args.batch, max_new_tokens=args.max_new_tokens,
-                       mode=args.mode) as engine:
+                       mode=args.mode, decode_loop=bool(args.decode_loop)) as engine:
         result = measure(engine, prompts, args.out, warmup=args.warmup, repeats=args.repeats, policy_path=args.policy)
     print(json.dumps({key: value for key, value in result.items()
                       if key != "runs"}))

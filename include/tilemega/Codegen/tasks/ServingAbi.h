@@ -38,6 +38,10 @@ int tm_plan_set_steps(void* plan, const int32_t* past, uint32_t count);
 // L1 and L2 each advance independently; event counters are never reset.
 int tm_plan_launch(void* plan, uint32_t step, uint32_t mode,
                    uint64_t iteration, void* stream);
+int tm_plan_launch_steps(void* plan, uint32_t first_step, uint32_t steps,
+                         uint32_t mode, uint64_t base_iteration, void* stream);
+int tm_plan_read_step_ns(void* plan, uint32_t first, uint32_t count,
+                         uint64_t* host);
 void tm_plan_destroy(void* plan);
 
 #ifdef __cplusplus

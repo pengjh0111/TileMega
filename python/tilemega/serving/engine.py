@@ -25,7 +25,8 @@ class ServingEngine:
     def __init__(self, model_dir: str | Path, prefill_so: str | Path,
                  decode_so: str | Path, batch: int, prompt_len: int = 64,
                  max_new_tokens: int = 1024, mode: str = "auto",
-                 device: int = 0):
+                 device: int = 0, decode_loop: bool = True,
+                 decode_chunk: int | None = None):
         if prompt_len != 64 or max_new_tokens < 1:
             raise ValueError("the solved request uses a 64-token prompt")
         torch.cuda.set_device(device)
@@ -40,6 +41,11 @@ class ServingEngine:
         self.batch = batch
         self.prompt_len = prompt_len
         self.max_new_tokens = max_new_tokens
+        decode_manifest = Path(str(decode_so) + ".plan.json")
+        decode_pg = (json.loads(decode_manifest.read_text()).get("pg")
+                     if decode_manifest.exists() else None)
+        self.decode_loop = decode_loop and decode_pg == "pages"
+        self.decode_chunk = decode_chunk
         self.weights = load_weights(model_dir, self.prefill_lib, self.decode_lib,
                                     device=torch.device("cuda", device))
         self.state = allocate_state(model_dir, batch, self.prefill_lib,
@@ -87,8 +93,10 @@ class ServingEngine:
             source = source.pin_memory()
         stream = torch.cuda.current_stream()
         start = torch.cuda.Event(enable_timing=True)
+        use_loop = self.decode_loop and count > 1 and bool(
+            getattr(self.decode_lib.lib, "tm_plan_launch_steps", None))
         boundaries = [torch.cuda.Event(enable_timing=True)
-                      for _ in range(count)]
+                      for _ in range(1 if use_loop else count)]
         final = torch.cuda.Event(enable_timing=True)
         cpu_tokens = torch.empty((self.batch, count), dtype=torch.int32,
                                  pin_memory=True)
@@ -97,9 +105,17 @@ class ServingEngine:
         start.record(stream)
         self.prefill.launch(0, self.prefill_mode, stream.cuda_stream)
         boundaries[0].record(stream)
-        for step in range(count - 1):
-            self.decode.launch(step, self.decode_mode, stream.cuda_stream)
-            boundaries[step + 1].record(stream)
+        if use_loop:
+            chunk = self.decode_chunk or count - 1
+            if chunk < 1:
+                raise ValueError("decode_chunk must be positive")
+            for first in range(0, count - 1, chunk):
+                self.decode.launch_steps(first, min(chunk, count - 1 - first),
+                                         self.decode_mode, stream.cuda_stream)
+        else:
+            for step in range(count - 1):
+                self.decode.launch(step, self.decode_mode, stream.cuda_stream)
+                boundaries[step + 1].record(stream)
         final.record(stream)
         cpu_tokens.copy_(self.state.tokens[:, self.prompt_len:
                                            self.prompt_len + count],
@@ -107,8 +123,13 @@ class ServingEngine:
         stream.synchronize()
         e2e_ms = (time.perf_counter() - wall_start) * 1e3
         step_ms = [start.elapsed_time(boundaries[0])]
-        step_ms.extend(boundaries[i - 1].elapsed_time(boundaries[i])
-                       for i in range(1, count))
+        if use_loop:
+            ns = self.decode.read_step_ns(0, count)
+            step_ms.extend((ns[i] - ns[i - 1]) / 1e6
+                           for i in range(1, count))
+        else:
+            step_ms.extend(boundaries[i - 1].elapsed_time(boundaries[i])
+                           for i in range(1, count))
         return Generation(cpu_tokens, step_ms[0], step_ms, e2e_ms)
 
     def close(self) -> None:

@@ -53,6 +53,16 @@ class PlanLibrary:
         self.lib.tm_plan_launch.argtypes = [C.c_void_p, C.c_uint32, C.c_uint32,
                                             C.c_uint64, C.c_void_p]
         self.lib.tm_plan_launch.restype = C.c_int
+        launch_steps = getattr(self.lib, "tm_plan_launch_steps", None)
+        read_step_ns = getattr(self.lib, "tm_plan_read_step_ns", None)
+        if launch_steps is not None:
+            launch_steps.argtypes = [C.c_void_p, C.c_uint32, C.c_uint32,
+                                     C.c_uint32, C.c_uint64, C.c_void_p]
+            launch_steps.restype = C.c_int
+        if read_step_ns is not None:
+            read_step_ns.argtypes = [C.c_void_p, C.c_uint32, C.c_uint32,
+                                     C.POINTER(C.c_uint64)]
+            read_step_ns.restype = C.c_int
         self.lib.tm_plan_destroy.argtypes = [C.c_void_p]
         self.lib.tm_plan_destroy.restype = None
         info = PlanInfo()
@@ -109,6 +119,21 @@ class Plan:
                 self.handle, step, mode, self.iteration[mode], stream) != 0:
             raise RuntimeError("tm_plan_launch failed")
         self.iteration[mode] += 1
+
+    def launch_steps(self, first: int, count: int, mode: int, stream: int) -> None:
+        if not self.library.info.modes & mode:
+            raise ValueError("mode not present in this plan")
+        if self.library.lib.tm_plan_launch_steps(self.handle, first, count, mode,
+                self.iteration[mode], stream) != 0:
+            raise RuntimeError("tm_plan_launch_steps failed")
+        self.iteration[mode] += count
+
+    def read_step_ns(self, first: int, count: int) -> list[int]:
+        values = (C.c_uint64 * count)()
+        if self.library.lib.tm_plan_read_step_ns(self.handle, first, count,
+                values) != 0:
+            raise RuntimeError("tm_plan_read_step_ns failed")
+        return list(values)
 
     def close(self) -> None:
         if self.handle:

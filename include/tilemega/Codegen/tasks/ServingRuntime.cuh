@@ -34,10 +34,12 @@ namespace tilemega::codegen::serving {
 struct Plan {
   harness::DeviceModel model;
   Params* ring = nullptr;
+  std::uint64_t* step_ns = nullptr;
   std::uint32_t steps = 0;
   int grid = 0;
   bool pdl = false;
   executor::TensorMap* tensor_maps = nullptr;
+  LagDependency* lag_dependencies = nullptr;
   PageTraceRecord* page_trace = nullptr;
   // L1 grid-barrier rows and L2 task-event rows are disjoint. Ticket equality
   // requires a gap-free sequence for each mode, even when launches alternate.
@@ -97,11 +99,13 @@ inline bool StructureInvariant(ModelSpec const& spec,
       if (task < 0) continue;
       auto lower = RuntimeDependencyBounds(
           task, lower_counts[dep.producer],
-          dep.map == StageDependency::Map::kAll,
+          dep.map == StageDependency::Map::kAll ||
+              dep.map == StageDependency::Map::kPhase,
           dep.div, dep.scale, dep.offset, dep.count);
       auto upper = RuntimeDependencyBounds(
           task, upper_counts[dep.producer],
-          dep.map == StageDependency::Map::kAll,
+          dep.map == StageDependency::Map::kAll ||
+              dep.map == StageDependency::Map::kPhase,
           dep.div, dep.scale, dep.offset, dep.count);
       if (lower.first != upper.first || lower.past != upper.past)
         return false;
@@ -160,7 +164,9 @@ inline void Destroy(Plan* plan) {
     cudaFree(plan->page_trace);
   }
   if (plan->ring) cudaFree(plan->ring);
+  if (plan->step_ns) cudaFree(plan->step_ns);
   if (plan->tensor_maps) cudaFree(plan->tensor_maps);
+  if (plan->lag_dependencies) cudaFree(plan->lag_dependencies);
   auto& model = plan->model;
   if(model.params.serving_handoff_tickets)cudaFree(model.params.serving_handoff_tickets);
   if(model.params.serving_no_producer)cudaFree(const_cast<std::uint8_t*>(model.params.serving_no_producer));
@@ -254,6 +260,13 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
           cudaFuncSetAttribute(tilemega_l2_kernel,
             cudaFuncAttributeMaxDynamicSharedMemorySize, smem) != cudaSuccess)
         return nullptr;
+#if TILEMEGA_PAGED
+      if (cudaFuncSetAttribute(tilemega_loop_kernel<false>,
+            cudaFuncAttributeMaxDynamicSharedMemorySize, smem) != cudaSuccess ||
+          cudaFuncSetAttribute(tilemega_loop_kernel<true>,
+            cudaFuncAttributeMaxDynamicSharedMemorySize, smem) != cudaSuccess)
+        return nullptr;
+#endif
     }
     int l1 = target.ActiveBlocksPerSM(
         reinterpret_cast<void const*>(tilemega_l1_kernel),
@@ -268,6 +281,16 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     plan->model = harness::Create(
         kModel, kModel.runtime_variants[0], 0, dims, "", grid,
         std::min(l1, l2), target, smem, external);
+#if TILEMEGA_PAGED
+    if(kLagDependencyCount) {
+      TILEMEGA_CUDA_CHECK(cudaMalloc(&plan->lag_dependencies,
+          kLagDependencyCount*sizeof(LagDependency)));
+      TILEMEGA_CUDA_CHECK(cudaMemcpy(plan->lag_dependencies,kLagDependencies,
+          kLagDependencyCount*sizeof(LagDependency),cudaMemcpyHostToDevice));
+      plan->model.params.lag_dependencies=plan->lag_dependencies;
+      plan->model.params.lag_dependency_count=kLagDependencyCount;
+    }
+#endif
     bool has_handoff=false;
     std::vector<unsigned> reduce_users(plan->model.stages.size(),0);
     for(std::size_t i=0;i<plan->model.stages.size();++i) {
@@ -281,6 +304,7 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
       if(!reduce.handoff_elided ||
          !((stage.kind==TaskKind::kGemm && reduce.kind==TaskKind::kGemmCombine &&
             stage.gemm==reduce.gemm) ||
+           (stage.kind==TaskKind::kGemm && reduce.kind==TaskKind::kArgmaxReduce) ||
            (stage.kind==TaskKind::kFusedAttention && reduce.kind==TaskKind::kAttentionMerge)))
         throw std::invalid_argument("last-arriver stage pair is not a complete GEMM or attention reduction");
       ++reduce_users[stage.handoff_reduce_stage];
@@ -352,6 +376,8 @@ extern "C" int tm_plan_set_steps(void* opaque,
     return -3;
   if (cudaMemcpy(plan->ring, host.data(), count * sizeof(Params),
                  cudaMemcpyHostToDevice) != cudaSuccess) return -4;
+  if (cudaMalloc(&plan->step_ns, (std::size_t(count)+1)*sizeof(std::uint64_t))
+      != cudaSuccess) return -5;
   plan->steps = count;
   return 0;
 }
@@ -378,6 +404,50 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step,
   if (status != cudaSuccess) return int(status);
   ++plan->next_iteration[mode_index];
   return 0;
+}
+
+extern "C" int tm_plan_launch_steps(void* opaque, std::uint32_t first_step,
+    std::uint32_t steps, std::uint32_t mode, std::uint64_t base_iteration,
+    void* stream) {
+#if TILEMEGA_PAGED
+  using namespace tilemega::codegen;
+  auto* plan=static_cast<serving::Plan*>(opaque);
+  if(!plan || !plan->ring || !steps || first_step>plan->steps ||
+     steps>plan->steps-first_step ||
+     (mode!=TM_SERVING_L1 && mode!=TM_SERVING_L2))return -1;
+  unsigned index=mode==TM_SERVING_L1?0:1;
+  if(base_iteration!=plan->next_iteration[index])return -2;
+  auto cuda_stream=static_cast<cudaStream_t>(stream);
+  cudaError_t status;
+  if(mode==TM_SERVING_L1)
+    status=executor::LaunchServing(tilemega_loop_kernel<false>,plan->grid,
+        kServingThreads,kServingSharedBytes,cuda_stream,plan->pdl,
+        static_cast<Params const*>(plan->ring+first_step),steps,
+        plan->model.events,base_iteration,
+        reinterpret_cast<unsigned long long*>(plan->step_ns+first_step));
+  else
+    status=executor::LaunchServing(tilemega_loop_kernel<true>,plan->grid,
+        kServingThreads,plan->model.l2_smem_bytes,cuda_stream,plan->pdl,
+        static_cast<Params const*>(plan->ring+first_step),steps,
+        plan->model.events,base_iteration,
+        reinterpret_cast<unsigned long long*>(plan->step_ns+first_step));
+  if(status!=cudaSuccess)return int(status);
+  plan->next_iteration[index]+=steps;
+  return 0;
+#else
+  (void)opaque;(void)first_step;(void)steps;(void)mode;
+  (void)base_iteration;(void)stream;
+  return -3;
+#endif
+}
+
+extern "C" int tm_plan_read_step_ns(void* opaque,std::uint32_t first,
+    std::uint32_t count,std::uint64_t* host) {
+  auto* plan=static_cast<tilemega::codegen::serving::Plan*>(opaque);
+  if(!plan || !plan->step_ns || !host || first>plan->steps ||
+     count>plan->steps-first+1)return -1;
+  return int(cudaMemcpy(host,plan->step_ns+first,
+      std::size_t(count)*sizeof(std::uint64_t),cudaMemcpyDeviceToHost));
 }
 
 #if TILEMEGA_TRACE_V2
