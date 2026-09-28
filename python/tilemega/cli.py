@@ -30,6 +30,64 @@ DEFAULTS = {
 }
 
 
+def aggregate_paired_runs(cell: Path, batch: int, count: int, repeats: int,
+                          model: Path) -> None:
+    """Keep measured generations adjacent across engines, even after reloads."""
+    def quantile(values, q):
+        values = sorted(values)
+        at = q * (len(values) - 1)
+        lo = int(at)
+        return values[lo] + (values[min(lo + 1, len(values) - 1)] - values[lo]) * (at - lo)
+
+    for name in ('tilemega', 'vllm'):
+        parent = cell / name
+        target = parent if name == 'tilemega' else parent / f'B{batch}'
+        target.mkdir(parents=True, exist_ok=True)
+        samples = []
+        for repeat in range(repeats):
+            directory = parent / f'round{repeat}'
+            if name == 'vllm':
+                directory /= f'B{batch}'
+            samples.append(json.loads((directory / 'measurements.json').read_text()))
+            for tokens in (1, count):
+                shutil.copy2(directory / f'tokens_N{tokens}_run1.json',
+                             target / f'tokens_N{tokens}_run{repeat + 1}.json')
+        full = [sample['e2e_seconds'] for sample in samples]
+        first = [sample['ttft_seconds'] for sample in samples]
+        e2e, ttft = statistics.median(full), statistics.median(first)
+        rows = []
+        for repeat, sample in enumerate(samples):
+            for row in sample.get('runs', sample.get('generation_runs', [])):
+                if not row['warmup']:
+                    rows.append(dict(row, run=repeat + 1))
+        result = dict(samples_seconds=full, ttft_samples_seconds=first,
+                      e2e_seconds=e2e, ttft_seconds=ttft,
+                      tpot_seconds=(e2e - ttft) / (count - 1),
+                      output_tokens_per_second=batch * count / e2e,
+                      measurement_policy=samples[0]['measurement_policy'],
+                      batch=batch, max_tokens=count, paired_rounds=repeats)
+        if name == 'tilemega':
+            tokens = [row['tokens'] for row in rows if row['N'] == count]
+            if any(item != tokens[0] for item in tokens[1:]):
+                raise AssertionError('C-2: paired TileMega generations produced different tokens')
+            steps = [ms / 1000 for row in rows if row['N'] == count
+                     for ms in row['gpu_step_ms'][1:]]
+            result.update(runs=rows, timed_tokens_identical=True,
+                          tpot_mean_seconds=statistics.mean(steps),
+                          tpot_p50_seconds=quantile(steps, .5),
+                          tpot_p90_seconds=quantile(steps, .9))
+            with (parent / 'step_times.tsv').open('w') as output:
+                output.write('run\tstep\tgpu_ms\n')
+                for row in rows:
+                    if row['N'] == count:
+                        for step, ms in enumerate(row['gpu_step_ms']):
+                            output.write(f'{row["run"]}\t{step}\t{ms:.9g}\n')
+        else:
+            result.update(model=str(model), vllm_version=samples[0]['vllm_version'],
+                          generation_runs=rows)
+        atomic_json(target / 'measurements.json', result)
+
+
 def read_config(path: Path) -> dict:
     if path.suffix == '.json':
         config = json.loads(path.read_text())
@@ -319,21 +377,34 @@ class Run:
             vllm = [settings['vllm_python'], str(ROOT / 'python/tilemega/serving/vllm_baseline.py'), *common,
                     '--out', cell / 'vllm', '--max-tokens', self.config['workload']['max_new_tokens'],
                     '--policy', self.out / 'measurement_policy.json', '--warmup', settings['warmup'], '--repeats', settings['repeats']]
-            arms = [('tilemega', tilemega)]
             if settings['vllm']:
-                arms.append(('vllm', vllm))
-                if index % 2: arms.reverse()
-            for label, command in arms:
-                extra={}
-                if label=='vllm':
-                    # Some vLLM wheels depend on a CUDA runtime packaged in
-                    # their own venv rather than the system toolkit path.
-                    venv=Path(settings['vllm_python']).expanduser().absolute().parents[1]
-                    runtimes=list(venv.glob('lib/python*/site-packages/nvidia/cu*/lib/libcudart.so.*'))
-                    if runtimes:
-                        paths=list(dict.fromkeys(str(path.parent) for path in runtimes))
-                        extra['LD_LIBRARY_PATH']=os.pathsep.join([*paths,os.getenv('LD_LIBRARY_PATH','')])
-                self.command(command, f'bench-{label}-B{batch}', gpu=True, env_extra=extra)
+                # A vLLM engine and a serving plan cannot share the measured
+                # device's memory. Reload each arm for an adjacent pair while
+                # keeping initialization and warmup outside the timed call.
+                alternation=[]
+                for repeat in range(settings['repeats']):
+                    arms=[('tilemega',tilemega),('vllm',vllm)]
+                    if (index+repeat)%2:arms.reverse()
+                    for label, command in arms:
+                        out=cell/label/f'round{repeat}'
+                        command=list(command)
+                        command[command.index('--out')+1]=out
+                        command[command.index('--repeats')+1]='1'
+                        extra={}
+                        if label=='vllm':
+                            venv=Path(settings['vllm_python']).expanduser().absolute().parents[1]
+                            runtimes=list(venv.glob('lib/python*/site-packages/nvidia/cu*/lib/libcudart.so.*'))
+                            if runtimes:
+                                paths=list(dict.fromkeys(str(path.parent) for path in runtimes))
+                                extra['LD_LIBRARY_PATH']=os.pathsep.join([*paths,os.getenv('LD_LIBRARY_PATH','')])
+                        self.command(command,f'bench-{label}-B{batch}-r{repeat}',gpu=True,env_extra=extra)
+                        alternation.append(dict(round=repeat,engine=label,
+                                                measurements=str(out/'measurements.json')))
+                atomic_json(cell/'alternation.json',alternation)
+                aggregate_paired_runs(cell,batch,self.config['workload']['max_new_tokens'],
+                                      settings['repeats'],self.model)
+            else:
+                self.command(tilemega, f'bench-tilemega-B{batch}', gpu=True)
         return prompts
 
     def check(self, plans, prompts):
