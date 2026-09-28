@@ -8820,3 +8820,17 @@ returned 18/18 PASS; that checker does not substitute for C-2. Evidence:
 `SERVING_R11/ev2/measurement_policy.json`, `ev2/sass_audit.json`, and
 `ev2/verify.txt`. The final ctest run passed 91/91, including the synthetic
 `direct_handoff` page-helper case (`ev2/ctest_91.log`).
+
+## F-337: Tile-packed pages remove the measured loader instruction bottleneck
+
+✅ verified: with one down-stage geometry (N=2048, K=8192, TN=128, TK=64,
+128 CTAs), the R11 row loader took 0.2284 ms; the tile-page loader took
+0.0696 ms with `evict_first` and 0.0649 ms without it. The old collective
+at the same geometry took 0.1024–0.1074 ms. A controlled 128-CTA, one-loader-
+warp-per-SM 512-MiB stream test measured 856.5 GB/s for row-strided segments
+and 902.4 GB/s for contiguous pages. The 5.4% access-shape gain is much
+smaller than the 3.5× isolated stage gain, so removing per-vector address
+arithmetic is the larger observed effect. The R12 default leaves
+`evict_first` off. Evidence: `/root/r12_work/e1/{row,tile,noevict}.run.log` and
+`/root/r12_work/paged_repeat.log`; these are development microbenchmarks, not
+accepted end-to-end performance results.
