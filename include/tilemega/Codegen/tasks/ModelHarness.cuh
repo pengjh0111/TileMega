@@ -948,7 +948,10 @@ __device__ inline void WaitTaskDependencies(Params const& p,
   for(std::uint32_t i=threadIdx.x;i<task.wait_count;i+=blockDim.x) {
     TaskWait const& wait=p.task_waits[task.wait_begin+i];
     WaitAtLeast(&events[EventIndex(p,wait.producer,wait.group)].arrivals,
-                EventTriggers(p,wait.producer,wait.group)*(iteration+1ull));
+                EventTriggers(p,wait.producer,wait.group)*(iteration+1ull),
+                Watch{p.serving_watchdog,p.serving_watchdog_ns,10,task.stage,
+                    task.logical_task,wait.producer,wait.group,
+                    EventIndex(p,wait.producer,wait.group),iteration});
   }
   // Unconditional: this also separates adjacent tasks when there are no waits.
   __syncthreads();
@@ -1277,13 +1280,15 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
 #endif
 
 __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
-                                   unsigned long long iteration) {
+                                   unsigned long long iteration,Params const* params=nullptr) {
 #if TILEMEGA_SYNC_V3 && !TILEMEGA_UNSAFE_NO_GRID_SYNC
   __syncthreads();
   if(threadIdx.x==0) {
     RedRelease(&events[stage].arrivals,1ull);
+    Watch watch{params?params->serving_watchdog:nullptr,
+                params?params->serving_watchdog_ns:0,11,stage,0,stage,0,stage,iteration};
     WaitAtLeast(&events[stage].arrivals,
-                static_cast<unsigned long long>(gridDim.x)*(iteration+1ull));
+                static_cast<unsigned long long>(gridDim.x)*(iteration+1ull),watch);
   }
   __syncthreads();
   return;
@@ -1339,9 +1344,9 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
     static_assert(TILEMEGA_GENERATED_CLUSTER_DIM==1,"split grid barrier requires the flat grid protocol");
     prefetch::Arrive(events,stage,iteration);
     prefetch::NextStage(*params,stage+1);
-    prefetch::Wait(events,stage,iteration);
+    prefetch::Wait(events,stage,iteration,params);
 #else
-    GridBarrier(events, stage, iteration);
+    GridBarrier(events, stage, iteration,params);
 #endif
   }
 }
@@ -2180,6 +2185,8 @@ inline DeviceModel Create(ModelSpec const& spec,
     } else {
       if (target >= spec.stage_count)
         throw std::invalid_argument("last-arriver reducer stage outside plan");
+      if (spec.stages[target].kind==TaskKind::kArgmaxReduce && done[i]!=entry[i])
+        throw std::invalid_argument("argmax last-arriver requires lm_head split-K one");
       target = entry[target];
     }
     model.stages[entry[i]].handoff_reduce_stage = target;
@@ -2638,6 +2645,13 @@ inline DeviceModel Create(ModelSpec const& spec,
 #else
     model.event_flags[dep.producer] |= kNeedsAggregateEvent;
 #endif
+  }
+  for(auto const& dep:dependencies)if(dep.map==StageDependency::Map::kPhase) {
+    auto const flags=model.event_flags[dep.producer];
+    if(stage_kappa(dep.producer)!=1 ||
+       (flags&(kNeedsFineEvents|kNeedsAggregateEvent))!=
+           (kNeedsFineEvents|kNeedsAggregateEvent))
+      throw std::invalid_argument("K-phase producer requires kappa one and both event rows");
   }
 #if TILEMEGA_SERVING_RUNTIME && TILEMEGA_PAGED
   // Lag-one safety rows: the next decode iteration reads the token and the

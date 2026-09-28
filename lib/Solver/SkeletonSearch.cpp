@@ -496,6 +496,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
   };
   std::vector<SkeletonCandidate> evaluated;std::map<std::string,std::size_t> seen;
   auto evaluate=[&](std::vector<GemmConfig> const& config,int kappa,int residency)->std::size_t {
+    if(options.pg_pages) kappa=1;
     auto key=search.Key(config,kappa,residency);auto old=seen.find(key);if(old!=seen.end())return old->second;
     SkeletonCandidate candidate;candidate.config=config;candidate.key=key;candidate.kappa=kappa;candidate.residency=residency;
     candidate.attention_kv_block=search.attention_kv_block;

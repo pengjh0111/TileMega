@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <tilemega/Target/ArchDispatch.h>
 #include <iomanip>
+#include <iostream>
 #include <limits>
 #include <map>
 #include <set>
@@ -465,6 +466,9 @@ std::string emitModelPlan(mlir::ModuleOp module,
     throw std::invalid_argument("tilemega.model_plan has an empty required table");
   double epsilon = optionalFloatField(plan, "norm_epsilon");
   auto serving = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
+  auto solved_kappa=module->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_kappa");
+  bool const phase_legal=(!solved_kappa || solved_kappa.getInt()==1) &&
+      !module->hasAttr("tmexec.solved_stage_kappa");
 
   std::ostringstream out;
   out << "namespace {\nusing namespace tilemega::codegen;\n\n"
@@ -650,8 +654,11 @@ std::string emitModelPlan(mlir::ModuleOp module,
           << "u, " << impl.stages << "u},\n";
     out << "};\n\nconstexpr StageDependency kDependencies" << v << "[] = {\n";
     for (auto const& edge : variant.dependencies) {
-      analysis::WaitWindow const& w = edge.phase_window?*edge.phase_window:edge.window;
-      char const* kind = edge.phase_window?"kPhase":!w.narrowed ? "kAll"
+      bool const use_phase=edge.phase_window.has_value() && phase_legal;
+      if(edge.phase_window && !phase_legal)
+        std::cerr<<"E2E_KPHASE_DISABLED kappa is not uniformly one\n";
+      analysis::WaitWindow const& w = use_phase?*edge.phase_window:edge.window;
+      char const* kind = use_phase?"kPhase":!w.narrowed ? "kAll"
                          : w.IsIdentity() ? "kIdentity" : "kWindow";
       out << "  {" << edge.producer << "u, " << edge.consumer
           << "u, StageDependency::Map::" << kind << ", " << w.div << "u, "
