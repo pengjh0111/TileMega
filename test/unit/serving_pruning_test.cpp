@@ -14,6 +14,8 @@ int TestServingPruning(int argc, char** argv) {
       ServingBF16SmemBytes(g.tile_m, g.tile_n, g.tile_k, g.stages);
   ServingPruneContext decode{1, 3072, 2048, 0, 64, &target};
   assert(!PruneServingR1(g, decode));
+  assert(PruneServingR1(GemmConfig{16, 128, 64, 2, 64},
+                        ServingPruneContext{16, 2048, 6144, 0, 128, &target}));
   assert(!PruneServingAttentionSmemR1(64,16,{g},target));
   assert(!PruneServingAttentionSmemR1(64,128,{g},target));
   assert(PruneServingAttentionSmemR1(128,16,{g},target));

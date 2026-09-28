@@ -35,6 +35,8 @@ inline bool PruneServingR1(GemmConfig const& g,
       context.target->res.max_dynamic_smem_per_cta) return true;
   if (context.gate_interleave_u > 0 &&
       g.tile_n % (2 * context.gate_interleave_u)) return true;
+  int const k_tiles = (context.k + g.tile_k - 1) / g.tile_k;
+  if (k_tiles % g.split_k != 0) return true;
   // Each split must have at least one full K tile, including the shortest.
   return context.k / g.split_k < g.tile_k;
 }
