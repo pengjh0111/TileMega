@@ -17,16 +17,19 @@
 #include <filesystem>
 #include <fstream>
 #include <cstdlib>
+#include <type_traits>
 
 #ifndef TILEMEGA_TEST_KV_TILE
 #define TILEMEGA_TEST_KV_TILE 64
 #endif
 namespace {
 using Element = cutlass::bfloat16_t;
+using TestArch=std::conditional_t<std::is_void_v<tilemega::arch::CurrentArch>,
+    tilemega::arch::Sm80,tilemega::arch::CurrentArch>;
 constexpr int Cap = 1088;
 #if TILEMEGA_TEST_PAGED
 template <int D,int Q,bool Norm>
-using Body=tilemega::codegen::PagedAttentionTaskBody<tilemega::arch::Sm80,D,Q,Norm,8192,3>;
+using Body=tilemega::codegen::PagedAttentionTaskBody<TestArch,D,Q,Norm,8192,3>;
 template <int D,int Q,bool Norm>
 constexpr int SharedBytes() {return (1024+sizeof(typename Body<D,Q,Norm>::SharedStorage)+1023)/1024*1024+3*8192;}
 template <int D,int Q,bool Norm>
@@ -43,7 +46,7 @@ constexpr int LaunchThreads=160;
 #else
 #if TILEMEGA_TEST_INDEPENDENT
 template <int D,int Q,bool Norm>
-using Body=tilemega::codegen::IndependentAttentionTaskBody<tilemega::arch::Sm80,D,Q,Norm>;
+using Body=tilemega::codegen::IndependentAttentionTaskBody<TestArch,D,Q,Norm>;
 #else
 template <int D, int Q, bool Norm>
 using Body = tilemega::codegen::FusedAttentionTaskBody<

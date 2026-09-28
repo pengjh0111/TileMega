@@ -3,11 +3,14 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <type_traits>
 using Element=cutlass::bfloat16_t;
 using namespace tilemega::codegen;
+using TestArch=std::conditional_t<std::is_void_v<tilemega::arch::CurrentArch>,
+    tilemega::arch::Sm80,tilemega::arch::CurrentArch>;
 template<int N,int K,int Page,int Pages>
 __global__ void RunPaged(ServingGemmOperands p) {
-  using Body=PagedGemmTaskBody<tilemega::arch::Sm80,16,N,K,Page,Pages>;
+  using Body=PagedGemmTaskBody<TestArch,16,N,K,Page,Pages>;
   using Ring=typename Body::Ring;
   extern __shared__ __align__(1024) char storage[];
   constexpr int work=1024;
@@ -22,7 +25,7 @@ __global__ void RunPaged(ServingGemmOperands p) {
 void CheckCuda(cudaError_t code){if(code!=cudaSuccess){std::fprintf(stderr,"%s\n",cudaGetErrorString(code));std::exit(2);}}
 template<int N,int K,int Page,int Pages>
 void Check(int rows,int columns,int reduction) {
-  using Body=PagedGemmTaskBody<tilemega::arch::Sm80,16,N,K,Page,Pages>;
+  using Body=PagedGemmTaskBody<TestArch,16,N,K,Page,Pages>;
   int pitch=(reduction+7)&~7;Element *a=nullptr,*b=nullptr,*out=nullptr;
   CheckCuda(cudaMallocManaged(&a,rows*pitch*2));CheckCuda(cudaMallocManaged(&b,columns*pitch*2));CheckCuda(cudaMallocManaged(&out,rows*columns*2));
   for(int row=0;row<rows;++row)for(int k=0;k<pitch;++k)
