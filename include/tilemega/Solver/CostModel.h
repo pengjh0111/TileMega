@@ -146,6 +146,8 @@ struct CostBreakdown {
 /// the validation tool walks them to produce §2.4's ladder.
 struct CostModelOptions {
   bool regime_a = false;
+  bool paged = false;
+  int paged_page_bytes = 16384;
   bool sdcm_above_knee = false;
   bool physical_traffic = true;
   bool stage_latency = true;

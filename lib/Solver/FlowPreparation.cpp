@@ -166,7 +166,8 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     TargetSpec const& target,int residency,HopCurve const& hop,
     analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate,int kernel_shared_bytes,
     PreparedFlow const* prior,std::vector<bool> const* reusable_stages,
-    analysis::DramFloor::Value const* bound_floor) {
+    analysis::DramFloor::Value const* bound_floor,bool paged,
+    int paged_page_bytes) {
   if(problem.model.dtype!=ScalarType::kBF16)throw std::invalid_argument("flow preparation requires BF16");
   auto target_key=target.ToJson();if(cache.target_key!=target_key){cache={};cache.target_key=std::move(target_key);}
   PreparedFlow result;auto& flow=result.flow;auto model=problem.model;model.metric_bindings.values.erase("Tm");model.metric_bindings.values.erase("Tn");auto theta=model.MetricBindings();
@@ -194,7 +195,8 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   }
   auto const& graph=*cache.graph;
   auto const graph_end=std::chrono::steady_clock::now();
-  CostModelOptions options;options.regime_a=true;
+  CostModelOptions options;options.regime_a=true;options.paged=paged;
+  options.paged_page_bytes=paged_page_bytes;
   // The calibrated device in-flight server owns the DRAM latency constraint;
   // charging the R9b per-CTA stage-latency term as well would count it twice.
   if(flow.inflight_dram)options.stage_latency=false;

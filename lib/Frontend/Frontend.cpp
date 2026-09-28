@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <regex>
 #include <set>
+#include <sstream>
 #include <stdexcept>
 #include <unordered_set>
 
@@ -260,6 +261,10 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         builder.getNamedAttr("c", builder.getI64IntegerAttr(gemm.c)),
         builder.getNamedAttr("d", builder.getI64IntegerAttr(gemm.d)),
         builder.getNamedAttr("beta", builder.getF32FloatAttr(gemm.beta))};
+    if(gemm.norm_ss!=0xffffffffu)
+      fields.push_back(builder.getNamedAttr("norm_ss",builder.getI64IntegerAttr(gemm.norm_ss)));
+    if(gemm.ss_out!=0xffffffffu)
+      fields.push_back(builder.getNamedAttr("ss_out",builder.getI64IntegerAttr(gemm.ss_out)));
     if (gemm.epilogue != PlanGemm::Epilogue::kStore) {
       llvm::StringRef epilogue = "store";
       if (gemm.epilogue == PlanGemm::Epilogue::kResidual) epilogue = "residual";
@@ -761,6 +766,122 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     return result;
   }();
 
+  // A phase analysis changes only the consumer's reduction tile to one K
+  // iteration. Its task graph is an analysis witness; the executable graph
+  // above retains the selected split. Every emitted window below is proved
+  // against the complete symbolic ISL relation, never inferred from a sample.
+  std::map<std::size_t,std::pair<analysis::WaitWindow,int>> phaseWindows;
+  if(options.phase_analysis && plan.serving && plan.serving_seq==1) {
+    analysis::ParamBinding phaseKnown=known;
+    if(!liftOptions.batch_symbol.empty() && options.phase_batch>0)
+      phaseKnown.Bind(liftOptions.batch_symbol,options.phase_batch);
+    auto phased=g;
+    for(auto const& op:lifted.ops) {
+      if(op.stage<0 || std::size_t(op.stage)>=plan.stages.size())continue;
+      auto const& stage=plan.stages[op.stage];
+      if(stage.kind!=PlanTaskKind::kGemm || stage.gemm>=runtimeGemms.size())continue;
+      auto semantic=lifted.sem.Find(op.name);
+      if(semantic && semantic->reduction.splittable)
+        phased.Split(op.name,analysis::ClosedForm::Constant(
+            runtimeGemms[stage.gemm].tile_k));
+    }
+    auto phaseGraph=analysis::Instantiate(lifted.sem,phased);
+    auto phaseEdges=cache?cache->Derive(lifted.sem,phaseGraph,phased,known)
+        :analysis::CouplingDerivation{}.Derive(phaseGraph,known);
+    analysis::ParamBinding witness=phaseKnown;
+    if(!liftOptions.batch_symbol.empty() && options.phase_batch<=0)
+      witness.Bind(liftOptions.batch_symbol,2L);
+    if(!liftOptions.past_symbol.empty())witness.Bind(liftOptions.past_symbol,64L);
+    int phase_scanned=0,phase_a_edges=0,phase_sources=0,
+        phase_candidates=0,phase_fitted=0;
+    for(std::size_t i=0;i<derived.size();++i) {
+      auto const& edge=derived[i];auto const& consumer=liftedOf(edge.dst.name);
+      if(consumer.stage<0 || std::size_t(consumer.stage)>=plan.stages.size())continue;
+      auto const& stage=plan.stages[consumer.stage];
+      if(stage.kind!=PlanTaskKind::kGemm || stage.gemm>=runtimeGemms.size())continue;
+      ++phase_scanned;
+      auto const& gemm=plan.gemms[stage.gemm];
+      auto* originalSource=graph.Find(edge.src.name);
+      if(!originalSource || originalSource->output.name!=plan.buffers.at(gemm.a).name)
+        continue; // Only the A operand has producer phases.
+      ++phase_a_edges;
+      std::string phaseSource=edge.src.name;
+      auto sourceSemantic=lifted.sem.Find(liftedOf(phaseSource).name);
+      if(sourceSemantic && phased.ChunkOf(sourceSemantic->name,nullptr))
+        phaseSource=sourceSemantic->reduction.combiner;
+      auto* source=phaseGraph.Find(phaseSource);
+      auto* sink=phaseGraph.Find(edge.dst.name);
+      if(!source || !sink)continue;
+      ++phase_sources;
+      auto found=std::find_if(phaseEdges.begin(),phaseEdges.end(),
+          [&](auto const& candidate){return candidate.src.name==phaseSource &&
+              candidate.dst.name==edge.dst.name;});
+      if(found==phaseEdges.end())continue;
+      ++phase_candidates;
+      // A GEMM reads the same K slice for every output N tile. A row-major
+      // window over (m,n,j) cannot express this periodic reset of n; project
+      // to j, then prove that rebuilding the full consumer relation gives
+      // precisely the original ISL coupling. The plan has one M tile here.
+      int const tk=runtimeGemms[stage.gemm].tile_k;
+      int const kt=(gemm.k+tk-1)/tk;
+      if(options.phase_batch<=0 || options.phase_batch>runtimeGemms[stage.gemm].tile_m || kt<=1)
+        continue;
+      auto dimensions=found->C.DomainDimNames();
+      std::vector<analysis::ClosedForm> extents;
+      for(std::size_t axis=0;axis<sink->output.axes.size();++axis)
+        if(sink->IsTiled(axis))extents.push_back(sink->CoordinateExtent(axis).Substitute(phaseKnown));
+      if(dimensions.size()!=extents.size() || dimensions.empty() ||
+         dimensions.back()!="j")continue;
+      std::ostringstream projection;
+      projection<<"{ [";
+      for(std::size_t axis=0;axis<dimensions.size();++axis){
+        if(axis)projection<<',';
+        projection<<dimensions[axis];
+      }
+      projection<<"] -> [jp] : jp = j";
+      for(std::size_t axis=0;axis<dimensions.size();++axis)
+        projection<<" and 0 <= "<<dimensions[axis]<<" and "
+                  <<dimensions[axis]<<" < "<<extents[axis].ToIslText();
+      projection<<" }";
+      std::optional<analysis::WaitWindow> window;
+      try {
+        auto project=analysis::CouplingRelation::FromIslText(projection.str());
+        auto exact=found->C.BindParams(phaseKnown).IntersectRange(
+            analysis::ProducerTaskSpaceText(found->C,*source,phaseKnown));
+        auto reduced=project.Reverse().ApplyRange(exact);
+        auto rebuilt=project.ApplyRange(reduced);
+        if(exact.IsSubset(rebuilt) && rebuilt.IsSubset(exact)) {
+          analysis::OperatorNode phaseSink;
+          phaseSink.name=edge.dst.name+".phase";
+          phaseSink.output.name=phaseSink.name;
+          analysis::TensorAxis axis;axis.name="jp";
+          axis.extent=analysis::ClosedForm::Constant(kt);
+          phaseSink.output.axes.push_back(axis);
+          phaseSink.tile.push_back(analysis::ClosedForm::Constant(1));
+          analysis::CouplingEdge reducedEdge=*found;
+          reducedEdge.C=reduced;
+          window=analysis::FitWaitWindowSymbolic(
+              reducedEdge,*source,phaseSink,phaseKnown,witness);
+        }
+      } catch(std::exception const&) {
+        // A failed projection proof retains the complete task-level wait.
+      }
+      if(std::getenv("TILEMEGA_PHASE_TRACE") && phase_candidates<=3)
+        llvm::errs()<<"KPHASE_CANDIDATE src="<<phaseSource<<" dst="
+                    <<edge.dst.name<<" relation="
+                    <<found->C.ToString().substr(0,900)<<" window="
+                    <<(window?window->ToString():"none")<<"\n";
+      if(!window || !window->narrowed)continue; // Task-level wait is safe.
+      ++phase_fitted;
+      if(kt>1)phaseWindows.emplace(i,std::make_pair(*window,kt));
+    }
+    if(std::getenv("TILEMEGA_PHASE_TRACE"))
+      llvm::errs()<<"KPHASE scanned="<<phase_scanned<<" a_edges="
+                  <<phase_a_edges<<" sources="<<phase_sources<<" candidates="
+                  <<phase_candidates<<" fitted="<<phase_fitted<<" selected="
+                  <<phaseWindows.size()<<"\n";
+  }
+
   // Part 2: the wait window the generated kernel evaluates per CTA.  It is a
   // property of C at *every* sequence length.  Discover a candidate from one
   // concrete witness, then prove its row-major interval relation equal to the
@@ -863,6 +984,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
       windowCache.emplace(cacheKey, waitMaps[i]);
     }
   }
+  llvm::SmallVector<mlir::Attribute> phaseRecords;
   std::size_t edge = 0;
   for (auto const& item : derived) {
     auto source = symbols.find(item.src.name);
@@ -901,6 +1023,15 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
             builder.getStringAttr(taskKindOf(consumer.role)))})));
     state.addAttribute("relation", dialect::CouplingMapAttr::get(&context, item.C));
     state.addAttribute("wait_map", builder.getStringAttr(waitMaps[edge]));
+    if(auto found=phaseWindows.find(edge);found!=phaseWindows.end()) {
+      state.addAttribute("phase_map",builder.getStringAttr(found->second.first.ToString()));
+      state.addAttribute("phase_tiles",builder.getI64IntegerAttr(found->second.second));
+      phaseRecords.push_back(dict(builder,{
+          builder.getNamedAttr("producer",builder.getI64IntegerAttr(liftedOf(item.src.name).stage)),
+          builder.getNamedAttr("consumer",builder.getI64IntegerAttr(liftedOf(item.dst.name).stage)),
+          builder.getNamedAttr("window",builder.getStringAttr(found->second.first.ToString())),
+          builder.getNamedAttr("phase_tiles",builder.getI64IntegerAttr(found->second.second))}));
+    }
     state.addAttribute("wait", dialect::MetricAttr::get(&context, item.metrics.wait));
     state.addAttribute("fanout", dialect::MetricAttr::get(&context, item.metrics.fanout));
     state.addAttribute("volume", dialect::MetricAttr::get(&context, item.metrics.volume));
@@ -919,6 +1050,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     builder.create(state);
     ++edge;
   }
+  if(!phaseRecords.empty())module->setAttr("tmexec.phase_edges",builder.getArrayAttr(phaseRecords));
   for (auto const& node : graph.nodes) {
     mlir::OperationState state(builder.getUnknownLoc(), "tmexec.placement");
     state.addAttribute("task", mlir::FlatSymbolRefAttr::get(&context, symbols.at(node.name)));

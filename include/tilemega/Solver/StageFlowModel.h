@@ -8,12 +8,19 @@ struct FlowPiece {int count=0;TaskPriceParts parts;};
 struct FlowSpace {
   std::string name,category;
   int count=0,order=0;
+  bool fused_reducer=false;
   double rank_ns=0;
   std::vector<FlowPiece> pieces;
   std::vector<int> piece_of_task;
 };
 struct FlowRelease {int producer=0,consumer=0,kappa=1;bool all_producer=false,colocated=false;
   std::shared_ptr<std::vector<std::pair<int,int>> const> sorted; // (coarsened maximum predecessor, consumer)
+  // A proved K-phase edge releases the task on the first phase and retains
+  // the complete relation as a publication gate. Unproved edges leave phase
+  // false and use the historical task-level release above.
+  bool phase=false;
+  std::shared_ptr<std::vector<std::pair<int,int>> const> first;
+  int phase_iterations=1;
 };
 struct FlowProblem {
   std::vector<FlowSpace> spaces;
@@ -25,6 +32,7 @@ struct FlowProblem {
   // Decode PG-1: one static page ring per worker. A task may prefetch at
   // most this ring's capacity before its dependencies become ready.
   int page_bytes=0,pages_per_worker=0;
+  int lookahead_bytes=0;
   std::vector<double> inflight_curve_bytes,inflight_curve_gbps;
   std::vector<double> cta_stream_curve_bytes,cta_stream_curve_gbps;
 };

@@ -125,7 +125,7 @@ constexpr int kServingBF16Threads = 128;
 
 constexpr int ServingBF16SmemBytes(int m, int n, int k, int stages) {
   int const mainloop = 2 * stages * k * (m + n);
-  int const epilogue = 4 * m * n;
+  int const epilogue = 4 * m * n + 4 * m;
   return mainloop > epilogue ? mainloop : epilogue;
 }
 

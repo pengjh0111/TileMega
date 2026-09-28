@@ -52,7 +52,8 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     TargetSpec const& target,int residency,HopCurve const& hop,
     analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate=true,int kernel_shared_bytes=0,
     PreparedFlow const* prior=nullptr,std::vector<bool> const* reusable_stages=nullptr,
-    analysis::DramFloor::Value const* bound_floor=nullptr);
+    analysis::DramFloor::Value const* bound_floor=nullptr,bool paged=false,
+    int paged_page_bytes=16384);
 void ApplyFlowPrices(SymbolicProblem& problem,PreparedFlow const& flow,TargetSpec const& target,int residency);
 std::vector<TaskPriceParts> ExpandFlowPrices(PreparedFlow const& flow);
 }

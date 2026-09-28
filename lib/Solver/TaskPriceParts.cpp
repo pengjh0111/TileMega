@@ -151,7 +151,39 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
           body.byte_ns*bytes+body.flop_ns*serving_flops);
     }
   }
+  bool paged_fit_found=false;
+  if(options_.paged && !input.serving_body_kind.empty()) {
+    std::string key=input.serving_body_kind;
+    if(traits.stages>0)key+="_n"+std::to_string(traits.tile_n)+
+        "_k"+std::to_string(traits.tile_k);
+    else if(input.serving_attention)
+      key="attention_decode_d"+
+          std::to_string(input.serving_attention->head_dim);
+    auto measured=fit.serving_paged.find(key);
+    if(measured!=fit.serving_paged.end()) {
+      paged_fit_found=true;
+      double iters=0;
+      if(traits.stages>0)
+        iters=std::ceil(double(input.collective_k_extent>0?
+            input.collective_k_extent:eval(input.work.nominal_task_reduce_extent)) /
+            traits.tile_k);
+      else if(input.serving_attention) {
+        auto const& a=*input.serving_attention;
+        int block=int(point.At("q")%a.block_count);
+        int active=std::clamp(a.total-block*a.block_extent,0,a.block_extent);
+        int page_rows=options_.paged_page_bytes/(4*a.head_dim);
+        int extent=((active+63)/64)*16;
+        int warps_per_page=extent<page_rows?std::min(4,page_rows/std::max(1,extent)):1;
+        iters=((extent+page_rows-1)/page_rows)*(4/warps_per_page);
+      }
+      result.fixed_ns=measured->second.fixed_ns;
+      result.compute_ns=std::max(0.0,iters*measured->second.iter_ns);
+    }
+  }
   result.dram_rate_cap=std::min(l2_bytes_per_ns_per_sm_,result.compute_ns>0?result.dram_bytes/result.compute_ns:l2_bytes_per_ns_per_sm_);
+  if(options_.paged && paged_fit_found &&
+     fit.serving_paged_loader_gbps_per_sm>0)
+    result.dram_rate_cap=fit.serving_paged_loader_gbps_per_sm;
   for(double v:{result.fixed_ns,result.compute_ns,result.dram_bytes,result.dram_rate_cap})
     if(v<0 || !std::isfinite(v))throw std::runtime_error("invalid task price component");
   return result;

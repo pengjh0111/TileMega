@@ -32,6 +32,7 @@ struct SkeletonSearchOptions {
   bool handoff_auto=false;
   int page_bytes=8192;
   std::vector<int> page_choices;
+  std::vector<int> lookahead_choices{0,65536,131072};
   // A previous batch's winning serving plan is the second coordinate-descent
   // start. Entries are indexed by GEMM instance, then folded by SemSig class.
   std::vector<GemmConfig> serving_warm_gemms;
@@ -50,6 +51,7 @@ struct SkeletonCandidate {
   // searches the query-row block. Both are literal in the ISL map.
   int attention_kv_block=0,attention_query_rows=0;
   int page_bytes=0;
+  int lookahead_bytes=0;
   unsigned handoff_mask=0;
   SkeletonPlacementStats placement;
 };

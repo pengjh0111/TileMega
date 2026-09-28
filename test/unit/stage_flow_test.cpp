@@ -114,6 +114,22 @@ int TestStageFlow(int argc, char** argv) try {
   Near(EvaluateFlow(p).makespan_ns,41,"publication wait and hop counted once");
   p.edges[0].colocated=true;Near(EvaluateFlow(p).makespan_ns,10,"kappa one colocated synchronization omitted");
   p.edges[0].kappa=2;Near(EvaluateFlow(p).makespan_ns,41,"kappa groups retain synchronization");
+  // The first K phase permits early compute; publication retains the last
+  // phase. The two release vectors deliberately have different coordinates.
+  FlowProblem phased;phased.workers=2;phased.dram_gbps=10;
+  phased.spaces={Space(2,{0,5,0,0}),Space(1,{0,10,0,0})};
+  phased.spaces[0].pieces={{1,{0,5,0,0}},{1,{0,20,0,0}}};
+  phased.spaces[0].piece_of_task={0,1};phased.spaces[1].order=1;
+  auto full=std::make_shared<std::vector<std::pair<int,int>> const>(
+      std::vector<std::pair<int,int>>{{1,0}});
+  auto first=std::make_shared<std::vector<std::pair<int,int>> const>(
+      std::vector<std::pair<int,int>>{{0,0}});
+  phased.edges={{0,1,1,false,false,full,true,first,2}};
+  Near(EvaluateFlow(phased).makespan_ns,25,
+      "K phase starts early but waits to publish after the final gate");
+  phased.edges[0].phase=false;
+  Near(EvaluateFlow(phased).makespan_ns,30,
+      "complete task edge waits for the slow producer");
   auto d=DecomposeFlow(p);for(auto const& link:d.original.critical_links)Near(link.wait_ns+link.fixed_ns+link.mainloop_ns+link.publication_ns,link.end_ns-link.start_ns,"critical link segment closure");Near(d.synchronization+d.fixed+d.contention+d.chain,d.original.makespan_ns-p.floor_ns,"counterfactual closure");
   if(CoarsenRelease(4,7,4)!=6 || CoarsenRelease(0,7,4)!=3)throw std::runtime_error("coarsening tail mismatch");
   bool rejected=false;p.dram_floor_ns=100;try{EvaluateFlow(p);}catch(std::runtime_error const&){rejected=true;}if(!rejected)throw std::runtime_error("physical floor not enforced");

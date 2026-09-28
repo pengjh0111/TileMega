@@ -33,6 +33,8 @@ struct ImportOptions {
   bool combiner_tile_per_block = false;
   bool balanced_placement = false;
   bool separate_residual_tasks = false;
+  bool phase_analysis = false;  // R12: only materialized paged decode plans.
+  int phase_batch = 0;         // Fixed batch of the materialized serving plan.
 };
 struct ImportedSemantics {
   ExportBridge bridge;
