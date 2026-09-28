@@ -2,7 +2,7 @@
   {
     "name": "Q0",
     "command": [
-      "/usr/bin/python3",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
       "-m",
       "tilemega",
       "calibrate",
@@ -20,7 +20,7 @@
     "command": [
       "bash",
       "-lc",
-      "/usr/bin/python3 -m tilemega export --config configs/e2e/llama_r12.json --run-dir runs/r12b-llama && /usr/bin/python3 -m tilemega export --config configs/e2e/qwen3_r12.json --run-dir runs/r12b-qwen3"
+      "/root/venvs/tilemega-torch213-cu126/bin/python -m tilemega export --config configs/e2e/llama_r12.json --run-dir runs/r12b-llama && /root/venvs/tilemega-torch213-cu126/bin/python -m tilemega export --config configs/e2e/qwen3_r12.json --run-dir runs/r12b-qwen3"
     ],
     "timeout": 3600,
     "after": [
@@ -31,7 +31,7 @@
   {
     "name": "Q2",
     "command": [
-      "/usr/bin/python3",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
       "docs/experiments/SERVING_R12B/experiments.py",
       "s1"
     ],
@@ -44,7 +44,7 @@
   {
     "name": "Q3",
     "command": [
-      "/usr/bin/python3",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
       "docs/experiments/SERVING_R12B/experiments.py",
       "s1b"
     ],
@@ -57,7 +57,7 @@
   {
     "name": "Q4",
     "command": [
-      "/usr/bin/python3",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
       "docs/experiments/SERVING_R12B/choose_defaults.py",
       "--s1b",
       "docs/experiments/SERVING_R12B/s1b.json"
@@ -72,7 +72,7 @@
   {
     "name": "Q5",
     "command": [
-      "/usr/bin/python3",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
       "-m",
       "tilemega",
       "build",
@@ -91,7 +91,7 @@
   {
     "name": "Q6",
     "command": [
-      "/usr/bin/python3",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
       "-m",
       "tilemega",
       "build",
@@ -110,7 +110,7 @@
   {
     "name": "Q7a",
     "command": [
-      "/usr/bin/python3",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
       "-m",
       "tilemega",
       "bench",
@@ -128,7 +128,7 @@
   {
     "name": "Q7b",
     "command": [
-      "/usr/bin/python3",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
       "-m",
       "tilemega",
       "bench",
@@ -146,7 +146,7 @@
   {
     "name": "Q8a",
     "command": [
-      "/usr/bin/python3",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
       "-m",
       "tilemega",
       "check",
@@ -164,7 +164,7 @@
   {
     "name": "Q8b",
     "command": [
-      "/usr/bin/python3",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
       "-m",
       "tilemega",
       "check",
@@ -184,7 +184,7 @@
     "command": [
       "bash",
       "-lc",
-      "/usr/bin/python3 docs/experiments/SERVING_R12B/make_protocol_cases.py --run-dir runs/r12b-llama --config configs/e2e/llama_r12b.json --out docs/experiments/SERVING_R12B/protocol_cases.json && /usr/bin/python3 docs/experiments/SERVING_R11/check_protocol.py --cases docs/experiments/SERVING_R12B/protocol_cases.json --out docs/experiments/SERVING_R12B/protocol --processes 50"
+      "/root/venvs/tilemega-torch213-cu126/bin/python docs/experiments/SERVING_R12B/make_protocol_cases.py --run-dir runs/r12b-llama --config configs/e2e/llama_r12b.json --out docs/experiments/SERVING_R12B/protocol_cases.json && /root/venvs/tilemega-torch213-cu126/bin/python docs/experiments/SERVING_R11/check_protocol.py --cases docs/experiments/SERVING_R12B/protocol_cases.json --out docs/experiments/SERVING_R12B/protocol --processes 50"
     ],
     "timeout": 10800,
     "after": [
@@ -195,7 +195,7 @@
   {
     "name": "Q10",
     "command": [
-      "/usr/bin/python3",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
       "docs/experiments/SERVING_R12B/experiments.py",
       "s3"
     ],
@@ -224,7 +224,7 @@
     "command": [
       "bash",
       "-lc",
-      "/usr/bin/python3 -m tilemega report --config configs/e2e/llama_r12b.json --run-dir runs/r12b-llama && /usr/bin/python3 -m tilemega report --config configs/e2e/qwen3_r12b.json --run-dir runs/r12b-qwen3 && /usr/bin/python3 docs/experiments/SERVING_R12B/fidelity.py --run-dir runs/r12b-llama --run-dir runs/r12b-qwen3 --out docs/experiments/SERVING_R12B/fidelity.json"
+      "/root/venvs/tilemega-torch213-cu126/bin/python -m tilemega report --config configs/e2e/llama_r12b.json --run-dir runs/r12b-llama && /root/venvs/tilemega-torch213-cu126/bin/python -m tilemega report --config configs/e2e/qwen3_r12b.json --run-dir runs/r12b-qwen3 && /root/venvs/tilemega-torch213-cu126/bin/python docs/experiments/SERVING_R12B/fidelity.py --run-dir runs/r12b-llama --run-dir runs/r12b-qwen3 --out docs/experiments/SERVING_R12B/fidelity.json"
     ],
     "timeout": 1800,
     "after": [],
