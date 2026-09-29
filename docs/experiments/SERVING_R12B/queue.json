@@ -1,5 +1,16 @@
 [
   {
+    "name": "Qpre",
+    "command": [
+      "bash",
+      "-lc",
+      "cmake --build build-phase12 --target tilemega -j 6 && /root/venvs/tilemega-torch213-cu126/bin/python python/tilemega/fingerprint.py --check build-phase12/tools/tilemega"
+    ],
+    "timeout": 7200,
+    "after": [],
+    "after_any": []
+  },
+  {
     "name": "Q0",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
@@ -12,7 +23,7 @@
       "runs/r12b-llama"
     ],
     "timeout": 7200,
-    "after": [],
+    "after": ["Qpre"],
     "after_any": []
   },
   {

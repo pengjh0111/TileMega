@@ -25,13 +25,16 @@ def run(plan: PlanLibrary, batch: int, steps: int, vocab: int, out: Path) -> dic
     arms: dict[str, dict] = {}
     report = {"arms": arms, "mismatches": {}, "watchdog": None, "pass": False}
     outputs: dict[str, dict[str, torch.Tensor]] = {}
+    manifest = Path(str(plan.path) + ".plan.json")
+    paged = manifest.exists() and json.loads(manifest.read_text()).get("pg") == "pages"
     try:
         instance.set_steps([plan.info.past_lo + i for i in range(steps)]
                            if plan.info.phase == 1 else [plan.info.past_lo])
         for label, mode, loop in (("L2_separate", 2, False),
                                   ("L2_loop", 2, True),
                                   ("L1_separate", 1, False)):
-            if loop and (plan.info.phase != 1 or not hasattr(plan.lib, "tm_plan_launch_steps")):
+            if loop and (plan.info.phase != 1 or not paged or
+                         not hasattr(plan.lib, "tm_plan_launch_steps")):
                 continue
             for name, value in written.items():
                 value.copy_(snapshot[name])
