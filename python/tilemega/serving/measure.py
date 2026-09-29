@@ -28,6 +28,25 @@ def _gpu_owners() -> tuple[set[int], int, int]:
     return pids, visible_mib, used_mib
 
 
+def _preflight_external_memory(out: Path) -> None:
+    """Reject an invisible GPU allocation before loading model weights.
+
+    The normal exclusivity check runs after ServingEngine construction; an
+    external allocation can cause weight packing to OOM before that check.
+    """
+    _, visible_mib, used_mib = _gpu_owners()
+    hidden_mib = max(0, used_mib - visible_mib)
+    out.mkdir(parents=True, exist_ok=True)
+    with (out / "guard.jsonl").open("a") as stream:
+        stream.write(json.dumps({"label": "before-weight-load",
+                                 "visible_mib": visible_mib,
+                                 "used_mib": used_mib,
+                                 "hidden_mib": hidden_mib,
+                                 "accepted": hidden_mib <= 1024}) + "\n")
+    if hidden_mib > 1024:
+        raise SystemExit(75)
+
+
 def _exclusive(path: Path, label: str, wait: bool, wait_s: int = 1800) -> bool:
     deadline = time.monotonic() + (wait_s if wait else 0)
     while True:
@@ -143,6 +162,7 @@ def main() -> None:
     if len(ids) != 16 or any(len(row) != 64 for row in ids):
         raise ValueError("the frozen prompt table must be 16 by 64")
     prompts = torch.tensor(ids[:args.batch], dtype=torch.int32)
+    _preflight_external_memory(args.out)
     with ServingEngine(args.model, args.prefill_so, args.decode_so,
                        args.batch, max_new_tokens=args.max_new_tokens,
                        mode=args.mode, decode_loop=bool(args.decode_loop)) as engine:

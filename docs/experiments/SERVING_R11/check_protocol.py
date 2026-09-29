@@ -14,7 +14,7 @@ import time
 def child(case, output):
     import torch
     from tilemega.serving.engine import ServingEngine
-    from tilemega.serving.measure import _exclusive
+    from tilemega.serving.measure import _exclusive, _preflight_external_memory
     output.mkdir(parents=True, exist_ok=True)
     prompts = torch.tensor(json.loads(Path(case['prompt_ids']).read_text())[:case['batch']], dtype=torch.int32)
     common = dict(model_dir=case['model'], batch=case['batch'])
@@ -30,6 +30,7 @@ def child(case, output):
                 raise RuntimeError('protocol binary changed: ' + name)
         if not _exclusive(output/'guard.jsonl', 'before', True):
             raise SystemExit(75)
+        _preflight_external_memory(output)
         arms = case.get('arms') or [
             dict(label='reference', prefill=case['reference_prefill'],
                  decode=case['reference_decode'], modes=['L1']),

@@ -287,7 +287,9 @@ struct SearchContext {
       estimate.shared_bytes=pages->shared_bytes;
       estimate.resident_limit=1; // PG-1 launches exactly one 160-thread CTA per SM.
     }
-    if(imported.plan.serving) {
+    // Paged decode uses PageLayout rather than the legacy TaskSmem union.
+    // The union check would reject a legal Qwen3 page layout at the seed.
+    if(imported.plan.serving && !options.pg_pages) {
       auto attention=std::find_if(imported.plan.stages.begin(),
           imported.plan.stages.end(),[](auto const& stage){
             return stage.kind==frontend::PlanTaskKind::kFusedAttention;

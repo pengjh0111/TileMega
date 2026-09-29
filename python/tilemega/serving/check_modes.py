@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import torch
 from .engine import ServingEngine
-from .measure import _exclusive
+from .measure import _exclusive, _preflight_external_memory
 
 
 def main() -> None:
@@ -18,6 +18,7 @@ def main() -> None:
     a=p.parse_args();a.out.mkdir(parents=True,exist_ok=True)
     torch.cuda.init()
     guard_allocation=torch.empty(1,device='cuda')
+    _preflight_external_memory(a.out)
     prompts=torch.tensor(json.loads(a.prompt_ids.read_text())[:a.batch],dtype=torch.int32)
     arms=(('L1_separate','L1',False,None),('L2_separate','L2',False,None),
           ('L2_loop','L2',True,None),('L2_loop_no_phase','L2',True,'0'))

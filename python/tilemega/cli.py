@@ -168,6 +168,7 @@ class Run:
                 return subprocess.run(argv, env=environment, cwd=ROOT, stdout=stdout, stderr=stderr).returncode
         if gpu:
             with locked(self.gpu_lock):
+                self.preflight_gpu(folder / 'guard_preflight.json')
                 status = execute()
         else:
             status = execute()
@@ -178,6 +179,26 @@ class Run:
                 raise SystemExit(75)
             raise RuntimeError(f'{label} failed ({status}); see {folder / "stderr.txt"}')
         return folder
+
+    def preflight_gpu(self, record: Path):
+        # No CUDA context exists in this process. Any visible compute PID or
+        # large invisible allocation belongs to another workload. Reject it
+        # before weight loading, or before spending minutes on plan search.
+        device = self.env['TILEMEGA_DEVICE_INDEX']
+        visible = subprocess.check_output(
+            ['nvidia-smi', '-i', device, '--query-compute-apps=pid,used_memory',
+             '--format=csv,noheader,nounits'], text=True)
+        rows = [row.split(',') for row in visible.splitlines() if row.strip()]
+        used = int(subprocess.check_output(
+            ['nvidia-smi', '-i', device, '--query-gpu=memory.used',
+             '--format=csv,noheader,nounits'], text=True).splitlines()[0].strip())
+        hidden = max(0, used - sum(int(row[-1].strip()) for row in rows))
+        accepted = not rows and hidden <= 1024
+        atomic_json(record, dict(visible_pids=[int(row[0].strip()) for row in rows],
+                                 used_mib=used, hidden_mib=hidden,
+                                 accepted=accepted))
+        if not accepted:
+            raise SystemExit(75)
 
     def capture(self, argv):
         folder = self.command(argv, 'query-' + str(time.time_ns()))
@@ -293,6 +314,7 @@ class Run:
         target = self.calibrate()
         if self.version['source_sha256'] != source_fingerprint():
             raise RuntimeError('compiler fingerprint differs from sources; rebuild tilemega')
+        self.preflight_gpu(self.out / 'build_guard.json')
         result = {}
         for phase in ('prefill', 'decode'):
             export, directory = self.export(phase)
