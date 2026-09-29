@@ -8876,3 +8876,14 @@ diagnostic plan no longer hangs, without isolating which old defect caused
 F-338. Evidence: `/root/r12_work/r12b_s0/smoke64/smoke.json` and
 `/root/r12_work/r12b_s0/s0.done`. The required fresh-process protocol and
 end-to-end checks remain queued.
+
+## F-340: R12b fixed-geometry controls favor pages and no distant lookahead
+
+✅ verified in the completed queue-3 controls: on Llama, 256-token TPOT p50
+was 3.1683 vs 3.5809 ms at B1 and 3.6076 vs 4.0448 ms at B16 for pages
+versus nonpaged L2. At B16, 128 KiB lookahead took 5.3156 ms versus 3.6024
+ms with lookahead off; V3 poll 200 ns took 3.6823 ms versus 3.6055 ms at
+zero. The preregistered selection retained phase mask 31, lookahead 0, and
+poll 0. These controls do not substitute for the pending 1024-token EV-3.
+Evidence: `docs/experiments/SERVING_R12B/{s1,s1b,defaults}.json` and
+`queue_run3/progress.tsv`.
