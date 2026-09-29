@@ -25,7 +25,9 @@ def fixed_plan(batch,phase,pg,label,*,lookahead=-1,poll=0):
     folder=WORK/label;folder.mkdir(parents=True,exist_ok=True)
     so=folder/f'{phase}_B{batch}.so'
     if so.exists():return so
-    shape=dict(tile_m=16 if phase=='decode' else 64,tile_n=128,
+    # The prefill lm_head still has M=batch, so a uniform 64-row domain is
+    # empty at B=1 under serving R-2. Use the common legal 16-row geometry.
+    shape=dict(tile_m=16,tile_n=128,
                tile_k=64,stages=2,split_k=1)
     domain={'geometries':[dict(shape,split_k=split) for split in (1,2,4,8)]}
     domain_file=folder/f'{phase}_B{batch}_domain.json';domain_file.write_text(json.dumps(domain))

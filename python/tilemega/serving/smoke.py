@@ -12,7 +12,8 @@ from .plan import PlanLibrary
 
 def run(plan: PlanLibrary, batch: int, steps: int, vocab: int, out: Path) -> dict:
     out.mkdir(parents=True, exist_ok=True)
-    if steps < 1 or plan.info.past_lo + steps - 1 > plan.info.past_hi:
+    if steps < 1 or (plan.info.phase == 1 and
+                     plan.info.past_lo + steps - 1 > plan.info.past_hi):
         raise ValueError("smoke steps exceed the plan past interval")
     buffers = _external_buffers(plan, batch, vocab)
     written = {name: tensor for name, tensor in buffers.items()
