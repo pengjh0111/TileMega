@@ -1,0 +1,9 @@
+{
+  "baseline": "a1264e59de6764e7a463e184fd11ba9c621bf54e",
+  "prompt_sha256": "9cd721a147925caa97530746b72671caa18b49aae5b2fb61633b32438aebca97",
+  "reference_cu": "/root/r12c_work/ref_cu/default.cu",
+  "reference_sha256": "708cd9fe2db0e5f817761bc62b42e981bfc549d440d83a67c372678b499d799f",
+  "target_snapshot": "/root/r12c_work/target_r12b.json",
+  "target_sha256": "c2c03ad6e9534130762cc88d423aac336077a0bd040db6d337a1e31e3c1ec8b9",
+  "reference_saved_before_python_tools": true
+}
