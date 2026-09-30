@@ -759,7 +759,7 @@ int RunCompile(int argc, char** argv) {
       std::ofstream timing_file(std::string(argv[2])+".timing.tsv");
       solver_timing.Write(timing_file,solver_mode,input.stem().string(),dims.seq);
       std::ofstream shortlist(std::string(argv[2])+".top3.tsv");
-      shortlist << "rank\tkey\tplacement\ttile_m\ttile_n\ttile_k\tstages\tsplit_k\tkappa\tresidency\tfloor_ns\tpredicted_ns\tsource\tcg\n";
+      shortlist << "rank\tkey\tplacement\ttile_m\ttile_n\ttile_k\tstages\tsplit_k\tkappa\tresidency\tfloor_ns\tpredicted_ns\tsource\tcg\torigin\n";
       for (std::size_t i=0;i<solved.shortlist.size();++i) {
         auto const& entry=solved.shortlist[i];auto const& e=entry.evaluation;
         auto const& g=e.candidate.config;
@@ -773,7 +773,7 @@ int RunCompile(int argc, char** argv) {
         shortlist << i+1 << '\t' << e.candidate.key << '\t' << e.placement << '\t'
             << g.tile_m << '\t' << g.tile_n << '\t' << g.tile_k << '\t' << g.stages << '\t' << g.split_k << '\t'
             << e.candidate.kappa << '\t' << e.candidate.ctas_per_sm << '\t' << e.floor_ns << '\t' << e.makespan_ns
-            << '\t' << stem << ".cu\t" << stem << ".mlir\n";
+            << '\t' << stem << ".cu\t" << stem << ".mlir\t" << entry.origin << "\n";
       }
       if(serving && !measure_command.empty()) {
         double fastest=std::numeric_limits<double>::infinity();
@@ -1150,6 +1150,21 @@ int RunCompile(int argc, char** argv) {
     }
     if(serving && module) {
       auto runtime=tilemega::codegen::ReadRuntimePlan(*module);
+      // classes.tsv describes the predicted winner. Preserve its class/GEMM
+      // mapping but take every geometry from the actual measured winner.
+      std::ifstream class_input(std::string(argv[2])+".classes.tsv");
+      if(class_input) {
+        std::ofstream chosen(std::string(argv[2])+".selected_classes.tsv");
+        std::string line;std::getline(class_input,line);chosen<<line<<'\n';
+        while(std::getline(class_input,line)) {
+          std::istringstream row(line);unsigned cls,index;std::string op;
+          if(!(row>>cls>>index>>op) || index>=runtime.gemms.size())continue;
+          auto const& g=runtime.gemms[index];
+          chosen<<cls<<'\t'<<index<<'\t'<<op<<'\t'<<g.tile_m<<'\t'<<g.tile_n
+                <<'\t'<<g.tile_k<<'\t'<<g.stages<<'\t'<<g.split_k<<'\n';
+        }
+      }
+
       auto integer=[&](char const* key,int fallback) {
         if(auto value=(*module)->getAttrOfType<mlir::IntegerAttr>(key))
           return int(value.getInt());

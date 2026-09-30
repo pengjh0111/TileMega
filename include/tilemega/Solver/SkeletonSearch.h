@@ -60,6 +60,7 @@ struct SkeletonSearchResult {
   std::vector<OperatorClass> classes;
   std::vector<SkeletonCandidate> evaluated,top;
   int rounds=0;
+  std::string seed_key;
 };
 struct SkeletonSolvedPoint {
   mlir::OwningOpRef<mlir::ModuleOp> module;

@@ -40,6 +40,7 @@ struct CompilerSearchResult {
   struct ShortlistEntry {
     JointEvaluation evaluation;
     mlir::OwningOpRef<mlir::ModuleOp> module;
+    std::string origin="model";
   };
   mlir::OwningOpRef<mlir::ModuleOp> module;
   JointSearchStats stats;

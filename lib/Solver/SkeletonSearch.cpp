@@ -487,7 +487,7 @@ bool BetterCandidate(SkeletonCandidate const& candidate,
   return std::tie(candidate.shared_bytes,candidate.task_count,candidate.key)<
       std::tie(current.shared_bytes,current.task_count,current.key);
 }
-std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out) {
+std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out,std::string& seed_key) {
   auto const& options=search.options;
   if(options.passes<1 || options.passes>3)throw std::invalid_argument("coordinate descent supports P=1..3");
   auto const scan_start=std::chrono::steady_clock::now();
@@ -576,6 +576,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       search.EstimateResources(seed).resident_limit);
   auto legacy=evaluate(seed,search.imported.plan.serving?1:options.kappa,
       seed_residency);std::size_t uniform=legacy;
+  seed_key=evaluated[legacy].key;
   if(search.imported.plan.serving && !options.serving_pruning)
     for(int k:{1,2,4})for(int r=1;r<=seed_residency;++r) {
       auto i=evaluate(seed,k,r);
@@ -791,7 +792,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     search.Evaluate(seed,options.kappa,options.seed_residency);
   }
   if(options.evaluation_cases.empty())
-    result.evaluated=CoordinateDescent(search,result.rounds,evidence);
+    result.evaluated=CoordinateDescent(search,result.rounds,evidence,result.seed_key);
   else for(std::size_t i=0;i<options.evaluation_cases.size();++i) {
     auto const& test=options.evaluation_cases[i];
     try {result.evaluated.push_back(search.Evaluate(test.config,test.kappa,test.residency));}
@@ -854,7 +855,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     }
     return result;
   }
-  struct Materialized {CompilerSearchResult::ShortlistEntry entry;SkeletonCandidate candidate;bool pure;};std::vector<Materialized> materialized;
+  struct Materialized {CompilerSearchResult::ShortlistEntry entry;SkeletonCandidate candidate;bool pure;std::string origin="model";};std::vector<Materialized> materialized;
   std::ofstream table(options.artifact_prefix+".materializations.tsv");table<<"rank\tkey\tpure_ns\teft_ns\tpure_selected\tmoved_fraction\n";
   int rank=0;for(auto const& candidate:result.evaluated) {
     if(!candidate.error.empty())continue;if(rank==options.top_m)break;++rank;
@@ -873,6 +874,32 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
   }
   std::stable_sort(materialized.begin(),materialized.end(),[](auto const& a,auto const& b){return a.entry.evaluation.makespan_ns<b.entry.evaluation.makespan_ns;});
   if(materialized.size()>3)materialized.resize(3);
+  if(search.imported.plan.serving && options.top_m>=3 && materialized.size()==3 &&
+     !result.seed_key.empty()) {
+    auto present=std::find_if(materialized.begin(),materialized.end(),[&](auto const& item){
+      return item.candidate.key==result.seed_key;
+    });
+    std::string replaced="none";
+    if(present!=materialized.end())present->origin="model+seed";
+    else {
+      auto seed=std::find_if(result.evaluated.begin(),result.evaluated.end(),[&](auto const& c){
+        return c.key==result.seed_key && c.error.empty();
+      });
+      if(seed!=result.evaluated.end()) {
+        auto opts=options;opts.kappa=seed->kappa;
+        auto a=search.Materialize(*seed,true),b=search.Materialize(*seed,false);
+        auto astats=a.candidate.placement,bstats=b.candidate.placement;
+        auto ea=FinalizeSkeletonPoint(std::move(a),opts,options.artifact_prefix+".mseedA");
+        auto eb=FinalizeSkeletonPoint(std::move(b),opts,options.artifact_prefix+".mseedB");
+        bool pure=options.pure_template || eb.evaluation.makespan_ns>0.98*ea.evaluation.makespan_ns;
+        auto candidate=*seed;candidate.placement=pure?astats:bstats;
+        replaced=materialized.back().candidate.key;
+        materialized.back()={pure?std::move(ea):std::move(eb),candidate,pure,"seed"};
+      }
+    }
+    evidence<<"SEED_IN_TOP3 key="<<result.seed_key<<" replaced="<<replaced<<'\n';
+  }
+
   std::ofstream resources(options.artifact_prefix+".resources.tsv");resources<<"rank\tkey\testimated\tactual\tre_solved\tresidency\tflow_ns\tsimulated_ns\n";
   std::vector<int> actual_limits;
   if(options.common.query_residencies && !materialized.empty()) {
@@ -899,6 +926,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
       // Correct occupancy can expose a better residency as well as invalidate one.
       if(options.pg_pages){search.current_page_bytes=c.page_bytes;search.current_lookahead_bytes=c.lookahead_bytes;}
       search.current_handoff_mask=c.handoff_mask;
+      search.SetServingStructure(c.attention_kv_block,c.attention_query_rows,search.ArgmaxTileN(c.config));
       auto best=search.Evaluate(c.config,c.kappa,1,actual);
       for(int r=2;r<=actual;++r) {
         auto trial=search.Evaluate(c.config,c.kappa,r,actual);
@@ -916,6 +944,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
       c.placement=item.pure?astats:bstats;item.entry=item.pure?std::move(ea):std::move(eb);
     }
     c.actual_limit=actual;resources<<++rank<<'\t'<<c.key<<'\t'<<c.estimated_limit<<'\t'<<actual<<'\t'<<changed<<'\t'<<c.residency<<'\t'<<c.score<<'\t'<<item.entry.evaluation.makespan_ns<<'\n';resources.flush();
+    item.entry.origin=item.origin;
     result.top.push_back(c);result.compiled.shortlist.push_back(std::move(item.entry));
   }
   if(result.top.empty())throw std::runtime_error("no admitted flow candidate");
