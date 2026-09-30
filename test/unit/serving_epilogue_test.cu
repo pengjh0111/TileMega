@@ -9,6 +9,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <vector>
 
 using tilemega::backend::ServingEpilogue;
 using tilemega::backend::ServingEpilogueOp;
@@ -109,7 +111,46 @@ void Check(int rows, int columns) {
   cudaFree(index);
 }
 
+template<int TN>
+__global__ void SquareProbe(cutlass::bfloat16_t* output,float* square,int rows,int columns) {
+  __shared__ float tile[16*TN+16];
+  for(int i=threadIdx.x;i<16*TN;i+=128)
+    tile[i]=float((i%TN+int(blockIdx.x)*TN)%19)*0.125f+float(i/TN)*0.25f;
+  tilemega::codegen::executor::ComputeSync();
+  ServingEpilogue<ServingEpilogueOp::kResidual,16,TN>::RunFromTile(
+      tile,0,blockIdx.x,rows,columns,columns,columns,output,nullptr,
+      nullptr,nullptr,nullptr,nullptr,square);
+}
+template<int TN>
+void CheckSquare(int rows) {
+  // Hidden dimensions consist of complete 32-column ss blocks. N=TN+32
+  // exercises a partial N tile for TN=64/128 and the one-pass TN=32 case.
+  int columns=TN+32;
+  auto* output=Managed<cutlass::bfloat16_t>(rows*columns);
+  auto* square=Managed<float>(rows*(columns/32));
+  std::vector<float> previous;
+  for(int repeat=0;repeat<3;++repeat) {
+    SquareProbe<TN><<<(columns+TN-1)/TN,128>>>(output,square,rows,columns);
+    if(cudaDeviceSynchronize()!=cudaSuccess)std::exit(6);
+    for(int row=0;row<rows;++row)for(int block=0;block<columns/32;++block) {
+      float vectors[4]={};
+      for(int v=0;v<4;++v)for(int e=0;e<8;++e) {
+        float value=float(output[row*columns+block*32+v*8+e]);
+        vectors[v]+=value*value;
+      }
+      float expected=(vectors[0]+vectors[1])+(vectors[2]+vectors[3]);
+      if(std::memcmp(&expected,&square[row*(columns/32)+block],sizeof(float))) {
+        std::fprintf(stderr,"ss mismatch TN=%d M=%d row=%d block=%d\n",TN,rows,row,block);std::exit(7);
+      }
+    }
+    if(repeat && std::memcmp(previous.data(),square,previous.size()*sizeof(float)))std::exit(8);
+    previous.assign(square,square+rows*(columns/32));
+  }
+  cudaFree(output);cudaFree(square);
+}
+
 int main() {
+  for(int rows:{1,16}) {CheckSquare<32>(rows);CheckSquare<64>(rows);CheckSquare<128>(rows);}
   for (int rows : {1, 3, 17}) {
     Check<ServingEpilogueOp::kStore>(rows, 73);
     Check<ServingEpilogueOp::kResidual>(rows, 73);

@@ -202,8 +202,13 @@ struct ServingEpilogue {
     } else {
       constexpr int kOutputColumns =
           Op == ServingEpilogueOp::kSwiGLU ? TileN / 2 : TileN;
-      for (int vector = ComputeThread(); vector < TileM * kOutputColumns / 8;
-           vector += kComputeThreads) {
+      constexpr int kVectors=TileM*kOutputColumns/8;
+      constexpr int kPasses=(kVectors+kComputeThreads-1)/kComputeThreads;
+      float square[kPasses]={};
+      #pragma unroll
+      for (int pass=0;pass<kPasses;++pass) {
+        int vector=ComputeThread()+kComputeThreads*pass;
+        if(vector>=kVectors)continue;
         int row = vector / (kOutputColumns / 8);
         int out_col = (vector % (kOutputColumns / 8)) * 8;
         int global_row = tile_m * TileM + row;
@@ -241,6 +246,14 @@ struct ServingEpilogue {
                 acc[element], r);
           }
         }
+        if constexpr(Op==ServingEpilogueOp::kResidual) {
+          if(ss_out) {
+            #pragma unroll
+            for(int element=0;element<8;++element)if(global_col+element<N) {
+              float value=float(values[element]);square[pass]+=value*value;
+            }
+          }
+        }
         int output_n = Op == ServingEpilogueOp::kSwiGLU ? N / 2 : N;
         if (global_col + 8 <= output_n &&
             (reinterpret_cast<std::uintptr_t>(output + global_row * output_stride + global_col) & 15) == 0) {
@@ -255,22 +268,20 @@ struct ServingEpilogue {
         }
       }
       if constexpr(Op==ServingEpilogueOp::kResidual) {
+        static_assert(kOutputColumns%32==0);
         if(ss_out) {
-          ComputeSync();
-          for(int vector=ComputeThread();vector<TileM*TileN/8;
-              vector+=kComputeThreads) {
-            int row=vector/(TileN/8);
-            int col=(vector%(TileN/8))*8;
-            int gr=tile_m*TileM+row,gc=tile_n*TileN+col;
-            float square=0.0f;
-            if(gr<M)for(int lane=0;lane<8 && gc+lane<N;++lane) {
-              float x=float(output[gr*output_stride+gc+lane]);
-              square+=x*x;
-            }
-            square+=__shfl_xor_sync(0xffffffff,square,1);
-            square+=__shfl_xor_sync(0xffffffff,square,2);
-            if((ComputeThread()%4)==0 && gr<M && gc<N)
-              ss_out[gr*(N/32)+gc/32]=square;
+          // All lanes participate, including predicated rows/vectors. This
+          // matches the fixed xor-1/xor-2 order without rereading output.
+          #pragma unroll
+          for(int pass=0;pass<kPasses;++pass) {
+            float sum=square[pass];
+            sum+=__shfl_xor_sync(0xffffffff,sum,1);
+            sum+=__shfl_xor_sync(0xffffffff,sum,2);
+            int vector=ComputeThread()+kComputeThreads*pass;
+            int row=vector/(kOutputColumns/8),col=(vector%(kOutputColumns/8))*8;
+            int gr=tile_m*TileM+row,gc=tile_n*kOutputColumns+col;
+            if(ComputeThread()%4==0 && vector<kVectors && gr<M && gc<N)
+              ss_out[gr*(N/32)+gc/32]=sum;
           }
         }
       }
