@@ -27,9 +27,12 @@ struct PagedAttentionTaskBody {
   __device__ static int Begin(ServingAttentionOperands const& p,int c){return c*p.block_extent;}
   __device__ static int End(ServingAttentionOperands const& p,int c){return min((c+1)*p.block_extent,p.past+1);}
   __device__ static int WarpExtent(int count){return ((count+63)/64)*16;}
+  template<class BeforePage=executor::NoPageHook>
   __device__ static void Load(ServingAttentionOperands const& p,int b,int g,int c,
-                              Ring const& ring,std::uint64_t& sequence) {
+                              Ring const& ring,std::uint64_t& sequence,
+                              BeforePage const& before_page=BeforePage{}) {
     int begin=Begin(p,c),end=End(p,c);if(begin>=end)return;
+    unsigned remaining=2*max(0,min(end,p.past)-begin)*D*sizeof(Element);
     int extent=WarpExtent(end-begin),waves=(extent+kPageRows-1)/kPageRows;
     int warps_per_page=extent<kPageRows?min(4,kPageRows/extent):1;
     int page_count=4/warps_per_page;
@@ -45,6 +48,8 @@ struct PagedAttentionTaskBody {
       value_offsets[step]=(row/16)*16*D+typename PV::LayoutB{}(d,row%16);
     }
     for(int wave=0;wave<waves;++wave)for(int page_index=0;page_index<page_count;++page_index) {
+      unsigned stream_bytes=min(remaining,unsigned(PageBytes));
+      before_page(stream_bytes);remaining-=stream_bytes;
       ring.AcquireEmpty(sequence);
       auto* page=reinterpret_cast<Element*>(ring.Page(sequence));
       int start=begin+page_index*warps_per_page*extent+wave*kPageRows;

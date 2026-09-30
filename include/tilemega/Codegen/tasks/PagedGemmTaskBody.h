@@ -37,12 +37,16 @@ struct PagedGemmTaskBody {
   static_assert(cute::cosize_v<LayoutA>*sizeof(Element)==TileM*TileK*sizeof(Element));
   static_assert(cute::cosize_v<LayoutB>*sizeof(Element)==kBBytes);
 
+  template<class BeforePage=executor::NoPageHook>
   __device__ static void LoadRow(ServingGemmOperands const& p,int tile_n,
-                              Ring const& ring,std::uint64_t& sequence) {
+                              Ring const& ring,std::uint64_t& sequence,
+                              BeforePage const& before_page=BeforePage{}) {
     int pitch=p.b_row_stride?p.b_row_stride:p.k_total;
     int iterations=(p.k_count+TileK-1)/TileK;
     for(int first=0;first<iterations;first+=kGroupStages) {
-      for(int page=0;page<kGroupPages;++page)ring.AcquireEmpty(sequence+page);
+      for(int page=0;page<kGroupPages;++page) {
+        before_page(0);ring.AcquireEmpty(sequence+page);
+      }
       if constexpr(kGroupPages>1 && !Async::Caps::kTma) {
         // A CuTe swizzle changes which logical vectors land on each page.
         // Route each vector by its physical address, visiting it only once.
@@ -107,8 +111,10 @@ struct PagedGemmTaskBody {
     }
   }
 
+  template<class BeforePage=executor::NoPageHook>
   __device__ static void LoadTile(ServingGemmOperands const& p,int tile_n,
-                                  Ring const& ring,std::uint64_t& sequence) {
+                                  Ring const& ring,std::uint64_t& sequence,
+                              BeforePage const& before_page=BeforePage{}) {
     if(!p.weight_base || p.k_total_full<=0 || p.k_begin%TileK) {
       asm volatile("trap;");return;
     }
@@ -121,6 +127,7 @@ struct PagedGemmTaskBody {
     std::uint64_t policy=Async::EvictFirst();
     for(int off=0;off<total;off+=PageBytes,++sequence) {
       int bytes=min(PageBytes,total-off);
+      before_page(bytes);
       ring.AcquireEmpty(sequence);
       if constexpr(Async::Caps::kBulkCopy) {
         if constexpr(TILEMEGA_EVICT_FIRST)
@@ -138,10 +145,12 @@ struct PagedGemmTaskBody {
     }
   }
 
+  template<class BeforePage=executor::NoPageHook>
   __device__ static void Load(ServingGemmOperands const& p,int tile_n,
-                              Ring const& ring,std::uint64_t& sequence) {
-    if constexpr(TILEMEGA_WEIGHT_LAYOUT_TILED) LoadTile(p,tile_n,ring,sequence);
-    else LoadRow(p,tile_n,ring,sequence);
+                              Ring const& ring,std::uint64_t& sequence,
+                              BeforePage const& before_page=BeforePage{}) {
+    if constexpr(TILEMEGA_WEIGHT_LAYOUT_TILED) LoadTile(p,tile_n,ring,sequence,before_page);
+    else LoadRow(p,tile_n,ring,sequence,before_page);
   }
 
   __device__ static void LoadActivation(ServingGemmOperands const& p,int tile_m,

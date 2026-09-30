@@ -5,6 +5,7 @@
 #include <tilemega/Codegen/executor/PageTrace.cuh>
 
 namespace tilemega::codegen::executor {
+struct NoPageHook { __device__ void operator()(unsigned) const {} };
 template<int PageBytes,int Pages,class Arch=arch::CurrentArch,bool ForceSm80=false>
 struct PageRing {
   static_assert(PageBytes==8192 || PageBytes==16384);

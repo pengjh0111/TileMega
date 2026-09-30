@@ -113,6 +113,19 @@ __device__ inline void PrefetchL2(executor::PrefetchRange range) {
   }
 }
 
+struct Lookahead {
+  PageStream* ahead;unsigned long long* prefetched;unsigned long long* loaded;
+  __device__ void operator()(unsigned stream_bytes) const {
+#if TILEMEGA_LOOKAHEAD_BYTES > 0
+    executor::PrefetchRange range{};
+    while(*prefetched<*loaded+TILEMEGA_LOOKAHEAD_BYTES && ahead->Next(&range)) {
+      PrefetchL2(range);*prefetched+=range.bytes;
+    }
+    *loaded+=stream_bytes;
+#endif
+  }
+};
+
 __device__ inline ServingGemmOperands Operands(GemmInvocation const& inv) {
   auto [m,n,k,batch]=inv.problem;(void)batch;
   ServingGemmOperands p;
@@ -178,7 +191,7 @@ struct PhaseGate {
 template<bool Loader,bool L2,int Variant=0>
 __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ring const& ring,
                      std::uint64_t& sequence,char* work,EventCounter* events,
-                     unsigned long long iteration) {
+                     unsigned long long iteration,Lookahead const* lookahead=nullptr) {
   if(inv.variant==Variant) {
     using V=GemmVariant<Variant>;
     using Body=PagedGemmTaskBody<PageArch,V::kTileM,V::kTileN,V::kTileK,
@@ -190,7 +203,13 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
       operands.tensor_map=static_cast<executor::TensorMap const*>(params.serving_tensor_maps)+inv.serving_weight_buffer;
       operands.tensor_k_begin=inv.serving_k_begin;
     }
-    if constexpr(Loader)Body::Load(operands,local%inv.tiles_n,ring,sequence);
+    if constexpr(Loader) {
+#if TILEMEGA_LOOKAHEAD_BYTES > 0
+      Body::Load(operands,local%inv.tiles_n,ring,sequence,*lookahead);
+#else
+      Body::Load(operands,local%inv.tiles_n,ring,sequence);
+#endif
+    }
     else {
       PhaseGate gate{&params,&inv.serving_phase_gate,events,iteration,
           local,ring.SharedLastFlag(),L2 && TILEMEGA_KPHASE &&
@@ -200,7 +219,7 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
           sequence,work,gate);
     }
   }else if constexpr(Variant + 1 < TILEMEGA_GEMM_VARIANT_COUNT)
-    Gemm<Loader,L2,Variant+1>(params,inv,local,ring,sequence,work,events,iteration);
+    Gemm<Loader,L2,Variant+1>(params,inv,local,ring,sequence,work,events,iteration,lookahead);
   else asm volatile("trap;");
 }
 template<bool Last=false,int Variant=0>
@@ -280,9 +299,11 @@ template<bool Loader,bool L2>
 __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& ring,
                      std::uint64_t& sequence,char* work,EventCounter* events,
                      unsigned long long iteration,
-                     unsigned long long* step_ns=nullptr,unsigned step=0) {
+                     unsigned long long* step_ns=nullptr,unsigned step=0,
+                     Lookahead const* lookahead=nullptr) {
   auto const& s=p.stages[stage_index];using E=cutlass::bfloat16_t;
   if(s.handoff_elided)return;
+  if constexpr(Loader)if(lookahead)(*lookahead)(0);
   if constexpr(!Loader && L2)if(s.kind==TaskKind::kEmbedding && iteration) {
     if(ComputeThread()==0)for(unsigned edge=0;edge<p.lag_dependency_count;++edge) {
       auto const& lag=p.lag_dependencies[edge];
@@ -299,7 +320,7 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
     auto const* table=static_cast<GemmInvocation const*>(p.gemms);
     auto point=DecodeSplitTask(task,table[s.gemm].tiles_m*table[s.gemm].tiles_n,table[s.gemm].chunks);
     Gemm<Loader,L2>(p,table[s.gemm+point.chunk],point.tile,ring,sequence,work,
-        events,iteration);
+        events,iteration,lookahead);
     if constexpr(!Loader)if(s.handoff_reduce_stage!=kNoOperand) {
       auto const& reducer=p.stages[s.handoff_reduce_stage];
       auto* ticket=p.serving_handoff_tickets+
@@ -354,7 +375,11 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
         __syncwarp();
         Ring::Copy::ProxyAsyncGlobalFence();
       }
+#if TILEMEGA_LOOKAHEAD_BYTES > 0
+      Attention::Load(AttentionOperands(p,s),point.batch,point.group,point.cache_block,ring,sequence,*lookahead);
+#else
       Attention::Load(AttentionOperands(p,s),point.batch,point.group,point.cache_block,ring,sequence);
+#endif
     }
     else {
       auto operands=AttentionOperands(p,s);
@@ -483,16 +508,7 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
   unsigned long long& loaded=persistent_loaded?*persistent_loaded:local_loaded;
   PageStream local_ahead(&p,1,L2);
   PageStream& ahead=persistent_ahead?*persistent_ahead:local_ahead;
-  auto prefetch_ahead=[&]() {
-#if TILEMEGA_LOOKAHEAD_BYTES > 0
-    if constexpr(Loader) {
-      executor::PrefetchRange range{};
-      while(prefetched<loaded+TILEMEGA_LOOKAHEAD_BYTES && ahead.Next(&range)) {
-        PrefetchL2(range);prefetched+=range.bytes;
-      }
-    }
-#endif
-  };
+  Lookahead lookahead{&ahead,&prefetched,&loaded};
   bool previous_grid_ready=false;
   auto wait_previous=[&](unsigned stage) {
     // Loader reads weights before the wait, but never a historical KV page.
@@ -512,7 +528,6 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
         p.task_trace_v2[slot].wait_begin=TraceNow();
 #endif
       if constexpr(!Loader)WaitDependencies(p,events,task,iteration);
-      prefetch_ahead();
 #if TILEMEGA_TRACE_V2
       if constexpr(!Loader)if(ComputeThread()==0 && p.task_trace_v2) {
         auto& row=p.task_trace_v2[slot];row.ready=TraceNow();row.run_begin=TraceNow();
@@ -520,10 +535,8 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
         row.stage=task.stage;row.logical_task=task.logical_task;
       }
 #endif
-      auto before=sequence;
       Task<Loader,L2>(p,task.stage,task.logical_task,ring,sequence,work,
-          events,iteration,step_ns,step);
-      if constexpr(Loader)loaded+=(sequence-before)*TILEMEGA_PAGE_BYTES;
+          events,iteration,step_ns,step,Loader?&lookahead:nullptr);
 #if TILEMEGA_TRACE_V2
       if constexpr(!Loader)if(ComputeThread()==0 && p.task_trace_v2) {
         p.task_trace_v2[slot].run_end=TraceNow();p.task_trace_v2[slot].run_end_clk=clock64();
@@ -544,12 +557,9 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
       for(int task=blockIdx.x;task<count;task+=gridDim.x)
         {
           watch.waiter_task=task;
-          prefetch_ahead();
-          auto before=sequence;
-          Task<Loader,L2>(p,stage,task,ring,sequence,work,events,iteration,
-              step_ns,step);
-          if constexpr(Loader)loaded+=(sequence-before)*TILEMEGA_PAGE_BYTES;
-          if constexpr(!Loader)ComputeSync();
+                  Task<Loader,L2>(p,stage,task,ring,sequence,work,events,iteration,
+              step_ns,step,Loader?&lookahead:nullptr);
+              if constexpr(!Loader)ComputeSync();
         }
       if constexpr(!Loader) {
         StageBarrier(events,stage,iteration,&watch);
