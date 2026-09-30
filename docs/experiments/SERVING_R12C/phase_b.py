@@ -92,6 +92,13 @@ def trace(out):
         code=subprocess.run([sys.executable,'-m','tilemega.serving.trace','--model',arm['model_path'],'--prefill-so',arm['prefill'],'--decode-so',arm['decode'],'--batch',str(b),'--past','575','--launches','1','--out',str(folder)],cwd=ROOT,env=env).returncode
         if code==75:return 75
         codes.append(code)
+        config=json.loads((Path(arm['model_path'])/'config.json').read_text())
+        manifest=json.loads(Path(arm['decode']+'.plan.json').read_text())
+        h=config['hidden_size'];d=config.get('head_dim',h//config['num_attention_heads']);groups=config['num_key_value_heads'];layers=config['num_hidden_layers'];intermediate=config['intermediate_size'];vocab=config['vocab_size']
+        dimensions=[((config['num_attention_heads']+2*groups)*d,h),(h,h),(2*intermediate,h),(h,intermediate)]*layers+[(vocab,h)]
+        weight_bytes=sum(((n+g['tile_n']-1)//g['tile_n'])*((k+g['tile_k']-1)//g['tile_k'])*g['tile_n']*g['tile_k']*2 for (n,k),g in zip(dimensions,manifest['gemms']))
+        stream_bytes=weight_bytes+4*b*groups*575*d*layers+2*b*h
+        (folder/'stream_floor.json').write_text(json.dumps(dict(weight_bytes=weight_bytes,history_kv_bytes=4*b*groups*575*d*layers,stream_bytes=stream_bytes,stream_gbps=902,stream_floor_ns=stream_bytes/902,convention='tile-padded weights, history KV, embedding; all fetched from DRAM for stream-only comparison'),indent=2)+'\n')
         if code==0 and (folder/'pages.json').exists():
             chain=folder/'chain'
             subprocess.run([sys.executable,str(ROOT/'docs/experiments/TRACE_V2/analyze.py'),str(folder),'--source',str(HERE/'raw/B0b'/f'llama_B{b}'/'P-base/plan.so.cu'),'--window','1','--out',str(chain)],cwd=ROOT)
