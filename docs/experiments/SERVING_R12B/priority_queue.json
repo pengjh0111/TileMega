@@ -1,0 +1,26 @@
+[
+  {
+    "name": "E2E_llama",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "docs/experiments/SERVING_R12B/priority_bench.py",
+      "--model",
+      "llama"
+    ],
+    "timeout": 14400,
+    "after": [],
+    "after_any": []
+  },
+  {
+    "name": "E2E_qwen3",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "docs/experiments/SERVING_R12B/priority_bench.py",
+      "--model",
+      "qwen3"
+    ],
+    "timeout": 14400,
+    "after": [],
+    "after_any": []
+  }
+]

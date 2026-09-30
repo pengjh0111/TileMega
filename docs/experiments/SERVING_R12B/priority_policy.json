@@ -1,0 +1,32 @@
+{
+  "requested_utc": "2026-09-30",
+  "models": [
+    "llama",
+    "qwen3"
+  ],
+  "batch": [
+    1,
+    16
+  ],
+  "new_tokens": 1024,
+  "paired_rounds": 3,
+  "warmup": 1,
+  "executor": "L2",
+  "reuse_compiled_plans": true,
+  "run_protocol": false,
+  "run_hf_or_mode_checks": false,
+  "idle_power_w": 21.81,
+  "power_margin_w": 30.0,
+  "power_threshold_w": 51.81,
+  "idle_memory_limit_mib": 256,
+  "idle_utilization_limit_pct": 5,
+  "idle_stable_samples": 6,
+  "idle_sample_interval_s": 5,
+  "monitor_interval_s": 5,
+  "hidden_allocation_limit_mib": 256,
+  "hidden_violation_samples": 3,
+  "foreign_visible_pid": "reject immediately",
+  "occupied_exit_code": 75,
+  "retry_interval_s": 1200,
+  "max_attempts": 13
+}
