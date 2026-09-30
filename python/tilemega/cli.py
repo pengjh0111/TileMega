@@ -166,7 +166,7 @@ class Run:
         def execute():
             with (folder / 'stdout.txt').open('w') as stdout, (folder / 'stderr.txt').open('w') as stderr:
                 return subprocess.run(argv, env=environment, cwd=ROOT, stdout=stdout, stderr=stderr).returncode
-        if gpu:
+        if gpu and os.environ.get("TILEMEGA_GPU_LOCK_HELD") != "1":
             with locked(self.gpu_lock):
                 self.preflight_gpu(folder / 'guard_preflight.json')
                 status = execute()

@@ -32,12 +32,19 @@ def main() -> None:
 
     ids = json.loads(args.prompt_ids.read_text())
     assert len(ids) == 16 and all(len(row) == 64 for row in ids)
-    llm = LLM(
-        model=str(args.model), dtype="bfloat16", max_model_len=2048,
-        max_num_seqs=16, max_num_batched_tokens=2048,
-        gpu_memory_utilization=0.85, enable_prefix_caching=False,
-        enforce_eager=False, seed=0,
-    )
+    try:
+        llm = LLM(
+            model=str(args.model), dtype="bfloat16", max_model_len=2048,
+            max_num_seqs=16, max_num_batched_tokens=2048,
+            gpu_memory_utilization=0.85, enable_prefix_caching=False,
+            enforce_eager=False, seed=0,
+        )
+    except BaseException:
+        # Use only standard-library NVML queries: engine initialization may
+        # fail before vLLM has exposed a usable object.
+        if _external_allocation():
+            raise SystemExit(75)
+        raise
     batches = (1, 2, 4, 8, 16) if args.batch == "all" else (int(args.batch),)
     for batch in batches:
         out = args.out / f"B{batch}"
@@ -92,6 +99,32 @@ def main() -> None:
         }
         (out / "measurements.json").write_text(json.dumps(summary, indent=2) + "\n")
         print(json.dumps({k: v for k, v in summary.items() if k != "generation_runs"}))
+
+
+def _external_allocation():
+    index = os.environ.get("TILEMEGA_DEVICE_INDEX", "0")
+    apps = subprocess.check_output(["nvidia-smi", "-i", index,
+        "--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits"], text=True)
+    owners = {}
+    for line in apps.splitlines():
+        try:
+            pid, memory = map(int, line.split(",")); owners[pid] = memory
+        except ValueError:
+            continue
+    own = {os.getpid()}
+    while True:
+        added = set()
+        for path in Path("/proc").glob("[0-9]*/stat"):
+            try:
+                if int(path.read_text().rsplit(")", 1)[1].split()[1]) in own:
+                    added.add(int(path.parent.name))
+            except (OSError, ValueError, IndexError):
+                continue
+        if added <= own: break
+        own.update(added)
+    used = int(subprocess.check_output(["nvidia-smi", "-i", index,
+        "--query-gpu=memory.used", "--format=csv,noheader,nounits"], text=True).splitlines()[0])
+    return bool(set(owners) - own) or used - sum(owners.values()) > 1024
 
 
 def _wait_for_exclusive_gpu(path: Path, label: str, fail_fast: bool = False) -> bool:

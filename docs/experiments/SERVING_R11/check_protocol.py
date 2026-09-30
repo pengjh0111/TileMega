@@ -21,7 +21,8 @@ def child(case, output):
     records = []
     reference = None
     with open(os.environ.get('TILEMEGA_GPU_LOCK', '/root/r10_work/serving_gpu.lock'), 'a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+        if os.environ.get("TILEMEGA_GPU_LOCK_HELD") != "1":
+            fcntl.flock(lock, fcntl.LOCK_EX)
         torch.cuda.set_device(0)
         torch.cuda.init()
         context_probe = torch.empty(1,device="cuda")
