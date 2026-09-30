@@ -1473,3 +1473,14 @@ R11 的分页数据通路与选择没有实现端到端收益，且 B=16 未通�
 | T-1…6 | 冒烟、相位/放置/轮询旋钮、正确性/保真度工具 | 代码完成；队列待验 |
 | S-1/S-1b/S-3 | 固定几何、默认值与放置消融 | S-1/S-1b 已完成；S-3 未完成，按用户要求优先只做端到端性能 |
 | EV-3 | 两模型 × B=1/16 的 1024-token 对照、C-1/C-2 与 50 进程 | 8 个选中 `.so` 已构建；B1 已有 3 轮部分配对；用户取消剩余 50 进程（12/12 已完成者 token 一致，原门未满足）；仅四格性能复测进入 `priority_queue.json`，按功耗/显存/利用率保护等待 GPU 空闲 |
+
+### 5.12 R12c — explicit corrections and regression attribution
+
+Decode uses pages only; nonpaged decode is an explicit baseline and never enters selection.
+（⚠️ v2.1 第十二轮收尾 II 补充：decode 只走分页；非分页 decode 只作显式基线，不进入任何选择。）
+
+| ID | Scope | Status | Evidence |
+|---|---|---|---|
+| D-0 | Archive R12b inputs and binary provenance | Complete | SERVING_R12C/MANIFEST.tsv |
+| FX-12…20 | Specified corrections and diagnostic switches | In progress | SERVING_R12C/summary.md |
+| Phase A/B | Guarded diagnostics and final paged comparison | Queued / pending freeze | SERVING_R12C/scheduler/ |

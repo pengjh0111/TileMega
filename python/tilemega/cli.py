@@ -321,8 +321,12 @@ class Run:
             previous_by_pg = {}
             for batch in sorted(workload['batch']):
                 interval = (0, 0) if phase == 'prefill' else (workload['prompt_len'], workload['prompt_len'] + workload['max_new_tokens'] - 2)
-                pg_choices = ('pages', 'l2') if phase == 'decode' and features['pg'] == 'auto' else (
-                    ('l2',) if phase == 'prefill' and features['pg'] in ('pages', 'auto') else (features['pg'],))
+                if features['pg'] in ('off', 'l2'):
+                    pg_choices = (features['pg'],)
+                elif phase == 'prefill':
+                    pg_choices = ('l2',)
+                else:
+                    pg_choices = ('pages',)
                 built = {}
                 for pg in pg_choices:
                     choice_features = dict(features, pg=pg, handoff='off',
@@ -369,23 +373,7 @@ class Run:
                                 solve_seconds=seconds, budget_s=settings['time_budget_s'], budget_pass=seconds <= settings['time_budget_s'])
                     previous_by_pg[pg] = manifest
                     built[pg] = library
-                if len(built)==2:
-                    samples={pg:[] for pg in built}
-                    for repeat in range(3):
-                        for pg in (('pages','l2') if repeat%2==0 else ('l2','pages')):
-                            out=self.out/f'pg-choice-{phase}-B{batch}-{pg}-{repeat}'
-                            self.command([sys.executable,'-m','tilemega.serving.measure_candidate',
-                                          '--so',built[pg],'--model',self.model,'--batch',batch,
-                                          '--past-mid',(interval[0]+interval[1])//2,'--out',out,
-                                          '--mode','L2'],
-                                         f'pg-choice-{phase}-B{batch}-{pg}-{repeat}')
-                            reading=json.loads((out/'measurements.json').read_text())
-                            samples[pg].append(reading['modes']['L2']['mean_ms'])
-                    medians={pg:statistics.median(values) for pg,values in samples.items()}
-                    selected=min(medians,key=medians.get)
-                    result.setdefault('decode_pg_choice',{})[str(batch)]=dict(
-                        selected=selected,median_ms=medians,samples_ms=samples)
-                else:selected=next(iter(built))
+                selected = next(iter(built))
                 result.setdefault(str(batch), {})[phase] = str(built[selected])
         atomic_json(self.out / 'plans.json', result)
         return result
