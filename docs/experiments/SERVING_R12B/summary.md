@@ -2,6 +2,10 @@
 
 Baseline: `01b4ee43254c8995871ac6e1adeefedbf89e7dea`. R12b prompt SHA256: `4037520e5f69e772297ce67de581a5d0fea8158d96260e883a38863a383c9c40`. The R12 prompt remains in force; queue 4 code freeze and final HEAD are recorded by their commits.
 
+Kernel provenance: queue 4 used the R12b implementation at `b5fd77590`, compiler/runtime source fingerprint `cfa66b2d4a69d902af7a73ff2437f0ce7989a0923db7d3a3578a4ebb572f8765` (Qpre checked it). Subsequent commits through the priority-queue change do not modify the fingerprinted compiler/runtime source set. The measured Llama/Qwen3 B1 decode `.cu` files were generated on 2026-09-29 at 10:57:16 / 16:10:30 UTC; their selected `.so` SHA256 values are `d4c3433229c4b6686b85e5644b7835845f1dd9de4a0ecdde51a34651a4b0a465` / `1d478c09225f66b9398ec9c82d82454ffdfff6f28db6c88144f19c467a00be6a`. Benchmark commands name these same libraries. Both builds enable SYNC_V3; generated decode stages contain no RMSNorm and no old codegen lag table. Thus the partial B1 figures are post-R12b results of its current nonpaged branch, not historical R10/R11 binaries.
+
+`pg=l2` means the current nonpaged/L2-prefetch data path, whereas `mode=L2` means the event executor; these are independent choices. R12 SL-4 explicitly requires comparing `pg=pages` and `pg=l2` (both with DN). R12b EX-1 removes executor L1/L2 selection, not that PG comparison. Using the selected plan follows the test-case source specified in R12b T-5, but silently falling back when loop arms receive a nonpaged plan does not satisfy the requested loop/phase coverage. This was not caught before the protocol run; the twelve observations must not be presented as that coverage.
+
 | Item | Commit | Code and status |
 |---|---|---|
 | FX-8 | `2685cccf9` | `ServingLag.h`, `ModelHarness.cuh`, `ServingRuntime.cuh`: lag edges use expanded runtime stages; aggregate rows validated; generated `kLagDependencies` removed. Host test passed. |
