@@ -8910,3 +8910,22 @@ unfulfilled; no synchronization or race conclusion is claimed.
 Evidence: `SERVING_R12B/{partial_results.json,partial_results.tsv,protocol_partial.json}`;
 `runs/r12b-{llama,qwen3}/commands/bench-vllm-B1-r{1,2}/stderr.txt`;
 `SERVING_R12B/priority_policy.json` records the replacement guard policy.
+
+
+## F-342: Archived R12b selection excludes the paged path and its seed
+
+✅ verified from archived records, not a new clean paired E2E measurement:
+all four decode cells selected l2. Candidate-protocol median pages/l2 times
+were 4.125152/3.877642 ms (Llama B1), 4.755047/4.418162 (Llama B16),
+6.031072/5.483562 (Qwen3 B1), and 7.396800/6.483894 (Qwen3 B16).
+The paged seed key from each search's first EVALUATE record was absent
+from its measured top-3. R12c therefore implements the prescribed paged-only
+service path and carries the seed's origin through materialization; their
+E2E effects remain unmeasured at this implementation freeze.
+
+Evidence: SERVING_R12C/results/T0_{pg_choice,plans}.tsv;
+SERVING_R12C/MANIFEST.tsv and r12b_archive.tar.xz contain the underlying
+plans.json, candidate samples, search and shortlist records. Extract the
+archive from SERVING_R12C to resolve the original-file references.
+Historical timing dispersion and guard coverage do not establish a clean
+performance attribution; Phase A/B will supply controlled observations.

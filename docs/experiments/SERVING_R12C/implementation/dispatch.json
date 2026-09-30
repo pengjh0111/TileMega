@@ -1,0 +1,12 @@
+{
+  "phase_b_submitted_utc": "2026-09-30T16:32:37.421495+00:00",
+  "scheduler_pid": 4037310,
+  "scheduler_process_exists": true,
+  "code_head": "ccc3db5ba",
+  "frozen_source_sha256": "a9dfaa0dc3bb44780a9bd3eda31a7b8b9b4ede93c9c765b8771b3ca166e2a12f",
+  "queue_dir": "/root/r12c_work/queue",
+  "queue_a_steps": 36,
+  "queue_b_steps": 48,
+  "queue_b_sha256": "a87d877213f0418eac96e2900a9574a66423f0554ad323dbd22624da503612cf",
+  "status": "submitted; progress intentionally not polled"
+}
