@@ -49,11 +49,9 @@ struct Async {
   __device__ static void Wait(std::uint64_t* barrier,unsigned phase,
                               Watch const* watch,unsigned site,unsigned long long row) {
     unsigned long long start=0,failures=0;
+    Watch here=watch?*watch:Watch{};here.site=site;here.row=row;
     while(!Ready(barrier,phase)) {
-      if(watch) {
-        Watch here=*watch;here.site=site;here.row=row;
-        WatchExpired(&here,start,++failures,phase,0);
-      }
+      if(watch)WatchExpired(&here,start,++failures,phase,0);
     }
   }
   __device__ static void Copy16Bytes(void* destination,void const* source,unsigned bytes) {

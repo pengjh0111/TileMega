@@ -71,9 +71,9 @@ struct PageRing {
     // that ABA. The loader writes it only after acquiring the empty slot.
     auto* generation=reinterpret_cast<volatile std::uint64_t*>(&slots[SlotIndex(sequence)].generation);
     unsigned long long start=0,failures=0;
+    Watch here=watch?*watch:Watch{};here.site=6;here.row=sequence;
     while(*generation!=sequence) {
-      if(watch){Watch here=*watch;here.site=6;here.row=sequence;
-        WatchExpired(&here,start,++failures,sequence,*generation);}
+      if(watch)WatchExpired(&here,start,++failures,sequence,*generation);
     }
     Copy::Wait(&slots[SlotIndex(sequence)].full,Phase(sequence),watch,7,sequence);
   }

@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#ifndef TILEMEGA_WATCHDOG
+#define TILEMEGA_WATCHDOG 1
+#endif
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 
 namespace tilemega::codegen {
@@ -30,9 +33,13 @@ __device__ inline unsigned long long WatchNow() {
 __device__ inline bool WatchExpired(Watch const* watch,unsigned long long& start,
                                     unsigned long long failures,unsigned long long need,
                                     unsigned long long value) {
+#if !TILEMEGA_WATCHDOG
+  return false;
+#else
   if(!watch || !watch->record || !watch->limit_ns || (failures&4095ull))return false;
   auto now=WatchNow();if(!start)start=now;
   if(now-start>watch->limit_ns){watch->Fire(need,value);return true;}
   return false;
+#endif
 }
 } // namespace tilemega::codegen

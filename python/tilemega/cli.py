@@ -23,7 +23,7 @@ DEFAULTS = {
                      prompts='docs/experiments/SERVING_R10/prompts/passages.jsonl'),
     'device': dict(index=0, cache_dir='~/.cache/tilemega'),
     'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='L2', pruning=True, time_budget_s=600),
-    'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0),
+    'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0, watchdog=1),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
                  vllm_python='/root/venv_vllm/bin/python', policy_file=None),
     'output': dict(dir='runs/{model}-{timestamp}'),
@@ -121,6 +121,8 @@ def read_config(path: Path) -> dict:
         raise ValueError('features.kphase_mask must be in [0,31]')
     if int(config['features']['lookahead_bytes']) not in (-1, 0, 65536, 131072):
         raise ValueError('invalid features.lookahead_bytes')
+    if int(config['features']['watchdog']) not in (0,1):
+        raise ValueError('features.watchdog must be 0 or 1')
     if int(config['features']['v3_poll_ns']) < 0:
         raise ValueError('features.v3_poll_ns must be nonnegative')
     if config['test']['repeats'] < 1 or config['test']['warmup'] < 0:

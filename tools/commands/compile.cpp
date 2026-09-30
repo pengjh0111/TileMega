@@ -289,7 +289,7 @@ int RunCompile(int argc, char** argv) {
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
-    int kphase_mask=31,v3_poll_ns=0;
+    int kphase_mask=31,v3_poll_ns=0,watchdog=1;
     bool page_bytes_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
     if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
@@ -336,6 +336,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--page-bytes") {page_bytes=std::stoi(value);page_bytes_pinned=true;}
       else if (flag=="--lookahead-bytes") lookahead_bytes=std::stoi(value);
       else if (flag=="--kphase-mask") kphase_mask=std::stoi(value);
+      else if (flag=="--watchdog") watchdog=std::stoi(value);
       else if (flag=="--v3-poll-ns") v3_poll_ns=std::stoi(value);
       else if (flag=="--l2-prefetch-depth") prefetch_depth=std::stoi(value);
       else if (flag=="--l2-prefetch-stride") prefetch_stride=std::stoi(value);
@@ -441,6 +442,8 @@ int RunCompile(int argc, char** argv) {
       }
       if(kphase_mask<0 || kphase_mask>31 || v3_poll_ns<0)
         throw std::runtime_error("invalid K-phase mask or V3 poll interval");
+      if(watchdog!=0 && watchdog!=1)throw std::runtime_error("--watchdog must be 0 or 1");
+      runtime_flags+=" -DTILEMEGA_WATCHDOG="+std::to_string(watchdog);
       runtime_flags+=" -DTILEMEGA_KPHASE_CLASS_MASK="+std::to_string(kphase_mask)+
           " -DTILEMEGA_V3_POLL_NS="+std::to_string(v3_poll_ns);
       runtime_flags+=" -DTILEMEGA_PDL="+std::to_string(pdl=="auto" && use_pages)+
@@ -804,6 +807,7 @@ int RunCompile(int argc, char** argv) {
               " --weight-layout "+quote(weight_layout)+
               " --kphase-mask "+std::to_string(kphase_mask)+
               " --v3-poll-ns "+std::to_string(v3_poll_ns)+
+              " --watchdog "+std::to_string(watchdog)+
               " --l2-prefetch-depth "+std::to_string(prefetch_depth)+" --l2-prefetch-stride "+std::to_string(prefetch_stride)+
               " --event-solo "+std::to_string(event_solo)+" --event-red-publish "+std::to_string(event_red)+
               " --barrier-v2 "+std::to_string(barrier_v2)+
@@ -1221,6 +1225,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"capacity\": "<<serving_capacity
               <<",\n  \"sync\": "<<std::quoted(sync_policy)
               <<",\n  \"pg\": "<<std::quoted(use_pages?"pages":pg_mode)
+              <<",\n  \"watchdog\": "<<watchdog
               <<",\n  \"handoff\": "<<std::quoted(handoff_mode)
               <<",\n  \"pages\": "<<pages_json
               <<",\n  \"prefetch\": "<<prefetch_json

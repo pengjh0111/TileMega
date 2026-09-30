@@ -456,11 +456,15 @@ extern "C" int tm_plan_read_step_ns(void* opaque,std::uint32_t first,
 }
 
 extern "C" int tm_plan_watchdog(void* opaque,std::uint64_t out[12]) {
+#if !TILEMEGA_WATCHDOG
+  return 0;
+#else
   auto* plan=static_cast<tilemega::codegen::serving::Plan*>(opaque);
   if(!plan || !out || !plan->watchdog || !plan->watchdog->fired)return 0;
   auto const* words=reinterpret_cast<unsigned long long const*>(plan->watchdog);
   for(int i=0;i<12;++i)out[i]=words[i];
   return 1;
+#endif
 }
 
 #if TILEMEGA_TRACE_V2
