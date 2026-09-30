@@ -14,4 +14,14 @@ class Tools(unittest.TestCase):
             m.write_text(json.dumps(dict(gemms=[dict(index=0,tile_m=16,tile_n=64,tile_k=64,stages=2,split_k=4)],kappa=1,residency=1,grid=128,attention_kv_block=256,attention_query_rows=4)))
             c.write_text('class\tgemm\top\ttile_m\ttile_n\ttile_k\tstages\tsplit_k\n0\t0\tqkv\t16\t128\t128\t8\t8\n')
             pin(m,c,c,d/'out');case=json.loads((d/'out/cases.json').read_text())['cases'][0];self.assertEqual(case['geometries'][0]['tile_n'],64)
+    def test_dn_repartition_maps_geometry_by_gemm_index(self):
+        with tempfile.TemporaryDirectory() as folder:
+            d=Path(folder);m=d/'m.json';source=d/'source.tsv';target=d/'target.tsv'
+            geometry=dict(tile_m=16,tile_n=64,tile_k=64,stages=2,split_k=4)
+            data=dict(gemms=[dict(index=i,**geometry) for i in range(2)],kappa=1,residency=1,grid=128,attention_kv_block=256,attention_query_rows=4)
+            m.write_text(json.dumps(data));source.write_text('class\tgemm\n0\t0\n1\t1\n');target.write_text('class\tgemm\n0\t0\n0\t1\n')
+            record=pin(m,source,target,d/'out');self.assertEqual(record['expected_partition'],[[0,1]])
+            data['gemms'][1]['split_k']=8;m.write_text(json.dumps(data))
+            with self.assertRaisesRegex(ValueError,'geometry differs within class'):
+                pin(m,source,target,d/'out2')
 if __name__=='__main__':unittest.main()

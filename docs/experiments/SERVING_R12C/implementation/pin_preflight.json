@@ -1,0 +1,170 @@
+[
+  {
+    "cell": "llama_B1",
+    "arm": "P-base",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B1",
+    "arm": "P-D64K",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B1",
+    "arm": "P-D128K",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B1",
+    "arm": "P-noWD",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B1",
+    "arm": "P-noDN",
+    "status": "FAIL",
+    "reason": "measured geometry differs within class 0"
+  },
+  {
+    "cell": "llama_B1",
+    "arm": "P-noLA",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B1",
+    "arm": "P-noDN-noLA",
+    "status": "FAIL",
+    "reason": "measured geometry differs within class 0"
+  },
+  {
+    "cell": "llama_B1",
+    "arm": "N-base",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B1",
+    "arm": "N-noDN",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B16",
+    "arm": "P-base",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B16",
+    "arm": "P-D64K",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B16",
+    "arm": "P-D128K",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B16",
+    "arm": "P-noWD",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B16",
+    "arm": "P-noDN",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B16",
+    "arm": "P-noLA",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B16",
+    "arm": "P-noDN-noLA",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B16",
+    "arm": "N-base",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B16",
+    "arm": "N-noDN",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B1",
+    "arm": "R10G-0",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B1",
+    "arm": "R10G-1",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B1",
+    "arm": "R10G-2",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B1",
+    "arm": "R10G-3",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "llama_B1",
+    "arm": "N-R12b",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "qwen3_B1",
+    "arm": "R10G-0",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "qwen3_B1",
+    "arm": "R10G-1",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "qwen3_B1",
+    "arm": "R10G-2",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "qwen3_B1",
+    "arm": "R10G-3",
+    "status": "PASS",
+    "reason": ""
+  },
+  {
+    "cell": "qwen3_B1",
+    "arm": "N-R12b",
+    "status": "PASS",
+    "reason": ""
+  }
+]

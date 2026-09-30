@@ -2,7 +2,7 @@
 """Thirty prescribed fixed builds; failed ablation arms do not stop siblings."""
 import argparse,concurrent.futures,hashlib,json,os,shlex,subprocess,sys
 from pathlib import Path
-from pin_case import pin
+from pin_case import pin,classes
 HERE=Path(__file__).resolve().parent;ROOT=HERE.parents[2]
 
 def one(job):
@@ -16,6 +16,9 @@ def one(job):
         if code==0:
             floor_command=[os.environ['TILEMEGA_BIN'],'inspect','request-floor',str(folder/'selected.mlir'),'/root/r12c_work/target_r12b.json',str(job['batch']),'64','1086',str(folder/'floor.json'),str(folder/'floor.tsv')]
             with (folder/'floor.log').open('w') as f:subprocess.run(floor_command,stdout=f,stderr=subprocess.STDOUT,check=True)
+            actual_partition=sorted(classes(str(so)+'.classes.tsv').values())
+            if actual_partition!=record['expected_partition']:
+                raise ValueError('rebuilt and same-DN donor class GEMM sets differ')
             manifest=json.loads(Path(str(so)+'.plan.json').read_text())
             result.update(sha256=hashlib.sha256(so.read_bytes()).hexdigest(),manifest_result=manifest,residency_same=manifest['residency']==record['source_residency'],grid_same=manifest['grid']==record['source_grid'])
     except Exception as e:result=dict(job,exit_code=1,error=str(e),so=str(so),placeholder_measurement=True)

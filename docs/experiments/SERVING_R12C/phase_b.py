@@ -82,6 +82,17 @@ def protocol(out,resume=False):
     if resume:cmd+=['--resume']
     return subprocess.run(cmd,cwd=ROOT).returncode
 
+def sample_step(out):
+    # ncu samples ordinary binaries; it does not require the trace ABI.
+    import torch
+    from tilemega.serving.engine import ServingEngine
+    arm=json.loads((out/'arm.json').read_text())
+    with ServingEngine(arm['model_path'],arm['prefill'],arm['decode'],16) as engine:
+        engine.state.tokens.zero_();engine.state.kv_storage.zero_()
+        engine.decode.launch(575-engine.prompt_len,2,torch.cuda.current_stream().cuda_stream)
+        torch.cuda.synchronize()
+    return 0
+
 def trace(out):
     codes=[]
     for b in (1,16):
@@ -113,16 +124,18 @@ def trace(out):
             arm=fixed('llama_B16',label)
             if not arm:continue
             folder=out/('ncu-'+label);folder.mkdir(parents=True,exist_ok=True)
-            cmd=[ncu,'--metrics','dram__bytes_read.sum,lts__t_sector_hit_rate.pct','--kernel-name','regex:.*tilemega_l2_kernel.*','--launch-count','1','--csv',sys.executable,'-m','tilemega.serving.trace','--model',arm['model_path'],'--prefill-so',arm['prefill'],'--decode-so',arm['decode'],'--batch','16','--past','575','--launches','1','--out',str(folder)]
+            (folder/'arm.json').write_text(json.dumps(arm,indent=2)+'\n')
+            cmd=[ncu,'--metrics','dram__bytes_read.sum,lts__t_sector_hit_rate.pct','--kernel-name','regex:.*tilemega_l2_kernel.*','--launch-count','1','--csv',sys.executable,str(HERE/'phase_b.py'),'sample-step','--out',str(folder)]
             with (folder/'metrics.csv').open('w') as f:code=subprocess.run(cmd,cwd=ROOT,stdout=f,stderr=subprocess.STDOUT).returncode
             (folder/'status.json').write_text(json.dumps(dict(exit_code=code,command=cmd))+'\n')
     else:(out/'ncu.json').write_text(json.dumps(dict(status='not_available'))+'\n')
     return int(any(codes))
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('action',choices=('anchor','smoke','check','hf','protocol','trace','audit'));p.add_argument('--matrix');p.add_argument('--cell');p.add_argument('--round',type=int,default=0);p.add_argument('--out',type=Path,required=True);p.add_argument('--resume',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('action',choices=('anchor','smoke','check','hf','protocol','trace','audit','sample-step'));p.add_argument('--matrix');p.add_argument('--cell');p.add_argument('--round',type=int,default=0);p.add_argument('--out',type=Path,required=True);p.add_argument('--resume',action='store_true');a=p.parse_args()
     if a.action=='anchor':return anchor(a.matrix,a.cell,a.round,a.out)
     if a.action=='smoke':return smoke(a.out)
+    if a.action=='sample-step':return sample_step(a.out)
     if a.action=='check':return check(a.cell,a.out)
     if a.action=='hf':return hf(a.out)
     if a.action=='protocol':return protocol(a.out,a.resume)

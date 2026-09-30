@@ -31,7 +31,7 @@ def main() -> None:
         if not hasattr(engine.decode_lib.lib, "tm_plan_dump_trace_v2"):
             raise RuntimeError("decode plan is not a trace-enabled build")
         if not _exclusive(args.out / "guard.jsonl", "before", True):
-            raise RuntimeError("GPU remained occupied before serving trace")
+            raise SystemExit(75)
         engine.state.tokens.zero_()
         engine.state.kv_storage.zero_()
         stream = torch.cuda.current_stream()
@@ -53,7 +53,7 @@ def main() -> None:
         if status:
             raise RuntimeError(f"tm_plan_dump_trace_v2 returned {status}")
         if not _exclusive(args.out / "guard.jsonl", "after", False):
-            raise RuntimeError("GPU trace was contaminated")
+            raise SystemExit(75)
         report = {"model": str(args.model), "batch": args.batch,
                   "past": args.past, "mode": "L2 diagnostic",
                   "launches": args.launches, "mean_step_ms": step_ms,

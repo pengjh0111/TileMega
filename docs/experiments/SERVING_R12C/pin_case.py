@@ -12,8 +12,10 @@ def classes(path):
 
 def pin(manifest,source_classes,target_classes,out,overrides=None):
     manifest=Path(manifest);data=json.loads(manifest.read_text());source=classes(source_classes);target=classes(target_classes)
-    if sorted(source.values())!=sorted(target.values()):
-        raise ValueError('source and DN-compatible target class GEMM sets differ')
+    # DN can repartition semantic classes. Map geometry by GEMM index; the
+    # same-DN donor is compared with the rebuilt partition after compilation.
+    if sorted(g for v in source.values() for g in v)!=sorted(g for v in target.values() for g in v):
+        raise ValueError('source and target partitions cover different GEMMs')
     gemms={g['index']:g for g in data['gemms']}
     if set(gemms)!={g for members in target.values() for g in members}:raise ValueError('class partition does not cover manifest GEMMs')
     shapes=[]
@@ -29,7 +31,7 @@ def pin(manifest,source_classes,target_classes,out,overrides=None):
     pages=data.get('pages') or {};opts=dict(pg=data.get('pg','off'),sync=data.get('sync','legacy'),weight_layout='tiled' if data.get('pg')=='pages' else 'row',page_bytes=pages.get('page_bytes',16384),lookahead_bytes=pages.get('lookahead_bytes',0),serve_kv_block=data['attention_kv_block'],serve_query_rows=data['attention_query_rows'])
     opts.update(overrides or {});arguments=['--search-domain',str(out/'domain.json'),'--evaluate-configs',str(out/'cases.json')]
     for k,v in opts.items():arguments+=['--'+k.replace('_','-'),str(v)]
-    record=dict(source_manifest=str(manifest),source_classes=str(source_classes),target_classes=str(target_classes),options=arguments,source_residency=data['residency'],source_grid=data['grid'],placeholder_measurement=True)
+    record=dict(source_manifest=str(manifest),source_classes=str(source_classes),target_classes=str(target_classes),expected_partition=sorted(target.values()),options=arguments,source_residency=data['residency'],source_grid=data['grid'],placeholder_measurement=True)
     (out/'record.json').write_text(json.dumps(record,indent=2)+'\n');return record
 
 def main():
