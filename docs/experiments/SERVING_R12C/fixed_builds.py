@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""Thirty prescribed fixed builds; failed ablation arms do not stop siblings."""
+import argparse,concurrent.futures,hashlib,json,os,shlex,subprocess,sys
+from pathlib import Path
+from pin_case import pin
+HERE=Path(__file__).resolve().parent;ROOT=HERE.parents[2]
+
+def one(job):
+    folder=HERE/'raw/B0b'/job['cell']/job['label'];folder.mkdir(parents=True,exist_ok=True);so=folder/'plan.so'
+    try:
+        record=pin(job['manifest'],job['classes'],job['target_classes'],folder,job['overrides'])
+        cmd=[os.environ['TILEMEGA_BIN'],'compile',job['export'],str(so),'--serving','decode','--batch',str(job['batch']),'--past-range','64:1086','--capacity','1088','--solver','skeleton','--solve','/root/r12c_work/target_r12b.json','--runtime-target','/root/r12c_work/target_r12b.json','--emit','serving','--search-passes','1','--top-m','1','--search-jobs','3','--search-budget-ms','60000','--handoff','off','--kphase-mask','31','--v3-poll-ns','0','--dump-cg',str(folder/'selected.mlir'),'--measure-cmd',shlex.join([sys.executable,str(HERE/'measure_stub.py')])]+record['options']
+        (folder/'command.json').write_text(json.dumps(cmd,indent=2)+'\n')
+        with (folder/'build.log').open('w') as f:code=subprocess.run(cmd,cwd=ROOT,stdout=f,stderr=subprocess.STDOUT,timeout=1800).returncode
+        result=dict(job,exit_code=code,so=str(so),placeholder_measurement=True)
+        if code==0:
+            floor_command=[os.environ['TILEMEGA_BIN'],'inspect','request-floor',str(folder/'selected.mlir'),'/root/r12c_work/target_r12b.json',str(job['batch']),'64','1086',str(folder/'floor.json'),str(folder/'floor.tsv')]
+            with (folder/'floor.log').open('w') as f:subprocess.run(floor_command,stdout=f,stderr=subprocess.STDOUT,check=True)
+            manifest=json.loads(Path(str(so)+'.plan.json').read_text())
+            result.update(sha256=hashlib.sha256(so.read_bytes()).hexdigest(),manifest_result=manifest,residency_same=manifest['residency']==record['source_residency'],grid_same=manifest['grid']==record['source_grid'])
+    except Exception as e:result=dict(job,exit_code=1,error=str(e),so=str(so),placeholder_measurement=True)
+    (folder/'record.json').write_text(json.dumps(result,indent=2)+'\n');print(job['cell'],job['label'],result['exit_code'],flush=True);return result
+
+def main():
+    p=argparse.ArgumentParser();p.add_argument('--jobs',type=Path,required=True);a=p.parse_args()
+    jobs=json.loads(a.jobs.read_text())
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:results=list(pool.map(one,jobs))
+    # Trace is a second compilation of the exact P-base source and flags.
+    for result in list(results):
+        if result['label']!='P-base' or result['exit_code']:continue
+        source=Path(result['so']);folder=HERE/'raw/B0b'/result['cell']/'P-trace';folder.mkdir(parents=True,exist_ok=True);dest=folder/'plan.so'
+        cmd=shlex.split(Path(str(source)+'.build_command.txt').read_text());cmd=[str(dest) if arg==str(source) else arg for arg in cmd]
+        cmd+=['-DTILEMEGA_TRACE_V2=1','-DTILEMEGA_PAGE_TRACE=1']
+        with (folder/'build.log').open('w') as log:code=subprocess.run(cmd,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,timeout=1800).returncode
+        record=dict(result,label='P-trace',so=str(dest),exit_code=code)
+        if code==0:
+            Path(str(dest)+'.plan.json').write_text(Path(str(source)+'.plan.json').read_text());record['sha256']=hashlib.sha256(dest.read_bytes()).hexdigest()
+        (folder/'record.json').write_text(json.dumps(record,indent=2)+'\n');(folder/'command.json').write_text(json.dumps(cmd,indent=2)+'\n');results.append(record)
+    (HERE/'fixed_results.json').write_text(json.dumps(results,indent=2)+'\n')
+    print('fixed builds complete: '+str(sum(r['exit_code']==0 for r in results))+'/'+str(len(results)))
+if __name__=='__main__':main()

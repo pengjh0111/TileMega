@@ -1,0 +1,11 @@
+{
+  "default_cuda_byte_identical": true,
+  "reference_path": "/root/r12c_work/ref_cu/default.cu",
+  "current_path": "/root/r12c_work/ref_cu/current.cu",
+  "sha256": "708cd9fe2db0e5f817761bc62b42e981bfc549d440d83a67c372678b499d799f",
+  "event_sync_unchanged": true,
+  "host_cases": 4,
+  "host_failures": 0,
+  "gpu_numerical_tests": "queued under gpu_guard",
+  "source_sha256": "033b22e7c00e3fa095ec57f18728a485ccdb569180c87feeb74c4ccc9c9c13f0"
+}

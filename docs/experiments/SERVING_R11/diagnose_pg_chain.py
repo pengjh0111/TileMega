@@ -2,6 +2,7 @@
 """Attribute the instrumented PG-1 realized chain to emitted stage kinds."""
 from __future__ import annotations
 
+import argparse
 import csv
 import io
 import json
@@ -14,11 +15,12 @@ ROOT = Path(__file__).resolve().parents[3]
 ARCHIVE = ROOT / 'docs/experiments/SERVING_R11/page_diagnostics/raw.tar.xz'
 
 
-def stage_kinds(cu: Path) -> list[str]:
+def stage_kinds(cu: Path, manifest: Path | None = None) -> list[str]:
     source = cu.read_text()
     stage_lines = source.split('constexpr StageDesc kStages[] = {', 1)[1].split('};', 1)[0]
     gemm_ids = [int(g) for g in re.findall(r'TaskKind::kGemm,\s*(\d+)u', stage_lines)]
     head_id = max(gemm_ids)
+    splits = {g['index']:g['split_k'] for g in json.loads(manifest.read_text())['gemms']} if manifest else {}
     result = []
     for line in stage_lines.splitlines():
         match = re.search(r'TaskKind::(\w+),\s*(\d+)u', line)
@@ -28,6 +30,7 @@ def stage_kinds(cu: Path) -> list[str]:
         if kind == 'kGemm':
             result.append('lm_head' if identifier == head_id else
                           ('qkv', 'o', 'gate_up', 'down')[identifier % 4])
+            if splits.get(identifier,1)>1:result.append('combine')
         elif kind == 'kGemmCombine':
             result.append('combine')
         else:
@@ -36,6 +39,22 @@ def stage_kinds(cu: Path) -> list[str]:
 
 
 def main() -> None:
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--cu',type=Path);parser.add_argument('--manifest',type=Path)
+    parser.add_argument('--chain',type=Path);parser.add_argument('--out',type=Path)
+    args=parser.parse_args()
+    if args.cu:
+        kinds=stage_kinds(args.cu,args.manifest)
+        groups={}
+        with args.chain.open() as stream:
+            for row in csv.DictReader(stream,delimiter='\t'):
+                stage=int(row['stage']);kind=kinds[stage]
+                groups.setdefault(kind,[]).append(int(row['wall_ns']))
+        rows=[dict(stage_kind=k,links=len(v),wall_total_ns=sum(v),wall_median_ns=statistics.median(v)) for k,v in groups.items()]
+        args.out.parent.mkdir(parents=True,exist_ok=True)
+        with args.out.open('w') as f:
+            writer=csv.DictWriter(f,fieldnames=['stage_kind','links','wall_total_ns','wall_median_ns'],delimiter='\t');writer.writeheader();writer.writerows(rows)
+        return
     output = ROOT / 'docs/experiments/SERVING_R11/page_diagnostics/pg_chain_classes.tsv'
     records = []
     with tarfile.open(ARCHIVE) as source:

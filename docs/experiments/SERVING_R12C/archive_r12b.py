@@ -29,7 +29,7 @@ def main():
     paths.update(old.glob('queue_run*/progress.tsv'))
     s0=Path('/root/r12_work/r12b_s0')
     for pattern in ('smoke64/smoke.json','measure/measurements.json','*.plan.json','*.classes.tsv'):
-        paths.update(s0.glob(pattern))
+        paths.update(s0.rglob(pattern))
     manifest=[]; missing=[]
     for p in sorted(paths):
         if not p.is_file():missing.append(str(p));continue

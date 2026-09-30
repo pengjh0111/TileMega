@@ -5,8 +5,9 @@ from pathlib import Path
 FIELDS=('tile_m','tile_n','tile_k','stages','split_k')
 def classes(path):
     groups={}
-    for row in csv.DictReader(Path(path).open(),delimiter='\t'):
-        groups.setdefault(int(row['class']),[]).append(int(row['gemm']))
+    with Path(path).open() as stream:
+        for row in csv.DictReader(stream,delimiter='\t'):
+            groups.setdefault(int(row['class']),[]).append(int(row['gemm']))
     return {c:sorted(v) for c,v in sorted(groups.items())}
 
 def pin(manifest,source_classes,target_classes,out,overrides=None):

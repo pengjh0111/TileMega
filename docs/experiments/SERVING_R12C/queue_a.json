@@ -1,0 +1,902 @@
+[
+  {
+    "name": "A1_llama_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a1.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_llama_B1_r0"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_llama_B1_r0"
+  },
+  {
+    "name": "A1_llama_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a1.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_llama_B1_r1"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_llama_B1_r1"
+  },
+  {
+    "name": "A1_llama_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a1.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_llama_B1_r2"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_llama_B1_r2"
+  },
+  {
+    "name": "A1_qwen3_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a1.json",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_qwen3_B1_r0"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_qwen3_B1_r0"
+  },
+  {
+    "name": "A1_qwen3_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a1.json",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_qwen3_B1_r1"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_qwen3_B1_r1"
+  },
+  {
+    "name": "A1_qwen3_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a1.json",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_qwen3_B1_r2"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_qwen3_B1_r2"
+  },
+  {
+    "name": "A1_llama_B16_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a1.json",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_llama_B16_r0"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_llama_B16_r0"
+  },
+  {
+    "name": "A1_llama_B16_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a1.json",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_llama_B16_r1"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_llama_B16_r1"
+  },
+  {
+    "name": "A1_llama_B16_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a1.json",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_llama_B16_r2"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_llama_B16_r2"
+  },
+  {
+    "name": "A1_qwen3_B16_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a1.json",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_qwen3_B16_r0"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_qwen3_B16_r0"
+  },
+  {
+    "name": "A1_qwen3_B16_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a1.json",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_qwen3_B16_r1"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_qwen3_B16_r1"
+  },
+  {
+    "name": "A1_qwen3_B16_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a1.json",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_qwen3_B16_r2"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_qwen3_B16_r2"
+  },
+  {
+    "name": "A4_llama_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a4.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A4_llama_B1_r0"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 25,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A4_llama_B1_r0"
+  },
+  {
+    "name": "A4_llama_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a4.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A4_llama_B1_r1"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 25,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A4_llama_B1_r1"
+  },
+  {
+    "name": "A4_llama_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a4.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A4_llama_B1_r2"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 25,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A4_llama_B1_r2"
+  },
+  {
+    "name": "A4_qwen3_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a4.json",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A4_qwen3_B1_r0"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 25,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A4_qwen3_B1_r0"
+  },
+  {
+    "name": "A4_qwen3_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a4.json",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A4_qwen3_B1_r1"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 25,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A4_qwen3_B1_r1"
+  },
+  {
+    "name": "A4_qwen3_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a4.json",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A4_qwen3_B1_r2"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 25,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A4_qwen3_B1_r2"
+  },
+  {
+    "name": "A3_llama_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a3.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A3_llama_B1_r0"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 30,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A3_llama_B1_r0"
+  },
+  {
+    "name": "A3_llama_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a3.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A3_llama_B1_r1"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 30,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A3_llama_B1_r1"
+  },
+  {
+    "name": "A3_llama_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a3.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A3_llama_B1_r2"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 30,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A3_llama_B1_r2"
+  },
+  {
+    "name": "A3_llama_B16_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a3.json",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A3_llama_B16_r0"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 30,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A3_llama_B16_r0"
+  },
+  {
+    "name": "A3_llama_B16_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a3.json",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A3_llama_B16_r1"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 30,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A3_llama_B16_r1"
+  },
+  {
+    "name": "A3_llama_B16_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a3.json",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A3_llama_B16_r2"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 30,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A3_llama_B16_r2"
+  },
+  {
+    "name": "A2_llama_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/candidates.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a2.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_llama_B1_r0"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 40,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_llama_B1_r0"
+  },
+  {
+    "name": "A2_llama_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/candidates.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a2.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_llama_B1_r1"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 40,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_llama_B1_r1"
+  },
+  {
+    "name": "A2_llama_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/candidates.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a2.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_llama_B1_r2"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 40,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_llama_B1_r2"
+  },
+  {
+    "name": "A2_qwen3_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/candidates.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a2.json",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_qwen3_B1_r0"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 40,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_qwen3_B1_r0"
+  },
+  {
+    "name": "A2_qwen3_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/candidates.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a2.json",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_qwen3_B1_r1"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 40,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_qwen3_B1_r1"
+  },
+  {
+    "name": "A2_qwen3_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/candidates.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a2.json",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_qwen3_B1_r2"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 40,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_qwen3_B1_r2"
+  },
+  {
+    "name": "A2_llama_B16_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/candidates.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a2.json",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_llama_B16_r0"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 40,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_llama_B16_r0"
+  },
+  {
+    "name": "A2_llama_B16_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/candidates.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a2.json",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_llama_B16_r1"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 40,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_llama_B16_r1"
+  },
+  {
+    "name": "A2_llama_B16_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/candidates.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a2.json",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_llama_B16_r2"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 40,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_llama_B16_r2"
+  },
+  {
+    "name": "A2_qwen3_B16_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/candidates.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a2.json",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_qwen3_B16_r0"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 40,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_qwen3_B16_r0"
+  },
+  {
+    "name": "A2_qwen3_B16_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/candidates.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a2.json",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_qwen3_B16_r1"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 40,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_qwen3_B16_r1"
+  },
+  {
+    "name": "A2_qwen3_B16_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/candidates.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a2.json",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_qwen3_B16_r2"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 40,
+    "after": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A2_qwen3_B16_r2"
+  }
+]
