@@ -121,6 +121,7 @@ def main() -> None:
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--batch", type=int, required=True)
     parser.add_argument("--past-mid", type=int, default=575)
+    parser.add_argument("--past-list", help="comma-separated past values; one new instance per value")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--reverse-modes", action="store_true")
     parser.add_argument("--warmup", type=int, choices=range(0, 33))
@@ -132,18 +133,34 @@ def main() -> None:
     lock_path = Path(os.environ.get("TILEMEGA_GPU_LOCK", "/root/r10_work/serving_gpu.lock"))
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+        if os.environ.get("TILEMEGA_GPU_LOCK_HELD") != "1":
+            fcntl.flock(lock, fcntl.LOCK_EX)
         # cuda.init alone does not necessarily register this PID with NVML.
         # Keep a tiny allocation alive so the exclusivity guard can require
         # our own process to appear in the visible compute-app table.
         guard_allocation = torch.empty(1, device="cuda")
         config = json.loads((args.model / "config.json").read_text())
-        report = measure_one(PlanLibrary(args.so), args.batch,
-                             config["vocab_size"], args.past_mid, args.out,
-                             args.reverse_modes, args.warmup, args.timed,
-                             args.mode or "L2", args.guard_wait_s, args.smoke_steps)
+        if args.past_list:
+            pasts = [int(value) for value in args.past_list.split(",")]
+            if not pasts or any(past < 0 for past in pasts):
+                raise ValueError("invalid --past-list")
+            by_mode = {}
+            for past in pasts:
+                one = measure_one(PlanLibrary(args.so), args.batch, config["vocab_size"],
+                                  past, args.out / f"past{past}", args.reverse_modes,
+                                  args.warmup, args.timed, args.mode or "L2",
+                                  args.guard_wait_s, args.smoke_steps)
+                for mode, values in one["modes"].items():
+                    by_mode.setdefault(mode, {"by_past": {}})["by_past"][str(past)] = values
+            report = dict(plan=str(args.so), batch=args.batch, modes=by_mode)
+            (args.out / "measurements.json").write_text(json.dumps(report, indent=2)+"\n")
+        else:
+            report = measure_one(PlanLibrary(args.so), args.batch,
+                                 config["vocab_size"], args.past_mid, args.out,
+                                 args.reverse_modes, args.warmup, args.timed,
+                                 args.mode or "L2", args.guard_wait_s, args.smoke_steps)
         del guard_allocation
-    print(json.dumps({mode: data["mean_ms"]
+    print(json.dumps({mode: data.get("mean_ms", data.get("by_past"))
                       for mode, data in report["modes"].items()}))
 
 
