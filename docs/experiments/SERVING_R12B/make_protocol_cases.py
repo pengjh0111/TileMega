@@ -2,10 +2,12 @@
 """Pin a Llama B16 50-process protocol case to exact serving binaries."""
 import argparse, hashlib, json
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('--run-dir',type=Path,required=True)
+p=argparse.ArgumentParser();p.add_argument('--prefill-so',type=Path,required=True);p.add_argument('--decode-so',type=Path,required=True)
 p.add_argument('--config',type=Path,required=True);p.add_argument('--out',type=Path,required=True)
-a=p.parse_args();plans=json.loads((a.run_dir/'plans.json').read_text())['16']
-config=json.loads(a.config.read_text());prefill=Path(plans['prefill']).resolve();decode=Path(plans['decode']).resolve()
+a=p.parse_args()
+config=json.loads(a.config.read_text());prefill=a.prefill_so.resolve();decode=a.decode_so.resolve()
+manifest=json.loads(Path(str(decode)+'.plan.json').read_text())
+if manifest.get('pg')!='pages':raise ValueError('protocol verification requires an explicit paged decode plan')
 case=dict(model=str(Path(config['model']['path']).resolve()),batch=16,steps=64,
           prompt_ids=str(Path(config['workload']['prompts']).resolve()),
           reference_prefill=str(prefill),reference_decode=str(decode),
