@@ -7,5 +7,10 @@
   "host_cases": 4,
   "host_failures": 0,
   "gpu_numerical_tests": "queued under gpu_guard",
-  "source_sha256": "033b22e7c00e3fa095ec57f18728a485ccdb569180c87feeb74c4ccc9c9c13f0"
+  "checked_binary_source_sha256": "033b22e7c00e3fa095ec57f18728a485ccdb569180c87feeb74c4ccc9c9c13f0",
+  "frozen_source_sha256": "a9dfaa0dc3bb44780a9bd3eda31a7b8b9b4ede93c9c765b8771b3ca166e2a12f",
+  "post_build_python_change": "trace GPU guard failures now propagate exit 75; frozen binary fingerprint refresh is queued in Bpre",
+  "framework_tests": 2,
+  "tool_tests": 4,
+  "fixed_input_preflight": "26/28; two Llama B1 DN-off arms reject nonuniform source geometry within a target class"
 }

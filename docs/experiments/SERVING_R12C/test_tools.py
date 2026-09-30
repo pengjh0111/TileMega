@@ -24,4 +24,20 @@ class Tools(unittest.TestCase):
             data['gemms'][1]['split_k']=8;m.write_text(json.dumps(data))
             with self.assertRaisesRegex(ValueError,'geometry differs within class'):
                 pin(m,source,target,d/'out2')
+    def test_queue_dependencies_and_timing_guards(self):
+        root=Path(__file__).resolve().parent
+        steps=json.loads((root/'definitions/queue_a.json').read_text())+json.loads((root/'definitions/queue_b.json').read_text())
+        names={s['name'] for s in steps};self.assertEqual(len(names),len(steps))
+        pending={s['name']:set(s.get('after',[])+s.get('after_any',[])) for s in steps}
+        for deps in pending.values():self.assertTrue(deps<=names)
+        while pending:
+            ready={n for n,deps in pending.items() if not deps}
+            self.assertTrue(ready,'dependency cycle')
+            pending={n:deps-ready for n,deps in pending.items() if n not in ready}
+        for s in steps:
+            self.assertGreater(s['timeout_s'],0)
+            if not s['gpu'] and s['name'].startswith('B'):
+                self.assertEqual(s['command'][:2],['flock','/root/r12c_work/gpu.lock'])
+            if s['name'].startswith(('A1_','A2_','A3_','A4_','B1_','B3_','B5_','B8_')):
+                self.assertTrue(s['gpu'])
 if __name__=='__main__':unittest.main()

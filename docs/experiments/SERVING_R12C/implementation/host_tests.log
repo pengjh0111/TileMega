@@ -1,0 +1,14 @@
+Internal ctest changing into directory: /root/TileMega/build-phase12
+Test project /root/TileMega/build-phase12
+    Start 56: serving_pruning
+1/4 Test #56: serving_pruning ..................   Passed    0.01 sec
+    Start 57: serving_lag
+2/4 Test #57: serving_lag ......................   Passed    0.01 sec
+    Start 58: serving_task_index
+3/4 Test #58: serving_task_index ...............   Passed    0.01 sec
+    Start 83: skeleton_search_isolation
+4/4 Test #83: skeleton_search_isolation ........   Passed    8.63 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =   8.66 sec

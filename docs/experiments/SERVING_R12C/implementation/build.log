@@ -1,0 +1,23 @@
+[1/17] Building CXX object CMakeFiles/tilemega-unit.dir/test/unit/serving_lag_test.cpp.o
+[2/17] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/PrefetchCalibration.cu.o
+[3/17] Building CXX object CMakeFiles/tilemega-unit.dir/test/unit/skeleton_search_isolation_test.cpp.o
+[4/17] Linking CXX executable tilemega-unit
+[5/17] cd /root/TileMega/build-phase12 && /usr/bin/python3.10 /root/TileMega/python/tilemega/fingerprint.py --root /root/TileMega --header /root/TileMega/build-phase12/include/tilemega/Support/BuildFingerprint.h
+[6/17] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/ServingSyncCalibration.cu.o
+[7/17] Building CXX object CMakeFiles/tilemega_commands.dir/tools/commands/calibration-suite.cpp.o
+[8/17] Building CXX object CMakeFiles/tilemega.dir/tools/tilemega.cpp.o
+[9/17] Building CXX object CMakeFiles/tilemega_commands.dir/tools/commands/compile.cpp.o
+[10/17] Building CUDA object CMakeFiles/serving_attention_cases_test.dir/test/unit/serving_attention_cases_test.cu.o
+[11/17] Linking CXX executable serving_attention_cases_test
+[12/17] Building CUDA object CMakeFiles/paged_gemm_test.dir/test/unit/paged_gemm_test.cu.o
+[13/17] Linking CXX executable paged_gemm_test
+[14/17] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/ServingPagedCalibration.cu.o
+[15/17] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/ServingTaskCalibration.cu.o
+[16/17] Linking CXX static library libtilemega_calibration.a
+[17/17] Linking CXX executable tools/tilemega
+PASS source fingerprint 033b22e7c00e3fa095ec57f18728a485ccdb569180c87feeb74c4ccc9c9c13f0
+R12_LAST_ARRIVER selected=17
+CODEGEN_SUMMARY tasks=0 couplings=0 stages=0 symbolic_windows=0 fallback_windows=0 output=/root/r12c_work/ref_cu/current.cu
+Internal ctest changing into directory: /root/TileMega/build-phase12
+Test project /root/TileMega/build-phase12
+No tests were found!!!

@@ -1,9 +1,20 @@
 #!/usr/bin/env python3
 """Thirty prescribed fixed builds; failed ablation arms do not stop siblings."""
-import argparse,concurrent.futures,hashlib,json,os,shlex,subprocess,sys
+import argparse,concurrent.futures,hashlib,json,os,shlex,signal,subprocess,sys
 from pathlib import Path
 from pin_case import pin,classes
+from gpu_guard import descendants
 HERE=Path(__file__).resolve().parent;ROOT=HERE.parents[2]
+
+def run_bounded(command,log,timeout=1800):
+    # Keep the scheduler's session; GNU timeout can create additional groups.
+    process=subprocess.Popen(command,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT)
+    try:return process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        for pid in descendants(process.pid):
+            try:os.kill(pid,signal.SIGKILL)
+            except ProcessLookupError:pass
+        process.wait();return 124
 
 def one(job):
     folder=HERE/'raw/B0b'/job['cell']/job['label'];folder.mkdir(parents=True,exist_ok=True);so=folder/'plan.so'
@@ -11,7 +22,7 @@ def one(job):
         record=pin(job['manifest'],job['classes'],job['target_classes'],folder,job['overrides'])
         cmd=[os.environ['TILEMEGA_BIN'],'compile',job['export'],str(so),'--serving','decode','--batch',str(job['batch']),'--past-range','64:1086','--capacity','1088','--solver','skeleton','--solve','/root/r12c_work/target_r12b.json','--runtime-target','/root/r12c_work/target_r12b.json','--emit','serving','--search-passes','1','--top-m','1','--search-jobs','3','--search-budget-ms','60000','--handoff','off','--kphase-mask','31','--v3-poll-ns','0','--dump-cg',str(folder/'selected.mlir'),'--measure-cmd',shlex.join([sys.executable,str(HERE/'measure_stub.py')])]+record['options']
         (folder/'command.json').write_text(json.dumps(cmd,indent=2)+'\n')
-        with (folder/'build.log').open('w') as f:code=subprocess.run(cmd,cwd=ROOT,stdout=f,stderr=subprocess.STDOUT,timeout=1800).returncode
+        with (folder/'build.log').open('w') as f:code=run_bounded(cmd,f)
         result=dict(job,exit_code=code,so=str(so),placeholder_measurement=True)
         if code==0:
             floor_command=[os.environ['TILEMEGA_BIN'],'inspect','request-floor',str(folder/'selected.mlir'),'/root/r12c_work/target_r12b.json',str(job['batch']),'64','1086',str(folder/'floor.json'),str(folder/'floor.tsv')]
@@ -34,7 +45,7 @@ def main():
         source=Path(result['so']);folder=HERE/'raw/B0b'/result['cell']/'P-trace';folder.mkdir(parents=True,exist_ok=True);dest=folder/'plan.so'
         cmd=shlex.split(Path(str(source)+'.build_command.txt').read_text());cmd=[str(dest) if arg==str(source) else arg for arg in cmd]
         cmd+=['-DTILEMEGA_TRACE_V2=1','-DTILEMEGA_PAGE_TRACE=1']
-        with (folder/'build.log').open('w') as log:code=subprocess.run(cmd,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,timeout=1800).returncode
+        with (folder/'build.log').open('w') as log:code=run_bounded(cmd,log)
         record=dict(result,label='P-trace',so=str(dest),exit_code=code)
         if code==0:
             Path(str(dest)+'.plan.json').write_text(Path(str(source)+'.plan.json').read_text());record['sha256']=hashlib.sha256(dest.read_bytes()).hexdigest()
