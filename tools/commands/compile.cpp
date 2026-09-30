@@ -290,6 +290,7 @@ int RunCompile(int argc, char** argv) {
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int kphase_mask=31,v3_poll_ns=0,watchdog=1;
+    int deferred_norm=1,paged_la=1,candidate_guard_wait_s=300;
     bool page_bytes_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
     if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
@@ -336,6 +337,9 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--page-bytes") {page_bytes=std::stoi(value);page_bytes_pinned=true;}
       else if (flag=="--lookahead-bytes") lookahead_bytes=std::stoi(value);
       else if (flag=="--kphase-mask") kphase_mask=std::stoi(value);
+      else if (flag=="--deferred-norm") deferred_norm=std::stoi(value);
+      else if (flag=="--paged-la") paged_la=std::stoi(value);
+      else if (flag=="--candidate-guard-wait-s") candidate_guard_wait_s=std::stoi(value);
       else if (flag=="--watchdog") watchdog=std::stoi(value);
       else if (flag=="--v3-poll-ns") v3_poll_ns=std::stoi(value);
       else if (flag=="--l2-prefetch-depth") prefetch_depth=std::stoi(value);
@@ -453,6 +457,8 @@ int RunCompile(int argc, char** argv) {
             " -DTILEMEGA_EVENT_RED_PUBLISH="+std::to_string(event_red)+
             " -DTILEMEGA_BARRIER_V2="+std::to_string(barrier_v2);
     }
+    if((deferred_norm!=0 && deferred_norm!=1) || (paged_la!=0 && paged_la!=1) || candidate_guard_wait_s<0)
+      throw std::runtime_error("invalid serving ablation option");
     std::string source,selected_serving_mode,selected_serving_binary;
     double selected_serving_ms=std::numeric_limits<double>::infinity();
     if(serving && solve_target.empty()) {
@@ -467,6 +473,7 @@ int RunCompile(int argc, char** argv) {
       }else {
       auto bridge=tilemega::frontend::ReadExportBridge(input.string());
       tilemega::frontend::ServingOptions options;
+      options.deferred_norm=deferred_norm!=0;
       options.phase=serving_phase=="decode"
           ? tilemega::frontend::ServingOptions::Phase::kDecode
           : tilemega::frontend::ServingOptions::Phase::kPrefill;
@@ -647,6 +654,7 @@ int RunCompile(int argc, char** argv) {
           if(!legacy_seed.empty())throw std::runtime_error("serving search does not use a legacy seed");
           auto bridge=tilemega::frontend::ReadExportBridge(input.string());
           tilemega::frontend::ServingOptions options;
+      options.deferred_norm=deferred_norm!=0;
           options.phase=serving_phase=="decode"
               ? tilemega::frontend::ServingOptions::Phase::kDecode
               : tilemega::frontend::ServingOptions::Phase::kPrefill;
@@ -808,6 +816,7 @@ int RunCompile(int argc, char** argv) {
               " --kphase-mask "+std::to_string(kphase_mask)+
               " --v3-poll-ns "+std::to_string(v3_poll_ns)+
               " --watchdog "+std::to_string(watchdog)+
+              " --paged-la "+std::to_string(paged_la)+
               " --l2-prefetch-depth "+std::to_string(prefetch_depth)+" --l2-prefetch-stride "+std::to_string(prefetch_stride)+
               " --event-solo "+std::to_string(event_solo)+" --event-red-publish "+std::to_string(event_red)+
               " --barrier-v2 "+std::to_string(barrier_v2)+
@@ -846,12 +855,12 @@ int RunCompile(int argc, char** argv) {
           std::string measure=measure_command+" --so "+quote(candidate_sos[i])+
               " --batch "+std::to_string(serving_batch)+
               " --past-mid "+std::to_string(dims.past)+
-              " --out "+quote(artifact)+" --mode L2 --guard-wait-s 300";
+              " --out "+quote(artifact)+" --mode L2 --guard-wait-s "+std::to_string(candidate_guard_wait_s);
           if(round==0)measure+=" --smoke-steps 16";
           // A deadlocked device kernel otherwise holds the GPU indefinitely.
           // Normal candidate timing takes seconds; a timeout is a failed
           // candidate measurement, never a performance observation.
-          int status=std::system(("timeout --signal=TERM --kill-after=5s 600s "+measure+
+          int status=std::system(("timeout --signal=TERM --kill-after=5s "+std::to_string(candidate_guard_wait_s+600)+"s "+measure+
               " >"+quote(artifact+".stdout")+
               " 2>"+quote(artifact+".stderr")).c_str());
           if(status==75*256)return 75;
@@ -1044,9 +1053,11 @@ int RunCompile(int argc, char** argv) {
       else if(weight_layout!="row")throw std::invalid_argument("weight layout must be row or tiled");
       // Decode paging always lowers reduction handoffs. The selected IR owns
       // the decision; there is no R11 recompute coordinate in this regime.
+      if(paged_la) {
       auto r12_reductions=tilemega::dialect::SelectServingHandoffs(*module,2);
       std::cerr<<"R12_LAST_ARRIVER selected="<<r12_reductions.last_arriver<<'\n';
       handoff_mode="last_arriver";
+      }else handoff_mode="off";
       source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
     }
     if (!dump_cg.empty()) {
@@ -1174,6 +1185,12 @@ int RunCompile(int argc, char** argv) {
           return int(value.getInt());
         return fallback;
       };
+      bool manifest_deferred_norm=serving_phase=="decode";
+      if(auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan"))
+        if(auto stages=plan.getAs<mlir::ArrayAttr>("stages"))for(auto entry:stages)
+          if(auto stage=llvm::dyn_cast<mlir::DictionaryAttr>(entry))
+            if(auto kind=stage.getAs<mlir::StringAttr>("kind");kind && kind.getValue()=="kRMSNorm")
+              manifest_deferred_norm=false;
       int attention_kv_block=0,attention_query_rows=0;
       if(auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan"))
         if(auto stages=llvm::dyn_cast_or_null<mlir::ArrayAttr>(plan.get("stages")))
@@ -1226,6 +1243,8 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"sync\": "<<std::quoted(sync_policy)
               <<",\n  \"pg\": "<<std::quoted(use_pages?"pages":pg_mode)
               <<",\n  \"watchdog\": "<<watchdog
+              <<",\n  \"deferred_norm\": "<<(manifest_deferred_norm?"true":"false")
+              <<",\n  \"paged_la\": "<<(use_pages && paged_la?"true":"false")
               <<",\n  \"handoff\": "<<std::quoted(handoff_mode)
               <<",\n  \"pages\": "<<pages_json
               <<",\n  \"prefetch\": "<<prefetch_json

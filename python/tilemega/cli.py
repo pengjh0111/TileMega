@@ -22,7 +22,7 @@ DEFAULTS = {
     'workload': dict(batch=[1, 16], prompt_len=64, max_new_tokens=1024,
                      prompts='docs/experiments/SERVING_R10/prompts/passages.jsonl'),
     'device': dict(index=0, cache_dir='~/.cache/tilemega'),
-    'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='L2', pruning=True, time_budget_s=600),
+    'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='L2', pruning=True, time_budget_s=600, candidate_guard_wait_s=300),
     'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0, watchdog=1),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
                  vllm_python='/root/venv_vllm/bin/python', policy_file=None),
@@ -125,6 +125,8 @@ def read_config(path: Path) -> dict:
         raise ValueError('features.watchdog must be 0 or 1')
     if int(config['features']['v3_poll_ns']) < 0:
         raise ValueError('features.v3_poll_ns must be nonnegative')
+    if int(config['solver']['candidate_guard_wait_s']) < 0:
+        raise ValueError('candidate_guard_wait_s must be nonnegative')
     if config['test']['repeats'] < 1 or config['test']['warmup'] < 0:
         raise ValueError('invalid measurement repeat counts')
     return config
@@ -334,7 +336,7 @@ class Run:
                     choice_features = dict(features, pg=pg, handoff='off',
                                            weight_layout=features['weight_layout'] if pg == 'pages' else 'row')
                     target_inputs = dict(target.get('calibration_sections', {}), target_sha256=file_sha(self.target))
-                    digest = plan_key(export, target_inputs, self.version['source_sha256'], settings,
+                    digest = plan_key(export, target_inputs, self.version['source_sha256'], {k:v for k,v in settings.items() if k!='candidate_guard_wait_s'},
                                       choice_features, batch, interval)
                     plan = self.cache / 'plans' / digest;plan.mkdir(parents=True, exist_ok=True)
                     marker = plan / 'record.json'; library = plan / 'plan.so'; manifest = Path(str(library) + '.plan.json')
@@ -348,6 +350,7 @@ class Run:
                             '--solver', 'skeleton', '--solve', str(self.target), '--emit', 'serving',
                             '--search-passes', str(settings['passes']), '--top-m', str(settings['top_m']),
                             '--search-jobs', str(settings['jobs']),
+                            '--candidate-guard-wait-s', str(settings['candidate_guard_wait_s']),
                             '--search-budget-ms', str(max(1, int(1000 * settings['time_budget_s']) - 200000)),
                             '--serving-pruning', str(int(settings['pruning'])), '--incremental-prepare', '1',
                             '--variant-cache', str(self.cache / 'variants' / self.device_key),

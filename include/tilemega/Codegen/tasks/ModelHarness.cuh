@@ -3098,6 +3098,22 @@ inline DeviceModel Create(ModelSpec const& spec,
   TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_params, sizeof(Params)));
   TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params, &model.params,
                                  sizeof(Params), cudaMemcpyHostToDevice));
+#if TILEMEGA_SERVING_RUNTIME
+  {
+    std::vector<bool> queued(model.stages.size(),false);
+    for(auto const& task:model.schedule)queued[task.stage]=true;
+    unsigned queued_count=0,elided=0,fine=0,aggregate=0;unsigned long long tasks=0;
+    for(unsigned stage=0;stage<model.stages.size();++stage) {
+      queued_count+=queued[stage];elided+=model.stages[stage].handoff_elided;
+      if(!model.stages[stage].handoff_elided)tasks+=active_tasks(stage);
+      auto flags=model.event_flags[stage];
+      aggregate+=(flags&kNeedsAggregateEvent)!=0;
+      if(flags&kNeedsFineEvents)fine+=(active_tasks(stage)+stage_kappa(stage)-1)/stage_kappa(stage);
+    }
+    std::fprintf(stderr,"E2E_STAGES runtime=%zu queued=%u elided=%u tasks=%llu fine_events=%u aggregate_events=%u\n",
+        model.stages.size(),queued_count,elided,tasks,fine,aggregate);
+  }
+#endif
   return model;
 }
 
