@@ -1,0 +1,153 @@
+{
+  "archived_utc": "2026-09-30T01:47:23.741469+00:00",
+  "status": "incomplete_matrix; historical guard observations only; not final acceptance",
+  "rows": [
+    {
+      "model": "llama",
+      "batch": 1,
+      "round": 0,
+      "engine": "tilemega",
+      "ttft_ms": 4.479076014831662,
+      "tpot_ms": 3.356465309874709,
+      "e2e_s": 3.438143088016659,
+      "token_per_s": 297.8351900387918,
+      "e2e_over_floor": 1.1925064448223486,
+      "paired": true,
+      "ratio": 0.91832232808256,
+      "source": "runs/r12b-llama/B1/tilemega/round0/measurements.json",
+      "sha256": "71a0c1d19123fc57d200f8369c9b03f691e9ff1fc1be46913c6d6d4c9c011a07",
+      "guards": {
+        "power_accepted": 8,
+        "power_rejected": 143,
+        "exclusive_accepted": 11,
+        "exclusive_rejected": 0
+      }
+    },
+    {
+      "model": "llama",
+      "batch": 1,
+      "round": 0,
+      "engine": "vllm",
+      "ttft_ms": 25.217645103111863,
+      "tpot_ms": 3.061687116095121,
+      "e2e_s": 3.1573235648684204,
+      "token_per_s": 324.3253277535635,
+      "e2e_over_floor": 1.095105294662716,
+      "paired": true,
+      "ratio": 0.91832232808256,
+      "source": "runs/r12b-llama/B1/vllm/round0/B1/measurements.json",
+      "sha256": "636b8c4dd837b77e9618b285f78b9fbad2762856c1ab3073c75daffcbaeaa9a2",
+      "guards": {
+        "power_accepted": 8,
+        "power_rejected": 37,
+        "exclusive_accepted": 8,
+        "exclusive_rejected": 11
+      }
+    },
+    {
+      "model": "qwen3",
+      "batch": 1,
+      "round": 0,
+      "engine": "tilemega",
+      "ttft_ms": 6.457864074036479,
+      "tpot_ms": 5.370321084097945,
+      "e2e_s": 5.500296333106235,
+      "token_per_s": 186.17178747925874,
+      "e2e_over_floor": 1.3547462828089214,
+      "paired": true,
+      "ratio": 0.8261177096228088,
+      "source": "runs/r12b-qwen3/B1/tilemega/round0/measurements.json",
+      "sha256": "d8adabb399fa4a66498b2a620b4870ca80314ed38e6646148a7d3fad12d48c64",
+      "guards": {
+        "power_accepted": 25,
+        "power_rejected": 349,
+        "exclusive_accepted": 31,
+        "exclusive_rejected": 0
+      }
+    },
+    {
+      "model": "qwen3",
+      "batch": 1,
+      "round": 0,
+      "engine": "vllm",
+      "ttft_ms": 36.32438718341291,
+      "tpot_ms": 4.406224654710697,
+      "e2e_s": 4.543892208952457,
+      "token_per_s": 225.35745852036214,
+      "e2e_over_floor": 1.1191798962741202,
+      "paired": true,
+      "ratio": 0.8261177096228088,
+      "source": "runs/r12b-qwen3/B1/vllm/round0/B1/measurements.json",
+      "sha256": "9876e1d07dfcc450ccdf4233da44da35aab2b472ca3af1bafddbe8c2e289f718",
+      "guards": {
+        "power_accepted": 26,
+        "power_rejected": 244,
+        "exclusive_accepted": 30,
+        "exclusive_rejected": 125
+      }
+    },
+    {
+      "model": "qwen3",
+      "batch": 1,
+      "round": 1,
+      "engine": "tilemega",
+      "ttft_ms": 6.440375000238419,
+      "tpot_ms": 5.366848079116244,
+      "e2e_s": 5.496725959936157,
+      "token_per_s": 186.2927145110748,
+      "e2e_over_floor": 1.3538668847751665,
+      "paired": true,
+      "ratio": 0.823128161392134,
+      "source": "runs/r12b-qwen3/B1/tilemega/round1/measurements.json",
+      "sha256": "c214c0db36694adf1e8733e4b32082dfd949ea4414c45db3f322fc93b29465c2",
+      "guards": {
+        "power_accepted": 17,
+        "power_rejected": 218,
+        "exclusive_accepted": 20,
+        "exclusive_rejected": 0
+      }
+    },
+    {
+      "model": "qwen3",
+      "batch": 1,
+      "round": 1,
+      "engine": "vllm",
+      "ttft_ms": 35.33528093248606,
+      "tpot_ms": 4.3882450167606795,
+      "e2e_s": 4.524509933078662,
+      "token_per_s": 226.3228537777192,
+      "e2e_over_floor": 1.114405959634679,
+      "paired": true,
+      "ratio": 0.823128161392134,
+      "source": "runs/r12b-qwen3/B1/vllm/round1/B1/measurements.json",
+      "sha256": "c71fac595d8732fe076f53aecff116146addfc47e3f8126e1409303343375f34",
+      "guards": {
+        "power_accepted": 24,
+        "power_rejected": 144,
+        "exclusive_accepted": 24,
+        "exclusive_rejected": 3
+      }
+    },
+    {
+      "model": "qwen3",
+      "batch": 1,
+      "round": 2,
+      "engine": "tilemega",
+      "ttft_ms": 6.43956009298563,
+      "tpot_ms": 5.365680737734088,
+      "e2e_s": 5.495530954794958,
+      "token_per_s": 186.33322392744236,
+      "e2e_over_floor": 1.3535725499475624,
+      "paired": false,
+      "ratio": null,
+      "source": "runs/r12b-qwen3/B1/tilemega/round2/measurements.json",
+      "sha256": "eb65ec7039aaec9a3556934099154aa7096d9566f7bc1c467b1e7282fbfe605f",
+      "guards": {
+        "power_accepted": 8,
+        "power_rejected": 53,
+        "exclusive_accepted": 8,
+        "exclusive_rejected": 0
+      }
+    }
+  ]
+}

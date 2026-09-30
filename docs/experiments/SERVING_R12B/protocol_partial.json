@@ -1,0 +1,1055 @@
+{
+  "requested": 50,
+  "completed": 12,
+  "passed": 12,
+  "cancelled_remaining": 38,
+  "cancelled_by_user": true,
+  "decode_pg": "l2",
+  "caveat": "Selected nonpaged pg=l2 plan: loop arms fall back to separate launches; this is not a paged loop/phase protocol claim.",
+  "processes": [
+    {
+      "directory": "docs/experiments/SERVING_R12B/protocol/0_000",
+      "pid": 4017678,
+      "records": [
+        {
+          "arm": "L1_separate",
+          "mode": "L1",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_separate",
+          "mode": "L2",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop_no_phase",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        }
+      ],
+      "case": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 16,
+        "steps": 64,
+        "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+        "reference_prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "reference_decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "binary_sha256": {
+          "prefill": "e3bfb3dfbfafaaacbdf2ada7e5966d7d234a5bebdbcefaf0e4437826af66c9fe",
+          "decode": "2389d5087bdabfc1cb52000302558c5de47b8b1de55923c28b5f941d90c7ac71"
+        },
+        "arms": [
+          {
+            "label": "L1_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L1"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ]
+          },
+          {
+            "label": "L2_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop_no_phase",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "env": {
+              "TILEMEGA_KPHASE_MASK": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "directory": "docs/experiments/SERVING_R12B/protocol/0_001",
+      "pid": 4017764,
+      "records": [
+        {
+          "arm": "L1_separate",
+          "mode": "L1",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_separate",
+          "mode": "L2",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop_no_phase",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        }
+      ],
+      "case": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 16,
+        "steps": 64,
+        "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+        "reference_prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "reference_decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "binary_sha256": {
+          "prefill": "e3bfb3dfbfafaaacbdf2ada7e5966d7d234a5bebdbcefaf0e4437826af66c9fe",
+          "decode": "2389d5087bdabfc1cb52000302558c5de47b8b1de55923c28b5f941d90c7ac71"
+        },
+        "arms": [
+          {
+            "label": "L1_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L1"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ]
+          },
+          {
+            "label": "L2_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop_no_phase",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "env": {
+              "TILEMEGA_KPHASE_MASK": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "directory": "docs/experiments/SERVING_R12B/protocol/0_002",
+      "pid": 4017939,
+      "records": [
+        {
+          "arm": "L1_separate",
+          "mode": "L1",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_separate",
+          "mode": "L2",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop_no_phase",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        }
+      ],
+      "case": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 16,
+        "steps": 64,
+        "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+        "reference_prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "reference_decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "binary_sha256": {
+          "prefill": "e3bfb3dfbfafaaacbdf2ada7e5966d7d234a5bebdbcefaf0e4437826af66c9fe",
+          "decode": "2389d5087bdabfc1cb52000302558c5de47b8b1de55923c28b5f941d90c7ac71"
+        },
+        "arms": [
+          {
+            "label": "L1_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L1"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ]
+          },
+          {
+            "label": "L2_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop_no_phase",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "env": {
+              "TILEMEGA_KPHASE_MASK": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "directory": "docs/experiments/SERVING_R12B/protocol/0_003",
+      "pid": 4018024,
+      "records": [
+        {
+          "arm": "L1_separate",
+          "mode": "L1",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_separate",
+          "mode": "L2",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop_no_phase",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        }
+      ],
+      "case": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 16,
+        "steps": 64,
+        "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+        "reference_prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "reference_decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "binary_sha256": {
+          "prefill": "e3bfb3dfbfafaaacbdf2ada7e5966d7d234a5bebdbcefaf0e4437826af66c9fe",
+          "decode": "2389d5087bdabfc1cb52000302558c5de47b8b1de55923c28b5f941d90c7ac71"
+        },
+        "arms": [
+          {
+            "label": "L1_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L1"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ]
+          },
+          {
+            "label": "L2_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop_no_phase",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "env": {
+              "TILEMEGA_KPHASE_MASK": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "directory": "docs/experiments/SERVING_R12B/protocol/0_004",
+      "pid": 4019006,
+      "records": [
+        {
+          "arm": "L1_separate",
+          "mode": "L1",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_separate",
+          "mode": "L2",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop_no_phase",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        }
+      ],
+      "case": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 16,
+        "steps": 64,
+        "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+        "reference_prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "reference_decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "binary_sha256": {
+          "prefill": "e3bfb3dfbfafaaacbdf2ada7e5966d7d234a5bebdbcefaf0e4437826af66c9fe",
+          "decode": "2389d5087bdabfc1cb52000302558c5de47b8b1de55923c28b5f941d90c7ac71"
+        },
+        "arms": [
+          {
+            "label": "L1_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L1"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ]
+          },
+          {
+            "label": "L2_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop_no_phase",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "env": {
+              "TILEMEGA_KPHASE_MASK": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "directory": "docs/experiments/SERVING_R12B/protocol/0_005",
+      "pid": 4020915,
+      "records": [
+        {
+          "arm": "L1_separate",
+          "mode": "L1",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_separate",
+          "mode": "L2",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop_no_phase",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        }
+      ],
+      "case": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 16,
+        "steps": 64,
+        "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+        "reference_prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "reference_decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "binary_sha256": {
+          "prefill": "e3bfb3dfbfafaaacbdf2ada7e5966d7d234a5bebdbcefaf0e4437826af66c9fe",
+          "decode": "2389d5087bdabfc1cb52000302558c5de47b8b1de55923c28b5f941d90c7ac71"
+        },
+        "arms": [
+          {
+            "label": "L1_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L1"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ]
+          },
+          {
+            "label": "L2_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop_no_phase",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "env": {
+              "TILEMEGA_KPHASE_MASK": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "directory": "docs/experiments/SERVING_R12B/protocol/0_006",
+      "pid": 4021001,
+      "records": [
+        {
+          "arm": "L1_separate",
+          "mode": "L1",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_separate",
+          "mode": "L2",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop_no_phase",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        }
+      ],
+      "case": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 16,
+        "steps": 64,
+        "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+        "reference_prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "reference_decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "binary_sha256": {
+          "prefill": "e3bfb3dfbfafaaacbdf2ada7e5966d7d234a5bebdbcefaf0e4437826af66c9fe",
+          "decode": "2389d5087bdabfc1cb52000302558c5de47b8b1de55923c28b5f941d90c7ac71"
+        },
+        "arms": [
+          {
+            "label": "L1_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L1"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ]
+          },
+          {
+            "label": "L2_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop_no_phase",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "env": {
+              "TILEMEGA_KPHASE_MASK": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "directory": "docs/experiments/SERVING_R12B/protocol/0_007",
+      "pid": 4021086,
+      "records": [
+        {
+          "arm": "L1_separate",
+          "mode": "L1",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_separate",
+          "mode": "L2",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop_no_phase",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        }
+      ],
+      "case": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 16,
+        "steps": 64,
+        "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+        "reference_prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "reference_decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "binary_sha256": {
+          "prefill": "e3bfb3dfbfafaaacbdf2ada7e5966d7d234a5bebdbcefaf0e4437826af66c9fe",
+          "decode": "2389d5087bdabfc1cb52000302558c5de47b8b1de55923c28b5f941d90c7ac71"
+        },
+        "arms": [
+          {
+            "label": "L1_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L1"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ]
+          },
+          {
+            "label": "L2_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop_no_phase",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "env": {
+              "TILEMEGA_KPHASE_MASK": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "directory": "docs/experiments/SERVING_R12B/protocol/0_008",
+      "pid": 4021171,
+      "records": [
+        {
+          "arm": "L1_separate",
+          "mode": "L1",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_separate",
+          "mode": "L2",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop_no_phase",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        }
+      ],
+      "case": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 16,
+        "steps": 64,
+        "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+        "reference_prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "reference_decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "binary_sha256": {
+          "prefill": "e3bfb3dfbfafaaacbdf2ada7e5966d7d234a5bebdbcefaf0e4437826af66c9fe",
+          "decode": "2389d5087bdabfc1cb52000302558c5de47b8b1de55923c28b5f941d90c7ac71"
+        },
+        "arms": [
+          {
+            "label": "L1_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L1"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ]
+          },
+          {
+            "label": "L2_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop_no_phase",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "env": {
+              "TILEMEGA_KPHASE_MASK": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "directory": "docs/experiments/SERVING_R12B/protocol/0_009",
+      "pid": 4021256,
+      "records": [
+        {
+          "arm": "L1_separate",
+          "mode": "L1",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_separate",
+          "mode": "L2",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop_no_phase",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        }
+      ],
+      "case": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 16,
+        "steps": 64,
+        "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+        "reference_prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "reference_decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "binary_sha256": {
+          "prefill": "e3bfb3dfbfafaaacbdf2ada7e5966d7d234a5bebdbcefaf0e4437826af66c9fe",
+          "decode": "2389d5087bdabfc1cb52000302558c5de47b8b1de55923c28b5f941d90c7ac71"
+        },
+        "arms": [
+          {
+            "label": "L1_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L1"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ]
+          },
+          {
+            "label": "L2_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop_no_phase",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "env": {
+              "TILEMEGA_KPHASE_MASK": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "directory": "docs/experiments/SERVING_R12B/protocol/0_010",
+      "pid": 4021450,
+      "records": [
+        {
+          "arm": "L1_separate",
+          "mode": "L1",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_separate",
+          "mode": "L2",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop_no_phase",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        }
+      ],
+      "case": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 16,
+        "steps": 64,
+        "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+        "reference_prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "reference_decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "binary_sha256": {
+          "prefill": "e3bfb3dfbfafaaacbdf2ada7e5966d7d234a5bebdbcefaf0e4437826af66c9fe",
+          "decode": "2389d5087bdabfc1cb52000302558c5de47b8b1de55923c28b5f941d90c7ac71"
+        },
+        "arms": [
+          {
+            "label": "L1_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L1"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ]
+          },
+          {
+            "label": "L2_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop_no_phase",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "env": {
+              "TILEMEGA_KPHASE_MASK": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "directory": "docs/experiments/SERVING_R12B/protocol/0_011",
+      "pid": 4021537,
+      "records": [
+        {
+          "arm": "L1_separate",
+          "mode": "L1",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_separate",
+          "mode": "L2",
+          "decode_loop": false,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        },
+        {
+          "arm": "L2_loop_no_phase",
+          "mode": "L2",
+          "decode_loop": true,
+          "mismatches": 0,
+          "token_sha256": "ab7c16706aa922074a502f67e8453b0eba4c90bd04575fa5bafc44113ab1b4b1"
+        }
+      ],
+      "case": {
+        "model": "/root/models/llama3_2_1b",
+        "batch": 16,
+        "steps": 64,
+        "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+        "reference_prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "reference_decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+        "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+        "binary_sha256": {
+          "prefill": "e3bfb3dfbfafaaacbdf2ada7e5966d7d234a5bebdbcefaf0e4437826af66c9fe",
+          "decode": "2389d5087bdabfc1cb52000302558c5de47b8b1de55923c28b5f941d90c7ac71"
+        },
+        "arms": [
+          {
+            "label": "L1_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L1"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ]
+          },
+          {
+            "label": "L2_separate",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "decode_loop": false
+          },
+          {
+            "label": "L2_loop_no_phase",
+            "prefill": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so",
+            "decode": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so",
+            "modes": [
+              "L2"
+            ],
+            "env": {
+              "TILEMEGA_KPHASE_MASK": "0"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -8887,3 +8887,26 @@ zero. The preregistered selection retained phase mask 31, lookahead 0, and
 poll 0. These controls do not substitute for the pending 1024-token EV-3.
 Evidence: `docs/experiments/SERVING_R12B/{s1,s1b,defaults}.json` and
 `queue_run3/progress.tsv`.
+
+## F-341: Partial R12b E2E is slower than vLLM and interference interrupts the matrix
+
+✅ verified partial measurements: the selected plans use nonpaged `pg=l2`
+and L2 execution in all four cells. Llama B1 round 0 took 3.4381 s versus
+vLLM 3.1573 s (throughput ratio 0.9183). Qwen3 B1 rounds 0/1 took
+5.5003/5.4967 s versus 4.5439/4.5245 s (0.8261/0.8231). The remaining
+matrix is incomplete. Existing per-request guards accepted these recorded
+rounds, but no continuous hidden-allocation monitor ran; these observations
+cannot establish EV-3 or rule out all external interference.
+
+✅ verified failure evidence: the subsequent vLLM initializations attempted
+33.22/36.26 GiB with only 10.44/32.01 GiB free and failed with CUDA OOM.
+The fresh-process comparison completed 12 children with zero token
+mismatches on the selected nonpaged plan. Loop-labelled arms therefore
+fell back to separate launches and do not validate paged-loop protocols.
+The user cancelled the remaining 38 children and requested only four
+paired E2E cells (both models, B1/B16). The original 50-process gate is
+unfulfilled; no synchronization or race conclusion is claimed.
+
+Evidence: `SERVING_R12B/{partial_results.json,partial_results.tsv,protocol_partial.json}`;
+`runs/r12b-{llama,qwen3}/commands/bench-vllm-B1-r{1,2}/stderr.txt`;
+`SERVING_R12B/priority_policy.json` records the replacement guard policy.
