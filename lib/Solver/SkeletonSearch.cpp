@@ -207,6 +207,9 @@ struct SearchContext {
     requested.phase=previous.plan.serving_seq==1
         ?frontend::ServingOptions::Phase::kDecode
         :frontend::ServingOptions::Phase::kPrefill;
+    // Rebuilding an attention/argmax coordinate must preserve DN-off controls.
+    requested.deferred_norm=std::any_of(previous.plan.gemms.begin(),previous.plan.gemms.end(),
+        [](auto const& gemm){return gemm.norm_ss!=std::numeric_limits<std::uint32_t>::max();});
     requested.seq=previous.plan.serving_seq;
     requested.capacity=previous.plan.serving_capacity;
     requested.kv_block=kv_block;
