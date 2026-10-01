@@ -1483,4 +1483,4 @@ Decode uses pages only; nonpaged decode is an explicit baseline and never enters
 |---|---|---|---|
 | D-0 | Archive R12b inputs and binary provenance | Complete | SERVING_R12C/MANIFEST.tsv |
 | FX-12…20 | Specified corrections and diagnostic switches | Implemented; host checks passed, GPU assertions queued | SERVING_R12C/summary.md |
-| Phase A/B | Guarded diagnostics and final paged comparison | Code frozen; both queue definitions submitted, attribution pending | SERVING_R12C/scheduler/ |
+| Phase A/B | Guarded diagnostics and final paged comparison | Bounded FX-17/script recovery queued; A has3 accepted rounds, final attribution pending | SERVING_R12C/scheduler/ |

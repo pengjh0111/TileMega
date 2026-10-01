@@ -8929,3 +8929,25 @@ plans.json, candidate samples, search and shortlist records. Extract the
 archive from SERVING_R12C to resolve the original-file references.
 Historical timing dispersion and guard coverage do not establish a clean
 performance attribution; Phase A/B will supply controlled observations.
+
+
+## F-343: Diagnostic failures skipped R12c Phase B before calibration
+
+✅ verified: B0b compiled20 normal fixed plans but its trace wrapper crashed
+because the reused build command's `-o` pointed to a candidate .so, not the
+final .so that the wrapper attempted to replace. This is a script output-path
+error; it does not establish a kernel hang. The scheduler then skipped42
+downstream steps. Trace output selection and per-arm error containment are
+repaired, and the20 successful binary hashes are reused on recovery.
+
+✅ verified from six failed search records and the reconstruction code:
+DN-off R10G controls lost that switch when SetServingStructure recreated
+ServingOptions for new attention/argmax coordinates. Its defaulttrue then
+changed GEMM class count. The correction preserves norm_ss presence; it is
+an FX-17 option-propagation repair, with replay validation queued. The first
+Phase B calibration had not started, so this amendment invalidates no
+calibration measurement. No synchronization or race assertion is made.
+
+Evidence: SERVING_R12C/{recovery_evidence.tar.xz,recovery_MANIFEST.tsv};
+implementation/{progress_review,recovery_snapshot}.json;
+fixed_builds.py and lib/Solver/SkeletonSearch.cpp:209.

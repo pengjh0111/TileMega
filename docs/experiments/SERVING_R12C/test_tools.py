@@ -33,7 +33,7 @@ class Tools(unittest.TestCase):
 
     def test_queue_dependencies_and_timing_guards(self):
         root=Path(__file__).resolve().parent
-        steps=json.loads((root/'definitions/queue_a.json').read_text())+json.loads((root/'definitions/queue_b.json').read_text())
+        steps=[step for path in sorted((root/'definitions').glob('queue_*.json')) for step in json.loads(path.read_text())]
         names={s['name'] for s in steps};self.assertEqual(len(names),len(steps))
         pending={s['name']:set(s.get('after',[])+s.get('after_any',[])) for s in steps}
         for deps in pending.values():self.assertTrue(deps<=names)

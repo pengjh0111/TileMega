@@ -108,3 +108,32 @@ Next actions: complete the queued GPU numerical/arch checks and A/B observations
 - `2237885af` experiments: account for the paged stream bandwidth bound
 - `5d195bcb9` experiments: validate same norm class partitions for ablations
 - `ccc3db5ba` experiments: freeze guarded queues and retain check evidence
+
+## 2026-10-01 progress inspection and bounded recovery
+
+Verified snapshot: implementation/progress_review.json and recovery_snapshot.json. At inspection, the original84 steps comprised6 done,35 pending,1 failed and42 skipped. Phase A had three accepted rounds (Llama B1 rounds0/2; Qwen3 B1 round0); B1 third rounds and both B16 cells were incomplete. Twenty fixed builds succeeded, eight were rejected; their SASS audit reported FP64=0 for20 binaries. GPU numerical unit tests, B0a calibration and final acceptance had not started. Only scheduler progress was read once; diagnosis then used specific failure files.
+
+The guard had returned75 on24 occupied preflights and10 running-interference attempts. Those rounds remain invalid. Sufficiently short interference can escape the specified5s sampling/three-sample hidden-memory threshold; accepted guard status alone is not an unconditional contamination guarantee.
+
+| Preliminary accepted E2E (s) | Llama B1, two-round median | Qwen3 B1, one round |
+|---|---:|---:|
+| vLLM | 3.105398 | 4.519084 |
+| R12bN L1 | 2.924663 | 4.406450 |
+| R12bN L2 | 3.436837 | 5.494247 |
+| R12bP | 3.497880 | 6.312932 |
+| S1P | 3.271427 | — |
+| S1N | 3.724751 | — |
+
+These are Phase A's existing binaries, not final R12c results. Three rounds are required. R10C's two Llama E2E samples were3.225005/3.922260 s despite nearly stable vLLM; its large spread prevents a resolved attribution at present. No final throughput gate is claimed.
+
+Two problems were located and repaired:
+- B0b's trace command inherited `-o plan.so.top1.candidate.so`, but the wrapper replaced only the final `plan.so` string. nvcc exited0 while writing the old candidate path, and the wrapper then crashed reading the absent trace output. `fixed_builds.py:trace_command` now replaces the actual `-o` value and catches failures per trace arm; successful fixed outputs are verified by SHA and reused. The path regression test passes. This is a diagnostic-script failure, not observed CUDA deadlock.
+- All six R10G-0/1/2 builds failed with `attention coordinate changed GEMM class count`. `SearchContext::SetServingStructure` recreated ServingOptions with DN's defaulttrue, dropping DN-off when adjusting argmax/attention. Commit74ed58fc2 preserves the previous plan's norm_ss state. This completes FX-17's prescribed switch behavior; default DN, cost model, kappa and Kphase defaults are unchanged. Replay verification is queued, not yet passed.
+
+The two previously rejected Llama B1 P-noDN controls retain their nonuniform-class rejection. No geometry is silently changed. The remaining failed R10G controls are replayed under the corrected compiler.
+
+Recovery deliberately pauses only our scheduler while atomically editing its queue; no other user's process is signalled. A snapshot showed no running child and B0a attempts=0.46 uniquely named recovery steps replace the failed/skipped dependency chain, plus refreshed compiler, audit and report steps. Original histories stay intact. B0a/Bunit remain pending but now require the repaired compiler. Successful A rounds and20 fixed .so files are not rerun. Read definitions/queue_recovery.json and implementation/recovery_dispatch.json to distinguish recovered work from historical skipped records.
+
+All cited failure logs, search rejections, accepted-round outputs and the SASS report are committed in recovery_evidence.tar.xz (289 files), indexed by recovery_MANIFEST.tsv. Diagnostic CPU tests now pass5/5; raw log: implementation/recovery_tool_tests.log. Compiler rebuild, host regression tests, baseline CUDA identity and six DN-off build replays run through the scheduler and shared lock. Freeze amendment preceded the first calibration; no calibration result is invalidated.
+
+Updated source fingerprint: `df0691e26345a70daf9b138c4048f8afe776fbb69e9abac7f5cab64f7e2aef36`. Initial source freeze and17-commit delivery above remain historical checkpoints; recovery commit list is discoverable with `git log a1264e59d..tilemega`. Next step is to let the repaired, guarded queue execute and inspect it on the next user-triggered resume.

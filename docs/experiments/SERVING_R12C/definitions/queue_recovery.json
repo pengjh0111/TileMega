@@ -1,6 +1,6 @@
 [
   {
-    "name": "Bpre",
+    "name": "Bpre__recovery1",
     "command": [
       "flock",
       "/root/r12c_work/gpu.lock",
@@ -8,7 +8,7 @@
       "TILEMEGA_GPU_LOCK_HELD=1",
       "bash",
       "-c",
-      "cmake --build build-phase12 --target tilemega tilemega-unit serving_epilogue_test paged_gemm_test serving_attention_cases_test -j 6 && python3 python/tilemega/fingerprint.py --check build-phase12/tools/tilemega"
+      "cmake --build build-phase12 --target tilemega tilemega-unit serving_epilogue_test paged_gemm_test serving_attention_cases_test -j 6 && python3 python/tilemega/fingerprint.py --check build-phase12/tools/tilemega && ctest --test-dir build-phase12 -R '^(serving_pruning|serving_lag|serving_task_index|skeleton_search_isolation)$' --output-on-failure && build-phase12/tools/tilemega compile docs/experiments/SERVING_R12B/controls/s1_B1_pages/decode_B1.so.top1.mlir /root/r12c_work/ref_cu/recovery.cu --serving decode --emit serving --batch 1 --past-range 64:1086 --capacity 1088 --sync calibrated --runtime-target /root/r12c_work/target_r12b.json --arch-paths auto --pdl auto --pg pages --page-bytes 16384 --weight-layout tiled --kphase-mask 31 --v3-poll-ns 0 --l2-prefetch-depth 1 --l2-prefetch-stride 128 --event-solo 0 --event-red-publish 0 --barrier-v2 0 && cmp /root/r12c_work/ref_cu/default.cu /root/r12c_work/ref_cu/recovery.cu && echo 'PASS recovery build, host tests and default CUDA identity'"
     ],
     "cwd": "/root/TileMega",
     "env": {
@@ -26,36 +26,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/Bpre"
   },
   {
-    "name": "B0a",
-    "command": [
-      "/root/venvs/tilemega-torch213-cu126/bin/python",
-      "-m",
-      "tilemega",
-      "calibrate",
-      "--config",
-      "configs/e2e/llama_r12.json",
-      "--run-dir",
-      "runs/r12c-llama"
-    ],
-    "cwd": "/root/TileMega",
-    "env": {
-      "PYTHONPATH": "/root/TileMega/python",
-      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
-      "TILEMEGA_GPU_LOCK": "/root/r12c_work/gpu.lock"
-    },
-    "gpu": true,
-    "priority": 50,
-    "after": [
-      "Bpre__recovery1"
-    ],
-    "after_any": [],
-    "timeout_s": 7200,
-    "needs_free_mib": 4096,
-    "retry_args": [],
-    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B0a"
-  },
-  {
-    "name": "B0b",
+    "name": "B0b__recovery1",
     "command": [
       "flock",
       "/root/r12c_work/gpu.lock",
@@ -64,7 +35,9 @@
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/fixed_builds.py",
       "--jobs",
-      "/root/TileMega/docs/experiments/SERVING_R12C/fixed_jobs.json"
+      "/root/TileMega/docs/experiments/SERVING_R12C/fixed_jobs.json",
+      "--resume",
+      "--retry-failed"
     ],
     "cwd": "/root/TileMega",
     "env": {
@@ -75,7 +48,7 @@
     "gpu": false,
     "priority": 51,
     "after": [
-      "Bpre"
+      "Bpre__recovery1"
     ],
     "after_any": [],
     "timeout_s": 21600,
@@ -84,34 +57,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B0b"
   },
   {
-    "name": "Bunit",
-    "command": [
-      "ctest",
-      "--test-dir",
-      "build-phase12",
-      "-R",
-      "^(serving_epilogue|paged_gemm|serving_attention_cases)$",
-      "--output-on-failure"
-    ],
-    "cwd": "/root/TileMega",
-    "env": {
-      "PYTHONPATH": "/root/TileMega/python",
-      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
-      "TILEMEGA_GPU_LOCK": "/root/r12c_work/gpu.lock"
-    },
-    "gpu": true,
-    "priority": 51,
-    "after": [
-      "Bpre__recovery1"
-    ],
-    "after_any": [],
-    "timeout_s": 600,
-    "needs_free_mib": 4096,
-    "retry_args": [],
-    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/Bunit"
-  },
-  {
-    "name": "Barch",
+    "name": "Barch__recovery1",
     "command": [
       "flock",
       "/root/r12c_work/gpu.lock",
@@ -144,7 +90,7 @@
     "gpu": false,
     "priority": 76,
     "after": [
-      "B0b"
+      "B0b__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -153,7 +99,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/Barch"
   },
   {
-    "name": "B0c",
+    "name": "B0c__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -170,7 +116,7 @@
     "gpu": true,
     "priority": 52,
     "after": [
-      "B0b"
+      "B0b__recovery1"
     ],
     "after_any": [],
     "timeout_s": 3600,
@@ -179,7 +125,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B0c"
   },
   {
-    "name": "B1_llama_B1_r0",
+    "name": "B1_llama_B1_r0__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -202,7 +148,7 @@
     "gpu": true,
     "priority": 55,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -211,7 +157,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B1_llama_B1_r0"
   },
   {
-    "name": "B1_llama_B1_r1",
+    "name": "B1_llama_B1_r1__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -234,7 +180,7 @@
     "gpu": true,
     "priority": 55,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -243,7 +189,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B1_llama_B1_r1"
   },
   {
-    "name": "B1_llama_B1_r2",
+    "name": "B1_llama_B1_r2__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -266,7 +212,7 @@
     "gpu": true,
     "priority": 55,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -275,7 +221,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B1_llama_B1_r2"
   },
   {
-    "name": "B1_llama_B16_r0",
+    "name": "B1_llama_B16_r0__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -298,7 +244,7 @@
     "gpu": true,
     "priority": 55,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -307,7 +253,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B1_llama_B16_r0"
   },
   {
-    "name": "B1_llama_B16_r1",
+    "name": "B1_llama_B16_r1__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -330,7 +276,7 @@
     "gpu": true,
     "priority": 55,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -339,7 +285,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B1_llama_B16_r1"
   },
   {
-    "name": "B1_llama_B16_r2",
+    "name": "B1_llama_B16_r2__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -362,7 +308,7 @@
     "gpu": true,
     "priority": 55,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -371,7 +317,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B1_llama_B16_r2"
   },
   {
-    "name": "B8_llama_B1_r0",
+    "name": "B8_llama_B1_r0__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -394,7 +340,7 @@
     "gpu": true,
     "priority": 57,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -403,7 +349,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B8_llama_B1_r0"
   },
   {
-    "name": "B8_llama_B1_r1",
+    "name": "B8_llama_B1_r1__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -426,7 +372,7 @@
     "gpu": true,
     "priority": 57,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -435,7 +381,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B8_llama_B1_r1"
   },
   {
-    "name": "B8_llama_B1_r2",
+    "name": "B8_llama_B1_r2__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -458,7 +404,7 @@
     "gpu": true,
     "priority": 57,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -467,7 +413,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B8_llama_B1_r2"
   },
   {
-    "name": "B8_qwen3_B1_r0",
+    "name": "B8_qwen3_B1_r0__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -490,7 +436,7 @@
     "gpu": true,
     "priority": 57,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -499,7 +445,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B8_qwen3_B1_r0"
   },
   {
-    "name": "B8_qwen3_B1_r1",
+    "name": "B8_qwen3_B1_r1__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -522,7 +468,7 @@
     "gpu": true,
     "priority": 57,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -531,7 +477,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B8_qwen3_B1_r1"
   },
   {
-    "name": "B8_qwen3_B1_r2",
+    "name": "B8_qwen3_B1_r2__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -554,7 +500,7 @@
     "gpu": true,
     "priority": 57,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -563,7 +509,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B8_qwen3_B1_r2"
   },
   {
-    "name": "B3_llama_B1_r0",
+    "name": "B3_llama_B1_r0__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -586,7 +532,7 @@
     "gpu": true,
     "priority": 60,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -595,7 +541,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B3_llama_B1_r0"
   },
   {
-    "name": "B3_llama_B1_r1",
+    "name": "B3_llama_B1_r1__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -618,7 +564,7 @@
     "gpu": true,
     "priority": 60,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -627,7 +573,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B3_llama_B1_r1"
   },
   {
-    "name": "B3_llama_B1_r2",
+    "name": "B3_llama_B1_r2__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -650,7 +596,7 @@
     "gpu": true,
     "priority": 60,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -659,7 +605,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B3_llama_B1_r2"
   },
   {
-    "name": "B3_llama_B16_r0",
+    "name": "B3_llama_B16_r0__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -682,7 +628,7 @@
     "gpu": true,
     "priority": 60,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -691,7 +637,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B3_llama_B16_r0"
   },
   {
-    "name": "B3_llama_B16_r1",
+    "name": "B3_llama_B16_r1__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -714,7 +660,7 @@
     "gpu": true,
     "priority": 60,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -723,7 +669,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B3_llama_B16_r1"
   },
   {
-    "name": "B3_llama_B16_r2",
+    "name": "B3_llama_B16_r2__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -746,7 +692,7 @@
     "gpu": true,
     "priority": 60,
     "after": [
-      "B0c"
+      "B0c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -755,7 +701,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B3_llama_B16_r2"
   },
   {
-    "name": "B1c",
+    "name": "B1c__recovery1",
     "command": [
       "flock",
       "/root/r12c_work/gpu.lock",
@@ -773,12 +719,12 @@
     "gpu": false,
     "priority": 61,
     "after": [
-      "B1_llama_B1_r0",
-      "B1_llama_B1_r1",
-      "B1_llama_B1_r2",
-      "B1_llama_B16_r0",
-      "B1_llama_B16_r1",
-      "B1_llama_B16_r2"
+      "B1_llama_B1_r0__recovery1",
+      "B1_llama_B1_r1__recovery1",
+      "B1_llama_B1_r2__recovery1",
+      "B1_llama_B16_r0__recovery1",
+      "B1_llama_B16_r1__recovery1",
+      "B1_llama_B16_r2__recovery1"
     ],
     "after_any": [],
     "timeout_s": 600,
@@ -787,7 +733,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B1c"
   },
   {
-    "name": "B2_llama",
+    "name": "B2_llama__recovery1",
     "command": [
       "flock",
       "/root/r12c_work/gpu.lock",
@@ -812,7 +758,7 @@
     "priority": 62,
     "after": [
       "B0a",
-      "B1c"
+      "B1c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 28800,
@@ -821,7 +767,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B2_llama"
   },
   {
-    "name": "B2_qwen3",
+    "name": "B2_qwen3__recovery1",
     "command": [
       "flock",
       "/root/r12c_work/gpu.lock",
@@ -846,7 +792,7 @@
     "priority": 63,
     "after": [
       "B0a",
-      "B1c"
+      "B1c__recovery1"
     ],
     "after_any": [],
     "timeout_s": 28800,
@@ -855,7 +801,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B2_qwen3"
   },
   {
-    "name": "B5_llama_B1_r0",
+    "name": "B5_llama_B1_r0__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -878,7 +824,7 @@
     "gpu": true,
     "priority": 70,
     "after": [
-      "B2_llama"
+      "B2_llama__recovery1"
     ],
     "after_any": [],
     "timeout_s": 14400,
@@ -887,7 +833,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B5_llama_B1_r0"
   },
   {
-    "name": "B5_llama_B1_r1",
+    "name": "B5_llama_B1_r1__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -910,7 +856,7 @@
     "gpu": true,
     "priority": 70,
     "after": [
-      "B2_llama"
+      "B2_llama__recovery1"
     ],
     "after_any": [],
     "timeout_s": 14400,
@@ -919,7 +865,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B5_llama_B1_r1"
   },
   {
-    "name": "B5_llama_B1_r2",
+    "name": "B5_llama_B1_r2__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -942,7 +888,7 @@
     "gpu": true,
     "priority": 70,
     "after": [
-      "B2_llama"
+      "B2_llama__recovery1"
     ],
     "after_any": [],
     "timeout_s": 14400,
@@ -951,7 +897,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B5_llama_B1_r2"
   },
   {
-    "name": "B7a_llama_B1",
+    "name": "B7a_llama_B1__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -970,7 +916,7 @@
     "gpu": true,
     "priority": 80,
     "after": [
-      "B2_llama"
+      "B2_llama__recovery1"
     ],
     "after_any": [],
     "timeout_s": 10800,
@@ -979,7 +925,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B7a_llama_B1"
   },
   {
-    "name": "B5_qwen3_B1_r0",
+    "name": "B5_qwen3_B1_r0__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1002,7 +948,7 @@
     "gpu": true,
     "priority": 70,
     "after": [
-      "B2_qwen3"
+      "B2_qwen3__recovery1"
     ],
     "after_any": [],
     "timeout_s": 14400,
@@ -1011,7 +957,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B5_qwen3_B1_r0"
   },
   {
-    "name": "B5_qwen3_B1_r1",
+    "name": "B5_qwen3_B1_r1__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1034,7 +980,7 @@
     "gpu": true,
     "priority": 70,
     "after": [
-      "B2_qwen3"
+      "B2_qwen3__recovery1"
     ],
     "after_any": [],
     "timeout_s": 14400,
@@ -1043,7 +989,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B5_qwen3_B1_r1"
   },
   {
-    "name": "B5_qwen3_B1_r2",
+    "name": "B5_qwen3_B1_r2__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1066,7 +1012,7 @@
     "gpu": true,
     "priority": 70,
     "after": [
-      "B2_qwen3"
+      "B2_qwen3__recovery1"
     ],
     "after_any": [],
     "timeout_s": 14400,
@@ -1075,7 +1021,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B5_qwen3_B1_r2"
   },
   {
-    "name": "B7a_qwen3_B1",
+    "name": "B7a_qwen3_B1__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1094,7 +1040,7 @@
     "gpu": true,
     "priority": 80,
     "after": [
-      "B2_qwen3"
+      "B2_qwen3__recovery1"
     ],
     "after_any": [],
     "timeout_s": 10800,
@@ -1103,7 +1049,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B7a_qwen3_B1"
   },
   {
-    "name": "B5_llama_B16_r0",
+    "name": "B5_llama_B16_r0__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1126,7 +1072,7 @@
     "gpu": true,
     "priority": 70,
     "after": [
-      "B2_llama"
+      "B2_llama__recovery1"
     ],
     "after_any": [],
     "timeout_s": 14400,
@@ -1135,7 +1081,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B5_llama_B16_r0"
   },
   {
-    "name": "B5_llama_B16_r1",
+    "name": "B5_llama_B16_r1__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1158,7 +1104,7 @@
     "gpu": true,
     "priority": 70,
     "after": [
-      "B2_llama"
+      "B2_llama__recovery1"
     ],
     "after_any": [],
     "timeout_s": 14400,
@@ -1167,7 +1113,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B5_llama_B16_r1"
   },
   {
-    "name": "B5_llama_B16_r2",
+    "name": "B5_llama_B16_r2__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1190,7 +1136,7 @@
     "gpu": true,
     "priority": 70,
     "after": [
-      "B2_llama"
+      "B2_llama__recovery1"
     ],
     "after_any": [],
     "timeout_s": 14400,
@@ -1199,7 +1145,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B5_llama_B16_r2"
   },
   {
-    "name": "B7a_llama_B16",
+    "name": "B7a_llama_B16__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1218,7 +1164,7 @@
     "gpu": true,
     "priority": 80,
     "after": [
-      "B2_llama"
+      "B2_llama__recovery1"
     ],
     "after_any": [],
     "timeout_s": 10800,
@@ -1227,7 +1173,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B7a_llama_B16"
   },
   {
-    "name": "B5_qwen3_B16_r0",
+    "name": "B5_qwen3_B16_r0__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1250,7 +1196,7 @@
     "gpu": true,
     "priority": 70,
     "after": [
-      "B2_qwen3"
+      "B2_qwen3__recovery1"
     ],
     "after_any": [],
     "timeout_s": 14400,
@@ -1259,7 +1205,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B5_qwen3_B16_r0"
   },
   {
-    "name": "B5_qwen3_B16_r1",
+    "name": "B5_qwen3_B16_r1__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1282,7 +1228,7 @@
     "gpu": true,
     "priority": 70,
     "after": [
-      "B2_qwen3"
+      "B2_qwen3__recovery1"
     ],
     "after_any": [],
     "timeout_s": 14400,
@@ -1291,7 +1237,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B5_qwen3_B16_r1"
   },
   {
-    "name": "B5_qwen3_B16_r2",
+    "name": "B5_qwen3_B16_r2__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1314,7 +1260,7 @@
     "gpu": true,
     "priority": 70,
     "after": [
-      "B2_qwen3"
+      "B2_qwen3__recovery1"
     ],
     "after_any": [],
     "timeout_s": 14400,
@@ -1323,7 +1269,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B5_qwen3_B16_r2"
   },
   {
-    "name": "B7a_qwen3_B16",
+    "name": "B7a_qwen3_B16__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1342,7 +1288,7 @@
     "gpu": true,
     "priority": 80,
     "after": [
-      "B2_qwen3"
+      "B2_qwen3__recovery1"
     ],
     "after_any": [],
     "timeout_s": 10800,
@@ -1351,7 +1297,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B7a_qwen3_B16"
   },
   {
-    "name": "B6",
+    "name": "B6__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1368,7 +1314,7 @@
     "gpu": true,
     "priority": 75,
     "after": [
-      "B0b"
+      "B0b__recovery1"
     ],
     "after_any": [],
     "timeout_s": 7200,
@@ -1377,7 +1323,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B6"
   },
   {
-    "name": "Bsass",
+    "name": "Bsass__recovery1",
     "command": [
       "flock",
       "/root/r12c_work/gpu.lock",
@@ -1399,9 +1345,9 @@
     "priority": 83,
     "after": [],
     "after_any": [
-      "B0b",
-      "B2_llama",
-      "B2_qwen3"
+      "B0b__recovery1",
+      "B2_llama__recovery1",
+      "B2_qwen3__recovery1"
     ],
     "timeout_s": 1800,
     "needs_free_mib": 12288,
@@ -1409,7 +1355,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/Bsass"
   },
   {
-    "name": "B7b",
+    "name": "B7b__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1426,18 +1372,18 @@
     "gpu": true,
     "priority": 82,
     "after": [
-      "B5_llama_B1_r0",
-      "B5_llama_B1_r1",
-      "B5_llama_B1_r2",
-      "B5_qwen3_B1_r0",
-      "B5_qwen3_B1_r1",
-      "B5_qwen3_B1_r2",
-      "B5_llama_B16_r0",
-      "B5_llama_B16_r1",
-      "B5_llama_B16_r2",
-      "B5_qwen3_B16_r0",
-      "B5_qwen3_B16_r1",
-      "B5_qwen3_B16_r2"
+      "B5_llama_B1_r0__recovery1",
+      "B5_llama_B1_r1__recovery1",
+      "B5_llama_B1_r2__recovery1",
+      "B5_qwen3_B1_r0__recovery1",
+      "B5_qwen3_B1_r1__recovery1",
+      "B5_qwen3_B1_r2__recovery1",
+      "B5_llama_B16_r0__recovery1",
+      "B5_llama_B16_r1__recovery1",
+      "B5_llama_B16_r2__recovery1",
+      "B5_qwen3_B16_r0__recovery1",
+      "B5_qwen3_B16_r1__recovery1",
+      "B5_qwen3_B16_r2__recovery1"
     ],
     "after_any": [],
     "timeout_s": 14400,
@@ -1446,7 +1392,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B7b"
   },
   {
-    "name": "B7c",
+    "name": "B7c__recovery1",
     "command": [
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
@@ -1463,7 +1409,7 @@
     "gpu": true,
     "priority": 95,
     "after": [
-      "B2_llama"
+      "B2_llama__recovery1"
     ],
     "after_any": [],
     "timeout_s": 10800,
@@ -1474,7 +1420,7 @@
     "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B7c"
   },
   {
-    "name": "Breport",
+    "name": "Breport__recovery1",
     "command": [
       "flock",
       "/root/r12c_work/gpu.lock",
@@ -1493,37 +1439,37 @@
     "priority": 99,
     "after": [],
     "after_any": [
-      "B5_llama_B1_r0",
-      "B5_llama_B1_r1",
-      "B5_llama_B1_r2",
-      "B5_qwen3_B1_r0",
-      "B5_qwen3_B1_r1",
-      "B5_qwen3_B1_r2",
-      "B5_llama_B16_r0",
-      "B5_llama_B16_r1",
-      "B5_llama_B16_r2",
-      "B5_qwen3_B16_r0",
-      "B5_qwen3_B16_r1",
-      "B5_qwen3_B16_r2",
-      "B7a_llama_B1",
-      "B7a_qwen3_B1",
-      "B7a_llama_B16",
-      "B7a_qwen3_B16",
-      "B7b",
-      "B7c",
-      "B6",
-      "B8_llama_B1_r0",
-      "B8_llama_B1_r1",
-      "B8_llama_B1_r2",
-      "B8_qwen3_B1_r0",
-      "B8_qwen3_B1_r1",
-      "B8_qwen3_B1_r2",
-      "B3_llama_B1_r0",
-      "B3_llama_B1_r1",
-      "B3_llama_B1_r2",
-      "B3_llama_B16_r0",
-      "B3_llama_B16_r1",
-      "B3_llama_B16_r2"
+      "B5_llama_B1_r0__recovery1",
+      "B5_llama_B1_r1__recovery1",
+      "B5_llama_B1_r2__recovery1",
+      "B5_qwen3_B1_r0__recovery1",
+      "B5_qwen3_B1_r1__recovery1",
+      "B5_qwen3_B1_r2__recovery1",
+      "B5_llama_B16_r0__recovery1",
+      "B5_llama_B16_r1__recovery1",
+      "B5_llama_B16_r2__recovery1",
+      "B5_qwen3_B16_r0__recovery1",
+      "B5_qwen3_B16_r1__recovery1",
+      "B5_qwen3_B16_r2__recovery1",
+      "B7a_llama_B1__recovery1",
+      "B7a_qwen3_B1__recovery1",
+      "B7a_llama_B16__recovery1",
+      "B7a_qwen3_B16__recovery1",
+      "B7b__recovery1",
+      "B7c__recovery1",
+      "B6__recovery1",
+      "B8_llama_B1_r0__recovery1",
+      "B8_llama_B1_r1__recovery1",
+      "B8_llama_B1_r2__recovery1",
+      "B8_qwen3_B1_r0__recovery1",
+      "B8_qwen3_B1_r1__recovery1",
+      "B8_qwen3_B1_r2__recovery1",
+      "B3_llama_B1_r0__recovery1",
+      "B3_llama_B1_r1__recovery1",
+      "B3_llama_B1_r2__recovery1",
+      "B3_llama_B16_r0__recovery1",
+      "B3_llama_B16_r1__recovery1",
+      "B3_llama_B16_r2__recovery1"
     ],
     "timeout_s": 1800,
     "needs_free_mib": 12288,
