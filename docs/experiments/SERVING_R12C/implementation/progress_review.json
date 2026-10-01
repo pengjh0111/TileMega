@@ -1,0 +1,141 @@
+{
+  "captured_utc": "2026-10-01T04:37:48.325651+00:00",
+  "elapsed_hours": 13.272067879968219,
+  "status_counts": {
+    "done": 6,
+    "pending": 35,
+    "failed": 1,
+    "skipped": 42
+  },
+  "retries": {
+    "preflight occupied": 24,
+    "running interference": 10
+  },
+  "completed_rounds": [
+    {
+      "cell": "qwen3_B1",
+      "round": 0,
+      "arms": {
+        "R10C": {
+          "exit_code": 0,
+          "e2e_seconds": 4.796033416176215,
+          "ttft_seconds": 0.005715839099138975
+        },
+        "R12bP": {
+          "exit_code": 0,
+          "e2e_seconds": 6.312932420987636,
+          "ttft_seconds": 0.006432539084926248
+        },
+        "R12bN_L1": {
+          "exit_code": 0,
+          "e2e_seconds": 4.40645029512234,
+          "ttft_seconds": 0.006086457055062056
+        },
+        "R12bN_L2": {
+          "exit_code": 0,
+          "e2e_seconds": 5.49424685491249,
+          "ttft_seconds": 0.006436823168769479
+        },
+        "vllm": {
+          "exit_code": 0,
+          "e2e_seconds": 4.519084124825895,
+          "ttft_seconds": 0.03546287398785353
+        }
+      }
+    },
+    {
+      "cell": "llama_B1",
+      "round": 2,
+      "arms": {
+        "R12bN_L1": {
+          "exit_code": 0,
+          "e2e_seconds": 2.92799388198182,
+          "ttft_seconds": 0.004042234038934112
+        },
+        "R12bP": {
+          "exit_code": 0,
+          "e2e_seconds": 3.4994542030617595,
+          "ttft_seconds": 0.004490691004320979
+        },
+        "R10C": {
+          "exit_code": 0,
+          "e2e_seconds": 3.9222595300525427,
+          "ttft_seconds": 0.003952941158786416
+        },
+        "S1P": {
+          "exit_code": 0,
+          "e2e_seconds": 3.2773007890209556,
+          "ttft_seconds": 0.013996419962495565
+        },
+        "S1N": {
+          "exit_code": 0,
+          "e2e_seconds": 3.7255821980070323,
+          "ttft_seconds": 0.004470665939152241
+        },
+        "vllm": {
+          "exit_code": 0,
+          "e2e_seconds": 3.103164891945198,
+          "ttft_seconds": 0.03379332390613854
+        },
+        "R12bN_L2": {
+          "exit_code": 0,
+          "e2e_seconds": 3.433883104007691,
+          "ttft_seconds": 0.0044949729926884174
+        }
+      }
+    },
+    {
+      "cell": "llama_B1",
+      "round": 0,
+      "arms": {
+        "vllm": {
+          "exit_code": 0,
+          "e2e_seconds": 3.107631569961086,
+          "ttft_seconds": 0.0262137190438807
+        },
+        "R12bN_L2": {
+          "exit_code": 0,
+          "e2e_seconds": 3.439791348995641,
+          "ttft_seconds": 0.0045263750944286585
+        },
+        "R12bN_L1": {
+          "exit_code": 0,
+          "e2e_seconds": 2.9213314368389547,
+          "ttft_seconds": 0.004062967840582132
+        },
+        "R12bP": {
+          "exit_code": 0,
+          "e2e_seconds": 3.4963058750145137,
+          "ttft_seconds": 0.004563348134979606
+        },
+        "R10C": {
+          "exit_code": 0,
+          "e2e_seconds": 3.225005084881559,
+          "ttft_seconds": 0.003974250052124262
+        },
+        "S1P": {
+          "exit_code": 0,
+          "e2e_seconds": 3.265554087003693,
+          "ttft_seconds": 0.004499525995925069
+        },
+        "S1N": {
+          "exit_code": 0,
+          "e2e_seconds": 3.723920222837478,
+          "ttft_seconds": 0.004490769002586603
+        }
+      }
+    }
+  ],
+  "fixed_builds": {
+    "success": 20,
+    "rejected": 8
+  },
+  "sass": {
+    "binaries": 20,
+    "fp64_total": 0
+  },
+  "issues": [
+    "trace compiler output uses candidate -o, not final .so",
+    "attention/argmax rebuild did not preserve DN-off ablation"
+  ]
+}

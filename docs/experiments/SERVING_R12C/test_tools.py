@@ -3,6 +3,7 @@ import importlib.util,json,tempfile,unittest
 from pathlib import Path
 from choose_defaults_r12c import choose
 from pin_case import pin
+from fixed_builds import trace_command
 class Tools(unittest.TestCase):
     def test_defaults(self):
         samples={b:{'P-base':[10,10,10],'P-D64K':[9.8]*3,'P-D128K':[9.7]*3,'P-noWD':[9.8]*3} for b in ('1','16')}
@@ -24,6 +25,12 @@ class Tools(unittest.TestCase):
             data['gemms'][1]['split_k']=8;m.write_text(json.dumps(data))
             with self.assertRaisesRegex(ValueError,'geometry differs within class'):
                 pin(m,source,target,d/'out2')
+    def test_trace_output_can_be_a_reused_candidate(self):
+        cmd=trace_command('nvcc -shared /tmp/plan.top1.candidate.so.cu -o /tmp/plan.top1.candidate.so -arch=sm_89','/tmp/trace/plan.so')
+        self.assertEqual(cmd[cmd.index('-o')+1],'/tmp/trace/plan.so')
+        self.assertIn('/tmp/plan.top1.candidate.so.cu',cmd)
+        self.assertIn('-DTILEMEGA_TRACE_V2=1',cmd)
+
     def test_queue_dependencies_and_timing_guards(self):
         root=Path(__file__).resolve().parent
         steps=json.loads((root/'definitions/queue_a.json').read_text())+json.loads((root/'definitions/queue_b.json').read_text())

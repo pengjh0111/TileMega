@@ -1,0 +1,550 @@
+{
+  "captured_utc": "2026-10-01T04:37:48.325651+00:00",
+  "scheduler_pid": 4037310,
+  "state": {
+    "A1_llama_B1_r0": {
+      "status": "done",
+      "attempts": 4,
+      "enqueued": 1790781882.5333343,
+      "retry_at": 1790785575.056268,
+      "wait_s": 3873.7577357292175,
+      "pid": 4041638,
+      "run_s": 502.3088109071832,
+      "exit_code": 0
+    },
+    "A1_llama_B1_r1": {
+      "status": "pending",
+      "attempts": 18,
+      "enqueued": 1790781882.5333374,
+      "retry_at": 1790814599.9946222,
+      "wait_s": 32412.1716837883,
+      "pid": 4076049,
+      "run_s": 5.287357393885031,
+      "exit_code": 75
+    },
+    "A1_llama_B1_r2": {
+      "status": "done",
+      "attempts": 2,
+      "enqueued": 1790781882.5333388,
+      "retry_at": 1790791221.8007812,
+      "wait_s": 15882.239048480988,
+      "pid": 4061349,
+      "run_s": 619.5796876009554,
+      "exit_code": 0
+    },
+    "A1_qwen3_B1_r0": {
+      "status": "done",
+      "attempts": 8,
+      "enqueued": 1790781882.53334,
+      "retry_at": 1790812419.0908232,
+      "wait_s": 31611.041291236877,
+      "pid": 4072484,
+      "run_s": 382.5696751680225,
+      "exit_code": 0
+    },
+    "A1_qwen3_B1_r1": {
+      "status": "pending",
+      "attempts": 3,
+      "enqueued": 1790781882.533341,
+      "retry_at": 1790814714.2659187,
+      "wait_s": 32053.833621263504,
+      "pid": 4075093,
+      "run_s": 177.89599529188126,
+      "exit_code": 75
+    },
+    "A1_qwen3_B1_r2": {
+      "status": "pending",
+      "attempts": 2,
+      "enqueued": 1790781882.533342,
+      "retry_at": 1790815467.3700144,
+      "wait_s": 32537.812119960785,
+      "pid": 4076072,
+      "run_s": 447.0222415558528,
+      "exit_code": 75
+    },
+    "A1_llama_B16_r0": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333436,
+      "retry_at": 0
+    },
+    "A1_llama_B16_r1": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333443,
+      "retry_at": 0
+    },
+    "A1_llama_B16_r2": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.533345,
+      "retry_at": 0
+    },
+    "A1_qwen3_B16_r0": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.533346,
+      "retry_at": 0
+    },
+    "A1_qwen3_B16_r1": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333474,
+      "retry_at": 0
+    },
+    "A1_qwen3_B16_r2": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333488,
+      "retry_at": 0
+    },
+    "A4_llama_B1_r0": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333495,
+      "retry_at": 0
+    },
+    "A4_llama_B1_r1": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333533,
+      "retry_at": 0
+    },
+    "A4_llama_B1_r2": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333543,
+      "retry_at": 0
+    },
+    "A4_qwen3_B1_r0": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.533355,
+      "retry_at": 0
+    },
+    "A4_qwen3_B1_r1": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333557,
+      "retry_at": 0
+    },
+    "A4_qwen3_B1_r2": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333564,
+      "retry_at": 0
+    },
+    "A3_llama_B1_r0": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333574,
+      "retry_at": 0
+    },
+    "A3_llama_B1_r1": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.533358,
+      "retry_at": 0
+    },
+    "A3_llama_B1_r2": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333588,
+      "retry_at": 0
+    },
+    "A3_llama_B16_r0": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.533361,
+      "retry_at": 0
+    },
+    "A3_llama_B16_r1": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333624,
+      "retry_at": 0
+    },
+    "A3_llama_B16_r2": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.533363,
+      "retry_at": 0
+    },
+    "A2_llama_B1_r0": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333643,
+      "retry_at": 0
+    },
+    "A2_llama_B1_r1": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.533365,
+      "retry_at": 0
+    },
+    "A2_llama_B1_r2": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333657,
+      "retry_at": 0
+    },
+    "A2_qwen3_B1_r0": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333664,
+      "retry_at": 0
+    },
+    "A2_qwen3_B1_r1": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333674,
+      "retry_at": 0
+    },
+    "A2_qwen3_B1_r2": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333683,
+      "retry_at": 0
+    },
+    "A2_llama_B16_r0": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333693,
+      "retry_at": 0
+    },
+    "A2_llama_B16_r1": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.53337,
+      "retry_at": 0
+    },
+    "A2_llama_B16_r2": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.533371,
+      "retry_at": 0
+    },
+    "A2_qwen3_B16_r0": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333717,
+      "retry_at": 0
+    },
+    "A2_qwen3_B16_r1": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333722,
+      "retry_at": 0
+    },
+    "A2_qwen3_B16_r2": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790781882.5333729,
+      "retry_at": 0
+    },
+    "Bpre": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1790786258.6067715,
+      "retry_at": 0,
+      "wait_s": 0.1443181037902832,
+      "pid": 4044329,
+      "run_s": 2.980577989947051,
+      "exit_code": 0
+    },
+    "B0a": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790786258.6067743,
+      "retry_at": 0
+    },
+    "B0b": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1790786258.6067762,
+      "retry_at": 0,
+      "wait_s": 3.2065272331237793,
+      "pid": 4044352,
+      "run_s": 2852.173326133983,
+      "exit_code": 1
+    },
+    "Bunit": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1790786258.606778,
+      "retry_at": 0
+    },
+    "Barch": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.606779,
+      "retry_at": 0
+    },
+    "B0c": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6067808,
+      "retry_at": 0
+    },
+    "B1_llama_B1_r0": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.606785,
+      "retry_at": 0
+    },
+    "B1_llama_B1_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6067917,
+      "retry_at": 0
+    },
+    "B1_llama_B1_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6067932,
+      "retry_at": 0
+    },
+    "B1_llama_B16_r0": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6067948,
+      "retry_at": 0
+    },
+    "B1_llama_B16_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.606796,
+      "retry_at": 0
+    },
+    "B1_llama_B16_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6067972,
+      "retry_at": 0
+    },
+    "B8_llama_B1_r0": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6067986,
+      "retry_at": 0
+    },
+    "B8_llama_B1_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6067998,
+      "retry_at": 0
+    },
+    "B8_llama_B1_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.606801,
+      "retry_at": 0
+    },
+    "B8_qwen3_B1_r0": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068022,
+      "retry_at": 0
+    },
+    "B8_qwen3_B1_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068032,
+      "retry_at": 0
+    },
+    "B8_qwen3_B1_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068041,
+      "retry_at": 0
+    },
+    "B3_llama_B1_r0": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068053,
+      "retry_at": 0
+    },
+    "B3_llama_B1_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068065,
+      "retry_at": 0
+    },
+    "B3_llama_B1_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068075,
+      "retry_at": 0
+    },
+    "B3_llama_B16_r0": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.606809,
+      "retry_at": 0
+    },
+    "B3_llama_B16_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.60681,
+      "retry_at": 0
+    },
+    "B3_llama_B16_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068118,
+      "retry_at": 0
+    },
+    "B1c": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.606814,
+      "retry_at": 0
+    },
+    "B2_llama": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068153,
+      "retry_at": 0
+    },
+    "B2_qwen3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068168,
+      "retry_at": 0
+    },
+    "B5_llama_B1_r0": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.606818,
+      "retry_at": 0
+    },
+    "B5_llama_B1_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068192,
+      "retry_at": 0
+    },
+    "B5_llama_B1_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.60682,
+      "retry_at": 0
+    },
+    "B7a_llama_B1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068213,
+      "retry_at": 0
+    },
+    "B5_qwen3_B1_r0": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.606826,
+      "retry_at": 0
+    },
+    "B5_qwen3_B1_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068275,
+      "retry_at": 0
+    },
+    "B5_qwen3_B1_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068285,
+      "retry_at": 0
+    },
+    "B7a_qwen3_B1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.60683,
+      "retry_at": 0
+    },
+    "B5_llama_B16_r0": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.606831,
+      "retry_at": 0
+    },
+    "B5_llama_B16_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.606832,
+      "retry_at": 0
+    },
+    "B5_llama_B16_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068337,
+      "retry_at": 0
+    },
+    "B7a_llama_B16": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068351,
+      "retry_at": 0
+    },
+    "B5_qwen3_B16_r0": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068366,
+      "retry_at": 0
+    },
+    "B5_qwen3_B16_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068377,
+      "retry_at": 0
+    },
+    "B5_qwen3_B16_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068387,
+      "retry_at": 0
+    },
+    "B7a_qwen3_B16": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068401,
+      "retry_at": 0
+    },
+    "B6": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6068413,
+      "retry_at": 0
+    },
+    "Bsass": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1790786258.6070857,
+      "retry_at": 0,
+      "wait_s": 2855.53897023201,
+      "pid": 4056899,
+      "run_s": 166.8566372289788,
+      "exit_code": 0
+    },
+    "B7b": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6070871,
+      "retry_at": 0
+    },
+    "B7c": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1790786258.6070883,
+      "retry_at": 0
+    },
+    "Breport": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1790786258.6070905,
+      "retry_at": 0,
+      "wait_s": 3022.473397731781,
+      "pid": 4057127,
+      "run_s": 0.218731421045959,
+      "exit_code": 0
+    }
+  }
+}
