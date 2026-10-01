@@ -1,0 +1,12 @@
+{
+  "resumed_utc": "2026-10-01T04:45:27.183197+00:00",
+  "scheduler_pid": 4037310,
+  "recovery_head": "aa198a7d177a466916d473b9cf8f9a485380183e",
+  "recovery_steps": 46,
+  "queue": "/root/r12c_work/queue/queue_recovery.json",
+  "sha256": "e73c5b6a844269a308963752abe87f4f08b09b6c73ae0d6c8f0d5b718a0466f4",
+  "source_sha256": "df0691e26345a70daf9b138c4048f8afe776fbb69e9abac7f5cab64f7e2aef36",
+  "successful_builds_reused": 20,
+  "calibration_started_before_amendment": false,
+  "progress": "not polled after resuming"
+}
