@@ -42,16 +42,38 @@ def idle(row,policy,needs=0):
             and row['power_w']<=policy['idle_power_w']+policy['power_margin_w']
             and row['hidden_mib']<=policy['max_hidden_mib'] and row['free_mib']>=needs)
 
-def stop(process):
-    own=descendants(process.pid)
+def session_members(sid):
+    members=set()
+    for path in Path('/proc').glob('[0-9]*/stat'):
+        try:
+            if int(path.read_text().rsplit(')',1)[1].split()[3])==sid:
+                members.add(int(path.parent.name))
+        except (OSError,ValueError,IndexError):pass
+    return members
+
+def process_start(pid):
+    try:return Path('/proc',str(pid),'stat').read_text().rsplit(')',1)[1].split()[19]
+    except (OSError,IndexError):return None
+
+def stop(process,known=None):
+    own=descendants(process.pid)|session_members(process.pid)
+    starts=dict(known or {})
+    for pid in own:starts.setdefault(pid,process_start(pid))
     for sig in (signal.SIGTERM,signal.SIGKILL):
-        try:os.killpg(process.pid,sig)
-        except ProcessLookupError:pass
-        for pid in own:
+        for pid,started in starts.items():
+            # A captured descendant may exit before cleanup; never signal a
+            # newly reused PID belonging to a different process.
+            if started is None or process_start(pid)!=started:continue
             try:os.kill(pid,sig)
             except ProcessLookupError:pass
-        try:process.wait(timeout=10);return
-        except subprocess.TimeoutExpired:pass
+        if sig==signal.SIGTERM:
+            try:process.wait(timeout=10)
+            except subprocess.TimeoutExpired:pass
+            # Parent exit does not prove descendant exit. Reparented vLLM
+            # workers retain this child's session and can ignore SIGTERM.
+            for pid in session_members(process.pid):starts.setdefault(pid,process_start(pid))
+    try:process.wait(timeout=10)
+    except subprocess.TimeoutExpired:pass
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--policy',type=Path,required=True);p.add_argument('--out',type=Path,required=True)
@@ -77,17 +99,21 @@ def main():
             if i+1<policy['samples']:time.sleep(policy['interval_s'])
         baseline=max(r['hidden_mib'] for r in rows)
         process=subprocess.Popen(cmd,env=dict(os.environ,TILEMEGA_GPU_LOCK_HELD='1'),start_new_session=True)
-        (a.out/'pgid').write_text(str(process.pid)+'\n');begin=time.monotonic();hidden=0;own={process.pid}
+        (a.out/'pgid').write_text(str(process.pid)+'\n');begin=time.monotonic();hidden=0;known={process.pid:process_start(process.pid)};own={process.pid}
         while True:
             try:code=process.wait(timeout=policy['interval_s']);break
             except subprocess.TimeoutExpired:pass
-            own.update(descendants(process.pid));row=sample('running');foreign=external(row,own|{os.getpid()})
+            for pid in descendants(process.pid):known[pid]=process_start(pid)
+            own={pid for pid,started in known.items() if started is not None and process_start(pid)==started}
+            row=sample('running');foreign=external(row,own|{os.getpid()})
             hidden=hidden+1 if row['hidden_mib']>baseline+policy['max_hidden_mib'] else 0
             if foreign & previous or hidden>=policy['hidden_violations']:
-                stop(process);return finish(75,'running interference')
+                stop(process,known);return finish(75,'running interference')
             previous=foreign
             if time.monotonic()-begin>a.timeout_s:
-                stop(process);return finish(124,'guard timeout')
+                stop(process,known);return finish(124,'guard timeout')
+        # Clean retained workers after normal/error parent exit as well.
+        stop(process,known)
         row=sample('after',exit_code=code);foreign=external(row,own|{os.getpid()})
         if foreign & previous or row['hidden_mib']>baseline+policy['max_hidden_mib'] or (code and foreign):
             return finish(75,'exit interference')

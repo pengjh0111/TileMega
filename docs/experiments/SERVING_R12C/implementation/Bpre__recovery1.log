@@ -1,0 +1,30 @@
+
+ATTEMPT 1 1790829937.2168243
+[1/10] cd /root/TileMega/build-phase12 && /usr/bin/python3.10 /root/TileMega/python/tilemega/fingerprint.py --root /root/TileMega --header /root/TileMega/build-phase12/include/tilemega/Support/BuildFingerprint.h
+[2/10] Building CXX object CMakeFiles/tilemega.dir/tools/tilemega.cpp.o
+[3/10] Building CXX object CMakeFiles/tilemega_commands.dir/tools/commands/calibration-suite.cpp.o
+[4/10] Building CXX object CMakeFiles/tilemega_core.dir/lib/Solver/SkeletonSearch.cpp.o
+[5/10] Linking CXX static library libtilemega.a
+[6/10] Linking CXX executable serving_epilogue_test
+[7/10] Linking CXX executable serving_attention_cases_test
+[8/10] Linking CXX executable paged_gemm_test
+[9/10] Linking CXX executable tools/tilemega
+[10/10] Linking CXX executable tilemega-unit
+PASS source fingerprint df0691e26345a70daf9b138c4048f8afe776fbb69e9abac7f5cab64f7e2aef36
+Internal ctest changing into directory: /root/TileMega/build-phase12
+Test project /root/TileMega/build-phase12
+    Start 56: serving_pruning
+1/4 Test #56: serving_pruning ..................   Passed    0.01 sec
+    Start 57: serving_lag
+2/4 Test #57: serving_lag ......................   Passed    0.01 sec
+    Start 58: serving_task_index
+3/4 Test #58: serving_task_index ...............   Passed    0.01 sec
+    Start 83: skeleton_search_isolation
+4/4 Test #83: skeleton_search_isolation ........   Passed    8.56 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =   8.60 sec
+R12_LAST_ARRIVER selected=17
+CODEGEN_SUMMARY tasks=0 couplings=0 stages=0 symbolic_windows=0 fallback_windows=0 output=/root/r12c_work/ref_cu/recovery.cu
+PASS recovery build, host tests and default CUDA identity

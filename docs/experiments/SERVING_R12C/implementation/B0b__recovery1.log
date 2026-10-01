@@ -1,0 +1,31 @@
+
+ATTEMPT 1 1790829991.04182
+llama_B1 P-D128K reuse
+llama_B1 P-D64K reuse
+llama_B1 P-base reuse
+llama_B1 P-noDN retained rejection
+llama_B1 P-noDN-noLA retained rejection
+llama_B1 N-base reuse
+llama_B1 P-noLA reuse
+llama_B1 P-noWD reuse
+llama_B1 N-noDN reuse
+llama_B16 P-base reuse
+llama_B16 P-D64K reuse
+llama_B16 P-D128K reuse
+llama_B16 P-noWD reuse
+llama_B16 P-noDN reuse
+llama_B16 P-noLA reuse
+llama_B16 P-noDN-noLA reuse
+llama_B16 N-base reuse
+llama_B16 N-noDN reuse
+llama_B1 R10G-1 0
+llama_B1 R10G-3 reuse
+llama_B1 N-R12b reuse
+llama_B1 R10G-0 0
+llama_B1 R10G-2 0
+qwen3_B1 R10G-0 0
+qwen3_B1 R10G-3 reuse
+qwen3_B1 N-R12b reuse
+qwen3_B1 R10G-1 0
+qwen3_B1 R10G-2 0
+fixed builds complete: 28/30

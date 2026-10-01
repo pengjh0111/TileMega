@@ -1,0 +1,59 @@
+{
+  "observed_utc": "2026-10-01T10:46:37.629739+00:00",
+  "scheduler": {
+    "pid": 4037310,
+    "done": 9,
+    "pending": 78,
+    "historical_failed": 1,
+    "historical_skipped": 42
+  },
+  "orphan": {
+    "pid": 4076728,
+    "ppid": 1,
+    "pgid": 4076097,
+    "sid": 4076097,
+    "cwd": "/root/r12c_work/diag",
+    "nvml_memory_mib": 41550,
+    "source": "raw/A1_qwen3_B1_r2/qwen3_B1/vllm/round2/stderr.txt",
+    "saved_child_pgid": "raw/A1_qwen3_B1_r2/pgid"
+  },
+  "fixed_builds": {
+    "success": 28,
+    "total": 30,
+    "rejected": [
+      "llama_B1 P-noDN",
+      "llama_B1 P-noDN-noLA"
+    ]
+  },
+  "guard_framework_tests": 3,
+  "diagnostic_tool_tests": 5,
+  "arch_checks": [
+    {
+      "arch": "sm_80",
+      "status": "PASS",
+      "fp64": 0
+    },
+    {
+      "arch": "sm_89",
+      "status": "PASS",
+      "fp64": 0
+    },
+    {
+      "arch": "sm_90",
+      "status": "PASS",
+      "fp64": 0
+    },
+    {
+      "arch": "sm_100",
+      "status": "PASS",
+      "fp64": 0
+    },
+    {
+      "arch": "sm_120",
+      "status": "PASS",
+      "fp64": 0
+    }
+  ],
+  "source_sha256": "df0691e26345a70daf9b138c4048f8afe776fbb69e9abac7f5cab64f7e2aef36",
+  "guard_sha256": "0fba3584b4681e5240d950d410c4cc3bc0ba1c2ca6c0d2e4764eeea26fc39d3a"
+}
