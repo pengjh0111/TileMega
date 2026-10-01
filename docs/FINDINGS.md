@@ -8951,3 +8951,23 @@ calibration measurement. No synchronization or race assertion is made.
 Evidence: SERVING_R12C/{recovery_evidence.tar.xz,recovery_MANIFEST.tsv};
 implementation/{progress_review,recovery_snapshot}.json;
 fixed_builds.py and lib/Solver/SkeletonSearch.cpp:209.
+
+
+## F-344: A retained diagnostic vLLM worker prevented further GPU rounds
+
+✅ verified: PID4076728 retained41,550MiB after the aborted Qwen3 B1 A1
+round. The saved child session4076097, diag cwd and EngineCore PID in that
+round's stderr identify it as our worker, subsequently reparented to PID1.
+The guard returned upon parent exit after TERM and skipped KILL for the
+TERM-ignoring descendant. Thus this sustained occupancy was not an external
+user's current workload; earlier shared-occupancy descriptions were incomplete.
+
+The repaired guard checks captured process identities and reaps remaining
+own-session workers after interrupted and normal parent exits. A real CPU
+parent/grandchild regression passes; our proven orphan was terminated, and
+NVML memory.used dropped to1MiB. Serving sources, pollution thresholds and
+queue definitions are unchanged. No CUDA synchronization conclusion is made.
+
+Evidence: SERVING_R12C/implementation/{guard_cleanup_review,
+guard_cleanup_dispatch}.json and guard_cleanup_tests.log;
+gpu_guard.py and test_framework.py. Pending GPU measurements remain pending.

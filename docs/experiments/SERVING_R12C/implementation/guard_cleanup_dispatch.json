@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-01T10:47:25.533776+00:00",
+  "terminated_pid": 4076728,
+  "ownership": "matching saved child session, diagnostic cwd and vLLM stderr PID",
+  "terminated": true,
+  "guard_old_sha256": "bb232927234eecc4f168b8e114fc91eab5c4c8323ca3d92183b2af6b0b63a953",
+  "guard_new_sha256": "0fba3584b4681e5240d950d410c4cc3bc0ba1c2ca6c0d2e4764eeea26fc39d3a",
+  "installed_in_diag": true,
+  "post_cleanup_gpu": "34, 1, 48536, 23.34",
+  "scheduler_pid": 4037310,
+  "queue_and_measurement_settings": "unchanged; no new progress polling"
+}
