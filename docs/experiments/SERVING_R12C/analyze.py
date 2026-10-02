@@ -173,7 +173,58 @@ def collected():
             if reference is not None:checks.append(dict(source='B5 timed repeat',cell=cell,round=rnd,token_mismatches=sum(a!=b for x,y in zip(reference,tok) for a,b in zip(x,y))))
     table('T9.tsv',checks)
     print('analysis: '+str(len(rows))+' collected arm observations')
+
+def trace_review():
+    """Review existing samples at their recorded past; never invent chain links."""
+    records=[]
+    for batch in (1,16):
+        folder=HERE/'raw/B6'/f'B{batch}'
+        metadata=json.loads((folder/'trace.json').read_text())
+        floor=json.loads((folder/'stream_floor.json').read_text())
+        with (folder/'pages.json').open() as stream:
+            samples=[r for r in csv.DictReader(stream,delimiter='\t')
+                     if int(r['kernel_begin_ns']) and int(r['kernel_end_ns'])]
+        workers={int(r['worker']) for r in samples}
+        if len(samples)!=len(workers):raise ValueError('expected one traced step per worker')
+        spans=[int(r['kernel_end_ns'])-int(r['kernel_begin_ns']) for r in samples]
+        dep=[int(r['dependency_wait_ns']) for r in samples]
+        full=[int(r['page_full_ns']) for r in samples]
+        overlap=[int(r['full_and_wait_ns']) for r in samples]
+        for span,d,f,o in zip(spans,dep,full,overlap):
+            if min(span,d,f,o)<0 or max(d,f,o)>span or o>min(d,f):
+                raise ValueError('invalid page/dependency counters')
+        span=max(int(r['kernel_end_ns']) for r in samples)-min(int(r['kernel_begin_ns']) for r in samples)
+        records.append(dict(batch=batch,past=metadata['past'],workers=len(workers),
+            instrumented_event_ms=metadata['mean_step_ms'],kernel_span_ns=span,
+            stream_bytes=floor['stream_bytes'],stream_gbps=floor['stream_gbps'],
+            stream_floor_ns=floor['stream_floor_ns'],kernel_over_stream_floor=span/floor['stream_floor_ns'],
+            dependency_wait_mean_cta_ns=statistics.mean(dep),
+            page_full_mean_cta_ns=statistics.mean(full),
+            full_and_dependency_wait_mean_cta_ns=statistics.mean(overlap),
+            loader_nonfull_fraction_upper_bound=statistics.mean(1-f/t for f,t in zip(full,spans)),
+            chain_links='',chain_span_ns='',residual_bubble_per_link_ns='',launch_gap_ns='',
+            limitation='LA reducer slots absent from trace DAG; K-phase waits not individually traced; one launch gives no adjacent-launch gap; nonfull includes lag and other work, not measured loader busy'))
+    table('T7.tsv',records)
+    table('runtime_structure.tsv',[
+        dict(model=model,batch=batch,phase=phase,source=str(path),**values)
+        for model,batch,phase,path,values in runtime_records()])
+
+def runtime_records():
+    for model in ('llama','qwen3'):
+        plans=HERE.parents[2]/f'runs/r12c-{model}/plans.json'
+        for batch,pair in json.loads(plans.read_text()).items():
+            if not batch.isdigit():continue
+            for phase,so in pair.items():
+                path=Path(so+'.plan.json');manifest=json.loads(path.read_text())
+                record=json.loads((path.parent/'record.json').read_text())
+                values={k:manifest.get(k) for k in ('pg','mode','kappa','residency','grid','watchdog','deferred_norm','paged_la')}
+                values.update(solve_seconds=record['solve_seconds'],pages=json.dumps(manifest.get('pages')))
+                source=HERE/'raw'/f'B5_{model}_B{batch}_r0'/f'{model}_B{batch}'/'R12cP/round0/stderr.txt'
+                stamps=list(dict.fromkeys(re.findall(r'E2E_STAGES[^\n]+',source.read_text())))
+                values['stage_statistics']=stamps[0 if phase=='prefill' else -1]
+                yield model,batch,phase,path,values
+
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--t0',action='store_true');a=p.parse_args()
     if a.t0:t0()
-    else:collected()
+    else:collected();trace_review()

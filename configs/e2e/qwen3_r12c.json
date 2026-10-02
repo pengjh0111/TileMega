@@ -1,0 +1,54 @@
+{
+  "model": {
+    "path": "/root/models/qwen3_1_7b",
+    "name": "qwen3"
+  },
+  "workload": {
+    "batch": [
+      1,
+      16
+    ],
+    "prompt_len": 64,
+    "max_new_tokens": 1024,
+    "prompts": "docs/experiments/SERVING_R10/prompts/qwen3_ids.json"
+  },
+  "device": {
+    "index": 0,
+    "cache_dir": "~/.cache/tilemega"
+  },
+  "solver": {
+    "passes": 2,
+    "top_m": 8,
+    "measure_top": 3,
+    "jobs": 3,
+    "mode": "L2",
+    "pruning": true,
+    "time_budget_s": 600,
+    "candidate_guard_wait_s": 1800
+  },
+  "features": {
+    "pg": "pages",
+    "handoff": "off",
+    "sync": "calibrated",
+    "arch_paths": "auto",
+    "pdl": "auto",
+    "weight_layout": "tiled",
+    "kphase_mask": 31,
+    "lookahead_bytes": 0,
+    "v3_poll_ns": 0,
+    "watchdog": 0
+  },
+  "test": {
+    "warmup": 1,
+    "repeats": 3,
+    "hf_check": true,
+    "mode_check": true,
+    "guard": true,
+    "vllm": true,
+    "vllm_python": "/root/venv_vllm/bin/python",
+    "policy_file": "docs/experiments/SERVING_R11/ev2/measurement_policy.json"
+  },
+  "output": {
+    "dir": "runs/r12c-qwen3"
+  }
+}

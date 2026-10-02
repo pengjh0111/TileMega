@@ -1,0 +1,79 @@
+{
+  "plans": {
+    "llama": {
+      "no_decode_pg_choice": true,
+      "plans": {
+        "1prefill": {
+          "seed_rows": 1,
+          "pg": "l2",
+          "mode": "L2",
+          "kappa": 1,
+          "watchdog": 0,
+          "source": "/root/.cache/tilemega/plans/6259f7235ea094208e7abe3efc33da33304e7d5494b9e27ae116295152548c3f/plan.so.plan.json"
+        },
+        "1decode": {
+          "seed_rows": 1,
+          "pg": "pages",
+          "mode": "L2",
+          "kappa": 1,
+          "watchdog": 0,
+          "source": "/root/.cache/tilemega/plans/0f91b5b78c47631775460445ce0da2fc19ffcb303725d98d455f3f2a75a8414b/plan.so.plan.json"
+        },
+        "16prefill": {
+          "seed_rows": 1,
+          "pg": "l2",
+          "mode": "L2",
+          "kappa": 1,
+          "watchdog": 0,
+          "source": "/root/.cache/tilemega/plans/0471d9f203ecd0b07d4554ee31088f4aa99d192a882f5cef713ecd5daa448c05/plan.so.plan.json"
+        },
+        "16decode": {
+          "seed_rows": 1,
+          "pg": "pages",
+          "mode": "L2",
+          "kappa": 1,
+          "watchdog": 0,
+          "source": "/root/.cache/tilemega/plans/d3c4c9ce52c4f1eda5914af4769f9da526dfa7171006e230e81896cb34750b40/plan.so.plan.json"
+        }
+      }
+    },
+    "qwen3": {
+      "no_decode_pg_choice": true,
+      "plans": {
+        "1prefill": {
+          "seed_rows": 1,
+          "pg": "l2",
+          "mode": "L2",
+          "kappa": 1,
+          "watchdog": 0,
+          "source": "/root/.cache/tilemega/plans/fd2291d865d0090999e49c8fbcfa207e283c6ca3f48a81ae2f106571e79b79c6/plan.so.plan.json"
+        },
+        "1decode": {
+          "seed_rows": 1,
+          "pg": "pages",
+          "mode": "L2",
+          "kappa": 1,
+          "watchdog": 0,
+          "source": "/root/.cache/tilemega/plans/af9c869265664c6ddfb71c17c71da7b88f69641df2b397c4baa837cd481b8f2f/plan.so.plan.json"
+        },
+        "16prefill": {
+          "seed_rows": 1,
+          "pg": "l2",
+          "mode": "L2",
+          "kappa": 1,
+          "watchdog": 0,
+          "source": "/root/.cache/tilemega/plans/47891ca0d6458dc72b74416a11ac53b64bf7639e814487530fdb776ad30be9ef/plan.so.plan.json"
+        },
+        "16decode": {
+          "seed_rows": 1,
+          "pg": "pages",
+          "mode": "L2",
+          "kappa": 1,
+          "watchdog": 0,
+          "source": "/root/.cache/tilemega/plans/0e946ce8f4572e555ae6207426a27e947ce3a79d9b73391b367147d11720c8b4/plan.so.plan.json"
+        }
+      }
+    }
+  },
+  "event_sync_unchanged": true
+}

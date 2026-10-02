@@ -1,0 +1,12 @@
+{
+  "files": 6153,
+  "original_bytes": 370962773,
+  "archive_bytes": 11457484,
+  "archive_sha256": "69c2e2f118e2e4404059b50fd89a81075215f760df4d9c851040e63ad9e1de79",
+  "excluded": [
+    "ELF binaries",
+    "generated .cu/.o/.cubin/.ptx/.fatbin/.mlir",
+    "unquoted derived task/edge/flow enumerations"
+  ],
+  "restore": "tar -xJf final_evidence.tar.xz -C docs/experiments/SERVING_R12C"
+}
