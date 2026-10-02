@@ -1,0 +1,27 @@
+commit	subject
+26d42559c24ec99386efba2701f6668bda6a0bb6	experiments: archive the r12b diagnostic inputs
+3c9f9718353704e997eb5994626bd27def7fcfb3	experiments: measure candidates at explicit past values
+0505e4033de05be73dbc96e5d67cd412b1b653c7	runtime: propagate shared gpu ownership and retry exits
+397209defc5ac508390f3b7ed82c6693c5312313	experiments: schedule guarded r12c diagnostic rounds
+e3a6b0453bc382357c576c36376d08d493ebc344	runtime: build paged decode without executor selection
+1fabdf3a4669a6df5e17b33c26a6cd3bb669f75a	analysis: carry the seed into the measured serving shortlist
+32e2da74683a64f655ab81d7372c894260a4aca7	backend: refill lookahead before each page using stream bytes
+78ced0c0ba0e1603f4b99947abccfc7f2826d1fb	backend: accumulate deferred norm squares during output stores
+fbab316f99259474c2e109744d52aacadba6151b	runtime: hoist watchdog context and allow compiling it out
+aeddc684079c4793c3260b5d01d1b36a2b68d38c	runtime: expose deferred norm and reducer ablation switches
+206b0c9d062cc4af52d42675cde287fb1e056dae	experiments: pin explicit paged plans and report all candidates
+650a80feaf594c2655750ac049b1575a7512c0e5	experiments: preregister the r12c default selection rules
+8c76a8916b23aa5aad8203462e7ecc59831a3b2b	experiments: prepare the frozen r12c diagnostic matrix
+2237885af3c06989b6bdd46d7accee3318b16717	experiments: account for the paged stream bandwidth bound
+5d195bcb9ece8d0cdfe004f3e02469c4f4435cf6	experiments: validate same norm class partitions for ablations
+ccc3db5bad53423d9b22dc54df1f56d1907bcbd7	experiments: freeze guarded queues and retain check evidence
+f4e4577f89b6519c243272071be0d9a9d497d54a	docs: record the r12c freeze and queued attribution work
+74ed58fc2ee518c67e164daa6380326a42f7adb9	analysis: preserve deferred norm across serving coordinates
+3206e664ffaea67e3b78b72eab771173b44df670	experiments: reuse fixed builds and isolate trace output failures
+aa198a7d177a466916d473b9cf8f9a485380183e	experiments: recover skipped diagnostics after the r12c check
+52d1059939dc9c7b5d874ddf684b463131eb84bb	docs: record the diagnostic recovery dispatch
+ea7a0d52cb965dfdb05e759af72e8c3cd6ab3968	experiments: reap vllm workers after guard termination
+b4dcf448498f519dbe3bf7c5db70d35586d5e459	docs: record the retained worker and restored gpu capacity
+5b05df277d02cb688e34335bc7e0157c90f5587a	experiments: retain orphan evidence before the next retry
+c9440471d3ebf216d2a4287b3b23f258fcdd8b08	experiments: archive completed rounds and replay flagged canaries
+9b7ed1bc2f36e0e796ff0b254d4b4c10466ac8a7	experiments: archive final r12c evidence and attribution tables

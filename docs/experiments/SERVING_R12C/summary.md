@@ -1,169 +1,158 @@
-# R12c implementation freeze and queued diagnostics
+# R12c final collection and regression attribution
 
-Status: implementation complete; GPU acceptance and attribution pending. This is an interim report, not a performance or correctness acceptance.
+Status: primary and one-time canary queues finished; specified corrections verified. Performance targets are unmet; T7 chain reconstruction is incomplete. No new GPU jobs are pending.
 
-- Prompt: `/root/Prompt/TileMega_R12c_prompt.md`.
-- Prompt SHA256: `9cd721a147925caa97530746b72671caa18b49aae5b2fb61633b32438aebca97`.
-- Baseline actual HEAD/origin: `a1264e59de6764e7a463e184fd11ba9c621bf54e`.
-- Frozen implementation/evidence HEAD: `ccc3db5ba`; 16 commits before this documentation commit, 17 including it. Publication HEAD is the commit containing this report, resolved by `git rev-parse tilemega`.
-- Frozen source fingerprint: `a9dfaa0dc3bb44780a9bd3eda31a7b8b9b4ede93c9c765b8771b3ca166e2a12f`.
-- Immutable Phase A tools: `/root/r12c_work/diag`, commit `397209def`. Main source changes do not affect those tools or existing binaries.
+- Prompt SHA256: `9cd721a147925caa97530746b72671caa18b49aae5b2fb61633b32438aebca97` (`/root/Prompt/TileMega_R12c_prompt.md`).
+- Baseline actual HEAD: `a1264e59de6764e7a463e184fd11ba9c621bf54e`.
+- Frozen source fingerprint: `df0691e26345a70daf9b138c4048f8afe776fbb69e9abac7f5cab64f7e2aef36`; last serving C++ amendment: `74ed58fc2`. Final publication HEAD is the closing docs commit containing this report (`git rev-parse tilemega`); its full SHA and total count are supplied with delivery.
+- Commit history: `implementation/commits.tsv` lists the 26 commits preceding the closing `docs: record the final r12c results` commit (27 total). Evidence HEAD: `9b7ed1bc2f36e0e796ff0b254d4b4c10466ac8a7`. All measurements precede these analysis/documentation-only commits.
 
-## Implementation and checks
+## Implementation and self-checks
 
-| ID | Implementation | Commit | Key location | Verification |
-|---|---|---|---|---|
-| D-0 | Complete: archive, binary registry, T0 | 26d42559c | archive_r12b.py; arms.py; analyze.py | Archive manifest, hashes and tables committed |
-| FX-12 | Complete: paged decode only; explicit nonpaged baseline | e3a6b0453 | python/tilemega/cli.py:329 | No decode_pg_choice in code; B2 cache/manifest check pending |
-| FX-13 | Complete: seed carried into top-3; origins; selected geometry | 1fabdf3a4 | lib/Solver/SkeletonSearch.cpp:878; tools/commands/compile.cpp:773 | Build passed; B2 seed/origin evidence pending |
-| FX-14 | Complete: per-page lookahead; historical stream-byte accounting | 32e2da746 | executor/ServingPages.cuh:116; PagedGemmTaskBody.h:130; PagedAttentionTaskBody.h:51 | Bodies compiled; D128 smoke/time comparison queued |
-| FX-15 | Complete: register squares and unified xor reduction | 78ced0c0b | Backend/ServingEpilogue.h:206; test/unit/serving_epilogue_test.cu | TN32/64/128 test compiled; GPU assertions queued |
-| FX-16 | Complete: hoisted Watch; compile-time watchdog switch | fbab316f9 | executor/Async.cuh:52; PageRing.cuh:74; Watchdog.cuh:36 | EventSync.cuh unchanged; runtime/compile ablations queued |
-| FX-17 | Complete: DN/LA/watchdog/guard-budget controls; stage counts; stub | aeddc6840 | tools/commands/compile.cpp:340; ModelHarness.cuh E2E_STAGES; measure_stub.py | Default generated CUDA byte-identical to reference |
-| FX-18 | Complete: fresh candidate instance per past | 3c9f97183 | python/tilemega/serving/measure_candidate.py:124 | Python compiled; A2 measurement queued |
-| FX-19 | Complete: explicit paged protocol cases; fidelity; geometry pin | 206b0c9d0; 5d195bcb9 | SERVING_R12B/make_protocol_cases.py:5; fidelity.py; pin_case.py:13 | 26/28 fixed inputs valid; two explicitly rejected |
-| FX-20 | Complete: retry 75 and lock ownership propagation | 0505e4033; 5d195bcb9 | vllm_baseline.py; trace.py; cli.py; check_protocol.py | Guard/tool CPU tests passed; external interference testing pending |
-| Framework | Complete: guard, dynamic scheduler, anchors, both queues | 397209def; 8c76a8916; ccc3db5ba | gpu_guard.py; scheduler.py; anchor.py; definitions/queue_*.json | Unique names, dependency DAG, timing guards verified |
-
-Locations without a directory prefix are relative to SERVING_R12C or include/tilemega/Codegen/tasks/executor as indicated; the commit diffs disambiguate exact files.
-
-Executed checks: host ctest 4/4 (serving_pruning, serving_lag, serving_task_index, skeleton_search_isolation); guard unit tests 2/2; diagnostic-tool tests 4/4; Python syntax checks passed. Core compiler and three CUDA test executables built. Logs: implementation/{build,host_tests,framework_tests,tool_tests}.log; machine-readable evidence: implementation/checks.json.
-
-Default `.cu` SHA256: `708cd9fe2db0e5f817761bc62b42e981bfc549d440d83a67c372678b499d799f`; baseline and current files under `/root/r12c_work/ref_cu/` compared byte-for-byte. The target snapshot is `/root/r12c_work/target_r12b.json`, SHA256 `c2c03ad6e9534130762cc88d423aac336077a0bd040db6d337a1e31e3c1ec8b9`. Neither generated CUDA nor binaries are committed.
-
-The last checked compiler fingerprint was `033b22e7c00e3fa095ec57f18728a485ccdb569180c87feeb74c4ccc9c9c13f0`; the final Python trace retry correction changed the source fingerprint. Bpre rebuilds and checks the frozen fingerprint before Phase B. This Python-only correction does not change generated CUDA or any calibration section stamp.
-
-## T0: archived evidence, not a new paired E2E measurement
-
-Candidate-protocol medians (ms), with the three raw samples retained in results/T0_pg_choice.tsv:
-
-| Cell | R12b pages | R12b l2 | Selected |
-|---|---:|---:|---|
-| Llama B1 | 4.125152 | 3.877642 | l2 |
-| Llama B16 | 4.755047 | 4.418162 | l2 |
-| Qwen3 B1 | 6.031072 | 5.483562 | l2 |
-| Qwen3 B16 | 7.396800 | 6.483894 | l2 |
-
-Verified: all four decode selections were nonpaged. The archived paged searches lacked the seed in the measured shortlist. Their recorded solve times were 817.466/838.535/1198.410/1337.937 s (same cell order); these are historical records, not R12c budget results. Full geometry, search-budget lines and shortlist data: results/T0_plans.tsv. Historical per-past values: results/T0_past.tsv.
-
-Raw inputs: MANIFEST.tsv and r12b_archive.tar.xz (530 files, 8,625,963 original bytes), archive SHA256 `7957910c48ef6e2fc7496e28d04b34c928c187645e691bd99ef562eb14940f34`. Extract with `tar -xJf r12b_archive.tar.xz` from this directory. arms.json records paths and binary hashes; unavailable original compiler provenance stays explicitly unknown.
-
-## T1–T9 and attribution status
-
-| Table | Required observations | Status at freeze |
+| ID | Status; commit | Key code and executed evidence |
 |---|---|---|
-| T0 | Historical selection, geometry, search, per-past data | Complete, committed |
-| T1 | A1 paired E2E, floors, past buckets, slopes | Queued; not accepted |
-| T2 | Executor/tool/evolution/V3/prefetch/DN/geometry/watchdog effects | A4 and B8 queued |
-| T3 | Candidate protocol vs E2E at past192/575/1000 | A2 queued |
-| T4 | S1P runtime ablations | A3 queued |
-| T5 | New top-3 origins, seed, fidelity, solve duration | B2 queued |
-| T6 | D/watchdog and MS controls; stage counts; step trends | B1/B3 queued; two invalid arms below |
-| T7 | Chain residuals, full-page dependency waits, loader busy fraction, stream floor, optional ncu | B6 queued |
-| T8 | Four-cell R12cP/R12bP/R10C/vLLM comparison | B5 queued |
-| T9 | Smoke, C-1/C-2, repeated tokens, fresh processes | B0c/B7 queued |
+| D-0 | Complete; 26d42559c | archive_r12b.py, arms.py; r12b_archive.tar.xz and MANIFEST.tsv |
+| FX-12 | Complete; e3a6b0453 | python/tilemega/cli.py:329; all four decode plans are pages/L2, no decode_pg_choice |
+| FX-13 | Complete; 1fabdf3a4 | lib/Solver/SkeletonSearch.cpp:878, tools/commands/compile.cpp:773; exactly one seed-origin row in each of eight shortlists, selected_classes.tsv emitted |
+| FX-14 | Complete; 32e2da746 | PagedGemmTaskBody.h:130, PagedAttentionTaskBody.h:52, executor/ServingPages.cuh:116; hooks precede AcquireEmpty, count stream bytes; no per-task prefetch_ahead remains |
+| FX-15 | Complete; 78ced0c0b | Backend/ServingEpilogue.h:207,253,277; register square accumulation; TN32/64/128 GPU tests pass |
+| FX-16 | Complete; fbab316f9 | executor/Async.cuh:52, PageRing.cuh:74, Watchdog.cuh:36; Watch constructed outside spin, compile switch tested; EventSync.cuh unchanged |
+| FX-17 | Complete; aeddc6840,74ed58fc2 | compile.cpp:340; DN/LA/watchdog controls, E2E_STAGES, measure_stub.py; preserve DN in SetServingStructure |
+| FX-18 | Complete; 3c9f97183 | serving/measure_candidate.py:124; 108 per-past candidate observations, fresh instances |
+| FX-19 | Complete; 206b0c9d0,5d195bcb9 | fidelity.py, pin_case.py, R12B/make_protocol_cases.py; explicit paged protocol plan; fixed geometry and partition checks |
+| FX-20 | Complete; 0505e4033,5d195bcb9 | vllm_baseline.py, trace.py, cli.py, check_protocol.py; exit75 and lock ownership propagate to guard/scheduler |
+| Framework | Complete; 397209def,ccc3db5ba,3206e664f,ea7a0d52c | guarded scheduler/anchors; output-path and own-orphan cleanup repaired; CPU regression tests pass |
+| Analysis | Partial | analyze.py trace_review recovers page counters at actual past575; realized-chain and precise launch-gap attribution unavailable |
 
-Q-A [stated]: the candidate explanations remain unresolved; no controlled new attribution data are accepted yet.
-Q-B [verified, limited]: archived short candidate measurements chose l2 in four cells; this alone does not establish full-request superiority. H1–H4 require A1/A2 and the fixed-geometry controls.
-Q-C [stated]: paged residual-gap attribution needs A3/B1/B6; the 902 GB/s stream floor is an explicit diagnostic convention, not a new measured bandwidth claim.
-Q-D [stated]: DN/LA values await B3. The Llama B1 DN-off paged controls cannot preserve their source geometry under the target class partition.
-Q-E [stated]: final paged position and selection quality await B2/B5/fidelity.
+Host regression tests 4/4; GPU body tests 3/3; seven smoke controls pass; default generated CUDA is byte-identical to the saved reference (SHA256 `708cd9fe2db0e5f817761bc62b42e981bfc549d440d83a67c372678b499d799f`). Five architecture compilations (sm_80/89/90/100/120) pass; sm_89 executed, other paths only compiled. SASS FP64=0 for all 36 audited serving binaries. Evidence: implementation/final_contract.json, recovery_arch_report.json, raw/Bsass/sass.json and archived test logs.
 
-## Bounded omissions, deviations and unresolved evidence
+Decode geometry: TM16/TN128/TK64, two stages; split qkv/o/gate_up/down/head is 4/4/1/4/1 for Llama and 2/4/1/4/1 for Qwen3. Ec256, Rq4/2 respectively. All have κ1, one CTA/SM, 160 threads, five 16384-byte pages, 8192-byte activation region, 8256-byte scratch, 91136-byte total shared memory. Defaults: D=0, watchdog compiled off, K-phase mask31, V3 poll0. Binary/CUDA paths and hashes: implementation/final_artifacts.json.
 
-1. Reference CUDA and target were saved before Phase A Python edits, earlier than the prescribed step3: Python enters the source fingerprint, so this preserves an actual baseline compiler check. Default-source equality passed.
-2. R10-C's original measurement tool has hardcoded warmup plus three repeats and lacks a repeats option. The tm_old adapter uses its supported interface, retaining those repeats inside each outer round; R10C_new isolates the tool effect. This adds work and changes that arm's within-round aggregation, which T2 must report.
-3. Two fixed arms are rejected before compilation: llama_B1 P-noDN and P-noDN-noLA. Their same-DN donor class0 includes source GEMMs with different geometry. The required pin assertion rejects these rather than changing geometry or solver classification. Evidence: implementation/pin_preflight.json. Other fixed inputs pass (26/28); actual build/smoke failures remain possible.
-4. Some historical binaries lack recorded compiler commit/source fingerprint. Paths, hashes, manifests and available target metadata are registered; missing provenance is not invented.
-5. GPU numerical assertions, multiarch builds and SASS FP64 audit are queued, not claimed passed. No synchronization or race conclusion is made.
-6. The report is interim because §0.1 explicitly requires ending the session after queue submission. Final raw outputs, configs and T1–T9 will be archived and committed on resume; no not-yet-observed number is reported as a result.
+## T0–T9: evidence and results
 
-## Queue and recovery
+Per-request TPOT=(E2E−TTFT)/1023; tables take the three-round median and max−min range. A “resolvable” pair exceeds the larger arm range. Floats/empty TSV cells are retained unchanged in the raw tables.
 
-Phase A has 36 steps. Phase B has 48 steps, including 28 fixed jobs plus two trace compilations, GPU unit checks, arch/SASS audits and all prescribed final comparisons. Queue definitions are committed in definitions/queue_a.json and queue_b.json. Bpre refreshes the compiler; B0a recalibrates only invalid sections. Fixed builds always use the saved R12b target, preserving their model inputs.
+T0 — archived candidate medians (pages/l2 ms; historical data, not new clean E2E):
 
-The one scheduler was launched from the immutable diag worktree. Live queue directory: `/root/r12c_work/queue`; state/logs: scheduler/; step outputs: raw/. Phase B is added atomically without restarting the scheduler. Dispatch evidence is implementation/dispatch.json. Shared lock: `/root/r12c_work/gpu.lock`.
+| Cell | Pages | l2 | Choice |
+|---|---:|---:|---|
+| retest-llama B1 | 4.1252 | 3.8776 | l2 |
+| retest-llama B16 | 4.7550 | 4.4182 | l2 |
+| qwen3 B1 | 6.0311 | 5.4836 | l2 |
+| qwen3 B16 | 7.3968 | 6.4839 | l2 |
+| llama B1 | 4.1252 | 3.8776 | l2 |
+| llama B16 | 4.7550 | 4.4182 | l2 |
+| priority-llama B1 | 4.1252 | 3.8776 | l2 |
+| priority-llama B16 | 4.7550 | 4.4182 | l2 |
 
-Preflight requires six samples at 5s intervals: utilization≤5%, power≤idle+30W, hidden memory≤1024MiB, sufficient free memory and no detected external owner. During a step the guard samples every5s; interference returns75, invalidates the whole round and requeues after cooldown. These are the specified detection rules, not a claim that all possible interference is detectable. Deadline:96h. Only the scheduler polls occupancy; the assistant does not poll progress.
+T1 — controlled A1 TPOT medians, ms (three rounds; complete TTFT/floor/past/slopes in results/T1.tsv and past_observations.tsv):
 
-On resume, first read scheduler/progress.tsv once, then state.json and failed-step summaries. Analyze with `python3 analyze.py`; perform the bounded Q-A…Q-E analysis and permitted follow-ups only after data exist. Before committing new results, archive raw directories excluding .so/.cu/.o, retain MANIFEST/hashes and all cited files. Do not change frozen sources after B0a.
+| Cell | R12bN L1 | R12bN L2 | R12bP | S1P | S1N |
+|---|---:|---:|---:|---:|---:|
+| llama_B1 | 2.858 | 3.358 | 3.413 | 3.188 | 3.637 |
+| llama_B16 | 3.176 | 3.657 | 4.568 | 3.951 | 4.284 |
+| qwen3_B1 | 4.304 | 5.366 | 6.168 | — | — |
+| qwen3_B16 | 5.787 | 6.415 | 7.310 | — | — |
 
-Next actions: complete the queued GPU numerical/arch checks and A/B observations; evaluate R12 acceptance honestly, report unresolvable comparisons and failed arms; write the requested location-specific next-round plans without implementing additional optimizations.
+T2 — B1 TPOT effects, after/before − 1; pairwise effects are not additive. All rebuilt R10G and N-R12b controls preserve source residency/grid.
 
-## Commits before this documentation commit
-
-- `26d42559c` experiments: archive the r12b diagnostic inputs
-- `3c9f97183` experiments: measure candidates at explicit past values
-- `0505e4033` runtime: propagate shared gpu ownership and retry exits
-- `397209def` experiments: schedule guarded r12c diagnostic rounds
-- `e3a6b0453` runtime: build paged decode without executor selection
-- `1fabdf3a4` analysis: carry the seed into the measured serving shortlist
-- `32e2da746` backend: refill lookahead before each page using stream bytes
-- `78ced0c0b` backend: accumulate deferred norm squares during output stores
-- `fbab316f9` runtime: hoist watchdog context and allow compiling it out
-- `aeddc6840` runtime: expose deferred norm and reducer ablation switches
-- `206b0c9d0` experiments: pin explicit paged plans and report all candidates
-- `650a80fea` experiments: preregister the r12c default selection rules
-- `8c76a8916` experiments: prepare the frozen r12c diagnostic matrix
-- `2237885af` experiments: account for the paged stream bandwidth bound
-- `5d195bcb9` experiments: validate same norm class partitions for ablations
-- `ccc3db5ba` experiments: freeze guarded queues and retain check evidence
-
-## 2026-10-01 progress inspection and bounded recovery
-
-Verified snapshot: implementation/progress_review.json and recovery_snapshot.json. At inspection, the original84 steps comprised6 done,35 pending,1 failed and42 skipped. Phase A had three accepted rounds (Llama B1 rounds0/2; Qwen3 B1 round0); B1 third rounds and both B16 cells were incomplete. Twenty fixed builds succeeded, eight were rejected; their SASS audit reported FP64=0 for20 binaries. GPU numerical unit tests, B0a calibration and final acceptance had not started. Only scheduler progress was read once; diagnosis then used specific failure files.
-
-The guard had returned75 on24 occupied preflights and10 running-interference attempts. Those rounds remain invalid. Sufficiently short interference can escape the specified5s sampling/three-sample hidden-memory threshold; accepted guard status alone is not an unconditional contamination guarantee.
-
-| Preliminary accepted E2E (s) | Llama B1, two-round median | Qwen3 B1, one round |
+| Factor | Llama | Qwen3 |
 |---|---:|---:|
-| vLLM | 3.105398 | 4.519084 |
-| R12bN L1 | 2.924663 | 4.406450 |
-| R12bN L2 | 3.436837 | 5.494247 |
-| R12bP | 3.497880 | 6.312932 |
-| S1P | 3.271427 | — |
-| S1N | 3.724751 | — |
+| executor | +17.49% | +24.67% |
+| measurement tool | +0.43% | +0.30% |
+| code evolution | +4.51% | +3.87% |
+| V3 | -2.58% | -2.68% |
+| L2 prefetch | -1.39% | -1.22% |
+| DN | -3.71% | -4.27% |
+| executor at R10 geometry | +8.52% | +8.16% |
+| geometry/search | -6.21% | -1.03% |
+| compiler headers | -0.12% (unresolved) | -2.64% |
+| watchdog runtime lower bound | -0.18% (unresolved) | -0.03% (unresolved) |
 
-These are Phase A's existing binaries, not final R12c results. Three rounds are required. R10C's two Llama E2E samples were3.225005/3.922260 s despite nearly stable vLLM; its large spread prevents a resolved attribution at present. No final throughput gate is claimed.
+T3 — candidate-vs-E2E relative protocol difference (paged divided by nonpaged, maximum absolute difference across past192/575/1000): Llama B1 0.31%, B16 1.00%; Qwen3 B1 2.35%, B16 0.91%. None exceeds the specified 3% H3 criterion. Full 108 observations: results/T3.tsv.
 
-Two problems were located and repaired:
-- B0b's trace command inherited `-o plan.so.top1.candidate.so`, but the wrapper replaced only the final `plan.so` string. nvcc exited0 while writing the old candidate path, and the wrapper then crashed reading the absent trace output. `fixed_builds.py:trace_command` now replaces the actual `-o` value and catches failures per trace arm; successful fixed outputs are verified by SHA and reused. The path regression test passes. This is a diagnostic-script failure, not observed CUDA deadlock.
-- All six R10G-0/1/2 builds failed with `attention coordinate changed GEMM class count`. `SearchContext::SetServingStructure` recreated ServingOptions with DN's defaulttrue, dropping DN-off when adjusting argmax/attention. Commit74ed58fc2 preserves the previous plan's norm_ss state. This completes FX-17's prescribed switch behavior; default DN, cost model, kappa and Kphase defaults are unchanged. Replay verification is queued, not yet passed.
+T4 — S1P runtime ablations, TPOT change vs loop (results/T4.tsv):
 
-The two previously rejected Llama B1 P-noDN controls retain their nonuniform-class rejection. No geometry is silently changed. The remaining failed R10G controls are replayed under the corrected compiler.
+| Arm | Llama B1 | Llama B16 |
+|---|---:|---:|
+| separate | -3.44% | -5.64% |
+| rotate | -0.10% (unresolved) | +0.01% (unresolved) |
+| kphase0 | +1.68% | +1.44% |
+| L1 | -5.86% | -8.56% |
+| nowd | -0.04% (unresolved) | +0.16% (unresolved) |
 
-Recovery deliberately pauses only our scheduler while atomically editing its queue; no other user's process is signalled. A snapshot showed no running child and B0a attempts=0.46 uniquely named recovery steps replace the failed/skipped dependency chain, plus refreshed compiler, audit and report steps. Original histories stay intact. B0a/Bunit remain pending but now require the repaired compiler. Successful A rounds and20 fixed .so files are not rerun. Read definitions/queue_recovery.json and implementation/recovery_dispatch.json to distinguish recovered work from historical skipped records.
+T5 — all four decode seeds win; prediction/measurement ordering is poor. Full 24 candidates, geometry, origins and prefill results: results/T5.tsv.
 
-All cited failure logs, search rejections, accepted-round outputs and the SASS report are committed in recovery_evidence.tar.xz (289 files), indexed by recovery_MANIFEST.tsv. Diagnostic CPU tests now pass5/5; raw log: implementation/recovery_tool_tests.log. Compiler rebuild, host regression tests, baseline CUDA identity and six DN-off build replays run through the scheduler and shared lock. Freeze amendment preceded the first calibration; no calibration result is invalidated.
+| Decode cell | Predicted ms | Measured ms | Measured/predicted | Kendall τ | Solve s |
+|---|---:|---:|---:|---:|---:|
+| llama_B1 | 3.373 | 3.068 | 0.910 | -1.000 | 1919.8 |
+| llama_B16 | 3.994 | 3.635 | 0.910 | -1.000 | 887.8 |
+| qwen3_B1 | 5.378 | 4.691 | 0.872 | -1.000 | 2005.1 |
+| qwen3_B16 | 6.932 | 6.457 | 0.931 | -0.333 | 1277.3 |
 
-Updated source fingerprint: `df0691e26345a70daf9b138c4048f8afe776fbb69e9abac7f5cab64f7e2aef36`. Initial source freeze and17-commit delivery above remain historical checkpoints; recovery commit list is discoverable with `git log a1264e59d..tilemega`. Next step is to let the repaired, guarded queue execute and inspect it on the next user-triggered resume.
+All eight solve/build times are 887.8–2322.4s, above the configured600s total budget; no ≤10min claim is made. Source records and runtime stage statistics: results/runtime_structure.tsv.
 
-## Subsequent check: retained vLLM worker blocked GPU scheduling
+T6 — fixed-geometry B1 medians, ms; choose_defaults_r12c.py selects D0 and watchdog0 by its preregistered rule.
 
-Verified: Bpre recovery passed four host tests and regenerated byte-identical default CUDA. Fixed builds now succeed28/30, including all six formerly failing R10G controls and both trace builds; only the two declared nonuniform-geometry controls remain rejected. sm_80/89/90/100/120 compilation passed, each audited object has FP64=0. These are compilation checks, not correctness/performance claims on other architectures. Evidence: implementation/{recovery_arch_report,recovery_fixed_results}.json and Bpre__recovery1.log/B0b__recovery1.log.
+| Arm | Llama B1 | Llama B16 |
+|---|---:|---:|
+| P-base | 3.208 | 3.873 |
+| P-D64K | 3.322 | 4.069 |
+| P-D128K | 3.334 | 4.120 |
+| P-noWD | 3.051 | 3.641 |
+| P-base-sep | 3.101 | 3.759 |
+| P-D128K-sep | 3.039 | 3.737 |
 
-The scheduler was alive, but no further GPU rounds had completed. NVML showed41,550MiB retained by PID4076728. Its saved child session4076097, diagnostic cwd and `(EngineCore pid=4076728)` in A1_qwen3_B1_r2/vllm stderr establish ownership by our aborted round. It had become an orphan with PPID1; it was not another user's current workload. Earlier descriptions of the sustained occupancy as external/shared-GPU waiting were therefore incomplete.
+MS controls use separate launches. DN-off raises paged B16 TPOT2.64%; LA-off changes B1/B16 by +0.60%/−0.88%. Nonpaged DN-off increases B1/B16 TPOT1.36%/1.36% in L2 and2.62%/1.46% in L1. P-noDN and P-noDN-noLA B1 are rejected for nonuniform geometry within a target class. Full values and spreads: results/T6.tsv.
+D128 loop slopes are −1.89/+63.96µs per100 tokens (B1/B16), vs separate +4.59/+59.23; growing past and timing are confounded. This does not establish a past-independent drift. E2E_STAGES: decode runtime/queued/elided147/130/17 for Llama and255/226/29 for Qwen3. Split-K combines remain queued; the elided counts cover merge and argmax only.
 
-Root cause: gpu_guard.stop returned as soon as the parent exited after SIGTERM, before sending SIGKILL to a TERM-ignoring engine worker. Cleanup now retains process identities, checks /proc start times against PID reuse, captures the child's session and completes descendant cleanup even after parent exit. Normal parent exit is also cleaned. A real CPU subprocess regression uses a TERM-ignoring grandchild and pidfd exit notification: guard tests3/3, diagnostic tools5/5. No device synchronization implementation or assertion is changed.
+T7 — existing instrumented single-step trace at past575; these are trace timings, not accepted E2E performance:
 
-The diagnostic guard file was atomically updated in the diag worktree; serving Python, CUDA binaries and frozen compiler sources remain unchanged. This is an explicit framework-only exception to its immutability, needed to complete the prescribed own-process-tree cleanup. Our single proven orphan was terminated via pidfd after ownership checks. Post-cleanup device memory used was1MiB. No other user's process was signalled, no queue state or completed measurement was reset, and pollution thresholds remain unchanged. The existing scheduler resumes automatically when its preflight succeeds.
-
-Evidence: implementation/{guard_cleanup_review,guard_cleanup_dispatch}.json; guard_cleanup_tests.log and guard_cleanup_tool_tests.log; gpu_guard.py and test_framework.py. Guard hash/provenance and the orphan's original log/session references are recorded. No new GPU performance data were collected during this check, and acceptance remains pending.
-
-The original aborted-round stderr, child pgid and guard records are retained in orphan_evidence.tar.xz, indexed by orphan_MANIFEST.tsv, before any retry can overwrite its output directory.
-
-## Collection review on 2026-10-02
-
-Verified: the primary queue has finished: 87 done, one historical B0b failure and 42 historical dependency skips replaced by recovery steps; no pending/running primary step and no new execution failures. The scheduler remains available for dynamic follow-ups. All four cells completed three B5 paired rounds, C-1 passed for TileMega and vLLM, and 1024-step C-2 passed with zero token mismatches in all four arms. The explicit paged Llama B16 protocol test completed 50/50 fresh processes.
-
-Preliminary B5 medians before the permitted canary repeats:
-| Cell | TPOT ms | E2E s | TM/vLLM median | Ratio range |
+| Batch | Kernel span ms | Stream floor ms (902GB/s) | Span/floor | Full ring + dependency wait, mean CTA ms |
 |---|---:|---:|---:|---:|
-| Llama B1 | 3.054 | 3.129 | 0.9925 | 0.0515 |
-| Llama B16 | 3.641 | 3.759 | 1.0137 | 0.0155 |
-| Qwen3 B1 | 4.709 | 4.824 | 0.9384 | 0.0024 |
-| Qwen3 B16 | 6.362 | 6.555 | 0.9401 | 0.0013 |
+| 1 | 3.876 | 2.761 | 1.404 | 0.472 |
+| 16 | 4.723 | 3.074 | 1.536 | 0.351 |
 
-Performance targets are not all met. The preregistered canary rule flagged B5 Llama B1 round 2 (4.864% vLLM deviation) and A1 Llama B16 round 2 (2.102%). These are variability flags, not proof of external interference. Both original rounds are preserved in collection_evidence.tar.xz before publishing exactly one replacement round each to the existing guarded scheduler; binaries, source, thresholds and other completed tests stay unchanged. Read definitions/queue_canary_once.json and implementation/collection_review.json; subsequent Breport__canary_once rebuilds the tables.
+Partial: original TRACE_V2 dependency_graph rejects unqueued LA reducer stages; therefore realized chain length/span, per-link residuals and attribution are unavailable. Nonfull loader fractions0.469/0.502 are upper bounds including other work, not measured loader busy fractions. One launch cannot measure adjacent-launch gaps; ncu is unavailable. No missing metric is replaced with zero. The original B6 wrapper exited0 despite analysis errors; logs are archived.
 
-All four decode winners have seed origin. The bounded 3600-second Llama B1 search-budget diagnostic is still unperformed; the completed primary queue must not be reported as having answered it. Full Q-A through Q-E interpretation and final performance acceptance remain pending the canary repeats and evidence review. Current raw evidence and pre-repeat tables are indexed by collection_MANIFEST.tsv; compilation/generated binaries are excluded.
+T8 — final paired medians after one permitted canary repeat; every cell has three rounds.
+
+| Cell | TTFT ms | TPOT mean/p50/p90 ms | E2E s | tok/s | TM/vLLM ± range | E2E/Σfloor |
+|---|---:|---|---:|---:|---|---:|
+| llama_B1 | 4.615 | 3.054/3.041/3.070 | 3.128 | 327.3 | 0.9925; range 0.0073 | 1.085 |
+| llama_B16 | 34.138 | 3.641/3.599/3.924 | 3.759 | 4358.7 | 1.0137; range 0.0155 | 1.167 |
+| qwen3_B1 | 6.437 | 4.709/4.697/4.765 | 4.824 | 212.3 | 0.9384; range 0.0024 | 1.188 |
+| qwen3_B16 | 47.131 | 6.362/6.311/7.330 | 6.555 | 2499.3 | 0.9401; range 0.0013 | 1.256 |
+
+The ratio column is the median of paired-round ratios; “range” is max−min, not an error bar. Same-cell R10C and R12bP E2E/TPOT values and vLLM rows are in results/T8.tsv. R12c improves over R12bP in every cell, but is slower than R10C in three. Floors use the archived same-cell R12b convention for all arms.
+
+T9 — correctness and inherited R12/R12b gates:
+
+| Gate | Result | Evidence |
+|---|---|---|
+| G-1 | FAIL overall; Llama B1 passes, other3 fail | Four ratio medians vs0.957/1.077/0.940/1.048 and per-cell ratio ranges; final_review.json |
+| G-2 | PASS, four TM cells and four vLLM checks | gap≤0.5 ratio100%; TM maximum gap0/0.25/0/0.375 in cell order |
+| G-3 | PASS | Four1024-step arms per cell; timed-repeat, phase and loop comparisons have zero token mismatches |
+| G-4 | PASS, 50/50 | Explicit paged Llama B16,64steps; L1 separate/L2 separate/L2 loop/no-phase comparison |
+| G-5 | FAIL overall; Llama B16 only passes | Ratios in T8 |
+
+## Q-A…Q-E and next steps (proposals only)
+
+Q-A [verified]: unified L2 is a major nonpaged regression: +17.49/+15.17/+24.67/+10.84% TPOT in cell order; B1 TTFT also rises0.457/0.355ms. Same R10 geometry reproduces +8.52/+8.16% (Llama/Qwen3). V3, L2 prefetch and DN individually help, while same-design code evolution adds4.51/3.87%. Tool differences are only0.43/0.30%. Runtime watchdog effects are unresolved. [inferred] These controlled pairs reject a single “DN causes slowdown” explanation; they do not yield an additive decomposition. Next: inspect task-event/FIFO overhead at ModelHarness.cuh:2867 and ServingPages.cuh WaitDependencies/Publish; no change made.
+Q-B [verified]: restricted S1N is8.3/17.1% slower than searched nonpaged Llama; H4 is supported. S1P beats searched R12bP for Llama, supporting H1. H2 is cell-dependent: Qwen3 B1 paged slope69.02 vs nonpaged9.52µs/100tokens, whereas Llama B16 paged slope is lower. H3 is not supported by its3% test. Next: compare whole-past candidate objectives and actual winning geometry; no selection/model change made.
+Q-C [verified, partial]: K-phase helps1.4–1.7%; rotation is indistinguishable in S1P; device loop is3.4–5.6% slower than separate launch in those controls. Compiling watchdog out helps4.9/6.0%; D64/D128 hurt rather than cover a measured gap. T7 gives paged stream-floor distance and local full/wait intersection only. [inferred] Whole-chain attribution requires LA-aware trace nodes and recorded phase-ready timing; repair TRACE_V2/analyze.py:338 and actual-past handling before claiming link residuals.
+Q-D [verified, bounded]: DN helps the valid controls; LA has small, opposite-signed batch effects. B1 paged DN cannot be isolated under the prescribed unchanged geometry. The final48/84 inserted split-K combines are still queued (runtime stages minus queued differ by merge+argmax only). Next: inspect SelectServingHandoffs self-edge selection at HandoffPass.cpp:432 and runtime kHandoffAutoCombine resolution at ModelHarness.cuh:2180; no extra LA optimization made.
+Q-E [verified]: paged service is now exercised and improves over R12bP, but three cells miss R10C and three miss vLLM. Every decode seed wins, despite a worse prediction; τ−1 in three cells and−1/3 in the fourth. [inferred] Candidate pricing/ranking deserves priority over longer blind search. Next: recalibrate/prioritize only with user authorization; current round changes neither cost model, κ nor K-phase defaults.
+
+## Omissions, deviations, provenance and queue closure
+
+- All specified FX items are implemented; diagnostics are partial at T7. B4 and the bounded3600s search-budget extension were not run. The primary matrices are closed at the user’s requested delivery; no assertion about the causal effect of longer budget is made.
+- Two B1 DN-off fixed arms were rejected rather than silently changing geometry. Other28/30 fixed builds pass, including both trace builds; all seven scheduled smoke controls pass. Historical binary compiler provenance remains unknown where the original records omitted it.
+- R10C old tools retain their hardcoded internal warmup/three repeats; new tools use one repeat per outer round. The R10C_new pair quantifies that difference. All named R10G/N-R12b rebuilt controls preserved grid/residency.
+- Trace parsing needed a CPU-only correction after collection: stream/page statistics now use actual past575 and exclude never-launched Params rows. No serving code or calibration stamp changed. Chain/reducer handling remains unresolved, rather than fabricated.
+- B0b originally failed on trace output naming, skipping42 historical dependencies; recovery reuses accepted binaries. DN-off propagation was repaired before first calibration. An owned orphan vLLM worker was proven and removed; guard cleanup was corrected without changing thresholds or other users’ processes. Original failure evidence remains archived.
+- Canaries: original A1 Llama B16 round2 and B5 Llama B1 round2 were preserved in collection_evidence.tar.xz, then repeated exactly once. No canary remains after replacement. These were variability flags, not proven external interference.
+- Guard preflight: six5s samples, utilization≤5%, power≤idle+30W, hidden memory≤1024MiB, required free memory and no detected external owner. Runtime interference invalidates/requeues a whole round with75. This cannot establish absence of undetectable interference. Policy and all samples are archived.
+- Final archive: final_evidence.tar.xz and final_MANIFEST.tsv (6153 files,370962773 original bytes); SHA256 `69c2e2f118e2e4404059b50fd89a81075215f760df4d9c851040e63ad9e1de79`. Restore with `tar -xJf final_evidence.tar.xz` from SERVING_R12C. Archive includes current raw rounds, modes/HF/protocol records, guards, scheduler history, tables and final_metadata. Binaries/generated CUDA are excluded; paths/hashes are in final_artifacts.json. Prior r12b/recovery/orphan/collection archives preserve overwritten attempts.
+- Scheduler state:90 done,1 historical failed,42 historical skipped,0 pending/running; replacements are done. The existing scheduler remains idle for dynamic queues. No new GPU tests were started during closure. Recovery, if requested later: inspect scheduler/progress.tsv once and the archived state; never reset completed steps.
+- Publication: closing commits are local on tilemega. The final response records push success or supplies `git push origin tilemega`; format-patch fallback is `/tmp/round12c-patches/`.

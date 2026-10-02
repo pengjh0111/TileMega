@@ -1482,5 +1482,5 @@ Decode uses pages only; nonpaged decode is an explicit baseline and never enters
 | ID | Scope | Status | Evidence |
 |---|---|---|---|
 | D-0 | Archive R12b inputs and binary provenance | Complete | SERVING_R12C/MANIFEST.tsv |
-| FX-12…20 | Specified corrections and diagnostic switches | Implemented; host checks passed, GPU assertions queued | SERVING_R12C/summary.md |
-| Phase A/B | Guarded diagnostics and final paged comparison | Bounded FX-17/script recovery queued; A has3 accepted rounds, final attribution pending | SERVING_R12C/scheduler/ |
+| FX-12…20 | Specified corrections and diagnostic switches | Complete; host4/4, GPU3/3, default CUDA byte identity and five arch compilations pass | SERVING_R12C/summary.md |
+| Phase A/B | Guarded diagnostics and final paged comparison | Collection complete; four paired cells×3 rounds, C-1/C-2 pass, fresh processes50/50; G-1/G-5 fail; T7 chain attribution partial | SERVING_R12C/results/T0–T9; final_evidence.tar.xz; F-345–347 |

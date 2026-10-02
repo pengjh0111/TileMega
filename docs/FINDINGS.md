@@ -8971,3 +8971,77 @@ queue definitions are unchanged. No CUDA synchronization conclusion is made.
 Evidence: SERVING_R12C/implementation/{guard_cleanup_review,
 guard_cleanup_dispatch}.json and guard_cleanup_tests.log;
 gpu_guard.py and test_framework.py. Pending GPU measurements remain pending.
+
+
+## F-345: L2 explains a substantial nonpaged serving regression
+
+✅ verified in three paired rounds per cell: R12bN L2 TPOT exceeds its L1
+TPOT by17.49/15.17/24.67/10.84% (Llama B1/B16, Qwen3 B1/B16). At fixed
+R10 geometry the B1 L2 penalties are8.52/8.16%. The single-factor B1 chain
+finds code evolution +4.51/+3.87%, V3 −2.58/−2.68%, L2 prefetch
+−1.39/−1.22%, and DN −3.71/−4.27% (Llama/Qwen3). These are controlled
+pairwise changes, not an additive decomposition. Old/new measurement tools
+change TPOT by only0.43/0.30%; runtime watchdog disable is not resolvable.
+
+✅ verified: compiling watchdog out lowers paged Llama B1/B16 TPOT by
+4.91/5.99%. D64/D128 are slower in both batches; the preregistered rule
+therefore selects D0 and watchdog0. Old S1P device loop is3.44/5.64% slower
+than separate launches, K-phase disable is1.68/1.44% slower, and rotate is
+indistinguishable within observed spread. No new optimization is applied.
+
+Evidence: SERVING_R12C/results/{T2,T4,T6}.tsv, defaults.json;
+final_evidence.tar.xz and final_MANIFEST.tsv contain paired raw rounds,
+commands, guards and configuration. All rebuilt R10G/N-R12b controls keep
+their source grid/residency. This establishes numerical comparisons, not a
+new synchronization or race assertion.
+
+## F-346: Seeds beat model shortlists; split-K LA remains unapplied
+
+✅ verified: each of eight final shortlists includes exactly one seed-origin
+row. All four decode winners are rank3 seeds. Decode prediction-vs-measurement
+Kendall τ is−1,−1,−1,−1/3 for Llama B1/B16 and Qwen3 B1/B16 respectively.
+Model candidates are measured slower than their winning seed despite better
+predicted scores. All final decode plans use pages/L2; no decode_pg_choice
+remains. Solve/build records are887.8–2322.4s despite a600s configured budget.
+
+✅ verified from manifests and E2E_STAGES: runtime/queued/elided counts are
+147/130/17 for Llama and255/226/29 for Qwen3. Their48/84 split-K combines
+remain queued; only merge and argmax account for elided stages. Therefore
+paged_la=true does not establish full split-K last-arriver coverage.
+
+⚠️ inferred: pricing/ranking and the missing split-K handoff deserve
+follow-up before extending blind search. Inspect HandoffPass.cpp:432 and
+ModelHarness.cuh:2180 for self-edge selection/auto-combine lowering. This
+round does not change that path or its cost model. The optional3600s budget
+extension was not run, so budget causality is not established.
+
+Evidence: SERVING_R12C/results/{T5,runtime_structure}.tsv;
+implementation/{final_contract,final_artifacts,final_review}.json;
+final_evidence.tar.xz includes all final manifests, top3 prediction/measured
+records, search histories, build durations and stderr stage counts.
+
+## F-347: R12c paged correctness passes; performance closure is partial
+
+✅ verified after one preregistered replacement of each flagged canary round:
+final paired TM/vLLM ratios are0.9925/1.0137/0.9384/0.9401 (Llama B1/B16,
+Qwen3 B1/B16), with ranges0.0073/0.0155/0.0024/0.0013. R12c beats R12bP
+in every cell but misses the R10C comparison in three and vLLM in three.
+C-1 passes in all four TM/vLLM cells; C-2 has zero mismatches across four
+1024-step arms and timed repeats; explicit paged Llama B16 fresh processes
+pass50/50. These results do not establish a universal race claim.
+
+✅ verified, instrumented single-step trace at past575: Llama B1/B16 kernel
+spans are3.876/4.723ms versus902GB/s stream-only conventions2.761/3.074ms.
+Mean per-CTA full-ring-and-dependency-wait intersections are0.472/0.351ms;
+CTA-local waits must not be summed into elapsed request time. The original
+chain analyzer rejects absent LA reducer slots; B16 page analysis also used
+an incorrect fixed-past lookup. CPU replay now uses actual trace past575.
+Realized chain length/span, per-link bubbles, precise loader busy fraction
+and adjacent-launch gaps remain unmeasured; a single trace launch cannot
+supply those gaps. No missing quantity is reported as zero; ncu unavailable.
+
+Evidence: SERVING_R12C/results/{T7,T8,T9}.tsv;
+implementation/final_review.json; final_evidence.tar.xz contains original
+trace data and analyzer errors, accepted paired rounds, HF/mode/protocol
+outputs and guard samples. collection_evidence.tar.xz retains the two
+original flagged rounds before replacement. Thresholds are unchanged.
