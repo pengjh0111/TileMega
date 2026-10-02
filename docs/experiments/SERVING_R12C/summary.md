@@ -151,3 +151,19 @@ The diagnostic guard file was atomically updated in the diag worktree; serving P
 Evidence: implementation/{guard_cleanup_review,guard_cleanup_dispatch}.json; guard_cleanup_tests.log and guard_cleanup_tool_tests.log; gpu_guard.py and test_framework.py. Guard hash/provenance and the orphan's original log/session references are recorded. No new GPU performance data were collected during this check, and acceptance remains pending.
 
 The original aborted-round stderr, child pgid and guard records are retained in orphan_evidence.tar.xz, indexed by orphan_MANIFEST.tsv, before any retry can overwrite its output directory.
+
+## Collection review on 2026-10-02
+
+Verified: the primary queue has finished: 87 done, one historical B0b failure and 42 historical dependency skips replaced by recovery steps; no pending/running primary step and no new execution failures. The scheduler remains available for dynamic follow-ups. All four cells completed three B5 paired rounds, C-1 passed for TileMega and vLLM, and 1024-step C-2 passed with zero token mismatches in all four arms. The explicit paged Llama B16 protocol test completed 50/50 fresh processes.
+
+Preliminary B5 medians before the permitted canary repeats:
+| Cell | TPOT ms | E2E s | TM/vLLM median | Ratio range |
+|---|---:|---:|---:|---:|
+| Llama B1 | 3.054 | 3.129 | 0.9925 | 0.0515 |
+| Llama B16 | 3.641 | 3.759 | 1.0137 | 0.0155 |
+| Qwen3 B1 | 4.709 | 4.824 | 0.9384 | 0.0024 |
+| Qwen3 B16 | 6.362 | 6.555 | 0.9401 | 0.0013 |
+
+Performance targets are not all met. The preregistered canary rule flagged B5 Llama B1 round 2 (4.864% vLLM deviation) and A1 Llama B16 round 2 (2.102%). These are variability flags, not proof of external interference. Both original rounds are preserved in collection_evidence.tar.xz before publishing exactly one replacement round each to the existing guarded scheduler; binaries, source, thresholds and other completed tests stay unchanged. Read definitions/queue_canary_once.json and implementation/collection_review.json; subsequent Breport__canary_once rebuilds the tables.
+
+All four decode winners have seed origin. The bounded 3600-second Llama B1 search-budget diagnostic is still unperformed; the completed primary queue must not be reported as having answered it. Full Q-A through Q-E interpretation and final performance acceptance remain pending the canary repeats and evidence review. Current raw evidence and pre-repeat tables are indexed by collection_MANIFEST.tsv; compilation/generated binaries are excluded.

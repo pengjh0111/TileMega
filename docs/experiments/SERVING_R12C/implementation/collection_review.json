@@ -1,0 +1,248 @@
+{
+  "checked_at_utc": "2026-10-02T11:18:42.203166+00:00",
+  "state_counts": {
+    "done": 87,
+    "historical_failed": 1,
+    "historical_skipped": 42,
+    "pending": 0
+  },
+  "queue_primary_finished": true,
+  "c1": [
+    {
+      "model": "/root/models/llama3_2_1b",
+      "batch": 1,
+      "positions": 1024,
+      "gap_le_0_5_ratio": 1.0,
+      "max_gap": 0.0,
+      "pass": true
+    },
+    {
+      "model": "/root/models/llama3_2_1b",
+      "batch": 1,
+      "positions": 1024,
+      "gap_le_0_5_ratio": 1.0,
+      "max_gap": 0.0,
+      "pass": true
+    },
+    {
+      "model": "/root/models/qwen3_1_7b",
+      "batch": 1,
+      "positions": 1024,
+      "gap_le_0_5_ratio": 1.0,
+      "max_gap": 0.0,
+      "pass": true
+    },
+    {
+      "model": "/root/models/qwen3_1_7b",
+      "batch": 1,
+      "positions": 1024,
+      "gap_le_0_5_ratio": 1.0,
+      "max_gap": 0.125,
+      "pass": true
+    },
+    {
+      "model": "/root/models/llama3_2_1b",
+      "batch": 16,
+      "positions": 16384,
+      "gap_le_0_5_ratio": 1.0,
+      "max_gap": 0.25,
+      "pass": true
+    },
+    {
+      "model": "/root/models/llama3_2_1b",
+      "batch": 16,
+      "positions": 16384,
+      "gap_le_0_5_ratio": 1.0,
+      "max_gap": 0.25,
+      "pass": true
+    },
+    {
+      "model": "/root/models/qwen3_1_7b",
+      "batch": 16,
+      "positions": 16384,
+      "gap_le_0_5_ratio": 1.0,
+      "max_gap": 0.375,
+      "pass": true
+    },
+    {
+      "model": "/root/models/qwen3_1_7b",
+      "batch": 16,
+      "positions": 16384,
+      "gap_le_0_5_ratio": 1.0,
+      "max_gap": 0.25,
+      "pass": true
+    }
+  ],
+  "c2": [
+    {
+      "source": "raw/B7a_llama_B1/mode_check.json",
+      "batch": 1,
+      "steps": 1024,
+      "mismatches": {
+        "L1_separate": 0,
+        "L2_separate": 0,
+        "L2_loop": 0,
+        "L2_loop_no_phase": 0
+      },
+      "pass": true
+    },
+    {
+      "source": "raw/B7a_llama_B16/mode_check.json",
+      "batch": 16,
+      "steps": 1024,
+      "mismatches": {
+        "L1_separate": 0,
+        "L2_separate": 0,
+        "L2_loop": 0,
+        "L2_loop_no_phase": 0
+      },
+      "pass": true
+    },
+    {
+      "source": "raw/B7a_qwen3_B1/mode_check.json",
+      "batch": 1,
+      "steps": 1024,
+      "mismatches": {
+        "L1_separate": 0,
+        "L2_separate": 0,
+        "L2_loop": 0,
+        "L2_loop_no_phase": 0
+      },
+      "pass": true
+    },
+    {
+      "source": "raw/B7a_qwen3_B16/mode_check.json",
+      "batch": 16,
+      "steps": 1024,
+      "mismatches": {
+        "L1_separate": 0,
+        "L2_separate": 0,
+        "L2_loop": 0,
+        "L2_loop_no_phase": 0
+      },
+      "pass": true
+    }
+  ],
+  "protocol": {
+    "processes_per_case": 50,
+    "passed": 50,
+    "failed": 0,
+    "complete": true
+  },
+  "b5": [
+    {
+      "matrix": "B5",
+      "cell": "llama_B16",
+      "arm": "R12cP",
+      "rounds": "3",
+      "ttft_s": "0.03413806390017271",
+      "ttft_s_range": "1.8535880371928215e-05",
+      "tpot_s": "0.003641001242445099",
+      "tpot_s_range": "3.804915192248421e-06",
+      "e2e_s": "3.758882334921509",
+      "e2e_s_range": "0.00391096412204206",
+      "tok_s": "4358.742450591267",
+      "tok_s_range": "4.53644144435475",
+      "tm_vllm": "1.0137241777951214",
+      "tm_vllm_range": "0.01545302146755767",
+      "e2e_over_sum_floor": "1.1674108836386843",
+      "e2e_over_sum_floor_range": "0.0012146435229365427",
+      "slope_us_per_100_tokens": "63.32187821016802",
+      "slope_us_per_100_tokens_range": "1.9213640093887747",
+      "tpot_p50_s": "0.00359936",
+      "tpot_p50_s_range": "0.0",
+      "tpot_p90_s": "0.003923968",
+      "tpot_p90_s_range": "2.2527999999997356e-06"
+    },
+    {
+      "matrix": "B5",
+      "cell": "llama_B1",
+      "arm": "R12cP",
+      "rounds": "3",
+      "ttft_s": "0.00463597197085619",
+      "ttft_s_range": "3.679306246340275e-05",
+      "tpot_s": "0.0030536941946361245",
+      "tpot_s_range": "9.285298814288787e-06",
+      "e2e_s": "3.128572329180315",
+      "e2e_s_range": "0.009469263721257448",
+      "tok_s": "327.30584185288365",
+      "tok_s_range": "0.9877299217401969",
+      "tm_vllm": "0.9924993630661949",
+      "tm_vllm_range": "0.05146248770623496",
+      "e2e_over_sum_floor": "1.0851330413338267",
+      "e2e_over_sum_floor_range": "0.0032843769808998946",
+      "slope_us_per_100_tokens": "2.4203086352445626",
+      "slope_us_per_100_tokens_range": "0.15353025233714312",
+      "tpot_p50_s": "0.003042304",
+      "tpot_p50_s_range": "1.024000000000077e-06",
+      "tpot_p90_s": "0.003069952",
+      "tpot_p90_s_range": "1.024000000000077e-06"
+    },
+    {
+      "matrix": "B5",
+      "cell": "qwen3_B16",
+      "arm": "R12cP",
+      "rounds": "3",
+      "ttft_s": "0.047131351893767715",
+      "ttft_s_range": "4.7587091103196144e-05",
+      "tpot_s": "0.006362042994987682",
+      "tpot_s_range": "5.1959979467143536e-06",
+      "e2e_s": "6.555461476789787",
+      "e2e_s_range": "0.005323234014213085",
+      "tok_s": "2499.290104595848",
+      "tok_s_range": "2.0279603761086946",
+      "tm_vllm": "0.940071692838228",
+      "tm_vllm_range": "0.0012632959216712925",
+      "e2e_over_sum_floor": "1.2559220539694103",
+      "e2e_over_sum_floor_range": "0.0010198468895838975",
+      "slope_us_per_100_tokens": "247.48353811455894",
+      "slope_us_per_100_tokens_range": "0.6476244038770176",
+      "tpot_p50_s": "0.006310912",
+      "tpot_p50_s_range": "3.0720000000006645e-06",
+      "tpot_p90_s": "0.0073304064",
+      "tpot_p90_s_range": "8.191999999999748e-06"
+    },
+    {
+      "matrix": "B5",
+      "cell": "qwen3_B1",
+      "arm": "R12cP",
+      "rounds": "3",
+      "ttft_s": "0.006437089992687106",
+      "ttft_s_range": "2.2446969524025917e-05",
+      "tpot_s": "0.004709009520157822",
+      "tpot_s_range": "6.127474376183169e-06",
+      "e2e_s": "4.823753829114139",
+      "e2e_s_range": "0.006290853256359696",
+      "tok_s": "212.28280635292143",
+      "tok_s_range": "0.27664059393035245",
+      "tm_vllm": "0.9383720459579646",
+      "tm_vllm_range": "0.002420594851602176",
+      "e2e_over_sum_floor": "1.1881109986463456",
+      "e2e_over_sum_floor_range": "0.0015494638013324735",
+      "slope_us_per_100_tokens": "6.994734033090199",
+      "slope_us_per_100_tokens_range": "1.8547864861607612",
+      "tpot_p50_s": "0.004697088",
+      "tpot_p50_s_range": "1.0240000000005106e-06",
+      "tpot_p90_s": "0.004764672",
+      "tpot_p90_s_range": "2.252800000000603e-06"
+    }
+  ],
+  "canaries": [
+    {
+      "matrix": "B5",
+      "cell": "llama_B1",
+      "round": "2",
+      "deviation": "0.048643861834035906",
+      "eligible_reruns": "1"
+    },
+    {
+      "matrix": "A1",
+      "cell": "llama_B16",
+      "round": "2",
+      "deviation": "0.02102306611596716",
+      "eligible_reruns": "1"
+    }
+  ],
+  "follow_up": "one permitted repeat of each canary round; no source, compiler, plan, or guard policy change",
+  "seed_budget_followup": "All four decode seed candidates won. The bounded 3600-second budget diagnostic remains an unperformed follow-up; it is not part of the completed primary queue."
+}

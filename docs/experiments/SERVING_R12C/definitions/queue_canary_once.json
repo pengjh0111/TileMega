@@ -1,0 +1,90 @@
+[
+  {
+    "name": "A1_llama_B16_r2__canary_once",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r12c_work/diag/docs/experiments/SERVING_R12C/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R12C/definitions/a1.json",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_llama_B16_r2"
+    ],
+    "cwd": "/root/r12c_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r12c_work/diag/python"
+    },
+    "gpu": true,
+    "priority": 85,
+    "after": [
+      "A1_llama_B16_r2"
+    ],
+    "timeout_s": 7200,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/A1_llama_B16_r2",
+    "after_any": []
+  },
+  {
+    "name": "B5_llama_B1_r2__recovery1__canary_once",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R12C/phase_b.py",
+      "anchor",
+      "--matrix",
+      "B5",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R12C/raw/B5_llama_B1_r2"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "TILEMEGA_GPU_LOCK": "/root/r12c_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 85,
+    "after": [
+      "B5_llama_B1_r2__recovery1"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 42793,
+    "retry_args": [],
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/B5_llama_B1_r2"
+  },
+  {
+    "name": "Breport__canary_once",
+    "command": [
+      "flock",
+      "/root/r12c_work/gpu.lock",
+      "env",
+      "TILEMEGA_GPU_LOCK_HELD=1",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R12C/analyze.py"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "TILEMEGA_GPU_LOCK": "/root/r12c_work/gpu.lock"
+    },
+    "gpu": false,
+    "priority": 99,
+    "after": [],
+    "after_any": [
+      "A1_llama_B16_r2__canary_once",
+      "B5_llama_B1_r2__recovery1__canary_once"
+    ],
+    "timeout_s": 1800,
+    "needs_free_mib": 12288,
+    "retry_args": [],
+    "out": "/root/TileMega/docs/experiments/SERVING_R12C/raw/Breport"
+  }
+]
