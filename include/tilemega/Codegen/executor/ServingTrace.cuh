@@ -20,13 +20,13 @@ __device__ inline StepTraceRecord* StepRow(Params const& p,unsigned long long it
 __device__ inline void StepBegin(Params const& p,unsigned long long iteration) {
 #if TILEMEGA_TRACE_STEP
   if(threadIdx.x==0)if(auto* r=StepRow(p,iteration)) {
-    *r={};r->iteration=iteration;r->past=p.dims.past;r->kernel_begin=ServingTraceNow();
+    r->iteration=iteration;r->past=p.dims.past;r->kernel_begin=ServingTraceNow();
   }
 #endif
 }
 __device__ inline void StepEnd(Params const& p,unsigned long long iteration) {
 #if TILEMEGA_TRACE_STEP
-  if(threadIdx.x==0)if(auto* r=StepRow(p,iteration))r->kernel_end=ServingTraceNow();
+  if(threadIdx.x==0)if(auto* r=StepRow(p,iteration))atomicMax(&r->kernel_end,ServingTraceNow());
 #endif
 }
 __device__ inline void TaskBegin(Params const& p,unsigned long long iteration) {
