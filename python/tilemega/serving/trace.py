@@ -58,7 +58,7 @@ def serving_trace(args):
             report = dict(past=past, mode=args.mode, loop=bool(args.decode_loop),
                           launches=args.launches, steps=args.steps,
                           mean_step_ms=begin.elapsed_time(end)/(args.launches*args.steps))
-            (out / "trace.json").write_text(json.dumps(report, indent=2)+"\\n")
+            (out / "trace.json").write_text(json.dumps(report, indent=2)+"\n")
             reports.append(report)
     print(json.dumps(reports))
 
