@@ -1,0 +1,9 @@
+{
+  "idle_power_w": 21.81,
+  "power_margin_w": 30.0,
+  "samples": 6,
+  "interval_s": 5,
+  "max_util_pct": 5,
+  "max_hidden_mib": 1024,
+  "hidden_violations": 3
+}

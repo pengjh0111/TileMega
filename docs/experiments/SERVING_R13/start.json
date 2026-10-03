@@ -1,0 +1,8 @@
+{
+  "baseline": "48c013d1863d5a5af249401be217d4aa4c15d710",
+  "origin": "48c013d1863d5a5af249401be217d4aa4c15d710",
+  "prompt": "/root/Prompt/TileMega_R13_prompt.md",
+  "prompt_sha256": "5adb32833673d7dcd18e6ec02999be9c6bd9ca3216c95f9d9f2b136f8329ace9",
+  "framework_source": "48c013d18",
+  "gpu_lock": "/root/r13_work/gpu.lock"
+}
