@@ -1,0 +1,1117 @@
+[
+  {
+    "name": "Apre",
+    "command": [
+      "flock",
+      "/root/r13_work/gpu.lock",
+      "env",
+      "TILEMEGA_GPU_LOCK_HELD=1",
+      "bash",
+      "-c",
+      "cmake -S /root/r13_work/diag -B /root/r13_work/diag/build-phase13 -DCMAKE_BUILD_TYPE=Release -DMLIR_DIR=/root/toolchains/mlir-23a60f15/lib/cmake/mlir -DLLVM_DIR=/root/toolchains/mlir-23a60f15/lib/cmake/llvm -DTILEMEGA_ISL_BUILD_DIR=/root/TileMega/build-isl -DTILEMEGA_ISL_GENERATED_INCLUDE_DIR=/root/TileMega/build-isl/include -DTILEMEGA_ISL_LIBRARY=/root/TileMega/build-isl/.libs/libisl.a && cmake --build /root/r13_work/diag/build-phase13 --target tilemega -j 6 && python3 /root/r13_work/diag/python/tilemega/fingerprint.py --check /root/r13_work/diag/build-phase13/tools/tilemega"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": false,
+    "priority": 0,
+    "after": [],
+    "after_any": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/Apre"
+  },
+  {
+    "name": "MB-1a",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/dram_ceiling.py",
+      "--binary",
+      "/root/r13_work/tilemega-loadbench",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1a"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 3,
+    "after": [],
+    "after_any": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1a"
+  },
+  {
+    "name": "A0",
+    "command": [
+      "flock",
+      "/root/r13_work/gpu.lock",
+      "env",
+      "TILEMEGA_GPU_LOCK_HELD=1",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/builds_r13.py",
+      "--jobs",
+      "/root/TileMega/docs/experiments/SERVING_R13/jobs_a.json",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/builds_a.json"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": false,
+    "priority": 4,
+    "after": [
+      "Apre"
+    ],
+    "after_any": [],
+    "timeout_s": 21600,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A0"
+  },
+  {
+    "name": "A0s",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "smoke",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A0s"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 5,
+    "after": [
+      "A0"
+    ],
+    "after_any": [],
+    "timeout_s": 3600,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A0s"
+  },
+  {
+    "name": "A1_llama_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A1",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_llama_B1_r0"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_llama_B1_r0"
+  },
+  {
+    "name": "A1_llama_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A1",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_llama_B1_r1"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_llama_B1_r1"
+  },
+  {
+    "name": "A1_llama_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A1",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_llama_B1_r2"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_llama_B1_r2"
+  },
+  {
+    "name": "A1_qwen3_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A1",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_qwen3_B1_r0"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_qwen3_B1_r0"
+  },
+  {
+    "name": "A1_qwen3_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A1",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_qwen3_B1_r1"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_qwen3_B1_r1"
+  },
+  {
+    "name": "A1_qwen3_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A1",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_qwen3_B1_r2"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_qwen3_B1_r2"
+  },
+  {
+    "name": "A1_llama_B16_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A1",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_llama_B16_r0"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_llama_B16_r0"
+  },
+  {
+    "name": "A1_llama_B16_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A1",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_llama_B16_r1"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_llama_B16_r1"
+  },
+  {
+    "name": "A1_llama_B16_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A1",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_llama_B16_r2"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_llama_B16_r2"
+  },
+  {
+    "name": "A1_qwen3_B16_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A1",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_qwen3_B16_r0"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_qwen3_B16_r0"
+  },
+  {
+    "name": "A1_qwen3_B16_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A1",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_qwen3_B16_r1"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_qwen3_B16_r1"
+  },
+  {
+    "name": "A1_qwen3_B16_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A1",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_qwen3_B16_r2"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 10,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 42793,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A1_qwen3_B16_r2"
+  },
+  {
+    "name": "A2_llama_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A2",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_llama_B1_r0"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_llama_B1_r0"
+  },
+  {
+    "name": "A2_llama_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A2",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_llama_B1_r1"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_llama_B1_r1"
+  },
+  {
+    "name": "A2_llama_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A2",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_llama_B1_r2"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_llama_B1_r2"
+  },
+  {
+    "name": "A2_qwen3_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A2",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_qwen3_B1_r0"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_qwen3_B1_r0"
+  },
+  {
+    "name": "A2_qwen3_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A2",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_qwen3_B1_r1"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_qwen3_B1_r1"
+  },
+  {
+    "name": "A2_qwen3_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A2",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_qwen3_B1_r2"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_qwen3_B1_r2"
+  },
+  {
+    "name": "A2_llama_B16_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A2",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_llama_B16_r0"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_llama_B16_r0"
+  },
+  {
+    "name": "A2_llama_B16_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A2",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_llama_B16_r1"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_llama_B16_r1"
+  },
+  {
+    "name": "A2_llama_B16_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A2",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_llama_B16_r2"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_llama_B16_r2"
+  },
+  {
+    "name": "A2_qwen3_B16_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A2",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_qwen3_B16_r0"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_qwen3_B16_r0"
+  },
+  {
+    "name": "A2_qwen3_B16_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A2",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_qwen3_B16_r1"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_qwen3_B16_r1"
+  },
+  {
+    "name": "A2_qwen3_B16_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "anchor",
+      "--matrix",
+      "A2",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_qwen3_B16_r2"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 20,
+    "after": [
+      "A0s"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/A2_qwen3_B16_r2"
+  },
+  {
+    "name": "MB-1b",
+    "command": [
+      "/root/r13_work/tilemega-loadbench",
+      "--suite",
+      "b",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1b/loadbench.json"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 15,
+    "after": [
+      "MB-1a"
+    ],
+    "after_any": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1b"
+  },
+  {
+    "name": "MB-1c",
+    "command": [
+      "/root/r13_work/tilemega-loadbench",
+      "--suite",
+      "c",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1c/loadbench.json"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 15,
+    "after": [
+      "MB-1a"
+    ],
+    "after_any": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1c"
+  },
+  {
+    "name": "MB-1d",
+    "command": [
+      "/root/r13_work/tilemega-loadbench",
+      "--suite",
+      "d",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1d/loadbench.json"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 15,
+    "after": [
+      "MB-1a"
+    ],
+    "after_any": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1d"
+  },
+  {
+    "name": "MB-1e",
+    "command": [
+      "/root/r13_work/tilemega-loadbench",
+      "--suite",
+      "e",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1e/loadbench.json"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 15,
+    "after": [
+      "MB-1a"
+    ],
+    "after_any": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1e"
+  },
+  {
+    "name": "MB-1f",
+    "command": [
+      "/root/r13_work/tilemega-loadbench",
+      "--suite",
+      "f",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1f/loadbench.json"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": true,
+    "priority": 15,
+    "after": [
+      "MB-1a"
+    ],
+    "after_any": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1f"
+  },
+  {
+    "name": "Achoose",
+    "command": [
+      "flock",
+      "/root/r13_work/gpu.lock",
+      "env",
+      "TILEMEGA_GPU_LOCK_HELD=1",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r13_work/diag/docs/experiments/SERVING_R13/phase_a.py",
+      "prefill",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/Achoose"
+    ],
+    "cwd": "/root/r13_work/diag",
+    "env": {
+      "PYTHONPATH": "/root/r13_work/diag/python",
+      "TILEMEGA_BIN": "/root/r13_work/diag/build-phase13/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "48c013d1863d5a5af249401be217d4aa4c15d710",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": false,
+    "priority": 21,
+    "after": [],
+    "after_any": [
+      "A1_llama_B1_r0",
+      "A1_llama_B1_r1",
+      "A1_llama_B1_r2",
+      "A1_qwen3_B1_r0",
+      "A1_qwen3_B1_r1",
+      "A1_qwen3_B1_r2",
+      "A1_llama_B16_r0",
+      "A1_llama_B16_r1",
+      "A1_llama_B16_r2",
+      "A1_qwen3_B16_r0",
+      "A1_qwen3_B16_r1",
+      "A1_qwen3_B16_r2"
+    ],
+    "timeout_s": 600,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/Achoose"
+  }
+]
