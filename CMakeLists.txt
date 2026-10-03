@@ -261,6 +261,15 @@ if(TILEMEGA_TARGET_ARCH STREQUAL "auto")
     $<$<COMPILE_LANGUAGE:CUDA>:-arch=native>)
 endif()
 
+# Independent loading probes share only architecture and async primitives.
+add_executable(tilemega-loadbench EXCLUDE_FROM_ALL tools/experimental/loadbench/main.cu)
+target_include_directories(tilemega-loadbench PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/include)
+target_link_libraries(tilemega-loadbench PRIVATE CUDA::cudart)
+set_target_properties(tilemega-loadbench PROPERTIES CUDA_STANDARD 17)
+target_compile_options(tilemega-loadbench PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+tilemega_configure_cuda_target(tilemega-loadbench)
+
 add_test(NAME scalar_cost_errors COMMAND tilemega probe scalar-error-probe "${CMAKE_SOURCE_DIR}")
 
 add_test(NAME coupling_interface_gqa2 COMMAND tilemega probe interface-probe "${CMAKE_SOURCE_DIR}" gqa2)
