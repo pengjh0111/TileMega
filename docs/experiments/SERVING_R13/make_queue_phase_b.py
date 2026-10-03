@@ -10,6 +10,8 @@ def main():
     jobs=copy.deepcopy(json.loads((HERE/'jobs_a.json').read_text()))
     for row in jobs:
         row['out']=str(HERE/'raw/B0b'/row['cell']/row['label']);row['overrides']['pdl']='auto'
+    off=copy.deepcopy(next(r for r in jobs if r['cell']=='llama_B1' and r['label']=='N-R12b-noWD'))
+    off['label']='N-R12b-noWD-pdl-off';off['out']=str(HERE/'raw/B0b/llama_B1'/off['label']);off['overrides']['pdl']='off';jobs.append(off)
     for cell in CELLS:
         model,b=cell.split('_B');so=json.loads((ROOT/f'runs/r12c-{model}/plans.json').read_text())[b]['decode']
         base=next(r for r in jobs if r['cell']==cell and r['label']=='P-R12bN-noWD')
@@ -47,8 +49,9 @@ def main():
     add('B5_protocol',[PY,str(HERE/'phase_b_r13.py'),'protocol','--out',str(HERE/'raw/B5_protocol')],gpu=True,priority=81,after=['B0c'],timeout=14400,retry=['--resume'])
     add('Barch',[PY,str(HERE/'arch_checks.py'),'--nonpaged',str(HERE/'raw/B0b/llama_B1/N-R12b-noWD/plan.so'),
         '--paged',str(HERE/'raw/B0b/llama_B1/P-R12bN-noWD/plan.so'),'--out',str(HERE/'raw/Barch')],priority=82,after=['B0b'],timeout=14400)
+    add('Bidentity',[PY,str(HERE/'identity_r13.py'),'--out',str(HERE/'raw/Bidentity')],priority=83,after=['B0b','A0'],timeout=3600)
     matrices=[s['name'] for s in steps if s.get('gpu')]
-    add('Banalyze',[PY,str(HERE/'analyze.py')],priority=85,after_any=matrices+['Barch'],timeout=3600)
+    add('Banalyze',[PY,str(HERE/'analyze.py')],priority=85,after_any=matrices+['Barch','Bidentity'],timeout=3600)
     a.queue_dir.mkdir(parents=True,exist_ok=True)
     data=json.dumps(steps,indent=2)+'\n';(HERE/'queue_b.json').write_text(data)
     (a.queue_dir/'queue_b.json').write_text(data)

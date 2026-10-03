@@ -24,10 +24,11 @@ def resources(path):
 def main():
     p=argparse.ArgumentParser();p.add_argument('--reference',type=Path,required=True)
     p.add_argument('--candidate',type=Path,required=True);p.add_argument('--out',type=Path,required=True)
-    p.add_argument('--ignore-watchdog-macro',action='store_true');a=p.parse_args();a.out.mkdir(parents=True,exist_ok=True)
+    p.add_argument('--ignore-watchdog-macro',action='store_true');p.add_argument('--ignore-pdl-macro',action='store_true');a=p.parse_args();a.out.mkdir(parents=True,exist_ok=True)
     def source(so):
         text=Path(str(so)+'.cu').read_text()
         if a.ignore_watchdog_macro:text=re.sub(r'^#define TILEMEGA_WATCHDOG [01]\n','',text,flags=re.M)
+        if a.ignore_pdl_macro:text=re.sub(r'^#define TILEMEGA_PDL [01]\n','',text,flags=re.M)
         return text
     old,new=sass(a.reference),sass(a.candidate);differences={}
     for name,lines in old.items():
