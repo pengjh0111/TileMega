@@ -290,7 +290,8 @@ int RunCompile(int argc, char** argv) {
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int kphase_mask=31,v3_poll_ns=0,watchdog=0;
-    int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300;
+    int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
+    std::string candidate_mode="L1";
     bool page_bytes_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
     if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
@@ -342,6 +343,8 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--paged-la") paged_la=std::stoi(value);
       else if (flag=="--paged-la-splitk") paged_la_splitk=std::stoi(value);
       else if (flag=="--candidate-guard-wait-s") candidate_guard_wait_s=std::stoi(value);
+      else if (flag=="--candidate-mode") candidate_mode=value;
+      else if (flag=="--candidate-loop") candidate_loop=std::stoi(value);
       else if (flag=="--watchdog") watchdog=std::stoi(value);
       else if (flag=="--v3-poll-ns") v3_poll_ns=std::stoi(value);
       else if (flag=="--l2-prefetch-depth") prefetch_depth=std::stoi(value);
@@ -459,6 +462,9 @@ int RunCompile(int argc, char** argv) {
             " -DTILEMEGA_EVENT_RED_PUBLISH="+std::to_string(event_red)+
             " -DTILEMEGA_BARRIER_V2="+std::to_string(barrier_v2);
     }
+    if((candidate_mode!="L1" && candidate_mode!="L2") ||
+       (candidate_loop!=0 && candidate_loop!=1))
+      throw std::invalid_argument("candidate mode/loop is invalid");
     if((deferred_norm!=0 && deferred_norm!=1) || (paged_la!=0 && paged_la!=1) ||
        (paged_la_splitk!=0 && paged_la_splitk!=1) || candidate_guard_wait_s<0)
       throw std::runtime_error("invalid serving ablation option");
@@ -811,7 +817,7 @@ int RunCompile(int argc, char** argv) {
         double fastest=std::numeric_limits<double>::infinity();
         std::size_t fastest_index=0;
         std::ofstream selected(std::string(argv[2])+".top3_measured.tsv");
-        selected<<"rank\tmode\tmean_ms\tso\n";
+        selected<<"rank\tmode\tloop\tmean_ms\tso\n";
         std::vector<std::string> candidate_sos;
         std::vector<std::pair<std::string,std::string>> compile_commands;
         for(std::size_t i=0;i<solved.shortlist.size();++i) {
@@ -867,7 +873,7 @@ int RunCompile(int argc, char** argv) {
         std::map<std::pair<std::size_t,std::string>,std::vector<double>> samples;
         std::vector<bool> rejected(candidate_sos.size(),false);
         std::ofstream rounds(std::string(argv[2])+".top3_measure_rounds.tsv");
-        rounds<<"round\trank\tmode\tmean_ms\tartifact\n";
+        rounds<<"round\trank\tmode\tloop\tmean_ms\tartifact\n";
         for(int round=0;round<3;++round)for(std::size_t position=0;
             position<candidate_sos.size();++position) {
           std::size_t i=(position+std::size_t(round))%candidate_sos.size();
@@ -877,7 +883,9 @@ int RunCompile(int argc, char** argv) {
           std::string measure=measure_command+" --so "+quote(candidate_sos[i])+
               " --batch "+std::to_string(serving_batch)+
               " --past-mid "+std::to_string(dims.past)+
-              " --out "+quote(artifact)+" --mode L2 --guard-wait-s "+std::to_string(candidate_guard_wait_s);
+              " --out "+quote(artifact)+" --mode "+candidate_mode+
+              " --loop "+std::to_string(use_pages && candidate_mode=="L2"?candidate_loop:0)+
+              " --guard-wait-s "+std::to_string(candidate_guard_wait_s);
           if(round==0)measure+=" --smoke-steps 16";
           // A deadlocked device kernel otherwise holds the GPU indefinitely.
           // Normal candidate timing takes seconds; a timeout is a failed
@@ -888,7 +896,7 @@ int RunCompile(int argc, char** argv) {
           if(status==75*256)return 75;
           if(status) {
             rejected[i]=true;
-            selected<<i+1<<"\trejected\t"<<status<<'\t'<<artifact<<".stderr\n";
+            selected<<i+1<<"\trejected\t0\t"<<status<<'\t'<<artifact<<".stderr\n";
             continue;
           }
           auto measured_file=llvm::MemoryBuffer::getFile(artifact+"/measurements.json");
@@ -897,10 +905,11 @@ int RunCompile(int argc, char** argv) {
           auto* object=measured?measured->getAsObject():nullptr;
           auto* modes=object?object->getObject("modes"):nullptr;
           if(!modes)throw std::runtime_error("top-3 measurement has no mode table");
-          for(auto const& mode:{"L2"})
+          for(auto const& mode:{candidate_mode})
             if(auto* item=modes->getObject(mode))if(auto mean=item->getNumber("mean_ms")) {
               samples[{i,mode}].push_back(*mean);
-              rounds<<round<<'\t'<<i+1<<'\t'<<mode<<'\t'<<*mean<<'\t'
+              rounds<<round<<'\t'<<i+1<<'\t'<<mode<<'\t'
+                    <<(use_pages && candidate_mode=="L2"?candidate_loop:0)<<'\t'<<*mean<<'\t'
                     <<artifact<<"/measurements.json\n";
             }
           rounds.flush();
@@ -910,11 +919,12 @@ int RunCompile(int argc, char** argv) {
           if(values.size()!=3)throw std::runtime_error("top-3 mode lacks three measurement rounds");
           std::sort(values.begin(),values.end());
           double median=values[1];
-          selected<<key.first+1<<'\t'<<key.second<<'\t'<<median<<'\t'
+          selected<<key.first+1<<'\t'<<key.second<<'\t'
+                  <<(use_pages && candidate_mode=="L2"?candidate_loop:0)<<'\t'<<median<<'\t'
                   <<candidate_sos[key.first]<<'\n';
           if(median<fastest) {
             fastest=median;fastest_index=key.first;
-            selected_serving_mode="L2";
+            selected_serving_mode=candidate_mode;
           }
         }
         if(!std::isfinite(fastest))throw std::runtime_error("top-3 measurements contain no timing");

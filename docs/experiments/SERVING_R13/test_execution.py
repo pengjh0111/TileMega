@@ -22,4 +22,14 @@ class ExecutionTests(unittest.TestCase):
     def test_cli_only_keys_filtered(self):
         f=dict(pg='pages',decode_executor='measure',decode_loop=1,prefill_executor='L1',watchdog=0)
         self.assertEqual(compiler_features(f),dict(pg='pages',watchdog=0))
+    def test_combinations(self):
+        self.assertEqual(set(execution_combinations('pages')), {('L1',0),('L2',0),('L2',1)})
+        self.assertEqual(set(execution_combinations('l2')), {('L1',0),('L2',0),('L1',1)})
+        self.assertEqual(execution_combinations('l2','L1',0), [('L1',0)])
+    def test_joint_choice(self):
+        candidates=[dict(pg='l2',mode='L1',loop=0,samples_ms=[4,3,3]),
+                    dict(pg='pages',mode='L2',loop=1,samples_ms=[2,2,9]),
+                    dict(pg='l2',mode='L1',loop=1,samples_ms=[],error='unsupported')]
+        self.assertEqual(select_execution(candidates)['pg'],'pages')
+        with self.assertRaises(RuntimeError):select_execution(candidates[-1:])
 if __name__=='__main__':unittest.main()

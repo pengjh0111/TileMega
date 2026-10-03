@@ -17,13 +17,13 @@ import statistics
 
 from .cache import atomic_json, export_key, file_sha, key, locked, plan_key, record_outputs, valid_record
 from .fingerprint import ROOT, calibration_stamps, source_fingerprint
-from .serving.execution import compiler_features
+from .serving.execution import compiler_features, execution_combinations, select_execution, write_execution
 
 DEFAULTS = {
     'workload': dict(batch=[1, 16], prompt_len=64, max_new_tokens=1024,
                      prompts='docs/experiments/SERVING_R10/prompts/passages.jsonl'),
     'device': dict(index=0, cache_dir='~/.cache/tilemega'),
-    'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='L2', pruning=True, time_budget_s=600, candidate_guard_wait_s=300),
+    'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='L2', candidate_loop=0, pruning=True, time_budget_s=600, candidate_guard_wait_s=300),
     'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0, watchdog=0, decode_executor="L2", decode_loop=1, prefill_executor="L1"),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
                  vllm_python='/root/venv_vllm/bin/python', policy_file=None),
@@ -116,6 +116,8 @@ def read_config(path: Path) -> dict:
                               decode_loop=[0, 1, 'measure'], prefill_executor=['L1', 'L2']).items():
         if config['features'][name] not in allowed:
             raise ValueError(f'invalid features.{name}')
+    if config['solver']['candidate_loop'] not in (0,1):
+        raise ValueError('solver.candidate_loop must be 0 or 1')
     if config['solver']['mode'] == 'auto':
         config['solver']['mode'] = 'L2'
     if config['solver']['mode'] not in ('L1', 'L2'):
@@ -176,6 +178,7 @@ class Run:
         if gpu and os.environ.get("TILEMEGA_GPU_LOCK_HELD") != "1":
             with locked(self.gpu_lock):
                 self.preflight_gpu(folder / 'guard_preflight.json')
+                environment['TILEMEGA_GPU_LOCK_HELD']='1'
                 status = execute()
         else:
             status = execute()
@@ -332,6 +335,8 @@ class Run:
                     pg_choices = (features['pg'],)
                 elif phase == 'prefill':
                     pg_choices = ('l2',)
+                elif features['pg'] == 'measure':
+                    pg_choices = ('l2', 'pages')
                 else:
                     pg_choices = ('pages',)
                 built = {}
@@ -339,6 +344,9 @@ class Run:
                     choice_features = dict(features, pg=pg, handoff='off',
                                            weight_layout=features['weight_layout'] if pg == 'pages' else 'row')
                     target_inputs = dict(target.get('calibration_sections', {}), target_sha256=file_sha(self.target))
+                    seed_manifest = str(built['l2'])+'.plan.json' if pg=='pages' and 'l2' in built else None
+                    if seed_manifest:
+                        target_inputs['paged_seed_sha256']=file_sha(Path(seed_manifest))
                     digest = plan_key(export, target_inputs, self.version['source_sha256'], {k:v for k,v in settings.items() if k!='candidate_guard_wait_s'},
                                       choice_features, batch, interval)
                     plan = self.cache / 'plans' / digest;plan.mkdir(parents=True, exist_ok=True)
@@ -354,6 +362,7 @@ class Run:
                             '--search-passes', str(settings['passes']), '--top-m', str(settings['top_m']),
                             '--search-jobs', str(settings['jobs']),
                             '--candidate-guard-wait-s', str(settings['candidate_guard_wait_s']),
+                            '--candidate-mode', settings['mode'], '--candidate-loop', str(settings['candidate_loop']),
                             '--search-budget-ms', str(max(1, int(1000 * settings['time_budget_s']) - 200000)),
                             '--serving-pruning', str(int(settings['pruning'])), '--incremental-prepare', '1',
                             '--variant-cache', str(self.cache / 'variants' / self.device_key),
@@ -367,6 +376,8 @@ class Run:
                                 if name == 'pg' and phase == 'prefill' and value == 'pages':
                                     value = 'l2'
                                 options += ['--' + name.replace('_', '-'), str(value)]
+                            if seed_manifest:
+                                options += ["--paged-seed-from", seed_manifest]
                             previous=previous_by_pg.get(pg)
                             if previous:
                                 options += ['--serving-warm-start', str(previous)]
@@ -381,7 +392,46 @@ class Run:
                                 solve_seconds=seconds, budget_s=settings['time_budget_s'], budget_pass=seconds <= settings['time_budget_s'])
                     previous_by_pg[pg] = manifest
                     built[pg] = library
-                selected = next(iter(built))
+                if phase == 'decode':
+                    candidates=[]
+                    for pg, library in built.items():
+                        for mode, loop in execution_combinations(pg, features['decode_executor'], features['decode_loop']):
+                            candidates.append(dict(pg=pg, mode=mode, loop=loop, library=str(library), samples_ms=[]))
+                    selection_inputs=dict(libraries={pg:file_sha(library) for pg,library in built.items()},
+                                          executor=features['decode_executor'], loop=features['decode_loop'],
+                                          prefill_mode=features['prefill_executor'])
+                    choice_path=self.out / f'decode-choice-B{batch}.json'
+                    cached=json.loads(choice_path.read_text()) if choice_path.exists() else {}
+                    if cached.get('inputs')==selection_inputs:
+                        candidates=cached['candidates']
+                    else:
+                        for round in range(3):
+                            ordered=candidates[round:]+candidates[:round]
+                            for candidate in ordered:
+                                if candidate.get('error'):continue
+                                out=self.out / f"decode-choice-B{batch}-{candidate['pg']}-{candidate['mode']}-{candidate['loop']}-r{round}"
+                                command=[sys.executable,'-m','tilemega.serving.measure_candidate','--so',candidate['library'],
+                                         '--model',str(self.model),'--batch',str(batch),'--past-mid','575',
+                                         '--mode',candidate['mode'],'--loop',str(candidate['loop']),
+                                         '--loop-steps','64','--warmup','8','--out',str(out),
+                                         '--guard-wait-s',str(settings['candidate_guard_wait_s'])]
+                                try:
+                                    self.command(command,f"choose-B{batch}-{candidate['pg']}-{candidate['mode']}-{candidate['loop']}-r{round}",gpu=True)
+                                    measured=json.loads((out/'measurements.json').read_text())['modes'][candidate['mode']]
+                                    if bool(measured.get('decode_loop_used'))!=bool(candidate['loop']):
+                                        raise RuntimeError('candidate did not use requested loop')
+                                    candidate['samples_ms'].append(measured['mean_ms'])
+                                except RuntimeError as error:
+                                    candidate['error']=str(error)
+                        atomic_json(choice_path,dict(inputs=selection_inputs,candidates=candidates))
+                    winner=select_execution(candidates)
+                    selected=winner['pg']
+                    serving=write_execution(built[selected],winner['mode'],winner['loop'],features['prefill_executor'],
+                                            selection=winner,stage_one=dict(mode=settings['mode'],loop=settings['candidate_loop']))
+                    result.setdefault(str(batch), {})['decode_pg_choice']=dict(candidates=candidates,selected=winner)
+                    result[str(batch)]['serving']=serving
+                else:
+                    selected = next(iter(built))
                 result.setdefault(str(batch), {})[phase] = str(built[selected])
         atomic_json(self.out / 'plans.json', result)
         return result

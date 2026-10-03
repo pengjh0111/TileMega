@@ -24,7 +24,7 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
                 warmup_override: int | None = None,
                 timed_override: int | None = None,
                 mode_only: str = "L2", guard_wait_s: int = 1800,
-                smoke_steps: int = 0) -> dict:
+                smoke_steps: int = 0, loop: int = 0, loop_steps: int | None = None) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     if not _exclusive(out / "guard.jsonl", "candidate-before", True, guard_wait_s):
         raise SystemExit(75)
@@ -50,6 +50,8 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
         warmup = warmup_override
     if timed_override is not None:
         timed = timed_override
+    if loop_steps is not None:
+        timed = loop_steps
     past = past_mid if plan.info.phase == 1 else 0
     stream = torch.cuda.current_stream()
     clocks_before = _clocks()
@@ -77,7 +79,9 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
             ends = [torch.cuda.Event(enable_timing=True)
                     for _ in range(timed)]
             try:
-                if mode == 2 and plan.info.phase == 1 and paged:
+                if loop and plan.info.phase == 1:
+                    if not instance.loop_modes() & mode:
+                        raise RuntimeError("requested candidate loop is unavailable")
                     if warmup:
                         instance.launch_steps(0, warmup, mode, stream.cuda_stream)
                     starts[0].record(stream)
@@ -102,6 +106,7 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
                 "mean_ms": statistics.mean(values),
                 "median_ms": statistics.median(values),
                 "samples_ms": values,
+                "decode_loop_used": bool(loop and plan.info.phase == 1),
             }
     finally:
         instance.close()
@@ -127,6 +132,8 @@ def main() -> None:
     parser.add_argument("--warmup", type=int, choices=range(0, 33))
     parser.add_argument("--timed", type=int, choices=range(1, 33))
     parser.add_argument("--mode", choices=("L1", "L2"))
+    parser.add_argument("--loop", type=int, choices=(0,1), default=0)
+    parser.add_argument("--loop-steps", type=int)
     parser.add_argument("--guard-wait-s", type=int, default=1800)
     parser.add_argument("--smoke-steps", type=int, default=0)
     args = parser.parse_args()
@@ -149,7 +156,7 @@ def main() -> None:
                 one = measure_one(PlanLibrary(args.so), args.batch, config["vocab_size"],
                                   past, args.out / f"past{past}", args.reverse_modes,
                                   args.warmup, args.timed, args.mode or "L2",
-                                  args.guard_wait_s, args.smoke_steps)
+                                  args.guard_wait_s, args.smoke_steps, args.loop, args.loop_steps)
                 for mode, values in one["modes"].items():
                     by_mode.setdefault(mode, {"by_past": {}})["by_past"][str(past)] = values
             report = dict(plan=str(args.so), batch=args.batch, modes=by_mode)
@@ -158,7 +165,7 @@ def main() -> None:
             report = measure_one(PlanLibrary(args.so), args.batch,
                                  config["vocab_size"], args.past_mid, args.out,
                                  args.reverse_modes, args.warmup, args.timed,
-                                 args.mode or "L2", args.guard_wait_s, args.smoke_steps)
+                                 args.mode or "L2", args.guard_wait_s, args.smoke_steps, args.loop, args.loop_steps)
         del guard_allocation
     print(json.dumps({mode: data.get("mean_ms", data.get("by_past"))
                       for mode, data in report["modes"].items()}))

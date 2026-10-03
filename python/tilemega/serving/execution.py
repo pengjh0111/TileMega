@@ -36,3 +36,20 @@ def resolve_execution(binary,mode,loop,prefill_mode,paged):
     if mode not in ('L1','L2') or prefill_mode not in ('L1','L2') or loop not in (0,1,False,True):
         raise ValueError('invalid serving execution options')
     return mode,bool(loop),prefill_mode
+
+def execution_combinations(pg, executor="measure", loop="measure"):
+    """Only combinations supported by the two serving executors are eligible."""
+    valid=[("L1",0),("L2",0),("L2",1) if pg=="pages" else ("L1",1)]
+    return [(mode,used) for mode,used in valid
+            if executor in ("measure",mode) and loop in ("measure",used)]
+
+def select_execution(candidates):
+    import statistics
+    if not candidates:
+        raise ValueError("no eligible serving execution combination")
+    valid=[c for c in candidates if len(c["samples_ms"])==3 and not c.get("error")]
+    if not valid:
+        raise RuntimeError("no serving execution combination passed three rounds")
+    for c in valid:
+        c["median_ms"]=statistics.median(c["samples_ms"])
+    return min(valid,key=lambda c:(c["median_ms"],c["pg"],c["mode"],c["loop"]))
