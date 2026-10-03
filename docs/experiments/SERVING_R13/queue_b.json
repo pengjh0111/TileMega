@@ -16,11 +16,11 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": false,
-    "priority": 40,
+    "priority": -1,
     "after": [],
     "after_any": [],
     "timeout_s": 7200,
@@ -47,7 +47,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": false,
@@ -86,7 +86,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": false,
@@ -120,7 +120,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": false,
@@ -150,7 +150,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -180,7 +180,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -213,7 +213,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": false,
@@ -253,7 +253,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -286,7 +286,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -321,7 +321,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -356,7 +356,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -391,7 +391,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -426,7 +426,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -461,7 +461,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -496,7 +496,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -531,7 +531,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -566,7 +566,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -601,7 +601,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -632,7 +632,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -663,7 +663,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -694,7 +694,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -724,7 +724,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -759,7 +759,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -794,7 +794,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -829,7 +829,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -864,7 +864,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -899,7 +899,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -934,7 +934,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -969,7 +969,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1004,7 +1004,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1039,7 +1039,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1074,7 +1074,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1105,7 +1105,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1136,7 +1136,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1167,7 +1167,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1197,7 +1197,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1232,7 +1232,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1267,7 +1267,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1302,7 +1302,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1337,7 +1337,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1372,7 +1372,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1407,7 +1407,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1442,7 +1442,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1477,7 +1477,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1512,7 +1512,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1547,7 +1547,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1578,7 +1578,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1609,7 +1609,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1640,7 +1640,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1670,7 +1670,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1705,7 +1705,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1740,7 +1740,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1775,7 +1775,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1810,7 +1810,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1845,7 +1845,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1880,7 +1880,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1915,7 +1915,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1950,7 +1950,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -1985,7 +1985,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -2020,7 +2020,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -2051,7 +2051,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -2082,7 +2082,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -2113,7 +2113,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -2143,7 +2143,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -2176,7 +2176,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": true,
@@ -2214,7 +2214,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": false,
@@ -2246,7 +2246,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": false,
@@ -2277,7 +2277,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
     },
     "gpu": false,

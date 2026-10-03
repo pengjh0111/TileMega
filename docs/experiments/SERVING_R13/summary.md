@@ -84,7 +84,11 @@ Q1（新基线）、Q2（可达上限）、Q3（阶段账本）、Q4（L2 开销
 
 ## 队列与恢复
 
-Phase A 调度器已启动，PID 启动记录 `/root/r13_work/scheduler_launch.pid`；这里没有轮询其运行状态。Phase B 复用该单实例调度器，提交 `queue_b.json` 后原子放入 `/root/r13_work/queue/`，无需重启。所有 GPU 计时经守卫，所有构建/ctest/架构检查共用 `/root/r13_work/gpu.lock`；退出码 75 冷却后重排。Bpre 的编译、指纹与 C++ 子集测试是固定构建前置依赖。Bbaseline_gate 超出已注册止损或缺少干净轮次时会阻止 Phase B 计时，不能绕过。
+Phase A 调度器已启动，PID 启动记录 `/root/r13_work/scheduler_launch.pid`。用户请求检查时读取了一次状态：3 个准备步骤失败、90 个依赖步骤 skipped、1 个无数据 prefill 回退步骤 done、8 个 pending，没有正在计时的子进程。GPU 守卫因不可见占用拒绝了 7 次预检，未产生可接受的性能数据。原状态、日志、占用记录保存在 `raw/recovery_01/`。
+
+恢复修正：diag 的 CMake 增加 polylib/barvinok 构建路径；单层 fixture 保留并重映射仍有输入的 4 条 guard，删除的只是已移除层输入的 guard。随后真实 split-four 用例暴露访问见证的 arithmetic 被硬编码为 gemm/sum，修复为保留任务原签名。这是 FX-21 元数据修正，不是新增性能优化。Bpre 优先执行，防止固定构建消耗数小时后才发现主机失败。失败/跳过项与无数据的 Achoose 将重新排队；保留原记录，单实例重启且不延长原 96 h 截止时间。
+
+所有 GPU 计时经守卫，所有构建/ctest/架构检查共用 `/root/r13_work/gpu.lock`；退出码 75 冷却后重排。Bpre 的编译、指纹与 C++ 子集测试是固定构建前置依赖。Bbaseline_gate 缺少干净轮次所致的失败不能当作性能止损已触发；它会在真实 A1 结果完成后重新判定，保护门不绕过。
 
 再次唤起时先读一次 `scheduler/progress.tsv`，按失败步骤的摘要定位；不要重复检查在运行的步骤。Phase B 终态后运行 `analyze.py`，由 `phase_c_inputs.json` 生成、审核并提交 `phase_c_decision.json`，随后才实现/运行已触发的 Phase C 项。没有提交决定前，Phase C 不执行。Phase D 在 Phase C 保留/回退完成后安排。
 

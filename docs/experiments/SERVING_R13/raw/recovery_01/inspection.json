@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-03 05:44:21 UTC",
+  "stopped_scheduler_pid": 81594,
+  "reason": "repair CMake dependency paths and split fixture/access-witness checks; no GPU timing step was running",
+  "state_counts": {
+    "done": 1,
+    "failed": 3,
+    "pending": 8,
+    "skipped": 90
+  },
+  "gpu": "0, 100, 46048, 2490, 323.70\n",
+  "apps": ""
+}

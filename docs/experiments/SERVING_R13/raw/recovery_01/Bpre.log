@@ -1,0 +1,65 @@
+
+ATTEMPT 1 1790999530.2387693
+[0/1] Re-running CMake...
+-- Using MLIR  from /root/toolchains/mlir-23a60f15/lib/cmake/mlir
+-- ISL stack: isl=/root/TileMega/build-isl/.libs/libisl.a polylib=/root/TileMega/build-polylib/.libs/libpolylibgmp.a barvinok=/root/TileMega/build-barvinok/.libs/libbarvinok.a
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /root/TileMega/build-phase12
+[1/13] Building CXX object CMakeFiles/tilemega-unit.dir/test/unit/serving_lag_test.cpp.o
+[2/13] cd /root/TileMega/build-phase12 && /usr/bin/python3.10 /root/TileMega/python/tilemega/fingerprint.py --root /root/TileMega --header /root/TileMega/build-phase12/include/tilemega/Support/BuildFingerprint.h
+[3/13] Building CXX object CMakeFiles/tilemega_commands.dir/tools/commands/calibration-suite.cpp.o
+[4/13] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/PrefetchCalibration.cu.o
+[5/13] Building CXX object CMakeFiles/tilemega.dir/tools/tilemega.cpp.o
+[6/13] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/ServingSyncCalibration.cu.o
+[7/13] Building CXX object CMakeFiles/tilemega_core.dir/lib/Dialect/CouplingGraph/HandoffPass.cpp.o
+[8/13] Linking CXX static library libtilemega.a
+[9/13] Linking CXX executable tilemega-unit
+[10/13] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/ServingPagedCalibration.cu.o
+[11/13] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/ServingTaskCalibration.cu.o
+[12/13] Linking CXX static library libtilemega_calibration.a
+[13/13] Linking CXX executable tools/tilemega
+PASS source fingerprint cc9dc5d65f1b709183b2352405081510d2f32c7bf92ff6cb4dbb2dd5aa76352a
+Internal ctest changing into directory: /root/TileMega/build-phase12
+Test project /root/TileMega/build-phase12
+    Start 30: handoff_runtime_projection
+1/9 Test #30: handoff_runtime_projection .......   Passed    0.13 sec
+    Start 31: handoff_ir
+2/9 Test #31: handoff_ir .......................   Passed    2.09 sec
+    Start 32: handoff_split_four
+3/9 Test #32: handoff_split_four ...............***Failed    0.02 sec
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+guard references an unknown input dimension
+
+    Start 33: handoff_split_one
+4/9 Test #33: handoff_split_one ................***Failed    0.02 sec
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+guard references an unknown input dimension
+
+    Start 34: handoff_split_off
+5/9 Test #34: handoff_split_off ................***Failed    0.02 sec
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+guard references an unknown input dimension
+
+    Start 35: handoff_split_escape
+6/9 Test #35: handoff_split_escape .............***Failed    0.02 sec
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+guard references an unknown input dimension
+
+    Start 36: handoff_access
+7/9 Test #36: handoff_access ...................   Passed    0.13 sec
+    Start 61: serving_lag
+8/9 Test #61: serving_lag ......................   Passed    0.01 sec
+    Start 62: serving_task_index
+9/9 Test #62: serving_task_index ...............   Passed    0.00 sec
+
+56% tests passed, 4 tests failed out of 9
+
+Total Test time (real) =   2.46 sec
+
+The following tests FAILED:
+	 32 - handoff_split_four (Failed)
+	 33 - handoff_split_one (Failed)
+	 34 - handoff_split_off (Failed)
+	 35 - handoff_split_escape (Failed)
+Errors while running CTest
