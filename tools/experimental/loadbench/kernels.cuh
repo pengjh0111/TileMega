@@ -208,18 +208,24 @@ __global__ void Hop(char const* src,std::size_t bytes,bool background,int mode,i
   __syncthreads();
   if(threadIdx.x==0) {times[blockIdx.x*2+1]=Clock();Release(counters);sink[blockIdx.x]=acc;}
 }
-__global__ void ClusterHop(char const* src,std::size_t bytes,int cluster_size,
+__global__ void ClusterHop(char const* src,std::size_t bytes,int cluster_size,bool background,
                           unsigned long long* counters,unsigned long long* times,unsigned* sink) {
   if constexpr(Copy::Caps::kCluster) {
     unsigned acc=0;
+    int foreground=background?gridDim.x/2:gridDim.x;
+    if(int(blockIdx.x)>=foreground) {
+      do {ReadBlock(src+std::size_t(blockIdx.x)*bytes,bytes,acc);}while(Acquire(counters+1)==0);
+      if(threadIdx.x==0)sink[blockIdx.x]=acc;
+      return;
+    }
     ReadBlock(src+std::size_t(blockIdx.x)*bytes,bytes,acc);__syncthreads();
     if(threadIdx.x==0)times[blockIdx.x*2]=Clock();
     asm volatile("barrier.cluster.arrive.aligned;" ::: "memory");
     asm volatile("barrier.cluster.wait.aligned;" ::: "memory");
     if(threadIdx.x==0 && blockIdx.x%cluster_size==0)Release(counters);
-    if(threadIdx.x==0)Wait(counters,gridDim.x/cluster_size);
+    if(threadIdx.x==0)Wait(counters,foreground/cluster_size);
     __syncthreads();
-    if(threadIdx.x==0){times[blockIdx.x*2+1]=Clock();sink[blockIdx.x]=acc;}
+    if(threadIdx.x==0){times[blockIdx.x*2+1]=Clock();sink[blockIdx.x]=acc;Release(counters+1);}
   }
 }
 __global__ void StepStream(char const* src,std::size_t bytes,unsigned* sink,

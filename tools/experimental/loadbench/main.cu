@@ -212,15 +212,16 @@ void Hops(Bench& b) {
                     [&]{latency.push_back(HopLatency(b,background?grid/2:grid));});
     b.Add("MB-1d","\"KiB\":"+std::to_string(kib)+",\"background\":"+(background?"true":"false")+",\"task_events\":"+(policy.first?"true":"false")+",\"kappa\":"+std::to_string(policy.second),stat,double(kib)*1024*(background?grid/2:grid),Median(latency),"hop_ns",latency);
   }
-  if(b.caps.cluster)for(int cluster:{2,4,8})for(int kib:{64,512}) {
-    if(cluster>b.caps.max_cluster_size || grid%cluster) {b.Skip("MB-1d-cluster","cluster size does not divide grid or exceeds caps");continue;}
+  if(b.caps.cluster)for(int cluster:{2,4,8})for(int kib:{64,512})for(bool background:{false,true}) {
+    int foreground=background?grid/2:grid;
+    if(cluster>b.caps.max_cluster_size || grid%cluster || foreground%cluster) {b.Skip("MB-1d-cluster","cluster size does not divide the foreground grid or exceeds caps");continue;}
     Check(cudaFuncSetAttribute(ClusterHop,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
     cudaLaunchAttribute attr{};attr.id=cudaLaunchAttributeClusterDimension;attr.val.clusterDim.x=cluster;attr.val.clusterDim.y=1;attr.val.clusterDim.z=1;
     cudaLaunchConfig_t config{};config.gridDim=dim3(grid);config.blockDim=dim3(128);config.dynamicSmemBytes=shared;config.attrs=&attr;config.numAttrs=1;
     std::vector<double> latency;
-    auto stat=b.Time([&]{Check(cudaLaunchKernelEx(&config,ClusterHop,data.p,std::size_t(kib)*1024,cluster,b.Counters(),b.Times(),b.Sink()));},
-                    [&]{latency.push_back(HopLatency(b,grid));});
-    b.Add("MB-1d-cluster","\"cluster_size\":"+std::to_string(cluster)+",\"KiB\":"+std::to_string(kib),stat,double(kib)*1024*grid,Median(latency),"hop_ns",latency);
+    auto stat=b.Time([&]{Check(cudaLaunchKernelEx(&config,ClusterHop,data.p,std::size_t(kib)*1024,cluster,background,b.Counters(),b.Times(),b.Sink()));},
+                    [&]{latency.push_back(HopLatency(b,foreground));});
+    b.Add("MB-1d-cluster","\"cluster_size\":"+std::to_string(cluster)+",\"KiB\":"+std::to_string(kib)+",\"background\":"+(background?"true":"false"),stat,double(kib)*1024*foreground,Median(latency),"hop_ns",latency);
   }
   else b.Skip("MB-1d-cluster","arch::Caps::kCluster is false");
 }
