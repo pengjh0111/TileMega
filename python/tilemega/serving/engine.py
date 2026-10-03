@@ -19,6 +19,8 @@ class Generation:
     ttft_ms: float
     step_ms: list[float]
     e2e_ms: float
+    decode_loop_used: bool = False
+    step_ns_read: bool = False
 
 
 class ServingEngine:
@@ -26,7 +28,8 @@ class ServingEngine:
                  decode_so: str | Path, batch: int, prompt_len: int = 64,
                  max_new_tokens: int = 1024, mode: str = "auto",
                  device: int = 0, decode_loop: bool = True,
-                 decode_chunk: int | None = None):
+                 decode_chunk: int | None = None, step_events: bool = True,
+                 prefill_mode: str | None = None):
         if prompt_len != 64 or max_new_tokens < 1:
             raise ValueError("the solved request uses a 64-token prompt")
         torch.cuda.set_device(device)
@@ -45,6 +48,7 @@ class ServingEngine:
         decode_pg = (json.loads(decode_manifest.read_text()).get("pg")
                      if decode_manifest.exists() else None)
         self.decode_loop = decode_loop and decode_pg == "pages"
+        self.step_events = bool(step_events)
         self.decode_chunk = decode_chunk
         self.weights = load_weights(model_dir, self.prefill_lib, self.decode_lib,
                                     device=torch.device("cuda", device))
@@ -70,6 +74,10 @@ class ServingEngine:
             self.prefill_mode = self.decode_mode = 2
         else:
             raise ValueError(f"unknown serving mode {mode}")
+        if prefill_mode is not None:
+            if prefill_mode not in ("L1", "L2"):
+                raise ValueError(f"unknown prefill mode {prefill_mode}")
+            self.prefill_mode = {"L1": 1, "L2": 2}[prefill_mode]
         if not (self.prefill_lib.info.modes & self.prefill_mode and
                 self.decode_lib.info.modes & self.decode_mode):
             raise ValueError("requested mode is not in both plan libraries")
@@ -89,7 +97,7 @@ class ServingEngine:
         use_loop = self.decode_mode == 2 and self.decode_loop and count > 1 and bool(
             getattr(self.decode_lib.lib, "tm_plan_launch_steps", None))
         boundaries = [torch.cuda.Event(enable_timing=True)
-                      for _ in range(1 if use_loop else count)]
+                      for _ in range(1 if use_loop or not self.step_events else count)]
         final = torch.cuda.Event(enable_timing=True)
         cpu_tokens = torch.empty((self.batch, count), dtype=torch.int32,
                                  pin_memory=True)
@@ -108,7 +116,8 @@ class ServingEngine:
         else:
             for step in range(count - 1):
                 self.decode.launch(step, self.decode_mode, stream.cuda_stream)
-                boundaries[step + 1].record(stream)
+                if self.step_events:
+                    boundaries[step + 1].record(stream)
         final.record(stream)
         cpu_tokens.copy_(self.state.tokens[:, self.prompt_len:
                                            self.prompt_len + count],
@@ -116,14 +125,16 @@ class ServingEngine:
         stream.synchronize()
         e2e_ms = (time.perf_counter() - wall_start) * 1e3
         step_ms = [start.elapsed_time(boundaries[0])]
-        if use_loop:
+        step_ns_read = use_loop and self.step_events
+        if step_ns_read:
             ns = self.decode.read_step_ns(0, count)
             step_ms.extend((ns[i] - ns[i - 1]) / 1e6
                            for i in range(1, count))
-        else:
+        elif self.step_events:
             step_ms.extend(boundaries[i - 1].elapsed_time(boundaries[i])
                            for i in range(1, count))
-        return Generation(cpu_tokens, step_ms[0], step_ms, e2e_ms)
+        return Generation(cpu_tokens, step_ms[0], step_ms, e2e_ms,
+                          use_loop, step_ns_read)
 
     def close(self) -> None:
         self.decode.close()
