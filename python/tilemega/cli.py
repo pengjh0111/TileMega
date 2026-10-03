@@ -17,13 +17,14 @@ import statistics
 
 from .cache import atomic_json, export_key, file_sha, key, locked, plan_key, record_outputs, valid_record
 from .fingerprint import ROOT, calibration_stamps, source_fingerprint
+from .serving.execution import compiler_features
 
 DEFAULTS = {
     'workload': dict(batch=[1, 16], prompt_len=64, max_new_tokens=1024,
                      prompts='docs/experiments/SERVING_R10/prompts/passages.jsonl'),
     'device': dict(index=0, cache_dir='~/.cache/tilemega'),
     'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='L2', pruning=True, time_budget_s=600, candidate_guard_wait_s=300),
-    'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0, watchdog=1),
+    'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0, watchdog=0, decode_executor="L2", decode_loop=1, prefill_executor="L1"),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
                  vllm_python='/root/venv_vllm/bin/python', policy_file=None),
     'output': dict(dir='runs/{model}-{timestamp}'),
@@ -108,15 +109,17 @@ def read_config(path: Path) -> dict:
         raise ValueError('solver.jobs must be positive')
     if not config['workload']['batch'] or any(not 1 <= b <= 16 for b in config['workload']['batch']):
         raise ValueError('static serving batches must lie in [1,16]')
-    for name, allowed in dict(pg=['off', 'l2', 'pages', 'auto'], handoff=['off', 'auto'],
+    for name, allowed in dict(pg=['off', 'l2', 'pages', 'auto', 'measure'], handoff=['off', 'auto'],
                               sync=['calibrated', 'legacy'], arch_paths=['auto', 'sm80'],
-                              pdl=['auto', 'off'], weight_layout=['row', 'tiled']).items():
+                              pdl=['auto', 'off'], weight_layout=['row', 'tiled'],
+                              decode_executor=['L1', 'L2', 'measure'],
+                              decode_loop=[0, 1, 'measure'], prefill_executor=['L1', 'L2']).items():
         if config['features'][name] not in allowed:
             raise ValueError(f'invalid features.{name}')
     if config['solver']['mode'] == 'auto':
         config['solver']['mode'] = 'L2'
     if config['solver']['mode'] not in ('L1', 'L2'):
-        raise ValueError('solver.mode must be L2 (or L1 for explicit ablation)')
+        raise ValueError('solver.mode must be L1 or L2')
     if not 0 <= int(config['features']['kphase_mask']) <= 31:
         raise ValueError('features.kphase_mask must be in [0,31]')
     if int(config['features']['lookahead_bytes']) not in (-1, 0, 65536, 131072):
@@ -356,7 +359,7 @@ class Run:
                             '--variant-cache', str(self.cache / 'variants' / self.device_key),
                             '--artifact-cache', str(self.cache / 'artifacts'), '--dump-cg', str(plan / 'selected.mlir'),
                             '--measure-cmd', shlex.join([sys.executable, '-m', 'tilemega.serving.measure_candidate', '--model', str(self.model)])]
-                            for name, value in choice_features.items():
+                            for name, value in compiler_features(choice_features).items():
                                 if phase == 'prefill' and name in ('kphase_mask','lookahead_bytes','v3_poll_ns'):
                                     continue
                                 if name == 'handoff' and phase == 'prefill':
@@ -426,7 +429,7 @@ class Run:
             common = ['--model', self.model, '--prompt-ids', prompts, '--batch', batch]
             tilemega = [sys.executable, '-m', 'tilemega.serving.measure', *common,
                 '--prefill-so', pair['prefill'], '--decode-so', pair['decode'], '--out', cell / 'tilemega',
-                '--mode', self.config['solver']['mode'], '--max-new-tokens', self.config['workload']['max_new_tokens'],
+                '--mode', 'auto', '--decode-loop', 'auto', '--prefill-mode', 'auto', '--max-new-tokens', self.config['workload']['max_new_tokens'],
                 '--warmup', settings['warmup'], '--repeats', settings['repeats'], '--policy', self.out / 'measurement_policy.json']
             vllm = [settings['vllm_python'], str(ROOT / 'python/tilemega/serving/vllm_baseline.py'), *common,
                     '--out', cell / 'vllm', '--max-tokens', self.config['workload']['max_new_tokens'],

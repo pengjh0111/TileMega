@@ -289,7 +289,7 @@ int RunCompile(int argc, char** argv) {
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
-    int kphase_mask=31,v3_poll_ns=0,watchdog=1;
+    int kphase_mask=31,v3_poll_ns=0,watchdog=0;
     int deferred_norm=1,paged_la=1,candidate_guard_wait_s=300;
     bool page_bytes_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;

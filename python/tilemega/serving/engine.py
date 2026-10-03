@@ -8,6 +8,7 @@ import time
 
 import torch
 
+from .execution import resolve_execution
 from .plan import PlanLibrary
 from .state import allocate_state
 from .weights import load_weights
@@ -27,7 +28,7 @@ class ServingEngine:
     def __init__(self, model_dir: str | Path, prefill_so: str | Path,
                  decode_so: str | Path, batch: int, prompt_len: int = 64,
                  max_new_tokens: int = 1024, mode: str = "auto",
-                 device: int = 0, decode_loop: bool = True,
+                 device: int = 0, decode_loop: bool | str = True,
                  decode_chunk: int | None = None, step_events: bool = True,
                  prefill_mode: str | None = None):
         if prompt_len != 64 or max_new_tokens < 1:
@@ -47,6 +48,8 @@ class ServingEngine:
         decode_manifest = Path(str(decode_so) + ".plan.json")
         decode_pg = (json.loads(decode_manifest.read_text()).get("pg")
                      if decode_manifest.exists() else None)
+        mode, decode_loop, prefill_mode = resolve_execution(
+            decode_so, mode, decode_loop, prefill_mode, decode_pg == "pages")
         self.decode_loop = decode_loop and decode_pg == "pages"
         self.step_events = bool(step_events)
         self.decode_chunk = decode_chunk

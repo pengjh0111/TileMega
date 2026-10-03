@@ -156,9 +156,9 @@ def main() -> None:
     parser.add_argument("--batch", type=int, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--mode", choices=("auto", "L1", "L2"), default="L2")
-    parser.add_argument("--decode-loop", type=int, choices=(0, 1), default=1)
+    parser.add_argument("--decode-loop", choices=("0", "1", "auto"), default="1")
     parser.add_argument("--step-events", type=int, choices=(0, 1), default=1)
-    parser.add_argument("--prefill-mode", choices=("L1", "L2"))
+    parser.add_argument("--prefill-mode", choices=("L1", "L2", "auto"))
     parser.add_argument("--max-new-tokens", type=int, default=1024)
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--repeats", type=int, default=3)
@@ -171,11 +171,11 @@ def main() -> None:
     _preflight_external_memory(args.out)
     with ServingEngine(args.model, args.prefill_so, args.decode_so,
                        args.batch, max_new_tokens=args.max_new_tokens,
-                       mode=args.mode, decode_loop=bool(args.decode_loop),
+                       mode=args.mode, decode_loop=("auto" if args.decode_loop == "auto" else bool(int(args.decode_loop))),
                        step_events=bool(args.step_events),
                        prefill_mode=args.prefill_mode) as engine:
         result = measure(engine, prompts, args.out, warmup=args.warmup, repeats=args.repeats, policy_path=args.policy)
-    if args.decode_loop == 1 and args.max_new_tokens > 1 and not result["decode_loop_used"]:
+    if args.decode_loop == "1" and args.max_new_tokens > 1 and not result["decode_loop_used"]:
         raise RuntimeError("requested decode loop was not used")
     print(json.dumps({key: value for key, value in result.items()
                       if key != "runs"}))
