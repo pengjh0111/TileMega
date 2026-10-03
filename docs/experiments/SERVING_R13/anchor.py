@@ -31,13 +31,16 @@ def main():
                 source=(root/'python/tilemega/serving/measure.py').read_text()
                 for key,value in [('warmup','1'),('repeats','1'),('policy',str(policy))]:
                     if f'"--{key}"' in source:cmd+=['--'+key,value]
-            else:cmd+=['--decode-loop',str(int(arm['decode_loop'])),'--warmup','1','--repeats','1','--policy',str(policy)]
+            else:cmd+=['--decode-loop',str(int(arm['decode_loop'])),'--prefill-mode',arm.get('prefill_mode','L1'),'--step-events',str(arm.get('step_events',1)),'--warmup','1','--repeats','1','--policy',str(policy)]
         (out/'command.json').write_text(json.dumps(dict(command=cmd,env=arm.get('env',{})),indent=2)+'\n')
         with (out/'stdout.txt').open('w') as stdout,(out/'stderr.txt').open('w') as stderr:
             code=subprocess.run(cmd,cwd=root,env=env,stdout=stdout,stderr=stderr).returncode
         metrics=out/('B'+batch)/'measurements.json' if arm['kind']=='vllm' else out/'measurements.json'
         record=dict(exit_code=code,out=str(out))
-        if code==0 and metrics.exists():record.update(json.loads(metrics.read_text()))
+        if code==0 and metrics.exists():
+            record.update(json.loads(metrics.read_text()))
+            if arm.get('decode_loop') and not record.get('decode_loop_used'):
+                record.update(exit_code=3,error='requested loop was not used')
         result['arms'][arm['label']]=record
         if code==75:
             result['invalidated']=True;(cell/f'round{a.round}.json').write_text(json.dumps(result,indent=2)+'\n');return 75
