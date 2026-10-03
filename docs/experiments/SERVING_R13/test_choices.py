@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import unittest
 from builds_r13 import project
-from choose_r13 import prefill,phase_c,final
+from choose_r13 import prefill,phase_c,final,loop,CELLS
 class Choices(unittest.TestCase):
     def test_prefill_distinguishability(self):
         self.assertEqual(prefill({'llama_B1':{'B0-pfR12b':[10,10.1,9.9],'B0-pfR10':[9,9.1,8.9]}})['llama_B1'],'PF-R10-noWD')
@@ -16,4 +16,10 @@ class Choices(unittest.TestCase):
         g=project(d,'paged')['gemms'][0]
         self.assertEqual(g['tile_n'],128);self.assertEqual(d['gemms'][0]['tile_n'],256)
         self.assertEqual(project(d,'paged',8192)['gemms'][0]['tile_n'],64)
+    def test_l1_loop_stop_loss(self):
+        cells={cell:{'B0l':[.999]*3,'B0-noev':[1]*3} for cell in CELLS}
+        self.assertFalse(loop({'cells':cells})['exclude_l1_loop'])
+        cells['llama_B16']['B0l']=[1.006]*3
+        self.assertTrue(loop({'cells':cells})['exclude_l1_loop'])
+        self.assertTrue(loop({})['exclude_l1_loop'])
 if __name__=='__main__':unittest.main()

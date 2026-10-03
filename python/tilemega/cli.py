@@ -23,7 +23,7 @@ DEFAULTS = {
     'workload': dict(batch=[1, 16], prompt_len=64, max_new_tokens=1024,
                      prompts='docs/experiments/SERVING_R10/prompts/passages.jsonl'),
     'device': dict(index=0, cache_dir='~/.cache/tilemega'),
-    'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='L2', candidate_loop=0, pruning=True, time_budget_s=600, candidate_guard_wait_s=300, prefill_pins={}),
+    'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='L2', candidate_loop=0, pruning=True, time_budget_s=600, candidate_guard_wait_s=300, prefill_pins={}, exclude_l1_loop=False),
     'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0, watchdog=0, decode_executor="L2", decode_loop=1, prefill_executor="L1"),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
                  vllm_python='/root/venv_vllm/bin/python', policy_file=None),
@@ -118,6 +118,8 @@ def read_config(path: Path) -> dict:
             raise ValueError(f'invalid features.{name}')
     if config['solver']['candidate_loop'] not in (0,1):
         raise ValueError('solver.candidate_loop must be 0 or 1')
+    if not isinstance(config['solver']['exclude_l1_loop'],bool):
+        raise ValueError('solver.exclude_l1_loop must be boolean')
     if config['solver']['mode'] == 'auto':
         config['solver']['mode'] = 'L2'
     if config['solver']['mode'] not in ('L1', 'L2'):
@@ -401,10 +403,12 @@ class Run:
                     candidates=[]
                     for pg, library in built.items():
                         for mode, loop in execution_combinations(pg, features['decode_executor'], features['decode_loop']):
+                            if pg!='pages' and mode=='L1' and loop and settings['exclude_l1_loop']:
+                                continue
                             candidates.append(dict(pg=pg, mode=mode, loop=loop, library=str(library), samples_ms=[]))
                     selection_inputs=dict(libraries={pg:file_sha(library) for pg,library in built.items()},
                                           executor=features['decode_executor'], loop=features['decode_loop'],
-                                          prefill_mode=features['prefill_executor'])
+                                          prefill_mode=features['prefill_executor'],exclude_l1_loop=settings['exclude_l1_loop'])
                     choice_path=self.out / f'decode-choice-B{batch}.json'
                     cached=json.loads(choice_path.read_text()) if choice_path.exists() else {}
                     if cached.get('inputs')==selection_inputs:

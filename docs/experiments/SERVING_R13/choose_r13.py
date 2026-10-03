@@ -34,6 +34,15 @@ def phase_c(data):
 def final(data):
     return {cell:('R13F' if data.get(cell,{}).get('R13F') and
         distinguishably_faster(data[cell]['R13F'],data[cell]['B0-D']) else 'B0-D') for cell in CELLS}
+def loop(data):
+    cells=data.get('cells',{});changes={};missing=[]
+    for cell in CELLS:
+        row=cells.get(cell,{})
+        if len(row.get('B0l',[]))!=3 or len(row.get('B0-noev',[]))!=3:
+            missing.append(cell);continue
+        changes[cell]=statistics.median(row['B0l'])/statistics.median(row['B0-noev'])-1
+    return dict(exclude_l1_loop=bool(missing or any(v>.005 for v in changes.values())),
+        relative_changes=changes,missing_cells=missing,rule='any cell worse than +0.5%; missing evidence does not enable a default loop')
 def apply_prefill_pins(here):
     choices=json.loads((here/'defaults_r13.json').read_text())['prefill']
     builds={(r['cell'],r['label']):r for r in json.loads((here/'builds_a.json').read_text())}
@@ -47,7 +56,7 @@ def apply_prefill_pins(here):
         path.write_text(json.dumps(config,indent=2)+'\n')
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--stage',choices=('prefill','phase_c','final','apply-prefill'),required=True)
+    p=argparse.ArgumentParser();p.add_argument('--stage',choices=('prefill','phase_c','final','loop','apply-prefill'),required=True)
     p.add_argument('--input',type=Path,required=True);p.add_argument('--out',type=Path,required=True);a=p.parse_args()
     if a.stage=='apply-prefill':
         apply_prefill_pins(Path(__file__).resolve().parent);return
