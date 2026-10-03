@@ -490,7 +490,7 @@ bool BetterCandidate(SkeletonCandidate const& candidate,
   return std::tie(candidate.shared_bytes,candidate.task_count,candidate.key)<
       std::tie(current.shared_bytes,current.task_count,current.key);
 }
-std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out,std::string& seed_key) {
+std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out,std::string& seed_key,std::vector<std::string>& split1_seed_keys) {
   auto const& options=search.options;
   if(options.passes<1 || options.passes>3)throw std::invalid_argument("coordinate descent supports P=1..3");
   auto const scan_start=std::chrono::steady_clock::now();
@@ -593,6 +593,37 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     for(int k:{1,2,4})for(int r=1;r<=limit;++r){auto i=evaluate(config,k,r);if(evaluated[i].score<evaluated[uniform].score)uniform=i;}
   }
   std::vector<std::size_t> starts{legacy};
+  if(search.imported.plan.serving && options.pg_pages) {
+    int saved_page=search.current_page_bytes;
+    for(int bytes:options.page_choices.empty()?std::vector<int>{saved_page}:options.page_choices) {
+      search.current_page_bytes=bytes;
+      std::vector<GemmConfig> projected;
+      for(auto const& cls:search.classes) {
+        auto id=cls.gemms.front();
+        auto op=search.imported.plan.gemms[id].epilogue;
+        GemmConfig g{16,32,128,2,1};
+        if(!options.paged_seed_gemms.empty()) {
+          if(options.paged_seed_gemms.size()!=search.imported.plan.gemms.size())
+            throw std::invalid_argument("paged seed GEMM count differs");
+          g=options.paged_seed_gemms.at(id);
+          for(auto member:cls.gemms)
+            if(ClassGeometryKey(options.paged_seed_gemms.at(member))!=
+               ClassGeometryKey(options.paged_seed_gemms.at(id)))
+              throw std::invalid_argument("paged seed geometry disagrees within class");
+        }else if(op==frontend::PlanGemm::Epilogue::kSwiGLU ||
+                 op==frontend::PlanGemm::Epilogue::kArgmaxPartial)g={16,128,64,2,1};
+        g.stages=2;g.split_k=1;
+        if(g.tile_n*g.tile_k*2>bytes)g.tile_n=bytes/(2*g.tile_k);
+        projected.push_back(g);
+      }
+      auto index=evaluate(projected,1,1);
+      split1_seed_keys.push_back(evaluated[index].key);
+      starts.push_back(index);
+      out<<"PAGED_SPLIT1_SEED page_bytes="<<bytes<<" key="<<evaluated[index].key
+         <<" error="<<evaluated[index].error<<'\n';
+    }
+    search.current_page_bytes=saved_page;
+  }
   if(uniform!=legacy)starts.push_back(uniform);
   if(search.imported.plan.serving && !options.serving_warm_gemms.empty()) {
     if(options.serving_warm_gemms.size()!=search.imported.plan.gemms.size())
@@ -795,7 +826,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     search.Evaluate(seed,options.kappa,options.seed_residency);
   }
   if(options.evaluation_cases.empty())
-    result.evaluated=CoordinateDescent(search,result.rounds,evidence,result.seed_key);
+    result.evaluated=CoordinateDescent(search,result.rounds,evidence,result.seed_key,result.split1_seed_keys);
   else for(std::size_t i=0;i<options.evaluation_cases.size();++i) {
     auto const& test=options.evaluation_cases[i];
     try {result.evaluated.push_back(search.Evaluate(test.config,test.kappa,test.residency));}
@@ -879,28 +910,44 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
   if(materialized.size()>3)materialized.resize(3);
   if(search.imported.plan.serving && options.top_m>=3 && materialized.size()==3 &&
      !result.seed_key.empty()) {
-    auto present=std::find_if(materialized.begin(),materialized.end(),[&](auto const& item){
-      return item.candidate.key==result.seed_key;
-    });
-    std::string replaced="none";
-    if(present!=materialized.end())present->origin="model+seed";
-    else {
-      auto seed=std::find_if(result.evaluated.begin(),result.evaluated.end(),[&](auto const& c){
-        return c.key==result.seed_key && c.error.empty();
+    std::vector<std::pair<std::string,std::string>> required{{result.seed_key,"seed"}};
+    // Each page size is evaluated. The best legal split-1 seed represents
+    // that family in the three-slot shortlist, alongside the original seed.
+    SkeletonCandidate const* split1=nullptr;
+    for(auto const& key:result.split1_seed_keys)
+      for(auto const& candidate:result.evaluated)
+        if(candidate.key==key && candidate.error.empty() &&
+           (!split1 || BetterCandidate(candidate,*split1,true)))split1=&candidate;
+    if(split1)required.push_back({split1->key,"seed_split1"});
+    std::set<std::string> protected_keys;
+    for(auto const& [key,origin]:required)protected_keys.insert(key);
+    for(auto const& [key,origin]:required) {
+      auto present=std::find_if(materialized.begin(),materialized.end(),[&](auto const& item){
+        return item.candidate.key==key;
       });
-      if(seed!=result.evaluated.end()) {
+      std::string replaced="none";
+      if(present!=materialized.end())
+        present->origin=present->origin=="model"?"model+"+origin:present->origin+"+"+origin;
+      else {
+        auto seed=std::find_if(result.evaluated.begin(),result.evaluated.end(),[&](auto const& c){
+          return c.key==key && c.error.empty();
+        });
+        auto victim=std::find_if(materialized.rbegin(),materialized.rend(),[&](auto const& item){
+          return !protected_keys.count(item.candidate.key);
+        });
+        if(seed==result.evaluated.end() || victim==materialized.rend())continue;
         auto opts=options;opts.kappa=seed->kappa;
         auto a=search.Materialize(*seed,true),b=search.Materialize(*seed,false);
         auto astats=a.candidate.placement,bstats=b.candidate.placement;
-        auto ea=FinalizeSkeletonPoint(std::move(a),opts,options.artifact_prefix+".mseedA");
-        auto eb=FinalizeSkeletonPoint(std::move(b),opts,options.artifact_prefix+".mseedB");
+        auto ea=FinalizeSkeletonPoint(std::move(a),opts,options.artifact_prefix+".m"+origin+"A");
+        auto eb=FinalizeSkeletonPoint(std::move(b),opts,options.artifact_prefix+".m"+origin+"B");
         bool pure=options.pure_template || eb.evaluation.makespan_ns>0.98*ea.evaluation.makespan_ns;
         auto candidate=*seed;candidate.placement=pure?astats:bstats;
-        replaced=materialized.back().candidate.key;
-        materialized.back()={pure?std::move(ea):std::move(eb),candidate,pure,"seed"};
+        replaced=victim->candidate.key;
+        *victim={pure?std::move(ea):std::move(eb),candidate,pure,origin};
       }
+      evidence<<"SEED_IN_TOP3 origin="<<origin<<" key="<<key<<" replaced="<<replaced<<'\n';
     }
-    evidence<<"SEED_IN_TOP3 key="<<result.seed_key<<" replaced="<<replaced<<'\n';
   }
 
   std::ofstream resources(options.artifact_prefix+".resources.tsv");resources<<"rank\tkey\testimated\tactual\tre_solved\tresidency\tflow_ns\tsimulated_ns\n";

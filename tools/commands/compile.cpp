@@ -285,7 +285,7 @@ int RunCompile(int argc, char** argv) {
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
-    std::string serving_phase, emit_mode,measure_command,serving_warm_start,artifact_cache;
+    std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
@@ -328,6 +328,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--emit") emit_mode=value;
       else if (flag=="--measure-cmd") measure_command=value;
       else if (flag=="--serving-warm-start") serving_warm_start=value;
+      else if (flag=="--paged-seed-from") paged_seed_from=value;
       else if (flag=="--sync") sync_policy=value;
       else if (flag=="--arch-paths") arch_paths=value;
       else if (flag=="--pdl") pdl=value;
@@ -591,6 +592,24 @@ int RunCompile(int argc, char** argv) {
             ?std::vector<int>{page_bytes}:std::vector<int>{8192,16384};
         if(use_pages && lookahead_bytes>=0)
           skeleton.lookahead_choices={lookahead_bytes};
+        if(!paged_seed_from.empty()) {
+          if(!use_pages)throw std::invalid_argument("paged seed requires pages");
+          auto file=llvm::MemoryBuffer::getFile(paged_seed_from);
+          if(!file)throw std::invalid_argument("cannot read paged seed manifest");
+          auto parsed=llvm::json::parse(file.get()->getBuffer());
+          auto* object=parsed?parsed->getAsObject():nullptr;
+          auto* gemms=object?object->getArray("gemms"):nullptr;
+          if(!gemms)throw std::invalid_argument("paged seed lacks GEMMs");
+          for(auto const& item:*gemms) {
+            auto* g=item.getAsObject();if(!g)throw std::invalid_argument("invalid seed GEMM");
+            auto value=[&](char const* key) {
+              auto n=g->getInteger(key);if(!n)throw std::invalid_argument("seed lacks geometry");
+              return int(*n);
+            };
+            skeleton.paged_seed_gemms.push_back({value("tile_m"),value("tile_n"),
+                value("tile_k"),value("stages"),value("split_k")});
+          }
+        }
         if(!serving_warm_start.empty()) {
           if(!serving)throw std::runtime_error("warm start needs a serving plan");
           auto file=llvm::MemoryBuffer::getFile(serving_warm_start);
