@@ -569,7 +569,7 @@ extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
       gemm_count*sizeof(gemms[0]),cudaMemcpyDeviceToHost)!=cudaSuccess)return -3;
   auto* out=std::fopen((std::string(directory)+"/runtime_stages.tsv").c_str(),"w");
   if(!out)return -4;
-  std::fprintf(out,"stage\tkind\tname\tweight_bytes\textent\tgroup\twidth\tkv_block\telided\treducer\n");
+  std::fprintf(out,"stage\tkind\tkind_name\tname\tweight_bytes\textent\tgroup\twidth\tkv_block\telided\treducer\n");
   for(unsigned i=0;i<plan->model.stages.size();++i) {
     auto const& stage=plan->model.stages[i];unsigned long long bytes=0;
     char const* name="";
@@ -579,8 +579,9 @@ extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
       if(inv.serving_weight_buffer<plan->model.spec->buffer_count)
         name=plan->model.spec->buffers[inv.serving_weight_buffer].name;
     }
-    std::fprintf(out,"%u\t%u\t%s\t%llu\t%u\t%u\t%u\t%u\t%u\t%u\n",i,
-        unsigned(stage.kind),name,bytes,stage.extent,stage.group,stage.width,
+    char const* kind_name="unknown";switch(stage.kind) {case TaskKind::kGemm:kind_name="kGemm";break;case TaskKind::kRMSNorm:kind_name="kRMSNorm";break;case TaskKind::kRoPE:kind_name="kRoPE";break;case TaskKind::kKVAppend:kind_name="kKVAppend";break;case TaskKind::kElementwise:kind_name="kElementwise";break;case TaskKind::kAttention:kind_name="kAttention";break;case TaskKind::kGemmCombine:kind_name="kGemmCombine";break;case TaskKind::kGemmAdd:kind_name="kGemmAdd";break;case TaskKind::kGemmRMSNorm:kind_name="kGemmRMSNorm";break;case TaskKind::kRoPEKVAppend:kind_name="kRoPEKVAppend";break;case TaskKind::kAdd:kind_name="kAdd";break;case TaskKind::kEmbedding:kind_name="kEmbedding";break;case TaskKind::kQKNorm:kind_name="kQKNorm";break;case TaskKind::kFusedAttention:kind_name="kFusedAttention";break;case TaskKind::kAttentionMerge:kind_name="kAttentionMerge";break;case TaskKind::kArgmaxReduce:kind_name="kArgmaxReduce";break;}
+    std::fprintf(out,"%u\t%u\t%s\t%s\t%llu\t%u\t%u\t%u\t%u\t%u\t%u\n",i,
+        unsigned(stage.kind),kind_name,name,bytes,stage.extent,stage.group,stage.width,
         unsigned(stage.attention_kv_block),unsigned(stage.handoff_elided),
         unsigned(stage.handoff_reduce_stage));
   }
