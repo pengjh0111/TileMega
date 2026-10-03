@@ -1,0 +1,10 @@
+{
+  "status": "verified",
+  "rejected_split_pairs": 48,
+  "reasons": [
+    "handoff requires L-sem on both tasks"
+  ],
+  "selected_last_arriver": "R12_LAST_ARRIVER selected=17",
+  "source_sha256": "7c89d089569706e2b32d3af1f3e7d43ede13a87101a4e302078c34b8777d80a6",
+  "source_path": "/root/r13_work/PS_diagnostic.cu"
+}

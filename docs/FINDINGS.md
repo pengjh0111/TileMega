@@ -9045,3 +9045,7 @@ implementation/final_review.json; final_evidence.tar.xz contains original
 trace data and analyzer errors, accepted paired rounds, HF/mode/protocol
 outputs and guard samples. collection_evidence.tar.xz retains the two
 original flagged rounds before replacement. Thresholds are unchanged.
+
+## F-348: R13 confirms split-K last-arriver rejection before lowering
+
+**verified (CPU)**: Baseline compiler diagnostic selects 17 merge/argmax handoffs and rejects 48 split-K pairs, all with `handoff requires L-sem on both tasks`. The rejected edges connect distinct tile spaces at the same logical stage. Evidence: `SERVING_R13/raw/FX21_diagnosis/command.json`, `diagnostic.log`, `handoff_rejects.txt`, and `result.json`. This confirms R13 F10; it makes no device synchronization claim.
