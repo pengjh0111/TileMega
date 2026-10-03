@@ -147,6 +147,7 @@ void Ceiling(Bench& b,bool replay,Method specified) {
       b.Add("MB-1a-reproduction",MethodFields(baseline,bytes,'A',curve),stat,bytes*std::max(2,int(2.0e9/bytes)));}
   }
 }
+int ResidentShared(Bench const& b);
 void Pages(Bench& b) {
   int grid=b.device.multiProcessorCount;
   {
@@ -156,11 +157,17 @@ void Pages(Bench& b) {
   }
   Buffer data(2048*MiB);
   for(int page_bytes:{8192,16384})for(int pages:{3,4,5,6}) {
-    int shared=1024+page_bytes*pages;if(shared>b.device.sharedMemPerBlockOptin)continue;
+    int pool=1024+page_bytes*pages;
+    // A grid with SM-count blocks alone does not prove one CTA per SM.
+    // Reserve unused shared memory so even the smallest pool is resident once.
+    int shared=std::max(pool,ResidentShared(b));if(shared>b.device.sharedMemPerBlockOptin)continue;
     Check(cudaFuncSetAttribute(PageLoader,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
+    int resident=0;
+    Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&resident,PageLoader,256,shared));
+    if(resident!=1){b.Skip("MB-1b","one resident CTA per SM could not be enforced");continue;}
     for(int warps:{1,2,4})for(bool consume:{false,true}) {
       int per_cta=data.bytes/(grid*page_bytes);double bytes=double(per_cta)*grid*page_bytes;
-      auto fields="\"loader_warps\":"+std::to_string(warps)+",\"page_bytes\":"+std::to_string(page_bytes)+",\"pages\":"+std::to_string(pages)+",\"consume\":"+(consume?"true":"false")+",\"bulk\":false";
+      auto fields="\"reserved_smem_bytes\":"+std::to_string(shared)+",\"resident_limit\":1,\"loader_warps\":"+std::to_string(warps)+",\"page_bytes\":"+std::to_string(page_bytes)+",\"pages\":"+std::to_string(pages)+",\"consume\":"+(consume?"true":"false")+",\"bulk\":false";
       b.Add("MB-1b",fields,b.Time([&]{PageLoader<<<grid,128+32*warps,shared>>>(data.p,per_cta,page_bytes,pages,warps,consume,false,b.Sink());}),bytes);
     }
     if(b.caps.bulk_copy)for(bool consume:{false,true}) {
