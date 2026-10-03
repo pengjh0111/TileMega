@@ -17,13 +17,13 @@ import statistics
 
 from .cache import atomic_json, export_key, file_sha, key, locked, plan_key, record_outputs, valid_record
 from .fingerprint import ROOT, calibration_stamps, source_fingerprint
-from .serving.execution import compiler_features, execution_combinations, select_execution, write_execution
+from .serving.execution import compiler_features, execution_combinations, select_execution, write_execution, pin_prefill
 
 DEFAULTS = {
     'workload': dict(batch=[1, 16], prompt_len=64, max_new_tokens=1024,
                      prompts='docs/experiments/SERVING_R10/prompts/passages.jsonl'),
     'device': dict(index=0, cache_dir='~/.cache/tilemega'),
-    'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='L2', candidate_loop=0, pruning=True, time_budget_s=600, candidate_guard_wait_s=300),
+    'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='L2', candidate_loop=0, pruning=True, time_budget_s=600, candidate_guard_wait_s=300, prefill_pins={}),
     'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0, watchdog=0, decode_executor="L2", decode_loop=1, prefill_executor="L1"),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
                  vllm_python='/root/venv_vllm/bin/python', policy_file=None),
@@ -345,6 +345,9 @@ class Run:
                                            weight_layout=features['weight_layout'] if pg == 'pages' else 'row')
                     target_inputs = dict(target.get('calibration_sections', {}), target_sha256=file_sha(self.target))
                     seed_manifest = str(built['l2'])+'.plan.json' if pg=='pages' and 'l2' in built else None
+                    prefill_pin=settings['prefill_pins'].get(str(batch)) if phase=='prefill' else None
+                    if prefill_pin:
+                        target_inputs['prefill_pin']={k:file_sha(Path(v)) for k,v in prefill_pin.items()}
                     if seed_manifest:
                         target_inputs['paged_seed_sha256']=file_sha(Path(seed_manifest))
                     digest = plan_key(export, target_inputs, self.version['source_sha256'], {k:v for k,v in settings.items() if k!='candidate_guard_wait_s'},
@@ -376,6 +379,8 @@ class Run:
                                 if name == 'pg' and phase == 'prefill' and value == 'pages':
                                     value = 'l2'
                                 options += ['--' + name.replace('_', '-'), str(value)]
+                            if prefill_pin:
+                                options += pin_prefill(prefill_pin['manifest'],prefill_pin['classes'],plan)
                             if seed_manifest:
                                 options += ["--paged-seed-from", seed_manifest]
                             previous=previous_by_pg.get(pg)

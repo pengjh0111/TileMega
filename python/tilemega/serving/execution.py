@@ -53,3 +53,27 @@ def select_execution(candidates):
     for c in valid:
         c["median_ms"]=statistics.median(c["samples_ms"])
     return min(valid,key=lambda c:(c["median_ms"],c["pg"],c["mode"],c["loop"]))
+
+def pin_prefill(manifest, class_file, directory):
+    """Lock the preregistered prefill winner by actual per-GEMM geometry."""
+    import csv
+    data=json.loads(Path(manifest).read_text());gemms={g['index']:g for g in data['gemms']}
+    groups={}
+    with Path(class_file).open() as stream:
+        for row in csv.DictReader(stream,delimiter='\t'):
+            groups.setdefault(int(row['class']),[]).append(int(row['gemm']))
+    if sorted(groups)!=list(range(len(groups))) or set(gemms)!={g for v in groups.values() for g in v}:
+        raise ValueError('prefill pin class coverage differs from manifest')
+    shapes=[];fields=('tile_m','tile_n','tile_k','stages','split_k')
+    for _,members in sorted(groups.items()):
+        values=[{k:int(gemms[g][k]) for k in fields} for g in members]
+        if any(v!=values[0] for v in values):raise ValueError('prefill pin differs within class')
+        shapes.append(values[0])
+    directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
+    (directory/'prefill_domain.json').write_text(json.dumps(dict(geometries=shapes))+'\n')
+    (directory/'prefill_cases.json').write_text(json.dumps(dict(cases=[dict(geometries=shapes,
+        kappa=data['kappa'],residency=data['residency'])]))+'\n')
+    return ['--search-domain',str(directory/'prefill_domain.json'),
+            '--evaluate-configs',str(directory/'prefill_cases.json'),
+            '--serve-kv-block',str(data['attention_kv_block']),
+            '--serve-query-rows',str(data['attention_query_rows'])]

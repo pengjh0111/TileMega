@@ -31,7 +31,7 @@ def main():
                 source=(root/'python/tilemega/serving/measure.py').read_text()
                 for key,value in [('warmup','1'),('repeats','1'),('policy',str(policy))]:
                     if f'"--{key}"' in source:cmd+=['--'+key,value]
-            else:cmd+=['--decode-loop',str(int(arm['decode_loop'])),'--prefill-mode',arm.get('prefill_mode','L1'),'--step-events',str(arm.get('step_events',1)),'--warmup','1','--repeats','1','--policy',str(policy)]
+            else:cmd+=['--decode-loop',str(arm['decode_loop']) if arm['decode_loop']=='auto' else str(int(arm['decode_loop'])),'--prefill-mode',arm.get('prefill_mode','L1'),'--step-events',str(arm.get('step_events',1)),'--warmup','1','--repeats','1','--policy',str(policy)]
         (out/'command.json').write_text(json.dumps(dict(command=cmd,env=arm.get('env',{})),indent=2)+'\n')
         with (out/'stdout.txt').open('w') as stdout,(out/'stderr.txt').open('w') as stderr:
             code=subprocess.run(cmd,cwd=root,env=env,stdout=stdout,stderr=stderr).returncode
@@ -39,7 +39,7 @@ def main():
         record=dict(exit_code=code,out=str(out))
         if code==0 and metrics.exists():
             record.update(json.loads(metrics.read_text()))
-            if arm.get('decode_loop') and not record.get('decode_loop_used'):
+            if arm.get('decode_loop') not in (0,False,'auto') and not record.get('decode_loop_used'):
                 record.update(exit_code=3,error='requested loop was not used')
         result['arms'][arm['label']]=record
         if code==75:

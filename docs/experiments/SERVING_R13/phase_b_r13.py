@@ -29,8 +29,9 @@ def build():
             with (folder/'build.log').open('w') as f:record['exit_code']=run_bounded(command,f,3600)
             if record['exit_code']==0:
                 record['sha256']=hashlib.sha256(dest.read_bytes()).hexdigest()
-                for suffix in ('.plan.json','.cu','.build_command.txt'):
+                for suffix in ('.plan.json','.cu'):
                     Path(str(dest)+suffix).write_bytes(Path(row['so']+suffix).read_bytes())
+                Path(str(dest)+'.build_command.txt').write_text(shlex.join(command)+'\n')
                 Path(str(dest)+'.ptxas.log').write_bytes((folder/'build.log').read_bytes())
             records.append(record);(folder/'record.json').write_text(json.dumps(record,indent=2)+'\n')
     (HERE/'builds_b.json').write_text(json.dumps(records,indent=2)+'\n')
@@ -39,7 +40,7 @@ def arms(matrix):
     originals=json.loads((HERE/'arms.json').read_text())
     builds={(r['cell'],r['label']):r for r in load()}
     a_builds={(r['cell'],r['label']):r for r in json.loads((HERE/'builds_a.json').read_text())}
-    chosen=json.loads((HERE/'defaults_r13.json').read_text());result={}
+    chosen=json.loads((HERE/'defaults_r13.json').read_text())['prefill'];result={}
     for cell in CELLS:
         model,b=cell.split('_B');b=int(b);result[cell]=[]
         for label in LABELS[matrix]:

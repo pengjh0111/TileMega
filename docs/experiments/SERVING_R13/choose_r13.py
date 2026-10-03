@@ -34,9 +34,23 @@ def phase_c(data):
 def final(data):
     return {cell:('R13F' if data.get(cell,{}).get('R13F') and
         distinguishably_faster(data[cell]['R13F'],data[cell]['B0-D']) else 'B0-D') for cell in CELLS}
+def apply_prefill_pins(here):
+    choices=json.loads((here/'defaults_r13.json').read_text())['prefill']
+    builds={(r['cell'],r['label']):r for r in json.loads((here/'builds_a.json').read_text())}
+    for model in ('llama','qwen3'):
+        path=here.parents[2]/f'configs/e2e/{model}_r13.json';config=json.loads(path.read_text())
+        config['solver']['prefill_pins']={}
+        for batch in (1,16):
+            row=builds.get((f'{model}_B{batch}',choices[f'{model}_B{batch}']))
+            if not row or row['exit_code']:raise RuntimeError('selected prefill build unavailable')
+            config['solver']['prefill_pins'][str(batch)]={'manifest':row['so']+'.plan.json','classes':row['so']+'.classes.tsv'}
+        path.write_text(json.dumps(config,indent=2)+'\n')
+
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--stage',choices=('prefill','phase_c','final'),required=True)
+    p=argparse.ArgumentParser();p.add_argument('--stage',choices=('prefill','phase_c','final','apply-prefill'),required=True)
     p.add_argument('--input',type=Path,required=True);p.add_argument('--out',type=Path,required=True);a=p.parse_args()
+    if a.stage=='apply-prefill':
+        apply_prefill_pins(Path(__file__).resolve().parent);return
     a.out.parent.mkdir(parents=True,exist_ok=True)
     a.out.write_text(json.dumps(globals()[a.stage](json.loads(a.input.read_text())),indent=2)+'\n')
 if __name__=='__main__':main()
