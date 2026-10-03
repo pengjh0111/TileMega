@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ctypes as C
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -56,6 +57,10 @@ class PlanLibrary:
         launch_steps = getattr(self.lib, "tm_plan_launch_steps", None)
         read_step_ns = getattr(self.lib, "tm_plan_read_step_ns", None)
         watchdog = getattr(self.lib, "tm_plan_watchdog", None)
+        loop_modes = getattr(self.lib, "tm_plan_loop_modes", None)
+        if loop_modes is not None:
+            loop_modes.argtypes = [C.c_void_p]
+            loop_modes.restype = C.c_uint
         if launch_steps is not None:
             launch_steps.argtypes = [C.c_void_p, C.c_uint32, C.c_uint32,
                                      C.c_uint32, C.c_uint64, C.c_void_p]
@@ -123,6 +128,14 @@ class Plan:
                 self.handle, step, mode, self.iteration[mode], stream) != 0:
             raise RuntimeError("tm_plan_launch failed")
         self.iteration[mode] += 1
+
+    def loop_modes(self) -> int:
+        query = getattr(self.library.lib, "tm_plan_loop_modes", None)
+        if query is not None:
+            return int(query(self.handle))
+        manifest = Path(str(self.library.path) + ".plan.json")
+        paged = manifest.exists() and json.loads(manifest.read_text()).get("pg") == "pages"
+        return 2 if paged and self.library.info.phase == 1 else 0
 
     def launch_steps(self, first: int, count: int, mode: int, stream: int) -> None:
         if not self.library.info.modes & mode:

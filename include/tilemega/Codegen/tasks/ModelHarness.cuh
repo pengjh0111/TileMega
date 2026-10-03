@@ -1380,6 +1380,50 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
   ServingPdlExit();
 }
 
+#if defined(TILEMEGA_SERVING_RUNTIME) && TILEMEGA_SERVING_SEQ==1
+__global__ __launch_bounds__(kHarnessThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
+void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
+    EventCounter* events,unsigned long long base_iteration,
+    unsigned long long* step_ns) {
+  ServingPdlEnter(params[0]);
+  extern __shared__ unsigned char bytes[];
+  auto& smem=*reinterpret_cast<TaskSmem*>(bytes);
+  if(blockIdx.x==0 && threadIdx.x==0 && step_ns) {
+    unsigned long long now;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(now));
+    step_ns[0]=now;
+  }
+  for(unsigned step=0;step<steps;++step) {
+    Params const& p=params[step];
+    auto iteration=base_iteration+step;
+    for(unsigned stage=0;stage<p.stage_count;++stage) {
+      RunStage(p,stage,smem);
+#if TILEMEGA_L2_PREFETCH
+      prefetch::Arrive(events,stage,iteration);
+      if(stage+1<p.stage_count)prefetch::NextStage(p,stage+1);
+      else if(step+1<steps) {
+        Params const& next=params[step+1];
+        for(unsigned s=0;s<next.stage_count;++s)
+          if(next.stages[s].kind==TaskKind::kGemm) {
+            prefetch::NextStage(next,s);break;
+          }
+      }
+      // The acquire plus compute-group barrier is the same publication
+      // protocol as an intra-step stage boundary. No read-only cache alias
+      // may be used for mutable tokens, activations, or KV.
+      prefetch::Wait(events,stage,iteration,&p);
+#else
+      GridBarrier(events,stage,iteration,&p);
+#endif
+    }
+    if(blockIdx.x==0 && threadIdx.x==0 && step_ns) {
+      unsigned long long now;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(now));
+      step_ns[step+1]=now;
+    }
+  }
+  ServingPdlExit();
+}
+#endif
+
 /// L2 is worker-queue driven. Adjacent rows may name different stages; only
 #if TILEMEGA_PREFETCH_RUNTIME
 /// One 16-byte `cp.async` per thread per line. Below sm_80 the copy is an
@@ -1666,6 +1710,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
       for (unsigned i = threadIdx.x; begin + i < end; i += blockDim.x)
         params->shard_arrivals[params->cluster_shard_indices[begin + i]].arrivals = local[i];
   }
+  ServingPdlExit();
 }
 
 #else
@@ -1865,7 +1910,6 @@ inline void ZeroTraceV2(DeviceModel& model) {
   if (model.device_event_publish != nullptr)
     TILEMEGA_CUDA_CHECK(cudaMemset(model.device_event_publish, 0,
                                    model.event_count * sizeof(unsigned long long)));
-  ServingPdlExit();
 }
 #endif
 

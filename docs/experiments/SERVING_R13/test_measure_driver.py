@@ -26,7 +26,7 @@ class DriverTests(unittest.TestCase):
                                                     current_stream=lambda: stream))
         engine = module.ServingEngine.__new__(module.ServingEngine)
         engine.max_new_tokens=4; engine.batch=1; engine.prompt_len=64
-        engine.decode_mode=2; engine.prefill_mode=1; engine.decode_loop=loop
+        engine.decode_mode=2; engine.prefill_mode=1; engine.decode_loop=loop; engine.loop_modes=2
         engine.decode_chunk=None; engine.step_events=step_events
         engine.decode_lib=SimpleNamespace(lib=SimpleNamespace(tm_plan_launch_steps=True))
         engine.prefill=Mock(); engine.decode=Mock()

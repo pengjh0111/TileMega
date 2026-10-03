@@ -50,7 +50,7 @@ class ServingEngine:
                      if decode_manifest.exists() else None)
         mode, decode_loop, prefill_mode = resolve_execution(
             decode_so, mode, decode_loop, prefill_mode, decode_pg == "pages")
-        self.decode_loop = decode_loop and decode_pg == "pages"
+        self.decode_loop = decode_loop
         self.step_events = bool(step_events)
         self.decode_chunk = decode_chunk
         self.weights = load_weights(model_dir, self.prefill_lib, self.decode_lib,
@@ -66,6 +66,7 @@ class ServingEngine:
         except BaseException:
             self.prefill.close()
             raise
+        self.loop_modes = self.decode.loop_modes()
         self.prefill.set_steps([0])
         self.decode.set_steps(list(range(prompt_len,
                                          prompt_len + max_new_tokens - 1)))
@@ -97,7 +98,7 @@ class ServingEngine:
             source = source.pin_memory()
         stream = torch.cuda.current_stream()
         start = torch.cuda.Event(enable_timing=True)
-        use_loop = self.decode_mode == 2 and self.decode_loop and count > 1 and bool(
+        use_loop = bool(self.loop_modes & self.decode_mode) and self.decode_loop and count > 1 and bool(
             getattr(self.decode_lib.lib, "tm_plan_launch_steps", None))
         boundaries = [torch.cuda.Event(enable_timing=True)
                       for _ in range(1 if use_loop or not self.step_events else count)]
