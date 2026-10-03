@@ -205,8 +205,7 @@
       "/root/venvs/tilemega-torch213-cu126/bin/python",
       "/root/TileMega/docs/experiments/SERVING_R13/stop_loss.py",
       "--out",
-      "/root/TileMega/docs/experiments/SERVING_R13/raw/Bbaseline_gate",
-      "--advisory"
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/Bbaseline_gate"
     ],
     "cwd": "/root/TileMega",
     "env": {

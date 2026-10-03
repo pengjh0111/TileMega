@@ -1498,5 +1498,5 @@ Decode uses pages only; nonpaged decode is an explicit baseline and never enters
 | PG-2 / SL-5 | Two page seeds and two-level joint selection | Code implemented; shortlist and D1 pending | SkeletonSearch.cpp; cli.py |
 | TL-2 / MB-1 | Fresh-process ceiling and six loading probes | Code implemented; complete guarded collection pending | SERVING_R13/queue_b.json; tools/experimental/loadbench |
 | CM-1 | Per-task price export and error report | Partial: tools implemented; joins, coverage and residual inference pending | SERVING_R13/cm_report.py |
-| Phase A/B | Frozen builds, four-cell comparisons and correctness | A scheduler launched; B inputs frozen; not accepted as passed | SERVING_R13/freeze.json; scheduler/progress.tsv |
+| Phase A/B | Frozen builds, four-cell comparisons and correctness | A complete; B data collection restored with user-authorized advisory baseline gate; validation pending | SERVING_R13/collection_policy.json; scheduler/progress.tsv |
 | Phase C/D | Registered fixes and final comparison | Not started; requires committed data-driven decision | SERVING_R13/predictions.json |

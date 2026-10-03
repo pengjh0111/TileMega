@@ -54,7 +54,7 @@ def main():
     corrected=HERE/'raw/MB-1b-resident'
     add('MB-1b-resident',[resident_binary,'--suite','b','--out',str(corrected/'loadbench.json')],
         gpu=True,priority=51,after=['Bloadbench','MB-1a-complete'],timeout=7200)
-    add('Bbaseline_gate',[PY,str(HERE/'stop_loss.py'),'--out',str(HERE/'raw/Bbaseline_gate')],priority=49,after_any=[f'A1_{c}_r{r}' for c in CELLS for r in range(3)],timeout=600)
+    add('Bbaseline_gate',[PY,str(HERE/'stop_loss.py'),'--out',str(HERE/'raw/Bbaseline_gate'),'--advisory'],priority=49,after_any=[f'A1_{c}_r{r}' for c in CELLS for r in range(3)],timeout=600)
     add('B0c',[PY,str(HERE/'phase_b_r13.py'),'smoke','--out',str(HERE/'raw/B0c')],gpu=True,priority=50,after=['B0b','Achoose','Bbaseline_gate'],timeout=7200)
     for cell in CELLS:
         add('B1_'+cell,[PY,str(HERE/'phase_b_r13.py'),'B1','--cell',cell,'--out',str(HERE/'raw'/('B1_'+cell))],gpu=True,priority=52,after=['B0c'],timeout=3600)

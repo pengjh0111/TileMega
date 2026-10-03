@@ -110,3 +110,9 @@ verified：已发布的 104 个步骤均进入终态：42 done、4 failed、58 s
 工具恢复后的架构检查：19/19 编译成功，所扫描 FP64 指令总数 0；但 sm_120、PDL_TRIGGER=0 的 PTX 位置检查失败（publication follows late trigger），其余三项位置检查通过。队列步骤 Barch_tool_retry 虽返回 done，不能因此宣称 PD-1 全部通过。非分页参考的源码与 SASS 相同，资源文本比较失败；差异集中在 GemmCombineTaskBody 的 ptxas 同名资源行，需区分新增调用上下文与已有调用，尚未将其当成通过。分页参考与 sm_89 PDL auto/off 的三项比较通过。原 PATH 失败两项保留，新增重试不覆盖原证据。
 
 Banalyze 已输出表格，但缺失阶段/task trace（各 0 行）；空表不能视为 T4–T12 已完成。下一步须先解释基线止损和核实资源/PDL 检查，再恢复被阻挡的 Phase B；保持预注册门槛，不能将跳过项改记为完成。
+
+## 用户授权放宽 Phase B 基线止损
+
+用户最新指示允许后续数据收集，因此仅将 Bbaseline_gate 从阻断改为 advisory 告警（`collection_policy.json`）。原 1% 门槛、Qwen3 B1 +1.8422% 的未达标结果与原因未明记录全部保留，不重新标成性能通过。新的 JSON 同时写 `pass_=false` 与 `collection_allowed=true`；缺失干净轮次仍阻断。verified：两项主机检查通过，确认放行不隐藏回退、也不放行缺失证据（`raw/user_advisory_01/host_checks.log`）。
+
+恢复计划：重排 Bbaseline_gate、58 个由其依赖导致的 skipped 步骤，并在测量结束后重跑 Banalyze，共 60 项。复用已完成构建和 Phase A/MB 结果；原状态/止损/队列保存在 `raw/user_advisory_01/previous_*`。GPU 排他与污染重试、正确性要求、Phase C 保留门槛及 Phase D 选择规则均不变。PDL/资源检查现有失败也不改记通过。本项是用户明确授权的规格偏离，不是重新解释预注册结果。

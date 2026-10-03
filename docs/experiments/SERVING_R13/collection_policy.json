@@ -1,0 +1,17 @@
+{
+  "time": 1791035786.9541748,
+  "authorization": "那么你将phaseb的止损限制放宽，使得后续测试数据能够正常收集，然后将当前的调整改动如实记录就可以了",
+  "scope": "Phase B baseline performance gate only",
+  "original_threshold_rel": 0.01,
+  "new_enforcement": "advisory; regression remains pass_=false but collection_allowed=true when clean evidence is complete",
+  "unmodified": [
+    "GPU exclusion policy and retry code 75",
+    "correctness requirements",
+    "original predictions and performance thresholds for reporting",
+    "Phase C decision and retention rules",
+    "Phase D final selection rules",
+    "frozen product/compiler source"
+  ],
+  "original_failure_evidence": "raw/user_advisory_01/previous_baseline_stop.json",
+  "supersedes": "R13 §2 B0 versus old baseline stop-before-collection enforcement"
+}

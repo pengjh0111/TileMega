@@ -1,0 +1,904 @@
+{
+  "Apre": {
+    "status": "done",
+    "attempts": 2,
+    "enqueued": 1790992864.2844844,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 13856.27096414566,
+    "pid": 94762,
+    "run_s": 158.82562448619865,
+    "exit_code": 0
+  },
+  "MB-1a": {
+    "status": "done",
+    "attempts": 8,
+    "enqueued": 1790992864.284487,
+    "retry_at": 1791004656.9056475,
+    "wait_s": 17380.209782123566,
+    "pid": 106653,
+    "run_s": 92.35651783412322,
+    "exit_code": 0
+  },
+  "A0": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.284488,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 14015.178466558456,
+    "pid": 95833,
+    "run_s": 3364.9441301450133,
+    "exit_code": 0
+  },
+  "A0s": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.284489,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 25422.10515189171,
+    "pid": 127408,
+    "run_s": 59.420469833072275,
+    "exit_code": 0
+  },
+  "A1_llama_B1_r0": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2844899,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 27091.606674194336,
+    "pid": 135613,
+    "run_s": 414.40171856689267,
+    "exit_code": 0
+  },
+  "A1_llama_B1_r1": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.284491,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 27566.23010325432,
+    "pid": 137802,
+    "run_s": 418.51680478896014,
+    "exit_code": 0
+  },
+  "A1_llama_B1_r2": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.284492,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 28044.937786102295,
+    "pid": 140000,
+    "run_s": 417.1963039468974,
+    "exit_code": 0
+  },
+  "A1_qwen3_B1_r0": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.284493,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 30148.67732310295,
+    "pid": 149898,
+    "run_s": 443.99595692707226,
+    "exit_code": 0
+  },
+  "A1_qwen3_B1_r1": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2844937,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 30652.893437623978,
+    "pid": 152225,
+    "run_s": 444.161236386979,
+    "exit_code": 0
+  },
+  "A1_qwen3_B1_r2": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2844944,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 31157.281908273697,
+    "pid": 154549,
+    "run_s": 448.0038416860625,
+    "exit_code": 0
+  },
+  "A1_llama_B16_r0": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2844956,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 25490.29409956932,
+    "pid": 128267,
+    "run_s": 452.9981929960195,
+    "exit_code": 0
+  },
+  "A1_llama_B16_r1": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2844968,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 26067.575251817703,
+    "pid": 130517,
+    "run_s": 452.4023104631342,
+    "exit_code": 0
+  },
+  "A1_llama_B16_r2": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.284498,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 26580.597402334213,
+    "pid": 133390,
+    "run_s": 450.7892261808738,
+    "exit_code": 0
+  },
+  "A1_qwen3_B16_r0": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2844987,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 28522.35422205925,
+    "pid": 142196,
+    "run_s": 483.16525398008525,
+    "exit_code": 0
+  },
+  "A1_qwen3_B16_r1": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2844994,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 29065.744156122208,
+    "pid": 144554,
+    "run_s": 481.2740825940855,
+    "exit_code": 0
+  },
+  "A1_qwen3_B16_r2": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2845001,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 29607.18235039711,
+    "pid": 146914,
+    "run_s": 481.2725033899769,
+    "exit_code": 0
+  },
+  "A2_llama_B1_r0": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.284501,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 33733.103118658066,
+    "pid": 163655,
+    "run_s": 454.8186787911691,
+    "exit_code": 0
+  },
+  "A2_llama_B1_r1": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2845018,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 34248.15087032318,
+    "pid": 165550,
+    "run_s": 454.0938189290464,
+    "exit_code": 0
+  },
+  "A2_llama_B1_r2": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2845025,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 34762.46844816208,
+    "pid": 167573,
+    "run_s": 444.94390031602234,
+    "exit_code": 0
+  },
+  "A2_qwen3_B1_r0": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.284503,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 38270.71582317352,
+    "pid": 176689,
+    "run_s": 482.49442701390944,
+    "exit_code": 0
+  },
+  "A2_qwen3_B1_r1": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2845042,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 38813.43870687485,
+    "pid": 178604,
+    "run_s": 485.2925748710986,
+    "exit_code": 0
+  },
+  "A2_qwen3_B1_r2": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2845063,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 39358.9776468277,
+    "pid": 180533,
+    "run_s": 483.105637047207,
+    "exit_code": 0
+  },
+  "A2_llama_B16_r0": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.284508,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 31959.994909763336,
+    "pid": 157146,
+    "run_s": 501.2642204579897,
+    "exit_code": 0
+  },
+  "A2_llama_B16_r1": {
+    "status": "done",
+    "attempts": 2,
+    "enqueued": 1790992864.284509,
+    "retry_at": 1791025712.2537143,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 33169.37714886665,
+    "pid": 161079,
+    "run_s": 503.492922100937,
+    "exit_code": 0
+  },
+  "A2_llama_B16_r2": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.28451,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 32608.19088101387,
+    "pid": 159145,
+    "run_s": 500.9595598599408,
+    "exit_code": 0
+  },
+  "A2_qwen3_B16_r0": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2845106,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 36537.562742471695,
+    "pid": 170111,
+    "run_s": 527.1722730398178,
+    "exit_code": 0
+  },
+  "A2_qwen3_B16_r1": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2845113,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 37110.64691543579,
+    "pid": 172143,
+    "run_s": 520.2367161859293,
+    "exit_code": 0
+  },
+  "A2_qwen3_B16_r2": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2845118,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 37691.12960600853,
+    "pid": 174727,
+    "run_s": 519.3643186260015,
+    "exit_code": 0
+  },
+  "MB-1b": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2845151,
+    "retry_at": 0,
+    "wait_s": 31666.65436077118,
+    "pid": 156899,
+    "run_s": 27.362991625908762,
+    "exit_code": 0
+  },
+  "MB-1c": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.284516,
+    "retry_at": 0,
+    "wait_s": 31754.220709323883,
+    "pid": 156958,
+    "run_s": 32.98267028480768,
+    "exit_code": 0
+  },
+  "MB-1d": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2845166,
+    "retry_at": 0,
+    "wait_s": 31847.420961618423,
+    "pid": 157024,
+    "run_s": 25.982119313208386,
+    "exit_code": 0
+  },
+  "MB-1e": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790992864.2845173,
+    "retry_at": 0,
+    "wait_s": 31873.451986551285,
+    "pid": 157075,
+    "run_s": 26.068630187073722,
+    "exit_code": 0
+  },
+  "MB-1f": {
+    "status": "done",
+    "attempts": 2,
+    "enqueued": 1790992864.2845182,
+    "retry_at": 1791025064.0568895,
+    "wait_s": 32521.45069861412,
+    "pid": 159076,
+    "run_s": 26.26237230701372,
+    "exit_code": 0
+  },
+  "Achoose": {
+    "status": "done",
+    "attempts": 2,
+    "enqueued": 1790992864.2845187,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 31605.362335443497,
+    "pid": 156879,
+    "run_s": 0.3200878968928009,
+    "exit_code": 0
+  },
+  "Bpre": {
+    "status": "done",
+    "attempts": 2,
+    "enqueued": 1790999530.1531527,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 7171.429314613342,
+    "pid": 94699,
+    "run_s": 18.888814698904753,
+    "exit_code": 0
+  },
+  "B0b": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790999530.1531558,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 10806.777410507202,
+    "pid": 106829,
+    "run_s": 7949.366070674965,
+    "exit_code": 0
+  },
+  "Bloadbench": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790999530.1531577,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 18815.736225366592,
+    "pid": 128229,
+    "run_s": 8.602623092010617,
+    "exit_code": 0
+  },
+  "Bceiling_account": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790999530.1531596,
+    "retry_at": 0,
+    "wait_s": 19277.504370212555,
+    "pid": 130486,
+    "run_s": 0.11983629316091537,
+    "exit_code": 0
+  },
+  "MB-1a-complete": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790999530.1531613,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 33236.399502277374,
+    "pid": 182452,
+    "run_s": 95.02916086209007,
+    "exit_code": 0
+  },
+  "MB-1b-resident": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790999530.153163,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 33391.60436749458,
+    "pid": 182641,
+    "run_s": 27.360740778967738,
+    "exit_code": 0
+  },
+  "Bbaseline_gate": {
+    "status": "failed",
+    "attempts": 2,
+    "enqueued": 1790999530.1531646,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 24939.894122600555,
+    "pid": 156885,
+    "run_s": 0.5710611720569432,
+    "exit_code": 3
+  },
+  "B0c": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531658,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B1_llama_B1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531696,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2_llama_B1_r0": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531765,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2_llama_B1_r1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531777,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2_llama_B1_r2": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153179,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3_llama_B1_r0": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531801,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3_llama_B1_r1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153181,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3_llama_B1_r2": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531825,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4_llama_B1_r0": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531835,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4_llama_B1_r1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531844,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4_llama_B1_r2": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531858,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2trace_llama_B1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153187,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3trace_llama_B1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153188,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4trace_llama_B1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531894,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B5_llama_B1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531904,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B1_qwen3_B1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531916,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2_qwen3_B1_r0": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153193,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2_qwen3_B1_r1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153194,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2_qwen3_B1_r2": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531954,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3_qwen3_B1_r0": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531966,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3_qwen3_B1_r1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1531975,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3_qwen3_B1_r2": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153199,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4_qwen3_B1_r0": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4_qwen3_B1_r1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532009,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4_qwen3_B1_r2": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532018,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2trace_qwen3_B1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532032,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3trace_qwen3_B1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532042,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4trace_qwen3_B1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532052,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B5_qwen3_B1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532063,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B1_llama_B16": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532075,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2_llama_B16_r0": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532097,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2_llama_B16_r1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153211,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2_llama_B16_r2": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153213,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3_llama_B16_r0": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532147,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3_llama_B16_r1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153216,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3_llama_B16_r2": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153217,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4_llama_B16_r0": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153218,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4_llama_B16_r1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532192,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4_llama_B16_r2": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532207,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2trace_llama_B16": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532218,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3trace_llama_B16": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532235,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4trace_llama_B16": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532245,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B5_llama_B16": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532257,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B1_qwen3_B16": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153227,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2_qwen3_B16_r0": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153232,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2_qwen3_B16_r1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532354,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2_qwen3_B16_r2": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532373,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3_qwen3_B16_r0": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532388,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3_qwen3_B16_r1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532397,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3_qwen3_B16_r2": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532412,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4_qwen3_B16_r0": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153242,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4_qwen3_B16_r1": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.153243,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4_qwen3_B16_r2": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532443,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B2trace_qwen3_B16": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532454,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B3trace_qwen3_B16": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532466,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B4trace_qwen3_B16": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532485,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B5_qwen3_B16": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.15325,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "B5_protocol": {
+    "status": "skipped",
+    "attempts": 0,
+    "enqueued": 1790999530.1532514,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01"
+  },
+  "Barch": {
+    "status": "failed",
+    "attempts": 1,
+    "enqueued": 1790999530.1532564,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 19277.702157974243,
+    "pid": 130492,
+    "run_s": 123.91510369884782,
+    "exit_code": 1
+  },
+  "Bidentity": {
+    "status": "failed",
+    "attempts": 1,
+    "enqueued": 1790999530.153258,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 19854.189891576767,
+    "pid": 133370,
+    "run_s": 0.3716618060134351,
+    "exit_code": 1
+  },
+  "Banalyze": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1790999530.153259,
+    "retry_at": 0,
+    "wait_s": 33418.97411298752,
+    "pid": 182700,
+    "run_s": 1.7762594721280038,
+    "exit_code": 0
+  },
+  "Barch_tool_retry": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1791028071.7063446,
+    "retry_at": 0,
+    "wait_s": 0.07499432563781738,
+    "pid": 169798,
+    "run_s": 1329.9723862290848,
+    "exit_code": 0
+  },
+  "Bidentity_tool_retry": {
+    "status": "failed",
+    "attempts": 1,
+    "enqueued": 1791028071.7063468,
+    "retry_at": 0,
+    "wait_s": 1857.3918387889862,
+    "pid": 172072,
+    "run_s": 45.74862345610745,
+    "exit_code": 1
+  }
+}
