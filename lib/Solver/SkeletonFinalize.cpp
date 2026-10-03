@@ -42,6 +42,20 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
   SimulatorOptions sim;sim.observed_task_times=true;sim.flat_hop=true;
   if(point.flow) {
     input.task_price_parts=ExpandFlowPrices(*point.flow);
+    std::ofstream prices(prefix+".task_prices.tsv");
+    prices<<std::setprecision(17)
+          <<"stage\ttask\tspace\tcategory\tfixed_ns\tcompute_ns\tdram_bytes\tdram_rate_cap\tpredicted_ns\tdram_gbps\thandoff_priced\n";
+    std::size_t price_index=0;
+    for(std::size_t stage=0;stage<point.flow->flow.spaces.size();++stage) {
+      auto const& space=point.flow->flow.spaces[stage];
+      for(int task=0;task<space.count;++task,++price_index) {
+        auto const& price=input.task_price_parts.at(price_index);
+        prices<<stage<<'\t'<<task<<'\t'<<space.name<<'\t'<<space.category<<'\t'
+              <<price.fixed_ns<<'\t'<<price.compute_ns<<'\t'<<price.dram_bytes<<'\t'
+              <<price.dram_rate_cap<<'\t'<<problem.task_ns.at(price_index)<<'\t'
+              <<point.flow->flow.dram_gbps<<"\toff\n";
+      }
+    }
     for(auto const& space:point.flow->flow.spaces)
       input.inline_reducer.insert(input.inline_reducer.end(),space.count,
           space.fused_reducer ? 1 : 0);
