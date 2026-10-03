@@ -3388,7 +3388,7 @@ inline void DumpTraceV2(DeviceModel const& model, char const* fixture_dir,
   std::fprintf(dag_file, "constexpr StageDependency kDependencies0[] = {\n");
   for (auto const& e : model.trace_runtime_dependencies)
     std::fprintf(dag_file, "  {%uu, %uu, StageDependency::Map::%s, %uu, %d, %d, %uu},\n",
-        e.producer, e.consumer, e.map==StageDependency::Map::kAll ? "kAll" : "kWindow",
+        e.producer, e.consumer, e.map==StageDependency::Map::kAll ? "kAll" : e.map==StageDependency::Map::kPhase ? "kPhase" : "kWindow",
         e.div, e.scale, e.offset, e.count);
   std::fprintf(dag_file, "};\n"); std::fclose(dag_file);
 #if TILEMEGA_TRACE_PHASE

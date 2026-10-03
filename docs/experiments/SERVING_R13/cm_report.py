@@ -47,16 +47,21 @@ def rerank(plan,corrections):
         # A report-only critical-chain correction. It is explicitly an
         # inference; it does not rerun the scheduler or refit the target.
         source=Path(r.get('source',''));prefix=str(source).removesuffix('.cu')
-        chain=Path(prefix+'.flow_chain.tsv');delta=0;used=0
+        chain=Path(prefix+'.flow_chain.tsv');parts=Path(prefix+'.flow_parts.tsv');delta=0;used=0
+        byte_by_stage=defaultdict(list)
+        if parts.exists():
+            for part in read(parts):byte_by_stage[int(part['stage'])].append(float(part['dram_bytes_per_task']))
         if chain.exists():
             for link in read(chain):
                 c=corrections.get(link['category'])
                 if c:
-                    delta+=c['fixed_ns_bias'];used+=1
+                    bytes_=byte_by_stage.get(int(link['stage']),[])
+                    byte_value=statistics.mean(bytes_) if bytes_ else 0
+                    delta+=c['fixed_ns_bias']+(c['byte_ns_bias'] or 0)*byte_value;used+=1
         adjusted[rank]=float(r['predicted_ns'])+delta
         rows.append(dict(plan=str(plan),rank=rank,old_predicted_ns=float(r['predicted_ns']),
             corrected_ns=adjusted[rank],measured_ns=measured.get(rank),corrected_links=used,
-            method='inferred additive fixed residual on exported critical chain; byte term needs per-link byte join'))
+            method='inferred fixed and byte residual on exported critical chain; equal-weight price-piece byte mean when task mapping is unavailable'))
     correlation=tau(adjusted,measured)
     for row in rows:row['corrected_tau']=correlation
     return rows
