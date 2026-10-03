@@ -44,6 +44,7 @@
 #include <tilemega/Codegen/tasks/KVAppendTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/ServingLag.h>
+#include <tilemega/Codegen/executor/ServingTrace.cuh>
 #include <tilemega/Codegen/tasks/Placement.cuh>
 #include <tilemega/Codegen/tasks/QKNormTaskBody.h>
 #include <tilemega/Codegen/tasks/RMSNormTaskBody.h>
@@ -1287,6 +1288,7 @@ __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
                                    unsigned long long iteration,Params const* params=nullptr) {
 #if TILEMEGA_SYNC_V3 && !TILEMEGA_UNSAFE_NO_GRID_SYNC
   __syncthreads();
+  executor::StageTasksEnd(params,stage,iteration);
   if(threadIdx.x==0) {
     RedRelease(&events[stage].arrivals,1ull);
     Watch watch{params?params->serving_watchdog:nullptr,
@@ -1367,15 +1369,21 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
+#if TILEMEGA_TRACE_STAGE
+    int tasks=ActiveBlocks(*params,params->stages[stage]);
+    executor::StageBegin(*params,stage,iteration,
+        tasks>int(blockIdx.x)?(tasks-blockIdx.x+gridDim.x-1)/gridDim.x:0);
+#endif
     RunStage(*params, stage, smem);
 #if TILEMEGA_L2_PREFETCH
     static_assert(TILEMEGA_GENERATED_CLUSTER_DIM==1,"split grid barrier requires the flat grid protocol");
-    prefetch::Arrive(events,stage,iteration);
+    prefetch::Arrive(events,stage,iteration,params);
     prefetch::NextStage(*params,stage+1);
     prefetch::Wait(events,stage,iteration,params);
 #else
     GridBarrier(events, stage, iteration,params);
 #endif
+    executor::StageRelease(*params,stage,iteration);
   }
   ServingPdlExit();
 }
@@ -1396,9 +1404,14 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
     Params const& p=params[step];
     auto iteration=base_iteration+step;
     for(unsigned stage=0;stage<p.stage_count;++stage) {
+#if TILEMEGA_TRACE_STAGE
+      int tasks=ActiveBlocks(p,p.stages[stage]);
+      executor::StageBegin(p,stage,iteration,
+          tasks>int(blockIdx.x)?(tasks-blockIdx.x+gridDim.x-1)/gridDim.x:0);
+#endif
       RunStage(p,stage,smem);
 #if TILEMEGA_L2_PREFETCH
-      prefetch::Arrive(events,stage,iteration);
+      prefetch::Arrive(events,stage,iteration,&p);
       if(stage+1<p.stage_count)prefetch::NextStage(p,stage+1);
       else if(step+1<steps) {
         Params const& next=params[step+1];
@@ -1414,6 +1427,7 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
 #else
       GridBarrier(events,stage,iteration,&p);
 #endif
+      executor::StageRelease(p,stage,iteration);
     }
     if(blockIdx.x==0 && threadIdx.x==0 && step_ns) {
       unsigned long long now;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(now));

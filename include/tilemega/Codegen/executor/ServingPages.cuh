@@ -467,9 +467,10 @@ __device__ inline void Publish(Params const& p,EventCounter* events,unsigned sta
 #endif
 }
 __device__ inline void StageBarrier(EventCounter* events,unsigned stage,unsigned long long iteration,
-                                    Watch const* watch=nullptr) {
+                                    Watch const* watch=nullptr,Params const* params=nullptr) {
 #if TILEMEGA_SYNC_V3
   ComputeSync();
+  executor::StageTasksEnd(params,stage,iteration);
   if(ComputeThread()==0) {
     RedRelease(&events[stage].arrivals,1ull);
     Watch here=watch?*watch:Watch{};here.site=9;here.row=stage;
@@ -554,6 +555,8 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
       watch.waiter_stage=stage;
       wait_previous(stage);
       int count=ActiveBlocks(p,p.stages[stage]);
+      if constexpr(!Loader)executor::StageBegin(p,stage,iteration,
+          count>int(blockIdx.x)?(count-blockIdx.x+gridDim.x-1)/gridDim.x:0);
       for(int task=blockIdx.x;task<count;task+=gridDim.x)
         {
           watch.waiter_task=task;
@@ -562,7 +565,8 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
               if constexpr(!Loader)ComputeSync();
         }
       if constexpr(!Loader) {
-        StageBarrier(events,stage,iteration,&watch);
+        StageBarrier(events,stage,iteration,&watch,&p);
+        executor::StageRelease(p,stage,iteration);
       }
     }
   }

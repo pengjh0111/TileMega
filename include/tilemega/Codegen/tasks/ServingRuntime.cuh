@@ -42,6 +42,15 @@ struct Plan {
   executor::TensorMap* tensor_maps = nullptr;
   LagDependency* lag_dependencies = nullptr;
   PageTraceRecord* page_trace = nullptr;
+#if TILEMEGA_TRACE_STAGE
+  StageTraceRecord* stage_trace=nullptr;
+#endif
+#if TILEMEGA_TRACE_STEP
+  StepTraceRecord* step_trace=nullptr;
+#endif
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
+  unsigned trace_launches=0;
+#endif
   WatchdogRecord* watchdog = nullptr;
   // L1 grid-barrier rows and L2 task-event rows are disjoint. Ticket equality
   // requires a gap-free sequence for each mode, even when launches alternate.
@@ -165,6 +174,12 @@ inline void Destroy(Plan* plan) {
     }
     cudaFree(plan->page_trace);
   }
+#if TILEMEGA_TRACE_STAGE
+  if(plan->stage_trace)cudaFree(plan->stage_trace);
+#endif
+#if TILEMEGA_TRACE_STEP
+  if(plan->step_trace)cudaFree(plan->step_trace);
+#endif
   if (plan->ring) cudaFree(plan->ring);
   if (plan->step_ns) cudaFree(plan->step_ns);
   if (plan->tensor_maps) cudaFree(plan->tensor_maps);
@@ -383,6 +398,25 @@ extern "C" int tm_plan_set_steps(void* opaque,
   auto* plan = static_cast<serving::Plan*>(opaque);
   if (!plan || !past || !count || plan->ring) return -1;
   std::vector<Params> host(count, plan->model.params);
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
+  auto capacity_env=std::getenv("TILEMEGA_TRACE_LAUNCHES");
+  plan->trace_launches=capacity_env?unsigned(std::strtoul(capacity_env,nullptr,10)):64;
+  if(!plan->trace_launches || plan->trace_launches>4096)return -7;
+#if TILEMEGA_TRACE_STAGE
+  std::size_t stage_bytes=std::size_t(plan->trace_launches)*plan->grid*
+      plan->model.stages.size()*sizeof(StageTraceRecord);
+  if(cudaMalloc(&plan->stage_trace,stage_bytes)!=cudaSuccess)return -5;
+  if(cudaMemset(plan->stage_trace,0,stage_bytes)!=cudaSuccess)return -6;
+  for(auto& p:host)p.serving_stage_trace=plan->stage_trace;
+#endif
+#if TILEMEGA_TRACE_STEP
+  std::size_t step_bytes=std::size_t(plan->trace_launches)*plan->grid*sizeof(StepTraceRecord);
+  if(cudaMalloc(&plan->step_trace,step_bytes)!=cudaSuccess)return -5;
+  if(cudaMemset(plan->step_trace,0,step_bytes)!=cudaSuccess)return -6;
+  for(auto& p:host)p.serving_step_trace=plan->step_trace;
+#endif
+  for(auto& p:host)p.serving_trace_launches=plan->trace_launches;
+#endif
 #if TILEMEGA_PAGED && TILEMEGA_PAGE_TRACE
   if(std::getenv("TILEMEGA_PAGE_TRACE_OUT")) {
     std::size_t bytes=std::size_t(count)*plan->grid*sizeof(PageTraceRecord);
@@ -492,6 +526,67 @@ extern "C" int tm_plan_watchdog(void* opaque,std::uint64_t out[12]) {
   return 1;
 #endif
 }
+
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
+extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
+  using namespace tilemega::codegen;
+  auto* plan=static_cast<serving::Plan*>(opaque);
+  if(!plan || !directory || cudaDeviceSynchronize()!=cudaSuccess)return -1;
+  auto dump=[&](char const* name,auto* device,std::size_t count,char const* header) {
+    using Row=std::remove_pointer_t<decltype(device)>;
+    std::vector<Row> host(count);
+    if(cudaMemcpy(host.data(),device,count*sizeof(Row),cudaMemcpyDeviceToHost)!=cudaSuccess)
+      return false;
+    auto path=std::string(directory)+"/"+name;
+    auto* out=std::fopen(path.c_str(),"w");if(!out)return false;
+    std::fprintf(out,"%s\n",header);
+    for(std::size_t i=0;i<count;++i) {
+      auto* words=reinterpret_cast<unsigned long long const*>(&host[i]);
+      // A zero begin stamp is an unused launch/stage slot.
+      if(!words[2])continue;
+      std::fprintf(out,"%zu",i%plan->grid);
+      for(unsigned j=0;j<sizeof(Row)/sizeof(*words);++j)
+        std::fprintf(out,"\t%llu",words[j]);
+      std::fprintf(out,"\n");
+    }
+    std::fclose(out);return true;
+  };
+#if TILEMEGA_TRACE_STAGE
+  if(!dump("stage_trace.tsv",plan->stage_trace,std::size_t(plan->trace_launches)*
+      plan->model.stages.size()*plan->grid,
+      "worker\titeration\tpast\tt_begin\tt_tasks_end\tt_release\ttasks\tsmid\tstage"))return -2;
+#endif
+#if TILEMEGA_TRACE_STEP
+  if(!dump("step_trace.tsv",plan->step_trace,std::size_t(plan->trace_launches)*plan->grid,
+      "worker\titeration\tpast\tkernel_begin\tkernel_end\tfirst_task\tlast_task\ttoken_lag\tkv_lag\tlast_barrier_wait"))return -2;
+#endif
+  std::size_t gemm_count=0;
+  for(auto const& stage:plan->model.stages)
+    if(stage.kind==TaskKind::kGemm || stage.kind==TaskKind::kGemmCombine)
+      gemm_count=std::max(gemm_count,std::size_t(stage.gemm)+1);
+  std::vector<GemmInvocation> gemms(gemm_count);
+  if(gemm_count && cudaMemcpy(gemms.data(),plan->model.device_gemms,
+      gemm_count*sizeof(gemms[0]),cudaMemcpyDeviceToHost)!=cudaSuccess)return -3;
+  auto* out=std::fopen((std::string(directory)+"/runtime_stages.tsv").c_str(),"w");
+  if(!out)return -4;
+  std::fprintf(out,"stage\tkind\tname\tweight_bytes\textent\tgroup\twidth\tkv_block\telided\treducer\n");
+  for(unsigned i=0;i<plan->model.stages.size();++i) {
+    auto const& stage=plan->model.stages[i];unsigned long long bytes=0;
+    char const* name="";
+    if(stage.kind==TaskKind::kGemm || stage.kind==TaskKind::kGemmCombine) {
+      auto const& inv=gemms[stage.gemm];auto [m,n,k,l]=inv.problem;
+      if(stage.kind==TaskKind::kGemm)bytes=2ull*n*inv.serving_k_total_full;
+      if(inv.serving_weight_buffer<plan->model.spec->buffer_count)
+        name=plan->model.spec->buffers[inv.serving_weight_buffer].name;
+    }
+    std::fprintf(out,"%u\t%u\t%s\t%llu\t%u\t%u\t%u\t%u\t%u\t%u\n",i,
+        unsigned(stage.kind),name,bytes,stage.extent,stage.group,stage.width,
+        unsigned(stage.attention_kv_block),unsigned(stage.handoff_elided),
+        unsigned(stage.handoff_reduce_stage));
+  }
+  std::fclose(out);return 0;
+}
+#endif
 
 #if TILEMEGA_TRACE_V2
 // Diagnostic-only entry point. A trace build is separate from the measured

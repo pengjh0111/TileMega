@@ -646,6 +646,22 @@ struct alignas(8) PageTraceRecord {
   unsigned flags = 0;
 };
 
+#ifndef TILEMEGA_TRACE_STAGE
+#define TILEMEGA_TRACE_STAGE 0
+#endif
+#ifndef TILEMEGA_TRACE_STEP
+#define TILEMEGA_TRACE_STEP 0
+#endif
+struct StageTraceRecord {
+  unsigned long long iteration=0,past=0,t_begin=0,t_tasks_end=0,t_release=0,
+                     tasks=0,smid=0,stage=0;
+};
+struct StepTraceRecord {
+  unsigned long long iteration=0,past=0,kernel_begin=0,kernel_end=0,
+                     first_task=0,last_task=0,token_lag=0,kv_lag=0,
+                     last_barrier_wait=0;
+};
+
 struct Params {
   ModelDims dims;
   ModelElement** buffers;     ///< buffer id -> device pointer
@@ -729,6 +745,15 @@ struct Params {
   std::uint32_t lag_dependency_count = 0;
   WatchdogRecord* serving_watchdog = nullptr;
   unsigned long long serving_watchdog_ns = 0;
+#if TILEMEGA_TRACE_STAGE
+  StageTraceRecord* serving_stage_trace=nullptr;
+#endif
+#if TILEMEGA_TRACE_STEP
+  StepTraceRecord* serving_step_trace=nullptr;
+#endif
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
+  unsigned serving_trace_launches=0;
+#endif
 };
 
 /// Everything the generator emits about one model.  The harness reads only

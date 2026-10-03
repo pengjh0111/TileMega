@@ -53,10 +53,12 @@ __device__ inline void NextStage(Params const& p,unsigned stage) {
     Task(p,stage,task,budget);
 }
 // Same monotonically counted grid event; only its wait is delayed.
-__device__ inline void Arrive(EventCounter* events,unsigned stage,unsigned long long iteration) {
+__device__ inline void Arrive(EventCounter* events,unsigned stage,unsigned long long iteration,
+                               Params const* params=nullptr) {
 #if TILEMEGA_SYNC_V3
   (void)iteration;
   executor::ComputeSync();
+  executor::StageTasksEnd(params,stage,iteration);
   if(executor::ComputeThread()==0)RedRelease(&events[stage].arrivals,1ull);
 #else
   __threadfence();executor::ComputeSync();
