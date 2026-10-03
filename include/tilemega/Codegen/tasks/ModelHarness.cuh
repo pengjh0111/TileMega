@@ -1341,13 +1341,13 @@ __device__ inline void ServingPdlEnter(Params const& p) {
 #if defined(TILEMEGA_SERVING_RUNTIME)
   if constexpr(TILEMEGA_PDL && arch::Caps<arch::CurrentArch>::kPdl) {
     asm volatile("// TILEMEGA_PDL_IMMUTABLE_PREFETCH_BEGIN" ::: "memory");
+    if constexpr(TILEMEGA_PDL_TRIGGER==1)
+      executor::GridDependency<arch::CurrentArch>::Release();
 #if TILEMEGA_L2_PREFETCH
     for(unsigned s=0;s<p.stage_count;++s)if(p.stages[s].kind==TaskKind::kGemm) {
       prefetch::NextStage(p,s);break;
     }
 #endif
-    if constexpr(TILEMEGA_PDL_TRIGGER==1)
-      executor::GridDependency<arch::CurrentArch>::Release();
     executor::GridDependency<arch::CurrentArch>::Wait();
     asm volatile("// TILEMEGA_PDL_MUTABLE_ACCESS_BEGIN" ::: "memory");
   }
