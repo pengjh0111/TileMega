@@ -34,6 +34,17 @@ def main():
         ['ctest','--test-dir','build-phase12','-R','^(handoff_|serving_lag|serving_page_layout|serving_task_index)','--output-on-failure']])
     add('Bpre',['bash','-c',cmd],priority=40,timeout=7200)
     add('B0b',[PY,str(HERE/'phase_b_r13.py'),'build','--out',str(HERE/'raw/B0b')],priority=41,after=['Bpre'],timeout=43200)
+    # Keep Phase A's executable immutable. Small pools need an unused smem
+    # reservation to establish the registered one-CTA-per-SM comparison.
+    resident_binary='/root/r13_work/tilemega-loadbench-resident'
+    add('Bloadbench',['/usr/local/cuda/bin/nvcc','-std=c++17','-O3','-arch=sm_89',
+        '--expt-relaxed-constexpr','-I'+str(ROOT/'include'),
+        '-I'+str(ROOT/'third_party/cutlass/include'),'-Xptxas=-v',
+        str(ROOT/'tools/experimental/loadbench/main.cu'),'-o',resident_binary],
+        priority=42,after=['Bpre'],timeout=3600)
+    corrected=HERE/'raw/MB-1b-resident'
+    add('MB-1b-resident',[resident_binary,'--suite','b','--out',str(corrected/'loadbench.json')],
+        gpu=True,priority=51,after=['Bloadbench','MB-1a'],timeout=7200)
     add('Bbaseline_gate',[PY,str(HERE/'stop_loss.py'),'--out',str(HERE/'raw/Bbaseline_gate')],priority=49,after_any=[f'A1_{c}_r{r}' for c in CELLS for r in range(3)],timeout=600)
     add('B0c',[PY,str(HERE/'phase_b_r13.py'),'smoke','--out',str(HERE/'raw/B0c')],gpu=True,priority=50,after=['B0b','Achoose','Bbaseline_gate'],timeout=7200)
     for cell in CELLS:

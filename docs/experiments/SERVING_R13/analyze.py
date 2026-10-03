@@ -4,6 +4,8 @@ import argparse,csv,json,math,re,statistics
 from collections import defaultdict
 from pathlib import Path
 from ledger import read,write,stages,steps
+from page_chain import chain,pages
+from fidelity import candidates
 HERE=Path(__file__).resolve().parent
 CELLS=('llama_B1','llama_B16','qwen3_B1','qwen3_B16')
 GROUPS=[['B0','B0-noev','B0l','NL2e','NL2g','NL2r'],['PR_L1','PR_L2','PR_L2l'],
@@ -203,7 +205,33 @@ def main():
     write(out/'T4_top_excess.tsv',sorted(stage_rows,key=lambda r:r['excess_ns_measured'],reverse=True)[:10])
     write(out/'T4.tsv',stage_rows);write(out/'T5.tsv',[r for r in median if r['matrix']=='B2']);write(out/'T5_tasks.tsv',task_rows);write(out/'T5_hol.tsv',hol);write(out/'T7_reducers.tsv',reducers)
     write(out/'T6.tsv',[r for r in median if r['matrix']=='B3']);write(out/'T6_steps.tsv',step_rows)
-    for name in ('T7','T8','T9','T10','T11','T12'):
+    page_rows=[];chain_rows=[]
+    for folder in sorted({p.parent for p in (root/'raw').rglob('page_trace.tsv')}):
+        cell=next((c for c in CELLS if c in str(folder)),None)
+        if not cell or not ceiling:continue
+        model,b=cell.split('_B');floor_file=root/f'raw/inputs/{model}_decode_B{b}_floor.json'
+        if not floor_file.exists():continue
+        floor=json.loads(floor_file.read_text());point=next(p for p in floor['points'] if p['past']==575)
+        byte_count=point['dram_ns']*884.5010943
+        for row in pages(folder/'page_trace.tsv',byte_count,{'884_5':884.5,'981_6':981.6,'measured':ceiling}):
+            row['cell']=cell;page_rows.append(row)
+        if (folder/'slots.tsv').exists():
+            links,record=chain(folder);record.update(cell=cell,source=str(folder));chain_rows.append(record)
+            write(out/(folder.name+'_'+cell+'_chain.tsv'),links)
+    write(out/'T7.tsv',page_rows);write(out/'T7_chains.tsv',chain_rows)
+    fidelity=[]
+    for run in (root.parents[2]/'runs').glob('r13-*'):
+        path=run/'plans.json'
+        if not path.exists():continue
+        for b,pair in json.loads(path.read_text()).items():
+            if not b.isdigit():continue
+            for phase in ('prefill','decode'):
+                if phase in pair:fidelity+=candidates(Path(pair[phase]))
+            for c in pair.get('decode_pg_choice',{}).get('candidates',[]):
+                fidelity+=candidates(Path(c['library']))
+                fidelity.append(dict(batch=b,stage='joint',candidate=json.dumps(c,separators=(',',':'))))
+    write(out/'T9.tsv',fidelity)
+    for name in ('T8','T10','T11','T12'):
         rows=[r for r in median if r['matrix']=='D2'] if name=='T10' else correctness(root,tokens) if name=='T11' else []
         write(out/(name+'.tsv'),rows)
     canaries=[]
@@ -214,5 +242,50 @@ def main():
         if sample and series and abs(sample['tpot_s']/statistics.median(series)-1)>.02:
             canaries.append(dict(matrix=r['matrix'],cell=r['cell'],round=r['round'],canary=base,action='eligible for one registered rerun'))
     write(out/'canaries.tsv',list({json.dumps(r,sort_keys=True):r for r in canaries}.values()))
+    rule_cells=defaultdict(dict);lookup={(r['matrix'],r['cell'],r['arm']):r for r in median}
+    for cell in CELLS:
+        base=lookup.get(('B2',cell,'B0'))
+        if base:
+            for arm in ('NL2g','NL2e'):
+                row=lookup.get(('B2',cell,arm))
+                if row:rule_cells[cell][arm+'_rel']=row['tpot_s_median']/base['tpot_s_median']-1
+        separate=lookup.get(('B3',cell,'PR_L2'));loop=lookup.get(('B3',cell,'PR_L2l'))
+        if separate and loop:rule_cells[cell]['PR_loop_rel']=loop['tpot_s_median']/separate['tpot_s_median']-1
+        pp=[r for r in page_rows if r['cell']==cell and 'P-R12bN' in r['source']]
+        if pp:rule_cells[cell]['PR_dependency_fraction']=statistics.median(r['dependency_mean_ns']/r['span_ns'] for r in pp)
+        q=[r for r in aggregate if r['cell']==cell and 'N-R12b' in r['source'] and r['past']==575 and r['kind'] in ('kFusedAttention','kAttentionMerge')]
+        baseline=lookup.get(('B3',cell,'B0'))
+        if q and baseline:
+            per_launch=defaultdict(float)
+            for r in q:per_launch[r['iteration']]+=r['excess_ns_measured']
+            rule_cells[cell]['attention_merge_excess_fraction']=statistics.median(per_launch.values())/(baseline['tpot_s_median']*1e9)
+    mb_rules={'ceiling_gbps':ceiling} if ceiling else {}
+    path=root/'raw/MB-1b-resident/loadbench.json'
+    # The original scan did not enforce residency for small pools. Preserve it
+    # as evidence, but it cannot trigger a loader-width performance change.
+    if path.exists():
+        result=json.loads(path.read_text())
+        points=[] if result.get('contaminated') else result['points']
+        for w in (1,2):
+            rates=[r['gbps'] for r in points if r['suite']=='MB-1b' and r.get('resident_limit')==1 and r.get('loader_warps')==w and not r.get('consume') and not r.get('bulk')]
+            if rates:mb_rules[f'loader{w}_gbps']=max(rates)
+    path=root/'raw/MB-1c/loadbench.json'
+    if path.exists():
+        groups=defaultdict(dict)
+        for r in json.loads(path.read_text())['points']:
+            if r['suite']!='MB-1c':continue
+            key=tuple(r[k] for k in ('tile_n','tile_k','stages','K','active_pct'))
+            groups[key][(r['row'],r['method'])]=r['gbps']
+        instruction=[];layout=[]
+        for values in groups.values():
+            for row in (False,True):
+                # method 2 is the cp.async.cg shape arm (see GemvStream).
+                base=values.get((row,2));rates=[v for (r,m),v in values.items() if r==row]
+                if base and rates:instruction.append(max(rates)/base-1)
+            contiguous=[v for (r,m),v in values.items() if not r];strided=[v for (r,m),v in values.items() if r]
+            if contiguous and strided:layout.append(max(contiguous)/max(strided)-1)
+        if instruction:mb_rules['gemv_best_instruction_rel']=max(instruction)
+        if layout:mb_rules['gemv_tile_layout_rel']=max(layout)
+    (root/'phase_c_inputs.json').write_text(json.dumps(dict(cells=rule_cells,mb=mb_rules),indent=2)+'\n')
     print(json.dumps(dict(measurements=len(raw),stage_rows=len(stage_rows),task_rows=len(task_rows),ceiling=ceiling)))
 if __name__=='__main__':main()
