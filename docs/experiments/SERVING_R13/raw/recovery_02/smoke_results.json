@@ -1,0 +1,57 @@
+[
+  {
+    "cell": "llama_B1",
+    "label": "N-R12b-noWD",
+    "exit_code": 0
+  },
+  {
+    "cell": "llama_B1",
+    "label": "N-R12bh-noWD",
+    "exit_code": 0
+  },
+  {
+    "cell": "llama_B1",
+    "label": "P-R12bN-noWD",
+    "exit_code": 0
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "N-R12b-noWD",
+    "exit_code": 0
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "N-R12bh-noWD",
+    "exit_code": 0
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "P-R12bN-noWD",
+    "exit_code": 0
+  },
+  {
+    "cell": "llama_B16",
+    "label": "N-R12b-noWD",
+    "exit_code": 0
+  },
+  {
+    "cell": "llama_B16",
+    "label": "N-R12bh-noWD",
+    "exit_code": 0
+  },
+  {
+    "cell": "llama_B16",
+    "label": "P-R12bN-noWD",
+    "exit_code": 0
+  },
+  {
+    "cell": "qwen3_B16",
+    "label": "N-R12b-noWD",
+    "exit_code": 0
+  },
+  {
+    "cell": "qwen3_B16",
+    "label": "P-R12bN-noWD",
+    "exit_code": 0
+  }
+]

@@ -2215,7 +2215,8 @@
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
       "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
-      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0SiThmm:/root/.codex/tmp/arg0/codex-arg0zILyPy:/root/.codex/packages/app-server-daemon/releases/0.159.3-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0mtMUPi:/root/.codex/packages/app-server-daemon/releases/0.159.2-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0rhgRtC:/root/.codex/packages/app-server-daemon/releases/0.159.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0mSFApk:/root/.codex/packages/app-server-daemon/releases/0.159.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg03RgBVp:/root/.codex/packages/app-server-daemon/releases/0.158.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0mpFcis:/root/.codex/packages/app-server-daemon/releases/0.157.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0FwJe0c:/root/.codex/packages/app-server-daemon/releases/0.157.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0gb5ZZO:/root/.codex/packages/standalone/releases/0.157.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
     "gpu": false,
     "priority": 82,
@@ -2247,7 +2248,8 @@
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
       "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
-      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0SiThmm:/root/.codex/tmp/arg0/codex-arg0zILyPy:/root/.codex/packages/app-server-daemon/releases/0.159.3-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0mtMUPi:/root/.codex/packages/app-server-daemon/releases/0.159.2-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0rhgRtC:/root/.codex/packages/app-server-daemon/releases/0.159.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0mSFApk:/root/.codex/packages/app-server-daemon/releases/0.159.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg03RgBVp:/root/.codex/packages/app-server-daemon/releases/0.158.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0mpFcis:/root/.codex/packages/app-server-daemon/releases/0.157.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0FwJe0c:/root/.codex/packages/app-server-daemon/releases/0.157.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0gb5ZZO:/root/.codex/packages/standalone/releases/0.157.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
     "gpu": false,
     "priority": 83,
@@ -2346,7 +2348,9 @@
       "B5_protocol",
       "Barch",
       "Bidentity",
-      "Bceiling_account"
+      "Bceiling_account",
+      "Barch_tool_retry",
+      "Bidentity_tool_retry"
     ],
     "timeout_s": 3600,
     "needs_free_mib": 12288,

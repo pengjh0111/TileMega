@@ -1,0 +1,73 @@
+[
+  {
+    "name": "Barch_tool_retry",
+    "command": [
+      "flock",
+      "/root/r13_work/gpu.lock",
+      "env",
+      "TILEMEGA_GPU_LOCK_HELD=1",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R13/arch_checks.py",
+      "--nonpaged",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/N-R12b-noWD/plan.so",
+      "--paged",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/P-R12bN-noWD/plan.so",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/Barch_tool_retry"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0SiThmm:/root/.codex/tmp/arg0/codex-arg0zILyPy:/root/.codex/packages/app-server-daemon/releases/0.159.3-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0mtMUPi:/root/.codex/packages/app-server-daemon/releases/0.159.2-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0rhgRtC:/root/.codex/packages/app-server-daemon/releases/0.159.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0mSFApk:/root/.codex/packages/app-server-daemon/releases/0.159.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg03RgBVp:/root/.codex/packages/app-server-daemon/releases/0.158.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0mpFcis:/root/.codex/packages/app-server-daemon/releases/0.157.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0FwJe0c:/root/.codex/packages/app-server-daemon/releases/0.157.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0gb5ZZO:/root/.codex/packages/standalone/releases/0.157.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "gpu": false,
+    "priority": 82,
+    "after": [
+      "B0b"
+    ],
+    "after_any": [],
+    "timeout_s": 14400,
+    "needs_free_mib": 12288,
+    "retry_args": [],
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/Barch_tool_retry"
+  },
+  {
+    "name": "Bidentity_tool_retry",
+    "command": [
+      "flock",
+      "/root/r13_work/gpu.lock",
+      "env",
+      "TILEMEGA_GPU_LOCK_HELD=1",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R13/identity_r13.py",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R13/raw/Bidentity_tool_retry"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "TILEMEGA_R13_ROOT": "/root/TileMega",
+      "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
+      "TILEMEGA_R13_COMPILER_COMMIT": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0SiThmm:/root/.codex/tmp/arg0/codex-arg0zILyPy:/root/.codex/packages/app-server-daemon/releases/0.159.3-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0mtMUPi:/root/.codex/packages/app-server-daemon/releases/0.159.2-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0rhgRtC:/root/.codex/packages/app-server-daemon/releases/0.159.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0mSFApk:/root/.codex/packages/app-server-daemon/releases/0.159.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg03RgBVp:/root/.codex/packages/app-server-daemon/releases/0.158.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0mpFcis:/root/.codex/packages/app-server-daemon/releases/0.157.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0FwJe0c:/root/.codex/packages/app-server-daemon/releases/0.157.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0gb5ZZO:/root/.codex/packages/standalone/releases/0.157.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "gpu": false,
+    "priority": 83,
+    "after": [
+      "B0b",
+      "A0"
+    ],
+    "after_any": [],
+    "timeout_s": 3600,
+    "needs_free_mib": 12288,
+    "retry_args": [],
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/Bidentity_tool_retry"
+  }
+]

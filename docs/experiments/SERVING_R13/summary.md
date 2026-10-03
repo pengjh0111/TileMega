@@ -94,3 +94,11 @@ Phase A 调度器已启动，PID 启动记录 `/root/r13_work/scheduler_launch.p
 再次唤起时先读一次 `scheduler/progress.tsv`，按失败步骤的摘要定位；不要重复检查在运行的步骤。Phase B 终态后运行 `analyze.py`，由 `phase_c_inputs.json` 生成、审核并提交 `phase_c_decision.json`，随后才实现/运行已触发的 Phase C 项。没有提交决定前，Phase C 不执行。Phase D 在 Phase C 保留/回退完成后安排。
 
 目前没有形成 R14 性能方案：须以 T4/T5/T6/T7/T12 的代码位置和常数为依据。最终阶段再补齐预测对照、全部数字的原始归档、最终 HEAD，并推送 tilemega。
+
+## 第二次进度检查（2026-10-03 11:40 UTC）
+
+verified：102 个已发布步骤中，31 done、10 pending、3 failed、58 skipped；当时无运行中的子步骤，调度器存活。done 包含构建/选择/检查，不能全部视为性能测试。A1 四格三轮 12/12 完成，A2 5/12 轮完成；这些 17 轮中的 102 次臂运行均退出 0。A0 固定构建 19/19、decode 冒烟 11/11；B0b 固定构建 28/28、trace 变体 32/32。MB-1a–f 六子项完成，补齐/单驻留探针仍待运行。证据：`raw/recovery_02/{inspection.json,state.json,smoke_results.json,completed_anchor_evidence.tar.xz}` 及构建记录归档。
+
+Bbaseline_gate 的 Qwen3 B1 B0 相对旧基线 TPOT +1.8422%，超过预注册 1% 门槛；其余三格分别为 Llama B1 −0.0399%、Llama B16 +0.1699%、Qwen3 B16 −1.0002%。这是实测止损，不是缺失轮次。几何、grid、驻留与 κ 已核对相同，编译资源变化是候选解释（inferred），原因尚未确认；不绕过门槛、不实施未注册优化。原始结果与资源记录见 `raw/recovery_02/Bbaseline_gate/baseline_stop.json`、`qwen3_B1_baseline_diagnosis.json` 与两个 ptxas 文本。Phase B 性能矩阵/正确性依赖因止损被 skipped，尚未完成。
+
+Barch 与 Bidentity 失败均为 PATH 缺失 cuobjdump。队列补入配置的 CUDA bin 路径，新增两个仅工具检查的重试步骤（`queue_tool_recovery.json`），保留原失败证据；不修改冻结的产品代码或 Phase A 工具。其余正常待运行的 Phase A/MB 步骤保持原定义及排他保护。

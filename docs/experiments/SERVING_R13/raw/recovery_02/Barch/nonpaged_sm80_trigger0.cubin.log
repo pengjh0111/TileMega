@@ -1,0 +1,42 @@
+/root/TileMega/include/tilemega/Codegen/tasks/ModelHarness.cuh(965): warning #128-D: loop is not reachable
+    for (std::uint32_t i = threadIdx.x; i < task.wait_count;
+    ^
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+ptxas info    : 184 bytes gmem, 96 bytes cmem[4]
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi' for 'sm_80'
+ptxas info    : Function properties for _ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi
+    72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 60 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 216 bytes cmem[2]
+ptxas info    : Compile time = 46.015 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_80'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    208 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 228 registers, used 2 barriers, 208 bytes cumulative stack size, 376 bytes cmem[0], 256 bytes cmem[2]
+ptxas info    : Compile time = 12534.077 ms
+ptxas info    : Function properties for _ZN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi64ELi4EE3RunERKNS0_19ServingGemmOperandsEiiPc
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _ZN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi256ELi64ELi2EE3RunERKNS0_19ServingGemmOperandsEiiPc
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen23tilemega_l1_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy' for 'sm_80'
+ptxas info    : Function properties for _ZN8tilemega7codegen23tilemega_l1_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy
+    240 bytes stack frame, 100 bytes spill stores, 168 bytes spill loads
+ptxas info    : Used 255 registers, used 2 barriers, 240 bytes cumulative stack size, 392 bytes cmem[0], 316 bytes cmem[2]
+ptxas info    : Compile time = 22798.918 ms
+ptxas info    : Function properties for _ZNK8tilemega7codegen19GemmCombineTaskBodyIN7cutlass4arch4Sm89ENS0_8TaskSmemELi128EEclERKNS0_6ParamsERKNS0_9StageDescERS5_
+    0 bytes stack frame, 136 bytes spill stores, 136 bytes spill loads
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_80'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    176 bytes stack frame, 80 bytes spill stores, 88 bytes spill loads
+ptxas info    : Used 255 registers, used 2 barriers, 176 bytes cumulative stack size, 376 bytes cmem[0], 304 bytes cmem[2]
+ptxas info    : Compile time = 19269.895 ms
+ptxas info    : Function properties for _ZNK8tilemega7codegen19GemmCombineTaskBodyIN7cutlass4arch4Sm89ENS0_8TaskSmemELi128EEclERKNS0_6ParamsERKNS0_9StageDescERS5_
+    0 bytes stack frame, 32 bytes spill stores, 32 bytes spill loads
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj' for 'sm_80'
+ptxas info    : Function properties for _ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj
+    64 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 224 registers, used 2 barriers, 64 bytes cumulative stack size, 364 bytes cmem[0], 180 bytes cmem[2]
+ptxas info    : Compile time = 17044.232 ms
+ptxas info    : Function properties for _ZNK8tilemega7codegen19GemmCombineTaskBodyIN7cutlass4arch4Sm89ENS0_8TaskSmemELi128EEclERKNS0_6ParamsERKNS0_9StageDescERS5_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads

@@ -21,7 +21,8 @@ def main():
     (HERE/'jobs_b.json').write_text(json.dumps(jobs,indent=2)+'\n')
     env=dict(PYTHONPATH=str(ROOT/'python'),TILEMEGA_BIN=str(ROOT/'build-phase12/tools/tilemega'),
              TILEMEGA_R13_ROOT=str(ROOT),TILEMEGA_R13_DATA=str(HERE),
-             TILEMEGA_R13_COMPILER_COMMIT=compiler,TILEMEGA_GPU_LOCK=LOCK)
+             TILEMEGA_R13_COMPILER_COMMIT=compiler,TILEMEGA_GPU_LOCK=LOCK,
+             PATH='/usr/local/cuda/bin'+os.pathsep+os.environ.get('PATH',os.defpath))
     steps=[]
     def add(name,cmd,gpu=False,priority=50,after=(),after_any=(),timeout=14400,retry=()):
         if not gpu:cmd=['flock',LOCK,'env','TILEMEGA_GPU_LOCK_HELD=1']+cmd

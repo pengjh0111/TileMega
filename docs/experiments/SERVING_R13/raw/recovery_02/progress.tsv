@@ -1,0 +1,196 @@
+Apre	failed	1	0.07637405395507812	4.133533217012882	See also "/root/r13_work/diag/build-phase13/CMakeFiles/CMakeOutput.log".
+A0	skipped	0	0	0	required dependency failed
+A0s	skipped	0	0	0	required dependency failed
+A1_llama_B1_r0	skipped	0	0	0	required dependency failed
+A1_llama_B1_r1	skipped	0	0	0	required dependency failed
+A1_llama_B1_r2	skipped	0	0	0	required dependency failed
+A1_qwen3_B1_r0	skipped	0	0	0	required dependency failed
+A1_qwen3_B1_r1	skipped	0	0	0	required dependency failed
+A1_qwen3_B1_r2	skipped	0	0	0	required dependency failed
+A1_llama_B16_r0	skipped	0	0	0	required dependency failed
+A1_llama_B16_r1	skipped	0	0	0	required dependency failed
+A1_llama_B16_r2	skipped	0	0	0	required dependency failed
+A1_qwen3_B16_r0	skipped	0	0	0	required dependency failed
+A1_qwen3_B16_r1	skipped	0	0	0	required dependency failed
+A1_qwen3_B16_r2	skipped	0	0	0	required dependency failed
+A2_llama_B1_r0	skipped	0	0	0	required dependency failed
+A2_llama_B1_r1	skipped	0	0	0	required dependency failed
+A2_llama_B1_r2	skipped	0	0	0	required dependency failed
+A2_qwen3_B1_r0	skipped	0	0	0	required dependency failed
+A2_qwen3_B1_r1	skipped	0	0	0	required dependency failed
+A2_qwen3_B1_r2	skipped	0	0	0	required dependency failed
+A2_llama_B16_r0	skipped	0	0	0	required dependency failed
+A2_llama_B16_r1	skipped	0	0	0	required dependency failed
+A2_llama_B16_r2	skipped	0	0	0	required dependency failed
+A2_qwen3_B16_r0	skipped	0	0	0	required dependency failed
+A2_qwen3_B16_r1	skipped	0	0	0	required dependency failed
+A2_qwen3_B16_r2	skipped	0	0	0	required dependency failed
+Achoose	done	1	4.316822528839111	0.11956161679700017	{"prefill": {"llama_B1": "PF-R12b-noWD", "llama_B16": "PF-R12b-noWD", "qwen3_B1": "PF-R12b-noWD", "qwen3_B16": "PF-R12b-noWD"}, "raw_values": {}}
+MB-1a	pending	1	64.65625357627869	76.5035588350147	running interference
+MB-1a	pending	2	3628.1281044483185	86.62422033795156	running interference
+MB-1a	pending	3	4796.515684843063	5.266587479040027	preflight occupied
+Bidentity	skipped	0	0	0	required dependency failed
+Bpre	failed	1	0.08089995384216309	55.127703842008486	Errors while running CTest
+B0b	skipped	0	0	0	required dependency failed
+Bloadbench	skipped	0	0	0	required dependency failed
+MB-1a-complete	skipped	0	0	0	required dependency failed
+MB-1b-resident	skipped	0	0	0	required dependency failed
+B0c	skipped	0	0	0	required dependency failed
+B1_llama_B1	skipped	0	0	0	required dependency failed
+B2_llama_B1_r0	skipped	0	0	0	required dependency failed
+B2_llama_B1_r1	skipped	0	0	0	required dependency failed
+B2_llama_B1_r2	skipped	0	0	0	required dependency failed
+B3_llama_B1_r0	skipped	0	0	0	required dependency failed
+B3_llama_B1_r1	skipped	0	0	0	required dependency failed
+B3_llama_B1_r2	skipped	0	0	0	required dependency failed
+B4_llama_B1_r0	skipped	0	0	0	required dependency failed
+B4_llama_B1_r1	skipped	0	0	0	required dependency failed
+B4_llama_B1_r2	skipped	0	0	0	required dependency failed
+B2trace_llama_B1	skipped	0	0	0	required dependency failed
+B3trace_llama_B1	skipped	0	0	0	required dependency failed
+B4trace_llama_B1	skipped	0	0	0	required dependency failed
+B5_llama_B1	skipped	0	0	0	required dependency failed
+B1_qwen3_B1	skipped	0	0	0	required dependency failed
+B2_qwen3_B1_r0	skipped	0	0	0	required dependency failed
+B2_qwen3_B1_r1	skipped	0	0	0	required dependency failed
+B2_qwen3_B1_r2	skipped	0	0	0	required dependency failed
+B3_qwen3_B1_r0	skipped	0	0	0	required dependency failed
+B3_qwen3_B1_r1	skipped	0	0	0	required dependency failed
+B3_qwen3_B1_r2	skipped	0	0	0	required dependency failed
+B4_qwen3_B1_r0	skipped	0	0	0	required dependency failed
+B4_qwen3_B1_r1	skipped	0	0	0	required dependency failed
+B4_qwen3_B1_r2	skipped	0	0	0	required dependency failed
+B2trace_qwen3_B1	skipped	0	0	0	required dependency failed
+B3trace_qwen3_B1	skipped	0	0	0	required dependency failed
+B4trace_qwen3_B1	skipped	0	0	0	required dependency failed
+B5_qwen3_B1	skipped	0	0	0	required dependency failed
+B1_llama_B16	skipped	0	0	0	required dependency failed
+B2_llama_B16_r0	skipped	0	0	0	required dependency failed
+B2_llama_B16_r1	skipped	0	0	0	required dependency failed
+B2_llama_B16_r2	skipped	0	0	0	required dependency failed
+B3_llama_B16_r0	skipped	0	0	0	required dependency failed
+B3_llama_B16_r1	skipped	0	0	0	required dependency failed
+B3_llama_B16_r2	skipped	0	0	0	required dependency failed
+B4_llama_B16_r0	skipped	0	0	0	required dependency failed
+B4_llama_B16_r1	skipped	0	0	0	required dependency failed
+B4_llama_B16_r2	skipped	0	0	0	required dependency failed
+B2trace_llama_B16	skipped	0	0	0	required dependency failed
+B3trace_llama_B16	skipped	0	0	0	required dependency failed
+B4trace_llama_B16	skipped	0	0	0	required dependency failed
+B5_llama_B16	skipped	0	0	0	required dependency failed
+B1_qwen3_B16	skipped	0	0	0	required dependency failed
+B2_qwen3_B16_r0	skipped	0	0	0	required dependency failed
+B2_qwen3_B16_r1	skipped	0	0	0	required dependency failed
+B2_qwen3_B16_r2	skipped	0	0	0	required dependency failed
+B3_qwen3_B16_r0	skipped	0	0	0	required dependency failed
+B3_qwen3_B16_r1	skipped	0	0	0	required dependency failed
+B3_qwen3_B16_r2	skipped	0	0	0	required dependency failed
+B4_qwen3_B16_r0	skipped	0	0	0	required dependency failed
+B4_qwen3_B16_r1	skipped	0	0	0	required dependency failed
+B4_qwen3_B16_r2	skipped	0	0	0	required dependency failed
+B2trace_qwen3_B16	skipped	0	0	0	required dependency failed
+B3trace_qwen3_B16	skipped	0	0	0	required dependency failed
+B4trace_qwen3_B16	skipped	0	0	0	required dependency failed
+B5_qwen3_B16	skipped	0	0	0	required dependency failed
+B5_protocol	skipped	0	0	0	required dependency failed
+Barch	skipped	0	0	0	required dependency failed
+Bbaseline_gate	failed	1	55.38753628730774	0.12154295411892235	registered B0 baseline stop: requires diagnosis; Phase B timing held
+MB-1a	pending	4	7623.382790088654	5.279170308029279	preflight occupied
+MB-1a	pending	5	8410.107439994812	5.288112432928756	preflight occupied
+MB-1a	pending	6	10099.050201654434	5.2900407570414245	preflight occupied
+MB-1a	pending	7	11487.329312324524	5.289321754826233	preflight occupied
+RECOVERY_01	reset	94	0	0	Repaired preparation and reset failed, skipped, no-data fallback; originals archived
+Bpre	done	2	7171.429314613342	18.888814698904753	Total Test time (real) =   6.55 sec
+Apre	done	2	13856.27096414566	158.82562448619865	PASS source fingerprint 273fd5e44fe4382e170add7a5f19bb47ceff3fe7412548556acd1c5d21e2b06e
+A0	done	1	14015.178466558456	3364.9441301450133	fixed builds: 19/19
+MB-1a	done	8	17380.209782123566	92.35651783412322	child exit 0
+B0b	done	1	10806.777410507202	7949.366070674965	B fixed builds: 60/60
+A0s	done	1	25422.10515189171	59.420469833072275	child exit 0
+Bloadbench	done	1	18815.736225366592	8.602623092010617	ptxas info    : Compile time = 7.163 ms
+A1_llama_B16_r0	done	1	25490.29409956932	452.9981929960195	child exit 0
+Bceiling_account	done	1	19277.504370212555	0.11983629316091537	calibration ceiling reaggregated without GPU execution
+Barch	failed	1	19277.702157974243	123.91510369884782	FileNotFoundError: [Errno 2] No such file or directory: 'cuobjdump'
+A1_llama_B16_r1	done	1	26067.575251817703	452.4023104631342	child exit 0
+Bidentity	failed	1	19854.189891576767	0.3716618060134351	[{"name": "nonpaged_reference", "exit_code": 1}, {"name": "paged_reference", "exit_code": 1}, {"name": "sm89_pdl", "exit_code": 1}]
+A1_llama_B16_r2	done	1	26580.597402334213	450.7892261808738	child exit 0
+A1_llama_B1_r0	done	1	27091.606674194336	414.40171856689267	child exit 0
+A1_llama_B1_r1	done	1	27566.23010325432	418.51680478896014	child exit 0
+A1_llama_B1_r2	done	1	28044.937786102295	417.1963039468974	child exit 0
+A1_qwen3_B16_r0	done	1	28522.35422205925	483.16525398008525	child exit 0
+A1_qwen3_B16_r1	done	1	29065.744156122208	481.2740825940855	child exit 0
+A1_qwen3_B16_r2	done	1	29607.18235039711	481.2725033899769	child exit 0
+A1_qwen3_B1_r0	done	1	30148.67732310295	443.99595692707226	child exit 0
+A1_qwen3_B1_r1	done	1	30652.893437623978	444.161236386979	child exit 0
+A1_qwen3_B1_r2	done	1	31157.281908273697	448.0038416860625	child exit 0
+Achoose	done	2	31605.362335443497	0.3200878968928009	{"prefill": {"llama_B1": "PF-R10-noWD", "llama_B16": "PF-R10-noWD", "qwen3_B1": "PF-R10-noWD", "qwen3_B16": "PF-R10-noWD"}, "raw_values": {"qwen3_B16": {"B0-pfR10": [0.032698703929781914, 0.032625708961859345, 0.032622901955619454], "B0-pfR12b": [0.04258839902468026, 0.04249776713550091, 0.042433388996869326]}, "qwen3_B1": {"B0-pfR10": [0.006172618130221963, 0.006177632138133049, 0.006192632019519806], "B0-pfR12b": [0.0065204608254134655, 0.006488859187811613, 0.0064908761996775866]}, "llama_B16
+Bbaseline_gate	failed	2	24939.894122600555	0.5710611720569432	registered B0 baseline stop: requires diagnosis; Phase B timing held
+B0c	skipped	0	0	0	required dependency failed
+B1_llama_B1	skipped	0	0	0	required dependency failed
+B2_llama_B1_r0	skipped	0	0	0	required dependency failed
+B2_llama_B1_r1	skipped	0	0	0	required dependency failed
+B2_llama_B1_r2	skipped	0	0	0	required dependency failed
+B3_llama_B1_r0	skipped	0	0	0	required dependency failed
+B3_llama_B1_r1	skipped	0	0	0	required dependency failed
+B3_llama_B1_r2	skipped	0	0	0	required dependency failed
+B4_llama_B1_r0	skipped	0	0	0	required dependency failed
+B4_llama_B1_r1	skipped	0	0	0	required dependency failed
+B4_llama_B1_r2	skipped	0	0	0	required dependency failed
+B2trace_llama_B1	skipped	0	0	0	required dependency failed
+B3trace_llama_B1	skipped	0	0	0	required dependency failed
+B4trace_llama_B1	skipped	0	0	0	required dependency failed
+B5_llama_B1	skipped	0	0	0	required dependency failed
+B1_qwen3_B1	skipped	0	0	0	required dependency failed
+B2_qwen3_B1_r0	skipped	0	0	0	required dependency failed
+B2_qwen3_B1_r1	skipped	0	0	0	required dependency failed
+B2_qwen3_B1_r2	skipped	0	0	0	required dependency failed
+B3_qwen3_B1_r0	skipped	0	0	0	required dependency failed
+B3_qwen3_B1_r1	skipped	0	0	0	required dependency failed
+B3_qwen3_B1_r2	skipped	0	0	0	required dependency failed
+B4_qwen3_B1_r0	skipped	0	0	0	required dependency failed
+B4_qwen3_B1_r1	skipped	0	0	0	required dependency failed
+B4_qwen3_B1_r2	skipped	0	0	0	required dependency failed
+B2trace_qwen3_B1	skipped	0	0	0	required dependency failed
+B3trace_qwen3_B1	skipped	0	0	0	required dependency failed
+B4trace_qwen3_B1	skipped	0	0	0	required dependency failed
+B5_qwen3_B1	skipped	0	0	0	required dependency failed
+B1_llama_B16	skipped	0	0	0	required dependency failed
+B2_llama_B16_r0	skipped	0	0	0	required dependency failed
+B2_llama_B16_r1	skipped	0	0	0	required dependency failed
+B2_llama_B16_r2	skipped	0	0	0	required dependency failed
+B3_llama_B16_r0	skipped	0	0	0	required dependency failed
+B3_llama_B16_r1	skipped	0	0	0	required dependency failed
+B3_llama_B16_r2	skipped	0	0	0	required dependency failed
+B4_llama_B16_r0	skipped	0	0	0	required dependency failed
+B4_llama_B16_r1	skipped	0	0	0	required dependency failed
+B4_llama_B16_r2	skipped	0	0	0	required dependency failed
+B2trace_llama_B16	skipped	0	0	0	required dependency failed
+B3trace_llama_B16	skipped	0	0	0	required dependency failed
+B4trace_llama_B16	skipped	0	0	0	required dependency failed
+B5_llama_B16	skipped	0	0	0	required dependency failed
+B1_qwen3_B16	skipped	0	0	0	required dependency failed
+B2_qwen3_B16_r0	skipped	0	0	0	required dependency failed
+B2_qwen3_B16_r1	skipped	0	0	0	required dependency failed
+B2_qwen3_B16_r2	skipped	0	0	0	required dependency failed
+B3_qwen3_B16_r0	skipped	0	0	0	required dependency failed
+B3_qwen3_B16_r1	skipped	0	0	0	required dependency failed
+B3_qwen3_B16_r2	skipped	0	0	0	required dependency failed
+B4_qwen3_B16_r0	skipped	0	0	0	required dependency failed
+B4_qwen3_B16_r1	skipped	0	0	0	required dependency failed
+B4_qwen3_B16_r2	skipped	0	0	0	required dependency failed
+B2trace_qwen3_B16	skipped	0	0	0	required dependency failed
+B3trace_qwen3_B16	skipped	0	0	0	required dependency failed
+B4trace_qwen3_B16	skipped	0	0	0	required dependency failed
+B5_qwen3_B16	skipped	0	0	0	required dependency failed
+B5_protocol	skipped	0	0	0	required dependency failed
+MB-1b	done	1	31666.65436077118	27.362991625908762	child exit 0
+MB-1c	done	1	31754.220709323883	32.98267028480768	child exit 0
+MB-1d	done	1	31847.420961618423	25.982119313208386	child exit 0
+MB-1e	done	1	31873.451986551285	26.068630187073722	child exit 0
+MB-1f	pending	1	31899.600707769394	0.16867351182736456	preflight occupied
+A2_llama_B16_r0	done	1	31959.994909763336	501.2642204579897	child exit 0
+MB-1f	done	2	32521.45069861412	26.26237230701372	child exit 0
+A2_llama_B16_r1	pending	1	32547.796112537384	0.1700766459107399	preflight occupied
+A2_llama_B16_r2	done	1	32608.19088101387	500.9595598599408	child exit 0
+A2_llama_B16_r1	done	2	33169.37714886665	503.492922100937	child exit 0
+A2_llama_B1_r0	done	1	33733.103118658066	454.8186787911691	child exit 0
+A2_llama_B1_r1	done	1	34248.15087032318	454.0938189290464	child exit 0

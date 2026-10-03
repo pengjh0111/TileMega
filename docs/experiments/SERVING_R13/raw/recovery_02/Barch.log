@@ -1,0 +1,16 @@
+
+ATTEMPT 1 1791018807.8577933
+Traceback (most recent call last):
+  File "/root/TileMega/docs/experiments/SERVING_R13/arch_checks.py", line 49, in <module>
+    if __name__=='__main__':main()
+  File "/root/TileMega/docs/experiments/SERVING_R13/arch_checks.py", line 35, in main
+    sass=subprocess.check_output(['cuobjdump','-sass',str(dest)],text=True)
+  File "/usr/lib/python3.10/subprocess.py", line 421, in check_output
+    return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,
+  File "/usr/lib/python3.10/subprocess.py", line 503, in run
+    with Popen(*popenargs, **kwargs) as process:
+  File "/usr/lib/python3.10/subprocess.py", line 971, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "/usr/lib/python3.10/subprocess.py", line 1863, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'cuobjdump'

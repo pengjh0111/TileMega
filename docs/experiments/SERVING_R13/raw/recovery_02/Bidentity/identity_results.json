@@ -1,0 +1,14 @@
+[
+  {
+    "name": "nonpaged_reference",
+    "exit_code": 1
+  },
+  {
+    "name": "paged_reference",
+    "exit_code": 1
+  },
+  {
+    "name": "sm89_pdl",
+    "exit_code": 1
+  }
+]
