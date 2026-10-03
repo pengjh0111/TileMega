@@ -1,0 +1,8 @@
+{
+  "compiler_commit": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+  "jobs": 28,
+  "steps": 68,
+  "phase": "B",
+  "phase_c": "not submitted; requires registered decision after B",
+  "queue_dir": "/root/r13_work/queue_stage"
+}

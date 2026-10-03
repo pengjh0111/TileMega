@@ -1,0 +1,51 @@
+commit	summary
+30b73e096016cd9f2ffef779c3d217d00b06f6a9	experiments: copy the guarded r13 execution framework
+1ff6c3535a016340b718c377d100bc04db44d719	runtime: report actual loops and separate prefill measurements
+5af191ac468823fd73a9b3c1dd6b98a8c885d57e	experiments: preregister r13 predictions and selection rules
+e0d2ca9866ce416610dcd88cf2c9db6fcbbb7974	experiments: add architecture dispatched loading probes
+d207ab0a1a5bad39c644a488a1d751bccd272b11	experiments: measure dram ceilings in fresh processes
+155ed9f45ff9190c59f9323fe2be8f9fd9509fe6	experiments: prepare the r13 baseline and phase a matrix
+707661881783e30850f9d7486c039ae54d507d9d	experiments: keep binary registration metadata concise
+f7f5cc167fd332c7f15b5f890a3c875d6e88ee3e	experiments: register the complete phase a inputs before timing
+cd94bcac7e5021f658bb781d577c00a74a6d6754	runtime: store serving execution choices beside cached plans
+1c99253eba27ce552d861367850d74e7e448d3ad	runtime: enable pdl on nonpaged decode behind capabilities
+dd8ea6b233e3d024e9a3e7065997d1994519a9c7	runtime: add a capability checked nonpaged l1 step loop
+517c127b552a6f323db74d784328a648bb4879ce	runtime: allow nonpaged decode placement ablations
+55d4287e2bd1b5891652b27ac405f0e0ae3cf85d	runtime: trace l1 stages at existing barrier boundaries
+a95fe309e2c2834bd8215a35beac01426562e31f	runtime: trace launch gaps and loop dependency waits
+85d54fc83c7eba317da56cad42a48cc8870d79e8	runtime: retain concurrent loader step trace stamps
+aab46bb4d778ad574bba0eb63cbb940a67d929c6	experiments: confirm split k handoff semantic rejections
+e668e6c72b070e43a1692fef0d05e8874e4fe0f8	experiments: retain the split k diagnostic compiler log
+a7f75b318ea20e8d598c8fe997b66903a27287b5	dialect: prove split k reducer handoffs with exact accesses
+761dc161da88ae190491883f183efea1d5197106	solver: retain a projected split one paged seed in top three
+58b80a22626f73a74845cb1909fd3dcb9689eaa1	solver: measure geometry and serving execution in two levels
+6b482d0152924cf1cdb09c5c08aee5ea7de9ecbd	experiments: account for stage floors tails and step gaps
+e810b9289634c9b99e825e19f5389478fe9fa050	solver: export task price components without changing rates
+7e4600439036236a53800191cd14fdf3f761494b	experiments: check pdl boundaries and existing kernel identity
+b1bafc3846fd1f750b81f3a53c74eff4ae8c82b9	test: verify actual nonpaged l1 loops and paged protocols
+d956730eedb56700be44e723d1834c9dcf2a2526	experiments: compile serving and loading paths on five arches
+7f64f6bb55c32e95cbdd3bddc9373f185710381d	experiments: prepare frozen baseline placement and loop matrices
+653b0e848e5b0354a4064178513100a75caaf6c9	runtime: trace the dynamic owners of elided reducers
+224ca98661a1162f76bf277b862e7c576e2dce1c	test: cover split reducer selection and partial escapes
+15681a1b448bd14a57d0d471a856cbf2d21bbb13	runtime: pin the registered prefill winner for joint builds
+09ebfcbca2823e6f29598e797ffdbcbded65c7b0	experiments: account for actual stages and reducer publications
+315a7775fde0f16596b55caea459f6d39ed7389c	experiments: prepare frozen correctness and Phase B jobs
+7d4e29b0da5f93914624761be3b8744ee79750ed	experiments: check kernel identity and joint selection fidelity
+9486fede8cdd2e5363ee5f278461b3be70765b38	experiments: report task price residuals without changing defaults
+e56c478757bb1d4339b67a5994430eb55f649898	test: use a serving graph for split access checks
+63d8eb95eb3a46ea09e9ae3c733cf6975bbe0128	test: verify runtime trace joins and prefill pins
+8c76f2a037af64284c3b46c28cd475f60113e076	runtime: trace loader issue time and full kernel boundaries
+8954bc431cc98306596805fca636d39db4a5e357	experiments: reconstruct chains through last-arriver reducers
+1e83d690aed73a31f5003fa7397bf881681722b2	experiments: bound individual diagnostics and reject empty runs
+ce57e21ad041515f3b82c3e1012049c54aacb0c2	experiments: enforce the registered baseline stop threshold
+0719e82ce28676d0f6ba101d8bdf7d6f76386b75	experiments: preserve floor inputs and aggregate stage ledgers
+977812ceae3fa1655f69b4c04963bb93b3861415	experiments: enforce one resident CTA in the page probe
+54108582a0d1790be63936e3fdbd7d0bd7c245c4	runtime: exclude loops that exceed the registered stop loss
+4ea49d82209d6fe9c9358a4d72212b78092dfcd3	experiments: queue resident page scans and decision inputs
+8c0cca8a3cf05fe83c823dbf4c93f85542ca3c04	experiments: terminate trace records with a real newline
+3db575e6b6e1b6d38a19a56ae4a08a9a8b77b76b	experiments: isolate the calibration bandwidth protocol
+f4d5c4bf6e679bb0a7a7762a6706ac91d40f0a41	experiments: cover cluster hops with background readers
+0c91e81586a4e2b3fd6583d1fcee0bbe211df758	experiments: complete the registered cache hint depth sweep
+ae3910b62759f2f3e098d4cce1466bead8f103ea	experiments: join geometry and task prices in the error report
+8dd3c6e1211e8415cea5e85a5afbeb9fae3941c4	runtime: release early PDL grids before weight prefetch
+cf369f5bf51268b3ad5c02b0a78dbd3450006a92	experiments: omit unobserved per step timing quantiles

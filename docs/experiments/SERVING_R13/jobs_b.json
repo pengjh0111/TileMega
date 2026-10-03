@@ -1,0 +1,582 @@
+[
+  {
+    "cell": "llama_B1",
+    "label": "N-R12b-noWD",
+    "phase": "decode",
+    "batch": 1,
+    "manifest": "/root/.cache/tilemega/plans/0c554b7fe662d9701af176fb53f089a6276ade38c25c2f1fb9d027db7dd51e2b/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/0c554b7fe662d9701af176fb53f089a6276ade38c25c2f1fb9d027db7dd51e2b/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/N-R12b-noWD"
+  },
+  {
+    "cell": "llama_B1",
+    "label": "N-R12bh-noWD",
+    "phase": "decode",
+    "batch": 1,
+    "manifest": "/root/.cache/tilemega/plans/0c554b7fe662d9701af176fb53f089a6276ade38c25c2f1fb9d027db7dd51e2b/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/0c554b7fe662d9701af176fb53f089a6276ade38c25c2f1fb9d027db7dd51e2b/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "projection": "head",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/N-R12bh-noWD"
+  },
+  {
+    "cell": "llama_B1",
+    "label": "P-R12bN-noWD",
+    "phase": "decode",
+    "batch": 1,
+    "manifest": "/root/.cache/tilemega/plans/0c554b7fe662d9701af176fb53f089a6276ade38c25c2f1fb9d027db7dd51e2b/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/0c554b7fe662d9701af176fb53f089a6276ade38c25c2f1fb9d027db7dd51e2b/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "projection": "paged",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "pages",
+      "weight_layout": "tiled",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto",
+      "page_bytes": 16384
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/P-R12bN-noWD"
+  },
+  {
+    "cell": "llama_B1",
+    "label": "PF-R12b-noWD",
+    "phase": "prefill",
+    "batch": 1,
+    "manifest": "/root/.cache/tilemega/plans/b3461f7e917ef93742a45cbb349626a51ce8b33e6fda43af49a195598406a911/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/b3461f7e917ef93742a45cbb349626a51ce8b33e6fda43af49a195598406a911/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/dafedd06c99f91fd12631558cee420aa472c20f4ef162b2941cdf83a507ca0d9/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/PF-R12b-noWD"
+  },
+  {
+    "cell": "llama_B1",
+    "label": "PF-R10-noWD",
+    "phase": "prefill",
+    "batch": 1,
+    "manifest": "/root/r11_work/r10_control/plans/llama_prefill_B1/plan.so.plan.json",
+    "classes": "/root/r11_work/r10_control/plans/llama_prefill_B1/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/dafedd06c99f91fd12631558cee420aa472c20f4ef162b2941cdf83a507ca0d9/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/PF-R10-noWD"
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "N-R12b-noWD",
+    "phase": "decode",
+    "batch": 1,
+    "manifest": "/root/.cache/tilemega/plans/ee824a7da6e0f6a1829b761d11604d2efcf80b8a930b6fb1a2dcaf7776fd7e31/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/ee824a7da6e0f6a1829b761d11604d2efcf80b8a930b6fb1a2dcaf7776fd7e31/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B1/N-R12b-noWD"
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "N-R12bh-noWD",
+    "phase": "decode",
+    "batch": 1,
+    "manifest": "/root/.cache/tilemega/plans/ee824a7da6e0f6a1829b761d11604d2efcf80b8a930b6fb1a2dcaf7776fd7e31/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/ee824a7da6e0f6a1829b761d11604d2efcf80b8a930b6fb1a2dcaf7776fd7e31/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "projection": "head",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B1/N-R12bh-noWD"
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "P-R12bN-noWD",
+    "phase": "decode",
+    "batch": 1,
+    "manifest": "/root/.cache/tilemega/plans/ee824a7da6e0f6a1829b761d11604d2efcf80b8a930b6fb1a2dcaf7776fd7e31/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/ee824a7da6e0f6a1829b761d11604d2efcf80b8a930b6fb1a2dcaf7776fd7e31/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "projection": "paged",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "pages",
+      "weight_layout": "tiled",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto",
+      "page_bytes": 16384
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B1/P-R12bN-noWD"
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "PF-R12b-noWD",
+    "phase": "prefill",
+    "batch": 1,
+    "manifest": "/root/.cache/tilemega/plans/5f65fd55a861b005474005d4d8550b8291c8ffd6786054d67b7128f6e78fe50d/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/5f65fd55a861b005474005d4d8550b8291c8ffd6786054d67b7128f6e78fe50d/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/33b854c3803c19798dfac94f555bd5e1cada75e2a47bb35b1ce0675ef279cd3b/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B1/PF-R12b-noWD"
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "PF-R10-noWD",
+    "phase": "prefill",
+    "batch": 1,
+    "manifest": "/root/r11_work/r10_control/plans/qwen3_prefill_B1/plan.so.plan.json",
+    "classes": "/root/r11_work/r10_control/plans/qwen3_prefill_B1/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/33b854c3803c19798dfac94f555bd5e1cada75e2a47bb35b1ce0675ef279cd3b/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B1/PF-R10-noWD"
+  },
+  {
+    "cell": "llama_B16",
+    "label": "N-R12b-noWD",
+    "phase": "decode",
+    "batch": 16,
+    "manifest": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B16/N-R12b-noWD"
+  },
+  {
+    "cell": "llama_B16",
+    "label": "N-R12bh-noWD",
+    "phase": "decode",
+    "batch": 16,
+    "manifest": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "projection": "head",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B16/N-R12bh-noWD"
+  },
+  {
+    "cell": "llama_B16",
+    "label": "P-R12bN-noWD",
+    "phase": "decode",
+    "batch": 16,
+    "manifest": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/3a447b13cf53c0a63f39475cad3f0bcd98ade130264d28ea2b80d01345e387dd/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "projection": "paged",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "pages",
+      "weight_layout": "tiled",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto",
+      "page_bytes": 16384
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B16/P-R12bN-noWD"
+  },
+  {
+    "cell": "llama_B16",
+    "label": "PF-R12b-noWD",
+    "phase": "prefill",
+    "batch": 16,
+    "manifest": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/b5e0f45d02a3ef4dd058f9c23e5e76327cb4518f1ab772c98f71eddf0fc4e996/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/dafedd06c99f91fd12631558cee420aa472c20f4ef162b2941cdf83a507ca0d9/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B16/PF-R12b-noWD"
+  },
+  {
+    "cell": "llama_B16",
+    "label": "PF-R10-noWD",
+    "phase": "prefill",
+    "batch": 16,
+    "manifest": "/root/r11_work/r10_control/plans/llama_prefill_B16/plan.so.plan.json",
+    "classes": "/root/r11_work/r10_control/plans/llama_prefill_B16/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/dafedd06c99f91fd12631558cee420aa472c20f4ef162b2941cdf83a507ca0d9/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B16/PF-R10-noWD"
+  },
+  {
+    "cell": "qwen3_B16",
+    "label": "N-R12b-noWD",
+    "phase": "decode",
+    "batch": 16,
+    "manifest": "/root/.cache/tilemega/plans/9a39bf74ba2d8be8398ddd9b9f88907770304751e3bccb25b4df303e8b67632a/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/9a39bf74ba2d8be8398ddd9b9f88907770304751e3bccb25b4df303e8b67632a/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B16/N-R12b-noWD"
+  },
+  {
+    "cell": "qwen3_B16",
+    "label": "P-R12bN-noWD",
+    "phase": "decode",
+    "batch": 16,
+    "manifest": "/root/.cache/tilemega/plans/9a39bf74ba2d8be8398ddd9b9f88907770304751e3bccb25b4df303e8b67632a/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/9a39bf74ba2d8be8398ddd9b9f88907770304751e3bccb25b4df303e8b67632a/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "projection": "paged",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "pages",
+      "weight_layout": "tiled",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto",
+      "page_bytes": 16384
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B16/P-R12bN-noWD"
+  },
+  {
+    "cell": "qwen3_B16",
+    "label": "PF-R12b-noWD",
+    "phase": "prefill",
+    "batch": 16,
+    "manifest": "/root/.cache/tilemega/plans/31637447f53a557831de3e2ac20321d3594d67d76ffcdbcaa8604b2814cfdec8/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/31637447f53a557831de3e2ac20321d3594d67d76ffcdbcaa8604b2814cfdec8/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/33b854c3803c19798dfac94f555bd5e1cada75e2a47bb35b1ce0675ef279cd3b/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B16/PF-R12b-noWD"
+  },
+  {
+    "cell": "qwen3_B16",
+    "label": "PF-R10-noWD",
+    "phase": "prefill",
+    "batch": 16,
+    "manifest": "/root/r11_work/r10_control/plans/qwen3_prefill_B16/plan.so.plan.json",
+    "classes": "/root/r11_work/r10_control/plans/qwen3_prefill_B16/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/33b854c3803c19798dfac94f555bd5e1cada75e2a47bb35b1ce0675ef279cd3b/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B16/PF-R10-noWD"
+  },
+  {
+    "cell": "llama_B1",
+    "label": "N-R12b-noWD-pdl-off",
+    "phase": "decode",
+    "batch": 1,
+    "manifest": "/root/.cache/tilemega/plans/0c554b7fe662d9701af176fb53f089a6276ade38c25c2f1fb9d027db7dd51e2b/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/0c554b7fe662d9701af176fb53f089a6276ade38c25c2f1fb9d027db7dd51e2b/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "l2",
+      "weight_layout": "row",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "off"
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/N-R12b-noWD-pdl-off"
+  },
+  {
+    "cell": "llama_B1",
+    "label": "PS",
+    "phase": "decode",
+    "batch": 1,
+    "manifest": "/root/.cache/tilemega/plans/0f91b5b78c47631775460445ce0da2fc19ffcb303725d98d455f3f2a75a8414b/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/0f91b5b78c47631775460445ce0da2fc19ffcb303725d98d455f3f2a75a8414b/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "pages",
+      "weight_layout": "tiled",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto",
+      "page_bytes": 16384,
+      "paged_la_splitk": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/PS"
+  },
+  {
+    "cell": "llama_B1",
+    "label": "PSA",
+    "phase": "decode",
+    "batch": 1,
+    "manifest": "/root/.cache/tilemega/plans/0f91b5b78c47631775460445ce0da2fc19ffcb303725d98d455f3f2a75a8414b/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/0f91b5b78c47631775460445ce0da2fc19ffcb303725d98d455f3f2a75a8414b/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "pages",
+      "weight_layout": "tiled",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto",
+      "page_bytes": 16384,
+      "paged_la_splitk": 1
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/PSA"
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "PS",
+    "phase": "decode",
+    "batch": 1,
+    "manifest": "/root/.cache/tilemega/plans/af9c869265664c6ddfb71c17c71da7b88f69641df2b397c4baa837cd481b8f2f/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/af9c869265664c6ddfb71c17c71da7b88f69641df2b397c4baa837cd481b8f2f/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "pages",
+      "weight_layout": "tiled",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto",
+      "page_bytes": 16384,
+      "paged_la_splitk": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B1/PS"
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "PSA",
+    "phase": "decode",
+    "batch": 1,
+    "manifest": "/root/.cache/tilemega/plans/af9c869265664c6ddfb71c17c71da7b88f69641df2b397c4baa837cd481b8f2f/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/af9c869265664c6ddfb71c17c71da7b88f69641df2b397c4baa837cd481b8f2f/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "pages",
+      "weight_layout": "tiled",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto",
+      "page_bytes": 16384,
+      "paged_la_splitk": 1
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B1/PSA"
+  },
+  {
+    "cell": "llama_B16",
+    "label": "PS",
+    "phase": "decode",
+    "batch": 16,
+    "manifest": "/root/.cache/tilemega/plans/d3c4c9ce52c4f1eda5914af4769f9da526dfa7171006e230e81896cb34750b40/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/d3c4c9ce52c4f1eda5914af4769f9da526dfa7171006e230e81896cb34750b40/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "pages",
+      "weight_layout": "tiled",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto",
+      "page_bytes": 16384,
+      "paged_la_splitk": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B16/PS"
+  },
+  {
+    "cell": "llama_B16",
+    "label": "PSA",
+    "phase": "decode",
+    "batch": 16,
+    "manifest": "/root/.cache/tilemega/plans/d3c4c9ce52c4f1eda5914af4769f9da526dfa7171006e230e81896cb34750b40/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/d3c4c9ce52c4f1eda5914af4769f9da526dfa7171006e230e81896cb34750b40/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "pages",
+      "weight_layout": "tiled",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto",
+      "page_bytes": 16384,
+      "paged_la_splitk": 1
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B16/PSA"
+  },
+  {
+    "cell": "qwen3_B16",
+    "label": "PS",
+    "phase": "decode",
+    "batch": 16,
+    "manifest": "/root/.cache/tilemega/plans/0e946ce8f4572e555ae6207426a27e947ce3a79d9b73391b367147d11720c8b4/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/0e946ce8f4572e555ae6207426a27e947ce3a79d9b73391b367147d11720c8b4/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "pages",
+      "weight_layout": "tiled",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto",
+      "page_bytes": 16384,
+      "paged_la_splitk": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B16/PS"
+  },
+  {
+    "cell": "qwen3_B16",
+    "label": "PSA",
+    "phase": "decode",
+    "batch": 16,
+    "manifest": "/root/.cache/tilemega/plans/0e946ce8f4572e555ae6207426a27e947ce3a79d9b73391b367147d11720c8b4/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/0e946ce8f4572e555ae6207426a27e947ce3a79d9b73391b367147d11720c8b4/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "projection": "identity",
+    "overrides": {
+      "watchdog": 0,
+      "handoff": "off",
+      "pg": "pages",
+      "weight_layout": "tiled",
+      "sync": "calibrated",
+      "lookahead_bytes": 0,
+      "pdl": "auto",
+      "page_bytes": 16384,
+      "paged_la_splitk": 1
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B16/PSA"
+  }
+]

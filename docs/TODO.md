@@ -1484,3 +1484,19 @@ Decode uses pages only; nonpaged decode is an explicit baseline and never enters
 | D-0 | Archive R12b inputs and binary provenance | Complete | SERVING_R12C/MANIFEST.tsv |
 | FX-12…20 | Specified corrections and diagnostic switches | Complete; host4/4, GPU3/3, default CUDA byte identity and five arch compilations pass | SERVING_R12C/summary.md |
 | Phase A/B | Guarded diagnostics and final paged comparison | Collection complete; four paired cells×3 rounds, C-1/C-2 pass, fresh processes50/50; G-1/G-5 fail; T7 chain attribution partial | SERVING_R12C/results/T0–T9; final_evidence.tar.xz; F-345–347 |
+
+### 5.13 R13 — bandwidth ceiling, baseline, and measured execution choices
+
+（R13 补充：decode 联合实测 pg × 执行器 × 循环方式；prefill 单独锁定。默认不编入看门狗。最终默认仅在同轮可分辨地快于 B0-D 时采用 R13F。）
+
+| ID | Scope | Status | Evidence |
+|---|---|---|---|
+| BL-1 / TL-1 | Baseline, sidecars, separate prefill and step events | Code implemented; host checks pass; GPU pending | SERVING_R13/summary.md |
+| PD-1 / LP-1 | Nonpaged PDL and L1 device loop | Code implemented; architecture, cache audit and fresh-process checks pending | ModelHarness.cuh; ServingRuntime.cuh |
+| FX-21 | Split-K combine last-arriver | CPU root cause verified; private access witness implemented; device checks pending | F-348; SERVING_R13/raw/FX21_diagnosis |
+| FX-22 / TR-1…3 | Runtime elision, stage/task/page/step ledgers | Code and analysis tools implemented; measurements pending | SERVING_R13/ledger.py; page_chain.py |
+| PG-2 / SL-5 | Two page seeds and two-level joint selection | Code implemented; shortlist and D1 pending | SkeletonSearch.cpp; cli.py |
+| TL-2 / MB-1 | Fresh-process ceiling and six loading probes | Code implemented; complete guarded collection pending | SERVING_R13/queue_b.json; tools/experimental/loadbench |
+| CM-1 | Per-task price export and error report | Partial: tools implemented; joins, coverage and residual inference pending | SERVING_R13/cm_report.py |
+| Phase A/B | Frozen builds, four-cell comparisons and correctness | A scheduler launched; B inputs frozen; not accepted as passed | SERVING_R13/freeze.json; scheduler/progress.tsv |
+| Phase C/D | Registered fixes and final comparison | Not started; requires committed data-driven decision | SERVING_R13/predictions.json |

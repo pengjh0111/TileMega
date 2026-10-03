@@ -1,0 +1,10 @@
+{
+  "baseline": "48c013d1863d5a5af249401be217d4aa4c15d710",
+  "prompt": "/root/Prompt/TileMega_R13_prompt.md",
+  "prompt_sha256": "5adb32833673d7dcd18e6ec02999be9c6bd9ca3216c95f9d9f2b136f8329ace9",
+  "target": "/root/r13_work/target_r12b.json",
+  "target_sha256": "c2c03ad6e9534130762cc88d423aac336077a0bd040db6d337a1e31e3c1ec8b9",
+  "frozen_source_commit": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+  "implementation_commits": 50,
+  "status": "Phase B prepared; Phase C and D not started"
+}
