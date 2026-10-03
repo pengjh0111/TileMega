@@ -124,7 +124,8 @@ def runtime_structure(root):
     return output
 
 def microbench(root):
-    summary=root/'raw/MB-1a/dram_ceiling.json';ceiling=None;output=[]
+    summary=root/'raw/Bceiling_account/dram_ceiling_corrected.json';ceiling=None;output=[]
+    if not summary.exists():summary=root/'raw/MB-1a/dram_ceiling.json'
     if summary.exists():
         data=json.loads(summary.read_text());ceiling=data['maximum_gbps']
         output.append(dict(suite='MB-1a',maximum_gbps=ceiling,processes=len(data['processes']),

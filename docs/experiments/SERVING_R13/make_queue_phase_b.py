@@ -42,6 +42,8 @@ def main():
         '-I'+str(ROOT/'third_party/cutlass/include'),'-Xptxas=-v',
         str(ROOT/'tools/experimental/loadbench/main.cu'),'-o',resident_binary],
         priority=42,after=['Bpre'],timeout=3600)
+    add('Bceiling_account',[PY,str(HERE/'dram_ceiling.py'),'--reaggregate',str(HERE/'raw/MB-1a'),
+        '--out',str(HERE/'raw/Bceiling_account')],priority=43,after=['MB-1a'],timeout=600)
     corrected=HERE/'raw/MB-1b-resident'
     add('MB-1b-resident',[resident_binary,'--suite','b','--out',str(corrected/'loadbench.json')],
         gpu=True,priority=51,after=['Bloadbench','MB-1a'],timeout=7200)
@@ -63,7 +65,7 @@ def main():
         '--paged',str(HERE/'raw/B0b/llama_B1/P-R12bN-noWD/plan.so'),'--out',str(HERE/'raw/Barch')],priority=82,after=['B0b'],timeout=14400)
     add('Bidentity',[PY,str(HERE/'identity_r13.py'),'--out',str(HERE/'raw/Bidentity')],priority=83,after=['B0b','A0'],timeout=3600)
     matrices=[s['name'] for s in steps if s.get('gpu')]
-    add('Banalyze',[PY,str(HERE/'analyze.py')],priority=85,after_any=matrices+['Barch','Bidentity'],timeout=3600)
+    add('Banalyze',[PY,str(HERE/'analyze.py')],priority=85,after_any=matrices+['Barch','Bidentity','Bceiling_account'],timeout=3600)
     a.queue_dir.mkdir(parents=True,exist_ok=True)
     data=json.dumps(steps,indent=2)+'\n';(HERE/'queue_b.json').write_text(data)
     (a.queue_dir/'queue_b.json').write_text(data)

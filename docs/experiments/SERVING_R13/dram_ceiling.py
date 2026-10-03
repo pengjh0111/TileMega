@@ -7,11 +7,17 @@ def aggregate(paths):
     rows=[];methods={}
     for path in paths:
         data=json.loads(path.read_text());points=data['points']
+        reference=next((p for p in points if p.get('suite')=='MB-1a-reproduction'),None)
+        if reference is None:raise ValueError('missing calibration launch configuration: '+str(path))
+        def calibration(p):
+            return (p.get('suite')=='MB-1a' and p.get('method')==1 and
+                    p.get('allocation')=='A' and p.get('param')==0 and
+                    p.get('grid')==reference['grid'] and p.get('threads')==reference['threads'])
         base=[p['gbps'] for p in points if p.get('suite')=='MB-1a' and
-              p.get('method')==1 and p.get('allocation')=='A' and
+              calibration(p) and
               1024*2**20<=p.get('working_set_bytes',0)<=2048*2**20]
         old=[p['gbps'] for p in points if p.get('suite')=='MB-1a' and
-              p.get('method')==1 and p.get('allocation')=='A' and
+              calibration(p) and
               p.get('working_set_bytes') in (512*2**20,1024*2**20,2048*2**20)]
         row=dict(path=str(path),pid=data['pid'],contaminated=data['contaminated'],
                  calibration_median_gbps=statistics.median(base),
@@ -39,9 +45,19 @@ def write_target(source,out,value,results):
              dram_gbps=value,processes=results['processes']),indent=2)+'\n')
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--binary',type=Path,required=True)
+    p=argparse.ArgumentParser();p.add_argument('--binary',type=Path)
+    p.add_argument('--reaggregate',type=Path)
     p.add_argument('--out',type=Path,required=True);p.add_argument('--target',type=Path)
     p.add_argument('--target-out',type=Path);a=p.parse_args();a.out.mkdir(parents=True,exist_ok=True)
+    if a.reaggregate:
+        paths=sorted(a.reaggregate.glob('process*/loadbench.json'))
+        if not paths:raise ValueError('no completed loading processes')
+        result=aggregate(paths)
+        result['source_directory']=str(a.reaggregate)
+        result['correction']='calibration median uses its actual grid and thread count, excluding the occupancy sweep'
+        (a.out/'dram_ceiling_corrected.json').write_text(json.dumps(result,indent=2)+'\n')
+        print('calibration ceiling reaggregated without GPU execution');return
+    if a.binary is None:p.error('--binary is required without --reaggregate')
     files=[];best=None
     for number in range(10):
         folder=a.out/f'process{number}';folder.mkdir(exist_ok=True);raw=folder/'loadbench.json'
