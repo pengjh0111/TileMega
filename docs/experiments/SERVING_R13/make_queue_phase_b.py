@@ -34,7 +34,8 @@ def main():
         ['ctest','--test-dir','build-phase12','-R','^(handoff_|serving_lag|serving_page_layout|serving_task_index)','--output-on-failure']])
     add('Bpre',['bash','-c',cmd],priority=40,timeout=7200)
     add('B0b',[PY,str(HERE/'phase_b_r13.py'),'build','--out',str(HERE/'raw/B0b')],priority=41,after=['Bpre'],timeout=43200)
-    add('B0c',[PY,str(HERE/'phase_b_r13.py'),'smoke','--out',str(HERE/'raw/B0c')],gpu=True,priority=50,after=['B0b','Achoose'],timeout=7200)
+    add('Bbaseline_gate',[PY,str(HERE/'stop_loss.py'),'--out',str(HERE/'raw/Bbaseline_gate')],priority=49,after_any=[f'A1_{c}_r{r}' for c in CELLS for r in range(3)],timeout=600)
+    add('B0c',[PY,str(HERE/'phase_b_r13.py'),'smoke','--out',str(HERE/'raw/B0c')],gpu=True,priority=50,after=['B0b','Achoose','Bbaseline_gate'],timeout=7200)
     for cell in CELLS:
         add('B1_'+cell,[PY,str(HERE/'phase_b_r13.py'),'B1','--cell',cell,'--out',str(HERE/'raw'/('B1_'+cell))],gpu=True,priority=52,after=['B0c'],timeout=3600)
         for matrix,priority in [('B2',55),('B3',57),('B4',60)]:
