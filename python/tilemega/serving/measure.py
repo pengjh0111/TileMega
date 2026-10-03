@@ -137,6 +137,11 @@ def measure(engine: ServingEngine, prompts: torch.Tensor,
                "tpot_seconds": (e2e - ttft) / (engine.max_new_tokens - 1),
                "output_tokens_per_second": engine.batch * engine.max_new_tokens / e2e,
                "runs": rows}
+    if not decode:
+        # No per-step CUDA events (and no device timestamps) means these
+        # quantiles were not observed. Zero would look like a timing result.
+        for key in ('tpot_mean_seconds','tpot_p50_seconds','tpot_p90_seconds'):
+            summary.pop(key)
     (out / "measurements.json").write_text(json.dumps(summary, indent=2) + "\n")
     with (out / "step_times.tsv").open("w") as stream:
         stream.write("run\tstep\tgpu_ms\n")

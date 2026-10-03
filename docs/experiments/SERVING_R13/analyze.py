@@ -35,6 +35,9 @@ def collected(root):
                      tpot_s=(record['e2e_seconds']-record['ttft_seconds'])/1023,
                      tpot_p50_s=record.get('tpot_p50_seconds'),tpot_p90_s=record.get('tpot_p90_seconds'),
                      tok_s=int(cell.split('_B')[1])*1024/record['e2e_seconds'],source=str(path))
+            timed_runs=[r for r in record.get('runs',[]) if not r.get('warmup') and r.get('N')==1024]
+            if timed_runs and all(len(r.get('gpu_step_ms',[]))<=1 for r in timed_runs):
+                row['tpot_p50_s']=row['tpot_p90_s']=None
             vl=data['arms'].get('vllm',{})
             if vl.get('exit_code')==0 and vl.get('e2e_seconds'):
                 row['tm_vllm']=vl['e2e_seconds']/row['e2e_s']
