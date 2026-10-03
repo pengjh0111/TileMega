@@ -17,7 +17,7 @@ def main():
             '--prefill-so',arm['prefill'],'--decode-so',arm['decode'],'--prompt-ids',str(prompt),
             '--batch',b,'--steps','1024','--out',str(folder)]
         (folder/'command.json').write_text(json.dumps(cmd,indent=2)+'\n')
-        with (folder/'stdout.log').open('w') as f:code=subprocess.run(cmd,stdout=f,stderr=subprocess.STDOUT).returncode
+        with (folder/'stdout.log').open('w') as f:code=subprocess.run(['timeout','1200']+cmd,stdout=f,stderr=subprocess.STDOUT).returncode
         if code==75:return 75
         result.append(dict(label=label,check='C-2',exit_code=code))
     for label in ('B0h','PSA_L2'):
@@ -31,7 +31,7 @@ def main():
         cmd=[sys.executable,'-m','tilemega.serving.hf_check','--model',arm['model_path'],
              '--prompt-ids',str(prompt),'--generated',str(files[0]),'--skip-free-greedy','--out',str(folder)]
         (folder/'command.json').write_text(json.dumps(cmd,indent=2)+'\n')
-        with (folder/'stdout.log').open('w') as f:code=subprocess.run(cmd,stdout=f,stderr=subprocess.STDOUT).returncode
+        with (folder/'stdout.log').open('w') as f:code=subprocess.run(['timeout','1200']+cmd,stdout=f,stderr=subprocess.STDOUT).returncode
         if code==75:return 75
         result.append(dict(label=label,check='C-1',exit_code=code))
     (a.out/'results.json').write_text(json.dumps(result,indent=2)+'\n')

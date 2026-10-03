@@ -66,7 +66,7 @@ def smoke(out):
     for row in rows:
         if row['phase']!='decode' or row['exit_code'] or row['label'].endswith(('-trace','-v2','-pages')):continue
         model=next(r['model_path'] for r in old[row['cell']] if r['label']=='R12bN_L1')
-        code=subprocess.run([sys.executable,'-m','tilemega.serving.smoke','--so',row['so'],'--model',model,
+        code=subprocess.run(['timeout','300',sys.executable,'-m','tilemega.serving.smoke','--so',row['so'],'--model',model,
                 '--batch',str(row['batch']),'--steps','64','--out',str(out/row['cell']/row['label'])]).returncode
         if code==75:return 75
         results.append(dict(cell=row['cell'],label=row['label'],exit_code=code))
@@ -74,7 +74,7 @@ def smoke(out):
     (HERE/'builds_b.json').write_text(json.dumps(rows,indent=2)+'\n')
     (out/'smokes.json').write_text(json.dumps(results,indent=2)+'\n')
     print('B smokes: '+str(sum(r['exit_code']==0 for r in results))+'/'+str(len(results)))
-    return 0
+    return int(not results or not any(r['exit_code']==0 for r in results))
 def trace(action,cell,out):
     table={(r['cell'],r['label']):r for r in load()}
     ordinary=next(r for r in arms('B3')[cell] if r['label']=='B0')
@@ -99,7 +99,7 @@ def trace(action,cell,out):
         if action=='B1':cmd+=['--stage','--past-list','64,575,1000','--launches','16']
         elif action=='B3trace':cmd+=['--step','--steps','16','--launches','1']
         else:cmd+=['--launches','1'];env['TILEMEGA_PAGE_TRACE_OUT']=str(folder/'page_trace.tsv')
-        with (folder/'stdout.log').open('w') as f:code=subprocess.run(cmd,env=env,stdout=f,stderr=subprocess.STDOUT).returncode
+        with (folder/'stdout.log').open('w') as f:code=subprocess.run(['timeout','900']+cmd,env=env,stdout=f,stderr=subprocess.STDOUT).returncode
         if code==75:return 75
         outputs.append(dict(label=label,mode=mode,loop=loop,exit_code=code,path=str(folder)))
     (out/'trace_results.json').write_text(json.dumps(outputs,indent=2)+'\n');print('trace jobs finished '+str(len(outputs)))

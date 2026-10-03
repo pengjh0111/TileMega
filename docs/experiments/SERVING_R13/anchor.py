@@ -9,6 +9,8 @@ def main():
     offset=a.round%max(1,len(arms));arms=arms[offset:]+arms[:offset]
     index=['llama_B1','qwen3_B1','llama_B16','qwen3_B16'].index(a.cell)
     if index%2:arms.reverse()
+    if not arms:
+        print('no available arms for '+a.cell);return 3
     result={'cell':a.cell,'round':a.round,'order':[r['label'] for r in arms],'arms':{}}
     cell=a.out/a.cell;cell.mkdir(parents=True,exist_ok=True)
     for arm in arms:

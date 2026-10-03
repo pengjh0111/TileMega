@@ -1,0 +1,23 @@
+..../root/TileMega/docs/experiments/SERVING_R13/ledger.py:5: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp5ddegz_v/slots.tsv' mode='r' encoding='UTF-8'>
+  def read(p):return list(csv.DictReader(Path(p).open(),delimiter='\t'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/root/TileMega/docs/experiments/SERVING_R13/ledger.py:5: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp5ddegz_v/waits.tsv' mode='r' encoding='UTF-8'>
+  def read(p):return list(csv.DictReader(Path(p).open(),delimiter='\t'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/root/TileMega/docs/experiments/SERVING_R13/ledger.py:5: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp5ddegz_v/events.tsv' mode='r' encoding='UTF-8'>
+  def read(p):return list(csv.DictReader(Path(p).open(),delimiter='\t'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/root/TileMega/docs/experiments/SERVING_R13/ledger.py:5: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmp5ddegz_v/reducers.tsv' mode='r' encoding='UTF-8'>
+  def read(p):return list(csv.DictReader(Path(p).open(),delimiter='\t'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.../root/TileMega/docs/experiments/SERVING_R13/ledger.py:5: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpstdidn95/runtime_stages.tsv' mode='r' encoding='UTF-8'>
+  def read(p):return list(csv.DictReader(Path(p).open(),delimiter='\t'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/root/TileMega/docs/experiments/SERVING_R13/ledger.py:5: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpstdidn95/stage_trace.tsv' mode='r' encoding='UTF-8'>
+  def read(p):return list(csv.DictReader(Path(p).open(),delimiter='\t'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+................
+----------------------------------------------------------------------
+Ran 23 tests in 0.116s
+
+OK
