@@ -20,8 +20,12 @@ def main() -> None:
     guard_allocation=torch.empty(1,device='cuda')
     _preflight_external_memory(a.out)
     prompts=torch.tensor(json.loads(a.prompt_ids.read_text())[:a.batch],dtype=torch.int32)
+    metadata=json.loads(Path(str(a.decode_so)+".plan.json").read_text())
     arms=(('L1_separate','L1',False,None),('L2_separate','L2',False,None),
           ('L2_loop','L2',True,None),('L2_loop_no_phase','L2',True,'0'))
+    if metadata.get("pg")!="pages":
+        arms=(('L1_separate','L1',False,None),('L2_separate','L2',False,None),
+              ('L1_loop','L1',True,None),('L1_loop_no_phase','L1',True,'0'))
     results={};mismatches={}
     for label,mode,loop,mask in arms:
         if not _exclusive(a.out/'guard.jsonl',label+'-before',True):
@@ -30,8 +34,12 @@ def main() -> None:
         if mask is not None:os.environ['TILEMEGA_KPHASE_MASK']=mask
         try:
             with ServingEngine(a.model,a.prefill_so,a.decode_so,a.batch,
-                               max_new_tokens=a.steps,mode=mode,decode_loop=loop) as engine:
-                try:tokens=engine.generate(prompts,a.steps).tokens
+                               max_new_tokens=a.steps,mode=mode,decode_loop=loop,prefill_mode="L1") as engine:
+                try:
+                    generation=engine.generate(prompts,a.steps)
+                    if loop and not generation.decode_loop_used:
+                        raise RuntimeError("correctness arm did not use its requested loop")
+                    tokens=generation.tokens
                 except BaseException:
                     (a.out/f'watchdog_{label}.json').write_text(json.dumps(engine.decode.watchdog(),indent=2)+'\n')
                     raise

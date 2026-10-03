@@ -33,8 +33,10 @@ def run(plan: PlanLibrary, batch: int, steps: int, vocab: int, out: Path) -> dic
                            if plan.info.phase == 1 else [plan.info.past_lo])
         for label, mode, loop in (("L2_separate", 2, False),
                                   ("L2_loop", 2, True),
-                                  ("L1_separate", 1, False)):
-            if loop and (plan.info.phase != 1 or not paged or not metadata.get("paged_la", True) or
+                                  ("L1_separate", 1, False),
+                                  ("L1_loop", 1, True)):
+            if loop and (plan.info.phase != 1 or not (instance.loop_modes() & mode) or
+                         (paged and not metadata.get("paged_la", True)) or
                          not hasattr(plan.lib, "tm_plan_launch_steps")):
                 continue
             for name, value in written.items():

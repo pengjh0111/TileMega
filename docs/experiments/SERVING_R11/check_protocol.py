@@ -51,13 +51,16 @@ def child(case, output):
                         for mode in modes:
                             engine.prefill_mode = engine.decode_mode = {'L1':1, 'L2':2}[mode]
                             print(label,mode,"begin",flush=True)
-                            tokens = engine.generate(prompts, case.get('steps',64)).tokens
+                            generation = engine.generate(prompts, case.get('steps',64))
+                            if arm.get('require_loop') and not generation.decode_loop_used:
+                                raise RuntimeError('protocol candidate did not use requested loop')
+                            tokens = generation.tokens
                             if reference is None:
                                 reference = tokens.clone()
                             mismatches = int((tokens != reference).sum().item())
                             values = tokens.tolist()
                             records.append(dict(arm=label, mode=mode,
-                                decode_loop=arm.get('decode_loop', True), mismatches=mismatches,
+                                decode_loop=arm.get('decode_loop', True), decode_loop_used=generation.decode_loop_used, mismatches=mismatches,
                                 token_sha256=hashlib.sha256(json.dumps(values).encode()).hexdigest()))
                             if mismatches:
                                 (output/'mismatch_tokens.json').write_text(json.dumps(values))
