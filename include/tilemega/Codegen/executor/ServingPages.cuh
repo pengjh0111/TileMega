@@ -611,6 +611,7 @@ void tilemega_l1_kernel(Params const* p,EventCounter* events,unsigned long long 
   if(threadIdx.x==0 && p->serving_page_trace)
     p->serving_page_trace[blockIdx.x].kernel_begin_ns=executor::PageTraceNow();
 #endif
+  executor::StepBegin(*p,iteration);
   extern __shared__ __align__(1024) char page_storage[];
   paged::Ring ring{reinterpret_cast<paged::Ring::Slot*>(page_storage),page_storage+TILEMEGA_PAGE_POOL_OFFSET,
       p->serving_page_trace ? p->serving_page_trace+blockIdx.x : nullptr};ring.Initialize();
@@ -635,6 +636,7 @@ void tilemega_l2_kernel(Params const* p,EventCounter* events,unsigned long long 
   if(threadIdx.x==0 && p->serving_page_trace)
     p->serving_page_trace[blockIdx.x].kernel_begin_ns=executor::PageTraceNow();
 #endif
+  executor::StepBegin(*p,iteration);
   extern __shared__ __align__(1024) char page_storage[];
   paged::Ring ring{reinterpret_cast<paged::Ring::Slot*>(page_storage),page_storage+TILEMEGA_PAGE_POOL_OFFSET,
       p->serving_page_trace ? p->serving_page_trace+blockIdx.x : nullptr};ring.Initialize();

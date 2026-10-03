@@ -20,7 +20,7 @@ __device__ inline StepTraceRecord* StepRow(Params const& p,unsigned long long it
 __device__ inline void StepBegin(Params const& p,unsigned long long iteration) {
 #if TILEMEGA_TRACE_STEP
   if(threadIdx.x==0)if(auto* r=StepRow(p,iteration)) {
-    r->iteration=iteration;r->past=p.dims.past;r->kernel_begin=ServingTraceNow();
+    r->iteration=iteration;r->past=p.dims.past;if(!r->kernel_begin)r->kernel_begin=ServingTraceNow();
   }
 #endif
 }

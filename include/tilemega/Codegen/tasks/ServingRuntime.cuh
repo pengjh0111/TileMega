@@ -163,12 +163,12 @@ inline void Destroy(Plan* plan) {
       if(cudaMemcpy(rows.data(),plan->page_trace,rows.size()*sizeof(rows[0]),
                     cudaMemcpyDeviceToHost)==cudaSuccess)
         if(auto* out=std::fopen(path,"w")) {
-          std::fprintf(out,"step\tworker\tkernel_begin_ns\tkernel_end_ns\tdependency_wait_ns\tpage_full_ns\tfull_and_wait_ns\tdependency_episodes\tpage_full_episodes\n");
+          std::fprintf(out,"step\tworker\tkernel_begin_ns\tkernel_end_ns\tdependency_wait_ns\tpage_full_ns\tfull_and_wait_ns\tdependency_episodes\tpage_full_episodes\tloader_issue_ns\n");
           for(std::size_t i=0;i<rows.size();++i)
-            std::fprintf(out,"%zu\t%zu\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\n",i/std::size_t(plan->grid),i%std::size_t(plan->grid),
+            std::fprintf(out,"%zu\t%zu\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\n",i/std::size_t(plan->grid),i%std::size_t(plan->grid),
                 rows[i].kernel_begin_ns,rows[i].kernel_end_ns,
                 rows[i].dependency_wait_ns,rows[i].page_full_ns,rows[i].full_and_wait_ns,
-                rows[i].dependency_episodes,rows[i].page_full_episodes);
+                rows[i].dependency_episodes,rows[i].page_full_episodes,rows[i].loader_issue_ns);
           std::fclose(out);
         }
     }

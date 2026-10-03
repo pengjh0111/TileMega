@@ -2,7 +2,8 @@
 """Stage and boundary accounting from runtime tables, never inferred elision."""
 import argparse,csv,json,statistics
 from pathlib import Path
-def read(p):return list(csv.DictReader(Path(p).open(),delimiter='\t'))
+def read(p):
+    with Path(p).open() as stream:return list(csv.DictReader(stream,delimiter='\t'))
 def write(p,rows):
     p=Path(p);p.parent.mkdir(parents=True,exist_ok=True)
     fields=list(dict.fromkeys(k for r in rows for k in r))

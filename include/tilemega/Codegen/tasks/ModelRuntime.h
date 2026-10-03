@@ -649,6 +649,8 @@ struct alignas(8) PageTraceRecord {
   unsigned long long full_and_wait_ns = 0;
   unsigned long long dependency_episodes = 0;
   unsigned long long page_full_episodes = 0;
+  unsigned long long loader_issue_begin_ns = 0;
+  unsigned long long loader_issue_ns = 0;
   unsigned lock = 0;
   unsigned flags = 0;
 };

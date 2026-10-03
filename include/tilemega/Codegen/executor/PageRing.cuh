@@ -42,13 +42,22 @@ struct PageRing {
     if(LoaderLane()==0)PageTraceTransition(trace,2u,true);
     Copy::Wait(&slots[SlotIndex(sequence)].empty,Phase(sequence),watch,8,sequence);
     if(LoaderLane()==0)PageTraceTransition(trace,2u,false);
+#if TILEMEGA_PAGE_TRACE
+    if(LoaderLane()==0 && trace)trace->loader_issue_begin_ns=PageTraceNow();
+#endif
     if(LoaderLane()==0)
       *reinterpret_cast<volatile std::uint64_t*>(&slots[SlotIndex(sequence)].generation)=sequence;
+  }
+  __device__ void EndIssue() const {
+#if TILEMEGA_PAGE_TRACE
+    if(LoaderLane()==0 && trace)
+      trace->loader_issue_ns+=PageTraceNow()-trace->loader_issue_begin_ns;
+#endif
   }
   __device__ void PublishCopies(std::uint64_t sequence) const {
     // All 32 loader lanes contribute one asynchronous arrival, even when a
     // lane has no valid copy in the last partial page.
-    Copy::CompleteCopies(&slots[SlotIndex(sequence)].full);
+    Copy::CompleteCopies(&slots[SlotIndex(sequence)].full);EndIssue();
   }
   __device__ void PublishBulk(std::uint64_t sequence,void const* source,unsigned bytes) const {
     auto* barrier=&slots[SlotIndex(sequence)].full;
@@ -56,6 +65,7 @@ struct PageRing {
       Copy::ExpectTx(barrier,bytes);
       Copy::Bulk(Page(sequence),source,bytes,barrier);
     }else Copy::Arrive(barrier);
+    EndIssue();
   }
   __device__ void PublishBulkHint(std::uint64_t sequence,void const* source,
                                   unsigned bytes,std::uint64_t policy) const {
@@ -64,6 +74,7 @@ struct PageRing {
       Copy::ExpectTx(barrier,bytes);
       Copy::BulkHint(Page(sequence),source,bytes,barrier,policy);
     }else Copy::Arrive(barrier);
+    EndIssue();
   }
   __device__ void AwaitFull(std::uint64_t sequence) const {
     // Independent attention warps can request a slot two generations ahead.
