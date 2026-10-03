@@ -2574,7 +2574,7 @@ inline DeviceModel Create(ModelSpec const& spec,
     }
   }
 #if defined(TILEMEGA_SERVING_SEQ)
-  if(TILEMEGA_PAGED && TILEMEGA_SERVING_SEQ==1)
+  if(TILEMEGA_SERVING_SEQ==1)
     if(auto* ablation=std::getenv("TILEMEGA_PLACEMENT_ABLATION")) {
       std::string value(ablation);
       if(value=="rotate")plan_mode=dialect::PlacementMode::kRotate;
