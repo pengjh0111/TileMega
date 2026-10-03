@@ -1,0 +1,49 @@
+{
+  "time": 1791035411.3101668,
+  "counts": {
+    "done": 42,
+    "failed": 4,
+    "skipped": 58
+  },
+  "running_steps": 0,
+  "pending_steps": 0,
+  "scheduler_alive_at_check": true,
+  "scheduler_status": "idle awaiting new queue or deadline",
+  "anchor_rounds": 24,
+  "arm_runs": 144,
+  "failed_arm_runs": [],
+  "arch_compile_ok": 19,
+  "arch_compile_total": 19,
+  "fp64_count": 0,
+  "ptx_position_failures": [
+    {
+      "arch": 120,
+      "label": "nonpaged",
+      "kind": "ptx",
+      "trigger": 0,
+      "exit_code": 0,
+      "path": "/root/TileMega/docs/experiments/SERVING_R13/raw/Barch_tool_retry/nonpaged_sm120_trigger0.ptx",
+      "sha256": "e8a90ba229dfa490faac867d5b76bdda20bdd334258cd302dc2230ab1f1642fb",
+      "position_exit_code": 1
+    }
+  ],
+  "identity": {
+    "paged_reference": {
+      "source_equal": true,
+      "sass_equal": true,
+      "resources_equal": true
+    },
+    "sm89_pdl": {
+      "source_equal": true,
+      "sass_equal": true,
+      "resources_equal": true
+    },
+    "nonpaged_reference": {
+      "source_equal": true,
+      "sass_equal": true,
+      "resources_equal": false
+    }
+  },
+  "phase_c_d_published": false,
+  "r13_complete": false
+}

@@ -102,3 +102,11 @@ verified：102 个已发布步骤中，31 done、10 pending、3 failed、58 skip
 Bbaseline_gate 的 Qwen3 B1 B0 相对旧基线 TPOT +1.8422%，超过预注册 1% 门槛；其余三格分别为 Llama B1 −0.0399%、Llama B16 +0.1699%、Qwen3 B16 −1.0002%。这是实测止损，不是缺失轮次。几何、grid、驻留与 κ 已核对相同，编译资源变化是候选解释（inferred），原因尚未确认；不绕过门槛、不实施未注册优化。原始结果与资源记录见 `raw/recovery_02/Bbaseline_gate/baseline_stop.json`、`qwen3_B1_baseline_diagnosis.json` 与两个 ptxas 文本。Phase B 性能矩阵/正确性依赖因止损被 skipped，尚未完成。
 
 Barch 与 Bidentity 失败均为 PATH 缺失 cuobjdump。队列补入配置的 CUDA bin 路径，新增两个仅工具检查的重试步骤（`queue_tool_recovery.json`），保留原失败证据；不修改冻结的产品代码或 Phase A 工具。其余正常待运行的 Phase A/MB 步骤保持原定义及排他保护。
+
+## 第三次进度核对（2026-10-03 13:48 UTC）
+
+verified：已发布的 104 个步骤均进入终态：42 done、4 failed、58 skipped；无 running/pending，调度器存活且空等新队列。Phase A 全部结束，A1 与 A2 各 12/12 轮，合计 24 轮、144 次臂运行退出 0。MB 原六子项与完整方法集、单驻留补测均结束；这不等于 R13 全轮验收完成。Phase B 阶段账本、放置/步边界/分页矩阵、C-1/C-2 与新进程检验仍因止损而跳过；Phase C 决定、Phase D 联合选择与终验尚未发布。证据：`raw/inspection_03/{inspection.json,state.json,progress.tsv,validation_evidence.tar.xz}`。
+
+工具恢复后的架构检查：19/19 编译成功，所扫描 FP64 指令总数 0；但 sm_120、PDL_TRIGGER=0 的 PTX 位置检查失败（publication follows late trigger），其余三项位置检查通过。队列步骤 Barch_tool_retry 虽返回 done，不能因此宣称 PD-1 全部通过。非分页参考的源码与 SASS 相同，资源文本比较失败；差异集中在 GemmCombineTaskBody 的 ptxas 同名资源行，需区分新增调用上下文与已有调用，尚未将其当成通过。分页参考与 sm_89 PDL auto/off 的三项比较通过。原 PATH 失败两项保留，新增重试不覆盖原证据。
+
+Banalyze 已输出表格，但缺失阶段/task trace（各 0 行）；空表不能视为 T4–T12 已完成。下一步须先解释基线止损和核实资源/PDL 检查，再恢复被阻挡的 Phase B；保持预注册门槛，不能将跳过项改记为完成。
