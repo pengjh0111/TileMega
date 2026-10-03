@@ -1908,6 +1908,7 @@ struct DeviceModel {
 #if TILEMEGA_TRACE_PHASE
   TaskPhase* device_task_phase = nullptr;
 #endif
+  ReducerTrace* device_reducer_trace = nullptr;
   TaskTraceV2* device_task_trace_v2 = nullptr;
   unsigned long long* device_event_publish = nullptr;
   bool trace_v2_enabled = false;
@@ -1942,6 +1943,9 @@ inline bool TraceV2Enabled() {
 }
 
 inline void ZeroTraceV2(DeviceModel& model) {
+  if(model.device_reducer_trace)
+    TILEMEGA_CUDA_CHECK(cudaMemset(model.device_reducer_trace,0,
+        model.stages.size()*model.params.reducer_trace_stride*sizeof(ReducerTrace)));
   if (model.device_task_trace_v2 != nullptr)
     TILEMEGA_CUDA_CHECK(cudaMemset(model.device_task_trace_v2, 0,
                                    model.schedule.size() * sizeof(TaskTraceV2)));
@@ -3248,6 +3252,12 @@ inline void PrepareEvents(DeviceModel& model, int grid) {
                                    model.schedule.size() * sizeof(TaskPhase)));
     model.params.task_phase = model.device_task_phase;
 #endif
+    unsigned stride=1;
+    for(auto n:model.trace_v2_active_tasks)stride=std::max(stride,n);
+    TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_reducer_trace,
+        model.stages.size()*stride*sizeof(ReducerTrace)));
+    model.params.reducer_trace=model.device_reducer_trace;
+    model.params.reducer_trace_stride=stride;
     model.params.task_trace_v2 = model.device_task_trace_v2;
     model.params.event_publish = model.device_event_publish;
     // device_params was uploaded by Create, before event_count existed.
@@ -3354,6 +3364,24 @@ inline void DumpTraceV2(DeviceModel const& model, char const* fixture_dir,
     return f;
   };
 
+  if(model.device_reducer_trace) {
+    std::vector<ReducerTrace> reducers(model.stages.size()*model.params.reducer_trace_stride);
+    TILEMEGA_CUDA_CHECK(cudaMemcpy(reducers.data(),model.device_reducer_trace,
+        reducers.size()*sizeof(ReducerTrace),cudaMemcpyDeviceToHost));
+    auto rf=open("reducers.tsv");
+    std::fprintf(rf,"stage\ttask\tproducer_stage\tproducer_task\tworker\tpublish_ns\n");
+    for(auto const& r:reducers)if(r.publish_ns)
+      std::fprintf(rf,"%u\t%u\t%u\t%u\t%u\t%llu\n",r.stage,r.task,
+          r.producer_stage,r.producer_task,r.worker,r.publish_ns);
+    std::fclose(rf);
+  }
+  auto sf=open("runtime_stages.tsv");
+  std::fprintf(sf,"stage\tkind\telided\treducer\tactive_tasks\n");
+  for(unsigned i=0;i<model.stages.size();++i)
+    std::fprintf(sf,"%u\t%u\t%u\t%u\t%u\n",i,unsigned(model.stages[i].kind),
+        model.stages[i].handoff_elided,model.stages[i].handoff_reduce_stage,
+        model.trace_v2_active_tasks[i]);
+  std::fclose(sf);
   // The host split rewrite changes stage ids and windows. Export that exact
   // DAG seed, so analysis never applies pre-rewrite windows to split tasks.
   std::FILE* dag_file = open("runtime_dependencies.cuh");

@@ -482,6 +482,13 @@ struct TaskTraceV2 {
   unsigned long long run_end_clk;    ///< clock64 beside run_end, same SM
 };
 
+// An elided reducer still has a DAG node. Record its actual dynamic owner;
+// joining event timestamps alone cannot identify that last-arriver worker.
+struct ReducerTrace {
+  unsigned long long publish_ns;
+  unsigned stage, task, producer_stage, producer_task, worker;
+};
+
 /// A tensor the harness downloads and compares against the L0 reference.
 struct OutputDesc {
   std::uint32_t buffer;
@@ -701,6 +708,8 @@ struct Params {
 #if TILEMEGA_TRACE_PHASE
   TaskPhase* task_phase = nullptr;
 #endif
+  ReducerTrace* reducer_trace = nullptr;
+  unsigned reducer_trace_stride = 0;
   TaskTraceV2* task_trace_v2;            ///< nullptr unless TILEMEGA_TRACE_V2=1
   /// Stamped by the last arriver of each event; the sole source of hop times.
   unsigned long long* event_publish;     ///< length event_count

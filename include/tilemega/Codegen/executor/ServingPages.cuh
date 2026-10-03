@@ -295,6 +295,15 @@ __device__ bool ArgmaxLast(Params const& p,GemmInvocation const& inv,
 }
 __device__ inline void Publish(Params const&,EventCounter*,unsigned,unsigned,
                                unsigned long long);
+__device__ inline void TraceReducer(Params const& p,unsigned reducer,unsigned reducer_task,
+                                    unsigned producer,unsigned producer_task) {
+#if TILEMEGA_TRACE_V2
+  if(ComputeThread()==0 && p.reducer_trace) {
+    auto& r=p.reducer_trace[reducer*p.reducer_trace_stride+reducer_task];
+    r={TraceNow(),reducer,reducer_task,producer,producer_task,unsigned(blockIdx.x)};
+  }
+#endif
+}
 template<bool Loader,bool L2>
 __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& ring,
                      std::uint64_t& sequence,char* work,EventCounter* events,
@@ -341,7 +350,8 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
           // A reducer event belongs to each request row, not the M tile.
           for(int row=tile_m*int(table[s.gemm].tile_m);
               row<(tile_m+1)*int(table[s.gemm].tile_m) && row<p.dims.batch;++row)
-            Publish(p,events,s.handoff_reduce_stage,row,iteration);
+            {Publish(p,events,s.handoff_reduce_stage,row,iteration);
+             TraceReducer(p,s.handoff_reduce_stage,row,stage_index,task);}
           if(step_ns && tile_m==0 && ComputeThread()==0) {
             {Watch here=ring.watch?*ring.watch:Watch{};here.site=5;
              here.producer_stage=s.handoff_reduce_stage;
@@ -354,7 +364,10 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
       }else {
         bool last=Combine<true>(p,reducer,point.tile,work,ticket,
             ring.SharedLastFlag());
-        if constexpr(L2)if(last)Publish(p,events,s.handoff_reduce_stage,point.tile,iteration);
+        if constexpr(L2)if(last) {
+          Publish(p,events,s.handoff_reduce_stage,point.tile,iteration);
+          TraceReducer(p,s.handoff_reduce_stage,point.tile,stage_index,task);
+        }
       }
     }
     return;
@@ -407,8 +420,11 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
                 operands.partial,operands.lse,operands.context,
                 point.batch,point.group,int(s.extent),p.dims.capacity,
                 s.attention_kv_block,p.dims.past);
-        if constexpr(L2)if(last)Publish(p,events,s.handoff_reduce_stage,
-            point.group*p.dims.batch+point.batch,iteration);
+        if constexpr(L2)if(last) {
+          unsigned rt=point.group*p.dims.batch+point.batch;
+          Publish(p,events,s.handoff_reduce_stage,rt,iteration);
+          TraceReducer(p,s.handoff_reduce_stage,rt,stage_index,task);
+        }
       }
     }
     return;

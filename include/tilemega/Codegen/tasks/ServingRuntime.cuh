@@ -189,6 +189,7 @@ inline void Destroy(Plan* plan) {
   if(model.params.serving_handoff_tickets)cudaFree(model.params.serving_handoff_tickets);
   if(model.params.serving_no_producer)cudaFree(const_cast<std::uint8_t*>(model.params.serving_no_producer));
 #if TILEMEGA_TRACE_V2
+  if (model.device_reducer_trace) cudaFree(model.device_reducer_trace);
   if (model.device_task_trace_v2) cudaFree(model.device_task_trace_v2);
   if (model.device_event_publish) cudaFree(model.device_event_publish);
 #endif
