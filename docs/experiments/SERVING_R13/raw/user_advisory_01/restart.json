@@ -1,0 +1,20 @@
+{
+  "time": 1791035838.1590762,
+  "pid": 184785,
+  "command": [
+    "setsid",
+    "nohup",
+    "python3",
+    "/root/r13_work/diag/docs/experiments/SERVING_R13/scheduler.py",
+    "--queue-dir",
+    "/root/r13_work/queue",
+    "--out",
+    "/root/TileMega/docs/experiments/SERVING_R13/scheduler",
+    "--policy",
+    "/root/r13_work/diag/docs/experiments/SERVING_R13/guard_policy.json",
+    "--deadline-hours",
+    "84.06281355930699"
+  ],
+  "original_deadline_epoch": 1791338464.2844844,
+  "remaining_hours": 84.06281355930699
+}

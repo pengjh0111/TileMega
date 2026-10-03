@@ -6,9 +6,9 @@
   "target_sha256": "c2c03ad6e9534130762cc88d423aac336077a0bd040db6d337a1e31e3c1ec8b9",
   "frozen_source_commit": "e003cd5591c320acb82f723064924e4d9d2b9fc0",
   "implementation_commits": 56,
-  "status": "User authorized advisory baseline gate; restoring Phase B data collection without changing measured failure or GPU/correctness guards",
+  "status": "Advisory gate executed; original performance failure retained; B0c running and Phase B collection restored",
   "recovery": "raw/recovery_01",
-  "scheduler_pid": 94693,
-  "progress_snapshot": "raw/inspection_03/inspection.json",
+  "scheduler_pid": 184785,
+  "progress_snapshot": "raw/user_advisory_01/confirmation.json",
   "collection_policy": "collection_policy.json"
 }

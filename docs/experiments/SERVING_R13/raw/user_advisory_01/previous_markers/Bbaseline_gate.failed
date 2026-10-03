@@ -1,0 +1,1 @@
+{"status": "failed", "attempts": 2, "enqueued": 1790999530.1531646, "retry_at": 0, "recovery": "repaired preparation; preserve prior attempts in recovery_01", "wait_s": 24939.894122600555, "pid": 156885, "run_s": 0.5710611720569432, "exit_code": 3}
