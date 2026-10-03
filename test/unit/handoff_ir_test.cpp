@@ -22,8 +22,13 @@ int TestHandoffIr(int argc,char** argv) try {
   auto module=!imported_case?mlir::parseSourceFile<mlir::ModuleOp>(argv[1],&context):
     frontend::TorchExportImporter{}.Import(std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SEQSCAN/raw/export/gqa2.json",context);
   assert(module);
-  if(argc>2 && std::string(argv[2])=="select_serving") {
-    auto selected=dialect::SelectServingHandoffs(*module);
+  if(argc>2 && (std::string(argv[2])=="select_serving" ||
+                 std::string(argv[2])=="select_splitk" ||
+                 std::string(argv[2])=="splitk_off")) {
+    unsigned classes=std::string(argv[2])=="select_splitk"?4:
+        std::string(argv[2])=="splitk_off"?0:7;
+    auto selected=dialect::SelectServingHandoffs(*module,classes);
+    if(classes==0){assert(selected.last_arriver==0);return 0;}
     assert(selected.recompute+selected.last_arriver>0);
     assert(!(*module)->hasAttr("tilemega.handoff_pending_lowering"));
     assert((*module)->hasAttr("tmexec.runtime_handoff_lowering"));

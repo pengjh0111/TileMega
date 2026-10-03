@@ -751,6 +751,46 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
       if (!arithmetic.empty())
         state.addAttribute("arithmetic", builder.getStringAttr(arithmetic));
     }
+    // A split introduces two distinct task spaces. Keep their exact access
+    // witness separate from the g-independent source semantic used by pricing.
+    // Serving handoff selection alone promotes it to a phase semantic.
+    if(plan.serving && (node.name==origin.name+".combine" ||
+        (node.name==origin.name && lifted.sem.Find(origin.name) &&
+         node.output.name!=lifted.sem.Find(origin.name)->result.name))) {
+      analysis::SemanticOp witness;
+      witness.name=node.name;witness.kind=node.kind;
+      witness.dtype=analysis::ScalarType::kF32;
+      witness.result=node.output;witness.result_effect.kind=analysis::EffectKind::kWrite;
+      witness.arithmetic=node.name==origin.name?"gemm":"sum";
+      for(auto const& axis:node.output.axes) {
+        witness.domain.push_back({axis.name,axis.extent,axis.origin,
+            analysis::IteratorType::kParallel,axis.runtime});
+        witness.result_map.results.push_back(analysis::IndexResult::Dim(axis.name));
+      }
+      for(auto const& input:node.operands) {
+        analysis::SemanticOperand operand;
+        operand.producer=input.producer;operand.tensor=input.tensor;
+        for(auto const& index:input.axes) {
+          analysis::IndexResult mapped;
+          if(index.kind==analysis::OperandAxisMap::Kind::kFullRange)
+            mapped=analysis::IndexResult::FullRange(index.offset);
+          else if(index.kind==analysis::OperandAxisMap::Kind::kBroadcast)
+            mapped=analysis::IndexResult::Broadcast(index.span);
+          else if(index.kind==analysis::OperandAxisMap::Kind::kDataDependent)
+            mapped=analysis::IndexResult::DataDependent();
+          else {
+            std::vector<analysis::IndexResult::Term> terms;
+            for(auto const& term:index.terms)
+              terms.push_back({node.output.axes.at(term.output_axis).name,term.scale,term.group});
+            mapped=analysis::IndexResult::Affine(std::move(terms),index.offset);
+          }
+          operand.map.results.push_back(std::move(mapped));
+        }
+        witness.operands.push_back(std::move(operand));
+      }
+      state.addAttribute("split_access_semantic",
+          builder.getStringAttr(analysis::EncodeSemanticOp(witness)));
+    }
     builder.create(state);
   }
 

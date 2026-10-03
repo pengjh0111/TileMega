@@ -21,6 +21,6 @@ struct ServingHandoffSelection {int recompute=0,last_arriver=0;};
 // edges remain ordinary events. The result is lowered conservatively into the
 // already solved runtime stage slots.
 ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
-    unsigned selected_classes=3);
+    unsigned selected_classes=7);
 void RegisterHandoffPass();
 }

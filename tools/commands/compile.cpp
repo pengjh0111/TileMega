@@ -290,7 +290,7 @@ int RunCompile(int argc, char** argv) {
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int kphase_mask=31,v3_poll_ns=0,watchdog=0;
-    int deferred_norm=1,paged_la=1,candidate_guard_wait_s=300;
+    int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300;
     bool page_bytes_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
     if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
@@ -339,6 +339,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--kphase-mask") kphase_mask=std::stoi(value);
       else if (flag=="--deferred-norm") deferred_norm=std::stoi(value);
       else if (flag=="--paged-la") paged_la=std::stoi(value);
+      else if (flag=="--paged-la-splitk") paged_la_splitk=std::stoi(value);
       else if (flag=="--candidate-guard-wait-s") candidate_guard_wait_s=std::stoi(value);
       else if (flag=="--watchdog") watchdog=std::stoi(value);
       else if (flag=="--v3-poll-ns") v3_poll_ns=std::stoi(value);
@@ -457,7 +458,8 @@ int RunCompile(int argc, char** argv) {
             " -DTILEMEGA_EVENT_RED_PUBLISH="+std::to_string(event_red)+
             " -DTILEMEGA_BARRIER_V2="+std::to_string(barrier_v2);
     }
-    if((deferred_norm!=0 && deferred_norm!=1) || (paged_la!=0 && paged_la!=1) || candidate_guard_wait_s<0)
+    if((deferred_norm!=0 && deferred_norm!=1) || (paged_la!=0 && paged_la!=1) ||
+       (paged_la_splitk!=0 && paged_la_splitk!=1) || candidate_guard_wait_s<0)
       throw std::runtime_error("invalid serving ablation option");
     std::string source,selected_serving_mode,selected_serving_binary;
     double selected_serving_ms=std::numeric_limits<double>::infinity();
@@ -817,6 +819,7 @@ int RunCompile(int argc, char** argv) {
               " --v3-poll-ns "+std::to_string(v3_poll_ns)+
               " --watchdog "+std::to_string(watchdog)+
               " --paged-la "+std::to_string(paged_la)+
+              " --paged-la-splitk "+std::to_string(paged_la_splitk)+
               " --l2-prefetch-depth "+std::to_string(prefetch_depth)+" --l2-prefetch-stride "+std::to_string(prefetch_stride)+
               " --event-solo "+std::to_string(event_solo)+" --event-red-publish "+std::to_string(event_red)+
               " --barrier-v2 "+std::to_string(barrier_v2)+
@@ -1054,7 +1057,7 @@ int RunCompile(int argc, char** argv) {
       // Decode paging always lowers reduction handoffs. The selected IR owns
       // the decision; there is no R11 recompute coordinate in this regime.
       if(paged_la) {
-      auto r12_reductions=tilemega::dialect::SelectServingHandoffs(*module,2);
+      auto r12_reductions=tilemega::dialect::SelectServingHandoffs(*module,2|(paged_la_splitk?4:0));
       std::cerr<<"R12_LAST_ARRIVER selected="<<r12_reductions.last_arriver<<'\n';
       handoff_mode="last_arriver";
       }else handoff_mode="off";
@@ -1245,6 +1248,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"watchdog\": "<<watchdog
               <<",\n  \"deferred_norm\": "<<(manifest_deferred_norm?"true":"false")
               <<",\n  \"paged_la\": "<<(use_pages && paged_la?"true":"false")
+              <<",\n  \"paged_la_splitk\": "<<(use_pages && paged_la && paged_la_splitk?"true":"false")
               <<",\n  \"handoff\": "<<std::quoted(handoff_mode)
               <<",\n  \"pages\": "<<pages_json
               <<",\n  \"prefetch\": "<<prefetch_json

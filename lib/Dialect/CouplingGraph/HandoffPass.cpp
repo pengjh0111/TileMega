@@ -429,7 +429,7 @@ ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
     else if((selected_classes&2) && kind(pair.first)=="kFusedAttention" &&
             kind(pair.second)=="kAttentionMerge")
       choice="last_arriver";
-    else if((selected_classes&2) && pair.first==pair.second &&
+    else if((selected_classes&4) && pair.first==pair.second &&
             kind(pair.first)=="kGemm")
       choice="last_arriver";
     else if((selected_classes&2) && kind(pair.first)=="kGemm" &&
@@ -437,6 +437,20 @@ ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
       choice="last_arriver";
     else continue;
     if((pass==0)!=(choice=="recompute"))continue;
+    if(choice=="last_arriver" && pair.first==pair.second) {
+      // Promote only this solved split-K pair. Other proofs and the legacy
+      // importer retain their source semantics.
+      auto partial=p->getAttrOfType<StringAttr>("split_access_semantic");
+      auto combine=c->getAttrOfType<StringAttr>("split_access_semantic");
+      if(!partial || !combine)continue;
+      p->setAttr("semantic",partial);c->setAttr("semantic",combine);
+      // A partial workspace has exactly one reader: its reducer. Redirecting
+      // any other reader would publish uncombined values as logical output.
+      bool escapes=false;
+      for(auto other:graph.getBody().front().getOps<CouplingOp>())
+        if(other.getSrc()==p.getSymName() && other.getDst()!=c.getSymName())escapes=true;
+      if(escapes)throw std::invalid_argument("split-K partial workspace has another consumer");
+    }
     mlir::OperationState decision(edge.getLoc(),HandoffOp::getOperationName());
     decision.addAttribute("coupling",mlir::FlatSymbolRefAttr::get(module.getContext(),
         edge.getSymName()));
