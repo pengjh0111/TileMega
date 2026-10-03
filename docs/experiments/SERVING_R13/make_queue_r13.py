@@ -54,6 +54,8 @@ def main():
                '-DCMAKE_BUILD_TYPE=Release','-DMLIR_DIR=/root/toolchains/mlir-23a60f15/lib/cmake/mlir',
                '-DLLVM_DIR=/root/toolchains/mlir-23a60f15/lib/cmake/llvm',
                '-DTILEMEGA_ISL_BUILD_DIR=/root/TileMega/build-isl',
+               '-DTILEMEGA_POLYLIB_BUILD_DIR=/root/TileMega/build-polylib',
+               '-DTILEMEGA_BARVINOK_BUILD_DIR=/root/TileMega/build-barvinok',
                '-DTILEMEGA_ISL_GENERATED_INCLUDE_DIR=/root/TileMega/build-isl/include',
                '-DTILEMEGA_ISL_LIBRARY=/root/TileMega/build-isl/.libs/libisl.a']
     import shlex
