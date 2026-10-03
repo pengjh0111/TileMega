@@ -1,0 +1,10 @@
+{
+  "queue": "/root/r13_work/queue/queue_b.json",
+  "sha256": "29ebe54c854836b6f4df4bcfa00db2a43a0be5c1805b0d930976c9d7011a731e",
+  "published_utc": "2026-10-03 03:51:58 UTC",
+  "queue_commit": "974c8f85ebf4d2c4cae7e03e85b5d496cce5232d",
+  "source_commit": "cf369f5bf51268b3ad5c02b0a78dbd3450006a92",
+  "steps": 68,
+  "scheduler_launch_pid_file": "/root/r13_work/scheduler_launch.pid",
+  "scheduler_status": "not polled; reuse the previously launched single instance"
+}
