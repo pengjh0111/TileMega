@@ -1,0 +1,24 @@
+{
+  "time": 1791006767.8892407,
+  "Bpre": {
+    "status": "done",
+    "attempts": 2,
+    "enqueued": 1790999530.1531527,
+    "retry_at": 0,
+    "recovery": "repaired preparation; preserve prior attempts in recovery_01",
+    "wait_s": 7171.429314613342,
+    "pid": 94699,
+    "run_s": 18.888814698904753,
+    "exit_code": 0
+  },
+  "tests_passed": 9,
+  "tests_total": 9,
+  "fingerprint": "04d1c4a36ff1aaa01c5d4da50f71401bcea0e7541ae30b1e3e3d86aec5b395b4",
+  "snapshot_counts": {
+    "done": 1,
+    "running": 1,
+    "pending": 100
+  },
+  "active_step_at_check": "Apre",
+  "accepted_timing_results": 0
+}

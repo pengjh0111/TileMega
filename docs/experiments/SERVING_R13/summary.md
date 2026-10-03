@@ -8,7 +8,7 @@
 - 外部 prompt：`/root/Prompt/TileMega_R13_prompt.md`。
 - prompt SHA256：`5adb32833673d7dcd18e6ec02999be9c6bd9ca3216c95f9d9f2b136f8329ace9`。
 - 固定 target：`/root/r13_work/target_r12b.json`，SHA256 `c2c03ad6e9534130762cc88d423aac336077a0bd040db6d337a1e31e3c1ec8b9`。
-- 当前源码冻结：`cf369f5bf51268b3ad5c02b0a78dbd3450006a92`；冻结前 50 个提交见 `implementation_commits.tsv`。最终 HEAD / 最终提交数待归档。
+- 当前源码冻结：`e003cd5591c320acb82f723064924e4d9d2b9fc0`；冻结前 56 个提交见 `implementation_commits.tsv`。最终 HEAD / 最终提交数待归档。
 - Phase A 独立 worktree：`/root/r13_work/diag`；C++ 使用基线，Python 包含 TL-1；主 worktree 的后续改动不用于 Phase A。
 - 没有找到配套 `R13_plan.md`；本记录以已保存的 R13 prompt 为依据。
 
@@ -42,6 +42,7 @@
 | trace join / 账本专项 | verified：5/5 | `raw/host_checks/diagnostics_final.log` |
 | 带宽口径专项 | verified：排除其他 grid/线程配置 | `raw/host_checks/ceiling_accounting.log` |
 | FX-21 旧编译器诊断 | verified：48 对 split partial→combine 均因缺 L-sem 被拒；原来只选 17 个 LA | `raw/FX21_diagnosis/{diagnostic.log,handoff_rejects.txt,result.json}`，F-348 |
+| 修复后的 C++ 子集 | verified：9/9，含 split-four/one/off/escape | `raw/recovery_01/Bpre_repaired.log` |
 | Phase B 输入 | verified：28 个固定构建定义、68 个队列步骤；无缺失输入、重名步骤或未知依赖 | `phase_b_input_check.json`、`jobs_b.json`、`queue_b.json` |
 
 系统 Python 缺 transformers 的首次工具检查失败也保留在 `raw/host_checks/python.log`；随后使用 Torch venv 验证。C++ 单测与 CUDA 检查以 Bpre/Barch 的终态记录为准，未把已启动的后台命令当成通过。
@@ -86,7 +87,7 @@ Q1（新基线）、Q2（可达上限）、Q3（阶段账本）、Q4（L2 开销
 
 Phase A 调度器已启动，PID 启动记录 `/root/r13_work/scheduler_launch.pid`。用户请求检查时读取了一次状态：3 个准备步骤失败、90 个依赖步骤 skipped、1 个无数据 prefill 回退步骤 done、8 个 pending，没有正在计时的子进程。GPU 守卫因不可见占用拒绝了 7 次预检，未产生可接受的性能数据。原状态、日志、占用记录保存在 `raw/recovery_01/`。
 
-恢复修正：diag 的 CMake 增加 polylib/barvinok 构建路径；单层 fixture 保留并重映射仍有输入的 4 条 guard，删除的只是已移除层输入的 guard。随后真实 split-four 用例暴露访问见证的 arithmetic 被硬编码为 gemm/sum，修复为保留任务原签名。这是 FX-21 元数据修正，不是新增性能优化。Bpre 优先执行，防止固定构建消耗数小时后才发现主机失败。失败/跳过项与无数据的 Achoose 将重新排队；保留原记录，单实例重启且不延长原 96 h 截止时间。
+恢复修正：diag 的 CMake 增加 polylib/barvinok 构建路径；单层 fixture 保留并重映射仍有输入的 4 条 guard，删除的只是已移除层输入的 guard。随后真实 split-four 用例暴露访问见证的 arithmetic 被硬编码为 gemm/sum，修复为保留任务原签名。这是 FX-21 元数据修正，不是新增性能优化。Bpre 优先执行，防止固定构建消耗数小时后才发现主机失败。已恢复 94 个失败/跳过或无数据回退步骤，保留原记录；调度器单实例重启为 PID 94693，未延长原 96 h 截止时间（`raw/recovery_01/{reset,restart}.json`）。Bpre 修复后编译与源码指纹通过，相关主机测试 9/9 通过（`raw/recovery_01/Bpre_repaired.log`）；随后正在执行 Apre 编译准备。尚无可接受的计时结果。
 
 所有 GPU 计时经守卫，所有构建/ctest/架构检查共用 `/root/r13_work/gpu.lock`；退出码 75 冷却后重排。Bpre 的编译、指纹与 C++ 子集测试是固定构建前置依赖。Bbaseline_gate 缺少干净轮次所致的失败不能当作性能止损已触发；它会在真实 A1 结果完成后重新判定，保护门不绕过。
 

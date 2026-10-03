@@ -49,3 +49,9 @@ f4d5c4bf6e679bb0a7a7762a6706ac91d40f0a41	experiments: cover cluster hops with ba
 ae3910b62759f2f3e098d4cce1466bead8f103ea	experiments: join geometry and task prices in the error report
 8dd3c6e1211e8415cea5e85a5afbeb9fae3941c4	runtime: release early PDL grids before weight prefetch
 cf369f5bf51268b3ad5c02b0a78dbd3450006a92	experiments: omit unobserved per step timing quantiles
+974c8f85ebf4d2c4cae7e03e85b5d496cce5232d	docs: freeze round thirteen code and validation inputs
+fb57dfb3a840a8f2c78c1a62ff969052fd88037e	experiments: record frozen Phase B queue publication
+0ee6fbf9de4704068f57299c1dcd4f74024925cc	test: remap guards in the single layer serving fixture
+fcedd3b5127cf319f6101bca15d56fece8ff96ee	dialect: retain arithmetic in split access witnesses
+eefff245f973406239123e798c0acd77de144956	build: resolve all ISL stack paths in the diag worktree
+e003cd5591c320acb82f723064924e4d9d2b9fc0	experiments: check repaired handoffs before fixed builds
