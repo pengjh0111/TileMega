@@ -6,6 +6,7 @@ from pathlib import Path
 from ledger import read,write,stages,steps
 from page_chain import chain,pages
 from fidelity import candidates
+from cm_report import collect as collect_model_errors
 HERE=Path(__file__).resolve().parent
 CELLS=('llama_B1','llama_B16','qwen3_B1','qwen3_B16')
 GROUPS=[['B0','B0-noev','B0l','NL2e','NL2g','NL2r'],['PR_L1','PR_L2','PR_L2l'],
@@ -233,9 +234,10 @@ def main():
                 fidelity+=candidates(Path(c['library']))
                 fidelity.append(dict(batch=b,stage='joint',candidate=json.dumps(c,separators=(',',':'))))
     write(out/'T9.tsv',fidelity)
-    for name in ('T8','T10','T11','T12'):
+    for name in ('T8','T10','T11'):
         rows=[r for r in median if r['matrix']=='D2'] if name=='T10' else correctness(root,tokens) if name=='T11' else []
         write(out/(name+'.tsv'),rows)
+    collect_model_errors(root,out)
     canaries=[]
     for r in raw:
         base='vllm' if r['matrix'] in ('A1','D2') else 'B0'
