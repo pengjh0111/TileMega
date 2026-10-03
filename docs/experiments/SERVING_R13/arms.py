@@ -14,9 +14,14 @@ def register(label,model,batch,prefill,decode,root=ROOT,kind='tm',mode='L2',loop
             rec['sha256']=hashlib.sha256(path.read_bytes()).hexdigest()
             manifest=Path(str(path)+'.plan.json')
             if manifest.exists():
-                rec['manifest']=json.loads(manifest.read_text());rec['target']=rec['manifest'].get('runtime_target')
+                full=json.loads(manifest.read_text())
+                rec['manifest']={k:full[k] for k in ('model','phase','pg','sync','watchdog','kappa','residency','grid','pages','attention_kv_block','attention_query_rows') if k in full}
+                rec['manifest']['geometry_modes']=sorted({tuple(g[k] for k in ('tile_m','tile_n','tile_k','stages','split_k')) for g in full.get('gemms',[])})
+                rec['target']=full.get('runtime_target')
             record=path.parent/'record.json'
-            if record.exists():rec['record']=json.loads(record.read_text())
+            if record.exists():
+                original=json.loads(record.read_text())
+                rec['record']={k:original[k] for k in ('compiler_commit','source_sha256','target_sha256','placeholder_measurement','exit_code') if k in original}
             for key in ('compiler_commit','source_sha256'):
                 rec[key]=rec.get('record',{}).get(key,'unknown (original build record does not supply this field)')
         row['binaries'][phase]=rec
