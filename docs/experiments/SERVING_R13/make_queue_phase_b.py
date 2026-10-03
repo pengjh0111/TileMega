@@ -32,7 +32,8 @@ def main():
         ['cmake','--build','build-phase12','--target','tilemega','tilemega-unit','-j','6'],
         ['python3','python/tilemega/fingerprint.py','--check',env['TILEMEGA_BIN']],
         ['ctest','--test-dir','build-phase12','-R','^(handoff_|serving_lag|serving_page_layout|serving_task_index)','--output-on-failure']])
-    add('Bpre',['bash','-c',cmd],priority=40,timeout=7200)
+    # Fail preparation checks before spending hours building fixed candidates.
+    add('Bpre',['bash','-c',cmd],priority=-1,timeout=7200)
     add('B0b',[PY,str(HERE/'phase_b_r13.py'),'build','--out',str(HERE/'raw/B0b')],priority=41,after=['Bpre'],timeout=43200)
     # Keep Phase A's executable immutable. Small pools need an unused smem
     # reservation to establish the registered one-CTA-per-SM comparison.
