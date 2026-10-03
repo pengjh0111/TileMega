@@ -353,8 +353,9 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
                    plan->model.event_count * sizeof(EventCounter)) != cudaSuccess)
       return nullptr;
     plan->grid = grid;
-    plan->pdl = TILEMEGA_PAGED && TILEMEGA_SERVING_SEQ==1 && TILEMEGA_PDL &&
+    plan->pdl = TILEMEGA_SERVING_SEQ==1 && TILEMEGA_PDL &&
         !TILEMEGA_ARCH_PATH_SM80 && target.caps.pdl;
+    std::fprintf(stderr,"E2E_PDL enabled=%d caps=%d\\n",int(plan->pdl),int(target.caps.pdl));
     return plan.release();
   } catch (std::exception const& error) {
     std::fprintf(stderr, "tm_plan_create: %s\n", error.what());

@@ -21,6 +21,10 @@
 #define TILEMEGA_KPHASE_CLASS_MASK 31
 #endif
 #include <tilemega/Codegen/tasks/EventSync.cuh>
+#include <tilemega/Codegen/executor/ServingLaunch.cuh>
+#ifndef TILEMEGA_PDL_TRIGGER
+#define TILEMEGA_PDL_TRIGGER 0
+#endif
 #include <tilemega/Codegen/tasks/Benchmark.cuh>
 #include <tilemega/Codegen/ResidentSchedule.h>
 #include <tilemega/Codegen/RuntimeTaskGraph.h>
@@ -1330,12 +1334,36 @@ void tilemega_stage_kernel(Params const* params, std::uint32_t stage) {
   RunStage(*params, stage, *reinterpret_cast<TaskSmem*>(bytes));
 }
 
+// Only immutable descriptors and producer-free weights are touched before Wait.
+__device__ inline void ServingPdlEnter(Params const& p) {
+#if defined(TILEMEGA_SERVING_RUNTIME)
+  if constexpr(TILEMEGA_PDL && arch::Caps<arch::CurrentArch>::kPdl) {
+#if TILEMEGA_L2_PREFETCH
+    for(unsigned s=0;s<p.stage_count;++s)if(p.stages[s].kind==TaskKind::kGemm) {
+      prefetch::NextStage(p,s);break;
+    }
+#endif
+    if constexpr(TILEMEGA_PDL_TRIGGER==1)
+      executor::GridDependency<arch::CurrentArch>::Release();
+    executor::GridDependency<arch::CurrentArch>::Wait();
+  }
+#endif
+}
+__device__ inline void ServingPdlExit() {
+#if defined(TILEMEGA_SERVING_RUNTIME)
+  if constexpr(TILEMEGA_PDL && arch::Caps<arch::CurrentArch>::kPdl &&
+               TILEMEGA_PDL_TRIGGER==0)
+    executor::GridDependency<arch::CurrentArch>::Release();
+#endif
+}
+
 #if !TILEMEGA_PAGED
 /// The L1 megakernel.  The stage loop is a run-time loop over the generated
 /// table: its trip count is data, so one compiled kernel serves every model.
 __global__ __launch_bounds__(kHarnessThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
 void tilemega_l1_kernel(Params const* params, EventCounter* events,
                         unsigned long long iteration) {
+  ServingPdlEnter(*params);
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
@@ -1349,6 +1377,7 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
     GridBarrier(events, stage, iteration,params);
 #endif
   }
+  ServingPdlExit();
 }
 
 /// L2 is worker-queue driven. Adjacent rows may name different stages; only
@@ -1401,6 +1430,7 @@ __device__ inline std::uint32_t PrefetchBytes(Params const& p,
 __global__ __launch_bounds__(kHarnessThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
 void tilemega_l2_kernel(Params const* params, EventCounter* events,
                         unsigned long long iteration) {
+  ServingPdlEnter(*params);
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   using CS = ClusterSync<arch::CurrentArch>;
@@ -1835,6 +1865,7 @@ inline void ZeroTraceV2(DeviceModel& model) {
   if (model.device_event_publish != nullptr)
     TILEMEGA_CUDA_CHECK(cudaMemset(model.device_event_publish, 0,
                                    model.event_count * sizeof(unsigned long long)));
+  ServingPdlExit();
 }
 #endif
 

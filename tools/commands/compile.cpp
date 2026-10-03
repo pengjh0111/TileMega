@@ -450,7 +450,7 @@ int RunCompile(int argc, char** argv) {
       runtime_flags+=" -DTILEMEGA_WATCHDOG="+std::to_string(watchdog);
       runtime_flags+=" -DTILEMEGA_KPHASE_CLASS_MASK="+std::to_string(kphase_mask)+
           " -DTILEMEGA_V3_POLL_NS="+std::to_string(v3_poll_ns);
-      runtime_flags+=" -DTILEMEGA_PDL="+std::to_string(pdl=="auto" && use_pages)+
+      runtime_flags+=" -DTILEMEGA_PDL="+std::to_string(pdl=="auto")+
           " -DTILEMEGA_ARCH_PATH_SM80="+std::to_string(arch_paths=="sm80");
       if(sync_policy!="calibrated")
         runtime_flags+=" -DTILEMEGA_EVENT_SOLO="+std::to_string(event_solo)+
@@ -1076,7 +1076,7 @@ int RunCompile(int argc, char** argv) {
     if (serving) {
       if (serving_phase == "prefill")
         serving_past_lo = serving_past_hi = 0;
-      source = "#define TILEMEGA_PDL " +std::to_string(pdl=="auto" && use_pages)+"\n"+
+      source = "#define TILEMEGA_PDL " +std::to_string(pdl=="auto")+"\n"+
           "#define TILEMEGA_ARCH_PATH_SM80 "+std::to_string(arch_paths=="sm80")+"\n"+
           "#define TILEMEGA_SERVING_BATCH_LO " +
           std::to_string(serving_batch) + "\n" +
