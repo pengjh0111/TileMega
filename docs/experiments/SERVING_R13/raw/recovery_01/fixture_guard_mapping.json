@@ -1,0 +1,30 @@
+{
+  "source": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+  "original_user_inputs": 35,
+  "retained_user_inputs": [
+    "input_ids",
+    "past_k0",
+    "past_v0",
+    "past_v12",
+    "past_v15",
+    "rope_cos",
+    "rope_sin"
+  ],
+  "index_map": {
+    "0": 0,
+    "1": 1,
+    "2": 2,
+    "26": 3,
+    "32": 4,
+    "33": 5,
+    "34": 6
+  },
+  "original_guard_count": 63,
+  "retained_guards": [
+    "L['flat_args'][0].size()[0] == L['flat_args'][1].size()[0]",
+    "L['flat_args'][1].size()[0] == L['flat_args'][2].size()[0]",
+    "(1 + L['flat_args'][2].size()[2]) == (1 + L['flat_args'][1].size()[2])",
+    "L['flat_args'][3].size()[0] == L['flat_args'][4].size()[0]"
+  ],
+  "rule": "preserve and renumber guards whose referenced inputs remain; discard only guards for removed layer inputs"
+}

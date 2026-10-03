@@ -1,0 +1,22 @@
+Internal ctest changing into directory: /root/TileMega/build-phase12
+Test project /root/TileMega/build-phase12
+    Start 32: handoff_split_four
+1/4 Test #32: handoff_split_four ...............***Failed    0.66 sec
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+error: 'tmcg.tile_space' op semantic identity/arithmetic differs from task space
+handoff pass requires verified IR
+
+    Start 33: handoff_split_one
+2/4 Test #33: handoff_split_one ................   Passed    1.15 sec
+    Start 34: handoff_split_off
+3/4 Test #34: handoff_split_off ................   Passed    0.45 sec
+    Start 35: handoff_split_escape
+4/4 Test #35: handoff_split_escape .............   Passed    0.44 sec
+
+75% tests passed, 1 tests failed out of 4
+
+Total Test time (real) =   2.71 sec
+
+The following tests FAILED:
+	 32 - handoff_split_four (Failed)
+Errors while running CTest
