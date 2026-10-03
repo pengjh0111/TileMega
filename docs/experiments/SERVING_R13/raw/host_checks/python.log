@@ -1,0 +1,43 @@
+/usr/local/lib/python3.10/dist-packages/torch/_subclasses/functional_tensor.py:368: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+..../root/TileMega/docs/experiments/SERVING_R13/ledger.py:5: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpzjn7ykiu/slots.tsv' mode='r' encoding='UTF-8'>
+  def read(p):return list(csv.DictReader(Path(p).open(),delimiter='\t'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/root/TileMega/docs/experiments/SERVING_R13/ledger.py:5: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpzjn7ykiu/waits.tsv' mode='r' encoding='UTF-8'>
+  def read(p):return list(csv.DictReader(Path(p).open(),delimiter='\t'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/root/TileMega/docs/experiments/SERVING_R13/ledger.py:5: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpzjn7ykiu/events.tsv' mode='r' encoding='UTF-8'>
+  def read(p):return list(csv.DictReader(Path(p).open(),delimiter='\t'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/root/TileMega/docs/experiments/SERVING_R13/ledger.py:5: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpzjn7ykiu/reducers.tsv' mode='r' encoding='UTF-8'>
+  def read(p):return list(csv.DictReader(Path(p).open(),delimiter='\t'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.../root/TileMega/docs/experiments/SERVING_R13/ledger.py:5: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpb_2p8q68/runtime_stages.tsv' mode='r' encoding='UTF-8'>
+  def read(p):return list(csv.DictReader(Path(p).open(),delimiter='\t'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/root/TileMega/docs/experiments/SERVING_R13/ledger.py:5: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpb_2p8q68/stage_trace.tsv' mode='r' encoding='UTF-8'>
+  def read(p):return list(csv.DictReader(Path(p).open(),delimiter='\t'))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.............E
+======================================================================
+ERROR: test_measure_driver (unittest.loader._FailedTest)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_measure_driver
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/unittest/loader.py", line 436, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "/usr/lib/python3.10/unittest/loader.py", line 377, in _get_module_from_name
+    __import__(name)
+  File "/root/TileMega/docs/experiments/SERVING_R13/test_measure_driver.py", line 6, in <module>
+    from tilemega.serving import engine as module
+  File "/root/TileMega/python/tilemega/serving/engine.py", line 13, in <module>
+    from .state import allocate_state
+  File "/root/TileMega/python/tilemega/serving/state.py", line 8, in <module>
+    from transformers import AutoConfig
+ModuleNotFoundError: No module named 'transformers'
+
+
+----------------------------------------------------------------------
+Ran 21 tests in 0.104s
+
+FAILED (errors=1)
