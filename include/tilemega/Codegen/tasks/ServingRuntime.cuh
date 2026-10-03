@@ -558,7 +558,7 @@ extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
 #endif
 #if TILEMEGA_TRACE_STEP
   if(!dump("step_trace.tsv",plan->step_trace,std::size_t(plan->trace_launches)*plan->grid,
-      "worker\titeration\tpast\tkernel_begin\tkernel_end\tfirst_task\tlast_task\ttoken_lag\tkv_lag\tlast_barrier_wait"))return -2;
+      "worker\titeration\tpast\tkernel_begin\tkernel_end\tfirst_task\tlast_task\ttoken_lag\tkv_lag\tlast_barrier_wait\tstage_has_tasks"))return -2;
 #endif
   std::size_t gemm_count=0;
   for(auto const& stage:plan->model.stages)

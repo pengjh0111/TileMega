@@ -1366,10 +1366,11 @@ __global__ __launch_bounds__(kHarnessThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
 void tilemega_l1_kernel(Params const* params, EventCounter* events,
                         unsigned long long iteration) {
   ServingPdlEnter(*params);
+  executor::StepBegin(*params,iteration);
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
-#if TILEMEGA_TRACE_STAGE
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
     int tasks=ActiveBlocks(*params,params->stages[stage]);
     executor::StageBegin(*params,stage,iteration,
         tasks>int(blockIdx.x)?(tasks-blockIdx.x+gridDim.x-1)/gridDim.x:0);
@@ -1385,6 +1386,7 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
 #endif
     executor::StageRelease(*params,stage,iteration);
   }
+  executor::StepEnd(*params,iteration);
   ServingPdlExit();
 }
 
@@ -1403,8 +1405,9 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
   for(unsigned step=0;step<steps;++step) {
     Params const& p=params[step];
     auto iteration=base_iteration+step;
+    executor::StepBegin(p,iteration);
     for(unsigned stage=0;stage<p.stage_count;++stage) {
-#if TILEMEGA_TRACE_STAGE
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
       int tasks=ActiveBlocks(p,p.stages[stage]);
       executor::StageBegin(p,stage,iteration,
           tasks>int(blockIdx.x)?(tasks-blockIdx.x+gridDim.x-1)/gridDim.x:0);
@@ -1420,15 +1423,30 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
             prefetch::NextStage(next,s);break;
           }
       }
+#if TILEMEGA_TRACE_STEP
+      auto barrier_begin=executor::ServingTraceNow();
+#endif
       // The acquire plus compute-group barrier is the same publication
       // protocol as an intra-step stage boundary. No read-only cache alias
       // may be used for mutable tokens, activations, or KV.
       prefetch::Wait(events,stage,iteration,&p);
+#if TILEMEGA_TRACE_STEP
+      if(stage+1==p.stage_count && threadIdx.x==0)
+        executor::StepDelay(p,iteration,2,barrier_begin);
+#endif
 #else
+#if TILEMEGA_TRACE_STEP
+      auto barrier_begin=executor::ServingTraceNow();
+#endif
       GridBarrier(events,stage,iteration,&p);
+#if TILEMEGA_TRACE_STEP
+      if(stage+1==p.stage_count && threadIdx.x==0)
+        executor::StepDelay(p,iteration,2,barrier_begin);
+#endif
 #endif
       executor::StageRelease(p,stage,iteration);
     }
+    executor::StepEnd(p,iteration);
     if(blockIdx.x==0 && threadIdx.x==0 && step_ns) {
       unsigned long long now;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(now));
       step_ns[step+1]=now;
@@ -1489,6 +1507,7 @@ __global__ __launch_bounds__(kHarnessThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
 void tilemega_l2_kernel(Params const* params, EventCounter* events,
                         unsigned long long iteration) {
   ServingPdlEnter(*params);
+  executor::StepBegin(*params,iteration);
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   using CS = ClusterSync<arch::CurrentArch>;
@@ -1660,6 +1679,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     ModelElement const* prefetched =
         PrefetchBytes(*params, task, current) ? page_of(slot) : nullptr;
 #endif
+    executor::TaskBegin(*params,iteration);
     RunTask(*params, task.stage, task.logical_task, smem TILEMEGA_PHASE_PASS
             TILEMEGA_PREFETCH_PASS);
 #if !TILEMEGA_BARRIER_V2 || TILEMEGA_TRACE_V2
@@ -1698,6 +1718,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     // NotifyTask converges every writer before another warp can consume the
     // flags. It supplies that convergence even for a task with no out-events.
 #endif
+    executor::TaskEnd(*params,iteration);
     NotifyTask(*params, events, task.stage, task.logical_task, iteration);
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
     if (params->task_trace_v2 != nullptr && threadIdx.x == 0)
@@ -1724,6 +1745,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
       for (unsigned i = threadIdx.x; begin + i < end; i += blockDim.x)
         params->shard_arrivals[params->cluster_shard_indices[begin + i]].arrivals = local[i];
   }
+  executor::StepEnd(*params,iteration);
   ServingPdlExit();
 }
 

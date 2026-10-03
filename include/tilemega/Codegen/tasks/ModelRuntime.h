@@ -659,7 +659,7 @@ struct StageTraceRecord {
 struct StepTraceRecord {
   unsigned long long iteration=0,past=0,kernel_begin=0,kernel_end=0,
                      first_task=0,last_task=0,token_lag=0,kv_lag=0,
-                     last_barrier_wait=0;
+                     last_barrier_wait=0,stage_has_tasks=0;
 };
 
 struct Params {

@@ -305,6 +305,9 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
   if(s.handoff_elided)return;
   if constexpr(Loader)if(lookahead)(*lookahead)(0);
   if constexpr(!Loader && L2)if(s.kind==TaskKind::kEmbedding && iteration) {
+#if TILEMEGA_TRACE_STEP
+    auto lag_begin=executor::ServingTraceNow();
+#endif
     if(ComputeThread()==0)for(unsigned edge=0;edge<p.lag_dependency_count;++edge) {
       auto const& lag=p.lag_dependencies[edge];
       if(lag.kind==LagDependency::Kind::kToken && lag.consumer==stage_index)
@@ -315,6 +318,9 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
                     static_cast<unsigned long long>(p.dims.batch)*iteration,here);}
     }
     ComputeSync();
+#if TILEMEGA_TRACE_STEP
+    if(ComputeThread()==0)executor::StepDelay(p,iteration,0,lag_begin);
+#endif
   }
   if(s.kind==TaskKind::kGemm) {
     auto const* table=static_cast<GemmInvocation const*>(p.gemms);
@@ -358,6 +364,9 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
         CeilDiv(p.dims.capacity,s.attention_kv_block));
     if constexpr(Loader) {
       if(iteration) {
+#if TILEMEGA_TRACE_STEP
+        auto lag_begin=executor::ServingTraceNow();
+#endif
         if(executor::LoaderLane()==0)for(unsigned edge=0;
             edge<p.lag_dependency_count;++edge) {
           auto const& lag=p.lag_dependencies[edge];
@@ -373,6 +382,9 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
           }
         }
         __syncwarp();
+#if TILEMEGA_TRACE_STEP
+        if(executor::LoaderLane()==0)executor::StepDelay(p,iteration,1,lag_begin);
+#endif
         Ring::Copy::ProxyAsyncGlobalFence();
       }
 #if TILEMEGA_LOOKAHEAD_BYTES > 0
@@ -499,6 +511,7 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
                         PageStream* persistent_ahead=nullptr,
                         unsigned long long* persistent_prefetched=nullptr,
                         unsigned long long* persistent_loaded=nullptr) {
+  if constexpr(!Loader)executor::StepBegin(p,iteration);
   Watch watch{p.serving_watchdog,p.serving_watchdog_ns};
   watch.iteration=iteration;
   Ring ring=source_ring;ring.watch=&watch;
@@ -536,6 +549,7 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
         row.stage=task.stage;row.logical_task=task.logical_task;
       }
 #endif
+      if constexpr(!Loader)executor::TaskBegin(p,iteration);
       Task<Loader,L2>(p,task.stage,task.logical_task,ring,sequence,work,
           events,iteration,step_ns,step,Loader?&lookahead:nullptr);
 #if TILEMEGA_TRACE_V2
@@ -543,6 +557,7 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
         p.task_trace_v2[slot].run_end=TraceNow();p.task_trace_v2[slot].run_end_clk=clock64();
       }
 #endif
+      if constexpr(!Loader)executor::TaskEnd(p,iteration);
       if constexpr(!Loader)Publish(p,events,task.stage,task.logical_task,iteration);
 #if TILEMEGA_TRACE_V2
       if constexpr(!Loader)if(ComputeThread()==0 && p.task_trace_v2)
@@ -570,6 +585,7 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
       }
     }
   }
+  if constexpr(!Loader)executor::StepEnd(p,iteration);
   if constexpr(!Loader)if(final_step)executor::GridDependency<PageArch>::Release();
 }
 } // namespace paged
@@ -584,6 +600,10 @@ void tilemega_l1_kernel(Params const* p,EventCounter* events,unsigned long long 
       p->serving_page_trace ? p->serving_page_trace+blockIdx.x : nullptr};ring.Initialize();
   if(executor::IsCompute())paged::Execute<false,false>(*p,events,iteration,ring,page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET);
   else paged::Execute<true,false>(*p,events,iteration,ring,page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET);
+#if TILEMEGA_TRACE_STEP
+  if(executor::LoaderLane()==0)if(auto* row=executor::StepRow(*p,iteration))
+    atomicMax(&row->kernel_end,executor::ServingTraceNow());
+#endif
 #if TILEMEGA_PAGE_TRACE
   // The compute group can finish before the loader warp, or vice versa.
   // Record the later completion so adjacent-launch gaps use the full CTA span.
@@ -604,6 +624,10 @@ void tilemega_l2_kernel(Params const* p,EventCounter* events,unsigned long long 
       p->serving_page_trace ? p->serving_page_trace+blockIdx.x : nullptr};ring.Initialize();
   if(executor::IsCompute())paged::Execute<false,true>(*p,events,iteration,ring,page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET);
   else paged::Execute<true,true>(*p,events,iteration,ring,page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET);
+#if TILEMEGA_TRACE_STEP
+  if(executor::LoaderLane()==0)if(auto* row=executor::StepRow(*p,iteration))
+    atomicMax(&row->kernel_end,executor::ServingTraceNow());
+#endif
 #if TILEMEGA_PAGE_TRACE
   if(executor::IsCompute())executor::ComputeSync();
   else __syncwarp();
@@ -633,5 +657,10 @@ void tilemega_loop_kernel(Params const* params,unsigned steps,EventCounter* even
     else paged::Execute<true,true>(p,events,base_iteration+step,ring,
         page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET,&sequence,step_ns,step,
         step==0,step+1==steps,&ahead,&prefetched,&loaded);
+#if TILEMEGA_TRACE_STEP
+    if(!compute && executor::LoaderLane()==0)
+      if(auto* row=executor::StepRow(p,base_iteration+step))
+        atomicMax(&row->kernel_end,executor::ServingTraceNow());
+#endif
   }
 }
