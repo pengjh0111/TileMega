@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""Pre-registered choices; absent data never satisfies a trigger."""
+import argparse, json, statistics
+from pathlib import Path
+
+CELLS=('llama_B1','llama_B16','qwen3_B1','qwen3_B16')
+def summary(values):
+    if not values: raise ValueError('empty measurement series')
+    return statistics.median(values),max(values)-min(values)
+def distinguishably_faster(candidate,base):
+    c,cr=summary(candidate);b,br=summary(base)
+    return b-c>max(cr,br)
+def prefill(data):
+    return {cell:('PF-R10-noWD' if data.get(cell,{}).get('B0-pfR10') and
+        distinguishably_faster(data[cell]['B0-pfR10'],data[cell]['B0-pfR12b'])
+        else 'PF-R12b-noWD') for cell in CELLS}
+def phase_c(data):
+    mb=data.get('mb',{}); cells=data.get('cells',{})
+    def count(predicate): return sum(predicate(v) for v in cells.values())
+    def present(v,*keys):return all(k in v for k in keys)
+    ceiling=mb.get('ceiling_gbps',0)
+    rules={
+      'C-L2a':count(lambda v:present(v,'NL2g_rel','NL2e_rel') and v['NL2g_rel']<=.03 and v['NL2e_rel']>=.08)>=3,
+      'C-L2b':count(lambda v:'NL2g_rel' in v and v['NL2g_rel']>=.05)>=2,
+      'C-PG1':bool(ceiling and 'loader1_gbps' in mb and 'loader2_gbps' in mb and mb['loader1_gbps']<.95*ceiling and mb['loader2_gbps']>=.98*ceiling),
+      'C-PG3':any(v.get('PR_dependency_fraction',0)>.10 for v in cells.values()),
+      'C-LP2':any(v.get('PR_loop_rel',0)>=.01 for v in cells.values()),
+      'C-AT':any(v.get('attention_merge_excess_fraction',0)>=.03 for k,v in cells.items() if k.startswith('qwen3')),
+      'C-BW':mb.get('gemv_best_instruction_rel',0)>.02,
+      'C-WL':mb.get('gemv_tile_layout_rel',0)>.02,
+    }
+    return {'rules':rules,'selected':[k for k,v in rules.items() if v],
+            'inputs':data,'gpu_budget_hours':6,'engineering_budget_days':5}
+def final(data):
+    return {cell:('R13F' if data.get(cell,{}).get('R13F') and
+        distinguishably_faster(data[cell]['R13F'],data[cell]['B0-D']) else 'B0-D') for cell in CELLS}
+def main():
+    p=argparse.ArgumentParser();p.add_argument('--stage',choices=('prefill','phase_c','final'),required=True)
+    p.add_argument('--input',type=Path,required=True);p.add_argument('--out',type=Path,required=True);a=p.parse_args()
+    a.out.parent.mkdir(parents=True,exist_ok=True)
+    a.out.write_text(json.dumps(globals()[a.stage](json.loads(a.input.read_text())),indent=2)+'\n')
+if __name__=='__main__':main()

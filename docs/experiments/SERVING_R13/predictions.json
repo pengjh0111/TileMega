@@ -1,0 +1,333 @@
+{
+  "items": [
+    {
+      "id": "MB-1a_max",
+      "metric": "dram_gbps",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        896,
+        985
+      ],
+      "kill": {},
+      "committed_before_step": "MB-1a"
+    },
+    {
+      "id": "B0_vs_R12bN_L1",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.05,
+        -0.01
+      ],
+      "kill": {
+        "any_cell_worse_than": 0.01
+      },
+      "committed_before_step": "A1"
+    },
+    {
+      "id": "B0_noev_vs_B0",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.003,
+        0
+      ],
+      "kill": {},
+      "committed_before_step": "A1"
+    },
+    {
+      "id": "B0l_vs_B0_noev",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.01,
+        -0.002
+      ],
+      "kill": {
+        "any_cell_worse_than": 0.005,
+        "action": "exclude_default"
+      },
+      "committed_before_step": "B3"
+    },
+    {
+      "id": "NL2g_vs_NL2e",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.15,
+        -0.08
+      ],
+      "kill": {},
+      "committed_before_step": "B2",
+      "conditional": "H-L2a"
+    },
+    {
+      "id": "PR_vs_PS_L1",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.12,
+        -0.04
+      ],
+      "kill": {},
+      "committed_before_step": "B4"
+    },
+    {
+      "id": "B0h_vs_B0",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.015,
+        0.015
+      ],
+      "kill": {},
+      "committed_before_step": "A2"
+    },
+    {
+      "id": "PR_vs_B0h_L1",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.03,
+        0.03
+      ],
+      "kill": {
+        "record_if_worse_than": 0.05
+      },
+      "committed_before_step": "A2"
+    },
+    {
+      "id": "PSA_vs_PS_L2_separate",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.06,
+        -0.02
+      ],
+      "kill": {},
+      "committed_before_step": "B4"
+    },
+    {
+      "id": "C-PG1",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.05,
+        -0.02
+      ],
+      "kill": {},
+      "committed_before_step": "MB-1a",
+      "trigger": "loader1 < 0.95 * ceiling and loader2 >= 0.98 * ceiling",
+      "retain": {
+        "minimum_cells": 2,
+        "minimum_improvement": 0.02,
+        "fresh_processes": 50
+      },
+      "forecast_source": "agent preregistration; trigger and retention from R13 section 7"
+    },
+    {
+      "id": "C-BW",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.03,
+        -0.01
+      ],
+      "kill": {},
+      "committed_before_step": "MB-1a",
+      "trigger": "best GEMV instruction > default cp.async.cg by 2%",
+      "retain": {
+        "minimum_cells": 2,
+        "minimum_improvement": 0.01
+      },
+      "forecast_source": "agent preregistration; trigger and retention from R13 section 7"
+    },
+    {
+      "id": "C-WL",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.04,
+        -0.01
+      ],
+      "kill": {},
+      "committed_before_step": "MB-1a",
+      "trigger": "best tile layout > best row layout by 2%",
+      "retain": {
+        "minimum_cells": 2,
+        "minimum_improvement": 0.01,
+        "tokens_identical": true
+      },
+      "forecast_source": "agent preregistration; trigger and retention from R13 section 7"
+    },
+    {
+      "id": "C-L2a",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.15,
+        -0.05
+      ],
+      "kill": {},
+      "committed_before_step": "B2",
+      "trigger": "at least 3 cells: NL2g-B0 <= 3% and NL2e-B0 >= 8%",
+      "retain": {
+        "minimum_cells": 3,
+        "minimum_improvement": 0.05
+      },
+      "forecast_source": "agent preregistration; trigger and retention from R13 section 7"
+    },
+    {
+      "id": "C-L2b",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.05,
+        -0.02
+      ],
+      "kill": {},
+      "committed_before_step": "B2",
+      "trigger": "at least 2 cells: NL2g-B0 >= 5%",
+      "retain": {
+        "minimum_cells": 2,
+        "minimum_improvement": 0.02,
+        "fresh_processes": 50
+      },
+      "forecast_source": "agent preregistration; trigger and retention from R13 section 7"
+    },
+    {
+      "id": "C-PG3",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.04,
+        -0.015
+      ],
+      "kill": {},
+      "committed_before_step": "B2",
+      "trigger": "PR_L2 dependency wait > 10% of span",
+      "retain": {
+        "minimum_improvement": 0.015
+      },
+      "forecast_source": "agent preregistration; trigger and retention from R13 section 7"
+    },
+    {
+      "id": "C-LP2",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.03,
+        -0.01
+      ],
+      "kill": {},
+      "committed_before_step": "B2",
+      "trigger": "PR_L2l-PR_L2 >= 1%",
+      "retain": {
+        "maximum_loop_rel": 0,
+        "engineering_days": 1
+      },
+      "forecast_source": "agent preregistration; trigger and retention from R13 section 7"
+    },
+    {
+      "id": "C-AT",
+      "metric": "tpot_median_rel",
+      "cells": [
+        "llama_B1",
+        "llama_B16",
+        "qwen3_B1",
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.04,
+        -0.015
+      ],
+      "kill": {},
+      "committed_before_step": "B2",
+      "trigger": "Qwen3 attention+merge excess >= 3% of step",
+      "retain": {
+        "minimum_improvement": 0.015
+      },
+      "forecast_source": "agent preregistration; trigger and retention from R13 section 7"
+    }
+  ]
+}
