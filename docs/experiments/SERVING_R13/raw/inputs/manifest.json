@@ -1,0 +1,47 @@
+[
+  {
+    "source": "docs/experiments/SERVING_R12C/final_metadata/llama/prefill_B1/floor.json",
+    "path": "docs/experiments/SERVING_R13/raw/inputs/llama_prefill_B1_floor.json",
+    "sha256": "8218f170bd8eb6fc2e89b36a6c29a77b60b6e7e7cf62ab28f5a6bea9d20827a8"
+  },
+  {
+    "source": "docs/experiments/SERVING_R12C/final_metadata/llama/decode_B1/floor.json",
+    "path": "docs/experiments/SERVING_R13/raw/inputs/llama_decode_B1_floor.json",
+    "sha256": "063d55621b6d03df3090e78e047bec7bbbfa65caaba0c3aeff2b20029ee208f3"
+  },
+  {
+    "source": "docs/experiments/SERVING_R12C/final_metadata/llama/prefill_B16/floor.json",
+    "path": "docs/experiments/SERVING_R13/raw/inputs/llama_prefill_B16_floor.json",
+    "sha256": "0fbf07cfbdd80cd32d42bcb535522cfbbcd037b6bc1cb0e0410f1d9787e81ded"
+  },
+  {
+    "source": "docs/experiments/SERVING_R12C/final_metadata/llama/decode_B16/floor.json",
+    "path": "docs/experiments/SERVING_R13/raw/inputs/llama_decode_B16_floor.json",
+    "sha256": "cb7b94437d1aeeda0964497d4792400062ef94f807b39a2ef2680e35b8d47402"
+  },
+  {
+    "source": "docs/experiments/SERVING_R12C/final_metadata/qwen3/prefill_B1/floor.json",
+    "path": "docs/experiments/SERVING_R13/raw/inputs/qwen3_prefill_B1_floor.json",
+    "sha256": "93365f8ee57d8a2f7fa389fa473f84ec7e02d7a819a1c07cb201d2b12cbb2d25"
+  },
+  {
+    "source": "docs/experiments/SERVING_R12C/final_metadata/qwen3/decode_B1/floor.json",
+    "path": "docs/experiments/SERVING_R13/raw/inputs/qwen3_decode_B1_floor.json",
+    "sha256": "da3fce3e409f735ef02ac193824ed347e17bc12d1894ba52d01e42d27c71befd"
+  },
+  {
+    "source": "docs/experiments/SERVING_R12C/final_metadata/qwen3/prefill_B16/floor.json",
+    "path": "docs/experiments/SERVING_R13/raw/inputs/qwen3_prefill_B16_floor.json",
+    "sha256": "2215c220888d21b48804710d5f6af51a93e15a9a8500e99009ffeb108220c4e3"
+  },
+  {
+    "source": "docs/experiments/SERVING_R12C/final_metadata/qwen3/decode_B16/floor.json",
+    "path": "docs/experiments/SERVING_R13/raw/inputs/qwen3_decode_B16_floor.json",
+    "sha256": "b29c7c135c1123774da128d6defe30c0df8ecaf20c323a2d3ba70920a056d002"
+  },
+  {
+    "source": "/root/r13_work/target_r12b.json",
+    "path": "docs/experiments/SERVING_R13/raw/inputs/target_r12b.json",
+    "sha256": "c2c03ad6e9534130762cc88d423aac336077a0bd040db6d337a1e31e3c1ec8b9"
+  }
+]

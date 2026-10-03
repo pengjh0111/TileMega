@@ -115,7 +115,7 @@ def resources(root):
 def runtime_structure(root):
     output=[]
     regex=r'E2E_STAGES runtime=(\d+) queued=(\d+) elided=(\d+) tasks=(\d+) fine_events=(\d+) aggregate_events=(\d+)'
-    for path in (root/'raw').rglob('*.log'):
+    for path in list((root/'raw').rglob('*.log'))+list((root/'raw').rglob('stderr.txt')):
         matches=list(re.finditer(regex,path.read_text(errors='replace')))
         if matches:
             output.append(dict(source=str(path),**dict(zip(('runtime','queued','elided','tasks','fine_events','aggregate_events'),map(int,matches[-1].groups())))))
@@ -165,16 +165,42 @@ def main():
     p=argparse.ArgumentParser();p.add_argument('--root',type=Path,default=HERE);a=p.parse_args();root=a.root;out=root/'results';out.mkdir(parents=True,exist_ok=True)
     raw,past,tokens=collected(root);median=medians(raw);mb,ceiling=microbench(root)
     write(out/'measurements.tsv',raw);write(out/'past.tsv',past)
+    for r in median:
+        model,b=r['cell'].split('_B');floor_file=root/f'raw/inputs/{model}_decode_B{b}_floor.json'
+        if not floor_file.exists():continue
+        floor=json.loads(floor_file.read_text());mid=next(x for x in floor['points'] if x['past']==575)
+        bytes_=mid['dram_ns']*884.5010943
+        for label,bandwidth in dict(calibration=981.6,bf16=884.5,measured=ceiling).items():
+            if bandwidth:r['tpot_over_floor_'+label]=r['tpot_s_median']*1e9/(bytes_/bandwidth)
+        pf=root/f'raw/inputs/{model}_prefill_B{b}_floor.json'
+        if pf.exists():
+            total=floor['sum_floor_seconds']+json.loads(pf.read_text())['sum_floor_seconds']
+            r['e2e_over_sum_floor_bf16']=r['e2e_s_median']/total
     write(out/'T1.tsv',[r for r in median if r['matrix']=='A1'])
     write(out/'T2.tsv',[r for r in median if r['matrix'] in ('A2','B4')]);write(out/'T2_resources.tsv',resources(root));write(out/'runtime_structure.tsv',runtime_structure(root))
     write(out/'T3.tsv',mb);stage_rows=[];step_rows=[];task_rows=[];hol=[];reducers=[]
     for folder in sorted({p.parent for p in (root/'raw').rglob('stage_trace.tsv')}):
         cell=next((c for c in CELLS if c in str(folder)),None)
-        if cell and ceiling:stage_rows+=stages(folder,int(cell.split('_B')[1]),{'884_5':884.5,'981_6':981.6,'measured':ceiling})
+        if cell and ceiling:
+            for row in stages(folder,int(cell.split('_B')[1]),{'884_5':884.5,'981_6':981.6,'measured':ceiling}):
+                row.update(cell=cell,source=str(folder));stage_rows.append(row)
     for folder in sorted({p.parent for p in (root/'raw').rglob('step_trace.tsv')}):
         for row in steps(folder):row['source']=str(folder);step_rows.append(row)
     for folder in sorted({p.parent for p in (root/'raw').rglob('slots.tsv')}):
         task,blocked,elided=trace_v2(folder);task_rows+=task;hol+=blocked;reducers+=elided
+    groups=defaultdict(list)
+    for r in stage_rows:
+        gemm_kind=next((k for k in ('qkv','gate_up','down','lm_head','o') if re.search(r'(?:^|[.])'+k+r'(?:[.]|$)',r['name'])),r['kind'])
+        layer=re.search(r'(?:^|[.])l(\d+)(?:[.]|$)',r['name'])
+        groups[(r['cell'],r['source'],r['past'],r['iteration'],gemm_kind,layer.group(1) if layer else '')].append(r)
+    aggregate=[]
+    for key,values in groups.items():
+        row=dict(zip(('cell','source','past','iteration','kind','layer'),key))
+        for field in ('duration_ns','bytes','tail_ns','excess_ns_884_5','excess_ns_981_6','excess_ns_measured'):
+            row[field]=sum(v[field] for v in values)
+        row['gbps']=row['bytes']/row['duration_ns'] if row['duration_ns'] else None;aggregate.append(row)
+    write(out/'T4_kinds_layers.tsv',aggregate)
+    write(out/'T4_top_excess.tsv',sorted(stage_rows,key=lambda r:r['excess_ns_measured'],reverse=True)[:10])
     write(out/'T4.tsv',stage_rows);write(out/'T5.tsv',[r for r in median if r['matrix']=='B2']);write(out/'T5_tasks.tsv',task_rows);write(out/'T5_hol.tsv',hol);write(out/'T7_reducers.tsv',reducers)
     write(out/'T6.tsv',[r for r in median if r['matrix']=='B3']);write(out/'T6_steps.tsv',step_rows)
     for name in ('T7','T8','T9','T10','T11','T12'):
