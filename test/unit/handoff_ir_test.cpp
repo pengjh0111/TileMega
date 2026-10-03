@@ -4,6 +4,9 @@
 #include <tilemega/Dialect/CouplingGraph/ExecOps.h>
 #include <tilemega/Dialect/CouplingGraph/HandoffPass.h>
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
+#include <tilemega/Codegen/ServingPages.h>
+#include <tilemega/Frontend/ModelPlan.h>
+#include <tilemega/Target/TargetSpec.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <mlir/IR/Builders.h>
@@ -17,6 +20,49 @@ namespace tilemega::tests::handoff_ir_test {
 int TestHandoffIr(int argc,char** argv) try {
   analysis::IslContext isl;mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();context.getOrLoadDialect<dialect::ExecDialect>();
+  if(argc==5 && std::string(argv[1])=="splitk_import") {
+    auto bridge=frontend::ReadExportBridge(argv[2]);
+    frontend::ServingOptions serving;serving.seq=1;
+    serving.phase=frontend::ServingOptions::Phase::kDecode;
+    auto model=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,serving);
+    frontend::ImportOptions options;
+    bool split=std::string(argv[3])!="one";
+    options.gemms.assign(model.gemms.size(),{16,128,64,2,split?4:1});
+    options.gemms.back().split_k=1;
+    auto module=frontend::TorchExportImporter{}.ImportPlan(argv[2],model,context,nullptr,options);
+    codegen::ConfigureServingPages(*module,TargetSpec::FromJson(argv[4]),16384);
+    bool escape=std::string(argv[3])=="escape";
+    if(escape) {
+      mlir::Operation* combine=nullptr;
+      for(auto task:module->getOps<dialect::TileSpaceOp>()) {
+        if(task->hasAttr("split_access_semantic")) {
+          auto name=task->getAttrOfType<mlir::StringAttr>("operator_name");
+          if(name && name.getValue().ends_with(".combine")){combine=task;break;}
+        }
+      }
+      assert(combine);
+      auto cname=mlir::cast<dialect::TileSpaceOp>(combine).getSymName();
+      dialect::CouplingOp edge;
+      for(auto e:module->getOps<dialect::CouplingOp>())if(e.getDst()==cname){edge=e;break;}
+      assert(edge);
+      auto* reader=combine->clone();reader->setAttr("sym_name",mlir::StringAttr::get(&context,"unsafe_partial_reader"));
+      module->getBody()->push_back(reader);
+      auto* extra=edge->clone();extra->setAttr("sym_name",mlir::StringAttr::get(&context,"unsafe_partial_edge"));
+      extra->setAttr("dst",mlir::FlatSymbolRefAttr::get(&context,"unsafe_partial_reader"));
+      module->getBody()->push_back(extra);
+    }
+    unsigned mask=std::string(argv[3])=="off"?0:4;
+    try {
+      auto selected=dialect::SelectServingHandoffs(*module,mask);
+      assert(!escape);
+      assert(selected.last_arriver==(split && mask?model.gemms.size()-1:0));
+      std::cout<<"SPLIT_HANDOFF case="<<argv[3]<<" selected="<<selected.last_arriver<<" PASS\n";
+    } catch(std::invalid_argument const& e) {
+      if(!escape || std::string(e.what()).find("partial workspace")==std::string::npos)throw;
+      std::cout<<"SPLIT_HANDOFF unsafe_partial_reader rejected PASS\n";
+    }
+    return 0;
+  }
   auto const imported_case=argc<=1 || std::string(argv[1])=="audit" ||
       std::string(argv[1])=="smem_direct";
   auto module=!imported_case?mlir::parseSourceFile<mlir::ModuleOp>(argv[1],&context):

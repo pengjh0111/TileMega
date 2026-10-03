@@ -445,6 +445,11 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME fusion_access COMMAND tilemega-unit fusion_access)
   add_test(NAME handoff_runtime_projection COMMAND tilemega-unit handoff_runtime_projection)
   add_test(NAME handoff_ir COMMAND tilemega-unit handoff_ir)
+  foreach(split_case IN ITEMS four one off escape)
+    add_test(NAME handoff_split_${split_case} COMMAND tilemega-unit handoff_ir
+      splitk_import ${CMAKE_CURRENT_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/gqa2.json
+      ${split_case} ${CMAKE_CURRENT_SOURCE_DIR}/docs/experiments/SERVING_R12C/target_r12b.json)
+  endforeach()
   add_test(NAME handoff_access COMMAND tilemega-unit handoff_access)
 
   add_test(NAME lane_intersections COMMAND tilemega-unit lane_intersections)
