@@ -124,14 +124,15 @@ def runtime_structure(root):
     return output
 
 def microbench(root):
-    summary=root/'raw/Bceiling_account/dram_ceiling_corrected.json';ceiling=None;output=[]
+    summary=root/'raw/MB-1a-complete/dram_ceiling.json';ceiling=None;output=[]
+    if not summary.exists():summary=root/'raw/Bceiling_account/dram_ceiling_corrected.json'
     if not summary.exists():summary=root/'raw/MB-1a/dram_ceiling.json'
     if summary.exists():
         data=json.loads(summary.read_text());ceiling=data['maximum_gbps']
         output.append(dict(suite='MB-1a',maximum_gbps=ceiling,processes=len(data['processes']),
                            process_range_gbps=data['process_range_gbps'],process_range_relative=data['process_range_relative'],
                            contaminated=sum(p['contaminated'] for p in data['processes']),calibration_median_gbps=data['calibration_median_gbps'],source=str(summary)))
-    for suite in ('b','c','d','e','f'):
+    for suite in ('b','b-resident','c','d','e','f'):
         path=root/f'raw/MB-1{suite}/loadbench.json'
         if not path.exists():continue
         data=json.loads(path.read_text());groups=defaultdict(list)

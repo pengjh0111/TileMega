@@ -44,9 +44,14 @@ def main():
         priority=42,after=['Bpre'],timeout=3600)
     add('Bceiling_account',[PY,str(HERE/'dram_ceiling.py'),'--reaggregate',str(HERE/'raw/MB-1a'),
         '--out',str(HERE/'raw/Bceiling_account')],priority=43,after=['MB-1a'],timeout=600)
+    # The frozen Phase A probe lacked depth 4 for cache-hinted copies. The
+    # complete registered method set is measured on the separate executable.
+    add('MB-1a-complete',[PY,str(HERE/'dram_ceiling.py'),'--binary',resident_binary,
+        '--out',str(HERE/'raw/MB-1a-complete')],gpu=True,priority=48,
+        after=['Bloadbench','MB-1a'],timeout=10800)
     corrected=HERE/'raw/MB-1b-resident'
     add('MB-1b-resident',[resident_binary,'--suite','b','--out',str(corrected/'loadbench.json')],
-        gpu=True,priority=51,after=['Bloadbench','MB-1a'],timeout=7200)
+        gpu=True,priority=51,after=['Bloadbench','MB-1a-complete'],timeout=7200)
     add('Bbaseline_gate',[PY,str(HERE/'stop_loss.py'),'--out',str(HERE/'raw/Bbaseline_gate')],priority=49,after_any=[f'A1_{c}_r{r}' for c in CELLS for r in range(3)],timeout=600)
     add('B0c',[PY,str(HERE/'phase_b_r13.py'),'smoke','--out',str(HERE/'raw/B0c')],gpu=True,priority=50,after=['B0b','Achoose','Bbaseline_gate'],timeout=7200)
     for cell in CELLS:

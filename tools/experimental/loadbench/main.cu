@@ -101,8 +101,8 @@ void Stream(Bench& b,int method,int param,char const* p,std::size_t bytes,int pa
   case 1:StreamReadKernel<<<grid,threads>>>(reinterpret_cast<float4 const*>(p),bytes/16,passes,977,reinterpret_cast<float*>(b.sink.p));break;
   case 2:if(param==4)NcStream<4><<<grid,threads>>>(p,bytes/16,passes,b.Sink());else NcStream<8><<<grid,threads>>>(p,bytes/16,passes,b.Sink());break;
   case 3:CpLaunch(param,0,p,bytes/16,passes,grid,threads);break;
-  case 4:CpLaunch(8,param==128?1:2,p,bytes/16,passes,grid,threads);break;
-  case 5:CpLaunch(8,3,p,bytes/16,passes,grid,threads);break;
+  case 4:CpLaunch(param>=4096?4:8,param%4096==128?1:2,p,bytes/16,passes,grid,threads);break;
+  case 5:CpLaunch(param==4?4:8,3,p,bytes/16,passes,grid,threads);break;
   default:throw std::invalid_argument("unknown method");
   }
 }
@@ -128,7 +128,7 @@ void Ceiling(Bench& b,bool replay,Method specified) {
   Buffer reused(2048*MiB);Fill<<<b.device.multiProcessorCount*4,256>>>(reused.p,reused.bytes);Check(cudaDeviceSynchronize());
   int sizes[]={256,512,1024,1536,2048};Method baseline{1,0,CalibGrid(b),256};Method best=specified;double peak=0;
   if(!replay) {
-    for(int factor:{1,2,4})for(int threads:{128,256})for(auto spec:std::vector<std::pair<int,int>>{{1,0},{2,4},{2,8},{3,4},{3,8},{4,128},{4,256},{5,0}}) {
+    for(int factor:{1,2,4})for(int threads:{128,256})for(auto spec:std::vector<std::pair<int,int>>{{1,0},{2,4},{2,8},{3,4},{3,8},{4,128},{4,256},{4,4096+128},{4,4096+256},{5,0},{5,4}}) {
       Method method{spec.first,spec.second,b.device.multiProcessorCount*factor,threads};
       for(int mib:sizes){auto bytes=mib*MiB;auto stat=CeilingPoint(b,method,bytes,'A',reused);auto moved=bytes*std::max(2,int(2.0e9/bytes));
         b.Add("MB-1a",MethodFields(method,bytes,'A'),stat,moved);
