@@ -761,7 +761,11 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
       witness.name=node.name;witness.kind=node.kind;
       witness.dtype=analysis::ScalarType::kF32;
       witness.result=node.output;witness.result_effect.kind=analysis::EffectKind::kWrite;
-      witness.arithmetic=node.name==origin.name?"gemm":"sum";
+      // An access witness refines coordinates, not the task's arithmetic
+      // declaration (residual/SwiGLU tasks need their original signature).
+      if(auto arithmetic=mlir::dyn_cast_or_null<mlir::StringAttr>(
+          state.attributes.get("arithmetic")))
+        witness.arithmetic=arithmetic.getValue().str();
       for(auto const& axis:node.output.axes) {
         witness.domain.push_back({axis.name,axis.extent,axis.origin,
             analysis::IteratorType::kParallel,axis.runtime});
