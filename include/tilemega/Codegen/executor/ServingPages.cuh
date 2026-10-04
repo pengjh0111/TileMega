@@ -653,6 +653,9 @@ void tilemega_l2_kernel(Params const* p,EventCounter* events,unsigned long long 
     atomicMax(&p->serving_page_trace[blockIdx.x].kernel_end_ns,executor::PageTraceNow());
 #endif
 }
+#ifndef TILEMEGA_PAGE_LOOP_SPLIT
+#define TILEMEGA_PAGE_LOOP_SPLIT 0
+#endif
 __global__ __launch_bounds__(160,1)
 void tilemega_loop_kernel(Params const* params,unsigned steps,EventCounter* events,
                           unsigned long long base_iteration,
@@ -665,6 +668,33 @@ void tilemega_loop_kernel(Params const* params,unsigned steps,EventCounter* even
   bool const compute=executor::IsCompute();
   paged::PageStream ahead(params,steps,true);
   unsigned long long prefetched=0,loaded=0;
+#if TILEMEGA_PAGE_LOOP_SPLIT
+  // The role is uniform for the lifetime of each warp. Keeping the compute
+  // loop outside the loader loop removes loader cursor liveness from the
+  // compute path. The page sequence and all lag/acquire waits are unchanged.
+  if(compute) {
+    for(unsigned step=0;step<steps;++step) {
+      Params const& p=params[step];
+      if(step==0 && blockIdx.x==0 && paged::ComputeThread()==0 && step_ns)
+        step_ns[0]=executor::PageTraceNow();
+      paged::Execute<false,true>(p,events,base_iteration+step,ring,
+          page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET,&sequence,step_ns,step,
+          step==0,step+1==steps);
+    }
+  }else {
+    for(unsigned step=0;step<steps;++step) {
+      Params const& p=params[step];
+      paged::Execute<true,true>(p,events,base_iteration+step,ring,
+          page_storage+TILEMEGA_PAGE_WORKSPACE_OFFSET,&sequence,step_ns,step,
+          step==0,step+1==steps,&ahead,&prefetched,&loaded);
+#if TILEMEGA_TRACE_STEP
+      if(executor::LoaderLane()==0)
+        if(auto* row=executor::StepRow(p,base_iteration+step))
+          atomicMax(&row->kernel_end,executor::ServingTraceNow());
+#endif
+    }
+  }
+#else
   for(unsigned step=0;step<steps;++step) {
     Params const& p=params[step];
     if(step==0 && blockIdx.x==0 && compute && paged::ComputeThread()==0 && step_ns)
@@ -681,4 +711,5 @@ void tilemega_loop_kernel(Params const* params,unsigned steps,EventCounter* even
         atomicMax(&row->kernel_end,executor::ServingTraceNow());
 #endif
   }
+#endif
 }
