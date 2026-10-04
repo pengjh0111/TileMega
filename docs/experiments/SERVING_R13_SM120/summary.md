@@ -145,3 +145,5 @@ R13F 仍为 SL-5 原注册选择空间、time_budget_s=1800；超过 3600 s 记�
 本机恢复/固定构建准备检查 verified：13/13；长队列启动后仅核查一次，不反复轮询。
 E2c 五十新进程、E4–E6 尚未发布；待本队列验收确认各首次路径可用后接续，不越过同步验证宣称性能结论。
 记录见 `raw/recovery_03/`、`queue_resume_r4.json`、`resume.py`；继续本地 commit，不 push。
+单次启动核查 verified：调度器 PID 4488 存活，原 MB-1d_r3 已 running，九个 r4 节点 pending。
+原调度器优先选择 ready 的 GPU 节点，因此原 d/e/f 可先运行；它们不依赖模型/target cache，之后执行恢复与新增构建依赖链。

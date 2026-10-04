@@ -1,0 +1,11 @@
+{
+  "scheduler_pid": 4488,
+  "scheduler_alive": true,
+  "running_node": "E2a_MB-1d_r3",
+  "new_r4_nodes_pending": 9,
+  "historical_state_preserved": true,
+  "check_count": 1,
+  "long_queue_polled": false,
+  "gpu_reset_performed_by_agent": false,
+  "note": "Inherited scheduler selects ready GPU nodes before ready CPU nodes; d/e/f do not require model or target cache restoration."
+}
