@@ -86,3 +86,8 @@ C++ round-trip 回归已加入、待重建执行；没有改 GPU 同步，因此
 固定机制控制的 lookahead=0/page_loop_split=0/eviction 等保持 R13 B 的注册对照设置；R13F 使用 Phase C 保留的配置，另行构建。
 E3 使用新的 target；固定构建最多三个并行，PDL off/auto 分离，prefill 固定 R13 已选 PF-R10 几何。
 R13F 联合选择、E2b/E2c、E4–E6 尚未排入此队列；固定计划失败只记录该臂，后续按原规格验收首次路径。
+
+恢复启动核查 verified：新编译器/主机单测工具重建与指纹通过；C++ target_spec 的新增 native-only round-trip 通过。
+九项 CPU 复验 8/9：pipeline_sigma 295.75 s 通过，六个 E2E 输入用例通过，plan_skeleton 另缺仓库已跟踪的 COSTMODEL target。
+已补齐此静态 fixture，只新增该用例的单项复验，不重复 pipeline/GPU 测量；旧失败保留。
+native Python 合约与 R13 Python 31/31 也通过；准备/固定构建计划的本机检查为 9/9。

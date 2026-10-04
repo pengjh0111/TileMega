@@ -81,6 +81,37 @@ def contracts():
     return int(any(codes))
 
 
+def plan_check():
+    folder = HERE / 'raw/E0_plan_fixture_r3'
+    return run(['ctest', '--test-dir', BUILD, '-R', '^plan_skeleton$',
+                '--output-on-failure', '--timeout', '900',
+                '--output-junit', folder / 'ctest.xml'], folder / 'ctest.log')
+
+
+def register_plan_check():
+    target = ROOT / 'docs/experiments/COSTMODEL/event_fit/target.json'
+    if not target.is_file():
+        raise RuntimeError('tracked COSTMODEL fixture is not materialized')
+    env = json.loads((HERE / 'launch_env_r3.json').read_text())
+    write(HERE / 'raw/acceptance_01/costmodel_fixture.json',
+          dict(path=str(target), sha256=sha(target), source='unchanged tracked checkpoint fixture'))
+    row = dict(name='E0_plan_fixture_r3', gpu=False, priority=-1,
+               after=['E0_native_build_r3'], after_any=['E0_contracts_r3'],
+               timeout_s=1200, needs_free_mib=0, env=env, cwd=str(ROOT),
+               out=str(HERE / 'raw/E0_plan_fixture_r3'),
+               command=['flock', str(WORK / 'gpu.lock'), 'env', 'TILEMEGA_GPU_LOCK_HELD=1',
+                        sys.executable, str(HERE / 'advance.py'), 'plan-check'])
+    write(HERE / 'queue_plan_fixture_r3.json', [row])
+    dest = WORK / 'queue/queue_plan_fixture_r3.json'
+    if dest.exists():
+        raise RuntimeError('plan check already published')
+    temp = dest.with_suffix('.tmp')
+    write(temp, [row])
+    temp.replace(dest)
+    print('published one CPU plan-fixture check, no repeated pipeline/GPU measurements')
+    return 0
+
+
 def register():
     env = json.loads((HERE / 'launch_env.json').read_text())
     env['TILEMEGA_E1_ATTEMPT'] = '_r3'
@@ -260,10 +291,11 @@ def fixed():
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('action', choices=('audit', 'rebuild', 'contracts', 'register', 'exports', 'fixed'))
+    p.add_argument('action', choices=('audit', 'rebuild', 'contracts', 'register', 'exports', 'fixed', 'plan-check', 'register-plan-check'))
     a = p.parse_args()
     return {'audit': audit, 'rebuild': rebuild, 'contracts': contracts,
-            'register': register, 'exports': exports, 'fixed': fixed}[a.action]()
+            'register': register, 'exports': exports, 'fixed': fixed,
+            'plan-check': plan_check, 'register-plan-check': register_plan_check}[a.action]()
 
 
 if __name__ == '__main__':
