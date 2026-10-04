@@ -142,15 +142,13 @@ def smoke():
         command=[PY,'-m','tilemega.serving.smoke','--so',row['so'],'--model',model_path,
                  '--batch',str(row['batch']),'--steps','64','--out',folder]
         code=run(['timeout','--kill-after=15s','300s',*map(str,command)],folder/'stdout.log')
+        if code==75:return 75
         report=folder/'smoke.json'
         results.append(dict(cell=row['cell'],label=row['label'],so=row['so'],sha256=sha(row['so']),
                             exit_code=code,report=json.loads(report.read_text()) if report.exists() else None))
         write(HERE/'raw/E2b_smoke_r4/results.json',results)
-        sys.path.insert(0,str(FRAME))
-        from gpu_guard import gpu
-        status=gpu()
-        if status['utilization_pct']>5 and not status['owners']:
-            raise RuntimeError('ownerless GPU saturation after smoke; preserve evidence and stop')
+        from device_health import check
+        check()
     write(HERE/'raw/E2b_smoke_r4/summary.json',dict(attempted=len(results),
           passed=sum(r['exit_code']==0 for r in results),failed=sum(r['exit_code']!=0 for r in results),
           all_passed=bool(results) and all(r['exit_code']==0 for r in results),
