@@ -129,7 +129,8 @@ void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int pa
 }
 
 void ResolveServingWeightPacking(mlir::ModuleOp module) {
-  if (!module->getAttr("tmexec.pages")) return;
+  if (!module->getAttr("tmexec.pages") &&
+      !module->getAttr("tmexec.nonpaged_weight_layout_tiled")) return;
   auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   if (!plan) throw std::invalid_argument("page plan lacks model buffers");
   auto runtime=ReadRuntimePlan(module);

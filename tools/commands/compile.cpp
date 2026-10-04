@@ -291,7 +291,7 @@ int RunCompile(int argc, char** argv) {
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0;
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
-    std::string candidate_mode="L1";
+    std::string candidate_mode="L1",nonpaged_weight_layout="row";
     bool page_bytes_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
     if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
@@ -335,6 +335,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--pdl") pdl=value;
       else if (flag=="--pg") pg_mode=value;
       else if (flag=="--weight-layout") weight_layout=value;
+      else if (flag=="--nonpaged-weight-layout") nonpaged_weight_layout=value;
       else if (flag=="--handoff") handoff_mode=value;
       else if (flag=="--page-bytes") {page_bytes=std::stoi(value);page_bytes_pinned=true;}
       else if (flag=="--lookahead-bytes") lookahead_bytes=std::stoi(value);
@@ -443,13 +444,18 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("handoff=auto currently requires paged decode");
     if(sync_policy!="legacy" && sync_policy!="calibrated")
       throw std::runtime_error("--sync must be calibrated or legacy");
+    if(nonpaged_weight_layout!="row" && nonpaged_weight_layout!="tiled")
+      throw std::invalid_argument("--nonpaged-weight-layout must be row or tiled");
+    bool const use_nonpaged_tiled=serving && serving_phase=="decode" &&
+        !use_pages && nonpaged_weight_layout=="tiled";
     if(serving) {
+      runtime_flags+=" -DTILEMEGA_NONPAGED_TILED="+std::to_string(use_nonpaged_tiled);
       if(runtime_target.empty())runtime_target=solve_target;
       if(runtime_target.empty())runtime_target=std::string(TILEMEGA_SOURCE_DIR)+
           "/configs/targets/"+tilemega::TargetSpec::Probe().arch_tag+".json";
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
       if(sync_policy=="calibrated") {
-        runtime_flags=" -DTILEMEGA_SYNC_V3=1 -DTILEMEGA_EVENT_RED_PUBLISH=1";
+        runtime_flags+=" -DTILEMEGA_SYNC_V3=1 -DTILEMEGA_EVENT_RED_PUBLISH=1";
       }
       if(kphase_mask<0 || kphase_mask>31 || v3_poll_ns<0)
         throw std::runtime_error("invalid K-phase mask or V3 poll interval");
@@ -846,6 +852,7 @@ int RunCompile(int argc, char** argv) {
               " --arch-paths "+quote(arch_paths)+" --pdl "+quote(pdl)+
               " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(candidate_page_bytes)+
               " --weight-layout "+quote(weight_layout)+
+              " --nonpaged-weight-layout "+quote(nonpaged_weight_layout)+
               " --kphase-mask "+std::to_string(kphase_mask)+
               " --v3-poll-ns "+std::to_string(v3_poll_ns)+
               " --watchdog "+std::to_string(watchdog)+
@@ -1100,6 +1107,13 @@ int RunCompile(int argc, char** argv) {
       }else handoff_mode="off";
       source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
     }
+    if(use_nonpaged_tiled) {
+      mlir::OpBuilder packing(module->getContext());
+      (*module)->setAttr("tmexec.nonpaged_weight_layout_tiled",packing.getBoolAttr(true));
+      tilemega::codegen::ResolveServingWeightPacking(*module);
+      source=use_l2 ? tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}})
+                    : tilemega::codegen::CouplingGraphToCUDA{}.Lower(*module);
+    }
     if (!dump_cg.empty()) {
       if (!module) throw std::runtime_error("--dump-cg requires a single module");
       std::error_code error;llvm::raw_fd_ostream dump(dump_cg,error);
@@ -1284,6 +1298,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"pg\": "<<std::quoted(use_pages?"pages":pg_mode)
               <<",\n  \"watchdog\": "<<watchdog
               <<",\n  \"l2_slim\": "<<l2_slim
+              <<",\n  \"nonpaged_weight_layout\": "<<std::quoted(nonpaged_weight_layout)
               <<",\n  \"page_loop_split\": "<<page_loop_split
               <<",\n  \"deferred_norm\": "<<(manifest_deferred_norm?"true":"false")
               <<",\n  \"paged_la\": "<<(use_pages && paged_la?"true":"false")

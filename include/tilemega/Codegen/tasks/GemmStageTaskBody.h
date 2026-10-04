@@ -565,6 +565,13 @@ struct GemmStageTaskBody {
     operands.n = n;
     operands.k_total = k;
     operands.k_count = k;
+#if TILEMEGA_NONPAGED_TILED
+    operands.a-=invocation.serving_k_begin;
+    operands.weight_base=invocation.serving_weight_base;
+    operands.k_total=invocation.k_total;
+    operands.k_total_full=invocation.serving_k_total_full;
+    operands.k_begin=invocation.serving_k_begin;
+#endif
     operands.output_stride = invocation.serving_output_stride;
     operands.partial_stride = invocation.serving_partial_stride;
     operands.a_row_stride = invocation.k_total;

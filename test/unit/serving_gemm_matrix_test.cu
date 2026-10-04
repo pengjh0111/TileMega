@@ -134,6 +134,19 @@ void RunCase(int rows, int columns, int reduction, int split, int operation,
           Element(float((column * 13 + k * 2) % 5 - 2) / 64);
   for (std::size_t i = 0; i < std::size_t(rows) * columns; ++i)
     residual[i] = Element(0.125f);
+#if TILEMEGA_NONPAGED_TILED
+  int const kt=(reduction+TileK-1)/TileK;
+  auto* packed=Managed<Element>(std::size_t((columns+TileN-1)/TileN)*kt*TileN*TileK);
+  for(int j=0;j<(columns+TileN-1)/TileN;++j)
+    for(int t=0;t<kt;++t)
+      for(int nn=0;nn<TileN;++nn)for(int kk=0;kk<TileK;++kk) {
+        int off=512*(nn/8+(TileN/8)*(kk/64))+64*(nn%8)+
+            8*(((kk%64)/8)^(nn%8))+(kk%8);
+        packed[(std::size_t(j)*kt+t)*TileN*TileK+off]=
+            j*TileN+nn<columns && t*TileK+kk<reduction
+            ? b[std::size_t(j*TileN+nn)*reduction+t*TileK+kk] : Element(0);
+      }
+#endif
   auto kernel = RunGemm<Body>;
   if constexpr (Body::kSharedBytes > 48 * 1024)
     CheckCuda(cudaFuncSetAttribute(kernel,
@@ -142,6 +155,9 @@ void RunCase(int rows, int columns, int reduction, int split, int operation,
   tilemega::codegen::ServingGemmOperands operands{};
   operands.a = a;
   operands.b = b;
+#if TILEMEGA_NONPAGED_TILED
+  operands.weight_base=packed;operands.k_total_full=reduction;
+#endif
   operands.residual = residual;
   operands.output = output;
   operands.partial = partial;

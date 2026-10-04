@@ -7,6 +7,13 @@
 #include <tilemega/Backend/ServingEpilogue.h>
 #include <tilemega/Backend/ServingGemm.h>
 
+#ifndef TILEMEGA_NONPAGED_TILED
+#define TILEMEGA_NONPAGED_TILED 0
+#endif
+#if TILEMEGA_NONPAGED_TILED
+#include <tilemega/Backend/ServingTiledMainloop.h>
+#endif
+
 #include <cute/tensor.hpp>
 #include <type_traits>
 
@@ -51,10 +58,17 @@ struct ServingGemmTaskBody {
 
   template<class Emit>
   __device__ static void PrefetchRanges(ServingGemmOperands const& p,int tile_n,Emit emit) {
+#if TILEMEGA_NONPAGED_TILED
+    int const kt=(p.k_total_full+TileK-1)/TileK;
+    emit(executor::PrefetchRange{p.weight_base+
+        (std::size_t(tile_n)*kt+p.k_begin/TileK)*TileN*TileK,
+        static_cast<unsigned>(((p.k_count+TileK-1)/TileK)*TileN*TileK*2)});
+#else
     int pitch=p.b_row_stride?p.b_row_stride:p.k_total;
     for(int n=tile_n*TileN;n<min(p.n,(tile_n+1)*TileN);++n)
       emit(executor::PrefetchRange{p.b+static_cast<long long>(n)*pitch+p.k_begin,
                                   static_cast<unsigned>(2*p.k_count)});
+#endif
   }
   __device__ static void Run(ServingGemmOperands const& p, int tile_m,
                              int tile_n, char* shared) {
@@ -74,6 +88,14 @@ struct ServingGemmTaskBody {
       asm volatile("trap;");
       return;
     }
+    constexpr auto tile_shape = typename Mainloop::TileShape{};
+    typename Mainloop::TiledMma mma;
+    auto accum = partition_fragment_C(mma, take<0, 2>(tile_shape));
+    clear(accum);
+#if TILEMEGA_NONPAGED_TILED
+    backend::ServingTiledMainloop<Arch,Config,TileM,TileN,TileK,Stages>::Run(
+        p,tile_m,tile_n,shared,accum);
+#else
     auto dA = make_stride(int64_t(a_pitch), _1{},
                           int64_t(p.m) * a_pitch);
     auto dB = make_stride(int64_t(b_pitch), _1{},
@@ -82,7 +104,6 @@ struct ServingGemmTaskBody {
                          make_shape(p.m, copy_k_count, 1), dA);
     auto b = make_tensor(make_gmem_ptr(p.b + p.k_begin),
                          make_shape(p.n, copy_k_count, 1), dB);
-    constexpr auto tile_shape = typename Mainloop::TileShape{};
     auto coordinate = make_coord(tile_m, tile_n, _, 0);
     auto gA = local_tile(a(_, _, 0), tile_shape,
                          take<0, 3>(coordinate), Step<_1, X, _1>{});
@@ -91,12 +112,10 @@ struct ServingGemmTaskBody {
     auto residue = make_tuple(p.m - size<0>(gA) * tile_m,
                               p.n - size<0>(gB) * tile_n,
                               copy_k_count - size<1>(gA) * size<2>(gA));
-    typename Mainloop::TiledMma mma;
-    auto accum = partition_fragment_C(mma, take<0, 2>(tile_shape));
-    clear(accum);
     auto k_iter = make_coord_iterator(shape<2>(gA));
     Mainloop{}(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
                ComputeThread(), shared);
+#endif
     auto finish = [&](auto op) {
       backend::ServingEpilogue<decltype(op)::value, TileM, TileN>::Run(
           accum, mma, shared, tile_m, tile_n, p.m, p.n,

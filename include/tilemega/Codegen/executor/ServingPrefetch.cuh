@@ -11,6 +11,10 @@ __device__ void Gemm(GemmInvocation const& inv,int task,unsigned& budget) {
     auto [m,n,k,batch]=inv.problem;(void)batch;
     ServingGemmOperands p;p.b=inv.mainloop.ptr_B;p.m=m;p.n=n;p.k_total=k;p.k_count=k;
     p.b_row_stride=inv.k_total;
+#if TILEMEGA_NONPAGED_TILED
+    p.weight_base=inv.serving_weight_base;p.k_total_full=inv.serving_k_total_full;
+    p.k_begin=inv.serving_k_begin;
+#endif
     Body::PrefetchRanges(p,task%inv.tiles_n,[&](executor::PrefetchRange range){
       Issuer::Issue(range,budget,TILEMEGA_L2_PREFETCH_STRIDE);
     });
