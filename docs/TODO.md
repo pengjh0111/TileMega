@@ -1499,4 +1499,4 @@ Decode uses pages only; nonpaged decode is an explicit baseline and never enters
 | TL-2 / MB-1 | Fresh-process ceiling and six loading probes | Code implemented; complete guarded collection pending | SERVING_R13/queue_b.json; tools/experimental/loadbench |
 | CM-1 | Per-task price export and error report | Partial: tools implemented; joins, coverage and residual inference pending | SERVING_R13/cm_report.py |
 | Phase A/B | Frozen builds, four-cell comparisons and correctness | A complete; B data collection restored with user-authorized advisory baseline gate; validation pending | SERVING_R13/collection_policy.json; scheduler/progress.tsv |
-| Phase C/D | Registered fixes and final comparison | Not started; requires committed data-driven decision | SERVING_R13/predictions.json |
+| Phase C/D | Registered fixes and final comparison | C decision committed; three code changes and registered controls implemented; 88 C/D steps queued, GPU retention pending | SERVING_R13/{phase_c_decision,queue_cd}.json |

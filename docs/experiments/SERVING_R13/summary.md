@@ -144,3 +144,5 @@ C-1 工具修正后出现真实失败：Llama B1 的 B0h 近并列比例 0.98242
 Phase D 包含失效分节标定及 TL-2、两模型联合选择、同一编译器的 B0-D 重建、四格三轮 vLLM 配对、C-1/C-2 和终版协议覆盖。只在三轮完整且正确性通过时发布默认配置；性能不可分辨则取 B0-D。缺失/失败证据不会被补成 PASS。C-AT 的优胜结构单独报告，D1 的联合搜索仍决定最终 Ec/Rq。
 
 恢复方法：再次唤起先读一次 scheduler/progress.tsv，优先查看失败节点摘要；Cretain 生成 phase_c_retention.json，Dfinal 生成 final_decision.json 与 *_r13_final.json。没有只为等队列而继续检查进度。sm_120 PDL 位置检查与既有资源比较仍是未解决项，Carch/Cidentity 再检查后如实记录；不会因其他阶段已结束而宣称 R13 已完成。
+
+队列发布 verified：现有调度器 PID 184785 存活；queue_cd.json 已原子发布，未另开调度器。Cpre 退出 0，编译、指纹及 9/9 相关主机测试通过；发布后 Csmall 正在运行，Cfreeze/Cbuild 等待。证据 raw/phase_cd_prepare/{publication,queue_snapshot}.json、Cpre.log。新 GPU 结果尚未验收。

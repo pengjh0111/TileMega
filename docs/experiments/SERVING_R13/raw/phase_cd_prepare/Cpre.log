@@ -1,0 +1,410 @@
+
+ATTEMPT 1 1791094226.5521488
+[1/11] cd /root/TileMega/build-phase12 && /usr/bin/python3.10 /root/TileMega/python/tilemega/fingerprint.py --root /root/TileMega --header /root/TileMega/build-phase12/include/tilemega/Support/BuildFingerprint.h
+[2/11] Building CXX object CMakeFiles/tilemega.dir/tools/tilemega.cpp.o
+[3/11] Building CXX object CMakeFiles/tilemega_commands.dir/tools/commands/calibration-suite.cpp.o
+[4/11] Building CXX object CMakeFiles/tilemega_core.dir/lib/Codegen/ServingPages.cpp.o
+[5/11] Linking CXX static library libtilemega.a
+[6/11] Linking CXX executable tilemega-unit
+[7/11] Building CXX object CMakeFiles/tilemega_commands.dir/tools/commands/compile.cpp.o
+[8/11] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/ServingPagedCalibration.cu.o
+[9/11] Building CUDA object CMakeFiles/tilemega_calibration.dir/lib/Target/ServingTaskCalibration.cu.o
+[10/11] Linking CXX static library libtilemega_calibration.a
+[11/11] Linking CXX executable tools/tilemega
+PASS source fingerprint 093f2e980b6aae8ecd89af8d1654553cbfe940994152aeb6308cb83748999b34
+Internal ctest changing into directory: /root/TileMega/build-phase12
+Test project /root/TileMega/build-phase12
+    Start 30: handoff_runtime_projection
+1/9 Test #30: handoff_runtime_projection .......   Passed    0.13 sec
+    Start 31: handoff_ir
+2/9 Test #31: handoff_ir .......................   Passed    2.04 sec
+    Start 32: handoff_split_four
+3/9 Test #32: handoff_split_four ...............   Passed    2.04 sec
+    Start 33: handoff_split_one
+4/9 Test #33: handoff_split_one ................   Passed    1.13 sec
+    Start 34: handoff_split_off
+5/9 Test #34: handoff_split_off ................   Passed    0.44 sec
+    Start 35: handoff_split_escape
+6/9 Test #35: handoff_split_escape .............   Passed    0.44 sec
+    Start 36: handoff_access
+7/9 Test #36: handoff_access ...................   Passed    0.13 sec
+    Start 61: serving_lag
+8/9 Test #61: serving_lag ......................   Passed    0.01 sec
+    Start 62: serving_task_index
+9/9 Test #62: serving_task_index ...............   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 9
+
+Total Test time (real) =   6.36 sec
+ptxas info    : 10 bytes gmem, 80 bytes cmem[4]
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 44.282 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 58.915 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 59.888 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 38.370 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi256ELi64ELi2EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi256ELi64ELi2EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 120 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 425.267 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 42.215 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 46.173 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 36.517 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 59.203 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi32ELi128ELi7EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi32ELi128ELi7EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 62 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 236.121 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 41.921 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 140.869 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 194.914 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 64.715 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi128ELi128ELi64ELi2EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi128ELi128ELi64ELi2EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 254 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 1480.876 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 45.026 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 80.835 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 89.596 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 46.676 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi64ELi128ELi64ELi3EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi64ELi128ELi64ELi3EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 168 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 759.406 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 42.437 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 58.303 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 58.578 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 37.918 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi32ELi128ELi64ELi3EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi32ELi128ELi64ELi3EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 124 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 421.078 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 42.318 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 46.973 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 36.822 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 31.447 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi64ELi128ELi3EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi64ELi128ELi3EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 70 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 227.746 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi128ELi2EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi128ELi2EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 140 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 341.017 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi64ELi4EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi64ELi4EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 92 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 263.540 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 42.376 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 46.797 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 44.441 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 33.688 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi64ELi2EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi64ELi2EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 80 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 242.680 ms
+ptxas info    : 10 bytes gmem, 80 bytes cmem[4]
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 45.052 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 59.869 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 59.648 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi256ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 37.693 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi256ELi64ELi2EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi256ELi64ELi2EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 80 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 352.982 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 41.949 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 45.813 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 36.323 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi32ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 30.932 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi32ELi128ELi7EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi32ELi128ELi7EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 56 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 183.512 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 41.973 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 145.112 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 189.619 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi128ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 64.053 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi128ELi128ELi64ELi2EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi128ELi128ELi64ELi2EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 254 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 969.058 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 42.146 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 80.170 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 90.245 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi64ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 45.557 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi64ELi128ELi64ELi3EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi64ELi128ELi64ELi3EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 128 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 541.724 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 41.837 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 57.684 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 58.095 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi32ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 37.384 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi32ELi128ELi64ELi3EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi32ELi128ELi64ELi3EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 95 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 351.277 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 41.803 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 45.943 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 36.346 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi64ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 30.917 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi64ELi128ELi3EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi64ELi128ELi3EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 64 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 209.675 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi128ELi2EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi128ELi2EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 72 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 234.672 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi64ELi4EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi64ELi4EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 64 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 252.468 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE3EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 43.157 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE2EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 46.167 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE1EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 44.120 ms
+ptxas info    : Compiling entry function '_Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi' for 'sm_89'
+ptxas info    : Function properties for _Z10RunCombineILi16ELi128ELN8tilemega7backend17ServingEpilogueOpE0EEvPKfiiiiPN7cutlass10bfloat16_tEPKS6_PfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 2 barriers, 408 bytes cmem[0]
+ptxas info    : Compile time = 33.329 ms
+ptxas info    : Compiling entry function '_Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi64ELi2EEEEvNS1_19ServingGemmOperandsE' for 'sm_89'
+ptxas info    : Function properties for _Z7RunGemmIN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi64ELi2EEEEvNS1_19ServingGemmOperandsE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 64 registers, used 2 barriers, 512 bytes cmem[0], 12 bytes cmem[2]
+ptxas info    : Compile time = 256.404 ms
