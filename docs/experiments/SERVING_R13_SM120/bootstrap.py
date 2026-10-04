@@ -205,7 +205,7 @@ def units():
     codes.append(run(['ctest', '--test-dir', BUILD, '--output-on-failure', '--parallel', '1',
                       '--timeout', '180', '--output-junit', HERE / 'raw/E0_units/ctest.xml'],
                      HERE / 'raw/E0_units/ctest.log'))
-    codes.append(run([sys.executable, '-m', 'unittest', 'discover', '-s', str(FRAME),
+    codes.append(run([PY, '-m', 'unittest', 'discover', '-s', str(FRAME),
                       '-p', 'test_*.py'], HERE / 'raw/E0_units/r13_python_tests.log'))
     write(HERE / 'raw/E0_units/status.json', dict(ctest_exit=codes[0], python_exit=codes[1],
           all_tests_attempted=True, validation_passed=not any(codes)))
