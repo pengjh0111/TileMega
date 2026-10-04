@@ -24,7 +24,7 @@ DEFAULTS = {
                      prompts='docs/experiments/SERVING_R10/prompts/passages.jsonl'),
     'device': dict(index=0, cache_dir='~/.cache/tilemega'),
     'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='L2', candidate_loop=0, pruning=True, time_budget_s=600, candidate_guard_wait_s=300, prefill_pins={}, exclude_l1_loop=False),
-    'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0, watchdog=0, l2_slim=0, page_loop_split=0, nonpaged_weight_layout='row', decode_executor="L2", decode_loop=1, prefill_executor="L1"),
+    'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0, watchdog=0, l2_slim=0, page_loop_split=0, nonpaged_weight_layout='row', evict_first=0, evict_last=1, decode_executor="L2", decode_loop=1, prefill_executor="L1"),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
                  vllm_python='/root/venv_vllm/bin/python', policy_file=None),
     'output': dict(dir='runs/{model}-{timestamp}'),
@@ -111,7 +111,7 @@ def read_config(path: Path) -> dict:
         raise ValueError('static serving batches must lie in [1,16]')
     for name, allowed in dict(pg=['off', 'l2', 'pages', 'auto', 'measure'], handoff=['off', 'auto'],
                               sync=['calibrated', 'legacy'], arch_paths=['auto', 'sm80'],
-                              l2_slim=[0,1], page_loop_split=[0,1], pdl=['auto', 'off'], weight_layout=['row', 'tiled'], nonpaged_weight_layout=['row','tiled'],
+                              l2_slim=[0,1], page_loop_split=[0,1], pdl=['auto', 'off'], weight_layout=['row', 'tiled'], nonpaged_weight_layout=['row','tiled'], evict_first=[0,1], evict_last=[0,1],
                               decode_executor=['L1', 'L2', 'measure'],
                               decode_loop=[0, 1, 'measure'], prefill_executor=['L1', 'L2']).items():
         if config['features'][name] not in allowed:
@@ -374,7 +374,7 @@ class Run:
                             '--artifact-cache', str(self.cache / 'artifacts'), '--dump-cg', str(plan / 'selected.mlir'),
                             '--measure-cmd', shlex.join([sys.executable, '-m', 'tilemega.serving.measure_candidate', '--model', str(self.model)])]
                             for name, value in compiler_features(choice_features).items():
-                                if phase == 'prefill' and name in ('kphase_mask','lookahead_bytes','v3_poll_ns'):
+                                if phase == 'prefill' and name in ('kphase_mask','lookahead_bytes','v3_poll_ns','l2_slim','page_loop_split','nonpaged_weight_layout','evict_first','evict_last','serve_kv_block','serve_query_rows'):
                                     continue
                                 if name == 'handoff' and phase == 'prefill':
                                     value = 'off'

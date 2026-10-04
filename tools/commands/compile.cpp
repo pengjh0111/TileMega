@@ -289,7 +289,7 @@ int RunCompile(int argc, char** argv) {
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
-    int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0;
+    int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
     bool page_bytes_pinned=false;
@@ -349,6 +349,8 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--watchdog") watchdog=std::stoi(value);
       else if (flag=="--l2-slim") l2_slim=std::stoi(value);
       else if (flag=="--page-loop-split") page_loop_split=std::stoi(value);
+      else if (flag=="--evict-first") evict_first=std::stoi(value);
+      else if (flag=="--evict-last") evict_last=std::stoi(value);
       else if (flag=="--v3-poll-ns") v3_poll_ns=std::stoi(value);
       else if (flag=="--l2-prefetch-depth") prefetch_depth=std::stoi(value);
       else if (flag=="--l2-prefetch-stride") prefetch_stride=std::stoi(value);
@@ -462,6 +464,10 @@ int RunCompile(int argc, char** argv) {
       if(watchdog!=0 && watchdog!=1)throw std::runtime_error("--watchdog must be 0 or 1");
       if(l2_slim!=0 && l2_slim!=1)throw std::runtime_error("--l2-slim must be 0 or 1");
       if(page_loop_split!=0 && page_loop_split!=1)throw std::runtime_error("--page-loop-split must be 0 or 1");
+      if((evict_first!=0 && evict_first!=1) || (evict_last!=0 && evict_last!=1))
+        throw std::runtime_error("eviction policy switches must be 0 or 1");
+      runtime_flags+=" -DTILEMEGA_EVICT_FIRST="+std::to_string(evict_first)+
+          " -DTILEMEGA_EVICT_LAST="+std::to_string(evict_last);
       runtime_flags+=" -DTILEMEGA_PAGE_LOOP_SPLIT="+std::to_string(page_loop_split);
       runtime_flags+=" -DTILEMEGA_L2_SLIM="+std::to_string(l2_slim);
       runtime_flags+=" -DTILEMEGA_WATCHDOG="+std::to_string(watchdog);
@@ -858,6 +864,8 @@ int RunCompile(int argc, char** argv) {
               " --watchdog "+std::to_string(watchdog)+
               " --l2-slim "+std::to_string(l2_slim)+
               " --page-loop-split "+std::to_string(page_loop_split)+
+              " --evict-first "+std::to_string(evict_first)+
+              " --evict-last "+std::to_string(evict_last)+
               " --paged-la "+std::to_string(paged_la)+
               " --paged-la-splitk "+std::to_string(paged_la_splitk)+
               " --l2-prefetch-depth "+std::to_string(prefetch_depth)+" --l2-prefetch-stride "+std::to_string(prefetch_stride)+
@@ -1300,6 +1308,8 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"l2_slim\": "<<l2_slim
               <<",\n  \"nonpaged_weight_layout\": "<<std::quoted(nonpaged_weight_layout)
               <<",\n  \"page_loop_split\": "<<page_loop_split
+              <<",\n  \"evict_first\": "<<evict_first
+              <<",\n  \"evict_last\": "<<evict_last
               <<",\n  \"deferred_norm\": "<<(manifest_deferred_norm?"true":"false")
               <<",\n  \"paged_la\": "<<(use_pages && paged_la?"true":"false")
               <<",\n  \"paged_la_splitk\": "<<(use_pages && paged_la && paged_la_splitk?"true":"false")
