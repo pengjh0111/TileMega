@@ -1,0 +1,24 @@
+{
+  "evidence": "stated preregistration; not measured results",
+  "baseline": "36f17e6ee",
+  "sm89_phase_d_complete_at_start": false,
+  "vllm_version": "0.29.0",
+  "predictions": [
+    {"id":"dram_theory","comparison":"E1.dram_gbps / measured device theoretical GBps","range":[0.85,0.97]},
+    {"id":"ceiling_calibration","comparison":"MB-1a.maximum_gbps / E1.dram_gbps","range":[1.00,1.05]},
+    {"id":"llama_B1_effective_bandwidth","comparison":"B0 effective GBps / MB-1a max, sm120 minus sm89","unit":"percentage_points","range":[-10,-3]},
+    {"id":"llama_B1_TM_vllm","comparison":"vllm TPOT / R13F-120 TPOT","range":[1.06,1.13],"cross_architecture":"higher than sm89"},
+    {"id":"bulk_loader","comparison":"MB-1b bulk copy, one loader warp, load only GBps / MB-1a maximum","minimum":0.97},
+    {"id":"PR_L1_B0h","comparison":"PR_L1 TPOT / B0h TPOT - 1","range":[-0.02,0.02]},
+    {"id":"step_boundary","comparison":"MB-1e overhead per step","unit":"microseconds","range":[5,20]},
+    {"id":"B0p_B0_noev","comparison":"B0p TPOT / B0-noev TPOT - 1, E4c","range":[-0.01,-0.002],"saving_us":[3,15]},
+    {"id":"B0p1_B0_noev","comparison":"B0p1 TPOT / B0-noev TPOT - 1, E4c","range":[-0.01,-0.002],"saving_us":[3,15]},
+    {"id":"NL2gp1_NL2g_noev","comparison":"NL2gp1 TPOT / NL2g-noev TPOT - 1, E4c","range":[-0.015,-0.003]},
+    {"id":"PRp_PR_noev","comparison":"PRp_L2 TPOT / PR_L2-noev TPOT - 1, E4c","range":[-0.01,-0.002]},
+    {"id":"B0l_B0_noev","comparison":"B0l TPOT / B0-noev TPOT - 1, E4c","range":[-0.02,-0.003]},
+    {"id":"NL2g_B0","comparison":"NL2g TPOT / B0 TPOT - 1, E4b","direction":"same sign as sm89","magnitude":null},
+    {"id":"NL2e_B0","comparison":"NL2e TPOT / B0 TPOT - 1, E4b","direction":"same sign as sm89","magnitude":null}
+  ],
+  "pairing": "Same E4 group and same three rotated rounds; do not mix E4 groups",
+  "cross_architecture_qualification": "sm89 final HEAD and Phase D results must be aligned before final conclusions"
+}

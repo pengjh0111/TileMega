@@ -1,0 +1,12 @@
+[
+  {
+    "source": "/root/shared-nvme/junhuipeng/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+    "destination": "/root/tilemega-r13-sm120/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+    "sha256": "f5ee87e284c1d54d881183c29a1592849b5850ef318c961ee2b140c4b0a3f7ec"
+  },
+  {
+    "source": "/root/shared-nvme/junhuipeng/TileMega/docs/experiments/SEQSCAN/raw/export/mha4.json",
+    "destination": "/root/tilemega-r13-sm120/docs/experiments/SEQSCAN/raw/export/mha4.json",
+    "sha256": "40c261c8a8e8a4c99a5e38c6b96f723147e2b6f032b4ce58e3865052c18872a9"
+  }
+]

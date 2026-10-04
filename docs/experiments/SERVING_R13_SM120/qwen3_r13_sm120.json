@@ -1,0 +1,73 @@
+{
+  "model": {
+    "path": "/dev/shm/tilemega-r13-sm120/models/qwen3_1_7b",
+    "name": "qwen3"
+  },
+  "workload": {
+    "batch": [
+      1,
+      16
+    ],
+    "prompt_len": 64,
+    "max_new_tokens": 1024,
+    "prompts": "docs/experiments/SERVING_R10/prompts/qwen3_ids.json"
+  },
+  "device": {
+    "index": 0,
+    "cache_dir": "/dev/shm/tilemega-r13-sm120/cache/qwen3"
+  },
+  "solver": {
+    "passes": 2,
+    "top_m": 8,
+    "measure_top": 3,
+    "jobs": 3,
+    "mode": "L1",
+    "pruning": true,
+    "time_budget_s": 1800,
+    "candidate_guard_wait_s": 1800,
+    "prefill_pins": {
+      "1": {
+        "manifest": "docs/experiments/SERVING_R13_SM120/inputs/qwen3_B1/PF-R10-noWD/plan.json",
+        "classes": "docs/experiments/SERVING_R13_SM120/inputs/qwen3_B1/PF-R10-noWD/classes.tsv"
+      },
+      "16": {
+        "manifest": "docs/experiments/SERVING_R13_SM120/inputs/qwen3_B16/PF-R10-noWD/plan.json",
+        "classes": "docs/experiments/SERVING_R13_SM120/inputs/qwen3_B16/PF-R10-noWD/classes.tsv"
+      }
+    },
+    "exclude_l1_loop": false
+  },
+  "features": {
+    "pg": "measure",
+    "handoff": "off",
+    "sync": "calibrated",
+    "arch_paths": "auto",
+    "pdl": "auto",
+    "weight_layout": "tiled",
+    "kphase_mask": 31,
+    "lookahead_bytes": 65536,
+    "v3_poll_ns": 0,
+    "watchdog": 0,
+    "decode_executor": "measure",
+    "decode_loop": "measure",
+    "prefill_executor": "L1",
+    "l2_slim": 0,
+    "page_loop_split": 1,
+    "nonpaged_weight_layout": "row",
+    "evict_first": 1,
+    "evict_last": 0
+  },
+  "test": {
+    "warmup": 1,
+    "repeats": 3,
+    "hf_check": true,
+    "mode_check": true,
+    "guard": true,
+    "vllm": true,
+    "vllm_python": "/root/shared-nvme/llm-runtimes/vllm/bin/python",
+    "policy_file": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/measurement_policy.json"
+  },
+  "output": {
+    "dir": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E1_qwen3"
+  }
+}

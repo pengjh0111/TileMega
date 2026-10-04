@@ -1,0 +1,26 @@
+{
+  "baseline": "36f17e6ee66404660bccf7df40946c3cdbe208b5",
+  "upstream_branch": "origin/tilemega",
+  "started_utc": "2026-10-04T16:58:55Z",
+  "prompt": "/root/Prompt/TileMega_R13_sm120_prompt.md",
+  "prompt_sha256": "05f3b54517180636152a0423e63d8ab110efa41410d86f957421acf7d8ec5009",
+  "prompt_origin": "User pasted specification; saved locally with LF line endings",
+  "checkpoint_not_final": true,
+  "sm89_phase_d_complete_at_start": false,
+  "user_overrides": [
+    "parallel start before sm89 Phase D completes",
+    "keep installed vLLM 0.29.0, no version switching"
+  ],
+  "inherited_main_protocol_source": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13",
+  "geometry_archive_sha256": "3f85ff09d6a68321216af515085aeaa136448cd046ec4cfe821d1444c52b5b3d",
+  "gpu_lock": "/root/r13_sm120_work/gpu.lock",
+  "worktree": "/root/tilemega-r13-sm120",
+  "no_push": true,
+  "engineering_budget_seconds": 86400,
+  "storage_note": "Fresh tmpfs caches are ephemeral; evidence persists in this worktree. Old R12c caches are not overwritten.",
+  "known_upstream_failures": [
+    "sm120 trigger=0 PTX publication-order check",
+    "nonpaged resource-text identity",
+    "sm89 Llama B1 B0h C-1"
+  ]
+}

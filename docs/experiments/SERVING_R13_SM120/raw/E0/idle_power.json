@@ -1,0 +1,44 @@
+[
+  {
+    "time": 1791133109.8884544,
+    "power_w": 17.6,
+    "utilization_pct": 0.0,
+    "memory_used_mib": 1.0,
+    "owners": ""
+  },
+  {
+    "time": 1791133115.0117354,
+    "power_w": 18.4,
+    "utilization_pct": 0.0,
+    "memory_used_mib": 1.0,
+    "owners": ""
+  },
+  {
+    "time": 1791133120.1584823,
+    "power_w": 17.98,
+    "utilization_pct": 0.0,
+    "memory_used_mib": 1.0,
+    "owners": ""
+  },
+  {
+    "time": 1791133125.2508578,
+    "power_w": 18.16,
+    "utilization_pct": 0.0,
+    "memory_used_mib": 1.0,
+    "owners": ""
+  },
+  {
+    "time": 1791133130.3815627,
+    "power_w": 17.96,
+    "utilization_pct": 0.0,
+    "memory_used_mib": 1.0,
+    "owners": ""
+  },
+  {
+    "time": 1791133135.4741244,
+    "power_w": 17.76,
+    "utilization_pct": 0.0,
+    "memory_used_mib": 1.0,
+    "owners": ""
+  }
+]

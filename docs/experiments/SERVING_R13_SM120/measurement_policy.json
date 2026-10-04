@@ -1,0 +1,17 @@
+{
+  "scope": "R13 sm120 four-cell checkpoint validation",
+  "declared_utc": "2026-09-27",
+  "idle_samples_w": [
+    21.81,
+    21.81,
+    21.82,
+    21.82,
+    21.78
+  ],
+  "idle_power_w": 17.97,
+  "power_margin_w": 30.0,
+  "cooldown_seconds": 30,
+  "retries": 3,
+  "guard": true,
+  "rounds": []
+}
