@@ -1,0 +1,40 @@
+{
+  "recorded_at": "2026-10-04T10:30:15.249752+00:00",
+  "scheduler_pid": 184785,
+  "scheduler_alive_at_initial_check": true,
+  "queue_snapshot": {
+    "total": 198,
+    "done": 118,
+    "failed": 9,
+    "running": 1,
+    "pending": 70
+  },
+  "active_at_initial_check": "C_C-L2b_llama_B1_r1",
+  "phase_snapshot": {
+    "A": {
+      "total": 28,
+      "done": 28
+    },
+    "MB": {
+      "total": 8,
+      "done": 8
+    },
+    "B": {
+      "total": 73,
+      "done": 65,
+      "failed": 8
+    },
+    "C": {
+      "total": 68,
+      "done": 17,
+      "failed": 1,
+      "running": 1,
+      "pending": 49
+    },
+    "D": {
+      "total": 21,
+      "pending": 21
+    }
+  },
+  "note": "Single initial scheduler/process check. Completed result files were audited separately; the active round ended during this audit. No queue restart or repeated status polling."
+}

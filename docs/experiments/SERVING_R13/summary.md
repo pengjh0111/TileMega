@@ -146,3 +146,13 @@ Phase D 包含失效分节标定及 TL-2、两模型联合选择、同一编译�
 恢复方法：再次唤起先读一次 scheduler/progress.tsv，优先查看失败节点摘要；Cretain 生成 phase_c_retention.json，Dfinal 生成 final_decision.json 与 *_r13_final.json。没有只为等队列而继续检查进度。sm_120 PDL 位置检查与既有资源比较仍是未解决项，Carch/Cidentity 再检查后如实记录；不会因其他阶段已结束而宣称 R13 已完成。
 
 队列发布 verified：现有调度器 PID 184785 存活；queue_cd.json 已原子发布，未另开调度器。Cpre 退出 0，编译、指纹及 9/9 相关主机测试通过；发布后 Csmall 正在运行，Cfreeze/Cbuild 等待。证据 raw/phase_cd_prepare/{publication,queue_snapshot}.json、Cpre.log。新 GPU 结果尚未验收。
+
+## 第五次进度验收（2026-10-04）
+
+verified：一次调度器/进程快照确认 PID 184785 存活，198 个步骤中 118 done、9 failed、1 running、70 pending；正在执行 C_C-L2b_llama_B1_r1。步骤包括构建、分析、历史失败及恢复，不能作为验收通过率。A 28/28、MB 8/8；B 73 项中 65 done、8 failed；C 68 项中 17 done、1 failed、1 running、49 pending；D 21 项全部待执行。正常队列未重启、未修改。证据：raw/inspection_05/queue_snapshot.json。
+
+核对已完成文件期间，该轮也正常结束：C 矩阵累计 11/54 轮、52 次臂运行全部退出 0，其中 C-AT 6/6 轮、C-L2b 5/12 轮。C 固定构建 48/48、实际冒烟 44/44、row/tiled 小形状比较 48/48 通过。这些结果不替代 C 的保留门槛、C-1 或 50 新进程检验。原始结果见 raw/inspection_05/completed_C_evidence.tar.xz，摘要 completed_checks.json。
+
+Carch 19/19 编译成功，FP64 指令数 0；sm_120 trigger=0 仍未通过 PTX 位置检查，其余三项通过。Cidentity 的分页三项通过；非分页源码/SASS 相同但资源比较失败，尚未验收通过。B 的 C-1 补测 7/8 通过，唯一失败仍为 Llama B1 B0h（近并列比例 0.982421875，最大 gap 10.5625）；四格 PSA 均通过。9 个队列 failed 包含已恢复的历史工具错误，不能解释成 9 项未实现代码。
+
+R13 主代码项及已触发的五项 C 路径均已实现；尚不能宣称整个任务完成。C 的保留/回退尚未形成，D0–D3 与终版选择尚未执行，PTX/资源检查未达标，完整原始归档与最终报告待收尾。CM-1 已产生初步价格/实测配对及拟合表，最终候选与覆盖范围仍待 D 数据；不修改默认代价模型。只剩队列依赖等待，保持调度器自行执行，下一次唤起先读取一次 progress.tsv。

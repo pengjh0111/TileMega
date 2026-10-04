@@ -1,0 +1,404 @@
+{
+  "small": {
+    "total": 48,
+    "outcomes": {
+      "True": 48
+    }
+  },
+  "build": {
+    "total": 48,
+    "outcomes": {
+      "0": 48
+    }
+  },
+  "smoke": {
+    "total": 44,
+    "outcomes": {
+      "0": 44
+    }
+  },
+  "arch": {
+    "total": 19,
+    "outcomes": {
+      "0": 19
+    },
+    "fp64_total": 0,
+    "row_keys": [
+      "arch",
+      "label",
+      "kind",
+      "trigger",
+      "exit_code",
+      "path",
+      "sha256",
+      "fp64_instructions"
+    ]
+  },
+  "positions": [
+    {
+      "file": "nonpaged_sm120_trigger0.ptx.positions.json",
+      "keys": [
+        "pass_",
+        "error"
+      ],
+      "pass": false,
+      "error": "publication follows late trigger: _ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy"
+    },
+    {
+      "file": "nonpaged_sm120_trigger1.ptx.positions.json",
+      "keys": [
+        "pass_",
+        "kernels"
+      ],
+      "pass": true,
+      "error": null
+    },
+    {
+      "file": "nonpaged_sm90_trigger0.ptx.positions.json",
+      "keys": [
+        "pass_",
+        "kernels"
+      ],
+      "pass": true,
+      "error": null
+    },
+    {
+      "file": "nonpaged_sm90_trigger1.ptx.positions.json",
+      "keys": [
+        "pass_",
+        "kernels"
+      ],
+      "pass": true,
+      "error": null
+    }
+  ],
+  "identity": {
+    "nonpaged": {
+      "source_equal": true,
+      "sass_equal": true,
+      "resources_equal": false
+    },
+    "paged": {
+      "source_equal": true,
+      "sass_equal": true,
+      "resources_equal": true
+    }
+  },
+  "hf": [
+    {
+      "cell": "B5_C1_retry_llama_B1",
+      "arm": "B0h-HF",
+      "pass": false,
+      "ratio": 0.982421875,
+      "max_gap": 10.5625
+    },
+    {
+      "cell": "B5_C1_retry_llama_B1",
+      "arm": "PSA_L2-HF",
+      "pass": true,
+      "ratio": 1.0,
+      "max_gap": 0.0
+    },
+    {
+      "cell": "B5_C1_retry_llama_B16",
+      "arm": "B0h-HF",
+      "pass": true,
+      "ratio": 1.0,
+      "max_gap": 0.25
+    },
+    {
+      "cell": "B5_C1_retry_llama_B16",
+      "arm": "PSA_L2-HF",
+      "pass": true,
+      "ratio": 1.0,
+      "max_gap": 0.25
+    },
+    {
+      "cell": "B5_C1_retry_qwen3_B1",
+      "arm": "B0h-HF",
+      "pass": true,
+      "ratio": 1.0,
+      "max_gap": 0.125
+    },
+    {
+      "cell": "B5_C1_retry_qwen3_B1",
+      "arm": "PSA_L2-HF",
+      "pass": true,
+      "ratio": 1.0,
+      "max_gap": 0.0
+    },
+    {
+      "cell": "B5_C1_retry_qwen3_B16",
+      "arm": "B0h-HF",
+      "pass": true,
+      "ratio": 1.0,
+      "max_gap": 0.125
+    },
+    {
+      "cell": "B5_C1_retry_qwen3_B16",
+      "arm": "PSA_L2-HF",
+      "pass": true,
+      "ratio": 1.0,
+      "max_gap": 0.125
+    }
+  ],
+  "rounds": [
+    {
+      "step": "C_C-AT_qwen3_B16_r0",
+      "keys": [
+        "cell",
+        "round",
+        "order",
+        "arms"
+      ],
+      "arm_count": 7,
+      "arm_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "step": "C_C-AT_qwen3_B16_r1",
+      "keys": [
+        "cell",
+        "round",
+        "order",
+        "arms"
+      ],
+      "arm_count": 7,
+      "arm_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "step": "C_C-AT_qwen3_B16_r2",
+      "keys": [
+        "cell",
+        "round",
+        "order",
+        "arms"
+      ],
+      "arm_count": 7,
+      "arm_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "step": "C_C-AT_qwen3_B1_r0",
+      "keys": [
+        "cell",
+        "round",
+        "order",
+        "arms"
+      ],
+      "arm_count": 7,
+      "arm_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "step": "C_C-AT_qwen3_B1_r1",
+      "keys": [
+        "cell",
+        "round",
+        "order",
+        "arms"
+      ],
+      "arm_count": 7,
+      "arm_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "step": "C_C-AT_qwen3_B1_r2",
+      "keys": [
+        "cell",
+        "round",
+        "order",
+        "arms"
+      ],
+      "arm_count": 7,
+      "arm_exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "step": "C_C-L2b_llama_B16_r0",
+      "keys": [
+        "cell",
+        "round",
+        "order",
+        "arms"
+      ],
+      "arm_count": 2,
+      "arm_exit_codes": [
+        0,
+        0
+      ]
+    },
+    {
+      "step": "C_C-L2b_llama_B16_r1",
+      "keys": [
+        "cell",
+        "round",
+        "order",
+        "arms"
+      ],
+      "arm_count": 2,
+      "arm_exit_codes": [
+        0,
+        0
+      ]
+    },
+    {
+      "step": "C_C-L2b_llama_B16_r2",
+      "keys": [
+        "cell",
+        "round",
+        "order",
+        "arms"
+      ],
+      "arm_count": 2,
+      "arm_exit_codes": [
+        0,
+        0
+      ]
+    },
+    {
+      "step": "C_C-L2b_llama_B1_r0",
+      "keys": [
+        "cell",
+        "round",
+        "order",
+        "arms"
+      ],
+      "arm_count": 2,
+      "arm_exit_codes": [
+        0,
+        0
+      ]
+    },
+    {
+      "step": "C_C-L2b_llama_B1_r1",
+      "keys": [
+        "cell",
+        "round",
+        "order",
+        "arms"
+      ],
+      "arm_count": 2,
+      "arm_exit_codes": [
+        0,
+        0
+      ]
+    }
+  ],
+  "runtime_files": [
+    {
+      "step": "C_C-AT_qwen3_B16_r0",
+      "run_s": 565.249420841923,
+      "attempts": 1
+    },
+    {
+      "step": "C_C-AT_qwen3_B16_r1",
+      "run_s": 566.9587373428512,
+      "attempts": 1
+    },
+    {
+      "step": "C_C-AT_qwen3_B16_r2",
+      "run_s": 564.8368924749084,
+      "attempts": 1
+    },
+    {
+      "step": "C_C-AT_qwen3_B1_r0",
+      "run_s": 529.4668817168567,
+      "attempts": 1
+    },
+    {
+      "step": "C_C-AT_qwen3_B1_r1",
+      "run_s": 531.6049627850298,
+      "attempts": 1
+    },
+    {
+      "step": "C_C-AT_qwen3_B1_r2",
+      "run_s": 529.3389080089983,
+      "attempts": 1
+    },
+    {
+      "step": "C_C-L2b_llama_B16_r0",
+      "run_s": 148.2696919250302,
+      "attempts": 1
+    },
+    {
+      "step": "C_C-L2b_llama_B16_r1",
+      "run_s": 148.48031115392223,
+      "attempts": 1
+    },
+    {
+      "step": "C_C-L2b_llama_B16_r2",
+      "run_s": 148.98549027205445,
+      "attempts": 1
+    },
+    {
+      "step": "C_C-L2b_llama_B1_r0",
+      "run_s": 145.00381743116304,
+      "attempts": 1
+    },
+    {
+      "step": "C_C-L2b_llama_B1_r1",
+      "run_s": 145.40072657214478,
+      "attempts": 1
+    },
+    {
+      "step": "Csmall",
+      "run_s": 22.592689433833584,
+      "attempts": 1
+    },
+    {
+      "step": "Csmoke",
+      "run_s": 139.5309862778522,
+      "attempts": 1
+    }
+  ],
+  "cm_scope": {
+    "default_model_changed": false,
+    "component_scope": "task run interval; excludes dependency waits and event publication",
+    "geometry_source": "runtime GEMM order and the exact traced binary manifest",
+    "rerank_scope": "report-only critical-chain residual inference, not a new solver fit"
+  }
+}
