@@ -219,6 +219,8 @@ int main(int argc, char** argv) {
       case 4: RunCase<32,128,64,3>(rows,columns,reduction,split,operation,argv[7]); break;
       case 5: RunCase<64,128,64,3>(rows,columns,reduction,split,operation,argv[7]); break;
       case 6: RunCase<128,128,64,2>(rows,columns,reduction,split,operation,argv[7]); break;
+      case 7: RunCase<16,32,128,7>(rows,columns,reduction,split,operation,argv[7]); break;
+      case 8: RunCase<16,256,64,2>(rows,columns,reduction,split,operation,argv[7]); break;
       default: throw std::invalid_argument("unknown GEMM config");
     }
     return 0;
