@@ -1,6 +1,6 @@
 # R13 — 实现冻结与验证队列
 
-这是执行中的记录，不是最终性能验收。Phase C、D 尚未开始，T1–T12 的实测结论尚未形成。
+这是执行中的记录，不是最终性能验收。A/B 已收集到可分析状态；Phase C 触发决定与代码修正已提交，C/D 队列正在衔接。全轮终验仍未完成。
 
 ## 基本信息
 
@@ -134,3 +134,13 @@ C-1 恢复队列已提交并原子发布到 `/root/r13_work/queue/queue_c1_recov
 此前停止于队列核对是推进遗漏，不是权限或 GPU 占用阻止 CPU 实现。按已提交的规则，触发 C-L2b、C-PG3、C-LP2、C-AT、C-WL；其余三项未触发。决定及输入见 phase_c_decision.json / phase_c_inputs.json，性能保留门槛不变。C-L2b 的 kAll 聚合等待在冻结代码中已经存在，保留该行为；新增部分仅瘦身两个可证明冗余的外层屏障，仍需 50 新进程。C-LP2 先缩小计算/loader 两条循环的变量生存期，其收益尚未验证。
 
 C-1 工具修正后出现真实失败：Llama B1 的 B0h 近并列比例 0.982421875、最大 gap 10.5625；PSA 同格通过。保留原失败报告，B0h 不作为默认候选；这不是 GPU 守卫错误。Phase D 必须继续做终版选择与验收，不能由 A/B 队列终态替代。
+
+## Phase C/D 的实际推进
+
+代码提交：C-L2b `391c86843`（保留现有 kAll 聚合行，只去掉重复外层屏障）；C-LP2 `bd8d01cd9`（角色分支移到步循环之外，变量生存期改动，收益 inferred）；C-WL `10ded66d3` / `6b45f222c`（非分页预排布权重、整段 B stage 拷贝、原 MMA K 顺序；PTX 提交组上限 8，计划的 smem 分配与驻留预算保持不变）；C-PG3 `dedd849f3`（仅暴露已注册 eviction 对照）。C-AT 使用已注册 Ec={128,256,512} 与当前/半数 Rq 的固定构建，不追加扫描域。
+
+所有新开关在对照里关闭：`l2_slim=0`、`page_loop_split=0`、`nonpaged_weight_layout=row`；没有在实测前启用默认优化。48 个固定构建、C 的三轮矩阵/数值比较、三个独立 50 新进程检查、保留/回退及 D0–D3 已准备在 queue_cd.json（88 步）。GPU 时长累计按 6 h 限制；单臂失败仅排除该臂。新主机工具检查 5/5（raw/phase_cd_prepare/host_tests.log）；不代表 GPU 正确性或性能通过。
+
+Phase D 包含失效分节标定及 TL-2、两模型联合选择、同一编译器的 B0-D 重建、四格三轮 vLLM 配对、C-1/C-2 和终版协议覆盖。只在三轮完整且正确性通过时发布默认配置；性能不可分辨则取 B0-D。缺失/失败证据不会被补成 PASS。C-AT 的优胜结构单独报告，D1 的联合搜索仍决定最终 Ec/Rq。
+
+恢复方法：再次唤起先读一次 scheduler/progress.tsv，优先查看失败节点摘要；Cretain 生成 phase_c_retention.json，Dfinal 生成 final_decision.json 与 *_r13_final.json。没有只为等队列而继续检查进度。sm_120 PDL 位置检查与既有资源比较仍是未解决项，Carch/Cidentity 再检查后如实记录；不会因其他阶段已结束而宣称 R13 已完成。

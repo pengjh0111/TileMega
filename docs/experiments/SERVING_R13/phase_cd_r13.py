@@ -294,5 +294,7 @@ def main():
         else:result=finalize(a.out)
         return result or 0
     finally:
-        if action in ('smoke-c','small','anchor-c','protocol-c','check-c'):write(a.out/'runtime.json',dict(run_s=time.monotonic()-begin))
+        if action in ('smoke-c','small','anchor-c','protocol-c','check-c'):
+            previous=read(a.out/'runtime.json') if (a.out/'runtime.json').exists() else {}
+            write(a.out/'runtime.json',dict(run_s=previous.get('run_s',0)+time.monotonic()-begin,attempts=previous.get('attempts',0)+1))
 if __name__=='__main__':raise SystemExit(main())

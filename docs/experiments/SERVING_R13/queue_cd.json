@@ -16,7 +16,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -46,7 +46,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -80,7 +80,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -112,7 +112,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -149,7 +149,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -187,7 +187,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -225,7 +225,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -261,7 +261,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -297,7 +297,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -333,7 +333,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -369,7 +369,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -405,7 +405,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -441,7 +441,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -477,7 +477,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -513,7 +513,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -549,7 +549,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -585,7 +585,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -621,7 +621,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -657,7 +657,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -693,7 +693,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -729,7 +729,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -765,7 +765,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -801,7 +801,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -837,7 +837,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -873,7 +873,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -909,7 +909,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -945,7 +945,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -981,7 +981,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1017,7 +1017,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1053,7 +1053,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1089,7 +1089,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1125,7 +1125,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1161,7 +1161,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1197,7 +1197,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1233,7 +1233,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1269,7 +1269,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1305,7 +1305,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1341,7 +1341,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1377,7 +1377,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1413,7 +1413,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1449,7 +1449,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1485,7 +1485,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1521,7 +1521,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1557,7 +1557,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1593,7 +1593,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1629,7 +1629,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1665,7 +1665,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1701,7 +1701,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1737,7 +1737,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1773,7 +1773,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1809,7 +1809,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1845,7 +1845,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1881,7 +1881,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1917,7 +1917,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1953,7 +1953,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -1989,7 +1989,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2025,7 +2025,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2061,7 +2061,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2097,7 +2097,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2133,7 +2133,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2169,7 +2169,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2201,7 +2201,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2235,7 +2235,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2269,7 +2269,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2301,7 +2301,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2390,7 +2390,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2479,7 +2479,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2516,7 +2516,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2552,7 +2552,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2586,7 +2586,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2620,7 +2620,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2654,7 +2654,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2686,7 +2686,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2724,7 +2724,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2758,7 +2758,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2792,7 +2792,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2824,7 +2824,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2862,7 +2862,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2896,7 +2896,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2930,7 +2930,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -2962,7 +2962,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -3000,7 +3000,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -3034,7 +3034,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -3068,7 +3068,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -3100,7 +3100,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -3134,7 +3134,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -3170,7 +3170,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
@@ -3217,7 +3217,7 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
       "TILEMEGA_R13_ROOT": "/root/TileMega",
       "TILEMEGA_R13_DATA": "/root/TileMega/docs/experiments/SERVING_R13",
-      "TILEMEGA_R13_COMPILER_COMMIT": "dedd849f377bc9e150b65f9f29dc66ad21a29404",
+      "TILEMEGA_R13_COMPILER_COMMIT": "c75f4bf35893739528974946556f66c00b166b17",
       "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock",
       "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
     },
