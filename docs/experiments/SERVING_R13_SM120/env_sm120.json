@@ -1,0 +1,19 @@
+{
+  "tilemega_python": "/root/shared-nvme/llm-runtimes/vllm/bin/python",
+  "vllm_python": "/root/shared-nvme/llm-runtimes/vllm/bin/python",
+  "packages": {
+    "torch": "2.13.0+cu130",
+    "vllm": "0.29.0",
+    "transformers": "5.17.0"
+  },
+  "torch_cuda": "13.0",
+  "torch_arch_list": [
+    "sm_75",
+    "sm_80",
+    "sm_86",
+    "sm_90",
+    "sm_100",
+    "sm_120"
+  ],
+  "version_switch": false
+}

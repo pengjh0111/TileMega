@@ -1,0 +1,685 @@
+{
+  "utc": 1791137280.7088704,
+  "state": {
+    "E0_core_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.930356,
+      "retry_at": 0,
+      "wait_s": 0.0003097057342529297,
+      "pid": 5624,
+      "run_s": 173.03390765190125,
+      "exit_code": 0
+    },
+    "E0_test_build_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303567,
+      "retry_at": 0,
+      "wait_s": 173.036395072937,
+      "pid": 6792,
+      "run_s": 209.9780532605946,
+      "exit_code": 2
+    },
+    "E0_units_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303575,
+      "retry_at": 0,
+      "wait_s": 383.10418915748596,
+      "pid": 7739,
+      "run_s": 713.4762653633952,
+      "exit_code": 1
+    },
+    "E0_environment_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.930358,
+      "retry_at": 0,
+      "wait_s": 1096.697923898697,
+      "pid": 8709,
+      "run_s": 29.85065297782421,
+      "exit_code": 0
+    },
+    "E0_model_llama_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.9303584,
+      "retry_at": 0,
+      "wait_s": 1126.5507638454437,
+      "pid": 8789,
+      "run_s": 425.5537393540144,
+      "exit_code": 0
+    },
+    "E0_model_qwen3_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.9303591,
+      "retry_at": 0,
+      "wait_s": 1552.107007741928,
+      "pid": 8844,
+      "run_s": 694.5306063145399,
+      "exit_code": 0
+    },
+    "E1_llama_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303598,
+      "retry_at": 0,
+      "wait_s": 2246.7693388462067,
+      "pid": 9096,
+      "run_s": 63.64200333505869,
+      "exit_code": 1
+    },
+    "E1_qwen3_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303603,
+      "retry_at": 0,
+      "wait_s": 2370.6855602264404,
+      "pid": 9191,
+      "run_s": 64.14419068023562,
+      "exit_code": 1
+    },
+    "E1_TL2_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303608,
+      "retry_at": 0
+    },
+    "E2a_MB-1b_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303613,
+      "retry_at": 0
+    },
+    "E2a_MB-1c_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303617,
+      "retry_at": 0
+    },
+    "E2a_MB-1d_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303625,
+      "retry_at": 0
+    },
+    "E2a_MB-1e_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.930363,
+      "retry_at": 0
+    },
+    "E2a_MB-1f_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303646,
+      "retry_at": 0
+    }
+  },
+  "statuses": {
+    "done": 4,
+    "failed": 4,
+    "skipped": 6
+  },
+  "ctest": [
+    {
+      "name": "scalar_cost_errors",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "coupling_interface_gqa2",
+      "status": "fail",
+      "failure": {
+        "message": ""
+      }
+    },
+    {
+      "name": "coupling_interface_mha4",
+      "status": "fail",
+      "failure": {
+        "message": ""
+      }
+    },
+    {
+      "name": "cg_lit",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "target_spec",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "target_audit",
+      "status": "fail",
+      "failure": {
+        "message": ""
+      }
+    },
+    {
+      "name": "coupling_types",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "table27",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "stage_flow",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "flow_runtime_release",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "regime_a_price",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "dram_floor",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "semantics",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "incidence_identity",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "imported_incidence_identity",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "containment",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "event_synthesis",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "runtime_projection",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "relation_bounds",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "graph_pattern",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "task_element_work",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "op_arithmetic_audit",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "task_work_domains",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "isl_relation",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "layout_bridge",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "cg_attr_roundtrip",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "backend_query",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "cache_service_curve",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "fusion_access",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "handoff_runtime_projection",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "handoff_ir",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "handoff_split_four",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "handoff_split_one",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "handoff_split_off",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "handoff_split_escape",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "handoff_access",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "lane_intersections",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "fusion_rewrite",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "stage_kappa",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "pipeline_sigma",
+      "status": "fail",
+      "failure": {
+        "message": ""
+      }
+    },
+    {
+      "name": "fusion_written_price",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "fused_runtime_projection",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "exact_runtime_task_graph",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "fusion_batch_rewrite",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "fiber_sum",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "attention_work",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "chain_dp",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "list_scheduler",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "plan_contract",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "execution_simulator",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "eft_placement",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "chain_placement",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "plan_table",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "cluster_labeling",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "alignment_propagation",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "impl_contract",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "task_body_contract",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "bf16_task_body_compile",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_gemm_config",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_pruning",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_lag",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_task_index",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_epilogue",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_gemm_task_body",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_rmsnorm",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_state_tasks",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_combine",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_token_sets",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_harness_compile",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_attention_mma",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_fused_attention",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_attention_merge",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_attention_cases",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "page_ring",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "paged_gemm",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "norm_prologue_gemm",
+      "status": "notrun",
+      "failure": null
+    },
+    {
+      "name": "last_arriver",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_watchdog",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "direct_handoff",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "independent_attention",
+      "status": "fail",
+      "failure": {
+        "message": ""
+      }
+    },
+    {
+      "name": "paged_attention",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "serving_prefill_attention",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "fused_harness_compile",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "frontend_import",
+      "status": "fail",
+      "failure": {
+        "message": ""
+      }
+    },
+    {
+      "name": "skeleton_placement",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "isolated_evaluation",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "skeleton_search_isolation",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "plan_skeleton",
+      "status": "fail",
+      "failure": {
+        "message": ""
+      }
+    },
+    {
+      "name": "variant_resource",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "symbolic_oracle",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "operator_classes",
+      "status": "fail",
+      "failure": {
+        "message": ""
+      }
+    },
+    {
+      "name": "coupling_cache",
+      "status": "fail",
+      "failure": {
+        "message": ""
+      }
+    },
+    {
+      "name": "semantic_lifting",
+      "status": "fail",
+      "failure": {
+        "message": ""
+      }
+    },
+    {
+      "name": "embedding_plan",
+      "status": "fail",
+      "failure": {
+        "message": ""
+      }
+    },
+    {
+      "name": "wiring_coupling",
+      "status": "fail",
+      "failure": {
+        "message": ""
+      }
+    },
+    {
+      "name": "frontend_degradation",
+      "status": "run",
+      "failure": null
+    },
+    {
+      "name": "isl_crosslink",
+      "status": "run",
+      "failure": null
+    }
+  ],
+  "native_calibrations": [
+    {
+      "model": "llama",
+      "path": "/dev/shm/tilemega-r13-sm120/cache/llama/targets/NVIDIA-GeForce-RTX-5090-sm120-170-drv13.json",
+      "sha256": "27479f675635dcba1182d5784b147cfe2862a91365fff4e0755a1434463f8c38",
+      "sections": [
+        "base",
+        "bf16",
+        "events",
+        "hop",
+        "inflight",
+        "l2_prefetch",
+        "task_bodies",
+        "task_bodies_paged",
+        "wait"
+      ],
+      "native_serving_kinds": 12,
+      "paged_and_loader_entries": 19,
+      "legacy_phase_samples": 0,
+      "command_exit": 0
+    },
+    {
+      "model": "qwen3",
+      "path": "/dev/shm/tilemega-r13-sm120/cache/qwen3/targets/NVIDIA-GeForce-RTX-5090-sm120-170-drv13.json",
+      "sha256": "fb16464cc38b5e075c855c1dfa08155a030e2b4182c4cd1aa6901fac589daac2",
+      "sections": [
+        "base",
+        "bf16",
+        "events",
+        "hop",
+        "inflight",
+        "l2_prefetch",
+        "task_bodies",
+        "task_bodies_paged",
+        "wait"
+      ],
+      "native_serving_kinds": 12,
+      "paged_and_loader_entries": 19,
+      "legacy_phase_samples": 0,
+      "command_exit": 0
+    }
+  ],
+  "python_tests_passed": 31,
+  "ctest_passed": 84,
+  "ctest_total": 97,
+  "accepted_phase": false,
+  "E2a_executed": false,
+  "reason": "native profile admission rejects optional missing legacy fits"
+}

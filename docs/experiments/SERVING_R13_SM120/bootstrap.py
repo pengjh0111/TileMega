@@ -259,21 +259,23 @@ def model(name):
 
 def ceiling():
     sources = []
+    attempt = os.environ.get('TILEMEGA_E1_ATTEMPT', '')
+    folder = HERE / 'raw' / ('E1_TL2' + attempt)
     for model in ('llama', 'qwen3'):
-        doctor = json.loads((HERE / 'raw' / ('E1_' + model) / 'doctor.json').read_text())
+        doctor = json.loads((HERE / 'raw' / ('E1_' + model + attempt) / 'doctor.json').read_text())
         sources.append(Path(doctor['target']))
     code = run([PY, FRAME / 'dram_ceiling.py', '--binary', BUILD / 'tilemega-loadbench',
-                '--out', HERE / 'raw/E1_TL2/processes', '--target', sources[0],
-                '--target-out', HERE / 'target_sm120.json'], HERE / 'raw/E1_TL2/ceiling.log')
+                '--out', folder / 'processes', '--target', sources[0],
+                '--target-out', HERE / 'target_sm120.json'], folder / 'ceiling.log')
     if code:
         return code
-    summary = json.loads((HERE / 'raw/E1_TL2/processes/dram_ceiling.json').read_text())
+    summary = json.loads((folder / 'processes/dram_ceiling.json').read_text())
     # Both model caches use the same native GPU calibration and the TL-2 ceiling.
     sys.path.insert(0, str(FRAME))
     from dram_ceiling import write_target
     for source in sources:
         write_target(source, source, summary['calibration_median_gbps'], summary)
-    write(HERE / 'raw/E1_TL2/targets.json', [dict(path=str(p), sha256=sha(p)) for p in sources])
+    write(folder / 'targets.json', [dict(path=str(p), sha256=sha(p)) for p in sources])
     return 0
 
 

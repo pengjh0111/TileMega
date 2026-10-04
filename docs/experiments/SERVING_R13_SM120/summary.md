@@ -56,3 +56,33 @@ R14 方案待证据，不实施。
 单次读取状态，优先定位 failed 日志；running 的长验证不反复轮询。
 调度器日志：`/root/r13_sm120_work/scheduler.log`；脚本/队列/环境见本目录。
 确认原 PID 不存活且无同锁运行进程后，才可重启同一个调度器；running 节点须先核实子进程，不能直接清空状态。
+
+## 第一次阶段验收（2026-10-05）
+
+verified：`_r2` 14 项全部终态：4 done、4 failed、6 skipped；GPU 空闲、调度器存活。
+E0_core 构建与源码指纹通过。CTest 为 84/97：12 failed/timeout、1 not run；R13 Python 为 31/31。
+这不是 E0–E2a 通过：TL-2 与全部 E2a 微基准没有执行，不能报告带宽上限或首次执行路径收益。
+
+| 项目 | 验收证据与处置 |
+|---|---|
+| 环境/能力 | verified：170 SM；共享内存每 SM 102400 B、每 block 默认 49152 B、opt-in 101376 B；L2 100663296 B；portable cluster 查询上限 8；CUDA 12.8.93 |
+| 模型 | verified：固定 revisions 与上轮本机权重 SHA 全部一致；跨机 SHA 尚待 sm89 提供，不提前宣称一致 |
+| 7 个 E2E 输入用例 | 缺 `E2E_GEN/raw/export_bridge.json`；恢复原共享目录的测试输入，记录 SHA，不改预期；待复验 |
+| 2 个 interface 用例 | 缺历史 ORACLE 寄存器表导致 map::at；历史数据缺失，不造寄存器值 |
+| target_audit | 仓库静态 target 的 wait_protocol 字段不满足 audit schema；不拿它覆盖本机新标定 target |
+| pipeline_sigma | 包装器 180 s 超时；只将该 CPU 用例的复验上限设为 900 s，不改模型/预期 |
+| norm_prologue_gemm | 旧测试接口与当前 TaskBody API 不符，未运行；不是 sm120 的共享内存失败 |
+| independent_attention | 真正数值失败：D64/Q4/past63，got 0.000717163、ref −0.00453073；不修改参考或容差 |
+| E1 两模型 | GPU 九分节命令均 exit 0，均有 12 类 native serving fit、19 项 paged/loader、legacy samples=0；Python 随后误拒 optional legacy fit |
+
+移植修正 `17860b184`：target native-only 格式读写与校验兼容；缺失/nonfinite/负值数据仍拒绝。
+verified：Python 合约检查通过，并在两个原实测 target 上确认缺失 native 分节为零。
+C++ round-trip 回归已加入、待重建执行；没有改 GPU 同步，因此此修正不产生 50 新进程同步结论。
+求解器/代价模型 diff 为空；R13 当前 in-flight 路径已经关闭重复 stage_latency 计价，不迁入 R12c 的定价修正。
+原记录归档：`raw/acceptance_01/e0_e1_original_evidence.tar.xz`，SHA256 `d74dd8209e28e61992013aac60aaf2cbe4f72ff820b1079a036100094b27f692`。
+
+追加 `_r3` 队列：重建/CPU 复验 → 两模型全九分节重测（新 cache）→ TL-2 至少五新进程 → MB-1b–f → 本机 exports → E3 固定/trace 构建。
+已完成的模型下载、环境测量与非相关 GPU 单测不重复；保留旧节点，不重置状态、不重启调度器。
+固定机制控制的 lookahead=0/page_loop_split=0/eviction 等保持 R13 B 的注册对照设置；R13F 使用 Phase C 保留的配置，另行构建。
+E3 使用新的 target；固定构建最多三个并行，PDL off/auto 分离，prefill 固定 R13 已选 PF-R10 几何。
+R13F 联合选择、E2b/E2c、E4–E6 尚未排入此队列；固定计划失败只记录该臂，后续按原规格验收首次路径。
