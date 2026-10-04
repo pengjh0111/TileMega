@@ -179,8 +179,8 @@ def core():
                '-DMLIR_DIR=/root/toolchains/mlir-23a60f15/lib/cmake/mlir',
                '-DLLVM_DIR=/root/toolchains/mlir-23a60f15/lib/cmake/llvm',
                '-DTILEMEGA_LIT_DRIVER=/root/shared-nvme/sxy/cuda-tile/llvm-project/llvm/utils/lit/lit.py']
-    for name, folder in [('ISL', 'isl'), ('POLYLIB', 'polylib'), ('BARVINOK', 'barvinok')]:
-        command.append(f'-DTILEMEGA_{name}_BUILD_DIR={stack / ("build-" + folder)}')
+    for name, component in [('ISL', 'isl'), ('POLYLIB', 'polylib'), ('BARVINOK', 'barvinok')]:
+        command.append(f'-DTILEMEGA_{name}_BUILD_DIR={stack / ("build-" + component)}')
     command += [f'-DTILEMEGA_ISL_GENERATED_INCLUDE_DIR={stack / "build-isl/include"}',
                 f'-DTILEMEGA_ISL_LIBRARY={stack / "build-isl/.libs/libisl.a"}']
     code = run(command, folder / 'configure.log')
@@ -297,19 +297,21 @@ def launch():
     return 0
 
 
-def recovery():
+def recovery(attempt):
     import copy
     source = json.loads((HERE / 'queue_e0_e2a.json').read_text())
     rows = copy.deepcopy(source)
+    suffix = '_r' + str(attempt)
     for row in rows:
-        row['name'] += '_r1'
+        row['name'] += suffix
         for key in ('after', 'after_any'):
-            row[key] = [name + '_r1' for name in row[key]]
-        row['out'] += '_r1'
-        row['env']['TILEMEGA_E0_BUILD_ATTEMPT'] = '_r1'
+            row[key] = [name + suffix for name in row[key]]
+        row['out'] += suffix
+        row['env']['TILEMEGA_E0_BUILD_ATTEMPT'] = suffix
     # Publish atomically, without resetting the scheduler or erasing its failures.
-    write(HERE / 'queue_e0_recovery.json', rows)
-    destination = WORK / 'queue/queue_e0_recovery.json'
+    filename = 'queue_e0_recovery' + suffix + '.json'
+    write(HERE / filename, rows)
+    destination = WORK / 'queue' / filename
     if destination.exists():
         raise RuntimeError('recovery queue already published')
     temporary = destination.with_suffix('.tmp')
@@ -323,11 +325,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=('prepare', 'core', 'test-build', 'units', 'environment', 'model', 'ceiling', 'launch', 'recovery'))
     parser.add_argument('--model', choices=('llama', 'qwen3'))
+    parser.add_argument('--attempt', type=int, default=2)
     args = parser.parse_args()
     return {'prepare': prepare, 'core': core, 'test-build': test_build,
             'units': units, 'environment': environment,
             'model': lambda: model(args.model), 'ceiling': ceiling,
-            'launch': launch, 'recovery': recovery}[args.action]() or 0
+            'launch': launch, 'recovery': lambda: recovery(args.attempt)}[args.action]() or 0
 
 
 if __name__ == '__main__':
