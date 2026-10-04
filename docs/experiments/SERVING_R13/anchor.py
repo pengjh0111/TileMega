@@ -3,6 +3,13 @@
 import argparse,hashlib,json,os,subprocess,sys
 from pathlib import Path
 
+def measurement_policy(root):
+    supplied=os.environ.get('TILEMEGA_MEASUREMENT_POLICY')
+    policy=Path(supplied) if supplied else root/'docs/experiments/SERVING_R11/ev2/measurement_policy.json'
+    if supplied and not policy.is_file():raise RuntimeError('explicit measurement policy is missing: '+str(policy))
+    if not policy.exists():policy=Path(__file__).resolve().parents[3]/'docs/experiments/SERVING_R11/ev2/measurement_policy.json'
+    return policy
+
 def main():
     p=argparse.ArgumentParser();p.add_argument('--arms',type=Path,required=True);p.add_argument('--cell',required=True);p.add_argument('--round',type=int,required=True);p.add_argument('--out',type=Path,required=True);a=p.parse_args()
     data=json.loads(a.arms.read_text());arms=data[a.cell];arms=[r for r in arms if r.get('available',True)]
@@ -20,8 +27,7 @@ def main():
             if record.get('sha256') and hashlib.sha256(Path(arm[phase]).read_bytes()).hexdigest()!=record['sha256']:
                 raise RuntimeError('binary changed: '+arm[phase])
         model=arm['model_path'];batch=str(arm['batch']);prompts=root/f"docs/experiments/SERVING_R10/prompts/{arm['model']}_ids.json"
-        policy=root/'docs/experiments/SERVING_R11/ev2/measurement_policy.json'
-        if not policy.exists():policy=Path(__file__).resolve().parents[3]/'docs/experiments/SERVING_R11/ev2/measurement_policy.json'
+        policy=measurement_policy(root)
         if arm['kind']=='vllm':
             libs=list((Path(arm['python']).parent.parent/'lib').glob('python*/site-packages/nvidia/cu*/lib'))
             env['LD_LIBRARY_PATH']=':'.join(map(str,libs))+':'+env.get('LD_LIBRARY_PATH','')

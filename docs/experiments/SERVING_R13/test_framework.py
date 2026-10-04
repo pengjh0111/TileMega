@@ -1,8 +1,19 @@
 #!/usr/bin/env python3
 """CPU checks for strict preflight and foreign-process classification."""
 import os,select,signal,subprocess,sys,unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 from gpu_guard import external,idle,stop
+from anchor import measurement_policy
+class PolicyTests(unittest.TestCase):
+    def test_explicit_policy_never_falls_back_to_another_device(self):
+        with tempfile.TemporaryDirectory() as folder:
+            policy=Path(folder)/'policy.json';policy.write_text('{}')
+            with patch.dict(os.environ,{'TILEMEGA_MEASUREMENT_POLICY':str(policy)}):
+                self.assertEqual(measurement_policy(Path(folder)),policy)
+            with patch.dict(os.environ,{'TILEMEGA_MEASUREMENT_POLICY':str(policy)+'missing'}):
+                with self.assertRaises(RuntimeError):measurement_policy(Path(folder))
 class GuardTests(unittest.TestCase):
     def test_idle_limits(self):
         p=dict(max_util_pct=5,idle_power_w=21.81,power_margin_w=30,max_hidden_mib=1024)
