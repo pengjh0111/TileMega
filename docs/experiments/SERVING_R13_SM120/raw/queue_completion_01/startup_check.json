@@ -1,0 +1,17 @@
+{
+  "evidence": "verified by one attachment check immediately after publishing",
+  "date": "2026-10-05",
+  "scheduler_pid": 4488,
+  "scheduler_alive": true,
+  "running_tasks": ["E3_fixed_r4"],
+  "published_nodes": 74,
+  "published_gpu_nodes": 71,
+  "published_cpu_nodes": 3,
+  "r5_nodes_in_state_at_check": 0,
+  "state_import": "The scheduler rereads queue files after the currently blocking build returns.",
+  "cpu_pipeline_tests": {"passed": 25, "total": 25},
+  "cpu_r13_framework_tests": {"passed": 32, "total": 32},
+  "gpu_validation_complete": false,
+  "solver_or_cost_model_diff": false,
+  "push_performed": false
+}

@@ -147,3 +147,20 @@ E2c 五十新进程、E4–E6 尚未发布；待本队列验收确认各首次�
 记录见 `raw/recovery_03/`、`queue_resume_r4.json`、`resume.py`；继续本地 commit，不 push。
 单次启动核查 verified：调度器 PID 4488 存活，原 MB-1d_r3 已 running，九个 r4 节点 pending。
 原调度器优先选择 ready 的 GPU 节点，因此原 d/e/f 可先运行；它们不依赖模型/target cache，之后执行恢复与新增构建依赖链。
+
+## 完整自动接续队列（2026-10-05）
+
+本节替代上节“E2c/E4–E6 尚未发布、等待人工逐阶段验收”的安排；历史启动记录保留。
+verified（CPU）：不依赖实测反馈的 E2c–E6 实现、测试定义、trace/codegen 收集与 S1–S10 报告生成已补齐。
+提交：`ca91ce0b0` 本机 anchor policy；`40c36af17` 退出后采样滞后与持续饱和的区分；`31070cd45` 完整依赖自动化。
+CPU 自动化测试 25/25、原 R13 框架测试 32/32 通过；这些结果不代表 GPU 正确性或同步验收。
+verified：原子发布 r5 共 74 节点，其中 GPU 71、CPU 3；不停止原调度器，不清空旧状态，不覆盖实验二进制。
+单次挂接核查：调度器 PID 4488 存活，`E3_fixed_r4` 正在运行；r5 尚未写入 state，等待当前阻塞构建返回后自动读取新队列。
+执行链为 fixed/trace/R13F → smoke/catalog → E2c → E4a–d/一次有界 canary/E4f → E5a–d → E6；无需逐阶段人工放行。
+CPU codegen 审计可在构建后独立执行；所有 GPU 测量仍由同一调度器、守卫及共享锁依次执行。
+某个臂缺构建/执行方式，或对应同步路径崩溃/超时，只限制相关路径；保留失败，不取消无关臂。
+纯数值失败保留原始差异及通过率，收满 50 新进程；可收集附正确性限定的性能，不伪称正确性 PASS。
+设备故障、首次执行才暴露的允许范围内 bug，以及最终 sm89 HEAD/证据对齐仍需实际处理，不能预先宣称已完成。
+E4e cluster 端到端与 E5e ncu 按规格可选项省略；MB-1d cluster 数据保留。不扩展选择空间、不实施 R14 优化。
+实现/依赖及不可用条件见 `workflow.md`；队列见 `queue_complete_r5.json`；实现状态见 `implementation_status.json`。
+E6 自动生成 `summary.generated.md` 草稿，最终验收再整理正式报告及证据提交；本次所有提交仍仅本地保存，不 push。

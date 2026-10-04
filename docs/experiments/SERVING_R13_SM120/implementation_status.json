@@ -1,0 +1,17 @@
+{
+  "dependency_free_implementation_complete": true,
+  "pending_hardware_discovered_fixes": true,
+  "queued_nodes": 74,
+  "groups": {
+    "E4a": 3,
+    "E4b": 4,
+    "E4c": 9,
+    "E4d": 9
+  },
+  "optional_omitted": [
+    "E4e cluster end-to-end",
+    "E5e ncu"
+  ],
+  "no_solver_or_cost_model_changes": true,
+  "no_push": true
+}
