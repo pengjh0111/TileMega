@@ -1,0 +1,35 @@
+{
+  "cells": {
+    "llama_B1": {
+      "NL2g_rel": 0.20467352548687834,
+      "NL2e_rel": 0.17042148044834438,
+      "PR_loop_rel": 0.0019580065949487135,
+      "PR_dependency_fraction": 0.1188761189479697,
+      "attention_merge_excess_fraction": 0.22273659445355115
+    },
+    "llama_B16": {
+      "NL2g_rel": 0.15546307268961357,
+      "NL2e_rel": 0.14677382552320606,
+      "PR_loop_rel": 0.0013466456756243694
+    },
+    "qwen3_B1": {
+      "NL2g_rel": 0.22292215490170353,
+      "NL2e_rel": 0.21173723936800837,
+      "PR_loop_rel": 0.012291567979930917,
+      "PR_dependency_fraction": 0.07248910946984356,
+      "attention_merge_excess_fraction": 0.5798749865666039
+    },
+    "qwen3_B16": {
+      "NL2g_rel": 0.09925189685378988,
+      "NL2e_rel": 0.10359326897696208,
+      "PR_loop_rel": 0.027297111293900223
+    }
+  },
+  "mb": {
+    "ceiling_gbps": 1102.84173131,
+    "loader1_gbps": 981.152448431,
+    "loader2_gbps": 980.908616312,
+    "gemv_best_instruction_rel": 0.0018973624002274203,
+    "gemv_tile_layout_rel": 0.12942120201798102
+  }
+}

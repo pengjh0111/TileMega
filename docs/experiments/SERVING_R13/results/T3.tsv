@@ -1,0 +1,14 @@
+suite	maximum_gbps	processes	process_range_gbps	process_range_relative	contaminated	calibration_median_gbps	source	points	ratio_calibration	ratio_bf16	ratio_maximum
+MB-1a	1102.84173131	5	0.6010519870000053	0.0006133323909281516	0	979.977571526	/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1a-complete/dram_ceiling.json				
+MB-1b-anchor	967.321043363				False		/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1b/loadbench.json	1	0.9854533856591279	1.0936360015409836	0.8771168300042265
+MB-1b	980.894302155				False		/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1b/loadbench.json	48	0.9992810739150366	1.108981687003957	0.8894243610004259
+MB-1b-bulk					False		/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1b/loadbench.json	1			
+MB-1b-anchor	967.321043363				False		/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1b-resident/loadbench.json	1	0.9854533856591279	1.0936360015409836	0.8771168300042265
+MB-1b	981.152448431				False		/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1b-resident/loadbench.json	48	0.9995440591187856	1.1092735426014697	0.8896584347289321
+MB-1b-bulk					False		/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1b-resident/loadbench.json	1			
+MB-1c	982.711313825				False		/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1c/loadbench.json	216	1.0011321452984923	1.1110359681458453	0.8910719334656442
+MB-1d					False		/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1d/loadbench.json	12			
+MB-1d-cluster					False		/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1d/loadbench.json	1			
+MB-1e					False		/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1e/loadbench.json	3			
+MB-1e-PDL					False		/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1e/loadbench.json	1			
+MB-1f	976.327720475				False		/root/TileMega/docs/experiments/SERVING_R13/raw/MB-1f/loadbench.json	4	0.9946288920894457	1.1038187908140191	0.8852836202664172

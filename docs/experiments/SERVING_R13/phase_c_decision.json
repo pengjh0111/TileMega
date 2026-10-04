@@ -1,0 +1,72 @@
+{
+  "rules": {
+    "C-L2a": false,
+    "C-L2b": true,
+    "C-PG1": false,
+    "C-PG3": true,
+    "C-LP2": true,
+    "C-AT": true,
+    "C-BW": false,
+    "C-WL": true
+  },
+  "selected": [
+    "C-L2b",
+    "C-PG3",
+    "C-LP2",
+    "C-AT",
+    "C-WL"
+  ],
+  "inputs": {
+    "cells": {
+      "llama_B1": {
+        "NL2g_rel": 0.20467352548687834,
+        "NL2e_rel": 0.17042148044834438,
+        "PR_loop_rel": 0.0019580065949487135,
+        "PR_dependency_fraction": 0.1188761189479697,
+        "attention_merge_excess_fraction": 0.22273659445355115
+      },
+      "llama_B16": {
+        "NL2g_rel": 0.15546307268961357,
+        "NL2e_rel": 0.14677382552320606,
+        "PR_loop_rel": 0.0013466456756243694
+      },
+      "qwen3_B1": {
+        "NL2g_rel": 0.22292215490170353,
+        "NL2e_rel": 0.21173723936800837,
+        "PR_loop_rel": 0.012291567979930917,
+        "PR_dependency_fraction": 0.07248910946984356,
+        "attention_merge_excess_fraction": 0.5798749865666039
+      },
+      "qwen3_B16": {
+        "NL2g_rel": 0.09925189685378988,
+        "NL2e_rel": 0.10359326897696208,
+        "PR_loop_rel": 0.027297111293900223
+      }
+    },
+    "mb": {
+      "ceiling_gbps": 1102.84173131,
+      "loader1_gbps": 981.152448431,
+      "loader2_gbps": 980.908616312,
+      "gemv_best_instruction_rel": 0.0018973624002274203,
+      "gemv_tile_layout_rel": 0.12942120201798102
+    }
+  },
+  "gpu_budget_hours": 6,
+  "engineering_budget_days": 5,
+  "implementation_notes": {
+    "C-L2b": "kAll already uses the aggregate event in the frozen host materializer; retain it and remove the two redundant outer L2 body barriers only behind a control switch. Keep the unconditional dependency barrier and publication barrier.",
+    "C-PG3": "Only registered D=64K policy variants; no code optimization needed.",
+    "C-LP2": "Infer compiler liveness cost: move the uniform compute/loader branch outside the step loop, without changing waits, publication or page sequencing. Confirm resource/performance effect, do not assume it.",
+    "C-AT": "Only the registered Ec=128/256/512 and current/alternative Rq fixed builds.",
+    "C-WL": "Opt-in nonpaged tile packing and linear stage copy; preserve the collective row control and require token equality."
+  },
+  "known_failures": [
+    "B0h Llama B1 C-1 failed: ratio 0.982421875, max gap 10.5625; do not treat as passed or include this arm in default selection.",
+    "sm_120 trigger=0 PTX position check and nonpaged resource identity unresolved; keep failures visible."
+  ],
+  "not_selected_reason": {
+    "C-L2a": "grid_stride remains 9.9%-22.3% slower than B0, outside +3% trigger",
+    "C-PG1": "two loader warps do not reach 98% of the recorded ceiling",
+    "C-BW": "best matched GEMV instruction gain is 0.19%, below 2%"
+  }
+}
