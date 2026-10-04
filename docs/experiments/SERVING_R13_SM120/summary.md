@@ -123,3 +123,25 @@ loadbench 二进制 SHA256：`84bd4ecc345fb44dc10854ebd469dfb67948ce84d5094a8563
 本次证据归档 `raw/acceptance_02/r3_evidence.tar.xz`，SHA256 `5b97f9ee99cb918487bd33caa1665650ec8516bd9ef761f803ca89e59d09a375`。
 归档包含 CPU 复验、E1 原始输出、TL-2 五进程、MB-1b 数据、MB-1c 失败与守卫/调度器快照。
 求解器/代价模型仍无 diff；本轮尚未形成需 50 新进程的同步修正。所有提交仅本地保存，不 push。
+
+## 用户恢复设备后的接续（2026-10-05）
+
+verified：用户处理设备后，本机 GPU 空闲、原调度器不存活，tmpfs 的模型/cache 全部丢失；持久化状态与证据仍在。
+用户明确不需要 agent reset。本次未做 reset，重新采六次空闲功耗，中位数 29.95 W；仅更新空闲功耗，其余守卫阈值不变。
+verified：归档 target 的九分节 stamps 与当前源码完全相符，native 字段完整、BF16 calibrated=true；恢复相同 GPU 快照到两个新 cache。
+Qwen3 原 tmpfs 独立快照已丢失；不伪称恢复了其逐字节副本，两个模型构建统一使用已归档的本机 E1 target，禁止静态/sm89 target 替代。
+模型恢复至 `/root/shared-nvme/junhuipeng/TileMega_R13_SM120/models/`，固定 revision/config/权重 SHA 验证后链接回运行目录。
+
+明确偏离：为避免重复已观察的设备级故障，MB-1c 的 TN128/TK64/method5 共十二个组合隔离为 unavailable。
+只增加 host 驱动 `loadbench_safe_shapes.cu`，直接包含原微基准并复用未修改的 kernels；其余 204 点保持原形状、布局、grid、重复数与 PTX。
+隔离不是 PTX/同步修正，也不是该臂通过；原非法指令日志保留。尚未确定根因，不为 legacy cache-hint 路径扩大本轮修改范围。
+编译新的 host 驱动不覆盖原 loadbench，保存原/新二进制与 kernel 源码 SHA；不能混用被隔离点与实测点计算机制效应。
+
+追加 `_r4` 九个节点，原 failed/skipped 状态不清空：restore → 固定模型 → 剩余 MB-1c/d/e/f → exports → 固定/trace → 两模型 R13F → 64 步冒烟。
+MB-1d/e/f 仍由原 `_r3` 待执行节点接续。微基准 unavailable/failed 如实保留，不让已知单个故障跳过全部模型构建。
+E3 固定/trace 构建沿用尚未实际执行过的 r3 输出路径，仅调度节点用 r4；最多三并发、PDL 控制独立、watchdog=0、同一已冻结 target。
+R13F 仍为 SL-5 原注册选择空间、time_budget_s=1800；超过 3600 s 记录，不以此中止；不修改求解器/代价模型。
+冒烟遍历每个成功 decode plan 的可用执行方式、64 步，逐计划保留 pass/fail；队列 done 不等于所有计划正确。
+本机恢复/固定构建准备检查 verified：13/13；长队列启动后仅核查一次，不反复轮询。
+E2c 五十新进程、E4–E6 尚未发布；待本队列验收确认各首次路径可用后接续，不越过同步验证宣称性能结论。
+记录见 `raw/recovery_03/`、`queue_resume_r4.json`、`resume.py`；继续本地 commit，不 push。

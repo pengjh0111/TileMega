@@ -1,0 +1,418 @@
+{
+  "time": 1791140076.9825356,
+  "head": "075b0511da3126bace0e55f957aed4336d7dc82f",
+  "device_recovery": "performed by user; no agent reset",
+  "historical_state": {
+    "E0_core": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133193.2926908,
+      "retry_at": 0,
+      "wait_s": 0.00018930435180664062,
+      "pid": 4920,
+      "run_s": 14.382482122629881,
+      "exit_code": 1
+    },
+    "E0_test_build": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.292692,
+      "retry_at": 0
+    },
+    "E0_units": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926927,
+      "retry_at": 0
+    },
+    "E0_environment": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926931,
+      "retry_at": 0
+    },
+    "E0_model_llama": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.292694,
+      "retry_at": 0
+    },
+    "E0_model_qwen3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926946,
+      "retry_at": 0
+    },
+    "E1_llama": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.292695,
+      "retry_at": 0
+    },
+    "E1_qwen3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926955,
+      "retry_at": 0
+    },
+    "E1_TL2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926958,
+      "retry_at": 0
+    },
+    "E2a_MB-1b": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926962,
+      "retry_at": 0
+    },
+    "E2a_MB-1c": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926967,
+      "retry_at": 0
+    },
+    "E2a_MB-1d": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926977,
+      "retry_at": 0
+    },
+    "E2a_MB-1e": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.292699,
+      "retry_at": 0
+    },
+    "E2a_MB-1f": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926993,
+      "retry_at": 0
+    },
+    "E0_core_r1": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133387.7884705,
+      "retry_at": 0,
+      "wait_s": 0.0002887248992919922,
+      "pid": 5389,
+      "run_s": 0.06441725045442581,
+      "exit_code": 1
+    },
+    "E0_test_build_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884712,
+      "retry_at": 0
+    },
+    "E0_units_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884717,
+      "retry_at": 0
+    },
+    "E0_environment_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884724,
+      "retry_at": 0
+    },
+    "E0_model_llama_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884731,
+      "retry_at": 0
+    },
+    "E0_model_qwen3_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884736,
+      "retry_at": 0
+    },
+    "E1_llama_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884743,
+      "retry_at": 0
+    },
+    "E1_qwen3_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884758,
+      "retry_at": 0
+    },
+    "E1_TL2_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.788478,
+      "retry_at": 0
+    },
+    "E2a_MB-1b_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884786,
+      "retry_at": 0
+    },
+    "E2a_MB-1c_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884793,
+      "retry_at": 0
+    },
+    "E2a_MB-1d_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884798,
+      "retry_at": 0
+    },
+    "E2a_MB-1e_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884803,
+      "retry_at": 0
+    },
+    "E2a_MB-1f_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884805,
+      "retry_at": 0
+    },
+    "E0_core_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.930356,
+      "retry_at": 0,
+      "wait_s": 0.0003097057342529297,
+      "pid": 5624,
+      "run_s": 173.03390765190125,
+      "exit_code": 0
+    },
+    "E0_test_build_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303567,
+      "retry_at": 0,
+      "wait_s": 173.036395072937,
+      "pid": 6792,
+      "run_s": 209.9780532605946,
+      "exit_code": 2
+    },
+    "E0_units_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303575,
+      "retry_at": 0,
+      "wait_s": 383.10418915748596,
+      "pid": 7739,
+      "run_s": 713.4762653633952,
+      "exit_code": 1
+    },
+    "E0_environment_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.930358,
+      "retry_at": 0,
+      "wait_s": 1096.697923898697,
+      "pid": 8709,
+      "run_s": 29.85065297782421,
+      "exit_code": 0
+    },
+    "E0_model_llama_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.9303584,
+      "retry_at": 0,
+      "wait_s": 1126.5507638454437,
+      "pid": 8789,
+      "run_s": 425.5537393540144,
+      "exit_code": 0
+    },
+    "E0_model_qwen3_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.9303591,
+      "retry_at": 0,
+      "wait_s": 1552.107007741928,
+      "pid": 8844,
+      "run_s": 694.5306063145399,
+      "exit_code": 0
+    },
+    "E1_llama_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303598,
+      "retry_at": 0,
+      "wait_s": 2246.7693388462067,
+      "pid": 9096,
+      "run_s": 63.64200333505869,
+      "exit_code": 1
+    },
+    "E1_qwen3_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303603,
+      "retry_at": 0,
+      "wait_s": 2370.6855602264404,
+      "pid": 9191,
+      "run_s": 64.14419068023562,
+      "exit_code": 1
+    },
+    "E1_TL2_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303608,
+      "retry_at": 0
+    },
+    "E2a_MB-1b_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303613,
+      "retry_at": 0
+    },
+    "E2a_MB-1c_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303617,
+      "retry_at": 0
+    },
+    "E2a_MB-1d_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303625,
+      "retry_at": 0
+    },
+    "E2a_MB-1e_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.930363,
+      "retry_at": 0
+    },
+    "E2a_MB-1f_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303646,
+      "retry_at": 0
+    },
+    "E0_native_build_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.195397,
+      "retry_at": 0,
+      "wait_s": 0.0007309913635253906,
+      "pid": 10160,
+      "run_s": 4.474145818501711,
+      "exit_code": 0
+    },
+    "E0_contracts_r3": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791137684.1954,
+      "retry_at": 0,
+      "wait_s": 4.477353572845459,
+      "pid": 10201,
+      "run_s": 318.4642065539956,
+      "exit_code": 1
+    },
+    "E1_llama_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954007,
+      "retry_at": 0,
+      "wait_s": 323.05746626853943,
+      "pid": 10336,
+      "run_s": 62.93813979253173,
+      "exit_code": 0
+    },
+    "E1_qwen3_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.195401,
+      "retry_at": 0,
+      "wait_s": 446.23865604400635,
+      "pid": 10495,
+      "run_s": 63.95738182216883,
+      "exit_code": 0
+    },
+    "E1_TL2_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954014,
+      "retry_at": 0,
+      "wait_s": 570.4322998523712,
+      "pid": 10654,
+      "run_s": 88.97186662256718,
+      "exit_code": 0
+    },
+    "E2a_MB-1b_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954021,
+      "retry_at": 0,
+      "wait_s": 675.3918368816376,
+      "pid": 10928,
+      "run_s": 27.496873199939728,
+      "exit_code": 0
+    },
+    "E2a_MB-1c_r3": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791137684.1954029,
+      "retry_at": 0,
+      "wait_s": 763.1019306182861,
+      "pid": 10989,
+      "run_s": 29.85098334774375,
+      "exit_code": 1
+    },
+    "E2a_MB-1d_r3": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791137684.1954033,
+      "retry_at": 0
+    },
+    "E2a_MB-1e_r3": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791137684.1954036,
+      "retry_at": 0
+    },
+    "E2a_MB-1f_r3": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791137684.195404,
+      "retry_at": 0
+    },
+    "E3_exports_r3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791137684.1954048,
+      "retry_at": 0
+    },
+    "E3_fixed_r3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791137684.1954052,
+      "retry_at": 0
+    },
+    "E0_plan_fixture_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791138343.6019423,
+      "retry_at": 0,
+      "wait_s": 0.05819296836853027,
+      "pid": 10919,
+      "run_s": 15.78214369341731,
+      "exit_code": 0
+    }
+  },
+  "ephemeral_tree_lost": true,
+  "native_target_sha256": "43e9e291abf6d2cdf471324e09cd063e972a4acc9e4961e8857d35cc5a8ce74c",
+  "original_loadbench_sha256": "84bd4ecc345fb44dc10854ebd469dfb67948ce84d5094a8563c40e326ea6b68a",
+  "exclusions": [
+    "MB-1c TN128/TK64 method5 only; known fatal fault, root cause unresolved"
+  ],
+  "exclusion_is_not_kernel_fix": true,
+  "solver_changes": false,
+  "no_push": true
+}
