@@ -1,0 +1,8 @@
+usage: check_r13.py [-h] --cell {llama_B1,qwen3_B1,llama_B16,qwen3_B16} --out
+                    OUT [--checks {all,C-1,C-2}]
+
+options:
+  -h, --help            show this help message and exit
+  --cell {llama_B1,qwen3_B1,llama_B16,qwen3_B16}
+  --out OUT
+  --checks {all,C-1,C-2}

@@ -118,3 +118,11 @@ Banalyze 已输出表格，但缺失阶段/task trace（各 0 行）；空表不
 恢复计划：重排 Bbaseline_gate、58 个由其依赖导致的 skipped 步骤，并在测量结束后重跑 Banalyze，共 60 项。复用已完成构建和 Phase A/MB 结果；原状态/止损/队列保存在 `raw/user_advisory_01/previous_*`。GPU 排他与污染重试、正确性要求、Phase C 保留门槛及 Phase D 选择规则均不变。PDL/资源检查现有失败也不改记通过。本项是用户明确授权的规格偏离，不是重新解释预注册结果。
 
 恢复 verified：60 项已重排，单实例调度器 PID 184785 已启动，沿用原截止时间。Bbaseline_gate 实际返回 0，性能结果仍为 `pass_=false`，采集许可为 `collection_allowed=true`；B0c 冒烟步骤已启动（`raw/user_advisory_01/{reset,restart,confirmation}.json`）。此后不轮询长验证，Phase B 终态后再按预注册规则提交 Phase C 决定、安排 Phase D。
+
+## 第四次核对（2026-10-04 05:44 UTC）与 C-1 工具恢复
+
+verified：原 104 项队列已全部结束，97 done、7 failed，无 running/pending；调度器仍存活、等待新队列。A1/A2/B2/B3/B4 各四格三轮全部完成，累计 60 轮、384 次臂运行退出 0；B1 与各 trace 步骤也已结束。B5 的四格 C-2 各四个 plan 检查共 16/16 通过；LP-1 与 FX-21 各 50 个新 PID、50/50 token 比较通过（共 100 个进程）。证据：`raw/inspection_04/{state.json,progress.tsv,inspection.json,completed_B_validation.tar.xz}`。
+
+B5 四格各 4/6，失败的八项均为 C-1 工具错误：hf_check 的 `--out` 要 JSON 文件，包装脚本传了已创建的目录，产生 IsADirectoryError。模型检查报告未保存，不能宣称 C-1 通过或数值失败。修正为 report.json，并增加 `--checks C-1`：仅重排四格的八项 HF 检查和一次 CPU 汇总（`queue_c1_recovery.json`），不重复已通过的 C-2、50 进程、性能矩阵或构建。旧失败记录保留；GPU 守卫与产品代码不变。
+
+Phase C 决定与 Phase D 联合选择/终验尚未发布；原队列结束不等于 R13 全轮完成。PDL sm_120 位置检查和非分页资源比较问题仍未解决。B 阶段数据已收齐到可分析状态，下一步是验收 C-1 补测、核对 B 数据并按预注册规则提交 C 决定，随后安排 D。

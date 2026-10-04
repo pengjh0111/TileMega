@@ -1,0 +1,32 @@
+{
+  "time": 1791092866.542982,
+  "original_counts": {
+    "done": 97,
+    "failed": 7
+  },
+  "scheduler_alive": true,
+  "running_or_pending": 0,
+  "original_anchor_rounds": 60,
+  "original_anchor_arm_runs": 384,
+  "anchor_arm_failures": 0,
+  "C2_plan_checks": {
+    "passed": 16,
+    "total": 16
+  },
+  "protocols": [
+    {
+      "case": 0,
+      "results": 50,
+      "passed": 50,
+      "unique_pids": 50
+    },
+    {
+      "case": 1,
+      "results": 50,
+      "passed": 50,
+      "unique_pids": 50
+    }
+  ],
+  "C1_status": "tool error: IsADirectoryError from --out directory instead of JSON file; no valid report",
+  "phase_c_d": "not published"
+}
