@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import math
 import os
 from pathlib import Path
 import random
@@ -29,6 +30,33 @@ DEFAULTS = {
                  vllm_python='/root/venv_vllm/bin/python', policy_file=None),
     'output': dict(dir='runs/{model}-{timestamp}'),
 }
+
+
+def missing_serving_fit_sections(target):
+    """Native measurements are independent of the optional legacy phase fit."""
+    body = target.get('calibration_by_dtype', {}).get('bf16', {}).get('task_body', {})
+    serving, paged = body.get('serving', {}), body.get('serving_paged', {})
+    gemms = ('gemm_store', 'gemm_residual', 'gemm_swiglu', 'gemm_argmax_partial')
+    kinds = (*gemms, 'embedding', 'rmsnorm', 'argmax_reduce', 'attention_merge',
+             'fused_attention_decode_d64', 'fused_attention_decode_d128',
+             'fused_attention_prefill_d64', 'fused_attention_prefill_d128')
+    def valid(entry, fields):
+        return isinstance(entry, dict) and all(
+            isinstance(entry.get(k), (int, float)) and not isinstance(entry[k], bool)
+            and math.isfinite(entry[k]) and entry[k] >= 0 for k in fields)
+    missing = []
+    if any(not valid(serving.get(k), ('fixed_ns', 'byte_ns', 'flop_ns', 'samples'))
+           or serving[k]['samples'] < 1 for k in kinds):
+        missing.append('task_bodies')
+    paged_kinds = [f'{g}_n{n}_k{k}' for g in gemms
+                   for n, k in ((128, 64), (32, 64), (64, 128), (64, 64))]
+    paged_kinds += ['attention_decode_d64', 'attention_decode_d128']
+    loader = paged.get('loader', {})
+    if (any(not valid(paged.get(k), ('fixed_ns', 'iter_ns', 'median_relative_error'))
+            for k in paged_kinds) or not valid(loader, ('stream_gbps_per_sm', 'aggregate_gbps'))
+            or loader.get('stream_gbps_per_sm', 0) <= 0 or loader.get('aggregate_gbps', 0) <= 0):
+        missing.append('task_bodies_paged')
+    return missing
 
 
 def aggregate_paired_runs(cell: Path, batch: int, count: int, repeats: int,
@@ -256,6 +284,7 @@ class Run:
             before = json.loads(self.target.read_text()) if self.target.exists() else {}
             actual = before.get('calibration_sections', {})
             missing = [name for name, stamp in expected.items() if actual.get(name, {}).get('stamp') != stamp]
+            missing = list(set(missing) | set(missing_serving_fit_sections(before)))
             # The microbenchmarks stamp each section before the suite can
             # validate that the device was idle. A stamped but uncalibrated
             # profile must never be served from cache on a later run.
@@ -289,9 +318,7 @@ class Run:
                 refreshed=json.loads(self.target.read_text())
                 fit=refreshed.get('calibration_by_dtype',{}).get('bf16',{}).get('task_body',{})
                 prior=before.get('calibration_by_dtype',{}).get('bf16',{}).get('task_body',{})
-                if not fit.get('samples'):
-                    if not prior.get('samples'):
-                        raise RuntimeError('BF16 serving target has no TaskBody fixed fit')
+                if not fit.get('samples') and prior.get('samples'):
                     for field in ('fixed','fixed_physical','latency_scale','loop_body',
                                   'loop_fixed','loop_wait','samples','scalar_fixed_ns',
                                   'source','stage_rate_bytes_per_ns'):
@@ -299,6 +326,9 @@ class Run:
                     atomic_json(self.target,refreshed)
                     self.event('task_body_fit',True,
                                'retained prior fixed fit after BF16 bandwidth refresh')
+                absent = missing_serving_fit_sections(refreshed)
+                if absent:
+                    raise RuntimeError('BF16 serving target lacks native fits: ' + ','.join(absent))
         return json.loads(self.target.read_text())
 
     def export(self, phase):

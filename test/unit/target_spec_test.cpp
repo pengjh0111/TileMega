@@ -5,6 +5,7 @@
 #include <cassert>
 #include <string>
 #include <filesystem>
+#include <stdexcept>
 #include <unistd.h>
 
 namespace tilemega::tests::target_spec_test {
@@ -52,9 +53,30 @@ int TestTargetSpec(int argc, char** argv) {
   assert(restored.calibration_stamps==sm120.calibration_stamps);
   assert(restored.serving_hop_coefficients==sm120.serving_hop_coefficients);
   assert(restored.serving_legacy_hop_coefficients==sm120.serving_legacy_hop_coefficients);
+  auto& body=sm120.calib_bf16.task_body;
+  body={};
+  body.serving["embedding"]={100.0,0.01,0.0,0.02,4};
+  sm120.ToJson(path.string());
+  restored=TargetSpec::FromJson(path.string());
+  assert(restored.calib_bf16.task_body.samples==0);
+  assert(restored.calib_bf16.task_body.fixed.empty());
+  assert(restored.calib_bf16.task_body.serving.at("embedding").samples==4);
+  body.serving_paged["attention_decode_d64"]={100.0,20.0,0.03};
+  sm120.ToJson(path.string());
+  restored=TargetSpec::FromJson(path.string());
+  assert(restored.calib_bf16.task_body.serving_paged.at("attention_decode_d64").iter_ns==20.0);
+  auto rejected=[&] {
+    sm120.ToJson(path.string());
+    try {TargetSpec::FromJson(path.string());} catch(std::invalid_argument const&) {return true;}
+    return false;
+  };
+  body.fixed={1.0,2.0,3.0};
+  assert(rejected());
+  body.fixed.clear();
+  body.serving_paged.at("attention_decode_d64").iter_ns=-1.0;
+  assert(rejected());
+  std::filesystem::remove(path);
   static_assert(!tilemega::arch::Caps<tilemega::arch::Sm120>::kTcgen05);
-  return 0;
-
   return 0;
 }
 
