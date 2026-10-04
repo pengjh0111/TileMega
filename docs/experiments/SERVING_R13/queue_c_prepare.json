@@ -1,0 +1,28 @@
+[
+  {
+    "name": "Cpre",
+    "command": [
+      "flock",
+      "/root/r13_work/gpu.lock",
+      "env",
+      "TILEMEGA_GPU_LOCK_HELD=1",
+      "bash",
+      "-c",
+      "cmake --build build-phase12 --target tilemega tilemega-unit -j 6 && python3 python/tilemega/fingerprint.py --check /root/TileMega/build-phase12/tools/tilemega && ctest --test-dir build-phase12 -R '^(handoff_|serving_lag|serving_page_layout|serving_task_index)' --output-on-failure && /usr/local/cuda/bin/nvcc -std=c++17 -O3 -arch=sm_89 --expt-relaxed-constexpr -I/root/TileMega/include -I/root/TileMega/third_party/cutlass/include -DTILEMEGA_NONPAGED_TILED=0 -DTILEMEGA_WATCHDOG=0 -Xptxas=-v /root/TileMega/test/unit/serving_gemm_matrix_test.cu -o /root/TileMega/docs/experiments/SERVING_R13/raw/Cpre/matrix0 && /usr/local/cuda/bin/nvcc -std=c++17 -O3 -arch=sm_89 --expt-relaxed-constexpr -I/root/TileMega/include -I/root/TileMega/third_party/cutlass/include -DTILEMEGA_NONPAGED_TILED=1 -DTILEMEGA_WATCHDOG=0 -Xptxas=-v /root/TileMega/test/unit/serving_gemm_matrix_test.cu -o /root/TileMega/docs/experiments/SERVING_R13/raw/Cpre/matrix1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg05Sat9S:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_GPU_LOCK": "/root/r13_work/gpu.lock"
+    },
+    "gpu": false,
+    "priority": 86,
+    "after": [],
+    "after_any": [],
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/TileMega/docs/experiments/SERVING_R13/raw/Cpre"
+  }
+]
