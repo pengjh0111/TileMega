@@ -93,6 +93,10 @@
   if (e != cudaSuccess) { std::fprintf(stderr, "%s:%d: %s\n", __FILE__, \
     __LINE__, cudaGetErrorString(e)); std::exit(2); } } while (0)
 
+#ifndef TILEMEGA_L2_SLIM
+#define TILEMEGA_L2_SLIM 0
+#endif
+
 namespace tilemega::codegen {
 
 #ifndef TILEMEGA_GENERATED_WAIT_global
@@ -1613,8 +1617,10 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     if (params->task_trace != nullptr && threadIdx.x == 0)
       params->task_trace[slot].start =
           atomicAdd(params->trace_sequence, 1ull);
-#if !TILEMEGA_BARRIER_V2 || TILEMEGA_TRACE_V2
-    // v2 drops this as redundant with the wait's own barrier above; the legacy
+#if ((!TILEMEGA_BARRIER_V2 && !(TILEMEGA_L2_SLIM && TILEMEGA_SYNC_V3)) || TILEMEGA_TRACE_V2)
+    // V3 slim and v2 drop this: every wait, including an empty wait,
+    // ends in a CTA barrier before this task can reuse the union.
+    // The trace control retains the bracket for its timestamp; the legacy
     // TaskTrace sequence stamp then loses its bracket, which is why the two
     // trace paths are not interchangeable under v2.
     __syncthreads();
@@ -1684,10 +1690,12 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     executor::TaskBegin(*params,iteration);
     RunTask(*params, task.stage, task.logical_task, smem TILEMEGA_PHASE_PASS
             TILEMEGA_PREFETCH_PASS);
-#if !TILEMEGA_BARRIER_V2 || TILEMEGA_TRACE_V2
-    // v2 drops this: `NotifyTask`'s release fence and barrier are strictly
-    // stronger, and a task that publishes nothing is covered by the next
-    // task's wait barrier.
+#if ((!TILEMEGA_BARRIER_V2 && !(TILEMEGA_L2_SLIM && TILEMEGA_SYNC_V3)) || TILEMEGA_TRACE_V2)
+    // V3 slim and v2 drop this: NotifyTask converges writers before
+    // release publication. If no publication is needed, the next task
+    // unconditionally converges before reusing the task union. At kernel
+    // exit the CUDA completion orders all remaining writes. Trace keeps
+    // this bracket; neither dependency nor publication barriers are removed.
     __syncthreads();
 #endif
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE

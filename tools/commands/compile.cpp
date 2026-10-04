@@ -289,7 +289,7 @@ int RunCompile(int argc, char** argv) {
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
-    int kphase_mask=31,v3_poll_ns=0,watchdog=0;
+    int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0;
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
     std::string candidate_mode="L1";
     bool page_bytes_pinned=false;
@@ -346,6 +346,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--candidate-mode") candidate_mode=value;
       else if (flag=="--candidate-loop") candidate_loop=std::stoi(value);
       else if (flag=="--watchdog") watchdog=std::stoi(value);
+      else if (flag=="--l2-slim") l2_slim=std::stoi(value);
       else if (flag=="--v3-poll-ns") v3_poll_ns=std::stoi(value);
       else if (flag=="--l2-prefetch-depth") prefetch_depth=std::stoi(value);
       else if (flag=="--l2-prefetch-stride") prefetch_stride=std::stoi(value);
@@ -452,6 +453,8 @@ int RunCompile(int argc, char** argv) {
       if(kphase_mask<0 || kphase_mask>31 || v3_poll_ns<0)
         throw std::runtime_error("invalid K-phase mask or V3 poll interval");
       if(watchdog!=0 && watchdog!=1)throw std::runtime_error("--watchdog must be 0 or 1");
+      if(l2_slim!=0 && l2_slim!=1)throw std::runtime_error("--l2-slim must be 0 or 1");
+      runtime_flags+=" -DTILEMEGA_L2_SLIM="+std::to_string(l2_slim);
       runtime_flags+=" -DTILEMEGA_WATCHDOG="+std::to_string(watchdog);
       runtime_flags+=" -DTILEMEGA_KPHASE_CLASS_MASK="+std::to_string(kphase_mask)+
           " -DTILEMEGA_V3_POLL_NS="+std::to_string(v3_poll_ns);
@@ -843,6 +846,7 @@ int RunCompile(int argc, char** argv) {
               " --kphase-mask "+std::to_string(kphase_mask)+
               " --v3-poll-ns "+std::to_string(v3_poll_ns)+
               " --watchdog "+std::to_string(watchdog)+
+              " --l2-slim "+std::to_string(l2_slim)+
               " --paged-la "+std::to_string(paged_la)+
               " --paged-la-splitk "+std::to_string(paged_la_splitk)+
               " --l2-prefetch-depth "+std::to_string(prefetch_depth)+" --l2-prefetch-stride "+std::to_string(prefetch_stride)+
@@ -1275,6 +1279,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"sync\": "<<std::quoted(sync_policy)
               <<",\n  \"pg\": "<<std::quoted(use_pages?"pages":pg_mode)
               <<",\n  \"watchdog\": "<<watchdog
+              <<",\n  \"l2_slim\": "<<l2_slim
               <<",\n  \"deferred_norm\": "<<(manifest_deferred_norm?"true":"false")
               <<",\n  \"paged_la\": "<<(use_pages && paged_la?"true":"false")
               <<",\n  \"paged_la_splitk\": "<<(use_pages && paged_la && paged_la_splitk?"true":"false")
