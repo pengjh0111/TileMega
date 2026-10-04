@@ -15,7 +15,8 @@ int main() {
   };
   using Caps=tilemega::arch::Caps<tilemega::arch::Sm120>;
   cudaLaunchConfig_t config{};
-  config.gridDim=dim3(160);config.blockDim=dim3(128);
+  config.gridDim=dim3((attr(cudaDevAttrMultiProcessorCount)/8)*8);
+  config.blockDim=dim3(128);
   int max_cluster=0;
   check(cudaOccupancyMaxPotentialClusterSize(&max_cluster,QueryClusterKernel,&config));
   std::cout<<"{\"architecture\":\"sm_120\",\"query_evidence\":\"verified CUDA attributes\","

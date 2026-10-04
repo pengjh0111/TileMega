@@ -1,0 +1,17 @@
+{
+  "pid": 4919,
+  "command": [
+    "/usr/bin/python3",
+    "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13/scheduler.py",
+    "--queue-dir",
+    "/root/r13_sm120_work/queue",
+    "--out",
+    "/root/r13_sm120_work/scheduler",
+    "--policy",
+    "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/guard_policy.json",
+    "--deadline-hours",
+    "96"
+  ],
+  "time": 1791133193.2570014,
+  "log": "/root/r13_sm120_work/scheduler.log"
+}
