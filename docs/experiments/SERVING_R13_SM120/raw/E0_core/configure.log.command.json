@@ -1,0 +1,22 @@
+[
+  "cmake",
+  "-S",
+  "/root/tilemega-r13-sm120",
+  "-B",
+  "/root/tilemega-r13-sm120-build",
+  "-G",
+  "Ninja",
+  "-DCMAKE_BUILD_TYPE=Release",
+  "-DTILEMEGA_TARGET_ARCH=sm_120",
+  "-DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc",
+  "-DTILEMEGA_BUILD_TESTS=ON",
+  "-DTILEMEGA_BUILD_VERIFY=OFF",
+  "-DMLIR_DIR=/root/toolchains/mlir-23a60f15/lib/cmake/mlir",
+  "-DLLVM_DIR=/root/toolchains/mlir-23a60f15/lib/cmake/llvm",
+  "-DTILEMEGA_LIT_DRIVER=/root/shared-nvme/sxy/cuda-tile/llvm-project/llvm/utils/lit/lit.py",
+  "-DTILEMEGA_ISL_BUILD_DIR=/root/shared-nvme/junhuipeng/TileMega/build-isl",
+  "-DTILEMEGA_POLYLIB_BUILD_DIR=/root/shared-nvme/junhuipeng/TileMega/build-polylib",
+  "-DTILEMEGA_BARVINOK_BUILD_DIR=/root/shared-nvme/junhuipeng/TileMega/build-barvinok",
+  "-DTILEMEGA_ISL_GENERATED_INCLUDE_DIR=/root/shared-nvme/junhuipeng/TileMega/build-isl/include",
+  "-DTILEMEGA_ISL_LIBRARY=/root/shared-nvme/junhuipeng/TileMega/build-isl/.libs/libisl.a"
+]

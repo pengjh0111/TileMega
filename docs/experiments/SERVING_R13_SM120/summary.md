@@ -26,6 +26,8 @@ verified：6 次空闲功耗采样的中位数为 17.97 W；其余守卫阈值�
 verified：预注册提交 `8571240f5`；本机队列准备检查 4/4 通过。
 verified：调度器 PID 4919 已启动，单次启动核查确认 E0_core running、其余 13 项 pending。
 CMake 已成功配置 CUDA 12.8.93、sm_120、新构建目录；完整编译与测试结果尚待收集。
+启动后 verified：首次 E0_core 因稀疏检出缺 `SIMULATOR/hop_ns.tsv` 失败，13 个依赖节点 skipped。
+已补齐指纹输入，并用 `_r1` 新节点原子发布恢复队列；原状态/日志完整保留，不重启调度器，不改产品代码。
 尚未发布 E3–E6；先验收本机标定与首次执行微基准，再冻结它们依赖的 target 和可用路径。
 预注册数字见 `predictions_sm120.json`，必须在 E4 前提交。
 

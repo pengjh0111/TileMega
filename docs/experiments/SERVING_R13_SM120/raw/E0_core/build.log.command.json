@@ -1,0 +1,10 @@
+[
+  "cmake",
+  "--build",
+  "/root/tilemega-r13-sm120-build",
+  "--target",
+  "tilemega",
+  "tilemega-loadbench",
+  "--parallel",
+  "3"
+]

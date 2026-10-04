@@ -171,6 +171,7 @@ def prepare():
 
 def core():
     stack = Path('/root/shared-nvme/junhuipeng/TileMega')
+    folder = HERE / 'raw' / ('E0_core' + os.environ.get('TILEMEGA_E0_BUILD_ATTEMPT', ''))
     command = ['cmake', '-S', ROOT, '-B', BUILD, '-G', 'Ninja',
                '-DCMAKE_BUILD_TYPE=Release', '-DTILEMEGA_TARGET_ARCH=sm_120',
                '-DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc',
@@ -182,15 +183,15 @@ def core():
         command.append(f'-DTILEMEGA_{name}_BUILD_DIR={stack / ("build-" + folder)}')
     command += [f'-DTILEMEGA_ISL_GENERATED_INCLUDE_DIR={stack / "build-isl/include"}',
                 f'-DTILEMEGA_ISL_LIBRARY={stack / "build-isl/.libs/libisl.a"}']
-    code = run(command, HERE / 'raw/E0_core/configure.log')
+    code = run(command, folder / 'configure.log')
     if code:
         return code
     code = run(['cmake', '--build', BUILD, '--target', 'tilemega', 'tilemega-loadbench',
-                '--parallel', '3'], HERE / 'raw/E0_core/build.log')
+                '--parallel', '3'], folder / 'build.log')
     if code:
         return code
     return run([sys.executable, ROOT / 'python/tilemega/fingerprint.py', '--check',
-                BUILD / 'tools/tilemega'], HERE / 'raw/E0_core/fingerprint.log')
+                BUILD / 'tools/tilemega'], folder / 'fingerprint.log')
 
 
 def test_build():
@@ -296,14 +297,37 @@ def launch():
     return 0
 
 
+def recovery():
+    import copy
+    source = json.loads((HERE / 'queue_e0_e2a.json').read_text())
+    rows = copy.deepcopy(source)
+    for row in rows:
+        row['name'] += '_r1'
+        for key in ('after', 'after_any'):
+            row[key] = [name + '_r1' for name in row[key]]
+        row['out'] += '_r1'
+        row['env']['TILEMEGA_E0_BUILD_ATTEMPT'] = '_r1'
+    # Publish atomically, without resetting the scheduler or erasing its failures.
+    write(HERE / 'queue_e0_recovery.json', rows)
+    destination = WORK / 'queue/queue_e0_recovery.json'
+    if destination.exists():
+        raise RuntimeError('recovery queue already published')
+    temporary = destination.with_suffix('.tmp')
+    write(temporary, rows)
+    temporary.replace(destination)
+    print('published', len(rows), 'recovery steps; historical failures unchanged')
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('prepare', 'core', 'test-build', 'units', 'environment', 'model', 'ceiling', 'launch'))
+    parser.add_argument('action', choices=('prepare', 'core', 'test-build', 'units', 'environment', 'model', 'ceiling', 'launch', 'recovery'))
     parser.add_argument('--model', choices=('llama', 'qwen3'))
     args = parser.parse_args()
     return {'prepare': prepare, 'core': core, 'test-build': test_build,
             'units': units, 'environment': environment,
-            'model': lambda: model(args.model), 'ceiling': ceiling, 'launch': launch}[args.action]() or 0
+            'model': lambda: model(args.model), 'ceiling': ceiling,
+            'launch': launch, 'recovery': recovery}[args.action]() or 0
 
 
 if __name__ == '__main__':
