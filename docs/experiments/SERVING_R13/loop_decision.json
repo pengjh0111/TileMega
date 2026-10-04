@@ -1,0 +1,11 @@
+{
+  "exclude_l1_loop": false,
+  "relative_changes": {
+    "llama_B1": -0.005348920784625122,
+    "llama_B16": -0.0006583603182199749,
+    "qwen3_B1": -0.0013882773259579206,
+    "qwen3_B16": -0.004106166109328124
+  },
+  "missing_cells": [],
+  "rule": "any cell worse than +0.5%; missing evidence does not enable a default loop"
+}

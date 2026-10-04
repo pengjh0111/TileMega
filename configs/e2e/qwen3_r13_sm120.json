@@ -14,7 +14,7 @@
   },
   "device": {
     "index": 0,
-    "cache_dir": "~/.cache/tilemega"
+    "cache_dir": "~/.cache/tilemega-r13-sm120"
   },
   "solver": {
     "passes": 2,
@@ -27,12 +27,12 @@
     "candidate_guard_wait_s": 1800,
     "prefill_pins": {
       "1": {
-        "manifest": "/root/TileMega/docs/experiments/SERVING_R13/raw/A0/qwen3_B1/PF-R10-noWD/plan.so.plan.json",
-        "classes": "/root/TileMega/docs/experiments/SERVING_R13/raw/A0/qwen3_B1/PF-R10-noWD/plan.so.classes.tsv"
+        "manifest": "docs/experiments/SERVING_R13_SM120/inputs/qwen3_B1/PF-R10-noWD/plan.json",
+        "classes": "docs/experiments/SERVING_R13_SM120/inputs/qwen3_B1/PF-R10-noWD/classes.tsv"
       },
       "16": {
-        "manifest": "/root/TileMega/docs/experiments/SERVING_R13/raw/A0/qwen3_B16/PF-R10-noWD/plan.so.plan.json",
-        "classes": "/root/TileMega/docs/experiments/SERVING_R13/raw/A0/qwen3_B16/PF-R10-noWD/plan.so.classes.tsv"
+        "manifest": "docs/experiments/SERVING_R13_SM120/inputs/qwen3_B16/PF-R10-noWD/plan.json",
+        "classes": "docs/experiments/SERVING_R13_SM120/inputs/qwen3_B16/PF-R10-noWD/classes.tsv"
       }
     },
     "exclude_l1_loop": false
@@ -68,6 +68,6 @@
     "policy_file": "docs/experiments/SERVING_R11/ev2/measurement_policy.json"
   },
   "output": {
-    "dir": "runs/r13-qwen3"
+    "dir": "runs/r13-sm120-qwen3"
   }
 }

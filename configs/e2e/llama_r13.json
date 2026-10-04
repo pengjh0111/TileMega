@@ -24,7 +24,18 @@
     "mode": "L1",
     "pruning": true,
     "time_budget_s": 1800,
-    "candidate_guard_wait_s": 1800
+    "candidate_guard_wait_s": 1800,
+    "prefill_pins": {
+      "1": {
+        "manifest": "/root/TileMega/docs/experiments/SERVING_R13/raw/A0/llama_B1/PF-R10-noWD/plan.so.plan.json",
+        "classes": "/root/TileMega/docs/experiments/SERVING_R13/raw/A0/llama_B1/PF-R10-noWD/plan.so.classes.tsv"
+      },
+      "16": {
+        "manifest": "/root/TileMega/docs/experiments/SERVING_R13/raw/A0/llama_B16/PF-R10-noWD/plan.so.plan.json",
+        "classes": "/root/TileMega/docs/experiments/SERVING_R13/raw/A0/llama_B16/PF-R10-noWD/plan.so.classes.tsv"
+      }
+    },
+    "exclude_l1_loop": false
   },
   "features": {
     "pg": "measure",
@@ -34,12 +45,17 @@
     "pdl": "auto",
     "weight_layout": "tiled",
     "kphase_mask": 31,
-    "lookahead_bytes": 0,
+    "lookahead_bytes": 65536,
     "v3_poll_ns": 0,
     "watchdog": 0,
     "decode_executor": "measure",
     "decode_loop": "measure",
-    "prefill_executor": "L1"
+    "prefill_executor": "L1",
+    "l2_slim": 0,
+    "page_loop_split": 1,
+    "nonpaged_weight_layout": "row",
+    "evict_first": 1,
+    "evict_last": 0
   },
   "test": {
     "warmup": 1,

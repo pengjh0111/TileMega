@@ -156,3 +156,9 @@ verified：一次调度器/进程快照确认 PID 184785 存活，198 个步骤�
 Carch 19/19 编译成功，FP64 指令数 0；sm_120 trigger=0 仍未通过 PTX 位置检查，其余三项通过。Cidentity 的分页三项通过；非分页源码/SASS 相同但资源比较失败，尚未验收通过。B 的 C-1 补测 7/8 通过，唯一失败仍为 Llama B1 B0h（近并列比例 0.982421875，最大 gap 10.5625）；四格 PSA 均通过。9 个队列 failed 包含已恢复的历史工具错误，不能解释成 9 项未实现代码。
 
 R13 主代码项及已触发的五项 C 路径均已实现；尚不能宣称整个任务完成。C 的保留/回退尚未形成，D0–D3 与终版选择尚未执行，PTX/资源检查未达标，完整原始归档与最终报告待收尾。CM-1 已产生初步价格/实测配对及拟合表，最终候选与覆盖范围仍待 D 数据；不修改默认代价模型。只剩队列依赖等待，保持调度器自行执行，下一次唤起先读取一次 progress.tsv。
+
+## Phase C 收尾与并行推送检查点
+
+verified：Cretain 已生成决定，Ccheck 结束，C-L2b/C-WL/C-LP2 三组新进程各 50/50。保留 C-LP2、C-PG3；不保留 C-L2b、C-WL。C-AT 的 Qwen3 B16 优胜结构单列报告，D1 仍搜索最终 attention 几何。配置允许 L1 loop 进入选择；不提前宣称 D1 胜者。Phase D 已启动，当前在构建 Llama；它的结果不纳入此检查点。
+
+本次提交 phase_c_retention.json、loop_decision.json、defaults_r13.json、生成的两模型 R13 配置及 sm_120 并行模板；原始 C 结果打包到 raw/phase_c_checkpoint/completed_phase_c.tar.xz，MANIFEST.json 记录原文件 SHA256。sm120_checkpoint.md 说明解包、独立 cache/target、已知失败和共同基线的对齐方式。这是用户要求的中间进度推送，不是 R13 全轮 PASS。正常 D 队列不重启，设备代码不改变。
