@@ -126,3 +126,5 @@ verified：原 104 项队列已全部结束，97 done、7 failed，无 running/p
 B5 四格各 4/6，失败的八项均为 C-1 工具错误：hf_check 的 `--out` 要 JSON 文件，包装脚本传了已创建的目录，产生 IsADirectoryError。模型检查报告未保存，不能宣称 C-1 通过或数值失败。修正为 report.json，并增加 `--checks C-1`：仅重排四格的八项 HF 检查和一次 CPU 汇总（`queue_c1_recovery.json`），不重复已通过的 C-2、50 进程、性能矩阵或构建。旧失败记录保留；GPU 守卫与产品代码不变。
 
 Phase C 决定与 Phase D 联合选择/终验尚未发布；原队列结束不等于 R13 全轮完成。PDL sm_120 位置检查和非分页资源比较问题仍未解决。B 阶段数据已收齐到可分析状态，下一步是验收 C-1 补测、核对 B 数据并按预注册规则提交 C 决定，随后安排 D。
+
+C-1 恢复队列已提交并原子发布到 `/root/r13_work/queue/queue_c1_recovery.json`，现有调度器无需重启，按 GPU 空闲与排他条件执行；尚未把补测标记为通过（`raw/inspection_04/publication.json`）。
