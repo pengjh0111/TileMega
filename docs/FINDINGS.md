@@ -9049,3 +9049,24 @@ original flagged rounds before replacement. Thresholds are unchanged.
 ## F-348: R13 confirms split-K last-arriver rejection before lowering
 
 **verified (CPU)**: Baseline compiler diagnostic selects 17 merge/argmax handoffs and rejects 48 split-K pairs, all with `handoff requires L-sem on both tasks`. The rejected edges connect distinct tile spaces at the same logical stage. Evidence: `SERVING_R13/raw/FX21_diagnosis/command.json`, `diagnostic.log`, `handoff_rejects.txt`, and `result.json`. This confirms R13 F10; it makes no device synchronization claim.
+
+## F-349: sm120 native calibration is valid without optional legacy fits
+
+verified: R13 on RTX 5090 measures all nine calibration sections and all native
+serving/paged fits while optional legacy TaskBody samples remain zero. Native-only
+target admission/serialization now passes CPU contracts and fresh Llama/Qwen3
+calibration. Missing, nonfinite, or negative native data still rejects. No solver,
+cost-model, or GPU synchronization change is involved. Evidence:
+`SERVING_R13_SM120/raw/acceptance_02/r3_evidence.tar.xz`; code commit `17860b184`.
+
+## F-350: sm120 MB-1c failure blocks the queue without relaxing its guard
+
+verified: Five uncontaminated TL-2 processes give 1691.25 GB/s; the apparent
+MB-1a maximum is 1866.03 GB/s. Bulk-only MB-1b peaks at 1700.83 GB/s,
+0.9115 of that maximum, below the preregistered 0.97. These are loader results,
+not end-to-end performance or a 50-process synchronization claim. MB-1c fails
+with an illegal instruction at TN128/TK64/stages4/method5 (evict-first cp.async).
+After exit, no compute owner is visible but utilization remains 100% with 1 MiB
+used; the unchanged guard correctly holds MB-1d/e/f and E3 is dependency-skipped.
+Root cause is not established; no reset or guessed kernel fix was applied.
+Evidence: `SERVING_R13_SM120/raw/acceptance_02/{acceptance.json,gpu_snapshot.txt,r3_evidence.tar.xz}`.

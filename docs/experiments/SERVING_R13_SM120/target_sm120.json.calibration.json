@@ -1,0 +1,42 @@
+{
+  "method": "method 1; allocation A; 1, 1.5, 2 GiB; median within each process then across processes",
+  "source": "/dev/shm/tilemega-r13-sm120/cache/llama-r3/targets/NVIDIA-GeForce-RTX-5090-sm120-170-drv13.json",
+  "dram_gbps": 1691.25159609,
+  "processes": [
+    {
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E1_TL2_r3/processes/process0/loadbench.json",
+      "pid": 10682,
+      "contaminated": false,
+      "calibration_median_gbps": 1691.92318586,
+      "original_three_point_median_gbps": 1691.92318586
+    },
+    {
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E1_TL2_r3/processes/process1/loadbench.json",
+      "pid": 10806,
+      "contaminated": false,
+      "calibration_median_gbps": 1691.25159609,
+      "original_three_point_median_gbps": 1690.34285559
+    },
+    {
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E1_TL2_r3/processes/process2/loadbench.json",
+      "pid": 10833,
+      "contaminated": false,
+      "calibration_median_gbps": 1691.40078335,
+      "original_three_point_median_gbps": 1691.25164901
+    },
+    {
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E1_TL2_r3/processes/process3/loadbench.json",
+      "pid": 10858,
+      "contaminated": false,
+      "calibration_median_gbps": 1690.88941636,
+      "original_three_point_median_gbps": 1690.88941636
+    },
+    {
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E1_TL2_r3/processes/process4/loadbench.json",
+      "pid": 10886,
+      "contaminated": false,
+      "calibration_median_gbps": 1691.25159609,
+      "original_three_point_median_gbps": 1691.25159609
+    }
+  ]
+}

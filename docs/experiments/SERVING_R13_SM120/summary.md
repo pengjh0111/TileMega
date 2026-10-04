@@ -91,3 +91,35 @@ R13F 联合选择、E2b/E2c、E4–E6 尚未排入此队列；固定计划失败
 九项 CPU 复验 8/9：pipeline_sigma 295.75 s 通过，六个 E2E 输入用例通过，plan_skeleton 另缺仓库已跟踪的 COSTMODEL target。
 已补齐此静态 fixture，只新增该用例的单项复验，不重复 pipeline/GPU 测量；旧失败保留。
 native Python 合约与 R13 Python 31/31 也通过；准备/固定构建计划的本机检查为 9/9。
+
+## 追加验收：r3 标定通过，微基准故障阻塞（2026-10-05）
+
+verified：plan_skeleton 单项复验通过。合并原全套与定向复验后为 92/97；不是一次新二进制的全套 97 项通过。
+剩余五项：coupling_interface_gqa2/mha4、target_audit、norm_prologue_gemm、independent_attention；原因见前表，未改参考值。
+verified：两模型在新 cache 完成全部九分节 E1 标定，CLI 均 exit 0；native-only 格式移植修正通过实机回归。
+verified：TL-2 五个新进程 PID 为 10682/10806/10833/10858/10886，均无污染标记。
+
+| 本机初步测量 | 结果 | 预测核对 |
+|---|---|---|
+| E1 DRAM | 1691.25159609 GB/s；理论 1792.128 GB/s 的 94.371% | 在 85–97% 内 |
+| 进程间极差 | 1.0337695 GB/s，0.061125% | 五进程协议通过 |
+| MB-1a 最大表观带宽 | 1866.03085627 GB/s；method4/param256/grid680/threads256 | 最大值/E1=1.103343，不在 1.00–1.05 内 |
+| MB-1b bulk/1 warp/只加载 | 最好 1700.82730712 GB/s，16 KiB × 5 页 | /MB-1a 最大值=0.911468，未达 0.97 |
+
+以上是加载微基准，不是模型 TPOT。MB-1a 的表观最大值高于铭牌带宽，不能解释成实际 DRAM 字节吞吐。
+verified：MB-1b 共 65 点完成；首次 bulk 路径运行成功，不等于 50 新进程同步检验通过。
+verified：MB-1c 在 TN128/TK64/stages4/K2048/active50%/tiled/method5 报 `an illegal instruction was encountered`。
+method5 是 evict-first 的 `cp.async.cg.shared.global.L2::cache_hint`；同点 method0–4 已输出，失败前日志保留，完整 JSON 未生成。
+inferred：问题与该形状的 cache-hint 执行有关；尚未确定 PTX/驱动/设备根因，不据此修改同步或求解器。
+verified：故障退出后无可见计算进程、显存仅 1 MiB，但 GPU 利用率 100%、约 105 W；观测期间持续未恢复空闲。
+`dmesg` 读取无权限，不能宣称已取得 Xid 根因。现场 `nvidia-smi -q` 存于 `raw/acceptance_02/gpu_snapshot.txt`。
+verified：调度器 PID 4919 存活，守卫保持原阈值；MB-1d/e/f pending，E3 exports/fixed 因 MB-1c failed 已 skipped。
+阶段未通过，完整实验未完成；E2b/E2c/E4–E6 未执行，暂无端到端性能或 PDL/cluster 收益结论。
+没有 GPU reset、重启、放宽守卫或改 GPU 代码；设备级恢复需用户确认，恢复后先验收设备空闲再决定最小复现/路径不可用处理。
+不能简单重启调度器期待 E3 自动恢复：旧 skipped 节点必须保留，之后应发布显式记录可用路径的新依赖节点。
+
+实测 target SHA256：`43e9e291abf6d2cdf471324e09cd063e972a4acc9e4961e8857d35cc5a8ce74c`。
+loadbench 二进制 SHA256：`84bd4ecc345fb44dc10854ebd469dfb67948ce84d5094a8563c40e326ea6b68a`，未被覆盖。
+本次证据归档 `raw/acceptance_02/r3_evidence.tar.xz`，SHA256 `5b97f9ee99cb918487bd33caa1665650ec8516bd9ef761f803ca89e59d09a375`。
+归档包含 CPU 复验、E1 原始输出、TL-2 五进程、MB-1b 数据、MB-1c 失败与守卫/调度器快照。
+求解器/代价模型仍无 diff；本轮尚未形成需 50 新进程的同步修正。所有提交仅本地保存，不 push。

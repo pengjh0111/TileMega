@@ -1,0 +1,211 @@
+{
+  "timestamp_unix": 1791138943.2947652,
+  "stage_accepted": false,
+  "full_experiment_complete": false,
+  "checkpoint": "36f17e6ee",
+  "current_queue": {
+    "E0_native_build_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.195397,
+      "retry_at": 0,
+      "wait_s": 0.0007309913635253906,
+      "pid": 10160,
+      "run_s": 4.474145818501711,
+      "exit_code": 0
+    },
+    "E0_contracts_r3": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791137684.1954,
+      "retry_at": 0,
+      "wait_s": 4.477353572845459,
+      "pid": 10201,
+      "run_s": 318.4642065539956,
+      "exit_code": 1
+    },
+    "E1_llama_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954007,
+      "retry_at": 0,
+      "wait_s": 323.05746626853943,
+      "pid": 10336,
+      "run_s": 62.93813979253173,
+      "exit_code": 0
+    },
+    "E1_qwen3_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.195401,
+      "retry_at": 0,
+      "wait_s": 446.23865604400635,
+      "pid": 10495,
+      "run_s": 63.95738182216883,
+      "exit_code": 0
+    },
+    "E1_TL2_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954014,
+      "retry_at": 0,
+      "wait_s": 570.4322998523712,
+      "pid": 10654,
+      "run_s": 88.97186662256718,
+      "exit_code": 0
+    },
+    "E2a_MB-1b_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954021,
+      "retry_at": 0,
+      "wait_s": 675.3918368816376,
+      "pid": 10928,
+      "run_s": 27.496873199939728,
+      "exit_code": 0
+    },
+    "E2a_MB-1c_r3": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791137684.1954029,
+      "retry_at": 0,
+      "wait_s": 763.1019306182861,
+      "pid": 10989,
+      "run_s": 29.85098334774375,
+      "exit_code": 1
+    },
+    "E2a_MB-1d_r3": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791137684.1954033,
+      "retry_at": 0
+    },
+    "E2a_MB-1e_r3": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791137684.1954036,
+      "retry_at": 0
+    },
+    "E2a_MB-1f_r3": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791137684.195404,
+      "retry_at": 0
+    },
+    "E3_exports_r3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791137684.1954048,
+      "retry_at": 0
+    },
+    "E3_fixed_r3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791137684.1954052,
+      "retry_at": 0
+    },
+    "E0_plan_fixture_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791138343.6019423,
+      "retry_at": 0,
+      "wait_s": 0.05819296836853027,
+      "pid": 10919,
+      "run_s": 15.78214369341731,
+      "exit_code": 0
+    }
+  },
+  "ctest_merged_passed": 92,
+  "ctest_merged_total": 97,
+  "ctest_not_passed": [
+    "coupling_interface_gqa2",
+    "coupling_interface_mha4",
+    "target_audit",
+    "norm_prologue_gemm",
+    "independent_attention"
+  ],
+  "ctest_merge_note": "Original full run plus targeted reruns; not a fresh full-suite pass",
+  "r13_python_passed": 31,
+  "tl2": {
+    "processes": 5,
+    "pids": [
+      10682,
+      10806,
+      10833,
+      10858,
+      10886
+    ],
+    "dram_gbps": 1691.25159609,
+    "theoretical_gbps": 1792.128,
+    "theoretical_ratio": 0.9437113845049014,
+    "process_range_gbps": 1.0337695000000622,
+    "process_range_relative": 0.0006112452472417652,
+    "mb1a_maximum_gbps": 1866.03085627,
+    "maximum_over_calibration": 1.1033431457413383,
+    "contaminated": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "mb1b": {
+    "points": 65,
+    "contaminated": false,
+    "bulk_load_only_best": {
+      "suite": "MB-1b",
+      "loader_warps": 1,
+      "page_bytes": 16384,
+      "pages": 5,
+      "consume": false,
+      "bulk": true,
+      "median_ms": 1.26259195805,
+      "bytes": 2147450880,
+      "gbps": 1700.82730712,
+      "samples_ms": [
+        1.26259195805,
+        1.26262402534,
+        1.26361596584,
+        1.26259195805,
+        1.26259195805,
+        1.26262402534,
+        1.26259195805,
+        1.26361596584,
+        1.26259195805,
+        1.26259195805
+      ],
+      "metric_samples": []
+    },
+    "bulk_over_mb1a_max": 0.9114679435257439
+  },
+  "mb1c": {
+    "status": "failed",
+    "error": "an illegal instruction was encountered",
+    "first_failing_point": {
+      "tile_n": 128,
+      "tile_k": 64,
+      "stages": 4,
+      "K": 2048,
+      "active_pct": 50,
+      "row": false,
+      "method": 5
+    },
+    "mapping": "cp.async.cg.shared.global.L2::cache_hint with evict_first",
+    "root_cause": "not established",
+    "partial_stdout_not_full_result": true
+  },
+  "gpu": {
+    "visible_compute_processes": 0,
+    "used_mib": 1,
+    "utilization_pct": 100,
+    "power_w_approx": 105,
+    "status": "abnormal; scheduler correctly waiting for idle",
+    "driver_root_cause": "not established",
+    "kernel_log_access": "dmesg denied"
+  },
+  "solver_changes": false,
+  "synchronization_changes": false,
+  "gpu_reset_performed": false,
+  "pushed": false
+}
