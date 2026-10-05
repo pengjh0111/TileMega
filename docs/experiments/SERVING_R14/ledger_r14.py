@@ -56,3 +56,17 @@ def main():
     result=trace_diagnostic(a.diagnostic_root) if a.diagnostic_root else tasks(a.tasks)
     a.out.parent.mkdir(parents=True,exist_ok=True);a.out.write_text(json.dumps(result,indent=2)+'\n')
 if __name__=='__main__':main()
+
+
+def stage_ledger(folder,batch):
+    """Sampled maxima are estimates, never silently labeled full-grid extrema."""
+    import importlib.util
+    source=Path(__file__).parents[1]/'SERVING_R13/ledger.py'
+    spec=importlib.util.spec_from_file_location('r13_ledger',source)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    rows=module.stages(folder,batch,{'884_5':884.5,'981_6':981.6,'r13_measured':980.0})
+    semantics=module.stage_semantics(folder)
+    for row in rows:
+        row.update(semantics[row['stage']]);row['sampling']='1/8 CTAs, rotating with iteration'
+        row['extrema']='sampled estimate';row['tasks_end_position']='after barrier arrive, before wait'
+    return dict(stages=rows,sampling='Stage maxima/tails are sampled; no claim of full-grid extrema')
