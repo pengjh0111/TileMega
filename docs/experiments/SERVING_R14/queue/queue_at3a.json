@@ -1,0 +1,35 @@
+[
+  {
+    "name": "AT3a_compile",
+    "gpu": false,
+    "priority": 6,
+    "cwd": "/root/r14_work/development",
+    "after": [
+      "P0_accept"
+    ],
+    "timeout_s": 10800,
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/usr/bin/python3",
+      "/root/r14_work/development/docs/experiments/SERVING_R14/check_pvswap.py",
+      "compile"
+    ]
+  },
+  {
+    "name": "AT3a_numeric",
+    "gpu": true,
+    "priority": 7,
+    "cwd": "/root/r14_work/development",
+    "after": [
+      "AT3a_compile"
+    ],
+    "timeout_s": 1800,
+    "needs_free_mib": 4096,
+    "command": [
+      "/usr/bin/python3",
+      "/root/r14_work/development/docs/experiments/SERVING_R14/check_pvswap.py",
+      "numerical"
+    ]
+  }
+]
