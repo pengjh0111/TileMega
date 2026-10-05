@@ -1,0 +1,12 @@
+[
+  {
+    "suite": "sm120",
+    "exit_code": 0,
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_03/sm120_host_tests.log"
+  },
+  {
+    "suite": "r13",
+    "exit_code": 0,
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_03/r13_host_tests.log"
+  }
+]

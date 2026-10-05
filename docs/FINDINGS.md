@@ -9087,3 +9087,17 @@ Evidence: `SERVING_R13_SM120/raw/acceptance_02/{acceptance.json,gpu_snapshot.txt
 **verified (sm_89, original three paired rounds)**: Final defaults are paged L1 separate launches for Llama B1 and Qwen3 B1/B16, with nonpaged L1 separate launches for Llama B16. Paired TM/vLLM median ratios are 1.08330/1.16155/1.06072/1.10686; geometric mean 1.10248. Final defaults pass four-cell C-1/C-2; covered protocol suites total 300 distinct fresh PIDs, 300/300. This is a scoped hardware result, not a universal synchronization claim.
 
 **verified (CPU sensitivity)**: Excluding the two flagged canary rounds leaves two rounds in those cells, ratios 1.08129/1.10623. No additional measurement occurred and no original round was invalidated. **inferred**: median direction is insensitive to those flags, but three-round certainty without interference is not established. TR-1 overhead remains above its 2% limit; MB-1e cold-stream subtraction produces negative residuals and cannot measure negative launch latency. Evidence: SERVING_R13/raw/closure/{final_metrics.json,sensitivity.json,completion.json,microbench_limits.json,selected_plan_integrity.json}; raw/final_review/protocol_pid_audit.json; results/T10/T11.
+
+## F-355: sm120 validates nonpaged PDL and loop while paged scoring rejects
+
+verified (RTX 5090, Llama B16, 64 steps): nonpaged PDL and L1-loop groups each
+complete 50 fresh processes with 50/50 passes. This does not cover paged loops,
+cluster synchronization, or all model geometries. Eight fixed paged B16 builds
+and both SL-5 builds reject at StageFlowModel's negative counterfactual traffic
+check; bulk/seed protocol groups are unavailable. The rejection is located, but
+its underlying traffic imbalance is not yet established. No solver or cost-model
+workaround is applied in R13 sm120. Final R13 CPU checks replay existing sm120
+PDL PTX at 8/8; seven clean vLLM records recover from a TM-only loop check without
+rewriting original measurements. Evidence: SERVING_R13_SM120/raw/{E2c_pdl_r5/,
+E2c_l1loop_r5/,acceptance_03/}; baseline_alignment.json. Performance/trace collection
+is still in progress, so these results are not a completed end-to-end report.

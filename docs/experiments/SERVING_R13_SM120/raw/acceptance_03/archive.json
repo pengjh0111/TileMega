@@ -1,0 +1,13 @@
+{
+  "path": "raw/acceptance_03/completed_stage_evidence.tar.xz",
+  "sha256": "1f0ae43197e15c2720bab6bf38011970a75d724630046e5452d2937324fef5f8",
+  "bytes": 1587956,
+  "contents": [
+    "E3_codegen_r5 (excluding bulky sass.txt and embedded.ptx; native PDL PTX included)",
+    "E2b_smoke_r4", "E2c_bulk_r5", "E2c_pdl_r5", "E2c_l1loop_r5", "E2c_seed_fx21_r5",
+    "E3_fixed_r3", "E3_R13F_llama_r4", "E3_R13F_qwen3_r4",
+    "eight rejected fixed B16 build logs from the ephemeral output tree"
+  ],
+  "E4_E5_E6_complete": false,
+  "stage_failures_preserved": true
+}

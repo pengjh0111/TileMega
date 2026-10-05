@@ -1,0 +1,1120 @@
+{
+  "time": 1791172789.0709548,
+  "state": {
+    "E0_core": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133193.2926908,
+      "retry_at": 0,
+      "wait_s": 0.00018930435180664062,
+      "pid": 4920,
+      "run_s": 14.382482122629881,
+      "exit_code": 1
+    },
+    "E0_test_build": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.292692,
+      "retry_at": 0
+    },
+    "E0_units": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926927,
+      "retry_at": 0
+    },
+    "E0_environment": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926931,
+      "retry_at": 0
+    },
+    "E0_model_llama": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.292694,
+      "retry_at": 0
+    },
+    "E0_model_qwen3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926946,
+      "retry_at": 0
+    },
+    "E1_llama": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.292695,
+      "retry_at": 0
+    },
+    "E1_qwen3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926955,
+      "retry_at": 0
+    },
+    "E1_TL2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926958,
+      "retry_at": 0
+    },
+    "E2a_MB-1b": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926962,
+      "retry_at": 0
+    },
+    "E2a_MB-1c": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926967,
+      "retry_at": 0
+    },
+    "E2a_MB-1d": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926977,
+      "retry_at": 0
+    },
+    "E2a_MB-1e": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.292699,
+      "retry_at": 0
+    },
+    "E2a_MB-1f": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926993,
+      "retry_at": 0
+    },
+    "E0_core_r1": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133387.7884705,
+      "retry_at": 0,
+      "wait_s": 0.0002887248992919922,
+      "pid": 5389,
+      "run_s": 0.06441725045442581,
+      "exit_code": 1
+    },
+    "E0_test_build_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884712,
+      "retry_at": 0
+    },
+    "E0_units_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884717,
+      "retry_at": 0
+    },
+    "E0_environment_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884724,
+      "retry_at": 0
+    },
+    "E0_model_llama_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884731,
+      "retry_at": 0
+    },
+    "E0_model_qwen3_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884736,
+      "retry_at": 0
+    },
+    "E1_llama_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884743,
+      "retry_at": 0
+    },
+    "E1_qwen3_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884758,
+      "retry_at": 0
+    },
+    "E1_TL2_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.788478,
+      "retry_at": 0
+    },
+    "E2a_MB-1b_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884786,
+      "retry_at": 0
+    },
+    "E2a_MB-1c_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884793,
+      "retry_at": 0
+    },
+    "E2a_MB-1d_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884798,
+      "retry_at": 0
+    },
+    "E2a_MB-1e_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884803,
+      "retry_at": 0
+    },
+    "E2a_MB-1f_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884805,
+      "retry_at": 0
+    },
+    "E0_core_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.930356,
+      "retry_at": 0,
+      "wait_s": 0.0003097057342529297,
+      "pid": 5624,
+      "run_s": 173.03390765190125,
+      "exit_code": 0
+    },
+    "E0_test_build_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303567,
+      "retry_at": 0,
+      "wait_s": 173.036395072937,
+      "pid": 6792,
+      "run_s": 209.9780532605946,
+      "exit_code": 2
+    },
+    "E0_units_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303575,
+      "retry_at": 0,
+      "wait_s": 383.10418915748596,
+      "pid": 7739,
+      "run_s": 713.4762653633952,
+      "exit_code": 1
+    },
+    "E0_environment_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.930358,
+      "retry_at": 0,
+      "wait_s": 1096.697923898697,
+      "pid": 8709,
+      "run_s": 29.85065297782421,
+      "exit_code": 0
+    },
+    "E0_model_llama_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.9303584,
+      "retry_at": 0,
+      "wait_s": 1126.5507638454437,
+      "pid": 8789,
+      "run_s": 425.5537393540144,
+      "exit_code": 0
+    },
+    "E0_model_qwen3_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.9303591,
+      "retry_at": 0,
+      "wait_s": 1552.107007741928,
+      "pid": 8844,
+      "run_s": 694.5306063145399,
+      "exit_code": 0
+    },
+    "E1_llama_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303598,
+      "retry_at": 0,
+      "wait_s": 2246.7693388462067,
+      "pid": 9096,
+      "run_s": 63.64200333505869,
+      "exit_code": 1
+    },
+    "E1_qwen3_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303603,
+      "retry_at": 0,
+      "wait_s": 2370.6855602264404,
+      "pid": 9191,
+      "run_s": 64.14419068023562,
+      "exit_code": 1
+    },
+    "E1_TL2_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303608,
+      "retry_at": 0
+    },
+    "E2a_MB-1b_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303613,
+      "retry_at": 0
+    },
+    "E2a_MB-1c_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303617,
+      "retry_at": 0
+    },
+    "E2a_MB-1d_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303625,
+      "retry_at": 0
+    },
+    "E2a_MB-1e_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.930363,
+      "retry_at": 0
+    },
+    "E2a_MB-1f_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303646,
+      "retry_at": 0
+    },
+    "E0_native_build_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.195397,
+      "retry_at": 0,
+      "wait_s": 0.0007309913635253906,
+      "pid": 10160,
+      "run_s": 4.474145818501711,
+      "exit_code": 0
+    },
+    "E0_contracts_r3": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791137684.1954,
+      "retry_at": 0,
+      "wait_s": 4.477353572845459,
+      "pid": 10201,
+      "run_s": 318.4642065539956,
+      "exit_code": 1
+    },
+    "E1_llama_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954007,
+      "retry_at": 0,
+      "wait_s": 323.05746626853943,
+      "pid": 10336,
+      "run_s": 62.93813979253173,
+      "exit_code": 0
+    },
+    "E1_qwen3_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.195401,
+      "retry_at": 0,
+      "wait_s": 446.23865604400635,
+      "pid": 10495,
+      "run_s": 63.95738182216883,
+      "exit_code": 0
+    },
+    "E1_TL2_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954014,
+      "retry_at": 0,
+      "wait_s": 570.4322998523712,
+      "pid": 10654,
+      "run_s": 88.97186662256718,
+      "exit_code": 0
+    },
+    "E2a_MB-1b_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954021,
+      "retry_at": 0,
+      "wait_s": 675.3918368816376,
+      "pid": 10928,
+      "run_s": 27.496873199939728,
+      "exit_code": 0
+    },
+    "E2a_MB-1c_r3": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791137684.1954029,
+      "retry_at": 0,
+      "wait_s": 763.1019306182861,
+      "pid": 10989,
+      "run_s": 29.85098334774375,
+      "exit_code": 1
+    },
+    "E2a_MB-1d_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954033,
+      "retry_at": 0,
+      "wait_s": 2526.2023179531097,
+      "pid": 4514,
+      "run_s": 26.446543615311384,
+      "exit_code": 0
+    },
+    "E2a_MB-1e_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954036,
+      "retry_at": 0,
+      "wait_s": 2552.740482568741,
+      "pid": 4597,
+      "run_s": 26.64689440652728,
+      "exit_code": 0
+    },
+    "E2a_MB-1f_r3": {
+      "status": "done",
+      "attempts": 2,
+      "enqueued": 1791137684.195404,
+      "retry_at": 1791140563.8280401,
+      "wait_s": 3047.52378988266,
+      "pid": 4931,
+      "run_s": 26.494979575276375,
+      "exit_code": 0
+    },
+    "E3_exports_r3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791137684.1954048,
+      "retry_at": 0
+    },
+    "E3_fixed_r3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791137684.1954052,
+      "retry_at": 0
+    },
+    "E0_plan_fixture_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791138343.6019423,
+      "retry_at": 0,
+      "wait_s": 0.05819296836853027,
+      "pid": 10919,
+      "run_s": 15.78214369341731,
+      "exit_code": 0
+    },
+    "E0_restore_r4": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791140210.2913265,
+      "retry_at": 0,
+      "wait_s": 53.538705825805664,
+      "pid": 4654,
+      "run_s": 9.976696100085974,
+      "exit_code": 0
+    },
+    "E0_model_llama_r4": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791140210.291327,
+      "retry_at": 0,
+      "wait_s": 95.0667154788971,
+      "pid": 4870,
+      "run_s": 426.2428598366678,
+      "exit_code": 0
+    },
+    "E0_model_qwen3_r4": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791140210.2913275,
+      "retry_at": 0,
+      "wait_s": 547.9259247779846,
+      "pid": 4976,
+      "run_s": 703.7228551954031,
+      "exit_code": 0
+    },
+    "E2a_MB-1c_r4": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791140210.2913277,
+      "retry_at": 0,
+      "wait_s": 63.611252784729004,
+      "pid": 4697,
+      "run_s": 31.452517196536064,
+      "exit_code": 0
+    },
+    "E3_exports_r4": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791140210.2913284,
+      "retry_at": 0,
+      "wait_s": 1251.6517848968506,
+      "pid": 5238,
+      "run_s": 211.76970741525292,
+      "exit_code": 0
+    },
+    "E3_fixed_r4": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791140210.2913287,
+      "retry_at": 0,
+      "wait_s": 1463.4245047569275,
+      "pid": 5394,
+      "run_s": 11679.0981374681,
+      "exit_code": 0
+    },
+    "E3_R13F_llama_r4": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791140210.2913294,
+      "retry_at": 0,
+      "wait_s": 13142.677748680115,
+      "pid": 24137,
+      "run_s": 6151.171404451132,
+      "exit_code": 1
+    },
+    "E3_R13F_qwen3_r4": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791140210.2913299,
+      "retry_at": 0,
+      "wait_s": 19293.998065948486,
+      "pid": 34870,
+      "run_s": 6881.8936724327505,
+      "exit_code": 1
+    },
+    "E2b_smoke_r4": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791140210.2913303,
+      "retry_at": 0,
+      "wait_s": 26176.03341627121,
+      "pid": 46273,
+      "run_s": 279.00294567272067,
+      "exit_code": 0
+    },
+    "E3_catalog_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183455,
+      "retry_at": 0,
+      "wait_s": 13312.513836145401,
+      "pid": 47348,
+      "run_s": 30.704176757484674,
+      "exit_code": 0
+    },
+    "E3_codegen_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183465,
+      "retry_at": 0,
+      "wait_s": 14478.655069351196,
+      "pid": 50044,
+      "run_s": 789.6658136844635,
+      "exit_code": 0
+    },
+    "E2c_bulk_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183472,
+      "retry_at": 0,
+      "wait_s": 13343.317414522171,
+      "pid": 47364,
+      "run_s": 25.947420570999384,
+      "exit_code": 0
+    },
+    "E2c_pdl_r5": {
+      "status": "done",
+      "attempts": 2,
+      "enqueued": 1791153352.8183482,
+      "retry_at": 1791168926.537846,
+      "wait_s": 15600.379102945328,
+      "pid": 51665,
+      "run_s": 1654.5746017061174,
+      "exit_code": 0
+    },
+    "E2c_l1loop_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818349,
+      "retry_at": 0,
+      "wait_s": 13369.358844041824,
+      "pid": 47401,
+      "run_s": 1109.119329083711,
+      "exit_code": 0
+    },
+    "E2c_seed_fx21_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183494,
+      "retry_at": 0,
+      "wait_s": 15333.969322681427,
+      "pid": 51278,
+      "run_s": 26.045037277042866,
+      "exit_code": 0
+    },
+    "E4a_llama_B1_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.81835,
+      "retry_at": 0,
+      "wait_s": 18156.367570638657,
+      "pid": 56997,
+      "run_s": 191.31161982566118,
+      "exit_code": 0
+    },
+    "E4a_llama_B1_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183525,
+      "retry_at": 0,
+      "wait_s": 18347.725625753403,
+      "pid": 57639,
+      "run_s": 188.9028359875083,
+      "exit_code": 0
+    },
+    "E4a_llama_B1_r2_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818353,
+      "retry_at": 0,
+      "wait_s": 18596.93458223343,
+      "pid": 58283,
+      "run_s": 187.34664916992188,
+      "exit_code": 0
+    },
+    "E4a_qwen3_B1_r0_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.818354,
+      "retry_at": 0
+    },
+    "E4a_qwen3_B1_r1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183544,
+      "retry_at": 0
+    },
+    "E4a_qwen3_B1_r2_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183546,
+      "retry_at": 0
+    },
+    "E4a_llama_B16_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818355,
+      "retry_at": 0,
+      "wait_s": 17315.155388355255,
+      "pid": 54778,
+      "run_s": 311.3919411674142,
+      "exit_code": 0
+    },
+    "E4a_llama_B16_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183558,
+      "retry_at": 0,
+      "wait_s": 17626.680776119232,
+      "pid": 55644,
+      "run_s": 206.71191285923123,
+      "exit_code": 0
+    },
+    "E4a_llama_B16_r2_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183563,
+      "retry_at": 0,
+      "wait_s": 17893.68695807457,
+      "pid": 56330,
+      "run_s": 202.41003263741732,
+      "exit_code": 0
+    },
+    "E4a_qwen3_B16_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183565,
+      "retry_at": 0,
+      "wait_s": 18844.52725982666,
+      "pid": 58926,
+      "run_s": 245.5584525913,
+      "exit_code": 0
+    },
+    "E4a_qwen3_B16_r1_r5": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791153352.818357,
+      "retry_at": 0,
+      "wait_s": 19150.37346816063,
+      "pid": 60864,
+      "run_s": 62.113263580948114,
+      "exit_code": 1
+    },
+    "E4a_qwen3_B16_r2_r5": {
+      "status": "running",
+      "attempts": 1,
+      "enqueued": 1791153352.8183575,
+      "retry_at": 0,
+      "wait_s": 19212.68580365181,
+      "pid": 61112
+    },
+    "E4b_llama_B1_r0_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183577,
+      "retry_at": 0
+    },
+    "E4b_llama_B1_r1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183582,
+      "retry_at": 0
+    },
+    "E4b_llama_B1_r2_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.818359,
+      "retry_at": 0
+    },
+    "E4b_qwen3_B1_r0_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183632,
+      "retry_at": 0
+    },
+    "E4b_qwen3_B1_r1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183646,
+      "retry_at": 0
+    },
+    "E4b_qwen3_B1_r2_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.818365,
+      "retry_at": 0
+    },
+    "E4b_llama_B16_r0_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183653,
+      "retry_at": 0
+    },
+    "E4b_llama_B16_r1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.818366,
+      "retry_at": 0
+    },
+    "E4b_llama_B16_r2_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183665,
+      "retry_at": 0
+    },
+    "E4b_qwen3_B16_r0_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183668,
+      "retry_at": 0
+    },
+    "E4b_qwen3_B16_r1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183675,
+      "retry_at": 0
+    },
+    "E4b_qwen3_B16_r2_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183677,
+      "retry_at": 0
+    },
+    "E4c_llama_B1_r0_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183687,
+      "retry_at": 0
+    },
+    "E4c_llama_B1_r1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183694,
+      "retry_at": 0
+    },
+    "E4c_llama_B1_r2_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183699,
+      "retry_at": 0
+    },
+    "E4c_qwen3_B1_r0_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.81837,
+      "retry_at": 0
+    },
+    "E4c_qwen3_B1_r1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183706,
+      "retry_at": 0
+    },
+    "E4c_qwen3_B1_r2_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183708,
+      "retry_at": 0
+    },
+    "E4c_llama_B16_r0_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.818371,
+      "retry_at": 0
+    },
+    "E4c_llama_B16_r1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183715,
+      "retry_at": 0
+    },
+    "E4c_llama_B16_r2_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.818373,
+      "retry_at": 0
+    },
+    "E4c_qwen3_B16_r0_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183734,
+      "retry_at": 0
+    },
+    "E4c_qwen3_B16_r1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183737,
+      "retry_at": 0
+    },
+    "E4c_qwen3_B16_r2_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183742,
+      "retry_at": 0
+    },
+    "E4d_llama_B1_r0_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183744,
+      "retry_at": 0
+    },
+    "E4d_llama_B1_r1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183749,
+      "retry_at": 0
+    },
+    "E4d_llama_B1_r2_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.818375,
+      "retry_at": 0
+    },
+    "E4d_qwen3_B1_r0_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183756,
+      "retry_at": 0
+    },
+    "E4d_qwen3_B1_r1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183758,
+      "retry_at": 0
+    },
+    "E4d_qwen3_B1_r2_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183765,
+      "retry_at": 0
+    },
+    "E4d_llama_B16_r0_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183768,
+      "retry_at": 0
+    },
+    "E4d_llama_B16_r1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.818377,
+      "retry_at": 0
+    },
+    "E4d_llama_B16_r2_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183775,
+      "retry_at": 0
+    },
+    "E4d_qwen3_B16_r0_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183777,
+      "retry_at": 0
+    },
+    "E4d_qwen3_B16_r1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183784,
+      "retry_at": 0
+    },
+    "E4d_qwen3_B16_r2_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183787,
+      "retry_at": 0
+    },
+    "E4_canary_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183792,
+      "retry_at": 0
+    },
+    "E4f_llama_B1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183799,
+      "retry_at": 0
+    },
+    "E4f_qwen3_B1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183804,
+      "retry_at": 0
+    },
+    "E4f_llama_B16_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183806,
+      "retry_at": 0
+    },
+    "E4f_qwen3_B16_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.818381,
+      "retry_at": 0
+    },
+    "E5a_llama_B1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183815,
+      "retry_at": 0
+    },
+    "E5a_qwen3_B1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183818,
+      "retry_at": 0
+    },
+    "E5a_llama_B16_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183835,
+      "retry_at": 0
+    },
+    "E5a_qwen3_B16_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183837,
+      "retry_at": 0
+    },
+    "E5b_llama_B1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183842,
+      "retry_at": 0
+    },
+    "E5b_qwen3_B1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183846,
+      "retry_at": 0
+    },
+    "E5b_llama_B16_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.818385,
+      "retry_at": 0
+    },
+    "E5b_qwen3_B16_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183854,
+      "retry_at": 0
+    },
+    "E5c_llama_B1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183856,
+      "retry_at": 0
+    },
+    "E5c_qwen3_B1_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.818386,
+      "retry_at": 0
+    },
+    "E5c_llama_B16_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183863,
+      "retry_at": 0
+    },
+    "E5c_qwen3_B16_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.818388,
+      "retry_at": 0
+    },
+    "E5d_llama_B16_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183882,
+      "retry_at": 0
+    },
+    "E5d_qwen3_B16_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183887,
+      "retry_at": 0
+    },
+    "E6_collect_r5": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791153352.8183901,
+      "retry_at": 0
+    }
+  },
+  "fixed_failures": [
+    {
+      "cell": "llama_B16",
+      "label": "P-R12bN-120",
+      "exit_code": 1,
+      "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/P-R12bN-120/build.log",
+      "log_sha256": "047c83b674fda87a3778032f8ef323c6e9779f5ad9688e62813356975c11dabf",
+      "diagnostic": "IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default\nINDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1\ntilemega-compile: negative counterfactual traffic\n",
+      "classification": "solver/cost-model rejection; no solver modification permitted"
+    },
+    {
+      "cell": "llama_B16",
+      "label": "P-R12bN-120-pdl",
+      "exit_code": 1,
+      "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/P-R12bN-120-pdl/build.log",
+      "log_sha256": "047c83b674fda87a3778032f8ef323c6e9779f5ad9688e62813356975c11dabf",
+      "diagnostic": "IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default\nINDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1\ntilemega-compile: negative counterfactual traffic\n",
+      "classification": "solver/cost-model rejection; no solver modification permitted"
+    },
+    {
+      "cell": "llama_B16",
+      "label": "PS-120",
+      "exit_code": 1,
+      "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/PS-120/build.log",
+      "log_sha256": "047c83b674fda87a3778032f8ef323c6e9779f5ad9688e62813356975c11dabf",
+      "diagnostic": "IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default\nINDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1\ntilemega-compile: negative counterfactual traffic\n",
+      "classification": "solver/cost-model rejection; no solver modification permitted"
+    },
+    {
+      "cell": "llama_B16",
+      "label": "PSA-120",
+      "exit_code": 1,
+      "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/PSA-120/build.log",
+      "log_sha256": "047c83b674fda87a3778032f8ef323c6e9779f5ad9688e62813356975c11dabf",
+      "diagnostic": "IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default\nINDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1\ntilemega-compile: negative counterfactual traffic\n",
+      "classification": "solver/cost-model rejection; no solver modification permitted"
+    },
+    {
+      "cell": "qwen3_B16",
+      "label": "P-R12bN-120",
+      "exit_code": 1,
+      "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/P-R12bN-120/build.log",
+      "log_sha256": "047c83b674fda87a3778032f8ef323c6e9779f5ad9688e62813356975c11dabf",
+      "diagnostic": "IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default\nINDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1\ntilemega-compile: negative counterfactual traffic\n",
+      "classification": "solver/cost-model rejection; no solver modification permitted"
+    },
+    {
+      "cell": "qwen3_B16",
+      "label": "P-R12bN-120-pdl",
+      "exit_code": 1,
+      "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/P-R12bN-120-pdl/build.log",
+      "log_sha256": "047c83b674fda87a3778032f8ef323c6e9779f5ad9688e62813356975c11dabf",
+      "diagnostic": "IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default\nINDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1\ntilemega-compile: negative counterfactual traffic\n",
+      "classification": "solver/cost-model rejection; no solver modification permitted"
+    },
+    {
+      "cell": "qwen3_B16",
+      "label": "PS-120",
+      "exit_code": 1,
+      "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/PS-120/build.log",
+      "log_sha256": "047c83b674fda87a3778032f8ef323c6e9779f5ad9688e62813356975c11dabf",
+      "diagnostic": "IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default\nINDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1\ntilemega-compile: negative counterfactual traffic\n",
+      "classification": "solver/cost-model rejection; no solver modification permitted"
+    },
+    {
+      "cell": "qwen3_B16",
+      "label": "PSA-120",
+      "exit_code": 1,
+      "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/PSA-120/build.log",
+      "log_sha256": "047c83b674fda87a3778032f8ef323c6e9779f5ad9688e62813356975c11dabf",
+      "diagnostic": "IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default\nINDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1\ntilemega-compile: negative counterfactual traffic\n",
+      "classification": "solver/cost-model rejection; no solver modification permitted"
+    }
+  ],
+  "joint_failures": [
+    {
+      "model": "llama",
+      "duration": {
+        "seconds": 6125.117584783584,
+        "configured_time_budget_s": 1800,
+        "exceeds_twice_budget": true,
+        "aborted_at_twice_budget": false,
+        "exit_code": 1
+      },
+      "diagnostic": "IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default\nIMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default\ntilemega-compile: flow seed has no valid score: negative counterfactual traffic\n",
+      "stderr_sha256": "85c5ca01bab03e076b953d8bdc678ea9b31f231ec97234704f87adb8d3d5f16d",
+      "final_config_inputs_unchanged": true,
+      "disposition": "unavailable; no unchanged-input retry or solver workaround"
+    },
+    {
+      "model": "qwen3",
+      "duration": {
+        "seconds": 6855.857490748167,
+        "configured_time_budget_s": 1800,
+        "exceeds_twice_budget": true,
+        "aborted_at_twice_budget": false,
+        "exit_code": 1
+      },
+      "diagnostic": "IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default\nIMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default\ntilemega-compile: flow seed has no valid score: negative counterfactual traffic\n",
+      "stderr_sha256": "85c5ca01bab03e076b953d8bdc678ea9b31f231ec97234704f87adb8d3d5f16d",
+      "final_config_inputs_unchanged": true,
+      "disposition": "unavailable; no unchanged-input retry or solver workaround"
+    }
+  ],
+  "performance_queue_not_finished": true,
+  "solver_location": "lib/Solver/StageFlowModel.cpp:205, MainStart: DRAM traffic minus averaged prefetched traffic is negative",
+  "root_cause_qualification": "located rejection, not yet a verified explanation for the model imbalance",
+  "no_device_reset": true,
+  "no_push": true
+}

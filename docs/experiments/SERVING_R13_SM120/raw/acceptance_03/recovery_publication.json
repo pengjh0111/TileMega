@@ -1,0 +1,18 @@
+{
+  "time": 1791173541.863341,
+  "node": "E4a_qwen3_B16_r1_recovery_r6",
+  "original_state": {
+    "status": "failed",
+    "attempts": 1,
+    "enqueued": 1791153352.818357,
+    "retry_at": 0,
+    "wait_s": 19150.37346816063,
+    "pid": 60864,
+    "run_s": 62.113263580948114,
+    "exit_code": 1
+  },
+  "original_failure_sha256": "a02e6d246c8b319fce206ce2f552f159137064de15dfe09959d641a21a7f59c9",
+  "original_failure_preserved": true,
+  "prior_model_measurements": 0,
+  "expected_measured_round_count_unchanged": true
+}

@@ -164,3 +164,26 @@ CPU codegen 审计可在构建后独立执行；所有 GPU 测量仍由同一调
 E4e cluster 端到端与 E5e ncu 按规格可选项省略；MB-1d cluster 数据保留。不扩展选择空间、不实施 R14 优化。
 实现/依赖及不可用条件见 `workflow.md`；队列见 `queue_complete_r5.json`；实现状态见 `implementation_status.json`。
 E6 自动生成 `summary.generated.md` 草稿，最终验收再整理正式报告及证据提交；本次所有提交仍仅本地保存，不 push。
+
+## sm89 最终推送后的验收接续（2026-10-05）
+
+verified：已合并最终 `9aebaf6553247ec83c79bc8f101e61ad4ce564fd`，本地 merge `72d56b3ba`；最初提前启动的记录不改写。
+上游 include/lib/tools/python/CMake 自检查点以来无差异；本机编译器指纹、九个标定印章及 27 个已冻结二进制 SHA 仍匹配，保留 native-profile 移植。
+两模型的 SL-5 features/solver 与最终配置一致；不复制 sm89 .so、不重做有效 E1 标定、不修改求解器/代价模型。
+固定构建 47/55 成功（含 trace）；43 个成功 decode 计划的 64 步冒烟均通过，但不代表被拒绝的八臂通过。
+Llama B16 非分页 PDL 与 L1 loop 各 50 个新进程、50/50；bulk 与 seed+FX21 组因 B16 分页构建失败为 unavailable，不冒充 50/50。
+失败定位在 `StageFlowModel.cpp:205`，主循环 DRAM 量扣减预取均值后为负；两个 R13F 也在 pages-B1 被同一检查拒绝，分别耗时 6151/6882 s。
+根因未完全确认；本轮禁止改求解器/代价模型，保留 unavailable 与 R14 定位方案，不钳位负数、不改 target 或几何绕过。
+verified（CPU）：用最终版检查器回放已有 sm120 PTX，trigger 0/1 共 8/8 通过；旧四个静态误判保留，未改设备同步代码。
+七轮 vLLM 原 metrics/command/clean guard 回放消除误用的 TM-loop 后置条件，原轮次 JSON 和测量值不改写。
+操作问题：合并期间一个已进入预检的 Qwen3 B16 r1 任务读取临时冲突标记，入口 SyntaxError；尚未启动模型测量。
+仅补该缺失轮到独立 r6 输出，原失败不清空；pending E4b 自动依赖它，clean guard 后才接纳，不增加实验格子或挑选最快样本。
+最新 CPU 回归 31/31（sm120）、40/40（R13）；实现提交 `7d804043c`、恢复提交 `fbc8c373c`。
+能力补充：tiled GEMM 走 bulk；分页 attention KV 仍有 TMA/tensor map；非分页 L2 预取为 bulk-prefetch；CuTe 使用共享 SM80-class BF16 MMA 实现。
+这些是源码/编译指令证据，不冒充动态分支计数；固定 serving 物理 cluster=1，κ 不是 cluster 大小，cluster 微基准单进程不能支撑 50 进程同步结论。
+跨架构表现在读取最终 sm89 T1–T12；该机原两轮金丝雀标记保留，vLLM 为 0.30.0（原轮证据），本机按用户要求保持 0.29.0。
+两机模型 config/权重 SHA 仍未完整核对；保留此限定。TM/vLLM E2E 与 TPOT 加速比分列；MB-1e 负扣减不称为负步边界延迟。
+队列尚未完成；后续 E4/E5/E6 继续自动依赖执行，不逐阶段人工放行、不轮询长验证；最终 S1–S10、四问与正式报告仍待 E6 后验收。
+证据与回放见 `raw/acceptance_03/`、`baseline_alignment.json`、`queue_anchor_recovery_r6.json`；全部本地提交，不 push。
+单次挂接核查 verified：PID 4488 存活，缺失锚定轮 r6 done/exit0；r5 为 16 done、57 pending、1 原始框架失败，恢复结果独立接纳。
+已完成阶段归档 `raw/acceptance_03/completed_stage_evidence.tar.xz`，SHA256 `1f0ae43197e15c2720bab6bf38011970a75d724630046e5452d2937324fef5f8`；不包含尚在推进的 E4/E5/E6 数据。

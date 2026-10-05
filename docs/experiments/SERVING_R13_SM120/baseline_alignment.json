@@ -1,0 +1,40 @@
+{
+  "evidence": "verified CPU source/configuration/fingerprint checks",
+  "time": 1791173138.5947127,
+  "initial_checkpoint": "36f17e6ee66404660bccf7df40946c3cdbe208b5",
+  "sm89_final_head": "9aebaf6553247ec83c79bc8f101e61ad4ce564fd",
+  "local_alignment_head": "72d56b3baadd00a82fbd899f767605ccf9f90197",
+  "final_baseline_merged": true,
+  "compiler_runtime_aligned": true,
+  "upstream_core_changed_since_checkpoint": [],
+  "allowed_native_profile_port_files": [
+    "lib/Target/TargetSpec.cpp",
+    "python/tilemega/cli.py"
+  ],
+  "calibration_stamps_match": true,
+  "target_sha256": "43e9e291abf6d2cdf471324e09cd063e972a4acc9e4961e8857d35cc5a8ce74c",
+  "configurations": {
+    "llama": {
+      "local_sha256": "da09bf11ded2c7e09620db143383d9d944d51eda936507bc9347d13609881a15",
+      "upstream_sha256": "1a7e1adba76d29205b346efe05b2ac442608f1c8678a7d97c632a33ac1e190f5",
+      "features_and_solver_equal": true
+    },
+    "qwen3": {
+      "local_sha256": "9e2005a4edd7993cc320d99f0c1ff091a7aa793f4bb3be4c4f1c64aec6a477bf",
+      "upstream_sha256": "99d20c9ff01ed2a818efeec34da93901bc1e8dc33cafaa105ef8b48d7e522a59",
+      "features_and_solver_equal": true
+    }
+  },
+  "measured_binaries_rebuilt": false,
+  "existing_binary_hashes_preserved": true,
+  "preserved_binary_count": 27,
+  "cross_architecture_model_hashes_verified": false,
+  "model_qualification": "sm89 config/weight SHA256 not present in final portable evidence; not assumed equal",
+  "vllm_versions": {
+    "sm120": "0.29.0",
+    "sm89": "0.30.0"
+  },
+  "sm89_qualification": "Final original three rounds retain two canary flags; cancelled reruns not substituted",
+  "no_solver_or_cost_model_changes": true,
+  "no_push": true
+}

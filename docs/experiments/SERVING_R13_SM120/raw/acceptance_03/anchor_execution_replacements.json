@@ -1,0 +1,7 @@
+{
+  "E4a:qwen3_B16:1": {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_qwen3_B16_r1_recovery_r6/qwen3_B16/round1.json",
+    "guard": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_qwen3_B16_r1_recovery_r6/guard_result.json",
+    "reason": "Original wrapper SyntaxError before any model measurement; one missing round, not fastest-value selection"
+  }
+}

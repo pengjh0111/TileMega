@@ -1,0 +1,24 @@
+{
+  "evidence": "verified by one check after publishing the single missing-round recovery",
+  "date": "2026-10-05",
+  "scheduler_pid": 4488,
+  "scheduler_alive": true,
+  "scheduler_elapsed": "09:19:18",
+  "r5_counts": {"done": 16, "pending": 57, "failed": 1},
+  "running_nodes_at_check": [],
+  "recovery_node": "E4a_qwen3_B16_r1_recovery_r6",
+  "recovery_status": "done",
+  "recovery_exit_code": 0,
+  "recovery_run_s": 202.01429154351354,
+  "original_failure_preserved": true,
+  "sm120_cpu_tests": {"passed": 31, "total": 31},
+  "r13_cpu_tests": {"passed": 40, "total": 40},
+  "pdl_ptx_replay": {"passed": 8, "total": 8},
+  "vllm_wrapper_replays": 7,
+  "sm89_version_evidence": {
+    "archive": "docs/experiments/SERVING_R13/raw/final_review/measurement_evidence.tar.xz",
+    "member": "raw/D2_llama_B1_r0/llama_B1/round0.json",
+    "vllm_version": "0.30.0"
+  },
+  "no_push": true
+}

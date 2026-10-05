@@ -1,0 +1,56 @@
+{
+  "records": [
+    {
+      "source": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_llama_B16_r0_r5/llama_B16/round0.json",
+      "original_sha256": "14d7fd250e11648cb6cb3f32e2c4c67e9214312dd048ebf08da5f483be34cbb1",
+      "label": "vllm-120",
+      "original_exit_code": 3,
+      "replayed_exit_code": 0
+    },
+    {
+      "source": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_llama_B16_r1_r5/llama_B16/round1.json",
+      "original_sha256": "5f7d04daa5c2a62ac01007393e426ff3e3f19f3c190af2f8e873179fad19205d",
+      "label": "vllm-120",
+      "original_exit_code": 3,
+      "replayed_exit_code": 0
+    },
+    {
+      "source": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_llama_B16_r2_r5/llama_B16/round2.json",
+      "original_sha256": "7a9b92c4938681595e0d14ea4908d1e22de4a69e56bc18090b466c117892c954",
+      "label": "vllm-120",
+      "original_exit_code": 3,
+      "replayed_exit_code": 0
+    },
+    {
+      "source": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_llama_B1_r0_r5/llama_B1/round0.json",
+      "original_sha256": "b8110365061f1441fa3335eda635dd31e48b65ad04393e27897a2f97e711b93e",
+      "label": "vllm-120",
+      "original_exit_code": 3,
+      "replayed_exit_code": 0
+    },
+    {
+      "source": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_llama_B1_r1_r5/llama_B1/round1.json",
+      "original_sha256": "9b56673438bf9396e82426a0380b5791f4f994d67503bcca86fdb41fbf24d366",
+      "label": "vllm-120",
+      "original_exit_code": 3,
+      "replayed_exit_code": 0
+    },
+    {
+      "source": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_llama_B1_r2_r5/llama_B1/round2.json",
+      "original_sha256": "16d5e99f63aa5747e9c3449170861f913820d68f761f6817ef764fe00b26775f",
+      "label": "vllm-120",
+      "original_exit_code": 3,
+      "replayed_exit_code": 0
+    },
+    {
+      "source": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_qwen3_B16_r0_r5/qwen3_B16/round0.json",
+      "original_sha256": "f106267729b52158659f9573f5ac560dc6eb85fa773072b7e8bbce59d47b7666",
+      "label": "vllm-120",
+      "original_exit_code": 3,
+      "replayed_exit_code": 0
+    }
+  ],
+  "gpu_remeasurements": 0,
+  "original_files_overwritten": false,
+  "qualification": "Only the erroneous TM-only loop postcondition is replayed; original command, metrics and clean guard required"
+}

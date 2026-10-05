@@ -1,0 +1,6 @@
+[
+  "/root/shared-nvme/llm-runtimes/vllm/bin/python",
+  "/root/tilemega-r13-sm120/python/tilemega/fingerprint.py",
+  "--check",
+  "/root/tilemega-r13-sm120-build/tools/tilemega"
+]

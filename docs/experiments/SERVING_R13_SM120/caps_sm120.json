@@ -1,1 +1,35 @@
-{"architecture":"sm_120","query_evidence":"verified CUDA attributes","num_sms":170,"shared_memory_per_sm":102400,"shared_memory_per_block":49152,"shared_memory_per_block_optin":101376,"l2_bytes":100663296,"cluster_launch":1,"max_portable_cluster_query":8,"caps":{"kCpAsync":1,"kMbarrier":1,"kMbarrierTx":1,"kMbarrierTryWait":1,"kBulkCopy":1,"kTma":1,"kBulkPrefetch":1,"kPdl":1,"kCluster":1,"kMaxClusterSize":8,"kTcgen05":0,"kBf16CollectiveBuilder":0},"serving_path_status":"pending generated-source/PTX inspection; caps alone do not prove execution"}
+{
+  "architecture": "sm_120",
+  "query_evidence": "verified CUDA attributes",
+  "num_sms": 170,
+  "shared_memory_per_sm": 102400,
+  "shared_memory_per_block": 49152,
+  "shared_memory_per_block_optin": 101376,
+  "l2_bytes": 100663296,
+  "cluster_launch": 1,
+  "max_portable_cluster_query": 8,
+  "caps": {
+    "kCpAsync": 1, "kMbarrier": 1, "kMbarrierTx": 1,
+    "kMbarrierTryWait": 1, "kBulkCopy": 1, "kTma": 1,
+    "kBulkPrefetch": 1, "kPdl": 1, "kCluster": 1,
+    "kMaxClusterSize": 8, "kTcgen05": 0, "kBf16CollectiveBuilder": 0
+  },
+  "serving_path_usage": {
+    "kCpAsync": "ServingGemmConfig uses CuTe SM80_CP_ASYNC_CACHEGLOBAL; LDGSTS present in generated sm120 binaries",
+    "kMbarrier": "PageRing empty/full barriers; paged binaries contain SYNCS",
+    "kMbarrierTx": "PublishBulk and Tensor2D use complete_tx barriers; PTX compiled here",
+    "kBulkCopy": "PagedGemm LoadTile -> PublishBulk for fixed tiled weights; cp.async.bulk.shared::cluster present",
+    "kTma": "PagedAttentionTaskBody KV loader contains Tensor2D and tensor maps; tensor.2d present in tiled-weight paged binaries. GEMM LoadRow TMA branch is not selected by fixed tiled-weight builds",
+    "kBulkPrefetch": "ServingPages PrefetchL2 -> Async Prefetch; cp.async.bulk.prefetch present in nonpaged pg=l2 binaries",
+    "kPdl": "Explicit pdl auto variants have griddepcontrol; existing PTX replay 8/8, Llama B16 nonpaged PDL group 50/50 fresh processes",
+    "cluster": "Fixed serving builds keep physical cluster dimension 1; kappa is not physical cluster size. Cluster microbenchmark executed once; optional E4e omitted. B0 L1 prefetch path requires flat grid",
+    "cute_cutlass": "Shared SM80-class BF16 mma.sync/CuTe implementation compiles for sm120; HMMA present. Caps label does not imply use of the CUTLASS SM120 collective builder or tcgen05",
+    "multicast": "Not used or dynamically validated in this matrix; lack of hardware multicast is stated by the prompt"
+  },
+  "serving_path_evidence": {
+    "audit": "raw/E3_codegen_r5/audit.json",
+    "pdl_replay": "raw/acceptance_03/pdl_replay.json",
+    "smoke": "raw/E2b_smoke_r4/results.json",
+    "qualification": "Instruction presence is verified compilation evidence, not a dynamic branch execution counter. Source path selection is inferred; cluster/paged synchronization lacks a completed 50-process group because B16 paged builds were rejected"
+  }
+}
