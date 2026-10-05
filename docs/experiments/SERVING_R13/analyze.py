@@ -3,7 +3,7 @@
 import argparse,csv,json,math,re,statistics
 from collections import defaultdict
 from pathlib import Path
-from ledger import read,write,stages,steps
+from ledger import read,write,stages,steps,stage_semantics
 from page_chain import chain,pages
 from fidelity import candidates
 from cm_report import collect as collect_model_errors
@@ -227,10 +227,10 @@ def main():
     for folder in sorted({p.parent for p in (root/'raw').rglob('slots.tsv')}):
         task,blocked,elided=trace_v2(folder);task_rows+=task;hol+=blocked;reducers+=elided
     groups=defaultdict(list)
+    semantic={folder:stage_semantics(folder) for folder in {r['source'] for r in stage_rows}}
     for r in stage_rows:
-        gemm_kind=next((k for k in ('qkv','gate_up','down','lm_head','o') if re.search(r'(?:^|[.])'+k+r'(?:[.]|$)',r['name'])),r['kind'])
-        layer=re.search(r'(?:^|[.])l(\d+)(?:[.]|$)',r['name'])
-        groups[(r['cell'],r['source'],r['past'],r['iteration'],gemm_kind,layer.group(1) if layer else '')].append(r)
+        meta=semantic[r['source']][int(r['stage'])]
+        groups[(r['cell'],r['source'],r['past'],r['iteration'],meta['semantic_kind'],meta['layer'])].append(r)
     aggregate=[]
     for key,values in groups.items():
         row=dict(zip(('cell','source','past','iteration','kind','layer'),key))

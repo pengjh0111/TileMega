@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/root/r13_work/diag/docs/experiments/SERVING_R13/scheduler.py", line 73, in <module>
+    if __name__=='__main__':main()
+  File "/root/r13_work/diag/docs/experiments/SERVING_R13/scheduler.py", line 22, in main
+    if step['name'] in steps:raise ValueError('duplicate step '+step['name'])
+TypeError: string indices must be integers

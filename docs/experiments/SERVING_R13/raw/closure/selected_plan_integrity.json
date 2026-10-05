@@ -1,0 +1,193 @@
+[
+  {
+    "cell": "llama_B1",
+    "requested": {
+      "mode": "auto",
+      "decode_loop": "auto",
+      "prefill_mode": "auto"
+    },
+    "binaries": {
+      "prefill": {
+        "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so",
+        "sha256": "dc1b09feb651c877ed8120684866937765dddf4d85305894e80781ab3c86dec8"
+      },
+      "decode": {
+        "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so",
+        "sha256": "c53cbe23525607bf00c52ffd7ab695d3090dc2b79c047cb97af7dbec5f4883ed"
+      }
+    },
+    "pg": "pages",
+    "kappa": 1,
+    "Ec": 256,
+    "Rq": 4,
+    "pages": {
+      "activation_bytes": 16384,
+      "lookahead_bytes": 65536,
+      "page_bytes": 16384,
+      "pages": 5,
+      "pool_offset": 17408,
+      "scratch_bytes": 8256,
+      "shared_bytes": 99328,
+      "threads": 160,
+      "workspace_offset": 256
+    },
+    "effective_execution": {
+      "decode_mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "selection": {
+        "pg": "pages",
+        "mode": "L1",
+        "loop": 0,
+        "library": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so",
+        "samples_ms": [
+          2.8380150720477104,
+          2.8582245521247387,
+          2.8135475367307663
+        ],
+        "median_ms": 2.8380150720477104
+      },
+      "stage_one": {
+        "mode": "L1",
+        "loop": 0
+      }
+    }
+  },
+  {
+    "cell": "llama_B16",
+    "requested": {
+      "mode": "L1",
+      "decode_loop": false,
+      "prefill_mode": "L1"
+    },
+    "binaries": {
+      "prefill": {
+        "path": "/root/TileMega/docs/experiments/SERVING_R13/raw/D1_llama/llama_B16/PF-R10-noWD/plan.so",
+        "sha256": "bb45da60548dbe626169ca79883274dc95a6dfac57ba5ddf328fd51ab961aa74"
+      },
+      "decode": {
+        "path": "/root/TileMega/docs/experiments/SERVING_R13/raw/D1_llama/llama_B16/N-control/plan.so",
+        "sha256": "a3fba06cace638c042eed9b6038fec482a779bef2c80941f9b17ce715a6c31d7"
+      }
+    },
+    "pg": "l2",
+    "kappa": 1,
+    "Ec": 1088,
+    "Rq": 4,
+    "pages": null,
+    "effective_execution": {
+      "decode_mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "origin": "R13 registered final fallback"
+    }
+  },
+  {
+    "cell": "qwen3_B1",
+    "requested": {
+      "mode": "auto",
+      "decode_loop": "auto",
+      "prefill_mode": "auto"
+    },
+    "binaries": {
+      "prefill": {
+        "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so",
+        "sha256": "506e81df7491d7de52cd978da30b92800a125731cb0e3a8f07189e261f8d8388"
+      },
+      "decode": {
+        "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so",
+        "sha256": "693e04b15e3217b3ff9f0db19c8545ce30ebb4f78278530f49883bdeccb117bc"
+      }
+    },
+    "pg": "pages",
+    "kappa": 1,
+    "Ec": 256,
+    "Rq": 2,
+    "pages": {
+      "activation_bytes": 16384,
+      "lookahead_bytes": 65536,
+      "page_bytes": 16384,
+      "pages": 5,
+      "pool_offset": 17408,
+      "scratch_bytes": 8256,
+      "shared_bytes": 99328,
+      "threads": 160,
+      "workspace_offset": 256
+    },
+    "effective_execution": {
+      "decode_mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "selection": {
+        "pg": "pages",
+        "mode": "L1",
+        "loop": 0,
+        "library": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so",
+        "samples_ms": [
+          4.211697481572628,
+          4.261836469173431,
+          4.319831483066082
+        ],
+        "median_ms": 4.261836469173431
+      },
+      "stage_one": {
+        "mode": "L1",
+        "loop": 0
+      }
+    }
+  },
+  {
+    "cell": "qwen3_B16",
+    "requested": {
+      "mode": "auto",
+      "decode_loop": "auto",
+      "prefill_mode": "auto"
+    },
+    "binaries": {
+      "prefill": {
+        "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so",
+        "sha256": "d329743fb61613ffd3955a854908c889e96ed677835c80d851b1db27c8551651"
+      },
+      "decode": {
+        "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so",
+        "sha256": "fd34c9142d458c882aec0b53deeac9499f150103c7c11f294d59a5b4cef10fff"
+      }
+    },
+    "pg": "pages",
+    "kappa": 1,
+    "Ec": 256,
+    "Rq": 2,
+    "pages": {
+      "activation_bytes": 16384,
+      "lookahead_bytes": 65536,
+      "page_bytes": 16384,
+      "pages": 5,
+      "pool_offset": 17408,
+      "scratch_bytes": 8256,
+      "shared_bytes": 99328,
+      "threads": 160,
+      "workspace_offset": 256
+    },
+    "effective_execution": {
+      "decode_mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "selection": {
+        "pg": "pages",
+        "mode": "L1",
+        "loop": 0,
+        "library": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so",
+        "samples_ms": [
+          5.469241015613079,
+          5.447508983314037,
+          5.466935507953167
+        ],
+        "median_ms": 5.466935507953167
+      },
+      "stage_one": {
+        "mode": "L1",
+        "loop": 0
+      }
+    }
+  }
+]

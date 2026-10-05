@@ -4,7 +4,7 @@ import json, statistics, re
 from collections import defaultdict
 from pathlib import Path
 from analyze import trace_cell
-from ledger import read, write
+from ledger import read, write, stage_semantics
 from page_chain import pages, chain
 from cm_report import collect
 
@@ -32,11 +32,10 @@ def main():
     write(OUT/'T4.tsv',rows)
     write(OUT/'T4_top_excess.tsv',sorted(rows,key=lambda r:r['excess_ns_measured'],reverse=True)[:10])
     groups=defaultdict(list)
+    semantic={folder:stage_semantics(folder) for folder in {row['source'] for row in rows}}
     for row in rows:
-        layer=re.search(r'l(\d+)\.',row.get('name',''))
-        kind=next((k for k in ('qkv','gate_up','down','lm_head','o')
-                   if re.search(r'(?:^|[.])'+k+r'(?:[.]|$)',row.get('name',''))),row['kind'])
-        groups[(row['cell'],row['source'],row['past'],row['iteration'],kind,layer.group(1) if layer else '')].append(row)
+        meta=semantic[row['source']][int(row['stage'])]
+        groups[(row['cell'],row['source'],row['past'],row['iteration'],meta['semantic_kind'],meta['layer'])].append(row)
     aggregate=[]
     for key,values in groups.items():
         row=dict(zip(('cell','source','past','iteration','kind','layer'),key))

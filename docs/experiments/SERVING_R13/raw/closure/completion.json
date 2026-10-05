@@ -1,0 +1,18 @@
+{
+  "status": "closed_with_declared_limitations",
+  "scheduler_counts": {
+    "done": 188,
+    "failed": 10,
+    "not_run": 5
+  },
+  "original_measurement_rounds": 12,
+  "optional_rerun_steps_cancelled": 5,
+  "default_choices": {
+    "llama_B1": "R13F",
+    "llama_B16": "B0-D",
+    "qwen3_B1": "R13F",
+    "qwen3_B16": "R13F"
+  },
+  "device_code_changed": false,
+  "additional_gpu_tests": false
+}

@@ -4,8 +4,22 @@ from anchor import loop_required,replay_vllm_record
 from ptx_pdl_check import late_trigger_has_publication
 from compare_kernels import resources
 from analyze import trace_cell
+from ledger import stage_semantics
 
 class ReviewTests(unittest.TestCase):
+    def test_cancelled_queue_format(self):
+        queue=json.loads(Path(__file__).with_name('queue_final_review.json').read_text())
+        self.assertIsInstance(queue,list)
+        self.assertEqual(sum(row['gpu'] for row in queue),2)
+        self.assertEqual(len({row['name'] for row in queue}),len(queue))
+    def test_stage_roles_and_layer_from_runtime_names(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp,'runtime_stages.tsv').write_text('stage\tkind_name\tname\n1\tkGemm\tl3.qkv.weight.dn\n2\tkFusedAttention\t\n3\tkGemm\tmodel.layers.3.self_attn.o_proj.weight\n4\tkGemm\tmodel.layers.3.mlp.down_proj.weight\n5\tkGemm\tlm_head.weight.dn\n')
+            stages=stage_semantics(tmp)
+            self.assertEqual(stages[2]['layer'],'3')
+            self.assertEqual(stages[3]['semantic_kind'],'o')
+            self.assertEqual(stages[4]['semantic_kind'],'down')
+            self.assertEqual(stages[5]['layer'],'')
     def test_batch_boundary_in_trace_paths(self):
         self.assertEqual(trace_cell('/raw/B1_qwen3_B16/P/trace'), 'qwen3_B16')
         self.assertEqual(trace_cell('/raw/B1_llama_B1/P/trace'), 'llama_B1')

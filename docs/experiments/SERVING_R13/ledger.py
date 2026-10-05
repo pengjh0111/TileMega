@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Stage and boundary accounting from runtime tables, never inferred elision."""
-import argparse,csv,json,statistics
+import argparse,csv,json,statistics,re
 from pathlib import Path
 def read(p):
     with Path(p).open() as stream:return list(csv.DictReader(stream,delimiter='\t'))
@@ -10,6 +10,20 @@ def write(p,rows):
     with p.open('w') as f:
         w=csv.DictWriter(f,fieldnames=fields or ['status'],delimiter='\t',lineterminator='\n');w.writeheader()
         w.writerows(rows or [dict(status='not_collected')])
+def stage_semantics(folder):
+    result={};layer=''
+    for row in read(Path(folder)/'runtime_stages.tsv'):
+        name=row.get('name','');kind=row['kind_name']
+        match=re.search(r'(?:^|\.)l(\d+)\.|model\.layers\.(\d+)\.',name)
+        if match:layer=next(v for v in match.groups() if v is not None)
+        semantic=kind
+        if kind=='kGemm':
+            semantic=next((label for token,label in (('qkv','qkv'),('o_proj','o'),
+                          ('gate_up','gate_up'),('down_proj','down'),('lm_head','lm_head'))
+                          if token in name),kind)
+        stage_layer=layer if kind in ('kGemm','kGemmCombine','kFusedAttention','kAttentionMerge') and semantic!='lm_head' else ''
+        result[int(row['stage'])]=dict(semantic_kind=semantic,layer=stage_layer)
+    return result
 def stages(folder,batch,ceilings):
     folder=Path(folder);meta={int(r['stage']):r for r in read(folder/'runtime_stages.tsv')}
     launches={}

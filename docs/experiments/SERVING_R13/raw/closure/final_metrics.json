@@ -1,0 +1,61 @@
+{
+  "cells": [
+    {
+      "cell": "llama_B1",
+      "choice": "R13F",
+      "ttft_ms": 4.164900863543153,
+      "tpot_ms": 2.8194481252491443,
+      "tpot_p50_ms": 2.802687883377075,
+      "tpot_p90_ms": 2.825216054916382,
+      "e2e_s": 2.888438777066767,
+      "tokens_per_second": 354.5167749893873,
+      "tm_vllm": 1.0832963210104707,
+      "ratio_range": 0.042602569245818955,
+      "ratio_without_flagged": 1.0812876446291524,
+      "e2e_sum_floor_884_5": 1.001843257911449
+    },
+    {
+      "cell": "llama_B16",
+      "choice": "B0-D",
+      "ttft_ms": 21.663068095222116,
+      "tpot_ms": 3.1801635854197476,
+      "tpot_p50_ms": 3.1773440837860107,
+      "tpot_p90_ms": 3.3680896282196042,
+      "e2e_s": 3.274950730847195,
+      "tokens_per_second": 5002.823354158258,
+      "tm_vllm": 1.1615537648505303,
+      "ratio_range": 0.020904007914719136,
+      "ratio_without_flagged": 1.1615537648505303,
+      "e2e_sum_floor_884_5": 1.0171084828593966
+    },
+    {
+      "cell": "qwen3_B1",
+      "choice": "R13F",
+      "ttft_ms": 6.161144934594631,
+      "tpot_ms": 4.156468046022504,
+      "tpot_p50_ms": 4.156415939331055,
+      "tpot_p90_ms": 4.171775817871094,
+      "e2e_s": 4.258227956015617,
+      "tokens_per_second": 240.4756181625718,
+      "tm_vllm": 1.0607217396133406,
+      "ratio_range": 0.0013343889433197198,
+      "ratio_without_flagged": 1.0607217396133406,
+      "e2e_sum_floor_884_5": 1.048819226446029
+    },
+    {
+      "cell": "qwen3_B16",
+      "choice": "R13F",
+      "ttft_ms": 32.65805193223059,
+      "tpot_ms": 5.413398835789831,
+      "tpot_p50_ms": 5.352543830871582,
+      "tpot_p90_ms": 6.383615970611572,
+      "e2e_s": 5.570565060945228,
+      "tokens_per_second": 2941.173798483546,
+      "tm_vllm": 1.1068634033506783,
+      "ratio_range": 0.26206801953597236,
+      "ratio_without_flagged": 1.1062300808886538,
+      "e2e_sum_floor_884_5": 1.0672315805505432
+    }
+  ],
+  "canary_policy": "retain all three original rounds; user cancelled optional repeats; sensitivity is CPU-only"
+}

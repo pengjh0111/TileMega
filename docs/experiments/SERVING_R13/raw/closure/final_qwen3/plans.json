@@ -1,0 +1,221 @@
+{
+  "1": {
+    "prefill": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so",
+    "decode": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so",
+    "selection": {
+      "prefill": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so",
+      "decode": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so",
+      "mode": "auto",
+      "decode_loop": "auto",
+      "prefill_mode": "auto",
+      "binaries": {
+        "prefill": {
+          "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so",
+          "exists": true,
+          "sha256": "506e81df7491d7de52cd978da30b92800a125731cb0e3a8f07189e261f8d8388",
+          "manifest": {
+            "model": "qwen3",
+            "phase": "prefill",
+            "pg": "l2",
+            "sync": "calibrated",
+            "watchdog": 0,
+            "kappa": 1,
+            "residency": 1,
+            "grid": 128,
+            "pages": null,
+            "attention_kv_block": 1088,
+            "attention_query_rows": 16,
+            "geometry_modes": [
+              [
+                16,
+                256,
+                64,
+                2,
+                1
+              ],
+              [
+                64,
+                32,
+                64,
+                4,
+                1
+              ],
+              [
+                64,
+                32,
+                64,
+                4,
+                2
+              ],
+              [
+                64,
+                32,
+                128,
+                2,
+                1
+              ],
+              [
+                64,
+                128,
+                64,
+                4,
+                1
+              ]
+            ]
+          },
+          "target": "/root/.cache/tilemega/targets/NVIDIA-GeForce-RTX-4090-sm89-128-drv13.json",
+          "record": {},
+          "compiler_commit": "unknown (original build record does not supply this field)",
+          "source_sha256": "unknown (original build record does not supply this field)"
+        },
+        "decode": {
+          "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so",
+          "exists": true,
+          "sha256": "693e04b15e3217b3ff9f0db19c8545ce30ebb4f78278530f49883bdeccb117bc",
+          "manifest": {
+            "model": "qwen3",
+            "phase": "decode",
+            "pg": "pages",
+            "sync": "calibrated",
+            "watchdog": 0,
+            "kappa": 1,
+            "residency": 1,
+            "grid": 128,
+            "pages": {
+              "activation_bytes": 16384,
+              "lookahead_bytes": 65536,
+              "page_bytes": 16384,
+              "pages": 5,
+              "pool_offset": 17408,
+              "scratch_bytes": 8256,
+              "shared_bytes": 99328,
+              "threads": 160,
+              "workspace_offset": 256
+            },
+            "attention_kv_block": 256,
+            "attention_query_rows": 2,
+            "geometry_modes": [
+              [
+                16,
+                32,
+                128,
+                2,
+                1
+              ],
+              [
+                16,
+                128,
+                64,
+                2,
+                1
+              ]
+            ]
+          },
+          "target": "/root/.cache/tilemega/targets/NVIDIA-GeForce-RTX-4090-sm89-128-drv13.json",
+          "record": {},
+          "compiler_commit": "unknown (original build record does not supply this field)",
+          "source_sha256": "unknown (original build record does not supply this field)"
+        }
+      }
+    }
+  },
+  "16": {
+    "prefill": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so",
+    "decode": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so",
+    "selection": {
+      "prefill": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so",
+      "decode": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so",
+      "mode": "auto",
+      "decode_loop": "auto",
+      "prefill_mode": "auto",
+      "binaries": {
+        "prefill": {
+          "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so",
+          "exists": true,
+          "sha256": "d329743fb61613ffd3955a854908c889e96ed677835c80d851b1db27c8551651",
+          "manifest": {
+            "model": "qwen3",
+            "phase": "prefill",
+            "pg": "l2",
+            "sync": "calibrated",
+            "watchdog": 0,
+            "kappa": 1,
+            "residency": 1,
+            "grid": 128,
+            "pages": null,
+            "attention_kv_block": 1088,
+            "attention_query_rows": 128,
+            "geometry_modes": [
+              [
+                16,
+                256,
+                64,
+                2,
+                1
+              ],
+              [
+                128,
+                128,
+                64,
+                2,
+                1
+              ]
+            ]
+          },
+          "target": "/root/.cache/tilemega/targets/NVIDIA-GeForce-RTX-4090-sm89-128-drv13.json",
+          "record": {},
+          "compiler_commit": "unknown (original build record does not supply this field)",
+          "source_sha256": "unknown (original build record does not supply this field)"
+        },
+        "decode": {
+          "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so",
+          "exists": true,
+          "sha256": "fd34c9142d458c882aec0b53deeac9499f150103c7c11f294d59a5b4cef10fff",
+          "manifest": {
+            "model": "qwen3",
+            "phase": "decode",
+            "pg": "pages",
+            "sync": "calibrated",
+            "watchdog": 0,
+            "kappa": 1,
+            "residency": 1,
+            "grid": 128,
+            "pages": {
+              "activation_bytes": 16384,
+              "lookahead_bytes": 65536,
+              "page_bytes": 16384,
+              "pages": 5,
+              "pool_offset": 17408,
+              "scratch_bytes": 8256,
+              "shared_bytes": 99328,
+              "threads": 160,
+              "workspace_offset": 256
+            },
+            "attention_kv_block": 256,
+            "attention_query_rows": 2,
+            "geometry_modes": [
+              [
+                16,
+                32,
+                128,
+                2,
+                1
+              ],
+              [
+                16,
+                128,
+                64,
+                2,
+                1
+              ]
+            ]
+          },
+          "target": "/root/.cache/tilemega/targets/NVIDIA-GeForce-RTX-4090-sm89-128-drv13.json",
+          "record": {},
+          "compiler_commit": "unknown (original build record does not supply this field)",
+          "source_sha256": "unknown (original build record does not supply this field)"
+        }
+      }
+    }
+  }
+}
