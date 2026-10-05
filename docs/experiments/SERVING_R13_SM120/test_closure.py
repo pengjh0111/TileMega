@@ -16,6 +16,8 @@ class ClosureTests(unittest.TestCase):
         self.assertEqual(report['unavailable_records'],294)
         self.assertTrue(report['all_eligible_collected'])
         self.assertFalse(closure.coverage(rows[:2],{key})['all_eligible_collected'])
+        rows[-1]['round']=0
+        self.assertFalse(closure.coverage(rows,{key})['all_eligible_collected'])
 
     def test_unavailable_measurement_cannot_be_promoted(self):
         row=dict(matrix='E4a',cell='llama_B1',arm='R13F',round=0)

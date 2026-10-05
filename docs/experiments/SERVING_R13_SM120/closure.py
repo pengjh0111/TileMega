@@ -20,12 +20,14 @@ REPAIRS = ('llama_B1', 'qwen3_B1')
 
 def coverage(rows, available):
     counts = Counter((row['matrix'], row['cell'], row['arm']) for row in rows)
+    rounds = defaultdict(list)
+    for row in rows:rounds[row['matrix'],row['cell'],row['arm']].append(row['round'])
     expected = {(matrix, cell, arm) for matrix, arms in MATRICES.items()
                 for cell in CELLS for arm in arms
                 if not (cell == 'qwen3_B16' and arm == 'B0h')}
     eligible = expected & set(available)
-    errors = [dict(key=key, records=counts[key], expected=3) for key in sorted(eligible)
-              if counts[key] != 3]
+    errors = [dict(key=key, records=counts[key], rounds=rounds[key], expected=[0,1,2])
+              for key in sorted(eligible) if sorted(rounds[key]) != [0,1,2]]
     errors += [dict(key=key, records=value, error='unregistered/ineligible measurement')
                for key, value in counts.items() if key not in eligible]
     return dict(expected_records=len(expected)*3, eligible_records=len(eligible)*3,
@@ -89,7 +91,7 @@ def audit():
               unique_pids=len(set(pids)), all_exit_zero=all(row.get('exit_code')==0 for row in records),
               actual_pids=pids, unavailable_not_a_pass=not status.get('complete',False))
         if status.get('complete') and (len(pids)!=50 or len(set(pids))!=50 or
-                                       not all(row.get('passed') for row in records)):
+                    sum(bool(row.get('passed')) for row in records)!=status.get('passed')):
             result['errors'].append(dict(group=group,error='fresh-process evidence disagrees with status'))
     canonical = []
     for matrix in MATRICES:
@@ -103,6 +105,9 @@ def audit():
     nonself = [row for row in c2 if row['label']!=row['reference']]
     cluster = [row for row in read(HERE/'raw/E2a_MB-1d_r3/loadbench.json')['points']
                if row['suite']=='MB-1d-cluster']
+    replacements=read(FOLDER/'trace_replacements.json',{})
+    trace_pending=any(key not in replacements or read(replacements[key]['guard'],{}).get('code')!=0
+                      for key in (f'{stage}:{cell}' for stage in ('E5a','E5c') for cell in REPAIRS))
     result.update(time=time.time(), canonical_rounds=canonical, protocols=protocols,
           global_protocol_unique_pids=len(set(all_pids)), global_protocol_count=len(all_pids),
           C2=dict(recorded=len(c2),passed=sum(bool(row['pass_']) for row in c2),
@@ -112,7 +117,7 @@ def audit():
                        reason='170 foreground CTAs / 85 with background do not divide by most cluster sizes',
                        fresh_process_sync_claim=False),
           final_full_protocol_pass=False, human_final_report_pending=True,
-          trace_correction_pending=not (FOLDER/'trace_replacements.json').exists(),
+          trace_correction_pending=trace_pending,
           limitations=['B16 paged and all R13F plans unavailable after negative traffic rejection',
                        'paged/FX21 fresh-process groups unavailable',
                        'B0h Llama B1 HF check fails unchanged reference thresholds',
