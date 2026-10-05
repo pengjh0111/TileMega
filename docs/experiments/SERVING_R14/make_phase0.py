@@ -37,8 +37,9 @@ def main():
              env={},binaries={'prefill':{'sha256':sha(selected['prefill'])}}))
     write(HERE/'phase0_builds.json',jobs);write(HERE/'phase0_arms.json',{'qwen3_B16':arms})
     env={'PYTHONPATH':str(ROOT/'python'),'TILEMEGA_BIN':str(ROOT/'build-phase12/tools/tilemega')}
-    steps=[dict(name='P0_build',gpu=False,priority=1,cwd=str(ROOT),env=env,timeout_s=7200,
-        command=['flock','/root/r14_work/gpu.lock',PYTHON,str(HERE/'builds_r14.py'),'--jobs',str(HERE/'phase0_builds.json'),
+    steps=[dict(name='P0_correctness',gpu=False,priority=0,cwd=str(ROOT),env=env,timeout_s=5500,
+        command=[sys.executable,str(HERE/'await_phase0.py'),'--timeout-s','5400']),dict(name='P0_build',gpu=False,priority=1,cwd=str(ROOT),env=env,timeout_s=7200,
+        after=['P0_correctness'],command=['flock','/root/r14_work/gpu.lock',PYTHON,str(HERE/'builds_r14.py'),'--jobs',str(HERE/'phase0_builds.json'),
                  '--out',str(HERE/'raw/P0_build/results.json')])]
     steps.append(dict(name='P0_smoke',gpu=True,priority=2,cwd=str(ROOT),env=env,timeout_s=900,needs_free_mib=12288,after=['P0_build'],
         command=[PYTHON,'-m','tilemega.serving.smoke','--so',str(base/'plan.so'),'--model',config['model']['path'],'--batch','16',

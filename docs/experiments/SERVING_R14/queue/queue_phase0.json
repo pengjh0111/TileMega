@@ -1,5 +1,22 @@
 [
   {
+    "name": "P0_correctness",
+    "gpu": false,
+    "priority": 0,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega"
+    },
+    "timeout_s": 5500,
+    "command": [
+      "/usr/bin/python3",
+      "/root/TileMega/docs/experiments/SERVING_R14/await_phase0.py",
+      "--timeout-s",
+      "5400"
+    ]
+  },
+  {
     "name": "P0_build",
     "gpu": false,
     "priority": 1,
@@ -9,6 +26,9 @@
       "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega"
     },
     "timeout_s": 7200,
+    "after": [
+      "P0_correctness"
+    ],
     "command": [
       "flock",
       "/root/r14_work/gpu.lock",
