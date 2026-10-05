@@ -1,0 +1,158 @@
+[
+  {
+    "name": "P0_build",
+    "gpu": false,
+    "priority": 1,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega"
+    },
+    "timeout_s": 7200,
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/builds_r14.py",
+      "--jobs",
+      "/root/TileMega/docs/experiments/SERVING_R14/phase0_builds.json",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/P0_build/results.json"
+    ]
+  },
+  {
+    "name": "P0_smoke",
+    "gpu": true,
+    "priority": 2,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega"
+    },
+    "timeout_s": 900,
+    "needs_free_mib": 12288,
+    "after": [
+      "P0_build"
+    ],
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "-m",
+      "tilemega.serving.smoke",
+      "--so",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/P0_build/qwen3_B16/base/plan.so",
+      "--model",
+      "/root/models/qwen3_1_7b",
+      "--batch",
+      "16",
+      "--steps",
+      "64",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/P0_smoke"
+    ]
+  },
+  {
+    "name": "P0_trace_round0",
+    "gpu": true,
+    "priority": 3,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega"
+    },
+    "timeout_s": 3600,
+    "needs_free_mib": 12288,
+    "after": [
+      "P0_smoke"
+    ],
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/phase0_arms.json",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/P0_trace_round0"
+    ]
+  },
+  {
+    "name": "P0_trace_round1",
+    "gpu": true,
+    "priority": 3,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega"
+    },
+    "timeout_s": 3600,
+    "needs_free_mib": 12288,
+    "after": [
+      "P0_smoke"
+    ],
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/phase0_arms.json",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/P0_trace_round1"
+    ]
+  },
+  {
+    "name": "P0_trace_round2",
+    "gpu": true,
+    "priority": 3,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega"
+    },
+    "timeout_s": 3600,
+    "needs_free_mib": 12288,
+    "after": [
+      "P0_smoke"
+    ],
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/phase0_arms.json",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/P0_trace_round2"
+    ]
+  },
+  {
+    "name": "P0_trace_analyze",
+    "gpu": false,
+    "priority": 4,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega"
+    },
+    "timeout_s": 300,
+    "after": [
+      "P0_trace_round0",
+      "P0_trace_round1",
+      "P0_trace_round2"
+    ],
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/ledger_r14.py",
+      "--diagnostic-root",
+      "/root/TileMega/docs/experiments/SERVING_R14",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/results/T2_diagnostic.json"
+    ]
+  }
+]

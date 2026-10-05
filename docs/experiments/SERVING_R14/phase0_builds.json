@@ -1,0 +1,60 @@
+[
+  {
+    "cell": "qwen3_B16",
+    "batch": 16,
+    "label": "base",
+    "manifest": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.plan.json",
+    "classes": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 1,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 1,
+      "paged_la_splitk": 1,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/P0_build/qwen3_B16/base"
+  },
+  {
+    "label": "timer_only",
+    "cell": "qwen3_B16",
+    "base_so": "/root/TileMega/docs/experiments/SERVING_R14/raw/P0_build/qwen3_B16/base/plan.so",
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/P0_build/qwen3_B16/timer_only",
+    "defines": {
+      "TILEMEGA_TRACE_STAGE": 1,
+      "TILEMEGA_TRACE_STEP": 0,
+      "TILEMEGA_TRACE_STAGE_DIAGNOSTIC": 1
+    }
+  },
+  {
+    "label": "stores_only",
+    "cell": "qwen3_B16",
+    "base_so": "/root/TileMega/docs/experiments/SERVING_R14/raw/P0_build/qwen3_B16/base/plan.so",
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/P0_build/qwen3_B16/stores_only",
+    "defines": {
+      "TILEMEGA_TRACE_STAGE": 1,
+      "TILEMEGA_TRACE_STEP": 0,
+      "TILEMEGA_TRACE_STAGE_DIAGNOSTIC": 2
+    }
+  },
+  {
+    "label": "full_trace",
+    "cell": "qwen3_B16",
+    "base_so": "/root/TileMega/docs/experiments/SERVING_R14/raw/P0_build/qwen3_B16/base/plan.so",
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/P0_build/qwen3_B16/full_trace",
+    "defines": {
+      "TILEMEGA_TRACE_STAGE": 1,
+      "TILEMEGA_TRACE_STEP": 0,
+      "TILEMEGA_TRACE_STAGE_DIAGNOSTIC": 3
+    }
+  }
+]

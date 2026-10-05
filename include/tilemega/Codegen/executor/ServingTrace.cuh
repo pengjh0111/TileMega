@@ -2,7 +2,19 @@
 #pragma once
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 
+#ifndef TILEMEGA_TRACE_STAGE_DIAGNOSTIC
+#define TILEMEGA_TRACE_STAGE_DIAGNOSTIC 0
+#endif
+// 1: timer/SMID reads only; 2: record stores only; 0/3: original full trace.
+static_assert(TILEMEGA_TRACE_STAGE_DIAGNOSTIC>=0 && TILEMEGA_TRACE_STAGE_DIAGNOSTIC<=3);
 namespace tilemega::codegen::executor {
+__device__ inline unsigned long long StageStamp() {
+#if TILEMEGA_TRACE_STAGE_DIAGNOSTIC==2
+  return 1;
+#else
+  unsigned long long t;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(t));return t;
+#endif
+}
 // All fields and instrumentation disappear in an ordinary build. No extra
 // synchronization is introduced: completion stamps use existing barriers.
 __device__ inline unsigned long long ServingTraceNow() {
@@ -65,8 +77,14 @@ __device__ inline void StageBegin(Params const& p,unsigned stage,
   if(threadIdx.x==0 && p.serving_stage_trace && p.serving_trace_launches) {
     auto& r=p.serving_stage_trace[(iteration%p.serving_trace_launches)*p.stage_count*gridDim.x+
                                  stage*gridDim.x+blockIdx.x];
-    unsigned sm;asm volatile("mov.u32 %0, %%smid;":"=r"(sm));
-    r={iteration,static_cast<unsigned long long>(p.dims.past),ServingTraceNow(),0,0,tasks,sm,stage};
+    unsigned sm=0;
+#if TILEMEGA_TRACE_STAGE_DIAGNOSTIC!=2
+    asm volatile("mov.u32 %0, %%smid;":"=r"(sm));
+#endif
+    auto stamp=StageStamp();
+#if TILEMEGA_TRACE_STAGE_DIAGNOSTIC!=1
+    r={iteration,static_cast<unsigned long long>(p.dims.past),stamp,0,0,tasks,sm,stage};
+#endif
   }
 #endif
 }
@@ -78,16 +96,26 @@ __device__ inline void StageTasksEnd(Params const* p,unsigned stage,
 #endif
 #if TILEMEGA_TRACE_STAGE
   if(p && threadIdx.x==0 && p->serving_stage_trace && p->serving_trace_launches)
-    p->serving_stage_trace[(iteration%p->serving_trace_launches)*p->stage_count*gridDim.x+
-                          stage*gridDim.x+blockIdx.x].t_tasks_end=ServingTraceNow();
+    {
+      auto stamp=StageStamp();
+#if TILEMEGA_TRACE_STAGE_DIAGNOSTIC!=1
+      p->serving_stage_trace[(iteration%p->serving_trace_launches)*p->stage_count*gridDim.x+
+                            stage*gridDim.x+blockIdx.x].t_tasks_end=stamp;
+#endif
+    }
 #endif
 }
 __device__ inline void StageRelease(Params const& p,unsigned stage,
     unsigned long long iteration) {
 #if TILEMEGA_TRACE_STAGE
   if(threadIdx.x==0 && p.serving_stage_trace && p.serving_trace_launches)
-    p.serving_stage_trace[(iteration%p.serving_trace_launches)*p.stage_count*gridDim.x+
-                         stage*gridDim.x+blockIdx.x].t_release=ServingTraceNow();
+    {
+      auto stamp=StageStamp();
+#if TILEMEGA_TRACE_STAGE_DIAGNOSTIC!=1
+      p.serving_stage_trace[(iteration%p.serving_trace_launches)*p.stage_count*gridDim.x+
+                           stage*gridDim.x+blockIdx.x].t_release=stamp;
+#endif
+    }
 #endif
 }
 } // namespace tilemega::codegen::executor
