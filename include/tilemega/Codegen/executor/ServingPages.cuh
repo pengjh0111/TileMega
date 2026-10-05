@@ -199,6 +199,10 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
     static_assert(TILEMEGA_PAGE_POOL_OFFSET-TILEMEGA_PAGE_WORKSPACE_OFFSET>=Body::kActivationBytes);
     static_assert(TILEMEGA_PAGE_POOL_OFFSET-TILEMEGA_PAGE_WORKSPACE_OFFSET>=Body::kScratchBytes);
     auto operands=Operands(inv);
+#if TILEMEGA_TRACE_TASK
+    operands.profile=ring.profile;
+    if(operands.profile)operands.profile->bytes=2ull*min(V::kTileN,operands.n-(local%inv.tiles_n)*V::kTileN)*operands.k_count;
+#endif
     if(params.serving_tensor_maps) {
       operands.tensor_map=static_cast<executor::TensorMap const*>(params.serving_tensor_maps)+inv.serving_weight_buffer;
       operands.tensor_k_begin=inv.serving_k_begin;
@@ -305,13 +309,20 @@ __device__ inline void TraceReducer(Params const& p,unsigned reducer,unsigned re
 #endif
 }
 template<bool Loader,bool L2>
-__device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& ring,
+__device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& input_ring,
                      std::uint64_t& sequence,char* work,EventCounter* events,
                      unsigned long long iteration,
                      unsigned long long* step_ns=nullptr,unsigned step=0,
                      Lookahead const* lookahead=nullptr) {
   auto const& s=p.stages[stage_index];using E=cutlass::bfloat16_t;
   if(s.handoff_elided)return;
+#if TILEMEGA_TRACE_TASK
+  executor::ProfileScope profile{!Loader && (s.kind==TaskKind::kGemm || s.kind==TaskKind::kFusedAttention)
+      ?executor::BeginProfile(p,stage_index,task,iteration):nullptr};
+  Ring ring=input_ring;ring.profile=profile.row;
+#else
+  auto const& ring=input_ring;
+#endif
   if constexpr(Loader)if(lookahead)(*lookahead)(0);
   if constexpr(!Loader && L2)if(s.kind==TaskKind::kEmbedding && iteration) {
 #if TILEMEGA_TRACE_STEP
@@ -408,8 +419,14 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
     }
     else {
       auto operands=AttentionOperands(p,s);
+#if TILEMEGA_TRACE_TASK
+      operands.profile=profile.row;
+#endif
       Attention::Run(operands,point.batch,point.group,point.cache_block,ring,sequence,
                      *reinterpret_cast<Attention::SharedStorage*>(work));
+#if TILEMEGA_TRACE_TASK
+      auto la_begin=TaskProfileNow(profile.row);
+#endif
       if(s.handoff_reduce_stage!=kNoOperand) {
         auto* ticket=p.serving_handoff_tickets+
             stage_index*p.serving_handoff_ticket_stride+
@@ -426,6 +443,9 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
           TraceReducer(p,s.handoff_reduce_stage,rt,stage_index,task);
         }
       }
+#if TILEMEGA_TRACE_TASK
+      if(profile.row)profile.row->la_ns=TaskProfileNow(profile.row)-la_begin;
+#endif
     }
     return;
   }
@@ -498,9 +518,9 @@ __device__ inline void StageBarrier(EventCounter* events,unsigned stage,unsigned
                                     Watch const* watch=nullptr,Params const* params=nullptr) {
 #if TILEMEGA_SYNC_V3
   ComputeSync();
-  executor::StageTasksEnd(params,stage,iteration);
   if(ComputeThread()==0) {
     RedRelease(&events[stage].arrivals,1ull);
+    executor::StageTasksEnd(params,stage,iteration);
     Watch here=watch?*watch:Watch{};here.site=9;here.row=stage;
     WaitAtLeast(&events[stage].arrivals,
                 static_cast<unsigned long long>(gridDim.x)*(iteration+1),here);

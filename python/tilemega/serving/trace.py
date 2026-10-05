@@ -16,6 +16,8 @@ from .measure import _exclusive
 def serving_trace(args):
     """Launch-local stamps; every past uses a fresh instance and fresh counters."""
     reports = []
+    if args.task and args.mode != "L1":
+        raise ValueError("sampled task profiles currently require L1 stage epochs")
     os.environ["TILEMEGA_TRACE_LAUNCHES"] = str(max(64, args.launches * args.steps))
     for past in ([int(v) for v in args.past_list.split(",")] if args.past_list else [args.past]):
         out = args.out / f"past{past}"
@@ -74,13 +76,14 @@ def main() -> None:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--stage", action="store_true")
     parser.add_argument("--step", action="store_true")
+    parser.add_argument("--task", action="store_true")
     parser.add_argument("--past-list")
     parser.add_argument("--mode", choices=("L1", "L2"), default="L2")
     parser.add_argument("--decode-loop", type=int, choices=(0, 1), default=0)
     parser.add_argument("--steps", type=int, default=1)
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    if args.stage or args.step:
+    if args.stage or args.step or args.task:
         serving_trace(args)
         return
     os.environ["TILEMEGA_TRACE_V2"] = "1"

@@ -16,6 +16,9 @@ struct PageRing {
   char* data;
   PageTraceRecord* trace = nullptr;
   Watch* watch = nullptr;
+#if TILEMEGA_TRACE_TASK
+  ServingTaskProfile* profile=nullptr;
+#endif
 
   __device__ unsigned* SharedLastFlag() const {
     return reinterpret_cast<unsigned*>(slots + Pages);

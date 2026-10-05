@@ -17,6 +17,7 @@
 #include <cutlass/bfloat16.h>
 
 #include <cstdint>
+#include <tilemega/Codegen/tasks/ServingTaskProfile.h>
 
 namespace tilemega::codegen {
 
@@ -762,7 +763,13 @@ struct Params {
 #if TILEMEGA_TRACE_STEP
   StepTraceRecord* serving_step_trace=nullptr;
 #endif
-#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
+#if TILEMEGA_TRACE_TASK
+  ServingTaskProfile* serving_task_profile=nullptr;
+  unsigned* serving_task_offsets=nullptr;
+  unsigned serving_task_stride=0;
+  unsigned long long* serving_task_epoch=nullptr;
+#endif
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_TASK
   unsigned serving_trace_launches=0;
 #endif
 };

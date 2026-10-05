@@ -42,13 +42,19 @@ struct Plan {
   executor::TensorMap* tensor_maps = nullptr;
   LagDependency* lag_dependencies = nullptr;
   PageTraceRecord* page_trace = nullptr;
+#if TILEMEGA_TRACE_TASK
+  ServingTaskProfile* task_profile=nullptr;
+  unsigned* task_offsets=nullptr;
+  unsigned long long* task_epoch=nullptr;
+  unsigned task_stride=0;
+#endif
 #if TILEMEGA_TRACE_STAGE
   StageTraceRecord* stage_trace=nullptr;
 #endif
 #if TILEMEGA_TRACE_STEP
   StepTraceRecord* step_trace=nullptr;
 #endif
-#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_TASK
   unsigned trace_launches=0;
 #endif
   WatchdogRecord* watchdog = nullptr;
@@ -174,6 +180,11 @@ inline void Destroy(Plan* plan) {
     }
     cudaFree(plan->page_trace);
   }
+#if TILEMEGA_TRACE_TASK
+  if(plan->task_profile)cudaFree(plan->task_profile);
+  if(plan->task_offsets)cudaFree(plan->task_offsets);
+  if(plan->task_epoch)cudaFree(plan->task_epoch);
+#endif
 #if TILEMEGA_TRACE_STAGE
   if(plan->stage_trace)cudaFree(plan->stage_trace);
 #endif
@@ -399,7 +410,7 @@ extern "C" int tm_plan_set_steps(void* opaque,
   auto* plan = static_cast<serving::Plan*>(opaque);
   if (!plan || !past || !count || plan->ring) return -1;
   std::vector<Params> host(count, plan->model.params);
-#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_TASK
   auto capacity_env=std::getenv("TILEMEGA_TRACE_LAUNCHES");
   plan->trace_launches=capacity_env?unsigned(std::strtoul(capacity_env,nullptr,10)):64;
   if(!plan->trace_launches || plan->trace_launches>4096)return -7;
@@ -415,6 +426,22 @@ extern "C" int tm_plan_set_steps(void* opaque,
   if(cudaMalloc(&plan->step_trace,step_bytes)!=cudaSuccess)return -5;
   if(cudaMemset(plan->step_trace,0,step_bytes)!=cudaSuccess)return -6;
   for(auto& p:host)p.serving_step_trace=plan->step_trace;
+#endif
+#if TILEMEGA_TRACE_TASK
+  std::vector<unsigned> offsets(plan->model.stages.size()+1);
+  for(auto const& task:plan->model.schedule)
+    offsets[task.stage+1]=std::max(offsets[task.stage+1],task.logical_task+1);
+  for(unsigned i=1;i<offsets.size();++i)offsets[i]+=offsets[i-1];
+  plan->task_stride=offsets.back();
+  std::size_t profile_bytes=std::size_t(plan->trace_launches)*plan->task_stride*sizeof(ServingTaskProfile);
+  if(cudaMalloc(&plan->task_profile,profile_bytes)!=cudaSuccess ||
+     cudaMalloc(&plan->task_offsets,offsets.size()*sizeof(unsigned))!=cudaSuccess ||
+     cudaMalloc(&plan->task_epoch,plan->grid*sizeof(unsigned long long))!=cudaSuccess)return -5;
+  if(cudaMemset(plan->task_profile,0,profile_bytes)!=cudaSuccess ||
+     cudaMemset(plan->task_epoch,0,plan->grid*sizeof(unsigned long long))!=cudaSuccess ||
+     cudaMemcpy(plan->task_offsets,offsets.data(),offsets.size()*sizeof(unsigned),cudaMemcpyHostToDevice)!=cudaSuccess)return -6;
+  for(auto& p:host){p.serving_task_profile=plan->task_profile;p.serving_task_offsets=plan->task_offsets;
+    p.serving_task_stride=plan->task_stride;p.serving_task_epoch=plan->task_epoch;}
 #endif
   for(auto& p:host)p.serving_trace_launches=plan->trace_launches;
 #endif
@@ -542,7 +569,7 @@ extern "C" int tm_plan_watchdog(void* opaque,std::uint64_t out[12]) {
 #endif
 }
 
-#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_TASK
 extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
   using namespace tilemega::codegen;
   auto* plan=static_cast<serving::Plan*>(opaque);
@@ -574,6 +601,21 @@ extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
 #if TILEMEGA_TRACE_STEP
   if(!dump("step_trace.tsv",plan->step_trace,std::size_t(plan->trace_launches)*plan->grid,
       "worker\titeration\tpast\tkernel_begin\tkernel_end\tfirst_task\tlast_task\ttoken_lag\tkv_lag\tlast_barrier_wait\tstage_has_tasks"))return -2;
+#endif
+#if TILEMEGA_TRACE_TASK
+  {
+    std::vector<ServingTaskProfile> rows(std::size_t(plan->trace_launches)*plan->task_stride);
+    if(cudaMemcpy(rows.data(),plan->task_profile,rows.size()*sizeof(rows[0]),cudaMemcpyDeviceToHost)!=cudaSuccess)return -3;
+    auto* out=std::fopen((std::string(directory)+"/task_profile.tsv").c_str(),"w");if(!out)return -4;
+    std::fprintf(out,"kind\titeration\tpast\trun_begin\trun_end\tstage\ttask\tworker\tbytes\tfirst_ready\tquery_ns\tfirst_page_wait_ns\tlater_page_wait_ns\twave_compute_ns\tla_ns\tepilogue_ns\n");
+    for(auto const& row:rows)if(row.run_begin) {
+      std::fprintf(out,"%s",plan->model.stages[row.stage].kind==TaskKind::kGemm?"gemm":"attention");
+      auto* words=reinterpret_cast<unsigned long long const*>(&row);
+      for(unsigned i=0;i<sizeof(row)/sizeof(*words);++i)std::fprintf(out,"\t%llu",words[i]);
+      std::fputc('\n',out);
+    }
+    std::fclose(out);
+  }
 #endif
   std::size_t gemm_count=0;
   for(auto const& stage:plan->model.stages)

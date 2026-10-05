@@ -545,7 +545,11 @@ struct GemmStageTaskBody {
 
   template <int Variant, bool SharedOutput = false>
   __device__ static void RunTask(GemmInvocation const& invocation, int local,
-                                 char* shared, ModelElement* tile_output = nullptr TILEMEGA_PHASE_ARG) {
+                                 char* shared, ModelElement* tile_output = nullptr TILEMEGA_PHASE_ARG
+#if TILEMEGA_TRACE_TASK
+                                 ,ServingTaskProfile* profile=nullptr
+#endif
+                                 ) {
 #if TILEMEGA_SERVING_RUNTIME
     (void)tile_output;
     using V = GemmVariant<Variant>;
@@ -554,6 +558,10 @@ struct GemmStageTaskBody {
     auto [m, n, k, batch] = invocation.problem;
     (void)batch;
     ServingGemmOperands operands;
+#if TILEMEGA_TRACE_TASK
+    operands.profile=profile;
+    if(profile)profile->bytes=2ull*min(V::kTileN,n-(local%invocation.tiles_n)*V::kTileN)*k;
+#endif
     operands.a = invocation.mainloop.ptr_A;
     operands.b = invocation.mainloop.ptr_B;
     operands.residual = invocation.epilogue.ptr_C;
@@ -679,7 +687,11 @@ struct GemmStageTaskBody {
 
   __device__ static void RunLogicalTask(Params const& p,
                                         StageDesc const& stage,
-                                        SmemUnion& smem, int task TILEMEGA_PHASE_ARG) {
+                                        SmemUnion& smem, int task TILEMEGA_PHASE_ARG
+#if TILEMEGA_TRACE_TASK
+                                        ,ServingTaskProfile* profile=nullptr
+#endif
+                                        ) {
     auto const* table = static_cast<GemmInvocation const*>(p.gemms);
     int const tiles = table[stage.gemm].tiles_m * table[stage.gemm].tiles_n;
     // CG appends the split axis: row-major task ids are (m,n,chunk).
@@ -688,52 +700,120 @@ struct GemmStageTaskBody {
     auto const& invocation = table[stage.gemm + coordinate.chunk];
     char* shared = reinterpret_cast<char*>(&smem.gemm);
 #if TILEMEGA_GEMM_VARIANT_COUNT == 1
-    RunTask<0>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS);
+    RunTask<0>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        );
 #else
     switch (invocation.variant) {
-      case 0: RunTask<0>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
-      case 1: RunTask<1>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 0: RunTask<0>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
+      case 1: RunTask<1>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #if TILEMEGA_GEMM_VARIANT_COUNT > 2
-      case 2: RunTask<2>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 2: RunTask<2>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 3
-      case 3: RunTask<3>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 3: RunTask<3>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 4
-      case 4: RunTask<4>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 4: RunTask<4>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 5
-      case 5: RunTask<5>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 5: RunTask<5>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 6
-      case 6: RunTask<6>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 6: RunTask<6>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 7
-      case 7: RunTask<7>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 7: RunTask<7>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 8
-      case 8: RunTask<8>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 8: RunTask<8>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 9
-      case 9: RunTask<9>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 9: RunTask<9>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 10
-      case 10: RunTask<10>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 10: RunTask<10>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 11
-      case 11: RunTask<11>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 11: RunTask<11>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 12
-      case 12: RunTask<12>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 12: RunTask<12>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 13
-      case 13: RunTask<13>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 13: RunTask<13>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 14
-      case 14: RunTask<14>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 14: RunTask<14>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 15
-      case 15: RunTask<15>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS); break;
+      case 15: RunTask<15>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+        ,profile
+#endif
+        ); break;
 #endif
       default: break;
     }

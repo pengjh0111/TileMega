@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Codegen/tasks/ServingTaskProfile.h>
 
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Codegen/executor/Prefetch.cuh>
@@ -30,6 +31,9 @@ struct ServingAttentionOperands {
   float epsilon;
   void const* key_tensor_map = nullptr;
   void const* value_tensor_map = nullptr;
+#if TILEMEGA_TRACE_TASK
+  ServingTaskProfile* profile=nullptr;
+#endif
 };
 template<class Arch,int kHeadDim,int kQPerKV,int kTokens,
          int kQRows,int kKvTile,bool kQkNorm>
