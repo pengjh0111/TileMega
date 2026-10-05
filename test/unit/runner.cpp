@@ -7,6 +7,7 @@ namespace tilemega::tests::table27_test { int TestTable27(int, char**); }
 namespace tilemega::tests::semantics_test { int TestSemantics(int, char**); }
 namespace tilemega::tests::dram_floor_test { int TestDramFloor(int, char**); }
 namespace tilemega::tests::regime_a_price_test { int TestRegimeAPrice(int, char**); }
+namespace tilemega::tests::serving_attention_legality_test { int TestServingAttentionLegality(int, char**); }
 namespace tilemega::tests::attention_page_layout_test { int TestAttentionPageLayout(int, char**); }
 namespace tilemega::tests::stage_flow_test { int TestStageFlow(int, char**); }
 namespace tilemega::tests::flow_runtime_release_test { int TestFlowRuntimeRelease(int, char**); }
@@ -71,6 +72,7 @@ int main(int argc, char** argv) {
     {"target_spec", tilemega::tests::target_spec_test::TestTargetSpec},
     {"coupling_types", tilemega::tests::coupling_types_test::TestCouplingTypes},
     {"table27", tilemega::tests::table27_test::TestTable27},
+    {"serving_attention_legality", tilemega::tests::serving_attention_legality_test::TestServingAttentionLegality},
     {"attention_page_layout", tilemega::tests::attention_page_layout_test::TestAttentionPageLayout},
     {"stage_flow", tilemega::tests::stage_flow_test::TestStageFlow},
     {"flow_runtime_release", tilemega::tests::flow_runtime_release_test::TestFlowRuntimeRelease},

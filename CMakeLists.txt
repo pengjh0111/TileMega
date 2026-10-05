@@ -295,6 +295,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/regime_a_price_test.cpp
     test/unit/stage_flow_test.cpp
     test/unit/attention_page_layout_test.cpp
+    test/unit/serving_attention_legality_test.cpp
     test/unit/flow_runtime_release_test.cpp
     test/unit/incidence_test.cpp
     test/unit/containment_test.cpp
@@ -401,6 +402,7 @@ if(TILEMEGA_BUILD_TESTS)
 
   add_test(NAME stage_flow COMMAND tilemega-unit stage_flow)
   add_test(NAME attention_page_layout COMMAND tilemega-unit attention_page_layout)
+  add_test(NAME serving_attention_legality COMMAND tilemega-unit serving_attention_legality)
 
   add_test(NAME flow_runtime_release COMMAND tilemega-unit flow_runtime_release)
 
