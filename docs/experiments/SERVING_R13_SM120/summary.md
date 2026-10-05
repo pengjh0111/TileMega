@@ -187,3 +187,5 @@ verified（CPU）：用最终版检查器回放已有 sm120 PTX，trigger 0/1 �
 证据与回放见 `raw/acceptance_03/`、`baseline_alignment.json`、`queue_anchor_recovery_r6.json`；全部本地提交，不 push。
 单次挂接核查 verified：PID 4488 存活，缺失锚定轮 r6 done/exit0；r5 为 16 done、57 pending、1 原始框架失败，恢复结果独立接纳。
 已完成阶段归档 `raw/acceptance_03/completed_stage_evidence.tar.xz`，SHA256 `1f0ae43197e15c2720bab6bf38011970a75d724630046e5452d2937324fef5f8`；不包含尚在推进的 E4/E5/E6 数据。
+另存不可变锚定回放输入 `raw/acceptance_03/anchor_replay_inputs.tar.xz`（含原失败与已完成恢复），SHA256 `bc8b27054604a0d58f446c43b0039c7dddad4e6fd89cf643b42820236536fbae`；排除活动轮。
+R13F 失败前产生的十条一级候选记录冻结在 `raw/acceptance_03/partial_candidates.json`，不是成功的 pg/执行器/循环联合选择结果。

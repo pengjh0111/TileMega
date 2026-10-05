@@ -282,7 +282,9 @@ def collect():
         if not (run/'plans.json').exists():
             failure=read(HERE/'raw/acceptance_03/snapshot.json',{}).get('joint_failures',[])
             choices.extend(dict(stage='joint',status='unavailable',**item) for item in failure if item['model']==model)
-            for command_file in sorted((run/'commands').glob('build-*/command.json')):
+            frozen=read(HERE/'raw/acceptance_03/partial_candidates.json',[])
+            choices.extend(item for item in frozen if item['model']==model)
+            for command_file in ([] if frozen else sorted((run/'commands').glob('build-*/command.json'))):
                 command_record=read(command_file,{})
                 arguments=command_record.get('argv',[])
                 if '--options' not in arguments:continue
@@ -318,7 +320,7 @@ def collect():
     t1=FRAME/'results/T1.tsv'
     if t1.exists() and maximum:
         with t1.open() as stream:old_anchor=list(csv.DictReader(stream,delimiter='\t'))
-        b0=next((item for item in old_anchor if item.get('cell')=='llama_B1' and item.get('arm')=='B0'),None)
+        b0=next((item for item in old_anchor if item.get('cell')=='llama_B1' and item.get('arm') in ('B0','B0-pfR10')),None)
         old_floor=read(FRAME/'raw/inputs/llama_decode_B1_floor.json',{})
         point=next((item for item in old_floor.get('points',[]) if item['past']==575),None)
         old_peak=next((float(item['maximum_gbps']) for item in sm89_mb if item['suite']=='MB-1a' and item.get('maximum_gbps')),None)

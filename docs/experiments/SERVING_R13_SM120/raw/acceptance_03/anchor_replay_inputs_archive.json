@@ -1,0 +1,9 @@
+{
+  "path": "raw/acceptance_03/anchor_replay_inputs.tar.xz",
+  "sha256": "bc8b27054604a0d58f446c43b0039c7dddad4e6fd89cf643b42820236536fbae",
+  "bytes": 246576,
+  "contents": "Twelve immutable E4a output directories: completed original rounds, the original premeasurement SyntaxError, and the successful independent recovery round",
+  "excluded_active_round": "E4a_qwen3_B1_r2_r5",
+  "original_rounds_and_metrics_unchanged": true,
+  "complete_matrix": false
+}
