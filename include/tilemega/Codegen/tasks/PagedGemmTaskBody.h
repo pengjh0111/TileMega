@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Backend/ServingMmaPipeline.h>
 #include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
 #include <tilemega/Codegen/executor/PageRing.cuh>
 #include <tilemega/Solver/PageLayout.h>
@@ -236,12 +237,17 @@ struct PagedGemmTaskBody {
               activation+(ahead%kActivationSlots)*TileM*TileK);
           else cute::cp_async_fence();
         }
+#if TILEMEGA_MMA_REG_PIPE
+        backend::ServingMmaRegisterPipeline<Arch,Config>(
+            mma,accum,rA,rB,src_a,src_b,dst_a,dst_b);
+#else
         #pragma unroll
         for(int k=0;k<size<2>(rA);++k) {
           copy(typename Config::SmemCopyAtom{},src_a(_,_,k),dst_a(_,_,k));
           copy(typename Config::SmemCopyAtomB{},src_b(_,_,k),dst_b(_,_,k));
           gemm(mma,rA(_,_,k),rB(_,_,k),accum);
         }
+#endif
       }
       for(int page=0;page<kGroupPages;++page)ring.Release(sequence+page);
       sequence+=kGroupPages;
