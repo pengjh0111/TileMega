@@ -290,6 +290,7 @@ int RunCompile(int argc, char** argv) {
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int mma_reg_pipe=0;
+    std::string attention_impl="mma16";
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
@@ -348,6 +349,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--candidate-mode") candidate_mode=value;
       else if (flag=="--candidate-loop") candidate_loop=std::stoi(value);
       else if (flag=="--watchdog") watchdog=std::stoi(value);
+      else if (flag=="--attention-impl") attention_impl=value;
       else if (flag=="--mma-reg-pipe") mma_reg_pipe=std::stoi(value);
       else if (flag=="--l2-slim") l2_slim=std::stoi(value);
       else if (flag=="--page-loop-split") page_loop_split=std::stoi(value);
@@ -463,6 +465,7 @@ int RunCompile(int argc, char** argv) {
       }
       if(kphase_mask<0 || kphase_mask>31 || v3_poll_ns<0)
         throw std::runtime_error("invalid K-phase mask or V3 poll interval");
+      if(attention_impl!="mma16" && attention_impl!="pvswap")throw std::runtime_error("--attention-impl must be mma16 or pvswap");
       if(mma_reg_pipe!=0 && mma_reg_pipe!=1)throw std::runtime_error("--mma-reg-pipe must be 0 or 1");
       if(watchdog!=0 && watchdog!=1)throw std::runtime_error("--watchdog must be 0 or 1");
       if(l2_slim!=0 && l2_slim!=1)throw std::runtime_error("--l2-slim must be 0 or 1");
@@ -474,6 +477,7 @@ int RunCompile(int argc, char** argv) {
       runtime_flags+=" -DTILEMEGA_PAGE_LOOP_SPLIT="+std::to_string(page_loop_split);
       runtime_flags+=" -DTILEMEGA_L2_SLIM="+std::to_string(l2_slim);
       runtime_flags+=" -DTILEMEGA_WATCHDOG="+std::to_string(watchdog);
+      runtime_flags+=" -DTILEMEGA_ATTENTION_PVSWAP="+std::to_string(attention_impl=="pvswap");
       runtime_flags+=" -DTILEMEGA_MMA_REG_PIPE="+std::to_string(mma_reg_pipe);
       runtime_flags+=" -DTILEMEGA_KPHASE_CLASS_MASK="+std::to_string(kphase_mask)+
           " -DTILEMEGA_V3_POLL_NS="+std::to_string(v3_poll_ns);
@@ -866,6 +870,7 @@ int RunCompile(int argc, char** argv) {
               " --kphase-mask "+std::to_string(kphase_mask)+
               " --v3-poll-ns "+std::to_string(v3_poll_ns)+
               " --watchdog "+std::to_string(watchdog)+
+              " --attention-impl "+attention_impl+
               " --mma-reg-pipe "+std::to_string(mma_reg_pipe)+
               " --l2-slim "+std::to_string(l2_slim)+
               " --page-loop-split "+std::to_string(page_loop_split)+
@@ -1336,6 +1341,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"pg\": "<<std::quoted(use_pages?"pages":pg_mode)
               <<",\n  \"watchdog\": "<<watchdog
               <<",\n  \"mma_reg_pipe\": "<<mma_reg_pipe
+              <<",\n  \"attention_impl\": \""<<attention_impl<<"\""
               <<",\n  \"l2_slim\": "<<l2_slim
               <<",\n  \"nonpaged_weight_layout\": "<<std::quoted(nonpaged_weight_layout)
               <<",\n  \"page_loop_split\": "<<page_loop_split
