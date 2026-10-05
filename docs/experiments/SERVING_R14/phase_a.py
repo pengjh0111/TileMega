@@ -101,6 +101,13 @@ def analyze():
         for arm in arms:
             label=arm['label'];observations=[metric(cell,label,r) for r in range(3)]
             if any(x['exit_code'] for x in observations):raise ValueError('failed anchor arm')
+            identities=[x.get('execution_identity') for x in observations]
+            if any(identities):
+                if any(x is None for x in identities) or len({x['execution_id'] for x in identities})!=1:
+                    raise ValueError('anchor artifact or execution changed between rounds')
+                if any(x['trace'] for x in identities):raise ValueError('trace artifact cannot enter T1')
+            elif arm['kind']=='tm' and 'decode' not in arm.get('binaries',{}):
+                raise ValueError('legacy anchor lacks pinned binary identity')
             values=[(x['e2e_seconds']-x['ttft_seconds'])/1023 for x in observations]
             rows.append(dict(cell=cell,label=label,tpot_samples=values,tpot_median=statistics.median(values),tpot_range=max(values)-min(values),
                 execution_identity=observations[0].get('execution_identity'),binary=arm.get('binaries',{}).get('decode'),
