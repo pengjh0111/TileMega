@@ -9142,3 +9142,34 @@ page fractions for optimization. B16 paged/R13F, uncovered protocol groups, C-1
 and unit failures stay explicit; this is a limited closure, not full PASS.
 Evidence: SERVING_R13_SM120/raw/acceptance_05/; results/S7_pages.tsv;
 results/{S6_cross_arch,S7_cross_arch}.tsv; summary.md.
+
+## F-358: Independent attention needs its own page ownership contract
+
+verified (sm_89, position-coded unit inputs): baseline 76beaea5e has 26 failing
+Independent attention cases; the initial layout repair passes 768 cases. The
+loader wrote private warp pages while the shared consumer inferred packed pages.
+AttentionPageLayout now controls both sides: Independent defaults to WarpPrivate,
+paged attention to Packed. The equivalent Full endpoint simplification is queued
+for final numerical and five-architecture checks. These are arithmetic/layout
+checks, not a synchronization reliability claim.
+
+inferred: R12/R13 Llama B1 nonpaged timings which hit the bad small final chunk
+cannot establish a correct serving baseline. R13D's four final defaults are
+stated unaffected by the reviewed trigger; token regression and renewed C-1
+remain Phase A requirements, not yet verified.
+Evidence: SERVING_R14/raw/FX23/{numerical_summary.json,old.numeric.log,fixed.numeric.log};
+AttentionPageLayout.h; IndependentAttentionTaskBody.h.
+
+## F-359: Per-task subtraction fixes a false negative in flow conservation
+
+verified (CPU, sm120 target): the archived fixed B16 rejection reproduces when
+4098.9888378587175 bytes are fully prefetched; averaging a cohort first yields
+4098.9888378587184 and a residual of -9.0949470177292824e-13 bytes. The joint
+Llama search also reproduces the same rejection. The repair partitions each
+task's external, dependent/write, prefetched and remaining bytes before cohort
+aggregation, and checks step conservation. It does not clamp negative values.
+The repaired fixed search and the conservation/layout host tests pass; the full
+repaired joint search remains running at this checkpoint. Model defaults are
+unchanged; its eventual shortlist comparison must remain separate evidence.
+Evidence: SERVING_R14/raw/FX24/{reproductions_partial.tar.xz,minimal_before.log,
+minimal_after.log,host_tests.log}; lib/Solver/StageFlowModel.cpp.

@@ -1503,3 +1503,18 @@ Decode uses pages only; nonpaged decode is an explicit baseline and never enters
 | Phase D | Final matrix and correctness | Original 12/12 rounds; R13F four-cell C-1/C-2 pass; protocol 50/50; two flagged rounds retained; user cancelled reruns | raw/closure/completion.json; results/T10.tsv |
 
 R13 closed with declared limitations: two optional canary reruns and three dependent steps cancelled, no GPU work pending. TR-1 overhead and genuine control C-1 failures remain recorded. No product/device code changed in final CPU acceptance.
+
+### 5.14 R14 — correctness, attention and measured resource choices
+
+| Scope | Status |
+|---|---|
+| Framework / preregistration | Copied; initial predictions and all selection/Phase C rules committed |
+| FX-23 | Layout contract implemented; old counterexample and initial fixed numerics collected; final checks queued |
+| FX-24 | Per-task conservation implemented; fixed replay passes; full search-only replay running |
+| FX-25 | Artifact/execution identity implemented; generation and build checks queued |
+| TR-4 | Timer/store diagnostic variants registered; low-overhead choice awaits guarded measurements |
+| Phase A | Not started; requires Phase 0 closure |
+| AT-1/2/3a, SK-1, GV-1, RW-3, RA-1, EP-1, SL-6 | Not started; follow Phase A baseline |
+| Conditional Phase C / Phase D | Not started; preserve preregistered gates and fresh-process requirements |
+
+Resume at SERVING_R14/scheduler/progress.tsv and state.json. Do not treat the Phase-0 queue as complete R14 implementation or acceptance.
