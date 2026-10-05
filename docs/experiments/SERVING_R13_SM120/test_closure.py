@@ -5,9 +5,49 @@ from unittest.mock import patch
 
 import closure
 import pipeline
+import report
 
 
 class ClosureTests(unittest.TestCase):
+    def page(self,directory,launches=16,past=1000):
+        import sys
+        sys.path.insert(0,str(pipeline.FRAME))
+        root=Path(directory)
+        pipeline.write(root/f'past{past}/trace.json',dict(past=past,launches=launches,steps=1))
+        page=root/'page_trace.tsv'
+        page.write_text('step\tworker\tkernel_begin_ns\tkernel_end_ns\tdependency_wait_ns\tpage_full_ns\tfull_and_wait_ns\tloader_issue_ns\n'
+                        f'{past-64}\t0\t100\t200\t160\t320\t80\t160\n')
+        return page
+
+    def test_repeated_page_counters_are_not_single_launch_waits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            page=self.page(directory)
+            pipeline.write(Path(directory)/'past575/trace.json',dict(past=575,launches=16,steps=1))
+            row=report.page_observations(page,[dict(past=575,dram_ns=100),dict(past=1086,dram_ns=200)],{'native':2})[0]
+            self.assertEqual(row['past'],1000)
+            self.assertEqual(row['raw_page_full_mean_ns'],320)
+            self.assertEqual(row['page_full_mean_ns'],20)
+            self.assertEqual(row['counter_launches'],16)
+            self.assertIsNone(row['loader_issue_fraction'])
+            self.assertEqual(row['page_pasts_not_retained'],[575])
+            self.assertAlmostEqual(row['bytes'],(100+100*425/511)*2)
+
+    def test_single_launch_page_fraction_remains_a_matching_ratio(self):
+        with tempfile.TemporaryDirectory() as directory:
+            page=self.page(directory,launches=1,past=575)
+            row=report.page_observations(page,[dict(past=575,dram_ns=100)],{'native':2})[0]
+            self.assertEqual(row['counter_launches'],1)
+            self.assertEqual(row['page_full_mean_ns'],320)
+            self.assertEqual(row['loader_issue_fraction'],1.6)
+            self.assertEqual(row['span_over_floor_native'],1)
+
+    def test_page_floor_does_not_extrapolate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            page=self.page(directory,past=1000)
+            row=report.page_observations(page,[dict(past=575,dram_ns=100)],{'native':2})[0]
+            self.assertIsNone(row['bytes'])
+            self.assertNotIn('span_over_floor_native',row)
+
     def test_unavailable_is_not_missing_eligible_measurement(self):
         key=('E4a','llama_B1','B0')
         rows=[dict(matrix=key[0],cell=key[1],arm=key[2],round=i) for i in range(3)]

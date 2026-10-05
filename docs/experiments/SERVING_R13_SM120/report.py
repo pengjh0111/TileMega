@@ -119,6 +119,43 @@ def flatten(value,prefix=''):
     return result
 
 
+def page_observations(path,floor_points,ceilings,prompt_length=64):
+    sys.path.insert(0,str(FRAME))
+    from page_chain import pages
+    profiles=[read(file) for file in path.parent.rglob('trace.json')]
+    points=sorted(floor_points,key=lambda row:row['past'])
+    observations=pages(path,1,{})
+    captured={row['step']+prompt_length for row in observations}
+    for row in observations:
+        past=row['step']+prompt_length
+        profile=next((item for item in profiles if item['past']<=past<item['past']+item.get('steps',1)),None)
+        launches=profile['launches'] if profile else None
+        row.update(past=past,counter_launches=launches,
+                   span_basis='last launch stamps; accumulated counters are separate',
+                   counter_basis='raw sum over repeated launches; per-launch mean by division',
+                   page_pasts_not_retained=sorted(item['past'] for item in profiles if item['past'] not in captured))
+        for key in ('dependency_mean_ns','page_full_mean_ns','full_and_dependency_mean_ns'):
+            row['raw_'+key]=row[key]
+            row[key]=row[key]/launches if launches else None
+        raw_fraction=row.pop('loader_issue_fraction',None)
+        row['raw_loader_issue_fraction_accumulated_over_last_span']=raw_fraction
+        # Repeated counters and the overwritten final timestamps cannot define
+        # a matched per-launch occupancy fraction, even after dividing by N.
+        row['loader_issue_fraction']=raw_fraction if launches==1 else None
+        lower=next((point for point in reversed(points) if point['past']<=past),None)
+        upper=next((point for point in points if point['past']>=past),None)
+        row['bytes']=None
+        if lower and upper:
+            fraction=(past-lower['past'])/(upper['past']-lower['past']) if upper['past']!=lower['past'] else 0
+            dram_ns=lower['dram_ns']+fraction*(upper['dram_ns']-lower['dram_ns'])
+            row['bytes']=dram_ns*ceilings['native']
+            row['floor_basis']='B0 request-floor at actual past; linear interpolation is inferred, not DRAM counters'
+            for key,bandwidth in ceilings.items():
+                row['span_over_floor_'+key]=row['span_ns']/(row['bytes']/bandwidth)
+        else:row['floor_basis']='past outside supplied floor points; no extrapolation'
+    return observations
+
+
 def collect(completion_folder=None):
     out=HERE/'results'
     out.mkdir(exist_ok=True)
@@ -222,7 +259,7 @@ def collect(completion_folder=None):
     sys.path.insert(0,str(FRAME))
     from ledger import stages,steps,stage_semantics
     from analyze import trace_v2
-    from page_chain import pages,chain
+    from page_chain import chain
     stage_rows=[]
     step_rows=[]
     page_rows=[]
@@ -252,7 +289,8 @@ def collect(completion_folder=None):
                     errors.append(dict(source=str(file),error='native request floor missing; page ratios not computed'))
                     continue
                 try:
-                    page_rows.extend(dict(row,cell=cell) for row in pages(file,byte_count,{'native':ceiling['calibration_median_gbps'],'mb1a_max':maximum}))
+                    page_rows.extend(dict(row,cell=cell) for row in page_observations(
+                        file,floor['points'],{'native':ceiling['calibration_median_gbps'],'mb1a_max':maximum}))
                     if (file.parent/'slots.tsv').exists():
                         links,record=chain(file.parent)
                         page_rows.append(dict(record,cell=cell,source=str(file),record_kind='chain'))
