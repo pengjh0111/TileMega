@@ -1,0 +1,9 @@
+{
+  "baseline": "48c013d1863d5a5af249401be217d4aa4c15d710",
+  "acceptance_head": "0bc74d3c80d6a75c12a0f3288aff20560240974f",
+  "acceptance_commits": 82,
+  "report_archive_commits_expected": 83,
+  "final_head_command": "git log -1 --format=%H -- docs/experiments/SERVING_R13/summary.md",
+  "prompt_sha256": "5adb32833673d7dcd18e6ec02999be9c6bd9ca3216c95f9d9f2b136f8329ace9",
+  "device_code_commit": "dedd849f3"
+}

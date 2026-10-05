@@ -1491,7 +1491,7 @@ Decode uses pages only; nonpaged decode is an explicit baseline and never enters
 
 | ID | Scope | Status | Evidence |
 |---|---|---|---|
-| BL-1 / TL-1 | Baseline, sidecars, prefill and step events | Implemented and measured; final selection awaiting two canary replacements | SERVING_R13/summary.md; T1/T9/T10 |
+| BL-1 / TL-1 | Baseline, sidecars, prefill and step events | Complete; original three-round selection retained; canary reruns cancelled by user | SERVING_R13/summary.md; T1/T9/T10 |
 | PD-1 | Nonpaged PDL | Five-arch compile and four PTX checks pass after CPU tool replay; sm_89 auto/off SASS identical; other hardware unexecuted | raw/final_review/pdl_replay.json; loop_nc_audit.json |
 | LP-1 | Nonpaged L1 loop | Four-cell C-2 and 50/50; no final cell selected loop | ModelHarness.cuh; T6/T11 |
 | FX-21 | Split-K last-arriver | Diagnosis verified; PSA elided 65/113; C-1 and 50/50 | F-348; T2/T11 |
@@ -1500,6 +1500,6 @@ Decode uses pages only; nonpaged decode is an explicit baseline and never enters
 | TL-2 / MB-1 | Ceiling and six probes | Measured sm_89, five-arch compiled; large-set ceiling ≈980 GB/s | F-349; results/T3 |
 | CM-1 | Report-only model error | Task joins and fits collected; corrected rerank remains inference | results/T12_scope.json |
 | Phase C | Registered fixes | Retain LP2/PG3; disable L2b/WL; three protocols 50/50 each | phase_c_retention.json |
-| Phase D | Final matrix and correctness | Original 12/12 rounds; R13F four-cell C-1/C-2 pass; protocol 50/50; two flagged rounds queued once | queue_final_review.json; scheduler/progress.tsv |
+| Phase D | Final matrix and correctness | Original 12/12 rounds; R13F four-cell C-1/C-2 pass; protocol 50/50; two flagged rounds retained; user cancelled reruns | raw/closure/completion.json; results/T10.tsv |
 
-R13 remains unsealed until the registered canary replacements and final evidence archive are accepted. No product/device code changed in this CPU acceptance repair.
+R13 closed with declared limitations: two optional canary reruns and three dependent steps cancelled, no GPU work pending. TR-1 overhead and genuine control C-1 failures remain recorded. No product/device code changed in final CPU acceptance.
