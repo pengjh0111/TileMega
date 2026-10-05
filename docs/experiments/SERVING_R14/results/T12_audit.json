@@ -1,0 +1,108 @@
+[
+  {
+    "when": "before",
+    "case": "fixed",
+    "exit_code": 1,
+    "partitions": 16,
+    "negative_examples": [
+      {
+        "space": "0",
+        "task": "0",
+        "dram_bytes": "4098.9888378587175",
+        "no_producer_bytes": "4098.9888378587175",
+        "prefetch_bytes": "4098.9888378587175",
+        "cohort_average": "4098.9888378587184",
+        "no_external": "0",
+        "remaining": "-9.0949470177292824e-13"
+      },
+      {
+        "space": "0",
+        "task": "1",
+        "dram_bytes": "4098.9888378587175",
+        "no_producer_bytes": "4098.9888378587175",
+        "prefetch_bytes": "4098.9888378587175",
+        "cohort_average": "4098.9888378587184",
+        "no_external": "0",
+        "remaining": "-9.0949470177292824e-13"
+      },
+      {
+        "space": "0",
+        "task": "2",
+        "dram_bytes": "4098.9888378587175",
+        "no_producer_bytes": "4098.9888378587175",
+        "prefetch_bytes": "4098.9888378587175",
+        "cohort_average": "4098.9888378587184",
+        "no_external": "0",
+        "remaining": "-9.0949470177292824e-13"
+      }
+    ],
+    "min_remaining": -9.094947017729282e-13,
+    "conservation_checks": 0,
+    "max_step_error_bytes": 0,
+    "evidence": "raw/FX24/before/fixed/audit.log.gz"
+  },
+  {
+    "when": "before",
+    "case": "joint",
+    "exit_code": 1,
+    "partitions": 53871,
+    "negative_examples": [
+      {
+        "space": "5",
+        "task": "0",
+        "dram_bytes": "65519.837189733887",
+        "no_producer_bytes": "65519.837189733887",
+        "prefetch_bytes": "65519.837189733887",
+        "cohort_average": "65519.837189733968",
+        "no_external": "0",
+        "remaining": "-8.0035533756017685e-11"
+      },
+      {
+        "space": "5",
+        "task": "1",
+        "dram_bytes": "65519.837189733887",
+        "no_producer_bytes": "65519.837189733887",
+        "prefetch_bytes": "65519.837189733887",
+        "cohort_average": "65519.837189733968",
+        "no_external": "0",
+        "remaining": "-8.0035533756017685e-11"
+      },
+      {
+        "space": "5",
+        "task": "2",
+        "dram_bytes": "65519.837189733887",
+        "no_producer_bytes": "65519.837189733887",
+        "prefetch_bytes": "65519.837189733887",
+        "cohort_average": "65519.837189733968",
+        "no_external": "0",
+        "remaining": "-8.0035533756017685e-11"
+      }
+    ],
+    "min_remaining": -8.003553375601768e-11,
+    "conservation_checks": 0,
+    "max_step_error_bytes": 0,
+    "evidence": "raw/FX24/before/joint/audit.log.gz"
+  },
+  {
+    "when": "after",
+    "case": "fixed",
+    "exit_code": 0,
+    "partitions": 44220,
+    "negative_examples": [],
+    "min_remaining": 0,
+    "conservation_checks": 6,
+    "max_step_error_bytes": 0.00012159347534179688,
+    "evidence": "raw/FX24/after/fixed/audit.log.gz"
+  },
+  {
+    "when": "after",
+    "case": "joint",
+    "exit_code": 0,
+    "partitions": 20404854,
+    "negative_examples": [],
+    "min_remaining": 0,
+    "conservation_checks": 468,
+    "max_step_error_bytes": 0.005881786346435547,
+    "evidence": "raw/FX24/after/joint/audit.log.gz"
+  }
+]

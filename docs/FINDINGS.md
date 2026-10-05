@@ -9149,8 +9149,8 @@ verified (sm_89, position-coded unit inputs): baseline 76beaea5e has 26 failing
 Independent attention cases; the initial layout repair passes 768 cases. The
 loader wrote private warp pages while the shared consumer inferred packed pages.
 AttentionPageLayout now controls both sides: Independent defaults to WarpPrivate,
-paged attention to Packed. The equivalent Full endpoint simplification is queued
-for final numerical and five-architecture checks. These are arithmetic/layout
+paged attention to Packed. The equivalent Full endpoint simplification passes
+the final numerical rerun and sm_80/89/90/100/120 compilation checks. These are arithmetic/layout
 checks, not a synchronization reliability claim.
 
 inferred: R12/R13 Llama B1 nonpaged timings which hit the bad small final chunk
@@ -9168,8 +9168,10 @@ verified (CPU, sm120 target): the archived fixed B16 rejection reproduces when
 Llama search also reproduces the same rejection. The repair partitions each
 task's external, dependent/write, prefetched and remaining bytes before cohort
 aggregation, and checks step conservation. It does not clamp negative values.
-The repaired fixed search and the conservation/layout host tests pass; the full
-repaired joint search remains running at this checkpoint. Model defaults are
-unchanged; its eventual shortlist comparison must remain separate evidence.
+The repaired fixed and joint searches and conservation/layout host tests pass.
+The fixed/joint runs execute 6/468 step-conservation checks, respectively. Model
+defaults are unchanged; sm_89 shortlist comparison remains separate evidence.
 Evidence: SERVING_R14/raw/FX24/{reproductions_partial.tar.xz,minimal_before.log,
 minimal_after.log,host_tests.log}; lib/Solver/StageFlowModel.cpp.
+
+R14 completion evidence for F-358/F-359: SERVING_R14/results/{phase0_acceptance,T12_audit}.json and raw/phase0_completed.tar.xz (verified).

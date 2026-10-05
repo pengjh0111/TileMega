@@ -1,0 +1,86 @@
+{
+  "base": {
+    "tpot": [
+      0.005498263974676777,
+      0.005502402367760388,
+      0.005506319505274514
+    ],
+    "identity": {
+      "artifact_id": "4221771e9a7657674e9d252490f6c1d38709f98a4e1748dea8b314b1866be506",
+      "executor": "L1",
+      "loop": false,
+      "pdl": false,
+      "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "spill": true,
+      "trace": false,
+      "execution_id": "3f3b311b16cd23e59f3e251ca3cc8d60d13423fb6345c4f90b1b7898425d153e",
+      "shared_memory_bytes": 99328
+    },
+    "median_seconds": 0.005502402367760388,
+    "range_seconds": 8.055530597736622e-06,
+    "relative_to_uninstrumented": 0.0
+  },
+  "full_trace": {
+    "tpot": [
+      0.005531804365509227,
+      0.005528973443033073,
+      0.0061026601203219314
+    ],
+    "identity": {
+      "artifact_id": "1812a2f7a850da1e5a6af1bb2f4bca351618b0da838a7c541dbbab1d7ae99109",
+      "executor": "L1",
+      "loop": false,
+      "pdl": false,
+      "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "spill": true,
+      "trace": true,
+      "execution_id": "caff87287f62614ce8def9a260eb9e088c243da7d8c25310fa3605ec5e9a9602",
+      "shared_memory_bytes": 99328
+    },
+    "median_seconds": 0.005531804365509227,
+    "range_seconds": 0.0005736866772888581,
+    "relative_to_uninstrumented": 0.0053434837701273885
+  },
+  "stores_only": {
+    "tpot": [
+      0.006801096221089786,
+      0.0055349996822812424,
+      0.005588700100624768
+    ],
+    "identity": {
+      "artifact_id": "0f289e256aadc1f55a30e760c5022923aa9482e2c50ea2921ea58cf2bd3388d6",
+      "executor": "L1",
+      "loop": false,
+      "pdl": false,
+      "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "spill": true,
+      "trace": true,
+      "execution_id": "8beca4e9b8f2e8716766d95402422c90f2937b9b6a22aeaf2f89d8c58ac71cce",
+      "shared_memory_bytes": 99328
+    },
+    "median_seconds": 0.005588700100624768,
+    "range_seconds": 0.0012660965388085433,
+    "relative_to_uninstrumented": 0.015683646359636372
+  },
+  "timer_only": {
+    "tpot": [
+      0.00550349185540034,
+      0.005509625895236522,
+      0.005518074335169888
+    ],
+    "identity": {
+      "artifact_id": "08411c84c05764d4702c39175f0a1ac4ea05e3ecd95ec8abf74506611638d208",
+      "executor": "L1",
+      "loop": false,
+      "pdl": false,
+      "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "spill": true,
+      "trace": true,
+      "execution_id": "0792376b1edcaa4ac3be3b949e49f26a2221fce24d6719cb364dab252614390a",
+      "shared_memory_bytes": 99328
+    },
+    "median_seconds": 0.005509625895236522,
+    "range_seconds": 1.4582479769547838e-05,
+    "relative_to_uninstrumented": 0.0013127952107714336
+  }
+}

@@ -1509,12 +1509,13 @@ R13 closed with declared limitations: two optional canary reruns and three depen
 | Scope | Status |
 |---|---|
 | Framework / preregistration | Copied; initial predictions and all selection/Phase C rules committed |
-| FX-23 | Layout contract implemented; old counterexample and initial fixed numerics collected; final checks queued |
-| FX-24 | Per-task conservation implemented; fixed replay passes; full search-only replay running |
-| FX-25 | Artifact/execution identity implemented; generation and build checks queued |
-| TR-4 | Timer/store diagnostic variants registered; low-overhead choice awaits guarded measurements |
-| Phase A | Not started; requires Phase 0 closure |
-| AT-1/2/3a, SK-1, GV-1, RW-3, RA-1, EP-1, SL-6 | Not started; follow Phase A baseline |
+| FX-23 | Layout contract implemented; old counterexample, final numerics and architecture compilation verified |
+| FX-24 | Per-task conservation implemented; fixed and joint search-only replays pass |
+| FX-25 | Artifact/execution identity implemented; diagnostic builds and identity checks pass |
+| TR-4 | Diagnostic results archived; sampled stage/task implementation awaits Phase A overhead checks |
+| Phase A | 36 steps queued; Apre compiler/check preparation started |
+| Independent development | RW-3 numerical checks pass; AT-1 legality subset implemented; AT-3a code added, validation queued |
+| AT-2, SK-1, GV-1, RA-1, EP-1, SL-6 | Required implementation outstanding |
 | Conditional Phase C / Phase D | Not started; preserve preregistered gates and fresh-process requirements |
 
 Resume at SERVING_R14/scheduler/progress.tsv and state.json. Do not treat the Phase-0 queue as complete R14 implementation or acceptance.

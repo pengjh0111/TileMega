@@ -1,0 +1,236 @@
+{
+  "checks": {
+    "P0_correctness": {
+      "status": "passed",
+      "attempts": 1
+    },
+    "P0_build": {
+      "status": "passed",
+      "attempts": 1
+    },
+    "P0_smoke": {
+      "status": "passed",
+      "attempts": 1
+    },
+    "P0_trace_round0": {
+      "status": "passed",
+      "attempts": 1
+    },
+    "P0_trace_round1": {
+      "status": "passed",
+      "attempts": 5
+    },
+    "P0_trace_round2": {
+      "status": "passed",
+      "attempts": 10
+    },
+    "P0_trace_analyze": {
+      "status": "passed",
+      "attempts": 1
+    },
+    "RW3_numeric": {
+      "status": "passed",
+      "attempts": 1
+    },
+    "RW3_paged_numeric": {
+      "status": "passed",
+      "attempts": 8
+    }
+  },
+  "fx24": [
+    {
+      "when": "before",
+      "case": "fixed",
+      "exit_code": 1,
+      "partitions": 16,
+      "negative_examples": [
+        {
+          "space": "0",
+          "task": "0",
+          "dram_bytes": "4098.9888378587175",
+          "no_producer_bytes": "4098.9888378587175",
+          "prefetch_bytes": "4098.9888378587175",
+          "cohort_average": "4098.9888378587184",
+          "no_external": "0",
+          "remaining": "-9.0949470177292824e-13"
+        },
+        {
+          "space": "0",
+          "task": "1",
+          "dram_bytes": "4098.9888378587175",
+          "no_producer_bytes": "4098.9888378587175",
+          "prefetch_bytes": "4098.9888378587175",
+          "cohort_average": "4098.9888378587184",
+          "no_external": "0",
+          "remaining": "-9.0949470177292824e-13"
+        },
+        {
+          "space": "0",
+          "task": "2",
+          "dram_bytes": "4098.9888378587175",
+          "no_producer_bytes": "4098.9888378587175",
+          "prefetch_bytes": "4098.9888378587175",
+          "cohort_average": "4098.9888378587184",
+          "no_external": "0",
+          "remaining": "-9.0949470177292824e-13"
+        }
+      ],
+      "min_remaining": -9.094947017729282e-13,
+      "conservation_checks": 0,
+      "max_step_error_bytes": 0,
+      "evidence": "raw/FX24/before/fixed/audit.log.gz"
+    },
+    {
+      "when": "before",
+      "case": "joint",
+      "exit_code": 1,
+      "partitions": 53871,
+      "negative_examples": [
+        {
+          "space": "5",
+          "task": "0",
+          "dram_bytes": "65519.837189733887",
+          "no_producer_bytes": "65519.837189733887",
+          "prefetch_bytes": "65519.837189733887",
+          "cohort_average": "65519.837189733968",
+          "no_external": "0",
+          "remaining": "-8.0035533756017685e-11"
+        },
+        {
+          "space": "5",
+          "task": "1",
+          "dram_bytes": "65519.837189733887",
+          "no_producer_bytes": "65519.837189733887",
+          "prefetch_bytes": "65519.837189733887",
+          "cohort_average": "65519.837189733968",
+          "no_external": "0",
+          "remaining": "-8.0035533756017685e-11"
+        },
+        {
+          "space": "5",
+          "task": "2",
+          "dram_bytes": "65519.837189733887",
+          "no_producer_bytes": "65519.837189733887",
+          "prefetch_bytes": "65519.837189733887",
+          "cohort_average": "65519.837189733968",
+          "no_external": "0",
+          "remaining": "-8.0035533756017685e-11"
+        }
+      ],
+      "min_remaining": -8.003553375601768e-11,
+      "conservation_checks": 0,
+      "max_step_error_bytes": 0,
+      "evidence": "raw/FX24/before/joint/audit.log.gz"
+    },
+    {
+      "when": "after",
+      "case": "fixed",
+      "exit_code": 0,
+      "partitions": 44220,
+      "negative_examples": [],
+      "min_remaining": 0,
+      "conservation_checks": 6,
+      "max_step_error_bytes": 0.00012159347534179688,
+      "evidence": "raw/FX24/after/fixed/audit.log.gz"
+    },
+    {
+      "when": "after",
+      "case": "joint",
+      "exit_code": 0,
+      "partitions": 20404854,
+      "negative_examples": [],
+      "min_remaining": 0,
+      "conservation_checks": 468,
+      "max_step_error_bytes": 0.005881786346435547,
+      "evidence": "raw/FX24/after/joint/audit.log.gz"
+    }
+  ],
+  "diagnostics": [
+    {
+      "label": "base",
+      "tpot_ms": [
+        5.498263974676777,
+        5.502402367760388,
+        5.506319505274514
+      ],
+      "median_overhead": 0.0,
+      "outlier_rounds": [],
+      "artifact_id": "4221771e9a7657674e9d252490f6c1d38709f98a4e1748dea8b314b1866be506",
+      "resources": {
+        "name": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "callees": {},
+        "stack_bytes": 176,
+        "spill_store_bytes": 156,
+        "spill_load_bytes": 396,
+        "registers": 255,
+        "spill": true
+      }
+    },
+    {
+      "label": "full_trace",
+      "tpot_ms": [
+        5.531804365509227,
+        5.528973443033073,
+        6.102660120321931
+      ],
+      "median_overhead": 0.0053434837701273885,
+      "outlier_rounds": [
+        2
+      ],
+      "artifact_id": "1812a2f7a850da1e5a6af1bb2f4bca351618b0da838a7c541dbbab1d7ae99109",
+      "resources": {
+        "name": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "callees": {},
+        "stack_bytes": 176,
+        "spill_store_bytes": 156,
+        "spill_load_bytes": 408,
+        "registers": 255,
+        "spill": true
+      }
+    },
+    {
+      "label": "stores_only",
+      "tpot_ms": [
+        6.801096221089786,
+        5.534999682281242,
+        5.588700100624768
+      ],
+      "median_overhead": 0.015683646359636372,
+      "outlier_rounds": [
+        0
+      ],
+      "artifact_id": "0f289e256aadc1f55a30e760c5022923aa9482e2c50ea2921ea58cf2bd3388d6",
+      "resources": {
+        "name": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "callees": {},
+        "stack_bytes": 176,
+        "spill_store_bytes": 156,
+        "spill_load_bytes": 408,
+        "registers": 255,
+        "spill": true
+      }
+    },
+    {
+      "label": "timer_only",
+      "tpot_ms": [
+        5.50349185540034,
+        5.509625895236522,
+        5.518074335169888
+      ],
+      "median_overhead": 0.0013127952107714336,
+      "outlier_rounds": [],
+      "artifact_id": "08411c84c05764d4702c39175f0a1ac4ea05e3ecd95ec8abf74506611638d208",
+      "resources": {
+        "name": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "callees": {},
+        "stack_bytes": 176,
+        "spill_store_bytes": 156,
+        "spill_load_bytes": 396,
+        "registers": 255,
+        "spill": true
+      }
+    }
+  ],
+  "acceptance": "correctness/build/smoke prerequisites pass; TR-4 performance acceptance remains pending Phase A",
+  "timing_limit": "Guard accepted final attempts, but non-base outliers prevent stable overhead attribution. Retain every observation."
+}
