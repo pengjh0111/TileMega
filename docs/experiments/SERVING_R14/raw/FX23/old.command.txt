@@ -1,0 +1,1 @@
+/usr/local/cuda/bin/nvcc -std=c++17 -O3 -arch=sm_89 --expt-relaxed-constexpr -DTILEMEGA_LAYOUT_LEGACY=1 -I/root/r14_work/baseline/include -Iinclude -Ithird_party/cutlass/include test/unit/attention_layout_test.cu -o /root/r14_work/fx23/attention_layout_old 

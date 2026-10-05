@@ -1,0 +1,39 @@
+RESULT D=64 Q=2 page=8192 policy=1 independent=0 cases=32 failures=0 context_error=0.000125229 lse_error=9.53674e-07
+RESULT D=64 Q=2 page=16384 policy=1 independent=0 cases=32 failures=0 context_error=0.000125229 lse_error=9.53674e-07
+FAIL D=64 Q=2 page=8192 policy=0 independent=1 count=18 chunk=0 extent=512 steps=3 context_error=0.0457902 lse_error=0.00203037
+FAIL D=64 Q=2 page=8192 policy=0 independent=1 count=19 chunk=0 extent=512 steps=3 context_error=0.0869377 lse_error=0.00384998
+FAIL D=64 Q=2 page=8192 policy=0 independent=1 count=32 chunk=0 extent=512 steps=1 context_error=0.210653 lse_error=0.00164413
+FAIL D=64 Q=2 page=8192 policy=0 independent=1 count=34 chunk=0 extent=512 steps=3 context_error=0.233517 lse_error=0.000794888
+FAIL D=64 Q=2 page=8192 policy=0 independent=1 count=33 chunk=0 extent=512 steps=1 context_error=0.218829 lse_error=0.00176764
+FAIL D=64 Q=2 page=8192 policy=0 independent=1 count=35 chunk=0 extent=512 steps=3 context_error=0.228428 lse_error=0.000641823
+FAIL D=64 Q=2 page=8192 policy=0 independent=1 count=48 chunk=0 extent=512 steps=1 context_error=0.170097 lse_error=0.00123024
+FAIL D=64 Q=2 page=8192 policy=0 independent=1 count=50 chunk=0 extent=512 steps=3 context_error=0.186068 lse_error=0.000400066
+FAIL D=64 Q=2 page=8192 policy=0 independent=1 count=63 chunk=0 extent=512 steps=1 context_error=0.257794 lse_error=0.00171185
+FAIL D=64 Q=2 page=8192 policy=0 independent=1 count=64 chunk=0 extent=512 steps=1 context_error=0.263166 lse_error=0.00176001
+FAIL D=64 Q=2 page=8192 policy=0 independent=1 count=32 chunk=1 extent=32 steps=1 context_error=0.269271 lse_error=0.00168562
+FAIL D=64 Q=2 page=8192 policy=0 independent=1 count=33 chunk=1 extent=64 steps=1 context_error=0.340084 lse_error=0.00180721
+FAIL D=64 Q=2 page=8192 policy=0 independent=1 count=64 chunk=1 extent=64 steps=1 context_error=0.38435 lse_error=0.00182056
+RESULT D=64 Q=2 page=8192 policy=0 independent=1 cases=32 failures=13 context_error=0.38435 lse_error=0.00384998
+RESULT D=64 Q=4 page=8192 policy=1 independent=0 cases=32 failures=0 context_error=0.000422835 lse_error=9.53674e-07
+RESULT D=64 Q=4 page=16384 policy=1 independent=0 cases=32 failures=0 context_error=0.000422835 lse_error=9.53674e-07
+FAIL D=64 Q=4 page=8192 policy=0 independent=1 count=18 chunk=0 extent=512 steps=3 context_error=0.0457665 lse_error=0.0020833
+FAIL D=64 Q=4 page=8192 policy=0 independent=1 count=19 chunk=0 extent=512 steps=3 context_error=0.0868031 lse_error=0.00395155
+FAIL D=64 Q=4 page=8192 policy=0 independent=1 count=32 chunk=0 extent=512 steps=1 context_error=0.210849 lse_error=0.00164557
+FAIL D=64 Q=4 page=8192 policy=0 independent=1 count=34 chunk=0 extent=512 steps=3 context_error=0.233247 lse_error=0.00200462
+FAIL D=64 Q=4 page=8192 policy=0 independent=1 count=33 chunk=0 extent=512 steps=1 context_error=0.219022 lse_error=0.00176954
+FAIL D=64 Q=4 page=8192 policy=0 independent=1 count=35 chunk=0 extent=512 steps=3 context_error=0.228162 lse_error=0.0018692
+FAIL D=64 Q=4 page=8192 policy=0 independent=1 count=48 chunk=0 extent=512 steps=1 context_error=0.170182 lse_error=0.00123072
+FAIL D=64 Q=4 page=8192 policy=0 independent=1 count=50 chunk=0 extent=512 steps=3 context_error=0.185849 lse_error=0.00130844
+FAIL D=64 Q=4 page=8192 policy=0 independent=1 count=63 chunk=0 extent=512 steps=1 context_error=0.257915 lse_error=0.00171328
+FAIL D=64 Q=4 page=8192 policy=0 independent=1 count=64 chunk=0 extent=512 steps=1 context_error=0.263288 lse_error=0.00176048
+FAIL D=64 Q=4 page=8192 policy=0 independent=1 count=32 chunk=1 extent=32 steps=1 context_error=0.26952 lse_error=0.00168753
+FAIL D=64 Q=4 page=8192 policy=0 independent=1 count=33 chunk=1 extent=64 steps=1 context_error=0.340384 lse_error=0.00180864
+FAIL D=64 Q=4 page=8192 policy=0 independent=1 count=64 chunk=1 extent=64 steps=1 context_error=0.384527 lse_error=0.00182104
+RESULT D=64 Q=4 page=8192 policy=0 independent=1 cases=32 failures=13 context_error=0.384527 lse_error=0.00395155
+RESULT D=128 Q=2 page=8192 policy=1 independent=0 cases=32 failures=0 context_error=0.0002321 lse_error=9.53674e-07
+RESULT D=128 Q=2 page=16384 policy=1 independent=0 cases=32 failures=0 context_error=0.0002321 lse_error=9.53674e-07
+RESULT D=128 Q=2 page=8192 policy=0 independent=1 cases=32 failures=0 context_error=0.0002321 lse_error=9.53674e-07
+RESULT D=128 Q=4 page=8192 policy=1 independent=0 cases=32 failures=0 context_error=0.000659764 lse_error=9.53674e-07
+RESULT D=128 Q=4 page=16384 policy=1 independent=0 cases=32 failures=0 context_error=0.000659764 lse_error=9.53674e-07
+RESULT D=128 Q=4 page=8192 policy=0 independent=1 cases=32 failures=0 context_error=0.000659764 lse_error=9.53674e-07
+attention_layout FAIL failures=26

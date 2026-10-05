@@ -294,6 +294,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/dram_floor_test.cpp
     test/unit/regime_a_price_test.cpp
     test/unit/stage_flow_test.cpp
+    test/unit/attention_page_layout_test.cpp
     test/unit/flow_runtime_release_test.cpp
     test/unit/incidence_test.cpp
     test/unit/containment_test.cpp
@@ -399,6 +400,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME table27 COMMAND tilemega-unit table27)
 
   add_test(NAME stage_flow COMMAND tilemega-unit stage_flow)
+  add_test(NAME attention_page_layout COMMAND tilemega-unit attention_page_layout)
 
   add_test(NAME flow_runtime_release COMMAND tilemega-unit flow_runtime_release)
 
@@ -575,7 +577,7 @@ if(TILEMEGA_BUILD_TESTS)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   tilemega_configure_cuda_target(serving_attention_cases_test)
   add_test(NAME serving_attention_cases COMMAND serving_attention_cases_test)
-  foreach(test IN ITEMS page_ring paged_gemm)
+  foreach(test IN ITEMS page_ring paged_gemm attention_layout)
     add_executable(${test}_test test/unit/${test}_test.cu)
     target_link_libraries(${test}_test PRIVATE TileMega::tilemega)
     target_compile_options(${test}_test PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
