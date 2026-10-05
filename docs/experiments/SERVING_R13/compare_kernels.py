@@ -14,10 +14,14 @@ def sass(binary):
                 functions[name].append(instruction)
     return functions
 def resources(path):
-    result={};name=None
+    result={};name=None;entry=None
     for line in path.read_text().splitlines():
+        kernel=re.search(r"Compiling entry function\s+'([^']+)'",line)
+        if kernel:entry=kernel.group(1)
         m=re.search(r"(?:Compiling entry function|Function properties for)\s+'?([^'\s]+)",line)
-        if m:name=m.group(1);result.setdefault(name,[])
+        # ptxas emits called-function resources once per kernel context.
+        # A new loop kernel must not change the comparison of an old caller.
+        if m:name=(entry or '<unscoped>')+'::'+m.group(1);result.setdefault(name,[])
         if name and re.search(r'(Used \d+ registers|bytes stack frame|bytes spill|bytes smem)',line):
             result[name].append(re.sub(r'\s+',' ',line.strip()))
     return result
@@ -39,7 +43,8 @@ def main():
     report=dict(source_equal=source(a.reference)==source(a.candidate),
                 sass_equal=not differences,
                 resources_equal=all(value==resource_new.get(name) for name,value in resource_old.items()),
-                existing_functions=list(old),new_functions=sorted(set(new)-set(old)))
+                existing_functions=list(old),new_functions=sorted(set(new)-set(old)),
+                resource_scope='entry kernel and called function; new kernel contexts excluded')
     (a.out/'sass_differences.json').write_text(json.dumps(differences,indent=2)+'\n')
     (a.out/'resources.json').write_text(json.dumps(dict(reference=resource_old,candidate=resource_new),indent=2)+'\n')
     (a.out/'comparison.json').write_text(json.dumps(report,indent=2)+'\n')

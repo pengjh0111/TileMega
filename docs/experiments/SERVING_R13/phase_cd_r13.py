@@ -235,7 +235,7 @@ def dprotocol(out,resume):
 def finalize(out):
     data={}
     for cell in CELLS:
-        for path in (HERE/'raw').glob(f'D2_{cell}_r*/{cell}/round*.json'):
+        for path in (HERE/'raw').glob(f'D2*/{cell}/round*.json'):
             rr=read(path)
             if rr.get('invalidated'):continue
             for label in ('B0-D','R13F'):
