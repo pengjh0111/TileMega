@@ -71,6 +71,31 @@ static void CheckInflightClock() {
   }
 }
 int TestStageFlow(int argc, char** argv) try {
+  if(argc>1 && std::string(argv[1])=="fx24-repro") {
+    FlowProblem p;p.workers=170;p.dram_gbps=1691.25;
+    p.page_bytes=16384;p.pages_per_worker=5;
+    TaskPriceParts price;price.dram_bytes=price.no_producer_dram_bytes=100.1;
+    price.dram_rate_cap=100;price.inflight_bytes=16384;price.compute_ns=10;
+    p.spaces={Space(170,price)};
+    auto r=EvaluateFlow(p);
+    Near(r.delivered_bytes,170*100.1,"per-task fractional traffic conservation");
+    std::cout<<"fx24-repro PASS delivered="<<r.delivered_bytes<<'\n';return 0;
+  }
+  for(double bytes:{0.,.1,100.1,16384.3})for(double fraction:{0.,.25,1.}) {
+    double external=bytes*fraction;
+    for(double prefetched:{0.,external/2,external}) {
+      auto t=PartitionFlowTraffic(bytes,external,prefetched,false);
+      Near(t.main+t.prefetched,bytes,"per-task traffic partition");
+      if(t.main<0)throw std::runtime_error("negative task remainder");
+    }
+    auto t=PartitionFlowTraffic(bytes,external,0,true);
+    Near(t.main+t.excluded,bytes,"counterfactual partition");
+  }
+  for(auto values:std::vector<std::vector<double>>{{100,101,0},{100,50,51},{100,50,-1}}) {
+    bool threw=false;try{PartitionFlowTraffic(values[0],values[1],values[2],false);}
+    catch(std::invalid_argument const&){threw=true;}
+    if(!threw)throw std::runtime_error("invalid provenance silently accepted");
+  }
   CheckFluidClock();
   CheckInflightClock();
   InflightDramServer in_flight(10,{10,20},{4,8},{10,20},{10,10});

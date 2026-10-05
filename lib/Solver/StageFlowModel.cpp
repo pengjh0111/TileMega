@@ -3,6 +3,9 @@
 #include <tilemega/Solver/DramFluid.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <iomanip>
+#include <iostream>
 #include <deque>
 #include <limits>
 #include <numeric>
@@ -10,6 +13,18 @@
 #include <queue>
 #include <stdexcept>
 namespace tilemega::solver {
+FlowTraffic PartitionFlowTraffic(double dram,double external,double prefetched,bool no_external) {
+  if(!std::isfinite(dram) || !std::isfinite(external) || !std::isfinite(prefetched) ||
+      dram<0 || external<0 || external>dram || prefetched<0 || prefetched>external ||
+      (no_external && prefetched!=0))
+    throw std::invalid_argument("flow traffic provenance is not a disjoint partition");
+  FlowTraffic t;t.external=external;t.dependent_and_writes=dram-external;
+  t.prefetched=prefetched;t.excluded=no_external?external:0;
+  // Partition before aggregation: averaging fractional cached bytes first can
+  // exceed the same task's total by an ulp, despite an exact empty remainder.
+  t.main=t.dependent_and_writes+(no_external?0:external-prefetched);
+  return t;
+}
 int CoarsenRelease(int maximum,int n,int kappa){if(maximum<0 || maximum>=n || kappa<1)throw std::invalid_argument("invalid release domain");return std::min(n-1,kappa*(maximum/kappa)+kappa-1);}
 void SetFlowCalibration(FlowProblem& p,TargetSpec const& target,ScalarType dtype,HopCurve const& hop) {
   auto name=dtype==ScalarType::kBF16?"bf16":"f32";auto const& event=target.EventCalibrationFor(name);
@@ -28,6 +43,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   bool const paged=p.page_bytes>0 || p.pages_per_worker>0;
   if(paged && (p.page_bytes<=0 || p.pages_per_worker<=0))
     throw std::invalid_argument("paged flow needs a positive page size and ring capacity");
+  bool audit=std::getenv("TILEMEGA_FLOW_AUDIT") && std::string(std::getenv("TILEMEGA_FLOW_AUDIT"))!="0";
   int n=p.spaces.size();long total=0;for(auto const& s:p.spaces){if(s.count<0 || s.piece_of_task.size()!=std::size_t(s.count))throw std::invalid_argument("flow piece coverage");total+=s.count;}
   long workers=options.infinite_workers?total:p.workers,free=workers,finished=0;
   std::vector<std::vector<int>> incoming(n),outgoing(n);
@@ -197,12 +213,25 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
       } else {
         auto& c=cohorts[event.id];auto const& parts=p.spaces[c.space].pieces[c.piece].parts;
         if(event.kind==MainStart) {
-          c.main=now;double prefetched_total=0;
+          c.main=now;double prefetched_total=0,main_total=0;
           if(paged)for(std::size_t i=c.begin;i<c.begin+c.count;++i){int task=cohort_tasks[i];
             prefetched_total+=prefetch_bytes[c.space][task];}
-          double bytes=parts.dram_bytes-(options.no_external?parts.no_producer_dram_bytes:0)
-              -(paged?prefetched_total/c.count:0);
-          if(bytes<0)throw std::runtime_error("negative counterfactual traffic");
+          double old_average=paged?prefetched_total/c.count:0;
+          for(std::size_t i=c.begin;i<c.begin+c.count;++i) {
+            int task=cohort_tasks[i];
+            auto traffic=PartitionFlowTraffic(parts.dram_bytes,parts.no_producer_dram_bytes,
+                paged?prefetch_bytes[c.space][task]:0,options.no_external);
+            main_total+=traffic.main;
+            result.expected_bytes+=parts.dram_bytes-traffic.excluded;
+            result.prefetched_bytes+=traffic.prefetched;
+            if(audit)std::cerr<<std::setprecision(17)<<"FLOW_AUDIT space="<<c.space<<" task="<<task
+                <<" dram_bytes="<<parts.dram_bytes<<" no_producer_bytes="<<parts.no_producer_dram_bytes
+                <<" prefetch_bytes="<<traffic.prefetched<<" cohort_average="<<old_average
+                <<" no_external="<<options.no_external<<" remaining="<<traffic.main
+                <<" dependent_and_writes="<<traffic.dependent_and_writes<<" excluded="<<traffic.excluded<<'\n';
+          }
+          double bytes=main_total/c.count;
+          result.main_bytes+=main_total;
           if(bytes>0){int id=inflight?inflight->Add(bytes,parts.dram_rate_cap,
               parts.inflight_bytes,c.count):fluid.Add(bytes,parts.dram_rate_cap,c.count);
             if(id!=int(fluid_owner.size()))throw std::runtime_error("fluid id discontinuity");fluid_owner.push_back(event.id);}else c.bytes=true;
@@ -256,6 +285,13 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
       }else {cohorts[owner].bytes=true;close(owner);}}
   }
   result.makespan_ns=now;result.delivered_bytes=inflight?inflight->Delivered():fluid.Delivered();
+  double tolerance=std::max(1e-6,result.expected_bytes*1e-10);
+  if(std::abs(result.delivered_bytes-result.expected_bytes)>tolerance ||
+      std::abs(result.prefetched_bytes+result.main_bytes-result.expected_bytes)>tolerance)
+    throw std::runtime_error("step flow traffic conservation failed");
+  if(audit)std::cerr<<std::setprecision(17)<<"FLOW_CONSERVATION expected="<<result.expected_bytes
+      <<" delivered="<<result.delivered_bytes<<" prefetch="<<result.prefetched_bytes
+      <<" main="<<result.main_bytes<<'\n';
   if(p.all_external_miss && !options.no_external && now+1e-6<p.dram_floor_ns)throw std::runtime_error("T >= T_dram assertion failed in StageFlowModel");
   std::vector<bool> seen(cohorts.size());
   while(last_completed>=0) {
