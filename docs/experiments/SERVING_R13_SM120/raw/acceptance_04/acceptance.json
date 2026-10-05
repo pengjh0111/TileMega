@@ -1,0 +1,551 @@
+{
+  "expected_records": 297,
+  "eligible_records": 195,
+  "measured_records": 195,
+  "unavailable_records": 102,
+  "all_eligible_collected": true,
+  "errors": [],
+  "time": 1791194055.4852624,
+  "canonical_rounds": [
+    {
+      "matrix": "E4a",
+      "cell": "llama_B1",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_llama_B1_r0_canary_r5/llama_B1/round0.json",
+      "sha256": "21b9ed76aa9507b069ef876d1d86c038428a2bc6402a1d2be03d73aba57bdc09"
+    },
+    {
+      "matrix": "E4a",
+      "cell": "llama_B1",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_03/rounds/E4a_llama_B1_r1_r5/llama_B1/round1.json",
+      "sha256": "3affdd239fc03977003e229e51f24b90f165dc5858808786040b610824e3ef80"
+    },
+    {
+      "matrix": "E4a",
+      "cell": "llama_B1",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_03/rounds/E4a_llama_B1_r2_r5/llama_B1/round2.json",
+      "sha256": "775d01321dffd144bea5c002df363b364a3c2e67f2976dbbb87fac8a6ff65376"
+    },
+    {
+      "matrix": "E4a",
+      "cell": "qwen3_B1",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_qwen3_B1_r0_r5/qwen3_B1/round0.json",
+      "sha256": "f4f487637f82d6e3b1d57d1a43852589ea090ecda99d1fb035d0f6c29f61e927"
+    },
+    {
+      "matrix": "E4a",
+      "cell": "qwen3_B1",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_qwen3_B1_r1_r5/qwen3_B1/round1.json",
+      "sha256": "6044041b48f48da4518d3d3a2c29cac024c7b29b69806aba3d46dbf5f38706ab"
+    },
+    {
+      "matrix": "E4a",
+      "cell": "qwen3_B1",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_qwen3_B1_r2_r5/qwen3_B1/round2.json",
+      "sha256": "fa486803b9408a3bd65f6d84da39437e51c7e561807e0603a0ce0a28a8cb99f6"
+    },
+    {
+      "matrix": "E4a",
+      "cell": "llama_B16",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_03/rounds/E4a_llama_B16_r0_r5/llama_B16/round0.json",
+      "sha256": "311049a958ced99d2a030fb74627abfa8521ecb4889ea2dcc44988ebc33f23fe"
+    },
+    {
+      "matrix": "E4a",
+      "cell": "llama_B16",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_03/rounds/E4a_llama_B16_r1_r5/llama_B16/round1.json",
+      "sha256": "e6ea42354245d279dfdcbe34f7e3666fce98a4907750e47eeefa94fbdf736c64"
+    },
+    {
+      "matrix": "E4a",
+      "cell": "llama_B16",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_03/rounds/E4a_llama_B16_r2_r5/llama_B16/round2.json",
+      "sha256": "36e511ceaa3f421b355df4da08577d40e4d2bed6791f3dd56eaf6e096d10e367"
+    },
+    {
+      "matrix": "E4a",
+      "cell": "qwen3_B16",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_03/rounds/E4a_qwen3_B16_r0_r5/qwen3_B16/round0.json",
+      "sha256": "92d177f4668af493c18ec6692904ffbed11446fe11c72eb8b97e85cb04488b4a"
+    },
+    {
+      "matrix": "E4a",
+      "cell": "qwen3_B16",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_qwen3_B16_r1_recovery_r6/qwen3_B16/round1.json",
+      "sha256": "d87fd4558c764e90589d01d789b604dd79721d93660d34c8389f061c22ee2097"
+    },
+    {
+      "matrix": "E4a",
+      "cell": "qwen3_B16",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4a_qwen3_B16_r2_r5/qwen3_B16/round2.json",
+      "sha256": "6f6dedac250f4762ec5de66874368ed720dc0d48483fcdcd80e58b64fb7e7fdf"
+    },
+    {
+      "matrix": "E4b",
+      "cell": "llama_B1",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4b_llama_B1_r0_r5/llama_B1/round0.json",
+      "sha256": "45fcbe6d4986c71132fe857919c83177f1aef3d71b704951be945a56605c53d2"
+    },
+    {
+      "matrix": "E4b",
+      "cell": "llama_B1",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4b_llama_B1_r1_r5/llama_B1/round1.json",
+      "sha256": "4e718f119adee5382949488f8c6e51119e5d5155f6821fe6cd6935abd4213cd1"
+    },
+    {
+      "matrix": "E4b",
+      "cell": "llama_B1",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4b_llama_B1_r2_r5/llama_B1/round2.json",
+      "sha256": "50931ce4af3bd2d9762638cc02ca90c202e4577a2d6e3c996b65149169fa5758"
+    },
+    {
+      "matrix": "E4b",
+      "cell": "qwen3_B1",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4b_qwen3_B1_r0_r5/qwen3_B1/round0.json",
+      "sha256": "71db14141d344d484f94deff341d4e5a6d143ebaebd860c48692d3bbae83568d"
+    },
+    {
+      "matrix": "E4b",
+      "cell": "qwen3_B1",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4b_qwen3_B1_r1_r5/qwen3_B1/round1.json",
+      "sha256": "772597387a1e3979c69dc5737c9d86bfcf3d6ea0cba8b7e0bedce795dc87a13c"
+    },
+    {
+      "matrix": "E4b",
+      "cell": "qwen3_B1",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4b_qwen3_B1_r2_r5/qwen3_B1/round2.json",
+      "sha256": "7f089ea7f4e679b2bbeac3ba06ca05755081bef3fb4c817da7a9fb82ae596214"
+    },
+    {
+      "matrix": "E4b",
+      "cell": "llama_B16",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4b_llama_B16_r0_r5/llama_B16/round0.json",
+      "sha256": "5277e795b963314576b5571bcb831463e9125a60451db9b413cd8cf8a9580817"
+    },
+    {
+      "matrix": "E4b",
+      "cell": "llama_B16",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4b_llama_B16_r1_r5/llama_B16/round1.json",
+      "sha256": "cc3c7b01d972dc5e9efa4178f0f85dbd19b6d80ad9e0d160590b3237c120bec9"
+    },
+    {
+      "matrix": "E4b",
+      "cell": "llama_B16",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4b_llama_B16_r2_r5/llama_B16/round2.json",
+      "sha256": "164de1f0ad9e5731d764623dfc9c6f520af2a8567229b45c8c04026dc5645765"
+    },
+    {
+      "matrix": "E4b",
+      "cell": "qwen3_B16",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4b_qwen3_B16_r0_r5/qwen3_B16/round0.json",
+      "sha256": "b6417a48adeaf79b0a1698de268358934dc53e7fe05c629e7178cda098085e37"
+    },
+    {
+      "matrix": "E4b",
+      "cell": "qwen3_B16",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4b_qwen3_B16_r1_r5/qwen3_B16/round1.json",
+      "sha256": "d06725ca3ab002547a50ed8a877d711fb1d71d6522c670873575c11a899313a2"
+    },
+    {
+      "matrix": "E4b",
+      "cell": "qwen3_B16",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4b_qwen3_B16_r2_r5/qwen3_B16/round2.json",
+      "sha256": "9f88e73b84ac8a85700893ca36df10d9e0879917d1c61a8681ea7a4b35379632"
+    },
+    {
+      "matrix": "E4c",
+      "cell": "llama_B1",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4c_llama_B1_r0_r5/llama_B1/round0.json",
+      "sha256": "d6a1c02e8af07b3b3c627c444d7005ef73f0bf11d64d92dba9aa0fe1f0c5854a"
+    },
+    {
+      "matrix": "E4c",
+      "cell": "llama_B1",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4c_llama_B1_r1_r5/llama_B1/round1.json",
+      "sha256": "b9f87d53c5e7f5b6a1ce6ea8f2362a3512ea567d881198e065930edb5bb6eeb3"
+    },
+    {
+      "matrix": "E4c",
+      "cell": "llama_B1",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4c_llama_B1_r2_r5/llama_B1/round2.json",
+      "sha256": "4cc0d6fe3fd4352494ed0cad52df98b3bac3cfc9a5f789c04a69f5df432aadee"
+    },
+    {
+      "matrix": "E4c",
+      "cell": "qwen3_B1",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4c_qwen3_B1_r0_r5/qwen3_B1/round0.json",
+      "sha256": "3106fe53fe552f59ff1dcc46c4d1934a2dbabae266fbd2841e99106ab3d2c531"
+    },
+    {
+      "matrix": "E4c",
+      "cell": "qwen3_B1",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4c_qwen3_B1_r1_r5/qwen3_B1/round1.json",
+      "sha256": "769aafd19e67bb332dce7d3bc5c10961e47d8abe3aeae12fa1fbb99002cf9db9"
+    },
+    {
+      "matrix": "E4c",
+      "cell": "qwen3_B1",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4c_qwen3_B1_r2_r5/qwen3_B1/round2.json",
+      "sha256": "b9fabc655c2c50ec49392c283bc31baeb0dec7ecf42f1b78a7d0ccba5132c82b"
+    },
+    {
+      "matrix": "E4c",
+      "cell": "llama_B16",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4c_llama_B16_r0_r5/llama_B16/round0.json",
+      "sha256": "3ef1d1258852d1a6b7f5f301e6744789fe030612d9a895a7513e3900d0bc5581"
+    },
+    {
+      "matrix": "E4c",
+      "cell": "llama_B16",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4c_llama_B16_r1_r5/llama_B16/round1.json",
+      "sha256": "feb9bd3682c4e5db1f442d47d63048583bfb0d7d5fd20b55c99311a92a7125b3"
+    },
+    {
+      "matrix": "E4c",
+      "cell": "llama_B16",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4c_llama_B16_r2_r5/llama_B16/round2.json",
+      "sha256": "3f8ba18c4ef6a628f7279e8dc8b52e5e81bd1a5526ddecc84f3c7b59435be9d5"
+    },
+    {
+      "matrix": "E4c",
+      "cell": "qwen3_B16",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4c_qwen3_B16_r0_r5/qwen3_B16/round0.json",
+      "sha256": "61c87427602411c58d3397ee8fa483d0b470cf37c297ec0b8528231687216e76"
+    },
+    {
+      "matrix": "E4c",
+      "cell": "qwen3_B16",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4c_qwen3_B16_r1_r5/qwen3_B16/round1.json",
+      "sha256": "46de70b6793cd5d7ceabd60d0a8107a9655a690bd4b75fe9d8423e414b89dcab"
+    },
+    {
+      "matrix": "E4c",
+      "cell": "qwen3_B16",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4c_qwen3_B16_r2_r5/qwen3_B16/round2.json",
+      "sha256": "ac8b168f4871cfbf9a4570ec7735130caab6b8ec07ae80edb8bc417ff904bdb3"
+    },
+    {
+      "matrix": "E4d",
+      "cell": "llama_B1",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4d_llama_B1_r0_r5/llama_B1/round0.json",
+      "sha256": "c5f66a0f58401aedc0d136aae24527a88f42c7fd3371e3af664c8695fa060ce9"
+    },
+    {
+      "matrix": "E4d",
+      "cell": "llama_B1",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4d_llama_B1_r1_r5/llama_B1/round1.json",
+      "sha256": "17233ef29ad558eabed5a68acb48760e2be8bd845946f8f5ca5957d08978daef"
+    },
+    {
+      "matrix": "E4d",
+      "cell": "llama_B1",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4d_llama_B1_r2_r5/llama_B1/round2.json",
+      "sha256": "feec8770bb0d8e690175322dc3b6f0c210bbb2b1f0f0372640ca79852972fd69"
+    },
+    {
+      "matrix": "E4d",
+      "cell": "qwen3_B1",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4d_qwen3_B1_r0_r5/qwen3_B1/round0.json",
+      "sha256": "1b114a18e0a4855682be961a7bf218d8e6af56307c91720e07e0e4e90cabb786"
+    },
+    {
+      "matrix": "E4d",
+      "cell": "qwen3_B1",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4d_qwen3_B1_r1_r5/qwen3_B1/round1.json",
+      "sha256": "321b41f9e556c1272842be9120db6e340602d57e8efcd2e4a3ef53d858475fec"
+    },
+    {
+      "matrix": "E4d",
+      "cell": "qwen3_B1",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4d_qwen3_B1_r2_r5/qwen3_B1/round2.json",
+      "sha256": "42794c303e61f2e57e89502257bff6fe3759c719cc400e319378367a705aec05"
+    },
+    {
+      "matrix": "E4d",
+      "cell": "llama_B16",
+      "round": 0,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4d_llama_B16_r0_r5/llama_B16/round0.json",
+      "sha256": "899ceb37c7dacc1f11ea66e639c3523c02426e05cf969f1ea33f67d419d4ae2b"
+    },
+    {
+      "matrix": "E4d",
+      "cell": "llama_B16",
+      "round": 1,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4d_llama_B16_r1_r5/llama_B16/round1.json",
+      "sha256": "aab54c7827917979241dad3729f4de2187dfd24c8c83c8391d7862f4d9567041"
+    },
+    {
+      "matrix": "E4d",
+      "cell": "llama_B16",
+      "round": 2,
+      "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E4d_llama_B16_r2_r5/llama_B16/round2.json",
+      "sha256": "2fe9766aa659b0b9fea615bbcec130d302170926f2e63f9f51b98f8e66cae791"
+    }
+  ],
+  "protocols": {
+    "bulk": {
+      "status": {
+        "status": "unavailable",
+        "group": "bulk",
+        "complete": false,
+        "missing": [
+          "PR_L2",
+          "PR_L2l"
+        ],
+        "requested": 50,
+        "passed": null
+      },
+      "independently_counted": 0,
+      "unique_pids": 0,
+      "all_exit_zero": true,
+      "actual_pids": [],
+      "unavailable_not_a_pass": true
+    },
+    "pdl": {
+      "status": {
+        "group": "pdl",
+        "status": "collected",
+        "exit_code": 0,
+        "covered_labels": [
+          "B0-noev",
+          "B0p",
+          "B0p1",
+          "NL2gp1"
+        ],
+        "missing_labels": [],
+        "coverage_complete": true,
+        "requested": 50,
+        "attempted": 50,
+        "completed": 50,
+        "unique_pids": 50,
+        "fresh_pids": true,
+        "passed": 50,
+        "failed": 0,
+        "complete": true,
+        "pass_rate": 1.0
+      },
+      "independently_counted": 50,
+      "unique_pids": 50,
+      "all_exit_zero": true,
+      "actual_pids": [
+        51694,
+        51752,
+        51818,
+        51876,
+        51934,
+        51992,
+        52050,
+        52119,
+        52187,
+        52250,
+        52314,
+        52376,
+        52430,
+        52494,
+        52551,
+        52616,
+        52682,
+        52742,
+        52800,
+        52859,
+        52916,
+        52979,
+        53035,
+        53107,
+        53163,
+        53226,
+        53284,
+        53342,
+        53400,
+        53465,
+        53531,
+        53589,
+        53647,
+        53712,
+        53781,
+        53849,
+        53918,
+        53980,
+        54049,
+        54112,
+        54169,
+        54232,
+        54289,
+        54352,
+        54411,
+        54468,
+        54527,
+        54587,
+        54646,
+        54704
+      ],
+      "unavailable_not_a_pass": false
+    },
+    "l1loop": {
+      "status": {
+        "group": "l1loop",
+        "status": "collected",
+        "exit_code": 0,
+        "covered_labels": [
+          "B0-noev",
+          "B0l"
+        ],
+        "missing_labels": [],
+        "coverage_complete": true,
+        "requested": 50,
+        "attempted": 50,
+        "completed": 50,
+        "unique_pids": 50,
+        "fresh_pids": true,
+        "passed": 50,
+        "failed": 0,
+        "complete": true,
+        "pass_rate": 1.0
+      },
+      "independently_counted": 50,
+      "unique_pids": 50,
+      "all_exit_zero": true,
+      "actual_pids": [
+        47432,
+        47493,
+        47537,
+        47586,
+        47644,
+        47688,
+        47745,
+        47803,
+        47851,
+        47898,
+        47950,
+        48002,
+        48053,
+        48103,
+        48158,
+        48208,
+        48259,
+        48316,
+        48362,
+        48422,
+        48473,
+        48525,
+        48587,
+        48641,
+        48697,
+        48755,
+        48807,
+        48855,
+        48906,
+        48965,
+        49009,
+        49072,
+        49120,
+        49165,
+        49219,
+        49266,
+        49325,
+        49373,
+        49421,
+        49469,
+        49520,
+        49572,
+        49619,
+        49670,
+        49722,
+        49777,
+        49832,
+        49881,
+        49932,
+        49988
+      ],
+      "unavailable_not_a_pass": false
+    },
+    "seed_fx21": {
+      "status": {
+        "status": "unavailable",
+        "group": "seed_fx21",
+        "complete": false,
+        "missing": [
+          "PS_L2",
+          "PS_L2l",
+          "PSA_L2",
+          "PSA_L2l"
+        ],
+        "requested": 50,
+        "passed": null
+      },
+      "independently_counted": 0,
+      "unique_pids": 0,
+      "all_exit_zero": true,
+      "actual_pids": [],
+      "unavailable_not_a_pass": true
+    }
+  },
+  "global_protocol_unique_pids": 100,
+  "global_protocol_count": 100,
+  "C2": {
+    "recorded": 162,
+    "passed": 162,
+    "nonself_comparisons": 120,
+    "nonself_passed": 120
+  },
+  "cluster": {
+    "requested": 12,
+    "executed": 2,
+    "unsupported": 10,
+    "reason": "170 foreground CTAs / 85 with background do not divide by most cluster sizes",
+    "fresh_process_sync_claim": false
+  },
+  "final_full_protocol_pass": false,
+  "human_final_report_pending": true,
+  "trace_correction_pending": true,
+  "limitations": [
+    "B16 paged and all R13F plans unavailable after negative traffic rejection",
+    "paged/FX21 fresh-process groups unavailable",
+    "B0h Llama B1 HF check fails unchanged reference thresholds",
+    "five CTest items remain unresolved",
+    "cross-host model SHA not supplied; vLLM 0.29.0 vs 0.30.0",
+    "trace overhead has no matched uninstrumented fixed-past control; diagnostic only",
+    "MB-1e negative cold-stream residual is not physical boundary latency"
+  ]
+}

@@ -1,0 +1,100 @@
+matrix	cell	arm	available	reason
+E4a	llama_B1	vllm	True	
+E4a	llama_B1	B0	True	
+E4a	llama_B1	R13F	False	R13F plan was not produced
+E4a	qwen3_B1	vllm	True	
+E4a	qwen3_B1	B0	True	
+E4a	qwen3_B1	R13F	False	R13F plan was not produced
+E4a	llama_B16	vllm	True	
+E4a	llama_B16	B0	True	
+E4a	llama_B16	R13F	False	R13F plan was not produced
+E4a	qwen3_B16	vllm	True	
+E4a	qwen3_B16	B0	True	
+E4a	qwen3_B16	R13F	False	R13F plan was not produced
+E4b	llama_B1	B0	True	
+E4b	llama_B1	NL2e	True	
+E4b	llama_B1	NL2g	True	
+E4b	llama_B1	NL2r	True	
+E4b	qwen3_B1	B0	True	
+E4b	qwen3_B1	NL2e	True	
+E4b	qwen3_B1	NL2g	True	
+E4b	qwen3_B1	NL2r	True	
+E4b	llama_B16	B0	True	
+E4b	llama_B16	NL2e	True	
+E4b	llama_B16	NL2g	True	
+E4b	llama_B16	NL2r	True	
+E4b	qwen3_B16	B0	True	
+E4b	qwen3_B16	NL2e	True	
+E4b	qwen3_B16	NL2g	True	
+E4b	qwen3_B16	NL2r	True	
+E4c	llama_B1	B0-noev	True	
+E4c	llama_B1	B0p	True	
+E4c	llama_B1	B0p1	True	
+E4c	llama_B1	NL2g-noev	True	
+E4c	llama_B1	NL2gp1	True	
+E4c	llama_B1	PR_L2-noev	True	
+E4c	llama_B1	PRp_L2	True	
+E4c	llama_B1	B0l	True	
+E4c	llama_B1	PR_L2l	False	required fresh-process execution is incomplete: bulk
+E4c	qwen3_B1	B0-noev	True	
+E4c	qwen3_B1	B0p	True	
+E4c	qwen3_B1	B0p1	True	
+E4c	qwen3_B1	NL2g-noev	True	
+E4c	qwen3_B1	NL2gp1	True	
+E4c	qwen3_B1	PR_L2-noev	True	
+E4c	qwen3_B1	PRp_L2	True	
+E4c	qwen3_B1	B0l	True	
+E4c	qwen3_B1	PR_L2l	False	required fresh-process execution is incomplete: bulk
+E4c	llama_B16	B0-noev	True	
+E4c	llama_B16	B0p	True	
+E4c	llama_B16	B0p1	True	
+E4c	llama_B16	NL2g-noev	True	
+E4c	llama_B16	NL2gp1	True	
+E4c	llama_B16	PR_L2-noev	False	fixed geometry or selected prefill rejected/missing
+E4c	llama_B16	PRp_L2	False	fixed geometry or selected prefill rejected/missing
+E4c	llama_B16	B0l	True	
+E4c	llama_B16	PR_L2l	False	fixed geometry or selected prefill rejected/missing
+E4c	qwen3_B16	B0-noev	True	
+E4c	qwen3_B16	B0p	True	
+E4c	qwen3_B16	B0p1	True	
+E4c	qwen3_B16	NL2g-noev	True	
+E4c	qwen3_B16	NL2gp1	True	
+E4c	qwen3_B16	PR_L2-noev	False	fixed geometry or selected prefill rejected/missing
+E4c	qwen3_B16	PRp_L2	False	fixed geometry or selected prefill rejected/missing
+E4c	qwen3_B16	B0l	True	
+E4c	qwen3_B16	PR_L2l	False	fixed geometry or selected prefill rejected/missing
+E4d	llama_B1	B0h	True	
+E4d	llama_B1	PS_L1	True	
+E4d	llama_B1	PS_L2	True	
+E4d	llama_B1	PS_L2l	False	required fresh-process execution is incomplete: seed_fx21
+E4d	llama_B1	PSA_L2	True	
+E4d	llama_B1	PSA_L2l	False	required fresh-process execution is incomplete: seed_fx21
+E4d	llama_B1	PR_L1	True	
+E4d	llama_B1	PR_L2	True	
+E4d	llama_B1	PR_L2l	False	required fresh-process execution is incomplete: bulk
+E4d	qwen3_B1	B0h	True	
+E4d	qwen3_B1	PS_L1	True	
+E4d	qwen3_B1	PS_L2	True	
+E4d	qwen3_B1	PS_L2l	False	required fresh-process execution is incomplete: seed_fx21
+E4d	qwen3_B1	PSA_L2	True	
+E4d	qwen3_B1	PSA_L2l	False	required fresh-process execution is incomplete: seed_fx21
+E4d	qwen3_B1	PR_L1	True	
+E4d	qwen3_B1	PR_L2	True	
+E4d	qwen3_B1	PR_L2l	False	required fresh-process execution is incomplete: bulk
+E4d	llama_B16	B0h	True	
+E4d	llama_B16	PS_L1	False	fixed geometry or selected prefill rejected/missing
+E4d	llama_B16	PS_L2	False	fixed geometry or selected prefill rejected/missing
+E4d	llama_B16	PS_L2l	False	fixed geometry or selected prefill rejected/missing
+E4d	llama_B16	PSA_L2	False	fixed geometry or selected prefill rejected/missing
+E4d	llama_B16	PSA_L2l	False	fixed geometry or selected prefill rejected/missing
+E4d	llama_B16	PR_L1	False	fixed geometry or selected prefill rejected/missing
+E4d	llama_B16	PR_L2	False	fixed geometry or selected prefill rejected/missing
+E4d	llama_B16	PR_L2l	False	fixed geometry or selected prefill rejected/missing
+E4d	qwen3_B16	PS_L1	False	fixed geometry or selected prefill rejected/missing
+E4d	qwen3_B16	PS_L2	False	fixed geometry or selected prefill rejected/missing
+E4d	qwen3_B16	PS_L2l	False	fixed geometry or selected prefill rejected/missing
+E4d	qwen3_B16	PSA_L2	False	fixed geometry or selected prefill rejected/missing
+E4d	qwen3_B16	PSA_L2l	False	fixed geometry or selected prefill rejected/missing
+E4d	qwen3_B16	PR_L1	False	fixed geometry or selected prefill rejected/missing
+E4d	qwen3_B16	PR_L2	False	fixed geometry or selected prefill rejected/missing
+E4d	qwen3_B16	PR_L2l	False	fixed geometry or selected prefill rejected/missing

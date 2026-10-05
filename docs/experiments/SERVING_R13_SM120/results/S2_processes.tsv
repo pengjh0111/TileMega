@@ -1,0 +1,6 @@
+path	pid	contaminated	calibration_median_gbps	original_three_point_median_gbps
+/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E1_TL2_r3/processes/process0/loadbench.json	10682	False	1691.92318586	1691.92318586
+/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E1_TL2_r3/processes/process1/loadbench.json	10806	False	1691.25159609	1690.34285559
+/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E1_TL2_r3/processes/process2/loadbench.json	10833	False	1691.40078335	1691.25164901
+/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E1_TL2_r3/processes/process3/loadbench.json	10858	False	1690.88941636	1690.88941636
+/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E1_TL2_r3/processes/process4/loadbench.json	10886	False	1691.25159609	1691.25159609

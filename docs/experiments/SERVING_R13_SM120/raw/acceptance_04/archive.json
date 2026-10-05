@@ -1,0 +1,12 @@
+{
+  "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_04/original_e4_e5_e6.tar.xz",
+  "bytes": 84614296,
+  "sha256": "19058e454dece28b55f987fc2f1120fdaa1a0b20d67e3ebac052199cb7433f13",
+  "source_files": 2761,
+  "time": 1791194105.4311879,
+  "original_files_unchanged": true,
+  "excludes": [
+    "weights",
+    "temporary caches"
+  ]
+}

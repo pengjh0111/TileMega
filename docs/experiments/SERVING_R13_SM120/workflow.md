@@ -64,3 +64,17 @@ PDL/loop 请求不能回退后假装成功；二进制/执行器 sidecar 变化�
 合并期间 Qwen3 B16 第 1 轮入口读到临时冲突标记，未启动模型测量；只补这个缺失轮到独立 r6 输出，保留原失败。
 补测经原调度器/守卫，只有 clean guard 才接纳；pending E4b 自动依赖它，不增加实验格子或选择最快值。
 固定分页 B16 八臂及两模型 R13F 因 StageFlowModel 的负流量检查失败，记录 unavailable/R14 方案，不改求解器、不做无输入变化的重试。
+
+## E4/E5 验收与页 trace 补齐
+
+verified：原 r5 74 节点全部终态，70 done/4 failed；r6 恢复缺失锚定轮已 done。
+`closure.py audit` 独立核对 195/195 可用测量与 102 unavailable，C-2 非自身比较 120/120、两个组 100 不同新 PID。
+这不是 297/297 全域通过；五个单测失败、B0h Llama B1 C-1 失败、分页协议缺失仍保留。
+cluster 微基准仅 2/12 点执行，10 点因 foreground grid 整除条件 unsupported；不新增合法 grid 实验。
+
+验收发现 PR 的 TR-1/多步 trace 漏加 PAGE_TRACE；原 E4/E5/E6 已先归档，不覆盖旧 trace。
+`closure.py register` 发布六个节点：两格 PR 原源码 trace 重编（最多二并行）→四个 PR E5a/E5c 重采集→E6 更新。
+使用独立 r7 输出，clean outer guard 后才替代对应 trace；B0 trace 与全部性能轮次不重复。
+PAGE_TRACE 与 STAGE/STEP 同时开启，不额外给 TR-1 增加 TRACE_V2 插桩；不改生成几何、求解器或同步源码。
+大型表通过压缩原始证据归档保存，索引见 `results/README.md`；本次 CPU 回归 35/35 与 40/40。
+当前剩余是 r7 终态验收、页记录核对、最终 S6/S7/报告与归档提交；长任务不轮询、不 push。

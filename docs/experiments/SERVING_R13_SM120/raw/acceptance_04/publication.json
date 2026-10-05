@@ -1,0 +1,15 @@
+{
+  "time": 1791194178.8386493,
+  "nodes": [
+    "E3_PR_trace_r7",
+    "E5a_llama_B1_r7",
+    "E5a_qwen3_B1_r7",
+    "E5c_llama_B1_r7",
+    "E5c_qwen3_B1_r7",
+    "E6_collect_r7"
+  ],
+  "unchanged_measurements": 195,
+  "only_trace_recollection": true,
+  "no_solver_changes": true,
+  "no_push": true
+}

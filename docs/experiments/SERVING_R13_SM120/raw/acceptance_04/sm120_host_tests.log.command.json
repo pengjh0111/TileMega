@@ -1,0 +1,12 @@
+[
+  "env",
+  "PYTHONPATH=/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120:/root/tilemega-r13-sm120/python",
+  "/root/shared-nvme/llm-runtimes/vllm/bin/python",
+  "-m",
+  "unittest",
+  "discover",
+  "-s",
+  "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120",
+  "-p",
+  "test_*.py"
+]

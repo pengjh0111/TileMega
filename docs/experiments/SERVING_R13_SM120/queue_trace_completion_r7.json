@@ -1,0 +1,248 @@
+[
+  {
+    "name": "E3_PR_trace_r7",
+    "command": [
+      "/root/shared-nvme/llm-runtimes/vllm/bin/python",
+      "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/closure.py",
+      "build"
+    ],
+    "cwd": "/root/tilemega-r13-sm120",
+    "env": {
+      "PYTHONPATH": "/root/tilemega-r13-sm120/python",
+      "TILEMEGA_BIN": "/root/tilemega-r13-sm120-build/tools/tilemega",
+      "TILEMEGA_GPU_LOCK": "/root/r13_sm120_work/gpu.lock",
+      "TILEMEGA_DEVICE_INDEX": "0",
+      "CUDA_VISIBLE_DEVICES": "0",
+      "TMPDIR": "/dev/shm/tilemega-r13-sm120/tmp",
+      "HF_HOME": "/dev/shm/tilemega-r13-sm120/hf",
+      "HF_HUB_DISABLE_XET": "1",
+      "TOKENIZERS_PARALLELISM": "false",
+      "OMP_NUM_THREADS": "8",
+      "PATH": "/root/shared-nvme/llm-runtimes/vllm/bin:/usr/local/cuda/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/base/mambaforge/bin:/base/mambaforge/bin",
+      "CUDACXX": "/usr/local/cuda/bin/nvcc",
+      "TILEMEGA_MEASUREMENT_POLICY": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/measurement_policy.json",
+      "TORCHINDUCTOR_CACHE_DIR": "/dev/shm/tilemega-r13-sm120/inductor",
+      "TRITON_CACHE_DIR": "/dev/shm/tilemega-r13-sm120/triton",
+      "FLASHINFER_WORKSPACE_BASE": "/dev/shm/tilemega-r13-sm120/flashinfer",
+      "TILEMEGA_E1_ATTEMPT": "_r3",
+      "TILEMEGA_R13_COMPILER_COMMIT": "17860b1840f41ce83d9706e001a2303dc1cf6019"
+    },
+    "gpu": false,
+    "after": [],
+    "after_any": [],
+    "priority": 65,
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E3_PR_trace_r7"
+  },
+  {
+    "name": "E5a_llama_B1_r7",
+    "command": [
+      "/root/shared-nvme/llm-runtimes/vllm/bin/python",
+      "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/closure.py",
+      "trace",
+      "--stage",
+      "E5a",
+      "--cell",
+      "llama_B1"
+    ],
+    "cwd": "/root/tilemega-r13-sm120",
+    "env": {
+      "PYTHONPATH": "/root/tilemega-r13-sm120/python",
+      "TILEMEGA_BIN": "/root/tilemega-r13-sm120-build/tools/tilemega",
+      "TILEMEGA_GPU_LOCK": "/root/r13_sm120_work/gpu.lock",
+      "TILEMEGA_DEVICE_INDEX": "0",
+      "CUDA_VISIBLE_DEVICES": "0",
+      "TMPDIR": "/dev/shm/tilemega-r13-sm120/tmp",
+      "HF_HOME": "/dev/shm/tilemega-r13-sm120/hf",
+      "HF_HUB_DISABLE_XET": "1",
+      "TOKENIZERS_PARALLELISM": "false",
+      "OMP_NUM_THREADS": "8",
+      "PATH": "/root/shared-nvme/llm-runtimes/vllm/bin:/usr/local/cuda/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/base/mambaforge/bin:/base/mambaforge/bin",
+      "CUDACXX": "/usr/local/cuda/bin/nvcc",
+      "TILEMEGA_MEASUREMENT_POLICY": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/measurement_policy.json",
+      "TORCHINDUCTOR_CACHE_DIR": "/dev/shm/tilemega-r13-sm120/inductor",
+      "TRITON_CACHE_DIR": "/dev/shm/tilemega-r13-sm120/triton",
+      "FLASHINFER_WORKSPACE_BASE": "/dev/shm/tilemega-r13-sm120/flashinfer",
+      "TILEMEGA_E1_ATTEMPT": "_r3",
+      "TILEMEGA_R13_COMPILER_COMMIT": "17860b1840f41ce83d9706e001a2303dc1cf6019"
+    },
+    "gpu": true,
+    "after": [
+      "E3_PR_trace_r7"
+    ],
+    "after_any": [],
+    "priority": 65,
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7"
+  },
+  {
+    "name": "E5a_qwen3_B1_r7",
+    "command": [
+      "/root/shared-nvme/llm-runtimes/vllm/bin/python",
+      "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/closure.py",
+      "trace",
+      "--stage",
+      "E5a",
+      "--cell",
+      "qwen3_B1"
+    ],
+    "cwd": "/root/tilemega-r13-sm120",
+    "env": {
+      "PYTHONPATH": "/root/tilemega-r13-sm120/python",
+      "TILEMEGA_BIN": "/root/tilemega-r13-sm120-build/tools/tilemega",
+      "TILEMEGA_GPU_LOCK": "/root/r13_sm120_work/gpu.lock",
+      "TILEMEGA_DEVICE_INDEX": "0",
+      "CUDA_VISIBLE_DEVICES": "0",
+      "TMPDIR": "/dev/shm/tilemega-r13-sm120/tmp",
+      "HF_HOME": "/dev/shm/tilemega-r13-sm120/hf",
+      "HF_HUB_DISABLE_XET": "1",
+      "TOKENIZERS_PARALLELISM": "false",
+      "OMP_NUM_THREADS": "8",
+      "PATH": "/root/shared-nvme/llm-runtimes/vllm/bin:/usr/local/cuda/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/base/mambaforge/bin:/base/mambaforge/bin",
+      "CUDACXX": "/usr/local/cuda/bin/nvcc",
+      "TILEMEGA_MEASUREMENT_POLICY": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/measurement_policy.json",
+      "TORCHINDUCTOR_CACHE_DIR": "/dev/shm/tilemega-r13-sm120/inductor",
+      "TRITON_CACHE_DIR": "/dev/shm/tilemega-r13-sm120/triton",
+      "FLASHINFER_WORKSPACE_BASE": "/dev/shm/tilemega-r13-sm120/flashinfer",
+      "TILEMEGA_E1_ATTEMPT": "_r3",
+      "TILEMEGA_R13_COMPILER_COMMIT": "17860b1840f41ce83d9706e001a2303dc1cf6019"
+    },
+    "gpu": true,
+    "after": [
+      "E3_PR_trace_r7"
+    ],
+    "after_any": [],
+    "priority": 65,
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7"
+  },
+  {
+    "name": "E5c_llama_B1_r7",
+    "command": [
+      "/root/shared-nvme/llm-runtimes/vllm/bin/python",
+      "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/closure.py",
+      "trace",
+      "--stage",
+      "E5c",
+      "--cell",
+      "llama_B1"
+    ],
+    "cwd": "/root/tilemega-r13-sm120",
+    "env": {
+      "PYTHONPATH": "/root/tilemega-r13-sm120/python",
+      "TILEMEGA_BIN": "/root/tilemega-r13-sm120-build/tools/tilemega",
+      "TILEMEGA_GPU_LOCK": "/root/r13_sm120_work/gpu.lock",
+      "TILEMEGA_DEVICE_INDEX": "0",
+      "CUDA_VISIBLE_DEVICES": "0",
+      "TMPDIR": "/dev/shm/tilemega-r13-sm120/tmp",
+      "HF_HOME": "/dev/shm/tilemega-r13-sm120/hf",
+      "HF_HUB_DISABLE_XET": "1",
+      "TOKENIZERS_PARALLELISM": "false",
+      "OMP_NUM_THREADS": "8",
+      "PATH": "/root/shared-nvme/llm-runtimes/vllm/bin:/usr/local/cuda/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/base/mambaforge/bin:/base/mambaforge/bin",
+      "CUDACXX": "/usr/local/cuda/bin/nvcc",
+      "TILEMEGA_MEASUREMENT_POLICY": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/measurement_policy.json",
+      "TORCHINDUCTOR_CACHE_DIR": "/dev/shm/tilemega-r13-sm120/inductor",
+      "TRITON_CACHE_DIR": "/dev/shm/tilemega-r13-sm120/triton",
+      "FLASHINFER_WORKSPACE_BASE": "/dev/shm/tilemega-r13-sm120/flashinfer",
+      "TILEMEGA_E1_ATTEMPT": "_r3",
+      "TILEMEGA_R13_COMPILER_COMMIT": "17860b1840f41ce83d9706e001a2303dc1cf6019"
+    },
+    "gpu": true,
+    "after": [
+      "E3_PR_trace_r7"
+    ],
+    "after_any": [],
+    "priority": 65,
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7"
+  },
+  {
+    "name": "E5c_qwen3_B1_r7",
+    "command": [
+      "/root/shared-nvme/llm-runtimes/vllm/bin/python",
+      "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/closure.py",
+      "trace",
+      "--stage",
+      "E5c",
+      "--cell",
+      "qwen3_B1"
+    ],
+    "cwd": "/root/tilemega-r13-sm120",
+    "env": {
+      "PYTHONPATH": "/root/tilemega-r13-sm120/python",
+      "TILEMEGA_BIN": "/root/tilemega-r13-sm120-build/tools/tilemega",
+      "TILEMEGA_GPU_LOCK": "/root/r13_sm120_work/gpu.lock",
+      "TILEMEGA_DEVICE_INDEX": "0",
+      "CUDA_VISIBLE_DEVICES": "0",
+      "TMPDIR": "/dev/shm/tilemega-r13-sm120/tmp",
+      "HF_HOME": "/dev/shm/tilemega-r13-sm120/hf",
+      "HF_HUB_DISABLE_XET": "1",
+      "TOKENIZERS_PARALLELISM": "false",
+      "OMP_NUM_THREADS": "8",
+      "PATH": "/root/shared-nvme/llm-runtimes/vllm/bin:/usr/local/cuda/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/base/mambaforge/bin:/base/mambaforge/bin",
+      "CUDACXX": "/usr/local/cuda/bin/nvcc",
+      "TILEMEGA_MEASUREMENT_POLICY": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/measurement_policy.json",
+      "TORCHINDUCTOR_CACHE_DIR": "/dev/shm/tilemega-r13-sm120/inductor",
+      "TRITON_CACHE_DIR": "/dev/shm/tilemega-r13-sm120/triton",
+      "FLASHINFER_WORKSPACE_BASE": "/dev/shm/tilemega-r13-sm120/flashinfer",
+      "TILEMEGA_E1_ATTEMPT": "_r3",
+      "TILEMEGA_R13_COMPILER_COMMIT": "17860b1840f41ce83d9706e001a2303dc1cf6019"
+    },
+    "gpu": true,
+    "after": [
+      "E3_PR_trace_r7"
+    ],
+    "after_any": [],
+    "priority": 65,
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7"
+  },
+  {
+    "name": "E6_collect_r7",
+    "command": [
+      "/root/shared-nvme/llm-runtimes/vllm/bin/python",
+      "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/closure.py",
+      "collect"
+    ],
+    "cwd": "/root/tilemega-r13-sm120",
+    "env": {
+      "PYTHONPATH": "/root/tilemega-r13-sm120/python",
+      "TILEMEGA_BIN": "/root/tilemega-r13-sm120-build/tools/tilemega",
+      "TILEMEGA_GPU_LOCK": "/root/r13_sm120_work/gpu.lock",
+      "TILEMEGA_DEVICE_INDEX": "0",
+      "CUDA_VISIBLE_DEVICES": "0",
+      "TMPDIR": "/dev/shm/tilemega-r13-sm120/tmp",
+      "HF_HOME": "/dev/shm/tilemega-r13-sm120/hf",
+      "HF_HUB_DISABLE_XET": "1",
+      "TOKENIZERS_PARALLELISM": "false",
+      "OMP_NUM_THREADS": "8",
+      "PATH": "/root/shared-nvme/llm-runtimes/vllm/bin:/usr/local/cuda/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/base/mambaforge/bin:/base/mambaforge/bin",
+      "CUDACXX": "/usr/local/cuda/bin/nvcc",
+      "TILEMEGA_MEASUREMENT_POLICY": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/measurement_policy.json",
+      "TORCHINDUCTOR_CACHE_DIR": "/dev/shm/tilemega-r13-sm120/inductor",
+      "TRITON_CACHE_DIR": "/dev/shm/tilemega-r13-sm120/triton",
+      "FLASHINFER_WORKSPACE_BASE": "/dev/shm/tilemega-r13-sm120/flashinfer",
+      "TILEMEGA_E1_ATTEMPT": "_r3",
+      "TILEMEGA_R13_COMPILER_COMMIT": "17860b1840f41ce83d9706e001a2303dc1cf6019"
+    },
+    "gpu": false,
+    "after": [],
+    "after_any": [
+      "E3_PR_trace_r7",
+      "E5a_llama_B1_r7",
+      "E5a_qwen3_B1_r7",
+      "E5c_llama_B1_r7",
+      "E5c_qwen3_B1_r7"
+    ],
+    "priority": 65,
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "out": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E6_collect_r7"
+  }
+]

@@ -9099,5 +9099,25 @@ its underlying traffic imbalance is not yet established. No solver or cost-model
 workaround is applied in R13 sm120. Final R13 CPU checks replay existing sm120
 PDL PTX at 8/8; seven clean vLLM records recover from a TM-only loop check without
 rewriting original measurements. Evidence: SERVING_R13_SM120/raw/{E2c_pdl_r5/,
-E2c_l1loop_r5/,acceptance_03/}; baseline_alignment.json. Performance/trace collection
-is still in progress, so these results are not a completed end-to-end report.
+E2c_l1loop_r5/,acceptance_03/}; baseline_alignment.json. Subsequent E4 acceptance
+collects 195/195 eligible records, with 102 registered records unavailable; this
+is not a full-protocol PASS. PR page-trace instrumentation is being completed
+in a separate r7 queue without modifying the performance binaries.
+
+## F-356: sm120 mechanism effects are not uniformly beneficial
+
+verified (three same-group paired rounds): NL2e/g remain slower than B0 in all
+four cells, like sm89. PR_L1 is 1.982%/2.562% slower than same-geometry B0h in
+Llama/Qwen B1; B16 is unavailable. PSA_L2 vs PS_L2 reverses the sm89 B1 sign,
+becoming 1.188%/0.731% slower. Early nonpaged PDL saves 35.36 us per step for
+Llama B16 L1 but costs 10.08 us for Qwen B16 L1; late L1 PDL slows all cells.
+PDL/loop fresh-process validation covers Llama B16 only (50/50 each, 100 distinct
+PIDs), not paged or cluster paths. Cluster MB-1d executes only 2/12 requested
+points because most foreground grids are not divisible by cluster size.
+
+inferred: defaults need architecture/model-specific evidence, not a universal
+PDL/paging rule. The comparison retains vLLM 0.29.0 vs sm89 0.30.0, unverified
+cross-host weight SHA, and sm89 canary flags. B0h Llama B1 C-1 fails unchanged
+thresholds; failed R13F joint selection prevents verification of its B1 forecast.
+Evidence: SERVING_R13_SM120/results/{S4,S5,S9,S10}.tsv;
+raw/acceptance_04/{acceptance.json,original_e4_e5_e6.tar.xz}; summary.md.

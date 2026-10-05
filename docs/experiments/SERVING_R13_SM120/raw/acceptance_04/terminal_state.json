@@ -1,0 +1,1265 @@
+{
+  "time": 1791194054.4643512,
+  "original_queue_nodes": 74,
+  "original_queue_statuses": {
+    "done": 70,
+    "failed": 4
+  },
+  "active": {},
+  "state": {
+    "E0_core": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133193.2926908,
+      "retry_at": 0,
+      "wait_s": 0.00018930435180664062,
+      "pid": 4920,
+      "run_s": 14.382482122629881,
+      "exit_code": 1
+    },
+    "E0_test_build": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.292692,
+      "retry_at": 0
+    },
+    "E0_units": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926927,
+      "retry_at": 0
+    },
+    "E0_environment": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926931,
+      "retry_at": 0
+    },
+    "E0_model_llama": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.292694,
+      "retry_at": 0
+    },
+    "E0_model_qwen3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926946,
+      "retry_at": 0
+    },
+    "E1_llama": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.292695,
+      "retry_at": 0
+    },
+    "E1_qwen3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926955,
+      "retry_at": 0
+    },
+    "E1_TL2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926958,
+      "retry_at": 0
+    },
+    "E2a_MB-1b": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926962,
+      "retry_at": 0
+    },
+    "E2a_MB-1c": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926967,
+      "retry_at": 0
+    },
+    "E2a_MB-1d": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926977,
+      "retry_at": 0
+    },
+    "E2a_MB-1e": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.292699,
+      "retry_at": 0
+    },
+    "E2a_MB-1f": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133193.2926993,
+      "retry_at": 0
+    },
+    "E0_core_r1": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133387.7884705,
+      "retry_at": 0,
+      "wait_s": 0.0002887248992919922,
+      "pid": 5389,
+      "run_s": 0.06441725045442581,
+      "exit_code": 1
+    },
+    "E0_test_build_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884712,
+      "retry_at": 0
+    },
+    "E0_units_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884717,
+      "retry_at": 0
+    },
+    "E0_environment_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884724,
+      "retry_at": 0
+    },
+    "E0_model_llama_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884731,
+      "retry_at": 0
+    },
+    "E0_model_qwen3_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884736,
+      "retry_at": 0
+    },
+    "E1_llama_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884743,
+      "retry_at": 0
+    },
+    "E1_qwen3_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884758,
+      "retry_at": 0
+    },
+    "E1_TL2_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.788478,
+      "retry_at": 0
+    },
+    "E2a_MB-1b_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884786,
+      "retry_at": 0
+    },
+    "E2a_MB-1c_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884793,
+      "retry_at": 0
+    },
+    "E2a_MB-1d_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884798,
+      "retry_at": 0
+    },
+    "E2a_MB-1e_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884803,
+      "retry_at": 0
+    },
+    "E2a_MB-1f_r1": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133387.7884805,
+      "retry_at": 0
+    },
+    "E0_core_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.930356,
+      "retry_at": 0,
+      "wait_s": 0.0003097057342529297,
+      "pid": 5624,
+      "run_s": 173.03390765190125,
+      "exit_code": 0
+    },
+    "E0_test_build_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303567,
+      "retry_at": 0,
+      "wait_s": 173.036395072937,
+      "pid": 6792,
+      "run_s": 209.9780532605946,
+      "exit_code": 2
+    },
+    "E0_units_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303575,
+      "retry_at": 0,
+      "wait_s": 383.10418915748596,
+      "pid": 7739,
+      "run_s": 713.4762653633952,
+      "exit_code": 1
+    },
+    "E0_environment_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.930358,
+      "retry_at": 0,
+      "wait_s": 1096.697923898697,
+      "pid": 8709,
+      "run_s": 29.85065297782421,
+      "exit_code": 0
+    },
+    "E0_model_llama_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.9303584,
+      "retry_at": 0,
+      "wait_s": 1126.5507638454437,
+      "pid": 8789,
+      "run_s": 425.5537393540144,
+      "exit_code": 0
+    },
+    "E0_model_qwen3_r2": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791133507.9303591,
+      "retry_at": 0,
+      "wait_s": 1552.107007741928,
+      "pid": 8844,
+      "run_s": 694.5306063145399,
+      "exit_code": 0
+    },
+    "E1_llama_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303598,
+      "retry_at": 0,
+      "wait_s": 2246.7693388462067,
+      "pid": 9096,
+      "run_s": 63.64200333505869,
+      "exit_code": 1
+    },
+    "E1_qwen3_r2": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791133507.9303603,
+      "retry_at": 0,
+      "wait_s": 2370.6855602264404,
+      "pid": 9191,
+      "run_s": 64.14419068023562,
+      "exit_code": 1
+    },
+    "E1_TL2_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303608,
+      "retry_at": 0
+    },
+    "E2a_MB-1b_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303613,
+      "retry_at": 0
+    },
+    "E2a_MB-1c_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303617,
+      "retry_at": 0
+    },
+    "E2a_MB-1d_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303625,
+      "retry_at": 0
+    },
+    "E2a_MB-1e_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.930363,
+      "retry_at": 0
+    },
+    "E2a_MB-1f_r2": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791133507.9303646,
+      "retry_at": 0
+    },
+    "E0_native_build_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.195397,
+      "retry_at": 0,
+      "wait_s": 0.0007309913635253906,
+      "pid": 10160,
+      "run_s": 4.474145818501711,
+      "exit_code": 0
+    },
+    "E0_contracts_r3": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791137684.1954,
+      "retry_at": 0,
+      "wait_s": 4.477353572845459,
+      "pid": 10201,
+      "run_s": 318.4642065539956,
+      "exit_code": 1
+    },
+    "E1_llama_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954007,
+      "retry_at": 0,
+      "wait_s": 323.05746626853943,
+      "pid": 10336,
+      "run_s": 62.93813979253173,
+      "exit_code": 0
+    },
+    "E1_qwen3_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.195401,
+      "retry_at": 0,
+      "wait_s": 446.23865604400635,
+      "pid": 10495,
+      "run_s": 63.95738182216883,
+      "exit_code": 0
+    },
+    "E1_TL2_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954014,
+      "retry_at": 0,
+      "wait_s": 570.4322998523712,
+      "pid": 10654,
+      "run_s": 88.97186662256718,
+      "exit_code": 0
+    },
+    "E2a_MB-1b_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954021,
+      "retry_at": 0,
+      "wait_s": 675.3918368816376,
+      "pid": 10928,
+      "run_s": 27.496873199939728,
+      "exit_code": 0
+    },
+    "E2a_MB-1c_r3": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791137684.1954029,
+      "retry_at": 0,
+      "wait_s": 763.1019306182861,
+      "pid": 10989,
+      "run_s": 29.85098334774375,
+      "exit_code": 1
+    },
+    "E2a_MB-1d_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954033,
+      "retry_at": 0,
+      "wait_s": 2526.2023179531097,
+      "pid": 4514,
+      "run_s": 26.446543615311384,
+      "exit_code": 0
+    },
+    "E2a_MB-1e_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791137684.1954036,
+      "retry_at": 0,
+      "wait_s": 2552.740482568741,
+      "pid": 4597,
+      "run_s": 26.64689440652728,
+      "exit_code": 0
+    },
+    "E2a_MB-1f_r3": {
+      "status": "done",
+      "attempts": 2,
+      "enqueued": 1791137684.195404,
+      "retry_at": 1791140563.8280401,
+      "wait_s": 3047.52378988266,
+      "pid": 4931,
+      "run_s": 26.494979575276375,
+      "exit_code": 0
+    },
+    "E3_exports_r3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791137684.1954048,
+      "retry_at": 0
+    },
+    "E3_fixed_r3": {
+      "status": "skipped",
+      "attempts": 0,
+      "enqueued": 1791137684.1954052,
+      "retry_at": 0
+    },
+    "E0_plan_fixture_r3": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791138343.6019423,
+      "retry_at": 0,
+      "wait_s": 0.05819296836853027,
+      "pid": 10919,
+      "run_s": 15.78214369341731,
+      "exit_code": 0
+    },
+    "E0_restore_r4": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791140210.2913265,
+      "retry_at": 0,
+      "wait_s": 53.538705825805664,
+      "pid": 4654,
+      "run_s": 9.976696100085974,
+      "exit_code": 0
+    },
+    "E0_model_llama_r4": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791140210.291327,
+      "retry_at": 0,
+      "wait_s": 95.0667154788971,
+      "pid": 4870,
+      "run_s": 426.2428598366678,
+      "exit_code": 0
+    },
+    "E0_model_qwen3_r4": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791140210.2913275,
+      "retry_at": 0,
+      "wait_s": 547.9259247779846,
+      "pid": 4976,
+      "run_s": 703.7228551954031,
+      "exit_code": 0
+    },
+    "E2a_MB-1c_r4": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791140210.2913277,
+      "retry_at": 0,
+      "wait_s": 63.611252784729004,
+      "pid": 4697,
+      "run_s": 31.452517196536064,
+      "exit_code": 0
+    },
+    "E3_exports_r4": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791140210.2913284,
+      "retry_at": 0,
+      "wait_s": 1251.6517848968506,
+      "pid": 5238,
+      "run_s": 211.76970741525292,
+      "exit_code": 0
+    },
+    "E3_fixed_r4": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791140210.2913287,
+      "retry_at": 0,
+      "wait_s": 1463.4245047569275,
+      "pid": 5394,
+      "run_s": 11679.0981374681,
+      "exit_code": 0
+    },
+    "E3_R13F_llama_r4": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791140210.2913294,
+      "retry_at": 0,
+      "wait_s": 13142.677748680115,
+      "pid": 24137,
+      "run_s": 6151.171404451132,
+      "exit_code": 1
+    },
+    "E3_R13F_qwen3_r4": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791140210.2913299,
+      "retry_at": 0,
+      "wait_s": 19293.998065948486,
+      "pid": 34870,
+      "run_s": 6881.8936724327505,
+      "exit_code": 1
+    },
+    "E2b_smoke_r4": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791140210.2913303,
+      "retry_at": 0,
+      "wait_s": 26176.03341627121,
+      "pid": 46273,
+      "run_s": 279.00294567272067,
+      "exit_code": 0
+    },
+    "E3_catalog_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183455,
+      "retry_at": 0,
+      "wait_s": 13312.513836145401,
+      "pid": 47348,
+      "run_s": 30.704176757484674,
+      "exit_code": 0
+    },
+    "E3_codegen_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183465,
+      "retry_at": 0,
+      "wait_s": 14478.655069351196,
+      "pid": 50044,
+      "run_s": 789.6658136844635,
+      "exit_code": 0
+    },
+    "E2c_bulk_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183472,
+      "retry_at": 0,
+      "wait_s": 13343.317414522171,
+      "pid": 47364,
+      "run_s": 25.947420570999384,
+      "exit_code": 0
+    },
+    "E2c_pdl_r5": {
+      "status": "done",
+      "attempts": 2,
+      "enqueued": 1791153352.8183482,
+      "retry_at": 1791168926.537846,
+      "wait_s": 15600.379102945328,
+      "pid": 51665,
+      "run_s": 1654.5746017061174,
+      "exit_code": 0
+    },
+    "E2c_l1loop_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818349,
+      "retry_at": 0,
+      "wait_s": 13369.358844041824,
+      "pid": 47401,
+      "run_s": 1109.119329083711,
+      "exit_code": 0
+    },
+    "E2c_seed_fx21_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183494,
+      "retry_at": 0,
+      "wait_s": 15333.969322681427,
+      "pid": 51278,
+      "run_s": 26.045037277042866,
+      "exit_code": 0
+    },
+    "E4a_llama_B1_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.81835,
+      "retry_at": 0,
+      "wait_s": 18156.367570638657,
+      "pid": 56997,
+      "run_s": 191.31161982566118,
+      "exit_code": 0
+    },
+    "E4a_llama_B1_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183525,
+      "retry_at": 0,
+      "wait_s": 18347.725625753403,
+      "pid": 57639,
+      "run_s": 188.9028359875083,
+      "exit_code": 0
+    },
+    "E4a_llama_B1_r2_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818353,
+      "retry_at": 0,
+      "wait_s": 18596.93458223343,
+      "pid": 58283,
+      "run_s": 187.34664916992188,
+      "exit_code": 0
+    },
+    "E4a_qwen3_B1_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818354,
+      "retry_at": 0,
+      "wait_s": 19497.189195394516,
+      "pid": 62091,
+      "run_s": 196.40515475347638,
+      "exit_code": 0
+    },
+    "E4a_qwen3_B1_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183544,
+      "retry_at": 0,
+      "wait_s": 19753.876975774765,
+      "pid": 63174,
+      "run_s": 197.06417834758759,
+      "exit_code": 0
+    },
+    "E4a_qwen3_B1_r2_r5": {
+      "status": "done",
+      "attempts": 2,
+      "enqueued": 1791153352.8183546,
+      "retry_at": 1791173604.0474598,
+      "wait_s": 20453.769934892654,
+      "pid": 65250,
+      "run_s": 197.3551927357912,
+      "exit_code": 0
+    },
+    "E4a_llama_B16_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818355,
+      "retry_at": 0,
+      "wait_s": 17315.155388355255,
+      "pid": 54778,
+      "run_s": 311.3919411674142,
+      "exit_code": 0
+    },
+    "E4a_llama_B16_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183558,
+      "retry_at": 0,
+      "wait_s": 17626.680776119232,
+      "pid": 55644,
+      "run_s": 206.71191285923123,
+      "exit_code": 0
+    },
+    "E4a_llama_B16_r2_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183563,
+      "retry_at": 0,
+      "wait_s": 17893.68695807457,
+      "pid": 56330,
+      "run_s": 202.41003263741732,
+      "exit_code": 0
+    },
+    "E4a_qwen3_B16_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183565,
+      "retry_at": 0,
+      "wait_s": 18844.52725982666,
+      "pid": 58926,
+      "run_s": 245.5584525913,
+      "exit_code": 0
+    },
+    "E4a_qwen3_B16_r1_r5": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791153352.818357,
+      "retry_at": 0,
+      "wait_s": 19150.37346816063,
+      "pid": 60864,
+      "run_s": 62.113263580948114,
+      "exit_code": 1
+    },
+    "E4a_qwen3_B16_r2_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183575,
+      "retry_at": 0,
+      "wait_s": 19212.68580365181,
+      "pid": 61112,
+      "run_s": 224.18956360965967,
+      "exit_code": 0
+    },
+    "E4b_llama_B1_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183577,
+      "retry_at": 0,
+      "wait_s": 21994.6793050766,
+      "pid": 69726,
+      "run_s": 324.6074537932873,
+      "exit_code": 0
+    },
+    "E4b_llama_B1_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183582,
+      "retry_at": 0,
+      "wait_s": 22379.593591451645,
+      "pid": 70833,
+      "run_s": 319.90105664357543,
+      "exit_code": 0
+    },
+    "E4b_llama_B1_r2_r5": {
+      "status": "done",
+      "attempts": 2,
+      "enqueued": 1791153352.818359,
+      "retry_at": 1791176352.4762924,
+      "wait_s": 23191.674835681915,
+      "pid": 73351,
+      "run_s": 326.0158360898495,
+      "exit_code": 0
+    },
+    "E4b_qwen3_B1_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183632,
+      "retry_at": 0,
+      "wait_s": 24524.55421257019,
+      "pid": 76821,
+      "run_s": 346.6384555734694,
+      "exit_code": 0
+    },
+    "E4b_qwen3_B1_r1_r5": {
+      "status": "done",
+      "attempts": 2,
+      "enqueued": 1791153352.8183646,
+      "retry_at": 1791178524.2671463,
+      "wait_s": 25268.261600255966,
+      "pid": 78932,
+      "run_s": 338.42867835983634,
+      "exit_code": 0
+    },
+    "E4b_qwen3_B1_r2_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818365,
+      "retry_at": 0,
+      "wait_s": 24931.855507850647,
+      "pid": 77892,
+      "run_s": 336.3203452639282,
+      "exit_code": 0
+    },
+    "E4b_llama_B16_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183653,
+      "retry_at": 0,
+      "wait_s": 20711.369594573975,
+      "pid": 66296,
+      "run_s": 381.72913068532944,
+      "exit_code": 0
+    },
+    "E4b_llama_B16_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818366,
+      "retry_at": 0,
+      "wait_s": 21153.309941768646,
+      "pid": 67462,
+      "run_s": 354.1357911452651,
+      "exit_code": 0
+    },
+    "E4b_llama_B16_r2_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183665,
+      "retry_at": 0,
+      "wait_s": 21567.69673895836,
+      "pid": 68579,
+      "run_s": 366.65217581763864,
+      "exit_code": 0
+    },
+    "E4b_qwen3_B16_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183668,
+      "retry_at": 0,
+      "wait_s": 22759.96459722519,
+      "pid": 72031,
+      "run_s": 431.59377063810825,
+      "exit_code": 0
+    },
+    "E4b_qwen3_B16_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183675,
+      "retry_at": 0,
+      "wait_s": 23577.937709331512,
+      "pid": 74393,
+      "run_s": 411.3262967579067,
+      "exit_code": 0
+    },
+    "E4b_qwen3_B16_r2_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183677,
+      "retry_at": 0,
+      "wait_s": 24049.540246009827,
+      "pid": 75607,
+      "run_s": 414.7381897009909,
+      "exit_code": 0
+    },
+    "E4c_llama_B1_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183687,
+      "retry_at": 0,
+      "wait_s": 27338.42999815941,
+      "pid": 85214,
+      "run_s": 619.5932389348745,
+      "exit_code": 0
+    },
+    "E4c_llama_B1_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183694,
+      "retry_at": 0,
+      "wait_s": 28018.26157283783,
+      "pid": 87660,
+      "run_s": 616.8867141827941,
+      "exit_code": 0
+    },
+    "E4c_llama_B1_r2_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183699,
+      "retry_at": 0,
+      "wait_s": 28635.19525718689,
+      "pid": 89665,
+      "run_s": 617.6852689273655,
+      "exit_code": 0
+    },
+    "E4c_qwen3_B1_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.81837,
+      "retry_at": 0,
+      "wait_s": 31261.51536154747,
+      "pid": 97342,
+      "run_s": 649.6706761047244,
+      "exit_code": 0
+    },
+    "E4c_qwen3_B1_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183706,
+      "retry_at": 0,
+      "wait_s": 31971.404358625412,
+      "pid": 99401,
+      "run_s": 647.4692224524915,
+      "exit_code": 0
+    },
+    "E4c_qwen3_B1_r2_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183708,
+      "retry_at": 0,
+      "wait_s": 32679.056503534317,
+      "pid": 101596,
+      "run_s": 650.8775070570409,
+      "exit_code": 0
+    },
+    "E4c_llama_B16_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818371,
+      "retry_at": 0,
+      "wait_s": 25666.9891808033,
+      "pid": 80050,
+      "run_s": 486.790010292083,
+      "exit_code": 0
+    },
+    "E4c_llama_B16_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183715,
+      "retry_at": 0,
+      "wait_s": 26214.043283462524,
+      "pid": 81802,
+      "run_s": 524.9751028977334,
+      "exit_code": 0
+    },
+    "E4c_llama_B16_r2_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818373,
+      "retry_at": 0,
+      "wait_s": 26739.074948310852,
+      "pid": 83451,
+      "run_s": 539.0781626440585,
+      "exit_code": 0
+    },
+    "E4c_qwen3_B16_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183734,
+      "retry_at": 0,
+      "wait_s": 29313.08478450775,
+      "pid": 91683,
+      "run_s": 618.210408616811,
+      "exit_code": 0
+    },
+    "E4c_qwen3_B16_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183737,
+      "retry_at": 0,
+      "wait_s": 29931.383726119995,
+      "pid": 93651,
+      "run_s": 587.5217580795288,
+      "exit_code": 0
+    },
+    "E4c_qwen3_B16_r2_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183742,
+      "retry_at": 0,
+      "wait_s": 30579.18080639839,
+      "pid": 95479,
+      "run_s": 622.0374732241035,
+      "exit_code": 0
+    },
+    "E4d_llama_B1_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183744,
+      "retry_at": 0,
+      "wait_s": 33896.44556093216,
+      "pid": 104719,
+      "run_s": 476.6586901843548,
+      "exit_code": 0
+    },
+    "E4d_llama_B1_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183749,
+      "retry_at": 0,
+      "wait_s": 34433.349098443985,
+      "pid": 106257,
+      "run_s": 476.70366686210036,
+      "exit_code": 0
+    },
+    "E4d_llama_B1_r2_r5": {
+      "status": "done",
+      "attempts": 2,
+      "enqueued": 1791153352.818375,
+      "retry_at": 1791188563.118506,
+      "wait_s": 35600.25402235985,
+      "pid": 109593,
+      "run_s": 467.8670840077102,
+      "exit_code": 0
+    },
+    "E4d_qwen3_B1_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183756,
+      "retry_at": 0,
+      "wait_s": 35048.919380664825,
+      "pid": 107987,
+      "run_s": 491.1192218102515,
+      "exit_code": 0
+    },
+    "E4d_qwen3_B1_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183758,
+      "retry_at": 0,
+      "wait_s": 36128.31371188164,
+      "pid": 111118,
+      "run_s": 489.0590497329831,
+      "exit_code": 0
+    },
+    "E4d_qwen3_B1_r2_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183765,
+      "retry_at": 0,
+      "wait_s": 36677.612699747086,
+      "pid": 112723,
+      "run_s": 493.7299966812134,
+      "exit_code": 0
+    },
+    "E4d_llama_B16_r0_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183768,
+      "retry_at": 0,
+      "wait_s": 33390.10920500755,
+      "pid": 103793,
+      "run_s": 103.29465022310615,
+      "exit_code": 0
+    },
+    "E4d_llama_B16_r1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818377,
+      "retry_at": 0,
+      "wait_s": 33553.66204071045,
+      "pid": 104084,
+      "run_s": 119.4712549932301,
+      "exit_code": 0
+    },
+    "E4d_llama_B16_r2_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183775,
+      "retry_at": 0,
+      "wait_s": 33733.354154109955,
+      "pid": 104424,
+      "run_s": 102.84283690527081,
+      "exit_code": 0
+    },
+    "E4d_qwen3_B16_r0_r5": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791153352.8183777,
+      "retry_at": 0,
+      "wait_s": 34970.57184410095,
+      "pid": 107875,
+      "run_s": 26.046512231230736,
+      "exit_code": 3
+    },
+    "E4d_qwen3_B16_r1_r5": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791153352.8183784,
+      "retry_at": 0,
+      "wait_s": 34996.7474694252,
+      "pid": 107911,
+      "run_s": 25.857716754078865,
+      "exit_code": 3
+    },
+    "E4d_qwen3_B16_r2_r5": {
+      "status": "failed",
+      "attempts": 1,
+      "enqueued": 1791153352.8183787,
+      "retry_at": 0,
+      "wait_s": 35022.69604682922,
+      "pid": 107952,
+      "run_s": 26.04717168211937,
+      "exit_code": 3
+    },
+    "E4_canary_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183792,
+      "retry_at": 0,
+      "wait_s": 37231.596109867096,
+      "pid": 114419,
+      "run_s": 189.25060579180717,
+      "exit_code": 0
+    },
+    "E4f_llama_B1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183799,
+      "retry_at": 0,
+      "wait_s": 37591.92148017883,
+      "pid": 115188,
+      "run_s": 47.92302747070789,
+      "exit_code": 0
+    },
+    "E4f_qwen3_B1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183804,
+      "retry_at": 0,
+      "wait_s": 37801.52189397812,
+      "pid": 115438,
+      "run_s": 50.78249567747116,
+      "exit_code": 0
+    },
+    "E4f_llama_B16_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183806,
+      "retry_at": 0,
+      "wait_s": 37481.17573475838,
+      "pid": 115080,
+      "run_s": 50.532750744372606,
+      "exit_code": 0
+    },
+    "E4f_qwen3_B16_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818381,
+      "retry_at": 0,
+      "wait_s": 37700.19685649872,
+      "pid": 115293,
+      "run_s": 41.01671389862895,
+      "exit_code": 0
+    },
+    "E5a_llama_B1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183815,
+      "retry_at": 0,
+      "wait_s": 38027.219830513,
+      "pid": 115672,
+      "run_s": 70.10136672854424,
+      "exit_code": 0
+    },
+    "E5a_qwen3_B1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183818,
+      "retry_at": 0,
+      "wait_s": 38281.07259917259,
+      "pid": 115963,
+      "run_s": 80.98622731864452,
+      "exit_code": 0
+    },
+    "E5a_llama_B16_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183835,
+      "retry_at": 0,
+      "wait_s": 37912.48274874687,
+      "pid": 115559,
+      "run_s": 54.531769685447216,
+      "exit_code": 0
+    },
+    "E5a_qwen3_B16_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183837,
+      "retry_at": 0,
+      "wait_s": 38157.803911447525,
+      "pid": 115843,
+      "run_s": 63.09764704108238,
+      "exit_code": 0
+    },
+    "E5b_llama_B1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183842,
+      "retry_at": 0,
+      "wait_s": 38539.46148467064,
+      "pid": 116332,
+      "run_s": 54.832553159445524,
+      "exit_code": 0
+    },
+    "E5b_qwen3_B1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183846,
+      "retry_at": 0,
+      "wait_s": 38776.50892782211,
+      "pid": 116590,
+      "run_s": 57.434009701013565,
+      "exit_code": 0
+    },
+    "E5b_llama_B16_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818385,
+      "retry_at": 0,
+      "wait_s": 38422.287395477295,
+      "pid": 116207,
+      "run_s": 56.934107441455126,
+      "exit_code": 0
+    },
+    "E5b_qwen3_B16_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183854,
+      "retry_at": 0,
+      "wait_s": 38654.54147863388,
+      "pid": 116457,
+      "run_s": 61.54223967716098,
+      "exit_code": 0
+    },
+    "E5c_llama_B1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183856,
+      "retry_at": 0,
+      "wait_s": 39024.117560625076,
+      "pid": 116882,
+      "run_s": 77.76157690957189,
+      "exit_code": 0
+    },
+    "E5c_qwen3_B1_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818386,
+      "retry_at": 0,
+      "wait_s": 39299.62878370285,
+      "pid": 117265,
+      "run_s": 85.9768752977252,
+      "exit_code": 0
+    },
+    "E5c_llama_B16_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183863,
+      "retry_at": 0,
+      "wait_s": 38894.203746557236,
+      "pid": 116718,
+      "run_s": 69.70036446303129,
+      "exit_code": 0
+    },
+    "E5c_qwen3_B16_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.818388,
+      "retry_at": 0,
+      "wait_s": 39162.17287111282,
+      "pid": 117088,
+      "run_s": 77.20673621073365,
+      "exit_code": 0
+    },
+    "E5d_llama_B16_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183882,
+      "retry_at": 0,
+      "wait_s": 39445.77300167084,
+      "pid": 117470,
+      "run_s": 26.046309731900692,
+      "exit_code": 0
+    },
+    "E5d_qwen3_B16_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183887,
+      "retry_at": 0,
+      "wait_s": 39471.927929639816,
+      "pid": 117506,
+      "run_s": 25.995967853814363,
+      "exit_code": 0
+    },
+    "E6_collect_r5": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791153352.8183901,
+      "retry_at": 0,
+      "wait_s": 39497.92896437645,
+      "pid": 117536,
+      "run_s": 196.89979049563408,
+      "exit_code": 0
+    },
+    "E4a_qwen3_B16_r1_recovery_r6": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791173544.2112596,
+      "retry_at": 0,
+      "wait_s": 0.12219858169555664,
+      "pid": 64304,
+      "run_s": 202.01429154351354,
+      "exit_code": 0
+    }
+  }
+}
