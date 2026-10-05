@@ -1,0 +1,2 @@
+distribution	version	header	sha256	git_commit	qualification
+CUTLASS/CuTe local headers	4.8.0	/root/tilemega-r13-sm120/third_party/cutlass/include/cutlass/version.h	a9e73024238563e7bde88c55e6aa7e15b62555f1cfcaa349fc0cef0cf80ae05f		verified local header macros; vendor directory is not an independent Git checkout

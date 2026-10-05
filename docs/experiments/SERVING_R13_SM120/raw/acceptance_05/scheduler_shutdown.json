@@ -1,0 +1,11 @@
+{
+  "time": 1791196459.599899,
+  "pid": 4488,
+  "command": "/usr/bin/python3 /root/tilemega-r13-sm120/docs/experiments/SERVING_R13/scheduler.py --queue-dir /root/r13_sm120_work/queue --out /root/r13_sm120_work/scheduler --policy /root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/guard_policy.json --deadline-hours 96 ",
+  "all_registered_work_terminal": true,
+  "children_before": [],
+  "signal": "SIGTERM",
+  "exited": true,
+  "no_gpu_reset": true,
+  "no_state_cleared": true
+}

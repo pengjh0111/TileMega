@@ -1,11 +1,20 @@
 {
-  "time": 1791194054.4643512,
+  "time": 1791194917.6137695,
   "original_queue_nodes": 74,
   "original_queue_statuses": {
     "done": 70,
     "failed": 4
   },
-  "active": {},
+  "active": {
+    "E6_collect_r7": {
+      "status": "running",
+      "attempts": 1,
+      "enqueued": 1791194188.6992662,
+      "retry_at": 0,
+      "wait_s": 522.6973237991333,
+      "pid": 119335
+    }
+  },
   "state": {
     "E0_core": {
       "status": "failed",
@@ -1260,6 +1269,64 @@
       "pid": 64304,
       "run_s": 202.01429154351354,
       "exit_code": 0
+    },
+    "E3_PR_trace_r7": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791194188.6992629,
+      "retry_at": 0,
+      "wait_s": 0.0005648136138916016,
+      "pid": 118342,
+      "run_s": 150.41115552186966,
+      "exit_code": 0
+    },
+    "E5a_llama_B1_r7": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791194188.6992638,
+      "retry_at": 0,
+      "wait_s": 150.53523468971252,
+      "pid": 118825,
+      "run_s": 46.62029717862606,
+      "exit_code": 0
+    },
+    "E5a_qwen3_B1_r7": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791194188.6992643,
+      "retry_at": 0,
+      "wait_s": 257.31092047691345,
+      "pid": 118953,
+      "run_s": 57.79198844358325,
+      "exit_code": 0
+    },
+    "E5c_llama_B1_r7": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791194188.6992648,
+      "retry_at": 0,
+      "wait_s": 375.3303470611572,
+      "pid": 119070,
+      "run_s": 42.5209628008306,
+      "exit_code": 0
+    },
+    "E5c_qwen3_B1_r7": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791194188.6992655,
+      "retry_at": 0,
+      "wait_s": 478.0688405036926,
+      "pid": 119170,
+      "run_s": 44.62311069667339,
+      "exit_code": 0
+    },
+    "E6_collect_r7": {
+      "status": "running",
+      "attempts": 1,
+      "enqueued": 1791194188.6992662,
+      "retry_at": 0,
+      "wait_s": 522.6973237991333,
+      "pid": 119335
     }
   }
 }

@@ -1,0 +1,717 @@
+[
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120/plan.so",
+    "bytes": 4146312,
+    "sha256": "f4622d419a4f1d47a2aa9740893ab0b6513a0aeefbd5c474c031236315cfa7a4"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120/plan.so.build_command.txt",
+    "bytes": 1345,
+    "sha256": "13f6a2bd6572da3c1a18d5e4ee535b12a08d24b2ea53c62c45ff125ae16f14e4"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120/plan.so.classes.tsv",
+    "bytes": 2050,
+    "sha256": "a1f17012933dbcedc5b5694f72346038606f74eeade0cd570be5dbca9b5e4694"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120/plan.so.cu",
+    "bytes": 155202,
+    "sha256": "579307e4ec77d798d4d298791a684d866c7ced408c03eec066dc55db3e0f44ab"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120/plan.so.plan.json",
+    "bytes": 6638,
+    "sha256": "3a48bc04ec1ed31fdef2ba22cff36bbafc09eb0956d016f8dc46dde075fdd3fc"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120-pdl0/plan.so",
+    "bytes": 4252808,
+    "sha256": "ae9b888820f5c3444ef97c055b55b8b5ccbfc400225fb082cb1c901a6e2d4055"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120-pdl0/plan.so.build_command.txt",
+    "bytes": 1355,
+    "sha256": "9e0d65a7d02b6ebf74154049f04a5fafe77e6d986f557af4d4ac4012d54d7403"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120-pdl0/plan.so.classes.tsv",
+    "bytes": 2050,
+    "sha256": "a1f17012933dbcedc5b5694f72346038606f74eeade0cd570be5dbca9b5e4694"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120-pdl0/plan.so.cu",
+    "bytes": 155202,
+    "sha256": "a537676ea4424bda21fb097bf5f872f62b87cc98e9620e7e2fd698b9cdd8413e"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120-pdl0/plan.so.plan.json",
+    "bytes": 6639,
+    "sha256": "d1641b4084b80f98d7a048e37379b876ec547525c242d50391498c02e473e5fd"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120-pdl1/plan.so",
+    "bytes": 4252808,
+    "sha256": "9f9c7f687c38234f778a6099a01240866464caf394b1db61be539acd3b00e6a1"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120-pdl1/plan.so.build_command.txt",
+    "bytes": 1330,
+    "sha256": "796937a6866d28884272c8801819570e8a77f46479bd5fcc8ed810f6e946c52d"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120-pdl1/plan.so.classes.tsv",
+    "bytes": 2050,
+    "sha256": "a1f17012933dbcedc5b5694f72346038606f74eeade0cd570be5dbca9b5e4694"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120-pdl1/plan.so.cu",
+    "bytes": 155202,
+    "sha256": "a537676ea4424bda21fb097bf5f872f62b87cc98e9620e7e2fd698b9cdd8413e"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12b-120-pdl1/plan.so.plan.json",
+    "bytes": 6639,
+    "sha256": "d1641b4084b80f98d7a048e37379b876ec547525c242d50391498c02e473e5fd"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12bh-120/plan.so",
+    "bytes": 3343496,
+    "sha256": "0b914ee56654cd0a63874af66042810fa0aa69da55f2a21c7f7bcb6f9819b438"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12bh-120/plan.so.build_command.txt",
+    "bytes": 1347,
+    "sha256": "558a080a67239fbd0ade31da178e7ed2ef1ae6f49d848da27fc3917c5599fa1e"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12bh-120/plan.so.classes.tsv",
+    "bytes": 2050,
+    "sha256": "e6ae5b3e93e852a01f5554f9e21726878f8c70b88120900daeb66f20facb00b5"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12bh-120/plan.so.cu",
+    "bytes": 159332,
+    "sha256": "ace214543eb92b8cb8267d3ff7487d2ba54fe65c0f6646a73ed2b0b04d737602"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/N-R12bh-120/plan.so.plan.json",
+    "bytes": 6638,
+    "sha256": "c8fef2290b180dc586575e726c20dc9458e4868ba6a52e485ef1de4aa0af67ee"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/P-R12bN-120/plan.so",
+    "bytes": 4081192,
+    "sha256": "e6d02439d4254375839ceb353997d6827ba02da4f1e782483f67ea65b85153c9"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/P-R12bN-120/plan.so.build_command.txt",
+    "bytes": 1347,
+    "sha256": "a2c23e1631917f2639a62e4187149671ce3f76319fe4e3c4e3652a8e99f3f6a5"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/P-R12bN-120/plan.so.classes.tsv",
+    "bytes": 2050,
+    "sha256": "31b3f76fe669f05db845a839db455f1a24e55d9e281be609a177693ec92604c8"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/P-R12bN-120/plan.so.cu",
+    "bytes": 187504,
+    "sha256": "359635531d803ce6d25ec9d48f7fd0b6a84e03d1f7cc5c2c6ff4531fe1c790b8"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/P-R12bN-120/plan.so.plan.json",
+    "bytes": 6756,
+    "sha256": "9779c67f2d31230b754aeb1c180c08b727d8fe9c1dc8cb1baa30a23531045919"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/P-R12bN-120-pdl/plan.so",
+    "bytes": 4085288,
+    "sha256": "5d12dd1cfd930087a776a8553d94bc2dc1bc007a6c9ee9447730605ccd037fb2"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/P-R12bN-120-pdl/plan.so.build_command.txt",
+    "bytes": 1355,
+    "sha256": "df09ecb25e7da98cb23d29d62a3aaf2ac815ec9b8de9678245356a92b5b85250"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/P-R12bN-120-pdl/plan.so.classes.tsv",
+    "bytes": 2050,
+    "sha256": "31b3f76fe669f05db845a839db455f1a24e55d9e281be609a177693ec92604c8"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/P-R12bN-120-pdl/plan.so.cu",
+    "bytes": 187504,
+    "sha256": "268e8325d18ddb1fd77021859194271a779b4ac91319ace4c30a212a69948ddf"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/P-R12bN-120-pdl/plan.so.plan.json",
+    "bytes": 6757,
+    "sha256": "2ea7c6d48d4308f47dd201ab7cf6f12d374db038db5a54f84ba8ae5589abe453"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/P-R12bN-120-trace-r7/plan.so",
+    "bytes": 4159128,
+    "sha256": "9394fb90f0b2c6fb9f60f02181fe032a5c6a0cacfd5cec66922b00ef26ad30fa"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/P-R12bN-120-trace-r7/plan.so.classes.tsv",
+    "bytes": 2050,
+    "sha256": "31b3f76fe669f05db845a839db455f1a24e55d9e281be609a177693ec92604c8"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/P-R12bN-120-trace-r7/plan.so.cu",
+    "bytes": 187504,
+    "sha256": "359635531d803ce6d25ec9d48f7fd0b6a84e03d1f7cc5c2c6ff4531fe1c790b8"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/P-R12bN-120-trace-r7/plan.so.plan.json",
+    "bytes": 6756,
+    "sha256": "9779c67f2d31230b754aeb1c180c08b727d8fe9c1dc8cb1baa30a23531045919"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PF-120/plan.so",
+    "bytes": 5223064,
+    "sha256": "6ece39ce1fae967bee4f24521bec8ad0637d6a7094f1ee490c11cb4063e473eb"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PF-120/plan.so.build_command.txt",
+    "bytes": 1337,
+    "sha256": "70c31b33de0086b99a526c20bea780f8866490c7d9b626757af4c43900e33ee9"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PF-120/plan.so.classes.tsv",
+    "bytes": 2043,
+    "sha256": "989516667e19094a3aa576e8ed54e0234755fc2660df72f82f349c117ceca735"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PF-120/plan.so.cu",
+    "bytes": 203315,
+    "sha256": "26849461ba7edf3ba8426134cc8f505d431b7245cdaf8d1bfe5bc80207d96b92"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PF-120/plan.so.plan.json",
+    "bytes": 6622,
+    "sha256": "a66edbe04486a37427b51605dd1e8e17cd047635b1f5e8b9950ea16c065cc862"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PS-120/plan.so",
+    "bytes": 2876904,
+    "sha256": "b700a5d0b1944d7fa065b982e3e4024e7e5f14caf81111f0e03b4a40681082e5"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PS-120/plan.so.build_command.txt",
+    "bytes": 1337,
+    "sha256": "37d84591bac9ff69ed6aa1db3a417f78ea95fdea60185b2f04e8195aeaa386ca"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PS-120/plan.so.classes.tsv",
+    "bytes": 2050,
+    "sha256": "59e90d4f939a0c1f7e09a25932037b013a66b9f31d19ada0f6a330b65a3b46cb"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PS-120/plan.so.cu",
+    "bytes": 191439,
+    "sha256": "e39e3e7cbeb9e749e2758b92849e5fb6e24241cb536fface216a170f67719632"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PS-120/plan.so.plan.json",
+    "bytes": 6755,
+    "sha256": "ce88d4af8c3526b86c2348e2cbeb405815216942b2a27664bf14817a3be842e9"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PSA-120/plan.so",
+    "bytes": 2876904,
+    "sha256": "b0240c1c976ed94f18b1e40229c8768fbf72a2c877a6ebb71ba140ad1c56eea7"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PSA-120/plan.so.build_command.txt",
+    "bytes": 1339,
+    "sha256": "94e238eb6a04a4f74f90e2556fc484d850a81fd01b54e771a70c357c072aacd7"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PSA-120/plan.so.classes.tsv",
+    "bytes": 2050,
+    "sha256": "59e90d4f939a0c1f7e09a25932037b013a66b9f31d19ada0f6a330b65a3b46cb"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PSA-120/plan.so.cu",
+    "bytes": 191487,
+    "sha256": "6850c273605df36ab19a2f920f4b10fd361a19246d6cb457802f73434597dab5"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B1/PSA-120/plan.so.plan.json",
+    "bytes": 6754,
+    "sha256": "607da36e06bd3b44a9a33c5e10d4869c46c50497491778e40d591659e9383dc1"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120/plan.so",
+    "bytes": 4150408,
+    "sha256": "7c599a85902ce12f1277a98edf62bd844b3739901a570739c9ce8cb6310132db"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120/plan.so.build_command.txt",
+    "bytes": 1347,
+    "sha256": "f0e7b2270f6a0c1ce007b5c59dbf28596c22b6e848a9c2b820b5e70b83d1ab90"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120/plan.so.classes.tsv",
+    "bytes": 2048,
+    "sha256": "5467048a50747ad2844bd04c37816765912b46b83e0829b07435977c00e054de"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120/plan.so.cu",
+    "bytes": 156484,
+    "sha256": "fc97482b8f0ff5afd7bc4b28017c656bd11ad37d2ec939675bd1ddc5a2d96e9a"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120/plan.so.plan.json",
+    "bytes": 6641,
+    "sha256": "5f5f26ae16af81d6294de2ab5d60f3252027586914534bc7b67a190ce466a987"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120-pdl0/plan.so",
+    "bytes": 4256904,
+    "sha256": "e3213162e91526fb50cea71400b8debaed13e02abac79134b890013f027371db"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120-pdl0/plan.so.build_command.txt",
+    "bytes": 1357,
+    "sha256": "c8365e97e033eb1c5d492851073a29c82a25698ba5b3b6c3a440f8e404f0c9b7"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120-pdl0/plan.so.classes.tsv",
+    "bytes": 2048,
+    "sha256": "5467048a50747ad2844bd04c37816765912b46b83e0829b07435977c00e054de"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120-pdl0/plan.so.cu",
+    "bytes": 156484,
+    "sha256": "1c14be6dbc011a332c97f0e68e9482123c893cd44610de2fbdab3db56607c3da"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120-pdl0/plan.so.plan.json",
+    "bytes": 6642,
+    "sha256": "43cede35231308b09e92f0896558a836d4b2807faff36ac33aa6deb0a4d7cc65"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120-pdl1/plan.so",
+    "bytes": 4256904,
+    "sha256": "92443b3fc4c9457f29825047c2736020b231bb1346133571ce60beda20b47883"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120-pdl1/plan.so.build_command.txt",
+    "bytes": 1332,
+    "sha256": "ebec93f094d19e5cc877ce69bff2a6301963797d3519689ceb9639e87c1a6fe6"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120-pdl1/plan.so.classes.tsv",
+    "bytes": 2048,
+    "sha256": "5467048a50747ad2844bd04c37816765912b46b83e0829b07435977c00e054de"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120-pdl1/plan.so.cu",
+    "bytes": 156484,
+    "sha256": "1c14be6dbc011a332c97f0e68e9482123c893cd44610de2fbdab3db56607c3da"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12b-120-pdl1/plan.so.plan.json",
+    "bytes": 6642,
+    "sha256": "43cede35231308b09e92f0896558a836d4b2807faff36ac33aa6deb0a4d7cc65"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12bh-120/plan.so",
+    "bytes": 3347592,
+    "sha256": "ea6ce0141963c2c6b9176195c73b90dfedc87e57a087cfeca23fd92fa3c20cc2"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12bh-120/plan.so.build_command.txt",
+    "bytes": 1349,
+    "sha256": "35b7809ca38a707085aa38460c1101ffc343be3b467c347d1e9132789c347664"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12bh-120/plan.so.classes.tsv",
+    "bytes": 2048,
+    "sha256": "1781101a836a1c60cc333b5bafdb1c7401bfd567c08b1bb8612e550e492545f5"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12bh-120/plan.so.cu",
+    "bytes": 160619,
+    "sha256": "7c8a6026cead561be9cbc0d3f6b998389fcb3559b519e1a62900b45622808b5f"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/N-R12bh-120/plan.so.plan.json",
+    "bytes": 6641,
+    "sha256": "96bf1fa5112b72f85356f783e8a2cd79388dc1202693024a2e29691b3405abf0"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/PF-120/plan.so",
+    "bytes": 5735064,
+    "sha256": "746d7d1274bc948104679c93b209aa6eefbaea2f45e81ab4ceddf3a8eda84e29"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/PF-120/plan.so.build_command.txt",
+    "bytes": 1339,
+    "sha256": "7fbe417b072b05035b658dd431baf5c239109c515ac32e7bc0b78dd5dccf176e"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/PF-120/plan.so.classes.tsv",
+    "bytes": 2123,
+    "sha256": "a7cc86d6acca069a3300483e689a3e2aa23190a2ba575c27597b32eec386d209"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/PF-120/plan.so.cu",
+    "bytes": 768350,
+    "sha256": "a73706a9b6ebde8f97c4583b213d674d37226394dd9fa168bce9022d9f4eeb0a"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/llama_B16/PF-120/plan.so.plan.json",
+    "bytes": 6704,
+    "sha256": "b956616abf314716c21c527c546186cbcd922f26877843304c3b7629e1feba5f"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120/plan.so",
+    "bytes": 5084296,
+    "sha256": "602447d0a14e0d100cac70e117b93c55208d4c92bcab3886564572d6c6331f5a"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120/plan.so.build_command.txt",
+    "bytes": 1345,
+    "sha256": "57eb18a9cf5944240c0e17214601ead98d3dc7b810ce6582a321578a8f685bea"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120/plan.so.classes.tsv",
+    "bytes": 3599,
+    "sha256": "4fa2bcdc02f28b3e3e4354726a59cd4b77f885de55c0e01771094d757ecf8a00"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120/plan.so.cu",
+    "bytes": 282029,
+    "sha256": "0f59264d7a704f84341d922deacdf86c09084fcd0ee4ab4ffc244de0344011c9"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120/plan.so.plan.json",
+    "bytes": 10923,
+    "sha256": "1b76102bad53aa5700065ac248385f4cd563cb99df58d036aad43de801a057f4"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120-pdl0/plan.so",
+    "bytes": 5211272,
+    "sha256": "2e55a3817436a8e51ee40cbd4dc403506894343263a3749e5eb9b6c724012416"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120-pdl0/plan.so.build_command.txt",
+    "bytes": 1355,
+    "sha256": "faec97f63eea8c7d835f6bff08bdb59c6481e842d511b5fa31fdeb7bb61e3f7e"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120-pdl0/plan.so.classes.tsv",
+    "bytes": 3599,
+    "sha256": "4fa2bcdc02f28b3e3e4354726a59cd4b77f885de55c0e01771094d757ecf8a00"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120-pdl0/plan.so.cu",
+    "bytes": 282029,
+    "sha256": "33ddc99410dddc31f59d3ef5be852152e65a433d0f954d0cfcee65cd48e7d8d9"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120-pdl0/plan.so.plan.json",
+    "bytes": 10924,
+    "sha256": "369f2ffccec8d7ade13d050d8c69b780421947a2b5f5f13a96371d32ee69072c"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120-pdl1/plan.so",
+    "bytes": 5211272,
+    "sha256": "b2223ce119b410ba8ad744fd3f045848379f603db4416314928efe1d9ced1b76"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120-pdl1/plan.so.build_command.txt",
+    "bytes": 1330,
+    "sha256": "551fd80f557f3a8717d3e42c224800fec945126bcee34d06f2b679bb522fc22d"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120-pdl1/plan.so.classes.tsv",
+    "bytes": 3599,
+    "sha256": "4fa2bcdc02f28b3e3e4354726a59cd4b77f885de55c0e01771094d757ecf8a00"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120-pdl1/plan.so.cu",
+    "bytes": 282029,
+    "sha256": "33ddc99410dddc31f59d3ef5be852152e65a433d0f954d0cfcee65cd48e7d8d9"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12b-120-pdl1/plan.so.plan.json",
+    "bytes": 10924,
+    "sha256": "369f2ffccec8d7ade13d050d8c69b780421947a2b5f5f13a96371d32ee69072c"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12bh-120/plan.so",
+    "bytes": 3974280,
+    "sha256": "ab944d911b4c42cc9a3d86097a783a6454defe7092db08ac96f584f8305dcb19"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12bh-120/plan.so.build_command.txt",
+    "bytes": 1347,
+    "sha256": "1ee2fe389108f424ed3d44d364bdd0dffbb1f229295fdd8a52429fec4ca457c2"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12bh-120/plan.so.classes.tsv",
+    "bytes": 3599,
+    "sha256": "d5fdf3588d6401cec331ad62f4a200744907a53ec0bfc9ee0739c653b192a465"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12bh-120/plan.so.cu",
+    "bytes": 287156,
+    "sha256": "cb8f3f68984aa071b7945b673161040ceec060dde30498ec9e283dec284035f5"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/N-R12bh-120/plan.so.plan.json",
+    "bytes": 10923,
+    "sha256": "7c34ea3930af73e3869b8ab5b73c554fa4e99a2fe6b30719426a4441c737b954"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/P-R12bN-120/plan.so",
+    "bytes": 4322856,
+    "sha256": "f28eee7faa80788a88ea9f312265fef2a929da23e7537a616e42e80f148d3697"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/P-R12bN-120/plan.so.build_command.txt",
+    "bytes": 1347,
+    "sha256": "9f645e2db35749dc0c1e9e438db24808aa65feb599945dbd68a2001b8120f94c"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/P-R12bN-120/plan.so.classes.tsv",
+    "bytes": 3599,
+    "sha256": "34bda108096b2a91a4beaa0ce02afb522d5158a9300009429f49577a6fe83b59"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/P-R12bN-120/plan.so.cu",
+    "bytes": 336052,
+    "sha256": "cfa7d5036565bb18dd4c318983e8159edef366dc61c09c966c4883fb89c4dc8e"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/P-R12bN-120/plan.so.plan.json",
+    "bytes": 11041,
+    "sha256": "22a1bab0a59fa236221ffc1527c951ccf52e911e9f21fa2d7da58a1aeb83e8bc"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/P-R12bN-120-pdl/plan.so",
+    "bytes": 4322856,
+    "sha256": "2e8825295bf61e4630efaebb3a13a266036adcffeabe3b6d5275609e22155069"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/P-R12bN-120-pdl/plan.so.build_command.txt",
+    "bytes": 1355,
+    "sha256": "f14b3e4862013a840c8a4488460b77886d032417cd4cd6b72f96792aa5e673f0"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/P-R12bN-120-pdl/plan.so.classes.tsv",
+    "bytes": 3599,
+    "sha256": "34bda108096b2a91a4beaa0ce02afb522d5158a9300009429f49577a6fe83b59"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/P-R12bN-120-pdl/plan.so.cu",
+    "bytes": 336052,
+    "sha256": "0c875fbd54e08bfdd372eac15888019d16e422c4519526dd9926ecda1f0c3496"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/P-R12bN-120-pdl/plan.so.plan.json",
+    "bytes": 11042,
+    "sha256": "bd5d378af7659ee98b47ec0cfd3097d56a3eb6aa428651a807ff8e436a63f263"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/P-R12bN-120-trace-r7/plan.so",
+    "bytes": 4404888,
+    "sha256": "c89fdad22aca7e46a48282ac0e71629dd92d513895b70015b11a0feff1057f16"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/P-R12bN-120-trace-r7/plan.so.classes.tsv",
+    "bytes": 3599,
+    "sha256": "34bda108096b2a91a4beaa0ce02afb522d5158a9300009429f49577a6fe83b59"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/P-R12bN-120-trace-r7/plan.so.cu",
+    "bytes": 336052,
+    "sha256": "cfa7d5036565bb18dd4c318983e8159edef366dc61c09c966c4883fb89c4dc8e"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/P-R12bN-120-trace-r7/plan.so.plan.json",
+    "bytes": 11041,
+    "sha256": "22a1bab0a59fa236221ffc1527c951ccf52e911e9f21fa2d7da58a1aeb83e8bc"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PF-120/plan.so",
+    "bytes": 4911768,
+    "sha256": "9c152b2bb75b49fdd21bef487ec35a227009ba2f6dd3d3be7f5fe79ba0b33f32"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PF-120/plan.so.build_command.txt",
+    "bytes": 1337,
+    "sha256": "d34ad064eb80f406f9b754b8944816a3f8bf18924d1bb2338ac9066dd7ddaf2d"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PF-120/plan.so.classes.tsv",
+    "bytes": 3552,
+    "sha256": "55edbed5f6a29496030184c0bf1ca6993e179f5f52b533724bc83607cce74f2a"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PF-120/plan.so.cu",
+    "bytes": 366544,
+    "sha256": "0469966e76e28cdf0c0b90159c885232a0e2d703d3d709a76b44b6339df449ca"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PF-120/plan.so.plan.json",
+    "bytes": 10867,
+    "sha256": "f7996e90c173ad23740b6b9946ce99e9fdf2daade2980d977fe0972f93243dc0"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PS-120/plan.so",
+    "bytes": 3106280,
+    "sha256": "f5a9b16f39922128ee3e2712f0111947ec2e59500ce328aaa0586604e6740d04"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PS-120/plan.so.build_command.txt",
+    "bytes": 1337,
+    "sha256": "b393fbf7932949c261b437eb516c520702e9ecb93925d5de520f0e4c77f1b3be"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PS-120/plan.so.classes.tsv",
+    "bytes": 3599,
+    "sha256": "df7372b6c950ff9be5c847d74f10b994efb0ae01bab67dc13e3a1607410980fd"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PS-120/plan.so.cu",
+    "bytes": 328465,
+    "sha256": "aa19e3ef968b6cfc27032d1f000e93886dc52312f746198c29756ec6c3f2101b"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PS-120/plan.so.plan.json",
+    "bytes": 11040,
+    "sha256": "d366d2a37d34f2280a0d56f543cd685fe9b6fd571b31337ac489559913dab0f8"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PSA-120/plan.so",
+    "bytes": 3106280,
+    "sha256": "4a1cef8afbe7dbf757b3567429a923a917b3a5939b619454f849d05c0018cdcc"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PSA-120/plan.so.build_command.txt",
+    "bytes": 1339,
+    "sha256": "ace94322d7b799dac549855534560eceaeeb840bd6861ed555c722c17cd543eb"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PSA-120/plan.so.classes.tsv",
+    "bytes": 3599,
+    "sha256": "df7372b6c950ff9be5c847d74f10b994efb0ae01bab67dc13e3a1607410980fd"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PSA-120/plan.so.cu",
+    "bytes": 328549,
+    "sha256": "67ce483aaab0d11c1315e605397a9d8076a2234e6e4eabef5c63b193e77f6144"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B1/PSA-120/plan.so.plan.json",
+    "bytes": 11039,
+    "sha256": "7cf63f5e3a99ab234e1f72f78fd458fa52c003d9df3c7c92fd0b25253ab4965e"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120/plan.so",
+    "bytes": 4125832,
+    "sha256": "0186c56ba6a102dade09268423a395eff33b13757ba81e0c92b64872d92f4ab9"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120/plan.so.build_command.txt",
+    "bytes": 1347,
+    "sha256": "c524f8c7bf2ec369ebd58c3ad357f1645eb7547316a6d2c562e918c957b2965e"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120/plan.so.classes.tsv",
+    "bytes": 3599,
+    "sha256": "d5fdf3588d6401cec331ad62f4a200744907a53ec0bfc9ee0739c653b192a465"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120/plan.so.cu",
+    "bytes": 462936,
+    "sha256": "e24623fafc60f56dabac7eecca7c5ccec74bcce9fa74c84c9f9e5a0e9cbe1178"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120/plan.so.plan.json",
+    "bytes": 10925,
+    "sha256": "0abcdc0c5038a088a677eff0cab95fb0bff7d4717608978b991e566f3d3a504d"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120-pdl0/plan.so",
+    "bytes": 4236424,
+    "sha256": "4faa775c27afbb788d07b0163db52d93b2e052ad5b97f3af3fcd90446e1da691"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120-pdl0/plan.so.build_command.txt",
+    "bytes": 1357,
+    "sha256": "f4858106e255a68c4548bde488c819da4414ac6135e458d6db65a70d364c12b8"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120-pdl0/plan.so.classes.tsv",
+    "bytes": 3599,
+    "sha256": "d5fdf3588d6401cec331ad62f4a200744907a53ec0bfc9ee0739c653b192a465"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120-pdl0/plan.so.cu",
+    "bytes": 462936,
+    "sha256": "9db47c3dc72ea602a1176beee029b38fd9c3a1dab03bf672904159cee604ca6b"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120-pdl0/plan.so.plan.json",
+    "bytes": 10926,
+    "sha256": "a1bc61e21ad1d6fffead0704e2cde8ec22bbea40bcf4a6a787b94d8cf94e48a4"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120-pdl1/plan.so",
+    "bytes": 4236424,
+    "sha256": "8fe94330655712a4d92f595805db957503dcc51129681bbbbf97c2ddbb646c55"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120-pdl1/plan.so.build_command.txt",
+    "bytes": 1332,
+    "sha256": "89a188b354c2b150c8385c60a2f05a7fe0002e8219540e2cf45202926c876ea0"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120-pdl1/plan.so.classes.tsv",
+    "bytes": 3599,
+    "sha256": "d5fdf3588d6401cec331ad62f4a200744907a53ec0bfc9ee0739c653b192a465"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120-pdl1/plan.so.cu",
+    "bytes": 462936,
+    "sha256": "9db47c3dc72ea602a1176beee029b38fd9c3a1dab03bf672904159cee604ca6b"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/N-R12b-120-pdl1/plan.so.plan.json",
+    "bytes": 10926,
+    "sha256": "a1bc61e21ad1d6fffead0704e2cde8ec22bbea40bcf4a6a787b94d8cf94e48a4"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/PF-120/plan.so",
+    "bytes": 5702296,
+    "sha256": "724f0f91de5eb4ae92d01e791d8fc03354f915688477977ebe6a1d090b12f36b"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/PF-120/plan.so.build_command.txt",
+    "bytes": 1339,
+    "sha256": "1772477de089e2b123b7c7e1e608600214e435b546efb43147de2089d7d814c9"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/PF-120/plan.so.classes.tsv",
+    "bytes": 3720,
+    "sha256": "dd82448b24496b221bb8608ec3bb48f1e7a00c061a6584302138c35d8ef7d765"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/PF-120/plan.so.cu",
+    "bytes": 1114366,
+    "sha256": "f6b806d74e644bea92974173d2e8e207c0f36f1717bbe4a9af551542f7c65de5"
+  },
+  {
+    "path": "/dev/shm/tilemega-r13-sm120/fixed_r3/qwen3_B16/PF-120/plan.so.plan.json",
+    "bytes": 11038,
+    "sha256": "80ed27020fbc341eabdeca9af3fad982a5fe87e3ee953da0c49809bbf7ffba6b"
+  }
+]

@@ -1,13 +1,13 @@
-# 自动接续与实现边界
+# 自动接续与实现边界（最终带限制封存）
 
 verified（CPU）：不依赖实测反馈的 E2c–E6 脚本、测试定义和自动收集器已实现。
-不是 GPU 验收报告：首次执行后才能定位的移植/同步 bug，以及最终结果分析，不能提前宣称完成。
+本节开工时只描述自动化边界；最终 GPU 验收与未通过项见 summary.md，不把脚本完成等同于全协议通过。
 保留本轮在 sm89 Phase D 未完成时启动的记录与 vLLM 0.29.0；现已合并最终 `9aebaf655`。
 `baseline_alignment.json` 验证上游设备/编译器源码相对检查点未变、本机二进制指纹和九节标定印章仍匹配、SL-5 特征相同；不覆盖已测二进制。
 
 ## 执行关系
 
-当前 r4 队列不停止、不清空状态，也不修改已生成的实验二进制。
+历史接续阶段：r4 队列不停止、不清空状态，也不修改已生成的实验二进制。
 `pipeline.py register` 原子发布新的 r5 队列，直接接上原调度器：
 
 ```text
@@ -50,7 +50,7 @@ PDL/loop 请求不能回退后假装成功；二进制/执行器 sidecar 变化�
 - `pipeline.py`：manifest/可用性/依赖、固定 R13 anchor、正确性、trace、codegen；没有求解器/代价模型调整。
 - `report.py`：S1–S10、配对样本/范围、不可用数据、sm89 检查点、候选选择、阶段/步骤/页账本、预测核对。
 - `summary.generated.md`：E6 完成后的报告草稿，最终验收再整理为 summary.md 并本地提交；不自动 push。
-- `implementation_status.json`：只表示脚本实现/排队完成，不表示端到端性能或正确性通过。
+- `implementation_status.json`：区分实现完成、最终证据审阅完成与 full_protocol_pass；不将可用项收齐写成全部通过。
 
 任何未来运行暴露的允许范围内修正仍须单独 commit；触及同步要给受影响的新二进制追加 50 新进程证据。
 当前没有此类同步代码修正，故 E2c 第五组在报告里为不适用，不凭空增加实验。
@@ -77,4 +77,12 @@ cluster 微基准仅 2/12 点执行，10 点因 foreground grid 整除条件 uns
 使用独立 r7 输出，clean outer guard 后才替代对应 trace；B0 trace 与全部性能轮次不重复。
 PAGE_TRACE 与 STAGE/STEP 同时开启，不额外给 TR-1 增加 TRACE_V2 插桩；不改生成几何、求解器或同步源码。
 大型表通过压缩原始证据归档保存，索引见 `results/README.md`；本次 CPU 回归 35/35 与 40/40。
-当前剩余是 r7 终态验收、页记录核对、最终 S6/S7/报告与归档提交；长任务不轮询、不 push。
+verified：r7 六节点全部 done/exit0，四项 trace 的 outer guard clean；原生成源码/几何未变，只有三项预定 trace flags。
+`review.py inspect` 核对 27 原冻结二进制与 measurements/S4/S5/S9/S10 SHA 不变；没有重复跑性能矩阵。
+离线页账本纠正已做 CPU 38/38 与 40/40 回归，native fingerprint/九节印章匹配；不改 GPU 同步源码。
+TR-1 页导出只留 past1000，16 launch 累计等待归一化；past64/575 阶段记录完整，但页明细缺失如实记入最终报告。
+原始 r7 与修正前账本独立归档，最终 S6/S7/cross-arch 表和 review/completion 另封存；不覆盖旧证据。
+29 个 SO/sidecar/生成源码打包到共享存储 junhuipeng 目录，模型权重也已持久化，SHA 索引随报告提交。
+确认全部已注册节点终态且无子进程后，空闲调度器 PID4488 用 SIGTERM 正常退出；没有 reset/清空历史状态。
+本轮没有剩余队列；以 195/195 可用记录、102 unavailable、已知单测/C-1/页协议缺口带限制结项。
+R14 只写方案，不追加实验或修改 solver；全部仅本地 commit，不 push。

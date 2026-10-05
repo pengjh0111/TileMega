@@ -1,0 +1,248 @@
+{
+  "time": 1791195813.980632,
+  "head": "4c0946989ee7db4323c88da123ed4d2af45d7fc9",
+  "r7_nodes": {
+    "E3_PR_trace_r7": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791194188.6992629,
+      "retry_at": 0,
+      "wait_s": 0.0005648136138916016,
+      "pid": 118342,
+      "run_s": 150.41115552186966,
+      "exit_code": 0
+    },
+    "E5a_llama_B1_r7": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791194188.6992638,
+      "retry_at": 0,
+      "wait_s": 150.53523468971252,
+      "pid": 118825,
+      "run_s": 46.62029717862606,
+      "exit_code": 0
+    },
+    "E5a_qwen3_B1_r7": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791194188.6992643,
+      "retry_at": 0,
+      "wait_s": 257.31092047691345,
+      "pid": 118953,
+      "run_s": 57.79198844358325,
+      "exit_code": 0
+    },
+    "E5c_llama_B1_r7": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791194188.6992648,
+      "retry_at": 0,
+      "wait_s": 375.3303470611572,
+      "pid": 119070,
+      "run_s": 42.5209628008306,
+      "exit_code": 0
+    },
+    "E5c_qwen3_B1_r7": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791194188.6992655,
+      "retry_at": 0,
+      "wait_s": 478.0688405036926,
+      "pid": 119170,
+      "run_s": 44.62311069667339,
+      "exit_code": 0
+    },
+    "E6_collect_r7": {
+      "status": "done",
+      "attempts": 1,
+      "enqueued": 1791194188.6992662,
+      "retry_at": 0,
+      "wait_s": 522.6973237991333,
+      "pid": 119335,
+      "run_s": 207.28833413869143,
+      "exit_code": 0
+    }
+  },
+  "preserved_tables": {
+    "measurements.tsv": "170c378b1c1c858b3ce1fa453f0c53b5528ed4f726f7b28e8570f12ce11ce6b5",
+    "S4.tsv": "f20a38b5ecd79d90ed74a95d0ab0913b687ad9e4705d79c7ab1f40fb2d165e50",
+    "S5.tsv": "f3b91735f26b42b091f548a10d5e154b30605aa10b69f7dc7a584d7cddd1600e",
+    "S9.tsv": "db245934b88a3a6702d7167a9de2dd73162023005af31092dd346ca1253b8136",
+    "S10.tsv": "79e4bdaf9f9c3ed6ad0040bdabead3c006bf2065f5191cbc1c03edf37ea72a97"
+  },
+  "frozen_binary_count": 27,
+  "trace_build_proof": [
+    {
+      "cell": "llama_B1",
+      "trace_sha256": "9394fb90f0b2c6fb9f60f02181fe032a5c6a0cacfd5cec66922b00ef26ad30fa",
+      "source_sha256": "359635531d803ce6d25ec9d48f7fd0b6a84e03d1f7cc5c2c6ff4531fe1c790b8",
+      "origin_sha256": "e6d02439d4254375839ceb353997d6827ba02da4f1e782483f67ea65b85153c9"
+    },
+    {
+      "cell": "qwen3_B1",
+      "trace_sha256": "c89fdad22aca7e46a48282ac0e71629dd92d513895b70015b11a0feff1057f16",
+      "source_sha256": "cfa7d5036565bb18dd4c318983e8159edef366dc61c09c966c4883fb89c4dc8e",
+      "origin_sha256": "f28eee7faa80788a88ea9f312265fef2a929da23e7537a616e42e80f148d3697"
+    }
+  ],
+  "traces": [
+    {
+      "stage": "E5a",
+      "cell": "llama_B1",
+      "profiles": [
+        {
+          "past": 1000,
+          "mode": "L1",
+          "loop": false,
+          "launches": 16,
+          "steps": 1,
+          "mean_step_ms": 2.7934200763702393
+        },
+        {
+          "past": 575,
+          "mode": "L1",
+          "loop": false,
+          "launches": 16,
+          "steps": 1,
+          "mean_step_ms": 2.7644600868225098
+        },
+        {
+          "past": 64,
+          "mode": "L1",
+          "loop": false,
+          "launches": 16,
+          "steps": 1,
+          "mean_step_ms": 2.8468799591064453
+        }
+      ],
+      "page_active_workers": {
+        "936": 170
+      },
+      "page_trace_sha256": "741c64a1f0cf740342be7b1f1cdc7544f4345dac361f765dfd8ec9fec2084752",
+      "outer_guard": {
+        "code": 0,
+        "reason": "child exit 0"
+      },
+      "limitation": "TR-1 page export retains past1000 only and accumulates 16 launches"
+    },
+    {
+      "stage": "E5a",
+      "cell": "qwen3_B1",
+      "profiles": [
+        {
+          "past": 1000,
+          "mode": "L1",
+          "loop": false,
+          "launches": 16,
+          "steps": 1,
+          "mean_step_ms": 4.393427848815918
+        },
+        {
+          "past": 575,
+          "mode": "L1",
+          "loop": false,
+          "launches": 16,
+          "steps": 1,
+          "mean_step_ms": 4.367648124694824
+        },
+        {
+          "past": 64,
+          "mode": "L1",
+          "loop": false,
+          "launches": 16,
+          "steps": 1,
+          "mean_step_ms": 4.454366207122803
+        }
+      ],
+      "page_active_workers": {
+        "936": 170
+      },
+      "page_trace_sha256": "69bc820b649b4cbae8510cb0ef0123834de2ff54de3be623bbdbf1a76d4bad7a",
+      "outer_guard": {
+        "code": 0,
+        "reason": "child exit 0"
+      },
+      "limitation": "TR-1 page export retains past1000 only and accumulates 16 launches"
+    },
+    {
+      "stage": "E5c",
+      "cell": "llama_B1",
+      "profiles": [
+        {
+          "past": 575,
+          "mode": "L2",
+          "loop": false,
+          "launches": 1,
+          "steps": 16,
+          "mean_step_ms": 3.1996939182281494
+        }
+      ],
+      "page_active_workers": {
+        "511": 170,
+        "512": 170,
+        "513": 170,
+        "514": 170,
+        "515": 170,
+        "516": 170,
+        "517": 170,
+        "518": 170,
+        "519": 170,
+        "520": 170,
+        "521": 170,
+        "522": 170,
+        "523": 170,
+        "524": 170,
+        "525": 170,
+        "526": 170
+      },
+      "page_trace_sha256": "b679b65ff117f29217a431b276e4234f9bba6e03a463e5976c76048b3f585452",
+      "outer_guard": {
+        "code": 0,
+        "reason": "child exit 0"
+      },
+      "limitation": "one launch per each of sixteen steps"
+    },
+    {
+      "stage": "E5c",
+      "cell": "qwen3_B1",
+      "profiles": [
+        {
+          "past": 575,
+          "mode": "L2",
+          "loop": false,
+          "launches": 1,
+          "steps": 16,
+          "mean_step_ms": 4.540163993835449
+        }
+      ],
+      "page_active_workers": {
+        "511": 170,
+        "512": 170,
+        "513": 170,
+        "514": 170,
+        "515": 170,
+        "516": 170,
+        "517": 170,
+        "518": 170,
+        "519": 170,
+        "520": 170,
+        "521": 170,
+        "522": 170,
+        "523": 170,
+        "524": 170,
+        "525": 170,
+        "526": 170
+      },
+      "page_trace_sha256": "1a8b435bf388bf6e9894a9147d5a96274c6eca19be159449a362de4f4c957d84",
+      "outer_guard": {
+        "code": 0,
+        "reason": "child exit 0"
+      },
+      "limitation": "one launch per each of sixteen steps"
+    }
+  ],
+  "no_new_gpu_measurements": true,
+  "no_solver_changes": true,
+  "no_push": true,
+  "verdict": "accept executed evidence with documented unavailable paths; not full protocol PASS"
+}

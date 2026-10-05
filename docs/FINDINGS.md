@@ -9101,8 +9101,8 @@ PDL PTX at 8/8; seven clean vLLM records recover from a TM-only loop check witho
 rewriting original measurements. Evidence: SERVING_R13_SM120/raw/{E2c_pdl_r5/,
 E2c_l1loop_r5/,acceptance_03/}; baseline_alignment.json. Subsequent E4 acceptance
 collects 195/195 eligible records, with 102 registered records unavailable; this
-is not a full-protocol PASS. PR page-trace instrumentation is being completed
-in a separate r7 queue without modifying the performance binaries.
+is not a full-protocol PASS. PR page-trace instrumentation completes in a
+separate r7 queue (six nodes exit0), without modifying performance binaries.
 
 ## F-356: sm120 mechanism effects are not uniformly beneficial
 
@@ -9121,3 +9121,24 @@ cross-host weight SHA, and sm89 canary flags. B0h Llama B1 C-1 fails unchanged
 thresholds; failed R13F joint selection prevents verification of its B1 forecast.
 Evidence: SERVING_R13_SM120/results/{S4,S5,S9,S10}.tsv;
 raw/acceptance_04/{acceptance.json,original_e4_e5_e6.tar.xz}; summary.md.
+
+## F-357: sm120 final page review separates accumulated counters from spans
+
+verified (CPU replay of r7): TR-1 reuses one page record for sixteen launches;
+wait/issue counters accumulate while begin/end describe the last launch. The
+multi-past exporter retains only past1000; past64/575 stage records remain
+complete, but their page details were overwritten. Offline reporting preserves
+raw counters, divides waits by sixteen, does not publish a repeated-launch issue
+fraction, and matches the floor to actual past rather than always 575. No GPU
+source, reference value, or performance record is changed. CPU checks are 38/38
+and 40/40; all four replacement traces have clean guards. Instrumented durations
+have no matched uninstrumented fixed-past control, so the 2% overhead gate is
+unverified and page waits remain diagnostic, not end-to-end cost estimates.
+
+verified: 27 frozen performance SOs plus two trace SOs are persisted in shared
+storage with SHA256; all 195 eligible paired measurements remain unchanged.
+inferred: future tracing should export per-past/per-launch records before using
+page fractions for optimization. B16 paged/R13F, uncovered protocol groups, C-1
+and unit failures stay explicit; this is a limited closure, not full PASS.
+Evidence: SERVING_R13_SM120/raw/acceptance_05/; results/S7_pages.tsv;
+results/{S6_cross_arch,S7_cross_arch}.tsv; summary.md.

@@ -5,7 +5,7 @@
   "unavailable_records": 102,
   "all_eligible_collected": true,
   "errors": [],
-  "time": 1791194055.4852624,
+  "time": 1791194918.6199288,
   "canonical_rounds": [
     {
       "matrix": "E4a",
@@ -538,7 +538,7 @@
   },
   "final_full_protocol_pass": false,
   "human_final_report_pending": true,
-  "trace_correction_pending": true,
+  "trace_correction_pending": false,
   "limitations": [
     "B16 paged and all R13F plans unavailable after negative traffic rejection",
     "paged/FX21 fresh-process groups unavailable",

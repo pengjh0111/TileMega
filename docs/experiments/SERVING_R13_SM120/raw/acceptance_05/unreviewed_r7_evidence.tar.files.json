@@ -1,0 +1,407 @@
+[
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/command.json",
+    "bytes": 988,
+    "sha256": "0f31b23480097285df830d72d255718d173e32a5147d8379470cf2cef04e4e2a"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/page_trace.tsv",
+    "bytes": 4055592,
+    "sha256": "741c64a1f0cf740342be7b1f1cdc7544f4345dac361f765dfd8ec9fec2084752"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past1000/guard.jsonl",
+    "bytes": 287,
+    "sha256": "d10eec5ad693da7e9e472f655d53a42e9c0a85104cda1ee03a4d26f387413bbb"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past1000/runtime_stages.tsv",
+    "bytes": 6757,
+    "sha256": "fb6c7b1fead55c427ed425fd1a49cb63a9d06e25e78f32741b2b8c89e2c9a69c"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past1000/stage_trace.tsv",
+    "bytes": 17616509,
+    "sha256": "add3a4f0037c788500a024420f0a9c4c8713123aee883719676c4b89412e4c6c"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past1000/step_trace.tsv",
+    "bytes": 271898,
+    "sha256": "392a76b5c366b8005588b8e716b37bf2e7fa222b71562986c5d72addf998398b"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past1000/trace.json",
+    "bytes": 122,
+    "sha256": "984a02a18a8deb3ecc4c78a701bf12310082e94bf0f78361cbb2332b8a53a759"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past575/guard.jsonl",
+    "bytes": 286,
+    "sha256": "bf4dd62b2b86d55e7b5aae13b0e0e1033034681e5299c67f6345bf8dcb05f7af"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past575/runtime_stages.tsv",
+    "bytes": 6757,
+    "sha256": "fb6c7b1fead55c427ed425fd1a49cb63a9d06e25e78f32741b2b8c89e2c9a69c"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past575/stage_trace.tsv",
+    "bytes": 17393469,
+    "sha256": "20fdc5209a03cfb5103eb4fba12dd689cfd32005d4e07d0ddf9c29effa814802"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past575/step_trace.tsv",
+    "bytes": 269178,
+    "sha256": "19b9ffbab7e13c6fad87db5b1cbdd62ea721347ed49c3687cb371e2b92c5d88a"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past575/trace.json",
+    "bytes": 121,
+    "sha256": "92271abe2e5bde478d0c4d2188db1ecf97a0d3a35dd3680fc7b92de3b9c10988"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past64/guard.jsonl",
+    "bytes": 285,
+    "sha256": "4e287174a9ecfd4d7967beb84a356b6be1a878a620d07a7b639247942b44f994"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past64/runtime_stages.tsv",
+    "bytes": 6757,
+    "sha256": "fb6c7b1fead55c427ed425fd1a49cb63a9d06e25e78f32741b2b8c89e2c9a69c"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past64/stage_trace.tsv",
+    "bytes": 17170429,
+    "sha256": "471d5e6f281a6c24a5f45f75bd8268ff4c4baea9592c300650c003b70c563b00"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past64/step_trace.tsv",
+    "bytes": 266458,
+    "sha256": "e5a9e6f7a9d6d27f39686f64ce55cbccc16dc54f7a9be18cc1a1306d8e76c3c7"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/past64/trace.json",
+    "bytes": 120,
+    "sha256": "226e1532ddc82d690bfb2952e868e345f87b4eb838d8cd1d83f19b717862dba8"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/PR_L1/stdout.log",
+    "bytes": 5746,
+    "sha256": "8e0baa48fa5a045546d0673bae312a77823504d9b00a39877c596377831f2418"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/guard.jsonl",
+    "bytes": 2200,
+    "sha256": "2ab122fb847c72a5e778fbbb6179e28d6af3e496a4e32207689704ff883cc51b"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/guard_result.json",
+    "bytes": 38,
+    "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/pgid",
+    "bytes": 7,
+    "sha256": "cfe4a09ea939c1c0a5934803ad75d047a6b5e5899e698384b3f25006b6a5b1e1"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/trace_results.json",
+    "bytes": 190,
+    "sha256": "534df43cad6edd3754abb8bf0cfb7805cffc092af89413d6b1f7a37ef6fd8b26"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/command.json",
+    "bytes": 987,
+    "sha256": "5e94d41dd8017a639ffe9040103bfd9b793bb855bcbcee45736af8b0e5852938"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/page_trace.tsv",
+    "bytes": 4055528,
+    "sha256": "69bc820b649b4cbae8510cb0ef0123834de2ff54de3be623bbdbf1a76d4bad7a"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past1000/guard.jsonl",
+    "bytes": 287,
+    "sha256": "c2f249cc7ff327e03187c554851e49a84a98406e75a7284658a4e68bb8c64a00"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past1000/runtime_stages.tsv",
+    "bytes": 11816,
+    "sha256": "99d625d458a374e0c45d94836a8ffbaa22955db3f5d5ce315e7f6f4afc284694"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past1000/stage_trace.tsv",
+    "bytes": 30682989,
+    "sha256": "ee9a9184f5c6a9cf07e4de97289a3e44078a2d150ef9c38726005477c3c57d2f"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past1000/step_trace.tsv",
+    "bytes": 271898,
+    "sha256": "f4396fd8ac703f031a7d9a9d76282647d1dacfcd52ec4f471928ea28b02d2dfb"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past1000/trace.json",
+    "bytes": 121,
+    "sha256": "7e520a69c8a7048374aa38e1baee40e3e0644930756d94b9b2ce25dc2cdb8a2f"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past575/guard.jsonl",
+    "bytes": 287,
+    "sha256": "362ca384c32e561e301f242f5b91feb6bf61d04790acedb126044cd4174e9e32"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past575/runtime_stages.tsv",
+    "bytes": 11816,
+    "sha256": "99d625d458a374e0c45d94836a8ffbaa22955db3f5d5ce315e7f6f4afc284694"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past575/stage_trace.tsv",
+    "bytes": 30296749,
+    "sha256": "03e4b3a4d830a4eeeb15e201d62fafce52fd392e0d5c9d2b232587a26105bbe6"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past575/step_trace.tsv",
+    "bytes": 269178,
+    "sha256": "27933b92907a8323f534a386253ccc39fe72b60e6fc406f6b89a6cfb553c4ff1"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past575/trace.json",
+    "bytes": 120,
+    "sha256": "1f94ada1f26897145dfe790a69c19c5141d631764677d51b488bf6a31dfa22a5"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past64/guard.jsonl",
+    "bytes": 287,
+    "sha256": "77bedc669e341a3bc091a58d597b66a3278d85d1f45dd9dbc09cb71001802f73"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past64/runtime_stages.tsv",
+    "bytes": 11816,
+    "sha256": "99d625d458a374e0c45d94836a8ffbaa22955db3f5d5ce315e7f6f4afc284694"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past64/stage_trace.tsv",
+    "bytes": 29910509,
+    "sha256": "0769173069123e43c096fca59258ea9605499881cc3f24a30dc4e7b7c81a1da0"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past64/step_trace.tsv",
+    "bytes": 266458,
+    "sha256": "180596950ef364d690d8fac887c2e1b8bfcccaa606fe07135f0245f00e449ba2"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/past64/trace.json",
+    "bytes": 119,
+    "sha256": "70cb0f18fcaf407617c82c42d840831ec280e1ddf13689391686ee155bfa520b"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/PR_L1/stdout.log",
+    "bytes": 7888,
+    "sha256": "10d7f5e2d82dbd3b01cddd52e65c823535ca55f53ee7c840e2ca9e0f7581f805"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/guard.jsonl",
+    "bytes": 2583,
+    "sha256": "3c144869c1933841fc06fe1380acacb970d73a55da121880025c9fa5a24bffb5"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/guard_result.json",
+    "bytes": 38,
+    "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/pgid",
+    "bytes": 7,
+    "sha256": "9712842339d437e306b495c75e077ad05a63ed433d567bad7fa760609fb301cd"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/trace_results.json",
+    "bytes": 190,
+    "sha256": "03c39c85655fc0d107775243295a127d7364ebb5fb86423445277a0a65fe170c"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7/PR_L2/command.json",
+    "bytes": 973,
+    "sha256": "1d802489fcfc67812c7becd62f7ef55104603855e212224a484efa677eeefc26"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7/PR_L2/page_trace.tsv",
+    "bytes": 4207610,
+    "sha256": "b679b65ff117f29217a431b276e4234f9bba6e03a463e5976c76048b3f585452"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7/PR_L2/past575/guard.jsonl",
+    "bytes": 287,
+    "sha256": "e6112631f0d77afd7a9d8ba4cbbb08e668ce893770cb5fb3877ebd14d8019367"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7/PR_L2/past575/runtime_stages.tsv",
+    "bytes": 6757,
+    "sha256": "fb6c7b1fead55c427ed425fd1a49cb63a9d06e25e78f32741b2b8c89e2c9a69c"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7/PR_L2/past575/stage_trace.tsv",
+    "bytes": 69,
+    "sha256": "a36bd9ca8cf7768c0af87635b0cedd918437b3240bee69ac4e70e83daba460f1"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7/PR_L2/past575/step_trace.tsv",
+    "bytes": 276183,
+    "sha256": "84f8742919a19b2acc1e08cc61d23c9f77cfbbb8c196838053ab17184959b368"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7/PR_L2/past575/trace.json",
+    "bytes": 121,
+    "sha256": "cf50b9faabeca94c87235383e49bb6588448d7556f8d956969779eec43656651"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7/PR_L2/stdout.log",
+    "bytes": 1916,
+    "sha256": "446204a1a39652bbda4792e50294745348caacc0f23eee63d2a033f58d898233"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7/guard.jsonl",
+    "bytes": 1972,
+    "sha256": "c5eb197ac0de8ac318817e2728f1ae6000e24363757b872a024c5a10cf1cc740"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7/guard_result.json",
+    "bytes": 38,
+    "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7/pgid",
+    "bytes": 7,
+    "sha256": "9e2b9e539112efa27c6c0f576e0facda93657c263406d523f6109b64c604db3b"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7/trace_results.json",
+    "bytes": 190,
+    "sha256": "3d15372b034b450927e6d7c293359587f3003fa193bfc9b2548d9eaf0fcedd7a"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7/PR_L2/command.json",
+    "bytes": 972,
+    "sha256": "5782a94bab486225a62ba750c611e8ef2cc9c775537c6ff05e1e33e555b3b3de"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7/PR_L2/page_trace.tsv",
+    "bytes": 4212850,
+    "sha256": "1a8b435bf388bf6e9894a9147d5a96274c6eca19be159449a362de4f4c957d84"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7/PR_L2/past575/guard.jsonl",
+    "bytes": 287,
+    "sha256": "a44997d84e3b183a2f5f486ac9e6bc93abaf4c555512151025ffe86becd1dc31"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7/PR_L2/past575/runtime_stages.tsv",
+    "bytes": 11816,
+    "sha256": "99d625d458a374e0c45d94836a8ffbaa22955db3f5d5ce315e7f6f4afc284694"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7/PR_L2/past575/stage_trace.tsv",
+    "bytes": 69,
+    "sha256": "a36bd9ca8cf7768c0af87635b0cedd918437b3240bee69ac4e70e83daba460f1"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7/PR_L2/past575/step_trace.tsv",
+    "bytes": 276228,
+    "sha256": "df6167edd35ed72d9b4a606b5a0f92f5d23bdeedf0db5e4a97e87e289f2b7752"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7/PR_L2/past575/trace.json",
+    "bytes": 120,
+    "sha256": "0fdf44434434613917db9dd216a29d449959210f86d6a482cf8233d1ccda5be5"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7/PR_L2/stdout.log",
+    "bytes": 2630,
+    "sha256": "fb7d8cb988a69b7f6c9720243c2551b5d6d0ae4a241111af4bcaf2317c1d9f4f"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7/guard.jsonl",
+    "bytes": 1979,
+    "sha256": "172e8ebbdd85e2d3599d4deaae1fd2f8069b6b741cd63f223d9161eee04999ae"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7/guard_result.json",
+    "bytes": 38,
+    "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7/pgid",
+    "bytes": 7,
+    "sha256": "1bfbba714c8e703825c4dbc706ec18a5c3ee5f10263fd151b29df0777717e7cb"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7/trace_results.json",
+    "bytes": 190,
+    "sha256": "1ad4565b72eda4194b51af8dea8f058cb995734fd54ae94b235d8820b1ebc05f"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E6_collect_r7/completeness.json",
+    "bytes": 297,
+    "sha256": "3d9d17d72d01945e2e0ab31078641d33aa12ceeae98d500bce8b9967d78e3188"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_04/builds/llama_B1/build.log",
+    "bytes": 2901,
+    "sha256": "ef11192c4a4ee3c2376bfde435008612e2e4a4a3ed5e34a16432144c78447fc6"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_04/builds/llama_B1/build.log.command.json",
+    "bytes": 1672,
+    "sha256": "3238795736a7e13e4b7d78b1d1ad67ce7a91f2e5d984698f52ebea85c6ec043f"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_04/builds/llama_B1/record.json",
+    "bytes": 12588,
+    "sha256": "56adc16fb151381eff4b8e13481dc6150b3817be6405d5b46d85511d35ece877"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_04/builds/qwen3_B1/build.log",
+    "bytes": 2914,
+    "sha256": "859af92fe22eb5dbb42c217a04d19308e271f5fb6413e28afa0b5e14e5ab10a9"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_04/builds/qwen3_B1/build.log.command.json",
+    "bytes": 1672,
+    "sha256": "f186b7a3516cb3ec1128d7b8d2e71cec537b2b3b9cec091ef5fb733867e664e0"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_04/builds/qwen3_B1/record.json",
+    "bytes": 19657,
+    "sha256": "496db280f36ab1caf87766e5070c9a8eb00b1ffe1fc9f967a3b8468414e64763"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_04/trace_builds.json",
+    "bytes": 35450,
+    "sha256": "7e3034baec989e5a7ad7db238e4f3cbc2339beaffaf18a8e094cde7c1c43f447"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/acceptance_04/trace_replacements.json",
+    "bytes": 1331,
+    "sha256": "efd2197fd4b6143d29e874346d110b75e7ca8435df013388f6bb154be5d6fc87"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/results/S6.tsv",
+    "bytes": 13726389,
+    "sha256": "49a6436b71caacfb2a29515dc238085068d25d12ee3f80a1a4461728c6f7c8c9"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/results/S6_kinds.tsv",
+    "bytes": 538636,
+    "sha256": "af45caac669a2395ad7c117521e83e748017d8584b490400a58c91495b91aafe"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/results/S7.tsv",
+    "bytes": 78904,
+    "sha256": "dea6445a6a7011f8df52d000187c5d101a9a1cf676333523a890987811157755"
+  },
+  {
+    "path": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/results/S7_pages.tsv",
+    "bytes": 8790,
+    "sha256": "deaa36acf63f543b7a7e7f56b674075237983a7c18574e97fb8d845a0d4e1688"
+  }
+]

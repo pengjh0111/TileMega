@@ -1,0 +1,22 @@
+{
+  "E5a:llama_B1": {
+    "results": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/trace_results.json",
+    "guard": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_llama_B1_r7/guard_result.json",
+    "reason": "PR trace flags omitted PAGE_TRACE; original trace preserved"
+  },
+  "E5a:qwen3_B1": {
+    "results": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/trace_results.json",
+    "guard": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5a_qwen3_B1_r7/guard_result.json",
+    "reason": "PR trace flags omitted PAGE_TRACE; original trace preserved"
+  },
+  "E5c:llama_B1": {
+    "results": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7/trace_results.json",
+    "guard": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_llama_B1_r7/guard_result.json",
+    "reason": "PR trace flags omitted PAGE_TRACE; original trace preserved"
+  },
+  "E5c:qwen3_B1": {
+    "results": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7/trace_results.json",
+    "guard": "/root/tilemega-r13-sm120/docs/experiments/SERVING_R13_SM120/raw/E5c_qwen3_B1_r7/guard_result.json",
+    "reason": "PR trace flags omitted PAGE_TRACE; original trace preserved"
+  }
+}

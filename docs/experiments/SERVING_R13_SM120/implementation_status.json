@@ -1,6 +1,10 @@
 {
   "dependency_free_implementation_complete": true,
-  "pending_hardware_discovered_fixes": true,
+  "pending_hardware_discovered_fixes": false,
+  "final_review_complete": true,
+  "all_eligible_measurements_collected": true,
+  "full_protocol_pass": false,
+  "closure": "completed with explicit unavailable and failed paths; R14 proposals not implemented",
   "queued_nodes": 74,
   "groups": {
     "E4a": 3,

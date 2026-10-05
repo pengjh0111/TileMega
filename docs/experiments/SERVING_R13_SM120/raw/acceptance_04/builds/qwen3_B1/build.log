@@ -1,0 +1,45 @@
+/root/tilemega-r13-sm120/include/tilemega/Codegen/tasks/ModelHarness.cuh(969): warning #128-D: loop is not reachable
+    for (std::uint32_t i = threadIdx.x; i < task.wait_count;
+    ^
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+/root/tilemega-r13-sm120/include/tilemega/Codegen/tasks/ModelHarness.cuh(969): warning #128-D: loop is not reachable
+    for (std::uint32_t i = threadIdx.x; i < task.wait_count;
+    ^
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+ptxas info    : 184 bytes gmem
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi' for 'sm_120'
+ptxas info    : Function properties for _ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi
+    72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 64 registers, used 0 barriers, 72 bytes cumulative stack size
+ptxas info    : Compile time = 45.571 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy' for 'sm_120'
+ptxas info    : Function properties for _ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy
+    48 bytes stack frame, 44 bytes spill stores, 100 bytes spill loads
+ptxas info    : Used 255 registers, used 2 barriers, 48 bytes cumulative stack size
+ptxas info    : Compile time = 3626.977 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_120'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    32 bytes stack frame, 28 bytes spill stores, 92 bytes spill loads
+ptxas info    : Used 255 registers, used 2 barriers, 32 bytes cumulative stack size
+ptxas info    : Compile time = 3481.597 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy' for 'sm_120'
+ptxas info    : Function properties for _ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy
+    16 bytes stack frame, 52 bytes spill stores, 12 bytes spill loads
+ptxas info    : Used 255 registers, used 2 barriers, 16 bytes cumulative stack size
+ptxas info    : Compile time = 3335.600 ms
+ptxas info    : Compiling entry function '_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj' for 'sm_120'
+ptxas info    : Function properties for _ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 242 registers, used 2 barriers
+ptxas info    : Compile time = 7006.337 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem
+ptxas info    : 0 bytes gmem

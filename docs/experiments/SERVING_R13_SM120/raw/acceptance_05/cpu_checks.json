@@ -1,0 +1,24 @@
+{
+  "checks": [
+    {
+      "suite": "sm120",
+      "passed": 38,
+      "exit_code": 0,
+      "sha256": "9bc5831c8212c8c5fe63fb17cdb45ee38c318105d059162525682dfcae81a020"
+    },
+    {
+      "suite": "r13",
+      "passed": 40,
+      "exit_code": 0,
+      "sha256": "f99c38b47ed32af4f1009f449fef56e9549b89549a83ceb5f56d315e2bbc9e57"
+    },
+    {
+      "suite": "native source fingerprint",
+      "passed": null,
+      "exit_code": 0,
+      "sha256": "46933b30053abeba09d6e7d790bc4b131446e7505d45858bb8c90097e2144dc1"
+    }
+  ],
+  "calibration_stamps_match": true,
+  "calibration_sections": 9
+}

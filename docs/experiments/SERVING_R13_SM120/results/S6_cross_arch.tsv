@@ -1,0 +1,715 @@
+cell	arm	past	kind	sm120_excess_us	sm89_excess_us	qualification
+llama_B1	B0	64	down	62.38399684423627	34.81600080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	64	gate_up	-66.36800631152745	-162.30399839832285	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	64	kArgmaxReduce	3.808	3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	64	kAttentionMerge	86.16	117.76	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	64	kEmbedding	7.088	10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	64	kFusedAttention	113.94062498748019	139.65056250317718	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	64	lm_head	-11.996003087964084	8.698000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	64	o	171.31199921105906	309.50400020020965	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	64	qkv	-4.656001183411383	-76.4159996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	575	down	65.93599684423627	37.888000800838576	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	575	gate_up	-64.48000631152745	-188.41599839832278	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	575	kArgmaxReduce	3.792	3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	575	kAttentionMerge	93.232	132.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	575	kEmbedding	7.232	10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	575	kFusedAttention	109.95999988905518	133.31600002815452	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	575	lm_head	-12.524003087964083	8.698000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	575	o	162.46399921105908	323.8400002002097	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	575	qkv	-3.424001183411383	-73.3439996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	576	down		35.84000080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	576	gate_up		-173.0559983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	576	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	576	kAttentionMerge		133.12	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	576	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	576	kFusedAttention		134.3065625282033	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	576	lm_head		9.722000783633092	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	576	o		310.52800020020965	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	576	qkv		-75.3919996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	577	down		38.91200080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	577	gate_up		-165.8879983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	577	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	577	kAttentionMerge		134.144	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	577	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	577	kFusedAttention		132.2251250282522	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	577	lm_head		8.698000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	577	o		300.28800020020964	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	577	qkv		-70.27199969968551	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	578	down		35.84000080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	578	gate_up		-196.6079983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	578	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	578	kAttentionMerge		131.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	578	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	578	kFusedAttention		136.2876875283011	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	578	lm_head		8.698000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	578	o		338.1760002002098	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	578	qkv		-72.31999969968551	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	579	down		37.888000800838576	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	579	gate_up		-177.15199839832277	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	579	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	579	kAttentionMerge		133.12	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	579	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	579	kFusedAttention		132.15825002834998	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	579	lm_head		7.674000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	579	o		314.62400020020965	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	579	qkv		-75.3919996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	580	down		39.93600080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	580	gate_up		-184.31999839832278	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	580	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	580	kAttentionMerge		133.12	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	580	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	580	kFusedAttention		133.14881252839885	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	580	lm_head		6.650000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	580	o		318.72000020020965	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	580	qkv		-74.3679996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	581	down		39.93600080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	581	gate_up		-176.12799839832277	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	581	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	581	kAttentionMerge		121.856	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	581	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	581	kFusedAttention		138.23537502844775	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	581	lm_head		7.674000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	581	o		327.9360002002098	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	581	qkv		-75.3919996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	582	down		37.888000800838576	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	582	gate_up		-161.79199839832285	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	582	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	582	kAttentionMerge		135.168	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	582	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	582	kFusedAttention		135.12993752849664	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	582	lm_head		8.698000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	582	o		297.2160002002097	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	582	qkv		-73.3439996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	583	down		33.79200080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	583	gate_up		-177.15199839832277	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	583	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	583	kAttentionMerge		130.048	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	583	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	583	kFusedAttention		134.0725000285455	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	583	lm_head		10.746000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	583	o		310.52800020020965	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	583	qkv		-72.31999969968551	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	584	down		33.79200080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	584	gate_up		-164.8639983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	584	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	584	kAttentionMerge		134.144	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	584	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	584	kFusedAttention		135.0630625285944	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	584	lm_head		8.698000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	584	o		304.3840002002097	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	584	qkv		-76.4159996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	585	down		40.96000080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	585	gate_up		-190.4639983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	585	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	585	kAttentionMerge		128.0	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	585	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	585	kFusedAttention		136.05362502864327	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	585	lm_head		10.746000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	585	o		336.1280002002098	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	585	qkv		-75.3919996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	586	down		30.720000800838577	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	586	gate_up		-190.4639983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	586	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	586	kAttentionMerge		137.216	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	586	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	586	kFusedAttention		132.94818752869216	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	586	lm_head		8.698000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	586	o		336.12800020020967	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	586	qkv		-73.3439996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	587	down		33.79200080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	587	gate_up		-160.7679983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	587	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	587	kAttentionMerge		125.952	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	587	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	587	kFusedAttention		133.93875002874105	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	587	lm_head		9.722000783633092	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	587	o		305.4080002002097	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	587	qkv		-74.3679996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	588	down		33.79200080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	588	gate_up		-190.4639983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	588	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	588	kAttentionMerge		126.976	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	588	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	588	kFusedAttention		136.97731252878995	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	588	lm_head		8.698000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	588	o		339.2000002002098	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	588	qkv		-77.4399996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	589	down		34.81600080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	589	gate_up		-165.8879983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	589	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	589	kAttentionMerge		129.024	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	589	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	589	kFusedAttention		133.87187502883882	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	589	lm_head		8.698000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	589	o		314.62400020020965	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	589	qkv		-74.3679996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	590	down		33.79200080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	590	gate_up		-161.79199839832285	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	590	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	590	kAttentionMerge		132.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	590	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	590	kFusedAttention		134.8624375288877	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	590	lm_head		8.698000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	590	o		306.4320002002097	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	590	qkv		-75.3919996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	1000	down	62.943996844236274	41.47200080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	1000	gate_up	-63.824006311527455	-146.94399839832283	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	1000	kArgmaxReduce	3.808	3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	1000	kAttentionMerge	95.696	143.36	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	1000	kEmbedding	7.2	10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	1000	kFusedAttention	105.29362480719486	124.2250625489282	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	1000	lm_head	-12.060003087964084	8.18600078363309	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	1000	o	162.14399921105908	283.9040002002097	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	B0	1000	qkv	-2.448001183411383	-74.3679996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	64	down	583.0879968442363	71.16800080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	64	gate_up	294.97599368847256	16.896001601677156	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	64	kEmbedding	5.072	10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	64	kFusedAttention	174.66062498748016	217.98656250317717	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	64	lm_head	41.827996912035914	5.626000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	64	o	78.87999921105907	79.10400020020965	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	64	qkv	121.10399881658861	57.728000300314505	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	575	down	571.0079968442362	77.82400080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	575	gate_up	287.37599368847253	20.992001601677156	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	575	kEmbedding	5.056	4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	575	kFusedAttention	177.70399988905518	233.15600002815444	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	575	lm_head	39.97199691203592	6.650000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	575	o	83.58399921105907	81.15200020020966	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	575	qkv	118.99199881658862	15.232000300314482	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	1000	down	582.1599968442363	79.36000080083859	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	1000	gate_up	293.85599368847255	26.624001601677154	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	1000	kEmbedding	5.168	4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	1000	kFusedAttention	168.58962480719487	273.7290625489281	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	1000	lm_head	42.56399691203592	6.650000783633091	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	1000	o	91.71199921105907	83.71200020020966	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B1	PR_L1	1000	qkv	121.75999881658862	-22.143999699685512	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	64	down	107.88799684423627	54.78400080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	64	gate_up	-92.92800631152745	-210.43199839832278	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	64	kArgmaxReduce	3.984	3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	64	kEmbedding	6.048	10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	64	kFusedAttention	120.36199979968296	178.72900005083443	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	64	lm_head	-2.5080030879640836	18.426000783633093	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	64	o	242.78399921105907	452.8640002002098	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	64	qkv	17.327998816588618	-59.0079996996855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	575	down	105.66399684423628	53.760000800838576	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	575	gate_up	-82.88000631152745	-214.52799839832278	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	575	kArgmaxReduce	3.84	3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	575	kEmbedding	6.048	10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	575	kFusedAttention	58.95999822488293	75.84000045047168	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	575	lm_head	-3.8520030879640834	18.938000783633093	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	575	o	236.47999921105907	462.0800002002098	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	575	qkv	51.00799881658862	49.0240003003145	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	576	down		66.56000080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	576	gate_up		-215.03999839832278	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	576	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	576	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	576	kFusedAttention		79.40100045125375	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	576	lm_head		20.98600078363309	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	576	o		453.8880002002098	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	576	qkv		43.39200030031449	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	577	down		59.39200080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	577	gate_up		-199.6799983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	577	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	577	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	577	kFusedAttention		70.67400045203584	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	577	lm_head		18.938000783633093	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	577	o		446.72000020020977	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	577	qkv		54.6560003003145	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	578	down		61.440000800838575	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	578	gate_up		-193.5359983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	578	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	578	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	578	kFusedAttention		78.33100045281789	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	578	lm_head		16.89000078363309	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	578	o		449.79200020020977	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	578	qkv		44.416000300314494	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	579	down		56.32000080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	579	gate_up		-205.8239983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	579	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	579	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	579	kFusedAttention		75.74800045359996	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	579	lm_head		18.938000783633093	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	579	o		454.9120002002098	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	579	qkv		47.488000300314496	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	580	down		55.29600080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	580	gate_up		-208.89599839832277	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	580	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	580	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	580	kFusedAttention		70.09300045438204	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	580	lm_head		19.96200078363309	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	580	o		456.9600002002098	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	580	qkv		51.5840003003145	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	581	down		64.51200080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	581	gate_up		-192.5119983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	581	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	581	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	581	kFusedAttention		70.58200045516412	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	581	lm_head		18.938000783633093	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	581	o		442.62400020020976	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	581	qkv		48.512000300314504	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	582	down		60.416000800838574	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	582	gate_up		-195.5839983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	582	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	582	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	582	kFusedAttention		78.2390004559462	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	582	lm_head		20.98600078363309	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	582	o		446.72000020020977	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	582	qkv		41.3440003003145	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	583	down		50.17600080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	583	gate_up		-228.3519983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	583	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	583	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	583	kFusedAttention		72.58400045672828	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	583	lm_head		18.938000783633093	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	583	o		474.3680002002099	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	583	qkv		51.58400030031449	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	584	down		56.32000080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	584	gate_up		-199.6799983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	584	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	584	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	584	kFusedAttention		72.04900045751035	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	584	lm_head		19.96200078363309	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	584	o		449.79200020020977	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	584	qkv		41.3440003003145	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	585	down		56.32000080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	585	gate_up		-181.24799839832278	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	585	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	585	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	585	kFusedAttention		75.6100004582924	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	585	lm_head		19.96200078363309	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	585	o		424.1920002002098	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	585	qkv		49.5360003003145	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	586	down		54.272000800838576	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	586	gate_up		-190.4639983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	586	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	586	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	586	kFusedAttention		75.07500045907447	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	586	lm_head		18.938000783633093	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	586	o		432.3840002002098	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	586	qkv		49.5360003003145	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	587	down		53.248000800838575	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	587	gate_up		-196.6079983983228	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	587	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	587	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	587	kFusedAttention		75.56400045985656	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	587	lm_head		18.938000783633093	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	587	o		444.67200020020977	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	587	qkv		47.488000300314496	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	588	down		58.36800080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	588	gate_up		-189.43999839832279	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	588	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	588	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	588	kFusedAttention		74.00500046063864	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	588	lm_head		18.938000783633093	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	588	o		434.4320002002098	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	588	qkv		54.656000300314496	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	589	down		61.440000800838575	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	589	gate_up		-186.36799839832278	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	589	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	589	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	589	kFusedAttention		69.3740004614207	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	589	lm_head		19.96200078363309	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	589	o		433.4080002002098	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	589	qkv		53.6320003003145	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	590	down		57.34400080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	590	gate_up		-183.29599839832278	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	590	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	590	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	590	kFusedAttention		74.9830004622028	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	590	lm_head		16.89000078363309	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	590	o		434.4320002002098	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	590	qkv		48.5120003003145	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	1000	down	102.14399684423627	54.78400080083858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	1000	gate_up	-90.35200631152745	-129.02399839832285	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	1000	kArgmaxReduce	3.84	3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	1000	kEmbedding	6.24	11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	1000	kFusedAttention	24.52199691511772	-21.486999217148988	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	1000	lm_head	-2.1240030879640837	23.03400078363309	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	1000	o	214.99199921105907	345.34400020020973	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	B0	1000	qkv	80.15999881658861	135.04000030031452	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	64	down		117.76000080083864	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	64	gate_up		56.320001601677156	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	64	kEmbedding		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	64	kFusedAttention		247.8490000508344	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	64	lm_head		44.538000783633095	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	64	o		91.39200020020967	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	64	qkv		-6.783999699685519	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	575	down		106.4960008008386	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	575	gate_up		56.320001601677156	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	575	kEmbedding		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	575	kFusedAttention		190.52800045047172	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	575	lm_head		43.00200078363309	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	575	o		95.48800020020965	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	575	qkv		84.3520003003145	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	1000	down		109.0560008008386	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	1000	gate_up		55.808001601677155	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	1000	kEmbedding		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	1000	kFusedAttention		175.12100078285107	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	1000	lm_head		40.44200078363309	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	1000	o		98.56000020020966	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+llama_B16	PR_L1	1000	qkv		78.72000030031451	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	64	down	195.98399585806015	196.41600105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	64	gate_up	-49.96800828387968	-124.79999789779855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	64	kArgmaxReduce	4.24	3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	64	kAttentionMerge	152.512	200.192	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	64	kEmbedding	6.512	11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	64	kFusedAttention	284.21618745618065	434.2489687611202	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	64	lm_head	-11.570003658097178	46.9390009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	64	o	252.81599861935337	376.25600035036666	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	64	qkv	-63.90400276129326	-209.53599929926617	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	575	down	192.83199585806017	244.03200105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	575	gate_up	-37.53600828387968	-120.70399789779854	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	575	kArgmaxReduce	4.304	3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	575	kAttentionMerge	162.752	265.216	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	575	kEmbedding	6.24	11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	575	kFusedAttention	266.18799961169316	425.13400009854064	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	575	lm_head	-10.210003658097179	47.9630009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	575	o	240.38399861935338	317.8880003503668	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	575	qkv	-65.48800276129326	-202.87999929926616	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	576	down		230.20800105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	576	gate_up		-107.90399789779858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	576	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	576	kAttentionMerge		262.144	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	576	kEmbedding		13.312	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	576	kFusedAttention		438.32896884871144	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	576	lm_head		45.9150009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	576	o		325.56800035036673	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	576	qkv		-214.14399929926617	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	577	down		233.28000105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	577	gate_up		-106.87999789779857	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	577	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	577	kAttentionMerge		259.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	577	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	577	kFusedAttention		428.9959375988826	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	577	lm_head		44.8910009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	577	o		322.4960003503667	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	577	qkv		-201.85599929926616	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	578	down		237.37600105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	578	gate_up		-125.31199789779852	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	578	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	578	kAttentionMerge		273.408	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	578	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	578	kFusedAttention		427.85490634905375	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	578	lm_head		48.9870009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	578	o		340.9280003503667	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	578	qkv		-201.85599929926616	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	579	down		237.37600105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	579	gate_up		-106.87999789779857	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	579	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	579	kAttentionMerge		265.216	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	579	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	579	kFusedAttention		428.7618750992249	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	579	lm_head		47.9630009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	579	o		310.2080003503668	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	579	qkv		-203.90399929926616	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	580	down		216.89600105110077	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	580	gate_up		-120.19199789779854	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	580	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	580	kAttentionMerge		261.12	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	580	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	580	kFusedAttention		436.8368438493959	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	580	lm_head		51.0350009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	580	o		348.0960003503667	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	580	qkv		-204.92799929926616	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	581	down		223.04000105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	581	gate_up		-117.11999789779854	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	581	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	581	kAttentionMerge		264.192	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	581	kEmbedding		8.192	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	581	kFusedAttention		430.57581259956703	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	581	lm_head		46.9390009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	581	o		337.85600035036674	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	581	qkv		-199.80799929926619	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	582	down		231.23200105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	582	gate_up		-135.55199789779854	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	582	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	582	kAttentionMerge		265.216	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	582	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	582	kFusedAttention		435.57878134973816	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	582	lm_head		50.0110009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	582	o		345.02400035036675	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	582	qkv		-209.02399929926617	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	583	down		247.61600105110077	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	583	gate_up		-128.38399789779854	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	583	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	583	kAttentionMerge		257.024	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	583	kEmbedding		12.288	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	583	kFusedAttention		433.41375009990924	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	583	lm_head		46.9390009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	583	o		324.54400035036673	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	583	qkv		-204.92799929926616	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	584	down		234.30400105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	584	gate_up		-109.95199789779858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	584	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	584	kAttentionMerge		259.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	584	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	584	kFusedAttention		435.34471885008037	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	584	lm_head		46.9390009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	584	o		317.3760003503668	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	584	qkv		-204.92799929926616	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	585	down		227.13600105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	585	gate_up		-106.87999789779857	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	585	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	585	kAttentionMerge		263.168	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	585	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	585	kFusedAttention		433.17968760025144	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	585	lm_head		44.8910009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	585	o		326.59200035036673	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	585	qkv		-195.71199929926618	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	586	down		235.32800105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	586	gate_up		-128.38399789779854	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	586	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	586	kAttentionMerge		266.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	586	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	586	kFusedAttention		436.1346563504226	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	586	lm_head		47.9630009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	586	o		335.8080003503667	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	586	qkv		-200.83199929926616	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	587	down		240.44800105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	587	gate_up		-116.09599789779854	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	587	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	587	kAttentionMerge		264.192	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	587	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	587	kFusedAttention		433.9696251005937	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	587	lm_head		47.9630009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	587	o		314.3040003503668	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	587	qkv		-207.99999929926616	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	588	down		235.32800105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	588	gate_up		-122.23999789779855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	588	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	588	kAttentionMerge		261.12	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	588	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	588	kFusedAttention		433.85259385076483	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	588	lm_head		46.9390009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	588	o		329.66400035036673	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	588	qkv		-200.83199929926616	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	589	down		238.40000105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	589	gate_up		-111.99999789779855	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	589	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	589	kAttentionMerge		260.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	589	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	589	kFusedAttention		432.7115626009359	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	589	lm_head		44.8910009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	589	o		328.64000035036673	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	589	qkv		-201.85599929926616	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	590	down		232.25600105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	590	gate_up		-108.92799789779858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	590	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	590	kAttentionMerge		265.216	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	590	kEmbedding		8.192	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	590	kFusedAttention		431.57053135110704	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	590	lm_head		46.9390009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	590	o		321.4720003503667	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	590	qkv		-201.85599929926616	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	1000	down	191.10399585806016	244.03200105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	1000	gate_up	-28.272008283879682	-118.65599789779856	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	1000	kArgmaxReduce	4.24	3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	1000	kAttentionMerge	171.024	275.456	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	1000	kEmbedding	6.464	11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	1000	kFusedAttention	275.89568682518205	427.6197189212485	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	1000	lm_head	-12.386003658097179	47.9630009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	1000	o	240.65599861935337	355.2640003503667	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	B0	1000	qkv	-58.38400276129326	-187.51999929926617	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	64	down	756.6239958580601	99.64800105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	64	gate_up	774.8159917161203	110.72000210220145	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	64	kEmbedding	5.536	4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	64	kFusedAttention	456.92018745618066	661.0649687611198	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	64	lm_head	40.20599634190282	14.1710009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	64	o	151.63199861935337	139.2000003503669	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	64	qkv	144.91199723870673	10.624000700733756	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	575	down	741.0079958580601	117.56800105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	575	gate_up	760.8639917161203	130.17600210220147	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	575	kEmbedding	5.616	4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	575	kFusedAttention	456.95599961169313	693.9340000985408	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	575	lm_head	39.06999634190282	14.6830009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	575	o	144.99199861935338	150.4640003503669	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	575	qkv	137.79199723870673	-110.20799929926619	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	1000	down	748.9759958580601	121.66400105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	1000	gate_up	762.6559917161203	133.76000210220147	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	1000	kEmbedding	5.52	4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	1000	kFusedAttention	428.39168682518203	720.4837189212482	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	1000	lm_head	38.57399634190282	13.1470009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	1000	o	157.16799861935337	162.7520003503669	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B1	PR_L1	1000	qkv	141.45599723870674	-119.93599929926619	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	64	down	226.03199585806016	245.56800105110077	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	64	gate_up	-64.78400828387969	-78.71999789779862	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	64	kArgmaxReduce	4.432	3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	64	kAttentionMerge	159.536	221.184	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	64	kEmbedding	6.624	10.752	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	64	kFusedAttention	740.8349992988904	407.18350017792045	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	64	lm_head	-11.858003658097179	2.3950009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	64	o	331.2639986193534	546.7520003503673	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	64	qkv	23.663997238706738	-121.47199929926617	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	575	down	226.09599585806018	218.94400105110077	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	575	gate_up	-64.46400828387968	-97.66399789779858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	575	kArgmaxReduce	4.464	3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	575	kAttentionMerge	164.88	221.696	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	575	kEmbedding	6.304	11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	575	kFusedAttention	582.7519937870903	603.8720015766511	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	575	lm_head	-13.18600365809718	5.979000928315799	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	575	o	337.5679986193534	582.5920003503674	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	575	qkv	82.22399723870674	-30.335999299266245	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	576	down		236.35200105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	576	gate_up		-96.63999789779858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	576	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	576	kAttentionMerge		216.064	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	576	kEmbedding		12.288	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	576	kFusedAttention		701.3275015793881	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	576	lm_head		0.8590009283157997	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	576	o		580.5440003503674	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	576	qkv		-29.823999299266244	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	577	down		255.80800105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	577	gate_up		-106.87999789779857	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	577	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	577	kAttentionMerge		222.208	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	577	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	577	kFusedAttention		699.4550015821258	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	577	lm_head		3.9310009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	577	o		575.4240003503674	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	577	qkv		-44.15999929926623	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	578	down		233.28000105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	578	gate_up		-97.66399789779858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	578	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	578	kAttentionMerge		225.28	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	578	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	578	kFusedAttention		703.7265015848631	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	578	lm_head		-6.3089990716842	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	578	o		578.4960003503674	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	578	qkv		-20.607999299266243	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	579	down		235.32800105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	579	gate_up		-105.85599789779857	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	579	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	579	kAttentionMerge		220.16	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	579	kEmbedding		9.216	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	579	kFusedAttention		706.9740015875994	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	579	lm_head		4.955000928315799	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	579	o		578.4960003503674	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	579	qkv		-24.703999299266243	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	580	down		233.28000105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	580	gate_up		-98.68799789779857	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	580	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	580	kAttentionMerge		223.232	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	580	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	580	kFusedAttention		708.1735015903371	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	580	lm_head		8.0270009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	580	o		582.5920003503674	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	580	qkv		-35.967999299266246	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	581	down		226.11200105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	581	gate_up		-84.3519978977986	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	581	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	581	kAttentionMerge		225.28	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	581	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	581	kFusedAttention		695.0370015930749	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	581	lm_head		-0.1649990716842003	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	581	o		572.3520003503673	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	581	qkv		-27.775999299266246	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	582	down		228.16000105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	582	gate_up		-81.27999789779861	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	582	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	582	kAttentionMerge		222.208	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	582	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	582	kFusedAttention		694.1885015958112	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	582	lm_head		-7.3329990716842	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	582	o		572.3520003503673	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	582	qkv		-29.823999299266244	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	583	down		234.30400105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	583	gate_up		-96.63999789779858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	583	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	583	kAttentionMerge		222.208	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	583	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	583	kFusedAttention		701.5320015985485	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	583	lm_head		-1.1889990716842003	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	583	o		569.2800003503672	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	583	qkv		-27.775999299266246	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	584	down		232.25600105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	584	gate_up		-101.75999789779857	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	584	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	584	kAttentionMerge		220.16	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	584	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	584	kFusedAttention		701.7075016012863	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	584	lm_head		2.9070009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	584	o		576.4480003503674	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	584	qkv		-34.943999299266245	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	585	down		240.44800105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	585	gate_up		-104.83199789779857	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	585	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	585	kAttentionMerge		222.208	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	585	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	585	kFusedAttention		693.6910016040234	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	585	lm_head		5.979000928315799	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	585	o		583.6160003503674	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	585	qkv		-35.967999299266246	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	586	down		239.42400105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	586	gate_up		-75.13599789779863	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	586	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	586	kAttentionMerge		228.352	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	586	kEmbedding		12.288	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	586	kFusedAttention		685.6745016067603	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	586	lm_head		12.1230009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	586	o		564.1600003503672	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	586	qkv		-13.439999299266244	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	587	down		222.01600105110074	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	587	gate_up		-96.63999789779858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	587	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	587	kAttentionMerge		222.208	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	587	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	587	kFusedAttention		708.3780016094976	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	587	lm_head		-3.2369990716842003	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	587	o		581.5680003503674	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	587	qkv		-32.895999299266244	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	588	down		235.32800105110076	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	588	gate_up		-100.73599789779857	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	588	kArgmaxReduce		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	588	kAttentionMerge		223.232	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	588	kEmbedding		10.24	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	588	kFusedAttention		702.4095016122352	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	588	lm_head		4.955000928315799	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	588	o		575.4240003503674	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	588	qkv		-31.871999299266246	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	589	down		246.59200105110077	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	589	gate_up		-86.39999789779857	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	589	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	589	kAttentionMerge		224.256	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	589	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	589	kFusedAttention		690.2970016149725	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	589	lm_head		0.8590009283157997	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	589	o		577.4720003503674	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	589	qkv		-31.871999299266246	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	590	down		245.56800105110077	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	590	gate_up		-97.66399789779858	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	590	kArgmaxReduce		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	590	kAttentionMerge		223.232	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	590	kEmbedding		11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	590	kFusedAttention		713.0005016177095	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	590	lm_head		7.0030009283157995	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	590	o		571.3280003503673	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	590	qkv		-36.99199929926625	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	1000	down	232.73599585806016	222.52800105110074	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	1000	gate_up	-70.22400828387968	-104.83199789779857	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	1000	kArgmaxReduce	4.432	3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	1000	kAttentionMerge	164.176	219.136	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	1000	kEmbedding	6.368	11.264	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	1000	kFusedAttention	269.834989202912	841.2755027399788	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	1000	lm_head	-12.59400365809718	5.979000928315799	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	1000	o	333.5199986193534	589.2480003503674	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	B0	1000	qkv	196.78399723870675	-42.11199929926623	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	64	down		197.44000105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	64	gate_up		209.0240021022015	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	64	kEmbedding		3.072	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	64	kFusedAttention		860.3035001779205	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	64	lm_head		76.1230009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	64	o		229.3120003503669	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	64	qkv		-85.11999929926618	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	575	down		197.44000105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	575	gate_up		211.5840021022015	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	575	kEmbedding		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	575	kFusedAttention		915.6800015766506	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	575	lm_head		68.4430009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	575	o		219.5840003503669	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	575	qkv		-83.07199929926618	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	1000	down		196.41600105110075	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	1000	gate_up		220.80000210220152	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	1000	kEmbedding		4.096	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	1000	kFusedAttention		1274.9395027399787	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	1000	lm_head		66.9070009283158	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	1000	o		221.6320003503669	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a
+qwen3_B16	PR_L1	1000	qkv		-84.60799929926618	diagnostic instrumentation only; each architecture uses its own TL-2 ceiling; missing is n/a

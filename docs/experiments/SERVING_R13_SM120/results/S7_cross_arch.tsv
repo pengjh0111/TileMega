@@ -1,0 +1,21 @@
+cell	arm	qualification	sm120_boundary_gap_us	sm120_token_lag_mean_us	sm120_kv_lag_mean_us	sm120_last_barrier_wait_mean_us	sm89_boundary_gap_us	sm89_token_lag_mean_us	sm89_kv_lag_mean_us	sm89_last_barrier_wait_mean_us
+llama_B1	B0-noev	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait	5.12	0.0	0.0	0.0	5.12	0.0	0.0	0.0
+llama_B1	B0l	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait	7.008	0.0	0.0	1.3014588235294118	7.168	0.0	0.0	1.024
+llama_B1	B0p1	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait	7.616	0.0	0.0	0.0				
+llama_B1	PR_L2	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait	4.928	0.033129411764705886	24.213458823529415	0.0	5.12	0.072	60.252	0.0
+llama_B1	PR_L2l	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait					-53.248	0.424	56.396	0.0
+llama_B16	B0-noev	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait	4.8	0.0	0.0	0.0	5.12	0.0	0.0	0.0
+llama_B16	B0l	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait	5.568	0.0	0.0	1.0653176470588237	7.168	0.0	0.0	1.12
+llama_B16	B0p1	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait	7.52	0.0	0.0	0.0				
+llama_B16	PR_L2	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait					4.096	0.384	72.50800000000001	0.0
+llama_B16	PR_L2l	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait					-157.696	10.676	70.804	0.0
+qwen3_B1	B0-noev	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait	5.376	0.0	0.0	0.0	5.12	0.0	0.0	0.0
+qwen3_B1	B0l	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait	6.464	0.0	0.0	1.2753882352941175	7.168	0.0	0.0	1.016
+qwen3_B1	B0p1	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait	7.936	0.0	0.0	0.0				
+qwen3_B1	PR_L2	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait	5.76	0.041223529411764714	84.53571764705882	0.0	5.12	0.12	149.31599999999997	0.0
+qwen3_B1	PR_L2l	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait					-25.6	0.224	144.752	0.0
+qwen3_B16	B0-noev	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait	5.024	0.0	0.0	0.0	4.096	0.0	0.0	0.0
+qwen3_B16	B0l	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait	5.408	0.0	0.0	1.6142117647058825	6.144	0.0	0.0	0.5640000000000001
+qwen3_B16	B0p1	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait	7.712	0.0	0.0	0.0				
+qwen3_B16	PR_L2	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait					4.096	1.792	704.332	0.0
+qwen3_B16	PR_L2l	TR-3 diagnostic medians; missing lag stamps are not proof of zero wait					-154.624	9.132	678.384	0.0
