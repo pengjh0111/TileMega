@@ -9049,3 +9049,15 @@ original flagged rounds before replacement. Thresholds are unchanged.
 ## F-348: R13 confirms split-K last-arriver rejection before lowering
 
 **verified (CPU)**: Baseline compiler diagnostic selects 17 merge/argmax handoffs and rejects 48 split-K pairs, all with `handoff requires L-sem on both tasks`. The rejected edges connect distinct tile spaces at the same logical stage. Evidence: `SERVING_R13/raw/FX21_diagnosis/command.json`, `diagnostic.log`, `handoff_rejects.txt`, and `result.json`. This confirms R13 F10; it makes no device synchronization claim.
+
+## F-349: R13 distinguishes sustained DRAM calibration from repeated-copy rates
+
+**verified (sm_89)**: Five clean fresh processes reproduce the calibration kernel's large-working-set median at 979.9776 GB/s, with 0.6011 GB/s process range (0.0613%), zero contaminated processes. The old 884.5 GB/s drop was not reproduced. MB-1a's raw maximum, 1102.8417 GB/s, belongs to a 256 MiB repeated-copy point and is an effective copy rate, not evidence of that physical DRAM bandwidth. **inferred**: caching/repetition can affect that point; retain both reference columns and use the calibration protocol for the sustained ceiling. Evidence: SERVING_R13/raw/final_review/measurement_evidence.tar.xz (MB-1a-complete/dram_ceiling.json and five process outputs), measurement_evidence_manifest.json; results/T3.tsv.
+
+## F-350: R13 microbenchmark layout gain did not survive end-to-end selection
+
+**verified (sm_89)**: MB-1c tile-contiguous layout reaches a 12.94% gain, but the registered C-WL end-to-end control is 2.37–6.77% slower across four cells, so row layout remains default. C-L2b misses the 2% threshold and remains disabled. C-LP2 and C-PG3 meet their registered retention rules; the final search still selects separate launches. The three C synchronization checks each pass 50/50 fresh processes. Evidence: SERVING_R13/phase_c_retention.json; raw/phase_c_checkpoint/completed_phase_c.tar.xz; raw/final_review/protocol_pid_audit.json. This conclusion applies to the executed sm_89 paths only.
+
+## F-351: R13 final review found measurement-wrapper and accounting errors
+
+**verified (CPU replay)**: The anchor incorrectly imposed a TileMega loop postcondition on vLLM, rejecting twelve subprocess-success records. Replay requires matching original metrics, vLLM command and a clean enclosing guard; actual nonzero exits remain failures. PTX checking mistook unreachable cold blocks after ret for writes after the PDL trigger; kernel-resource comparison merged same-name callees from the new loop with old callers. Corrected checks pass all four PTX positions and both source/resource/SASS identities, with originals preserved. Exact path matching also fixes B16-as-B1 trace labels and model joins. Evidence: SERVING_R13/raw/final_review/{pdl_replay.json,Cidentity_nonpaged/,Cidentity_paged/,host_tests.log,trace_replay.json}; six CPU regression tests pass. Two final vLLM canaries exceed 2%; one whole-round replacement each is queued. These tool repairs do not establish a new GPU synchronization conclusion.

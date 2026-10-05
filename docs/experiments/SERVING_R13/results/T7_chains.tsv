@@ -1,0 +1,13 @@
+nodes	chain_links	chain_span_ns	virtual_reducers	phase_graph	cell	source
+7916	94	3908608	129	full host edges; negative boundaries denote overlapped K-phase work, not negative execution time	llama_B1	/root/TileMega/docs/experiments/SERVING_R13/raw/B4trace_llama_B1/P-R12bN-noWD-pages-L2-loop0-0
+8300	153	3780608	129	full host edges; negative boundaries denote overlapped K-phase work, not negative execution time	llama_B1	/root/TileMega/docs/experiments/SERVING_R13/raw/B4trace_llama_B1/PS-pages-L2-loop0-1
+8300	140	3737600	1025	full host edges; negative boundaries denote overlapped K-phase work, not negative execution time	llama_B1	/root/TileMega/docs/experiments/SERVING_R13/raw/B4trace_llama_B1/PSA-pages-L2-loop0-2
+8714	89	4507648	16	full host edges; negative boundaries denote overlapped K-phase work, not negative execution time	llama_B16	/root/TileMega/docs/experiments/SERVING_R13/raw/B4trace_llama_B16/P-R12bN-noWD-pages-L2-loop0-0
+19850	213	4496384	2064	full host edges; negative boundaries denote overlapped K-phase work, not negative execution time	llama_B16	/root/TileMega/docs/experiments/SERVING_R13/raw/B4trace_llama_B16/PS-pages-L2-loop0-1
+19850	186	4461568	2960	full host edges; negative boundaries denote overlapped K-phase work, not negative execution time	llama_B16	/root/TileMega/docs/experiments/SERVING_R13/raw/B4trace_llama_B16/PSA-pages-L2-loop0-2
+13285	163	6161408	225	full host edges; negative boundaries denote overlapped K-phase work, not negative execution time	qwen3_B1	/root/TileMega/docs/experiments/SERVING_R13/raw/B4trace_qwen3_B1/P-R12bN-noWD-pages-L2-loop0-0
+12389	263	6313984	225	full host edges; negative boundaries denote overlapped K-phase work, not negative execution time	qwen3_B1	/root/TileMega/docs/experiments/SERVING_R13/raw/B4trace_qwen3_B1/PS-pages-L2-loop0-1
+12389	248	6221824	2017	full host edges; negative boundaries denote overlapped K-phase work, not negative execution time	qwen3_B1	/root/TileMega/docs/experiments/SERVING_R13/raw/B4trace_qwen3_B1/PSA-pages-L2-loop0-2
+32579	280	8141824	3600	full host edges; negative boundaries denote overlapped K-phase work, not negative execution time	qwen3_B16	/root/TileMega/docs/experiments/SERVING_R13/raw/B4trace_qwen3_B16/P-R12bN-noWD-pages-L2-loop0-0
+32579	356	8024064	3600	full host edges; negative boundaries denote overlapped K-phase work, not negative execution time	qwen3_B16	/root/TileMega/docs/experiments/SERVING_R13/raw/B4trace_qwen3_B16/PS-pages-L2-loop0-1
+32579	337	7908352	5392	full host edges; negative boundaries denote overlapped K-phase work, not negative execution time	qwen3_B16	/root/TileMega/docs/experiments/SERVING_R13/raw/B4trace_qwen3_B16/PSA-pages-L2-loop0-2

@@ -1,0 +1,118 @@
+[
+  {
+    "path": "docs/experiments/SERVING_R13/raw/Carch/nonpaged_sm120_trigger0.ptx",
+    "sha256": "e865019cd70126e8b16c5280d5247c7d6ecf634d52e14a8dea27d5662a1ec6bc",
+    "trigger": 0,
+    "pass_": true,
+    "kernels": [
+      {
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "wait_offset": 15395,
+        "trigger_offset": 1480111,
+        "pass_": true,
+        "qualification": "region is restricted by ServingPdlEnter to descriptor loads and NextStage weight prefetch; source audit required"
+      },
+      {
+        "kernel": "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "wait_offset": 15613,
+        "trigger_offset": 954283,
+        "pass_": true,
+        "qualification": "region is restricted by ServingPdlEnter to descriptor loads and NextStage weight prefetch; source audit required"
+      },
+      {
+        "kernel": "_ZN8tilemega7codegen23tilemega_l1_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy",
+        "wait_offset": 15611,
+        "trigger_offset": 593310,
+        "pass_": true,
+        "qualification": "region is restricted by ServingPdlEnter to descriptor loads and NextStage weight prefetch; source audit required"
+      }
+    ]
+  },
+  {
+    "path": "docs/experiments/SERVING_R13/raw/Carch/nonpaged_sm120_trigger1.ptx",
+    "sha256": "71db18c7c5e6617d35dd466f6dbe91a1759bda740b731a914c826bff7566d793",
+    "trigger": 1,
+    "pass_": true,
+    "kernels": [
+      {
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "wait_offset": 15470,
+        "trigger_offset": 368,
+        "pass_": true,
+        "qualification": "region is restricted by ServingPdlEnter to descriptor loads and NextStage weight prefetch; source audit required"
+      },
+      {
+        "kernel": "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "wait_offset": 15688,
+        "trigger_offset": 590,
+        "pass_": true,
+        "qualification": "region is restricted by ServingPdlEnter to descriptor loads and NextStage weight prefetch; source audit required"
+      },
+      {
+        "kernel": "_ZN8tilemega7codegen23tilemega_l1_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy",
+        "wait_offset": 15686,
+        "trigger_offset": 528,
+        "pass_": true,
+        "qualification": "region is restricted by ServingPdlEnter to descriptor loads and NextStage weight prefetch; source audit required"
+      }
+    ]
+  },
+  {
+    "path": "docs/experiments/SERVING_R13/raw/Carch/nonpaged_sm90_trigger0.ptx",
+    "sha256": "4896092274897641f9b2bec9d97899fab4d85b375c3db90cfcf65c9ceb450a89",
+    "trigger": 0,
+    "pass_": true,
+    "kernels": [
+      {
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "wait_offset": 14865,
+        "trigger_offset": 30069,
+        "pass_": true,
+        "qualification": "region is restricted by ServingPdlEnter to descriptor loads and NextStage weight prefetch; source audit required"
+      },
+      {
+        "kernel": "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "wait_offset": 14746,
+        "trigger_offset": 34071,
+        "pass_": true,
+        "qualification": "region is restricted by ServingPdlEnter to descriptor loads and NextStage weight prefetch; source audit required"
+      },
+      {
+        "kernel": "_ZN8tilemega7codegen23tilemega_l1_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy",
+        "wait_offset": 15039,
+        "trigger_offset": 46198,
+        "pass_": true,
+        "qualification": "region is restricted by ServingPdlEnter to descriptor loads and NextStage weight prefetch; source audit required"
+      }
+    ]
+  },
+  {
+    "path": "docs/experiments/SERVING_R13/raw/Carch/nonpaged_sm90_trigger1.ptx",
+    "sha256": "5a42f2339bcfca845392b58e733d20923383ed863e455f98ccf6c7dcfbfa79b3",
+    "trigger": 1,
+    "pass_": true,
+    "kernels": [
+      {
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "wait_offset": 14940,
+        "trigger_offset": 559,
+        "pass_": true,
+        "qualification": "region is restricted by ServingPdlEnter to descriptor loads and NextStage weight prefetch; source audit required"
+      },
+      {
+        "kernel": "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "wait_offset": 14821,
+        "trigger_offset": 559,
+        "pass_": true,
+        "qualification": "region is restricted by ServingPdlEnter to descriptor loads and NextStage weight prefetch; source audit required"
+      },
+      {
+        "kernel": "_ZN8tilemega7codegen23tilemega_l1_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy",
+        "wait_offset": 15114,
+        "trigger_offset": 784,
+        "pass_": true,
+        "qualification": "region is restricted by ServingPdlEnter to descriptor loads and NextStage weight prefetch; source audit required"
+      }
+    ]
+  }
+]

@@ -1,0 +1,52 @@
+{
+  "reference": {
+    "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi::_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": [
+      "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+      "ptxas info : Used 62 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+    ],
+    "_ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy::_ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy": [
+      "144 bytes stack frame, 68 bytes spill stores, 268 bytes spill loads",
+      "ptxas info : Used 255 registers, used 2 barriers, 144 bytes cumulative stack size, 392 bytes cmem[0], 688 bytes cmem[2]"
+    ],
+    "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy::_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": [
+      "64 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+      "ptxas info : Used 218 registers, used 2 barriers, 64 bytes cumulative stack size, 376 bytes cmem[0], 688 bytes cmem[2]"
+    ],
+    "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy::_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": [
+      "80 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+      "ptxas info : Used 228 registers, used 2 barriers, 80 bytes cumulative stack size, 376 bytes cmem[0], 280 bytes cmem[2]"
+    ],
+    "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj::_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": [
+      "208 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+      "ptxas info : Used 186 registers, used 2 barriers, 208 bytes cumulative stack size, 364 bytes cmem[0], 108 bytes cmem[2]"
+    ],
+    "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj::_ZN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi64ELi2EE3RunERKNS0_19ServingGemmOperandsEiiPc": [
+      "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+    ]
+  },
+  "candidate": {
+    "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi::_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": [
+      "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+      "ptxas info : Used 62 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+    ],
+    "_ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy::_ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy": [
+      "144 bytes stack frame, 68 bytes spill stores, 268 bytes spill loads",
+      "ptxas info : Used 255 registers, used 2 barriers, 144 bytes cumulative stack size, 392 bytes cmem[0], 688 bytes cmem[2]"
+    ],
+    "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy::_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": [
+      "64 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+      "ptxas info : Used 218 registers, used 2 barriers, 64 bytes cumulative stack size, 376 bytes cmem[0], 688 bytes cmem[2]"
+    ],
+    "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy::_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": [
+      "80 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+      "ptxas info : Used 228 registers, used 2 barriers, 80 bytes cumulative stack size, 376 bytes cmem[0], 280 bytes cmem[2]"
+    ],
+    "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj::_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": [
+      "208 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+      "ptxas info : Used 186 registers, used 2 barriers, 208 bytes cumulative stack size, 364 bytes cmem[0], 108 bytes cmem[2]"
+    ],
+    "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj::_ZN8tilemega7codegen19ServingGemmTaskBodyIN7cutlass4arch4Sm89ELi16ELi128ELi64ELi2EE3RunERKNS0_19ServingGemmOperandsEiiPc": [
+      "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+    ]
+  }
+}

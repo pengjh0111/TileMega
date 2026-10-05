@@ -1,0 +1,6 @@
+{
+  "default_model_changed": false,
+  "component_scope": "task run interval; excludes dependency waits and event publication",
+  "geometry_source": "runtime GEMM order and the exact traced binary manifest",
+  "rerank_scope": "report-only critical-chain residual inference, not a new solver fit"
+}

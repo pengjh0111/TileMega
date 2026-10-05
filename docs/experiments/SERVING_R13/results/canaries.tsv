@@ -1,0 +1,3 @@
+matrix	cell	round	canary	action
+D2	qwen3_B16	2	vllm	eligible for one registered rerun
+D2	llama_B1	2	vllm	eligible for one registered rerun

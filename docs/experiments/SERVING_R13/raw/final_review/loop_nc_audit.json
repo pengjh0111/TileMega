@@ -1,0 +1,42 @@
+[
+  {
+    "arch": 80,
+    "path": "/root/TileMega/docs/experiments/SERVING_R13/raw/Carch/nonpaged_sm80_trigger0.cubin",
+    "sha256": "94bf01e6735569eae4a400923eea7cecd88b8a4e02a241f55229fe36e13d9a39",
+    "kernel": "tilemega_l1_loop_kernel",
+    "noncoherent_loads": [],
+    "noncoherent_count": 0
+  },
+  {
+    "arch": 89,
+    "path": "/root/TileMega/docs/experiments/SERVING_R13/raw/Carch/nonpaged_sm89_trigger0.cubin",
+    "sha256": "69cc2b2f176564916a1333f5cb82c095f93bb10c50aeec3fa55ba9f191cae858",
+    "kernel": "tilemega_l1_loop_kernel",
+    "noncoherent_loads": [],
+    "noncoherent_count": 0
+  },
+  {
+    "arch": 90,
+    "path": "/root/TileMega/docs/experiments/SERVING_R13/raw/Carch/nonpaged_sm90_trigger0.cubin",
+    "sha256": "640a76a4169be5bc257a2e31646978fb3e568605ba9d760a86f31db78706e10f",
+    "kernel": "tilemega_l1_loop_kernel",
+    "noncoherent_loads": [],
+    "noncoherent_count": 0
+  },
+  {
+    "arch": 100,
+    "path": "/root/TileMega/docs/experiments/SERVING_R13/raw/Carch/nonpaged_sm100_trigger0.cubin",
+    "sha256": "10abe6ad3bfa4679fc1997b98531d8545de5276958726a5dbc63411da8f7ee44",
+    "kernel": "tilemega_l1_loop_kernel",
+    "noncoherent_loads": [],
+    "noncoherent_count": 0
+  },
+  {
+    "arch": 120,
+    "path": "/root/TileMega/docs/experiments/SERVING_R13/raw/Carch/nonpaged_sm120_trigger0.cubin",
+    "sha256": "83525b9bedd04b176f5972c7eadac56de74f36c0caacb790a0cecb1a4e225800",
+    "kernel": "tilemega_l1_loop_kernel",
+    "noncoherent_loads": [],
+    "noncoherent_count": 0
+  }
+]

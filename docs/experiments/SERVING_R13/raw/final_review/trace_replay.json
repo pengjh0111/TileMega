@@ -1,0 +1,7 @@
+{
+  "corrected_stage_rows": 0,
+  "stage_rows": 63424,
+  "page_rows": 12,
+  "changes": "exact batch-path matching; attention bytes and floors recomputed; CM joins repeated",
+  "phase_c_preregistration": "original trigger inputs/decision retained; no optimization reselected"
+}

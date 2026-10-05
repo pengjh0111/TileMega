@@ -1,0 +1,15 @@
+{
+  "source_equal": true,
+  "sass_equal": true,
+  "resources_equal": true,
+  "existing_functions": [
+    "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi",
+    "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+    "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+    "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj"
+  ],
+  "new_functions": [
+    "_ZN8tilemega7codegen23tilemega_l1_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy"
+  ],
+  "resource_scope": "entry kernel and called function; new kernel contexts excluded"
+}

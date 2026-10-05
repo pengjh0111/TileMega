@@ -1487,16 +1487,19 @@ Decode uses pages only; nonpaged decode is an explicit baseline and never enters
 
 ### 5.13 R13 — bandwidth ceiling, baseline, and measured execution choices
 
-（R13 补充：decode 联合实测 pg × 执行器 × 循环方式；prefill 单独锁定。默认不编入看门狗。最终默认仅在同轮可分辨地快于 B0-D 时采用 R13F。）
+（R13 补充：decode 联合实测 pg × 执行器 × 循环；prefill 单独锁定，默认不编入看门狗。默认只在可分辨地快于 B0-D 时采用 R13F；原基线止损按用户授权改为采集 advisory。）
 
 | ID | Scope | Status | Evidence |
 |---|---|---|---|
-| BL-1 / TL-1 | Baseline, sidecars, separate prefill and step events | Code implemented; host checks pass; GPU pending | SERVING_R13/summary.md |
-| PD-1 / LP-1 | Nonpaged PDL and L1 device loop | Code implemented; architecture, cache audit and fresh-process checks pending | ModelHarness.cuh; ServingRuntime.cuh |
-| FX-21 | Split-K combine last-arriver | CPU root cause verified; private access witness implemented; device checks pending | F-348; SERVING_R13/raw/FX21_diagnosis |
-| FX-22 / TR-1…3 | Runtime elision, stage/task/page/step ledgers | Code and analysis tools implemented; measurements pending | SERVING_R13/ledger.py; page_chain.py |
-| PG-2 / SL-5 | Two page seeds and two-level joint selection | Code implemented; shortlist and D1 pending | SkeletonSearch.cpp; cli.py |
-| TL-2 / MB-1 | Fresh-process ceiling and six loading probes | Code implemented; complete guarded collection pending | SERVING_R13/queue_b.json; tools/experimental/loadbench |
-| CM-1 | Per-task price export and error report | Partial: tools implemented; joins, coverage and residual inference pending | SERVING_R13/cm_report.py |
-| Phase A/B | Frozen builds, four-cell comparisons and correctness | A complete; B data collection restored with user-authorized advisory baseline gate; validation pending | SERVING_R13/collection_policy.json; scheduler/progress.tsv |
-| Phase C/D | Registered fixes and final comparison | C decision committed; three code changes and registered controls implemented; 88 C/D steps queued, GPU retention pending | SERVING_R13/{phase_c_decision,queue_cd}.json |
+| BL-1 / TL-1 | Baseline, sidecars, prefill and step events | Implemented and measured; final selection awaiting two canary replacements | SERVING_R13/summary.md; T1/T9/T10 |
+| PD-1 | Nonpaged PDL | Five-arch compile and four PTX checks pass after CPU tool replay; sm_89 auto/off SASS identical; other hardware unexecuted | raw/final_review/pdl_replay.json; loop_nc_audit.json |
+| LP-1 | Nonpaged L1 loop | Four-cell C-2 and 50/50; no final cell selected loop | ModelHarness.cuh; T6/T11 |
+| FX-21 | Split-K last-arriver | Diagnosis verified; PSA elided 65/113; C-1 and 50/50 | F-348; T2/T11 |
+| FX-22 / TR-1…3 | Runtime stage/task/page/step ledger | Collected; exact B16 labels repaired; stage trace overhead 3–7% exceeds 2% | results/T4–T7; trace_evidence.tar.xz |
+| PG-2 / SL-5 | Two seeds and joint execution selection | Implemented and executed; sidecar/plan samples retained | results/T9; final_plan_metadata.tar.xz |
+| TL-2 / MB-1 | Ceiling and six probes | Measured sm_89, five-arch compiled; large-set ceiling ≈980 GB/s | F-349; results/T3 |
+| CM-1 | Report-only model error | Task joins and fits collected; corrected rerank remains inference | results/T12_scope.json |
+| Phase C | Registered fixes | Retain LP2/PG3; disable L2b/WL; three protocols 50/50 each | phase_c_retention.json |
+| Phase D | Final matrix and correctness | Original 12/12 rounds; R13F four-cell C-1/C-2 pass; protocol 50/50; two flagged rounds queued once | queue_final_review.json; scheduler/progress.tsv |
+
+R13 remains unsealed until the registered canary replacements and final evidence archive are accepted. No product/device code changed in this CPU acceptance repair.
