@@ -158,6 +158,18 @@ class PipelineTests(unittest.TestCase):
                 pipeline.write(original,{'changed':True})
                 with self.assertRaises(RuntimeError):pipeline.round_path('E4a','llama_B1',0)
 
+    def test_execution_recovery_is_only_accepted_after_clean_outer_guard(self):
+        with tempfile.TemporaryDirectory() as directory:
+            location=Path(directory);guard=location/'guard.json';result=location/'round1.json'
+            pipeline.write(location/'raw/acceptance_03/anchor_execution_replacements.json',{
+                'E4a:qwen3_B16:1':{'path':str(result),'guard':str(guard)}})
+            with patch.object(pipeline,'HERE',location):
+                self.assertNotEqual(pipeline.round_path('E4a','qwen3_B16',1),result)
+                pipeline.write(guard,{'code':75})
+                self.assertNotEqual(pipeline.round_path('E4a','qwen3_B16',1),result)
+                pipeline.write(guard,{'code':0})
+                self.assertEqual(pipeline.round_path('E4a','qwen3_B16',1),result)
+
     def test_negative_boundary_residual_is_not_a_latency_measurement(self):
         import csv
         with tempfile.TemporaryDirectory() as directory:

@@ -208,6 +208,9 @@ def round_path(matrix,cell,number):
     replacements=read(HERE/'raw/E4_canary_r5/replacements.json',{})
     key=f'{matrix}:{cell}:{number}'
     if key in replacements:return Path(replacements[key])
+    recovered=read(HERE/'raw/acceptance_03/anchor_execution_replacements.json',{}).get(key)
+    if recovered and read(recovered['guard'],{}).get('code')==0:
+        return Path(recovered['path'])
     replay=read(HERE/'raw/acceptance_03/anchor_replacements.json',{}).get(key)
     if replay:
         if sha(replay['original_path'])!=replay['original_sha256']:

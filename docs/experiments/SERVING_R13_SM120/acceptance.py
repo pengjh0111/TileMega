@@ -160,6 +160,56 @@ def tests():
     return int(any(row['exit_code'] for row in results))
 
 
+def recover_anchor():
+    from pipeline import runnable
+    cell='qwen3_B16'
+    folder=HERE/'raw/E4a_qwen3_B16_r1_recovery_r6'
+    arms={cell:[runnable(cell,label) for label in ('vllm','B0','R13F')]}
+    for arm in arms[cell]:
+        if arm['kind']=='tm':arm['step_events']=1
+    write(folder/'arms.json',arms)
+    code=run([PY,FRAME/'anchor.py','--arms',folder/'arms.json','--cell',cell,'--round','1','--out',folder],folder/'anchor.log')
+    if code:return code
+    path=folder/cell/'round1.json'
+    data=json.loads(path.read_text())
+    if any(row.get('exit_code') or 'e2e_seconds' not in row for row in data['arms'].values()):return 1
+    write(FOLDER/'anchor_execution_replacements.json',{'E4a:qwen3_B16:1':dict(path=str(path),
+          guard=str(folder/'guard_result.json'),reason='Original wrapper SyntaxError before any model measurement; one missing round, not fastest-value selection')})
+    return 0
+
+
+def register_recovery():
+    state=json.loads((WORK/'scheduler/state.json').read_text())
+    failed='E4a_qwen3_B16_r1_r5'
+    source=HERE/f'raw/{failed}'
+    if state[failed]['status']!='failed' or list(source.glob('*/round*.json')):
+        raise RuntimeError('recovery requires the documented premeasurement failure, not a measured round')
+    if 'SyntaxError' not in (source/'anchor.log').read_text():raise RuntimeError('unexpected failure')
+    name='E4a_qwen3_B16_r1_recovery_r6'
+    path=WORK/'queue/queue_complete_r5.json'
+    rows=json.loads(path.read_text())
+    original=next(row for row in rows if row['name']==failed)
+    node=dict(original,name=name,command=[PY,str(HERE/'acceptance.py'),'recover-anchor'],
+              after=['E3_catalog_r5'],after_any=[failed],priority=39,out=str(HERE/'raw'/name))
+    for row in rows:
+        if row['name'].startswith('E4b_') and state[row['name']]['status']=='pending':
+            row['after_any'].append(name)
+    destination=WORK/'queue/queue_anchor_recovery_r6.json'
+    if destination.exists():raise RuntimeError('refuse to publish the recovery twice')
+    # Gate pending consumers before publishing the producer; both writes are atomic.
+    write(FOLDER/'r5_dependency_update.json',rows)
+    temporary=path.with_suffix('.pending')
+    write(temporary,rows);temporary.replace(path)
+    write(HERE/'queue_anchor_recovery_r6.json',[node])
+    temporary=destination.with_suffix('.pending')
+    write(temporary,[node]);temporary.replace(destination)
+    write(FOLDER/'recovery_publication.json',dict(time=time.time(),node=name,original_state=state[failed],
+          original_failure_sha256=sha(source/'anchor.log'),original_failure_preserved=True,
+          prior_model_measurements=0,expected_measured_round_count_unchanged=True))
+    return 0
+
+
 if __name__ == '__main__':
     action = sys.argv[1]
-    raise SystemExit({'align': align, 'replay': replay, 'inspect': inspect, 'anchor-replay': anchor_replay, 'tests': tests}[action]())
+    raise SystemExit({'align': align, 'replay': replay, 'inspect': inspect, 'anchor-replay': anchor_replay,
+                     'tests': tests, 'register-recovery': register_recovery, 'recover-anchor': recover_anchor}[action]())
