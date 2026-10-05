@@ -1,0 +1,175 @@
+{
+  "cells": [
+    "llama_B1",
+    "llama_B16",
+    "qwen3_B1",
+    "qwen3_B16"
+  ],
+  "items": [
+    {
+      "id": "R13D_prime_vs_R13D",
+      "metric": "tpot_median_rel",
+      "baseline": "R13D",
+      "predicted": [
+        -0.005,
+        0.005
+      ],
+      "prediction_text": "四格 ±0.5%；token 逐位一致",
+      "kill": {
+        "token_mismatch": "stop"
+      },
+      "committed_before_step": "A1"
+    },
+    {
+      "id": "N1_prime_vs_N1",
+      "metric": "tpot_median_rel",
+      "baseline": "N1",
+      "predicted": [
+        -0.03,
+        0.03
+      ],
+      "prediction_text": "±3%；C-1 改为通过",
+      "kill": {},
+      "committed_before_step": "A1"
+    },
+    {
+      "id": "AT_all",
+      "metric": "tpot_median_rel",
+      "baseline": "baseline",
+      "predicted": [
+        [
+          -0.05,
+          -0.03
+        ],
+        [
+          -0.02,
+          -0.005
+        ],
+        [
+          -0.09,
+          -0.05
+        ],
+        [
+          -0.08,
+          -0.04
+        ]
+      ],
+      "prediction_text": "−3~−5% / −0.5~−2% / −5~−9% / −4~−8%",
+      "kill": {
+        "any_cell_worse_than": 0.01
+      },
+      "committed_before_step": "B1"
+    },
+    {
+      "id": "SK_fill",
+      "metric": "tpot_median_rel",
+      "baseline": "baseline",
+      "predicted": [
+        -0.03,
+        -0.01
+      ],
+      "prediction_text": "−1~−3%，四格",
+      "kill": {
+        "any_cell_worse_than": 0.01
+      },
+      "committed_before_step": "B1"
+    },
+    {
+      "id": "GV",
+      "metric": "tpot_median_rel",
+      "baseline": "baseline",
+      "predicted": [
+        -0.03,
+        -0.005
+      ],
+      "prediction_text": "B1 两格 −0.5~−3%；B16 不预测",
+      "kill": {
+        "any_cell_worse_than": 0.01
+      },
+      "committed_before_step": "B1"
+    },
+    {
+      "id": "RW_pipe",
+      "metric": "tpot_median_rel",
+      "baseline": "baseline",
+      "predicted": {
+        "qwen3_B16": [
+          -0.03,
+          -0.01
+        ],
+        "llama_B1": [
+          -0.005,
+          0.005
+        ],
+        "qwen3_B1": [
+          -0.005,
+          0.005
+        ]
+      },
+      "prediction_text": "分页的格：Qwen3 B16 −1~−3%；B1 两格 ±0.5%。Llama B16（非分页）不适用",
+      "kill": {
+        "any_cell_worse_than": 0.01
+      },
+      "committed_before_step": "B1"
+    },
+    {
+      "id": "RA_no_spill",
+      "metric": "tpot_median_rel",
+      "baseline": "baseline",
+      "predicted": [
+        -0.03,
+        -0.005
+      ],
+      "prediction_text": "Qwen3 两格 −0.5~−3%",
+      "kill": {},
+      "committed_before_step": "B1"
+    },
+    {
+      "id": "EP_arg",
+      "metric": "tpot_median_rel",
+      "baseline": "baseline",
+      "predicted": {
+        "llama_B1": [
+          -0.003,
+          0.003
+        ],
+        "qwen3_B1": [
+          -0.003,
+          0.003
+        ],
+        "llama_B16": [
+          -0.01,
+          -0.003
+        ],
+        "qwen3_B16": [
+          -0.01,
+          -0.003
+        ]
+      },
+      "prediction_text": "B16 两格 −0.3~−1%；B1 两格 ±0.3%",
+      "kill": {},
+      "committed_before_step": "B1"
+    },
+    {
+      "id": "final_floor",
+      "metric": "T_over_floor",
+      "baseline": "980GB/s",
+      "predicted": {
+        "llama_B1": 1.08,
+        "llama_B16": 1.08,
+        "qwen3_B1": 1.11,
+        "qwen3_B16": 1.11
+      },
+      "prediction_text": "Llama 两格 ≤ +8%；Qwen3 两格 ≤ +11%",
+      "kill": {
+        "TM_vllm_min": [
+          1.083,
+          1.162,
+          1.061,
+          1.107
+        ]
+      },
+      "committed_before_step": "B1"
+    }
+  ]
+}
