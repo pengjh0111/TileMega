@@ -122,6 +122,55 @@ class PipelineTests(unittest.TestCase):
             with patch.dict('os.environ',{'TILEMEGA_MEASUREMENT_POLICY':str(path)+'missing'}):
                 with self.assertRaises(RuntimeError):module.measurement_policy(Path(directory))
 
+    def test_final_sm89_effect_needs_exactly_three_paired_rounds(self):
+        rows=[dict(matrix='B2',cell='llama_B1',arm=arm,round=number,tpot_s=value)
+              for number in range(3) for arm,value in [('B0',2),('NL2g',2.1)]]
+        value,note=report.old_effect(rows,'B2','llama_B1','NL2g','B0')
+        self.assertAlmostEqual(value,.05)
+        self.assertIn('final sm89',note)
+        rows=[row for row in rows if not(row['arm']=='NL2g' and row['round']==2)]
+        self.assertIsNone(report.old_effect(rows,'B2','llama_B1','NL2g','B0')[0])
+
+    def test_speedup_matches_r13_paired_e2e_and_keeps_tpot_separate(self):
+        rows=[dict(matrix='E4a',cell='llama_B1',arm=arm,round=number,tpot_s=value,e2e_s=elapsed)
+              for number in range(3) for arm,value,elapsed in [('B0',1,2),('vllm',1.1,2.4)]]
+        pair=report.paired(rows,'E4a','llama_B1','B0','vllm')
+        self.assertAlmostEqual(pair['speedup_tpot'],1.1)
+        self.assertAlmostEqual(pair['speedup_e2e'],1.2)
+
+    def test_final_configuration_ignores_paths_but_not_retained_features(self):
+        from acceptance import configuration_matches
+        local=dict(features={'pdl':'auto'},solver={'jobs':3,'prefill_pins':{'1':'local'}})
+        remote=dict(features={'pdl':'auto'},solver={'jobs':3,'prefill_pins':{'1':'sm89'}})
+        self.assertTrue(configuration_matches(local,remote))
+        remote['features']['pdl']='off'
+        self.assertFalse(configuration_matches(local,remote))
+
+    def test_validation_replay_preserves_and_checks_the_original_round(self):
+        with tempfile.TemporaryDirectory() as directory:
+            location=Path(directory)
+            original=location/'original.json';pipeline.write(original,{'arms':{}})
+            replay=location/'replayed.json';pipeline.write(replay,{'arms':{'vllm':{'exit_code':0}}})
+            pipeline.write(location/'raw/acceptance_03/anchor_replacements.json',{
+                'E4a:llama_B1:0':{'path':str(replay),'original_path':str(original),'original_sha256':pipeline.sha(original)}})
+            with patch.object(pipeline,'HERE',location):
+                self.assertEqual(pipeline.round_path('E4a','llama_B1',0),replay)
+                pipeline.write(original,{'changed':True})
+                with self.assertRaises(RuntimeError):pipeline.round_path('E4a','llama_B1',0)
+
+    def test_negative_boundary_residual_is_not_a_latency_measurement(self):
+        import csv
+        with tempfile.TemporaryDirectory() as directory:
+            location=Path(directory)
+            pipeline.write(location/'start.json',{'prompt_sha256':'fixture'})
+            pipeline.write(location/'predictions_sm120.json',{'predictions':[{'id':'step_boundary','range':[5,20]}]})
+            pipeline.write(location/'raw/E2a_MB-1e_r3/loadbench.json',{'points':[
+                {'suite':'MB-1e','mode':'separate','median_ms':1.5,'overhead_ns_per_step':-12244}]})
+            with patch.object(report,'HERE',location),patch.object(pipeline,'HERE',location):report.collect()
+            with (location/'results/S10.tsv').open() as stream:row=next(csv.DictReader(stream,delimiter='\t'))
+            self.assertEqual(row['matches'],'')
+            self.assertIsNone(__import__('json').loads(row['observation'])['value'])
+
     def test_missing_results_remain_missing_in_all_ten_tables(self):
         import csv
         with tempfile.TemporaryDirectory() as directory:

@@ -208,6 +208,11 @@ def round_path(matrix,cell,number):
     replacements=read(HERE/'raw/E4_canary_r5/replacements.json',{})
     key=f'{matrix}:{cell}:{number}'
     if key in replacements:return Path(replacements[key])
+    replay=read(HERE/'raw/acceptance_03/anchor_replacements.json',{}).get(key)
+    if replay:
+        if sha(replay['original_path'])!=replay['original_sha256']:
+            raise RuntimeError('original round changed after validation replay: '+replay['original_path'])
+        return Path(replay['path'])
     return HERE/f'raw/{matrix}_{cell}_r{number}_r5/{cell}/round{number}.json'
 
 
@@ -223,7 +228,7 @@ def canaries():
             label=labels[0]+'-120'
             values={}
             for number in range(3):
-                data=read(HERE/f'raw/{matrix}_{cell}_r{number}_r5/{cell}/round{number}.json',{})
+                data=read(round_path(matrix,cell,number),{})
                 row=data.get('arms',{}).get(label,{})
                 if not data.get('invalidated') and row.get('exit_code')==0 and 'e2e_seconds' in row:
                     values[number]=(row['e2e_seconds']-row['ttft_seconds'])/1023
@@ -239,7 +244,7 @@ def canaries():
                 candidate=HERE/f'raw/{matrix}_{cell}_r{number}_canary_r5/{cell}/round{number}.json'
                 # Failed reruns are retained, never used to replace valid data.
                 candidate_data=read(candidate,{})
-                original_data=read(HERE/f'raw/{matrix}_{cell}_r{number}_r5/{cell}/round{number}.json',{})
+                original_data=read(round_path(matrix,cell,number),{})
                 required=[name for name,row in original_data.get('arms',{}).items() if row.get('exit_code')==0 and 'e2e_seconds' in row]
                 complete=all(candidate_data.get('arms',{}).get(name,{}).get('exit_code')==0 and
                              'e2e_seconds' in candidate_data['arms'][name] for name in required)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""S1–S10 from frozen evidence; missing measurements and checkpoint limits stay explicit."""
+"""S1–S10 from frozen evidence, including the final sm89 measurement limitations."""
 from collections import defaultdict
 import csv
 import json
@@ -63,7 +63,10 @@ def paired(rows,matrix,cell,candidate,control):
                       per_round_relative=[x/y-1 for x,y in zip(c,b)])
         if result['complete']:
             result.update(relative=statistics.median(c)/statistics.median(b)-1,
-                          saving_us=(statistics.median(b)-statistics.median(c))*1e6)
+                          saving_us=(statistics.median(b)-statistics.median(c))*1e6,
+                          speedup_tpot=statistics.median(y/x for x,y in zip(c,b)))
+            if all('e2e_s' in first[number] and 'e2e_s' in second[number] for number in rounds):
+                result['speedup_e2e']=statistics.median(second[number]['e2e_s']/first[number]['e2e_s'] for number in rounds)
     return result
 
 
@@ -82,6 +85,11 @@ def medians(rows):
 
 
 def old_tables():
+    path=FRAME/'results/measurements.tsv'
+    if path.exists():
+        with path.open() as stream:
+            return [dict(row,round=int(row['round']),tpot_s=float(row['tpot_s']),e2e_s=float(row['e2e_s']))
+                    for row in csv.DictReader(stream,delimiter='\t')]
     rows=[]
     for name in ('T2','T5','T6','T10'):
         path=FRAME/f'results/{name}.tsv'
@@ -92,6 +100,10 @@ def old_tables():
 
 def old_effect(rows,matrix,cell,candidate,control):
     if matrix is None:return None,'n/a: sm89 has no PDL'
+    if any('round' in row for row in rows):
+        result=paired(rows,matrix,cell,candidate,control)
+        return result['relative'],('final sm89 evidence, same group and rounds 0/1/2; original canary flags retained'
+                                  if result['complete'] else 'final sm89 paired group missing/incomplete')
     first=next((row for row in rows if row.get('matrix')==matrix and row.get('cell')==cell and row.get('arm')==candidate),None)
     second=next((row for row in rows if row.get('matrix')==matrix and row.get('cell')==cell and row.get('arm')==control),None)
     if not first or not second:return None,'checkpoint evidence missing; sm89 final HEAD not aligned'
@@ -114,17 +126,25 @@ def collect():
     table('measurements.tsv',rows)
     median=medians(rows)
     table('medians.tsv',median)
+    alignment=read(HERE/'baseline_alignment.json',{})
+    aligned=alignment.get('compiler_runtime_aligned',False)
+    provenance='final sm89 evidence; device/compiler sources aligned with allowed native-profile port' if aligned else 'checkpoint; final common baseline not aligned'
     current=read(HERE/'target_sm120.json',{})
     previous=read(FRAME/'raw/inputs/target_r12b.json',{})
     flat,old=flatten(current),flatten(previous)
     table('S2.tsv',[dict(field=key,sm120=value,sm89=old.get(key),
-          comparison='sm89 checkpoint target, not a final common-HEAD assertion') for key,value in flat.items()])
+          comparison=provenance+'; fixed target retained, sustained TL-2 ceiling separate') for key,value in flat.items()])
     table('S1.tsv',[dict(kind='environment',value=read(HERE/'env_sm120.json')),
           dict(kind='capabilities',value=read(HERE/'caps_sm120.json')),
           dict(kind='native_profile_port',commit='17860b184',synchronization_modified=False),
           dict(kind='paged_loader',value='fixed tiled-weight builds: LoadTile -> PublishBulk/PublishBulkHint; Tensor2D is in the row-layout LoadRow path',
                evidence='source and manifest inference; compiled instruction audit is separate'),
+          dict(kind='paged_attention_TMA',value='PagedAttentionTaskBody KV loader also uses tensor maps and Tensor2D; tensor.2d exists even in tiled-weight builds',
+               evidence='verified compiled PTX; runtime branch frequency not measured'),
           dict(kind='codegen',value=read(HERE/'raw/E3_codegen_r5/audit.json',[])),
+          dict(kind='baseline_alignment',value=alignment),
+          dict(kind='PDL_position_replay',value=read(HERE/'raw/acceptance_03/pdl_replay.json',[])),
+          dict(kind='solver_rejections',value=read(HERE/'raw/acceptance_03/snapshot.json',{}).get('fixed_failures',[])),
           dict(kind='MB1c_quarantine',value='TN128/TK64 method5; 12 points unavailable, not corrected'),
           dict(kind='optional_omitted',value=['E4e','E5e'])])
     ceiling=read(HERE/'raw/E1_TL2_r3/processes/dram_ceiling.json',{})
@@ -132,6 +152,10 @@ def collect():
     theory=read(HERE/'raw/E0_environment/device.json',{}).get('theoretical_bandwidth_gbps')
     mb=[]
     table('S2_processes.tsv',ceiling.get('processes',[]))
+    for process in ceiling.get('processes',[]):
+        data=read(process['path'],{})
+        mb.extend(dict(item,source=process['path'],pid=process['pid'],contaminated=process['contaminated'])
+                  for item in data.get('points',[]))
     for suite,attempt in (('b','r3'),('c','r4'),('d','r3'),('e','r3'),('f','r3')):
         path=HERE/f'raw/E2a_MB-1{suite}_{attempt}/loadbench.json'
         data=read(path,{})
@@ -139,33 +163,50 @@ def collect():
             item=dict(item,source=str(path),contaminated=data.get('contaminated'))
             if item.get('gbps') is not None and maximum:item['ratio_mb1a_max']=item['gbps']/maximum
             mb.append(item)
+    for item in mb:
+        if item.get('gbps') is not None and maximum:item['ratio_mb1a_max']=item['gbps']/maximum
     table('S3_points.tsv',mb)
     sm89_mb=[]
     path=FRAME/'results/T3.tsv'
     if path.exists():
         with path.open() as stream:sm89_mb=list(csv.DictReader(stream,delimiter='\t'))
+    old_ceiling=next((item for item in sm89_mb if item['suite']=='MB-1a'),{})
+    table('S2_ceiling.tsv',[dict(architecture='sm120',**ceiling),dict(architecture='sm89',**old_ceiling)])
     summary=[]
     for suite in sorted({item['suite'] for item in mb}):
         points=[item for item in mb if item['suite']==suite]
         clean=[item['gbps'] for item in points if item.get('gbps') is not None and not item.get('contaminated')]
         older=[item for item in sm89_mb if item.get('suite')==suite]
+        older=[dict(item,normalized_maximum=float(item['maximum_gbps'])/float(sm89_mb[0]['maximum_gbps'])
+                    if item.get('maximum_gbps') and sm89_mb[0].get('maximum_gbps') else None) for item in older]
         summary.append(dict(suite=suite,points=len(points),unsupported=sum(item.get('status')=='unsupported' for item in points),
              maximum_gbps=max(clean) if clean else None,ratio_mb1a_max=max(clean)/maximum if clean and maximum else None,
-             sm89_checkpoint=older))
+             sm89_reference=older,sm89_qualification=provenance))
     table('S3.tsv',summary)
     anchor=[]
     for row in median:
         if row['matrix']!='E4a':continue
         row=dict(row)
         pair=paired(rows,'E4a',row['cell'],row['arm'],'vllm')
-        row['TM_vllm_tpot']=1/(1+pair['relative']) if pair['relative'] is not None else None
+        row['TM_vllm_tpot']=pair.get('speedup_tpot')
+        row['TM_vllm_e2e']=pair.get('speedup_e2e')
         floor=read(HERE/f"raw/E3_catalog_r5/floors/{row['cell']}/decode/floor.json",{})
         floor_point=next((point for point in floor.get('points',[]) if point['past']==575),None)
         if floor_point:
             row['tpot_over_floor_mid']=row['tpot_s_median']*1e9/floor_point['floor_ns']
             row['mid_bytes']=floor_point['dram_ns']*ceiling['calibration_median_gbps']
             row['effective_gbps_over_mb1a_max']=row['mid_bytes']/(row['tpot_s_median']*1e9)/maximum
-        row['sm89_T10_status']='not available at the Phase D checkpoint; common final HEAD not aligned'
+        old_path=FRAME/'results/T10.tsv'
+        old_anchor=[]
+        if old_path.exists():
+            with old_path.open() as stream:old_anchor=list(csv.DictReader(stream,delimiter='\t'))
+        old_label={'B0':'B0-D'}.get(row['arm'],row['arm'])
+        reference=next((item for item in old_anchor if item['cell']==row['cell'] and item['arm']==old_label),None)
+        row['sm89_T10']=reference
+        row['sm89_T10_status']=provenance
+        if reference and reference.get('tm_vllm_median') and row['TM_vllm_e2e'] is not None:
+            row['sm120_minus_sm89_TM_vllm_e2e']=row['TM_vllm_e2e']-float(reference['tm_vllm_median'])
+        row['TM_vllm_definition']='median of same-round vLLM/TM E2E ratios follows R13 T10; TPOT ratio reported separately'
         anchor.append(row)
     table('S4.tsv',anchor)
     effects=[]
@@ -179,7 +220,7 @@ def collect():
             effects.append(effect)
     table('S5.tsv',effects)
     sys.path.insert(0,str(FRAME))
-    from ledger import stages,steps
+    from ledger import stages,steps,stage_semantics
     from analyze import trace_v2
     from page_chain import pages,chain
     stage_rows=[]
@@ -195,7 +236,8 @@ def collect():
             folder=HERE/f'raw/{stage}_{cell}_r5'
             for file in folder.rglob('stage_trace.tsv'):
                 try:
-                    stage_rows.extend(dict(row,cell=cell,source=str(file.parent)) for row in stages(file.parent,int(cell.split('_B')[1]),{'native':ceiling['calibration_median_gbps'],'mb1a_max':maximum}))
+                    semantics=stage_semantics(file.parent)
+                    stage_rows.extend(dict(row,cell=cell,source=str(file.parent),**semantics[row['stage']]) for row in stages(file.parent,int(cell.split('_B')[1]),{'native':ceiling['calibration_median_gbps'],'mb1a_max':maximum}))
                 except (ValueError,KeyError,OSError) as error:errors.append(dict(source=str(file),error=str(error)))
             for file in folder.rglob('step_trace.tsv'):
                 try:step_rows.extend(dict(row,cell=cell,source=str(file.parent)) for row in steps(file.parent))
@@ -218,17 +260,17 @@ def collect():
                 except (ValueError,KeyError,OSError) as error:errors.append(dict(source=str(file),error=str(error)))
     table('S6.tsv',stage_rows)
     grouped=defaultdict(list)
-    for row in stage_rows:grouped[row['cell'],row['source'],row['past'],row['iteration'],row['kind']].append(row)
+    for row in stage_rows:grouped[row['cell'],row['source'],row['past'],row['iteration'],row['semantic_kind']].append(row)
     table('S6_kinds.tsv',[dict(cell=key[0],source=key[1],past=key[2],iteration=key[3],kind=key[4],
           duration_ns=sum(row['duration_ns'] for row in values),excess_ns_native=sum(row['excess_ns_native'] for row in values),
           excess_ns_mb1a_max=sum(row['excess_ns_mb1a_max'] for row in values)) for key,values in grouped.items()])
-    # Keep checkpoint columns separate from native measurements, including absent T9/T10.
+    # Keep the other architecture's measurements separate; never reuse its binaries.
     for native,old_name in (('S6','T4'),('S7','T6_steps'),('S8','T9')):
         source=FRAME/f'results/{old_name}.tsv'
         if source.exists():
             with source.open() as stream:old_rows=list(csv.DictReader(stream,delimiter='\t'))
-            table(native+'_sm89_checkpoint.tsv',[dict(row,qualification='checkpoint only; common final HEAD not aligned') for row in old_rows])
-        else:table(native+'_sm89_checkpoint.tsv',[dict(status='not supplied in checkpoint',source=str(source))])
+            table(native+'_sm89_reference.tsv',[dict(row,qualification=provenance) for row in old_rows])
+        else:table(native+'_sm89_reference.tsv',[dict(status='not supplied',source=str(source))])
     table('S7.tsv',step_rows)
     table('S7_tasks.tsv',task_rows)
     table('S7_pages.tsv',page_rows)
@@ -237,6 +279,21 @@ def collect():
     choices=[]
     for model in ('llama','qwen3'):
         run=HERE/f'raw/E3_R13F_{model}_r4/run'
+        if not (run/'plans.json').exists():
+            failure=read(HERE/'raw/acceptance_03/snapshot.json',{}).get('joint_failures',[])
+            choices.extend(dict(stage='joint',status='unavailable',**item) for item in failure if item['model']==model)
+            for command_file in sorted((run/'commands').glob('build-*/command.json')):
+                command_record=read(command_file,{})
+                arguments=command_record.get('argv',[])
+                if '--options' not in arguments:continue
+                options=read(arguments[arguments.index('--options')+1],[])
+                if len(options)<2:continue
+                phase=options[options.index('--serving')+1]
+                batch=options[options.index('--batch')+1]
+                pg=options[options.index('--pg')+1]
+                choices.extend(dict(row,model=model,batch=batch,phase=phase,pg=pg,
+                                    qualification='partial first-level candidate results only; final pg/executor/loop joint selection failed')
+                               for row in candidates(Path(options[1])))
         for batch,pair in read(run/'plans.json',{}).items():
             if not batch.isdigit():continue
             for phase in ('prefill','decode'):
@@ -249,13 +306,15 @@ def collect():
     checks.extend(dict(check='smoke',**row) for row in read(HERE/'raw/E2b_smoke_r4/results.json',[]))
     for group in GROUPS:checks.append({'check':'50 fresh processes','group':group,**read(HERE/f'raw/E2c_{group}_r5/status.json',{})})
     checks.append(dict(check='first-execution synchronization fixes',status='n/a: no synchronization code fix so far'))
+    checks.append(dict(check='vLLM wrapper CPU replay',report=read(HERE/'raw/acceptance_03/anchor_replay.json')))
+    checks.append(dict(check='PDL PTX CPU replay',report=read(HERE/'raw/acceptance_03/pdl_replay.json')))
     table('S9.tsv',checks)
     predictions=[]
     bulk=[item['gbps'] for item in mb if item.get('bulk') and item.get('loader_warps')==1 and not item.get('consume') and not item.get('contaminated')]
     initial={'dram_theory':ceiling['calibration_median_gbps']/theory if theory and ceiling.get('calibration_median_gbps') is not None else None,
              'ceiling_calibration':maximum/ceiling['calibration_median_gbps'] if maximum else None,
              'bulk_loader':max(bulk)/maximum if bulk and maximum else None,
-             'llama_B1_TM_vllm':next((row.get('TM_vllm_tpot') for row in anchor if row['cell']=='llama_B1' and row['arm']=='R13F'),None)}
+             'llama_B1_TM_vllm':next((row.get('TM_vllm_e2e') for row in anchor if row['cell']=='llama_B1' and row['arm']=='R13F'),None)}
     t1=FRAME/'results/T1.tsv'
     if t1.exists() and maximum:
         with t1.open() as stream:old_anchor=list(csv.DictReader(stream,delimiter='\t'))
@@ -276,7 +335,10 @@ def collect():
         id_=prediction['id']
         observed=[paired(rows,map_pairs[id_][0],cell,map_pairs[id_][1],map_pairs[id_][2]) for cell in CELLS] if id_ in map_pairs else [dict(value=initial.get(id_))]
         if id_=='step_boundary':
-            observed=[dict(mode=item['mode'],value=item['overhead_ns_per_step']/1000) for item in mb if item['suite']=='MB-1e' and 'overhead_ns_per_step' in item]
+            observed=[dict(mode=item['mode'],value=item['overhead_ns_per_step']/1000 if item['overhead_ns_per_step']>=0 else None,
+                           raw_residual_us=item['overhead_ns_per_step']/1000,median_ms=item.get('median_ms'),
+                           reason='negative cold-stream subtraction is not a physical boundary latency' if item['overhead_ns_per_step']<0 else 'protocol residual')
+                      for item in mb if item['suite']=='MB-1e' and 'overhead_ns_per_step' in item]
             if not observed:observed=[dict(value=None,reason='MB-1e result not collected')]
         for observation in observed:
             value=observation.get('relative',observation.get('value'))
@@ -289,34 +351,38 @@ def collect():
             predictions.append(dict(prediction=prediction,observation=observation,matches=matches,
                     saving_us_matches=(prediction['saving_us'][0]<=observation['saving_us']<=prediction['saving_us'][1])
                     if prediction.get('saving_us') and observation.get('saving_us') is not None else None,
-                    cross_architecture_final_head_aligned=False,status='measured' if value is not None else 'unavailable/not yet aligned'))
+                    cross_architecture_final_head_aligned=aligned,status='measured' if value is not None else 'unavailable/invalid residual'))
     table('S10.tsv',predictions)
     write(HERE/'raw/E6_collect_r5/completeness.json',dict(round_records=len(rows),expected_round_records=297,
           measurements_complete=all(len([row for row in rows if row['matrix']==matrix and row['cell']==cell and row['arm']==label])==3
           for matrix,labels in MATRICES.items() for cell in CELLS for label in labels if not(label=='B0h' and cell=='qwen3_B16')),
-          errors=errors,sm89_final_head_aligned=False,all_gpu_unit_tests_passed=False,
+          errors=errors,sm89_final_head_aligned=aligned,model_hashes_verified=alignment.get('cross_architecture_model_hashes_verified',False),all_gpu_unit_tests_passed=False,
           correctness_failures_preserved=True,final_human_review_pending=True))
     draft=[ '# R13 sm120 自动汇总（待最终验收）','',
-            '本轮在 sm89 R13 Phase D 尚未完成时从 `36f17e6ee` 启动；尚未对齐 sm89 最终 HEAD。',
+            '本轮在 sm89 R13 Phase D 尚未完成时从 `36f17e6ee` 启动。',
+            f"最终 sm89 HEAD：`{alignment.get('sm89_final_head','未提供')}`；编译器/runtime 源码对齐：{aligned}；保留原二进制及允许的 native profile 移植。",
+            '跨机器模型 config/权重 SHA 未齐，vLLM 版本分别为 sm120 0.29.0 / sm89 0.30.0；sm89 的两个金丝雀标记仍保留。',
             f"Prompt SHA256：`{read(HERE/'start.json')['prompt_sha256']}`。",
             'verified：保留安装的 vLLM 0.29.0；未修改求解器/代价模型、未调优、未 push。',
             '移植修正：native-only target 格式兼容 `17860b184`；无同步代码修正，无虚构 50 进程结论。',
             'MB-1c TN128/TK64 method5 十二点隔离为不可用；E4e/E5e 按可选项省略。','',
+            '带宽口径：MB-1a 最大值是重复拷贝有效吞吐，不冒充物理 DRAM 带宽；MB-1e 负冷流扣减仅保留残差，不称负步边界延迟。',
             '## S1–S10','']
     draft += [f'- [S{number}](results/S{number}.tsv)：自动收集，缺失项不填零、不记通过。' for number in range(1,11)]
     draft += ['', '## 四个问题与结论边界','',
-              '- 机制跨架构变化：S5 提供同组同轮次对照；sm89 仅检查点数据，正式同号/异号结论仍待共同 HEAD 对齐。',
+              '- 机制跨架构变化：S5 提供同组同轮次对照；结合源码、模型及 sm89 原始测量限制判读同号/异号。',
               '- bulk 分页是否胜过非分页 L1：按 S5 的 PR_L1/B0h；不是拿 bulk-only 微基准替代模型 TPOT。',
-              '- B1 优势：本机 R13F/vLLM 在 S4；sm89 最终 T10 未提供时不能宣称优势随架构变大。',
+              '- B1 优势：S4 对照最终 T10；本机 R13F 求解失败时不能用 B0 冒充 R13F 或宣称预测成立。',
               '- PDL 回收量：S5 的 B0p/B0p1、NL2gp1、PRp 配对 saving_us；S9 同步证据不齐时不得宣称 verified。','',
               '## R14 方案（不实施）','',
               '- 根据 S5/S7 的配对收益与边界开销，为各架构分别规划分页/执行器/循环/PDL 默认值。',
               '- 定位不可用的 cache-hint 形状；对 trace 暴露的等待、固定开销与模型残差提出细粒度方案，不回写代价模型。',
-              '- 先对齐 sm89 最终代码及模型 SHA，再闭合跨架构结论。','',
+              '- 定位 StageFlowModel MainStart 的分页预取扣减与 DRAM 计数不平衡；仅提出 R14 方案，不改求解器。',
+              '- 补齐两机模型 SHA，并保留 vLLM 版本和原始金丝雀的不确定性。','',
               '详细失败、可用性、50 新 PID、原始轮次与金丝雀替代见 raw/；最终结论与本地提交仍需人工验收。']
     observed=next((item for item in anchor if item['cell']=='llama_B1' and item['arm']=='R13F'),{})
-    if observed.get('TM_vllm_tpot') is not None:
-        draft.append(f"verified（仅本机测量）：Llama B1 的 R13F/vLLM TPOT 比为 {observed['TM_vllm_tpot']:.6f}；正确性限定见 S9。")
+    if observed.get('TM_vllm_e2e') is not None:
+        draft.append(f"verified（仅本机测量）：Llama B1 的 TM/vLLM E2E 加速比为 {observed['TM_vllm_e2e']:.6f}，TPOT 加速比为 {observed['TM_vllm_tpot']:.6f}；正确性限定见 S9。")
     for cell in CELLS:
         for candidate,control in (('PR_L1','B0h'),('B0p','B0-noev'),('B0p1','B0-noev'),('NL2gp1','NL2g-noev'),('PRp_L2','PR_L2-noev')):
             item=next((item for item in effects if item['cell']==cell and item['candidate']==candidate and item['control']==control),{})
