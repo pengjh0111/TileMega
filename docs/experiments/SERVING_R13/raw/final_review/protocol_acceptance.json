@@ -1,0 +1,27 @@
+{
+  "groups": {
+    "Cprotocol_C-L2b": {
+      "processes": 50,
+      "passed": 50
+    },
+    "Cprotocol_C-WL": {
+      "processes": 50,
+      "passed": 50
+    },
+    "Cprotocol_C-LP2": {
+      "processes": 50,
+      "passed": 50
+    },
+    "D3_protocol": {
+      "processes": 50,
+      "passed": 50
+    },
+    "B5_protocol": {
+      "processes": 100,
+      "passed": 100
+    }
+  },
+  "total_processes": 300,
+  "distinct_pids": 300,
+  "performance_measurement": false
+}

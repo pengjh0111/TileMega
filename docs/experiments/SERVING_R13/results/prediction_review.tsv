@@ -1,0 +1,54 @@
+id	cell	predicted_low	predicted_high	actual_relative	within_prediction	source	control	candidate	qualification	retained	actual_gbps
+B0_vs_R12bN_L1	llama_B1	-0.05	-0.01	-0.00039917711502057696	False	T1.tsv	R12bN_L1	B0-pfR12b			
+B0_vs_R12bN_L1	llama_B16	-0.05	-0.01	0.0016992021447808092	False	T1.tsv	R12bN_L1	B0-pfR12b			
+B0_vs_R12bN_L1	qwen3_B1	-0.05	-0.01	0.01842198097865433	False	T1.tsv	R12bN_L1	B0-pfR12b			
+B0_vs_R12bN_L1	qwen3_B16	-0.05	-0.01	-0.010001738261561144	True	T1.tsv	R12bN_L1	B0-pfR12b			
+B0_noev_vs_B0	llama_B1	-0.003	0	-0.0002810801291937004	True	T1.tsv	B0-pfR12b	B0-noev			
+B0_noev_vs_B0	llama_B16	-0.003	0	-0.0002624300940818891	True	T1.tsv	B0-pfR12b	B0-noev			
+B0_noev_vs_B0	qwen3_B1	-0.003	0	-0.00024093595773422294	True	T1.tsv	B0-pfR12b	B0-noev			
+B0_noev_vs_B0	qwen3_B16	-0.003	0	0.0009733577394384074	False	T1.tsv	B0-pfR12b	B0-noev			
+B0l_vs_B0_noev	llama_B1	-0.01	-0.002	-0.005348920784625122	True	T6.tsv	B0-noev	B0l			
+B0l_vs_B0_noev	llama_B16	-0.01	-0.002	-0.0006583603182199749	False	T6.tsv	B0-noev	B0l			
+B0l_vs_B0_noev	qwen3_B1	-0.01	-0.002	-0.0013882773259579206	False	T6.tsv	B0-noev	B0l			
+B0l_vs_B0_noev	qwen3_B16	-0.01	-0.002	-0.004106166109328124	True	T6.tsv	B0-noev	B0l			
+NL2g_vs_NL2e	llama_B1	-0.15	-0.08	0.029264709859403215	False	T5.tsv	NL2e	NL2g	conditional H-L2a prediction		
+NL2g_vs_NL2e	llama_B16	-0.15	-0.08	0.007577123730081015	False	T5.tsv	NL2e	NL2g	conditional H-L2a prediction		
+NL2g_vs_NL2e	qwen3_B1	-0.15	-0.08	0.009230479323659946	False	T5.tsv	NL2e	NL2g	conditional H-L2a prediction		
+NL2g_vs_NL2e	qwen3_B16	-0.15	-0.08	-0.003933851578486469	False	T5.tsv	NL2e	NL2g	conditional H-L2a prediction		
+PR_vs_PS_L1	llama_B1	-0.12	-0.04	-0.040278604014570285	True	T2.tsv	PS_L1	PR_L1			
+PR_vs_PS_L1	llama_B16	-0.12	-0.04	-0.08692692820133918	True	T2.tsv	PS_L1	PR_L1			
+PR_vs_PS_L1	qwen3_B1	-0.12	-0.04	-0.04168075687080275	True	T2.tsv	PS_L1	PR_L1			
+PR_vs_PS_L1	qwen3_B16	-0.12	-0.04	-0.016731108088188562	False	T2.tsv	PS_L1	PR_L1			
+B0h_vs_B0	llama_B1	-0.015	0.015	-0.016126081730490016	False	T2.tsv	B0	B0h			
+B0h_vs_B0	llama_B16	-0.015	0.015	-0.01633058479232985	False	T2.tsv	B0	B0h			
+B0h_vs_B0	qwen3_B1	-0.015	0.015	-0.034987311313109726	False	T2.tsv	B0	B0h			
+B0h_vs_B0	qwen3_B16	-0.015	0.015	-0.0003424148664509241	True	T2.tsv	B0	B0h			
+PR_vs_B0h_L1	llama_B1	-0.03	0.03	0.03552924306578076	False	T2.tsv	B0h	PR_L1			
+PR_vs_B0h_L1	llama_B16	-0.03	0.03	0.05258211733094709	False	T2.tsv	B0h	PR_L1			
+PR_vs_B0h_L1	qwen3_B1	-0.03	0.03	0.03320798141963155	False	T2.tsv	B0h	PR_L1			
+PR_vs_B0h_L1	qwen3_B16	-0.03	0.03	0.0407410862496973	False	T2.tsv	B0h	PR_L1			
+PSA_vs_PS_L2_separate	llama_B1	-0.06	-0.02	-0.005911060285754943	False	T2.tsv	PS_L2	PSA_L2			
+PSA_vs_PS_L2_separate	llama_B16	-0.06	-0.02	-0.008565896288406427	False	T2.tsv	PS_L2	PSA_L2			
+PSA_vs_PS_L2_separate	qwen3_B1	-0.06	-0.02	-0.011153067949785433	False	T2.tsv	PS_L2	PSA_L2			
+PSA_vs_PS_L2_separate	qwen3_B16	-0.06	-0.02	-0.01308268787138378	False	T2.tsv	PS_L2	PSA_L2			
+C-L2a	all	-0.15	-0.05						not triggered; not implemented/measured		
+C-L2b	llama_B1	-0.05	-0.02	-0.000781166909845532	False	phase_c_retention.json	registered control	N-slim		False	
+C-L2b	qwen3_B1	-0.05	-0.02	-0.0030458194319250564	False	phase_c_retention.json	registered control	N-slim		False	
+C-L2b	llama_B16	-0.05	-0.02	0.0012432549911727264	False	phase_c_retention.json	registered control	N-slim		False	
+C-L2b	qwen3_B16	-0.05	-0.02	-0.0017737844065333075	False	phase_c_retention.json	registered control	N-slim		False	
+C-PG1	all	-0.05	-0.02						not triggered; not implemented/measured		
+C-PG3	llama_B1	-0.04	-0.015	-0.040168835839911154	False	phase_c_retention.json	registered control	P-D64-first		True	
+C-PG3	qwen3_B1	-0.04	-0.015	-0.07981754743829461	False	phase_c_retention.json	registered control	P-D64-first		True	
+C-PG3	llama_B16	-0.04	-0.015	-0.0628533840585499	False	phase_c_retention.json	registered control	P-D64-first		True	
+C-PG3	qwen3_B16	-0.04	-0.015	-0.04727566787731374	False	phase_c_retention.json	registered control	P-D64-first		True	
+C-LP2	llama_B1	-0.03	-0.01	-0.007937452441125425	False	phase_c_retention.json	registered control	P-loop-split		True	
+C-LP2	qwen3_B1	-0.03	-0.01	-0.013615781147576889	True	phase_c_retention.json	registered control	P-loop-split		True	
+C-LP2	llama_B16	-0.03	-0.01	-0.003982817396979699	False	phase_c_retention.json	registered control	P-loop-split		True	
+C-LP2	qwen3_B16	-0.03	-0.01	-0.026074469764559405	True	phase_c_retention.json	registered control	P-loop-split		True	
+C-AT	qwen3_B16	-0.04	-0.015	-0.016336505188667583		T8.tsv		N-AT-512-2		True	
+C-BW	all	-0.03	-0.01						not triggered; not implemented/measured		
+C-WL	llama_B1	-0.04	-0.01	0.028022679701735997	False	phase_c_retention.json	registered control	N-tiled		False	
+C-WL	qwen3_B1	-0.04	-0.01	0.06084502665628455	False	phase_c_retention.json	registered control	N-tiled		False	
+C-WL	llama_B16	-0.04	-0.01	0.023740186142129804	False	phase_c_retention.json	registered control	N-tiled		False	
+C-WL	qwen3_B16	-0.04	-0.01	0.06768141786542081	False	phase_c_retention.json	registered control	N-tiled		False	
+MB-1a_max	all	896	985		False	raw/MB-1a-complete/dram_ceiling.json			raw maximum effective repeated-copy rate; calibration protocol median 979.977571526 GB/s		1102.84173131

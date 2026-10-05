@@ -1,0 +1,137 @@
+[
+  {
+    "path": "raw/B0b/llama_B1/N-R12b-noWD/plan.so.m1A.task_prices.tsv",
+    "sha256": "7a249f04e361022efe2dcb0d50522ed7b4dc63a401ee3aa38f9ea5341ad31a24",
+    "bytes": 951289
+  },
+  {
+    "path": "raw/B0b/llama_B1/P-R12bN-noWD/plan.so.m1A.task_prices.tsv",
+    "sha256": "6d275fd03fc3951ac41e74b6ed100d6bfcf3ec6479bb75fedfc74ad55a660ffc",
+    "bytes": 1011769
+  },
+  {
+    "path": "raw/B0b/llama_B1/PS/plan.so.m1A.task_prices.tsv",
+    "sha256": "5cf947271a0307e3baf45f8383b0a1706a750a3203c125bceaa2b4eff1a45de4",
+    "bytes": 1066420
+  },
+  {
+    "path": "raw/B0b/llama_B1/PSA/plan.so.m1A.task_prices.tsv",
+    "sha256": "5cf947271a0307e3baf45f8383b0a1706a750a3203c125bceaa2b4eff1a45de4",
+    "bytes": 1066420
+  },
+  {
+    "path": "raw/B0b/llama_B16/N-R12b-noWD/plan.so.m1A.task_prices.tsv",
+    "sha256": "44b004e39bb79eee2f25e6d4386cfdd05fb946bd2cb565893271087b897688d2",
+    "bytes": 1084413
+  },
+  {
+    "path": "raw/B0b/llama_B16/P-R12bN-noWD/plan.so.m1A.task_prices.tsv",
+    "sha256": "1c13da46b7fcdbbfb03e656a2ba8977e61a2a80f983fbd1ccc0623f639033742",
+    "bytes": 1141309
+  },
+  {
+    "path": "raw/B0b/llama_B16/PS/plan.so.m1A.task_prices.tsv",
+    "sha256": "dd57aa15515163c95aaaa0865acf2eca95a0d32ed5cc008660d22d66f6c712c7",
+    "bytes": 2525639
+  },
+  {
+    "path": "raw/B0b/llama_B16/PSA/plan.so.m1A.task_prices.tsv",
+    "sha256": "dd57aa15515163c95aaaa0865acf2eca95a0d32ed5cc008660d22d66f6c712c7",
+    "bytes": 2525639
+  },
+  {
+    "path": "raw/B0b/qwen3_B1/N-R12b-noWD/plan.so.m1A.task_prices.tsv",
+    "sha256": "8821139926b3dacef6086ecb957104515bb8decbb8f8bda65444e3db3e336937",
+    "bytes": 1629462
+  },
+  {
+    "path": "raw/B0b/qwen3_B1/P-R12bN-noWD/plan.so.m1A.task_prices.tsv",
+    "sha256": "f1cfd415e4b5460eea2b476d9638910e7ad79188864460cd5a316b05533a62de",
+    "bytes": 1686330
+  },
+  {
+    "path": "raw/B0b/qwen3_B1/PS/plan.so.m1A.task_prices.tsv",
+    "sha256": "122669976098f73830e8d3cb95c07a16bbd6a586ec4b1f0aae355336b803ad52",
+    "bytes": 1583730
+  },
+  {
+    "path": "raw/B0b/qwen3_B1/PSA/plan.so.m1A.task_prices.tsv",
+    "sha256": "122669976098f73830e8d3cb95c07a16bbd6a586ec4b1f0aae355336b803ad52",
+    "bytes": 1583730
+  },
+  {
+    "path": "raw/B0b/qwen3_B16/N-R12b-noWD/plan.so.m1A.task_prices.tsv",
+    "sha256": "f091b0e064e421f280a61f951943fb94bc4b34249ab926f4fd41161cfddedbc6",
+    "bytes": 4106695
+  },
+  {
+    "path": "raw/B0b/qwen3_B16/P-R12bN-noWD/plan.so.m1A.task_prices.tsv",
+    "sha256": "a3b756ca2a36421c088e9160da0a6cd45e5fad1af5df1089ff1298acf3aafeaf",
+    "bytes": 4021284
+  },
+  {
+    "path": "raw/B0b/qwen3_B16/PS/plan.so.m1A.task_prices.tsv",
+    "sha256": "68627e87b7b8a02e826f93cc0497778d0c889e1f04e0e80d4a8154e6c718f734",
+    "bytes": 4032492
+  },
+  {
+    "path": "raw/B0b/qwen3_B16/PSA/plan.so.m1A.task_prices.tsv",
+    "sha256": "68627e87b7b8a02e826f93cc0497778d0c889e1f04e0e80d4a8154e6c718f734",
+    "bytes": 4032492
+  },
+  {
+    "path": "results/T12.tsv",
+    "sha256": "d629f4fadfc6002344763ac9946ca3730230bbc39342e65a473c1180e2d64502",
+    "bytes": 80610558
+  },
+  {
+    "path": "results/T12_fits.tsv",
+    "sha256": "ab0577fb40b3b00ce78b405b02265a691a72cf8290b161fcd157f3383ef4592b",
+    "bytes": 467
+  },
+  {
+    "path": "results/T12_geometry.tsv",
+    "sha256": "28b4cac8c4eb739a543921c229c432d99a8d14118a4aeea30ef9fa1a38d0a712",
+    "bytes": 1032
+  },
+  {
+    "path": "results/T12_joins.tsv",
+    "sha256": "816be9187aaa4e589e3ef4bb29f6b48aa7857229627f15524f9aadfe5557bf3d",
+    "bytes": 4845
+  },
+  {
+    "path": "results/T12_reranked.tsv",
+    "sha256": "19614999196d3374ef2b11fbf04b72cfac5de8572fd89f3468f5ee8ce250c1cc",
+    "bytes": 19440
+  },
+  {
+    "path": "results/T12_stage_predictions.tsv",
+    "sha256": "083d01da464363af30731f6256491313e8d83799ecf6fa00f591f6f13e388ca3",
+    "bytes": 602305
+  },
+  {
+    "path": "results/T4.tsv",
+    "sha256": "1e1252dabdd852ba379e037e4022129d12163b5e79e27dc5e66adb4de8859a6f",
+    "bytes": 18472378
+  },
+  {
+    "path": "results/T4_kinds_layers.tsv",
+    "sha256": "409c67fd1ef35dd16e0a0c79c5e1d8439adedabd0ca1175a69aaca530bcde393",
+    "bytes": 5528729
+  },
+  {
+    "path": "results/T4_top_excess.tsv",
+    "sha256": "db4e71407cccc160005e1b11486c7a8ff0912473999545a8a0f97ff6791ddc29",
+    "bytes": 3249
+  },
+  {
+    "path": "results/T7.tsv",
+    "sha256": "cae113a3c7075c338f9da0a616778999eda264fbaf2d4dc032de90d3b82a652d",
+    "bytes": 3153
+  },
+  {
+    "path": "results/T7_chains.tsv",
+    "sha256": "bad195dc73100bf321a6b8db9188d790cc716c38b43f0f59cfa6856ec74be266",
+    "bytes": 2685
+  }
+]

@@ -1,0 +1,230 @@
+{
+  "points": [
+    {
+      "suite": "MB-1b-anchor",
+      "loader_warps": 1,
+      "page_bytes": 16384,
+      "pages": 5,
+      "grid": 128,
+      "median_ms": 0.555007994175,
+      "bytes": 536870912,
+      "gbps": 967.321043363,
+      "source": "raw/MB-1b-resident/loadbench.json"
+    },
+    {
+      "suite": "MB-1d",
+      "KiB": 64,
+      "background": false,
+      "task_events": false,
+      "kappa": 1,
+      "median_ms": 0.015359999612,
+      "bytes": 8388608,
+      "hop_ns": 0,
+      "source": "raw/MB-1d/loadbench.json"
+    },
+    {
+      "suite": "MB-1d",
+      "KiB": 64,
+      "background": false,
+      "task_events": true,
+      "kappa": 1,
+      "median_ms": 0.0174080003053,
+      "bytes": 8388608,
+      "hop_ns": 2048,
+      "source": "raw/MB-1d/loadbench.json"
+    },
+    {
+      "suite": "MB-1d",
+      "KiB": 64,
+      "background": false,
+      "task_events": true,
+      "kappa": 4,
+      "median_ms": 0.0163839999586,
+      "bytes": 8388608,
+      "hop_ns": 1024,
+      "source": "raw/MB-1d/loadbench.json"
+    },
+    {
+      "suite": "MB-1d",
+      "KiB": 64,
+      "background": true,
+      "task_events": false,
+      "kappa": 1,
+      "median_ms": 0.0190239995718,
+      "bytes": 4194304,
+      "hop_ns": 1024,
+      "source": "raw/MB-1d/loadbench.json"
+    },
+    {
+      "suite": "MB-1d",
+      "KiB": 64,
+      "background": true,
+      "task_events": true,
+      "kappa": 1,
+      "median_ms": 0.0193760003895,
+      "bytes": 4194304,
+      "hop_ns": 1024,
+      "source": "raw/MB-1d/loadbench.json"
+    },
+    {
+      "suite": "MB-1d",
+      "KiB": 64,
+      "background": true,
+      "task_events": true,
+      "kappa": 4,
+      "median_ms": 0.0193759994581,
+      "bytes": 4194304,
+      "hop_ns": 512,
+      "source": "raw/MB-1d/loadbench.json"
+    },
+    {
+      "suite": "MB-1d",
+      "KiB": 512,
+      "background": false,
+      "task_events": false,
+      "kappa": 1,
+      "median_ms": 0.0879039987922,
+      "bytes": 67108864,
+      "hop_ns": 0,
+      "source": "raw/MB-1d/loadbench.json"
+    },
+    {
+      "suite": "MB-1d",
+      "KiB": 512,
+      "background": false,
+      "task_events": true,
+      "kappa": 1,
+      "median_ms": 0.0890880003572,
+      "bytes": 67108864,
+      "hop_ns": 1536,
+      "source": "raw/MB-1d/loadbench.json"
+    },
+    {
+      "suite": "MB-1d",
+      "KiB": 512,
+      "background": false,
+      "task_events": true,
+      "kappa": 4,
+      "median_ms": 0.0879519991577,
+      "bytes": 67108864,
+      "hop_ns": 512,
+      "source": "raw/MB-1d/loadbench.json"
+    },
+    {
+      "suite": "MB-1d",
+      "KiB": 512,
+      "background": true,
+      "task_events": false,
+      "kappa": 1,
+      "median_ms": 0.122719999403,
+      "bytes": 33554432,
+      "hop_ns": 1024,
+      "source": "raw/MB-1d/loadbench.json"
+    },
+    {
+      "suite": "MB-1d",
+      "KiB": 512,
+      "background": true,
+      "task_events": true,
+      "kappa": 1,
+      "median_ms": 0.122704003006,
+      "bytes": 33554432,
+      "hop_ns": 1024,
+      "source": "raw/MB-1d/loadbench.json"
+    },
+    {
+      "suite": "MB-1d",
+      "KiB": 512,
+      "background": true,
+      "task_events": true,
+      "kappa": 4,
+      "median_ms": 0.122640002519,
+      "bytes": 33554432,
+      "hop_ns": 1024,
+      "source": "raw/MB-1d/loadbench.json"
+    },
+    {
+      "suite": "MB-1d-cluster",
+      "status": "unsupported",
+      "reason": "arch::Caps::kCluster is false",
+      "source": "raw/MB-1d/loadbench.json"
+    },
+    {
+      "suite": "MB-1e",
+      "mode": "separate",
+      "stream_ms": 0.025648,
+      "median_ms": 2.76684808731,
+      "bytes": 4294967296,
+      "overhead_ns_per_step": -14839.9993777,
+      "source": "raw/MB-1e/loadbench.json"
+    },
+    {
+      "suite": "MB-1e",
+      "mode": "events",
+      "stream_ms": 0.025648,
+      "median_ms": 3.13856005669,
+      "bytes": 4294967296,
+      "overhead_ns_per_step": -13387.9994974,
+      "source": "raw/MB-1e/loadbench.json"
+    },
+    {
+      "suite": "MB-1e",
+      "mode": "persistent",
+      "stream_ms": 0.025648,
+      "median_ms": 2.46574401855,
+      "bytes": 4294967296,
+      "overhead_ns_per_step": -16016.1871463,
+      "source": "raw/MB-1e/loadbench.json"
+    },
+    {
+      "suite": "MB-1e-PDL",
+      "status": "unsupported",
+      "reason": "arch::Caps::kPdl is false",
+      "source": "raw/MB-1e/loadbench.json"
+    },
+    {
+      "suite": "MB-1f",
+      "KV_MiB": 128,
+      "evict_first": false,
+      "total_ms": 2.469856,
+      "median_ms": 0.27699200809,
+      "bytes": 268435456,
+      "gbps": 969.109028997,
+      "source": "raw/MB-1f/loadbench.json"
+    },
+    {
+      "suite": "MB-1f",
+      "KV_MiB": 128,
+      "evict_first": true,
+      "total_ms": 2.468864,
+      "median_ms": 0.277567997575,
+      "bytes": 268435456,
+      "gbps": 967.098002455,
+      "source": "raw/MB-1f/loadbench.json"
+    },
+    {
+      "suite": "MB-1f",
+      "KV_MiB": 256,
+      "evict_first": false,
+      "total_ms": 2.742256,
+      "median_ms": 0.549888014793,
+      "bytes": 536870912,
+      "gbps": 976.327720475,
+      "source": "raw/MB-1f/loadbench.json"
+    },
+    {
+      "suite": "MB-1f",
+      "KV_MiB": 256,
+      "evict_first": true,
+      "total_ms": 2.740224,
+      "median_ms": 0.550912022591,
+      "bytes": 536870912,
+      "gbps": 974.512971192,
+      "source": "raw/MB-1f/loadbench.json"
+    }
+  ],
+  "qualifications": [
+    "MB-1d globaltimer samples resolve 0/1024 ns; zero is a resolution limit, not zero synchronization cost.",
+    "MB-1e subtracts a standalone cold-stream baseline from repeated cached steps; negative overhead is not negative launch latency."
+  ]
+}

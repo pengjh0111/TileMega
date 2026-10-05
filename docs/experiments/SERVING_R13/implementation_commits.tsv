@@ -1,4 +1,4 @@
-commit	summary
+commit	subject
 30b73e096016cd9f2ffef779c3d217d00b06f6a9	experiments: copy the guarded r13 execution framework
 1ff6c3535a016340b718c377d100bc04db44d719	runtime: report actual loops and separate prefill measurements
 5af191ac468823fd73a9b3c1dd6b98a8c885d57e	experiments: preregister r13 predictions and selection rules
@@ -55,3 +55,29 @@ fb57dfb3a840a8f2c78c1a62ff969052fd88037e	experiments: record frozen Phase B queu
 fcedd3b5127cf319f6101bca15d56fece8ff96ee	dialect: retain arithmetic in split access witnesses
 eefff245f973406239123e798c0acd77de144956	build: resolve all ISL stack paths in the diag worktree
 e003cd5591c320acb82f723064924e4d9d2b9fc0	experiments: check repaired handoffs before fixed builds
+c80677a173f7e994beded995a9d82cb77b9cbb09	experiments: archive preparation failures and repaired queues
+1dae94396813c02182fa58eef1f870b138b7e8b2	experiments: record repaired host checks and queue recovery
+a22d4726aed137f7c69d0c92b0b99c3b600f5d32	experiments: preserve baseline stop and repair CUDA tool paths
+c08847e206e300b1cd4b7dcc29a0938a5ef1fd92	experiments: record CUDA check recovery publication
+e025b008cea02b9f82f2ac193fe39e5051ea30b0	experiments: record incomplete R13 queue terminal status
+24a345af028295ded20902868f486ee942308a3b	experiments: allow advisory baseline gating by user request
+c3f9647578defc9b29cbffed23e32b925be2e2e5	experiments: record restored Phase B data collection
+7659c8154dabe2f6dd3b13d9b20845f5848eaee9	experiments: repair HF report paths and queue targeted checks
+d97c93cda6bc5d1e6bdc1d298ffe6b5746330ce6	experiments: record targeted C1 recovery publication
+aef683f90072908a6f2608265fb35ad3f1614c17	experiments: register the triggered phase c repairs
+391c86843e312628e301c47893f19f6ebfc94841	runtime: gate redundant l2 barriers behind a slim control
+bd8d01cd9f577673d39f7dd0d597467d43cded83	runtime: separate paged loop roles to shorten cursor liveness
+10ded66d3b75129dec32c97ffe4fad9d44763862	backend: load nonpaged weights from packed tile stages
+6b45f222c8656990793850252d9e5011c42b57ec	test: cover tiled gemv tails and deep copy pipelines
+c58c899ba971eaabcbd9ab05fe601806e84debbe	experiments: queue phase c compilation and body checks
+dedd849f377bc9e150b65f9f29dc66ad21a29404	experiments: expose registered lookahead cache policy controls
+c75f4bf35893739528974946556f66c00b166b17	experiments: prepare phase c retention and final validation
+21e5e012c8bde0b792562df9debc44998279378d	docs: record the resumed conditional and final phases
+7106bf815e65eb0a0ec5b837b037d1ee7f02a912	docs: record the published phase c and d queue
+2241cbabe9710dd957fa16651d96945756e06e4e	docs: record the ongoing r13 phase c validation
+11caaa22acb1e847509287f8ecb630472d33ecd2	docs: record sm120 dependencies and portable geometry inputs
+36f17e6ee66404660bccf7df40946c3cdbe208b5	experiments: archive phase c and prepare the sm120 checkpoint
+6271b7cd82be6ab7252648db375e8a797e10429a	experiments: repair final review and queue two canary rounds
+f4c6a28f008c233da290222e741761f1316df9ae	docs: archive r13 final review and report remaining canaries
+b342b45c23a9cd71628040bffbd1222ee402e119	docs: record publication of final canary review
+0bc74d3c80d6a75c12a0f3288aff20560240974f	experiments: close r13 collection without canary reruns

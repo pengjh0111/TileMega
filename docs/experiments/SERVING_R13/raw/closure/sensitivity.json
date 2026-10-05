@@ -1,0 +1,46 @@
+{
+  "policy": "CPU sensitivity only; original three-round default selection retained; no replacement data",
+  "cells": [
+    {
+      "cell": "llama_B1",
+      "selected": "R13F",
+      "ratio_3round": 1.0832963210104707,
+      "ratio_range": 0.042602569245818955,
+      "ratio_unflagged": 1.0812876446291524,
+      "unflagged_rounds": 2,
+      "flagged_rounds": [
+        "2"
+      ]
+    },
+    {
+      "cell": "llama_B16",
+      "selected": "B0-D",
+      "ratio_3round": 1.1615537648505303,
+      "ratio_range": 0.020904007914719136,
+      "ratio_unflagged": 1.1615537648505303,
+      "unflagged_rounds": 3,
+      "flagged_rounds": []
+    },
+    {
+      "cell": "qwen3_B1",
+      "selected": "R13F",
+      "ratio_3round": 1.0607217396133406,
+      "ratio_range": 0.0013343889433197198,
+      "ratio_unflagged": 1.0607217396133406,
+      "unflagged_rounds": 3,
+      "flagged_rounds": []
+    },
+    {
+      "cell": "qwen3_B16",
+      "selected": "R13F",
+      "ratio_3round": 1.1068634033506783,
+      "ratio_range": 0.26206801953597236,
+      "ratio_unflagged": 1.1062300808886538,
+      "unflagged_rounds": 2,
+      "flagged_rounds": [
+        "2"
+      ]
+    }
+  ],
+  "geomean_ratio": 1.1024794951373897
+}

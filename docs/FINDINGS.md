@@ -9050,7 +9050,7 @@ original flagged rounds before replacement. Thresholds are unchanged.
 
 **verified (CPU)**: Baseline compiler diagnostic selects 17 merge/argmax handoffs and rejects 48 split-K pairs, all with `handoff requires L-sem on both tasks`. The rejected edges connect distinct tile spaces at the same logical stage. Evidence: `SERVING_R13/raw/FX21_diagnosis/command.json`, `diagnostic.log`, `handoff_rejects.txt`, and `result.json`. This confirms R13 F10; it makes no device synchronization claim.
 
-## F-349: sm120 native calibration is valid without optional legacy fits
+## F-353: sm120 native calibration is valid without optional legacy fits
 
 verified: R13 on RTX 5090 measures all nine calibration sections and all native
 serving/paged fits while optional legacy TaskBody samples remain zero. Native-only
@@ -9059,7 +9059,7 @@ calibration. Missing, nonfinite, or negative native data still rejects. No solve
 cost-model, or GPU synchronization change is involved. Evidence:
 `SERVING_R13_SM120/raw/acceptance_02/r3_evidence.tar.xz`; code commit `17860b184`.
 
-## F-350: sm120 MB-1c failure blocks the queue without relaxing its guard
+## F-354: sm120 MB-1c failure blocks the queue without relaxing its guard
 
 verified: Five uncontaminated TL-2 processes give 1691.25 GB/s; the apparent
 MB-1a maximum is 1866.03 GB/s. Bulk-only MB-1b peaks at 1700.83 GB/s,
@@ -9070,3 +9070,20 @@ After exit, no compute owner is visible but utilization remains 100% with 1 MiB
 used; the unchanged guard correctly holds MB-1d/e/f and E3 is dependency-skipped.
 Root cause is not established; no reset or guessed kernel fix was applied.
 Evidence: `SERVING_R13_SM120/raw/acceptance_02/{acceptance.json,gpu_snapshot.txt,r3_evidence.tar.xz}`.
+## F-349: R13 distinguishes sustained DRAM calibration from repeated-copy rates
+
+**verified (sm_89)**: Five clean fresh processes reproduce the calibration kernel's large-working-set median at 979.9776 GB/s, with 0.6011 GB/s process range (0.0613%), zero contaminated processes. The old 884.5 GB/s drop was not reproduced. MB-1a's raw maximum, 1102.8417 GB/s, belongs to a 256 MiB repeated-copy point and is an effective copy rate, not evidence of that physical DRAM bandwidth. **inferred**: caching/repetition can affect that point; retain both reference columns and use the calibration protocol for the sustained ceiling. Evidence: SERVING_R13/raw/final_review/measurement_evidence.tar.xz (MB-1a-complete/dram_ceiling.json and five process outputs), measurement_evidence_manifest.json; results/T3.tsv.
+
+## F-350: R13 microbenchmark layout gain did not survive end-to-end selection
+
+**verified (sm_89)**: MB-1c tile-contiguous layout reaches a 12.94% gain, but the registered C-WL end-to-end control is 2.37–6.77% slower across four cells, so row layout remains default. C-L2b misses the 2% threshold and remains disabled. C-LP2 and C-PG3 meet their registered retention rules; the final search still selects separate launches. The three C synchronization checks each pass 50/50 fresh processes. Evidence: SERVING_R13/phase_c_retention.json; raw/phase_c_checkpoint/completed_phase_c.tar.xz; raw/final_review/protocol_pid_audit.json. This conclusion applies to the executed sm_89 paths only.
+
+## F-351: R13 final review found measurement-wrapper and accounting errors
+
+**verified (CPU replay)**: The anchor incorrectly imposed a TileMega loop postcondition on vLLM, rejecting twelve subprocess-success records. Replay requires matching original metrics, vLLM command and a clean enclosing guard; actual nonzero exits remain failures. PTX checking mistook unreachable cold blocks after ret for writes after the PDL trigger; kernel-resource comparison merged same-name callees from the new loop with old callers. Corrected checks pass all four PTX positions and both source/resource/SASS identities, with originals preserved. Exact path matching also fixes B16-as-B1 trace labels and model joins. Evidence: SERVING_R13/raw/final_review/{pdl_replay.json,Cidentity_nonpaged/,Cidentity_paged/,host_tests.log,trace_replay.json}; eight CPU regression tests pass. Two final vLLM canaries exceed 2%; user cancelled the replacements. The replacement queue had failed before registration because its JSON object did not match the scheduler array interface. Original three-round records remain unchanged; cancellation and exit evidence are in raw/closure/. These tool repairs do not establish a new GPU synchronization conclusion.
+
+## F-352: R13 closes with explicit defaults and retained canary uncertainty
+
+**verified (sm_89, original three paired rounds)**: Final defaults are paged L1 separate launches for Llama B1 and Qwen3 B1/B16, with nonpaged L1 separate launches for Llama B16. Paired TM/vLLM median ratios are 1.08330/1.16155/1.06072/1.10686; geometric mean 1.10248. Final defaults pass four-cell C-1/C-2; covered protocol suites total 300 distinct fresh PIDs, 300/300. This is a scoped hardware result, not a universal synchronization claim.
+
+**verified (CPU sensitivity)**: Excluding the two flagged canary rounds leaves two rounds in those cells, ratios 1.08129/1.10623. No additional measurement occurred and no original round was invalidated. **inferred**: median direction is insensitive to those flags, but three-round certainty without interference is not established. TR-1 overhead remains above its 2% limit; MB-1e cold-stream subtraction produces negative residuals and cannot measure negative launch latency. Evidence: SERVING_R13/raw/closure/{final_metrics.json,sensitivity.json,completion.json,microbench_limits.json,selected_plan_integrity.json}; raw/final_review/protocol_pid_audit.json; results/T10/T11.

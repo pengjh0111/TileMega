@@ -1,0 +1,20 @@
+{
+  "user_instruction": "Cancel both canary reruns; finalize from existing R13 measurements",
+  "time_utc": "2026-10-05T03:25:51Z",
+  "original_queue": "/root/r13_work/queue/queue_final_review.json",
+  "original_step_states": {},
+  "removed_from_scheduler_glob": true,
+  "scheduler_pid": 184785,
+  "scheduler_alive": false,
+  "scheduler_stopped": false,
+  "cancelled_steps": [
+    "D2_canary_llama_B1_r2",
+    "D2_canary_qwen3_B16_r2",
+    "D_accept_canaries",
+    "D_final_replay",
+    "D_report_replay"
+  ],
+  "diagnosis": "Published queue was a steps object; scheduler expects a bare array. TypeError occurred before any replacement step was registered.",
+  "original_rounds_retained": true,
+  "additional_gpu_measurements": 0
+}

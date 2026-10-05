@@ -1,0 +1,7 @@
+{
+  "queue": "/root/r13_work/queue/queue_final_review.json",
+  "sha256": "a721ae07a0691b9bf5d4007629c3a326ff96355b2d9b5a2c4b0e0db8d68cb5cd",
+  "commit": "f4c6a28f008c233da290222e741761f1316df9ae",
+  "gpu_rounds": 2,
+  "cpu_steps": 3
+}

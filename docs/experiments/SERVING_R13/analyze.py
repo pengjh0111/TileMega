@@ -3,14 +3,18 @@
 import argparse,csv,json,math,re,statistics
 from collections import defaultdict
 from pathlib import Path
-from ledger import read,write,stages,steps
+from ledger import read,write,stages,steps,stage_semantics
 from page_chain import chain,pages
 from fidelity import candidates
 from cm_report import collect as collect_model_errors
+from anchor import replay_vllm_record
 HERE=Path(__file__).resolve().parent
 CELLS=('llama_B1','llama_B16','qwen3_B1','qwen3_B16')
 GROUPS=[['B0','B0-noev','B0l','NL2e','NL2g','NL2r'],['PR_L1','PR_L2','PR_L2l'],
         ['PS_L1','PS_L2','PS_L2l'],['PSA_L1','PSA_L2','PSA_L2l']]
+def trace_cell(folder):
+    match=re.search(r'(llama|qwen3)_B(1|16)(?!\d)',str(folder))
+    return match.group(0) if match else None
 def quantile(values,q):
     values=sorted(values);n=q*(len(values)-1);i=int(n)
     return values[i]+(values[min(i+1,len(values)-1)]-values[i])*(n-i) if values else None
@@ -26,8 +30,12 @@ def collected(root):
         try:data=json.loads(path.read_text())
         except (OSError,ValueError):continue
         if 'arms' not in data or data.get('invalidated'):continue
-        matrix=path.relative_to(root/'raw').parts[0].split('_')[0]
+        if 'vllm' in data['arms']:
+            data['arms']['vllm']=replay_vllm_record(data['arms']['vllm'])
+        step=path.relative_to(root/'raw').parts[0]
+        matrix=step.split('_')[1] if step.startswith('C_C-') else step.split('_')[0]
         for label,record in data['arms'].items():
+            if label=='vllm':record=replay_vllm_record(record)
             if record.get('exit_code') or 'e2e_seconds' not in record:continue
             out=Path(record['out']);cell=data['cell'];rnd=data['round']
             row=dict(matrix=matrix,cell=cell,arm=label,round=rnd,
@@ -35,6 +43,7 @@ def collected(root):
                      tpot_s=(record['e2e_seconds']-record['ttft_seconds'])/1023,
                      tpot_p50_s=record.get('tpot_p50_seconds'),tpot_p90_s=record.get('tpot_p90_seconds'),
                      tok_s=int(cell.split('_B')[1])*1024/record['e2e_seconds'],source=str(path))
+            if record.get('validation_replay'):row['validation_replay']=record['validation_replay']
             timed_runs=[r for r in record.get('runs',[]) if not r.get('warmup') and r.get('N')==1024]
             if timed_runs and all(len(r.get('gpu_step_ms',[]))<=1 for r in timed_runs):
                 row['tpot_p50_s']=row['tpot_p90_s']=None
@@ -163,14 +172,24 @@ def correctness(root,tokens):
                     shape_same=[len(r) for r in reference]==[len(r) for r in value]
                     output.append(dict(matrix=matrix,cell=cell,arm=key[2],round=key[3],reference=values[0][0][2],mismatches=count,shape_equal=shape_same,pass_=count==0 and shape_same))
     for path in (root/'raw').rglob('*.json'):
-        if path.name not in ('smoke.json','results.json','summary.json','smokes.json','check.json','hf_check.json'):continue
+        if path.name not in ('smoke.json','results.json','summary.json','smokes.json','check.json','hf_check.json','mode_check.json','hf.json','hf_baseline.json','checks.json','report.json'):continue
         try:record=json.loads(path.read_text())
         except (OSError,ValueError):continue
         output.append(dict(source=str(path),record=json.dumps(record,separators=(',',':'))))
     return output
 
+def canary_rows(raw):
+    rows=[]
+    for r in raw:
+        base=('vllm' if r['matrix'] in ('A1','D2') else 'P-control' if r['matrix'] in ('C-LP2','C-PG3') else 'N-control' if r['matrix'].startswith('C-') else 'B0')
+        if r['arm']!=base:continue
+        series=[x['tpot_s'] for x in raw if x['matrix']==r['matrix'] and x['cell']==r['cell'] and x['arm']==base]
+        if series and abs(r['tpot_s']/statistics.median(series)-1)>.02:
+            rows.append(dict(matrix=r['matrix'],cell=r['cell'],round=r['round'],canary=base,action='eligible for one registered rerun'))
+    return rows
+
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--root',type=Path,default=HERE);a=p.parse_args();root=a.root;out=root/'results';out.mkdir(parents=True,exist_ok=True)
+    p=argparse.ArgumentParser();p.add_argument('--root',type=Path,default=HERE);p.add_argument('--summary-only',action='store_true');a=p.parse_args();root=a.root;out=root/'results';out.mkdir(parents=True,exist_ok=True)
     raw,past,tokens=collected(root);median=medians(raw);mb,ceiling=microbench(root)
     write(out/'measurements.tsv',raw);write(out/'past.tsv',past)
     for r in median:
@@ -186,9 +205,20 @@ def main():
             r['e2e_over_sum_floor_bf16']=r['e2e_s_median']/total
     write(out/'T1.tsv',[r for r in median if r['matrix']=='A1'])
     write(out/'T2.tsv',[r for r in median if r['matrix'] in ('A2','B4')]);write(out/'T2_resources.tsv',resources(root));write(out/'runtime_structure.tsv',runtime_structure(root))
-    write(out/'T3.tsv',mb);stage_rows=[];step_rows=[];task_rows=[];hol=[];reducers=[]
+    write(out/'T3.tsv',mb)
+    if a.summary_only:
+        for table,matrix in [('T5','B2'),('T6','B3'),('T10','D2')]:
+            write(out/(table+'.tsv'),[r for r in median if r['matrix']==matrix])
+        write(out/'T8.tsv',[r for r in median if r['matrix'].startswith('C-')])
+        write(out/'T11.tsv',correctness(root,tokens))
+        write(out/'canaries.tsv',canary_rows(raw))
+        records=read(out/'T9.tsv')
+        write(out/'T9.tsv',list({json.dumps(r,sort_keys=True):r for r in records}.values()))
+        print(json.dumps(dict(measurements=len(raw),summary_only=True,vllm_replayed=sum('validation_replay' in r for r in raw))))
+        return
+    stage_rows=[];step_rows=[];task_rows=[];hol=[];reducers=[]
     for folder in sorted({p.parent for p in (root/'raw').rglob('stage_trace.tsv')}):
-        cell=next((c for c in CELLS if c in str(folder)),None)
+        cell=trace_cell(folder)
         if cell and ceiling:
             for row in stages(folder,int(cell.split('_B')[1]),{'884_5':884.5,'981_6':981.6,'measured':ceiling}):
                 row.update(cell=cell,source=str(folder));stage_rows.append(row)
@@ -197,10 +227,10 @@ def main():
     for folder in sorted({p.parent for p in (root/'raw').rglob('slots.tsv')}):
         task,blocked,elided=trace_v2(folder);task_rows+=task;hol+=blocked;reducers+=elided
     groups=defaultdict(list)
+    semantic={folder:stage_semantics(folder) for folder in {r['source'] for r in stage_rows}}
     for r in stage_rows:
-        gemm_kind=next((k for k in ('qkv','gate_up','down','lm_head','o') if re.search(r'(?:^|[.])'+k+r'(?:[.]|$)',r['name'])),r['kind'])
-        layer=re.search(r'(?:^|[.])l(\d+)(?:[.]|$)',r['name'])
-        groups[(r['cell'],r['source'],r['past'],r['iteration'],gemm_kind,layer.group(1) if layer else '')].append(r)
+        meta=semantic[r['source']][int(r['stage'])]
+        groups[(r['cell'],r['source'],r['past'],r['iteration'],meta['semantic_kind'],meta['layer'])].append(r)
     aggregate=[]
     for key,values in groups.items():
         row=dict(zip(('cell','source','past','iteration','kind','layer'),key))
@@ -213,7 +243,7 @@ def main():
     write(out/'T6.tsv',[r for r in median if r['matrix']=='B3']);write(out/'T6_steps.tsv',step_rows)
     page_rows=[];chain_rows=[]
     for folder in sorted({p.parent for p in (root/'raw').rglob('page_trace.tsv')}):
-        cell=next((c for c in CELLS if c in str(folder)),None)
+        cell=trace_cell(folder)
         if not cell or not ceiling:continue
         model,b=cell.split('_B');floor_file=root/f'raw/inputs/{model}_decode_B{b}_floor.json'
         if not floor_file.exists():continue
@@ -236,19 +266,13 @@ def main():
             for c in pair.get('decode_pg_choice',{}).get('candidates',[]):
                 fidelity+=candidates(Path(c['library']))
                 fidelity.append(dict(batch=b,stage='joint',candidate=json.dumps(c,separators=(',',':'))))
+    fidelity=list({json.dumps(r,sort_keys=True):r for r in fidelity}.values())
     write(out/'T9.tsv',fidelity)
     for name in ('T8','T10','T11'):
-        rows=[r for r in median if r['matrix']=='D2'] if name=='T10' else correctness(root,tokens) if name=='T11' else []
+        rows=[r for r in median if r['matrix']=='D2'] if name=='T10' else correctness(root,tokens) if name=='T11' else [r for r in median if r['matrix'].startswith('C-')]
         write(out/(name+'.tsv'),rows)
     collect_model_errors(root,out)
-    canaries=[]
-    for r in raw:
-        base='vllm' if r['matrix'] in ('A1','D2') else 'B0'
-        sample=next((x for x in raw if x['matrix']==r['matrix'] and x['cell']==r['cell'] and x['round']==r['round'] and x['arm']==base),None)
-        series=[x['tpot_s'] for x in raw if x['matrix']==r['matrix'] and x['cell']==r['cell'] and x['arm']==base]
-        if sample and series and abs(sample['tpot_s']/statistics.median(series)-1)>.02:
-            canaries.append(dict(matrix=r['matrix'],cell=r['cell'],round=r['round'],canary=base,action='eligible for one registered rerun'))
-    write(out/'canaries.tsv',list({json.dumps(r,sort_keys=True):r for r in canaries}.values()))
+    write(out/'canaries.tsv',canary_rows(raw))
     rule_cells=defaultdict(dict);lookup={(r['matrix'],r['cell'],r['arm']):r for r in median}
     for cell in CELLS:
         base=lookup.get(('B2',cell,'B0'))

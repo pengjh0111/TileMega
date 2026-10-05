@@ -2,6 +2,38 @@
 """Fail closed on missing entry-point boundaries or incorrectly placed PDL."""
 import argparse,json,re
 from pathlib import Path
+def late_trigger_has_publication(body, trigger):
+    """Follow PTX branches: cold blocks after a terminal ret are not later work."""
+    instructions=[];labels={};pending=[];offset=0
+    for line in body.splitlines(keepends=True):
+        text=line.strip()
+        if re.fullmatch(r'[\w$]+:',text):pending.append(text[:-1])
+        elif text and not text.startswith(('//','.','{','}')) and ';' in text:
+            for label in pending:labels[label]=len(instructions)
+            pending=[];instructions.append((offset,text))
+        offset+=len(line)
+    start=next((i for i,(pos,_) in enumerate(instructions) if pos>trigger),len(instructions))
+    todo=[start];seen=set()
+    while todo:
+        i=todo.pop()
+        if i>=len(instructions) or i in seen:continue
+        seen.add(i);_,text=instructions[i]
+        if re.search(r'\b(?:st|atom|red)(?:\.[\w:]+)*\.global\b',text):return True
+        if re.search(r'\bcall(?:\.[\w:]+)*\b',text):
+            raise ValueError('out-of-line work after late trigger requires an audit')
+        conditional=text.startswith('@')
+        if re.search(r'\b(?:ret|exit)(?:\.[\w:]+)*\s*;',text):
+            if conditional:todo.append(i+1)
+            continue
+        branch=re.search(r'\bbra(?:\.[\w:]+)*\s+([\w$]+)\s*;',text)
+        if branch:
+            if branch.group(1) not in labels:raise ValueError('unresolved PTX branch after trigger')
+            todo.append(labels[branch.group(1)])
+            if conditional:todo.append(i+1)
+        else:
+            if re.search(r'\b(?:bra|brx)(?:\.[\w:]+)*\b',text):raise ValueError('indirect PTX branch after trigger')
+            todo.append(i+1)
+    return False
 def entries(text):
     out={}
     for m in re.finditer(r'\.entry\s+(\S+)\s*\(',text):
@@ -32,7 +64,7 @@ def check(text,trigger):
         if trigger==1 and not early<launch[0]<wait:raise ValueError('early trigger misplaced: '+name)
         if trigger==0 and launch[0]<mutable:raise ValueError('late trigger misplaced: '+name)
         # The last trigger must follow all body global writes/atomics.
-        if trigger==0 and re.search(r'\b(?:st|atom|red)(?:\.[\w:]+)*\.global\b',body[launch[0]:]):
+        if trigger==0 and late_trigger_has_publication(body,launch[0]):
             raise ValueError('publication follows late trigger: '+name)
         rows.append(dict(kernel=name,wait_offset=wait,trigger_offset=launch[0],pass_=True,
                          immutable_region=prewait,qualification='region is restricted by ServingPdlEnter to descriptor loads and NextStage weight prefetch; source audit required'))

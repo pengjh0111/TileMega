@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Report-only task-price errors and bounded linear corrections; no defaults mutate."""
-import argparse,json,statistics
+import argparse,json,statistics,re
 from collections import defaultdict
 from pathlib import Path
 from ledger import read,write
@@ -52,8 +52,10 @@ def collect(root,out):
     path=root/'builds_b.json';records=json.loads(path.read_text()) if path.exists() else []
     table={(r['cell'],r['label']):r for r in records};rows=[];joins=[];stage_rows=[]
     for trace in sorted({p.parent for p in (root/'raw').rglob('slots.tsv')}):
+        match=re.search(r'(llama|qwen3)_B(1|16)(?!\d)',str(trace))
+        cell=match.group(0) if match else None
         variant=next((r for r in records if r['label'].endswith(('-v2','-pages')) and
-                      r['cell'] in str(trace) and r['label'] in str(trace)),None)
+                      r['cell']==cell and r['label'] in str(trace)),None)
         if not variant:continue
         base=table.get((variant['cell'],variant['label'].rsplit('-',1)[0]))
         if not base:continue

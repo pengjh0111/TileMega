@@ -1,0 +1,34 @@
+{
+  "files": [
+    {
+      "path": "results/T12.tsv",
+      "sha256": "add15b0146d1c588cb0b782f498661d904df8b2547ff133f1c684d507bc6efb1",
+      "bytes": 26018327
+    },
+    {
+      "path": "results/T4.tsv",
+      "sha256": "05fdf71454349e5b60e571b0cc4c2fc591a81ee1752662bd168a67436c15d70e",
+      "bytes": 18433893
+    },
+    {
+      "path": "results/T4_kinds_layers.tsv",
+      "sha256": "d95d9c95577fe128a1ad1f8cefbe13644324dc4ead56235885c4713ab8ea5ff8",
+      "bytes": 5414554
+    },
+    {
+      "path": "results/T5_hol.tsv",
+      "sha256": "b7eaf76ddaf5402daf9dae714aba526d9523946f186b1a5401572d0557e6d71b",
+      "bytes": 942226072
+    },
+    {
+      "path": "results/T5_tasks.tsv",
+      "sha256": "470c0a2bbea818226d033053ae7147039660577bdf1bd2f8dddbeb2cbe48e62f",
+      "bytes": 42654363
+    }
+  ],
+  "exclusions": [
+    "binaries/generated CUDA/PTX",
+    "derivable flow edges/tasks/parts",
+    "unjoined task-price copies"
+  ]
+}

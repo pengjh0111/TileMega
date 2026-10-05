@@ -1,0 +1,120 @@
+{
+  "files": [
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/analysis.log",
+      "size": 65,
+      "sha256": "3092dfde10b117a1c943706a5b46c1fa6cd70537092bdf8db8bef1aa7386753c"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/cancellation.json",
+      "size": 732,
+      "sha256": "c87edfcd8eeaadb82859271072904b74267dd9a7d742e5d7c546978b9c1bb157"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/completion.json",
+      "size": 398,
+      "sha256": "9ea2e3c6c531dbd5b254972abe022a207e361fb7314bbafe3b284d7bf06f590f"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/final_ledger_model.tar.xz",
+      "size": 1860352,
+      "sha256": "c7cf6dca748fe71ea7f431653086c4b3f2011b3653252a9e690f2860835aa8ea"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/final_ledger_model_manifest.json",
+      "size": 1195,
+      "sha256": "d4802b75b05bf4484937558aa93bec8b7e371df42f5730c4d920e1fa2a6604bd"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/final_llama/config.json",
+      "size": 10092,
+      "sha256": "1a7e1adba76d29205b346efe05b2ac442608f1c8678a7d97c632a33ac1e190f5"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/final_llama/plans.json",
+      "size": 8670,
+      "sha256": "6647b38c11f310a97d64be532592a48ca2723e3962266d838f9d271bd4865fe4"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/final_metrics.json",
+      "size": 2034,
+      "sha256": "4c661880f595a25c9d9dde13174478d3796386353c5e63469966821fd7e84fa2"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/final_qwen3/config.json",
+      "size": 8670,
+      "sha256": "99d20c9ff01ed2a818efeec34da93901bc1e8dc33cafaa105ef8b48d7e522a59"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/final_qwen3/plans.json",
+      "size": 7279,
+      "sha256": "0c6df6dc4726ce565f7732652def070d26fbd49543378a1ec2a35c50b892afae"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/final_selection.log",
+      "size": 101,
+      "sha256": "bb98ca166329e2ccaf0529bd0fc0458fdf893a82434615b0a43fc436d0ada79d"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/host_tests.log",
+      "size": 106,
+      "sha256": "133449d6f429f0588126e0403937f271f33f90517460d5c4b39d69c2eeda0f25"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/microbench_limits.json",
+      "size": 5617,
+      "sha256": "8a73a6819c1bd35504da8b621ad3b32d5fe21e8ed7bd06b7092b8912bccf5a4f"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/original_round_integrity.json",
+      "size": 341,
+      "sha256": "4205878e1f4876c0fa206bf42dbd0e1d61a8b5c8385ab439850d4374969a18f6"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/prediction_review.json",
+      "size": 15286,
+      "sha256": "a401daca1e1e45ef8818414c33d52048f592a9ba2c95af3de1baa41603d1b4d3"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/progress_closed.tsv",
+      "size": 29740,
+      "sha256": "335623a3bccaade11713bb5d1d746e305dd8bd6d6b792d3d35281c141bfeca10"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/queue_final_review.cancelled.json",
+      "size": 7319,
+      "sha256": "a721ae07a0691b9bf5d4007629c3a326ff96355b2d9b5a2c4b0e0db8d68cb5cd"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/scheduler_before.json",
+      "size": 53986,
+      "sha256": "73bae372ccaecaadbdbcc78ed56914229d734b88183d766c0e9343d3066843d4"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/scheduler_closed.json",
+      "size": 55065,
+      "sha256": "869debdf249f5bcb4d4d9db8f556c10a5c33217f2dd6f1677fdb1182bbfdc4d4"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/scheduler_exit.log",
+      "size": 373,
+      "sha256": "2f9dfbc45b38909f7ee827f4d37e9f6c5934c3c4d6d56b1ef84d27c9af207937"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/selected_plan_integrity.json",
+      "size": 5407,
+      "sha256": "5752075346b6608a0844c0079355c71db0f424904ed46f84b3a6a222e19ff0a1"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/sensitivity.json",
+      "size": 1209,
+      "sha256": "e2cc903b5bd74c1eb75b5711f2bdaf3a0b816faeb8aaf50574d1c6c1b6230608"
+    },
+    {
+      "path": "docs/experiments/SERVING_R13/raw/closure/trace_roles.log",
+      "size": 81,
+      "sha256": "74d81972115db8bc774875483730bee294f291ce4ef01ab8884e479b0d7b4ee0"
+    }
+  ],
+  "additional_gpu_tests": false
+}

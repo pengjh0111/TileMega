@@ -10,6 +10,27 @@ def measurement_policy(root):
     if not policy.exists():policy=Path(__file__).resolve().parents[3]/'docs/experiments/SERVING_R11/ev2/measurement_policy.json'
     return policy
 
+def loop_required(arm):
+    return arm['kind'] == 'tm' and arm.get('decode_loop') in (True, 1, '1')
+
+def replay_vllm_record(record):
+    """Recover only the erroneous TM loop postcondition, preserving raw files."""
+    if record.get('exit_code') != 3 or record.get('error') != 'requested loop was not used':
+        return record
+    out = Path(record['out'])
+    command = json.loads((out/'command.json').read_text())['command']
+    if not any(str(x).endswith('/vllm_baseline.py') for x in command):
+        return record
+    # The historical anchor applies this error only after subprocess exit 0.
+    # Recheck the successful metrics and the enclosing guard before replay.
+    metrics = json.loads((out/f"B{record['batch']}"/'measurements.json').read_text())
+    guard = json.loads((out.parents[2]/'guard_result.json').read_text())
+    if guard.get('code') != 0 or any(metrics.get(k) != record.get(k) for k in
+            ('e2e_seconds','ttft_seconds','vllm_version','batch')):
+        raise ValueError('vLLM loop-postcondition replay lacks matching clean evidence')
+    return dict(record, exit_code=0, validation_replay='TM loop check excluded for vLLM',
+                original_wrapper_exit_code=3)
+
 def main():
     p=argparse.ArgumentParser();p.add_argument('--arms',type=Path,required=True);p.add_argument('--cell',required=True);p.add_argument('--round',type=int,required=True);p.add_argument('--out',type=Path,required=True);a=p.parse_args()
     data=json.loads(a.arms.read_text());arms=data[a.cell];arms=[r for r in arms if r.get('available',True)]
@@ -47,7 +68,7 @@ def main():
         record=dict(exit_code=code,out=str(out))
         if code==0 and metrics.exists():
             record.update(json.loads(metrics.read_text()))
-            if arm.get('decode_loop') not in (0,False,'auto') and not record.get('decode_loop_used'):
+            if loop_required(arm) and not record.get('decode_loop_used'):
                 record.update(exit_code=3,error='requested loop was not used')
         result['arms'][arm['label']]=record
         if code==75:

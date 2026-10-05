@@ -46,4 +46,6 @@ def main():
                     print(label,arch,kind,trigger,code,flush=True)
     (a.out/'arch_results.json').write_text(json.dumps(rows,indent=2)+'\n')
     print('arch checks: '+str(sum(r['exit_code']==0 for r in rows))+'/'+str(len(rows)))
-if __name__=='__main__':main()
+    return int(any(r['exit_code']!=0 or r.get('position_exit_code',0)!=0 or
+                   r.get('fp64_instructions',0)!=0 for r in rows))
+if __name__=='__main__':raise SystemExit(main())

@@ -1,0 +1,42 @@
+[
+  {
+    "path": "results/T4.tsv",
+    "bytes": 18472378,
+    "sha256": "1e1252dabdd852ba379e037e4022129d12163b5e79e27dc5e66adb4de8859a6f"
+  },
+  {
+    "path": "results/T4_kinds_layers.tsv",
+    "bytes": 13728527,
+    "sha256": "07504ad38093da667c1e1d77e992b4c3b1ca0cb33b452be4c29d99f401e6026a"
+  },
+  {
+    "path": "results/T12.tsv",
+    "bytes": 80610558,
+    "sha256": "d629f4fadfc6002344763ac9946ca3730230bbc39342e65a473c1180e2d64502"
+  },
+  {
+    "path": "results/T12_fits.tsv",
+    "bytes": 467,
+    "sha256": "ab0577fb40b3b00ce78b405b02265a691a72cf8290b161fcd157f3383ef4592b"
+  },
+  {
+    "path": "results/T12_geometry.tsv",
+    "bytes": 1032,
+    "sha256": "28b4cac8c4eb739a543921c229c432d99a8d14118a4aeea30ef9fa1a38d0a712"
+  },
+  {
+    "path": "results/T12_joins.tsv",
+    "bytes": 4845,
+    "sha256": "816be9187aaa4e589e3ef4bb29f6b48aa7857229627f15524f9aadfe5557bf3d"
+  },
+  {
+    "path": "results/T12_reranked.tsv",
+    "bytes": 19440,
+    "sha256": "19614999196d3374ef2b11fbf04b72cfac5de8572fd89f3468f5ee8ce250c1cc"
+  },
+  {
+    "path": "results/T12_stage_predictions.tsv",
+    "bytes": 602305,
+    "sha256": "083d01da464363af30731f6256491313e8d83799ecf6fa00f591f6f13e388ca3"
+  }
+]

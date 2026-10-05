@@ -1,0 +1,1252 @@
+[
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/floor.json",
+    "sha256": "632b686c91f10cc57f284044d3cc8df59f62ce6b2c7813406db39002ae7ad5f0",
+    "bytes": 1186
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/options.json",
+    "sha256": "193ede347630dd202e6337e3beb1f42f2d2da2eb6c3e073a95618bc1b70d1106",
+    "bytes": 1711
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.build_command.txt",
+    "sha256": "5cd274ea1ce9ca3faa7e4bfc10fb417e279b75a141305c9defd813c641f195f5",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.classes.tsv",
+    "sha256": "a1f17012933dbcedc5b5694f72346038606f74eeade0cd570be5dbca9b5e4694",
+    "bytes": 2050
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.plan.json",
+    "sha256": "08dfaa46c61c967ac0927b1873a73a7449181bd3d30e827c7b37f1e2be3933f1",
+    "bytes": 6638
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.ptxas.log",
+    "sha256": "2b446fe97e9ec5514c66368f28861e4b6966bd78e78500a321ea539417a7cce7",
+    "bytes": 4297
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.resources.tsv",
+    "sha256": "6b0236352138c6368bcdc31214792b3b7e2d13d74c1c3e11d013fd7983c6aeb1",
+    "bytes": 568
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.search.tsv",
+    "sha256": "ed766f6a70f0c8334e89cbbab7c63cf1f44db91b8784c35b3eaf6f154fbbac55",
+    "bytes": 472623
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.selected_classes.tsv",
+    "sha256": "a1f17012933dbcedc5b5694f72346038606f74eeade0cd570be5dbca9b5e4694",
+    "bytes": 2050
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.serving.json",
+    "sha256": "09eeb55a11a729568fa3be449131b83e9e7e7e9f8e9a6e364d3ec339db508bab",
+    "bytes": 448
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.top1.candidate.so.build_command.txt",
+    "sha256": "a5cede83eef2fdab5b9e40b3ef1019f36a0470db2fb1f21c685e73e364a51110",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.top1.candidate.so.plan.json",
+    "sha256": "e76d6f305fe6ca92fd160f7dfa9f7beba4dcc4eae7ba0dfeeb45ae4893923a74",
+    "bytes": 6705
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.top1.candidate.so.ptxas.log",
+    "sha256": "ba38e3f5d1b7bea86ea5081cef2049bd9a120555616c0c7c37ef5eb5946ddaab",
+    "bytes": 4296
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.top2.candidate.so.build_command.txt",
+    "sha256": "5cd274ea1ce9ca3faa7e4bfc10fb417e279b75a141305c9defd813c641f195f5",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.top2.candidate.so.plan.json",
+    "sha256": "4a41679adcd534a7d7e3d90834163ee0bb095386e7c53aaed1ed757b1eac6b6d",
+    "bytes": 6705
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.top2.candidate.so.ptxas.log",
+    "sha256": "2b446fe97e9ec5514c66368f28861e4b6966bd78e78500a321ea539417a7cce7",
+    "bytes": 4297
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.top3.candidate.so.build_command.txt",
+    "sha256": "45ca3bc9c4814c060db6e91124e8f90028b18c282b8052c80d7cba9e08552adb",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.top3.candidate.so.plan.json",
+    "sha256": "3d165dccf7bcddbe9ee1d7d441618e0d0f224ea28a99c5de00189fd0aa82db94",
+    "bytes": 6769
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.top3.candidate.so.ptxas.log",
+    "sha256": "d91d9e8d19d7249072b735c584243092918cc9b14add737bd60bc1c6d41e1dc6",
+    "bytes": 3127
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.top3.tsv",
+    "sha256": "00607b9d13db7cc83cbf5ccd8f546ec6a42417d2cc4e11522da991335d36795a",
+    "bytes": 1346
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.top3_measure_rounds.tsv",
+    "sha256": "2e6835b99770ee9118c38e21b2bb3476044520954d03042caee5a36e3ca5045d",
+    "bytes": 1441
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/plan.so.top3_measured.tsv",
+    "sha256": "4c7a666cb772f4a3cbca86f3d9e9584ad6dd1cbd21597c4d804d4404c7034619",
+    "bytes": 427
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/065d59cade5302d4a73204aa680ac7ed458cc15de89de91ac4d1d95933058245/record.json",
+    "sha256": "b3580e24a064740fd12d082a4a5c2684824315fac4546f928ec19451f18e2730",
+    "bytes": 1004
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/floor.json",
+    "sha256": "ff020c3d2512136af6a0aa04e7ab3715712118d3ae1e7761318b1bacaf84f13b",
+    "bytes": 1183
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/options.json",
+    "sha256": "7f319860648b543d23824e093f6ad32cb01b0ac45f73286f558f23b1253a0738",
+    "bytes": 1568
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.build_command.txt",
+    "sha256": "e08b267489077788e2918ff7b8f8368e7b6a5ca487eb5a182e2fffcf608f9676",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.classes.tsv",
+    "sha256": "a1f17012933dbcedc5b5694f72346038606f74eeade0cd570be5dbca9b5e4694",
+    "bytes": 2050
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.plan.json",
+    "sha256": "c639b14f4602cd910e83d7fb7cb5f57ef05ab65d7260f6b380727d04e7056107",
+    "bytes": 6635
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.ptxas.log",
+    "sha256": "4ad234557be5c63710456c0768ee912fab9637bced21bf63030dc5800a000bf0",
+    "bytes": 4296
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.resources.tsv",
+    "sha256": "139aaebf8788447f7836540c150555c0905938f6c1bf668ae3ef44da826da581",
+    "bytes": 566
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.search.tsv",
+    "sha256": "54b16e57863aec1b750755c729b5a979b17dce769b2264bd7e05d69e7db1973e",
+    "bytes": 323644
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.selected_classes.tsv",
+    "sha256": "a1f17012933dbcedc5b5694f72346038606f74eeade0cd570be5dbca9b5e4694",
+    "bytes": 2050
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.top1.candidate.so.build_command.txt",
+    "sha256": "e08b267489077788e2918ff7b8f8368e7b6a5ca487eb5a182e2fffcf608f9676",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.top1.candidate.so.plan.json",
+    "sha256": "5f7de154b11e4841a01e68382781b69411e991083d83716ce4fba20a3dcfcee8",
+    "bytes": 6702
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.top1.candidate.so.ptxas.log",
+    "sha256": "4ad234557be5c63710456c0768ee912fab9637bced21bf63030dc5800a000bf0",
+    "bytes": 4296
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.top2.candidate.so.build_command.txt",
+    "sha256": "5da6daae90cc62b3da23de46a5099b75db90d0bb1c3b74810a0393d639297981",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.top2.candidate.so.plan.json",
+    "sha256": "8ab918f4573a09d7636a0184a3950bf813c6693130ab2497c798abbbc9b07d19",
+    "bytes": 6702
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.top2.candidate.so.ptxas.log",
+    "sha256": "eb77d389366f836cae0b5cad73759ea6e190cc907b72ce486881801353d8634b",
+    "bytes": 4297
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.top3.candidate.so.build_command.txt",
+    "sha256": "201046eeabce9c57b95fdcec0754e792d8723ea370111264671b2767b380c102",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.top3.candidate.so.plan.json",
+    "sha256": "253c3e48f2546f15b92ae9e2425b4728a68ea7517b6c297037c87e7c5ed4c878",
+    "bytes": 6767
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.top3.candidate.so.ptxas.log",
+    "sha256": "c4e51108ac73ad3365b59b2419707eec226d968c54805affee91dcff3e8bc407",
+    "bytes": 3127
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.top3.tsv",
+    "sha256": "4e1efaf8237530819d0d27e1eb7e7a1569bcc7171f4d9e7934eedb0305463395",
+    "bytes": 1344
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.top3_measure_rounds.tsv",
+    "sha256": "874c72cbb2c075d2c758b623afe0905e49e4f485b38df21132c8d3eede14b5eb",
+    "bytes": 1441
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/plan.so.top3_measured.tsv",
+    "sha256": "01f16e14baabdb5b460585d39da8ac15726c19c916a1cd9fade38a95ead72d9a",
+    "bytes": 428
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/132c6b8f0c9c03ca6b9c08fe1a43fd8c1296d594e4d710157ecb3e20b919183b/record.json",
+    "sha256": "6411c6a51d3c7ba1a21943124f9df5bbf403f5b49f6c458e5b1ddd0dfdd68f58",
+    "bytes": 1004
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/floor.json",
+    "sha256": "f8821ed161a2aaf09ec90a3a971904671e78f7b78b36216fd62f5fa95b643f12",
+    "bytes": 1185
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/options.json",
+    "sha256": "35a8c282c38f99c2719023951523c42c4c23280a61246ff735583d549ac43e1d",
+    "bytes": 1855
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.build_command.txt",
+    "sha256": "5e8e397a6cbd1591cc138c03d50d748d7908c42119d5f3dc72d55fc6da1fe64d",
+    "bytes": 1270
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.classes.tsv",
+    "sha256": "bc4d51c5f2eaa4c2d778e6d36b203bad04663c9c67e99e03d1a9e6039ca71740",
+    "bytes": 2067
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.plan.json",
+    "sha256": "4d9aab51377758e51d75b0ea1a7c1e95693743a04a4204ab74fbcef162beabdc",
+    "bytes": 6759
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.ptxas.log",
+    "sha256": "99558155194a145f2aa1cb88d8910c5eeeadddf51c4623e4d848c4c660f8dbb8",
+    "bytes": 3353
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.resources.tsv",
+    "sha256": "997bcf82c805d3028be6dc3953f5cd4ecf566614c1bb196449ee9e555194da53",
+    "bytes": 666
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.search.tsv",
+    "sha256": "bb1e751c290820a9064b356903358294585f3b81f8971aee10f19ce3d5c9f8ca",
+    "bytes": 213781
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.selected_classes.tsv",
+    "sha256": "31b3f76fe669f05db845a839db455f1a24e55d9e281be609a177693ec92604c8",
+    "bytes": 2050
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.top1.candidate.so.build_command.txt",
+    "sha256": "0afed56d9fbc01fd740d66019a3c7a9636ab1142319310e1f9ce300cfa8d0a9d",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.top1.candidate.so.plan.json",
+    "sha256": "bf11c5d371cbfa101c3ee03f9bc319a6356f7055d3c65ffebd0732a9a1a27196",
+    "bytes": 6840
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.top1.candidate.so.ptxas.log",
+    "sha256": "622345d93b9e2be468e378f1001f478e9f7bf53b969584e2ab7c0e90d954f801",
+    "bytes": 3934
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.top2.candidate.so.build_command.txt",
+    "sha256": "869c60276fb32c7c3f5d2ba9805cb3aaaf59644e6aadf94e73f6478fdbab661a",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.top2.candidate.so.plan.json",
+    "sha256": "aa216c16cf0f15e339e7e74f562ef44b47b7a47997e44eae0ce9b7995d9d3e4e",
+    "bytes": 6820
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.top2.candidate.so.ptxas.log",
+    "sha256": "9ad1a36313bc4b481b74f84cab5f0e8a9f8abb7621adbf7266d4da770870bd43",
+    "bytes": 3952
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.top3.candidate.so.build_command.txt",
+    "sha256": "da927a99209e61bcde4629cffb29158b0474477dd11523d5698b2df1af44dd14",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.top3.candidate.so.plan.json",
+    "sha256": "6f224f060f6948f09bb0ba1a4d6aba71f6fbfff1018d54375d960a0d3bd56158",
+    "bytes": 6822
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.top3.candidate.so.ptxas.log",
+    "sha256": "3e1f9b490cebaeb9da8380608af4bc95dcdb2144c281948db92c69ef84448369",
+    "bytes": 3353
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.top3.tsv",
+    "sha256": "a67259f95ba3251d8a4090bc2e62f7565c5272ea83daf59e4038c86d1e79fe7a",
+    "bytes": 1449
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.top3_measure_rounds.tsv",
+    "sha256": "ee8dce12282937ee89ebe125c43a382f6b19800fa2101f532cf8022a78f510b4",
+    "bytes": 1442
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/plan.so.top3_measured.tsv",
+    "sha256": "51a765f764bb979b9ddd6da5d742e4201cbd2eaad22b3f325a0328f76e644ed0",
+    "bytes": 428
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4aa7f00a3123512ee8fdfda41038bde5c3741dd280b3d5c9c62f0ba6396b96f0/record.json",
+    "sha256": "db4b69dcd91bc127a7070a936240f1bfc600c3fdc42c2fd755bd6a169370565b",
+    "bytes": 1005
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/floor.json",
+    "sha256": "c457532acc977aff5658c3ec247c10648f563ff9d366768a885c4e7bd9b92bb8",
+    "bytes": 678
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/options.json",
+    "sha256": "f2022c5133bac83a3214593d455078aa03eddb9e583e752c59cf81a0d5bf79db",
+    "bytes": 1680
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so.build_command.txt",
+    "sha256": "b715db438f455f51626d9c25b0e505ecc5bdff01fbd29047ac123d14656c1b73",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so.classes.tsv",
+    "sha256": "55edbed5f6a29496030184c0bf1ca6993e179f5f52b533724bc83607cce74f2a",
+    "bytes": 3552
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so.plan.json",
+    "sha256": "0b0861e46419edaf795cf98bba543413bffc13142031d5d6c4a2025fa111ec83",
+    "bytes": 10864
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so.ptxas.log",
+    "sha256": "caa8836393212395851e0e137241e04cd967724a1796b14d29493e29b18e4cde",
+    "bytes": 4427
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so.resources.tsv",
+    "sha256": "b9c79ce69d990743a1e98058ecb86eb64f5949078e4f65cd3b98555a2ca319ea",
+    "bytes": 217
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so.search.tsv",
+    "sha256": "662b009a6187f67a5c1723f9fcc0b4059048260eb1a522715d0aaf33c43deb68",
+    "bytes": 151
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so.selected_classes.tsv",
+    "sha256": "55edbed5f6a29496030184c0bf1ca6993e179f5f52b533724bc83607cce74f2a",
+    "bytes": 3552
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so.top1.candidate.so.build_command.txt",
+    "sha256": "b715db438f455f51626d9c25b0e505ecc5bdff01fbd29047ac123d14656c1b73",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so.top1.candidate.so.plan.json",
+    "sha256": "e20476fca3120fc2de8fdae7550db95b11b2312153d07286f6d7e6eaed91e63c",
+    "bytes": 10931
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so.top1.candidate.so.ptxas.log",
+    "sha256": "caa8836393212395851e0e137241e04cd967724a1796b14d29493e29b18e4cde",
+    "bytes": 4427
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so.top3.tsv",
+    "sha256": "dd3d6ff7add584ca212a1ada365ced67d401a62562fbfaa395f7aaac8edf1fd5",
+    "bytes": 504
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so.top3_measure_rounds.tsv",
+    "sha256": "74754f45669aa586a553734a7888baed37f9b26fa4fca22e830120debcc5f060",
+    "bytes": 506
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so.top3_measured.tsv",
+    "sha256": "ffd9daa69f0b80eb28862beba6962ccaf18c91f3ff0f4b24caede7fe84abbfb2",
+    "bytes": 160
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/record.json",
+    "sha256": "412a4083ea8e4952f12a2e058e2967d83596c533c34b514695851b4415ff635d",
+    "bytes": 1004
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/floor.json",
+    "sha256": "00d300ecfaecd7d481258424c63584a302111678f924c34f150223b94479e7f2",
+    "bytes": 1188
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/options.json",
+    "sha256": "d2f1bf5c51123d6448c997ae14e483ecf9940f4bc9a17a49d064f792774f35fd",
+    "bytes": 1710
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.build_command.txt",
+    "sha256": "7152d5f6fd076800d851f2981e30a8303dab8cb7a9bde3b57ce07b9ee03852c9",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.classes.tsv",
+    "sha256": "4fa2bcdc02f28b3e3e4354726a59cd4b77f885de55c0e01771094d757ecf8a00",
+    "bytes": 3599
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.plan.json",
+    "sha256": "3f4377eb9f2880e3f421ea38cb5612217e34cf8c1454fbe4e2af2181c81eb034",
+    "bytes": 10923
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.ptxas.log",
+    "sha256": "b876ca7358ef842c86548f8367894a7d4076c442e5c7868dbf91d85221f18fa5",
+    "bytes": 5615
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.resources.tsv",
+    "sha256": "7336bf164505e2df2ea725937acc2dfce10a228655ef596d560725a642b88fc4",
+    "bytes": 564
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.search.tsv",
+    "sha256": "3f6edf26d32da89f433bb810de77b0be837dc078de20fda5a17e862d9a434fc0",
+    "bytes": 466229
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.selected_classes.tsv",
+    "sha256": "4fa2bcdc02f28b3e3e4354726a59cd4b77f885de55c0e01771094d757ecf8a00",
+    "bytes": 3599
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.top1.candidate.so.build_command.txt",
+    "sha256": "7152d5f6fd076800d851f2981e30a8303dab8cb7a9bde3b57ce07b9ee03852c9",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.top1.candidate.so.plan.json",
+    "sha256": "6a7b667187e57e81c1ee49a71f11963ab5f4d00d9d0b36030b823deb6120984d",
+    "bytes": 10990
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.top1.candidate.so.ptxas.log",
+    "sha256": "b876ca7358ef842c86548f8367894a7d4076c442e5c7868dbf91d85221f18fa5",
+    "bytes": 5615
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.top2.candidate.so.build_command.txt",
+    "sha256": "7883aef88a636afb6895f7fa863e0c1f662444ab7d93ccbc9ab4fbe36aba66c7",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.top2.candidate.so.plan.json",
+    "sha256": "944a1280222ead9dc83995bd0f4c90a1c987f8defad66e7e745a46c3bbaecdd9",
+    "bytes": 10990
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.top2.candidate.so.ptxas.log",
+    "sha256": "8f5137cf79ad4caea8e7435c831738a33401ed85e45e2e64c97b3aab356d40bb",
+    "bytes": 5616
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.top3.candidate.so.build_command.txt",
+    "sha256": "55127c6587c7d26b26fc66e936407076c756162d062d9a958ae4a16b8655cb37",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.top3.candidate.so.plan.json",
+    "sha256": "ab2eaafa4b8dc1ad07aeb9c8cef9c136d66d7ea0d56eeccb8762d9fe03c5520c",
+    "bytes": 11102
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.top3.candidate.so.ptxas.log",
+    "sha256": "5bcdb183b94d93af04cbc7a61e8236d088040a544768d0cbaa76a1303d6c7155",
+    "bytes": 3140
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.top3.tsv",
+    "sha256": "6046a6a0b2d049612543dfe1021d880518a1a6477b01c0d1f9241d471117aae5",
+    "bytes": 1344
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.top3_measure_rounds.tsv",
+    "sha256": "f452364f0d0dc385e09af64830bdaba88eb4bd108d7cfc0302d3b62fdbfb5e1f",
+    "bytes": 1441
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/plan.so.top3_measured.tsv",
+    "sha256": "a72fb01067f006eb6ff5d5eb44df0e1163acaebb622b925481af940f5fd0c36e",
+    "bytes": 427
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/5910f5cecbfadc0375243b127e685d39621da2e21e19a943421d293dcba373ba/record.json",
+    "sha256": "7a102ac91107012bbe29cee746230b1186af45a978e5301393148eb0b6be5b13",
+    "bytes": 1004
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/floor.json",
+    "sha256": "7f2ee39961ebbbd14d76c37bc37396ea3fc235c495db27effd1755d0a9c7262b",
+    "bytes": 1183
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/options.json",
+    "sha256": "00e14d02ef350c43a3cca8511e8385c7725a9b8af1501c2212de0495137761bf",
+    "bytes": 1712
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.build_command.txt",
+    "sha256": "3aac94168fd46bc7ca6d901f380e09146af3bd010f60b5413a0ad853b59f9275",
+    "bytes": 1270
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.classes.tsv",
+    "sha256": "59e90d4f939a0c1f7e09a25932037b013a66b9f31d19ada0f6a330b65a3b46cb",
+    "bytes": 2050
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.plan.json",
+    "sha256": "b3afcf37713fc28bdfd0466ffab77bafd3ed81dd1e7fe0047af413f47efd42ee",
+    "bytes": 6757
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.ptxas.log",
+    "sha256": "7e078fe1c3ecc6cd31a98b869f37bb81468236a90d4fa7a4ac23625f70613d3c",
+    "bytes": 3353
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.resources.tsv",
+    "sha256": "529c573b241e31c8ba8b749bb1d3421d536f6d5763baafb88e54cafe9720db3e",
+    "bytes": 669
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.search.tsv",
+    "sha256": "a3bd9855dca7e596c28a330eebd3f7682b2a5c2a0225cc644d8c8f5160570ae5",
+    "bytes": 207157
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.selected_classes.tsv",
+    "sha256": "31b3f76fe669f05db845a839db455f1a24e55d9e281be609a177693ec92604c8",
+    "bytes": 2050
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.serving.json",
+    "sha256": "43a8fc05eef8198ad70a810cda432f1331f44fc37a683c4d3f9ce7e77406a81c",
+    "bytes": 457
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.top1.candidate.so.build_command.txt",
+    "sha256": "6ce312efe4f7a893d2a58407251ecf5654cc84f37dd738064bb9676c0e64e333",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.top1.candidate.so.plan.json",
+    "sha256": "5e202e0600eb87d91ff3d2299f15b89f5375bc67aec3800d8b3ecbf17217004d",
+    "bytes": 6818
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.top1.candidate.so.ptxas.log",
+    "sha256": "de0badebe077d47b4526b9492e5ce93351f9556a762f98588fd65bd4d12c1d70",
+    "bytes": 3952
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.top2.candidate.so.build_command.txt",
+    "sha256": "6a2535da72bb476f31b450078e50a78d4e57c2d34d3d40d0ed6c25271750807a",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.top2.candidate.so.plan.json",
+    "sha256": "8f13e1d1083704b4f0c41dcb80867119546ff4a4c5e0f6cf29ebc034f2235147",
+    "bytes": 6840
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.top2.candidate.so.ptxas.log",
+    "sha256": "632648a2b9a986be58066a142435c904d7d7765d78cdc166e2140b6051fbeea0",
+    "bytes": 3581
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.top3.candidate.so.build_command.txt",
+    "sha256": "31a3b1c8355dcbdced1f1dbe0d5f90d4758ad31d8c3a506fa7509c74405d52b1",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.top3.candidate.so.plan.json",
+    "sha256": "92a3b045cba9af3546ff6f05154a6e821e34128bdda6eabd4e987fc07024057c",
+    "bytes": 6820
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.top3.candidate.so.ptxas.log",
+    "sha256": "d316a6694e11ca8a3365e56d9f54d213fa28c16185d2f65bfc76ef203a21a07b",
+    "bytes": 3353
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.top3.tsv",
+    "sha256": "281c6b84b35a2ffea35850f1d09ebd94563dc597427c399540692d58c654fa8d",
+    "bytes": 1451
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.top3_measure_rounds.tsv",
+    "sha256": "4d5efc46463882778edf624a86674a6d28787de3b06f50b74657cd6fc9005603",
+    "bytes": 1442
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so.top3_measured.tsv",
+    "sha256": "5f2a109fa5fcffebafbc0b346c36cc9d37a7b8400f4e27fa689d5cfeafad135a",
+    "bytes": 428
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/record.json",
+    "sha256": "f01ac11a3f28b48e96aabfb766149584fd704c89b2a082e39c3cc2c458a41409",
+    "bytes": 1005
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/floor.json",
+    "sha256": "0810552465e8ebde8ebbbf6798f2666cea25f45b0dad3be08cf75820b1b28a39",
+    "bytes": 1185
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/options.json",
+    "sha256": "cd51b95e19b8edce67e19b6fdf956359af83bd726b4fa0f3e77ba8794485f43c",
+    "bytes": 1567
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.build_command.txt",
+    "sha256": "8d1926842fb5e332fb70f4cde07c61412241fcfb6a568f85d2ba2782e68773d8",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.classes.tsv",
+    "sha256": "4fa2bcdc02f28b3e3e4354726a59cd4b77f885de55c0e01771094d757ecf8a00",
+    "bytes": 3599
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.plan.json",
+    "sha256": "df77c9819bba9e631df3fcf94df74ef1dae7bfe783c6006a988e1b0d3b926f77",
+    "bytes": 10920
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.ptxas.log",
+    "sha256": "703f22ff866b94c5a988be4a08d0f167b50bf12468430e7206b2bfef1a8ab236",
+    "bytes": 5615
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.resources.tsv",
+    "sha256": "03a113e9ced2be92b09210243328ca7a2049a6db2c8c0f1bd2bace1129ea0d89",
+    "bytes": 566
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.search.tsv",
+    "sha256": "87614a1e3b3a68854a2c5c7c8258428d7fe862eebce44968b1f8c67fd0ed1a9b",
+    "bytes": 319103
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.selected_classes.tsv",
+    "sha256": "4fa2bcdc02f28b3e3e4354726a59cd4b77f885de55c0e01771094d757ecf8a00",
+    "bytes": 3599
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.top1.candidate.so.build_command.txt",
+    "sha256": "8d1926842fb5e332fb70f4cde07c61412241fcfb6a568f85d2ba2782e68773d8",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.top1.candidate.so.plan.json",
+    "sha256": "2d2551b443f575c42caae5ece22972c21340d10e9b398f5f12a229e19740dac6",
+    "bytes": 10987
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.top1.candidate.so.ptxas.log",
+    "sha256": "703f22ff866b94c5a988be4a08d0f167b50bf12468430e7206b2bfef1a8ab236",
+    "bytes": 5615
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.top2.candidate.so.build_command.txt",
+    "sha256": "b2443f4303dd243c0d28203b2ba8d975c51f9977efc014c59c56cf061967ad63",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.top2.candidate.so.plan.json",
+    "sha256": "84b89d85db0589420f4985243e1fbb6852de205314c51125c6ef3efeff80474c",
+    "bytes": 10987
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.top2.candidate.so.ptxas.log",
+    "sha256": "fe572accb9c2d850e6cb3e4f3f0c3a76e22f46471f553d9e57bb7450cc2ffb42",
+    "bytes": 5616
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.top3.candidate.so.build_command.txt",
+    "sha256": "0c101edd48588c1319665974e7f1c33bfb64c8adf30e2e5f20aad9131db2cd0c",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.top3.candidate.so.plan.json",
+    "sha256": "a29b26987d4a186d9d785948de110ee2a2546f8b4cfe1cc96e24ee52ed8b57a8",
+    "bytes": 11100
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.top3.candidate.so.ptxas.log",
+    "sha256": "1ac9a67c9048d6368fbbab71bb67a77a246a1ef3a5084b6cf9e21c47efb64448",
+    "bytes": 3140
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.top3.tsv",
+    "sha256": "1538aa2c1171c471355a39bba67de4896db0fc1c86609419ccf122531cfca511",
+    "bytes": 1344
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.top3_measure_rounds.tsv",
+    "sha256": "172e49037d2f66e639ba09934af881d55457011a3ce1e8f45fd3779ac7e1ee87",
+    "bytes": 1440
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/plan.so.top3_measured.tsv",
+    "sha256": "73c902fda6cf43e8e39c8cec7ccc4f662254e417dd874a8aa8c7289933954a84",
+    "bytes": 427
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/67b4206b166e2953d6ac798c3c8108abe28e6ff996d8edfab8d57951a4a2a12e/record.json",
+    "sha256": "8eb283ac4198cd5dbae4d5a65c09f3bd8b1dd5be2c70e2dc53177b47163b225a",
+    "bytes": 1005
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/floor.json",
+    "sha256": "f37eef159536dec1da6dfddb0df8efe6dddb57c90e4dc3751bb2898324569b7b",
+    "bytes": 681
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/options.json",
+    "sha256": "300d335bb85f9ef453d73c426c64c8323f7209d0742d28276695888f419becd4",
+    "bytes": 1681
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so.build_command.txt",
+    "sha256": "9e0efc9b3f18c4e110b5177bcd6b9cef2b5e726d03e0a166b8cbdf578ad1e54b",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so.classes.tsv",
+    "sha256": "989516667e19094a3aa576e8ed54e0234755fc2660df72f82f349c117ceca735",
+    "bytes": 2043
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so.plan.json",
+    "sha256": "45b555fec97eefc2e35faf791a77ce21b284822cba9fbc2c7f057739a3023e7b",
+    "bytes": 6619
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so.ptxas.log",
+    "sha256": "2be8563e0dd8302b1f8ed896310597f3cadb61db0141a6627ae42523dd9de669",
+    "bytes": 5103
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so.resources.tsv",
+    "sha256": "52715f3f11bda58aa6e98566f11d7cdc8c3ad17929306ee854f0485b4c33d80e",
+    "bytes": 218
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so.search.tsv",
+    "sha256": "e776e07f28b0cd3a4ff447fd62696f0710db1bf76b727949eefc51af6207dc60",
+    "bytes": 152
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so.selected_classes.tsv",
+    "sha256": "989516667e19094a3aa576e8ed54e0234755fc2660df72f82f349c117ceca735",
+    "bytes": 2043
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so.top1.candidate.so.build_command.txt",
+    "sha256": "9e0efc9b3f18c4e110b5177bcd6b9cef2b5e726d03e0a166b8cbdf578ad1e54b",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so.top1.candidate.so.plan.json",
+    "sha256": "ed11e771f08c2711bfc8238d3de60b6d4f752077d8fb68d07ec3ab4523942051",
+    "bytes": 6686
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so.top1.candidate.so.ptxas.log",
+    "sha256": "2be8563e0dd8302b1f8ed896310597f3cadb61db0141a6627ae42523dd9de669",
+    "bytes": 5103
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so.top3.tsv",
+    "sha256": "ba366fd8acdbd8050825b87be785c0a137cafcb90eda787528967df71f9bb953",
+    "bytes": 506
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so.top3_measure_rounds.tsv",
+    "sha256": "85ce2627d0a1e508cba5524c9a82143dbf9dcfdf915214314ee67dbd8787a9af",
+    "bytes": 506
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so.top3_measured.tsv",
+    "sha256": "5ec5daa6d98c3e112867260fce2a4ffb12afd8ca184276882974f579758ace0b",
+    "bytes": 160
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/record.json",
+    "sha256": "db684c9d5a52cf594886bd818d297e3fc2862f7d06c6f80363f250b1b9e6d51b",
+    "bytes": 1004
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/floor.json",
+    "sha256": "06ce4008dd3d6ecd1089a3d73dc9326af5cbf7a099ccad124f7b32baeec4536f",
+    "bytes": 1176
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/options.json",
+    "sha256": "b1f064b481c3d37bd3d5b1fc1d67ab7caade853214bb006bdf21d05625a01a89",
+    "bytes": 1711
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.build_command.txt",
+    "sha256": "b2afa94e12df69ae58ab649ebdc8bf87fd61ccc5753e4faf43ee8e654bfc0033",
+    "bytes": 1270
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.classes.tsv",
+    "sha256": "819ea6312f3bb42f66e572213a3798bacc7bce5bd5271997fe85417b41d00fba",
+    "bytes": 3569
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.plan.json",
+    "sha256": "c8afd483ff77319aff11e5021f6849d6f5ad4c5118e0e96f809b2a00d808550e",
+    "bytes": 11042
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.ptxas.log",
+    "sha256": "394d61f43306624df12f899f48886c1dc14d883563c474b44009d48c402250d2",
+    "bytes": 3370
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.resources.tsv",
+    "sha256": "1e6b28bcc0c7ee3a56f5c7bd0dddf1f879daab82a18b27c40811c1f1382378e4",
+    "bytes": 663
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.search.tsv",
+    "sha256": "cf7f4a4e987fdfc61b881214490ff6236fb3480393fe67211898000e5baa8cee",
+    "bytes": 214386
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.selected_classes.tsv",
+    "sha256": "34bda108096b2a91a4beaa0ce02afb522d5158a9300009429f49577a6fe83b59",
+    "bytes": 3599
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.serving.json",
+    "sha256": "c2653936f20c1ad8b7915a33dc7b98505b9e094e4751e182fd134be041c68830",
+    "bytes": 453
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.top1.candidate.so.build_command.txt",
+    "sha256": "842d54260ecc0fbcfca89393c78d10e79a77257c4beec6b2312038673ec1cd22",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.top1.candidate.so.plan.json",
+    "sha256": "eb299c5af86e02d52f465c5d4b718726a14f76deef9f39e203352668333128e6",
+    "bytes": 11078
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.top1.candidate.so.ptxas.log",
+    "sha256": "6a829a6590eee5b1b53f9a6989ca3cf531261c312deb0f8c70533724fdb68707",
+    "bytes": 3139
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.top2.candidate.so.build_command.txt",
+    "sha256": "e84d856c403d887b7dccf4baca9a387e368217c8fba95b2c33602b56f0717567",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.top2.candidate.so.plan.json",
+    "sha256": "a684a8aecc27497837752d5478774c99be887a7c6f2a055168177ba6f2cbc575",
+    "bytes": 11103
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.top2.candidate.so.ptxas.log",
+    "sha256": "ec61f99b29ae402c3c293cbc59791888698226de00f4b41af5003565c4330306",
+    "bytes": 3681
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.top3.candidate.so.build_command.txt",
+    "sha256": "5aff454cc160fea499cac0246e8457e329c464aa509a6d83998a270bbe49085c",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.top3.candidate.so.plan.json",
+    "sha256": "a53a966434bf6b2742a297762922389570c58e8e48eb8d15e650673de78e5069",
+    "bytes": 11105
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.top3.candidate.so.ptxas.log",
+    "sha256": "8f751437233d0bdf772e26dcfa917167e3b57ccb167a81734d95c4012ff99893",
+    "bytes": 3370
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.top3.tsv",
+    "sha256": "5b8a9ce8dc449ec13f3c30546cc5cdb747b9800b1514d04e5912f80dadbcd8da",
+    "bytes": 1446
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.top3_measure_rounds.tsv",
+    "sha256": "ed92d7006d680997f144a1b93746b98793e585f48afc3d498ddb021f28f7bfc0",
+    "bytes": 1441
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so.top3_measured.tsv",
+    "sha256": "cc3bbd076ce319a8b89074c80dfaf572478586c9ada5405ec946bf5b8d5febdf",
+    "bytes": 427
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/record.json",
+    "sha256": "88345b8ed844900f1a51fa0b8bfcba66a7fece4efd186e98b90bef382685745e",
+    "bytes": 1006
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/floor.json",
+    "sha256": "adc13692a890e6a0360cc1e567013c1a2ed4a3db5a373f8504ca8ecc23e558bf",
+    "bytes": 680
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/options.json",
+    "sha256": "359674d640a59a27c14371f12827e29eba223f45bf19bd205796e4ce3067835b",
+    "bytes": 1824
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/plan.so.build_command.txt",
+    "sha256": "bc71b642044b3e067021a2aa7d79de642b194fcd23efcccc742b3875a32d91bb",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/plan.so.classes.tsv",
+    "sha256": "a7cc86d6acca069a3300483e689a3e2aa23190a2ba575c27597b32eec386d209",
+    "bytes": 2123
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/plan.so.plan.json",
+    "sha256": "268e9b0fcbfcdc87d32561e03bf8509caadc2c0d13aa41ae2d60beed8446b679",
+    "bytes": 6701
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/plan.so.ptxas.log",
+    "sha256": "e2027c1f2f2e190ae428dfb7bcfaf3c5f2b730dbf0244512730c0b200baa01ed",
+    "bytes": 4439
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/plan.so.resources.tsv",
+    "sha256": "536f8ba05591bc82aaac8924127bc39111152c6574ee2d10fca9589bcd91342d",
+    "bytes": 224
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/plan.so.search.tsv",
+    "sha256": "e19e6ecfbea0f4f875dda3600f3f5e01c4a17c4c218c1f3d2e985cefa8301ac6",
+    "bytes": 158
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/plan.so.selected_classes.tsv",
+    "sha256": "a7cc86d6acca069a3300483e689a3e2aa23190a2ba575c27597b32eec386d209",
+    "bytes": 2123
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/plan.so.top1.candidate.so.build_command.txt",
+    "sha256": "bc71b642044b3e067021a2aa7d79de642b194fcd23efcccc742b3875a32d91bb",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/plan.so.top1.candidate.so.plan.json",
+    "sha256": "c6c8141278e8946465425caeb45505b90f00e9ac902c58a319cd143094039632",
+    "bytes": 6768
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/plan.so.top1.candidate.so.ptxas.log",
+    "sha256": "e2027c1f2f2e190ae428dfb7bcfaf3c5f2b730dbf0244512730c0b200baa01ed",
+    "bytes": 4439
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/plan.so.top3.tsv",
+    "sha256": "8b6e4eff47cad1d963f3719a4c8bb76245702c977bd764e1b12cbb6365f47e76",
+    "bytes": 513
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/plan.so.top3_measure_rounds.tsv",
+    "sha256": "b820c4a6203a03a55cdf3397401380d0197a7d01bda7ba9805bc19f9d49c6d82",
+    "bytes": 506
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/plan.so.top3_measured.tsv",
+    "sha256": "1a443b75695e88e31cfea04eea786de9013e3d5af96a34a46b832e270fe3ee8f",
+    "bytes": 160
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/b2cf6fbeca9657f804166e0cb58239f9f036b7588e743722076128d2dd0d0897/record.json",
+    "sha256": "d750fb7eb98d60d08a45b007ef74d015a1861eaea02d88ea156e23aa6f1d3394",
+    "bytes": 1004
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/floor.json",
+    "sha256": "7ad1b83c0c64a3dc3a1941ddf6755baa55c12cc8db364391b1c7794cbd3d9837",
+    "bytes": 1184
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/options.json",
+    "sha256": "82fcf2ba99ade95742e4d0423e294ebd028d3ae1a0197c3862cff7cbf34f61af",
+    "bytes": 1854
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.build_command.txt",
+    "sha256": "27f8c98f53da4b2820fc0039085bf529da768a2d10ebad7668be1411ca354b2b",
+    "bytes": 1270
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.classes.tsv",
+    "sha256": "bc6fc678d0c53550368c706b95b13a1ae1d74726f0d1336ba8c06a0bc9ad1ab7",
+    "bytes": 3599
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.plan.json",
+    "sha256": "3bb9a060177d09d5eac0999129583d4af4b73f44a83d64b012bccfff1dc3c29b",
+    "bytes": 11044
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.ptxas.log",
+    "sha256": "44302e766554e88548f8406246f6becf1b0229d49474045f506d628b4f5a9ea3",
+    "bytes": 3370
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.resources.tsv",
+    "sha256": "39356a6477cd8f52334ddecdb32ec649e18d626fd986fd9a21871f37a8754aee",
+    "bytes": 662
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.search.tsv",
+    "sha256": "6ab3e476c80847db0d70cfdc5415007df0a176169e67f004a59c0c02b8257c9b",
+    "bytes": 230229
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.selected_classes.tsv",
+    "sha256": "34bda108096b2a91a4beaa0ce02afb522d5158a9300009429f49577a6fe83b59",
+    "bytes": 3599
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.serving.json",
+    "sha256": "60a019cb0a88d33fff31f92d66adad80bfe7707b23fc05e3b1298f4a76663042",
+    "bytes": 453
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.top1.candidate.so.build_command.txt",
+    "sha256": "e52fe94eabd82bd24d9682a9deb7a4039a54011188d55bb7a3cc21f311877c0f",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.top1.candidate.so.plan.json",
+    "sha256": "fc7d1f41c3313438f4af38712ece2486ffe1997d3e74ecd520f4a4dba3881f19",
+    "bytes": 11108
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.top1.candidate.so.ptxas.log",
+    "sha256": "961498d2b3c129efcd2349f273e9e9df440bb74004e5d8560fcbce4394a67b57",
+    "bytes": 4602
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.top2.candidate.so.build_command.txt",
+    "sha256": "7dc4544f43b4f61a0201eb0304e25243bb181840c740c04cee3a2866796535bd",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.top2.candidate.so.plan.json",
+    "sha256": "33dbbd05a6d26d37f3458c4adc082daf4fa7d18447c9b3a33302070a756d1edb",
+    "bytes": 11105
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.top2.candidate.so.ptxas.log",
+    "sha256": "61c826267147ce1bfd41271233a1a19e90c5a32a90a5dfa8eb8b0bde077cce0c",
+    "bytes": 3681
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.top3.candidate.so.build_command.txt",
+    "sha256": "c2ea712e3fadb0e6a239523a7d01eb2f79044797238fa7251b30271db4f42d5b",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.top3.candidate.so.plan.json",
+    "sha256": "c408d33070ee92e4552aeea31790e545817ad9c9ea9f147ed606bd694f613085",
+    "bytes": 11107
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.top3.candidate.so.ptxas.log",
+    "sha256": "04f9fd5712deea03deea2000849246da2de7978804ee14eec3fa085180074276",
+    "bytes": 3370
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.top3.tsv",
+    "sha256": "f723b278d55e027dd4bbc0d7a280bd8bd277b8be9cac7614bcbaa26878272373",
+    "bytes": 1447
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.top3_measure_rounds.tsv",
+    "sha256": "99d4ca1cae68698d7b25a76f19104d022a309c44b4c4c416b5d4b10de524c9da",
+    "bytes": 1442
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so.top3_measured.tsv",
+    "sha256": "ff17d55dc53a40e40963e1dfb0fc0b127e796524b825dd905711cf1e610d15cb",
+    "bytes": 428
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/record.json",
+    "sha256": "846bfb25822151e6539395598735e153e2d27aaaea351475a91a440762c65dfb",
+    "bytes": 1006
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/floor.json",
+    "sha256": "1f53a3d9d141c700edc11ee645dffe35ff7d35e5622c340633837cb183e0c050",
+    "bytes": 674
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/options.json",
+    "sha256": "fc55f35523f3b476c38613066fa69a700a9425d3edcd196bf66e0a24729dbe42",
+    "bytes": 1824
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so.build_command.txt",
+    "sha256": "e93291a6bfd13d62d84303bd2f07e10bdbe6f93e7f0945e21f54d9fb929a7e7e",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so.classes.tsv",
+    "sha256": "dd82448b24496b221bb8608ec3bb48f1e7a00c061a6584302138c35d8ef7d765",
+    "bytes": 3720
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so.plan.json",
+    "sha256": "f8f1f46517801181d2f30e780d640ad984b56c65699c5ba160619a6ae1e0607a",
+    "bytes": 11035
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so.ptxas.log",
+    "sha256": "c9f4bed286a97295d60f76ce9ccf5e42eab925360f2c903b220ccaccae358ced",
+    "bytes": 4439
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so.resources.tsv",
+    "sha256": "ae2ec66dee203e478609ce9a3ee6713479dbe9704232783fb824ecbf41a37c4a",
+    "bytes": 225
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so.search.tsv",
+    "sha256": "d2b4fe226a63cfc90024ef051d1fe62fa550e501738fc65558c960cf9c0ed0c8",
+    "bytes": 159
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so.selected_classes.tsv",
+    "sha256": "dd82448b24496b221bb8608ec3bb48f1e7a00c061a6584302138c35d8ef7d765",
+    "bytes": 3720
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so.top1.candidate.so.build_command.txt",
+    "sha256": "e93291a6bfd13d62d84303bd2f07e10bdbe6f93e7f0945e21f54d9fb929a7e7e",
+    "bytes": 1306
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so.top1.candidate.so.plan.json",
+    "sha256": "c81dae250b6be8730db64bfb8fb3ec6b08d6332af89eed54ca7fca909e0f423d",
+    "bytes": 11102
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so.top1.candidate.so.ptxas.log",
+    "sha256": "c9f4bed286a97295d60f76ce9ccf5e42eab925360f2c903b220ccaccae358ced",
+    "bytes": 4439
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so.top3.tsv",
+    "sha256": "afb7b0c3151fa34da82b25dd0ac904da39a7f8cc72870b2cbb9a1c2b3787adf5",
+    "bytes": 514
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so.top3_measure_rounds.tsv",
+    "sha256": "339019ef237826543fc899fb3cad9f221fa3ed5878e7dd2b3eefc5d118544c87",
+    "bytes": 505
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so.top3_measured.tsv",
+    "sha256": "d2aedc152690531e69fc01a544cf07e585ae66bad449f85649ab1984c70e5a94",
+    "bytes": 160
+  },
+  {
+    "path": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/record.json",
+    "sha256": "63ae4a0257d1de1102f25d0a127e71892e6b38bbd7755cd176ff17e6f6ca9e27",
+    "bytes": 1004
+  },
+  {
+    "path": "/root/TileMega/runs/r13-llama/cache.json",
+    "sha256": "e68abaac4fdf5a0b97c89ecef14894f65d6cdc9d3dd53a9a0705edef2b23cb55",
+    "bytes": 2062
+  },
+  {
+    "path": "/root/TileMega/runs/r13-llama/config.json",
+    "sha256": "0c91b323a4c79d5877470a4d8f45b2a21cd5906dffb449cb204091808bb38641",
+    "bytes": 1904
+  },
+  {
+    "path": "/root/TileMega/runs/r13-llama/plans.json",
+    "sha256": "59a72848ecd2ae729d6fd94a5a31478e5f55630c7174ce646fda80f67fb96e52",
+    "bytes": 7142
+  },
+  {
+    "path": "/root/TileMega/runs/r13-qwen3/cache.json",
+    "sha256": "2ba720423b59407852316f6ef8941611c28f958715e8232c83d41840b870680f",
+    "bytes": 2062
+  },
+  {
+    "path": "/root/TileMega/runs/r13-qwen3/config.json",
+    "sha256": "acaa6188adfac6d9115c181227de1eb32c8e3b8180ddb41781eeac266dd2783e",
+    "bytes": 1903
+  },
+  {
+    "path": "/root/TileMega/runs/r13-qwen3/plans.json",
+    "sha256": "a21d64c6830af6a397cdc335817f5fea83a68fc2eb6a3313c30504b116ded447",
+    "bytes": 7117
+  }
+]
