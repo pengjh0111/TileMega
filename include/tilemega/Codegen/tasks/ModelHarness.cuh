@@ -411,7 +411,24 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
                                 TaskSmem& smem) {
   StageDesc const& stage = p.stages[index];
   switch (stage.kind) {
-    case TaskKind::kGemm: T_Gemm{}(p, stage, smem); break;
+    case TaskKind::kGemm:
+#if TILEMEGA_TRACE_TASK
+      {
+        auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+        for(int task=PlacedBlock();task<inv.tiles_m*inv.tiles_n*inv.chunks;task+=gridDim.x) {
+          executor::ProfileScope profile{executor::BeginProfile(p,index,task)};
+          T_Gemm::RunLogicalTask(p,stage,smem,task
+#if TILEMEGA_TRACE_PHASE
+              ,nullptr
+#endif
+              ,profile.row);
+          __syncthreads();
+        }
+      }
+#else
+      T_Gemm{}(p, stage, smem);
+#endif
+      break;
     case TaskKind::kRMSNorm:
 #if TILEMEGA_SERVING_RUNTIME
       for (int row = int(blockIdx.x); row < (stage.batch_rows ? p.dims.batch : p.dims.tokens());
@@ -451,12 +468,16 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
     case TaskKind::kFusedAttention:
 #if TILEMEGA_SERVING_RUNTIME
       for (int task = int(blockIdx.x); task < ServingAttentionTaskCount(p, stage);
-           task += int(gridDim.x))
+           task += int(gridDim.x)) {
+#if TILEMEGA_TRACE_TASK
+        executor::ProfileScope profile{executor::BeginProfile(p,index,task)};
+#endif
         RunServingAttentionTask(p, stage, smem, task
 #if TILEMEGA_TRACE_TASK
           ,profile.row
 #endif
           );
+      }
 #else
       asm volatile("trap;");
 #endif
