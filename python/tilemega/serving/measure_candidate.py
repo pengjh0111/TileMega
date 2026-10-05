@@ -107,12 +107,14 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
                 "median_ms": statistics.median(values),
                 "samples_ms": values,
                 "decode_loop_used": bool(loop and plan.info.phase == 1),
+                "execution_identity": instance.execution_identity(mode,bool(loop and plan.info.phase==1)),
             }
     finally:
         instance.close()
     if not _exclusive(out / "guard.jsonl", "candidate-after", False):
         raise SystemExit(75)
     report = {"plan": str(plan.path), "batch": batch, "past": past,
+              "artifact_id": plan.identity['artifact_id'] if plan.identity else None,
               "warmup": warmup, "timed": timed,
               "clocks_before": clocks_before, "clocks_after": _clocks(),
               "modes": measured}

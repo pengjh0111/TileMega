@@ -472,6 +472,20 @@ extern "C" unsigned tm_plan_loop_modes(void* opaque) {
   return plan?plan->loop_modes:0;
 }
 
+// Host-only identity queries: no context creation, allocation or GPU probe.
+extern "C" std::uint64_t tm_plan_shared_bytes() {
+  return tilemega::codegen::kServingSharedBytes;
+}
+extern "C" unsigned tm_plan_pdl_enabled(void* opaque) {
+  auto* plan=static_cast<tilemega::codegen::serving::Plan*>(opaque);
+  return plan && plan->pdl;
+}
+extern "C" std::uint64_t tm_plan_execution_smem(void* opaque,unsigned mode) {
+  auto* plan=static_cast<tilemega::codegen::serving::Plan*>(opaque);
+  if(!plan)return 0;
+  return mode==TM_SERVING_L1?tilemega::codegen::kServingSharedBytes:plan->model.l2_smem_bytes;
+}
+
 extern "C" int tm_plan_launch_steps(void* opaque, std::uint32_t first_step,
     std::uint32_t steps, std::uint32_t mode, std::uint64_t base_iteration,
     void* stream) {

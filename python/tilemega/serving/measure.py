@@ -102,6 +102,7 @@ def measure(engine: ServingEngine, prompts: torch.Tensor,
                 raise SystemExit(75)
             tokens = result.tokens.tolist()
             row = {"N": count, "run": run, "warmup": run < warmup,
+                   "execution_identity": engine.decode.execution_identity(engine.decode_mode,result.decode_loop_used),
                    "e2e_seconds": result.e2e_ms / 1e3,
                    "gpu_step_ms": result.step_ms,
                    "decode_loop_used": result.decode_loop_used,
@@ -127,6 +128,9 @@ def measure(engine: ServingEngine, prompts: torch.Tensor,
         at = q * (len(decode) - 1); low = int(at); high = min(low + 1, len(decode) - 1)
         return decode[low] + (decode[high] - decode[low]) * (at - low)
     summary = {"timed_tokens_identical": same_tokens,
+               "execution_identity": engine.decode.execution_identity(
+                   engine.decode_mode,all(r['decode_loop_used'] for r in timed_rows)),
+               "prefill_execution_identity": engine.prefill.execution_identity(engine.prefill_mode),
                "decode_loop_used": all(r["decode_loop_used"] for r in timed_rows),
                "step_ns_read": all(r["step_ns_read"] for r in timed_rows),
                "tpot_mean_seconds": statistics.mean(decode) if decode else 0.0,

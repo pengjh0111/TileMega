@@ -1151,6 +1151,20 @@ int RunCompile(int argc, char** argv) {
     }
     std::filesystem::path requested(argv[2]);
     bool shared = requested.extension() == ".so";
+    auto identity_command=[&](bool capture) {
+      std::string root=TILEMEGA_SOURCE_DIR;
+      std::string command="PYTHONPATH="+quote(root+"/python")+
+          " LD_LIBRARY_PATH="+quote(tilemega::commands::CudaLibraryDirectory()+":"+
+              (std::getenv("LD_LIBRARY_PATH")?std::getenv("LD_LIBRARY_PATH"):""))+
+          " python3 -m tilemega.build.identity --root "+quote(root)+
+          " --snapshot "+quote(requested.string()+".source.json");
+      if(capture)command+=" --capture --compiler "+quote(
+          std::filesystem::read_symlink("/proc/self/exe").string());
+      else command+=" --so "+quote(requested.string());
+      if(std::system(command.c_str())!=0)
+        throw std::runtime_error("serving artifact identity verification failed");
+    };
+    if(shared && serving)identity_command(true);
     std::filesystem::path cuda = shared
         ? std::filesystem::path(requested.string() + ".cu") : requested;
     std::ofstream output(cuda);
@@ -1177,7 +1191,18 @@ int RunCompile(int argc, char** argv) {
         std::string built_line;std::getline(built_command,built_line);
         bool const flags_match=built_command.good() &&
             macros(built_line)==macros("-DTILEMEGA_MIDPOINT_REFINE=0 "+runtime_flags);
-        if(compiled_source==source && flags_match) {
+        // A binary from different headers cannot inherit the current source
+        // identity merely because the small generated .cu happens to match.
+        bool identity_match=true;
+        if(serving) {
+          std::string root=TILEMEGA_SOURCE_DIR;
+          std::string command="PYTHONPATH="+quote(root+"/python")+
+              " python3 -m tilemega.build.identity --root "+quote(root)+
+              " --snapshot "+quote(requested.string()+".source.json")+
+              " --check-reuse "+quote(selected_serving_binary);
+          identity_match=std::system(command.c_str())==0;
+        }
+        if(compiled_source==source && flags_match && identity_match) {
           std::filesystem::copy_file(selected_serving_binary,requested,
               std::filesystem::copy_options::overwrite_existing);
           for(auto const& suffix:{".ptxas.log",".build_command.txt"})
@@ -1294,7 +1319,7 @@ int RunCompile(int argc, char** argv) {
         json<<",\"history_proofs\":"<<prefetch.getAs<mlir::ArrayAttr>("history_proofs").size()<<'}';
         prefetch_json=json.str();
       }
-      manifest<<"{\n  \"model\": "<<std::quoted(model_name)
+      manifest<<"{\n  \"identity_schema\": 1,\n  \"model\": "<<std::quoted(model_name)
               <<",\n  \"phase\": "<<std::quoted(serving_phase)
               <<",\n  \"batch_lo\": "<<serving_batch
               <<",\n  \"batch_hi\": "<<serving_batch
@@ -1337,6 +1362,8 @@ int RunCompile(int argc, char** argv) {
                 <<(i+1==runtime.gemms.size()?"\n":",\n");
       }
       manifest<<"  ]\n}\n";
+      manifest.close();
+      if(shared)identity_command(false);
     }
     std::cerr << "CODEGEN_SUMMARY tasks=" << summary.task_spaces
               << " couplings=" << summary.couplings

@@ -5,6 +5,7 @@ import ctypes as C
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from tilemega.build.identity import optional_identity, bind_execution, digest
 
 
 ABI_VERSION = 1
@@ -42,6 +43,7 @@ class Buffer:
 class PlanLibrary:
     def __init__(self, path: str | Path):
         self.path = Path(path).resolve(strict=True)
+        self.identity = optional_identity(self.path)
         self.lib = C.CDLL(str(self.path), mode=C.RTLD_LOCAL)
         self.lib.tm_plan_query.argtypes = [C.POINTER(PlanInfo)]
         self.lib.tm_plan_query.restype = C.c_int
@@ -58,6 +60,12 @@ class PlanLibrary:
         read_step_ns = getattr(self.lib, "tm_plan_read_step_ns", None)
         watchdog = getattr(self.lib, "tm_plan_watchdog", None)
         loop_modes = getattr(self.lib, "tm_plan_loop_modes", None)
+        for name, result, arguments in (
+                ('tm_plan_pdl_enabled', C.c_uint, [C.c_void_p]),
+                ('tm_plan_execution_smem', C.c_uint64, [C.c_void_p, C.c_uint])):
+            symbol=getattr(self.lib,name,None)
+            if symbol is not None:
+                symbol.restype=result;symbol.argtypes=arguments
         if loop_modes is not None:
             loop_modes.argtypes = [C.c_void_p]
             loop_modes.restype = C.c_uint
@@ -112,6 +120,14 @@ class Plan:
         self.library = library
         self.handle = handle
         self.iteration = {1: 0, 2: 0}
+
+    def execution_identity(self, mode: int, loop: bool = False) -> dict | None:
+        if self.library.identity is None:return None
+        pdl=self.library.lib.tm_plan_pdl_enabled(self.handle)
+        execution=bind_execution(self.library.identity, {1:'L1',2:'L2'}[mode], loop, pdl)
+        execution['shared_memory_bytes']=int(self.library.lib.tm_plan_execution_smem(self.handle,mode))
+        execution['execution_id']=digest({k:v for k,v in execution.items() if k!='execution_id'})
+        return execution
 
     def set_steps(self, past: list[int]) -> None:
         if not past or any(not self.library.info.past_lo <= p <= self.library.info.past_hi

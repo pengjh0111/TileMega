@@ -425,7 +425,9 @@ class Run:
                             self.command([self.binary, 'audit', 'sass', library, '--out', plan / 'sass.json'], f'sass-{phase}-{pg}-B{batch}')
                             self.command([self.binary, 'inspect', 'request-floor', plan / 'selected.mlir', self.target,
                                 batch, *interval, plan / 'floor.json', plan / 'floor.tsv'], f'floor-{phase}-{pg}-B{batch}')
-                            record_outputs(marker, [library, manifest, plan / 'selected.mlir', plan / 'floor.json', plan / 'floor.tsv'],
+                            record_outputs(marker, [library, manifest, Path(str(library)+'.identity.json'),
+                                Path(str(library)+'.source.json'), Path(str(library)+'.source.json.patch'),
+                                plan / 'selected.mlir', plan / 'floor.json', plan / 'floor.tsv'],
                                 solve_seconds=seconds, budget_s=settings['time_budget_s'], budget_pass=seconds <= settings['time_budget_s'])
                     previous_by_pg[pg] = manifest
                     built[pg] = library

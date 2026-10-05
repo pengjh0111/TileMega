@@ -56,6 +56,7 @@ def serving_trace(args):
             if not _exclusive(out / "guard.jsonl", "after", False):
                 raise SystemExit(75)
             report = dict(past=past, mode=args.mode, loop=bool(args.decode_loop),
+                          execution_identity=engine.decode.execution_identity(mode,bool(args.decode_loop)),
                           launches=args.launches, steps=args.steps,
                           mean_step_ms=begin.elapsed_time(end)/(args.launches*args.steps))
             (out / "trace.json").write_text(json.dumps(report, indent=2)+"\n")
@@ -113,6 +114,7 @@ def main() -> None:
         if not _exclusive(args.out / "guard.jsonl", "after", False):
             raise SystemExit(75)
         report = {"model": str(args.model), "batch": args.batch,
+                  "execution_identity": engine.decode.execution_identity(2,False),
                   "past": args.past, "mode": "L2 diagnostic",
                   "launches": args.launches, "mean_step_ms": step_ms,
                   "trace_compiled": True,
