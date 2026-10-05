@@ -278,7 +278,7 @@ def fixed():
             additional.append(clone(row, row['label'] + '-trace', ['TILEMEGA_TRACE_STAGE=1', 'TILEMEGA_TRACE_STEP=1']))
             additional.append(clone(row, row['label'] + '-v2', ['TILEMEGA_TRACE_V2=1']))
         elif row['label'] == 'P-R12bN-120':
-            additional.append(clone(row, row['label'] + '-trace', ['TILEMEGA_TRACE_STAGE=1', 'TILEMEGA_TRACE_STEP=1']))
+            additional.append(clone(row, row['label'] + '-trace', ['TILEMEGA_TRACE_STAGE=1', 'TILEMEGA_TRACE_STEP=1', 'TILEMEGA_PAGE_TRACE=1']))
             additional.append(clone(row, row['label'] + '-pages', ['TILEMEGA_TRACE_STEP=1'], pages=True))
         elif row['label'] in ('PS-120', 'PSA-120'):
             additional.append(clone(row, row['label'] + '-pages', ['TILEMEGA_TRACE_STEP=1'], pages=True))

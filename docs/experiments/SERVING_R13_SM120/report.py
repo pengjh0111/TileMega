@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from bootstrap import HERE, FRAME, write
-from pipeline import CELLS, MATRICES, GROUPS, read, round_path
+from pipeline import CELLS, MATRICES, GROUPS, read, round_path, trace_directories
 
 PAIRS=(
  ('E4b','NL2e','B0','B2','NL2e','B0'),('E4b','NL2g','B0','B2','NL2g','B0'),
@@ -119,7 +119,7 @@ def flatten(value,prefix=''):
     return result
 
 
-def collect():
+def collect(completion_folder=None):
     out=HERE/'results'
     out.mkdir(exist_ok=True)
     rows,tokens=measurements()
@@ -232,8 +232,8 @@ def collect():
         floor=read(HERE/f'raw/E3_catalog_r5/floors/{cell}/decode/floor.json',{})
         mid=next((point for point in floor.get('points',[]) if point['past']==575),None)
         byte_count=mid['dram_ns']*ceiling['calibration_median_gbps'] if mid and ceiling else None
-        for stage in ('E5a','E5b','E5c','E5d'):
-            folder=HERE/f'raw/{stage}_{cell}_r5'
+        for folder in (folder for stage in ('E5a','E5b','E5c','E5d')
+                       for folder in trace_directories(stage,cell)):
             for file in folder.rglob('stage_trace.tsv'):
                 try:
                     semantics=stage_semantics(file.parent)
@@ -355,7 +355,7 @@ def collect():
                     if prediction.get('saving_us') and observation.get('saving_us') is not None else None,
                     cross_architecture_final_head_aligned=aligned,status='measured' if value is not None else 'unavailable/invalid residual'))
     table('S10.tsv',predictions)
-    write(HERE/'raw/E6_collect_r5/completeness.json',dict(round_records=len(rows),expected_round_records=297,
+    write((completion_folder or HERE/'raw/E6_collect_r5')/'completeness.json',dict(round_records=len(rows),expected_round_records=297,
           measurements_complete=all(len([row for row in rows if row['matrix']==matrix and row['cell']==cell and row['arm']==label])==3
           for matrix,labels in MATRICES.items() for cell in CELLS for label in labels if not(label=='B0h' and cell=='qwen3_B16')),
           errors=errors,sm89_final_head_aligned=aligned,model_hashes_verified=alignment.get('cross_architecture_model_hashes_verified',False),all_gpu_unit_tests_passed=False,

@@ -326,16 +326,30 @@ def trace_requests(stage,cell):
     return [('PR_L2','P-R12bN-120-pages','L2',False),('PS_L2','PS-120-pages','L2',False),('PSA_L2','PSA-120-pages','L2',False)]
 
 
-def trace(stage,cell):
+def trace_directories(stage,cell):
+    original=read(HERE/f'raw/{stage}_{cell}_r5/trace_results.json',[])
+    replacement=read(HERE/'raw/acceptance_04/trace_replacements.json',{}).get(f'{stage}:{cell}')
+    if replacement and read(replacement['guard'],{}).get('code')==0:
+        updates=read(replacement['results'],[])
+        successful={row['label']:row for row in updates if row.get('exit_code')==0}
+        original=[successful.get(row['label'],row) for row in original]
+    return [Path(row['path']) for row in original if row.get('exit_code')==0]
+
+
+def trace(stage,cell,revision='r5',labels=None,build_overrides=()):
     builds={(row['cell'],row['label']):row for row in read(HERE/'builds_sm120_r3.json',[])}
-    folder=HERE/f'raw/{stage}_{cell}_r5'
+    builds.update({(row['cell'],row['label']):row for row in build_overrides})
+    folder=HERE/f'raw/{stage}_{cell}_{revision}'
     results=[]
     for label,variant,mode,loop in trace_requests(stage,cell):
+        if labels is not None and label not in labels:continue
         arm=runnable(cell,label)
         build=builds.get((cell,variant))
         if not arm['available'] or not build or build['exit_code']:
             results.append(dict(label=label,variant=variant,status='unavailable'))
             continue
+        if sha(build['so'])!=build['sha256']:
+            raise RuntimeError('trace binary changed: '+build['so'])
         destination=folder/label
         command=[PY,'-m','tilemega.serving.trace','--model',arm['model_path'],'--prefill-so',arm['prefill'],
                  '--decode-so',build['so'],'--batch',str(arm['batch']),'--past','575','--out',destination,
@@ -344,9 +358,11 @@ def trace(stage,cell):
         elif stage=='E5c':command+=['--step','--steps','16','--launches','1']
         else:command+=['--launches','1']
         environment=dict(os.environ,**arm['env'])
-        if stage=='E5d':environment['TILEMEGA_PAGE_TRACE_OUT']=str(destination/'page_trace.tsv')
+        if stage=='E5d' or build.get('page_trace_enabled'):
+            environment['TILEMEGA_PAGE_TRACE_OUT']=str(destination/'page_trace.tsv')
         destination.mkdir(parents=True,exist_ok=True)
         write(destination/'command.json',dict(command=list(map(str,command)),env=arm['env'],
+              page_trace_out=environment.get('TILEMEGA_PAGE_TRACE_OUT'),
               trace_binary_sha256=sha(build['so']),origin_binary_sha256=arm['binaries']['decode']['sha256']))
         with (destination/'stdout.log').open('w') as log:
             code=subprocess.run(['timeout','--kill-after=15s','1800s',*map(str,command)],env=environment,
