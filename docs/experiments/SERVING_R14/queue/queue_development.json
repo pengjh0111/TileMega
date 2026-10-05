@@ -1,0 +1,44 @@
+[
+  {
+    "name": "RW3_numeric",
+    "gpu": true,
+    "priority": 30,
+    "cwd": "/root/r14_work/development",
+    "timeout_s": 300,
+    "needs_free_mib": 4096,
+    "after": [
+      "P0_correctness"
+    ],
+    "after_any": [
+      "P0_trace_analyze"
+    ],
+    "command": [
+      "/usr/bin/python3",
+      "-c",
+      "import hashlib,pathlib,subprocess,sys; p=sys.argv[1]; assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==sys.argv[2], \"test binary changed\"; sys.exit(subprocess.call([p]))",
+      "/root/r14_work/dev_checks/mma_pipeline_sm89",
+      "46b460189e4fd24d897c8ef312da666b301cbdcf0808805f8a7dbad61c6b609b"
+    ]
+  },
+  {
+    "name": "RW3_paged_numeric",
+    "gpu": true,
+    "priority": 30,
+    "cwd": "/root/r14_work/development",
+    "timeout_s": 300,
+    "needs_free_mib": 4096,
+    "after": [
+      "P0_correctness"
+    ],
+    "after_any": [
+      "P0_trace_analyze"
+    ],
+    "command": [
+      "/usr/bin/python3",
+      "-c",
+      "import hashlib,pathlib,subprocess,sys; p=sys.argv[1]; assert hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==sys.argv[2], \"test binary changed\"; sys.exit(subprocess.call([p]))",
+      "/root/r14_work/dev_checks/paged_gemm_pipe",
+      "b186bc0919d3a9818ad489e10feaa3a32f7f90211972204a7fa9fa0c7176c038"
+    ]
+  }
+]

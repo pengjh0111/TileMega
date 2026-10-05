@@ -1,0 +1,16 @@
+[
+  {
+    "name": "RW3_numeric",
+    "path": "/root/r14_work/dev_checks/mma_pipeline_sm89",
+    "sha256": "46b460189e4fd24d897c8ef312da666b301cbdcf0808805f8a7dbad61c6b609b",
+    "source_commit": "df96abb7f",
+    "timing": false
+  },
+  {
+    "name": "RW3_paged_numeric",
+    "path": "/root/r14_work/dev_checks/paged_gemm_pipe",
+    "sha256": "b186bc0919d3a9818ad489e10feaa3a32f7f90211972204a7fa9fa0c7176c038",
+    "source_commit": "df96abb7f",
+    "timing": false
+  }
+]
