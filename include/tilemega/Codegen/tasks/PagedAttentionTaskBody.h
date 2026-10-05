@@ -118,7 +118,14 @@ struct PagedAttentionTaskBody {
     int begin=Begin(p,c),end=End(p,c);if(begin>=end)return;
     auto layout=Layout(end-begin,begin);
     int warp=ComputeThread()/32,lane=ComputeThread()%32;
+#if TILEMEGA_TRACE_TASK
+    auto* profile=p.profile;auto query_begin=TaskProfileNow(profile);
+    if(profile)profile->bytes=4ull*D*max(0,min(end,p.past)-begin);
+#endif
     Query(p,s,b,g);ComputeSync();
+#if TILEMEGA_TRACE_TASK
+    if(profile)profile->query_ns=TaskProfileNow(profile)-query_begin;
+#endif
     auto score_coords=typename QK::Mma{}.get_slice(lane).partition_C(make_identity_tensor(Shape<_16,_16>{}));
     auto out_coords=typename PV::Mma{}.get_slice(lane).partition_C(make_identity_tensor(Shape<_16,Int<D>>{}));
     auto output=PV::Accumulator();float maximum[2]={-INFINITY,-INFINITY},sum[2]={0,0};
@@ -126,7 +133,15 @@ struct PagedAttentionTaskBody {
     for(int wave=0;wave<layout.waves;++wave) {
       int logical_page=layout.PageOf(warp,wave);
       auto cursor=sequence+logical_page;
+#if TILEMEGA_TRACE_TASK
+      auto wait_begin=TaskProfileNow(profile);
+#endif
       ring.AwaitFull(cursor);
+#if TILEMEGA_TRACE_TASK
+      auto ready=TaskProfileNow(profile);
+      if(profile){if(!wave){profile->first_ready=ready;profile->first_page_wait_ns=ready-wait_begin;}
+        else profile->later_page_wait_ns+=ready-wait_begin;}
+#endif
       auto* page=reinterpret_cast<Element*>(ring.Page(cursor));
       int start=layout.Position(warp,wave,0);
       int page_row=layout.RowOffset(warp);
@@ -168,6 +183,9 @@ struct PagedAttentionTaskBody {
         for(int i=0;i<size(output);++i)output(i)*=alpha[int(get<0>(out_coords(i)))/8];
         PV::PV(score,score_coords,page+kPageRows*D+(page_row+tile)*D,output);
       }
+#if TILEMEGA_TRACE_TASK
+      if(profile)profile->wave_compute_ns+=TaskProfileNow(profile)-ready;
+#endif
       for(int arrival=0;arrival<layout.ReleaseArrivals(logical_page);++arrival)ring.Release(cursor);
     }
     sequence+=layout.pages_per_task;

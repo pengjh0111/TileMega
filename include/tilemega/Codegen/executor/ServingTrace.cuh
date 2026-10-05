@@ -7,7 +7,30 @@
 #endif
 // 1: timer/SMID reads only; 2: record stores only; 0/3: original full trace.
 static_assert(TILEMEGA_TRACE_STAGE_DIAGNOSTIC>=0 && TILEMEGA_TRACE_STAGE_DIAGNOSTIC<=3);
+#ifndef TILEMEGA_TRACE_STAGE_SAMPLE
+#define TILEMEGA_TRACE_STAGE_SAMPLE 1
+#endif
+static_assert(TILEMEGA_TRACE_STAGE_SAMPLE>0);
 namespace tilemega::codegen::executor {
+__device__ inline bool StageSample(unsigned long long iteration) {
+  return blockIdx.x%TILEMEGA_TRACE_STAGE_SAMPLE==iteration%TILEMEGA_TRACE_STAGE_SAMPLE;
+}
+#if TILEMEGA_TRACE_TASK
+__device__ inline ServingTaskProfile* BeginProfile(Params const& p,unsigned stage,unsigned task,
+    unsigned long long iteration=~0ull) {
+  if(threadIdx.x!=0 || !p.serving_task_profile)return nullptr;
+  if(iteration==~0ull)iteration=p.serving_task_epoch[blockIdx.x];
+  if(blockIdx.x%8!=iteration%8)return nullptr;
+  auto* r=p.serving_task_profile+(iteration%p.serving_trace_launches)*p.serving_task_stride+
+      p.serving_task_offsets[stage]+task;
+  *r={};r->iteration=iteration;r->past=p.dims.past;r->stage=stage;r->task=task;
+  r->worker=blockIdx.x;r->run_begin=TaskProfileNow(r);return r;
+}
+struct ProfileScope {
+  ServingTaskProfile* row;
+  __device__ ~ProfileScope(){if(row)row->run_end=TaskProfileNow(row);}
+};
+#endif
 __device__ inline unsigned long long StageStamp() {
 #if TILEMEGA_TRACE_STAGE_DIAGNOSTIC==2
   return 1;
@@ -67,6 +90,9 @@ __device__ inline void StepDelay(Params const& p,unsigned long long iteration,
 }
 __device__ inline void StageBegin(Params const& p,unsigned stage,
     unsigned long long iteration,unsigned tasks) {
+#if TILEMEGA_TRACE_TASK
+  if(threadIdx.x==0 && p.serving_task_epoch)p.serving_task_epoch[blockIdx.x]=iteration;
+#endif
 #if TILEMEGA_TRACE_STEP
   if(threadIdx.x==0)if(auto* r=StepRow(p,iteration)) {
     r->stage_has_tasks=tasks;
@@ -74,7 +100,7 @@ __device__ inline void StageBegin(Params const& p,unsigned stage,
   }
 #endif
 #if TILEMEGA_TRACE_STAGE
-  if(threadIdx.x==0 && p.serving_stage_trace && p.serving_trace_launches) {
+  if(threadIdx.x==0 && StageSample(iteration) && p.serving_stage_trace && p.serving_trace_launches) {
     auto& r=p.serving_stage_trace[(iteration%p.serving_trace_launches)*p.stage_count*gridDim.x+
                                  stage*gridDim.x+blockIdx.x];
     unsigned sm=0;
@@ -95,7 +121,7 @@ __device__ inline void StageTasksEnd(Params const* p,unsigned stage,
     if(r->stage_has_tasks)r->last_task=ServingTraceNow();
 #endif
 #if TILEMEGA_TRACE_STAGE
-  if(p && threadIdx.x==0 && p->serving_stage_trace && p->serving_trace_launches)
+  if(p && threadIdx.x==0 && StageSample(iteration) && p->serving_stage_trace && p->serving_trace_launches)
     {
       auto stamp=StageStamp();
 #if TILEMEGA_TRACE_STAGE_DIAGNOSTIC!=1
@@ -108,7 +134,7 @@ __device__ inline void StageTasksEnd(Params const* p,unsigned stage,
 __device__ inline void StageRelease(Params const& p,unsigned stage,
     unsigned long long iteration) {
 #if TILEMEGA_TRACE_STAGE
-  if(threadIdx.x==0 && p.serving_stage_trace && p.serving_trace_launches)
+  if(threadIdx.x==0 && StageSample(iteration) && p.serving_stage_trace && p.serving_trace_launches)
     {
       auto stamp=StageStamp();
 #if TILEMEGA_TRACE_STAGE_DIAGNOSTIC!=1

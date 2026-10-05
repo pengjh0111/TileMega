@@ -17,7 +17,8 @@
 | FX-24 | Implemented; fixed replay passes, full repaired search running | bb42f31bd; StageFlowModel.cpp, stage_flow_test.cpp |
 | FX-25 | Implemented; generation/build validation queued | 7c2cd2436; build/identity.py, compile.cpp, ServingRuntime.cuh, identity_join.py |
 | TR-4 | Partial: timer/store diagnostics prepared; lower-overhead implementation awaits diagnosis | 377c674d2; ServingTrace.cuh, ledger_r14.py |
-| AT-1, AT-2, AT-3a, SK-1, GV-1, RW-3, RA-1, EP-1, SL-6 | Not started | Follow Phase A baseline |
+| RW-3 / AT-1 | Isolated development branch: RW-3 code and AT-1 legality subset implemented; not accepted or merged | See development.md; numerical tests queued |
+| AT-2, AT-3a, SK-1, GV-1, RA-1, EP-1, SL-6 | Not started | Required implementation remains |
 | Conditional Phase C / Phase D | Not started | Decisions remain subject to registered evidence |
 
 ## Evidence / T1–T12
@@ -62,3 +63,5 @@ Source is frozen for these checks/builds; continue Phase-0 work after the diagno
 - Legacy R13 reference artifacts lack the new identity fields; preserve their binary/source SHA and unknown provenance explicitly. New artifacts enforce identity_schema=1.
 - Next: close FX-24 joint replay and FX-23 final tests, validate FX-25 rebuilt identities, diagnose TR-4, implement its lower-overhead trace, then rebuild/anchor Phase A.
 - R15 scope remains unimplemented: multi-page stages, phase-subgraph handoff, shared simulator/codegen execution description, partial evaluation, architecture-specific collectives and prefill.
+
+Independent CPU development proceeds in `/root/r14_work/development` (`r14-development`, `e884cd9d8`), without changing the Phase-0 source/tools. See `development.md` for the exact boundary and evidence.

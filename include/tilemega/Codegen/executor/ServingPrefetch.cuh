@@ -62,8 +62,10 @@ __device__ inline void Arrive(EventCounter* events,unsigned stage,unsigned long 
 #if TILEMEGA_SYNC_V3
   (void)iteration;
   executor::ComputeSync();
-  executor::StageTasksEnd(params,stage,iteration);
-  if(executor::ComputeThread()==0)RedRelease(&events[stage].arrivals,1ull);
+  if(executor::ComputeThread()==0) {
+    RedRelease(&events[stage].arrivals,1ull);
+    executor::StageTasksEnd(params,stage,iteration);
+  }
 #else
   __threadfence();executor::ComputeSync();
   if(executor::ComputeThread()==0) {

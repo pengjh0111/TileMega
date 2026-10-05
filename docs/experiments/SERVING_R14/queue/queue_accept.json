@@ -1,0 +1,21 @@
+[
+  {
+    "name": "P0_accept",
+    "gpu": false,
+    "priority": 0,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python"
+    },
+    "after": [
+      "P0_trace_analyze",
+      "RW3_numeric",
+      "RW3_paged_numeric"
+    ],
+    "timeout_s": 900,
+    "command": [
+      "/usr/bin/python3",
+      "/root/TileMega/docs/experiments/SERVING_R14/accept_phase0.py"
+    ]
+  }
+]

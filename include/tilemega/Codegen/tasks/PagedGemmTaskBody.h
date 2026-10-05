@@ -205,7 +205,15 @@ struct PagedGemmTaskBody {
     auto copy_a=make_tiled_copy_A(typename Config::SmemCopyAtom{},mma);
     auto copy_b=make_tiled_copy_B(typename Config::SmemCopyAtomB{},mma);
     for(int first=0;first<iterations;first+=kGroupStages) {
+#if TILEMEGA_TRACE_TASK
+      auto wait_begin=TaskProfileNow(p.profile);
+#endif
       for(int page=0;page<kGroupPages;++page)ring.AwaitFull(sequence+page);
+#if TILEMEGA_TRACE_TASK
+      auto ready=TaskProfileNow(p.profile);
+      if(p.profile){if(!first){p.profile->first_ready=ready;p.profile->first_page_wait_ns=ready-wait_begin;}
+        else p.profile->later_page_wait_ns+=ready-wait_begin;}
+#endif
       for(int stage=0;stage<kGroupStages && first+stage<iterations;++stage) {
         int it=first+stage;
         bool direct=false;
@@ -252,6 +260,9 @@ struct PagedGemmTaskBody {
       for(int page=0;page<kGroupPages;++page)ring.Release(sequence+page);
       sequence+=kGroupPages;
     }
+#if TILEMEGA_TRACE_TASK
+    auto epilogue_begin=TaskProfileNow(p.profile);
+#endif
     auto finish=[&](auto op) {
       backend::ServingEpilogue<decltype(op)::value,TileM,TileN>::Run(
           accum,mma,workspace,tile_m,tile_n,p.m,p.n,p.output_stride,
@@ -266,6 +277,9 @@ struct PagedGemmTaskBody {
       case backend::ServingEpilogueOp::kArgmaxPartial: finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kArgmaxPartial>{});break;
       case backend::ServingEpilogueOp::kPartial: finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kPartial>{});break;
     }
+#if TILEMEGA_TRACE_TASK
+    if(p.profile)p.profile->epilogue_ns=TaskProfileNow(p.profile)-epilogue_begin;
+#endif
   }
 };
 } // namespace tilemega::codegen

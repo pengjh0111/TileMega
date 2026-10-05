@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Codegen/tasks/ServingTaskProfile.h>
 
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Codegen/executor/Prefetch.cuh>
@@ -47,6 +48,9 @@ struct ServingGemmOperands {
   backend::ServingEpilogueOp epilogue = backend::ServingEpilogueOp::kStore;
   void const* tensor_map = nullptr;
   int tensor_k_begin = 0;
+#if TILEMEGA_TRACE_TASK
+  ServingTaskProfile* profile=nullptr;
+#endif
 };
 
 template <class Arch, int TileM, int TileN, int TileK, int Stages>
@@ -116,6 +120,9 @@ struct ServingGemmTaskBody {
     Mainloop{}(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
                ComputeThread(), shared);
 #endif
+#if TILEMEGA_TRACE_TASK
+    auto epilogue_begin=TaskProfileNow(p.profile);
+#endif
     auto finish = [&](auto op) {
       backend::ServingEpilogue<decltype(op)::value, TileM, TileN>::Run(
           accum, mma, shared, tile_m, tile_n, p.m, p.n,
@@ -139,6 +146,9 @@ struct ServingGemmTaskBody {
         finish(std::integral_constant<backend::ServingEpilogueOp,
                backend::ServingEpilogueOp::kPartial>{}); break;
     }
+#if TILEMEGA_TRACE_TASK
+    if(p.profile)p.profile->epilogue_ns=TaskProfileNow(p.profile)-epilogue_begin;
+#endif
   }
 };
 
