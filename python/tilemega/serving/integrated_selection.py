@@ -7,6 +7,19 @@ PASTS=(64,575,1000)
 class SelectionBudgetExhausted(Exception):
     """Stop admitting pilot work; confirm previously measured finalists."""
 
+def admit_pilot(candidate, label, now, deadline):
+    """Already built winners still need a measured execution baseline.
+
+    Only new structural variants consume admission budget. Once those stop,
+    halving confirms the execution alternatives of the existing plans.
+    """
+    if label.startswith('pilot') and now>=deadline and not candidate.get('base_variant'):
+        raise SelectionBudgetExhausted('selection budget exhausted before new pilot')
+
+def first_stage_budget_ms(seconds, pg_count, decode):
+    """Reserve two thirds of decode time for compilation and integral pilots."""
+    return max(1,int(1000*seconds/(3*pg_count))) if decode else max(1,int(1000*seconds)-200000)
+
 
 def integrated_ms(by_past):
     """Uniform discrete request trajectory; linear interior, held endpoints."""

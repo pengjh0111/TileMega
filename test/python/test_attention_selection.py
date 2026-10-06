@@ -2,6 +2,17 @@ import json,tempfile,unittest
 from pathlib import Path
 from tilemega.serving.attention_selection import variants,matches,pinned_geometry,compile_options
 class AttentionSelection(unittest.TestCase):
+    def test_conditional_flags_only_apply_to_selected_decode_batch(self):
+        from tilemega.cli import batch_features,read_config
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'config.json'
+            data=dict(model=dict(path='/tmp/model'),features_by_batch={'16':{'attention_buffers':1,'ep_direct':1}})
+            path.write_text(json.dumps(data));config=read_config(path)
+            self.assertEqual(batch_features(config,16,'decode')['attention_buffers'],1)
+            self.assertEqual(batch_features(config,1,'decode')['attention_buffers'],2)
+            self.assertEqual(batch_features(config,16,'prefill')['attention_buffers'],2)
+            data['features_by_batch']['16']['pg']='pages';path.write_text(json.dumps(data))
+            with self.assertRaises(ValueError):read_config(path)
     def test_budget_preserves_measured_finalists(self):
         from tilemega.serving.integrated_selection import successive_halving,SelectionBudgetExhausted
         def measure(candidate,round):

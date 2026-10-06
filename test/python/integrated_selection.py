@@ -1,5 +1,5 @@
 import unittest
-from tilemega.serving.integrated_selection import integrated_ms,successive_halving
+from tilemega.serving.integrated_selection import integrated_ms,successive_halving,admit_pilot,SelectionBudgetExhausted,first_stage_budget_ms
 class Selection(unittest.TestCase):
     def test_constant(self):
         self.assertEqual(integrated_ms({str(p):{'mean_ms':2.5} for p in (64,575,1000)}),2.5)
@@ -30,4 +30,20 @@ class Selection(unittest.TestCase):
         with self.assertRaises(ValueError):successive_halving([{'id':0}],measure)
     def test_invalid(self):
         with self.assertRaises(ValueError):integrated_ms({str(p):{'mean_ms':float('nan')} for p in (64,575,1000)})
+    def test_budget_confirms_built_execution_baselines(self):
+        calls=[]
+        def measure(c,label):
+            admit_pilot(c,label,100,1)
+            calls.append((c['id'],label))
+            return {'by_past':{str(p):{'mean_ms':c['id']+1} for p in (64,575,1000)},'execution_identity':{'execution_id':str(c['id'])}}
+        winner,rows=successive_halving([dict(id=i,base_variant=i<4) for i in range(8)],measure)
+        self.assertEqual(winner['id'],0)
+        self.assertEqual(len(winner['samples_ms']),3)
+        self.assertTrue(all(rows[i]['eliminated_round']=='budget_unmeasured' for i in range(4,8)))
+        self.assertFalse(any(i>=4 for i,label in calls))
+        with self.assertRaises(SelectionBudgetExhausted):admit_pilot({},'pilot0',2,1)
+        admit_pilot({},'final0',2,1)
+    def test_two_pg_searches_reserve_selection_time(self):
+        self.assertEqual(first_stage_budget_ms(1800,2,True)*2,600000)
+        self.assertEqual(first_stage_budget_ms(600,1,False),400000)
 if __name__=='__main__':unittest.main()

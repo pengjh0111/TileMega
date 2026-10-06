@@ -16,7 +16,7 @@ import sys
 import time
 import statistics
 
-from .serving.integrated_selection import successive_halving, SelectionBudgetExhausted
+from .serving.integrated_selection import successive_halving, SelectionBudgetExhausted, admit_pilot, first_stage_budget_ms
 from .serving.attention_selection import variants as attention_variants, matches as matches_attention, label as attention_label, pinned_geometry, compile_options as attention_compile_options
 from .cache import atomic_json, export_key, file_sha, key, locked, plan_key, record_outputs, valid_record
 from .fingerprint import ROOT, calibration_stamps, source_fingerprint
@@ -119,6 +119,12 @@ def aggregate_paired_runs(cell: Path, batch: int, count: int, repeats: int,
         atomic_json(target / 'measurements.json', result)
 
 
+def batch_features(config, batch, phase):
+    values=dict(config['features'])
+    if phase=='decode':values.update(config.get('features_by_batch',{}).get(str(batch),{}))
+    return values
+
+
 def read_config(path: Path) -> dict:
     if path.suffix == '.json':
         config = json.loads(path.read_text())
@@ -166,6 +172,17 @@ def read_config(path: Path) -> dict:
         raise ValueError('candidate_guard_wait_s must be nonnegative')
     if config['test']['repeats'] < 1 or config['test']['warmup'] < 0:
         raise ValueError('invalid measurement repeat counts')
+    # Conditional R14 gates are per cell. Do not silently enable a B16-only
+    # residency experiment on the B1 requests of the same model.
+    overrides=config.get('features_by_batch',{})
+    if not isinstance(overrides,dict):raise ValueError('features_by_batch must be an object')
+    allowed={'attention_buffers':(1,2),'ep_direct':(0,1),'attention_frontier':(0,1)}
+    for batch,values in overrides.items():
+        if batch not in {str(b) for b in config['workload']['batch']} or not isinstance(values,dict):
+            raise ValueError('features_by_batch must name a configured batch')
+        for name,value in values.items():
+            if name not in allowed or value not in allowed[name]:
+                raise ValueError(f'invalid features_by_batch.{batch}.{name}')
     return config
 
 
@@ -394,6 +411,7 @@ class Run:
             export, directory = self.export(phase)
             previous_by_pg = {}
             for batch in sorted(workload['batch']):
+                features=batch_features(self.config,batch,phase)
                 batch_started=time.monotonic()
                 interval = (0, 0) if phase == 'prefill' else (workload['prompt_len'], workload['prompt_len'] + workload['max_new_tokens'] - 2)
                 if features['pg'] in ('off', 'l2'):
@@ -431,7 +449,7 @@ class Run:
                             '--search-jobs', str(settings['jobs']), '--measure-top', str(settings['measure_top']),
                             '--candidate-guard-wait-s', str(settings['candidate_guard_wait_s']),
                             '--candidate-mode', settings['mode'], '--candidate-loop', str(settings['candidate_loop']),
-                            '--search-budget-ms', str(max(1, int(1000 * settings['time_budget_s']) - 200000)),
+                            '--search-budget-ms', str(first_stage_budget_ms(settings['time_budget_s'],len(pg_choices),phase=='decode')),
                             '--serving-pruning', str(int(settings['pruning'])), '--incremental-prepare', '1',
                             '--variant-cache', str(self.cache / 'variants' / self.device_key),
                             '--artifact-cache', str(self.cache / 'artifacts'), '--dump-cg', str(plan / 'selected.mlir'),
@@ -494,8 +512,7 @@ class Run:
                         def measure_execution(candidate, round_label):
                             # Always finish three confirmation rounds for measured
                             # survivors. The budget stops admission of further pilots.
-                            if round_label.startswith('pilot') and time.monotonic()>=deadline:
-                                raise SelectionBudgetExhausted('selection budget exhausted before pilot')
+                            admit_pilot(candidate,round_label,time.monotonic(),deadline)
                             candidate['library']=str(self.attention_variant(candidate['base_library'],candidate['variant'],deadline))
                             stem=f"B{batch}-{candidate['pg']}-{candidate['variant_label']}-{candidate['mode']}-{candidate['loop']}-{round_label}"
                             out=self.out / ('decode-choice-'+stem)
