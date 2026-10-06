@@ -996,6 +996,8 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     if(gemv)required.push_back({gemv->key,"seed_gemv"});
     std::set<std::string> protected_keys;
     for(auto const& [key,origin]:required)protected_keys.insert(key);
+    if(protected_keys.size()>std::size_t(options.measure_top))
+      throw std::invalid_argument("measure_top cannot cover all required serving structure families");
     for(auto const& [key,origin]:required) {
       auto present=std::find_if(materialized.begin(),materialized.end(),[&](auto const& item){
         return item.candidate.key==key;
