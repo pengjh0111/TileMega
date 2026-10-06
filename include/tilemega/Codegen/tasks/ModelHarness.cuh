@@ -405,6 +405,30 @@ __device__ inline void RunServingMergeTask(Params const& p,
 }
 #endif
 
+#if TILEMEGA_SERVING_RUNTIME
+__device__ inline bool SpreadServingHead(Params const& p,StageDesc const& s) {
+#if TILEMEGA_EP_PARALLEL_ARGMAX
+  return s.kind==TaskKind::kGemm &&
+      static_cast<GemmInvocation const*>(p.gemms)[s.gemm].serving_op==backend::ServingEpilogueOp::kArgmaxPartial;
+#else
+  return false;
+#endif
+}
+__device__ inline int ServingL1OwnedTasks(Params const& p,StageDesc const& s,int count) {
+  int worker=SpreadServingHead(p,s)?ServingSpreadTailTask(int(blockIdx.x),int(gridDim.x)):int(blockIdx.x);
+  return count/int(gridDim.x)+(worker<count%int(gridDim.x));
+}
+__device__ inline int ServingL1TaskLimit(Params const& p,StageDesc const& s,int count) {
+  return SpreadServingHead(p,s)?CeilDiv(count,int(gridDim.x))*int(gridDim.x):count;
+}
+__device__ inline int ServingL1Task(Params const& p,StageDesc const& s,int ordinal) {
+  if(s.kind==TaskKind::kFusedAttention)
+    return ServingAttentionL1Task(ordinal,p.dims.batch,s.extent,
+        CeilDiv(p.dims.capacity,s.attention_kv_block),s.attention_kv_block,p.dims.seq);
+  return SpreadServingHead(p,s)?ServingSpreadTailTask(ordinal,int(gridDim.x)):ordinal;
+}
+#endif
+
 #if TILEMEGA_NONPAGED_LA && TILEMEGA_SERVING_RUNTIME && !TILEMEGA_PAGED
 struct NonpagedReductionContext {
   EventCounter* events=nullptr;
@@ -482,10 +506,13 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
   StageDesc const& stage = p.stages[index];
   switch (stage.kind) {
     case TaskKind::kGemm:
-#if TILEMEGA_TRACE_TASK || (TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED)
+#if TILEMEGA_TRACE_TASK || TILEMEGA_EP_PARALLEL_ARGMAX || (TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED)
       {
         auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
-        for(int task=PlacedBlock();task<inv.tiles_m*inv.tiles_n*inv.chunks;task+=gridDim.x) {
+        int count=inv.tiles_m*inv.tiles_n*inv.chunks;
+        for(int ordinal=PlacedBlock();ordinal<ServingL1TaskLimit(p,stage,count);ordinal+=gridDim.x) {
+          int task=ServingL1Task(p,stage,ordinal);
+          if(task>=count)continue;
 #if TILEMEGA_TRACE_TASK
           executor::ProfileScope profile{executor::BeginProfile(p,index,task)};
 #endif
@@ -551,8 +578,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 #if TILEMEGA_SERVING_RUNTIME
       for (int ordinal = int(blockIdx.x); ordinal < ServingAttentionTaskCount(p, stage);
            ordinal += int(gridDim.x)) {
-        int task=ServingAttentionL1Task(ordinal,p.dims.batch,stage.extent,
-            CeilDiv(p.dims.capacity,stage.attention_kv_block),stage.attention_kv_block,p.dims.seq);
+        int task=ServingL1Task(p,stage,ordinal);
 #if TILEMEGA_TRACE_TASK
         executor::ProfileScope profile{executor::BeginProfile(p,index,task)};
 #endif
@@ -1531,7 +1557,7 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_TASK
     int tasks=ActiveBlocks(*params,params->stages[stage]);
     executor::StageBegin(*params,stage,iteration,
-        tasks>int(blockIdx.x)?(tasks-blockIdx.x+gridDim.x-1)/gridDim.x:0);
+        ServingL1OwnedTasks(*params,params->stages[stage],tasks));
 #endif
     RunStage(*params, stage, smem TILEMEGA_REDUCTION_L1);
 #if TILEMEGA_L2_PREFETCH
@@ -1571,7 +1597,7 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_TASK
       int tasks=ActiveBlocks(p,p.stages[stage]);
       executor::StageBegin(p,stage,iteration,
-          tasks>int(blockIdx.x)?(tasks-blockIdx.x+gridDim.x-1)/gridDim.x:0);
+          ServingL1OwnedTasks(p,p.stages[stage],tasks));
 #endif
       RunStage(p,stage,smem TILEMEGA_REDUCTION_L1);
 #if TILEMEGA_L2_PREFETCH

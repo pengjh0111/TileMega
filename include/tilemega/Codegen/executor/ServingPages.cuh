@@ -45,7 +45,7 @@ struct PageStream {
       }else {
         while(stage<p.stage_count &&
               (p.stages[stage].handoff_elided ||
-               task>=ActiveBlocks(p,p.stages[stage]))) {
+               task>=ServingL1TaskLimit(p,p.stages[stage],ActiveBlocks(p,p.stages[stage])))) {
           ++stage;task=blockIdx.x;part=0;offset=0;
         }
         if(stage>=p.stage_count) {
@@ -53,12 +53,14 @@ struct PageStream {
         }
       }
       auto const& s=p.stages[stage];
+      int logical=l2?task:ServingL1Task(p,s,task);
+      if(!l2 && logical>=ActiveBlocks(p,s)){task+=gridDim.x;continue;}
       char const* source=nullptr;int total=0;
       if(s.kind==TaskKind::kGemm) {
 #if TILEMEGA_WEIGHT_LAYOUT_TILED
         auto const* table=static_cast<GemmInvocation const*>(p.gemms);
         auto const& first=table[s.gemm];
-        auto point=DecodeSplitTask(task,first.tiles_m*first.tiles_n,first.chunks);
+        auto point=DecodeSplitTask(logical,first.tiles_m*first.tiles_n,first.chunks);
         auto const& inv=table[s.gemm+point.chunk];
         if(inv.serving_weight_base && inv.serving_k_total_full>0) {
           int tn=point.tile%inv.tiles_n;
@@ -71,7 +73,6 @@ struct PageStream {
 #endif
       }else if(s.kind==TaskKind::kFusedAttention) {
         int blocks=CeilDiv(p.dims.capacity,s.attention_kv_block);
-        int logical=l2?task:ServingAttentionL1Task(task,p.dims.batch,s.extent,blocks,s.attention_kv_block);
         auto point=DecodeServingAttentionTaskGMajor(logical,p.dims.batch,blocks);
         int begin=point.cache_block*s.attention_kv_block;
         int end=min(begin+s.attention_kv_block,p.dims.past);
@@ -608,13 +609,12 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
       wait_previous(stage);
       int count=ActiveBlocks(p,p.stages[stage]);
       if constexpr(!Loader)executor::StageBegin(p,stage,iteration,
-          count>int(blockIdx.x)?(count-blockIdx.x+gridDim.x-1)/gridDim.x:0);
-      for(int ordinal=blockIdx.x;ordinal<count;ordinal+=gridDim.x)
+          ServingL1OwnedTasks(p,p.stages[stage],count));
+      for(int ordinal=blockIdx.x;ordinal<ServingL1TaskLimit(p,p.stages[stage],count);ordinal+=gridDim.x)
         {
           auto const& desc=p.stages[stage];
-          int task=desc.kind==TaskKind::kFusedAttention
-              ? ServingAttentionL1Task(ordinal,p.dims.batch,desc.extent,
-                  CeilDiv(p.dims.capacity,desc.attention_kv_block),desc.attention_kv_block):ordinal;
+          int task=ServingL1Task(p,desc,ordinal);
+          if(task>=count)continue;
           watch.waiter_task=task;
                   Task<Loader,L2>(p,stage,task,ring,sequence,work,events,iteration,
               step_ns,step,Loader?&lookahead:nullptr);

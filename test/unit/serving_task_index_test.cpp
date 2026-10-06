@@ -53,6 +53,14 @@ int TestServingTaskIndex(int argc, char** argv) {
       assert(*std::max_element(live.begin(),live.end())-*std::min_element(live.begin(),live.end())<=1);
     }
   }
+  for(int grid:{1,128,170})for(int count:{1,7,127,128,513,4009}) {
+    std::vector<int> seen(count);
+    for(int ordinal=0;ordinal<((count+grid-1)/grid)*grid;++ordinal) {
+      int task=tilemega::codegen::ServingSpreadTailTask(ordinal,grid);
+      if(task<count)++seen[task];
+    }
+    assert(std::all_of(seen.begin(),seen.end(),[](int n){return n==1;}));
+  }
   return 0;
 }
 
