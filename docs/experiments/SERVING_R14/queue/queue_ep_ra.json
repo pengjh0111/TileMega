@@ -1,0 +1,42 @@
+[
+  {
+    "name": "EP_RA_compile",
+    "gpu": false,
+    "priority": 12,
+    "cwd": "/root/r14_work/development",
+    "env": {
+      "PYTHONPATH": "/root/r14_work/development/python"
+    },
+    "after": [
+      "A_analyze"
+    ],
+    "timeout_s": 7200,
+    "needs_free_mib": 4096,
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r14_work/development/docs/experiments/SERVING_R14/check_ep_ra.py",
+      "compile"
+    ]
+  },
+  {
+    "name": "EP_RA_numerical",
+    "gpu": true,
+    "priority": 13,
+    "cwd": "/root/r14_work/development",
+    "env": {
+      "PYTHONPATH": "/root/r14_work/development/python"
+    },
+    "after": [
+      "EP_RA_compile"
+    ],
+    "timeout_s": 1500,
+    "needs_free_mib": 4096,
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/r14_work/development/docs/experiments/SERVING_R14/check_ep_ra.py",
+      "numerical"
+    ]
+  }
+]
