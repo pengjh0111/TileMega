@@ -34,6 +34,7 @@ def one(job):
         if job.get('base_so'):so=compile_variant(job)
         else:
             manifest=Path(job['manifest']);data=json.loads(manifest.read_text())
+            data.update(job.get('manifest_overrides',{}))
             for change in job.get('gemm_overrides',[]):data['gemms'][change['index']].update(change['values'])
             pinned=out/'source_manifest.json';pinned.write_text(json.dumps(data,indent=2)+'\n')
             recipe=pin(pinned,job['classes'],job.get('target_classes',job['classes']),out,job['overrides'])
