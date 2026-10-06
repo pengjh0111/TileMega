@@ -1,0 +1,130 @@
+{
+  "C-AT3b": {
+    "llama_B1": {
+      "applicable": false,
+      "attention_page_wait_fraction": 0.0038859032658123192
+    },
+    "llama_B16": {
+      "applicable": false,
+      "attention_page_wait_fraction": 0.007337944236181534
+    },
+    "qwen3_B1": {
+      "applicable": true,
+      "attention_page_wait_fraction": 0.11291512915129151
+    },
+    "qwen3_B16": {
+      "applicable": true,
+      "attention_page_wait_fraction": 0.031349211650035846
+    }
+  },
+  "C-RW1": {
+    "llama_B1": {
+      "applicable": false,
+      "gemm_over_load_fraction": 0.42733464537235966,
+      "metric_detail": "maximum class mean relative to pure loading, including actual active CTA count"
+    },
+    "llama_B16": {
+      "applicable": true,
+      "gemm_over_load_fraction": 1.0392649280841408,
+      "metric_detail": "maximum class mean relative to pure loading, including actual active CTA count"
+    },
+    "qwen3_B1": {
+      "applicable": false,
+      "gemm_over_load_fraction": 0.07841809590657567,
+      "metric_detail": "maximum class mean relative to pure loading, including actual active CTA count"
+    },
+    "qwen3_B16": {
+      "applicable": false,
+      "gemm_over_load_fraction": 0.10946019490559888,
+      "metric_detail": "maximum class mean relative to pure loading, including actual active CTA count"
+    }
+  },
+  "C-RW2": {
+    "llama_B1": {
+      "applicable": false,
+      "gemm_over_load_fraction": 0.42733464537235966,
+      "pipe_recovers_fraction_lt_half": true
+    },
+    "llama_B16": {
+      "applicable": false,
+      "gemm_over_load_fraction": 1.0392649280841408,
+      "pipe_recovers_fraction_lt_half": true
+    },
+    "qwen3_B1": {
+      "applicable": false,
+      "gemm_over_load_fraction": 0.07841809590657567,
+      "pipe_recovers_fraction_lt_half": true
+    },
+    "qwen3_B16": {
+      "applicable": true,
+      "gemm_over_load_fraction": 0.10946019490559888,
+      "pipe_recovers_fraction_lt_half": true
+    }
+  },
+  "C-EP2": {
+    "llama_B1": {
+      "applicable": false,
+      "epilogue_task_fraction": 0.04642338764252078
+    },
+    "llama_B16": {
+      "applicable": true,
+      "epilogue_task_fraction": 0.06008776315058601
+    },
+    "qwen3_B1": {
+      "applicable": false,
+      "epilogue_task_fraction": 0.06909118269579924
+    },
+    "qwen3_B16": {
+      "applicable": true,
+      "epilogue_task_fraction": 0.12151784691735064
+    }
+  },
+  "C-AT4": {
+    "llama_B1": {
+      "applicable": true,
+      "attention_merge_us_per_layer": 7.728,
+      "metric_detail": "AT-pv sampled attention frontier lower bound; excludes separate merge"
+    },
+    "llama_B16": {
+      "applicable": false,
+      "attention_merge_us_per_layer": 19.404,
+      "metric_detail": "AT-pv sampled attention frontier lower bound; excludes separate merge"
+    },
+    "qwen3_B1": {
+      "applicable": true,
+      "attention_merge_us_per_layer": 29.890285714285714,
+      "metric_detail": "AT-pv sampled attention frontier lower bound; excludes separate merge"
+    },
+    "qwen3_B16": {
+      "applicable": false,
+      "attention_merge_us_per_layer": 73.14514285714286,
+      "metric_detail": "AT-pv sampled attention frontier lower bound; excludes separate merge"
+    }
+  },
+  "C-GV2": {
+    "llama_B1": {
+      "applicable": true,
+      "nonpaged_gemv_selected": 0,
+      "paged_faster": false,
+      "reason": "all GEMV arms slower than same-geometry MMA controls"
+    },
+    "llama_B16": {
+      "applicable": false,
+      "nonpaged_gemv_selected": 0,
+      "paged_faster": false,
+      "reason": "all GEMV arms slower than same-geometry MMA controls"
+    },
+    "qwen3_B1": {
+      "applicable": true,
+      "nonpaged_gemv_selected": 0,
+      "paged_faster": false,
+      "reason": "all GEMV arms slower than same-geometry MMA controls"
+    },
+    "qwen3_B16": {
+      "applicable": false,
+      "nonpaged_gemv_selected": 0,
+      "paged_faster": false,
+      "reason": "all GEMV arms slower than same-geometry MMA controls"
+    }
+  }
+}

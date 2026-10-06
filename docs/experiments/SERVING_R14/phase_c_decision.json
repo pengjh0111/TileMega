@@ -1,0 +1,102 @@
+{
+  "C-AT3b": {
+    "status": "not_triggered",
+    "cells": [],
+    "rule": {
+      "metric": "attention_page_wait_fraction",
+      "threshold": 0.3,
+      "comparison": "ge",
+      "gain": 0.015,
+      "minimum_cells": 1,
+      "predicate": "paged",
+      "fresh_processes": 50
+    }
+  },
+  "C-RW1": {
+    "status": "triggered",
+    "cells": [
+      "llama_B16"
+    ],
+    "rule": {
+      "metric": "gemm_over_load_fraction",
+      "threshold": 0.2,
+      "comparison": "gt",
+      "gain": 0.02,
+      "minimum_cells": 1,
+      "predicate": "nonpaged_B16",
+      "fresh_processes": 0
+    }
+  },
+  "C-RW2": {
+    "status": "not_triggered",
+    "cells": [],
+    "rule": {
+      "metric": "gemm_over_load_fraction",
+      "threshold": 0.2,
+      "comparison": "gt",
+      "gain": 0.02,
+      "minimum_cells": 1,
+      "predicate": "paged_B16",
+      "extra": "pipe_recovers_fraction_lt_half",
+      "fresh_processes": 50,
+      "loader_floor_fraction": 0.97
+    }
+  },
+  "C-PF": {
+    "status": "pending",
+    "rule": {
+      "metric": "family_integral_gain",
+      "threshold": 0.02,
+      "comparison": "ge",
+      "gain": 0.01,
+      "minimum_cells": 1,
+      "predicate": "different_past_winner",
+      "extra": "compatible_kv_packing",
+      "fresh_processes": 0
+    }
+  },
+  "C-EP2": {
+    "status": "triggered",
+    "cells": [
+      "qwen3_B16"
+    ],
+    "rule": {
+      "metric": "epilogue_task_fraction",
+      "threshold": 0.08,
+      "comparison": "ge",
+      "gain": 0.01,
+      "minimum_cells": 1,
+      "predicate": "B16",
+      "fresh_processes": 0
+    }
+  },
+  "C-AT4": {
+    "status": "triggered",
+    "cells": [
+      "qwen3_B1"
+    ],
+    "rule": {
+      "metric": "attention_merge_us_per_layer",
+      "threshold": 8,
+      "comparison": "ge",
+      "gain": 0.015,
+      "minimum_cells": 1,
+      "predicate": "B1",
+      "fresh_processes": 50
+    }
+  },
+  "C-GV2": {
+    "status": "not_triggered",
+    "cells": [],
+    "rule": {
+      "metric": "nonpaged_gemv_selected",
+      "threshold": 1,
+      "comparison": "ge",
+      "gain": 0.01,
+      "minimum_cells": 1,
+      "predicate": "B1",
+      "extra": "paged_faster",
+      "fresh_processes": 0
+    }
+  }
+}
