@@ -9179,3 +9179,9 @@ R14 completion evidence for F-358/F-359: SERVING_R14/results/{phase0_acceptance,
 ### F-360 — R14 Phase-A correctness and corrected baseline (verified)
 
 All 36 Phase-A steps completed. Four R13D rebuilds preserve 1024-token sequences across three rounds and pass C-1; repaired Llama B1 nonpaged N1' and B0h' also pass C-1. N1' is 2.84817 ms versus rebuilt paged 2.85861 ms, discernible under the registered range rule, so it becomes the Llama B1 baseline. Rebuilt R13D drifts +0.61% to +1.77% against old binaries, exceeding prediction; cause remains unisolated. Stage/task trace median overhead is −0.09% to +1.15%, with token equality, but sampled extrema are estimates. Evidence: `experiments/SERVING_R14/results/phase_a_acceptance.json`, `raw/phase_a_completed.tar.xz`, and its SHA manifest. No synchronization reliability conclusion is made.
+
+### F-361 — R14 Phase-B arithmetic passes; Ec/PV wins are selective (verified)
+
+All 72 queued steps and 100 fixed/trace artifact identities pass. All 50 model variants pass C-1/C-2; the required nonpaged attention-LA cases (Llama B1, Qwen3 B1) and combine-LA case (Llama B16) each pass 50 fresh processes out of 50. These results cover the tested paths and shapes, not the new conditional frontier or single-buffer paths.
+Three paired rounds show Qwen3 B1 Ec128 at 4.16402 ms (−5.19% against its same-round baseline), and Qwen3 B16 PV swap at 5.62227 ms (−1.48%). The fill/GEMV, parallel argmax and noinline variants are slower; register pipeline has no distinguishable E2E gain. Do not enable them from their design predictions. Between-phase Qwen3 baseline drift remains unresolved.
+Evidence: `experiments/SERVING_R14/results/{phase_b_acceptance.json,T4_phase_b.tsv,T3_phase_b_resources.tsv}`; original paired measurements, correctness, protocol records and ptxas are in `raw/phase_b_review.tar.xz` with `phase_b_review_manifest.tsv`. Full profiles/logs are packaged separately by C_archive.

@@ -1,4 +1,4 @@
-# R14 sm_89 — Phase A reviewed; mandatory implementation continues
+# R14 sm_89 — Phase B accepted; conditional Phase C prepared
 
 - Specified baseline: `76beaea5e2d66e3311b36d020f470c4f016406d0`.
 - Initial local HEAD: `9aebaf6553247ec83c79bc8f101e61ad4ce564fd`; fast-forwarded before implementation.
@@ -19,11 +19,12 @@
 | TR-4 | Partial: diagnostics reviewed; sampled stage and task profiles implemented, all five stage/task trace medians below 2%; sampled extrema remain estimates | 377c674d2, 5ec398310, 686dc3afc; ServingTrace.cuh, ServingTaskProfile.h, ledger_r14.py |
 | RW-3 / AT-1 | Integrated RW-3 and Ec32 legality; default pipeline off. Small-chunk L1 distribution integrated; model validation pending | df96abb7f, 821c64cf6, 9fa448f3a; full-model checks pending |
 | AT-3a | Implemented; five-architecture compile and position-coded tests pass; default unchanged | 0c3d9ac45, 68410eb88, dd7af352c; ServingAttentionPVSwap.h |
-| AT-2 / SK-1 | Nonpaged merge/combine LA and seed_fill implemented; host and single-process ticket tests pass; three 64-step model token/KV smokes pass; 50-process validation pending | c0849f8a2, 68c592729, ac731bc10, 84def10d5; ModelHarness.cuh, MonotonicLastArriver.cuh, SkeletonSearch.cpp |
+| AT-2 / SK-1 | Implemented; three required fresh-process cases each pass 50/50; measured LA/fill variants remain slower | c0849f8a2, 68c592729, ac731bc10, 84def10d5; ModelHarness.cuh, MonotonicLastArriver.cuh, SkeletonSearch.cpp |
 | EP-1 / RA-1 | Integrated: parallel argmax and noinline variants compile on five architectures and pass numeric tests; L1 tail spreading awaits integrated check | 5434f44bb, a8588fb82, 9f0c36c2d; ServingEpilogue.h, PagedAttentionTaskBody.h |
-| GV-1 | Implemented: standalone/production five-architecture compile and two B1 model smokes pass; C-1 and performance pending | 54756a6e3, 771aea037, 5ae2ffc8d; ServingGemv.h, ServingGemvTaskBody.h |
+| GV-1 | Partial TN8/16 epilogue domain; production numerical/C-1/C-2 pass; measured variants slower | 54756a6e3, 771aea037, 5ae2ffc8d; ServingGemv.h, ServingGemvTaskBody.h |
 | SL-6 | Implemented selection path: pinned Ec/attention/LA variants, required GEMV family, multi-past halving; full CLI build validation pending | e95dbf3ee, 96205607b, a28bbb629; SkeletonSearch.cpp, cli.py, integrated_selection.py |
-| Conditional Phase C / Phase D | Not started | Decisions remain subject to registered evidence |
+| C-RW1 / C-EP2 / C-AT4 | Implemented, default off; conditional acceptance pending | 1b00e23ef, bb48614c7, 45f482860; IndependentAttentionTaskBody.h, ServingEpilogue.h, ServingPages.cuh |
+| Phase D | Pending Phase C retention | No final configuration or final acceptance yet |
 
 ## Evidence / T1–T12
 
@@ -31,8 +32,9 @@
 |---|---|
 | T1 | Phase A completed; paired anchor and baseline rule in results/phase_a_acceptance.json |
 | T2 | Diagnostics complete; full/timer/store median overhead +0.53%/+0.13%/+1.57%, but non-base outliers prevent stable attribution |
-| T3 | Identity schema binds source snapshot, generated CU, binary, target, flags, ptxas and executed kernel; four diagnostic artifacts verified |
-| T4–T10 | Not collected |
+| T3 | results/T3_phase_b_resources.tsv binds all 100 artifacts to identity and resources |
+| T4–T7 | Phase-B matrices and task profiles collected; T4_phase_b.tsv and T5_phase_b_tasks.tsv; derived attention/coverage views remain to assemble |
+| T8–T10 | Conditional and final selection pending |
 | T11 | Old attention: 26 failures; initial repair: 768 cases, zero failures. Final Full predicate numerical rerun and multi-architecture checks pass; 64-step three-arm smoke token/KV mismatches zero |
 | T12 | Old fixed and joint sm120 failures reproduced. Both repaired searches pass; fixed/joint conservation checks 6/468 |
 
@@ -47,7 +49,11 @@ The old joint command's cached options were not archived; reconstruction uses th
 ## Q1–Q6
 
 - Q1 (verified): four R13D rebuilds preserve all 1024 tokens across three rounds; all four C-1 checks pass. N1' and B0h' also pass C-1. Llama B1 selects N1' under the registered rule. Old affected nonpaged timings remain invalid correctness baselines (inferred).
-- Q2–Q6: unanswered; no performance evidence yet.
+- Q2 (verified): Ec128 improves Qwen3 B1 by 5.19%; PV swap improves Qwen3 B16 by 1.48%. Measured LA variants are slower. See paired Phase-B table below.
+- Q3 (verified): measured fill and GEMV variants lose to their same-round controls; they do not enter defaults.
+- Q4 (verified/inferred): register pipeline has no resolvable E2E improvement; sampled class profiles trigger only the Llama B16 resident-two experiment. Cause attribution remains incomplete.
+- Q5 (verified): PV swap reduces paged spill and improves Qwen3 B16; noinline is slower. Final spill comparison remains pending.
+- Q6: full multi-past CLI selection is pending Phase D.
 
 ## Queue and resume
 
@@ -78,7 +84,7 @@ The guard rejected intermediate occupied/interfered attempts; each final diagnos
 TR-4 now moves the tasks-end store after barrier arrival and permits rotating 1/8 CTA stage sampling. Sampled extrema/tails are estimates, explicitly labeled by ledger_r14.py.
 Task profiles are separate, sample 1/8 CTAs, and report the leader's intervals. The CLI currently restricts them to L1; nonpaged CUTLASS's first-page readiness is not directly instrumented (zero means unavailable, not zero wait). This is a remaining TR-4 limitation, not a completed metric.
 An initial trace-only build failed because the nonpaged L1 dispatcher lacked a profile scope; 686dc3afc fixes that scope and retains the original per-task barrier. The corrected full serving trace build passes.
-No new synchronization reliability conclusion is made. Full model correctness and 50-process requirements remain outstanding.
+Phase-B model correctness and the three required 50-process checks have now passed; the new Phase-C frontier and single-slot reuse still require their own checks.
 
 ## Phase-A acceptance
 
@@ -111,7 +117,7 @@ Verified raw evidence: `raw/la_gemv_completed.tar.xz`, its SHA256 manifest, and 
 Standalone GEMV position-coded tests cover M/N/K tails, row/tiled layout and legal epilogues; sm_80/89/90/100/120 compile, only sm_89 executes. This is not yet end-to-end GEMV acceptance.
 GEMV TN8/16 cannot own DN's complete 32-column square-sum block or a SwiGLU pair: these combinations are explicitly rejected; TN32 retains all epilogues. This is a partial implementation deviation, not a changed correctness criterion.
 GEMV candidates account for the independent attention shared-memory union, retain implementation-specific resource/cache keys, and carry implementation into manifest and identity. Existing MMA keys remain unchanged.
-No performance defaults are changed, and no synchronization reliability claim is made before the prescribed 50-process checks.
+Performance defaults remained unchanged through Phase B. Its three prescribed fresh-process cases now each pass 50/50.
 
 ## Phase-B freeze
 
@@ -121,3 +127,27 @@ B1–B5 each use three paired rounds, followed by task trace, per-arm C-1/C-2 an
 SL-6 budget detail: the configured wall-clock budget stops admission of new second-stage pilots/builds; already admitted builds and three finalist confirmation rounds finish. The first-stage search remains bounded by its search budget and candidate count, not an interruptible global hard deadline. This is a remaining budget-enforcement deviation and must be reported against actual D1 durations.
 The multi-past variant grid uses Ec={32,64,128,256,512,capacity}, mma16/pvswap, and nonpaged LA=0/1. Defaults remain unchanged before measurement.
 Resume by reading progress.tsv once, then the completed step's result and guard record. Do not change runtime/compiler sources while this queue builds artifacts.
+
+## Phase-B acceptance and Phase-C preparation
+
+Verified: results/phase_b_acceptance.json, T3_phase_b_resources.tsv and T4_phase_b.tsv. All 72 scheduled steps returned 0, all 100 artifacts verify, all 50 model variants pass C-1/C-2. The three protocols are Llama B1 attention LA, Qwen3 B1 attention LA, and Llama B16 nonpaged combine LA: each 50 passed, zero failed. Final guard attempts accepted; no within-matrix canary exceeds 2%. This does not rule out slow drift between phases.
+Original matrix/correctness/resource records are archived in raw/phase_b_review.tar.xz and phase_b_review_manifest.tsv. Full task profiles/logs are packaged by C_archive into raw/phase_b_completed.tar.xz before new builds; commit that full archive on resume.
+
+| Cell | Same-round best supported change | TPOT ms | Relative baseline |
+|---|---|---:|---:|
+| Llama B1 | Baseline (B2) | 2.84820 | 0% |
+| Llama B16 | AT-pv | 3.17325 | −0.98% |
+| Qwen3 B1 | AT-ec128 | 4.16402 | −5.19% |
+| Qwen3 B16 | AT-pv | 5.62227 | −1.48% |
+
+These are separate registered matrices, not combined final defaults. All other choices, sample ranges and discernibility are retained in T4_phase_b.tsv. Qwen3 Phase-B baselines are slower than Phase A; do not attribute that drift to an optimization.
+All fill/GEMV trials, EP-1 and noinline lose; register pipeline's Qwen3 B16 change is not distinguishable from its range. The model and numerical correctness tests passed even for losing variants.
+
+Phase-C decision was committed before implementation/timing (09237464c); predictions were registered in d57d10331. Triggered cells: C-RW1 Llama B16, C-EP2 Qwen3 B16, C-AT4 Qwen3 B1. C-AT3b, C-RW2 and C-GV2 did not trigger. PlanFamily waits for D1.
+- C-RW1: one-buffer independent attention plus four/two-stage GEMMs and TN128 head; fixed case requests residency 2. The measured family is retained by seed_resident2 (c5701f112).
+- C-EP2: Store/Residual directly write rounded fragments; only SwiGLU partner values and DN's exact ordered square sums use shared rearrangement. Small GEMV residuals keep the old fallback.
+- C-AT4: paged B1 L1 publishes one context event per KV group in a dedicated L1 bank; o_proj waits for that output frontier instead of all attention CTAs. Other barriers and L2 semantics remain intact. New wait site is 13.
+Correctness arguments: the final writer releases each complete context; consumer acquire plus compute barrier precedes A reads; the next ordinary stage barrier orders the remaining graph. The bank is separate from L2 and monotonically indexed by L1 iteration. Validation, including 50 fresh processes, is still pending.
+Queue definitions contain six immutable artifacts and 22 steps: full evidence archive; compiler/host and five-architecture checks; position-coded single-buffer and bitwise fragment numerics; builds and smoke; three paired rounds per cell; full C-1/C-2; two 50-process cases. A rejected conditional arm is recorded and excluded, not substituted.
+Integration details (d4e7729a3): decode first-level searches share one third of the budget; already built execution baselines remain measurable when new structural admission ends. Finalist confirmation can exceed wall budget and is reported. features_by_batch applies only the three conditional flags to their triggered decode cells, leaving prefill unchanged. CPU selection/config/identity tests pass (raw/C_definition_checks).
+After publishing queue/queue_phase_c.json, sources freeze until builds finish. Resume from scheduler/progress.tsv once, then apply choose_r14.py retention thresholds before Phase D. Phase D and final T8–T10 acceptance have not run.
