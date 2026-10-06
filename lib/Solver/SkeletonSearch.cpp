@@ -886,13 +886,8 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
   // search, when independent top-3 CUDA sources can be compiled concurrently.
   SearchContext search(imported,context,options);SkeletonSearchResult result;result.classes=search.classes;
   evidence<<std::setprecision(17);
-  if(!options.evaluation_cases.empty()) {
-    // A fixed baseline creates the symbolic ModelDescription once.  Random
-    // cases then change only their explicit class coordinates, just as the
-    // production coordinate-descent path does after its seed evaluation.
-    std::vector<GemmConfig> seed(search.classes.size(),options.seed);
-    search.Evaluate(seed,options.kappa,options.seed_residency);
-  }
+  // Explicit cases initialize their own geometry/implementation. A synthetic
+  // all-MMA seed can violate the shared-memory union of a legal GEMV family.
   if(options.evaluation_cases.empty())
     result.evaluated=CoordinateDescent(search,result.rounds,evidence,result.seed_key,result.split1_seed_keys,result.fill_seed_keys,result.gemv_seed_keys);
   else for(std::size_t i=0;i<options.evaluation_cases.size();++i) {
@@ -1001,6 +996,8 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     if(gemv)required.push_back({gemv->key,"seed_gemv"});
     std::set<std::string> protected_keys;
     for(auto const& [key,origin]:required)protected_keys.insert(key);
+    if(protected_keys.size()>std::size_t(options.measure_top))
+      throw std::invalid_argument("measure_top cannot cover all required serving structure families");
     for(auto const& [key,origin]:required) {
       auto present=std::find_if(materialized.begin(),materialized.end(),[&](auto const& item){
         return item.candidate.key==key;

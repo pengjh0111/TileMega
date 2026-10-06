@@ -22,6 +22,7 @@
 
 #include <exception>
 #include <algorithm>
+#include <numeric>
 #include <cstdlib>
 #include <cstdio>
 #include <climits>
@@ -353,7 +354,8 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--parallel-argmax") parallel_argmax=std::stoi(value);
       else if (flag.rfind("--gemm-impl-",0)==0) {
         std::array<std::string,5> names{{"qkv","o","gate_up","down","lm_head"}};
-        auto it=std::find(names.begin(),names.end(),flag.substr(12));
+        auto name=flag.substr(12);std::replace(name.begin(),name.end(),'-','_');
+        auto it=std::find(names.begin(),names.end(),name);
         if(it==names.end() || (value!="mma16" && value!="gemv"))
           throw std::runtime_error("invalid per-class GEMM implementation");
         serving_impl[std::distance(names.begin(),it)]=value=="gemv"?1:0;
@@ -930,13 +932,11 @@ int RunCompile(int argc, char** argv) {
         // rotates the order, so a warm/cool device does not systematically
         // favor a particular rank.  Keep all 32-step raw CUDA-event samples.
         std::map<std::pair<std::size_t,std::string>,std::vector<double>> samples;
-        std::vector<bool> rejected(candidate_sos.size(),false);
+        std::vector<bool> rejected(candidate_sos.size(),false),smoked(candidate_sos.size(),false);
         std::ofstream rounds(std::string(argv[2])+".top3_measure_rounds.tsv");
         rounds<<"round\trank\tmode\tloop\tmean_ms\tartifact\n";
-        for(int round=0;round<3;++round)for(std::size_t position=0;
-            position<candidate_sos.size();++position) {
-          std::size_t i=(position+std::size_t(round))%candidate_sos.size();
-          if(rejected[i])continue;
+        auto observe=[&](std::size_t i,int round) {
+          if(rejected[i])return 0;
           std::string stem=std::string(argv[2])+".top"+std::to_string(i+1);
           std::string artifact=stem+".measurement.r"+std::to_string(round);
           std::string measure=measure_command+" --so "+quote(candidate_sos[i])+
@@ -945,7 +945,7 @@ int RunCompile(int argc, char** argv) {
               " --out "+quote(artifact)+" --mode "+candidate_mode+
               " --loop "+std::to_string(use_pages && candidate_mode=="L2"?candidate_loop:0)+
               " --guard-wait-s "+std::to_string(candidate_guard_wait_s);
-          if(round==0)measure+=" --smoke-steps 16";
+          if(!smoked[i])measure+=" --smoke-steps 16";
           // A deadlocked device kernel otherwise holds the GPU indefinitely.
           // Normal candidate timing takes seconds; a timeout is a failed
           // candidate measurement, never a performance observation.
@@ -956,7 +956,7 @@ int RunCompile(int argc, char** argv) {
           if(status) {
             rejected[i]=true;
             selected<<i+1<<"\trejected\t0\t"<<status<<'\t'<<artifact<<".stderr\n";
-            continue;
+            return 0;
           }
           auto measured_file=llvm::MemoryBuffer::getFile(artifact+"/measurements.json");
           if(!measured_file)throw std::runtime_error("missing top-3 measurement output");
@@ -971,8 +971,28 @@ int RunCompile(int argc, char** argv) {
                     <<(use_pages && candidate_mode=="L2"?candidate_loop:0)<<'\t'<<*mean<<'\t'
                     <<artifact<<"/measurements.json\n";
             }
-          rounds.flush();
+          if(samples[{i,candidate_mode}].empty())throw std::runtime_error("candidate measurement omitted requested mode");
+          smoked[i]=true;rounds.flush();return 0;
+        };
+        std::vector<std::size_t> active(candidate_sos.size());
+        std::iota(active.begin(),active.end(),0);
+        int pilot=-1;
+        while(active.size()>3) {
+          for(auto i:active)if(observe(i,pilot)==75)return 75;
+          active.erase(std::remove_if(active.begin(),active.end(),[&](auto i){return rejected[i];}),active.end());
+          std::stable_sort(active.begin(),active.end(),[&](auto a,auto b){
+            return samples[{a,candidate_mode}].back()<samples[{b,candidate_mode}].back();
+          });
+          auto keep=std::min(active.size(),std::max(std::size_t(3),(active.size()+1)/2));
+          for(auto j=keep;j<active.size();++j) {
+            auto i=active[j];rejected[i]=true;
+            selected<<i+1<<"\teliminated\t0\t"<<samples[{i,candidate_mode}].back()<<'\t'<<candidate_sos[i]<<'\n';
+          }
+          active.resize(keep);--pilot;
         }
+        for(auto i:active)samples[{i,candidate_mode}].clear();
+        for(int round=0;round<3;++round)for(std::size_t pos=0;pos<active.size();++pos)
+          if(observe(active[(pos+round)%active.size()],round)==75)return 75;
         for(auto& [key,values]:samples) {
           if(rejected[key.first])continue;
           if(values.size()!=3)throw std::runtime_error("top-3 mode lacks three measurement rounds");
