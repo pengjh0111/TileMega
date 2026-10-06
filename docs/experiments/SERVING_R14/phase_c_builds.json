@@ -1,0 +1,616 @@
+[
+  {
+    "cell": "llama_B16",
+    "batch": 16,
+    "label": "baseline",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R14/raw/B0b/llama_B16/baseline/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R14/raw/B0b/llama_B16/baseline/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_c2c03ad6e9534130762cc88d423aac336077a0bd040db6d337a1e31e3c1ec8b9.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 0,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 0,
+      "evict_last": 1,
+      "deferred_norm": 1,
+      "paged_la": 0,
+      "paged_la_splitk": 0,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/C_build/llama_B16/baseline"
+  },
+  {
+    "cell": "llama_B16",
+    "batch": 16,
+    "label": "C_RW1",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R14/raw/B0b/llama_B16/baseline/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R14/raw/B0b/llama_B16/baseline/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_c2c03ad6e9534130762cc88d423aac336077a0bd040db6d337a1e31e3c1ec8b9.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 0,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 0,
+      "evict_last": 1,
+      "deferred_norm": 1,
+      "paged_la": 0,
+      "paged_la_splitk": 0,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0,
+      "attention_buffers": 1
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/C_build/llama_B16/C_RW1",
+    "manifest_overrides": {
+      "residency": 2,
+      "grid": 256
+    },
+    "gemm_overrides": [
+      {
+        "index": 0,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 1,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 2,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 3,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 4,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 5,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 6,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 7,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 8,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 9,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 10,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 11,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 12,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 13,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 14,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 15,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 16,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 17,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 18,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 19,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 20,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 21,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 22,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 23,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 24,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 25,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 26,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 27,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 28,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 29,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 30,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 31,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 32,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 33,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 34,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 35,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 36,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 37,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 38,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 39,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 40,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 41,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 42,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 43,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 44,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 45,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 46,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 47,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 48,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 49,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 50,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 51,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 52,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 53,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 54,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 55,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 56,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 57,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 58,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 59,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 60,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 61,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 62,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      },
+      {
+        "index": 63,
+        "values": {
+          "tile_n": 32,
+          "stages": 4
+        }
+      },
+      {
+        "index": 64,
+        "values": {
+          "tile_n": 128,
+          "stages": 2
+        }
+      }
+    ]
+  },
+  {
+    "cell": "qwen3_B16",
+    "batch": 16,
+    "label": "baseline",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R14/raw/B0b/qwen3_B16/baseline/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R14/raw/B0b/qwen3_B16/baseline/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 1,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 1,
+      "paged_la_splitk": 1,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/C_build/qwen3_B16/baseline"
+  },
+  {
+    "cell": "qwen3_B16",
+    "batch": 16,
+    "label": "C_EP2",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R14/raw/B0b/qwen3_B16/baseline/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R14/raw/B0b/qwen3_B16/baseline/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 1,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 1,
+      "paged_la_splitk": 1,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0,
+      "ep_direct": 1
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/C_build/qwen3_B16/C_EP2"
+  },
+  {
+    "cell": "qwen3_B1",
+    "batch": 1,
+    "label": "baseline",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R14/raw/B0b/qwen3_B1/baseline/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R14/raw/B0b/qwen3_B1/baseline/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 1,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 1,
+      "paged_la_splitk": 1,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/C_build/qwen3_B1/baseline"
+  },
+  {
+    "cell": "qwen3_B1",
+    "batch": 1,
+    "label": "C_AT4",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R14/raw/B0b/qwen3_B1/baseline/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R14/raw/B0b/qwen3_B1/baseline/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 1,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 1,
+      "paged_la_splitk": 1,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0,
+      "attention_frontier": 1
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/C_build/qwen3_B1/C_AT4"
+  }
+]
