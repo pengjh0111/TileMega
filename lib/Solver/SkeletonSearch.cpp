@@ -935,8 +935,8 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     materialized.push_back({pure?std::move(ea):std::move(eb),c,pure});
   }
   std::stable_sort(materialized.begin(),materialized.end(),[](auto const& a,auto const& b){return a.entry.evaluation.makespan_ns<b.entry.evaluation.makespan_ns;});
-  if(materialized.size()>3)materialized.resize(3);
-  if(search.imported.plan.serving && options.top_m>=3 && materialized.size()==3 &&
+  if(materialized.size()>std::size_t(options.measure_top))materialized.resize(options.measure_top);
+  if(search.imported.plan.serving && options.top_m>=3 && materialized.size()>=3 &&
      !result.seed_key.empty()) {
     std::vector<std::pair<std::string,std::string>> required{{result.seed_key,"seed"}};
     // Each page size is evaluated. The best legal split-1 seed represents

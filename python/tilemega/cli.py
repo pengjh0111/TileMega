@@ -24,7 +24,7 @@ DEFAULTS = {
     'workload': dict(batch=[1, 16], prompt_len=64, max_new_tokens=1024,
                      prompts='docs/experiments/SERVING_R10/prompts/passages.jsonl'),
     'device': dict(index=0, cache_dir='~/.cache/tilemega'),
-    'solver': dict(passes=2, top_m=8, measure_top=3, jobs=3, mode='L2', candidate_loop=0, pruning=True, time_budget_s=600, candidate_guard_wait_s=300, prefill_pins={}, exclude_l1_loop=False),
+    'solver': dict(passes=2, top_m=8, measure_top=6, jobs=3, mode='L2', candidate_loop=0, pruning=True, time_budget_s=600, candidate_guard_wait_s=300, prefill_pins={}, exclude_l1_loop=False),
     'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0, watchdog=0, mma_reg_pipe=0, nonpaged_la=0, parallel_argmax=0, attention_noinline=0, attention_impl="mma16", l2_slim=0, page_loop_split=0, nonpaged_weight_layout='row', evict_first=0, evict_last=1, decode_executor="L2", decode_loop=1, prefill_executor="L1"),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
                  vllm_python='/root/venv_vllm/bin/python', policy_file=None),
@@ -131,8 +131,8 @@ def read_config(path: Path) -> dict:
         raise ValueError('[model].path is required')
     if config['workload']['prompt_len'] != 64:
         raise ValueError('the serving exporter currently supports prompt_len=64')
-    if config['solver']['measure_top'] != 3:
-        raise ValueError('the serving compiler currently measures exactly top-3')
+    if not 1 <= config['solver']['measure_top'] <= 8:
+        raise ValueError('solver.measure_top must be in [1,8]')
     if config['solver']['jobs'] < 1:
         raise ValueError('solver.jobs must be positive')
     if not config['workload']['batch'] or any(not 1 <= b <= 16 for b in config['workload']['batch']):
@@ -395,7 +395,7 @@ class Run:
                             '--capacity', str(workload['prompt_len'] + workload['max_new_tokens']),
                             '--solver', 'skeleton', '--solve', str(self.target), '--emit', 'serving',
                             '--search-passes', str(settings['passes']), '--top-m', str(settings['top_m']),
-                            '--search-jobs', str(settings['jobs']),
+                            '--search-jobs', str(settings['jobs']), '--measure-top', str(settings['measure_top']),
                             '--candidate-guard-wait-s', str(settings['candidate_guard_wait_s']),
                             '--candidate-mode', settings['mode'], '--candidate-loop', str(settings['candidate_loop']),
                             '--search-budget-ms', str(max(1, int(1000 * settings['time_budget_s']) - 200000)),

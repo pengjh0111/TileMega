@@ -306,7 +306,7 @@ int RunCompile(int argc, char** argv) {
     bool resource_probes=true;bool dump_evaluated=false;
     std::string solver_mode="skeleton",legacy_seed,variant_cache,flow_fixture;
     int skeleton_k=8,search_passes=3,search_jobs=1,search_top_m=8,
-        search_budget_ms=0;
+        search_budget_ms=0,measure_top=6;
     bool all_workers=false,flow_search_only=false,incremental_prepare=true,
          serving_pruning=true;
     tilemega::solver::SolverTiming solver_timing;
@@ -326,6 +326,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--incremental-prepare") incremental_prepare=std::stoi(value)!=0;
       else if (flag=="--serving-pruning") serving_pruning=std::stoi(value)!=0;
       else if (flag=="--search-passes") search_passes=std::stoi(value);
+      else if (flag=="--measure-top") measure_top=std::stoi(value);
       else if (flag=="--top-m") search_top_m=std::stoi(value);
       else if (flag=="--search-jobs") search_jobs=std::stoi(value);
       else if (flag=="--search-budget-ms") search_budget_ms=std::stoi(value);
@@ -431,6 +432,7 @@ int RunCompile(int argc, char** argv) {
     if(serving && (serving_batch<1 || serving_batch>64 ||
                    serving_past_lo<0 || serving_past_hi<serving_past_lo))
       throw std::runtime_error("invalid serving batch or past range");
+    if(measure_top<1 || measure_top>8)throw std::runtime_error("--measure-top must be in [1,8]");
     if(search_top_m<1 || search_top_m>8)
       throw std::runtime_error("--top-m must be in 1..8");
     if(search_jobs<1)
@@ -625,7 +627,7 @@ int RunCompile(int argc, char** argv) {
         skeleton.search_only=flow_search_only;
         skeleton.incremental_prepare=incremental_prepare;
         skeleton.serving_pruning=serving_pruning;
-        skeleton.top_m=search_top_m;
+        skeleton.top_m=search_top_m;skeleton.measure_top=measure_top;
         skeleton.pg_pages=use_pages;
         skeleton.handoff_auto=handoff_mode=="auto";
         skeleton.page_bytes=page_bytes;

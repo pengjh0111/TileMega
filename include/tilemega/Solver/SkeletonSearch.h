@@ -17,7 +17,7 @@ struct SkeletonSearchOptions {
   bool all_workers=false;
   VariantResourceCache::Probe variant_probe;
   std::string artifact_prefix,fixture;
-  int seed_residency=1,top_m=8;
+  int seed_residency=1,top_m=8,measure_top=6;
   // Bound only the outer Level 1 scan. The caller reserves the remainder of
   // its plan budget for top-M materialization, compilation and measurement.
   int search_budget_ms=0;
