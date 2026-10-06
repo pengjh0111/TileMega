@@ -414,7 +414,11 @@ struct NonpagedReductionContext {
 __device__ inline void NotifyTask(Params const&,EventCounter*,std::uint32_t,
     std::uint32_t,unsigned long long);
 __device__ inline void FinishNonpagedAttention(Params const& p,unsigned index,
-    int task,NonpagedReductionContext const& context) {
+    int task,NonpagedReductionContext const& context
+#if TILEMEGA_TRACE_TASK
+    ,ServingTaskProfile* profile=nullptr
+#endif
+    ) {
   auto const& stage=p.stages[index];
   if(stage.handoff_reduce_stage==kNoOperand)return;
   int chunks=CeilDiv(p.dims.capacity,stage.attention_kv_block);
@@ -424,13 +428,23 @@ __device__ inline void FinishNonpagedAttention(Params const& p,unsigned index,
   __shared__ unsigned last;
   bool reduced=executor::MonotonicLastArriver::Run(
       p.serving_nonpaged_tickets+offset,chunks,context.iteration,&last,[&]{
+#if TILEMEGA_TRACE_TASK
+        auto begin=TaskProfileNow(profile);
+#endif
         RunServingMergeTask(p,p.stages[stage.handoff_reduce_stage],output);
+#if TILEMEGA_TRACE_TASK
+        if(profile)profile->la_ns=TaskProfileNow(profile)-begin;
+#endif
       });
   if(reduced && context.l2)
     NotifyTask(p,context.events,stage.handoff_reduce_stage,output,context.iteration);
 }
 __device__ inline void FinishNonpagedGemm(Params const& p,unsigned index,
-    int task,TaskSmem& smem,NonpagedReductionContext const& context) {
+    int task,TaskSmem& smem,NonpagedReductionContext const& context
+#if TILEMEGA_TRACE_TASK
+    ,ServingTaskProfile* profile=nullptr
+#endif
+    ) {
   auto const& stage=p.stages[index];
   if(stage.handoff_reduce_stage==kNoOperand)return;
   auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
@@ -440,7 +454,13 @@ __device__ inline void FinishNonpagedGemm(Params const& p,unsigned index,
   __shared__ unsigned last;
   bool reduced=executor::MonotonicLastArriver::Run(
       p.serving_nonpaged_tickets+offset,inv.chunks,context.iteration,&last,[&]{
+#if TILEMEGA_TRACE_TASK
+        auto begin=TaskProfileNow(profile);
+#endif
         T_GemmCombine::DispatchServing(p,p.stages[stage.handoff_reduce_stage],smem,point.tile);
+#if TILEMEGA_TRACE_TASK
+        if(profile)profile->la_ns=TaskProfileNow(profile)-begin;
+#endif
       });
   if(reduced && context.l2)
     NotifyTask(p,context.events,stage.handoff_reduce_stage,point.tile,context.iteration);
@@ -478,7 +498,11 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 #endif
               );
 #if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
-          FinishNonpagedGemm(p,index,task,smem,reduction);
+          FinishNonpagedGemm(p,index,task,smem,reduction
+#if TILEMEGA_TRACE_TASK
+              ,profile.row
+#endif
+              );
 #endif
           __syncthreads();
         }
@@ -538,7 +562,11 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 #endif
           );
 #if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
-        FinishNonpagedAttention(p,index,task,reduction);
+        FinishNonpagedAttention(p,index,task,reduction
+#if TILEMEGA_TRACE_TASK
+              ,profile.row
+#endif
+              );
 #endif
       }
 #else
@@ -611,7 +639,11 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
 #endif
           );
 #if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
-      FinishNonpagedGemm(p,index,task,smem,reduction);
+      FinishNonpagedGemm(p,index,task,smem,reduction
+#if TILEMEGA_TRACE_TASK
+              ,profile.row
+#endif
+              );
 #endif
       break;
     case TaskKind::kRMSNorm:
@@ -646,7 +678,11 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
 #endif
           );
 #if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
-      FinishNonpagedAttention(p,index,task,reduction);
+      FinishNonpagedAttention(p,index,task,reduction
+#if TILEMEGA_TRACE_TASK
+              ,profile.row
+#endif
+              );
 #endif
 #else
       asm volatile("trap;");
