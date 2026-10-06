@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
+#include <algorithm>
+#include <cmath>
 using namespace tilemega;
 using Element=cutlass::bfloat16_t;
 using Arch=std::conditional_t<std::is_void_v<arch::CurrentArch>,arch::Sm80,arch::CurrentArch>;
@@ -11,7 +13,7 @@ __host__ __device__ float A(int r,int k){return float((r*7+k)%13-6)*.0625f;}
 __host__ __device__ float B(int n,int k){return float((n*3+k*5)%17-8)*.03125f;}
 template<int N,int K,bool Tiled>__global__ void Probe(codegen::ServingGemmOperands p){
   using Body=codegen::ServingGemvTaskBody<Arch,N,K,Tiled>;
-  __shared__ alignas(16) char scratch[Body::kSharedBytes];Body::Run(p,0,blockIdx.x,scratch);
+  alignas(16) __shared__ char scratch[Body::kSharedBytes];Body::Run(p,0,blockIdx.x,scratch);
 }
 void Check(cudaError_t e){if(e!=cudaSuccess){std::fprintf(stderr,"%s\n",cudaGetErrorString(e));std::exit(2);}}
 template<class T>T* Alloc(int n){T* p;Check(cudaMallocManaged(&p,n*sizeof(T)));return p;}
