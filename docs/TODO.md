@@ -1512,10 +1512,11 @@ R13 closed with declared limitations: two optional canary reruns and three depen
 | FX-23 | Layout contract implemented; old counterexample, final numerics and architecture compilation verified |
 | FX-24 | Per-task conservation implemented; fixed and joint search-only replays pass |
 | FX-25 | Artifact/execution identity implemented; diagnostic builds and identity checks pass |
-| TR-4 | Diagnostic results archived; sampled stage/task implementation awaits Phase A overhead checks |
-| Phase A | 36 steps queued; Apre compiler/check preparation started |
-| Independent development | RW-3 numerical checks pass; AT-1 legality subset implemented; AT-3a code added, validation queued |
-| AT-2, SK-1, GV-1, RA-1, EP-1, SL-6 | Required implementation outstanding |
+| TR-4 | Phase A trace overhead medians below 2%; sampled extrema and missing nonpaged first-ready remain explicit limits |
+| Phase A | 36/36 done, archived and accepted; four C-1/C-2 pass; Llama B1 baseline becomes corrected N1 |
+| Independent development | RW-3, AT-3a, EP/RA standalone numerical checks pass; latest L1 mapping/full harness checks remain |
+| AT-2 / SK-1 | Merge/combine LA and fill seed implemented; host and single-process tests pass, model/50-process pending |
+| GV-1 / SL-6 | Standalone family and integrated-past selection implemented; family/variant/budget integration outstanding |
 | Conditional Phase C / Phase D | Not started; preserve preregistered gates and fresh-process requirements |
 
 Resume at SERVING_R14/scheduler/progress.tsv and state.json. Do not treat the Phase-0 queue as complete R14 implementation or acceptance.
