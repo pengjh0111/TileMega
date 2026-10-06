@@ -1,0 +1,45 @@
+[
+  {
+    "name": "LA_model_build",
+    "gpu": false,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega"
+    },
+    "priority": 10,
+    "after": [
+      "LA_compile_fixed"
+    ],
+    "timeout_s": 10800,
+    "needs_free_mib": 12288,
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/check_la_models.py",
+      "build"
+    ]
+  },
+  {
+    "name": "LA_model_smoke",
+    "gpu": true,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega"
+    },
+    "priority": 11,
+    "after": [
+      "LA_model_build",
+      "LA_numerical_fixed"
+    ],
+    "timeout_s": 1500,
+    "needs_free_mib": 12288,
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/check_la_models.py",
+      "smoke"
+    ]
+  }
+]

@@ -1,0 +1,283 @@
+[
+  {
+    "cell": "llama_B1",
+    "batch": 1,
+    "label": "nonpaged_LA",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/N-R12b-noWD/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/N-R12b-noWD/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 0,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 0,
+      "paged_la_splitk": 0,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0,
+      "nonpaged_la": 1,
+      "pg": "l2",
+      "weight_layout": "row",
+      "serve_kv_block": 128
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/LA_models/llama_B1/plan"
+  },
+  {
+    "cell": "qwen3_B1",
+    "batch": 1,
+    "label": "nonpaged_LA",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B1/N-R12b-noWD/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B1/N-R12b-noWD/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 0,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 0,
+      "paged_la_splitk": 0,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0,
+      "nonpaged_la": 1,
+      "pg": "l2",
+      "weight_layout": "row",
+      "serve_kv_block": 128
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/LA_models/qwen3_B1/plan"
+  },
+  {
+    "cell": "llama_B16",
+    "batch": 16,
+    "label": "nonpaged_LA",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B16/N-R12b-noWD/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B16/N-R12b-noWD/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_c2c03ad6e9534130762cc88d423aac336077a0bd040db6d337a1e31e3c1ec8b9.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 0,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 0,
+      "evict_last": 1,
+      "deferred_norm": 1,
+      "paged_la": 0,
+      "paged_la_splitk": 0,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0,
+      "nonpaged_la": 1,
+      "pg": "l2",
+      "weight_layout": "row",
+      "serve_kv_block": 128
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/LA_models/llama_B16/plan",
+    "gemm_overrides": [
+      {
+        "index": 1,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 3,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 5,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 7,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 9,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 11,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 13,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 15,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 17,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 19,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 21,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 23,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 25,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 27,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 29,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 31,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 33,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 35,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 37,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 39,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 41,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 43,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 45,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 47,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 49,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 51,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 53,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 55,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 57,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 59,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 61,
+        "values": {
+          "split_k": 2
+        }
+      },
+      {
+        "index": 63,
+        "values": {
+          "split_k": 2
+        }
+      }
+    ]
+  }
+]
