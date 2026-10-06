@@ -1111,7 +1111,7 @@ int RunCompile(int argc, char** argv) {
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
       tilemega::codegen::ConfigureServingPrefetch(*module,target,prefetch_depth,prefetch_stride);
       if(nonpaged_la && serving_phase=="decode") {
-        auto reductions=tilemega::dialect::SelectServingHandoffs(*module,8);
+        auto reductions=tilemega::dialect::SelectServingHandoffs(*module,8|4);
         std::cerr<<"NONPAGED_LAST_ARRIVER selected="<<reductions.last_arriver<<'\n';
         handoff_mode="last_arriver";
       }

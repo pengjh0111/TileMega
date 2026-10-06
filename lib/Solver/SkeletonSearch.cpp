@@ -496,7 +496,7 @@ bool BetterCandidate(SkeletonCandidate const& candidate,
   return std::tie(candidate.shared_bytes,candidate.task_count,candidate.key)<
       std::tie(current.shared_bytes,current.task_count,current.key);
 }
-std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out,std::string& seed_key,std::vector<std::string>& split1_seed_keys) {
+std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out,std::string& seed_key,std::vector<std::string>& split1_seed_keys,std::vector<std::string>& fill_seed_keys) {
   auto const& options=search.options;
   if(options.passes<1 || options.passes>3)throw std::invalid_argument("coordinate descent supports P=1..3");
   auto const scan_start=std::chrono::steady_clock::now();
@@ -599,6 +599,27 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     for(int k:{1,2,4})for(int r=1;r<=limit;++r){auto i=evaluate(config,k,r);if(evaluated[i].score<evaluated[uniform].score)uniform=i;}
   }
   std::vector<std::size_t> starts{legacy};
+  auto fill_seed=[&](std::vector<GemmConfig> config,int residency) {
+    int grid=options.common.placement.target.res.num_sms*residency;
+    for(std::size_t c=0;c<config.size();++c) {
+      auto const& g=search.imported.plan.gemms[search.classes[c].gemms.front()];
+      int rows=options.common.placement.dims.batch;
+      int tiles=((rows+config[c].tile_m-1)/config[c].tile_m)*
+          ((int(g.n)+config[c].tile_n-1)/config[c].tile_n);
+      config[c].split_k=std::min(4,std::max(1,(grid+tiles-1)/tiles));
+    }
+    auto index=evaluate(config,1,residency);
+    fill_seed_keys.push_back(evaluated[index].key);
+    starts.push_back(index);
+    out<<"SERVING_FILL_SEED key="<<evaluated[index].key<<" error="<<evaluated[index].error<<'\n';
+  };
+  if(search.imported.plan.serving && !options.pg_pages &&
+     options.common.placement.dims.seq==1) {
+    auto split1=seed;for(auto& g:split1)g.split_k=1;
+    auto index=evaluate(split1,1,seed_residency);
+    split1_seed_keys.push_back(evaluated[index].key);starts.push_back(index);
+    fill_seed(split1,seed_residency);
+  }
   if(search.imported.plan.serving && options.pg_pages) {
     int saved_page=search.current_page_bytes;
     for(int bytes:options.page_choices.empty()?std::vector<int>{saved_page}:options.page_choices) {
@@ -625,6 +646,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       auto index=evaluate(projected,1,1);
       split1_seed_keys.push_back(evaluated[index].key);
       starts.push_back(index);
+      fill_seed(projected,1);
       out<<"PAGED_SPLIT1_SEED page_bytes="<<bytes<<" key="<<evaluated[index].key
          <<" error="<<evaluated[index].error<<'\n';
     }
@@ -832,7 +854,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     search.Evaluate(seed,options.kappa,options.seed_residency);
   }
   if(options.evaluation_cases.empty())
-    result.evaluated=CoordinateDescent(search,result.rounds,evidence,result.seed_key,result.split1_seed_keys);
+    result.evaluated=CoordinateDescent(search,result.rounds,evidence,result.seed_key,result.split1_seed_keys,result.fill_seed_keys);
   else for(std::size_t i=0;i<options.evaluation_cases.size();++i) {
     auto const& test=options.evaluation_cases[i];
     try {result.evaluated.push_back(search.Evaluate(test.config,test.kappa,test.residency));}
@@ -925,6 +947,12 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
         if(candidate.key==key && candidate.error.empty() &&
            (!split1 || BetterCandidate(candidate,*split1,true)))split1=&candidate;
     if(split1)required.push_back({split1->key,"seed_split1"});
+    SkeletonCandidate const* fill=nullptr;
+    for(auto const& key:result.fill_seed_keys)
+      for(auto const& candidate:result.evaluated)
+        if(candidate.key==key && candidate.error.empty() &&
+           (!fill || BetterCandidate(candidate,*fill,true)))fill=&candidate;
+    if(fill)required.push_back({fill->key,"seed_fill"});
     std::set<std::string> protected_keys;
     for(auto const& [key,origin]:required)protected_keys.insert(key);
     for(auto const& [key,origin]:required) {

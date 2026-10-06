@@ -30,7 +30,8 @@ int TestHandoffIr(int argc,char** argv) try {
     options.gemms.assign(model.gemms.size(),{16,128,64,2,split?4:1});
     options.gemms.back().split_k=1;
     auto module=frontend::TorchExportImporter{}.ImportPlan(argv[2],model,context,nullptr,options);
-    bool nonpaged=std::string(argv[3])=="nonpaged_attention";
+    bool nonpaged=std::string(argv[3]).find("nonpaged_")==0;
+    bool merge=std::string(argv[3])=="nonpaged_attention";
     if(!nonpaged)codegen::ConfigureServingPages(*module,TargetSpec::FromJson(argv[4]),16384);
     bool escape=std::string(argv[3])=="escape";
     if(escape) {
@@ -52,11 +53,11 @@ int TestHandoffIr(int argc,char** argv) try {
       extra->setAttr("dst",mlir::FlatSymbolRefAttr::get(&context,"unsafe_partial_reader"));
       module->getBody()->push_back(extra);
     }
-    unsigned mask=nonpaged?8:(std::string(argv[3])=="off"?0:4);
+    unsigned mask=merge?8:(std::string(argv[3])=="off"?0:4);
     try {
       auto selected=dialect::SelectServingHandoffs(*module,mask);
       assert(!escape);
-      if(nonpaged) {
+      if(merge) {
         int merges=0;
         auto desc=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
         for(auto stage:desc.getAs<mlir::ArrayAttr>("stages")) {

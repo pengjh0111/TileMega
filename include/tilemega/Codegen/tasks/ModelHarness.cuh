@@ -429,6 +429,22 @@ __device__ inline void FinishNonpagedAttention(Params const& p,unsigned index,
   if(reduced && context.l2)
     NotifyTask(p,context.events,stage.handoff_reduce_stage,output,context.iteration);
 }
+__device__ inline void FinishNonpagedGemm(Params const& p,unsigned index,
+    int task,TaskSmem& smem,NonpagedReductionContext const& context) {
+  auto const& stage=p.stages[index];
+  if(stage.handoff_reduce_stage==kNoOperand)return;
+  auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+  auto point=DecodeSplitTask(task,inv.tiles_m*inv.tiles_n,inv.chunks);
+  auto offset=((std::size_t(context.l2)*p.stage_count+index)*
+      p.serving_handoff_ticket_stride)+point.tile;
+  __shared__ unsigned last;
+  bool reduced=executor::MonotonicLastArriver::Run(
+      p.serving_nonpaged_tickets+offset,inv.chunks,context.iteration,&last,[&]{
+        T_GemmCombine::DispatchServing(p,p.stages[stage.handoff_reduce_stage],smem,point.tile);
+      });
+  if(reduced && context.l2)
+    NotifyTask(p,context.events,stage.handoff_reduce_stage,point.tile,context.iteration);
+}
 #define TILEMEGA_REDUCTION_ARG , NonpagedReductionContext const& reduction={}
 #define TILEMEGA_REDUCTION_L1 , NonpagedReductionContext{events,iteration,false}
 #define TILEMEGA_REDUCTION_L2 , NonpagedReductionContext{events,iteration,true}
@@ -446,16 +462,24 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
   StageDesc const& stage = p.stages[index];
   switch (stage.kind) {
     case TaskKind::kGemm:
-#if TILEMEGA_TRACE_TASK
+#if TILEMEGA_TRACE_TASK || (TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED)
       {
         auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
         for(int task=PlacedBlock();task<inv.tiles_m*inv.tiles_n*inv.chunks;task+=gridDim.x) {
+#if TILEMEGA_TRACE_TASK
           executor::ProfileScope profile{executor::BeginProfile(p,index,task)};
+#endif
           T_Gemm::RunLogicalTask(p,stage,smem,task
 #if TILEMEGA_TRACE_PHASE
               ,nullptr
 #endif
-              ,profile.row);
+#if TILEMEGA_TRACE_TASK
+              ,profile.row
+#endif
+              );
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+          FinishNonpagedGemm(p,index,task,smem,reduction);
+#endif
           __syncthreads();
         }
       }
@@ -584,6 +608,9 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
           ,profile.row
 #endif
           );
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+      FinishNonpagedGemm(p,index,task,smem,reduction);
+#endif
       break;
     case TaskKind::kRMSNorm:
 #if TILEMEGA_SERVING_RUNTIME

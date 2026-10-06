@@ -63,6 +63,7 @@ struct SkeletonSearchResult {
   int rounds=0;
   std::string seed_key;
   std::vector<std::string> split1_seed_keys;
+  std::vector<std::string> fill_seed_keys;
 };
 struct SkeletonSolvedPoint {
   mlir::OwningOpRef<mlir::ModuleOp> module;
