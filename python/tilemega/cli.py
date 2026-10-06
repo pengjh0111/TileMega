@@ -437,7 +437,7 @@ class Run:
                             '--artifact-cache', str(self.cache / 'artifacts'), '--dump-cg', str(plan / 'selected.mlir'),
                             '--measure-cmd', shlex.join([sys.executable, '-m', 'tilemega.serving.measure_candidate', '--model', str(self.model)])]
                             for name, value in compiler_features(choice_features).items():
-                                if phase == 'prefill' and name in ('attention_noinline','parallel_argmax','nonpaged_la','attention_impl','mma_reg_pipe','kphase_mask','lookahead_bytes','v3_poll_ns','l2_slim','page_loop_split','nonpaged_weight_layout','evict_first','evict_last','serve_kv_block','serve_query_rows'):
+                                if phase == 'prefill' and (name.startswith('gemm_impl_') or name in ('attention_noinline','parallel_argmax','nonpaged_la','attention_impl','mma_reg_pipe','kphase_mask','lookahead_bytes','v3_poll_ns','l2_slim','page_loop_split','nonpaged_weight_layout','evict_first','evict_last','serve_kv_block','serve_query_rows')):
                                     continue
                                 if name == 'handoff' and phase == 'prefill':
                                     value = 'off'
