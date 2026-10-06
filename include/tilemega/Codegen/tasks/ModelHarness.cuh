@@ -427,6 +427,10 @@ __device__ inline int ServingL1Task(Params const& p,StageDesc const& s,int ordin
         CeilDiv(p.dims.capacity,s.attention_kv_block),s.attention_kv_block,p.dims.seq);
   return SpreadServingHead(p,s)?ServingSpreadTailTask(ordinal,int(gridDim.x)):ordinal;
 }
+#else
+__device__ inline int ServingL1OwnedTasks(Params const&,StageDesc const&,int count) {
+  return count/int(gridDim.x)+(int(blockIdx.x)<count%int(gridDim.x));
+}
 #endif
 
 #if TILEMEGA_NONPAGED_LA && TILEMEGA_SERVING_RUNTIME && !TILEMEGA_PAGED
