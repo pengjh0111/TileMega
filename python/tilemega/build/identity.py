@@ -153,7 +153,8 @@ def generate(so, root, source_snapshot):
                 'buffers':int(defines.get('TILEMEGA_ATTENTION_BUFFERS','2')),
                 'task_body':('PagedAttentionTaskBody' if paged else 'IndependentAttentionTaskBody') if decode else 'FusedAttentionTaskBody',
                 'page_policy':('Packed' if paged else 'WarpPrivate') if decode else None,
-                'load':manifest.get('paged_attention_load','loader')}}}
+                'load':manifest.get('paged_attention_load','loader'),
+                'frontier':bool(int(defines.get('TILEMEGA_ATTENTION_FRONTIER','0')))}}}
     result['artifact_id']=digest(result)
     Path(str(so)+'.identity.json').write_text(json.dumps(result,indent=2)+'\n')
     return result

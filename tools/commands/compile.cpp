@@ -296,7 +296,7 @@ int RunCompile(int argc, char** argv) {
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
     int attention_noinline=0,attention_buffers=2;
     int parallel_argmax=0,ep_direct=0;
-    int nonpaged_la=0;
+    int nonpaged_la=0,attention_frontier=0;
     std::array<int,5> serving_impl{{-1,-1,-1,-1,-1}};
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
@@ -363,6 +363,7 @@ int RunCompile(int argc, char** argv) {
         serving_impl[std::distance(names.begin(),it)]=value=="gemv"?1:0;
       }
       else if (flag=="--nonpaged-la") nonpaged_la=std::stoi(value);
+      else if (flag=="--attention-frontier") attention_frontier=std::stoi(value);
       else if (flag=="--paged-la") paged_la=std::stoi(value);
       else if (flag=="--paged-la-splitk") paged_la_splitk=std::stoi(value);
       else if (flag=="--candidate-guard-wait-s") candidate_guard_wait_s=std::stoi(value);
@@ -502,6 +503,7 @@ int RunCompile(int argc, char** argv) {
       if(attention_buffers!=2)runtime_flags+=" -DTILEMEGA_ATTENTION_BUFFERS="+std::to_string(attention_buffers);
       runtime_flags+=" -DTILEMEGA_EP_PARALLEL_ARGMAX="+std::to_string(parallel_argmax);
       if(ep_direct)runtime_flags+=" -DTILEMEGA_EP_DIRECT=1";
+      if(attention_frontier)runtime_flags+=" -DTILEMEGA_ATTENTION_FRONTIER=1";
       runtime_flags+=" -DTILEMEGA_NONPAGED_LA="+std::to_string(nonpaged_la);
       runtime_flags+=" -DTILEMEGA_ATTENTION_PVSWAP="+std::to_string(attention_impl=="pvswap");
       runtime_flags+=" -DTILEMEGA_MMA_REG_PIPE="+std::to_string(mma_reg_pipe);
@@ -517,6 +519,7 @@ int RunCompile(int argc, char** argv) {
     if((candidate_mode!="L1" && candidate_mode!="L2") ||
        (candidate_loop!=0 && candidate_loop!=1))
       throw std::invalid_argument("candidate mode/loop is invalid");
+    if(attention_frontier!=0 && attention_frontier!=1)throw std::runtime_error("--attention-frontier must be 0 or 1");
     if(ep_direct!=0 && ep_direct!=1)throw std::runtime_error("--ep-direct must be 0 or 1");
     if(attention_buffers!=1 && attention_buffers!=2)throw std::runtime_error("--attention-buffers must be 1 or 2");
     if((attention_noinline!=0 && attention_noinline!=1) || (parallel_argmax!=0 && parallel_argmax!=1) || (nonpaged_la!=0 && nonpaged_la!=1) || (deferred_norm!=0 && deferred_norm!=1) || (paged_la!=0 && paged_la!=1) ||
@@ -913,6 +916,7 @@ int RunCompile(int argc, char** argv) {
               " --parallel-argmax "+std::to_string(parallel_argmax)+
               " --ep-direct "+std::to_string(ep_direct)+
               " --nonpaged-la "+std::to_string(nonpaged_la)+
+              " --attention-frontier "+std::to_string(attention_frontier)+
               " --paged-la "+std::to_string(paged_la)+
               " --paged-la-splitk "+std::to_string(paged_la_splitk)+
               " --l2-prefetch-depth "+std::to_string(prefetch_depth)+" --l2-prefetch-stride "+std::to_string(prefetch_stride)+
@@ -1413,6 +1417,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"attention_noinline\": "<<(attention_noinline?"true":"false")
               <<",\n  \"ep_direct\": "<<(ep_direct?"true":"false")
               <<",\n  \"parallel_argmax\": "<<(parallel_argmax?"true":"false")
+              <<",\n  \"attention_frontier\": "<<(attention_frontier?"true":"false")
               <<",\n  \"nonpaged_la\": "<<(use_l2 && nonpaged_la && serving_phase=="decode"?"true":"false")
               <<",\n  \"paged_la\": "<<(use_pages && paged_la?"true":"false")
               <<",\n  \"paged_la_splitk\": "<<(use_pages && paged_la && paged_la_splitk?"true":"false")

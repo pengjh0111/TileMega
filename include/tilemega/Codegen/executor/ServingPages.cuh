@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Included inside tilemega::codegen after event and task descriptor helpers.
 namespace paged {
+#ifndef TILEMEGA_ATTENTION_FRONTIER
+#define TILEMEGA_ATTENTION_FRONTIER 0
+#endif
 using executor::ComputeThread;
 using executor::ComputeSync;
 using executor::kComputeThreads;
@@ -9,6 +12,34 @@ using PageArch=std::conditional_t<std::is_void_v<arch::CurrentArch>,GemmVariantA
 using Ring=executor::PageRing<TILEMEGA_PAGE_BYTES,TILEMEGA_PAGE_COUNT,PageArch,TILEMEGA_ARCH_PATH_SM80!=0>;
 using Attention=PagedAttentionTaskBody<PageArch,TILEMEGA_SERVING_HEAD_DIM,
     TILEMEGA_SERVING_QPERKV,TILEMEGA_SERVING_QK_NORM!=0,TILEMEGA_PAGE_BYTES,TILEMEGA_PAGE_COUNT,TILEMEGA_ARCH_PATH_SM80!=0>;
+#if TILEMEGA_ATTENTION_FRONTIER
+__device__ inline ServingAttentionOperands AttentionOperands(Params const&,StageDesc const&);
+__device__ inline bool AttentionFrontier(Params const& p,unsigned stage) {
+  if(!p.serving_attention_frontier || p.dims.batch!=1 ||
+      p.stages[stage].kind!=TaskKind::kFusedAttention)return false;
+  auto const& producer=p.stages[stage];
+  if(CeilDiv(p.dims.capacity,producer.attention_kv_block)>1 &&
+      producer.handoff_reduce_stage==kNoOperand)return false;
+  unsigned consumer=stage+1;
+  while(consumer<p.stage_count && p.stages[consumer].handoff_elided)++consumer;
+  if(consumer==p.stage_count || p.stages[consumer].kind!=TaskKind::kGemm)return false;
+  auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[p.stages[consumer].gemm];
+  return inv.mainloop.ptr_A==AttentionOperands(p,producer).context;
+}
+__device__ inline void WaitAttentionFrontier(Params const& p,unsigned consumer,
+    unsigned long long iteration,Watch const* watch) {
+  if(!consumer || p.stages[consumer].kind!=TaskKind::kGemm)return;
+  unsigned source=consumer-1;
+  while(source && p.stages[source].handoff_elided)--source;
+  if(!AttentionFrontier(p,source))return;
+  if(ComputeThread()==0)for(unsigned group=0;group<p.stages[source].extent;++group) {
+    Watch here=watch?*watch:Watch{};here.site=13;here.producer_stage=source;here.group=group;
+    here.row=source*p.serving_attention_frontier_stride+group;
+    WaitAtLeast(&p.serving_attention_frontier[here.row].arrivals,iteration+1,here);
+  }
+  ComputeSync();
+}
+#endif
 static_assert(TILEMEGA_SERVING_SEQ==1,"page executor currently covers decode");
 static_assert(TILEMEGA_PAGE_WORKSPACE_OFFSET>=sizeof(Ring::Slot)*TILEMEGA_PAGE_COUNT);
 static_assert(TILEMEGA_PAGE_POOL_OFFSET%1024==0);
@@ -426,6 +457,7 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& i
 #endif
       Attention::Run(operands,point.batch,point.group,point.cache_block,ring,sequence,
                      *reinterpret_cast<Attention::SharedStorage*>(work));
+      bool context_ready=CeilDiv(p.dims.capacity,s.attention_kv_block)==1;
 #if TILEMEGA_TRACE_TASK
       auto la_begin=TaskProfileNow(profile.row);
 #endif
@@ -439,12 +471,23 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& i
                 operands.partial,operands.lse,operands.context,
                 point.batch,point.group,int(s.extent),p.dims.capacity,
                 s.attention_kv_block,p.dims.past);
+        context_ready=last;
         if constexpr(L2)if(last) {
           unsigned rt=point.group*p.dims.batch+point.batch;
           Publish(p,events,s.handoff_reduce_stage,rt,iteration);
           TraceReducer(p,s.handoff_reduce_stage,rt,stage_index,task);
         }
       }
+#if TILEMEGA_ATTENTION_FRONTIER
+      if constexpr(!L2)if(context_ready && AttentionFrontier(p,stage_index)) {
+        // All context stores precede the release. This bank belongs only to
+        // L1: L2's independent iteration counter never contributes arrivals.
+        ComputeSync();
+        if(ComputeThread()==0)RedRelease(&p.serving_attention_frontier[
+            stage_index*p.serving_attention_frontier_stride+point.group].arrivals,1);
+        ComputeSync();
+      }
+#endif
 #if TILEMEGA_TRACE_TASK
       if(profile.row)profile.row->la_ns=TaskProfileNow(profile.row)-la_begin;
 #endif
@@ -610,6 +653,9 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
       int count=ActiveBlocks(p,p.stages[stage]);
       if constexpr(!Loader)executor::StageBegin(p,stage,iteration,
           ServingL1OwnedTasks(p,p.stages[stage],count));
+#if TILEMEGA_ATTENTION_FRONTIER
+      if constexpr(!Loader)WaitAttentionFrontier(p,stage,iteration,&watch);
+#endif
       for(int ordinal=blockIdx.x;ordinal<ServingL1TaskLimit(p,p.stages[stage],count);ordinal+=gridDim.x)
         {
           auto const& desc=p.stages[stage];
@@ -621,6 +667,11 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
               if constexpr(!Loader)ComputeSync();
         }
       if constexpr(!Loader) {
+#if TILEMEGA_ATTENTION_FRONTIER
+        // o_proj reads every group, so it waits on the exact output frontier.
+        // Idle CTAs can move to its weight stream while producers finish.
+        if(!AttentionFrontier(p,stage))
+#endif
         StageBarrier(events,stage,iteration,&watch,&p);
         executor::StageRelease(p,stage,iteration);
       }

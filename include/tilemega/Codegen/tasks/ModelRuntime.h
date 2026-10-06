@@ -22,6 +22,9 @@
 #ifndef TILEMEGA_NONPAGED_LA
 #define TILEMEGA_NONPAGED_LA 0
 #endif
+#ifndef TILEMEGA_ATTENTION_FRONTIER
+#define TILEMEGA_ATTENTION_FRONTIER 0
+#endif
 
 namespace tilemega::codegen {
 
@@ -778,6 +781,10 @@ struct Params {
 #endif
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_TASK
   unsigned serving_trace_launches=0;
+#endif
+#if TILEMEGA_ATTENTION_FRONTIER
+  EventCounter* serving_attention_frontier=nullptr;
+  unsigned serving_attention_frontier_stride=0;
 #endif
 };
 

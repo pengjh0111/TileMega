@@ -198,6 +198,9 @@ inline void Destroy(Plan* plan) {
   if (plan->watchdog) cudaFreeHost(plan->watchdog);
   auto& model = plan->model;
   if(model.params.serving_handoff_tickets)cudaFree(model.params.serving_handoff_tickets);
+#if TILEMEGA_ATTENTION_FRONTIER
+  if(model.params.serving_attention_frontier)cudaFree(model.params.serving_attention_frontier);
+#endif
 #if TILEMEGA_NONPAGED_LA
   if(model.params.serving_nonpaged_tickets)cudaFree(model.params.serving_nonpaged_tickets);
 #endif
@@ -316,6 +319,19 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     plan->model = harness::Create(
         kModel, kModel.runtime_variants[0], 0, dims, "", grid,
         std::min(l1, l2), target, smem, external);
+#if TILEMEGA_ATTENTION_FRONTIER
+    if(TILEMEGA_PAGED && TILEMEGA_SERVING_SEQ==1 && batch==1) {
+      unsigned stride=0;
+      for(auto const& stage:plan->model.stages)
+        if(stage.kind==TaskKind::kFusedAttention)stride=std::max(stride,stage.extent);
+      auto& p=plan->model.params;p.serving_attention_frontier_stride=stride;
+      std::size_t bytes=plan->model.stages.size()*stride*sizeof(EventCounter);
+      if(bytes) {
+        TILEMEGA_CUDA_CHECK(cudaMalloc(&p.serving_attention_frontier,bytes));
+        TILEMEGA_CUDA_CHECK(cudaMemset(p.serving_attention_frontier,0,bytes));
+      }
+    }
+#endif
     {
       auto const env=std::getenv("TILEMEGA_WATCHDOG_MS");
       unsigned long long ms=env?std::strtoull(env,nullptr,10):10000ull;
