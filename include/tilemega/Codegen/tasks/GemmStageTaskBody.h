@@ -190,7 +190,7 @@ struct GemmVariantStorage {
 template <class Mainloop, int M, int N, int K, int S>
 struct GemmVariantStorage<true, Mainloop, M, N, K, S> {
   struct alignas(16) type {
-    unsigned char bytes[solver::ServingBF16SmemBytes(M, N, K, S)];
+    unsigned char bytes[backend::ServingGemmConfig<GemmVariantArch,M,N,K,S>::kSharedBytes];
   };
 };
 
