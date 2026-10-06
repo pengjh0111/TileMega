@@ -292,6 +292,8 @@ int RunCompile(int argc, char** argv) {
     int mma_reg_pipe=0;
     std::string attention_impl="mma16";
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
+    int attention_noinline=0;
+    int parallel_argmax=0;
     int nonpaged_la=0;
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
@@ -304,7 +306,7 @@ int RunCompile(int argc, char** argv) {
     bool resource_probes=true;bool dump_evaluated=false;
     std::string solver_mode="skeleton",legacy_seed,variant_cache,flow_fixture;
     int skeleton_k=8,search_passes=3,search_jobs=1,search_top_m=8,
-        search_budget_ms=0;
+        search_budget_ms=0,measure_top=6;
     bool all_workers=false,flow_search_only=false,incremental_prepare=true,
          serving_pruning=true;
     tilemega::solver::SolverTiming solver_timing;
@@ -324,6 +326,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--incremental-prepare") incremental_prepare=std::stoi(value)!=0;
       else if (flag=="--serving-pruning") serving_pruning=std::stoi(value)!=0;
       else if (flag=="--search-passes") search_passes=std::stoi(value);
+      else if (flag=="--measure-top") measure_top=std::stoi(value);
       else if (flag=="--top-m") search_top_m=std::stoi(value);
       else if (flag=="--search-jobs") search_jobs=std::stoi(value);
       else if (flag=="--search-budget-ms") search_budget_ms=std::stoi(value);
@@ -344,6 +347,8 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--lookahead-bytes") lookahead_bytes=std::stoi(value);
       else if (flag=="--kphase-mask") kphase_mask=std::stoi(value);
       else if (flag=="--deferred-norm") deferred_norm=std::stoi(value);
+      else if (flag=="--attention-noinline") attention_noinline=std::stoi(value);
+      else if (flag=="--parallel-argmax") parallel_argmax=std::stoi(value);
       else if (flag=="--nonpaged-la") nonpaged_la=std::stoi(value);
       else if (flag=="--paged-la") paged_la=std::stoi(value);
       else if (flag=="--paged-la-splitk") paged_la_splitk=std::stoi(value);
@@ -427,6 +432,7 @@ int RunCompile(int argc, char** argv) {
     if(serving && (serving_batch<1 || serving_batch>64 ||
                    serving_past_lo<0 || serving_past_hi<serving_past_lo))
       throw std::runtime_error("invalid serving batch or past range");
+    if(measure_top<1 || measure_top>8)throw std::runtime_error("--measure-top must be in [1,8]");
     if(search_top_m<1 || search_top_m>8)
       throw std::runtime_error("--top-m must be in 1..8");
     if(search_jobs<1)
@@ -479,6 +485,8 @@ int RunCompile(int argc, char** argv) {
       runtime_flags+=" -DTILEMEGA_PAGE_LOOP_SPLIT="+std::to_string(page_loop_split);
       runtime_flags+=" -DTILEMEGA_L2_SLIM="+std::to_string(l2_slim);
       runtime_flags+=" -DTILEMEGA_WATCHDOG="+std::to_string(watchdog);
+      runtime_flags+=" -DTILEMEGA_ATTENTION_NOINLINE="+std::to_string(attention_noinline);
+      runtime_flags+=" -DTILEMEGA_EP_PARALLEL_ARGMAX="+std::to_string(parallel_argmax);
       runtime_flags+=" -DTILEMEGA_NONPAGED_LA="+std::to_string(nonpaged_la);
       runtime_flags+=" -DTILEMEGA_ATTENTION_PVSWAP="+std::to_string(attention_impl=="pvswap");
       runtime_flags+=" -DTILEMEGA_MMA_REG_PIPE="+std::to_string(mma_reg_pipe);
@@ -494,7 +502,7 @@ int RunCompile(int argc, char** argv) {
     if((candidate_mode!="L1" && candidate_mode!="L2") ||
        (candidate_loop!=0 && candidate_loop!=1))
       throw std::invalid_argument("candidate mode/loop is invalid");
-    if((nonpaged_la!=0 && nonpaged_la!=1) || (deferred_norm!=0 && deferred_norm!=1) || (paged_la!=0 && paged_la!=1) ||
+    if((attention_noinline!=0 && attention_noinline!=1) || (parallel_argmax!=0 && parallel_argmax!=1) || (nonpaged_la!=0 && nonpaged_la!=1) || (deferred_norm!=0 && deferred_norm!=1) || (paged_la!=0 && paged_la!=1) ||
        (paged_la_splitk!=0 && paged_la_splitk!=1) || candidate_guard_wait_s<0)
       throw std::runtime_error("invalid serving ablation option");
     std::string source,selected_serving_mode,selected_serving_binary;
@@ -619,7 +627,7 @@ int RunCompile(int argc, char** argv) {
         skeleton.search_only=flow_search_only;
         skeleton.incremental_prepare=incremental_prepare;
         skeleton.serving_pruning=serving_pruning;
-        skeleton.top_m=search_top_m;
+        skeleton.top_m=search_top_m;skeleton.measure_top=measure_top;
         skeleton.pg_pages=use_pages;
         skeleton.handoff_auto=handoff_mode=="auto";
         skeleton.page_bytes=page_bytes;
@@ -879,6 +887,8 @@ int RunCompile(int argc, char** argv) {
               " --page-loop-split "+std::to_string(page_loop_split)+
               " --evict-first "+std::to_string(evict_first)+
               " --evict-last "+std::to_string(evict_last)+
+              " --attention-noinline "+std::to_string(attention_noinline)+
+              " --parallel-argmax "+std::to_string(parallel_argmax)+
               " --nonpaged-la "+std::to_string(nonpaged_la)+
               " --paged-la "+std::to_string(paged_la)+
               " --paged-la-splitk "+std::to_string(paged_la_splitk)+
@@ -1122,6 +1132,7 @@ int RunCompile(int argc, char** argv) {
       if(lookahead_bytes>=0)
         (*module)->setAttr("tmexec.lookahead_bytes",
             mlir::IntegerAttr::get(mlir::IntegerType::get(&context,64),lookahead_bytes));
+      (*module)->setAttr("tmexec.parallel_argmax",mlir::BoolAttr::get(&context,parallel_argmax));
       tilemega::codegen::ConfigureServingPages(*module,target,page_bytes);
       if(weight_layout=="tiled")tilemega::codegen::ResolveServingWeightPacking(*module);
       else if(weight_layout!="row")throw std::invalid_argument("weight layout must be row or tiled");
@@ -1357,6 +1368,8 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"evict_first\": "<<evict_first
               <<",\n  \"evict_last\": "<<evict_last
               <<",\n  \"deferred_norm\": "<<(manifest_deferred_norm?"true":"false")
+              <<",\n  \"attention_noinline\": "<<(attention_noinline?"true":"false")
+              <<",\n  \"parallel_argmax\": "<<(parallel_argmax?"true":"false")
               <<",\n  \"nonpaged_la\": "<<(use_l2 && nonpaged_la && serving_phase=="decode"?"true":"false")
               <<",\n  \"paged_la\": "<<(use_pages && paged_la?"true":"false")
               <<",\n  \"paged_la_splitk\": "<<(use_pages && paged_la && paged_la_splitk?"true":"false")

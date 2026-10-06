@@ -106,7 +106,8 @@ void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int pa
           int(mlir::cast<mlir::IntegerAttr>(stage.get("width")).getInt()),
           int(mlir::cast<mlir::IntegerAttr>(stage.get("group")).getInt())});
   }
-  auto [activation,scratch]=solver::PageLayout::ServingWorkspace(gemm_shapes,attention_shapes);
+  auto parallel=module->getAttrOfType<mlir::BoolAttr>("tmexec.parallel_argmax");
+  auto [activation,scratch]=solver::PageLayout::ServingWorkspace(gemm_shapes,attention_shapes,parallel && parallel.getValue());
   auto layout=solver::PageLayout::Build(target,page_bytes,activation,scratch);
   for(auto a:mlir::cast<mlir::ArrayAttr>(model.get("stages"))) {
     auto stage=mlir::cast<mlir::DictionaryAttr>(a);

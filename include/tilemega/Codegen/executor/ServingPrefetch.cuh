@@ -56,8 +56,11 @@ __device__ inline void NextStage(Params const& p,unsigned stage) {
 #endif
   if(stage>=p.stage_count)return;
   unsigned budget=TILEMEGA_L2_PREFETCH_BYTES;
-  for(int task=PlacedBlock();task<ActiveBlocks(p,p.stages[stage]) && budget;task+=gridDim.x)
-    Task(p,stage,task,budget);
+  int count=ActiveBlocks(p,p.stages[stage]);
+  for(int ordinal=PlacedBlock();ordinal<ServingL1TaskLimit(p,p.stages[stage],count) && budget;ordinal+=gridDim.x) {
+    int task=ServingL1Task(p,p.stages[stage],ordinal);
+    if(task<count)Task(p,stage,task,budget);
+  }
 }
 // Same monotonically counted grid event; only its wait is delayed.
 __device__ inline void Arrive(EventCounter* events,unsigned stage,unsigned long long iteration,

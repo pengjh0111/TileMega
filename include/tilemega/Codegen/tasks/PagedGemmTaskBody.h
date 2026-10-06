@@ -28,7 +28,7 @@ struct PagedGemmTaskBody {
   static constexpr int kGroupStages=PageBytes>kBBytes?PageBytes/kBBytes:1;
   static constexpr int kActivationSlots=4;
   static constexpr int kActivationBytes=kActivationSlots*TileM*TileK*sizeof(Element);
-  static constexpr int kScratchBytes=4*TileM*TileN+4*TileM;
+  static constexpr int kScratchBytes=backend::ServingEpilogueScratchBytes(TileM,TileN,TILEMEGA_EP_PARALLEL_ARGMAX);
   static_assert(solver::PageLayout::StageFits(PageBytes,TileN,TileK));
   static_assert(Pages>=kGroupPages,"page ring must hold one B stage");
   using LayoutA=decltype(cute::tile_to_shape(typename Config::SmemLayoutAtom{},

@@ -5,6 +5,7 @@
 
 #include <cute/tensor.hpp>
 #include <tilemega/Backend/ServingVectorIO.h>
+#include <tilemega/Backend/ServingEpilogueScratch.h>
 #include <cutlass/bfloat16.h>
 #include <cuda_runtime.h>
 
@@ -56,7 +57,8 @@ struct ServingEpilogue {
   // XOR 8-column groups by row: preserve aligned vectors while distributing
   // the MMA accumulator's row groups across shared-memory banks.
   __host__ __device__ static constexpr int SharedIndex(int row, int col) {
-    return row * TileN + (col ^ ((row & 3) * 8));
+    if constexpr(TileN<32)return row*TileN+col;
+    else return row * TileN + (col ^ ((row & 3) * 8));
   }
 
   template <bool Swizzled>
@@ -135,6 +137,38 @@ struct ServingEpilogue {
     }
 
     if constexpr (Op == ServingEpilogueOp::kArgmaxPartial) {
+#if TILEMEGA_EP_PARALLEL_ARGMAX
+      float* scratch_values=tile+TileM*TileN;
+      int* scratch_indices=reinterpret_cast<int*>(scratch_values+TileM*4);
+      int lane=ComputeThread()&31,warp=ComputeThread()/32;
+      for(int row=0;row<TileM;++row) {
+        float best=-INFINITY;int index=INT32_MAX;
+        if(tile_m*TileM+row<M)
+          for(int col=ComputeThread();col<TileN;col+=kComputeThreads) {
+            int global=tile_n*TileN+col;if(global>=N)continue;
+            float value=float(cutlass::bfloat16_t(tile[Index<Swizzled>(row,col)]));
+            if(value>best || (value==best && global<index)){best=value;index=global;}
+          }
+        for(int offset=16;offset;offset>>=1) {
+          float other=__shfl_down_sync(0xffffffff,best,offset);
+          int oi=__shfl_down_sync(0xffffffff,index,offset);
+          if(other>best || (other==best && oi<index)){best=other;index=oi;}
+        }
+        if(lane==0){scratch_values[row*4+warp]=best;scratch_indices[row*4+warp]=index;}
+      }
+      ComputeSync();
+      for(int row=ComputeThread();row<TileM;row+=kComputeThreads) {
+        int global_row=tile_m*TileM+row;if(global_row>=M)continue;
+        float best=scratch_values[row*4];int index=scratch_indices[row*4];
+        for(int w=1;w<4;++w) {
+          float other=scratch_values[row*4+w];int oi=scratch_indices[row*4+w];
+          if(other>best || (other==best && oi<index)){best=other;index=oi;}
+        }
+        argmax_value[global_row*output_stride+tile_n]=best;
+        argmax_index[global_row*output_stride+tile_n]=index;
+      }
+      ComputeSync();
+#else
       // Descending rows leave the last row free as four-warp reduction scratch.
       // This avoids adding storage beyond ServingBF16SmemBytes.
       float* scratch_values = tile + (TileM - 1) * TileN;
@@ -183,6 +217,7 @@ struct ServingEpilogue {
         }
         ComputeSync();
       }
+#endif
     } else if constexpr (Op == ServingEpilogueOp::kPartial) {
       if (partial_stride < N) { asm volatile("trap;"); return; }
       for (int index = ComputeThread() * 4; index < TileM * TileN; index += kComputeThreads * 4) {
@@ -268,8 +303,11 @@ struct ServingEpilogue {
         }
       }
       if constexpr(Op==ServingEpilogueOp::kResidual) {
-        static_assert(kOutputColumns%32==0);
-        if(ss_out) {
+        if constexpr(kOutputColumns%32!=0) {
+          // DN's producer owns a complete 32-column sum-of-squares block.
+          // Small GEMV tiles may use residual only when no DN writer is attached.
+          if(ss_out)asm volatile("trap;");
+        }else if(ss_out) {
           // All lanes participate, including predicated rows/vectors. This
           // matches the fixed xor-1/xor-2 order without rereading output.
           #pragma unroll

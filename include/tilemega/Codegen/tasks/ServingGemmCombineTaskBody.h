@@ -21,7 +21,7 @@ using codegen::executor::kComputeThreads;
 template <int TileM, int TileN, backend::ServingEpilogueOp Op>
 struct ServingGemmCombineTaskBody {
   static constexpr int kThreads = 128;
-  static constexpr int kSharedBytes = 4 * TileM * TileN + 4 * TileM;
+  static constexpr int kSharedBytes = backend::ServingEpilogueScratchBytes(TileM,TileN,TILEMEGA_EP_PARALLEL_ARGMAX);
 
   __device__ static void Run(float const* partial, int split_count,
                              int tile_m, int tile_n, int M, int N,

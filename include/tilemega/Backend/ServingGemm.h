@@ -2,6 +2,7 @@
 #pragma once
 
 #include <tilemega/Solver/BackendCostQuery.h>
+#include <tilemega/Backend/ServingEpilogueScratch.h>
 #include <tilemega/Target/ArchDispatch.h>
 
 #include <cute/tensor.hpp>
@@ -74,12 +75,13 @@ struct ServingGemmSm80 {
   // Mainloop and epilogue use the same allocation.  The swizzle's atom is
   // already 16-byte aligned; no additional padding is required for this family.
   static constexpr int kSharedBytes =
-      solver::ServingBF16SmemBytes(TileM, TileN, TileK, Stages);
+      std::max(solver::ServingBF16SmemBytes(TileM, TileN, TileK, Stages),
+          ServingEpilogueScratchBytes(TileM,TileN,TILEMEGA_EP_PARALLEL_ARGMAX));
   static_assert(sizeof(typename Mainloop::SharedStorage) <= kSharedBytes,
                 "serving shared-memory closed form underestimates CUTLASS");
   union alignas(16) SharedStorage {
     typename Mainloop::SharedStorage mainloop;
-    float epilogue[TileM * TileN + TileM];
+    float epilogue[ServingEpilogueScratchBytes(TileM,TileN,TILEMEGA_EP_PARALLEL_ARGMAX)/4];
   };
   static_assert(sizeof(SharedStorage) == kSharedBytes,
                 "serving mainloop/epilogue union must match the closed form exactly");
