@@ -1,0 +1,26 @@
+{
+  "models": [
+    {
+      "cell": "llama_B1",
+      "gemms": 65,
+      "token_kv_mismatches": 0,
+      "pass_": true,
+      "binary_sha256": "cf166b37af50e84eae294721022d36a1866d3b1c5bb1e0b41800772c4765cd95"
+    },
+    {
+      "cell": "qwen3_B1",
+      "gemms": 113,
+      "token_kv_mismatches": 0,
+      "pass_": true,
+      "binary_sha256": "10d092b1c6fd588559bfa08c0634614f6f18e6cb458143151edd1ba5475cec33"
+    }
+  ],
+  "architecture_compile": [
+    80,
+    89,
+    90,
+    100,
+    120
+  ],
+  "C1": "pending"
+}

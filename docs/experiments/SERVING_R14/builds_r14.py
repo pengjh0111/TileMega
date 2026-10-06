@@ -58,12 +58,12 @@ def one(job):
     return record
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--jobs',type=Path,required=True);p.add_argument('--out',type=Path,required=True)
+    p=argparse.ArgumentParser();p.add_argument('--jobs',type=Path,required=True);p.add_argument('--out',type=Path,required=True);p.add_argument('--keep-going',action='store_true')
     a=p.parse_args();jobs=json.loads(a.jobs.read_text());rows=[]
     # Variants only enter after their base succeeds; independent plans use -j3.
     for variants in (False,True):
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
             rows+=list(pool.map(one,[j for j in jobs if bool(j.get('base_so'))==variants]))
     a.out.parent.mkdir(parents=True,exist_ok=True);a.out.write_text(json.dumps(rows,indent=2)+'\n')
-    if any(r['exit_code'] for r in rows):raise SystemExit(1)
+    if any(r['exit_code'] for r in rows) and not a.keep_going:raise SystemExit(1)
 if __name__=='__main__':main()
