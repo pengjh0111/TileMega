@@ -27,6 +27,7 @@ struct GemmRuntimeRecord {
   std::uint16_t tile_n = 0;
   std::uint16_t tile_k = 0;
   std::uint16_t stages = 0;
+  std::uint16_t impl = 0;
 };
 
 /// Shared semantic-to-runtime seed, before host split rewrite. Codegen and

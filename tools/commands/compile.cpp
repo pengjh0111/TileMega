@@ -188,6 +188,7 @@ tilemega::frontend::GemmGranularity readGemm(llvm::json::Object const& object) {
   result.tile_k = requiredInteger(object, "tile_k");
   result.stages = requiredInteger(object, "stages");
   result.split_k = requiredInteger(object, "split_k");
+  result.impl=object.getString("impl").value_or("mma16")=="gemv";
   return result;
 }
 
@@ -295,6 +296,7 @@ int RunCompile(int argc, char** argv) {
     int attention_noinline=0;
     int parallel_argmax=0;
     int nonpaged_la=0;
+    std::array<int,5> serving_impl{{-1,-1,-1,-1,-1}};
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
     bool page_bytes_pinned=false;
@@ -349,6 +351,13 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--deferred-norm") deferred_norm=std::stoi(value);
       else if (flag=="--attention-noinline") attention_noinline=std::stoi(value);
       else if (flag=="--parallel-argmax") parallel_argmax=std::stoi(value);
+      else if (flag.rfind("--gemm-impl-",0)==0) {
+        std::array<std::string,5> names{{"qkv","o","gate_up","down","lm_head"}};
+        auto it=std::find(names.begin(),names.end(),flag.substr(12));
+        if(it==names.end() || (value!="mma16" && value!="gemv"))
+          throw std::runtime_error("invalid per-class GEMM implementation");
+        serving_impl[std::distance(names.begin(),it)]=value=="gemv"?1:0;
+      }
       else if (flag=="--nonpaged-la") nonpaged_la=std::stoi(value);
       else if (flag=="--paged-la") paged_la=std::stoi(value);
       else if (flag=="--paged-la-splitk") paged_la_splitk=std::stoi(value);
@@ -635,6 +644,7 @@ int RunCompile(int argc, char** argv) {
             ?std::vector<int>{page_bytes}:std::vector<int>{8192,16384};
         if(use_pages && lookahead_bytes>=0)
           skeleton.lookahead_choices={lookahead_bytes};
+        skeleton.serving_impl=serving_impl;
         if(!paged_seed_from.empty()) {
           if(!use_pages)throw std::invalid_argument("paged seed requires pages");
           auto file=llvm::MemoryBuffer::getFile(paged_seed_from);
@@ -703,7 +713,8 @@ int RunCompile(int argc, char** argv) {
               if(!g)throw std::runtime_error("invalid evaluation geometry");
               test.config.push_back({int(requiredInteger(*g,"tile_m")),
                   int(requiredInteger(*g,"tile_n")),int(requiredInteger(*g,"tile_k")),
-                  int(requiredInteger(*g,"stages")),int(requiredInteger(*g,"split_k"))});
+                  int(requiredInteger(*g,"stages")),int(requiredInteger(*g,"split_k")),
+                  g->getString("impl").value_or("mma16")=="gemv"?1:0});
             }
             skeleton.evaluation_cases.push_back(std::move(test));
           }
@@ -753,7 +764,7 @@ int RunCompile(int argc, char** argv) {
           for(auto const& other:runtime.gemms)
             if(std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k)!=std::tie(other.tile_m,other.tile_n,other.tile_k,other.stages,other.split_k))
               throw std::runtime_error("coordinate descent needs a uniform legacy seed");
-          skeleton.seed={g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k};
+          skeleton.seed={g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k,g.impl};
           auto kappa=(*seed)->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_kappa");
           skeleton.kappa=kappa ? int(kappa.getInt()):1;
           if(auto r=(*seed)->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_residency"))skeleton.seed_residency=r.getInt();
@@ -783,12 +794,12 @@ int RunCompile(int argc, char** argv) {
                 (resource_root/"prewarm.log").string());
         }
         int variant_index=0;
-        std::map<std::tuple<int,int,int,int,int>,tilemega::solver::VariantResources> probed_bodies;
+        std::map<std::tuple<int,int,int,int,int,int>,tilemega::solver::VariantResources> probed_bodies;
         skeleton.variant_probe=[&](std::string const&,tilemega::solver::GemmConfig const* tile,tilemega::solver::ScalarType dtype) {
           // The compiled TaskBody template has no class or split-K parameter.
           // Keep logical variant keys above, but reuse its identical probe.
           auto body=std::make_tuple(tile?tile->tile_m:0,tile?tile->tile_n:0,
-              tile?tile->tile_k:0,tile?tile->stages:0,int(dtype));
+              tile?tile->tile_k:0,tile?tile->stages:0,int(dtype),tile?tile->impl:0);
           if(auto found=probed_bodies.find(body);found!=probed_bodies.end()) {
             auto reused=found->second;reused.compiled=false;return reused;
           }
@@ -799,6 +810,7 @@ int RunCompile(int argc, char** argv) {
             " --dtype "+std::string(dtype==tilemega::solver::ScalarType::kBF16 ? "bf16":"f32");
           if(serving) {
             command+=" --serving";
+            if(tile && tile->impl)command+=" --impl gemv";
             if(!tile) {
               auto found=std::find_if(serving_imported->plan.stages.begin(),
                   serving_imported->plan.stages.end(),[](auto const& stage){
@@ -1393,7 +1405,7 @@ int RunCompile(int argc, char** argv) {
         auto const& g=runtime.gemms[i];
         manifest<<"    {\"index\": "<<i<<", \"tile_m\": "<<g.tile_m
                 <<", \"tile_n\": "<<g.tile_n<<", \"tile_k\": "<<g.tile_k
-                <<", \"stages\": "<<g.stages<<", \"split_k\": "<<g.split_k<<"}"
+                <<", \"stages\": "<<g.stages<<", \"split_k\": "<<g.split_k<<", \"impl\": "<<std::quoted(g.impl?"gemv":"mma16")<<"}"
                 <<(i+1==runtime.gemms.size()?"\n":",\n");
       }
       manifest<<"  ]\n}\n";

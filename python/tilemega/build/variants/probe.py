@@ -31,7 +31,7 @@ def main():
     ap.add_argument('--cache',type=pathlib.Path,required=True);ap.add_argument('--output',type=pathlib.Path,required=True)
     ap.add_argument('--arch');ap.add_argument('--target',type=pathlib.Path);ap.add_argument('--dtype',choices=['bf16','f32'],default='bf16')
     ap.add_argument('--tile',default='32,16,16,2');ap.add_argument('--nongemm',action='store_true')
-    ap.add_argument('--serving',action='store_true')
+    ap.add_argument('--serving',action='store_true');ap.add_argument('--impl',choices=('mma16','gemv'),default='mma16')
     ap.add_argument('--head-dim',type=int,choices=(64,128),default=64)
     ap.add_argument('--qperkv',type=int,choices=(2,4),default=4)
     a=ap.parse_args();m,n,k,s=map(int,a.tile.split(','));threads=128 if a.dtype=='bf16' else 256
@@ -50,8 +50,9 @@ def main():
             text+='extern "C" __global__ __launch_bounds__(128) void probe_nongemm(tilemega::codegen::ServingAttentionOperands const* p) { extern __shared__ char bytes[]; Body::Run(*p,*reinterpret_cast<Body::SharedStorage*>(bytes),0,0,0,0); }\n'
             size='sizeof(Body::SharedStorage)'
         else:
-            text+='#include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>\n'
-            text+=f'using ProbeArch=tilemega::arch::ArchFromId<{arch_id}>::type;\nusing Body=tilemega::codegen::ServingGemmTaskBody<ProbeArch,{m},{n},{k},{s}>;\n'
+            text+=('#include <tilemega/Codegen/tasks/ServingGemvTaskBody.h>\n' if a.impl=='gemv' else '#include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>\n')
+            body=f'ServingGemvTaskBody<ProbeArch,{n},{k}>' if a.impl=='gemv' else f'ServingGemmTaskBody<ProbeArch,{m},{n},{k},{s}>'
+            text+=f'using ProbeArch=tilemega::arch::ArchFromId<{arch_id}>::type;\nusing Body=tilemega::codegen::{body};\n'
             text+='extern "C" __global__ __launch_bounds__(128) void probe_gemm(tilemega::codegen::ServingGemmOperands const* p) { extern __shared__ char bytes[]; Body::Run(*p,0,0,bytes); }\n'
             size='Body::kSharedBytes'
     else:

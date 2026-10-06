@@ -584,7 +584,8 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
         builder.getNamedAttr("tile_n", builder.getI64IntegerAttr(impl.tile_n)),
         builder.getNamedAttr("tile_k", builder.getI64IntegerAttr(impl.tile_k)),
         builder.getNamedAttr("stages", builder.getI64IntegerAttr(impl.stages)),
-        builder.getNamedAttr("split_k", builder.getI64IntegerAttr(impl.split_k))}));
+        builder.getNamedAttr("split_k", builder.getI64IntegerAttr(impl.split_k)),
+        builder.getNamedAttr("impl", builder.getI64IntegerAttr(impl.impl))}));
   module->setAttr("tilemega.gemm_runtime", builder.getArrayAttr(runtimePlan));
   if (!options.attention.empty()) {
     llvm::SmallVector<mlir::Attribute> choices;

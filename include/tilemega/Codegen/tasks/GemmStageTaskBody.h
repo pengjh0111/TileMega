@@ -26,6 +26,8 @@
 #define TILEMEGA_FUSION_SHARED_EPILOGUE 1
 #endif
 
+#include <tilemega/Codegen/tasks/ServingGemvTaskBody.h>
+
 namespace tilemega::codegen {
 
 // The granularity `g` of every GEMM task space.  It is a compile-time knob so
@@ -180,25 +182,81 @@ namespace tilemega::codegen {
 #endif
 using GemmVariantArch = typename arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
 
+template<class Arch,int M,int N,int K,int S>
+struct ServingGemvConfig : backend::ServingGemmConfig<Arch,16,32,K,2> {
+  static constexpr bool kShapeLegal=solver::ServingGemvShapeLegal(M,N,K,S);
+  static constexpr int kSharedBytes=solver::ServingGemvSmemBytes(M,N);
+};
 template <int Variant>
 struct GemmVariant;
 
-template <bool Serving, class Mainloop, int M, int N, int K, int S>
+template <bool Serving, class Mainloop, int M, int N, int K, int S, bool Gemv=false>
 struct GemmVariantStorage {
   using type = typename Mainloop::SharedStorage;
 };
-template <class Mainloop, int M, int N, int K, int S>
-struct GemmVariantStorage<true, Mainloop, M, N, K, S> {
+template <class Mainloop, int M, int N, int K, int S, bool Gemv>
+struct GemmVariantStorage<true, Mainloop, M, N, K, S, Gemv> {
   struct alignas(16) type {
-    unsigned char bytes[backend::ServingGemmConfig<GemmVariantArch,M,N,K,S>::kSharedBytes];
+    unsigned char bytes[Gemv ? solver::ServingGemvSmemBytes(M,N) :
+        backend::ServingGemmConfig<GemmVariantArch,M,(N<32?32:N),K,S>::kSharedBytes];
   };
 };
 
+#ifndef TILEMEGA_GEMM_IMPL_0
+#define TILEMEGA_GEMM_IMPL_0 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_1
+#define TILEMEGA_GEMM_IMPL_1 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_2
+#define TILEMEGA_GEMM_IMPL_2 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_3
+#define TILEMEGA_GEMM_IMPL_3 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_4
+#define TILEMEGA_GEMM_IMPL_4 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_5
+#define TILEMEGA_GEMM_IMPL_5 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_6
+#define TILEMEGA_GEMM_IMPL_6 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_7
+#define TILEMEGA_GEMM_IMPL_7 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_8
+#define TILEMEGA_GEMM_IMPL_8 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_9
+#define TILEMEGA_GEMM_IMPL_9 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_10
+#define TILEMEGA_GEMM_IMPL_10 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_11
+#define TILEMEGA_GEMM_IMPL_11 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_12
+#define TILEMEGA_GEMM_IMPL_12 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_13
+#define TILEMEGA_GEMM_IMPL_13 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_14
+#define TILEMEGA_GEMM_IMPL_14 0
+#endif
+#ifndef TILEMEGA_GEMM_IMPL_15
+#define TILEMEGA_GEMM_IMPL_15 0
+#endif
 #define TILEMEGA_DEFINE_GEMM_VARIANT(index, M, N, K, S)                     \
   template <>                                                               \
   struct GemmVariant<index> {                                               \
     using Impl = std::conditional_t<TILEMEGA_SERVING_RUNTIME != 0,           \
-        backend::ServingGemmConfig<GemmVariantArch, M, N, K, S>,            \
+        std::conditional_t<TILEMEGA_GEMM_IMPL_##index != 0,               \
+          ServingGemvConfig<GemmVariantArch,M,N,K,S>,                       \
+          backend::ServingGemmConfig<GemmVariantArch,M,N,K,S>>,            \
         backend::GemmCandidate<M, N, K, S, GemmVariantArch>>;               \
     static_assert(Impl::kShapeLegal,                                        \
                   "the selected GEMM tile shape is not a legal candidate; " \
@@ -207,7 +265,8 @@ struct GemmVariantStorage<true, Mainloop, M, N, K, S> {
     using Mainloop = typename Impl::Mainloop;                               \
     using Epilogue = typename Impl::Epilogue;                               \
     using SharedStorage = typename GemmVariantStorage<                     \
-        TILEMEGA_SERVING_RUNTIME != 0, Mainloop, M, N, K, S>::type;         \
+        TILEMEGA_SERVING_RUNTIME != 0, Mainloop, M, N, K, S, TILEMEGA_GEMM_IMPL_##index != 0>::type;         \
+    static constexpr bool kGemv = TILEMEGA_GEMM_IMPL_##index != 0;       \
     static constexpr int kTileM = M;                                        \
     static constexpr int kTileN = N;                                        \
     static constexpr int kTileK = K;                                        \
@@ -553,8 +612,9 @@ struct GemmStageTaskBody {
 #if TILEMEGA_SERVING_RUNTIME
     (void)tile_output;
     using V = GemmVariant<Variant>;
-    using Body = ServingGemmTaskBody<Arch, V::kTileM, V::kTileN,
-                                     V::kTileK, V::kStages>;
+    using Body = std::conditional_t<V::kGemv,
+        ServingGemvTaskBody<Arch,V::kTileN,V::kTileK,TILEMEGA_NONPAGED_TILED!=0>,
+        ServingGemmTaskBody<Arch,V::kTileM,V::kTileN,V::kTileK,V::kStages>>;
     auto [m, n, k, batch] = invocation.problem;
     (void)batch;
     ServingGemmOperands operands;

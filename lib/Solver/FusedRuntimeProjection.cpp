@@ -65,7 +65,7 @@ WrittenFusionProjection ProjectWrittenFusionQueues(mlir::ModuleOp module,
   // omit a dependency in the replacement CG. Check it after ownership and
   // stage projection; a malformed source-plan attribute must not weaken sync.
   std::vector<GemmConfig> configs;
-  for (auto const& g:source.gemms) configs.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
+  for (auto const& g:source.gemms) configs.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k,g.impl});
   auto graph=InstantiateModelTasks(context,configs);
   struct Endpoint { int stage; analysis::CouplingRelation ownership; };
   std::map<std::string,Endpoint> endpoints;

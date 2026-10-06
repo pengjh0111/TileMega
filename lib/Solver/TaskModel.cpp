@@ -238,8 +238,8 @@ BackendTraits ModelTaskTraits(ModelDescription const& model, int index,
                               GemmConfig const& config) {
   auto collective = model.dtype == ScalarType::kBF16
       ? (model.serving
-             ? ServingBF16Traits(config.tile_m, config.tile_n, config.tile_k,
-                                 config.stages)
+             ? (config.impl ? ServingGemvTraits(config.tile_m,config.tile_n,config.tile_k,config.stages) :
+                 ServingBF16Traits(config.tile_m, config.tile_n, config.tile_k,config.stages))
              : TensorBF16Traits(config.tile_m, config.tile_n, config.tile_k,
                                 config.stages))
       : SimtF32Traits(config.tile_m, config.tile_n, config.tile_k, config.stages);

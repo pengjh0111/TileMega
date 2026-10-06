@@ -16,6 +16,9 @@ int TestVariantResource(int argc, char** argv){
  auto a=cache.Estimate(classes,g,target,solver::ScalarType::kBF16);
  auto b=cache.Estimate(classes,g,target,solver::ScalarType::kBF16);
  if(a.resident_limit!=6 || b.resident_limit!=6 || calls!=3)return 1;
+ g[0].impl=1;
+ cache.Estimate(classes,g,target,solver::ScalarType::kBF16);
+ if(calls!=4)return 4; // Same tile, different body: never reuse MMA resources.
  if(solver::VariantResourceCache::ResidentLimit({256,16384,128,0},target)!=2)return 2;
  if(solver::VariantResourceCache::ResidentLimit({40,102400,128,0},target)!=0)return 3;
  std::cout<<"RESOURCE_CACHE calls="<<calls<<" repeat=0 resident=6 register_limited=2 oversized=0 PASS\n";

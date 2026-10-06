@@ -105,7 +105,7 @@ SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& t
   auto runtime=prepared_hit ? cache->prepared->runtime : codegen::ReadRuntimePlan(module);
   auto model=prepared_hit ? cache->prepared->model : ModelDescription::FromCouplingGraph(module,dims,"skeleton");
   std::vector<GemmConfig> geometry;
-  for(auto const& g:runtime.gemms)geometry.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
+  for(auto const& g:runtime.gemms)geometry.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k,g.impl});
   int threads=0;
   for(std::size_t s=0;s<model.stages.size();++s) {
     auto const& stage=model.stages[s];auto const& g=geometry.at(stage.IsCollective()?stage.gemm:0);

@@ -396,6 +396,7 @@ std::vector<GemmRuntimeRecord> readRuntimeGemms(mlir::ModuleOp module,
     record.tile_k = u16(integerField(item, "tile_k"), "tile_k");
     record.stages = u16(integerField(item, "stages"), "stages");
     record.split_k = u16(integerField(item, "split_k"), "split_k");
+    record.impl = item.getAs<mlir::IntegerAttr>("impl") ? integerField(item,"impl") : 0;
     result.push_back(record);
   }
   return result;
@@ -1065,13 +1066,13 @@ RuntimePlan ReadFusionSourcePlan(mlir::ModuleOp module) {
 
 namespace {
 std::string EmitGemmInstantiations(
-    std::vector<std::tuple<int, int, int, int>> const& shapes) {
+    std::vector<std::tuple<int, int, int, int, int>> const& shapes) {
   if (shapes.empty() || shapes.size() > 16)
     throw std::invalid_argument(
         "one generated binary must contain between 1 and 16 GEMM shapes");
   std::ostringstream out;
-  auto emit = [&](std::size_t index, std::tuple<int, int, int, int> shape) {
-    auto [m, n, k, stages] = shape;
+  auto emit = [&](std::size_t index, std::tuple<int, int, int, int, int> shape) {
+    auto [m, n, k, stages, impl] = shape;
     std::string prefix = index == 0 ? "TILEMEGA_GEMM_"
                                     : "TILEMEGA_GEMM_V" +
                                           std::to_string(index) + "_";
@@ -1079,6 +1080,7 @@ std::string EmitGemmInstantiations(
         << "#define " << prefix << "TILE_N " << n << "\n"
         << "#define " << prefix << "TILE_K " << k << "\n"
         << "#define " << prefix << "STAGES " << stages << "\n";
+    if(impl) out << "#define TILEMEGA_GEMM_IMPL_" << index << " " << impl << "\n";
   };
   for (std::size_t i = 0; i < shapes.size(); ++i) emit(i, shapes[i]);
   out << "#define TILEMEGA_GEMM_VARIANT_COUNT " << shapes.size() << "\n";
@@ -1182,9 +1184,9 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
       seq_range->second.second>65535)
     throw std::invalid_argument("fused runtime requires a bounded sequence dispatch domain");
   runtime.seq_begin=seq_range->second.first; runtime.seq_end=seq_range->second.second;
-  std::vector<std::tuple<int,int,int,int>> shapes;
+  std::vector<std::tuple<int,int,int,int,int>> shapes;
   for (auto& gemm:runtime.gemms) {
-    auto shape=std::make_tuple(gemm.tile_m,gemm.tile_n,gemm.tile_k,gemm.stages);
+    auto shape=std::make_tuple(gemm.tile_m,gemm.tile_n,gemm.tile_k,gemm.stages,gemm.impl);
     auto found=std::find(shapes.begin(),shapes.end(),shape);
     if (found==shapes.end()) { gemm.compiled_variant=shapes.size(); shapes.push_back(shape); }
     else gemm.compiled_variant=found-shapes.begin();
@@ -1443,7 +1445,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
   std::size_t const gemm_count = arrayField(first_plan, "gemms").size();
 
   std::vector<RuntimeVariantRecord> records;
-  std::vector<std::tuple<int, int, int, int>> shapes;
+  std::vector<std::tuple<int, int, int, int, int>> shapes;
   int cluster_dim = -1;
   for (auto const& input : variants) {
     auto plan = input.module->getAttrOfType<mlir::DictionaryAttr>(
@@ -1488,7 +1490,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
       auto key = std::make_tuple(static_cast<int>(impl.tile_m),
                                  static_cast<int>(impl.tile_n),
                                  static_cast<int>(impl.tile_k),
-                                 static_cast<int>(impl.stages));
+                                 static_cast<int>(impl.stages),static_cast<int>(impl.impl));
       auto found = std::find(shapes.begin(), shapes.end(), key);
       if (found == shapes.end()) {
         if (shapes.size() == 16)

@@ -43,6 +43,10 @@ int TestServingPruning(int argc, char** argv) {
   gate.gate_interleave_u = 16;
   assert(!PruneServingR1(g, gate));
   assert(PruneServingR1(GemmConfig{16, 16, 64, 2, 1}, gate));
+  assert(!PruneServingR1(GemmConfig{16,8,128,2,1,1},decode));
+  assert(PruneServingR1(GemmConfig{16,8,128,2,1,0},decode));
+  auto too_many=decode;too_many.m=16;
+  assert(PruneServingR1(GemmConfig{16,32,128,2,1,1},too_many));
   target.res.max_dynamic_smem_per_cta = 1024;
   assert(PruneServingR1(g, decode));
   target.res.max_dynamic_smem_per_cta =

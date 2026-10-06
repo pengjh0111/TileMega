@@ -37,6 +37,8 @@ struct SkeletonSearchOptions {
   // start. Entries are indexed by GEMM instance, then folded by SemSig class.
   std::vector<GemmConfig> serving_warm_gemms;
   std::vector<GemmConfig> paged_seed_gemms;
+  // qkv, o, gate_up, down, head: -1 permits both implementation families.
+  std::array<int,5> serving_impl{{-1,-1,-1,-1,-1}};
   int serving_warm_kappa=1,serving_warm_residency=1;
   int serving_warm_kv_block=0,serving_warm_query_rows=0;
   std::vector<SkeletonEvaluationCase> evaluation_cases;
@@ -64,6 +66,7 @@ struct SkeletonSearchResult {
   std::string seed_key;
   std::vector<std::string> split1_seed_keys;
   std::vector<std::string> fill_seed_keys;
+  std::vector<std::string> gemv_seed_keys;
 };
 struct SkeletonSolvedPoint {
   mlir::OwningOpRef<mlir::ModuleOp> module;

@@ -28,18 +28,18 @@ inline std::vector<OperatorClass> BuildOperatorClasses(frontend::ImportedSemanti
   }
   return classes;
 }
-inline auto ClassGeometryKey(GemmConfig const& g) {return std::make_tuple(g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k);}
+inline auto ClassGeometryKey(GemmConfig const& g) {return std::make_tuple(g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k,g.impl);}
 inline frontend::ImportOptions ClassGranularity(frontend::ImportedSemantics const& imported,
     std::vector<OperatorClass> const& classes,std::vector<GemmConfig> const& config) {
   if(classes.size()!=config.size())throw std::invalid_argument("one tile required per semantic class");
   frontend::ImportOptions result;result.gemms.resize(imported.plan.gemms.size());
   std::vector<bool> covered(result.gemms.size());
-  std::set<std::tuple<int,int,int,int>> shapes;
+  std::set<std::tuple<int,int,int,int,int>> shapes;
   for(std::size_t c=0;c<classes.size();++c) {
-    auto const& g=config[c];shapes.emplace(g.tile_m,g.tile_n,g.tile_k,g.stages);
+    auto const& g=config[c];shapes.emplace(g.tile_m,g.tile_n,g.tile_k,g.stages,g.impl);
     for(auto index:classes[c].gemms) {
       if(covered.at(index))throw std::invalid_argument("GEMM belongs to two semantic classes");
-      covered[index]=true;result.gemms[index]={g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k};
+      covered[index]=true;result.gemms[index]={g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k,g.impl};
     }
   }
   if(shapes.size()>16)throw std::invalid_argument("per-class plan exceeds 16 compiled GEMM variants");
@@ -105,6 +105,17 @@ inline ServingClassDomain ServingClassCandidates(
         if(PruneServingR3(candidate,pruning,enable_r3)) {++domain.removed_r3;continue;}
         domain.candidates.push_back(candidate);
       }
+  }
+  if(seq==1 && rows<=4)for(int n:{8,16,32})for(int k:{64,128}) {
+    // DN owns complete 32-column square-sum blocks; gate pairs likewise
+    // cannot straddle task boundaries. Other epilogues may use small tiles.
+    if(n<32 && (gemm.ss_out!=0xffffffffu ||
+        gemm.epilogue==frontend::PlanGemm::Epilogue::kSwiGLU))continue;
+    GemmConfig g{16,n,k,2,1,1};++domain.raw;
+    if((group_width && group_width%n) || PruneServingR1(g,pruning)) {
+      ++domain.removed_r1;continue;
+    }
+    domain.candidates.push_back(g);
   }
   return domain;
 }

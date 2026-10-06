@@ -69,7 +69,7 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     bool phase_analysis) {
   SymbolicProblem result;result.model=base.model;result.runtime=base.runtime;result.geometry=geometry;result.threads=base.threads;
   result.projection.options={workers,result.threads,kappa};result.projection.options.count_wait_entries=false;
-  for(std::size_t i=0;i<geometry.size();++i){auto const& g=geometry[i];auto& r=result.runtime.gemms[i];r.tile_m=g.tile_m;r.tile_n=g.tile_n;r.tile_k=g.tile_k;r.stages=g.stages;r.split_k=g.split_k;}
+  for(std::size_t i=0;i<geometry.size();++i){auto const& g=geometry[i];auto& r=result.runtime.gemms[i];r.tile_m=g.tile_m;r.tile_n=g.tile_n;r.tile_k=g.tile_k;r.stages=g.stages;r.split_k=g.split_k;r.impl=g.impl;}
   for(auto const& a:result.runtime.attention)if(a.chunks>1)throw std::invalid_argument("flow structure needs explicit expanded attention phases");
   auto graph=InstantiateModelTasks(result.model,geometry);auto theta=result.model.MetricBindings();
   analysis::SemanticGraph semantics;analysis::Granularity granularity;
@@ -258,7 +258,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   int serving_gemm_shared=0;
   if(model.serving)for(auto const& g:problem.geometry)
     serving_gemm_shared=std::max(serving_gemm_shared,
-        ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
+        (g.impl?ServingGemvSmemBytes(g.tile_m,g.tile_n):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
   // Serving refuses to silently invent a bandwidth curve once the measured
   // profile is selected. Older target files retain the R9b control physics.
   flow.inflight_dram=model.serving && !cal.inflight_curve_bytes.empty();
@@ -353,7 +353,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
       past_independent &= !MentionsIdentifier(signature,name);
     std::ostringstream space_key;space_key<<signature<<':'<<projected.combine<<':'<<residency<<':'<<problem.threads<<':'<<std::hexfloat
         <<(stream_saturated?cal.l2_curve_bytes.back():bound.read_bytes);
-    if(stage.IsCollective())space_key<<':'<<g.tile_m<<':'<<g.tile_n<<':'<<g.tile_k<<':'<<g.stages<<':'<<g.split_k;
+    if(stage.IsCollective())space_key<<':'<<g.tile_m<<':'<<g.tile_n<<':'<<g.tile_k<<':'<<g.stages<<':'<<g.split_k<<':'<<g.impl;
     else for(auto const& [axis,tile]:semantic.tiles)space_key<<':'<<axis<<'='<<tile.ToIslText();
     if(!model.serving)space_key<<":kernel_shared:"<<kernel_shared_bytes;
     if(stage.kind==StageKind::kFusedAttention)
@@ -443,7 +443,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     }
     if(prices.coordinate_varying)result.varying_spaces.push_back(space.name);
     space.rank_ns=space.count?prices.total_isolated_ns/space.count:0;
-    signatures.push_back(signature+(projected.combine?".combine":""));geometry_keys.push_back(GeometryKey(traits,chunks));
+    signatures.push_back(signature+(projected.combine?".combine":""));geometry_keys.push_back(GeometryKey(traits,chunks)+",impl="+std::to_string(g.impl));
     cache.spaces.emplace(space_key.str(),FlowPreparationCache::SpaceEntry{space,prices,geometry_keys.back()});
     result.prices.push_back(std::move(prices));flow.spaces.push_back(std::move(space));
     cache.piece_map_ms+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-map_start).count();

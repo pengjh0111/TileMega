@@ -7,7 +7,9 @@ template<int Variant=0>
 __device__ void Gemm(GemmInvocation const& inv,int task,unsigned& budget) {
   if(inv.variant==Variant) {
     using V=GemmVariant<Variant>;
-    using Body=ServingGemmTaskBody<NativeArch,V::kTileM,V::kTileN,V::kTileK,V::kStages>;
+    using Body=std::conditional_t<V::kGemv,
+        ServingGemvTaskBody<NativeArch,V::kTileN,V::kTileK,TILEMEGA_NONPAGED_TILED!=0>,
+        ServingGemmTaskBody<NativeArch,V::kTileM,V::kTileN,V::kTileK,V::kStages>>;
     auto [m,n,k,batch]=inv.problem;(void)batch;
     ServingGemmOperands p;p.b=inv.mainloop.ptr_B;p.m=m;p.n=n;p.k_total=k;p.k_count=k;
     p.b_row_stride=inv.k_total;

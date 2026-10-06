@@ -145,7 +145,7 @@ def generate(so, root, source_snapshot):
             'resources':resources,'trace':trace,
             'target_sha256':sha(target) if target and Path(target).is_file() else None,
             'implementations':{'gemms':[{'index':g['index'],'impl':g.get('impl','mma16'),
-                'task_body':'PagedGemmTaskBody' if paged else 'ServingGemmTaskBody',
+                'task_body':'PagedGemmTaskBody' if paged else ('ServingGemvTaskBody' if g.get('impl')=='gemv' else 'ServingGemmTaskBody'),
                 'mma_reg_pipe':int(defines.get('TILEMEGA_MMA_REG_PIPE','0'))} for g in manifest['gemms']],
                 'attention':{'impl':manifest.get('attention_impl','mma16'),
                 'noinline':bool(manifest.get('attention_noinline',False)),

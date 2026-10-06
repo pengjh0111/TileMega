@@ -7,6 +7,19 @@ template<class Arch,int TileN,int TileK,bool Tiled=false>
 struct ServingGemvTaskBody {
   using Impl=backend::ServingGemv<Arch,TileN,TileK,Tiled>;
   static constexpr int kThreads=128,kSharedBytes=Impl::kSharedBytes;
+  template<class Emit>
+  __device__ static void PrefetchRanges(ServingGemmOperands const& p,int tile_n,Emit emit) {
+    if constexpr(Tiled) {
+      int kt=(p.k_total_full+TileK-1)/TileK;
+      emit(executor::PrefetchRange{p.weight_base+
+          (std::size_t(tile_n)*kt+p.k_begin/TileK)*TileN*TileK,
+          unsigned(((p.k_count+TileK-1)/TileK)*TileN*TileK*2)});
+    }else {
+      int pitch=p.b_row_stride?p.b_row_stride:p.k_total;
+      for(int n=tile_n*TileN;n<min(p.n,(tile_n+1)*TileN);++n)
+        emit(executor::PrefetchRange{p.b+std::int64_t(n)*pitch+p.k_begin,unsigned(2*p.k_count)});
+    }
+  }
   __device__ static void Run(ServingGemmOperands const& p,int tile_m,int tile_n,char* shared) {
     if constexpr(TileN<32)if(p.epilogue==backend::ServingEpilogueOp::kSwiGLU || p.ss_out) {
       asm volatile("trap;");return;

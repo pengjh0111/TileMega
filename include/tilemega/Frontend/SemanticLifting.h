@@ -88,6 +88,7 @@ struct GemmGranularity {
   int tile_k = 16;
   int stages = 3;
   int split_k = 1;
+  int impl = 0; // 0: MMA, 1: small-M CUDA-core GEMV
 };
 
 /// The workload symbols the plan itself does not carry. Both must be symbols

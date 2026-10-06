@@ -120,6 +120,7 @@ struct GemmConfig {
   int tile_k = 0;
   int stages = 0;
   int split_k = 1;
+  int impl = 0; // 0: MMA, 1: small-M CUDA-core GEMV
 };
 
 /// What no closed form supplies (§4.3): the megakernel's resident CTA count is

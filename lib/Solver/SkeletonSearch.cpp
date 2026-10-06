@@ -13,7 +13,7 @@
 namespace tilemega::solver {
 namespace {
 std::string ConfigKey(std::vector<GemmConfig> const& config,int kappa,int residency) {
-  std::ostringstream out;for(auto const& g:config)out<<g.tile_m<<'x'<<g.tile_n<<'x'<<g.tile_k<<'s'<<g.stages<<'k'<<g.split_k<<';';
+  std::ostringstream out;for(auto const& g:config){out<<g.tile_m<<'x'<<g.tile_n<<'x'<<g.tile_k<<'s'<<g.stages<<'k'<<g.split_k;if(g.impl)out<<'i'<<g.impl;out<<';';}
   out<<"kappa="<<kappa<<";residency="<<residency;return out.str();
 }
 // Price the runtime stage transformation at Level 1 before the expensive
@@ -251,7 +251,13 @@ struct SearchContext {
     if(imported.plan.serving) {
       int gemm_shared=0;
       for(auto const& g:config)gemm_shared=std::max(gemm_shared,
-          ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
+          (g.impl?ServingGemvSmemBytes(g.tile_m,g.tile_n):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
+      if(!options.pg_pages && std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl!=0;}))
+        for(auto const& stage:imported.plan.stages)
+          if(stage.kind==frontend::PlanTaskKind::kFusedAttention) {
+            int bytes=65536+32*int(stage.width)+16*int(stage.group)*int(stage.width)+16*int(stage.group);
+            gemm_shared=std::max(gemm_shared,((bytes+1023)/1024)*1024);
+          }
       estimate.shared_bytes=gemm_shared;
       estimate.resident_limit=options.pg_pages?1:VariantResourceCache::ResidentLimit(estimate,target);
     }
@@ -304,8 +310,9 @@ struct SearchContext {
             return stage.kind==frontend::PlanTaskKind::kFusedAttention;
           });
       if(attention==imported.plan.stages.end() ||
+         (!std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl!=0;}) &&
          PruneServingAttentionSmemR1(attention->width,
-             attention->attention_query_rows,config,target))
+             attention->attention_query_rows,config,target)))
         throw std::invalid_argument("R-1 attention exceeds GEMM shared-memory union");
     }
     int limit=options.pg_pages?1:(actual?actual:estimate.resident_limit);
@@ -330,7 +337,7 @@ struct SearchContext {
       }
       else (*point.module)->setAttr("tmexec.dram_floor",floor_attribute);
     } else {
-      std::vector<GemmConfig> geometry;for(auto const& g:granularity.gemms)geometry.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
+      std::vector<GemmConfig> geometry;for(auto const& g:granularity.gemms)geometry.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k,g.impl});
       SolverPhase phase(timing,"instantiate_and_derive");auto geometry_key=ConfigKey(config,0,0)+":"+std::to_string(past_override);
       if(last_structure && last_geometry==geometry_key){point.problem=*last_structure;point.problem.projection.options.grid=target.res.num_sms*residency;point.problem.projection.options.kappa=kappa;}
       else{
@@ -406,6 +413,19 @@ struct SearchContext {
     // has no effect on that kernel, so charging its R10 latency benefit here
     // would rank a different program from the one we execute.
     auto priced=config;
+    if(imported.plan.serving)for(std::size_t c=0;c<priced.size();++c) {
+      auto const& gemm=imported.plan.gemms[classes[c].gemms.front()];
+      using Op=frontend::PlanGemm::Epilogue;
+      int family=gemm.epilogue==Op::kArgmaxPartial?4:gemm.epilogue==Op::kSwiGLU?2:
+          gemm.epilogue==Op::kResidual?(gemm.k>gemm.n?3:1):0;
+      if(options.serving_impl[family]>=0)priced[c].impl=options.serving_impl[family];
+      auto const& g=priced[c];
+      if(g.impl && (options.pg_pages || options.common.placement.dims.seq!=1 ||
+          options.common.placement.dims.batch>4 ||
+          !ServingGemvShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages) ||
+          (g.tile_n<32 && (gemm.ss_out!=0xffffffffu || gemm.epilogue==Op::kSwiGLU))))
+        throw std::invalid_argument("GEMV requires nonpaged M<=4, legal GEMV geometry and complete DN/gate blocks");
+    }
     if(options.pg_pages)for(auto& g:priced)g.stages=2;
     auto point=Prepare(priced,kappa,residency,actual);
     {SolverPhase phase(options.common.timing,"flow");
@@ -496,7 +516,7 @@ bool BetterCandidate(SkeletonCandidate const& candidate,
   return std::tie(candidate.shared_bytes,candidate.task_count,candidate.key)<
       std::tie(current.shared_bytes,current.task_count,current.key);
 }
-std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out,std::string& seed_key,std::vector<std::string>& split1_seed_keys,std::vector<std::string>& fill_seed_keys) {
+std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out,std::string& seed_key,std::vector<std::string>& split1_seed_keys,std::vector<std::string>& fill_seed_keys,std::vector<std::string>& gemv_seed_keys) {
   auto const& options=search.options;
   if(options.passes<1 || options.passes>3)throw std::invalid_argument("coordinate descent supports P=1..3");
   auto const scan_start=std::chrono::steady_clock::now();
@@ -533,10 +553,19 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     if(options.pg_pages) {
       auto before=domain.size();
       domain.erase(std::remove_if(domain.begin(),domain.end(),[](auto const& g){
-        return g.stages!=2;
+        return g.stages!=2 || g.impl!=0;
       }),domain.end());
       out<<"PG_STAGE_EQUIVALENCE\t"<<domains.size()<<'\t'<<before<<'\t'
          <<domain.size()<<"\tmainloop_stages=2\n";
+    }
+    if(search.imported.plan.serving) {
+      auto const& g=search.imported.plan.gemms[cls.gemms.front()];
+      using Op=frontend::PlanGemm::Epilogue;
+      int family=g.epilogue==Op::kArgmaxPartial?4:g.epilogue==Op::kSwiGLU?2:
+          g.epilogue==Op::kResidual?(g.k>g.n?3:1):0;
+      int selected=options.serving_impl[family];
+      if(selected>=0)domain.erase(std::remove_if(domain.begin(),domain.end(),
+          [&](auto const& item){return item.impl!=selected;}),domain.end());
     }
     if(!options.common.geometry_domain.empty())domain.erase(std::remove_if(domain.begin(),domain.end(),[&](auto const& g){return std::none_of(options.common.geometry_domain.begin(),options.common.geometry_domain.end(),[&](auto const& a){return std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages)==std::tie(a.tile_m,a.tile_n,a.tile_k,a.stages);});}),domain.end());
     out<<"DOMAIN\t"<<domains.size()<<'\t'<<domain.size()<<'\n';
@@ -619,6 +648,17 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     auto index=evaluate(split1,1,seed_residency);
     split1_seed_keys.push_back(evaluated[index].key);starts.push_back(index);
     fill_seed(split1,seed_residency);
+    auto gemv=split1;bool changed=false;
+    for(std::size_t c=0;c<gemv.size();++c) {
+      auto found=std::find_if(domains[c].begin(),domains[c].end(),
+          [](auto const& g){return g.impl==1 && g.tile_n==32 && g.tile_k==128;});
+      if(found!=domains[c].end()){gemv[c]=*found;changed=true;}
+    }
+    if(changed) {
+      auto index=evaluate(gemv,1,std::max(1,search.EstimateResources(gemv).resident_limit));
+      gemv_seed_keys.push_back(evaluated[index].key);starts.push_back(index);
+      out<<"SERVING_GEMV_SEED key="<<evaluated[index].key<<" error="<<evaluated[index].error<<'\n';
+    }
   }
   if(search.imported.plan.serving && options.pg_pages) {
     int saved_page=search.current_page_bytes;
@@ -854,7 +894,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     search.Evaluate(seed,options.kappa,options.seed_residency);
   }
   if(options.evaluation_cases.empty())
-    result.evaluated=CoordinateDescent(search,result.rounds,evidence,result.seed_key,result.split1_seed_keys,result.fill_seed_keys);
+    result.evaluated=CoordinateDescent(search,result.rounds,evidence,result.seed_key,result.split1_seed_keys,result.fill_seed_keys,result.gemv_seed_keys);
   else for(std::size_t i=0;i<options.evaluation_cases.size();++i) {
     auto const& test=options.evaluation_cases[i];
     try {result.evaluated.push_back(search.Evaluate(test.config,test.kappa,test.residency));}
@@ -953,6 +993,12 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
         if(candidate.key==key && candidate.error.empty() &&
            (!fill || BetterCandidate(candidate,*fill,true)))fill=&candidate;
     if(fill)required.push_back({fill->key,"seed_fill"});
+    SkeletonCandidate const* gemv=nullptr;
+    for(auto const& key:result.gemv_seed_keys)
+      for(auto const& candidate:result.evaluated)
+        if(candidate.key==key && candidate.error.empty() &&
+           (!gemv || BetterCandidate(candidate,*gemv,true)))gemv=&candidate;
+    if(gemv)required.push_back({gemv->key,"seed_gemv"});
     std::set<std::string> protected_keys;
     for(auto const& [key,origin]:required)protected_keys.insert(key);
     for(auto const& [key,origin]:required) {

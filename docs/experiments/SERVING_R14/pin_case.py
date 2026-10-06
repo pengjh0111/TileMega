@@ -21,12 +21,12 @@ def pin(manifest,source_classes,target_classes,out,overrides=None):
     shapes=[]
     for c,members in target.items():
         if c!=len(shapes):raise ValueError('class IDs must be contiguous')
-        values=[{k:int(gemms[g][k]) for k in FIELDS} for g in members]
+        values=[dict({k:int(gemms[g][k]) for k in FIELDS},impl=gemms[g].get('impl','mma16')) for g in members]
         if any(g!=values[0] for g in values):raise ValueError(f'measured geometry differs within class {c}')
         shapes.append(values[0])
     out=Path(out);out.mkdir(parents=True,exist_ok=True)
     (out/'cases.json').write_text(json.dumps({'cases':[dict(geometries=shapes,kappa=data['kappa'],residency=data['residency'])]},indent=2)+'\n')
-    unique={tuple(g[k] for k in FIELDS):g for g in shapes}
+    unique={tuple(g[k] for k in (*FIELDS,'impl')):g for g in shapes}
     (out/'domain.json').write_text(json.dumps(dict(geometries=list(unique.values())),indent=2)+'\n')
     pages=data.get('pages') or {};opts=dict(pg=data.get('pg','off'),sync=data.get('sync','legacy'),weight_layout='tiled' if data.get('pg')=='pages' else 'row',page_bytes=pages.get('page_bytes',16384),lookahead_bytes=pages.get('lookahead_bytes',0),serve_kv_block=data['attention_kv_block'],serve_query_rows=data['attention_query_rows'])
     opts.update(overrides or {});arguments=['--search-domain',str(out/'domain.json'),'--evaluate-configs',str(out/'cases.json')]

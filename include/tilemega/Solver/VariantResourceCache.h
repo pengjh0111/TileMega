@@ -48,6 +48,6 @@ class VariantResourceCache {
   }
   Probe probe_;SolverTiming* timing_;
   std::optional<VariantResources> nongemm_;
-  std::map<std::pair<std::string,std::tuple<int,int,int,int,int>>,VariantResources> variants_;
+  std::map<std::pair<std::string,std::tuple<int,int,int,int,int,int>>,VariantResources> variants_;
 };
 }

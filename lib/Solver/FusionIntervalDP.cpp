@@ -34,7 +34,7 @@ ChainDpSolution ChainDP::SolveFusionIntervals(ModelDescription const& model,
   int threads=cost_->dtype()==ScalarType::kBF16 ? kTensorBF16Threads : kSimtF32Threads;
   std::vector<GemmConfig> configs;
   for (auto const& g:domain.plan.gemms)
-    configs.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k});
+    configs.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k,g.impl});
   for (std::size_t i=0;i<domain.stage_traits.size();++i)
     if (domain.stage_traits[i].threads!=threads || domain.stage_traits[i].smem_bytes<0 || domain.stage_registers[i]<=0)
       throw std::invalid_argument("fusion interval requires complete phase resource evidence");
